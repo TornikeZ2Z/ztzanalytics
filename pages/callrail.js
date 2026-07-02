@@ -12,11 +12,23 @@ registerPage({
     const rows = RS.filtered("callrail", all);
     const M = RS.M;
 
+    if (!rows.length) {   // guard before any chart/table build
+      host.innerHTML = `
+        <div class="rs-page-head">
+          <h1>CallRail</h1>
+          <p>Inbound call tracking by ad number
+             <span class="freshness">· Source = tracking-number name via the source translator</span></p>
+        </div>
+        <div class="panel" style="padding:20px;color:var(--muted)">No data for the current filters — adjust or clear the filter bar above.</div>`;
+      return;
+    }
+
     /* ---- helpers (all Call Status / First-Time values handled defensively) ---- */
     const mmss = s => { if (s == null || isNaN(s)) return "—";
       const t = Math.round(s);   // round total secs first so :60 can never render
       return Math.floor(t / 60) + ":" + String(t % 60).padStart(2, "0"); };
-    const hm = s => { const h = Math.floor(s / 3600), m = Math.round((s % 3600) / 60);
+    const hm = s => { if (s == null || isNaN(s)) return "—";
+      const h = Math.floor(s / 3600), m = Math.round((s % 3600) / 60);
       return h ? h + "h " + m + "m" : m + "m"; };
     // current statuses: 'Answered Call' / 'Abandoned Call' / 'Missed Call' — match by keyword
     const isAnswered = r => String(r["Call Status"] || "").toLowerCase().indexOf("answer") >= 0;
@@ -30,13 +42,40 @@ registerPage({
       return s.size; };
     // PBI: Returning Users = calls where First-Time Caller = FALSE
     const returning = rs => rs.filter(r => !isFirst(r)).length;
-    const delta = v => v == null ? "" : v > 0
+    const delta = v => v == null ? "—" : v > 0
       ? `<span class="up" style="color:var(--brand)">+${RS.fmtN(v)}</span>`
       : v < 0 ? `<span class="down" style="color:var(--red)">-${RS.fmtN(-v)}</span>` : "0";
 
     const total = M["Total Calls"].fn(rows);           // PBI: Incoming Calls
     const ft = M["First-Time Callers"].fn(rows);
     const answered = rows.filter(isAnswered).length;
+
+    /* ---- headline YoY: effective window start → max filtered date vs the SAME
+       month-day window last year. Prior-year rows come from the dataset with
+       slicers + day filters still applied but the date RANGE released; the prior
+       window then mirrors the current one (same start/end month-day), so a tight
+       date filter compares like-for-like instead of a full prior YTD. */
+    const maxD = rows.reduce((a, r) => (r._d && r._d > a ? r._d : a), "");
+    let yoyChip = () => "";
+    if (maxD) {
+      const st = RS.state,
+            sv = [st.dateFrom, st.dateTo];   // day-of-month filters stay applied → hit both windows
+      st.dateFrom = null; st.dateTo = null;
+      const noDate = RS.filtered("callrail", all);
+      st.dateFrom = sv[0]; st.dateTo = sv[1];
+      const cy = maxD.slice(0, 4), py = String(+cy - 1);
+      // window start: Jan-1 of the current year unless the active date filter begins later
+      const from = (sv[0] && sv[0] > cy + "-01-01") ? sv[0] : cy + "-01-01";
+      const curWin = rows.filter(r => r._d && r._d >= from && r._d <= maxD);
+      const prevWin = noDate.filter(r =>
+        r._d && r._d >= py + from.slice(4) && r._d <= py + maxD.slice(4));
+      yoyChip = fn => {
+        const cur = fn(curWin), prev = fn(prevWin);
+        if (!prev || cur == null) return "";   // no prior-year history → no chip
+        const g = (cur - prev) / Math.abs(prev);
+        return ` · <span class="${g >= 0 ? "up" : "down"}">${g >= 0 ? "▲" : "▼"} ${Math.abs(100 * g).toFixed(1)}%</span> vs same period LY`;
+      };
+    }
 
     host.innerHTML = `
       <div class="rs-page-head">
@@ -58,6 +97,13 @@ registerPage({
       { label: "Unique Callers", value: RS.fmtN(uniqueCalls(rows)), sub: "PBI: Unique Calls (distinct name)" },
       { label: "Total Talk Time", value: hm(durSum(rows)), sub: "PBI: Total Duration" },
     ]);
+    {  // RSC.kpis escapes sub text — append the YoY chips to the rendered nodes
+      const chipTotal = yoyChip(rs => rs.length);
+      const chipFt = yoyChip(rs => M["First-Time Callers"].fn(rs));
+      const subs = document.querySelectorAll("#crKpis .kpi .s");
+      if (chipTotal && subs[0]) subs[0].innerHTML += chipTotal;
+      if (chipFt && subs[1]) subs[1].innerHTML += chipFt;
+    }
 
     /* ---- month buckets (built once, reused by chart + tabular) ---- */
     const mk = r => r._y + "-" + String(r._m).padStart(2, "0");
@@ -98,7 +144,7 @@ registerPage({
                         `Avg duration: ${mmss(avgDurOf(rs))}`];
               } } },
             },
-            scales: { x: { ticks: { font: { size: 11 }, maxRotation: 60, minRotation: 40 } } },
+            scales: { x: { ticks: { autoSkip: true, maxTicksLimit: 14, maxRotation: 45, font: { size: 11 } } } },
           },
         });
       },
@@ -169,6 +215,7 @@ registerPage({
       },
       buildTable() {
         const list = byDim();
+        const shown = list.slice(0, 50);
         return RSC.table(
           [{ key: "r", label: "#" }, { key: "k", label: dim },
            { key: "c", label: "Calls", fmt: RS.fmtN },          // PBI: Incoming Calls
@@ -177,12 +224,15 @@ registerPage({
            { key: "ret", label: "Returning", fmt: RS.fmtN },     // PBI: Returning Users
            { key: "td", label: "Total Dur", fmt: hm },           // PBI: Total Duration
            { key: "avg", label: "Avg Dur", fmt: mmss }],         // PBI: Average Duration
-          list.slice(0, 60).map((x, i) => ({
+          shown.map((x, i) => ({
             r: i + 1, k: x.k, c: x.n, sh: total ? x.n / total : null,
             u: uniqueCalls(x.rs), ret: returning(x.rs), td: durSum(x.rs), avg: avgDurOf(x.rs),
           })),
           { r: "", k: "Total", c: total, sh: total ? 1 : null, u: uniqueCalls(rows),
-            ret: returning(rows), td: durSum(rows), avg: avgDurOf(rows) });
+            ret: returning(rows), td: durSum(rows), avg: avgDurOf(rows) })
+          + (list.length > shown.length
+             ? `<div class="lbl" style="padding:6px 2px;color:var(--muted)">showing ${shown.length} of ${RS.fmtN(list.length)} — the Total row covers all rows</div>`
+             : "");
       },
     });
     dimCard.card.querySelector("#crDim").onchange = e => { dim = e.target.value; dimCard.rerender(); };
