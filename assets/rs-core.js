@@ -156,6 +156,11 @@ window.RS = (function () {
           r._d = d; r._y = d.slice(0, 4); r._m = parseInt(d.slice(5, 7), 10) || 0;
           r._day = parseInt(d.slice(8, 10), 10) || 0;
         });
+        if (ds === "card_expenses") rows.forEach(r => {
+          // bank convention stores expenses NEGATIVE; PBI's measures negate —
+          // normalize once here so spend reads positive everywhere (credits negative).
+          r.Amount = -num(r.Amount);
+        });
         _cache[ds] = rows; delete _loading[ds];
         return rows;
       })
@@ -305,12 +310,15 @@ window.RS = (function () {
   register("Hours Worked by Helpers", "helper_salaries", fmtN, rows => sum(rows, "Hours Worked"));
 
   // --- Reviews (breakdown = per-platform parsed tokens; counts = factual monthly).
+  // `Counts` is a 'Yes'/'No' varchar in the warehouse — accept any truthy spelling.
+  const isYes = v => { const s = String(v == null ? "" : v).trim().toLowerCase();
+    return s === "yes" || s === "1" || s === "true"; };
   register("Total Reviews Written", "reviews_breakdown", fmtN,
-    rows => sum(rows.filter(r => num(r["Counts"]) === 1), "Number of Reviews"));
+    rows => sum(rows.filter(r => isYes(r["Counts"])), "Number of Reviews"));
   register("Reviews Written (not counted)", "reviews_breakdown", fmtN,
-    rows => sum(rows.filter(r => num(r["Counts"]) !== 1), "Number of Reviews"));
+    rows => sum(rows.filter(r => !isYes(r["Counts"])), "Number of Reviews"));
   register("Review Score (avg)", "reviews_breakdown", fmt1, rows => {
-    const c = rows.filter(r => num(r["Counts"]) === 1 && r["Review Score"] != null);
+    const c = rows.filter(r => isYes(r["Counts"]) && r["Review Score"] != null);
     const n = c.reduce((a, r) => a + num(r["Number of Reviews"]), 0);
     if (!n) return null;
     return c.reduce((a, r) => a + num(r["Review Score"]) * num(r["Number of Reviews"]), 0) / n;
