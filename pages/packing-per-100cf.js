@@ -23,13 +23,17 @@ registerPage({
     const scoreColor = s => s == null ? "#6b7a88" :
       s >= 90 ? "#b7e23b" : s >= 70 ? "#5b8cff" : s >= 50 ? "#a78bfa" :
       s >= 30 ? "#fbbf24" : "#f87171";
+    // same bands as CSS variables — theme-safe for HTML style attributes (light theme re-tints)
+    const scoreVar = s => s == null ? "var(--muted)" :
+      s >= 90 ? "var(--brand)" : s >= 70 ? "var(--blue)" : s >= 50 ? "var(--purple)" :
+      s >= 30 ? "var(--amber)" : "var(--red)";
     const mLabel = k => RS.monthName(+k.slice(5)) + " " + k.slice(2, 4);
     const d1 = v => v == null ? "—" : "$" + RS.fmt1(v);           // per-100CF display
     // trend delta vs previous month — higher packing intensity is better
     const dfmt = v => v == null ? "—" :
       `<span class="${v >= 0 ? "up" : "down"}">${v >= 0 ? "+" : "−"}$${RS.fmt1(Math.abs(v))}</span>`;
     const scfmt = s => s == null ? "—" :
-      `<span style="color:${scoreColor(s)}">${RS.fmt1(s)}</span>`;
+      `<span style="color:${scoreVar(s)}">${RS.fmt1(s)}</span>`;
 
     // ---- cells: (foreman, month) -> { pack, cf, score } (mart grain = 1 row, sums are safety)
     const cells = {};                                    // "F|YYYY-MM" -> cell
@@ -52,6 +56,33 @@ registerPage({
     const latestKey = monthKeys[monthKeys.length - 1] || null;
     const prevKey = monthKeys.length > 1 ? monthKeys[monthKeys.length - 2] : null;
 
+    // ---- YoY: Jan-1 → max filtered date, this year vs the same window last year.
+    // Both windows are pulled from the date-unfiltered dataset (slicers still apply)
+    // by temporarily swapping the global date range, like forman-analysis.js does.
+    const maxD = rows.reduce((a, r) => (r._d && r._d > a) ? r._d : a, "");
+    let yoyRate = null, yoyPack = null;
+    if (maxD) {
+      const cy = maxD.slice(0, 4), py = String(+cy - 1);
+      const win = (from, to) => {
+        const s = RS.state, save = { f: s.dateFrom, t: s.dateTo };
+        s.dateFrom = from; s.dateTo = to;
+        const out = RS.filtered("scorecard", all);
+        s.dateFrom = save.f; s.dateTo = save.t;
+        return out;
+      };
+      const agg = rs => ({
+        pack: rs.reduce((a, r) => a + RS.num(r["Total Packing Written"]), 0),
+        cf: rs.reduce((a, r) => a + RS.num(r["Total CF"]), 0),
+      });
+      const cur = agg(win(cy + "-01-01", maxD));
+      const prv = agg(win(py + "-01-01", py + maxD.slice(4)));
+      const g = (c, p) => (c != null && p != null && p !== 0) ? (c - p) / Math.abs(p) : null;
+      yoyRate = g(per100(cur.pack, cur.cf), per100(prv.pack, prv.cf));
+      yoyPack = g(cur.pack, prv.pack);
+    }
+    const chip = g => g == null ? "" :
+      ` <span class="${g >= 0 ? "up" : "down"}">${g >= 0 ? "▲" : "▼"} ${(100 * Math.abs(g)).toFixed(1)}%</span>`;
+
     host.innerHTML = `
       <div class="rs-page-head">
         <h1>Packing per 100 CF</h1>
@@ -66,7 +97,7 @@ registerPage({
 
     if (!latestKey) {
       document.getElementById("p100main").innerHTML =
-        `<div class="panel"><div class="panel-head"><span class="panel-title">No scorecard rows in the current filter scope</span></div></div>`;
+        `<div class="panel"><div class="panel-head"><span class="panel-title">No data for the current filters</span></div></div>`;
       return;
     }
 
@@ -85,11 +116,13 @@ registerPage({
 
     RSC.kpis(document.getElementById("p100kpis"), [
       // PBI: [Packing per 100 CF] over the whole scope (weighted, not avg of months)
-      { label: "Packing / 100 CF", value: d1(per100(totPack, totCF)), sub: "scope total, weighted" },
+      { label: "Packing / 100 CF", value: d1(per100(totPack, totCF)) + chip(yoyRate),
+        sub: "scope total, weighted" + (yoyRate == null ? "" : " · vs same period LY") },
       // PBI: [Packing per 100 CF Score] — mean across foreman-months with a score
       { label: "Avg Score", value: scores.length ? RS.fmt1(scores.reduce((a, b) => a + b, 0) / scores.length) : "—", sub: "across foreman-months" },
       { label: "Total CF", value: RS.fmtN(totCF), sub: "cubic feet moved" },        // PBI: [Total CF]
-      { label: "Packing Written", value: RS.money(totPack), sub: "packing revenue" }, // PBI: [Total Packing Written]
+      { label: "Packing Written", value: RS.moneyC(totPack) + chip(yoyPack),          // PBI: [Total Packing Written]
+        sub: RS.money(totPack) + (yoyPack == null ? "" : " · vs same period LY") },
       { label: "Foremen", value: RS.fmtN(Object.keys(byForeman).length), sub: "active in scope" },
       { label: "Best (" + mLabel(latestKey) + ")", value: bestReal ? d1(bestReal.v) : "—",
         sub: bestReal ? bestReal.f : "no non-sentinel foreman" },
@@ -98,7 +131,8 @@ registerPage({
     // ---- main: Packing per 100 CF by foreman, latest month, colored by score band
     RSC.chartCard(document.getElementById("p100main"), {
       title: "Packing per 100 CF by Foreman",
-      controlsHtml: `<span class="lbl">latest month: ${RSC.esc(mLabel(latestKey))} · bar color = score band · * = no CF (sentinel $90)</span>`,
+      controlsHtml: `<span class="lbl">latest month: ${RSC.esc(mLabel(latestKey))} · bar color = score band · * = no CF (sentinel $90)` +
+        (fLatest.length > 20 ? ` · top 20 of ${fLatest.length}` : "") + `</span>`,
       buildChart(canvas) {
         const list = fLatest.slice(0, 20);
         return new Chart(canvas, {
@@ -137,12 +171,15 @@ registerPage({
            { key: "cf", label: "Total CF", fmt: RS.fmtN },
            { key: "pk", label: "Packing Written", fmt: RS.money },
            { key: "sh", label: "% of packing", fmt: RS.fmtPct }],
-          fLatest.slice(0, 60).map((x, i) => ({
+          fLatest.slice(0, 50).map((x, i) => ({
             rk: i + 1, f: x.f + (x.sentinel ? " *" : ""), v: x.v, dl: x.dl,
             sc: x.sc, cf: x.cf, pk: x.pk, sh: mPack ? x.pk / mPack : null,
           })),
           { f: "All foremen (" + mLabel(latestKey) + ")", v: per100(mPack, mCF),
-            cf: mCF, pk: mPack, sh: mPack ? 1 : null });
+            cf: mCF, pk: mPack, sh: mPack ? 1 : null }) +
+          (fLatest.length > 50
+            ? `<div style="color:var(--muted);font-size:11px;padding:6px 2px">showing 50 of ${fLatest.length} foremen · totals row covers all</div>`
+            : "");
       },
     });
 
@@ -181,7 +218,7 @@ registerPage({
             },
             scales: {
               y: { ticks: { callback: v => "$" + v } },
-              x: { ticks: { maxRotation: 45, autoSkip: true, maxTicksLimit: 18 } },
+              x: { ticks: { autoSkip: true, maxTicksLimit: 14, maxRotation: 45 } },
             },
           },
         });
