@@ -61,24 +61,17 @@ window.ZTZ = (function () {
   }
 
   /* ---------- header (standalone Reporting System site) ----------
-     The data portal is a separate site now — absolute link. */
-  const NAV = [
-    { key: "reporting", label: "Reporting System", href: "index.html" },
-    { key: "data", label: "Data Portal ↗", href: "https://tornikez2z.github.io/ztzreports/" },
-  ];
-  /* header(active[, subtitle]) — renders into <header class="top" id="ztzHeader"> */
+     No nav links — just the brand, one subtitle, the user, and the theme toggle. */
   function header(active, subtitle) {
     const host = document.getElementById("ztzHeader");
     if (!host) return;
     const base = (location.pathname.match(/^.*\//) || ["/"])[0];
-    const nav = NAV.map(n =>
-      `<a href="${/^https?:/.test(n.href) ? n.href : base + n.href}" class="${n.key === active ? "active" : ""}"${/^https?:/.test(n.href) ? ' target="_blank" rel="noopener"' : ""}>${n.label}</a>`).join("");
     const em = email();
     const who = em ? `<span class="av">${em[0].toUpperCase()}</span>${em}` : "";
     host.innerHTML =
-      `<div class="brand"><a href="${base}index.html" title="Portal home"><img class="brandlogo" src="${base}logo-wide.png" alt="Zip to Zip Moving"></a>` +
+      `<div class="brand"><a href="${base}index.html" title="Home"><img class="brandlogo" src="${base}logo-wide.png" alt="Zip to Zip Moving"></a>` +
       (subtitle ? `<span class="brandsub">${subtitle}</span>` : "") + `</div>` +
-      `<nav class="hubs">${nav}</nav><div class="spacer"></div><div class="who">${who}</div>` +
+      `<div class="spacer"></div><div class="who">${who}</div>` +
       `<span id="ztzHeadSign"></span>`;
     if (!em) mountSignin(document.getElementById("ztzHeadSign"), { button: { size: "medium" } });
   }
