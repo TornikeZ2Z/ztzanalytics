@@ -45,9 +45,9 @@ registerPage({
       "Bill Range": (a, b) => (RS.num(a.k.replace(/[^0-9]/g, "").slice(0, 5)) || 9e9) -
                               (RS.num(b.k.replace(/[^0-9]/g, "").slice(0, 5)) || 9e9),
     };
-    const CALC = ["Total Jobs", "Total Bill", "Net Cash", "Card Payment",
+    const CALC = ["Total Jobs", "Revenue", "Net Cash", "Card Payment",
                   "Net Cash + Card Payment", "Hours Worked by Forman", "Average Bill"];
-    let dimBy = "Source", calcBy = "Total Bill";
+    let dimBy = "Source", calcBy = "Revenue";
 
     host.innerHTML = `
       <div class="rs-page-head">
@@ -65,11 +65,13 @@ registerPage({
       return;
     }
 
-    const kBill = M["Total Bill"].fn(rows), kNet = M["Net Cash"].fn(rows),
+    const kBill = M["Revenue"].fn(rows), kNet = M["Net Cash"].fn(rows),
           kCard = M["Card Payment"].fn(rows), kAvg = M["Average Bill"].fn(rows);
+    const kClosings = M["Total Revenue"].fn(rows), kTrips = M["Additional Revenue from Trips"].fn(rows);
     RSC.kpis(document.getElementById("kpis"), [
       { label: "Total Jobs", value: RS.fmtN(M["Total Jobs"].fn(rows)), sub: "closed jobs (incl. trips)" },
-      { label: "Total Bill", value: RS.moneyC(kBill), sub: RS.money(kBill) },
+      { label: "Revenue", value: RS.moneyC(kBill),
+        sub: nz(RS.moneyC)(kClosings) + " closings + " + nz(RS.moneyC)(kTrips) + " trips" },
       { label: "Net Cash", value: RS.moneyC(kNet), sub: nz(RS.money)(kNet) + " · net + trips" },
       { label: "Card Payment", value: RS.moneyC(kCard), sub: nz(RS.money)(kCard) + " · card volume" },
       { label: "Avg Bill / Job", value: RS.moneyC(kAvg), sub: nz(RS.money)(kAvg) + " per job" },
@@ -94,7 +96,7 @@ registerPage({
           return ` <span class="${g >= 0 ? "up" : "down"}">${g >= 0 ? "▲" : "▼"} ${Math.abs(100 * g).toFixed(1)}% vs LY</span>`;
         };
         const kpiSubs = document.getElementById("kpis").querySelectorAll(".kpi .s");
-        const cJobs = chip("Total Jobs"), cBill = chip("Total Bill");
+        const cJobs = chip("Total Jobs"), cBill = chip("Revenue");
         if (cJobs && kpiSubs[0]) kpiSubs[0].innerHTML += cJobs;
         if (cBill && kpiSubs[1]) kpiSubs[1].innerHTML += cBill;
       }
@@ -152,6 +154,8 @@ registerPage({
       buildTable() {
         const m = M[calcBy];
         const list = grouped();
+        if (!list.length)
+          return `<div style="padding:20px;color:var(--muted)">No categories to break down for the current filters.</div>`;
         const total = m.fn(rows);
         const shown = list.slice(0, 50);
         return RSC.table(
@@ -204,6 +208,8 @@ registerPage({
       buildTable() {
         // matrix() groups by a physical column — __dim is materialized below and
         // refreshed on every switcher change (rerenderAll).
+        if (!rows.length)
+          return `<div style="padding:20px;color:var(--muted)">No data for the current filters.</div>`;
         return RSC.matrix(rows, "__dim", calcBy, { rowLabel: dimBy, lastN: 13 });
       },
     });
