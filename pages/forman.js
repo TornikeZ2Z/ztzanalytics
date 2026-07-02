@@ -143,6 +143,7 @@ registerPage({
       : `<span class="${v > 0 ? "up" : "down"}">${v > 0 ? "▲" : "▼"} ${Math.abs(v).toFixed(2)}</span>`;
     RSC.chartCard(document.getElementById("fmMain"), {
       title: "Leaderboard — " + mLabel(latest),
+      controlsGraphOnly: true,   // legend describes the chart only; table is fixed columns
       controlsHtml: `<span class="lbl">top ${Math.min(25, board.length)} of ${board.length}
         · bar color = vs prev month (lime up, red down, blue new)</span>`,
       buildChart(canvas) {
@@ -221,6 +222,7 @@ registerPage({
     });
     RSC.chartCard(grid, {
       title: "Score trend — top 6 foremen",
+      controlsGraphOnly: true,   // legend describes the top-6 line chart; table pivots all foremen
       controlsHtml: `<span class="lbl">ranked by latest score · last 18 mo</span>`,
       buildChart(canvas) {
         const shown = months.slice(-18);
@@ -264,6 +266,7 @@ registerPage({
     ];
     RSC.chartCard(grid, {
       title: "Component mix — " + mLabel(latest),
+      controlsGraphOnly: true,   // legend describes the stacked chart; table is fixed columns
       controlsHtml: `<span class="lbl">weights 0.4 / 0.2 / 0.2 / 0.2 · stack = Forman Score</span>`,
       buildChart(canvas) {
         const list = board.slice(0, 20);
