@@ -44,7 +44,8 @@ registerPage({
     const revenue = M["Total Bill"].fn(closingAds);        // revenue on ad sources
     const jobs = M["Total Jobs"].fn(closingAds);
     const leads = M["Total Leads"].fn(mbAds);
-    const roi = adSpend ? revenue / adSpend : null;        // inline: PBI "Ads Analysis - ROI"
+    // PBI "Ads Analysis - ROI" numerator is collected cash (Net Cash + Card Payment), not Total Bill.
+    const roi = adSpend ? M["Net Cash + Card Payment"].fn(closingAds) / adSpend : null;
 
     const fmtX = v => (v == null || isNaN(v)) ? "—" : Number(v).toFixed(2) + "x";
     // RS.money/RS.fmtN render null as "$0"/"0" — null-safe wrappers for nullable cells
@@ -210,7 +211,8 @@ registerPage({
       const cl = closBySrc[k] || [];
       const rev = M["Total Bill"].fn(cl);
       return { k, disp, spend, rev, jobs: cl.length, leads: mbCntBySrc[k] || 0,
-               roi: spend ? rev / spend : null };  // inline: PBI "Ads Analysis - ROI"
+               // PBI "Ads Analysis - ROI" = (Net Cash + Card Payment) / Ad Spend
+               roi: spend ? M["Net Cash + Card Payment"].fn(cl) / spend : null };
     }).sort((a, b) => b.spend - a.spend);
     // spend on advertising rows with NO Source tag — table-only line, no join possible
     const unattributed = adSpend - srcList.reduce((a, x) => a + x.spend, 0);
@@ -329,7 +331,7 @@ registerPage({
           return { m: mLabel(k), sp,
             // inline: PBI "Calculate by - Yearly Growth Rate" family — here MoM on spend
             d: (prev != null && prev) ? (sp - prev) / Math.abs(prev) : null,
-            rev, roi: sp ? rev / sp : null };
+            rev, roi: sp ? M["Net Cash + Card Payment"].fn(closAdsByM[k] || []) / sp : null };  // ROI = collected cash / spend
         });
         const totSp = data.reduce((a, x) => a + x.sp, 0);
         const totRev = data.reduce((a, x) => a + x.rev, 0);
