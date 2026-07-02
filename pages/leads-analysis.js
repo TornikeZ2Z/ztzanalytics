@@ -70,7 +70,9 @@ registerPage({
     const FUNNEL = ["Total Leads", "Qualified Leads", "Confirmed Leads", "Dead Leads", "Booking Rate"];
     function bySource() {
       const g = {};
-      rows.forEach(r => { const s = r.Source || "—"; (g[s] = g[s] || []).push(r); });
+      // Group by Source Connector (PBI's active moveboard source axis) so Post-Card
+      // splits into per-state buckets instead of collapsing into one "Post Card".
+      rows.forEach(r => { const s = r["Source Connector"] || r.Source || "—"; (g[s] = g[s] || []).push(r); });
       return Object.entries(g).map(([s, rs]) => ({
         s, total: M["Total Leads"].fn(rs), qual: M["Qualified Leads"].fn(rs),
         conf: M["Confirmed Leads"].fn(rs), dead: M["Dead Leads"].fn(rs),
