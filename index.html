@@ -41,7 +41,7 @@
   </div>
 </div>
 
-<script src="assets/portal.js?v=4"></script>
+<script src="assets/portal.js?v=5"></script>
 <script src="assets/rs-core.js?v=8"></script>
 <script src="assets/rs-components.js?v=4"></script>
 <script>
@@ -248,9 +248,30 @@ function _beautify(config) {
     }
   } catch (e) { console.warn("chart beautify skipped:", e); }
 }
+/* ---- auto-fit: dense horizontal-bar charts get enough vertical room that every
+   category label renders (Chart.js otherwise silently drops "too tight" ticks).
+   Sizes the .chartbox ancestor by category count and disables tick auto-skip. ---- */
+function _fitBox(item, config) {
+  try {
+    const canvas = (item && item.canvas) ? item.canvas : item;
+    if (!canvas || !canvas.closest) return;
+    const box = canvas.closest(".chartbox");
+    if (!box) return;
+    const n = ((config.data && config.data.labels) || []).length;
+    const datasets = (config.data && config.data.datasets) || [];
+    const horiz = !!(config.options && config.options.indexAxis === "y");
+    const hasBar = datasets.some(d => (d.type || config.type) === "bar");
+    if (horiz && hasBar && n > 8) {
+      box.style.height = Math.min(1000, Math.max(340, n * 30 + 70)) + "px";  // ~30px per row
+      const o = config.options = config.options || {};
+      o.scales = o.scales || {}; o.scales.y = o.scales.y || {};
+      o.scales.y.ticks = Object.assign({ autoSkip: false }, o.scales.y.ticks);
+    }
+  } catch (e) {}
+}
 const _RawChart = Chart;
 window.Chart = class extends _RawChart {
-  constructor(item, config) { _beautify(config || {}); super(item, config); }
+  constructor(item, config) { _beautify(config || {}); _fitBox(item, config || {}); super(item, config); }
 };
 
 /* ---------------- light / dark theme ---------------- */
