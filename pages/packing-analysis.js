@@ -122,6 +122,9 @@ registerPage({
       document.getElementById("pkMain").appendChild(emptyCard("Packing by Sales Person"));
     } else RSC.chartCard(document.getElementById("pkMain"), {
       title: "Packing by Sales Person",
+      // Caption describes the CHART (top 20); the tabular view adds an "All others"
+      // bucket + Total row, so this graph-only label doesn't apply there.
+      controlsGraphOnly: true,
       controlsHtml: `<span class="lbl">top 20 by packing $ · attach = packing jobs / jobs</span>`,
       buildChart(canvas) {
         const list = bySp.slice(0, 20);
