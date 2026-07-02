@@ -16,6 +16,9 @@ registerPage({
     const intNS = v => (v == null ? "—" : RS.fmtN(v));  // null-safe count cells
     const noteHtml = (shown, total, what) =>
       `<div style="color:var(--muted);font-size:11px;padding:6px 2px">Showing ${RS.fmtN(shown)} of ${RS.fmtN(total)} ${what}.</div>`;
+    // Friendly empty state for a table/chart when no rows pass the current filters.
+    const emptyHtml = what =>
+      `<div style="color:var(--muted);font-size:12px;padding:24px 2px;text-align:center">No ${what} for the current filters.</div>`;
 
     /* Funnel stats per geography key, with this page's PBI date semantics:
        Total/Qualified/Dead over Create Date (PBI "Qualified Leads by Created Date"),
@@ -112,6 +115,9 @@ registerPage({
     let calcBy = CALC[0];
     const stateCard = RSC.chartCard(document.getElementById("main"), {
       title: "Leads by State",
+      // The tabular view shows fixed funnel columns regardless of the "Calculate by"
+      // selection (that selector only drives the ranked-bar chart), so hide it in Tabular.
+      controlsGraphOnly: true,
       controlsHtml: `<span class="lbl">Calculate by</span><select id="lbsCalc">` +
         CALC.map(c => `<option ${c === calcBy ? "selected" : ""}>${c}</option>`).join("") + `</select>`,
       buildChart(canvas) {
@@ -142,6 +148,7 @@ registerPage({
         const t = k => states.reduce((a, s) => a + s[k], 0);
         const tq = t("qual"), tc = t("conf"), tt = t("total");
         const shown = states.slice(0, 50).map(s => ({ ...s, share: tt ? s.total / tt : null }));
+        if (!shown.length) return emptyHtml("states");
         return RSC.table(
           [{ key: "name", label: "State" }, { key: "total", label: "Total Leads", fmt: intNS },
            { key: "share", label: "% of Leads", fmt: RS.fmtPct },
@@ -178,6 +185,7 @@ registerPage({
       buildTable() {  // top 50 keeps the tabular view fast on the 107k-row dataset
         const list = counties.filter(c => c.name !== "—");
         const shown = list.slice(0, 50);
+        if (!shown.length) return emptyHtml("counties");
         return RSC.table(
           [{ key: "name", label: "County" }, { key: "st", label: "State" },
            { key: "total", label: "Total Leads", fmt: intNS }, { key: "qual", label: "Qualified", fmt: intNS },
@@ -192,12 +200,13 @@ registerPage({
       `<div class="panel-head"><span class="panel-title">Top Cities</span></div><div class="tabwrap"></div>`);
     const cityList = cities.filter(c => c.name !== "—");
     const cityShown = cityList.slice(0, 30);
-    cp.querySelector(".tabwrap").innerHTML = RSC.table(
+    cp.querySelector(".tabwrap").innerHTML = cityShown.length ? (RSC.table(
       [{ key: "name", label: "City" }, { key: "st", label: "State" },
        { key: "total", label: "Leads", fmt: intNS }, { key: "conf", label: "Confirmed", fmt: intNS },
        { key: "rate", label: "Booking Rate", fmt: RS.fmtPct }],
       cityShown) +
-      (cityList.length > cityShown.length ? noteHtml(cityShown.length, cityList.length, "cities") : "");
+      (cityList.length > cityShown.length ? noteHtml(cityShown.length, cityList.length, "cities") : ""))
+      : emptyHtml("cities");
     subs.appendChild(cp);
   },
 });
