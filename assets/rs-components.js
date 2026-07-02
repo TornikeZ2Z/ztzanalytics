@@ -60,6 +60,43 @@ window.RSC = (function () {
     return { repaint: paint };
   }
 
+  /* ------------- single-select slicer (always exactly one value chosen) ------------- */
+  function singleSelect(host, { key, label, values, defaultValue, onChange }) {
+    const items = values.map(v => typeof v === "object" ? v : { v: v, l: v });
+    const labelOf = {};
+    items.forEach(i => { labelOf[i.v] = i.l; });
+    let set = RS.state.multi[key];
+    if (!set || !set.size) {
+      const dv = (defaultValue != null && items.some(i => i.v === defaultValue))
+        ? defaultValue : (items[0] && items[0].v);
+      set = RS.state.multi[key] = new Set(dv != null ? [dv] : []);
+    }
+    const wrap = el("div", "rs-slicer");
+    const btn = el("button", "rs-slicer-btn on");
+    const pop = el("div", "rs-slicer-pop hidden");
+    const current = () => [...set][0];
+    const paint = () => {
+      btn.innerHTML = `<span class="lbl">${esc(label)}</span><span class="val">${esc(labelOf[current()] || current() || "—")}</span><span class="chev">▾</span>`;
+      pop.querySelectorAll(".opt").forEach(o =>
+        o.classList.toggle("sel", o.dataset.v === String(current())));
+    };
+    pop.innerHTML = `<div class="opts">` + items.map(i =>
+      `<div class="opt" data-v="${esc(i.v)}"><span class="ol">${esc(i.l)}</span>${i.n != null ? `<span class="on">${Number(i.n).toLocaleString()}</span>` : ""}</div>`).join("") + `</div>`;
+    pop.querySelectorAll(".opt").forEach(o => o.onclick = () => {
+      set.clear(); set.add(o.dataset.v);
+      paint(); pop.classList.add("hidden"); onChange();
+    });
+    btn.onclick = e => {
+      e.stopPropagation();
+      document.querySelectorAll(".rs-slicer-pop").forEach(p => { if (p !== pop) p.classList.add("hidden"); });
+      pop.classList.toggle("hidden");
+    };
+    pop.addEventListener("click", e => e.stopPropagation());
+    wrap.appendChild(btn); wrap.appendChild(pop); host.appendChild(wrap);
+    paint();
+    return { repaint: paint };
+  }
+
   /* ---------------- date range + presets + day slider ---------------- */
   function dateBar(host, onChange) {
     const wrap = el("div", "rs-daterange");
@@ -206,5 +243,5 @@ window.RSC = (function () {
   document.addEventListener("click", () =>
     document.querySelectorAll(".rs-slicer-pop").forEach(p => p.classList.add("hidden")));
 
-  return { el, esc, multiSelect, dateBar, kpis, chartCard, table, matrix };
+  return { el, esc, multiSelect, singleSelect, dateBar, kpis, chartCard, table, matrix };
 })();
