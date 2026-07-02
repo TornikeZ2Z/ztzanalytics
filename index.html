@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/portal.css?v=2">
-<link rel="stylesheet" href="assets/rs.css?v=5">
+<link rel="stylesheet" href="assets/rs.css?v=6">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 </head>
 <body class="rs-app">
@@ -41,9 +41,9 @@
   </div>
 </div>
 
-<script src="assets/portal.js?v=2"></script>
+<script src="assets/portal.js?v=3"></script>
 <script src="assets/rs-core.js?v=6"></script>
-<script src="assets/rs-components.js?v=3"></script>
+<script src="assets/rs-components.js?v=4"></script>
 <script>
 /* ---------------- page registry ---------------- */
 window.PAGES = [];
@@ -371,6 +371,7 @@ function paintChips() {
     chips.push({ k: "_day", label: "Day " + (RS.state.dayFrom ?? 1) + "–" + (RS.state.dayTo ?? 31) });
   Object.entries(RS.state.multi).forEach(([k, set]) => {
     if (!set || !set.size || !RS.FIELDS[k]) return;
+    if (k === "company") return;   // always-selected single filter — shown on its button
     const vals = [...set];
     chips.push({ k, label: RS.FIELDS[k].label + ": " +
       (vals.length <= 2 ? vals.join(", ") : vals.length + " selected") });
@@ -425,8 +426,16 @@ async function buildFilters() {
     sizeOfMove: counted([[closing, "Size of Move"], [moveboard, "Size of Move"]]),
     statusCat:  counted([[moveboard, "Status Category"]]),
   };
-  PRIMARY.concat(SECONDARY).forEach(key => RSC.multiSelect(rowSlicers,
-    { key, label: RS.FIELDS[key].label, values: VALUES[key], onChange: onFilterChange }));
+  PRIMARY.concat(SECONDARY).forEach(key => {
+    if (key === "company") {
+      // Company is a SINGLE-select with a permanent selection (default Zip to Zip).
+      RSC.singleSelect(rowSlicers, { key, label: "Company", values: VALUES.company,
+        defaultValue: "Zip to Zip", onChange: onFilterChange });
+    } else {
+      RSC.multiSelect(rowSlicers,
+        { key, label: RS.FIELDS[key].label, values: VALUES[key], onChange: onFilterChange });
+    }
+  });
   paintChips();
 }
 
@@ -605,21 +614,21 @@ registerPage({
 </script>
 <!-- page modules (each calls registerPage) -->
 <script src="pages/insights.js?v=1"></script>
-<script src="pages/jobs-vs-hours.js?v=2"></script>
-<script src="pages/analysis-by-category.js?v=2"></script>
-<script src="pages/yoy-diff.js?v=2"></script>
-<script src="pages/leads-analysis.js?v=2"></script>
-<script src="pages/leads-by-state.js?v=2"></script>
-<script src="pages/storage.js?v=2"></script>
-<script src="pages/sales-person-analysis.js?v=2"></script>
-<script src="pages/ads-analysis.js?v=2"></script>
-<script src="pages/callrail.js?v=2"></script>
-<script src="pages/forman.js?v=2"></script>
-<script src="pages/packing.js?v=2"></script>
-<script src="pages/claims.js?v=2"></script>
-<script src="pages/reviews.js?v=2"></script>
-<script src="pages/packing-analysis.js?v=2"></script>
-<script src="pages/forman-analysis.js?v=2"></script>
-<script src="pages/packing-per-100cf.js?v=2"></script>
+<script src="pages/jobs-vs-hours.js?v=3"></script>
+<script src="pages/analysis-by-category.js?v=3"></script>
+<script src="pages/yoy-diff.js?v=3"></script>
+<script src="pages/leads-analysis.js?v=3"></script>
+<script src="pages/leads-by-state.js?v=3"></script>
+<script src="pages/storage.js?v=3"></script>
+<script src="pages/sales-person-analysis.js?v=3"></script>
+<script src="pages/ads-analysis.js?v=3"></script>
+<script src="pages/callrail.js?v=3"></script>
+<script src="pages/forman.js?v=3"></script>
+<script src="pages/packing.js?v=3"></script>
+<script src="pages/claims.js?v=3"></script>
+<script src="pages/reviews.js?v=3"></script>
+<script src="pages/packing-analysis.js?v=3"></script>
+<script src="pages/forman-analysis.js?v=3"></script>
+<script src="pages/packing-per-100cf.js?v=3"></script>
 </body>
 </html>
