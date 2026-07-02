@@ -25,6 +25,17 @@ registerPage({
       if (k && !adSources.has(k)) adSources.set(k, String(r.Source).trim());
     });
 
+    // ---- empty state: nothing to chart when the filters remove every ad transaction
+    if (!adRows.length) {
+      host.innerHTML = `
+        <div class="rs-page-head">
+          <h1>Ads Analysis</h1>
+          <p>Advertisement spend, funnel and ROI</p>
+        </div>
+        <div class="panel" style="padding:16px;color:var(--muted)">No data for the current filters.</div>`;
+      return;
+    }
+
     // ---- membership joins (Source): closing / moveboard rows on ad sources
     const closingAds = closing.filter(r => adSources.has(norm(r.Source)));
     const mbAds = moveboard.filter(r => adSources.has(norm(r.Source)));
@@ -44,6 +55,30 @@ registerPage({
     const deltaCell = g => g == null ? "—" :
       `<span class="${g >= 0 ? "up" : "down"}">${(g >= 0 ? "▲ " : "▼ ") + RS.fmtPct(Math.abs(g))}</span>`;
 
+    // ---- headline YoY: Jan-1 → max filtered date vs the same window last year.
+    // Prior-year rows come from the date-UNfiltered universe (other slicers still apply);
+    // save/restore of the date range is synchronous — no awaits in between.
+    const maxD = adRows.reduce((a, r) => (r._d && r._d > a) ? r._d : a, "");
+    let yoySpend = null, yoyRev = null;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(maxD)) {
+      const y = +maxD.slice(0, 4);
+      const curF = y + "-01-01", curT = maxD;
+      const prvF = (y - 1) + "-01-01", prvT = (y - 1) + maxD.slice(4);
+      const sf = RS.state.dateFrom, st = RS.state.dateTo;
+      RS.state.dateFrom = RS.state.dateTo = null;
+      const cardsND = RS.filtered("card_expenses", cardAll);
+      const closingND = RS.filtered("closing", closingAll);
+      RS.state.dateFrom = sf; RS.state.dateTo = st;
+      const adND = cardsND.filter(r => RS.num(r["Is Advertising"]) === 1);
+      const spendW = (f, t) => adND.reduce((a, r) =>
+        a + ((r._d >= f && r._d <= t) ? RS.num(r.Amount) : 0), 0);
+      const revW = (f, t) => M["Total Bill"].fn(closingND.filter(r =>
+        r._d >= f && r._d <= t && adSources.has(norm(r.Source))));
+      const grow = (c, p) => p ? (c - p) / Math.abs(p) : null;
+      yoySpend = grow(spendW(curF, curT), spendW(prvF, prvT));
+      yoyRev = grow(revW(curF, curT), revW(prvF, prvT));
+    }
+
     host.innerHTML = `
       <div id="adsWrap">
       <style>#adsWrap .up{color:var(--brand)}#adsWrap .down{color:var(--red)}</style>
@@ -59,21 +94,26 @@ registerPage({
       <div class="rs-grid2" id="adsGrid"></div>
       </div>`;
 
+    const spendSub = RS.money(adSpend) + " · " + RS.fmtN(adRows.length) + " advertising transactions";
+    const revSub = RS.money(revenue) + " · Total Bill on " + RS.fmtN(closingAds.length) + " matched jobs";
     RSC.kpis(document.getElementById("adsKpis"), [
-      { label: "Advertisement Expense", value: RS.money(adSpend),
-        sub: RS.fmtN(adRows.length) + " advertising transactions" },
-      { label: "Revenue on Ad Sources", value: RS.money(revenue),
-        sub: "Total Bill · " + RS.fmtN(closingAds.length) + " matched jobs" },
+      { label: "Advertisement Expense", value: RS.moneyC(adSpend), sub: spendSub },
+      { label: "Revenue on Ad Sources", value: RS.moneyC(revenue), sub: revSub },
       { label: "ROI", value: roiCell(roi), sub: "revenue per $1 of ad spend" },
       { label: "Leads on Ad Sources", value: RS.fmtN(leads),
         sub: "moveboard requests · created date" },
       // inline: no exact PBI measure — portal addition alongside "Expense per 1 Job"
-      { label: "Cost per Lead", value: leads ? RS.money(adSpend / leads) : "—",
+      { label: "Cost per Lead", value: leads ? RS.moneyC(adSpend / leads) : "—",
         sub: "ad spend / lead" },
       // inline: PBI "Expense per 1 Job"
-      { label: "Cost per Job", value: jobs ? RS.money(adSpend / jobs) : "—",
+      { label: "Cost per Job", value: jobs ? RS.moneyC(adSpend / jobs) : "—",
         sub: "ad spend / closed job" },
     ]);
+    // RSC.kpis escapes sub text — re-inject the two headline subs so the YoY chips render
+    const chip = g => g == null ? "" : " · " + deltaCell(g) + " vs same period last year";
+    const kpiSubs = document.querySelectorAll("#adsKpis .kpi .s");
+    if (kpiSubs[0]) kpiSubs[0].innerHTML = spendSub + chip(yoySpend);
+    if (kpiSubs[1]) kpiSubs[1].innerHTML = revSub + chip(yoyRev);
 
     /* ================= main: Spend by Provider (PBI "Analysis" column chart,
        Calculate by - Advertisement Analysis reduced to Ad Spend / # transactions) */
@@ -145,6 +185,8 @@ registerPage({
           n: rest.reduce((a, x) => a + x.n, 0),
           avg: null,
         });
+        const note = rest.length ?
+          `<div style="color:var(--muted);font-size:11px;padding:6px 2px">showing 25 of ${RS.fmtN(list.length)} providers (rest aggregated)</div>` : "";
         return RSC.table(
           [{ key: "r", label: "#" }, { key: "k", label: "Provider" },
            { key: "v", label: "Ad Spend", fmt: RS.money },
@@ -152,7 +194,7 @@ registerPage({
            { key: "n", label: "# Transactions", fmt: RS.fmtN },
            { key: "avg", label: "Avg / Transaction", fmt: moneyNS }],
           data,
-          { r: "", k: "Total", v: totV, sh: totV ? 1 : null, n: totN, avg: totN ? totV / totN : null });
+          { r: "", k: "Total", v: totV, sh: totV ? 1 : null, n: totN, avg: totN ? totV / totN : null }) + note;
       },
     });
     document.getElementById("adsProvCalc").onchange = e => { provCalc = e.target.value; mainCard.rerender(); };
@@ -219,6 +261,8 @@ registerPage({
           r: "", s: "(no source tag)", sp: unattributed,
           sh: totSpend ? unattributed / totSpend : null, rev: null, roi: null, l: null, j: null,
         });
+        const note = srcList.length > 40 ?
+          `<div style="color:var(--muted);font-size:11px;padding:6px 2px">showing 40 of ${RS.fmtN(srcList.length)} sources by spend</div>` : "";
         return RSC.table(
           [{ key: "r", label: "#" }, { key: "s", label: "Source" },
            { key: "sp", label: "Ad Spend", fmt: RS.money },
@@ -229,7 +273,7 @@ registerPage({
            { key: "j", label: "Jobs", fmt: intNS }],
           data,
           { r: "", s: "Total", sp: totSpend, sh: totSpend ? 1 : null,
-            rev: revenue, roi: roi, l: leads, j: jobs });
+            rev: revenue, roi: roi, l: leads, j: jobs }) + note;
       },
     });
 
@@ -272,7 +316,7 @@ registerPage({
                    ticks: { callback: v => "$" + (v / 1000) + "k" } },
               y1: { position: "right", title: { display: true, text: "Revenue" },
                     grid: { drawOnChartArea: false }, ticks: { callback: v => "$" + (v / 1000) + "k" } },
-              x: { ticks: { font: { size: 11 }, maxRotation: 60, minRotation: 40 } },
+              x: { ticks: { font: { size: 11 }, autoSkip: true, maxTicksLimit: 14, maxRotation: 45 } },
             },
           },
         });
