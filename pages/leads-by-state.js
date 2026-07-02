@@ -13,6 +13,9 @@ registerPage({
     const rowsB = RS.filtered("moveboard", all, { dateColumn: "Booked Date" }); // USERELATIONSHIP → Booked Date
     const M = RS.M;
     const nn = v => (v == null || v === "" ? "—" : String(v));
+    const intNS = v => (v == null ? "—" : RS.fmtN(v));  // null-safe count cells
+    const noteHtml = (shown, total, what) =>
+      `<div style="color:var(--muted);font-size:11px;padding:6px 2px">Showing ${RS.fmtN(shown)} of ${RS.fmtN(total)} ${what}.</div>`;
 
     /* Funnel stats per geography key, with this page's PBI date semantics:
        Total/Qualified/Dead over Create Date (PBI "Qualified Leads by Created Date"),
@@ -59,6 +62,36 @@ registerPage({
       <div id="main"></div>
       <div class="rs-grid2" id="subs"></div>`;
 
+    /* Empty state: nothing to chart under the current filters. */
+    if (!rows.length && !rowsB.length) {
+      document.getElementById("main").innerHTML =
+        `<div class="panel" style="padding:24px;text-align:center;color:var(--muted)">No data for the current filters.</div>`;
+      return;
+    }
+
+    /* Headline YoY chips: Jan-1 → max create date of the filtered rows, this year vs the
+       same window last year, with date filters lifted (slicers kept) for a fair prior window. */
+    const maxD = rows.reduce((a, r) => (r._d > a ? r._d : a), "");
+    let chipTotal = "", chipConf = "";
+    if (maxD) {
+      const y = +maxD.slice(0, 4), mmdd = maxD.slice(4);   // "-MM-DD"
+      const save = { f: RS.state.dateFrom, t: RS.state.dateTo, df: RS.state.dayFrom, dt: RS.state.dayTo };
+      RS.state.dateFrom = RS.state.dateTo = null; RS.state.dayFrom = RS.state.dayTo = null;
+      const ndC = RS.filtered("moveboard", all);                                  // Create Date, no date filter
+      const ndB = RS.filtered("moveboard", all, { dateColumn: "Booked Date" });   // Booked Date, no date filter
+      RS.state.dateFrom = save.f; RS.state.dateTo = save.t; RS.state.dayFrom = save.df; RS.state.dayTo = save.dt;
+      const win = (rs, yr, dcol) => rs.filter(r => {
+        const d = dcol ? String(r[dcol] || "").slice(0, 10) : r._d;
+        return d >= yr + "-01-01" && d <= yr + mmdd;
+      });
+      const chip = (cur, prev) => !prev ? "" :
+        `<span class="${cur >= prev ? "up" : "down"}">${cur >= prev ? "▲" : "▼"} ` +
+        `${(100 * Math.abs((cur - prev) / prev)).toFixed(1)}%</span> vs same period ${y - 1}`;
+      chipTotal = chip(M["Total Leads"].fn(win(ndC, y)), M["Total Leads"].fn(win(ndC, y - 1)));
+      chipConf = chip(M["Confirmed Leads"].fn(win(ndB, y, "Booked Date")),
+                      M["Confirmed Leads"].fn(win(ndB, y - 1, "Booked Date")));
+    }
+
     const qual = M["Qualified Leads"].fn(rows);   // PBI: Qualified Leads by Created Date
     const conf = M["Confirmed Leads"].fn(rowsB);  // PBI: Confirmed Leads by Booked Date
     // inline: DISTINCTCOUNT(Moveboard[State]) — no PBI measure exists for this
@@ -69,6 +102,10 @@ registerPage({
       { label: "Booking Rate", value: RS.fmtPct(qual ? Math.min(1, conf / qual) : null), sub: "confirmed / qualified" },
       { label: "States", value: RS.fmtN(nStates), sub: "distinct states in scope" },
     ]);
+    // RSC.kpis escapes sub text — inject the YoY chips (trusted, page-built HTML) after render.
+    const kpiSubs = document.querySelectorAll("#kpis .kpi .s");
+    if (chipTotal) kpiSubs[0].innerHTML += " · " + chipTotal;
+    if (chipConf) kpiSubs[1].innerHTML += " · " + chipConf;
 
     /* ---- main: horizontal ranked bars — the map stand-in ---- */
     const CALC = ["Total Leads", "Confirmed Leads", "Booking Rate"];
@@ -103,14 +140,17 @@ registerPage({
       },
       buildTable() {
         const t = k => states.reduce((a, s) => a + s[k], 0);
-        const tq = t("qual"), tc = t("conf");
+        const tq = t("qual"), tc = t("conf"), tt = t("total");
+        const shown = states.slice(0, 50).map(s => ({ ...s, share: tt ? s.total / tt : null }));
         return RSC.table(
-          [{ key: "name", label: "State" }, { key: "total", label: "Total Leads", fmt: RS.fmtN },
-           { key: "qual", label: "Qualified", fmt: RS.fmtN }, { key: "conf", label: "Confirmed", fmt: RS.fmtN },
-           { key: "dead", label: "Dead", fmt: RS.fmtN }, { key: "rate", label: "Booking Rate", fmt: RS.fmtPct }],
-          states,
-          { name: "Total", total: t("total"), qual: tq, conf: tc, dead: t("dead"),
-            rate: tq ? Math.min(1, tc / tq) : null });
+          [{ key: "name", label: "State" }, { key: "total", label: "Total Leads", fmt: intNS },
+           { key: "share", label: "% of Leads", fmt: RS.fmtPct },
+           { key: "qual", label: "Qualified", fmt: intNS }, { key: "conf", label: "Confirmed", fmt: intNS },
+           { key: "dead", label: "Dead", fmt: intNS }, { key: "rate", label: "Booking Rate", fmt: RS.fmtPct }],
+          shown,
+          { name: "Total", total: tt, share: tt ? 1 : null, qual: tq, conf: tc, dead: t("dead"),
+            rate: tq ? Math.min(1, tc / tq) : null }) +
+          (states.length > shown.length ? noteHtml(shown.length, states.length, "states — totals cover all") : "");
       },
     });
     document.getElementById("lbsCalc").onchange = e => { calcBy = e.target.value; stateCard.rerender(); };
@@ -136,22 +176,28 @@ registerPage({
         });
       },
       buildTable() {  // top 50 keeps the tabular view fast on the 107k-row dataset
+        const list = counties.filter(c => c.name !== "—");
+        const shown = list.slice(0, 50);
         return RSC.table(
           [{ key: "name", label: "County" }, { key: "st", label: "State" },
-           { key: "total", label: "Total Leads", fmt: RS.fmtN }, { key: "qual", label: "Qualified", fmt: RS.fmtN },
-           { key: "conf", label: "Confirmed", fmt: RS.fmtN }, { key: "rate", label: "Booking Rate", fmt: RS.fmtPct }],
-          counties.filter(c => c.name !== "—").slice(0, 50));
+           { key: "total", label: "Total Leads", fmt: intNS }, { key: "qual", label: "Qualified", fmt: intNS },
+           { key: "conf", label: "Confirmed", fmt: intNS }, { key: "rate", label: "Booking Rate", fmt: RS.fmtPct }],
+          shown) +
+          (list.length > shown.length ? noteHtml(shown.length, list.length, "counties") : "");
       },
     });
 
     /* ---- sub 2: city drill level ---- */
     const cp = RSC.el("div", "panel",
       `<div class="panel-head"><span class="panel-title">Top Cities</span></div><div class="tabwrap"></div>`);
+    const cityList = cities.filter(c => c.name !== "—");
+    const cityShown = cityList.slice(0, 30);
     cp.querySelector(".tabwrap").innerHTML = RSC.table(
       [{ key: "name", label: "City" }, { key: "st", label: "State" },
-       { key: "total", label: "Leads", fmt: RS.fmtN }, { key: "conf", label: "Confirmed", fmt: RS.fmtN },
+       { key: "total", label: "Leads", fmt: intNS }, { key: "conf", label: "Confirmed", fmt: intNS },
        { key: "rate", label: "Booking Rate", fmt: RS.fmtPct }],
-      cities.filter(c => c.name !== "—").slice(0, 30));
+      cityShown) +
+      (cityList.length > cityShown.length ? noteHtml(cityShown.length, cityList.length, "cities") : "");
     subs.appendChild(cp);
   },
 });
