@@ -20,6 +20,19 @@ registerPage({
     });
     const years = Object.keys(byYear).sort();
     const growthTxt = g => g == null ? "—" : (g >= 0 ? "▲ " : "▼ ") + RS.fmtPct(Math.abs(g));
+    // HTML chip variant for KPI subs (span.up/.down are themed in rs.css)
+    const chip = g => g == null ? "—" :
+      `<span class="${g >= 0 ? "up" : "down"}">${g >= 0 ? "▲ " : "▼ "}${RS.fmtPct(Math.abs(g))}</span>`;
+
+    if (!years.length) {
+      host.innerHTML = `
+        <div class="rs-page-head">
+          <h1>YoY Diff</h1>
+          <p>Year-over-year comparison of core measures</p>
+        </div>
+        <div class="panel" style="padding:18px;color:var(--muted)">No data for the current filters — adjust or clear the filter bar above.</div>`;
+      return;
+    }
 
     host.innerHTML = `
       <div class="rs-page-head">
@@ -35,14 +48,30 @@ registerPage({
     // Date range set → RS.yoy (DATEADD -1y window). No range → two most recent calendar years.
     const KPI = ["Total Jobs", "Total Bill", "Net Cash", "Card Payment"];
     const hasRange = !!(RS.state.dateFrom || RS.state.dateTo);
+    // money KPI values are compact ($33.8M); the precise figure moves to the sub line
+    const kpiVal = (m, v) => v == null ? "—" : (m.fmt === RS.money ? RS.moneyC(v) : m.fmt(v));
+    const precise = (m, v) => (m.fmt === RS.money && v != null) ? RS.money(v) + " · " : "";
     let kpiItems;
     if (hasRange) {
-      kpiItems = await Promise.all(KPI.map(async name => {
-        const r = await RS.yoy(name);
-        return { label: name, value: M[name].fmt(r.cur),
-          sub: r.growth == null ? "no LY data in range"
-             : `${growthTxt(r.growth)} vs same period LY (${M[name].fmt(r.prev)})` };
-      }));
+      // RS.yoy shifts BOTH window ends -1y; with a half-open range the shifted LY
+      // window would overlap the current one (not a same-window comparison). Close
+      // any open end from the data in scope first, restore after. Safe around the
+      // awaits: closing is already cached, so RS.yoy resolves in microtasks and no
+      // user event (filter change) can interleave before the restore.
+      const save = { f: RS.state.dateFrom, t: RS.state.dateTo };
+      if (!save.f) RS.state.dateFrom = rows.reduce((a, r) => (r._d && (!a || r._d < a) ? r._d : a), "") || null;
+      if (!save.t) RS.state.dateTo = rows.reduce((a, r) => (r._d > a ? r._d : a), "") || null;
+      try {
+        kpiItems = await Promise.all(KPI.map(async name => {
+          const m = M[name];
+          const r = await RS.yoy(name);
+          return { label: name, value: kpiVal(m, r.cur),
+            subHtml: precise(m, r.cur) + (r.growth == null ? "no LY data in range"
+               : `${chip(r.growth)} vs same period LY (${m.fmt(r.prev)})`) };
+        }));
+      } finally {
+        RS.state.dateFrom = save.f; RS.state.dateTo = save.t;
+      }
     } else {
       const cy = years[years.length - 1], py = years[years.length - 2];
       // The latest year is usually PARTIAL — comparing it to a full prior year is
@@ -56,12 +85,16 @@ registerPage({
         const prev = py ? m.fn(pyRows) : null;
         // inline: PBI "<measure> Yearly Growth Rate" pattern — not in RS.M registry
         const g = (prev && cur != null) ? (cur - prev) / Math.abs(prev) : null;
-        return { label: name, value: cur == null ? "—" : m.fmt(cur),
-          sub: g == null ? `${cy || ""} to date`
-             : `${growthTxt(g)} · ${cy} YTD vs ${py} same period (${m.fmt(prev)})` };
+        return { label: name, value: kpiVal(m, cur),
+          subHtml: precise(m, cur) + (g == null ? `${cy || ""} to date`
+             : `${chip(g)} ${cy} YTD vs ${py} same period (${m.fmt(prev)})`) };
       });
     }
     RSC.kpis(document.getElementById("kpis"), kpiItems);
+    // RSC.kpis escapes sub text — re-inject the subs that carry HTML growth chips
+    host.querySelectorAll("#kpis .kpi .s").forEach((s, i) => {
+      if (kpiItems[i] && kpiItems[i].subHtml) s.innerHTML = kpiItems[i].subHtml;
+    });
 
     // ---- shared Calculate-by (drives both charts, like the PBI field parameter)
     const CALC = ["Total Jobs", "Total Bill", "Net Cash", "Card Payment",
@@ -98,7 +131,7 @@ registerPage({
                 ? `${calcBy}: ${m.fmt(c.raw)}` : `YoY: ${c.raw == null ? "—" : c.raw + "%"}` } } },
             scales: {
               y: { position: "left", title: { display: true, text: calcBy },
-                   ticks: { callback: v => isMoney ? "$" + (v / 1000) + "k" : RS.fmtN(v) } },
+                   ticks: { callback: v => isMoney ? RS.moneyC(v) : RS.fmtN(v) } },
               y1: { position: "right", title: { display: true, text: "YoY growth %" },
                     grid: { drawOnChartArea: false }, ticks: { callback: v => v + "%" } },
               x: { ticks: { font: { size: 12 } } },
@@ -108,22 +141,26 @@ registerPage({
       },
       buildTable() {
         const sel = perYear(calcBy);
+        const totSel = sel.reduce((a, v) => a + (v || 0), 0);
+        const nz = f => v => v == null ? "—" : f(v);
         const data = years.map((y, i) => ({
           y, jobs: M["Total Jobs"].fn(byYear[y]), bill: M["Total Bill"].fn(byYear[y]),
           net: M["Net Cash"].fn(byYear[y]), card: M["Card Payment"].fn(byYear[y]),
           nc: M["Net Cash + Card Payment"].fn(byYear[y]), hrs: M["Hours Worked by Forman"].fn(byYear[y]),
+          share: totSel ? sel[i] / totSel : null,
           g: (i > 0 && sel[i - 1]) ? (sel[i] - sel[i - 1]) / Math.abs(sel[i - 1]) : null,
         }));
         const tot = k => data.reduce((a, x) => a + (x[k] || 0), 0);
         return RSC.table(
-          [{ key: "y", label: "Year" }, { key: "jobs", label: "Total Jobs", fmt: RS.fmtN },
-           { key: "bill", label: "Total Bill", fmt: RS.money }, { key: "net", label: "Net Cash", fmt: RS.money },
-           { key: "card", label: "Card Payment", fmt: RS.money }, { key: "nc", label: "Net + Card", fmt: RS.money },
-           { key: "hrs", label: "Hours", fmt: RS.fmtN },
+          [{ key: "y", label: "Year" }, { key: "jobs", label: "Total Jobs", fmt: nz(RS.fmtN) },
+           { key: "bill", label: "Total Bill", fmt: nz(RS.money) }, { key: "net", label: "Net Cash", fmt: nz(RS.money) },
+           { key: "card", label: "Card Payment", fmt: nz(RS.money) }, { key: "nc", label: "Net + Card", fmt: nz(RS.money) },
+           { key: "hrs", label: "Hours", fmt: nz(RS.fmtN) },
+           { key: "share", label: `% of Total (${calcBy})`, fmt: RS.fmtPct },
            { key: "g", label: `YoY % (${calcBy})`, fmt: growthTxt }],
           data,
           { y: "Total", jobs: tot("jobs"), bill: tot("bill"), net: tot("net"),
-            card: tot("card"), nc: tot("nc"), hrs: tot("hrs") });
+            card: tot("card"), nc: tot("nc"), hrs: tot("hrs"), share: totSel ? 1 : null });
       },
     });
 
@@ -156,8 +193,8 @@ registerPage({
               tooltip: { callbacks: { label: c => `${c.dataset.label}: ${c.raw == null ? "—" : m.fmt(c.raw)}` } } },
             scales: {
               y: { title: { display: true, text: calcBy },
-                   ticks: { callback: v => isMoney ? "$" + (v / 1000) + "k" : RS.fmtN(v) } },
-              x: { ticks: { font: { size: 12 } } },
+                   ticks: { callback: v => isMoney ? RS.moneyC(v) : RS.fmtN(v) } },
+              x: { ticks: { font: { size: 12 }, autoSkip: true, maxTicksLimit: 14, maxRotation: 45 } },
             },
           },
         });
