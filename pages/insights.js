@@ -12,6 +12,14 @@ registerPage({
       RS.load("card_expenses"), RS.load("claims"), RS.load("refunds")]);
     const M = RS.M, num = RS.num;
 
+    /* ---------- empty-state guard: no dated closing rows → friendly message ---------- */
+    if (!closing.length || !closing.some(r => r._d)) {
+      host.innerHTML = `
+        <div class="rs-page-head"><h1>Insights &amp; Recommendations</h1></div>
+        <div class="insight-note">No data for the current filters — the closing dataset has no dated rows, so the monthly pulse cannot be computed.</div>`;
+      return;
+    }
+
     /* ---------- month helpers (anchored to the freshest closing date) ---------- */
     const maxD = closing.reduce((a, r) => (r._d > a ? r._d : a), "");
     const anchor = new Date(maxD + "T00:00:00");
@@ -53,18 +61,23 @@ registerPage({
         <div class="panel"><div class="panel-head"><span class="panel-title">Ad efficiency — ${monthLabel(prevM)}</span></div><div class="tabwrap" id="ads"></div></div>
       </div>`;
 
-    RSC.kpis(document.getElementById("kpis"), [
+    /* KPI strip rendered inline (not RSC.kpis) because the subs carry HTML
+       delta chips and RSC.kpis escapes the sub field. Same markup/classes. */
+    const prevMtdBill = M["Total Bill"].fn(prevMtd);
+    document.getElementById("kpis").innerHTML = [
       { label: "Jobs — " + monthLabel(CUR), value: RS.fmtN(jobs),
         sub: `vs LY same days: ${RS.fmtN(lyMtd.length)} ` + chip(pct(jobs, lyMtd.length)) },
-      { label: "Revenue MTD", value: RS.money(bill),
-        sub: `vs LY same days ` + chip(pct(bill, M["Total Bill"].fn(lyMtd))) },
-      { label: "Pace vs last month", value: RS.money(M["Total Bill"].fn(prevMtd)),
-        sub: `${monthLabel(prevM)} by day ${dayOf} ` + chip(pct(bill, M["Total Bill"].fn(prevMtd))) },
-      { label: "Projected month-end", value: projBill ? RS.money(projBill) : "—",
-        sub: `~${RS.fmtN(projJobs || 0)} jobs at current run-rate` },
-      { label: monthLabel(lyM) + " (full)", value: RS.money(lyFull),
-        sub: projBill ? "projection " + chip(pct(projBill, lyFull)) + " vs LY" : "" },
-    ]);
+      { label: "Revenue MTD", value: RS.moneyC(bill),
+        sub: `${RS.money(bill)} · vs LY same days ` + chip(pct(bill, M["Total Bill"].fn(lyMtd))) },
+      { label: "Pace vs last month", value: RS.moneyC(prevMtdBill),
+        sub: `${RS.money(prevMtdBill)} in ${monthLabel(prevM)} by day ${dayOf} ` + chip(pct(bill, prevMtdBill)) },
+      { label: "Projected month-end", value: projBill != null ? RS.moneyC(projBill) : "—",
+        sub: projBill != null ? `${RS.money(projBill)} · ~${RS.fmtN(projJobs || 0)} jobs at current run-rate` : "" },
+      { label: monthLabel(lyM) + " (full)", value: RS.moneyC(lyFull),
+        sub: RS.money(lyFull) + (projBill && lyFull ? " · projection " + chip(pct(projBill, lyFull)) + " vs LY" : "") },
+    ].map(x =>
+      `<div class="kpi"><div class="l">${RSC.esc(x.label)}</div><div class="v">${x.value}</div><div class="s">${x.sub || ""}</div></div>`
+    ).join("");
 
     /* ---------- recommendations (rule-based, live) ---------- */
     const recs = [];
@@ -130,44 +143,57 @@ registerPage({
     if (!recs.length) push("info", "No alerts this month", "All monitored signals (booking rate, ad ROI, foreman scores, claims, refunds, source volumes, revenue pace) are within normal ranges.");
     recs.sort((a, b) => ({ high: 0, med: 1, info: 2 }[a.sev] - { high: 0, med: 1, info: 2 }[b.sev]));
     document.getElementById("recs").innerHTML = recs.slice(0, 10).map(r =>
-      `<div class="rec"><span class="sev ${r.sev}"></span><div><div class="t">${RSC.esc(r.t)}</div><div class="d">${RSC.esc(r.d)}</div></div></div>`).join("");
+      `<div class="rec"><span class="sev ${r.sev}"></span><div><div class="t">${RSC.esc(r.t)}</div><div class="d">${RSC.esc(r.d)}</div></div></div>`).join("") +
+      (recs.length > 10 ? `<div style="color:var(--muted);font-size:11px;padding:4px 2px">showing 10 of ${recs.length} recommendations</div>` : "");
 
     /* ---------- movers table (sources by revenue, MoM) ---------- */
     {
       const revNow = {}, revPrev = {};
-      inMonth(closing, prevM).forEach(r => { const s = r.Source || "—"; revNow[s] = (revNow[s] || 0) + num(r["Total Bill"]); });
-      inMonth(closing, prev2M).forEach(r => { const s = r.Source || "—"; revPrev[s] = (revPrev[s] || 0) + num(r["Total Bill"]); });
-      const rows = [...new Set([...Object.keys(revNow), ...Object.keys(revPrev)])]
-        .map(s => ({ s, now: revNow[s] || 0, prev: revPrev[s] || 0, g: pct(revNow[s] || 0, revPrev[s] || 0) }))
+      inMonth(closing, prevM).forEach(r => { const s = r.Source || "—"; revNow[s] = (revNow[s] || 0) + num(r["Total Bill"]) + num(r["Extra Bill From Trips"]); });
+      inMonth(closing, prev2M).forEach(r => { const s = r.Source || "—"; revPrev[s] = (revPrev[s] || 0) + num(r["Total Bill"]) + num(r["Extra Bill From Trips"]); });
+      const totalNow = Object.values(revNow).reduce((a, b) => a + b, 0);
+      const all = [...new Set([...Object.keys(revNow), ...Object.keys(revPrev)])]
+        .map(s => ({ s, now: revNow[s] || 0, prev: revPrev[s] || 0,
+          sh: totalNow ? (revNow[s] || 0) / totalNow : null, g: pct(revNow[s] || 0, revPrev[s] || 0) }))
         .filter(x => x.now >= 5000 || x.prev >= 5000)
-        .sort((a, b) => Math.abs(b.now - b.prev) - Math.abs(a.now - a.prev)).slice(0, 12);
+        .sort((a, b) => Math.abs(b.now - b.prev) - Math.abs(a.now - a.prev));
+      const rows = all.slice(0, 12);
       document.getElementById("movers").innerHTML = RSC.table(
-        [{ key: "s", label: "Source" }, { key: "now", label: monthLabel(prevM), fmt: RS.money },
-         { key: "prev", label: monthLabel(prev2M), fmt: RS.money },
-         { key: "g", label: "Δ", fmt: g => g == null ? "—" : chip(g) }], rows);
+        [{ key: "s", label: "Source" },
+         { key: "now", label: monthLabel(prevM), fmt: v => v == null ? "—" : RS.money(v) },
+         { key: "sh", label: "% of total", fmt: v => v == null ? "—" : (100 * v).toFixed(1) + "%" },
+         { key: "prev", label: monthLabel(prev2M), fmt: v => v == null ? "—" : RS.money(v) },
+         { key: "g", label: "Δ", fmt: g => g == null ? "—" : chip(g) }], rows) +
+        (all.length > rows.length ? `<div style="color:var(--muted);font-size:11px;padding:4px 2px">showing ${rows.length} of ${all.length} sources</div>` : "");
     }
     /* ---------- foreman pulse (last full month leaderboard + delta) ---------- */
     {
-      const rows = scorecard.filter(r => r._d && r._d.slice(0, 7) === prevM)
+      const all = scorecard.filter(r => r._d && r._d.slice(0, 7) === prevM)
         .map(r => ({ f: r.Foreman, sc: num(r["Forman Score"]), rk: num(r["Forman Score Rank"]),
           d: r["Forman Score Prev Month"] == null ? null : num(r["Forman Score"]) - num(r["Forman Score Prev Month"]) }))
-        .sort((a, b) => a.rk - b.rk).slice(0, 12);
+        .sort((a, b) => a.rk - b.rk);
+      const rows = all.slice(0, 12);
       document.getElementById("foreman").innerHTML = RSC.table(
-        [{ key: "rk", label: "#" }, { key: "f", label: "Foreman" },
-         { key: "sc", label: "Score", fmt: v => v.toFixed(1) },
-         { key: "d", label: "vs prior", fmt: v => v == null ? "—" :
-           `<span class="${v >= 0 ? "up" : "down"}">${v >= 0 ? "▲" : "▼"} ${Math.abs(v).toFixed(1)} pts</span>` }], rows);
+        [{ key: "rk", label: "#", fmt: v => (v == null || isNaN(v)) ? "—" : v },
+         { key: "f", label: "Foreman" },
+         { key: "sc", label: "Score", fmt: v => (v == null || isNaN(v)) ? "—" : v.toFixed(1) },
+         { key: "d", label: "vs prior", fmt: v => (v == null || isNaN(v)) ? "—" :
+           `<span class="${v >= 0 ? "up" : "down"}">${v >= 0 ? "▲" : "▼"} ${Math.abs(v).toFixed(1)} pts</span>` }], rows) +
+        (all.length > rows.length ? `<div style="color:var(--muted);font-size:11px;padding:4px 2px">showing ${rows.length} of ${all.length} foremen</div>` : "");
     }
     /* ---------- ad efficiency table ---------- */
     {
-      const rows = Object.entries(spendBySrc).map(([s, v]) => ({
+      const all = Object.entries(spendBySrc).map(([s, v]) => ({
         s, v, rev: revBySrc[s] || 0, roi: v ? (revBySrc[s] || 0) / v : null }))
-        .sort((a, b) => b.v - a.v).slice(0, 12);
+        .sort((a, b) => b.v - a.v);
+      const rows = all.slice(0, 12);
       document.getElementById("ads").innerHTML = RSC.table(
-        [{ key: "s", label: "Provider / Source" }, { key: "v", label: "Ad Spend", fmt: RS.money },
-         { key: "rev", label: "Attributed Revenue", fmt: RS.money },
-         { key: "roi", label: "ROI", fmt: v => v == null ? "—" :
-           `<span class="${v >= 3 ? "up" : v < 1 ? "down" : ""}">${v.toFixed(2)}×</span>` }], rows);
+        [{ key: "s", label: "Provider / Source" },
+         { key: "v", label: "Ad Spend", fmt: v => v == null ? "—" : RS.money(v) },
+         { key: "rev", label: "Attributed Revenue", fmt: v => v == null ? "—" : RS.money(v) },
+         { key: "roi", label: "ROI", fmt: v => (v == null || isNaN(v)) ? "—" :
+           `<span class="${v >= 3 ? "up" : v < 1 ? "down" : ""}">${v.toFixed(2)}×</span>` }], rows) +
+        (all.length > rows.length ? `<div style="color:var(--muted);font-size:11px;padding:4px 2px">showing ${rows.length} of ${all.length} providers</div>` : "");
     }
   },
 });
