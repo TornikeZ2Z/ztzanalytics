@@ -33,7 +33,7 @@ registerPage({
     const mLabel = k => RS.monthName(+k.slice(5)) + " " + k.slice(2, 4);
     const nf = v => v == null ? "—" : RS.fmtN(v);   // null-safe count formatter for tables
 
-    const written = M["Total Reviews Written"].fn(bd);
+    const written = M["Counted Reviews Written"].fn(bd);
     const avgScore = M["Review Score (avg)"].fn(bd);
     // No PBI measure exists for image share — portal addition (counted reviews w/ image).
     const withImage = bd.filter(r => isCounted(r) && truthy(r["With Image"]))
@@ -72,7 +72,7 @@ registerPage({
       return `<span class="${g >= 0 ? "up" : "down"}">${g >= 0 ? "▲" : "▼"} ${(100 * Math.abs(g)).toFixed(1)}%</span>`;
     };
     const writtenChip = yoyChip("reviews_breakdown", bdAll, bd,
-      rs => M["Total Reviews Written"].fn(rs));
+      rs => M["Counted Reviews Written"].fn(rs));
     const factualChip = yoyChip("review_counts", cntAll, counts,
       rs => M["Total Factual Reviews"].fn(rs));
 
@@ -88,7 +88,7 @@ registerPage({
       <div class="rs-grid2" id="rvSubs"></div>`;
 
     RSC.kpis(document.getElementById("rvKpis"), [
-      { label: "Total Reviews Written", value: RS.fmtN(written), sub: "counted, from breakdown" },
+      { label: "Counted Reviews", value: RS.fmtN(written), sub: "reviews that count, from breakdown" },
       { label: "Review Score", value: RS.fmt1(avgScore), sub: "avg over counted reviews" },
       { label: "With Image", value: RS.fmtN(withImage),
         sub: RS.fmtPct(written ? withImage / written : null) + " of counted" },
@@ -110,7 +110,7 @@ registerPage({
       (platG[k] = platG[k] || []).push(r); });
     const plats = Object.entries(platG).map(([k, rs]) => ({
       k,
-      v: M["Total Reviews Written"].fn(rs),
+      v: M["Counted Reviews Written"].fn(rs),
       score: M["Review Score (avg)"].fn(rs),
       img: rs.filter(x => isCounted(x) && truthy(x["With Image"])).reduce((a, x) => a + nRev(x), 0),
     })).filter(x => x.v > 0).sort((a, b) => b.v - a.v);
@@ -301,7 +301,7 @@ registerPage({
           const i = bdMonths.indexOf(k);
           const avg = M["Review Score (avg)"].fn(bdByM[k]);
           const prev = i > 0 ? M["Review Score (avg)"].fn(bdByM[bdMonths[i - 1]]) : null;
-          return { m: mLabel(k), w: M["Total Reviews Written"].fn(bdByM[k]), avg,
+          return { m: mLabel(k), w: M["Counted Reviews Written"].fn(bdByM[k]), avg,
             d: (avg == null || prev == null) ? null : avg - prev };
         });
         return mix + `<div style="height:10px"></div>` + RSC.table(
