@@ -131,6 +131,9 @@ registerPage({
     // ---- main: Packing per 100 CF by foreman, latest month, colored by score band
     RSC.chartCard(document.getElementById("p100main"), {
       title: "Packing per 100 CF by Foreman",
+      // the caption ("bar color = score band", "top 20 of N") describes the chart only —
+      // the tabular view lists the top 50 with no color bands, so hide it there.
+      controlsGraphOnly: true,
       controlsHtml: `<span class="lbl">latest month: ${RSC.esc(mLabel(latestKey))} · bar color = score band · * = no CF (sentinel $90)` +
         (fLatest.length > 20 ? ` · top 20 of ${fLatest.length}` : "") + `</span>`,
       buildChart(canvas) {
@@ -160,6 +163,8 @@ registerPage({
       },
       buildTable() {
         // all columns are latest-month (the PBI pivot's last End of Month column)
+        if (!fLatest.length)
+          return `<div style="padding:16px 14px;color:var(--muted)">No foremen with packing in ${RSC.esc(mLabel(latestKey))}.</div>`;
         const mPack = fLatest.reduce((a, y) => a + y.pk, 0);
         const mCF = fLatest.reduce((a, y) => a + y.cf, 0);
         return RSC.table(
@@ -227,6 +232,8 @@ registerPage({
         // PBI-parity pivot: Forman Full Name × End of Month with [Packing per 100 CF]
         // same 18-month window as the chart (card label says "last 18 months")
         const shown = monthKeys.slice(-18);
+        if (!top6.length)
+          return `<div style="padding:16px 14px;color:var(--muted)">No named foremen for the current filters.</div>`;
         let html = `<table class="tab"><thead><tr><th>Foreman</th>` +
           shown.map(k => `<th>${RSC.esc(mLabel(k))}</th>`).join("") +
           `<th>Scope</th></tr></thead><tbody>`;
@@ -291,6 +298,8 @@ registerPage({
       },
       buildTable() {
         const n = fLatest.filter(x => x.sc != null).length;
+        if (!n)
+          return `<div style="padding:16px 14px;color:var(--muted)">No scored foremen in ${RSC.esc(mLabel(latestKey))}.</div>`;
         return RSC.table(
           [{ key: "b", label: "Score band" },
            { key: "n", label: "Foremen", fmt: RS.fmtN },
