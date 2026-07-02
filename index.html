@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/portal.css?v=2">
-<link rel="stylesheet" href="assets/rs.css?v=4">
+<link rel="stylesheet" href="assets/rs.css?v=5">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 </head>
 <body class="rs-app">
@@ -42,7 +42,7 @@
 </div>
 
 <script src="assets/portal.js?v=2"></script>
-<script src="assets/rs-core.js?v=5"></script>
+<script src="assets/rs-core.js?v=6"></script>
 <script src="assets/rs-components.js?v=3"></script>
 <script>
 /* ---------------- page registry ---------------- */
@@ -226,7 +226,8 @@ function _beautify(config) {
         if (!ds.borderWidth || ds.borderWidth < 2) ds.borderWidth = 2;
       }
       if ((t === "doughnut" || t === "pie") && Array.isArray(ds.backgroundColor)) {
-        if (ds.borderColor == null) ds.borderColor = "#0f1523";
+        if (ds.borderColor == null)   // theme-aware separator between slices
+          ds.borderColor = () => document.body.classList.contains("light") ? "#ffffff" : "#0f1523";
         if (ds.borderWidth == null || ds.borderWidth <= 1) ds.borderWidth = 2;
         if (ds.hoverOffset == null) ds.hoverOffset = 8;
       }
@@ -251,6 +252,37 @@ const _RawChart = Chart;
 window.Chart = class extends _RawChart {
   constructor(item, config) { _beautify(config || {}); super(item, config); }
 };
+
+/* ---------------- light / dark theme ---------------- */
+const THEME_CHART = {
+  dark:  { color: "#8b98a8", border: "#1c2636", tipBg: "#0d1320", tipBorder: "#243248", tipTitle: "#e9eef6" },
+  light: { color: "#5b6b7c", border: "#e3e8f0", tipBg: "#ffffff", tipBorder: "#cdd6e2", tipTitle: "#16202c" },
+};
+const ICON_SUN = '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>';
+const ICON_MOON = '<svg viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>';
+function applyTheme(mode, rerender) {
+  document.body.classList.toggle("light", mode === "light");
+  try { localStorage.setItem("rs_theme", mode); } catch (e) {}
+  const t = THEME_CHART[mode] || THEME_CHART.dark;
+  Chart.defaults.color = t.color;
+  Chart.defaults.borderColor = t.border;
+  Chart.defaults.plugins.tooltip.backgroundColor = t.tipBg;
+  Chart.defaults.plugins.tooltip.borderColor = t.tipBorder;
+  Chart.defaults.plugins.tooltip.titleColor = t.tipTitle;
+  Chart.defaults.plugins.tooltip.bodyColor = t.color;
+  const btn = document.getElementById("themeBtn");
+  if (btn) btn.innerHTML = mode === "light" ? ICON_MOON : ICON_SUN;
+  if (rerender && CURRENT) renderPage();
+}
+function mountThemeToggle() {
+  const host = document.getElementById("ztzHeader");
+  if (!host || document.getElementById("themeBtn")) return;
+  const b = document.createElement("button");
+  b.id = "themeBtn"; b.className = "rs-theme"; b.title = "Light / dark mode";
+  b.onclick = () => applyTheme(document.body.classList.contains("light") ? "dark" : "light", true);
+  host.appendChild(b);
+  applyTheme((() => { try { return localStorage.getItem("rs_theme"); } catch (e) { return null; } })() || "dark", false);
+}
 
 let CURRENT = null;
 
@@ -400,6 +432,7 @@ async function buildFilters() {
 
 /* ---------------- boot ---------------- */
 ZTZ.header("reporting", "Reporting System");
+mountThemeToggle();
 if (!ZTZ.getToken()) {
   document.getElementById("gate").classList.remove("hidden");
   ZTZ.mountSignin(document.getElementById("gateSign"))
@@ -451,78 +484,120 @@ async function aclCall(method, body) {
   if (!r.ok) throw new Error(j.error || ("HTTP " + r.status));
   return j;
 }
+const aclIconFor = id => (MERGED.find(m => m.id === id) || {}).icon ||
+  PAGE_ICONS[id] || (id === "explorer" ? "archive" : "doc");
 registerPage({
   id: "admin-users", group: "pulse", title: "Users & Access",
   async render(host) {
+    const self = this;
     if (!ME || !ME.admin) { host.innerHTML = `<div class="rs-loading">Admins only.</div>`; return; }
     let data;
     try { data = await aclCall("GET"); }
     catch (e) {
-      host.innerHTML = `<div class="rs-loading"><span class="err">${RSC.esc(e.message)}</span>
-        <div class="insight-note" style="margin-top:10px">If this says "unknown dataset", the access-control bridge hasn't been deployed yet.</div></div>`;
+      host.innerHTML = `<div class="rs-loading"><span class="err">${RSC.esc(e.message)}</span></div>`;
       return;
     }
     const ids = data.report_ids.filter(r => REPORT_LABELS[r]);
     host.innerHTML = `
       <div class="rs-page-head"><h1>Users & Access</h1>
-        <p>Deny-by-default: people you don't add see a request-access screen. Tick the reports each user may open — enforced by the data bridge, not just hidden.</p></div>
-      <div class="rs-grid2">
-        <div class="panel"><div class="panel-head"><span class="panel-title" id="formTitle">Add user</span></div>
-          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:11px">
-            <input id="uEmail" class="q" style="flex:2;min-width:220px;border:1px solid var(--line);background:#0e1522;color:var(--ink);border-radius:9px;padding:8px 11px;font-size:13px;outline:0" placeholder="email@ziptozipmoving.com">
-            <input id="uName" class="q" style="flex:1;min-width:120px;border:1px solid var(--line);background:#0e1522;color:var(--ink);border-radius:9px;padding:8px 11px;font-size:13px;outline:0" placeholder="Name (optional)">
+        <p>Deny-by-default access. Every grant is enforced by the data bridge itself — reports a user can't see are also reports they can't query.</p></div>
+      <div class="panel">
+        <div class="panel-head">
+          <span class="panel-title">Users <span style="color:var(--faint);font-weight:600">· ${data.users.length}</span></span>
+          <span class="spacer"></span>
+          <button class="btn on" id="aclAdd">+ Add user</button>
+        </div>
+        <div id="aclEditor" class="hidden" style="border:1px solid var(--line-2);border-radius:13px;padding:15px 16px;margin-bottom:13px;background:var(--panel-2)">
+          <div style="display:flex;gap:9px;flex-wrap:wrap;margin-bottom:12px">
+            <input id="uEmail" class="acl-field" style="flex:2;min-width:230px" placeholder="email@ziptozipmoving.com">
+            <input id="uName" class="acl-field" style="flex:1;min-width:130px" placeholder="Name (optional)">
           </div>
-          <label class="opt" style="display:flex;align-items:center;gap:8px;color:var(--muted);font-size:13px;margin-bottom:10px">
-            <input type="checkbox" id="uAdmin" style="accent-color:var(--brand)"> Administrator (everything + user management)</label>
-          <div id="uReports" style="display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-bottom:13px">` +
-        ids.map(r => `<label class="opt" style="display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--muted)">
-            <input type="checkbox" value="${r}" style="accent-color:var(--brand)"> ${RSC.esc(REPORT_LABELS[r])}</label>`).join("") +
-        `</div>
-          <button class="btn on" id="uSave">Save user</button>
-          <span class="insight-note" id="uMsg" style="margin-left:10px"></span>
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px">
+            <span class="acl-switch" id="uAdmin"></span>
+            <span style="font-size:13px;color:var(--muted)"><b style="color:var(--ink)">Administrator</b> — every report, the data portal, and user management</span>
+          </div>
+          <div id="uReports">
+            <div class="insight-note" style="margin:10px 0 0">Or pick exactly what they can open:</div>
+            <div class="acl-tilegrid">` +
+      ids.map(r => `<div class="acl-tile" data-r="${r}">${icon(aclIconFor(r))}<span>${RSC.esc(REPORT_LABELS[r])}</span></div>`).join("") +
+      `</div>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <button class="btn on" id="uSave">Save user</button>
+            <button class="btn" id="uCancel">Cancel</button>
+            <span class="insight-note" id="uMsg" style="margin:0 0 0 6px"></span>
+          </div>
         </div>
-        <div class="panel"><div class="panel-head"><span class="panel-title">Users (${data.users.length})</span></div>
-          <div class="tabwrap" id="uList"></div>
-        </div>
+        <div id="aclList"></div>
       </div>`;
-    const paintList = () => {
-      document.getElementById("uList").innerHTML = RSC.table(
-        [{ key: "e", label: "Email" }, { key: "n", label: "Name" },
-         { key: "r", label: "Access" }, { key: "a", label: "" }],
-        data.users.map(u => ({
-          e: u.email, n: u.name || "—",
-          r: u.admin ? '<span class="up">Admin — everything</span>' :
-             (u.reports.length ? u.reports.length + " reports" : '<span class="down">nothing</span>'),
-          a: `<button class="btn" data-edit="${RSC.esc(u.email)}">Edit</button>
-              <button class="btn" data-del="${RSC.esc(u.email)}" style="color:var(--red)">Remove</button>`,
-        })));
-      host.querySelectorAll("[data-edit]").forEach(b => b.onclick = () => {
-        const u = data.users.find(x => x.email === b.dataset.edit);
-        document.getElementById("formTitle").textContent = "Edit user";
-        document.getElementById("uEmail").value = u.email;
-        document.getElementById("uName").value = u.name || "";
-        document.getElementById("uAdmin").checked = u.admin;
-        host.querySelectorAll("#uReports input").forEach(cb => cb.checked = u.reports.includes(cb.value));
-      });
-      host.querySelectorAll("[data-del]").forEach(b => b.onclick = async () => {
-        if (!confirm("Remove all access for " + b.dataset.del + "?")) return;
-        try { await aclCall("POST", { action: "delete", email: b.dataset.del }); this.render(host); }
-        catch (e) { alert(e.message); }
-      });
+
+    const editor = host.querySelector("#aclEditor");
+    const admSwitch = host.querySelector("#uAdmin");
+    const setAdmin = on => {
+      admSwitch.classList.toggle("on", on);
+      host.querySelector("#uReports").style.opacity = on ? .35 : 1;
+      host.querySelector("#uReports").style.pointerEvents = on ? "none" : "auto";
     };
-    paintList();
-    document.getElementById("uSave").onclick = async () => {
-      const msg = document.getElementById("uMsg");
+    admSwitch.onclick = () => setAdmin(!admSwitch.classList.contains("on"));
+    host.querySelectorAll(".acl-tile").forEach(t =>
+      t.onclick = () => t.classList.toggle("on"));
+
+    const openEditor = (u) => {
+      editor.classList.remove("hidden");
+      host.querySelector("#uEmail").value = u ? u.email : "";
+      host.querySelector("#uEmail").disabled = !!u;
+      host.querySelector("#uName").value = (u && u.name) || "";
+      setAdmin(!!(u && u.admin));
+      host.querySelectorAll(".acl-tile").forEach(t =>
+        t.classList.toggle("on", !!(u && u.reports.includes(t.dataset.r))));
+      host.querySelector("#uMsg").textContent = "";
+      if (!u) host.querySelector("#uEmail").focus();
+    };
+    host.querySelector("#aclAdd").onclick = () => openEditor(null);
+    host.querySelector("#uCancel").onclick = () => editor.classList.add("hidden");
+
+    const grantChips = u => {
+      if (u.admin) return `<span class="acl-badge admin">ADMIN · EVERYTHING</span>`;
+      if (!u.reports.length) return `<span class="acl-badge none">NO ACCESS</span>`;
+      const shown = u.reports.slice(0, 4);
+      return shown.map(r => `<span class="acl-badge r">${RSC.esc((REPORT_LABELS[r] || r).split(" (")[0].split(" — ")[0])}</span>`).join("") +
+        (u.reports.length > 4 ? `<span class="acl-badge r">+${u.reports.length - 4}</span>` : "");
+    };
+    host.querySelector("#aclList").innerHTML = data.users.map(u => `
+      <div class="acl-user">
+        <span class="avatar">${RSC.esc((u.name || u.email)[0].toUpperCase())}</span>
+        <div class="u-main">
+          <div class="u-email">${RSC.esc(u.email)}</div>
+          <div class="u-sub">${RSC.esc(u.name || "")}${u.name ? " · " : ""}${u.admin ? "administrator" : u.reports.length + " report" + (u.reports.length === 1 ? "" : "s")}</div>
+        </div>
+        <div class="u-grants">${grantChips(u)}</div>
+        <div class="u-actions">
+          <button class="btn" data-edit="${RSC.esc(u.email)}">Edit</button>
+          ${u.email === ME.email ? "" : `<button class="btn" data-del="${RSC.esc(u.email)}" style="color:var(--red)">Remove</button>`}
+        </div>
+      </div>`).join("");
+
+    host.querySelectorAll("[data-edit]").forEach(b => b.onclick = () =>
+      openEditor(data.users.find(x => x.email === b.dataset.edit)));
+    host.querySelectorAll("[data-del]").forEach(b => b.onclick = async () => {
+      if (!confirm("Remove ALL access for " + b.dataset.del + "?")) return;
+      try { await aclCall("POST", { action: "delete", email: b.dataset.del });
+        ZTZ.toast("Access removed"); self.render(host); }
+      catch (e) { alert(e.message); }
+    });
+    host.querySelector("#uSave").onclick = async () => {
+      const msg = host.querySelector("#uMsg");
       try {
+        msg.textContent = "Saving…";
         await aclCall("POST", {
           action: "upsert",
-          email: document.getElementById("uEmail").value,
-          name: document.getElementById("uName").value,
-          admin: document.getElementById("uAdmin").checked,
-          reports: [...host.querySelectorAll("#uReports input:checked")].map(cb => cb.value),
+          email: host.querySelector("#uEmail").value,
+          name: host.querySelector("#uName").value,
+          admin: admSwitch.classList.contains("on"),
+          reports: [...host.querySelectorAll(".acl-tile.on")].map(t => t.dataset.r),
         });
-        msg.textContent = "Saved.";
-        this.render(host);
+        ZTZ.toast("User saved");
+        self.render(host);
       } catch (e) { msg.textContent = e.message; }
     };
   },
