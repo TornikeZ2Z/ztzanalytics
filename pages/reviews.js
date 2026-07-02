@@ -15,12 +15,23 @@ registerPage({
     const goals = RS.filtered("review_goals", goalAll);
     const M = RS.M;
 
+    if (!bd.length && !counts.length && !goals.length) {
+      host.innerHTML = `
+        <div class="rs-page-head">
+          <h1>Reviews</h1>
+          <p>Platform review production vs goals</p>
+        </div>
+        <div class="panel" style="padding:18px;color:var(--muted)">No data for the current filters — adjust or clear the filter bar above.</div>`;
+      return;
+    }
+
     const isCounted = r => RS.num(r["Counts"]) === 1;      // same predicate the registry uses
     const nRev = r => RS.num(r["Number of Reviews"]);
     const truthy = v => { const s = String(v == null ? "" : v).trim().toLowerCase();
       return s === "1" || s === "true" || s === "yes" || RS.num(v) > 0; };
     const mk = r => r._y + "-" + String(r._m).padStart(2, "0");
     const mLabel = k => RS.monthName(+k.slice(5)) + " " + k.slice(2, 4);
+    const nf = v => v == null ? "—" : RS.fmtN(v);   // null-safe count formatter for tables
 
     const written = M["Total Reviews Written"].fn(bd);
     const avgScore = M["Review Score (avg)"].fn(bd);
@@ -38,6 +49,32 @@ registerPage({
     const factualInGoal = counts.filter(r => goalKeys.has(gkey(r)))
       .reduce((a, r) => a + nRev(r), 0);
     const attainment = goalTotal ? factualInGoal / goalTotal : null;
+
+    /* Headline YoY chips: YTD window (Jan-1 → max date of the filtered rows) vs the
+       same window last year, evaluated on the date-UNfiltered dataset (year/month
+       slicers lifted too, or the prior-year window would filter itself away). */
+    const yoyChip = (ds, allRows, scopedRows, valFn) => {
+      const maxD = scopedRows.reduce((a, r) => (r._d && r._d > a ? r._d : a), "");
+      if (!maxD) return "";
+      const winVal = (from, to) => {
+        const s = RS.state;
+        const save = { f: s.dateFrom, t: s.dateTo, y: s.multi.year, m: s.multi.month };
+        s.dateFrom = from; s.dateTo = to; s.multi.year = null; s.multi.month = null;
+        const v = valFn(RS.filtered(ds, allRows));
+        s.dateFrom = save.f; s.dateTo = save.t; s.multi.year = save.y; s.multi.month = save.m;
+        return v;
+      };
+      const y = +maxD.slice(0, 4);
+      const cur = winVal(y + "-01-01", maxD);
+      const prev = winVal((y - 1) + "-01-01", (y - 1) + maxD.slice(4));
+      if (!prev || cur == null) return "";
+      const g = (cur - prev) / Math.abs(prev);
+      return `<span class="${g >= 0 ? "up" : "down"}">${g >= 0 ? "▲" : "▼"} ${(100 * Math.abs(g)).toFixed(1)}%</span>`;
+    };
+    const writtenChip = yoyChip("reviews_breakdown", bdAll, bd,
+      rs => M["Total Reviews Written"].fn(rs));
+    const factualChip = yoyChip("review_counts", cntAll, counts,
+      rs => M["Total Factual Reviews"].fn(rs));
 
     host.innerHTML = `
       <div class="rs-page-head">
@@ -60,6 +97,12 @@ registerPage({
       { label: "Goal Attainment", value: RS.fmtPct(attainment),
         sub: "factual / goal, goal-covered buckets only" },
     ]);
+    /* RSC.kpis escapes subs — inject the YoY chips (HTML) after render. */
+    const kpiSubs = document.querySelectorAll("#rvKpis .kpi .s");
+    if (writtenChip) kpiSubs[0].innerHTML =
+      "counted, from breakdown · " + writtenChip + " vs same period LY";
+    if (factualChip) kpiSubs[3].innerHTML =
+      "platform-reported counts · " + factualChip + " vs same period LY";
 
     /* ---------------- main: reviews by platform (breakdown Source, counted) ------- */
     const platG = {};
@@ -107,22 +150,25 @@ registerPage({
         });
       },
       buildTable() {
+        const shown = plats.slice(0, 50);
+        const note = plats.length > shown.length
+          ? `<div style="color:var(--muted);font-size:12px;padding:6px 2px">showing ${shown.length} of ${plats.length} platforms — the Total row covers all.</div>` : "";
         return RSC.table(
           [{ key: "r", label: "#" },
            { key: "k", label: "Platform" },
-           { key: "v", label: "Reviews Written", fmt: RS.fmtN },
+           { key: "v", label: "Reviews Written", fmt: nf },
            { key: "sh", label: "% of total", fmt: RS.fmtPct },
            { key: "score", label: "Avg Score", fmt: RS.fmt1 },
-           { key: "img", label: "With Image", fmt: RS.fmtN },
+           { key: "img", label: "With Image", fmt: nf },
            { key: "imgsh", label: "% w/ image", fmt: RS.fmtPct }],
-          plats.slice(0, 60).map((x, i) => ({
+          shown.map((x, i) => ({
             r: i + 1, k: x.k, v: x.v,
             sh: written ? x.v / written : null,
             score: x.score, img: x.img,
             imgsh: x.v ? x.img / x.v : null,
           })),
           { r: "", k: "Total", v: written, sh: written ? 1 : null,
-            score: avgScore, img: withImage, imgsh: written ? withImage / written : null });
+            score: avgScore, img: withImage, imgsh: written ? withImage / written : null }) + note;
       },
     });
 
@@ -170,7 +216,7 @@ registerPage({
               y: { ticks: { precision: 0 } },
               y1: { position: "right", grid: { drawOnChartArea: false },
                     ticks: { callback: v => v + "%" } },
-              x: { ticks: { font: { size: 11 }, maxRotation: 60, minRotation: 40 } },
+              x: { ticks: { font: { size: 11 }, autoSkip: true, maxTicksLimit: 14, maxRotation: 45 } },
             },
           },
         });
@@ -190,9 +236,9 @@ registerPage({
         });
         return RSC.table(
           [{ key: "m", label: "Month" },
-           { key: "f", label: "Factual Reviews", fmt: RS.fmtN },
+           { key: "f", label: "Factual Reviews", fmt: nf },
            { key: "d", label: "Δ vs prev mo", fmt: v => v == null ? "—" : delta(v) },
-           { key: "g", label: "Goal", fmt: v => v == null ? "—" : RS.fmtN(v) },
+           { key: "g", label: "Goal", fmt: nf },
            { key: "att", label: "Attainment", fmt: RS.fmtPct }],
           data,
           { m: "Total", f: data.reduce((a, x) => a + x.f, 0), d: null,
@@ -242,7 +288,7 @@ registerPage({
         const tot = scores.reduce((a, x) => a + x.v, 0);
         const mix = RSC.table(
           [{ key: "k", label: "Review Score" },
-           { key: "v", label: "Reviews", fmt: RS.fmtN },
+           { key: "v", label: "Reviews", fmt: nf },
            { key: "sh", label: "% of counted", fmt: RS.fmtPct }],
           scores.map(x => ({ k: x.k === "—" ? "No score" : x.k, v: x.v, sh: tot ? x.v / tot : null })),
           { k: "Total", v: tot, sh: tot ? 1 : null });
@@ -260,7 +306,7 @@ registerPage({
         });
         return mix + `<div style="height:10px"></div>` + RSC.table(
           [{ key: "m", label: "Month" },
-           { key: "w", label: "Reviews Written", fmt: RS.fmtN },
+           { key: "w", label: "Reviews Written", fmt: nf },
            { key: "avg", label: "Avg Score", fmt: RS.fmt1 },
            { key: "d", label: "Δ score vs prev mo", fmt: v => v == null ? "—" : dScore(v) }],
           trend,
