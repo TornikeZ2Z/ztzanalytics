@@ -17,6 +17,7 @@ registerPage({
     const closingRows = RS.filtered("closing", closingAll);
     const M = RS.M;
     const moneyNS = v => (v == null || isNaN(v)) ? "—" : RS.money(v);   // null-safe table money
+    const EMPTY = '<div style="padding:16px 14px;color:var(--muted)">No data for the current filters.</div>';
 
     // Empty state — nothing matches the current filters: skip KPIs/charts entirely.
     if (!rows.length) {
@@ -68,7 +69,7 @@ registerPage({
       { label: "Storage Additional Revenue", value: RS.moneyC(addTotal), sub: RS.money(addTotal) + " · separate storage payments" },
       { label: "Storage Payments", value: RS.fmtN(rows.length), sub: "# payments in scope" },
       { label: "Avg Payment", value: rows.length ? RS.moneyC((addTotal + inclTotal) / rows.length) : "—", sub: "all storage revenue / payment" },
-      { label: "Storage Rev. in Total Bill", value: RS.moneyC(inclTotal), sub: RS.money(inclTotal) + " · paid at pickup (in job bill)" },
+      { label: "Storage Rev. in Job Revenue", value: RS.moneyC(inclTotal), sub: RS.money(inclTotal) + " · paid at pickup (in job revenue)" },
       { label: "Storage Jobs", value: RS.fmtN(M["Total Storage Jobs"].fn(closingRows)), sub: "closings marked Our Storage" },
     ]);
     {   // RSC.kpis HTML-escapes subs — inject the YoY chips afterwards as HTML.
@@ -99,6 +100,7 @@ registerPage({
       // PBI hard-codes a visual filter `End of Month <> <current month>`; replicated
       // DYNAMICALLY — the current partial calendar month is dropped from the chart only.
       controlsHtml: `<span class="lbl">last 24 mo · current partial month excluded</span>`,
+      controlsGraphOnly: true,   // note describes the chart only — hide it in tabular view
       buildChart(canvas) {
         const shown = months
           .filter(k => k !== curKey && ((addByMonth[k] && addByMonth[k].v) || inclByMonth[k]))
@@ -109,7 +111,7 @@ registerPage({
             labels: shown.map(mLabel),
             datasets: [
               { label: "Storage Additional Revenue", data: shown.map(k => Math.round(addByMonth[k] ? addByMonth[k].v : 0)), backgroundColor: "#b7e23b", borderRadius: 4 },
-              { label: "Storage Revenue Included in Total Bill", data: shown.map(k => Math.round(inclByMonth[k] || 0)), backgroundColor: "#5b8cff", borderRadius: 4 },
+              { label: "Storage Revenue in Job Revenue", data: shown.map(k => Math.round(inclByMonth[k] || 0)), backgroundColor: "#5b8cff", borderRadius: 4 },
             ],
           },
           options: {
@@ -128,26 +130,35 @@ registerPage({
       },
       buildTable() {
         // Parity with the PBI pivot "Leads Tabular Analysis": Year→Month rows with
-        // Total Jobs, Total Bill, Storage Additional Revenue, Storage Rev. in Total Bill.
+        // Total Jobs, Revenue (split into closings + appended trips), and storage revenue.
         // The tabular view keeps the current month (marked partial) — chart-only exclusion.
         const data = months.map(k => {
           const cl = closByMonth[k] || [];
           return {
             m: mLabel(k) + (k === curKey ? " (partial)" : ""),
-            jobs: M["Total Jobs"].fn(cl), bill: M["Total Bill"].fn(cl),
+            jobs: M["Total Jobs"].fn(cl),
+            rev: M["Revenue"].fn(cl),
+            revC: M["Total Revenue"].fn(cl),
+            revT: M["Additional Revenue from Trips"].fn(cl),
             amt: addByMonth[k] ? addByMonth[k].v : 0,
             n: addByMonth[k] ? addByMonth[k].n : 0,
             incl: inclByMonth[k] || 0,
           };
         });
+        if (!data.length) return EMPTY;
         return RSC.table(
           [{ key: "m", label: "Month" }, { key: "jobs", label: "Total Jobs", fmt: RS.fmtN },
-           { key: "bill", label: "Total Bill", fmt: moneyNS },
+           { key: "rev", label: "Revenue", fmt: moneyNS },
+           { key: "revC", label: "Revenue (Closings)", fmt: moneyNS },
+           { key: "revT", label: "Add'l Rev. (Trips)", fmt: moneyNS },
            { key: "amt", label: "Storage Additional Revenue", fmt: moneyNS },
            { key: "n", label: "# Payments", fmt: RS.fmtN },
-           { key: "incl", label: "Storage Rev. in Total Bill", fmt: moneyNS }],
+           { key: "incl", label: "Storage Rev. in Job Revenue", fmt: moneyNS }],
           data,
-          { m: "Total", jobs: M["Total Jobs"].fn(closingRows), bill: M["Total Bill"].fn(closingRows),
+          { m: "Total", jobs: M["Total Jobs"].fn(closingRows),
+            rev: M["Revenue"].fn(closingRows),
+            revC: M["Total Revenue"].fn(closingRows),
+            revT: M["Additional Revenue from Trips"].fn(closingRows),
             amt: addTotal, n: rows.length, incl: inclTotal });
       },
     });
@@ -185,6 +196,7 @@ registerPage({
         });
       },
       buildTable() {
+        if (!byType.length) return EMPTY;
         const tot = byType.reduce((a, x) => a + (x.v || 0), 0);
         return RSC.table(
           [{ key: "k", label: "Payment Type" }, { key: "v", label: "Amount", fmt: moneyNS },
@@ -202,14 +214,14 @@ registerPage({
     {
       const recent = rows.slice()
         .sort((a, b) => (b._d || "").localeCompare(a._d || "")).slice(0, 50);
-      pay.querySelector(".tabwrap").innerHTML = RSC.table(
+      pay.querySelector(".tabwrap").innerHTML = recent.length ? RSC.table(
         [{ key: "d", label: "Payment Date" }, { key: "c", label: "Customer" },
          { key: "j", label: "Job Code" }, { key: "t", label: "Payment Type" },
          { key: "a", label: "Amount", fmt: moneyNS }],
         recent.map(r => ({
           d: r._d || "—", c: r.Customer || "—", j: r["Job Code"] || "—",
           t: r["Payment Type"] || "—", a: r.Amount == null ? null : RS.num(r.Amount),
-        })));
+        }))) : EMPTY;
     }
     subs.appendChild(pay);
   },
