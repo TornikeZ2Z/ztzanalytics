@@ -45,6 +45,8 @@ registerPage({
     const delta = v => v == null ? "—" : v > 0
       ? `<span class="up" style="color:var(--brand)">+${RS.fmtN(v)}</span>`
       : v < 0 ? `<span class="down" style="color:var(--red)">-${RS.fmtN(-v)}</span>` : "0";
+    // shared per-table empty state (matches the page-level guard's wording)
+    const EMPTY = '<div style="padding:16px 14px;color:var(--muted)">No data for the current filters.</div>';
 
     const total = M["Total Calls"].fn(rows);           // PBI: Incoming Calls
     const ft = M["First-Time Callers"].fn(rows);
@@ -116,6 +118,7 @@ registerPage({
     /* ---- main: calls by month (bars total + line first-time) ---- */
     RSC.chartCard(document.getElementById("crMain"), {
       title: "Calls by month",
+      controlsGraphOnly: true,   // legend note describes the chart only — hide it in tabular view
       controlsHtml: `<span class="lbl">bars: total calls · line: first-time callers</span>`,
       buildChart(canvas) {
         const shown = months.slice(-24);
@@ -149,6 +152,7 @@ registerPage({
         });
       },
       buildTable() {
+        if (!months.length) return EMPTY;   // every row undated → no monthly buckets
         const data = months.map((k, i) => {
           const rs = byMonth[k], f = M["First-Time Callers"].fn(rs);
           const prev = i ? byMonth[months[i - 1]].length : null;
@@ -294,14 +298,14 @@ registerPage({
          <span class="spacer"></span>
          <span class="rs-ctl"><span class="lbl">ranked by call volume</span></span></div>
        <div class="tabwrap"></div>`);
-    wdPanel.querySelector(".tabwrap").innerHTML = RSC.table(
+    wdPanel.querySelector(".tabwrap").innerHTML = wdList.length ? RSC.table(
       [{ key: "r", label: "#" }, { key: "k", label: "Weekday" },
        { key: "c", label: "Calls", fmt: RS.fmtN },
        { key: "sh", label: "% of Calls", fmt: RS.fmtPct },
        { key: "ap", label: "Answered %", fmt: RS.fmtPct },
        { key: "avg", label: "Avg Dur", fmt: mmss }],
       wdList.map((x, i) => ({ r: i + 1, k: x.k, c: x.n, sh: total ? x.n / total : null,
-        ap: x.n ? x.rs.filter(isAnswered).length / x.n : null, avg: avgDurOf(x.rs) })));
+        ap: x.n ? x.rs.filter(isAnswered).length / x.n : null, avg: avgDurOf(x.rs) }))) : EMPTY;
     grid.appendChild(wdPanel);
 
     // (d) most recent calls — drill-to-detail (mirrors the Storage page's payments list)
@@ -314,7 +318,7 @@ registerPage({
       const recent = rows.slice()   // full timestamp, not _d: intraday order matters here
         .sort((a, b) => String(b["Start Time"] || "").localeCompare(String(a["Start Time"] || "")))
         .slice(0, 30);
-      recPanel.querySelector(".tabwrap").innerHTML = RSC.table(
+      recPanel.querySelector(".tabwrap").innerHTML = recent.length ? RSC.table(
         [{ key: "d", label: "Date" }, { key: "n", label: "Caller" },
          { key: "nn", label: "Number Name" }, { key: "s", label: "Status" },
          { key: "f", label: "First-Time" }, { key: "dur", label: "Duration", fmt: mmss }],
@@ -322,7 +326,7 @@ registerPage({
           d: r._d || "—", n: r.Name || "—", nn: r["Number Name"] || "—",
           s: r["Call Status"] || "—", f: isFirst(r) ? "Yes" : "—",
           dur: RS.num(r["Duration Seconds"]),
-        })));
+        }))) : EMPTY;
     }
     grid.appendChild(recPanel);
   },
