@@ -90,19 +90,54 @@ registerPage({
       <div id="faMain"></div>
       <div class="rs-grid2" id="faGrid"></div>`;
 
+    // ---- empty state: nothing in scope → friendly line instead of blank charts
+    if (!rows.length) {
+      document.getElementById("faMain").innerHTML =
+        `<div class="panel" style="padding:18px 16px;color:var(--muted)">No data for the current filters.</div>`;
+      return;
+    }
+
+    // ---- "vs same period last year" chip for the headline KPIs.
+    // Window = Jan-1 → max _d of the FILTERED rows; both years are evaluated on
+    // the date-UNfiltered dataset (other slicers still applied) so LY is comparable.
+    const yoyChip = calcKey => {
+      let maxD = "";
+      rows.forEach(r => { if (r._d && r._d > maxD) maxD = r._d; });
+      if (!maxD) return "";
+      const s = RS.state, save = { f: s.dateFrom, t: s.dateTo };
+      s.dateFrom = null; s.dateTo = null;
+      const noDate = RS.filtered("closing", closingAll);
+      s.dateFrom = save.f; s.dateTo = save.t;
+      const y = maxD.slice(0, 4), py = String(+y - 1), tail = maxD.slice(4);
+      const c = CALC[calcKey];
+      const d = delta(c.fn(noDate.filter(r => r._y === y && r._d <= maxD)),
+                      c.fn(noDate.filter(r => r._y === py && r._d <= py + tail)));
+      return d ? d.trim() + " vs same period LY" : "";
+    };
+
     const kpiDef = [
-      { label: "Total Jobs", c: "Total Jobs", sub: "closed jobs (incl. trips)" },
-      { label: "Total Bill", c: "Total Bill", sub: "revenue + trips extra" },
+      { label: "Total Jobs", c: "Total Jobs", sub: "closed jobs (incl. trips)", yoy: true },
+      { label: "Total Bill", c: "Total Bill", sub: "revenue + trips extra", yoy: true },
       { label: "Hours Worked", c: "Hours Worked by Forman", sub: "foreman hours" },
       { label: "Avg Crew Size", c: "Crew Size (avg)", sub: "crew members / job" },
       { label: "Total Tips", c: "Total Tips", sub: "customer + company tips" },
       { label: "Helper Cost", c: "Helper Cost", sub: "helper salaries in scope" },
     ];
-    RSC.kpis(document.getElementById("faKpis"), kpiDef.map(k => {
+    // RSC.kpis HTML-escapes the sub line, so paint the identical .kpi markup here —
+    // the sub carries HTML (the precise money figure + the YoY delta chip).
+    document.getElementById("faKpis").innerHTML = kpiDef.map(k => {
       const c = CALC[k.c], cur = c.fn(rows);
-      return { label: k.label, sub: k.sub,
-        value: c.fmt(cur) + (prev ? delta(cur, c.fn(prev)) : "") };
-    }));
+      const isMoney = c.fmt === RS.money;   // compact value; precise goes to sub
+      const sub = [isMoney ? RS.money(cur) : "", RSC.esc(k.sub), k.yoy ? yoyChip(k.c) : ""]
+        .filter(Boolean).join(" · ");
+      return `<div class="kpi"><div class="l">${RSC.esc(k.label)}</div>` +
+        `<div class="v">${(isMoney ? RS.moneyC : c.fmt)(cur)}${prev ? delta(cur, c.fn(prev)) : ""}</div>` +
+        `<div class="s">${sub}</div></div>`;
+    }).join("");
+
+    // ---- null-safe cell formatters for the tabular views
+    const nzMoney = v => (v == null || isNaN(v)) ? "—" : RS.money(v);
+    const nzN = v => (v == null || isNaN(v)) ? "—" : RS.fmtN(v);
 
     // ---- group closing rows by foreman once per render pass
     const byForeman = () => {
@@ -140,7 +175,7 @@ registerPage({
             plugins: { legend: { display: false },
               tooltip: { callbacks: { label: ct => `${calcBy}: ${c.fmt(ct.raw)}` } } },
             scales: {
-              x: { ticks: { callback: v => isMoney ? "$" + (v / 1000) + "k" : isPct ? (100 * v).toFixed(0) + "%" : RS.fmtN(v) } },
+              x: { ticks: { callback: v => isMoney ? RS.moneyC(v) : isPct ? (100 * v).toFixed(0) + "%" : RS.fmtN(v) } },
               y: { ticks: { font: { size: 11 },
                 callback(v) { const l = this.getLabelForValue(v);
                   return l.length > 16 ? l.slice(0, 15) + "…" : l; } } },
@@ -172,17 +207,20 @@ registerPage({
           [{ key: "rk", label: "#", fmt: v => v == null ? "—" : RS.fmtN(v) },
            { key: "f", label: "Foreman" },
            { key: "sh", label: "% of " + calcBy, fmt: RS.fmtPct },
-           { key: "jobs", label: "Jobs", fmt: RS.fmtN },
-           { key: "bill", label: "Total Bill", fmt: RS.money },
-           { key: "net", label: "Net Cash", fmt: RS.money },
-           { key: "hrs", label: "Hours", fmt: RS.fmtN },
-           { key: "tips", label: "Total Tips", fmt: RS.money },
-           { key: "tipf", label: "Tip for Forman", fmt: RS.money },
+           { key: "jobs", label: "Jobs", fmt: nzN },
+           { key: "bill", label: "Total Bill", fmt: nzMoney },
+           { key: "net", label: "Net Cash", fmt: nzMoney },
+           { key: "hrs", label: "Hours", fmt: nzN },
+           { key: "tips", label: "Total Tips", fmt: nzMoney },
+           { key: "tipf", label: "Tip for Forman", fmt: nzMoney },
            { key: "crew", label: "Avg Crew", fmt: RS.fmt1 },
            { key: "morn", label: "Morning %", fmt: RS.fmtPct },
-           { key: "help", label: "Helper Cost", fmt: RS.money }],
+           { key: "help", label: "Helper Cost", fmt: nzMoney }],
           data,
-          Object.assign({ rk: null, f: "Total", sh: (c.add && total) ? 1 : null }, mk(rows)));
+          Object.assign({ rk: null, f: "Total", sh: (c.add && total) ? 1 : null }, mk(rows))) +
+          (all.length > shown.length
+            ? `<p style="margin:6px 2px 0;font-size:12px;color:var(--faint)">Showing top ${shown.length} of ${RS.fmtN(all.length)} foremen — the rest are aggregated in "All others".</p>`
+            : "");
       },
     });
     document.getElementById("faCalc").onchange = e => {
@@ -200,7 +238,7 @@ registerPage({
          <span class="rs-ctl"><span class="lbl">Measure</span><select id="faMxCalc">` +
         Object.keys(CALC).map(c => `<option ${c === mxBy ? "selected" : ""}>${c}</option>`).join("") +
         `</select></span><span class="spacer"></span>
-         <span class="rs-ctl"><span class="lbl">top 15 · last 13 mo</span></span></div>
+         <span class="rs-ctl"><span class="lbl" id="faMxNote">top 15 · last 13 mo</span></span></div>
        <div class="tabwrap" id="faMx"></div>`);
     grid.appendChild(mx);
     const paintMatrix = () => {
@@ -214,9 +252,12 @@ registerPage({
         const e = byF[f] = byF[f] || { all: [], mm: {} };
         e.all.push(r); (e.mm[mm] = e.mm[mm] || []).push(r);
       });
-      const entries = Object.entries(byF)
+      const ranked = Object.entries(byF)
         .map(([f, e]) => ({ f, total: c.fn(e.all), mm: e.mm }))
-        .sort((a, b) => (b.total || 0) - (a.total || 0)).slice(0, 15);
+        .sort((a, b) => (b.total || 0) - (a.total || 0));
+      const entries = ranked.slice(0, 15);
+      document.getElementById("faMxNote").textContent =
+        "showing " + entries.length + " of " + ranked.length + " foremen · last " + months.length + " mo";
       const mLabel = k => RS.monthName(+k.slice(5)) + " " + k.slice(2, 4);
       let html = `<table class="tab"><thead><tr><th>Foreman</th>` +
         months.map(k => `<th>${mLabel(k)}</th>`).join("") + `<th>Total</th></tr></thead><tbody>`;
@@ -266,7 +307,9 @@ registerPage({
               legend: { position: "top", labels: { boxWidth: 12, font: { size: 12 } } },
               tooltip: { callbacks: { footer: items => {
                 const t = items.reduce((a, i) => a + i.raw, 0);
-                return t ? "Morning share: " + (100 * items.find(i => i.dataset.label === "Morning Job").raw / t).toFixed(1) + "%" : "";
+                const m = items.find(i => i.dataset.label === "Morning Job");
+                // m is undefined when the Morning dataset is legend-hidden
+                return (t && m) ? "Morning share: " + (100 * m.raw / t).toFixed(1) + "%" : "";
               } } },
             },
             scales: {
@@ -279,23 +322,31 @@ registerPage({
       buildTable() {
         const all = partSplit();
         const shown = all.slice(0, 12);
+        const tam = all.reduce((a, x) => a + x.am, 0), tpm = all.reduce((a, x) => a + x.pm, 0);
+        const grand = tam + tpm;
         const data = shown.map(x => ({ f: x.f, am: x.am, pm: x.pm, t: x.am + x.pm,
+          shT: grand ? (x.am + x.pm) / grand : null,
           sh: (x.am + x.pm) ? x.am / (x.am + x.pm) : null }));
         if (all.length > 12) {
           const rest = all.slice(12);
           const am = rest.reduce((a, x) => a + x.am, 0), pm = rest.reduce((a, x) => a + x.pm, 0);
           data.push({ f: `All others (${rest.length})`, am, pm, t: am + pm,
+            shT: grand ? (am + pm) / grand : null,
             sh: (am + pm) ? am / (am + pm) : null });
         }
-        const tam = all.reduce((a, x) => a + x.am, 0), tpm = all.reduce((a, x) => a + x.pm, 0);
         return RSC.table(
           [{ key: "f", label: "Foreman" },
-           { key: "am", label: "Morning Jobs", fmt: RS.fmtN },
-           { key: "pm", label: "Afternoon Jobs", fmt: RS.fmtN },
-           { key: "t", label: "Total", fmt: RS.fmtN },
+           { key: "am", label: "Morning Jobs", fmt: nzN },
+           { key: "pm", label: "Afternoon Jobs", fmt: nzN },
+           { key: "t", label: "Total", fmt: nzN },
+           { key: "shT", label: "% of All Jobs", fmt: RS.fmtPct },
            { key: "sh", label: "Morning %", fmt: RS.fmtPct }],
           data,
-          { f: "Total", am: tam, pm: tpm, t: tam + tpm, sh: (tam + tpm) ? tam / (tam + tpm) : null });
+          { f: "Total", am: tam, pm: tpm, t: tam + tpm, shT: (tam + tpm) ? 1 : null,
+            sh: (tam + tpm) ? tam / (tam + tpm) : null }) +
+          (all.length > shown.length
+            ? `<p style="margin:6px 2px 0;font-size:12px;color:var(--faint)">Showing top ${shown.length} of ${RS.fmtN(all.length)} foremen — the rest are aggregated in "All others".</p>`
+            : "");
       },
     });
   },
