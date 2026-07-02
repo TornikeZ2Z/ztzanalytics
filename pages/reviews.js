@@ -25,10 +25,10 @@ registerPage({
       return;
     }
 
-    const isCounted = r => RS.num(r["Counts"]) === 1;      // same predicate the registry uses
-    const nRev = r => RS.num(r["Number of Reviews"]);
     const truthy = v => { const s = String(v == null ? "" : v).trim().toLowerCase();
       return s === "1" || s === "true" || s === "yes" || RS.num(v) > 0; };
+    const isCounted = r => truthy(r["Counts"]);   // warehouse stores 'Yes'/'No'
+    const nRev = r => RS.num(r["Number of Reviews"]);
     const mk = r => r._y + "-" + String(r._m).padStart(2, "0");
     const mLabel = k => RS.monthName(+k.slice(5)) + " " + k.slice(2, 4);
     const nf = v => v == null ? "—" : RS.fmtN(v);   // null-safe count formatter for tables
