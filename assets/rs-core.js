@@ -183,7 +183,10 @@ window.RS = (function () {
     source:      { label: "Source",       closing: "Source",        moveboard: "Source",         refunds: "Source", long_distance: "Source", negative_reviews: "Source", reviews_breakdown: "Source", card_expenses: "Source", callrail: "Source", leads: "Source" },
     state:       { label: "State",        closing: "State",         moveboard: "State",          leads: "State" },
     foreman:     { label: "Foreman",      closing: "Foreman",       refunds: "Foreman",          scorecard: "Foreman" },
-    sales:       { label: "Sales Person", closing: "Sales Person",  moveboard: "Assigned",       refunds: "Sales Person", long_distance: "Sales Person", reviews_breakdown: "Sales Person" },
+    // Reviews have NO relationship to Sales Person in PBI — omit reviews_breakdown so the
+    // sales slicer skips reviews (it used to zero them). moveboard `Assigned` now carries the
+    // Full Name (curated fct_moveboard) so it matches the Full-Name slicer options like closing.
+    sales:       { label: "Sales Person", closing: "Sales Person",  moveboard: "Assigned",       refunds: "Sales Person", long_distance: "Sales Person" },
     cfRange:     { label: "CF Range",     moveboard: "CF Range" },
     billRange:   { label: "Bill Range",   closing: "Bill Range",    moveboard: "Bill Range" },
     movingType:  { label: "Moving Type",  closing: "Moving Type" },
@@ -313,7 +316,11 @@ window.RS = (function () {
   // `Counts` is a 'Yes'/'No' varchar in the warehouse — accept any truthy spelling.
   const isYes = v => { const s = String(v == null ? "" : v).trim().toLowerCase();
     return s === "yes" || s === "1" || s === "true"; };
+  // PBI "Total Reviews Written" = That Counts + That Doesn't Count (both unfiltered sums).
+  // "Counted Reviews Written" is the counted-only slice the Reviews page displays.
   register("Total Reviews Written", "reviews_breakdown", fmtN,
+    rows => sum(rows, "Number of Reviews"));
+  register("Counted Reviews Written", "reviews_breakdown", fmtN,
     rows => sum(rows.filter(r => isYes(r["Counts"])), "Number of Reviews"));
   register("Reviews Written (not counted)", "reviews_breakdown", fmtN,
     rows => sum(rows.filter(r => !isYes(r["Counts"])), "Number of Reviews"));
@@ -328,7 +335,10 @@ window.RS = (function () {
   const latestPerPlatform = rows => {
     const best = {};
     rows.forEach(r => {
-      const k = r.Platform || "—";
+      // Grain = Company × Platform: Angi/Thumbtack/Trustpilot are shared by both
+      // companies with the same snapshot date; keying on Platform alone silently
+      // dropped the second company (~11% undercount). PBI sums every (Company,Platform).
+      const k = (r.Company || "—") + "|" + (r.Platform || "—");
       if (!best[k] || (r._d || "") > (best[k]._d || "")) best[k] = r;
     });
     return Object.values(best).reduce((a, r) => a + num(r["Number of Reviews"]), 0);
@@ -342,7 +352,9 @@ window.RS = (function () {
     rows => rows.filter(r => String(r["First-Time Caller"]) === "1" ||
       String(r["First-Time Caller"]).toLowerCase() === "true").length);
   register("Avg Call Duration (s)", "callrail", fmt1, rows => {
-    const v = rows.map(r => num(r["Duration Seconds"])).filter(x => x > 0);
+    // PBI AVERAGE includes 0-second (missed/abandoned) calls — do NOT filter them out
+    // (filtering inflated the mean). num() already coerces blanks to 0.
+    const v = rows.map(r => num(r["Duration Seconds"]));
     return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null;
   });
 
