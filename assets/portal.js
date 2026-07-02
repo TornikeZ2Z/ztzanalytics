@@ -19,6 +19,17 @@ window.ZTZ = (function () {
   function setToken(t) { try { localStorage.setItem(TOKEN_KEY, t); } catch (e) {} }
   function clearToken() { try { localStorage.removeItem(TOKEN_KEY); } catch (e) {} }
   function email() { const t = getToken(); return t ? (decodeJwt(t).email || "") : ""; }
+  /* Exchange a fresh Google ID token for a long-lived bridge session token.
+     Returns the session token, or the original credential if the exchange fails
+     (e.g. bridge not yet redeployed) so sign-in still works. */
+  async function exchangeToken(credential) {
+    try {
+      const r = await fetch(API + "/api/_session",
+        { method: "POST", headers: { Authorization: "Bearer " + credential } });
+      if (r.ok) { const j = await r.json(); if (j && j.token) return j.token; }
+    } catch (e) {}
+    return credential;
+  }
 
   /* ---------- bridge API ---------- */
   async function api(path) {
@@ -51,9 +62,13 @@ window.ZTZ = (function () {
     google.accounts.id.initialize({
       client_id: CLIENT_ID,
       auto_select: true,
-      callback: (resp) => {
-        setToken(resp.credential);
-        (opts.onDone || (() => location.reload()))(resp.credential);
+      callback: async (resp) => {
+        // Trade the ~1h Google ID token for a long-lived (12h) bridge session
+        // token so the user isn't forced to re-sign-in every hour. Falls back to
+        // the raw credential if the bridge hasn't shipped the endpoint yet.
+        const tok = await exchangeToken(resp.credential);
+        setToken(tok);
+        (opts.onDone || (() => location.reload()))(tok);
       },
     });
     google.accounts.id.renderButton(el, Object.assign(
