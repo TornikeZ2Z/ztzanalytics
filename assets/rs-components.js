@@ -171,7 +171,12 @@ window.RSC = (function () {
     const g = card.querySelector(".gview"), t = card.querySelector(".tview");
     const bg = card.querySelector(".tg-g"), bt = card.querySelector(".tg-t");
     const render = () => {
-      if (t.classList.contains("hidden")) {
+      const tabular = !t.classList.contains("hidden");
+      // Hide graph-only controls (e.g. a "Calculate by" that only drives the chart)
+      // when the tabular view is showing — they do nothing there.
+      const ctl = card.querySelector(".rs-ctl");
+      if (ctl && cfg.controlsGraphOnly) ctl.style.display = tabular ? "none" : "";
+      if (!tabular) {
         if (chart) chart.destroy();
         chart = cfg.buildChart(card.querySelector("canvas"));
       } else {
