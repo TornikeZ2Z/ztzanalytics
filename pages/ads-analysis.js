@@ -41,7 +41,9 @@ registerPage({
     const mbAds = moveboard.filter(r => adSources.has(norm(r.Source)));
 
     const adSpend = M["Advertisement Expense"].fn(cards);
-    const revenue = M["Total Bill"].fn(closingAds);        // revenue on ad sources
+    const revenue = M["Revenue"].fn(closingAds);           // revenue on ad sources (closings + appended trips)
+    const revClosings = M["Total Revenue"].fn(closingAds); // closings only
+    const revTrips = M["Additional Revenue from Trips"].fn(closingAds); // trips part
     const jobs = M["Total Jobs"].fn(closingAds);
     const leads = M["Total Leads"].fn(mbAds);
     // PBI "Ads Analysis - ROI" numerator is collected cash (Net Cash + Card Payment), not Total Bill.
@@ -55,6 +57,9 @@ registerPage({
       `<span class="${v >= 1 ? "up" : "down"}">${fmtX(v)}</span>`;
     const deltaCell = g => g == null ? "—" :
       `<span class="${g >= 0 ? "up" : "down"}">${(g >= 0 ? "▲ " : "▼ ") + RS.fmtPct(Math.abs(g))}</span>`;
+    // friendly empty state for a card's tabular view when a join produced no rows
+    const emptyTbl = msg =>
+      `<div style="padding:16px;color:var(--muted)">${msg}</div>`;
 
     // ---- headline YoY: Jan-1 → max filtered date vs the same window last year.
     // Prior-year rows come from the date-UNfiltered universe (other slicers still apply);
@@ -73,7 +78,7 @@ registerPage({
       const adND = cardsND.filter(r => RS.num(r["Is Advertising"]) === 1);
       const spendW = (f, t) => adND.reduce((a, r) =>
         a + ((r._d >= f && r._d <= t) ? RS.num(r.Amount) : 0), 0);
-      const revW = (f, t) => M["Total Bill"].fn(closingND.filter(r =>
+      const revW = (f, t) => M["Revenue"].fn(closingND.filter(r =>
         r._d >= f && r._d <= t && adSources.has(norm(r.Source))));
       const grow = (c, p) => p ? (c - p) / Math.abs(p) : null;
       yoySpend = grow(spendW(curF, curT), spendW(prvF, prvT));
@@ -96,7 +101,9 @@ registerPage({
       </div>`;
 
     const spendSub = RS.money(adSpend) + " · " + RS.fmtN(adRows.length) + " advertising transactions";
-    const revSub = RS.money(revenue) + " · Total Bill on " + RS.fmtN(closingAds.length) + " matched jobs";
+    const revSub = RS.money(revenue) + " · Revenue on " + RS.fmtN(closingAds.length) + " matched jobs";
+    // split so Revenue = Total Revenue (closings) + Additional Revenue from Trips is visible
+    const revSplit = "Closings " + RS.money(revClosings) + " + Trips " + RS.money(revTrips);
     RSC.kpis(document.getElementById("adsKpis"), [
       { label: "Advertisement Expense", value: RS.moneyC(adSpend), sub: spendSub },
       { label: "Revenue on Ad Sources", value: RS.moneyC(revenue), sub: revSub },
@@ -114,7 +121,9 @@ registerPage({
     const chip = g => g == null ? "" : " · " + deltaCell(g) + " vs same period last year";
     const kpiSubs = document.querySelectorAll("#adsKpis .kpi .s");
     if (kpiSubs[0]) kpiSubs[0].innerHTML = spendSub + chip(yoySpend);
-    if (kpiSubs[1]) kpiSubs[1].innerHTML = revSub + chip(yoyRev);
+    // revenue sub carries the YoY chip + the closings/trips split so the parts are visible
+    if (kpiSubs[1]) kpiSubs[1].innerHTML = revSub + chip(yoyRev) +
+      `<br><span style="color:var(--muted)">${revSplit}</span>`;
 
     /* ================= main: Spend by Provider (PBI "Analysis" column chart,
        Calculate by - Advertisement Analysis reduced to Ad Spend / # transactions) */
@@ -136,6 +145,8 @@ registerPage({
 
     const mainCard = RSC.chartCard(document.getElementById("adsMain"), {
       title: "Spend by Provider",
+      // table shows fixed columns (spend + txns + avg) regardless of the "Calculate by" pick
+      controlsGraphOnly: true,
       controlsHtml: `<span class="lbl">Calculate by</span><select id="adsProvCalc">` +
         PROV_CALC.map(c => `<option ${c === provCalc ? "selected" : ""}>${c}</option>`).join("") + `</select>`,
       buildChart(canvas) {
@@ -171,6 +182,7 @@ registerPage({
       },
       buildTable() {
         const list = provSorted();
+        if (!list.length) return emptyTbl("No advertising transactions for the current filters.");
         const totV = list.reduce((a, x) => a + x.v, 0);
         const totN = list.reduce((a, x) => a + x.n, 0);
         const top = list.slice(0, 25);
@@ -209,7 +221,7 @@ registerPage({
     const srcList = [...adSources].map(([k, disp]) => {
       const spend = spendBySrc[k] || 0;
       const cl = closBySrc[k] || [];
-      const rev = M["Total Bill"].fn(cl);
+      const rev = M["Revenue"].fn(cl);
       return { k, disp, spend, rev, jobs: cl.length, leads: mbCntBySrc[k] || 0,
                // PBI "Ads Analysis - ROI" = (Net Cash + Card Payment) / Ad Spend
                roi: spend ? M["Net Cash + Card Payment"].fn(cl) / spend : null };
@@ -220,6 +232,8 @@ registerPage({
     const grid = document.getElementById("adsGrid");
     RSC.chartCard(grid, {
       title: "Spend vs Revenue by Source",
+      // "top 12" label only describes the chart; the table lists up to 40 sources
+      controlsGraphOnly: true,
       controlsHtml: `<span class="lbl">top 12 sources by spend</span>`,
       buildChart(canvas) {
         const top = srcList.slice(0, 12);
@@ -229,7 +243,7 @@ registerPage({
             labels: top.map(x => x.disp),
             datasets: [
               { label: "Ad Spend", data: top.map(x => Math.round(x.spend)), backgroundColor: "#b7e23b", borderRadius: 4 },
-              { label: "Revenue (Total Bill)", data: top.map(x => Math.round(x.rev)), backgroundColor: "#5b8cff", borderRadius: 4 },
+              { label: "Revenue", data: top.map(x => Math.round(x.rev)), backgroundColor: "#5b8cff", borderRadius: 4 },
             ],
           },
           options: {
@@ -254,6 +268,7 @@ registerPage({
         });
       },
       buildTable() {
+        if (!srcList.length) return emptyTbl("No ad sources matched the current filters.");
         const totSpend = srcList.reduce((a, x) => a + x.spend, 0) + Math.max(0, unattributed);
         const data = srcList.slice(0, 40).map((x, i) => ({
           r: i + 1, s: x.disp, sp: x.spend, sh: totSpend ? x.spend / totSpend : null,
@@ -288,7 +303,7 @@ registerPage({
     const months = [...new Set([...Object.keys(spendByM), ...Object.keys(closAdsByM)])]
       .filter(k => /^\d{4}-\d{2}$/.test(k)).sort().slice(-24);
     const mLabel = k => RS.monthName(+k.slice(5)) + " " + k.slice(2, 4);
-    const revOfM = k => M["Total Bill"].fn(closAdsByM[k] || []);
+    const revOfM = k => M["Revenue"].fn(closAdsByM[k] || []);
 
     RSC.chartCard(grid, {
       title: "Monthly ad spend vs revenue",
@@ -324,6 +339,7 @@ registerPage({
         });
       },
       buildTable() {
+        if (!months.length) return emptyTbl("No monthly ad spend for the current filters.");
         const data = months.map((k, i) => {
           const sp = spendByM[k] || 0;
           const prev = i > 0 ? (spendByM[months[i - 1]] || 0) : null;
