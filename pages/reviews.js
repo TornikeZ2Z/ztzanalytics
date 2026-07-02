@@ -32,6 +32,19 @@ registerPage({
     const mk = r => r._y + "-" + String(r._m).padStart(2, "0");
     const mLabel = k => RS.monthName(+k.slice(5)) + " " + k.slice(2, 4);
     const nf = v => v == null ? "—" : RS.fmtN(v);   // null-safe count formatter for tables
+    /* Friendly empty states, cohesive with the page-level "No data" panel.
+       emptyChart writes a muted note into the card's chartbox and returns null
+       (chartCard tolerates a null chart); emptyTable returns a muted note string. */
+    const emptyChart = (canvas, msg) => {
+      const box = canvas && (canvas.closest(".chartbox") || canvas.parentNode);
+      if (box) box.innerHTML =
+        `<div style="height:100%;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:13px;text-align:center;padding:18px">${msg}</div>`
+        // keep a canvas in the DOM so a later Graph⇄Tabular toggle can still re-render.
+        + `<canvas style="display:none"></canvas>`;
+      return null;
+    };
+    const emptyTable = msg =>
+      `<div style="padding:14px 4px;color:var(--muted);font-size:13px">${msg}</div>`;
 
     const written = M["Counted Reviews Written"].fn(bd);
     const avgScore = M["Review Score (avg)"].fn(bd);
@@ -118,7 +131,9 @@ registerPage({
     RSC.chartCard(document.getElementById("rvMain"), {
       title: "Reviews by platform",
       controlsHtml: `<span class="lbl">counted reviews · top 12 + everything else</span>`,
+      controlsGraphOnly: true,   // the label describes the chart's top-12 grouping; the table lists up to 50
       buildChart(canvas) {
+        if (!plats.length) return emptyChart(canvas, "No counted reviews for the current filters.");
         let list = plats.slice(0, 12);
         const rest = plats.slice(12);
         if (rest.length) list = list.concat([{
@@ -150,6 +165,7 @@ registerPage({
         });
       },
       buildTable() {
+        if (!plats.length) return emptyTable("No counted reviews for the current filters.");
         const shown = plats.slice(0, 50);
         const note = plats.length > shown.length
           ? `<div style="color:var(--muted);font-size:12px;padding:6px 2px">showing ${shown.length} of ${plats.length} platforms — the Total row covers all.</div>` : "";
@@ -184,10 +200,16 @@ registerPage({
 
     /* ---------------- sub a: factual vs goal by month ---------------- */
     const goalMonths = Object.keys(goalByM).filter(k => goalByM[k] > 0).sort();
+    const factMonths = Object.keys(factByM).filter(k => factByM[k] > 0);
     RSC.chartCard(subs, {
       title: "Factual vs Goal by month",
       controlsHtml: `<span class="lbl">last 12 months with goals</span>`,
+      controlsGraphOnly: true,   // label reflects the chart's 12-month window; the table shows up to 24 months
       buildChart(canvas) {
+        if (!goalMonths.length) return emptyChart(canvas,
+          factMonths.length
+            ? "No review goals for the current filters — factual counts are shown in the tabular view."
+            : "No factual reviews or goals for the current filters.");
         const shown = goalMonths.slice(-12);
         return new Chart(canvas, {
           data: {
@@ -225,6 +247,7 @@ registerPage({
         // All months carrying either a goal or factual counts (last 24), MoM delta added.
         const months = [...new Set([...Object.keys(factByM), ...Object.keys(goalByM)])]
           .sort().slice(-24);
+        if (!months.length) return emptyTable("No factual reviews or goals for the current filters.");
         const delta = d => d == null ? "—" :
           `<span class="${d >= 0 ? "up" : "down"}">${(d >= 0 ? "+" : "") + RS.fmtN(d)}</span>`;
         const data = months.map((k, i) => {
@@ -263,7 +286,9 @@ registerPage({
     RSC.chartCard(subs, {
       title: "Score mix",
       controlsHtml: `<span class="lbl">counted reviews by score</span>`,
+      controlsGraphOnly: true,   // label describes the doughnut; the table also carries the monthly trend
       buildChart(canvas) {
+        if (!scores.length) return emptyChart(canvas, "No counted reviews for the current filters.");
         return new Chart(canvas, {
           type: "doughnut",
           data: {
@@ -285,6 +310,8 @@ registerPage({
         });
       },
       buildTable() {
+        if (!scores.length && !Object.keys(bdByM).length)
+          return emptyTable("No counted reviews for the current filters.");
         const tot = scores.reduce((a, x) => a + x.v, 0);
         const mix = RSC.table(
           [{ key: "k", label: "Review Score" },
