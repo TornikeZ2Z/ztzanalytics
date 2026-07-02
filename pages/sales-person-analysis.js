@@ -44,7 +44,9 @@ registerPage({
     }
 
     // ---- page-level totals
-    const totBill = M["Total Bill"].fn(rows);
+    const totBill = M["Total Bill"].fn(rows);       // Revenue (closings + appended trips)
+    const totRevClose = M["Total Revenue"].fn(rows); // closings only (SUM Total Bill)
+    const totRevTrips = M["Additional Revenue from Trips"].fn(rows); // appended trips part
     const totJobs = M["Total Jobs"].fn(rows);
     const totComm = M["Sales Commission"].fn(salRows);
     // PBI 'Amount Deducted From Sales Person' — refund amounts charged against commission
@@ -90,13 +92,13 @@ registerPage({
     // ---- Calculate-by registry (PBI field param 'Calculate by - Sales Person Analysis' subset)
     const CALCS = {
       "Total Jobs":          { key: "jobs", fmt: intNS, of: b => M["Total Jobs"].fn(b.rows) },
-      "Total Bill":          { key: "bill", fmt: moneyNS, of: b => M["Total Bill"].fn(b.rows) },
+      "Revenue":             { key: "bill", fmt: moneyNS, of: b => M["Total Bill"].fn(b.rows) },
       "Net Cash":            { key: "net", fmt: moneyNS, of: b => M["Net Cash"].fn(b.rows) },
       "Sales Commission":    { key: "comm", fmt: moneyNS, of: b => M["Sales Commission"].fn(b.sal) },
       "Commission Final":    { key: "commFinal", fmt: moneyNS,   // PBI 'Sales Commission Final'-style
         of: b => M["Sales Commission"].fn(b.sal) - b.reduced },
     };
-    let calcBy = "Total Bill";
+    let calcBy = "Revenue";
 
     // ---- MoM delta window: last two COMPLETE months in scope (partial month excluded)
     const now = new Date();
@@ -162,9 +164,9 @@ registerPage({
       <div class="rs-grid2" id="spaGrid"></div>`;
 
     RSC.kpis(document.getElementById("spaKpis"), [
-      { label: "Total Bill",
+      { label: "Revenue",
         value: RS.moneyC(totBill) + kpiMom(b => M["Total Bill"].fn(b.rows)) + yoyChip(rs => M["Total Bill"].fn(rs)),
-        sub: RS.money(totBill) + " · incl. trips extra bill · YoY vs same Jan-1 window LY" },
+        sub: RS.money(totRevClose) + " closings + " + RS.money(totRevTrips) + " trips · YoY vs same Jan-1 window LY" },
       { label: "Total Jobs",
         value: RS.fmtN(totJobs) + kpiMom(b => M["Total Jobs"].fn(b.rows)) + yoyChip(rs => M["Total Jobs"].fn(rs)),
         sub: "closings in scope" },
@@ -175,7 +177,7 @@ registerPage({
       { label: "Commission Final", value: RS.moneyC(totFinal),
         sub: RS.money(totFinal) + " · commission − reduced" },
       { label: "Avg Commission / Job", value: totJobs ? RS.moneyC(totComm / totJobs) : "—", sub: "commission ÷ total jobs" },
-      { label: "Commission % of Bill", value: totBill ? RS.fmtPct(totComm / totBill) : "—", sub: "cost-of-sales share" },
+      { label: "Commission % of Revenue", value: totBill ? RS.fmtPct(totComm / totBill) : "—", sub: "cost-of-sales share" },
     ]);
 
     // ---- main card: measure by sales person (Calculate-by switcher, top 20 + rest)
@@ -280,17 +282,18 @@ registerPage({
       const panel = RSC.el("div", "panel", `
         <div class="panel-head"><span class="panel-title">Normalized revenue</span>
           <span class="spacer"></span>
-          <span class="rs-ctl"><span class="lbl">bill × SP bill-distribution share</span></span></div>
+          <span class="rs-ctl"><span class="lbl">revenue × SP bill-distribution share</span></span></div>
         <div class="tabwrap" id="spaNorm"></div>`);
-      panel.querySelector("#spaNorm").innerHTML = RSC.table(
+      panel.querySelector("#spaNorm").innerHTML = trows.length ? RSC.table(
         [{ key: "rk", label: "#" }, { key: "name", label: "Sales Person" },
-         { key: "nb", label: "Normalized Bill", fmt: moneyNS },
+         { key: "nb", label: "Normalized Revenue", fmt: moneyNS },
          { key: "sh", label: "% of total", fmt: RS.fmtPct },
-         { key: "pb", label: "Primary-SP Bill", fmt: moneyNS },
+         { key: "pb", label: "Primary-SP Revenue", fmt: moneyNS },
          { key: "d", label: "Δ norm − primary", fmt: fmtDiff }],
         trows,
         { rk: null, name: "Total", nb: totNorm, sh: totNorm ? 1 : null,
-          pb: totPrim, d: totNorm - totPrim });
+          pb: totPrim, d: totNorm - totPrim })
+        : `<div style="padding:14px;color:var(--muted)">No commission-linked revenue for the current filters.</div>`;
       grid.appendChild(panel);
     }
 
@@ -300,12 +303,13 @@ registerPage({
         .sort((a, b) => (b.bill || 0) - (a.bill || 0)).slice(0, 12).map(x => x.name));
       const mrows = rows.filter(r => topSet.has(String(r["Sales Person"] || "")));
       const panel = RSC.el("div", "panel", `
-        <div class="panel-head"><span class="panel-title">Sales Person × Month — Total Bill</span>
+        <div class="panel-head"><span class="panel-title">Sales Person × Month — Revenue</span>
           <span class="spacer"></span>
-          <span class="rs-ctl"><span class="lbl">top 12 by Total Bill · last 8 months</span></span></div>
+          <span class="rs-ctl"><span class="lbl">top 12 by Revenue · last 8 months</span></span></div>
         <div class="tabwrap" id="spaMx"></div>`);
-      panel.querySelector("#spaMx").innerHTML =
-        RSC.matrix(mrows, "Sales Person", "Total Bill", { rowLabel: "Sales Person", lastN: 8 });
+      panel.querySelector("#spaMx").innerHTML = mrows.length
+        ? RSC.matrix(mrows, "Sales Person", "Total Bill", { rowLabel: "Sales Person", lastN: 8 })
+        : `<div style="padding:14px;color:var(--muted)">No named sales persons in the current scope.</div>`;
       grid.appendChild(panel);
     }
   },
