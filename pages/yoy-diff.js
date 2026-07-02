@@ -23,6 +23,11 @@ registerPage({
     // HTML chip variant for KPI subs (span.up/.down are themed in rs.css)
     const chip = g => g == null ? "—" :
       `<span class="${g >= 0 ? "up" : "down"}">${g >= 0 ? "▲ " : "▼ "}${RS.fmtPct(Math.abs(g))}</span>`;
+    // Revenue split sub-line: Revenue = Total Revenue (closings) + Additional Revenue from Trips
+    const revSplit = rs => {
+      const tr = M["Total Revenue"].fn(rs), tp = M["Additional Revenue from Trips"].fn(rs);
+      return `<br>${RS.moneyC(tr)} closings + ${RS.moneyC(tp)} trips`;
+    };
 
     if (!years.length) {
       host.innerHTML = `
@@ -46,7 +51,7 @@ registerPage({
 
     // ---- KPI strip: current value + YoY growth.
     // Date range set → RS.yoy (DATEADD -1y window). No range → two most recent calendar years.
-    const KPI = ["Total Jobs", "Total Bill", "Net Cash", "Card Payment"];
+    const KPI = ["Total Jobs", "Revenue", "Net Cash", "Card Payment"];
     const hasRange = !!(RS.state.dateFrom || RS.state.dateTo);
     // money KPI values are compact ($33.8M); the precise figure moves to the sub line
     const kpiVal = (m, v) => v == null ? "—" : (m.fmt === RS.money ? RS.moneyC(v) : m.fmt(v));
@@ -67,7 +72,8 @@ registerPage({
           const r = await RS.yoy(name);
           return { label: name, value: kpiVal(m, r.cur),
             subHtml: precise(m, r.cur) + (r.growth == null ? "no LY data in range"
-               : `${chip(r.growth)} vs same period LY (${m.fmt(r.prev)})`) };
+               : `${chip(r.growth)} vs same period LY (${m.fmt(r.prev)})`)
+               + (name === "Revenue" ? revSplit(rows) : "") };
         }));
       } finally {
         RS.state.dateFrom = save.f; RS.state.dateTo = save.t;
@@ -87,7 +93,8 @@ registerPage({
         const g = (prev && cur != null) ? (cur - prev) / Math.abs(prev) : null;
         return { label: name, value: kpiVal(m, cur),
           subHtml: precise(m, cur) + (g == null ? `${cy || ""} to date`
-             : `${chip(g)} ${cy} YTD vs ${py} same period (${m.fmt(prev)})`) };
+             : `${chip(g)} ${cy} YTD vs ${py} same period (${m.fmt(prev)})`)
+             + (name === "Revenue" ? revSplit(cy ? byYear[cy] : []) : "") };
       });
     }
     RSC.kpis(document.getElementById("kpis"), kpiItems);
@@ -97,7 +104,7 @@ registerPage({
     });
 
     // ---- shared Calculate-by (drives both charts, like the PBI field parameter)
-    const CALC = ["Total Jobs", "Total Bill", "Net Cash", "Card Payment",
+    const CALC = ["Total Jobs", "Revenue", "Net Cash", "Card Payment",
                   "Net Cash + Card Payment", "Hours Worked by Forman"];
     let calcBy = CALC[1];
     const perYear = name => years.map(y => M[name].fn(byYear[y]));
@@ -144,7 +151,8 @@ registerPage({
         const totSel = sel.reduce((a, v) => a + (v || 0), 0);
         const nz = f => v => v == null ? "—" : f(v);
         const data = years.map((y, i) => ({
-          y, jobs: M["Total Jobs"].fn(byYear[y]), bill: M["Total Bill"].fn(byYear[y]),
+          y, jobs: M["Total Jobs"].fn(byYear[y]), bill: M["Revenue"].fn(byYear[y]),
+          trev: M["Total Revenue"].fn(byYear[y]), trips: M["Additional Revenue from Trips"].fn(byYear[y]),
           net: M["Net Cash"].fn(byYear[y]), card: M["Card Payment"].fn(byYear[y]),
           nc: M["Net Cash + Card Payment"].fn(byYear[y]), hrs: M["Hours Worked by Forman"].fn(byYear[y]),
           share: totSel ? sel[i] / totSel : null,
@@ -153,14 +161,17 @@ registerPage({
         const tot = k => data.reduce((a, x) => a + (x[k] || 0), 0);
         return RSC.table(
           [{ key: "y", label: "Year" }, { key: "jobs", label: "Total Jobs", fmt: nz(RS.fmtN) },
-           { key: "bill", label: "Total Bill", fmt: nz(RS.money) }, { key: "net", label: "Net Cash", fmt: nz(RS.money) },
+           { key: "bill", label: "Revenue", fmt: nz(RS.money) },
+           { key: "trev", label: "Total Revenue", fmt: nz(RS.money) },
+           { key: "trips", label: "Trips Revenue", fmt: nz(RS.money) },
+           { key: "net", label: "Net Cash", fmt: nz(RS.money) },
            { key: "card", label: "Card Payment", fmt: nz(RS.money) }, { key: "nc", label: "Net + Card", fmt: nz(RS.money) },
            { key: "hrs", label: "Hours", fmt: nz(RS.fmtN) },
-           { key: "share", label: `% of Total (${calcBy})`, fmt: RS.fmtPct },
+           { key: "share", label: `% of Total (${calcBy})`, fmt: nz(RS.fmtPct) },
            { key: "g", label: `YoY % (${calcBy})`, fmt: growthTxt }],
           data,
-          { y: "Total", jobs: tot("jobs"), bill: tot("bill"), net: tot("net"),
-            card: tot("card"), nc: tot("nc"), hrs: tot("hrs"), share: totSel ? 1 : null });
+          { y: "Total", jobs: tot("jobs"), bill: tot("bill"), trev: tot("trev"), trips: tot("trips"),
+            net: tot("net"), card: tot("card"), nc: tot("nc"), hrs: tot("hrs"), share: totSel ? 1 : null });
       },
     });
 
