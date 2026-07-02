@@ -5,6 +5,14 @@ window.RS = (function () {
   const num = ZTZ.num, fmtN = ZTZ.fmtN, money = ZTZ.money;
   const fmtPct = v => (v == null || isNaN(v)) ? "—" : (100 * v).toFixed(1) + "%";
   const fmt1 = v => (v == null || isNaN(v)) ? "—" : Number(v).toLocaleString(undefined, { maximumFractionDigits: 1 });
+  /* compact money for KPI values: $33.8M / $412k / $728 (tables keep full precision) */
+  const moneyC = v => {
+    if (v == null || isNaN(v)) return "—";
+    const a = Math.abs(v);
+    if (a >= 1e6) return "$" + (v / 1e6).toFixed(1) + "M";
+    if (a >= 1e4) return "$" + Math.round(v / 1e3) + "k";
+    return money(v);
+  };
 
   /* ---------------- data layer (fetch once, cache in memory) ---------------- */
   const DATASETS = {
@@ -361,6 +369,6 @@ window.RS = (function () {
     return out;
   }
 
-  return { DATASETS, FIELDS, state, load, filtered, monthName, M, value, yoy, groupBy,
+  return { DATASETS, FIELDS, state, load, filtered, monthName, M, value, yoy, groupBy, moneyC,
            fmtN, money, fmtPct, fmt1, num };
 })();
