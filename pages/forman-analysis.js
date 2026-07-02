@@ -35,7 +35,7 @@ registerPage({
     // add=true → additive, share-of-total is meaningful.
     const CALC = {
       "Total Jobs":             { fmt: RS.fmtN,   add: true,  fn: rs => M["Total Jobs"].fn(rs) },
-      "Total Bill":             { fmt: RS.money,  add: true,  fn: rs => M["Total Bill"].fn(rs) },
+      "Revenue":                { fmt: RS.money,  add: true,  fn: rs => M["Revenue"].fn(rs) },
       "Net Cash":               { fmt: RS.money,  add: true,  fn: rs => M["Net Cash"].fn(rs) },
       "Hours Worked by Forman": { fmt: RS.fmtN,   add: true,  fn: rs => M["Hours Worked by Forman"].fn(rs) },
       "Total Tips":             { fmt: RS.money,  add: true,  fn: rs => M["Total Tips"].fn(rs) },
@@ -51,7 +51,7 @@ registerPage({
       // PBI measure 'Helper Salary' = SUM(Amount Received), attributed to the job's foreman
       "Helper Cost":            { fmt: RS.money,  add: true,  fn: helperCost },
     };
-    let calcBy = "Total Bill";
+    let calcBy = "Revenue";
 
     // ---- previous period (same-length window immediately before the date range) —
     // KPI deltas, computed only when an explicit date range is active.
@@ -117,7 +117,8 @@ registerPage({
 
     const kpiDef = [
       { label: "Total Jobs", c: "Total Jobs", sub: "closed jobs (incl. trips)", yoy: true },
-      { label: "Total Bill", c: "Total Bill", sub: "revenue + trips extra", yoy: true },
+      // Revenue = Total Revenue (closings) + Additional Revenue from Trips; split shown below.
+      { label: "Revenue", c: "Revenue", sub: "", yoy: true, split: true },
       { label: "Hours Worked", c: "Hours Worked by Forman", sub: "foreman hours" },
       { label: "Avg Crew Size", c: "Crew Size (avg)", sub: "crew members / job" },
       { label: "Total Tips", c: "Total Tips", sub: "customer + company tips" },
@@ -128,7 +129,11 @@ registerPage({
     document.getElementById("faKpis").innerHTML = kpiDef.map(k => {
       const c = CALC[k.c], cur = c.fn(rows);
       const isMoney = c.fmt === RS.money;   // compact value; precise goes to sub
-      const sub = [isMoney ? RS.money(cur) : "", RSC.esc(k.sub), k.yoy ? yoyChip(k.c) : ""]
+      // Revenue card: expose the closings vs trips breakdown so the split is visible.
+      const splitLine = k.split
+        ? `Total Revenue ${RS.money(M["Total Revenue"].fn(rows))} · +Trips ${RS.money(M["Additional Revenue from Trips"].fn(rows))}`
+        : "";
+      const sub = [isMoney ? RS.money(cur) : "", splitLine, RSC.esc(k.sub), k.yoy ? yoyChip(k.c) : ""]
         .filter(Boolean).join(" · ");
       return `<div class="kpi"><div class="l">${RSC.esc(k.label)}</div>` +
         `<div class="v">${(isMoney ? RS.moneyC : c.fmt)(cur)}${prev ? delta(cur, c.fn(prev)) : ""}</div>` +
@@ -187,7 +192,7 @@ registerPage({
         const c = CALC[calcBy];
         const total = c.add ? c.fn(rows) : null;
         const mk = rs => ({
-          jobs: CALC["Total Jobs"].fn(rs), bill: CALC["Total Bill"].fn(rs),
+          jobs: CALC["Total Jobs"].fn(rs), bill: CALC["Revenue"].fn(rs),
           net: CALC["Net Cash"].fn(rs), hrs: CALC["Hours Worked by Forman"].fn(rs),
           tips: CALC["Total Tips"].fn(rs), tipf: CALC["Tip for Forman"].fn(rs),
           crew: CALC["Crew Size (avg)"].fn(rs), morn: CALC["Morning Jobs %"].fn(rs),
@@ -208,7 +213,7 @@ registerPage({
            { key: "f", label: "Foreman" },
            { key: "sh", label: "% of " + calcBy, fmt: RS.fmtPct },
            { key: "jobs", label: "Jobs", fmt: nzN },
-           { key: "bill", label: "Total Bill", fmt: nzMoney },
+           { key: "bill", label: "Revenue", fmt: nzMoney },
            { key: "net", label: "Net Cash", fmt: nzMoney },
            { key: "hrs", label: "Hours", fmt: nzN },
            { key: "tips", label: "Total Tips", fmt: nzMoney },
@@ -288,6 +293,9 @@ registerPage({
     };
     RSC.chartCard(grid, {
       title: "Morning vs Afternoon jobs",
+      // The tabular view shows all foremen with fixed columns; the "top 12 · by job
+      // count" caption only describes the chart, so hide it in the table.
+      controlsGraphOnly: true,
       controlsHtml: `<span class="lbl">top 12 foremen · by job count</span>`,
       buildChart(canvas) {
         const list = partSplit().slice(0, 12);
