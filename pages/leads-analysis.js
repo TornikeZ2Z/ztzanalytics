@@ -6,7 +6,9 @@ registerPage({
   title: "Leads Analysis",
   async render(host) {
     const allRows = await RS.load("moveboard");
-    const rows = RS.filtered("moveboard", allRows);
+    const rows = RS.filtered("moveboard", allRows);            // Create Date basis (Total/Qualified/Dead)
+    // Confirmed Leads & Booking Rate slice on BOOKED Date in PBI (USERELATIONSHIP Booked Date ID).
+    const rowsB = RS.filtered("moveboard", allRows, { dateColumn: "Booked Date" });
     const M = RS.M;
     // RS.fmtN renders null as "0" — null-safe wrapper for nullable count cells
     const intNS = v => v == null ? "—" : RS.fmtN(v);
@@ -15,7 +17,7 @@ registerPage({
       <div class="rs-page-head">
         <h1>Leads Analysis</h1>
         <p>Moveboard lead funnel · <b>${RS.fmtN(rows.length)}</b> leads in scope
-           <span class="freshness">· dates by Create Date</span></p>
+           <span class="freshness">· leads by Create Date · confirmed by Booked Date</span></p>
       </div>
       <div class="rs-kpis" id="kpis"></div>
       <div class="rs-grid2">
@@ -25,18 +27,23 @@ registerPage({
       <div id="funnel"></div>`;
 
     if (!rows.length) {
-      document.getElementById("bySource").innerHTML =
-        `<div class="panel" style="padding:20px;color:var(--muted)">No data for the current filters.</div>`;
+      const empty = `<div class="panel" style="padding:20px;color:var(--muted)">No leads match the current filters.</div>`;
+      document.getElementById("bySource").innerHTML = empty;
+      document.getElementById("overTime").innerHTML = "";
+      document.getElementById("funnel").innerHTML = "";
       return;
     }
 
     const avgQ = M["Average Quote (avg)"].fn(rows);
+    const kQual = M["Qualified Leads"].fn(rows);
+    const kConf = M["Confirmed Leads"].fn(rowsB);   // Confirmed on Booked Date
     RSC.kpis(document.getElementById("kpis"), [
       { label: "Total Leads", value: RS.fmtN(M["Total Leads"].fn(rows)), sub: "all moveboard leads" },
-      { label: "Qualified Leads", value: RS.fmtN(M["Qualified Leads"].fn(rows)), sub: "excl. bad leads" },
-      { label: "Confirmed Leads", value: RS.fmtN(M["Confirmed Leads"].fn(rows)), sub: "booked jobs" },
+      { label: "Qualified Leads", value: RS.fmtN(kQual), sub: "excl. bad leads" },
+      { label: "Confirmed Leads", value: RS.fmtN(kConf), sub: "booked jobs · by booked date" },
       { label: "Dead Leads", value: RS.fmtN(M["Dead Leads"].fn(rows)), sub: "bad leads" },
-      { label: "Booking Rate", value: RS.fmtPct(M["Booking Rate"].fn(rows)), sub: "confirmed / qualified" },
+      { label: "Booking Rate", value: RS.fmtPct(kQual ? Math.min(1, kConf / kQual) : null),
+        sub: "confirmed (booked) / qualified (created)" },
       { label: "Average Quote", value: RS.moneyC(avgQ),
         sub: (avgQ == null ? "" : RS.money(avgQ) + " · ") + "avg of quoted leads" },
     ]);
@@ -53,14 +60,18 @@ registerPage({
         const y = maxD.slice(0, 4);
         const curRows = noDate.filter(r => r._d >= y + "-01-01" && r._d <= maxD);
         const prevRows = noDate.filter(r => r._d >= (+y - 1) + "-01-01" && r._d <= (+y - 1) + maxD.slice(4));
-        const chip = name => {
-          const cur = M[name].fn(curRows), prev = M[name].fn(prevRows);
+        const growthChip = (cur, prev) => {
           if (!prev || cur == null) return "";
           const g = (cur - prev) / Math.abs(prev);
           return ` <span class="${g >= 0 ? "up" : "down"}">${g >= 0 ? "▲" : "▼"} ${Math.abs(100 * g).toFixed(1)}% vs LY</span>`;
         };
+        // Confirmed compares on BOOKED date (matches the KPI basis).
+        const confWin = (f, t) => noDate.filter(r => {
+          const bd = String(r["Booked Date"] || "").slice(0, 10);
+          return bd >= f && bd <= t && r["Status Category"] === "Confirmed"; }).length;
         const kpiSubs = document.getElementById("kpis").querySelectorAll(".kpi .s");
-        const cTot = chip("Total Leads"), cConf = chip("Confirmed Leads");
+        const cTot = growthChip(M["Total Leads"].fn(curRows), M["Total Leads"].fn(prevRows));
+        const cConf = growthChip(confWin(y + "-01-01", maxD), confWin((+y - 1) + "-01-01", (+y - 1) + maxD.slice(4)));
         if (cTot && kpiSubs[0]) kpiSubs[0].innerHTML += cTot;
         if (cConf && kpiSubs[2]) kpiSubs[2].innerHTML += cConf;
       }
@@ -68,22 +79,27 @@ registerPage({
 
     /* ---- shared: one pass over Source, funnel measures per source ---- */
     const FUNNEL = ["Total Leads", "Qualified Leads", "Confirmed Leads", "Dead Leads", "Booking Rate"];
+    // Group by Source Connector (PBI's active moveboard source axis) so Post-Card splits
+    // into per-state buckets. Total/Qualified/Dead on Create-date rows; Confirmed on
+    // Booked-date rows (a=create-basis, b=booked-basis for the same source bucket).
+    const srcKey = r => r["Source Connector"] || r.Source || "—";
     function bySource() {
       const g = {};
-      // Group by Source Connector (PBI's active moveboard source axis) so Post-Card
-      // splits into per-state buckets instead of collapsing into one "Post Card".
-      rows.forEach(r => { const s = r["Source Connector"] || r.Source || "—"; (g[s] = g[s] || []).push(r); });
-      return Object.entries(g).map(([s, rs]) => ({
-        s, total: M["Total Leads"].fn(rs), qual: M["Qualified Leads"].fn(rs),
-        conf: M["Confirmed Leads"].fn(rs), dead: M["Dead Leads"].fn(rs),
-        rate: M["Booking Rate"].fn(rs),
-      })).sort((a, b) => b.total - a.total);
+      const get = s => g[s] || (g[s] = { s, a: [], b: [] });
+      rows.forEach(r => get(srcKey(r)).a.push(r));
+      rowsB.forEach(r => get(srcKey(r)).b.push(r));
+      return Object.values(g).map(o => {
+        const qual = M["Qualified Leads"].fn(o.a), conf = M["Confirmed Leads"].fn(o.b);
+        return { s: o.s, total: M["Total Leads"].fn(o.a), qual, conf,
+          dead: M["Dead Leads"].fn(o.a), rate: qual ? Math.min(1, conf / qual) : null };
+      }).sort((a, b) => b.total - a.total);
     }
 
     /* ---- chart 1: Leads by Source (horizontal bar, Calculate-by swap) ---- */
     let calcBy = FUNNEL[0];
     const srcCard = RSC.chartCard(document.getElementById("bySource"), {
       title: "Leads by Source",
+      controlsGraphOnly: true,   // tabular view shows the full funnel table; "Calculate by" only drives the chart
       controlsHtml: `<span class="lbl">Calculate by</span><select id="calcBy">` +
         FUNNEL.map(c => `<option ${c === calcBy ? "selected" : ""}>${c}</option>`).join("") + `</select>`,
       buildChart(canvas) {
@@ -117,7 +133,7 @@ registerPage({
         const all = bySource();
         const data = all.slice(0, 50);           // cap raw listing; sources are few in practice
         const tt = M["Total Leads"].fn(rows);
-        const tq = M["Qualified Leads"].fn(rows), tc = M["Confirmed Leads"].fn(rows);
+        const tq = M["Qualified Leads"].fn(rows), tc = M["Confirmed Leads"].fn(rowsB);
         const note = all.length > data.length
           ? `<p style="margin:6px 2px;color:var(--muted)">showing ${data.length} of ${all.length} sources</p>` : "";
         return RSC.table(
@@ -134,14 +150,17 @@ registerPage({
 
     /* ---- chart 2: Leads over time (monthly, Total + Confirmed lines) ---- */
     function byMonth() {
-      const g = {};
-      rows.forEach(r => { const k = r._y + "-" + String(r._m).padStart(2, "0"); (g[k] = g[k] || []).push(r); });
-      return Object.entries(g).sort((a, b) => a[0].localeCompare(b[0])).map(([k, rs]) => ({
-        k, label: RS.monthName(+k.slice(5)) + " " + k.slice(2, 4),
-        total: M["Total Leads"].fn(rs), qual: M["Qualified Leads"].fn(rs),
-        conf: M["Confirmed Leads"].fn(rs), dead: M["Dead Leads"].fn(rs),
-        rate: M["Booking Rate"].fn(rs),
-      }));
+      const g = {};   // create-month buckets (a) + booked-month buckets (b) merged on month key
+      const get = k => g[k] || (g[k] = { k, a: [], b: [] });
+      rows.forEach(r => get(r._y + "-" + String(r._m).padStart(2, "0")).a.push(r));
+      // Confirmed is bucketed by BOOKED month (PBI USERELATIONSHIP Booked Date).
+      rowsB.forEach(r => { const bd = String(r["Booked Date"] || "").slice(0, 7); if (bd.length === 7) get(bd).b.push(r); });
+      return Object.values(g).sort((x, y) => x.k.localeCompare(y.k)).map(o => {
+        const qual = M["Qualified Leads"].fn(o.a), conf = M["Confirmed Leads"].fn(o.b);
+        return { k: o.k, label: RS.monthName(+o.k.slice(5)) + " " + o.k.slice(2, 4),
+          total: M["Total Leads"].fn(o.a), qual, conf, dead: M["Dead Leads"].fn(o.a),
+          rate: qual ? Math.min(1, conf / qual) : null };
+      });
     }
     RSC.chartCard(document.getElementById("overTime"), {
       title: "Leads over time",
@@ -172,7 +191,7 @@ registerPage({
       },
       buildTable() {
         const data = byMonth();
-        const tq = M["Qualified Leads"].fn(rows), tc = M["Confirmed Leads"].fn(rows);
+        const tq = M["Qualified Leads"].fn(rows), tc = M["Confirmed Leads"].fn(rowsB);
         return RSC.table(
           [{ key: "label", label: "Month" }, { key: "total", label: "Total Leads", fmt: intNS },
            { key: "qual", label: "Qualified", fmt: intNS }, { key: "conf", label: "Confirmed", fmt: intNS },
