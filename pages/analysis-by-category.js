@@ -10,6 +10,7 @@ registerPage({
     const [closingAll, moveboardAll] = await Promise.all([RS.load("closing"), RS.load("moveboard")]);
     const rows = RS.filtered("closing", closingAll);
     const M = RS.M;
+    const nz = fmt => v => (v == null || (typeof v === "number" && isNaN(v))) ? "—" : fmt(v);
 
     // ---- moveboard bridge: Request Joinkey -> CF Range / Service Type (built once, cached)
     if (!RS._mbBridge) {
@@ -58,13 +59,46 @@ registerPage({
       <div id="main"></div>
       <div id="trend"></div>`;
 
+    if (!rows.length) {
+      document.getElementById("main").innerHTML =
+        `<div class="panel" style="padding:20px;color:var(--muted)">No data for the current filters.</div>`;
+      return;
+    }
+
+    const kBill = M["Total Bill"].fn(rows), kNet = M["Net Cash"].fn(rows),
+          kCard = M["Card Payment"].fn(rows), kAvg = M["Average Bill"].fn(rows);
     RSC.kpis(document.getElementById("kpis"), [
-      { label: "Total Jobs", value: RS.fmtN(M["Total Jobs"].fn(rows)) },
-      { label: "Total Bill", value: RS.money(M["Total Bill"].fn(rows)) },
-      { label: "Net Cash", value: RS.money(M["Net Cash"].fn(rows)) },
-      { label: "Card Payment", value: RS.money(M["Card Payment"].fn(rows)) },
-      { label: "Avg Bill / Job", value: RS.money(M["Average Bill"].fn(rows)) },
+      { label: "Total Jobs", value: RS.fmtN(M["Total Jobs"].fn(rows)), sub: "closed jobs (incl. trips)" },
+      { label: "Total Bill", value: RS.moneyC(kBill), sub: RS.money(kBill) },
+      { label: "Net Cash", value: RS.moneyC(kNet), sub: nz(RS.money)(kNet) + " · net + trips" },
+      { label: "Card Payment", value: RS.moneyC(kCard), sub: nz(RS.money)(kCard) + " · card volume" },
+      { label: "Avg Bill / Job", value: RS.moneyC(kAvg), sub: nz(RS.money)(kAvg) + " per job" },
     ]);
+
+    // ---- YoY chips: cur-year window (Jan-1 → max date of filtered rows) vs same
+    // window last year, over the slicer-filtered but date-UNfiltered dataset.
+    {
+      const maxD = rows.reduce((a, r) => (r._d && r._d > a ? r._d : a), "");
+      if (maxD) {
+        const save = { f: RS.state.dateFrom, t: RS.state.dateTo, df: RS.state.dayFrom, dt: RS.state.dayTo };
+        RS.state.dateFrom = RS.state.dateTo = null; RS.state.dayFrom = RS.state.dayTo = null;
+        const noDate = RS.filtered("closing", closingAll);
+        RS.state.dateFrom = save.f; RS.state.dateTo = save.t; RS.state.dayFrom = save.df; RS.state.dayTo = save.dt;
+        const y = maxD.slice(0, 4);
+        const curW = noDate.filter(r => r._d >= y + "-01-01" && r._d <= maxD);
+        const prevW = noDate.filter(r => r._d >= (+y - 1) + "-01-01" && r._d <= (+y - 1) + maxD.slice(4));
+        const chip = name => {
+          const cur = M[name].fn(curW), prev = M[name].fn(prevW);
+          if (!prev || cur == null) return "";
+          const g = (cur - prev) / Math.abs(prev);
+          return ` <span class="${g >= 0 ? "up" : "down"}">${g >= 0 ? "▲" : "▼"} ${Math.abs(100 * g).toFixed(1)}% vs LY</span>`;
+        };
+        const kpiSubs = document.getElementById("kpis").querySelectorAll(".kpi .s");
+        const cJobs = chip("Total Jobs"), cBill = chip("Total Bill");
+        if (cJobs && kpiSubs[0]) kpiSubs[0].innerHTML += cJobs;
+        if (cBill && kpiSubs[1]) kpiSubs[1].innerHTML += cBill;
+      }
+    }
 
     const grouped = () => {
       const get = DIMS[dimBy], g = {};
@@ -90,7 +124,10 @@ registerPage({
       buildChart(canvas) {
         const m = M[calcBy];
         const list = grouped().slice(0, 20);
-        const isMoney = m.fmt === RS.money;
+        const horiz = Object.keys(DIMS).indexOf(dimBy) < 5;
+        // truncate long category labels — applied to whichever axis holds the categories
+        const trunc = { callback(v) { const l = this.getLabelForValue ? this.getLabelForValue(v) : v;
+          return typeof l === "string" && l.length > 14 ? l.slice(0, 13) + "…" : l; } };
         return new Chart(canvas, {
           type: "bar",
           data: {
@@ -99,14 +136,15 @@ registerPage({
               backgroundColor: "#b7e23b", borderRadius: 5 }],
           },
           options: {
-            indexAxis: Object.keys(DIMS).indexOf(dimBy) < 5 ? "y" : "x",
+            indexAxis: horiz ? "y" : "x",
             responsive: true, maintainAspectRatio: false,
             plugins: { legend: { display: false },
               tooltip: { callbacks: { label: c => `${calcBy}: ${m.fmt(c.raw)}` } } },
             scales: {
-              x: { ticks: { callback(v) { const l = this.getLabelForValue ? this.getLabelForValue(v) : v;
-                    return typeof l === "string" && l.length > 14 ? l.slice(0, 13) + "…" : l; } } },
-              y: {},
+              x: { ticks: Object.assign({}, horiz ? {} : trunc,
+                    (dimBy === "Month" || dimBy === "Year")
+                      ? { autoSkip: true, maxTicksLimit: 14, maxRotation: 45 } : {}) },
+              y: horiz ? { ticks: trunc } : {},
             },
           },
         });
@@ -115,18 +153,22 @@ registerPage({
         const m = M[calcBy];
         const list = grouped();
         const total = m.fn(rows);
+        const shown = list.slice(0, 50);
         return RSC.table(
           [{ key: "k", label: dimBy },
-           { key: "jobs", label: "Total Jobs", fmt: RS.fmtN },
-           { key: "v", label: calcBy, fmt: m.fmt },
+           { key: "jobs", label: "Total Jobs", fmt: nz(RS.fmtN) },
+           { key: "v", label: calcBy, fmt: nz(m.fmt) },
            { key: "sh", label: "% of total", fmt: RS.fmtPct },
-           { key: "avg", label: "Avg Bill", fmt: RS.money }],
-          list.slice(0, 60).map(x => ({
+           { key: "avg", label: "Avg Bill", fmt: nz(RS.money) }],
+          shown.map(x => ({
             k: x.k, jobs: x.n, v: x.v,
             sh: total ? (x.v || 0) / total : null,
             avg: M["Average Bill"].fn(x.rs),
           })),
-          { k: "Total", jobs: rows.length, v: total, sh: total ? 1 : null, avg: M["Average Bill"].fn(rows) });
+          { k: "Total", jobs: rows.length, v: total, sh: total ? 1 : null, avg: M["Average Bill"].fn(rows) }) +
+          (list.length > shown.length
+            ? `<div style="padding:6px 2px;color:var(--muted);font-size:11px">Showing ${shown.length} of ${list.length} categories.</div>`
+            : "");
       },
     });
 
@@ -155,7 +197,7 @@ registerPage({
             interaction: { mode: "index", intersect: false },
             plugins: { legend: { position: "top", labels: { boxWidth: 12 } },
               tooltip: { callbacks: { label: c => `${c.dataset.label}: ${c.raw == null ? "—" : M[calcBy].fmt(c.raw)}` } } },
-            scales: { x: { ticks: { maxRotation: 45, autoSkip: true, maxTicksLimit: 18 } } },
+            scales: { x: { ticks: { maxRotation: 45, autoSkip: true, maxTicksLimit: 14 } } },
           },
         });
       },
