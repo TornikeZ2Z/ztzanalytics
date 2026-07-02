@@ -19,11 +19,12 @@ window.RS = (function () {
     closing: {
       table: "fct_closing",
       cols: ["Unique Key", "Record Source", "Company", "Date", "Customer", "Request #",
-        "Source", "Move Type", "Pickup Zip", "Net Cash", "Total Bill", "Card Payment",
+        "Source", "Booked From", "Source1", "Source From Moveboard", "Source2", "Corrected Source",
+        "Move Type", "Pickup Zip", "Net Cash", "Total Bill", "Card Payment",
         "Balance Due", "Deposit", "Sales Person", "SP 2", "SP 3", "Foreman", "Foreman Hours",
         "Driver", "Material Total", "Material $", "Tip from Company",
         "Tip From the Customers", "Review", "Satisfaction Score", "Total Expense",
-        "Profit per Job", "State", "State Name", "Moving Type", "Size of Move",
+        "Profit per Job", "Storage", "State", "State Name", "Moving Type", "Size of Move",
         "Bill Range", "Commission Bucket Range", "Extra Bill From Trips", "Net Cash From Trips",
         "Crew Size", "Request Encounter", "Is Last Encounter", "Job Part of the Day",
         "Forman Job Order", "Request Joinkey"],
@@ -33,7 +34,7 @@ window.RS = (function () {
       table: "fct_moveboard",
       cols: ["Company", "Job No", "Status", "Status Category", "Create Date", "Booked Date",
         "Move Date", "Service Type", "Size of Move", "Customer", "State", "State Name",
-        "County Name", "City Name", "Source", "Source Connector", "Min Quote", "Max Quote",
+        "County Name", "City Name", "Source", "Source Before Adjustment", "Source Connector", "Min Quote", "Max Quote",
         "Average Quote", "Total CF", "Total Lbs", "Big Job Status", "CF Range", "Bill Range",
         "Assigned", "Request Joinkey", "Closing Sheet Connector"],
       dateCols: { "Create Date": "Create Date", "Booked Date": "Booked Date", "Move Date": "Move Date" },
@@ -245,6 +246,11 @@ window.RS = (function () {
   // --- Core revenue / jobs (Calculations table) — trips-append semantics baked in.
   register("Total Jobs", "closing", fmtN, rows => cnt(rows));
   register("Total Bill", "closing", money, rows => sum(rows, "Total Bill") + sum(rows, "Extra Bill From Trips"));
+  // Revenue naming (user): "Revenue" = the combined figure (was Total Bill), split into
+  // "Total Revenue" (from closings) + "Additional Revenue from Trips" (the appended trips part).
+  register("Revenue", "closing", money, rows => sum(rows, "Total Bill") + sum(rows, "Extra Bill From Trips"));
+  register("Total Revenue", "closing", money, rows => sum(rows, "Total Bill"));
+  register("Additional Revenue from Trips", "closing", money, rows => sum(rows, "Extra Bill From Trips"));
   register("Net Cash", "closing", money, rows => sum(rows, "Net Cash") + sum(rows, "Net Cash From Trips"));
   register("Card Payment", "closing", money, rows => sum(rows, "Card Payment"));
   register("Net Cash + Card Payment", "closing", money,
