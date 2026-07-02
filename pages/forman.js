@@ -35,7 +35,9 @@ registerPage({
     if (!rows.length) {
       host.innerHTML = `
         <div class="rs-page-head"><h1>Forman</h1>
-          <p>Foreman composite scorecard — no scorecard months match the current filters.</p></div>`;
+          <p>Foreman composite scorecard.</p></div>
+        <div class="insight-note">No data for the current filters — no scorecard months match.
+          Clear a slicer or widen the date range.</div>`;
       return;
     }
 
@@ -60,6 +62,8 @@ registerPage({
     const best = board[0];
     const improved = board.filter(x => x.d != null)
       .sort((a, b) => b.d - a.d)[0] || null;
+    const totJobs = board.reduce((a, x) => a + x.jobs, 0);
+    board.forEach(x => { x.share = totJobs ? x.jobs / totJobs : null; });
 
     host.innerHTML = `
       <div class="rs-page-head">
@@ -81,7 +85,41 @@ registerPage({
     const revs = rows.reduce((a, r) => a + num(r["Total Reviews Written"]), 0);
     const jobs = rows.reduce((a, r) => a + num(r["Total Jobs"]), 0);
     const r2j = jobs ? revs / jobs : null;                            // PBI: Reviews to Jobs Ratio
-    RSC.kpis(document.getElementById("fmKpis"), [
+
+    // ---- headline deltas: Avg Score vs prev month (mart's Prev Month column;
+    //      scorecard is Month-grain so this beats a YoY on a latest-month KPI),
+    //      Packing/100CF vs same period LY (Jan-1 → max filtered date, prior-year
+    //      window taken from the dataset WITHOUT the date filter, other slicers kept).
+    const chip = (cur, prev, txt) => {
+      if (cur == null || prev == null || !isFinite(prev) || prev === 0) return "";
+      const g = (cur - prev) / Math.abs(prev);
+      return `<span class="${g >= 0 ? "up" : "down"}">${g >= 0 ? "▲" : "▼"} ${(100 * Math.abs(g)).toFixed(1)}%</span> ${txt}`;
+    };
+    const withPrev = board.filter(x => x.prev != null);
+    const prevAvg = withPrev.length
+      ? withPrev.reduce((a, x) => a + x.prev, 0) / withPrev.length : null;
+    const curAvgMatched = withPrev.length   // same foremen both months → like-for-like MoM
+      ? withPrev.reduce((a, x) => a + (x.score || 0), 0) / withPrev.length : null;
+    const scoreChip = chip(curAvgMatched, prevAvg, "vs prev month");
+    const noDate = (() => {                       // slicers applied, date range not
+      const s = RS.state, save = { f: s.dateFrom, t: s.dateTo, df: s.dayFrom, dt: s.dayTo };
+      s.dateFrom = s.dateTo = null; s.dayFrom = s.dayTo = null;
+      const out = RS.filtered("scorecard", all);
+      s.dateFrom = save.f; s.dateTo = save.t; s.dayFrom = save.df; s.dayTo = save.dt;
+      return out;
+    })();
+    const maxD = rows.reduce((a, r) => (r._d && r._d > a) ? r._d : a, "");
+    const p100Of = rs => {
+      const c = rs.reduce((a, r) => a + num(r["Total CF"]), 0);
+      return c ? 100 * rs.reduce((a, r) => a + num(r["Total Packing Written"]), 0) / c : null;
+    };
+    const winRows = y => noDate.filter(r => r._d && r._d >= y + "-01-01" && r._d <= y + maxD.slice(4));
+    const p100Chip = maxD ? chip(p100Of(winRows(maxD.slice(0, 4))),
+      p100Of(winRows(String(+maxD.slice(0, 4) - 1))), "vs same period LY") : "";
+
+    const p100Sub = (p100 == null ? "" : "$" + p100.toFixed(2) + " · ") + "Σ packing $ / Σ CF × 100 · scope";
+    const kpiHost = document.getElementById("fmKpis");
+    RSC.kpis(kpiHost, [
       { label: "Active Foremen", value: RS.fmtN(board.length), sub: mLabel(latest) },
       { label: "Avg Forman Score", value: fS(avgScore), sub: "latest month, all foremen" },
       { label: "Best Foreman", value: best ? RSC.esc(best.f) : "—",
@@ -89,16 +127,20 @@ registerPage({
       { label: "Most Improved", value: improved ? RSC.esc(improved.f) : "—",
         sub: improved ? (improved.d >= 0 ? "+" : "") + fS(improved.d) + " vs prev month"
                       : "no prior month in scope" },
-      { label: "Avg Packing / 100 CF", value: p100 == null ? "—" : RS.money(p100),
-        sub: "Σ packing $ / Σ CF × 100 · scope" },
+      { label: "Avg Packing / 100 CF", value: p100 == null ? "—" : RS.moneyC(p100),
+        sub: p100Sub },
       { label: "Reviews / Jobs", value: RS.fmtPct(r2j), sub: "reviews written per job · scope" },
     ]);
+    // RSC.kpis escapes sub text, so the HTML delta chips are injected afterwards.
+    const kSubs = kpiHost.querySelectorAll(".kpi .s");
+    if (scoreChip && kSubs[1]) kSubs[1].innerHTML = "latest month · " + scoreChip;
+    if (p100Chip && kSubs[4]) kSubs[4].innerHTML = RSC.esc(p100Sub) + " · " + p100Chip;
 
     // ---- main: leaderboard, latest month (PBI pivot values = Forman Score; improved
     //      with MoM direction coloring + a full component/rank tabular)
     const deltaHtml = v => v == null ? "new"
       : v === 0 ? "0.00"
-      : `<span class="${v > 0 ? "up" : "down"}" style="color:var(${v > 0 ? "--brand" : "--red"})">${v > 0 ? "▲" : "▼"} ${Math.abs(v).toFixed(2)}</span>`;
+      : `<span class="${v > 0 ? "up" : "down"}">${v > 0 ? "▲" : "▼"} ${Math.abs(v).toFixed(2)}</span>`;
     RSC.chartCard(document.getElementById("fmMain"), {
       title: "Leaderboard — " + mLabel(latest),
       controlsHtml: `<span class="lbl">top ${Math.min(25, board.length)} of ${board.length}
@@ -150,17 +192,20 @@ registerPage({
            { key: "s2", label: "Packing vs Estimate Score", fmt: fS },
            { key: "s3", label: "Review Score", fmt: fS },
            { key: "s4", label: "Claim Score", fmt: fS },
-           { key: "jobs", label: "Jobs", fmt: RS.fmtN }],
-          board.slice(0, 60),
+           { key: "jobs", label: "Jobs", fmt: v => v == null ? "—" : RS.fmtN(v) },
+           { key: "share", label: "Jobs %", fmt: RS.fmtPct }],
+          board.slice(0, 50),
           { rank: null, f: "Average", score: avgScore,
-            prev: (() => { const p = board.filter(x => x.prev != null);
-              return p.length ? p.reduce((a, x) => a + x.prev, 0) / p.length : null; })(),
+            prev: prevAvg,
             d: null,
             s1: board.length ? board.reduce((a, x) => a + x.s1, 0) / board.length : null,
             s2: board.length ? board.reduce((a, x) => a + x.s2, 0) / board.length : null,
             s3: board.length ? board.reduce((a, x) => a + x.s3, 0) / board.length : null,
             s4: board.length ? board.reduce((a, x) => a + x.s4, 0) / board.length : null,
-            jobs: board.reduce((a, x) => a + x.jobs, 0) });
+            jobs: totJobs, share: totJobs ? 1 : null })
+          + (board.length > 50
+            ? `<div class="lbl" style="margin:6px 2px;color:var(--muted)">showing 50 of ${board.length} foremen</div>`
+            : "");
       },
     });
 
@@ -197,7 +242,7 @@ registerPage({
               legend: { position: "top", labels: { boxWidth: 12, font: { size: 12 } } },
               tooltip: { callbacks: { label: c => `${c.dataset.label}: ${fS(c.raw)}` } },
             },
-            scales: { x: { ticks: { maxRotation: 45, autoSkip: true, maxTicksLimit: 18 } } },
+            scales: { x: { ticks: { maxRotation: 45, autoSkip: true, maxTicksLimit: 14 } } },
           },
         });
       },
@@ -263,7 +308,7 @@ registerPage({
            { key: "s4", label: "Claim (0.2)", fmt: fS },
            { key: "w", label: "Weighted Sum", fmt: fS },
            { key: "score", label: "Forman Score", fmt: fS }],
-          board.slice(0, 60).map(x => ({
+          board.slice(0, 50).map(x => ({
             f: x.f, s1: x.s1, s2: x.s2, s3: x.s3, s4: x.s4,
             w: 0.4 * x.s1 + 0.2 * x.s2 + 0.2 * x.s3 + 0.2 * x.s4, score: x.score,
           })),
@@ -274,7 +319,10 @@ registerPage({
             s4: board.length ? board.reduce((a, x) => a + x.s4, 0) / board.length : null,
             w: board.length ? board.reduce((a, x) =>
               a + 0.4 * x.s1 + 0.2 * x.s2 + 0.2 * x.s3 + 0.2 * x.s4, 0) / board.length : null,
-            score: avgScore });
+            score: avgScore })
+          + (board.length > 50
+            ? `<div class="lbl" style="margin:6px 2px;color:var(--muted)">showing 50 of ${board.length} foremen</div>`
+            : "");
       },
     });
   },
