@@ -26,10 +26,11 @@ registerPage({
       return;
     }
 
-    const kBill = M["Total Bill"].fn(rows), kNet = M["Net Cash"].fn(rows), kCard = M["Card Payment"].fn(rows);
+    const kBill = M["Revenue"].fn(rows), kNet = M["Net Cash"].fn(rows), kCard = M["Card Payment"].fn(rows);
+    const kClosings = M["Total Revenue"].fn(rows), kTrips = M["Additional Revenue from Trips"].fn(rows);
     RSC.kpis(document.getElementById("kpis"), [
       { label: "Total Jobs", value: RS.fmtN(M["Total Jobs"].fn(rows)), sub: "closed jobs (incl. trips)" },
-      { label: "Total Bill", value: RS.moneyC(kBill), sub: RS.money(kBill) + " · revenue + trips extra" },
+      { label: "Revenue", value: RS.moneyC(kBill), sub: RS.moneyC(kClosings) + " closings + " + RS.moneyC(kTrips) + " trips" },
       { label: "Net Cash", value: RS.moneyC(kNet), sub: RS.money(kNet) + " · net + trips" },
       { label: "Card Payment", value: RS.moneyC(kCard), sub: RS.money(kCard) + " · card volume" },
       { label: "Hours Worked", value: RS.fmtN(M["Hours Worked by Forman"].fn(rows)), sub: "foreman hours" },
@@ -55,17 +56,18 @@ registerPage({
           return ` <span class="${g >= 0 ? "up" : "down"}">${g >= 0 ? "▲" : "▼"} ${Math.abs(100 * g).toFixed(1)}% vs LY</span>`;
         };
         const kpiSubs = document.getElementById("kpis").querySelectorAll(".kpi .s");
-        const cJobs = chip("Total Jobs"), cBill = chip("Total Bill");
+        const cJobs = chip("Total Jobs"), cBill = chip("Revenue");
         if (cJobs && kpiSubs[0]) kpiSubs[0].innerHTML += cJobs;
         if (cBill && kpiSubs[1]) kpiSubs[1].innerHTML += cBill;
       }
     }
 
     // ---- main combo chart: Calculate-by measure (bars) + Hours (line) by foreman
-    const CALC = ["Total Jobs", "Total Bill", "Net Cash", "Card Payment", "Net Cash + Card Payment"];
+    const CALC = ["Total Jobs", "Revenue", "Net Cash", "Card Payment", "Net Cash + Card Payment"];
     let calcBy = CALC[1];
     const card = RSC.chartCard(document.getElementById("main"), {
       title: "By Foreman",
+      controlsGraphOnly: true,
       controlsHtml: `<span class="lbl">Calculate by</span><select id="calcBy">` +
         CALC.map(c => `<option ${c === calcBy ? "selected" : ""}>${c}</option>`).join("") + `</select>`,
       buildChart(canvas) {
@@ -101,7 +103,8 @@ registerPage({
         const g = {};
         rows.forEach(r => { const f = r.Foreman || "—"; (g[f] = g[f] || []).push(r); });
         const data = Object.entries(g).map(([f, rs]) => ({
-          f, jobs: RS.M["Total Jobs"].fn(rs), bill: RS.M["Total Bill"].fn(rs),
+          f, jobs: RS.M["Total Jobs"].fn(rs), bill: RS.M["Revenue"].fn(rs),
+          closings: RS.M["Total Revenue"].fn(rs), trips: RS.M["Additional Revenue from Trips"].fn(rs),
           net: RS.M["Net Cash"].fn(rs), card: RS.M["Card Payment"].fn(rs),
           nc: RS.M["Net Cash + Card Payment"].fn(rs), hrs: rs.reduce((a, r) => a + RS.num(r["Foreman Hours"]), 0),
         })).sort((a, b) => b.jobs - a.jobs);
@@ -111,12 +114,14 @@ registerPage({
         const shown = data.slice(0, 50);
         return RSC.table(
           [{ key: "f", label: "Foreman" }, { key: "jobs", label: "Jobs", fmt: nz(RS.fmtN) },
-           { key: "bill", label: "Total Bill", fmt: nz(RS.money) }, { key: "share", label: "% of Bill", fmt: RS.fmtPct },
+           { key: "bill", label: "Revenue", fmt: nz(RS.money) }, { key: "share", label: "% of Revenue", fmt: RS.fmtPct },
+           { key: "closings", label: "Closings", fmt: nz(RS.money) }, { key: "trips", label: "Trips", fmt: nz(RS.money) },
            { key: "net", label: "Net Cash", fmt: nz(RS.money) },
            { key: "card", label: "Card Payment", fmt: nz(RS.money) }, { key: "nc", label: "Net + Card", fmt: nz(RS.money) },
            { key: "hrs", label: "Hours", fmt: nz(RS.fmtN) }],
           shown,
-          { f: "Total", jobs: tot("jobs"), bill: totBill, share: totBill ? 1 : null, net: tot("net"),
+          { f: "Total", jobs: tot("jobs"), bill: totBill, share: totBill ? 1 : null,
+            closings: tot("closings"), trips: tot("trips"), net: tot("net"),
             card: tot("card"), nc: tot("nc"), hrs: tot("hrs") }) +
           (data.length > shown.length
             ? `<div style="color:var(--muted);font-size:12px;padding:6px 2px">Showing ${shown.length} of ${data.length} foremen (totals cover all).</div>`
@@ -133,16 +138,17 @@ registerPage({
       const g = {};
       rows.forEach(r => { const s = r["Sales Person"] || "—"; (g[s] = g[s] || []).push(r); });
       const all = Object.entries(g).map(([s, rs]) => ({
-        s, jobs: rs.length, bill: RS.M["Total Bill"].fn(rs), avg: RS.M["Average Bill"].fn(rs),
+        s, jobs: rs.length, bill: RS.M["Revenue"].fn(rs), avg: RS.M["Average Bill"].fn(rs),
       })).sort((a, b) => b.bill - a.bill);
       const data = all.slice(0, 30);
-      sp.querySelector(".tabwrap").innerHTML = RSC.table(
+      sp.querySelector(".tabwrap").innerHTML = all.length ? (RSC.table(
         [{ key: "s", label: "Sales Person" }, { key: "jobs", label: "Jobs", fmt: nz(RS.fmtN) },
-         { key: "bill", label: "Total Bill", fmt: nz(RS.money) }, { key: "avg", label: "Avg Bill", fmt: nz(RS.money) }],
+         { key: "bill", label: "Revenue", fmt: nz(RS.money) }, { key: "avg", label: "Avg Bill", fmt: nz(RS.money) }],
         data) +
         (all.length > data.length
           ? `<div style="color:var(--muted);font-size:12px;padding:6px 2px">Showing ${data.length} of ${all.length} sales people.</div>`
-          : "");
+          : ""))
+        : `<div style="padding:16px;color:var(--muted)">No sales-person data for the current filters.</div>`;
     }
     subs.appendChild(sp);
 
