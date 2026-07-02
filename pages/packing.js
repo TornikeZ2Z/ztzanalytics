@@ -29,6 +29,25 @@ registerPage({
     // signed colored percentage-POINT delta (for share-of-bill movement)
     const fmtPP = v => (v == null || isNaN(v)) ? "—"
       : `<span class="${v >= 0 ? "up" : "down"}">${v >= 0 ? "+" : ""}${(100 * v).toFixed(1)} pp</span>`;
+    // null-safe money for table cells
+    const mny = v => (v == null || isNaN(v)) ? "—" : RS.money(v);
+
+    // ---- headline YoY: Jan-1 → (max filtered _d) this year vs the same window last
+    //      year, on the date-UNfiltered dataset (non-date slicers still applied)
+    const maxD = rows.reduce((a, r) => (r._d && r._d > a) ? r._d : a, "");
+    const yoyChip = (allRows, ds, fn) => {
+      if (!maxD) return "";
+      const y = +maxD.slice(0, 4), st = RS.state;
+      const save = [st.dateFrom, st.dateTo, st.dayFrom, st.dayTo];
+      st.dateFrom = st.dateTo = st.dayFrom = st.dayTo = null;
+      const all = RS.filtered(ds, allRows);
+      [st.dateFrom, st.dateTo, st.dayFrom, st.dayTo] = save;
+      const cur = fn(all.filter(r => r._d >= y + "-01-01" && r._d <= maxD));
+      const prev = fn(all.filter(r => r._d >= (y - 1) + "-01-01" && r._d <= (y - 1) + maxD.slice(4)));
+      if (!prev) return "";
+      const g = (cur - prev) / Math.abs(prev);
+      return ` · <span class="${g >= 0 ? "up" : "down"}">${g >= 0 ? "▲" : "▼"} ${Math.abs(100 * g).toFixed(1)}%</span> vs same period LY`;
+    };
 
     host.innerHTML = `
       <div class="rs-page-head">
@@ -42,16 +61,31 @@ registerPage({
       <div class="rs-grid2" id="pckGrid"></div>`;
 
     RSC.kpis(document.getElementById("pckKpis"), [
-      { label: "Packing Sold", value: RS.money(soldTotal), sub: "Material $ on closings" },
-      { label: "Material Total", value: RS.money(matTotal), sub: "all material charged" },
+      { label: "Packing Sold", value: RS.moneyC(soldTotal), sub: RS.money(soldTotal) + " Material $ on closings" },
+      { label: "Material Total", value: RS.moneyC(matTotal), sub: RS.money(matTotal) + " all material charged" },
       // portal addition — Packing Sold / Total Jobs (no direct PBI measure)
-      { label: "Packing per Job", value: jobsTotal ? RS.money(soldTotal / jobsTotal) : "—", sub: "sold / job in scope" },
-      { label: "Total Packing Estimate", value: RS.money(estTotal), sub: "scorecard foreman estimates" },
+      { label: "Packing per Job", value: jobsTotal ? RS.moneyC(soldTotal / jobsTotal) : "—", sub: "sold / job in scope" },
+      { label: "Total Packing Estimate", value: RS.moneyC(estTotal), sub: RS.money(estTotal) + " scorecard foreman estimates" },
       // PBI: 'Packing Difference %' evaluated page-level (sold vs estimate)
       { label: "Sold vs Estimate", value: fmtDiff(diffTotal), sub: "actual over/under estimate" },
       // portal addition — share-of-total column family (Material $ / Total Bill)
       { label: "Packing Share of Bill", value: RS.fmtPct(billTotal ? soldTotal / billTotal : null), sub: "Material $ / Total Bill" },
     ]);
+    // RSC.kpis escapes subs — patch the two headline subs in place to inject YoY chips
+    const soldChip = yoyChip(closingAll, "closing", rs => M["Packing Sold"].fn(rs));
+    const estChip = yoyChip(scorecardAll, "scorecard",
+      rs => rs.reduce((a, r) => a + RS.num(r["Total Packing Estimate"]), 0));
+    const kpiSubs = document.querySelectorAll("#pckKpis .kpi .s");
+    if (soldChip && kpiSubs[0]) kpiSubs[0].innerHTML = RSC.esc(RS.money(soldTotal) + " Material $ on closings") + soldChip;
+    if (estChip && kpiSubs[3]) kpiSubs[3].innerHTML = RSC.esc(RS.money(estTotal) + " scorecard foreman estimates") + estChip;
+
+    // ---- empty state: no closing rows AND no scorecard rows in scope → skip charts
+    if (!rows.length && !sc.length) {
+      document.getElementById("pckMain").innerHTML =
+        `<div class="panel"><div class="panel-head"><span class="panel-title">Packing sold by month</span></div>
+           <p style="padding:0 14px 14px;color:var(--muted)">No data for the current filters — widen the date range or clear a slicer.</p></div>`;
+      return;
+    }
 
     // ---- month buckets: closing rows (sold/bill/jobs) + scorecard estimate sums
     const mk = r => r._y + "-" + String(r._m).padStart(2, "0");
@@ -91,7 +125,7 @@ registerPage({
             },
             scales: {
               y: { ticks: { callback: v => "$" + (v / 1000) + "k" } },
-              x: { ticks: { font: { size: 11 }, maxRotation: 60, minRotation: 40 } },
+              x: { ticks: { font: { size: 11 }, autoSkip: true, maxTicksLimit: 14, maxRotation: 45 } },
             },
           },
         });
@@ -116,10 +150,10 @@ registerPage({
         });
         return RSC.table(
           [{ key: "m", label: "Month" }, { key: "jobs", label: "Total Jobs", fmt: RS.fmtN },
-           { key: "sold", label: "Packing Sold", fmt: RS.money },
+           { key: "sold", label: "Packing Sold", fmt: mny },
            { key: "mom", label: "MoM", fmt: fmtDiff },
-           { key: "mat", label: "Material Total", fmt: RS.money },
-           { key: "est", label: "Packing Estimate", fmt: RS.money },
+           { key: "mat", label: "Material Total", fmt: mny },
+           { key: "est", label: "Packing Estimate", fmt: mny },
            { key: "diff", label: "Sold vs Est", fmt: fmtDiff },
            { key: "sh", label: "Share of Bill", fmt: RS.fmtPct }],
           data,
@@ -197,8 +231,8 @@ registerPage({
           [{ key: "rk", label: "#", fmt: v => v == null ? "" : RS.fmtN(v) },
            { key: "f", label: "Foreman" },
            { key: "jobs", label: "Jobs", fmt: RS.fmtN },
-           { key: "sold", label: "Packing Sold", fmt: RS.money },
-           { key: "est", label: "Estimate", fmt: RS.money },
+           { key: "sold", label: "Packing Sold", fmt: mny },
+           { key: "est", label: "Estimate", fmt: mny },
            { key: "diff", label: "Sold vs Est", fmt: fmtDiff },
            { key: "sh", label: "% of Sold", fmt: RS.fmtPct }],
           data,
@@ -232,11 +266,11 @@ registerPage({
             interaction: { mode: "index", intersect: false },
             plugins: {
               legend: { display: false },
-              tooltip: { callbacks: { label: c => `Share of bill: ${c.raw == null ? "—" : c.raw.toFixed(2) + "%"}` } },
+              tooltip: { callbacks: { label: c => `Share of bill: ${c.raw == null ? "—" : c.raw.toFixed(1) + "%"}` } },
             },
             scales: {
               y: { ticks: { callback: v => v + "%" } },
-              x: { ticks: { font: { size: 11 }, maxRotation: 60, minRotation: 40 } },
+              x: { ticks: { font: { size: 11 }, autoSkip: true, maxTicksLimit: 14, maxRotation: 45 } },
             },
           },
         });
@@ -254,8 +288,8 @@ registerPage({
         });
         return RSC.table(
           [{ key: "m", label: "Month" },
-           { key: "sold", label: "Packing Sold", fmt: RS.money },
-           { key: "bill", label: "Total Bill", fmt: RS.money },
+           { key: "sold", label: "Packing Sold", fmt: mny },
+           { key: "bill", label: "Total Bill", fmt: mny },
            { key: "sh", label: "Share of Bill", fmt: RS.fmtPct },
            { key: "d", label: "vs prev mo", fmt: fmtPP }],
           data,
