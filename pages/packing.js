@@ -26,11 +26,16 @@ registerPage({
     // signed colored percent — green when actual beats estimate / grows
     const fmtDiff = v => (v == null || isNaN(v)) ? "—"
       : `<span class="${v >= 0 ? "up" : "down"}">${v >= 0 ? "+" : ""}${(100 * v).toFixed(1)}%</span>`;
-    // signed colored percentage-POINT delta (for share-of-bill movement)
+    // signed colored percentage-POINT delta (for share-of-revenue movement)
     const fmtPP = v => (v == null || isNaN(v)) ? "—"
       : `<span class="${v >= 0 ? "up" : "down"}">${v >= 0 ? "+" : ""}${(100 * v).toFixed(1)} pp</span>`;
     // null-safe money for table cells
     const mny = v => (v == null || isNaN(v)) ? "—" : RS.money(v);
+    // friendly empty state for a card's tabular view when there are no data rows
+    const emptyMsg = "No rows for the current filters — widen the date range or clear a slicer.";
+    const tableOr = (data, build) => data.length
+      ? build()
+      : `<p style="padding:12px 14px;color:var(--muted)">${emptyMsg}</p>`;
 
     // ---- headline YoY: Jan-1 → (max filtered _d) this year vs the same window last
     //      year, on the date-UNfiltered dataset (non-date slicers still applied)
@@ -68,8 +73,8 @@ registerPage({
       { label: "Total Packing Estimate", value: RS.moneyC(estTotal), sub: RS.money(estTotal) + " scorecard foreman estimates" },
       // PBI: 'Packing Difference %' evaluated page-level (sold vs estimate)
       { label: "Sold vs Estimate", value: fmtDiff(diffTotal), sub: "actual over/under estimate" },
-      // portal addition — share-of-total column family (Material $ / Total Bill)
-      { label: "Packing Share of Bill", value: RS.fmtPct(billTotal ? soldTotal / billTotal : null), sub: "Material $ / Total Bill" },
+      // portal addition — share-of-total column family (Material $ / Revenue)
+      { label: "Packing Share of Revenue", value: RS.fmtPct(billTotal ? soldTotal / billTotal : null), sub: "Material $ / Revenue" },
     ]);
     // RSC.kpis escapes subs — patch the two headline subs in place to inject YoY chips
     const soldChip = yoyChip(closingAll, "closing", rs => M["Packing Sold"].fn(rs));
@@ -99,6 +104,7 @@ registerPage({
     // ---- main card: packing sold by month (bars) vs scorecard estimate (line)
     RSC.chartCard(document.getElementById("pckMain"), {
       title: "Packing sold by month — actual vs estimate",
+      controlsGraphOnly: true,
       controlsHtml: `<span class="lbl">bars: closing Material $ · line: scorecard estimate · last 24 mo</span>`,
       buildChart(canvas) {
         const shown = months.slice(-24);
@@ -148,17 +154,17 @@ registerPage({
           prev = sold;
           return row;
         });
-        return RSC.table(
+        return tableOr(data, () => RSC.table(
           [{ key: "m", label: "Month" }, { key: "jobs", label: "Total Jobs", fmt: RS.fmtN },
            { key: "sold", label: "Packing Sold", fmt: mny },
            { key: "mom", label: "MoM", fmt: fmtDiff },
            { key: "mat", label: "Material Total", fmt: mny },
            { key: "est", label: "Packing Estimate", fmt: mny },
            { key: "diff", label: "Sold vs Est", fmt: fmtDiff },
-           { key: "sh", label: "Share of Bill", fmt: RS.fmtPct }],
+           { key: "sh", label: "Share of Revenue", fmt: RS.fmtPct }],
           data,
           { m: "Total", jobs: jobsTotal, sold: soldTotal, mom: null, mat: matTotal,
-            est: estTotal, diff: diffTotal, sh: billTotal ? soldTotal / billTotal : null });
+            est: estTotal, diff: diffTotal, sh: billTotal ? soldTotal / billTotal : null }));
       },
     });
 
@@ -227,7 +233,7 @@ registerPage({
             jobs: rest.reduce((a, x) => a + x.jobs, 0), sold: s, est: e,
             diff: e ? (s - e) / e : null, sh: soldTotal ? s / soldTotal : null });
         }
-        return RSC.table(
+        return tableOr(data, () => RSC.table(
           [{ key: "rk", label: "#", fmt: v => v == null ? "" : RS.fmtN(v) },
            { key: "f", label: "Foreman" },
            { key: "jobs", label: "Jobs", fmt: RS.fmtN },
@@ -237,14 +243,15 @@ registerPage({
            { key: "sh", label: "% of Sold", fmt: RS.fmtPct }],
           data,
           { f: "Total", jobs: jobsTotal, sold: soldTotal, est: estTotal,
-            diff: diffTotal, sh: soldTotal ? 1 : null });
+            diff: diffTotal, sh: soldTotal ? 1 : null }));
       },
     });
 
-    // ---- grid2 (b): packing share of bill — monthly Material $ / Total Bill %
+    // ---- grid2 (b): packing share of revenue — monthly Material $ / Revenue %
     RSC.chartCard(grid, {
-      title: "Packing share of bill",
-      controlsHtml: `<span class="lbl">Material $ / Total Bill · last 24 mo</span>`,
+      title: "Packing share of revenue",
+      controlsGraphOnly: true,
+      controlsHtml: `<span class="lbl">Material $ / Revenue · last 24 mo</span>`,
       buildChart(canvas) {
         const shown = months.filter(k => closByM[k]).slice(-24);
         return new Chart(canvas, {
@@ -252,7 +259,7 @@ registerPage({
           data: {
             labels: shown.map(mLabel),
             datasets: [{
-              label: "Packing share of bill",
+              label: "Packing share of revenue",
               data: shown.map(k => {
                 const cl = closByM[k], b = M["Total Bill"].fn(cl);
                 return b ? +(100 * M["Packing Sold"].fn(cl) / b).toFixed(2) : null;
@@ -266,7 +273,7 @@ registerPage({
             interaction: { mode: "index", intersect: false },
             plugins: {
               legend: { display: false },
-              tooltip: { callbacks: { label: c => `Share of bill: ${c.raw == null ? "—" : c.raw.toFixed(1) + "%"}` } },
+              tooltip: { callbacks: { label: c => `Share of revenue: ${c.raw == null ? "—" : c.raw.toFixed(1) + "%"}` } },
             },
             scales: {
               y: { ticks: { callback: v => v + "%" } },
@@ -280,21 +287,27 @@ registerPage({
         const data = months.filter(k => closByM[k]).map(k => {
           const cl = closByM[k];
           const sold = M["Packing Sold"].fn(cl), bill = M["Total Bill"].fn(cl);
+          // Revenue split: closings (Total Revenue) + appended trips (Additional Revenue from Trips)
+          const closRev = M["Total Revenue"].fn(cl), tripRev = M["Additional Revenue from Trips"].fn(cl);
           const sh = bill ? sold / bill : null;
-          const row = { m: mLabel(k), sold, bill, sh,
+          const row = { m: mLabel(k), sold, closRev, tripRev, bill, sh,
             d: (sh != null && prevSh != null) ? sh - prevSh : null };  // portal addition: pp delta
           if (sh != null) prevSh = sh;
           return row;
         });
-        return RSC.table(
+        return tableOr(data, () => RSC.table(
           [{ key: "m", label: "Month" },
            { key: "sold", label: "Packing Sold", fmt: mny },
-           { key: "bill", label: "Total Bill", fmt: mny },
-           { key: "sh", label: "Share of Bill", fmt: RS.fmtPct },
+           { key: "closRev", label: "Total Revenue", fmt: mny },
+           { key: "tripRev", label: "Trip Revenue", fmt: mny },
+           { key: "bill", label: "Revenue", fmt: mny },
+           { key: "sh", label: "Share of Revenue", fmt: RS.fmtPct },
            { key: "d", label: "vs prev mo", fmt: fmtPP }],
           data,
-          { m: "Total", sold: soldTotal, bill: billTotal,
-            sh: billTotal ? soldTotal / billTotal : null, d: null });
+          { m: "Total", sold: soldTotal,
+            closRev: M["Total Revenue"].fn(rows), tripRev: M["Additional Revenue from Trips"].fn(rows),
+            bill: billTotal,
+            sh: billTotal ? soldTotal / billTotal : null, d: null }));
       },
     });
   },
