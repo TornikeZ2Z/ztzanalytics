@@ -16,11 +16,41 @@ registerPage({
     const rows = RS.filtered("storage", storageAll);
     const closingRows = RS.filtered("closing", closingAll);
     const M = RS.M;
+    const moneyNS = v => (v == null || isNaN(v)) ? "—" : RS.money(v);   // null-safe table money
+
+    // Empty state — nothing matches the current filters: skip KPIs/charts entirely.
+    if (!rows.length) {
+      host.innerHTML = `
+        <div class="rs-page-head">
+          <h1>Storage</h1>
+          <p>Storage revenue — additional payments vs included-in-bill ·
+             <b>0</b> storage payments in scope</p>
+        </div>
+        <div class="panel" style="padding:16px 14px;color:var(--muted)">No data for the current filters.</div>`;
+      return;
+    }
 
     // Exact DAX: both measures read Storage Payments, split on Payment Type —
     // 'Paid at Pickup' = included in the job's Total Bill, everything else = additional.
     const inclTotal = M["Storage Revenue Included in Total Bill"].fn(rows);
     const addTotal = M["Storage Additional Revenue"].fn(rows);
+
+    // YoY headline: Jan-1 → freshest FILTERED payment date, vs the same window last
+    // year. Both windows are cut from the slicer-filtered but DATE-unfiltered rows.
+    const S = RS.state, sv = { f: S.dateFrom, t: S.dateTo, df: S.dayFrom, dt: S.dayTo };
+    S.dateFrom = S.dateTo = null; S.dayFrom = S.dayTo = null;
+    const dateless = RS.filtered("storage", storageAll);
+    S.dateFrom = sv.f; S.dateTo = sv.t; S.dayFrom = sv.df; S.dayTo = sv.dt;
+    const maxD = rows.reduce((a, r) => ((r._d || "") > a ? r._d : a), "");
+    const yoyChip = name => {
+      if (maxD.length !== 10) return "";
+      const cy = maxD.slice(0, 4), cut = maxD.slice(4);          // "-MM-DD"
+      const win = y => dateless.filter(r => r._y === y && (r._d || "").slice(4) <= cut);
+      const cur = M[name].fn(win(cy)), prev = M[name].fn(win(String(+cy - 1)));
+      if (!prev) return "";
+      const g = (cur - prev) / Math.abs(prev);
+      return `· <span class="${g >= 0 ? "up" : "down"}">${g >= 0 ? "▲" : "▼"} ${Math.abs(100 * g).toFixed(1)}%</span> vs same period LY`;
+    };
 
     host.innerHTML = `
       <div class="rs-page-head">
@@ -33,13 +63,21 @@ registerPage({
       <div id="main"></div>
       <div class="rs-grid2" id="subs"></div>`;
 
-    RSC.kpis(document.getElementById("kpis"), [
-      { label: "Storage Additional Revenue", value: RS.money(addTotal), sub: "separate storage payments" },
+    const kpiHost = document.getElementById("kpis");
+    RSC.kpis(kpiHost, [
+      { label: "Storage Additional Revenue", value: RS.moneyC(addTotal), sub: RS.money(addTotal) + " · separate storage payments" },
       { label: "Storage Payments", value: RS.fmtN(rows.length), sub: "# payments in scope" },
-      { label: "Avg Payment", value: rows.length ? RS.money((addTotal + inclTotal) / rows.length) : "—", sub: "all storage revenue / payment" },
-      { label: "Storage Rev. in Total Bill", value: RS.money(inclTotal), sub: "paid at pickup (in job bill)" },
+      { label: "Avg Payment", value: rows.length ? RS.moneyC((addTotal + inclTotal) / rows.length) : "—", sub: "all storage revenue / payment" },
+      { label: "Storage Rev. in Total Bill", value: RS.moneyC(inclTotal), sub: RS.money(inclTotal) + " · paid at pickup (in job bill)" },
       { label: "Storage Jobs", value: RS.fmtN(M["Total Storage Jobs"].fn(closingRows)), sub: "closings marked Our Storage" },
     ]);
+    {   // RSC.kpis HTML-escapes subs — inject the YoY chips afterwards as HTML.
+      const kSubs = kpiHost.querySelectorAll(".kpi .s");
+      const cAdd = yoyChip("Storage Additional Revenue");
+      const cIncl = yoyChip("Storage Revenue Included in Total Bill");
+      if (cAdd) kSubs[0].innerHTML += " " + cAdd;
+      if (cIncl) kSubs[3].innerHTML += " " + cIncl;
+    }
 
     // ---- month buckets: additional (storage payments) + included-in-bill (closing)
     const mk = r => r._y + "-" + String(r._m).padStart(2, "0");
@@ -83,7 +121,7 @@ registerPage({
             },
             scales: {
               y: { ticks: { callback: v => "$" + (v / 1000) + "k" } },
-              x: { ticks: { font: { size: 11 }, maxRotation: 60, minRotation: 40 } },
+              x: { ticks: { autoSkip: true, maxTicksLimit: 14, maxRotation: 45, font: { size: 11 } } },
             },
           },
         });
@@ -104,10 +142,10 @@ registerPage({
         });
         return RSC.table(
           [{ key: "m", label: "Month" }, { key: "jobs", label: "Total Jobs", fmt: RS.fmtN },
-           { key: "bill", label: "Total Bill", fmt: RS.money },
-           { key: "amt", label: "Storage Additional Revenue", fmt: RS.money },
+           { key: "bill", label: "Total Bill", fmt: moneyNS },
+           { key: "amt", label: "Storage Additional Revenue", fmt: moneyNS },
            { key: "n", label: "# Payments", fmt: RS.fmtN },
-           { key: "incl", label: "Storage Rev. in Total Bill", fmt: RS.money }],
+           { key: "incl", label: "Storage Rev. in Total Bill", fmt: moneyNS }],
           data,
           { m: "Total", jobs: M["Total Jobs"].fn(closingRows), bill: M["Total Bill"].fn(closingRows),
             amt: addTotal, n: rows.length, incl: inclTotal });
@@ -149,7 +187,7 @@ registerPage({
       buildTable() {
         const tot = byType.reduce((a, x) => a + (x.v || 0), 0);
         return RSC.table(
-          [{ key: "k", label: "Payment Type" }, { key: "v", label: "Amount", fmt: RS.money },
+          [{ key: "k", label: "Payment Type" }, { key: "v", label: "Amount", fmt: moneyNS },
            { key: "n", label: "# Payments", fmt: RS.fmtN }, { key: "p", label: "% of Amount", fmt: RS.fmtPct }],
           byType.map(x => ({ k: x.k, v: x.v, n: x.n, p: tot ? (x.v || 0) / tot : null })),
           { k: "Total", v: tot, n: rows.length, p: tot ? 1 : null });
@@ -159,7 +197,7 @@ registerPage({
     const pay = RSC.el("div", "panel",
       `<div class="panel-head"><span class="panel-title">Payments</span>
          <span class="spacer"></span>
-         <span class="rs-ctl"><span class="lbl">most recent 50 of ${RS.fmtN(rows.length)}</span></span></div>
+         <span class="rs-ctl"><span class="lbl">showing ${RS.fmtN(Math.min(50, rows.length))} of ${RS.fmtN(rows.length)} · most recent first</span></span></div>
        <div class="tabwrap"></div>`);
     {
       const recent = rows.slice()
@@ -167,10 +205,10 @@ registerPage({
       pay.querySelector(".tabwrap").innerHTML = RSC.table(
         [{ key: "d", label: "Payment Date" }, { key: "c", label: "Customer" },
          { key: "j", label: "Job Code" }, { key: "t", label: "Payment Type" },
-         { key: "a", label: "Amount", fmt: RS.money }],
+         { key: "a", label: "Amount", fmt: moneyNS }],
         recent.map(r => ({
           d: r._d || "—", c: r.Customer || "—", j: r["Job Code"] || "—",
-          t: r["Payment Type"] || "—", a: RS.num(r.Amount),
+          t: r["Payment Type"] || "—", a: r.Amount == null ? null : RS.num(r.Amount),
         })));
     }
     subs.appendChild(pay);
