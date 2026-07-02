@@ -139,6 +139,44 @@ function pageFor(id) {
   return PAGES.find(p => p.id === id);
 }
 
+/* ---------------- access control (per-user report grants) ---------------- */
+window.ME = null;   // {email, admin, reports:[report_id]} from /api/_me
+const idOwner = id => (id && MERGED_BY_TAB[id]) ? MERGED_BY_TAB[id].id : id;
+function canSee(id) {
+  if (!id || !ME) return false;
+  if (ME.admin) return true;
+  if (id === "admin-users") return false;
+  return (ME.reports || []).includes(id);
+}
+function firstAllowedId() {
+  for (const p of PAGES) { const oid = idOwner(p.id); if (canSee(oid)) return oid; }
+  return null;
+}
+function requestAccessScreen(email) {
+  document.getElementById("filters").classList.add("hidden");
+  document.getElementById("content").innerHTML =
+    `<div class="rs-loading"><div style="max-width:440px;text-align:center">
+      <div style="font-size:17px;font-weight:800;color:var(--ink);margin-bottom:8px">Access not granted yet</div>
+      <div style="line-height:1.65">You are signed in as <b style="color:var(--muted)">${RSC.esc(email || "")}</b>,
+      but no reports have been assigned to you yet.<br>
+      Ask <b style="color:var(--muted)">Tornike</b> to grant you access.</div></div></div>`;
+}
+async function fetchMe() {
+  try {
+    const r = await fetch(ZTZ.API + "/api/_me",
+      { headers: { Authorization: "Bearer " + ZTZ.getToken() } });
+    const j = await r.json().catch(() => ({}));
+    if (r.status === 404 || (j.error || "").indexOf("unknown dataset") >= 0) {
+      // Legacy bridge (ACL endpoints not deployed yet) — open access, no admin UI.
+      console.warn("ACL bridge not deployed yet — running open.");
+      return { email: ZTZ.email(), authorized: true, admin: false,
+               reports: Object.keys(PAGE_ICONS), legacy: true };
+    }
+    if (!r.ok) throw new Error(j.error || ("HTTP " + r.status));
+    return j;
+  } catch (e) { return { authorized: false, email: ZTZ.email(), error: e.message }; }
+}
+
 /* Dark chart theme (applies to every Chart.js instance). */
 Chart.defaults.color = "#8b98a8";
 Chart.defaults.borderColor = "#1c2636";
@@ -217,6 +255,8 @@ window.Chart = class extends _RawChart {
 let CURRENT = null;
 
 function navigate(id, push) {
+  if (!canSee(idOwner(id))) id = firstAllowedId();
+  if (!id) { requestAccessScreen(ME && ME.email); return; }
   const page = pageFor(id) || (PAGES[0] && pageFor(PAGES[0].id));
   if (!page) return;
   CURRENT = page;
@@ -249,12 +289,14 @@ function buildNav() {
     PAGES.filter(p => p.group === g.key).forEach(p => {
       const m = MERGED_BY_TAB[p.id];
       if (m) {
-        if (!seenMerged.has(m.id)) {
+        if (!seenMerged.has(m.id) && canSee(m.id)) {
           seenMerged.add(m.id);
           display.push({ id: m.id, title: m.title, iconKey: m.icon,
             search: m.title + " " + m.tabs.map(t => t[1]).join(" ") });
         }
-      } else display.push({ id: p.id, title: p.title, iconKey: PAGE_ICONS[p.id], search: p.title });
+      } else if (canSee(p.id)) {
+        display.push({ id: p.id, title: p.title, iconKey: PAGE_ICONS[p.id], search: p.title });
+      }
     });
     const items = display.filter(p => p.search.toLowerCase().includes(q));
     const planned = PLANNED.filter(p => p.group === g.key && p.title.toLowerCase().includes(q));
@@ -376,14 +418,115 @@ if (!ZTZ.getToken()) {
   });
   // Pages register themselves as their scripts load (see below); boot after load.
   window.addEventListener("load", async () => {
-    buildNav();
-    const id = (location.hash.match(/page=([\w-]+)/) || [])[1];
-    CURRENT = PAGES.find(p => p.id === id) || PAGES[0];
+    ME = await fetchMe();
+    if (!ME.authorized) { requestAccessScreen(ME.email); return; }
+    const raw = (location.hash.match(/page=([\w-]+)/) || [])[1];
+    const startId = canSee(idOwner(raw)) ? raw : firstAllowedId();
+    if (!startId) { requestAccessScreen(ME.email); return; }
+    CURRENT = pageFor(startId);
     buildNav();
     await buildFilters();
-    navigate(CURRENT.id, false);
+    navigate(startId, false);
   });
 }
+</script>
+<script>
+/* ---------------- admin page: Users & Access (admins only) ---------------- */
+PAGE_ICONS["admin-users"] = "user";
+const REPORT_LABELS = {
+  "insights": "Insights & Recommendations", "jobs-vs-hours": "Jobs Done vs Hours Worked",
+  "analysis-by-category": "Analysis by Category", "yoy-diff": "YoY Diff",
+  "leads": "Leads (Funnel + Geography)", "sales-person-analysis": "Sales Person Analysis",
+  "marketing": "Marketing (Ads + CallRail)", "foremen": "Foremen (Scorecard + Analysis)",
+  "packing-suite": "Packing (all three views)", "claims": "Claims",
+  "storage": "Storage", "reviews": "Reviews",
+  "explorer": "Data Explorer — the Data portal, ALL tables",
+};
+async function aclCall(method, body) {
+  const r = await fetch(ZTZ.API + "/api/_acl", {
+    method, headers: { Authorization: "Bearer " + ZTZ.getToken(),
+      "Content-Type": "application/json" },
+    body: body ? JSON.stringify(body) : undefined });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error || ("HTTP " + r.status));
+  return j;
+}
+registerPage({
+  id: "admin-users", group: "pulse", title: "Users & Access",
+  async render(host) {
+    if (!ME || !ME.admin) { host.innerHTML = `<div class="rs-loading">Admins only.</div>`; return; }
+    let data;
+    try { data = await aclCall("GET"); }
+    catch (e) {
+      host.innerHTML = `<div class="rs-loading"><span class="err">${RSC.esc(e.message)}</span>
+        <div class="insight-note" style="margin-top:10px">If this says "unknown dataset", the access-control bridge hasn't been deployed yet.</div></div>`;
+      return;
+    }
+    const ids = data.report_ids.filter(r => REPORT_LABELS[r]);
+    host.innerHTML = `
+      <div class="rs-page-head"><h1>Users & Access</h1>
+        <p>Deny-by-default: people you don't add see a request-access screen. Tick the reports each user may open — enforced by the data bridge, not just hidden.</p></div>
+      <div class="rs-grid2">
+        <div class="panel"><div class="panel-head"><span class="panel-title" id="formTitle">Add user</span></div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:11px">
+            <input id="uEmail" class="q" style="flex:2;min-width:220px;border:1px solid var(--line);background:#0e1522;color:var(--ink);border-radius:9px;padding:8px 11px;font-size:13px;outline:0" placeholder="email@ziptozipmoving.com">
+            <input id="uName" class="q" style="flex:1;min-width:120px;border:1px solid var(--line);background:#0e1522;color:var(--ink);border-radius:9px;padding:8px 11px;font-size:13px;outline:0" placeholder="Name (optional)">
+          </div>
+          <label class="opt" style="display:flex;align-items:center;gap:8px;color:var(--muted);font-size:13px;margin-bottom:10px">
+            <input type="checkbox" id="uAdmin" style="accent-color:var(--brand)"> Administrator (everything + user management)</label>
+          <div id="uReports" style="display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-bottom:13px">` +
+        ids.map(r => `<label class="opt" style="display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--muted)">
+            <input type="checkbox" value="${r}" style="accent-color:var(--brand)"> ${RSC.esc(REPORT_LABELS[r])}</label>`).join("") +
+        `</div>
+          <button class="btn on" id="uSave">Save user</button>
+          <span class="insight-note" id="uMsg" style="margin-left:10px"></span>
+        </div>
+        <div class="panel"><div class="panel-head"><span class="panel-title">Users (${data.users.length})</span></div>
+          <div class="tabwrap" id="uList"></div>
+        </div>
+      </div>`;
+    const paintList = () => {
+      document.getElementById("uList").innerHTML = RSC.table(
+        [{ key: "e", label: "Email" }, { key: "n", label: "Name" },
+         { key: "r", label: "Access" }, { key: "a", label: "" }],
+        data.users.map(u => ({
+          e: u.email, n: u.name || "—",
+          r: u.admin ? '<span class="up">Admin — everything</span>' :
+             (u.reports.length ? u.reports.length + " reports" : '<span class="down">nothing</span>'),
+          a: `<button class="btn" data-edit="${RSC.esc(u.email)}">Edit</button>
+              <button class="btn" data-del="${RSC.esc(u.email)}" style="color:var(--red)">Remove</button>`,
+        })));
+      host.querySelectorAll("[data-edit]").forEach(b => b.onclick = () => {
+        const u = data.users.find(x => x.email === b.dataset.edit);
+        document.getElementById("formTitle").textContent = "Edit user";
+        document.getElementById("uEmail").value = u.email;
+        document.getElementById("uName").value = u.name || "";
+        document.getElementById("uAdmin").checked = u.admin;
+        host.querySelectorAll("#uReports input").forEach(cb => cb.checked = u.reports.includes(cb.value));
+      });
+      host.querySelectorAll("[data-del]").forEach(b => b.onclick = async () => {
+        if (!confirm("Remove all access for " + b.dataset.del + "?")) return;
+        try { await aclCall("POST", { action: "delete", email: b.dataset.del }); this.render(host); }
+        catch (e) { alert(e.message); }
+      });
+    };
+    paintList();
+    document.getElementById("uSave").onclick = async () => {
+      const msg = document.getElementById("uMsg");
+      try {
+        await aclCall("POST", {
+          action: "upsert",
+          email: document.getElementById("uEmail").value,
+          name: document.getElementById("uName").value,
+          admin: document.getElementById("uAdmin").checked,
+          reports: [...host.querySelectorAll("#uReports input:checked")].map(cb => cb.value),
+        });
+        msg.textContent = "Saved.";
+        this.render(host);
+      } catch (e) { msg.textContent = e.message; }
+    };
+  },
+});
 </script>
 <!-- page modules (each calls registerPage) -->
 <script src="pages/insights.js?v=1"></script>
