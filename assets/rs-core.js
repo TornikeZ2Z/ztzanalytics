@@ -323,8 +323,18 @@ window.RS = (function () {
     if (!n) return null;
     return c.reduce((a, r) => a + num(r["Review Score"]) * num(r["Number of Reviews"]), 0) / n;
   });
-  register("Total Factual Reviews", "review_counts", fmtN, rows => sum(rows, "Number of Reviews"));
-  register("Review Goal", "review_goals", fmtN, rows => sum(rows, "Number of Reviews"));
+  // review_counts rows are monthly PLATFORM SNAPSHOTS (cumulative totals) —
+  // the business number is the LATEST snapshot per platform, never the sum.
+  const latestPerPlatform = rows => {
+    const best = {};
+    rows.forEach(r => {
+      const k = r.Platform || "—";
+      if (!best[k] || (r._d || "") > (best[k]._d || "")) best[k] = r;
+    });
+    return Object.values(best).reduce((a, r) => a + num(r["Number of Reviews"]), 0);
+  };
+  register("Total Factual Reviews", "review_counts", fmtN, latestPerPlatform);
+  register("Review Goal", "review_goals", fmtN, latestPerPlatform);
 
   // --- CallRail.
   register("Total Calls", "callrail", fmtN, rows => cnt(rows));
