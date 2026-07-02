@@ -15,6 +15,21 @@ registerPage({
     const closingRows = RS.filtered("closing", closingAll);
     const M = RS.M;
 
+    /* Empty state — bail out before any joins/charts if the filters left nothing. */
+    if (!rows.length) {
+      host.innerHTML = `
+        <div class="rs-page-head">
+          <h1>Claims</h1>
+          <p>Claims registry with responsibility split and refund impact</p>
+        </div>
+        <div class="panel">
+          <div class="panel-head"><span class="panel-title">No data for the current filters</span></div>
+          <div style="padding:4px 14px 14px;color:var(--muted);font-size:13px">
+            No claims match the current slicer / date selection. Widen the date range or clear a filter to bring data back.</div>
+        </div>`;
+      return;
+    }
+
     /* rollup_support has NO date column — never RS.filtered. Time-slice it via
        membership joins: request keys from the FILTERED claims / closing rows. */
     const claimKeys = new Set(rows.map(r => r["Request Joinkey"]).filter(Boolean));
@@ -46,6 +61,36 @@ registerPage({
     // 'Number of Claims Written Because of Forman' (GO-12 left table).
     const foremanFault = scRows.reduce((a, r) => a + RS.num(r["Forman Fault Claims"]), 0);
 
+    /* Headline YoY chips: YTD window (Jan-1 → max date of the filtered rows) vs the
+       same window last year, evaluated on the date-UNfiltered dataset (year/month
+       slicers lifted too, or the prior-year window would filter itself away). */
+    const yoyChip = (ds, allRows, scopedRows, valFn, invert) => {
+      const maxD = scopedRows.reduce((a, r) => (r._d && r._d > a ? r._d : a), "");
+      if (!maxD) return "";
+      const winVal = (from, to) => {
+        const s = RS.state;
+        const save = { f: s.dateFrom, t: s.dateTo, y: s.multi.year, m: s.multi.month };
+        s.dateFrom = from; s.dateTo = to; s.multi.year = null; s.multi.month = null;
+        const v = valFn(RS.filtered(ds, allRows));
+        s.dateFrom = save.f; s.dateTo = save.t; s.multi.year = save.y; s.multi.month = save.m;
+        return v;
+      };
+      const y = +maxD.slice(0, 4);
+      const cur = winVal(y + "-01-01", maxD);
+      const prev = winVal((y - 1) + "-01-01", (y - 1) + maxD.slice(4));
+      if (!prev || cur == null) return "";
+      const g = (cur - prev) / Math.abs(prev);
+      const good = invert ? g <= 0 : g >= 0;   // fewer claims / smaller refunds = good
+      return `<span class="${good ? "up" : "down"}">${g >= 0 ? "▲" : "▼"} ${(100 * Math.abs(g)).toFixed(1)}%</span>`;
+    };
+    const claimsChip = yoyChip("claims", claimsAll, rows, rs => rs.length, true);
+    const refundOverClosing = crows => {   // same join as amtRefunded, over any closing window
+      const keys = new Set(crows.map(r => r["Request Joinkey"]).filter(Boolean));
+      return rollupAll.reduce((a, r) =>
+        a + (keys.has(r["Request Joinkey"]) ? RS.num(r["Amount Refunded"]) : 0), 0);
+    };
+    const refundChip = yoyChip("closing", closingAll, closingRows, refundOverClosing, true);
+
     host.innerHTML = `
       <div class="rs-page-head">
         <h1>Claims</h1>
@@ -63,13 +108,19 @@ registerPage({
       { label: "Foreman-Fault Claims", value: RS.fmtN(foremanFault), sub: "scorecard: Forman Fault Claims" },
       { label: "Requests w/ Refunds", value: RS.fmtN(refundedClaimReqs),
         sub: `${RS.fmtPct(claimKeys.size ? refundedClaimReqs / claimKeys.size : null)} of ${RS.fmtN(claimKeys.size)} claim requests` },
-      { label: "Amount Refunded", value: RS.money(amtRefunded), sub: "rollup over filtered closing requests" },
-      { label: "Refunded for Neg. Reviews", value: RS.money(amtRefundedNR),
-        sub: `${RS.fmtPct(amtRefunded ? amtRefundedNR / amtRefunded : null)} of amount refunded` },
+      { label: "Amount Refunded", value: RS.moneyC(amtRefunded),
+        sub: `${RS.money(amtRefunded)} · closing requests in scope` },
+      { label: "Refunded for Neg. Reviews", value: RS.moneyC(amtRefundedNR),
+        sub: `${RS.money(amtRefundedNR)} · ${RS.fmtPct(amtRefunded ? amtRefundedNR / amtRefunded : null)} of refunded` },
       // portal-added density metric (no PBI counterpart)
       { label: "Claims per 100 Jobs", value: RS.fmt1(totalJobs ? 100 * nClaims / totalJobs : null),
         sub: `vs ${RS.fmtN(totalJobs)} closed jobs` },
     ]);
+    /* RSC.kpis escapes subs — inject the YoY chips (HTML) after render. */
+    const kpiSubs = document.querySelectorAll("#clmKpis .kpi .s");
+    if (claimsChip) kpiSubs[0].innerHTML = claimsChip + " vs same period LY";
+    if (refundChip) kpiSubs[3].innerHTML =
+      RSC.esc(RS.money(amtRefunded)) + " · " + refundChip + " vs LY";
 
     /* ---------------- month buckets ---------------- */
     const mk = r => r._y + "-" + String(r._m).padStart(2, "0");
@@ -106,15 +157,15 @@ registerPage({
             },
             scales: {
               y: { beginAtZero: true, ticks: { precision: 0 } },
-              x: { ticks: { font: { size: 11 }, maxRotation: 60, minRotation: 40 } },
+              x: { ticks: { font: { size: 11 }, autoSkip: true, maxTicksLimit: 14, maxRotation: 45 } },
             },
           },
         });
       },
       buildTable() {
         // more claims = worse, so an increase paints red (.down) and a drop green (.up).
-        // rs.css scopes .up/.down colors to KPI subs only, so inline colors are
-        // required inside tables (same workaround as callrail.js).
+        // rs.css colors span.up/.down globally; inline colors kept as a belt-and-braces
+        // fallback (same pattern as callrail.js) in case the CSS scoping changes.
         const delta = d => d == null ? "—"
           : d === 0 ? "±0"
           : d > 0 ? `<span class="down" style="color:var(--red)">+${RS.fmtN(d)}</span>`
@@ -298,12 +349,13 @@ registerPage({
         [{ key: "d", label: "Created Date" }, { key: "c", label: "Customer" },
          { key: "q", label: "Request No" }, { key: "s", label: "Status" },
          { key: "re", label: "Reason" }, { key: "rp", label: "Responsibility" },
-         { key: "amt", label: "Refunded (request)", fmt: RS.money }],
+         { key: "amt", label: "Refunded (request)", fmt: v => v == null ? "—" : RS.money(v) }],
         latest.map(r => ({
           d: r._d || "—", c: r.Customer || "—", q: r["Request No"] || "—",
           s: r.Status || "—", re: r.Reason || "—", rp: r.Responsibility || "—",
-          // request-level rollup amount — repeats if a request carries several claims
-          amt: refundOf(r["Request Joinkey"]),
+          // request-level rollup amount — repeats if a request carries several claims;
+          // "—" = request has no rollup row at all (distinct from a genuine $0 refund)
+          amt: rollupByKey.has(r["Request Joinkey"]) ? refundOf(r["Request Joinkey"]) : null,
         })));
     };
     recent.querySelector("#clmRespF").onchange = e => paintRecent(e.target.value);
