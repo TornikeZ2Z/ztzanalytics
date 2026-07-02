@@ -22,26 +22,78 @@ registerPage({
     // PBI: Total Morning Jobs (Job Part of the Day = 'Morning Job', from Forman Job Order = 1).
     const morningRows = rows.filter(r => r["Job Part of the Day"] === "Morning Job");
     const morningPack = morningRows.reduce((a, r) => a + pack(r), 0);
+    // RS.money(null) renders "$0" — null-safe wrapper for nullable money cells.
+    const moneyNS = v => v == null ? "—" : RS.money(v);
+
+    if (!rows.length && !scRows.length) {                  // nothing at all in scope
+      host.innerHTML = `
+        <div class="rs-page-head">
+          <h1>Packing Analysis</h1>
+          <p>Packing revenue — who sells it, how often it attaches, and foreman estimate accuracy</p>
+        </div>
+        <div class="panel" style="padding:18px;color:var(--muted)">No data for the current filters.</div>`;
+      return;
+    }
+    const emptyCard = title => {                           // per-card empty state
+      const d = document.createElement("div");
+      d.className = "panel";
+      d.innerHTML = `<div class="panel-head"><span class="panel-title">${RSC.esc(title)}</span></div>
+        <div style="padding:16px 14px;color:var(--muted)">No data for the current filters.</div>`;
+      return d;
+    };
+
+    // ---- YoY chip: Jan-1 → max date of the FILTERED rows. BOTH windows are cut from
+    // the date-UNfiltered dataset (non-date slicers still apply) so cur/prev cover the
+    // exact same calendar span — a mid-year dateFrom or day-of-month filter on `rows`
+    // must not shrink the current side of the comparison.
+    const yoyWin = (() => {
+      const maxD = rows.reduce((a, r) => (r._d && r._d > a ? r._d : a), "");
+      if (!maxD) return null;
+      const y = +maxD.slice(0, 4);
+      const s = RS.state, save = [s.dateFrom, s.dateTo, s.dayFrom, s.dayTo];
+      s.dateFrom = s.dateTo = s.dayFrom = s.dayTo = null;
+      const all = RS.filtered("closing", closingAll);
+      [s.dateFrom, s.dateTo, s.dayFrom, s.dayTo] = save;
+      return {
+        cur: all.filter(r => r._d >= y + "-01-01" && r._d <= maxD),
+        prev: all.filter(r => r._d >= (y - 1) + "-01-01" && r._d <= (y - 1) + maxD.slice(4)),
+      };
+    })();
+    const yoyChip = fn => {
+      if (!yoyWin || !yoyWin.prev.length) return "";
+      const cur = fn(yoyWin.cur), prev = fn(yoyWin.prev);
+      if (cur == null || prev == null || !isFinite(cur) || !isFinite(prev) || !prev) return "";
+      const g = (cur - prev) / Math.abs(prev);
+      return ` <span class="${g >= 0 ? "up" : "down"}">${g >= 0 ? "▲" : "▼"} ${(100 * Math.abs(g)).toFixed(1)}%</span>`;
+    };
 
     host.innerHTML = `
       <div class="rs-page-head">
         <h1>Packing Analysis</h1>
         <p>Packing revenue — who sells it, how often it attaches, and foreman estimate accuracy ·
            <b>${RS.fmtN(rows.length)}</b> jobs in scope
-           <span class="freshness">· foreman scores from the monthly scorecard mart</span></p>
+           <span class="freshness">· foreman scores from the monthly scorecard mart
+           · KPI Δ vs same period last year</span></p>
       </div>
       <div class="rs-kpis" id="pkKpis"></div>
       <div id="pkMain"></div>
       <div class="rs-grid2" id="pkGrid"></div>`;
 
     RSC.kpis(document.getElementById("pkKpis"), [
-      { label: "Packing Sold", value: RS.money(packingSold), sub: "SUM of Material $" },
+      { label: "Packing Sold",
+        value: RS.moneyC(packingSold) + yoyChip(rs => M["Packing Sold"].fn(rs)),
+        sub: `${RS.money(packingSold)} · SUM of Material $` },
       { label: "Jobs with Packing", value: RS.fmtN(packJobs.length),
         sub: `of ${RS.fmtN(rows.length)} jobs in scope` },
-      { label: "Packing Attach Rate", value: RS.fmtPct(attach), sub: "jobs with Material $ > 0" },
+      { label: "Packing Attach Rate",
+        value: RS.fmtPct(attach) +
+          yoyChip(rs => rs.length ? rs.filter(r => pack(r) > 0).length / rs.length : null),
+        sub: "jobs with Material $ > 0" },
       { label: "Avg Packing / Packing Job",
-        value: packJobs.length ? RS.money(packingSold / packJobs.length) : "—",
-        sub: "packing $ per attached job" },
+        value: packJobs.length ? RS.moneyC(packingSold / packJobs.length) : "—",
+        sub: packJobs.length
+          ? `${RS.money(packingSold / packJobs.length)} per attached job`
+          : "packing $ per attached job" },
       { label: "Morning-Job Packing Share",
         value: RS.fmtPct(packingSold ? morningPack / packingSold : null),
         sub: `${RS.money(morningPack)} on morning jobs` },
@@ -66,7 +118,9 @@ registerPage({
       }).sort((a, b) => (b.v || 0) - (a.v || 0));
     })();
 
-    RSC.chartCard(document.getElementById("pkMain"), {
+    if (!rows.length) {
+      document.getElementById("pkMain").appendChild(emptyCard("Packing by Sales Person"));
+    } else RSC.chartCard(document.getElementById("pkMain"), {
       title: "Packing by Sales Person",
       controlsHtml: `<span class="lbl">top 20 by packing $ · attach = packing jobs / jobs</span>`,
       buildChart(canvas) {
@@ -113,12 +167,12 @@ registerPage({
         }
         return RSC.table(
           [{ key: "rk", label: "#" }, { key: "k", label: "Sales Person" },
-           { key: "v", label: "Packing Sold", fmt: RS.money },
+           { key: "v", label: "Packing Sold", fmt: moneyNS },
            { key: "sh", label: "% of Packing", fmt: RS.fmtPct },
            { key: "jobs", label: "Jobs", fmt: RS.fmtN },
            { key: "pj", label: "Packing Jobs", fmt: RS.fmtN },
            { key: "at", label: "Attach Rate", fmt: RS.fmtPct },
-           { key: "avg", label: "Avg $ / Packing Job", fmt: RS.money }],
+           { key: "avg", label: "Avg $ / Packing Job", fmt: moneyNS }],
           data,
           { k: "Total", v: packingSold, sh: packingSold ? 1 : null, jobs: rows.length,
             pj: packJobs.length, at: attach,
@@ -154,7 +208,9 @@ registerPage({
       jobs: RS.num(r["Total Jobs"]),
     })).sort((a, b) => (b.score == null ? -1 : b.score) - (a.score == null ? -1 : a.score));
 
-    RSC.chartCard(grid, {
+    if (!scLatest.length) {
+      grid.appendChild(emptyCard("Packing vs Estimate Score by Foreman"));
+    } else RSC.chartCard(grid, {
       title: "Packing vs Estimate Score by Foreman",
       controlsHtml: `<span class="lbl">latest month in scope · ${RSC.esc(latestLabel)}</span>`,
       buildChart(canvas) {
@@ -177,8 +233,13 @@ registerPage({
             interaction: { mode: "index", intersect: false },
             plugins: {
               legend: { position: "top", labels: { boxWidth: 12, font: { size: 12 } } },
-              tooltip: { callbacks: { label: c => c.datasetIndex === 0
-                ? `Score: ${c.raw}` : `Written vs Estimate: ${c.raw == null ? "—" : c.raw + "%"}` } },
+              tooltip: { callbacks: { label: c => {
+                const x = list[c.dataIndex];
+                return c.datasetIndex === 0
+                  ? [`Score: ${c.raw}`,
+                     `Written ${RS.money(x.written)} vs Estimate ${RS.money(x.est)}`]
+                  : `Written vs Estimate: ${c.raw == null ? "—" : c.raw + "%"}`;
+              } } },
             },
             scales: {
               x: { ticks: { font: { size: 11 }, maxRotation: 60, minRotation: 40,
@@ -194,20 +255,26 @@ registerPage({
       buildTable() {
         const dFmt = v => v == null ? "—" :
           `<span class="${v >= 0 ? "up" : "down"}">${v >= 0 ? "+" : ""}${v.toFixed(0)}</span>`;
+        const shown = scList.slice(0, 50);
+        const totWritten = scList.reduce((a, x) => a + x.written, 0);
+        const note = scList.length > shown.length
+          ? `<div style="padding:6px 10px;color:var(--muted);font-size:12px">showing ${shown.length} of ${RS.fmtN(scList.length)} foremen</div>` : "";
         return RSC.table(
           [{ key: "k", label: "Foreman" }, { key: "jobs", label: "Jobs", fmt: RS.fmtN },
-           { key: "written", label: "Packing Written", fmt: RS.money },
-           { key: "est", label: "Packing Estimate", fmt: RS.money },
+           { key: "written", label: "Packing Written", fmt: moneyNS },
+           { key: "wsh", label: "% of Written", fmt: RS.fmtPct },
+           { key: "est", label: "Packing Estimate", fmt: moneyNS },
            { key: "diff", label: "Packing Difference %", fmt: RS.fmtPct },
            { key: "score", label: "Score", fmt: RS.fmt1 },
            { key: "d", label: "Δ Score vs prev mo", fmt: dFmt }],
-          scList.slice(0, 40).map(x => ({
+          shown.map(x => ({
             ...x,
+            wsh: totWritten ? x.written / totWritten : null,
             d: (x.score == null || prevScore[x.k] == null) ? null : x.score - prevScore[x.k],
           })),
           { k: "Total", jobs: scList.reduce((a, x) => a + x.jobs, 0),
-            written: scList.reduce((a, x) => a + x.written, 0),
-            est: scList.reduce((a, x) => a + x.est, 0) });
+            written: totWritten, wsh: totWritten ? 1 : null,
+            est: scList.reduce((a, x) => a + x.est, 0) }) + note;
       },
     });
 
@@ -228,7 +295,9 @@ registerPage({
     });
     const mLabel = k => RS.monthName(+k.slice(5)) + " " + k.slice(2, 4);
 
-    RSC.chartCard(grid, {
+    if (!byMonth.length) {
+      grid.appendChild(emptyCard("Packing attach rate by month"));
+    } else RSC.chartCard(grid, {
       title: "Packing attach rate by month",
       controlsHtml: `<span class="lbl">last 24 mo · % of jobs with Material $ &gt; 0</span>`,
       buildChart(canvas) {
@@ -255,7 +324,8 @@ registerPage({
             },
             scales: {
               y: { beginAtZero: true, ticks: { callback: v => v + "%" } },
-              x: { ticks: { font: { size: 11 }, maxRotation: 60, minRotation: 40 } },
+              x: { ticks: { autoSkip: true, maxTicksLimit: 14, maxRotation: 45,
+                            font: { size: 11 } } },
             },
           },
         });
@@ -263,16 +333,19 @@ registerPage({
       buildTable() {
         const dFmt = v => v == null ? "—" :
           `<span class="${v >= 0 ? "up" : "down"}">${v >= 0 ? "+" : ""}${v.toFixed(1)} pp</span>`;
+        const shown = byMonth.slice(-24);
+        const note = byMonth.length > shown.length
+          ? `<div style="padding:6px 10px;color:var(--muted);font-size:12px">showing last ${shown.length} of ${RS.fmtN(byMonth.length)} months</div>` : "";
         return RSC.table(
           [{ key: "m", label: "Month" }, { key: "jobs", label: "Jobs", fmt: RS.fmtN },
            { key: "pj", label: "Packing Jobs", fmt: RS.fmtN },
            { key: "at", label: "Attach Rate", fmt: RS.fmtPct },
            { key: "d", label: "Δ MoM", fmt: dFmt },
-           { key: "v", label: "Packing Sold", fmt: RS.money },
-           { key: "avg", label: "Avg $ / Packing Job", fmt: RS.money }],
-          byMonth.slice(-24).map(x => ({ ...x, m: mLabel(x.k) })),
+           { key: "v", label: "Packing Sold", fmt: moneyNS },
+           { key: "avg", label: "Avg $ / Packing Job", fmt: moneyNS }],
+          shown.map(x => ({ ...x, m: mLabel(x.k) })),
           { m: "Total", jobs: rows.length, pj: packJobs.length, at: attach, v: packingSold,
-            avg: packJobs.length ? packingSold / packJobs.length : null });
+            avg: packJobs.length ? packingSold / packJobs.length : null }) + note;
       },
     });
   },
