@@ -134,6 +134,9 @@ registerPage({
     /* ---------------- main: claims by month ---------------- */
     RSC.chartCard(document.getElementById("clmMain"), {
       title: "Claims by month",
+      // Caption describes the chart only; the tabular view has its own fixed
+      // columns, so hide it there (dead in Tabular).
+      controlsGraphOnly: true,
       controlsHtml: `<span class="lbl">bars: claims · line: foreman-fault (scorecard) · last 24 mo</span>`,
       buildChart(canvas) {
         const shown = clByMonth.slice(-24);
@@ -345,6 +348,11 @@ registerPage({
       // count label must track the active responsibility filter, not the full page scope
       recent.querySelector("#clmRecentN").textContent =
         `latest ${RS.fmtN(latest.length)} of ${RS.fmtN(pool.length)}`;
+      if (!latest.length) {
+        recent.querySelector(".tabwrap").innerHTML =
+          `<div style="padding:14px;color:var(--muted);font-size:13px">No claims match this responsibility filter.</div>`;
+        return;
+      }
       recent.querySelector(".tabwrap").innerHTML = RSC.table(
         [{ key: "d", label: "Created Date" }, { key: "c", label: "Customer" },
          { key: "q", label: "Request No" }, { key: "s", label: "Status" },
