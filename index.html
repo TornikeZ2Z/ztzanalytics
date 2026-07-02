@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/portal.css?v=2">
-<link rel="stylesheet" href="assets/rs.css?v=6">
+<link rel="stylesheet" href="assets/rs.css?v=7">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 </head>
 <body class="rs-app">
@@ -42,8 +42,8 @@
 </div>
 
 <script src="assets/portal.js?v=5"></script>
-<script src="assets/rs-core.js?v=9"></script>
-<script src="assets/rs-components.js?v=4"></script>
+<script src="assets/rs-core.js?v=11"></script>
+<script src="assets/rs-components.js?v=5"></script>
 <script>
 /* ---------------- page registry ---------------- */
 window.PAGES = [];
@@ -95,6 +95,7 @@ const PAGE_ICONS = {
   "reviews": "star",
   "ads-analysis": "megaphone", "callrail": "phone", "forman": "tool",
   "packing": "box", "claims": "shield", "insights": "spark",
+  "source-identification": "compass",
 };
 
 /* Pages not yet built — shown greyed with a SOON tag so the full scope is visible. */
@@ -503,6 +504,7 @@ const REPORT_LABELS = {
   "marketing": "Marketing (Ads + CallRail)", "foremen": "Foremen (Scorecard + Analysis)",
   "packing-suite": "Packing (all three views)", "claims": "Claims",
   "storage": "Storage", "reviews": "Reviews",
+  "source-identification": "Source Identification (lineage)",
   "explorer": "Data Explorer — the Data portal, ALL tables",
 };
 async function aclCall(method, body) {
@@ -634,22 +636,23 @@ registerPage({
 });
 </script>
 <!-- page modules (each calls registerPage) -->
-<script src="pages/insights.js?v=1"></script>
-<script src="pages/jobs-vs-hours.js?v=3"></script>
-<script src="pages/analysis-by-category.js?v=3"></script>
-<script src="pages/yoy-diff.js?v=3"></script>
-<script src="pages/leads-analysis.js?v=4"></script>
-<script src="pages/leads-by-state.js?v=3"></script>
-<script src="pages/storage.js?v=3"></script>
-<script src="pages/sales-person-analysis.js?v=3"></script>
-<script src="pages/ads-analysis.js?v=4"></script>
-<script src="pages/callrail.js?v=3"></script>
-<script src="pages/forman.js?v=3"></script>
-<script src="pages/packing.js?v=3"></script>
-<script src="pages/claims.js?v=3"></script>
-<script src="pages/reviews.js?v=5"></script>
-<script src="pages/packing-analysis.js?v=3"></script>
-<script src="pages/forman-analysis.js?v=3"></script>
-<script src="pages/packing-per-100cf.js?v=3"></script>
+<script src="pages/insights.js?v=2"></script>
+<script src="pages/source-identification.js?v=2"></script>
+<script src="pages/jobs-vs-hours.js?v=4"></script>
+<script src="pages/analysis-by-category.js?v=4"></script>
+<script src="pages/yoy-diff.js?v=4"></script>
+<script src="pages/leads-analysis.js?v=6"></script>
+<script src="pages/leads-by-state.js?v=4"></script>
+<script src="pages/storage.js?v=4"></script>
+<script src="pages/sales-person-analysis.js?v=4"></script>
+<script src="pages/ads-analysis.js?v=5"></script>
+<script src="pages/callrail.js?v=4"></script>
+<script src="pages/forman.js?v=4"></script>
+<script src="pages/packing.js?v=4"></script>
+<script src="pages/claims.js?v=4"></script>
+<script src="pages/reviews.js?v=6"></script>
+<script src="pages/packing-analysis.js?v=4"></script>
+<script src="pages/forman-analysis.js?v=4"></script>
+<script src="pages/packing-per-100cf.js?v=4"></script>
 </body>
 </html>
