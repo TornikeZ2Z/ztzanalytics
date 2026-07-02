@@ -5,8 +5,11 @@ registerPage({
   group: "sales",
   title: "Leads Analysis",
   async render(host) {
-    const rows = RS.filtered("moveboard", await RS.load("moveboard"));
+    const allRows = await RS.load("moveboard");
+    const rows = RS.filtered("moveboard", allRows);
     const M = RS.M;
+    // RS.fmtN renders null as "0" — null-safe wrapper for nullable count cells
+    const intNS = v => v == null ? "—" : RS.fmtN(v);
 
     host.innerHTML = `
       <div class="rs-page-head">
@@ -21,14 +24,47 @@ registerPage({
       </div>
       <div id="funnel"></div>`;
 
+    if (!rows.length) {
+      document.getElementById("bySource").innerHTML =
+        `<div class="panel" style="padding:20px;color:var(--muted)">No data for the current filters.</div>`;
+      return;
+    }
+
+    const avgQ = M["Average Quote (avg)"].fn(rows);
     RSC.kpis(document.getElementById("kpis"), [
       { label: "Total Leads", value: RS.fmtN(M["Total Leads"].fn(rows)), sub: "all moveboard leads" },
       { label: "Qualified Leads", value: RS.fmtN(M["Qualified Leads"].fn(rows)), sub: "excl. bad leads" },
       { label: "Confirmed Leads", value: RS.fmtN(M["Confirmed Leads"].fn(rows)), sub: "booked jobs" },
       { label: "Dead Leads", value: RS.fmtN(M["Dead Leads"].fn(rows)), sub: "bad leads" },
       { label: "Booking Rate", value: RS.fmtPct(M["Booking Rate"].fn(rows)), sub: "confirmed / qualified" },
-      { label: "Average Quote", value: RS.money(M["Average Quote (avg)"].fn(rows)), sub: "avg of quoted leads" },
+      { label: "Average Quote", value: RS.moneyC(avgQ),
+        sub: (avgQ == null ? "" : RS.money(avgQ) + " · ") + "avg of quoted leads" },
     ]);
+
+    // ---- YoY chips: cur-year window (Jan-1 → max date of filtered rows) vs same
+    // window last year, over the slicer-filtered but date-UNfiltered dataset.
+    {
+      const maxD = rows.reduce((a, r) => (r._d && r._d > a ? r._d : a), "");
+      if (maxD) {
+        const save = { f: RS.state.dateFrom, t: RS.state.dateTo, df: RS.state.dayFrom, dt: RS.state.dayTo };
+        RS.state.dateFrom = RS.state.dateTo = null; RS.state.dayFrom = RS.state.dayTo = null;
+        const noDate = RS.filtered("moveboard", allRows);
+        RS.state.dateFrom = save.f; RS.state.dateTo = save.t; RS.state.dayFrom = save.df; RS.state.dayTo = save.dt;
+        const y = maxD.slice(0, 4);
+        const curRows = noDate.filter(r => r._d >= y + "-01-01" && r._d <= maxD);
+        const prevRows = noDate.filter(r => r._d >= (+y - 1) + "-01-01" && r._d <= (+y - 1) + maxD.slice(4));
+        const chip = name => {
+          const cur = M[name].fn(curRows), prev = M[name].fn(prevRows);
+          if (!prev || cur == null) return "";
+          const g = (cur - prev) / Math.abs(prev);
+          return ` <span class="${g >= 0 ? "up" : "down"}">${g >= 0 ? "▲" : "▼"} ${Math.abs(100 * g).toFixed(1)}% vs LY</span>`;
+        };
+        const kpiSubs = document.getElementById("kpis").querySelectorAll(".kpi .s");
+        const cTot = chip("Total Leads"), cConf = chip("Confirmed Leads");
+        if (cTot && kpiSubs[0]) kpiSubs[0].innerHTML += cTot;
+        if (cConf && kpiSubs[2]) kpiSubs[2].innerHTML += cConf;
+      }
+    }
 
     /* ---- shared: one pass over Source, funnel measures per source ---- */
     const FUNNEL = ["Total Leads", "Qualified Leads", "Confirmed Leads", "Dead Leads", "Booking Rate"];
@@ -76,15 +112,20 @@ registerPage({
         });
       },
       buildTable() {
-        const data = bySource().slice(0, 100);   // safety cap; sources are few in practice
+        const all = bySource();
+        const data = all.slice(0, 50);           // cap raw listing; sources are few in practice
+        const tt = M["Total Leads"].fn(rows);
         const tq = M["Qualified Leads"].fn(rows), tc = M["Confirmed Leads"].fn(rows);
+        const note = all.length > data.length
+          ? `<p style="margin:6px 2px;color:var(--muted)">showing ${data.length} of ${all.length} sources</p>` : "";
         return RSC.table(
-          [{ key: "s", label: "Source" }, { key: "total", label: "Total Leads", fmt: RS.fmtN },
-           { key: "qual", label: "Qualified", fmt: RS.fmtN }, { key: "conf", label: "Confirmed", fmt: RS.fmtN },
-           { key: "dead", label: "Dead", fmt: RS.fmtN }, { key: "rate", label: "Booking Rate", fmt: RS.fmtPct }],
-          data,
-          { s: "Total", total: M["Total Leads"].fn(rows), qual: tq, conf: tc,
-            dead: M["Dead Leads"].fn(rows), rate: tq ? Math.min(1, tc / tq) : null });
+          [{ key: "s", label: "Source" }, { key: "total", label: "Total Leads", fmt: intNS },
+           { key: "share", label: "% of Total", fmt: RS.fmtPct },
+           { key: "qual", label: "Qualified", fmt: intNS }, { key: "conf", label: "Confirmed", fmt: intNS },
+           { key: "dead", label: "Dead", fmt: intNS }, { key: "rate", label: "Booking Rate", fmt: RS.fmtPct }],
+          data.map(x => Object.assign({}, x, { share: tt ? x.total / tt : null })),
+          { s: "Total", total: tt, share: tt ? 1 : null, qual: tq, conf: tc,
+            dead: M["Dead Leads"].fn(rows), rate: tq ? Math.min(1, tc / tq) : null }) + note;
       },
     });
     document.getElementById("calcBy").onchange = e => { calcBy = e.target.value; srcCard.rerender(); };
@@ -122,7 +163,7 @@ registerPage({
               tooltip: { callbacks: { label: c => `${c.dataset.label}: ${RS.fmtN(c.raw)}` } } },
             scales: {
               y: { title: { display: true, text: "Leads" }, ticks: { callback: v => RS.fmtN(v) } },
-              x: { ticks: { font: { size: 11 }, maxRotation: 60, minRotation: 40 } },
+              x: { ticks: { font: { size: 11 }, autoSkip: true, maxTicksLimit: 14, maxRotation: 45 } },
             },
           },
         });
@@ -131,9 +172,9 @@ registerPage({
         const data = byMonth();
         const tq = M["Qualified Leads"].fn(rows), tc = M["Confirmed Leads"].fn(rows);
         return RSC.table(
-          [{ key: "label", label: "Month" }, { key: "total", label: "Total Leads", fmt: RS.fmtN },
-           { key: "qual", label: "Qualified", fmt: RS.fmtN }, { key: "conf", label: "Confirmed", fmt: RS.fmtN },
-           { key: "dead", label: "Dead", fmt: RS.fmtN }, { key: "rate", label: "Booking Rate", fmt: RS.fmtPct }],
+          [{ key: "label", label: "Month" }, { key: "total", label: "Total Leads", fmt: intNS },
+           { key: "qual", label: "Qualified", fmt: intNS }, { key: "conf", label: "Confirmed", fmt: intNS },
+           { key: "dead", label: "Dead", fmt: intNS }, { key: "rate", label: "Booking Rate", fmt: RS.fmtPct }],
           data,
           { label: "Total", total: M["Total Leads"].fn(rows), qual: tq, conf: tc,
             dead: M["Dead Leads"].fn(rows), rate: tq ? Math.min(1, tc / tq) : null });
@@ -150,7 +191,7 @@ registerPage({
       const data = Object.entries(g).map(([s, c]) => ({ s, c, share: c / n }))
         .sort((a, b) => b.c - a.c);
       fp.querySelector(".tabwrap").innerHTML = RSC.table(
-        [{ key: "s", label: "Status Category" }, { key: "c", label: "Leads", fmt: RS.fmtN },
+        [{ key: "s", label: "Status Category" }, { key: "c", label: "Leads", fmt: intNS },
          { key: "share", label: "Share", fmt: RS.fmtPct }],
         data,
         { s: "Total", c: rows.length, share: rows.length ? 1 : null });
