@@ -117,7 +117,8 @@ registerPage({
 
     const kpiDef = [
       { label: "Total Jobs", c: "Total Jobs", sub: "closed jobs (incl. trips)", yoy: true },
-      // Revenue = Total Revenue (closings) + Additional Revenue from Trips; split shown below.
+      // Revenue = Total Revenue (job bills, already incl. appended-trip job bills)
+      //         + Additional Revenue from Trips (linked-trip extras); split shown below.
       { label: "Revenue", c: "Revenue", sub: "", yoy: true, split: true },
       { label: "Hours Worked", c: "Hours Worked by Forman", sub: "foreman hours" },
       { label: "Avg Crew Size", c: "Crew Size (avg)", sub: "crew members / job" },
@@ -129,9 +130,9 @@ registerPage({
     document.getElementById("faKpis").innerHTML = kpiDef.map(k => {
       const c = CALC[k.c], cur = c.fn(rows);
       const isMoney = c.fmt === RS.money;   // compact value; precise goes to sub
-      // Revenue card: expose the closings vs trips breakdown so the split is visible.
+      // Revenue card: expose the job-bills vs linked-trip-extras breakdown so the split is visible.
       const splitLine = k.split
-        ? `Total Revenue ${RS.money(M["Total Revenue"].fn(rows))} · +Trips ${RS.money(M["Additional Revenue from Trips"].fn(rows))}`
+        ? `${RS.money(M["Total Revenue"].fn(rows))} job bills + ${RS.money(M["Additional Revenue from Trips"].fn(rows))} linked-trip extras`
         : "";
       const sub = [isMoney ? RS.money(cur) : "", splitLine, RSC.esc(k.sub), k.yoy ? yoyChip(k.c) : ""]
         .filter(Boolean).join(" · ");
