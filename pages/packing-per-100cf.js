@@ -53,8 +53,14 @@ registerPage({
     const totCF = rows.reduce((a, r) => a + RS.num(r["Total CF"]), 0);
     const scores = rows.map(r => r["Packing per 100 CF Score"])
       .filter(s => s != null && s !== "").map(RS.num);
-    const latestKey = monthKeys[monthKeys.length - 1] || null;
-    const prevKey = monthKeys.length > 1 ? monthKeys[monthKeys.length - 2] : null;
+    // F8: anchor the month cards to RS.displayMonth — before day RS.MIN_MONTH_DAYS
+    // of the current month it steps back to the last COMPLETE month; a partial
+    // month that is old enough to show is labeled "(partial)".
+    const disp = RS.displayMonth(monthKeys);
+    const latestKey = disp.key;
+    const latestIdx = latestKey ? monthKeys.indexOf(latestKey) : -1;
+    const prevKey = latestIdx > 0 ? monthKeys[latestIdx - 1] : null;
+    const dispLabel = latestKey ? mLabel(latestKey) + (disp.partial ? " (partial)" : "") : "";
 
     // ---- YoY: Jan-1 → max filtered date, this year vs the same window last year.
     // Both windows are pulled from the date-unfiltered dataset (slicers still apply)
@@ -90,6 +96,9 @@ registerPage({
            <b>${RS.fmtN(Object.keys(byForeman).length)}</b> foremen ·
            <b>${RS.fmtN(monthKeys.length)}</b> months in scope
            <span class="freshness">· foreman-months with no recorded CF default to $90/100CF (PBI DAX sentinel)</span></p>
+        ${disp.steppedBack
+          ? `<p style="color:var(--muted);font-size:12px;margin:4px 0 0">Month cards show ${RSC.esc(mLabel(latestKey))} — ${RSC.esc(mLabel(monthKeys[monthKeys.length - 1]))} has fewer than ${RS.MIN_MONTH_DAYS} days of data and is hidden until day ${RS.MIN_MONTH_DAYS}.</p>`
+          : ""}
       </div>
       <div class="rs-kpis" id="p100kpis"></div>
       <div id="p100main"></div>
@@ -124,7 +133,7 @@ registerPage({
       { label: "Packing Written", value: RS.moneyC(totPack) + chip(yoyPack),          // PBI: [Total Packing Written]
         sub: RS.money(totPack) + (yoyPack == null ? "" : " · vs same period LY") },
       { label: "Foremen", value: RS.fmtN(Object.keys(byForeman).length), sub: "active in scope" },
-      { label: "Best (" + mLabel(latestKey) + ")", value: bestReal ? d1(bestReal.v) : "—",
+      { label: "Best (" + dispLabel + ")", value: bestReal ? d1(bestReal.v) : "—",
         sub: bestReal ? bestReal.f : "no non-sentinel foreman" },
     ]);
 
@@ -134,7 +143,7 @@ registerPage({
       // the caption ("bar color = score band", "top 20 of N") describes the chart only —
       // the tabular view lists the top 50 with no color bands, so hide it there.
       controlsGraphOnly: true,
-      controlsHtml: `<span class="lbl">latest month: ${RSC.esc(mLabel(latestKey))} · bar color = score band · * = no CF (sentinel $90)` +
+      controlsHtml: `<span class="lbl">${disp.steppedBack ? "last complete month" : "latest month"}: ${RSC.esc(dispLabel)} · bar color = score band · * = no CF (sentinel $90)` +
         (fLatest.length > 20 ? ` · top 20 of ${fLatest.length}` : "") + `</span>`,
       buildChart(canvas) {
         const list = fLatest.slice(0, 20);
@@ -164,7 +173,7 @@ registerPage({
       buildTable() {
         // all columns are latest-month (the PBI pivot's last End of Month column)
         if (!fLatest.length)
-          return `<div style="padding:16px 14px;color:var(--muted)">No foremen with packing in ${RSC.esc(mLabel(latestKey))}.</div>`;
+          return `<div style="padding:16px 14px;color:var(--muted)">No foremen with packing in ${RSC.esc(dispLabel)}.</div>`;
         const mPack = fLatest.reduce((a, y) => a + y.pk, 0);
         const mCF = fLatest.reduce((a, y) => a + y.cf, 0);
         return RSC.table(
@@ -180,7 +189,7 @@ registerPage({
             rk: i + 1, f: x.f + (x.sentinel ? " *" : ""), v: x.v, dl: x.dl,
             sc: x.sc, cf: x.cf, pk: x.pk, sh: mPack ? x.pk / mPack : null,
           })),
-          { f: "All foremen (" + mLabel(latestKey) + ")", v: per100(mPack, mCF),
+          { f: "All foremen (" + dispLabel + ")", v: per100(mPack, mCF),
             cf: mCF, pk: mPack, sh: mPack ? 1 : null }) +
           (fLatest.length > 50
             ? `<div style="color:var(--muted);font-size:11px;padding:6px 2px">showing 50 of ${fLatest.length} foremen · totals row covers all</div>`
@@ -269,7 +278,7 @@ registerPage({
     });
     const noScore = fLatest.filter(x => x.sc == null).length;
     RSC.chartCard(grid, {
-      title: "Score distribution — " + mLabel(latestKey),
+      title: "Score distribution — " + dispLabel,
       // sentinel note (PBI DAX): a no-CF month scores as if per-100CF were exactly $90
       controlsHtml: `<span class="lbl">no-CF months default to $90 (DAX sentinel) — scored as 90` +
         (noScore ? ` · ${noScore} unscored` : "") + `</span>`,
@@ -299,7 +308,7 @@ registerPage({
       buildTable() {
         const n = fLatest.filter(x => x.sc != null).length;
         if (!n)
-          return `<div style="padding:16px 14px;color:var(--muted)">No scored foremen in ${RSC.esc(mLabel(latestKey))}.</div>`;
+          return `<div style="padding:16px 14px;color:var(--muted)">No scored foremen in ${RSC.esc(dispLabel)}.</div>`;
         return RSC.table(
           [{ key: "b", label: "Score band" },
            { key: "n", label: "Foremen", fmt: RS.fmtN },
