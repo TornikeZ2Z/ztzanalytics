@@ -259,6 +259,12 @@ window.RS = (function () {
   register("Total Tips", "closing", money,
     rows => sum(rows, "Tip From the Customers") + sum(rows, "Tip from Company"));
   register("Material Total", "closing", money, rows => sum(rows, "Material Total"));
+  // Packing semantics (audit F9): `Material $` is the foreman's packing COMMISSION
+  // (PBI "Forman Salary - Packing", 20/26% of Material Total) — NOT packing revenue.
+  // Customer-facing packing revenue is `Material Total` (PBI "Total Packing Written").
+  register("Forman Salary - Packing", "closing", money, rows => sum(rows, "Material $"));
+  register("Total Packing Written", "closing", money, rows => sum(rows, "Material Total"));
+  // deprecated alias — kept so stale references render the commission, not a crash
   register("Packing Sold", "closing", money, rows => sum(rows, "Material $"));
   register("Total Expenses", "closing", money, rows => sum(rows, "Total Expense"));
   register("Profit", "closing", money, rows => sum(rows, "Profit per Job"));
@@ -405,6 +411,28 @@ window.RS = (function () {
     return out;
   }
 
+  /* Partial-month guard (audit F8/F10): month-anchored cards step back to the last
+     COMPLETE month while the current month is under MIN_MONTH_DAYS days old, so a
+     1-day July doesn't render as a collapsed score with a scary red delta. */
+  const MIN_MONTH_DAYS = 10;
+  function displayMonth(sortedKeys) {
+    if (!sortedKeys || !sortedKeys.length) return { key: null, partial: false, steppedBack: false };
+    const last = sortedKeys[sortedKeys.length - 1];
+    const now = new Date();
+    const curKey = now.getFullYear() + "-" + String(now.getMonth() + 1).padStart(2, "0");
+    if (last === curKey && now.getDate() < MIN_MONTH_DAYS && sortedKeys.length > 1)
+      return { key: sortedKeys[sortedKeys.length - 2], partial: false, steppedBack: true };
+    return { key: last, partial: last === curKey, steppedBack: false };
+  }
+
+  /* Coverage window (audit F12): min/max loaded date, for "data since X" footnotes. */
+  function coverage(rows) {
+    let lo = null, hi = null;
+    for (const r of rows) { const d = r._d; if (!d) continue; if (!lo || d < lo) lo = d; if (!hi || d > hi) hi = d; }
+    return { from: lo, to: hi };
+  }
+
   return { DATASETS, FIELDS, state, load, filtered, monthName, M, value, yoy, groupBy, moneyC,
-           fmtN, money, fmtPct, fmt1, num };
+           fmtN, money, fmtPct, fmt1, num,
+           MIN_MONTH_DAYS, displayMonth, coverage };
 })();
