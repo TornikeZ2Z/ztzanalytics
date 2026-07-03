@@ -30,21 +30,27 @@ registerPage({
       return;
     }
 
+    /* F5 belt-and-braces: 'Request Joinkey' casing differs across warehouse tables
+       ('Zip To Zip' in fct_claims vs 'Zip to Zip' in rollup/closing) until the
+       curated rebuild lands. Normalize keys with jkey() at BOTH build and probe
+       sites so every join works before AND after the rebuild. */
+    const jkey = v => (v == null ? v : String(v).toLowerCase());
+
     /* rollup_support has NO date column — never RS.filtered. Time-slice it via
        membership joins: request keys from the FILTERED claims / closing rows. */
-    const claimKeys = new Set(rows.map(r => r["Request Joinkey"]).filter(Boolean));
-    const closingKeys = new Set(closingRows.map(r => r["Request Joinkey"]).filter(Boolean));
+    const claimKeys = new Set(rows.map(r => r["Request Joinkey"]).filter(Boolean).map(jkey));
+    const closingKeys = new Set(closingRows.map(r => r["Request Joinkey"]).filter(Boolean).map(jkey));
     const rollupByKey = new Map();
     rollupAll.forEach(r => {
-      const k = r["Request Joinkey"];
+      const k = jkey(r["Request Joinkey"]);
       if (k && !rollupByKey.has(k)) rollupByKey.set(k, r);
     });
-    const refundOf = k => { const ru = rollupByKey.get(k); return ru ? RS.num(ru["Amount Refunded"]) : 0; };
+    const refundOf = k => { const ru = rollupByKey.get(jkey(k)); return ru ? RS.num(ru["Amount Refunded"]) : 0; };
 
     // PBI 'Amount Refunded' — rollup summed over the filtered closing request set.
     let amtRefunded = 0, amtRefundedNR = 0;
     rollupAll.forEach(r => {
-      if (!closingKeys.has(r["Request Joinkey"])) return;
+      if (!closingKeys.has(jkey(r["Request Joinkey"]))) return;
       amtRefunded += RS.num(r["Amount Refunded"]);
       // PBI 'Amount Refunded Because of Negative Reviews'
       amtRefundedNR += RS.num(r["Amount Refunded Because of Negative Reviews"]);
@@ -52,7 +58,7 @@ registerPage({
     // Claim requests that ended in money out — rollup joined via the claim request set.
     let refundedClaimReqs = 0;
     rollupAll.forEach(r => {
-      if (claimKeys.has(r["Request Joinkey"]) && RS.num(r["Amount Refunded"]) > 0) refundedClaimReqs++;
+      if (claimKeys.has(jkey(r["Request Joinkey"])) && RS.num(r["Amount Refunded"]) > 0) refundedClaimReqs++;
     });
 
     const nClaims = M["Number of Claims"].fn(rows);
@@ -85,9 +91,9 @@ registerPage({
     };
     const claimsChip = yoyChip("claims", claimsAll, rows, rs => rs.length, true);
     const refundOverClosing = crows => {   // same join as amtRefunded, over any closing window
-      const keys = new Set(crows.map(r => r["Request Joinkey"]).filter(Boolean));
+      const keys = new Set(crows.map(r => r["Request Joinkey"]).filter(Boolean).map(jkey));
       return rollupAll.reduce((a, r) =>
-        a + (keys.has(r["Request Joinkey"]) ? RS.num(r["Amount Refunded"]) : 0), 0);
+        a + (keys.has(jkey(r["Request Joinkey"])) ? RS.num(r["Amount Refunded"]) : 0), 0);
     };
     const refundChip = yoyChip("closing", closingAll, closingRows, refundOverClosing, true);
 
@@ -213,7 +219,7 @@ registerPage({
       const out = [...g.values()].map(e => {
         let disp = "—", best = -1;
         e.raws.forEach((n, raw) => { if (n > best) { best = n; disp = raw; } });
-        const reqs = [...new Set(e.rows.map(r => r["Request Joinkey"]).filter(Boolean))];
+        const reqs = [...new Set(e.rows.map(r => r["Request Joinkey"]).filter(Boolean).map(jkey))];
         return { key: e.key, k: disp, raws: [...e.raws.keys()], n: e.rows.length,
                  refunded: reqs.reduce((a, k) => a + refundOf(k), 0),
                  isForeman: e.key.indexOf("forman") >= 0 };
@@ -363,7 +369,7 @@ registerPage({
           s: r.Status || "—", re: r.Reason || "—", rp: r.Responsibility || "—",
           // request-level rollup amount — repeats if a request carries several claims;
           // "—" = request has no rollup row at all (distinct from a genuine $0 refund)
-          amt: rollupByKey.has(r["Request Joinkey"]) ? refundOf(r["Request Joinkey"]) : null,
+          amt: rollupByKey.has(jkey(r["Request Joinkey"])) ? refundOf(r["Request Joinkey"]) : null,
         })));
     };
     recent.querySelector("#clmRespF").onchange = e => paintRecent(e.target.value);
