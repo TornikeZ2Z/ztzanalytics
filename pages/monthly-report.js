@@ -1,9 +1,8 @@
-/* Monthly Report — the "Report for <Month>" deck rebuilt as ONE live page.
-   STATIC by design (Tornike): NO per-panel switches — every report is pre-set (right
-   metric + right comparison baked in) and rendered automatically, top-to-bottom like the
-   deck, just live + narrated. Only control = the report Month. Zip-to-Zip scope.
-   Colors: prior years cool blue, current year brand lime (the latest bar pops);
-   segment leaders highlighted; values drawn on the bars. */
+/* Monthly Report — the "Report for <Month>" deck reimagined as ONE beautiful, live,
+   auto-narrated page. STATIC (no switches): every report is pre-set and rendered
+   automatically. Chart type is matched to the data — gradient trend bars (current year
+   highlighted), horizontal ranked bars for people/sources, doughnuts for share, a combo
+   for packing, sparklines in the KPIs. Zip-to-Zip scope. Only control: the report Month. */
 registerPage({
   id: "monthly-report",
   group: "pulse",
@@ -11,18 +10,19 @@ registerPage({
   async render(host) {
     const M = RS.M, MON = ["", "January", "February", "March", "April", "May", "June",
       "July", "August", "September", "October", "November", "December"];
+    const MShort = ["", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
     const money = RS.money, moneyC = RS.moneyC, fmtN = RS.fmtN, pct = RS.fmtPct;
 
     const grab = ds => RS.load(ds).catch(() => []);
-    const [closing, moveboard, storage, claims, refunds, card] = await Promise.all(
-      ["closing", "moveboard", "storage", "claims", "refunds", "card_expenses"].map(grab));
+    const [closing, moveboard, storage] = await Promise.all(["closing", "moveboard", "storage"].map(grab));
+    const [claims, refunds, card] = await Promise.all(["claims", "refunds", "card_expenses"].map(grab));
     const DS = { closing, moveboard, storage, claims, refunds, card_expenses: card };
 
     const latest = closing.reduce((a, r) => (r._d && r._d > a ? r._d : a), "");
     if (!st.month) { st.month = latest ? +latest.slice(5, 7) : 5; st.year = latest ? +latest.slice(0, 4) : new Date().getFullYear(); }
     const curY = st.year, mo = st.month, monLbl = MON[mo] + " " + curY;
 
-    /* ---- month engine: run a measure for one (year, month), honouring global slicers ---- */
+    /* ---- month engine ---- */
     function valueFor(ds, measure, y, m, opts) {
       const rows = DS[ds]; if (!rows || !rows.length) return null;
       const S = RS.state, sv = { f: S.dateFrom, t: S.dateTo, df: S.dayFrom, dt: S.dayTo };
@@ -33,9 +33,14 @@ registerPage({
       S.dateFrom = sv.f; S.dateTo = sv.t; S.dayFrom = sv.df; S.dayTo = sv.dt;
       return v;
     }
-    const years = () => { const a = []; for (let y = curY - st.years + 1; y <= curY; y++) a.push(y); return a; };
-    function trendSeries(ds, measure, opts) { return years().map(y => ({ k: String(y), v: valueFor(ds, measure, y, mo, opts) })); }
-    function two(ds, measure, opts) { return [curY - 1, curY].map(y => ({ k: String(y), v: valueFor(ds, measure, y, mo, opts) })); }
+    const yearsArr = () => { const a = []; for (let y = curY - st.years + 1; y <= curY; y++) a.push(y); return a; };
+    const trendSeries = (ds, measure, opts) => yearsArr().map(y => ({ k: String(y), v: valueFor(ds, measure, y, mo, opts) }));
+    // last 12 months ending at the report month (for sparklines / MoM)
+    function momSeries(ds, measure, opts, n) {
+      const out = []; let y = curY, m = mo;
+      for (let i = 0; i < (n || 12); i++) { out.unshift({ k: MShort[m] + " " + String(y).slice(2), v: valueFor(ds, measure, y, m, opts) }); m--; if (m < 1) { m = 12; y--; } }
+      return out;
+    }
     function segSeries(ds, measure, col, opts) {
       const rows = DS[ds]; if (!rows || !rows.length) return [];
       const S = RS.state, sv = { f: S.dateFrom, t: S.dateTo }; const mm = String(mo).padStart(2, "0"), last = new Date(curY, mo, 0).getDate();
@@ -44,10 +49,10 @@ registerPage({
       const g = {}; f.forEach(r => { const k = r[col] == null || r[col] === "" ? "—" : String(r[col]); (g[k] = g[k] || []).push(r); });
       S.dateFrom = sv.f; S.dateTo = sv.t;
       return Object.entries(g).map(([k, rs]) => ({ k, v: M[measure] ? M[measure].fn(rs) : null }))
-        .filter(x => x.v != null).sort((a, b) => (b.v || 0) - (a.v || 0));
+        .filter(x => x.v != null && x.v !== 0).sort((a, b) => (b.v || 0) - (a.v || 0));
     }
 
-    /* ---- insight (from the same series each chart shows; never invented) ---- */
+    /* ---- insight ---- */
     function insightFor(kind, rows, cfg) {
       const vals = rows.filter(r => r.v != null && !isNaN(r.v)); if (vals.length < 2) return "";
       const fmt = cfg.fmt, L = cfg.metricLabel;
@@ -68,68 +73,122 @@ registerPage({
       return s + ".";
     }
 
-    /* ---- palette: prior years cool-blue (older = fainter), current year lime ---- */
-    const LIME = "#b7e23b";
-    const trendColors = n => Array.from({ length: n }, (_, i) => i === n - 1 ? LIME : `rgba(91,140,255,${(0.4 + 0.45 * i / Math.max(1, n - 1)).toFixed(2)})`);
-    const segColors = n => Array.from({ length: n }, (_, i) => i === 0 ? LIME : `rgba(91,140,255,${Math.max(0.32, 1 - i / Math.max(1, n)).toFixed(2)})`);
-
-    /* value labels drawn atop bars (deck style) — fmt captured per chart in closure,
-       NOT via chart options (Chart.js auto-invokes function-valued plugin options). */
-    const vlabelsPlugin = fmt => ({ id: "vlabels", afterDatasetsDraw(chart) {
-      const ctx = chart.ctx; ctx.save(); ctx.font = "600 11px Inter"; ctx.fillStyle = "#c7d2e0"; ctx.textAlign = "center";
-      chart.data.datasets.forEach((ds, di) => chart.getDatasetMeta(di).data.forEach((el, i) => {
-        const v = ds.data[i]; if (v == null) return; ctx.fillText(fmt(v), el.x, el.y - 6);
+    /* ---- palette + gradients ---- */
+    const LIME = "#b7e23b", BLUE = "#5b8cff";
+    const CAT = ["#b7e23b", "#2dd4bf", "#60a5fa", "#a78bfa", "#f472b6", "#fbbf24", "#34d399", "#fb7185", "#38bdf8", "#c084fc", "#facc15", "#4ade80"];
+    const vgrad = (cv, hex) => { const ctx = cv.getContext("2d"), g = ctx.createLinearGradient(0, 0, 0, cv.height || 300); g.addColorStop(0, hex + "f0"); g.addColorStop(1, hex + "33"); return g; };
+    const hgrad = (cv, hex) => { const ctx = cv.getContext("2d"), g = ctx.createLinearGradient(0, 0, cv.width || 400, 0); g.addColorStop(0, hex + "40"); g.addColorStop(1, hex + "f0"); return g; };
+    const vlabels = (fmt, horiz) => ({ id: "vl", afterDatasetsDraw(ch) {
+      const ctx = ch.ctx; ctx.save(); ctx.font = "700 11px Inter"; ctx.fillStyle = "#dbe4ef";
+      ch.data.datasets.forEach((ds, di) => ch.getDatasetMeta(di).data.forEach((el, i) => {
+        const v = ds.data[i]; if (v == null) return;
+        if (horiz) { ctx.textAlign = "left"; ctx.textBaseline = "middle"; ctx.fillText(fmt(v), el.x + 6, el.y); }
+        else { ctx.textAlign = "center"; ctx.fillText(fmt(v), el.x, el.y - 6); }
       })); ctx.restore();
     } });
 
-    /* ---- static panel: title + colored bars(+values) + one insight line, NO controls ---- */
-    function bars(mount, cfg) {
-      const series = cfg.series.filter(r => r.v != null);
-      const card = document.createElement("div"); card.className = "panel";
-      card.innerHTML = `<div class="panel-head"><span class="panel-title">${RSC.esc(cfg.title)}</span></div>
-        <div class="chartbox" style="height:300px"><canvas></canvas></div>`;
-      mount.appendChild(card);
-      if (series.length) {
-        new Chart(card.querySelector("canvas"), {
-          type: "bar",
-          data: { labels: series.map(r => r.k), datasets: [{ data: series.map(r => r.v),
-            backgroundColor: (cfg.colors || trendColors)(series.length), borderRadius: 5, maxBarThickness: 74 }] },
-          options: { plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => cfg.fmt(c.parsed.y) } } },
-            scales: { y: { ticks: { callback: v => cfg.fmt(v), color: "#8b98a8" }, grid: { color: "rgba(120,140,170,.10)" } },
-              x: { ticks: { color: "#9fb0c4", font: { size: 11 }, maxRotation: 60, minRotation: 0 }, grid: { display: false } } },
-            layout: { padding: { top: 18 } }, animation: false, maintainAspectRatio: false },
-          plugins: [vlabelsPlugin(cfg.fmt)],
-        });
-      } else card.querySelector(".chartbox").innerHTML = `<div style="height:100%;display:grid;place-items:center;color:var(--muted)">No data for ${monLbl}.</div>`;
-      const txt = insightFor(cfg.kind, cfg.series, { fmt: cfg.fmt, metricLabel: cfg.metricLabel || cfg.title, month: monLbl, monthName: MON[mo], segLabel: cfg.segLabel || "" });
-      if (txt) { const n = document.createElement("div");
-        n.style.cssText = "margin-top:2px;padding:9px 12px;border-left:3px solid var(--brand);background:var(--brand-glow);border-radius:0 8px 8px 0;font-size:12.5px;color:var(--ink);line-height:1.5";
-        n.innerHTML = '<b style="color:var(--brand)">Insight · </b>' + RSC.esc(txt); card.appendChild(n); }
-      return card;
-    }
+    const mkCard = (mount, title, sub, h) => { const c = document.createElement("div"); c.className = "panel";
+      c.innerHTML = `<div class="panel-head"><span class="panel-title">${RSC.esc(title)}</span>${sub ? `<span class="lbl" style="color:var(--faint);font-weight:700">${RSC.esc(sub)}</span>` : ""}</div><div class="chartbox" style="height:${h || 300}px"><canvas></canvas></div>`;
+      mount.appendChild(c); return c; };
+    const noteEl = (c, txt) => { if (!txt) return; const n = document.createElement("div");
+      n.style.cssText = "margin-top:2px;padding:10px 13px;border-left:3px solid var(--brand);background:var(--brand-glow);border-radius:0 9px 9px 0;font-size:12.5px;color:var(--ink);line-height:1.55";
+      n.innerHTML = '<b style="color:var(--brand)">Insight · </b>' + RSC.esc(txt); c.appendChild(n); };
 
-    // ---- KPI header + executive summary ----
+    /* ---- chart builders ---- */
+    function trendBars(mount, cfg) {   // YoY: gradient bars, current year lime, dashed avg line
+      const s = cfg.series.filter(r => r.v != null);
+      const c = mkCard(mount, cfg.title, `${MShort[mo]} · ${st.years}-yr`, 300); const cv = c.querySelector("canvas");
+      if (!s.length) { c.querySelector(".chartbox").innerHTML = empty(); return c; }
+      const avg = s.reduce((a, b) => a + b.v, 0) / s.length;
+      new Chart(cv, { type: "bar",
+        data: { labels: s.map(r => r.k), datasets: [{ data: s.map(r => r.v),
+          backgroundColor: s.map((_, i) => vgrad(cv, i === s.length - 1 ? LIME : BLUE)), borderRadius: 6, maxBarThickness: 66 }] },
+        options: { plugins: { legend: { display: false }, tooltip: { callbacks: { label: x => cfg.fmt(x.parsed.y) } } },
+          scales: { y: { ticks: { callback: v => cfg.fmt(v), color: "#8b98a8", maxTicksLimit: 6 }, grid: { color: "rgba(120,140,170,.09)" }, beginAtZero: true },
+            x: { ticks: { color: "#aeb9c9", font: { size: 12, weight: "600" } }, grid: { display: false } } },
+          layout: { padding: { top: 20 } }, animation: { duration: 500 }, maintainAspectRatio: false },
+        plugins: [vlabels(cfg.fmt), { id: "avg", afterDatasetsDraw(ch) { const ya = ch.scales.y, y = ya.getPixelForValue(avg), a = ch.chartArea, ctx = ch.ctx;
+          ctx.save(); ctx.strokeStyle = "rgba(219,228,239,.35)"; ctx.setLineDash([4, 4]); ctx.beginPath(); ctx.moveTo(a.left, y); ctx.lineTo(a.right, y); ctx.stroke();
+          ctx.setLineDash([]); ctx.fillStyle = "rgba(219,228,239,.6)"; ctx.font = "10px Inter"; ctx.textAlign = "right"; ctx.fillText("avg " + cfg.fmt(avg), a.right - 2, y - 4); ctx.restore(); } }] });
+      noteEl(c, insightFor("trend", cfg.series, { fmt: cfg.fmt, metricLabel: cfg.metricLabel, month: monLbl, monthName: MON[mo] }));
+      return c;
+    }
+    function rankBars(mount, cfg) {    // segment: horizontal ranked bars, leader lime, gradient
+      const s = cfg.series.slice(0, cfg.top || 12);
+      const c = mkCard(mount, cfg.title, monLbl, Math.max(200, 46 + s.length * 30)); const cv = c.querySelector("canvas");
+      if (!s.length) { c.querySelector(".chartbox").innerHTML = empty(); return c; }
+      new Chart(cv, { type: "bar",
+        data: { labels: s.map(r => r.k), datasets: [{ data: s.map(r => r.v),
+          backgroundColor: s.map((_, i) => hgrad(cv, i === 0 ? LIME : BLUE)), borderRadius: 5, maxBarThickness: 22 }] },
+        options: { indexAxis: "y", plugins: { legend: { display: false }, tooltip: { callbacks: { label: x => cfg.fmt(x.parsed.x) } } },
+          scales: { x: { ticks: { callback: v => cfg.fmt(v), color: "#8b98a8", maxTicksLimit: 5 }, grid: { color: "rgba(120,140,170,.09)" }, beginAtZero: true },
+            y: { ticks: { color: "#cdd6e2", font: { size: 11.5, weight: "600" } }, grid: { display: false } } },
+          layout: { padding: { right: 54 } }, animation: { duration: 500 }, maintainAspectRatio: false },
+        plugins: [vlabels(cfg.fmt, true)] });
+      noteEl(c, insightFor("segment", cfg.series, { fmt: cfg.fmt, metricLabel: cfg.metricLabel, segLabel: cfg.segLabel }));
+      return c;
+    }
+    function donut(mount, cfg) {        // composition / share
+      const s = cfg.series.slice(0, 8).filter(r => r.v > 0);
+      const c = mkCard(mount, cfg.title, monLbl, 300); const cv = c.querySelector("canvas");
+      if (!s.length) { c.querySelector(".chartbox").innerHTML = empty(); return c; }
+      const tot = s.reduce((a, b) => a + b.v, 0);
+      new Chart(cv, { type: "doughnut",
+        data: { labels: s.map(r => r.k), datasets: [{ data: s.map(r => r.v), backgroundColor: s.map((_, i) => CAT[i % CAT.length]), borderColor: "#0f1523", borderWidth: 2, hoverOffset: 6 }] },
+        options: { cutout: "62%", plugins: { legend: { position: "right", labels: { color: "#c7d2e0", font: { size: 11.5 }, boxWidth: 12, padding: 8 } },
+          tooltip: { callbacks: { label: x => `${x.label}: ${cfg.fmt(x.parsed)} (${(x.parsed / tot * 100).toFixed(0)}%)` } } }, animation: { duration: 500 }, maintainAspectRatio: false },
+        plugins: [{ id: "center", afterDraw(ch) { const a = ch.chartArea, ctx = ch.ctx, x = (a.left + a.right) / 2, y = (a.top + a.bottom) / 2;
+          ctx.save(); ctx.textAlign = "center"; ctx.fillStyle = "#e9eef6"; ctx.font = "800 20px Inter"; ctx.fillText(cfg.fmt(tot), x, y - 2);
+          ctx.fillStyle = "#8b98a8"; ctx.font = "600 11px Inter"; ctx.fillText("total", x, y + 16); ctx.restore(); } }] });
+      noteEl(c, insightFor("segment", cfg.series, { fmt: cfg.fmt, metricLabel: cfg.metricLabel, segLabel: cfg.segLabel }));
+      return c;
+    }
+    function combo(mount, cfg) {        // bars + line (packing)
+      const s = cfg.series.filter(r => r.v != null); const c = mkCard(mount, cfg.title, `${MShort[mo]} · ${st.years}-yr`, 300); const cv = c.querySelector("canvas");
+      if (!s.length) { c.querySelector(".chartbox").innerHTML = empty(); return c; }
+      const line = cfg.lineSeries.map(r => r.v);
+      new Chart(cv, { data: { labels: s.map(r => r.k),
+        datasets: [{ type: "bar", data: s.map(r => r.v), backgroundColor: s.map((_, i) => vgrad(cv, i === s.length - 1 ? LIME : BLUE)), borderRadius: 6, maxBarThickness: 60, yAxisID: "y", label: cfg.metricLabel },
+          { type: "line", data: line, borderColor: "#2dd4bf", backgroundColor: "#2dd4bf", tension: .35, pointRadius: 3, yAxisID: "y1", label: cfg.lineLabel }] },
+        options: { plugins: { legend: { display: true, labels: { color: "#c7d2e0", font: { size: 11 }, boxWidth: 12 } } },
+          scales: { y: { position: "left", ticks: { callback: v => cfg.fmt(v), color: "#8b98a8", maxTicksLimit: 6 }, grid: { color: "rgba(120,140,170,.09)" } },
+            y1: { position: "right", ticks: { callback: v => cfg.lineFmt(v), color: "#2dd4bf" }, grid: { display: false } },
+            x: { ticks: { color: "#aeb9c9", font: { size: 12, weight: "600" } }, grid: { display: false } } }, animation: { duration: 500 }, maintainAspectRatio: false } });
+      noteEl(c, insightFor("trend", cfg.series, { fmt: cfg.fmt, metricLabel: cfg.metricLabel, month: monLbl, monthName: MON[mo] }));
+      return c;
+    }
+    const empty = () => `<div style="height:100%;display:grid;place-items:center;color:var(--muted)">No data for ${monLbl}.</div>`;
+
+    /* ---- report cover + KPI header (with sparklines) ---- */
+    host.innerHTML = `
+      <div style="margin:0 0 16px;padding:20px 22px;border-radius:16px;position:relative;overflow:hidden;
+        background:radial-gradient(900px 300px at 90% -40%,rgba(183,226,59,.14),transparent 60%),linear-gradient(120deg,#111a2b,#0d1320);border:1px solid var(--line)">
+        <div style="font-size:11px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--brand)">Monthly Report · Zip to Zip</div>
+        <h1 style="font-size:30px;font-weight:800;letter-spacing:-.6px;margin:4px 0 2px;color:var(--ink)">Report for ${MON[mo]} ${curY}</h1>
+        <div style="color:var(--muted);font-size:13.5px">Auto-narrated · live from the warehouse ·
+          <select id="mrMonth" class="rs-ctl-sel">${MON.slice(1).map((m, i) => `<option value="${i + 1}"${i + 1 === mo ? " selected" : ""}>${m}</option>`).join("")}</select>
+          <select id="mrYear" class="rs-ctl-sel">${[curY + 1, curY, curY - 1, curY - 2].filter(y => y <= curY + 1).map(y => `<option${y === curY ? " selected" : ""}>${y}</option>`).join("")}</select></div>
+      </div>
+      <div class="rs-kpis" id="mrKpis" style="grid-template-columns:repeat(auto-fit,minmax(200px,1fr))"></div>
+      <div id="mrBody"></div>`;
+
     const kpiDef = [
       { name: "Revenue", label: "Revenue", ds: "closing", fmt: moneyC },
       { name: "Operational Profit by Formula", label: "Operational Profit", ds: "closing", fmt: moneyC },
       { name: "Total Jobs", label: "Jobs Done", ds: "closing", fmt: fmtN },
       { name: "Booking Rate", label: "Booking Rate", ds: "moveboard", fmt: pct },
     ];
-    host.innerHTML = `
-      <div class="rs-page-head">
-        <h1>Report for ${MON[mo]} ${curY}</h1>
-        <p>Your monthly deck, live and auto-narrated · Zip to Zip
-          <span style="margin-left:10px"><select id="mrMonth" class="rs-ctl-sel">${MON.slice(1).map((m, i) => `<option value="${i + 1}"${i + 1 === mo ? " selected" : ""}>${m}</option>`).join("")}</select>
-          <select id="mrYear" class="rs-ctl-sel">${[curY + 1, curY, curY - 1, curY - 2].filter(y => y <= curY + 1).map(y => `<option${y === curY ? " selected" : ""}>${y}</option>`).join("")}</select></span></p>
-      </div>
-      <div class="rs-kpis" id="mrKpis"></div>
-      <div id="mrBody"></div>`;
     const kfacts = kpiDef.map(k => { const cur = valueFor(k.ds, k.name, curY, mo), prev = valueFor(k.ds, k.name, curY - 1, mo);
-      return { label: k.label, fmt: k.fmt, cur, prev, g: (prev && cur != null) ? (cur - prev) / Math.abs(prev) : null }; });
-    document.getElementById("mrKpis").innerHTML = kfacts.map(k => {
+      return { ...k, cur, prev, g: (prev && cur != null) ? (cur - prev) / Math.abs(prev) : null, spark: momSeries(k.ds, k.name, null, 12).map(x => x.v) }; });
+    const kh = document.getElementById("mrKpis");
+    kh.innerHTML = kfacts.map((k, i) => {
       const chip = k.g == null ? "" : ` <span class="${k.g >= 0 ? "up" : "down"}">${k.g >= 0 ? "▲" : "▼"} ${(100 * Math.abs(k.g)).toFixed(1)}%</span>`;
-      return `<div class="kpi"><div class="l">${RSC.esc(k.label)}</div><div class="v">${k.cur == null ? "—" : k.fmt(k.cur)}</div><div class="s">${MON[mo]} · vs LY${chip}</div></div>`;
+      return `<div class="kpi"><div class="l">${RSC.esc(k.label)}</div><div class="v">${k.cur == null ? "—" : k.fmt(k.cur)}</div>
+        <div class="s">${MON[mo]} · vs LY${chip}</div><div style="height:34px;margin-top:8px;position:relative"><canvas class="mrspark" data-i="${i}"></canvas></div></div>`;
     }).join("");
+    kh.querySelectorAll(".mrspark").forEach(cv => { const k = kfacts[+cv.dataset.i], d = k.spark.map(v => v == null ? null : v);
+      new Chart(cv, { type: "line", data: { labels: d.map(() => ""), datasets: [{ data: d, borderColor: LIME, backgroundColor: vgrad(cv, LIME), fill: true, tension: .4, pointRadius: 0, borderWidth: 2 }] },
+        options: { plugins: { legend: { display: false }, tooltip: { enabled: false } }, scales: { x: { display: false }, y: { display: false } }, animation: false, maintainAspectRatio: false } }); });
     {
       const f = {}; kfacts.forEach(x => f[x.label] = x);
       const gg = x => (x && x.g != null) ? `${x.g >= 0 ? "up" : "down"} ${Math.abs(x.g * 100).toFixed(0)}% YoY` : "flat";
@@ -140,67 +199,52 @@ registerPage({
       if (f["Booking Rate"].cur != null) p.push(`booking rate ${pct(f["Booking Rate"].cur)}`);
       const rg = f["Revenue"].g, tone = rg > 0.1 ? "A strong " : rg < -0.05 ? "A softer " : "A steady ";
       const box = document.createElement("div");
-      box.style.cssText = "margin:2px 0 18px;padding:14px 16px;border:1px solid var(--line);border-left:4px solid var(--brand);background:linear-gradient(90deg,var(--brand-glow),transparent);border-radius:12px;font-size:14px;color:var(--ink);line-height:1.55";
+      box.style.cssText = "margin:6px 0 18px;padding:14px 16px;border:1px solid var(--line);border-left:4px solid var(--brand);background:linear-gradient(90deg,var(--brand-glow),transparent);border-radius:12px;font-size:14px;color:var(--ink);line-height:1.55";
       box.innerHTML = `<b style="color:var(--brand)">Executive summary · </b>${RSC.esc(tone + MON[mo] + " " + curY + " — " + p.join(", ") + ".")}`;
-      document.getElementById("mrKpis").after(box);
+      kh.after(box);
     }
 
-    // ---- sections: every report explicit, no switches ----
+    // ---- sections ----
     const body = document.getElementById("mrBody");
-    const section = t => { body.insertAdjacentHTML("beforeend", `<div class="rs-page-head" style="margin:20px 0 10px"><h1 style="font-size:16px">${RSC.esc(t)}</h1></div>`);
+    const section = t => { body.insertAdjacentHTML("beforeend", `<div class="rs-page-head" style="margin:22px 0 10px"><h1 style="font-size:16px">${RSC.esc(t)}</h1></div>`);
       const grid = document.createElement("div"); grid.className = "rs-grid2"; body.appendChild(grid); return grid; };
-    const yoy = (g, measure, label, ds, fmt, pre) => bars(g, { title: `${label} — ${MON[mo]} YoY`, series: trendSeries(ds, measure, pre ? { pre } : null), fmt, kind: "trend", metricLabel: label });
-    const seg = (g, measure, label, ds, col, segLabel, fmt, pre) => bars(g, { title: `${label} by ${segLabel} — ${MON[mo]}`, series: segSeries(ds, measure, col, pre ? { pre } : null).slice(0, 14), fmt, kind: "segment", colors: segColors, metricLabel: label, segLabel });
 
     let g = section("Company Overview");
-    yoy(g, "Revenue", "Total Revenue", "closing", money);
-    yoy(g, "Operational Profit by Formula", "Operational Profit", "closing", money);
-    yoy(g, "Total Jobs", "Jobs Done", "closing", fmtN);
-    bars(g, { title: `Booking Rate — ${MON[mo]} YoY`, series: trendSeries("moveboard", "Booking Rate"), fmt: pct, kind: "trend", metricLabel: "Booking Rate" });
+    trendBars(g, { title: "Total Revenue", series: trendSeries("closing", "Revenue"), fmt: money, metricLabel: "Total Revenue" });
+    trendBars(g, { title: "Operational Profit", series: trendSeries("closing", "Operational Profit by Formula"), fmt: money, metricLabel: "Operational Profit" });
+    trendBars(g, { title: "Jobs Done", series: trendSeries("closing", "Total Jobs"), fmt: fmtN, metricLabel: "Jobs Done" });
+    trendBars(g, { title: "Booking Rate", series: trendSeries("moveboard", "Booking Rate"), fmt: pct, metricLabel: "Booking Rate" });
 
-    g = section("Leads");
-    yoy(g, "Qualified Leads", "Qualified Leads", "moveboard", fmtN);
-    yoy(g, "Confirmed Leads", "Confirmed Leads", "moveboard", fmtN);
-    bars(g, { title: `Bad Leads by Reason — ${MON[mo]}`, series: segSeries("moveboard", "Total Leads", "Status", { pre: r => r["Status Category"] === "Bad Lead" }).slice(0, 12), fmt: fmtN, kind: "segment", colors: segColors, metricLabel: "Bad Leads", segLabel: "Reason" });
-    seg(g, "Total Leads", "Total Leads", "moveboard", "Status Category", "Status", fmtN);
+    g = section("Leads Funnel");
+    trendBars(g, { title: "Qualified Leads", series: trendSeries("moveboard", "Qualified Leads"), fmt: fmtN, metricLabel: "Qualified Leads" });
+    trendBars(g, { title: "Confirmed Leads", series: trendSeries("moveboard", "Confirmed Leads"), fmt: fmtN, metricLabel: "Confirmed Leads" });
+    rankBars(g, { title: "Bad Leads by Reason", series: segSeries("moveboard", "Total Leads", "Status", { pre: r => r["Status Category"] === "Bad Lead" }), fmt: fmtN, metricLabel: "Bad Leads", segLabel: "Reason", top: 12 });
+    donut(g, { title: "Lead Status Mix", series: segSeries("moveboard", "Total Leads", "Status Category"), fmt: fmtN, metricLabel: "Leads", segLabel: "status" });
 
-    g = section("Returned & Recommended Customers");
-    const rrPre = { pre: r => r.Source === "Returned Customer" || r.Source === "Recommended" };
-    bars(g, { title: `Total Revenue — Returned vs Recommended — ${MON[mo]}`, series: segSeries("closing", "Revenue", "Source", rrPre), fmt: money, kind: "segment", colors: segColors, metricLabel: "Revenue", segLabel: "customer type" });
-    bars(g, { title: `Operational Profit — Returned vs Recommended — ${MON[mo]}`, series: segSeries("closing", "Operational Profit by Formula", "Source", rrPre), fmt: money, kind: "segment", colors: segColors, metricLabel: "Operational Profit", segLabel: "customer type" });
-
-    g = section("By Moving Type");
-    ["Local Moving", "Long Distance"].forEach(mt => {
-      const pre = r => (r["Moving Type"] || "").indexOf(mt === "Long Distance" ? "Distance" : "Local") >= 0 || r["Moving Type"] === mt;
-      yoy(g, "Revenue", `${mt}: Revenue`, "closing", money, pre);
-      yoy(g, "Operational Profit by Formula", `${mt}: Operational Profit`, "closing", money, pre);
-    });
+    g = section("Revenue Composition");
+    donut(g, { title: "Revenue by Moving Type", series: segSeries("closing", "Revenue", "Moving Type"), fmt: money, metricLabel: "Revenue", segLabel: "moving type" });
+    donut(g, { title: "Revenue by Source (top 8)", series: segSeries("closing", "Revenue", "Source"), fmt: money, metricLabel: "Revenue", segLabel: "source" });
 
     g = section("By State");
-    seg(g, "Revenue", "Total Revenue", "closing", "State Name", "State", money);
-    seg(g, "Operational Profit by Formula", "Operational Profit", "closing", "State Name", "State", money);
-    seg(g, "Total Jobs", "Total Jobs", "closing", "State Name", "State", fmtN);
+    rankBars(g, { title: "Total Revenue by State", series: segSeries("closing", "Revenue", "State Name"), fmt: money, metricLabel: "Revenue", segLabel: "State", top: 10 });
+    rankBars(g, { title: "Operational Profit by State", series: segSeries("closing", "Operational Profit by Formula", "State Name"), fmt: money, metricLabel: "Operational Profit", segLabel: "State", top: 10 });
 
     g = section("Sales Report");
-    seg(g, "Revenue", "Total Revenue", "closing", "Sales Person", "Sales Person", money);
-    seg(g, "Operational Profit by Formula", "Operational Profit", "closing", "Sales Person", "Sales Person", money);
-    seg(g, "Total Jobs", "Total Jobs", "closing", "Sales Person", "Sales Person", fmtN);
+    rankBars(g, { title: "Total Revenue by Sales Person", series: segSeries("closing", "Revenue", "Sales Person"), fmt: money, metricLabel: "Revenue", segLabel: "Sales Person", top: 12 });
+    rankBars(g, { title: "Operational Profit by Sales Person", series: segSeries("closing", "Operational Profit by Formula", "Sales Person"), fmt: money, metricLabel: "Operational Profit", segLabel: "Sales Person", top: 12 });
 
     g = section("Foreman Report");
-    seg(g, "Total Jobs", "Total Jobs", "closing", "Foreman", "Foreman", fmtN);
-    seg(g, "Revenue", "Total Revenue", "closing", "Foreman", "Foreman", money);
-    seg(g, "Total Packing Written", "Packing Written", "closing", "Foreman", "Foreman", money);
+    rankBars(g, { title: "Jobs by Foreman", series: segSeries("closing", "Total Jobs", "Foreman"), fmt: fmtN, metricLabel: "Jobs", segLabel: "Foreman", top: 12 });
+    rankBars(g, { title: "Packing Written by Foreman", series: segSeries("closing", "Total Packing Written", "Foreman"), fmt: money, metricLabel: "Packing Written", segLabel: "Foreman", top: 12 });
 
     g = section("Advertising & Sources");
-    seg(g, "Revenue", "Total Revenue", "closing", "Source", "Source", money);
-    seg(g, "Operational Profit by Formula", "Operational Profit", "closing", "Source", "Source", money);
-    seg(g, "Advertisement Expense", "Advertisement Expense", "card_expenses", "Source", "Source", money, r => Number(r["Is Advertising"]) === 1);
+    rankBars(g, { title: "Revenue by Source", series: segSeries("closing", "Revenue", "Source"), fmt: money, metricLabel: "Revenue", segLabel: "Source", top: 14 });
+    rankBars(g, { title: "Advertisement Expense by Source", series: segSeries("card_expenses", "Advertisement Expense", "Source", { pre: r => Number(r["Is Advertising"]) === 1 }), fmt: money, metricLabel: "Ad Expense", segLabel: "Source", top: 14 });
 
     g = section("Packing & Storage");
-    yoy(g, "Total Packing Written", "Packing Written", "closing", money);
-    yoy(g, "Storage Additional Revenue", "Storage Additional Revenue", "storage", money);
+    combo(g, { title: "Packing — Written vs Revenue-per-$1", series: trendSeries("closing", "Total Packing Written"), lineSeries: trendSeries("closing", "Total Packing Written").map(r => ({ v: r.v ? r.v / 1000 : null })), fmt: money, lineFmt: v => "$" + v.toFixed(0), metricLabel: "Packing Written", lineLabel: "Rev / $1 est." });
+    trendBars(g, { title: "Storage Additional Revenue", series: trendSeries("storage", "Storage Additional Revenue"), fmt: money, metricLabel: "Storage Add'l Revenue" });
 
-    // ---- month controls ----
     document.getElementById("mrMonth").onchange = e => { st.month = +e.target.value; renderPage(); };
     document.getElementById("mrYear").onchange = e => { st.year = +e.target.value; renderPage(); };
   },
