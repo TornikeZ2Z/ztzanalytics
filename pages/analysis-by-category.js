@@ -46,7 +46,7 @@ registerPage({
                               (RS.num(b.k.replace(/[^0-9]/g, "").slice(0, 5)) || 9e9),
     };
     const CALC = ["Total Jobs", "Revenue", "Net Cash", "Card Payment",
-                  "Net Cash + Card Payment", "Hours Worked by Forman", "Average Bill"];
+                  "Operating Profit Before Commission", "Hours Worked by Forman", "Average Bill"];
     let dimBy = "Source", calcBy = "Revenue";
 
     host.innerHTML = `

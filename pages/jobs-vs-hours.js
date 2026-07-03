@@ -63,7 +63,7 @@ registerPage({
     }
 
     // ---- main combo chart: Calculate-by measure (bars) + Hours (line) by foreman
-    const CALC = ["Total Jobs", "Revenue", "Net Cash", "Card Payment", "Net Cash + Card Payment"];
+    const CALC = ["Total Jobs", "Revenue", "Net Cash", "Card Payment", "Operating Profit Before Commission"];
     let calcBy = CALC[1];
     const card = RSC.chartCard(document.getElementById("main"), {
       title: "By Foreman",
@@ -106,7 +106,7 @@ registerPage({
           f, jobs: RS.M["Total Jobs"].fn(rs), bill: RS.M["Revenue"].fn(rs),
           closings: RS.M["Total Revenue"].fn(rs), trips: RS.M["Additional Revenue from Trips"].fn(rs),
           net: RS.M["Net Cash"].fn(rs), card: RS.M["Card Payment"].fn(rs),
-          nc: RS.M["Net Cash + Card Payment"].fn(rs), hrs: rs.reduce((a, r) => a + RS.num(r["Foreman Hours"]), 0),
+          nc: RS.M["Operating Profit Before Commission"].fn(rs), hrs: rs.reduce((a, r) => a + RS.num(r["Foreman Hours"]), 0),
         })).sort((a, b) => b.jobs - a.jobs);
         const tot = k => data.reduce((a, x) => a + (x[k] || 0), 0);
         const totBill = tot("bill");
@@ -117,7 +117,7 @@ registerPage({
            { key: "bill", label: "Revenue", fmt: nz(RS.money) }, { key: "share", label: "% of Revenue", fmt: RS.fmtPct },
            { key: "closings", label: "Job Bills", fmt: nz(RS.money) }, { key: "trips", label: "Linked-Trip Extras", fmt: nz(RS.money) },
            { key: "net", label: "Net Cash", fmt: nz(RS.money) },
-           { key: "card", label: "Card Payment", fmt: nz(RS.money) }, { key: "nc", label: "Net + Card", fmt: nz(RS.money) },
+           { key: "card", label: "Card Payment", fmt: nz(RS.money) }, { key: "nc", label: "Op. Profit", fmt: nz(RS.money) },
            { key: "hrs", label: "Hours", fmt: nz(RS.fmtN) }],
           shown,
           { f: "Total", jobs: tot("jobs"), bill: totBill, share: totBill ? 1 : null,

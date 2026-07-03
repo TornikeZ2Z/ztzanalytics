@@ -106,7 +106,7 @@ registerPage({
 
     // ---- shared Calculate-by (drives both charts, like the PBI field parameter)
     const CALC = ["Total Jobs", "Revenue", "Net Cash", "Card Payment",
-                  "Net Cash + Card Payment", "Hours Worked by Forman"];
+                  "Operating Profit Before Commission", "Hours Worked by Forman"];
     let calcBy = CALC[1];
     const perYear = name => years.map(y => M[name].fn(byYear[y]));
 
@@ -155,7 +155,7 @@ registerPage({
           y, jobs: M["Total Jobs"].fn(byYear[y]), bill: M["Revenue"].fn(byYear[y]),
           trev: M["Total Revenue"].fn(byYear[y]), trips: M["Additional Revenue from Trips"].fn(byYear[y]),
           net: M["Net Cash"].fn(byYear[y]), card: M["Card Payment"].fn(byYear[y]),
-          nc: M["Net Cash + Card Payment"].fn(byYear[y]), hrs: M["Hours Worked by Forman"].fn(byYear[y]),
+          nc: M["Operating Profit Before Commission"].fn(byYear[y]), hrs: M["Hours Worked by Forman"].fn(byYear[y]),
           share: totSel ? sel[i] / totSel : null,
           g: (i > 0 && sel[i - 1]) ? (sel[i] - sel[i - 1]) / Math.abs(sel[i - 1]) : null,
         }));
@@ -166,7 +166,7 @@ registerPage({
            { key: "trev", label: "Job Bills", fmt: nz(RS.money) },
            { key: "trips", label: "Linked-Trip Extras", fmt: nz(RS.money) },
            { key: "net", label: "Net Cash", fmt: nz(RS.money) },
-           { key: "card", label: "Card Payment", fmt: nz(RS.money) }, { key: "nc", label: "Net + Card", fmt: nz(RS.money) },
+           { key: "card", label: "Card Payment", fmt: nz(RS.money) }, { key: "nc", label: "Op. Profit", fmt: nz(RS.money) },
            { key: "hrs", label: "Hours", fmt: nz(RS.fmtN) },
            { key: "share", label: `% of Total (${calcBy})`, fmt: nz(RS.fmtPct) },
            { key: "g", label: `YoY % (${calcBy})`, fmt: growthTxt }],

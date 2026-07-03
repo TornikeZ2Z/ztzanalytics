@@ -110,7 +110,7 @@ registerPage({
       { label: "Revenue on Ad Sources", value: RS.moneyC(revenue), sub: revSub },
       // F11: numerator is collected cash, not billed revenue — say so in the sub
       { label: "ROI", value: roiCell(roi),
-        sub: "collected cash (net + card) per $1 ad spend · all-time in filter scope" },
+        sub: "operating profit before commission (net + card) per $1 ad spend · all-time in filter scope" },
       { label: "Leads on Ad Sources", value: RS.fmtN(leads),
         sub: "moveboard requests · created date" },
       // inline: no exact PBI measure — portal addition alongside "Expense per 1 Job"

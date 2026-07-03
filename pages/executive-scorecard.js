@@ -91,7 +91,7 @@ registerPage({
     const KPI_STRIP = [
       { id: "rev",  label: "Revenue",                 kind: "money", agg: "sum", cov: covC, calc: rs => M["Revenue"].fn(rs.c) },
       { id: "jobs", label: "Jobs",                    kind: "count", agg: "sum", cov: covC, calc: rs => M["Total Jobs"].fn(rs.c) },
-      { id: "cash", label: "Net Cash + Card Payment", kind: "money", agg: "sum", cov: covC, calc: rs => M["Net Cash + Card Payment"].fn(rs.c) },
+      { id: "cash", label: "Operating Profit Before Commission", kind: "money", agg: "sum", cov: covC, calc: rs => M["Operating Profit Before Commission"].fn(rs.c) },
       { id: "avgb", label: "Avg Bill",                kind: "money", agg: "avg", cov: covC, calc: rs => M["Average Bill"].fn(rs.c) },
       { id: "ads",  label: "Ad Spend",                kind: "money", agg: "sum", inv: true, na: !!fails.card_expenses, cov: covE, calc: rs => Math.abs(M["Advertisement Expense"].fn(rs.e)) },
       { id: "clm",  label: "Claims",                  kind: "count", agg: "sum", inv: true, na: !!fails.claims, cov: covCl, calc: rs => M["Number of Claims"].fn(rs.cl) },

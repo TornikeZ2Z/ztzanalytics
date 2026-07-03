@@ -253,8 +253,12 @@ window.RS = (function () {
   register("Additional Revenue from Trips", "closing", money, rows => sum(rows, "Extra Bill From Trips"));
   register("Net Cash", "closing", money, rows => sum(rows, "Net Cash") + sum(rows, "Net Cash From Trips"));
   register("Card Payment", "closing", money, rows => sum(rows, "Card Payment"));
-  register("Net Cash + Card Payment", "closing", money,
+  // Operating Profit Before Commission = Net Cash + Card Payment (per Tornike's books,
+  // 2026-07-03). "Net Cash + Card Payment" kept as an alias so existing refs keep working.
+  register("Operating Profit Before Commission", "closing", money,
     rows => M["Net Cash"].fn(rows) + M["Card Payment"].fn(rows));
+  register("Net Cash + Card Payment", "closing", money,
+    rows => M["Operating Profit Before Commission"].fn(rows));
   register("Hours Worked by Forman", "closing", fmtN, rows => sum(rows, "Foreman Hours"));
   register("Total Tips", "closing", money,
     rows => sum(rows, "Tip From the Customers") + sum(rows, "Tip from Company"));
