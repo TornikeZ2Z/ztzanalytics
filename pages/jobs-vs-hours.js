@@ -14,7 +14,7 @@ registerPage({
       <div class="rs-page-head">
         <h1>Jobs Done vs Hours Worked</h1>
         <p>Foreman output vs hours worked · <b>${RS.fmtN(rows.length)}</b> jobs in scope
-           <span class="freshness">· includes appended trips & trips revenue</span></p>
+           <span class="freshness">· appended trip jobs count as jobs; linked-trip extras shown separately</span></p>
       </div>
       <div class="rs-kpis" id="kpis"></div>
       <div id="main"></div>
@@ -30,7 +30,7 @@ registerPage({
     const kClosings = M["Total Revenue"].fn(rows), kTrips = M["Additional Revenue from Trips"].fn(rows);
     RSC.kpis(document.getElementById("kpis"), [
       { label: "Total Jobs", value: RS.fmtN(M["Total Jobs"].fn(rows)), sub: "closed jobs (incl. trips)" },
-      { label: "Revenue", value: RS.moneyC(kBill), sub: RS.moneyC(kClosings) + " closings + " + RS.moneyC(kTrips) + " trips" },
+      { label: "Revenue", value: RS.moneyC(kBill), sub: RS.moneyC(kClosings) + " job bills + " + RS.moneyC(kTrips) + " linked-trip extras" },
       { label: "Net Cash", value: RS.moneyC(kNet), sub: RS.money(kNet) + " · net + trips" },
       { label: "Card Payment", value: RS.moneyC(kCard), sub: RS.money(kCard) + " · card volume" },
       { label: "Hours Worked", value: RS.fmtN(M["Hours Worked by Forman"].fn(rows)), sub: "foreman hours" },
@@ -115,7 +115,7 @@ registerPage({
         return RSC.table(
           [{ key: "f", label: "Foreman" }, { key: "jobs", label: "Jobs", fmt: nz(RS.fmtN) },
            { key: "bill", label: "Revenue", fmt: nz(RS.money) }, { key: "share", label: "% of Revenue", fmt: RS.fmtPct },
-           { key: "closings", label: "Closings", fmt: nz(RS.money) }, { key: "trips", label: "Trips", fmt: nz(RS.money) },
+           { key: "closings", label: "Job Bills", fmt: nz(RS.money) }, { key: "trips", label: "Linked-Trip Extras", fmt: nz(RS.money) },
            { key: "net", label: "Net Cash", fmt: nz(RS.money) },
            { key: "card", label: "Card Payment", fmt: nz(RS.money) }, { key: "nc", label: "Net + Card", fmt: nz(RS.money) },
            { key: "hrs", label: "Hours", fmt: nz(RS.fmtN) }],
