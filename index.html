@@ -41,8 +41,8 @@
   </div>
 </div>
 
-<script src="assets/portal.js?v=5"></script>
-<script src="assets/rs-core.js?v=11"></script>
+<script src="assets/portal.js?v=6"></script>
+<script src="assets/rs-core.js?v=12"></script>
 <script src="assets/rs-components.js?v=5"></script>
 <script>
 /* ---------------- page registry ---------------- */
@@ -96,6 +96,8 @@ const PAGE_ICONS = {
   "ads-analysis": "megaphone", "callrail": "phone", "forman": "tool",
   "packing": "box", "claims": "shield", "insights": "spark",
   "source-identification": "compass",
+  "executive-scorecard": "gauge", "customer-experience": "user",
+  "labor-analysis": "activity",
 };
 
 /* Pages not yet built — shown greyed with a SOON tag so the full scope is visible. */
@@ -391,17 +393,23 @@ function paintChips() {
     chips.push({ k: "_date", label: "Date " + (RS.state.dateFrom || "…") + " → " + (RS.state.dateTo || "…") });
   if (RS.state.dayFrom != null || RS.state.dayTo != null)
     chips.push({ k: "_day", label: "Day " + (RS.state.dayFrom ?? 1) + "–" + (RS.state.dayTo ?? 31) });
+  // Always-on company scope (audit F4): shown as a permanent, non-removable chip so
+  // every total is self-explaining — the hidden default fooled PBI comparisons.
+  const compSet = RS.state.multi.company;
+  const compChip = (compSet && compSet.size)
+    ? `<span class="rs-chip" title="Permanent scope — change it on the Company selector">` +
+      `${RSC.esc("Company: " + [...compSet].join(", "))}</span>` : "";
   Object.entries(RS.state.multi).forEach(([k, set]) => {
     if (!set || !set.size || !RS.FIELDS[k]) return;
-    if (k === "company") return;   // always-selected single filter — shown on its button
+    if (k === "company") return;   // rendered as the permanent scope chip above
     const vals = [...set];
     chips.push({ k, label: RS.FIELDS[k].label + ": " +
       (vals.length <= 2 ? vals.join(", ") : vals.length + " selected") });
   });
-  host.innerHTML = chips.map(c =>
+  host.innerHTML = compChip + chips.map(c =>
     `<span class="rs-chip">${RSC.esc(c.label)}<button data-k="${c.k}" title="Remove filter">×</button></span>`).join("") +
     (chips.length ? `<button class="rs-chip clear" id="chipClearAll">Clear all</button>` : "");
-  host.classList.toggle("hidden", !chips.length);
+  host.classList.toggle("hidden", !compChip && !chips.length);
   host.querySelectorAll(".rs-chip button[data-k]").forEach(b => b.onclick = () => {
     const k = b.dataset.k;
     if (k === "_date") { RS.state.dateFrom = RS.state.dateTo = null; }
@@ -505,6 +513,9 @@ const REPORT_LABELS = {
   "packing-suite": "Packing (all three views)", "claims": "Claims",
   "storage": "Storage", "reviews": "Reviews",
   "source-identification": "Source Identification (lineage)",
+  "executive-scorecard": "Executive Scorecard",
+  "customer-experience": "Customer Experience (cost of quality)",
+  "labor-analysis": "Labor & Crew",
   "explorer": "Data Explorer — the Data portal, ALL tables",
 };
 async function aclCall(method, body) {
@@ -636,23 +647,26 @@ registerPage({
 });
 </script>
 <!-- page modules (each calls registerPage) -->
-<script src="pages/insights.js?v=2"></script>
+<script src="pages/insights.js?v=3"></script>
 <script src="pages/source-identification.js?v=2"></script>
-<script src="pages/jobs-vs-hours.js?v=4"></script>
-<script src="pages/analysis-by-category.js?v=4"></script>
-<script src="pages/yoy-diff.js?v=4"></script>
+<script src="pages/jobs-vs-hours.js?v=5"></script>
+<script src="pages/analysis-by-category.js?v=5"></script>
+<script src="pages/yoy-diff.js?v=5"></script>
 <script src="pages/leads-analysis.js?v=6"></script>
 <script src="pages/leads-by-state.js?v=4"></script>
 <script src="pages/storage.js?v=4"></script>
-<script src="pages/sales-person-analysis.js?v=4"></script>
-<script src="pages/ads-analysis.js?v=5"></script>
+<script src="pages/sales-person-analysis.js?v=5"></script>
+<script src="pages/ads-analysis.js?v=6"></script>
 <script src="pages/callrail.js?v=4"></script>
-<script src="pages/forman.js?v=4"></script>
-<script src="pages/packing.js?v=4"></script>
-<script src="pages/claims.js?v=4"></script>
-<script src="pages/reviews.js?v=6"></script>
-<script src="pages/packing-analysis.js?v=4"></script>
-<script src="pages/forman-analysis.js?v=4"></script>
-<script src="pages/packing-per-100cf.js?v=4"></script>
+<script src="pages/forman.js?v=5"></script>
+<script src="pages/packing.js?v=5"></script>
+<script src="pages/claims.js?v=5"></script>
+<script src="pages/reviews.js?v=7"></script>
+<script src="pages/packing-analysis.js?v=5"></script>
+<script src="pages/forman-analysis.js?v=5"></script>
+<script src="pages/packing-per-100cf.js?v=5"></script>
+<script src="pages/executive-scorecard.js?v=1"></script>
+<script src="pages/customer-experience.js?v=1"></script>
+<script src="pages/labor-analysis.js?v=1"></script>
 </body>
 </html>
