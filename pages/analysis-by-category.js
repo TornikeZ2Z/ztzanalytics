@@ -71,7 +71,7 @@ registerPage({
     RSC.kpis(document.getElementById("kpis"), [
       { label: "Total Jobs", value: RS.fmtN(M["Total Jobs"].fn(rows)), sub: "closed jobs (incl. trips)" },
       { label: "Revenue", value: RS.moneyC(kBill),
-        sub: nz(RS.moneyC)(kClosings) + " closings + " + nz(RS.moneyC)(kTrips) + " trips" },
+        sub: nz(RS.moneyC)(kClosings) + " job bills + " + nz(RS.moneyC)(kTrips) + " linked-trip extras" },
       { label: "Net Cash", value: RS.moneyC(kNet), sub: nz(RS.money)(kNet) + " · net + trips" },
       { label: "Card Payment", value: RS.moneyC(kCard), sub: nz(RS.money)(kCard) + " · card volume" },
       { label: "Avg Bill / Job", value: RS.moneyC(kAvg), sub: nz(RS.money)(kAvg) + " per job" },
