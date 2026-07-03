@@ -46,6 +46,14 @@ registerPage({
     const projBill = dayOf ? bill / dayOf * daysInMonth : null;
     const projJobs = dayOf ? Math.round(jobs / dayOf * daysInMonth) : null;
     const lyFull = M["Revenue"].fn(inMonth(closing, lyM));
+    /* Projection gate (audit F10, D5): a linear run-rate off 1–9 days multiplies
+       unrepresentative days by 10–31× — pure noise. Before day 10 we blank the
+       projection KPI (showing last-month/LY anchors instead), drop its vs-LY chip
+       and recommendation rule 7, and tag the kept same-days-vs-LY chips as noisy.
+       From day 10 onward everything renders exactly as before. */
+    const projGated = dayOf < RS.MIN_MONTH_DAYS;
+    const noisyTag = projGated ? ` · first ${dayOf} day${dayOf === 1 ? "" : "s"} — noisy` : "";
+    const prevFull = M["Revenue"].fn(inMonth(closing, prevM));   // anchor: last full month
 
     host.innerHTML = `
       <div class="rs-page-head">
@@ -61,6 +69,11 @@ registerPage({
       <div class="rs-grid2">
         <div class="panel"><div class="panel-head"><span class="panel-title">Foreman pulse — ${monthLabel(prevM)}</span></div><div class="tabwrap" id="foreman"></div></div>
         <div class="panel"><div class="panel-head"><span class="panel-title">Ad efficiency — ${monthLabel(prevM)}</span></div><div class="tabwrap" id="ads"></div></div>
+      </div>
+      <div class="panel">
+        <div class="panel-head"><span class="panel-title">Data health — closing sheets</span>
+          <span style="font-size:11px;color:var(--faint)">hygiene counters over the full closing dataset · data through ${maxD}</span></div>
+        <div id="health" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px"></div>
       </div>`;
 
     /* KPI strip rendered inline (not RSC.kpis) because the subs carry HTML
@@ -68,17 +81,22 @@ registerPage({
     const prevMtdBill = M["Revenue"].fn(prevMtd);
     document.getElementById("kpis").innerHTML = [
       { label: "Jobs — " + monthLabel(CUR), value: RS.fmtN(jobs),
-        sub: `vs LY same days: ${RS.fmtN(lyMtd.length)} ` + chip(pct(jobs, lyMtd.length)) },
+        sub: `vs LY same days: ${RS.fmtN(lyMtd.length)} ` + chip(pct(jobs, lyMtd.length)) + noisyTag,
+        wrap: projGated },
       { label: "Revenue MTD", value: RS.moneyC(bill),
-        sub: `${RS.money(closeRev)} closings + ${RS.money(tripRev)} trips · vs LY same days ` + chip(pct(bill, M["Revenue"].fn(lyMtd))) },
+        sub: `${RS.money(closeRev)} closings + ${RS.money(tripRev)} trips · vs LY same days ` + chip(pct(bill, M["Revenue"].fn(lyMtd))) + noisyTag,
+        wrap: projGated },
       { label: "Pace vs last month", value: RS.moneyC(prevMtdBill),
         sub: `${RS.money(prevMtdBill)} in ${monthLabel(prevM)} by day ${dayOf} ` + chip(pct(bill, prevMtdBill)) },
-      { label: "Projected month-end", value: projBill != null ? RS.moneyC(projBill) : "—",
-        sub: projBill != null ? `${RS.money(projBill)} · ~${RS.fmtN(projJobs || 0)} jobs at current run-rate` : "" },
+      { label: "Projected month-end", value: (!projGated && projBill != null) ? RS.moneyC(projBill) : "—",
+        sub: projGated
+          ? `projection from day ${RS.MIN_MONTH_DAYS} — only ${dayOf} day${dayOf === 1 ? "" : "s"} of data · last month ${RS.money(prevFull)} · LY ${RS.money(lyFull)}`
+          : (projBill != null ? `${RS.money(projBill)} · ~${RS.fmtN(projJobs || 0)} jobs at current run-rate` : ""),
+        wrap: projGated },
       { label: monthLabel(lyM) + " (full)", value: RS.moneyC(lyFull),
-        sub: RS.money(lyFull) + (projBill && lyFull ? " · projection " + chip(pct(projBill, lyFull)) + " vs LY" : "") },
+        sub: RS.money(lyFull) + (!projGated && projBill && lyFull ? " · projection " + chip(pct(projBill, lyFull)) + " vs LY" : "") },
     ].map(x =>
-      `<div class="kpi"><div class="l">${RSC.esc(x.label)}</div><div class="v">${x.value}</div><div class="s">${x.sub || ""}</div></div>`
+      `<div class="kpi"><div class="l">${RSC.esc(x.label)}</div><div class="v">${x.value}</div><div class="s"${x.wrap ? ' style="white-space:normal"' : ""}>${x.sub || ""}</div></div>`
     ).join("");
 
     /* ---------- recommendations (rule-based, live) ---------- */
@@ -138,8 +156,8 @@ registerPage({
       if (g != null && g <= -0.3) push("med", `${s} jobs down ${Math.abs(100 * g).toFixed(0)}% month-over-month`,
         `${jPrev[s]} → ${jNow[s] || 0} closed jobs. If spend didn't change, the funnel for this source needs a look.`);
     });
-    // 7. pace vs LY
-    if (projBill != null && lyFull > 0 && projBill < lyFull * 0.95)
+    // 7. pace vs LY (suppressed before day 10 — the projection it reads is gated, F10)
+    if (!projGated && projBill != null && lyFull > 0 && projBill < lyFull * 0.95)
       push("med", `${monthLabel(CUR)} is pacing ${(100 * (1 - projBill / lyFull)).toFixed(0)}% below ${monthLabel(lyM)}`,
         `Projected ${RS.money(projBill)} vs ${RS.money(lyFull)} last year. Early-month projections are noisy — watch this after day 10.`);
     if (!recs.length) push("info", "No alerts this month", "All monitored signals (booking rate, ad ROI, foreman scores, claims, refunds, source volumes, revenue pace) are within normal ranges.");
@@ -199,6 +217,36 @@ registerPage({
            `<span class="${v >= 3 ? "up" : v < 1 ? "down" : ""}">${v.toFixed(2)}×</span>` }], rows) +
         (all.length > rows.length ? `<div style="color:var(--muted);font-size:11px;padding:4px 2px">showing ${rows.length} of ${all.length} providers</div>` : "")
         : `<div style="padding:16px 14px;color:var(--muted)">No advertising spend recorded for ${monthLabel(prevM)}.</div>`;
+    }
+    /* ---------- data health (audit F13) — closing-sheet hygiene counters ----------
+       All computed live from the closing dataset already loaded above. Deliberately
+       muted styling: these are housekeeping notes, not alerts. */
+    {
+      const isBlank = v => v == null || v === "";
+      // 14-day window ending at maxD; UTC math so the ISO slice never shifts a day
+      const cutIso = new Date(Date.UTC(anchor.getFullYear(), anchor.getMonth(), anchor.getDate() - 13))
+        .toISOString().slice(0, 10);
+      const awaiting = closing.filter(r => r._d && r._d >= cutIso && isBlank(r["Total Bill"])).length;
+      const noForeman = closing.filter(r => isBlank(r.Foreman)).length;
+      const noSource = closing.filter(r => isBlank(r.Source));
+      const noSourceTrips = noSource.filter(r => r["Record Source"] === "trip").length;
+      const undated = closing.filter(r => !r._d).length;
+      const counters = [
+        { n: awaiting, l: "Awaiting closing entry",
+          h: `Jobs since ${cutIso} with no Total Bill yet — fill in the closing sheet so MTD revenue stays complete.` },
+        { n: noForeman, l: "Missing foreman",
+          h: "Closing rows with no Foreman — assign one so scorecard and claims attribution stay complete." },
+        { n: noSource.length, l: "Missing source",
+          h: `${RS.fmtN(noSourceTrips)} are structural trip rows (no source axis by design); review the other ${RS.fmtN(noSource.length - noSourceTrips)} in the sheet.` },
+        { n: undated, l: "Undated rows",
+          h: "Rows with no Date fall out of every month view — add the move date in the sheet." },
+      ];
+      document.getElementById("health").innerHTML = counters.map(c =>
+        `<div style="border:1px solid var(--line);border-radius:11px;padding:10px 12px">
+          <div style="font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.09em;color:var(--faint)">${RSC.esc(c.l)}</div>
+          <div style="font-size:18px;font-weight:800;color:var(--muted);margin-top:4px;font-variant-numeric:tabular-nums">${RS.fmtN(c.n)}</div>
+          <div style="font-size:11px;color:var(--faint);margin-top:3px;line-height:1.45">${RSC.esc(c.h)}</div>
+        </div>`).join("");
     }
   },
 });
