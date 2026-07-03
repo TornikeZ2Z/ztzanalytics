@@ -100,7 +100,8 @@ window.ZTZ = (function () {
   }
   const num = v => { const n = parseFloat(String(v == null ? "" : v).replace(/[,$\s]/g, "")); return isNaN(n) ? 0 : n; };
   const fmtN = n => Math.round(n).toLocaleString();
-  const money = n => "$" + Math.round(n).toLocaleString();
+  // sign-aware: avoids "$-0" (Math.round(-0.4) === -0) and renders "-$1,234" not "$-1,234"
+  const money = n => { const r = Math.round(n) || 0; return (r < 0 ? "-$" : "$") + Math.abs(r).toLocaleString(); };
 
   return { API, CLIENT_ID, decodeJwt, tokenValid, getToken, setToken, clearToken, email,
            api, mountSignin, header, toast, num, fmtN, money };
