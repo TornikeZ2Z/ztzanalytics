@@ -19,7 +19,12 @@ registerPage({
     const DS = { closing, moveboard, storage, claims, refunds, card_expenses: card };
 
     const latest = closing.reduce((a, r) => (r._d && r._d > a ? r._d : a), "");
-    if (!st.month) { st.month = latest ? +latest.slice(5, 7) : 5; st.year = latest ? +latest.slice(0, 4) : new Date().getFullYear(); }
+    if (!st.month) {  // default to the last COMPLETE month — never the current, partially-elapsed one
+      const now = new Date(); let dy, dm;
+      if (latest) { dy = +latest.slice(0, 4); dm = +latest.slice(5, 7); } else { dy = now.getFullYear(); dm = now.getMonth() + 1; }
+      if (dy === now.getFullYear() && dm === now.getMonth() + 1) { dm--; if (dm < 1) { dm = 12; dy--; } }
+      st.month = dm; st.year = dy;
+    }
     const curY = st.year, mo = st.month, monLbl = MON[mo] + " " + curY;
 
     /* ---- month engine ---- */
@@ -48,8 +53,12 @@ registerPage({
       let f = RS.filtered(ds, rows, opts); if (opts && opts.pre) f = f.filter(opts.pre);
       const g = {}; f.forEach(r => { const k = r[col] == null || r[col] === "" ? "—" : String(r[col]); (g[k] = g[k] || []).push(r); });
       S.dateFrom = sv.f; S.dateTo = sv.t;
-      return Object.entries(g).map(([k, rs]) => ({ k, v: M[measure] ? M[measure].fn(rs) : null }))
-        .filter(x => x.v != null && x.v !== 0).sort((a, b) => (b.v || 0) - (a.v || 0));
+      // pass each segment's closing Unique Keys so composite measures (Operational Profit)
+      // scope their cross-dataset costs (helper/sales salaries) to the segment, not the whole month
+      return Object.entries(g).map(([k, rs]) => {
+        const segKeys = new Set(); for (const r of rs) { const u = r["Unique Key"]; if (u != null) segKeys.add(u); }
+        return { k, v: M[measure] ? M[measure].fn(rs, segKeys) : null };
+      }).filter(x => x.v != null && x.v !== 0).sort((a, b) => (b.v || 0) - (a.v || 0));
     }
 
     /* ---- insight ---- */
@@ -129,12 +138,15 @@ registerPage({
       return c;
     }
     function donut(mount, cfg) {        // composition / share
-      const s = cfg.series.slice(0, 8).filter(r => r.v > 0);
+      // keep top 8 slices; fold the rest into "Other" so the ring (and its center total)
+      // represent the FULL total the insight cites — not just the visible slices.
+      const pos = cfg.series.filter(r => r.v > 0), head = pos.slice(0, 8), tail = pos.slice(8);
+      const s = tail.length ? head.concat([{ k: "Other", v: tail.reduce((a, b) => a + b.v, 0) }]) : head;
       const c = mkCard(mount, cfg.title, monLbl, 300); const cv = c.querySelector("canvas");
       if (!s.length) { c.querySelector(".chartbox").innerHTML = empty(); return c; }
       const tot = s.reduce((a, b) => a + b.v, 0);
       new Chart(cv, { type: "doughnut",
-        data: { labels: s.map(r => r.k), datasets: [{ data: s.map(r => r.v), backgroundColor: s.map((_, i) => CAT[i % CAT.length]), borderColor: "#0f1523", borderWidth: 2, hoverOffset: 6 }] },
+        data: { labels: s.map(r => r.k), datasets: [{ data: s.map(r => r.v), backgroundColor: s.map((r, i) => r.k === "Other" ? "#586274" : CAT[i % CAT.length]), borderColor: "#0f1523", borderWidth: 2, hoverOffset: 6 }] },
         options: { cutout: "62%", plugins: { legend: { position: "right", labels: { color: "#c7d2e0", font: { size: 11.5 }, boxWidth: 12, padding: 8 } },
           tooltip: { callbacks: { label: x => `${x.label}: ${cfg.fmt(x.parsed)} (${(x.parsed / tot * 100).toFixed(0)}%)` } } }, animation: { duration: 500 }, maintainAspectRatio: false },
         plugins: [{ id: "center", afterDraw(ch) { const a = ch.chartArea, ctx = ch.ctx, x = (a.left + a.right) / 2, y = (a.top + a.bottom) / 2;

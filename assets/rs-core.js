@@ -291,6 +291,19 @@ window.RS = (function () {
     const rows = _cache[m.ds]; if (!rows) return 0;
     return m.fn(filtered(m.ds, rows)) || 0;
   }
+  /* Segment-aware variant: when a composite measure is evaluated on a SUBSET of closing
+     rows (a segment breakdown — by state / sales person / customer type), its cross-dataset
+     sub-measures must be scoped to that segment too, not the whole global filter. segKeys is
+     the Set of closing Unique Keys in the segment; keyed lookup tables (helper/sales salaries)
+     are filtered to it. Datasets without a Unique Key (e.g. refunds) can't be attributed to a
+     segment and contribute 0 there. When segKeys is absent this is byte-identical to _msr(),
+     so every whole-month / date-scoped call (KPIs, trends, Financial Analysis) is unchanged. */
+  function _msrK(name, segKeys) {
+    if (!segKeys) return _msr(name);
+    const m = M[name]; if (!m) return 0;
+    const rows = _cache[m.ds]; if (!rows) return 0;
+    return m.fn(rows.filter(r => segKeys.has(r["Unique Key"]))) || 0;
+  }
 
   // --- Core revenue / jobs (Calculations table) — trips-append semantics baked in.
   register("Total Jobs", "closing", fmtN, rows => cnt(rows));
@@ -458,17 +471,20 @@ window.RS = (function () {
   // dataset — helper/sales salaries time-slice via closing membership on Unique Key),
   // so summing them here is filter-consistent. The page must pass each sub-measure its
   // own dataset's filtered rows; this fn wires that via _msr() below.
-  register("Operational Profit by Formula", "closing", money, rows => {
-    // Forman/Driver/expenses are closing measures (same rows); Helper Salary,
-    // Sales Commission and the normalized deduction come from other datasets via _msr;
-    // Total Refunds from the refunds dataset via _msr — all in the same filter scope.
+  register("Operational Profit by Formula", "closing", money, (rows, segKeys) => {
+    // Forman/Driver/expenses are closing measures (same rows); Helper Salary, Sales
+    // Commission and the normalized deduction come from other datasets via _msrK; Total
+    // Refunds from the refunds dataset via _msrK. Whole-month (segKeys absent) => same
+    // global scope as before. Segment breakdown (segKeys = the segment's closing Unique
+    // Keys) => keyed salary tables scope to the segment, so each slice is its own
+    // revenue minus its own costs instead of full-company costs (fixes negative segments).
     const salaries = M["Forman Salary"].fn(rows) + M["Driver Salary"].fn(rows)
-      + _msr("Helper Salary") + _msr("Sales Commission")
-      - _msr("Amount Deducted From Sales Person Normalized For Sales");
+      + _msrK("Helper Salary", segKeys) + _msrK("Sales Commission", segKeys)
+      - _msrK("Amount Deducted From Sales Person Normalized For Sales", segKeys);
     const expenses = M["Car Expense"].fn(rows) + M["Fuel Expense"].fn(rows)
       + M["Hotel Expense"].fn(rows) + M["Toll Expense"].fn(rows)
       + M["Truck Expense"].fn(rows) + M["Other Expenses"].fn(rows)
-      + _msr("Total Refunds");
+      + _msrK("Total Refunds", segKeys);
     return M["Total Bill"].fn(rows) - salaries - expenses;
   }, ["helper_salaries", "sales_salaries", "refunds"]);
 
