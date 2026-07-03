@@ -159,10 +159,43 @@ registerPage({
     }
     const empty = () => `<div style="height:100%;display:grid;place-items:center;color:var(--muted)">No data for ${monLbl}.</div>`;
 
+    /* ---- detail tables ---- */
+    function tableCard(mount, title, head, body, note) {
+      const c = document.createElement("div"); c.className = "panel";
+      c.innerHTML = `<div class="panel-head"><span class="panel-title">${RSC.esc(title)}</span><span class="lbl" style="color:var(--faint);font-weight:700">${monLbl}</span></div>
+        <div class="tabwrap" style="max-height:440px">${head}${body}</div>`;
+      mount.appendChild(c); noteEl(c, note); return c;
+    }
+    function funnelBy(col) {
+      const rows = DS.moveboard; if (!rows.length) return [];
+      const S = RS.state, sv = { f: S.dateFrom, t: S.dateTo }; const mm = String(mo).padStart(2, "0"), last = new Date(curY, mo, 0).getDate();
+      S.dateFrom = `${curY}-${mm}-01`; S.dateTo = `${curY}-${mm}-${String(last).padStart(2, "0")}`;
+      const f = RS.filtered("moveboard", rows); S.dateFrom = sv.f; S.dateTo = sv.t;
+      const g = {}; f.forEach(r => { const k = r[col] == null || r[col] === "" ? "—" : String(r[col]); const o = g[k] = g[k] || { tot: 0, q: 0, c: 0, bad: 0 };
+        o.tot++; const sc = r["Status Category"]; if (sc === "Bad Lead") o.bad++; else o.q++; if (sc === "Confirmed") o.c++; });
+      return Object.entries(g).map(([k, o]) => ({ k, tot: o.tot, q: o.q, c: o.c, bad: o.bad, br: o.q ? o.c / o.q : null })).sort((a, b) => b.tot - a.tot);
+    }
+    function funnelTable(mount, title, col, segLabel) {
+      const d = funnelBy(col).slice(0, 15); if (!d.length) return;
+      const t = d.reduce((a, b) => ({ tot: a.tot + b.tot, q: a.q + b.q, c: a.c + b.c, bad: a.bad + b.bad }), { tot: 0, q: 0, c: 0, bad: 0 });
+      const head = `<table class="tab"><thead><tr><th>${RSC.esc(segLabel)}</th><th>Total</th><th>Qualified</th><th>Confirmed</th><th>Bad</th><th>Booking %</th></tr></thead>`;
+      const body = `<tbody>` + d.map(r => `<tr><td>${RSC.esc(r.k)}</td><td>${fmtN(r.tot)}</td><td>${fmtN(r.q)}</td><td>${fmtN(r.c)}</td><td>${fmtN(r.bad)}</td><td>${r.br == null ? "—" : pct(r.br)}</td></tr>`).join("")
+        + `<tr style="font-weight:750"><td>Total</td><td>${fmtN(t.tot)}</td><td>${fmtN(t.q)}</td><td>${fmtN(t.c)}</td><td>${fmtN(t.bad)}</td><td>${t.q ? pct(t.c / t.q) : "—"}</td></tr></tbody></table>`;
+      tableCard(mount, title, head, body, d[0] ? `${d[0].k} had the most leads (${fmtN(d[0].tot)}, ${d[0].br == null ? "—" : pct(d[0].br)} booking).` : "");
+    }
+    function storageTable(mount) {
+      const ms = []; let y = curY, m = mo; for (let i = 0; i < 14; i++) { ms.unshift({ y, m }); m--; if (m < 1) { m = 12; y--; } }
+      const rows = ms.map(({ y, m }) => ({ k: MShort[m] + " " + y, bill: valueFor("closing", "Revenue", y, m), jobs: valueFor("closing", "Total Jobs", y, m), add: valueFor("storage", "Storage Additional Revenue", y, m) }));
+      const head = `<table class="tab"><thead><tr><th>Month</th><th>Total Bill</th><th>Jobs</th><th>Storage Add'l Rev</th></tr></thead>`;
+      const body = `<tbody>` + rows.map(r => `<tr><td>${r.k}</td><td>${r.bill == null ? "—" : money(r.bill)}</td><td>${r.jobs == null ? "—" : fmtN(r.jobs)}</td><td>${r.add == null ? "—" : money(r.add)}</td></tr>`).join("") + `</tbody></table>`;
+      tableCard(mount, "Storage Income — last 14 months", head, body, "");
+    }
+
     /* ---- report cover + KPI header (with sparklines) ---- */
     host.innerHTML = `
       <div style="margin:0 0 16px;padding:20px 22px;border-radius:16px;position:relative;overflow:hidden;
         background:radial-gradient(900px 300px at 90% -40%,rgba(183,226,59,.14),transparent 60%),linear-gradient(120deg,#111a2b,#0d1320);border:1px solid var(--line)">
+        <button id="mrPrint" title="Print or save the whole report as a PDF" style="position:absolute;top:18px;right:20px;background:var(--brand);color:var(--brand-ink);border:0;border-radius:10px;padding:9px 15px;font-size:12.5px;font-weight:800;cursor:pointer">⬇ Download PDF</button>
         <div style="font-size:11px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--brand)">Monthly Report · Zip to Zip</div>
         <h1 style="font-size:30px;font-weight:800;letter-spacing:-.6px;margin:4px 0 2px;color:var(--ink)">Report for ${MON[mo]} ${curY}</h1>
         <div style="color:var(--muted);font-size:13.5px">Auto-narrated · live from the warehouse ·
@@ -241,12 +274,36 @@ registerPage({
     rankBars(g, { title: "Revenue by Source", series: segSeries("closing", "Revenue", "Source"), fmt: money, metricLabel: "Revenue", segLabel: "Source", top: 14 });
     rankBars(g, { title: "Advertisement Expense by Source", series: segSeries("card_expenses", "Advertisement Expense", "Source", { pre: r => Number(r["Is Advertising"]) === 1 }), fmt: money, metricLabel: "Ad Expense", segLabel: "Source", top: 14 });
 
+    g = section("By Moving Type");
+    [["Local Moving", r => /local/i.test(r["Moving Type"] || "")],
+     ["Long Distance", r => /straight|regular|distance|long/i.test(r["Moving Type"] || "")]].forEach(([mt, pre]) => {
+      trendBars(g, { title: `${mt}: Revenue`, series: trendSeries("closing", "Revenue", { pre }), fmt: money, metricLabel: `${mt} Revenue` });
+      trendBars(g, { title: `${mt}: Jobs`, series: trendSeries("closing", "Total Jobs", { pre }), fmt: fmtN, metricLabel: `${mt} Jobs` });
+    });
+
+    g = section("Returned & Recommended Customers");
+    const rrPre = { pre: r => r.Source === "Returned Customer" || r.Source === "Recommended" };
+    rankBars(g, { title: "Revenue — Returned vs Recommended", series: segSeries("closing", "Revenue", "Source", rrPre), fmt: money, metricLabel: "Revenue", segLabel: "customer type", top: 4 });
+    rankBars(g, { title: "Operational Profit — Returned vs Recommended", series: segSeries("closing", "Operational Profit by Formula", "Source", rrPre), fmt: money, metricLabel: "Operational Profit", segLabel: "customer type", top: 4 });
+
+    g = section("Leads Funnel — by Segment");
+    funnelTable(g, "Leads by Service Type", "Service Type", "Service Type");
+    funnelTable(g, "Leads by State", "State Name", "State");
+    funnelTable(g, "Leads by Size of Move", "Size of Move", "Size of Move");
+    funnelTable(g, "Leads by CF Range", "CF Range", "CF Range");
+
     g = section("Packing & Storage");
     combo(g, { title: "Packing — Written vs Revenue-per-$1", series: trendSeries("closing", "Total Packing Written"), lineSeries: trendSeries("closing", "Total Packing Written").map(r => ({ v: r.v ? r.v / 1000 : null })), fmt: money, lineFmt: v => "$" + v.toFixed(0), metricLabel: "Packing Written", lineLabel: "Rev / $1 est." });
     trendBars(g, { title: "Storage Additional Revenue", series: trendSeries("storage", "Storage Additional Revenue"), fmt: money, metricLabel: "Storage Add'l Revenue" });
+    storageTable(g);
 
     document.getElementById("mrMonth").onchange = e => { st.month = +e.target.value; renderPage(); };
     document.getElementById("mrYear").onchange = e => { st.year = +e.target.value; renderPage(); };
+    // Download PDF — print the report cleanly (chrome hidden, page breaks, colors kept)
+    if (!document.getElementById("mr-print-css")) { const s = document.createElement("style"); s.id = "mr-print-css";
+      s.textContent = "@media print{header.top,.rs-side,.rs-filters,.rs-chips,#mrPrint,#mrMonth,#mrYear{display:none!important}.rs-layout,.rs-main,.rs-content{display:block!important;height:auto!important;max-height:none!important;overflow:visible!important;width:auto!important}.rs-content{padding:0!important}body.rs-app{-webkit-print-color-adjust:exact;print-color-adjust:exact}.panel,.kpi{break-inside:avoid}.rs-grid2{display:grid!important}@page{margin:9mm}}";
+      document.head.appendChild(s); }
+    document.getElementById("mrPrint").onclick = () => window.print();
   },
 });
 var st = window.__mrState || (window.__mrState = { month: 0, year: 0, years: 5 });
