@@ -29,8 +29,13 @@ registerPage({
 
     const mk = r => r._y + "-" + String(r._m).padStart(2, "0");
     const months = [...new Set(rows.map(mk))].sort();
-    const latest = months[months.length - 1];
+    // F8 (audit D5): anchor the month-scoped cards (leaderboard, score KPIs, component
+    // mix) via RS.displayMonth — before day RS.MIN_MONTH_DAYS the current partial month
+    // steps back to the last COMPLETE month; after day 10 it shows tagged "(partial)".
+    const dm = RS.displayMonth(months);
+    const latest = dm.key;
     const mLabel = k => k ? RS.monthName(+k.slice(5)) + " " + k.slice(0, 4) : "—";
+    const latestLabel = mLabel(latest) + (dm.partial ? " (partial)" : "");
 
     if (!rows.length) {
       host.innerHTML = `
@@ -68,10 +73,11 @@ registerPage({
     host.innerHTML = `
       <div class="rs-page-head">
         <h1>Forman</h1>
-        <p>Foreman composite scorecard · <b>${RS.fmtN(board.length)}</b> foremen in ${RSC.esc(mLabel(latest))}
+        <p>Foreman composite scorecard · <b>${RS.fmtN(board.length)}</b> foremen in ${RSC.esc(latestLabel)}
            · <b>${RS.fmtN(months.length)}</b> months in scope
            <span class="freshness">· Forman Score = 0.4×Packing/100CF + 0.2×Packing vs Estimate + 0.2×Review + 0.2×Claim</span></p>
       </div>
+      ${dm.steppedBack ? `<div class="lbl" style="margin:0 0 12px;color:var(--muted)">Showing ${RSC.esc(mLabel(latest))} — ${RSC.esc(mLabel(months[months.length - 1]))} has under ${RS.MIN_MONTH_DAYS} days of data, so month-anchored cards use the last complete month.</div>` : ""}
       <div class="rs-kpis" id="fmKpis"></div>
       <div id="fmMain"></div>
       <div class="rs-grid2" id="fmGrid"></div>`;
@@ -120,8 +126,8 @@ registerPage({
     const p100Sub = (p100 == null ? "" : "$" + p100.toFixed(2) + " · ") + "Σ packing $ / Σ CF × 100 · scope";
     const kpiHost = document.getElementById("fmKpis");
     RSC.kpis(kpiHost, [
-      { label: "Active Foremen", value: RS.fmtN(board.length), sub: mLabel(latest) },
-      { label: "Avg Forman Score", value: fS(avgScore), sub: "latest month, all foremen" },
+      { label: "Active Foremen", value: RS.fmtN(board.length), sub: latestLabel },
+      { label: "Avg Forman Score", value: fS(avgScore), sub: latestLabel + ", all foremen" },
       { label: "Best Foreman", value: best ? RSC.esc(best.f) : "—",
         sub: best ? "score " + fS(best.score) + " · rank 1" : "" },
       { label: "Most Improved", value: improved ? RSC.esc(improved.f) : "—",
@@ -133,7 +139,7 @@ registerPage({
     ]);
     // RSC.kpis escapes sub text, so the HTML delta chips are injected afterwards.
     const kSubs = kpiHost.querySelectorAll(".kpi .s");
-    if (scoreChip && kSubs[1]) kSubs[1].innerHTML = "latest month · " + scoreChip;
+    if (scoreChip && kSubs[1]) kSubs[1].innerHTML = RSC.esc(latestLabel) + " · " + scoreChip;
     if (p100Chip && kSubs[4]) kSubs[4].innerHTML = RSC.esc(p100Sub) + " · " + p100Chip;
 
     // ---- main: leaderboard, latest month (PBI pivot values = Forman Score; improved
@@ -142,7 +148,7 @@ registerPage({
       : v === 0 ? "0.00"
       : `<span class="${v > 0 ? "up" : "down"}">${v > 0 ? "▲" : "▼"} ${Math.abs(v).toFixed(2)}</span>`;
     RSC.chartCard(document.getElementById("fmMain"), {
-      title: "Leaderboard — " + mLabel(latest),
+      title: "Leaderboard — " + latestLabel,
       controlsGraphOnly: true,   // legend describes the chart only; table is fixed columns
       controlsHtml: `<span class="lbl">top ${Math.min(25, board.length)} of ${board.length}
         · bar color = vs prev month (lime up, red down, blue new)</span>`,
@@ -265,7 +271,7 @@ registerPage({
       { key: "s4", label: "Claim (0.2)", color: "#fbbf24" },
     ];
     RSC.chartCard(grid, {
-      title: "Component mix — " + mLabel(latest),
+      title: "Component mix — " + latestLabel,
       controlsGraphOnly: true,   // legend describes the stacked chart; table is fixed columns
       controlsHtml: `<span class="lbl">weights 0.4 / 0.2 / 0.2 / 0.2 · stack = Forman Score</span>`,
       buildChart(canvas) {
