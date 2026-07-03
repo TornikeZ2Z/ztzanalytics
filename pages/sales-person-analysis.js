@@ -44,9 +44,9 @@ registerPage({
     }
 
     // ---- page-level totals
-    const totBill = M["Total Bill"].fn(rows);       // Revenue (closings + appended trips)
-    const totRevClose = M["Total Revenue"].fn(rows); // closings only (SUM Total Bill)
-    const totRevTrips = M["Additional Revenue from Trips"].fn(rows); // appended trips part
+    const totBill = M["Total Bill"].fn(rows);       // Revenue (job bills + linked-trip extras)
+    const totRevClose = M["Total Revenue"].fn(rows); // job bills (SUM Total Bill — incl. appended-trip jobs' own bills)
+    const totRevTrips = M["Additional Revenue from Trips"].fn(rows); // linked-trip residual only
     const totJobs = M["Total Jobs"].fn(rows);
     const totComm = M["Sales Commission"].fn(salRows);
     // PBI 'Amount Deducted From Sales Person' — refund amounts charged against commission
@@ -116,12 +116,13 @@ registerPage({
       const prev = o.mm[dPrev] ? c.of(o.mm[dPrev]) : 0;
       return prev ? (cur - prev) / Math.abs(prev) : null;
     };
-    const kpiMom = of => {   // page-level MoM badge appended to a KPI value
+    const kpiMom = of => {   // page-level MoM badge appended to a KPI value (always labeled "MoM")
       if (!dLast) return "";
       const agg = mk => spList.reduce((a, o) => a + (o.mm[mk] ? of(o.mm[mk]) : 0), 0);
       const prev = agg(dPrev), cur = agg(dLast);
       const g = prev ? (cur - prev) / Math.abs(prev) : null;
-      return g == null ? "" : ` <span class="spa-kd">${fmtDelta(g)}</span>`;
+      return g == null ? "" : ` <span class="spa-kd ${g >= 0 ? "spa-up" : "spa-down"}">` +
+        `${g >= 0 ? "+" : ""}${(100 * g).toFixed(1)}% MoM</span>`;
     };
 
     // ---- YoY chip: Jan-1 → latest filtered closing date this year vs the same
@@ -165,10 +166,10 @@ registerPage({
 
     RSC.kpis(document.getElementById("spaKpis"), [
       { label: "Revenue",
-        value: RS.moneyC(totBill) + kpiMom(b => M["Total Bill"].fn(b.rows)) + yoyChip(rs => M["Total Bill"].fn(rs)),
-        sub: RS.money(totRevClose) + " closings + " + RS.money(totRevTrips) + " trips · YoY vs same Jan-1 window LY" },
+        value: RS.moneyC(totBill) + yoyChip(rs => M["Total Bill"].fn(rs)) + kpiMom(b => M["Total Bill"].fn(b.rows)),
+        sub: RS.money(totRevClose) + " job bills + " + RS.money(totRevTrips) + " linked-trip extras · YoY vs same Jan-1 window LY" },
       { label: "Total Jobs",
-        value: RS.fmtN(totJobs) + kpiMom(b => M["Total Jobs"].fn(b.rows)) + yoyChip(rs => M["Total Jobs"].fn(rs)),
+        value: RS.fmtN(totJobs) + yoyChip(rs => M["Total Jobs"].fn(rs)) + kpiMom(b => M["Total Jobs"].fn(b.rows)),
         sub: "closings in scope" },
       { label: "Sales Commission", value: RS.moneyC(totComm) + kpiMom(b => M["Sales Commission"].fn(b.sal)),
         sub: RS.money(totComm) + " · salaries via Unique Key join" },
