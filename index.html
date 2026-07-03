@@ -99,6 +99,7 @@ const PAGE_ICONS = {
   "executive-scorecard": "gauge", "customer-experience": "user",
   "labor-analysis": "activity",
   "financial-analysis": "trend", "post-card-analysis": "megaphone",
+  "monthly-report": "spark",
 };
 
 /* Pages not yet built — shown greyed with a SOON tag so the full scope is visible. */
@@ -519,6 +520,7 @@ const REPORT_LABELS = {
   "labor-analysis": "Labor & Crew",
   "financial-analysis": "Financial Analysis (P&L)",
   "post-card-analysis": "Post Card Analysis",
+  "monthly-report": "Monthly Report (all-in-one)",
   "explorer": "Data Explorer — the Data portal, ALL tables",
 };
 async function aclCall(method, body) {
@@ -673,5 +675,6 @@ registerPage({
 <script src="pages/labor-analysis.js?v=1"></script>
 <script src="pages/financial-analysis.js?v=1"></script>
 <script src="pages/post-card-analysis.js?v=1"></script>
+<script src="pages/monthly-report.js?v=1"></script>
 </body>
 </html>
