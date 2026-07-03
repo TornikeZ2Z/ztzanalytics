@@ -98,6 +98,7 @@ registerPage({
       <div class="rs-kpis" id="adsKpis"></div>
       <div id="adsMain"></div>
       <div class="rs-grid2" id="adsGrid"></div>
+      <div id="adsChannel"></div>
       </div>`;
 
     const spendSub = RS.money(adSpend) + " · " + RS.fmtN(adRows.length) + " advertising transactions";
@@ -107,7 +108,9 @@ registerPage({
     RSC.kpis(document.getElementById("adsKpis"), [
       { label: "Advertisement Expense", value: RS.moneyC(adSpend), sub: spendSub },
       { label: "Revenue on Ad Sources", value: RS.moneyC(revenue), sub: revSub },
-      { label: "ROI", value: roiCell(roi), sub: "revenue per $1 of ad spend" },
+      // F11: numerator is collected cash, not billed revenue — say so in the sub
+      { label: "ROI", value: roiCell(roi),
+        sub: "collected cash (net + card) per $1 ad spend · all-time in filter scope" },
       { label: "Leads on Ad Sources", value: RS.fmtN(leads),
         sub: "moveboard requests · created date" },
       // inline: no exact PBI measure — portal addition alongside "Expense per 1 Job"
@@ -268,15 +271,25 @@ registerPage({
         });
       },
       buildTable() {
+        /* E7a: full-funnel source economics — Leads → Booked Jobs → Conv % →
+           CAC (spend/job) → Rev/Lead → ROAS (billed revenue/spend); ROI stays
+           collected-cash based (PBI "Ads Analysis - ROI") and is labeled so. */
         if (!srcList.length) return emptyTbl("No ad sources matched the current filters.");
         const totSpend = srcList.reduce((a, x) => a + x.spend, 0) + Math.max(0, unattributed);
+        const funnel = x => ({
+          cv: x.leads ? x.jobs / x.leads : null,       // Conv % = booked jobs / leads
+          cac: x.jobs ? x.spend / x.jobs : null,       // CAC = spend / booked job
+          rpl: x.leads ? x.rev / x.leads : null,       // Rev / Lead
+          roas: x.spend ? x.rev / x.spend : null,      // ROAS = billed revenue / spend
+        });
         const data = srcList.slice(0, 40).map((x, i) => ({
           r: i + 1, s: x.disp, sp: x.spend, sh: totSpend ? x.spend / totSpend : null,
-          rev: x.rev, roi: x.roi, l: x.leads, j: x.jobs,
+          l: x.leads, j: x.jobs, rev: x.rev, roi: x.roi, ...funnel(x),
         }));
         if (unattributed > 0.005) data.push({
           r: "", s: "(no source tag)", sp: unattributed,
           sh: totSpend ? unattributed / totSpend : null, rev: null, roi: null, l: null, j: null,
+          cv: null, cac: null, rpl: null, roas: null,
         });
         const note = srcList.length > 40 ?
           `<div style="color:var(--muted);font-size:11px;padding:6px 2px">showing 40 of ${RS.fmtN(srcList.length)} sources by spend</div>` : "";
@@ -284,13 +297,18 @@ registerPage({
           [{ key: "r", label: "#" }, { key: "s", label: "Source" },
            { key: "sp", label: "Ad Spend", fmt: RS.money },
            { key: "sh", label: "% of Spend", fmt: RS.fmtPct },
-           { key: "rev", label: "Revenue", fmt: moneyNS },
-           { key: "roi", label: "ROI", fmt: roiCell },
            { key: "l", label: "Leads", fmt: intNS },
-           { key: "j", label: "Jobs", fmt: intNS }],
+           { key: "j", label: "Booked Jobs", fmt: intNS },
+           { key: "cv", label: "Conv %", fmt: RS.fmtPct },
+           { key: "cac", label: "CAC", fmt: moneyNS },
+           { key: "rev", label: "Revenue", fmt: moneyNS },
+           { key: "rpl", label: "Rev / Lead", fmt: moneyNS },
+           { key: "roas", label: "ROAS", fmt: fmtX },
+           { key: "roi", label: "ROI (collected)", fmt: roiCell }],
           data,
           { r: "", s: "Total", sp: totSpend, sh: totSpend ? 1 : null,
-            rev: revenue, roi: roi, l: leads, j: jobs }) + note;
+            l: leads, j: jobs, rev: revenue, roi: roi,
+            ...funnel({ leads, jobs, spend: totSpend, rev: revenue }) }) + note;
       },
     });
 
@@ -344,22 +362,135 @@ registerPage({
           const sp = spendByM[k] || 0;
           const prev = i > 0 ? (spendByM[months[i - 1]] || 0) : null;
           const rev = revOfM(k);
+          const cash = M["Net Cash + Card Payment"].fn(closAdsByM[k] || []); // collected on ad sources
           return { m: mLabel(k), sp,
             // inline: PBI "Calculate by - Yearly Growth Rate" family — here MoM on spend
             d: (prev != null && prev) ? (sp - prev) / Math.abs(prev) : null,
-            rev, roi: sp ? M["Net Cash + Card Payment"].fn(closAdsByM[k] || []) / sp : null };  // ROI = collected cash / spend
+            rev, cash, roi: sp ? cash / sp : null };  // ROI = collected cash / spend
         });
         const totSp = data.reduce((a, x) => a + x.sp, 0);
         const totRev = data.reduce((a, x) => a + x.rev, 0);
+        // F11: footer ROI = collected cash over the SHOWN months / spend — same
+        // numerator as its rows and the headline (was billed Revenue / spend).
+        const totCash = data.reduce((a, x) => a + x.cash, 0);
         return RSC.table(
           [{ key: "m", label: "Month" },
            { key: "sp", label: "Ad Spend", fmt: RS.money },
            { key: "d", label: "MoM Δ", fmt: deltaCell },
            { key: "rev", label: "Revenue", fmt: RS.money },
-           { key: "roi", label: "ROI", fmt: roiCell }],
+           { key: "roi", label: "ROI (collected)", fmt: roiCell }],
           data,
-          { m: "Total", sp: totSp, d: null, rev: totRev, roi: totSp ? totRev / totSp : null });
+          { m: "Total", sp: totSp, d: null, rev: totRev, roi: totSp ? totCash / totSp : null });
       },
     });
+
+    /* ================= E7b: Channel efficiency over time =================
+       Monthly CPL / CAC / ROAS for ONE ad source (picker: top 12 by spend,
+       default = biggest spender). Same Source join as the cards above.
+       CPL & CAC in $ on the left axis; ROAS (billed revenue / spend) on the
+       right. The picker drives BOTH views — controlsGraphOnly deliberately
+       not set. */
+    const chanHost = document.getElementById("adsChannel");
+    const chanTop = srcList.slice(0, 12);
+    if (!chanTop.length) {
+      chanHost.innerHTML = `<div class="panel">
+        <div class="panel-head"><span class="panel-title">Channel efficiency over time</span></div>
+        <div style="padding:16px;color:var(--muted)">No ad sources matched the current filters.</div></div>`;
+    } else {
+      // per-source per-month aggregates: spend $, lead count, closing rows
+      const ymOf = r => r._y + "-" + String(r._m).padStart(2, "0");
+      const spendSM = {}, leadSM = {}, closSM = {};
+      adRows.forEach(r => { const k = norm(r.Source); if (!k) return;
+        const o = spendSM[k] = spendSM[k] || {}; const ym = ymOf(r);
+        o[ym] = (o[ym] || 0) + RS.num(r.Amount); });
+      mbAds.forEach(r => { const k = norm(r.Source);
+        const o = leadSM[k] = leadSM[k] || {}; const ym = ymOf(r);
+        o[ym] = (o[ym] || 0) + 1; });
+      closingAds.forEach(r => { const k = norm(r.Source);
+        const o = closSM[k] = closSM[k] || {}; const ym = ymOf(r);
+        (o[ym] = o[ym] || []).push(r); });
+      let chanKey = chanTop[0].k;                   // default: #1 source by spend
+      const chanRows = () => {
+        const sp = spendSM[chanKey] || {}, ld = leadSM[chanKey] || {}, cl = closSM[chanKey] || {};
+        const ms = [...new Set([...Object.keys(sp), ...Object.keys(ld), ...Object.keys(cl)])]
+          .filter(k => /^\d{4}-\d{2}$/.test(k)).sort().slice(-24);
+        return ms.map(k => {
+          const s = sp[k] || 0, l = ld[k] || 0, clRows = cl[k] || [];
+          const j = clRows.length, rev = M["Revenue"].fn(clRows);
+          return { k, m: mLabel(k), sp: s, l, j, rev,
+            cpl: l ? s / l : null,        // CPL = spend / lead
+            cac: j ? s / j : null,        // CAC = spend / booked job
+            roas: s ? rev / s : null };   // ROAS = billed revenue / spend
+        });
+      };
+      const chanCard = RSC.chartCard(chanHost, {
+        title: "Channel efficiency over time",
+        controlsHtml: `<span class="lbl">Source (top 12 by spend)</span><select id="adsChanSrc">` +
+          chanTop.map(x => `<option value="${RSC.esc(x.k)}">${RSC.esc(x.disp)}</option>`).join("") +
+          `</select><span class="lbl">· last 24 mo · CPL/CAC left · ROAS right</span>`,
+        buildChart(canvas) {
+          const rows = chanRows();
+          return new Chart(canvas, {
+            data: {
+              labels: rows.map(x => x.m),
+              datasets: [
+                { type: "line", label: "CPL", yAxisID: "y", spanGaps: true,
+                  data: rows.map(x => x.cpl == null ? null : +x.cpl.toFixed(2)),
+                  borderColor: "#b7e23b", backgroundColor: "#b7e23b",
+                  borderWidth: 2, pointRadius: 2, tension: .3 },
+                { type: "line", label: "CAC", yAxisID: "y", spanGaps: true,
+                  data: rows.map(x => x.cac == null ? null : +x.cac.toFixed(2)),
+                  borderColor: "#5b8cff", backgroundColor: "#5b8cff",
+                  borderWidth: 2, pointRadius: 2, tension: .3 },
+                { type: "line", label: "ROAS", yAxisID: "y1", spanGaps: true,
+                  data: rows.map(x => x.roas == null ? null : +x.roas.toFixed(2)),
+                  borderColor: "#fbbf24", backgroundColor: "#fbbf24",
+                  borderWidth: 2, pointRadius: 2, tension: .3 },
+              ],
+            },
+            options: {
+              responsive: true, maintainAspectRatio: false,
+              interaction: { mode: "index", intersect: false },
+              plugins: {
+                legend: { position: "top", labels: { boxWidth: 12, font: { size: 12 } } },
+                tooltip: { callbacks: { label: c =>
+                  c.dataset.yAxisID === "y1"
+                    ? `${c.dataset.label}: ${fmtX(c.raw)}`
+                    : `${c.dataset.label}: ${moneyNS(c.raw)}` } },
+              },
+              scales: {
+                y: { position: "left", title: { display: true, text: "CPL / CAC ($)" },
+                     ticks: { callback: v => "$" + RS.fmtN(v) } },
+                y1: { position: "right", title: { display: true, text: "ROAS (x)" },
+                      grid: { drawOnChartArea: false }, ticks: { callback: v => v + "x" } },
+                x: { ticks: { font: { size: 11 }, autoSkip: true, maxTicksLimit: 14, maxRotation: 45 } },
+              },
+            },
+          });
+        },
+        buildTable() {
+          const rows = chanRows();
+          if (!rows.length) return emptyTbl("No monthly activity for this source under the current filters.");
+          const tS = rows.reduce((a, x) => a + x.sp, 0);
+          const tL = rows.reduce((a, x) => a + x.l, 0);
+          const tJ = rows.reduce((a, x) => a + x.j, 0);
+          const tR = rows.reduce((a, x) => a + x.rev, 0);
+          return RSC.table(
+            [{ key: "m", label: "Month" },
+             { key: "sp", label: "Ad Spend", fmt: RS.money },
+             { key: "l", label: "Leads", fmt: RS.fmtN },
+             { key: "cpl", label: "CPL", fmt: moneyNS },
+             { key: "j", label: "Booked Jobs", fmt: RS.fmtN },
+             { key: "cac", label: "CAC", fmt: moneyNS },
+             { key: "rev", label: "Revenue", fmt: RS.money },
+             { key: "roas", label: "ROAS", fmt: fmtX }],
+            rows,
+            { m: "Total", sp: tS, l: tL, cpl: tL ? tS / tL : null,
+              j: tJ, cac: tJ ? tS / tJ : null, rev: tR, roas: tS ? tR / tS : null });
+        },
+      });
+      document.getElementById("adsChanSrc").onchange = e => {
+        chanKey = e.target.value; chanCard.rerender(); };
+    }
   },
 });
