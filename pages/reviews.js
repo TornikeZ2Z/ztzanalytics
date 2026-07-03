@@ -54,14 +54,26 @@ registerPage({
     const factual = M["Total Factual Reviews"].fn(counts);
     const goalTotal = M["Review Goal"].fn(goals);
 
-    // Goal attainment — portal addition (no PBI measure): factual vs goal, restricted to
-    // Company|Platform|month buckets that actually carry a goal, so uncovered platforms
-    // don't inflate the numerator.
-    const gkey = r => (r.Company || "") + "|" + (r.Platform || "") + "|" + mk(r);
-    const goalKeys = new Set(goals.filter(r => nRev(r) > 0).map(gkey));
-    const factualInGoal = counts.filter(r => goalKeys.has(gkey(r)))
-      .reduce((a, r) => a + nRev(r), 0);
+    /* Goal attainment (audit F6-A) — portal addition (no PBI measure). Both datasets are
+       CUMULATIVE: review_counts rows are monthly platform snapshots and review_goals are
+       cumulative targets at semiannual checkpoints — never sum either across months.
+       Numerator = LATEST snapshot restricted to goal-covered Company|Platform buckets
+       (reuses the measure's latest-per-platform logic); denominator = latest goal total. */
+    const pkey = r => (r.Company || "—") + "|" + (r.Platform || "—");   // rs-core grain
+    const goalPlats = new Set(goals.filter(r => nRev(r) > 0).map(pkey));
+    const factualInGoal =
+      M["Total Factual Reviews"].fn(counts.filter(r => goalPlats.has(pkey(r))));
     const attainment = goalTotal ? factualInGoal / goalTotal : null;
+    // Next-checkpoint label for KPI subs (e.g. "Sep 2026"), from the latest goal date.
+    const goalMaxD = goals.reduce((a, r) => (nRev(r) > 0 && r._d && r._d > a ? r._d : a), "");
+    const goalWhen = goalMaxD
+      ? RS.monthName(+goalMaxD.slice(5, 7)) + " " + goalMaxD.slice(0, 4) : "";
+    // F6-D: coverage sub-label — the flow KPI (parsed breakdown, 2025+) must not read
+    // like the lifetime snapshot KPIs sitting next to it.
+    const bdCov = RS.coverage(bdAll);
+    const countedSub = "parsed reviews, " + (bdCov.from
+      ? RS.monthName(+bdCov.from.slice(5, 7)) + " " + bdCov.from.slice(0, 4) : "Jan 2025") +
+      " → today";
 
     /* Headline YoY chips: YTD window (Jan-1 → max date of the filtered rows) vs the
        same window last year, evaluated on the date-UNfiltered dataset (year/month
@@ -94,28 +106,31 @@ registerPage({
         <h1>Reviews</h1>
         <p>Platform review production vs goals ·
            <b>${RS.fmtN(written)}</b> counted reviews in scope
-           <span class="freshness">· factual counts are platform-reported monthly totals</span></p>
+           <span class="freshness">· factual counts are cumulative platform snapshots</span></p>
       </div>
       <div class="rs-kpis" id="rvKpis"></div>
       <div id="rvMain"></div>
       <div class="rs-grid2" id="rvSubs"></div>`;
 
     RSC.kpis(document.getElementById("rvKpis"), [
-      { label: "Counted Reviews", value: RS.fmtN(written), sub: "reviews that count, from breakdown" },
-      { label: "Review Score", value: RS.fmt1(avgScore), sub: "avg over counted reviews" },
+      { label: "Counted Reviews", value: RS.fmtN(written), sub: countedSub },
+      // fixed 2 decimals: fmt1 renders 4.97 as "5", hiding real movement in the score
+      { label: "Review Score", value: (avgScore == null || isNaN(avgScore)) ? "—" : Number(avgScore).toFixed(2), sub: "avg over counted reviews" },
       { label: "With Image", value: RS.fmtN(withImage),
         sub: RS.fmtPct(written ? withImage / written : null) + " of counted" },
-      { label: "Total Factual Reviews", value: RS.fmtN(factual), sub: "platform-reported counts" },
-      { label: "Review Goal", value: RS.fmtN(goalTotal), sub: "sum of platform monthly goals" },
+      { label: "Total Factual Reviews", value: RS.fmtN(factual), sub: "lifetime total, latest platform snapshot" },
+      { label: "Review Goal", value: RS.fmtN(goalTotal),
+        sub: "cumulative target, " + (goalWhen ? goalWhen + " checkpoint" : "latest checkpoint") },
       { label: "Goal Attainment", value: RS.fmtPct(attainment),
-        sub: "factual / goal, goal-covered buckets only" },
+        sub: goalWhen ? "progress toward the next target (" + goalWhen + ")"
+                      : "latest snapshot vs latest goal, goal-covered platforms" },
     ]);
     /* RSC.kpis escapes subs — inject the YoY chips (HTML) after render. */
     const kpiSubs = document.querySelectorAll("#rvKpis .kpi .s");
     if (writtenChip) kpiSubs[0].innerHTML =
-      "counted, from breakdown · " + writtenChip + " vs same period LY";
+      RSC.esc(countedSub) + " · " + writtenChip + " vs same period LY";
     if (factualChip) kpiSubs[3].innerHTML =
-      "platform-reported counts · " + factualChip + " vs same period LY";
+      "lifetime total, latest snapshot · " + factualChip + " vs same period LY";
 
     /* ---------------- main: reviews by platform (breakdown Source, counted) ------- */
     const platG = {};
@@ -189,8 +204,32 @@ registerPage({
     });
 
     /* ---------------- month buckets shared by both sub-cards ---------------- */
-    const factByM = {};
-    counts.forEach(r => { const k = mk(r); factByM[k] = (factByM[k] || 0) + nRev(r); });
+    /* Flow recast (audit F6-B/E): review_counts rows are CUMULATIVE snapshots, so summing
+       them across months is meaningless (the old footer's 164,349). The per-month business
+       number is the month-over-month DELTA per Company|Platform bucket. Carry each
+       platform's last known snapshot forward through missing months before differencing
+       (a skipped snapshot means "no new entry", not zero — the fake −1,054 Jun-26 dip),
+       and start differencing only after a platform's first snapshot (its opening value is
+       lifetime history, not that month's production). */
+    const snapByPlat = {};                    // Company|Platform -> { monthKey: {v, d} }
+    counts.forEach(r => {
+      const p = pkey(r), k = mk(r);
+      const g = snapByPlat[p] = snapByPlat[p] || {};
+      if (!g[k] || (r._d || "") >= g[k].d) g[k] = { v: nRev(r), d: r._d || "" };
+    });
+    const flowMonths = [...new Set(counts.map(mk))].sort();
+    const newByM = {};                        // month -> NEW reviews (flow; may be negative)
+    const cumByM = {};                        // month -> carried cumulative level
+    Object.values(snapByPlat).forEach(g => {
+      let prev = null;
+      flowMonths.forEach(k => {
+        const cur = g[k] ? g[k].v : prev;     // carry-forward through missing months
+        if (cur == null) return;              // platform hasn't reported yet
+        cumByM[k] = (cumByM[k] || 0) + cur;
+        if (prev != null) newByM[k] = (newByM[k] || 0) + (cur - prev);
+        prev = cur;
+      });
+    });
     const goalByM = {};
     goals.forEach(r => { const k = mk(r); goalByM[k] = (goalByM[k] || 0) + nRev(r); });
     const bdByM = {};
@@ -198,31 +237,40 @@ registerPage({
 
     const subs = document.getElementById("rvSubs");
 
-    /* ---------------- sub a: factual vs goal by month ---------------- */
+    /* ---------------- sub a: factual vs goal by month (FLOW recast, F6-B) ---------------- */
     const goalMonths = Object.keys(goalByM).filter(k => goalByM[k] > 0).sort();
-    const factMonths = Object.keys(factByM).filter(k => factByM[k] > 0);
+    const flowShown = flowMonths.slice(-12);
+    const hasNegFlow = flowShown.some(k => newByM[k] != null && newByM[k] < 0);
+    // Chart.js paints on canvas, which can't resolve var(--red) — read it off :root.
+    const RED = (getComputedStyle(document.documentElement)
+      .getPropertyValue("--red") || "").trim() || "#f87171";
     RSC.chartCard(subs, {
       title: "Factual vs Goal by month",
-      controlsHtml: `<span class="lbl">last 12 months with goals</span>`,
-      controlsGraphOnly: true,   // label reflects the chart's 12-month window; the table shows up to 24 months
+      controlsHtml: `<span class="lbl">new reviews per month · last 12${
+        hasNegFlow ? ` · <span style="color:var(--red)">red = platform removed reviews</span>` : ""}</span>`,
+      controlsGraphOnly: true,   // label describes the chart encoding; the table shows up to 24 months
       buildChart(canvas) {
-        if (!goalMonths.length) return emptyChart(canvas,
-          factMonths.length
-            ? "No review goals for the current filters — factual counts are shown in the tabular view."
+        if (!flowMonths.length) return emptyChart(canvas,
+          goalMonths.length
+            ? "No factual snapshots for the current filters — goals are shown in the tabular view."
             : "No factual reviews or goals for the current filters.");
-        const shown = goalMonths.slice(-12);
+        const shown = flowShown;
+        const flows = shown.map(k => newByM[k] == null ? null : newByM[k]);
         return new Chart(canvas, {
           data: {
             labels: shown.map(mLabel),
             datasets: [
-              { type: "bar", label: "Total Factual Reviews", data: shown.map(k => factByM[k] || 0),
-                backgroundColor: "#b7e23b", borderRadius: 4 },
-              { type: "bar", label: "Review Goal", data: shown.map(k => goalByM[k] || 0),
-                backgroundColor: "#5b8cff", borderRadius: 4 },
-              { type: "line", label: "Attainment %", yAxisID: "y1",
-                data: shown.map(k => goalByM[k] ? +(100 * (factByM[k] || 0) / goalByM[k]).toFixed(1) : null),
-                borderColor: "#a78bfa", backgroundColor: "#a78bfa",
+              { type: "bar", label: "New Reviews (MoM Δ)", data: flows,
+                backgroundColor: flows.map(v => (v != null && v < 0) ? RED : "#b7e23b"),
+                borderRadius: 4 },
+              { type: "line", label: "Cumulative (platform snapshot)", yAxisID: "y1",
+                data: shown.map(k => cumByM[k] == null ? null : cumByM[k]),
+                borderColor: "#5b8cff", backgroundColor: "#5b8cff",
                 borderWidth: 2, pointRadius: 2, tension: .3 },
+              { type: "line", label: "Cumulative Goal (checkpoint)", yAxisID: "y1",
+                showLine: false, data: shown.map(k => goalByM[k] || null),
+                borderColor: "#a78bfa", backgroundColor: "#a78bfa",
+                pointRadius: 5, pointStyle: "rectRot" },
             ],
           },
           options: {
@@ -230,45 +278,51 @@ registerPage({
             interaction: { mode: "index", intersect: false },
             plugins: {
               legend: { position: "top", labels: { boxWidth: 12, font: { size: 12 } } },
-              tooltip: { callbacks: { label: c =>
-                c.dataset.label + ": " + (c.dataset.yAxisID === "y1"
-                  ? (c.raw == null ? "—" : c.raw + "%") : RS.fmtN(c.raw)) } },
+              tooltip: { callbacks: { label: c => {
+                if (c.raw == null) return c.dataset.label + ": —";
+                if (c.dataset.type === "bar")
+                  return "New reviews: " + (c.raw >= 0 ? "+" : "") + RS.fmtN(c.raw) +
+                    (c.raw < 0 ? " · platform removed reviews" : "");
+                return c.dataset.label + ": " + RS.fmtN(c.raw);
+              } } },
             },
             scales: {
               y: { ticks: { precision: 0 } },
-              y1: { position: "right", grid: { drawOnChartArea: false },
-                    ticks: { callback: v => v + "%" } },
+              y1: { position: "right", beginAtZero: true,
+                    grid: { drawOnChartArea: false }, ticks: { precision: 0 } },
               x: { ticks: { font: { size: 11 }, autoSkip: true, maxTicksLimit: 14, maxRotation: 45 } },
             },
           },
         });
       },
       buildTable() {
-        // All months carrying either a goal or factual counts (last 24), MoM delta added.
-        const months = [...new Set([...Object.keys(factByM), ...Object.keys(goalByM)])]
+        /* Months carrying snapshots or goal checkpoints (last 24 — future checkpoints
+           like the next target show as goal-only rows). New Reviews is the per-month
+           flow; Cumulative and Goal are LEVELS — the footer is latest snapshot vs latest
+           goal, never a sum of cumulatives. */
+        const months = [...new Set([...flowMonths, ...Object.keys(goalByM)])]
           .sort().slice(-24);
         if (!months.length) return emptyTable("No factual reviews or goals for the current filters.");
-        const delta = d => d == null ? "—" :
-          `<span class="${d >= 0 ? "up" : "down"}">${(d >= 0 ? "+" : "") + RS.fmtN(d)}</span>`;
-        const data = months.map((k, i) => {
-          const prev = i > 0 ? (factByM[months[i - 1]] || 0) : null;
-          const f = factByM[k] || 0, g = goalByM[k] || 0;
-          return { m: mLabel(k), f, g: g || null,
-            att: g ? f / g : null,
-            d: prev == null ? null : f - prev };
-        });
+        const flowFmt = v => v == null ? "—" :
+          `<span class="${v >= 0 ? "up" : "down"}">${(v >= 0 ? "+" : "") + RS.fmtN(v)}</span>` +
+          (v < 0 ? ` <span style="color:var(--muted);font-size:11px">platform removed reviews</span>` : "");
+        const data = months.map(k => ({
+          m: mLabel(k),
+          nw: newByM[k] == null ? null : newByM[k],
+          cum: cumByM[k] == null ? null : cumByM[k],
+          g: goalByM[k] || null,
+          att: (goalByM[k] && cumByM[k] != null) ? cumByM[k] / goalByM[k] : null,
+        }));
         return RSC.table(
           [{ key: "m", label: "Month" },
-           { key: "f", label: "Factual Reviews", fmt: nf },
-           { key: "d", label: "Δ vs prev mo", fmt: v => v == null ? "—" : delta(v) },
-           { key: "g", label: "Goal", fmt: nf },
+           { key: "nw", label: "New Reviews", fmt: flowFmt },
+           { key: "cum", label: "Cumulative (snapshot)", fmt: nf },
+           { key: "g", label: "Goal (cumulative)", fmt: nf },
            { key: "att", label: "Attainment", fmt: RS.fmtPct }],
           data,
-          { m: "Total", f: data.reduce((a, x) => a + x.f, 0), d: null,
-            g: data.reduce((a, x) => a + (x.g || 0), 0),
-            att: (function () { const g = data.reduce((a, x) => a + (x.g || 0), 0);
-              const f = data.filter(x => x.g).reduce((a, x) => a + x.f, 0);
-              return g ? f / g : null; })() });
+          { m: "Latest", nw: null, cum: factual, g: goalTotal || null, att: attainment }) +
+          `<div style="color:var(--muted);font-size:12px;padding:6px 2px">Latest row = latest platform snapshot vs the ${
+            goalWhen ? goalWhen + " " : ""}goal; attainment counts goal-covered platforms only.</div>`;
       },
     });
 
