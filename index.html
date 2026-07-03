@@ -42,7 +42,7 @@
 </div>
 
 <script src="assets/portal.js?v=6"></script>
-<script src="assets/rs-core.js?v=13"></script>
+<script src="assets/rs-core.js?v=14"></script>
 <script src="assets/rs-components.js?v=5"></script>
 <script>
 /* ---------------- page registry ---------------- */
@@ -98,6 +98,7 @@ const PAGE_ICONS = {
   "source-identification": "compass",
   "executive-scorecard": "gauge", "customer-experience": "user",
   "labor-analysis": "activity",
+  "financial-analysis": "trend", "post-card-analysis": "megaphone",
 };
 
 /* Pages not yet built — shown greyed with a SOON tag so the full scope is visible. */
@@ -516,6 +517,8 @@ const REPORT_LABELS = {
   "executive-scorecard": "Executive Scorecard",
   "customer-experience": "Customer Experience (cost of quality)",
   "labor-analysis": "Labor & Crew",
+  "financial-analysis": "Financial Analysis (P&L)",
+  "post-card-analysis": "Post Card Analysis",
   "explorer": "Data Explorer — the Data portal, ALL tables",
 };
 async function aclCall(method, body) {
@@ -668,5 +671,7 @@ registerPage({
 <script src="pages/executive-scorecard.js?v=2"></script>
 <script src="pages/customer-experience.js?v=1"></script>
 <script src="pages/labor-analysis.js?v=1"></script>
+<script src="pages/financial-analysis.js?v=1"></script>
+<script src="pages/post-card-analysis.js?v=1"></script>
 </body>
 </html>

@@ -24,6 +24,12 @@ window.RS = (function () {
         "Balance Due", "Deposit", "Sales Person", "SP 2", "SP 3", "Foreman", "Foreman Hours",
         "Driver", "Material Total", "Material $", "Tip from Company",
         "Tip From the Customers", "Review", "Satisfaction Score", "Total Expense",
+        // Financial measure layer (B-fin): per-row expense / salary components.
+        // fct_closing already appends unlinked-trip rows carrying these same fields,
+        // so SUM(col) here = Closing + unlinked-Trips; the DAX's Trips[...] term is
+        // the LINKED-trip residual only (fct_trips, not served) — flagged in data_gaps.
+        "Car", "Fuel", "Hotel", "Tolls", "Truck", "Other Expenses",
+        "Driver $", "Forman Total $", "CF %", "Tip from Company Part",
         "Profit per Job", "Storage", "State", "State Name", "Moving Type", "Size of Move",
         "Bill Range", "Commission Bucket Range", "Extra Bill From Trips", "Net Cash From Trips",
         "Crew Size", "Request Encounter", "Is Last Encounter", "Job Part of the Day",
@@ -197,12 +203,39 @@ window.RS = (function () {
 
   function monthName(m) { return ["", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][m] || String(m); }
 
+  /* Filtered-closing Unique-Key set (memoized per filter state) — the scope that
+     salary/keyed lookup tables inherit (they carry no date/company columns of their own). */
+  let _fckSig = null, _fckSet = null;
+  function _stateSig() {
+    return JSON.stringify([state.dateFrom, state.dateTo, state.dayFrom, state.dayTo,
+      Object.entries(state.multi).map(([k, s]) => [k, s && s.size ? [...s].sort() : 0])]);
+  }
+  function filteredClosingKeys() {
+    const cl = _cache["closing"];
+    if (!cl) return null;                       // closing not loaded yet -> caller falls back
+    const sig = _stateSig();
+    if (sig === _fckSig && _fckSet) return _fckSet;
+    const set = new Set();
+    for (const r of filtered("closing", cl)) set.add(r["Unique Key"]);
+    _fckSig = sig; _fckSet = set;
+    return set;
+  }
+
   /* Apply the global filter state to a dataset's rows.
      opts.dateColumn overrides which date column the range filters (USERELATIONSHIP). */
   function filtered(ds, rows, opts) {
     opts = opts || {};
     const spec = DATASETS[ds];
     const dcol = opts.dateColumn || spec.defaultDate;
+    // Salary / keyed lookup datasets have no date column of their own and no mapped
+    // slicer columns; date-filtering them directly drops every row (no _d). Instead
+    // scope by Unique-Key MEMBERSHIP in the filtered closing set, so the global date +
+    // company/source slicers flow through the parent closing rows. (fixes the financial
+    // measures reading $0 under a date filter, and salaries ignoring the company slicer.)
+    if (!dcol && spec.cols.indexOf("Unique Key") !== -1) {
+      const keys = filteredClosingKeys();
+      return keys ? rows.filter(r => keys.has(r["Unique Key"])) : rows;
+    }
     const useDerived = dcol === spec.defaultDate;
     const active = Object.entries(state.multi)
       .map(([k, set]) => ({ col: FIELDS[k] && FIELDS[k][ds], set }))
@@ -239,9 +272,25 @@ window.RS = (function () {
   /* ---------------- measure library ---------------- */
   // Each measure: { name (EXACT PBI name), ds, fmt, fn(rows) } — fn gets FILTERED rows.
   const M = {};
-  function register(name, ds, fmt, fn) { M[name] = { name, ds, fmt, fn }; }
+  // deps (optional): other datasets a COMPOSITE measure reads via _msr(); RS.value/yoy
+  // warm them so a lone composite call is scope-consistent (not silently zeroed).
+  function register(name, ds, fmt, fn, deps) { M[name] = { name, ds, fmt, fn, deps: deps || null }; }
   const sum = (rows, col) => rows.reduce((a, r) => a + num(r[col]), 0);
   const cnt = rows => rows.length;
+
+  /* Synchronous cross-dataset sub-measure evaluator for composite measures (e.g.
+     Operational Profit) whose DAX sums measures living on DIFFERENT tables. Reads the
+     sub-measure's own dataset from the already-loaded cache and applies the SAME global
+     filter scope (filtered()), so every term is filter-consistent with the closing rows
+     the composite fn received. If that dataset isn't loaded yet it contributes 0 —
+     callers that need a single exact number should await RS.value(name), which loads
+     each dataset first; composite fn()s used in cards/tables run after RS.load has
+     warmed the datasets the page uses. */
+  function _msr(name) {
+    const m = M[name]; if (!m) return 0;
+    const rows = _cache[m.ds]; if (!rows) return 0;
+    return m.fn(filtered(m.ds, rows)) || 0;
+  }
 
   // --- Core revenue / jobs (Calculations table) — trips-append semantics baked in.
   register("Total Jobs", "closing", fmtN, rows => cnt(rows));
@@ -328,6 +377,110 @@ window.RS = (function () {
   register("Helper Salary", "helper_salaries", money, rows => sum(rows, "Amount Received"));
   register("Hours Worked by Helpers", "helper_salaries", fmtN, rows => sum(rows, "Hours Worked"));
 
+  // --- Financial measure layer (Operational Profit build-up) ----------------
+  // Faithful replication of the PBIX Operational Profit formula and its inputs.
+  // GRAIN NOTE: fct_closing already contains APPENDED unlinked-trip rows (Record
+  // Source='trip') carrying their own Car/Fuel/Hotel/Tolls/Truck/Other/Driver $/
+  // Forman Total $. So SUM(Closing[col]) here == PBI SUM(Closing[col]) + the
+  // UNLINKED part of SUM(Trips[col]). The only residual vs the DAX is the LINKED
+  // trips (PBIX Trips table = fct_trips, 114 rows, NOT served client-side). That
+  // residual is small and flagged in data_gaps — NOT silently dropped.
+
+  // Expense measures. DAX: SUM(Closing[X]) + SUM(Trips[X]).  our_impl: SUM(Closing[X])
+  // (Closing already folds unlinked trips; linked-trip residual = known gap).
+  register("Car Expense",    "closing", money, rows => sum(rows, "Car"));
+  register("Fuel Expense",   "closing", money, rows => sum(rows, "Fuel"));
+  register("Hotel Expense",  "closing", money, rows => sum(rows, "Hotel"));
+  register("Toll Expense",   "closing", money, rows => sum(rows, "Tolls"));
+  register("Truck Expense",  "closing", money, rows => sum(rows, "Truck"));
+  // "Other Expenses" is the EXACT PBI measure name. (Do not confuse with the raw
+  // column "Other Expenses" — the measure sums it: DAX SUM(Closing[Other Expenses])
+  // + SUM(Trips[Other Expenses]).)
+  register("Other Expenses", "closing", money, rows => sum(rows, "Other Expenses"));
+
+  // Driver Salary = SUM(Closing[Driver $]).  Faithful (trip rows carry tr.Driver $).
+  register("Driver Salary", "closing", money, rows => sum(rows, "Driver $"));
+
+  // Forman Salary 6 components. Packing already registered above as SUM(Material $).
+  //   - CF          = SUM(Closing[CF %])
+  //   - Review      = SUM(Closing[Review])
+  //   - Tip         = SUMX(Closing, Closing[Tip from Company Part])  == SUM of that col
+  //   - Hourly Rate = SUMX(Closing, Closing[Forman Total $] - Closing[Material $])
+  //   - Packing     = SUM(Closing[Material $])   (existing "Forman Salary - Packing")
+  //   - Trips       = SUM(Trips[Forman $])       (LINKED trips only → fct_trips, NOT
+  //                   served → registered as 0 and flagged in data_gaps; the UNLINKED
+  //                   trip foreman pay is already inside Forman Total $ so it flows
+  //                   through the Hourly Rate component, not this one.)
+  register("Forman Salary - CF",          "closing", money, rows => sum(rows, "CF %"));
+  register("Forman Salary - Review",      "closing", money, rows => sum(rows, "Review"));
+  register("Forman Salary - Tip",         "closing", money, rows => sum(rows, "Tip from Company Part"));
+  register("Forman Salary - Hourly Rate", "closing", money,
+    rows => sum(rows, "Forman Total $") - sum(rows, "Material $"));
+  register("Forman Salary - Trips",       "closing", money, rows => 0); // linked-trip residual (gap)
+  register("Forman Salary", "closing", money, rows =>
+    M["Forman Salary - CF"].fn(rows)
+    + M["Forman Salary - Hourly Rate"].fn(rows)
+    + M["Forman Salary - Packing"].fn(rows)
+    + M["Forman Salary - Review"].fn(rows)
+    + M["Forman Salary - Tip"].fn(rows)
+    + M["Forman Salary - Trips"].fn(rows));
+
+  // Total Refunds. DAX: CALCULATE(SUM(Closing[Amount Refunded]), USERELATIONSHIP(
+  // Calendar[Date], Closing[Refund Date])) — i.e. refund $ time-sliced by Refund Date.
+  // Client-side, Amount Refunded / Refund Date are NOT on fct_closing; they live in
+  // rollup_support (per-Request Joinkey). The already-registered "Total Refunds" on the
+  // `refunds` dataset (SUM(fct_refunds[Total refund]), sliced by Refund Date) is the
+  // faithful equivalent — fct_refunds is the same source rollup_support aggregates and
+  // it carries a real Refund Date column for the time slice. Kept as-is (see above,
+  // "refunds" dataset). Operational Profit references it via M["Total Refunds"].
+
+  // Amount Deducted From Sales Person Normalized For Sales.
+  // DAX: SUMX(SalesPersonSalaries, RELATED(Closing[Amount Reduced from Sales Person])
+  //          * SalesPersonSalaries[Bill Distribution]).
+  // Registered on sales_salaries (same filter scope as Sales Commission — both slice
+  // via closing membership on Unique Key). The RELATED(Closing[Amount Reduced from
+  // Sales Person]) factor is NOT available on the served sales_salaries rows (that
+  // column lives in rollup_support by Request Joinkey, not on fct_closing nor on
+  // fct_sales_salaries), so the per-row product cannot be reconstructed client-side.
+  // Implemented as 0 and flagged in data_gaps as a KNOWN residual so the Operational
+  // Profit formula still balances against the rest; do NOT treat as faithful.
+  register("Amount Deducted From Sales Person Normalized For Sales",
+    "sales_salaries", money, rows => 0);
+
+  // Operational Profit by Formula.
+  // DAX: [Total Bill] - ([Forman Salary]+[Driver Salary]+[Helper Salary]+[Sales
+  //   Commission] - [Amount Deducted...]) - ([Car]+[Fuel]+[Hotel]+[Toll]+[Truck]+
+  //   [Other Expenses] + [Total Refunds]).
+  // Cross-dataset: Total Bill / expenses / Forman / Driver live on `closing`; Helper
+  // Salary on `helper_salaries`; Sales Commission + the normalized deduction on
+  // `sales_salaries`; Total Refunds on `refunds`. Each sub-measure is evaluated in the
+  // SAME global filter scope (RS.filtered applies the same date/slicer state to every
+  // dataset — helper/sales salaries time-slice via closing membership on Unique Key),
+  // so summing them here is filter-consistent. The page must pass each sub-measure its
+  // own dataset's filtered rows; this fn wires that via _msr() below.
+  register("Operational Profit by Formula", "closing", money, rows => {
+    // Forman/Driver/expenses are closing measures (same rows); Helper Salary,
+    // Sales Commission and the normalized deduction come from other datasets via _msr;
+    // Total Refunds from the refunds dataset via _msr — all in the same filter scope.
+    const salaries = M["Forman Salary"].fn(rows) + M["Driver Salary"].fn(rows)
+      + _msr("Helper Salary") + _msr("Sales Commission")
+      - _msr("Amount Deducted From Sales Person Normalized For Sales");
+    const expenses = M["Car Expense"].fn(rows) + M["Fuel Expense"].fn(rows)
+      + M["Hotel Expense"].fn(rows) + M["Toll Expense"].fn(rows)
+      + M["Truck Expense"].fn(rows) + M["Other Expenses"].fn(rows)
+      + _msr("Total Refunds");
+    return M["Total Bill"].fn(rows) - salaries - expenses;
+  }, ["helper_salaries", "sales_salaries", "refunds"]);
+
+  register("Operational Profit Margin", "closing", fmtPct, rows => {
+    const b = M["Total Bill"].fn(rows);
+    return b ? M["Operational Profit by Formula"].fn(rows) / b : 0;
+  }, ["helper_salaries", "sales_salaries", "refunds"]);
+  register("Sales Commission Margin", "closing", fmtPct, rows => {
+    const b = M["Total Bill"].fn(rows);
+    return b ? _msr("Sales Commission") / b : 0;
+  }, ["sales_salaries"]);
+
   // --- Reviews (breakdown = per-platform parsed tokens; counts = factual monthly).
   // `Counts` is a 'Yes'/'No' varchar in the warehouse — accept any truthy spelling.
   const isYes = v => { const s = String(v == null ? "" : v).trim().toLowerCase();
@@ -381,6 +534,7 @@ window.RS = (function () {
   /* Generic evaluator: measure over the CURRENT global filters. */
   async function value(name, opts) {
     const m = M[name]; if (!m) return null;
+    if (m.deps) await Promise.all(m.deps.map(d => load(d)));  // warm cross-dataset sub-measures
     const rows = await load(m.ds);
     return m.fn(filtered(m.ds, rows, opts));
   }
@@ -389,6 +543,7 @@ window.RS = (function () {
      If no explicit range is set, compares calendar years via the year grouping instead. */
   async function yoy(name, opts) {
     const m = M[name]; if (!m) return null;
+    if (m.deps) await Promise.all(m.deps.map(d => load(d)));  // warm cross-dataset sub-measures
     const rows = await load(m.ds);
     const cur = m.fn(filtered(m.ds, rows, opts));
     const save = { f: state.dateFrom, t: state.dateTo };
