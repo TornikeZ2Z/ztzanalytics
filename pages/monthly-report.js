@@ -78,6 +78,43 @@ registerPage({
           animation: false, maintainAspectRatio: false } });
     }
 
+    /* ---- rule-based on-screen insight (computed from the SAME series each chart
+       shows, so it can never contradict the numbers or invent a claim) ---- */
+    function insightFor(kind, rows, cfg) {
+      const vals = rows.filter(r => r.v != null && !isNaN(r.v));
+      if (vals.length < 2) return "";
+      const fmt = cfg.fmt, L = cfg.metricLabel;
+      if (kind === "trend") {
+        const cur = vals[vals.length - 1], prev = vals[vals.length - 2], first = vals[0];
+        const gp = prev.v ? (cur.v - prev.v) / Math.abs(prev.v) : null;
+        const max = vals.reduce((a, b) => (b.v > a.v ? b : a));
+        let s = `${L} was ${fmt(cur.v)} in ${cfg.month}`;
+        if (gp != null) s += `, ${gp >= 0 ? "up" : "down"} ${Math.abs(gp * 100).toFixed(0)}% vs ${prev.k} (${fmt(prev.v)})`;
+        if (max.k === cur.k && vals.length >= 3) s += ` — the strongest ${cfg.mode === "MoM" ? "in " + vals.length + " months" : (cfg.monthName || cfg.month) + " in " + vals.length + " years"}`;
+        else if (first.v) { const gf = (cur.v - first.v) / Math.abs(first.v); s += `, ${gf >= 0 ? "+" : ""}${(gf * 100).toFixed(0)}% over the span`; }
+        return s + ".";
+      }
+      const tot = vals.reduce((a, b) => a + (b.v || 0), 0);        // segment (sorted desc)
+      const top = vals[0], seg = (cfg.segLabel || "segment").toLowerCase();
+      let s = `${top.k} leads with ${fmt(top.v)}`;
+      if (tot) s += ` (${(top.v / tot * 100).toFixed(0)}% of the ${fmt(tot)} total)`;
+      if (vals.length >= 4) { const t3 = vals.slice(0, 3).reduce((a, b) => a + b.v, 0); s += `; top 3 ${seg}s = ${(tot ? t3 / tot * 100 : 0).toFixed(0)}%`; }
+      if (vals.length >= 3) { const low = vals[vals.length - 1]; s += `; lowest ${low.k} (${fmt(low.v)})`; }
+      return s + ".";
+    }
+    function execSummary(facts, month, year) {
+      const f = {}; facts.forEach(x => f[x.label] = x);
+      const g = x => (x && x.g != null) ? `${x.g >= 0 ? "up" : "down"} ${Math.abs(x.g * 100).toFixed(0)}% YoY` : "flat";
+      const p = [];
+      if (f["Revenue"] && f["Revenue"].cur != null) p.push(`revenue ${RS.moneyC(f["Revenue"].cur)} (${g(f["Revenue"])})`);
+      if (f["Operational Profit"] && f["Operational Profit"].cur != null) p.push(`operational profit ${RS.moneyC(f["Operational Profit"].cur)} (${g(f["Operational Profit"])})`);
+      if (f["Jobs Done"] && f["Jobs Done"].cur != null) p.push(`${RS.fmtN(f["Jobs Done"].cur)} jobs (${g(f["Jobs Done"])})`);
+      if (f["Booking Rate"] && f["Booking Rate"].cur != null) p.push(`booking rate ${RS.fmtPct(f["Booking Rate"].cur)}`);
+      const rg = f["Revenue"] && f["Revenue"].g;
+      const tone = rg > 0.1 ? "A strong " : rg < -0.05 ? "A softer " : "A steady ";
+      return `${tone}${month} ${year} — ${p.join(", ")}.`;
+    }
+
     /* ---- reusable folded panel: metric picker + (segment) + YoY/MoM toggle ---- */
     function panel(mount, cfg) {
       // cfg: { title, ds, metrics:[{name,label,fmt}], mode, segments?:[{col,label,pre?}], modes? }
@@ -100,11 +137,24 @@ registerPage({
           return `<table class="tab"><thead><tr><th>${cfg.segments ? "Segment" : (mode === "MoM" ? "Month" : "Year")}</th><th>${RSC.esc(cfg.metrics[mIdx].label)}</th></tr></thead><tbody>` +
             r.map(x => `<tr><td>${RSC.esc(x.k)}</td><td>${x.v == null ? "—" : f(x.v)}</td></tr>`).join("") + `</tbody></table>`; },
       });
+      // insight comment under the chart — rebuilt from the current view's series
+      const note = document.createElement("div");
+      note.style.cssText = "margin-top:10px;padding:9px 12px;border-left:3px solid var(--brand);background:var(--brand-glow);border-radius:0 8px 8px 0;font-size:12.5px;color:var(--ink);line-height:1.5";
+      card.card.appendChild(note);
+      const updateNote = () => {
+        const met = cfg.metrics[mIdx];
+        const txt = insightFor(cfg.segments ? "segment" : "trend", rowsNow(),
+          { fmt: fmtOf(), metricLabel: met.label, mode, month: MON[mo] + " " + curY, monthName: MON[mo],
+            segLabel: cfg.segments ? cfg.segments[segIdx].label : "" });
+        note.innerHTML = txt ? ('<b style="color:var(--brand)">Insight · </b>' + RSC.esc(txt)) : "";
+        note.style.display = txt ? "" : "none";
+      };
+      updateNote();
       const wire = () => { const el = card.card;
         const met = el.querySelector(".mr-metric"), sg = el.querySelector(".mr-seg"), md = el.querySelector(".mr-mode");
-        if (met) met.onchange = () => { mIdx = +met.value; card.rerender(); };
-        if (sg) sg.onchange = () => { segIdx = +sg.value; card.rerender(); };
-        if (md) md.onchange = () => { mode = md.value; card.rerender(); };
+        if (met) met.onchange = () => { mIdx = +met.value; card.rerender(); updateNote(); };
+        if (sg) sg.onchange = () => { segIdx = +sg.value; card.rerender(); updateNote(); };
+        if (md) md.onchange = () => { mode = md.value; card.rerender(); updateNote(); };
         // segment panels are point-in-time — hide the YoY/MoM toggle there
         if (cfg.segments && md) md.parentNode && (md.previousElementSibling.style.display = md.style.display = "none");
       };
@@ -138,13 +188,23 @@ registerPage({
       <div id="mrBody"></div>`;
     document.getElementById("mrMonLbl").textContent = MON[mo] + " " + curY;
 
-    // KPI cards with YoY delta chip
-    document.getElementById("mrKpis").innerHTML = kpiDef.map(k => {
+    // KPI cards with YoY delta chip + captured facts for the summary
+    const kfacts = kpiDef.map(k => {
       const cur = valueFor(k.ds, k.name, curY, mo), prev = valueFor(k.ds, k.name, curY - 1, mo);
       const g = (prev && cur != null) ? (cur - prev) / Math.abs(prev) : null;
-      const chip = g == null ? "" : ` <span class="${g >= 0 ? "up" : "down"}">${g >= 0 ? "▲" : "▼"} ${(100 * Math.abs(g)).toFixed(1)}%</span>`;
-      return `<div class="kpi"><div class="l">${RSC.esc(k.label)}</div><div class="v">${cur == null ? "—" : k.fmt(cur)}</div><div class="s">${MON[mo]} · vs LY${chip}</div></div>`;
+      return { label: k.label, fmt: k.fmt, cur, prev, g };
+    });
+    document.getElementById("mrKpis").innerHTML = kfacts.map(k => {
+      const chip = k.g == null ? "" : ` <span class="${k.g >= 0 ? "up" : "down"}">${k.g >= 0 ? "▲" : "▼"} ${(100 * Math.abs(k.g)).toFixed(1)}%</span>`;
+      return `<div class="kpi"><div class="l">${RSC.esc(k.label)}</div><div class="v">${k.cur == null ? "—" : k.fmt(k.cur)}</div><div class="s">${MON[mo]} · vs LY${chip}</div></div>`;
     }).join("");
+    // executive summary callout
+    {
+      const box = document.createElement("div");
+      box.style.cssText = "margin:2px 0 16px;padding:13px 16px;border:1px solid var(--line);border-left:4px solid var(--brand);background:linear-gradient(90deg,var(--brand-glow),transparent);border-radius:12px;font-size:14px;color:var(--ink);line-height:1.55";
+      box.innerHTML = `<b style="color:var(--brand)">Executive summary · </b>${RSC.esc(execSummary(kfacts, MON[mo], curY))}`;
+      document.getElementById("mrKpis").after(box);
+    }
 
     // ---- sections ----
     const body = document.getElementById("mrBody");
