@@ -23,10 +23,11 @@ registerPage({
     // HTML chip variant for KPI subs (span.up/.down are themed in rs.css)
     const chip = g => g == null ? "—" :
       `<span class="${g >= 0 ? "up" : "down"}">${g >= 0 ? "▲ " : "▼ "}${RS.fmtPct(Math.abs(g))}</span>`;
-    // Revenue split sub-line: Revenue = Total Revenue (closings) + Additional Revenue from Trips
+    // Revenue split sub-line: Revenue = Total Revenue (job bills, already incl.
+    // appended-trip job bills) + Additional Revenue from Trips (linked-trip extras)
     const revSplit = rs => {
       const tr = M["Total Revenue"].fn(rs), tp = M["Additional Revenue from Trips"].fn(rs);
-      return `<br>${RS.moneyC(tr)} closings + ${RS.moneyC(tp)} trips`;
+      return `<br>${RS.moneyC(tr)} job bills + ${RS.moneyC(tp)} linked-trip extras`;
     };
 
     if (!years.length) {
@@ -162,8 +163,8 @@ registerPage({
         return RSC.table(
           [{ key: "y", label: "Year" }, { key: "jobs", label: "Total Jobs", fmt: nz(RS.fmtN) },
            { key: "bill", label: "Revenue", fmt: nz(RS.money) },
-           { key: "trev", label: "Total Revenue", fmt: nz(RS.money) },
-           { key: "trips", label: "Trips Revenue", fmt: nz(RS.money) },
+           { key: "trev", label: "Job Bills", fmt: nz(RS.money) },
+           { key: "trips", label: "Linked-Trip Extras", fmt: nz(RS.money) },
            { key: "net", label: "Net Cash", fmt: nz(RS.money) },
            { key: "card", label: "Card Payment", fmt: nz(RS.money) }, { key: "nc", label: "Net + Card", fmt: nz(RS.money) },
            { key: "hrs", label: "Hours", fmt: nz(RS.fmtN) },
