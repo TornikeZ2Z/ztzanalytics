@@ -2,7 +2,10 @@
    packing-vs-estimate accuracy. PBI source: General Overview "Packing Analysis"
    (05-dashboards.md GO-6), deepened with the GO-10 "Packing" foreman pivot measures
    (Total Packing Written / Total Packing Estimate / Packing Difference %) which are
-   materialized on mart_forman_scorecard. */
+   materialized on mart_forman_scorecard.
+   Audit F9/D1a: packing revenue = closing "Material Total" (registry 'Total Packing
+   Written'); "Material $" is the foreman packing COMMISSION ('Forman Salary -
+   Packing') and is not revenue — nothing on this page uses it any more. */
 registerPage({
   id: "packing-analysis",
   group: "ops",
@@ -14,8 +17,8 @@ registerPage({
     const M = RS.M;
 
     // Closing money columns can arrive as '$ 1,234' varchar — always RS.num().
-    const pack = r => RS.num(r["Material $"]);
-    const packingSold = M["Packing Sold"].fn(rows);       // PBI: Packing Sold (SUM of Material $)
+    const pack = r => RS.num(r["Material Total"]);        // customer-facing packing $ per job (F9/D1a)
+    const packingWritten = M["Total Packing Written"].fn(rows); // PBI: Total Packing Written (SUM of Material Total)
     const packJobs = rows.filter(r => pack(r) > 0);
     // Attach rate (packing jobs / jobs) is a web-rebuild addition — PBI GO-6 has no such measure.
     const attach = rows.length ? packJobs.length / rows.length : null;
@@ -80,22 +83,22 @@ registerPage({
       <div class="rs-grid2" id="pkGrid"></div>`;
 
     RSC.kpis(document.getElementById("pkKpis"), [
-      { label: "Packing Sold",
-        value: RS.moneyC(packingSold) + yoyChip(rs => M["Packing Sold"].fn(rs)),
-        sub: `${RS.money(packingSold)} · SUM of Material $` },
+      { label: "Packing Written",
+        value: RS.moneyC(packingWritten) + yoyChip(rs => M["Total Packing Written"].fn(rs)),
+        sub: `${RS.money(packingWritten)} · SUM of Material Total` },
       { label: "Jobs with Packing", value: RS.fmtN(packJobs.length),
         sub: `of ${RS.fmtN(rows.length)} jobs in scope` },
       { label: "Packing Attach Rate",
         value: RS.fmtPct(attach) +
           yoyChip(rs => rs.length ? rs.filter(r => pack(r) > 0).length / rs.length : null),
-        sub: "jobs with Material $ > 0" },
+        sub: "jobs with Material Total > 0" },
       { label: "Avg Packing / Packing Job",
-        value: packJobs.length ? RS.moneyC(packingSold / packJobs.length) : "—",
+        value: packJobs.length ? RS.moneyC(packingWritten / packJobs.length) : "—",
         sub: packJobs.length
-          ? `${RS.money(packingSold / packJobs.length)} per attached job`
+          ? `${RS.money(packingWritten / packJobs.length)} per attached job`
           : "packing $ per attached job" },
       { label: "Morning-Job Packing Share",
-        value: RS.fmtPct(packingSold ? morningPack / packingSold : null),
+        value: RS.fmtPct(packingWritten ? morningPack / packingWritten : null),
         sub: `${RS.money(morningPack)} on morning jobs` },
       { label: "Morning Jobs", value: RS.fmtN(morningRows.length),
         sub: `${RS.fmtPct(rows.length ? morningRows.length / rows.length : null)} of jobs` },
@@ -110,7 +113,7 @@ registerPage({
         (g[k] = g[k] || []).push(r);
       });
       return Object.entries(g).map(([k, rs]) => {
-        const v = M["Packing Sold"].fn(rs);               // PBI: Packing Sold
+        const v = M["Total Packing Written"].fn(rs);      // PBI: Total Packing Written
         const pj = rs.filter(r => pack(r) > 0).length;
         return { k, v, jobs: rs.length, pj,
                  attach: rs.length ? pj / rs.length : null,
@@ -132,7 +135,7 @@ registerPage({
           type: "bar",
           data: {
             labels: list.map(x => x.k),
-            datasets: [{ label: "Packing Sold", data: list.map(x => Math.round(x.v || 0)),
+            datasets: [{ label: "Packing Written", data: list.map(x => Math.round(x.v || 0)),
               backgroundColor: "#b7e23b", borderRadius: 5 }],
           },
           options: {
@@ -143,7 +146,7 @@ registerPage({
               tooltip: { callbacks: {
                 label: c => {
                   const x = list[c.dataIndex];
-                  return [`Packing Sold: ${RS.money(c.raw)}`,
+                  return [`Packing Written: ${RS.money(c.raw)}`,
                           `Attach rate: ${RS.fmtPct(x.attach)} (${RS.fmtN(x.pj)} of ${RS.fmtN(x.jobs)} jobs)`];
                 },
               } },
@@ -157,7 +160,7 @@ registerPage({
         const top = bySp.slice(0, 20);
         const rest = bySp.slice(20);
         const data = top.map((x, i) => ({
-          rk: i + 1, k: x.k, v: x.v, sh: packingSold ? (x.v || 0) / packingSold : null,
+          rk: i + 1, k: x.k, v: x.v, sh: packingWritten ? (x.v || 0) / packingWritten : null,
           jobs: x.jobs, pj: x.pj, at: x.attach, avg: x.avg,
         }));
         if (rest.length) {                                 // "everything else" bucket
@@ -165,21 +168,21 @@ registerPage({
           const jobs = rest.reduce((a, x) => a + x.jobs, 0);
           const pj = rest.reduce((a, x) => a + x.pj, 0);
           data.push({ rk: null, k: `All others (${rest.length})`, v,
-            sh: packingSold ? v / packingSold : null, jobs, pj,
+            sh: packingWritten ? v / packingWritten : null, jobs, pj,
             at: jobs ? pj / jobs : null, avg: pj ? v / pj : null });
         }
         return RSC.table(
           [{ key: "rk", label: "#" }, { key: "k", label: "Sales Person" },
-           { key: "v", label: "Packing Sold", fmt: moneyNS },
+           { key: "v", label: "Packing Written", fmt: moneyNS },
            { key: "sh", label: "% of Packing", fmt: RS.fmtPct },
            { key: "jobs", label: "Jobs", fmt: RS.fmtN },
            { key: "pj", label: "Packing Jobs", fmt: RS.fmtN },
            { key: "at", label: "Attach Rate", fmt: RS.fmtPct },
            { key: "avg", label: "Avg $ / Packing Job", fmt: moneyNS }],
           data,
-          { k: "Total", v: packingSold, sh: packingSold ? 1 : null, jobs: rows.length,
+          { k: "Total", v: packingWritten, sh: packingWritten ? 1 : null, jobs: rows.length,
             pj: packJobs.length, at: attach,
-            avg: packJobs.length ? packingSold / packJobs.length : null });
+            avg: packJobs.length ? packingWritten / packJobs.length : null });
       },
     });
 
@@ -187,9 +190,18 @@ registerPage({
     const grid = document.getElementById("pkGrid");
     const mk = r => r._y + "-" + String(r._m).padStart(2, "0");
     const scoreOf = r => r["Packing Vs Estimate Score"] == null ? null : RS.num(r["Packing Vs Estimate Score"]);
-    const latestKey = scRows.filter(r => r._m).map(mk).sort().pop() || null;
+    // Audit F8/D5: don't anchor to the current month while it is under
+    // RS.MIN_MONTH_DAYS days old — RS.displayMonth steps back to the last COMPLETE
+    // month (keys must be DEDUPED + sorted, one entry per month, for its step-back).
+    const scMonthKeys = [...new Set(scRows.filter(r => r._m).map(mk))].sort();
+    const dispM = RS.displayMonth(scMonthKeys);
+    const latestKey = dispM.key;
     const scLatest = latestKey ? scRows.filter(r => mk(r) === latestKey) : [];
-    const latestLabel = scLatest.length ? (scLatest[0]["Month Year"] || latestKey) : "no month in scope";
+    const latestLabel = (scLatest.length ? (scLatest[0]["Month Year"] || latestKey) : "no month in scope")
+      + (dispM.partial ? " (partial)" : "");
+    const hiddenNote = dispM.steppedBack
+      ? `${RS.monthName(new Date().getMonth() + 1)} hidden until day ${RS.MIN_MONTH_DAYS} — too few days to be meaningful`
+      : "";
     // Previous-month lookup for the score delta — from the UNFILTERED scorecard so a
     // tight date window doesn't blank the comparison (foreman is the map key anyway).
     const prevScore = (() => {
@@ -215,7 +227,8 @@ registerPage({
       grid.appendChild(emptyCard("Packing vs Estimate Score by Foreman"));
     } else RSC.chartCard(grid, {
       title: "Packing vs Estimate Score by Foreman",
-      controlsHtml: `<span class="lbl">latest month in scope · ${RSC.esc(latestLabel)}</span>`,
+      controlsHtml: `<span class="lbl">latest month in scope · ${RSC.esc(latestLabel)}</span>`
+        + (hiddenNote ? `<span class="lbl" style="color:var(--muted)"> · ${RSC.esc(hiddenNote)}</span>` : ""),
       buildChart(canvas) {
         const list = scList.filter(x => x.score != null).slice(0, 20);
         return new Chart(canvas, {
@@ -287,7 +300,7 @@ registerPage({
       rows.forEach(r => { if (r._m) (g[mk(r)] = g[mk(r)] || []).push(r); });
       return Object.keys(g).sort().map(k => {
         const rs = g[k], pj = rs.filter(r => pack(r) > 0).length;
-        const v = M["Packing Sold"].fn(rs);                // PBI: Packing Sold
+        const v = M["Total Packing Written"].fn(rs);       // PBI: Total Packing Written
         return { k, jobs: rs.length, pj, at: rs.length ? pj / rs.length : null,
                  v, avg: pj ? v / pj : null };
       });
@@ -302,7 +315,7 @@ registerPage({
       grid.appendChild(emptyCard("Packing attach rate by month"));
     } else RSC.chartCard(grid, {
       title: "Packing attach rate by month",
-      controlsHtml: `<span class="lbl">last 24 mo · % of jobs with Material $ &gt; 0</span>`,
+      controlsHtml: `<span class="lbl">last 24 mo · % of jobs with Material Total &gt; 0</span>`,
       buildChart(canvas) {
         const shown = byMonth.slice(-24);
         return new Chart(canvas, {
@@ -322,7 +335,7 @@ registerPage({
               tooltip: { callbacks: { label: c => {
                 const x = shown[c.dataIndex];
                 return [`Attach rate: ${c.raw == null ? "—" : c.raw + "%"}`,
-                        `${RS.fmtN(x.pj)} packing jobs of ${RS.fmtN(x.jobs)} · ${RS.money(x.v)} sold`];
+                        `${RS.fmtN(x.pj)} packing jobs of ${RS.fmtN(x.jobs)} · ${RS.money(x.v)} written`];
               } } },
             },
             scales: {
@@ -344,11 +357,11 @@ registerPage({
            { key: "pj", label: "Packing Jobs", fmt: RS.fmtN },
            { key: "at", label: "Attach Rate", fmt: RS.fmtPct },
            { key: "d", label: "Δ MoM", fmt: dFmt },
-           { key: "v", label: "Packing Sold", fmt: moneyNS },
+           { key: "v", label: "Packing Written", fmt: moneyNS },
            { key: "avg", label: "Avg $ / Packing Job", fmt: moneyNS }],
           shown.map(x => ({ ...x, m: mLabel(x.k) })),
-          { m: "Total", jobs: rows.length, pj: packJobs.length, at: attach, v: packingSold,
-            avg: packJobs.length ? packingSold / packJobs.length : null }) + note;
+          { m: "Total", jobs: rows.length, pj: packJobs.length, at: attach, v: packingWritten,
+            avg: packJobs.length ? packingWritten / packJobs.length : null }) + note;
       },
     });
   },
