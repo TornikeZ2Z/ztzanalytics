@@ -147,7 +147,7 @@ registerPage({
       .mrx-sec{margin:30px 0 4px}
       .mrx-sec-h{display:flex;align-items:center;gap:12px}
       .mrx-badge{width:34px;height:34px;flex:0 0 34px;border-radius:9px;background:${INK};color:#fff;font-weight:800;font-size:15px;display:grid;place-items:center;font-family:${MONO}}
-      .mrx-badge.hero{background:${LIME};color:${INK}}
+      .mrx-badge.mrx-hero{background:${LIME};color:${INK}}
       .mrx-sec-ic svg{width:20px;height:20px;fill:none;stroke:${INK};stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
       .mrx-sec-ic{display:flex}
       .mrx-sec-tt{display:flex;flex-direction:column;line-height:1.14}
@@ -168,7 +168,7 @@ registerPage({
       .mrx-note{margin-top:10px;font-size:12px;color:#48505e;line-height:1.5;background:#f6f8fb;border-left:3px solid ${LIME};padding:8px 11px;border-radius:0 7px 7px 0}
       .mrx-kpi{position:relative;background:#fff;border:1px solid ${LINE};border-radius:14px;padding:14px 15px 13px;box-shadow:0 1px 2px rgba(14,22,33,.05);overflow:hidden}
       .mrx-kpi:before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:${INK}}
-      .mrx-kpi.hero:before{background:${LIME}}
+      .mrx-kpi.mrx-hero:before{background:${LIME}}
       .mrx-kl{font-size:10.5px;font-weight:750;color:${SUB};text-transform:uppercase;letter-spacing:.05em;display:flex;align-items:center;gap:6px}
       .mrx-ic{display:flex}.mrx-ic svg{width:14px;height:14px;fill:none;stroke:${FAINT};stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
       .mrx-kv{font-size:29px;font-weight:800;color:${INK};letter-spacing:-.6px;margin:4px 0 0;font-family:${MONO};font-variant-numeric:tabular-nums}
@@ -205,7 +205,7 @@ registerPage({
     }
 
     /* ---------- chart primitives (SOLID) ---------- */
-    const baseOpts = extra => Object.assign({ maintainAspectRatio: false, animation: { duration: 450 }, plugins: { legend: { display: false } } }, extra || {});
+    const baseOpts = extra => Object.assign({ maintainAspectRatio: false, animation: false, plugins: { legend: { display: false } } }, extra || {});
     const axX = (o) => Object.assign({ ticks: { color: AXIS, font: { family: MONO, size: 10.5 } }, grid: { display: false }, border: { color: LINE } }, o || {});
     const axY = (fmt, o) => Object.assign({ ticks: { color: AXIS, font: { family: MONO, size: 10 }, maxTicksLimit: 6, callback: v => fmt ? fmt(v) : v }, grid: { color: GRID }, border: { display: false } }, o || {});
     // value labels drawn on bars — fmt captured in CLOSURE (never in options)
@@ -237,7 +237,7 @@ registerPage({
       secN++; const n = String(secN).padStart(2, "0");
       const wrap = document.createElement("section"); wrap.className = "mrx-sec";
       wrap.innerHTML = `<div class="mrx-sec-h">
-        <span class="mrx-badge${secN === 1 ? " hero" : ""}">${n}</span>
+        <span class="mrx-badge${secN === 1 ? " mrx-hero" : ""}">${n}</span>
         <span class="mrx-sec-ic">${ICONS[title] || ICONS._def}</span>
         <span class="mrx-sec-tt"><span class="mrx-sec-t">${esc(title)}</span><span class="mrx-sec-s">${esc(sub || "")}</span></span>
         <span class="mrx-code">SEC ${n}</span>
@@ -254,7 +254,7 @@ registerPage({
       return `<span class="mrx-chip" style="background:${bg};color:${col}">${label} ${up ? "▲" : "▼"} ${Math.abs(g * 100).toFixed(0)}%</span>`;
     }
     function kpiTile(g, k) {
-      const el = document.createElement("div"); el.className = "mrx-kpi" + (k.hero ? " hero" : "");
+      const el = document.createElement("div"); el.className = "mrx-kpi" + (k.hero ? " mrx-hero" : "");
       el.innerHTML = `<div class="mrx-kl">${k.icon ? `<span class="mrx-ic">${k.icon}</span>` : ""}${esc(k.l)}</div>
         <div class="mrx-kv">${k.v}</div><span class="mrx-uline"></span>
         <div class="mrx-chips">${k.ly !== undefined ? chip(k.c, k.ly, "YoY", k.inv) : ""}${k.pm !== undefined ? chip(k.c, k.pm, "MoM", k.inv) : ""}</div>
