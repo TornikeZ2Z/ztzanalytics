@@ -24,6 +24,11 @@ registerPage({
     const [reviews, negrev, callrail, scorecard, rcounts, rgoals] = await Promise.all(
       ["reviews_breakdown", "negative_reviews", "callrail", "scorecard", "review_counts", "review_goals"].map(grab));
     const [helperSalDs, salesSalDs] = await Promise.all(["helper_salaries", "sales_salaries"].map(grab));
+    // Raw `trips` table (207 rows) — loaded directly (not in DATASETS); powers the gross-trip memo
+    // only. Exclude the Liga file, which curated's fct_closing also drops. Dated by End Date.
+    const tripsRaw = await ZTZ.api("/api/trips?limit=1000000")
+      .then(j => (j.rows || []).filter(r => !String(r["File Name"] || "").startsWith("Liga")))
+      .catch(() => []);
     const DS = { closing, moveboard, storage, claims, refunds, card_expenses: cardEx, reviews_breakdown: reviews, negative_reviews: negrev, callrail, scorecard, review_counts: rcounts, review_goals: rgoals, helper_salaries: helperSalDs, sales_salaries: salesSalDs };
 
     const latest = closing.reduce((a, r) => (r._d && r._d > a ? r._d : a), "");
@@ -503,6 +508,13 @@ registerPage({
 
     const PM = mo === 1 ? 12 : mo - 1, PMY = mo === 1 ? curY - 1 : curY;
     const rev = valueFor("closing", "Revenue", curY, mo), revLY = valueFor("closing", "Revenue", curY - 1, mo), revPM = valueFor("closing", "Revenue", PMY, PM);
+    // Revenue split — group the (unchanged) Revenue measure by Record Source so the two parts
+    // sum EXACTLY to `rev`. closing = closing-sheet jobs (+ ~$0 linked-trip residual); trip =
+    // standalone "trip" jobs appended to fct_closing. No shared measure is repointed.
+    const revSrc = segSeries("closing", "Revenue", "Record Source", curY, mo);
+    const revClose = (revSrc.find(r => r.k === "closing") || {}).v || 0;
+    const revTrip = (revSrc.find(r => r.k === "trip") || {}).v || 0;
+    const tripShare = rev ? revTrip / rev : 0;
     const op = valueFor("closing", "Operational Profit by Formula", curY, mo), opLY = valueFor("closing", "Operational Profit by Formula", curY - 1, mo), opPM = valueFor("closing", "Operational Profit by Formula", PMY, PM);
     const jobs = valueFor("closing", "Total Jobs", curY, mo), jobsLY = valueFor("closing", "Total Jobs", curY - 1, mo), jobsPM = valueFor("closing", "Total Jobs", PMY, PM);
     const bk = valueFor("moveboard", "Booking Rate", curY, mo), bkLY = valueFor("moveboard", "Booking Rate", curY - 1, mo), bkPM = valueFor("moveboard", "Booking Rate", PMY, PM);
@@ -531,7 +543,7 @@ registerPage({
       const gpRev = revLY ? (rev - revLY) / Math.abs(revLY) : 0;
       const tone = gpRev > 0.08 ? "A strong" : gpRev < -0.05 ? "A softer" : "A steady";
       const ex = document.createElement("div"); ex.className = "mrx-exec"; ex.style.gridColumn = "1/-1";
-      ex.innerHTML = `<b>${tone} ${MON[mo]} ${curY}.</b> Revenue ${moneyC(rev)} (${gpRev >= 0 ? "+" : ""}${(gpRev * 100).toFixed(0)}% YoY), operational profit ${moneyC(op)} at ${pct(margin)} margin, ${fmtN(jobs)} jobs from ${fmtN(leadsN)} leads booked at ${pct(bk)}. Avg job value ${moneyC(avgJob)}.`;
+      ex.innerHTML = `<b>${tone} ${MON[mo]} ${curY}.</b> Revenue ${moneyC(rev)} (${gpRev >= 0 ? "+" : ""}${(gpRev * 100).toFixed(0)}% YoY), operational profit ${moneyC(op)} at ${pct(margin)} margin, ${fmtN(jobs)} jobs from ${fmtN(leadsN)} leads booked at ${pct(bk)}. Avg job value ${moneyC(avgJob)}.${revTrip ? ` Of that revenue, ${moneyC(revTrip)} (${(tripShare * 100).toFixed(1)}%) came from standalone trips — a minor add-on this year.` : ""}`;
       g.appendChild(ex);
     }
 
@@ -623,6 +635,18 @@ registerPage({
       const revT = trendSeries("closing", "Revenue"), opT = trendSeries("closing", "Operational Profit by Formula"), jobT = trendSeries("closing", "Total Jobs");
       lines(g, "Revenue & Profit — momentum", "last 12 months", [ { label: "Revenue", series: momSeries("closing", "Revenue", 12), color: INK }, { label: "Op. Profit", series: momSeries("closing", "Operational Profit by Formula", 12), color: BLUE } ], moneyC, { span2: true, headVal: moneyC(rev), chips: dchips([[rev, revPM, "MoM"]]) });
       yoyBars(g, "Total Revenue", revT, moneyC, { headVal: moneyC(rev), chips: dchips([[rev, revLY, "YoY"], [rev, revPM, "MoM"]]) });
+      {
+        // Revenue = Closings + Trips — honest composition. Trip slice is a hairline at today's
+        // sub-1% (stackShare only prints a % label above 8%), and the two parts sum to headline Revenue.
+        const mmS = String(mo).padStart(2, "0");
+        const grossTrip = tripsRaw.reduce((a, r) => String(r["End Date"] || "").slice(0, 7) === `${curY}-${mmS}` ? a + num(r["Total Bill"]) : a, 0);
+        const linkedIn = Math.max(0, grossTrip - revTrip);
+        const cSplit = stackShare(g, "Revenue = Closings + Trips", MON[mo] + " · what makes up this month’s revenue",
+          [ { k: "Closing sheets", v: revClose }, { k: "Trips add-on", v: revTrip } ], moneyC);
+        note(cSplit, `Revenue is two streams — closing-sheet jobs (${moneyC(revClose)}) plus standalone “trip” jobs (${moneyC(revTrip)}, ${(tripShare * 100).toFixed(1)}% this month; trips ran ~2% a couple of years back).`
+          + (grossTrip > revTrip + 1 ? ` Gross trip activity was ${moneyC(grossTrip)} — the extra ${moneyC(linkedIn)} is trip money already inside closing sheets (linked jobs), so it is not double-counted.` : "")
+          + ` The two parts sum exactly to headline Revenue.`);
+      }
       const c1 = yoyBars(g, "Operational Profit", opT, moneyC, { headVal: moneyC(op), chips: dchips([[op, opLY, "YoY"], [op, opPM, "MoM"]]) }); note(c1, trendInsight("Operational Profit", opT, moneyC, MON[mo]));
       const c2 = yoyBars(g, "Jobs Done", jobT, fmtN, { headVal: fmtN(jobs), chips: dchips([[jobs, jobsLY, "YoY"], [jobs, jobsPM, "MoM"]]) }); note(c2, trendInsight("Jobs Done", jobT, fmtN, MON[mo]));
       const confT = trendSeries("moveboard", "Confirmed Leads"), bkT = trendSeries("moveboard", "Booking Rate");
