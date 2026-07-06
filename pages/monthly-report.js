@@ -444,9 +444,114 @@ registerPage({
     function tableCard(mount, title, sub, html, opts) {
       opts = opts || {}; const c = card(mount, title, sub || monLbl, { span2: opts.span2 !== false, icon: opts.icon || KIC.grid, headVal: opts.headVal, chips: opts.chips });
       const w = document.createElement("div"); w.className = "mrx-scroll"; w.innerHTML = html; c.appendChild(w);
+      const tbl = w.querySelector("table");
+      if (tbl) {
+        const foot = document.createElement("div"); foot.style.cssText = "display:flex;justify-content:flex-end;margin-top:9px";
+        const xb = document.createElement("button"); xb.type = "button"; xb.className = "mrx-xls"; xb.innerHTML = "⤓ Excel"; xb.title = "Export this table to Excel";
+        xb.style.cssText = "background:#0e1621;color:#fff;border:0;border-radius:8px;padding:6px 11px;font:800 10.5px/1 " + MONO + ";letter-spacing:.03em;cursor:pointer";
+        xb.onmouseenter = () => xb.style.background = "#1b2a3f"; xb.onmouseleave = () => xb.style.background = "#0e1621";
+        xb.onclick = () => exportTableXlsx(tbl, title);
+        foot.appendChild(xb); c.appendChild(foot);
+      }
       if (opts.note) note(c, opts.note); return c;
     }
     const td = (v, style) => `<td${style ? ` style="${style}"` : ""}>${v}</td>`;
+
+    /* ---------- exports: lazy CDN libs · Excel (SheetJS) · real PDF (jsPDF+html2canvas) ---------- */
+    function ensureLib(check, url) {
+      return new Promise((resolve, reject) => {
+        if (check()) return resolve();
+        const s = document.createElement("script"); s.src = url; s.async = true;
+        s.onload = () => check() ? resolve() : reject(new Error("global missing after " + url));
+        s.onerror = () => reject(new Error("failed to load " + url));
+        document.head.appendChild(s);
+      });
+    }
+    const XLS_URL = "https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js";
+    const H2C_URL = "https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js";
+    const JSPDF_URL = "https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js";
+    function xlsCell(s) {   // coerce "$1,234"/"1,234" → numbers so Excel can sum; keep %, ×, — as text
+      const t = String(s == null ? "" : s).trim();
+      if (t === "" || t === "—" || t === "–") return "";
+      const n = t.replace(/[$,\s]/g, "");
+      if (/^-?\d+(\.\d+)?$/.test(n)) return Number(n);
+      return t;
+    }
+    async function exportTableXlsx(tbl, title) {
+      try {
+        await ensureLib(() => window.XLSX, XLS_URL);
+        const aoa = [].map.call(tbl.rows, tr => [].map.call(tr.cells, c => xlsCell(c.textContent)));
+        const ws = XLSX.utils.aoa_to_sheet(aoa);
+        const wch = []; aoa.forEach(r => r.forEach((v, i) => { const l = String(v).length; if (!wch[i] || wch[i] < l) wch[i] = l; }));
+        ws["!cols"] = wch.map(w => ({ wch: Math.min(42, Math.max(9, w + 2)) }));
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, ((title || "Sheet1").replace(/[^\w ]+/g, "").trim().slice(0, 28)) || "Sheet1");
+        XLSX.writeFile(wb, `${(title || "table").replace(/[^\w]+/g, "-").replace(/^-|-$/g, "")}-${MON[mo]}-${curY}.xlsx`);
+      } catch (e) { console.error("Excel export failed", e); alert("Excel export failed: " + (e && e.message || e)); }
+    }
+    async function downloadReportPDF() {
+      const btn = document.getElementById("mrPrint"); const rt = document.querySelector(".mrx");
+      if (!rt) return; const label = btn ? btn.innerHTML : "";
+      const hidden = [].slice.call(rt.querySelectorAll(".mrx-print,.mrx-xls,.mrx-caret,.mrx-code,.mrx-ctl,.mrx-toc,.mrx-btoggle"));
+      const collapsed = [].slice.call(rt.querySelectorAll(".mrx-sec.collapsed"));
+      try {
+        if (btn) { btn.innerHTML = "⏳ Building PDF…"; btn.disabled = true; }
+        await ensureLib(() => window.html2canvas, H2C_URL);
+        await ensureLib(() => (window.jspdf && window.jspdf.jsPDF) || window.jsPDF, JSPDF_URL);
+        const JsPDF = (window.jspdf && window.jspdf.jsPDF) || window.jsPDF;
+        collapsed.forEach(s => s.classList.remove("collapsed"));
+        hidden.forEach(e => { e.__pd = e.style.display; e.style.display = "none"; });
+        await new Promise(r => setTimeout(r, 180));
+        const pdf = new JsPDF({ unit: "pt", format: "a4", orientation: "portrait", compress: true });
+        const pageW = pdf.internal.pageSize.getWidth(), pageH = pdf.internal.pageSize.getHeight();
+        const M = 20, cW = pageW - M * 2;
+        const blocks = [];
+        const cov = rt.querySelector(".mrx-cover"); if (cov) blocks.push(cov);
+        const ban = rt.querySelector(".mrx-bwrap"); if (ban) blocks.push(ban);
+        [].slice.call(rt.querySelectorAll(".mrx-sec")).forEach(s => blocks.push(s));
+        let y = M;
+        for (const el of blocks) {
+          // swap live chart canvases → static images so html2canvas captures them reliably
+          const swaps = [];
+          [].slice.call(el.querySelectorAll("canvas")).forEach(cv => {
+            try { const im = document.createElement("img"); im.src = cv.toDataURL("image/png"); const w = cv.clientWidth, h = cv.clientHeight; im.style.width = w + "px"; im.style.height = h + "px"; cv.style.display = "none"; cv.parentNode.insertBefore(im, cv.nextSibling); swaps.push([cv, im]); } catch (e) {}
+          });
+          let canvas;
+          try { canvas = await html2canvas(el, { scale: 2, backgroundColor: "#f4f6fa", useCORS: true, logging: false, windowWidth: rt.scrollWidth }); }
+          finally { swaps.forEach(p => { p[1].remove(); p[0].style.display = ""; }); }
+          const sc = cW / canvas.width;                                   // canvas-px → pt
+          const rTop = el.getBoundingClientRect().top;
+          const pxScale = canvas.height / el.getBoundingClientRect().height;  // css-px → canvas-px
+          const rowBot = {};                                              // row bottoms (avoid cutting a card)
+          [].slice.call(el.querySelectorAll(".mrx-card")).forEach(cd => { const r = cd.getBoundingClientRect(); const key = Math.round((r.top - rTop) / 12); const b = (r.bottom - rTop) * pxScale; if (!rowBot[key] || rowBot[key] < b) rowBot[key] = b; });
+          const breaks = Object.keys(rowBot).map(k => rowBot[k]).concat([canvas.height]).sort((a, b) => a - b);
+          let sy = 0;
+          while (sy < canvas.height - 1) {
+            let availPt = pageH - M - y;
+            if (availPt < 70) { pdf.addPage(); y = M; availPt = pageH - M - y; }
+            let cut = sy + availPt / sc;
+            if (cut < canvas.height) { const fit = breaks.filter(b => b > sy + 10 && b <= cut); if (fit.length) cut = fit[fit.length - 1]; }
+            else cut = canvas.height;
+            const sliceH = Math.max(1, Math.round(cut - sy));
+            const sl = document.createElement("canvas"); sl.width = canvas.width; sl.height = sliceH;
+            sl.getContext("2d").drawImage(canvas, 0, sy, canvas.width, sliceH, 0, 0, canvas.width, sliceH);
+            const hPt = sliceH * sc;
+            pdf.addImage(sl.toDataURL("image/jpeg", 0.92), "JPEG", M, y, cW, hPt);
+            y += hPt + 4; sy = cut;
+          }
+          y += 8;
+        }
+        const np = pdf.internal.getNumberOfPages();
+        for (let i = 1; i <= np; i++) { pdf.setPage(i); pdf.setFontSize(8); pdf.setTextColor(150); pdf.text(`Zip to Zip · Monthly Report · ${MON[mo]} ${curY} · ${i}/${np}`, pageW / 2, pageH - 8, { align: "center" }); }
+        console.log("PDF_OK pages=" + np);
+        pdf.save(`Zip-to-Zip-Monthly-Report-${MON[mo]}-${curY}.pdf`);
+      } catch (e) { console.error("PDF generation failed", e); alert("PDF generation failed: " + (e && e.message || e)); }
+      finally {
+        collapsed.forEach(s => s.classList.add("collapsed"));
+        hidden.forEach(e => { e.style.display = e.__pd != null ? e.__pd : ""; });
+        if (btn) { btn.innerHTML = label; btn.disabled = false; }
+      }
+    }
 
     /* ---------- insight text ---------- */
     function trendInsight(label, series, fmt, monthName) {
@@ -474,7 +579,7 @@ registerPage({
     const cover = document.createElement("div"); cover.className = "mrx-cover";
     cover.innerHTML = `
       <div class="mrx-accent"></div>
-      <button class="mrx-print" id="mrPrint" title="Print / save as PDF">⬇ Download PDF</button>
+      <button class="mrx-print" id="mrPrint" title="Download a polished PDF (no print dialog)">⬇ Download PDF</button>
       <div class="mrx-eyebrow">Monthly Business Review · Zip to Zip</div>
       <div class="mrx-h1">Report for ${MON[mo]} ${curY}</div>
       <div class="mrx-cvsub">${esc(freshness)} · single-company view ·
@@ -789,7 +894,7 @@ registerPage({
     const reRender = () => { if (typeof renderPage === "function") renderPage(); else location.reload(); };
     document.getElementById("mrMonth").onchange = e => { st.month = +e.target.value; reRender(); };
     document.getElementById("mrYear").onchange = e => { st.year = +e.target.value; reRender(); };
-    const pb = document.getElementById("mrPrint"); if (pb) pb.onclick = () => window.print();
+    const pb = document.getElementById("mrPrint"); if (pb) pb.onclick = downloadReportPDF;
   }
 });
 
