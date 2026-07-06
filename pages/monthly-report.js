@@ -142,9 +142,13 @@ registerPage({
       .mrx-cvsub{color:#a9b6c6;font-size:12.5px;font-weight:600}
       .mrx-print{position:absolute;top:22px;right:24px;background:${LIME};color:${INK};border:0;border-radius:9px;padding:9px 15px;font-size:12.5px;font-weight:800;cursor:pointer;z-index:2}
       .mrx-ctl{font:inherit;font-weight:700;color:#fff;background:${INK2};border:1px solid #2c3e57;border-radius:7px;padding:3px 8px;margin-left:4px}
-      .mrx-banner{display:flex;align-items:center;gap:11px;background:#fff8ec;border:1px solid #f2d492;border-left:4px solid ${AMBER};border-radius:11px;padding:11px 15px;margin-bottom:14px;font-size:13px;color:#7a5a12;font-weight:600}
+      .mrx-bwrap{margin-bottom:16px}
+      .mrx-banner{display:flex;align-items:center;gap:11px;background:#fff8ec;border:1px solid #f2d492;border-left:4px solid ${AMBER};border-radius:11px;padding:11px 15px;font-size:13px;color:#7a5a12;font-weight:600}
       .mrx-banner b{font-family:${MONO};color:${INK};font-weight:800}
       .mrx-banner .bic{display:flex;flex:0 0 auto}.mrx-banner .bic svg{width:19px;height:19px;fill:none;stroke:${AMBER};stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+      .mrx-bmsg{flex:1}
+      .mrx-btoggle{flex:0 0 auto;font-family:${MONO};font-size:11.5px;font-weight:800;color:${INK};cursor:pointer;white-space:nowrap;border-bottom:1.5px solid ${AMBER};user-select:none}
+      .mrx-bdetail{margin-top:7px;background:#fff;border:1px solid #f2d492;border-radius:9px;padding:9px 13px;max-height:300px;overflow:auto}
       .mrx-toc{position:sticky;top:0;z-index:6;background:#f4f6fa;display:flex;flex-wrap:wrap;gap:7px;padding:11px 2px;margin-bottom:6px;border-bottom:1px solid ${LINE}}
       .mrx-tocchip{font-family:${MONO};font-size:11px;font-weight:700;color:${INK2};background:#fff;border:1px solid ${LINE};border-radius:7px;padding:4px 9px;cursor:pointer;white-space:nowrap;user-select:none}
       .mrx-tocchip:hover{border-color:${INK};background:#eef1f6}
@@ -474,14 +478,21 @@ registerPage({
         <select id="mrYear" class="mrx-ctl">${[curY + 1, curY, curY - 1, curY - 2].filter(y => y <= curY + 1).map(y => `<option${y === curY ? " selected" : ""}>${y}</option>`).join("")}</select></div>`;
     root.appendChild(cover);
 
-    // completeness banner — closings awaiting return (blank Net Cash)
-    const pend = reduceMonth("closing", curY, mo, rs => rs.filter(r => blank(r["Net Cash"])).length) || 0;
+    // completeness banner — closings awaiting return (blank Net Cash), with an expandable job list
+    const pendRows = (reduceMonth("closing", curY, mo, rs => rs.filter(r => blank(r["Net Cash"]))) || []).slice().sort((a, b) => String(a.Date).localeCompare(String(b.Date)));
+    const pend = pendRows.length;
     const totClose = reduceMonth("closing", curY, mo, rs => rs.length) || 0;
     if (pend > 0 && totClose > 0) {
       const rptPctVal = ((totClose - pend) / totClose * 100).toFixed(0);
+      const wrap = document.createElement("div"); wrap.className = "mrx-bwrap";
       const b = document.createElement("div"); b.className = "mrx-banner";
-      b.innerHTML = `<span class="bic">${KIC.warn}</span><span><b>${pend}</b> of <b>${totClose}</b> ${MON[mo]} closings are still awaiting return (blank contract) — this month is <b>~${rptPctVal}%</b> reported; revenue &amp; profit will rise as they come in.</span>`;
-      root.appendChild(b);
+      b.innerHTML = `<span class="bic">${KIC.warn}</span><span class="mrx-bmsg"><b>${pend}</b> of <b>${totClose}</b> ${MON[mo]} closings are still awaiting return (blank contract) — this month is <b>~${rptPctVal}%</b> reported; revenue &amp; profit will rise as they come in.</span><span class="mrx-btoggle">▸ view the ${pend} jobs</span>`;
+      const detail = document.createElement("div"); detail.className = "mrx-bdetail"; detail.style.display = "none";
+      const rowsH = pendRows.map(r => `<tr><td>${esc(String(r.Date || "").slice(0, 10))}</td><td>${esc(r.Customer || "—")}</td><td>${esc(String(r["Request #"] || "—"))}</td><td>${esc(r["Sales Person"] || "—")}</td><td>${esc(r.Foreman || "—")}</td></tr>`).join("");
+      detail.innerHTML = `<div class="mrx-scroll"><table class="mrx-tbl"><thead><tr><th>Move date</th><th>Customer</th><th>Request #</th><th>Sales person</th><th>Foreman</th></tr></thead><tbody>${rowsH}</tbody></table></div>`;
+      wrap.appendChild(b); wrap.appendChild(detail);
+      b.querySelector(".mrx-btoggle").onclick = () => { const open = detail.style.display === "none"; detail.style.display = open ? "block" : "none"; b.querySelector(".mrx-btoggle").textContent = (open ? "▾ hide the " : "▸ view the ") + pend + " jobs"; };
+      root.appendChild(wrap);
     }
 
     const toc = document.createElement("div"); toc.className = "mrx-toc"; root.appendChild(toc);
