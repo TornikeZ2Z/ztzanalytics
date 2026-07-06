@@ -244,7 +244,11 @@ registerPage({
     if (!window.__mrxPrint) { window.__mrxPrint = 1; window.addEventListener("beforeprint", () => { try { if (window.Chart) Object.values(Chart.instances || {}).forEach(ch => { try { ch.resize(); } catch (e) {} }); } catch (e) {} }); }
 
     /* ---------- chart primitives ---------- */
-    const baseOpts = extra => Object.assign({ __solidBars: true, maintainAspectRatio: false, animation: false, plugins: { legend: { display: false } } }, extra || {});
+    const baseOpts = extra => Object.assign({ __solidBars: true, maintainAspectRatio: false, animation: false,
+      // hover axis MUST match orientation: horizontal (indexAxis 'y') charts index by Y, vertical by X.
+      // Without this the global {mode:'index'} default maps by the wrong axis → tooltip shows another bar.
+      interaction: { mode: "index", axis: (extra && extra.indexAxis === "y") ? "y" : "x", intersect: false },
+      plugins: { legend: { display: false } } }, extra || {});
     const axX = (o) => Object.assign({ ticks: { color: AXIS, font: { family: MONO, size: 10.5 } }, grid: { display: false }, border: { color: LINE } }, o || {});
     const axY = (fmt, o) => Object.assign({ ticks: { color: AXIS, font: { family: MONO, size: 10 }, maxTicksLimit: 6, callback: v => fmt ? fmt(v) : v }, grid: { color: GRID }, border: { display: false } }, o || {});
     const valLabels = (fmt, horiz, color) => ({ id: "vlab", afterDatasetsDraw(ch) {
@@ -539,89 +543,7 @@ registerPage({
       g.appendChild(ex);
     }
 
-    /* ---- 02 · Demand & Lead Funnel ---- */
-    {
-      const g = section("Demand & Lead Funnel", "conversion this month and rep performance");
-      funnel(g, "Lead Funnel", monLbl + " · Total → Qualified → Confirmed", [ { k: "Total Leads", v: leadsN || 0 }, { k: "Qualified", v: qual || 0 }, { k: "Confirmed", v: conf || 0 } ], { headVal: pct(bk), chips: dchips([[bk, bkLY, "YoY"], [bk, bkPM, "MoM"]]) });
-      const badCur = segReduce("moveboard", "Status", rs => rs.length, curY, mo, { pre: r => r["Status Category"] === "Bad Lead" }).slice(0, 6);
-      const badLY = segReduce("moveboard", "Status", rs => rs.length, curY - 1, mo, { pre: r => r["Status Category"] === "Bad Lead" });
-      const badMap = {}; badLY.forEach(r => badMap[r.k] = r.v);
-      groupedBars(g, "Bad Leads by reason — YoY", badCur.map(r => r.k), badCur.map(r => badMap[r.k] || 0), String(curY - 1), badCur.map(r => r.v), String(curY), fmtN, { sub: MON[mo] });
-      const spBook = segReduce("moveboard", "Assigned", rs => { const q = rs.filter(r => r["Status Category"] !== "Bad Lead").length, c = rs.filter(r => r["Status Category"] === "Confirmed").length; return q ? c / q : null; }, curY, mo).filter(r => r.v != null && r.rows.length >= 5).slice(0, 12);
-      bullet(g, "Booking rate by salesperson", monLbl + " · vs team average", spBook, pct, bk || 0, { note: "Bars below the lime target line are converting under the team average — coaching targets." });
-      rankBars(g, "Leads by source", segReduce("moveboard", "Source", rs => rs.length, curY, mo), fmtN, { top: 10 });
-    }
-
-    /* ---- 03 · Sales Team ---- */
-    {
-      const g = section("Sales Team Performance", "per-rep scorecard and large-move conversion");
-      const revSP = segSeries("closing", "Revenue", "Sales Person"), opSP = segSeries("closing", "Operational Profit by Formula", "Sales Person");
-      const opMap = {}; opSP.forEach(r => opMap[r.k] = r.v);
-      const mb = segReduce("moveboard", "Assigned", rs => rs, curY, mo);
-      const mbMap = {}; mb.forEach(r => { const q = r.rows.filter(x => x["Status Category"] !== "Bad Lead").length, c = r.rows.filter(x => x["Status Category"] === "Confirmed").length, bad = r.rows.filter(x => x["Status Category"] === "Bad Lead").length; mbMap[r.k] = { q, c, bad, tot: r.rows.length, book: q ? c / q : null, dead: r.rows.length ? bad / r.rows.length : null }; });
-      const reps = revSP.slice(0, 14).map(r => ({ k: r.k, rev: r.v, op: opMap[r.k] || 0, m: mbMap[r.k] || {} }));
-      const rmax = Math.max(...reps.map(r => r.rev));
-      const rowsH = reps.map(r => `<tr><td>${esc(r.k)}</td>
-        <td class="bar"><i style="width:${(r.rev / rmax * 100).toFixed(1)}%"></i><span>${money(r.rev)}</span></td>
-        ${td(money(r.op))}${td(fmtN(r.m.q || 0))}${td(fmtN(r.m.c || 0))}
-        ${td(r.m.book == null ? "—" : pct(r.m.book), r.m.book == null ? "" : `color:${r.m.book >= (bk || 0) ? "#1c7a4a" : "#b02a37"};font-weight:800`)}
-        ${td(r.m.dead == null ? "—" : pct(r.m.dead), r.m.dead == null ? "" : `color:${r.m.dead > .3 ? "#b02a37" : "#1c7a4a"};font-weight:800`)}</tr>`).join("");
-      tableCard(g, "Salesperson scorecard", monLbl, `<table class="mrx-tbl"><thead><tr><th>Sales Person</th><th>Revenue</th><th>Op. Profit</th><th>Qual.</th><th>Conf.</th><th>Booking%</th><th>Dead%</th></tr></thead><tbody>${rowsH}</tbody></table>`, { icon: KIC.grid, headVal: fmtN(reps.length) + " reps", note: "Bars = revenue share; Booking% green>team-avg; Dead% red when high — the coaching signals in one place." });
-      const bigPre = { pre: r => { const cf = String(r["CF Range"] || ""); return /1000|1500|2000|Over|1001|>|\+/.test(cf) && !/0-1000|<1000|Under/.test(cf); } };
-      const bigMb = segReduce("moveboard", "Assigned", rs => rs, curY, mo, bigPre).map(r => { const q = r.rows.filter(x => x["Status Category"] !== "Bad Lead").length, c = r.rows.filter(x => x["Status Category"] === "Confirmed").length; return { k: r.k, q, c, book: q ? c / q : null }; }).filter(r => r.q >= 2).sort((a, b) => b.q - a.q).slice(0, 10);
-      const revSPly = {}; segSeries("closing", "Revenue", "Sales Person", curY - 1, mo).forEach(r => revSPly[r.k] = r.v);
-      const opSPly = {}; segSeries("closing", "Operational Profit by Formula", "Sales Person", curY - 1, mo).forEach(r => opSPly[r.k] = r.v);
-      const topReps = revSP.slice(0, 10);
-      groupedBars(g, "Revenue by salesperson — YoY", topReps.map(r => r.k), topReps.map(r => revSPly[r.k] || 0), String(curY - 1), topReps.map(r => r.v), String(curY), money, { sub: MON[mo] });
-      groupedBars(g, "Op. Profit by salesperson — YoY", topReps.map(r => r.k), topReps.map(r => opSPly[r.k] || 0), String(curY - 1), topReps.map(r => opMap[r.k] || 0), String(curY), money, { sub: MON[mo] });
-      if (bigMb.length) groupedBars(g, "Large moves (>1000 CF) — Qualified vs Confirmed", bigMb.map(r => r.k), bigMb.map(r => r.q), "Qualified", bigMb.map(r => r.c), "Confirmed", fmtN, { sub: monLbl });
-      const bigBook = bigMb.filter(r => r.book != null).map(r => ({ k: r.k, v: r.book }));
-      if (bigBook.length) bullet(g, "Large-move (>1000 CF) booking rate by rep", monLbl + " · vs team avg", bigBook, pct, bk || 0, {});
-    }
-
-    /* ---- 04 · Operations & Crew ---- */
-    {
-      const g = section("Operations & Crew (Foreman)", "productivity, quality score and month-over-month");
-      const payM = {}, tipsM = {}, refM = {};
-      segReduce("closing", "Foreman", rs => rs.reduce((a, x) => a + num(x["Forman Total $"]), 0), curY, mo).forEach(r => payM[r.k] = r.v);
-      segReduce("closing", "Foreman", rs => rs.reduce((a, x) => a + num(x["Tip from Company Part"]) + num(x["Tip From the Customers"]), 0), curY, mo).forEach(r => tipsM[r.k] = r.v);
-      segReduce("refunds", "Foreman", rs => Math.abs(rs.reduce((a, x) => a + num(x["Total refund"]), 0)), curY, mo).forEach(r => refM[r.k] = r.v);
-      const scRows = (DS.scorecard || []).filter(r => { const d = String(r["Month"] || "").slice(0, 7); return d === `${curY}-${String(mo).padStart(2, "0")}`; });
-      if (scRows.length) {
-        const sc = scRows.map(r => ({ f: r.Foreman, jobs: num(r["Total Jobs"]), cf: num(r["Total CF"]), written: num(r["Total Packing Written"]), est: num(r["Total Packing Estimate"]), rev: num(r["Total Reviews Written"]), claims: num(r["Forman Fault Claims"]), score: num(r["Forman Score"]), rank: num(r["Forman Score Rank"]), prev: num(r["Forman Score Prev Month"]) }))
-          .sort((a, b) => (a.rank || 999) - (b.rank || 999)).slice(0, 15);
-        const smax = Math.max(...sc.map(r => r.score || 0)) || 1;
-        const rowsH = sc.map((r, i) => { const arrow = r.prev ? (r.score > r.prev ? `<span style="color:${POS}">▲</span>` : r.score < r.prev ? `<span style="color:${NEG}">▼</span>` : "–") : ""; const up = r.est > 0 ? r.written / r.est : null; return `<tr><td>${i === 0 ? "👑 " : ""}${esc(r.f)}</td>
-          ${td(fmtN(r.jobs))}${td(fmtN(r.cf))}${td(money(payM[r.f] || 0))}${td(money(tipsM[r.f] || 0))}${td(money(r.written))}${td(up == null ? "—" : up.toFixed(1) + "×", up == null ? "" : `color:#1c7a4a;font-weight:800`)}${td(fmtN(r.rev))}${td(fmtN(r.claims), r.claims > 0 ? `color:#b02a37;font-weight:800` : "")}${td(refM[r.f] ? money(refM[r.f]) : "—", refM[r.f] ? `color:#b02a37;font-weight:800` : "")}
-          <td class="bar"><i style="width:${(r.score / smax * 100).toFixed(0)}%;background:#dcecab"></i><span>${fmt1(r.score)} ${arrow}</span></td></tr>`; }).join("");
-        tableCard(g, "Foreman scorecard — ranked", monLbl, `<table class="mrx-tbl"><thead><tr><th>Foreman</th><th>Jobs</th><th>CF</th><th>Pay</th><th>Tips</th><th>Packing</th><th>vs Est</th><th>Reviews</th><th>Claims</th><th>Refunds</th><th>Score</th></tr></thead><tbody>${rowsH}</tbody></table>`, { icon: KIC.grid, headVal: fmtN(sc.length) + " crews", note: "Pay/Tips from closings; 'vs Est' = packing written ÷ quoted estimate; refunds attributed to foreman; Score = composite w/ MoM arrow. Rank 1 crowned." });
-      }
-      const jobF = segSeries("closing", "Total Jobs", "Foreman").slice(0, 12);
-      const hrMap = {}; segSeries("closing", "Hours Worked by Forman", "Foreman").forEach(r => hrMap[r.k] = r.v);
-      combo(g, "Jobs vs Hours by Foreman", monLbl, jobF, "Jobs", fmtN, jobF.map(r => ({ k: r.k, v: hrMap[r.k] || 0 })), "Hours", fmtN);
-      const packCur = segSeries("closing", "Total Packing Written", "Foreman").slice(0, 12);
-      const packPrev = {}; segSeries("closing", "Total Packing Written", "Foreman", PMY, PM).forEach(r => packPrev[r.k] = r.v);
-      groupedBars(g, "Packing written by foreman — MoM", packCur.map(r => r.k), packCur.map(r => packPrev[r.k] || 0), MS[PM], packCur.map(r => r.v), MS[mo], money, { sub: `${MS[PM]} vs ${MS[mo]}` });
-      const estM = {}; scRows.forEach(r => estM[r.Foreman] = num(r["Total Packing Estimate"]));
-      groupedBars(g, "Packing written vs estimate by foreman", packCur.map(r => r.k), packCur.map(r => estM[r.k] || 0), "Estimate", packCur.map(r => r.v), "Written", money, { sub: monLbl });
-      const refByFm = segReduce("refunds", "Foreman", rs => Math.abs(rs.reduce((a, x) => a + num(x["Total refund"]), 0)), curY, mo).filter(r => r.v > 0 && r.k !== "—");
-      if (refByFm.length) rankBars(g, "Refunds by foreman", refByFm, money, { top: 10 });
-    }
-
-    /* ---- 05 · Packing & Storage ---- */
-    {
-      const g = section("Packing & Storage", "packing economics and storage income trend");
-      const packT = trendSeries("closing", "Total Packing Written");
-      const packSalT = trendSeries("closing", "Forman Salary - Packing");
-      combo(g, "Packing written vs foreman packing pay", MON[mo] + " · " + packT.length + "-yr", packT, "Written", moneyC, packT.map((r, i) => ({ k: r.k, v: (packSalT[i] && packSalT[i].v) ? r.v / packSalT[i].v : null })), "Rev / $1 pay", v => "$" + fmt1(v), { headVal: money(lastV(packT)) });
-      const stoT = momSeries("storage", "Storage Additional Revenue", 14);
-      lines(g, "Storage additional revenue", "last 14 months", [ { label: "Storage Add'l Rev", series: stoT, color: TEAL } ], money);
-      const stoRows = stoT.map(r => ({ k: MS[r.m] + " " + r.y, add: r.v, bill: valueFor("closing", "Revenue", r.y, r.m), jobs: valueFor("closing", "Total Jobs", r.y, r.m) }));
-      const html = `<table class="mrx-tbl"><thead><tr><th>Month</th><th>Total Bill</th><th>Jobs</th><th>Storage Add'l Rev</th></tr></thead><tbody>${stoRows.map(r => `<tr><td>${r.k}</td>${td(r.bill == null ? "—" : money(r.bill))}${td(r.jobs == null ? "—" : fmtN(r.jobs))}${td(r.add == null ? "—" : money(r.add))}</tr>`).join("")}</tbody></table>`;
-      tableCard(g, "Storage income — last 14 months", "", html, { icon: KIC.grid, headVal: money(lastV(stoT)) });
-    }
-
-    /* ---- 06 · Revenue & Growth ---- */
+    /* ---- 02 · Revenue & Growth ---- */
     {
       const g = section("Revenue & Growth", "5-year " + MON[mo] + " trend and 12-month momentum");
       const revT = trendSeries("closing", "Revenue"), opT = trendSeries("closing", "Operational Profit by Formula"), jobT = trendSeries("closing", "Total Jobs");
@@ -652,16 +574,20 @@ registerPage({
       note(c6b, `Flat-rate long-distance product lines (“Regular” + “Straight”) combined.`);
     }
 
-    /* ---- 07 · Composition & Segments ---- */
+    /* ---- 03 · Demand & Lead Funnel ---- */
     {
-      const g = section("Revenue Composition & Segments", "how revenue splits this month");
-      rankBars(g, "Revenue by Moving Type", segSeries("closing", "Revenue", "Moving Type"), money, { top: 6, note: segInsight(segSeries("closing", "Revenue", "Moving Type"), money) });
-      rankBars(g, "Revenue by Size of Move", segSeries("closing", "Revenue", "Size of Move"), money, { top: 8 });
-      rankBars(g, "Revenue by Source", segSeries("closing", "Revenue", "Source"), money, { top: 10, note: segInsight(segSeries("closing", "Revenue", "Source"), money) });
-      donut(g, "Lead Status Mix", segReduce("moveboard", "Status Category", rs => rs.length), fmtN, { center: fmtN(leadsN), centerLbl: "leads" });
+      const g = section("Demand & Lead Funnel", "conversion this month and rep performance");
+      funnel(g, "Lead Funnel", monLbl + " · Total → Qualified → Confirmed", [ { k: "Total Leads", v: leadsN || 0 }, { k: "Qualified", v: qual || 0 }, { k: "Confirmed", v: conf || 0 } ], { headVal: pct(bk), chips: dchips([[bk, bkLY, "YoY"], [bk, bkPM, "MoM"]]) });
+      const badCur = segReduce("moveboard", "Status", rs => rs.length, curY, mo, { pre: r => r["Status Category"] === "Bad Lead" }).slice(0, 6);
+      const badLY = segReduce("moveboard", "Status", rs => rs.length, curY - 1, mo, { pre: r => r["Status Category"] === "Bad Lead" });
+      const badMap = {}; badLY.forEach(r => badMap[r.k] = r.v);
+      groupedBars(g, "Bad Leads by reason — YoY", badCur.map(r => r.k), badCur.map(r => badMap[r.k] || 0), String(curY - 1), badCur.map(r => r.v), String(curY), fmtN, { sub: MON[mo] });
+      const spBook = segReduce("moveboard", "Assigned", rs => { const q = rs.filter(r => r["Status Category"] !== "Bad Lead").length, c = rs.filter(r => r["Status Category"] === "Confirmed").length; return q ? c / q : null; }, curY, mo).filter(r => r.v != null && r.rows.length >= 5).slice(0, 12);
+      bullet(g, "Booking rate by salesperson", monLbl + " · vs team average", spBook, pct, bk || 0, { note: "Bars below the lime target line are converting under the team average — coaching targets." });
+      rankBars(g, "Leads by source", segReduce("moveboard", "Source", rs => rs.length, curY, mo), fmtN, { top: 10 });
     }
 
-    /* ---- 08 · Profitability & P&L ---- */
+    /* ---- 04 · Profitability & P&L ---- */
     {
       const g = section("Profitability & P&L", "where the revenue goes, and margin trend");
       const rowsW = withMonth(curY, mo, () => RS.filtered("closing", closing));
@@ -688,53 +614,20 @@ registerPage({
       donut(g, "Cost structure", costMix, money, { center: money(totBill - op), centerLbl: "total cost" });
     }
 
-    /* ---- 09 · Marketing & Channels ---- */
+    /* ---- 05 · Packing & Storage ---- */
     {
-      const g = section("Marketing & Channels", "ad spend momentum, source revenue and call demand");
-      const adTrend = momReduce("card_expenses", 12, rs => { const ad = rs.filter(r => Number(r["Is Advertising"]) === 1); return ad.length ? ad.reduce((a, r) => a + num(r.Amount), 0) : null; });
-      lines(g, "Advertising spend — momentum", "last 12 months", [ { label: "Ad Spend", series: adTrend, color: AMBER } ], moneyC, { headVal: money(lastV(adTrend)) });
-      const callLabels = momReduce("callrail", 12, rs => rs.length).map(r => r.k);
-      const answered = momReduce("callrail", 12, rs => rs.filter(r => String(r["Call Status"]) === "Answered Call").length).map(r => r.v);
-      const missed = momReduce("callrail", 12, rs => rs.filter(r => /Missed|Abandoned/.test(String(r["Call Status"]))).length).map(r => r.v);
-      stackedTime(g, "Inbound calls — answered vs missed", "last 12 months (CallRail)", callLabels, [ { label: "Answered", data: answered, color: INK }, { label: "Missed/Abandoned", data: missed, color: NEG } ], fmtN);
-      const callsBySrc = segReduce("callrail", "Source", rs => rs.length, curY, mo).slice(0, 10);
-      const ftc = reduceMonth("callrail", curY, mo, rs => { const t = rs.length, f = rs.filter(r => Number(r["First-Time Caller"]) === 1).length; return t ? f / t : null; });
-      rankBars(g, "Calls by source", callsBySrc, fmtN, { top: 10, sub: monLbl, note: ftc == null ? "" : `${pct(ftc)} of calls this month were first-time callers.` });
-      // source economics — jobs / revenue / op profit / ad spend / ROI per channel (ad spend lags ~1 month)
-      const adBySrc = {}; (reduceMonth("card_expenses", curY, mo, rs => rs.filter(r => Number(r["Is Advertising"]) === 1)) || []).forEach(r => { const s2 = r.Source == null || r.Source === "" ? "—" : String(r.Source); adBySrc[s2] = (adBySrc[s2] || 0) + num(r.Amount); });
-      const revBySrc = segSeries("closing", "Revenue", "Source"), opBySrc = segSeries("closing", "Operational Profit by Formula", "Source"), jobBySrc = segSeries("closing", "Total Jobs", "Source");
-      const opM = {}, jbM = {}; opBySrc.forEach(r => opM[r.k] = r.v); jobBySrc.forEach(r => jbM[r.k] = r.v);
-      const anyAd = Object.values(adBySrc).some(v => v > 0);
-      const seRows = revBySrc.slice(0, 12).map(r => { const ad = adBySrc[r.k] || 0, roi = ad > 0 ? r.v / ad : null; return { k: r.k, jobs: jbM[r.k] || 0, rev: r.v, op: opM[r.k] || 0, ad, roi }; });
-      const seHtml = `<table class="mrx-tbl"><thead><tr><th>Source</th><th>Jobs</th><th>Revenue</th><th>Op. Profit</th><th>Ad Spend</th><th>ROI</th></tr></thead><tbody>${seRows.map(r => `<tr><td>${esc(r.k)}</td>${td(fmtN(r.jobs))}${td(money(r.rev))}${td(money(r.op))}${td(r.ad > 0 ? money(r.ad) : "—")}${td(r.roi == null ? "—" : (r.roi.toFixed(1) + "×"), r.roi == null ? "" : `color:${r.roi >= 3 ? "#1c7a4a" : r.roi >= 1 ? "#7a5a12" : "#b02a37"};font-weight:800`)}</tr>`).join("")}</tbody></table>`;
-      tableCard(g, "Source economics — jobs · revenue · profit · ad ROI", monLbl, seHtml, { icon: KIC.grid, headVal: fmtN(seRows.length) + " sources", note: anyAd ? "ROI = revenue ÷ ad spend (green ≥3×, amber ≥1×, red <1×). Ad spend from card feed." : `Ad-spend feed for ${MON[mo]} not synced yet — ad/ROI fill once it lands; revenue/profit/jobs are final.` });
-      rankBars(g, "Operational Profit by Source", opBySrc, money, { top: 10 });
-      rankBars(g, "Jobs by Source", jobBySrc.map(r => ({ k: r.k, v: r.v })), fmtN, { top: 10 });
+      const g = section("Packing & Storage", "packing economics and storage income trend");
+      const packT = trendSeries("closing", "Total Packing Written");
+      const packSalT = trendSeries("closing", "Forman Salary - Packing");
+      combo(g, "Packing written vs foreman packing pay", MON[mo] + " · " + packT.length + "-yr", packT, "Written", moneyC, packT.map((r, i) => ({ k: r.k, v: (packSalT[i] && packSalT[i].v) ? r.v / packSalT[i].v : null })), "Rev / $1 pay", v => "$" + fmt1(v), { headVal: money(lastV(packT)) });
+      const stoT = momSeries("storage", "Storage Additional Revenue", 14);
+      lines(g, "Storage additional revenue", "last 14 months", [ { label: "Storage Add'l Rev", series: stoT, color: TEAL } ], money);
+      const stoRows = stoT.map(r => ({ k: MS[r.m] + " " + r.y, add: r.v, bill: valueFor("closing", "Revenue", r.y, r.m), jobs: valueFor("closing", "Total Jobs", r.y, r.m) }));
+      const html = `<table class="mrx-tbl"><thead><tr><th>Month</th><th>Total Bill</th><th>Jobs</th><th>Storage Add'l Rev</th></tr></thead><tbody>${stoRows.map(r => `<tr><td>${r.k}</td>${td(r.bill == null ? "—" : money(r.bill))}${td(r.jobs == null ? "—" : fmtN(r.jobs))}${td(r.add == null ? "—" : money(r.add))}</tr>`).join("")}</tbody></table>`;
+      tableCard(g, "Storage income — last 14 months", "", html, { icon: KIC.grid, headVal: money(lastV(stoT)) });
     }
 
-    /* ---- 10 · Quality & Customer Experience ---- */
-    {
-      const g = section("Quality & Customer Experience", "reviews, negative reviews and claims");
-      const claimsN = reduceMonth("claims", curY, mo, rs => rs.length) || 0;
-      const claimsPM = reduceMonth("claims", PMY, PM, rs => rs.length) || 0;
-      const negN = reduceMonth("negative_reviews", curY, mo, rs => rs.length) || 0;
-      const negPM = reduceMonth("negative_reviews", PMY, PM, rs => rs.length) || 0;
-      const claimRate = jobs ? claimsN / jobs * 100 : null;
-      const kg = document.createElement("div"); kg.className = "mrx-grid k"; kg.style.gridColumn = "1/-1"; g.appendChild(kg);
-      [ { l: "Reviews Written", v: fmtN(revWritten), c: revWritten, pm: revWrittenPM, icon: KIC.star },
-        { l: "Negative Reviews", v: fmtN(negN), c: negN, pm: negPM, icon: KIC.warn, inv: 1 },
-        { l: "Claims Filed", v: fmtN(claimsN), c: claimsN, pm: claimsPM, icon: KIC.warn, inv: 1 },
-        { l: "Claims / 100 jobs", v: claimRate == null ? "—" : fmt1(claimRate), c: claimRate, pm: (jobsPM ? claimsPM / jobsPM * 100 : null), icon: KIC.pct, inv: 1 }
-      ].forEach(k => kpiTile(kg, k));
-      rankBars(g, "Claims by responsibility", segReduce("claims", "Responsibility", rs => rs.length, curY, mo), fmtN, { top: 8 });
-      donut(g, "Claims by reason", segReduce("claims", "Reason", rs => rs.length, curY, mo).filter(r => r.k !== "—" && r.k !== "(blank)"), fmtN, { center: fmtN(reduceMonth("claims", curY, mo, rs => rs.filter(r => r.Reason && r.Reason !== "(blank)").length) || 0), centerLbl: "classified" });
-      const refByReason = segReduce("refunds", "Reason", rs => Math.abs(rs.reduce((a, r) => a + num(r["Total refund"]), 0)), curY, mo).filter(r => r.v > 0);
-      const refTot = Math.abs(reduceMonth("refunds", curY, mo, rs => rs.reduce((a, r) => a + num(r["Total refund"]), 0)) || 0);
-      rankBars(g, "Refunds by reason", refByReason, money, { top: 8, sub: `${money(refTot)} · ${rev ? pct(refTot / rev) : "—"} of revenue`, headVal: money(refTot), note: `${money(refTot)} refunded in ${MON[mo]} — ${rev ? pct(refTot / rev) : "—"} of revenue.` });
-      rankBars(g, "Reviews by source", segReduce("reviews_breakdown", "Source", rs => rs.reduce((a, r) => a + num(r["Number of Reviews"]), 0), curY, mo), fmtN, { top: 8 });
-    }
-
-    /* ---- 11 · Geography ---- */
+    /* ---- 06 · Geography ---- */
     {
       const g = section("Geography — by State", "revenue, profit & booking per state with year-over-year");
       const revS = segSeries("closing", "Revenue", "State Name"), opS = segSeries("closing", "Operational Profit by Formula", "State Name"), jobS = segSeries("closing", "Total Jobs", "State Name");
@@ -759,7 +652,7 @@ registerPage({
       rankBars(g, "Jobs by state", jobS.map(r => ({ k: r.k === "—" ? "Unassigned" : r.k, v: r.v })), fmtN, { top: 10 });
     }
 
-    /* ---- 12 · Lead Segmentation ---- */
+    /* ---- 07 · Lead Segmentation ---- */
     {
       const g = section("Lead Segmentation", "booking funnel by service type, size and cubic feet");
       function funnelTable(title, col) {
@@ -778,6 +671,117 @@ registerPage({
       funnelTable("Leads by size of move", "Size of Move");
       funnelTable("Leads by CF range", "CF Range");
       funnelTable("Leads by state", "State Name");
+    }
+
+    /* ---- 08 · Composition & Segments ---- */
+    {
+      const g = section("Revenue Composition & Segments", "how revenue splits this month");
+      rankBars(g, "Revenue by Moving Type", segSeries("closing", "Revenue", "Moving Type"), money, { top: 6, note: segInsight(segSeries("closing", "Revenue", "Moving Type"), money) });
+      rankBars(g, "Revenue by Size of Move", segSeries("closing", "Revenue", "Size of Move"), money, { top: 8 });
+      rankBars(g, "Revenue by Source", segSeries("closing", "Revenue", "Source"), money, { top: 10, note: segInsight(segSeries("closing", "Revenue", "Source"), money) });
+      donut(g, "Lead Status Mix", segReduce("moveboard", "Status Category", rs => rs.length), fmtN, { center: fmtN(leadsN), centerLbl: "leads" });
+    }
+
+    /* ---- 09 · Sales Team ---- */
+    {
+      const g = section("Sales Team Performance", "per-rep scorecard and large-move conversion");
+      const revSP = segSeries("closing", "Revenue", "Sales Person"), opSP = segSeries("closing", "Operational Profit by Formula", "Sales Person");
+      const opMap = {}; opSP.forEach(r => opMap[r.k] = r.v);
+      const mb = segReduce("moveboard", "Assigned", rs => rs, curY, mo);
+      const mbMap = {}; mb.forEach(r => { const q = r.rows.filter(x => x["Status Category"] !== "Bad Lead").length, c = r.rows.filter(x => x["Status Category"] === "Confirmed").length, bad = r.rows.filter(x => x["Status Category"] === "Bad Lead").length; mbMap[r.k] = { q, c, bad, tot: r.rows.length, book: q ? c / q : null, dead: r.rows.length ? bad / r.rows.length : null }; });
+      const reps = revSP.slice(0, 14).map(r => ({ k: r.k, rev: r.v, op: opMap[r.k] || 0, m: mbMap[r.k] || {} }));
+      const rmax = Math.max(...reps.map(r => r.rev));
+      const rowsH = reps.map(r => `<tr><td>${esc(r.k)}</td>
+        <td class="bar"><i style="width:${(r.rev / rmax * 100).toFixed(1)}%"></i><span>${money(r.rev)}</span></td>
+        ${td(money(r.op))}${td(fmtN(r.m.q || 0))}${td(fmtN(r.m.c || 0))}
+        ${td(r.m.book == null ? "—" : pct(r.m.book), r.m.book == null ? "" : `color:${r.m.book >= (bk || 0) ? "#1c7a4a" : "#b02a37"};font-weight:800`)}
+        ${td(r.m.dead == null ? "—" : pct(r.m.dead), r.m.dead == null ? "" : `color:${r.m.dead > .3 ? "#b02a37" : "#1c7a4a"};font-weight:800`)}</tr>`).join("");
+      tableCard(g, "Salesperson scorecard", monLbl, `<table class="mrx-tbl"><thead><tr><th>Sales Person</th><th>Revenue</th><th>Op. Profit</th><th>Qual.</th><th>Conf.</th><th>Booking%</th><th>Dead%</th></tr></thead><tbody>${rowsH}</tbody></table>`, { icon: KIC.grid, headVal: fmtN(reps.length) + " reps", note: "Bars = revenue share; Booking% green>team-avg; Dead% red when high — the coaching signals in one place." });
+      const bigPre = { pre: r => { const cf = String(r["CF Range"] || ""); return /1000|1500|2000|Over|1001|>|\+/.test(cf) && !/0-1000|<1000|Under/.test(cf); } };
+      const bigMb = segReduce("moveboard", "Assigned", rs => rs, curY, mo, bigPre).map(r => { const q = r.rows.filter(x => x["Status Category"] !== "Bad Lead").length, c = r.rows.filter(x => x["Status Category"] === "Confirmed").length; return { k: r.k, q, c, book: q ? c / q : null }; }).filter(r => r.q >= 2).sort((a, b) => b.q - a.q).slice(0, 10);
+      const revSPly = {}; segSeries("closing", "Revenue", "Sales Person", curY - 1, mo).forEach(r => revSPly[r.k] = r.v);
+      const opSPly = {}; segSeries("closing", "Operational Profit by Formula", "Sales Person", curY - 1, mo).forEach(r => opSPly[r.k] = r.v);
+      const topReps = revSP.slice(0, 10);
+      groupedBars(g, "Revenue by salesperson — YoY", topReps.map(r => r.k), topReps.map(r => revSPly[r.k] || 0), String(curY - 1), topReps.map(r => r.v), String(curY), money, { sub: MON[mo] });
+      groupedBars(g, "Op. Profit by salesperson — YoY", topReps.map(r => r.k), topReps.map(r => opSPly[r.k] || 0), String(curY - 1), topReps.map(r => opMap[r.k] || 0), String(curY), money, { sub: MON[mo] });
+      if (bigMb.length) groupedBars(g, "Large moves (>1000 CF) — Qualified vs Confirmed", bigMb.map(r => r.k), bigMb.map(r => r.q), "Qualified", bigMb.map(r => r.c), "Confirmed", fmtN, { sub: monLbl });
+      const bigBook = bigMb.filter(r => r.book != null).map(r => ({ k: r.k, v: r.book }));
+      if (bigBook.length) bullet(g, "Large-move (>1000 CF) booking rate by rep", monLbl + " · vs team avg", bigBook, pct, bk || 0, {});
+    }
+
+    /* ---- 10 · Operations & Crew ---- */
+    {
+      const g = section("Operations & Crew (Foreman)", "productivity, quality score and month-over-month");
+      const payM = {}, tipsM = {}, refM = {};
+      segReduce("closing", "Foreman", rs => rs.reduce((a, x) => a + num(x["Forman Total $"]), 0), curY, mo).forEach(r => payM[r.k] = r.v);
+      segReduce("closing", "Foreman", rs => rs.reduce((a, x) => a + num(x["Tip from Company Part"]) + num(x["Tip From the Customers"]), 0), curY, mo).forEach(r => tipsM[r.k] = r.v);
+      segReduce("refunds", "Foreman", rs => Math.abs(rs.reduce((a, x) => a + num(x["Total refund"]), 0)), curY, mo).forEach(r => refM[r.k] = r.v);
+      const scRows = (DS.scorecard || []).filter(r => { const d = String(r["Month"] || "").slice(0, 7); return d === `${curY}-${String(mo).padStart(2, "0")}`; });
+      if (scRows.length) {
+        const sc = scRows.map(r => ({ f: r.Foreman, jobs: num(r["Total Jobs"]), cf: num(r["Total CF"]), written: num(r["Total Packing Written"]), est: num(r["Total Packing Estimate"]), rev: num(r["Total Reviews Written"]), claims: num(r["Forman Fault Claims"]), score: num(r["Forman Score"]), rank: num(r["Forman Score Rank"]), prev: num(r["Forman Score Prev Month"]) }))
+          .sort((a, b) => (a.rank || 999) - (b.rank || 999)).slice(0, 15);
+        const smax = Math.max(...sc.map(r => r.score || 0)) || 1;
+        const rowsH = sc.map((r, i) => { const arrow = r.prev ? (r.score > r.prev ? `<span style="color:${POS}">▲</span>` : r.score < r.prev ? `<span style="color:${NEG}">▼</span>` : "–") : ""; const up = r.est > 0 ? r.written / r.est : null; return `<tr><td>${i === 0 ? "👑 " : ""}${esc(r.f)}</td>
+          ${td(fmtN(r.jobs))}${td(fmtN(r.cf))}${td(money(payM[r.f] || 0))}${td(money(tipsM[r.f] || 0))}${td(money(r.written))}${td(up == null ? "—" : up.toFixed(1) + "×", up == null ? "" : `color:#1c7a4a;font-weight:800`)}${td(fmtN(r.rev))}${td(fmtN(r.claims), r.claims > 0 ? `color:#b02a37;font-weight:800` : "")}${td(refM[r.f] ? money(refM[r.f]) : "—", refM[r.f] ? `color:#b02a37;font-weight:800` : "")}
+          <td class="bar"><i style="width:${(r.score / smax * 100).toFixed(0)}%;background:#dcecab"></i><span>${fmt1(r.score)} ${arrow}</span></td></tr>`; }).join("");
+        tableCard(g, "Foreman scorecard — ranked", monLbl, `<table class="mrx-tbl"><thead><tr><th>Foreman</th><th>Jobs</th><th>CF</th><th>Pay</th><th>Tips</th><th>Packing</th><th>vs Est</th><th>Reviews</th><th>Claims</th><th>Refunds</th><th>Score</th></tr></thead><tbody>${rowsH}</tbody></table>`, { icon: KIC.grid, headVal: fmtN(sc.length) + " crews", note: "Pay/Tips from closings; 'vs Est' = packing written ÷ quoted estimate; refunds attributed to foreman; Score = composite w/ MoM arrow. Rank 1 crowned." });
+      }
+      const jobF = segSeries("closing", "Total Jobs", "Foreman").slice(0, 12);
+      const hrMap = {}; segSeries("closing", "Hours Worked by Forman", "Foreman").forEach(r => hrMap[r.k] = r.v);
+      combo(g, "Jobs vs Hours by Foreman", monLbl, jobF, "Jobs", fmtN, jobF.map(r => ({ k: r.k, v: hrMap[r.k] || 0 })), "Hours", fmtN);
+      const packCur = segSeries("closing", "Total Packing Written", "Foreman").slice(0, 12);
+      const packPrev = {}; segSeries("closing", "Total Packing Written", "Foreman", PMY, PM).forEach(r => packPrev[r.k] = r.v);
+      groupedBars(g, "Packing written by foreman — MoM", packCur.map(r => r.k), packCur.map(r => packPrev[r.k] || 0), MS[PM], packCur.map(r => r.v), MS[mo], money, { sub: `${MS[PM]} vs ${MS[mo]}` });
+      const estM = {}; scRows.forEach(r => estM[r.Foreman] = num(r["Total Packing Estimate"]));
+      groupedBars(g, "Packing written vs estimate by foreman", packCur.map(r => r.k), packCur.map(r => estM[r.k] || 0), "Estimate", packCur.map(r => r.v), "Written", money, { sub: monLbl });
+      const refByFm = segReduce("refunds", "Foreman", rs => Math.abs(rs.reduce((a, x) => a + num(x["Total refund"]), 0)), curY, mo).filter(r => r.v > 0 && r.k !== "—");
+      if (refByFm.length) rankBars(g, "Refunds by foreman", refByFm, money, { top: 10 });
+    }
+
+    /* ---- 11 · Quality & Customer Experience ---- */
+    {
+      const g = section("Quality & Customer Experience", "reviews, negative reviews and claims");
+      const claimsN = reduceMonth("claims", curY, mo, rs => rs.length) || 0;
+      const claimsPM = reduceMonth("claims", PMY, PM, rs => rs.length) || 0;
+      const negN = reduceMonth("negative_reviews", curY, mo, rs => rs.length) || 0;
+      const negPM = reduceMonth("negative_reviews", PMY, PM, rs => rs.length) || 0;
+      const claimRate = jobs ? claimsN / jobs * 100 : null;
+      const kg = document.createElement("div"); kg.className = "mrx-grid k"; kg.style.gridColumn = "1/-1"; g.appendChild(kg);
+      [ { l: "Reviews Written", v: fmtN(revWritten), c: revWritten, pm: revWrittenPM, icon: KIC.star },
+        { l: "Negative Reviews", v: fmtN(negN), c: negN, pm: negPM, icon: KIC.warn, inv: 1 },
+        { l: "Claims Filed", v: fmtN(claimsN), c: claimsN, pm: claimsPM, icon: KIC.warn, inv: 1 },
+        { l: "Claims / 100 jobs", v: claimRate == null ? "—" : fmt1(claimRate), c: claimRate, pm: (jobsPM ? claimsPM / jobsPM * 100 : null), icon: KIC.pct, inv: 1 }
+      ].forEach(k => kpiTile(kg, k));
+      rankBars(g, "Claims by responsibility", segReduce("claims", "Responsibility", rs => rs.length, curY, mo), fmtN, { top: 8 });
+      donut(g, "Claims by reason", segReduce("claims", "Reason", rs => rs.length, curY, mo).filter(r => r.k !== "—" && r.k !== "(blank)"), fmtN, { center: fmtN(reduceMonth("claims", curY, mo, rs => rs.filter(r => r.Reason && r.Reason !== "(blank)").length) || 0), centerLbl: "classified" });
+      const refByReason = segReduce("refunds", "Reason", rs => Math.abs(rs.reduce((a, r) => a + num(r["Total refund"]), 0)), curY, mo).filter(r => r.v > 0);
+      const refTot = Math.abs(reduceMonth("refunds", curY, mo, rs => rs.reduce((a, r) => a + num(r["Total refund"]), 0)) || 0);
+      rankBars(g, "Refunds by reason", refByReason, money, { top: 8, sub: `${money(refTot)} · ${rev ? pct(refTot / rev) : "—"} of revenue`, headVal: money(refTot), note: `${money(refTot)} refunded in ${MON[mo]} — ${rev ? pct(refTot / rev) : "—"} of revenue.` });
+      rankBars(g, "Reviews by source", segReduce("reviews_breakdown", "Source", rs => rs.reduce((a, r) => a + num(r["Number of Reviews"]), 0), curY, mo), fmtN, { top: 8 });
+    }
+
+    /* ---- 12 · Marketing & Channels ---- */
+    {
+      const g = section("Marketing & Channels", "ad spend momentum, source revenue and call demand");
+      const adTrend = momReduce("card_expenses", 12, rs => { const ad = rs.filter(r => Number(r["Is Advertising"]) === 1); return ad.length ? ad.reduce((a, r) => a + num(r.Amount), 0) : null; });
+      lines(g, "Advertising spend — momentum", "last 12 months", [ { label: "Ad Spend", series: adTrend, color: AMBER } ], moneyC, { headVal: money(lastV(adTrend)) });
+      const callLabels = momReduce("callrail", 12, rs => rs.length).map(r => r.k);
+      const answered = momReduce("callrail", 12, rs => rs.filter(r => String(r["Call Status"]) === "Answered Call").length).map(r => r.v);
+      const missed = momReduce("callrail", 12, rs => rs.filter(r => /Missed|Abandoned/.test(String(r["Call Status"]))).length).map(r => r.v);
+      stackedTime(g, "Inbound calls — answered vs missed", "last 12 months (CallRail)", callLabels, [ { label: "Answered", data: answered, color: INK }, { label: "Missed/Abandoned", data: missed, color: NEG } ], fmtN);
+      const callsBySrc = segReduce("callrail", "Source", rs => rs.length, curY, mo).slice(0, 10);
+      const ftc = reduceMonth("callrail", curY, mo, rs => { const t = rs.length, f = rs.filter(r => Number(r["First-Time Caller"]) === 1).length; return t ? f / t : null; });
+      rankBars(g, "Calls by source", callsBySrc, fmtN, { top: 10, sub: monLbl, note: ftc == null ? "" : `${pct(ftc)} of calls this month were first-time callers.` });
+      // source economics — jobs / revenue / op profit / ad spend / ROI per channel (ad spend lags ~1 month)
+      const adBySrc = {}; (reduceMonth("card_expenses", curY, mo, rs => rs.filter(r => Number(r["Is Advertising"]) === 1)) || []).forEach(r => { const s2 = r.Source == null || r.Source === "" ? "—" : String(r.Source); adBySrc[s2] = (adBySrc[s2] || 0) + num(r.Amount); });
+      const revBySrc = segSeries("closing", "Revenue", "Source"), opBySrc = segSeries("closing", "Operational Profit by Formula", "Source"), jobBySrc = segSeries("closing", "Total Jobs", "Source");
+      const opM = {}, jbM = {}; opBySrc.forEach(r => opM[r.k] = r.v); jobBySrc.forEach(r => jbM[r.k] = r.v);
+      const anyAd = Object.values(adBySrc).some(v => v > 0);
+      const seRows = revBySrc.slice(0, 12).map(r => { const ad = adBySrc[r.k] || 0, roi = ad > 0 ? r.v / ad : null; return { k: r.k, jobs: jbM[r.k] || 0, rev: r.v, op: opM[r.k] || 0, ad, roi }; });
+      const seHtml = `<table class="mrx-tbl"><thead><tr><th>Source</th><th>Jobs</th><th>Revenue</th><th>Op. Profit</th><th>Ad Spend</th><th>ROI</th></tr></thead><tbody>${seRows.map(r => `<tr><td>${esc(r.k)}</td>${td(fmtN(r.jobs))}${td(money(r.rev))}${td(money(r.op))}${td(r.ad > 0 ? money(r.ad) : "—")}${td(r.roi == null ? "—" : (r.roi.toFixed(1) + "×"), r.roi == null ? "" : `color:${r.roi >= 3 ? "#1c7a4a" : r.roi >= 1 ? "#7a5a12" : "#b02a37"};font-weight:800`)}</tr>`).join("")}</tbody></table>`;
+      tableCard(g, "Source economics — jobs · revenue · profit · ad ROI", monLbl, seHtml, { icon: KIC.grid, headVal: fmtN(seRows.length) + " sources", note: anyAd ? "ROI = revenue ÷ ad spend (green ≥3×, amber ≥1×, red <1×). Ad spend from card feed." : `Ad-spend feed for ${MON[mo]} not synced yet — ad/ROI fill once it lands; revenue/profit/jobs are final.` });
+      rankBars(g, "Operational Profit by Source", opBySrc, money, { top: 10 });
+      rankBars(g, "Jobs by Source", jobBySrc.map(r => ({ k: r.k, v: r.v })), fmtN, { top: 10 });
     }
 
     /* ---------- TOC + controls ---------- */
