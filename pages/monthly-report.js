@@ -1,4 +1,4 @@
-/* Monthly Report — "Monthly Business Review" (v10, futuristic-infographic).
+/* Monthly Report — "Monthly Business Review" (v10, futuristic-infographic). [rebuild-nudge]
    SOLID flat fills (no gradients), monospaced numerals, section number-badges + icons +
    "loaded-bar" rules. v10 adds: funnel-flow section order (lead→cash→after-sale); headline
    stat + delta + icon on EVERY chart card ("max infographic"); a data-completeness banner
