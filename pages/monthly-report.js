@@ -154,7 +154,8 @@ registerPage({
       .mrx-bmsg{flex:1}
       .mrx-btoggle{flex:0 0 auto;font-family:${MONO};font-size:11.5px;font-weight:800;color:${INK};cursor:pointer;white-space:nowrap;border-bottom:1.5px solid ${AMBER};user-select:none}
       .mrx-bdetail{margin-top:7px;background:#fff;border:1px solid #f2d492;border-radius:9px;padding:9px 13px;max-height:300px;overflow:auto}
-      .mrx-toc{position:sticky;top:0;z-index:6;background:#f4f6fa;display:flex;flex-wrap:wrap;gap:7px;padding:11px 2px;margin-bottom:6px;border-bottom:1px solid ${LINE}}
+      .mrx-toc{position:sticky;top:0;z-index:40;background:#fff;box-shadow:0 4px 14px rgba(14,22,33,.10);border-bottom:1px solid ${LINE};display:flex;flex-wrap:wrap;gap:7px;padding:10px 24px;margin:0 -24px 10px;transition:transform .26s ease,opacity .2s ease}
+      .mrx-toc-hidden{transform:translateY(-135%);opacity:0;pointer-events:none}
       .mrx-tocchip{font-family:${MONO};font-size:11px;font-weight:700;color:${INK2};background:#fff;border:1px solid ${LINE};border-radius:7px;padding:4px 9px;cursor:pointer;white-space:nowrap;user-select:none}
       .mrx-tocchip:hover{border-color:${INK};background:#eef1f6}
       .mrx-sec{margin:26px 0 4px}
@@ -343,8 +344,8 @@ registerPage({
       if (!labels.length) { emptyBox(box); return c; }
       new Chart(cv, { type: "line",
         data: { labels, datasets: sets.map((d, i) => ({ label: d.label, data: d.series.map(r => r.v), borderColor: d.color || CAT[i], backgroundColor: d.color || CAT[i], fill: false, tension: 0, borderWidth: 2.6, pointRadius: labels.map((_, j) => j === labels.length - 1 ? 4 : 0), pointBackgroundColor: d.color || CAT[i], pointBorderColor: "#fff", pointBorderWidth: 1.5, spanGaps: true, yAxisID: d.axis || "y" })) },
-        options: baseOpts({ plugins: { legend: { display: sets.length > 1, position: "top", align: "end", labels: { color: SUB, font: { size: 11, weight: "600" }, boxWidth: 9, boxHeight: 9, usePointStyle: true } }, tooltip: { callbacks: { label: x => x.dataset.label + ": " + tip(x.dataset.yAxisID === "y1" ? (opts.fmt1 || fmt) : fmt)(x.parsed.y) } } },
-          scales: opts.dual ? { x: axX(), y: axY(fmt), y1: axY(opts.fmt1 || fmt, { position: "right", grid: { display: false } }) } : { x: axX(), y: axY(fmt) } }), plugins: [crosshair] });
+        options: baseOpts({ layout: { padding: { right: 54 } }, plugins: { legend: { display: sets.length > 1, position: "top", align: "end", labels: { color: SUB, font: { size: 11, weight: "600" }, boxWidth: 9, boxHeight: 9, usePointStyle: true } }, tooltip: { callbacks: { label: x => x.dataset.label + ": " + tip(x.dataset.yAxisID === "y1" ? (opts.fmt1 || fmt) : fmt)(x.parsed.y) } } },
+          scales: opts.dual ? { x: axX(), y: axY(fmt), y1: axY(opts.fmt1 || fmt, { position: "right", grid: { display: false } }) } : { x: axX(), y: axY(fmt) } }), plugins: [crosshair, { id: "lelab", afterDatasetsDraw(ch) { const ctx = ch.ctx; ctx.save(); ctx.font = "800 10px " + MONO; ctx.textAlign = "left"; ctx.textBaseline = "middle"; sets.forEach((d, di) => { const pts = ch.getDatasetMeta(di).data; if (!pts.length) return; const el = pts[pts.length - 1]; const last = d.series[d.series.length - 1]; if (last && last.v != null) { const f = (d.axis === "y1" ? (opts.fmt1 || fmt) : fmt); ctx.fillStyle = d.color || CAT[di]; ctx.fillText(f(last.v), el.x + 5, el.y); } }); ctx.restore(); } }] });
       return c;
     }
     function combo(mount, title, sub, barSeries, barLabel, barFmt, lineSeries, lineLabel, lineFmt, opts) {
@@ -355,8 +356,8 @@ registerPage({
       new Chart(cv, { data: { labels, datasets: [
         { type: "bar", label: barLabel, data: barSeries.map(r => r.v), backgroundColor: labels.map((_, i) => i === labels.length - 1 ? LIME : INK), borderRadius: 4, maxBarThickness: 44, yAxisID: "y", order: 2 },
         { type: "line", label: lineLabel, data: lineSeries.map(r => r.v), borderColor: BLUE, backgroundColor: BLUE, tension: 0, borderWidth: 2.6, pointRadius: 3, pointBorderColor: "#fff", pointBorderWidth: 1.2, yAxisID: "y1", order: 1 }] },
-        options: baseOpts({ plugins: { legend: { display: true, position: "top", align: "end", labels: { color: SUB, font: { size: 11, weight: "600" }, boxWidth: 9, usePointStyle: true } }, tooltip: { callbacks: { label: x => x.dataset.yAxisID === "y1" ? `${lineLabel}: ${tip(lineFmt)(x.parsed.y)}` : `${barLabel}: ${tip(barFmt)(x.parsed.y)}` } } },
-          scales: { x: axX(), y: axY(barFmt, { beginAtZero: true, title: { display: true, text: barLabel, color: SUB, font: { size: 10, weight: "700" } } }), y1: axY(lineFmt, { position: "right", grid: { display: false }, title: { display: true, text: lineLabel, color: BLUE, font: { size: 10, weight: "700" } } }) } }), plugins: [crosshair] });
+        options: baseOpts({ layout: { padding: { top: 18 } }, plugins: { legend: { display: true, position: "top", align: "end", labels: { color: SUB, font: { size: 11, weight: "600" }, boxWidth: 9, usePointStyle: true } }, tooltip: { callbacks: { label: x => x.dataset.yAxisID === "y1" ? `${lineLabel}: ${tip(lineFmt)(x.parsed.y)}` : `${barLabel}: ${tip(barFmt)(x.parsed.y)}` } } },
+          scales: { x: axX(), y: axY(barFmt, { beginAtZero: true, title: { display: true, text: barLabel, color: SUB, font: { size: 10, weight: "700" } } }), y1: axY(lineFmt, { position: "right", grid: { display: false }, title: { display: true, text: lineLabel, color: BLUE, font: { size: 10, weight: "700" } } }) } }), plugins: [crosshair, { id: "cblab", afterDatasetsDraw(ch) { const ctx = ch.ctx; ctx.save(); ctx.font = "700 9.5px " + MONO; ctx.fillStyle = INK; ctx.textAlign = "center"; ctx.textBaseline = "bottom"; ch.getDatasetMeta(0).data.forEach((el, i) => { const v = barSeries[i] && barSeries[i].v; if (v != null && !isNaN(v)) ctx.fillText(barFmt(v), el.x, el.y - 3); }); ctx.restore(); } }] });
       return c;
     }
     function rankBars(mount, title, series, fmt, opts) {
@@ -379,7 +380,7 @@ registerPage({
       if (!labels.length) { emptyBox(box); return c; }
       new Chart(cv, { type: "bar",
         data: { labels, datasets: [ { label: la, data: sa, backgroundColor: CTX, hoverBackgroundColor: "#aab6c4", borderRadius: 3, maxBarThickness: 12 }, { label: lb, data: sb, backgroundColor: INK, hoverBackgroundColor: "#34465f", borderRadius: 3, maxBarThickness: 12 } ] },
-        options: baseOpts({ indexAxis: "y", plugins: { legend: { display: true, position: "top", align: "end", labels: { color: SUB, font: { size: 11, weight: "600" }, boxWidth: 9, usePointStyle: true } }, tooltip: { callbacks: { label: x => x.dataset.label + ": " + tip(fmt)(x.parsed.x) } } }, scales: { x: axY(fmt, { beginAtZero: true }), y: { ticks: { color: INK2, font: { size: 11, weight: "600" } }, grid: { display: false }, border: { display: false } } } }), plugins: [crosshair] });
+        options: baseOpts({ indexAxis: "y", layout: { padding: { right: 84 } }, plugins: { legend: { display: true, position: "top", align: "end", labels: { color: SUB, font: { size: 11, weight: "600" }, boxWidth: 9, usePointStyle: true } }, tooltip: { callbacks: { label: x => x.dataset.label + ": " + tip(fmt)(x.parsed.x) } } }, scales: { x: axY(fmt, { beginAtZero: true }), y: { ticks: { color: INK2, font: { size: 11, weight: "600" } }, grid: { display: false }, border: { display: false } } } }), plugins: [crosshair, valLabels(fmt, true)] });
       return c;
     }
     function donut(mount, title, series, fmt, opts) {
@@ -436,7 +437,7 @@ registerPage({
       const { c, box, cv } = chartCard(mount, title, sub, { span2: opts.span2, icon: KIC.trend, headVal: fmt(lastTot) });
       if (!labels.length) { emptyBox(box); return c; }
       new Chart(cv, { type: "bar", data: { labels, datasets: sets.map((d, i) => ({ label: d.label, data: d.data, backgroundColor: d.color || CAT[i], borderRadius: 2, maxBarThickness: 26, stack: "s" })) },
-        options: baseOpts({ plugins: { legend: { display: true, position: "top", align: "end", labels: { color: SUB, font: { size: 11, weight: "600" }, boxWidth: 9, usePointStyle: true } }, tooltip: { callbacks: { label: x => x.dataset.label + ": " + tip(fmt)(x.parsed.y) } } }, scales: { x: Object.assign(axX(), { stacked: true }), y: Object.assign(axY(fmt, { beginAtZero: true }), { stacked: true }) } }), plugins: [crosshair] });
+        options: baseOpts({ layout: { padding: { top: 18 } }, plugins: { legend: { display: true, position: "top", align: "end", labels: { color: SUB, font: { size: 11, weight: "600" }, boxWidth: 9, usePointStyle: true } }, tooltip: { callbacks: { label: x => x.dataset.label + ": " + tip(fmt)(x.parsed.y) } } }, scales: { x: Object.assign(axX(), { stacked: true }), y: Object.assign(axY(fmt, { beginAtZero: true }), { stacked: true }) } }), plugins: [crosshair, { id: "stlab", afterDatasetsDraw(ch) { const ctx = ch.ctx; ctx.save(); ctx.font = "700 9px " + MONO; ctx.fillStyle = INK; ctx.textAlign = "center"; ctx.textBaseline = "bottom"; ch.getDatasetMeta(0).data.forEach((el, i) => { let tot = 0, topY = Infinity; ch.data.datasets.forEach((d, di) => { const e = ch.getDatasetMeta(di).data[i]; if (e) { tot += (+d.data[i] || 0); topY = Math.min(topY, e.y); } }); if (tot) ctx.fillText(fmt(tot), el.x, topY - 3); }); ctx.restore(); } }] });
       return c;
     }
 
@@ -891,6 +892,16 @@ registerPage({
 
     /* ---------- TOC + controls ---------- */
     secList.forEach(s => { const chip = document.createElement("span"); chip.className = "mrx-tocchip"; chip.textContent = s.n + " " + (TOCNAME[s.title] || s.title); chip.onclick = () => { s.wrap.classList.remove("collapsed"); s.wrap.scrollIntoView({ behavior: "smooth", block: "start" }); }; toc.appendChild(chip); });
+    // smart sticky TOC: reveal near the top / on scroll-up, hide while scrolling down so it never covers a card
+    (function () {
+      const scroller = root.closest(".rs-content") || document.querySelector(".rs-content") || document.scrollingElement || window;
+      const getY = () => scroller === window ? window.scrollY : scroller.scrollTop;
+      let lastY = getY();
+      const onScroll = () => { const y = getY(); if (y < 130) toc.classList.remove("mrx-toc-hidden"); else if (y > lastY + 5) toc.classList.add("mrx-toc-hidden"); else if (y < lastY - 5) toc.classList.remove("mrx-toc-hidden"); lastY = y; };
+      const tgt = scroller === window ? window : scroller;
+      if (tgt.__mrxTocScroll) tgt.removeEventListener("scroll", tgt.__mrxTocScroll);
+      tgt.__mrxTocScroll = onScroll; tgt.addEventListener("scroll", onScroll, { passive: true });
+    })();
     const reRender = () => { if (typeof renderPage === "function") renderPage(); else location.reload(); };
     document.getElementById("mrMonth").onchange = e => { st.month = +e.target.value; reRender(); };
     document.getElementById("mrYear").onchange = e => { st.year = +e.target.value; reRender(); };
