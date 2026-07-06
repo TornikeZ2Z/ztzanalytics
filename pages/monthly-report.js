@@ -868,7 +868,7 @@ registerPage({
 
     /* ---- 12 · Marketing & Channels ---- */
     {
-      const g = section("Marketing & Channels", "ad spend momentum, source revenue and call demand");
+      const g = section("Marketing & Channels", "return on ad spend by source, multi-period ROI and call demand");
       const adTrend = momReduce("card_expenses", 12, rs => { const ad = rs.filter(r => Number(r["Is Advertising"]) === 1); return ad.length ? ad.reduce((a, r) => a + num(r.Amount), 0) : null; });
       lines(g, "Advertising spend — momentum", "last 12 months", [ { label: "Ad Spend", series: adTrend, color: AMBER } ], moneyC, { headVal: money(lastV(adTrend)) });
       const callLabels = momReduce("callrail", 12, rs => rs.length).map(r => r.k);
@@ -878,14 +878,32 @@ registerPage({
       const callsBySrc = segReduce("callrail", "Source", rs => rs.length, curY, mo).slice(0, 10);
       const ftc = reduceMonth("callrail", curY, mo, rs => { const t = rs.length, f = rs.filter(r => Number(r["First-Time Caller"]) === 1).length; return t ? f / t : null; });
       rankBars(g, "Calls by source", callsBySrc, fmtN, { top: 10, sub: monLbl, note: ftc == null ? "" : `${pct(ftc)} of calls this month were first-time callers.` });
-      // source economics — jobs / revenue / op profit / ad spend / ROI per channel (ad spend lags ~1 month)
-      const adBySrc = {}; (reduceMonth("card_expenses", curY, mo, rs => rs.filter(r => Number(r["Is Advertising"]) === 1)) || []).forEach(r => { const s2 = r.Source == null || r.Source === "" ? "—" : String(r.Source); adBySrc[s2] = (adBySrc[s2] || 0) + num(r.Amount); });
+      // source mix (current month — all final) + a full ROI suite anchored to the last-posted ad month
       const revBySrc = segSeries("closing", "Revenue", "Source"), opBySrc = segSeries("closing", "Operational Profit by Formula", "Source"), jobBySrc = segSeries("closing", "Total Jobs", "Source");
       const opM = {}, jbM = {}; opBySrc.forEach(r => opM[r.k] = r.v); jobBySrc.forEach(r => jbM[r.k] = r.v);
-      const anyAd = Object.values(adBySrc).some(v => v > 0);
-      const seRows = revBySrc.slice(0, 12).map(r => { const ad = adBySrc[r.k] || 0, roi = ad > 0 ? r.v / ad : null; return { k: r.k, jobs: jbM[r.k] || 0, rev: r.v, op: opM[r.k] || 0, ad, roi }; });
-      const seHtml = `<table class="mrx-tbl"><thead><tr><th>Source</th><th>Jobs</th><th>Revenue</th><th>Op. Profit</th><th>Ad Spend</th><th>ROI</th></tr></thead><tbody>${seRows.map(r => `<tr><td>${esc(r.k)}</td>${td(fmtN(r.jobs))}${td(money(r.rev))}${td(money(r.op))}${td(r.ad > 0 ? money(r.ad) : "—")}${td(r.roi == null ? "—" : (r.roi.toFixed(1) + "×"), r.roi == null ? "" : `color:${r.roi >= 3 ? "#1c7a4a" : r.roi >= 1 ? "#7a5a12" : "#b02a37"};font-weight:800`)}</tr>`).join("")}</tbody></table>`;
-      tableCard(g, "Source economics — jobs · revenue · profit · ad ROI", monLbl, seHtml, { icon: KIC.grid, headVal: fmtN(seRows.length) + " sources", note: anyAd ? "ROI = revenue ÷ ad spend (green ≥3×, amber ≥1×, red <1×). Ad spend from card feed." : `Ad-spend feed for ${MON[mo]} not synced yet — ad/ROI fill once it lands; revenue/profit/jobs are final.` });
+      const seRows = revBySrc.slice(0, 12).map(r => ({ k: r.k, jobs: jbM[r.k] || 0, rev: r.v, op: opM[r.k] || 0 }));
+      const seHtml = `<table class="mrx-tbl"><thead><tr><th>Source</th><th>Jobs</th><th>Revenue</th><th>Op. Profit</th></tr></thead><tbody>${seRows.map(r => `<tr><td>${esc(r.k)}</td>${td(fmtN(r.jobs))}${td(money(r.rev))}${td(money(r.op))}</tr>`).join("")}</tbody></table>`;
+      tableCard(g, "Source mix — jobs · revenue · profit", monLbl, seHtml, { icon: KIC.grid, headVal: fmtN(seRows.length) + " sources" });
+
+      // ===== ROI SUITE — ad feed lags ~1 mo, so every ROI lens is anchored to the last fully-posted ad month =====
+      const adSrcMonth = (y, m) => { const o = {}; (reduceMonth("card_expenses", y, m, rs => rs.filter(r => Number(r["Is Advertising"]) === 1)) || []).forEach(r => { const s2 = blank(r.Source) ? "—" : String(r.Source); o[s2] = (o[s2] || 0) + num(r.Amount); }); return o; };
+      const bySrcMonth = (measure, y, m) => { const o = {}; segSeries("closing", measure, "Source", y, m).forEach(r => o[r.k] = r.v); return o; };
+      const adPM = adSrcMonth(PMY, PM), revPMs = bySrcMonth("Revenue", PMY, PM), opPMs = bySrcMonth("Operational Profit by Formula", PMY, PM), jobPMs = bySrcMonth("Total Jobs", PMY, PM);
+      const roiLbl = MON[PM] + " " + PMY;
+      const paidPM = Object.keys(adPM).filter(k => adPM[k] > 0 && k !== "—").sort((a, b) => adPM[b] - adPM[a]);
+      if (paidPM.length) {
+        const roiRows = paidPM.map(k => ({ k, ad: adPM[k], rev: revPMs[k] || 0, op: opPMs[k] || 0, jobs: jobPMs[k] || 0, roi: adPM[k] ? (revPMs[k] || 0) / adPM[k] : null, ppd: adPM[k] ? (opPMs[k] || 0) / adPM[k] : null }));
+        const rt = roiRows.reduce((a, r) => ({ ad: a.ad + r.ad, rev: a.rev + r.rev, op: a.op + r.op }), { ad: 0, rev: 0, op: 0 });
+        const roiCol = v => v >= 5 ? "#1c7a4a" : v >= 2 ? "#7a5a12" : "#b02a37";
+        const roiHtml = `<table class="mrx-tbl"><thead><tr><th>Source</th><th>Ad Spend</th><th>Revenue</th><th>ROI</th><th>Profit / $1 ad</th></tr></thead><tbody>${roiRows.map(r => `<tr><td>${esc(r.k)}</td>${td(money(r.ad))}${td(money(r.rev))}${td(r.roi == null ? "—" : r.roi.toFixed(1) + "×", r.roi == null ? "" : `color:${roiCol(r.roi)};font-weight:800`)}${td(r.ppd == null ? "—" : "$" + fmt1(r.ppd), r.ppd == null ? "" : `color:${r.ppd >= 3 ? "#1c7a4a" : r.ppd >= 1 ? "#7a5a12" : "#b02a37"};font-weight:800`)}</tr>`).join("")}<tr class="tot"><td>All paid</td>${td(money(rt.ad))}${td(money(rt.rev))}${td(rt.ad ? (rt.rev / rt.ad).toFixed(1) + "×" : "—")}${td(rt.ad ? "$" + fmt1(rt.op / rt.ad) : "—")}</tr></tbody></table>`;
+        tableCard(g, "Return on ad spend by source", roiLbl + " · latest fully-posted ad month", roiHtml, { icon: KIC.grid, headVal: (rt.ad ? (rt.rev / rt.ad).toFixed(1) + "×" : "—") + " blended", note: `Ad spend posts ~1 month behind, so ROI is shown for ${roiLbl} (the latest complete ad month) — ${MON[mo]}'s revenue/jobs are final, its ad/ROI fill once the feed lands. ROI = revenue ÷ ad spend; Profit/$1 = operational profit per ad dollar. Green ROI ≥5×, amber ≥2×, red below.` });
+        rankBars(g, "Operational profit per $1 of ad spend", paidPM.map(k => ({ k, v: adPM[k] ? (opPMs[k] || 0) / adPM[k] : 0 })).filter(r => r.v > 0).sort((a, b) => b.v - a.v), v => "$" + fmt1(v), { top: 10, sub: roiLbl, note: "Each ad dollar's operational-profit return, by channel — the cleanest 'is this channel worth it' number." });
+        rankBars(g, "Cost to acquire a booked job", paidPM.map(k => ({ k, v: (jobPMs[k] || 0) > 0 ? adPM[k] / jobPMs[k] : 0 })).filter(r => r.v > 0).sort((a, b) => b.v - a.v), money, { top: 10, sub: roiLbl, note: "Ad spend ÷ booked jobs, per source — your cost of acquisition. Lower is better; the top of the list is where a job costs the most to win." });
+        const t3 = []; { let y = PMY, m = PM; for (let i = 0; i < 3; i++) { t3.push([y, m]); m--; if (m < 1) { m = 12; y--; } } }
+        const adT3 = {}, revT3 = {}; t3.forEach(p => { const a = adSrcMonth(p[0], p[1]), rv = bySrcMonth("Revenue", p[0], p[1]); Object.keys(a).forEach(k => adT3[k] = (adT3[k] || 0) + a[k]); Object.keys(rv).forEach(k => revT3[k] = (revT3[k] || 0) + rv[k]); });
+        const topPaid = paidPM.slice(0, 8);
+        groupedBars(g, "ROI — latest month vs trailing 3-mo", topPaid, topPaid.map(k => adT3[k] ? (revT3[k] || 0) / adT3[k] : 0), "3-mo avg", topPaid.map(k => adPM[k] ? (revPMs[k] || 0) / adPM[k] : 0), roiLbl, v => v.toFixed(1) + "×", { sub: "revenue ÷ ad spend · which channels are trending up", headVal: (rt.ad ? (rt.rev / rt.ad).toFixed(1) + "×" : "—") });
+      }
       rankBars(g, "Operational Profit by Source", opBySrc, money, { top: 10 });
       rankBars(g, "Jobs by Source", jobBySrc.map(r => ({ k: r.k, v: r.v })), fmtN, { top: 10 });
     }
