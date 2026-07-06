@@ -211,6 +211,9 @@ registerPage({
       .mrx-empty{height:100%;display:grid;place-items:center;color:${FAINT};font-size:12.5px;font-weight:600}
       @media print{
         @page{margin:9mm}
+        html,body{height:auto!important;overflow:visible!important}
+        body.rs-app,.rs-layout,.rs-main,.rs-content,#content,#app{height:auto!important;max-height:none!important;min-height:0!important;overflow:visible!important;display:block!important}
+        .rs-content{padding:0!important}
         .top,.rs-side,.rs-filters,.rs-chips,.rs-topbar,header{display:none!important}
         .mrx{background:#fff;padding:0}
         .mrx-print,#mrMonth,#mrYear,.mrx-ctl,.mrx-toc,.mrx-caret{display:none!important}
@@ -247,8 +250,8 @@ registerPage({
         else { ctx.textAlign = "center"; ctx.textBaseline = "bottom"; ctx.fillText(fmt(v), el.x, el.y - 4); }
       }); }); ctx.restore();
     } });
-    // hover crosshair (for x-indexed charts)
-    const crosshair = { id: "crossh", afterDraw(ch) { const t = ch.tooltip; if (t && t._active && t._active.length) { const x = t._active[0].element.x, ca = ch.chartArea, ctx = ch.ctx; ctx.save(); ctx.strokeStyle = "#c3cbd7"; ctx.lineWidth = 1; ctx.setLineDash([3, 3]); ctx.beginPath(); ctx.moveTo(x, ca.top); ctx.lineTo(x, ca.bottom); ctx.stroke(); ctx.setLineDash([]); ctx.restore(); } } };
+    // hover crosshair — adaptive: vertical line for column charts, horizontal line for bar (y-indexed) charts
+    const crosshair = { id: "crossh", afterDraw(ch) { const t = ch.tooltip; if (t && t._active && t._active.length) { const el = t._active[0].element, ca = ch.chartArea, ctx = ch.ctx; ctx.save(); ctx.strokeStyle = "#9fabbb"; ctx.lineWidth = 1.3; ctx.setLineDash([3, 3]); ctx.beginPath(); if (ch.options.indexAxis === "y") { ctx.moveTo(ca.left, el.y); ctx.lineTo(ca.right, el.y); } else { ctx.moveTo(el.x, ca.top); ctx.lineTo(el.x, ca.bottom); } ctx.stroke(); ctx.setLineDash([]); ctx.restore(); } } };
 
     /* ---------- card + section scaffolding ---------- */
     function card(mount, title, sub, opts) {
@@ -353,9 +356,9 @@ registerPage({
       const { c, box, cv } = chartCard(mount, title, opts.sub || monLbl, { span2: opts.span2, h: Math.max(190, 40 + s.length * 27), icon: opts.icon, headVal: opts.headVal, chips: opts.chips });
       if (!s.length) { emptyBox(box); return c; }
       new Chart(cv, { type: "bar",
-        data: { labels: s.map(r => r.k), datasets: [{ data: s.map(r => r.v), backgroundColor: s.map((_, i) => i === 0 ? LIME : INK), borderRadius: 4, maxBarThickness: 20 }] },
+        data: { labels: s.map(r => r.k), datasets: [{ data: s.map(r => r.v), backgroundColor: s.map((_, i) => i === 0 ? LIME : INK), hoverBackgroundColor: s.map((_, i) => i === 0 ? LIMED : "#34465f"), borderRadius: 4, maxBarThickness: 20 }] },
         options: baseOpts({ indexAxis: "y", layout: { padding: { right: 58 } }, plugins: { legend: { display: false }, tooltip: { callbacks: { label: x => fmt(x.parsed.x) } } }, scales: { x: axY(fmt, { beginAtZero: true }), y: { ticks: { color: INK2, font: { size: 11.5, weight: "600" } }, grid: { display: false }, border: { display: false } } } }),
-        plugins: [valLabels(fmt, true)] });
+        plugins: [valLabels(fmt, true), crosshair] });
       if (opts.note) note(c, opts.note);
       return c;
     }
@@ -365,8 +368,8 @@ registerPage({
       const { c, box, cv } = chartCard(mount, title, opts.sub || "", { span2: opts.span2, h: Math.max(200, 44 + labels.length * 30), icon: opts.icon, headVal: opts.headVal, chips: opts.chips });
       if (!labels.length) { emptyBox(box); return c; }
       new Chart(cv, { type: "bar",
-        data: { labels, datasets: [ { label: la, data: sa, backgroundColor: CTX, borderRadius: 3, maxBarThickness: 12 }, { label: lb, data: sb, backgroundColor: INK, borderRadius: 3, maxBarThickness: 12 } ] },
-        options: baseOpts({ indexAxis: "y", plugins: { legend: { display: true, position: "top", align: "end", labels: { color: SUB, font: { size: 11, weight: "600" }, boxWidth: 9, usePointStyle: true } }, tooltip: { callbacks: { label: x => x.dataset.label + ": " + fmt(x.parsed.x) } } }, scales: { x: axY(fmt, { beginAtZero: true }), y: { ticks: { color: INK2, font: { size: 11, weight: "600" } }, grid: { display: false }, border: { display: false } } } }) });
+        data: { labels, datasets: [ { label: la, data: sa, backgroundColor: CTX, hoverBackgroundColor: "#aab6c4", borderRadius: 3, maxBarThickness: 12 }, { label: lb, data: sb, backgroundColor: INK, hoverBackgroundColor: "#34465f", borderRadius: 3, maxBarThickness: 12 } ] },
+        options: baseOpts({ indexAxis: "y", plugins: { legend: { display: true, position: "top", align: "end", labels: { color: SUB, font: { size: 11, weight: "600" }, boxWidth: 9, usePointStyle: true } }, tooltip: { callbacks: { label: x => x.dataset.label + ": " + fmt(x.parsed.x) } } }, scales: { x: axY(fmt, { beginAtZero: true }), y: { ticks: { color: INK2, font: { size: 11, weight: "600" } }, grid: { display: false }, border: { display: false } } } }), plugins: [crosshair] });
       return c;
     }
     function stackShare(mount, title, sub, parts, fmt, opts) {
@@ -399,8 +402,8 @@ registerPage({
         if (st2.type === "total") { bars.push([0, st2.v]); colors.push(INK); run = st2.v; }
         else { const from = run, to = run + st2.v; bars.push([from, to]); colors.push(st2.v >= 0 ? POS : NEG); run = to; }
       });
-      new Chart(cv, { type: "bar", data: { labels, datasets: [{ data: bars, backgroundColor: colors, borderRadius: 3, maxBarThickness: 46 }] },
-        options: baseOpts({ layout: { padding: { top: 20 } }, plugins: { legend: { display: false }, tooltip: { callbacks: { label: x => { const d = x.raw; return money(Array.isArray(d) ? d[1] - d[0] : d); } } } }, scales: { x: axX({ ticks: { color: AXIS, font: { family: MONO, size: 9.5 }, maxRotation: 40, minRotation: 0 } }), y: axY(moneyC, { beginAtZero: true }) } }),
+      new Chart(cv, { type: "bar", data: { labels, datasets: [{ data: bars, backgroundColor: colors, borderRadius: 3, maxBarThickness: 84, categoryPercentage: 0.9, barPercentage: 0.98 }] },
+        options: baseOpts({ layout: { padding: { top: 20 } }, plugins: { legend: { display: false }, tooltip: { callbacks: { label: x => { const d = x.raw; return money(Array.isArray(d) ? d[1] - d[0] : d); } } } }, scales: { x: axX({ ticks: { color: AXIS, font: { family: MONO, size: 10 }, maxRotation: 40, minRotation: 0 } }), y: axY(moneyC, { beginAtZero: true }) } }),
         plugins: [
           { id: "wconn", beforeDatasetsDraw(ch) { const ctx = ch.ctx, meta = ch.getDatasetMeta(0); if (!meta.data.length) return; ctx.save(); ctx.strokeStyle = "#c8cfda"; ctx.setLineDash([3, 3]); for (let i = 0; i < meta.data.length - 1; i++) { const y = ch.scales.y.getPixelForValue(bars[i][1]); ctx.beginPath(); ctx.moveTo(meta.data[i].x, y); ctx.lineTo(meta.data[i + 1].x, y); ctx.stroke(); } ctx.setLineDash([]); ctx.restore(); } },
           { id: "wlab", afterDatasetsDraw(ch) { const ctx = ch.ctx; ctx.save(); ctx.font = "800 9.5px " + MONO; ctx.textAlign = "center"; ctx.textBaseline = "bottom"; ch.getDatasetMeta(0).data.forEach((el, i) => { const d = bars[i]; const v = d[1] - d[0]; ctx.fillStyle = steps[i].type === "total" ? INK : (v >= 0 ? POS : NEG); ctx.fillText((v < 0 ? "-" : "") + moneyC(Math.abs(v)), el.x, Math.min(el.y, ch.scales.y.getPixelForValue(Math.max(d[0], d[1]))) - 3); }); ctx.restore(); } }] });
@@ -411,18 +414,18 @@ registerPage({
       const { c, box, cv } = chartCard(mount, title, sub, { h: 210, span2: opts.span2, icon: KIC.funnel, headVal: opts.headVal, chips: opts.chips });
       if (!stages.length || !stages[0].v) { emptyBox(box); return c; }
       const top = stages[0].v;
-      new Chart(cv, { type: "bar", data: { labels: stages.map(s2 => s2.k), datasets: [{ data: stages.map(s2 => s2.v), backgroundColor: stages.map((_, i) => i === stages.length - 1 ? LIME : INK), borderRadius: 4, maxBarThickness: 36 }] },
+      new Chart(cv, { type: "bar", data: { labels: stages.map(s2 => s2.k), datasets: [{ data: stages.map(s2 => s2.v), backgroundColor: stages.map((_, i) => i === stages.length - 1 ? LIME : INK), hoverBackgroundColor: stages.map((_, i) => i === stages.length - 1 ? LIMED : "#34465f"), borderRadius: 4, maxBarThickness: 36 }] },
         options: baseOpts({ indexAxis: "y", layout: { padding: { right: 110 } }, plugins: { legend: { display: false }, tooltip: { callbacks: { label: x => fmtN(x.parsed.x) + ` (${(x.parsed.x / top * 100).toFixed(0)}% of top)` } } }, scales: { x: { display: false, beginAtZero: true, max: top * 1.02 }, y: { ticks: { color: INK2, font: { size: 12, weight: "700" } }, grid: { display: false }, border: { display: false } } } }),
-        plugins: [{ id: "flab", afterDatasetsDraw(ch) { const ctx = ch.ctx; ctx.save(); ctx.textAlign = "left"; ctx.textBaseline = "middle"; ch.getDatasetMeta(0).data.forEach((el, i) => { ctx.font = "800 12px " + MONO; ctx.fillStyle = INK; ctx.fillText(fmtN(stages[i].v), el.x + 6, el.y); if (i > 0) { ctx.font = "700 10px " + MONO; ctx.fillStyle = LIMED; ctx.fillText("  " + (stages[i].v / stages[i - 1].v * 100).toFixed(0) + "%", el.x + 6 + ctx.measureText(fmtN(stages[i].v)).width + 4, el.y); } }); ctx.restore(); } }] });
+        plugins: [crosshair, { id: "flab", afterDatasetsDraw(ch) { const ctx = ch.ctx; ctx.save(); ctx.textAlign = "left"; ctx.textBaseline = "middle"; ch.getDatasetMeta(0).data.forEach((el, i) => { ctx.font = "800 12px " + MONO; ctx.fillStyle = INK; ctx.fillText(fmtN(stages[i].v), el.x + 6, el.y); if (i > 0) { ctx.font = "700 10px " + MONO; ctx.fillStyle = LIMED; ctx.fillText("  " + (stages[i].v / stages[i - 1].v * 100).toFixed(0) + "%", el.x + 6 + ctx.measureText(fmtN(stages[i].v)).width + 4, el.y); } }); ctx.restore(); } }] });
       return c;
     }
     function bullet(mount, title, sub, rows, fmt, target, opts) {
       opts = opts || {};
       const { c, box, cv } = chartCard(mount, title, sub, { span2: opts.span2, h: Math.max(190, 40 + rows.length * 27), icon: KIC.bars, headVal: "target " + fmt(target) });
       if (!rows.length) { emptyBox(box); return c; }
-      new Chart(cv, { type: "bar", data: { labels: rows.map(r => r.k), datasets: [{ data: rows.map(r => r.v), backgroundColor: rows.map(r => r.v >= target ? INK : NEG), borderRadius: 4, maxBarThickness: 18 }] },
+      new Chart(cv, { type: "bar", data: { labels: rows.map(r => r.k), datasets: [{ data: rows.map(r => r.v), backgroundColor: rows.map(r => r.v >= target ? INK : NEG), hoverBackgroundColor: rows.map(r => r.v >= target ? "#34465f" : "#f0817e"), borderRadius: 4, maxBarThickness: 18 }] },
         options: baseOpts({ indexAxis: "y", layout: { padding: { right: 52 } }, plugins: { legend: { display: false }, tooltip: { callbacks: { label: x => fmt(x.parsed.x) + " (target " + fmt(target) + ")" } } }, scales: { x: axY(fmt, { beginAtZero: true }), y: { ticks: { color: INK2, font: { size: 11, weight: "600" } }, grid: { display: false }, border: { display: false } } } }),
-        plugins: [valLabels(fmt, true), { id: "tgt", afterDraw(ch) { const x = ch.scales.x.getPixelForValue(target), a = ch.chartArea, ctx = ch.ctx; ctx.save(); ctx.strokeStyle = LIME; ctx.lineWidth = 2.4; ctx.beginPath(); ctx.moveTo(x, a.top); ctx.lineTo(x, a.bottom); ctx.stroke(); ctx.fillStyle = LIMED; ctx.font = "800 9px " + MONO; ctx.textAlign = "center"; ctx.fillText("target " + fmt(target), x, a.top - 2); ctx.restore(); } }] });
+        plugins: [crosshair, valLabels(fmt, true), { id: "tgt", afterDraw(ch) { const x = ch.scales.x.getPixelForValue(target), a = ch.chartArea, ctx = ch.ctx; ctx.save(); ctx.strokeStyle = LIME; ctx.lineWidth = 2.4; ctx.beginPath(); ctx.moveTo(x, a.top); ctx.lineTo(x, a.bottom); ctx.stroke(); ctx.fillStyle = LIMED; ctx.font = "800 9px " + MONO; ctx.textAlign = "center"; ctx.fillText("target " + fmt(target), x, a.top - 2); ctx.restore(); } }] });
       if (opts.note) note(c, opts.note);
       return c;
     }
@@ -557,8 +560,8 @@ registerPage({
       const rowsH = reps.map(r => `<tr><td>${esc(r.k)}</td>
         <td class="bar"><i style="width:${(r.rev / rmax * 100).toFixed(1)}%"></i><span>${money(r.rev)}</span></td>
         ${td(money(r.op))}${td(fmtN(r.m.q || 0))}${td(fmtN(r.m.c || 0))}
-        ${td(r.m.book == null ? "—" : pct(r.m.book), r.m.book == null ? "" : `background:${divBg((r.m.book - (bk || 0)) / Math.max(.15, bk || .15))}`)}
-        ${td(r.m.dead == null ? "—" : pct(r.m.dead), r.m.dead == null ? "" : `background:${divBg(-(r.m.dead - .3) / .3)}`)}</tr>`).join("");
+        ${td(r.m.book == null ? "—" : pct(r.m.book), r.m.book == null ? "" : `color:${r.m.book >= (bk || 0) ? "#1c7a4a" : "#b02a37"};font-weight:800`)}
+        ${td(r.m.dead == null ? "—" : pct(r.m.dead), r.m.dead == null ? "" : `color:${r.m.dead > .3 ? "#b02a37" : "#1c7a4a"};font-weight:800`)}</tr>`).join("");
       tableCard(g, "Salesperson scorecard", monLbl, `<table class="mrx-tbl"><thead><tr><th>Sales Person</th><th>Revenue</th><th>Op. Profit</th><th>Qual.</th><th>Conf.</th><th>Booking%</th><th>Dead%</th></tr></thead><tbody>${rowsH}</tbody></table>`, { icon: KIC.grid, headVal: fmtN(reps.length) + " reps", note: "Bars = revenue share; Booking% green>team-avg; Dead% red when high — the coaching signals in one place." });
       const bigPre = { pre: r => { const cf = String(r["CF Range"] || ""); return /1000|1500|2000|Over|1001|>|\+/.test(cf) && !/0-1000|<1000|Under/.test(cf); } };
       const bigMb = segReduce("moveboard", "Assigned", rs => rs, curY, mo, bigPre).map(r => { const q = r.rows.filter(x => x["Status Category"] !== "Bad Lead").length, c = r.rows.filter(x => x["Status Category"] === "Confirmed").length; return { k: r.k, q, c, book: q ? c / q : null }; }).filter(r => r.q >= 2).sort((a, b) => b.q - a.q).slice(0, 10);
@@ -576,8 +579,8 @@ registerPage({
         const smax = Math.max(...sc.map(r => r.score || 0)) || 1, cmax = Math.max(...sc.map(r => r.claims), 1);
         const rowsH = sc.map((r, i) => { const arrow = r.prev ? (r.score > r.prev ? `<span style="color:${POS}">▲</span>` : r.score < r.prev ? `<span style="color:${NEG}">▼</span>` : "–") : ""; return `<tr><td>${i === 0 ? "👑 " : ""}${esc(r.f)}</td>
           ${td(fmtN(r.jobs))}${td(fmtN(r.cf))}${td(fmt1(r.p100))}${td(fmtN(r.rev))}
-          ${td(fmtN(r.claims), `background:${redBg(r.claims / cmax)}`)}
-          <td class="bar"><i style="width:${(r.score / smax * 100).toFixed(0)}%;background:#d9ecab"></i><span>${fmt1(r.score)} ${arrow}</span></td></tr>`; }).join("");
+          ${td(fmtN(r.claims), r.claims > 0 ? `color:#b02a37;font-weight:800` : "")}
+          <td class="bar"><i style="width:${(r.score / smax * 100).toFixed(0)}%;background:#dcecab"></i><span>${fmt1(r.score)} ${arrow}</span></td></tr>`; }).join("");
         tableCard(g, "Foreman scorecard — ranked", monLbl, `<table class="mrx-tbl"><thead><tr><th>Foreman</th><th>Jobs</th><th>CF</th><th>Pack/100CF</th><th>Reviews</th><th>Claims</th><th>Score</th></tr></thead><tbody>${rowsH}</tbody></table>`, { icon: KIC.grid, headVal: fmtN(sc.length) + " crews", note: "Composite Forman Score with MoM arrow; claims shaded red. Rank 1 crowned." });
       }
       const jobF = segSeries("closing", "Total Jobs", "Foreman").slice(0, 12);
@@ -616,7 +619,8 @@ registerPage({
     /* ---- 07 · Composition & Segments ---- */
     {
       const g = section("Revenue Composition & Segments", "how revenue splits this month");
-      stackShare(g, "Revenue by Moving Type", monLbl, segSeries("closing", "Revenue", "Moving Type"), money, { span2: true });
+      rankBars(g, "Revenue by Moving Type", segSeries("closing", "Revenue", "Moving Type"), money, { top: 6, note: segInsight(segSeries("closing", "Revenue", "Moving Type"), money) });
+      rankBars(g, "Revenue by Size of Move", segSeries("closing", "Revenue", "Size of Move"), money, { top: 8 });
       rankBars(g, "Revenue by Source", segSeries("closing", "Revenue", "Source"), money, { top: 10, note: segInsight(segSeries("closing", "Revenue", "Source"), money) });
       donut(g, "Lead Status Mix", segReduce("moveboard", "Status Category", rs => rs.length), fmtN, { center: fmtN(leadsN), centerLbl: "leads" });
     }
@@ -696,12 +700,13 @@ registerPage({
       const rmin = Math.min(...states.map(s2 => s2.rev)), rmax = Math.max(...states.map(s2 => s2.rev));
       const omin = Math.min(...states.map(s2 => s2.op)), omax = Math.max(...states.map(s2 => s2.op));
       const jmin = Math.min(...states.map(s2 => s2.jobs)), jmax = Math.max(...states.map(s2 => s2.jobs));
+      const barCell = (v, f, max, col) => `<td class="bar"><i style="width:${max > 0 ? Math.max(0, Math.min(100, v / max * 100)).toFixed(1) : 0}%;background:${col}"></i><span>${f(v)}</span></td>`;
       const rowsH = states.map(s2 => `<tr><td>${esc(s2.k)}</td>
-        ${td(money(s2.rev), `background:${seqBg(s2.rev, rmin, rmax)};color:${seqInk(s2.rev, rmin, rmax)}`)}
-        ${td(money(s2.op), `background:${seqBg(s2.op, omin, omax)};color:${seqInk(s2.op, omin, omax)}`)}
-        ${td(fmtN(s2.jobs), `background:${seqBg(s2.jobs, jmin, jmax)};color:${seqInk(s2.jobs, jmin, jmax)}`)}
-        ${td(s2.bk == null ? "—" : pct(s2.bk), s2.bk == null ? "" : `background:${divBg((s2.bk - (bk || 0)) / Math.max(.15, bk || .15))}`)}</tr>`).join("");
-      tableCard(g, "State performance matrix", monLbl, `<table class="mrx-tbl"><thead><tr><th>State</th><th>Revenue</th><th>Op. Profit</th><th>Jobs</th><th>Booking%</th></tr></thead><tbody>${rowsH}</tbody></table>`, { icon: KIC.grid, headVal: fmtN(states.length) + " states", note: "Green intensity = $ / jobs magnitude; Booking% shaded green>team-avg, red<team-avg." });
+        ${barCell(s2.rev, money, rmax, "#e7ecfb")}
+        ${barCell(s2.op, money, omax, "#e4f1d9")}
+        ${barCell(s2.jobs, fmtN, jmax, "#eef1f5")}
+        ${td(s2.bk == null ? "—" : pct(s2.bk), s2.bk == null ? "" : `color:${s2.bk >= (bk || 0) ? "#1c7a4a" : "#b02a37"};font-weight:800`)}</tr>`).join("");
+      tableCard(g, "State performance matrix", monLbl, `<table class="mrx-tbl"><thead><tr><th>State</th><th>Revenue</th><th>Op. Profit</th><th>Jobs</th><th>Booking%</th></tr></thead><tbody>${rowsH}</tbody></table>`, { icon: KIC.grid, headVal: fmtN(states.length) + " states", note: "Bars show $ / jobs magnitude; Booking% is green above the team average, red below." });
       rankBars(g, "Revenue by State", revS.map(r => ({ k: r.k === "—" ? "Unassigned" : r.k, v: r.v })), money, { top: 10 });
       rankBars(g, "Jobs by state", jobS.map(r => ({ k: r.k === "—" ? "Unassigned" : r.k, v: r.v })), fmtN, { top: 10 });
     }
@@ -712,7 +717,7 @@ registerPage({
       function funnelTable(title, col) {
         const d = segReduce("moveboard", col, rs => rs, curY, mo).map(r => { const rows2 = r.rows; const tot = rows2.length, bad = rows2.filter(x => x["Status Category"] === "Bad Lead").length, q = tot - bad, c = rows2.filter(x => x["Status Category"] === "Confirmed").length; return { k: r.k, tot, q, c, bad, book: q ? c / q : null }; }).sort((a, b) => b.tot - a.tot).slice(0, 12);
         if (!d.length) return; const tot = d.reduce((a, b) => ({ tot: a.tot + b.tot, q: a.q + b.q, c: a.c + b.c, bad: a.bad + b.bad }), { tot: 0, q: 0, c: 0, bad: 0 });
-        const rowsH = d.map(r => `<tr><td>${esc(r.k === "—" ? "Unassigned" : r.k)}</td>${td(fmtN(r.tot))}${td(fmtN(r.q))}${td(fmtN(r.c))}${td(fmtN(r.bad))}${td(r.book == null ? "—" : pct(r.book), r.book == null ? "" : `background:${divBg((r.book - (bk || 0)) / Math.max(.2, bk || .2))}`)}</tr>`).join("");
+        const rowsH = d.map(r => `<tr><td>${esc(r.k === "—" ? "Unassigned" : r.k)}</td>${td(fmtN(r.tot))}${td(fmtN(r.q))}${td(fmtN(r.c))}${td(fmtN(r.bad))}${td(r.book == null ? "—" : pct(r.book), r.book == null ? "" : `color:${r.book >= (bk || 0) ? "#1c7a4a" : "#b02a37"};font-weight:800`)}</tr>`).join("");
         const trow = `<tr class="tot"><td>Total</td>${td(fmtN(tot.tot))}${td(fmtN(tot.q))}${td(fmtN(tot.c))}${td(fmtN(tot.bad))}${td(tot.q ? pct(tot.c / tot.q) : "—")}</tr>`;
         tableCard(g, title, monLbl, `<table class="mrx-tbl"><thead><tr><th>${esc(col === "Service Type" ? "Service type" : col)}</th><th>Total</th><th>Qual.</th><th>Conf.</th><th>Bad</th><th>Booking%</th></tr></thead><tbody>${rowsH}${trow}</tbody></table>`, { span2: false, icon: KIC.grid, headVal: fmtN(tot.tot) });
       }
