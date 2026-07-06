@@ -222,7 +222,8 @@ function _beautify(config) {
       const t = ds.type || config.type;
       if (t === "bar" && typeof ds.backgroundColor === "string" && ds.backgroundColor[0] === "#") {
         const hex = ds.backgroundColor;
-        ds.backgroundColor = c => _grad(c, hex, horiz);
+        // charts that opt into __solidBars (the Monthly Report) keep flat solid fills, no gradient
+        if (!(config.options && config.options.__solidBars)) ds.backgroundColor = c => _grad(c, hex, horiz);
         ds.hoverBackgroundColor = hex;
         if (ds.borderRadius == null) ds.borderRadius = 6;
       }
@@ -239,7 +240,8 @@ function _beautify(config) {
     });
     // pure line charts with a single series get a soft area fill under the line
     const lines = datasets.filter(d => (d.type || config.type) === "line");
-    if (!hasBars && lines.length === 1 && lines[0].fill === undefined &&
+    if (!(config.options && config.options.__solidBars) &&
+        !hasBars && lines.length === 1 && lines[0].fill === undefined &&
         typeof lines[0].borderColor === "string" && lines[0].borderColor[0] === "#") {
       const hex = lines[0].borderColor;
       lines[0].fill = "origin";
@@ -675,6 +677,6 @@ registerPage({
 <script src="pages/labor-analysis.js?v=1"></script>
 <script src="pages/financial-analysis.js?v=1"></script>
 <script src="pages/post-card-analysis.js?v=1"></script>
-<script src="pages/monthly-report.js?v=15"></script>
+<script src="pages/monthly-report.js?v=16"></script>
 </body>
 </html>

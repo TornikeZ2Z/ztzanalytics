@@ -244,7 +244,7 @@ registerPage({
     if (!window.__mrxPrint) { window.__mrxPrint = 1; window.addEventListener("beforeprint", () => { try { if (window.Chart) Object.values(Chart.instances || {}).forEach(ch => { try { ch.resize(); } catch (e) {} }); } catch (e) {} }); }
 
     /* ---------- chart primitives ---------- */
-    const baseOpts = extra => Object.assign({ maintainAspectRatio: false, animation: false, plugins: { legend: { display: false } } }, extra || {});
+    const baseOpts = extra => Object.assign({ __solidBars: true, maintainAspectRatio: false, animation: false, plugins: { legend: { display: false } } }, extra || {});
     const axX = (o) => Object.assign({ ticks: { color: AXIS, font: { family: MONO, size: 10.5 } }, grid: { display: false }, border: { color: LINE } }, o || {});
     const axY = (fmt, o) => Object.assign({ ticks: { color: AXIS, font: { family: MONO, size: 10 }, maxTicksLimit: 6, callback: v => fmt ? fmt(v) : v }, grid: { color: GRID }, border: { display: false } }, o || {});
     const valLabels = (fmt, horiz, color) => ({ id: "vlab", afterDatasetsDraw(ch) {
@@ -316,6 +316,7 @@ registerPage({
 
     /* ---------- chart builders (headline stat + icon + solid) ---------- */
     function lastV(series) { const s = series.filter(r => r.v != null); return s.length ? s[s.length - 1].v : null; }
+    const tip = f => (f === moneyC ? money : f);  // tooltips ALWAYS show full money (never the compact M/k form)
     function yoyBars(mount, title, series, fmt, opts) {
       opts = opts || {}; const s = series.filter(r => r.v != null);
       opts.icon = opts.icon || KIC.trend;
@@ -326,7 +327,7 @@ registerPage({
       const avg = s.reduce((a, b) => a + b.v, 0) / s.length;
       new Chart(cv, { type: "bar",
         data: { labels: s.map(r => r.k), datasets: [{ data: s.map(r => r.v), backgroundColor: s.map((_, i) => i === s.length - 1 ? LIME : INK), borderRadius: 5, maxBarThickness: 52, categoryPercentage: .7, barPercentage: .82 }] },
-        options: baseOpts({ layout: { padding: { top: 22 } }, plugins: { legend: { display: false }, tooltip: { callbacks: { label: x => fmt(x.parsed.y) } } }, scales: { x: axX(), y: axY(fmt, { beginAtZero: true }) } }),
+        options: baseOpts({ layout: { padding: { top: 22 } }, plugins: { legend: { display: false }, tooltip: { callbacks: { label: x => tip(fmt)(x.parsed.y) } } }, scales: { x: axX(), y: axY(fmt, { beginAtZero: true }) } }),
         plugins: [valLabels(fmt, false), crosshair, { id: "avg", afterDraw(ch) { const y = ch.scales.y.getPixelForValue(avg), a = ch.chartArea, ctx = ch.ctx; ctx.save(); ctx.strokeStyle = "#b7c0cd"; ctx.setLineDash([4, 4]); ctx.beginPath(); ctx.moveTo(a.left, y); ctx.lineTo(a.right, y); ctx.stroke(); ctx.setLineDash([]); ctx.fillStyle = SUB; ctx.font = "700 9px " + MONO; ctx.textAlign = "left"; ctx.fillText("avg " + fmt(avg), a.left + 3, y - 3); ctx.restore(); } }] });
       return c;
     }
@@ -338,7 +339,7 @@ registerPage({
       if (!labels.length) { emptyBox(box); return c; }
       new Chart(cv, { type: "line",
         data: { labels, datasets: sets.map((d, i) => ({ label: d.label, data: d.series.map(r => r.v), borderColor: d.color || CAT[i], backgroundColor: d.color || CAT[i], fill: false, tension: 0, borderWidth: 2.6, pointRadius: labels.map((_, j) => j === labels.length - 1 ? 4 : 0), pointBackgroundColor: d.color || CAT[i], pointBorderColor: "#fff", pointBorderWidth: 1.5, spanGaps: true, yAxisID: d.axis || "y" })) },
-        options: baseOpts({ plugins: { legend: { display: sets.length > 1, position: "top", align: "end", labels: { color: SUB, font: { size: 11, weight: "600" }, boxWidth: 9, boxHeight: 9, usePointStyle: true } }, tooltip: { callbacks: { label: x => x.dataset.label + ": " + (x.dataset.yAxisID === "y1" ? (opts.fmt1 || fmt) : fmt)(x.parsed.y) } } },
+        options: baseOpts({ plugins: { legend: { display: sets.length > 1, position: "top", align: "end", labels: { color: SUB, font: { size: 11, weight: "600" }, boxWidth: 9, boxHeight: 9, usePointStyle: true } }, tooltip: { callbacks: { label: x => x.dataset.label + ": " + tip(x.dataset.yAxisID === "y1" ? (opts.fmt1 || fmt) : fmt)(x.parsed.y) } } },
           scales: opts.dual ? { x: axX(), y: axY(fmt), y1: axY(opts.fmt1 || fmt, { position: "right", grid: { display: false } }) } : { x: axX(), y: axY(fmt) } }), plugins: [crosshair] });
       return c;
     }
@@ -350,7 +351,7 @@ registerPage({
       new Chart(cv, { data: { labels, datasets: [
         { type: "bar", label: barLabel, data: barSeries.map(r => r.v), backgroundColor: labels.map((_, i) => i === labels.length - 1 ? LIME : INK), borderRadius: 4, maxBarThickness: 44, yAxisID: "y", order: 2 },
         { type: "line", label: lineLabel, data: lineSeries.map(r => r.v), borderColor: BLUE, backgroundColor: BLUE, tension: 0, borderWidth: 2.6, pointRadius: 3, pointBorderColor: "#fff", pointBorderWidth: 1.2, yAxisID: "y1", order: 1 }] },
-        options: baseOpts({ plugins: { legend: { display: true, position: "top", align: "end", labels: { color: SUB, font: { size: 11, weight: "600" }, boxWidth: 9, usePointStyle: true } }, tooltip: { callbacks: { label: x => x.dataset.yAxisID === "y1" ? `${lineLabel}: ${lineFmt(x.parsed.y)}` : `${barLabel}: ${barFmt(x.parsed.y)}` } } },
+        options: baseOpts({ plugins: { legend: { display: true, position: "top", align: "end", labels: { color: SUB, font: { size: 11, weight: "600" }, boxWidth: 9, usePointStyle: true } }, tooltip: { callbacks: { label: x => x.dataset.yAxisID === "y1" ? `${lineLabel}: ${tip(lineFmt)(x.parsed.y)}` : `${barLabel}: ${tip(barFmt)(x.parsed.y)}` } } },
           scales: { x: axX(), y: axY(barFmt, { beginAtZero: true, title: { display: true, text: barLabel, color: SUB, font: { size: 10, weight: "700" } } }), y1: axY(lineFmt, { position: "right", grid: { display: false }, title: { display: true, text: lineLabel, color: BLUE, font: { size: 10, weight: "700" } } }) } }), plugins: [crosshair] });
       return c;
     }
@@ -362,7 +363,7 @@ registerPage({
       if (!s.length) { emptyBox(box); return c; }
       new Chart(cv, { type: "bar",
         data: { labels: s.map(r => r.k), datasets: [{ data: s.map(r => r.v), backgroundColor: s.map((_, i) => i === 0 ? LIME : INK), hoverBackgroundColor: s.map((_, i) => i === 0 ? LIMED : "#34465f"), borderRadius: 4, maxBarThickness: 20 }] },
-        options: baseOpts({ indexAxis: "y", layout: { padding: { right: 58 } }, plugins: { legend: { display: false }, tooltip: { callbacks: { label: x => fmt(x.parsed.x) } } }, scales: { x: axY(fmt, { beginAtZero: true }), y: { ticks: { color: INK2, font: { size: 11.5, weight: "600" } }, grid: { display: false }, border: { display: false } } } }),
+        options: baseOpts({ indexAxis: "y", layout: { padding: { right: 58 } }, plugins: { legend: { display: false }, tooltip: { callbacks: { label: x => tip(fmt)(x.parsed.x) } } }, scales: { x: axY(fmt, { beginAtZero: true }), y: { ticks: { color: INK2, font: { size: 11.5, weight: "600" } }, grid: { display: false }, border: { display: false } } } }),
         plugins: [valLabels(fmt, true), crosshair] });
       if (opts.note) note(c, opts.note);
       return c;
@@ -374,16 +375,7 @@ registerPage({
       if (!labels.length) { emptyBox(box); return c; }
       new Chart(cv, { type: "bar",
         data: { labels, datasets: [ { label: la, data: sa, backgroundColor: CTX, hoverBackgroundColor: "#aab6c4", borderRadius: 3, maxBarThickness: 12 }, { label: lb, data: sb, backgroundColor: INK, hoverBackgroundColor: "#34465f", borderRadius: 3, maxBarThickness: 12 } ] },
-        options: baseOpts({ indexAxis: "y", plugins: { legend: { display: true, position: "top", align: "end", labels: { color: SUB, font: { size: 11, weight: "600" }, boxWidth: 9, usePointStyle: true } }, tooltip: { callbacks: { label: x => x.dataset.label + ": " + fmt(x.parsed.x) } } }, scales: { x: axY(fmt, { beginAtZero: true }), y: { ticks: { color: INK2, font: { size: 11, weight: "600" } }, grid: { display: false }, border: { display: false } } } }), plugins: [crosshair] });
-      return c;
-    }
-    function stackShare(mount, title, sub, parts, fmt, opts) {
-      opts = opts || {}; const tot = parts.reduce((a, b) => a + b.v, 0);
-      const { c, box, cv } = chartCard(mount, title, sub, { h: 150, span2: opts.span2, icon: KIC.bars, headVal: fmt(tot) });
-      if (!tot) { emptyBox(box); return c; }
-      new Chart(cv, { type: "bar", data: { labels: [""], datasets: parts.map((p, i) => ({ label: p.k, data: [p.v], backgroundColor: CAT[i % CAT.length], borderRadius: 3, maxBarThickness: 46, stack: "s" })) },
-        options: baseOpts({ indexAxis: "y", plugins: { legend: { display: true, position: "bottom", labels: { color: SUB, font: { size: 11, weight: "600" }, boxWidth: 9, usePointStyle: true } }, tooltip: { callbacks: { label: x => `${x.dataset.label}: ${fmt(x.parsed.x)} (${(x.parsed.x / tot * 100).toFixed(0)}%)` } } }, scales: { x: { stacked: true, display: false, max: tot }, y: { stacked: true, display: false } } }),
-        plugins: [{ id: "pctlab", afterDatasetsDraw(ch) { const ctx = ch.ctx; ctx.save(); ctx.font = "800 11px " + MONO; ctx.fillStyle = "#fff"; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ch.data.datasets.forEach((d, di) => { const el = ch.getDatasetMeta(di).data[0]; const share = d.data[0] / tot; if (share > .08) ctx.fillText(Math.round(share * 100) + "%", el.x, el.y); }); ctx.restore(); } }] });
+        options: baseOpts({ indexAxis: "y", plugins: { legend: { display: true, position: "top", align: "end", labels: { color: SUB, font: { size: 11, weight: "600" }, boxWidth: 9, usePointStyle: true } }, tooltip: { callbacks: { label: x => x.dataset.label + ": " + tip(fmt)(x.parsed.x) } } }, scales: { x: axY(fmt, { beginAtZero: true }), y: { ticks: { color: INK2, font: { size: 11, weight: "600" } }, grid: { display: false }, border: { display: false } } } }), plugins: [crosshair] });
       return c;
     }
     function donut(mount, title, series, fmt, opts) {
@@ -393,7 +385,7 @@ registerPage({
       const { c, box, cv } = chartCard(mount, title, opts.sub || monLbl, { h: 250, span2: opts.span2, icon: KIC.pie, headVal: opts.center || fmt(tot) });
       if (!s.length) { emptyBox(box); return c; }
       new Chart(cv, { type: "doughnut", data: { labels: s.map(r => r.k), datasets: [{ data: s.map(r => r.v), backgroundColor: s.map((r, i) => r.k === "Other" ? "#aeb9c8" : CAT[i % CAT.length]), borderColor: "#fff", borderWidth: 3, hoverOffset: 5 }] },
-        options: baseOpts({ cutout: "66%", interaction: { mode: "nearest", intersect: true }, plugins: { legend: { position: "right", labels: { color: INK2, font: { size: 11 }, boxWidth: 11, padding: 7, usePointStyle: true } }, tooltip: { callbacks: { label: x => `${x.label}: ${fmt(x.parsed)} (${(x.parsed / tot * 100).toFixed(0)}%)` } } } }),
+        options: baseOpts({ cutout: "66%", interaction: { mode: "nearest", intersect: true }, plugins: { legend: { position: "right", labels: { color: INK2, font: { size: 11 }, boxWidth: 11, padding: 7, usePointStyle: true } }, tooltip: { callbacks: { label: x => `${x.label}: ${tip(fmt)(x.parsed)} (${(x.parsed / tot * 100).toFixed(0)}%)` } } } }),
         plugins: [{ id: "ctr", afterDraw(ch) { const a = ch.chartArea, ctx = ch.ctx, x = (a.left + a.right) / 2, y = (a.top + a.bottom) / 2; ctx.save(); ctx.textAlign = "center"; ctx.fillStyle = INK; ctx.font = "800 19px " + MONO; ctx.fillText(opts.center || fmt(tot), x, y - 2); ctx.fillStyle = FAINT; ctx.font = "700 10px Inter"; ctx.fillText(opts.centerLbl || "total", x, y + 15); ctx.restore(); } }] });
       return c;
     }
@@ -409,9 +401,9 @@ registerPage({
       });
       new Chart(cv, { type: "bar", data: { labels, datasets: [{ data: bars, backgroundColor: colors, borderRadius: 3, maxBarThickness: 84, categoryPercentage: 0.9, barPercentage: 0.98 }] },
         options: baseOpts({ layout: { padding: { top: 20 } }, plugins: { legend: { display: false }, tooltip: { callbacks: { label: x => { const d = x.raw; return money(Array.isArray(d) ? d[1] - d[0] : d); } } } }, scales: { x: axX({ ticks: { color: AXIS, font: { family: MONO, size: 10 }, maxRotation: 40, minRotation: 0 } }), y: axY(moneyC, { beginAtZero: true }) } }),
-        plugins: [
+        plugins: [crosshair,
           { id: "wconn", beforeDatasetsDraw(ch) { const ctx = ch.ctx, meta = ch.getDatasetMeta(0); if (!meta.data.length) return; ctx.save(); ctx.strokeStyle = "#c8cfda"; ctx.setLineDash([3, 3]); for (let i = 0; i < meta.data.length - 1; i++) { const y = ch.scales.y.getPixelForValue(bars[i][1]); ctx.beginPath(); ctx.moveTo(meta.data[i].x, y); ctx.lineTo(meta.data[i + 1].x, y); ctx.stroke(); } ctx.setLineDash([]); ctx.restore(); } },
-          { id: "wlab", afterDatasetsDraw(ch) { const ctx = ch.ctx; ctx.save(); ctx.font = "800 9.5px " + MONO; ctx.textAlign = "center"; ctx.textBaseline = "bottom"; ch.getDatasetMeta(0).data.forEach((el, i) => { const d = bars[i]; const v = d[1] - d[0]; ctx.fillStyle = steps[i].type === "total" ? INK : (v >= 0 ? POS : NEG); ctx.fillText((v < 0 ? "-" : "") + moneyC(Math.abs(v)), el.x, Math.min(el.y, ch.scales.y.getPixelForValue(Math.max(d[0], d[1]))) - 3); }); ctx.restore(); } }] });
+          { id: "wlab", afterDatasetsDraw(ch) { const ctx = ch.ctx; ctx.save(); ctx.font = "800 8.5px " + MONO; ctx.textAlign = "center"; ctx.textBaseline = "bottom"; ch.getDatasetMeta(0).data.forEach((el, i) => { const d = bars[i]; const v = d[1] - d[0]; ctx.fillStyle = steps[i].type === "total" ? INK : (v >= 0 ? POS : NEG); ctx.fillText((v < 0 ? "-" : "") + money(Math.abs(v)), el.x, Math.min(el.y, ch.scales.y.getPixelForValue(Math.max(d[0], d[1]))) - 3); }); ctx.restore(); } }] });
       return c;
     }
     function funnel(mount, title, sub, stages, opts) {
@@ -429,7 +421,7 @@ registerPage({
       const { c, box, cv } = chartCard(mount, title, sub, { span2: opts.span2, h: Math.max(190, 40 + rows.length * 27), icon: KIC.bars, headVal: "target " + fmt(target) });
       if (!rows.length) { emptyBox(box); return c; }
       new Chart(cv, { type: "bar", data: { labels: rows.map(r => r.k), datasets: [{ data: rows.map(r => r.v), backgroundColor: rows.map(r => r.v >= target ? INK : NEG), hoverBackgroundColor: rows.map(r => r.v >= target ? "#34465f" : "#f0817e"), borderRadius: 4, maxBarThickness: 18 }] },
-        options: baseOpts({ indexAxis: "y", layout: { padding: { right: 52 } }, plugins: { legend: { display: false }, tooltip: { callbacks: { label: x => fmt(x.parsed.x) + " (target " + fmt(target) + ")" } } }, scales: { x: axY(fmt, { beginAtZero: true }), y: { ticks: { color: INK2, font: { size: 11, weight: "600" } }, grid: { display: false }, border: { display: false } } } }),
+        options: baseOpts({ indexAxis: "y", layout: { padding: { right: 52 } }, plugins: { legend: { display: false }, tooltip: { callbacks: { label: x => tip(fmt)(x.parsed.x) + " (target " + tip(fmt)(target) + ")" } } }, scales: { x: axY(fmt, { beginAtZero: true }), y: { ticks: { color: INK2, font: { size: 11, weight: "600" } }, grid: { display: false }, border: { display: false } } } }),
         plugins: [crosshair, valLabels(fmt, true), { id: "tgt", afterDraw(ch) { const x = ch.scales.x.getPixelForValue(target), a = ch.chartArea, ctx = ch.ctx; ctx.save(); ctx.strokeStyle = LIME; ctx.lineWidth = 2.4; ctx.beginPath(); ctx.moveTo(x, a.top); ctx.lineTo(x, a.bottom); ctx.stroke(); ctx.fillStyle = LIMED; ctx.font = "800 9px " + MONO; ctx.textAlign = "center"; ctx.fillText("target " + fmt(target), x, a.top - 2); ctx.restore(); } }] });
       if (opts.note) note(c, opts.note);
       return c;
@@ -440,7 +432,7 @@ registerPage({
       const { c, box, cv } = chartCard(mount, title, sub, { span2: opts.span2, icon: KIC.trend, headVal: fmt(lastTot) });
       if (!labels.length) { emptyBox(box); return c; }
       new Chart(cv, { type: "bar", data: { labels, datasets: sets.map((d, i) => ({ label: d.label, data: d.data, backgroundColor: d.color || CAT[i], borderRadius: 2, maxBarThickness: 26, stack: "s" })) },
-        options: baseOpts({ plugins: { legend: { display: true, position: "top", align: "end", labels: { color: SUB, font: { size: 11, weight: "600" }, boxWidth: 9, usePointStyle: true } }, tooltip: { callbacks: { label: x => x.dataset.label + ": " + fmt(x.parsed.y) } } }, scales: { x: Object.assign(axX(), { stacked: true }), y: Object.assign(axY(fmt, { beginAtZero: true }), { stacked: true }) } }), plugins: [crosshair] });
+        options: baseOpts({ plugins: { legend: { display: true, position: "top", align: "end", labels: { color: SUB, font: { size: 11, weight: "600" }, boxWidth: 9, usePointStyle: true } }, tooltip: { callbacks: { label: x => x.dataset.label + ": " + tip(fmt)(x.parsed.y) } } }, scales: { x: Object.assign(axX(), { stacked: true }), y: Object.assign(axY(fmt, { beginAtZero: true }), { stacked: true }) } }), plugins: [crosshair] });
       return c;
     }
 
@@ -531,19 +523,19 @@ registerPage({
     {
       const g = section("Executive Summary", monLbl + " · vs last year & last month", "k");
       [
-        { l: "Revenue", v: moneyC(rev), c: rev, ly: revLY, pm: revPM, spk: momSeries("closing", "Revenue", 12), icon: KIC.dollar, hero: 1 },
-        { l: "Operational Profit", v: moneyC(op), c: op, ly: opLY, pm: opPM, spk: momSeries("closing", "Operational Profit by Formula", 12), icon: KIC.trend },
+        { l: "Revenue", v: money(rev), c: rev, ly: revLY, pm: revPM, spk: momSeries("closing", "Revenue", 12), icon: KIC.dollar, hero: 1 },
+        { l: "Operational Profit", v: money(op), c: op, ly: opLY, pm: opPM, spk: momSeries("closing", "Operational Profit by Formula", 12), icon: KIC.trend },
         { l: "Op. Margin", v: pct(margin), c: margin, ly: marginLY, pm: marginPM, spk: momSeries("closing", "Operational Profit Margin", 12), icon: KIC.pct },
         { l: "Jobs Done", v: fmtN(jobs), c: jobs, ly: jobsLY, pm: jobsPM, spk: momSeries("closing", "Total Jobs", 12), icon: KIC.truck },
         { l: "Leads", v: fmtN(leadsN), c: leadsN, ly: leadsLY, pm: leadsPM, spk: momSeries("moveboard", "Total Leads", 12), icon: KIC.funnel },
         { l: "Booking Rate", v: pct(bk), c: bk, ly: bkLY, pm: bkPM, spk: momSeries("moveboard", "Booking Rate", 12), icon: KIC.check },
-        { l: "Avg Job Value", v: moneyC(avgJob), c: avgJob, ly: avgJobLY, pm: avgJobPM, spk: momReduce("closing", 12, rs => { const b = M["Revenue"].fn(rs), j = rs.length; return j ? b / j : null; }), icon: KIC.tag },
+        { l: "Avg Job Value", v: money(avgJob), c: avgJob, ly: avgJobLY, pm: avgJobPM, spk: momReduce("closing", 12, rs => { const b = M["Revenue"].fn(rs), j = rs.length; return j ? b / j : null; }), icon: KIC.tag },
         { l: "Reviews Written", v: fmtN(revWritten), c: revWritten, ly: revWrittenLY, pm: revWrittenPM, spk: momReduce("reviews_breakdown", 12, rs => rs.reduce((a, r) => a + num(r["Number of Reviews"]), 0)), icon: KIC.star }
       ].forEach(k => kpiTile(g, k));
       const gpRev = revLY ? (rev - revLY) / Math.abs(revLY) : 0;
       const tone = gpRev > 0.08 ? "A strong" : gpRev < -0.05 ? "A softer" : "A steady";
       const ex = document.createElement("div"); ex.className = "mrx-exec"; ex.style.gridColumn = "1/-1";
-      ex.innerHTML = `<b>${tone} ${MON[mo]} ${curY}.</b> Revenue ${moneyC(rev)} (${gpRev >= 0 ? "+" : ""}${(gpRev * 100).toFixed(0)}% YoY), operational profit ${moneyC(op)} at ${pct(margin)} margin, ${fmtN(jobs)} jobs from ${fmtN(leadsN)} leads booked at ${pct(bk)}. Avg job value ${moneyC(avgJob)}.${revTrip ? ` Of that revenue, ${moneyC(revTrip)} (${(tripShare * 100).toFixed(1)}%) came from standalone trips — a minor add-on this year.` : ""}`;
+      ex.innerHTML = `<b>${tone} ${MON[mo]} ${curY}.</b> Revenue ${money(rev)} (${gpRev >= 0 ? "+" : ""}${(gpRev * 100).toFixed(0)}% YoY), operational profit ${money(op)} at ${pct(margin)} margin, ${fmtN(jobs)} jobs from ${fmtN(leadsN)} leads booked at ${pct(bk)}. Avg job value ${money(avgJob)}.${revTrip ? ` Of that revenue, ${money(revTrip)} (${(tripShare * 100).toFixed(1)}%) came from standalone trips — a minor add-on this year.` : ""}`;
       g.appendChild(ex);
     }
 
@@ -621,7 +613,7 @@ registerPage({
       const g = section("Packing & Storage", "packing economics and storage income trend");
       const packT = trendSeries("closing", "Total Packing Written");
       const packSalT = trendSeries("closing", "Forman Salary - Packing");
-      combo(g, "Packing written vs foreman packing pay", MON[mo] + " · " + packT.length + "-yr", packT, "Written", moneyC, packT.map((r, i) => ({ k: r.k, v: (packSalT[i] && packSalT[i].v) ? r.v / packSalT[i].v : null })), "Rev / $1 pay", v => "$" + fmt1(v));
+      combo(g, "Packing written vs foreman packing pay", MON[mo] + " · " + packT.length + "-yr", packT, "Written", moneyC, packT.map((r, i) => ({ k: r.k, v: (packSalT[i] && packSalT[i].v) ? r.v / packSalT[i].v : null })), "Rev / $1 pay", v => "$" + fmt1(v), { headVal: money(lastV(packT)) });
       const stoT = momSeries("storage", "Storage Additional Revenue", 14);
       lines(g, "Storage additional revenue", "last 14 months", [ { label: "Storage Add'l Rev", series: stoT, color: TEAL } ], money);
       const stoRows = stoT.map(r => ({ k: MS[r.m] + " " + r.y, add: r.v, bill: valueFor("closing", "Revenue", r.y, r.m), jobs: valueFor("closing", "Total Jobs", r.y, r.m) }));
@@ -633,30 +625,30 @@ registerPage({
     {
       const g = section("Revenue & Growth", "5-year " + MON[mo] + " trend and 12-month momentum");
       const revT = trendSeries("closing", "Revenue"), opT = trendSeries("closing", "Operational Profit by Formula"), jobT = trendSeries("closing", "Total Jobs");
-      lines(g, "Revenue & Profit — momentum", "last 12 months", [ { label: "Revenue", series: momSeries("closing", "Revenue", 12), color: INK }, { label: "Op. Profit", series: momSeries("closing", "Operational Profit by Formula", 12), color: BLUE } ], moneyC, { span2: true, headVal: moneyC(rev), chips: dchips([[rev, revPM, "MoM"]]) });
-      yoyBars(g, "Total Revenue", revT, moneyC, { headVal: moneyC(rev), chips: dchips([[rev, revLY, "YoY"], [rev, revPM, "MoM"]]) });
+      lines(g, "Revenue & Profit — momentum", "last 12 months", [ { label: "Revenue", series: momSeries("closing", "Revenue", 12), color: INK }, { label: "Op. Profit", series: momSeries("closing", "Operational Profit by Formula", 12), color: BLUE } ], moneyC, { span2: true, headVal: money(rev), chips: dchips([[rev, revPM, "MoM"]]) });
+      yoyBars(g, "Total Revenue", revT, moneyC, { headVal: money(rev), chips: dchips([[rev, revLY, "YoY"], [rev, revPM, "MoM"]]) });
       {
-        // Revenue = Closings + Trips — honest composition. Trip slice is a hairline at today's
-        // sub-1% (stackShare only prints a % label above 8%), and the two parts sum to headline Revenue.
+        // Standalone-trip revenue, 5-yr trend — its OWN rescaled axis so the ~0.4% stream is readable
+        // (a part-of-whole bar hides trips at sub-1%). The gross/linked memo keeps it honest.
         const mmS = String(mo).padStart(2, "0");
         const grossTrip = tripsRaw.reduce((a, r) => String(r["End Date"] || "").slice(0, 7) === `${curY}-${mmS}` ? a + num(r["Total Bill"]) : a, 0);
         const linkedIn = Math.max(0, grossTrip - revTrip);
-        const cSplit = stackShare(g, "Revenue = Closings + Trips", MON[mo] + " · what makes up this month’s revenue",
-          [ { k: "Closing sheets", v: revClose }, { k: "Trips add-on", v: revTrip } ], moneyC);
-        note(cSplit, `Revenue is two streams — closing-sheet jobs (${moneyC(revClose)}) plus standalone “trip” jobs (${moneyC(revTrip)}, ${(tripShare * 100).toFixed(1)}% this month; trips ran ~2% a couple of years back).`
-          + (grossTrip > revTrip + 1 ? ` Gross trip activity was ${moneyC(grossTrip)} — the extra ${moneyC(linkedIn)} is trip money already inside closing sheets (linked jobs), so it is not double-counted.` : "")
-          + ` The two parts sum exactly to headline Revenue.`);
+        const tripT = yearsArr(5).map(y => { const rs = segSeries("closing", "Revenue", "Record Source", y, mo); return { k: String(y), v: (rs.find(r => r.k === "trip") || {}).v || 0 }; });
+        const cTrip = yoyBars(g, "Standalone Trip Revenue — 5-yr", tripT, money, { sub: MON[mo] + " · trip add-on only", headVal: money(revTrip), chips: dchips([[revTrip, (tripT[tripT.length - 2] || {}).v, "YoY"]]) });
+        note(cTrip, `Standalone “trip” jobs added ${money(revTrip)} this month — ${(tripShare * 100).toFixed(1)}% of the ${money(rev)} headline Revenue (trips ran ~2% a couple of years back).`
+          + (grossTrip > revTrip + 1 ? ` Gross trip activity was ${money(grossTrip)}; the extra ${money(linkedIn)} is trip money already inside closing sheets (linked jobs), so it is not double-counted.` : "")
+          + ` Closing-sheet jobs make up the remaining ${money(revClose)}.`);
       }
-      const c1 = yoyBars(g, "Operational Profit", opT, moneyC, { headVal: moneyC(op), chips: dchips([[op, opLY, "YoY"], [op, opPM, "MoM"]]) }); note(c1, trendInsight("Operational Profit", opT, moneyC, MON[mo]));
+      const c1 = yoyBars(g, "Operational Profit", opT, moneyC, { headVal: money(op), chips: dchips([[op, opLY, "YoY"], [op, opPM, "MoM"]]) }); note(c1, trendInsight("Operational Profit", opT, money, MON[mo]));
       const c2 = yoyBars(g, "Jobs Done", jobT, fmtN, { headVal: fmtN(jobs), chips: dchips([[jobs, jobsLY, "YoY"], [jobs, jobsPM, "MoM"]]) }); note(c2, trendInsight("Jobs Done", jobT, fmtN, MON[mo]));
       const confT = trendSeries("moveboard", "Confirmed Leads"), bkT = trendSeries("moveboard", "Booking Rate");
       combo(g, "Confirmed Jobs & Booking Rate", MON[mo] + " · " + confT.length + "-yr", confT, "Confirmed", fmtN, bkT, "Booking %", pct, { headVal: pct(bk) });
       const isLocal = r => String(r["Moving Type"]) === "Local Moving";
       const localT = trendSeries("closing", "Revenue", { pre: isLocal });
       const ldT = trendSeries("closing", "Revenue", { pre: r => !isLocal(r) });
-      const c6a = yoyBars(g, "Local Moving — 5-yr revenue", localT, moneyC, { sub: MON[mo] + " · hourly local jobs" });
+      const c6a = yoyBars(g, "Local Moving — 5-yr revenue", localT, moneyC, { headVal: money(lastV(localT)), sub: MON[mo] + " · hourly local jobs" });
       note(c6a, `Hourly “Local Moving” jobs — the volume base of the business.`);
-      const c6b = yoyBars(g, "Long-distance — 5-yr revenue", ldT, moneyC, { sub: MON[mo] + " · Regular + Straight" });
+      const c6b = yoyBars(g, "Long-distance — 5-yr revenue", ldT, moneyC, { headVal: money(lastV(ldT)), sub: MON[mo] + " · Regular + Straight" });
       note(c6b, `Flat-rate long-distance product lines (“Regular” + “Straight”) combined.`);
     }
 
@@ -679,9 +671,9 @@ registerPage({
       const comm = withMonth(curY, mo, () => M["Sales Commission"].fn(RS.filtered("sales_salaries", DS.sales_salaries || [])));
       const expense = M["Car Expense"].fn(rowsW) + M["Fuel Expense"].fn(rowsW) + M["Hotel Expense"].fn(rowsW) + M["Toll Expense"].fn(rowsW) + M["Truck Expense"].fn(rowsW) + M["Other Expenses"].fn(rowsW);
       const refundTot = withMonth(curY, mo, () => M["Total Refunds"] ? M["Total Refunds"].fn(RS.filtered("refunds", DS.refunds || [])) : 0);
-      const steps = [ { label: "Total Bill", v: totBill, type: "total" }, { label: "Foreman Sal.", v: -forman }, { label: "Driver Sal.", v: -driver }, { label: "Helper Sal.", v: -(helper || 0) }, { label: "Sales Comm.", v: -(comm || 0) }, { label: "Expenses", v: -expense }, { label: "Refunds", v: -(refundTot || 0) }, { label: "Op. Profit", v: op, type: "total" } ];
-      const wc = waterfall(g, "Total Bill → Operational Profit", monLbl, steps, { headVal: moneyC(op), chips: dchips([[op, opLY, "YoY"]]) });
-      note(wc, `From ${moneyC(totBill)} in billings, labor + expenses + refunds leave ${moneyC(op)} operational profit — a ${pct(margin)} margin.`);
+      const steps = [ { label: "Total Bill", v: totBill, type: "total" }, { label: "Foreman Salaries", v: -forman }, { label: "Driver Salaries", v: -driver }, { label: "Helper Salaries", v: -(helper || 0) }, { label: "Sales Commission", v: -(comm || 0) }, { label: "Expenses", v: -expense }, { label: "Refunds", v: -(refundTot || 0) }, { label: "Op. Profit", v: op, type: "total" } ];
+      const wc = waterfall(g, "Total Bill → Operational Profit", monLbl, steps, { headVal: money(op), chips: dchips([[op, opLY, "YoY"]]) });
+      note(wc, `From ${money(totBill)} in billings, labor + expenses + refunds leave ${money(op)} operational profit — a ${pct(margin)} margin.`);
       lines(g, "Operational Profit Margin", "last 12 months", [ { label: "Margin", series: momSeries("closing", "Operational Profit Margin", 12), color: VIOLET } ], pct, { headVal: pct(margin) });
       rankBars(g, "Operational Profit by State", segSeries("closing", "Operational Profit by Formula", "State Name"), money, { top: 10, note: segInsight(segSeries("closing", "Operational Profit by Formula", "State Name"), money) });
       const rr = ["Returned Customer", "Recommended"].map(src => {
@@ -693,14 +685,14 @@ registerPage({
       const rrHtml = `<table class="mrx-tbl"><thead><tr><th>Customer type</th><th>Revenue</th><th>Op. Profit</th><th>Jobs</th></tr></thead><tbody>${rr.map(r => `<tr><td>${r.src}</td>${td(money(r.rev))}${td(money(r.op))}${td(fmtN(r.jobs))}</tr>`).join("")}</tbody></table>`;
       tableCard(g, "Returned & Recommended customers", monLbl, rrHtml, { span2: false, icon: KIC.grid, headVal: money(rr.reduce((a, b) => a + b.op, 0)) });
       const costMix = [{ k: "Foreman", v: forman }, { k: "Driver", v: driver }, { k: "Helper", v: helper || 0 }, { k: "Sales comm.", v: comm || 0 }, { k: "Expenses", v: expense }, { k: "Refunds", v: refundTot || 0 }].sort((a, b) => b.v - a.v);
-      donut(g, "Cost structure", costMix, money, { center: moneyC(totBill - op), centerLbl: "total cost" });
+      donut(g, "Cost structure", costMix, money, { center: money(totBill - op), centerLbl: "total cost" });
     }
 
     /* ---- 09 · Marketing & Channels ---- */
     {
       const g = section("Marketing & Channels", "ad spend momentum, source revenue and call demand");
       const adTrend = momReduce("card_expenses", 12, rs => { const ad = rs.filter(r => Number(r["Is Advertising"]) === 1); return ad.length ? ad.reduce((a, r) => a + num(r.Amount), 0) : null; });
-      lines(g, "Advertising spend — momentum", "last 12 months", [ { label: "Ad Spend", series: adTrend, color: AMBER } ], moneyC);
+      lines(g, "Advertising spend — momentum", "last 12 months", [ { label: "Ad Spend", series: adTrend, color: AMBER } ], moneyC, { headVal: money(lastV(adTrend)) });
       const callLabels = momReduce("callrail", 12, rs => rs.length).map(r => r.k);
       const answered = momReduce("callrail", 12, rs => rs.filter(r => String(r["Call Status"]) === "Answered Call").length).map(r => r.v);
       const missed = momReduce("callrail", 12, rs => rs.filter(r => /Missed|Abandoned/.test(String(r["Call Status"]))).length).map(r => r.v);
