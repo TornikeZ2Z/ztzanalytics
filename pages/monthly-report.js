@@ -23,13 +23,21 @@ registerPage({
       ["closing", "moveboard", "storage", "claims", "refunds", "card_expenses"].map(grab));
     const [reviews, negrev, callrail, scorecard, rcounts, rgoals] = await Promise.all(
       ["reviews_breakdown", "negative_reviews", "callrail", "scorecard", "review_counts", "review_goals"].map(grab));
-    const [helperSalDs, salesSalDs] = await Promise.all(["helper_salaries", "sales_salaries"].map(grab));
+    const [helperSalDs, salesSalDs, longDist] = await Promise.all(["helper_salaries", "sales_salaries", "long_distance"].map(grab));
     // Raw `trips` table (207 rows) — loaded directly (not in DATASETS); powers the gross-trip memo
     // only. Exclude the Liga file, which curated's fct_closing also drops. Dated by End Date.
     const tripsRaw = await ZTZ.api("/api/trips?limit=1000000")
       .then(j => (j.rows || []).filter(r => !String(r["File Name"] || "").startsWith("Liga")))
       .catch(() => []);
-    const DS = { closing, moveboard, storage, claims, refunds, card_expenses: cardEx, reviews_breakdown: reviews, negative_reviews: negrev, callrail, scorecard, review_counts: rcounts, review_goals: rgoals, helper_salaries: helperSalDs, sales_salaries: salesSalDs };
+    // ISOLATED fetch of the new card-expense COST flags. Kept OUT of the shared card_expenses projection
+    // on purpose: these columns were just added to fct_card_expenses and can vanish on a pipeline re-run,
+    // so a failed fetch here degrades only the storage/packing-cost panels — nothing else on the page.
+    const cardCost = await ZTZ.api("/api/fct_card_expenses?limit=1000000&cols=" + encodeURIComponent("Transaction Date,Amount,Is Storage Cost,Is Packing Material Cost"))
+      .then(j => (j.rows || []).map(r => { const d = String(r["Transaction Date"] || "").slice(0, 10); return { ym: d.slice(0, 7), amt: -num(r.Amount), sto: Number(r["Is Storage Cost"]) === 1, pk: Number(r["Is Packing Material Cost"]) === 1 }; }))
+      .catch(() => []);
+    const costByMonth = (ym, flag) => cardCost.reduce((a, r) => (r.ym === ym && r[flag]) ? a + r.amt : a, 0);
+    const hasCostData = cardCost.some(r => r.sto || r.pk);
+    const DS = { closing, moveboard, storage, claims, refunds, card_expenses: cardEx, reviews_breakdown: reviews, negative_reviews: negrev, callrail, scorecard, review_counts: rcounts, review_goals: rgoals, helper_salaries: helperSalDs, sales_salaries: salesSalDs, long_distance: longDist };
 
     const latest = closing.reduce((a, r) => (r._d && r._d > a ? r._d : a), "");
     if (!st.month) {
@@ -718,19 +726,52 @@ registerPage({
       tableCard(g, "Returned & Recommended customers", monLbl, rrHtml, { span2: false, icon: KIC.grid, headVal: money(rr.reduce((a, b) => a + b.op, 0)) });
       const costMix = [{ k: "Foreman", v: forman }, { k: "Driver", v: driver }, { k: "Helper", v: helper || 0 }, { k: "Sales comm.", v: comm || 0 }, { k: "Expenses", v: expense }, { k: "Refunds", v: refundTot || 0 }].sort((a, b) => b.v - a.v);
       donut(g, "Cost structure", costMix, money, { center: money(totBill - op), centerLbl: "total cost" });
+      // Other Expenses — honest trend. It's a single free-text per-job field on the closing sheet with no
+      // sub-detail, so it can't be broken down — but we can watch it grow.
+      const oeT = momSeries("closing", "Other Expenses", 14);
+      const oeCur = valueFor("closing", "Other Expenses", curY, mo) || 0;
+      const oec = lines(g, "Other Expenses — momentum", "last 14 months", [{ label: "Other Expenses", series: oeT, color: CORAL }], money, { headVal: money(oeCur) });
+      note(oec, `Uncategorized per-job field reimbursements — ${money(oeCur)} in ${MON[mo]}${jobs ? `, about ${money(oeCur / jobs)}/job` : ""}. Captured as one closing-sheet total with no category behind it, so it can't be split further; the trend is what to watch.`);
+    }
+
+    /* ---- Unit Economics ---- */
+    {
+      const g = section("Unit Economics", "profitability per job, per crew-hour and crew productivity");
+      const revJobT = momReduce("closing", 12, rs => { const j = rs.length; return j ? M["Revenue"].fn(rs) / j : null; });
+      const opJobT = momReduce("closing", 12, rs => { const j = rs.length; return j ? M["Operational Profit by Formula"].fn(rs) / j : null; });
+      const opHrT = momReduce("closing", 12, rs => { const h = rs.reduce((a, r) => a + num(r["Foreman Hours"]), 0); return h ? M["Operational Profit by Formula"].fn(rs) / h : null; });
+      const jobsPer100hT = momReduce("closing", 12, rs => { const j = rs.length, h = rs.reduce((a, r) => a + num(r["Foreman Hours"]), 0); return h ? 100 * j / h : null; });
+      const c1 = lines(g, "Revenue per job", "last 12 months", [{ label: "Rev / job", series: revJobT, color: INK }], money, { headVal: money(lastV(revJobT)) });
+      note(c1, `Average booking value — ${money(lastV(revJobT) || 0)} this month. Rising means bigger jobs, not just more of them.`);
+      lines(g, "Operational profit per job", "last 12 months", [{ label: "Op. profit / job", series: opJobT, color: BLUE }], money, { headVal: money(lastV(opJobT)) });
+      lines(g, "Operational profit per foreman-hour", "last 12 months", [{ label: "Op. profit / hr", series: opHrT, color: VIOLET }], money, { headVal: money(lastV(opHrT)) });
+      lines(g, "Jobs per 100 foreman-hours", "last 12 months", [{ label: "Jobs / 100h", series: jobsPer100hT, color: TEAL }], fmt1, { headVal: fmt1(lastV(jobsPer100hT) || 0) });
     }
 
     /* ---- 05 · Packing & Storage ---- */
     {
-      const g = section("Packing & Storage", "packing economics and storage income trend");
-      const packT = trendSeries("closing", "Total Packing Written");
-      const packSalT = trendSeries("closing", "Forman Salary - Packing");
-      combo(g, "Packing written vs foreman packing pay", MON[mo] + " · " + packT.length + "-yr", packT, "Written", moneyC, packT.map((r, i) => ({ k: r.k, v: (packSalT[i] && packSalT[i].v) ? r.v / packSalT[i].v : null })), "Rev / $1 pay", v => "$" + fmt1(v), { headVal: money(lastV(packT)) });
-      const stoT = momSeries("storage", "Storage Additional Revenue", 14);
-      lines(g, "Storage additional revenue", "last 14 months", [ { label: "Storage Add'l Rev", series: stoT, color: TEAL } ], money);
-      const stoRows = stoT.map(r => ({ k: MS[r.m] + " " + r.y, add: r.v, bill: valueFor("closing", "Revenue", r.y, r.m), jobs: valueFor("closing", "Total Jobs", r.y, r.m) }));
-      const html = `<table class="mrx-tbl"><thead><tr><th>Month</th><th>Total Bill</th><th>Jobs</th><th>Storage Add'l Rev</th></tr></thead><tbody>${stoRows.map(r => `<tr><td>${r.k}</td>${td(r.bill == null ? "—" : money(r.bill))}${td(r.jobs == null ? "—" : fmtN(r.jobs))}${td(r.add == null ? "—" : money(r.add))}</tr>`).join("")}</tbody></table>`;
-      tableCard(g, "Storage income — last 14 months", "", html, { icon: KIC.grid, headVal: money(lastV(stoT)) });
+      const g = section("Packing & Storage", "packing written vs material cost, storage income vs cost");
+      // Packing economics — written revenue vs material cost, MONTH-over-month (replaces the near-constant
+      // 5-yr revenue/commission ratio, which was mechanically pinned and taught nothing).
+      const packMoM = momSeries("closing", "Total Packing Written", 14);
+      if (hasCostData) {
+        const pkCost = packMoM.map(r => ({ k: r.k, v: costByMonth(`${r.y}-${String(r.m).padStart(2, "0")}`, "pk") }));
+        const pkc = combo(g, "Packing written vs material cost", "last 14 months", packMoM.map(r => ({ k: r.k, v: r.v || 0 })), "Written", money, pkCost, "Material cost", money, { headVal: money(lastV(packMoM)) });
+        const lastCost = pkCost.length ? pkCost[pkCost.length - 1].v : 0, lastWr = lastV(packMoM) || 0;
+        note(pkc, `Packing written ${money(lastWr)} vs material bought ${money(lastCost)} this month${lastWr ? ` — material is ${pct(lastCost / lastWr)} of packing revenue` : ""}. Material cost = card "Job Supplies / Packing Material".`);
+      } else {
+        lines(g, "Packing written — momentum", "last 14 months", [{ label: "Packing written", series: packMoM, color: LIMED }], money, { headVal: money(lastV(packMoM)) });
+      }
+      // Storage — a small complementary line; income vs the rent/lease cost, no more mixing with Bill/Jobs.
+      const stoRev = momSeries("storage", "Storage Additional Revenue", 14);
+      if (hasCostData) {
+        const stoCost = stoRev.map(r => ({ k: r.k, v: costByMonth(`${r.y}-${String(r.m).padStart(2, "0")}`, "sto") }));
+        const sc = combo(g, "Storage income vs cost", "last 14 months", stoRev.map(r => ({ k: r.k, v: r.v || 0 })), "Income", money, stoCost, "Storage cost", money, { headVal: money(lastV(stoRev)) });
+        const lc = stoCost.length ? stoCost[stoCost.length - 1].v : 0, li = lastV(stoRev) || 0;
+        note(sc, `Storage income ${money(li)} vs cost ${money(lc)} this month — net ${money(li - lc)}. Cost = card "Rent and Lease / Storage"; a complementary service, shown small.`);
+      } else {
+        lines(g, "Storage income", "last 14 months", [{ label: "Storage income", series: stoRev, color: TEAL }], money, { headVal: money(lastV(stoRev)) });
+      }
     }
 
     /* ---- 06 · Geography ---- */
@@ -803,7 +844,7 @@ registerPage({
         ${td(r.m.book == null ? "—" : pct(r.m.book), r.m.book == null ? "" : `color:${r.m.book >= (bk || 0) ? "#1c7a4a" : "#b02a37"};font-weight:800`)}
         ${td(r.m.dead == null ? "—" : pct(r.m.dead), r.m.dead == null ? "" : `color:${r.m.dead > .3 ? "#b02a37" : "#1c7a4a"};font-weight:800`)}</tr>`).join("");
       tableCard(g, "Salesperson scorecard", monLbl, `<table class="mrx-tbl"><thead><tr><th>Sales Person</th><th>Revenue</th><th>Op. Profit</th><th>Qual.</th><th>Conf.</th><th>Booking%</th><th>Dead%</th></tr></thead><tbody>${rowsH}</tbody></table>`, { icon: KIC.grid, headVal: fmtN(reps.length) + " reps", note: "Bars = revenue share; Booking% green>team-avg; Dead% red when high — the coaching signals in one place." });
-      const bigPre = { pre: r => { const cf = String(r["CF Range"] || ""); return /1000|1500|2000|Over|1001|>|\+/.test(cf) && !/0-1000|<1000|Under/.test(cf); } };
+      const bigPre = { pre: r => String(r["Big Job Status"]) === "Yes" };  // clean flag, not a CF-range regex
       const bigMb = segReduce("moveboard", "Assigned", rs => rs, curY, mo, bigPre).map(r => { const q = r.rows.filter(x => x["Status Category"] !== "Bad Lead").length, c = r.rows.filter(x => x["Status Category"] === "Confirmed").length; return { k: r.k, q, c, book: q ? c / q : null }; }).filter(r => r.q >= 2).sort((a, b) => b.q - a.q).slice(0, 10);
       const revSPly = {}; segSeries("closing", "Revenue", "Sales Person", curY - 1, mo).forEach(r => revSPly[r.k] = r.v);
       const opSPly = {}; segSeries("closing", "Operational Profit by Formula", "Sales Person", curY - 1, mo).forEach(r => opSPly[r.k] = r.v);
@@ -842,6 +883,15 @@ registerPage({
       groupedBars(g, "Packing written vs estimate by foreman", packCur.map(r => r.k), packCur.map(r => estM[r.k] || 0), "Estimate", packCur.map(r => r.v), "Written", money, { sub: monLbl });
       const refByFm = segReduce("refunds", "Foreman", rs => Math.abs(rs.reduce((a, x) => a + num(x["Total refund"]), 0)), curY, mo).filter(r => r.v > 0 && r.k !== "—");
       if (refByFm.length) rankBars(g, "Refunds by foreman", refByFm, money, { top: 10 });
+      // foreman efficiency KPIs — pre-computed in the mart, never rendered before
+      if (scRows.length) {
+        const eff = scRows.map(r => ({ f: r.Foreman, p100: num(r["Packing per 100 CF"]), rtj: num(r["Reviews to Jobs Ratio"]), jobs: num(r["Total Jobs"]) }))
+          .filter(r => r.f && r.jobs > 0).sort((a, b) => b.p100 - a.p100).slice(0, 15);
+        if (eff.length) {
+          const effHtml = `<table class="mrx-tbl"><thead><tr><th>Foreman</th><th>Packing $ / 100 CF</th><th>Reviews / job</th></tr></thead><tbody>${eff.map(r => `<tr><td>${esc(r.f)}</td>${td(money(r.p100))}${td(fmt1(r.rtj))}</tr>`).join("")}</tbody></table>`;
+          tableCard(g, "Foreman efficiency — packing density & review rate", monLbl, effHtml, { icon: KIC.grid, headVal: fmtN(eff.length) + " crews", note: "Pre-computed mart signals: packing dollars written per 100 cubic feet (packing per unit volume), and reviews collected per job — the operating numbers to rank crews on." });
+        }
+      }
     }
 
     /* ---- 11 · Quality & Customer Experience ---- */
@@ -864,6 +914,9 @@ registerPage({
       const refTot = Math.abs(reduceMonth("refunds", curY, mo, rs => rs.reduce((a, r) => a + num(r["Total refund"]), 0)) || 0);
       rankBars(g, "Refunds by reason", refByReason, money, { top: 8, sub: `${money(refTot)} · ${rev ? pct(refTot / rev) : "—"} of revenue`, headVal: money(refTot), note: `${money(refTot)} refunded in ${MON[mo]} — ${rev ? pct(refTot / rev) : "—"} of revenue.` });
       rankBars(g, "Reviews by source", segReduce("reviews_breakdown", "Source", rs => rs.reduce((a, r) => a + num(r["Number of Reviews"]), 0), curY, mo), fmtN, { top: 8 });
+      // public review footprint by platform (fct_review_counts — served, never rendered before)
+      const revByPlat = segReduce("review_counts", "Platform", rs => rs.reduce((a, r) => a + num(r["Number of Reviews"]), 0), curY, mo).filter(r => r.v > 0 && r.k !== "—");
+      if (revByPlat.length) rankBars(g, "Public review footprint by platform", revByPlat, fmtN, { top: 12, sub: monLbl, note: "Total public reviews on file per platform — the reputation that drives lead flow. Goals aren't set in the data yet; when they are I'll add a vs-target column." });
     }
 
     /* ---- 12 · Marketing & Channels ---- */
@@ -908,6 +961,18 @@ registerPage({
       }
       rankBars(g, "Operational Profit by Source", opBySrc, money, { top: 10 });
       rankBars(g, "Jobs by Source", jobBySrc.map(r => ({ k: r.k, v: r.v })), fmtN, { top: 10 });
+      // Long-distance carrier margin & self-haul. fct_long_distance is a DETAIL of the Regular/Straight
+      // jobs already inside Revenue — NOT additive. The real story is margin retained vs paid to carriers.
+      if ((DS.long_distance || []).length) {
+        const ldBill = momReduce("long_distance", 14, rs => rs.reduce((a, r) => a + num(r["Total Bill"]), 0));
+        const ldCarr = momReduce("long_distance", 14, rs => rs.reduce((a, r) => a + num(r["Total To Carrier"]), 0));
+        const c1 = combo(g, "Long-distance — bill vs paid to carrier", "last 14 months", ldBill.map(r => ({ k: r.k, v: r.v || 0 })), "LD bill", money, ldCarr.map(r => ({ k: r.k, v: r.v || 0 })), "To carrier", money, { headVal: money(lastV(ldBill)) });
+        const lb = lastV(ldBill) || 0, lcr = lastV(ldCarr) || 0;
+        note(c1, `Long-distance jobs (already counted in Revenue as Regular/Straight moves — shown here only for margin). The gap between the bill and what's paid to carriers is retained margin: ${MON[mo]} kept ${lb ? pct((lb - lcr) / lb) : "—"} in-house.`);
+        const ldSelf = momReduce("long_distance", 14, rs => { const t = rs.length, s = rs.filter(r => num(r["Total To Carrier"]) === 0).length; return t ? s / t : null; });
+        const c2 = lines(g, "Self-haul share of long-distance", "last 14 months", [{ label: "Self-haul %", series: ldSelf, color: LIMED }], pct, { headVal: pct(lastV(ldSelf)) });
+        note(c2, `Share of long-distance jobs hauled in-house with nothing paid to a carrier — higher means more margin retained. The shift toward self-haul is the hidden LD story.`);
+      }
     }
 
     /* ---------- TOC + controls ---------- */
