@@ -6,13 +6,29 @@
    the full source story: `Source Before Adjustment` → `Source` (via `Source Connector`), plus
    CallRail call evidence for leads that arrived under a different source. */
 registerPage({
-  id: "angi-leads-analysis",
+  id: "angi-vs-moveboard",
   group: "sales",
-  title: "Angi Leads Analysis",
+  title: "Angi vs Moveboard",
   async render(host) {
     const esc = RSC.esc, num = RS.num, money = RS.money, fmtN = RS.fmtN, pct = RS.fmtPct;
     const GAP_OK = 3;      // days: identity match counts as "arrived" only inside this window
     const PAGE = 100;      // rows per page in the comparison table
+
+    // monthly-report-style dark-pill controls, page-scoped (injected once)
+    if (!document.getElementById("lvm-css")) {
+      const s = document.createElement("style"); s.id = "lvm-css";
+      s.textContent = `
+      .lvm-filters{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:10px 14px;border-bottom:1px solid var(--line,#e4e9f0)}
+      .lvm-ctl{font:inherit;font-size:12px;font-weight:700;color:#fff;background:#1b2a3f;border:1px solid #2c3e57;border-radius:7px;padding:5px 9px;color-scheme:dark}
+      .lvm-ctl:focus{outline:2px solid #b7e23b;outline-offset:1px}
+      .lvm-ctl option{color:#fff;background:#1b2a3f}
+      input.lvm-ctl::placeholder{color:#8fa0b5}
+      .lvm-grp{display:flex;align-items:center;gap:5px;background:#eef1f6;border:1px solid #e4e9f0;border-radius:9px;padding:4px 8px}
+      .lvm-lbl{font-size:10px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;color:#5a6775;white-space:nowrap}
+      .lvm-x{background:#b7e23b;color:#0e1621;border:0;border-radius:9px;padding:7px 14px;font-size:12px;font-weight:800;cursor:pointer}
+      .lvm-x:hover{background:#a8d32c}`;
+      document.head.appendChild(s);
+    }
 
     host.innerHTML = `<div class="rs-loading"><div>Loading <b>Angi Leads Analysis</b>… (first load pulls the full moveboard once)</div><div class="bar"><i></i></div></div>`;
 
@@ -99,8 +115,10 @@ registerPage({
           r.mbFlag = m.Flag && m.Flag !== "None" ? m.Flag : ""; r.mbStatus = m["Status Category"]; r.mbAssigned = m.Assigned;
           r.mbQuote = num(m["Average Quote"]) || null;
           r.attr = String(m.Source) === "Angi" ? "Angi" : "MISATTRIBUTED: " + (m.Source || "(blank)");
+          // the full rename story only matters when the lead did NOT stay Angi — Angi-sourced rows read simply
           const before = m["Source Before Adjustment"], conn = m["Source Connector"];
-          r.story = before && String(before) !== String(m.Source) ? `“${before}” → “${m.Source}” (via ${conn || "?"})` : `unchanged${conn ? " · connector " + conn : ""}`;
+          r.story = String(m.Source) === "Angi" ? "Angi → Angi"
+            : `“${before || m.Source}” → “${m.Source}” (via ${conn || "?"})`;
           if (String(m.Source) !== "Angi") {
             const cdN = d2n(m["Create Date"]);
             const ev = (callIdx.get(p) || []).filter(cl => cl.d != null && cdN != null && Math.abs(cl.d - cdN) <= 30);
@@ -111,7 +129,7 @@ registerPage({
       });
     }
     const rows = C.rows;
-    const st = { q: "", status: "", attr: "", month: "", flag: "", page: 0 };
+    const st = { q: "", status: "", attr: "", mbst: "", month: "", flag: "", af: "", at: "", cf: "", ct: "", page: 0 };
 
     /* ---------- helpers ---------- */
     const CHIP = { "MATCHED": ["#e4f3ea", "#1c7a4a"], "SAME CUSTOMER, DIFFERENT LEAD": ["#fdf3d7", "#7a5a12"], "MATCHED (no lead date)": ["#eef1f5", "#5a6775"], "NOT IN MOVEBOARD": ["#fbe6e7", "#b02a37"] };
@@ -131,7 +149,7 @@ registerPage({
     const mis = matched.filter(r => r.attr !== "Angi");
     const chase = rows.filter(r => r.status === "NOT IN MOVEBOARD" || r.status === "SAME CUSTOMER, DIFFERENT LEAD");
     host.innerHTML = `
-      <div class="rs-page-head"><h1>Angi Leads Analysis</h1>
+      <div class="rs-page-head"><h1>Angi vs Moveboard</h1>
         <p>Every Angi lead vs moveboard — arrived (created within ${GAP_OK} days), missing, or same-customer-different-lead; with moveboard Flag and the source-change story</p></div>
       <div class="rs-kpis" id="lvmKpis"></div>
       <div id="lvmMain"></div><div id="lvmChase"></div><div id="lvmMis"></div><div id="lvmMonthly"></div>
@@ -152,18 +170,25 @@ registerPage({
     /* ---------- panel 1: full comparison with filters + export ---------- */
     const months = [...new Set(rows.map(r => r.month).filter(Boolean))].sort().reverse();
     const flags = [...new Set(rows.map(r => r.mbFlag).filter(Boolean))].sort();
-    const selCss = `style="font-size:12px;padding:4px 6px;border:1px solid var(--line,#dfe5ec);border-radius:6px;background:var(--card,#fff);color:inherit;max-width:170px"`;
+    const mbStatuses = [...new Set(rows.map(r => r.mbStatus).filter(Boolean))].sort();
     const main = document.getElementById("lvmMain");
     const mainPanel = document.createElement("div"); mainPanel.className = "panel";
     mainPanel.innerHTML = `
-      <div class="panel-head" style="flex-wrap:wrap;gap:6px">
+      <div class="panel-head">
         <span class="panel-title">Angi × Moveboard — full comparison</span><span class="spacer"></span>
-        <input id="fQ" placeholder="search name / phone / email…" ${selCss.replace("max-width:170px", "width:190px")}>
-        <select id="fS" ${selCss}><option value="">All statuses</option>${Object.keys(CHIP).map(s => `<option>${esc(s)}</option>`).join("")}</select>
-        <select id="fA" ${selCss}><option value="">All attributions</option><option value="Angi">Source = Angi</option><option value="MIS">Misattributed</option></select>
-        <select id="fM" ${selCss}><option value="">All months</option>${months.map(m => `<option>${m}</option>`).join("")}</select>
-        <select id="fF" ${selCss}><option value="">All MB flags</option>${flags.map(f => `<option>${esc(f)}</option>`).join("")}</select>
-        <button class="btn" id="fX">⬇ Excel</button></div>
+        <button class="lvm-x" id="fX">⬇ Excel</button></div>
+      <div class="lvm-filters">
+        <input id="fQ" class="lvm-ctl" placeholder="search name / phone / email…" style="width:200px">
+        <select id="fS" class="lvm-ctl"><option value="">All match statuses</option>${Object.keys(CHIP).map(s => `<option>${esc(s)}</option>`).join("")}</select>
+        <select id="fA" class="lvm-ctl"><option value="">All attributions</option><option value="Angi">Source = Angi</option><option value="MIS">Misattributed</option></select>
+        <select id="fMB" class="lvm-ctl"><option value="">All MB statuses</option>${mbStatuses.map(s => `<option>${esc(s)}</option>`).join("")}</select>
+        <select id="fF" class="lvm-ctl"><option value="">All MB flags</option>${flags.map(f => `<option>${esc(f)}</option>`).join("")}</select>
+        <select id="fM" class="lvm-ctl"><option value="">All months</option>${months.map(m => `<option>${m}</option>`).join("")}</select>
+        <span class="lvm-grp"><span class="lvm-lbl">Angi lead date</span>
+          <input type="date" id="fAF" class="lvm-ctl"><span class="lvm-lbl">→</span><input type="date" id="fAT" class="lvm-ctl"></span>
+        <span class="lvm-grp"><span class="lvm-lbl">MB created</span>
+          <input type="date" id="fCF" class="lvm-ctl"><span class="lvm-lbl">→</span><input type="date" id="fCT" class="lvm-ctl"></span>
+      </div>
       <div class="tabwrap" style="overflow:auto"><div id="lvmTbl"></div></div>
       <div style="display:flex;align-items:center;gap:10px;padding:8px 14px;font-size:12px;color:var(--muted)">
         <button class="btn" id="pPrev">‹ Prev</button><span id="pInfo"></span><button class="btn" id="pNext">Next ›</button></div>`;
@@ -176,8 +201,11 @@ registerPage({
     const filt = () => rows.filter(r =>
       (!st.status || r.status === st.status) &&
       (!st.attr || (st.attr === "Angi" ? r.attr === "Angi" : String(r.attr || "").startsWith("MISATTRIBUTED"))) &&
+      (!st.mbst || r.mbStatus === st.mbst) &&
       (!st.month || r.month === st.month) &&
       (!st.flag || r.mbFlag === st.flag) &&
+      (!st.af || (r.eff && r.eff >= st.af)) && (!st.at || (r.eff && r.eff <= st.at)) &&
+      (!st.cf || (r.mbCreate && r.mbCreate >= st.cf)) && (!st.ct || (r.mbCreate && r.mbCreate <= st.ct)) &&
       (!st.q || [r.first, r.last, r.phone, r.email, r.mbCust].some(v => String(v || "").toLowerCase().includes(st.q))));
     function renderTable() {
       const f = filt(); const pages = Math.max(1, Math.ceil(f.length / PAGE)); st.page = Math.min(st.page, pages - 1);
@@ -194,7 +222,7 @@ registerPage({
       return f;
     }
     mainPanel.querySelector("#fQ").oninput = e => { st.q = e.target.value.trim().toLowerCase(); st.page = 0; renderTable(); };
-    [["fS", "status"], ["fA", "attr"], ["fM", "month"], ["fF", "flag"]].forEach(([id, k]) =>
+    [["fS", "status"], ["fA", "attr"], ["fMB", "mbst"], ["fM", "month"], ["fF", "flag"], ["fAF", "af"], ["fAT", "at"], ["fCF", "cf"], ["fCT", "ct"]].forEach(([id, k]) =>
       mainPanel.querySelector("#" + id).onchange = e => { st[k] = e.target.value; st.page = 0; renderTable(); });
     mainPanel.querySelector("#pPrev").onclick = () => { st.page--; renderTable(); };
     mainPanel.querySelector("#pNext").onclick = () => { st.page++; renderTable(); };
