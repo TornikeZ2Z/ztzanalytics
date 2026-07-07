@@ -463,7 +463,16 @@ registerPage({
       if (!s.length) { emptyBox(box); return c; }
       new Chart(cv, { type: "doughnut", data: { labels: s.map(r => r.k), datasets: [{ data: s.map(r => r.v), backgroundColor: s.map((r, i) => r.k === "Other" ? "#aeb9c8" : CAT[i % CAT.length]), borderColor: "#fff", borderWidth: 3, hoverOffset: 5 }] },
         options: baseOpts({ cutout: "66%", interaction: { mode: "nearest", intersect: true }, plugins: { legend: { position: "right", labels: { color: INK2, font: { size: 11 }, boxWidth: 11, padding: 7, usePointStyle: true } }, tooltip: { callbacks: { label: x => `${x.label}: ${tip(fmt)(x.parsed)} (${(x.parsed / tot * 100).toFixed(0)}%)` } } } }),
-        plugins: [{ id: "ctr", afterDraw(ch) { const a = ch.chartArea, ctx = ch.ctx, x = (a.left + a.right) / 2, y = (a.top + a.bottom) / 2; ctx.save(); ctx.textAlign = "center"; ctx.fillStyle = INK; ctx.font = "800 19px " + MONO; ctx.fillText(opts.center || fmt(tot), x, y - 2); ctx.fillStyle = FAINT; ctx.font = "700 10px Inter"; ctx.fillText(opts.centerLbl || "total", x, y + 15); ctx.restore(); } }] });
+        plugins: [{ id: "ctr", afterDraw(ch) { const a = ch.chartArea, ctx = ch.ctx, x = (a.left + a.right) / 2, y = (a.top + a.bottom) / 2; ctx.save(); ctx.textAlign = "center"; ctx.fillStyle = INK; ctx.font = "800 19px " + MONO; ctx.fillText(opts.center || fmt(tot), x, y - 2); ctx.fillStyle = FAINT; ctx.font = "700 10px Inter"; ctx.fillText(opts.centerLbl || "total", x, y + 15); ctx.restore(); } },
+        { id: "dlab", afterDatasetsDraw(ch) {
+          // % label on every slice big enough to hold one (>=4% of the ring)
+          const ctx = ch.ctx; ctx.save(); ctx.font = "800 10px " + MONO; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+          ch.getDatasetMeta(0).data.forEach((el, i) => {
+            const p = s[i] ? s[i].v / tot : 0; if (p < 0.04) return;
+            const pt = el.tooltipPosition ? el.tooltipPosition() : el.getCenterPoint();
+            ctx.strokeStyle = "rgba(14,22,33,.45)"; ctx.lineWidth = 2.5; ctx.strokeText((p * 100).toFixed(0) + "%", pt.x, pt.y);
+            ctx.fillStyle = "#fff"; ctx.fillText((p * 100).toFixed(0) + "%", pt.x, pt.y);
+          }); ctx.restore(); } }] });
       return c;
     }
     function waterfall(mount, title, sub, steps, opts) {
@@ -788,8 +797,24 @@ registerPage({
     /* ---- 03 · Composition & Segments ---- */
     {
       const g = section("Revenue Composition & Segments", "how revenue splits this month");
+      // Revenue by moving type, opened up: each bar IS the revenue, split into the op-profit
+      // portion (lime) and the field-cost portion (ink). End label = revenue · margin.
       const mtRev = segSeries("closing", "Revenue", "Moving Type");
-      rankBars(g, "Revenue by moving type", mtRev, money, { top: 6, note: segInsight(mtRev, money) });
+      const mtOpM = {}; segSeries("closing", "Operational Profit by Formula", "Moving Type").forEach(r => mtOpM[r.k] = r.v);
+      const mtRows = mtRev.slice(0, 6).map(r => { const op2 = Math.max(0, mtOpM[r.k] || 0); return { k: r.k, rev: r.v, op: Math.min(op2, r.v), cost: Math.max(0, r.v - op2) }; });
+      {
+        const { c: cMt, box: bMt, cv: cvMt } = chartCard(g, "Revenue by moving type — profit vs field cost", monLbl + " · before refunds", { h: Math.max(190, 46 + mtRows.length * 36), icon: KIC.bars, headVal: money(mtRows.reduce((a, r) => a + r.rev, 0)) });
+        if (!mtRows.length) emptyBox(bMt);
+        else new Chart(cvMt, { type: "bar", data: { labels: mtRows.map(r => r.k), datasets: [
+          { label: "Op. profit", data: mtRows.map(r => r.op), backgroundColor: LIME, borderRadius: 3, maxBarThickness: 22 },
+          { label: "Field costs", data: mtRows.map(r => r.cost), backgroundColor: INK, borderRadius: 3, maxBarThickness: 22 } ] },
+          options: baseOpts({ indexAxis: "y", layout: { padding: { right: 110 } }, plugins: { legend: { display: true, position: "top", align: "end", labels: { color: SUB, font: { size: 11, weight: "600" }, boxWidth: 9, usePointStyle: true } }, tooltip: { callbacks: { label: x => x.dataset.label + ": " + money(x.parsed.x) } } },
+            scales: { x: axY(moneyC, { beginAtZero: true, stacked: true }), y: { stacked: true, ticks: { color: INK2, font: { size: 11.5, weight: "600" } }, grid: { display: false }, border: { display: false } } } }),
+          plugins: [crosshair, { id: "mtlab", afterDatasetsDraw(ch) { const ctx = ch.ctx; ctx.save(); ctx.font = "700 10px " + MONO; ctx.textAlign = "left"; ctx.textBaseline = "middle"; ctx.fillStyle = INK;
+            ch.getDatasetMeta(1).data.forEach((el, i) => { const r = mtRows[i]; ctx.fillText(money(r.rev) + (r.rev ? " · " + Math.round(r.op / r.rev * 100) + "%" : ""), el.x + 6, el.y); });
+            ctx.restore(); } }] });
+        note(cMt, `Each bar is the type's total revenue — the lime portion is operational profit (before refunds), the ink portion is field cost. End label: revenue · profit margin. ${segInsight(mtRev, money)}`);
+      }
       rankBars(g, "Revenue by size of move", segSeries("closing", "Revenue", "Size of Move"), money, { top: 8 });
       const srcRev = segSeries("closing", "Revenue", "Source");
       rankBars(g, "Revenue by source", srcRev, money, { top: 10, note: segInsight(srcRev, money) });
@@ -862,9 +887,9 @@ registerPage({
     /* ---- 07 · Lead Segmentation ---- */
     {
       const g = section("Lead Segmentation", "booking funnel by service type, size and cubic feet");
-      function funnelTable(title, col) {
+      function funnelTable(title, col, sortFn) {
         const yy = String(curY - 1).slice(2);
-        const dAll = segReduce("moveboard", col, rs => rs, curY, mo).map(r => { const rows2 = r.rows; const tot = rows2.length, bad = rows2.filter(x => x["Status Category"] === "Bad Lead").length, q = tot - bad, c = rows2.filter(x => x["Status Category"] === "Confirmed").length; return { k: r.k, tot, q, c, bad, book: q ? c / q : null }; }).sort((a, b) => b.tot - a.tot);
+        const dAll = segReduce("moveboard", col, rs => rs, curY, mo).map(r => { const rows2 = r.rows; const tot = rows2.length, bad = rows2.filter(x => x["Status Category"] === "Bad Lead").length, q = tot - bad, c = rows2.filter(x => x["Status Category"] === "Confirmed").length; return { k: r.k, tot, q, c, bad, book: q ? c / q : null }; }).sort(sortFn || ((a, b) => b.tot - a.tot));
         const d = dAll.slice(0, 12);
         if (!d.length) return;
         const plyMap = {}; let plyQ = 0, plyC = 0;
@@ -878,7 +903,9 @@ registerPage({
       }
       funnelTable("Leads by service type", "Service Type");
       funnelTable("Leads by size of move", "Size of Move");
-      funnelTable("Leads by CF range", "CF Range");
+      // CF ranges sort by their RANGE (numeric start; "Over …" last), not by lead volume
+      const cfKey = s => { const m = String(s).match(/\d+/); if (!m) return Infinity; return (+m[0]) + (/over|\+|>/i.test(String(s)) ? 0.5 : 0); };
+      funnelTable("Leads by CF range", "CF Range", (a, b) => cfKey(a.k) - cfKey(b.k));
       funnelTable("Leads by state", "State Name");
     }
 
@@ -890,7 +917,7 @@ registerPage({
       const revLyMap = {}; segSeries("closing", "Revenue", "State Name", curY - 1, mo).forEach(r => revLyMap[r.k] = r.v);
       const bkS = segReduce("moveboard", "State Name", rs => { const q = rs.filter(r => r["Status Category"] !== "Bad Lead").length, c = rs.filter(r => r["Status Category"] === "Confirmed").length; return q ? c / q : null; }, curY, mo);
       const bkMap = {}; bkS.forEach(r => bkMap[r.k] = r.v);
-      const states = revS.slice(0, 12).map(r => ({ k: r.k === "—" ? "Unassigned" : r.k, rev: r.v, revLy: revLyMap[r.k] || 0, op: opMap[r.k] || 0, jobs: jobMap[r.k] || 0, bk: bkMap[r.k] }));
+      const states = revS.slice(0, 12).map(r => ({ k: r.k === "—" ? "No state on file" : r.k, rev: r.v, revLy: revLyMap[r.k] || 0, op: opMap[r.k] || 0, jobs: jobMap[r.k] || 0, bk: bkMap[r.k] }));
       const rmin = Math.min(...states.map(s2 => s2.rev)), rmax = Math.max(...states.map(s2 => s2.rev));
       const omin = Math.min(...states.map(s2 => s2.op)), omax = Math.max(...states.map(s2 => s2.op));
       const jmin = Math.min(...states.map(s2 => s2.jobs)), jmax = Math.max(...states.map(s2 => s2.jobs));
@@ -902,9 +929,9 @@ registerPage({
         ${barCell(s2.op, money, omax, "#e4f1d9")}
         ${barCell(s2.jobs, fmtN, jmax, "#eef1f5")}
         ${td(s2.bk == null ? "—" : pct(s2.bk), s2.bk == null ? "" : `color:${s2.bk >= (bk || 0) ? "#1c7a4a" : "#b02a37"};font-weight:800`)}</tr>`).join("");
-      tableCard(g, "State performance matrix", monLbl, `<table class="mrx-tbl"><thead><tr><th>State</th><th>Revenue</th><th>vs '${String(curY - 1).slice(2)}</th><th>Op. Profit</th><th>Jobs</th><th>Booking%</th></tr></thead><tbody>${rowsH}</tbody></table>`, { icon: KIC.grid, headVal: fmtN(states.length) + " states", note: "Bars show $ / jobs magnitude; vs '" + String(curY - 1).slice(2) + " is revenue YoY (green up, red down); Booking% is green above the team average." });
-      rankBars(g, "Revenue by state", revS.map(r => ({ k: r.k === "—" ? "Unassigned" : r.k, v: r.v })), money, { top: 10 });
-      rankBars(g, "Jobs by state", jobS.map(r => ({ k: r.k === "—" ? "Unassigned" : r.k, v: r.v })), fmtN, { top: 10 });
+      tableCard(g, "State performance matrix", monLbl, `<table class="mrx-tbl"><thead><tr><th>State</th><th>Revenue</th><th>vs '${String(curY - 1).slice(2)}</th><th>Op. Profit</th><th>Jobs</th><th>Booking%</th></tr></thead><tbody>${rowsH}</tbody></table>`, { icon: KIC.grid, headVal: fmtN(states.length) + " states", note: "Bars show $ / jobs magnitude; vs '" + String(curY - 1).slice(2) + " is revenue YoY (green up, red down); Booking% is green above the team average. “No state on file” = standalone trip jobs (their source carries no address at all) plus old closing sheets where the State column was left empty — not a mapping error." });
+      rankBars(g, "Revenue by state", revS.map(r => ({ k: r.k === "—" ? "No state on file" : r.k, v: r.v })), money, { top: 10 });
+      rankBars(g, "Jobs by state", jobS.map(r => ({ k: r.k === "—" ? "No state on file" : r.k, v: r.v })), fmtN, { top: 10 });
     }
 
     /* ---- 09 · Sales Team ---- */
