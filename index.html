@@ -70,7 +70,7 @@ const GROUP_OVERRIDE = {
   "sales-team": "sales", "sales-person-analysis": "sales",
   "leads-analysis": "sales", "leads-by-state": "sales",
   "marketing-team": "marketing", "ads-analysis": "marketing", "callrail": "marketing",
-  "post-card-analysis": "marketing", "angi-vs-moveboard": "marketing", "reviews": "cx",
+  "post-card-analysis": "marketing", "angi-vs-moveboard": "marketing", "source-analysis": "marketing", "movers-analysis": "marketing", "reviews": "cx",
   "logistics-team": "logistics", "forman": "logistics", "forman-analysis": "logistics",
   "packing": "logistics", "packing-analysis": "logistics", "packing-per-100cf": "logistics",
   "claims": "logistics", "labor-analysis": "logistics", "customer-experience": "cx",
@@ -79,7 +79,7 @@ const GROUP_OVERRIDE = {
 const groupOf = p => GROUP_OVERRIDE[p.id] || p.group;
 /* team page first in each department, hub merges next, everything else after */
 const NAV_ORDER = { "financial-team": 1, "sales-team": 1, "marketing-team": 1, "logistics-team": 1,
-  "monthly-report": 1, "admin-users": 1, "leads": 10, "marketing": 10, "foremen": 10, "packing-suite": 10 };
+  "monthly-report": 1, "admin-users": 1, "leads": 10, "marketing": 10, "foremen": 10, "packing-suite": 10, "lead-source-analysis": 10 };
 
 /* Inline SVG icon set (Feather-style, stroke-based) — no emojis anywhere. */
 const ICONS = {
@@ -123,7 +123,7 @@ const PAGE_ICONS = {
   "labor-analysis": "activity",
   "financial-analysis": "trend", "post-card-analysis": "megaphone",
   "monthly-report": "spark",
-  "angi-vs-moveboard": "compass",
+  "angi-vs-moveboard": "compass", "lead-source-analysis": "compass", "source-analysis": "compass", "movers-analysis": "megaphone",
   "financial-team": "trend", "sales-team": "user", "marketing-team": "megaphone", "logistics-team": "tool",
 };
 
@@ -134,6 +134,8 @@ const PLANNED = [];  // all 16 General Overview pages are built
    content area renders a tab bar over the constituent pages. Page modules stay
    untouched — future merges are one entry here. */
 const MERGED = [
+  { id: "lead-source-analysis", group: "marketing", icon: "compass", title: "Lead Source Analysis",
+    tabs: [["source-analysis", "Source Overview"], ["angi-vs-moveboard", "Angi Analysis"], ["movers-analysis", "Movers.com"], ["post-card-analysis", "Post Cards"]] },
   { id: "leads", group: "sales", icon: "funnel", title: "Leads",
     tabs: [["leads-analysis", "Funnel"], ["leads-by-state", "Geography"]] },
   { id: "marketing", group: "marketing", icon: "megaphone", title: "Ads & Calls",
@@ -707,6 +709,7 @@ registerPage({
 <script src="pages/financial-analysis.js?v=1"></script>
 <script src="pages/post-card-analysis.js?v=1"></script>
 <script src="pages/monthly-report.js?v=32"></script>
-<script src="pages/leads-vs-moveboard.js?v=4"></script>
+<script src="pages/leads-vs-moveboard.js?v=5"></script>
+<script src="pages/source-analysis.js?v=1"></script>
 </body>
 </html>

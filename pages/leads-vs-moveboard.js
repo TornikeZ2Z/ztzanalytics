@@ -8,7 +8,7 @@
 registerPage({
   id: "angi-vs-moveboard",
   group: "sales",
-  title: "Angi vs Moveboard",
+  title: "Angi Analysis",
   async render(host) {
     const esc = RSC.esc, num = RS.num, money = RS.money, fmtN = RS.fmtN, pct = RS.fmtPct;
     const GAP_OK = 3;      // days: identity match counts as "arrived" only inside this window
@@ -174,7 +174,7 @@ registerPage({
     const mis = arrived.filter(r => r.attr !== "Angi");
     const chase = rows.filter(r => r.status === "NOT IN MOVEBOARD" || r.status === "SAME CUSTOMER, DIFFERENT LEAD");
     host.innerHTML = `
-      <div class="rs-page-head"><h1>Angi vs Moveboard</h1>
+      <div class="rs-page-head"><h1>Angi Analysis</h1>
         <p>Every Angi lead vs moveboard — the standard is SAME-DAY arrival (the integration is automatic); off-schedule arrivals, missing leads and source changes are all broken out</p></div>
       <div class="rs-kpis" id="lvmKpis"></div>
       <div id="lvmMain"></div><div id="lvmChase"></div><div id="lvmMis"></div><div id="lvmMonthly"></div>

@@ -56,10 +56,13 @@ registerPage({
     const adRows = cards.filter(r => RS.num(r["Is Advertising"]) === 1);
     const srcDisp = new Map();                     // norm key → display casing
     const seeSrc = v => { const k = norm(v); if (k && !srcDisp.has(k)) srcDisp.set(k, String(v).trim()); };
-    adRows.forEach(r => seeSrc(r.Source));
-    mb.forEach(r => seeSrc(r.Source));
-    mbBooked.forEach(r => seeSrc(r.Source));
-    closing.forEach(r => seeSrc(r.Source));
+    // this page is about POST CARDS specifically — the general Source Overview tab covers
+    // every other channel. Keep only post-card sources (the per-state campaign splits).
+    const isPostCard = v => /post\s*card/i.test(String(v == null ? "" : v));
+    adRows.forEach(r => { if (isPostCard(r.Source)) seeSrc(r.Source); });
+    mb.forEach(r => { if (isPostCard(r.Source)) seeSrc(r.Source); });
+    mbBooked.forEach(r => { if (isPostCard(r.Source)) seeSrc(r.Source); });
+    closing.forEach(r => { if (isPostCard(r.Source)) seeSrc(r.Source); });
 
     // ---- empty state
     if (!srcDisp.size) {
