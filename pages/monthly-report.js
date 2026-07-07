@@ -906,7 +906,15 @@ async function renderMonthly(host, MRCFG) {
         tableCard(g, title, monLbl, `<table class="mrx-tbl"><thead><tr><th>${esc(col === "Service Type" ? "Service type" : col)}</th><th>Total</th><th>Qual.</th><th>Conf.</th><th>Bad</th><th>Booking%</th><th>vs '${yy}</th></tr></thead><tbody>${rowsH}${trow}</tbody></table>`, { span2: false, icon: KIC.grid, headVal: fmtN(tot.tot), note: "Booking% is green when this month beats " + yy + "'s rate for that segment, red when below; last column is the " + yy + " rate." + (dAll.length > 12 ? " Table shows the top 12 of " + dAll.length + " segments; the Total row covers all of them." : "") });
       }
       funnelTable("Leads by service type", "Service Type");
-      funnelTable("Leads by size of move", "Size of Move");
+      // sizes sort small→large: Single Item, Studio, 1-4 bedrooms (condo before house), then Storage/Office
+      const sizeKey = s => { const t = String(s).toLowerCase();
+        if (/single item/.test(t)) return 1;
+        if (/studio/.test(t)) return 5;
+        const m = t.match(/(\d+)\s*(bed|br\b)/); if (m) return 10 * (+m[1]) + (/house/.test(t) ? 1 : 0);
+        if (/storage/.test(t)) return 100;
+        if (/office/.test(t)) return 101;
+        return 200; };
+      funnelTable("Leads by size of move", "Size of Move", (a, b) => sizeKey(a.k) - sizeKey(b.k) || String(a.k).localeCompare(String(b.k)));
       // CF ranges sort by their RANGE (numeric start; "Over …" last), not by lead volume
       const cfKey = s => { const m = String(s).match(/\d+/); if (!m) return Infinity; return (+m[0]) + (/over|\+|>/i.test(String(s)) ? 0.5 : 0); };
       funnelTable("Leads by CF range", "CF Range", (a, b) => cfKey(a.k) - cfKey(b.k));
