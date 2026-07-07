@@ -57,6 +57,7 @@ const GROUPS = [
   { key: "sales",     title: "Sales" },
   { key: "marketing", title: "Marketing" },
   { key: "logistics", title: "Logistics" },
+  { key: "cx",        title: "Customer Experience" },
 ];
 
 /* Sidebar placement is decided HERE (id -> container), overriding whatever group a page
@@ -69,10 +70,10 @@ const GROUP_OVERRIDE = {
   "sales-team": "sales", "sales-person-analysis": "sales",
   "leads-analysis": "sales", "leads-by-state": "sales",
   "marketing-team": "marketing", "ads-analysis": "marketing", "callrail": "marketing",
-  "post-card-analysis": "marketing", "angi-vs-moveboard": "marketing", "reviews": "marketing",
+  "post-card-analysis": "marketing", "angi-vs-moveboard": "marketing", "reviews": "cx",
   "logistics-team": "logistics", "forman": "logistics", "forman-analysis": "logistics",
   "packing": "logistics", "packing-analysis": "logistics", "packing-per-100cf": "logistics",
-  "claims": "logistics", "labor-analysis": "logistics", "customer-experience": "logistics",
+  "claims": "logistics", "labor-analysis": "logistics", "customer-experience": "cx",
   "jobs-vs-hours": "logistics",
 };
 const groupOf = p => GROUP_OVERRIDE[p.id] || p.group;
