@@ -949,7 +949,9 @@ async function renderMonthly(host, MRCFG) {
     /* ---- 09 · Sales Team ---- */
     if (SEC("Sales Team Performance")) {
       const g = section("Sales Team Performance", "per-rep scorecard and large-move conversion");
-      const revSP = segSeries("closing", "Revenue", "Sales Person"), opSP = segSeries("closing", "Operational Profit by Formula", "Sales Person");
+      // trips (grouped multi-job hauls, incl. hauls for OTHER movers' customers) carry NO sales person by
+      // design — the blank bucket is excluded so per-rep revenue never shows an unattributable "—" row
+      const revSP = segSeries("closing", "Revenue", "Sales Person").filter(r => r.k !== "—"), opSP = segSeries("closing", "Operational Profit by Formula", "Sales Person");
       const opMap = {}; opSP.forEach(r => opMap[r.k] = r.v);
       const mb = segReduce("moveboard", "Assigned", rs => rs, curY, mo);
       const mbMap = {}; mb.forEach(r => { const q = r.rows.filter(x => x["Status Category"] !== "Bad Lead").length, c = r.rows.filter(x => x["Status Category"] === "Confirmed").length, bad = r.rows.filter(x => x["Status Category"] === "Bad Lead").length; mbMap[r.k] = { q, c, bad, tot: r.rows.length, book: q ? c / q : null, dead: r.rows.length ? bad / r.rows.length : null }; });
