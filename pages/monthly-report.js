@@ -69,7 +69,8 @@ async function renderMonthly(host, MRCFG) {
     }
     const fleetRows = window.__mrFleetCache || [];
     if (!window.__mrPackCache) {
-      const pk0 = await ZTZ.api("/api/fct_moveboard?limit=1000000&cols=" + encodeURIComponent("Create Date,Service Type,Sales Packing total,Closing Packing total")).then(j => j.rows || []).catch(() => []);
+      // per-job packing totals live only in the RAW moveboard table (not carried into fct_moveboard)
+      const pk0 = await ZTZ.api("/api/moveboard?limit=1000000&cols=" + encodeURIComponent("Create Date,Service Type,Sales Packing total,Closing Packing total")).then(j => j.rows || []).catch(() => []);
       if (pk0.length) window.__mrPackCache = pk0;
     }
     const packJobs = window.__mrPackCache || [];
