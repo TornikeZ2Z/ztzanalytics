@@ -26,9 +26,23 @@ registerPage({
       .lvm-grp{display:flex;align-items:center;gap:5px;background:#eef1f6;border:1px solid #e4e9f0;border-radius:9px;padding:4px 8px}
       .lvm-lbl{font-size:10px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;color:#5a6775;white-space:nowrap}
       .lvm-x{background:#b7e23b;color:#0e1621;border:0;border-radius:9px;padding:7px 14px;font-size:12px;font-weight:800;cursor:pointer}
-      .lvm-x:hover{background:#a8d32c}`;
+      .lvm-x:hover{background:#a8d32c}
+      .lvm-ms{position:relative;display:inline-block}
+      .lvm-msb{cursor:pointer}
+      .lvm-msb .n{background:#b7e23b;color:#0e1621;border-radius:999px;padding:0 7px;margin-left:6px;font-size:10.5px;font-weight:800}
+      .lvm-msp{position:absolute;top:calc(100% + 5px);left:0;z-index:80;background:#1b2a3f;border:1px solid #2c3e57;border-radius:10px;padding:8px;min-width:230px;max-width:320px;max-height:320px;overflow:auto;box-shadow:0 14px 34px rgba(14,22,33,.38)}
+      .lvm-msp.hidden{display:none}
+      .lvm-msrow{display:flex;align-items:center;gap:8px;color:#fff;font-size:12px;font-weight:600;padding:5px 7px;border-radius:6px;cursor:pointer;user-select:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      .lvm-msrow:hover{background:#243550}
+      .lvm-msrow input{accent-color:#b7e23b;flex:0 0 auto}
+      .lvm-msops{display:flex;gap:12px;margin:0 2px 7px}
+      .lvm-msops .op{font-size:10.5px;font-weight:800;color:#b7e23b;cursor:pointer;text-transform:uppercase;letter-spacing:.07em}
+      .lvm-msops .op:hover{text-decoration:underline}
+      .lvm-mss{width:100%;margin-bottom:7px;background:#0e1621;border:1px solid #2c3e57;color:#fff;border-radius:7px;padding:5px 9px;font-size:12px}`;
       document.head.appendChild(s);
     }
+    // one global click-away closer for all multiselect panels
+    if (!window.__lvmMsClose) { window.__lvmMsClose = true; document.addEventListener("click", () => document.querySelectorAll(".lvm-msp").forEach(p => p.classList.add("hidden"))); }
 
     host.innerHTML = `<div class="rs-loading"><div>Loading <b>Angi Leads Analysis</b>… (first load pulls the full moveboard once)</div><div class="bar"><i></i></div></div>`;
 
@@ -137,7 +151,8 @@ registerPage({
       });
     }
     const rows = C.rows;
-    const st = { q: "", status: "", attr: "", mbst: "", month: "", flag: "", af: "", at: "", cf: "", ct: "", page: 0 };
+    // multiselect filters hold Sets (empty set = no filter); q + date bounds stay scalar
+    const st = { q: "", status: new Set(), attr: new Set(), mbst: new Set(), month: new Set(), flag: new Set(), af: "", at: "", cf: "", ct: "", page: 0 };
 
     /* ---------- helpers ---------- */
     const CHIP = { "MATCHED — SAME DAY": ["#e4f3ea", "#1c7a4a"], "ARRIVED 1-3d OFF": ["#e7f0fb", "#1d4f91"], "SAME CUSTOMER, DIFFERENT LEAD": ["#fdf3d7", "#7a5a12"], "MATCHED (no lead date)": ["#eef1f5", "#5a6775"], "NOT IN MOVEBOARD": ["#fbe6e7", "#b02a37"] };
@@ -190,11 +205,7 @@ registerPage({
         <button class="lvm-x" id="fX">⬇ Excel</button></div>
       <div class="lvm-filters">
         <input id="fQ" class="lvm-ctl" placeholder="search name / phone / email…" style="width:200px">
-        <select id="fS" class="lvm-ctl"><option value="">All match statuses</option>${Object.keys(CHIP).map(s => `<option>${esc(s)}</option>`).join("")}</select>
-        <select id="fA" class="lvm-ctl"><option value="">All attributions</option><option value="Angi">Source = Angi</option><option value="MIS">Misattributed</option></select>
-        <select id="fMB" class="lvm-ctl"><option value="">All MB statuses</option>${mbStatuses.map(s => `<option>${esc(s)}</option>`).join("")}</select>
-        <select id="fF" class="lvm-ctl"><option value="">All MB flags</option>${flags.map(f => `<option>${esc(f)}</option>`).join("")}</select>
-        <select id="fM" class="lvm-ctl"><option value="">All months</option>${months.map(m => `<option>${m}</option>`).join("")}</select>
+        <span id="msStatus"></span><span id="msAttr"></span><span id="msMB"></span><span id="msFlag"></span><span id="msMonth"></span>
         <span class="lvm-grp"><span class="lvm-lbl">Angi lead date</span>
           <input type="date" id="fAF" class="lvm-ctl"><span class="lvm-lbl">→</span><input type="date" id="fAT" class="lvm-ctl"></span>
         <span class="lvm-grp"><span class="lvm-lbl">MB created</span>
@@ -210,12 +221,13 @@ registerPage({
     const sgTxt = r => r.sg == null ? "" : (r.sg > 0 ? "+" + r.sg : String(r.sg));  // signed: +1 = MB created the day AFTER the lead
     const cellsOf = r => [r.lead, r.eff + (r.repaired ? " *" : ""), r.lstatus, r.ltype, r.first, r.last, r.phone, r.email, r.city, r.state,
       r.status, r.mk || "", sgTxt(r), r.mbCust || "", r.mbCreate || "", r.mbSrc || "", r.story || "", r.call || "", r.mbFlag || "", r.mbStatus || "", r.mbAssigned || "", r.mbQuote == null ? "" : r.mbQuote];
+    const attrOf = r => !r.mk ? "(no match)" : r.attr === "Angi" ? "Source = Angi" : "Misattributed";
     const filt = () => rows.filter(r =>
-      (!st.status || r.status === st.status) &&
-      (!st.attr || (st.attr === "Angi" ? r.attr === "Angi" : String(r.attr || "").startsWith("MISATTRIBUTED"))) &&
-      (!st.mbst || r.mbStatus === st.mbst) &&
-      (!st.month || r.month === st.month) &&
-      (!st.flag || r.mbFlag === st.flag) &&
+      (!st.status.size || st.status.has(r.status)) &&
+      (!st.attr.size || st.attr.has(attrOf(r))) &&
+      (!st.mbst.size || st.mbst.has(r.mbStatus || "")) &&
+      (!st.month.size || st.month.has(r.month || "")) &&
+      (!st.flag.size || st.flag.has(r.mbFlag || "")) &&
       (!st.af || (r.eff && r.eff >= st.af)) && (!st.at || (r.eff && r.eff <= st.at)) &&
       (!st.cf || (r.mbCreate && r.mbCreate >= st.cf)) && (!st.ct || (r.mbCreate && r.mbCreate <= st.ct)) &&
       (!st.q || [r.first, r.last, r.phone, r.email, r.mbCust].some(v => String(v || "").toLowerCase().includes(st.q))));
@@ -233,8 +245,39 @@ registerPage({
       document.getElementById("pPrev").disabled = st.page === 0; document.getElementById("pNext").disabled = st.page >= pages - 1;
       return f;
     }
+    /* checkbox-dropdown multiselect: dark pill button w/ count badge, All/Clear, search on long lists */
+    function msel(mountId, key, label, options) {
+      const mount = mainPanel.querySelector("#" + mountId);
+      const wrap = document.createElement("span"); wrap.className = "lvm-ms"; wrap.dataset.ms = key;
+      const btn = document.createElement("button"); btn.className = "lvm-ctl lvm-msb"; wrap.appendChild(btn);
+      const pan = document.createElement("div"); pan.className = "lvm-msp hidden"; wrap.appendChild(pan);
+      const sel = st[key];
+      const paint = () => { btn.innerHTML = `${esc(label)}${sel.size ? `<span class="n">${sel.size}</span>` : ""} ▾`; };
+      pan.innerHTML = `${options.length > 8 ? `<input class="lvm-mss" placeholder="type to filter options…">` : ""}
+        <div class="lvm-msops"><span class="op all">All</span><span class="op none">Clear</span></div><div class="lvm-msl"></div>`;
+      const list = pan.querySelector(".lvm-msl"), ss = pan.querySelector(".lvm-mss");
+      const apply = () => { st.page = 0; renderTable(); };
+      const build = () => {
+        const q = ss ? ss.value.trim().toLowerCase() : "";
+        const opts = options.filter(o => !q || o.l.toLowerCase().includes(q));
+        list.innerHTML = opts.map(o => `<label class="lvm-msrow"><input type="checkbox" data-val="${esc(o.v)}"${sel.has(o.v) ? " checked" : ""}>${esc(o.l)}</label>`).join("") || `<div class="lvm-msrow" style="opacity:.6">no options match</div>`;
+        list.querySelectorAll("input").forEach(cb => cb.onchange = () => { cb.checked ? sel.add(cb.dataset.val) : sel.delete(cb.dataset.val); paint(); apply(); });
+      };
+      if (ss) ss.oninput = build;
+      pan.querySelector(".all").onclick = () => { options.forEach(o => sel.add(o.v)); build(); paint(); apply(); };
+      pan.querySelector(".none").onclick = () => { sel.clear(); build(); paint(); apply(); };
+      btn.onclick = e => { e.stopPropagation(); document.querySelectorAll(".lvm-msp").forEach(p => { if (p !== pan) p.classList.add("hidden"); }); pan.classList.toggle("hidden"); };
+      pan.onclick = e => e.stopPropagation();
+      build(); paint(); mount.appendChild(wrap);
+    }
+    const opt = (arr, blankLabel) => arr.map(v => ({ v, l: v })).concat(blankLabel ? [{ v: "", l: blankLabel }] : []);
+    msel("msStatus", "status", "Match status", Object.keys(CHIP).map(v => ({ v, l: v })));
+    msel("msAttr", "attr", "Attribution", [{ v: "Source = Angi", l: "Source = Angi" }, { v: "Misattributed", l: "Misattributed" }, { v: "(no match)", l: "(no match)" }]);
+    msel("msMB", "mbst", "MB status", opt(mbStatuses, "(no match)"));
+    msel("msFlag", "flag", "MB flag", opt(flags, "(no flag)"));
+    msel("msMonth", "month", "Month", opt(months, "(no date)"));
     mainPanel.querySelector("#fQ").oninput = e => { st.q = e.target.value.trim().toLowerCase(); st.page = 0; renderTable(); };
-    [["fS", "status"], ["fA", "attr"], ["fMB", "mbst"], ["fM", "month"], ["fF", "flag"], ["fAF", "af"], ["fAT", "at"], ["fCF", "cf"], ["fCT", "ct"]].forEach(([id, k]) =>
+    [["fAF", "af"], ["fAT", "at"], ["fCF", "cf"], ["fCT", "ct"]].forEach(([id, k]) =>
       mainPanel.querySelector("#" + id).onchange = e => { st[k] = e.target.value; st.page = 0; renderTable(); });
     mainPanel.querySelector("#pPrev").onclick = () => { st.page--; renderTable(); };
     mainPanel.querySelector("#pNext").onclick = () => { st.page++; renderTable(); };
