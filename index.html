@@ -51,12 +51,34 @@ window.registerPage = p => PAGES.push(p);
 
 /* Groups shown in the sidebar (pages register with group keys). */
 const GROUPS = [
-  { key: "pulse",     title: "Pulse" },
-  { key: "overview",  title: "Overview & Growth" },
-  { key: "sales",     title: "Sales & Leads" },
-  { key: "ops",       title: "Operations" },
-  { key: "customers", title: "Customers & Storage" },
+  { key: "settings",  title: "Settings" },
+  { key: "company",   title: "Company Reports" },
+  { key: "financial", title: "Financial" },
+  { key: "sales",     title: "Sales" },
+  { key: "marketing", title: "Marketing" },
+  { key: "logistics", title: "Logistics" },
 ];
+
+/* Sidebar placement is decided HERE (id -> container), overriding whatever group a page
+   module registered with — so restructures never require touching 20 page files. */
+const GROUP_OVERRIDE = {
+  "admin-users": "settings", "source-identification": "settings",
+  "monthly-report": "company", "insights": "company", "executive-scorecard": "company",
+  "yoy-diff": "company", "analysis-by-category": "company",
+  "financial-team": "financial", "financial-analysis": "financial", "storage": "financial",
+  "sales-team": "sales", "sales-person-analysis": "sales",
+  "leads-analysis": "sales", "leads-by-state": "sales",
+  "marketing-team": "marketing", "ads-analysis": "marketing", "callrail": "marketing",
+  "post-card-analysis": "marketing", "angi-vs-moveboard": "marketing", "reviews": "marketing",
+  "logistics-team": "logistics", "forman": "logistics", "forman-analysis": "logistics",
+  "packing": "logistics", "packing-analysis": "logistics", "packing-per-100cf": "logistics",
+  "claims": "logistics", "labor-analysis": "logistics", "customer-experience": "logistics",
+  "jobs-vs-hours": "logistics",
+};
+const groupOf = p => GROUP_OVERRIDE[p.id] || p.group;
+/* team page first in each department, hub merges next, everything else after */
+const NAV_ORDER = { "financial-team": 1, "sales-team": 1, "marketing-team": 1, "logistics-team": 1,
+  "monthly-report": 1, "admin-users": 1, "leads": 10, "marketing": 10, "foremen": 10, "packing-suite": 10 };
 
 /* Inline SVG icon set (Feather-style, stroke-based) — no emojis anywhere. */
 const ICONS = {
@@ -113,11 +135,11 @@ const PLANNED = [];  // all 16 General Overview pages are built
 const MERGED = [
   { id: "leads", group: "sales", icon: "funnel", title: "Leads",
     tabs: [["leads-analysis", "Funnel"], ["leads-by-state", "Geography"]] },
-  { id: "marketing", group: "sales", icon: "megaphone", title: "Marketing",
+  { id: "marketing", group: "marketing", icon: "megaphone", title: "Ads & Calls",
     tabs: [["ads-analysis", "Ad Spend & ROI"], ["callrail", "Call Tracking"]] },
-  { id: "foremen", group: "ops", icon: "tool", title: "Foremen",
+  { id: "foremen", group: "logistics", icon: "tool", title: "Foremen",
     tabs: [["forman", "Scorecard"], ["forman-analysis", "Deep Comparison"]] },
-  { id: "packing-suite", group: "ops", icon: "box", title: "Packing",
+  { id: "packing-suite", group: "logistics", icon: "box", title: "Packing",
     tabs: [["packing", "Overview"], ["packing-analysis", "Analysis"], ["packing-per-100cf", "Per 100 CF"]] },
 ];
 const MERGED_BY_TAB = {};
@@ -351,7 +373,7 @@ function buildNav() {
     // (at its first constituent's position) and its constituents are hidden.
     const display = [];
     const seenMerged = new Set();
-    PAGES.filter(p => p.group === g.key).forEach(p => {
+    PAGES.filter(p => groupOf(p) === g.key).forEach(p => {
       const m = MERGED_BY_TAB[p.id];
       if (m) {
         if (!seenMerged.has(m.id) && canSee(m.id)) {
@@ -363,6 +385,7 @@ function buildNav() {
         display.push({ id: p.id, title: p.title, iconKey: PAGE_ICONS[p.id], search: p.title });
       }
     });
+    display.sort((a, b) => (NAV_ORDER[a.id] || 50) - (NAV_ORDER[b.id] || 50));
     const items = display.filter(p => p.search.toLowerCase().includes(q));
     const planned = PLANNED.filter(p => p.group === g.key && p.title.toLowerCase().includes(q));
     if (!items.length && !planned.length) return;
