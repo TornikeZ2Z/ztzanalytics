@@ -328,6 +328,9 @@ function navigate(id, push) {
 
 async function renderPage() {
   const host = document.getElementById("content");
+  // destroy the outgoing page's Chart instances BEFORE wiping the DOM — otherwise they leak on
+  // every navigation / theme change / re-render (worst on chart-heavy pages)
+  try { Object.values(Chart.instances || {}).forEach(ch => { if (ch.canvas && host.contains(ch.canvas)) ch.destroy(); }); } catch (e) {}
   host.innerHTML = `<div class="rs-loading"><div>Loading <b>${CURRENT.title}</b>…</div><div class="bar"><i></i></div></div>`;
   try {
     await CURRENT.render(host);
@@ -677,6 +680,6 @@ registerPage({
 <script src="pages/labor-analysis.js?v=1"></script>
 <script src="pages/financial-analysis.js?v=1"></script>
 <script src="pages/post-card-analysis.js?v=1"></script>
-<script src="pages/monthly-report.js?v=23"></script>
+<script src="pages/monthly-report.js?v=24"></script>
 </body>
 </html>
