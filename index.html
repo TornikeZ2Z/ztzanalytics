@@ -100,6 +100,7 @@ const PAGE_ICONS = {
   "labor-analysis": "activity",
   "financial-analysis": "trend", "post-card-analysis": "megaphone",
   "monthly-report": "spark",
+  "leads-vs-moveboard": "compass", "angi-leads-analysis": "funnel",
 };
 
 /* Pages not yet built — shown greyed with a SOON tag so the full scope is visible. */
@@ -111,6 +112,8 @@ const PLANNED = [];  // all 16 General Overview pages are built
 const MERGED = [
   { id: "leads", group: "sales", icon: "funnel", title: "Leads",
     tabs: [["leads-analysis", "Funnel"], ["leads-by-state", "Geography"]] },
+  { id: "leads-vs-moveboard", group: "sales", icon: "compass", title: "Leads vs Moveboard",
+    tabs: [["angi-leads-analysis", "Angi Leads Analysis"]] },
   { id: "marketing", group: "sales", icon: "megaphone", title: "Marketing",
     tabs: [["ads-analysis", "Ad Spend & ROI"], ["callrail", "Call Tracking"]] },
   { id: "foremen", group: "ops", icon: "tool", title: "Foremen",
@@ -681,5 +684,6 @@ registerPage({
 <script src="pages/financial-analysis.js?v=1"></script>
 <script src="pages/post-card-analysis.js?v=1"></script>
 <script src="pages/monthly-report.js?v=24"></script>
+<script src="pages/leads-vs-moveboard.js?v=1"></script>
 </body>
 </html>
