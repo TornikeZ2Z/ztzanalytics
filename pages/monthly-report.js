@@ -4,11 +4,13 @@
    stat + delta + icon on EVERY chart card ("max infographic"); a data-completeness banner
    (closings awaiting return); a sticky table-of-contents; collapsible sections; symmetric
    2-up / 4-up grids; rich hover (crosshair + tooltip). Data/measure logic unchanged. */
-registerPage({
-  id: "monthly-report",
-  group: "pulse",
-  title: "Monthly Report",
-  async render(host) {
+/* One renderer, five pages: the full Monthly Report plus four TEAM VIEWS that render a
+   filtered subset of the SAME sections (same data, same visuals — nothing duplicated).
+   Each team page has its own page id so access can be granted per team. */
+async function renderMonthly(host, MRCFG) {
+    const ONLY = MRCFG && MRCFG.sections ? new Set(MRCFG.sections) : null;
+    const SEC = t => !ONLY || ONLY.has(t);
+    const PAGE_TITLE = MRCFG ? MRCFG.title : "Monthly Report";
     const M = RS.M;
     const MON = ["", "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
     const MS = ["", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -317,8 +319,10 @@ registerPage({
     function emptyBox(box, msg) { box.innerHTML = `<div class="mrx-empty">${esc(msg || ("No data for " + monLbl))}</div>`; }
     const TOCNAME = { "Executive Summary": "Summary", "Demand & Lead Funnel": "Demand", "Sales Team Performance": "Sales", "Operations & Crew (Foreman)": "Crew", "Packing & Storage": "Packing", "Revenue & Growth": "Revenue", "Revenue Composition & Segments": "Mix", "Profitability & P&L": "P&L", "Marketing & Channels": "Marketing", "Quality & Customer Experience": "Quality", "Geography — by State": "Geography", "Lead Segmentation": "Segments", "Returned & Recommended": "Repeat", "Unit Economics": "Unit Econ" };
     let bodyEl, secN = 0; const secList = [];
-    // narrative block divider — the report reads as 4 parts: month → money → demand → delivery
+    // narrative block divider — the report reads as 4 parts: month → money → demand → delivery.
+    // Team views are single-topic slices, so the part headers are skipped there.
     function part(n, title, sub) {
+      if (ONLY) return;
       const el = document.createElement("div"); el.className = "mrx-parth";
       el.innerHTML = `<span class="pn">PART ${n}</span><span class="pt">${esc(title)}</span><span class="ps">${esc(sub || "")}</span>`;
       bodyEl.appendChild(el);
@@ -628,9 +632,9 @@ registerPage({
           y += 8;
         }
         const np = pdf.internal.getNumberOfPages();
-        for (let i = 1; i <= np; i++) { pdf.setPage(i); pdf.setFontSize(8); pdf.setTextColor(150); pdf.text(`Zip to Zip · Monthly Report · ${MON[mo]} ${curY} · ${i}/${np}`, pageW / 2, pageH - 8, { align: "center" }); }
+        for (let i = 1; i <= np; i++) { pdf.setPage(i); pdf.setFontSize(8); pdf.setTextColor(150); pdf.text(`Zip to Zip · ${PAGE_TITLE} · ${MON[mo]} ${curY} · ${i}/${np}`, pageW / 2, pageH - 8, { align: "center" }); }
         console.log("PDF_OK pages=" + np);
-        pdf.save(`Zip-to-Zip-Monthly-Report-${MON[mo]}-${curY}.pdf`);
+        pdf.save(`Zip-to-Zip-${PAGE_TITLE.replace(/\s+/g, "-")}-${MON[mo]}-${curY}.pdf`);
       } catch (e) { console.error("PDF generation failed", e); alert("PDF generation failed: " + (e && e.message || e)); }
       finally {
         collapsed.forEach(s => s.classList.add("collapsed"));
@@ -669,7 +673,7 @@ registerPage({
     cover.innerHTML = `
       <div class="mrx-accent"></div>
       <button class="mrx-print" id="mrPrint" title="Download a polished PDF (no print dialog)">⬇ Download PDF</button>
-      <div class="mrx-eyebrow">Monthly Business Review · Zip to Zip</div>
+      <div class="mrx-eyebrow">${esc(MRCFG ? PAGE_TITLE + " Review" : "Monthly Business Review")} · Zip to Zip</div>
       <div class="mrx-h1">Report for ${MON[mo]} ${curY}</div>
       <div class="mrx-cvsub">${esc(freshness)} · single-company view ·
         <select id="mrMonth" class="mrx-ctl">${MON.slice(1).map((m, i) => `<option value="${i + 1}"${i + 1 === mo ? " selected" : ""}>${m}</option>`).join("")}</select>
@@ -725,7 +729,7 @@ registerPage({
     part(1, "The month at a glance", "headline numbers and the executive read");
 
     /* ---- 01 · Executive Summary ---- */
-    {
+    if (SEC("Executive Summary")) {
       const g = section("Executive Summary", monLbl + " · vs last year & last month", "k");
       [
         { l: "Revenue", v: money(rev), c: rev, ly: revLY, pm: revPM, spk: momSeries("closing", "Revenue", 12), icon: KIC.dollar, hero: 1 },
@@ -747,7 +751,7 @@ registerPage({
     part(2, "The money", "revenue, mix, unit economics and profit");
 
     /* ---- 02 · Revenue & Growth ---- */
-    {
+    if (SEC("Revenue & Growth")) {
       const g = section("Revenue & Growth", "5-year " + MON[mo] + " trend and 12-month momentum");
       const revT = trendSeries("closing", "Revenue"), opT = trendSeries("closing", "Operational Profit by Formula"), jobT = trendSeries("closing", "Total Jobs");
       lines(g, "Revenue & Profit — momentum", "last 12 months", [ { label: "Revenue", series: momSeries("closing", "Revenue", 12), color: INK }, { label: "Op. Profit", series: momSeries("closing", "Operational Profit by Formula", 12), color: BLUE } ], moneyC, { span2: true, headVal: money(rev), chips: dchips([[rev, revPM, "MoM"]]) });
@@ -795,7 +799,7 @@ registerPage({
     }
 
     /* ---- 03 · Composition & Segments ---- */
-    {
+    if (SEC("Revenue Composition & Segments")) {
       const g = section("Revenue Composition & Segments", "how revenue splits this month");
       // Revenue by moving type, opened up: each bar IS the revenue, split into the op-profit
       // portion (lime) and the field-cost portion (ink). End label = revenue · margin.
@@ -822,7 +826,7 @@ registerPage({
     }
 
     /* ---- 04 · Unit Economics ---- */
-    {
+    if (SEC("Unit Economics")) {
       const g = section("Unit Economics", "profitability per job, per crew-hour and crew productivity");
       const revJobT = momReduce("closing", 12, rs => { const j = rs.length; return j ? M["Revenue"].fn(rs) / j : null; });
       const opJobT = momReduce("closing", 12, rs => { const j = rs.length; return j ? M["Operational Profit by Formula"].fn(rs) / j : null; });
@@ -836,7 +840,7 @@ registerPage({
     }
 
     /* ---- 05 · Profitability & P&L ---- */
-    {
+    if (SEC("Profitability & P&L")) {
       const g = section("Profitability & P&L", "where the revenue goes, and margin trend");
       const rowsW = withMonth(curY, mo, () => RS.filtered("closing", closing));
       const totBill = M["Total Bill"].fn(rowsW);
@@ -871,7 +875,7 @@ registerPage({
     part(3, "Demand & sales", "leads, segments, geography, reps and channels");
 
     /* ---- 06 · Demand & Lead Funnel ---- */
-    {
+    if (SEC("Demand & Lead Funnel")) {
       const g = section("Demand & Lead Funnel", "conversion this month and rep performance");
       funnel(g, "Lead Funnel", monLbl + " · Total → Qualified → Confirmed", [ { k: "Total Leads", v: leadsN || 0 }, { k: "Qualified", v: qual || 0 }, { k: "Confirmed", v: conf || 0 } ], { headVal: pct(bk), chips: dchips([[bk, bkLY, "YoY"], [bk, bkPM, "MoM"]]) });
       const badCur = segReduce("moveboard", "Status", rs => rs.length, curY, mo, { pre: r => r["Status Category"] === "Bad Lead" }).slice(0, 6);
@@ -885,7 +889,7 @@ registerPage({
     }
 
     /* ---- 07 · Lead Segmentation ---- */
-    {
+    if (SEC("Lead Segmentation")) {
       const g = section("Lead Segmentation", "booking funnel by service type, size and cubic feet");
       function funnelTable(title, col, sortFn) {
         const yy = String(curY - 1).slice(2);
@@ -910,7 +914,7 @@ registerPage({
     }
 
     /* ---- 08 · Geography ---- */
-    {
+    if (SEC("Geography — by State")) {
       const g = section("Geography — by State", "revenue, profit & booking per state with year-over-year");
       const revS = segSeries("closing", "Revenue", "State Name"), opS = segSeries("closing", "Operational Profit by Formula", "State Name"), jobS = segSeries("closing", "Total Jobs", "State Name");
       const opMap = {}, jobMap = {}; opS.forEach(r => opMap[r.k] = r.v); jobS.forEach(r => jobMap[r.k] = r.v);
@@ -935,7 +939,7 @@ registerPage({
     }
 
     /* ---- 09 · Sales Team ---- */
-    {
+    if (SEC("Sales Team Performance")) {
       const g = section("Sales Team Performance", "per-rep scorecard and large-move conversion");
       const revSP = segSeries("closing", "Revenue", "Sales Person"), opSP = segSeries("closing", "Operational Profit by Formula", "Sales Person");
       const opMap = {}; opSP.forEach(r => opMap[r.k] = r.v);
@@ -962,7 +966,7 @@ registerPage({
     }
 
     /* ---- 10 · Marketing & Channels ---- */
-    {
+    if (SEC("Marketing & Channels")) {
       const g = section("Marketing & Channels", "the return story: ROI → efficiency → spend → outcomes → demand");
       // ===== 1 · RETURN (headline) — ad feed lags ~1 mo, so every ROI lens anchors to the last fully-posted ad month =====
       // ad feed splits post cards by state ("Post Card - MA/DE/NJ…") while bookings pool them as "Post Card" — align both sides so ROI isn't falsely 0×
@@ -1037,7 +1041,7 @@ registerPage({
     part(4, "Delivery & after-sale", "crew operations, packing, quality and repeat business");
 
     /* ---- 11 · Operations & Crew ---- */
-    {
+    if (SEC("Operations & Crew (Foreman)")) {
       const g = section("Operations & Crew (Foreman)", "productivity, quality score and month-over-month");
       const payM = {}, tipsM = {}, refM = {}, payPM = {}, tipsPM = {}, jobsFmPM = {};
       segReduce("closing", "Foreman", rs => rs.reduce((a, x) => a + num(x["Forman Total $"]), 0), curY, mo).forEach(r => payM[r.k] = r.v);
@@ -1083,7 +1087,7 @@ registerPage({
     }
 
     /* ---- 12 · Packing & Storage ---- */
-    {
+    if (SEC("Packing & Storage")) {
       const g = section("Packing & Storage", "packing written vs material cost, storage income vs cost");
       // Packing economics — written revenue vs material cost, MONTH-over-month (replaces the near-constant
       // 5-yr revenue/commission ratio, which was mechanically pinned and taught nothing).
@@ -1109,7 +1113,7 @@ registerPage({
     }
 
     /* ---- 13 · Quality & Customer Experience ---- */
-    {
+    if (SEC("Quality & Customer Experience")) {
       const g = section("Quality & Customer Experience", "reviews, claims and refunds — with line-level registers");
       const claimsN = reduceMonth("claims", curY, mo, rs => rs.length) || 0;
       const claimsPM = reduceMonth("claims", PMY, PM, rs => rs.length) || 0;
@@ -1145,7 +1149,7 @@ registerPage({
     }
 
     /* ---- 14 · Returned & Recommended ---- */
-    {
+    if (SEC("Returned & Recommended")) {
       const g = section("Returned & Recommended", "repeat and referral business — how much our service is liked");
       const RRS = ["Returned Customer", "Recommended"];
       const isRR = r => RRS.indexOf(String(r.Source)) >= 0;
@@ -1207,7 +1211,20 @@ registerPage({
     document.getElementById("mrMonth").onchange = e => { st.month = +e.target.value; reRender(); };
     document.getElementById("mrYear").onchange = e => { st.year = +e.target.value; reRender(); };
     const pb = document.getElementById("mrPrint"); if (pb) pb.onclick = downloadReportPDF;
-  }
-});
+}
+
+registerPage({ id: "monthly-report", group: "pulse", title: "Monthly Report", render(host) { return renderMonthly(host, null); } });
+/* Team views — filtered slices of the SAME report (overlaps are intentional; grant per team id). */
+const MR_TEAMS = [
+  { id: "financial-team", title: "Financial Team", icon: "trend",
+    sections: ["Executive Summary", "Revenue & Growth", "Revenue Composition & Segments", "Unit Economics", "Profitability & P&L", "Packing & Storage"] },
+  { id: "sales-team", title: "Sales Team", icon: "user",
+    sections: ["Demand & Lead Funnel", "Lead Segmentation", "Geography — by State", "Sales Team Performance", "Returned & Recommended"] },
+  { id: "marketing-team", title: "Marketing Team", icon: "megaphone",
+    sections: ["Marketing & Channels", "Demand & Lead Funnel", "Lead Segmentation"] },
+  { id: "logistics-team", title: "Logistics Team", icon: "tool",
+    sections: ["Operations & Crew (Foreman)", "Packing & Storage", "Quality & Customer Experience"] },
+];
+MR_TEAMS.forEach(t => registerPage({ id: t.id, group: "pulse", title: t.title, render(host) { return renderMonthly(host, t); } }));
 
 var st = window.__mrState || (window.__mrState = { month: 0, year: 0, years: 5 });
