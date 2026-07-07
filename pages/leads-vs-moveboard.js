@@ -110,7 +110,15 @@ registerPage({
           const m = C.mb[best.i];
           r.mk = [best.keys & 4 && "phone", best.keys & 2 && "email", best.keys & 1 && "name"].filter(Boolean).join("+");
           r.gap = best.gap;
-          r.status = best.gap != null && best.gap <= GAP_OK ? "MATCHED" : best.gap == null ? "MATCHED (no lead date)" : "SAME CUSTOMER, DIFFERENT LEAD";
+          // signed gap (MB created MINUS lead date) using whichever date interpretation sits closest
+          const cdN2 = d2n(m["Create Date"]); let sg = null;
+          [ldN, altN].forEach(x => { if (x != null && cdN2 != null) { const s2 = cdN2 - x; if (sg == null || Math.abs(s2) < Math.abs(sg)) sg = s2; } });
+          r.sg = sg;
+          // SAME DAY is the integration standard (auto-inflow); 1-3d off = arrived but off-schedule
+          // (43% of arrivals are systematically created the NEXT day); beyond GAP_OK = a different lead
+          r.status = sg === 0 ? "MATCHED — SAME DAY"
+            : sg != null && Math.abs(sg) <= GAP_OK ? "ARRIVED 1-3d OFF"
+            : sg == null ? "MATCHED (no lead date)" : "SAME CUSTOMER, DIFFERENT LEAD";
           r.mbCust = m.Customer; r.mbCreate = String(m["Create Date"] || "").slice(0, 10); r.mbSrc = m.Source;
           r.mbFlag = m.Flag && m.Flag !== "None" ? m.Flag : ""; r.mbStatus = m["Status Category"]; r.mbAssigned = m.Assigned;
           r.mbQuote = num(m["Average Quote"]) || null;
@@ -132,7 +140,7 @@ registerPage({
     const st = { q: "", status: "", attr: "", mbst: "", month: "", flag: "", af: "", at: "", cf: "", ct: "", page: 0 };
 
     /* ---------- helpers ---------- */
-    const CHIP = { "MATCHED": ["#e4f3ea", "#1c7a4a"], "SAME CUSTOMER, DIFFERENT LEAD": ["#fdf3d7", "#7a5a12"], "MATCHED (no lead date)": ["#eef1f5", "#5a6775"], "NOT IN MOVEBOARD": ["#fbe6e7", "#b02a37"] };
+    const CHIP = { "MATCHED — SAME DAY": ["#e4f3ea", "#1c7a4a"], "ARRIVED 1-3d OFF": ["#e7f0fb", "#1d4f91"], "SAME CUSTOMER, DIFFERENT LEAD": ["#fdf3d7", "#7a5a12"], "MATCHED (no lead date)": ["#eef1f5", "#5a6775"], "NOT IN MOVEBOARD": ["#fbe6e7", "#b02a37"] };
     const chip = s => { const c = CHIP[s] || CHIP["NOT IN MOVEBOARD"]; return `<span style="background:${c[0]};color:${c[1]};padding:2px 8px;border-radius:999px;font-size:11px;font-weight:800;white-space:nowrap">${esc(s)}</span>`; };
     async function toXlsx(headers, dataRows, name) {
       try {
@@ -145,12 +153,14 @@ registerPage({
     }
 
     /* ---------- page skeleton ---------- */
-    const matched = rows.filter(r => r.status === "MATCHED");
-    const mis = matched.filter(r => r.attr !== "Angi");
+    const sameDay = rows.filter(r => r.status === "MATCHED — SAME DAY");
+    const late = rows.filter(r => r.status === "ARRIVED 1-3d OFF");
+    const arrived = sameDay.concat(late);
+    const mis = arrived.filter(r => r.attr !== "Angi");
     const chase = rows.filter(r => r.status === "NOT IN MOVEBOARD" || r.status === "SAME CUSTOMER, DIFFERENT LEAD");
     host.innerHTML = `
       <div class="rs-page-head"><h1>Angi vs Moveboard</h1>
-        <p>Every Angi lead vs moveboard — arrived (created within ${GAP_OK} days), missing, or same-customer-different-lead; with moveboard Flag and the source-change story</p></div>
+        <p>Every Angi lead vs moveboard — the standard is SAME-DAY arrival (the integration is automatic); off-schedule arrivals, missing leads and source changes are all broken out</p></div>
       <div class="rs-kpis" id="lvmKpis"></div>
       <div id="lvmMain"></div><div id="lvmChase"></div><div id="lvmMis"></div><div id="lvmMonthly"></div>
       <div class="panel"><div class="panel-head"><span class="panel-title">Data quality (fix pending in the Angi loader)</span></div>
@@ -158,10 +168,11 @@ registerPage({
           ${fmtN(C.dupes)} duplicate rows removed (the loader ingests the combined “Angi Data.xlsx” AND the per-year files — every lead arrives twice) ·
           ${fmtN(rows.filter(r => r.repaired === "YES").length)} Lead Dates repaired (day/month swap) ·
           ${fmtN(rows.filter(r => !r.rawD).length)} leads have no Lead Date in the Angi file.
-          Arrival window is ≤ ${GAP_OK} days (96.6% of true arrivals land within 0–1 days).</div></div>`;
+          Standard = created the SAME day as the Angi lead; “1-3d off” arrivals are in moveboard but missed that standard (43% of arrivals are stamped the next day); beyond ±${GAP_OK}d the row is treated as a different lead.</div></div>`;
     RSC.kpis(document.getElementById("lvmKpis"), [
       { label: "Unique Angi leads", value: fmtN(rows.length), sub: `${fmtN(C.dupes)} duplicates removed` },
-      { label: "Arrived in moveboard", value: pct(matched.length / rows.length), sub: `${fmtN(matched.length)} leads · ≤${GAP_OK}d` },
+      { label: "Arrived SAME day", value: pct(sameDay.length / rows.length), sub: `${fmtN(sameDay.length)} leads · the standard` },
+      { label: "Arrived 1-3d off", value: fmtN(late.length), sub: "in moveboard, but not same-day" },
       { label: "Same customer, different lead", value: fmtN(rows.filter(r => r.status === "SAME CUSTOMER, DIFFERENT LEAD").length), sub: "this lead never flowed in" },
       { label: "Not in moveboard", value: fmtN(rows.filter(r => r.status === "NOT IN MOVEBOARD").length), sub: "no trace of the customer" },
       { label: "Arrived under wrong source", value: fmtN(mis.length), sub: "Angi paid, another source credited" },
@@ -196,8 +207,9 @@ registerPage({
 
     const HDR = ["Lead #", "Lead Date", "Status (Angi)", "Type", "First", "Last", "Phone", "Email", "City", "St",
       "Match Status", "Matched on", "Gap (d)", "MB Customer", "MB Created", "MB Source", "Source story", "CallRail evidence", "MB Flag", "MB Status", "Assigned", "Avg Quote"];
+    const sgTxt = r => r.sg == null ? "" : (r.sg > 0 ? "+" + r.sg : String(r.sg));  // signed: +1 = MB created the day AFTER the lead
     const cellsOf = r => [r.lead, r.eff + (r.repaired ? " *" : ""), r.lstatus, r.ltype, r.first, r.last, r.phone, r.email, r.city, r.state,
-      r.status, r.mk || "", r.gap == null ? "" : r.gap, r.mbCust || "", r.mbCreate || "", r.mbSrc || "", r.story || "", r.call || "", r.mbFlag || "", r.mbStatus || "", r.mbAssigned || "", r.mbQuote == null ? "" : r.mbQuote];
+      r.status, r.mk || "", sgTxt(r), r.mbCust || "", r.mbCreate || "", r.mbSrc || "", r.story || "", r.call || "", r.mbFlag || "", r.mbStatus || "", r.mbAssigned || "", r.mbQuote == null ? "" : r.mbQuote];
     const filt = () => rows.filter(r =>
       (!st.status || r.status === st.status) &&
       (!st.attr || (st.attr === "Angi" ? r.attr === "Angi" : String(r.attr || "").startsWith("MISATTRIBUTED"))) &&
@@ -231,7 +243,7 @@ registerPage({
 
     /* ---------- panel 2: chase list ---------- */
     const CH = ["Lead #", "Lead Date", "Why", "First", "Last", "Phone", "Email", "City", "St", "Angi Status", "Nearest MB match", "MB Created", "Gap (d)"];
-    const chCells = r => [r.lead, r.eff, r.status === "NOT IN MOVEBOARD" ? "not in moveboard" : "same customer, different lead", r.first, r.last, r.phone, r.email, r.city, r.state, r.lstatus, r.mbCust || "", r.mbCreate || "", r.gap == null ? "" : r.gap];
+    const chCells = r => [r.lead, r.eff, r.status === "NOT IN MOVEBOARD" ? "not in moveboard" : "same customer, different lead", r.first, r.last, r.phone, r.email, r.city, r.state, r.lstatus, r.mbCust || "", r.mbCreate || "", sgTxt(r)];
     const p2 = document.createElement("div"); p2.className = "panel";
     p2.innerHTML = `<div class="panel-head"><span class="panel-title">Didn't flow in — chase list (${fmtN(chase.length)})</span><span class="spacer"></span><button class="btn" id="chX">⬇ Excel</button></div>
       <div class="tabwrap" style="overflow:auto;max-height:420px">${`<table class="tab"><thead><tr>${CH.map(h => `<th>${esc(h)}</th>`).join("")}</tr></thead><tbody>${chase.map(r => `<tr>${chCells(r).map(v => `<td>${esc(v == null ? "" : String(v))}</td>`).join("")}</tr>`).join("")}</tbody></table>`}</div>`;
@@ -250,12 +262,12 @@ registerPage({
 
     /* ---------- panel 4: monthly arrival ---------- */
     const byM = {};
-    rows.forEach(r => { if (!r.month) return; const b = byM[r.month] || (byM[r.month] = { m: r.month, n: 0, ok: 0 }); b.n++; if (r.status === "MATCHED") b.ok++; });
+    rows.forEach(r => { if (!r.month) return; const b = byM[r.month] || (byM[r.month] = { m: r.month, n: 0, ok: 0, off: 0 }); b.n++; if (r.status === "MATCHED — SAME DAY") b.ok++; else if (r.status === "ARRIVED 1-3d OFF") b.off++; });
     const mrows = Object.values(byM).sort((a, b) => a.m.localeCompare(b.m));
-    const MH = ["Month", "Leads", "Arrived", "Not arrived", "Arrival %"];
-    const mCells = b => [b.m, b.n, b.ok, b.n - b.ok, (b.ok / b.n * 100).toFixed(1) + "%"];
+    const MH = ["Month", "Leads", "Same day", "1-3d off", "Not arrived", "Same-day %"];
+    const mCells = b => [b.m, b.n, b.ok, b.off, b.n - b.ok - b.off, (b.ok / b.n * 100).toFixed(1) + "%"];
     const p4 = document.createElement("div"); p4.className = "panel";
-    p4.innerHTML = `<div class="panel-head"><span class="panel-title">Monthly arrival rate</span><span class="spacer"></span><button class="btn" id="moX">⬇ Excel</button></div>
+    p4.innerHTML = `<div class="panel-head"><span class="panel-title">Monthly arrival — same-day standard</span><span class="spacer"></span><button class="btn" id="moX">⬇ Excel</button></div>
       <div class="tabwrap" style="overflow:auto;max-height:420px">${`<table class="tab"><thead><tr>${MH.map(h => `<th>${esc(h)}</th>`).join("")}</tr></thead><tbody>${mrows.map(b => `<tr>${mCells(b).map(v => `<td>${esc(String(v))}</td>`).join("")}</tr>`).join("")}</tbody></table>`}</div>`;
     document.getElementById("lvmMonthly").appendChild(p4);
     p4.querySelector("#moX").onclick = () => toXlsx(MH, mrows.map(mCells), "angi-monthly-arrival");
