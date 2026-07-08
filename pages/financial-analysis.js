@@ -18,8 +18,9 @@
    the owning closing row's group. The grand-total row uses RS.M composites directly so
    it stays identical to the KPI strip and the rest of the portal.
    "Amount Deducted From Sales Person Normalized For Sales" is a known 0 gap (its RELATED
-   factor isn't served client-side) — shown but flagged, matching rs-core. CF Range comes
-   from the moveboard bridge on Request Joinkey (fct_closing has no physical CF Range). */
+   factor isn't served client-side) — kept in the math but hidden from the table until the
+   data exists (scan item C21). CF Range comes from the moveboard bridge on Request Joinkey
+   (fct_closing has no physical CF Range). */
 registerPage({
   id: "financial-analysis",
   group: "overview",
@@ -70,8 +71,10 @@ registerPage({
     const sumRJ = (rs, map) => rs.reduce((a, r) => a + (map.get(r["Request Joinkey"]) || 0), 0);
     const LINES = [
       { key: "jobs",   label: "Total Jobs",       fmt: RS.fmtN,  grp: rs => rs.length },
-      { key: "bill",   label: "Total Bill",       fmt: RS.money, grp: rs => M["Total Bill"].fn(rs) },
-      { key: "forman", label: "Forman Salary",    fmt: RS.money, grp: rs => M["Forman Salary"].fn(rs) },
+      // display label is the transition form "Revenue (Total Bill)"; the registry
+      // key "Total Bill" stays untouched (identical formula to "Revenue").
+      { key: "bill",   label: "Revenue (Total Bill)", fmt: RS.money, grp: rs => M["Total Bill"].fn(rs) },
+      { key: "forman", label: "Foreman Salary",   fmt: RS.money, grp: rs => M["Forman Salary"].fn(rs) },
       { key: "driver", label: "Driver Salary",    fmt: RS.money, grp: rs => M["Driver Salary"].fn(rs) },
       { key: "helper", label: "Helper Salary",    fmt: RS.money, grp: rs => sumUK(rs, helperByUK) },
       { key: "sales",  label: "Sales Commission", fmt: RS.money, grp: rs => sumUK(rs, salesByUK) },
@@ -81,8 +84,11 @@ registerPage({
       { key: "other",  label: "Other Expenses",   fmt: RS.money, grp: rs => M["Other Expenses"].fn(rs) },
       { key: "toll",   label: "Toll Expense",     fmt: RS.money, grp: rs => M["Toll Expense"].fn(rs) },
       { key: "truck",  label: "Truck Expense",    fmt: RS.money, grp: rs => M["Truck Expense"].fn(rs) },
+      // "Amount Deducted From Sales Person" is permanently 0 until its data is
+      // loaded — hidden from the rendered table (C21) but kept in the math so the
+      // Operational Profit build-up keeps its shape.
       { key: "deduct", label: "Amount Deducted From Sales Person",
-        fmt: RS.money, grp: rs => 0, gap: true },
+        fmt: RS.money, grp: rs => 0, gap: true, hidden: true },
       { key: "refund", label: "Total Refunds",    fmt: RS.money, grp: rs => sumRJ(rs, refundByRJ) },
       { key: "op",     label: "Operational Profit", fmt: RS.money },
       { key: "opm",    label: "Op. Profit Margin", fmt: RS.fmtPct },
@@ -120,7 +126,7 @@ registerPage({
       <div class="rs-page-head">
         <h1>Financial Analysis</h1>
         <p>P&amp;L by line item · <b>${RS.fmtN(rows.length)}</b> jobs in scope
-           <span class="freshness">· cross-table salaries &amp; refunds attributed via Unique Key / request link</span></p>
+           <span class="freshness">· commissions, helper salaries &amp; refunds are matched to jobs by job key</span></p>
       </div>
       <div class="rs-kpis" id="kpis"></div>
       <div id="main"></div>
@@ -144,9 +150,9 @@ registerPage({
       + gTot.car + gTot.fuel + gTot.hotel + gTot.other + gTot.toll + gTot.truck
       + gTot.refund - gTot.deduct;
     RSC.kpis(document.getElementById("kpis"), [
-      { label: "Total Bill",         value: RS.moneyC(kBill), sub: nz(RS.money)(kBill) + " · revenue in scope" },
-      { label: "Operational Profit", value: RS.moneyC(kOp),   sub: "Bill − salaries − expenses − refunds" },
-      { label: "Op. Profit Margin",  value: RS.fmtPct(kOpm),  sub: "profit ÷ total bill" },
+      { label: "Revenue (Total Bill)", value: RS.moneyC(kBill), sub: nz(RS.money)(kBill) + " · revenue in scope" },
+      { label: "Operational Profit", value: RS.moneyC(kOp),   sub: "revenue − salaries − expenses − refunds" },
+      { label: "Op. Profit Margin",  value: RS.fmtPct(kOpm),  sub: "profit ÷ revenue" },
       { label: "Sales Commission",   value: RS.moneyC(kSales), sub: nz(RS.money)(kSales) + " · commissions paid" },
       { label: "Total Expenses",     value: RS.moneyC(kExp),  sub: "all salary + expense + refund lines" },
     ]);
@@ -183,8 +189,9 @@ registerPage({
       tot.opm = M["Operational Profit Margin"].fn(rows);
       tot.scm = M["Sales Commission Margin"].fn(rows);
       // rebuild columns fresh each render so the first column label tracks dimBy.
+      // hidden lines (permanently-empty data gaps) stay out of the table until real data exists.
       const cols = [{ key: "k", label: dimBy }].concat(
-        LINES.map(l => ({ key: l.key, label: l.label,
+        LINES.filter(l => !l.hidden).map(l => ({ key: l.key, label: l.label,
           fmt: l.gap ? (() => `—`) : nz(l.fmt) })));
       const totals = Object.assign({ k: "Total" }, tot);
       return RSC.table(cols, list, totals);
@@ -228,12 +235,17 @@ registerPage({
       buildTable,
     });
 
+    // (System detail for maintainers: this table mirrors the PBI "Financial Analysis"
+    // pivot; Sales Commission & Helper Salary attach via Unique Key, refunds via
+    // Request Joinkey, CF Range via the moveboard bridge. The "Amount Deducted From
+    // Sales Person" line is a known 0 gap — its RELATED closing factor isn't served
+    // client-side — so the column is hidden until real data exists. The linked-trip
+    // expense residual (fct_trips) is not folded in.)
     document.getElementById("notes").innerHTML =
-      `P&amp;L mirrors the PBI "Financial Analysis" pivot (Company slicer + Date/Moving Type/CF Range rows). ` +
-      `Cross-table lines are attributed per group by key: Sales Commission &amp; Helper Salary via Unique Key, ` +
-      `Total Refunds via the request link. "Amount Deducted From Sales Person Normalized For Sales" is a known ` +
-      `client-side gap (0) — its RELATED closing factor isn't served. Linked-trip expense residual (fct_trips, ` +
-      `114 rows) is not folded in; unlinked-trip rows are already inside fct_closing. CF Range via the moveboard link.`;
+      `How it's counted · Commissions and helper salaries are matched to jobs by job key; ` +
+      `refunds are matched by request number. One deduction line ("Amount Deducted From Sales Person") ` +
+      `isn't available in this portal yet, so it is not shown. Expenses tied to linked trips are also not ` +
+      `included yet — profit per group is slightly overstated by these two small items.`;
 
     document.getElementById("faDim").onchange = e => { dimBy = e.target.value; mainCard.rerender(); };
   },

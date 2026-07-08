@@ -29,8 +29,8 @@ registerPage({
     if (!adRows.length) {
       host.innerHTML = `
         <div class="rs-page-head">
-          <h1>Ads Analysis</h1>
-          <p>Advertisement spend, funnel and ROI</p>
+          <h1>Marketing — Ad Spend & Returns</h1>
+          <p>Advertisement spend, funnel and returns (formerly "Ads Analysis")</p>
         </div>
         <div class="panel" style="padding:16px;color:var(--muted)">No data for the current filters.</div>`;
       return;
@@ -89,11 +89,11 @@ registerPage({
       <div id="adsWrap">
       <style>#adsWrap .up{color:var(--brand)}#adsWrap .down{color:var(--red)}</style>
       <div class="rs-page-head">
-        <h1>Ads Analysis</h1>
-        <p>Advertisement spend, funnel and ROI ·
+        <h1>Marketing — Ad Spend & Returns</h1>
+        <p>Advertisement spend, funnel and returns (formerly "Ads Analysis") ·
            <b>${RS.fmtN(adRows.length)}</b> ad transactions across
            <b>${RS.fmtN(adSources.size)}</b> sources in scope
-           <span class="freshness">· closing & moveboard matched to ad sources via Source</span></p>
+           <span class="freshness">· closing & Moveboard matched to ad sources via Source</span></p>
       </div>
       <div class="rs-kpis" id="adsKpis"></div>
       <div id="adsMain"></div>
@@ -108,17 +108,17 @@ registerPage({
     RSC.kpis(document.getElementById("adsKpis"), [
       { label: "Advertisement Expense", value: RS.moneyC(adSpend), sub: spendSub },
       { label: "Revenue on Ad Sources", value: RS.moneyC(revenue), sub: revSub },
-      // F11: numerator is collected cash, not billed revenue — say so in the sub
-      { label: "ROI", value: roiCell(roi),
-        sub: "operating profit before commission (net + card) per $1 ad spend · all-time in filter scope" },
+      // F11/C11: numerator is collected cash, not billed revenue — label + sub say so
+      { label: "Cash ROI", value: roiCell(roi),
+        sub: "cash actually collected per $1 of ad spend · all-time in filter scope" },
       { label: "Leads on Ad Sources", value: RS.fmtN(leads),
-        sub: "moveboard requests · created date" },
+        sub: "Moveboard requests · by the date the lead came in" },
       // inline: no exact PBI measure — portal addition alongside "Expense per 1 Job"
       { label: "Cost per Lead", value: leads ? RS.moneyC(adSpend / leads) : "—",
         sub: "ad spend / lead" },
-      // inline: PBI "Expense per 1 Job"
-      { label: "Cost per Job", value: jobs ? RS.moneyC(adSpend / jobs) : "—",
-        sub: "ad spend / closed job" },
+      // inline: PBI "Expense per 1 Job" — one label portal-wide (N32): "Ad cost per completed job"
+      { label: "Ad Cost per Completed Job", value: jobs ? RS.moneyC(adSpend / jobs) : "—",
+        sub: "ad spend / completed job" },
     ]);
     // RSC.kpis escapes sub text — re-inject the two headline subs so the YoY chips render
     const chip = g => g == null ? "" : " · " + deltaCell(g) + " vs same period last year";
@@ -148,16 +148,16 @@ registerPage({
 
     const mainCard = RSC.chartCard(document.getElementById("adsMain"), {
       title: "Spend by Provider",
-      // table shows fixed columns (spend + txns + avg) regardless of the "Calculate by" pick
+      // table shows fixed columns (spend + txns + avg) regardless of the "Show:" pick (PBI "Calculate by")
       controlsGraphOnly: true,
-      controlsHtml: `<span class="lbl">Calculate by</span><select id="adsProvCalc">` +
+      controlsHtml: `<span class="lbl">Show:</span><select id="adsProvCalc">` +
         PROV_CALC.map(c => `<option ${c === provCalc ? "selected" : ""}>${c}</option>`).join("") + `</select>`,
       buildChart(canvas) {
         const list = provSorted();
         const top = list.slice(0, 15);
         const rest = list.slice(15);
         if (rest.length) top.push({
-          k: `Everything else (${rest.length})`,
+          k: `All others (${rest.length})`,
           v: rest.reduce((a, x) => a + x.v, 0), n: rest.reduce((a, x) => a + x.n, 0),
         });
         return new Chart(canvas, {
@@ -195,7 +195,7 @@ registerPage({
           n: x.n, avg: x.n ? x.v / x.n : null,
         }));
         if (rest.length) data.push({
-          r: "", k: `Everything else (${rest.length} providers)`,
+          r: "", k: `All others (${rest.length})`,
           v: rest.reduce((a, x) => a + x.v, 0),
           sh: totV ? rest.reduce((a, x) => a + x.v, 0) / totV : null,
           n: rest.reduce((a, x) => a + x.n, 0),
@@ -258,7 +258,7 @@ registerPage({
                 label: c => `${c.dataset.label}: ${RS.money(c.raw)}`,
                 afterBody: items => {
                   const s = top[items[0].dataIndex];
-                  return `ROI: ${fmtX(s.roi)} · Leads: ${RS.fmtN(s.leads)} · Jobs: ${RS.fmtN(s.jobs)}`;
+                  return `Cash ROI: ${fmtX(s.roi)} · Leads: ${RS.fmtN(s.leads)} · Jobs: ${RS.fmtN(s.jobs)}`;
                 } } },
             },
             scales: {
@@ -271,15 +271,16 @@ registerPage({
         });
       },
       buildTable() {
-        /* E7a: full-funnel source economics — Leads → Booked Jobs → Conv % →
-           CAC (spend/job) → Rev/Lead → ROAS (billed revenue/spend); ROI stays
-           collected-cash based (PBI "Ads Analysis - ROI") and is labeled so. */
+        /* E7a: full-funnel source economics — Leads → Jobs → Leads→Jobs % →
+           Ad cost per completed job (CAC) → Revenue per Lead → ROAS (billed
+           revenue/spend); Cash ROI stays collected-cash based (PBI "Ads
+           Analysis - ROI") and is labeled so. */
         if (!srcList.length) return emptyTbl("No ad sources matched the current filters.");
         const totSpend = srcList.reduce((a, x) => a + x.spend, 0) + Math.max(0, unattributed);
         const funnel = x => ({
-          cv: x.leads ? x.jobs / x.leads : null,       // Conv % = booked jobs / leads
-          cac: x.jobs ? x.spend / x.jobs : null,       // CAC = spend / booked job
-          rpl: x.leads ? x.rev / x.leads : null,       // Rev / Lead
+          cv: x.leads ? x.jobs / x.leads : null,       // Leads → Jobs % = completed jobs / leads
+          cac: x.jobs ? x.spend / x.jobs : null,       // CAC = spend / completed job
+          rpl: x.leads ? x.rev / x.leads : null,       // Revenue per Lead
           roas: x.spend ? x.rev / x.spend : null,      // ROAS = billed revenue / spend
         });
         const data = srcList.slice(0, 40).map((x, i) => ({
@@ -293,22 +294,27 @@ registerPage({
         });
         const note = srcList.length > 40 ?
           `<div style="color:var(--muted);font-size:11px;padding:6px 2px">showing 40 of ${RS.fmtN(srcList.length)} sources by spend</div>` : "";
+        // C11/D8: the one footnote on this page that defines both return metrics
+        const roasNote =
+          `<div style="color:var(--muted);font-size:11px;padding:6px 2px">How it's counted · ` +
+          `ROAS (return on ad spend) = billed revenue ÷ ad spend. ` +
+          `Cash ROI = cash actually collected ÷ ad spend.</div>`;
         return RSC.table(
           [{ key: "r", label: "#" }, { key: "s", label: "Source" },
            { key: "sp", label: "Ad Spend", fmt: RS.money },
            { key: "sh", label: "% of Spend", fmt: RS.fmtPct },
            { key: "l", label: "Leads", fmt: intNS },
-           { key: "j", label: "Booked Jobs", fmt: intNS },
-           { key: "cv", label: "Conv %", fmt: RS.fmtPct },
-           { key: "cac", label: "CAC", fmt: moneyNS },
+           { key: "j", label: "Jobs", fmt: intNS },
+           { key: "cv", label: "Leads → Jobs %", fmt: RS.fmtPct },
+           { key: "cac", label: "Ad cost per completed job (CAC)", fmt: moneyNS },
            { key: "rev", label: "Revenue", fmt: moneyNS },
-           { key: "rpl", label: "Rev / Lead", fmt: moneyNS },
+           { key: "rpl", label: "Revenue per Lead", fmt: moneyNS },
            { key: "roas", label: "ROAS", fmt: fmtX },
-           { key: "roi", label: "ROI (collected)", fmt: roiCell }],
+           { key: "roi", label: "Cash ROI", fmt: roiCell }],
           data,
           { r: "", s: "Total", sp: totSpend, sh: totSpend ? 1 : null,
             l: leads, j: jobs, rev: revenue, roi: roi,
-            ...funnel({ leads, jobs, spend: totSpend, rev: revenue }) }) + note;
+            ...funnel({ leads, jobs, spend: totSpend, rev: revenue }) }) + note + roasNote;
       },
     });
 
@@ -376,9 +382,9 @@ registerPage({
         return RSC.table(
           [{ key: "m", label: "Month" },
            { key: "sp", label: "Ad Spend", fmt: RS.money },
-           { key: "d", label: "MoM Δ", fmt: deltaCell },
+           { key: "d", label: "MoM Change", fmt: deltaCell },
            { key: "rev", label: "Revenue", fmt: RS.money },
-           { key: "roi", label: "ROI (collected)", fmt: roiCell }],
+           { key: "roi", label: "Cash ROI", fmt: roiCell }],
           data,
           { m: "Total", sp: totSp, d: null, rev: totRev, roi: totSp ? totCash / totSp : null });
       },
@@ -419,7 +425,7 @@ registerPage({
           const j = clRows.length, rev = M["Revenue"].fn(clRows);
           return { k, m: mLabel(k), sp: s, l, j, rev,
             cpl: l ? s / l : null,        // CPL = spend / lead
-            cac: j ? s / j : null,        // CAC = spend / booked job
+            cac: j ? s / j : null,        // CAC = spend / completed job
             roas: s ? rev / s : null };   // ROAS = billed revenue / spend
         });
       };
@@ -480,7 +486,7 @@ registerPage({
              { key: "sp", label: "Ad Spend", fmt: RS.money },
              { key: "l", label: "Leads", fmt: RS.fmtN },
              { key: "cpl", label: "CPL", fmt: moneyNS },
-             { key: "j", label: "Booked Jobs", fmt: RS.fmtN },
+             { key: "j", label: "Jobs", fmt: RS.fmtN },
              { key: "cac", label: "CAC", fmt: moneyNS },
              { key: "rev", label: "Revenue", fmt: RS.money },
              { key: "roas", label: "ROAS", fmt: fmtX }],

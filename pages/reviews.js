@@ -71,7 +71,7 @@ registerPage({
     // F6-D: coverage sub-label — the flow KPI (parsed breakdown, 2025+) must not read
     // like the lifetime snapshot KPIs sitting next to it.
     const bdCov = RS.coverage(bdAll);
-    const countedSub = "parsed reviews, " + (bdCov.from
+    const countedSub = "counted reviews, " + (bdCov.from
       ? RS.monthName(+bdCov.from.slice(5, 7)) + " " + bdCov.from.slice(0, 4) : "Jan 2025") +
       " → today";
 
@@ -106,7 +106,8 @@ registerPage({
         <h1>Reviews</h1>
         <p>Platform review production vs goals ·
            <b>${RS.fmtN(written)}</b> counted reviews in scope
-           <span class="freshness">· factual counts are cumulative platform snapshots</span></p>
+           <span class="freshness">· Counted = reviews the platform actually publishes toward our rating (excludes filtered/removed ones)
+           · Factual Reviews = all-time reviews live on the platforms (cumulative snapshots)</span></p>
       </div>
       <div class="rs-kpis" id="rvKpis"></div>
       <div id="rvMain"></div>
@@ -118,7 +119,7 @@ registerPage({
       { label: "Review Score", value: (avgScore == null || isNaN(avgScore)) ? "—" : Number(avgScore).toFixed(2), sub: "avg over counted reviews" },
       { label: "With Image", value: RS.fmtN(withImage),
         sub: RS.fmtPct(written ? withImage / written : null) + " of counted" },
-      { label: "Total Factual Reviews", value: RS.fmtN(factual), sub: "lifetime total, latest platform snapshot" },
+      { label: "Total Factual Reviews", value: RS.fmtN(factual), sub: "all-time reviews live on the platforms · lifetime total, latest snapshot" },
       { label: "Review Goal", value: RS.fmtN(goalTotal),
         sub: "cumulative target, " + (goalWhen ? goalWhen + " checkpoint" : "latest checkpoint") },
       { label: "Goal Attainment", value: RS.fmtPct(attainment),
@@ -130,7 +131,7 @@ registerPage({
     if (writtenChip) kpiSubs[0].innerHTML =
       RSC.esc(countedSub) + " · " + writtenChip + " vs same period LY";
     if (factualChip) kpiSubs[3].innerHTML =
-      "lifetime total, latest snapshot · " + factualChip + " vs same period LY";
+      "all-time on platforms · lifetime total · " + factualChip + " vs a year ago";
 
     /* ---------------- main: reviews by platform (breakdown Source, counted) ------- */
     const platG = {};
@@ -145,14 +146,14 @@ registerPage({
 
     RSC.chartCard(document.getElementById("rvMain"), {
       title: "Reviews by platform",
-      controlsHtml: `<span class="lbl">counted reviews · top 12 + everything else</span>`,
+      controlsHtml: `<span class="lbl">counted reviews · top 12 + all others</span>`,
       controlsGraphOnly: true,   // the label describes the chart's top-12 grouping; the table lists up to 50
       buildChart(canvas) {
         if (!plats.length) return emptyChart(canvas, "No counted reviews for the current filters.");
         let list = plats.slice(0, 12);
         const rest = plats.slice(12);
         if (rest.length) list = list.concat([{
-          k: "Everything else (" + rest.length + ")",
+          k: "All others (" + rest.length + ")",
           v: rest.reduce((a, x) => a + x.v, 0),
         }]);
         return new Chart(canvas, {
@@ -245,7 +246,7 @@ registerPage({
     const RED = (getComputedStyle(document.documentElement)
       .getPropertyValue("--red") || "").trim() || "#f87171";
     RSC.chartCard(subs, {
-      title: "Factual vs Goal by month",
+      title: "Factual Reviews vs Goal by month",
       controlsHtml: `<span class="lbl">new reviews per month · last 12${
         hasNegFlow ? ` · <span style="color:var(--red)">red = platform removed reviews</span>` : ""}</span>`,
       controlsGraphOnly: true,   // label describes the chart encoding; the table shows up to 24 months
@@ -260,7 +261,7 @@ registerPage({
           data: {
             labels: shown.map(mLabel),
             datasets: [
-              { type: "bar", label: "New Reviews (MoM Δ)", data: flows,
+              { type: "bar", label: "New Reviews (monthly change)", data: flows,
                 backgroundColor: flows.map(v => (v != null && v < 0) ? RED : "#b7e23b"),
                 borderRadius: 4 },
               { type: "line", label: "Cumulative (platform snapshot)", yAxisID: "y1",
@@ -389,7 +390,7 @@ registerPage({
           [{ key: "m", label: "Month" },
            { key: "w", label: "Reviews Written", fmt: nf },
            { key: "avg", label: "Avg Score", fmt: RS.fmt1 },
-           { key: "d", label: "Δ score vs prev mo", fmt: v => v == null ? "—" : dScore(v) }],
+           { key: "d", label: "Score change vs prev mo", fmt: v => v == null ? "—" : dScore(v) }],
           trend,
           { m: "Total", w: written, avg: avgScore, d: null });
       },

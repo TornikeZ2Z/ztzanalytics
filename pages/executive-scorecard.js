@@ -44,7 +44,7 @@ registerPage({
       host.innerHTML = `
         <div class="rs-page-head">
           <h1>Executive Scorecard</h1>
-          <p>One-screen company pulse — anchor-month KPIs, 13-month RAG grid, trailing-12 summary</p>
+          <p>One-screen company pulse — this month's KPIs, the 13-month trend grid and the trailing-12-month summary</p>
         </div>
         <div class="panel" style="padding:16px 14px;color:var(--muted)">
           ${fails.closing
@@ -91,7 +91,8 @@ registerPage({
     const KPI_STRIP = [
       { id: "rev",  label: "Revenue",                 kind: "money", agg: "sum", cov: covC, calc: rs => M["Revenue"].fn(rs.c) },
       { id: "jobs", label: "Jobs",                    kind: "count", agg: "sum", cov: covC, calc: rs => M["Total Jobs"].fn(rs.c) },
-      { id: "cash", label: "Operating Profit Before Commission", kind: "money", agg: "sum", cov: covC, calc: rs => M["Operating Profit Before Commission"].fn(rs.c) },
+      // display label per the portal dictionary — the registry KEY stays "Operating Profit Before Commission"
+      { id: "cash", label: "Cash Collected (Net + Card)", kind: "money", agg: "sum", cov: covC, calc: rs => M["Operating Profit Before Commission"].fn(rs.c) },
       { id: "avgb", label: "Avg Bill",                kind: "money", agg: "avg", cov: covC, calc: rs => M["Average Bill"].fn(rs.c) },
       { id: "ads",  label: "Ad Spend",                kind: "money", agg: "sum", inv: true, na: !!fails.card_expenses, cov: covE, calc: rs => Math.abs(M["Advertisement Expense"].fn(rs.e)) },
       { id: "clm",  label: "Claims",                  kind: "count", agg: "sum", inv: true, na: !!fails.claims, cov: covCl, calc: rs => M["Number of Claims"].fn(rs.cl) },
@@ -101,7 +102,7 @@ registerPage({
     const GRID_ONLY = [
       { id: "c100", label: "Claims per 100 Jobs",        kind: "ratio", agg: "ratio", inv: true, na: !!fails.claims, cov: covCl, calc: rs => rs.c.length ? 100 * rs.cl.length / rs.c.length : null },
       { id: "stor", label: "Storage Additional Revenue", kind: "money", agg: "sum", na: !!fails.storage, cov: covS, calc: rs => M["Storage Additional Revenue"].fn(rs.s) },
-      { id: "refd", label: "Refund $",                   kind: "money", agg: "sum", inv: true, na: !!fails.refunds, cov: covR, calc: rs => M["Total Refunds"].fn(rs.r) },
+      { id: "refd", label: "Total Refunds",              kind: "money", agg: "sum", inv: true, na: !!fails.refunds, cov: covR, calc: rs => M["Total Refunds"].fn(rs.r) },
     ];
     const ALLK = KPI_STRIP.concat(GRID_ONLY);
 
@@ -191,7 +192,7 @@ registerPage({
     for (let i = -11; i <= 0; i++) t12.push(addM(anchor, i));
     for (let i = -23; i <= -12; i++) p12.push(addM(anchor, i));
     const AGG_LBL = { sum: "sum", avg: "window avg", ratio: "window ratio" };
-    let summ = `<table class="tab"><thead><tr><th>KPI</th><th>Trailing 12 mo</th><th>Prior 12 mo</th><th>Δ%</th></tr></thead><tbody>`;
+    let summ = `<table class="tab"><thead><tr><th>KPI</th><th>Trailing 12 mo</th><th>Prior 12 mo</th><th>Change %</th></tr></thead><tbody>`;
     ALLK.forEach(k => {
       const f = fmtSum(k);
       const winVal = win => {
@@ -208,7 +209,7 @@ registerPage({
 
     /* ---------- assemble ---------- */
     const backNote = dm.steppedBack
-      ? `<div class="insight-note">Showing ${esc(mLabel(anchor))} — ${esc(mLabel(months[months.length - 1]))} has under ${RS.MIN_MONTH_DAYS} days of data, so month-anchored cards use the last complete month.</div>`
+      ? `<div class="insight-note">Showing ${esc(mLabel(anchor))} — ${esc(mLabel(months[months.length - 1]))} has under ${RS.MIN_MONTH_DAYS} days of data, so the scorecard shows the last complete month.</div>`
       : "";
     const failNote = Object.keys(fails).length
       ? `<div class="insight-note" style="color:var(--muted)">No access to: ${esc(Object.keys(fails).join(", "))} — the affected rows render "—" instead of values.</div>`
@@ -216,7 +217,7 @@ registerPage({
     host.innerHTML = `
       <div class="rs-page-head">
         <h1>Executive Scorecard</h1>
-        <p>One-screen company pulse · anchor month <b>${esc(mLabel(anchor))}${dm.partial ? " (partial)" : ""}</b>${
+        <p>Showing <b>${esc(mLabel(anchor))}${dm.partial ? " (partial)" : ""}</b> · KPI trend, last 13 months · green/red vs the 12-month typical value · ↓ = lower is better${
           dayCut ? ` · MoM / vs-LY chips compare the first ${dayCut} day${dayCut === 1 ? "" : "s"} of each month` : ""}
           <span class="freshness">· data through ${esc(maxD)} · respects the global filter bar</span></p>
       </div>
@@ -225,7 +226,7 @@ registerPage({
       <div class="panel">
         <div class="panel-head"><span class="panel-title">KPI × month — last 13 months</span>
           <span class="spacer"></span>
-          <span style="font-size:11px;color:var(--faint)">cell shade vs trailing-12-month median: green = better by ≥5%, red = worse by ≥5% · ↓ rows: lower is better${dm.partial ? " · * partial month (not shaded)" : ""}</span></div>
+          <span style="font-size:11px;color:var(--faint)">green = better than the 12-month typical value by 5%+ · red = worse by 5%+ · ↓ = lower is better${dm.partial ? " · * partial month (not shaded)" : ""}</span></div>
         <div class="tabwrap">${grid}</div>
       </div>
       <div class="panel" style="margin-top:14px">

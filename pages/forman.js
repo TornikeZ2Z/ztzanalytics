@@ -20,7 +20,7 @@ if (!RS.M["Forman Score (avg)"]) RS.M["Forman Score (avg)"] = {
 registerPage({
   id: "forman",
   group: "ops",
-  title: "Forman",
+  title: "Foreman Scorecard",
   async render(host) {
     const all = await RS.load("scorecard");
     const rows = RS.filtered("scorecard", all);
@@ -39,7 +39,7 @@ registerPage({
 
     if (!rows.length) {
       host.innerHTML = `
-        <div class="rs-page-head"><h1>Forman</h1>
+        <div class="rs-page-head"><h1>Foreman Scorecard</h1>
           <p>Foreman composite scorecard.</p></div>
         <div class="insight-note">No data for the current filters — no scorecard months match.
           Clear a slicer or widen the date range.</div>`;
@@ -72,10 +72,10 @@ registerPage({
 
     host.innerHTML = `
       <div class="rs-page-head">
-        <h1>Forman</h1>
+        <h1>Foreman Scorecard</h1>
         <p>Foreman composite scorecard · <b>${RS.fmtN(board.length)}</b> foremen in ${RSC.esc(latestLabel)}
            · <b>${RS.fmtN(months.length)}</b> months in scope
-           <span class="freshness">· Forman Score = 0.4×Packing/100CF + 0.2×Packing vs Estimate + 0.2×Review + 0.2×Claim</span></p>
+           <span class="freshness">· Foreman Score = 40% Packing/100CF + 20% Packing vs Estimate + 20% Review + 20% Claim</span></p>
       </div>
       ${dm.steppedBack ? `<div class="lbl" style="margin:0 0 12px;color:var(--muted)">Showing ${RSC.esc(mLabel(latest))} — ${RSC.esc(mLabel(months[months.length - 1]))} has under ${RS.MIN_MONTH_DAYS} days of data, so month-anchored cards use the last complete month.</div>` : ""}
       <div class="rs-kpis" id="fmKpis"></div>
@@ -123,11 +123,11 @@ registerPage({
     const p100Chip = maxD ? chip(p100Of(winRows(maxD.slice(0, 4))),
       p100Of(winRows(String(+maxD.slice(0, 4) - 1))), "vs same period LY") : "";
 
-    const p100Sub = (p100 == null ? "" : "$" + p100.toFixed(2) + " · ") + "Σ packing $ / Σ CF × 100 · scope";
+    const p100Sub = (p100 == null ? "" : "$" + p100.toFixed(2) + " · ") + "total packing $ ÷ total cubic feet × 100, across the current filters";
     const kpiHost = document.getElementById("fmKpis");
     RSC.kpis(kpiHost, [
       { label: "Active Foremen", value: RS.fmtN(board.length), sub: latestLabel },
-      { label: "Avg Forman Score", value: fS(avgScore), sub: latestLabel + ", all foremen" },
+      { label: "Avg Foreman Score", value: fS(avgScore), sub: latestLabel + ", all foremen" },
       { label: "Best Foreman", value: best ? RSC.esc(best.f) : "—",
         sub: best ? "score " + fS(best.score) + " · rank 1" : "" },
       { label: "Most Improved", value: improved ? RSC.esc(improved.f) : "—",
@@ -135,7 +135,7 @@ registerPage({
                       : "no prior month in scope" },
       { label: "Avg Packing / 100 CF", value: p100 == null ? "—" : RS.moneyC(p100),
         sub: p100Sub },
-      { label: "Reviews / Jobs", value: RS.fmtPct(r2j), sub: "reviews written per job · scope" },
+      { label: "Reviews / Jobs", value: RS.fmtPct(r2j), sub: "reviews written per job, across the current filters" },
     ]);
     // RSC.kpis escapes sub text, so the HTML delta chips are injected afterwards.
     const kSubs = kpiHost.querySelectorAll(".kpi .s");
@@ -159,7 +159,7 @@ registerPage({
           data: {
             labels: list.map(x => x.f),
             datasets: [{
-              label: "Forman Score",
+              label: "Foreman Score",
               data: list.map(x => +(x.score || 0).toFixed(2)),
               backgroundColor: list.map(x =>
                 x.d == null ? "#5b8cff" : x.d >= 0 ? "#b7e23b" : "#f87171"),
@@ -192,9 +192,9 @@ registerPage({
         return RSC.table(
           [{ key: "rank", label: "Rank", fmt: RS.fmtN },
            { key: "f", label: "Foreman" },
-           { key: "score", label: "Forman Score", fmt: fS },
+           { key: "score", label: "Foreman Score", fmt: fS },
            { key: "prev", label: "Prev Month", fmt: fS },
-           { key: "d", label: "Δ MoM", fmt: deltaHtml },
+           { key: "d", label: "Change", fmt: deltaHtml },
            { key: "s1", label: "Packing/100CF Score", fmt: fS },
            { key: "s2", label: "Packing vs Estimate Score", fmt: fS },
            { key: "s3", label: "Review Score", fmt: fS },
@@ -265,15 +265,15 @@ registerPage({
     //      Contribution = weight × component score, so each stack sums to Forman Score.
     const W = { s1: 0.4, s2: 0.2, s3: 0.2, s4: 0.2 };
     const COMP = [
-      { key: "s1", label: "Packing/100CF (0.4)", color: "#b7e23b" },
-      { key: "s2", label: "Packing vs Estimate (0.2)", color: "#5b8cff" },
-      { key: "s3", label: "Review (0.2)", color: "#a78bfa" },
-      { key: "s4", label: "Claim (0.2)", color: "#fbbf24" },
+      { key: "s1", label: "Packing/100CF (40%)", color: "#b7e23b" },
+      { key: "s2", label: "Packing vs Estimate (20%)", color: "#5b8cff" },
+      { key: "s3", label: "Review (20%)", color: "#a78bfa" },
+      { key: "s4", label: "Claim (20%)", color: "#fbbf24" },
     ];
     RSC.chartCard(grid, {
       title: "Component mix — " + latestLabel,
-      controlsGraphOnly: true,   // legend describes the stacked chart; table is fixed columns
-      controlsHtml: `<span class="lbl">weights 0.4 / 0.2 / 0.2 / 0.2 · stack = Forman Score</span>`,
+      // caption explains the component semantics, so it stays visible in table view too
+      controlsHtml: `<span class="lbl">each component is 0–100, higher is better; Claim Score is high when a foreman has FEW claims · stack = Foreman Score</span>`,
       buildChart(canvas) {
         const list = board.slice(0, 20);
         return new Chart(canvas, {
@@ -311,12 +311,12 @@ registerPage({
         // weighted sum, so any drift between the two is visible.
         return RSC.table(
           [{ key: "f", label: "Foreman" },
-           { key: "s1", label: "Packing/100CF (0.4)", fmt: fS },
-           { key: "s2", label: "Packing vs Est (0.2)", fmt: fS },
-           { key: "s3", label: "Review (0.2)", fmt: fS },
-           { key: "s4", label: "Claim (0.2)", fmt: fS },
+           { key: "s1", label: "Packing/100CF (40%)", fmt: fS },
+           { key: "s2", label: "Packing vs Est (20%)", fmt: fS },
+           { key: "s3", label: "Review (20%)", fmt: fS },
+           { key: "s4", label: "Claim (20%)", fmt: fS },
            { key: "w", label: "Weighted Sum", fmt: fS },
-           { key: "score", label: "Forman Score", fmt: fS }],
+           { key: "score", label: "Foreman Score", fmt: fS }],
           board.slice(0, 50).map(x => ({
             f: x.f, s1: x.s1, s2: x.s2, s3: x.s3, s4: x.s4,
             w: 0.4 * x.s1 + 0.2 * x.s2 + 0.2 * x.s3 + 0.2 * x.s4, score: x.score,

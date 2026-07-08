@@ -4,9 +4,9 @@
    measures need advertisement-expense data not present in any RS dataset, so this
    page delivers the YoY comparison over the core Calculations measures instead. */
 registerPage({
-  id: "yoy-diff",
+  id: "yoy-diff",                    // id stays — bookmarks/ACL grants reference it
   group: "overview",
-  title: "YoY Diff",
+  title: "Year-over-Year Comparison",
   async render(host) {
     const rows = RS.filtered("closing", await RS.load("closing"));
     const M = RS.M;
@@ -33,8 +33,8 @@ registerPage({
     if (!years.length) {
       host.innerHTML = `
         <div class="rs-page-head">
-          <h1>YoY Diff</h1>
-          <p>Year-over-year comparison of core measures</p>
+          <h1>Year-over-Year Comparison</h1>
+          <p>How each core measure compares with the year before</p>
         </div>
         <div class="panel" style="padding:18px;color:var(--muted)">No data for the current filters — adjust or clear the filter bar above.</div>`;
       return;
@@ -42,8 +42,8 @@ registerPage({
 
     host.innerHTML = `
       <div class="rs-page-head">
-        <h1>YoY Diff</h1>
-        <p>Year-over-year comparison of core measures · <b>${RS.fmtN(rows.length)}</b> jobs in scope
+        <h1>Year-over-Year Comparison</h1>
+        <p>How each core measure compares with the year before · <b>${RS.fmtN(rows.length)}</b> jobs in scope
            <span class="freshness">· ${years.length ? years[0] + "–" + years[years.length - 1] : "no data"} in filter</span></p>
       </div>
       <div class="rs-kpis" id="kpis"></div>
@@ -105,16 +105,20 @@ registerPage({
     });
 
     // ---- shared Calculate-by (drives both charts, like the PBI field parameter)
+    // registry KEYS stay untouched; disp() maps them to user-visible labels
+    // ("Operating Profit Before Commission" → "Cash Collected (Net + Card)",
+    //  "Hours Worked by Forman" → "Foreman Hours" — the raw key spelling never renders).
     const CALC = ["Total Jobs", "Revenue", "Net Cash", "Card Payment",
                   "Operating Profit Before Commission", "Hours Worked by Forman"];
+    const disp = k => k === "Hours Worked by Forman" ? "Foreman Hours" : RS.displayName(k);
     let calcBy = CALC[1];
     const perYear = name => years.map(y => M[name].fn(byYear[y]));
 
     // ---- chart 1: yearly comparison — measure bars by year + YoY growth % line
     const yearCard = RSC.chartCard(document.getElementById("yearly"), {
       title: "Yearly comparison",
-      controlsHtml: `<span class="lbl">Calculate by</span><select id="yoyCalcBy">` +
-        CALC.map(c => `<option ${c === calcBy ? "selected" : ""}>${c}</option>`).join("") + `</select>`,
+      controlsHtml: `<span class="lbl">Show:</span><select id="yoyCalcBy">` +
+        CALC.map(c => `<option value="${c}" ${c === calcBy ? "selected" : ""}>${disp(c)}</option>`).join("") + `</select>`,
       buildChart(canvas) {
         const m = M[calcBy], vals = perYear(calcBy);
         // inline: PBI "Yearly Growth Rate" — growth vs prior year, not in RS.M registry
@@ -124,7 +128,7 @@ registerPage({
           data: {
             labels: years,
             datasets: [
-              { type: "bar", label: calcBy, data: vals.map(v => Math.round(v)),
+              { type: "bar", label: disp(calcBy), data: vals.map(v => Math.round(v)),
                 backgroundColor: "#b7e23b", borderRadius: 4, yAxisID: "y", order: 2 },
               { type: "line", label: "YoY growth %", data: growth.map(g => g == null ? null : +(100 * g).toFixed(1)),
                 borderColor: "#5b8cff", backgroundColor: "#5b8cff", borderWidth: 2,
@@ -136,9 +140,9 @@ registerPage({
             interaction: { mode: "index", intersect: false },
             plugins: { legend: { position: "top", labels: { boxWidth: 12, font: { size: 12 } } },
               tooltip: { callbacks: { label: c => c.dataset.yAxisID === "y"
-                ? `${calcBy}: ${m.fmt(c.raw)}` : `YoY: ${c.raw == null ? "—" : c.raw + "%"}` } } },
+                ? `${disp(calcBy)}: ${m.fmt(c.raw)}` : `YoY: ${c.raw == null ? "—" : c.raw + "%"}` } } },
             scales: {
-              y: { position: "left", title: { display: true, text: calcBy },
+              y: { position: "left", title: { display: true, text: disp(calcBy) },
                    ticks: { callback: v => isMoney ? RS.moneyC(v) : RS.fmtN(v) } },
               y1: { position: "right", title: { display: true, text: "YoY growth %" },
                     grid: { drawOnChartArea: false }, ticks: { callback: v => v + "%" } },
@@ -166,10 +170,10 @@ registerPage({
            { key: "trev", label: "Job Bills", fmt: nz(RS.money) },
            { key: "trips", label: "Linked-Trip Extras", fmt: nz(RS.money) },
            { key: "net", label: "Net Cash", fmt: nz(RS.money) },
-           { key: "card", label: "Card Payment", fmt: nz(RS.money) }, { key: "nc", label: "Op. Profit", fmt: nz(RS.money) },
+           { key: "card", label: "Card Payment", fmt: nz(RS.money) }, { key: "nc", label: "Cash Collected (Net + Card)", fmt: nz(RS.money) },
            { key: "hrs", label: "Hours", fmt: nz(RS.fmtN) },
-           { key: "share", label: `% of Total (${calcBy})`, fmt: nz(RS.fmtPct) },
-           { key: "g", label: `YoY % (${calcBy})`, fmt: growthTxt }],
+           { key: "share", label: `% of Total (${disp(calcBy)})`, fmt: nz(RS.fmtPct) },
+           { key: "g", label: `YoY % (${disp(calcBy)})`, fmt: growthTxt }],
           data,
           { y: "Total", jobs: tot("jobs"), bill: tot("bill"), trev: tot("trev"), trips: tot("trips"),
             net: tot("net"), card: tot("card"), nc: tot("nc"), hrs: tot("hrs"), share: totSel ? 1 : null });
@@ -204,7 +208,7 @@ registerPage({
             plugins: { legend: { position: "top", labels: { boxWidth: 12, font: { size: 12 } } },
               tooltip: { callbacks: { label: c => `${c.dataset.label}: ${c.raw == null ? "—" : m.fmt(c.raw)}` } } },
             scales: {
-              y: { title: { display: true, text: calcBy },
+              y: { title: { display: true, text: disp(calcBy) },
                    ticks: { callback: v => isMoney ? RS.moneyC(v) : RS.fmtN(v) } },
               x: { ticks: { font: { size: 12 }, autoSkip: true, maxTicksLimit: 14, maxRotation: 45 } },
             },

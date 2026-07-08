@@ -39,7 +39,7 @@ registerPage({
       <div class="rs-page-head">
         <h1>Labor &amp; Crew</h1>
         <p>Crew productivity &amp; labor cost · <b>${RS.fmtN(rows.length)}</b> jobs in scope
-           <span class="freshness">· hours = foreman hours · helper cost joined from helper salaries via Unique Key</span></p>
+           <span class="freshness">· hours = foreman hours · helper pay comes from the helper-salaries sheet, matched to each job</span></p>
       </div>
       <div class="rs-kpis" id="laKpis"></div>
       <div id="laMain"></div>
@@ -69,8 +69,8 @@ registerPage({
         sub: kHelp == null ? "helper salaries unavailable" : RS.money(kHelp) + " · helper salaries in scope" },
       { label: "Helper Cost % of Revenue", value: nzPct(kHelpPct),
         sub: kHelpPct == null ? "needs helper salaries" : "helper salaries ÷ revenue" },
-      { label: "Avg Crew Size", value: RS.fmt1(kCrew), sub: "crew members / job (incl. foreman)" },
-      { label: "Tips", value: RS.moneyC(kTips), sub: RS.money(kTips) + " · customer + company tips" },
+      { label: "Avg Crew Size", value: RS.fmt1(kCrew), sub: "crew members per job, incl. foreman" },
+      { label: "Total Tips", value: RS.moneyC(kTips), sub: RS.money(kTips) + " · customer + company tips" },
     ]);
 
     // ---- monthly aggregates (last 24 months of the filtered scope)
@@ -272,7 +272,7 @@ registerPage({
           avg: rows.length ? kRev / rows.length : null, rph: kRph,
           pack: rows.length ? totPack / rows.length : null,
           helpJob: (kHelp != null && rows.length) ? kHelp / rows.length : null }) +
-        `<p style="margin:6px 2px 0;font-size:12px;color:var(--muted)">Avg Bill here = revenue ÷ jobs (includes linked-trip extras); helper cost joined via Unique Key.</p>`;
+        `<p style="margin:6px 2px 0;font-size:12px;color:var(--muted)">Avg Bill here = revenue ÷ jobs (includes linked-trip extras); helper pay comes from the helper-salaries sheet, matched to each job.</p>`;
     }
   },
 });

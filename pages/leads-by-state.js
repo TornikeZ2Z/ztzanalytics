@@ -23,7 +23,9 @@ registerPage({
     /* Funnel stats per geography key, with this page's PBI date semantics:
        Total/Qualified/Dead over Create Date (PBI "Qualified Leads by Created Date"),
        Confirmed over Booked Date (PBI "Confirmed Leads by Booked Date"),
-       Booking Rate = confirmed / qualified capped at 100% (matches RS.M["Booking Rate"]). */
+       Booking Rate per the canonical SWITCH in RS.bookingRate: conf>qual → 100%,
+       qual=0 & conf=0 → blank, conf=0 → 0%, else conf/qual. Applied inline here
+       because rows are pre-bucketed counts per geography, not row sets. */
     function funnelBy(keyFn, nameFn) {
       const g = new Map();
       const get = r => {
@@ -41,7 +43,7 @@ registerPage({
       });
       rowsB.forEach(r => { if (r["Status Category"] === "Confirmed") get(r).conf++; });
       const out = [...g.values()];
-      out.forEach(o => { o.rate = o.qual ? Math.min(1, o.conf / o.qual) : null; });
+      out.forEach(o => { o.rate = o.conf > o.qual ? 1 : (o.qual ? o.conf / o.qual : (o.conf ? 1 : null)); });
       out.sort((a, b) => b.total - a.total);
       return out;
     }
@@ -59,7 +61,7 @@ registerPage({
       <div class="rs-page-head">
         <h1>Leads by State</h1>
         <p>Lead funnel by geography · <b>${RS.fmtN(rows.length)}</b> leads in scope
-           <span class="freshness">· PBI fixes this page to 7 NE states — use the global State slicer to reproduce; map shown as ranked bars</span></p>
+           <span class="freshness">· Showing all states — use the State filter above to focus on the Northeast (CT, DE, MA, NJ, NY, PA, MD)</span></p>
       </div>
       <div class="rs-kpis" id="kpis"></div>
       <div id="main"></div>
@@ -102,7 +104,7 @@ registerPage({
     RSC.kpis(document.getElementById("kpis"), [
       { label: "Total Leads", value: RS.fmtN(M["Total Leads"].fn(rows)), sub: "by created date" },
       { label: "Confirmed Leads", value: RS.fmtN(conf), sub: "by booked date" },
-      { label: "Booking Rate", value: RS.fmtPct(qual ? Math.min(1, conf / qual) : null), sub: "confirmed / qualified" },
+      { label: "Booking Rate", value: RS.fmtPct(RS.bookingRate(rows, rowsB)), sub: "confirmed / qualified" },
       { label: "States", value: RS.fmtN(nStates), sub: "distinct states in scope" },
     ]);
     // RSC.kpis escapes sub text — inject the YoY chips (trusted, page-built HTML) after render.
@@ -115,10 +117,10 @@ registerPage({
     let calcBy = CALC[0];
     const stateCard = RSC.chartCard(document.getElementById("main"), {
       title: "Leads by State",
-      // The tabular view shows fixed funnel columns regardless of the "Calculate by"
+      // The tabular view shows fixed funnel columns regardless of the "Show:"
       // selection (that selector only drives the ranked-bar chart), so hide it in Tabular.
       controlsGraphOnly: true,
-      controlsHtml: `<span class="lbl">Calculate by</span><select id="lbsCalc">` +
+      controlsHtml: `<span class="lbl">Show:</span><select id="lbsCalc">` +
         CALC.map(c => `<option ${c === calcBy ? "selected" : ""}>${c}</option>`).join("") + `</select>`,
       buildChart(canvas) {
         const isRate = calcBy === "Booking Rate";
@@ -153,10 +155,10 @@ registerPage({
           [{ key: "name", label: "State" }, { key: "total", label: "Total Leads", fmt: intNS },
            { key: "share", label: "% of Leads", fmt: RS.fmtPct },
            { key: "qual", label: "Qualified", fmt: intNS }, { key: "conf", label: "Confirmed", fmt: intNS },
-           { key: "dead", label: "Dead", fmt: intNS }, { key: "rate", label: "Booking Rate", fmt: RS.fmtPct }],
+           { key: "dead", label: "Bad", fmt: intNS }, { key: "rate", label: "Booking Rate", fmt: RS.fmtPct }],
           shown,
           { name: "Total", total: tt, share: tt ? 1 : null, qual: tq, conf: tc, dead: t("dead"),
-            rate: tq ? Math.min(1, tc / tq) : null }) +
+            rate: tc > tq ? 1 : (tq ? tc / tq : (tc ? 1 : null)) }) +
           (states.length > shown.length ? noteHtml(shown.length, states.length, "states — totals cover all") : "");
       },
     });

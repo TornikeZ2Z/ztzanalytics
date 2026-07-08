@@ -31,7 +31,8 @@ registerPage({
     RSC.kpis(document.getElementById("kpis"), [
       { label: "Total Jobs", value: RS.fmtN(M["Total Jobs"].fn(rows)), sub: "closed jobs (incl. trips)" },
       { label: "Revenue", value: RS.moneyC(kBill), sub: RS.moneyC(kClosings) + " job bills + " + RS.moneyC(kTrips) + " linked-trip extras" },
-      { label: "Net Cash", value: RS.moneyC(kNet), sub: RS.money(kNet) + " · net + trips" },
+      { label: "Net Cash", value: RS.moneyC(kNet),
+        sub: RS.money(kNet) + " · Cash turned in per job: on-site cash collected (bill less card, deposit, balance due) minus field payouts (crew pay, fuel, tolls, hotel, misc)" },
       { label: "Card Payment", value: RS.moneyC(kCard), sub: RS.money(kCard) + " · card volume" },
       { label: "Hours Worked", value: RS.fmtN(M["Hours Worked by Forman"].fn(rows)), sub: "foreman hours" },
       { label: "Jobs / 100 hrs", value: RS.fmt1(M["Jobs per 100 Hours"].fn(rows)), sub: "efficiency" },
@@ -63,13 +64,16 @@ registerPage({
     }
 
     // ---- main combo chart: Calculate-by measure (bars) + Hours (line) by foreman
+    // registry KEYS stay untouched; RS.displayName maps them to user-visible labels
+    // (e.g. "Operating Profit Before Commission" renders "Cash Collected (Net + Card)").
     const CALC = ["Total Jobs", "Revenue", "Net Cash", "Card Payment", "Operating Profit Before Commission"];
+    const disp = RS.displayName;
     let calcBy = CALC[1];
     const card = RSC.chartCard(document.getElementById("main"), {
       title: "By Foreman",
       controlsGraphOnly: true,
-      controlsHtml: `<span class="lbl">Calculate by</span><select id="calcBy">` +
-        CALC.map(c => `<option ${c === calcBy ? "selected" : ""}>${c}</option>`).join("") + `</select>`,
+      controlsHtml: `<span class="lbl">Show:</span><select id="calcBy">` +
+        CALC.map(c => `<option value="${c}" ${c === calcBy ? "selected" : ""}>${disp(c)}</option>`).join("") + `</select>`,
       buildChart(canvas) {
         const m = RS.M[calcBy];
         const g = {};
@@ -82,7 +86,7 @@ registerPage({
           data: {
             labels: list.map(x => x.f),
             datasets: [
-              { type: "bar", label: calcBy, data: list.map(x => Math.round(x.v)), backgroundColor: "#b7e23b", borderRadius: 4, yAxisID: "y", order: 2 },
+              { type: "bar", label: disp(calcBy), data: list.map(x => Math.round(x.v)), backgroundColor: "#b7e23b", borderRadius: 4, yAxisID: "y", order: 2 },
               { type: "line", label: "Hours Worked", data: list.map(x => Math.round(x.h)), borderColor: "#5b8cff", backgroundColor: "#5b8cff", borderWidth: 2, pointRadius: 2, tension: .3, yAxisID: "y1", order: 1 },
             ],
           },
@@ -90,9 +94,9 @@ registerPage({
             responsive: true, maintainAspectRatio: false,
             interaction: { mode: "index", intersect: false },
             plugins: { legend: { position: "top", labels: { boxWidth: 12, font: { size: 12 } } },
-              tooltip: { callbacks: { label: c => c.dataset.yAxisID === "y" ? `${calcBy}: ${m.fmt(c.raw)}` : `Hours: ${RS.fmtN(c.raw)}` } } },
+              tooltip: { callbacks: { label: c => c.dataset.yAxisID === "y" ? `${disp(calcBy)}: ${m.fmt(c.raw)}` : `Hours: ${RS.fmtN(c.raw)}` } } },
             scales: {
-              y: { position: "left", title: { display: true, text: calcBy }, ticks: { callback: v => isMoney ? RS.moneyC(v) : RS.fmtN(v) } },
+              y: { position: "left", title: { display: true, text: disp(calcBy) }, ticks: { callback: v => isMoney ? RS.moneyC(v) : RS.fmtN(v) } },
               y1: { position: "right", title: { display: true, text: "Hours Worked" }, grid: { drawOnChartArea: false } },
               x: { ticks: { font: { size: 11 }, maxRotation: 60, minRotation: 40 } },
             },
@@ -117,7 +121,7 @@ registerPage({
            { key: "bill", label: "Revenue", fmt: nz(RS.money) }, { key: "share", label: "% of Revenue", fmt: RS.fmtPct },
            { key: "closings", label: "Job Bills", fmt: nz(RS.money) }, { key: "trips", label: "Linked-Trip Extras", fmt: nz(RS.money) },
            { key: "net", label: "Net Cash", fmt: nz(RS.money) },
-           { key: "card", label: "Card Payment", fmt: nz(RS.money) }, { key: "nc", label: "Op. Profit", fmt: nz(RS.money) },
+           { key: "card", label: "Card Payment", fmt: nz(RS.money) }, { key: "nc", label: "Cash Collected (Net + Card)", fmt: nz(RS.money) },
            { key: "hrs", label: "Hours", fmt: nz(RS.fmtN) }],
           shown,
           { f: "Total", jobs: tot("jobs"), bill: totBill, share: totBill ? 1 : null,

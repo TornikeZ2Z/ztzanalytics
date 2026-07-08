@@ -17,6 +17,7 @@ window.RSC = (function () {
     items.forEach(i => { labelOf[i.v] = i.l; });
     const set = RS.state.multi[key] = RS.state.multi[key] || new Set();
     const wrap = el("div", "rs-slicer");
+    wrap.dataset.key = key;   // lets the shell grey out slicers not used by the current page
     const btn = el("button", "rs-slicer-btn");
     const pop = el("div", "rs-slicer-pop hidden");
     const paint = () => {
@@ -32,7 +33,10 @@ window.RSC = (function () {
         <button class="mini" data-a="all">All</button><button class="mini" data-a="none">Clear</button></div>
       <div class="opts">` +
       items.map(i => `<label class="opt"><input type="checkbox" value="${esc(i.v)}" ${set.has(i.v) ? "checked" : ""}> <span class="ol">${esc(i.l)}</span>${i.n != null ? `<span class="on">${Number(i.n).toLocaleString()}</span>` : ""}</label>`).join("") +
-      `</div>`;
+      `</div>` +
+      // the numbers are raw data records (closing + moveboard rows) — say so, or people
+      // will quote them as jobs or leads
+      (items.some(i => i.n != null) ? `<div class="cnt-note">Numbers = records in the data (not jobs or leads)</div>` : "");
     pop.innerHTML = rowsHtml();
     const sync = () => {
       set.clear();
@@ -72,6 +76,7 @@ window.RSC = (function () {
       set = RS.state.multi[key] = new Set(dv != null ? [dv] : []);
     }
     const wrap = el("div", "rs-slicer");
+    wrap.dataset.key = key;   // lets the shell grey out slicers not used by the current page
     const btn = el("button", "rs-slicer-btn on");
     const pop = el("div", "rs-slicer-pop hidden");
     const current = () => [...set][0];
@@ -81,7 +86,8 @@ window.RSC = (function () {
         o.classList.toggle("sel", o.dataset.v === String(current())));
     };
     pop.innerHTML = `<div class="opts">` + items.map(i =>
-      `<div class="opt" data-v="${esc(i.v)}"><span class="ol">${esc(i.l)}</span>${i.n != null ? `<span class="on">${Number(i.n).toLocaleString()}</span>` : ""}</div>`).join("") + `</div>`;
+      `<div class="opt" data-v="${esc(i.v)}"><span class="ol">${esc(i.l)}</span>${i.n != null ? `<span class="on">${Number(i.n).toLocaleString()}</span>` : ""}</div>`).join("") + `</div>` +
+      (items.some(i => i.n != null) ? `<div class="cnt-note">Numbers = records in the data (not jobs or leads)</div>` : "");
     pop.querySelectorAll(".opt").forEach(o => o.onclick = () => {
       set.clear(); set.add(o.dataset.v);
       paint(); pop.classList.add("hidden"); onChange();
@@ -109,10 +115,10 @@ window.RSC = (function () {
         <option value="ytd">Year to date</option><option value="ly">Last year</option>
         <option value="12m">Last 12 months</option><option value="all">All time</option>
       </select>
-      <span class="lbl" style="margin-left:10px">Day</span>
-      <input type="number" class="dayf" min="1" max="31" placeholder="1">
+      <span class="lbl" style="margin-left:10px" title="Day of month — e.g. 1–15 compares the first half of every month (pacing)">Day</span>
+      <input type="number" class="dayf" min="1" max="31" placeholder="1" title="Day of month — e.g. 1–15 compares the first half of every month (pacing)">
       <span class="dash">–</span>
-      <input type="number" class="dayt" min="1" max="31" placeholder="31">`;
+      <input type="number" class="dayt" min="1" max="31" placeholder="31" title="Day of month — e.g. 1–15 compares the first half of every month (pacing)">`;
     const from = wrap.querySelector(".from"), to = wrap.querySelector(".to");
     const dayf = wrap.querySelector(".dayf"), dayt = wrap.querySelector(".dayt");
     const sync = () => {

@@ -3,9 +3,9 @@
    CF Range / Job Type come from moveboard via the Request Joinkey bridge
    (client-side lookup — fct_closing doesn't carry them physically yet). */
 registerPage({
-  id: "analysis-by-category",
+  id: "analysis-by-category",        // id stays — bookmarks/ACL grants reference it
   group: "overview",
-  title: "Analysis by Category",
+  title: "Custom Breakdown",
   async render(host) {
     const [closingAll, moveboardAll] = await Promise.all([RS.load("closing"), RS.load("moveboard")]);
     const rows = RS.filtered("closing", closingAll);
@@ -45,15 +45,20 @@ registerPage({
       "Bill Range": (a, b) => (RS.num(a.k.replace(/[^0-9]/g, "").slice(0, 5)) || 9e9) -
                               (RS.num(b.k.replace(/[^0-9]/g, "").slice(0, 5)) || 9e9),
     };
+    // registry KEYS stay untouched; disp() maps them to user-visible labels
+    // ("Operating Profit Before Commission" → "Cash Collected (Net + Card)",
+    //  "Hours Worked by Forman" → "Foreman Hours" — the raw key spelling never renders).
     const CALC = ["Total Jobs", "Revenue", "Net Cash", "Card Payment",
                   "Operating Profit Before Commission", "Hours Worked by Forman", "Average Bill"];
+    const disp = k => k === "Hours Worked by Forman" ? "Foreman Hours" : RS.displayName(k);
     let dimBy = "Source", calcBy = "Revenue";
 
     host.innerHTML = `
       <div class="rs-page-head">
-        <h1>Analysis by Category</h1>
-        <p>Any measure, sliced by any dimension · <b>${RS.fmtN(rows.length)}</b> jobs in scope
-           <span class="freshness">· CF Range & Job Type via the moveboard request link</span></p>
+        <h1>Custom Breakdown</h1>
+        <p>(formerly Analysis by Category — you pick the metric and the dimension) ·
+           <b>${RS.fmtN(rows.length)}</b> jobs in scope
+           <span class="freshness">· CF Range &amp; Job Type come from the matching Moveboard lead</span></p>
       </div>
       <div class="rs-kpis" id="kpis"></div>
       <div id="main"></div>
@@ -72,7 +77,8 @@ registerPage({
       { label: "Total Jobs", value: RS.fmtN(M["Total Jobs"].fn(rows)), sub: "closed jobs (incl. trips)" },
       { label: "Revenue", value: RS.moneyC(kBill),
         sub: nz(RS.moneyC)(kClosings) + " job bills + " + nz(RS.moneyC)(kTrips) + " linked-trip extras" },
-      { label: "Net Cash", value: RS.moneyC(kNet), sub: nz(RS.money)(kNet) + " · net + trips" },
+      { label: "Net Cash", value: RS.moneyC(kNet),
+        sub: nz(RS.money)(kNet) + " · Cash turned in per job: on-site cash collected (bill less card, deposit, balance due) minus field payouts (crew pay, fuel, tolls, hotel, misc)" },
       { label: "Card Payment", value: RS.moneyC(kCard), sub: nz(RS.money)(kCard) + " · card volume" },
       { label: "Avg Bill / Job", value: RS.moneyC(kAvg), sub: nz(RS.money)(kAvg) + " per job" },
     ]);
@@ -118,8 +124,8 @@ registerPage({
     const controls = `
       <span class="lbl">Analyze by</span><select id="abcDim">` +
       Object.keys(DIMS).map(d => `<option ${d === dimBy ? "selected" : ""}>${d}</option>`).join("") +
-      `</select><span class="lbl">Calculate by</span><select id="abcCalc">` +
-      CALC.map(c => `<option ${c === calcBy ? "selected" : ""}>${c}</option>`).join("") + `</select>`;
+      `</select><span class="lbl">Show:</span><select id="abcCalc">` +
+      CALC.map(c => `<option value="${c}" ${c === calcBy ? "selected" : ""}>${disp(c)}</option>`).join("") + `</select>`;
     const mainCard = RSC.chartCard(document.getElementById("main"), {
       title: "Breakdown",
       controlsHtml: controls,
@@ -134,14 +140,14 @@ registerPage({
           type: "bar",
           data: {
             labels: list.map(x => x.k),
-            datasets: [{ label: calcBy, data: list.map(x => x.v == null ? 0 : +x.v.toFixed(2)),
+            datasets: [{ label: disp(calcBy), data: list.map(x => x.v == null ? 0 : +x.v.toFixed(2)),
               backgroundColor: "#b7e23b", borderRadius: 5 }],
           },
           options: {
             indexAxis: horiz ? "y" : "x",
             responsive: true, maintainAspectRatio: false,
             plugins: { legend: { display: false },
-              tooltip: { callbacks: { label: c => `${calcBy}: ${m.fmt(c.raw)}` } } },
+              tooltip: { callbacks: { label: c => `${disp(calcBy)}: ${m.fmt(c.raw)}` } } },
             scales: {
               x: { ticks: Object.assign({}, horiz ? {} : trunc,
                     (dimBy === "Month" || dimBy === "Year")
@@ -161,7 +167,7 @@ registerPage({
         return RSC.table(
           [{ key: "k", label: dimBy },
            { key: "jobs", label: "Total Jobs", fmt: nz(RS.fmtN) },
-           { key: "v", label: calcBy, fmt: nz(m.fmt) },
+           { key: "v", label: disp(calcBy), fmt: nz(m.fmt) },
            { key: "sh", label: "% of total", fmt: RS.fmtPct },
            { key: "avg", label: "Avg Bill", fmt: nz(RS.money) }],
           shown.map(x => ({

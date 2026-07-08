@@ -3,7 +3,7 @@
 registerPage({
   id: "leads-analysis",
   group: "sales",
-  title: "Leads Analysis",
+  title: "Leads — Funnel (conversion)",
   async render(host) {
     const allRows = await RS.load("moveboard");
     const rows = RS.filtered("moveboard", allRows);            // Create Date basis (Total/Qualified/Dead)
@@ -15,8 +15,8 @@ registerPage({
 
     host.innerHTML = `
       <div class="rs-page-head">
-        <h1>Leads Analysis</h1>
-        <p>Moveboard lead funnel · <b>${RS.fmtN(rows.length)}</b> leads in scope
+        <h1>Leads — Funnel (conversion)</h1>
+        <p>Moveboard lead funnel (formerly Leads Analysis) · <b>${RS.fmtN(rows.length)}</b> leads in scope
            <span class="freshness">· leads by Create Date · confirmed by Booked Date</span></p>
       </div>
       <div class="rs-kpis" id="kpis"></div>
@@ -38,11 +38,11 @@ registerPage({
     const kQual = M["Qualified Leads"].fn(rows);
     const kConf = M["Confirmed Leads"].fn(rowsB);   // Confirmed on Booked Date
     RSC.kpis(document.getElementById("kpis"), [
-      { label: "Total Leads", value: RS.fmtN(M["Total Leads"].fn(rows)), sub: "all moveboard leads" },
+      { label: "Total Leads", value: RS.fmtN(M["Total Leads"].fn(rows)), sub: "all Moveboard leads" },
       { label: "Qualified Leads", value: RS.fmtN(kQual), sub: "excl. bad leads" },
       { label: "Confirmed Leads", value: RS.fmtN(kConf), sub: "booked jobs · by booked date" },
-      { label: "Dead Leads", value: RS.fmtN(M["Dead Leads"].fn(rows)), sub: "bad leads" },
-      { label: "Booking Rate", value: RS.fmtPct(kQual ? Math.min(1, kConf / kQual) : null),
+      { label: "Bad Leads", value: RS.fmtN(M["Dead Leads"].fn(rows)), sub: "junk / unreachable requests" },
+      { label: "Booking Rate", value: RS.fmtPct(RS.bookingRate(rows, rowsB)),
         sub: "confirmed (booked) / qualified (created)" },
       { label: "Average Quote", value: RS.moneyC(avgQ),
         sub: (avgQ == null ? "" : RS.money(avgQ) + " · ") + "avg of quoted leads" },
@@ -79,6 +79,9 @@ registerPage({
 
     /* ---- shared: one pass over Source, funnel measures per source ---- */
     const FUNNEL = ["Total Leads", "Qualified Leads", "Confirmed Leads", "Dead Leads", "Booking Rate"];
+    // Display mapping: registry key "Dead Leads" is shown as "Bad Leads" (the Moveboard
+    // status the sales team sees daily). Keys stay untouched; only labels are mapped.
+    const disp = k => k === "Dead Leads" ? "Bad Leads" : RS.displayName(k);
     // Group by Source Connector (PBI's active moveboard source axis) so Post-Card splits
     // into per-state buckets. Total/Qualified/Dead on Create-date rows; Confirmed on
     // Booked-date rows (a=create-basis, b=booked-basis for the same source bucket).
@@ -89,19 +92,19 @@ registerPage({
       rows.forEach(r => get(srcKey(r)).a.push(r));
       rowsB.forEach(r => get(srcKey(r)).b.push(r));
       return Object.values(g).map(o => {
-        const qual = M["Qualified Leads"].fn(o.a), conf = M["Confirmed Leads"].fn(o.b);
-        return { s: o.s, total: M["Total Leads"].fn(o.a), qual, conf,
-          dead: M["Dead Leads"].fn(o.a), rate: qual ? Math.min(1, conf / qual) : null };
+        return { s: o.s, total: M["Total Leads"].fn(o.a), qual: M["Qualified Leads"].fn(o.a),
+          conf: M["Confirmed Leads"].fn(o.b),
+          dead: M["Dead Leads"].fn(o.a), rate: RS.bookingRate(o.a, o.b) };
       }).sort((a, b) => b.total - a.total);
     }
 
-    /* ---- chart 1: Leads by Source (horizontal bar, Calculate-by swap) ---- */
+    /* ---- chart 1: Leads by Source (horizontal bar, Show swap) ---- */
     let calcBy = FUNNEL[0];
     const srcCard = RSC.chartCard(document.getElementById("bySource"), {
       title: "Leads by Source",
-      controlsGraphOnly: true,   // tabular view shows the full funnel table; "Calculate by" only drives the chart
-      controlsHtml: `<span class="lbl">Calculate by</span><select id="calcBy">` +
-        FUNNEL.map(c => `<option ${c === calcBy ? "selected" : ""}>${c}</option>`).join("") + `</select>`,
+      controlsGraphOnly: true,   // tabular view shows the full funnel table; "Show:" only drives the chart
+      controlsHtml: `<span class="lbl">Show:</span><select id="calcBy">` +
+        FUNNEL.map(c => `<option value="${c}" ${c === calcBy ? "selected" : ""}>${disp(c)}</option>`).join("") + `</select>`,
       buildChart(canvas) {
         const m = RS.M[calcBy];
         const isPct = m.fmt === RS.fmtPct;
@@ -114,15 +117,15 @@ registerPage({
           type: "bar",
           data: {
             labels: list.map(x => x.s),
-            datasets: [{ label: calcBy, data: list.map(x => isPct ? x[key] : Math.round(x[key] || 0)),
+            datasets: [{ label: disp(calcBy), data: list.map(x => isPct ? x[key] : Math.round(x[key] || 0)),
               backgroundColor: "#b7e23b", borderRadius: 4 }],
           },
           options: {
             indexAxis: "y", responsive: true, maintainAspectRatio: false,
             plugins: { legend: { display: false },
-              tooltip: { callbacks: { label: c => `${calcBy}: ${m.fmt(c.raw)}` } } },
+              tooltip: { callbacks: { label: c => `${disp(calcBy)}: ${m.fmt(c.raw)}` } } },
             scales: {
-              x: { title: { display: true, text: calcBy },
+              x: { title: { display: true, text: disp(calcBy) },
                    ticks: { callback: v => isPct ? RS.fmtPct(v) : RS.fmtN(v) } },
               y: { ticks: { font: { size: 11 } } },
             },
@@ -140,10 +143,10 @@ registerPage({
           [{ key: "s", label: "Source" }, { key: "total", label: "Total Leads", fmt: intNS },
            { key: "share", label: "% of Total", fmt: RS.fmtPct },
            { key: "qual", label: "Qualified", fmt: intNS }, { key: "conf", label: "Confirmed", fmt: intNS },
-           { key: "dead", label: "Dead", fmt: intNS }, { key: "rate", label: "Booking Rate", fmt: RS.fmtPct }],
+           { key: "dead", label: "Bad", fmt: intNS }, { key: "rate", label: "Booking Rate", fmt: RS.fmtPct }],
           data.map(x => Object.assign({}, x, { share: tt ? x.total / tt : null })),
           { s: "Total", total: tt, share: tt ? 1 : null, qual: tq, conf: tc,
-            dead: M["Dead Leads"].fn(rows), rate: tq ? Math.min(1, tc / tq) : null }) + note;
+            dead: M["Dead Leads"].fn(rows), rate: RS.bookingRate(rows, rowsB) }) + note;
       },
     });
     document.getElementById("calcBy").onchange = e => { calcBy = e.target.value; srcCard.rerender(); };
@@ -156,10 +159,10 @@ registerPage({
       // Confirmed is bucketed by BOOKED month (PBI USERELATIONSHIP Booked Date).
       rowsB.forEach(r => { const bd = String(r["Booked Date"] || "").slice(0, 7); if (bd.length === 7) get(bd).b.push(r); });
       return Object.values(g).sort((x, y) => x.k.localeCompare(y.k)).map(o => {
-        const qual = M["Qualified Leads"].fn(o.a), conf = M["Confirmed Leads"].fn(o.b);
         return { k: o.k, label: RS.monthName(+o.k.slice(5)) + " " + o.k.slice(2, 4),
-          total: M["Total Leads"].fn(o.a), qual, conf, dead: M["Dead Leads"].fn(o.a),
-          rate: qual ? Math.min(1, conf / qual) : null };
+          total: M["Total Leads"].fn(o.a), qual: M["Qualified Leads"].fn(o.a),
+          conf: M["Confirmed Leads"].fn(o.b), dead: M["Dead Leads"].fn(o.a),
+          rate: RS.bookingRate(o.a, o.b) };
       });
     }
     RSC.chartCard(document.getElementById("overTime"), {
@@ -195,10 +198,10 @@ registerPage({
         return RSC.table(
           [{ key: "label", label: "Month" }, { key: "total", label: "Total Leads", fmt: intNS },
            { key: "qual", label: "Qualified", fmt: intNS }, { key: "conf", label: "Confirmed", fmt: intNS },
-           { key: "dead", label: "Dead", fmt: intNS }, { key: "rate", label: "Booking Rate", fmt: RS.fmtPct }],
+           { key: "dead", label: "Bad", fmt: intNS }, { key: "rate", label: "Booking Rate", fmt: RS.fmtPct }],
           data,
           { label: "Total", total: M["Total Leads"].fn(rows), qual: tq, conf: tc,
-            dead: M["Dead Leads"].fn(rows), rate: tq ? Math.min(1, tc / tq) : null });
+            dead: M["Dead Leads"].fn(rows), rate: RS.bookingRate(rows, rowsB) });
       },
     });
 

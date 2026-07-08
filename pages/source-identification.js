@@ -6,9 +6,9 @@
    the source we show?" per job. (Closing lineage columns populate after the M1
    curated rebuild.) */
 registerPage({
-  id: "source-identification",
+  id: "source-identification",       // id stays — bookmarks/ACL grants reference it
   group: "pulse",
-  title: "Source Identification",
+  title: "How Sources Are Assigned",
   async render(host) {
     const [mb, cl] = await Promise.all([RS.load("moveboard"), RS.load("closing")]);
     const esc = RSC.esc, nf = RS.fmtN;
@@ -16,9 +16,9 @@ registerPage({
 
     host.innerHTML = `
       <div class="rs-page-head">
-        <h1>Source Identification</h1>
-        <p>How each job's source is attributed — from the raw value to what the report shows.
-           Moveboard and the Closing Sheet resolve source <b>independently</b>.
+        <h1>How Sources Are Assigned</h1>
+        <p>(formerly Source Identification) · How each job's source is decided — from the raw value to what the report shows.
+           Moveboard and the Closing Sheet decide their source <b>independently</b>.
            <span class="freshness">· respects the global filters</span></p>
       </div>
       <div class="rs-tabs">
@@ -34,6 +34,11 @@ registerPage({
       host.querySelectorAll(".rs-tab").forEach(x => x.classList.toggle("on", x === b));
       draw();
     });
+
+    // ---- 2-line legend in business words (shown on both tabs, above the table) ----
+    const legend = `<div style="color:var(--muted);font-size:11px;line-height:1.6;padding:2px 2px 10px">
+      Translator = our rename table mapping raw entries to standard names.<br>
+      Post-Card split = postcard leads are split into one campaign per state · Google Local = matched by the phone number the customer called · Returned / Recommended jobs keep that as their source.</div>`;
 
     // ---- helper: pipeline "stage" strip ----
     const stages = (items) => `<div class="si-flow">` + items.map((s, i) =>
@@ -55,7 +60,7 @@ registerPage({
       const total = rows.length || 1;
       const head = "<tr>" + headers.map((h, i) =>
         `<th class="${i === 0 ? "" : ""}">${esc(h)}</th>`).join("") +
-        `<th>How</th><th>Jobs</th><th>%</th></tr>`;
+        `<th>How it was decided</th><th>Jobs</th><th>%</th></tr>`;
       const bodyRows = list.slice(0, 400).map(o => {
         const cells = keys.map(c => `<td>${esc(val(o.row[c]))}</td>`).join("");
         const how = howFn(o.row);
@@ -90,8 +95,8 @@ registerPage({
           { n: nf(raw(isGL)), l: "Google Local", s: "phone-matched" },
           { n: nf(rows.filter(translated).length), l: "Translated", s: "via Source Translator" },
           { n: nf(raw(isPC)), l: "Post-Card split", s: "by state" },
-        ]) +
-        `<div class="panel"><div class="panel-head"><span class="panel-title">Moveboard source lineage</span>
+        ]) + legend +
+        `<div class="panel"><div class="panel-head"><span class="panel-title">Moveboard source — how it was decided</span>
            <span class="pm" style="margin-left:auto;color:var(--faint);font-size:11px">${nf(rows.length)} leads · raw → adjusted → connector</span></div>` +
         lineage(rows, ["Source Before Adjustment", "Source", "Source Connector"], how,
           ["Raw source", "After translate", "Source Connector (final)"]) + `</div>`;
@@ -102,10 +107,8 @@ registerPage({
       const has = rows.length && ("Corrected Source" in rows[0]) && rows.some(r => r["Corrected Source"] != null);
       if (!has) {
         body.innerHTML = `<div class="panel" style="padding:20px;color:var(--muted);line-height:1.6">
-          The closing source-lineage columns (<code>Booked From</code>, <code>Source From Moveboard</code>,
-          <code>Corrected Source</code>) populate after the warehouse is rebuilt with the M1 source logic.
-          Trigger a <b>Refresh</b> (or wait for the 6-hour cron), then this tab lights up.<br><br>
-          Meanwhile the final <b>Source</b> is already correct on every other page.</div>`;
+          This view becomes available after the next data refresh.<br>
+          The <b>Source</b> shown on other pages is already correct.</div>`;
         return;
       }
       if (!rows.length) { body.innerHTML = `<div class="panel" style="padding:18px;color:var(--muted)">No jobs for the current filters.</div>`; return; }
@@ -116,8 +119,8 @@ registerPage({
         if (bf(r) === "Recommended") return { label: "Recommended override", cls: "rc" };
         if (sfm(r) === "Google Local") return { label: "Google Local (from lead)", cls: "gl" };
         if (/Post Card/i.test(sfm(r))) return { label: "Post Card (from lead)", cls: "pc" };
-        if (cs(r) && cs(r) === sfm(r) && cs(r) !== bf(r)) return { label: "From moveboard lead", cls: "mb" };
-        return { label: "Booked-from", cls: "un" };
+        if (cs(r) && cs(r) === sfm(r) && cs(r) !== bf(r)) return { label: "From Moveboard lead", cls: "mb" };
+        return { label: "Booked From", cls: "un" };
       };
       const cnt = f => rows.filter(f).length;
       const fromLead = cnt(r => cs(r) === sfm(r) && cs(r) && cs(r) !== bf(r)) + cnt(r => sfm(r) === "Google Local" || /Post Card/i.test(sfm(r)));
@@ -128,11 +131,11 @@ registerPage({
           { n: nf(cnt(r => ["Returned Customer", "Return Customer", "Recommended"].includes(bf(r)))), l: "Overrides", s: "Returned / Recommended" },
           { n: nf(fromLead), l: "From the lead", s: "Source From Moveboard" },
           { n: nf(new Set(rows.map(r => val(r["Source"]))).size), l: "Final sources", s: "after translate" },
-        ]) +
-        `<div class="panel"><div class="panel-head"><span class="panel-title">Closing Sheet source lineage</span>
-           <span class="pm" style="margin-left:auto;color:var(--faint);font-size:11px">${nf(rows.length)} jobs · booked-from + lead → corrected → final</span></div>` +
+        ]) + legend +
+        `<div class="panel"><div class="panel-head"><span class="panel-title">Closing Sheet source — how it was decided</span>
+           <span class="pm" style="margin-left:auto;color:var(--faint);font-size:11px">${nf(rows.length)} jobs · Booked From + lead → corrected → final</span></div>` +
         lineage(rows, ["Booked From", "Source From Moveboard", "Corrected Source", "Source"], how,
-          ["Booked from (raw)", "Source From Moveboard", "Corrected Source (key)", "Final Source"]) + `</div>`;
+          ["Booked From (raw)", "Source From Moveboard", "Corrected Source", "Final Source"]) + `</div>`;
     }
 
     function draw() { (tab === "mb" ? drawMoveboard : drawClosing)(); }

@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/portal.css?v=2">
-<link rel="stylesheet" href="assets/rs.css?v=7">
+<link rel="stylesheet" href="assets/rs.css?v=8">
 <style>
 /* collapsible sidebar groups + nested hub sub-items */
 #nav .g-title{cursor:pointer;user-select:none;display:flex;align-items:center;justify-content:space-between}
@@ -29,7 +29,8 @@
   <div class="card">
     <img src="logo.png" alt="Zip to Zip Moving" style="width:92px;height:92px;border-radius:20px;display:block;margin:0 auto 18px;box-shadow:var(--shadow)">
     <h1>Reporting System</h1>
-    <p>Sign in with your <b>@ziptozipmoving.com</b> Google account to open the dashboards.</p>
+    <p>Sign in with the Google account that was given access.<br>
+    No access yet? Contact <b>Tornike</b>.</p>
     <div class="signin-slot" id="gateSign"></div>
     <div class="err" id="gateErr" style="margin-top:12px"></div>
   </div>
@@ -39,21 +40,31 @@
   <aside class="rs-side" id="side">
     <div class="search"><input type="text" id="navSearch" placeholder="Find a report…"></div>
     <div id="nav"></div>
-    <div class="foot"><b>Live data</b> · curated warehouse<br>Auto-refresh every 6 hours</div>
+    <div class="foot"><b>Live company data</b><br><!-- C5: verified live Cloud Scheduler 2026-07-08: ztz-sharepoint-loader-daily = "0 */6 * * *"
+     (every 6 hours, America/New_York) — docs/deploy.md's daily-6AM note is stale.
+     This static line is only the fallback; boot swaps in the real "Data updated:" timestamp. -->
+     <span id="footFresh">Refreshed automatically every 6 hours</span></div>
   </aside>
+  <div class="rs-backdrop hidden" id="sideBackdrop"></div>
   <div class="rs-main">
     <div class="rs-filters" id="filters">
       <div class="rs-frow" id="frowDates"></div>
       <div class="rs-frow" id="frowSlicers"></div>
+      <div class="rs-datebasis hidden" id="dateBasisNote"></div>
     </div>
     <div class="rs-chips hidden" id="chips"></div>
+    <div class="rs-banner hidden" id="accessBanner"></div>
+    <div class="rs-banner hidden" id="noDataBanner">
+      <span>No data matches your combined filters — check <b>Month</b> vs <b>Date range</b> (they narrow each other down).</span>
+      <button class="rs-banner-btn" id="noDataClear">Clear all filters</button>
+    </div>
     <div class="rs-content" id="content"></div>
   </div>
 </div>
 
-<script src="assets/portal.js?v=6"></script>
-<script src="assets/rs-core.js?v=15"></script>
-<script src="assets/rs-components.js?v=5"></script>
+<script src="assets/portal.js?v=7"></script>
+<script src="assets/rs-core.js?v=16"></script>
+<script src="assets/rs-components.js?v=6"></script>
 <script>
 /* ---------------- page registry ---------------- */
 window.PAGES = [];
@@ -62,7 +73,7 @@ window.registerPage = p => PAGES.push(p);
 /* Groups shown in the sidebar (pages register with group keys). */
 const GROUPS = [
   { key: "settings",  title: "Settings" },
-  { key: "company",   title: "Company Reports" },
+  { key: "company",   title: "Company Overview" },
   { key: "sales",     title: "Sales" },
   { key: "marketing", title: "Marketing" },
   { key: "logistics", title: "Logistics" },
@@ -74,9 +85,10 @@ const GROUPS = [
 /* Sidebar placement is decided HERE (id -> container), overriding whatever group a page
    module registered with — so restructures never require touching 20 page files. */
 const GROUP_OVERRIDE = {
-  "admin-users": "settings", "source-identification": "settings",
+  "admin-users": "settings",
+  "source-identification": "marketing",   // answers a Marketing question, not a Settings one (S1)
   "monthly-report": "company", "insights": "company", "executive-scorecard": "company",
-  "yoy-diff": "company", "analysis-by-category": "company",
+  "yoy-diff": "company", "analysis-by-category": "company", "jobs-vs-hours": "company",
   "financial-team": "financial", "financial-analysis": "financial", "storage": "financial",
   "sales-team": "sales", "sales-person-analysis": "sales",
   "leads-analysis": "sales", "leads-by-state": "sales",
@@ -85,7 +97,6 @@ const GROUP_OVERRIDE = {
   "logistics-team": "logistics", "forman": "logistics", "forman-analysis": "logistics",
   "packing": "logistics", "packing-analysis": "logistics", "packing-per-100cf": "logistics",
   "claims": "support", "labor-analysis": "logistics", "customer-experience": "support",
-  "jobs-vs-hours": "logistics",
   "reviews-team": "reviews", "support-team": "support",
 };
 const groupOf = p => GROUP_OVERRIDE[p.id] || p.group;
@@ -146,12 +157,14 @@ const PLANNED = [];  // all 16 General Overview pages are built
    content area renders a tab bar over the constituent pages. Page modules stay
    untouched — future merges are one entry here. */
 const MERGED = [
-  { id: "lead-source-analysis", group: "marketing", icon: "compass", title: "Lead Source Analysis",
+  // "Lead Sources (attribution & spend)" vs the Sales "Funnel (conversion)" tab: the two
+  // homes of "where do leads come from?" are signposted so the choice explains itself (S10).
+  { id: "lead-source-analysis", group: "marketing", icon: "compass", title: "Lead Sources (attribution & spend)",
     tabs: [["source-analysis", "Source Overview"], ["angi-vs-moveboard", "Angi Analysis"], ["movers-analysis", "Movers.com"], ["post-card-analysis", "Post Cards"]] },
   { id: "leads", group: "sales", icon: "funnel", title: "Leads",
-    tabs: [["leads-analysis", "Funnel"], ["leads-by-state", "Geography"]] },
+    tabs: [["leads-analysis", "Funnel (conversion)"], ["leads-by-state", "Geography"]] },
   { id: "marketing", group: "marketing", icon: "megaphone", title: "Ads & Calls",
-    tabs: [["ads-analysis", "Ad Spend & ROI"], ["callrail", "Call Tracking"]] },
+    tabs: [["ads-analysis", "Ad Spend & Returns"], ["callrail", "Call Tracking"]] },
   { id: "foremen", group: "logistics", icon: "tool", title: "Foremen",
     tabs: [["forman", "Scorecard"], ["forman-analysis", "Deep Comparison"]] },
   { id: "packing-suite", group: "logistics", icon: "box", title: "Packing",
@@ -168,7 +181,9 @@ function mergedPage(m) {
       `<button class="rs-tab ${tid === active ? "on" : ""}" data-t="${tid}">${RSC.esc(label)}</button>`).join("") +
       `</div><div id="mergedHost"></div>`;
     host.querySelectorAll(".rs-tab").forEach(b => b.onclick = () => {
-      mergedActiveTab[m.id] = b.dataset.t; renderPage();
+      // navigate() (not a bare re-render) so the hash keeps hub:tab — copied links
+      // land on THIS tab, not the hub's first one (C32).
+      mergedActiveTab[m.id] = b.dataset.t; navigate(m.id);
     });
     const page = PAGES.find(p => p.id === active);
     if (page) await page.render(host.querySelector("#mergedHost"));
@@ -196,14 +211,26 @@ function firstAllowedId() {
   for (const p of PAGES) { const oid = idOwner(p.id); if (canSee(oid)) return oid; }
   return null;
 }
-function requestAccessScreen(email) {
+function requestAccessScreen(email, errMsg) {
   document.getElementById("filters").classList.add("hidden");
+  document.getElementById("chips").classList.add("hidden");
+  // a user with zero reports has nothing to search — hide the box so it can't "find nothing"
+  const search = document.querySelector("#side .search");
+  if (search) search.classList.add("hidden");
+  const contact = `Ask <b style="color:var(--muted)">Tornike</b> —
+      <a href="mailto:tornike@datastudio.ge" style="color:var(--brand)">tornike@datastudio.ge</a>`;
+  const body = errMsg
+    ? `<div style="font-size:17px;font-weight:800;color:var(--ink);margin-bottom:8px">We couldn't check your access</div>
+       <div style="line-height:1.65">The data service didn't answer — this is usually a connection hiccup, not a permissions problem.</div>
+       <button class="btn on" style="margin-top:14px" onclick="location.reload()">Try again</button>
+       <details style="margin-top:12px;font-size:11.5px;color:var(--faint)"><summary style="cursor:pointer">Technical details</summary>
+         <div style="margin-top:6px;word-break:break-all">${RSC.esc(errMsg)}</div></details>
+       <div style="margin-top:14px;font-size:12px">Still stuck? ${contact}</div>`
+    : `<div style="font-size:17px;font-weight:800;color:var(--ink);margin-bottom:8px">Access not granted yet</div>
+       <div style="line-height:1.65">You are signed in as <b style="color:var(--muted)">${RSC.esc(email || "")}</b>,
+       but no reports have been assigned to you yet.<br>${contact}</div>`;
   document.getElementById("content").innerHTML =
-    `<div class="rs-loading"><div style="max-width:440px;text-align:center">
-      <div style="font-size:17px;font-weight:800;color:var(--ink);margin-bottom:8px">Access not granted yet</div>
-      <div style="line-height:1.65">You are signed in as <b style="color:var(--muted)">${RSC.esc(email || "")}</b>,
-      but no reports have been assigned to you yet.<br>
-      Ask <b style="color:var(--muted)">Tornike</b> to grant you access.</div></div></div>`;
+    `<div class="rs-loading"><div style="max-width:440px;text-align:center">${body}</div></div>`;
 }
 async function fetchMe() {
   try {
@@ -353,32 +380,243 @@ function mountThemeToggle() {
 
 let CURRENT = null;
 
+/* ---------------- shell context: date-basis caption + no-op slicer greying ----------------
+   Pages don't declare their datasets, so the shell keeps this map (primary dataset FIRST —
+   it drives the empty-filter check). Consumed with the rs-core contracts RS.dateBasis(ds)
+   and RS.fieldsFor(ds). When adding a page, list what it RS.load()s. */
+const MR_DATASETS = ["closing", "moveboard", "storage", "claims", "refunds", "card_expenses",
+  "reviews_breakdown", "negative_reviews", "callrail", "scorecard", "review_counts",
+  "review_goals", "helper_salaries", "sales_salaries", "long_distance"];
+const PAGE_DATASETS = {
+  "insights": ["closing", "moveboard", "scorecard", "card_expenses", "claims", "refunds",
+    "storage", "callrail", "leads", "review_counts", "review_goals", "long_distance",
+    "negative_reviews", "helper_salaries", "sales_salaries"],
+  "source-identification": ["moveboard", "closing"],
+  "jobs-vs-hours": ["closing"],
+  "analysis-by-category": ["closing", "moveboard"],
+  "yoy-diff": ["closing"],
+  "leads-analysis": ["moveboard"],
+  "leads-by-state": ["moveboard"],
+  "storage": ["storage", "closing"],
+  "sales-person-analysis": ["closing", "sales_salaries", "refunds"],
+  "ads-analysis": ["card_expenses", "closing", "moveboard"],
+  "callrail": ["callrail"],
+  "forman": ["scorecard"],
+  "forman-analysis": ["closing", "helper_salaries"],
+  "packing": ["closing", "scorecard"],
+  "packing-analysis": ["closing", "scorecard"],
+  "packing-per-100cf": ["scorecard"],
+  "claims": ["claims", "closing", "scorecard", "rollup"],
+  "reviews": ["reviews_breakdown", "review_counts", "review_goals"],
+  "executive-scorecard": ["closing", "card_expenses", "claims", "storage", "refunds"],
+  "customer-experience": ["closing", "claims", "refunds", "negative_reviews", "rollup"],
+  "labor-analysis": ["closing", "helper_salaries"],
+  "financial-analysis": ["closing", "moveboard", "sales_salaries", "helper_salaries", "refunds"],
+  "post-card-analysis": ["card_expenses", "moveboard", "closing", "helper_salaries", "sales_salaries", "refunds"],
+  "source-analysis": ["closing", "moveboard", "card_expenses"],
+  "movers-analysis": ["closing", "moveboard", "card_expenses"],
+  "angi-vs-moveboard": [],   // fetches its own raw data — the global filter bar doesn't reach it
+  "monthly-report": MR_DATASETS,
+  "admin-users": [],
+};
+["financial-team", "sales-team", "marketing-team", "logistics-team", "reviews-team", "support-team"]
+  .forEach(t => PAGE_DATASETS[t] = MR_DATASETS);
+/* what each dataset's rows ARE, in plain words — for the date-basis caption */
+const DS_NOUN = { closing: "jobs", moveboard: "leads", storage: "storage payments",
+  refunds: "refunds", claims: "claims", negative_reviews: "negative reviews",
+  reviews_breakdown: "reviews", card_expenses: "expenses", callrail: "calls",
+  leads: "provider leads", scorecard: "foreman scorecards", review_counts: "review totals",
+  review_goals: "review goals", long_distance: "long-distance jobs" };
+/* pages where a derived list would be noise — one hand-written line instead */
+const DATE_BASIS_TEXT = {
+  "angi-vs-moveboard": "this page has its own date handling — the filters above don't apply here",
+};
+["monthly-report", "financial-team", "sales-team", "marketing-team", "logistics-team",
+  "reviews-team", "support-team"].forEach(id => DATE_BASIS_TEXT[id] =
+  "money & jobs count by move date · leads by the date they came in");
+
+/* leaf page id — for a merged hub, the ACTIVE tab's page id */
+function currentLeafId() {
+  if (!CURRENT) return null;
+  const m = MERGED.find(x => x.id === CURRENT.id);
+  return m ? (mergedActiveTab[m.id] || m.tabs[0][0]) : CURRENT.id;
+}
+/* N13: per-slicer tooltips shown while the slicer is active (the "not used here"
+   message below takes priority when it's greyed). rs-core may also ship RS.FIELDS[k].tip. */
+const SLICER_TIPS = { cfRange: "Estimated move volume in cubic feet" };
+/* C1: say what "Date" means on this page. C6: grey out slicers whose field has no
+   mapping in any of the page's datasets — a silent no-op filter misleads with confidence. */
+function updateFilterContext() {
+  const leaf = currentLeafId();
+  const dsList = PAGE_DATASETS[leaf];
+  const note = document.getElementById("dateBasisNote");
+  if (note) {
+    let txt = DATE_BASIS_TEXT[leaf] || null;
+    if (!txt && dsList && dsList.length) {
+      const seen = new Map();               // basis label -> first dataset noun
+      dsList.forEach(ds => {
+        const b = RS.dateBasis(ds);
+        if (b && !seen.has(b)) seen.set(b, DS_NOUN[ds] || ds);
+      });
+      if (seen.size) txt = [...seen].map(([b, noun]) => `${b} (${noun})`).join(" · ");
+    }
+    note.textContent = txt ? "The Date filter on this page goes by: " + txt : "";
+    note.classList.toggle("hidden", !txt);
+  }
+  let active = null;                        // null = unknown page -> grey nothing
+  if (dsList) {
+    active = new Set();
+    dsList.forEach(ds => RS.fieldsFor(ds).forEach(k => active.add(k)));
+  }
+  document.querySelectorAll("#frowSlicers .rs-slicer[data-key]").forEach(w => {
+    const k = w.dataset.key;
+    const off = !!(active && !active.has(k));
+    w.classList.toggle("rs-off", off);
+    w.title = off
+      ? "Not used on this page — this report's data has no " + ((RS.FIELDS[k] || {}).label || k) + " field"
+      : ((RS.FIELDS[k] || {}).tip || SLICER_TIPS[k] || "");
+  });
+}
+/* C31: Month=March + Date=Jan 1-31 silently intersects to zero rows. Detect it and say so. */
+async function updateNoDataBanner() {
+  const banner = document.getElementById("noDataBanner");
+  if (!banner) return;
+  const dsList = PAGE_DATASETS[currentLeafId()];
+  const primary = dsList && dsList[0];
+  const anyFilter = !!(RS.state.dateFrom || RS.state.dateTo ||
+    RS.state.dayFrom != null || RS.state.dayTo != null ||
+    Object.entries(RS.state.multi).some(([k, s]) => k !== "company" && s && s.size));
+  let empty = false;
+  if (primary && anyFilter) {
+    try {
+      const rows = await RS.load(primary);
+      empty = rows.length > 0 && RS.filtered(primary, rows).length === 0;
+    } catch (e) {}
+  }
+  banner.classList.toggle("hidden", !empty);
+}
+/* C32: a deep link to a report the user can't open falls back to their first report —
+   with a banner saying so instead of a silent switcheroo. */
+function showAccessBanner(deniedTitle) {
+  const b = document.getElementById("accessBanner");
+  if (!b) return;
+  if (!deniedTitle) { b.classList.add("hidden"); return; }
+  b.innerHTML = `<span>You don't have access to <b>${RSC.esc(deniedTitle)}</b> — ask Tornike if you need it.
+    Showing your first report instead.</span>
+    <button class="rs-banner-btn" id="accessBannerX">Dismiss</button>`;
+  b.classList.remove("hidden");
+  b.querySelector("#accessBannerX").onclick = () => b.classList.add("hidden");
+}
+const titleOf = id => (MERGED.find(m => m.id === id) || {}).title ||
+  ((PAGES.find(p => p.id === id) || {}).title) ||
+  (typeof REPORT_LABELS !== "undefined" && REPORT_LABELS[id]) || id;
+
+/* C7: mobile hamburger — under 900px the sidebar is off-canvas; this is the only way in. */
+function toggleSide(open) {
+  const side = document.getElementById("side");
+  const bd = document.getElementById("sideBackdrop");
+  if (!side) return;
+  const on = open != null ? open : !side.classList.contains("open");
+  side.classList.toggle("open", on);
+  if (bd) bd.classList.toggle("hidden", !on);
+}
+function mountBurger() {
+  const host = document.getElementById("ztzHeader");
+  if (!host || document.getElementById("navBurger")) return;
+  const b = document.createElement("button");
+  b.id = "navBurger"; b.className = "rs-burger"; b.title = "Reports menu";
+  b.innerHTML = '<svg viewBox="0 0 24 24"><path d="M3 6h18M3 12h18M3 18h18"/></svg>';
+  b.onclick = () => toggleSide();
+  host.insertBefore(b, host.firstChild);
+  const bd = document.getElementById("sideBackdrop");
+  if (bd) bd.onclick = () => toggleSide(false);
+}
+
 function navigate(id, push) {
-  if (!canSee(idOwner(id))) id = firstAllowedId();
+  let deniedTitle = null;
+  // accept "hub:tab" deep-link ids (C32) — activate the tab, then resolve the hub
+  if (id && id.indexOf(":") > 0) {
+    const [hub, tab] = id.split(":");
+    const m = MERGED.find(x => x.id === hub);
+    if (m && m.tabs.some(t => t[0] === tab)) mergedActiveTab[hub] = tab;
+    id = hub;
+  }
+  if (!canSee(idOwner(id))) {
+    // only announce a denial for a REAL page — a mistyped hash falls back silently
+    if (id && pageFor(id)) deniedTitle = titleOf(idOwner(id));
+    id = firstAllowedId();
+  }
   if (!id) { requestAccessScreen(ME && ME.email); return; }
   const page = pageFor(id) || (PAGES[0] && pageFor(PAGES[0].id));
   if (!page) return;
   CURRENT = page;
-  if (push !== false) location.hash = "page=" + page.id;
-  const mAct = (() => { const m = MERGED.find(x => x.id === page.id); return m ? page.id + ":" + (mergedActiveTab[page.id] || m.tabs[0][0]) : null; })();
+  const m = MERGED.find(x => x.id === page.id);
+  const mAct = m ? page.id + ":" + (mergedActiveTab[page.id] || m.tabs[0][0]) : null;
+  // keep the ACTIVE TAB in the hash so copied links reopen the same view (C32)
+  if (push !== false) location.hash = "page=" + (mAct || page.id);
   document.querySelectorAll(".rs-nav-item").forEach(n =>
     n.classList.toggle("active", n.dataset.id === page.id || (mAct != null && n.dataset.id === mAct)));
+  showAccessBanner(deniedTitle);
+  toggleSide(false);          // picking a report on a phone closes the menu
   renderPage();
 }
 
 async function renderPage() {
   const host = document.getElementById("content");
+  updateFilterContext();
   // destroy the outgoing page's Chart instances BEFORE wiping the DOM — otherwise they leak on
   // every navigation / theme change / re-render (worst on chart-heavy pages)
   try { Object.values(Chart.instances || {}).forEach(ch => { if (ch.canvas && host.contains(ch.canvas)) ch.destroy(); }); } catch (e) {}
-  host.innerHTML = `<div class="rs-loading"><div>Loading <b>${CURRENT.title}</b>…</div><div class="bar"><i></i></div></div>`;
+  host.innerHTML = `<div class="rs-loading"><div>Loading <b>${RSC.esc(CURRENT.title)}</b>…</div><div class="bar"><i></i></div></div>`;
   try {
     await CURRENT.render(host);
   } catch (e) {
-    host.innerHTML = `<div class="rs-loading"><span class="err">${RSC.esc(e.message)}</span></div>`;
+    // human words first, the raw error folded away, and a Retry that actually retries (C42)
+    host.innerHTML = `<div class="rs-loading"><div style="max-width:440px;text-align:center">
+      <div style="font-size:16px;font-weight:800;color:var(--ink);margin-bottom:6px">This report couldn't load</div>
+      <div style="line-height:1.6">Usually a brief connection problem — trying again fixes it.
+        If it keeps failing, tell <b style="color:var(--muted)">Tornike</b>.</div>
+      <button class="btn on" id="pageRetry" style="margin-top:14px">Try again</button>
+      <details style="margin-top:12px;font-size:11.5px;color:var(--faint)">
+        <summary style="cursor:pointer">Technical details</summary>
+        <div style="margin-top:6px;word-break:break-all">${RSC.esc(e.message)}</div></details>
+    </div></div>`;
+    const rb = host.querySelector("#pageRetry");
+    if (rb) rb.onclick = () => renderPage();
     console.error(e);
   }
+  updateNoDataBanner();
 }
+
+/* Sidebar display-name overrides — page modules keep their ids/titles, the shell decides
+   what the nav item is CALLED (same pattern as GROUP_OVERRIDE). */
+const NAV_TITLES = {
+  "source-identification": "How Sources Are Assigned",
+};
+/* C46: hidden search keywords per nav item — old Power BI page names, singular/plural,
+   vendor names — so the transition period doesn't break muscle memory. Never shown. */
+const SEARCH_ALIASES = {
+  "marketing": "callrail call rail call tracking ads analysis ad spend roi phone calls advertising google",
+  "leads": "leads analysis lead funnel geography state states conversion booking",
+  "lead-source-analysis": "source analysis sources source overview angi movers movers.com home advisor homeadvisor post card postcard post cards attribution",
+  "foremen": "forman forman analysis foreman foremen crew crews scorecard comparison",
+  "packing-suite": "packing analysis packing per 100 cf material materials boxes",
+  "yoy-diff": "yoy diff year over year comparison annual vs last year",
+  "analysis-by-category": "analysis by category custom breakdown categories explorer",
+  "source-identification": "source identification lead source assigned attribution booked from lineage",
+  "jobs-vs-hours": "jobs done vs hours worked job hour efficiency",
+  "sales-person-analysis": "salesperson salespeople sales person analysis rep reps commission commissions",
+  "monthly-report": "monthly report month review presentation ppt slides",
+  "executive-scorecard": "executive scorecard kpi kpis trends",
+  "customer-experience": "refund refunds negative review reviews complaints cx cost of quality",
+  "financial-analysis": "p&l pnl profit and loss financial analysis",
+  "claims": "claim claims damage damages",
+  "reviews": "review reviews rating ratings stars",
+  "storage": "storage payments",
+  "insights": "insights recommendations alerts findings",
+  "labor-analysis": "labor crew helpers hours worked",
+  "angi-vs-moveboard": "angi analysis angi leads delivery moveboard",
+};
 
 function buildNav() {
   const q = (document.getElementById("navSearch").value || "").toLowerCase();
@@ -394,12 +632,13 @@ function buildNav() {
       if (m) {
         if (!seenMerged.has(m.id) && canSee(m.id)) {
           seenMerged.add(m.id);
-          display.push({ id: m.id, title: m.title, iconKey: m.icon,
-            search: m.title + " " + m.tabs.map(t => t[1]).join(" "),
+          display.push({ id: m.id, title: NAV_TITLES[m.id] || m.title, iconKey: m.icon,
+            search: m.title + " " + m.tabs.map(t => t[1]).join(" ") + " " + (SEARCH_ALIASES[m.id] || ""),
             children: m.tabs.map(([tid, label]) => ({ tid, label })) });
         }
       } else if (canSee(p.id)) {
-        display.push({ id: p.id, title: p.title, iconKey: PAGE_ICONS[p.id], search: p.title });
+        display.push({ id: p.id, title: NAV_TITLES[p.id] || p.title, iconKey: PAGE_ICONS[p.id],
+          search: p.title + " " + (NAV_TITLES[p.id] || "") + " " + (SEARCH_ALIASES[p.id] || "") });
       }
     });
     display.sort((a, b) => (NAV_ORDER[a.id] || 50) - (NAV_ORDER[b.id] || 50));
@@ -447,7 +686,8 @@ function onFilterChange() {
 }
 
 const PRIMARY   = ["year", "month", "company", "source", "foreman"];
-const SECONDARY = ["sales", "state", "cfRange", "billRange", "movingType", "sizeOfMove", "statusCat"];
+// N13: the two size filters (Size of Move + Volume) sit next to each other on purpose.
+const SECONDARY = ["sales", "state", "sizeOfMove", "cfRange", "billRange", "movingType", "statusCat"];
 const activeCount = keys => keys.reduce((a, k) =>
   a + ((RS.state.multi[k] && RS.state.multi[k].size) ? 1 : 0), 0);
 
@@ -516,7 +756,9 @@ async function buildFilters() {
     foreman:    counted([[closing, "Foreman"]]),
     sales:      counted([[closing, "Sales Person"]]),
     state:      counted([[closing, "State"], [moveboard, "State"]]),
-    cfRange:    ["0-200","201-500","501-800","801-1000","1001-1500","1501-2000","Over 2000"],
+    // N13: dropdown shows the unit; the raw bucket value (matched against the data) stays as-is.
+    cfRange:    ["0-200","201-500","501-800","801-1000","1001-1500","1501-2000","Over 2000"]
+                  .map(v => ({ v, l: v === "Over 2000" ? "Over 2,000 cu ft" : v + " cu ft" })),
     billRange:  ["$0 - $500","$501 - $1,000","$1,001 - $3,000","$3,001 - $5,000","$5,001 - $10,000","$10,001 - $20,000","Over $20,000"],
     movingType: ["Local Moving","Regular Moving","Straight Moving"],
     sizeOfMove: counted([[closing, "Size of Move"], [moveboard, "Size of Move"]]),
@@ -533,6 +775,7 @@ async function buildFilters() {
     }
   });
   paintChips();
+  updateFilterContext();   // slicers were just rebuilt — re-apply the not-used-here greying
 }
 
 /* ---------------- boot ---------------- */
@@ -541,51 +784,82 @@ mountThemeToggle();
 if (!ZTZ.getToken()) {
   document.getElementById("gate").classList.remove("hidden");
   ZTZ.mountSignin(document.getElementById("gateSign"))
-    .catch(e => document.getElementById("gateErr").textContent = e.message);
+    .catch(e => {
+      document.getElementById("gateErr").textContent =
+        "Google sign-in couldn't load — check your internet connection and refresh this page.";
+      console.error(e);
+    });
 } else {
   document.getElementById("app").classList.remove("hidden");
+  mountBurger();
   // Immediate boot state — the first dataset fetch takes a few seconds and the
   // slicers can't populate until it lands; never show an empty void.
   document.getElementById("content").innerHTML =
-    `<div class="rs-loading"><div>Connecting to the warehouse — <b>loading live datasets</b>…</div>` +
+    `<div class="rs-loading"><div>Loading the latest <b>company data</b>…</div>` +
     `<div class="bar"><i></i></div></div>`;
   document.getElementById("navSearch").oninput = buildNav;
+  document.getElementById("noDataClear").onclick = () => {
+    Object.values(RS.state.multi).forEach(s => s.clear());
+    RS.state.dateFrom = RS.state.dateTo = RS.state.dayFrom = RS.state.dayTo = null;
+    buildFilters().then(renderPage);
+  };
+  // hash may carry "hub:tab" (deep link to a specific tab) — see navigate() (C32)
+  const hashId = () => (location.hash.match(/page=([\w-]+(?::[\w-]+)?)/) || [])[1];
   window.addEventListener("hashchange", () => {
-    const id = (location.hash.match(/page=([\w-]+)/) || [])[1];
-    if (id && (!CURRENT || CURRENT.id !== id)) navigate(id, false);
+    const raw = hashId();
+    if (!raw || !CURRENT) { if (raw) navigate(raw, false); return; }
+    const [hub, tab] = raw.split(":");
+    const m = MERGED.find(x => x.id === CURRENT.id);
+    const curTab = m ? (mergedActiveTab[CURRENT.id] || m.tabs[0][0]) : null;
+    if (CURRENT.id !== hub || (tab && tab !== curTab)) navigate(raw, false);
   });
   // Pages register themselves as their scripts load (see below); boot after load.
   window.addEventListener("load", async () => {
     ME = await fetchMe();
-    if (!ME.authorized) { requestAccessScreen(ME.email); return; }
-    const raw = (location.hash.match(/page=([\w-]+)/) || [])[1];
-    const startId = canSee(idOwner(raw)) ? raw : firstAllowedId();
-    if (!startId) { requestAccessScreen(ME.email); return; }
-    CURRENT = pageFor(startId);
+    if (!ME.authorized) { requestAccessScreen(ME.email, ME.error); return; }
+    if (!firstAllowedId()) { requestAccessScreen(ME.email); return; }
     buildNav();
+    // C5: swap the static schedule promise for the real thing — newest "Update Date"
+    // across the tables this user can see (/api/_stats, server-cached). If the endpoint
+    // is slow or errors, the "Refreshed automatically every 6 hours" fallback stays.
+    (async () => {
+      try {
+        const st = await ZTZ.api("/api/_stats");
+        const ts = (st.tables || []).map(t => t.last_update).filter(Boolean).sort().pop();
+        const d = ts && new Date(String(ts).replace(" ", "T"));
+        const el = document.getElementById("footFresh");
+        if (el && d && !isNaN(d)) el.textContent = "Data updated: " + d.toLocaleString(undefined,
+          { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+      } catch (e) {}
+    })();
     await buildFilters();
-    navigate(startId, false);
+    // navigate() handles a denied deep link: falls back + explains itself (C32)
+    navigate(hashId() || firstAllowedId(), false);
   });
 }
 </script>
 <script>
 /* ---------------- admin page: Users & Access (admins only) ---------------- */
 PAGE_ICONS["admin-users"] = "user";
+/* Grant-tile labels — plain English, kept in sync with the sidebar renames (N34). */
 const REPORT_LABELS = {
   "insights": "Insights & Recommendations", "jobs-vs-hours": "Jobs Done vs Hours Worked",
-  "analysis-by-category": "Analysis by Category", "yoy-diff": "YoY Diff",
-  "leads": "Leads (Funnel + Geography)", "sales-person-analysis": "Sales Person Analysis",
-  "marketing": "Marketing (Ads + CallRail)", "foremen": "Foremen (Scorecard + Analysis)",
+  "analysis-by-category": "Custom Breakdown (formerly Analysis by Category)",
+  "yoy-diff": "Year-over-Year Comparison",
+  "leads": "Leads (funnel + geography)", "sales-person-analysis": "Sales Person Analysis",
+  "marketing": "Ads & Calls (ad spend + call tracking)",
+  "foremen": "Foremen (scorecard + comparison)",
   "packing-suite": "Packing (all three views)", "claims": "Claims",
   "storage": "Storage", "reviews": "Reviews",
-  "source-identification": "Source Identification (lineage)",
+  "lead-source-analysis": "Lead Sources (attribution & spend)",
+  "source-identification": "How Sources Are Assigned",
   "executive-scorecard": "Executive Scorecard",
-  "customer-experience": "Customer Experience (cost of quality)",
+  "customer-experience": "Customer Experience (refunds, claims & bad-review costs)",
   "labor-analysis": "Labor & Crew",
-  "financial-analysis": "Financial Analysis (P&L)",
+  "financial-analysis": "Financial Analysis (profit & loss)",
   "post-card-analysis": "Post Card Analysis",
   "monthly-report": "Monthly Report (all-in-one)",
-  "explorer": "Data Explorer — the Data portal, ALL tables",
+  "explorer": "Data Explorer (the Data portal — every table)",
 };
 async function aclCall(method, body) {
   const r = await fetch(ZTZ.API + "/api/_acl", {
@@ -669,8 +943,8 @@ registerPage({
     host.querySelector("#uCancel").onclick = () => editor.classList.add("hidden");
 
     const grantChips = u => {
-      if (u.admin) return `<span class="acl-badge admin">ADMIN · EVERYTHING</span>`;
-      if (!u.reports.length) return `<span class="acl-badge none">NO ACCESS</span>`;
+      if (u.admin) return `<span class="acl-badge admin">Admin · everything</span>`;
+      if (!u.reports.length) return `<span class="acl-badge none">No access</span>`;
       const shown = u.reports.slice(0, 4);
       return shown.map(r => `<span class="acl-badge r">${RSC.esc((REPORT_LABELS[r] || r).split(" (")[0].split(" — ")[0])}</span>`).join("") +
         (u.reports.length > 4 ? `<span class="acl-badge r">+${u.reports.length - 4}</span>` : "");
@@ -716,31 +990,31 @@ registerPage({
 });
 </script>
 <!-- page modules (each calls registerPage) -->
-<script src="pages/insights.js?v=3"></script>
-<script src="pages/source-identification.js?v=2"></script>
-<script src="pages/jobs-vs-hours.js?v=6"></script>
-<script src="pages/analysis-by-category.js?v=6"></script>
-<script src="pages/yoy-diff.js?v=6"></script>
-<script src="pages/leads-analysis.js?v=6"></script>
-<script src="pages/leads-by-state.js?v=4"></script>
-<script src="pages/storage.js?v=4"></script>
-<script src="pages/sales-person-analysis.js?v=5"></script>
-<script src="pages/ads-analysis.js?v=7"></script>
-<script src="pages/callrail.js?v=4"></script>
-<script src="pages/forman.js?v=5"></script>
-<script src="pages/packing.js?v=5"></script>
-<script src="pages/claims.js?v=5"></script>
-<script src="pages/reviews.js?v=7"></script>
-<script src="pages/packing-analysis.js?v=5"></script>
-<script src="pages/forman-analysis.js?v=5"></script>
-<script src="pages/packing-per-100cf.js?v=5"></script>
-<script src="pages/executive-scorecard.js?v=2"></script>
-<script src="pages/customer-experience.js?v=1"></script>
-<script src="pages/labor-analysis.js?v=1"></script>
-<script src="pages/financial-analysis.js?v=1"></script>
-<script src="pages/post-card-analysis.js?v=1"></script>
-<script src="pages/monthly-report.js?v=33"></script>
-<script src="pages/leads-vs-moveboard.js?v=5"></script>
-<script src="pages/source-analysis.js?v=1"></script>
+<script src="pages/insights.js?v=4"></script>
+<script src="pages/source-identification.js?v=3"></script>
+<script src="pages/jobs-vs-hours.js?v=7"></script>
+<script src="pages/analysis-by-category.js?v=7"></script>
+<script src="pages/yoy-diff.js?v=7"></script>
+<script src="pages/leads-analysis.js?v=7"></script>
+<script src="pages/leads-by-state.js?v=5"></script>
+<script src="pages/storage.js?v=5"></script>
+<script src="pages/sales-person-analysis.js?v=6"></script>
+<script src="pages/ads-analysis.js?v=8"></script>
+<script src="pages/callrail.js?v=5"></script>
+<script src="pages/forman.js?v=6"></script>
+<script src="pages/packing.js?v=6"></script>
+<script src="pages/claims.js?v=6"></script>
+<script src="pages/reviews.js?v=8"></script>
+<script src="pages/packing-analysis.js?v=6"></script>
+<script src="pages/forman-analysis.js?v=6"></script>
+<script src="pages/packing-per-100cf.js?v=6"></script>
+<script src="pages/executive-scorecard.js?v=3"></script>
+<script src="pages/customer-experience.js?v=2"></script>
+<script src="pages/labor-analysis.js?v=2"></script>
+<script src="pages/financial-analysis.js?v=2"></script>
+<script src="pages/post-card-analysis.js?v=2"></script>
+<script src="pages/monthly-report.js?v=34"></script>
+<script src="pages/leads-vs-moveboard.js?v=6"></script>
+<script src="pages/source-analysis.js?v=2"></script>
 </body>
 </html>

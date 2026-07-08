@@ -79,7 +79,7 @@ registerPage({
         <h1>Customer Experience</h1>
         <p>Cost-of-quality scorecard: claims, refunds, negative reviews, satisfaction ·
            <b>${RS.fmtN(totalJobs)}</b> jobs in scope
-           <span class="freshness">· rollup amounts joined via request membership · refunds read the fct_refunds ledger</span></p>
+           <span class="freshness">· refunds come from the refunds sheet · negative-review refund amounts come from the Support sheet, matched by request number</span></p>
       </div>
       <div class="rs-kpis" id="cxKpis"></div>
       <div id="cxMain"></div>
@@ -89,14 +89,14 @@ registerPage({
     RSC.kpis(document.getElementById("cxKpis"), [
       { label: "Claims per 100 Jobs", value: RS.fmt1(totalJobs ? 100 * nClaims / totalJobs : null),
         sub: `${RS.fmtN(nClaims)} claims vs ${RS.fmtN(totalJobs)} jobs` },
-      { label: "Refund $", value: RS.moneyC(totalRefund),
-        sub: `${RS.money(totalRefund)} · ${RS.fmtN(nRefunds)} refunds (fct_refunds)` },
+      { label: "Refunds Paid", value: RS.moneyC(totalRefund),
+        sub: `${RS.money(totalRefund)} · ${RS.fmtN(nRefunds)} refunds recorded in the refunds sheet` },
       { label: "Refund % of Revenue", value: RS.fmtPct(revenue ? totalRefund / revenue : null),
         sub: `vs ${RS.moneyC(revenue)} revenue in scope` },
       { label: "Negative Reviews per 100 Jobs", value: RS.fmt1(totalJobs ? 100 * nNeg / totalJobs : null),
         sub: `${RS.fmtN(nNeg)} negative reviews` },
       { label: "Refunded for Neg. Reviews", value: RS.moneyC(amtRefundedNR),
-        sub: `${RS.money(amtRefundedNR)} · ${RS.fmtPct(amtRefundedRollup ? amtRefundedNR / amtRefundedRollup : null)} of rollup refunds` },
+        sub: `${RS.money(amtRefundedNR)} · ${RS.fmtPct(amtRefundedRollup ? amtRefundedNR / amtRefundedRollup : null)} of Support-sheet refunds` },
       { label: "Avg Satisfaction Score", value: RS.fmt1(satAvg),
         sub: `0–10 scale · ${RS.fmtN(satN)} of ${RS.fmtN(totalJobs)} jobs scored` },
     ]);
@@ -128,14 +128,14 @@ registerPage({
     RSC.chartCard(document.getElementById("cxMain"), {
       title: "Cost of quality by month",
       controlsGraphOnly: true,
-      controlsHtml: `<span class="lbl">bars: refund $ · line: claims per 100 jobs · last 24 mo</span>`,
+      controlsHtml: `<span class="lbl">bars: refunds paid · line: claims per 100 jobs · last 24 mo</span>`,
       buildChart(canvas) {
         const shown = saneMonths.slice(-24);
         return new Chart(canvas, {
           data: {
             labels: shown.map(mLabel),
             datasets: [
-              { type: "bar", label: "Refund $", yAxisID: "y",
+              { type: "bar", label: "Refunds Paid", yAxisID: "y",
                 data: shown.map(k => refByMonth[k] || 0),
                 backgroundColor: "#f87171", borderRadius: 4, order: 2 },
               { type: "line", label: "Claims per 100 Jobs", yAxisID: "y1",
@@ -164,7 +164,7 @@ registerPage({
       buildTable() {
         const data = months.map(k => ({
           m: k > curKey
-            ? `${RS.monthName(+k.slice(5))} ${k.slice(0, 4)} <span style="color:var(--red)">(future-dated — F2 typo)</span>`
+            ? `${RS.monthName(+k.slice(5))} ${k.slice(0, 4)} <span style="color:var(--red)">(future-dated — data-entry typo in the refunds sheet)</span>`
             : mLabel(k),
           jobs: jobsByMonth[k] || 0,
           c: claimsByMonth[k] || 0,
@@ -177,7 +177,7 @@ registerPage({
            { key: "jobs", label: "Total Jobs", fmt: RS.fmtN },
            { key: "c", label: "Claims", fmt: RS.fmtN },
            { key: "per100", label: "Claims / 100 Jobs", fmt: RS.fmt1 },
-           { key: "ref", label: "Refund $", fmt: RS.money },
+           { key: "ref", label: "Refunds Paid", fmt: RS.money },
            { key: "refPct", label: "Refund % of Revenue", fmt: RS.fmtPct }],
           data,
           { m: "Total", jobs: totalJobs, c: nClaims,
@@ -257,7 +257,7 @@ registerPage({
     });
     const fmPanel = RSC.el("div", "panel",
       `<div class="panel-head"><span class="panel-title">By foreman — cost of quality</span>
-         <span class="rs-ctl"><span class="lbl">worst first (refund $ per 100 jobs) · min ${MIN_JOBS} jobs to qualify</span></span>
+         <span class="rs-ctl"><span class="lbl">worst first (refunds paid per 100 jobs) · min ${MIN_JOBS} jobs to qualify</span></span>
          <span class="spacer"></span>
          <span class="rs-ctl"><span class="lbl">${RS.fmtN(qual.length)} foremen qualify</span></span></div>
        <div class="tabwrap"></div>`);
@@ -267,9 +267,9 @@ registerPage({
        { key: "jobs", label: "Jobs", fmt: RS.fmtN },
        { key: "c", label: "Claims", fmt: RS.fmtN },
        { key: "per100", label: "Claims / 100 Jobs", fmt: RS.fmt1 },
-       { key: "ref", label: "Refund $", fmt: RS.money },
+       { key: "ref", label: "Refunds Paid", fmt: RS.money },
        { key: "neg", label: "Neg. Reviews", fmt: RS.fmtN },
-       { key: "refPer100", label: "Refund $ / 100 Jobs", fmt: RS.money }],
+       { key: "refPer100", label: "Refunds Paid / 100 Jobs", fmt: RS.money }],
       qual.map(g => rowOf(g, false)).concat([rowOf(rest, true)]),
       { f: "Total", jobs: totalJobs, c: nClaims,
         per100: totalJobs ? 100 * nClaims / totalJobs : null,
@@ -288,12 +288,12 @@ registerPage({
       <div style="padding:10px 4px 2px;color:var(--muted);font-size:12px;line-height:1.7">
         Coverage: claims ${covSpan(covClaims)} · refunds ${covSpan(covRefunds)} · negative reviews ${covSpan(covNeg)}
         — per-100-jobs rates before each ledger starts read as zero cost, not clean months.
-        ${futureRefunds ? `${RS.fmtN(futureRefunds)} future-dated refund row(s) (incl. the known year-2925 sheet typo, audit F2)
+        ${futureRefunds ? `${RS.fmtN(futureRefunds)} future-dated refund row(s) (data-entry typos in the refunds sheet — one is dated year 2925)
         stay in the totals but are excluded from the monthly chart and this coverage line.` : ``}
         ${futureMonths.length ? `Future-dated months are flagged in the tabular view.` : ``}<br>
-        Refund $ reads the fct_refunds ledger (${RS.money(totalRefund)}); the Claims page's "Amount Refunded"
-        reads the support rollup over closing requests (${RS.money(amtRefundedRollup)} in this scope) —
-        the rollup misses refunds on requests that never reached a closing sheet, so the two differ by design.
+        Refunds Paid comes from the refunds sheet (${RS.money(totalRefund)}); the Claims page's "Refunded on
+        Claimed Requests" comes from the Support sheet, matched by request number (${RS.money(amtRefundedRollup)} in this scope) —
+        the Support sheet misses refunds on requests that never reached a closing sheet, so the two differ by design.
         Refund attribution: ${RS.money(refByName)} matched by the refunds Foreman column (name normalized),
         ${RS.money(refByJoin)} by Request-Joinkey fallback to the closing foreman, ${RS.money(refUnattr)} unattributed.
       </div>`;

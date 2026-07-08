@@ -14,7 +14,7 @@ if (RS.DATASETS.closing.cols.indexOf("Tip for Forman") < 0)
 registerPage({
   id: "forman-analysis",
   group: "ops",
-  title: "Forman Analysis",
+  title: "Foreman Comparison",
   async render(host) {
     const [closingAll, helpersAll] = await Promise.all([
       RS.load("closing"), RS.load("helper_salaries"),
@@ -37,10 +37,12 @@ registerPage({
       "Total Jobs":             { fmt: RS.fmtN,   add: true,  fn: rs => M["Total Jobs"].fn(rs) },
       "Revenue":                { fmt: RS.money,  add: true,  fn: rs => M["Revenue"].fn(rs) },
       "Net Cash":               { fmt: RS.money,  add: true,  fn: rs => M["Net Cash"].fn(rs) },
-      "Hours Worked by Forman": { fmt: RS.fmtN,   add: true,  fn: rs => M["Hours Worked by Forman"].fn(rs) },
+      // CALC keys are the user-visible dropdown labels; the raw data/measure keys
+      // ("Hours Worked by Forman", "Tip for Forman") stay untouched inside fn.
+      "Hours Worked by Foreman": { fmt: RS.fmtN,  add: true,  fn: rs => M["Hours Worked by Forman"].fn(rs) },
       "Total Tips":             { fmt: RS.money,  add: true,  fn: rs => M["Total Tips"].fn(rs) },
       // PBI measure 'Forman Tip Part' = SUM('Closing Sheet'[Tip for Forman])
-      "Tip for Forman":         { fmt: RS.money,  add: true,
+      "Tips for Foreman":       { fmt: RS.money,  add: true,
         fn: rs => rs.reduce((a, r) => a + RS.num(r["Tip for Forman"]), 0) },
       // PBI calc column 'Crew Size' (count of non-blank crew roles), averaged per job
       "Crew Size (avg)":        { fmt: RS.fmt1,   add: false,
@@ -81,9 +83,9 @@ registerPage({
     host.innerHTML = `
       <style>#faKpis .up{color:var(--brand)}#faKpis .down{color:var(--red)}</style>
       <div class="rs-page-head">
-        <h1>Forman Analysis</h1>
+        <h1>Foreman Comparison</h1>
         <p>Foreman performance comparison · <b>${RS.fmtN(rows.length)}</b> jobs in scope
-           <span class="freshness">· helper cost joined from helper salaries via Unique Key
+           <span class="freshness">· helper pay comes from the helper-salaries sheet, matched to each job
            ${prev ? "· KPI deltas vs previous period of equal length" : "· set a date range for period deltas"}</span></p>
       </div>
       <div class="rs-kpis" id="faKpis"></div>
@@ -120,8 +122,8 @@ registerPage({
       // Revenue = Total Revenue (job bills, already incl. appended-trip job bills)
       //         + Additional Revenue from Trips (linked-trip extras); split shown below.
       { label: "Revenue", c: "Revenue", sub: "", yoy: true, split: true },
-      { label: "Hours Worked", c: "Hours Worked by Forman", sub: "foreman hours" },
-      { label: "Avg Crew Size", c: "Crew Size (avg)", sub: "crew members / job" },
+      { label: "Hours Worked", c: "Hours Worked by Foreman", sub: "foreman hours" },
+      { label: "Avg Crew Size", c: "Crew Size (avg)", sub: "crew members per job, incl. foreman" },
       { label: "Total Tips", c: "Total Tips", sub: "customer + company tips" },
       { label: "Helper Cost", c: "Helper Cost", sub: "helper salaries in scope" },
     ];
@@ -160,7 +162,7 @@ registerPage({
     // ---- main card: foreman comparison bar + the full tabular breakdown
     const mainCard = RSC.chartCard(document.getElementById("faMain"), {
       title: "Foreman comparison",
-      controlsHtml: `<span class="lbl">Calculate by</span><select id="faCalc">` +
+      controlsHtml: `<span class="lbl">Measure</span><select id="faCalc">` +
         Object.keys(CALC).map(c => `<option ${c === calcBy ? "selected" : ""}>${c}</option>`).join("") +
         `</select>`,
       buildChart(canvas) {
@@ -194,8 +196,8 @@ registerPage({
         const total = c.add ? c.fn(rows) : null;
         const mk = rs => ({
           jobs: CALC["Total Jobs"].fn(rs), bill: CALC["Revenue"].fn(rs),
-          net: CALC["Net Cash"].fn(rs), hrs: CALC["Hours Worked by Forman"].fn(rs),
-          tips: CALC["Total Tips"].fn(rs), tipf: CALC["Tip for Forman"].fn(rs),
+          net: CALC["Net Cash"].fn(rs), hrs: CALC["Hours Worked by Foreman"].fn(rs),
+          tips: CALC["Total Tips"].fn(rs), tipf: CALC["Tips for Foreman"].fn(rs),
           crew: CALC["Crew Size (avg)"].fn(rs), morn: CALC["Morning Jobs %"].fn(rs),
           help: CALC["Helper Cost"].fn(rs),
         });
@@ -218,7 +220,7 @@ registerPage({
            { key: "net", label: "Net Cash", fmt: nzMoney },
            { key: "hrs", label: "Hours", fmt: nzN },
            { key: "tips", label: "Total Tips", fmt: nzMoney },
-           { key: "tipf", label: "Tip for Forman", fmt: nzMoney },
+           { key: "tipf", label: "Tips for Foreman", fmt: nzMoney },
            { key: "crew", label: "Avg Crew", fmt: RS.fmt1 },
            { key: "morn", label: "Morning %", fmt: RS.fmtPct },
            { key: "help", label: "Helper Cost", fmt: nzMoney }],
@@ -293,11 +295,12 @@ registerPage({
       return Object.values(g).sort((a, b) => (b.am + b.pm) - (a.am + a.pm));
     };
     RSC.chartCard(grid, {
-      title: "Morning vs Afternoon jobs",
+      title: "First job of day vs later jobs",
       // The tabular view shows all foremen with fixed columns; the "top 12 · by job
-      // count" caption only describes the chart, so hide it in the table.
+      // count" caption only describes the chart, so hide it in the table. (The
+      // Morning-definition caption is repeated under the table itself.)
       controlsGraphOnly: true,
-      controlsHtml: `<span class="lbl">top 12 foremen · by job count</span>`,
+      controlsHtml: `<span class="lbl">top 12 foremen · by job count · Morning = the foreman's first job that day</span>`,
       buildChart(canvas) {
         const list = partSplit().slice(0, 12);
         return new Chart(canvas, {
@@ -353,6 +356,7 @@ registerPage({
           data,
           { f: "Total", am: tam, pm: tpm, t: tam + tpm, shT: (tam + tpm) ? 1 : null,
             sh: (tam + tpm) ? tam / (tam + tpm) : null }) +
+          `<p style="margin:6px 2px 0;font-size:12px;color:var(--faint)">Morning = the foreman's first job that day; Afternoon = any later job.</p>` +
           (all.length > shown.length
             ? `<p style="margin:6px 2px 0;font-size:12px;color:var(--faint)">Showing top ${shown.length} of ${RS.fmtN(all.length)} foremen — the rest are aggregated in "All others".</p>`
             : "");

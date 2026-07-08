@@ -194,7 +194,7 @@ window.RS = (function () {
     // sales slicer skips reviews (it used to zero them). moveboard `Assigned` now carries the
     // Full Name (curated fct_moveboard) so it matches the Full-Name slicer options like closing.
     sales:       { label: "Sales Person", closing: "Sales Person",  moveboard: "Assigned",       refunds: "Sales Person", long_distance: "Sales Person" },
-    cfRange:     { label: "CF Range",     moveboard: "CF Range" },
+    cfRange:     { label: "Volume (cu ft)", moveboard: "CF Range" },  // display label only — field key + column stay "CF Range"
     billRange:   { label: "Bill Range",   closing: "Bill Range",    moveboard: "Bill Range" },
     movingType:  { label: "Moving Type",  closing: "Moving Type" },
     sizeOfMove:  { label: "Size of Move", closing: "Size of Move",  moveboard: "Size of Move" },
@@ -311,6 +311,9 @@ window.RS = (function () {
   // Revenue naming (user): "Revenue" = the combined figure (was Total Bill), split into
   // "Total Revenue" (from closings) + "Additional Revenue from Trips" (the appended trips part).
   register("Revenue", "closing", money, rows => sum(rows, "Total Bill") + sum(rows, "Extra Bill From Trips"));
+  // DISPLAY name for "Total Revenue" is "Job Revenue (excl. trips)" — it is SMALLER than
+  // "Revenue" and must never be shown under a name that sounds like the total. Registry
+  // key stays "Total Revenue"; render via RS.displayName().
   register("Total Revenue", "closing", money, rows => sum(rows, "Total Bill"));
   register("Additional Revenue from Trips", "closing", money, rows => sum(rows, "Extra Bill From Trips"));
   register("Net Cash", "closing", money, rows => sum(rows, "Net Cash") + sum(rows, "Net Cash From Trips"));
@@ -349,9 +352,35 @@ window.RS = (function () {
     rows => rows.filter(r => r["Status Category"] === "Confirmed").length);
   register("Dead Leads", "moveboard", fmtN,
     rows => rows.filter(r => r["Status Category"] === "Bad Lead").length);
+  /* Canonical Booking Rate — the ONE official formula for the whole portal.
+     Matches the PBI SWITCH verbatim (dax_measures.md lines 33-48):
+       Qualified = leads with Status Category !== 'Bad Lead', sliced by CREATE date;
+       Confirmed = leads with Status Category === 'Confirmed', sliced by BOOKED date;
+       SWITCH: Confirmed > Qualified -> 1 (cap at 100%);
+               Qualified=0 && Confirmed=0 -> null (blank);
+               Qualified!=0 && Confirmed=0 -> 0;
+               else Confirmed / Qualified.
+     Dual date basis is the point: bookings lag lead creation, so scoring both sides
+     on Create Date understates recent months and lets history drift as old leads
+     convert. createdRows / bookedRows are the SAME dataset filtered on the two
+     different date columns (see leads-analysis.js rowsB for the pattern). */
+  function bookingRate(createdRows, bookedRows) {
+    const qualified = createdRows.filter(r => r["Status Category"] !== "Bad Lead").length;
+    const confirmed = bookedRows.filter(r => r["Status Category"] === "Confirmed").length;
+    if (confirmed > qualified) return 1;
+    if (qualified === 0 && confirmed === 0) return null;
+    if (confirmed === 0) return 0;
+    return confirmed / qualified;
+  }
+  // Registry wrapper: fn receives the CREATE-date-scoped rows (default date basis);
+  // the BOOKED-date-scoped rows are derived here from the same global filter state
+  // (USERELATIONSHIP equivalent). Matches the PBI SWITCH — see bookingRate() above.
+  // NOTE: this wrapper is global-filter scope only; for segment breakdowns (groupBy
+  // subsets) call RS.bookingRate directly with both row sets for the segment.
   register("Booking Rate", "moveboard", fmtPct, rows => {
-    const q = M["Qualified Leads"].fn(rows), c = M["Confirmed Leads"].fn(rows);
-    if (!q) return null; return Math.min(1, c / q);
+    const all = _cache["moveboard"];
+    const bookedRows = all ? filtered("moveboard", all, { dateColumn: "Booked Date" }) : rows;
+    return bookingRate(rows, bookedRows);
   });
   register("Average Quote (avg)", "moveboard", money, rows => {
     const v = rows.map(r => num(r["Average Quote"])).filter(x => x > 0);
@@ -600,6 +629,49 @@ window.RS = (function () {
     return { key: last, partial: last === curKey, steppedBack: false };
   }
 
+  /* ---------------- shell contracts (published for pages / filter bar) ----------
+
+     RS.dateBasis(datasetName) -> plain-English label of the date column the global
+     Date filter slices that dataset by ("Move date", "Lead created", ...). The shell
+     renders it under the filter bar so users know what "March" means on each page.
+     null = the dataset has no date column of its own (keyed lookup tables inherit
+     the closing scope via Unique-Key membership — see filtered()). */
+  const DATE_BASIS = {
+    closing: "Move date",              // fct_closing `Date` = the move/closing date
+    moveboard: "Lead created",         // defaultDate "Create Date"
+    storage: "Payment date",
+    refunds: "Refund date",
+    long_distance: "Move date",        // fct_long_distance `Date` = job/move date
+    claims: "Claim date",              // "Created Date" = when the claim was written
+    negative_reviews: "Review date",
+    reviews_breakdown: "Review date",  // "Event Date"
+    card_expenses: "Transaction date",
+    callrail: "Call date",             // "Start Time"
+    leads: "Lead created",             // provider leads: "Lead Date"
+    scorecard: "Scorecard month",
+    review_counts: "Snapshot date",
+    review_goals: "Snapshot date",
+    rollup: null, sales_salaries: null, helper_salaries: null,  // no own date — follow the job's move date
+  };
+  function dateBasis(ds) { return DATE_BASIS[ds] || null; }
+
+  /* RS.fieldsFor(datasetName) -> array of slicer field keys (FIELDS keys, e.g.
+     "year", "company", "foreman") that actually map to a column of that dataset —
+     the same mapping filtered() uses to skip unmapped fields. The shell greys out
+     (or badges) slicers NOT in this list for the current page's datasets, so a
+     no-op filter can't silently mislead. */
+  function fieldsFor(ds) {
+    return Object.keys(FIELDS).filter(k => FIELDS[k][ds] != null);
+  }
+
+  /* User-visible display names for registry measures whose internal key must not
+     change (other code references the keys). Render labels through this map. */
+  const DISPLAY_NAMES = {
+    "Operating Profit Before Commission": "Cash Collected (Net + Card)",
+    "Total Revenue": "Job Revenue (excl. trips)",
+  };
+  function displayName(key) { return DISPLAY_NAMES[key] || key; }
+
   /* Coverage window (audit F12): min/max loaded date, for "data since X" footnotes. */
   function coverage(rows) {
     let lo = null, hi = null;
@@ -609,5 +681,6 @@ window.RS = (function () {
 
   return { DATASETS, FIELDS, state, load, filtered, monthName, M, value, yoy, groupBy, moneyC,
            fmtN, money, fmtPct, fmt1, num,
-           MIN_MONTH_DAYS, displayMonth, coverage };
+           MIN_MONTH_DAYS, displayMonth, coverage,
+           bookingRate, dateBasis, fieldsFor, displayName };
 })();

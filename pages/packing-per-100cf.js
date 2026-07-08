@@ -95,7 +95,7 @@ registerPage({
         <p>Packing revenue intensity per foreman ·
            <b>${RS.fmtN(Object.keys(byForeman).length)}</b> foremen ·
            <b>${RS.fmtN(monthKeys.length)}</b> months in scope
-           <span class="freshness">· foreman-months with no recorded CF default to $90/100CF (PBI DAX sentinel)</span></p>
+           <span class="freshness">· When a foreman's cubic feet weren't recorded, we assume $90 per 100 CF (marked *)</span></p>
         ${disp.steppedBack
           ? `<p style="color:var(--muted);font-size:12px;margin:4px 0 0">Month cards show ${RSC.esc(mLabel(latestKey))} — ${RSC.esc(mLabel(monthKeys[monthKeys.length - 1]))} has fewer than ${RS.MIN_MONTH_DAYS} days of data and is hidden until day ${RS.MIN_MONTH_DAYS}.</p>`
           : ""}
@@ -121,7 +121,11 @@ registerPage({
       })
       .filter(x => x && x.v != null)
       .sort((a, b) => (b.v || 0) - (a.v || 0));
-    const bestReal = fLatest.filter(x => !x.sentinel)[0] || null;
+    // C14: foremen with no recorded CF sit at the assumed $90 — they must not compete
+    // in the ranking. Ranked list = real measurements only; assumed ones listed apart.
+    const ranked = fLatest.filter(x => !x.sentinel);
+    const assumed = fLatest.filter(x => x.sentinel);
+    const bestReal = ranked[0] || null;
 
     RSC.kpis(document.getElementById("p100kpis"), [
       // PBI: [Packing per 100 CF] over the whole scope (weighted, not avg of months)
@@ -134,7 +138,7 @@ registerPage({
         sub: RS.money(totPack) + (yoyPack == null ? "" : " · vs same period LY") },
       { label: "Foremen", value: RS.fmtN(Object.keys(byForeman).length), sub: "active in scope" },
       { label: "Best (" + dispLabel + ")", value: bestReal ? d1(bestReal.v) : "—",
-        sub: bestReal ? bestReal.f : "no non-sentinel foreman" },
+        sub: bestReal ? bestReal.f : "no foreman with recorded cubic feet" },
     ]);
 
     // ---- main: Packing per 100 CF by foreman, latest month, colored by score band
@@ -143,14 +147,15 @@ registerPage({
       // the caption ("bar color = score band", "top 20 of N") describes the chart only —
       // the tabular view lists the top 50 with no color bands, so hide it there.
       controlsGraphOnly: true,
-      controlsHtml: `<span class="lbl">${disp.steppedBack ? "last complete month" : "latest month"}: ${RSC.esc(dispLabel)} · bar color = score band · * = no CF (sentinel $90)` +
-        (fLatest.length > 20 ? ` · top 20 of ${fLatest.length}` : "") + `</span>`,
+      controlsHtml: `<span class="lbl">${disp.steppedBack ? "last complete month" : "latest month"}: ${RSC.esc(dispLabel)} · bar color = score band` +
+        (ranked.length > 20 ? ` · top 20 of ${ranked.length}` : "") +
+        (assumed.length ? ` · ${assumed.length} foremen with no recorded CF listed below the table` : "") + `</span>`,
       buildChart(canvas) {
-        const list = fLatest.slice(0, 20);
+        const list = ranked.slice(0, 20);
         return new Chart(canvas, {
           type: "bar",
           data: {
-            labels: list.map(x => x.f + (x.sentinel ? " *" : "")),
+            labels: list.map(x => x.f),
             datasets: [{ label: "Packing / 100 CF",
               data: list.map(x => +x.v.toFixed(1)),
               backgroundColor: list.map(x => scoreColor(x.sc)), borderRadius: 5 }],
@@ -162,8 +167,7 @@ registerPage({
               tooltip: { callbacks: {
                 label: c => {
                   const x = list[c.dataIndex];
-                  return `${d1(x.v)} / 100 CF · score ${x.sc == null ? "—" : RS.fmt1(x.sc)}` +
-                         (x.sentinel ? " · no CF (sentinel)" : "");
+                  return `${d1(x.v)} / 100 CF · score ${x.sc == null ? "—" : RS.fmt1(x.sc)}`;
                 } } },
             },
             scales: { x: { ticks: { callback: v => "$" + v } } },
@@ -176,24 +180,30 @@ registerPage({
           return `<div style="padding:16px 14px;color:var(--muted)">No foremen with packing in ${RSC.esc(dispLabel)}.</div>`;
         const mPack = fLatest.reduce((a, y) => a + y.pk, 0);
         const mCF = fLatest.reduce((a, y) => a + y.cf, 0);
+        // C14: only foremen with recorded CF are ranked; the assumed-$90 ones are
+        // listed separately below the table so they can't crowd the top of the list.
+        const assumedNote = assumed.length
+          ? `<div style="color:var(--muted);font-size:12px;padding:8px 2px">Not ranked — cubic feet weren't recorded, so we assume $90 per 100 CF (marked *): `
+            + assumed.map(x => `${RSC.esc(x.f)} * (${RS.money(x.pk)} packing)`).join(", ") + `</div>`
+          : "";
         return RSC.table(
           [{ key: "rk", label: "#" },
            { key: "f", label: "Foreman" },
            { key: "v", label: "Packing / 100 CF", fmt: d1 },
-           { key: "dl", label: "Δ vs prev mo", fmt: dfmt },
+           { key: "dl", label: "Change vs prev mo", fmt: dfmt },
            { key: "sc", label: "Score", fmt: scfmt },
            { key: "cf", label: "Total CF", fmt: RS.fmtN },
            { key: "pk", label: "Packing Written", fmt: RS.money },
            { key: "sh", label: "% of packing", fmt: RS.fmtPct }],
-          fLatest.slice(0, 50).map((x, i) => ({
-            rk: i + 1, f: x.f + (x.sentinel ? " *" : ""), v: x.v, dl: x.dl,
+          ranked.slice(0, 50).map((x, i) => ({
+            rk: i + 1, f: x.f, v: x.v, dl: x.dl,
             sc: x.sc, cf: x.cf, pk: x.pk, sh: mPack ? x.pk / mPack : null,
           })),
           { f: "All foremen (" + dispLabel + ")", v: per100(mPack, mCF),
             cf: mCF, pk: mPack, sh: mPack ? 1 : null }) +
-          (fLatest.length > 50
-            ? `<div style="color:var(--muted);font-size:11px;padding:6px 2px">showing 50 of ${fLatest.length} foremen · totals row covers all</div>`
-            : "");
+          (ranked.length > 50
+            ? `<div style="color:var(--muted);font-size:11px;padding:6px 2px">showing 50 of ${ranked.length} ranked foremen · totals row covers all</div>`
+            : "") + assumedNote;
       },
     });
 
@@ -279,8 +289,8 @@ registerPage({
     const noScore = fLatest.filter(x => x.sc == null).length;
     RSC.chartCard(grid, {
       title: "Score distribution — " + dispLabel,
-      // sentinel note (PBI DAX): a no-CF month scores as if per-100CF were exactly $90
-      controlsHtml: `<span class="lbl">no-CF months default to $90 (DAX sentinel) — scored as 90` +
+      // no-CF month: the source scores it as if per-100CF were exactly the assumed $90
+      controlsHtml: `<span class="lbl">when cubic feet weren't recorded we assume $90 per 100 CF (marked *) — scored as 90` +
         (noScore ? ` · ${noScore} unscored` : "") + `</span>`,
       buildChart(canvas) {
         return new Chart(canvas, {

@@ -36,6 +36,11 @@ registerPage({
        sites so every join works before AND after the rebuild. */
     const jkey = v => (v == null ? v : String(v).toLowerCase());
 
+    /* N1 display map: the registry writes 'Forman' in Responsibility values
+       ('Forman + Sales Fault', …) — show 'Foreman' everywhere users read it.
+       Raw values stay untouched for grouping/joins. */
+    const dispResp = v => String(v).replace(/\bForman\b/gi, "Foreman");
+
     /* rollup_support has NO date column — never RS.filtered. Time-slice it via
        membership joins: request keys from the FILTERED claims / closing rows. */
     const claimKeys = new Set(rows.map(r => r["Request Joinkey"]).filter(Boolean).map(jkey));
@@ -102,7 +107,7 @@ registerPage({
         <h1>Claims</h1>
         <p>Claims registry with responsibility split and refund impact ·
            <b>${RS.fmtN(nClaims)}</b> claims in scope
-           <span class="freshness">· refund amounts joined from the support rollup via request membership</span></p>
+           <span class="freshness">· refund amounts come from the Support sheet, matched by request number</span></p>
       </div>
       <div class="rs-kpis" id="clmKpis"></div>
       <div id="clmMain"></div>
@@ -111,22 +116,23 @@ registerPage({
 
     RSC.kpis(document.getElementById("clmKpis"), [
       { label: "Number of Claims", value: RS.fmtN(nClaims), sub: "claims in scope" },
-      { label: "Foreman-Fault Claims", value: RS.fmtN(foremanFault), sub: "scorecard: Forman Fault Claims" },
+      { label: "Foreman Fault Claims", value: RS.fmtN(foremanFault),
+        sub: "counts the monthly scorecard; the chart classifies each claim by its Responsibility field — they can differ slightly" },
       { label: "Requests w/ Refunds", value: RS.fmtN(refundedClaimReqs),
         sub: `${RS.fmtPct(claimKeys.size ? refundedClaimReqs / claimKeys.size : null)} of ${RS.fmtN(claimKeys.size)} claim requests` },
-      { label: "Amount Refunded", value: RS.moneyC(amtRefunded),
-        sub: `${RS.money(amtRefunded)} · closing requests in scope` },
+      { label: "Refunded on Claimed Requests", value: RS.moneyC(amtRefunded),
+        sub: `${RS.money(amtRefunded)} · from the Support sheet, jobs in scope` },
       { label: "Refunded for Neg. Reviews", value: RS.moneyC(amtRefundedNR),
         sub: `${RS.money(amtRefundedNR)} · ${RS.fmtPct(amtRefunded ? amtRefundedNR / amtRefunded : null)} of refunded` },
       // portal-added density metric (no PBI counterpart)
       { label: "Claims per 100 Jobs", value: RS.fmt1(totalJobs ? 100 * nClaims / totalJobs : null),
-        sub: `vs ${RS.fmtN(totalJobs)} closed jobs` },
+        sub: `claims by claim date vs ${RS.fmtN(totalJobs)} jobs by move date` },
     ]);
     /* RSC.kpis escapes subs — inject the YoY chips (HTML) after render. */
     const kpiSubs = document.querySelectorAll("#clmKpis .kpi .s");
     if (claimsChip) kpiSubs[0].innerHTML = claimsChip + " vs same period LY";
     if (refundChip) kpiSubs[3].innerHTML =
-      RSC.esc(RS.money(amtRefunded)) + " · " + refundChip + " vs LY";
+      RSC.esc(RS.money(amtRefunded)) + " · Support sheet · " + refundChip + " vs LY";
 
     /* ---------------- month buckets ---------------- */
     const mk = r => r._y + "-" + String(r._m).padStart(2, "0");
@@ -143,7 +149,7 @@ registerPage({
       // Caption describes the chart only; the tabular view has its own fixed
       // columns, so hide it there (dead in Tabular).
       controlsGraphOnly: true,
-      controlsHtml: `<span class="lbl">bars: claims · line: foreman-fault (scorecard) · last 24 mo</span>`,
+      controlsHtml: `<span class="lbl">bars: claims · line: foreman fault (monthly scorecard) · last 24 mo</span>`,
       buildChart(canvas) {
         const shown = clByMonth.slice(-24);
         return new Chart(canvas, {
@@ -152,7 +158,7 @@ registerPage({
             datasets: [
               { type: "bar", label: "Number of Claims", data: shown.map(x => x.v),
                 backgroundColor: "#fbbf24", borderRadius: 4, order: 2 },
-              { type: "line", label: "Foreman-Fault Claims", data: shown.map(x => ffByMonth[x.k] || 0),
+              { type: "line", label: "Foreman Fault Claims", data: shown.map(x => ffByMonth[x.k] || 0),
                 borderColor: "#f87171", backgroundColor: "#f87171",
                 borderWidth: 2, pointRadius: 2, tension: .3, order: 1 },
             ],
@@ -191,9 +197,9 @@ registerPage({
         });
         return RSC.table(
           [{ key: "m", label: "Month" }, { key: "c", label: "Claims", fmt: RS.fmtN },
-           { key: "d", label: "Δ vs prev mo", fmt: v => v },
+           { key: "d", label: "Change vs prev mo", fmt: v => v },
            { key: "sh", label: "% of claims", fmt: RS.fmtPct },
-           { key: "ff", label: "Foreman-Fault", fmt: RS.fmtN },
+           { key: "ff", label: "Foreman Fault", fmt: RS.fmtN },
            { key: "jobs", label: "Total Jobs", fmt: RS.fmtN },
            { key: "per100", label: "Claims / 100 Jobs", fmt: RS.fmt1 }],
           data,
@@ -204,8 +210,9 @@ registerPage({
 
     /* ---------------- responsibility groups (normalized for display) ----------------
        The registry carries two spellings of 'Forman + Sales Fault' (Forman/Foreman,
-       casing). Grouped on a normalized key for DISPLAY; raw spellings kept and shown
-       in the table tooltip. */
+       casing). Grouped on a normalized key for DISPLAY; the table tooltip notes how
+       many source spellings were combined (raw text itself is never shown to users —
+       it contains the 'Forman' misspelling). */
     const respGroups = (() => {
       const g = new Map();
       rows.forEach(r => {
@@ -220,7 +227,7 @@ registerPage({
         let disp = "—", best = -1;
         e.raws.forEach((n, raw) => { if (n > best) { best = n; disp = raw; } });
         const reqs = [...new Set(e.rows.map(r => r["Request Joinkey"]).filter(Boolean).map(jkey))];
-        return { key: e.key, k: disp, raws: [...e.raws.keys()], n: e.rows.length,
+        return { key: e.key, k: dispResp(disp), raws: [...e.raws.keys()], n: e.rows.length,
                  refunded: reqs.reduce((a, k) => a + refundOf(k), 0),
                  isForeman: e.key.indexOf("forman") >= 0 };
       });
@@ -237,7 +244,7 @@ registerPage({
         let list = respGroups;
         if (list.length > 9) {
           const rest = list.slice(9);
-          list = list.slice(0, 9).concat([{ k: "Other",
+          list = list.slice(0, 9).concat([{ k: `All others (${rest.length})`,
             n: rest.reduce((a, x) => a + x.n, 0) }]);
         }
         return new Chart(canvas, {
@@ -262,12 +269,14 @@ registerPage({
       buildTable() {
         const refTot = respGroups.reduce((a, x) => a + x.refunded, 0);
         return RSC.table(
-          [{ key: "k", label: "Responsibility", fmt: v => v },  // pre-escaped HTML w/ raw-spelling tooltip
+          [{ key: "k", label: "Responsibility", fmt: v => v },  // pre-escaped HTML w/ merge-note tooltip
            { key: "n", label: "Claims", fmt: RS.fmtN },
            { key: "sh", label: "% of claims", fmt: RS.fmtPct },
            { key: "ref", label: "Amount Refunded", fmt: RS.money }],
           respGroups.map(x => ({
-            k: `<span title="raw: ${RSC.esc(x.raws.join(" · "))}">${RSC.esc(x.k)}</span>`,
+            k: x.raws.length > 1
+              ? `<span title="Combined from ${x.raws.length} source spellings of this value">${RSC.esc(x.k)}</span>`
+              : RSC.esc(x.k),
             n: x.n, sh: nClaims ? x.n / nClaims : null, ref: x.refunded,
           })),
           { k: "Total", n: nClaims, sh: nClaims ? 1 : null, ref: refTot });
@@ -282,7 +291,7 @@ registerPage({
         let list = byReason.slice(0, 12);
         const rest = byReason.slice(12);
         if (rest.length)
-          list = list.concat([{ k: `Everything else (${rest.length})`,
+          list = list.concat([{ k: `All others (${rest.length})`,
             v: rest.reduce((a, x) => a + (x.v || 0), 0) }]);
         return new Chart(canvas, {
           type: "bar",
@@ -315,7 +324,7 @@ registerPage({
         const data = top.map((x, i) => ({
           r: i + 1, k: x.k, n: x.v, sh: nClaims ? x.v / nClaims : null }));
         if (rest.length) data.push({
-          r: null, k: `Everything else (${rest.length} reasons)`,
+          r: null, k: `All others (${rest.length} reasons)`,
           n: rest.reduce((a, x) => a + (x.v || 0), 0),
           sh: nClaims ? rest.reduce((a, x) => a + (x.v || 0), 0) / nClaims : null });
         return RSC.table(
@@ -360,17 +369,21 @@ registerPage({
         return;
       }
       recent.querySelector(".tabwrap").innerHTML = RSC.table(
-        [{ key: "d", label: "Created Date" }, { key: "c", label: "Customer" },
+        [{ key: "d", label: "Claim Date" }, { key: "c", label: "Customer" },
          { key: "q", label: "Request No" }, { key: "s", label: "Status" },
          { key: "re", label: "Reason" }, { key: "rp", label: "Responsibility" },
          { key: "amt", label: "Refunded (request)", fmt: v => v == null ? "—" : RS.money(v) }],
         latest.map(r => ({
           d: r._d || "—", c: r.Customer || "—", q: r["Request No"] || "—",
-          s: r.Status || "—", re: r.Reason || "—", rp: r.Responsibility || "—",
+          s: r.Status || "—", re: r.Reason || "—",
+          rp: r.Responsibility ? dispResp(r.Responsibility) : "—",
           // request-level rollup amount — repeats if a request carries several claims;
           // "—" = request has no rollup row at all (distinct from a genuine $0 refund)
           amt: rollupByKey.has(jkey(r["Request Joinkey"])) ? refundOf(r["Request Joinkey"]) : null,
-        })));
+        }))) +
+        `<div style="color:var(--muted);font-size:12px;padding:6px 2px">How it's counted ·
+         Refund shown is for the whole request — it repeats if a request has several claims.
+         "—" = no support record; $0 = recorded, nothing refunded.</div>`;
     };
     recent.querySelector("#clmRespF").onchange = e => paintRecent(e.target.value);
     paintRecent("all");

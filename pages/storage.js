@@ -58,7 +58,7 @@ registerPage({
         <h1>Storage</h1>
         <p>Storage revenue — additional payments vs included-in-bill ·
            <b>${RS.fmtN(rows.length)}</b> storage payments in scope
-           <span class="freshness">· monthly chart excludes the current partial month (PBI parity)</span></p>
+           <span class="freshness">· monthly chart excludes the current partial month</span></p>
       </div>
       <div class="rs-kpis" id="kpis"></div>
       <div id="main"></div>
@@ -66,10 +66,10 @@ registerPage({
 
     const kpiHost = document.getElementById("kpis");
     RSC.kpis(kpiHost, [
-      { label: "Storage Additional Revenue", value: RS.moneyC(addTotal), sub: RS.money(addTotal) + " · separate storage payments" },
+      { label: "Storage — Paid Separately", value: RS.moneyC(addTotal), sub: RS.money(addTotal) + " · separate storage payments (formerly Storage Additional Revenue)" },
       { label: "Storage Payments", value: RS.fmtN(rows.length), sub: "# payments in scope" },
       { label: "Avg Payment", value: rows.length ? RS.moneyC((addTotal + inclTotal) / rows.length) : "—", sub: "all storage revenue / payment" },
-      { label: "Storage Rev. in Job Revenue", value: RS.moneyC(inclTotal), sub: RS.money(inclTotal) + " · paid at pickup (in job revenue)" },
+      { label: "Storage — Paid with the Move", value: RS.moneyC(inclTotal), sub: RS.money(inclTotal) + " · paid at pickup, inside the job's bill (formerly Storage Rev. in Job Revenue)" },
       { label: "Storage Jobs", value: RS.fmtN(M["Total Storage Jobs"].fn(closingRows)), sub: "closings marked Our Storage" },
     ]);
     {   // RSC.kpis HTML-escapes subs — inject the YoY chips afterwards as HTML.
@@ -110,8 +110,8 @@ registerPage({
           data: {
             labels: shown.map(mLabel),
             datasets: [
-              { label: "Storage Additional Revenue", data: shown.map(k => Math.round(addByMonth[k] ? addByMonth[k].v : 0)), backgroundColor: "#b7e23b", borderRadius: 4 },
-              { label: "Storage Revenue in Job Revenue", data: shown.map(k => Math.round(inclByMonth[k] || 0)), backgroundColor: "#5b8cff", borderRadius: 4 },
+              { label: "Storage — Paid Separately", data: shown.map(k => Math.round(addByMonth[k] ? addByMonth[k].v : 0)), backgroundColor: "#b7e23b", borderRadius: 4 },
+              { label: "Storage — Paid with the Move", data: shown.map(k => Math.round(inclByMonth[k] || 0)), backgroundColor: "#5b8cff", borderRadius: 4 },
             ],
           },
           options: {
@@ -150,10 +150,10 @@ registerPage({
           [{ key: "m", label: "Month" }, { key: "jobs", label: "Total Jobs", fmt: RS.fmtN },
            { key: "rev", label: "Revenue", fmt: moneyNS },
            { key: "revC", label: "Revenue (Closings)", fmt: moneyNS },
-           { key: "revT", label: "Add'l Rev. (Trips)", fmt: moneyNS },
-           { key: "amt", label: "Storage Additional Revenue", fmt: moneyNS },
+           { key: "revT", label: "Trip Revenue", fmt: moneyNS },
+           { key: "amt", label: "Storage — Paid Separately", fmt: moneyNS },
            { key: "n", label: "# Payments", fmt: RS.fmtN },
-           { key: "incl", label: "Storage Rev. in Job Revenue", fmt: moneyNS }],
+           { key: "incl", label: "Storage — Paid with the Move", fmt: moneyNS }],
           data,
           { m: "Total", jobs: M["Total Jobs"].fn(closingRows),
             rev: M["Revenue"].fn(closingRows),

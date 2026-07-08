@@ -98,13 +98,10 @@ registerPage({
       return out;
     };
 
-    /* ---- Booking Rate: exact PBI SWITCH ---- */
-    const bookingRate = (qualified, confirmed) => {
-      if (confirmed > qualified) return 1;
-      if (qualified === 0 && confirmed === 0) return null;   // BLANK()
-      if (qualified !== 0 && confirmed === 0) return 0;
-      return confirmed / qualified;
-    };
+    /* ---- Booking Rate: the canonical shared helper (exact PBI SWITCH).
+       RS.bookingRate(createdRows, bookedRows) computes Qualified (non-Bad-Lead, by
+       Create Date) and Confirmed (by Booked Date) itself — identical row scoping to
+       the local helper this page used to carry, so the numbers do not move. ---- */
 
     /* ---- CRM / Moveboard measures per source (USERELATIONSHIP replication) ---- */
     const crmForSource = (k) => {
@@ -114,7 +111,7 @@ registerPage({
       const dead = M["Dead Leads"].fn(created);                             // Dead Leads (Created-Date)
       const qualified = totalLeads - dead;                                  // Qualified Leads by Created Date = Total - Dead
       const confirmed = M["Confirmed Leads"].fn(booked);                    // Confirmed Leads by Booked Date
-      return { totalLeads, qualified, dead, confirmed, rate: bookingRate(qualified, confirmed) };
+      return { totalLeads, qualified, dead, confirmed, rate: RS.bookingRate(created, booked) };
     };
 
     /* ---- Financial (P&L) measures per source ---- */
@@ -179,7 +176,11 @@ registerPage({
       refund: srcRows.reduce((a, x) => a + x.fin.refund, 0),
       opProfit: srcRows.reduce((a, x) => a + x.fin.opProfit, 0),
     };
-    T.rate = bookingRate(T.qualified, T.confirmed);
+    // total Booking Rate over the union of the (disjoint) per-source buckets —
+    // same counts as summing per-source, routed through the canonical helper.
+    T.rate = RS.bookingRate(
+      [...srcDisp.keys()].flatMap(k => mbBySrc[k] || []),
+      [...srcDisp.keys()].flatMap(k => mbBookBySrc[k] || []));
     T.opMargin = T.totalBill ? T.opProfit / T.totalBill : null;
     T.commMargin = T.totalBill ? T.salesComm / T.totalBill : null;
 
@@ -219,13 +220,13 @@ registerPage({
       { label: "Advertisement Expense", value: RS.moneyC(T.adSpend),
         sub: "advertising card expenses in scope · by Source" },
       { label: "Total Leads", value: RS.fmtN(T.totalLeads),
-        sub: "moveboard requests · by created date" },
+        sub: "Moveboard requests · by created date" },
       { label: "Booking Rate", value: pctNS(T.rate),
         sub: "confirmed (booked date) / qualified (created date)" },
-      { label: "Total Bill", value: RS.moneyC(T.totalBill),
+      { label: "Revenue (Total Bill)", value: RS.moneyC(T.totalBill),
         sub: RS.fmtN(T.jobs) + " jobs · closings + appended trips" },
-      { label: "Operational Profit by Formula", value: RS.moneyC(T.opProfit),
-        sub: "margin " + pctNS(T.opMargin) + " · P&L build-up by Source" },
+      { label: "Operational Profit", value: RS.moneyC(T.opProfit),
+        sub: "margin " + pctNS(T.opMargin) + " · revenue − salaries − expenses − refunds, by Source" },
     ]);
 
     /* ======================= (1) Expenses Data ======================= */
@@ -235,7 +236,7 @@ registerPage({
       srcRows.map(x => ({ s: x.disp, ad: x.adSpend })),
       { s: "Total", ad: T.adSpend });
     document.getElementById("pcaExpenses").innerHTML =
-      `<div class="panel-head"><span class="panel-title">Expenses Data` +
+      `<div class="panel-head"><span class="panel-title">Postcard Spend by Campaign` +
       `<span class="cnt">${RS.fmtN(srcRows.length)} sources</span></span></div>` +
       `<div class="pca-scroll">${expTbl}</div>`;
 
@@ -245,13 +246,13 @@ registerPage({
        { key: "tl", label: "Total Leads", fmt: RS.fmtN },
        { key: "ql", label: "Qualified Leads", fmt: RS.fmtN },
        { key: "cf", label: "Confirmed Leads", fmt: RS.fmtN },
-       { key: "dl", label: "Dead Leads", fmt: RS.fmtN },
+       { key: "dl", label: "Bad Leads", fmt: RS.fmtN },
        { key: "br", label: "Booking Rate", fmt: pctNS }],
       srcRows.map(x => ({ s: x.disp, tl: x.crm.totalLeads, ql: x.crm.qualified,
         cf: x.crm.confirmed, dl: x.crm.dead, br: x.crm.rate })),
       { s: "Total", tl: T.totalLeads, ql: T.qualified, cf: T.confirmed, dl: T.dead, br: T.rate });
     document.getElementById("pcaCrm").innerHTML =
-      `<div class="panel-head"><span class="panel-title">CRM / Moveboard Data` +
+      `<div class="panel-head"><span class="panel-title">Leads by Campaign` +
       `<span class="cnt">leads by created / booked date</span></span></div>` +
       `<div class="pca-scroll">${crmTbl}</div>`;
 
@@ -260,8 +261,8 @@ registerPage({
     const finTbl = RSC.table(
       [{ key: "s", label: "Source" },
        { key: "jobs", label: "Total Jobs", fmt: RS.fmtN },
-       { key: "bill", label: "Total Bill", fmt: RS.money },
-       { key: "forman", label: "Forman Salary", fmt: RS.money },
+       { key: "bill", label: "Revenue (Total Bill)", fmt: RS.money },
+       { key: "forman", label: "Foreman Salary", fmt: RS.money },
        { key: "driver", label: "Driver Salary", fmt: RS.money },
        { key: "helper", label: "Helper Salary", fmt: RS.money },
        { key: "comm", label: "Sales Commission", fmt: RS.money },
@@ -271,9 +272,12 @@ registerPage({
        { key: "other", label: "Other Expenses", fmt: RS.money },
        { key: "toll", label: "Toll Expense", fmt: RS.money },
        { key: "truck", label: "Truck Expense", fmt: RS.money },
-       { key: "ded", label: "Amount Deducted (Sales)", fmt: RS.money },
+       // this measure is a known 0 gap — render "n/a" so users can tell
+       // missing-data apart from a true zero (scan item C22).
+       { key: "ded", label: "Amount Deducted (Sales)",
+         fmt: () => `<span style="color:var(--muted)" title="not yet in the data">n/a</span>` },
        { key: "refund", label: "Total Refunds", fmt: RS.money },
-       { key: "op", label: "Operational Profit by Formula", fmt: profitCell },
+       { key: "op", label: "Operational Profit", fmt: profitCell },
        { key: "opm", label: "Operational Profit Margin", fmt: pctNS },
        { key: "cm", label: "Sales Commission Margin", fmt: pctNS }],
       srcRows.map(x => ({ s: x.disp, jobs: x.fin.jobs, bill: x.fin.totalBill,
@@ -285,13 +289,16 @@ registerPage({
         helper: T.helper, comm: T.salesComm, car: T.car, fuel: T.fuel, hotel: T.hotel,
         other: T.other, toll: T.toll, truck: T.truck, ded: T.deducted, refund: T.refund,
         op: T.opProfit, opm: T.opMargin, cm: T.commMargin });
+    // (System detail for maintainers: Operational Profit follows the PBI formula
+    // Total Bill − salaries − expenses − refunds; the two known residuals are the
+    // linked-trip expenses in fct_trips — not served client-side — and the
+    // "Amount Deducted From Sales Person Normalized For Sales" RELATED factor, 0.)
     document.getElementById("pcaFin").innerHTML =
-      `<div class="panel-head"><span class="panel-title">Financial Data` +
-      `<span class="cnt">P&amp;L build-up by Source</span></span></div>` +
+      `<div class="panel-head"><span class="panel-title">Profit &amp; Loss by Campaign` +
+      `<span class="cnt">revenue and costs by Source</span></span></div>` +
       `<div class="pca-scroll">${finTbl}</div>` +
       `<div style="color:var(--muted);font-size:11px;padding:6px 2px">` +
-      `Operational Profit follows the PBI formula (Total Bill − salaries − expenses − refunds). ` +
-      `Known residuals inherited from the measure layer: linked-trip expenses (fct_trips, not served) ` +
-      `and the "Amount Deducted From Sales Person Normalized For Sales" RELATED factor (0) — small gaps, not silently dropped.</div>`;
+      `How it's counted · Profit here excludes two small cost items not yet in the data ` +
+      `(trip-linked expenses and salesperson deductions), so per-source profit is slightly overstated.</div>`;
   },
 });

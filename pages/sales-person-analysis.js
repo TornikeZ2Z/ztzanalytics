@@ -157,8 +157,8 @@ registerPage({
         <h1>Sales Person Analysis</h1>
         <p>Jobs, revenue &amp; commission per sales person · <b>${RS.fmtN(rows.length)}</b> jobs ·
            <b>${RS.fmtN(salRows.length)}</b> commission rows in scope
-           <span class="freshness">· commissions time-sliced via the closing Unique Key link
-           · MoM deltas compare ${dLast ? RSC.esc(mLabel(dPrev)) + " → " + RSC.esc(mLabel(dLast)) : "n/a (needs 2 complete months)"}</span></p>
+           <span class="freshness">· commissions matched to jobs by job key
+           · Month-over-month change compares ${dLast ? RSC.esc(mLabel(dPrev)) + " → " + RSC.esc(mLabel(dLast)) : "n/a (needs 2 complete months)"}</span></p>
       </div>
       <div class="rs-kpis" id="spaKpis"></div>
       <div id="spaMain"></div>
@@ -167,16 +167,16 @@ registerPage({
     RSC.kpis(document.getElementById("spaKpis"), [
       { label: "Revenue",
         value: RS.moneyC(totBill) + yoyChip(rs => M["Total Bill"].fn(rs)) + kpiMom(b => M["Total Bill"].fn(b.rows)),
-        sub: RS.money(totRevClose) + " job bills + " + RS.money(totRevTrips) + " linked-trip extras · YoY vs same Jan-1 window LY" },
+        sub: RS.money(totRevClose) + " job bills + " + RS.money(totRevTrips) + " linked-trip extras · YoY vs the same Jan-1 window last year" },
       { label: "Total Jobs",
         value: RS.fmtN(totJobs) + yoyChip(rs => M["Total Jobs"].fn(rs)) + kpiMom(b => M["Total Jobs"].fn(b.rows)),
         sub: "closings in scope" },
       { label: "Sales Commission", value: RS.moneyC(totComm) + kpiMom(b => M["Sales Commission"].fn(b.sal)),
-        sub: RS.money(totComm) + " · salaries via Unique Key join" },
-      { label: "Amount Reduced", value: RS.moneyC(totReduced),
-        sub: RS.money(totReduced) + " · refund deductions from SP" },
+        sub: RS.money(totComm) + " · matched to jobs by job key" },
+      { label: "Commission Deductions", value: RS.moneyC(totReduced),
+        sub: RS.money(totReduced) + " · refunds charged back to salespeople" },
       { label: "Commission Final", value: RS.moneyC(totFinal),
-        sub: RS.money(totFinal) + " · commission − reduced" },
+        sub: RS.money(totFinal) + " · commission − deductions" },
       { label: "Avg Commission / Job", value: totJobs ? RS.moneyC(totComm / totJobs) : "—", sub: "commission ÷ total jobs" },
       { label: "Commission % of Revenue", value: totBill ? RS.fmtPct(totComm / totBill) : "—", sub: "cost-of-sales share" },
     ]);
@@ -188,7 +188,7 @@ registerPage({
     };
     const mainCard = RSC.chartCard(document.getElementById("spaMain"), {
       title: "By Sales Person",
-      controlsHtml: `<span class="lbl">Calculate by</span><select id="spaCalc">` +
+      controlsHtml: `<span class="lbl">Show:</span><select id="spaCalc">` +
         Object.keys(CALCS).map(c => `<option ${c === calcBy ? "selected" : ""}>${c}</option>`).join("") +
         `</select>`,
       buildChart(canvas) {
@@ -247,9 +247,9 @@ registerPage({
            { key: "sh", label: "% of total", fmt: RS.fmtPct },
            { key: "jobs", label: "Total Jobs", fmt: intNS },
            { key: "comm", label: "Sales Commission", fmt: moneyNS },
-           { key: "red", label: "Reduced", fmt: moneyNS },
+           { key: "red", label: "Deductions", fmt: moneyNS },
            { key: "fin", label: "Commission Final", fmt: moneyNS },
-           { key: "mom", label: dLast ? `Δ ${mLabel(dLast)} vs ${mLabel(dPrev)}` : "Δ MoM", fmt: fmtDelta }],
+           { key: "mom", label: dLast ? `Change · ${mLabel(dLast)} vs ${mLabel(dPrev)}` : "Change vs prior month", fmt: fmtDelta }],
           out,
           { rk: null, name: "Total", v: total, sh: total ? 1 : null, jobs: totJobs,
             comm: totComm, red: totReduced, fin: totFinal, mom: null });
@@ -281,16 +281,16 @@ registerPage({
         d: rest.reduce((a, x) => a + (x.normBill - x.bill), 0),
       });
       const panel = RSC.el("div", "panel", `
-        <div class="panel-head"><span class="panel-title">Normalized revenue</span>
+        <div class="panel-head"><span class="panel-title">Revenue split for shared jobs</span>
           <span class="spacer"></span>
-          <span class="rs-ctl"><span class="lbl">revenue × SP bill-distribution share</span></span></div>
+          <span class="rs-ctl"><span class="lbl">jobs sold by two people are split by each person's share</span></span></div>
         <div class="tabwrap" id="spaNorm"></div>`);
       panel.querySelector("#spaNorm").innerHTML = trows.length ? RSC.table(
         [{ key: "rk", label: "#" }, { key: "name", label: "Sales Person" },
-         { key: "nb", label: "Normalized Revenue", fmt: moneyNS },
+         { key: "nb", label: "Split Revenue", fmt: moneyNS },
          { key: "sh", label: "% of total", fmt: RS.fmtPct },
-         { key: "pb", label: "Primary-SP Revenue", fmt: moneyNS },
-         { key: "d", label: "Δ norm − primary", fmt: fmtDiff }],
+         { key: "pb", label: "Full-credit Revenue", fmt: moneyNS },
+         { key: "d", label: "Difference vs full-credit revenue", fmt: fmtDiff }],
         trows,
         { rk: null, name: "Total", nb: totNorm, sh: totNorm ? 1 : null,
           pb: totPrim, d: totNorm - totPrim })

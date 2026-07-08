@@ -15,8 +15,8 @@ registerPage({
     if (!rows.length) {   // guard before any chart/table build
       host.innerHTML = `
         <div class="rs-page-head">
-          <h1>CallRail</h1>
-          <p>Inbound call tracking by ad number
+          <h1>Marketing — Call Tracking</h1>
+          <p>Inbound call tracking by ad number (CallRail — same page as in the old report)
              <span class="freshness">· Source = tracking-number name via the source translator</span></p>
         </div>
         <div class="panel" style="padding:20px;color:var(--muted)">No data for the current filters — adjust or clear the filter bar above.</div>`;
@@ -81,8 +81,9 @@ registerPage({
 
     host.innerHTML = `
       <div class="rs-page-head">
-        <h1>CallRail</h1>
-        <p>Inbound call tracking by ad number · <b>${RS.fmtN(rows.length)}</b> calls in scope
+        <h1>Marketing — Call Tracking</h1>
+        <p>Inbound call tracking by ad number (CallRail — same page as in the old report)
+           · <b>${RS.fmtN(rows.length)}</b> calls in scope
            <span class="freshness">· Source = tracking-number name via the source translator</span></p>
       </div>
       <div class="rs-kpis" id="crKpis"></div>
@@ -90,14 +91,18 @@ registerPage({
       <div class="rs-grid2" id="crGrid"></div>`;
 
     RSC.kpis(document.getElementById("crKpis"), [
-      { label: "Total Calls", value: RS.fmtN(total), sub: "PBI: Incoming Calls" },
+      // PBI: Incoming Calls
+      { label: "Total Calls", value: RS.fmtN(total), sub: "all inbound calls in scope" },
       { label: "First-Time Callers", value: RS.fmtN(ft), sub: "new phone numbers" },
       { label: "First-Time Rate", value: RS.fmtPct(total ? ft / total : null), sub: "first-time / total calls" },
       { label: "Answered Rate", value: RS.fmtPct(total ? answered / total : null),
         sub: `${RS.fmtN(answered)} answered · ${RS.fmtN(total - answered)} lost` },
       { label: "Avg Call Duration", value: mmss(avgDurOf(rows)), sub: "m:ss · non-zero calls" },
-      { label: "Unique Callers", value: RS.fmtN(uniqueCalls(rows)), sub: "PBI: Unique Calls (distinct name)" },
-      { label: "Total Talk Time", value: hm(durSum(rows)), sub: "PBI: Total Duration" },
+      // PBI: Unique Calls = DISTINCTCOUNT(Name) — formula unchanged, label says what it counts (C35)
+      { label: "Distinct Caller Names", value: RS.fmtN(uniqueCalls(rows)),
+        sub: "distinct caller names — the same name counts once" },
+      // PBI: Total Duration
+      { label: "Total Talk Time", value: hm(durSum(rows)), sub: "sum of all call time" },
     ]);
     {  // RSC.kpis escapes sub text — append the YoY chips to the rendered nodes
       const chipTotal = yoyChip(rs => rs.length);
@@ -163,7 +168,7 @@ registerPage({
         });
         return RSC.table(
           [{ key: "m", label: "Month" }, { key: "c", label: "Total Calls", fmt: RS.fmtN },
-           { key: "d", label: "Δ vs prev mo", fmt: delta },
+           { key: "d", label: "Change vs prev mo", fmt: delta },
            { key: "f", label: "First-Time", fmt: RS.fmtN },
            { key: "fp", label: "First-Time %", fmt: RS.fmtPct },
            { key: "ap", label: "Answered %", fmt: RS.fmtPct },
@@ -198,7 +203,7 @@ registerPage({
         const labels = top.map(x => x.k);
         const data = top.map(x => x.n);
         if (rest.length) {   // "everything else" bucket keeps the top-N honest
-          labels.push(`Everything else (${rest.length})`);
+          labels.push(`All others (${rest.length})`);
           data.push(rest.reduce((a, x) => a + x.n, 0));
         }
         return new Chart(canvas, {
@@ -224,7 +229,7 @@ registerPage({
           [{ key: "r", label: "#" }, { key: "k", label: dim },
            { key: "c", label: "Calls", fmt: RS.fmtN },          // PBI: Incoming Calls
            { key: "sh", label: "% of Calls", fmt: RS.fmtPct },
-           { key: "u", label: "Unique", fmt: RS.fmtN },          // PBI: Unique Calls
+           { key: "u", label: "Distinct Names", fmt: RS.fmtN },  // PBI: Unique Calls (distinct caller names)
            { key: "ret", label: "Returning", fmt: RS.fmtN },     // PBI: Returning Users
            { key: "td", label: "Total Dur", fmt: hm },           // PBI: Total Duration
            { key: "avg", label: "Avg Dur", fmt: mmss }],         // PBI: Average Duration

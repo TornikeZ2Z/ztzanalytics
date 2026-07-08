@@ -10,7 +10,16 @@
 async function renderMonthly(host, MRCFG) {
     const ONLY = MRCFG && MRCFG.sections ? new Set(MRCFG.sections) : null;
     const SEC = t => !ONLY || ONLY.has(t);
-    const PAGE_TITLE = MRCFG ? MRCFG.title : "Monthly Report";
+    // N2: every team page is titled "Monthly Review" in the sidebar; the team name lives in
+    // MRCFG.label and is used on the cover + PDF so the report still says whose view it is.
+    const TEAM = MRCFG ? (MRCFG.label || MRCFG.title || "") : "";
+    const PDF_NAME = TEAM ? TEAM + " Monthly Review" : "Monthly Report";
+    /* C43: the Monthly Report is Zip-to-Zip ONLY. Every computation gets a default
+       Company = "Zip to Zip" filter (an explicit Company pick in the global slicer still
+       wins — see withMonth); the isolated fetches below apply the same rule. Rows with no
+       Company value pass through so a missing lineage column can never blank a card. */
+    const MR_CO = "Zip to Zip";
+    const coRow = r => r.Company == null || String(r.Company) === MR_CO;
     const M = RS.M;
     const MON = ["", "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
     const MS = ["", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -26,9 +35,9 @@ async function renderMonthly(host, MRCFG) {
     // projection on purpose: these columns can vanish on a pipeline re-run, so a failed fetch degrades only
     // the storage/packing-cost panels. Cached on success only, so month switches don't re-download and a
     // transient failure doesn't get pinned for the session.
-    const cardCostP = window.__mrCostCache ? Promise.resolve(window.__mrCostCache)
-      : ZTZ.api("/api/fct_card_expenses?limit=1000000&cols=" + encodeURIComponent("Transaction Date,Amount,Is Storage Cost,Is Packing Material Cost"))
-        .then(j => (j.rows || []).map(r => { const d = String(r["Transaction Date"] || "").slice(0, 10); return { ym: d.slice(0, 7), amt: -num(r.Amount), sto: Number(r["Is Storage Cost"]) === 1, pk: Number(r["Is Packing Material Cost"]) === 1 }; }))
+    const cardCostP = window.__mrCostCache2 ? Promise.resolve(window.__mrCostCache2)
+      : ZTZ.api("/api/fct_card_expenses?limit=1000000&cols=" + encodeURIComponent("Transaction Date,Amount,Is Storage Cost,Is Packing Material Cost,Company"))
+        .then(j => (j.rows || []).filter(coRow).map(r => { const d = String(r["Transaction Date"] || "").slice(0, 10); return { ym: d.slice(0, 7), amt: -num(r.Amount), sto: Number(r["Is Storage Cost"]) === 1, pk: Number(r["Is Packing Material Cost"]) === 1 }; }))
         .catch(() => []);
     const [closing, moveboard, storage, claims, refunds, cardEx] = await Promise.all(
       ["closing", "moveboard", "storage", "claims", "refunds", "card_expenses"].map(grab));
@@ -36,7 +45,8 @@ async function renderMonthly(host, MRCFG) {
       ["reviews_breakdown", "negative_reviews", "callrail", "scorecard", "review_counts", "review_goals"].map(grab));
     const [helperSalDs, salesSalDs, longDist] = await Promise.all(["helper_salaries", "sales_salaries", "long_distance"].map(grab));
     const cardCost = await cardCostP;
-    if (cardCost.length && !window.__mrCostCache) window.__mrCostCache = cardCost;
+    if (cardCost.length && !window.__mrCostCache2) window.__mrCostCache2 = cardCost;
+    delete window.__mrCostCache;   // pre-C43 cache (no company filter) — retire it
     const costByMonth = (ym, flag) => cardCost.reduce((a, r) => (r.ym === ym && r[flag]) ? a + r.amt : a, 0);
     const hasCostData = cardCost.some(r => r.sto || r.pk);
     // RingCentral phone-system stats (deck s75) — isolated fetch of 5 narrow cols from the ~385k-row
@@ -63,20 +73,23 @@ async function renderMonthly(host, MRCFG) {
     }
     const rcAgg = window.__mrRcCache || {};
     // fleet (Truck #) + per-job packing (estimate vs written) — narrow isolated fetches, cached on success
-    if (!window.__mrFleetCache) {
-      const fl0 = await ZTZ.api("/api/fct_closing?limit=1000000&cols=" + encodeURIComponent("Date,Truck #,Total Bill,Fuel,Truck,Car,Tolls")).then(j => j.rows || []).catch(() => []);
-      if (fl0.length) window.__mrFleetCache = fl0;
+    if (!window.__mrFleetCache2) {
+      const fl0 = await ZTZ.api("/api/fct_closing?limit=1000000&cols=" + encodeURIComponent("Date,Truck #,Total Bill,Fuel,Truck,Car,Tolls,Company")).then(j => j.rows || []).catch(() => []);
+      if (fl0.length) window.__mrFleetCache2 = fl0;
     }
-    const fleetRows = window.__mrFleetCache || [];
-    if (!window.__mrPackCache) {
-      // per-job packing totals live only in the RAW moveboard table (not carried into fct_moveboard)
-      const pk0 = await ZTZ.api("/api/moveboard?limit=1000000&cols=" + encodeURIComponent("Create Date,Service Type,Sales Packing total,Closing Packing total")).then(j => j.rows || []).catch(() => []);
-      if (pk0.length) window.__mrPackCache = pk0;
+    delete window.__mrFleetCache;  // pre-C43 cache (no Company column) — retire it
+    const fleetRows = (window.__mrFleetCache2 || []).filter(coRow);
+    if (!window.__mrPackCache2) {
+      // per-job packing totals live only in the RAW moveboard table (not carried into fct_moveboard).
+      // C28: fetch Move Date — this card buckets by MOVE month, like the rest of the packing section.
+      const pk0 = await ZTZ.api("/api/moveboard?limit=1000000&cols=" + encodeURIComponent("Move Date,Service Type,Sales Packing total,Closing Packing total,Company")).then(j => j.rows || []).catch(() => []);
+      if (pk0.length) window.__mrPackCache2 = pk0;
     }
-    const packJobs = window.__mrPackCache || [];
+    delete window.__mrPackCache;   // pre-C28 cache (Create Date, no Move Date column) — retire it
+    const packJobs = (window.__mrPackCache2 || []).filter(coRow);
     const DS = { closing, moveboard, storage, claims, refunds, card_expenses: cardEx, reviews_breakdown: reviews, negative_reviews: negrev, callrail, scorecard, review_counts: rcounts, review_goals: rgoals, helper_salaries: helperSalDs, sales_salaries: salesSalDs, long_distance: longDist };
 
-    const latest = closing.reduce((a, r) => (r._d && r._d > a ? r._d : a), "");
+    const latest = closing.reduce((a, r) => (coRow(r) && r._d && r._d > a ? r._d : a), "");
     if (!st.month) {
       const now = new Date(); let dy, dm;
       if (latest) { dy = +latest.slice(0, 4); dm = +latest.slice(5, 7); } else { dy = now.getFullYear(); dm = now.getMonth() + 1; }
@@ -84,14 +97,23 @@ async function renderMonthly(host, MRCFG) {
       st.month = dm; st.year = dy;
     }
     const curY = st.year, mo = st.month, monLbl = MON[mo] + " " + curY;
-    const freshness = latest ? `data through ${latest}` : "";
+    // C43: plain-English freshness date ("July 6, 2026", not ISO)
+    const dateLong = d => MON[+d.slice(5, 7)] + " " + (+d.slice(8, 10)) + ", " + d.slice(0, 4);
+    const freshness = latest ? `data through ${dateLong(latest)}` : "";
 
     /* ---------- month engine ---------- */
     function rangeFor(y, m) { const mm = String(m).padStart(2, "0"), last = new Date(y, m, 0).getDate(); return [`${y}-${mm}-01`, `${y}-${mm}-${String(last).padStart(2, "0")}`]; }
     function withMonth(y, m, fn) {
-      const S = RS.state, sv = { f: S.dateFrom, t: S.dateTo, df: S.dayFrom, dt: S.dayTo };
+      const S = RS.state, sv = { f: S.dateFrom, t: S.dateTo, df: S.dayFrom, dt: S.dayTo, co: S.multi.company, hadCo: Object.prototype.hasOwnProperty.call(S.multi, "company") };
       const [a, b] = rangeFor(y, m); S.dateFrom = a; S.dateTo = b; S.dayFrom = S.dayTo = null;
-      try { return fn(); } finally { S.dateFrom = sv.f; S.dateTo = sv.t; S.dayFrom = sv.df; S.dayTo = sv.dt; }
+      // C43: default the Company filter to Zip to Zip for EVERY computation on this page
+      // (flows into every RS.filtered call, incl. the salary tables' closing-key scope and
+      // the registry Booking Rate's booked-date pass). An explicit slicer choice still wins.
+      if (!sv.co || !sv.co.size) S.multi.company = new Set([MR_CO]);
+      try { return fn(); } finally {
+        S.dateFrom = sv.f; S.dateTo = sv.t; S.dayFrom = sv.df; S.dayTo = sv.dt;
+        if (sv.hadCo) S.multi.company = sv.co; else delete S.multi.company;
+      }
     }
     function valueFor(ds, measure, y, m, opts) {
       const rows = DS[ds]; if (!rows || !rows.length) return null;
@@ -132,6 +154,33 @@ async function renderMonthly(host, MRCFG) {
         return Object.entries(g).map(([k, rs]) => ({ k, v: reducer(rs), rows: rs })).filter(x => x.v != null).sort((a, b) => (b.v || 0) - (a.v || 0));
       });
     }
+    /* ---------- canonical Booking Rate scaffolding (C2/D4) ----------
+       RS.bookingRate(createdRows, bookedRows) is dual-basis: Qualified counts by CREATE
+       date, Confirmed by BOOKED date. These helpers build the booked-date row scope for a
+       month (and per-segment groups of it) so NO booking rate on this page is computed
+       inline any more. */
+    function bookedRowsFor(y, m, pre) {
+      const rows = DS.moveboard; if (!rows || !rows.length) return [];
+      return withMonth(y, m, () => {
+        let f = RS.filtered("moveboard", rows, { dateColumn: "Booked Date" });
+        if (pre) f = f.filter(pre);
+        return f;
+      });
+    }
+    function groupByCol(rows, col) {
+      const g = {}; rows.forEach(r => { const k = r[col] == null || r[col] === "" ? "—" : String(r[col]); (g[k] = g[k] || []).push(r); }); return g;
+    }
+    // 12-month booking-rate trend (optionally pre-filtered) — canonical dual basis per month
+    function bookRateTrend(pre, n) {
+      const out = []; let y = curY, m = mo;
+      for (let i = 0; i < (n || 12); i++) {
+        const created = reduceMonth("moveboard", y, m, rs => rs, pre ? { pre } : undefined) || [];
+        const booked = bookedRowsFor(y, m, pre);
+        out.unshift({ k: MS[m] + " " + String(y).slice(2), y, m, v: RS.bookingRate(created, booked) });
+        m--; if (m < 1) { m = 12; y--; }
+      }
+      return out;
+    }
 
     /* ---------- palette ---------- */
     const INK = "#0e1621", INK2 = "#1b2a3f", SUB = "#5a6775", FAINT = "#93a0b2", LINE = "#e4e9f0";
@@ -159,11 +208,12 @@ async function renderMonthly(host, MRCFG) {
       "Revenue Composition & Segments": '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 3v9h9"/></svg>',
       "Profitability & P&L": '<svg viewBox="0 0 24 24"><circle cx="9" cy="9" r="5"/><path d="M14 6.5a5 5 0 010 11"/></svg>',
       "Marketing & Channels": '<svg viewBox="0 0 24 24"><path d="M3 10v4l12 5V5z"/><path d="M15 8.5a4 4 0 010 7"/></svg>',
+      "Phone & Response": '<svg viewBox="0 0 24 24"><path d="M4 3h4l2 5-2.5 2a14 14 0 006.5 6.5L16 14l5 2v4a1 1 0 01-1 1C10.6 21 3 13.4 3 4a1 1 0 011-1z"/></svg>',
       "Quality & Customer Experience": '<svg viewBox="0 0 24 24"><path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.7L12 17l-5.2 2.5 1-5.7L3.5 9.7l5.9-.9z"/></svg>',
       "Geography — by State": '<svg viewBox="0 0 24 24"><path d="M12 21s7-5.6 7-11a7 7 0 10-14 0c0 5.4 7 11 7 11z"/><circle cx="12" cy="10" r="2.5"/></svg>',
       "Lead Segmentation": '<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="4" rx="1"/><rect x="3" y="10" width="18" height="4" rx="1"/><rect x="3" y="16" width="18" height="4" rx="1"/></svg>',
-      "Unit Economics": '<svg viewBox="0 0 24 24"><path d="M19 5L5 19"/><rect x="3.5" y="3.5" width="6.5" height="6.5" rx="1.2"/><path d="M17 14v6.5"/><path d="M13.8 17.2h6.5"/></svg>',
-      "Returned & Recommended": '<svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 0 1 13.6-5.7L20 8.5"/><path d="M20 3.5v5h-5"/><path d="M20 12a8 8 0 0 1-13.6 5.7L4 15.5"/><path d="M4 20.5v-5h5"/></svg>',
+      "Per-Job Profitability": '<svg viewBox="0 0 24 24"><path d="M19 5L5 19"/><rect x="3.5" y="3.5" width="6.5" height="6.5" rx="1.2"/><path d="M17 14v6.5"/><path d="M13.8 17.2h6.5"/></svg>',
+      "Repeat & Referral Business": '<svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 0 1 13.6-5.7L20 8.5"/><path d="M20 3.5v5h-5"/><path d="M20 12a8 8 0 0 1-13.6 5.7L4 15.5"/><path d="M4 20.5v-5h5"/></svg>',
       _def: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/></svg>'
     };
     const KIC = {
@@ -327,9 +377,16 @@ async function renderMonthly(host, MRCFG) {
       const cv = document.createElement("canvas"); box.appendChild(cv); c.appendChild(box);
       return { c, box, cv };
     }
-    function note(c, txt) { if (!txt) return; const n = document.createElement("div"); n.className = "mrx-note"; n.innerHTML = `<b style="color:${LIMED}">Insight · </b>${esc(txt)}`; c.appendChild(n); }
+    // C48/Q8: two note kinds — "Insight ·" is reserved for genuine findings; methodology /
+    // definition notes carry "How it's counted ·" so readers never learn to skip insights.
+    function note(c, txt, kind) {
+      if (!txt) return; const n = document.createElement("div"); n.className = "mrx-note";
+      const how = kind === "how";
+      n.innerHTML = `<b style="color:${how ? SUB : LIMED}">${how ? "How it's counted · " : "Insight · "}</b>${esc(txt)}`;
+      c.appendChild(n);
+    }
     function emptyBox(box, msg) { box.innerHTML = `<div class="mrx-empty">${esc(msg || ("No data for " + monLbl))}</div>`; }
-    const TOCNAME = { "Executive Summary": "Summary", "Demand & Lead Funnel": "Demand", "Sales Team Performance": "Sales", "Operations & Crew (Foreman)": "Crew", "Packing & Storage": "Packing", "Revenue & Growth": "Revenue", "Revenue Composition & Segments": "Mix", "Profitability & P&L": "P&L", "Marketing & Channels": "Marketing", "Quality & Customer Experience": "Quality", "Geography — by State": "Geography", "Lead Segmentation": "Segments", "Returned & Recommended": "Repeat", "Unit Economics": "Unit Econ" };
+    const TOCNAME = { "Executive Summary": "Summary", "Demand & Lead Funnel": "Leads", "Sales Team Performance": "Sales", "Operations & Crew (Foreman)": "Crew", "Packing & Storage": "Packing", "Revenue & Growth": "Revenue", "Revenue Composition & Segments": "Rev. Mix", "Profitability & P&L": "P&L", "Marketing & Channels": "Marketing", "Phone & Response": "Phone", "Quality & Customer Experience": "Quality", "Geography — by State": "Geography", "Lead Segmentation": "Segments", "Repeat & Referral Business": "Repeat & Referral", "Per-Job Profitability": "Per Job" };
     let bodyEl, secN = 0; const secList = [];
     // narrative block divider — the report reads as 4 parts: month → money → demand → delivery.
     // Team views are single-topic slices, so the part headers are skipped there.
@@ -355,10 +412,13 @@ async function renderMonthly(host, MRCFG) {
 
     /* ---------- delta chip + KPI tile ---------- */
     function chip(cur, prev, label, inv) {
-      if (cur == null || prev == null || !prev) return `<span class="mrx-chip" style="background:#eef1f5;color:${SUB}">${label} —</span>`;
+      // C19/Q1: one title tooltip here explains YoY/MoM on every card at once
+      const tt = label === "YoY" ? "YoY = vs the same month last year" : label === "MoM" ? "MoM = vs the previous month" : "";
+      const ttA = tt ? ` title="${tt}"` : "";
+      if (cur == null || prev == null || !prev) return `<span class="mrx-chip"${ttA} style="background:#eef1f5;color:${SUB}">${label} —</span>`;
       const g = (cur - prev) / Math.abs(prev); const up = g >= 0; const good = inv ? !up : up;
       const col = good ? "#1c7a4a" : "#b02a37"; const bg = good ? "#e4f3ea" : "#fbe6e7";
-      return `<span class="mrx-chip" style="background:${bg};color:${col}">${label} ${up ? "▲" : "▼"} ${Math.abs(g * 100).toFixed(0)}%</span>`;
+      return `<span class="mrx-chip"${ttA} style="background:${bg};color:${col}">${label} ${up ? "▲" : "▼"} ${Math.abs(g * 100).toFixed(0)}%</span>`;
     }
     const dchips = arr => arr.map(d => chip(d[0], d[1], d[2], d[3])).join("");
     function kpiTile(g, k) {
@@ -454,15 +514,19 @@ async function renderMonthly(host, MRCFG) {
     }
     function rankBars(mount, title, series, fmt, opts) {
       opts = opts || {}; const s = series.slice(0, opts.top || 12);
+      // C33: the headline totals ALL segments — roll the cut segments into one visible
+      // "All others (N)" bar so the bars always add up to the headline.
+      const cut = series.length - s.length;
+      if (cut > 0) s.push({ k: `All others (${cut})`, v: series.slice(s.length).reduce((a, b) => a + (b.v || 0), 0), __other: 1 });
       opts.icon = opts.icon || KIC.bars;
       if (opts.headVal == null) { const tot = series.reduce((a, b) => a + (b.v || 0), 0); opts.headVal = fmt(tot); if (opts.subCode == null) opts.subCode = 1; }
       const { c, box, cv } = chartCard(mount, title, opts.sub || monLbl, { span2: opts.span2, h: Math.max(190, 40 + s.length * 27), icon: opts.icon, headVal: opts.headVal, chips: opts.chips });
       if (!s.length) { emptyBox(box); return c; }
       new Chart(cv, { type: "bar",
-        data: { labels: s.map(r => r.k), datasets: [{ data: s.map(r => r.v), backgroundColor: s.map((_, i) => i === 0 ? LIME : INK), hoverBackgroundColor: s.map((_, i) => i === 0 ? LIMED : "#34465f"), borderRadius: 4, maxBarThickness: 20 }] },
+        data: { labels: s.map(r => r.k), datasets: [{ data: s.map(r => r.v), backgroundColor: s.map((r, i) => r.__other ? "#aeb9c8" : i === 0 ? LIME : INK), hoverBackgroundColor: s.map((r, i) => r.__other ? "#98a5b6" : i === 0 ? LIMED : "#34465f"), borderRadius: 4, maxBarThickness: 20 }] },
         options: baseOpts({ indexAxis: "y", layout: { padding: { right: 58 } }, plugins: { legend: { display: false }, tooltip: { callbacks: { label: x => tip(fmt)(x.parsed.x) } } }, scales: { x: axY(fmt, { beginAtZero: true }), y: { ticks: { color: INK2, font: { size: 11.5, weight: "600" } }, grid: { display: false }, border: { display: false } } } }),
         plugins: [valLabels(fmt, true), crosshair] });
-      if (opts.note) note(c, opts.note);
+      if (opts.note) note(c, opts.note, opts.noteKind);
       return c;
     }
     function groupedBars(mount, title, labels, sa, la, sb, lb, fmt, opts) {
@@ -477,11 +541,11 @@ async function renderMonthly(host, MRCFG) {
     }
     function donut(mount, title, series, fmt, opts) {
       opts = opts || {}; const pos = series.filter(r => r.v > 0), head = pos.slice(0, 7), tail = pos.slice(7);
-      const s = tail.length ? head.concat([{ k: "Other", v: tail.reduce((a, b) => a + b.v, 0) }]) : head;
+      const s = tail.length ? head.concat([{ k: `All others (${tail.length})`, v: tail.reduce((a, b) => a + b.v, 0), __other: 1 }]) : head;
       const tot = s.reduce((a, b) => a + b.v, 0);
       const { c, box, cv } = chartCard(mount, title, opts.sub || monLbl, { h: 250, span2: opts.span2, icon: KIC.pie, headVal: opts.center || fmt(tot) });
       if (!s.length) { emptyBox(box); return c; }
-      new Chart(cv, { type: "doughnut", data: { labels: s.map(r => r.k), datasets: [{ data: s.map(r => r.v), backgroundColor: s.map((r, i) => r.k === "Other" ? "#aeb9c8" : CAT[i % CAT.length]), borderColor: "#fff", borderWidth: 3, hoverOffset: 5 }] },
+      new Chart(cv, { type: "doughnut", data: { labels: s.map(r => r.k), datasets: [{ data: s.map(r => r.v), backgroundColor: s.map((r, i) => r.__other ? "#aeb9c8" : CAT[i % CAT.length]), borderColor: "#fff", borderWidth: 3, hoverOffset: 5 }] },
         options: baseOpts({ cutout: "66%", interaction: { mode: "nearest", intersect: true }, plugins: { legend: { position: "right", labels: { color: INK2, font: { size: 11 }, boxWidth: 11, padding: 7, usePointStyle: true } }, tooltip: { callbacks: { label: x => `${x.label}: ${tip(fmt)(x.parsed)} (${(x.parsed / tot * 100).toFixed(0)}%)` } } } }),
         plugins: [{ id: "ctr", afterDraw(ch) { const a = ch.chartArea, ctx = ch.ctx, x = (a.left + a.right) / 2, y = (a.top + a.bottom) / 2; ctx.save(); ctx.textAlign = "center"; ctx.fillStyle = INK; ctx.font = "800 19px " + MONO; ctx.fillText(opts.center || fmt(tot), x, y - 2); ctx.fillStyle = FAINT; ctx.font = "700 10px Inter"; ctx.fillText(opts.centerLbl || "total", x, y + 15); ctx.restore(); } },
         { id: "dlab", afterDatasetsDraw(ch) {
@@ -524,12 +588,13 @@ async function renderMonthly(host, MRCFG) {
     }
     function bullet(mount, title, sub, rows, fmt, target, opts) {
       opts = opts || {};
-      const { c, box, cv } = chartCard(mount, title, sub, { span2: opts.span2, h: Math.max(190, 40 + rows.length * 27), icon: KIC.bars, headVal: "target " + fmt(target) });
+      // C26/Q5: the benchmark line is the current TEAM AVERAGE, not a management target
+      const { c, box, cv } = chartCard(mount, title, sub, { span2: opts.span2, h: Math.max(190, 40 + rows.length * 27), icon: KIC.bars, headVal: "team avg " + fmt(target) });
       if (!rows.length) { emptyBox(box); return c; }
       new Chart(cv, { type: "bar", data: { labels: rows.map(r => r.k), datasets: [{ data: rows.map(r => r.v), backgroundColor: rows.map(r => r.v >= target ? INK : NEG), hoverBackgroundColor: rows.map(r => r.v >= target ? "#34465f" : "#f0817e"), borderRadius: 4, maxBarThickness: 18 }] },
-        options: baseOpts({ indexAxis: "y", layout: { padding: { right: 52 } }, plugins: { legend: { display: false }, tooltip: { callbacks: { label: x => tip(fmt)(x.parsed.x) + " (target " + tip(fmt)(target) + ")" } } }, scales: { x: axY(fmt, { beginAtZero: true }), y: { ticks: { color: INK2, font: { size: 11, weight: "600" } }, grid: { display: false }, border: { display: false } } } }),
-        plugins: [crosshair, valLabels(fmt, true), { id: "tgt", afterDraw(ch) { const x = ch.scales.x.getPixelForValue(target), a = ch.chartArea, ctx = ch.ctx; ctx.save(); ctx.strokeStyle = LIME; ctx.lineWidth = 2.4; ctx.beginPath(); ctx.moveTo(x, a.top); ctx.lineTo(x, a.bottom); ctx.stroke(); ctx.fillStyle = LIMED; ctx.font = "800 9px " + MONO; ctx.textAlign = "center"; ctx.fillText("target " + fmt(target), x, a.top - 2); ctx.restore(); } }] });
-      if (opts.note) note(c, opts.note);
+        options: baseOpts({ indexAxis: "y", layout: { padding: { right: 52 } }, plugins: { legend: { display: false }, tooltip: { callbacks: { label: x => tip(fmt)(x.parsed.x) + " (team avg " + tip(fmt)(target) + ")" } } }, scales: { x: axY(fmt, { beginAtZero: true }), y: { ticks: { color: INK2, font: { size: 11, weight: "600" } }, grid: { display: false }, border: { display: false } } } }),
+        plugins: [crosshair, valLabels(fmt, true), { id: "tgt", afterDraw(ch) { const x = ch.scales.x.getPixelForValue(target), a = ch.chartArea, ctx = ch.ctx; ctx.save(); ctx.strokeStyle = LIME; ctx.lineWidth = 2.4; ctx.beginPath(); ctx.moveTo(x, a.top); ctx.lineTo(x, a.bottom); ctx.stroke(); ctx.fillStyle = LIMED; ctx.font = "800 9px " + MONO; ctx.textAlign = "center"; ctx.fillText("team avg " + fmt(target), x, a.top - 2); ctx.restore(); } }] });
+      if (opts.note) note(c, opts.note, opts.noteKind);
       return c;
     }
     function stackedTime(mount, title, sub, labels, sets, fmt, opts) {
@@ -549,13 +614,13 @@ async function renderMonthly(host, MRCFG) {
       const tbl = w.querySelector("table");
       if (tbl) {
         const foot = document.createElement("div"); foot.style.cssText = "display:flex;justify-content:flex-end;margin-top:9px";
-        const xb = document.createElement("button"); xb.type = "button"; xb.className = "mrx-xls"; xb.innerHTML = "⤓ Excel"; xb.title = "Export this table to Excel";
+        const xb = document.createElement("button"); xb.type = "button"; xb.className = "mrx-xls"; xb.innerHTML = "⬇ Excel"; xb.title = "Export this table to Excel";
         xb.style.cssText = "background:#0e1621;color:#fff;border:0;border-radius:8px;padding:6px 11px;font:800 10.5px/1 " + MONO + ";letter-spacing:.03em;cursor:pointer";
         xb.onmouseenter = () => xb.style.background = "#1b2a3f"; xb.onmouseleave = () => xb.style.background = "#0e1621";
         xb.onclick = () => exportTableXlsx(tbl, title);
         foot.appendChild(xb); c.appendChild(foot);
       }
-      if (opts.note) note(c, opts.note); return c;
+      if (opts.note) note(c, opts.note, opts.noteKind); return c;
     }
     const td = (v, style) => `<td${style ? ` style="${style}"` : ""}>${v}</td>`;
 
@@ -583,10 +648,21 @@ async function renderMonthly(host, MRCFG) {
       if (/^-?\d+(\.\d+)?$/.test(n)) return Number(n);
       return t;
     }
+    // Q7: exported headers use FULL words — abbreviations that survive on screen (for space)
+    // are mapped to plain English at export time, so the Excel file explains itself.
+    const XHEAD = { "CF": "Cubic feet (CF)", "vs Est": "Written vs estimate", "Op. Profit": "Operational Profit",
+      "Qual.": "Qualified", "Conf.": "Confirmed", "Ref%": "Refund %", "Dead%": "Bad-lead %",
+      "Booking%": "Booking %", "Pay": "Foreman pay" };
+    function xlsHead(s) {
+      const t = String(s == null ? "" : s).trim();
+      if (XHEAD[t]) return XHEAD[t];
+      const m = t.match(/^vs '(\d{2})$/); if (m) return "vs 20" + m[1];
+      return t;
+    }
     async function exportTableXlsx(tbl, title) {
       try {
         await ensureLib(() => window.XLSX, XLS_URL);
-        const aoa = [].map.call(tbl.rows, tr => [].map.call(tr.cells, c => xlsCell(c.textContent)));
+        const aoa = [].map.call(tbl.rows, tr => [].map.call(tr.cells, c => c.tagName === "TH" ? xlsHead(c.textContent) : xlsCell(c.textContent)));
         const ws = XLSX.utils.aoa_to_sheet(aoa);
         const wch = []; aoa.forEach(r => r.forEach((v, i) => { const l = String(v).length; if (!wch[i] || wch[i] < l) wch[i] = l; }));
         ws["!cols"] = wch.map(w => ({ wch: Math.min(42, Math.max(9, w + 2)) }));
@@ -615,8 +691,9 @@ async function renderMonthly(host, MRCFG) {
         const cov = rt.querySelector(".mrx-cover"); if (cov) blocks.push(cov);
         const ban = rt.querySelector(".mrx-bwrap"); if (ban) blocks.push(ban);
         [].slice.call(rt.querySelectorAll(".mrx-parth,.mrx-sec")).forEach(s => blocks.push(s));
-        let y = M;
+        let y = M, bi = 0;
         for (const el of blocks) {
+          bi++; if (btn) btn.innerHTML = `⏳ Building… ${bi}/${blocks.length}`;   // C50: live progress
           // swap live chart canvases → static images so html2canvas captures them reliably
           const swaps = [];
           [].slice.call(el.querySelectorAll("canvas")).forEach(cv => {
@@ -648,9 +725,9 @@ async function renderMonthly(host, MRCFG) {
           y += 8;
         }
         const np = pdf.internal.getNumberOfPages();
-        for (let i = 1; i <= np; i++) { pdf.setPage(i); pdf.setFontSize(8); pdf.setTextColor(150); pdf.text(`Zip to Zip · ${PAGE_TITLE} · ${MON[mo]} ${curY} · ${i}/${np}`, pageW / 2, pageH - 8, { align: "center" }); }
+        for (let i = 1; i <= np; i++) { pdf.setPage(i); pdf.setFontSize(8); pdf.setTextColor(150); pdf.text(`Zip to Zip · ${PDF_NAME} · ${MON[mo]} ${curY} · ${i}/${np}`, pageW / 2, pageH - 8, { align: "center" }); }
         console.log("PDF_OK pages=" + np);
-        pdf.save(`Zip-to-Zip-${PAGE_TITLE.replace(/\s+/g, "-")}-${MON[mo]}-${curY}.pdf`);
+        pdf.save(`Zip-to-Zip-${PDF_NAME.replace(/\s+/g, "-")}-${MON[mo]}-${curY}.pdf`);
       } catch (e) { console.error("PDF generation failed", e); alert("PDF generation failed: " + (e && e.message || e)); }
       finally {
         collapsed.forEach(s => s.classList.add("collapsed"));
@@ -686,14 +763,19 @@ async function renderMonthly(host, MRCFG) {
     host.innerHTML = "";
     const root = document.createElement("div"); root.className = "mrx"; host.appendChild(root);
     const cover = document.createElement("div"); cover.className = "mrx-cover";
+    // Q3/C43: the year picker lists the years the closing data actually covers (oldest→newest,
+    // no empty future year); the selected year is always offered even if it has no rows yet.
+    const dataYears = [...new Set(closing.filter(r => coRow(r) && r._y >= "2000").map(r => +r._y))];
+    if (dataYears.indexOf(curY) < 0) dataYears.push(curY);
+    const yearOpts = dataYears.filter(y => y <= new Date().getFullYear()).sort((a, b) => a - b);
     cover.innerHTML = `
       <div class="mrx-accent"></div>
       <button class="mrx-print" id="mrPrint" title="Download a polished PDF (no print dialog)">⬇ Download PDF</button>
-      <div class="mrx-eyebrow">${esc(MRCFG ? PAGE_TITLE + " Review" : "Monthly Business Review")} · Zip to Zip</div>
+      <div class="mrx-eyebrow">${esc(TEAM ? TEAM + " — Monthly Review" : "Monthly Business Review")} · Zip to Zip</div>
       <div class="mrx-h1">Report for ${MON[mo]} ${curY}</div>
-      <div class="mrx-cvsub">${esc(freshness)} · single-company view ·
-        <select id="mrMonth" class="mrx-ctl">${MON.slice(1).map((m, i) => `<option value="${i + 1}"${i + 1 === mo ? " selected" : ""}>${m}</option>`).join("")}</select>
-        <select id="mrYear" class="mrx-ctl">${[curY + 1, curY, curY - 1, curY - 2].filter(y => y <= curY + 1).map(y => `<option${y === curY ? " selected" : ""}>${y}</option>`).join("")}</select></div>`;
+      <div class="mrx-cvsub">${esc(freshness)} · Zip to Zip only ·
+        Month: <select id="mrMonth" class="mrx-ctl">${MON.slice(1).map((m, i) => `<option value="${i + 1}"${i + 1 === mo ? " selected" : ""}>${m}</option>`).join("")}</select>
+        Year: <select id="mrYear" class="mrx-ctl">${yearOpts.map(y => `<option${y === curY ? " selected" : ""}>${y}</option>`).join("")}</select></div>`;
     root.appendChild(cover);
 
     // completeness banner — closings awaiting return (blank Net Cash), with an expandable job list
@@ -704,7 +786,7 @@ async function renderMonthly(host, MRCFG) {
       const rptPctVal = ((totClose - pend) / totClose * 100).toFixed(0);
       const wrap = document.createElement("div"); wrap.className = "mrx-bwrap";
       const b = document.createElement("div"); b.className = "mrx-banner";
-      b.innerHTML = `<span class="bic">${KIC.warn}</span><span class="mrx-bmsg"><b>${pend}</b> of <b>${totClose}</b> ${MON[mo]} closings are still awaiting return (blank contract) — this month is <b>~${rptPctVal}%</b> reported; revenue &amp; profit will rise as they come in.</span><span class="mrx-btoggle">▸ view the ${pend} jobs</span>`;
+      b.innerHTML = `<span class="bic">${KIC.warn}</span><span class="mrx-bmsg"><b>${pend}</b> of <b>${totClose}</b> ${MON[mo]} jobs haven't had their closing paperwork turned in yet, so ${MON[mo]}'s revenue and profit are still incomplete (<b>~${rptPctVal}%</b> of jobs counted) and will grow as sheets come in.</span><span class="mrx-btoggle">▸ view the ${pend} jobs</span>`;
       const detail = document.createElement("div"); detail.className = "mrx-bdetail"; detail.style.display = "none";
       const rowsH = pendRows.map(r => `<tr><td>${esc(String(r.Date || "").slice(0, 10))}</td><td>${esc(r.Customer || "—")}</td><td>${esc(String(r["Request #"] || "—"))}</td><td>${esc(r["Sales Person"] || "—")}</td><td>${esc(r.Foreman || "—")}</td></tr>`).join("");
       detail.innerHTML = `<div class="mrx-scroll"><table class="mrx-tbl"><thead><tr><th>Move date</th><th>Customer</th><th>Request #</th><th>Sales person</th><th>Foreman</th></tr></thead><tbody>${rowsH}</tbody></table></div>`;
@@ -736,6 +818,12 @@ async function renderMonthly(host, MRCFG) {
     const revWritten = reduceMonth("reviews_breakdown", curY, mo, rs => rs.reduce((a, r) => a + num(r["Number of Reviews"]), 0)) || 0;
     const revWrittenLY = reduceMonth("reviews_breakdown", curY - 1, mo, rs => rs.reduce((a, r) => a + num(r["Number of Reviews"]), 0)) || 0;
     const revWrittenPM = reduceMonth("reviews_breakdown", PMY, PM, rs => rs.reduce((a, r) => a + num(r["Number of Reviews"]), 0)) || 0;
+    // C41: reviews coloring is driven by the recorded goal (fct_review_goals) — never by a
+    // hardcoded threshold. No goal recorded for the month -> plain ink, no color.
+    const revGoal = reduceMonth("review_goals", curY, mo, rs => rs.reduce((a, r) => a + num(r["Number of Reviews"]), 0)) || 0;
+    const revCol = n => revGoal > 0 ? (n >= revGoal ? "#1c7a4a" : "#b02a37") : INK;
+    const revValHtml = n => `<span style="color:${revCol(n)}">${fmtN(n)}</span>` +
+      (revGoal > 0 ? `<span style="font-size:13px;color:${FAINT};font-weight:700"> / goal ${fmtN(revGoal)}</span>` : "");
 
     /* shared across sections (R&R + Marketing) — the op-profit composite is the page's priciest
        measure, compute the current-month by-Source split ONCE (pre-refund per segment; disclosed
@@ -750,17 +838,20 @@ async function renderMonthly(host, MRCFG) {
       [
         { l: "Revenue", v: money(rev), c: rev, ly: revLY, pm: revPM, spk: momSeries("closing", "Revenue", 12), icon: KIC.dollar, hero: 1 },
         { l: "Operational Profit", v: money(op), c: op, ly: opLY, pm: opPM, spk: momSeries("closing", "Operational Profit by Formula", 12), icon: KIC.trend },
-        { l: "Op. Margin", v: pct(margin), c: margin, ly: marginLY, pm: marginPM, spk: momSeries("closing", "Operational Profit Margin", 12), icon: KIC.pct },
+        { l: "Operating Margin", v: pct(margin), c: margin, ly: marginLY, pm: marginPM, spk: momSeries("closing", "Operational Profit Margin", 12), icon: KIC.pct },
         { l: "Jobs Done", v: fmtN(jobs), c: jobs, ly: jobsLY, pm: jobsPM, spk: momSeries("closing", "Total Jobs", 12), icon: KIC.truck },
         { l: "Leads", v: fmtN(leadsN), c: leadsN, ly: leadsLY, pm: leadsPM, spk: momSeries("moveboard", "Total Leads", 12), icon: KIC.funnel },
         { l: "Booking Rate", v: pct(bk), c: bk, ly: bkLY, pm: bkPM, spk: momSeries("moveboard", "Booking Rate", 12), icon: KIC.check },
         { l: "Avg Job Value", v: money(avgJob), c: avgJob, ly: avgJobLY, pm: avgJobPM, spk: momReduce("closing", 12, rs => { const b = M["Revenue"].fn(rs), j = rs.length; return j ? b / j : null; }), icon: KIC.tag },
-        { l: "Reviews Written", v: `<span style="color:${revWritten < 40 ? "#b02a37" : revWritten > 60 ? "#1c7a4a" : INK}">${fmtN(revWritten)}</span>`, c: revWritten, ly: revWrittenLY, pm: revWrittenPM, spk: momReduce("reviews_breakdown", 12, rs => rs.reduce((a, r) => a + num(r["Number of Reviews"]), 0)), icon: KIC.star }
+        { l: "All Reviews Written (incl. non-counting)", v: revValHtml(revWritten), c: revWritten, ly: revWrittenLY, pm: revWrittenPM, spk: momReduce("reviews_breakdown", 12, rs => rs.reduce((a, r) => a + num(r["Number of Reviews"]), 0)), icon: KIC.star }
       ].forEach(k => kpiTile(g, k));
       const gpRev = revLY ? (rev - revLY) / Math.abs(revLY) : 0;
       const tone = gpRev > 0.08 ? "A strong" : gpRev < -0.05 ? "A softer" : "A steady";
       const ex = document.createElement("div"); ex.className = "mrx-exec"; ex.style.gridColumn = "1/-1";
-      ex.innerHTML = `<b>${tone} ${MON[mo]} ${curY}.</b> Revenue ${money(rev)} (${gpRev >= 0 ? "+" : ""}${(gpRev * 100).toFixed(0)}% YoY), operational profit ${money(op)} at ${pct(margin)} margin, ${fmtN(jobs)} jobs from ${fmtN(leadsN)} leads booked at ${pct(bk)}. Avg job value ${money(avgJob)}.${revTrip ? ` Of that revenue, ${money(revTrip)} (${(tripShare * 100).toFixed(1)}%) came from standalone trips — a minor add-on this year.` : ""}`;
+      // C16: no false causality — jobs (by move date) and leads (by create date) are two
+      // different cohorts, so they are stated as separate facts with a date-basis footnote.
+      ex.innerHTML = `<b>${tone} ${MON[mo]} ${curY}.</b> Revenue ${money(rev)} (${gpRev >= 0 ? "+" : ""}${(gpRev * 100).toFixed(0)}% YoY), operational profit ${money(op)} at ${pct(margin)} margin. ${fmtN(jobs)} jobs completed; ${fmtN(leadsN)} new leads came in, booking at ${pct(bk)}. Avg job value ${money(avgJob)}.${revTrip ? ` Of that revenue, ${money(revTrip)} (${(tripShare * 100).toFixed(1)}%) came from standalone trips — a minor add-on this year.` : ""}
+        <div style="margin-top:8px;font-size:11.5px;color:#93a0b2;font-weight:600">YoY = vs the same month last year · MoM = vs the previous month · money &amp; jobs count by move date · leads count by the date the lead came in.</div>`;
       g.appendChild(ex);
     }
 
@@ -774,21 +865,22 @@ async function renderMonthly(host, MRCFG) {
       yoyBars(g, "Total Revenue", revT, moneyC, { headVal: money(rev), chips: dchips([[rev, revLY, "YoY"], [rev, revPM, "MoM"]]) });
       const c1 = yoyBars(g, "Operational Profit", opT, moneyC, { yoyPct: true, headVal: money(op), chips: dchips([[op, opLY, "YoY"], [op, opPM, "MoM"]]) }); note(c1, trendInsight("Operational Profit", opT, money, MON[mo]));
       const c2 = yoyBars(g, "Jobs Done", jobT, fmtN, { headVal: fmtN(jobs), chips: dchips([[jobs, jobsLY, "YoY"], [jobs, jobsPM, "MoM"]]) }); note(c2, trendInsight("Jobs Done", jobT, fmtN, MON[mo]));
+      // N17: these are confirmed LEADS, not completed jobs — "jobs" is reserved for closings
       const confT = trendSeries("moveboard", "Confirmed Leads"), bkT = trendSeries("moveboard", "Booking Rate");
-      combo(g, "Confirmed Jobs & Booking Rate", MON[mo] + " · " + confT.length + "-yr", confT, "Confirmed", fmtN, bkT, "Booking %", pct, { headVal: pct(bk) });
+      combo(g, "Leads Confirmed & Booking Rate", MON[mo] + " · " + confT.length + "-yr", confT, "Confirmed leads", fmtN, bkT, "Booking %", pct, { headVal: pct(bk) });
       // ---- Local | Long-distance, laid out as MIRRORED PAIRS (Local left, LD right) ----
       const isLocal = r => String(r["Moving Type"]) === "Local Moving";
       const notLocal = r => !isLocal(r);
       const localT = trendSeries("closing", "Revenue", { pre: isLocal });
       const ldT = trendSeries("closing", "Revenue", { pre: notLocal });
       const c6a = yoyBars(g, "Local Moving — revenue", localT, moneyC, { headVal: money(lastV(localT)), sub: MON[mo] + " · hourly local jobs" });
-      note(c6a, `Hourly “Local Moving” jobs — the volume base of the business.`);
+      note(c6a, `Hourly “Local Moving” jobs — the volume base of the business.`, "how");
       const c6b = yoyBars(g, "Long-distance — revenue", ldT, moneyC, { headVal: money(lastV(ldT)), sub: MON[mo] + " · Regular + Straight" });
-      note(c6b, `Flat-rate long-distance product lines (“Regular” + “Straight”) combined.`);
+      note(c6b, `Flat-rate long-distance product lines (“Regular” + “Straight”) combined.`, "how");
       const avgOf = (pre) => yearsArr(5).map(y => { const r2 = valueFor("closing", "Revenue", y, mo, { pre }), j2 = valueFor("closing", "Total Jobs", y, mo, { pre }); return { k: String(y), v: j2 ? r2 / j2 : null }; });
       const locAvgT = avgOf(isLocal), ldAvgT = avgOf(notLocal);
-      yoyBars(g, "Local Moving — average ticket", locAvgT, money, { headVal: money(lastV(locAvgT)), sub: MON[mo] + " · revenue ÷ jobs" });
-      yoyBars(g, "Long-distance — average ticket", ldAvgT, money, { headVal: money(lastV(ldAvgT)), sub: MON[mo] + " · revenue ÷ jobs" });
+      yoyBars(g, "Local Moving — avg job value", locAvgT, money, { headVal: money(lastV(locAvgT)), sub: MON[mo] + " · revenue ÷ jobs" });
+      yoyBars(g, "Long-distance — avg job value", ldAvgT, money, { headVal: money(lastV(ldAvgT)), sub: MON[mo] + " · revenue ÷ jobs" });
       const locJobsT = trendSeries("closing", "Total Jobs", { pre: isLocal }), ldJobsT = trendSeries("closing", "Total Jobs", { pre: notLocal });
       yoyBars(g, "Local Moving — jobs", locJobsT, fmtN, { headVal: fmtN(lastV(locJobsT) || 0), sub: MON[mo] });
       yoyBars(g, "Long-distance — jobs", ldJobsT, fmtN, { headVal: fmtN(lastV(ldJobsT) || 0), sub: MON[mo] });
@@ -799,7 +891,7 @@ async function renderMonthly(host, MRCFG) {
       const opSplitT = yearsArr(5).map(y => { let loc = 0, ld = 0; segSeries("closing", "Operational Profit by Formula", "Moving Type", y, mo).forEach(s2 => { if (s2.k === "Local Moving") loc += s2.v; else ld += s2.v; }); return { k: String(y), loc, ld }; });
       const refCur = Math.abs(reduceMonth("refunds", curY, mo, rs => rs.reduce((a, r) => a + num(r["Total refund"]), 0)) || 0);
       const cOpL = yoyBars(g, "Local Moving — op. profit", opSplitT.map(r => ({ k: r.k, v: r.loc || null })), moneyC, { yoyPct: true, headVal: money(opSplitT[opSplitT.length - 1].loc || 0), sub: MON[mo] + " · before refunds" });
-      note(cOpL, `Segment op-profit is before refunds — refunds can't be tied to a moving type, so Local + Long-distance together sit ${refCur ? money(refCur) + " " : ""}above the headline Op Profit.`);
+      note(cOpL, `Segment op-profit is before refunds — refunds can't be tied to a moving type, so Local + Long-distance together sit ${refCur ? money(refCur) + " " : ""}above the headline Operational Profit.`, "how");
       yoyBars(g, "Long-distance — op. profit", opSplitT.map(r => ({ k: r.k, v: r.ld || null })), moneyC, { yoyPct: true, headVal: money(opSplitT[opSplitT.length - 1].ld || 0), sub: MON[mo] + " · before refunds" });
       // Long-distance carrier economics (a revenue/margin story, moved here from Marketing)
       if ((DS.long_distance || []).length) {
@@ -807,10 +899,10 @@ async function renderMonthly(host, MRCFG) {
         const ldCarr = momReduce("long_distance", 14, rs => rs.reduce((a, r) => a + num(r["Total To Carrier"]), 0));
         const cld1 = combo(g, "Long-distance — bill vs paid to carrier", "last 14 months", ldBill.map(r => ({ k: r.k, v: r.v || 0 })), "LD bill", money, ldCarr.map(r => ({ k: r.k, v: r.v || 0 })), "To carrier", money, { headVal: money(lastV(ldBill)) });
         const lb = lastV(ldBill) || 0, lcr = lastV(ldCarr) || 0;
-        note(cld1, `LD jobs are already inside Revenue (Regular/Straight) — this shows only the margin: ${MON[mo]} kept ${lb ? pct((lb - lcr) / lb) : "—"} in-house.`);
+        note(cld1, `LD jobs are already inside Revenue (Regular/Straight) — this shows only the margin: ${MON[mo]} kept ${lb ? pct((lb - lcr) / lb) : "—"} in-house.`, "how");
         const ldSelf = momReduce("long_distance", 14, rs => { const t = rs.length, s2 = rs.filter(r => num(r["Total To Carrier"]) === 0).length; return t ? s2 / t : null; });
         const cld2 = lines(g, "Long-distance — self-haul share", "last 14 months", [{ label: "Self-haul %", series: ldSelf, color: LIMED }], pct, { headVal: pct(lastV(ldSelf)) });
-        note(cld2, `Share of LD jobs hauled in-house with nothing paid to a carrier — higher keeps more margin.`);
+        note(cld2, `Share of LD jobs hauled in-house with nothing paid to a carrier — higher keeps more margin.`, "how");
       }
     }
 
@@ -823,36 +915,39 @@ async function renderMonthly(host, MRCFG) {
       const mtOpM = {}; segSeries("closing", "Operational Profit by Formula", "Moving Type").forEach(r => mtOpM[r.k] = r.v);
       const mtRows = mtRev.slice(0, 6).map(r => { const op2 = Math.max(0, mtOpM[r.k] || 0); return { k: r.k, rev: r.v, op: Math.min(op2, r.v), cost: Math.max(0, r.v - op2) }; });
       {
-        const { c: cMt, box: bMt, cv: cvMt } = chartCard(g, "Revenue by moving type — profit vs field cost", monLbl + " · before refunds", { h: Math.max(190, 46 + mtRows.length * 36), icon: KIC.bars, headVal: money(mtRows.reduce((a, r) => a + r.rev, 0)) });
+        const { c: cMt, box: bMt, cv: cvMt } = chartCard(g, "Revenue by moving type — profit vs costs", monLbl + " · before refunds", { h: Math.max(190, 46 + mtRows.length * 36), icon: KIC.bars, headVal: money(mtRows.reduce((a, r) => a + r.rev, 0)) });
         if (!mtRows.length) emptyBox(bMt);
         else new Chart(cvMt, { type: "bar", data: { labels: mtRows.map(r => r.k), datasets: [
           { label: "Op. profit", data: mtRows.map(r => r.op), backgroundColor: LIME, borderRadius: 3, maxBarThickness: 22 },
-          { label: "Field costs", data: mtRows.map(r => r.cost), backgroundColor: INK, borderRadius: 3, maxBarThickness: 22 } ] },
-          options: baseOpts({ indexAxis: "y", layout: { padding: { right: 110 } }, plugins: { legend: { display: true, position: "top", align: "end", labels: { color: SUB, font: { size: 11, weight: "600" }, boxWidth: 9, usePointStyle: true } }, tooltip: { callbacks: { label: x => x.dataset.label + ": " + money(x.parsed.x) } } },
+          { label: "All costs", data: mtRows.map(r => r.cost), backgroundColor: INK, borderRadius: 3, maxBarThickness: 22 } ] },
+          options: baseOpts({ indexAxis: "y", layout: { padding: { right: 110 } }, plugins: { legend: { display: true, position: "top", align: "end", labels: { color: SUB, font: { size: 11, weight: "600" }, boxWidth: 9, usePointStyle: true } }, tooltip: { callbacks: { label: x => x.dataset.label + ": " + money(x.parsed.x),
+            // N27: the end-label decoding lives here in the tooltip, not in the note
+            footer: items => { const r = mtRows[items[0].dataIndex]; return r && r.rev ? money(r.rev) + " revenue · " + Math.round(r.op / r.rev * 100) + "% profit margin" : ""; } } } },
             scales: { x: axY(moneyC, { beginAtZero: true, stacked: true }), y: { stacked: true, ticks: { color: INK2, font: { size: 11.5, weight: "600" } }, grid: { display: false }, border: { display: false } } } }),
           plugins: [crosshair, { id: "mtlab", afterDatasetsDraw(ch) { const ctx = ch.ctx; ctx.save(); ctx.font = "700 10px " + MONO; ctx.textAlign = "left"; ctx.textBaseline = "middle"; ctx.fillStyle = INK;
             ch.getDatasetMeta(1).data.forEach((el, i) => { const r = mtRows[i]; ctx.fillText(money(r.rev) + (r.rev ? " · " + Math.round(r.op / r.rev * 100) + "%" : ""), el.x + 6, el.y); });
             ctx.restore(); } }] });
-        note(cMt, `Each bar is the type's total revenue — the lime portion is operational profit (before refunds), the ink portion is field cost. End label: revenue · profit margin. ${segInsight(mtRev, money)}`);
+        note(cMt, `Each bar is that type's revenue; the green part is what we kept as profit (before refunds).`, "how");
       }
       rankBars(g, "Revenue by size of move", segSeries("closing", "Revenue", "Size of Move"), money, { top: 8 });
       const srcRev = segSeries("closing", "Revenue", "Source");
       rankBars(g, "Revenue by source", srcRev, money, { top: 10, note: segInsight(srcRev, money) });
-      donut(g, "Lead status mix", segReduce("moveboard", "Status Category", rs => rs.length), fmtN, { center: fmtN(leadsN), centerLbl: "leads" });
+      // (S5: the lead-status donut moved to Section "Demand & Lead Funnel", next to the funnel)
     }
 
-    /* ---- 04 · Unit Economics ---- */
-    if (SEC("Unit Economics")) {
-      const g = section("Unit Economics", "profitability per job, per crew-hour and crew productivity");
+    /* ---- 04 · Per-Job Profitability (formerly "Unit Economics" — N20) ---- */
+    if (SEC("Per-Job Profitability")) {
+      const g = section("Per-Job Profitability", "profitability per job and per foreman-hour");
       const revJobT = momReduce("closing", 12, rs => { const j = rs.length; return j ? M["Revenue"].fn(rs) / j : null; });
       const opJobT = momReduce("closing", 12, rs => { const j = rs.length; return j ? M["Operational Profit by Formula"].fn(rs) / j : null; });
       const opHrT = momReduce("closing", 12, rs => { const h = rs.reduce((a, r) => a + num(r["Foreman Hours"]), 0); return h ? M["Operational Profit by Formula"].fn(rs) / h : null; });
       const jobsPer100hT = momReduce("closing", 12, rs => { const j = rs.length, h = rs.reduce((a, r) => a + num(r["Foreman Hours"]), 0); return h ? 100 * j / h : null; });
-      const c1 = lines(g, "Revenue per job", "last 12 months", [{ label: "Rev / job", series: revJobT, color: INK }], money, { headVal: money(lastV(revJobT)) });
-      note(c1, `Average booking value — ${money(lastV(revJobT) || 0)} this month. Rising means bigger jobs, not just more of them.`);
+      const c1 = lines(g, "Avg job value (12-month trend)", "last 12 months", [{ label: "Avg job value", series: revJobT, color: INK }], money, { headVal: money(lastV(revJobT)) });
+      note(c1, `Average job value — ${money(lastV(revJobT) || 0)} this month. Rising means bigger jobs, not just more of them.`, "how");
       lines(g, "Operational profit per job", "last 12 months", [{ label: "Op. profit / job", series: opJobT, color: BLUE }], money, { headVal: money(lastV(opJobT)) });
       lines(g, "Operational profit per foreman-hour", "last 12 months", [{ label: "Op. profit / hr", series: opHrT, color: VIOLET }], money, { headVal: money(lastV(opHrT)) });
-      lines(g, "Jobs per 100 foreman-hours", "last 12 months", [{ label: "Jobs / 100h", series: jobsPer100hT, color: TEAL }], fmt1, { headVal: fmt1(lastV(jobsPer100hT) || 0) });
+      const cJ100 = lines(g, "Jobs per 100 foreman-hours", "last 12 months", [{ label: "Jobs / 100h", series: jobsPer100hT, color: TEAL }], fmt1, { headVal: fmt1(lastV(jobsPer100hT) || 0) });
+      note(cJ100, `Completed jobs per 100 foreman-hours worked — higher = crews finish jobs in fewer hours.`, "how");
     }
 
     /* ---- 05 · Profitability & P&L ---- */
@@ -865,9 +960,12 @@ async function renderMonthly(host, MRCFG) {
       const comm = withMonth(curY, mo, () => M["Sales Commission"].fn(RS.filtered("sales_salaries", DS.sales_salaries || [])));
       const expense = M["Car Expense"].fn(rowsW) + M["Fuel Expense"].fn(rowsW) + M["Hotel Expense"].fn(rowsW) + M["Toll Expense"].fn(rowsW) + M["Truck Expense"].fn(rowsW) + M["Other Expenses"].fn(rowsW);
       const refundTot = withMonth(curY, mo, () => M["Total Refunds"] ? M["Total Refunds"].fn(RS.filtered("refunds", DS.refunds || [])) : 0);
-      const steps = [ { label: "Total Bill", v: totBill, type: "total" }, { label: "Foreman Salaries", v: -forman }, { label: "Driver Salaries", v: -driver }, { label: "Helper Salaries", v: -(helper || 0) }, { label: "Sales Commission", v: -(comm || 0) }, { label: "Expenses", v: -expense }, { label: "Refunds", v: -(refundTot || 0) }, { label: "Op. Profit", v: op, type: "total" } ];
-      const wc = waterfall(g, "Total Bill → Operational Profit", monLbl, steps, { headVal: money(op), chips: dchips([[op, opLY, "YoY"]]) });
-      note(wc, `From ${money(totBill)} in billings, labor + expenses + refunds leave ${money(op)} operational profit — a ${pct(margin)} margin.`);
+      // C20/N4: "Total Bill" and "Revenue" are two names for the byte-identical formula
+      // (verified to the cent) — shown as "Revenue (Total Bill)" during the name transition.
+      const steps = [ { label: "Revenue (Total Bill)", v: totBill, type: "total" }, { label: "Foreman Salaries", v: -forman }, { label: "Driver Salaries", v: -driver }, { label: "Helper Salaries", v: -(helper || 0) }, { label: "Sales Commission", v: -(comm || 0) }, { label: "Expenses", v: -expense }, { label: "Refunds", v: -(refundTot || 0) }, { label: "Op. Profit", v: op, type: "total" } ];
+      const wc = waterfall(g, "Revenue (Total Bill) → Operational Profit", monLbl, steps, { headVal: money(op), chips: dchips([[op, opLY, "YoY"]]) });
+      note(wc, `From ${money(totBill)} in revenue, labor + expenses + refunds leave ${money(op)} operational profit — a ${pct(margin)} margin.`);
+      note(wc, `Revenue here is the same figure as the Revenue card in Section 01 (closing-sheet + trip billings, before refunds — refunds are deducted as their own step below).`, "how");
       // what's inside the waterfall's single "Expenses" bar — its six components, ranked
       const expParts = [
         { k: "Fuel", v: M["Fuel Expense"].fn(rowsW) }, { k: "Other Expenses", v: M["Other Expenses"].fn(rowsW) },
@@ -875,7 +973,7 @@ async function renderMonthly(host, MRCFG) {
         { k: "Tolls", v: M["Toll Expense"].fn(rowsW) }, { k: "Truck", v: M["Truck Expense"].fn(rowsW) }
       ].filter(p => p.v > 0).sort((a, b) => b.v - a.v);
       const top2 = expParts.slice(0, 2).reduce((a, p) => a + p.v, 0);
-      rankBars(g, "What's inside “Expenses”", expParts, money, { sub: monLbl + " · the waterfall bar, opened up", headVal: money(expense), note: `The ${money(expense)} Expenses step decomposed — ${expParts.slice(0, 2).map(p => p.k).join(" + ")} are ${expense ? pct(top2 / expense) : "—"} of it. “Other Expenses” is the uncategorized per-job field (see its trend card below).` });
+      rankBars(g, "What's inside “Expenses”", expParts, money, { sub: monLbl + " · the waterfall bar, opened up", headVal: money(expense), noteKind: "how", note: `The ${money(expense)} Expenses step decomposed — ${expParts.slice(0, 2).map(p => p.k).join(" + ")} are ${expense ? pct(top2 / expense) : "—"} of it. “Other Expenses” is the uncategorized per-job field (see its trend card below).` });
       lines(g, "Operational Profit Margin", "last 12 months", [ { label: "Margin", series: momSeries("closing", "Operational Profit Margin", 12), color: VIOLET } ], pct, { headVal: pct(margin) });
       // ("Op profit by state" removed — it duplicated the Geography matrix's Op. Profit column)
       const costMix = [{ k: "Foreman", v: forman }, { k: "Driver", v: driver }, { k: "Helper", v: helper || 0 }, { k: "Sales comm.", v: comm || 0 }, { k: "Expenses", v: expense }, { k: "Refunds", v: refundTot || 0 }].sort((a, b) => b.v - a.v);
@@ -885,16 +983,21 @@ async function renderMonthly(host, MRCFG) {
       const oeT = momSeries("closing", "Other Expenses", 14);
       const oeCur = valueFor("closing", "Other Expenses", curY, mo) || 0;
       const oec = lines(g, "Other Expenses — momentum", "last 14 months", [{ label: "Other Expenses", series: oeT, color: CORAL }], money, { headVal: money(oeCur) });
-      note(oec, `Uncategorized per-job field reimbursements — ${money(oeCur)} in ${MON[mo]}${jobs ? `, about ${money(oeCur / jobs)}/job` : ""}. Captured as one closing-sheet total with no category behind it, so it can't be split further; the trend is what to watch.`);
+      note(oec, `Uncategorized per-job field reimbursements — ${money(oeCur)} in ${MON[mo]}${jobs ? `, about ${money(oeCur / jobs)}/job` : ""}. Captured as one closing-sheet total with no category behind it, so it can't be split further; the trend is what to watch.`, "how");
     }
 
-    part(3, "Demand & sales", "leads, segments, geography, reps and channels");
+    part(3, "Leads & sales", "leads, segments, geography, reps and channels");
 
     /* ---- 06 · Demand & Lead Funnel ---- */
     if (SEC("Demand & Lead Funnel")) {
       const g = section("Demand & Lead Funnel", "conversion this month and rep performance");
       const cFun = funnel(g, "Lead Funnel", monLbl + " · Total → Qualified → Confirmed", [ { k: "Total Leads", v: leadsN || 0 }, { k: "Qualified", v: qual || 0 }, { k: "Confirmed", v: conf || 0 } ], { headVal: pct(bk), chips: dchips([[bk, bkLY, "YoY"], [bk, bkPM, "MoM"]]) });
-      if (cFun) note(cFun, `Booking rate ${pct(bk)} is confirmed ÷ QUALIFIED; from ALL incoming leads (bad included) it is ${pct(leadsN ? (conf || 0) / leadsN : 0)}.`);
+      // C2: bk is the canonical dual-basis rate (confirmed by booked date ÷ qualified by
+      // create date), so it can legitimately differ from Confirmed ÷ Qualified in the bars.
+      const confBooked = bookedRowsFor(curY, mo).filter(r => r["Status Category"] === "Confirmed").length;
+      if (cFun) note(cFun, `The funnel bars count leads created in ${MON[mo]}. Booking rate ${pct(bk)} = jobs booked this month (by booked date) ÷ qualified leads created — the official formula, so it can differ from Confirmed ÷ Qualified in the bars. From all incoming leads (bad included) it is ${pct(leadsN ? confBooked / leadsN : 0)}.`, "how");
+      // S5: the lead-status donut lives here, next to the funnel it explains
+      donut(g, "Lead status mix", segReduce("moveboard", "Status Category", rs => rs.length), fmtN, { center: fmtN(leadsN), centerLbl: "leads" });
       const badCur = segReduce("moveboard", "Status", rs => rs.length, curY, mo, { pre: r => r["Status Category"] === "Bad Lead" }).slice(0, 6);
       const badLY = segReduce("moveboard", "Status", rs => rs.length, curY - 1, mo, { pre: r => r["Status Category"] === "Bad Lead" });
       const badMap = {}; badLY.forEach(r => badMap[r.k] = r.v);
@@ -904,9 +1007,13 @@ async function renderMonthly(host, MRCFG) {
       const badBySrc = segReduce("moveboard", "Source", rs => rs.filter(r => r["Status Category"] === "Bad Lead").length, curY, mo).filter(r => r.v > 0 && r.k !== "—").sort((a, b) => b.v - a.v);
       rankBars(g, "Bad leads by source", badBySrc, fmtN, { top: 10, sub: monLbl, note: "Which channels send junk — pair with Marketing's lead-funnel table to see each channel's bad share." });
       // keep the reps with the MOST leads (not the best rates) — slicing by rate hid exactly the
-      // under-performers this card exists to expose
-      const spBook = segReduce("moveboard", "Assigned", rs => { const q = rs.filter(r => r["Status Category"] !== "Bad Lead").length, c = rs.filter(r => r["Status Category"] === "Confirmed").length; return q ? c / q : null; }, curY, mo).filter(r => r.v != null && r.rows.length >= 5).sort((a, b) => b.rows.length - a.rows.length).slice(0, 12);
-      bullet(g, "Booking rate by salesperson", monLbl + " · vs team average", spBook, pct, bk || 0, { note: "The 12 reps handling the most leads, ordered by volume. Bars below the lime target line are converting under the team average — coaching targets." });
+      // under-performers this card exists to expose. C2: booking rate per rep is the canonical
+      // dual-basis formula (RS.bookingRate), never an inline ratio.
+      const bookedByAssign = groupByCol(bookedRowsFor(curY, mo), "Assigned");
+      const spBook = segReduce("moveboard", "Assigned", rs => rs, curY, mo)
+        .map(r => ({ k: r.k, rows: r.rows, v: RS.bookingRate(r.rows, bookedByAssign[r.k] || []) }))
+        .filter(r => r.v != null && r.rows.length >= 5).sort((a, b) => b.rows.length - a.rows.length).slice(0, 12);
+      bullet(g, "Booking rate by salesperson", monLbl + " · vs team average", spBook, pct, bk || 0, { noteKind: "how", note: `The 12 reps handling the most leads, ordered by volume. Bars below the lime line are converting under the team average (${pct(bk)}) — coaching targets. Booking rate = jobs booked this month (by booked date) ÷ qualified leads created.` });
       // ---- demand LOST to capacity (last 12 months): explicit signals + unworked leads + missed calls ----
       {
         let exp12 = 0, na12 = 0, missed12 = 0;
@@ -926,27 +1033,38 @@ async function renderMonthly(host, MRCFG) {
         ];
         const totLeads = rows3.reduce((a, r) => a + r.n, 0);
         const lostBook = Math.round(totLeads * (bk || 0)), lostRev = lostBook * (avgJob || 0);
-        const lHtml = `<table class="mrx-tbl"><thead><tr><th>Demand we could not work — last 12 months</th><th>Leads</th><th>× booking ${pct(bk)}</th><th>× avg job ${money(avgJob)}</th></tr></thead><tbody>${rows3.map(r => `<tr><td>${esc(r.k)}</td>${td(fmtN(r.n))}${td(fmtN(Math.round(r.n * (bk || 0))))}${td(money(Math.round(r.n * (bk || 0)) * (avgJob || 0)))}</tr>`).join("")}<tr class="tot"><td>Estimated lost demand / year</td>${td(fmtN(totLeads))}${td(fmtN(lostBook))}${td(money(lostRev))}</tr></tbody></table>`;
-        tableCard(g, "Leads lost to capacity — what more Sales & Dispatch could win", "last 12 months · estimate", lHtml, { icon: KIC.grid, headVal: money(lostRev), note: "An ESTIMATE with stated assumptions: expired leads are treated as unworked capacity loss; missed phone calls are discounted to first-time callers, then both are converted at the current booking rate and average job value. Fixing follow-up capacity claws back the middle column." });
+        // C18: plain column names + a labeled headline — no formula fragments in headers
+        const lHtml = `<table class="mrx-tbl"><thead><tr><th>Demand we could not work — last 12 months</th><th>Leads we couldn't work</th><th>Jobs we'd likely have booked</th><th>Revenue value (est.)</th></tr></thead><tbody>${rows3.map(r => `<tr><td>${esc(r.k)}</td>${td(fmtN(r.n))}${td(fmtN(Math.round(r.n * (bk || 0))))}${td(money(Math.round(r.n * (bk || 0)) * (avgJob || 0)))}</tr>`).join("")}<tr class="tot"><td>Estimated lost demand / year</td>${td(fmtN(totLeads))}${td(fmtN(lostBook))}${td(money(lostRev))}</tr></tbody></table>`;
+        tableCard(g, "Leads lost to capacity — what more Sales & Dispatch could win", "last 12 months · estimate", lHtml, { icon: KIC.grid, headVal: `${money(lostRev)}<div style="font-size:9.5px;color:${FAINT};font-weight:700">est. lost revenue / yr</div>`, noteKind: "how", note: `An estimate with stated assumptions: expired leads are treated as unworked capacity loss; missed phone calls are discounted to first-time callers, then both are converted at the current booking rate (${pct(bk)}) and average job value (${money(avgJob)}). Better follow-up capacity would recover the “jobs we'd likely have booked” column.` });
       }
     }
 
     /* ---- 07 · Lead Segmentation ---- */
     if (SEC("Lead Segmentation")) {
       const g = section("Lead Segmentation", "booking funnel by service type, size and cubic feet");
+      // C2: one created-scope + one booked-scope row set per year, shared by all four tables —
+      // every Booking % below is the canonical RS.bookingRate, never an inline ratio.
+      const ftCreated = reduceMonth("moveboard", curY, mo, rs => rs) || [];
+      const ftBooked = bookedRowsFor(curY, mo);
+      const ftCreatedLY = reduceMonth("moveboard", curY - 1, mo, rs => rs) || [];
+      const ftBookedLY = bookedRowsFor(curY - 1, mo);
       function funnelTable(title, col, sortFn) {
         const yy = String(curY - 1).slice(2);
-        const dAll = segReduce("moveboard", col, rs => rs, curY, mo).map(r => { const rows2 = r.rows; const tot = rows2.length, bad = rows2.filter(x => x["Status Category"] === "Bad Lead").length, q = tot - bad, c = rows2.filter(x => x["Status Category"] === "Confirmed").length; return { k: r.k, tot, q, c, bad, book: q ? c / q : null }; }).sort(sortFn || ((a, b) => b.tot - a.tot));
+        const bkGrp = groupByCol(ftBooked, col), bkGrpLY = groupByCol(ftBookedLY, col);
+        const dAll = Object.entries(groupByCol(ftCreated, col)).map(([k, rows2]) => { const tot = rows2.length, bad = rows2.filter(x => x["Status Category"] === "Bad Lead").length, q = tot - bad, c = rows2.filter(x => x["Status Category"] === "Confirmed").length; return { k, tot, q, c, bad, book: RS.bookingRate(rows2, bkGrp[k] || []) }; }).sort(sortFn || ((a, b) => b.tot - a.tot));
         const d = dAll.filter(r => r.k !== "—").slice(0, 12);  // blank segment hidden per feedback; Total row still counts it
         if (!d.length) return;
-        const plyMap = {}; let plyQ = 0, plyC = 0;
-        segReduce("moveboard", col, rs => rs, curY - 1, mo).forEach(r => { const rows2 = r.rows, bad = rows2.filter(x => x["Status Category"] === "Bad Lead").length, q = rows2.length - bad, c = rows2.filter(x => x["Status Category"] === "Confirmed").length; plyMap[r.k] = q ? c / q : null; plyQ += q; plyC += c; });
+        const plyMap = {};
+        Object.entries(groupByCol(ftCreatedLY, col)).forEach(([k, rows2]) => { plyMap[k] = RS.bookingRate(rows2, bkGrpLY[k] || []); });
         // Total row covers ALL segments (both years) — the table body shows the top 12 by volume
         const tot = dAll.reduce((a, b) => ({ tot: a.tot + b.tot, q: a.q + b.q, c: a.c + b.c, bad: a.bad + b.bad }), { tot: 0, q: 0, c: 0, bad: 0 });
+        const totBook = RS.bookingRate(ftCreated, ftBooked), totBookLY = RS.bookingRate(ftCreatedLY, ftBookedLY);
         const bkCell = (cur, ply) => { if (cur == null) return td("—"); const better = ply == null ? null : cur >= ply; return td(pct(cur), better == null ? "" : `color:${better ? "#1c7a4a" : "#b02a37"};font-weight:800`); };
-        const rowsH = d.map(r => `<tr><td>${esc(r.k === "—" ? "Unassigned" : r.k)}</td>${td(fmtN(r.tot))}${td(fmtN(r.q))}${td(fmtN(r.c))}${td(fmtN(r.bad))}${bkCell(r.book, plyMap[r.k])}${td(plyMap[r.k] == null ? "—" : pct(plyMap[r.k]), "color:#8a94a3")}</tr>`).join("");
-        const trow = `<tr class="tot"><td>Total</td>${td(fmtN(tot.tot))}${td(fmtN(tot.q))}${td(fmtN(tot.c))}${td(fmtN(tot.bad))}${td(tot.q ? pct(tot.c / tot.q) : "—")}${td(plyQ ? pct(plyC / plyQ) : "—", "color:#8a94a3")}</tr>`;
-        tableCard(g, title, monLbl, `<table class="mrx-tbl"><thead><tr><th>${esc(col === "Service Type" ? "Service type" : col)}</th><th>Total</th><th>Qual.</th><th>Conf.</th><th>Bad</th><th>Booking%</th><th>vs '${yy}</th></tr></thead><tbody>${rowsH}${trow}</tbody></table>`, { span2: false, icon: KIC.grid, headVal: fmtN(tot.tot), note: "Booking% is green when this month beats " + yy + "'s rate for that segment, red when below; last column is the " + yy + " rate." + (dAll.length > 12 ? " Table shows the top 12 of " + dAll.length + " segments; the Total row covers all of them." : "") });
+        const rowsH = d.map(r => `<tr><td>${esc(r.k)}</td>${td(fmtN(r.tot))}${td(fmtN(r.q))}${td(fmtN(r.c))}${td(fmtN(r.bad))}${bkCell(r.book, plyMap[r.k])}${td(plyMap[r.k] == null ? "—" : pct(plyMap[r.k]), "color:#8a94a3")}</tr>`).join("");
+        const trow = `<tr class="tot"><td>Total</td>${td(fmtN(tot.tot))}${td(fmtN(tot.q))}${td(fmtN(tot.c))}${td(fmtN(tot.bad))}${td(totBook == null ? "—" : pct(totBook))}${td(totBookLY == null ? "—" : pct(totBookLY), "color:#8a94a3")}</tr>`;
+        const blankN = (dAll.find(r => r.k === "—") || {}).tot || 0;
+        const colLbl = col === "Service Type" ? "Service type" : col === "CF Range" ? "Cubic feet (CF range)" : col;
+        tableCard(g, title, monLbl, `<table class="mrx-tbl"><thead><tr><th>${esc(colLbl)}</th><th>Total</th><th>Qualified</th><th>Confirmed</th><th>Bad leads</th><th>Booking %</th><th>vs '${yy}</th></tr></thead><tbody>${rowsH}${trow}</tbody></table>`, { span2: false, icon: KIC.grid, headVal: fmtN(tot.tot), noteKind: "how", note: "Booking % = jobs booked in the month (by booked date) ÷ qualified leads created; qualified = all leads minus bad leads. Green when this month beats " + yy + "'s rate for that segment, red when below; last column is the " + yy + " rate." + (dAll.length > 12 ? " Table shows the top 12 of " + dAll.length + " segments; the Total row covers all of them." : "") + (blankN ? ` ${fmtN(blankN)} leads with no ${colLbl.toLowerCase()} recorded are included in Total but not listed.` : "") });
       }
       funnelTable("Leads by service type", "Service Type");
       // sizes sort small→large: Single Item, Studio, 1-4 bedrooms (condo before house), then Storage/Office
@@ -960,7 +1078,7 @@ async function renderMonthly(host, MRCFG) {
       funnelTable("Leads by size of move", "Size of Move", (a, b) => sizeKey(a.k) - sizeKey(b.k) || String(a.k).localeCompare(String(b.k)));
       // CF ranges sort by their RANGE (numeric start; "Over …" last), not by lead volume
       const cfKey = s => { const m = String(s).match(/\d+/); if (!m) return Infinity; return (+m[0]) + (/over|\+|>/i.test(String(s)) ? 0.5 : 0); };
-      funnelTable("Leads by CF range", "CF Range", (a, b) => cfKey(a.k) - cfKey(b.k));
+      funnelTable("Leads by cubic feet (CF range)", "CF Range", (a, b) => cfKey(a.k) - cfKey(b.k));
       funnelTable("Leads by state", "State Name");
     }
 
@@ -970,8 +1088,9 @@ async function renderMonthly(host, MRCFG) {
       const revS = segSeries("closing", "Revenue", "State Name"), opS = segSeries("closing", "Operational Profit by Formula", "State Name"), jobS = segSeries("closing", "Total Jobs", "State Name");
       const opMap = {}, jobMap = {}; opS.forEach(r => opMap[r.k] = r.v); jobS.forEach(r => jobMap[r.k] = r.v);
       const revLyMap = {}; segSeries("closing", "Revenue", "State Name", curY - 1, mo).forEach(r => revLyMap[r.k] = r.v);
-      const bkS = segReduce("moveboard", "State Name", rs => { const q = rs.filter(r => r["Status Category"] !== "Bad Lead").length, c = rs.filter(r => r["Status Category"] === "Confirmed").length; return q ? c / q : null; }, curY, mo);
-      const bkMap = {}; bkS.forEach(r => bkMap[r.k] = r.v);
+      // C2: per-state booking rate uses the canonical dual-basis helper
+      const bkStBooked = groupByCol(bookedRowsFor(curY, mo), "State Name");
+      const bkMap = {}; segReduce("moveboard", "State Name", rs => rs, curY, mo).forEach(r => bkMap[r.k] = RS.bookingRate(r.rows, bkStBooked[r.k] || []));
       const states = revS.slice(0, 12).map(r => ({ k: r.k === "—" ? "No state on file" : r.k, rev: r.v, revLy: revLyMap[r.k] || 0, op: opMap[r.k] || 0, jobs: jobMap[r.k] || 0, bk: bkMap[r.k] }));
       const rmin = Math.min(...states.map(s2 => s2.rev)), rmax = Math.max(...states.map(s2 => s2.rev));
       const omin = Math.min(...states.map(s2 => s2.op)), omax = Math.max(...states.map(s2 => s2.op));
@@ -984,7 +1103,7 @@ async function renderMonthly(host, MRCFG) {
         ${barCell(s2.op, money, omax, "#e4f1d9")}
         ${barCell(s2.jobs, fmtN, jmax, "#eef1f5")}
         ${td(s2.bk == null ? "—" : pct(s2.bk), s2.bk == null ? "" : `color:${s2.bk >= (bk || 0) ? "#1c7a4a" : "#b02a37"};font-weight:800`)}</tr>`).join("");
-      tableCard(g, "State performance matrix", monLbl, `<table class="mrx-tbl"><thead><tr><th>State</th><th>Revenue</th><th>vs '${String(curY - 1).slice(2)}</th><th>Op. Profit</th><th>Jobs</th><th>Booking%</th></tr></thead><tbody>${rowsH}</tbody></table>`, { icon: KIC.grid, headVal: fmtN(states.length) + " states", note: "Bars show $ / jobs magnitude; vs '" + String(curY - 1).slice(2) + " is revenue YoY (green up, red down); Booking% is green above the team average. States are PICKUP-based; standalone trip jobs (grouped multi-job hauls with no closing sheet) use the trip's DELIVERY state instead. “No state on file” = closing sheets where State was left empty, plus a few trips without one — not a mapping error." });
+      tableCard(g, "State performance matrix", monLbl, `<table class="mrx-tbl"><thead><tr><th>State</th><th>Revenue</th><th>vs '${String(curY - 1).slice(2)}</th><th>Op. Profit</th><th>Jobs</th><th>Booking %</th></tr></thead><tbody>${rowsH}</tbody></table>`, { icon: KIC.grid, headVal: fmtN(states.length) + " states", noteKind: "how", note: "Bars show $ / jobs magnitude; vs '" + String(curY - 1).slice(2) + " is revenue YoY (green up, red down). Booking % = jobs booked in the month (by booked date) ÷ qualified leads created; green above the team average (" + pct(bk) + "). States are pickup-based; standalone trip jobs (grouped multi-job hauls with no closing sheet) use the trip's delivery state instead. “No state on file” = closing sheets where State was left empty, plus a few trips without one — not a mapping error." });
       rankBars(g, "Revenue by state", revS.map(r => ({ k: r.k === "—" ? "No state on file" : r.k, v: r.v })), money, { top: 10 });
       rankBars(g, "Jobs by state", jobS.map(r => ({ k: r.k === "—" ? "No state on file" : r.k, v: r.v })), fmtN, { top: 10 });
     }
@@ -996,59 +1115,74 @@ async function renderMonthly(host, MRCFG) {
       // design — the blank bucket is excluded so per-rep revenue never shows an unattributable "—" row
       const revSP = segSeries("closing", "Revenue", "Sales Person").filter(r => r.k !== "—"), opSP = segSeries("closing", "Operational Profit by Formula", "Sales Person");
       const opMap = {}; opSP.forEach(r => opMap[r.k] = r.v);
+      // C30: revenue keys on closing "Sales Person", lead columns on Moveboard "Assigned" —
+      // join after TRIM + CASE-ONLY normalization (never fuzzy matching: wrongly merging two
+      // reps' money is worse than a visible "—").
+      const normName = s => String(s == null ? "" : s).trim().toLowerCase();
       const mb = segReduce("moveboard", "Assigned", rs => rs, curY, mo);
-      const mbMap = {}; mb.forEach(r => { const q = r.rows.filter(x => x["Status Category"] !== "Bad Lead").length, c = r.rows.filter(x => x["Status Category"] === "Confirmed").length, bad = r.rows.filter(x => x["Status Category"] === "Bad Lead").length; mbMap[r.k] = { q, c, bad, tot: r.rows.length, book: q ? c / q : null, dead: r.rows.length ? bad / r.rows.length : null }; });
-      const refSP = {}; segReduce("refunds", "Sales Person", rs => Math.abs(rs.reduce((a, x) => a + num(x["Total refund"]), 0)), curY, mo).forEach(r => refSP[r.k] = r.v);
-      const reps = revSP.slice(0, 14).map(r => ({ k: r.k, rev: r.v, op: opMap[r.k] || 0, ref: refSP[r.k] || 0, m: mbMap[r.k] || {} }));
+      // C2: per-rep booking rate is the canonical dual-basis helper
+      const spBooked = groupByCol(bookedRowsFor(curY, mo), "Assigned");
+      const mbMap = {}; mb.forEach(r => { const q = r.rows.filter(x => x["Status Category"] !== "Bad Lead").length, c = r.rows.filter(x => x["Status Category"] === "Confirmed").length, bad = r.rows.filter(x => x["Status Category"] === "Bad Lead").length; mbMap[normName(r.k)] = { q, c, bad, tot: r.rows.length, book: RS.bookingRate(r.rows, spBooked[r.k] || []), dead: r.rows.length ? bad / r.rows.length : null }; });
+      const refSP = {}; segReduce("refunds", "Sales Person", rs => Math.abs(rs.reduce((a, x) => a + num(x["Total refund"]), 0)), curY, mo).forEach(r => refSP[normName(r.k)] = r.v);
+      const reps = revSP.slice(0, 14).map(r => ({ k: r.k, rev: r.v, op: opMap[r.k] || 0, ref: refSP[normName(r.k)] || 0, m: mbMap[normName(r.k)] || {} }));
       const rmax = Math.max(...reps.map(r => r.rev));
       const rowsH = reps.map(r => `<tr><td>${esc(r.k)}</td>
         <td class="bar"><i style="width:${(r.rev / rmax * 100).toFixed(1)}%"></i><span>${money(r.rev)}</span></td>
         ${td(money(r.op))}${td(r.ref ? money(r.ref) : "—", r.ref ? "color:#b02a37;font-weight:800" : "")}${td(r.ref && r.rev ? pct(r.ref / r.rev) : "—", r.ref && r.rev && r.ref / r.rev > 0.02 ? "color:#b02a37;font-weight:800" : "")}${td(fmtN(r.m.q || 0))}${td(fmtN(r.m.c || 0))}
         ${td(r.m.book == null ? "—" : pct(r.m.book), r.m.book == null ? "" : `color:${r.m.book >= (bk || 0) ? "#1c7a4a" : "#b02a37"};font-weight:800`)}
         ${td(r.m.dead == null ? "—" : pct(r.m.dead), r.m.dead == null ? "" : `color:${r.m.dead > .3 ? "#b02a37" : "#1c7a4a"};font-weight:800`)}</tr>`).join("");
-      tableCard(g, "Salesperson scorecard", monLbl, `<table class="mrx-tbl"><thead><tr><th>Sales Person</th><th>Revenue</th><th>Op. Profit</th><th>Refunds</th><th>Ref%</th><th>Qual.</th><th>Conf.</th><th>Booking%</th><th>Dead%</th></tr></thead><tbody>${rowsH}</tbody></table>`, { icon: KIC.grid, headVal: fmtN(reps.length) + " reps", note: "Bars = revenue share; Refunds/Ref% = money refunded on the rep's jobs as a share of their revenue (red above 2%); Booking% green>team-avg; Dead% red when high. Op. Profit is before refunds." });
+      tableCard(g, "Salesperson scorecard", monLbl, `<table class="mrx-tbl"><thead><tr><th>Sales Person</th><th>Revenue</th><th>Op. Profit</th><th>Refunds</th><th>Refund %</th><th>Qualified</th><th>Confirmed</th><th>Booking %</th><th>Bad-lead %</th></tr></thead><tbody>${rowsH}</tbody></table>`, { icon: KIC.grid, headVal: fmtN(reps.length) + " reps", noteKind: "how", note: `Bars = revenue share. Refunds / Refund % = money refunded on the rep's jobs as a share of their revenue (red above 2%). Booking % = jobs booked this month (by booked date) ÷ qualified leads created (qualified = all leads minus bad leads); green above the team average (${pct(bk)}). Bad-lead % red when high. Op. Profit is before refunds. Lead columns come from Moveboard assignment, revenue and refunds from closing sheets — names are matched after trimming spaces and ignoring case.` });
       const bigPre = { pre: r => String(r["Big Job Status"]) === "Yes" };  // clean flag, not a CF-range regex
-      const bigMb = segReduce("moveboard", "Assigned", rs => rs, curY, mo, bigPre).map(r => { const q = r.rows.filter(x => x["Status Category"] !== "Bad Lead").length, c = r.rows.filter(x => x["Status Category"] === "Confirmed").length; return { k: r.k, q, c, book: q ? c / q : null }; }).filter(r => r.q >= 2).sort((a, b) => b.q - a.q).slice(0, 10);
+      const bigBooked = groupByCol(bookedRowsFor(curY, mo, bigPre.pre), "Assigned");
+      const bigMb = segReduce("moveboard", "Assigned", rs => rs, curY, mo, bigPre).map(r => { const q = r.rows.filter(x => x["Status Category"] !== "Bad Lead").length, c = r.rows.filter(x => x["Status Category"] === "Confirmed").length; return { k: r.k, q, c, book: RS.bookingRate(r.rows, bigBooked[r.k] || []) }; }).filter(r => r.q >= 2).sort((a, b) => b.q - a.q).slice(0, 10);
       const revSPly = {}; segSeries("closing", "Revenue", "Sales Person", curY - 1, mo).forEach(r => revSPly[r.k] = r.v);
       const opSPly = {}; segSeries("closing", "Operational Profit by Formula", "Sales Person", curY - 1, mo).forEach(r => opSPly[r.k] = r.v);
       const topReps = revSP.slice(0, 10);
       groupedBars(g, "Revenue by salesperson — YoY", topReps.map(r => r.k), topReps.map(r => revSPly[r.k] || 0), String(curY - 1), topReps.map(r => r.v), String(curY), money, { sub: MON[mo] });
       groupedBars(g, "Op. profit by salesperson — YoY", topReps.map(r => r.k), topReps.map(r => opSPly[r.k] || 0), String(curY - 1), topReps.map(r => opMap[r.k] || 0), String(curY), money, { sub: MON[mo] + " · before refunds" });
-      if (bigMb.length) groupedBars(g, "Large moves (>1000 CF) — Qualified vs Confirmed", bigMb.map(r => r.k), bigMb.map(r => r.q), "Qualified", bigMb.map(r => r.c), "Confirmed", fmtN, { sub: monLbl });
+      // C27: the filter is the Moveboard "Big Job" flag — the title must not claim a CF threshold
+      if (bigMb.length) groupedBars(g, "Large moves (Big Job flag) — Qualified vs Confirmed", bigMb.map(r => r.k), bigMb.map(r => r.q), "Qualified", bigMb.map(r => r.c), "Confirmed", fmtN, { sub: monLbl });
       const bigBook = bigMb.filter(r => r.book != null).map(r => ({ k: r.k, v: r.book }));
-      if (bigBook.length) bullet(g, "Large-move (>1000 CF) booking rate by rep", monLbl + " · vs team avg", bigBook, pct, bk || 0, {});
+      if (bigBook.length) bullet(g, "Large-move (Big Job flag) booking rate by rep", monLbl + " · vs team avg", bigBook, pct, bk || 0, {});
     }
 
     /* ---- 10 · Marketing & Channels ---- */
     if (SEC("Marketing & Channels")) {
-      const g = section("Marketing & Channels", "the return story: ROI → efficiency → spend → outcomes → demand");
-      // ===== 1 · RETURN (headline) — ad feed lags ~1 mo, so every ROI lens anchors to the last fully-posted ad month =====
+      const g = section("Marketing & Channels", "ad spend, what it returns, and where leads come from");
+      // ===== 1 · RETURN (headline) =====
       // ad feed splits post cards by state ("Post Card - MA/DE/NJ…") while bookings pool them as "Post Card" — align both sides so ROI isn't falsely 0×
       const normSrc = s => /post\s*card/i.test(String(s)) ? "Post Card" : (blank(s) ? "—" : String(s));
       const adSrcMonth = (y, m) => { const o = {}; (reduceMonth("card_expenses", y, m, rs => rs.filter(r => Number(r["Is Advertising"]) === 1)) || []).forEach(r => { const s2 = normSrc(r.Source); o[s2] = (o[s2] || 0) + num(r.Amount); }); return o; };
       const bySrcMonth = (measure, y, m) => { const o = {}; segSeries("closing", measure, "Source", y, m).forEach(r => { const k = normSrc(r.k); o[k] = (o[k] || 0) + r.v; }); return o; };
-      const adPM = adSrcMonth(PMY, PM), revPMs = bySrcMonth("Revenue", PMY, PM), opPMs = bySrcMonth("Operational Profit by Formula", PMY, PM), jobPMs = bySrcMonth("Total Jobs", PMY, PM);
-      const adLYr = adSrcMonth(PMY - 1, PM), revLYr = bySrcMonth("Revenue", PMY - 1, PM);
-      const roiLbl = MON[PM] + " " + PMY;
+      // C25: the ad feed lags ~1 month — but only fall back to the PREVIOUS month when the
+      // SELECTED month has no posted ad spend yet. An older report month shows its own ROI.
+      const adSel = adSrcMonth(curY, mo);
+      const selHasSpend = Object.keys(adSel).some(k => adSel[k] > 0 && k !== "—");
+      const roiY = selHasSpend ? curY : PMY, roiM = selHasSpend ? mo : PM, roiFellBack = !selHasSpend;
+      const adPM = selHasSpend ? adSel : adSrcMonth(roiY, roiM), revPMs = bySrcMonth("Revenue", roiY, roiM), opPMs = bySrcMonth("Operational Profit by Formula", roiY, roiM), jobPMs = bySrcMonth("Total Jobs", roiY, roiM);
+      const adLYr = adSrcMonth(roiY - 1, roiM), revLYr = bySrcMonth("Revenue", roiY - 1, roiM);
+      const roiLbl = MON[roiM] + " " + roiY;
       // hide channels we no longer buy: only sources with ad spend in the CURRENT year appear in the ROI suite
-      const src2026 = new Set(); (DS.card_expenses || []).forEach(r => { if (Number(r["Is Advertising"]) === 1 && String(r["Transaction Date"] || "").slice(0, 4) === String(curY) && num(r.Amount)) src2026.add(normSrc(r.Source)); });
+      const src2026 = new Set(); (DS.card_expenses || []).forEach(r => { if (coRow(r) && Number(r["Is Advertising"]) === 1 && String(r["Transaction Date"] || "").slice(0, 4) === String(curY) && num(r.Amount)) src2026.add(normSrc(r.Source)); });
       const paidPM = Object.keys(adPM).filter(k => adPM[k] > 0 && k !== "—" && src2026.has(k)).sort((a, b) => adPM[b] - adPM[a]);
       if (paidPM.length) {
         const roiRows = paidPM.map(k => { const roi = adPM[k] ? (revPMs[k] || 0) / adPM[k] : null; const roiLY = adLYr[k] ? (revLYr[k] || 0) / adLYr[k] : null; return { k, ad: adPM[k], rev: revPMs[k] || 0, op: opPMs[k] || 0, jobs: jobPMs[k] || 0, roi, roiLY, ppd: adPM[k] ? (opPMs[k] || 0) / adPM[k] : null }; });
         const rt = roiRows.reduce((a, r) => ({ ad: a.ad + r.ad, rev: a.rev + r.rev, op: a.op + r.op }), { ad: 0, rev: 0, op: 0 });
         const roiCol = v => v >= 5 ? "#1c7a4a" : v >= 2 ? "#7a5a12" : "#b02a37";
         const growCell = r => { if (r.roi == null || r.roiLY == null || !r.roiLY) return td("—", "color:#8a94a3"); const d2 = (r.roi - r.roiLY) / r.roiLY; return td(`${d2 >= 0 ? "▲" : "▼"} ${Math.abs(d2 * 100).toFixed(0)}%`, `color:${d2 >= 0 ? "#1c7a4a" : "#b02a37"};font-weight:800`); };
-        const roiHtml = `<table class="mrx-tbl"><thead><tr><th>Source</th><th>Ad Spend</th><th>Revenue</th><th>ROI</th><th>ROI vs '${String(PMY - 1).slice(2)}</th><th>Profit / $1 ad</th></tr></thead><tbody>${roiRows.map(r => `<tr><td>${esc(r.k)}</td>${td(money(r.ad))}${td(money(r.rev))}${td(r.roi == null ? "—" : r.roi.toFixed(1) + "×", r.roi == null ? "" : `color:${roiCol(r.roi)};font-weight:800`)}${growCell(r)}${td(r.ppd == null ? "—" : "$" + fmt1(r.ppd), r.ppd == null ? "" : `color:${r.ppd >= 3 ? "#1c7a4a" : r.ppd >= 1 ? "#7a5a12" : "#b02a37"};font-weight:800`)}</tr>`).join("")}<tr class="tot"><td>All paid</td>${td(money(rt.ad))}${td(money(rt.rev))}${td(rt.ad ? (rt.rev / rt.ad).toFixed(1) + "×" : "—")}${td("")}${td(rt.ad ? "$" + fmt1(rt.op / rt.ad) : "—")}</tr></tbody></table>`;
-        tableCard(g, "Return on ad spend by source", roiLbl + " · latest fully-posted ad month", roiHtml, { icon: KIC.grid, headVal: (rt.ad ? (rt.rev / rt.ad).toFixed(1) + "×" : "—") + " blended", note: `Ad spend posts ~1 month behind, so ROI is shown for ${roiLbl} (the latest complete ad month) — ${MON[mo]}'s revenue/jobs are final, its ad/ROI fill once the feed lands. ROI = revenue ÷ ad spend; “ROI vs '${String(PMY - 1).slice(2)}” is the growth of that ROI vs the same month last year; Profit/$1 = operational profit per ad dollar (before refunds). Green ROI ≥5×, amber ≥2×, red below. Post-card variants pooled.` });
+        const yyR = String(roiY - 1).slice(2);
+        const roiHtml = `<table class="mrx-tbl"><thead><tr><th>Source</th><th>Ad Spend</th><th>Revenue</th><th>ROAS</th><th>ROAS vs '${yyR}</th><th>Profit / $1 ad</th></tr></thead><tbody>${roiRows.map(r => `<tr><td>${esc(r.k)}</td>${td(money(r.ad))}${td(money(r.rev))}${td(r.roi == null ? "—" : r.roi.toFixed(1) + "×", r.roi == null ? "" : `color:${roiCol(r.roi)};font-weight:800`)}${growCell(r)}${td(r.ppd == null ? "—" : "$" + fmt1(r.ppd), r.ppd == null ? "" : `color:${r.ppd >= 3 ? "#1c7a4a" : r.ppd >= 1 ? "#7a5a12" : "#b02a37"};font-weight:800`)}</tr>`).join("")}<tr class="tot"><td>All paid</td>${td(money(rt.ad))}${td(money(rt.rev))}${td(rt.ad ? (rt.rev / rt.ad).toFixed(1) + "×" : "—")}${td("")}${td(rt.ad ? "$" + fmt1(rt.op / rt.ad) : "—")}</tr></tbody></table>`;
+        tableCard(g, "Return on ad spend by source", roiLbl + (roiFellBack ? " · latest fully-posted ad month" : ""), roiHtml, { icon: KIC.grid, headVal: (rt.ad ? (rt.rev / rt.ad).toFixed(1) + "×" : "—") + " blended", noteKind: "how", note: `${roiFellBack ? `Ad spend posts ~1 month behind and ${MON[mo]}'s hasn't landed yet, so returns are shown for ${roiLbl} (the latest complete ad month) — ${MON[mo]}'s numbers fill in once the feed lands. ` : ""}ROAS = revenue ÷ ad spend; “ROAS vs '${yyR}” is the growth of that return vs the same month last year; Profit/$1 = operational profit per ad dollar (before refunds). Green ROAS ≥5×, amber ≥2×, red below. Post-card variants pooled.` });
         // ===== 2 · EFFICIENCY ===== (headlines are BLENDED totals — summing per-channel ratios is meaningless)
         const totAdJobs = paidPM.reduce((a, k) => a + (jobPMs[k] || 0), 0);
-        rankBars(g, "Operational profit per $1 of ad spend", paidPM.map(k => ({ k, v: adPM[k] ? (opPMs[k] || 0) / adPM[k] : 0 })).filter(r => r.v > 0).sort((a, b) => b.v - a.v), v => "$" + fmt1(v), { top: 10, sub: roiLbl, headVal: rt.ad ? "$" + fmt1(rt.op / rt.ad) : "—", note: "Each ad dollar's operational-profit return, by channel (before refunds) — the cleanest 'is this channel worth it' number. Headline = blended: total op. profit ÷ total ad spend." });
-        rankBars(g, "Cost to acquire a booked job", paidPM.map(k => ({ k, v: (jobPMs[k] || 0) > 0 ? adPM[k] / jobPMs[k] : 0 })).filter(r => r.v > 0).sort((a, b) => b.v - a.v), money, { top: 10, sub: roiLbl, headVal: totAdJobs ? money(rt.ad / totAdJobs) : "—", note: "Ad spend ÷ booked jobs, per source — your cost of acquisition. Lower is better; the top of the list is where a job costs the most to win. Headline = blended: total ad ÷ total booked jobs." });
+        rankBars(g, "Operational profit per $1 of ad spend", paidPM.map(k => ({ k, v: adPM[k] ? (opPMs[k] || 0) / adPM[k] : 0 })).filter(r => r.v > 0).sort((a, b) => b.v - a.v), v => "$" + fmt1(v), { top: 10, sub: roiLbl, headVal: rt.ad ? "$" + fmt1(rt.op / rt.ad) : "—", noteKind: "how", note: "Each ad dollar's operational-profit return, by channel (before refunds) — the cleanest 'is this channel worth it' number. Headline = blended: total op. profit ÷ total ad spend." });
+        // N32: one name portal-wide for spend ÷ jobs — "Ad cost per completed job"
+        rankBars(g, "Ad cost per completed job", paidPM.map(k => ({ k, v: (jobPMs[k] || 0) > 0 ? adPM[k] / jobPMs[k] : 0 })).filter(r => r.v > 0).sort((a, b) => b.v - a.v), money, { top: 10, sub: roiLbl, headVal: totAdJobs ? money(rt.ad / totAdJobs) : "—", noteKind: "how", note: "Ad spend ÷ completed jobs, per source. Lower is better; the top of the list is where a job costs the most to win. Headline = blended: total ad spend ÷ total completed jobs." });
         // ===== 3 · TREND & SPEND =====
-        const t3 = []; { let y = PMY, m = PM; for (let i = 0; i < 3; i++) { t3.push([y, m]); m--; if (m < 1) { m = 12; y--; } } }
+        const t3 = []; { let y = roiY, m = roiM; for (let i = 0; i < 3; i++) { t3.push([y, m]); m--; if (m < 1) { m = 12; y--; } } }
         const adT3 = {}, revT3 = {}; t3.forEach(p => { const a = adSrcMonth(p[0], p[1]), rv = bySrcMonth("Revenue", p[0], p[1]); Object.keys(a).forEach(k => adT3[k] = (adT3[k] || 0) + a[k]); Object.keys(rv).forEach(k => revT3[k] = (revT3[k] || 0) + rv[k]); });
         const topPaid = paidPM.slice(0, 8);
-        groupedBars(g, "ROI — latest month vs trailing 3-mo", topPaid, topPaid.map(k => adT3[k] ? (revT3[k] || 0) / adT3[k] : 0), "3-mo avg", topPaid.map(k => adPM[k] ? (revPMs[k] || 0) / adPM[k] : 0), roiLbl, v => v.toFixed(1) + "×", { sub: "revenue ÷ ad spend · which channels are trending up", headVal: (rt.ad ? (rt.rev / rt.ad).toFixed(1) + "×" : "—") });
+        groupedBars(g, "ROAS — latest month vs last 3 months combined", topPaid, topPaid.map(k => adT3[k] ? (revT3[k] || 0) / adT3[k] : 0), "last 3 months combined", topPaid.map(k => adPM[k] ? (revPMs[k] || 0) / adPM[k] : 0), roiLbl, v => v.toFixed(1) + "×", { sub: "revenue ÷ ad spend · which channels are trending up", headVal: (rt.ad ? (rt.rev / rt.ad).toFixed(1) + "×" : "—") });
       }
       const adTrend = momReduce("card_expenses", 12, rs => { const ad = rs.filter(r => Number(r["Is Advertising"]) === 1); return ad.length ? ad.reduce((a, r) => a + num(r.Amount), 0) : null; });
       lines(g, "Advertising spend — momentum", "last 12 months", [ { label: "Ad Spend", series: adTrend, color: AMBER } ], moneyC, { headVal: money(lastV(adTrend)) });
@@ -1057,15 +1191,20 @@ async function renderMonthly(host, MRCFG) {
       const opM = {}, jbM = {}; opBySrc.forEach(r => opM[r.k] = r.v); jobBySrc.forEach(r => jbM[r.k] = r.v);
       const seRows = revBySrc.slice(0, 12).map(r => ({ k: r.k, jobs: jbM[r.k] || 0, rev: r.v, op: opM[r.k] || 0 }));
       const seHtml = `<table class="mrx-tbl"><thead><tr><th>Source</th><th>Jobs</th><th>Revenue</th><th>Op. Profit</th></tr></thead><tbody>${seRows.map(r => `<tr><td>${esc(r.k)}</td>${td(fmtN(r.jobs))}${td(money(r.rev))}${td(money(r.op))}</tr>`).join("")}</tbody></table>`;
-      tableCard(g, "Source mix — jobs · revenue · profit", monLbl, seHtml, { icon: KIC.grid, headVal: fmtN(seRows.length) + " sources", note: "Ranked by revenue (top 12); Op. Profit is before refunds. Use ⬇ Excel to re-rank by jobs or profit." });
-      // ad-leads funnel by channel (deck s61-62): does the channel's lead VOLUME convert, not just its revenue
-      const lfAll = segReduce("moveboard", "Source", rs => rs, curY, mo).map(r => { const rows2 = r.rows, tot = rows2.length, bad = rows2.filter(x => x["Status Category"] === "Bad Lead").length, q = tot - bad, c2 = rows2.filter(x => x["Status Category"] === "Confirmed").length; return { k: r.k === "—" ? "(blank)" : r.k, tot, q, c: c2, bad, book: q ? c2 / q : null }; }).sort((a, b) => b.tot - a.tot);
+      tableCard(g, "Source mix — jobs · revenue · profit", monLbl, seHtml, { icon: KIC.grid, headVal: fmtN(seRows.length) + " sources", noteKind: "how", note: "Ranked by revenue (top 12); Op. Profit is before refunds. Use ⬇ Excel to re-rank by jobs or profit." });
+      // ad-leads funnel by channel (deck s61-62): does the channel's lead VOLUME convert, not just its revenue.
+      // C2: Booking % per channel is the canonical dual-basis helper.
+      const lfBooked = groupByCol(bookedRowsFor(curY, mo), "Source");
+      const lfCreated = reduceMonth("moveboard", curY, mo, rs => rs) || [];
+      const lfAll = segReduce("moveboard", "Source", rs => rs, curY, mo).map(r => { const rows2 = r.rows, tot = rows2.length, bad = rows2.filter(x => x["Status Category"] === "Bad Lead").length, q = tot - bad, c2 = rows2.filter(x => x["Status Category"] === "Confirmed").length; return { k: r.k === "—" ? "(blank)" : r.k, tot, q, c: c2, bad, book: RS.bookingRate(rows2, lfBooked[r.k] || []) }; }).sort((a, b) => b.tot - a.tot);
       const lfRows = lfAll.filter(r => r.k !== "(blank)").slice(0, 12);  // blank source hidden; Total row still counts it
       if (lfRows.length) {
         // Total row covers ALL sources, so it reconciles with the Leads KPI (the body shows the top 12)
         const lfTot = lfAll.reduce((a, b) => ({ tot: a.tot + b.tot, q: a.q + b.q, c: a.c + b.c, bad: a.bad + b.bad }), { tot: 0, q: 0, c: 0, bad: 0 });
-        const lfHtml = `<table class="mrx-tbl"><thead><tr><th>Source</th><th>Leads</th><th>Qual.</th><th>Conf.</th><th>Bad</th><th>Booking%</th></tr></thead><tbody>${lfRows.map(r => `<tr><td>${esc(r.k)}</td>${td(fmtN(r.tot))}${td(fmtN(r.q))}${td(fmtN(r.c))}${td(fmtN(r.bad))}${td(r.book == null ? "—" : pct(r.book), r.book == null ? "" : `color:${r.book >= (bk || 0) ? "#1c7a4a" : "#b02a37"};font-weight:800`)}</tr>`).join("")}<tr class="tot"><td>Total${lfAll.length > 12 ? ` (all ${lfAll.length} sources)` : ""}</td>${td(fmtN(lfTot.tot))}${td(fmtN(lfTot.q))}${td(fmtN(lfTot.c))}${td(fmtN(lfTot.bad))}${td(lfTot.q ? pct(lfTot.c / lfTot.q) : "—")}</tr></tbody></table>`;
-        tableCard(g, "Lead funnel by source", monLbl + (lfAll.length > 12 ? " · top 12 of " + lfAll.length : ""), lfHtml, { icon: KIC.grid, headVal: fmtN(lfTot.tot) + " leads", note: "Each channel's lead volume through the funnel — a channel can look great on revenue but be wasting leads (red booking% = below team average). The Total row counts every source, so it matches the Leads KPI." });
+        const lfTotBook = RS.bookingRate(lfCreated, bookedRowsFor(curY, mo));
+        const lfBlank = (lfAll.find(r => r.k === "(blank)") || {}).tot || 0;
+        const lfHtml = `<table class="mrx-tbl"><thead><tr><th>Source</th><th>Leads</th><th>Qualified</th><th>Confirmed</th><th>Bad leads</th><th>Booking %</th></tr></thead><tbody>${lfRows.map(r => `<tr><td>${esc(r.k)}</td>${td(fmtN(r.tot))}${td(fmtN(r.q))}${td(fmtN(r.c))}${td(fmtN(r.bad))}${td(r.book == null ? "—" : pct(r.book), r.book == null ? "" : `color:${r.book >= (bk || 0) ? "#1c7a4a" : "#b02a37"};font-weight:800`)}</tr>`).join("")}<tr class="tot"><td>Total${lfAll.length > 12 ? ` (all ${lfAll.length} sources)` : ""}</td>${td(fmtN(lfTot.tot))}${td(fmtN(lfTot.q))}${td(fmtN(lfTot.c))}${td(fmtN(lfTot.bad))}${td(lfTotBook == null ? "—" : pct(lfTotBook))}</tr></tbody></table>`;
+        tableCard(g, "Lead funnel by source", monLbl + (lfAll.length > 12 ? " · top 12 of " + lfAll.length : ""), lfHtml, { icon: KIC.grid, headVal: fmtN(lfTot.tot) + " leads", noteKind: "how", note: `Each channel's lead volume through the funnel — a channel can look great on revenue but be wasting leads. Booking % = jobs booked this month (by booked date) ÷ qualified leads created; red = below the team average (${pct(bk)}). The Total row counts every source, so it matches the Leads KPI.${lfBlank ? ` ${fmtN(lfBlank)} leads with no source recorded are included in Total but not listed.` : ""}` });
       }
       // ===== 5 · INBOUND DEMAND =====
       const callLabels = momReduce("callrail", 12, rs => rs.length).map(r => r.k);
@@ -1075,21 +1214,28 @@ async function renderMonthly(host, MRCFG) {
       const callsBySrc = segReduce("callrail", "Source", rs => rs.length, curY, mo).slice(0, 10);
       const ftc = reduceMonth("callrail", curY, mo, rs => { const t = rs.length, f = rs.filter(r => Number(r["First-Time Caller"]) === 1).length; return t ? f / t : null; });
       rankBars(g, "Calls by source", callsBySrc, fmtN, { top: 10, sub: monLbl, note: ftc == null ? "" : `${pct(ftc)} of calls this month were first-time callers.` });
-      // ===== 6 · PHONE SYSTEM (RingCentral — deck s75; the WHOLE phone system, not just marketing numbers) =====
+    }
+
+    /* ---- Phone & Response (S3: RingCentral — the WHOLE phone system, deck s75) ----
+       Split out of Marketing & Channels so the Support view sees answer rate and missed
+       calls — the metrics that ARE their job. Marketing keeps it in its view list too. */
+    if (SEC("Phone & Response")) {
+      const g = section("Phone & Response", "call volume, answer rate and outbound effort — the whole phone system");
       const rcMonths = (() => { const o = []; let y = curY, m = mo; for (let i = 0; i < 12; i++) { o.unshift({ ym: `${y}-${String(m).padStart(2, "0")}`, k: MS[m] + " " + String(y).slice(2) }); m--; if (m < 1) { m = 12; y--; } } return o; })();
       if (rcMonths.some(x => rcAgg[x.ym])) {
         const cVol = stackedTime(g, "Phone system — call volume", "last 12 months (RingCentral)", rcMonths.map(x => x.k),
           [ { label: "Incoming", data: rcMonths.map(x => (rcAgg[x.ym] || {}).in || 0), color: INK },
             { label: "Outgoing", data: rcMonths.map(x => (rcAgg[x.ym] || {}).out || 0), color: CTX } ], fmtN);
-        if (cVol) note(cVol, "The company phone system end-to-end — inbound AND outbound on every line. The CallRail card above covers only tracked marketing numbers.");
+        if (cVol) note(cVol, "The company phone system end-to-end — inbound AND outbound on every line. The CallRail card in Marketing & Channels covers only tracked marketing numbers.", "how");
         const ansT = rcMonths.map(x => { const b = rcAgg[x.ym]; return { k: x.k, v: b && b.in ? b.ans / b.in : null }; });
         const curB = rcAgg[`${curY}-${String(mo).padStart(2, "0")}`];
         const cAns = lines(g, "Incoming answer rate", "last 12 months (RingCentral)", [{ label: "Answered %", series: ansT, color: LIMED }], pct, { headVal: pct(lastV(ansT)) });
-        if (curB && curB.in) note(cAns, `${MON[mo]}: ${fmtN(curB.ans)} of ${fmtN(curB.in)} incoming calls answered (${pct(curB.ans / curB.in)}) — ${fmtN(curB.in - curB.ans)} missed, abandoned or failed. Outbound side: ${fmtN(curB.out)} calls, ${fmt1(curB.dur / 3600)}h total talk time.`);
+        // C29: state the counting rule — RingCentral's own report may group voicemail differently
+        if (curB && curB.in) note(cAns, `${MON[mo]}: ${fmtN(curB.ans)} of ${fmtN(curB.in)} incoming calls answered (${pct(curB.ans / curB.in)}) — ${fmtN(curB.in - curB.ans)} missed, abandoned or failed. Answered = call connected or accepted; voicemail counts as missed. Outbound side: ${fmtN(curB.out)} calls, ${fmt1(curB.dur / 3600)}h total talk time.`, "how");
         if (curB && Object.keys(curB.names).length) {
           const byN = Object.entries(curB.names).map(([k, v]) => ({ k, v: v.out, dur: v.dur })).sort((a, b) => b.v - a.v);
           rankBars(g, "Outbound calls by teammate", byN.map(r => ({ k: r.k, v: r.v })), fmtN, { top: 10, sub: monLbl + " (RingCentral)" });
-          rankBars(g, "Outbound talk time by teammate", byN.map(r => ({ k: r.k, v: r.dur / 3600 })).sort((a, b) => b.v - a.v), v => fmt1(v) + "h", { top: 10, sub: monLbl + " (RingCentral)", note: "Hours actually spent on outbound calls — dial effort, not just dial count." });
+          rankBars(g, "Outbound talk time by teammate", byN.map(r => ({ k: r.k, v: r.dur / 3600 })).sort((a, b) => b.v - a.v), v => fmt1(v) + "h", { top: 10, sub: monLbl + " (RingCentral)", noteKind: "how", note: "Hours actually spent on outbound calls — dial effort, not just dial count." });
         }
       }
     }
@@ -1114,10 +1260,12 @@ async function renderMonthly(host, MRCFG) {
         const sc = scRows.map(r => ({ f: r.Foreman, jobs: num(r["Total Jobs"]), cf: num(r["Total CF"]), written: num(r["Total Packing Written"]), est: num(r["Total Packing Estimate"]), rev: num(r["Total Reviews Written"]), claims: num(r["Forman Fault Claims"]), score: num(r["Forman Score"]), rank: num(r["Forman Score Rank"]), prev: num(r["Forman Score Prev Month"]) }))
           .sort((a, b) => (a.rank || 999) - (b.rank || 999)).slice(0, 15);
         const smax = Math.max(...sc.map(r => r.score || 0)) || 1;
+        // C24/Q5: 'vs Est' is colored BY VALUE — green only when written ≥ estimate (≥1×);
+        // under-delivery is red, never a flattering unconditional green.
         const rowsH = sc.map((r, i) => { const arrow = r.prev ? (r.score > r.prev ? `<span style="color:${POS}">▲</span>` : r.score < r.prev ? `<span style="color:${NEG}">▼</span>` : "–") : ""; const up = r.est > 0 ? r.written / r.est : null; return `<tr><td>${i === 0 ? "👑 " : ""}${esc(r.f)}</td>
-          ${td(fmtN(r.jobs) + mArrow(r.jobs, jobsFmPM[r.f]))}${td(fmtN(r.cf))}${td(money(payM[r.f] || 0) + mArrow(payM[r.f] || 0, payPM[r.f]))}${td(money(tipsM[r.f] || 0) + mArrow(tipsM[r.f] || 0, tipsPM[r.f]))}${td(money(r.written))}${td(up == null ? "—" : up.toFixed(1) + "×", up == null ? "" : `color:#1c7a4a;font-weight:800`)}${td(r.rev ? fmtN(r.rev) : "0", r.rev ? "" : "color:#b02a37;font-weight:800")}${td(fmtN(r.claims), r.claims > 0 ? `color:#b02a37;font-weight:800` : "")}${td(refM[r.f] ? money(refM[r.f]) : "—", refM[r.f] ? `color:#b02a37;font-weight:800` : "")}
+          ${td(fmtN(r.jobs) + mArrow(r.jobs, jobsFmPM[r.f]))}${td(fmtN(r.cf))}${td(money(payM[r.f] || 0) + mArrow(payM[r.f] || 0, payPM[r.f]))}${td(money(tipsM[r.f] || 0) + mArrow(tipsM[r.f] || 0, tipsPM[r.f]))}${td(money(r.written))}${td(up == null ? "—" : up.toFixed(1) + "×", up == null ? "" : `color:${up >= 1 ? "#1c7a4a" : "#b02a37"};font-weight:800`)}${td(r.rev ? fmtN(r.rev) : "0", r.rev ? "" : "color:#b02a37;font-weight:800")}${td(fmtN(r.claims), r.claims > 0 ? `color:#b02a37;font-weight:800` : "")}${td(refM[r.f] ? money(refM[r.f]) : "—", refM[r.f] ? `color:#b02a37;font-weight:800` : "")}
           <td class="bar"><i style="width:${(r.score / smax * 100).toFixed(0)}%;background:#dcecab"></i><span>${fmt1(r.score)} ${arrow}</span></td></tr>`; }).join("");
-        tableCard(g, "Foreman scorecard — ranked", monLbl, `<table class="mrx-tbl"><thead><tr><th>Foreman</th><th>Jobs</th><th>CF</th><th>Pay</th><th>Tips</th><th>Packing</th><th>vs Est</th><th>Reviews</th><th>Claims</th><th>Refunds</th><th>Score</th></tr></thead><tbody>${rowsH}</tbody></table>`, { icon: KIC.grid, headVal: fmtN(sc.length) + " crews", note: `Pay/Tips from closings; ▲▼ arrows on Jobs/Pay/Tips compare vs ${MS[PM]}; 'vs Est' = packing written ÷ quoted estimate; Score = composite w/ MoM arrow. Rank 1 crowned.` });
+        tableCard(g, "Foreman scorecard — ranked", monLbl, `<table class="mrx-tbl"><thead><tr><th>Foreman</th><th>Jobs</th><th>CF</th><th>Pay</th><th>Tips</th><th>Packing</th><th>vs Est</th><th>Reviews</th><th>Claims</th><th>Refunds</th><th>Score</th></tr></thead><tbody>${rowsH}</tbody></table>`, { icon: KIC.grid, headVal: fmtN(sc.length) + " crews", noteKind: "how", note: `Pay/Tips from closings; ▲▼ arrows on Jobs/Pay/Tips compare vs ${MS[PM]}. 'vs Est' = packing written ÷ quoted estimate (green at 1× or above, red below). Score combines jobs, packing, reviews and fault claims — higher is better; the ▲▼ beside it compares vs ${MS[PM]}. Rank 1 crowned.` });
       }
       const jobF = segSeries("closing", "Total Jobs", "Foreman").slice(0, 12);
       const hrMap = {}; segSeries("closing", "Hours Worked by Forman", "Foreman").forEach(r => hrMap[r.k] = r.v);
@@ -1137,7 +1285,7 @@ async function renderMonthly(host, MRCFG) {
         if (eff.length) {
           const dCell = (cur, prev) => { if (prev == null || !prev) return td("—", "color:#8a94a3"); const d2 = (cur - prev) / Math.abs(prev); return td(`${d2 >= 0 ? "▲" : "▼"} ${Math.abs(d2 * 100).toFixed(0)}%`, `color:${d2 >= 0 ? "#1c7a4a" : "#b02a37"};font-weight:800`); };
           const effHtml = `<table class="mrx-tbl"><thead><tr><th>Foreman</th><th>Packing $ / 100 CF</th><th>vs ${MS[PM]}</th><th>Reviews / job</th><th>vs ${MS[PM]}</th></tr></thead><tbody>${eff.map((r, i) => { const p = prevEff[r.f] || {}; return `<tr><td>${i === 0 ? "👑 " : ""}${esc(r.f)}</td>${td(money(r.p100))}${dCell(r.p100, p.p100)}${td(fmt1(r.rtj))}${dCell(r.rtj, p.rtj)}</tr>`; }).join("")}</tbody></table>`;
-          tableCard(g, "Foreman efficiency — packing density & review rate", monLbl + " vs " + MS[PM], effHtml, { icon: KIC.grid, headVal: fmtN(eff.length) + " crews", note: `Packing $ written per 100 CF moved, and reviews collected per job — ranked by packing density, ▲▼ vs ${MS[PM]}. Green = improving crew, red = slipping.` });
+          tableCard(g, "Foreman efficiency — packing density & review rate", monLbl + " vs " + MS[PM], effHtml, { icon: KIC.grid, headVal: fmtN(eff.length) + " crews", noteKind: "how", note: `Packing $ written per 100 CF moved, and reviews collected per job — ranked by packing density, ▲▼ vs ${MS[PM]}. Green = improving crew, red = slipping.` });
         }
       }
       // ---- fleet profitability: revenue vs direct running cost per truck ----
@@ -1147,7 +1295,7 @@ async function renderMonthly(host, MRCFG) {
         const fl = Object.keys(fm2).map(k => { const v = fm2[k]; return { k, jobs: v.jobs, rev: v.rev, cost: v.cost, net: v.rev - v.cost }; }).sort((a, b) => b.rev - a.rev).slice(0, 15);
         if (fl.length) {
           const flHtml = `<table class="mrx-tbl"><thead><tr><th>Truck</th><th>Jobs</th><th>Revenue</th><th>Running cost</th><th>Net</th><th>Cost %</th></tr></thead><tbody>${fl.map(r => `<tr><td>${esc(r.k)}</td>${td(fmtN(r.jobs))}${td(money(r.rev))}${td(money(r.cost))}${td(money(r.net))}${td(r.rev ? pct(r.cost / r.rev) : "—")}</tr>`).join("")}</tbody></table>`;
-          tableCard(g, "Fleet — revenue & running cost per truck", monLbl, flHtml, { icon: KIC.grid, headVal: fmtN(fl.length) + " trucks", note: "Revenue of the jobs each truck ran vs its direct running costs (fuel, truck expense, car, tolls). Labor isn't truck-attributable and is excluded — this ranks the fleet, it isn't full P&L." });
+          tableCard(g, "Fleet — revenue & running cost per truck", monLbl, flHtml, { icon: KIC.grid, headVal: fmtN(fl.length) + " trucks", noteKind: "how", note: "Revenue of the jobs each truck ran vs its direct running costs (fuel, truck expense, car, tolls). Labor isn't truck-attributable and is excluded — this ranks the fleet, it isn't a full profit & loss. Truck names come from closing sheets as written." });
         }
       }
     }
@@ -1162,7 +1310,7 @@ async function renderMonthly(host, MRCFG) {
         const pkCost = packMoM.map(r => ({ k: r.k, v: costByMonth(`${r.y}-${String(r.m).padStart(2, "0")}`, "pk") }));
         const pkc = combo(g, "Packing written vs material cost", "last 14 months", packMoM.map(r => ({ k: r.k, v: r.v || 0 })), "Written", money, pkCost, "Material cost", money, { headVal: money(lastV(packMoM)) });
         const lastCost = pkCost.length ? pkCost[pkCost.length - 1].v : 0, lastWr = lastV(packMoM) || 0;
-        note(pkc, `Packing written ${money(lastWr)} vs material bought ${money(lastCost)} this month${lastWr ? ` — material is ${pct(lastCost / lastWr)} of packing revenue` : ""}. Material cost = card "Job Supplies / Packing Material".`);
+        note(pkc, `Packing written ${money(lastWr)} vs material bought ${money(lastCost)} this month${lastWr ? ` — material is ${pct(lastCost / lastWr)} of packing revenue` : ""}. Material cost = card spend in the "Job Supplies / Packing Material" category.`, "how");
       } else {
         lines(g, "Packing written — momentum", "last 14 months", [{ label: "Packing written", series: packMoM, color: LIMED }], money, { headVal: money(lastV(packMoM)) });
       }
@@ -1172,7 +1320,7 @@ async function renderMonthly(host, MRCFG) {
         const stoCost = stoRev.map(r => ({ k: r.k, v: costByMonth(`${r.y}-${String(r.m).padStart(2, "0")}`, "sto") }));
         const sc = combo(g, "Storage income vs cost", "last 14 months", stoRev.map(r => ({ k: r.k, v: r.v || 0 })), "Income", money, stoCost, "Storage cost", money, { headVal: money(lastV(stoRev)) });
         const lc = stoCost.length ? stoCost[stoCost.length - 1].v : 0, li = lastV(stoRev) || 0;
-        note(sc, `Storage income ${money(li)} vs cost ${money(lc)} this month — net ${money(li - lc)}. Cost = card "Rent and Lease / Storage"; a complementary service, shown small.`);
+        note(sc, `Storage income ${money(li)} vs cost ${money(lc)} this month — net ${money(li - lc)}. Cost = card spend in the "Rent and Lease / Storage" category.`, "how");
       } else {
         lines(g, "Storage income", "last 14 months", [{ label: "Storage income", series: stoRev, color: TEAL }], money, { headVal: money(lastV(stoRev)) });
       }
@@ -1180,27 +1328,32 @@ async function renderMonthly(host, MRCFG) {
       const stoCust = momReduce("storage", 14, rs => { const set = new Set(); rs.forEach(r => set.add(String(r.Customer || ""))); return set.size; });
       const stoRec = momReduce("storage", 14, rs => { const set = new Set(); rs.forEach(r => { if (!/pickup|delivery/i.test(String(r["Payment Type"] || ""))) set.add(String(r.Customer || "")); }); return set.size; });
       const cStC = lines(g, "Storage customers — active vs recurring", "last 14 months", [ { label: "Active", series: stoCust, color: TEAL }, { label: "Recurring", series: stoRec, color: INK } ], fmtN, { headVal: fmtN(lastV(stoCust) || 0) });
-      note(cStC, "Active = any storage payment that month; recurring = monthly-billed customers (excludes one-off pickup/delivery payments). Growth or churn in the recurring line is the storage-planning signal.");
-      // per-job packing: what sales ESTIMATED vs what crews WROTE, by service type
+      note(cStC, "Active = any storage payment that month; recurring = monthly-billed customers (excludes one-off pickup/delivery payments). Growth or churn in the recurring line is the storage-planning signal.", "how");
+      // per-job packing: what sales ESTIMATED vs what crews WROTE, by service type.
+      // C28: bucketed by MOVE month so it trends in step with the rest of this section
+      // (create-date bucketing understated the month and never reconciled with the chart above).
       if (packJobs.length) {
         const mmP = `${curY}-${String(mo).padStart(2, "0")}`, byT = {};
-        packJobs.forEach(r => { if (String(r["Create Date"] || "").slice(0, 7) !== mmP) return; const t = String(r["Service Type"] || "—"); const b = byT[t] || (byT[t] = { est: 0, wr: 0 }); b.est += num(r["Sales Packing total"]); b.wr += num(r["Closing Packing total"]); });
+        packJobs.forEach(r => { if (String(r["Move Date"] || "").slice(0, 7) !== mmP) return; const t = String(r["Service Type"] || "—"); const b = byT[t] || (byT[t] = { est: 0, wr: 0 }); b.est += num(r["Sales Packing total"]); b.wr += num(r["Closing Packing total"]); });
         const tys = Object.keys(byT).map(k => ({ k, est: byT[k].est, wr: byT[k].wr })).filter(r => (r.est > 0 || r.wr > 0) && r.k !== "—").sort((a, b) => b.wr - a.wr).slice(0, 8);
-        if (tys.length) groupedBars(g, "Packing by type — estimate vs written", tys.map(r => r.k), tys.map(r => r.est), "Estimate", tys.map(r => r.wr), "Written", money, { sub: monLbl + " · per-job moveboard packing" });
+        if (tys.length) {
+          const cPk = groupedBars(g, "Packing by type — estimate vs written", tys.map(r => r.k), tys.map(r => r.est), "Estimate", tys.map(r => r.wr), "Written", money, { sub: monLbl + " · per-job Moveboard packing, by move month" });
+          note(cPk, "Per-job packing as recorded in Moveboard (what sales estimated vs what crews wrote), grouped by move month. Moveboard records packing differently from the closing sheets, so these totals won't equal the closing-sheet packing chart above — this card shows the Moveboard system.", "how");
+        }
       }
     }
 
     /* ---- 13 · Quality & Customer Experience ---- */
     if (SEC("Quality & Customer Experience")) {
-      const g = section("Quality & Customer Experience", "reviews, claims and refunds — with line-level registers");
+      const g = section("Quality & Customer Experience", "reviews, claims and refunds — with the full list of this month's cases");
       const claimsN = reduceMonth("claims", curY, mo, rs => rs.length) || 0;
       const claimsPM = reduceMonth("claims", PMY, PM, rs => rs.length) || 0;
       const negN = reduceMonth("negative_reviews", curY, mo, rs => rs.length) || 0;
       const negPM = reduceMonth("negative_reviews", PMY, PM, rs => rs.length) || 0;
       const claimRate = jobs ? claimsN / jobs * 100 : null;
       const kg = document.createElement("div"); kg.className = "mrx-grid k"; kg.style.gridColumn = "1/-1"; g.appendChild(kg);
-      const revCol = n => n < 40 ? "#b02a37" : n > 60 ? "#1c7a4a" : INK;
-      [ { l: "Reviews Written", v: `<span style="color:${revCol(revWritten)}">${fmtN(revWritten)}</span>`, c: revWritten, pm: revWrittenPM, icon: KIC.star },
+      // C8: number unchanged (all breakdown reviews) — the label now says so; C41: colored vs the recorded goal
+      [ { l: "All Reviews Written (incl. non-counting)", v: revValHtml(revWritten), c: revWritten, pm: revWrittenPM, icon: KIC.star },
         { l: "Negative Reviews", v: fmtN(negN), c: negN, pm: negPM, icon: KIC.warn, inv: 1 },
         { l: "Claims Filed", v: fmtN(claimsN), c: claimsN, pm: claimsPM, icon: KIC.warn, inv: 1 },
         { l: "Claims / 100 jobs", v: claimRate == null ? "—" : fmt1(claimRate), c: claimRate, pm: (jobsPM ? claimsPM / jobsPM * 100 : null), icon: KIC.pct, inv: 1 }
@@ -1213,23 +1366,23 @@ async function renderMonthly(host, MRCFG) {
       rankBars(g, "Reviews by source", segReduce("reviews_breakdown", "Source", rs => rs.reduce((a, r) => a + num(r["Number of Reviews"]), 0), curY, mo), fmtN, { top: 8 });
       // public review footprint by platform (fct_review_counts — served, never rendered before)
       const revByPlat = segReduce("review_counts", "Platform", rs => rs.reduce((a, r) => a + num(r["Number of Reviews"]), 0), curY, mo).filter(r => r.v > 0 && r.k !== "—");
-      if (revByPlat.length) rankBars(g, "Public review footprint by platform", revByPlat, fmtN, { top: 12, span2: true, sub: monLbl, note: "Total public reviews on file per platform — the reputation that drives lead flow. Goals aren't set in the data yet; when they are I'll add a vs-target column." });
+      if (revByPlat.length) rankBars(g, "Public review footprint by platform", revByPlat, fmtN, { top: 12, span2: true, sub: monLbl, noteKind: "how", note: "Total public reviews on file per platform — the reputation that drives lead flow." });
       // line-level registers (deck s55-56): the actual claims and refunds of the month, side by side
       const clReg = (reduceMonth("claims", curY, mo, rs => rs) || []).slice().sort((a, b) => String(b["Created Date"]).localeCompare(String(a["Created Date"]))).slice(0, 14);
       if (clReg.length) {
         const clHtml = `<table class="mrx-tbl"><thead><tr><th>Date</th><th>Customer</th><th>Reason</th><th>Responsibility</th><th>Status</th></tr></thead><tbody>${clReg.map(r => `<tr><td>${esc(String(r["Created Date"] || "").slice(0, 10))}</td><td>${esc(r.Customer || "—")}</td>${td(esc(r.Reason || "—"))}${td(esc(r.Responsibility || "—"))}${td(esc(r.Status || "—"))}</tr>`).join("")}</tbody></table>`;
-        tableCard(g, "Claims register", monLbl + (claimsN > 14 ? ` · latest 14 of ${fmtN(claimsN)}` : ""), clHtml, { span2: false, icon: KIC.grid, headVal: fmtN(claimsN) });
+        tableCard(g, "This month's claims", monLbl + (claimsN > 14 ? ` · latest 14 of ${fmtN(claimsN)}` : ""), clHtml, { span2: false, icon: KIC.grid, headVal: fmtN(claimsN) });
       }
       const rfReg = (reduceMonth("refunds", curY, mo, rs => rs) || []).slice().sort((a, b) => Math.abs(num(b["Total refund"])) - Math.abs(num(a["Total refund"]))).slice(0, 14);
       if (rfReg.length) {
         const rfHtml = `<table class="mrx-tbl"><thead><tr><th>Customer</th><th>Foreman</th><th>Sales</th><th>Reason</th><th>Refund</th></tr></thead><tbody>${rfReg.map(r => `<tr><td>${esc(r.Customer || "—")}</td>${td(esc(r.Foreman || "—"))}${td(esc(r["Sales Person"] || "—"))}${td(esc(r.Reason || "—"))}${td(money(Math.abs(num(r["Total refund"]))), "font-weight:800")}</tr>`).join("")}</tbody></table>`;
-        tableCard(g, "Refunds register", monLbl + " · largest first", rfHtml, { span2: false, icon: KIC.grid, headVal: money(refTot) });
+        tableCard(g, "This month's refunds", monLbl + " · largest first", rfHtml, { span2: false, icon: KIC.grid, headVal: money(refTot) });
       }
     }
 
-    /* ---- 14 · Returned & Recommended ---- */
-    if (SEC("Returned & Recommended")) {
-      const g = section("Returned & Recommended", "repeat and referral business — how much our service is liked");
+    /* ---- 14 · Repeat & Referral Business (formerly "Returned & Recommended" — N3) ---- */
+    if (SEC("Repeat & Referral Business")) {
+      const g = section("Repeat & Referral Business", "repeat and referral customers — how much our service is liked");
       const RRS = ["Returned Customer", "Recommended"];
       const isRR = r => RRS.indexOf(String(r.Source)) >= 0;
       const rrRev = valueFor("closing", "Revenue", curY, mo, { pre: isRR }) || 0, rrRevLY = valueFor("closing", "Revenue", curY - 1, mo, { pre: isRR }), rrRevPM = valueFor("closing", "Revenue", PMY, PM, { pre: isRR });
@@ -1239,22 +1392,23 @@ async function renderMonthly(host, MRCFG) {
       const rrOp = sumRR(opBySrcCur), rrOpLY = sumRR(segSeries("closing", "Operational Profit by Formula", "Source", curY - 1, mo));
       const rrShare = rev ? rrRev / rev : null, rrShareLY = revLY ? (rrRevLY || 0) / revLY : null, rrSharePM = revPM ? (rrRevPM || 0) / revPM : null;
       const kg2 = document.createElement("div"); kg2.className = "mrx-grid k"; kg2.style.gridColumn = "1/-1"; g.appendChild(kg2);
-      [ { l: "R&R Revenue", v: money(rrRev), c: rrRev, ly: rrRevLY, pm: rrRevPM, icon: KIC.dollar },
+      [ { l: "Repeat + Referral Revenue", v: money(rrRev), c: rrRev, ly: rrRevLY, pm: rrRevPM, icon: KIC.dollar },
         { l: "Share of Revenue", v: pct(rrShare), c: rrShare, ly: rrShareLY, pm: rrSharePM, icon: KIC.pct },
-        { l: "R&R Jobs", v: fmtN(rrJobs), c: rrJobs, ly: rrJobsLY, pm: rrJobsPM, icon: KIC.truck },
-        { l: "R&R Op. Profit · pre-refund", v: money(rrOp), c: rrOp, ly: rrOpLY, icon: KIC.trend }
+        { l: "Repeat + Referral Jobs", v: fmtN(rrJobs), c: rrJobs, ly: rrJobsLY, pm: rrJobsPM, icon: KIC.truck },
+        { l: "Op. Profit (before refunds)", v: money(rrOp), c: rrOp, ly: rrOpLY, icon: KIC.trend }
       ].forEach(k => kpiTile(kg2, k));
       const rrT = yearsArr(5).map(y => ({ k: String(y), v: valueFor("closing", "Revenue", y, mo, { pre: isRR }) }));
-      yoyBars(g, "R&R revenue — 5-yr", rrT, moneyC, { headVal: money(rrRev), chips: dchips([[rrRev, rrRevLY, "YoY"]]) });
+      yoyBars(g, "Repeat & Referral revenue — 5-yr", rrT, moneyC, { headVal: money(rrRev), chips: dchips([[rrRev, rrRevLY, "YoY"]]) });
       const shareT = momReduce("closing", 12, rs => { const t = M["Revenue"].fn(rs); const rr2 = M["Revenue"].fn(rs.filter(isRR)); return t ? rr2 / t : null; });
-      const cSh = lines(g, "Share of revenue from repeat & referral", "last 12 months", [{ label: "R&R share", series: shareT, color: VIOLET }], pct, { headVal: pct(rrShare) });
-      note(cSh, `Every point is the % of that month's revenue that came from returned or recommended customers — the cleanest loyalty pulse. ${MON[mo]}: ${pct(rrShare)}.`);
+      const cSh = lines(g, "Share of revenue from repeat & referral", "last 12 months", [{ label: "Repeat & Referral share", series: shareT, color: VIOLET }], pct, { headVal: pct(rrShare) });
+      note(cSh, `Every point is the % of that month's revenue that came from repeat or referred customers — the cleanest loyalty pulse. ${MON[mo]}: ${pct(rrShare)}.`, "how");
       const retT = yearsArr(5).map(y => valueFor("closing", "Revenue", y, mo, { pre: r => String(r.Source) === "Returned Customer" }) || 0);
       const recT = yearsArr(5).map(y => valueFor("closing", "Revenue", y, mo, { pre: r => String(r.Source) === "Recommended" }) || 0);
-      groupedBars(g, "Returned vs Recommended — revenue by year", yearsArr(5).map(String), retT, "Returned", recT, "Recommended", money, { sub: MON[mo] + " each year" });
-      const rrBookT = momReduce("moveboard", 12, rs => { const s2 = rs.filter(r => RRS.indexOf(String(r.Source)) >= 0); const q = s2.filter(r => r["Status Category"] !== "Bad Lead").length, c2 = s2.filter(r => r["Status Category"] === "Confirmed").length; return q ? c2 / q : null; });
-      const allBookT = momReduce("moveboard", 12, rs => { const q = rs.filter(r => r["Status Category"] !== "Bad Lead").length, c2 = rs.filter(r => r["Status Category"] === "Confirmed").length; return q ? c2 / q : null; });
-      const cBk = lines(g, "R&R booking rate vs overall", "last 12 months", [ { label: "R&R", series: rrBookT, color: LIMED }, { label: "All leads", series: allBookT, color: CTX } ], pct);
+      groupedBars(g, "Repeat vs Referral — revenue by year", yearsArr(5).map(String), retT, "Repeat (returned customer)", recT, "Referral (recommended)", money, { sub: MON[mo] + " each year" });
+      // C2: both trend lines use the canonical dual-basis Booking Rate (no inline ratios)
+      const rrBookT = bookRateTrend(r => RRS.indexOf(String(r.Source)) >= 0, 12);
+      const allBookT = bookRateTrend(null, 12);
+      const cBk = lines(g, "Repeat & Referral booking rate vs overall", "last 12 months", [ { label: "Repeat & Referral", series: rrBookT, color: LIMED }, { label: "All leads", series: allBookT, color: CTX } ], pct);
       note(cBk, `Repeat/referral leads should convert far above the average — they already trust you. If the lime line dips toward the gray one, follow-up on warm leads is slipping.`);
     }
 
@@ -1294,19 +1448,24 @@ async function renderMonthly(host, MRCFG) {
 
 registerPage({ id: "monthly-report", group: "pulse", title: "Monthly Report", render(host) { return renderMonthly(host, null); } });
 /* Team views — filtered slices of the SAME report (overlaps are intentional; grant per team id). */
+/* N2: sidebar titles are all "Monthly Review" — the department container already names the
+   team, so repeating it doubled the width. `label` keeps the team name for cover + PDF.
+   Ids are UNCHANGED (access grants + GROUP_OVERRIDE key on them). */
 const MR_TEAMS = [
-  { id: "financial-team", title: "Financial Team", icon: "trend",
-    sections: ["Executive Summary", "Revenue & Growth", "Revenue Composition & Segments", "Unit Economics", "Profitability & P&L", "Packing & Storage"] },
-  { id: "sales-team", title: "Sales Team", icon: "user",
-    sections: ["Demand & Lead Funnel", "Lead Segmentation", "Geography — by State", "Sales Team Performance", "Returned & Recommended"] },
-  { id: "marketing-team", title: "Marketing Team", icon: "megaphone",
-    sections: ["Marketing & Channels", "Demand & Lead Funnel", "Lead Segmentation"] },
-  { id: "logistics-team", title: "Logistics Team", icon: "tool",
+  { id: "financial-team", title: "Monthly Review", label: "Financial Team", icon: "trend",
+    // S4: the people who manage the P&L also see ad spend, ROAS and cost-per-job
+    sections: ["Executive Summary", "Revenue & Growth", "Revenue Composition & Segments", "Per-Job Profitability", "Profitability & P&L", "Packing & Storage", "Marketing & Channels"] },
+  { id: "sales-team", title: "Monthly Review", label: "Sales Team", icon: "user",
+    sections: ["Demand & Lead Funnel", "Lead Segmentation", "Geography — by State", "Sales Team Performance", "Repeat & Referral Business"] },
+  { id: "marketing-team", title: "Monthly Review", label: "Marketing Team", icon: "megaphone",
+    sections: ["Marketing & Channels", "Phone & Response", "Demand & Lead Funnel", "Lead Segmentation"] },
+  { id: "logistics-team", title: "Monthly Review", label: "Logistics Team", icon: "tool",
     sections: ["Operations & Crew (Foreman)", "Packing & Storage", "Quality & Customer Experience"] },
-  { id: "reviews-team", title: "Reviews Team", icon: "star",
-    sections: ["Quality & Customer Experience", "Returned & Recommended"] },
-  { id: "support-team", title: "Support Team", icon: "shield",
-    sections: ["Quality & Customer Experience"] },
+  { id: "reviews-team", title: "Monthly Review", label: "Reviews Team", icon: "star",
+    sections: ["Quality & Customer Experience", "Repeat & Referral Business"] },
+  // S3: Support sees the phone system — answer rate and missed calls are their job
+  { id: "support-team", title: "Monthly Review", label: "Support Team", icon: "shield",
+    sections: ["Quality & Customer Experience", "Phone & Response"] },
 ];
 MR_TEAMS.forEach(t => registerPage({ id: t.id, group: "pulse", title: t.title, render(host) { return renderMonthly(host, t); } }));
 

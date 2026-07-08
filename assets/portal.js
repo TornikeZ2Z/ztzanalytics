@@ -76,19 +76,45 @@ window.ZTZ = (function () {
   }
 
   /* ---------- header (standalone Reporting System site) ----------
-     No nav links — just the brand, one subtitle, the user, and the theme toggle. */
+     No nav links — just the brand, one subtitle, the user, and the theme toggle.
+     The signed-in email opens a small account menu with Sign out — shared front-desk
+     computers hold 12-hour sessions, so people need a way to hand the seat over. */
   function header(active, subtitle) {
     const host = document.getElementById("ztzHeader");
     if (!host) return;
     const base = (location.pathname.match(/^.*\//) || ["/"])[0];
     const em = email();
-    const who = em ? `<span class="av">${em[0].toUpperCase()}</span>${em}` : "";
+    const who = em ? `<span class="av">${em[0].toUpperCase()}</span>${em}<span class="who-car" style="font-size:9px;opacity:.6;margin-left:5px">▾</span>` : "";
     host.innerHTML =
       `<div class="brand"><a href="${base}index.html" title="Home"><img class="brandlogo" src="${base}logo-wide.png" alt="Zip to Zip Moving"></a>` +
       (subtitle ? `<span class="brandsub">${subtitle}</span>` : "") + `</div>` +
-      `<div class="spacer"></div><div class="who">${who}</div>` +
+      `<div class="spacer"></div><div class="who" id="ztzWho">${who}</div>` +
       `<span id="ztzHeadSign"></span>`;
-    if (!em) mountSignin(document.getElementById("ztzHeadSign"), { button: { size: "medium" } });
+    if (!em) { mountSignin(document.getElementById("ztzHeadSign"), { button: { size: "medium" } }); return; }
+    const whoEl = document.getElementById("ztzWho");
+    whoEl.style.cursor = "pointer";
+    whoEl.title = "Account";
+    whoEl.onclick = (e) => {
+      e.stopPropagation();
+      const old = document.getElementById("ztzWhoMenu");
+      if (old) { old.remove(); return; }
+      const m = document.createElement("div");
+      m.id = "ztzWhoMenu";
+      m.style.cssText = "position:fixed;top:64px;right:14px;z-index:220;min-width:220px;padding:9px;" +
+        "background:var(--panel,#fff);border:1px solid var(--line,#d7dee8);border-radius:13px;" +
+        "box-shadow:0 14px 40px rgba(0,0,0,.3);font-size:13px";
+      m.innerHTML =
+        `<div style="padding:4px 8px 9px;color:var(--muted,#5b6b7c);border-bottom:1px solid var(--line,#e3e8f0);` +
+        `overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Signed in as <b>${em}</b></div>` +
+        `<button id="ztzSignOut" style="display:block;width:100%;margin-top:8px;text-align:left;cursor:pointer;` +
+        `border:1px solid var(--line,#e3e8f0);background:transparent;border-radius:9px;padding:8px 10px;` +
+        `font-size:13px;font-weight:650;color:var(--ink,#16202c)">Sign out</button>`;
+      document.body.appendChild(m);
+      m.addEventListener("click", ev => ev.stopPropagation());
+      m.querySelector("#ztzSignOut").onclick = () => { clearToken(); location.reload(); };
+      const close = () => { m.remove(); document.removeEventListener("click", close); };
+      setTimeout(() => document.addEventListener("click", close), 0);
+    };
   }
 
   /* ---------- misc ---------- */

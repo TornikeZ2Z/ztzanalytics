@@ -8,6 +8,9 @@ async function renderSourceAnalysis(host, lockedSource) {
     RS.load("closing"), RS.load("moveboard"), RS.load("card_expenses")]);
   const closing = RS.filtered("closing", closingAll);
   const mb = RS.filtered("moveboard", mbAll);
+  // Booked-Date scope for the canonical Booking Rate (RS.bookingRate): confirmed
+  // leads are counted by the month they were BOOKED, qualified by lead-create month.
+  const mbB = RS.filtered("moveboard", mbAll, { dateColumn: "Booked Date" });
   const ads = RS.filtered("card_expenses", cardAll).filter(r => num(r["Is Advertising"]) === 1);
 
   const trim = v => String(v == null ? "" : v).trim();
@@ -17,7 +20,7 @@ async function renderSourceAnalysis(host, lockedSource) {
   closing.forEach(r => { const s = trim(r.Source); if (s) cnt[s] = (cnt[s] || 0) + 1; });
   const sources = Object.keys(cnt).sort((a, b) => cnt[b] - cnt[a]);
   if (!sources.length) {
-    host.innerHTML = `<div class="rs-page-head"><h1>Lead Source Analysis</h1><p>per-source overview</p></div>
+    host.innerHTML = `<div class="rs-page-head"><h1>Lead Sources — Overview</h1><p>(formerly Lead Source Analysis) · per-source overview</p></div>
       <div class="panel" style="padding:16px;color:var(--muted)">No data for the current filters.</div>`;
     return;
   }
@@ -25,13 +28,14 @@ async function renderSourceAnalysis(host, lockedSource) {
 
   // ---- subsets for the selected source ----
   const mbS = mb.filter(r => trim(r.Source) === sel);
+  const mbSB = mbB.filter(r => trim(r.Source) === sel);   // Booked-Date scope
   const clS = closing.filter(r => trim(r.Source) === sel);
   // post-card ad rows are split by state in the ad feed — pool them onto the pooled source name
   const isPC = /post\s*card/i.test(sel);
   const adS = ads.filter(r => isPC ? /post\s*card/i.test(trim(r.Source)) : trim(r.Source) === sel);
 
   const qual = mbS.filter(r => r["Status Category"] !== "Bad Lead").length;
-  const conf = mbS.filter(r => r["Status Category"] === "Confirmed").length;
+  const confB = mbSB.filter(r => r["Status Category"] === "Confirmed").length;  // by Booked Date
   const bad = mbS.length - qual;
   const rev = M["Revenue"].fn(clS);
   const jobs = clS.length;
@@ -39,9 +43,9 @@ async function renderSourceAnalysis(host, lockedSource) {
 
   host.innerHTML = `
     <div class="rs-page-head">
-      <h1>${esc(lockedSource ? sel + " — source analysis" : "Lead Source Analysis")}</h1>
-      <p>${lockedSource ? "everything the warehouse knows about this source" : "pick any lead source — funnel, revenue, spend and geography update together"}
-        ${lockedSource ? "" : `&nbsp;·&nbsp;<select id="srcPick" style="font:inherit;font-weight:700;color:#fff;background:#1b2a3f;border:1px solid #2c3e57;border-radius:7px;padding:4px 9px">${sources.slice(0, 40).map(s => `<option${s === sel ? " selected" : ""}>${esc(s)}</option>`).join("")}</select>`}
+      <h1>${esc(lockedSource ? sel + " — Source Analysis" : "Lead Sources — Overview")}</h1>
+      <p>${lockedSource ? "everything we track about this source" : "(formerly Lead Source Analysis) · pick any lead source — funnel, revenue, spend and geography update together"}
+        ${lockedSource ? "" : `&nbsp;·&nbsp;<select id="srcPick" style="font:inherit;font-weight:700;color:#fff;background:#1b2a3f;border:1px solid #2c3e57;border-radius:7px;padding:4px 9px">${sources.map(s => `<option${s === sel ? " selected" : ""}>${esc(s)}</option>`).join("")}</select>`}
       </p>
     </div>
     <div class="rs-kpis" id="saKpis"></div>
@@ -53,15 +57,24 @@ async function renderSourceAnalysis(host, lockedSource) {
 
   RSC.kpis(document.getElementById("saKpis"), [
     { label: "Leads", value: fmtN(mbS.length), sub: `${fmtN(bad)} bad` },
-    { label: "Booking rate", value: qual ? pct(conf / qual) : "—", sub: `${fmtN(conf)} confirmed of ${fmtN(qual)} qualified` },
+    { label: "Booking Rate", value: (v => v == null ? "—" : pct(v))(RS.bookingRate(mbS, mbSB)),
+      sub: `${fmtN(confB)} confirmed (by booked date) of ${fmtN(qual)} qualified (by created date)` },
     { label: "Jobs closed", value: fmtN(jobs), sub: "revenue-attributed closings" },
     { label: "Revenue", value: money(rev), sub: jobs ? money(rev / jobs) + " / job" : "" },
-    { label: "Ad spend", value: adTot ? money(adTot) : "—", sub: adTot ? "ROI " + (rev / adTot).toFixed(1) + "×" : "no paid spend recorded" },
+    { label: "Ad spend", value: adTot ? money(adTot) : "—",
+      sub: adTot ? "$" + (rev / adTot).toFixed(2) + " revenue per $1 of ads (ROAS)" : "no paid spend recorded" },
     { label: "Revenue per lead", value: mbS.length ? money(rev / mbS.length) : "—", sub: "incl. unconverted leads" },
   ]);
 
   const grid = document.getElementById("saGrid");
   const ymKey = r => r._y * 100 + r._m;
+  // booked-month key: _y/_m always follow Create Date, so the Booked-Date scope
+  // needs its own month key read from the raw Booked Date column.
+  const bymKey = r => { const d = String(r["Booked Date"] || "").slice(0, 10);
+    return /^\d{4}-\d{2}/.test(d) ? (+d.slice(0, 4)) * 100 + (+d.slice(5, 7)) : 0; };
+  // canonical monthly Booking Rate (RS.bookingRate): qualified by create month,
+  // confirmed by booked month — the portal-official formula (see rs-core).
+  const brMonth = k => RS.bookingRate(mbS.filter(r => ymKey(r) === k), mbSB.filter(r => bymKey(r) === k));
   const ymLbl = k => ["", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][k % 100] + " " + String(Math.floor(k / 100)).slice(2);
   const monthsOf = rowsets => [...new Set(rowsets.flat().map(ymKey).filter(k => k > 0))].sort((a, b) => a - b).slice(-14);
   const CATINK = "#0e1621", CATBLUE = "#3b82f6", CATLIME = "#7ba317", CATAMBER = "#f5a524";
@@ -77,7 +90,7 @@ async function renderSourceAnalysis(host, lockedSource) {
       options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: "top" } } } });
   }, buildTable() {
     return RSC.table([{ key: "m", label: "Month" }, { key: "l", label: "Leads" }, { key: "c", label: "Confirmed" }, { key: "r", label: "Booking %", fmt: v => v == null ? "—" : pct(v) }],
-      mts.map(k => { const rs = mbS.filter(r => ymKey(r) === k); const q2 = rs.filter(r => r["Status Category"] !== "Bad Lead").length, c2 = rs.filter(r => r["Status Category"] === "Confirmed").length; return { m: ymLbl(k), l: rs.length, c: c2, r: q2 ? c2 / q2 : null }; }));
+      mts.map(k => { const rs = mbS.filter(r => ymKey(r) === k); const c2 = rs.filter(r => r["Status Category"] === "Confirmed").length; return { m: ymLbl(k), l: rs.length, c: c2, r: brMonth(k) }; }));
   } });
 
   // 2 · revenue vs ad spend by month
@@ -90,18 +103,18 @@ async function renderSourceAnalysis(host, lockedSource) {
       { label: "Ad spend", data: AD, backgroundColor: CATAMBER, borderRadius: 3 } ] },
       options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: "top" } } } });
   }, buildTable() {
-    return RSC.table([{ key: "m", label: "Month" }, { key: "r", label: "Revenue", fmt: money }, { key: "a", label: "Ad spend", fmt: money }, { key: "roi", label: "ROI", fmt: v => v == null ? "—" : v.toFixed(1) + "×" }],
+    return RSC.table([{ key: "m", label: "Month" }, { key: "r", label: "Revenue", fmt: money }, { key: "a", label: "Ad spend", fmt: money }, { key: "roi", label: "Revenue per $1 of ads (ROAS)", fmt: v => v == null ? "—" : "$" + v.toFixed(2) }],
       mts2.map(k => { const r2 = M["Revenue"].fn(clS.filter(r => ymKey(r) === k)); const a2 = adS.filter(r => ymKey(r) === k).reduce((a, r) => a + num(r.Amount), 0); return { m: ymLbl(k), r: r2, a: a2, roi: a2 ? r2 / a2 : null }; }));
   } });
 
   // 3 · booking-rate trend
-  RSC.chartCard(grid, { title: "Booking rate — monthly", buildChart(cv) {
-    const B = mts.map(k => { const rs = mbS.filter(r => ymKey(r) === k); const q2 = rs.filter(r => r["Status Category"] !== "Bad Lead").length, c2 = rs.filter(r => r["Status Category"] === "Confirmed").length; return q2 ? c2 / q2 * 100 : null; });
+  RSC.chartCard(grid, { title: "Booking Rate — monthly", buildChart(cv) {
+    const B = mts.map(k => { const v = brMonth(k); return v == null ? null : v * 100; });
     return new Chart(cv, { type: "line", data: { labels: mts.map(ymLbl), datasets: [{ label: "Booking %", data: B, borderColor: CATLIME, backgroundColor: CATLIME, tension: 0, spanGaps: true }] },
       options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } } });
   }, buildTable() {
     return RSC.table([{ key: "m", label: "Month" }, { key: "b", label: "Booking %", fmt: v => v == null ? "—" : v.toFixed(1) + "%" }],
-      mts.map(k => { const rs = mbS.filter(r => ymKey(r) === k); const q2 = rs.filter(r => r["Status Category"] !== "Bad Lead").length, c2 = rs.filter(r => r["Status Category"] === "Confirmed").length; return { m: ymLbl(k), b: q2 ? c2 / q2 * 100 : null }; }));
+      mts.map(k => { const v = brMonth(k); return { m: ymLbl(k), b: v == null ? null : v * 100 }; }));
   } });
 
   // 4 · revenue by state

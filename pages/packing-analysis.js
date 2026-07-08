@@ -75,8 +75,8 @@ registerPage({
         <h1>Packing Analysis</h1>
         <p>Packing revenue — who sells it, how often it attaches, and foreman estimate accuracy ·
            <b>${RS.fmtN(rows.length)}</b> jobs in scope
-           <span class="freshness">· foreman scores from the monthly scorecard mart
-           · KPI Δ vs same period last year</span></p>
+           <span class="freshness">· foreman scores from the monthly scorecard
+           · KPI change vs same period last year</span></p>
       </div>
       <div class="rs-kpis" id="pkKpis"></div>
       <div id="pkMain"></div>
@@ -85,13 +85,13 @@ registerPage({
     RSC.kpis(document.getElementById("pkKpis"), [
       { label: "Packing Written",
         value: RS.moneyC(packingWritten) + yoyChip(rs => M["Total Packing Written"].fn(rs)),
-        sub: `${RS.money(packingWritten)} · SUM of Material Total` },
+        sub: `${RS.money(packingWritten)} · packing charged to customers` },
       { label: "Jobs with Packing", value: RS.fmtN(packJobs.length),
         sub: `of ${RS.fmtN(rows.length)} jobs in scope` },
       { label: "Packing Attach Rate",
         value: RS.fmtPct(attach) +
           yoyChip(rs => rs.length ? rs.filter(r => pack(r) > 0).length / rs.length : null),
-        sub: "jobs with Material Total > 0" },
+        sub: "jobs with any packing charged" },
       { label: "Avg Packing / Packing Job",
         value: packJobs.length ? RS.moneyC(packingWritten / packJobs.length) : "—",
         sub: packJobs.length
@@ -199,8 +199,11 @@ registerPage({
     const scLatest = latestKey ? scRows.filter(r => mk(r) === latestKey) : [];
     const latestLabel = (scLatest.length ? (scLatest[0]["Month Year"] || latestKey) : "no month in scope")
       + (dispM.partial ? " (partial)" : "");
-    const hiddenNote = dispM.steppedBack
-      ? `${RS.monthName(new Date().getMonth() + 1)} hidden until day ${RS.MIN_MONTH_DAYS} — too few days to be meaningful`
+    // Name the month that is actually hidden — the latest DATA month (last key), not
+    // the calendar month: when the scorecard lags, the two differ (same as forman.js).
+    const hiddenKey = scMonthKeys[scMonthKeys.length - 1];
+    const hiddenNote = (dispM.steppedBack && hiddenKey)
+      ? `${RS.monthName(+hiddenKey.slice(5))} ${hiddenKey.slice(0, 4)} hidden until day ${RS.MIN_MONTH_DAYS} — too few days to be meaningful`
       : "";
     // Previous-month lookup for the score delta — from the UNFILTERED scorecard so a
     // tight date window doesn't blank the comparison (foreman is the map key anyway).
@@ -217,7 +220,9 @@ registerPage({
     const scList = scLatest.map(r => ({
       k: r.Foreman == null ? "—" : String(r.Foreman),
       score: scoreOf(r),                                   // PBI: Packing Vs Estimate Score
-      diff: r["Packing Difference %"] == null ? null : RS.num(r["Packing Difference %"]), // PBI: Packing Difference % (written / estimate ratio)
+      // PBI 'Packing Difference %' is a written/estimate RATIO (2.05 = 205%); the portal
+      // convention (C15) is the signed delta (ratio − 1 → +105%), matching the Packing tab.
+      diff: r["Packing Difference %"] == null ? null : RS.num(r["Packing Difference %"]) - 1,
       written: RS.num(r["Total Packing Written"]),         // PBI: Total Packing Written
       est: RS.num(r["Total Packing Estimate"]),            // PBI: Total Packing Estimate
       jobs: RS.num(r["Total Jobs"]),
@@ -238,7 +243,7 @@ registerPage({
               { type: "bar", label: "Packing Vs Estimate Score", yAxisID: "y",
                 data: list.map(x => +x.score.toFixed(1)),
                 backgroundColor: "#a78bfa", borderRadius: 4 },
-              { type: "line", label: "Packing Difference %", yAxisID: "y2",
+              { type: "line", label: "Written vs Estimate", yAxisID: "y2",
                 data: list.map(x => x.diff == null ? null : +(100 * x.diff).toFixed(1)),
                 borderColor: "#fbbf24", backgroundColor: "#fbbf24",
                 borderWidth: 2, pointRadius: 3, tension: .3 },
@@ -254,7 +259,9 @@ registerPage({
                 return c.datasetIndex === 0
                   ? [`Score: ${c.raw}`,
                      `Written ${RS.money(x.written)} vs Estimate ${RS.money(x.est)}`]
-                  : `Written vs Estimate: ${c.raw == null ? "—" : c.raw + "%"}`;
+                  : (c.raw == null ? "Written vs Estimate: —"
+                    : [`Written vs Estimate: ${c.raw >= 0 ? "+" : ""}${c.raw}%`,
+                       `= ${(100 * (x.diff + 1)).toFixed(0)}% of estimate — the number the old report called Packing Difference %`]);
               } } },
             },
             scales: {
@@ -271,6 +278,9 @@ registerPage({
       buildTable() {
         const dFmt = v => v == null ? "—" :
           `<span class="${v >= 0 ? "up" : "down"}">${v >= 0 ? "+" : ""}${v.toFixed(0)}</span>`;
+        // signed delta convention (C15) — same rendering as the Packing tab
+        const diffFmt = v => (v == null || isNaN(v)) ? "—" :
+          `<span class="${v >= 0 ? "up" : "down"}">${v >= 0 ? "+" : ""}${(100 * v).toFixed(1)}%</span>`;
         const shown = scList.slice(0, 50);
         const totWritten = scList.reduce((a, x) => a + x.written, 0);
         const note = scList.length > shown.length
@@ -280,9 +290,9 @@ registerPage({
            { key: "written", label: "Packing Written", fmt: moneyNS },
            { key: "wsh", label: "% of Written", fmt: RS.fmtPct },
            { key: "est", label: "Packing Estimate", fmt: moneyNS },
-           { key: "diff", label: "Packing Difference %", fmt: RS.fmtPct },
+           { key: "diff", label: "Written vs Estimate", fmt: diffFmt },
            { key: "score", label: "Score", fmt: RS.fmt1 },
-           { key: "d", label: "Δ Score vs prev mo", fmt: dFmt }],
+           { key: "d", label: "Score change vs prev mo", fmt: dFmt }],
           shown.map(x => ({
             ...x,
             wsh: totWritten ? x.written / totWritten : null,
@@ -315,7 +325,7 @@ registerPage({
       grid.appendChild(emptyCard("Packing attach rate by month"));
     } else RSC.chartCard(grid, {
       title: "Packing attach rate by month",
-      controlsHtml: `<span class="lbl">last 24 mo · % of jobs with Material Total &gt; 0</span>`,
+      controlsHtml: `<span class="lbl">last 24 mo · % of jobs with any packing charged</span>`,
       buildChart(canvas) {
         const shown = byMonth.slice(-24);
         return new Chart(canvas, {
@@ -356,7 +366,7 @@ registerPage({
           [{ key: "m", label: "Month" }, { key: "jobs", label: "Jobs", fmt: RS.fmtN },
            { key: "pj", label: "Packing Jobs", fmt: RS.fmtN },
            { key: "at", label: "Attach Rate", fmt: RS.fmtPct },
-           { key: "d", label: "Δ MoM", fmt: dFmt },
+           { key: "d", label: "MoM change", fmt: dFmt },
            { key: "v", label: "Packing Written", fmt: moneyNS },
            { key: "avg", label: "Avg $ / Packing Job", fmt: moneyNS }],
           shown.map(x => ({ ...x, m: mLabel(x.k) })),

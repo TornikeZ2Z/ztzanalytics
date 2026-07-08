@@ -64,34 +64,34 @@ registerPage({
       <div class="rs-page-head">
         <h1>Packing</h1>
         <p>Packing revenue vs foreman estimates · <b>${RS.fmtN(jobsTotal)}</b> jobs ·
-           <b>${RS.fmtN(sc.length)}</b> scorecard foreman-months in scope
-           <span class="freshness">· estimates from the foreman scorecard mart</span></p>
+           <b>${RS.fmtN(sc.length)}</b> foreman-months in scope
+           <span class="freshness">· estimates entered by foremen each month</span></p>
       </div>
       <div class="rs-kpis" id="pckKpis"></div>
       <div id="pckMain"></div>
       <div class="rs-grid2" id="pckGrid"></div>`;
 
     RSC.kpis(document.getElementById("pckKpis"), [
-      { label: "Packing Written", value: RS.moneyC(writtenTotal), sub: RS.money(writtenTotal) + " Material Total on closings" },
+      { label: "Packing Written", value: RS.moneyC(writtenTotal), sub: RS.money(writtenTotal) + " packing charged to customers" },
       // foreman packing COMMISSION (Material $, 20/26% of Material Total) — PBI: Forman Salary - Packing
       { label: "Foreman Packing Pay", value: RS.moneyC(payTotal), sub: RS.money(payTotal) + " commission (Material $)" },
       // portal addition — Total Packing Written / Total Jobs (no direct PBI measure)
       { label: "Packing per Job", value: jobsTotal ? RS.moneyC(writtenTotal / jobsTotal) : "—", sub: "written / job in scope" },
-      { label: "Total Packing Estimate", value: RS.moneyC(estTotal), sub: RS.money(estTotal) + " scorecard foreman estimates" },
-      // PBI: 'Packing Difference %' evaluated page-level (written vs estimate); the
-      // footnote names PBI's ratio convention so both readings reconcile
+      { label: "Total Packing Estimate", value: RS.moneyC(estTotal), sub: RS.money(estTotal) + " estimates entered by foremen" },
+      // PBI 'Packing Difference %' (a written/estimate ratio) is shown everywhere as the
+      // signed delta convention: (written − estimate) / estimate — see packing-analysis.js
       { label: "Written vs Estimate", value: fmtDiff(diffTotal),
-        sub: estTotal ? `delta % · PBI 'Packing Difference %' shows the ratio: ${(writtenTotal / estTotal).toFixed(2)}×` : "actual over/under estimate" },
+        sub: "how far actual packing landed over or under the foremen's estimate" },
       // portal addition — share-of-total column family (Material Total / Revenue)
-      { label: "Packing Share of Revenue", value: RS.fmtPct(billTotal ? writtenTotal / billTotal : null), sub: "Material Total / Revenue" },
+      { label: "Packing Share of Revenue", value: RS.fmtPct(billTotal ? writtenTotal / billTotal : null), sub: "packing $ ÷ revenue" },
     ]);
     // RSC.kpis escapes subs — patch the two headline subs in place to inject YoY chips
     const writtenChip = yoyChip(closingAll, "closing", rs => M["Total Packing Written"].fn(rs));
     const estChip = yoyChip(scorecardAll, "scorecard",
       rs => rs.reduce((a, r) => a + RS.num(r["Total Packing Estimate"]), 0));
     const kpiSubs = document.querySelectorAll("#pckKpis .kpi .s");
-    if (writtenChip && kpiSubs[0]) kpiSubs[0].innerHTML = RSC.esc(RS.money(writtenTotal) + " Material Total on closings") + writtenChip;
-    if (estChip && kpiSubs[3]) kpiSubs[3].innerHTML = RSC.esc(RS.money(estTotal) + " scorecard foreman estimates") + estChip;
+    if (writtenChip && kpiSubs[0]) kpiSubs[0].innerHTML = RSC.esc(RS.money(writtenTotal) + " packing charged to customers") + writtenChip;
+    if (estChip && kpiSubs[3]) kpiSubs[3].innerHTML = RSC.esc(RS.money(estTotal) + " estimates entered by foremen") + estChip;
 
     // ---- empty state: no closing rows AND no scorecard rows in scope → skip charts
     if (!rows.length && !sc.length) {
@@ -114,7 +114,7 @@ registerPage({
     RSC.chartCard(document.getElementById("pckMain"), {
       title: "Packing written by month — actual vs estimate",
       controlsGraphOnly: true,
-      controlsHtml: `<span class="lbl">bars: closing Material Total · line: scorecard estimate · last 24 mo</span>`,
+      controlsHtml: `<span class="lbl">bars: packing charged to customers · line: foreman estimate · last 24 mo</span>`,
       buildChart(canvas) {
         const shown = months.slice(-24);
         return new Chart(canvas, {
@@ -170,7 +170,7 @@ registerPage({
            { key: "mom", label: "MoM", fmt: fmtDiff },
            { key: "pay", label: "Foreman Packing Pay (commission)", fmt: mny },
            { key: "est", label: "Packing Estimate", fmt: mny },
-           { key: "diff", label: "Written vs Est", fmt: fmtDiff },
+           { key: "diff", label: "Written vs Estimate", fmt: fmtDiff },
            { key: "sh", label: "Share of Revenue", fmt: RS.fmtPct }],
           data,
           { m: "Total", jobs: jobsTotal, sold: writtenTotal, mom: null, pay: payTotal,
@@ -239,7 +239,7 @@ registerPage({
         if (rest.length) {                                    // "everything else" bucket
           const s = rest.reduce((a, x) => a + (x.sold || 0), 0);
           const e = rest.reduce((a, x) => a + (x.est || 0), 0);
-          data.push({ rk: null, f: `Everything else (${rest.length})`,
+          data.push({ rk: null, f: `All others (${rest.length})`,
             jobs: rest.reduce((a, x) => a + x.jobs, 0), sold: s, est: e,
             diff: e ? (s - e) / e : null, sh: writtenTotal ? s / writtenTotal : null });
         }
@@ -249,7 +249,7 @@ registerPage({
            { key: "jobs", label: "Jobs", fmt: RS.fmtN },
            { key: "sold", label: "Packing Written", fmt: mny },
            { key: "est", label: "Estimate", fmt: mny },
-           { key: "diff", label: "Written vs Est", fmt: fmtDiff },
+           { key: "diff", label: "Written vs Estimate", fmt: fmtDiff },
            { key: "sh", label: "% of Written", fmt: RS.fmtPct }],
           data,
           { f: "Total", jobs: jobsTotal, sold: writtenTotal, est: estTotal,
@@ -261,7 +261,7 @@ registerPage({
     RSC.chartCard(grid, {
       title: "Packing share of revenue",
       controlsGraphOnly: true,
-      controlsHtml: `<span class="lbl">Material Total / Revenue · last 24 mo</span>`,
+      controlsHtml: `<span class="lbl">packing $ ÷ revenue · last 24 mo</span>`,
       buildChart(canvas) {
         const shown = months.filter(k => closByM[k]).slice(-24);
         return new Chart(canvas, {
