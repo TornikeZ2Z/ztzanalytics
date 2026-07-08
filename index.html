@@ -10,6 +10,16 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/portal.css?v=2">
 <link rel="stylesheet" href="assets/rs.css?v=7">
+<style>
+/* collapsible sidebar groups + nested hub sub-items */
+#nav .g-title{cursor:pointer;user-select:none;display:flex;align-items:center;justify-content:space-between}
+#nav .g-title .g-car{font-size:9px;opacity:.55;transition:transform .15s ease;margin-left:8px}
+#nav .rs-group.collapsed .g-title .g-car{transform:rotate(-90deg)}
+#nav .rs-group.collapsed .rs-nav-item{display:none}
+#nav .rs-nav-sub{padding-left:36px !important;font-size:12.5px;opacity:.92}
+#nav .rs-nav-sub svg{display:none}
+#nav .rs-nav-sub::before{content:"·";margin-right:8px;opacity:.5;font-weight:800}
+</style>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 </head>
 <body class="rs-app">
@@ -53,11 +63,12 @@ window.registerPage = p => PAGES.push(p);
 const GROUPS = [
   { key: "settings",  title: "Settings" },
   { key: "company",   title: "Company Reports" },
-  { key: "financial", title: "Financial" },
   { key: "sales",     title: "Sales" },
   { key: "marketing", title: "Marketing" },
   { key: "logistics", title: "Logistics" },
-  { key: "cx",        title: "Customer Experience" },
+  { key: "financial", title: "Financial" },
+  { key: "reviews",   title: "Reviews" },
+  { key: "support",   title: "Support" },
 ];
 
 /* Sidebar placement is decided HERE (id -> container), overriding whatever group a page
@@ -70,15 +81,16 @@ const GROUP_OVERRIDE = {
   "sales-team": "sales", "sales-person-analysis": "sales",
   "leads-analysis": "sales", "leads-by-state": "sales",
   "marketing-team": "marketing", "ads-analysis": "marketing", "callrail": "marketing",
-  "post-card-analysis": "marketing", "angi-vs-moveboard": "marketing", "source-analysis": "marketing", "movers-analysis": "marketing", "reviews": "cx",
+  "post-card-analysis": "marketing", "angi-vs-moveboard": "marketing", "source-analysis": "marketing", "movers-analysis": "marketing", "reviews": "reviews",
   "logistics-team": "logistics", "forman": "logistics", "forman-analysis": "logistics",
   "packing": "logistics", "packing-analysis": "logistics", "packing-per-100cf": "logistics",
-  "claims": "logistics", "labor-analysis": "logistics", "customer-experience": "cx",
+  "claims": "support", "labor-analysis": "logistics", "customer-experience": "support",
   "jobs-vs-hours": "logistics",
+  "reviews-team": "reviews", "support-team": "support",
 };
 const groupOf = p => GROUP_OVERRIDE[p.id] || p.group;
 /* team page first in each department, hub merges next, everything else after */
-const NAV_ORDER = { "financial-team": 1, "sales-team": 1, "marketing-team": 1, "logistics-team": 1,
+const NAV_ORDER = { "financial-team": 1, "sales-team": 1, "marketing-team": 1, "logistics-team": 1, "reviews-team": 1, "support-team": 1,
   "monthly-report": 1, "admin-users": 1, "leads": 10, "marketing": 10, "foremen": 10, "packing-suite": 10, "lead-source-analysis": 10 };
 
 /* Inline SVG icon set (Feather-style, stroke-based) — no emojis anywhere. */
@@ -123,7 +135,7 @@ const PAGE_ICONS = {
   "labor-analysis": "activity",
   "financial-analysis": "trend", "post-card-analysis": "megaphone",
   "monthly-report": "spark",
-  "angi-vs-moveboard": "compass", "lead-source-analysis": "compass", "source-analysis": "compass", "movers-analysis": "megaphone",
+  "angi-vs-moveboard": "compass", "reviews-team": "star", "support-team": "shield", "lead-source-analysis": "compass", "source-analysis": "compass", "movers-analysis": "megaphone",
   "financial-team": "trend", "sales-team": "user", "marketing-team": "megaphone", "logistics-team": "tool",
 };
 
@@ -348,8 +360,9 @@ function navigate(id, push) {
   if (!page) return;
   CURRENT = page;
   if (push !== false) location.hash = "page=" + page.id;
+  const mAct = (() => { const m = MERGED.find(x => x.id === page.id); return m ? page.id + ":" + (mergedActiveTab[page.id] || m.tabs[0][0]) : null; })();
   document.querySelectorAll(".rs-nav-item").forEach(n =>
-    n.classList.toggle("active", n.dataset.id === page.id));
+    n.classList.toggle("active", n.dataset.id === page.id || (mAct != null && n.dataset.id === mAct)));
   renderPage();
 }
 
@@ -382,7 +395,8 @@ function buildNav() {
         if (!seenMerged.has(m.id) && canSee(m.id)) {
           seenMerged.add(m.id);
           display.push({ id: m.id, title: m.title, iconKey: m.icon,
-            search: m.title + " " + m.tabs.map(t => t[1]).join(" ") });
+            search: m.title + " " + m.tabs.map(t => t[1]).join(" "),
+            children: m.tabs.map(([tid, label]) => ({ tid, label })) });
         }
       } else if (canSee(p.id)) {
         display.push({ id: p.id, title: p.title, iconKey: PAGE_ICONS[p.id], search: p.title });
@@ -392,14 +406,31 @@ function buildNav() {
     const items = display.filter(p => p.search.toLowerCase().includes(q));
     const planned = PLANNED.filter(p => p.group === g.key && p.title.toLowerCase().includes(q));
     if (!items.length && !planned.length) return;
-    const box = RSC.el("div", "rs-group",
-      `<div class="g-title">${g.title}</div>`);
+    const collapsedSet = new Set(JSON.parse(localStorage.getItem("rsNavCollapsed") || "[]"));
+    // while searching, always show matches even inside collapsed groups
+    const box = RSC.el("div", "rs-group" + (!q && collapsedSet.has(g.key) ? " collapsed" : ""),
+      `<div class="g-title">${g.title}<span class="g-car">▼</span></div>`);
+    box.querySelector(".g-title").onclick = () => {
+      const set = new Set(JSON.parse(localStorage.getItem("rsNavCollapsed") || "[]"));
+      set.has(g.key) ? set.delete(g.key) : set.add(g.key);
+      localStorage.setItem("rsNavCollapsed", JSON.stringify([...set]));
+      box.classList.toggle("collapsed");
+    };
     items.forEach(p => {
       const a = RSC.el("div", "rs-nav-item" + (CURRENT && CURRENT.id === p.id ? " active" : ""),
         icon(p.iconKey) + RSC.esc(p.title));
       a.dataset.id = p.id;
       a.onclick = () => navigate(p.id);
       box.appendChild(a);
+      // merged hubs list their tabs as indented sub-items (e.g. Angi under Lead Source Analysis)
+      (p.children || []).forEach(ch => {
+        const sub = RSC.el("div", "rs-nav-item rs-nav-sub" +
+          (CURRENT && CURRENT.id === p.id && (mergedActiveTab[p.id] || p.children[0].tid) === ch.tid ? " active" : ""),
+          RSC.esc(ch.label));
+        sub.dataset.id = p.id + ":" + ch.tid;
+        sub.onclick = () => { mergedActiveTab[p.id] = ch.tid; navigate(p.id); };
+        box.appendChild(sub);
+      });
     });
     planned.forEach(p => box.appendChild(RSC.el("div", "rs-nav-item disabled",
       icon(PAGE_ICONS[p.title]) + RSC.esc(p.title) + `<span class="soon">SOON</span>`)));
@@ -708,7 +739,7 @@ registerPage({
 <script src="pages/labor-analysis.js?v=1"></script>
 <script src="pages/financial-analysis.js?v=1"></script>
 <script src="pages/post-card-analysis.js?v=1"></script>
-<script src="pages/monthly-report.js?v=32"></script>
+<script src="pages/monthly-report.js?v=33"></script>
 <script src="pages/leads-vs-moveboard.js?v=5"></script>
 <script src="pages/source-analysis.js?v=1"></script>
 </body>

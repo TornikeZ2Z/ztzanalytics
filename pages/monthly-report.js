@@ -1303,6 +1303,10 @@ const MR_TEAMS = [
     sections: ["Marketing & Channels", "Demand & Lead Funnel", "Lead Segmentation"] },
   { id: "logistics-team", title: "Logistics Team", icon: "tool",
     sections: ["Operations & Crew (Foreman)", "Packing & Storage", "Quality & Customer Experience"] },
+  { id: "reviews-team", title: "Reviews Team", icon: "star",
+    sections: ["Quality & Customer Experience", "Returned & Recommended"] },
+  { id: "support-team", title: "Support Team", icon: "shield",
+    sections: ["Quality & Customer Experience"] },
 ];
 MR_TEAMS.forEach(t => registerPage({ id: t.id, group: "pulse", title: t.title, render(host) { return renderMonthly(host, t); } }));
 
