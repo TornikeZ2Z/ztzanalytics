@@ -866,7 +866,10 @@ async function renderMonthly(host, MRCFG) {
       const c1 = yoyBars(g, "Operational Profit", opT, moneyC, { yoyPct: true, headVal: money(op), chips: dchips([[op, opLY, "YoY"], [op, opPM, "MoM"]]) }); note(c1, trendInsight("Operational Profit", opT, money, MON[mo]));
       const c2 = yoyBars(g, "Jobs Done", jobT, fmtN, { headVal: fmtN(jobs), chips: dchips([[jobs, jobsLY, "YoY"], [jobs, jobsPM, "MoM"]]) }); note(c2, trendInsight("Jobs Done", jobT, fmtN, MON[mo]));
       // N17: these are confirmed LEADS, not completed jobs — "jobs" is reserved for closings
-      const confT = trendSeries("moveboard", "Confirmed Leads"), bkT = trendSeries("moveboard", "Booking Rate");
+      // Confirmed counted by BOOKED date (bookedRowsFor) so the line is consistent with the
+      // booked-date Booking Rate on the same chart (was create-date via trendSeries).
+      const confT = yearsArr().map(y => ({ k: String(y), v: bookedRowsFor(y, mo).filter(r => r["Status Category"] === "Confirmed").length }));
+      const bkT = trendSeries("moveboard", "Booking Rate");
       combo(g, "Leads Confirmed & Booking Rate", MON[mo] + " · " + confT.length + "-yr", confT, "Confirmed leads", fmtN, bkT, "Booking %", pct, { headVal: pct(bk) });
       // ---- Local | Long-distance, laid out as MIRRORED PAIRS (Local left, LD right) ----
       const isLocal = r => String(r["Moving Type"]) === "Local Moving";

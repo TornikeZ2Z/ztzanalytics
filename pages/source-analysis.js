@@ -83,14 +83,15 @@ async function renderSourceAnalysis(host, lockedSource) {
   const mts = monthsOf([mbS]);
   RSC.chartCard(grid, { title: "Leads & confirmed — monthly", buildChart(cv) {
     const L = mts.map(k => mbS.filter(r => ymKey(r) === k).length);
-    const C = mts.map(k => mbS.filter(r => ymKey(r) === k && r["Status Category"] === "Confirmed").length);
+    // Confirmed counts by BOOKED month (mbSB/bymKey) — matches the KPI and Booking % basis
+    const C = mts.map(k => mbSB.filter(r => bymKey(r) === k && r["Status Category"] === "Confirmed").length);
     return new Chart(cv, { type: "bar", data: { labels: mts.map(ymLbl), datasets: [
       { label: "Leads", data: L, backgroundColor: "#c6d0db", borderRadius: 3 },
       { label: "Confirmed", data: C, backgroundColor: CATINK, borderRadius: 3 } ] },
       options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: "top" } } } });
   }, buildTable() {
     return RSC.table([{ key: "m", label: "Month" }, { key: "l", label: "Leads" }, { key: "c", label: "Confirmed" }, { key: "r", label: "Booking %", fmt: v => v == null ? "—" : pct(v) }],
-      mts.map(k => { const rs = mbS.filter(r => ymKey(r) === k); const c2 = rs.filter(r => r["Status Category"] === "Confirmed").length; return { m: ymLbl(k), l: rs.length, c: c2, r: brMonth(k) }; }));
+      mts.map(k => { const rs = mbS.filter(r => ymKey(r) === k); const c2 = mbSB.filter(r => bymKey(r) === k && r["Status Category"] === "Confirmed").length; return { m: ymLbl(k), l: rs.length, c: c2, r: brMonth(k) }; }));
   } });
 
   // 2 · revenue vs ad spend by month
