@@ -107,7 +107,7 @@ registerPage({
         <p>Platform review production vs goals ·
            <b>${RS.fmtN(written)}</b> counted reviews in scope
            <span class="freshness">· Counted = reviews the platform actually publishes toward our rating (excludes filtered/removed ones)
-           · Factual Reviews = all-time reviews live on the platforms (cumulative snapshots)</span></p>
+           · Factual Reviews = what was actually on the platforms at the end of the month (recorded monthly)</span></p>
       </div>
       <div class="rs-kpis" id="rvKpis"></div>
       <div id="rvMain"></div>
@@ -119,7 +119,7 @@ registerPage({
       { label: "Review Score", value: (avgScore == null || isNaN(avgScore)) ? "—" : Number(avgScore).toFixed(2), sub: "avg over counted reviews" },
       { label: "With Image", value: RS.fmtN(withImage),
         sub: RS.fmtPct(written ? withImage / written : null) + " of counted" },
-      { label: "Total Factual Reviews", value: RS.fmtN(factual), sub: "all-time reviews live on the platforms · lifetime total, latest snapshot" },
+      { label: "Total Factual Reviews", value: RS.fmtN(factual), sub: "actually on the platforms at month-end · latest recorded month" },
       { label: "Review Goal", value: RS.fmtN(goalTotal),
         sub: "cumulative target, " + (goalWhen ? goalWhen + " checkpoint" : "latest checkpoint") },
       { label: "Goal Attainment", value: RS.fmtPct(attainment),
@@ -131,7 +131,7 @@ registerPage({
     if (writtenChip) kpiSubs[0].innerHTML =
       RSC.esc(countedSub) + " · " + writtenChip + " vs same period LY";
     if (factualChip) kpiSubs[3].innerHTML =
-      "all-time on platforms · lifetime total · " + factualChip + " vs a year ago";
+      "month-end actual on the platforms · " + factualChip + " vs a year ago";
 
     /* ---------------- main: reviews by platform (breakdown Source, counted) ------- */
     const platG = {};

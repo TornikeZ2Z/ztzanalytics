@@ -1294,8 +1294,10 @@ async function renderMonthly(host, MRCFG) {
         fleetRows.forEach(r => { if (String(r.Date || "").slice(0, 7) !== mmF) return; const t = String(r["Truck #"] || "").trim(); if (!t) return; const b = fm2[t] || (fm2[t] = { jobs: 0, rev: 0, cost: 0 }); b.jobs++; b.rev += num(r["Total Bill"]); b.cost += num(r.Fuel) + num(r.Truck) + num(r.Car) + num(r.Tolls); });
         const fl = Object.keys(fm2).map(k => { const v = fm2[k]; return { k, jobs: v.jobs, rev: v.rev, cost: v.cost, net: v.rev - v.cost }; }).sort((a, b) => b.rev - a.rev).slice(0, 15);
         if (fl.length) {
-          const flHtml = `<table class="mrx-tbl"><thead><tr><th>Truck</th><th>Jobs</th><th>Revenue</th><th>Running cost</th><th>Net</th><th>Cost %</th></tr></thead><tbody>${fl.map(r => `<tr><td>${esc(r.k)}</td>${td(fmtN(r.jobs))}${td(money(r.rev))}${td(money(r.cost))}${td(money(r.net))}${td(r.rev ? pct(r.cost / r.rev) : "—")}</tr>`).join("")}</tbody></table>`;
-          tableCard(g, "Fleet — revenue & running cost per truck", monLbl, flHtml, { icon: KIC.grid, headVal: fmtN(fl.length) + " trucks", noteKind: "how", note: "Revenue of the jobs each truck ran vs its direct running costs (fuel, truck expense, car, tolls). Labor isn't truck-attributable and is excluded — this ranks the fleet, it isn't a full profit & loss. Truck names come from closing sheets as written." });
+          // Tornike confirmed 2026-07-08: closing-sheet truck "Ent" = Enterprise rental
+          const truckLbl = k => /^ent$/i.test(k) ? "Rental (Enterprise)" : k;
+          const flHtml = `<table class="mrx-tbl"><thead><tr><th>Truck</th><th>Jobs</th><th>Revenue</th><th>Running cost</th><th>Net</th><th>Cost %</th></tr></thead><tbody>${fl.map(r => `<tr><td>${esc(truckLbl(r.k))}</td>${td(fmtN(r.jobs))}${td(money(r.rev))}${td(money(r.cost))}${td(money(r.net))}${td(r.rev ? pct(r.cost / r.rev) : "—")}</tr>`).join("")}</tbody></table>`;
+          tableCard(g, "Fleet — revenue & running cost per truck", monLbl, flHtml, { icon: KIC.grid, headVal: fmtN(fl.length) + " trucks", noteKind: "how", note: "Revenue of the jobs each truck ran vs its direct running costs (fuel, truck expense, car, tolls). Labor isn't truck-attributable and is excluded — this ranks the fleet, it isn't a full profit & loss. Truck names come from closing sheets as written; Rental (Enterprise) is a rented truck." });
         }
       }
     }
