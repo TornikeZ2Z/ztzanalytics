@@ -18,7 +18,7 @@ registerPage({
     if (!bd.length && !counts.length && !goals.length) {
       host.innerHTML = `
         <div class="rs-page-head">
-          <h1>Reviews</h1>
+          <h1>Review Production</h1>
           <p>Platform review production vs goals</p>
         </div>
         <div class="panel" style="padding:18px;color:var(--muted)">No data for the current filters — adjust or clear the filter bar above.</div>`;
@@ -103,7 +103,7 @@ registerPage({
 
     host.innerHTML = `
       <div class="rs-page-head">
-        <h1>Reviews</h1>
+        <h1>Review Production</h1>
         <p>Platform review production vs goals ·
            <b>${RS.fmtN(written)}</b> counted reviews in scope
            <span class="freshness">· Counted = reviews the platform actually publishes toward our rating (excludes filtered/removed ones)

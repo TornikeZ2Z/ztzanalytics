@@ -32,8 +32,8 @@ registerPage({
     if (!closingRows.length && !claimRows.length && !refundRows.length) {
       host.innerHTML = `
         <div class="rs-page-head">
-          <h1>Customer Experience</h1>
-          <p>Cost-of-quality scorecard: claims, refunds, negative reviews, satisfaction</p>
+          <h1>Refunds &amp; Cost of Quality</h1>
+          <p>(formerly Customer Experience) · Cost-of-quality scorecard: claims, refunds, negative reviews, satisfaction</p>
         </div>
         <div class="panel">
           <div class="panel-head"><span class="panel-title">No data for the current filters</span></div>
@@ -76,8 +76,8 @@ registerPage({
 
     host.innerHTML = `
       <div class="rs-page-head">
-        <h1>Customer Experience</h1>
-        <p>Cost-of-quality scorecard: claims, refunds, negative reviews, satisfaction ·
+        <h1>Refunds &amp; Cost of Quality</h1>
+        <p>(formerly Customer Experience) · Cost-of-quality scorecard: claims, refunds, negative reviews, satisfaction ·
            <b>${RS.fmtN(totalJobs)}</b> jobs in scope
            <span class="freshness">· refunds come from the refunds sheet · negative-review refund amounts come from the Support sheet, matched by request number</span></p>
       </div>

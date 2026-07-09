@@ -124,8 +124,9 @@ registerPage({
 
     host.innerHTML = `
       <div class="rs-page-head">
-        <h1>Financial Analysis</h1>
-        <p>P&amp;L by line item · <b>${RS.fmtN(rows.length)}</b> jobs in scope
+        <h1>Job P&amp;L</h1>
+        <p>(formerly Financial Analysis) · per-job costs, commissions and deductions — for investigating which jobs and people drive the numbers ·
+           <b>${RS.fmtN(rows.length)}</b> jobs in scope
            <span class="freshness">· commissions, helper salaries &amp; refunds are matched to jobs by job key</span></p>
       </div>
       <div class="rs-kpis" id="kpis"></div>

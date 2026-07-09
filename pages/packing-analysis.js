@@ -31,7 +31,7 @@ registerPage({
     if (!rows.length && !scRows.length) {                  // nothing at all in scope
       host.innerHTML = `
         <div class="rs-page-head">
-          <h1>Packing Analysis</h1>
+          <h1>Packing — Estimate vs Written</h1>
           <p>Packing revenue — who sells it, how often it attaches, and foreman estimate accuracy</p>
         </div>
         <div class="panel" style="padding:18px;color:var(--muted)">No data for the current filters.</div>`;
@@ -72,7 +72,7 @@ registerPage({
 
     host.innerHTML = `
       <div class="rs-page-head">
-        <h1>Packing Analysis</h1>
+        <h1>Packing — Estimate vs Written</h1>
         <p>Packing revenue — who sells it, how often it attaches, and foreman estimate accuracy ·
            <b>${RS.fmtN(rows.length)}</b> jobs in scope
            <span class="freshness">· foreman scores from the monthly scorecard

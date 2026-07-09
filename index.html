@@ -92,14 +92,14 @@ const GROUP_OVERRIDE = {
   "admin-users": "settings",
   "source-identification": "marketing",   // answers a Marketing question, not a Settings one (S1)
   "monthly-report": "company", "insights": "company", "executive-scorecard": "company",
-  "yoy-diff": "company", "analysis-by-category": "company", "jobs-vs-hours": "company",
+  "analysis-by-category": "company",
   "financial-team": "financial", "financial-analysis": "financial", "storage": "financial",
   "sales-team": "sales", "sales-person-analysis": "sales",
   "leads-analysis": "sales", "leads-by-state": "sales",
   "marketing-team": "marketing", "ads-analysis": "marketing", "callrail": "marketing",
   "post-card-analysis": "marketing", "angi-vs-moveboard": "marketing", "source-analysis": "marketing", "movers-analysis": "marketing", "reviews": "reviews",
   "logistics-team": "logistics", "forman": "logistics", "forman-analysis": "logistics",
-  "packing": "logistics", "packing-analysis": "logistics", "packing-per-100cf": "logistics",
+  "packing-analysis": "logistics", "packing-per-100cf": "logistics",
   "claims": "support", "labor-analysis": "logistics", "customer-experience": "support",
   "reviews-team": "reviews", "support-team": "support",
 };
@@ -169,14 +169,24 @@ const MERGED = [
     tabs: [["leads-analysis", "Funnel (conversion)"], ["leads-by-state", "Geography"]] },
   { id: "marketing", group: "marketing", icon: "megaphone", title: "Ads & Calls",
     tabs: [["ads-analysis", "Ad Spend & Returns"], ["callrail", "Call Tracking"]] },
-  { id: "foremen", group: "logistics", icon: "tool", title: "Foremen",
-    tabs: [["forman", "Scorecard"], ["forman-analysis", "Deep Comparison"]] },
+  { id: "foremen", group: "logistics", icon: "tool", title: "Foremen & Crew",
+    tabs: [["forman", "Scorecard"], ["forman-analysis", "Deep Comparison"], ["labor-analysis", "Crew & Labor"]] },
   { id: "packing-suite", group: "logistics", icon: "box", title: "Packing",
-    tabs: [["packing", "Overview"], ["packing-analysis", "Analysis"], ["packing-per-100cf", "Per 100 CF"]] },
+    tabs: [["packing-analysis", "Estimate vs Written"], ["packing-per-100cf", "Per 100 CF"]] },
 ];
 const MERGED_BY_TAB = {};
 MERGED.forEach(m => m.tabs.forEach(([tid]) => MERGED_BY_TAB[tid] = m));
 const mergedActiveTab = {};
+
+/* Retired pages (approved 2026-07-09): code + <script> registrations stay (harmless),
+   but they're hidden from nav/search/tiles and any hit — deep link, old ACL grant, hash —
+   is silently forwarded to its replacement. */
+const RETIRED = new Set(["jobs-vs-hours", "yoy-diff", "packing"]);
+const REDIRECTS = {
+  "jobs-vs-hours": "monthly-report",
+  "yoy-diff": "analysis-by-category",
+  "packing": "packing-suite:packing-analysis",   // the packing hub, opened on its Estimate-vs-Written tab
+};
 
 function mergedPage(m) {
   return { id: m.id, group: m.group, title: m.title, async render(host) {
@@ -193,8 +203,16 @@ function mergedPage(m) {
     if (page) await page.render(host.querySelector("#mergedHost"));
   } };
 }
-/* Resolve any id — merged id, constituent id (old deep link), or plain page. */
+/* Resolve any id — retired id (→ replacement), merged id, constituent id (old deep link),
+   or plain page. */
 function pageFor(id) {
+  if (id && REDIRECTS[id]) id = REDIRECTS[id];   // retired page → its replacement
+  if (id && id.indexOf(":") > 0) {               // "hub:tab" replacement target — activate the tab
+    const [hub, tab] = id.split(":");
+    const mm = MERGED.find(x => x.id === hub);
+    if (mm && mm.tabs.some(t => t[0] === tab)) mergedActiveTab[hub] = tab;
+    id = hub;
+  }
   const m = MERGED.find(x => x.id === id);
   if (m) return mergedPage(m);
   const parent = MERGED_BY_TAB[id];
@@ -209,7 +227,17 @@ function canSee(id) {
   if (!id || !ME) return false;
   if (ME.admin) return true;
   if (id === "admin-users") return false;
-  return (ME.reports || []).includes(id);
+  const reports = ME.reports || [];
+  if (reports.includes(id)) return true;
+  // a lingering grant to a retired page opens its replacement, so nobody loses access
+  for (const src in REDIRECTS) {
+    if (reports.includes(src) && REDIRECTS[src].split(":")[0] === id) return true;
+  }
+  // a grant to a page that got merged into a hub (e.g. the old standalone Labor & Crew,
+  // now a Foremen & Crew tab) opens that hub — the merge must not revoke access
+  const m = MERGED.find(x => x.id === id);
+  if (m && m.tabs.some(([tid]) => reports.includes(tid))) return true;
+  return false;
 }
 function firstAllowedId() {
   for (const p of PAGES) { const oid = idOwner(p.id); if (canSee(oid)) return oid; }
@@ -538,6 +566,7 @@ function mountBurger() {
 
 function navigate(id, push) {
   let deniedTitle = null;
+  if (id && REDIRECTS[id]) id = REDIRECTS[id];   // retired id → replacement (may itself be "hub:tab")
   // accept "hub:tab" deep-link ids (C32) — activate the tab, then resolve the hub
   if (id && id.indexOf(":") > 0) {
     const [hub, tab] = id.split(":");
@@ -565,6 +594,26 @@ function navigate(id, push) {
   renderPage();
 }
 
+/* Workbench chip: every deep-dive page carries one muted line pointing at the official
+   numbers. Skipped on the report homes themselves (they ARE the official numbers) and on
+   pages with no departmental owner. The link goes to the viewer's own department Monthly
+   Review, falling back to the all-in-one Monthly Report; hidden if ACL allows neither. */
+const WORKCHIP_SKIP = new Set(["monthly-report", "insights", "executive-scorecard", "admin-users",
+  "financial-team", "sales-team", "marketing-team", "logistics-team", "reviews-team", "support-team"]);
+const DEPT_REVIEW = { sales: "sales-team", marketing: "marketing-team", logistics: "logistics-team",
+  financial: "financial-team", reviews: "reviews-team", support: "support-team" };
+function injectWorkchip(host) {
+  if (!CURRENT || WORKCHIP_SKIP.has(CURRENT.id)) return;
+  const dept = DEPT_REVIEW[groupOf(CURRENT)] || "monthly-report";
+  const target = canSee(dept) ? dept : (canSee("monthly-report") ? "monthly-report" : null);
+  if (!target) return;   // viewer can't open either destination — no dead link
+  const chip = document.createElement("div");
+  chip.className = "rs-workchip";
+  chip.innerHTML = `This month's official numbers → <a>Monthly Report</a>`;
+  chip.querySelector("a").onclick = e => { e.preventDefault(); navigate(target); };
+  host.insertBefore(chip, host.firstChild);
+}
+
 async function renderPage() {
   const host = document.getElementById("content");
   updateFilterContext();
@@ -574,6 +623,7 @@ async function renderPage() {
   host.innerHTML = `<div class="rs-loading"><div>Loading <b>${RSC.esc(CURRENT.title)}</b>…</div><div class="bar"><i></i></div></div>`;
   try {
     await CURRENT.render(host);
+    injectWorkchip(host);
   } catch (e) {
     // human words first, the raw error folded away, and a Retry that actually retries (C42)
     host.innerHTML = `<div class="rs-loading"><div style="max-width:440px;text-align:center">
@@ -596,6 +646,9 @@ async function renderPage() {
    what the nav item is CALLED (same pattern as GROUP_OVERRIDE). */
 const NAV_TITLES = {
   "source-identification": "How Sources Are Assigned",
+  "financial-analysis": "Job P&L",
+  "customer-experience": "Refunds & Cost of Quality",
+  "reviews": "Review Production",
 };
 /* C46: hidden search keywords per nav item — old Power BI page names, singular/plural,
    vendor names — so the transition period doesn't break muscle memory. Never shown. */
@@ -603,22 +656,19 @@ const SEARCH_ALIASES = {
   "marketing": "callrail call rail call tracking ads analysis ad spend roi phone calls advertising google",
   "leads": "leads analysis lead funnel geography state states conversion booking",
   "lead-source-analysis": "source analysis sources source overview angi movers movers.com home advisor homeadvisor post card postcard post cards attribution",
-  "foremen": "forman forman analysis foreman foremen crew crews scorecard comparison",
-  "packing-suite": "packing analysis packing per 100 cf material materials boxes",
-  "yoy-diff": "yoy diff year over year comparison annual vs last year",
-  "analysis-by-category": "analysis by category custom breakdown categories explorer",
+  "foremen": "forman forman analysis foreman foremen crew crews scorecard comparison labor analysis labor & crew labor crew helpers hours worked",
+  "packing-suite": "packing analysis packing per 100 cf material materials boxes packing overview estimate vs written",
+  "analysis-by-category": "analysis by category custom breakdown categories explorer yoy diff year over year comparison annual vs last year",
   "source-identification": "source identification lead source assigned attribution booked from lineage",
-  "jobs-vs-hours": "jobs done vs hours worked job hour efficiency",
   "sales-person-analysis": "salesperson salespeople sales person analysis rep reps commission commissions",
-  "monthly-report": "monthly report month review presentation ppt slides",
+  "monthly-report": "monthly report month review presentation ppt slides jobs done vs hours worked jobs vs hours job hour efficiency",
   "executive-scorecard": "executive scorecard kpi kpis trends",
-  "customer-experience": "refund refunds negative review reviews complaints cx cost of quality",
-  "financial-analysis": "p&l pnl profit and loss financial analysis",
+  "customer-experience": "refund refunds negative review reviews complaints cx cost of quality customer experience",
+  "financial-analysis": "p&l pnl profit and loss financial analysis job",
   "claims": "claim claims damage damages",
-  "reviews": "review reviews rating ratings stars",
+  "reviews": "review reviews rating ratings stars review production",
   "storage": "storage payments",
   "insights": "insights recommendations alerts findings",
-  "labor-analysis": "labor crew helpers hours worked",
   "angi-vs-moveboard": "angi analysis angi leads delivery moveboard",
 };
 
@@ -631,7 +681,7 @@ function buildNav() {
     // (at its first constituent's position) and its constituents are hidden.
     const display = [];
     const seenMerged = new Set();
-    PAGES.filter(p => groupOf(p) === g.key).forEach(p => {
+    PAGES.filter(p => groupOf(p) === g.key && !RETIRED.has(p.id)).forEach(p => {
       const m = MERGED_BY_TAB[p.id];
       if (m) {
         if (!seenMerged.has(m.id) && canSee(m.id)) {
@@ -847,20 +897,18 @@ if (!ZTZ.getToken()) {
 PAGE_ICONS["admin-users"] = "user";
 /* Grant-tile labels — plain English, kept in sync with the sidebar renames (N34). */
 const REPORT_LABELS = {
-  "insights": "Insights & Recommendations", "jobs-vs-hours": "Jobs Done vs Hours Worked",
+  "insights": "Insights & Recommendations",
   "analysis-by-category": "Custom Breakdown (formerly Analysis by Category)",
-  "yoy-diff": "Year-over-Year Comparison",
   "leads": "Leads (funnel + geography)", "sales-person-analysis": "Sales Person Analysis",
   "marketing": "Ads & Calls (ad spend + call tracking)",
-  "foremen": "Foremen (scorecard + comparison)",
-  "packing-suite": "Packing (all three views)", "claims": "Claims",
-  "storage": "Storage", "reviews": "Reviews",
+  "foremen": "Foremen & Crew (scorecard, comparison + crew & labor)",
+  "packing-suite": "Packing (estimate vs written + per 100 CF)", "claims": "Claims",
+  "storage": "Storage", "reviews": "Review Production",
   "lead-source-analysis": "Lead Sources (attribution & spend)",
   "source-identification": "How Sources Are Assigned",
   "executive-scorecard": "Executive Scorecard",
-  "customer-experience": "Customer Experience (refunds, claims & bad-review costs)",
-  "labor-analysis": "Labor & Crew",
-  "financial-analysis": "Financial Analysis (profit & loss)",
+  "customer-experience": "Refunds & Cost of Quality",
+  "financial-analysis": "Job P&L (profit & loss)",
   "post-card-analysis": "Post Card Analysis",
   "monthly-report": "Monthly Report (all-in-one)",
   "explorer": "Data Explorer (the Data portal — every table)",
@@ -1008,14 +1056,14 @@ registerPage({
 <script src="pages/forman.js?v=6"></script>
 <script src="pages/packing.js?v=6"></script>
 <script src="pages/claims.js?v=6"></script>
-<script src="pages/reviews.js?v=9"></script>
-<script src="pages/packing-analysis.js?v=6"></script>
+<script src="pages/reviews.js?v=10"></script>
+<script src="pages/packing-analysis.js?v=7"></script>
 <script src="pages/forman-analysis.js?v=6"></script>
 <script src="pages/packing-per-100cf.js?v=6"></script>
 <script src="pages/executive-scorecard.js?v=3"></script>
-<script src="pages/customer-experience.js?v=2"></script>
-<script src="pages/labor-analysis.js?v=2"></script>
-<script src="pages/financial-analysis.js?v=2"></script>
+<script src="pages/customer-experience.js?v=3"></script>
+<script src="pages/labor-analysis.js?v=3"></script>
+<script src="pages/financial-analysis.js?v=3"></script>
 <script src="pages/post-card-analysis.js?v=2"></script>
 <script src="pages/monthly-report.js?v=37"></script>
 <script src="pages/leads-vs-moveboard.js?v=6"></script>

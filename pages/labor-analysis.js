@@ -37,7 +37,7 @@ registerPage({
 
     host.innerHTML = `
       <div class="rs-page-head">
-        <h1>Labor &amp; Crew</h1>
+        <h1>Crew &amp; Labor</h1>
         <p>Crew productivity &amp; labor cost · <b>${RS.fmtN(rows.length)}</b> jobs in scope
            <span class="freshness">· hours = foreman hours · helper pay comes from the helper-salaries sheet, matched to each job</span></p>
       </div>
