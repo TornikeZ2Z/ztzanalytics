@@ -210,6 +210,9 @@ async function renderMonthly(host, MRCFG) {
       "Marketing & Channels": '<svg viewBox="0 0 24 24"><path d="M3 10v4l12 5V5z"/><path d="M15 8.5a4 4 0 010 7"/></svg>',
       "Phone & Response": '<svg viewBox="0 0 24 24"><path d="M4 3h4l2 5-2.5 2a14 14 0 006.5 6.5L16 14l5 2v4a1 1 0 01-1 1C10.6 21 3 13.4 3 4a1 1 0 011-1z"/></svg>',
       "Quality & Customer Experience": '<svg viewBox="0 0 24 24"><path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.7L12 17l-5.2 2.5 1-5.7L3.5 9.7l5.9-.9z"/></svg>',
+      "Reviews Production": '<svg viewBox="0 0 24 24"><path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.7L12 17l-5.2 2.5 1-5.7L3.5 9.7l5.9-.9z"/></svg>',
+      "Claims": '<svg viewBox="0 0 24 24"><path d="M12 3l9 16H3z"/><path d="M12 10v4"/><path d="M12 17h.01"/></svg>',
+      "Refunds & Cost of Quality": '<svg viewBox="0 0 24 24"><path d="M12 2v20"/><path d="M17 6c0-2-2.2-3-5-3S7 4 7 6s2.2 3 5 3 5 1 5 3-2.2 3-5 3-5-1-5-3"/></svg>',
       "Geography — by State": '<svg viewBox="0 0 24 24"><path d="M12 21s7-5.6 7-11a7 7 0 10-14 0c0 5.4 7 11 7 11z"/><circle cx="12" cy="10" r="2.5"/></svg>',
       "Lead Segmentation": '<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="4" rx="1"/><rect x="3" y="10" width="18" height="4" rx="1"/><rect x="3" y="16" width="18" height="4" rx="1"/></svg>',
       "Per-Job Profitability": '<svg viewBox="0 0 24 24"><path d="M19 5L5 19"/><rect x="3.5" y="3.5" width="6.5" height="6.5" rx="1.2"/><path d="M17 14v6.5"/><path d="M13.8 17.2h6.5"/></svg>',
@@ -386,7 +389,7 @@ async function renderMonthly(host, MRCFG) {
       c.appendChild(n);
     }
     function emptyBox(box, msg) { box.innerHTML = `<div class="mrx-empty">${esc(msg || ("No data for " + monLbl))}</div>`; }
-    const TOCNAME = { "Executive Summary": "Summary", "Demand & Lead Funnel": "Leads", "Sales Team Performance": "Sales", "Operations & Crew (Foreman)": "Crew", "Packing & Storage": "Packing", "Revenue & Growth": "Revenue", "Revenue Composition & Segments": "Rev. Mix", "Profitability & P&L": "P&L", "Marketing & Channels": "Marketing", "Phone & Response": "Phone", "Quality & Customer Experience": "Quality", "Geography — by State": "Geography", "Lead Segmentation": "Segments", "Repeat & Referral Business": "Repeat & Referral", "Per-Job Profitability": "Per Job" };
+    const TOCNAME = { "Executive Summary": "Summary", "Demand & Lead Funnel": "Leads", "Sales Team Performance": "Sales", "Operations & Crew (Foreman)": "Crew", "Packing & Storage": "Packing", "Revenue & Growth": "Revenue", "Revenue Composition & Segments": "Rev. Mix", "Profitability & P&L": "P&L", "Marketing & Channels": "Marketing", "Phone & Response": "Phone", "Quality & Customer Experience": "Quality", "Reviews Production": "Reviews", "Claims": "Claims", "Refunds & Cost of Quality": "Refunds", "Geography — by State": "Geography", "Lead Segmentation": "Segments", "Repeat & Referral Business": "Repeat & Referral", "Per-Job Profitability": "Per Job" };
     let bodyEl, secN = 0; const secList = [];
     // narrative block divider — the report reads as 4 parts: month → money → demand → delivery.
     // Team views are single-topic slices, so the part headers are skipped there.
@@ -829,6 +832,86 @@ async function renderMonthly(host, MRCFG) {
        measure, compute the current-month by-Source split ONCE (pre-refund per segment; disclosed
        wherever shown). Lives up here so section order can change freely. */
     const opBySrcCur = segSeries("closing", "Operational Profit by Formula", "Source");
+
+    /* ---- per-department KPI header ----
+       One `mrx-grid k` strip at the very top of a TEAM view's sections area (never on the full
+       report; Financial is skipped because it already opens with the full Executive Summary).
+       Every tile is null-guarded so a metric that can't be computed shows "—" and never throws. */
+    function deptHeader(root, id) {
+      const showN = (n, f) => (n == null || isNaN(n)) ? "—" : f(n);
+      const tiles = [];
+      if (id === "sales-team") {
+        tiles.push(
+          { l: "Leads", v: showN(leadsN, fmtN), c: leadsN, ly: leadsLY, pm: leadsPM, icon: KIC.funnel, hero: 1 },
+          { l: "Booking Rate", v: showN(bk, pct), c: bk, ly: bkLY, pm: bkPM, icon: KIC.check },
+          { l: "Confirmed", v: showN(conf, fmtN), c: conf, icon: KIC.check },
+          { l: "Revenue", v: showN(rev, money), c: rev, ly: revLY, pm: revPM, icon: KIC.dollar },
+          { l: "Avg Job Value", v: showN(avgJob, money), c: avgJob, ly: avgJobLY, pm: avgJobPM, icon: KIC.tag }
+        );
+      } else if (id === "marketing-team") {
+        // ad spend with the same ~1-month posting-lag fallback the Marketing section uses; blended
+        // ROAS = paid-source revenue ÷ paid-source ad spend (post-card variants pooled, like the section).
+        const adMonth = (y, m) => reduceMonth("card_expenses", y, m, rs => rs.filter(r => Number(r["Is Advertising"]) === 1).reduce((a, r) => a + num(r.Amount), 0)) || 0;
+        let adY = curY, adM = mo, adSpend = adMonth(curY, mo);
+        if (!adSpend) { adY = PMY; adM = PM; adSpend = adMonth(PMY, PM); }
+        const normSrc = s => /post\s*card/i.test(String(s)) ? "Post Card" : (blank(s) ? "—" : String(s));
+        const adBySrc = {}; (reduceMonth("card_expenses", adY, adM, rs => rs.filter(r => Number(r["Is Advertising"]) === 1)) || []).forEach(r => { const k = normSrc(r.Source); adBySrc[k] = (adBySrc[k] || 0) + num(r.Amount); });
+        const revBySrc = {}; segSeries("closing", "Revenue", "Source", adY, adM).forEach(r => { const k = normSrc(r.k); revBySrc[k] = (revBySrc[k] || 0) + r.v; });
+        let paidSpend = 0, paidRev = 0; Object.keys(adBySrc).forEach(k => { if (k !== "—" && adBySrc[k] > 0) { paidSpend += adBySrc[k]; paidRev += revBySrc[k] || 0; } });
+        const roas = paidSpend ? paidRev / paidSpend : null;
+        tiles.push(
+          { l: "Ad Spend", v: adSpend ? money(adSpend) : "—", c: adSpend || null, icon: KIC.dollar, hero: 1 },
+          { l: "ROAS", v: roas == null ? "—" : roas.toFixed(1) + "×", c: roas, icon: KIC.trend },
+          { l: "Cost per Job", v: (adSpend && jobs) ? money(adSpend / jobs) : "—", c: (adSpend && jobs) ? adSpend / jobs : null, icon: KIC.truck, inv: 1 },
+          { l: "Leads", v: showN(leadsN, fmtN), c: leadsN, ly: leadsLY, pm: leadsPM, icon: KIC.funnel },
+          { l: "Cost per Lead", v: (adSpend && leadsN) ? money(adSpend / leadsN) : "—", c: (adSpend && leadsN) ? adSpend / leadsN : null, icon: KIC.pct, inv: 1 }
+        );
+      } else if (id === "logistics-team") {
+        const foremanHours = reduceMonth("closing", curY, mo, rs => rs.reduce((a, r) => a + num(r["Foreman Hours"]), 0)) || 0;
+        const jobsPer100h = foremanHours ? 100 * (jobs || 0) / foremanHours : null;
+        const scMo = (DS.scorecard || []).filter(r => String(r["Month"] || "").slice(0, 7) === `${curY}-${String(mo).padStart(2, "0")}`);
+        const totCF = scMo.reduce((a, r) => a + num(r["Total CF"]), 0), totWr = scMo.reduce((a, r) => a + num(r["Total Packing Written"]), 0);
+        const pack100 = totCF ? totWr / totCF * 100 : null;
+        const ffClaims = reduceMonth("claims", curY, mo, rs => rs.filter(r => /forman/i.test(String(r.Responsibility || ""))).length) || 0;
+        tiles.push(
+          { l: "Jobs Done", v: showN(jobs, fmtN), c: jobs, icon: KIC.truck, hero: 1 },
+          { l: "Foreman Hours", v: foremanHours ? fmtN(foremanHours) : "—", c: foremanHours || null, icon: KIC.trend },
+          { l: "Jobs / 100h", v: jobsPer100h == null ? "—" : fmt1(jobsPer100h), c: jobsPer100h, icon: KIC.pct },
+          { l: "Packing $ / 100 CF", v: pack100 == null ? "—" : money(pack100), c: pack100, icon: KIC.bars },
+          { l: "Foreman-Fault Claims", v: fmtN(ffClaims), c: ffClaims, icon: KIC.warn, inv: 1 }
+        );
+      } else if (id === "reviews-team") {
+        const counted = valueFor("reviews_breakdown", "Counted Reviews Written", curY, mo);
+        const factual = valueFor("review_counts", "Total Factual Reviews", curY, mo);
+        const score = valueFor("reviews_breakdown", "Review Score (avg)", curY, mo);
+        tiles.push(
+          { l: "Reviews Written", v: revValHtml(revWritten), c: revWritten, ly: revWrittenLY, pm: revWrittenPM, icon: KIC.star, hero: 1 },
+          { l: "Counted Reviews", v: showN(counted, fmtN), c: counted, icon: KIC.check },
+          { l: "Factual Reviews", v: showN(factual, fmtN), c: factual, icon: KIC.grid },
+          { l: "Review Score", v: (score == null || isNaN(score)) ? "—" : Number(score).toFixed(2), c: score, icon: KIC.pct },
+          { l: "Goal Attainment", v: revGoal > 0 ? pct(revWritten / revGoal) : "—", c: revGoal > 0 ? revWritten / revGoal : null, icon: KIC.trend }
+        );
+      } else if (id === "support-team") {
+        const claimsN = reduceMonth("claims", curY, mo, rs => rs.length) || 0;
+        const claimRate = jobs ? claimsN / jobs * 100 : null;
+        const refTot = Math.abs(reduceMonth("refunds", curY, mo, rs => rs.reduce((a, r) => a + num(r["Total refund"]), 0)) || 0);
+        const rcB = rcAgg[`${curY}-${String(mo).padStart(2, "0")}`];
+        const ansRate = rcB && rcB.in ? rcB.ans / rcB.in : null;
+        const missed = rcB ? Math.max(0, rcB.in - rcB.ans) : null;
+        tiles.push(
+          { l: "Claims Filed", v: fmtN(claimsN), c: claimsN, icon: KIC.warn, hero: 1, inv: 1 },
+          { l: "Claims / 100 jobs", v: claimRate == null ? "—" : fmt1(claimRate), c: claimRate, icon: KIC.pct, inv: 1 },
+          { l: "Refunds Paid", v: money(refTot), c: refTot, icon: KIC.dollar, inv: 1 },
+          { l: "Answer Rate", v: ansRate == null ? "—" : pct(ansRate), c: ansRate, icon: KIC.check },
+          { l: "Missed Calls", v: missed == null ? "—" : fmtN(missed), c: missed, icon: KIC.warn, inv: 1 }
+        );
+      }
+      if (!tiles.length) return;
+      const kg = document.createElement("div"); kg.className = "mrx-grid k"; kg.style.gridColumn = "1/-1";
+      bodyEl.appendChild(kg);
+      tiles.forEach(k => kpiTile(kg, k));
+    }
+    if (MRCFG && MRCFG.id && MRCFG.id !== "financial-team") deptHeader(root, MRCFG.id);
 
     part(1, "The month at a glance", "headline numbers and the executive read");
 
@@ -1348,38 +1431,55 @@ async function renderMonthly(host, MRCFG) {
       }
     }
 
-    /* ---- 13 · Quality & Customer Experience ---- */
-    if (SEC("Quality & Customer Experience")) {
-      const g = section("Quality & Customer Experience", "reviews, claims and refunds — with the full list of this month's cases");
-      const claimsN = reduceMonth("claims", curY, mo, rs => rs.length) || 0;
-      const claimsPM = reduceMonth("claims", PMY, PM, rs => rs.length) || 0;
+    /* ---- 13 · Reviews Production ---- */
+    if (SEC("Reviews Production")) {
+      const g = section("Reviews Production", "reviews written, negative reviews and platform footprint");
       const negN = reduceMonth("negative_reviews", curY, mo, rs => rs.length) || 0;
       const negPM = reduceMonth("negative_reviews", PMY, PM, rs => rs.length) || 0;
-      const claimRate = jobs ? claimsN / jobs * 100 : null;
       const kg = document.createElement("div"); kg.className = "mrx-grid k"; kg.style.gridColumn = "1/-1"; g.appendChild(kg);
       // C8: number unchanged (all breakdown reviews) — the label now says so; C41: colored vs the recorded goal
       [ { l: "All Reviews Written (incl. non-counting)", v: revValHtml(revWritten), c: revWritten, pm: revWrittenPM, icon: KIC.star },
-        { l: "Negative Reviews", v: fmtN(negN), c: negN, pm: negPM, icon: KIC.warn, inv: 1 },
-        { l: "Claims Filed", v: fmtN(claimsN), c: claimsN, pm: claimsPM, icon: KIC.warn, inv: 1 },
+        { l: "Negative Reviews", v: fmtN(negN), c: negN, pm: negPM, icon: KIC.warn, inv: 1 }
+      ].forEach(k => kpiTile(kg, k));
+      rankBars(g, "Reviews by source", segReduce("reviews_breakdown", "Source", rs => rs.reduce((a, r) => a + num(r["Number of Reviews"]), 0), curY, mo), fmtN, { top: 8 });
+      // public review footprint by platform (fct_review_counts — served, never rendered before)
+      const revByPlat = segReduce("review_counts", "Platform", rs => rs.reduce((a, r) => a + num(r["Number of Reviews"]), 0), curY, mo).filter(r => r.v > 0 && r.k !== "—");
+      if (revByPlat.length) rankBars(g, "Public review footprint by platform", revByPlat, fmtN, { top: 12, span2: true, sub: monLbl, noteKind: "how", note: "Total public reviews on file per platform — the reputation that drives lead flow." });
+    }
+
+    /* ---- 14 · Claims ---- */
+    if (SEC("Claims")) {
+      const g = section("Claims", "claims filed this month, by cause and responsibility");
+      const claimsN = reduceMonth("claims", curY, mo, rs => rs.length) || 0;
+      const claimsPM = reduceMonth("claims", PMY, PM, rs => rs.length) || 0;
+      const claimRate = jobs ? claimsN / jobs * 100 : null;
+      const kg = document.createElement("div"); kg.className = "mrx-grid k"; kg.style.gridColumn = "1/-1"; g.appendChild(kg);
+      [ { l: "Claims Filed", v: fmtN(claimsN), c: claimsN, pm: claimsPM, icon: KIC.warn, inv: 1 },
         { l: "Claims / 100 jobs", v: claimRate == null ? "—" : fmt1(claimRate), c: claimRate, pm: (jobsPM ? claimsPM / jobsPM * 100 : null), icon: KIC.pct, inv: 1 }
       ].forEach(k => kpiTile(kg, k));
       // raw claims-sheet values spell it 'Forman' — display-side fix only, data keys untouched
       const dispResp = v => String(v).replace(/\bForman('s)?\b/g, (m, p) => "Foreman" + (p || ""));
       rankBars(g, "Claims by responsibility", segReduce("claims", "Responsibility", rs => rs.length, curY, mo).map(s => ({ ...s, k: dispResp(s.k) })), fmtN, { top: 8 });
       donut(g, "Claims by reason", segReduce("claims", "Reason", rs => rs.length, curY, mo).filter(r => r.k !== "—" && r.k !== "(blank)"), fmtN, { center: fmtN(reduceMonth("claims", curY, mo, rs => rs.filter(r => r.Reason && r.Reason !== "(blank)").length) || 0), centerLbl: "classified" });
-      const refByReason = segReduce("refunds", "Reason", rs => Math.abs(rs.reduce((a, r) => a + num(r["Total refund"]), 0)), curY, mo).filter(r => r.v > 0);
-      const refTot = Math.abs(reduceMonth("refunds", curY, mo, rs => rs.reduce((a, r) => a + num(r["Total refund"]), 0)) || 0);
-      rankBars(g, "Refunds by reason", refByReason, money, { top: 8, sub: `${money(refTot)} · ${rev ? pct(refTot / rev) : "—"} of revenue`, headVal: money(refTot), note: `${money(refTot)} refunded in ${MON[mo]} — ${rev ? pct(refTot / rev) : "—"} of revenue.` });
-      rankBars(g, "Reviews by source", segReduce("reviews_breakdown", "Source", rs => rs.reduce((a, r) => a + num(r["Number of Reviews"]), 0), curY, mo), fmtN, { top: 8 });
-      // public review footprint by platform (fct_review_counts — served, never rendered before)
-      const revByPlat = segReduce("review_counts", "Platform", rs => rs.reduce((a, r) => a + num(r["Number of Reviews"]), 0), curY, mo).filter(r => r.v > 0 && r.k !== "—");
-      if (revByPlat.length) rankBars(g, "Public review footprint by platform", revByPlat, fmtN, { top: 12, span2: true, sub: monLbl, noteKind: "how", note: "Total public reviews on file per platform — the reputation that drives lead flow." });
-      // line-level registers (deck s55-56): the actual claims and refunds of the month, side by side
+      // line-level register (deck s55): the actual claims of the month
       const clReg = (reduceMonth("claims", curY, mo, rs => rs) || []).slice().sort((a, b) => String(b["Created Date"]).localeCompare(String(a["Created Date"]))).slice(0, 14);
       if (clReg.length) {
         const clHtml = `<table class="mrx-tbl"><thead><tr><th>Date</th><th>Customer</th><th>Reason</th><th>Responsibility</th><th>Status</th></tr></thead><tbody>${clReg.map(r => `<tr><td>${esc(String(r["Created Date"] || "").slice(0, 10))}</td><td>${esc(r.Customer || "—")}</td>${td(esc(r.Reason || "—"))}${td(esc(dispResp(r.Responsibility || "—")))}${td(esc(r.Status || "—"))}</tr>`).join("")}</tbody></table>`;
         tableCard(g, "This month's claims", monLbl + (claimsN > 14 ? ` · latest 14 of ${fmtN(claimsN)}` : ""), clHtml, { span2: false, icon: KIC.grid, headVal: fmtN(claimsN) });
       }
+    }
+
+    /* ---- 15 · Refunds & Cost of Quality ---- */
+    if (SEC("Refunds & Cost of Quality")) {
+      const g = section("Refunds & Cost of Quality", "refund dollars this month, by reason — with the full list");
+      const refByReason = segReduce("refunds", "Reason", rs => Math.abs(rs.reduce((a, r) => a + num(r["Total refund"]), 0)), curY, mo).filter(r => r.v > 0);
+      const refTot = Math.abs(reduceMonth("refunds", curY, mo, rs => rs.reduce((a, r) => a + num(r["Total refund"]), 0)) || 0);
+      const kg = document.createElement("div"); kg.className = "mrx-grid k"; kg.style.gridColumn = "1/-1"; g.appendChild(kg);
+      [ { l: "Refunds Paid", v: money(refTot), c: refTot, icon: KIC.dollar, inv: 1 },
+        { l: "Refund % of revenue", v: rev ? pct(refTot / rev) : "—", c: rev ? refTot / rev : null, icon: KIC.pct, inv: 1 }
+      ].forEach(k => kpiTile(kg, k));
+      rankBars(g, "Refunds by reason", refByReason, money, { top: 8, sub: `${money(refTot)} · ${rev ? pct(refTot / rev) : "—"} of revenue`, headVal: money(refTot), note: `${money(refTot)} refunded in ${MON[mo]} — ${rev ? pct(refTot / rev) : "—"} of revenue.` });
+      // line-level register (deck s56): the actual refunds of the month, largest first
       const rfReg = (reduceMonth("refunds", curY, mo, rs => rs) || []).slice().sort((a, b) => Math.abs(num(b["Total refund"])) - Math.abs(num(a["Total refund"]))).slice(0, 14);
       if (rfReg.length) {
         const rfHtml = `<table class="mrx-tbl"><thead><tr><th>Customer</th><th>Foreman</th><th>Sales</th><th>Reason</th><th>Refund</th></tr></thead><tbody>${rfReg.map(r => `<tr><td>${esc(r.Customer || "—")}</td>${td(esc(r.Foreman || "—"))}${td(esc(r["Sales Person"] || "—"))}${td(esc(r.Reason || "—"))}${td(money(Math.abs(num(r["Total refund"]))), "font-weight:800")}</tr>`).join("")}</tbody></table>`;
@@ -1461,18 +1561,18 @@ registerPage({ id: "monthly-report", group: "pulse", title: "Monthly Report", re
 const MR_TEAMS = [
   { id: "financial-team", title: "Monthly Review", label: "Financial Team", icon: "trend",
     // S4: the people who manage the P&L also see ad spend, ROAS and cost-per-job
-    sections: ["Executive Summary", "Revenue & Growth", "Revenue Composition & Segments", "Per-Job Profitability", "Profitability & P&L", "Packing & Storage", "Marketing & Channels"] },
+    sections: ["Executive Summary", "Revenue & Growth", "Revenue Composition & Segments", "Per-Job Profitability", "Profitability & P&L", "Marketing & Channels", "Refunds & Cost of Quality"] },
   { id: "sales-team", title: "Monthly Review", label: "Sales Team", icon: "user",
     sections: ["Demand & Lead Funnel", "Lead Segmentation", "Geography — by State", "Sales Team Performance", "Repeat & Referral Business"] },
   { id: "marketing-team", title: "Monthly Review", label: "Marketing Team", icon: "megaphone",
-    sections: ["Marketing & Channels", "Phone & Response", "Demand & Lead Funnel", "Lead Segmentation"] },
+    sections: ["Marketing & Channels", "Demand & Lead Funnel", "Lead Segmentation", "Phone & Response"] },
   { id: "logistics-team", title: "Monthly Review", label: "Logistics Team", icon: "tool",
-    sections: ["Operations & Crew (Foreman)", "Packing & Storage", "Quality & Customer Experience"] },
+    sections: ["Operations & Crew (Foreman)", "Packing & Storage", "Claims"] },
   { id: "reviews-team", title: "Monthly Review", label: "Reviews Team", icon: "star",
-    sections: ["Quality & Customer Experience", "Repeat & Referral Business"] },
-  // S3: Support sees the phone system — answer rate and missed calls are their job
+    sections: ["Reviews Production", "Repeat & Referral Business"] },
+  // S3: Support sees claims, refunds and the phone system — answer rate and missed calls are their job
   { id: "support-team", title: "Monthly Review", label: "Support Team", icon: "shield",
-    sections: ["Quality & Customer Experience", "Phone & Response"] },
+    sections: ["Claims", "Refunds & Cost of Quality", "Phone & Response"] },
 ];
 MR_TEAMS.forEach(t => registerPage({ id: t.id, group: "pulse", title: t.title, render(host) { return renderMonthly(host, t); } }));
 
