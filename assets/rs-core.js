@@ -33,7 +33,7 @@ window.RS = (function () {
         "Profit per Job", "Storage", "State", "State Name", "Moving Type", "Size of Move",
         "Bill Range", "Commission Bucket Range", "Extra Bill From Trips", "Net Cash From Trips",
         "Crew Size", "Request Encounter", "Is Last Encounter", "Job Part of the Day",
-        "Forman Job Order", "Request Joinkey"],
+        "Forman Job Order", "Request Joinkey", "Branch Owner", "Branch Owner Cut"],
       dateCols: { "Date": "Date" }, defaultDate: "Date",
     },
     moveboard: {
@@ -90,7 +90,8 @@ window.RS = (function () {
     },
     sales_salaries: {  // keyed by closing Unique Key — time-slice via closing membership
       table: "fct_sales_salaries",
-      cols: ["Unique Key", "SP Slot", "Sales Person", "Rate", "Salary", "Bill Distribution"],
+      cols: ["Unique Key", "SP Slot", "Sales Person", "Rate", "Salary", "Bill Distribution",
+        "Is Branch Owner"],
       dateCols: {}, defaultDate: null,
     },
     helper_salaries: {
