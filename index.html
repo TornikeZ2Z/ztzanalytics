@@ -97,6 +97,7 @@ const GROUP_OVERRIDE = {
   "log-foreman": "logistics", "log-packing": "logistics", "log-fleet": "logistics",
   // Financial
   "fin-revenue": "financial", "financial-analysis": "financial", "executive-scorecard": "financial",
+  "branch-owner": "financial",
   // Reviews
   "rev-production": "reviews", "rev-rr": "reviews",
   // Support
@@ -109,7 +110,7 @@ const NAV_ORDER = {
   "sales-funnel": 1, "sales-perf": 2, "sales-geo": 3, "sales-rr": 4,
   "mkt-roi": 1, "mkt-sources": 2, "mkt-phone": 3,
   "log-foreman": 1, "log-packing": 2, "log-fleet": 3,
-  "fin-revenue": 1, "financial-analysis": 2, "executive-scorecard": 3,
+  "fin-revenue": 1, "financial-analysis": 2, "executive-scorecard": 3, "branch-owner": 4,
   "rev-production": 1, "rev-rr": 2,
   "sup-claims": 1, "sup-refunds": 2, "sup-phone": 3,
   "data-quality": 1, "source-trace": 2, "admin-users": 3,
@@ -153,7 +154,7 @@ const PAGE_ICONS = {
   "ads-analysis": "megaphone", "callrail": "phone", "forman": "tool",
   "packing": "box", "claims": "shield", "insights": "spark",
   "source-identification": "compass",
-  "executive-scorecard": "gauge", "customer-experience": "user",
+  "executive-scorecard": "gauge", "branch-owner": "user", "customer-experience": "user",
   "labor-analysis": "activity",
   "financial-analysis": "trend", "post-card-analysis": "megaphone",
   "monthly-report": "spark",
@@ -441,6 +442,7 @@ const PAGE_DATASETS = {
   "claims": ["claims", "closing", "scorecard", "rollup"],
   "reviews": ["reviews_breakdown", "review_counts", "review_goals"],
   "executive-scorecard": ["closing", "card_expenses", "claims", "storage", "refunds"],
+  "branch-owner": ["closing"],
   "customer-experience": ["closing", "claims", "refunds", "negative_reviews", "rollup"],
   "labor-analysis": ["closing", "helper_salaries"],
   "financial-analysis": ["closing", "moveboard", "sales_salaries", "helper_salaries", "refunds"],
@@ -627,6 +629,7 @@ const NAV_TITLES = {
   "insights": "Recommendations",
   "financial-analysis": "Job P&L",
   "executive-scorecard": "Executive Scorecard",
+  "branch-owner": "Branch Owner",
   "data-quality": "Data Quality",
   "source-trace": "Source Trace",
   "admin-users": "Users & Access",
@@ -655,6 +658,7 @@ const SEARCH_ALIASES = {
   "fin-revenue": "revenue profit growth executive summary composition segments per job profitability p&l pnl profit and loss",
   "financial-analysis": "p&l pnl profit and loss financial analysis job",
   "executive-scorecard": "executive scorecard kpi kpis trends",
+  "branch-owner": "branch owner giorgi kolbaia cut payout sales person financial ct",
   // Reviews
   "rev-production": "review reviews rating ratings stars review production",
   "rev-rr": "repeat referral repeat business referral business returning customers reviews",
@@ -914,6 +918,7 @@ const REPORT_LABELS = {
   "fin-revenue": "Revenue & Profit",
   "financial-analysis": "Job P&L (profit & loss)",
   "executive-scorecard": "Executive Scorecard",
+  "branch-owner": "Branch Owner (Giorgi)",
   // Reviews
   "rev-production": "Reviews Production",
   "rev-rr": "Repeat & Referral (Reviews)",
@@ -1082,5 +1087,6 @@ registerPage({
 <script src="pages/source-analysis.js?v=3"></script>
 <script src="pages/data-quality.js?v=2"></script>
 <script src="pages/source-trace.js?v=4"></script>
+<script src="pages/branch-owner.js?v=1"></script>
 </body>
 </html>
