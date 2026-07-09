@@ -217,6 +217,9 @@ async function renderMonthly(host, MRCFG) {
       "Lead Segmentation": '<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="4" rx="1"/><rect x="3" y="10" width="18" height="4" rx="1"/><rect x="3" y="16" width="18" height="4" rx="1"/></svg>',
       "Per-Job Profitability": '<svg viewBox="0 0 24 24"><path d="M19 5L5 19"/><rect x="3.5" y="3.5" width="6.5" height="6.5" rx="1.2"/><path d="M17 14v6.5"/><path d="M13.8 17.2h6.5"/></svg>',
       "Repeat & Referral Business": '<svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 0 1 13.6-5.7L20 8.5"/><path d="M20 3.5v5h-5"/><path d="M20 12a8 8 0 0 1-13.6 5.7L4 15.5"/><path d="M4 20.5v-5h5"/></svg>',
+      "Marketing ROI": '<svg viewBox="0 0 24 24"><path d="M3 10v4l12 5V5z"/><path d="M15 8.5a4 4 0 010 7"/></svg>',
+      "Lead Sources": '<svg viewBox="0 0 24 24"><path d="M3 4h18l-7 8v7l-4-2v-5z"/></svg>',
+      "Fleet": '<svg viewBox="0 0 24 24"><rect x="1.5" y="6" width="12" height="9" rx="1"/><path d="M13.5 9h4l3 3v3h-7z"/><circle cx="6" cy="18" r="1.8"/><circle cx="17.5" cy="18" r="1.8"/></svg>',
       _def: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/></svg>'
     };
     const KIC = {
@@ -247,6 +250,11 @@ async function renderMonthly(host, MRCFG) {
       .mrx-cvsub{color:#a9b6c6;font-size:12.5px;font-weight:600}
       .mrx-print{position:absolute;top:22px;right:24px;background:${LIME};color:${INK};border:0;border-radius:9px;padding:9px 15px;font-size:12.5px;font-weight:800;cursor:pointer;z-index:2}
       .mrx-ctl{font:inherit;font-weight:700;color:#fff;background:${INK2};border:1px solid #2c3e57;border-radius:7px;padding:3px 8px;margin-left:4px}
+      .mrx-lite-h{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;background:#fff;border:1px solid ${LINE};border-left:5px solid ${LIME};border-radius:12px;padding:13px 18px;margin-bottom:14px;box-shadow:0 1px 2px rgba(14,22,33,.05)}
+      .mrx-lite-tt{font-size:20px;font-weight:800;letter-spacing:-.4px;color:${INK}}
+      .mrx-lite-tt b{display:block;font-size:10.5px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:${LIMED}}
+      .mrx-lite-ctl{font-size:12.5px;font-weight:700;color:${SUB};white-space:nowrap}
+      .mrx-lite-ctl select{font:inherit;font-weight:700;color:${INK};background:#f4f6fa;border:1px solid ${LINE};border-radius:7px;padding:3px 8px;margin-left:4px}
       .mrx-bwrap{margin-bottom:16px}
       .mrx-banner{display:flex;align-items:center;gap:11px;background:#fff8ec;border:1px solid #f2d492;border-left:4px solid ${AMBER};border-radius:11px;padding:11px 15px;font-size:13px;color:#7a5a12;font-weight:600}
       .mrx-banner b{font-family:${MONO};color:${INK};font-weight:800}
@@ -389,7 +397,7 @@ async function renderMonthly(host, MRCFG) {
       c.appendChild(n);
     }
     function emptyBox(box, msg) { box.innerHTML = `<div class="mrx-empty">${esc(msg || ("No data for " + monLbl))}</div>`; }
-    const TOCNAME = { "Executive Summary": "Summary", "Demand & Lead Funnel": "Leads", "Sales Team Performance": "Sales", "Operations & Crew (Foreman)": "Crew", "Packing & Storage": "Packing", "Revenue & Growth": "Revenue", "Revenue Composition & Segments": "Rev. Mix", "Profitability & P&L": "P&L", "Marketing & Channels": "Marketing", "Phone & Response": "Phone", "Quality & Customer Experience": "Quality", "Reviews Production": "Reviews", "Claims": "Claims", "Refunds & Cost of Quality": "Refunds", "Geography — by State": "Geography", "Lead Segmentation": "Segments", "Repeat & Referral Business": "Repeat & Referral", "Per-Job Profitability": "Per Job" };
+    const TOCNAME = { "Executive Summary": "Summary", "Demand & Lead Funnel": "Leads", "Sales Team Performance": "Sales", "Operations & Crew (Foreman)": "Crew", "Packing & Storage": "Packing", "Revenue & Growth": "Revenue", "Revenue Composition & Segments": "Rev. Mix", "Profitability & P&L": "P&L", "Marketing & Channels": "Marketing", "Marketing ROI": "Mkt ROI", "Lead Sources": "Sources", "Fleet": "Fleet", "Phone & Response": "Phone", "Quality & Customer Experience": "Quality", "Reviews Production": "Reviews", "Claims": "Claims", "Refunds & Cost of Quality": "Refunds", "Geography — by State": "Geography", "Lead Segmentation": "Segments", "Repeat & Referral Business": "Repeat & Referral", "Per-Job Profitability": "Per Job" };
     let bodyEl, secN = 0; const secList = [];
     // narrative block divider — the report reads as 4 parts: month → money → demand → delivery.
     // Team views are single-topic slices, so the part headers are skipped there.
@@ -557,7 +565,7 @@ async function renderMonthly(host, MRCFG) {
           ch.getDatasetMeta(0).data.forEach((el, i) => {
             const p = s[i] ? s[i].v / tot : 0; if (p < 0.04) return;
             const pt = el.tooltipPosition ? el.tooltipPosition() : el.getCenterPoint();
-            ctx.strokeStyle = "rgba(14,22,33,.45)"; ctx.lineWidth = 2.5; ctx.strokeText((p * 100).toFixed(0) + "%", pt.x, pt.y);
+            ctx.strokeStyle = INK; ctx.lineWidth = 2.5; ctx.strokeText((p * 100).toFixed(0) + "%", pt.x, pt.y);
             ctx.fillStyle = "#fff"; ctx.fillText((p * 100).toFixed(0) + "%", pt.x, pt.y);
           }); ctx.restore(); } }] });
       return c;
@@ -765,27 +773,41 @@ async function renderMonthly(host, MRCFG) {
     Object.values(Chart.instances || {}).forEach(ch => { try { if (ch.canvas && host.contains(ch.canvas)) ch.destroy(); } catch (e) {} });
     host.innerHTML = "";
     const root = document.createElement("div"); root.className = "mrx"; host.appendChild(root);
-    const cover = document.createElement("div"); cover.className = "mrx-cover";
     // Q3/C43: the year picker lists the years the closing data actually covers (oldest→newest,
     // no empty future year); the selected year is always offered even if it has no rows yet.
     const dataYears = [...new Set(closing.filter(r => coRow(r) && r._y >= "2000").map(r => +r._y))];
     if (dataYears.indexOf(curY) < 0) dataYears.push(curY);
     const yearOpts = dataYears.filter(y => y <= new Date().getFullYear()).sort((a, b) => a - b);
-    cover.innerHTML = `
-      <div class="mrx-accent"></div>
-      <button class="mrx-print" id="mrPrint" title="Download a polished PDF (no print dialog)">⬇ Download PDF</button>
-      <div class="mrx-eyebrow">${esc(TEAM ? TEAM + " — Monthly Review" : "Monthly Business Review")} · Zip to Zip</div>
-      <div class="mrx-h1">Report for ${MON[mo]} ${curY}</div>
-      <div class="mrx-cvsub">${esc(freshness)} · Zip to Zip only ·
-        Month: <select id="mrMonth" class="mrx-ctl">${MON.slice(1).map((m, i) => `<option value="${i + 1}"${i + 1 === mo ? " selected" : ""}>${m}</option>`).join("")}</select>
-        Year: <select id="mrYear" class="mrx-ctl">${yearOpts.map(y => `<option${y === curY ? " selected" : ""}>${y}</option>`).join("")}</select></div>`;
-    root.appendChild(cover);
+    const monthOptions = MON.slice(1).map((m, i) => `<option value="${i + 1}"${i + 1 === mo ? " selected" : ""}>${m}</option>`).join("");
+    const yearOptions = yearOpts.map(y => `<option${y === curY ? " selected" : ""}>${y}</option>`).join("");
+    const LITE = !!(MRCFG && MRCFG.lite);
+    if (LITE) {
+      // themed dashboards: a compact header (topic title + month/year selector) — no hero, no PDF.
+      const hdr = document.createElement("div"); hdr.className = "mrx-lite-h";
+      hdr.innerHTML = `<div class="mrx-lite-tt"><b>Monthly · Zip to Zip</b>${esc(MRCFG.title || TEAM || "Monthly Review")}</div>
+        <div class="mrx-lite-ctl">Month: <select id="mrMonth">${monthOptions}</select> Year: <select id="mrYear">${yearOptions}</select></div>`;
+      root.appendChild(hdr);
+    } else {
+      const cover = document.createElement("div"); cover.className = "mrx-cover";
+      cover.innerHTML = `
+        <div class="mrx-accent"></div>
+        <button class="mrx-print" id="mrPrint" title="Download a polished PDF (no print dialog)">⬇ Download PDF</button>
+        <div class="mrx-eyebrow">${esc(TEAM ? TEAM + " — Monthly Review" : "Monthly Business Review")} · Zip to Zip</div>
+        <div class="mrx-h1">Report for ${MON[mo]} ${curY}</div>
+        <div class="mrx-cvsub">${esc(freshness)} · Zip to Zip only ·
+          Month: <select id="mrMonth" class="mrx-ctl">${monthOptions}</select>
+          Year: <select id="mrYear" class="mrx-ctl">${yearOptions}</select></div>`;
+      root.appendChild(cover);
+    }
 
     // completeness banner — closings awaiting return (blank Net Cash), with an expandable job list
     const pendRows = (reduceMonth("closing", curY, mo, rs => rs.filter(r => blank(r["Net Cash"]))) || []).slice().sort((a, b) => String(a.Date).localeCompare(String(b.Date)));
     const pend = pendRows.length;
     const totClose = reduceMonth("closing", curY, mo, rs => rs.length) || 0;
-    if (pend > 0 && totClose > 0) {
+    // In lite mode the banner only rides along on dashboards that actually show revenue/profit
+    // (so fin-revenue keeps the data-completeness honesty note; Claims/Reviews stay clean).
+    const bannerRelevant = !LITE || SEC("Executive Summary") || SEC("Revenue & Growth") || SEC("Profitability & P&L");
+    if (bannerRelevant && pend > 0 && totClose > 0) {
       const rptPctVal = ((totClose - pend) / totClose * 100).toFixed(0);
       const wrap = document.createElement("div"); wrap.className = "mrx-bwrap";
       const b = document.createElement("div"); b.className = "mrx-banner";
@@ -911,7 +933,8 @@ async function renderMonthly(host, MRCFG) {
       bodyEl.appendChild(kg);
       tiles.forEach(k => kpiTile(kg, k));
     }
-    if (MRCFG && MRCFG.id && MRCFG.id !== "financial-team") deptHeader(root, MRCFG.id);
+    // deptHeader (the per-team KPI strip) is retired with the old team views — themed
+    // dashboards use lite mode and never call it. Function left defined but unused.
 
     part(1, "The month at a glance", "headline numbers and the executive read");
 
@@ -1232,10 +1255,10 @@ async function renderMonthly(host, MRCFG) {
       if (bigBook.length) bullet(g, "Large-move (Big Job flag) booking rate by rep", monLbl + " · vs team avg", bigBook, pct, bk || 0, {});
     }
 
-    /* ---- 10 · Marketing & Channels ---- */
-    if (SEC("Marketing & Channels")) {
-      const g = section("Marketing & Channels", "ad spend, what it returns, and where leads come from");
-      // ===== 1 · RETURN (headline) =====
+    /* ---- 10 · Marketing ROI (theme split A of former "Marketing & Channels") ---- */
+    if (SEC("Marketing ROI")) {
+      const g = section("Marketing ROI", "ad spend and what it returns");
+      // ===== RETURN (headline) =====
       // ad feed splits post cards by state ("Post Card - MA/DE/NJ…") while bookings pool them as "Post Card" — align both sides so ROI isn't falsely 0×
       const normSrc = s => /post\s*card/i.test(String(s)) ? "Post Card" : (blank(s) ? "—" : String(s));
       const adSrcMonth = (y, m) => { const o = {}; (reduceMonth("card_expenses", y, m, rs => rs.filter(r => Number(r["Is Advertising"]) === 1)) || []).forEach(r => { const s2 = normSrc(r.Source); o[s2] = (o[s2] || 0) + num(r.Amount); }); return o; };
@@ -1272,7 +1295,12 @@ async function renderMonthly(host, MRCFG) {
       }
       const adTrend = momReduce("card_expenses", 12, rs => { const ad = rs.filter(r => Number(r["Is Advertising"]) === 1); return ad.length ? ad.reduce((a, r) => a + num(r.Amount), 0) : null; });
       lines(g, "Advertising spend — momentum", "last 12 months", [ { label: "Ad Spend", series: adTrend, color: AMBER } ], moneyC, { headVal: money(lastV(adTrend)) });
-      // ===== 4 · OUTCOMES BY CHANNEL ===== (one rich table; the old profit/jobs rank bars duplicated it)
+    }
+
+    /* ---- 11 · Lead Sources (theme split B of former "Marketing & Channels") ---- */
+    if (SEC("Lead Sources")) {
+      const g = section("Lead Sources", "where leads come from and how each channel converts");
+      // ===== OUTCOMES BY CHANNEL ===== (one rich table; the old profit/jobs rank bars duplicated it)
       const revBySrc = segSeries("closing", "Revenue", "Source"), opBySrc = opBySrcCur, jobBySrc = segSeries("closing", "Total Jobs", "Source");
       const opM = {}, jbM = {}; opBySrc.forEach(r => opM[r.k] = r.v); jobBySrc.forEach(r => jbM[r.k] = r.v);
       const seRows = revBySrc.slice(0, 12).map(r => ({ k: r.k, jobs: jbM[r.k] || 0, rev: r.v, op: opM[r.k] || 0 }));
@@ -1292,7 +1320,7 @@ async function renderMonthly(host, MRCFG) {
         const lfHtml = `<table class="mrx-tbl"><thead><tr><th>Source</th><th>Leads</th><th>Qualified</th><th>Confirmed</th><th>Bad leads</th><th>Booking %</th></tr></thead><tbody>${lfRows.map(r => `<tr><td>${esc(r.k)}</td>${td(fmtN(r.tot))}${td(fmtN(r.q))}${td(fmtN(r.c))}${td(fmtN(r.bad))}${td(r.book == null ? "—" : pct(r.book), r.book == null ? "" : `color:${r.book >= (bk || 0) ? "#1c7a4a" : "#b02a37"};font-weight:800`)}</tr>`).join("")}<tr class="tot"><td>Total${lfAll.length > 12 ? ` (all ${lfAll.length} sources)` : ""}</td>${td(fmtN(lfTot.tot))}${td(fmtN(lfTot.q))}${td(fmtN(lfTot.c))}${td(fmtN(lfTot.bad))}${td(lfTotBook == null ? "—" : pct(lfTotBook))}</tr></tbody></table>`;
         tableCard(g, "Lead funnel by source", monLbl + (lfAll.length > 12 ? " · top 12 of " + lfAll.length : ""), lfHtml, { icon: KIC.grid, headVal: fmtN(lfTot.tot) + " leads", noteKind: "how", note: `Each channel's lead volume through the funnel — a channel can look great on revenue but be wasting leads. Booking % = jobs booked this month (by booked date) ÷ qualified leads created; red = below the team average (${pct(bk)}). The Total row counts every source, so it matches the Leads KPI.${lfBlank ? ` ${fmtN(lfBlank)} leads with no source recorded are included in Total but not listed.` : ""}` });
       }
-      // ===== 5 · INBOUND DEMAND =====
+      // ===== INBOUND DEMAND (tracked marketing numbers · CallRail) =====
       const callLabels = momReduce("callrail", 12, rs => rs.length).map(r => r.k);
       const answered = momReduce("callrail", 12, rs => rs.filter(r => String(r["Call Status"]) === "Answered Call").length).map(r => r.v);
       const missed = momReduce("callrail", 12, rs => rs.filter(r => /Missed|Abandoned/.test(String(r["Call Status"]))).length).map(r => r.v);
@@ -1374,7 +1402,12 @@ async function renderMonthly(host, MRCFG) {
           tableCard(g, "Foreman efficiency — packing density & review rate", monLbl + " vs " + MS[PM], effHtml, { icon: KIC.grid, headVal: fmtN(eff.length) + " crews", noteKind: "how", note: `Packing $ written per 100 CF moved, and reviews collected per job — ranked by packing density, ▲▼ vs ${MS[PM]}. Green = improving crew, red = slipping.` });
         }
       }
-      // ---- fleet profitability: revenue vs direct running cost per truck ----
+    }
+
+    /* ---- 12 · Fleet (theme split from Operations & Crew) ---- */
+    if (SEC("Fleet")) {
+      const g = section("Fleet", "truck revenue vs running cost");
+      // fleet profitability: revenue vs direct running cost per truck
       if (fleetRows.length) {
         const mmF = `${curY}-${String(mo).padStart(2, "0")}`, fm2 = {};
         fleetRows.forEach(r => { if (String(r.Date || "").slice(0, 7) !== mmF) return; const t = String(r["Truck #"] || "").trim(); if (!t) return; const b = fm2[t] || (fm2[t] = { jobs: 0, rev: 0, cost: 0 }); b.jobs++; b.rev += num(r["Total Bill"]); b.cost += num(r.Fuel) + num(r.Truck) + num(r.Car) + num(r.Tolls); });
@@ -1388,7 +1421,7 @@ async function renderMonthly(host, MRCFG) {
       }
     }
 
-    /* ---- 12 · Packing & Storage ---- */
+    /* ---- 13 · Packing & Storage ---- */
     if (SEC("Packing & Storage")) {
       const g = section("Packing & Storage", "packing written vs material cost, storage income vs cost");
       // Packing economics — written revenue vs material cost, MONTH-over-month (replaces the near-constant
@@ -1554,26 +1587,35 @@ async function renderMonthly(host, MRCFG) {
 }
 
 registerPage({ id: "monthly-report", group: "pulse", title: "Monthly Report", render(host) { return renderMonthly(host, null); } });
-/* Team views — filtered slices of the SAME report (overlaps are intentional; grant per team id). */
-/* N2: sidebar titles are all "Monthly Review" — the department container already names the
-   team, so repeating it doubled the width. `label` keeps the team name for cover + PDF.
-   Ids are UNCHANGED (access grants + GROUP_OVERRIDE key on them). */
-const MR_TEAMS = [
-  { id: "financial-team", title: "Monthly Review", label: "Financial Team", icon: "trend",
-    // S4: the people who manage the P&L also see ad spend, ROAS and cost-per-job
-    sections: ["Executive Summary", "Revenue & Growth", "Revenue Composition & Segments", "Per-Job Profitability", "Profitability & P&L", "Marketing & Channels", "Refunds & Cost of Quality"] },
-  { id: "sales-team", title: "Monthly Review", label: "Sales Team", icon: "user",
-    sections: ["Demand & Lead Funnel", "Lead Segmentation", "Geography — by State", "Sales Team Performance", "Repeat & Referral Business"] },
-  { id: "marketing-team", title: "Monthly Review", label: "Marketing Team", icon: "megaphone",
-    sections: ["Marketing & Channels", "Demand & Lead Funnel", "Lead Segmentation", "Phone & Response"] },
-  { id: "logistics-team", title: "Monthly Review", label: "Logistics Team", icon: "tool",
-    sections: ["Operations & Crew (Foreman)", "Packing & Storage", "Claims"] },
-  { id: "reviews-team", title: "Monthly Review", label: "Reviews Team", icon: "star",
-    sections: ["Reviews Production", "Repeat & Referral Business"] },
-  // S3: Support sees claims, refunds and the phone system — answer rate and missed calls are their job
-  { id: "support-team", title: "Monthly Review", label: "Support Team", icon: "shield",
-    sections: ["Claims", "Refunds & Cost of Quality", "Phone & Response"] },
+
+/* Themed dashboards — one page per topic, each a lite-mode slice of the SAME report
+   (same data, same visuals, section subset). Overlaps (Repeat & Referral, Phone & Response)
+   are intentional so each department's dashboard is self-contained. Replaces the six old
+   "*-team" Monthly Review pages + MR_TEAMS. */
+const MR_DASH = [
+  // Sales
+  { id: "sales-funnel", group: "sales", title: "Lead Funnel & Conversion", sections: ["Demand & Lead Funnel", "Lead Segmentation"] },
+  { id: "sales-perf", group: "sales", title: "Sales Team Performance", sections: ["Sales Team Performance"] },
+  { id: "sales-geo", group: "sales", title: "Geography", sections: ["Geography — by State"] },
+  { id: "sales-rr", group: "sales", title: "Repeat & Referral", sections: ["Repeat & Referral Business"] },
+  // Marketing
+  { id: "mkt-roi", group: "marketing", title: "Return on Investment", sections: ["Marketing ROI"] },
+  { id: "mkt-sources", group: "marketing", title: "Lead Sources & Channels", sections: ["Lead Sources"] },
+  { id: "mkt-phone", group: "marketing", title: "Phone & Response", sections: ["Phone & Response"] },
+  // Logistics
+  { id: "log-foreman", group: "logistics", title: "Foreman of the Month", sections: ["Operations & Crew (Foreman)"] },
+  { id: "log-packing", group: "logistics", title: "Packing & Storage", sections: ["Packing & Storage"] },
+  { id: "log-fleet", group: "logistics", title: "Fleet", sections: ["Fleet"] },
+  // Financial
+  { id: "fin-revenue", group: "financial", title: "Revenue & Profit", sections: ["Executive Summary", "Revenue & Growth", "Revenue Composition & Segments", "Per-Job Profitability", "Profitability & P&L"] },
+  // Reviews
+  { id: "rev-production", group: "reviews", title: "Reviews Production", sections: ["Reviews Production"] },
+  { id: "rev-rr", group: "reviews", title: "Repeat & Referral", sections: ["Repeat & Referral Business"] },
+  // Support
+  { id: "sup-claims", group: "support", title: "Claims", sections: ["Claims"] },
+  { id: "sup-refunds", group: "support", title: "Refunds & Cost of Quality", sections: ["Refunds & Cost of Quality"] },
+  { id: "sup-phone", group: "support", title: "Phone & Response", sections: ["Phone & Response"] },
 ];
-MR_TEAMS.forEach(t => registerPage({ id: t.id, group: "pulse", title: t.title, render(host) { return renderMonthly(host, t); } }));
+MR_DASH.forEach(d => registerPage({ id: d.id, group: d.group, title: d.title, render(host) { return renderMonthly(host, { id: d.id, title: d.title, label: d.title, sections: d.sections, lite: true }); } }));
 
 var st = window.__mrState || (window.__mrState = { month: 0, year: 0, years: 5 });

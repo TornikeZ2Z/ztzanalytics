@@ -1,14 +1,8 @@
-/* Financial Analysis — faithful replica of the PBI "Financial Analysis" section
-   (section 40f32b12e5beed600e3c). PBI layout: a Company slicer + a single
-   pivotTable over 'Calculations' with
-     Rows   = Date Hierarchy (Year / Month) · Service Type[Moving Type] · CF Ranges[CF Range]
-     Values = Total Jobs, Total Bill, Forman Salary, Driver Salary, Helper Salary,
-              Sales Commission, Car/Fuel/Hotel/Other/Toll/Truck Expense,
-              Amount Deducted From Sales Person Normalized For Sales, Total Refunds,
-              Total Operational Profit by Formula, Operational Profit Margin,
-              Sales Commission Margin.
-   Rebuilt as a KPI strip + a P&L table grouped by a dimension picker
-   (Moving Type / CF Range / Month) with every line item as a column and a totals row.
+/* Job P&L (formerly Financial Analysis) — stripped to JUST the per-job Profit & Loss
+   table (no charts, KPI tiles or extra panels). The table lists every P&L line item
+   as a column, grouped by a dimension picker (Moving Type / CF Range / Month) with a
+   grand-total footer. It flows in the page (no inner-scroll wrapper) and is rendered
+   compact so more rows fit before the PAGE scrolls.
 
    CROSS-DATASET GRAIN NOTE: Sales Commission (fct_sales_salaries), Helper Salary
    (fct_helper_salaries) and Total Refunds (fct_refunds) live on tables that join to
@@ -16,7 +10,7 @@
    Range / Date columns. To slice them PER GROUP we build attribution maps keyed by
    Unique Key (salaries) and Request Joinkey (refunds) and fold each sub-dataset $ into
    the owning closing row's group. The grand-total row uses RS.M composites directly so
-   it stays identical to the KPI strip and the rest of the portal.
+   it stays identical to the rest of the portal.
    "Amount Deducted From Sales Person Normalized For Sales" is a known 0 gap (its RELATED
    factor isn't served client-side) — kept in the math but hidden from the table until the
    data exists (scan item C21). CF Range comes from the moveboard bridge on Request Joinkey
@@ -122,43 +116,35 @@ registerPage({
     };
     let dimBy = "Moving Type";
 
+    // Compact, in-flow table: no inner-scroll wrapper, tight rows — the PAGE scrolls.
     host.innerHTML = `
-      <div class="rs-page-head">
-        <h1>Job P&amp;L</h1>
-        <p>(formerly Financial Analysis) · per-job costs, commissions and deductions — for investigating which jobs and people drive the numbers ·
-           <b>${RS.fmtN(rows.length)}</b> jobs in scope
-           <span class="freshness">· commissions, helper salaries &amp; refunds are matched to jobs by job key</span></p>
-      </div>
-      <div class="rs-kpis" id="kpis"></div>
-      <div id="main"></div>
-      <div class="panel" id="notes" style="padding:12px 16px;color:var(--muted);font-size:11px"></div>`;
+      <style>
+        #fa-pl .fa-controls { display:flex; align-items:center; gap:8px; margin:0 0 10px; }
+        #fa-pl .fa-controls .lbl { color:var(--muted); font-size:12px; }
+        #fa-pl table.tab { width:100%; border-collapse:collapse; }
+        #fa-pl table.tab th, #fa-pl table.tab td { padding:3px 8px; font-size:11px; line-height:1.25; }
+      </style>
+      <div id="fa-pl">
+        <div class="rs-page-head">
+          <h1>Job P&amp;L</h1>
+          <p>(formerly Financial Analysis) · per-job costs, commissions and deductions — for investigating which jobs and people drive the numbers ·
+             <b>${RS.fmtN(rows.length)}</b> jobs in scope
+             <span class="freshness">· commissions, helper salaries &amp; refunds are matched to jobs by job key</span></p>
+        </div>
+        <div class="fa-controls">
+          <span class="lbl">Break down by</span>
+          <select id="faDim">${Object.keys(DIMS).map(d => `<option ${d === dimBy ? "selected" : ""}>${d}</option>`).join("")}</select>
+        </div>
+        <div id="main"></div>
+      </div>`;
 
     if (!rows.length) {
       document.getElementById("main").innerHTML =
         `<div class="panel" style="padding:20px;color:var(--muted)">No data for the current filters.</div>`;
-      document.getElementById("notes").remove();
       return;
     }
 
-    // ---- KPI strip: Total Bill, Operational Profit, Op Margin, Sales Commission, Total Expenses
-    const kBill  = M["Total Bill"].fn(rows);
-    const kOp    = M["Operational Profit by Formula"].fn(rows);
-    const kOpm   = M["Operational Profit Margin"].fn(rows);
-    const kSales = sumUK(rows, salesByUK);
-    // Total Expenses = every deducted line (salaries + hard expenses + refunds).
-    const gTot = rowOf(rows);
-    const kExp = gTot.forman + gTot.driver + gTot.helper + gTot.sales
-      + gTot.car + gTot.fuel + gTot.hotel + gTot.other + gTot.toll + gTot.truck
-      + gTot.refund - gTot.deduct;
-    RSC.kpis(document.getElementById("kpis"), [
-      { label: "Revenue (Total Bill)", value: RS.moneyC(kBill), sub: nz(RS.money)(kBill) + " · revenue in scope" },
-      { label: "Operational Profit", value: RS.moneyC(kOp),   sub: "revenue − salaries − expenses − refunds" },
-      { label: "Op. Profit Margin",  value: RS.fmtPct(kOpm),  sub: "profit ÷ revenue" },
-      { label: "Sales Commission",   value: RS.moneyC(kSales), sub: nz(RS.money)(kSales) + " · commissions paid" },
-      { label: "Total Expenses",     value: RS.moneyC(kExp),  sub: "all salary + expense + refund lines" },
-    ]);
-
-    // ---- main P&L: dimension rows × line-item columns, with a grand-total footer.
+    // ---- P&L: dimension rows × line-item columns, with a grand-total footer.
     const grouped = () => {
       const get = DIMS[dimBy], g = new Map();
       rows.forEach(r => {
@@ -177,14 +163,9 @@ registerPage({
       return out;
     };
 
-    const controls =
-      `<span class="lbl">Break down by</span><select id="faDim">` +
-      Object.keys(DIMS).map(d => `<option ${d === dimBy ? "selected" : ""}>${d}</option>`).join("") +
-      `</select>`;
-
     const buildTable = () => {
       const list = grouped();
-      // grand-total row uses RS.M composites so it matches the KPI strip exactly.
+      // grand-total row uses RS.M composites so it matches the rest of the portal.
       const tot = rowOf(rows);
       tot.op  = M["Operational Profit by Formula"].fn(rows);
       tot.opm = M["Operational Profit Margin"].fn(rows);
@@ -198,56 +179,9 @@ registerPage({
       return RSC.table(cols, list, totals);
     };
 
-    const mainCard = RSC.chartCard(document.getElementById("main"), {
-      title: "Profit & Loss",
-      controlsHtml: controls,
-      controlsGraphOnly: false,
-      buildChart(canvas) {
-        // Waterfall-ish: revenue vs the stacked deductions, per group (top 15).
-        const list = grouped().slice(0, 15);
-        const deduct = c => c.forman + c.driver + c.helper + c.sales
-          + c.car + c.fuel + c.hotel + c.other + c.toll + c.truck + c.refund - c.deduct;
-        return new Chart(canvas, {
-          type: "bar",
-          data: {
-            labels: list.map(x => x.k),
-            datasets: [
-              { label: "Operational Profit", data: list.map(x => +(x.op || 0).toFixed(2)),
-                backgroundColor: "#b7e23b", borderRadius: 4, stack: "s" },
-              { label: "Total Expenses", data: list.map(x => +(deduct(x) || 0).toFixed(2)),
-                backgroundColor: "#f87171", borderRadius: 4, stack: "s" },
-            ],
-          },
-          options: {
-            responsive: true, maintainAspectRatio: false,
-            plugins: {
-              legend: { position: "top", labels: { boxWidth: 12 } },
-              tooltip: { callbacks: { label: c => `${c.dataset.label}: ${RS.money(c.raw)}` } },
-            },
-            scales: {
-              x: { stacked: true, ticks: { maxRotation: 45, autoSkip: true, maxTicksLimit: 16,
-                    callback(v) { const l = this.getLabelForValue ? this.getLabelForValue(v) : v;
-                      return typeof l === "string" && l.length > 14 ? l.slice(0, 13) + "…" : l; } } },
-              y: { stacked: true, ticks: { callback: v => RS.moneyC(v) } },
-            },
-          },
-        });
-      },
-      buildTable,
-    });
+    const renderTable = () => { document.getElementById("main").innerHTML = buildTable(); };
+    renderTable();
 
-    // (System detail for maintainers: this table mirrors the PBI "Financial Analysis"
-    // pivot; Sales Commission & Helper Salary attach via Unique Key, refunds via
-    // Request Joinkey, CF Range via the moveboard bridge. The "Amount Deducted From
-    // Sales Person" line is a known 0 gap — its RELATED closing factor isn't served
-    // client-side — so the column is hidden until real data exists. The linked-trip
-    // expense residual (fct_trips) is not folded in.)
-    document.getElementById("notes").innerHTML =
-      `How it's counted · Commissions and helper salaries are matched to jobs by job key; ` +
-      `refunds are matched by request number. One deduction line ("Amount Deducted From Sales Person") ` +
-      `isn't available in this portal yet, so it is not shown. Expenses tied to linked trips are also not ` +
-      `included yet — profit per group is slightly overstated by these two small items.`;
-
-    document.getElementById("faDim").onchange = e => { dimBy = e.target.value; mainCard.rerender(); };
+    document.getElementById("faDim").onchange = e => { dimBy = e.target.value; renderTable(); };
   },
 });

@@ -9,6 +9,11 @@ window.RSC = (function () {
   };
   const esc = s => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
+  /* Graph⇄Tabular choice persists across re-renders (a filter change re-renders the whole
+     page). Keyed by a stable card key (cfg.key or, by default, the card title) so a card
+     that was flipped to Tabular comes back as Tabular, not reset to Graph. */
+  const CARD_VIEW = new Map();
+
   /* ---------------- multi-select dropdown slicer ----------------
      values: array of strings OR {v, l, n} objects (value, display label, count). */
   function multiSelect(host, { key, label, values, onChange }) {
@@ -174,8 +179,14 @@ window.RSC = (function () {
     host.appendChild(card);
     if (cfg.controlsHtml) card.querySelector(".rs-ctl").innerHTML = cfg.controlsHtml;
     let chart = null;
+    const viewKey = cfg.key || cfg.title || "";
     const g = card.querySelector(".gview"), t = card.querySelector(".tview");
     const bg = card.querySelector(".tg-g"), bt = card.querySelector(".tg-t");
+    // restore the remembered view (defaults to Graph) BEFORE the first render below
+    if (CARD_VIEW.get(viewKey) === "table") {
+      t.classList.remove("hidden"); g.classList.add("hidden");
+      bt.classList.add("on"); bg.classList.remove("on");
+    }
     const render = () => {
       const tabular = !t.classList.contains("hidden");
       // Hide graph-only controls (e.g. a "Calculate by" that only drives the chart)
@@ -189,8 +200,8 @@ window.RSC = (function () {
         card.querySelector(".tabwrap").innerHTML = cfg.buildTable();
       }
     };
-    bg.onclick = () => { g.classList.remove("hidden"); t.classList.add("hidden"); bg.classList.add("on"); bt.classList.remove("on"); render(); };
-    bt.onclick = () => { t.classList.remove("hidden"); g.classList.add("hidden"); bt.classList.add("on"); bg.classList.remove("on"); render(); };
+    bg.onclick = () => { g.classList.remove("hidden"); t.classList.add("hidden"); bg.classList.add("on"); bt.classList.remove("on"); CARD_VIEW.set(viewKey, "graph"); render(); };
+    bt.onclick = () => { t.classList.remove("hidden"); g.classList.add("hidden"); bt.classList.add("on"); bg.classList.remove("on"); CARD_VIEW.set(viewKey, "table"); render(); };
     card.querySelector(".tg-csv").onclick = () => {
       const tbl = el("div", "", cfg.buildTable()).querySelector("table");
       if (!tbl) return;

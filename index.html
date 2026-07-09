@@ -19,10 +19,6 @@
 #nav .rs-nav-sub{padding-left:36px !important;font-size:12.5px;opacity:.92}
 #nav .rs-nav-sub svg{display:none}
 #nav .rs-nav-sub::before{content:"·";margin-right:8px;opacity:.5;font-weight:800}
-/* workbench chip — one muted line above every workbench page pointing at the official numbers */
-.rs-workchip{font-size:12px;color:var(--faint);margin:0 0 12px;line-height:1.5}
-.rs-workchip a{color:var(--brand);font-weight:600;text-decoration:none;cursor:pointer}
-.rs-workchip a:hover{text-decoration:underline}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 </head>
@@ -66,9 +62,9 @@
   </div>
 </div>
 
-<script src="assets/portal.js?v=7"></script>
+<script src="assets/portal.js?v=8"></script>
 <script src="assets/rs-core.js?v=16"></script>
-<script src="assets/rs-components.js?v=6"></script>
+<script src="assets/rs-components.js?v=7"></script>
 <script>
 /* ---------------- page registry ---------------- */
 window.PAGES = [];
@@ -89,24 +85,35 @@ const GROUPS = [
 /* Sidebar placement is decided HERE (id -> container), overriding whatever group a page
    module registered with — so restructures never require touching 20 page files. */
 const GROUP_OVERRIDE = {
-  "admin-users": "settings",
-  "source-identification": "marketing",   // answers a Marketing question, not a Settings one (S1)
-  "monthly-report": "company", "insights": "company", "executive-scorecard": "company",
-  "analysis-by-category": "company",
-  "financial-team": "financial", "financial-analysis": "financial", "storage": "financial",
-  "sales-team": "sales", "sales-person-analysis": "sales",
-  "leads-analysis": "sales", "leads-by-state": "sales",
-  "marketing-team": "marketing", "ads-analysis": "marketing", "callrail": "marketing",
-  "post-card-analysis": "marketing", "angi-vs-moveboard": "marketing", "source-analysis": "marketing", "movers-analysis": "marketing", "reviews": "reviews",
-  "logistics-team": "logistics", "forman": "logistics", "forman-analysis": "logistics",
-  "packing-analysis": "logistics", "packing-per-100cf": "logistics",
-  "claims": "support", "labor-analysis": "logistics", "customer-experience": "support",
-  "reviews-team": "reviews", "support-team": "support",
+  // Settings
+  "data-quality": "settings", "admin-users": "settings",
+  // Company Overview
+  "monthly-report": "company", "analysis-by-category": "company", "insights": "company",
+  // Sales
+  "sales-funnel": "sales", "sales-perf": "sales", "sales-geo": "sales", "sales-rr": "sales",
+  // Marketing
+  "mkt-roi": "marketing", "mkt-sources": "marketing", "mkt-phone": "marketing",
+  // Logistics
+  "log-foreman": "logistics", "log-packing": "logistics", "log-fleet": "logistics",
+  // Financial
+  "fin-revenue": "financial", "financial-analysis": "financial", "executive-scorecard": "financial",
+  // Reviews
+  "rev-production": "reviews", "rev-rr": "reviews",
+  // Support
+  "sup-claims": "support", "sup-refunds": "support", "sup-phone": "support",
 };
 const groupOf = p => GROUP_OVERRIDE[p.id] || p.group;
-/* team page first in each department, hub merges next, everything else after */
-const NAV_ORDER = { "financial-team": 1, "sales-team": 1, "marketing-team": 1, "logistics-team": 1, "reviews-team": 1, "support-team": 1,
-  "monthly-report": 1, "admin-users": 1, "leads": 10, "marketing": 10, "foremen": 10, "packing-suite": 10, "lead-source-analysis": 10 };
+/* explicit per-container item order (numbers are scoped within each group's display list) */
+const NAV_ORDER = {
+  "monthly-report": 1, "analysis-by-category": 2, "insights": 3,
+  "sales-funnel": 1, "sales-perf": 2, "sales-geo": 3, "sales-rr": 4,
+  "mkt-roi": 1, "mkt-sources": 2, "mkt-phone": 3,
+  "log-foreman": 1, "log-packing": 2, "log-fleet": 3,
+  "fin-revenue": 1, "financial-analysis": 2, "executive-scorecard": 3,
+  "rev-production": 1, "rev-rr": 2,
+  "sup-claims": 1, "sup-refunds": 2, "sup-phone": 3,
+  "data-quality": 1, "admin-users": 2,
+};
 
 /* Inline SVG icon set (Feather-style, stroke-based) — no emojis anywhere. */
 const ICONS = {
@@ -152,6 +159,13 @@ const PAGE_ICONS = {
   "monthly-report": "spark",
   "angi-vs-moveboard": "compass", "reviews-team": "star", "support-team": "shield", "lead-source-analysis": "compass", "source-analysis": "compass", "movers-analysis": "megaphone",
   "financial-team": "trend", "sales-team": "user", "marketing-team": "megaphone", "logistics-team": "tool",
+  // themed dashboards + settings (2026-07-09 restructure)
+  "sales-funnel": "funnel", "sales-perf": "user", "sales-geo": "pin", "sales-rr": "trend",
+  "mkt-roi": "trend", "mkt-sources": "compass", "mkt-phone": "phone",
+  "log-foreman": "tool", "log-packing": "box", "log-fleet": "activity",
+  "fin-revenue": "trend", "rev-production": "star", "rev-rr": "trend",
+  "sup-claims": "shield", "sup-refunds": "clipboard", "sup-phone": "phone",
+  "data-quality": "clipboard",
 };
 
 /* Pages not yet built — shown greyed with a SOON tag so the full scope is visible. */
@@ -160,32 +174,57 @@ const PLANNED = [];  // all 16 General Overview pages are built
 /* Virtual tab groups (user-approved merges): the sidebar shows ONE item; the
    content area renders a tab bar over the constituent pages. Page modules stay
    untouched — future merges are one entry here. */
-const MERGED = [
-  // "Lead Sources (attribution & spend)" vs the Sales "Funnel (conversion)" tab: the two
-  // homes of "where do leads come from?" are signposted so the choice explains itself (S10).
-  { id: "lead-source-analysis", group: "marketing", icon: "compass", title: "Lead Sources (attribution & spend)",
-    tabs: [["source-analysis", "Source Overview"], ["angi-vs-moveboard", "Angi Analysis"], ["movers-analysis", "Movers.com"], ["post-card-analysis", "Post Cards"]] },
-  { id: "leads", group: "sales", icon: "funnel", title: "Leads",
-    tabs: [["leads-analysis", "Funnel (conversion)"], ["leads-by-state", "Geography"]] },
-  { id: "marketing", group: "marketing", icon: "megaphone", title: "Ads & Calls",
-    tabs: [["ads-analysis", "Ad Spend & Returns"], ["callrail", "Call Tracking"]] },
-  { id: "foremen", group: "logistics", icon: "tool", title: "Foremen & Crew",
-    tabs: [["forman", "Scorecard"], ["forman-analysis", "Deep Comparison"], ["labor-analysis", "Crew & Labor"]] },
-  { id: "packing-suite", group: "logistics", icon: "box", title: "Packing",
-    tabs: [["packing-analysis", "Estimate vs Written"], ["packing-per-100cf", "Per 100 CF"]] },
-];
+/* Virtual tab-group merges were retired in the 2026-07-09 themed-dashboard restructure —
+   every constituent page is now hidden and redirected to a themed dashboard (see REDIRECTS).
+   The machinery below is kept intact but empty so pageFor/navigate/canSee stay well-defined. */
+const MERGED = [];
 const MERGED_BY_TAB = {};
 MERGED.forEach(m => m.tabs.forEach(([tid]) => MERGED_BY_TAB[tid] = m));
 const mergedActiveTab = {};
 
-/* Retired pages (approved 2026-07-09): code + <script> registrations stay (harmless),
+/* Retired pages (2026-07-09 restructure): code + <script> registrations stay (harmless),
    but they're hidden from nav/search/tiles and any hit — deep link, old ACL grant, hash —
-   is silently forwarded to its replacement. */
-const RETIRED = new Set(["jobs-vs-hours", "yoy-diff", "packing"]);
+   is silently forwarded to its themed-dashboard replacement. */
+const RETIRED = new Set([
+  // pre-existing
+  "jobs-vs-hours", "yoy-diff", "packing",
+  // sales
+  "leads-analysis", "leads-by-state", "sales-person-analysis",
+  // marketing
+  "source-analysis", "source-identification", "angi-vs-moveboard", "leads-vs-moveboard",
+  "movers-analysis", "post-card-analysis", "callrail", "ads-analysis",
+  // logistics
+  "storage", "packing-analysis", "packing-per-100cf", "forman", "forman-analysis", "labor-analysis",
+  // support / reviews
+  "claims", "customer-experience", "reviews",
+  // old per-department Monthly Review pages (replaced by themed dashboards)
+  "financial-team", "sales-team", "marketing-team", "logistics-team", "reviews-team", "support-team",
+]);
 const REDIRECTS = {
+  // pre-existing
   "jobs-vs-hours": "monthly-report",
   "yoy-diff": "analysis-by-category",
-  "packing": "packing-suite:packing-analysis",   // the packing hub, opened on its Estimate-vs-Written tab
+  // sales — leads / funnel / geography / rep performance
+  "leads-analysis": "sales-funnel", "leads": "sales-funnel", "sales-team": "sales-funnel",
+  "leads-by-state": "sales-geo",
+  "sales-person-analysis": "sales-perf",
+  // marketing — ROI / sources / calls
+  "ads-analysis": "mkt-roi", "callrail": "mkt-roi", "marketing": "mkt-roi", "marketing-team": "mkt-roi",
+  "source-analysis": "mkt-sources", "source-identification": "mkt-sources",
+  "lead-source-analysis": "mkt-sources", "angi-vs-moveboard": "mkt-sources",
+  "leads-vs-moveboard": "mkt-sources", "movers-analysis": "mkt-sources", "post-card-analysis": "mkt-sources",
+  // logistics — foreman / packing / storage
+  "forman": "log-foreman", "forman-analysis": "log-foreman", "foremen": "log-foreman",
+  "labor-analysis": "log-foreman", "logistics-team": "log-foreman",
+  "packing": "log-packing", "packing-suite": "log-packing",
+  "packing-analysis": "log-packing", "packing-per-100cf": "log-packing", "storage": "log-packing",
+  // financial
+  "financial-team": "fin-revenue",
+  // reviews
+  "reviews": "rev-production", "reviews-team": "rev-production",
+  // support — claims / refunds
+  "claims": "sup-claims", "support-team": "sup-claims",
+  "customer-experience": "sup-refunds",
 };
 
 function mergedPage(m) {
@@ -206,17 +245,8 @@ function mergedPage(m) {
 /* Resolve any id — retired id (→ replacement), merged id, constituent id (old deep link),
    or plain page. */
 function pageFor(id) {
-  if (id && REDIRECTS[id]) id = REDIRECTS[id];   // retired page → its replacement
-  if (id && id.indexOf(":") > 0) {               // "hub:tab" replacement target — activate the tab
-    const [hub, tab] = id.split(":");
-    const mm = MERGED.find(x => x.id === hub);
-    if (mm && mm.tabs.some(t => t[0] === tab)) mergedActiveTab[hub] = tab;
-    id = hub;
-  }
-  const m = MERGED.find(x => x.id === id);
-  if (m) return mergedPage(m);
-  const parent = MERGED_BY_TAB[id];
-  if (parent) { mergedActiveTab[parent.id] = id; return mergedPage(parent); }
+  if (id && id.indexOf(":") > 0) id = id.split(":")[0];   // collapse any legacy "hub:tab" deep link
+  if (id && REDIRECTS[id]) id = REDIRECTS[id];            // retired page → its themed replacement
   return PAGES.find(p => p.id === id);
 }
 
@@ -298,31 +328,16 @@ Chart.defaults.plugins.legend.labels.boxWidth = 9;
 Chart.defaults.plugins.legend.labels.boxHeight = 9;
 Chart.defaults.datasets.bar.maxBarThickness = 44;
 
-/* ---- beautifier: every chart gets gradient bars / soft area fills / crisp hovers,
+/* ---- beautifier: solid 100%-opaque fills only (no gradients, no alpha) + crisp hovers,
    applied by wrapping the Chart constructor so page modules stay untouched. ---- */
-const _hexA = (hex, a) => hex + Math.round(a * 255).toString(16).padStart(2, "0");
-function _grad(c, hex, horiz) {
-  const { ctx, chartArea } = c.chart;
-  if (!chartArea) return hex;
-  const g = horiz
-    ? ctx.createLinearGradient(chartArea.left, 0, chartArea.right, 0)
-    : ctx.createLinearGradient(0, chartArea.bottom, 0, chartArea.top);
-  g.addColorStop(0, _hexA(hex, .45));
-  g.addColorStop(1, hex);
-  return g;
-}
 function _beautify(config) {
   try {
     const datasets = (config.data && config.data.datasets) || [];
-    const horiz = config.options && config.options.indexAxis === "y";
-    const hasBars = datasets.some(d => (d.type || config.type) === "bar");
     datasets.forEach(ds => {
       const t = ds.type || config.type;
       if (t === "bar" && typeof ds.backgroundColor === "string" && ds.backgroundColor[0] === "#") {
-        const hex = ds.backgroundColor;
-        // charts that opt into __solidBars (the Monthly Report) keep flat solid fills, no gradient
-        if (!(config.options && config.options.__solidBars)) ds.backgroundColor = c => _grad(c, hex, horiz);
-        ds.hoverBackgroundColor = hex;
+        // flat solid fill — leave ds.backgroundColor as the opaque hex it already is
+        ds.hoverBackgroundColor = ds.backgroundColor;
         if (ds.borderRadius == null) ds.borderRadius = 6;
       }
       if (t === "line") {
@@ -336,21 +351,6 @@ function _beautify(config) {
         if (ds.hoverOffset == null) ds.hoverOffset = 8;
       }
     });
-    // pure line charts with a single series get a soft area fill under the line
-    const lines = datasets.filter(d => (d.type || config.type) === "line");
-    if (!(config.options && config.options.__solidBars) &&
-        !hasBars && lines.length === 1 && lines[0].fill === undefined &&
-        typeof lines[0].borderColor === "string" && lines[0].borderColor[0] === "#") {
-      const hex = lines[0].borderColor;
-      lines[0].fill = "origin";
-      lines[0].backgroundColor = c => {
-        const { ctx, chartArea } = c.chart;
-        if (!chartArea) return _hexA(hex, .10);
-        const g = ctx.createLinearGradient(0, chartArea.top, 0, chartArea.bottom);
-        g.addColorStop(0, _hexA(hex, .26)); g.addColorStop(1, _hexA(hex, 0));
-        return g;
-      };
-    }
   } catch (e) { console.warn("chart beautify skipped:", e); }
 }
 /* ---- auto-fit: dense horizontal-bar charts get enough vertical room that every
@@ -450,9 +450,12 @@ const PAGE_DATASETS = {
   "angi-vs-moveboard": [],   // fetches its own raw data — the global filter bar doesn't reach it
   "monthly-report": MR_DATASETS,
   "admin-users": [],
+  "data-quality": [],
 };
-["financial-team", "sales-team", "marketing-team", "logistics-team", "reviews-team", "support-team"]
-  .forEach(t => PAGE_DATASETS[t] = MR_DATASETS);
+// themed dashboards are lite-mode slices of the Monthly Report — same datasets
+["sales-funnel", "sales-perf", "sales-geo", "sales-rr", "mkt-roi", "mkt-sources", "mkt-phone",
+ "log-foreman", "log-packing", "log-fleet", "fin-revenue", "rev-production", "rev-rr",
+ "sup-claims", "sup-refunds", "sup-phone"].forEach(id => PAGE_DATASETS[id] = MR_DATASETS);
 /* what each dataset's rows ARE, in plain words — for the date-basis caption */
 const DS_NOUN = { closing: "jobs", moveboard: "leads", storage: "storage payments",
   refunds: "refunds", claims: "claims", negative_reviews: "negative reviews",
@@ -463,9 +466,10 @@ const DS_NOUN = { closing: "jobs", moveboard: "leads", storage: "storage payment
 const DATE_BASIS_TEXT = {
   "angi-vs-moveboard": "this page has its own date handling — the filters above don't apply here",
 };
-["monthly-report", "financial-team", "sales-team", "marketing-team", "logistics-team",
-  "reviews-team", "support-team"].forEach(id => DATE_BASIS_TEXT[id] =
-  "money & jobs count by move date · leads by the date they came in");
+["monthly-report", "sales-funnel", "sales-perf", "sales-geo", "sales-rr", "mkt-roi",
+  "mkt-sources", "mkt-phone", "log-foreman", "log-packing", "log-fleet", "fin-revenue",
+  "rev-production", "rev-rr", "sup-claims", "sup-refunds", "sup-phone"].forEach(id =>
+  DATE_BASIS_TEXT[id] = "money & jobs count by move date · leads by the date they came in");
 
 /* leaf page id — for a merged hub, the ACTIVE tab's page id */
 function currentLeafId() {
@@ -566,14 +570,8 @@ function mountBurger() {
 
 function navigate(id, push) {
   let deniedTitle = null;
-  if (id && REDIRECTS[id]) id = REDIRECTS[id];   // retired id → replacement (may itself be "hub:tab")
-  // accept "hub:tab" deep-link ids (C32) — activate the tab, then resolve the hub
-  if (id && id.indexOf(":") > 0) {
-    const [hub, tab] = id.split(":");
-    const m = MERGED.find(x => x.id === hub);
-    if (m && m.tabs.some(t => t[0] === tab)) mergedActiveTab[hub] = tab;
-    id = hub;
-  }
+  if (id && id.indexOf(":") > 0) id = id.split(":")[0];   // collapse any legacy "hub:tab" deep link
+  if (id && REDIRECTS[id]) id = REDIRECTS[id];            // retired id → themed replacement
   if (!canSee(idOwner(id))) {
     // only announce a denial for a REAL page — a mistyped hash falls back silently
     if (id && pageFor(id)) deniedTitle = titleOf(idOwner(id));
@@ -594,26 +592,6 @@ function navigate(id, push) {
   renderPage();
 }
 
-/* Workbench chip: every deep-dive page carries one muted line pointing at the official
-   numbers. Skipped on the report homes themselves (they ARE the official numbers) and on
-   pages with no departmental owner. The link goes to the viewer's own department Monthly
-   Review, falling back to the all-in-one Monthly Report; hidden if ACL allows neither. */
-const WORKCHIP_SKIP = new Set(["monthly-report", "insights", "executive-scorecard", "admin-users",
-  "financial-team", "sales-team", "marketing-team", "logistics-team", "reviews-team", "support-team"]);
-const DEPT_REVIEW = { sales: "sales-team", marketing: "marketing-team", logistics: "logistics-team",
-  financial: "financial-team", reviews: "reviews-team", support: "support-team" };
-function injectWorkchip(host) {
-  if (!CURRENT || WORKCHIP_SKIP.has(CURRENT.id)) return;
-  const dept = DEPT_REVIEW[groupOf(CURRENT)] || "monthly-report";
-  const target = canSee(dept) ? dept : (canSee("monthly-report") ? "monthly-report" : null);
-  if (!target) return;   // viewer can't open either destination — no dead link
-  const chip = document.createElement("div");
-  chip.className = "rs-workchip";
-  chip.innerHTML = `This month's official numbers → <a>Monthly Report</a>`;
-  chip.querySelector("a").onclick = e => { e.preventDefault(); navigate(target); };
-  host.insertBefore(chip, host.firstChild);
-}
-
 async function renderPage() {
   const host = document.getElementById("content");
   updateFilterContext();
@@ -623,7 +601,6 @@ async function renderPage() {
   host.innerHTML = `<div class="rs-loading"><div>Loading <b>${RSC.esc(CURRENT.title)}</b>…</div><div class="bar"><i></i></div></div>`;
   try {
     await CURRENT.render(host);
-    injectWorkchip(host);
   } catch (e) {
     // human words first, the raw error folded away, and a Retry that actually retries (C42)
     host.innerHTML = `<div class="rs-loading"><div style="max-width:440px;text-align:center">
@@ -645,31 +622,47 @@ async function renderPage() {
 /* Sidebar display-name overrides — page modules keep their ids/titles, the shell decides
    what the nav item is CALLED (same pattern as GROUP_OVERRIDE). */
 const NAV_TITLES = {
-  "source-identification": "How Sources Are Assigned",
+  "analysis-by-category": "Custom Breakdown",
+  "insights": "Recommendations",
   "financial-analysis": "Job P&L",
-  "customer-experience": "Refunds & Cost of Quality",
-  "reviews": "Review Production",
+  "executive-scorecard": "Executive Scorecard",
+  "data-quality": "Data Quality",
+  "admin-users": "Users & Access",
 };
 /* C46: hidden search keywords per nav item — old Power BI page names, singular/plural,
    vendor names — so the transition period doesn't break muscle memory. Never shown. */
 const SEARCH_ALIASES = {
-  "marketing": "callrail call rail call tracking ads analysis ad spend roi phone calls advertising google",
-  "leads": "leads analysis lead funnel geography state states conversion booking",
-  "lead-source-analysis": "source analysis sources source overview angi movers movers.com home advisor homeadvisor post card postcard post cards attribution",
-  "foremen": "forman forman analysis foreman foremen crew crews scorecard comparison labor analysis labor & crew labor crew helpers hours worked",
-  "packing-suite": "packing analysis packing per 100 cf material materials boxes packing overview estimate vs written",
+  // Company Overview
+  "monthly-report": "monthly report month review presentation ppt slides jobs done vs hours worked jobs vs hours job hour efficiency all in one",
   "analysis-by-category": "analysis by category custom breakdown categories explorer yoy diff year over year comparison annual vs last year",
-  "source-identification": "source identification lead source assigned attribution booked from lineage",
-  "sales-person-analysis": "salesperson salespeople sales person analysis rep reps commission commissions",
-  "monthly-report": "monthly report month review presentation ppt slides jobs done vs hours worked jobs vs hours job hour efficiency",
-  "executive-scorecard": "executive scorecard kpi kpis trends",
-  "customer-experience": "refund refunds negative review reviews complaints cx cost of quality customer experience",
-  "financial-analysis": "p&l pnl profit and loss financial analysis job",
-  "claims": "claim claims damage damages",
-  "reviews": "review reviews rating ratings stars review production",
-  "storage": "storage payments",
   "insights": "insights recommendations alerts findings",
-  "angi-vs-moveboard": "angi analysis angi leads delivery moveboard",
+  // Sales
+  "sales-funnel": "leads analysis lead funnel conversion booking demand segmentation leads",
+  "sales-perf": "sales person analysis salesperson salespeople rep reps commission commissions sales team performance",
+  "sales-geo": "leads by state geography states region map",
+  "sales-rr": "repeat referral repeat business referral business returning customers",
+  // Marketing
+  "mkt-roi": "marketing roi return on investment ads analysis ad spend advertising google returns callrail call rail call tracking calls",
+  "mkt-sources": "source analysis sources source overview lead source identification attribution angi movers movers.com home advisor homeadvisor post card postcard post cards channels",
+  "mkt-phone": "phone response callrail call rail call tracking calls answer rate",
+  // Logistics
+  "log-foreman": "forman foreman foremen of the month scorecard crew labor helpers hours worked operations comparison",
+  "log-packing": "packing storage packing analysis per 100 cf material materials boxes estimate vs written storage payments",
+  "log-fleet": "fleet trucks vehicles mileage",
+  // Financial
+  "fin-revenue": "revenue profit growth executive summary composition segments per job profitability p&l pnl profit and loss",
+  "financial-analysis": "p&l pnl profit and loss financial analysis job",
+  "executive-scorecard": "executive scorecard kpi kpis trends",
+  // Reviews
+  "rev-production": "review reviews rating ratings stars review production",
+  "rev-rr": "repeat referral repeat business referral business returning customers reviews",
+  // Support
+  "sup-claims": "claim claims damage damages",
+  "sup-refunds": "refund refunds negative review reviews complaints cx cost of quality customer experience",
+  "sup-phone": "phone response callrail call rail call tracking calls answer rate",
+  // Settings
+  "data-quality": "data quality freshness completeness health integrity checks",
+  "admin-users": "users access acl permissions grants admin administrator",
 };
 
 function buildNav() {
@@ -897,20 +890,36 @@ if (!ZTZ.getToken()) {
 PAGE_ICONS["admin-users"] = "user";
 /* Grant-tile labels — plain English, kept in sync with the sidebar renames (N34). */
 const REPORT_LABELS = {
-  "insights": "Insights & Recommendations",
-  "analysis-by-category": "Custom Breakdown (formerly Analysis by Category)",
-  "leads": "Leads (funnel + geography)", "sales-person-analysis": "Sales Person Analysis",
-  "marketing": "Ads & Calls (ad spend + call tracking)",
-  "foremen": "Foremen & Crew (scorecard, comparison + crew & labor)",
-  "packing-suite": "Packing (estimate vs written + per 100 CF)", "claims": "Claims",
-  "storage": "Storage", "reviews": "Review Production",
-  "lead-source-analysis": "Lead Sources (attribution & spend)",
-  "source-identification": "How Sources Are Assigned",
-  "executive-scorecard": "Executive Scorecard",
-  "customer-experience": "Refunds & Cost of Quality",
-  "financial-analysis": "Job P&L (profit & loss)",
-  "post-card-analysis": "Post Card Analysis",
+  // Company Overview
   "monthly-report": "Monthly Report (all-in-one)",
+  "analysis-by-category": "Custom Breakdown",
+  "insights": "Insights & Recommendations",
+  // Sales
+  "sales-funnel": "Lead Funnel & Conversion",
+  "sales-perf": "Sales Team Performance",
+  "sales-geo": "Geography (by state)",
+  "sales-rr": "Repeat & Referral (Sales)",
+  // Marketing
+  "mkt-roi": "Marketing — Return on Investment",
+  "mkt-sources": "Marketing — Lead Sources & Channels",
+  "mkt-phone": "Marketing — Phone & Response",
+  // Logistics
+  "log-foreman": "Foreman of the Month",
+  "log-packing": "Packing & Storage",
+  "log-fleet": "Fleet",
+  // Financial
+  "fin-revenue": "Revenue & Profit",
+  "financial-analysis": "Job P&L (profit & loss)",
+  "executive-scorecard": "Executive Scorecard",
+  // Reviews
+  "rev-production": "Reviews Production",
+  "rev-rr": "Repeat & Referral (Reviews)",
+  // Support
+  "sup-claims": "Claims",
+  "sup-refunds": "Refunds & Cost of Quality",
+  "sup-phone": "Support — Phone & Response",
+  // Settings / data portal
+  "data-quality": "Data Quality",
   "explorer": "Data Explorer (the Data portal — every table)",
 };
 async function aclCall(method, body) {
@@ -1063,10 +1072,11 @@ registerPage({
 <script src="pages/executive-scorecard.js?v=3"></script>
 <script src="pages/customer-experience.js?v=3"></script>
 <script src="pages/labor-analysis.js?v=3"></script>
-<script src="pages/financial-analysis.js?v=3"></script>
+<script src="pages/financial-analysis.js?v=4"></script>
 <script src="pages/post-card-analysis.js?v=2"></script>
-<script src="pages/monthly-report.js?v=38"></script>
+<script src="pages/monthly-report.js?v=39"></script>
 <script src="pages/leads-vs-moveboard.js?v=6"></script>
 <script src="pages/source-analysis.js?v=3"></script>
+<script src="pages/data-quality.js?v=1"></script>
 </body>
 </html>
