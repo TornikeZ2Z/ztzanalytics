@@ -25,6 +25,8 @@
         "Pickup State", "Source Connector", "Closing Source From Moveboard",
         "Closing Corrected Source", "Final Source (faithful)", "Final Source (current)",
         "Matches Current", "Match Path",
+        "Angi Match", "Angi Match Key", "Thumbtack Match", "Thumbtack Match Key",
+        "Final Source (with leads)",
       ],
     };
   }
@@ -108,9 +110,11 @@ registerPage({
         .st-verdict{margin-top:14px;border-radius:13px;padding:14px 16px;font-size:14px;line-height:1.55}
         .st-verdict.ok{background:var(--brand-glow);border:1px solid var(--brand-d)}
         .st-verdict.bad{background:rgba(248,113,113,.12);border:1px solid var(--red)}
+        .st-verdict.warn{background:rgba(245,158,11,.12);border:1px solid var(--amber)}
         .st-verdict .vt{font-weight:800;font-size:15px;display:block;margin-bottom:3px}
         .st-verdict.ok .vt{color:var(--brand-d)}
         .st-verdict.bad .vt{color:var(--red)}
+        .st-verdict.warn .vt{color:var(--amber)}
         .st-path{margin-top:8px;font-size:13px;color:var(--muted)}
         .st-path code{background:var(--panel);border:1px solid var(--line);border-radius:7px;
           padding:2px 8px;color:var(--ink);font-size:12.5px}`;
@@ -122,8 +126,9 @@ registerPage({
       <div class="rs-page-head">
         <h1>Source Trace</h1>
         <p>Look up any closing job and see how its lead <b>source</b> is decided — the source
-           on the <b>Moveboard</b>, the source on the <b>Closing</b> sheet, and the priority
-           ladder that reconciles them into the final source.
+           on the <b>Moveboard</b>, the source on the <b>Closing</b> sheet, and the 6-rung
+           priority ladder (incl. <b>Angi</b> / <b>Thumbtack</b> lead-data matching) that
+           reconciles them into the final source.
            <span class="freshness">· read-only · one row per closing job</span></p>
       </div>
       <div class="panel">
@@ -202,11 +207,13 @@ registerPage({
       const tran   = r["Translated Source"];
       const pstate = r["Pickup State"];
       const mbSrc  = r["Source Connector"];              // moveboard's RESOLVED source
-      const finalF = r["Final Source (faithful)"];
-      const finalC = r["Final Source (current)"];
+      const finalF = r["Final Source (faithful)"];       // faithful, no lead matching
+      const finalC = r["Final Source (current)"];        // live pipeline, no lead matching
+      const finalL = r["Final Source (with leads)"];     // proposed, WITH Angi/Thumbtack matching
+      const angiMatch = yes(r["Angi Match"]),   angiKey = r["Angi Match Key"];
+      const ttMatch   = yes(r["Thumbtack Match"]), ttKey = r["Thumbtack Match Key"];
       const path   = String(r["Match Path"] || "");
       const lc     = path.toLowerCase();
-      const ok     = yes(r["Matches Current"]);
       const isPost = /post card/.test(norm(finalF)) || /post card/.test(norm(mbSrc));
 
       /* how the Moveboard source was built (the phone-match story, shown under input ①) */
@@ -226,41 +233,60 @@ registerPage({
       if (isPost && has(pstate))
         mbNote += ` Post Card → region from pickup state <b>${RSC.esc(pstate)}</b>.`;
 
-      /* which reconciliation priority won (derived from the recorded Match Path) */
-      let win = 4;                                   // default: moveboard-vs-booked fallback
+      /* which priority wins (6-rung ladder). Angi/Thumbtack lead matches only
+         intercept the #6 fallback — never override #1–#3. */
+      let win = 6;
       if (/returned customer|recommended/.test(lc)) win = 1;
       else if (/google local/.test(lc)) win = 2;
       else if (isPost) win = 3;
-      const bookedWon = win === 4 && lc.includes("booked from") && !lc.includes("inherited");
+      else if (angiMatch) win = 4;
+      else if (ttMatch) win = 5;
+      const bookedWon = win === 6 && lc.includes("booked from") && !lc.includes("inherited");
+
+      // #4/#5 rows: show the match even when a higher priority outranks it
+      const leadRow = (n, matched, key, name) =>
+        win === n ? `Wins → <b>${name}</b> (matched by <b>${RSC.esc(show(key))}</b>)`
+        : matched ? `<span style="color:var(--amber);font-weight:700">Matched a ${name} lead by ${RSC.esc(show(key))}</span> — outranked by Priority #${win}`
+        : `No ${name} lead match`;
 
       const rules = [
         { n: 1, t: "Returned / Recommended customer",
-          d: "Booked as a returning or recommended customer — this wins outright, ahead of any phone or postcard match.",
-          got: () => `Wins → <b>${RSC.esc(show(finalF))}</b>` },
+          d: "Booked as a returning or recommended customer — wins outright, ahead of any phone, lead, or postcard match.",
+          got: () => `Wins → <b>${RSC.esc(show(finalL))}</b>` },
         { n: 2, t: "Google Local phone match",
           d: "The customer's phone matched a Google Local lead (and no CallRail postcard overrides it).",
           got: () => `Wins → <b>Google Local</b>` },
         { n: 3, t: "Post Card — region from pickup state",
           d: "The source resolves to a Post Card → keep it, taking the region from the pickup state (not the number's label).",
-          got: () => `Wins → <b>${RSC.esc(show(finalF))}</b>` },
-        { n: 4, t: "Moveboard source, else Closing booked-from",
+          got: () => `Wins → <b>${RSC.esc(show(finalL))}</b>` },
+        { n: 4, t: "Angi — lead-data match",
+          d: "The customer matches an Angi lead by email or phone, or by name + zip / name + date.",
+          matched: angiMatch, status: () => leadRow(4, angiMatch, angiKey, "Angi") },
+        { n: 5, t: "Thumbtack — lead-data match",
+          d: "The customer matches a Thumbtack lead by phone, or by name + zip / name + date.",
+          matched: ttMatch, status: () => leadRow(5, ttMatch, ttKey, "Thumbtack") },
+        { n: 6, t: "Moveboard source, else Closing booked-from",
           d: "Otherwise use the Moveboard source — unless it's blank or “Other”, in which case the Closing's booked-from is used.",
           got: () => bookedWon
-            ? `Wins via <b>Closing booked-from</b> → <b>${RSC.esc(show(finalF))}</b>`
-            : `Wins via <b>Moveboard source</b> → <b>${RSC.esc(show(finalF))}</b>` },
+            ? `Wins via <b>Closing booked-from</b> → <b>${RSC.esc(show(finalL))}</b>`
+            : `Wins via <b>Moveboard source</b> → <b>${RSC.esc(show(finalL))}</b>` },
       ];
 
       const ladder = rules.map(rule => {
         const won = rule.n === win;
-        return `<div class="st-rule ${won ? "won" : "skip"}">
+        const body = rule.status ? rule.status() : (won ? rule.got() : "Not this job");
+        const cls = won ? "won" : (rule.matched ? "" : "skip");   // matched-but-outranked stays visible
+        return `<div class="st-rule ${cls}">
             <span class="st-badge">${won ? "✓" : "#" + rule.n}</span>
             <div>
               <div class="rt">Priority #${rule.n} — ${rule.t}</div>
               <div class="rd">${rule.d}</div>
-              <div class="rs ${won ? "" : "na"}">${won ? rule.got() : "Not this job"}</div>
+              <div class="rs ${won ? "" : "na"}">${body}</div>
             </div>
           </div>`;
       }).join("");
+
+      const changed = norm(finalL) !== norm(finalC);
 
       traceEl.innerHTML = `
         <div class="panel" style="margin-top:14px">
@@ -289,29 +315,30 @@ registerPage({
 
             <div class="st-final">
               <span class="fl">Final source</span>
-              <span class="fv">${RSC.esc(show(finalF))}</span>
+              <span class="fv">${RSC.esc(show(finalL))}</span>
             </div>
 
             <div class="st-cmp">
               <div class="st-cell">
-                <div class="st-lab">Faithful (PBIX)</div>
-                <div class="big">${RSC.esc(show(finalF))}</div>
+                <div class="st-lab">Current pipeline (live)</div>
+                <div class="big">${RSC.esc(show(finalC))}</div>
               </div>
               <div class="st-cell">
-                <div class="st-lab">Current pipeline</div>
-                <div class="big">${RSC.esc(show(finalC))}</div>
+                <div class="st-lab">With Angi / Thumbtack matching</div>
+                <div class="big">${RSC.esc(show(finalL))}</div>
               </div>
             </div>
 
-            <div class="st-verdict ${ok ? "ok" : "bad"}">
-              <span class="vt">${ok
-                ? "✓ Match — the pipeline stores the faithful source"
-                : "✗ Mismatch — the pipeline differs from the faithful source"}</span>
-              ${ok
-                ? "The current stored source equals the PBIX-faithful answer for this job."
-                : "The current stored source (<b>" + RSC.esc(show(finalC)) +
-                  "</b>) does not equal the faithful answer (<b>" + RSC.esc(show(finalF)) + "</b>)."}
-              ${has(path) ? `<div class="st-path">Decision path: <code>${RSC.esc(path)}</code></div>` : ""}
+            <div class="st-verdict ${changed ? "warn" : "ok"}">
+              <span class="vt">${changed
+                ? "⤳ Lead matching would reassign this job"
+                : "✓ No change — lead matching agrees with the live source"}</span>
+              ${changed
+                ? "The live pipeline stores <b>" + RSC.esc(show(finalC)) + "</b>, but the customer matches "
+                  + (win === 4 ? "an <b>Angi</b>" : "a <b>Thumbtack</b>") + " lead — so lead-matching would set it to <b>"
+                  + RSC.esc(show(finalL)) + "</b>. <span style='color:var(--faint)'>Diagnostic only — not yet applied to live reports.</span>"
+                : "The lead-matched source equals what the pipeline already stores."}
+              ${has(path) ? `<div class="st-path">Base decision path: <code>${RSC.esc(path)}</code></div>` : ""}
             </div>
           </div>
         </div>`;
