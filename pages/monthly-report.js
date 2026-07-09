@@ -836,7 +836,10 @@ async function renderMonthly(host, MRCFG) {
     const jobs = valueFor("closing", "Total Jobs", curY, mo), jobsLY = valueFor("closing", "Total Jobs", curY - 1, mo), jobsPM = valueFor("closing", "Total Jobs", PMY, PM);
     const bk = valueFor("moveboard", "Booking Rate", curY, mo), bkLY = valueFor("moveboard", "Booking Rate", curY - 1, mo), bkPM = valueFor("moveboard", "Booking Rate", PMY, PM);
     const leadsN = valueFor("moveboard", "Total Leads", curY, mo), leadsLY = valueFor("moveboard", "Total Leads", curY - 1, mo), leadsPM = valueFor("moveboard", "Total Leads", PMY, PM);
-    const conf = valueFor("moveboard", "Confirmed Leads", curY, mo);
+    // Confirmed = jobs BOOKED this month (Booked Date), matching the canonical
+    // Booking Rate — NOT create date. Feeds the Confirmed KPI + the funnel bar.
+    // (create-date confirmed understated it, e.g. June ZtZ 429 vs booked 499.)
+    const conf = bookedRowsFor(curY, mo).filter(r => r["Status Category"] === "Confirmed").length;
     const qual = valueFor("moveboard", "Qualified Leads", curY, mo);
     const margin = rev ? op / rev : null, marginLY = revLY ? opLY / revLY : null, marginPM = revPM ? opPM / revPM : null;
     const avgJob = jobs ? rev / jobs : null, avgJobLY = jobsLY ? revLY / jobsLY : null, avgJobPM = jobsPM ? revPM / jobsPM : null;
@@ -1103,8 +1106,7 @@ async function renderMonthly(host, MRCFG) {
       const cFun = funnel(g, "Lead Funnel", monLbl + " · Total → Qualified → Confirmed", [ { k: "Total Leads", v: leadsN || 0 }, { k: "Qualified", v: qual || 0 }, { k: "Confirmed", v: conf || 0 } ], { headVal: pct(bk), chips: dchips([[bk, bkLY, "YoY"], [bk, bkPM, "MoM"]]) });
       // C2: bk is the canonical dual-basis rate (confirmed by booked date ÷ qualified by
       // create date), so it can legitimately differ from Confirmed ÷ Qualified in the bars.
-      const confBooked = bookedRowsFor(curY, mo).filter(r => r["Status Category"] === "Confirmed").length;
-      if (cFun) note(cFun, `The funnel bars count leads created in ${MON[mo]}. Booking rate ${pct(bk)} = jobs booked this month (by booked date) ÷ qualified leads created — the official formula, so it can differ from Confirmed ÷ Qualified in the bars. From all incoming leads (bad included) it is ${pct(leadsN ? confBooked / leadsN : 0)}.`, "how");
+      if (cFun) note(cFun, `Total and Qualified count leads created in ${MON[mo]}; Confirmed counts jobs booked this month (by booked date) — the same basis as the Booking Rate ${pct(bk)} (confirmed by booked date ÷ qualified created), so the funnel matches the official rate. From all incoming leads (bad included) it is ${pct(leadsN ? conf / leadsN : 0)}.`, "how");
       // S5: the lead-status donut lives here, next to the funnel it explains
       donut(g, "Lead status mix", segReduce("moveboard", "Status Category", rs => rs.length), fmtN, { center: fmtN(leadsN), centerLbl: "leads" });
       const badCur = segReduce("moveboard", "Status", rs => rs.length, curY, mo, { pre: r => r["Status Category"] === "Bad Lead" }).slice(0, 6);
