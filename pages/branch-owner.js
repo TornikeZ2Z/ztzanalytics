@@ -178,8 +178,13 @@ registerPage({
       const refund = sumRJ(rs, refundByRJ);
       const exp = car + fuel + hotel + other + toll + truck;
       const op = bill - (forman + driver + helper + sales) - (exp + refund);
-      return { jobs: rs.length, bill, forman, driver, helper, sales, exp, refund,
-               op, opm: bill ? op / bill : null, scm: bill ? sales / bill : null };
+      // `sales` (Sales Commission) sums ALL SP-slot salaries incl. Giorgi's branch-owner cut,
+      // which is correct for op profit (real payout). But for the DISPLAYED "Sales Comm. %"
+      // his cut must NOT count as sales commission — it has its own column — so strip it out.
+      const boCut = rs.reduce((a, r) => a + num(r["Branch Owner Cut"]), 0);
+      const realSales = sales - boCut;   // real salesperson commission only
+      return { jobs: rs.length, bill, forman, driver, helper, sales, realSales, boCut, exp, refund,
+               op, opm: bill ? op / bill : null, scm: bill ? realSales / bill : null };
     };
     const groupCut = rs => rs.reduce((a, r) => a + num(r["Branch Owner Cut"]), 0);
 
@@ -239,7 +244,8 @@ registerPage({
           cmpRows,
           (() => { const ap = pnl(closingRows);
             return { k: "All jobs", jobs: ap.jobs, bill: ap.bill, cut: totalCut,
-                     op: ap.op, opm: ap.opm, scm: ap.scm }; })());
+                     op: ap.op, opm: ap.opm, scm: ap.scm }; })()) +
+          `<p style="margin:6px 2px 0;font-size:12px;color:var(--faint)">Sales Comm. % is the real salesperson commission — Giorgi's branch-owner cut is excluded (it's the separate "Giorgi's Cut" column). Operational profit still subtracts his cut.</p>`;
       },
     });
 
