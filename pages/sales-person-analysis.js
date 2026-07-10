@@ -309,7 +309,7 @@ registerPage({
           <span class="rs-ctl"><span class="lbl">top 12 by Revenue · last 8 months</span></span></div>
         <div class="tabwrap" id="spaMx"></div>`);
       panel.querySelector("#spaMx").innerHTML = mrows.length
-        ? RSC.matrix(mrows, "Sales Person", "Total Bill", { rowLabel: "Sales Person", lastN: 8 })
+        ? RSC.matrix(mrows, "Sales Person", "Revenue", { rowLabel: "Sales Person", lastN: 8 })
         : `<div style="padding:14px;color:var(--muted)">No named sales persons in the current scope.</div>`;
       grid.appendChild(panel);
     }

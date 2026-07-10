@@ -223,7 +223,7 @@ registerPage({
         sub: "Moveboard requests · by created date" },
       { label: "Booking Rate", value: pctNS(T.rate),
         sub: "confirmed (booked date) / qualified (created date)" },
-      { label: "Revenue (Total Bill)", value: RS.moneyC(T.totalBill),
+      { label: "Revenue", value: RS.moneyC(T.totalBill),
         sub: RS.fmtN(T.jobs) + " jobs · closings + appended trips" },
       { label: "Operational Profit", value: RS.moneyC(T.opProfit),
         sub: "margin " + pctNS(T.opMargin) + " · revenue − salaries − expenses − refunds, by Source" },
@@ -261,7 +261,7 @@ registerPage({
     const finTbl = RSC.table(
       [{ key: "s", label: "Source" },
        { key: "jobs", label: "Total Jobs", fmt: RS.fmtN },
-       { key: "bill", label: "Revenue (Total Bill)", fmt: RS.money },
+       { key: "bill", label: "Revenue", fmt: RS.money },
        { key: "forman", label: "Foreman Salary", fmt: RS.money },
        { key: "driver", label: "Driver Salary", fmt: RS.money },
        { key: "helper", label: "Helper Salary", fmt: RS.money },

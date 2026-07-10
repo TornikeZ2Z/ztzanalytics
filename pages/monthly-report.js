@@ -1074,8 +1074,8 @@ async function renderMonthly(host, MRCFG) {
       const refundTot = withMonth(curY, mo, () => M["Total Refunds"] ? M["Total Refunds"].fn(RS.filtered("refunds", DS.refunds || [])) : 0);
       // C20/N4: "Total Bill" and "Revenue" are two names for the byte-identical formula
       // (verified to the cent) — shown as "Revenue (Total Bill)" during the name transition.
-      const steps = [ { label: "Revenue (Total Bill)", v: totBill, type: "total" }, { label: "Foreman Salaries", v: -forman }, { label: "Driver Salaries", v: -driver }, { label: "Helper Salaries", v: -(helper || 0) }, { label: "Sales Commission", v: -(comm || 0) }, { label: "Expenses", v: -expense }, { label: "Refunds", v: -(refundTot || 0) }, { label: "Op. Profit", v: op, type: "total" } ];
-      const wc = waterfall(g, "Revenue (Total Bill) → Operational Profit", monLbl, steps, { headVal: money(op), chips: dchips([[op, opLY, "YoY"]]) });
+      const steps = [ { label: "Revenue", v: totBill, type: "total" }, { label: "Foreman Salaries", v: -forman }, { label: "Driver Salaries", v: -driver }, { label: "Helper Salaries", v: -(helper || 0) }, { label: "Sales Commission", v: -(comm || 0) }, { label: "Expenses", v: -expense }, { label: "Refunds", v: -(refundTot || 0) }, { label: "Op. Profit", v: op, type: "total" } ];
+      const wc = waterfall(g, "Revenue → Operational Profit", monLbl, steps, { headVal: money(op), chips: dchips([[op, opLY, "YoY"]]) });
       note(wc, `From ${money(totBill)} in revenue, labor + expenses + refunds leave ${money(op)} operational profit — a ${pct(margin)} margin.`);
       note(wc, `Revenue here is the same figure as the Revenue card in Section 01 (closing-sheet + trip billings, before refunds — refunds are deducted as their own step below).`, "how");
       // what's inside the waterfall's single "Expenses" bar — its six components, ranked

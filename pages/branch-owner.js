@@ -4,38 +4,29 @@
    are populated ONLY where he's in an SP slot (never from his foreman work). Read-only.
    Respects the global date/company filter.
 
-   Layout: all KPI cards grouped at the top (his-cut KPIs then profitability KPIs), then a
-   compact 2×2 grid of half-width charts (cut-by-month · his-vs-rest margin · by move type ·
-   by foreman), then the auditable per-job table full width.
+   LOADS PROGRESSIVELY: the skeleton + the closing-only sections (cut KPIs, cut-by-month,
+   per-job table) paint immediately from the `closing` dataset; the profit sections
+   (profit KPIs + margin-vs-rest + by move type + by foreman) show a loading card and fill
+   in once the heavier cross-dataset tables (sales_salaries / helper_salaries / refunds)
+   arrive. So the page is usable in ~seconds instead of blocking on all four datasets.
 
-   Beyond his cut, this page shows the OPERATIONAL PROFIT + MARGIN of his jobs (his cut is
-   an extra cost baked into Sales Commission, so op profit already nets it out) and compares
-   it to the rest of the business + by move type, plus a per-foreman breakdown of his jobs.
    Operational profit is built the SAME way as the Job P&L page (PBI 'Operational Profit by
    Formula') so the numbers tie out with the rest of the portal:
-     Op Profit = Total Bill - (Forman + Driver + Helper + Sales Commission) - (Car+Fuel+
-                 Hotel+Toll+Truck+Other + Refunds).   Margin = Op Profit / Total Bill.
-   Cross-dataset costs (Sales Commission, Helper Salary, Total Refunds) live on separate
-   tables and are attributed to each job by Unique Key / Request Joinkey (Job P&L pattern). */
+     Op Profit = Revenue - (Forman + Driver + Helper + Sales Commission) - (Car+Fuel+
+                 Hotel+Toll+Truck+Other + Refunds).   Margin = Op Profit / Revenue.
+   ("Revenue" is the display name for the measure keyed 'Total Bill' = SUM(Total Bill) +
+   Extra Bill From Trips.) Cross-dataset costs (Sales Commission, Helper Salary, Total
+   Refunds) are attributed to each job by Unique Key / Request Joinkey (Job P&L pattern). */
 registerPage({
   id: "branch-owner",
   group: "financial",
   title: "Branch Owner",
   async render(host) {
-    const [closingAll, salesAll, helperAll, refundAll] = await Promise.all([
-      RS.load("closing"), RS.load("sales_salaries"),
-      RS.load("helper_salaries"), RS.load("refunds"),
-    ]);
     const num = RS.num, money = RS.money, moneyC = RS.moneyC || RS.money, fmtN = RS.fmtN;
     const pctS = v => (v == null || isNaN(v)) ? "—" : (v * 100).toFixed(1) + "%";
     const M = RS.M;
-
-    // his SP-cut jobs, within the global filter scope (trips carry no SP -> excluded)
-    const filtered = RS.filtered("closing", closingAll);
-    const closingRows = filtered.filter(r => r["Record Source"] === "closing");
-    const isBO = r => r["Branch Owner"] != null && String(r["Branch Owner"]).trim() !== "";
-    const scoped = closingRows.filter(isBO);
-    const rest = closingRows.filter(r => !isBO(r));
+    const loadingCard = t => `<div class="panel" style="min-height:320px;display:grid;place-items:center">
+      <div style="text-align:center;color:var(--muted)"><b>${t}</b><br><span style="font-size:12px">Loading…</span></div></div>`;
 
     const head = `
       <div class="rs-page-head">
@@ -47,13 +38,124 @@ registerPage({
            <span class="freshness">· read-only · respects the date/company filter</span></p>
       </div>`;
 
+    // ---- skeleton first: page paints instantly, each section fills in as its data lands ----
+    host.innerHTML = head + `
+      <div class="rs-kpis" id="boKpis"><div class="rs-loading">Loading…</div></div>
+      <div class="rs-kpis" id="boProfitKpis"></div>
+      <div class="rs-grid2" id="boGrid">
+        <div id="boSlotTrend"></div>
+        <div id="boSlotCompare"></div>
+        <div id="boSlotType"></div>
+        <div id="boSlotForeman"></div>
+      </div>
+      <div id="boDetail"></div>`;
+    document.getElementById("boSlotCompare").innerHTML = loadingCard("Operational margin — his jobs vs the rest");
+    document.getElementById("boSlotType").innerHTML = loadingCard("By move type — operational profit &amp; margin");
+    document.getElementById("boSlotForeman").innerHTML = loadingCard("By foreman — job count &amp; pay");
+
+    // =========================== PHASE 1: closing only (fast) ===========================
+    const closingAll = await RS.load("closing");
+    const closingRows = RS.filtered("closing", closingAll).filter(r => r["Record Source"] === "closing");
+    const isBO = r => r["Branch Owner"] != null && String(r["Branch Owner"]).trim() !== "";
+    const scoped = closingRows.filter(isBO);
+    const rest = closingRows.filter(r => !isBO(r));
+
     if (!scoped.length) {
-      host.innerHTML = head +
-        `<div class="rs-loading">No branch-owner jobs in the current filter range.</div>`;
+      host.innerHTML = head + `<div class="rs-loading">No branch-owner jobs in the current filter range.</div>`;
       return;
     }
 
-    // ---- cross-dataset cost attribution maps (Job P&L pattern), same global scope ----
+    const totalBill = scoped.reduce((a, r) => a + num(r["Total Bill"]), 0);
+    const totalCut  = scoped.reduce((a, r) => a + num(r["Branch Owner Cut"]), 0);
+    const owners = [...new Set(scoped.map(r => r["Branch Owner"]))];
+    const avgPct = totalBill ? totalCut / totalBill : 0;
+
+    RSC.kpis(document.getElementById("boKpis"), [
+      { label: "Jobs (as branch owner)", value: fmtN(scoped.length), sub: owners.join(", ") },
+      { label: "Revenue of those jobs", value: moneyC(totalBill), sub: money(totalBill) },
+      { label: "His Cut", value: moneyC(totalCut), sub: money(totalCut) },
+      { label: "Avg Cut %", value: pctS(avgPct), sub: "of revenue" },
+    ]);
+    document.getElementById("boProfitKpis").innerHTML =
+      `<div class="rs-loading">Calculating operational profit…</div>`;
+
+    // ---- (1) monthly trend: his cut + the revenue it came from (closing only) ----
+    const byMonth = {};
+    scoped.forEach(r => {
+      const mk = (r._y || "") + "-" + String(r._m || 0).padStart(2, "0");
+      (byMonth[mk] = byMonth[mk] || { jobs: 0, bill: 0, cut: 0 });
+      byMonth[mk].jobs++; byMonth[mk].bill += num(r["Total Bill"]); byMonth[mk].cut += num(r["Branch Owner Cut"]);
+    });
+    const months = Object.keys(byMonth).sort();
+    const mrows = months.map(mk => ({
+      k: mk, jobs: byMonth[mk].jobs, bill: byMonth[mk].bill, cut: byMonth[mk].cut,
+      pctv: byMonth[mk].bill ? byMonth[mk].cut / byMonth[mk].bill : 0,
+    }));
+    RSC.chartCard(document.getElementById("boSlotTrend"), {
+      title: "Branch owner cut by month",
+      key: "branch-owner-trend",
+      buildChart(canvas) {
+        return new Chart(canvas, {
+          type: "bar",
+          data: {
+            labels: months,
+            datasets: [
+              { label: "His Cut", data: months.map(mk => byMonth[mk].cut),
+                backgroundColor: "rgba(132,204,22,.78)", yAxisID: "y", order: 2 },
+              { type: "line", label: "Revenue", data: months.map(mk => byMonth[mk].bill),
+                borderColor: "#64748b", backgroundColor: "#64748b", tension: .3, yAxisID: "y1", order: 1 },
+            ],
+          },
+          options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: { legend: { position: "bottom" } },
+            scales: {
+              y:  { position: "left",  beginAtZero: true, title: { display: true, text: "His Cut ($)" } },
+              y1: { position: "right", beginAtZero: true, grid: { drawOnChartArea: false },
+                    title: { display: true, text: "Revenue ($)" } },
+            },
+          },
+        });
+      },
+      buildTable() {
+        return RSC.table(
+          [{ key: "k", label: "Month" },
+           { key: "jobs", label: "Jobs", align: "r", fmt: fmtN },
+           { key: "bill", label: "Revenue", align: "r", fmt: money },
+           { key: "cut", label: "His Cut", align: "r", fmt: money },
+           { key: "pctv", label: "Cut %", align: "r", fmt: pctS }],
+          mrows,
+          { k: "Total", jobs: scoped.length, bill: totalBill, cut: totalCut, pctv: avgPct });
+      },
+    });
+
+    // ---- per-job detail (closing only), full width ----
+    const detail = scoped.slice()
+      .sort((a, b) => String(b["Date"] || "").localeCompare(String(a["Date"] || "")))
+      .map(r => ({
+        dt: r["Date"], cust: r["Customer"], co: r["Company"], req: r["Request #"],
+        bill: num(r["Total Bill"]), cut: num(r["Branch Owner Cut"]),
+        pctv: num(r["Total Bill"]) ? num(r["Branch Owner Cut"]) / num(r["Total Bill"]) : 0,
+      }));
+    const detailTable = RSC.table(
+      [{ key: "dt", label: "Move Date" }, { key: "req", label: "Request #" },
+       { key: "cust", label: "Customer" }, { key: "co", label: "Company" },
+       { key: "bill", label: "Revenue", align: "r", fmt: money },
+       { key: "pctv", label: "Cut %", align: "r", fmt: pctS },
+       { key: "cut", label: "His Cut", align: "r", fmt: money }],
+      detail,
+      { dt: "Total", bill: totalBill, cut: totalCut, pctv: avgPct });
+    document.getElementById("boDetail").innerHTML = `
+      <div class="panel" style="margin-top:14px">
+        <div class="panel-head"><span class="panel-title">Every branch-owner job (${fmtN(detail.length)})</span></div>
+        <div style="padding:0 4px 8px"><div class="tabwrap">${detailTable}</div></div>
+      </div>`;
+
+    // ================= PHASE 2: cross-dataset costs (sales / helper / refunds) =================
+    const [salesAll, helperAll, refundAll] = await Promise.all([
+      RS.load("sales_salaries"), RS.load("helper_salaries"), RS.load("refunds"),
+    ]);
+
     const accum = (src, keyCol, valCol) => {
       const m = new Map();
       src.forEach(r => { const k = r[keyCol]; if (k == null || k === "") return;
@@ -81,32 +183,14 @@ registerPage({
     };
     const groupCut = rs => rs.reduce((a, r) => a + num(r["Branch Owner Cut"]), 0);
 
-    // ---- headline figures ----
-    const totalBill = scoped.reduce((a, r) => a + num(r["Total Bill"]), 0);
-    const totalCut  = scoped.reduce((a, r) => a + num(r["Branch Owner Cut"]), 0);
-    const owners = [...new Set(scoped.map(r => r["Branch Owner"]))];
-    const avgPct = totalBill ? totalCut / totalBill : 0;
     const hp = pnl(scoped), rp = pnl(rest);
     const opBefore = hp.op + totalCut;                 // if his cut hadn't been taken
     const opmBefore = hp.bill ? opBefore / hp.bill : null;
     const cutMarginCost = hp.bill ? totalCut / hp.bill : 0;
 
-    // ---- page skeleton: KPIs grouped on top, charts in a 2×2 half-width grid ----
-    host.innerHTML = head + `
-      <div class="rs-kpis" id="boKpis"></div>
-      <div class="rs-kpis" id="boProfitKpis"></div>
-      <div class="rs-grid2" id="boGrid"></div>
-      <div id="boDetail"></div>`;
-
-    RSC.kpis(document.getElementById("boKpis"), [
-      { label: "Jobs (as branch owner)", value: fmtN(scoped.length), sub: owners.join(", ") },
-      { label: "Total Bill of those jobs", value: moneyC(totalBill), sub: money(totalBill) },
-      { label: "His Cut", value: moneyC(totalCut), sub: money(totalCut) },
-      { label: "Avg Cut %", value: pctS(avgPct), sub: "of total bill" },
-    ]);
     RSC.kpis(document.getElementById("boProfitKpis"), [
       { label: "Operational Profit", value: moneyC(hp.op), sub: money(hp.op) + " · after his cut" },
-      { label: "Op. Profit Margin", value: pctS(hp.opm), sub: "of total bill" },
+      { label: "Op. Profit Margin", value: pctS(hp.opm), sub: "of revenue" },
       { label: "Margin before his cut", value: pctS(opmBefore),
         sub: "his cut costs " + pctS(cutMarginCost) + " of margin" },
       { label: "Rest-of-business margin", value: pctS(rp.opm),
@@ -115,64 +199,13 @@ registerPage({
           : "all non-Giorgi jobs" },
     ]);
 
-    const grid = document.getElementById("boGrid");
-
-    // ---- (1) monthly trend: his cut + the bill it came from ----
-    const byMonth = {};
-    scoped.forEach(r => {
-      const mk = (r._y || "") + "-" + String(r._m || 0).padStart(2, "0");
-      (byMonth[mk] = byMonth[mk] || { jobs: 0, bill: 0, cut: 0 });
-      byMonth[mk].jobs++; byMonth[mk].bill += num(r["Total Bill"]); byMonth[mk].cut += num(r["Branch Owner Cut"]);
-    });
-    const months = Object.keys(byMonth).sort();
-    const mrows = months.map(mk => ({
-      k: mk, jobs: byMonth[mk].jobs, bill: byMonth[mk].bill, cut: byMonth[mk].cut,
-      pctv: byMonth[mk].bill ? byMonth[mk].cut / byMonth[mk].bill : 0,
-    }));
-    RSC.chartCard(grid, {
-      title: "Branch owner cut by month",
-      key: "branch-owner-trend",
-      buildChart(canvas) {
-        return new Chart(canvas, {
-          type: "bar",
-          data: {
-            labels: months,
-            datasets: [
-              { label: "His Cut", data: months.map(mk => byMonth[mk].cut),
-                backgroundColor: "rgba(132,204,22,.78)", yAxisID: "y", order: 2 },
-              { type: "line", label: "Total Bill", data: months.map(mk => byMonth[mk].bill),
-                borderColor: "#64748b", backgroundColor: "#64748b", tension: .3, yAxisID: "y1", order: 1 },
-            ],
-          },
-          options: {
-            responsive: true, maintainAspectRatio: false,
-            plugins: { legend: { position: "bottom" } },
-            scales: {
-              y:  { position: "left",  beginAtZero: true, title: { display: true, text: "His Cut ($)" } },
-              y1: { position: "right", beginAtZero: true, grid: { drawOnChartArea: false },
-                    title: { display: true, text: "Total Bill ($)" } },
-            },
-          },
-        });
-      },
-      buildTable() {
-        return RSC.table(
-          [{ key: "k", label: "Month" },
-           { key: "jobs", label: "Jobs", align: "r", fmt: fmtN },
-           { key: "bill", label: "Total Bill", align: "r", fmt: money },
-           { key: "cut", label: "His Cut", align: "r", fmt: money },
-           { key: "pctv", label: "Cut %", align: "r", fmt: pctS }],
-          mrows,
-          { k: "Total", jobs: scoped.length, bill: totalBill, cut: totalCut, pctv: avgPct });
-      },
-    });
-
     // ---- (2) his jobs vs the rest of the business — operational margin ----
     const cmpRows = [
       { k: "Giorgi's jobs", jobs: hp.jobs, bill: hp.bill, cut: totalCut, op: hp.op, opm: hp.opm, scm: hp.scm },
       { k: "Rest of business", jobs: rp.jobs, bill: rp.bill, cut: 0, op: rp.op, opm: rp.opm, scm: rp.scm },
     ];
-    RSC.chartCard(grid, {
+    document.getElementById("boSlotCompare").innerHTML = "";
+    RSC.chartCard(document.getElementById("boSlotCompare"), {
       title: "Operational margin — his jobs vs the rest of the business",
       key: "branch-owner-profit",
       buildChart(canvas) {
@@ -198,7 +231,7 @@ registerPage({
         return RSC.table(
           [{ key: "k", label: "" },
            { key: "jobs", label: "Jobs", align: "r", fmt: fmtN },
-           { key: "bill", label: "Total Bill", align: "r", fmt: money },
+           { key: "bill", label: "Revenue", align: "r", fmt: money },
            { key: "cut", label: "Giorgi's Cut", align: "r", fmt: money },
            { key: "op", label: "Op. Profit", align: "r", fmt: money },
            { key: "opm", label: "Op. Margin", align: "r", fmt: pctS },
@@ -220,7 +253,8 @@ registerPage({
         return { t, jobs: p.jobs, bill: p.bill, cut: groupCut(rs), op: p.op, opm: p.opm };
       }).sort((a, b) => (b.bill || 0) - (a.bill || 0));
     })();
-    RSC.chartCard(grid, {
+    document.getElementById("boSlotType").innerHTML = "";
+    RSC.chartCard(document.getElementById("boSlotType"), {
       title: "By move type — operational profit & margin",
       key: "branch-owner-bytype",
       buildChart(canvas) {
@@ -253,7 +287,7 @@ registerPage({
         return RSC.table(
           [{ key: "t", label: "Move Type" },
            { key: "jobs", label: "Jobs", align: "r", fmt: fmtN },
-           { key: "bill", label: "Total Bill", align: "r", fmt: money },
+           { key: "bill", label: "Revenue", align: "r", fmt: money },
            { key: "cut", label: "Giorgi's Cut", align: "r", fmt: money },
            { key: "op", label: "Op. Profit", align: "r", fmt: money },
            { key: "opm", label: "Op. Margin", align: "r", fmt: pctS }],
@@ -277,7 +311,8 @@ registerPage({
     })();
     const TOPF = 20;
     const shownF = byForeman.slice(0, TOPF);
-    RSC.chartCard(grid, {
+    document.getElementById("boSlotForeman").innerHTML = "";
+    RSC.chartCard(document.getElementById("boSlotForeman"), {
       title: "By foreman — job count & pay",
       key: "branch-owner-byforeman",
       buildChart(canvas) {
@@ -320,10 +355,10 @@ registerPage({
           [{ key: "f", label: "Foreman" },
            { key: "jobs", label: "Jobs", align: "r", fmt: nzN },
            { key: "hrs", label: "Hours", align: "r", fmt: nzN },
-           { key: "bill", label: "Total Bill", align: "r", fmt: nz },
+           { key: "bill", label: "Revenue", align: "r", fmt: nz },
            { key: "pay", label: "Foreman Pay", align: "r", fmt: nz },
            { key: "rate", label: "$/hr", align: "r", fmt: nz },
-           { key: "pctb", label: "Pay % of Bill", align: "r", fmt: pctS },
+           { key: "pctb", label: "Pay % of Revenue", align: "r", fmt: pctS },
            { key: "op", label: "Op. Profit", align: "r", fmt: nz },
            { key: "opm", label: "Op. Margin", align: "r", fmt: pctS }],
           data,
@@ -336,27 +371,5 @@ registerPage({
             : "");
       },
     });
-
-    // ---- every branch-owner job (auditable detail), full width ----
-    const detail = scoped.slice()
-      .sort((a, b) => String(b["Date"] || "").localeCompare(String(a["Date"] || "")))
-      .map(r => ({
-        dt: r["Date"], cust: r["Customer"], co: r["Company"], req: r["Request #"],
-        bill: num(r["Total Bill"]), cut: num(r["Branch Owner Cut"]),
-        pctv: num(r["Total Bill"]) ? num(r["Branch Owner Cut"]) / num(r["Total Bill"]) : 0,
-      }));
-    const detailTable = RSC.table(
-      [{ key: "dt", label: "Move Date" }, { key: "req", label: "Request #" },
-       { key: "cust", label: "Customer" }, { key: "co", label: "Company" },
-       { key: "bill", label: "Total Bill", align: "r", fmt: money },
-       { key: "pctv", label: "Cut %", align: "r", fmt: pctS },
-       { key: "cut", label: "His Cut", align: "r", fmt: money }],
-      detail,
-      { dt: "Total", bill: totalBill, cut: totalCut, pctv: avgPct });
-    document.getElementById("boDetail").innerHTML = `
-      <div class="panel" style="margin-top:14px">
-        <div class="panel-head"><span class="panel-title">Every branch-owner job (${fmtN(detail.length)})</span></div>
-        <div style="padding:0 4px 8px"><div class="tabwrap">${detailTable}</div></div>
-      </div>`;
   },
 });

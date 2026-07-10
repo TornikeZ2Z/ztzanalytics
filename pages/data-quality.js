@@ -85,7 +85,7 @@ registerPage({
       { id: "netcash", title: "Closing with no Net Cash",
         desc: "Closing jobs where Net Cash was left blank (a true $0 is not flagged). Trip rows are excluded.",
         cols: [{ key: "key", label: "Job / Request #" }, { key: "date", label: "Move date" },
-               { key: "customer", label: "Customer" }, { key: "bill", label: "Total Bill", align: "r" }],
+               { key: "customer", label: "Customer" }, { key: "bill", label: "Revenue", align: "r" }],
         compute: x => x.closingJobs.filter(r => x.blank(r["Net Cash"])).map(r => ({
           key: x.cKey(r), date: r._d || "—", customer: r["Customer"] || "—",
           bill: RS.money(RS.num(r["Total Bill"])) })) },

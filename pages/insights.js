@@ -973,7 +973,7 @@ registerPage({
       const undated = closing.filter(r => !r._d).length;
       const counters = [
         { n: awaiting, l: "Awaiting closing entry",
-          h: `Jobs since ${cutIso} with no Total Bill yet — fill in the closing sheet so MTD revenue stays complete.` },
+          h: `Jobs since ${cutIso} with no Revenue yet — fill in the closing sheet so MTD revenue stays complete.` },
         { n: noForeman, l: "Missing foreman",
           h: "Closing rows with no Foreman — assign one so scorecard and claims attribution stay complete." },
         { n: noSource.length, l: "Missing source",

@@ -67,7 +67,7 @@ registerPage({
       { key: "jobs",   label: "Total Jobs",       fmt: RS.fmtN,  grp: rs => rs.length },
       // display label is the transition form "Revenue (Total Bill)"; the registry
       // key "Total Bill" stays untouched (identical formula to "Revenue").
-      { key: "bill",   label: "Revenue (Total Bill)", fmt: RS.money, grp: rs => M["Total Bill"].fn(rs) },
+      { key: "bill",   label: "Revenue", fmt: RS.money, grp: rs => M["Total Bill"].fn(rs) },
       { key: "forman", label: "Foreman Salary",   fmt: RS.money, grp: rs => M["Forman Salary"].fn(rs) },
       { key: "driver", label: "Driver Salary",    fmt: RS.money, grp: rs => M["Driver Salary"].fn(rs) },
       { key: "helper", label: "Helper Salary",    fmt: RS.money, grp: rs => sumUK(rs, helperByUK) },
