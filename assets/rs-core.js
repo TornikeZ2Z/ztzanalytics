@@ -196,7 +196,7 @@ window.RS = (function () {
     // Full Name (curated fct_moveboard) so it matches the Full-Name slicer options like closing.
     sales:       { label: "Sales Person", closing: "Sales Person",  moveboard: "Assigned",       refunds: "Sales Person", long_distance: "Sales Person" },
     cfRange:     { label: "Volume (cu ft)", moveboard: "CF Range" },  // display label only — field key + column stay "CF Range"
-    billRange:   { label: "Bill Range",   closing: "Bill Range",    moveboard: "Bill Range" },
+    billRange:   { label: "Revenue Range", closing: "Bill Range",   moveboard: "Bill Range" },  // display label only — column stays "Bill Range"
     movingType:  { label: "Moving Type",  closing: "Moving Type" },
     sizeOfMove:  { label: "Size of Move", closing: "Size of Move",  moveboard: "Size of Move" },
     statusCat:   { label: "Lead Status",  moveboard: "Status Category" },

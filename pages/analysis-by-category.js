@@ -33,7 +33,7 @@ registerPage({
       "Moving Type":   r => r["Moving Type"],
       "Job Type":      r => { const b = mbOf(r); return b && b.svc; },
       "Size of Move":  r => r["Size of Move"],
-      "Bill Range":    r => r["Bill Range"],
+      "Revenue Range": r => r["Bill Range"],
       "CF Range":      r => { const b = mbOf(r); return b && b.cf; },
       "Year":          r => r._y,
       "Month":         r => RS.monthName(r._m),
@@ -42,8 +42,8 @@ registerPage({
       "Year": (a, b) => a.k.localeCompare(b.k),
       "Month": (a, b) => "JanFebMarAprMayJunJulAugSepOctNovDec".indexOf(a.k) -
                          "JanFebMarAprMayJunJulAugSepOctNovDec".indexOf(b.k),
-      "Bill Range": (a, b) => (RS.num(a.k.replace(/[^0-9]/g, "").slice(0, 5)) || 9e9) -
-                              (RS.num(b.k.replace(/[^0-9]/g, "").slice(0, 5)) || 9e9),
+      "Revenue Range": (a, b) => (RS.num(a.k.replace(/[^0-9]/g, "").slice(0, 5)) || 9e9) -
+                                 (RS.num(b.k.replace(/[^0-9]/g, "").slice(0, 5)) || 9e9),
     };
     // registry KEYS stay untouched; disp() maps them to user-visible labels
     // ("Operating Profit Before Commission" → "Cash Collected (Net + Card)",
