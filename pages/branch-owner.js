@@ -4,6 +4,10 @@
    are populated ONLY where he's in an SP slot (never from his foreman work). Read-only.
    Respects the global date/company filter.
 
+   Layout: all KPI cards grouped at the top (his-cut KPIs then profitability KPIs), then a
+   compact 2×2 grid of half-width charts (cut-by-month · his-vs-rest margin · by move type ·
+   by foreman), then the auditable per-job table full width.
+
    Beyond his cut, this page shows the OPERATIONAL PROFIT + MARGIN of his jobs (his cut is
    an extra cost baked into Sales Commission, so op profit already nets it out) and compares
    it to the rest of the business + by move type, plus a per-foreman breakdown of his jobs.
@@ -33,31 +37,66 @@ registerPage({
     const scoped = closingRows.filter(isBO);
     const rest = closingRows.filter(r => !isBO(r));
 
-    host.innerHTML = `
+    const head = `
       <div class="rs-page-head">
         <h1>Branch Owner</h1>
         <p>Results for a branch owner — someone who takes a cut when listed as a
            <b>Sales Person</b>, not a real salesperson (currently <b>Giorgi Kolbaia</b>).
-           Counts <b>only his SP-slot cut</b>, never his foreman jobs.
+           Counts <b>only his SP-slot cut</b>, never his foreman jobs. Operational profit is
+           after his cut and ties out with the Job P&amp;L page.
            <span class="freshness">· read-only · respects the date/company filter</span></p>
-      </div>
-      <div class="rs-kpis" id="boKpis"></div>
-      <div id="boTrend"></div>
-      <div id="boProfit"></div>
-      <div id="boByType"></div>
-      <div id="boByForeman"></div>
-      <div id="boDetail"></div>`;
+      </div>`;
 
     if (!scoped.length) {
-      document.getElementById("boKpis").innerHTML =
+      host.innerHTML = head +
         `<div class="rs-loading">No branch-owner jobs in the current filter range.</div>`;
       return;
     }
 
+    // ---- cross-dataset cost attribution maps (Job P&L pattern), same global scope ----
+    const accum = (src, keyCol, valCol) => {
+      const m = new Map();
+      src.forEach(r => { const k = r[keyCol]; if (k == null || k === "") return;
+        m.set(k, (m.get(k) || 0) + num(r[valCol])); });
+      return m;
+    };
+    const salesByUK  = accum(RS.filtered("sales_salaries", salesAll),  "Unique Key", "Salary");
+    const helperByUK = accum(RS.filtered("helper_salaries", helperAll), "Unique Key", "Amount Received");
+    const refundByRJ = accum(RS.filtered("refunds", refundAll), "Request Joinkey", "Total refund");
+    const sumUK = (rs, map) => rs.reduce((a, r) => a + (map.get(r["Unique Key"]) || 0), 0);
+    const sumRJ = (rs, map) => rs.reduce((a, r) => a + (map.get(r["Request Joinkey"]) || 0), 0);
+
+    // Per-group Operational Profit build-up (same shape/keys as financial-analysis.js opOf).
+    const pnl = rs => {
+      const bill = M["Total Bill"].fn(rs);
+      const forman = M["Forman Salary"].fn(rs), driver = M["Driver Salary"].fn(rs);
+      const helper = sumUK(rs, helperByUK), sales = sumUK(rs, salesByUK);
+      const car = M["Car Expense"].fn(rs), fuel = M["Fuel Expense"].fn(rs), hotel = M["Hotel Expense"].fn(rs);
+      const other = M["Other Expenses"].fn(rs), toll = M["Toll Expense"].fn(rs), truck = M["Truck Expense"].fn(rs);
+      const refund = sumRJ(rs, refundByRJ);
+      const exp = car + fuel + hotel + other + toll + truck;
+      const op = bill - (forman + driver + helper + sales) - (exp + refund);
+      return { jobs: rs.length, bill, forman, driver, helper, sales, exp, refund,
+               op, opm: bill ? op / bill : null, scm: bill ? sales / bill : null };
+    };
+    const groupCut = rs => rs.reduce((a, r) => a + num(r["Branch Owner Cut"]), 0);
+
+    // ---- headline figures ----
     const totalBill = scoped.reduce((a, r) => a + num(r["Total Bill"]), 0);
     const totalCut  = scoped.reduce((a, r) => a + num(r["Branch Owner Cut"]), 0);
     const owners = [...new Set(scoped.map(r => r["Branch Owner"]))];
     const avgPct = totalBill ? totalCut / totalBill : 0;
+    const hp = pnl(scoped), rp = pnl(rest);
+    const opBefore = hp.op + totalCut;                 // if his cut hadn't been taken
+    const opmBefore = hp.bill ? opBefore / hp.bill : null;
+    const cutMarginCost = hp.bill ? totalCut / hp.bill : 0;
+
+    // ---- page skeleton: KPIs grouped on top, charts in a 2×2 half-width grid ----
+    host.innerHTML = head + `
+      <div class="rs-kpis" id="boKpis"></div>
+      <div class="rs-kpis" id="boProfitKpis"></div>
+      <div class="rs-grid2" id="boGrid"></div>
+      <div id="boDetail"></div>`;
 
     RSC.kpis(document.getElementById("boKpis"), [
       { label: "Jobs (as branch owner)", value: fmtN(scoped.length), sub: owners.join(", ") },
@@ -65,8 +104,20 @@ registerPage({
       { label: "His Cut", value: moneyC(totalCut), sub: money(totalCut) },
       { label: "Avg Cut %", value: pctS(avgPct), sub: "of total bill" },
     ]);
+    RSC.kpis(document.getElementById("boProfitKpis"), [
+      { label: "Operational Profit", value: moneyC(hp.op), sub: money(hp.op) + " · after his cut" },
+      { label: "Op. Profit Margin", value: pctS(hp.opm), sub: "of total bill" },
+      { label: "Margin before his cut", value: pctS(opmBefore),
+        sub: "his cut costs " + pctS(cutMarginCost) + " of margin" },
+      { label: "Rest-of-business margin", value: pctS(rp.opm),
+        sub: (hp.opm != null && rp.opm != null)
+          ? "his are " + (hp.opm >= rp.opm ? "+" : "") + pctS(hp.opm - rp.opm) + " vs rest"
+          : "all non-Giorgi jobs" },
+    ]);
 
-    // ---- monthly trend: his cut + the bill it came from ----
+    const grid = document.getElementById("boGrid");
+
+    // ---- (1) monthly trend: his cut + the bill it came from ----
     const byMonth = {};
     scoped.forEach(r => {
       const mk = (r._y || "") + "-" + String(r._m || 0).padStart(2, "0");
@@ -78,8 +129,7 @@ registerPage({
       k: mk, jobs: byMonth[mk].jobs, bill: byMonth[mk].bill, cut: byMonth[mk].cut,
       pctv: byMonth[mk].bill ? byMonth[mk].cut / byMonth[mk].bill : 0,
     }));
-
-    RSC.chartCard(document.getElementById("boTrend"), {
+    RSC.chartCard(grid, {
       title: "Branch owner cut by month",
       key: "branch-owner-trend",
       buildChart(canvas) {
@@ -117,60 +167,13 @@ registerPage({
       },
     });
 
-    // ===================================================================================
-    // OPERATIONAL PROFIT + MARGIN  (Job P&L attribution pattern — ties out to the portal)
-    // ===================================================================================
-    // Cross-dataset cost attribution maps, filtered to the SAME global scope.
-    const accum = (src, keyCol, valCol) => {
-      const m = new Map();
-      src.forEach(r => { const k = r[keyCol]; if (k == null || k === "") return;
-        m.set(k, (m.get(k) || 0) + num(r[valCol])); });
-      return m;
-    };
-    const salesByUK  = accum(RS.filtered("sales_salaries", salesAll),  "Unique Key", "Salary");
-    const helperByUK = accum(RS.filtered("helper_salaries", helperAll), "Unique Key", "Amount Received");
-    const refundByRJ = accum(RS.filtered("refunds", refundAll), "Request Joinkey", "Total refund");
-    const sumUK = (rs, map) => rs.reduce((a, r) => a + (map.get(r["Unique Key"]) || 0), 0);
-    const sumRJ = (rs, map) => rs.reduce((a, r) => a + (map.get(r["Request Joinkey"]) || 0), 0);
-
-    // Per-group Operational Profit build-up (same shape/keys as financial-analysis.js opOf).
-    const pnl = rs => {
-      const bill = M["Total Bill"].fn(rs);
-      const forman = M["Forman Salary"].fn(rs), driver = M["Driver Salary"].fn(rs);
-      const helper = sumUK(rs, helperByUK), sales = sumUK(rs, salesByUK);
-      const car = M["Car Expense"].fn(rs), fuel = M["Fuel Expense"].fn(rs), hotel = M["Hotel Expense"].fn(rs);
-      const other = M["Other Expenses"].fn(rs), toll = M["Toll Expense"].fn(rs), truck = M["Truck Expense"].fn(rs);
-      const refund = sumRJ(rs, refundByRJ);
-      const exp = car + fuel + hotel + other + toll + truck;
-      const op = bill - (forman + driver + helper + sales) - (exp + refund);
-      return { jobs: rs.length, bill, forman, driver, helper, sales, exp, refund,
-               op, opm: bill ? op / bill : null, scm: bill ? sales / bill : null };
-    };
-    const groupCut = rs => rs.reduce((a, r) => a + num(r["Branch Owner Cut"]), 0);
-
-    const hp = pnl(scoped), rp = pnl(rest);
-    // Op profit if Giorgi's cut had NOT been taken — isolates the branch-owner cost.
-    const opBefore = hp.op + totalCut;
-    const opmBefore = hp.bill ? opBefore / hp.bill : null;
-    const cutMarginCost = hp.bill ? totalCut / hp.bill : 0;
-
-    RSC.kpis(document.getElementById("boProfit"), [
-      { label: "Operational Profit", value: moneyC(hp.op), sub: money(hp.op) + " · after his cut" },
-      { label: "Op. Profit Margin", value: pctS(hp.opm), sub: "of total bill" },
-      { label: "Margin before his cut", value: pctS(opmBefore),
-        sub: "his cut costs " + pctS(cutMarginCost) + " of margin" },
-      { label: "Rest-of-business margin", value: pctS(rp.opm),
-        sub: (hp.opm != null && rp.opm != null)
-          ? (hp.opm >= rp.opm ? "his are +" : "his are ") + pctS(hp.opm - rp.opm) + " vs rest"
-          : "all non-Giorgi jobs" },
-    ]);
-
+    // ---- (2) his jobs vs the rest of the business — operational margin ----
     const cmpRows = [
       { k: "Giorgi's jobs", jobs: hp.jobs, bill: hp.bill, cut: totalCut, op: hp.op, opm: hp.opm, scm: hp.scm },
       { k: "Rest of business", jobs: rp.jobs, bill: rp.bill, cut: 0, op: rp.op, opm: rp.opm, scm: rp.scm },
     ];
-    RSC.chartCard(document.getElementById("boProfit"), {
-      title: "Operational profit & margin — Giorgi's jobs vs the rest of the business",
+    RSC.chartCard(grid, {
+      title: "Operational margin — his jobs vs the rest of the business",
       key: "branch-owner-profit",
       buildChart(canvas) {
         return new Chart(canvas, {
@@ -179,7 +182,7 @@ registerPage({
             labels: ["Giorgi's jobs", "Rest of business"],
             datasets: [
               { label: "Op. Margin", data: [hp.opm, rp.opm].map(v => v == null ? 0 : +(v * 100).toFixed(2)),
-                backgroundColor: ["#84cc16", "#94a3b8"], borderRadius: 4, yAxisID: "y" },
+                backgroundColor: ["#84cc16", "#94a3b8"], borderRadius: 4 },
             ],
           },
           options: {
@@ -207,9 +210,7 @@ registerPage({
       },
     });
 
-    // ===================================================================================
-    // BY MOVE TYPE  (his jobs)
-    // ===================================================================================
+    // ---- (3) by move type (his jobs) ----
     const byType = (() => {
       const g = {};
       scoped.forEach(r => { const t = (r["Moving Type"] == null || r["Moving Type"] === "") ? "—" : String(r["Moving Type"]);
@@ -219,9 +220,8 @@ registerPage({
         return { t, jobs: p.jobs, bill: p.bill, cut: groupCut(rs), op: p.op, opm: p.opm };
       }).sort((a, b) => (b.bill || 0) - (a.bill || 0));
     })();
-
-    RSC.chartCard(document.getElementById("boByType"), {
-      title: "Giorgi's jobs by move type — operational profit & margin",
+    RSC.chartCard(grid, {
+      title: "By move type — operational profit & margin",
       key: "branch-owner-bytype",
       buildChart(canvas) {
         return new Chart(canvas, {
@@ -262,28 +262,23 @@ registerPage({
       },
     });
 
-    // ===================================================================================
-    // BY FOREMAN  (his jobs) — who ran them, how many, at what rate
-    // ===================================================================================
+    // ---- (4) by foreman (his jobs) — who ran them, how many, at what rate ----
     const byForeman = (() => {
       const g = {};
       scoped.forEach(r => { const f = (r["Foreman"] == null || r["Foreman"] === "") ? "—" : String(r["Foreman"]);
         (g[f] = g[f] || []).push(r); });
       return Object.entries(g).map(([f, rs]) => {
         const p = pnl(rs);
-        const hrs = M["Hours Worked by Forman"].fn(rs);
-        const pay = p.forman;                       // foreman earnings on those jobs
+        const hrs = M["Hours Worked by Forman"].fn(rs), pay = p.forman;
         return { f, jobs: p.jobs, hrs, bill: p.bill, pay,
-                 rate: hrs ? pay / hrs : null,       // $ / foreman-hour
-                 pctb: p.bill ? pay / p.bill : null, // pay as % of bill
+                 rate: hrs ? pay / hrs : null, pctb: p.bill ? pay / p.bill : null,
                  op: p.op, opm: p.opm };
       }).sort((a, b) => (b.jobs || 0) - (a.jobs || 0));
     })();
     const TOPF = 20;
     const shownF = byForeman.slice(0, TOPF);
-
-    RSC.chartCard(document.getElementById("boByForeman"), {
-      title: "Giorgi's jobs by foreman — job count & pay",
+    RSC.chartCard(grid, {
+      title: "By foreman — job count & pay",
       key: "branch-owner-byforeman",
       buildChart(canvas) {
         const list = shownF;
@@ -302,7 +297,7 @@ registerPage({
             scales: {
               x: { beginAtZero: true, ticks: { precision: 0 } },
               y: { ticks: { font: { size: 11 },
-                callback(v) { const l = this.getLabelForValue(v); return l.length > 18 ? l.slice(0, 17) + "…" : l; } } },
+                callback(v) { const l = this.getLabelForValue(v); return l.length > 16 ? l.slice(0, 15) + "…" : l; } } },
             },
           },
         });
@@ -337,12 +332,12 @@ registerPage({
               rate: hrs ? hp.forman / hrs : null, pctb: hp.bill ? hp.forman / hp.bill : null,
               op: hp.op, opm: hp.opm }; })()) +
           (byForeman.length > shownF.length
-            ? `<p style="margin:6px 2px 0;font-size:12px;color:var(--faint)">Showing top ${shownF.length} of ${fmtN(byForeman.length)} foremen — the rest are aggregated in "All others".</p>`
+            ? `<p style="margin:6px 2px 0;font-size:12px;color:var(--faint)">Showing top ${shownF.length} of ${fmtN(byForeman.length)} foremen — the rest are in "All others".</p>`
             : "");
       },
     });
 
-    // ---- every branch-owner job (auditable detail) ----
+    // ---- every branch-owner job (auditable detail), full width ----
     const detail = scoped.slice()
       .sort((a, b) => String(b["Date"] || "").localeCompare(String(a["Date"] || "")))
       .map(r => ({
