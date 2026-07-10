@@ -84,6 +84,17 @@ registerPage({
       chg: has(crnn) || gl,
     });
 
+    /* Post-Card region note: did the region come from the pickup state, or was it baked into the
+       tracking number's label (e.g. CallRail "Postcard NY - QR" → NY, regardless of pickup state)? */
+    const pcRegionNote = (resolved, pstate) => {
+      const m = /post card\s*-\s*(.+)$/i.exec(String(resolved || ""));
+      if (!m) return "";
+      const region = m[1].trim();
+      return (pstate && norm(region) === norm(pstate))
+        ? ` Post Card → region <b>${RSC.esc(region)}</b> from the pickup state.`
+        : ` Post Card → region <b>${RSC.esc(region)}</b> from the tracking number's label${has(pstate) ? ` (pickup state is <b>${RSC.esc(pstate)}</b>)` : ""}.`;
+    };
+
     // one-time style block: two input cards, the priority ladder, the final chip, the verdict
     if (!document.getElementById("st-style")) {
       const st = document.createElement("style");
@@ -333,8 +344,7 @@ registerPage({
       let mbNote = `Booked on the moveboard as <b>${RSC.esc(show(mbraw))}</b>; ${phone}.`;
       if (has(merged) && norm(merged) !== norm(mbraw))
         mbNote += ` Merged source <b>${RSC.esc(merged)}</b>` + (has(tran) && norm(tran) !== norm(merged) ? ` → <b>${RSC.esc(tran)}</b>` : "") + `.`;
-      if (isPost && has(pstate))
-        mbNote += ` Post Card → region from pickup state <b>${RSC.esc(pstate)}</b>.`;
+      mbNote += pcRegionNote(mbSrc, pstate);
 
       /* which priority wins (6-rung ladder). Angi/Thumbtack lead matches only
          intercept the #6 fallback — never override #1–#3. */
@@ -403,7 +413,7 @@ registerPage({
           chg: norm(merged) !== norm(mbraw) },
         { label: "Translated + Post-Card region", value: mbSrc, badge: 3,
           note: (has(tran) && norm(tran) !== norm(merged) ? "Canonical name via the Source Translator." : "")
-            + (isPost && has(pstate) ? ` Post Card split by pickup state <b>${RSC.esc(pstate)}</b>.` : ""),
+            + pcRegionNote(mbSrc, pstate),
           chg: norm(mbSrc) !== norm(merged) },
         { label: "Closing corrected source", value: corrClose, badge: 4,
           note: `Closing inherits the moveboard source; its own “Booked from” (<b>${RSC.esc(show(bf))}</b>) is the fallback.`,
@@ -539,7 +549,7 @@ registerPage({
       let note = `Customer phone <b>${RSC.esc(show(r["Customer Phone"]))}</b> ${phn}.`;
       if (has(merged) && norm(merged) !== norm(rawS))
         note += ` Merged source <b>${RSC.esc(merged)}</b>` + (has(tran) && norm(tran) !== norm(merged) ? ` → <b>${RSC.esc(tran)}</b>` : "") + ".";
-      if (isPost && has(pstate)) note += ` Post Card → region from pickup state <b>${RSC.esc(pstate)}</b>.`;
+      note += pcRegionNote(conn, pstate);
 
       const changed = norm(connL) !== norm(conn);
 
@@ -556,7 +566,7 @@ registerPage({
           note: "Canonical name via the Source Translator.",
           chg: has(tran) && norm(tran) !== norm(merged) },
         { label: "Source Connector (final)", value: conn, fin: true,
-          note: isPost && has(pstate) ? `Post Card split by pickup state <b>${RSC.esc(pstate)}</b>.` : "" },
+          note: pcRegionNote(conn, pstate).trim() },
       ]);
 
       traceEl.innerHTML = `
