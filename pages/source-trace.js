@@ -60,6 +60,30 @@ registerPage({
     const has = v => !blank(v);
     const norm = s => String(s == null ? "" : s).trim().toLowerCase();
 
+    /* start-to-finish value trail: [{label, value, note?, chg?, raw?, fin?}] — note may hold HTML */
+    const chainStrip = steps => `<div class="st-chain">` + steps.map(s => {
+      const cls = s.raw ? "raw" : s.fin ? "fin" : s.chg ? "chg" : "";
+      const badge = s.raw ? "0" : s.fin ? "★" : (s.badge || "");
+      return `<div class="st-step ${cls}">
+          <div class="st-dot">${badge}</div>
+          <div class="st-sbody">
+            <div class="st-slab">${RSC.esc(s.label)}</div>
+            <div class="st-sval">${RSC.esc(show(s.value))}</div>
+            ${s.note ? `<div class="st-snote">${s.note}</div>` : ""}
+          </div>
+        </div>`;
+    }).join("") + `</div>`;
+
+    /* the phone-match value + human note, shared by both traces */
+    const phoneMatch = (crnn, crtr, gl) => ({
+      value: has(crnn) ? (has(crtr) ? crtr : crnn) : (gl ? "Google Local" : "—"),
+      note: has(crnn)
+        ? `Customer phone matched CallRail <b>${RSC.esc(crnn)}</b>${has(crtr) && norm(crtr) !== norm(crnn) ? ` (reads as <b>${RSC.esc(crtr)}</b>)` : ""}${gl ? " — <b>CallRail beats Google Local</b>" : ""}.`
+        : gl ? `Customer phone matched a <b>Google Local</b> lead.`
+             : `No phone match — the raw booked source carries through.`,
+      chg: has(crnn) || gl,
+    });
+
     // one-time style block: two input cards, the priority ladder, the final chip, the verdict
     if (!document.getElementById("st-style")) {
       const st = document.createElement("style");
@@ -134,7 +158,26 @@ registerPage({
         .st-verdict.warn .vt{color:var(--amber)}
         .st-path{margin-top:8px;font-size:13px;color:var(--muted)}
         .st-path code{background:var(--panel);border:1px solid var(--line);border-radius:7px;
-          padding:2px 8px;color:var(--ink);font-size:12.5px}`;
+          padding:2px 8px;color:var(--ink);font-size:12.5px}
+        /* start-to-finish transformation chain */
+        .st-chain{display:flex;flex-direction:column;margin:4px 0 20px}
+        .st-step{position:relative;display:grid;grid-template-columns:26px 1fr;gap:13px;padding:0 0 16px}
+        .st-step:last-child{padding-bottom:0}
+        .st-step:not(:last-child)::before{content:"";position:absolute;left:12px;top:26px;bottom:0;
+          width:2px;background:var(--line-2)}
+        .st-dot{width:26px;height:26px;border-radius:50%;background:var(--panel);border:2px solid var(--line-2);
+          display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;
+          color:var(--muted);z-index:1}
+        .st-step.chg .st-dot{background:var(--brand);border-color:var(--brand);color:var(--brand-ink)}
+        .st-step.raw .st-dot{background:var(--ink);border-color:var(--ink);color:var(--panel)}
+        .st-step.fin .st-dot{background:var(--brand);border-color:var(--brand);color:var(--brand-ink)}
+        .st-sbody{padding-top:0}
+        .st-slab{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--faint)}
+        .st-sval{font-size:15.5px;font-weight:800;color:var(--ink);margin:1px 0 1px}
+        .st-step.chg .st-sval,.st-step.fin .st-sval{color:var(--brand-d)}
+        .st-step.raw .st-sval{font-size:17px}
+        .st-snote{font-size:12px;color:var(--muted);line-height:1.45}
+        .st-snote b{color:var(--ink)}`;
       document.head.appendChild(st);
     }
 
@@ -348,6 +391,26 @@ registerPage({
 
       const changed = norm(finalL) !== norm(finalC);
 
+      /* start-to-finish value trail: raw moveboard source → … → final */
+      const pm = phoneMatch(crnn, crtr, gl);
+      const corrClose = r["Closing Corrected Source"];
+      const chain = chainStrip([
+        { label: "Raw moveboard source", value: mbraw, raw: true,
+          note: "What ops entered on the moveboard, before any transformation." },
+        { label: "Phone match — CallRail / Google Local", value: pm.value, note: pm.note, chg: pm.chg, badge: 1 },
+        { label: "Merged source", value: merged, badge: 2,
+          note: "Returned-Customer kept first, else the phone match, else the raw source.",
+          chg: norm(merged) !== norm(mbraw) },
+        { label: "Translated + Post-Card region", value: mbSrc, badge: 3,
+          note: (has(tran) && norm(tran) !== norm(merged) ? "Canonical name via the Source Translator." : "")
+            + (isPost && has(pstate) ? ` Post Card split by pickup state <b>${RSC.esc(pstate)}</b>.` : ""),
+          chg: norm(mbSrc) !== norm(merged) },
+        { label: "Closing corrected source", value: corrClose, badge: 4,
+          note: `Closing inherits the moveboard source; its own “Booked from” (<b>${RSC.esc(show(bf))}</b>) is the fallback.`,
+          chg: norm(corrClose) !== norm(mbSrc) },
+        { label: "Final source", value: finalC, fin: true },
+      ]);
+
       traceEl.innerHTML = `
         <div class="panel" style="margin-top:14px">
           <div class="panel-head">
@@ -359,18 +422,21 @@ registerPage({
 
             <div class="st-io">
               <div class="st-cell">
-                <div class="st-lab"><span class="num">1</span>Source from Moveboard</div>
-                <div class="big">${RSC.esc(show(mbSrc))}</div>
+                <div class="st-lab"><span class="num">1</span>Raw moveboard source</div>
+                <div class="big">${RSC.esc(show(mbraw))}</div>
                 <div class="st-note">${mbNote}</div>
               </div>
               <div class="st-cell">
-                <div class="st-lab"><span class="num">2</span>Source from Closing</div>
+                <div class="st-lab"><span class="num">2</span>Raw closing source</div>
                 <div class="big">${RSC.esc(show(bf))}</div>
-                <div class="st-note">The source as booked on the closing sheet ("Booked from").</div>
+                <div class="st-note">The source as booked on the closing sheet ("Booked from") — the fallback if the moveboard source is blank.</div>
               </div>
             </div>
 
-            <div class="st-sechead">Transformation priorities <span>· first match wins</span></div>
+            <div class="st-sechead">Source, start to finish <span>· raw → final, each transformation in order</span></div>
+            ${chain}
+
+            <div class="st-sechead">Which priority decided it <span>· first match wins</span></div>
             <div class="st-ladder">${ladder}</div>
 
             <div class="st-final">
@@ -477,6 +543,22 @@ registerPage({
 
       const changed = norm(connL) !== norm(conn);
 
+      /* start-to-finish value trail: raw moveboard source → … → Source Connector */
+      const pm = phoneMatch(crnn, crtr, gl);
+      const chain = chainStrip([
+        { label: "Raw moveboard source", value: rawS, raw: true,
+          note: "What ops entered on the moveboard, before any transformation." },
+        { label: "Phone match — CallRail / Google Local", value: pm.value, note: pm.note, chg: pm.chg, badge: 1 },
+        { label: "Merged source", value: merged, badge: 2,
+          note: "Returned-Customer kept first, else the phone match, else the raw source.",
+          chg: norm(merged) !== norm(rawS) },
+        { label: "Translated", value: tran, badge: 3,
+          note: "Canonical name via the Source Translator.",
+          chg: has(tran) && norm(tran) !== norm(merged) },
+        { label: "Source Connector (final)", value: conn, fin: true,
+          note: isPost && has(pstate) ? `Post Card split by pickup state <b>${RSC.esc(pstate)}</b>.` : "" },
+      ]);
+
       traceEl.innerHTML = `
         <div class="panel" style="margin-top:14px">
           <div class="panel-head">
@@ -487,12 +569,14 @@ registerPage({
           <div style="padding:16px 18px 8px">
             <div class="st-io" style="grid-template-columns:1fr">
               <div class="st-cell">
-                <div class="st-lab">Moveboard booked source</div>
+                <div class="st-lab"><span class="num">0</span>Raw moveboard source</div>
                 <div class="big">${RSC.esc(show(rawS))}</div>
                 <div class="st-note">${note}</div>
               </div>
             </div>
-            <div class="st-sechead">Transformation priorities <span>· first match wins</span></div>
+            <div class="st-sechead">Source, start to finish <span>· raw → final, each transformation in order</span></div>
+            ${chain}
+            <div class="st-sechead">Which priority decided it <span>· first match wins</span></div>
             <div class="st-ladder">${ladder}</div>
             <div class="st-final">
               <span class="fl">Moveboard source</span>

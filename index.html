@@ -86,7 +86,7 @@ const GROUPS = [
    module registered with — so restructures never require touching 20 page files. */
 const GROUP_OVERRIDE = {
   // Settings
-  "data-quality": "settings", "source-trace": "settings", "admin-users": "settings",
+  "data-quality": "settings", "source-trace": "settings", "multi-source-leads": "settings", "admin-users": "settings",
   // Company Overview
   "monthly-report": "company", "analysis-by-category": "company", "insights": "company",
   // Sales
@@ -113,7 +113,7 @@ const NAV_ORDER = {
   "fin-revenue": 1, "financial-analysis": 2, "executive-scorecard": 3, "branch-owner": 4,
   "rev-production": 1, "rev-rr": 2,
   "sup-claims": 1, "sup-refunds": 2, "sup-phone": 3,
-  "data-quality": 1, "source-trace": 2, "admin-users": 3,
+  "data-quality": 1, "source-trace": 2, "multi-source-leads": 3, "admin-users": 4,
 };
 
 /* Inline SVG icon set (Feather-style, stroke-based) — no emojis anywhere. */
@@ -166,7 +166,7 @@ const PAGE_ICONS = {
   "log-foreman": "tool", "log-packing": "box", "log-fleet": "activity",
   "fin-revenue": "trend", "rev-production": "star", "rev-rr": "trend",
   "sup-claims": "shield", "sup-refunds": "clipboard", "sup-phone": "phone",
-  "data-quality": "clipboard", "source-trace": "activity",
+  "data-quality": "clipboard", "source-trace": "activity", "multi-source-leads": "git-merge",
 };
 
 /* Pages not yet built — shown greyed with a SOON tag so the full scope is visible. */
@@ -454,6 +454,7 @@ const PAGE_DATASETS = {
   "admin-users": [],
   "data-quality": [],
   "source-trace": [],
+  "multi-source-leads": [],
 };
 // themed dashboards are lite-mode slices of the Monthly Report — same datasets
 ["sales-funnel", "sales-perf", "sales-geo", "sales-rr", "mkt-roi", "mkt-sources", "mkt-phone",
@@ -632,6 +633,7 @@ const NAV_TITLES = {
   "branch-owner": "Branch Owner",
   "data-quality": "Data Quality",
   "source-trace": "Source Trace",
+  "multi-source-leads": "Multi-Source Leads",
   "admin-users": "Users & Access",
 };
 /* C46: hidden search keywords per nav item — old Power BI page names, singular/plural,
@@ -669,6 +671,7 @@ const SEARCH_ALIASES = {
   // Settings
   "data-quality": "data quality freshness completeness health integrity checks",
   "source-trace": "source trace lineage attribution callrail google local phone match booked from moveboard corrected final source faithful pbix diagnostic audit",
+  "multi-source-leads": "multi source multiple sources overlap conflict callrail google local angi thumbtack tracker match contested attribution leads",
   "admin-users": "users access acl permissions grants admin administrator",
 };
 
@@ -1086,7 +1089,8 @@ registerPage({
 <script src="pages/leads-vs-moveboard.js?v=6"></script>
 <script src="pages/source-analysis.js?v=3"></script>
 <script src="pages/data-quality.js?v=3"></script>
-<script src="pages/source-trace.js?v=4"></script>
+<script src="pages/source-trace.js?v=5"></script>
+<script src="pages/multi-source-leads.js?v=1"></script>
 <script src="pages/branch-owner.js?v=5"></script>
 </body>
 </html>
