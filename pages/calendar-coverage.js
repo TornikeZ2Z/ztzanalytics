@@ -59,9 +59,10 @@ registerPage({
         <h1>Calendar Coverage</h1>
         <p>Which closing jobs are linked to a <b>Google-Calendar</b> event, and which aren't.
            A job is connected via <b>Request #</b> (Job Code for Peter), duplicates broken by move date; a
-           2nd entry of the same job (e.g. a delivery leg) links as a <b>sibling</b>. Every unconnected job is
-           tagged with <b>why</b> — click a reason below to drill in. Most gaps are older jobs the calendar never
-           tracked; recent coverage is near-complete.
+           2nd entry of the same job (e.g. a delivery leg) links as a <b>sibling</b>, and a job whose branch tag
+           differs between the calendar and the closing sheet is recovered as a <b>branch-fix</b> (same customer,
+           same day). Every unconnected job is tagged with <b>why</b> — click a reason below to drill in. Most gaps
+           are older jobs the calendar never tracked; recent coverage is near-complete.
            <span class="freshness">· read-only · respects the date/company filter</span></p>
       </div>
       <div class="rs-kpis" id="ccKpis"><div class="rs-loading">Loading…</div></div>
@@ -91,11 +92,12 @@ registerPage({
 
     // confident-connected closings (drop dup_ambiguous). `secondary` = a 2nd closing entry
     // (e.g. a delivery leg) linked via a Request # whose primary move matched — counts as connected.
-    const connectedUK = new Set(), secondaryUK = new Set();
+    const connectedUK = new Set(), secondaryUK = new Set(), crossBranchUK = new Set();
     bridgeAll.forEach(b => {
       const mt = norm(b["Match Type"]);
       if (mt !== "dup_ambiguous") connectedUK.add(b["Closing Unique Key"]);
       if (mt === "secondary") secondaryUK.add(b["Closing Unique Key"]);
+      if (mt === "cross_branch") crossBranchUK.add(b["Closing Unique Key"]);
     });
     // reason each unconnected closing has no link (No calendar event / Estimate-Box only / …)
     const reasonByUK = new Map();
@@ -106,11 +108,14 @@ registerPage({
     const connected = rows.filter(isConn);
     const unconnected = rows.filter(r => !isConn(r));
     const secondaryOnly = rows.filter(r => secondaryUK.has(r["Unique Key"])).length;
+    const crossOnly = rows.filter(r => crossBranchUK.has(r["Unique Key"])).length;
+    const connSub = [fmtN(connected.length) + " jobs",
+      secondaryOnly ? fmtN(secondaryOnly) + " via sibling" : null,
+      crossOnly ? fmtN(crossOnly) + " via branch-fix" : null].filter(Boolean).join(" · ");
 
     RSC.kpis(document.getElementById("ccKpis"), [
       { label: "Closings in scope", value: fmtN(rows.length), sub: "current filter" },
-      { label: "Connected to calendar", value: pct(connected.length, rows.length),
-        sub: fmtN(connected.length) + " jobs" + (secondaryOnly ? " · " + fmtN(secondaryOnly) + " via sibling" : "") },
+      { label: "Connected to calendar", value: pct(connected.length, rows.length), sub: connSub },
       { label: "Unconnected", value: fmtN(unconnected.length), sub: pct(unconnected.length, rows.length) + " of scope" },
     ]);
 
