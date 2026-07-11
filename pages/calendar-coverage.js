@@ -163,10 +163,9 @@ registerPage({
     // ---- unconnected list (the answer), sliced BY REASON ----
     // reason → [swatch colour, one-line meaning]
     const REASONS = {
-      "No calendar event":   ["#e2687a", "no event carries that Request # — mostly older jobs the calendar never tracked"],
-      "Estimate / Box only": ["#e0a458", "the only events are In-Home Estimate / Box Delivery (excluded by design)"],
-      "Different branch":    ["#6aa6e8", "a real move event exists but tagged to another company (Boston / Tuji …)"],
-      "No Request #":        ["#9aa0aa", "the closing row has no Request # to join on"],
+      "No calendar event":       ["#e2687a", "no event carries that Request # — mostly older jobs the calendar never tracked"],
+      "No Request #":            ["#9aa0aa", "the closing row has no Request # to join on"],
+      "Event exists, unmatched": ["#e0a458", "a same-Request# event exists but couldn't be confidently matched (rare)"],
     };
     const reasonOf = r => reasonByUK.get(r["Unique Key"]) || "—";
     const reasonPill = rn => {
