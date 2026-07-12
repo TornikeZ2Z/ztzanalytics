@@ -20,11 +20,8 @@
   }
 })();
 
-registerPage({
-  id: "calendar-coverage",
-  group: "settings",
-  title: "Calendar Coverage",
-  async render(host) {
+// Rendered as a TAB inside the Data Quality hub (no longer a standalone page).
+(window.DQ_SUB = window.DQ_SUB || {}).coverage = async function (host) {
     const CAP = 400;
     const num = RS.num, fmtN = RS.fmtN;
     const esc = RSC.esc;
@@ -221,5 +218,4 @@ registerPage({
       const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
       a.download = "unconnected-closings.csv"; a.click(); URL.revokeObjectURL(a.href);
     };
-  },
-});
+};

@@ -23,6 +23,42 @@ registerPage({
   group: "settings",
   title: "Data Quality",
   async render(host) {
+    // Data Quality is now a HUB: warehouse checks + calendar coverage + request-# consistency as tabs
+    // (the latter two register their render on window.DQ_SUB instead of as standalone pages).
+    if (!document.getElementById("dq-tabstyle")) {
+      const st = document.createElement("style"); st.id = "dq-tabstyle";
+      st.textContent = `.dq-tabbar{display:flex;gap:6px;flex-wrap:wrap;border-bottom:1px solid var(--line);margin:4px 2px 16px;padding-left:2px}
+        .dq-tab{appearance:none;border:0;background:none;font-family:inherit;font-size:14px;font-weight:650;color:var(--muted);
+          padding:9px 14px;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;transition:color .12s,border-color .12s}
+        .dq-tab:hover{color:var(--ink)} .dq-tab.on{color:var(--brand);border-bottom-color:var(--brand)}`;
+      document.head.appendChild(st);
+    }
+    const TABS = [
+      { key: "checks", label: "Warehouse checks", render: renderChecks },
+      { key: "coverage", label: "Calendar Coverage", render: (window.DQ_SUB || {}).coverage },
+      { key: "consistency", label: "Request # Consistency", render: (window.DQ_SUB || {}).consistency },
+    ];
+    host.innerHTML = `<div class="dq-tabbar" id="dqTabs"></div><div id="dqContent"></div>`;
+    const content = host.querySelector("#dqContent");
+    let active = "checks";
+    const paintTabs = () => {
+      document.getElementById("dqTabs").innerHTML = TABS.map(t =>
+        `<button class="dq-tab ${t.key === active ? "on" : ""}" data-k="${t.key}">${RSC.esc(t.label)}</button>`).join("");
+      document.querySelectorAll("#dqTabs .dq-tab").forEach(b => b.onclick = () => go(b.getAttribute("data-k")));
+    };
+    const go = async (k) => {
+      active = k; paintTabs();
+      content.innerHTML = `<div class="rs-loading" style="padding:22px">Loading…</div>`;
+      const t = TABS.find(t => t.key === k);
+      if (t && typeof t.render === "function") await t.render(content);
+      else content.innerHTML = `<div class="rs-loading" style="padding:22px">This view isn't available.</div>`;
+    };
+    paintTabs();
+    await go("checks");
+  },
+});
+
+async function renderChecks(host) {
     const CAP = 50;
 
     /* ---- check definitions: title/desc/cols + a compute(ctx) that returns rows ---- */
@@ -103,7 +139,7 @@ registerPage({
     /* ---------------- 1) paint the shell immediately (no compute yet) ---------------- */
     host.innerHTML = `
       <div class="rs-page-head">
-        <h1>Data Quality</h1>
+        <h1>Warehouse checks</h1>
         <p>Rows that look wrong or unfinished for the current filters — fix them at the
            source sheet. <b id="dqTotal">checking…</b>
            <span class="freshness">· read-only · this page lists problems, it never edits data</span></p>
@@ -205,5 +241,4 @@ registerPage({
     }
     DQ_CACHE[sig] = results;
     if (stillHere()) paintTotal(results);
-  },
-});
+}

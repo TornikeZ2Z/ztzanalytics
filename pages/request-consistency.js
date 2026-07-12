@@ -14,11 +14,8 @@
   }
 })();
 
-registerPage({
-  id: "request-consistency",
-  group: "settings",
-  title: "Request # Consistency",
-  async render(host) {
+// Rendered as a TAB inside the Data Quality hub (no longer a standalone page).
+(window.DQ_SUB = window.DQ_SUB || {}).consistency = async function (host) {
     const CAP = 500;
     const esc = RSC.esc, fmtN = RS.fmtN;
     const norm = s => String(s == null ? "" : s).trim().toLowerCase();
@@ -158,5 +155,4 @@ registerPage({
       const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
       a.download = "request-consistency.csv"; a.click(); URL.revokeObjectURL(a.href);
     };
-  },
-});
+};
