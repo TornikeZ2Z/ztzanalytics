@@ -64,6 +64,7 @@
       </div>
       <div class="rs-kpis" id="ccKpis"><div class="rs-loading">Loading…</div></div>
       <div id="ccChart"></div>
+      <div id="ccMethod"></div>
       <div class="panel" style="margin-top:12px">
         <div class="panel-head"><span class="panel-title" id="ccTitle">Unconnected closings</span></div>
         <div style="padding:12px 16px 6px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
@@ -115,6 +116,41 @@
       { label: "Connected to calendar", value: pct(connected.length, rows.length), sub: connSub },
       { label: "Unconnected", value: fmtN(unconnected.length), sub: pct(unconnected.length, rows.length) + " of scope" },
     ]);
+
+    // ---- HOW each connected job linked: a DIRECT Request # match, or a manual recovery ----
+    const directN = connected.length - secondaryOnly - crossOnly;
+    const brByUK = new Map();   // uk -> {mt, event} for the non-direct links
+    bridgeAll.forEach(b => {
+      const mt = norm(b["Match Type"]);
+      if (mt === "secondary" || mt === "cross_branch") brByUK.set(b["Closing Unique Key"], { mt, event: b["event_title"] });
+    });
+    const nonDirect = rows.filter(r => brByUK.has(r["Unique Key"]) && connectedUK.has(r["Unique Key"]))
+      .map(r => ({ req: r["Request #"], cust: r["Customer"], date: r["Date"], m: brByUK.get(r["Unique Key"]) }))
+      .sort((a, b) => String(b.date || "").localeCompare(String(a.date || "")));
+    const mCard = (color, label, n, meaning) => `<div style="flex:1;min-width:190px;background:var(--panel-2);border:1px solid var(--line);border-radius:12px;padding:12px 14px">
+        <div style="font-size:23px;font-weight:800;color:${color};font-variant-numeric:tabular-nums">${fmtN(n)}</div>
+        <div style="font-size:13px;font-weight:650">${label}</div>
+        <div style="font-size:11.5px;color:var(--muted);margin-top:2px">${meaning}</div></div>`;
+    const M = { secondary: ["#e0a458", "Via pickup leg"], cross_branch: ["#6aa6e8", "Cross-branch"] };
+    const mPill = mt => { const c = M[mt] || ["#9aa0aa", mt]; return `<span class="cc-reason-pill" style="background:color-mix(in srgb,${c[0]} 20%,transparent);color:${c[0]}">${esc(c[1])}</span>`; };
+    document.getElementById("ccMethod").innerHTML = `
+      <div class="panel" style="margin-top:12px">
+        <div class="panel-head"><span class="panel-title">How each job was connected</span></div>
+        <div style="padding:12px 16px;display:flex;gap:10px;flex-wrap:wrap">
+          ${mCard("var(--brand)", "Direct — Request # match", directN, "matched straight on the Request # / job code")}
+          ${mCard("#e0a458", "Via pickup leg", secondaryOnly, "a delivery / 2nd entry with no event of its own — connected through the pickup leg's job code")}
+          ${mCard("#6aa6e8", "Cross-branch", crossOnly, "branch tag differed between calendar &amp; closing — re-matched on same customer + date")}
+        </div>
+        <div style="padding:0 16px 6px;color:var(--muted);font-size:12.5px">The <b>${fmtN(nonDirect.length)}</b> non-direct links (anything other than a plain Request&nbsp;# match) are listed below so you can review the manual connections.</div>
+        <div id="ccMethodTable" style="padding:2px 6px 12px;overflow-x:auto"></div>
+      </div>`;
+    document.getElementById("ccMethodTable").innerHTML = nonDirect.length
+      ? `<table class="cc-tbl"><thead><tr><th>Request #</th><th>Customer</th><th>Move date</th><th>How</th><th>Connected to (calendar event)</th></tr></thead><tbody>${
+          nonDirect.slice(0, 400).map(r => `<tr>
+            <td><b>${esc(r.req || "—")}</b></td><td>${esc(r.cust || "—")}</td><td>${esc(r.date || "—")}</td>
+            <td>${mPill(r.m.mt)}</td><td style="color:var(--muted)">${esc((r.m.event || "").slice(0, 62) || "—")}</td></tr>`).join("")
+        }</tbody></table>`
+      : `<div class="rs-loading" style="padding:14px">Every connection in scope is a direct Request&nbsp;# match. 🎯</div>`;
 
     // ---- coverage by month (connected vs unconnected) ----
     const byMonth = {};
