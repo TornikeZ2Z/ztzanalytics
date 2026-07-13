@@ -90,7 +90,7 @@ const GROUP_OVERRIDE = {
   // Company Overview
   "monthly-report": "company", "analysis-by-category": "company", "insights": "company",
   // Sales
-  "sales-funnel": "sales", "sales-perf": "sales", "sales-geo": "sales",
+  "sales-funnel": "sales", "sales-perf": "sales", "sales-geo": "sales", "sales-speed": "sales",
   // Marketing
   "mkt-roi": "marketing", "mkt-sources": "marketing", "mkt-phone": "marketing",
   // Logistics
@@ -107,7 +107,7 @@ const groupOf = p => GROUP_OVERRIDE[p.id] || p.group;
 /* explicit per-container item order (numbers are scoped within each group's display list) */
 const NAV_ORDER = {
   "monthly-report": 1, "analysis-by-category": 2, "insights": 3,
-  "sales-funnel": 1, "sales-perf": 2, "sales-geo": 3,
+  "sales-funnel": 1, "sales-perf": 2, "sales-geo": 3, "sales-speed": 4,
   "mkt-roi": 1, "mkt-sources": 2, "mkt-phone": 3,
   "log-foreman": 1, "log-packing": 2, "log-fleet": 3,
   "fin-revenue": 1, "fin-rr": 2, "financial-analysis": 3, "executive-scorecard": 4, "branch-owner": 5,
@@ -161,7 +161,7 @@ const PAGE_ICONS = {
   "angi-vs-moveboard": "compass", "reviews-team": "star", "support-team": "shield", "lead-source-analysis": "compass", "source-analysis": "compass", "movers-analysis": "megaphone",
   "financial-team": "trend", "sales-team": "user", "marketing-team": "megaphone", "logistics-team": "tool",
   // themed dashboards + settings (2026-07-09 restructure)
-  "sales-funnel": "funnel", "sales-perf": "user", "sales-geo": "pin",
+  "sales-funnel": "funnel", "sales-perf": "user", "sales-geo": "pin", "sales-speed": "phone",
   "mkt-roi": "trend", "mkt-sources": "compass", "mkt-phone": "phone",
   "log-foreman": "tool", "log-packing": "box", "log-fleet": "activity",
   "fin-revenue": "trend", "fin-rr": "trend", "rev-production": "star",
@@ -458,6 +458,7 @@ const PAGE_DATASETS = {
   "calendar-coverage": [],
   "request-consistency": [],
   "review-performance": [],
+  "sales-speed": [],
 };
 // themed dashboards are lite-mode slices of the Monthly Report — same datasets
 ["sales-funnel", "sales-perf", "sales-geo", "mkt-roi", "mkt-sources", "mkt-phone",
@@ -602,7 +603,7 @@ function navigate(id, push) {
 /* Pages that bring their OWN toolbar and ignore the global filter bar (PAGE_DATASETS=[])
    render "bare" — the global date/slicer bar + company chip are hidden so the page's board
    starts right under the header instead of below two rows of greyed-out, unusable filters. */
-const BARE_CHROME = new Set(["review-performance"]);
+const BARE_CHROME = new Set(["review-performance", "sales-speed"]);
 async function renderPage() {
   const host = document.getElementById("content");
   updateFilterContext();
@@ -660,6 +661,7 @@ const SEARCH_ALIASES = {
   "sales-funnel": "leads analysis lead funnel conversion booking demand segmentation leads",
   "sales-perf": "sales person analysis salesperson salespeople rep reps commission commissions sales team performance",
   "sales-geo": "leads by state geography states region map",
+  "sales-speed": "speed to lead response time first call ringcentral calls per lead not called never called crm entry lag booking by speed",
   // Marketing
   "mkt-roi": "marketing roi return on investment ads analysis ad spend advertising google returns callrail call rail call tracking calls",
   "mkt-sources": "source analysis sources source overview lead source identification attribution angi movers movers.com home advisor homeadvisor post card postcard post cards channels",
@@ -923,6 +925,7 @@ const REPORT_LABELS = {
   "sales-funnel": "Lead Funnel & Conversion",
   "sales-perf": "Sales Team Performance",
   "sales-geo": "Geography (by state)",
+  "sales-speed": "Speed to Lead",
   // Marketing
   "mkt-roi": "Marketing — Return on Investment",
   "mkt-sources": "Marketing — Lead Sources & Channels",
@@ -965,7 +968,7 @@ const aclIconFor = id => (MERGED.find(m => m.id === id) || {}).icon ||
    only in how admins pick. Report lists mirror the sidebar groups. */
 const ACL_DEPTS = [
   { id: "company",   label: "Company Overview", icon: "spark",     reports: ["monthly-report", "analysis-by-category", "insights"] },
-  { id: "sales",     label: "Sales",            icon: "funnel",    reports: ["sales-funnel", "sales-perf", "sales-geo"] },
+  { id: "sales",     label: "Sales",            icon: "funnel",    reports: ["sales-funnel", "sales-perf", "sales-geo", "sales-speed"] },
   { id: "marketing", label: "Marketing",        icon: "megaphone", reports: ["mkt-roi", "mkt-sources", "mkt-phone"] },
   { id: "logistics", label: "Logistics",        icon: "tool",      reports: ["log-foreman", "log-packing", "log-fleet"] },
   { id: "financial", label: "Financial",        icon: "trend",     reports: ["fin-revenue", "fin-rr", "financial-analysis", "executive-scorecard", "branch-owner"] },
@@ -1138,6 +1141,7 @@ registerPage({
 <script src="pages/calendar-coverage.js?v=6"></script>
 <script src="pages/request-consistency.js?v=2"></script>
 <script src="pages/branch-owner.js?v=6"></script>
-<script src="pages/review-performance.js?v=3"></script>
+<script src="pages/review-performance.js?v=4"></script>
+<script src="pages/speed-to-lead.js?v=1"></script>
 </body>
 </html>
