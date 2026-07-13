@@ -959,6 +959,21 @@ async function aclCall(method, body) {
 }
 const aclIconFor = id => (MERGED.find(m => m.id === id) || {}).icon ||
   PAGE_ICONS[id] || (id === "explorer" ? "archive" : "doc");
+/* Departments for access granting (Tornike 2026-07-13: grant by department, not by
+   report). The UI grants a DEPARTMENT; under the hood the bridge still stores +
+   enforces the department's individual report ids — nothing changes in enforcement,
+   only in how admins pick. Report lists mirror the sidebar groups. */
+const ACL_DEPTS = [
+  { id: "company",   label: "Company Overview", icon: "spark",     reports: ["monthly-report", "analysis-by-category", "insights"] },
+  { id: "sales",     label: "Sales",            icon: "funnel",    reports: ["sales-funnel", "sales-perf", "sales-geo"] },
+  { id: "marketing", label: "Marketing",        icon: "megaphone", reports: ["mkt-roi", "mkt-sources", "mkt-phone"] },
+  { id: "logistics", label: "Logistics",        icon: "tool",      reports: ["log-foreman", "log-packing", "log-fleet"] },
+  { id: "financial", label: "Financial",        icon: "trend",     reports: ["fin-revenue", "fin-rr", "financial-analysis", "executive-scorecard", "branch-owner"] },
+  { id: "reviews",   label: "Reviews",          icon: "star",      reports: ["review-performance", "rev-production"] },
+  { id: "support",   label: "Support",          icon: "shield",    reports: ["sup-claims", "sup-refunds", "sup-phone"] },
+  { id: "quality",   label: "Data Quality",     icon: "clipboard", reports: ["data-quality"] },
+  { id: "explorer",  label: "Data Explorer — every table", icon: "archive", reports: ["explorer"] },
+];
 registerPage({
   id: "admin-users", group: "pulse", title: "Users & Access",
   async render(host) {
@@ -970,10 +985,13 @@ registerPage({
       host.innerHTML = `<div class="rs-loading"><span class="err">${RSC.esc(e.message)}</span></div>`;
       return;
     }
-    const ids = data.report_ids.filter(r => REPORT_LABELS[r]);
+    // only grant what the bridge actually serves — a stale bridge degrades gracefully
+    const avail = new Set(data.report_ids);
+    const depts = ACL_DEPTS.map(d => ({ ...d, reports: d.reports.filter(r => avail.has(r)) }))
+      .filter(d => d.reports.length);
     host.innerHTML = `
       <div class="rs-page-head"><h1>Users & Access</h1>
-        <p>Deny-by-default access. Every grant is enforced by the data bridge itself — reports a user can't see are also reports they can't query.</p></div>
+        <p>Deny-by-default access, granted by department. Every grant is enforced by the data bridge itself — reports a user can't see are also reports they can't query.</p></div>
       <div class="panel">
         <div class="panel-head">
           <span class="panel-title">Users <span style="color:var(--faint);font-weight:600">· ${data.users.length}</span></span>
@@ -987,12 +1005,12 @@ registerPage({
           </div>
           <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px">
             <span class="acl-switch" id="uAdmin"></span>
-            <span style="font-size:13px;color:var(--muted)"><b style="color:var(--ink)">Administrator</b> — every report, the data portal, and user management</span>
+            <span style="font-size:13px;color:var(--ink)"><b style="color:var(--ink)">Administrator</b> — every report, the data portal, and user management</span>
           </div>
           <div id="uReports">
-            <div class="insight-note" style="margin:10px 0 0">Or pick exactly what they can open:</div>
+            <div class="insight-note" style="margin:10px 0 0">Or pick the departments they can open (a department = all of its reports):</div>
             <div class="acl-tilegrid">` +
-      ids.map(r => `<div class="acl-tile" data-r="${r}">${icon(aclIconFor(r))}<span>${RSC.esc(REPORT_LABELS[r])}</span></div>`).join("") +
+      depts.map(d => `<div class="acl-tile" data-d="${d.id}" title="${RSC.esc(d.reports.map(r => REPORT_LABELS[r] || r).join(" · "))}">${icon(d.icon)}<span>${RSC.esc(d.label)}</span></div>`).join("") +
       `</div>
           </div>
           <div style="display:flex;gap:8px;align-items:center">
@@ -1015,14 +1033,18 @@ registerPage({
     host.querySelectorAll(".acl-tile").forEach(t =>
       t.onclick = () => t.classList.toggle("on"));
 
+    const dmap = Object.fromEntries(depts.map(d => [d.id, d]));
     const openEditor = (u) => {
       editor.classList.remove("hidden");
       host.querySelector("#uEmail").value = u ? u.email : "";
       host.querySelector("#uEmail").disabled = !!u;
       host.querySelector("#uName").value = (u && u.name) || "";
       setAdmin(!!(u && u.admin));
-      host.querySelectorAll(".acl-tile").forEach(t =>
-        t.classList.toggle("on", !!(u && u.reports.includes(t.dataset.r))));
+      // a department lights up when the user holds ALL of its reports
+      host.querySelectorAll(".acl-tile").forEach(t => {
+        const d = dmap[t.dataset.d];
+        t.classList.toggle("on", !!(u && d && d.reports.every(r => u.reports.includes(r))));
+      });
       host.querySelector("#uMsg").textContent = "";
       if (!u) host.querySelector("#uEmail").focus();
     };
@@ -1032,9 +1054,14 @@ registerPage({
     const grantChips = u => {
       if (u.admin) return `<span class="acl-badge admin">Admin · everything</span>`;
       if (!u.reports.length) return `<span class="acl-badge none">No access</span>`;
-      const shown = u.reports.slice(0, 4);
-      return shown.map(r => `<span class="acl-badge r">${RSC.esc((REPORT_LABELS[r] || r).split(" (")[0].split(" — ")[0])}</span>`).join("") +
-        (u.reports.length > 4 ? `<span class="acl-badge r">+${u.reports.length - 4}</span>` : "");
+      // department chips: a department counts when ALL its reports are granted;
+      // leftover single-report grants (legacy / partial) show as a count.
+      const full = depts.filter(d => d.reports.every(r => u.reports.includes(r)));
+      const covered = new Set(full.flatMap(d => d.reports));
+      const extra = u.reports.filter(r => !covered.has(r)).length;
+      const shown = full.slice(0, 4).map(d => `<span class="acl-badge r">${RSC.esc(d.label.split(" — ")[0])}</span>`).join("");
+      return shown + (full.length > 4 ? `<span class="acl-badge r">+${full.length - 4}</span>` : "") +
+        (extra ? `<span class="acl-badge r">+${extra} single report${extra === 1 ? "" : "s"}</span>` : "");
     };
     host.querySelector("#aclList").innerHTML = data.users.map(u => `
       <div class="acl-user">
@@ -1067,7 +1094,9 @@ registerPage({
           email: host.querySelector("#uEmail").value,
           name: host.querySelector("#uName").value,
           admin: admSwitch.classList.contains("on"),
-          reports: [...host.querySelectorAll(".acl-tile.on")].map(t => t.dataset.r),
+          // department tiles expand to their report ids — the bridge keeps enforcing per report
+          reports: [...new Set([...host.querySelectorAll(".acl-tile.on")]
+            .flatMap(t => (dmap[t.dataset.d] || { reports: [] }).reports))],
         });
         ZTZ.toast("User saved");
         self.render(host);
