@@ -49,24 +49,36 @@ async function renderMonthly(host, MRCFG) {
     delete window.__mrCostCache;   // pre-C43 cache (no company filter) — retire it
     const costByMonth = (ym, flag) => cardCost.reduce((a, r) => (r.ym === ym && r[flag]) ? a + r.amt : a, 0);
     const hasCostData = cardCost.some(r => r.sto || r.pk);
-    // RingCentral phone-system stats (deck s75) — isolated fetch of 5 narrow cols from the ~385k-row
-    // fct_ringcentral, folded into per-month buckets ONCE and cached; raw rows are discarded so the
-    // page never holds them. A failed fetch just hides the phone-system cards.
+    // RingCentral phone-system stats — isolated narrow fetch from fct_ringcentral, folded into
+    // per-month buckets ONCE and cached. GRAIN RULE (audit 2026-07-13): the export is LEG-level —
+    // only Type='Voice' rows are real phone calls (Type NULL = ring/forward legs of the SAME call,
+    // Type='Fax' = faxes). Counting every row inflated volumes ~2.5-3.4x and mislabeled ~71k
+    // inbound ring-legs as outbound. Definitions: answered = Action Result 'Accepted';
+    // missed = 'Missed' + 'Voicemail' (kept separately); teammate = the agent's Extension
+    // (the Name column is the OTHER party — ranking it credited customers as "teammates").
     if (!window.__mrRcCache) {
-      const rcRows = await ZTZ.api("/api/fct_ringcentral?limit=1000000&cols=" + encodeURIComponent("Date,Direction,Action Result,Duration Seconds,Name"))
+      const rcRows = await ZTZ.api("/api/fct_ringcentral?limit=1000000&cols=" + encodeURIComponent("Date,Type,Direction,Action Result,Duration Seconds,Extension"))
         .then(j => j.rows || []).catch(() => []);
       const agg = {};
       rcRows.forEach(r => {
+        if (String(r.Type) !== "Voice") return;   // sessions only — legs & faxes never count as calls
         const ym = String(r.Date || "").slice(0, 7); if (!/^\d{4}-\d{2}$/.test(ym)) return;
-        const b = agg[ym] || (agg[ym] = { in: 0, out: 0, ans: 0, dur: 0, names: {} });
-        const dur = +r["Duration Seconds"] || 0; b.dur += dur;
+        const b = agg[ym] || (agg[ym] = { in: 0, out: 0, ans: 0, miss: 0, vm: 0, inDur: 0, outDur: 0, names: {} });
+        const dur = +r["Duration Seconds"] || 0;
+        const res = String(r["Action Result"] || "");
         if (String(r.Direction) === "Incoming") {
-          b.in++;
-          if (/^(Call connected|Accepted)$/i.test(String(r["Action Result"] || ""))) b.ans++;
+          b.in++; b.inDur += dur;
+          if (/^Accepted$/i.test(res)) b.ans++;
+          else if (/^Missed$/i.test(res)) b.miss++;
+          else if (/^Voicemail$/i.test(res)) b.vm++;
         } else if (String(r.Direction) === "Outgoing") {
-          b.out++;
-          const nm = String(r.Name || "").trim();
-          if (nm) { const n2 = b.names[nm] || (b.names[nm] = { out: 0, dur: 0 }); n2.out++; n2.dur += dur; }
+          b.out++; b.outDur += dur;
+          const ext = String(r.Extension || "").trim();
+          // per-person ranking: skip the shared "Support Zip To Zip" queue line
+          if (ext && !/support zip to zip/i.test(ext)) {
+            const nm = ext.replace(/^\d+\s*-\s*/, "");   // "108 - Alex Koval" -> "Alex Koval"
+            const n2 = b.names[nm] || (b.names[nm] = { out: 0, dur: 0 }); n2.out++; n2.dur += dur;
+          }
         }
       });
       if (rcRows.length) window.__mrRcCache = agg;
@@ -922,7 +934,7 @@ async function renderMonthly(host, MRCFG) {
         const refTot = Math.abs(reduceMonth("refunds", curY, mo, rs => rs.reduce((a, r) => a + num(r["Total refund"]), 0)) || 0);
         const rcB = rcAgg[`${curY}-${String(mo).padStart(2, "0")}`];
         const ansRate = rcB && rcB.in ? rcB.ans / rcB.in : null;
-        const missed = rcB ? Math.max(0, rcB.in - rcB.ans) : null;
+        const missed = rcB ? (rcB.miss + rcB.vm) : null;   // explicit Missed + Voicemail (session grain)
         tiles.push(
           { l: "Claims Filed", v: fmtN(claimsN), c: claimsN, icon: KIC.warn, hero: 1, inv: 1 },
           { l: "Claims / 100 jobs", v: claimRate == null ? "—" : fmt1(claimRate), c: claimRate, icon: KIC.pct, inv: 1 },
@@ -1132,7 +1144,7 @@ async function renderMonthly(host, MRCFG) {
           const rs = reduceMonth("moveboard", y, m, r2 => r2) || [];
           exp12 += rs.filter(r => String(r.Status) === "Expired").length;
           na12 += rs.filter(r => /not available/i.test(String(r.Status))).length;
-          const b = rcAgg[`${y}-${String(m).padStart(2, "0")}`]; if (b) missed12 += Math.max(0, b.in - b.ans);
+          const b = rcAgg[`${y}-${String(m).padStart(2, "0")}`]; if (b) missed12 += b.miss + b.vm;   // session-grain Missed+Voicemail
           m--; if (m < 1) { m = 12; y--; } } }
         const ftcT = momReduce("callrail", 12, rs => { const t = rs.length, f = rs.filter(r => Number(r["First-Time Caller"]) === 1).length; return t ? f / t : null; }).filter(r => r.v != null);
         const ftcAvg = ftcT.length ? ftcT.reduce((a, r) => a + r.v, 0) / ftcT.length : 0.5;
@@ -1349,16 +1361,16 @@ async function renderMonthly(host, MRCFG) {
         const cVol = stackedTime(g, "Phone system — call volume", "last 12 months (RingCentral)", rcMonths.map(x => x.k),
           [ { label: "Incoming", data: rcMonths.map(x => (rcAgg[x.ym] || {}).in || 0), color: INK },
             { label: "Outgoing", data: rcMonths.map(x => (rcAgg[x.ym] || {}).out || 0), color: CTX } ], fmtN);
-        if (cVol) note(cVol, "The company phone system end-to-end — inbound AND outbound on every line. The CallRail card in Marketing & Channels covers only tracked marketing numbers.", "how");
+        if (cVol) note(cVol, "The company phone system end-to-end — inbound AND outbound on every line, counted as real calls (sessions), never per-device ring-legs. The CallRail card in Marketing & Channels covers only tracked marketing numbers.", "how");
         const ansT = rcMonths.map(x => { const b = rcAgg[x.ym]; return { k: x.k, v: b && b.in ? b.ans / b.in : null }; });
         const curB = rcAgg[`${curY}-${String(mo).padStart(2, "0")}`];
         const cAns = lines(g, "Incoming answer rate", "last 12 months (RingCentral)", [{ label: "Answered %", series: ansT, color: LIMED }], pct, { headVal: pct(lastV(ansT)) });
         // C29: state the counting rule — RingCentral's own report may group voicemail differently
-        if (curB && curB.in) note(cAns, `${MON[mo]}: ${fmtN(curB.ans)} of ${fmtN(curB.in)} incoming calls answered (${pct(curB.ans / curB.in)}) — ${fmtN(curB.in - curB.ans)} missed, abandoned or failed. Answered = call connected or accepted; voicemail counts as missed. Outbound side: ${fmtN(curB.out)} calls, ${fmt1(curB.dur / 3600)}h total talk time.`, "how");
+        if (curB && curB.in) note(cAns, `${MON[mo]}: ${fmtN(curB.ans)} of ${fmtN(curB.in)} incoming calls answered (${pct(curB.ans / curB.in)}) — ${fmtN(curB.miss)} missed + ${fmtN(curB.vm)} to voicemail. Counted on real calls (sessions), not ring-legs: one call ringing five phones counts once. Answered = accepted by a person. Outbound side: ${fmtN(curB.out)} calls, ${fmt1(curB.outDur / 3600)}h outbound talk time.`, "how");
         if (curB && Object.keys(curB.names).length) {
           const byN = Object.entries(curB.names).map(([k, v]) => ({ k, v: v.out, dur: v.dur })).sort((a, b) => b.v - a.v);
-          rankBars(g, "Outbound calls by teammate", byN.map(r => ({ k: r.k, v: r.v })), fmtN, { top: 10, sub: monLbl + " (RingCentral)" });
-          rankBars(g, "Outbound talk time by teammate", byN.map(r => ({ k: r.k, v: r.dur / 3600 })).sort((a, b) => b.v - a.v), v => fmt1(v) + "h", { top: 10, sub: monLbl + " (RingCentral)", noteKind: "how", note: "Hours actually spent on outbound calls — dial effort, not just dial count." });
+          rankBars(g, "Outbound calls by teammate", byN.map(r => ({ k: r.k, v: r.v })), fmtN, { top: 10, sub: monLbl + " (RingCentral)", noteKind: "how", note: "By the agent's own extension (the shared Support line is excluded). Real dialed calls only — no ring-legs." });
+          rankBars(g, "Outbound talk time by teammate", byN.map(r => ({ k: r.k, v: r.dur / 3600 })).sort((a, b) => b.v - a.v), v => fmt1(v) + "h", { top: 10, sub: monLbl + " (RingCentral)", noteKind: "how", note: "Hours actually spent on outbound calls — dial effort, not just dial count. By agent extension, sessions only." });
         }
       }
     }
