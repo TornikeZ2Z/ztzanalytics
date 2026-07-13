@@ -90,16 +90,16 @@ const GROUP_OVERRIDE = {
   // Company Overview
   "monthly-report": "company", "analysis-by-category": "company", "insights": "company",
   // Sales
-  "sales-funnel": "sales", "sales-perf": "sales", "sales-geo": "sales", "sales-rr": "sales",
+  "sales-funnel": "sales", "sales-perf": "sales", "sales-geo": "sales",
   // Marketing
   "mkt-roi": "marketing", "mkt-sources": "marketing", "mkt-phone": "marketing",
   // Logistics
   "log-foreman": "logistics", "log-packing": "logistics", "log-fleet": "logistics",
   // Financial
-  "fin-revenue": "financial", "financial-analysis": "financial", "executive-scorecard": "financial",
+  "fin-revenue": "financial", "fin-rr": "financial", "financial-analysis": "financial", "executive-scorecard": "financial",
   "branch-owner": "financial",
   // Reviews
-  "review-performance": "reviews", "rev-production": "reviews", "rev-rr": "reviews",
+  "review-performance": "reviews", "rev-production": "reviews",
   // Support
   "sup-claims": "support", "sup-refunds": "support", "sup-phone": "support",
 };
@@ -107,11 +107,11 @@ const groupOf = p => GROUP_OVERRIDE[p.id] || p.group;
 /* explicit per-container item order (numbers are scoped within each group's display list) */
 const NAV_ORDER = {
   "monthly-report": 1, "analysis-by-category": 2, "insights": 3,
-  "sales-funnel": 1, "sales-perf": 2, "sales-geo": 3, "sales-rr": 4,
+  "sales-funnel": 1, "sales-perf": 2, "sales-geo": 3,
   "mkt-roi": 1, "mkt-sources": 2, "mkt-phone": 3,
   "log-foreman": 1, "log-packing": 2, "log-fleet": 3,
-  "fin-revenue": 1, "financial-analysis": 2, "executive-scorecard": 3, "branch-owner": 4,
-  "review-performance": 1, "rev-production": 2, "rev-rr": 3,
+  "fin-revenue": 1, "fin-rr": 2, "financial-analysis": 3, "executive-scorecard": 4, "branch-owner": 5,
+  "review-performance": 1, "rev-production": 2,
   "sup-claims": 1, "sup-refunds": 2, "sup-phone": 3,
   "data-quality": 1, "source-trace": 2, "multi-source-leads": 3, "admin-users": 4,
 };
@@ -161,10 +161,10 @@ const PAGE_ICONS = {
   "angi-vs-moveboard": "compass", "reviews-team": "star", "support-team": "shield", "lead-source-analysis": "compass", "source-analysis": "compass", "movers-analysis": "megaphone",
   "financial-team": "trend", "sales-team": "user", "marketing-team": "megaphone", "logistics-team": "tool",
   // themed dashboards + settings (2026-07-09 restructure)
-  "sales-funnel": "funnel", "sales-perf": "user", "sales-geo": "pin", "sales-rr": "trend",
+  "sales-funnel": "funnel", "sales-perf": "user", "sales-geo": "pin",
   "mkt-roi": "trend", "mkt-sources": "compass", "mkt-phone": "phone",
   "log-foreman": "tool", "log-packing": "box", "log-fleet": "activity",
-  "fin-revenue": "trend", "rev-production": "star", "rev-rr": "trend",
+  "fin-revenue": "trend", "fin-rr": "trend", "rev-production": "star",
   "sup-claims": "shield", "sup-refunds": "clipboard", "sup-phone": "phone",
   "data-quality": "clipboard", "source-trace": "activity", "multi-source-leads": "git-merge", "calendar-coverage": "calendar", "request-consistency": "alert-triangle", "review-performance": "star",
 };
@@ -460,8 +460,8 @@ const PAGE_DATASETS = {
   "review-performance": [],
 };
 // themed dashboards are lite-mode slices of the Monthly Report — same datasets
-["sales-funnel", "sales-perf", "sales-geo", "sales-rr", "mkt-roi", "mkt-sources", "mkt-phone",
- "log-foreman", "log-packing", "log-fleet", "fin-revenue", "rev-production", "rev-rr",
+["sales-funnel", "sales-perf", "sales-geo", "mkt-roi", "mkt-sources", "mkt-phone",
+ "log-foreman", "log-packing", "log-fleet", "fin-revenue", "fin-rr", "rev-production",
  "sup-claims", "sup-refunds", "sup-phone"].forEach(id => PAGE_DATASETS[id] = MR_DATASETS);
 /* what each dataset's rows ARE, in plain words — for the date-basis caption */
 const DS_NOUN = { closing: "jobs", moveboard: "leads", storage: "storage payments",
@@ -473,9 +473,9 @@ const DS_NOUN = { closing: "jobs", moveboard: "leads", storage: "storage payment
 const DATE_BASIS_TEXT = {
   "angi-vs-moveboard": "this page has its own date handling — the filters above don't apply here",
 };
-["monthly-report", "sales-funnel", "sales-perf", "sales-geo", "sales-rr", "mkt-roi",
-  "mkt-sources", "mkt-phone", "log-foreman", "log-packing", "log-fleet", "fin-revenue",
-  "rev-production", "rev-rr", "sup-claims", "sup-refunds", "sup-phone"].forEach(id =>
+["monthly-report", "sales-funnel", "sales-perf", "sales-geo", "mkt-roi",
+  "mkt-sources", "mkt-phone", "log-foreman", "log-packing", "log-fleet", "fin-revenue", "fin-rr",
+  "rev-production", "sup-claims", "sup-refunds", "sup-phone"].forEach(id =>
   DATE_BASIS_TEXT[id] = "money & jobs count by move date · leads by the date they came in");
 
 /* leaf page id — for a merged hub, the ACTIVE tab's page id */
@@ -653,7 +653,6 @@ const SEARCH_ALIASES = {
   "sales-funnel": "leads analysis lead funnel conversion booking demand segmentation leads",
   "sales-perf": "sales person analysis salesperson salespeople rep reps commission commissions sales team performance",
   "sales-geo": "leads by state geography states region map",
-  "sales-rr": "repeat referral repeat business referral business returning customers",
   // Marketing
   "mkt-roi": "marketing roi return on investment ads analysis ad spend advertising google returns callrail call rail call tracking calls",
   "mkt-sources": "source analysis sources source overview lead source identification attribution angi movers movers.com home advisor homeadvisor post card postcard post cards channels",
@@ -667,9 +666,9 @@ const SEARCH_ALIASES = {
   "financial-analysis": "p&l pnl profit and loss financial analysis job",
   "executive-scorecard": "executive scorecard kpi kpis trends",
   "branch-owner": "branch owner giorgi kolbaia cut payout sales person financial ct",
+  "fin-rr": "repeat referral repeat business referral business returning customers financial revenue reviews",
   // Reviews
   "rev-production": "review reviews rating ratings stars review production",
-  "rev-rr": "repeat referral repeat business referral business returning customers reviews",
   // Support
   "review-performance": "review performance foreman weekly matrix reviews per eligible job R J percent target support intervention excluded bill increase estimate vs actual drill down explanation",
   "sup-claims": "claim claims damage damages",
@@ -917,7 +916,6 @@ const REPORT_LABELS = {
   "sales-funnel": "Lead Funnel & Conversion",
   "sales-perf": "Sales Team Performance",
   "sales-geo": "Geography (by state)",
-  "sales-rr": "Repeat & Referral (Sales)",
   // Marketing
   "mkt-roi": "Marketing — Return on Investment",
   "mkt-sources": "Marketing — Lead Sources & Channels",
@@ -931,9 +929,9 @@ const REPORT_LABELS = {
   "financial-analysis": "Job P&L (profit & loss)",
   "executive-scorecard": "Executive Scorecard",
   "branch-owner": "Branch Owner (Giorgi)",
+  "fin-rr": "Repeat & Referral",
   // Reviews
   "rev-production": "Reviews Production",
-  "rev-rr": "Repeat & Referral (Reviews)",
   // Support
   "sup-claims": "Claims",
   "sup-refunds": "Refunds & Cost of Quality",

@@ -1599,7 +1599,6 @@ const MR_DASH = [
   { id: "sales-funnel", group: "sales", title: "Lead Funnel & Conversion", sections: ["Demand & Lead Funnel", "Lead Segmentation"] },
   { id: "sales-perf", group: "sales", title: "Sales Team Performance", sections: ["Sales Team Performance"] },
   { id: "sales-geo", group: "sales", title: "Geography", sections: ["Geography — by State"] },
-  { id: "sales-rr", group: "sales", title: "Repeat & Referral", sections: ["Repeat & Referral Business"] },
   // Marketing
   { id: "mkt-roi", group: "marketing", title: "Return on Investment", sections: ["Marketing ROI"] },
   { id: "mkt-sources", group: "marketing", title: "Lead Sources & Channels", sections: ["Lead Sources"] },
@@ -1610,9 +1609,9 @@ const MR_DASH = [
   { id: "log-fleet", group: "logistics", title: "Fleet", sections: ["Fleet"] },
   // Financial
   { id: "fin-revenue", group: "financial", title: "Revenue & Profit", sections: ["Executive Summary", "Revenue & Growth", "Revenue Composition & Segments", "Per-Job Profitability", "Profitability & P&L"] },
+  { id: "fin-rr", group: "financial", title: "Repeat & Referral", sections: ["Repeat & Referral Business"] },
   // Reviews
   { id: "rev-production", group: "reviews", title: "Reviews Production", sections: ["Reviews Production"] },
-  { id: "rev-rr", group: "reviews", title: "Repeat & Referral", sections: ["Repeat & Referral Business"] },
   // Support
   { id: "sup-claims", group: "support", title: "Claims", sections: ["Claims"] },
   { id: "sup-refunds", group: "support", title: "Refunds & Cost of Quality", sections: ["Refunds & Cost of Quality"] },
