@@ -131,7 +131,7 @@ registerPage({
         .rp-legend{display:flex;flex-wrap:wrap;gap:9px;font-size:11px;color:var(--muted);padding:9px 2px 4px}
         .rp-legend span{display:inline-flex;align-items:center;gap:5px}.rp-legend i{width:12px;height:12px;border-radius:3px;display:inline-block}
         /* drawer */
-        .rp-scrim{position:fixed;inset:0;background:rgba(15,23,42,.34);z-index:50;opacity:0;transition:opacity .2s;backdrop-filter:blur(1px)}
+        .rp-scrim{position:fixed;inset:0;background:rgba(15,23,42,.12);z-index:50;opacity:0;transition:opacity .2s;pointer-events:none}
         .rp-scrim.show{opacity:1}
         .rp-drawer{position:fixed;top:0;right:0;height:100vh;width:min(468px,94vw);background:var(--panel);z-index:51;
           box-shadow:-18px 0 48px rgba(0,0,0,.24);transform:translateX(100%);transition:transform .24s cubic-bezier(.4,0,.2,1);
@@ -307,7 +307,9 @@ registerPage({
       RP.cell = null;
       var m = document.getElementById("rpMatrix"); if (m) m.querySelectorAll(".rp-cell.sel").forEach(el => el.classList.remove("sel"));
     }
-    scrim.onclick = closeDrawer;
+    // non-modal: the scrim is a click-through dim (pointer-events:none) so the matrix stays
+    // interactive — the user drills cell→cell with the drawer updating in place. Close via
+    // the ✕ button, Escape, or clicking the already-selected cell again.
     document.addEventListener("keydown", function esckey(e) {
       if (!drawer.isConnected) { document.removeEventListener("keydown", esckey); return; }  // this render is gone
       if (e.key === "Escape" && drawer.classList.contains("show")) closeDrawer();
@@ -459,7 +461,9 @@ registerPage({
         repaint();
       });
       document.querySelectorAll("#rpMatrix .rp-cell:not(.na)[data-fm]").forEach(el => el.onclick = () => {
-        RP.cell = el.dataset.fm + "||" + el.dataset.wk;
+        var key = el.dataset.fm + "||" + el.dataset.wk;
+        if (RP.cell === key && drawer.classList.contains("show")) { closeDrawer(); return; }  // click the open cell again → close
+        RP.cell = key;
         document.querySelectorAll("#rpMatrix .rp-cell.sel").forEach(s => s.classList.remove("sel"));
         el.classList.add("sel");
         drill(el.dataset.fm, el.dataset.wk);
