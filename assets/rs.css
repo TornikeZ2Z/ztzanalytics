@@ -316,3 +316,29 @@ table.si-tab td,table.si-tab th{text-align:left}
 table.si-tab td:nth-last-child(-n+2),table.si-tab th:nth-last-child(-n+2){text-align:right}
 body.rs-app.light .si-stage{background:#fff}
 @media(max-width:640px){.si-flow{flex-direction:column}.si-arrow{transform:rotate(90deg);justify-content:center}}
+
+/* ================= 2026-07-13 polish pass (Tornike): bigger, friendlier type +
+   beautiful date range. Appended overrides — keep at end of file. ================= */
+/* Date range: proper field look for FROM / TO instead of bare browser inputs */
+.rs-daterange{height:40px;border-radius:12px;gap:8px;padding:0 13px;font-size:13.5px}
+.rs-daterange:focus-within{border-color:var(--brand);box-shadow:0 0 0 3px rgba(183,226,59,.14)}
+.rs-daterange input[type=date]{width:132px;font-size:13.5px;font-weight:600;padding:5px 8px;border-radius:8px;background:rgba(255,255,255,.045);cursor:pointer}
+.rs-daterange input[type=date]:hover{background:rgba(255,255,255,.09)}
+.rs-daterange input[type=date]:focus{background:rgba(255,255,255,.09);outline:1.5px solid var(--brand);outline-offset:0}
+body.rs-app.light .rs-daterange input[type=date]{background:#f3f4f0}
+body.rs-app.light .rs-daterange input[type=date]:hover,body.rs-app.light .rs-daterange input[type=date]:focus{background:#ecefe6}
+.rs-daterange input[type=number]{width:44px;font-size:13.5px;font-weight:600}
+.rs-daterange .lbl{font-size:10.5px}
+.rs-daterange select{font-size:13px}
+/* Year/Month slicers now share the date row — give the row breathing room */
+#frowDates{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+/* Global readability lift: larger KPIs, titles and table type everywhere */
+.rs-kpis .kpi .v{font-size:23px}
+.rs-kpis .kpi .l{font-size:11px}
+.rs-kpis .kpi .s{font-size:11.5px}
+body.rs-app .panel-title{font-size:15.5px}
+table.tab th,table.tab td{padding:9px 13px;font-size:13px}
+table.tab thead th{font-size:11px}
+.mrx-tbl th,.mrx-tbl td{font-size:12.75px !important}
+.rs-page-head h1{font-size:22px}
+.rs-page-head p{font-size:13.5px}

@@ -13,15 +13,16 @@
   if (window.RS && RS.DATASETS && !RS.DATASETS.fct_job_overview) {
     RS.DATASETS.fct_job_overview = {
       table: "fct_job_overview",
+      // ONLY the columns this page + its CSV actually use — the full 34-column fetch was
+      // ~12 MB and froze the tab (audit + Tornike 2026-07-13). Add columns here only
+      // together with a real consumer.
       cols: [
-        "Week Ending", "Job Date", "Job No", "Customer", "Foreman", "Company", "Job Source",
-        "Job Type", "Delivery State", "Estimate Bill", "Actual Bill", "Final Packing",
-        "Bill Increase Amount", "Bill Increase %", "Bill Increase Category", "Review Received",
-        "Number of Reviews", "Review Source", "Review Breakdown", "Eligible", "Support Intervention",
-        "Support Intervention Date", "Support Intervention Type", "Support Intervention Reason",
-        "Support Notes", "Review Expected", "Exclusion Reason", "Foreman Response Received",
-        "Foreman Reason", "Foreman Explanation", "Final Status", "Request Joinkey", "Event ID",
-        "Closing Unique Key",
+        "Week Ending", "Job Date", "Job No", "Customer", "Foreman", "Job Source", "Job Type",
+        "Estimate Bill", "Actual Bill", "Bill Increase Amount", "Bill Increase %",
+        "Bill Increase Category", "Review Received", "Number of Reviews", "Review Source",
+        "Review Breakdown", "Eligible", "Support Intervention", "Support Intervention Reason",
+        "Review Expected", "Exclusion Reason", "Foreman Response Received", "Foreman Reason",
+        "Foreman Explanation", "Final Status",
       ],
     };
   }
@@ -84,15 +85,15 @@ registerPage({
       var st = document.createElement("style"); st.id = "rp-style";
       st.textContent = `
         .rp-head{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;padding:2px 2px 0}
-        .rp-head h1{margin:0;font-size:19px;font-weight:800;letter-spacing:-.01em}
-        .rp-head p{margin:0;color:var(--muted);font-size:12.5px}
+        .rp-head h1{margin:0;font-size:21px;font-weight:800;letter-spacing:-.01em}
+        .rp-head p{margin:0;color:var(--muted);font-size:13px}
         .rp-bar{position:sticky;top:0;z-index:6;display:flex;flex-wrap:wrap;gap:8px;align-items:center;
           padding:10px 0;margin-top:6px;background:var(--bg,var(--panel));border-bottom:1px solid var(--line)}
         .rp-kpis{display:flex;gap:8px;overflow-x:auto;padding:2px 0 10px;scrollbar-width:thin}
-        .rp-kpi{flex:0 0 auto;min-width:112px;background:var(--panel);border:1px solid var(--line);border-radius:11px;padding:8px 12px}
-        .rp-kpi b{display:block;font-size:19px;font-weight:800;letter-spacing:-.02em;line-height:1.1}
-        .rp-kpi span{display:block;font-size:10px;color:var(--faint);text-transform:uppercase;letter-spacing:.03em;font-weight:700;margin-top:3px}
-        .rp-kpi small{display:block;font-size:10.5px;color:var(--muted);margin-top:1px}
+        .rp-kpi{flex:0 0 auto;min-width:124px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px 14px}
+        .rp-kpi b{display:block;font-size:22px;font-weight:800;letter-spacing:-.02em;line-height:1.1}
+        .rp-kpi span{display:block;font-size:10.5px;color:var(--faint);text-transform:uppercase;letter-spacing:.03em;font-weight:700;margin-top:4px}
+        .rp-kpi small{display:block;font-size:11px;color:var(--muted);margin-top:1px}
         .rp-kpi.accent b{color:var(--brand)}
         .rp-seg{display:inline-flex;background:var(--panel-2);border:1px solid var(--line-2);border-radius:10px;padding:2px}
         .rp-seg button{border:0;background:transparent;color:var(--muted);cursor:pointer;font-size:12.5px;font-weight:700;
@@ -144,8 +145,8 @@ registerPage({
         .rp-mx th.tot,.rp-mx td.tot{position:sticky;left:172px;background:var(--panel);border-right:2px solid var(--line);z-index:1;width:76px;min-width:76px}
         .rp-mx thead th.tot{z-index:3}
         .rp-mx td.tot .rp-cell{cursor:default}
-        .rp-cell{display:block;margin:2px;padding:6px 4px;border-radius:7px;font-weight:700;font-size:11.5px;cursor:pointer;line-height:1.24;min-width:72px}
-        .rp-cell small{display:block;font-weight:600;opacity:.82;font-size:10px}
+        .rp-cell{display:block;margin:2px;padding:7px 5px;border-radius:7px;font-weight:700;font-size:12.5px;cursor:pointer;line-height:1.26;min-width:78px}
+        .rp-cell small{display:block;font-weight:600;opacity:.82;font-size:10.5px}
         .rp-cell.na{cursor:default}
         .rp-cell.sel{outline:2px solid var(--ink);outline-offset:-2px}
         .rp-legend{display:flex;flex-wrap:wrap;gap:9px;font-size:11px;color:var(--muted);padding:9px 2px 4px}
@@ -208,7 +209,7 @@ registerPage({
         @media (max-width:900px){.rp-rgrid{grid-template-columns:1fr}}
         .rp-panel{border:1px solid var(--line);border-radius:12px;background:var(--panel);padding:12px 14px}
         .rp-panel h3{margin:0 0 10px;font-size:13px;font-weight:800}
-        .rp-tbl2{width:100%;border-collapse:collapse;font-size:12px}
+        .rp-tbl2{width:100%;border-collapse:collapse;font-size:13px}
         .rp-tbl2 th{color:var(--faint);font-size:10px;font-weight:800;text-transform:uppercase;text-align:left;padding:5px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
         .rp-tbl2 td{padding:6px 8px;border-bottom:1px solid var(--line);vertical-align:top}
         .rp-tbl2 tr:last-child td{border-bottom:none}

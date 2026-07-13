@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/portal.css?v=2">
-<link rel="stylesheet" href="assets/rs.css?v=8">
+<link rel="stylesheet" href="assets/rs.css?v=9">
 <style>
 /* collapsible sidebar groups + nested hub sub-items */
 #nav .g-title{cursor:pointer;user-select:none;display:flex;align-items:center;justify-content:space-between}
@@ -63,7 +63,7 @@
 </div>
 
 <script src="assets/portal.js?v=8"></script>
-<script src="assets/rs-core.js?v=19"></script>
+<script src="assets/rs-core.js?v=20"></script>
 <script src="assets/rs-components.js?v=7"></script>
 <script>
 /* ---------------- page registry ---------------- */
@@ -88,9 +88,9 @@ const GROUP_OVERRIDE = {
   // Settings
   "data-quality": "settings", "source-trace": "settings", "multi-source-leads": "settings", "admin-users": "settings",
   // Company Overview
-  "monthly-report": "company", "analysis-by-category": "company", "insights": "company",
-  // Sales
-  "sales-funnel": "sales", "sales-perf": "sales", "sales-geo": "sales", "sales-speed": "sales",
+  "monthly-report": "company", "analysis-by-category": "company",
+  // Sales ("sales-geo" moved to Financial — Tornike 2026-07-13: geography is a money view)
+  "sales-funnel": "sales", "sales-perf": "sales", "sales-geo": "financial", "sales-speed": "sales",
   // Marketing
   "mkt-roi": "marketing", "mkt-sources": "marketing", "mkt-phone": "marketing",
   // Logistics
@@ -106,11 +106,11 @@ const GROUP_OVERRIDE = {
 const groupOf = p => GROUP_OVERRIDE[p.id] || p.group;
 /* explicit per-container item order (numbers are scoped within each group's display list) */
 const NAV_ORDER = {
-  "monthly-report": 1, "analysis-by-category": 2, "insights": 3,
-  "sales-funnel": 1, "sales-perf": 2, "sales-geo": 3, "sales-speed": 4,
+  "monthly-report": 1, "analysis-by-category": 2,
+  "sales-funnel": 1, "sales-perf": 2, "sales-speed": 3,
   "mkt-roi": 1, "mkt-sources": 2, "mkt-phone": 3,
   "log-foreman": 1, "log-packing": 2, "log-fleet": 3,
-  "fin-revenue": 1, "fin-rr": 2, "financial-analysis": 3, "executive-scorecard": 4, "branch-owner": 5,
+  "fin-revenue": 1, "fin-rr": 2, "sales-geo": 3, "financial-analysis": 4, "executive-scorecard": 5, "branch-owner": 6,
   "review-performance": 1, "rev-production": 2,
   "sup-claims": 1, "sup-refunds": 2, "sup-phone": 3,
   "data-quality": 1, "source-trace": 2, "multi-source-leads": 3, "admin-users": 4,
@@ -656,7 +656,7 @@ const SEARCH_ALIASES = {
   // Company Overview
   "monthly-report": "monthly report month review presentation ppt slides jobs done vs hours worked jobs vs hours job hour efficiency all in one",
   "analysis-by-category": "analysis by category custom breakdown categories explorer yoy diff year over year comparison annual vs last year",
-  "insights": "insights recommendations alerts findings",
+  // ("insights" hidden for now — Tornike 2026-07-13: recommendations page needs rework)
   // Sales
   "sales-funnel": "leads analysis lead funnel conversion booking demand segmentation leads",
   "sales-perf": "sales person analysis salesperson salespeople rep reps commission commissions sales team performance",
@@ -839,12 +839,15 @@ async function buildFilters() {
     statusCat:  counted([[moveboard, "Status Category"]]),
   };
   PRIMARY.concat(SECONDARY).forEach(key => {
+    // Year + Month live on the DATE row with the other time controls (Tornike 2026-07-13);
+    // everything else stays on the slicer row.
+    const mount = (key === "year" || key === "month") ? rowDates : rowSlicers;
     if (key === "company") {
       // Company is a SINGLE-select with a permanent selection (default Zip to Zip).
       RSC.singleSelect(rowSlicers, { key, label: "Company", values: VALUES.company,
         defaultValue: "Zip to Zip", onChange: onFilterChange });
     } else {
-      RSC.multiSelect(rowSlicers,
+      RSC.multiSelect(mount,
         { key, label: RS.FIELDS[key].label, values: VALUES[key], onChange: onFilterChange });
     }
   });
@@ -967,11 +970,11 @@ const aclIconFor = id => (MERGED.find(m => m.id === id) || {}).icon ||
    enforces the department's individual report ids — nothing changes in enforcement,
    only in how admins pick. Report lists mirror the sidebar groups. */
 const ACL_DEPTS = [
-  { id: "company",   label: "Company Overview", icon: "spark",     reports: ["monthly-report", "analysis-by-category", "insights"] },
-  { id: "sales",     label: "Sales",            icon: "funnel",    reports: ["sales-funnel", "sales-perf", "sales-geo", "sales-speed"] },
+  { id: "company",   label: "Company Overview", icon: "spark",     reports: ["monthly-report", "analysis-by-category"] },
+  { id: "sales",     label: "Sales",            icon: "funnel",    reports: ["sales-funnel", "sales-perf", "sales-speed"] },
   { id: "marketing", label: "Marketing",        icon: "megaphone", reports: ["mkt-roi", "mkt-sources", "mkt-phone"] },
   { id: "logistics", label: "Logistics",        icon: "tool",      reports: ["log-foreman", "log-packing", "log-fleet"] },
-  { id: "financial", label: "Financial",        icon: "trend",     reports: ["fin-revenue", "fin-rr", "financial-analysis", "executive-scorecard", "branch-owner"] },
+  { id: "financial", label: "Financial",        icon: "trend",     reports: ["fin-revenue", "fin-rr", "sales-geo", "financial-analysis", "executive-scorecard", "branch-owner"] },
   { id: "reviews",   label: "Reviews",          icon: "star",      reports: ["review-performance", "rev-production"] },
   { id: "support",   label: "Support",          icon: "shield",    reports: ["sup-claims", "sup-refunds", "sup-phone"] },
   { id: "quality",   label: "Data Quality",     icon: "clipboard", reports: ["data-quality"] },
@@ -1109,7 +1112,9 @@ registerPage({
 });
 </script>
 <!-- page modules (each calls registerPage) -->
-<script src="pages/insights.js?v=6"></script>
+<!-- Recommendations HIDDEN for now (Tornike 2026-07-13: "needs a lot of work") — re-enable by
+     restoring this tag + the GROUP_OVERRIDE/NAV_ORDER/ACL_DEPTS/SEARCH_ALIASES "insights" entries.
+<script src="pages/insights.js?v=6"></script> -->
 <script src="pages/source-identification.js?v=3"></script>
 <script src="pages/jobs-vs-hours.js?v=7"></script>
 <script src="pages/analysis-by-category.js?v=8"></script>
@@ -1130,9 +1135,9 @@ registerPage({
 <script src="pages/executive-scorecard.js?v=3"></script>
 <script src="pages/customer-experience.js?v=3"></script>
 <script src="pages/labor-analysis.js?v=3"></script>
-<script src="pages/financial-analysis.js?v=6"></script>
+<script src="pages/financial-analysis.js?v=7"></script>
 <script src="pages/post-card-analysis.js?v=4"></script>
-<script src="pages/monthly-report.js?v=47"></script>
+<script src="pages/monthly-report.js?v=48"></script>
 <script src="pages/leads-vs-moveboard.js?v=6"></script>
 <script src="pages/source-analysis.js?v=3"></script>
 <script src="pages/data-quality.js?v=4"></script>
@@ -1141,7 +1146,7 @@ registerPage({
 <script src="pages/calendar-coverage.js?v=6"></script>
 <script src="pages/request-consistency.js?v=2"></script>
 <script src="pages/branch-owner.js?v=6"></script>
-<script src="pages/review-performance.js?v=4"></script>
-<script src="pages/speed-to-lead.js?v=1"></script>
+<script src="pages/review-performance.js?v=5"></script>
+<script src="pages/speed-to-lead.js?v=2"></script>
 </body>
 </html>

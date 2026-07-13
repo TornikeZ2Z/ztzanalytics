@@ -116,31 +116,60 @@ registerPage({
     };
     let dimBy = "Moving Type";
 
-    // Compact, in-flow table: no inner-scroll wrapper, tight rows — the PAGE scrolls.
+    // ---- redesigned P&L (Tornike 2026-07-13: the bare compact table was "very ugly").
+    // KPI header + segmented dimension picker + banded two-tier table with styled results.
     host.innerHTML = `
       <style>
-        #fa-pl .fa-controls { display:flex; align-items:center; gap:8px; margin:0 0 10px; }
-        #fa-pl .fa-controls .lbl { color:var(--muted); font-size:12px; }
-        #fa-pl table.tab { width:100%; border-collapse:collapse; }
-        #fa-pl table.tab th, #fa-pl table.tab td { padding:3px 8px; font-size:11px; line-height:1.25; }
+        #fa-pl .fa-seg{display:inline-flex;background:var(--panel-2);border:1px solid var(--line-2);border-radius:10px;padding:2px}
+        #fa-pl .fa-seg button{border:0;background:transparent;color:var(--muted);cursor:pointer;font-size:13px;font-weight:700;
+          font-family:inherit;padding:7px 14px;border-radius:8px}
+        #fa-pl .fa-seg button.on{background:var(--brand);color:#fff}
+        #fa-pl .fa-kpis{display:flex;gap:9px;overflow-x:auto;padding:10px 0 12px;scrollbar-width:thin}
+        #fa-pl .fa-kpi{flex:0 0 auto;min-width:135px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px 14px}
+        #fa-pl .fa-kpi b{display:block;font-size:22px;font-weight:800;letter-spacing:-.02em;line-height:1.1;font-variant-numeric:tabular-nums}
+        #fa-pl .fa-kpi span{display:block;font-size:10.5px;color:var(--faint);text-transform:uppercase;letter-spacing:.04em;font-weight:700;margin-top:4px}
+        #fa-pl .fa-kpi.gp b{color:var(--brand)}
+        #fa-pl .fa-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:13px;background:var(--panel)}
+        #fa-pl table.fa2{border-collapse:collapse;width:100%;font-size:12.5px}
+        #fa-pl .fa2 th,#fa-pl .fa2 td{padding:8px 11px;white-space:nowrap;text-align:right;font-variant-numeric:tabular-nums;border-bottom:1px solid var(--line)}
+        #fa-pl .fa2 th:first-child,#fa-pl .fa2 td:first-child{text-align:left;position:sticky;left:0;background:var(--panel);font-weight:700;z-index:1}
+        #fa-pl .fa2 thead .band th{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:var(--faint);
+          border-bottom:0;padding:9px 11px 2px;text-align:center;border-left:1px solid var(--line)}
+        #fa-pl .fa2 thead .band th:first-child{border-left:0}
+        #fa-pl .fa2 thead .cols th{font-size:10.5px;font-weight:750;text-transform:uppercase;letter-spacing:.05em;color:var(--faint);
+          border-bottom:1px solid var(--line-2);padding-top:2px}
+        #fa-pl .fa2 tbody tr:nth-child(even) td{background:color-mix(in srgb, var(--panel-2) 45%, transparent)}
+        #fa-pl .fa2 tbody tr:hover td{background:var(--panel-2)}
+        #fa-pl .fa2 td.sep,#fa-pl .fa2 th.sep{border-left:1px solid var(--line)}
+        #fa-pl .fa2 td.gp{font-weight:800}
+        #fa-pl .fa2 td.neg{color:#e5484d}
+        #fa-pl .fa2 tfoot td{font-weight:800;color:var(--ink);border-top:2px solid var(--line-2);border-bottom:0;background:var(--panel-2)}
+        #fa-pl .fa2 tfoot td:first-child{background:var(--panel-2)}
+        #fa-pl .fa-pill{display:inline-block;font-size:11px;font-weight:800;padding:2px 9px;border-radius:999px}
+        #fa-pl .m-good{background:rgba(22,163,74,.15);color:#15803d}
+        #fa-pl .m-mid{background:rgba(217,119,6,.15);color:#b45309}
+        #fa-pl .m-bad{background:rgba(220,38,38,.14);color:#e5484d}
+        body.rs-app.light #fa-pl .m-good{color:#15803d} body.rs-app.light #fa-pl .m-bad{color:#b91c1c}
       </style>
       <div id="fa-pl">
         <div class="rs-page-head">
           <h1>Job P&amp;L</h1>
-          <p>(formerly Financial Analysis) · per-job costs, commissions and deductions — for investigating which jobs and people drive the numbers ·
+          <p>Revenue → direct costs → <b>Gross Profit</b>, sliced by move type, size or month ·
              <b>${RS.fmtN(rows.length)}</b> jobs in scope
-             <span class="freshness">· commissions, helper salaries &amp; refunds are matched to jobs by job key</span></p>
+             <span class="freshness">· commissions, helper salaries &amp; refunds matched to jobs by job key</span></p>
         </div>
-        <div class="fa-controls">
-          <span class="lbl">Break down by</span>
-          <select id="faDim">${Object.keys(DIMS).map(d => `<option ${d === dimBy ? "selected" : ""}>${d}</option>`).join("")}</select>
+        <div class="fa-kpis" id="faKpis"></div>
+        <div style="display:flex;align-items:center;gap:10px;margin:0 0 12px">
+          <span style="color:var(--muted);font-size:12.5px;font-weight:600">Break down by</span>
+          <div class="fa-seg" id="faSeg">${Object.keys(DIMS).map(d =>
+            `<button type="button" data-d="${d}" class="${d === dimBy ? "on" : ""}">${d}</button>`).join("")}</div>
         </div>
-        <div id="main"></div>
+        <div class="fa-wrap"><div id="main"></div></div>
       </div>`;
 
     if (!rows.length) {
       document.getElementById("main").innerHTML =
-        `<div class="panel" style="padding:20px;color:var(--muted)">No data for the current filters.</div>`;
+        `<div style="padding:22px;color:var(--muted)">No data for the current filters.</div>`;
       return;
     }
 
@@ -163,25 +192,59 @@ registerPage({
       return out;
     };
 
-    const buildTable = () => {
+    const money = RS.money, esc = RSC.esc;
+    const marginPill = v => {
+      if (v == null || isNaN(v)) return "—";
+      const cls = v >= 0.6 ? "m-good" : v >= 0.45 ? "m-mid" : "m-bad";
+      return `<span class="fa-pill ${cls}">${RS.fmtPct(v)}</span>`;
+    };
+    const m$ = (v, extra) => `<td class="${(v < 0 ? "neg " : "") + (extra || "")}">${v == null || isNaN(v) ? "—" : money(v)}</td>`;
+
+    const renderAll = () => {
       const list = grouped();
       // grand-total row uses RS.M composites so it matches the rest of the portal.
       const tot = rowOf(rows);
-      tot.op  = M["Operational Profit by Formula"].fn(rows);
+      tot.op  = M["Operational Profit by Formula"].fn(rows);   // registry keys keep PBI names; label = Gross
       tot.opm = M["Operational Profit Margin"].fn(rows);
       tot.scm = M["Sales Commission Margin"].fn(rows);
-      // rebuild columns fresh each render so the first column label tracks dimBy.
-      // hidden lines (permanently-empty data gaps) stay out of the table until real data exists.
-      const cols = [{ key: "k", label: dimBy }].concat(
-        LINES.filter(l => !l.hidden).map(l => ({ key: l.key, label: l.label,
-          fmt: l.gap ? (() => `—`) : nz(l.fmt) })));
-      const totals = Object.assign({ k: "Total" }, tot);
-      return RSC.table(cols, list, totals);
+      const costsOf = c => (c.forman + c.driver + c.helper + c.sales - c.deduct) +
+                           (c.car + c.fuel + c.hotel + c.other + c.toll + c.truck + c.refund);
+
+      document.getElementById("faKpis").innerHTML = [
+        { v: RS.fmtN(tot.jobs), l: "Jobs" },
+        { v: RS.moneyC ? RS.moneyC(tot.bill) : money(tot.bill), l: "Revenue" },
+        { v: RS.moneyC ? RS.moneyC(costsOf(tot)) : money(costsOf(tot)), l: "Direct costs" },
+        { v: RS.moneyC ? RS.moneyC(tot.op) : money(tot.op), l: "Gross Profit", gp: 1 },
+        { v: RS.fmtPct(tot.opm), l: "Gross Margin", gp: 1 },
+      ].map(k => `<div class="fa-kpi${k.gp ? " gp" : ""}"><b>${k.v}</b><span>${k.l}</span></div>`).join("");
+
+      const bandRow = `<tr class="band"><th></th><th colspan="2">Volume</th><th colspan="4" class="sep">Salaries &amp; commission</th>
+        <th colspan="6" class="sep">Job expenses</th><th class="sep">Refunds</th><th colspan="3" class="sep">Result</th></tr>`;
+      const colRow = `<tr class="cols"><th>${esc(dimBy)}</th><th>Jobs</th><th>Revenue</th>
+        <th class="sep">Foreman</th><th>Driver</th><th>Helper</th><th>Sales comm.</th>
+        <th class="sep">Car</th><th>Fuel</th><th>Hotel</th><th>Other</th><th>Tolls</th><th>Truck</th>
+        <th class="sep">Refunds</th><th class="sep">Gross Profit</th><th>Margin</th><th>Comm. %</th></tr>`;
+      const rowHtml = c => `<tr><td>${esc(c.k)}</td><td>${RS.fmtN(c.jobs)}</td><td><b>${money(c.bill)}</b></td>
+        ${m$(c.forman, "sep")}${m$(c.driver)}${m$(c.helper)}${m$(c.sales)}
+        ${m$(c.car, "sep")}${m$(c.fuel)}${m$(c.hotel)}${m$(c.other)}${m$(c.toll)}${m$(c.truck)}
+        ${m$(c.refund, "sep")}
+        <td class="gp sep" style="color:${c.op >= 0 ? "var(--brand)" : "#e5484d"}">${money(c.op)}</td>
+        <td>${marginPill(c.opm)}</td><td>${c.scm == null ? "—" : RS.fmtPct(c.scm)}</td></tr>`;
+      const foot = `<tr><td>Total</td><td>${RS.fmtN(tot.jobs)}</td><td>${money(tot.bill)}</td>
+        ${m$(tot.forman, "sep")}${m$(tot.driver)}${m$(tot.helper)}${m$(tot.sales)}
+        ${m$(tot.car, "sep")}${m$(tot.fuel)}${m$(tot.hotel)}${m$(tot.other)}${m$(tot.toll)}${m$(tot.truck)}
+        ${m$(tot.refund, "sep")}
+        <td class="gp sep" style="color:var(--brand)">${money(tot.op)}</td>
+        <td>${marginPill(tot.opm)}</td><td>${tot.scm == null ? "—" : RS.fmtPct(tot.scm)}</td></tr>`;
+      document.getElementById("main").innerHTML =
+        `<table class="fa2"><thead>${bandRow}${colRow}</thead><tbody>${list.map(rowHtml).join("")}</tbody><tfoot>${foot}</tfoot></table>`;
     };
+    renderAll();
 
-    const renderTable = () => { document.getElementById("main").innerHTML = buildTable(); };
-    renderTable();
-
-    document.getElementById("faDim").onchange = e => { dimBy = e.target.value; renderTable(); };
+    document.querySelectorAll("#faSeg button").forEach(b => b.onclick = () => {
+      dimBy = b.dataset.d;
+      document.querySelectorAll("#faSeg button").forEach(x => x.classList.toggle("on", x.dataset.d === dimBy));
+      renderAll();
+    });
   },
 });

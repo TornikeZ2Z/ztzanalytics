@@ -1155,29 +1155,7 @@ async function renderMonthly(host, MRCFG) {
         .map(r => ({ k: r.k, rows: r.rows, v: RS.bookingRate(r.rows, bookedByAssign[r.k] || []) }))
         .filter(r => r.v != null && r.rows.length >= 5).sort((a, b) => b.rows.length - a.rows.length).slice(0, 12);
       bullet(g, "Booking rate by salesperson", monLbl + " · vs team average", spBook, pct, bk || 0, { noteKind: "how", note: `The 12 reps handling the most leads, ordered by volume. Bars below the lime line are converting under the team average (${pct(bk)}) — coaching targets. Booking rate = jobs booked this month (by booked date) ÷ qualified leads created. Reps who book jobs WITHOUT Moveboard-assigned leads (e.g. Peter Montanaro) have no lead base, so no rate can be computed — they appear in the revenue tables instead.` });
-      // ---- demand LOST to capacity (last 12 months): explicit signals + unworked leads + missed calls ----
-      {
-        let exp12 = 0, na12 = 0, missed12 = 0;
-        { let y = curY, m = mo; for (let i = 0; i < 12; i++) {
-          const rs = reduceMonth("moveboard", y, m, r2 => r2) || [];
-          exp12 += rs.filter(r => String(r.Status) === "Expired").length;
-          na12 += rs.filter(r => /not available/i.test(String(r.Status))).length;
-          const b = rcAgg[`${y}-${String(m).padStart(2, "0")}`]; if (b) missed12 += b.miss + b.vm;   // session-grain Missed+Voicemail
-          m--; if (m < 1) { m = 12; y--; } } }
-        const ftcT = momReduce("callrail", 12, rs => { const t = rs.length, f = rs.filter(r => Number(r["First-Time Caller"]) === 1).length; return t ? f / t : null; }).filter(r => r.v != null);
-        const ftcAvg = ftcT.length ? ftcT.reduce((a, r) => a + r.v, 0) / ftcT.length : 0.5;
-        const callLeads = Math.round(missed12 * ftcAvg);
-        const rows3 = [
-          { k: "“We are not available” leads (dispatch full)", n: na12 },
-          { k: "Expired leads (never worked before move date)", n: exp12 },
-          { k: `Missed first-time calls (est. ${pct(ftcAvg)} of ${fmtN(missed12)} missed)`, n: callLeads },
-        ];
-        const totLeads = rows3.reduce((a, r) => a + r.n, 0);
-        const lostBook = Math.round(totLeads * (bk || 0)), lostRev = lostBook * (avgJob || 0);
-        // C18: plain column names + a labeled headline — no formula fragments in headers
-        const lHtml = `<table class="mrx-tbl"><thead><tr><th>Demand we could not work — last 12 months</th><th>Leads we couldn't work</th><th>Jobs we'd likely have booked</th><th>Revenue value (est.)</th></tr></thead><tbody>${rows3.map(r => `<tr><td>${esc(r.k)}</td>${td(fmtN(r.n))}${td(fmtN(Math.round(r.n * (bk || 0))))}${td(money(Math.round(r.n * (bk || 0)) * (avgJob || 0)))}</tr>`).join("")}<tr class="tot"><td>Estimated lost demand / year</td>${td(fmtN(totLeads))}${td(fmtN(lostBook))}${td(money(lostRev))}</tr></tbody></table>`;
-        tableCard(g, "Leads lost to capacity — what more Sales & Dispatch could win", "last 12 months · estimate", lHtml, { icon: KIC.grid, headVal: `${money(lostRev)}<div style="font-size:9.5px;color:${FAINT};font-weight:700">est. lost revenue / yr</div>`, noteKind: "how", note: `An estimate with stated assumptions: expired leads are treated as unworked capacity loss; missed phone calls are discounted to first-time callers, then both are converted at the current booking rate (${pct(bk)}) and average job value (${money(avgJob)}). Better follow-up capacity would recover the “jobs we'd likely have booked” column.` });
-      }
+      // ("Leads lost to capacity" estimate REMOVED from every report — Tornike 2026-07-13)
     }
 
     /* ---- 07 · Lead Segmentation ---- */
@@ -1211,7 +1189,10 @@ async function renderMonthly(host, MRCFG) {
         const colLbl = col === "Service Type" ? "Service type" : col === "CF Range" ? "Cubic feet (CF range)" : col;
         tableCard(g, title, monLbl, `<table class="mrx-tbl"><thead><tr><th>${esc(colLbl)}</th><th>Total</th><th>Qualified</th><th>Confirmed</th><th>Bad leads</th><th>Booking %</th><th>vs '${yy}</th></tr></thead><tbody>${rowsH}${trow}</tbody></table>`, { span2: false, icon: KIC.grid, headVal: fmtN(tot.tot), noteKind: "how", note: "Booking % = Confirmed ÷ Qualified. Confirmed counts confirmed jobs BOOKED this month (by booked date, any create date); Total / Qualified / Bad leads count leads CREATED this month — the same dual basis as the official Booking Rate, so every row's % is exactly its own Confirmed ÷ Qualified. Green when this month beats " + yy + "'s rate for that segment, red when below; last column is the " + yy + " rate." + (dAll.length > 12 ? " Table shows the top 12 of " + dAll.length + " segments; the Total row covers all of them." : "") + (blankN ? ` ${fmtN(blankN)} leads with no ${colLbl.toLowerCase()} recorded are included in Total but not listed.` : "") });
       }
+      // Pairing (Tornike 2026-07-13): row 1 = service type + state (demand mix),
+      // row 2 = size of move + CF range (they describe the same thing: move size).
       funnelTable("Leads by service type", "Service Type");
+      funnelTable("Leads by state", "State Name");
       // sizes sort small→large: Single Item, Studio, 1-4 bedrooms (condo before house), then Storage/Office
       const sizeKey = s => { const t = String(s).toLowerCase();
         if (/single item/.test(t)) return 1;
@@ -1224,7 +1205,6 @@ async function renderMonthly(host, MRCFG) {
       // CF ranges sort by their RANGE (numeric start; "Over …" last), not by lead volume
       const cfKey = s => { const m = String(s).match(/\d+/); if (!m) return Infinity; return (+m[0]) + (/over|\+|>/i.test(String(s)) ? 0.5 : 0); };
       funnelTable("Leads by cubic feet (CF range)", "CF Range", (a, b) => cfKey(a.k) - cfKey(b.k));
-      funnelTable("Leads by state", "State Name");
     }
 
     /* ---- 08 · Geography ---- */
@@ -1643,7 +1623,7 @@ const MR_DASH = [
   // Sales
   { id: "sales-funnel", group: "sales", title: "Lead Funnel & Conversion", sections: ["Demand & Lead Funnel", "Lead Segmentation"] },
   { id: "sales-perf", group: "sales", title: "Sales Team Performance", sections: ["Sales Team Performance"] },
-  { id: "sales-geo", group: "sales", title: "Geography", sections: ["Geography — by State"] },
+  { id: "sales-geo", group: "financial", title: "Geography", sections: ["Geography — by State"] },
   // Marketing
   { id: "mkt-roi", group: "marketing", title: "Return on Investment", sections: ["Marketing ROI"] },
   { id: "mkt-sources", group: "marketing", title: "Lead Sources & Channels", sections: ["Lead Sources"] },
