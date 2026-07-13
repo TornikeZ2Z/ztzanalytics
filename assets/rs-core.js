@@ -670,6 +670,9 @@ window.RS = (function () {
   const DISPLAY_NAMES = {
     "Operating Profit Before Commission": "Cash Collected (Net + Card)",
     "Total Revenue": "Job Revenue (excl. trips)",
+    // Renamed 2026-07-13 (Tornike): revenue − direct job costs is GROSS profit, not operational.
+    "Operational Profit by Formula": "Gross Profit",
+    "Operational Profit Margin": "Gross Margin",
   };
   function displayName(key) { return DISPLAY_NAMES[key] || key; }
 

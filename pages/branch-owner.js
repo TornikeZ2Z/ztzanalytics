@@ -10,10 +10,11 @@
    in once the heavier cross-dataset tables (sales_salaries / helper_salaries / refunds)
    arrive. So the page is usable in ~seconds instead of blocking on all four datasets.
 
-   Operational profit is built the SAME way as the Job P&L page (PBI 'Operational Profit by
-   Formula') so the numbers tie out with the rest of the portal:
-     Op Profit = Revenue - (Forman + Driver + Helper + Sales Commission) - (Car+Fuel+
-                 Hotel+Toll+Truck+Other + Refunds).   Margin = Op Profit / Revenue.
+   Gross profit (UI name since 2026-07-13 — it's revenue minus direct job costs; PBI's DAX
+   still calls it 'Operational Profit by Formula', keys unchanged) is built the SAME way as
+   the Job P&L page so the numbers tie out with the rest of the portal:
+     Gross Profit = Revenue - (Forman + Driver + Helper + Sales Commission) - (Car+Fuel+
+                 Hotel+Toll+Truck+Other + Refunds).   Margin = Gross Profit / Revenue.
    ("Revenue" is the display name for the measure keyed 'Total Bill' = SUM(Total Bill) +
    Extra Bill From Trips.) Cross-dataset costs (Sales Commission, Helper Salary, Total
    Refunds) are attributed to each job by Unique Key / Request Joinkey (Job P&L pattern). */
@@ -33,7 +34,7 @@ registerPage({
         <h1>Branch Owner</h1>
         <p>Results for a branch owner — someone who takes a cut when listed as a
            <b>Sales Person</b>, not a real salesperson (currently <b>Giorgi Kolbaia</b>).
-           Counts <b>only his SP-slot cut</b>, never his foreman jobs. Operational profit is
+           Counts <b>only his SP-slot cut</b>, never his foreman jobs. Gross profit is
            after his cut and ties out with the Job P&amp;L page.
            <span class="freshness">· read-only · respects the date/company filter</span></p>
       </div>`;
@@ -49,8 +50,8 @@ registerPage({
         <div id="boSlotForeman"></div>
       </div>
       <div id="boDetail"></div>`;
-    document.getElementById("boSlotCompare").innerHTML = loadingCard("Operational margin — his jobs vs the rest");
-    document.getElementById("boSlotType").innerHTML = loadingCard("By move type — operational profit &amp; margin");
+    document.getElementById("boSlotCompare").innerHTML = loadingCard("Gross margin — his jobs vs the rest");
+    document.getElementById("boSlotType").innerHTML = loadingCard("By move type — gross profit &amp; margin");
     document.getElementById("boSlotForeman").innerHTML = loadingCard("By foreman — job count &amp; pay");
 
     // =========================== PHASE 1: closing only (fast) ===========================
@@ -77,7 +78,7 @@ registerPage({
       { label: "Avg Cut %", value: pctS(avgPct), sub: "of revenue" },
     ]);
     document.getElementById("boProfitKpis").innerHTML =
-      `<div class="rs-loading">Calculating operational profit…</div>`;
+      `<div class="rs-loading">Calculating gross profit…</div>`;
 
     // ---- (1) monthly trend: his cut + the revenue it came from (closing only) ----
     const byMonth = {};
@@ -168,7 +169,7 @@ registerPage({
     const sumUK = (rs, map) => rs.reduce((a, r) => a + (map.get(r["Unique Key"]) || 0), 0);
     const sumRJ = (rs, map) => rs.reduce((a, r) => a + (map.get(r["Request Joinkey"]) || 0), 0);
 
-    // Per-group Operational Profit build-up (same shape/keys as financial-analysis.js opOf).
+    // Per-group Gross Profit build-up (same shape/keys as financial-analysis.js opOf).
     const pnl = rs => {
       const bill = M["Total Bill"].fn(rs);
       const forman = M["Forman Salary"].fn(rs), driver = M["Driver Salary"].fn(rs);
@@ -179,7 +180,7 @@ registerPage({
       const exp = car + fuel + hotel + other + toll + truck;
       const op = bill - (forman + driver + helper + sales) - (exp + refund);
       // `sales` (Sales Commission) sums ALL SP-slot salaries incl. Giorgi's branch-owner cut,
-      // which is correct for op profit (real payout). But for the DISPLAYED "Sales Comm. %"
+      // which is correct for gross profit (real payout). But for the DISPLAYED "Sales Comm. %"
       // his cut must NOT count as sales commission — it has its own column — so strip it out.
       const boCut = rs.reduce((a, r) => a + num(r["Branch Owner Cut"]), 0);
       const realSales = sales - boCut;   // real salesperson commission only
@@ -194,8 +195,8 @@ registerPage({
     const cutMarginCost = hp.bill ? totalCut / hp.bill : 0;
 
     RSC.kpis(document.getElementById("boProfitKpis"), [
-      { label: "Operational Profit", value: moneyC(hp.op), sub: money(hp.op) + " · after his cut" },
-      { label: "Op. Profit Margin", value: pctS(hp.opm), sub: "of revenue" },
+      { label: "Gross Profit", value: moneyC(hp.op), sub: money(hp.op) + " · after his cut" },
+      { label: "Gross Margin", value: pctS(hp.opm), sub: "of revenue" },
       { label: "Margin before his cut", value: pctS(opmBefore),
         sub: "his cut costs " + pctS(cutMarginCost) + " of margin" },
       { label: "Rest-of-business margin", value: pctS(rp.opm),
@@ -211,7 +212,7 @@ registerPage({
     ];
     document.getElementById("boSlotCompare").innerHTML = "";
     RSC.chartCard(document.getElementById("boSlotCompare"), {
-      title: "Operational margin — his jobs vs the rest of the business",
+      title: "Gross margin — his jobs vs the rest of the business",
       key: "branch-owner-profit",
       buildChart(canvas) {
         return new Chart(canvas, {
@@ -219,15 +220,15 @@ registerPage({
           data: {
             labels: ["Giorgi's jobs", "Rest of business"],
             datasets: [
-              { label: "Op. Margin", data: [hp.opm, rp.opm].map(v => v == null ? 0 : +(v * 100).toFixed(2)),
+              { label: "Gross Margin", data: [hp.opm, rp.opm].map(v => v == null ? 0 : +(v * 100).toFixed(2)),
                 backgroundColor: ["#84cc16", "#94a3b8"], borderRadius: 4 },
             ],
           },
           options: {
             responsive: true, maintainAspectRatio: false,
             plugins: { legend: { display: false },
-              tooltip: { callbacks: { label: ct => "Op. Margin: " + ct.raw.toFixed(1) + "%" } } },
-            scales: { y: { beginAtZero: true, title: { display: true, text: "Operational margin (%)" },
+              tooltip: { callbacks: { label: ct => "Gross Margin: " + ct.raw.toFixed(1) + "%" } } },
+            scales: { y: { beginAtZero: true, title: { display: true, text: "Gross margin (%)" },
               ticks: { callback: v => v + "%" } } },
           },
         });
@@ -238,14 +239,14 @@ registerPage({
            { key: "jobs", label: "Jobs", align: "r", fmt: fmtN },
            { key: "bill", label: "Revenue", align: "r", fmt: money },
            { key: "cut", label: "Giorgi's Cut", align: "r", fmt: money },
-           { key: "op", label: "Op. Profit", align: "r", fmt: money },
-           { key: "opm", label: "Op. Margin", align: "r", fmt: pctS },
+           { key: "op", label: "Gross Profit", align: "r", fmt: money },
+           { key: "opm", label: "Gross Margin", align: "r", fmt: pctS },
            { key: "scm", label: "Sales Comm. %", align: "r", fmt: pctS }],
           cmpRows,
           (() => { const ap = pnl(closingRows);
             return { k: "All jobs", jobs: ap.jobs, bill: ap.bill, cut: totalCut,
                      op: ap.op, opm: ap.opm, scm: ap.scm }; })()) +
-          `<p style="margin:6px 2px 0;font-size:12px;color:var(--faint)">Sales Comm. % is the real salesperson commission — Giorgi's branch-owner cut is excluded (it's the separate "Giorgi's Cut" column). Operational profit still subtracts his cut.</p>`;
+          `<p style="margin:6px 2px 0;font-size:12px;color:var(--faint)">Sales Comm. % is the real salesperson commission — Giorgi's branch-owner cut is excluded (it's the separate "Giorgi's Cut" column). Gross profit still subtracts his cut.</p>`;
       },
     });
 
@@ -261,7 +262,7 @@ registerPage({
     })();
     document.getElementById("boSlotType").innerHTML = "";
     RSC.chartCard(document.getElementById("boSlotType"), {
-      title: "By move type — operational profit & margin",
+      title: "By move type — gross profit & margin",
       key: "branch-owner-bytype",
       buildChart(canvas) {
         return new Chart(canvas, {
@@ -269,20 +270,20 @@ registerPage({
           data: {
             labels: byType.map(x => x.t),
             datasets: [
-              { label: "Op. Profit", data: byType.map(x => +(+x.op).toFixed(2)),
+              { label: "Gross Profit", data: byType.map(x => +(+x.op).toFixed(2)),
                 backgroundColor: "#84cc16", borderRadius: 4, yAxisID: "y", order: 2 },
-              { type: "line", label: "Op. Margin", data: byType.map(x => x.opm == null ? null : +(x.opm * 100).toFixed(2)),
+              { type: "line", label: "Gross Margin", data: byType.map(x => x.opm == null ? null : +(x.opm * 100).toFixed(2)),
                 borderColor: "#5b8cff", backgroundColor: "#5b8cff", tension: .3, yAxisID: "y1", order: 1 },
             ],
           },
           options: {
             responsive: true, maintainAspectRatio: false,
             plugins: { legend: { position: "bottom" },
-              tooltip: { callbacks: { label: ct => ct.dataset.label === "Op. Margin"
-                ? "Op. Margin: " + (ct.raw == null ? "—" : ct.raw.toFixed(1) + "%")
-                : "Op. Profit: " + moneyC(ct.raw) } } },
+              tooltip: { callbacks: { label: ct => ct.dataset.label === "Gross Margin"
+                ? "Gross Margin: " + (ct.raw == null ? "—" : ct.raw.toFixed(1) + "%")
+                : "Gross Profit: " + moneyC(ct.raw) } } },
             scales: {
-              y:  { position: "left", beginAtZero: true, title: { display: true, text: "Op. Profit ($)" } },
+              y:  { position: "left", beginAtZero: true, title: { display: true, text: "Gross Profit ($)" } },
               y1: { position: "right", beginAtZero: true, grid: { drawOnChartArea: false },
                     title: { display: true, text: "Margin (%)" }, ticks: { callback: v => v + "%" } },
             },
@@ -295,8 +296,8 @@ registerPage({
            { key: "jobs", label: "Jobs", align: "r", fmt: fmtN },
            { key: "bill", label: "Revenue", align: "r", fmt: money },
            { key: "cut", label: "Giorgi's Cut", align: "r", fmt: money },
-           { key: "op", label: "Op. Profit", align: "r", fmt: money },
-           { key: "opm", label: "Op. Margin", align: "r", fmt: pctS }],
+           { key: "op", label: "Gross Profit", align: "r", fmt: money },
+           { key: "opm", label: "Gross Margin", align: "r", fmt: pctS }],
           byType,
           { t: "Total", jobs: hp.jobs, bill: hp.bill, cut: totalCut, op: hp.op, opm: hp.opm });
       },
@@ -365,8 +366,8 @@ registerPage({
            { key: "pay", label: "Foreman Pay", align: "r", fmt: nz },
            { key: "rate", label: "$/hr", align: "r", fmt: nz },
            { key: "pctb", label: "Pay % of Revenue", align: "r", fmt: pctS },
-           { key: "op", label: "Op. Profit", align: "r", fmt: nz },
-           { key: "opm", label: "Op. Margin", align: "r", fmt: pctS }],
+           { key: "op", label: "Gross Profit", align: "r", fmt: nz },
+           { key: "opm", label: "Gross Margin", align: "r", fmt: pctS }],
           data,
           (() => { const hrs = M["Hours Worked by Forman"].fn(scoped);
             return { f: "Total", jobs: hp.jobs, hrs, bill: hp.bill, pay: hp.forman,

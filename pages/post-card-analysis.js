@@ -225,7 +225,7 @@ registerPage({
         sub: "confirmed (booked date) / qualified (created date)" },
       { label: "Revenue", value: RS.moneyC(T.totalBill),
         sub: RS.fmtN(T.jobs) + " jobs · closings + appended trips" },
-      { label: "Operational Profit", value: RS.moneyC(T.opProfit),
+      { label: "Gross Profit", value: RS.moneyC(T.opProfit),
         sub: "margin " + pctNS(T.opMargin) + " · revenue − salaries − expenses − refunds, by Source" },
     ]);
 
@@ -277,8 +277,8 @@ registerPage({
        { key: "ded", label: "Amount Deducted (Sales)",
          fmt: () => `<span style="color:var(--muted)" title="not yet in the data">n/a</span>` },
        { key: "refund", label: "Total Refunds", fmt: RS.money },
-       { key: "op", label: "Operational Profit", fmt: profitCell },
-       { key: "opm", label: "Operational Profit Margin", fmt: pctNS },
+       { key: "op", label: "Gross Profit", fmt: profitCell },
+       { key: "opm", label: "Gross Margin", fmt: pctNS },
        { key: "cm", label: "Sales Commission Margin", fmt: pctNS }],
       srcRows.map(x => ({ s: x.disp, jobs: x.fin.jobs, bill: x.fin.totalBill,
         forman: x.fin.forman, driver: x.fin.driver, helper: x.fin.helper, comm: x.fin.salesComm,

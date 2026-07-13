@@ -84,8 +84,8 @@ registerPage({
       { key: "deduct", label: "Amount Deducted From Sales Person",
         fmt: RS.money, grp: rs => 0, gap: true, hidden: true },
       { key: "refund", label: "Total Refunds",    fmt: RS.money, grp: rs => sumRJ(rs, refundByRJ) },
-      { key: "op",     label: "Operational Profit", fmt: RS.money },
-      { key: "opm",    label: "Op. Profit Margin", fmt: RS.fmtPct },
+      { key: "op",     label: "Gross Profit", fmt: RS.money },
+      { key: "opm",    label: "Gross Margin", fmt: RS.fmtPct },
       { key: "scm",    label: "Sales Comm. Margin", fmt: RS.fmtPct },
     ];
     // A group's Operational Profit, rebuilt from THIS group's line items so it ties out

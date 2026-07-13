@@ -382,7 +382,7 @@ registerPage({
               ? `Biggest movers: ${movers.map(x => `${x.l} +${rough(x.d)}`).join(" and ")} above their usual level${revText}.`
               : `No single cost line stands out — the dip is spread across several lines${revText}.`) +
             ` Margin, not sales, is the ${monthLabel(prevM)} problem.`,
-            `Trigger: Operational Profit margin (revenue minus crew, driver, helper and sales pay, job expenses and refunds, ÷ revenue) more than 5 points below its average over the prior 6 months (${priorSixLabel}) — ${monthLabel(prevM)} itself is excluded from that average. The dollar figure = the margin gap × the month's revenue. Each cost line is compared to its own prior-6-month average to name the movers. One small deduction line (salesperson deductions) isn't in the portal's data yet — same as on the Financial Analysis page.`);
+            `Trigger: Gross Profit margin (revenue minus crew, driver, helper and sales pay, job expenses and refunds, ÷ revenue) more than 5 points below its average over the prior 6 months (${priorSixLabel}) — ${monthLabel(prevM)} itself is excluded from that average. The dollar figure = the margin gap × the month's revenue. Each cost line is compared to its own prior-6-month average to name the movers. One small deduction line (salesperson deductions) isn't in the portal's data yet — same as on the Financial Analysis page.`);
         }
       }
     }
