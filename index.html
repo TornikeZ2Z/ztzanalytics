@@ -101,7 +101,7 @@ const GROUP_OVERRIDE = {
   // Reviews
   "rev-production": "reviews", "rev-rr": "reviews",
   // Support
-  "sup-claims": "support", "sup-refunds": "support", "sup-phone": "support",
+  "job-overview": "support", "sup-claims": "support", "sup-refunds": "support", "sup-phone": "support",
 };
 const groupOf = p => GROUP_OVERRIDE[p.id] || p.group;
 /* explicit per-container item order (numbers are scoped within each group's display list) */
@@ -112,7 +112,7 @@ const NAV_ORDER = {
   "log-foreman": 1, "log-packing": 2, "log-fleet": 3,
   "fin-revenue": 1, "financial-analysis": 2, "executive-scorecard": 3, "branch-owner": 4,
   "rev-production": 1, "rev-rr": 2,
-  "sup-claims": 1, "sup-refunds": 2, "sup-phone": 3,
+  "job-overview": 1, "sup-claims": 2, "sup-refunds": 3, "sup-phone": 4,
   "data-quality": 1, "source-trace": 2, "multi-source-leads": 3, "admin-users": 4,
 };
 
@@ -166,7 +166,7 @@ const PAGE_ICONS = {
   "log-foreman": "tool", "log-packing": "box", "log-fleet": "activity",
   "fin-revenue": "trend", "rev-production": "star", "rev-rr": "trend",
   "sup-claims": "shield", "sup-refunds": "clipboard", "sup-phone": "phone",
-  "data-quality": "clipboard", "source-trace": "activity", "multi-source-leads": "git-merge", "calendar-coverage": "calendar", "request-consistency": "alert-triangle",
+  "data-quality": "clipboard", "source-trace": "activity", "multi-source-leads": "git-merge", "calendar-coverage": "calendar", "request-consistency": "alert-triangle", "job-overview": "clipboard",
 };
 
 /* Pages not yet built — shown greyed with a SOON tag so the full scope is visible. */
@@ -457,6 +457,7 @@ const PAGE_DATASETS = {
   "multi-source-leads": [],
   "calendar-coverage": [],
   "request-consistency": [],
+  "job-overview": [],
 };
 // themed dashboards are lite-mode slices of the Monthly Report — same datasets
 ["sales-funnel", "sales-perf", "sales-geo", "sales-rr", "mkt-roi", "mkt-sources", "mkt-phone",
@@ -639,6 +640,7 @@ const NAV_TITLES = {
   "calendar-coverage": "Calendar Coverage",
   "request-consistency": "Request # Consistency",
   "admin-users": "Users & Access",
+  "job-overview": "Job Overview",
 };
 /* C46: hidden search keywords per nav item — old Power BI page names, singular/plural,
    vendor names — so the transition period doesn't break muscle memory. Never shown. */
@@ -669,6 +671,7 @@ const SEARCH_ALIASES = {
   "rev-production": "review reviews rating ratings stars review production",
   "rev-rr": "repeat referral repeat business referral business returning customers reviews",
   // Support
+  "job-overview": "job overview performance dashboard completed jobs foreman estimate vs final bill claims reviews support negative review status attention needs review",
   "sup-claims": "claim claims damage damages",
   "sup-refunds": "refund refunds negative review reviews complaints cx cost of quality customer experience",
   "sup-phone": "phone response callrail call rail call tracking calls answer rate",
@@ -1100,5 +1103,6 @@ registerPage({
 <script src="pages/calendar-coverage.js?v=6"></script>
 <script src="pages/request-consistency.js?v=2"></script>
 <script src="pages/branch-owner.js?v=5"></script>
+<script src="pages/job-overview.js?v=1"></script>
 </body>
 </html>
