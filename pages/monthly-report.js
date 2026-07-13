@@ -57,11 +57,12 @@ async function renderMonthly(host, MRCFG) {
     // missed = 'Missed' + 'Voicemail' (kept separately); teammate = the agent's Extension
     // (the Name column is the OTHER party — ranking it credited customers as "teammates").
     if (!window.__mrRcCache) {
-      const rcRows = await ZTZ.api("/api/fct_ringcentral?limit=1000000&cols=" + encodeURIComponent("Date,Type,Direction,Action Result,Duration Seconds,Extension"))
+      const rcRows = await ZTZ.api("/api/fct_ringcentral?limit=1000000&cols=" + encodeURIComponent("Date,Type,Direction,Action Result,Duration Seconds,Extension,Company"))
         .then(j => j.rows || []).catch(() => []);
       const agg = {};
       rcRows.forEach(r => {
         if (String(r.Type) !== "Voice") return;   // sessions only — legs & faxes never count as calls
+        if (String(r.Company) === "Tuji") return; // Tuji lines are a separate business — ZtZ scope only
         const ym = String(r.Date || "").slice(0, 7); if (!/^\d{4}-\d{2}$/.test(ym)) return;
         const b = agg[ym] || (agg[ym] = { in: 0, out: 0, ans: 0, miss: 0, vm: 0, inDur: 0, outDur: 0, names: {} });
         const dur = +r["Duration Seconds"] || 0;
@@ -84,6 +85,23 @@ async function renderMonthly(host, MRCFG) {
       if (rcRows.length) window.__mrRcCache = agg;
     }
     const rcAgg = window.__mrRcCache || {};
+    // RingCentral SMS (first consumer 2026-07-13) — same isolated-fold pattern; the export's
+    // own Direction column is trusted; ZtZ lines only (Tuji excluded like the calls fold).
+    if (!window.__mrRcSmsCache) {
+      const smsRows = await ZTZ.api("/api/fct_ringcentral_sms?limit=1000000&cols=" + encodeURIComponent("Date,Direction,Message Status,Company"))
+        .then(j => j.rows || []).catch(() => []);
+      const agg2 = {};
+      smsRows.forEach(r => {
+        if (String(r.Company) === "Tuji") return;
+        const ym = String(r.Date || "").slice(0, 7); if (!/^\d{4}-\d{2}$/.test(ym)) return;
+        const b = agg2[ym] || (agg2[ym] = { in: 0, out: 0, fail: 0 });
+        if (String(r.Direction) === "Inbound") b.in++;
+        else if (String(r.Direction) === "Outbound") b.out++;
+        if (String(r["Message Status"]) === "Failed") b.fail++;
+      });
+      if (smsRows.length) window.__mrRcSmsCache = agg2;
+    }
+    const rcSms = window.__mrRcSmsCache || {};
     // fleet (Truck #) + per-job packing (estimate vs written) — narrow isolated fetches, cached on success
     if (!window.__mrFleetCache2) {
       const fl0 = await ZTZ.api("/api/fct_closing?limit=1000000&cols=" + encodeURIComponent("Date,Truck #,Total Bill,Fuel,Truck,Car,Tolls,Company")).then(j => j.rows || []).catch(() => []);
@@ -1372,6 +1390,14 @@ async function renderMonthly(host, MRCFG) {
           rankBars(g, "Outbound calls by teammate", byN.map(r => ({ k: r.k, v: r.v })), fmtN, { top: 10, sub: monLbl + " (RingCentral)", noteKind: "how", note: "By the agent's own extension (the shared Support line is excluded). Real dialed calls only — no ring-legs." });
           rankBars(g, "Outbound talk time by teammate", byN.map(r => ({ k: r.k, v: r.dur / 3600 })).sort((a, b) => b.v - a.v), v => fmt1(v) + "h", { top: 10, sub: monLbl + " (RingCentral)", noteKind: "how", note: "Hours actually spent on outbound calls — dial effort, not just dial count. By agent extension, sessions only." });
         }
+      }
+      // ---- SMS: texting volume was previously loaded but shown NOWHERE (audit 2026-07-13) ----
+      if (rcMonths.some(x => rcSms[x.ym])) {
+        const smsB = rcSms[`${curY}-${String(mo).padStart(2, "0")}`];
+        const cSms = stackedTime(g, "Text messages — received vs sent", "last 12 months (RingCentral SMS)", rcMonths.map(x => x.k),
+          [ { label: "Received", data: rcMonths.map(x => (rcSms[x.ym] || {}).in || 0), color: INK },
+            { label: "Sent", data: rcMonths.map(x => (rcSms[x.ym] || {}).out || 0), color: CTX } ], fmtN);
+        if (cSms && smsB) note(cSms, `${MON[mo]}: ${fmtN(smsB.in)} received, ${fmtN(smsB.out)} sent${smsB.fail ? `, ${fmtN(smsB.fail)} failed to deliver` : ""}. Zip to Zip lines only (Tuji excluded). Direction comes straight from the RingCentral export.`, "how");
       }
     }
 
