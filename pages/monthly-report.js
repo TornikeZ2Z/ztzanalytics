@@ -662,7 +662,7 @@ async function renderMonthly(host, MRCFG) {
     // Q7: exported headers use FULL words — abbreviations that survive on screen (for space)
     // are mapped to plain English at export time, so the Excel file explains itself.
     const XHEAD = { "CF": "Cubic feet (CF)", "vs Est": "Written vs estimate", "Gross Profit": "Gross profit — revenue minus direct job costs (crew/driver/helper/sales pay, job expenses, refunds)",
-      "Qual.": "Qualified", "Conf.": "Confirmed", "Ref%": "Refund %", "Dead%": "Bad-lead %",
+      "Qual.": "Qualified (leads created this month, minus bad)", "Conf.": "Confirmed — jobs booked this month (by booked date)", "Ref%": "Refund %", "Dead%": "Bad-lead %",
       "Booking%": "Booking %", "Pay": "Foreman pay" };
     function xlsHead(s) {
       const t = String(s == null ? "" : s).trim();
@@ -1124,7 +1124,7 @@ async function renderMonthly(host, MRCFG) {
       const spBook = segReduce("moveboard", "Assigned", rs => rs, curY, mo)
         .map(r => ({ k: r.k, rows: r.rows, v: RS.bookingRate(r.rows, bookedByAssign[r.k] || []) }))
         .filter(r => r.v != null && r.rows.length >= 5).sort((a, b) => b.rows.length - a.rows.length).slice(0, 12);
-      bullet(g, "Booking rate by salesperson", monLbl + " · vs team average", spBook, pct, bk || 0, { noteKind: "how", note: `The 12 reps handling the most leads, ordered by volume. Bars below the lime line are converting under the team average (${pct(bk)}) — coaching targets. Booking rate = jobs booked this month (by booked date) ÷ qualified leads created.` });
+      bullet(g, "Booking rate by salesperson", monLbl + " · vs team average", spBook, pct, bk || 0, { noteKind: "how", note: `The 12 reps handling the most leads, ordered by volume. Bars below the lime line are converting under the team average (${pct(bk)}) — coaching targets. Booking rate = jobs booked this month (by booked date) ÷ qualified leads created. Reps who book jobs WITHOUT Moveboard-assigned leads (e.g. Peter Montanaro) have no lead base, so no rate can be computed — they appear in the revenue tables instead.` });
       // ---- demand LOST to capacity (last 12 months): explicit signals + unworked leads + missed calls ----
       {
         let exp12 = 0, na12 = 0, missed12 = 0;
@@ -1162,23 +1162,24 @@ async function renderMonthly(host, MRCFG) {
       function funnelTable(title, col, sortFn) {
         const yy = String(curY - 1).slice(2);
         const bkGrp = groupByCol(ftBooked, col), bkGrpLY = groupByCol(ftBookedLY, col);
-        // bkN = the Booking-% NUMERATOR made visible (confirmed jobs BOOKED in the month) —
-        // it can differ from `c` (created-cohort confirmed): a June lead booked in July shows
-        // c=1 / bkN=0 / 0% for June and counts in July's rate instead (dual basis, see note).
-        const dAll = Object.entries(groupByCol(ftCreated, col)).map(([k, rows2]) => { const tot = rows2.length, bad = rows2.filter(x => x["Status Category"] === "Bad Lead").length, q = tot - bad, c = rows2.filter(x => x["Status Category"] === "Confirmed").length; const bkN = (bkGrp[k] || []).filter(x => x["Status Category"] === "Confirmed").length; return { k, tot, q, c, bad, bkN, book: RS.bookingRate(rows2, bkGrp[k] || []) }; }).sort(sortFn || ((a, b) => b.tot - a.tot));
+        // Confirmed is BOOKED-DATE basis everywhere (Tornike 2026-07-13): confirmed jobs whose
+        // Booked Date falls in the month (any create date) — the exact Booking-% numerator, so
+        // Confirmed ÷ Qualified = Booking % in every row. Total/Qualified/Bad count leads CREATED
+        // in the month (the dual basis of the canonical rate).
+        const dAll = Object.entries(groupByCol(ftCreated, col)).map(([k, rows2]) => { const tot = rows2.length, bad = rows2.filter(x => x["Status Category"] === "Bad Lead").length, q = tot - bad, c = (bkGrp[k] || []).filter(x => x["Status Category"] === "Confirmed").length; return { k, tot, q, c, bad, book: RS.bookingRate(rows2, bkGrp[k] || []) }; }).sort(sortFn || ((a, b) => b.tot - a.tot));
         const d = dAll.filter(r => r.k !== "—").slice(0, 12);  // blank segment hidden per feedback; Total row still counts it
         if (!d.length) return;
         const plyMap = {};
         Object.entries(groupByCol(ftCreatedLY, col)).forEach(([k, rows2]) => { plyMap[k] = RS.bookingRate(rows2, bkGrpLY[k] || []); });
         // Total row covers ALL segments (both years) — the table body shows the top 12 by volume
-        const tot = dAll.reduce((a, b) => ({ tot: a.tot + b.tot, q: a.q + b.q, c: a.c + b.c, bad: a.bad + b.bad, bkN: a.bkN + b.bkN }), { tot: 0, q: 0, c: 0, bad: 0, bkN: 0 });
+        const tot = dAll.reduce((a, b) => ({ tot: a.tot + b.tot, q: a.q + b.q, c: a.c + b.c, bad: a.bad + b.bad }), { tot: 0, q: 0, c: 0, bad: 0 });
         const totBook = RS.bookingRate(ftCreated, ftBooked), totBookLY = RS.bookingRate(ftCreatedLY, ftBookedLY);
         const bkCell = (cur, ply) => { if (cur == null) return td("—"); const better = ply == null ? null : cur >= ply; return td(pct(cur), better == null ? "" : `color:${better ? "#1c7a4a" : "#b02a37"};font-weight:800`); };
-        const rowsH = d.map(r => `<tr><td>${esc(r.k)}</td>${td(fmtN(r.tot))}${td(fmtN(r.q))}${td(fmtN(r.c))}${td(fmtN(r.bad))}${td(fmtN(r.bkN))}${bkCell(r.book, plyMap[r.k])}${td(plyMap[r.k] == null ? "—" : pct(plyMap[r.k]), "color:#8a94a3")}</tr>`).join("");
-        const trow = `<tr class="tot"><td>Total</td>${td(fmtN(tot.tot))}${td(fmtN(tot.q))}${td(fmtN(tot.c))}${td(fmtN(tot.bad))}${td(fmtN(tot.bkN))}${td(totBook == null ? "—" : pct(totBook))}${td(totBookLY == null ? "—" : pct(totBookLY), "color:#8a94a3")}</tr>`;
+        const rowsH = d.map(r => `<tr><td>${esc(r.k)}</td>${td(fmtN(r.tot))}${td(fmtN(r.q))}${td(fmtN(r.c))}${td(fmtN(r.bad))}${bkCell(r.book, plyMap[r.k])}${td(plyMap[r.k] == null ? "—" : pct(plyMap[r.k]), "color:#8a94a3")}</tr>`).join("");
+        const trow = `<tr class="tot"><td>Total</td>${td(fmtN(tot.tot))}${td(fmtN(tot.q))}${td(fmtN(tot.c))}${td(fmtN(tot.bad))}${td(totBook == null ? "—" : pct(totBook))}${td(totBookLY == null ? "—" : pct(totBookLY), "color:#8a94a3")}</tr>`;
         const blankN = (dAll.find(r => r.k === "—") || {}).tot || 0;
         const colLbl = col === "Service Type" ? "Service type" : col === "CF Range" ? "Cubic feet (CF range)" : col;
-        tableCard(g, title, monLbl, `<table class="mrx-tbl"><thead><tr><th>${esc(colLbl)}</th><th>Total</th><th>Qualified</th><th>Confirmed</th><th>Bad leads</th><th>Booked in mo.</th><th>Booking %</th><th>vs '${yy}</th></tr></thead><tbody>${rowsH}${trow}</tbody></table>`, { span2: false, icon: KIC.grid, headVal: fmtN(tot.tot), noteKind: "how", note: "Booking % = Booked in mo. ÷ Qualified. Two different clocks on purpose: Confirmed = of the leads CREATED this month, how many are confirmed by now; Booked in mo. = confirmed jobs whose BOOKED date falls in this month (any create date) — the Booking-% numerator. A lead created late in the month and booked next month shows in Confirmed but counts in NEXT month's rate (that's why a segment can show Confirmed 1 · Booked 0 · 0%). Green when this month beats " + yy + "'s rate for that segment, red when below; last column is the " + yy + " rate." + (dAll.length > 12 ? " Table shows the top 12 of " + dAll.length + " segments; the Total row covers all of them." : "") + (blankN ? ` ${fmtN(blankN)} leads with no ${colLbl.toLowerCase()} recorded are included in Total but not listed.` : "") });
+        tableCard(g, title, monLbl, `<table class="mrx-tbl"><thead><tr><th>${esc(colLbl)}</th><th>Total</th><th>Qualified</th><th>Confirmed</th><th>Bad leads</th><th>Booking %</th><th>vs '${yy}</th></tr></thead><tbody>${rowsH}${trow}</tbody></table>`, { span2: false, icon: KIC.grid, headVal: fmtN(tot.tot), noteKind: "how", note: "Booking % = Confirmed ÷ Qualified. Confirmed counts confirmed jobs BOOKED this month (by booked date, any create date); Total / Qualified / Bad leads count leads CREATED this month — the same dual basis as the official Booking Rate, so every row's % is exactly its own Confirmed ÷ Qualified. Green when this month beats " + yy + "'s rate for that segment, red when below; last column is the " + yy + " rate." + (dAll.length > 12 ? " Table shows the top 12 of " + dAll.length + " segments; the Total row covers all of them." : "") + (blankN ? ` ${fmtN(blankN)} leads with no ${colLbl.toLowerCase()} recorded are included in Total but not listed.` : "") });
       }
       funnelTable("Leads by service type", "Service Type");
       // sizes sort small→large: Single Item, Studio, 1-4 bedrooms (condo before house), then Storage/Office
@@ -1236,7 +1237,8 @@ async function renderMonthly(host, MRCFG) {
       const mb = segReduce("moveboard", "Assigned", rs => rs, curY, mo);
       // C2: per-rep booking rate is the canonical dual-basis helper
       const spBooked = groupByCol(bookedRowsFor(curY, mo), "Assigned");
-      const mbMap = {}; mb.forEach(r => { const q = r.rows.filter(x => x["Status Category"] !== "Bad Lead").length, c = r.rows.filter(x => x["Status Category"] === "Confirmed").length, bad = r.rows.filter(x => x["Status Category"] === "Bad Lead").length; mbMap[normName(r.k)] = { q, c, bad, tot: r.rows.length, book: RS.bookingRate(r.rows, spBooked[r.k] || []), dead: r.rows.length ? bad / r.rows.length : null }; });
+      // Confirmed = booked-date basis (Tornike 2026-07-13) — the rep's Booking-% numerator
+      const mbMap = {}; mb.forEach(r => { const q = r.rows.filter(x => x["Status Category"] !== "Bad Lead").length, c = (spBooked[r.k] || []).filter(x => x["Status Category"] === "Confirmed").length, bad = r.rows.filter(x => x["Status Category"] === "Bad Lead").length; mbMap[normName(r.k)] = { q, c, bad, tot: r.rows.length, book: RS.bookingRate(r.rows, spBooked[r.k] || []), dead: r.rows.length ? bad / r.rows.length : null }; });
       const refSP = {}; segReduce("refunds", "Sales Person", rs => Math.abs(rs.reduce((a, x) => a + num(x["Total refund"]), 0)), curY, mo).forEach(r => refSP[normName(r.k)] = r.v);
       const reps = revSP.slice(0, 14).map(r => ({ k: r.k, rev: r.v, op: opMap[r.k] || 0, ref: refSP[normName(r.k)] || 0, m: mbMap[normName(r.k)] || {} }));
       const rmax = Math.max(...reps.map(r => r.rev));
@@ -1248,10 +1250,12 @@ async function renderMonthly(host, MRCFG) {
       tableCard(g, "Salesperson scorecard", monLbl, `<table class="mrx-tbl"><thead><tr><th>Sales Person</th><th>Revenue</th><th>Gross Profit</th><th>Refunds</th><th>Refund %</th><th>Qualified</th><th>Confirmed</th><th>Booking %</th><th>Bad-lead %</th></tr></thead><tbody>${rowsH}</tbody></table>`, { icon: KIC.grid, headVal: fmtN(reps.length) + " reps", noteKind: "how", note: `Bars = revenue share. Refunds / Refund % = money refunded on the rep's jobs as a share of their revenue (red above 2%). Booking % = jobs booked this month (by booked date) ÷ qualified leads created (qualified = all leads minus bad leads); green above the team average (${pct(bk)}). Bad-lead % red when high. Gross Profit is before refunds. Lead columns come from Moveboard assignment, revenue and refunds from closing sheets — names are matched after trimming spaces and ignoring case.` });
       const bigPre = { pre: r => String(r["Big Job Status"]) === "Yes" };  // clean flag, not a CF-range regex
       const bigBooked = groupByCol(bookedRowsFor(curY, mo, bigPre.pre), "Assigned");
-      const bigMb = segReduce("moveboard", "Assigned", rs => rs, curY, mo, bigPre).map(r => { const q = r.rows.filter(x => x["Status Category"] !== "Bad Lead").length, c = r.rows.filter(x => x["Status Category"] === "Confirmed").length; return { k: r.k, q, c, book: RS.bookingRate(r.rows, bigBooked[r.k] || []) }; }).filter(r => r.q >= 2).sort((a, b) => b.q - a.q).slice(0, 10);
+      const bigMb = segReduce("moveboard", "Assigned", rs => rs, curY, mo, bigPre).map(r => { const q = r.rows.filter(x => x["Status Category"] !== "Bad Lead").length, c = (bigBooked[r.k] || []).filter(x => x["Status Category"] === "Confirmed").length; return { k: r.k, q, c, book: RS.bookingRate(r.rows, bigBooked[r.k] || []) }; }).filter(r => r.q >= 2).sort((a, b) => b.q - a.q).slice(0, 10);
       const revSPly = {}; segSeries("closing", "Revenue", "Sales Person", curY - 1, mo).forEach(r => revSPly[r.k] = r.v);
       const opSPly = {}; segSeries("closing", "Operational Profit by Formula", "Sales Person", curY - 1, mo).forEach(r => opSPly[r.k] = r.v);
-      const topReps = revSP.slice(0, 10);
+      // top 14 (was 10): with ~13 active reps the old cut silently hid the newest hires
+      // (Peter Montanaro ranked #11 with real revenue and never appeared) — show them all.
+      const topReps = revSP.slice(0, 14);
       groupedBars(g, "Revenue by salesperson — YoY", topReps.map(r => r.k), topReps.map(r => revSPly[r.k] || 0), String(curY - 1), topReps.map(r => r.v), String(curY), money, { sub: MON[mo] });
       groupedBars(g, "Gross profit by salesperson — YoY", topReps.map(r => r.k), topReps.map(r => opSPly[r.k] || 0), String(curY - 1), topReps.map(r => opMap[r.k] || 0), String(curY), money, { sub: MON[mo] + " · before refunds" });
       // C27: the filter is the Moveboard "Big Job" flag — the title must not claim a CF threshold
@@ -1315,7 +1319,7 @@ async function renderMonthly(host, MRCFG) {
       // C2: Booking % per channel is the canonical dual-basis helper.
       const lfBooked = groupByCol(bookedRowsFor(curY, mo), "Source");
       const lfCreated = reduceMonth("moveboard", curY, mo, rs => rs) || [];
-      const lfAll = segReduce("moveboard", "Source", rs => rs, curY, mo).map(r => { const rows2 = r.rows, tot = rows2.length, bad = rows2.filter(x => x["Status Category"] === "Bad Lead").length, q = tot - bad, c2 = rows2.filter(x => x["Status Category"] === "Confirmed").length; return { k: r.k === "—" ? "(blank)" : r.k, tot, q, c: c2, bad, book: RS.bookingRate(rows2, lfBooked[r.k] || []) }; }).sort((a, b) => b.tot - a.tot);
+      const lfAll = segReduce("moveboard", "Source", rs => rs, curY, mo).map(r => { const rows2 = r.rows, tot = rows2.length, bad = rows2.filter(x => x["Status Category"] === "Bad Lead").length, q = tot - bad, c2 = (lfBooked[r.k] || []).filter(x => x["Status Category"] === "Confirmed").length; return { k: r.k === "—" ? "(blank)" : r.k, tot, q, c: c2, bad, book: RS.bookingRate(rows2, lfBooked[r.k] || []) }; }).sort((a, b) => b.tot - a.tot);
       const lfRows = lfAll.filter(r => r.k !== "(blank)").slice(0, 12);  // blank source hidden; Total row still counts it
       if (lfRows.length) {
         // Total row covers ALL sources, so it reconciles with the Leads KPI (the body shows the top 12)
@@ -1323,7 +1327,7 @@ async function renderMonthly(host, MRCFG) {
         const lfTotBook = RS.bookingRate(lfCreated, bookedRowsFor(curY, mo));
         const lfBlank = (lfAll.find(r => r.k === "(blank)") || {}).tot || 0;
         const lfHtml = `<table class="mrx-tbl"><thead><tr><th>Source</th><th>Leads</th><th>Qualified</th><th>Confirmed</th><th>Bad leads</th><th>Booking %</th></tr></thead><tbody>${lfRows.map(r => `<tr><td>${esc(r.k)}</td>${td(fmtN(r.tot))}${td(fmtN(r.q))}${td(fmtN(r.c))}${td(fmtN(r.bad))}${td(r.book == null ? "—" : pct(r.book), r.book == null ? "" : `color:${r.book >= (bk || 0) ? "#1c7a4a" : "#b02a37"};font-weight:800`)}</tr>`).join("")}<tr class="tot"><td>Total${lfAll.length > 12 ? ` (all ${lfAll.length} sources)` : ""}</td>${td(fmtN(lfTot.tot))}${td(fmtN(lfTot.q))}${td(fmtN(lfTot.c))}${td(fmtN(lfTot.bad))}${td(lfTotBook == null ? "—" : pct(lfTotBook))}</tr></tbody></table>`;
-        tableCard(g, "Lead funnel by source", monLbl + (lfAll.length > 12 ? " · top 12 of " + lfAll.length : ""), lfHtml, { icon: KIC.grid, headVal: fmtN(lfTot.tot) + " leads", noteKind: "how", note: `Each channel's lead volume through the funnel — a channel can look great on revenue but be wasting leads. Booking % = jobs booked this month (by booked date) ÷ qualified leads created; red = below the team average (${pct(bk)}). The Total row counts every source, so it matches the Leads KPI.${lfBlank ? ` ${fmtN(lfBlank)} leads with no source recorded are included in Total but not listed.` : ""}` });
+        tableCard(g, "Lead funnel by source", monLbl + (lfAll.length > 12 ? " · top 12 of " + lfAll.length : ""), lfHtml, { icon: KIC.grid, headVal: fmtN(lfTot.tot) + " leads", noteKind: "how", note: `Each channel's lead volume through the funnel — a channel can look great on revenue but be wasting leads. Confirmed counts jobs BOOKED this month (by booked date); Leads/Qualified/Bad count leads created this month; Booking % = Confirmed ÷ Qualified; red = below the team average (${pct(bk)}). The Total row counts every source, so it matches the Leads KPI.${lfBlank ? ` ${fmtN(lfBlank)} leads with no source recorded are included in Total but not listed.` : ""}` });
       }
       // ===== INBOUND DEMAND (tracked marketing numbers · CallRail) =====
       const callLabels = momReduce("callrail", 12, rs => rs.length).map(r => r.k);
