@@ -30,7 +30,7 @@ var RRP_SEED = {
     { name: "Facebook", url: "https://www.facebook.com/ZiptozipMoving/reviews", active: true }
   ]
 };
-var RRP = { data: null, err: null, view: "log", draft: null, saving: false, saved: 0, fType: "", fStatus: "", fq: "", goals: null, logMode: "grouped", openJobs: {} };
+var RRP = { data: null, err: null, view: "log", draft: null, saving: false, saved: 0, fq: "", goals: null, openJobs: {}, openDays: {} };
 
 registerPage({
   id: "reviews-reminders",
@@ -76,23 +76,30 @@ registerPage({
         ".t-blue{background:rgba(56,132,255,.16);color:#5b9bff}.t-amber{background:rgba(224,145,42,.16);color:#e0912a}.t-green{background:rgba(46,160,90,.18);color:#3fbb6d}",
         ".s-sent{background:rgba(46,160,90,.16);color:#3fbb6d}.s-skip{background:rgba(224,145,42,.18);color:#e0912a}.s-err{background:rgba(229,72,77,.18);color:#e5484d}",
         ".rrp-empty{background:var(--panel);border:1px dashed var(--line-2);border-radius:14px;padding:34px;text-align:center;color:var(--muted);font-size:14px}",
-        ".rrp-modeseg{display:inline-flex;background:var(--panel-2);border:1px solid var(--line-2);border-radius:9px;padding:2px}",
-        ".rrp-modeseg button{border:0;background:transparent;color:var(--muted);cursor:pointer;font:inherit;font-size:12px;font-weight:700;padding:6px 11px;border-radius:7px}",
-        ".rrp-modeseg button.on{background:var(--brand);color:var(--brand-ink)}",
+        ".rrp-dayhead{display:flex;align-items:center;gap:9px;cursor:pointer;user-select:none;margin:16px 0 9px;padding:2px 0}",
+        ".rrp-dayhead .rrp-daychev{color:var(--faint);font-size:12px;width:14px}",
+        ".rrp-dayhead h3{margin:0;font-size:15px;font-weight:800}",
+        ".rrp-dayhead span{font-size:11.5px;color:var(--faint);font-weight:700}",
+        ".rrp-dayhead:hover h3{color:var(--brand)}",
         ".rrp-jobcard{background:var(--panel);border:1px solid var(--line);border-radius:12px;margin-bottom:8px;overflow:hidden}",
         ".rrp-jobcard.open{border-color:var(--line-2)}",
-        ".rrp-jobhead{display:grid;grid-template-columns:52px 1.2fr 1.5fr auto 22px;gap:12px;align-items:center;padding:12px 15px;cursor:pointer}",
+        ".rrp-jobhead{display:grid;grid-template-columns:48px 1fr 1.2fr auto 20px;gap:12px;align-items:center;padding:12px 15px;cursor:pointer}",
         ".rrp-jobhead:hover{background:var(--panel-2)}",
         ".rrp-prog{font-variant-numeric:tabular-nums;font-weight:800;font-size:13px;text-align:center;padding:4px 0;border-radius:8px}",
-        ".rrp-prog.p3{background:rgba(46,160,90,.18);color:#3fbb6d}.rrp-prog.p2{background:rgba(224,145,42,.16);color:#e0912a}.rrp-prog.pskip{background:rgba(229,72,77,.14);color:#e5484d}",
+        ".rrp-prog.p3{background:rgba(46,160,90,.18);color:#3fbb6d}.rrp-prog.p2{background:rgba(224,145,42,.16);color:#e0912a}.rrp-prog.pskip{background:rgba(229,72,77,.14);color:#e5484d}.rrp-prog.pfut{background:var(--panel-2);color:var(--muted);border:1px solid var(--line-2)}",
         ".rrp-jw{font-weight:700;font-size:13.5px}",
+        ".rrp-noid{font-size:9.5px;font-weight:800;color:#e0912a;background:rgba(224,145,42,.14);padding:2px 6px;border-radius:6px;white-space:nowrap}",
         ".rrp-jc{font-size:13px}.rrp-jc small{display:block;color:var(--faint);font-size:11px;margin-top:1px}",
-        ".rrp-jstages{display:flex;gap:5px;justify-self:end}",
-        ".rrp-stage{font-size:10px;font-weight:800;letter-spacing:.02em;padding:3px 8px;border-radius:999px;border:1px solid var(--line-2);color:var(--faint)}",
-        ".rrp-stage.st-on{background:rgba(46,160,90,.16);color:#3fbb6d;border-color:transparent}",
-        ".rrp-stage.st-skip{background:rgba(224,145,42,.16);color:#e0912a;border-color:transparent}",
+        ".rrp-jstages{display:flex;gap:5px;justify-self:end;flex-wrap:wrap;justify-content:flex-end}",
+        ".rrp-stage{font-size:10px;font-weight:700;letter-spacing:.01em;padding:3px 8px;border-radius:999px;border:1px solid var(--line-2);color:var(--muted);white-space:nowrap}",
+        ".rrp-stage b{font-weight:800;font-variant-numeric:tabular-nums}",
+        ".rrp-stage.st-sent{background:rgba(46,160,90,.16);color:#3fbb6d;border-color:transparent}",
+        ".rrp-stage.st-sched{background:rgba(91,155,255,.14);color:#5b9bff;border-color:transparent}",
+        ".rrp-stage.st-due{background:rgba(224,145,42,.14);color:#e0912a;border-color:transparent}",
+        ".rrp-stage.st-skip{background:rgba(224,145,42,.18);color:#e0912a;border-color:transparent}",
         ".rrp-stage.st-err{background:rgba(229,72,77,.16);color:#e5484d;border-color:transparent}",
-        ".rrp-stage.st-off{opacity:.5}",
+        ".rrp-stage.st-na{opacity:.5}",
+        ".pill.s-sched{background:rgba(91,155,255,.16);color:#5b9bff}",
         ".rrp-jchev{color:var(--faint);font-size:12px;text-align:center}",
         ".rrp-jobevents{border-top:1px solid var(--line);background:var(--panel-2)}",
         ".rrp-evrow{display:flex;align-items:center;gap:12px;padding:9px 15px 9px 20px;border-top:1px solid var(--line);font-size:12.5px}",
@@ -118,8 +125,9 @@ registerPage({
         ".rrp-loc .del:hover{color:#e5484d}",
         ".rrp-addloc{margin-top:9px;border:1px dashed var(--line-2);background:transparent;color:var(--muted);border-radius:9px;padding:7px 11px;font:inherit;font-size:12px;font-weight:700;cursor:pointer}",
         ".rrp-addloc:hover{border-color:var(--brand);color:var(--brand)}",
+        ".rrp-platnote{font-size:11.5px;color:var(--muted);margin:2px 0 10px}",
         ".rrp-plats{display:flex;flex-direction:column;gap:9px;margin-top:6px}",
-        ".rrp-plat{display:grid;grid-template-columns:20px 130px 1fr;gap:9px;align-items:center}",
+        ".rrp-plat{display:grid;grid-template-columns:20px 150px 1fr 30px;gap:9px;align-items:center}",
         ".rrp-plat input[type=checkbox]{width:16px;height:16px;accent-color:var(--brand)}",
         ".rrp-plat input[type=text]{font:inherit;font-size:12.5px;background:var(--panel-2);color:var(--ink);border:1px solid var(--line-2);border-radius:8px;padding:7px 10px}",
         ".rrp-savebar{position:sticky;bottom:0;display:flex;align-items:center;gap:12px;justify-content:flex-end;padding:14px 2px 4px;margin-top:14px;background:linear-gradient(0deg,var(--bg,var(--panel)) 60%,transparent)}",
@@ -225,93 +233,100 @@ registerPage({
       }).join("") + "</div>";
     }
 
-    // ---------- SEND LOG ----------
-    function matchRow(r) {
-      if (RRP.fStatus === "sent" && !/^sent/i.test(r.status)) return false;
-      if (RRP.fStatus === "skip" && !/skip/i.test(r.status)) return false;
-      if (RRP.fStatus === "error" && !/error/i.test(r.status)) return false;
-      if (RRP.fq) { var hay = (r.foreman + " " + r.customer + " " + r.job).toLowerCase(); if (hay.indexOf(RRP.fq.toLowerCase()) < 0) return false; }
-      return true;
+    // ---------- SEND LOG — by day (collapsible, today open) → by job, with scheduled times ----------
+    function jobMatches(j) {
+      if (!RRP.fq) return true;
+      var hay = (j.foreman + " " + j.customer + " " + j.job).toLowerCase();
+      return hay.indexOf(RRP.fq.toLowerCase()) >= 0;
     }
     function logFilters() {
-      var modeSeg = '<div class="rrp-modeseg"><button data-mode="grouped"' + (RRP.logMode === "grouped" ? ' class="on"' : "") + '>By job</button>'
-        + '<button data-mode="flat"' + (RRP.logMode === "flat" ? ' class="on"' : "") + '>All events</button></div>';
-      var typeSel = RRP.logMode === "flat"
-        ? '<select id="rrpType"><option value="">All types</option><option value="morning">Morning</option><option value="mid">Mid-job</option><option value="final">Final</option></select>' : "";
-      return '<div class="rrp-filters">' + modeSeg + typeSel
-        + '<select id="rrpStatus"><option value="">All statuses</option><option value="sent">Sent</option><option value="skip">Skipped</option><option value="error">Error</option></select>'
-        + '<input id="rrpQ" type="text" placeholder="Search foreman / customer / job…" value="' + esc(RRP.fq) + '"></div>';
+      return '<div class="rrp-filters"><input id="rrpQ" type="text" placeholder="Search foreman / customer / job…" value="' + esc(RRP.fq) + '"></div>';
     }
-    function viewLog() { return logFilters() + (RRP.logMode === "flat" ? viewLogFlat() : viewLogGrouped()); }
-
-    function viewLogFlat() {
-      var rows = cleanLog().filter(function (r) { return (!RRP.fType || r.type === RRP.fType) && matchRow(r); });
-      if (!rows.length) return '<div class="rrp-empty">No reminders match. When the bot runs, each morning summary and per-job nudge shows up here.</div>';
-      var groups = [], byKey = {};
-      rows.forEach(function (r) { var k = etDayKey(r.ts); if (!byKey[k]) { byKey[k] = { key: k, day: etDay(r.ts), rows: [] }; groups.push(byKey[k]); } byKey[k].rows.push(r); });
-      return groups.map(function (g) {
-        var sentN = g.rows.filter(function (r) { return /^sent/i.test(r.status); }).length;
-        return '<div class="rrp-day"><h3>' + esc(g.day) + '</h3><span>' + sentN + " sent · " + g.rows.length + " events</span></div>"
-          + '<div class="rrp-card">' + g.rows.map(eventRow).join("") + "</div>";
-      }).join("");
+    function fmtT(iso) { var d = new Date(iso); return isNaN(d) ? "" : d.toLocaleTimeString("en-US", { timeZone: RRP_TZ, hour: "numeric", minute: "2-digit" }); }
+    function dayHeadLabel(iso, isToday, isTomorrow) {
+      var d = new Date(iso + "T12:00:00");
+      var wd = isNaN(d) ? iso : d.toLocaleDateString("en-US", { timeZone: RRP_TZ, weekday: "short", month: "short", day: "numeric" });
+      return (isToday ? "Today · " : isTomorrow ? "Tomorrow · " : "") + wd;
     }
-    function eventRow(r) {
-      var ty = TYPE[r.type] || { l: r.type, c: "" };
-      return '<div class="rrp-row">'
-        + '<span class="tm">' + esc(etTime(r.ts)) + "</span>"
-        + '<span><span class="pill ' + ty.c + '">' + esc(ty.l) + "</span></span>"
-        + '<span class="who">' + esc(r.foreman || "—") + "</span>"
-        + '<span class="cust">' + esc(r.customer || "—") + (r.job ? "<small>" + esc(r.job) + "</small>" : "") + "</span>"
-        + '<span class="lnk">' + esc(r.links || "") + "</span>"
-        + "<span>" + statusPill(r.status) + "</span></div>";
+    function viewLog() {
+      var sched = RRP.data && RRP.data.schedule;
+      if (!sched) return logFilters() + '<div class="rrp-empty">Waiting for the schedule feed — it appears once the Apps Script is redeployed with the new version. Jobs already sent still show under Refresh.</div>';
+      return logFilters() + viewSchedule(sched);
     }
 
-    // grouped: one card per JOB with a Morning · Mid · Final progress (X/3), click to expand events
-    function viewLogGrouped() {
-      var log = cleanLog();
-      var morning = {};   // dayKey|foremanEmail -> row
-      log.forEach(function (r) { if (r.type === "morning") { var k = etDayKey(r.ts) + "|" + r.email; if (!morning[k]) morning[k] = r; } });
-      var days = [], dayMap = {};
-      log.forEach(function (r) {
-        if (r.type === "morning" || !r.job) return;
-        var dk = etDayKey(r.ts);
-        if (!dayMap[dk]) { dayMap[dk] = { key: dk, day: etDay(r.ts), jobs: {}, order: [] }; days.push(dayMap[dk]); }
-        var D = dayMap[dk];
-        if (!D.jobs[r.job]) { D.jobs[r.job] = { job: r.job, customer: r.customer, foreman: r.foreman, email: r.email, links: r.links, events: [] }; D.order.push(r.job); }
-        var J = D.jobs[r.job]; J.events.push(r);
-        if (r.type === "mid") J.mid = r; if (r.type === "final") J.final = r;
+    // index the LOG (what actually fired) by day|foreman-morning and day|job|stage
+    function indexLog() {
+      var mBy = {}, midBy = {}, finBy = {};
+      cleanLog().forEach(function (r) {
+        if (r.type === "morning") mBy[etDayKey(r.ts) + "|" + r.email] = r;
+        else if (r.job && r.type === "mid") midBy[etDayKey(r.ts) + "|" + r.job] = r;
+        else if (r.job && r.type === "final") finBy[etDayKey(r.ts) + "|" + r.job] = r;
       });
-      if (!days.length) return '<div class="rrp-empty">No jobs yet. Each job appears here once its first per-job nudge fires, with a Morning · Mid · Final progress.</div>';
-      var stageState = function (r) { return !r ? "off" : /^sent/i.test(r.status) ? "on" : /skip/i.test(r.status) ? "skip" : "err"; };
-      return days.map(function (D) {
-        var cards = D.order.map(function (jc) {
-          var J = D.jobs[jc]; J.morning = morning[D.key + "|" + J.email];
-          var stages = [["Morning", J.morning], ["Mid", J.mid], ["Final", J.final]];
-          if (!matchRow({ foreman: J.foreman, customer: J.customer, job: J.job, status: (J.final || J.mid || J.morning || {}).status || "" })) return "";
-          var sent = stages.filter(function (s) { return s[1] && /^sent/i.test(s[1].status); }).length;
-          var skipped = stages.some(function (s) { return s[1] && /skip/i.test(s[1].status); });
-          var pcls = sent === 3 ? "p3" : skipped ? "pskip" : "p2";
-          var open = !!RRP.openJobs[jc];
-          var pills = stages.map(function (s) { return '<span class="rrp-stage st-' + stageState(s[1]) + '">' + s[0] + "</span>"; }).join("");
-          var head = '<div class="rrp-jobhead" data-job="' + esc(jc) + '">'
-            + '<span class="rrp-prog ' + pcls + '">' + sent + "/3</span>"
-            + '<span class="rrp-jw">' + esc(J.foreman || "—") + "</span>"
-            + '<span class="rrp-jc">' + esc(J.customer || "—") + '<small>' + esc(jc) + "</small></span>"
-            + '<span class="rrp-jstages">' + pills + "</span>"
-            + '<span class="rrp-jchev">' + (open ? "▾" : "▸") + "</span></div>";
-          var body = open ? '<div class="rrp-jobevents">' + J.events.slice().sort(function (a, b) { return String(a.ts).localeCompare(String(b.ts)); }).map(function (r) {
-            var ty = TYPE[r.type] || { l: r.type, c: "" };
-            return '<div class="rrp-evrow"><span class="tm">' + esc(etTime(r.ts)) + '</span><span class="pill ' + ty.c + '">' + esc(ty.l) + "</span>"
-              + '<span class="rrp-evlnk">' + esc(r.links || "") + "</span>" + statusPill(r.status) + "</div>";
-          }).join("")
-            + (J.morning ? '<div class="rrp-evrow"><span class="tm">' + esc(etTime(J.morning.ts)) + '</span><span class="pill t-blue">Morning</span><span class="rrp-evlnk">daily summary to ' + esc(J.foreman) + "</span>" + statusPill(J.morning.status) + "</div>" : "")
-            + "</div>" : "";
-          return '<div class="rrp-jobcard' + (open ? " open" : "") + '">' + head + body + "</div>";
-        }).join("");
-        if (!cards.replace(/\s/g, "")) return "";
-        var jobN = D.order.length;
-        return '<div class="rrp-day"><h3>' + esc(D.day) + '</h3><span>' + jobN + " job" + (jobN === 1 ? "" : "s") + "</span></div>" + cards;
+      return { mBy: mBy, midBy: midBy, finBy: finBy };
+    }
+    function viewSchedule(sched) {
+      var idx = indexLog();
+      var todayKey = etDayKey(new Date().toISOString());
+      return sched.map(function (D, di) {
+        var isToday = D.day === todayKey, isTomorrow = di === 1;
+        var open = (D.day in RRP.openDays) ? RRP.openDays[D.day] : isToday;   // default: today open, tomorrow closed
+        var jobs = (D.jobs || []).filter(jobMatches);
+        var body = "";
+        if (open) body = jobs.length ? jobs.map(function (j) { return scheduleCard(D.day, j, idx); }).join("")
+          : '<div class="rrp-empty" style="margin:6px 0 14px;padding:20px">No Zip-to-Zip jobs ' + (isToday ? "today" : "scheduled") + ".</div>";
+        return '<div class="rrp-dayhead' + (open ? " open" : "") + '" data-day="' + esc(D.day) + '">'
+          + '<span class="rrp-daychev">' + (open ? "▾" : "▸") + "</span>"
+          + "<h3>" + esc(dayHeadLabel(D.day, isToday, isTomorrow)) + "</h3>"
+          + "<span>" + (D.jobs || []).length + " job" + ((D.jobs || []).length === 1 ? "" : "s") + "</span></div>" + body;
       }).join("");
+    }
+    // one job card: Morning · Mid · Final each with its scheduled/sent TIME; expand for detail
+    function scheduleCard(dayKey, j, idx) {
+      var now = Date.now();
+      var mk = function (label, atIso, row) {
+        if (!atIso) return { label: label, state: "na" };
+        var st, at = atIso;
+        if (row && /^sent/i.test(row.status)) { st = "sent"; at = row.ts; }
+        else if (row && /skip/i.test(row.status)) st = "skip";
+        else if (row && /error/i.test(row.status)) st = "err";
+        else st = (new Date(atIso).getTime() <= now) ? "due" : "sched";
+        return { label: label, state: st, at: at, sched: atIso };
+      };
+      var stages = [
+        mk("Morning", j.morningAt, idx.mBy[dayKey + "|" + j.foremanEmail]),
+        mk("Mid", j.midAt, idx.midBy[dayKey + "|" + j.job]),
+        mk("Final", j.finalAt, idx.finBy[dayKey + "|" + j.job])
+      ];
+      var applic = stages.filter(function (s) { return s.state !== "na"; });
+      var sentN = applic.filter(function (s) { return s.state === "sent"; }).length;
+      var N = applic.length || 3;
+      var hasSkip = applic.some(function (s) { return s.state === "skip" || s.state === "err"; });
+      var pcls = (applic.length && sentN === applic.length) ? "p3" : (hasSkip || !j.hasSlack) ? "pskip" : sentN > 0 ? "p2" : "pfut";
+      var pills = stages.map(function (s) {
+        if (s.state === "na") return '<span class="rrp-stage st-na">' + s.label + " —</span>";
+        var t = fmtT(s.state === "sent" ? s.at : s.sched);
+        return '<span class="rrp-stage st-' + s.state + '">' + s.label + " <b>" + esc(t) + "</b></span>";
+      }).join("");
+      var key = dayKey + "|" + j.job, open = !!RRP.openJobs[key];
+      var warn = j.hasSlack ? "" : ' <span class="rrp-noid">no Slack ID</span>';
+      var head = '<div class="rrp-jobhead" data-job="' + esc(key) + '">'
+        + '<span class="rrp-prog ' + pcls + '">' + sentN + "/" + N + "</span>"
+        + '<span class="rrp-jw">' + esc(j.foreman || "—") + warn + "</span>"
+        + '<span class="rrp-jc">' + esc(j.customer || "—") + "<small>" + esc(j.job) + (j.state ? " · " + esc(j.state) : "") + "</small></span>"
+        + '<span class="rrp-jstages">' + pills + "</span>"
+        + '<span class="rrp-jchev">' + (open ? "▾" : "▸") + "</span></div>";
+      var detail = "";
+      if (open) {
+        detail = '<div class="rrp-jobevents">' + stages.map(function (s) {
+          var ty = TYPE[s.label.toLowerCase()] || { c: "" };
+          if (s.state === "na") return '<div class="rrp-evrow"><span class="tm">—</span><span class="pill ' + ty.c + '">' + s.label + '</span><span class="rrp-evlnk">not sent — this job has no end time (ACT), so only the morning summary applies</span></div>';
+          var status = s.state === "sent" ? statusPill("sent") : s.state === "skip" ? statusPill("skipped") : s.state === "err" ? statusPill("error")
+            : '<span class="pill s-sched">' + (s.state === "due" ? "Pending" : "Scheduled") + "</span>";
+          var line = s.state === "sent" ? ("sent at " + fmtT(s.at)) : ("will send at " + fmtT(s.sched));
+          return '<div class="rrp-evrow"><span class="tm">' + esc(fmtT(s.sched)) + '</span><span class="pill ' + ty.c + '">' + s.label + '</span><span class="rrp-evlnk">' + esc(line) + "</span>" + status + "</div>";
+        }).join("") + "</div>";
+      }
+      return '<div class="rrp-jobcard' + (open ? " open" : "") + '">' + head + detail + "</div>";
     }
 
     // ---------- MISSED-REVIEW REASONS ----------
@@ -376,12 +391,16 @@ registerPage({
         return '<div class="rrp-state"><h4>' + esc(s2) + " " + (activeLoc ? goalTag(activeLoc.name, s2) : "") + "</h4>" + rows
           + '<button class="rrp-addloc" data-addstate="' + esc(s2) + '">+ Add a location for ' + esc(s2) + "</button></div>";
       }).join("");
-      var platHtml = '<div class="rrp-state"><h4>Other platforms (added to every message)</h4><div class="rrp-plats">'
+      var platHtml = '<div class="rrp-state"><h4>Other platforms (added to every message)</h4>'
+        + '<div class="rrp-platnote">Tick a platform to include its link; untick to leave it out. Add a new one (e.g. Thumbtack) with the button below.</div>'
+        + '<div class="rrp-plats">'
         + d.platforms.map(function (p, i) {
-          return '<div class="rrp-plat"><input type="checkbox" data-pon="' + i + '"' + (p.active ? " checked" : "") + ">"
-            + '<input type="text" data-pnm="' + i + '" value="' + esc(p.name) + '" placeholder="Name">'
-            + '<input type="text" data-purl="' + i + '" value="' + esc(p.url) + '" placeholder="https://…"></div>';
-        }).join("") + "</div></div>";
+          return '<div class="rrp-plat"><input type="checkbox" data-pon="' + i + '"' + (p.active ? " checked" : "") + ' title="Include this platform">'
+            + '<input type="text" data-pnm="' + i + '" value="' + esc(p.name) + '" placeholder="Platform name">'
+            + '<input type="text" data-purl="' + i + '" value="' + esc(p.url) + '" placeholder="https://…">'
+            + '<button class="del" data-pdel="' + i + '" title="Remove platform">✕</button></div>';
+        }).join("") + "</div>"
+        + '<button class="rrp-addloc" data-addplat="1">+ Add a platform</button></div>';
       var savemsg = RRP.saving ? "Saving…"
         : RRP.saved === 1 ? "Saved ✓ — confirmed on the sheet. The bot uses it on its next reminder."
         : RRP.saved === 2 ? "⚠ Saved, but read-back didn’t match — open the “Review Link Config” sheet to check."
@@ -419,16 +438,15 @@ registerPage({
       var rf = root.querySelector("#rrpRefresh"); if (rf) rf.onclick = function () { RRP.data = null; RRP.draft = null; RRP.goals = null; render(host); };
       var rt = root.querySelector("#rrpRetry"); if (rt) rt.onclick = function () { RRP.data = null; render(host); };
 
-      // wire log mode toggle + per-job expand
-      Array.prototype.forEach.call(root.querySelectorAll(".rrp-modeseg button[data-mode]"), function (b) {
-        b.onclick = function () { RRP.logMode = b.getAttribute("data-mode"); paint(); };
+      // wire day collapse/expand + per-job expand
+      Array.prototype.forEach.call(root.querySelectorAll(".rrp-dayhead[data-day]"), function (h) {
+        h.onclick = function () { var d = h.getAttribute("data-day"); var todayKey = etDayKey(new Date().toISOString());
+          var cur = (d in RRP.openDays) ? RRP.openDays[d] : (d === todayKey); RRP.openDays[d] = !cur; paint(); };
       });
       Array.prototype.forEach.call(root.querySelectorAll(".rrp-jobhead[data-job]"), function (h) {
         h.onclick = function () { var j = h.getAttribute("data-job"); RRP.openJobs[j] = !RRP.openJobs[j]; paint(); };
       });
-      // wire log filters
-      var ft = root.querySelector("#rrpType"); if (ft) { ft.value = RRP.fType; ft.onchange = function () { RRP.fType = ft.value; paint(); }; }
-      var fs = root.querySelector("#rrpStatus"); if (fs) { fs.value = RRP.fStatus; fs.onchange = function () { RRP.fStatus = fs.value; paint(); }; }
+      // wire search
       var fq = root.querySelector("#rrpQ"); if (fq) { fq.oninput = function () { RRP.fq = fq.value; var pos = fq.selectionStart; paint(); var n = root.querySelector("#rrpQ"); if (n) { n.focus(); try { n.setSelectionRange(pos, pos); } catch (e) {} } }; }
 
       // wire link editor
@@ -453,6 +471,8 @@ registerPage({
       Array.prototype.forEach.call(root.querySelectorAll("[data-pon]"), function (el) { el.onchange = function () { d.platforms[+el.getAttribute("data-pon")].active = el.checked; RRP.saved = 0; }; });
       Array.prototype.forEach.call(root.querySelectorAll("[data-pnm]"), function (el) { el.oninput = function () { d.platforms[+el.getAttribute("data-pnm")].name = el.value; RRP.saved = 0; }; });
       Array.prototype.forEach.call(root.querySelectorAll("[data-purl]"), function (el) { el.oninput = function () { d.platforms[+el.getAttribute("data-purl")].url = el.value; RRP.saved = 0; }; });
+      Array.prototype.forEach.call(root.querySelectorAll("[data-pdel]"), function (el) { el.onclick = function () { d.platforms.splice(+el.getAttribute("data-pdel"), 1); RRP.saved = 0; paint(); }; });
+      var addP = root.querySelector("[data-addplat]"); if (addP) addP.onclick = function () { d.platforms.push({ name: "", url: "", active: true }); RRP.saved = 0; paint(); };
       var sv = root.querySelector("#rrpSave");
       if (sv) sv.onclick = function () {
         // basic guard: every state needs exactly one active link
