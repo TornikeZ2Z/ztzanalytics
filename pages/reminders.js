@@ -109,6 +109,7 @@ registerPage({
       document.head.appendChild(st);
     }
 
+    host.innerHTML = "";   // clear the shell's "Loading…" spinner before mounting
     var root = document.createElement("div"); root.className = "rrp"; host.appendChild(root);
 
     // ---------- JSONP read from the relay ----------
@@ -302,14 +303,15 @@ registerPage({
     // ---------- paint + wire ----------
     function paint() {
       var body;
-      if (RRP.err && !RRP.data) {
+      // Review links works from the live config OR the seed catalog — never blocked by the relay.
+      if (RRP.view === "links") body = viewLinks();
+      else if (RRP.err && !RRP.data) {
         body = '<div class="rrp-empty">Couldn’t reach the Reviews relay (' + esc(RRP.err) + ').<br><br>'
           + 'This lights up once the Apps Script is published with the read API (Deploy ▸ New version). '
           + 'You can still open <b>Review links</b> to preview and edit.<br><br>'
           + '<button class="rrp-refresh" id="rrpRetry">Try again</button></div>';
       } else if (RRP.view === "log") body = kpis() + viewLog();
-      else if (RRP.view === "reasons") body = viewReasons();
-      else body = viewLinks();
+      else body = viewReasons();
 
       root.innerHTML =
         '<div class="rrp-head"><div>'
