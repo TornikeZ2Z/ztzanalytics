@@ -225,7 +225,7 @@ registerPage({
 
     // ---------- toolbar (segmented) ----------
     function toolbar() {
-      var views = [["log", "Send log"], ["reasons", "Missed-review reasons"], ["links", "Settings"]];
+      var views = [["log", "Daily Jobs"], ["reasons", "Missed-review reasons"], ["links", "Settings"]];
       return '<div class="rrp-seg">' + views.map(function (v) {
         return '<button data-v="' + v[0] + '"' + (RRP.view === v[0] ? ' class="on"' : "") + ">" + v[1] + "</button>";
       }).join("") + "</div>";
@@ -264,10 +264,12 @@ registerPage({
     }
     function fmtT(iso) { var d = new Date(iso); return isNaN(d) ? "" : d.toLocaleTimeString("en-US", { timeZone: RRP_TZ, hour: "numeric", minute: "2-digit" }); }
     function nowLabel() { return "🕒 Now " + new Date().toLocaleTimeString("en-US", { timeZone: RRP_TZ, hour: "numeric", minute: "2-digit" }) + " · New Jersey"; }
-    function dayHeadLabel(iso, isToday, isTomorrow) {
+    // shift a YYYY-MM-DD key by n calendar days (UTC math on the date parts → no tz drift)
+    function shiftKey(key, n) { var p = String(key).split("-"); var d = new Date(Date.UTC(+p[0], +p[1] - 1, +p[2])); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); }
+    function dayHeadLabel(iso, isToday, isTomorrow, isYesterday) {
       var d = new Date(iso + "T12:00:00");
       var wd = isNaN(d) ? iso : d.toLocaleDateString("en-US", { timeZone: RRP_TZ, weekday: "short", month: "short", day: "numeric" });
-      return (isToday ? "Today · " : isTomorrow ? "Tomorrow · " : "") + wd;
+      return (isToday ? "Today · " : isTomorrow ? "Tomorrow · " : isYesterday ? "Yesterday · " : "") + wd;
     }
     function viewLog() {
       var sched = RRP.data && RRP.data.schedule;
@@ -288,16 +290,17 @@ registerPage({
     function viewSchedule(sched) {
       var idx = indexLog();
       var todayKey = etDayKey(new Date().toISOString());
-      return sched.map(function (D, di) {
-        var isToday = D.day === todayKey, isTomorrow = di === 1;
-        var open = (D.day in RRP.openDays) ? RRP.openDays[D.day] : isToday;   // default: today open, tomorrow closed
+      var yKey = shiftKey(todayKey, -1), tKey = shiftKey(todayKey, 1);
+      return sched.map(function (D) {
+        var isToday = D.day === todayKey, isTomorrow = D.day === tKey, isYesterday = D.day === yKey;
+        var open = (D.day in RRP.openDays) ? RRP.openDays[D.day] : isToday;   // default: today open, yesterday/tomorrow closed
         var jobs = (D.jobs || []).filter(jobMatches);
         var body = "";
         if (open) body = jobs.length ? jobs.map(function (j) { return scheduleCard(D.day, j, idx); }).join("")
-          : '<div class="rrp-empty" style="margin:6px 0 14px;padding:20px">No Zip-to-Zip jobs ' + (isToday ? "today" : "scheduled") + ".</div>";
+          : '<div class="rrp-empty" style="margin:6px 0 14px;padding:20px">No Zip-to-Zip jobs ' + (isToday ? "today" : isYesterday ? "yesterday" : "scheduled") + ".</div>";
         return '<div class="rrp-dayhead' + (open ? " open" : "") + '" data-day="' + esc(D.day) + '">'
           + '<span class="rrp-daychev">' + (open ? "▾" : "▸") + "</span>"
-          + "<h3>" + esc(dayHeadLabel(D.day, isToday, isTomorrow)) + "</h3>"
+          + "<h3>" + esc(dayHeadLabel(D.day, isToday, isTomorrow, isYesterday)) + "</h3>"
           + "<span>" + (D.jobs || []).length + " job" + ((D.jobs || []).length === 1 ? "" : "s") + "</span></div>" + body;
       }).join("");
     }
@@ -324,6 +327,24 @@ registerPage({
           + links.map(function (l) { return l.url ? '<a class="rrp-linkchip" href="' + esc(l.url) + '" target="_blank" rel="noopener">' + esc(l.name) + " →</a>" : '<span class="rrp-linkchip off">' + esc(l.name) + "</span>"; }).join("") + "</div></div>";
       } else return "";
       return '<details class="rrp-msg"><summary>👁 View message sent</summary>' + body + "</details>";
+    }
+    // "View event" — the calendar event behind this reminder, so she can check a job at a glance
+    // (customer, addresses, phone, ACT). Details ride in the schedule feed once the relay is redeployed;
+    // absent on the old relay, in which case the button simply doesn't show.
+    function eventPanel(j) {
+      var e = j.detail; if (!e) return "";
+      var when = j.start ? (etDay(j.start) + " · " + fmtT(j.start)) : "";
+      var actTxt = e.act ? (e.act + " h" + (e.estHours ? " · est " + e.estHours + " h" : "")) : "";
+      var rows = [
+        ["When", when], ["From", e.from], ["To", e.to], ["Phone", e.phone],
+        ["Type", e.movingType], ["Trucks / Vans", e.trucks], ["ACT / Est.", actTxt], ["Foreman", j.foreman]
+      ].filter(function (kv) { return kv[1]; });
+      var dl = rows.map(function (kv) {
+        return '<div style="display:grid;grid-template-columns:120px 1fr;gap:10px;padding:2px 0;font-size:12.5px">'
+          + '<span style="color:var(--faint);font-weight:700">' + esc(kv[0]) + '</span><span>' + linkify(String(kv[1])) + "</span></div>";
+      }).join("");
+      var idline = e.eventId ? '<div class="rrp-msgnote" style="margin-top:8px">Event ID · ' + esc(e.eventId) + "</div>" : "";
+      return '<details class="rrp-msg" style="margin:10px 15px 6px 20px"><summary>👁 View event</summary><div class="rrp-msgbody">' + dl + idline + "</div></details>";
     }
     // one job card: Morning · Mid · Final each with its scheduled/sent TIME; expand for detail
     function scheduleCard(dayKey, j, idx) {
@@ -362,7 +383,7 @@ registerPage({
         + '<span class="rrp-jchev">' + (open ? "▾" : "▸") + "</span></div>";
       var detail = "";
       if (open) {
-        detail = '<div class="rrp-jobevents">' + stages.map(function (s) {
+        detail = '<div class="rrp-jobevents">' + eventPanel(j) + stages.map(function (s) {
           var ty = TYPE[s.label.toLowerCase()] || { c: "" };
           if (s.state === "na") return '<div class="rrp-evrow"><span class="tm">—</span><span class="pill ' + ty.c + '">' + s.label + '</span><span class="rrp-evlnk">not sent — this job has no end time (ACT), so only the morning summary applies</span></div>';
           var status = s.state === "sent" ? statusPill("sent") : s.state === "skip" ? statusPill("skipped") : s.state === "err" ? statusPill("error")
