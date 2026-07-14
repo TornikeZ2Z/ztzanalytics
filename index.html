@@ -264,6 +264,8 @@ function canSee(id) {
   if (id === "admin-users") return false;
   const reports = ME.reports || [];
   if (reports.includes(id)) return true;
+  // department grant: holding a department id opens ALL of its reports, incl. ones added later
+  for (const d of ACL_DEPTS) { if (reports.includes(d.id) && d.reports.includes(id)) return true; }
   // a lingering grant to a retired page opens its replacement, so nobody loses access
   for (const src in REDIRECTS) {
     if (reports.includes(src) && REDIRECTS[src].split(":")[0] === id) return true;
@@ -1063,10 +1065,10 @@ registerPage({
       host.querySelector("#uEmail").disabled = !!u;
       host.querySelector("#uName").value = (u && u.name) || "";
       setAdmin(!!(u && u.admin));
-      // a department lights up when the user holds ALL of its reports
+      // a department lights up when it's granted by id (new) OR all its reports are held (legacy)
       host.querySelectorAll(".acl-tile").forEach(t => {
         const d = dmap[t.dataset.d];
-        t.classList.toggle("on", !!(u && d && d.reports.every(r => u.reports.includes(r))));
+        t.classList.toggle("on", !!(u && d && (u.reports.includes(d.id) || d.reports.every(r => u.reports.includes(r)))));
       });
       host.querySelector("#uMsg").textContent = "";
       if (!u) host.querySelector("#uEmail").focus();
@@ -1077,11 +1079,12 @@ registerPage({
     const grantChips = u => {
       if (u.admin) return `<span class="acl-badge admin">Admin · everything</span>`;
       if (!u.reports.length) return `<span class="acl-badge none">No access</span>`;
-      // department chips: a department counts when ALL its reports are granted;
-      // leftover single-report grants (legacy / partial) show as a count.
-      const full = depts.filter(d => d.reports.every(r => u.reports.includes(r)));
+      // department chips: a department counts when granted by id (new) or all its reports held (legacy);
+      // leftover single-report grants show as a count.
+      const deptIds = new Set(depts.map(d => d.id));
+      const full = depts.filter(d => u.reports.includes(d.id) || d.reports.every(r => u.reports.includes(r)));
       const covered = new Set(full.flatMap(d => d.reports));
-      const extra = u.reports.filter(r => !covered.has(r)).length;
+      const extra = u.reports.filter(r => !deptIds.has(r) && !covered.has(r)).length;
       const shown = full.slice(0, 4).map(d => `<span class="acl-badge r">${RSC.esc(d.label.split(" — ")[0])}</span>`).join("");
       return shown + (full.length > 4 ? `<span class="acl-badge r">+${full.length - 4}</span>` : "") +
         (extra ? `<span class="acl-badge r">+${extra} single report${extra === 1 ? "" : "s"}</span>` : "");
@@ -1091,7 +1094,7 @@ registerPage({
         <span class="avatar">${RSC.esc((u.name || u.email)[0].toUpperCase())}</span>
         <div class="u-main">
           <div class="u-email">${RSC.esc(u.email)}</div>
-          <div class="u-sub">${RSC.esc(u.name || "")}${u.name ? " · " : ""}${u.admin ? "administrator" : u.reports.length + " report" + (u.reports.length === 1 ? "" : "s")}</div>
+          <div class="u-sub">${RSC.esc(u.name || "")}${u.name ? " · " : ""}${u.admin ? "administrator" : (() => { const s = new Set(); (u.reports || []).forEach(r => { const d = dmap[r]; if (d) d.reports.forEach(x => s.add(x)); else s.add(r); }); return s.size + " report" + (s.size === 1 ? "" : "s"); })()}</div>
         </div>
         <div class="u-grants">${grantChips(u)}</div>
         <div class="u-actions">
@@ -1117,9 +1120,9 @@ registerPage({
           email: host.querySelector("#uEmail").value,
           name: host.querySelector("#uName").value,
           admin: admSwitch.classList.contains("on"),
-          // department tiles expand to their report ids — the bridge keeps enforcing per report
-          reports: [...new Set([...host.querySelectorAll(".acl-tile.on")]
-            .flatMap(t => (dmap[t.dataset.d] || { reports: [] }).reports))],
+          // store DEPARTMENT ids — a granted department auto-includes reports added to it later
+          // (the bridge + canSee expand dept id → its current reports). Deny-by-default is kept.
+          reports: [...host.querySelectorAll(".acl-tile.on")].map(t => t.dataset.d),
         });
         ZTZ.toast("User saved");
         self.render(host);
