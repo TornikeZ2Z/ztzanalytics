@@ -103,7 +103,7 @@ const GROUP_OVERRIDE = {
   "fin-revenue": "financial", "fin-rr": "financial", "financial-analysis": "financial", "executive-scorecard": "financial",
   "branch-owner": "financial",
   // Reviews
-  "review-performance": "reviews", "rev-production": "reviews",
+  "review-performance": "reviews", "rev-production": "reviews", "reviews-reminders": "reviews",
   // Support
   "sup-claims": "support", "sup-refunds": "support", "sup-phone": "support",
 };
@@ -115,7 +115,7 @@ const NAV_ORDER = {
   "mkt-roi": 1, "mkt-sources": 2, "mkt-phone": 3,
   "log-foreman": 1, "log-packing": 2, "log-fleet": 3,
   "fin-revenue": 1, "fin-rr": 2, "sales-geo": 3, "financial-analysis": 4, "executive-scorecard": 5, "branch-owner": 6,
-  "review-performance": 1, "rev-production": 2,
+  "review-performance": 1, "rev-production": 2, "reviews-reminders": 3,
   "sup-claims": 1, "sup-refunds": 2, "sup-phone": 3,
   "data-quality": 1, "source-trace": 2, "multi-source-leads": 3, "admin-users": 4,
 };
@@ -170,7 +170,7 @@ const PAGE_ICONS = {
   "log-foreman": "tool", "log-packing": "box", "log-fleet": "activity",
   "fin-revenue": "trend", "fin-rr": "trend", "rev-production": "star",
   "sup-claims": "shield", "sup-refunds": "clipboard", "sup-phone": "phone",
-  "data-quality": "clipboard", "source-trace": "activity", "multi-source-leads": "git-merge", "calendar-coverage": "calendar", "request-consistency": "alert-triangle", "review-performance": "star",
+  "data-quality": "clipboard", "source-trace": "activity", "multi-source-leads": "git-merge", "calendar-coverage": "calendar", "request-consistency": "alert-triangle", "review-performance": "star", "reviews-reminders": "megaphone",
 };
 
 /* Pages not yet built — shown greyed with a SOON tag so the full scope is visible. */
@@ -463,6 +463,7 @@ const PAGE_DATASETS = {
   "request-consistency": [],
   "review-performance": [],
   "sales-speed": [],
+  "reviews-reminders": [],   // talks to the Apps Script relay (JSONP) + loads its own goal data
 };
 // themed dashboards are lite-mode slices of the Monthly Report — same datasets
 ["sales-funnel", "sales-perf", "sales-geo", "mkt-roi", "mkt-sources", "mkt-phone",
@@ -607,7 +608,7 @@ function navigate(id, push) {
 /* Pages that bring their OWN toolbar and ignore the global filter bar (PAGE_DATASETS=[])
    render "bare" — the global date/slicer bar + company chip are hidden so the page's board
    starts right under the header instead of below two rows of greyed-out, unusable filters. */
-const BARE_CHROME = new Set(["review-performance", "sales-speed"]);
+const BARE_CHROME = new Set(["review-performance", "sales-speed", "reviews-reminders"]);
 /* Monthly-Report-family pages OWN their time: they have a Month/Year picker on the cover
    and neutralize the global Year/Month slicers in every computation (withMonth), so those
    two slicers are hidden there — two competing time controls confused everyone (Tornike
@@ -662,6 +663,7 @@ const NAV_TITLES = {
   "request-consistency": "Request # Consistency",
   "admin-users": "Users & Access",
   "review-performance": "Review Performance",
+  "reviews-reminders": "Reminders",
 };
 /* C46: hidden search keywords per nav item — old Power BI page names, singular/plural,
    vendor names — so the transition period doesn't break muscle memory. Never shown. */
@@ -693,6 +695,7 @@ const SEARCH_ALIASES = {
   "rev-production": "review reviews rating ratings stars review production",
   // Support
   "review-performance": "review performance foreman weekly matrix reviews per eligible job R J percent target support intervention excluded bill increase estimate vs actual drill down explanation",
+  "reviews-reminders": "reminders review request slack automation bot foreman nudge send log missed review reasons why no review link control google trustpilot facebook kearny shafto qr code delivery state",
   "sup-claims": "claim claims damage damages",
   "sup-refunds": "refund refunds negative review reviews complaints cx cost of quality customer experience",
   "sup-phone": "phone response callrail call rail call tracking calls answer rate",
@@ -959,6 +962,7 @@ const REPORT_LABELS = {
   // Reviews
   "review-performance": "Review Performance",
   "rev-production": "Reviews Production",
+  "reviews-reminders": "Reminders",
   // Support
   "sup-claims": "Claims",
   "sup-refunds": "Refunds & Cost of Quality",
@@ -988,7 +992,7 @@ const ACL_DEPTS = [
   { id: "marketing", label: "Marketing",        icon: "megaphone", reports: ["mkt-roi", "mkt-sources", "mkt-phone"] },
   { id: "logistics", label: "Logistics",        icon: "tool",      reports: ["log-foreman", "log-packing", "log-fleet"] },
   { id: "financial", label: "Financial",        icon: "trend",     reports: ["fin-revenue", "fin-rr", "sales-geo", "financial-analysis", "executive-scorecard", "branch-owner"] },
-  { id: "reviews",   label: "Reviews",          icon: "star",      reports: ["review-performance", "rev-production"] },
+  { id: "reviews",   label: "Reviews",          icon: "star",      reports: ["review-performance", "rev-production", "reviews-reminders"] },
   { id: "support",   label: "Support",          icon: "shield",    reports: ["sup-claims", "sup-refunds", "sup-phone"] },
   { id: "quality",   label: "Data Quality",     icon: "clipboard", reports: ["data-quality"] },
   { id: "explorer",  label: "Data Explorer — every table", icon: "archive", reports: ["explorer"] },
@@ -1161,5 +1165,6 @@ registerPage({
 <script src="pages/branch-owner.js?v=6"></script>
 <script src="pages/review-performance.js?v=7"></script>
 <script src="pages/speed-to-lead.js?v=2"></script>
+<script src="pages/reminders.js?v=1"></script>
 </body>
 </html>
