@@ -28,7 +28,11 @@ var RRP_SEED = {
   platforms: [
     { name: "Trustpilot", url: "https://www.trustpilot.com/evaluate/www.ziptozipmoving.com", active: true },
     { name: "Facebook", url: "https://www.facebook.com/ZiptozipMoving/reviews", active: true }
-  ]
+  ],
+  reasons: ["Customer refused", "The customer was dissatisfied", "Open claim",
+    "Support intervention was required", "Billing issue", "The customer promised to write later",
+    "Elderly customer (not comfortable with technology)", "No internet / poor internet connection",
+    "Customer was unfriendly / not willing to engage", "Other"]
 };
 var RRP = { data: null, err: null, view: "log", draft: null, saving: false, saved: 0, fq: "", goals: null, openJobs: {}, openDays: {} };
 
@@ -128,6 +132,12 @@ registerPage({
         ".rrp-platnote{font-size:11.5px;color:var(--muted);margin:2px 0 10px}",
         ".rrp-plats{display:flex;flex-direction:column;gap:9px;margin-top:6px}",
         ".rrp-plat{display:grid;grid-template-columns:20px 150px 1fr 30px;gap:9px;align-items:center}",
+        ".rrp-reason{display:grid;grid-template-columns:1fr 66px;gap:9px;align-items:center}",
+        ".rrp-reason input{font:inherit;font-size:12.5px;background:var(--panel-2);color:var(--ink);border:1px solid var(--line-2);border-radius:8px;padding:7px 10px;width:100%}",
+        ".rrp-reason input[readonly]{opacity:.75;cursor:default}",
+        ".rrp-lockpill{font-size:9.5px;font-weight:800;color:var(--muted);text-align:center;text-transform:uppercase;letter-spacing:.03em}",
+        ".rrp-clock{font-size:12px;font-weight:700;color:var(--muted);background:var(--panel);border:1px solid var(--line-2);border-radius:9px;padding:7px 12px;white-space:nowrap;font-variant-numeric:tabular-nums}",
+        ".rrp-headright{display:flex;align-items:center;gap:9px;flex-wrap:wrap;justify-content:flex-end}",
         ".rrp-plat input[type=checkbox]{width:16px;height:16px;accent-color:var(--brand)}",
         ".rrp-plat input[type=text]{font:inherit;font-size:12.5px;background:var(--panel-2);color:var(--ink);border:1px solid var(--line-2);border-radius:8px;padding:7px 10px}",
         ".rrp-savebar{position:sticky;bottom:0;display:flex;align-items:center;gap:12px;justify-content:flex-end;padding:14px 2px 4px;margin-top:14px;background:linear-gradient(0deg,var(--bg,var(--panel)) 60%,transparent)}",
@@ -205,7 +215,7 @@ registerPage({
 
     // ---------- toolbar (segmented) ----------
     function toolbar() {
-      var views = [["log", "Send log"], ["reasons", "Missed-review reasons"], ["links", "Review links"]];
+      var views = [["log", "Send log"], ["reasons", "Missed-review reasons"], ["links", "Settings"]];
       return '<div class="rrp-seg">' + views.map(function (v) {
         return '<button data-v="' + v[0] + '"' + (RRP.view === v[0] ? ' class="on"' : "") + ">" + v[1] + "</button>";
       }).join("") + "</div>";
@@ -243,6 +253,7 @@ registerPage({
       return '<div class="rrp-filters"><input id="rrpQ" type="text" placeholder="Search foreman / customer / job…" value="' + esc(RRP.fq) + '"></div>';
     }
     function fmtT(iso) { var d = new Date(iso); return isNaN(d) ? "" : d.toLocaleTimeString("en-US", { timeZone: RRP_TZ, hour: "numeric", minute: "2-digit" }); }
+    function nowLabel() { return "🕒 Now " + new Date().toLocaleTimeString("en-US", { timeZone: RRP_TZ, hour: "numeric", minute: "2-digit" }) + " · New Jersey"; }
     function dayHeadLabel(iso, isToday, isTomorrow) {
       var d = new Date(iso + "T12:00:00");
       var wd = isNaN(d) ? iso : d.toLocaleDateString("en-US", { timeZone: RRP_TZ, weekday: "short", month: "short", day: "numeric" });
@@ -350,10 +361,16 @@ registerPage({
     // ---------- REVIEW LINKS (editable control) ----------
     // canonical signature of "what actually gets sent" — active Google URL per state + platform
     // on/off — so a Save can be CONFIRMED by reading the config back (no-cors writes are opaque).
+    function normReasons(list) {   // match the relay: trim, drop blanks, ensure Other present
+      var out = (list || []).map(function (x) { return String(x || "").trim(); }).filter(Boolean);
+      if (out.map(function (x) { return x.toLowerCase(); }).indexOf("other") < 0) out.push("Other");
+      return out;
+    }
     function activeSig(cfg) {
       var m = {};
       (cfg.google || []).forEach(function (g) { if (g.active && g.url) m["g:" + g.state] = String(g.url).trim(); });
       (cfg.platforms || []).forEach(function (p) { m["p:" + p.name] = p.active ? String(p.url).trim() : ""; });
+      m["reasons"] = normReasons(cfg.reasons).join("|");
       return JSON.stringify(m, Object.keys(m).sort());
     }
     function goalTag(name, state) {
@@ -371,7 +388,8 @@ registerPage({
         RRP.draft = JSON.parse(JSON.stringify(src));
       }
       var d = RRP.draft;
-      var note = '<div class="rrp-note"><b>Which review link goes out per delivery state.</b> When a job delivers to a state, the foreman’s Slack nudge uses that state’s <b>active</b> Google link plus the platforms below. Pick the location that still needs reviews (progress vs goal shown where known). <b>Save</b> and the bot uses it on the very next reminder — no redeploy.</div>';
+      if (!d.reasons) d.reasons = (RRP.data && RRP.data.config && RRP.data.config.reasons) ? RRP.data.config.reasons.slice() : RRP_SEED.reasons.slice();
+      var note = '<div class="rrp-note"><b>Settings for the review-reminder bot.</b> Set which Google link goes out per delivery state, which extra platforms ride along, and the “why no review?” reasons foremen can pick. <b>Save</b> and the bot uses everything on its very next reminder — no redeploy.</div>';
       if (RRP.cfgSource === "seed") note += '<div class="rrp-warnbanner">Showing the default catalog — the live config couldn’t be read from the relay yet. You can edit and preview here; <b>Saving needs the relay published</b> (Apps Script ▸ Deploy ▸ New version).</div>';
       // group google by state (in first-seen order)
       var states = [], byState = {};
@@ -401,13 +419,23 @@ registerPage({
             + '<button class="del" data-pdel="' + i + '" title="Remove platform">✕</button></div>';
         }).join("") + "</div>"
         + '<button class="rrp-addloc" data-addplat="1">+ Add a platform</button></div>';
+      // ---- reason list foremen pick from on the "why no review?" form ----
+      var reasonHtml = '<div class="rrp-state"><h4>“Why no review?” reasons</h4>'
+        + '<div class="rrp-platnote">These are the buttons a foreman sees when a review wasn’t left. <b>Other</b> is always included — with it, whatever they type in the note is captured even if nothing fits.</div>'
+        + '<div class="rrp-plats">'
+        + d.reasons.map(function (rz, i) {
+          var isOther = String(rz).trim().toLowerCase() === "other";
+          return '<div class="rrp-reason"><input type="text" data-rzn="' + i + '" value="' + esc(rz) + '"' + (isOther ? " readonly title=\"Other is always kept\"" : "") + ' placeholder="Reason foremen can pick">'
+            + (isOther ? '<span class="rrp-lockpill">always on</span>' : '<button class="del" data-rzdel="' + i + '" title="Remove reason">✕</button>') + "</div>";
+        }).join("") + "</div>"
+        + '<button class="rrp-addloc" data-addrzn="1">+ Add a reason</button></div>';
       var savemsg = RRP.saving ? "Saving…"
         : RRP.saved === 1 ? "Saved ✓ — confirmed on the sheet. The bot uses it on its next reminder."
         : RRP.saved === 2 ? "⚠ Saved, but read-back didn’t match — open the “Review Link Config” sheet to check."
         : RRP.saved === 3 ? "Sent — but the relay isn’t published yet, so I can’t confirm it landed. Redeploy the Apps Script, then Save again."
         : "";
-      var savebar = '<div class="rrp-savebar"><span class="rrp-savemsg">' + esc(savemsg) + '</span><button class="rrp-save" id="rrpSave"' + (RRP.saving ? " disabled" : "") + ">Save review links</button></div>";
-      return note + stateHtml + platHtml + savebar;
+      var savebar = '<div class="rrp-savebar"><span class="rrp-savemsg">' + esc(savemsg) + '</span><button class="rrp-save" id="rrpSave"' + (RRP.saving ? " disabled" : "") + ">Save settings</button></div>";
+      return note + stateHtml + platHtml + reasonHtml + savebar;
     }
 
     // ---------- paint + wire ----------
@@ -428,7 +456,8 @@ registerPage({
         '<div class="rrp-head"><div>'
         + '<h1><span class="rrp-star"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 17.3l-6.2 3.7 1.6-7L2 9.2l7.1-.6L12 2l2.9 6.6 7.1.6-5.4 4.8 1.6 7z"/></svg></span>Review Reminders</h1>'
         + '<p>The automated Slack nudges the bot sends foremen to collect reviews — what went out, what got skipped, why reviews were missed, and which links to send.</p></div>'
-        + '<button class="rrp-refresh" id="rrpRefresh">↻ Refresh</button></div>'
+        + '<div class="rrp-headright"><div class="rrp-clock" id="rrpClock" title="Reminders fire on New Jersey time — compare a job’s scheduled time to this">' + nowLabel() + "</div>"
+        + '<button class="rrp-refresh" id="rrpRefresh">↻ Refresh</button></div></div>'
         + toolbar() + '<div id="rrpBody">' + body + "</div>";
 
       // wire toolbar
@@ -437,6 +466,9 @@ registerPage({
       });
       var rf = root.querySelector("#rrpRefresh"); if (rf) rf.onclick = function () { RRP.data = null; RRP.draft = null; RRP.goals = null; render(host); };
       var rt = root.querySelector("#rrpRetry"); if (rt) rt.onclick = function () { RRP.data = null; render(host); };
+      // live clock — one interval; it self-clears once the page is gone
+      if (window.__rrpClockTimer) clearInterval(window.__rrpClockTimer);
+      window.__rrpClockTimer = setInterval(function () { var c = document.getElementById("rrpClock"); if (!c) { clearInterval(window.__rrpClockTimer); window.__rrpClockTimer = null; return; } c.textContent = nowLabel(); }, 15000);
 
       // wire day collapse/expand + per-job expand
       Array.prototype.forEach.call(root.querySelectorAll(".rrp-dayhead[data-day]"), function (h) {
@@ -473,6 +505,14 @@ registerPage({
       Array.prototype.forEach.call(root.querySelectorAll("[data-purl]"), function (el) { el.oninput = function () { d.platforms[+el.getAttribute("data-purl")].url = el.value; RRP.saved = 0; }; });
       Array.prototype.forEach.call(root.querySelectorAll("[data-pdel]"), function (el) { el.onclick = function () { d.platforms.splice(+el.getAttribute("data-pdel"), 1); RRP.saved = 0; paint(); }; });
       var addP = root.querySelector("[data-addplat]"); if (addP) addP.onclick = function () { d.platforms.push({ name: "", url: "", active: true }); RRP.saved = 0; paint(); };
+      // reason list editor
+      Array.prototype.forEach.call(root.querySelectorAll("[data-rzn]"), function (el) { el.oninput = function () { d.reasons[+el.getAttribute("data-rzn")] = el.value; RRP.saved = 0; }; });
+      Array.prototype.forEach.call(root.querySelectorAll("[data-rzdel]"), function (el) { el.onclick = function () { d.reasons.splice(+el.getAttribute("data-rzdel"), 1); RRP.saved = 0; paint(); }; });
+      var addR = root.querySelector("[data-addrzn]"); if (addR) addR.onclick = function () {
+        var oi = d.reasons.map(function (x) { return String(x).trim().toLowerCase(); }).indexOf("other");
+        if (oi >= 0) d.reasons.splice(oi, 0, ""); else d.reasons.push("");   // keep Other last
+        RRP.saved = 0; paint();
+      };
       var sv = root.querySelector("#rrpSave");
       if (sv) sv.onclick = function () {
         // basic guard: every state needs exactly one active link

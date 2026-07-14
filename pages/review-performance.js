@@ -35,7 +35,7 @@ var RP_BANDS = [
   { max: 200,      bg: "#bbf7d0", fg: "#166534",  label: "101–199%" },
   { max: Infinity, bg: "#16a34a", fg: "#fff",     label: "≥200%" },
 ];
-var RP_WIN = { week: [8, 12, 26, 52], month: [3, 6, 12, 24] };
+var RP_WIN = { day: [7, 14, 30, 60], week: [8, 12, 26, 52], month: [3, 6, 12, 24] };
 var RP_PLAT = { Google: "#4285F4", Yelp: "#d32323", Angi: "#1aa64b", Trustpilot: "#00b67a",
   Facebook: "#1877f2", Consumer: "#6d28d9", Birdeye: "#f59e0b", BBB: "#0a4d8c", Thumbtack: "#009fd9",
   Nextdoor: "#5aa700", Unpakt: "#e11d48", Mymovingreviews: "#0ea5e9" };
@@ -46,7 +46,7 @@ var RP_REASONS = ["Customer refused", "The customer was dissatisfied", "Open cla
   "Elderly customer (not comfortable with technology)", "No internet / poor internet connection",
   "Customer was unfriendly / not willing to engage"];
 var RP = { sources: new Set(), statuses: new Set(), billcats: new Set(), foremen: new Set(),
-  grain: "week", winW: 12, winM: 6, offset: 0, sortCol: null, sortDir: "desc", cell: null, view: "perf",
+  grain: "week", winD: 14, winW: 12, winM: 6, offset: 0, sortCol: null, sortDir: "desc", cell: null, view: "perf",
   wlPage: 0 };
 
 registerPage({
@@ -69,18 +69,21 @@ registerPage({
         return { src: p.slice(0, i), n: parseInt(p.slice(i + 1), 10) || 0 };
       }).filter(Boolean);
     };
-    // period key/label per grain
+    // period key/label per grain (day / week / month)
     var colKey = function (r) {
-      return RP.grain === "week" ? String(r["Week Ending"] || "").slice(0, 10)
+      return RP.grain === "day" ? String(r["Job Date"] || "").slice(0, 10)
+           : RP.grain === "week" ? String(r["Week Ending"] || "").slice(0, 10)
                                  : String(r["Job Date"] || "").slice(0, 7);
     };
     var colLabel = function (c) {
-      return RP.grain === "week" ? c.slice(5) : MON[+c.slice(5, 7)] + " '" + c.slice(2, 4);
+      return RP.grain === "day" ? MON[+c.slice(5, 7)] + " " + (+c.slice(8, 10))
+           : RP.grain === "week" ? c.slice(5) : MON[+c.slice(5, 7)] + " '" + c.slice(2, 4);
     };
     var colLong = function (c) {
-      return RP.grain === "week" ? "week ending " + c : MON[+c.slice(5, 7)] + " " + c.slice(0, 4);
+      return RP.grain === "day" ? MON[+c.slice(5, 7)] + " " + (+c.slice(8, 10)) + ", " + c.slice(0, 4)
+           : RP.grain === "week" ? "week ending " + c : MON[+c.slice(5, 7)] + " " + c.slice(0, 4);
     };
-    var win = function () { return RP.grain === "week" ? RP.winW : RP.winM; };
+    var win = function () { return RP.grain === "day" ? RP.winD : RP.grain === "week" ? RP.winW : RP.winM; };
 
     if (!document.getElementById("rp-style")) {
       var st = document.createElement("style"); st.id = "rp-style";
@@ -313,7 +316,7 @@ registerPage({
       () => RP.view,
       v => { RP.view = v; closeDrawer(); repaint(); }));
     bar.appendChild(mkSeg(
-      [{ v: "week", label: "Weekly" }, { v: "month", label: "Monthly" }],
+      [{ v: "day", label: "Daily" }, { v: "week", label: "Weekly" }, { v: "month", label: "Monthly" }],
       () => RP.grain,
       v => { RP.grain = v; RP.offset = 0; RP.sortCol = null; closeDrawer(); paintWinOpts(); repaint(); }));
     var timeWrap = document.createElement("div"); timeWrap.className = "rp-time";
@@ -322,7 +325,7 @@ registerPage({
     var rangeLbl = document.createElement("span"); rangeLbl.className = "rp-range"; rangeLbl.id = "rpRange";
     bar.appendChild(rangeLbl);
     function paintWinOpts() {
-      var sel = document.getElementById("rpWin"), unit = RP.grain === "week" ? "weeks" : "months";
+      var sel = document.getElementById("rpWin"), unit = RP.grain === "day" ? "days" : RP.grain === "week" ? "weeks" : "months";
       sel.innerHTML = RP_WIN[RP.grain].map(w => `<option value="${w}"${w === win() ? " selected" : ""}>${w} ${unit}</option>`).join("");
     }
     paintWinOpts();
@@ -648,8 +651,8 @@ registerPage({
         <div class="rp-rgrid">
           <div class="rp-panel"><h3>Why reviews are missing · ${N(explained.length)} of ${N(missing.length)} explained</h3>
             <div class="rp-roll">${barsHtml}</div></div>
-          <div class="rp-panel"><h3>Response rate by ${RP.grain === "week" ? "week" : "month"}</h3>
-            <div style="overflow-x:auto"><table class="rp-tbl2"><thead><tr><th>${RP.grain === "week" ? "Week" : "Month"}</th><th style="text-align:right">Missing</th><th style="text-align:right">Explained</th><th style="text-align:right">Resp. %</th></tr></thead><tbody>${trendRows}</tbody></table></div></div>
+          <div class="rp-panel"><h3>Response rate by ${RP.grain}</h3>
+            <div style="overflow-x:auto"><table class="rp-tbl2"><thead><tr><th>${RP.grain === "day" ? "Day" : RP.grain === "week" ? "Week" : "Month"}</th><th style="text-align:right">Missing</th><th style="text-align:right">Explained</th><th style="text-align:right">Resp. %</th></tr></thead><tbody>${trendRows}</tbody></table></div></div>
         </div>
         <div class="rp-panel" style="margin-top:12px"><h3>Foreman accountability — who owes explanations</h3>
           <div style="overflow-x:auto"><table class="rp-tbl2"><thead><tr><th>Foreman</th><th style="text-align:right">Missing</th><th style="text-align:right">Explained</th><th style="text-align:right">Waiting</th><th>Top reason</th></tr></thead><tbody>${fmRows || `<tr><td colspan="5" style="color:var(--faint)">Nothing missing in this window 🎉</td></tr>`}</tbody></table></div></div>
@@ -677,7 +680,9 @@ registerPage({
 
     // ---- control wiring ----
     document.getElementById("rpWin").onchange = e => {
-      if (RP.grain === "week") RP.winW = +e.target.value; else RP.winM = +e.target.value;
+      if (RP.grain === "day") RP.winD = +e.target.value;
+      else if (RP.grain === "week") RP.winW = +e.target.value;
+      else RP.winM = +e.target.value;
       RP.offset = 0; closeDrawer(); repaint();
     };
     document.getElementById("rpOlder").onclick = () => { RP.offset = Math.min(Math.max(0, allCols().length - win()), RP.offset + win()); closeDrawer(); repaint(); };
