@@ -167,6 +167,11 @@ registerPage({
       return '<span class="pill">' + esc(s) + "</span>";
     }
 
+    // Test-run rows go to the requestor's own DM (the REVIEW_TEST_SLACK_ID values), never a
+    // real foreman — hide them so the log shows only genuine sends. Real foreman IDs pass through.
+    var RRP_TEST_DMS = { "U044DL697CN": 1, "U06KWS62277": 1 };
+    function cleanLog() { return ((RRP.data && RRP.data.log) || []).filter(function (r) { return !RRP_TEST_DMS[r.sentTo]; }); }
+
     // ---------- toolbar (segmented) ----------
     function toolbar() {
       var views = [["log", "Send log"], ["reasons", "Missed-review reasons"], ["links", "Review links"]];
@@ -177,7 +182,7 @@ registerPage({
 
     // ---------- KPI tiles (today) ----------
     function kpis() {
-      var log = (RRP.data && RRP.data.log) || [];
+      var log = cleanLog();
       var todayKey = etDayKey(new Date().toISOString());
       var today = log.filter(function (r) { return etDayKey(r.ts) === todayKey; });
       var sent = today.filter(function (r) { return /^sent/i.test(r.status); });
@@ -199,7 +204,7 @@ registerPage({
 
     // ---------- SEND LOG ----------
     function viewLog() {
-      var log = (RRP.data && RRP.data.log) || [];
+      var log = cleanLog();
       var foremenAll = {}; log.forEach(function (r) { foremenAll[r.foreman] = 1; });
       var filters = '<div class="rrp-filters">'
         + '<select id="rrpType"><option value="">All types</option><option value="morning">Morning</option><option value="mid">Mid-job</option><option value="final">Final</option></select>'
