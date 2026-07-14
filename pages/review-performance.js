@@ -254,7 +254,7 @@ registerPage({
         var cb = "__rplive_" + Date.now() + "_" + Math.floor(Math.random() * 1e6);
         var s = document.createElement("script"); var done = false;
         var clean = function () { try { delete window[cb]; } catch (e) { window[cb] = undefined; } s.remove(); };
-        var t = setTimeout(function () { if (!done) { done = true; clean(); reject(new Error("timeout")); } }, 20000);
+        var t = setTimeout(function () { if (!done) { done = true; clean(); reject(new Error("timeout")); } }, 40000);   // relay cold-start reads a 6.7k-row sheet
         window[cb] = function (d) { if (done) return; done = true; clearTimeout(t); clean(); resolve(d); };
         s.onerror = function () { if (done) return; done = true; clearTimeout(t); clean(); reject(new Error("load error")); };
         s.src = url + (url.indexOf("?") >= 0 ? "&" : "?") + "callback=" + cb;
