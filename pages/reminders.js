@@ -254,6 +254,14 @@ registerPage({
     }
 
     // ---------- REVIEW LINKS (editable control) ----------
+    // canonical signature of "what actually gets sent" — active Google URL per state + platform
+    // on/off — so a Save can be CONFIRMED by reading the config back (no-cors writes are opaque).
+    function activeSig(cfg) {
+      var m = {};
+      (cfg.google || []).forEach(function (g) { if (g.active && g.url) m["g:" + g.state] = String(g.url).trim(); });
+      (cfg.platforms || []).forEach(function (p) { m["p:" + p.name] = p.active ? String(p.url).trim() : ""; });
+      return JSON.stringify(m, Object.keys(m).sort());
+    }
     function goalTag(name, state) {
       var g = RRP.goals; if (!g) return "";
       var nk = g.nk, key = nk(name), skey = nk("google " + state);
@@ -295,7 +303,11 @@ registerPage({
             + '<input type="text" data-pnm="' + i + '" value="' + esc(p.name) + '" placeholder="Name">'
             + '<input type="text" data-purl="' + i + '" value="' + esc(p.url) + '" placeholder="https://…"></div>';
         }).join("") + "</div></div>";
-      var savemsg = RRP.saving ? "Saving…" : (RRP.saved ? "Saved ✓ — the bot uses this on its next reminder." : "");
+      var savemsg = RRP.saving ? "Saving…"
+        : RRP.saved === 1 ? "Saved ✓ — confirmed on the sheet. The bot uses it on its next reminder."
+        : RRP.saved === 2 ? "⚠ Saved, but read-back didn’t match — open the “Review Link Config” sheet to check."
+        : RRP.saved === 3 ? "Sent — but the relay isn’t published yet, so I can’t confirm it landed. Redeploy the Apps Script, then Save again."
+        : "";
       var savebar = '<div class="rrp-savebar"><span class="rrp-savemsg">' + esc(savemsg) + '</span><button class="rrp-save" id="rrpSave"' + (RRP.saving ? " disabled" : "") + ">Save review links</button></div>";
       return note + stateHtml + platHtml + savebar;
     }
@@ -361,13 +373,21 @@ registerPage({
         var states = {}; d.google.forEach(function (g) { states[g.state] = states[g.state] || 0; if (g.active && g.url) states[g.state]++; });
         var bad = Object.keys(states).filter(function (s2) { return states[s2] !== 1; });
         if (bad.length) { alert("Each state needs exactly one active link with a URL. Check: " + bad.join(", ")); return; }
-        RRP.saving = true; paint();
+        RRP.saving = true; RRP.saved = 0; paint();
         try {
           fetch(RRP_RELAY, { method: "POST", mode: "no-cors", headers: { "Content-Type": "text/plain;charset=utf-8" },
             body: JSON.stringify({ kind: "reviewLinkConfig", config: d }) });
         } catch (e) {}
-        // no-cors: response is opaque, so confirm optimistically after a beat
-        setTimeout(function () { RRP.saving = false; RRP.saved = 1; if (RRP.data && RRP.data.config) RRP.data.config = JSON.parse(JSON.stringify(d)); paint(); }, 1200);
+        // no-cors write is opaque — CONFIRM it by reading the config back and comparing.
+        var want = activeSig(d);
+        setTimeout(function () {
+          jsonp(RRP_RELAY + "?req=reviewData").then(function (live) {
+            RRP.saving = false;
+            if (live && live.config && activeSig(live.config) === want) { RRP.saved = 1; RRP.data = live; }
+            else { RRP.saved = 2; }
+            paint();
+          }).catch(function () { RRP.saving = false; RRP.saved = 3; paint(); });
+        }, 1600);
       };
     }
 
