@@ -1710,8 +1710,11 @@ async function renderMonthly(host, MRCFG) {
       const packCur = segSeries("closing", "Total Packing Written", "Foreman").slice(0, 12);
       const packPrev = {}; segSeries("closing", "Total Packing Written", "Foreman", PMY, PM).forEach(r => packPrev[r.k] = r.v);
       groupedBars(g, "Packing written by foreman — MoM", packCur.map(r => r.k), packCur.map(r => packPrev[r.k] || 0), MS[PM], packCur.map(r => r.v), MS[mo], money, { sub: `${MS[PM]} vs ${MS[mo]}` });
-      const estM = {}; scRows.forEach(r => estM[r.Foreman] = num(r["Total Packing Estimate"]));
-      groupedBars(g, "Packing written vs estimate by foreman", packCur.map(r => r.k), packCur.map(r => estM[r.k] || 0), "Estimate", packCur.map(r => r.v), "Written", money, { sub: monLbl });
+      // estimate keys come from the SCORECARD's Foreman, bars from CLOSING's Foreman —
+      // join on trimmed+case-folded names so a stray space can't zero an estimate bar
+      const nrmF = s => String(s == null ? "" : s).trim().toLowerCase();
+      const estM = {}; scRows.forEach(r => estM[nrmF(r.Foreman)] = num(r["Total Packing Estimate"]));
+      groupedBars(g, "Packing written vs estimate by foreman", packCur.map(r => r.k), packCur.map(r => estM[nrmF(r.k)] || 0), "Estimate", packCur.map(r => r.v), "Written", money, { sub: monLbl });
       const refByFm = segReduce("refunds", "Foreman", rs => Math.abs(rs.reduce((a, x) => a + num(x["Total refund"]), 0)), curY, mo).filter(r => r.v > 0 && r.k !== "—");
       if (refByFm.length) rankBars(g, "Refunds by foreman", refByFm, money, { top: 10 });
       // foreman efficiency — packing density & review rate, WITH month-over-month movement + arrows
