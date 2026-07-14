@@ -118,7 +118,7 @@ registerPage({
         var cb = "__rrcb_" + Date.now() + "_" + Math.floor(Math.random() * 1e6);
         var s = document.createElement("script"); var done = false;
         var clean = function () { try { delete window[cb]; } catch (e) { window[cb] = undefined; } s.remove(); };
-        var timer = setTimeout(function () { if (!done) { done = true; clean(); reject(new Error("timeout")); } }, 16000);
+        var timer = setTimeout(function () { if (!done) { done = true; clean(); reject(new Error("timeout")); } }, 10000);
         window[cb] = function (d) { if (done) return; done = true; clearTimeout(timer); clean(); resolve(d); };
         s.onerror = function () { if (done) return; done = true; clearTimeout(timer); clean(); reject(new Error("load error")); };
         s.src = url + (url.indexOf("?") >= 0 ? "&" : "?") + "callback=" + cb;
@@ -305,6 +305,7 @@ registerPage({
       var body;
       // Review links works from the live config OR the seed catalog — never blocked by the relay.
       if (RRP.view === "links") body = viewLinks();
+      else if (RRP.loading && !RRP.data) body = '<div class="rrp-empty">Loading reminders…</div>';
       else if (RRP.err && !RRP.data) {
         body = '<div class="rrp-empty">Couldn’t reach the Reviews relay (' + esc(RRP.err) + ').<br><br>'
           + 'This lights up once the Apps Script is published with the read API (Deploy ▸ New version). '
@@ -370,10 +371,18 @@ registerPage({
       };
     }
 
-    // ---------- boot ----------
-    root.innerHTML = '<div class="rrp-empty">Loading reminders…</div>';
-    await ensureData(false);
-    if (RRP.view === "links") await loadGoals();
+    // ---------- boot ---------- paint the shell instantly, then load in the background so the
+    // Review-links editor is usable immediately and the log doesn't block on the relay.
+    RRP.loading = !RRP.data;
     paint();
+    (async function () {
+      try {
+        if (RRP.view === "links") await loadGoals();
+        await ensureData(false);
+        if (RRP.view === "links") await loadGoals();
+      } catch (e) {}
+      RRP.loading = false;
+      paint();
+    })();
   }
 });
