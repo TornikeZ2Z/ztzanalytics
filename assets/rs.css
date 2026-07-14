@@ -339,6 +339,7 @@ body.rs-app.light .rs-daterange input[type=date]:hover,body.rs-app.light .rs-dat
 body.rs-app .panel-title{font-size:15.5px}
 table.tab th,table.tab td{padding:9px 13px;font-size:13px}
 table.tab thead th{font-size:11px}
-.mrx-tbl th,.mrx-tbl td{font-size:12.75px !important}
+/* (mrx-tbl override removed — monthly-report.js v51 sizes its own tables natively;
+   the !important here flattened its th/td hierarchy) */
 .rs-page-head h1{font-size:22px}
 .rs-page-head p{font-size:13.5px}
