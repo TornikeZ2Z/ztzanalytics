@@ -1209,8 +1209,8 @@ async function renderMonthly(host, MRCFG) {
       const localT = trendSeries("closing", "Revenue", { pre: isLocal });
       const ldT = trendSeries("closing", "Revenue", { pre: notLocal });
       {
-        // drop years empty on BOTH sides (pre-2023 cutoff) so no hollow slots render
-        const yrs = localT.map((r, i) => ({ k: r.k, loc: r.v, ld: (ldT[i] || {}).v })).filter(r => r.loc != null || r.ld != null);
+        // drop years empty on BOTH sides (pre-2023 cutoff yields 0s, not nulls) — no hollow slots
+        const yrs = localT.map((r, i) => ({ k: r.k, loc: r.v, ld: (ldT[i] || {}).v })).filter(r => r.loc || r.ld);
         const labs = yrs.map(r => r.k);
         const { c: cLL, cv: cvLL } = chartCard(g, "Local vs Long-distance — revenue", MON[mo] + " · " + labs.length + "-yr head-to-head", { h: 230, icon: KIC.bars, headVal: money(lastV(localT)) });
         new Chart(cvLL, { type: "bar", data: { labels: labs, datasets: [
