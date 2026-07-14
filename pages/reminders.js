@@ -140,7 +140,7 @@ registerPage({
         ".rrp-headright{display:flex;align-items:center;gap:9px;flex-wrap:wrap;justify-content:flex-end}",
         ".rrp-plat input[type=checkbox]{width:16px;height:16px;accent-color:var(--brand)}",
         ".rrp-plat input[type=text]{font:inherit;font-size:12.5px;background:var(--panel-2);color:var(--ink);border:1px solid var(--line-2);border-radius:8px;padding:7px 10px}",
-        ".rrp-savebar{position:sticky;bottom:0;display:flex;align-items:center;gap:12px;justify-content:flex-end;padding:14px 2px 4px;margin-top:14px;background:linear-gradient(0deg,var(--bg,var(--panel)) 60%,transparent)}",
+        ".rrp-savebar{display:flex;align-items:center;gap:12px;justify-content:flex-end;padding:16px 2px 8px;margin-top:16px;border-top:1px solid var(--line)}",
         ".rrp-save{border:0;background:var(--brand);color:var(--brand-ink);border-radius:10px;padding:10px 20px;font:inherit;font-size:13.5px;font-weight:800;cursor:pointer}",
         ".rrp-save:disabled{opacity:.55;cursor:default}",
         ".rrp-savemsg{font-size:12.5px;color:var(--muted)}",
@@ -370,7 +370,8 @@ registerPage({
       var m = {};
       (cfg.google || []).forEach(function (g) { if (g.active && g.url) m["g:" + g.state] = String(g.url).trim(); });
       (cfg.platforms || []).forEach(function (p) { m["p:" + p.name] = p.active ? String(p.url).trim() : ""; });
-      m["reasons"] = normReasons(cfg.reasons).join("|");
+      // reasons ride along in the SAME write payload as links — the link round-trip confirms the
+      // whole save. (Not signed here so a save still confirms on a relay that predates reason support.)
       return JSON.stringify(m, Object.keys(m).sort());
     }
     function goalTag(name, state) {
