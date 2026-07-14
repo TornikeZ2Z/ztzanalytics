@@ -554,19 +554,48 @@ async function renderMonthly(host, MRCFG) {
       return c;
     }
     function rankBars(mount, title, series, fmt, opts) {
-      opts = opts || {}; const s = series.slice(0, opts.top || 12);
-      // C33: the headline totals ALL segments — roll the cut segments into one visible
-      // "All others (N)" bar so the bars always add up to the headline.
-      const cut = series.length - s.length;
-      if (cut > 0) s.push({ k: `All others (${cut})`, v: series.slice(s.length).reduce((a, b) => a + (b.v || 0), 0), __other: 1 });
-      opts.icon = opts.icon || KIC.bars;
+      opts = opts || {}; opts.icon = opts.icon || KIC.bars;
+      const topN = opts.top || 12;
       if (opts.headVal == null) { const tot = series.reduce((a, b) => a + (b.v || 0), 0); opts.headVal = fmt(tot); if (opts.subCode == null) opts.subCode = 1; }
-      const { c, box, cv } = chartCard(mount, title, opts.sub || monLbl, { span2: opts.span2, h: Math.max(190, 40 + s.length * 27), icon: opts.icon, headVal: opts.headVal, chips: opts.chips });
-      if (!s.length) { emptyBox(box); return c; }
-      new Chart(cv, { type: "bar",
-        data: { labels: s.map(r => r.k), datasets: [{ data: s.map(r => r.v), backgroundColor: s.map((r, i) => r.__other ? "#aeb9c8" : i === 0 ? LIME : INK), hoverBackgroundColor: s.map((r, i) => r.__other ? "#98a5b6" : i === 0 ? LIMED : "#34465f"), borderRadius: 4, maxBarThickness: 20 }] },
-        options: baseOpts({ indexAxis: "y", layout: { padding: { right: 58 } }, plugins: { legend: { display: false }, tooltip: { callbacks: { label: x => tip(fmt)(x.parsed.x) } } }, scales: { x: axY(fmt, { beginAtZero: true }), y: { ticks: { color: INK2, font: { size: 11.5, weight: "600" } }, grid: { display: false }, border: { display: false } } } }),
-        plugins: [valLabels(fmt, true), crosshair] });
+      const firstLen = Math.min(series.length, topN) + (series.length > topN ? 1 : 0);
+      const { c, box, cv } = chartCard(mount, title, opts.sub || monLbl, { span2: opts.span2, h: Math.max(190, 40 + firstLen * 27), icon: opts.icon, headVal: opts.headVal, chips: opts.chips });
+      if (!series.length) { emptyBox(box); return c; }
+      // C33 + Tornike 2026-07-14: the cut segments roll into one "All others (N)" bar so the
+      // bars add up to the headline; hovering it LISTS what's inside, clicking it EXPANDS the
+      // chart to every segment (clicking anywhere while expanded collapses back).
+      let chart = null, expanded = false;
+      const draw = () => {
+        const s = expanded ? series.slice() : series.slice(0, topN);
+        const cut = series.length - s.length;
+        let tail = [];
+        if (!expanded && cut > 0) {
+          tail = series.slice(s.length);
+          s.push({ k: `All others (${cut}) — click to expand`, v: tail.reduce((a, b) => a + (b.v || 0), 0), __other: 1 });
+        }
+        if (chart) chart.destroy();
+        box.style.height = Math.max(190, 40 + s.length * 27) + "px";
+        chart = new Chart(cv, { type: "bar",
+          data: { labels: s.map(r => r.k), datasets: [{ data: s.map(r => r.v), backgroundColor: s.map((r, i) => r.__other ? "#aeb9c8" : (!expanded && i === 0) ? LIME : INK), hoverBackgroundColor: s.map(r => r.__other ? "#98a5b6" : "#34465f"), borderRadius: 4, maxBarThickness: 20 }] },
+          options: baseOpts({ indexAxis: "y", layout: { padding: { right: 58 } },
+            onClick: (e, els) => {
+              if (expanded) { expanded = false; draw(); return; }
+              if (els && els.length && s[els[0].index] && s[els[0].index].__other) { expanded = true; draw(); }
+            },
+            onHover: (e, els) => { if (e.native && e.native.target) e.native.target.style.cursor =
+              (expanded || (els && els.length && s[els[0].index] && s[els[0].index].__other)) ? "pointer" : "default"; },
+            plugins: { legend: { display: false }, tooltip: { callbacks: {
+              label: x => tip(fmt)(x.parsed.x),
+              afterBody: items => {
+                const it = items && items[0];
+                if (!it || !s[it.dataIndex] || !s[it.dataIndex].__other) return;
+                const lines = tail.slice(0, 14).map(t => `${t.k}: ${fmt(t.v)}`);
+                if (tail.length > 14) lines.push(`… +${tail.length - 14} more — click to expand`);
+                return lines;
+              } } } },
+            scales: { x: axY(fmt, { beginAtZero: true }), y: { ticks: { color: INK2, font: { size: 11.5, weight: "600" } }, grid: { display: false }, border: { display: false } } } }),
+          plugins: [valLabels(fmt, true), crosshair] });
+      };
+      draw();
       if (opts.note) note(c, opts.note, opts.noteKind);
       return c;
     }
@@ -581,23 +610,48 @@ async function renderMonthly(host, MRCFG) {
       return c;
     }
     function donut(mount, title, series, fmt, opts) {
-      opts = opts || {}; const pos = series.filter(r => r.v > 0), head = pos.slice(0, 7), tail = pos.slice(7);
-      const s = tail.length ? head.concat([{ k: `All others (${tail.length})`, v: tail.reduce((a, b) => a + b.v, 0), __other: 1 }]) : head;
-      const tot = s.reduce((a, b) => a + b.v, 0);
-      const { c, box, cv } = chartCard(mount, title, opts.sub || monLbl, { h: 250, span2: opts.span2, icon: KIC.pie, headVal: opts.center || fmt(tot) });
-      if (!s.length) { emptyBox(box); return c; }
-      new Chart(cv, { type: "doughnut", data: { labels: s.map(r => r.k), datasets: [{ data: s.map(r => r.v), backgroundColor: s.map((r, i) => r.__other ? "#aeb9c8" : CAT[i % CAT.length]), borderColor: "#fff", borderWidth: 3, hoverOffset: 5 }] },
-        options: baseOpts({ cutout: "66%", interaction: { mode: "nearest", intersect: true }, plugins: { legend: { position: "right", labels: { color: INK2, font: { size: 11 }, boxWidth: 11, padding: 7, usePointStyle: true } }, tooltip: { callbacks: { label: x => `${x.label}: ${tip(fmt)(x.parsed)} (${(x.parsed / tot * 100).toFixed(0)}%)` } } } }),
-        plugins: [{ id: "ctr", afterDraw(ch) { const a = ch.chartArea, ctx = ch.ctx, x = (a.left + a.right) / 2, y = (a.top + a.bottom) / 2; ctx.save(); ctx.textAlign = "center"; ctx.fillStyle = INK; ctx.font = "800 19px " + MONO; ctx.fillText(opts.center || fmt(tot), x, y - 2); ctx.fillStyle = FAINT; ctx.font = "700 10px Inter"; ctx.fillText(opts.centerLbl || "total", x, y + 15); ctx.restore(); } },
-        { id: "dlab", afterDatasetsDraw(ch) {
-          // % label on every slice big enough to hold one (>=4% of the ring)
-          const ctx = ch.ctx; ctx.save(); ctx.font = "800 10px " + MONO; ctx.textAlign = "center"; ctx.textBaseline = "middle";
-          ch.getDatasetMeta(0).data.forEach((el, i) => {
-            const p = s[i] ? s[i].v / tot : 0; if (p < 0.04) return;
-            const pt = el.tooltipPosition ? el.tooltipPosition() : el.getCenterPoint();
-            ctx.strokeStyle = INK; ctx.lineWidth = 2.5; ctx.strokeText((p * 100).toFixed(0) + "%", pt.x, pt.y);
-            ctx.fillStyle = "#fff"; ctx.fillText((p * 100).toFixed(0) + "%", pt.x, pt.y);
-          }); ctx.restore(); } }] });
+      opts = opts || {}; const pos = series.filter(r => r.v > 0);
+      const firstLen = Math.min(pos.length, 7) + (pos.length > 7 ? 1 : 0);
+      const { c, box, cv } = chartCard(mount, title, opts.sub || monLbl, { h: Math.max(250, 90 + firstLen * 0), span2: opts.span2, icon: KIC.pie, headVal: opts.center || fmt(pos.reduce((a, b) => a + b.v, 0)) });
+      if (!pos.length) { emptyBox(box); return c; }
+      // Tornike 2026-07-14: "All others" must be inspectable — hover lists its contents,
+      // click expands the donut to every slice (click again collapses).
+      let chart = null, expanded = false;
+      const draw = () => {
+        const head = expanded ? pos.slice() : pos.slice(0, 7), tail = expanded ? [] : pos.slice(7);
+        const s = tail.length ? head.concat([{ k: `All others (${tail.length}) — click to expand`, v: tail.reduce((a, b) => a + b.v, 0), __other: 1 }]) : head;
+        const tot = s.reduce((a, b) => a + b.v, 0);
+        if (chart) chart.destroy();
+        box.style.height = Math.max(250, expanded ? 120 + s.length * 15 : 250) + "px";
+        chart = new Chart(cv, { type: "doughnut", data: { labels: s.map(r => r.k), datasets: [{ data: s.map(r => r.v), backgroundColor: s.map((r, i) => r.__other ? "#aeb9c8" : CAT[i % CAT.length]), borderColor: "#fff", borderWidth: 3, hoverOffset: 5 }] },
+          options: baseOpts({ cutout: "66%", interaction: { mode: "nearest", intersect: true },
+            onClick: (e, els) => {
+              if (expanded) { expanded = false; draw(); return; }
+              if (els && els.length && s[els[0].index] && s[els[0].index].__other) { expanded = true; draw(); }
+            },
+            onHover: (e, els) => { if (e.native && e.native.target) e.native.target.style.cursor =
+              (expanded || (els && els.length && s[els[0].index] && s[els[0].index].__other)) ? "pointer" : "default"; },
+            plugins: { legend: { position: "right", labels: { color: INK2, font: { size: 11 }, boxWidth: 11, padding: expanded ? 4 : 7, usePointStyle: true } }, tooltip: { callbacks: {
+              label: x => `${x.label}: ${tip(fmt)(x.parsed)} (${(x.parsed / tot * 100).toFixed(0)}%)`,
+              afterBody: items => {
+                const it = items && items[0];
+                if (!it || !s[it.dataIndex] || !s[it.dataIndex].__other) return;
+                const lines = tail.slice(0, 14).map(t => `${t.k}: ${fmt(t.v)}`);
+                if (tail.length > 14) lines.push(`… +${tail.length - 14} more — click to expand`);
+                return lines;
+              } } } } }),
+          plugins: [{ id: "ctr", afterDraw(ch) { const a = ch.chartArea, ctx = ch.ctx, x = (a.left + a.right) / 2, y = (a.top + a.bottom) / 2; ctx.save(); ctx.textAlign = "center"; ctx.fillStyle = INK; ctx.font = "800 19px " + MONO; ctx.fillText(opts.center || fmt(tot), x, y - 2); ctx.fillStyle = FAINT; ctx.font = "700 10px Inter"; ctx.fillText(opts.centerLbl || "total", x, y + 15); ctx.restore(); } },
+          { id: "dlab", afterDatasetsDraw(ch) {
+            // % label on every slice big enough to hold one (>=4% of the ring)
+            const ctx = ch.ctx; ctx.save(); ctx.font = "800 10px " + MONO; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+            ch.getDatasetMeta(0).data.forEach((el, i) => {
+              const p = s[i] ? s[i].v / tot : 0; if (p < 0.04) return;
+              const pt = el.tooltipPosition ? el.tooltipPosition() : el.getCenterPoint();
+              ctx.strokeStyle = INK; ctx.lineWidth = 2.5; ctx.strokeText((p * 100).toFixed(0) + "%", pt.x, pt.y);
+              ctx.fillStyle = "#fff"; ctx.fillText((p * 100).toFixed(0) + "%", pt.x, pt.y);
+            }); ctx.restore(); } }] });
+      };
+      draw();
       return c;
     }
     function waterfall(mount, title, sub, steps, opts) {

@@ -46,7 +46,8 @@ var RP_REASONS = ["Customer refused", "The customer was dissatisfied", "Open cla
   "Elderly customer (not comfortable with technology)", "No internet / poor internet connection",
   "Customer was unfriendly / not willing to engage"];
 var RP = { sources: new Set(), statuses: new Set(), billcats: new Set(), foremen: new Set(),
-  grain: "week", winW: 12, winM: 6, offset: 0, sortCol: null, sortDir: "desc", cell: null, view: "perf" };
+  grain: "week", winW: 12, winM: 6, offset: 0, sortCol: null, sortDir: "desc", cell: null, view: "perf",
+  wlPage: 0 };
 
 registerPage({
   id: "review-performance",
@@ -132,6 +133,7 @@ registerPage({
         .rp-btn{padding:7px 12px;border-radius:10px;border:1px solid var(--line-2);background:var(--panel-2);color:var(--ink);
           font-size:12.5px;font-family:inherit;cursor:pointer}
         .rp-btn:hover{border-color:var(--brand)}
+        .rp-btn[disabled]{opacity:.4;cursor:default;pointer-events:none}
         .rp-wrap{overflow:auto;border:1px solid var(--line);border-radius:12px;max-height:calc(100vh - 232px)}
         .rp-mx{border-collapse:separate;border-spacing:0;font-size:12px;min-width:560px}
         .rp-mx th,.rp-mx td{padding:0;text-align:center;white-space:nowrap;box-sizing:border-box}
@@ -398,6 +400,7 @@ registerPage({
     function closeDrawer() {
       scrim.classList.remove("show"); drawer.classList.remove("show");
       RP.cell = null;
+      RP.wlPage = 0;   // every view-changing control calls closeDrawer — reset the worklist page too
       var m = document.getElementById("rpMatrix"); if (m) m.querySelectorAll(".rp-cell.sel").forEach(el => el.classList.remove("sel"));
     }
     scrim.onclick = closeDrawer;
@@ -617,17 +620,28 @@ registerPage({
           <td class="r">${pr == null ? "—" : pr + "%"}</td></tr>`;
       }).join("");
 
-      // worklist: waiting jobs first, then explained — with the inline explain action
+      // worklist: waiting jobs first, then explained — with the inline explain action.
+      // Paginated 20/page (Tornike 2026-07-14) — data-exbtn carries the ABSOLUTE index
+      // into `work` so wireExplain resolves the right job on any page.
+      var WL_PAGE = 20;
       var work = missing.slice().sort((a, b) =>
         (yes(a["Foreman Response Received"]) ? 1 : 0) - (yes(b["Foreman Response Received"]) ? 1 : 0) ||
         String(b["Job Date"]).localeCompare(String(a["Job Date"])));
-      var workRows = work.slice(0, 200).map((r, i) => {
+      var wlPages = Math.max(1, Math.ceil(work.length / WL_PAGE));
+      if (RP.wlPage >= wlPages) RP.wlPage = wlPages - 1;
+      if (RP.wlPage < 0) RP.wlPage = 0;
+      var wlStart = RP.wlPage * WL_PAGE;
+      var workRows = work.slice(wlStart, wlStart + WL_PAGE).map((r, i) => {
         var expl = String(r["Foreman Explanation"] || "").trim();
         return `<tr><td><b>#${esc(r["Job No"] || "")}</b><br><span style="color:var(--muted)">${esc(r["Customer"] || "—")}</span></td>
           <td>${esc(r["Foreman"] || "—")}</td>
           <td>${esc(shortD(String(r["Job Date"] || "").slice(0, 10)))}</td>
-          <td>${expl ? esc(expl) : `<span class="rp-pill p-miss">waiting</span><button type="button" class="rp-exbtn" style="margin:4px 0 0" data-exbtn="${i}">✍ Explain</button>`}</td></tr>`;
+          <td>${expl ? esc(expl) : `<span class="rp-pill p-miss">waiting</span><button type="button" class="rp-exbtn" style="margin:4px 0 0" data-exbtn="${wlStart + i}">✍ Explain</button>`}</td></tr>`;
       }).join("");
+      var wlPager = wlPages > 1 ? `<div style="display:flex;align-items:center;gap:10px;justify-content:flex-end;padding:10px 2px 0;font-size:13px;color:var(--muted)">
+        <button type="button" class="rp-btn" data-wlprev${RP.wlPage === 0 ? " disabled" : ""}>‹ Prev</button>
+        <span>Page <b style="color:var(--ink)">${RP.wlPage + 1}</b> of ${wlPages}</span>
+        <button type="button" class="rp-btn" data-wlnext${RP.wlPage >= wlPages - 1 ? " disabled" : ""}>Next ›</button></div>` : "";
 
       var el = document.getElementById("rpReasons");
       el.innerHTML = `
@@ -639,9 +653,12 @@ registerPage({
         </div>
         <div class="rp-panel" style="margin-top:12px"><h3>Foreman accountability — who owes explanations</h3>
           <div style="overflow-x:auto"><table class="rp-tbl2"><thead><tr><th>Foreman</th><th style="text-align:right">Missing</th><th style="text-align:right">Explained</th><th style="text-align:right">Waiting</th><th>Top reason</th></tr></thead><tbody>${fmRows || `<tr><td colspan="5" style="color:var(--faint)">Nothing missing in this window 🎉</td></tr>`}</tbody></table></div></div>
-        <div class="rp-panel" style="margin-top:12px"><h3>Missing-review jobs (${N(missing.length)}${missing.length > 200 ? " · showing 200" : ""}) — explain right here</h3>
-          <div style="overflow-x:auto"><table class="rp-tbl2"><thead><tr><th>Job</th><th>Foreman</th><th>Date</th><th>Reason / action</th></tr></thead><tbody>${workRows || `<tr><td colspan="4" style="color:var(--faint)">None in this window.</td></tr>`}</tbody></table></div></div>`;
+        <div class="rp-panel" style="margin-top:12px"><h3>Missing-review jobs (${N(missing.length)}) — explain right here</h3>
+          <div style="overflow-x:auto"><table class="rp-tbl2"><thead><tr><th>Job</th><th>Foreman</th><th>Date</th><th>Reason / action</th></tr></thead><tbody>${workRows || `<tr><td colspan="4" style="color:var(--faint)">None in this window.</td></tr>`}</tbody></table></div>${wlPager}</div>`;
       wireExplain(el, work, () => paintReasons());
+      var wp = el.querySelector("[data-wlprev]"), wn = el.querySelector("[data-wlnext]");
+      if (wp) wp.onclick = () => { RP.wlPage--; paintReasons(); };
+      if (wn) wn.onclick = () => { RP.wlPage++; paintReasons(); };
 
       var ac = allCols(), maxOff = Math.max(0, ac.length - win());
       var cols = windowCols();
