@@ -1209,11 +1209,13 @@ async function renderMonthly(host, MRCFG) {
       const localT = trendSeries("closing", "Revenue", { pre: isLocal });
       const ldT = trendSeries("closing", "Revenue", { pre: notLocal });
       {
-        const labs = localT.map(r => r.k);
+        // drop years empty on BOTH sides (pre-2023 cutoff) so no hollow slots render
+        const yrs = localT.map((r, i) => ({ k: r.k, loc: r.v, ld: (ldT[i] || {}).v })).filter(r => r.loc != null || r.ld != null);
+        const labs = yrs.map(r => r.k);
         const { c: cLL, cv: cvLL } = chartCard(g, "Local vs Long-distance — revenue", MON[mo] + " · " + labs.length + "-yr head-to-head", { h: 230, icon: KIC.bars, headVal: money(lastV(localT)) });
         new Chart(cvLL, { type: "bar", data: { labels: labs, datasets: [
-          { label: "Local Moving", data: localT.map(r => r.v), backgroundColor: LIME, borderRadius: 3, maxBarThickness: 30 },
-          { label: "Long-distance", data: ldT.map(r => r.v), backgroundColor: INK, borderRadius: 3, maxBarThickness: 30 } ] },
+          { label: "Local Moving", data: yrs.map(r => r.loc), backgroundColor: LIME, borderRadius: 3, maxBarThickness: 30 },
+          { label: "Long-distance", data: yrs.map(r => r.ld), backgroundColor: INK, borderRadius: 3, maxBarThickness: 30 } ] },
           options: baseOpts({ plugins: { legend: { display: true, position: "top", align: "end", labels: { color: SUB, font: { size: 11, weight: "600" }, boxWidth: 9, usePointStyle: true } }, tooltip: { callbacks: { label: x => x.dataset.label + ": " + money(x.parsed.y) } } },
             scales: { y: axY(moneyC, { beginAtZero: true }), x: { ticks: { color: INK2, font: { size: 11, weight: "600" } }, grid: { display: false }, border: { display: false } } } }), plugins: [crosshair] });
         note(cLL, `Hourly “Local Moving” (the volume base) vs flat-rate long-distance (“Regular” + “Straight”), same month each year.`, "how");
