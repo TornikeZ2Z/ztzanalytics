@@ -110,6 +110,16 @@ registerPage({
         ".rrp-evrow:first-child{border-top:0}",
         ".rrp-evrow .tm{font-variant-numeric:tabular-nums;color:var(--muted);min-width:60px}",
         ".rrp-evlnk{flex:1;color:var(--faint);font-size:11.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}",
+        ".rrp-msg{margin:0 15px 10px 20px}",
+        ".rrp-msg summary{cursor:pointer;font-size:11.5px;font-weight:700;color:var(--brand);list-style:none;padding:5px 0;width:fit-content}",
+        ".rrp-msg summary::-webkit-details-marker{display:none}",
+        ".rrp-msg summary:hover{text-decoration:underline}",
+        ".rrp-msgbody{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 14px;font-size:12.5px;line-height:1.55;color:var(--ink);white-space:normal;word-break:break-word}",
+        ".rrp-msgbody a{color:#5b9bff}",
+        ".rrp-msgnote{color:var(--muted);font-size:11.5px;margin-bottom:8px}",
+        ".rrp-linkchips{display:flex;flex-wrap:wrap;gap:7px}",
+        ".rrp-linkchip{font-size:11.5px;font-weight:700;background:var(--panel-2);border:1px solid var(--line-2);border-radius:8px;padding:5px 10px;color:#5b9bff;text-decoration:none}",
+        ".rrp-linkchip:hover{border-color:#5b9bff}.rrp-linkchip.off{color:var(--faint)}",
         ".rrp-reasontbl{width:100%;border-collapse:collapse;font-size:13px}",
         ".rrp-reasontbl th{text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--faint);font-weight:800;padding:10px 14px;border-bottom:1px solid var(--line)}",
         ".rrp-reasontbl td{padding:11px 14px;border-top:1px solid var(--line);vertical-align:top}",
@@ -291,6 +301,30 @@ registerPage({
           + "<span>" + (D.jobs || []).length + " job" + ((D.jobs || []).length === 1 ? "" : "s") + "</span></div>" + body;
       }).join("");
     }
+    // "View message sent" — the exact Slack text if the bot logged it, else the actual clickable
+    // links reconstructed from what went out + the current Settings. Only for stages that fired.
+    function linkify(text) {
+      return esc(text).replace(/\n/g, "<br>").replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" target="_blank" rel="noopener">$1</a>');
+    }
+    function reconstructLinks(label) {
+      var cfg = (RRP.data && RRP.data.config && RRP.data.config.google) ? RRP.data.config : RRP_SEED;
+      var out = [];
+      var gm = String(label).match(/Google\(([^)]+)\)/);
+      if (gm) { var gn = gm[1].trim(); var g = (cfg.google || []).filter(function (x) { return x.name === gn; })[0]; out.push({ name: "Google (" + gn + ")", url: g ? g.url : "" }); }
+      (cfg.platforms || []).forEach(function (p) { if (p.name && label.indexOf(p.name) >= 0) out.push({ name: p.name, url: p.url }); });
+      return out;
+    }
+    function msgPanel(s) {
+      if (s.state !== "sent") return "";
+      var body;
+      if (s.row && s.row.message) body = '<div class="rrp-msgbody">' + linkify(s.row.message) + "</div>";
+      else if (s.row && s.row.links) {
+        var links = reconstructLinks(s.row.links);
+        body = '<div class="rrp-msgbody"><div class="rrp-msgnote">The exact text isn’t recorded for this send — here are the review links it included:</div><div class="rrp-linkchips">'
+          + links.map(function (l) { return l.url ? '<a class="rrp-linkchip" href="' + esc(l.url) + '" target="_blank" rel="noopener">' + esc(l.name) + " →</a>" : '<span class="rrp-linkchip off">' + esc(l.name) + "</span>"; }).join("") + "</div></div>";
+      } else return "";
+      return '<details class="rrp-msg"><summary>👁 View message sent</summary>' + body + "</details>";
+    }
     // one job card: Morning · Mid · Final each with its scheduled/sent TIME; expand for detail
     function scheduleCard(dayKey, j, idx) {
       var now = Date.now();
@@ -301,7 +335,7 @@ registerPage({
         else if (row && /skip/i.test(row.status)) st = "skip";
         else if (row && /error/i.test(row.status)) st = "err";
         else st = (new Date(atIso).getTime() <= now) ? "due" : "sched";
-        return { label: label, state: st, at: at, sched: atIso };
+        return { label: label, state: st, at: at, sched: atIso, row: row };
       };
       var stages = [
         mk("Morning", j.morningAt, idx.mBy[dayKey + "|" + j.foremanEmail]),
@@ -334,7 +368,7 @@ registerPage({
           var status = s.state === "sent" ? statusPill("sent") : s.state === "skip" ? statusPill("skipped") : s.state === "err" ? statusPill("error")
             : '<span class="pill s-sched">' + (s.state === "due" ? "Pending" : "Scheduled") + "</span>";
           var line = s.state === "sent" ? ("sent at " + fmtT(s.at)) : ("will send at " + fmtT(s.sched));
-          return '<div class="rrp-evrow"><span class="tm">' + esc(fmtT(s.sched)) + '</span><span class="pill ' + ty.c + '">' + s.label + '</span><span class="rrp-evlnk">' + esc(line) + "</span>" + status + "</div>";
+          return '<div class="rrp-evrow"><span class="tm">' + esc(fmtT(s.sched)) + '</span><span class="pill ' + ty.c + '">' + s.label + '</span><span class="rrp-evlnk">' + esc(line) + "</span>" + status + "</div>" + msgPanel(s);
         }).join("") + "</div>";
       }
       return '<div class="rrp-jobcard' + (open ? " open" : "") + '">' + head + detail + "</div>";
