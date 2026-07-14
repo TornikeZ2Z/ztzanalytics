@@ -19,6 +19,10 @@
 #nav .rs-nav-sub{padding-left:36px !important;font-size:12.5px;opacity:.92}
 #nav .rs-nav-sub svg{display:none}
 #nav .rs-nav-sub::before{content:"·";margin-right:8px;opacity:.5;font-weight:800}
+/* Monthly-Report-family pages own their time — the global Year/Month slicers hide there
+   (the page's cover Month/Year picker is the one time control); see MR_OWN_TIME. */
+body.mr-own-time #frowDates .rs-slicer[data-key="year"],
+body.mr-own-time #frowDates .rs-slicer[data-key="month"]{display:none}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 </head>
@@ -604,10 +608,19 @@ function navigate(id, push) {
    render "bare" — the global date/slicer bar + company chip are hidden so the page's board
    starts right under the header instead of below two rows of greyed-out, unusable filters. */
 const BARE_CHROME = new Set(["review-performance", "sales-speed"]);
+/* Monthly-Report-family pages OWN their time: they have a Month/Year picker on the cover
+   and neutralize the global Year/Month slicers in every computation (withMonth), so those
+   two slicers are hidden there — two competing time controls confused everyone (Tornike
+   2026-07-14). All other filters (Source, Foreman, State…) still apply and stay visible. */
+const MR_OWN_TIME = new Set(["monthly-report",
+  "sales-funnel", "sales-perf", "sales-geo", "mkt-roi", "mkt-sources", "mkt-phone",
+  "log-foreman", "log-packing", "log-fleet", "fin-revenue", "fin-rr",
+  "rev-production", "sup-claims", "sup-refunds", "sup-phone"]);
 async function renderPage() {
   const host = document.getElementById("content");
   updateFilterContext();
   const bare = BARE_CHROME.has(currentLeafId());
+  document.body.classList.toggle("mr-own-time", MR_OWN_TIME.has(currentLeafId()));
   const fEl = document.getElementById("filters"); if (fEl) fEl.classList.toggle("hidden", bare);
   { const cEl = document.getElementById("chips"); if (cEl) { if (bare) cEl.classList.add("hidden"); else paintChips(); } }
   // destroy the outgoing page's Chart instances BEFORE wiping the DOM — otherwise they leak on
@@ -1137,7 +1150,7 @@ registerPage({
 <script src="pages/labor-analysis.js?v=3"></script>
 <script src="pages/financial-analysis.js?v=7"></script>
 <script src="pages/post-card-analysis.js?v=4"></script>
-<script src="pages/monthly-report.js?v=53"></script>
+<script src="pages/monthly-report.js?v=54"></script>
 <script src="pages/leads-vs-moveboard.js?v=6"></script>
 <script src="pages/source-analysis.js?v=3"></script>
 <script src="pages/data-quality.js?v=4"></script>

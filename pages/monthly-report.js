@@ -29,28 +29,50 @@ async function renderMonthly(host, MRCFG) {
     const blank = v => v == null || String(v).trim() === "";
 
     /* ---------- data ---------- */
-    // PERF (2026-07-14 audit): everything starts downloading AT ONCE — the old 3 serial
+    // PERF (2026-07-14 audit): everything downloads concurrently — the old 3 serial
     // Promise.all waves + 5 sequential isolated fetches were a ~7-hop waterfall. The
     // isolated fetches are additionally GATED by SEC() so a one-section themed dashboard
     // no longer pays for data it never renders (full report: SEC is always true).
-    const grab = ds => RS.load(ds).catch(() => []);
+    /* REGRESSION FIX (same day, Tornike's blank-sections report): the first cut fired
+       ~20 requests at once and swallowed failures with catch(()=>[]) — under that burst
+       the bridge dropped some requests, and the page rendered blank sections and, far
+       worse, WRONG composites (Gross Profit computed without helper/commission/refunds
+       looks plausible but is inflated). Now: at most 6 requests in flight, each retried
+       twice with backoff, and a dataset that still fails lands in loadFailures and
+       becomes a red banner — never a silent blank, never a silently wrong number. */
+    const loadFailures = [];
+    let _fly = 0; const _fq = [];
+    const _take = () => new Promise(res => { if (_fly < 6) { _fly++; res(); } else _fq.push(res); });
+    const _give = () => { const n = _fq.shift(); if (n) n(); else _fly--; };
+    async function pooled(label, fn) {
+      await _take();
+      try {
+        for (let a = 0; ; a++) {
+          try { return await fn(); }
+          catch (e) {
+            if (a >= 2) { loadFailures.push(label); console.error("MR feed failed:", label, e); return []; }
+            await new Promise(r => setTimeout(r, 500 * (a + 1) + Math.random() * 400));
+          }
+        }
+      } finally { _give(); }
+    }
+    const grab = ds => pooled(ds, () => RS.load(ds));
     const needPack = SEC("Packing & Storage"), needFleet = SEC("Fleet"), needPhone = SEC("Phone & Response");
     // ISOLATED fetch of the card-expense COST flags. Kept OUT of the shared card_expenses
     // projection on purpose: these columns can vanish on a pipeline re-run, so a failed fetch
     // degrades only the storage/packing-cost panels. Cached on success only.
     const cardCostP = window.__mrCostCache2 ? Promise.resolve(window.__mrCostCache2)
       : !needPack ? Promise.resolve([])
-      : ZTZ.api("/api/fct_card_expenses?limit=1000000&cols=" + encodeURIComponent("Transaction Date,Amount,Is Storage Cost,Is Packing Material Cost,Company"))
-        .then(j => (j.rows || []).filter(coRow).map(r => { const d = String(r["Transaction Date"] || "").slice(0, 10); return { ym: d.slice(0, 7), amt: -num(r.Amount), sto: Number(r["Is Storage Cost"]) === 1, pk: Number(r["Is Packing Material Cost"]) === 1 }; }))
-        .catch(() => []);
+      : pooled("card cost flags", () => ZTZ.api("/api/fct_card_expenses?limit=1000000&cols=" + encodeURIComponent("Transaction Date,Amount,Is Storage Cost,Is Packing Material Cost,Company"))
+        .then(j => (j.rows || []).filter(coRow).map(r => { const d = String(r["Transaction Date"] || "").slice(0, 10); return { ym: d.slice(0, 7), amt: -num(r.Amount), sto: Number(r["Is Storage Cost"]) === 1, pk: Number(r["Is Packing Material Cost"]) === 1 }; })));
     const rcP = (window.__mrRcCache || !needPhone) ? null
-      : ZTZ.api("/api/fct_ringcentral?limit=1000000&cols=" + encodeURIComponent("Date,Type,Direction,Action Result,Duration Seconds,Extension,Company")).then(j => j.rows || []).catch(() => []);
+      : pooled("RingCentral calls", () => ZTZ.api("/api/fct_ringcentral?limit=1000000&cols=" + encodeURIComponent("Date,Type,Direction,Action Result,Duration Seconds,Extension,Company")).then(j => j.rows || []));
     const smsP = (window.__mrRcSmsCache || !needPhone) ? null
-      : ZTZ.api("/api/fct_ringcentral_sms?limit=1000000&cols=" + encodeURIComponent("Date,Direction,Message Status,Company")).then(j => j.rows || []).catch(() => []);
+      : pooled("RingCentral SMS", () => ZTZ.api("/api/fct_ringcentral_sms?limit=1000000&cols=" + encodeURIComponent("Date,Direction,Message Status,Company")).then(j => j.rows || []));
     const fleetP = (window.__mrFleetCache2 || !needFleet) ? null
-      : ZTZ.api("/api/fct_closing?limit=1000000&cols=" + encodeURIComponent("Date,Truck #,Total Bill,Fuel,Truck,Car,Tolls,Company")).then(j => j.rows || []).catch(() => []);
+      : pooled("fleet (truck) data", () => ZTZ.api("/api/fct_closing?limit=1000000&cols=" + encodeURIComponent("Date,Truck #,Total Bill,Fuel,Truck,Car,Tolls,Company")).then(j => j.rows || []));
     const packP = (window.__mrPackCache2 || !needPack) ? null
-      : ZTZ.api("/api/moveboard?limit=1000000&cols=" + encodeURIComponent("Move Date,Service Type,Sales Packing total,Closing Packing total,Company")).then(j => j.rows || []).catch(() => []);
+      : pooled("per-job packing", () => ZTZ.api("/api/moveboard?limit=1000000&cols=" + encodeURIComponent("Move Date,Service Type,Sales Packing total,Closing Packing total,Company")).then(j => j.rows || []));
     const [closing, moveboard, storage, claims, refunds, cardEx,
            reviews, negrev, callrail, scorecard, rcounts, rgoals,
            helperSalDs, salesSalDs, longDist] = await Promise.all(
@@ -178,9 +200,17 @@ async function renderMonthly(host, MRCFG) {
     const memoSerial = JSON.stringify(Object.entries(RS.state.multi)
       .filter(([k, s]) => k !== "year" && k !== "month" && s && s.size)
       .map(([k, s]) => [k, [...s].sort()]).sort());
-    if (!window.__mrMemo || window.__mrMemo.serial !== memoSerial)
-      window.__mrMemo = { serial: memoSerial, map: new Map() };
-    const memo = window.__mrMemo.map;
+    // NEVER persist month-scalars computed from partial data — a failed feed would poison
+    // the cache with plausible-but-wrong numbers (the inflated-Gross-Profit bug). A render
+    // with failures gets a throwaway map; __mrMemo (pre-fix store) is retired outright.
+    delete window.__mrMemo;
+    let memo;
+    if (loadFailures.length) memo = new Map();
+    else {
+      if (!window.__mrMemo2 || window.__mrMemo2.serial !== memoSerial)
+        window.__mrMemo2 = { serial: memoSerial, map: new Map() };
+      memo = window.__mrMemo2.map;
+    }
     function valueFor(ds, measure, y, m, opts) {
       const rows = DS[ds]; if (!rows || !rows.length) return null;
       const cacheable = !opts;
@@ -194,7 +224,10 @@ async function renderMonthly(host, MRCFG) {
       const rows = DS[ds]; if (!rows || !rows.length) return null;
       return withMonth(y, m, () => { let f = RS.filtered(ds, rows, opts); if (opts && opts.pre) f = f.filter(opts.pre); return reducer(f); });
     }
-    const yearsArr = n => { const a = []; for (let y = curY - (n || st.years) + 1; y <= curY; y++) a.push(y); return a; };
+    // Floor at 2023: pre-2023 rows are hard-removed from the warehouse (2023 cutoff), so
+    // earlier years would render as hollow zero slots on every 5-yr chart (Tornike: "we
+    // have hidden 2022 data — why do I still have them in graphs?").
+    const yearsArr = n => { const a = []; for (let y = Math.max(2023, curY - (n || st.years) + 1); y <= curY; y++) a.push(y); return a; };
     const trendSeries = (ds, measure, opts, n) => yearsArr(n).map(y => ({ k: String(y), v: valueFor(ds, measure, y, mo, opts) }));
     function momSeries(ds, measure, n, opts) {
       const out = []; let y = curY, m = mo;
@@ -315,8 +348,16 @@ async function renderMonthly(host, MRCFG) {
       const s = document.createElement("style"); s.id = "mrx-css";
       s.textContent = `
       .mrx{background:#f4f6fa;color:${INK};border-radius:16px;padding:24px 24px 46px;font-family:Inter,system-ui,sans-serif;-webkit-font-smoothing:antialiased;
-        max-width:1560px;margin:0 auto;box-shadow:0 10px 44px rgba(0,0,0,.35)}
+        box-shadow:0 10px 44px rgba(0,0,0,.35)}
       .mrx *{box-sizing:border-box}
+      .mrx-info{display:inline-flex;align-items:center;justify-content:center;width:17px;height:17px;margin-left:7px;vertical-align:-2px;
+        border:1.4px solid #b6c0cd;border-radius:50%;background:transparent;color:#8a95a4;cursor:pointer;padding:0;
+        font:italic 700 11px/1 Georgia,serif}
+      .mrx-info:hover{border-color:${INK};color:${INK}}
+      .mrx-info.on{background:${INK};border-color:${INK};color:${LIME}}
+      .mrx-loaderr{background:#fbe6e7;border:1.5px solid #e5b6ba;border-left:5px solid #b02a37;color:#7a1f28;border-radius:12px;
+        padding:13px 16px;margin-bottom:14px;font-size:13.5px;line-height:1.55;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+      .mrx-loaderr button{margin-top:0}
       .mrx-cover{position:relative;background:${INK};color:#fff;border-radius:16px;padding:24px 26px;margin-bottom:16px;overflow:hidden}
       .mrx-cover .mrx-accent{position:absolute;left:0;top:0;bottom:0;width:6px;background:${LIME}}
       .mrx-eyebrow{font-size:10.5px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:${LIME}}
@@ -488,8 +529,22 @@ async function renderMonthly(host, MRCFG) {
     function note(c, txt, kind) {
       if (!txt) return; const n = document.createElement("div");
       const how = kind === "how";
-      n.className = "mrx-note" + (how ? " how" : "");   // visually distinct: gray = methodology, lime = finding
+      n.className = "mrx-note" + (how ? " how" : "");   // gray = methodology, lime = finding
       n.innerHTML = `<b style="color:${how ? SUB : LIMED}">${how ? "How it's counted · " : "Insight · "}</b>${esc(txt)}`;
+      if (how) {
+        // Methodology hides behind an ℹ icon next to the card title (Tornike 2026-07-14:
+        // "it makes the dashboard ugly — at least hide them in Information icon").
+        // Insight notes (lime, findings) stay visible — only the how-text folds away.
+        n.style.display = "none";
+        const ic = document.createElement("button"); ic.type = "button"; ic.className = "mrx-info";
+        ic.title = "How it's counted"; ic.textContent = "i";
+        ic.onclick = e => {
+          e.stopPropagation();
+          const open = n.style.display === "none";
+          n.style.display = open ? "block" : "none"; ic.classList.toggle("on", open);
+        };
+        const tt = c.querySelector(".mrx-ct"); (tt || c).appendChild(ic);
+      }
       c.appendChild(n);
     }
     function emptyBox(box, msg) { box.innerHTML = `<div class="mrx-empty">${esc(msg || ("No data for " + monLbl))}</div>`; }
@@ -844,7 +899,7 @@ async function renderMonthly(host, MRCFG) {
     async function downloadReportPDF() {
       const btn = document.getElementById("mrPrint"); const rt = document.querySelector(".mrx");
       if (!rt) return; const label = btn ? btn.innerHTML : "";
-      const hidden = [].slice.call(rt.querySelectorAll(".mrx-print,.mrx-xls,.mrx-caret,.mrx-code,.mrx-ctl,.mrx-toc,.mrx-btoggle"));
+      const hidden = [].slice.call(rt.querySelectorAll(".mrx-print,.mrx-xls,.mrx-caret,.mrx-code,.mrx-ctl,.mrx-toc,.mrx-btoggle,.mrx-info,.mrx-loaderr"));
       const collapsed = [].slice.call(rt.querySelectorAll(".mrx-sec.collapsed"));
       // full-screen scrim: the build mutates the DOM for ~10s (expands sections, swaps canvases) —
       // without it the page looks broken and a stray click mid-build corrupts the capture.
@@ -949,6 +1004,16 @@ async function renderMonthly(host, MRCFG) {
     const monthOptions = MON.slice(1).map((m, i) => `<option value="${i + 1}"${i + 1 === mo ? " selected" : ""}>${m}</option>`).join("");
     const yearOptions = yearOpts.map(y => `<option${y === curY ? " selected" : ""}>${y}</option>`).join("");
     const LITE = !!(MRCFG && MRCFG.lite);
+    // Data-feed failure banner — LOUD and first. A feed that failed all retries means the
+    // page below is missing data (and composites like Gross Profit would read wrong), so
+    // say it plainly instead of letting anyone trust a half-loaded report.
+    if (loadFailures.length) {
+      const eb = document.createElement("div"); eb.className = "mrx-loaderr";
+      eb.innerHTML = `<span><b>⚠ ${loadFailures.length} data feed${loadFailures.length > 1 ? "s" : ""} failed to load:</b> ${esc(loadFailures.join(", "))}.
+        The numbers below are <b>incomplete</b> — retry before reading this report.</span>
+        <button type="button" class="mrx-xls" id="mrRetryLoad">↻ Retry now</button>`;
+      root.appendChild(eb);
+    }
     if (LITE) {
       // themed dashboards: a compact header (topic title + month/year selector) — no hero, no PDF.
       const hdr = document.createElement("div"); hdr.className = "mrx-lite-h";
@@ -1873,6 +1938,7 @@ async function renderMonthly(host, MRCFG) {
     document.getElementById("mrYear").onchange = e => { st.year = +e.target.value; saveMonth(); reRender(); };
     const pb = document.getElementById("mrPrint"); if (pb) pb.onclick = downloadReportPDF;
     const pv = document.getElementById("mrPrint2"); if (pv) pv.onclick = () => window.print();
+    const rl = document.getElementById("mrRetryLoad"); if (rl) rl.onclick = () => reRender();   // failed feeds aren't cached — a re-render refetches them
 }
 
 registerPage({ id: "monthly-report", group: "pulse", title: "Monthly Report", render(host) { return renderMonthly(host, null); } });
