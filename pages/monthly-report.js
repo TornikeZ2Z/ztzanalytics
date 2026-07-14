@@ -1808,25 +1808,31 @@ async function renderMonthly(host, MRCFG) {
         const gp = {}; goalRows.filter(r => String(r.Date || "").slice(0, 10) === goalDate)
           .forEach(r => { const k = String(r.Platform || "—"); gp[k] = (gp[k] || 0) + num(r["Number of Reviews"]); });
         const rcRows2 = (DS.review_counts || []).filter(coRow);
+        // the goals sheet and the counts sheet spell platforms slightly differently
+        // ("NextdoorShafto" vs "Nextdoor Shafto") — join on case-folded alphanumerics.
+        // Display always uses the GOAL sheet's name.
+        const nk = s => String(s == null ? "" : s).toLowerCase().replace(/[^a-z0-9]/g, "");
         const snapDates = [...new Set(rcRows2.map(r => String(r.Date || "").slice(0, 10)))].filter(d => d <= monthEndKey).sort();
         const snap = snapDates[snapDates.length - 1], snapPrev = snapDates[snapDates.length - 2];
-        const footAt = d => { const m2 = {}; rcRows2.filter(r => String(r.Date || "").slice(0, 10) === d).forEach(r => { const k = String(r.Platform || "—"); m2[k] = (m2[k] || 0) + num(r["Number of Reviews"]); }); return m2; };
+        const footAt = d => { const m2 = {}; rcRows2.filter(r => String(r.Date || "").slice(0, 10) === d).forEach(r => { const k = nk(r.Platform); m2[k] = (m2[k] || 0) + num(r["Number of Reviews"]); }); return m2; };
         const cur2 = snap ? footAt(snap) : {}, prev2 = snapPrev ? footAt(snapPrev) : null;
         const plats = Object.keys(gp).sort((a, b) => gp[b] - gp[a]);
         if (plats.length) {
           const goalTot = plats.reduce((a, k) => a + gp[k], 0);
-          const nowTot = plats.reduce((a, k) => a + (cur2[k] || 0), 0);
+          const nowTot = plats.reduce((a, k) => a + (cur2[nk(k)] || 0), 0);
           const toGo = Math.max(0, goalTot - nowTot);
           const monthsLeft = Math.max(0, (gY * 12 + gM - 1) - (curY * 12 + mo));
-          const addedPM = prev2 ? plats.reduce((a, k) => a + (cur2[k] || 0), 0) - plats.reduce((a, k) => a + (prev2[k] || 0), 0) : null;
+          const addedPM = prev2 ? plats.reduce((a, k) => a + (cur2[nk(k)] || 0), 0) - plats.reduce((a, k) => a + (prev2[nk(k)] || 0), 0) : null;
           const ended = !!goalPast;
+          const untracked = plats.filter(k => !(nk(k) in cur2));
           const pcell = (now, goal2) => { const p = goal2 ? Math.min(100, now / goal2 * 100) : 0; return `<td class="bar"><i style="width:${p.toFixed(0)}%;background:${p >= 100 ? "#dcecab" : "#e7ecfb"}"></i><span>${p.toFixed(0)}%</span></td>`; };
-          const rowsH = plats.map(k => { const now = cur2[k] || 0, gl = gp[k], d = gl - now; return `<tr><td>${esc(k)}</td>${td(fmtN(now))}${td(fmtN(gl))}${td(d > 0 ? fmtN(d) : "✓ done", d > 0 ? "font-weight:800" : "color:#1c7a4a;font-weight:800")}${pcell(now, gl)}</tr>`; }).join("")
+          const rowsH = plats.map(k => { const now = cur2[nk(k)] || 0, gl = gp[k], d = gl - now; return `<tr><td>${esc(k)}${(nk(k) in cur2) ? "" : ` <span style="color:#b7791a;font-weight:800" title="No platform with this name in the review-counts sheet">⚠</span>`}</td>${td(fmtN(now))}${td(fmtN(gl))}${td(d > 0 ? fmtN(d) : "✓ done", d > 0 ? "font-weight:800" : "color:#1c7a4a;font-weight:800")}${pcell(now, gl)}</tr>`; }).join("")
             + `<tr style="font-weight:800;border-top:2px solid #c9d1dc"><td>Total</td>${td(fmtN(nowTot))}${td(fmtN(goalTot))}${td(toGo > 0 ? fmtN(toGo) : "✓ done", toGo > 0 ? "" : "color:#1c7a4a")}${pcell(nowTot, goalTot)}</tr>`;
           const gc = tableCard(g, "Review goal — where we stand", (ended ? `period ended ${MON[endM]} ${endY}` : `target for end of ${MON[endM]} ${endY}`) + ` · footprint as of ${snap || "—"}`,
             `<table class="mrx-tbl"><thead><tr><th>Platform</th><th>Reviews now</th><th>Goal</th><th>To go</th><th>Progress</th></tr></thead><tbody>${rowsH}</tbody></table>`,
             { icon: KIC.trend, headVal: goalTot ? pct(nowTot / goalTot) : "—" });
           if (!ended && toGo > 0 && monthsLeft > 0) note(gc, `${fmtN(toGo)} reviews to go in ${monthsLeft} month${monthsLeft > 1 ? "s" : ""} — that's ~${fmtN(Math.ceil(toGo / monthsLeft))}/month${addedPM != null ? `; the footprint grew ${addedPM >= 0 ? "+" : ""}${fmtN(addedPM)} last month${addedPM < toGo / monthsLeft ? " — BELOW the needed pace" : " — on pace"}` : ""}.`);
+          if (untracked.length) note(gc, `⚠ ${untracked.map(esc).join(", ")}: the goal sheet names ${untracked.length > 1 ? "these platforms" : "this platform"} but the review-counts sheet has no matching row — showing 0. If ${untracked.length > 1 ? "they exist" : "it exists"} under another name there, align the naming and this fixes itself.`);
           note(gc, `Goals are end-of-period targets: by ${MON[endM]} ${endY} the total public reviews on each platform must reach the Goal column. "Reviews now" is the latest footprint snapshot (fct_review_counts); progress = now ÷ goal.`, "how");
         }
       }
