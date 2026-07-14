@@ -118,7 +118,7 @@ registerPage({
         var cb = "__rrcb_" + Date.now() + "_" + Math.floor(Math.random() * 1e6);
         var s = document.createElement("script"); var done = false;
         var clean = function () { try { delete window[cb]; } catch (e) { window[cb] = undefined; } s.remove(); };
-        var timer = setTimeout(function () { if (!done) { done = true; clean(); reject(new Error("timeout")); } }, 10000);
+        var timer = setTimeout(function () { if (!done) { done = true; clean(); reject(new Error("timeout")); } }, 20000);   // Apps Script relay can cold-start ~10-15s
         window[cb] = function (d) { if (done) return; done = true; clearTimeout(timer); clean(); resolve(d); };
         s.onerror = function () { if (done) return; done = true; clearTimeout(timer); clean(); reject(new Error("load error")); };
         s.src = url + (url.indexOf("?") >= 0 ? "&" : "?") + "callback=" + cb;
