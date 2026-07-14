@@ -22,7 +22,7 @@
         "Bill Increase Category", "Review Received", "Number of Reviews", "Review Source",
         "Review Breakdown", "Eligible", "Support Intervention", "Support Intervention Reason",
         "Review Expected", "Exclusion Reason", "Foreman Response Received", "Foreman Reason",
-        "Foreman Explanation", "Final Status",
+        "Foreman Explanation", "Final Status", "Event ID",
       ],
     };
   }
@@ -91,6 +91,8 @@ registerPage({
         .rp-head{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;padding:2px 2px 0}
         .rp-head h1{margin:0;font-size:21px;font-weight:800;letter-spacing:-.01em}
         .rp-head p{margin:0;color:var(--muted);font-size:13px}
+        .rp-live{font-size:11px;font-weight:800;vertical-align:3px;padding:3px 9px;border-radius:999px;background:rgba(46,160,90,.16);color:#2ea05a;letter-spacing:.02em;white-space:nowrap}
+        .rp-live.pending{background:var(--panel-2);color:var(--faint)}
         .rp-bar{position:sticky;top:0;z-index:6;display:flex;flex-wrap:wrap;gap:8px;align-items:center;
           padding:10px 0;margin-top:6px;background:var(--bg,var(--panel));border-bottom:1px solid var(--line)}
         .rp-kpis{display:flex;gap:8px;overflow-x:auto;padding:2px 0 10px;scrollbar-width:thin}
@@ -227,7 +229,7 @@ registerPage({
 
     host.innerHTML = `
       <div class="rp-head">
-        <h1>Review Performance</h1>
+        <h1>Review Performance <span id="rpLive" class="rp-live pending" title="Live reviews are read straight from the Data for Reviews sheet, ahead of the ~6-hour warehouse refresh">◷ syncing live…</span></h1>
         <p>Reviews generated per foreman · <b>reviews ÷ eligible jobs</b> · target 100% · click a cell for the jobs and where each review came from — missing reviews can be explained right here →</p>
       </div>
       <div class="rp-kpis" id="rpKpis"><div class="rs-loading">Loading jobs…</div></div>
@@ -240,6 +242,62 @@ registerPage({
     try { rows = await RS.load("fct_job_overview"); }
     catch (e) { document.getElementById("rpKpis").innerHTML = `<div class="rs-loading">Couldn't load — ${esc(e.message)}</div>`; return; }
     if (!document.getElementById("rpMatrix")) return;
+
+    // ---- LIVE reviews overlay (no 6h wait) ----
+    // The warehouse's Review Received refreshes every ~6h and matches reviews to jobs by request #
+    // (fragile). This overlays the LIVE "Data for Reviews" sheet via the relay, matched by Event ID
+    // (robust — bypasses request-# typos, fixes both staleness and mismatches). Fetched in the
+    // background; the matrix repaints when it lands. Never removes a review — only adds fresher ones.
+    var RP_LIVE = { on: false, added: 0, at: null };
+    function rpJsonp(url) {
+      return new Promise(function (resolve, reject) {
+        var cb = "__rplive_" + Date.now() + "_" + Math.floor(Math.random() * 1e6);
+        var s = document.createElement("script"); var done = false;
+        var clean = function () { try { delete window[cb]; } catch (e) { window[cb] = undefined; } s.remove(); };
+        var t = setTimeout(function () { if (!done) { done = true; clean(); reject(new Error("timeout")); } }, 20000);
+        window[cb] = function (d) { if (done) return; done = true; clearTimeout(t); clean(); resolve(d); };
+        s.onerror = function () { if (done) return; done = true; clearTimeout(t); clean(); reject(new Error("load error")); };
+        s.src = url + (url.indexOf("?") >= 0 ? "&" : "?") + "callback=" + cb;
+        document.head.appendChild(s);
+      });
+    }
+    var normEv = function (s) { return String(s == null ? "" : s).trim().toLowerCase().split("@")[0]; };
+    function applyLive(reviews) {
+      if (!reviews || !reviews.length) return 0;
+      var byEv = {}, byReq = {};
+      reviews.forEach(function (v) { if (v.ev) byEv[normEv(v.ev)] = v; if (v.req) byReq[String(v.req).trim()] = v; });
+      var n = 0;
+      rows.forEach(function (r) {
+        var v = byEv[normEv(r["Event ID"])] || byReq[String(r["Job No"] || "").trim()];
+        if (!v) return;
+        var cur = num(r["Number of Reviews"]);
+        if (v.counted > cur) {                                   // fresher than the warehouse → adopt it
+          r["Number of Reviews"] = v.counted;
+          r["Review Received"] = v.counted > 1 ? "Multiple Reviews Received" : "Review Received";
+          if (v.source) r["Review Source"] = v.source;
+          if (v.breakdown) r["Review Breakdown"] = v.breakdown;
+          if (String(r["Final Status"] || "").indexOf("Missing Review") === 0) r["Final Status"] = "Review Received";
+          r._live = true; n++;
+        }
+      });
+      return n;
+    }
+    function paintLiveBadge() {
+      var el = document.getElementById("rpLive"); if (!el) return;
+      if (!RP_LIVE.on) return;
+      el.classList.remove("pending");
+      var tm = RP_LIVE.at ? RP_LIVE.at.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) : "";
+      el.textContent = "● Live · " + RP_LIVE.added + " fresh review" + (RP_LIVE.added === 1 ? "" : "s") + " added" + (tm ? " · " + tm : "");
+      el.title = "These reviews were read live from the Data for Reviews sheet and matched by Event ID — ahead of the ~6-hour warehouse refresh.";
+    }
+    rpJsonp(RP_RELAY + "?req=liveReviews").then(function (d) {
+      if (d && d.ok && d.reviews) {
+        var n = applyLive(d.reviews);
+        RP_LIVE.on = true; RP_LIVE.added = n; RP_LIVE.at = new Date();
+        if (typeof repaint === "function") repaint();
+        paintLiveBadge();
+      } else { var el = document.getElementById("rpLive"); if (el) el.style.display = "none"; }
+    }).catch(function () { var el = document.getElementById("rpLive"); if (el) el.style.display = "none"; });
 
     var sources = [...new Set(rows.map(r => r["Job Source"]).filter(Boolean))].sort();
     var statuses = [...new Set(rows.map(r => r["Final Status"]).filter(Boolean))].sort();
