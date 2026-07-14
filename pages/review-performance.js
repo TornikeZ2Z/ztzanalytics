@@ -151,12 +151,14 @@ registerPage({
         .rp-cell.sel{outline:2px solid var(--ink);outline-offset:-2px}
         .rp-legend{display:flex;flex-wrap:wrap;gap:9px;font-size:11px;color:var(--muted);padding:9px 2px 4px}
         .rp-legend span{display:inline-flex;align-items:center;gap:5px}.rp-legend i{width:12px;height:12px;border-radius:3px;display:inline-block}
-        .rp-scrim{position:fixed;inset:0;background:rgba(15,23,42,.34);z-index:50;opacity:0;transition:opacity .2s;backdrop-filter:blur(1px)}
-        .rp-scrim.show{opacity:1}
+        /* pointer-events MUST toggle with visibility — an opacity-0 fixed overlay still
+           hit-tests, which made the whole page unclickable ("frozen") while it sat there */
+        .rp-scrim{position:fixed;inset:0;background:rgba(15,23,42,.34);z-index:50;opacity:0;transition:opacity .2s;backdrop-filter:blur(1px);pointer-events:none;visibility:hidden}
+        .rp-scrim.show{opacity:1;pointer-events:auto;visibility:visible}
         .rp-drawer{position:fixed;top:0;right:0;height:100vh;width:min(468px,94vw);background:var(--panel);z-index:51;
           box-shadow:-18px 0 48px rgba(0,0,0,.24);transform:translateX(100%);transition:transform .24s cubic-bezier(.4,0,.2,1);
-          display:flex;flex-direction:column}
-        .rp-drawer.show{transform:none}
+          display:flex;flex-direction:column;visibility:hidden}
+        .rp-drawer.show{transform:none;visibility:visible}
         .rp-dhd{padding:16px 18px 12px;border-bottom:1px solid var(--line);position:relative}
         .rp-dhd .x{position:absolute;top:12px;right:12px;border:0;background:var(--panel-2);color:var(--muted);width:30px;height:30px;
           border-radius:9px;cursor:pointer;font-size:16px;line-height:1}
