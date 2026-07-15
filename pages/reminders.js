@@ -50,7 +50,7 @@ registerPage({
   // ReferenceError → Refresh button did nothing).
   render: async function render(host) {
     var esc = RSC.esc, N = RS.fmtN;
-    var TYPE = { morning: { l: "Morning", c: "t-blue" }, mid: { l: "Mid-job", c: "t-amber" }, final: { l: "Final", c: "t-green" } };
+    var TYPE = { morning: { l: "Morning", c: "t-blue" }, pre: { l: "Pre-start · Yelp", c: "t-red" }, mid: { l: "Mid-job", c: "t-amber" }, final: { l: "Final", c: "t-green" } };
 
     if (!document.getElementById("rrp-style")) {
       var st = document.createElement("style"); st.id = "rrp-style";
@@ -85,7 +85,7 @@ registerPage({
         ".rrp-row .cust{color:var(--ink)}.rrp-row .cust small{display:block;color:var(--faint);font-size:11px;margin-top:1px}",
         ".rrp-row .lnk{color:var(--muted);font-size:11.5px}",
         ".pill{display:inline-block;font-size:10.5px;font-weight:800;letter-spacing:.02em;padding:3px 8px;border-radius:999px;white-space:nowrap}",
-        ".t-blue{background:rgba(56,132,255,.16);color:#5b9bff}.t-amber{background:rgba(224,145,42,.16);color:#e0912a}.t-green{background:rgba(46,160,90,.18);color:#3fbb6d}",
+        ".t-blue{background:rgba(56,132,255,.16);color:#5b9bff}.t-amber{background:rgba(224,145,42,.16);color:#e0912a}.t-green{background:rgba(46,160,90,.18);color:#3fbb6d}.t-red{background:rgba(220,53,69,.16);color:#e4606d}",
         ".s-sent{background:rgba(46,160,90,.16);color:#3fbb6d}.s-skip{background:rgba(224,145,42,.18);color:#e0912a}.s-err{background:rgba(229,72,77,.18);color:#e5484d}",
         ".rrp-empty{background:var(--panel);border:1px dashed var(--line-2);border-radius:14px;padding:34px;text-align:center;color:var(--muted);font-size:14px}",
         ".rrp-dayhead{display:flex;align-items:center;gap:9px;cursor:pointer;user-select:none;margin:16px 0 9px;padding:2px 0}",
@@ -440,9 +440,15 @@ registerPage({
       var midS = mkStage("Mid", j.midAt, idx.midBy[dayKey + "|" + j.job]);
       var finS = mkStage("Final", j.finalAt, idx.finBy[dayKey + "|" + j.job]);
       var key = dayKey + "|" + j.job, open = !!RRP.openJobs[key];
+      // Yelp jobs get a loud badge: the crew must NOT send a Yelp link (verbal ask + our links
+      // instead), and the bot fires an extra pre-start warning 1h before the job. The field
+      // arrives from the relay; older relay payloads simply have no flag — badge hidden.
+      var yelpBadge = j.isYelp
+        ? '<span style="display:inline-block;margin-left:7px;padding:1px 8px;border-radius:999px;background:#fbe6e7;color:#7a1f28;font-size:10.5px;font-weight:800;letter-spacing:.03em" title="Yelp customer — never send a Yelp review link. The bot warns the foreman 1h before start: ask verbally, send Google/Trustpilot/Facebook.">⚠ YELP — no Yelp link</span>'
+        : "";
       var head = '<div class="rrp-jrhead" data-job="' + esc(key) + '">'
         + '<span class="rrp-jrchev">' + (open ? "▾" : "▸") + "</span>"
-        + '<span class="rrp-jrc">' + esc(j.customer || "—") + "<small>" + esc(j.job) + (j.state ? " · " + esc(j.state) : "") + "</small></span>"
+        + '<span class="rrp-jrc">' + esc(j.customer || "—") + yelpBadge + "<small>" + esc(j.job) + (j.state ? " · " + esc(j.state) : "") + "</small></span>"
         + '<span class="rrp-jrstages">' + stagePill(midS) + stagePill(finS) + "</span></div>";
       var detail = open ? '<div class="rrp-jobevents">' + eventPanel(j) + stageDetailRow(midS, j) + stageDetailRow(finS, j) + "</div>" : "";
       return "<div>" + head + detail + "</div>";
