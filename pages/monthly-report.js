@@ -326,6 +326,7 @@ async function renderMonthly(host, MRCFG) {
       "Quality & Customer Experience": '<svg viewBox="0 0 24 24"><path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.7L12 17l-5.2 2.5 1-5.7L3.5 9.7l5.9-.9z"/></svg>',
       "Reviews Production": '<svg viewBox="0 0 24 24"><path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.7L12 17l-5.2 2.5 1-5.7L3.5 9.7l5.9-.9z"/></svg>',
       "Claims": '<svg viewBox="0 0 24 24"><path d="M12 3l9 16H3z"/><path d="M12 10v4"/><path d="M12 17h.01"/></svg>',
+      "Claims & Refunds": '<svg viewBox="0 0 24 24"><path d="M12 3l9 16H3z"/><path d="M12 10v4"/><path d="M12 17h.01"/></svg>',
       "Refunds & Cost of Quality": '<svg viewBox="0 0 24 24"><path d="M12 2v20"/><path d="M17 6c0-2-2.2-3-5-3S7 4 7 6s2.2 3 5 3 5 1 5 3-2.2 3-5 3-5-1-5-3"/></svg>',
       "Geography — by State": '<svg viewBox="0 0 24 24"><path d="M12 21s7-5.6 7-11a7 7 0 10-14 0c0 5.4 7 11 7 11z"/><circle cx="12" cy="10" r="2.5"/></svg>',
       "Lead Segmentation": '<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="4" rx="1"/><rect x="3" y="10" width="18" height="4" rx="1"/><rect x="3" y="16" width="18" height="4" rx="1"/></svg>',
@@ -451,6 +452,16 @@ async function renderMonthly(host, MRCFG) {
       .mrx-exec{background:${INK};color:#e8edf3;border-radius:12px;padding:14px 16px;font-size:13.5px;line-height:1.55;margin-top:16px}
       .mrx-exec b{color:${LIME}}
       .mrx-tbl{width:100%;border-collapse:collapse;font-size:13.5px;font-variant-numeric:tabular-nums;font-family:${MONO}}
+      .mrx-pgfoot{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:11px;flex-wrap:wrap;font-family:${MONO};font-size:11.5px;font-weight:700;color:${SUB}}
+      .mrx-pgnav{display:inline-flex;align-items:center;gap:7px}
+      .mrx-pgnav b{color:${INK};font-size:11.5px}
+      .mrx-pgright{display:inline-flex;gap:7px;align-items:center}
+      .mrx-pgbtn{border:1px solid ${LINE};background:#fff;color:${INK};border-radius:7px;padding:4px 11px;font:inherit;font-family:${MONO};font-size:11.5px;font-weight:700;cursor:pointer;line-height:1.3}
+      .mrx-pgbtn:hover:not([disabled]){border-color:${INK};background:#eef1f6}
+      .mrx-pgbtn[disabled]{opacity:.38;cursor:default}
+      .mrx-pgbtn.ghost{color:${SUB}}
+      .mrx-pgbtn.xls{background:${INK};color:#fff;border-color:${INK}}
+      .mrx-pgbtn.xls:hover{background:${INK2}}
       .mrx-tbl th{font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:${SUB};text-align:right;padding:7px 9px;border-bottom:2px solid ${INK};white-space:nowrap;font-family:Inter,sans-serif}
       .mrx-tbl th:first-child{text-align:left}
       .mrx-tbl td{padding:7px 9px;text-align:right;border-bottom:1px solid #eef1f5;color:${INK2};white-space:nowrap}
@@ -556,7 +567,7 @@ async function renderMonthly(host, MRCFG) {
       c.appendChild(n);
     }
     function emptyBox(box, msg) { box.innerHTML = `<div class="mrx-empty">${esc(msg || ("No data for " + monLbl))}</div>`; }
-    const TOCNAME = { "Executive Summary": "Summary", "Demand & Lead Funnel": "Leads", "Sales Team Performance": "Sales", "Operations & Crew (Foreman)": "Crew", "Packing & Storage": "Packing", "Revenue & Growth": "Revenue", "Revenue Composition & Segments": "Rev. Mix", "Profitability & P&L": "P&L", "Marketing & Channels": "Marketing", "Marketing ROI": "Mkt ROI", "Lead Sources": "Sources", "Fleet": "Fleet", "Phone & Response": "Phone", "Quality & Customer Experience": "Quality", "Reviews Production": "Reviews", "Claims": "Claims", "Refunds & Cost of Quality": "Refunds", "Geography — by State": "Geography", "Lead Segmentation": "Segments", "Repeat & Referral Business": "Repeat & Referral", "Per-Job Profitability": "Per Job" };
+    const TOCNAME = { "Executive Summary": "Summary", "Demand & Lead Funnel": "Leads", "Sales Team Performance": "Sales", "Operations & Crew (Foreman)": "Crew", "Packing & Storage": "Packing", "Revenue & Growth": "Revenue", "Revenue Composition & Segments": "Rev. Mix", "Profitability & P&L": "P&L", "Marketing & Channels": "Marketing", "Marketing ROI": "Mkt ROI", "Lead Sources": "Sources", "Fleet": "Fleet", "Phone & Response": "Phone", "Quality & Customer Experience": "Quality", "Reviews Production": "Reviews", "Claims": "Claims", "Claims & Refunds": "Claims/Refunds", "Refunds & Cost of Quality": "Refunds", "Geography — by State": "Geography", "Lead Segmentation": "Segments", "Repeat & Referral Business": "Repeat & Referral", "Per-Job Profitability": "Per Job" };
     let bodyEl, secN = 0; const secList = [], tocParts = [];
     // collapsed-section memory (UX audit 2026-07-14): survives month flips and visits
     const collapsedSet = (() => { try { return new Set(JSON.parse(localStorage.getItem("ztzMrCollapsed") || "[]")); } catch (e) { return new Set(); } })();
@@ -854,6 +865,37 @@ async function renderMonthly(host, MRCFG) {
         foot.appendChild(xb); c.appendChild(foot);
       }
       if (opts.note) note(c, opts.note, opts.noteKind); return c;
+    }
+    // Paginated line-item register (Tornike 2026-07-15): 10 rows/page + ‹ prev/next › + "Show all",
+    // Excel export of the FULL set. rows = data; rowHtml(r) => one <tr>; headers = [{label, align?}].
+    function paginatedTable(mount, title, sub, headers, rows, rowHtml, opts) {
+      opts = opts || {};
+      const per = opts.per || 10;
+      const c = card(mount, title, sub || monLbl, { span2: opts.span2 !== false, icon: opts.icon || KIC.grid, headVal: opts.headVal });
+      const box = document.createElement("div"); c.appendChild(box);
+      const thead = `<thead><tr>${headers.map(h => `<th${h.align ? ` style="text-align:${h.align}"` : ""}>${esc(h.label)}</th>`).join("")}</tr></thead>`;
+      let page = 0, showAll = false;
+      const pages = Math.max(1, Math.ceil(rows.length / per));
+      function draw() {
+        const shown = showAll ? rows : rows.slice(page * per, page * per + per);
+        let foot;
+        if (rows.length > per) {
+          const from = showAll ? 1 : page * per + 1, to = showAll ? rows.length : Math.min(rows.length, page * per + per);
+          foot = `<div class="mrx-pgfoot"><span>${from}–${to} of ${fmtN(rows.length)}</span>`
+            + (showAll ? "" : `<span class="mrx-pgnav"><button class="mrx-pgbtn" data-prev${page === 0 ? " disabled" : ""}>‹</button><b>${page + 1} / ${pages}</b><button class="mrx-pgbtn" data-next${page >= pages - 1 ? " disabled" : ""}>›</button></span>`)
+            + `<span class="mrx-pgright"><button class="mrx-pgbtn ghost" data-all>${showAll ? "Paginate" : "Show all"}</button><button class="mrx-pgbtn xls" data-xls>⬇ Excel</button></span></div>`;
+        } else {
+          foot = `<div class="mrx-pgfoot"><span>${fmtN(rows.length)} row${rows.length === 1 ? "" : "s"}</span><button class="mrx-pgbtn xls" data-xls>⬇ Excel</button></div>`;
+        }
+        box.innerHTML = `<div class="mrx-scroll"><table class="mrx-tbl">${thead}<tbody>${shown.map(rowHtml).join("")}</tbody></table></div>${foot}`;
+        const pv = box.querySelector("[data-prev]"); if (pv) pv.onclick = () => { if (page > 0) { page--; draw(); } };
+        const nx = box.querySelector("[data-next]"); if (nx) nx.onclick = () => { if (page < pages - 1) { page++; draw(); } };
+        const al = box.querySelector("[data-all]"); if (al) al.onclick = () => { showAll = !showAll; page = 0; draw(); };
+        const xl = box.querySelector("[data-xls]"); if (xl) xl.onclick = () => { const full = document.createElement("table"); full.innerHTML = thead + `<tbody>${rows.map(rowHtml).join("")}</tbody>`; exportTableXlsx(full, title); };
+      }
+      draw();
+      if (opts.note) note(c, opts.note, opts.noteKind);
+      return c;
     }
     const td = (v, style) => `<td${style ? ` style="${style}"` : ""}>${v}</td>`;
 
@@ -1865,46 +1907,53 @@ async function renderMonthly(host, MRCFG) {
     }
 
     /* ---- 14 · Claims ---- */
-    if (SEC("Claims")) {
-      const g = section("Claims", "claims filed this month, by cause and responsibility");
+    /* ---- 14 · Claims & Refunds (merged 2026-07-15: claims by claim date, refunds by refund date) ---- */
+    if (SEC("Claims") || SEC("Refunds & Cost of Quality")) {
+      const g = section("Claims & Refunds", "claims filed (by claim date) + refunds paid (by refund date) — and who's responsible");
+      // raw claims-sheet values spell it 'Forman' — display-side fix only, data keys untouched
+      const dispResp = v => String(v).replace(/\bForman('s)?\b/g, (m, p) => "Foreman" + (p || ""));
+      // ---- cards: claims counted by CLAIM date, refund money by REFUND date (matches the P&L) ----
       const claimsN = reduceMonth("claims", curY, mo, rs => rs.length) || 0;
       const claimsPM = reduceMonth("claims", PMY, PM, rs => rs.length) || 0;
       const claimsLY = reduceMonth("claims", curY - 1, mo, rs => rs.length) || 0;
       const claimRate = jobs ? claimsN / jobs * 100 : null;
+      const refSum = (y, m2) => Math.abs(reduceMonth("refunds", y, m2, rs => rs.reduce((a, r) => a + num(r["Total refund"]), 0)) || 0);
+      const redSum = (y, m2) => reduceMonth("refunds", y, m2, rs => rs.reduce((a, r) => a + num(r["Sales Commission Reduced Amount"]), 0)) || 0;
+      const refTot = refSum(curY, mo), refTotLY = refSum(curY - 1, mo), refTotPM = refSum(PMY, PM);
+      const redTot = redSum(curY, mo), redTotLY = redSum(curY - 1, mo), redTotPM = redSum(PMY, PM);
       const kg = document.createElement("div"); kg.className = "mrx-grid k"; kg.style.gridColumn = "1/-1"; g.appendChild(kg);
       [ { l: "Claims Filed", v: fmtN(claimsN), c: claimsN, ly: claimsLY, pm: claimsPM, icon: KIC.warn, inv: 1 },
-        { l: "Claims / 100 jobs", v: claimRate == null ? "—" : fmt1(claimRate), c: claimRate, ly: (jobsLY ? claimsLY / jobsLY * 100 : null), pm: (jobsPM ? claimsPM / jobsPM * 100 : null), icon: KIC.pct, inv: 1 }
-      ].forEach(k => kpiTile(kg, k));
-      // raw claims-sheet values spell it 'Forman' — display-side fix only, data keys untouched
-      const dispResp = v => String(v).replace(/\bForman('s)?\b/g, (m, p) => "Foreman" + (p || ""));
-      rankBars(g, "Claims by responsibility", segReduce("claims", "Responsibility", rs => rs.length, curY, mo).map(s => ({ ...s, k: dispResp(s.k) })), fmtN, { top: 8 });
-      donut(g, "Claims by reason", segReduce("claims", "Reason", rs => rs.length, curY, mo).filter(r => r.k !== "—" && r.k !== "(blank)"), fmtN, { center: fmtN(reduceMonth("claims", curY, mo, rs => rs.filter(r => r.Reason && r.Reason !== "(blank)").length) || 0), centerLbl: "classified" });
-      // line-level register (deck s55): the actual claims of the month
-      const clReg = (reduceMonth("claims", curY, mo, rs => rs) || []).slice().sort((a, b) => String(b["Created Date"]).localeCompare(String(a["Created Date"]))).slice(0, 14);
-      if (clReg.length) {
-        const clHtml = `<table class="mrx-tbl"><thead><tr><th>Date</th><th>Customer</th><th>Reason</th><th>Responsibility</th><th>Status</th></tr></thead><tbody>${clReg.map(r => `<tr><td>${esc(String(r["Created Date"] || "").slice(0, 10))}</td><td>${esc(r.Customer || "—")}</td>${td(esc(r.Reason || "—"))}${td(esc(dispResp(r.Responsibility || "—")))}${td(esc(r.Status || "—"))}</tr>`).join("")}</tbody></table>`;
-        tableCard(g, "This month's claims", monLbl + (claimsN > 14 ? ` · latest 14 of ${fmtN(claimsN)}` : ""), clHtml, { span2: false, icon: KIC.grid, headVal: fmtN(claimsN) });
-      }
-    }
-
-    /* ---- 15 · Refunds & Cost of Quality ---- */
-    if (SEC("Refunds & Cost of Quality")) {
-      const g = section("Refunds & Cost of Quality", "refund dollars this month, by reason — with the full list");
-      const refByReason = segReduce("refunds", "Reason", rs => Math.abs(rs.reduce((a, r) => a + num(r["Total refund"]), 0)), curY, mo).filter(r => r.v > 0);
-      const refTot = Math.abs(reduceMonth("refunds", curY, mo, rs => rs.reduce((a, r) => a + num(r["Total refund"]), 0)) || 0);
-      const refTotLY = Math.abs(reduceMonth("refunds", curY - 1, mo, rs => rs.reduce((a, r) => a + num(r["Total refund"]), 0)) || 0);
-      const refTotPM = Math.abs(reduceMonth("refunds", PMY, PM, rs => rs.reduce((a, r) => a + num(r["Total refund"]), 0)) || 0);
-      const kg = document.createElement("div"); kg.className = "mrx-grid k"; kg.style.gridColumn = "1/-1"; g.appendChild(kg);
-      [ { l: "Refunds Paid", v: money(refTot), c: refTot, ly: refTotLY, pm: refTotPM, icon: KIC.dollar, inv: 1 },
+        { l: "Claims / 100 jobs", v: claimRate == null ? "—" : fmt1(claimRate), c: claimRate, ly: (jobsLY ? claimsLY / jobsLY * 100 : null), pm: (jobsPM ? claimsPM / jobsPM * 100 : null), icon: KIC.pct, inv: 1 },
+        { l: "Amount Refunded", v: money(refTot), c: refTot, ly: refTotLY, pm: refTotPM, icon: KIC.dollar, inv: 1 },
+        { l: "Amount Reduced from Sales Person", v: money(redTot), c: redTot, ly: redTotLY, pm: redTotPM, icon: KIC.tag, inv: 1 },
         { l: "Refund % of revenue", v: rev ? pct(refTot / rev) : "—", c: rev ? refTot / rev : null, ly: revLY ? refTotLY / revLY : null, icon: KIC.pct, inv: 1 }
       ].forEach(k => kpiTile(kg, k));
-      rankBars(g, "Refunds by reason", refByReason, money, { top: 8, sub: `${money(refTot)} · ${rev ? pct(refTot / rev) : "—"} of revenue`, headVal: money(refTot), note: `${money(refTot)} refunded in ${MON[mo]} — ${rev ? pct(refTot / rev) : "—"} of revenue.` });
-      // line-level register (deck s56): the actual refunds of the month, largest first
-      const rfReg = (reduceMonth("refunds", curY, mo, rs => rs) || []).slice().sort((a, b) => Math.abs(num(b["Total refund"])) - Math.abs(num(a["Total refund"]))).slice(0, 14);
-      if (rfReg.length) {
-        const rfHtml = `<table class="mrx-tbl"><thead><tr><th>Customer</th><th>Foreman</th><th>Sales</th><th>Reason</th><th>Refund</th></tr></thead><tbody>${rfReg.map(r => `<tr><td>${esc(r.Customer || "—")}</td>${td(esc(r.Foreman || "—"))}${td(esc(r["Sales Person"] || "—"))}${td(esc(r.Reason || "—"))}${td(money(Math.abs(num(r["Total refund"]))), "font-weight:800")}</tr>`).join("")}</tbody></table>`;
-        tableCard(g, "This month's refunds", monLbl + " · largest first", rfHtml, { span2: false, icon: KIC.grid, headVal: money(refTot) });
-      }
+      // ---- breakdown charts ----
+      rankBars(g, "Claims by responsibility", segReduce("claims", "Responsibility", rs => rs.length, curY, mo).map(s => ({ ...s, k: dispResp(s.k) })), fmtN, { top: 8 });
+      donut(g, "Claims by reason", segReduce("claims", "Reason", rs => rs.length, curY, mo).filter(r => r.k !== "—" && r.k !== "(blank)"), fmtN, { center: fmtN(reduceMonth("claims", curY, mo, rs => rs.filter(r => r.Reason && r.Reason !== "(blank)").length) || 0), centerLbl: "classified" });
+      const refByReason = segReduce("refunds", "Reason", rs => Math.abs(rs.reduce((a, r) => a + num(r["Total refund"]), 0)), curY, mo).filter(r => r.v > 0);
+      rankBars(g, "Refunds by reason", refByReason, money, { top: 8, sub: `${money(refTot)} · ${rev ? pct(refTot / rev) : "—"} of revenue`, headVal: money(refTot) });
+      // ---- refund lookup by Request Joinkey (a claim's refund can be paid in a LATER month) ----
+      const refByJk = {};
+      (DS.refunds || []).filter(coRow).forEach(r => {
+        const jk = String(r["Request Joinkey"] || ""); if (!jk.trim()) return;
+        const o = refByJk[jk] || (refByJk[jk] = { refund: 0, reduced: 0 });
+        o.refund += Math.abs(num(r["Total refund"])); o.reduced += num(r["Sales Commission Reduced Amount"]);
+      });
+      // ---- register 1: CLAIMS filed this month (by claim date) + the refund tied to each ----
+      const clReg = (reduceMonth("claims", curY, mo, rs => rs) || []).slice().sort((a, b) => String(b["Created Date"]).localeCompare(String(a["Created Date"])));
+      if (clReg.length) paginatedTable(g, "Claims filed this month", `${monLbl} · by claim date · ${fmtN(clReg.length)} claim${clReg.length === 1 ? "" : "s"}`,
+        [{ label: "Date" }, { label: "Customer" }, { label: "Request #" }, { label: "Reason" }, { label: "Responsibility" }, { label: "Status" }, { label: "Refund", align: "right" }, { label: "Reduced", align: "right" }],
+        clReg,
+        r => { const rf = refByJk[String(r["Request Joinkey"] || "")]; return `<tr><td>${esc(String(r["Created Date"] || "").slice(0, 10))}</td><td>${esc(r.Customer || "—")}</td>${td(esc(r["Request No"] || "—"))}${td(esc(r.Reason || "—"))}${td(esc(dispResp(r.Responsibility || "—")))}${td(esc(r.Status || "—"))}${td(rf && rf.refund ? money(rf.refund) : "—", "text-align:right;font-weight:" + (rf && rf.refund ? "800" : "400"))}${td(rf && rf.reduced ? money(rf.reduced) : "—", "text-align:right")}</tr>`; },
+        { icon: KIC.warn, headVal: fmtN(claimsN), note: "Every claim created this month. Refund / Reduced show the money tied to that claim's Request # whenever it was paid (blank if none yet) — so this Refund column won't equal the by-refund-date total in the cards; a claim filed this month can be refunded in a later month.", noteKind: "how" });
+      // ---- register 2: REFUNDS paid this month (by refund date) ----
+      const rfReg = (reduceMonth("refunds", curY, mo, rs => rs) || []).slice().sort((a, b) => Math.abs(num(b["Total refund"])) - Math.abs(num(a["Total refund"])));
+      if (rfReg.length) paginatedTable(g, "Refunds paid this month", `${monLbl} · by refund date · ${money(refTot)} total`,
+        [{ label: "Refund date" }, { label: "Customer" }, { label: "Request #" }, { label: "Foreman" }, { label: "Sales rep" }, { label: "Reason" }, { label: "Refund", align: "right" }, { label: "Reduced", align: "right" }],
+        rfReg,
+        r => `<tr><td>${esc(String(r["Refund Date"] || "").slice(0, 10))}</td><td>${esc(r.Customer || "—")}</td>${td(esc(r["Request No"] || "—"))}${td(esc(r.Foreman || "—"))}${td(esc(r["Sales Person"] || "—"))}${td(esc(r.Reason || "—"))}${td(money(Math.abs(num(r["Total refund"]))), "text-align:right;font-weight:800")}${td(num(r["Sales Commission Reduced Amount"]) ? money(num(r["Sales Commission Reduced Amount"])) : "—", "text-align:right")}</tr>`,
+        { icon: KIC.dollar, headVal: money(refTot) });
     }
 
     /* ---- 14 · Repeat & Referral Business (formerly "Returned & Recommended" — N3) ---- */
