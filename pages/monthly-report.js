@@ -2132,8 +2132,12 @@ async function renderMonthly(host, MRCFG) {
         const landing = sc.getBoundingClientRect().top + toc.offsetHeight + 10;   // first free px under the bar
         const delta = wrap.getBoundingClientRect().top - landing;
         if (!delta) return;
-        spyMute = Date.now() + 1200;                                              // smooth scroll in flight — hands off
-        sc.scrollTo({ top: Math.max(0, sc.scrollTop + delta), behavior: "smooth" });
+        const top = Math.max(0, sc.scrollTop + delta);
+        spyMute = Date.now() + 1200;                                              // scroll in flight — spy hands off
+        // Smooth scrolling is driven by requestAnimationFrame, which is PAUSED in a hidden/background
+        // tab — there, scrollTo({behavior:"smooth"}) silently never moves at all. Animate only when the
+        // tab can actually paint; otherwise jump. Same landing either way.
+        sc.scrollTo({ top, behavior: document.visibilityState === "visible" ? "smooth" : "auto" });
       };
       secList.forEach((s, i) => {
         const p = tocParts.find(x => x.at === i);
