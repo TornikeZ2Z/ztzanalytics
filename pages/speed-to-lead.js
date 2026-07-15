@@ -119,9 +119,29 @@ registerPage({
         (!SL.source || r["Source"] === SL.source));
     }
     var booked = r => String(r["Status Category"]) === "Confirmed";
+    /* ---------- booking rate: canonical, and always over QUALIFIED (Tornike 2026-07-15) ----------
+       Was `rs.filter(booked).length / rs.length` — an inline ratio over ALL leads (bad ones included),
+       on a single date basis. That understated every rate on this page against the rest of the portal.
+       Canonical (RS.bookingRate, assets/rs-core.js:372) is DUAL-BASIS: qualified counted by CREATE date,
+       confirmed counted by BOOKED date. It matters here: 875 of 5,232 confirmed leads (16.7%) were booked
+       in a different month than they were created. filtered() is the create-date-scoped set; filteredBooked()
+       is its booked-date-scoped twin (the USERELATIONSHIP switch), carrying the same rep/source filters. */
+    var isBad = r => String(r["Status Category"]) === "Bad Lead";
+    var qualOf = rs => rs.filter(r => !isBad(r)).length;
+    var ymBooked = r => String(r["Booked Date"] || "").slice(0, 7);   // "2026-02-14 19:57:00" -> "2026-02"
+    function filteredBooked() {
+      var mset = SL.months ? new Set(months.slice(0, SL.months)) : null;
+      return rows.filter(r =>
+        booked(r) &&
+        (!mset || mset.has(ymBooked(r))) &&
+        (!SL.rep || r["Assigned"] === SL.rep) &&
+        (!SL.source || r["Source"] === SL.source));
+    }
+    var groupBy = (rs, key) => { var m = {}; rs.forEach(r => { var k = key(r); (m[k] = m[k] || []).push(r); }); return m; };
 
     function paint() {
-      var d = filtered();
+      var d = filtered();            // create-date-scoped  -> qualified denominators
+      var db = filteredBooked();     // booked-date-scoped  -> confirmed numerators (canonical dual basis)
       var called = d.filter(r => num(r["Called"]) === 1);
       var timed = called.filter(r => num(r["TTO Biz Min"]) != null);
       var speeds = timed.map(r => num(r["TTO Biz Min"]));
@@ -159,11 +179,16 @@ registerPage({
       var groups = SL_BUCKETS.map((b, i) => ({ k: SL_BUCKET_LB[b], rs: timed.filter(r => r["Speed Bucket"] === b), c: SL_COLORS[i] }))
         .concat([{ k: "Not called", rs: d.filter(r => num(r["Called"]) !== 1), c: "#9ca3af" }]);
       var bkMax = 1;
-      groups.forEach(g => { g.n = g.rs.length; g.bk = g.n ? g.rs.filter(booked).length / g.n : null; if (g.bk != null) bkMax = Math.max(bkMax, g.bk); });
+      // COHORT, deliberately — this chart asks "of the leads we called fast, what share booked?", so the
+      // numerator must be the SAME leads as the denominator. Counting confirmations by BOOKED date here
+      // (canonical elsewhere on this page) would put a lead created in May and booked in June into June's
+      // numerator but May's denominator, and the speed-vs-booking comparison — the page's whole point —
+      // would stop meaning anything. Denominator IS qualified, per Tornike's "based on qualified always".
+      groups.forEach(g => { g.n = g.rs.length; g.q = qualOf(g.rs); g.bk = g.q ? g.rs.filter(booked).length / g.q : null; if (g.bk != null) bkMax = Math.max(bkMax, g.bk); });
       var bookHtml = groups.map(g =>
         `<div class="sl-row"><span class="nm">${esc(g.k)}</span>
           <span class="bar"><i style="width:${g.bk == null ? 0 : Math.round(g.bk / bkMax * 100)}%;background:${g.c}"></i></span>
-          <span class="vn">${g.bk == null ? "—" : Math.round(g.bk * 1000) / 10 + "%"} <span style="color:var(--faint);font-weight:600">(${N(g.n)})</span></span></div>`).join("");
+          <span class="vn">${g.bk == null ? "—" : Math.round(g.bk * 1000) / 10 + "%"} <span style="color:var(--faint);font-weight:600">(${N(g.q)})</span></span></div>`).join("");
       var fast = groups[0], slow = groups[4];
       var ratio = (fast.bk && slow.bk) ? (fast.bk / slow.bk) : null;
       var bookNote = "";
@@ -176,11 +201,15 @@ registerPage({
       // monthly trend
       var mKeys = SL.months ? months.slice(0, Math.max(SL.months, 3)).slice().reverse() : months.slice().reverse();
       var trendRows = mKeys.map(mk => {
-        var rs = rows.filter(r => r["Month"] === mk && (!SL.rep || r["Assigned"] === SL.rep) && (!SL.source || r["Source"] === SL.source));
+        var scoped = r => (!SL.rep || r["Assigned"] === SL.rep) && (!SL.source || r["Source"] === SL.source);
+        var rs = rows.filter(r => r["Month"] === mk && scoped(r));
         var cl = rs.filter(r => num(r["Called"]) === 1);
         var tm = cl.filter(r => num(r["TTO Biz Min"]) != null).map(r => num(r["TTO Biz Min"]));
         var w1 = cl.filter(r => num(r["TTO Biz Min"]) != null && num(r["TTO Biz Min"]) <= 60).length;
-        var bk = rs.length ? Math.round(rs.filter(booked).length / rs.length * 1000) / 10 : null;
+        // canonical: confirmed BY BOOKED month ÷ qualified BY CREATE month — same basis as the Monthly Report
+        var bkRs = rows.filter(r => booked(r) && ymBooked(r) === mk && scoped(r));
+        var bkV = RS.bookingRate(rs, bkRs);
+        var bk = bkV == null ? null : Math.round(bkV * 1000) / 10;
         return `<tr><td>${MON[+mk.slice(5, 7)]} '${mk.slice(2, 4)}</td><td class="r">${N(rs.length)}</td>
           <td class="r">${rs.length ? Math.round(cl.length / rs.length * 100) + "%" : "—"}</td>
           <td class="r"><b>${fmtMin(median(tm))}</b></td>
@@ -188,24 +217,26 @@ registerPage({
           <td class="r">${bk == null ? "—" : bk + "%"}</td></tr>`;
       }).join("");
 
-      // rep dual lens
-      var byAsg = {};
-      d.forEach(r => { var k = r["Assigned"] || "(unassigned)"; (byAsg[k] = byAsg[k] || []).push(r); });
+      // rep dual lens — Booked is the CANONICAL rate, so this table ties to the Monthly Report's
+      // "Booking rate by salesperson" instead of quietly running ~3pts under it.
+      var byAsg = groupBy(d, r => r["Assigned"] || "(unassigned)");
+      var bkByAsg = groupBy(db, r => r["Assigned"] || "(unassigned)");
       var asgRows = Object.entries(byAsg).map(([k, rs]) => {
         var cl = rs.filter(r => num(r["Called"]) === 1);
         var tm = cl.filter(r => num(r["TTO Biz Min"]) != null).map(r => num(r["TTO Biz Min"]));
         var w1 = cl.filter(r => num(r["TTO Biz Min"]) != null && num(r["TTO Biz Min"]) <= 60).length;
         // Tornike 2026-07-15: "if the qualified lead count is below 10 - lets hide it." The old guard was
         // `x.n >= 10` where n = rs.length = ALL leads INCLUDING bad ones — it LOOKED like this rule but a
-        // rep with 12 leads of which 9 are bad passed on 3 qualified. Threshold on QUALIFIED (leads minus
-        // bad leads), the same population every other booking rate in the portal divides by.
-        var qual = rs.filter(r => String(r["Status Category"]) !== "Bad Lead").length;
-        return { k, n: rs.length, qual: qual, cp: rs.length ? cl.length / rs.length : 0, med: median(tm),
-          w1: rs.length ? w1 / rs.length : 0, bk: rs.length ? rs.filter(booked).length / rs.length : 0 };
+        // rep with 12 leads of which 9 are bad passed on 3 qualified. Threshold on QUALIFIED.
+        return { k, n: rs.length, qual: qualOf(rs), cp: rs.length ? cl.length / rs.length : 0, med: median(tm),
+          w1: rs.length ? w1 / rs.length : 0, bk: RS.bookingRate(rs, bkByAsg[k] || []) };
       }).filter(x => x.qual >= 10).sort((a, b) => b.qual - a.qual).slice(0, 14);
-      var asgHtml = asgRows.map(x => `<tr><td>${esc(x.k)}</td><td class="r">${N(x.n)}</td>
+      // show Leads AND Qualified: Called%/≤1hr divide by ALL leads (you call a lead before you know it's
+      // bad), Booked divides by QUALIFIED — so both denominators have to be on screen or the reader does
+      // the wrong arithmetic.
+      var asgHtml = asgRows.map(x => `<tr><td>${esc(x.k)}</td><td class="r">${N(x.n)}</td><td class="r">${N(x.qual)}</td>
         <td class="r">${Math.round(x.cp * 100)}%</td><td class="r"><b>${fmtMin(x.med)}</b></td>
-        <td class="r">${Math.round(x.w1 * 100)}%</td><td class="r">${Math.round(x.bk * 1000) / 10}%</td></tr>`).join("");
+        <td class="r">${Math.round(x.w1 * 100)}%</td><td class="r">${x.bk == null ? "—" : Math.round(x.bk * 1000) / 10 + "%"}</td></tr>`).join("");
 
       var byExt = {};
       d.forEach(r => {
@@ -223,15 +254,18 @@ registerPage({
       // source × speed
       var bySrc = {};
       d.forEach(r => { var k = r["Source"] || "(none)"; (bySrc[k] = bySrc[k] || []).push(r); });
+      var bkBySrc = groupBy(db, r => r["Source"] || "(none)");
       var srcRows = Object.entries(bySrc).map(([k, rs]) => {
         var cl = rs.filter(r => num(r["Called"]) === 1);
         var tm = cl.filter(r => num(r["TTO Biz Min"]) != null).map(r => num(r["TTO Biz Min"]));
-        return { k, n: rs.length, cp: rs.length ? cl.length / rs.length : 0, med: median(tm),
-          bk: rs.length ? rs.filter(booked).length / rs.length : 0 };
-      }).sort((a, b) => b.n - a.n).slice(0, 12);
-      var srcHtml = srcRows.map(x => `<tr><td>${esc(x.k)}</td><td class="r">${N(x.n)}</td>
+        return { k, n: rs.length, qual: qualOf(rs), cp: rs.length ? cl.length / rs.length : 0, med: median(tm),
+          bk: RS.bookingRate(rs, bkBySrc[k] || []) };   // canonical, like every other booking rate
+      }).sort((a, b) => b.qual - a.qual).slice(0, 12);
+      // Booked blanks under 10 qualified: this is the page's THINNEST slice (source, optionally already
+      // narrowed to one rep), where a 1-lead source would otherwise read as a confident 100%.
+      var srcHtml = srcRows.map(x => `<tr><td>${esc(x.k)}</td><td class="r">${N(x.n)}</td><td class="r">${N(x.qual)}</td>
         <td class="r">${Math.round(x.cp * 100)}%</td><td class="r"><b>${fmtMin(x.med)}</b></td>
-        <td class="r">${Math.round(x.bk * 1000) / 10}%</td></tr>`).join("");
+        <td class="r">${(x.bk == null || x.qual < 10) ? "—" : Math.round(x.bk * 1000) / 10 + "%"}</td></tr>`).join("");
 
       // not-called worklist (recent first)
       var nc = d.filter(r => num(r["Called"]) !== 1)
@@ -266,7 +300,7 @@ registerPage({
         <div class="sl-grid">
           <div class="sl-panel"><h3>Speed-to-lead distribution</h3><div class="sub">% of called leads with timing · business minutes</div>
             <div class="sl-rows">${distHtml}</div></div>
-          <div class="sl-panel"><h3>Booking rate by response speed</h3><div class="sub">% of leads that became Confirmed — the value of speed</div>
+          <div class="sl-panel"><h3>Booking rate by response speed</h3><div class="sub">% of QUALIFIED leads that became Confirmed — same leads top and bottom, so speed is what's being compared</div>
             <div class="sl-rows">${bookHtml}</div>${bookNote}</div>
         </div>
         <div class="sl-grid">
@@ -276,13 +310,13 @@ registerPage({
         </div>
         <div class="sl-grid">
           <div class="sl-panel"><h3>By assigned rep</h3><div class="sub">the rep who OWNS the lead (min 10 qualified leads)</div>
-            <div style="overflow-x:auto"><table class="sl-tbl"><thead><tr><th>Rep</th><th class="r">Leads</th><th class="r">Called</th><th class="r">Median</th><th class="r">≤1 hr</th><th class="r">Booked</th></tr></thead><tbody>${asgHtml}</tbody></table></div></div>
+            <div style="overflow-x:auto"><table class="sl-tbl"><thead><tr><th>Rep</th><th class="r">Leads</th><th class="r">Qualified</th><th class="r">Called</th><th class="r">Median</th><th class="r">≤1 hr</th><th class="r">Booked</th></tr></thead><tbody>${asgHtml}</tbody></table></div></div>
           <div class="sl-panel"><h3>Who actually dials first</h3><div class="sub">the extension that made the FIRST call (min 10 first-calls) — ours only, her file couldn't see this</div>
             <div style="overflow-x:auto"><table class="sl-tbl"><thead><tr><th>Dialer</th><th class="r">First calls</th><th class="r">Median</th><th class="r">≤5 min</th></tr></thead><tbody>${extHtml}</tbody></table></div></div>
         </div>
         <div class="sl-grid">
-          <div class="sl-panel"><h3>Source × speed</h3><div class="sub">which channels wait longest</div>
-            <div style="overflow-x:auto"><table class="sl-tbl"><thead><tr><th>Source</th><th class="r">Leads</th><th class="r">Called</th><th class="r">Median</th><th class="r">Booked</th></tr></thead><tbody>${srcHtml}</tbody></table></div></div>
+          <div class="sl-panel"><h3>Source × speed</h3><div class="sub">which channels wait longest · Booked blank under 10 qualified</div>
+            <div style="overflow-x:auto"><table class="sl-tbl"><thead><tr><th>Source</th><th class="r">Leads</th><th class="r">Qualified</th><th class="r">Called</th><th class="r">Median</th><th class="r">Booked</th></tr></thead><tbody>${srcHtml}</tbody></table></div></div>
           <div class="sl-panel"><h3>Never called (${N(nc.length)}${nc.length > 100 ? " · showing 100 newest" : ""})</h3><div class="sub">no outbound call matched — the follow-up worklist</div>
             <div style="overflow-x:auto;max-height:420px;overflow-y:auto"><table class="sl-tbl"><thead><tr><th>Lead</th><th>Created</th><th>Status</th><th>Source</th><th>Assigned</th><th class="r">In-calls</th></tr></thead><tbody>${ncRows}</tbody></table></div></div>
         </div>
