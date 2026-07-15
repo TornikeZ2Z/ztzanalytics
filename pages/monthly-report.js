@@ -325,12 +325,25 @@ async function renderMonthly(host, MRCFG) {
     /* ---------- palette ---------- */
     const INK = "#0e1621", INK2 = "#1b2a3f", SUB = "#5a6775", FAINT = "#93a0b2", LINE = "#e4e9f0";
     const LIME = "#b7e23b", LIMED = "#7ba317";
-    const BLUE = "#3b82f6", AMBER = "#f5a524", VIOLET = "#8b5cf6", TEAL = "#14b8a6", CORAL = "#ec6a5e", PINK = "#ec4899", SKY = "#38bdf8";
-    // ONE semantic green/red pair page-wide (UX audit: two competing pairs existed;
-    // these darker values match the ~30 inline chip hexes and read better on white)
-    const POS = "#1c7a4a", NEG = "#b02a37";
-    const CTX = "#c6d0db";
-    const CAT = [INK, BLUE, AMBER, VIOLET, TEAL, CORAL, PINK, SKY];
+    /* ---------- palette (Tornike 2026-07-15: "identify 4 core colors, negative and positive colors
+       which goes well with our brand main color and use those") ----------
+       FOUR CORE, and nothing else, for categorical data. Ordered DARK -> BRIGHT (Ink, Blue, Violet, Lime)
+       so they stay separable by BRIGHTNESS alone — that is what keeps them readable for red-green colour
+       blindness (~8% of men), rather than relying on hue.
+       RETIRED as data colours: AMBER, TEAL, CORAL, PINK, SKY (Tailwind defaults that harmonised with
+       nothing). CORAL/PINK/SKY were already dead — declared, never drawn. AMBER moved to the warning
+       tier where it was really earning its keep; TEAL's storage series moved onto VIOLET. */
+    const BLUE = "#2f6fd0", VIOLET = "#8b5cf6";
+    // Donut slices 5-8 are TINTS of the same four, never new hues: donut() cycles CAT[i % CAT.length]
+    // over up to 7 slices (+ "All others"), and click-to-expand shows every slice — so a 4-long CAT
+    // would silently give two different slices the same colour.
+    const INK_L = "#4a6285", BLUE_L = "#84aef0", VIOLET_L = "#c4aef9";
+    const CAT = [INK, BLUE, VIOLET, LIME, INK_L, BLUE_L, VIOLET_L, LIMED];
+    /* Semantic — good / caution / bad. NEVER a category, and never the only cue: always paired with an
+       arrow, word or score so the meaning survives without colour. WARN_A is the brighter amber used
+       ONLY for warning-banner chrome (border + icon on its cream background), never for data. */
+    const POS = "#1c7a4a", WARN = "#7a5a12", NEG = "#b02a37", WARN_A = "#f5a524";
+    const CTX = "#c6d0db";   // "last year" / prior-month context — deliberately quiet
     const AXIS = "#7b869a", GRID = "#eef1f6";
     const MONO = "ui-monospace, 'SF Mono', 'Cascadia Mono', 'Roboto Mono', Menlo, monospace";
     const HEAT = ["#eef2ee", "#dce7c4", "#c3dc8e", "#a6d22a", "#7ba317"];
@@ -392,7 +405,7 @@ async function renderMonthly(host, MRCFG) {
         font:italic 700 11px/1 Georgia,serif}
       .mrx-info:hover{border-color:${INK};color:${INK}}
       .mrx-info.on{background:${INK};border-color:${INK};color:${LIME}}
-      .mrx-loaderr{background:#fbe6e7;border:1.5px solid #e5b6ba;border-left:5px solid #b02a37;color:#7a1f28;border-radius:12px;
+      .mrx-loaderr{background:#fbe6e7;border:1.5px solid #e5b6ba;border-left:5px solid ${NEG};color:#7a1f28;border-radius:12px;
         padding:13px 16px;margin-bottom:14px;font-size:13.5px;line-height:1.55;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
       .mrx-loaderr button{margin-top:0}
       .mrx-cover{position:relative;background:${INK};color:#fff;border-radius:16px;padding:24px 26px;margin-bottom:16px;overflow:hidden}
@@ -413,11 +426,11 @@ async function renderMonthly(host, MRCFG) {
       .mrx-lite-ctl{font-size:12.5px;font-weight:700;color:${SUB};white-space:nowrap}
       .mrx-lite-ctl select{font:inherit;font-weight:700;color:${INK};background:#f4f6fa;border:1px solid ${LINE};border-radius:7px;padding:3px 8px;margin-left:4px}
       .mrx-bwrap{margin-bottom:16px}
-      .mrx-banner{display:flex;align-items:center;gap:11px;background:#fff8ec;border:1px solid #f2d492;border-left:4px solid ${AMBER};border-radius:11px;padding:11px 15px;font-size:13px;color:#7a5a12;font-weight:600}
+      .mrx-banner{display:flex;align-items:center;gap:11px;background:#fff8ec;border:1px solid #f2d492;border-left:4px solid ${WARN_A};border-radius:11px;padding:11px 15px;font-size:13px;color:${WARN};font-weight:600}
       .mrx-banner b{font-family:${MONO};color:${INK};font-weight:800}
-      .mrx-banner .bic{display:flex;flex:0 0 auto}.mrx-banner .bic svg{width:19px;height:19px;fill:none;stroke:${AMBER};stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+      .mrx-banner .bic{display:flex;flex:0 0 auto}.mrx-banner .bic svg{width:19px;height:19px;fill:none;stroke:${WARN_A};stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
       .mrx-bmsg{flex:1}
-      .mrx-btoggle{flex:0 0 auto;font-family:${MONO};font-size:11.5px;font-weight:800;color:${INK};cursor:pointer;white-space:nowrap;border-bottom:1.5px solid ${AMBER};user-select:none}
+      .mrx-btoggle{flex:0 0 auto;font-family:${MONO};font-size:11.5px;font-weight:800;color:${INK};cursor:pointer;white-space:nowrap;border-bottom:1.5px solid ${WARN_A};user-select:none}
       .mrx-bdetail{margin-top:7px;background:#fff;border:1px solid #f2d492;border-radius:9px;padding:9px 13px;max-height:300px;overflow:auto}
       /* top:-16px, NOT 0 — sticky insets resolve against the SCROLLER'S CONTENT box, and the scroller is
          .rs-content{padding:16px 20px 60px} (assets/rs.css:58). With top:0 the bar parked 16px BELOW the
@@ -642,7 +655,7 @@ async function renderMonthly(host, MRCFG) {
       const ttA = tt ? ` title="${tt}"` : "";
       if (cur == null || prev == null || !prev) return `<span class="mrx-chip"${ttA} style="background:#eef1f5;color:${SUB}">${label} —</span>`;
       const g = (cur - prev) / Math.abs(prev); const up = g >= 0; const good = inv ? !up : up;
-      const col = good ? "#1c7a4a" : "#b02a37"; const bg = good ? "#e4f3ea" : "#fbe6e7";
+      const col = good ? POS : NEG; const bg = good ? "#e4f3ea" : "#fbe6e7";
       return `<span class="mrx-chip"${ttA} style="background:${bg};color:${col}">${label} ${up ? "▲" : "▼"} ${Math.abs(g * 100).toFixed(0)}%</span>`;
     }
     const dchips = arr => arr.map(d => chip(d[0], d[1], d[2], d[3])).join("");
@@ -667,7 +680,9 @@ async function renderMonthly(host, MRCFG) {
     function lastV(series) { const s = series.filter(r => r.v != null); return s.length ? s[s.length - 1].v : null; }
     const tip = f => (f === moneyC ? money : f);  // tooltips ALWAYS show full money (never the compact M/k form)
     const lbf = f => (f === money ? moneyC : f);  // per-POINT data labels use the compact form so 12+ of them fit; hover still shows full
-    const lblc = c => c === CTX ? "#7b869a" : c === AMBER ? "#b7791a" : c === SKY ? "#0e8aca" : c === LIME ? LIMED : c;  // label ink: darken light series colors so 9px text stays legible on white
+    // label ink: 9px value labels inherit the series colour, so darken the LIGHT members of the palette
+    // or the text drops under contrast on white. Keep in sync with CAT — every light entry needs a case.
+    const lblc = c => c === CTX ? "#7b869a" : c === LIME ? LIMED : c === BLUE_L ? BLUE : c === VIOLET_L ? VIOLET : c === INK_L ? INK2 : c;
     function yoyBars(mount, title, series, fmt, opts) {
       opts = opts || {}; const s = series.filter(r => r.v != null);
       opts.icon = opts.icon || KIC.trend;
@@ -1455,7 +1470,7 @@ async function renderMonthly(host, MRCFG) {
       // sub-detail, so it can't be broken down — but we can watch it grow.
       const oeT = momSeries("closing", "Other Expenses", 14);
       const oeCur = valueFor("closing", "Other Expenses", curY, mo) || 0;
-      const oec = lines(g, "Other Expenses — momentum", "last 14 months", [{ label: "Other Expenses", series: oeT, color: AMBER }], money, { headVal: money(oeCur) });
+      const oec = lines(g, "Other Expenses — momentum", "last 14 months", [{ label: "Other Expenses", series: oeT, color: VIOLET }], money, { headVal: money(oeCur) });
       note(oec, `Uncategorized per-job field reimbursements — ${money(oeCur)} in ${MON[mo]}${jobs ? `, about ${money(oeCur / jobs)}/job` : ""}. Captured as one closing-sheet total with no category behind it, so it can't be split further; the trend is what to watch.`, "how");
     }
 
@@ -1565,7 +1580,7 @@ async function renderMonthly(host, MRCFG) {
         // Total row covers ALL segments (both years) — the table body shows the top 12 by volume
         const tot = dAll.reduce((a, b) => ({ tot: a.tot + b.tot, q: a.q + b.q, c: a.c + b.c, bad: a.bad + b.bad }), { tot: 0, q: 0, c: 0, bad: 0 });
         const totBook = RS.bookingRate(ftCreated, ftBooked), totBookLY = RS.bookingRate(ftCreatedLY, ftBookedLY);
-        const bkCell = (cur, ply) => { if (cur == null) return td("—"); const better = ply == null ? null : cur >= ply; return td(pct(cur), better == null ? "" : `color:${better ? "#1c7a4a" : "#b02a37"};font-weight:800`); };
+        const bkCell = (cur, ply) => { if (cur == null) return td("—"); const better = ply == null ? null : cur >= ply; return td(pct(cur), better == null ? "" : `color:${better ? POS : NEG};font-weight:800`); };
         const rowsH = d.map(r => `<tr><td>${esc(r.k)}</td>${td(fmtN(r.tot))}${td(fmtN(r.q))}${td(fmtN(r.c))}${td(fmtN(r.bad))}${bkCell(r.book, plyMap[r.k])}${td(plyMap[r.k] == null ? "—" : pct(plyMap[r.k]), "color:#8a94a3")}</tr>`).join("");
         const trow = `<tr class="tot"><td>Total</td>${td(fmtN(tot.tot))}${td(fmtN(tot.q))}${td(fmtN(tot.c))}${td(fmtN(tot.bad))}${td(totBook == null ? "—" : pct(totBook))}${td(totBookLY == null ? "—" : pct(totBookLY), "color:#8a94a3")}</tr>`;
         const blankN = (dAll.find(r => r.k === "—") || {}).tot || 0;
@@ -1609,13 +1624,13 @@ async function renderMonthly(host, MRCFG) {
       const omin = Math.min(...states.map(s2 => s2.op)), omax = Math.max(...states.map(s2 => s2.op));
       const jmin = Math.min(...states.map(s2 => s2.jobs)), jmax = Math.max(...states.map(s2 => s2.jobs));
       const barCell = (v, f, max, col) => `<td class="bar"><i style="width:${max > 0 ? Math.max(0, Math.min(100, v / max * 100)).toFixed(1) : 0}%;background:${col}"></i><span>${f(v)}</span></td>`;
-      const yoyCell = (cur, ly) => { if (!ly) return td("—"); const d = (cur - ly) / ly; return td((d >= 0 ? "+" : "") + pct(d), `color:${d >= 0 ? "#1c7a4a" : "#b02a37"};font-weight:800`); };
+      const yoyCell = (cur, ly) => { if (!ly) return td("—"); const d = (cur - ly) / ly; return td((d >= 0 ? "+" : "") + pct(d), `color:${d >= 0 ? POS : NEG};font-weight:800`); };
       const rowsH = states.map(s2 => `<tr><td>${esc(s2.k)}</td>
         ${barCell(s2.rev, money, rmax, "#e7ecfb")}
         ${yoyCell(s2.rev, s2.revLy)}
         ${barCell(s2.op, money, omax, "#e4f1d9")}
         ${barCell(s2.jobs, fmtN, jmax, "#eef1f5")}
-        ${td(s2.bk == null ? "—" : pct(s2.bk), s2.bk == null ? "" : `color:${s2.bk >= (bk || 0) ? "#1c7a4a" : "#b02a37"};font-weight:800`)}</tr>`).join("");
+        ${td(s2.bk == null ? "—" : pct(s2.bk), s2.bk == null ? "" : `color:${s2.bk >= (bk || 0) ? POS : NEG};font-weight:800`)}</tr>`).join("");
       tableCard(g, "State performance matrix", monLbl + " · top " + states.length + " states", `<table class="mrx-tbl"><thead><tr><th>State</th><th>Revenue</th><th>vs '${String(curY - 1).slice(2)}</th><th>Gross Profit</th><th>Jobs</th><th>Booking %</th></tr></thead><tbody>${rowsH}</tbody></table>`, { icon: KIC.grid, headVal: money(states.reduce((a, s2) => a + s2.rev, 0)), noteKind: "how", note: "Bars show $ / jobs magnitude; vs '" + String(curY - 1).slice(2) + " is revenue YoY (green up, red down). Booking % = jobs booked in the month (by booked date) ÷ qualified leads created; green above the team average (" + pct(bk) + "). States are pickup-based; standalone trip jobs (grouped multi-job hauls with no closing sheet) use the trip's delivery state instead. “No state on file” = closing sheets where State was left empty, plus a few trips without one — not a mapping error." });
       rankBars(g, "Revenue by state", revS.map(r => ({ k: r.k === "—" ? "No state on file" : r.k, v: r.v })), money, { top: 10 });
       rankBars(g, "Jobs by state", jobS.map(r => ({ k: r.k === "—" ? "No state on file" : r.k, v: r.v })), fmtN, { top: 10 });
@@ -1642,7 +1657,7 @@ async function renderMonthly(host, MRCFG) {
       const rmax = Math.max(...reps.map(r => r.rev));
       const rowsH = reps.map(r => `<tr><td>${esc(r.k)}</td>
         <td class="bar"><i style="width:${(r.rev / rmax * 100).toFixed(1)}%"></i><span>${money(r.rev)}</span></td>
-        ${td(money(r.op))}${td(r.ref ? money(r.ref) : "—", r.ref ? "color:#b02a37;font-weight:800" : "")}${td(r.ref && r.rev ? pct(r.ref / r.rev) : "—", r.ref && r.rev && r.ref / r.rev > 0.02 ? "color:#b02a37;font-weight:800" : "")}${td(fmtN(r.m.q || 0))}${td(fmtN(r.m.c || 0))}
+        ${td(money(r.op))}${td(r.ref ? money(r.ref) : "—", r.ref ? `color:${NEG};font-weight:800` : "")}${td(r.ref && r.rev ? pct(r.ref / r.rev) : "—", r.ref && r.rev && r.ref / r.rev > 0.02 ? `color:${NEG};font-weight:800` : "")}${td(fmtN(r.m.q || 0))}${td(fmtN(r.m.c || 0))}
         ${(() => { const thin = r.m.book == null || (r.m.q || 0) < MIN_QUAL;   // <10 qualified → no rate, per Tornike's floor
           return td(thin ? "—" : pct(r.m.book), thin ? "color:" + FAINT : `color:${r.m.book >= (bk || 0) ? POS : NEG};font-weight:800`); })()}
         ${td(r.m.dead == null ? "—" : pct(r.m.dead), r.m.dead == null ? "" : `color:${r.m.dead > .3 ? NEG : POS};font-weight:800`)}</tr>`).join("");
@@ -1704,10 +1719,10 @@ async function renderMonthly(host, MRCFG) {
       if (paidPM.length) {
         const roiRows = paidPM.map(k => { const roi = adPM[k] ? (revPMs[k] || 0) / adPM[k] : null; const roiLY = adLYr[k] ? (revLYr[k] || 0) / adLYr[k] : null; return { k, ad: adPM[k], rev: revPMs[k] || 0, op: opPMs[k] || 0, jobs: jobPMs[k] || 0, roi, roiLY, ppd: adPM[k] ? (opPMs[k] || 0) / adPM[k] : null }; });
         const rt = roiRows.reduce((a, r) => ({ ad: a.ad + r.ad, rev: a.rev + r.rev, op: a.op + r.op }), { ad: 0, rev: 0, op: 0 });
-        const roiCol = v => v >= 5 ? "#1c7a4a" : v >= 2 ? "#7a5a12" : "#b02a37";
-        const growCell = r => { if (r.roi == null || r.roiLY == null || !r.roiLY) return td("—", "color:#8a94a3"); const d2 = (r.roi - r.roiLY) / r.roiLY; return td(`${d2 >= 0 ? "▲" : "▼"} ${Math.abs(d2 * 100).toFixed(0)}%`, `color:${d2 >= 0 ? "#1c7a4a" : "#b02a37"};font-weight:800`); };
+        const roiCol = v => v >= 5 ? POS : v >= 2 ? WARN : NEG;
+        const growCell = r => { if (r.roi == null || r.roiLY == null || !r.roiLY) return td("—", "color:#8a94a3"); const d2 = (r.roi - r.roiLY) / r.roiLY; return td(`${d2 >= 0 ? "▲" : "▼"} ${Math.abs(d2 * 100).toFixed(0)}%`, `color:${d2 >= 0 ? POS : NEG};font-weight:800`); };
         const yyR = String(roiY - 1).slice(2);
-        const roiHtml = `<table class="mrx-tbl"><thead><tr><th>Source</th><th>Ad Spend</th><th>Revenue</th><th>ROAS</th><th>ROAS vs '${yyR}</th><th>Profit / $1 ad</th></tr></thead><tbody>${roiRows.map(r => `<tr><td>${esc(r.k)}</td>${td(money(r.ad))}${td(money(r.rev))}${td(r.roi == null ? "—" : r.roi.toFixed(1) + "×", r.roi == null ? "" : `color:${roiCol(r.roi)};font-weight:800`)}${growCell(r)}${td(r.ppd == null ? "—" : "$" + fmt1(r.ppd), r.ppd == null ? "" : `color:${r.ppd >= 3 ? "#1c7a4a" : r.ppd >= 1 ? "#7a5a12" : "#b02a37"};font-weight:800`)}</tr>`).join("")}<tr class="tot"><td>All paid</td>${td(money(rt.ad))}${td(money(rt.rev))}${td(rt.ad ? (rt.rev / rt.ad).toFixed(1) + "×" : "—")}${td("")}${td(rt.ad ? "$" + fmt1(rt.op / rt.ad) : "—")}</tr></tbody></table>`;
+        const roiHtml = `<table class="mrx-tbl"><thead><tr><th>Source</th><th>Ad Spend</th><th>Revenue</th><th>ROAS</th><th>ROAS vs '${yyR}</th><th>Profit / $1 ad</th></tr></thead><tbody>${roiRows.map(r => `<tr><td>${esc(r.k)}</td>${td(money(r.ad))}${td(money(r.rev))}${td(r.roi == null ? "—" : r.roi.toFixed(1) + "×", r.roi == null ? "" : `color:${roiCol(r.roi)};font-weight:800`)}${growCell(r)}${td(r.ppd == null ? "—" : "$" + fmt1(r.ppd), r.ppd == null ? "" : `color:${r.ppd >= 3 ? POS : r.ppd >= 1 ? WARN : NEG};font-weight:800`)}</tr>`).join("")}<tr class="tot"><td>All paid</td>${td(money(rt.ad))}${td(money(rt.rev))}${td(rt.ad ? (rt.rev / rt.ad).toFixed(1) + "×" : "—")}${td("")}${td(rt.ad ? "$" + fmt1(rt.op / rt.ad) : "—")}</tr></tbody></table>`;
         tableCard(g, "Return on ad spend by source", roiLbl + (roiFellBack ? " · latest fully-posted ad month" : ""), roiHtml, { icon: KIC.grid, headVal: (rt.ad ? (rt.rev / rt.ad).toFixed(1) + "×" : "—") + " blended", noteKind: "how", note: `${roiFellBack ? `Ad spend posts ~1 month behind and ${MON[mo]}'s hasn't landed yet, so returns are shown for ${roiLbl} (the latest complete ad month) — ${MON[mo]}'s numbers fill in once the feed lands. ` : ""}ROAS = revenue ÷ ad spend; “ROAS vs '${yyR}” is the growth of that return vs the same month last year; Profit/$1 = gross profit per ad dollar (before refunds). Green ROAS ≥5×, amber ≥2×, red below. Post-card variants pooled.` });
         // ===== 2 · EFFICIENCY ===== (headlines are BLENDED totals — summing per-channel ratios is meaningless)
         const totAdJobs = paidPM.reduce((a, k) => a + (jobPMs[k] || 0), 0);
@@ -1721,7 +1736,7 @@ async function renderMonthly(host, MRCFG) {
         groupedBars(g, "ROAS — latest month vs last 3 months combined", topPaid, topPaid.map(k => adT3[k] ? (revT3[k] || 0) / adT3[k] : 0), "last 3 months combined", topPaid.map(k => adPM[k] ? (revPMs[k] || 0) / adPM[k] : 0), roiLbl, v => v.toFixed(1) + "×", { sub: "revenue ÷ ad spend · which channels are trending up", headVal: (rt.ad ? (rt.rev / rt.ad).toFixed(1) + "×" : "—") });
       }
       const adTrend = momReduce("card_expenses", 12, rs => { const ad = rs.filter(r => Number(r["Is Advertising"]) === 1); return ad.length ? ad.reduce((a, r) => a + num(r.Amount), 0) : null; });
-      lines(g, "Advertising spend — momentum", "last 12 months", [ { label: "Ad Spend", series: adTrend, color: AMBER } ], moneyC, { headVal: money(lastV(adTrend)) });
+      lines(g, "Advertising spend — momentum", "last 12 months", [ { label: "Ad Spend", series: adTrend, color: VIOLET } ], moneyC, { headVal: money(lastV(adTrend)) });
 
       // ===== 4 · MULTI-WINDOW ROI GROWTH (deck slides 65-67) =====
       // ROI = NET return per $1 of ad = (operational profit − ad spend) ÷ ad spend, per source, summed over
@@ -1743,8 +1758,8 @@ async function renderMonthly(host, MRCFG) {
         const spendRank = {}; roiDispYears.forEach(y => Object.keys(per[y].ad).forEach(k => { if (k !== "—" && per[y].ad[k] > 0) spendRank[k] = Math.max(spendRank[k] || 0, per[y].ad[k]); }));
         const srcList = Object.keys(spendRank).filter(k => src2026.has(k)).sort((a, b) => spendRank[b] - spendRank[a]).slice(0, 12);   // only channels we still buy
         if (!srcList.length) return;
-        const roiCell = v => v == null ? '<td style="text-align:right;color:#8a94a3">—</td>' : `<td style="text-align:right;font-weight:800;color:${v >= 3 ? "#1c7a4a" : v >= 1 ? "#7a5a12" : "#b02a37"}">$${v.toFixed(2)}</td>`;
-        const growCell = (now, prev) => (now == null || prev == null || !prev) ? '<td style="text-align:right;color:#8a94a3">—</td>' : (function () { const d = (now - prev) / Math.abs(prev); return `<td style="text-align:right;font-weight:800;color:${d >= 0 ? "#1c7a4a" : "#b02a37"}">${d >= 0 ? "▲" : "▼"} ${Math.abs(d * 100).toFixed(0)}%</td>`; })();
+        const roiCell = v => v == null ? '<td style="text-align:right;color:#8a94a3">—</td>' : `<td style="text-align:right;font-weight:800;color:${v >= 3 ? POS : v >= 1 ? WARN : NEG}">$${v.toFixed(2)}</td>`;
+        const growCell = (now, prev) => (now == null || prev == null || !prev) ? '<td style="text-align:right;color:#8a94a3">—</td>' : (function () { const d = (now - prev) / Math.abs(prev); return `<td style="text-align:right;font-weight:800;color:${d >= 0 ? POS : NEG}">${d >= 0 ? "▲" : "▼"} ${Math.abs(d * 100).toFixed(0)}%</td>`; })();
         const cellsFor = arr => roiDispYears.map(y => roiCell(arr[y]) + growCell(arr[y], arr[y - 1])).join("");
         const totArr = {}; for (let y = curY - 4; y <= curY; y++) { let ad = 0, op = 0; srcList.forEach(k => { ad += per[y].ad[k] || 0; op += per[y].op[k] || 0; }); totArr[y] = roiVal(ad, op); }
         const yrHead = roiDispYears.map(y => `<th style="text-align:right">${y} ROI</th><th style="text-align:right">YoY</th>`).join("");
@@ -1784,7 +1799,7 @@ async function renderMonthly(host, MRCFG) {
         const lfTot = lfAll.reduce((a, b) => ({ tot: a.tot + b.tot, q: a.q + b.q, c: a.c + b.c, bad: a.bad + b.bad }), { tot: 0, q: 0, c: 0, bad: 0 });
         const lfTotBook = RS.bookingRate(lfCreated, bookedRowsFor(curY, mo));
         const lfBlank = (lfAll.find(r => r.k === "(blank)") || {}).tot || 0;
-        const lfHtml = `<table class="mrx-tbl"><thead><tr><th>Source</th><th>Leads</th><th>Qualified</th><th>Confirmed</th><th>Bad leads</th><th>Booking %</th></tr></thead><tbody>${lfRows.map(r => `<tr><td>${esc(r.k)}</td>${td(fmtN(r.tot))}${td(fmtN(r.q))}${td(fmtN(r.c))}${td(fmtN(r.bad))}${td(r.book == null ? "—" : pct(r.book), r.book == null ? "" : `color:${r.book >= (bk || 0) ? "#1c7a4a" : "#b02a37"};font-weight:800`)}</tr>`).join("")}<tr class="tot"><td>Total${lfAll.length > 12 ? ` (all ${lfAll.length} sources)` : ""}</td>${td(fmtN(lfTot.tot))}${td(fmtN(lfTot.q))}${td(fmtN(lfTot.c))}${td(fmtN(lfTot.bad))}${td(lfTotBook == null ? "—" : pct(lfTotBook))}</tr></tbody></table>`;
+        const lfHtml = `<table class="mrx-tbl"><thead><tr><th>Source</th><th>Leads</th><th>Qualified</th><th>Confirmed</th><th>Bad leads</th><th>Booking %</th></tr></thead><tbody>${lfRows.map(r => `<tr><td>${esc(r.k)}</td>${td(fmtN(r.tot))}${td(fmtN(r.q))}${td(fmtN(r.c))}${td(fmtN(r.bad))}${td(r.book == null ? "—" : pct(r.book), r.book == null ? "" : `color:${r.book >= (bk || 0) ? POS : NEG};font-weight:800`)}</tr>`).join("")}<tr class="tot"><td>Total${lfAll.length > 12 ? ` (all ${lfAll.length} sources)` : ""}</td>${td(fmtN(lfTot.tot))}${td(fmtN(lfTot.q))}${td(fmtN(lfTot.c))}${td(fmtN(lfTot.bad))}${td(lfTotBook == null ? "—" : pct(lfTotBook))}</tr></tbody></table>`;
         tableCard(g, "Lead funnel by source", monLbl + (lfAll.length > 12 ? " · top 12 of " + lfAll.length : ""), lfHtml, { icon: KIC.grid, headVal: fmtN(lfTot.tot) + " leads", noteKind: "how", note: `Each channel's lead volume through the funnel — a channel can look great on revenue but be wasting leads. Red = below the team average (${pct(bk)}). The Total row counts every source, so it matches the Leads KPI.${lfBlank ? ` ${fmtN(lfBlank)} leads with no source recorded count in Total but aren't listed.` : ""}` });
       }
       // ===== INBOUND DEMAND (tracked marketing numbers · CallRail) =====
@@ -1800,7 +1815,7 @@ async function renderMonthly(host, MRCFG) {
       const crD = segReduce("callrail", "Source", rs => rs, curY, mo).map(r => { const rw = r.rows, calls = rw.length, dur = rw.reduce((a, x) => a + num(x["Duration Seconds"]), 0), ft = rw.filter(x => Number(x["First-Time Caller"]) === 1).length; return { k: r.k === "—" ? "(blank)" : r.k, calls, dur, avg: calls ? dur / calls : 0, ft }; }).sort((a, b) => b.calls - a.calls).slice(0, 10);
       if (crD.length) {
         const tCalls = crD.reduce((a, r) => a + r.calls, 0), tDur = crD.reduce((a, r) => a + r.dur, 0), tFt = crD.reduce((a, r) => a + r.ft, 0);
-        const crHtml = `<table class="mrx-tbl"><thead><tr><th>Source</th><th style="text-align:right">Calls</th><th style="text-align:right">First-time</th><th style="text-align:right">Total time</th><th style="text-align:right">Avg call</th></tr></thead><tbody>${crD.map(r => `<tr><td>${esc(r.k)}</td>${td(fmtN(r.calls), "text-align:right")}${td(fmtN(r.ft), "text-align:right")}${td(durF(r.dur), "text-align:right")}${td(durF(r.avg), "text-align:right;font-weight:800;color:" + (r.avg >= 120 ? "#1c7a4a" : r.avg >= 45 ? "#7a5a12" : "#b02a37"))}</tr>`).join("")}<tr class="tot"><td>All tracked numbers</td>${td(fmtN(tCalls), "text-align:right")}${td(fmtN(tFt), "text-align:right")}${td(durF(tDur), "text-align:right")}${td(tCalls ? durF(tDur / tCalls) : "—", "text-align:right")}</tr></tbody></table>`;
+        const crHtml = `<table class="mrx-tbl"><thead><tr><th>Source</th><th style="text-align:right">Calls</th><th style="text-align:right">First-time</th><th style="text-align:right">Total time</th><th style="text-align:right">Avg call</th></tr></thead><tbody>${crD.map(r => `<tr><td>${esc(r.k)}</td>${td(fmtN(r.calls), "text-align:right")}${td(fmtN(r.ft), "text-align:right")}${td(durF(r.dur), "text-align:right")}${td(durF(r.avg), "text-align:right;font-weight:800;color:" + (r.avg >= 120 ? POS : r.avg >= 45 ? WARN : NEG))}</tr>`).join("")}<tr class="tot"><td>All tracked numbers</td>${td(fmtN(tCalls), "text-align:right")}${td(fmtN(tFt), "text-align:right")}${td(durF(tDur), "text-align:right")}${td(tCalls ? durF(tDur / tCalls) : "—", "text-align:right")}</tr></tbody></table>`;
         tableCard(g, "Call duration by source", monLbl + " · CallRail tracked numbers", crHtml, { icon: KIC.grid, headVal: tCalls ? durF(tDur / tCalls) + " avg" : "—", noteKind: "how", note: "Total and average talk time per channel — a channel with many very short calls is sending noise; long calls mean real buyers. The average INCLUDES missed/abandoned (0-second) calls, matching the phone KPIs. Green ≥2m, amber ≥45s, red below." });
       }
     }
@@ -1830,9 +1845,9 @@ async function renderMonthly(host, MRCFG) {
           const named = all.filter(r => r.k !== "__unmapped__").sort((a, b) => b.in - a.in).slice(0, 14);
           const lnRows = un ? named.concat([un]) : named;      // the gap row sits last, never ranked as a "line"
           const T = lnRows.reduce((a, r) => ({ in: a.in + r.in, ans: a.ans + r.ans, miss: a.miss + r.miss, vm: a.vm + r.vm, ansDur: a.ansDur + r.ansDur }), { in: 0, ans: 0, miss: 0, vm: 0, ansDur: 0 });
-          const ansCol = p => p >= .8 ? "#1c7a4a" : p >= .6 ? "#7a5a12" : "#b02a37";
+          const ansCol = p => p >= .8 ? POS : p >= .6 ? WARN : NEG;
           const nDist = un ? Object.keys(un.nums).length : 0;
-          const lnHtml = `<table class="mrx-tbl"><thead><tr><th>Line</th><th>Number</th><th style="text-align:right">Inbound</th><th style="text-align:right">Answered</th><th style="text-align:right">Missed</th><th style="text-align:right">Voicemail</th><th style="text-align:right">Answer %</th><th style="text-align:right">Avg handle</th></tr></thead><tbody>${lnRows.map(r => { const isU = r.k === "__unmapped__"; return `<tr${isU ? ' style="background:rgba(176,42,55,.05)"' : ""}><td${isU ? ' style="color:#b02a37;font-weight:700"' : ""}>${isU ? "Unnamed numbers" : esc(r.k)}</td>${td(isU ? fmtN(nDist) + " different numbers" : esc(fmtPh(r.num)), isU ? "color:#b02a37" : "")}${td(fmtN(r.in), "text-align:right")}${td(fmtN(r.ans), "text-align:right")}${td(fmtN(r.miss), "text-align:right" + (r.miss ? ";color:#b02a37;font-weight:800" : ""))}${td(fmtN(r.vm), "text-align:right")}${td(r.in ? pct(r.ans / r.in) : "—", "text-align:right;font-weight:800" + (r.in ? ";color:" + ansCol(r.ans / r.in) : ""))}${td(r.ans ? hms(r.ansDur / r.ans) : "—", "text-align:right")}</tr>`; }).join("")}<tr class="tot"><td>All lines</td>${td("")}${td(fmtN(T.in), "text-align:right")}${td(fmtN(T.ans), "text-align:right")}${td(fmtN(T.miss), "text-align:right")}${td(fmtN(T.vm), "text-align:right")}${td(T.in ? pct(T.ans / T.in) : "—", "text-align:right")}${td(T.ans ? hms(T.ansDur / T.ans) : "—", "text-align:right")}</tr></tbody></table>`;
+          const lnHtml = `<table class="mrx-tbl"><thead><tr><th>Line</th><th>Number</th><th style="text-align:right">Inbound</th><th style="text-align:right">Answered</th><th style="text-align:right">Missed</th><th style="text-align:right">Voicemail</th><th style="text-align:right">Answer %</th><th style="text-align:right">Avg handle</th></tr></thead><tbody>${lnRows.map(r => { const isU = r.k === "__unmapped__"; return `<tr${isU ? ' style="background:rgba(176,42,55,.05)"' : ""}><td${isU ? `  style="color:${NEG};font-weight:700"` : ""}>${isU ? "Unnamed numbers" : esc(r.k)}</td>${td(isU ? fmtN(nDist) + " different numbers" : esc(fmtPh(r.num)), isU ? `color:${NEG}` : "")}${td(fmtN(r.in), "text-align:right")}${td(fmtN(r.ans), "text-align:right")}${td(fmtN(r.miss), "text-align:right" + (r.miss ? `;color:${NEG};font-weight:800` : ""))}${td(fmtN(r.vm), "text-align:right")}${td(r.in ? pct(r.ans / r.in) : "—", "text-align:right;font-weight:800" + (r.in ? ";color:" + ansCol(r.ans / r.in) : ""))}${td(r.ans ? hms(r.ansDur / r.ans) : "—", "text-align:right")}</tr>`; }).join("")}<tr class="tot"><td>All lines</td>${td("")}${td(fmtN(T.in), "text-align:right")}${td(fmtN(T.ans), "text-align:right")}${td(fmtN(T.miss), "text-align:right")}${td(fmtN(T.vm), "text-align:right")}${td(T.in ? pct(T.ans / T.in) : "—", "text-align:right")}${td(T.ans ? hms(T.ansDur / T.ans) : "—", "text-align:right")}</tr></tbody></table>`;
           tableCard(g, "Inbound by line — answer rate & handle time", monLbl + " · RingCentral · real calls (sessions)", lnHtml, { icon: KIC.grid, headVal: T.in ? pct(T.ans / T.in) + " answered" : "—", noteKind: "how", note: "Every company number that rang this month — inbound volume, how each call ended, and Average Handle Time (mean talk time on ANSWERED calls only; a missed call or voicemail carries no handle time, so they're excluded from AHT but still counted in Inbound). Counted on real calls (sessions), never per-device ring-legs. Answer % green ≥80%, amber ≥60%, red below. Tuji lines are excluded." + (nDist ? " — “Unnamed numbers” are " + fmtN(nDist) + " company numbers that rang but carry no name in RingCentral's account mapping, so they can't be credited to a branch yet; they're pooled into one row rather than shown under any single number." : "") });
         }
         if (curB && Object.keys(curB.names).length) {
@@ -1876,7 +1891,7 @@ async function renderMonthly(host, MRCFG) {
         // C24/Q5: 'vs Est' is colored BY VALUE — green only when written ≥ estimate (≥1×);
         // under-delivery is red, never a flattering unconditional green.
         const rowsH = sc.map((r, i) => { const arrow = r.prev ? (r.score > r.prev ? `<span style="color:${POS}">▲</span>` : r.score < r.prev ? `<span style="color:${NEG}">▼</span>` : "–") : ""; const up = r.est > 0 ? r.written / r.est : null; return `<tr><td>${i === 0 ? "👑 " : ""}${esc(r.f)}</td>
-          ${td(fmtN(r.jobs) + mArrow(r.jobs, jobsFmPM[r.f]))}${td(fmtN(r.cf))}${td(money(payM[r.f] || 0) + mArrow(payM[r.f] || 0, payPM[r.f]))}${td(money(tipsM[r.f] || 0) + mArrow(tipsM[r.f] || 0, tipsPM[r.f]))}${td(money(r.written))}${td(up == null ? "—" : up.toFixed(1) + "×", up == null ? "" : `color:${up >= 1 ? "#1c7a4a" : "#b02a37"};font-weight:800`)}${td(r.rev ? fmtN(r.rev) : "0", r.rev ? "" : "color:#b02a37;font-weight:800")}${td(fmtN(r.claims), r.claims > 0 ? `color:#b02a37;font-weight:800` : "")}${td(refM[r.f] ? money(refM[r.f]) : "—", refM[r.f] ? `color:#b02a37;font-weight:800` : "")}
+          ${td(fmtN(r.jobs) + mArrow(r.jobs, jobsFmPM[r.f]))}${td(fmtN(r.cf))}${td(money(payM[r.f] || 0) + mArrow(payM[r.f] || 0, payPM[r.f]))}${td(money(tipsM[r.f] || 0) + mArrow(tipsM[r.f] || 0, tipsPM[r.f]))}${td(money(r.written))}${td(up == null ? "—" : up.toFixed(1) + "×", up == null ? "" : `color:${up >= 1 ? POS : NEG};font-weight:800`)}${td(r.rev ? fmtN(r.rev) : "0", r.rev ? "" : `color:${NEG};font-weight:800`)}${td(fmtN(r.claims), r.claims > 0 ? `color:${NEG};font-weight:800` : "")}${td(refM[r.f] ? money(refM[r.f]) : "—", refM[r.f] ? `color:${NEG};font-weight:800` : "")}
           <td class="bar"><i style="width:${(r.score / smax * 100).toFixed(0)}%;background:#dcecab"></i><span>${fmt1(r.score)} ${arrow}</span></td></tr>`; }).join("");
         tableCard(g, "Foreman scorecard — ranked", monLbl, `<table class="mrx-tbl"><thead><tr><th>Foreman</th><th>Jobs</th><th>CF</th><th>Pay</th><th>Tips</th><th>Packing</th><th>vs Est</th><th>Reviews</th><th>Claims</th><th>Refunds</th><th>Score</th></tr></thead><tbody>${rowsH}</tbody></table>`, { icon: KIC.grid, headVal: fmtN(sc.length) + " crews", noteKind: "how", note: `Pay/Tips from closings; ▲▼ arrows on Jobs/Pay/Tips compare vs ${MS[PM]}. 'vs Est' = packing written ÷ quoted estimate (green at 1× or above, red below). Score combines jobs, packing, reviews and fault claims — higher is better; the ▲▼ beside it compares vs ${MS[PM]}. Rank 1 crowned.` });
       }
@@ -1924,7 +1939,7 @@ async function renderMonthly(host, MRCFG) {
         if (eff.length) {
           const dCell = (cur, prev) => { if (prev == null || !prev) return td("—", "color:" + FAINT); const d2 = (cur - prev) / Math.abs(prev); return td(`${d2 >= 0 ? "▲" : "▼"} ${Math.abs(d2 * 100).toFixed(0)}%`, `color:${d2 >= 0 ? POS : NEG};font-weight:800`); };
           const pveCell = r => { if (!r.est || !r.pve) return td("—", "color:" + FAINT); const s = r.pveS;
-            return td(fmt1(r.pve) + "×" + (s ? ` <span style="color:${SUB};font-weight:600">${fmt1(s)}/100</span>` : ""), `font-weight:800;color:${s >= 70 ? POS : s >= 45 ? "#7a5a12" : NEG}`); };
+            return td(fmt1(r.pve) + "×" + (s ? ` <span style="color:${SUB};font-weight:600">${fmt1(s)}/100</span>` : ""), `font-weight:800;color:${s >= 70 ? POS : s >= 45 ? WARN : NEG}`); };
           const tEst = eff.reduce((a, r) => a + r.est, 0), tWrt = eff.reduce((a, r) => a + r.wrt, 0);
           const effHtml = `<table class="mrx-tbl"><thead><tr><th>Foreman</th><th>Packing estimate</th><th>Packing written</th><th>× estimate · score</th><th>Packing $ / 100 CF</th><th>vs ${MS[PM]}</th><th>Reviews / job</th><th>vs ${MS[PM]}</th></tr></thead><tbody>${eff.map((r, i) => { const p = prevEff[r.f] || {}; return `<tr><td>${i === 0 ? "👑 " : ""}${esc(r.f)}</td>${td(r.est ? money(r.est) : "—", "color:" + SUB)}${td(money(r.wrt))}${pveCell(r)}${td(money(r.p100))}${dCell(r.p100, p.p100)}${td(fmt1(r.rtj))}${dCell(r.rtj, p.rtj)}</tr>`; }).join("")}<tr class="tot"><td>All crews</td>${td(money(tEst))}${td(money(tWrt))}${td(tEst ? fmt1(tWrt / tEst) + "×" : "—")}${td("")}${td("")}${td("")}${td("")}</tr></tbody></table>`;
           tableCard(g, "Foreman efficiency — packing estimate vs written, density & reviews", monLbl + " vs " + MS[PM], effHtml, { icon: KIC.grid, headVal: tEst ? fmt1(tWrt / tEst) + "× estimate" : fmtN(eff.length) + " crews", noteKind: "how", note: `Packing estimate = what the job was quoted to pack; Packing written = what the crew actually sold on site. The estimate is a floor to beat, NOT a target to hit — your packing-vs-estimate scoring bands score 1.0× at only 20/100 and pay full marks at 3.3× and above, so "× estimate" is shown with that same 0–100 score beside it (green 70+, amber 45+, red below). It is the identical score that feeds Forman Score at 20% weight, so this card and the scorecard always agree. Then packing $ written per 100 CF moved, and reviews collected per job — ranked by density, ▲▼ vs ${MS[PM]}. A crew with no estimate on file shows "—".` });
@@ -1961,17 +1976,17 @@ async function renderMonthly(host, MRCFG) {
         const lc = stoCost.length ? stoCost[stoCost.length - 1].v : 0, li = lastV(stoRev) || 0;
         note(sc, `Storage income ${money(li)} vs cost ${money(lc)} this month — net ${money(li - lc)}. Cost = card spend in the "Rent and Lease / Storage" category.`, "how");
       } else {
-        lines(g, "Storage income", "last 14 months", [{ label: "Storage income", series: stoRev, color: TEAL }], money, { headVal: money(lastV(stoRev)) });
+        lines(g, "Storage income", "last 14 months", [{ label: "Storage income", series: stoRev, color: VIOLET }], money, { headVal: money(lastV(stoRev)) });
       }
       // storage base: active vs recurring customers — the number storage PLANNING grows from
       const stoCust = momReduce("storage", 14, rs => { const set = new Set(); rs.forEach(r => set.add(String(r.Customer || ""))); return set.size; });
       const stoRec = momReduce("storage", 14, rs => { const set = new Set(); rs.forEach(r => { if (!/pickup|delivery/i.test(String(r["Payment Type"] || ""))) set.add(String(r.Customer || "")); }); return set.size; });
-      const cStC = lines(g, "Storage customers — active vs recurring", "last 14 months", [ { label: "Active", series: stoCust, color: TEAL }, { label: "Recurring", series: stoRec, color: INK } ], fmtN, { headVal: fmtN(lastV(stoCust) || 0) });
+      const cStC = lines(g, "Storage customers — active vs recurring", "last 14 months", [ { label: "Active", series: stoCust, color: VIOLET }, { label: "Recurring", series: stoRec, color: INK } ], fmtN, { headVal: fmtN(lastV(stoCust) || 0) });
       note(cStC, "Active = any storage payment that month; recurring = monthly-billed customers (excludes one-off pickup/delivery payments). Growth or churn in the recurring line is the storage-planning signal.", "how");
       // deck s13/19/27a: the storage revenue SPLIT — billed separately vs bundled into the job's bill (Tornike 2026-07-15)
       const stoAddS = momSeries("storage", "Storage Additional Revenue", 14), stoInclS = momSeries("storage", "Storage Revenue Included in Total Bill", 14);
       const cSpl = stackedTime(g, "Storage revenue — additional vs included in the bill", "last 14 months", stoAddS.map(r => r.k),
-        [ { label: "Additional (billed separately)", data: stoAddS.map(r => r.v || 0), color: TEAL },
+        [ { label: "Additional (billed separately)", data: stoAddS.map(r => r.v || 0), color: VIOLET },
           { label: "Included in the bill (paid at pickup)", data: stoInclS.map(r => r.v || 0), color: INK } ], money, { span2: true });
       const lAdd = lastV(stoAddS) || 0, lIncl = lastV(stoInclS) || 0;
       note(cSpl, `Storage money arrives two ways: billed SEPARATELY as its own storage payment (${money(lAdd)} this month) or bundled INTO the job's total bill and collected at pickup (${money(lIncl)}). The income charts above track only the additional half — the bundled half is already inside Revenue, so the two must never be added to Revenue again.`, "how");
@@ -2016,8 +2031,8 @@ async function renderMonthly(host, MRCFG) {
           const ended = !!goalPast;
           const untracked = plats.filter(k => !(nk(k) in cur2));
           const pcell = (now, goal2) => { const p = goal2 ? Math.min(100, now / goal2 * 100) : 0; return `<td class="bar"><i style="width:${p.toFixed(0)}%;background:${p >= 100 ? "#dcecab" : "#e7ecfb"}"></i><span>${p.toFixed(0)}%</span></td>`; };
-          const rowsH = plats.map(k => { const now = cur2[nk(k)] || 0, gl = gp[k], d = gl - now; return `<tr><td>${esc(k)}${(nk(k) in cur2) ? "" : ` <span style="color:#b7791a;font-weight:800" title="No platform with this name in the review-counts sheet">⚠</span>`}</td>${td(fmtN(now))}${td(fmtN(gl))}${td(d > 0 ? fmtN(d) : "✓ done", d > 0 ? "font-weight:800" : "color:#1c7a4a;font-weight:800")}${pcell(now, gl)}</tr>`; }).join("")
-            + `<tr style="font-weight:800;border-top:2px solid #c9d1dc"><td>Total</td>${td(fmtN(nowTot))}${td(fmtN(goalTot))}${td(toGo > 0 ? fmtN(toGo) : "✓ done", toGo > 0 ? "" : "color:#1c7a4a")}${pcell(nowTot, goalTot)}</tr>`;
+          const rowsH = plats.map(k => { const now = cur2[nk(k)] || 0, gl = gp[k], d = gl - now; return `<tr><td>${esc(k)}${(nk(k) in cur2) ? "" : ` <span style="color:${WARN};font-weight:800" title="No platform with this name in the review-counts sheet">⚠</span>`}</td>${td(fmtN(now))}${td(fmtN(gl))}${td(d > 0 ? fmtN(d) : "✓ done", d > 0 ? "font-weight:800" : `color:${POS};font-weight:800`)}${pcell(now, gl)}</tr>`; }).join("")
+            + `<tr style="font-weight:800;border-top:2px solid #c9d1dc"><td>Total</td>${td(fmtN(nowTot))}${td(fmtN(goalTot))}${td(toGo > 0 ? fmtN(toGo) : "✓ done", toGo > 0 ? "" : `color:${POS}`)}${pcell(nowTot, goalTot)}</tr>`;
           const gc = tableCard(g, "Review goal — where we stand", (ended ? `period ended ${MON[endM]} ${endY}` : `target for end of ${MON[endM]} ${endY}`) + ` · footprint as of ${snap || "—"}`,
             `<table class="mrx-tbl"><thead><tr><th>Platform</th><th>Reviews now</th><th>Goal</th><th>To go</th><th>Progress</th></tr></thead><tbody>${rowsH}</tbody></table>`,
             { icon: KIC.trend, headVal: goalTot ? pct(nowTot / goalTot) : "—" });

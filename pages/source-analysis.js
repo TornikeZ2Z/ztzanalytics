@@ -77,7 +77,9 @@ async function renderSourceAnalysis(host, lockedSource) {
   const brMonth = k => RS.bookingRate(mbS.filter(r => ymKey(r) === k), mbSB.filter(r => bymKey(r) === k));
   const ymLbl = k => ["", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][k % 100] + " " + String(Math.floor(k / 100)).slice(2);
   const monthsOf = rowsets => [...new Set(rowsets.flat().map(ymKey).filter(k => k > 0))].sort((a, b) => a - b).slice(-14);
-  const CATINK = "#0e1621", CATBLUE = "#3b82f6", CATLIME = "#7ba317", CATAMBER = "#f5a524";
+  // Same four core colours as the Monthly Report (Tornike 2026-07-15): Ink, Blue, Violet, Lime.
+  // CATAMBER retired — "Ad spend" moves onto Violet, the core colour that now carries spend everywhere.
+  const CATINK = "#0e1621", CATBLUE = "#2f6fd0", CATLIME = "#7ba317", CATVIOLET = "#8b5cf6";
 
   // 1 · leads vs confirmed by month
   const mts = monthsOf([mbS]);
@@ -101,7 +103,7 @@ async function renderSourceAnalysis(host, lockedSource) {
     const AD = mts2.map(k => adS.filter(r => ymKey(r) === k).reduce((a, r) => a + num(r.Amount), 0));
     return new Chart(cv, { type: "bar", data: { labels: mts2.map(ymLbl), datasets: [
       { label: "Revenue", data: RV, backgroundColor: CATINK, borderRadius: 3 },
-      { label: "Ad spend", data: AD, backgroundColor: CATAMBER, borderRadius: 3 } ] },
+      { label: "Ad spend", data: AD, backgroundColor: CATVIOLET, borderRadius: 3 } ] },
       options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: "top" } } } });
   }, buildTable() {
     return RSC.table([{ key: "m", label: "Month" }, { key: "r", label: "Revenue", fmt: money }, { key: "a", label: "Ad spend", fmt: money }, { key: "roi", label: "Revenue per $1 of ads (ROAS)", fmt: v => v == null ? "—" : "$" + v.toFixed(2) }],
