@@ -66,10 +66,19 @@ async function renderMonthly(host, MRCFG) {
     // "Final Account Name/Number" = the COMPANY line that rang (acct_no = To on Incoming) → the deck-s75
     // per-line breakdown. Cache key bumped to __mrRcCache2: a pre-existing __mrRcCache aggregate was folded
     // WITHOUT the per-line data and would silently serve a table with no lines.
-    const rcP = (window.__mrRcCache2 || !needPhone) ? null
-      : pooled("RingCentral calls", () => ZTZ.api("/api/fct_ringcentral?limit=1000000&cols=" + encodeURIComponent("Date,Type,Direction,Action Result,Duration Seconds,Extension,Company,Final Account Name,Final Account Number")).then(j => j.rows || []));
-    const smsP = (window.__mrRcSmsCache || !needPhone) ? null
-      : pooled("RingCentral SMS", () => ZTZ.api("/api/fct_ringcentral_sms?limit=1000000&cols=" + encodeURIComponent("Date,Direction,Message Status,Company")).then(j => j.rows || []));
+    // PERF batch C (2026-07-15): the Phone & Response numbers now come from server-side MONTHLY
+    // rollups (mart_rc_monthly / _line / _agent / _sms_monthly, built in curated.py) instead of
+    // downloading all ~368k fct_ringcentral rows (82MB decoded, the page's 30.8s terminator).
+    // The fold below is the SAME fold — it sums pre-grouped Calls/Duration instead of counting
+    // rows. Sessions-not-legs (Type='Voice') is baked into the marts; Tuji is still skipped
+    // HERE (Company kept as a dim) so every number matches the old path exactly.
+    const rcP = (window.__mrRcCache3 || !needPhone) ? null
+      : pooled("RingCentral marts", () => Promise.all([
+          ZTZ.api("/api/mart_rc_monthly?limit=100000"),
+          ZTZ.api("/api/mart_rc_monthly_line?limit=100000"),
+          ZTZ.api("/api/mart_rc_monthly_agent?limit=100000")]).then(a => a.map(j => j.rows || [])));
+    const smsP = (window.__mrRcSmsCache2 || !needPhone) ? null
+      : pooled("RingCentral SMS mart", () => ZTZ.api("/api/mart_rc_sms_monthly?limit=100000").then(j => j.rows || []));
     // (per-job packing fetch of the RAW moveboard table DELETED 2026-07-15, perf batch A:
     //  it was the page's second-slowest call — 19.2s, ~108k raw rows — and its only consumer,
     //  the "Packing by type" card, was removed earlier that day. `packJobs` was write-only.)
@@ -98,44 +107,50 @@ async function renderMonthly(host, MRCFG) {
     // missed = 'Missed' + 'Voicemail' (kept separately); teammate = the agent's Extension
     // (the Name column is the OTHER party — ranking it credited customers as "teammates").
     if (rcP) {
-      const rcRows = await rcP;
+      const [mrows, lrows, arows] = await rcP;
       const agg = {};
-      rcRows.forEach(r => {
-        if (String(r.Type) !== "Voice") return;   // sessions only — legs & faxes never count as calls
-        if (String(r.Company) === "Tuji") return; // Tuji lines are a separate business — ZtZ scope only
-        const ym = String(r.Date || "").slice(0, 7); if (!/^\d{4}-\d{2}$/.test(ym)) return;
-        const b = agg[ym] || (agg[ym] = { in: 0, out: 0, ans: 0, miss: 0, vm: 0, inDur: 0, outDur: 0, names: {}, lines: {} });
-        const dur = +r["Duration Seconds"] || 0;
-        const res = String(r["Action Result"] || "");
+      const B = ym => agg[ym] || (agg[ym] = { in: 0, out: 0, ans: 0, miss: 0, vm: 0, inDur: 0, outDur: 0, names: {}, lines: {} });
+      const okYm = ym => /^\d{4}-\d{2}$/.test(ym);
+      // monthly volume/result buckets (definitions unchanged: answered='Accepted', missed/'Voicemail' separate)
+      mrows.forEach(r => {
+        if (String(r.Company) === "Tuji") return;   // Tuji lines are a separate business — ZtZ scope only
+        const ym = String(r.Month || ""); if (!okYm(ym)) return;
+        const b = B(ym), n = +r.Calls || 0, dur = +r["Duration Seconds"] || 0, res = String(r["Action Result"] || "");
         if (String(r.Direction) === "Incoming") {
-          b.in++; b.inDur += dur;
-          // deck s75: per-LINE inbound — which company number rang and how it was handled. Handle time
-          // accrues ONLY on answered calls (a missed call has no handle time), so AHT = ansDur / ans.
-          // Numbers with no name in RingCentral's account mapping collapse into ONE explicit bucket keyed
-          // "__unmapped__" — they are DOZENS of distinct DIDs, so showing any single one of them as "the
-          // number" would be a lie. Track the distinct set instead and label the row with its size.
-          const lnName = String(r["Final Account Name"] || "").trim();
-          const lnNum = String(r["Final Account Number"] || "").trim();
-          const L = b.lines[lnName || "__unmapped__"] || (b.lines[lnName || "__unmapped__"] = { num: "", in: 0, ans: 0, miss: 0, vm: 0, ansDur: 0, nums: {} });
-          if (lnNum) { L.nums[lnNum] = (L.nums[lnNum] || 0) + 1; if (!L.num) L.num = lnNum; }
-          L.in++;
-          if (/^Accepted$/i.test(res)) { b.ans++; L.ans++; L.ansDur += dur; }
-          else if (/^Missed$/i.test(res)) { b.miss++; L.miss++; }
-          else if (/^Voicemail$/i.test(res)) { b.vm++; L.vm++; }
-        } else if (String(r.Direction) === "Outgoing") {
-          b.out++; b.outDur += dur;
-          const ext = String(r.Extension || "").trim();
-          // per-person ranking: skip the shared "Support Zip To Zip" queue line
-          if (ext && !/support zip to zip/i.test(ext)) {
-            const nm = ext.replace(/^\d+\s*-\s*/, "");   // "108 - Alex Koval" -> "Alex Koval"
-            const n2 = b.names[nm] || (b.names[nm] = { out: 0, dur: 0 }); n2.out++; n2.dur += dur;
-          }
-        }
+          b.in += n; b.inDur += dur;
+          if (/^Accepted$/i.test(res)) b.ans += n;
+          else if (/^Missed$/i.test(res)) b.miss += n;
+          else if (/^Voicemail$/i.test(res)) b.vm += n;
+        } else if (String(r.Direction) === "Outgoing") { b.out += n; b.outDur += dur; }
       });
-      if (rcRows.length) window.__mrRcCache2 = agg;
+      // deck s75 per-LINE inbound — AHT accrues ONLY on answered calls; unnamed numbers pool
+      // into "__unmapped__" with their distinct-number set (same rules as the old row-level fold)
+      lrows.forEach(r => {
+        if (String(r.Company) === "Tuji") return;
+        const ym = String(r.Month || ""); if (!okYm(ym)) return;
+        const b = B(ym), n = +r.Calls || 0, dur = +r["Duration Seconds"] || 0, res = String(r["Action Result"] || "");
+        const lnName = String(r["Line Name"] || "").trim(), lnNum = String(r["Line Number"] || "").trim();
+        const L = b.lines[lnName || "__unmapped__"] || (b.lines[lnName || "__unmapped__"] = { num: "", in: 0, ans: 0, miss: 0, vm: 0, ansDur: 0, nums: {} });
+        if (lnNum) { L.nums[lnNum] = (L.nums[lnNum] || 0) + n; if (!L.num) L.num = lnNum; }
+        L.in += n;
+        if (/^Accepted$/i.test(res)) { L.ans += n; L.ansDur += dur; }
+        else if (/^Missed$/i.test(res)) L.miss += n;
+        else if (/^Voicemail$/i.test(res)) L.vm += n;
+      });
+      // outbound by teammate — skip the shared support queue + empty extensions, strip "NNN - "
+      arows.forEach(r => {
+        if (String(r.Company) === "Tuji") return;
+        const ym = String(r.Month || ""); if (!okYm(ym)) return;
+        const ext = String(r.Extension || "").trim();
+        if (!ext || /support zip to zip/i.test(ext)) return;
+        const b = B(ym), n = +r.Calls || 0, dur = +r["Duration Seconds"] || 0;
+        const nm = ext.replace(/^\d+\s*-\s*/, "");
+        const n2 = b.names[nm] || (b.names[nm] = { out: 0, dur: 0 }); n2.out += n; n2.dur += dur;
+      });
+      if (mrows.length) window.__mrRcCache3 = agg;
     }
-    delete window.__mrRcCache;                 // pre-per-line aggregate — retire it outright
-    const rcAgg = window.__mrRcCache2 || {};
+    delete window.__mrRcCache; delete window.__mrRcCache2;   // row-level-fold caches — retire
+    const rcAgg = window.__mrRcCache3 || {};
     // RingCentral SMS (first consumer 2026-07-13) — same isolated-fold pattern; the export's
     // own Direction column is trusted; ZtZ lines only (Tuji excluded like the calls fold).
     if (smsP) {
@@ -143,15 +158,17 @@ async function renderMonthly(host, MRCFG) {
       const agg2 = {};
       smsRows.forEach(r => {
         if (String(r.Company) === "Tuji") return;
-        const ym = String(r.Date || "").slice(0, 7); if (!/^\d{4}-\d{2}$/.test(ym)) return;
+        const ym = String(r.Month || ""); if (!/^\d{4}-\d{2}$/.test(ym)) return;
         const b = agg2[ym] || (agg2[ym] = { in: 0, out: 0, fail: 0 });
-        if (String(r.Direction) === "Inbound") b.in++;
-        else if (String(r.Direction) === "Outbound") b.out++;
-        if (String(r["Message Status"]) === "Failed") b.fail++;
+        const n = +r.Messages || 0;
+        if (String(r.Direction) === "Inbound") b.in += n;
+        else if (String(r.Direction) === "Outbound") b.out += n;
+        if (String(r["Message Status"]) === "Failed") b.fail += n;
       });
-      if (smsRows.length) window.__mrRcSmsCache = agg2;
+      if (smsRows.length) window.__mrRcSmsCache2 = agg2;
     }
-    const rcSms = window.__mrRcSmsCache || {};
+    delete window.__mrRcSmsCache;   // row-level-fold cache — retire
+    const rcSms = window.__mrRcSmsCache2 || {};
     // retired caches (Fleet section removed + dead per-job packing fetch deleted, 2026-07-15)
     delete window.__mrFleetCache; delete window.__mrFleetCache2;
     delete window.__mrPackCache; delete window.__mrPackCache2;
