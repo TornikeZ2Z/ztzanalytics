@@ -182,7 +182,21 @@ registerPage({
     host.innerHTML = "";   // clear the shell's "Loading…" spinner before mounting
     var root = document.createElement("div"); root.className = "rrp"; host.appendChild(root);
 
-    // ---------- JSONP read from the relay ----------
+    // ---------- relay reads: bridge proxy FIRST, direct JSONP as FALLBACK ----------
+    // The direct <script src="script.google.com/..."> path breaks PER USER — a stale Google
+    // session or an extension blocking script.google.com fails the script load ("load error",
+    // seen on quality@ 2026-07-15) even while the relay itself is healthy. The bridge works for
+    // everyone who can open this page at all (it serves every other number they see), so reads
+    // go through /api/_rrp and fall back to direct JSONP only if the bridge call fails (e.g.
+    // mid-redeploy). The proxy also caches ~30s server-side, shielding the relay's 40-50s
+    // cold start from multi-user bursts.
+    async function relayRead(fresh) {
+      try { return await ZTZ.api("/api/_rrp?req=reviewData" + (fresh ? "&fresh=1" : "")); }
+      catch (e1) {
+        try { return await jsonp(RRP_RELAY + "?req=reviewData" + (fresh ? "&fresh=1" : "")); }
+        catch (e2) { throw new Error("bridge: " + (e1 && e1.message || e1) + " · direct: " + (e2 && e2.message || e2)); }
+      }
+    }
     function jsonp(url) {
       return new Promise(function (resolve, reject) {
         var cb = "__rrcb_" + Date.now() + "_" + Math.floor(Math.random() * 1e6);
@@ -219,7 +233,7 @@ registerPage({
       if (RRP.dataFresh && !force) return;   // already have a FRESH fetch this page-load
       RRP.err = null;
       try {
-        var d = await jsonp(RRP_RELAY + "?req=reviewData");
+        var d = await relayRead(force);   // manual Refresh punches through the proxy cache AND the relay's 60s schedule cache
         RRP.data = d; RRP.dataFresh = true; RRP.fromCache = false; rrpCacheWrite(d);
       } catch (e) {
         RRP.err = e.message || String(e);   // keep any cached RRP.data so the page still shows the last schedule
@@ -541,7 +555,8 @@ registerPage({
       else if (RRP.loading && !RRP.data) body = '<div class="rrp-empty">Loading reminders…</div>';
       else if (RRP.err && !RRP.data) {
         body = '<div class="rrp-empty">Couldn’t reach the Reviews relay (' + esc(RRP.err) + ').<br><br>'
-          + 'This lights up once the Apps Script is published with the read API (Deploy ▸ New version). '
+          + 'Both paths failed — the bridge proxy and the direct Google call. That usually means the relay '
+          + 'is cold-starting (up to ~1 min) or the bridge is mid-redeploy; it is not about your account. '
           + 'You can still open <b>Review links</b> to preview and edit.<br><br>'
           + '<button class="rrp-refresh" id="rrpRetry">Try again</button></div>';
       } else if (RRP.view === "log") body = kpis() + viewLog();
@@ -616,13 +631,20 @@ registerPage({
         if (bad.length) { alert("Each state needs exactly one active link with a URL. Check: " + bad.join(", ")); return; }
         RRP.saving = true; RRP.saved = 0; paint();
         try {
-          fetch(RRP_RELAY, { method: "POST", mode: "no-cors", headers: { "Content-Type": "text/plain;charset=utf-8" },
-            body: JSON.stringify({ kind: "reviewLinkConfig", config: d }) });
+          var _body = JSON.stringify({ kind: "reviewLinkConfig", config: d });
+          // bridge-proxied write (also busts the proxy's read cache); direct no-cors write
+          // only if the bridge call itself fails (e.g. mid-redeploy)
+          fetch(ZTZ.API + "/api/_rrp", { method: "POST",
+            headers: { "Content-Type": "text/plain;charset=utf-8", "Authorization": "Bearer " + ZTZ.getToken() },
+            body: _body })
+            .catch(function () {
+              return fetch(RRP_RELAY, { method: "POST", mode: "no-cors", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: _body });
+            });
         } catch (e) {}
-        // no-cors write is opaque — CONFIRM it by reading the config back and comparing.
+        // the write may land via the opaque fallback — CONFIRM it by reading the config back and comparing.
         var want = activeSig(d);
         setTimeout(function () {
-          jsonp(RRP_RELAY + "?req=reviewData").then(function (live) {
+          relayRead().then(function (live) {
             RRP.saving = false;
             if (live && live.config && activeSig(live.config) === want) { RRP.saved = 1; RRP.data = live; }
             else { RRP.saved = 2; }
