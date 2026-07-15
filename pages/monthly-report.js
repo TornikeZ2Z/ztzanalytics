@@ -384,7 +384,7 @@ async function renderMonthly(host, MRCFG) {
       .mrx-bmsg{flex:1}
       .mrx-btoggle{flex:0 0 auto;font-family:${MONO};font-size:11.5px;font-weight:800;color:${INK};cursor:pointer;white-space:nowrap;border-bottom:1.5px solid ${AMBER};user-select:none}
       .mrx-bdetail{margin-top:7px;background:#fff;border:1px solid #f2d492;border-radius:9px;padding:9px 13px;max-height:300px;overflow:auto}
-      .mrx-toc{position:sticky;top:0;z-index:40;background:rgba(255,255,255,.96);backdrop-filter:blur(4px);box-shadow:0 4px 14px rgba(14,22,33,.10);border-bottom:1px solid ${LINE};display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:9px 24px;margin:0 -24px 10px}
+      .mrx-toc{position:sticky;top:0;z-index:60;background:#fff;box-shadow:0 4px 14px rgba(14,22,33,.14);border-bottom:1px solid ${LINE};display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:9px 24px;margin:0 -24px 10px}
       .mrx-tocpart{font-size:9.5px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:${FAINT};margin:0 1px 0 7px;white-space:nowrap}
       .mrx-tocpart:first-child{margin-left:0}
       .mrx-tocchip{font-family:${MONO};font-size:11.5px;font-weight:700;color:${INK2};background:#fff;border:1px solid ${LINE};border-radius:7px;padding:4px 9px;cursor:pointer;white-space:nowrap;user-select:none}
@@ -1748,18 +1748,19 @@ async function renderMonthly(host, MRCFG) {
     /* ---- 13 · Packing & Storage ---- */
     if (SEC("Packing & Storage")) {
       const g = section("Packing & Storage", "packing written vs material cost, storage income vs cost");
-      // Packing economics — written revenue vs material cost, MONTH-over-month (replaces the near-constant
-      // 5-yr revenue/commission ratio, which was mechanically pinned and taught nothing).
+      // Packing economics — written revenue vs material cost, MONTH-over-month. FULL WIDTH (Tornike 2026-07-15).
       const packMoM = momSeries("closing", "Total Packing Written", 14);
+      let pkCard;
       if (hasCostData) {
         const pkCost = packMoM.map(r => ({ k: r.k, v: costByMonth(`${r.y}-${String(r.m).padStart(2, "0")}`, "pk") }));
-        const pkc = combo(g, "Packing written vs material cost", "last 14 months", packMoM.map(r => ({ k: r.k, v: r.v || 0 })), "Written", money, pkCost, "Material cost", money, { headVal: money(lastV(packMoM)) });
+        pkCard = combo(g, "Packing written vs material cost", "last 14 months", packMoM.map(r => ({ k: r.k, v: r.v || 0 })), "Written", money, pkCost, "Material cost", money, { headVal: money(lastV(packMoM)) });
         const lastCost = pkCost.length ? pkCost[pkCost.length - 1].v : 0, lastWr = lastV(packMoM) || 0;
-        note(pkc, `Packing written ${money(lastWr)} vs material bought ${money(lastCost)} this month${lastWr ? ` — material is ${pct(lastCost / lastWr)} of packing revenue` : ""}. Material cost = card spend in the "Job Supplies / Packing Material" category.`, "how");
+        note(pkCard, `Packing written ${money(lastWr)} vs material bought ${money(lastCost)} this month${lastWr ? ` — material is ${pct(lastCost / lastWr)} of packing revenue` : ""}. Material cost = card spend in the "Job Supplies / Packing Material" category.`, "how");
       } else {
-        lines(g, "Packing written — momentum", "last 14 months", [{ label: "Packing written", series: packMoM, color: LIMED }], money, { headVal: money(lastV(packMoM)) });
+        pkCard = lines(g, "Packing written — momentum", "last 14 months", [{ label: "Packing written", series: packMoM, color: LIMED }], money, { headVal: money(lastV(packMoM)) });
       }
-      // Storage — a small complementary line; income vs the rent/lease cost, no more mixing with Bill/Jobs.
+      pkCard.classList.add("span2");   // #2: packing spans the full row
+      // Storage — income vs rent/lease cost + the active/recurring customer base, SIDE BY SIDE (two halves).
       const stoRev = momSeries("storage", "Storage Additional Revenue", 14);
       if (hasCostData) {
         const stoCost = stoRev.map(r => ({ k: r.k, v: costByMonth(`${r.y}-${String(r.m).padStart(2, "0")}`, "sto") }));
@@ -1774,18 +1775,7 @@ async function renderMonthly(host, MRCFG) {
       const stoRec = momReduce("storage", 14, rs => { const set = new Set(); rs.forEach(r => { if (!/pickup|delivery/i.test(String(r["Payment Type"] || ""))) set.add(String(r.Customer || "")); }); return set.size; });
       const cStC = lines(g, "Storage customers — active vs recurring", "last 14 months", [ { label: "Active", series: stoCust, color: TEAL }, { label: "Recurring", series: stoRec, color: INK } ], fmtN, { headVal: fmtN(lastV(stoCust) || 0) });
       note(cStC, "Active = any storage payment that month; recurring = monthly-billed customers (excludes one-off pickup/delivery payments). Growth or churn in the recurring line is the storage-planning signal.", "how");
-      // per-job packing: what sales ESTIMATED vs what crews WROTE, by service type.
-      // C28: bucketed by MOVE month so it trends in step with the rest of this section
-      // (create-date bucketing understated the month and never reconciled with the chart above).
-      if (packJobs.length) {
-        const mmP = `${curY}-${String(mo).padStart(2, "0")}`, byT = {};
-        packJobs.forEach(r => { if (String(r["Move Date"] || "").slice(0, 7) !== mmP) return; const t = String(r["Service Type"] || "—"); const b = byT[t] || (byT[t] = { est: 0, wr: 0 }); b.est += num(r["Sales Packing total"]); b.wr += num(r["Closing Packing total"]); });
-        const tys = Object.keys(byT).map(k => ({ k, est: byT[k].est, wr: byT[k].wr })).filter(r => (r.est > 0 || r.wr > 0) && r.k !== "—").sort((a, b) => b.wr - a.wr).slice(0, 8);
-        if (tys.length) {
-          const cPk = groupedBars(g, "Packing by type — estimate vs written", tys.map(r => r.k), tys.map(r => r.est), "Estimate", tys.map(r => r.wr), "Written", money, { sub: monLbl + " · per-job Moveboard packing, by move month" });
-          note(cPk, "Per-job packing as recorded in Moveboard (what sales estimated vs what crews wrote), grouped by move month. Moveboard records packing differently from the closing sheets, so these totals won't equal the closing-sheet packing chart above — this card shows the Moveboard system.", "how");
-        }
-      }
+      // (#1) "Packing by type — estimate vs written" removed per Tornike 2026-07-15.
     }
 
     /* ---- 13 · Reviews Production ---- */
@@ -1911,10 +1901,12 @@ async function renderMonthly(host, MRCFG) {
       const recT = yearsArr(5).map(y => valueFor("closing", "Revenue", y, mo, { pre: r => String(r.Source) === "Recommended" }) || 0);
       groupedBars(g, "Repeat vs Referral — revenue by year", yearsArr(5).map(String), retT, "Repeat (returned customer)", recT, "Referral (recommended)", money, { sub: MON[mo] + " each year" });
       // C2: both trend lines use the canonical dual-basis Booking Rate (no inline ratios)
-      const rrBookT = bookRateTrend(r => RRS.indexOf(String(r.Source)) >= 0, 12);
+      // #8 (Tornike 2026-07-15): show Repeat (returned) and Referral (recommended) as SEPARATE lines vs overall.
+      const retBookT = bookRateTrend(r => String(r.Source) === "Returned Customer", 12);
+      const recBookT = bookRateTrend(r => String(r.Source) === "Recommended", 12);
       const allBookT = bookRateTrend(null, 12);
-      const cBk = lines(g, "Repeat & Referral booking rate vs overall", "last 12 months", [ { label: "Repeat & Referral", series: rrBookT, color: LIMED }, { label: "All leads", series: allBookT, color: CTX } ], pct);
-      note(cBk, `Repeat/referral leads should convert far above the average — they already trust you. If the lime line dips toward the gray one, follow-up on warm leads is slipping.`);
+      const cBk = lines(g, "Repeat & Referral booking rate vs overall", "last 12 months", [ { label: "Repeat (returned)", series: retBookT, color: LIMED }, { label: "Referral (recommended)", series: recBookT, color: BLUE }, { label: "All leads", series: allBookT, color: CTX } ], pct);
+      note(cBk, `Repeat (returned) and Referral (recommended) leads should each convert far above the average — they already trust you. If either coloured line dips toward the gray (all-leads) line, warm-lead follow-up is slipping.`);
     }
 
     /* ---------- layout parity: no half-empty rows, ever ----------
