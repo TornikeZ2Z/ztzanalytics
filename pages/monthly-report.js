@@ -1734,6 +1734,14 @@ async function renderMonthly(host, MRCFG) {
       const callsBySrc = segReduce("callrail", "Source", rs => rs.length, curY, mo).slice(0, 10);
       const ftc = reduceMonth("callrail", curY, mo, rs => { const t = rs.length, f = rs.filter(r => Number(r["First-Time Caller"]) === 1).length; return t ? f / t : null; });
       rankBars(g, "Calls by source", callsBySrc, fmtN, { top: 10, sub: monLbl, note: ftc == null ? "" : `${pct(ftc)} of calls this month were first-time callers.` });
+      // deck s74: call DURATION by source — volume alone can't tell a real conversation from a 5-second hang-up
+      const durF = s => { const _m = Math.floor(s / 60), _s = Math.round(s % 60); return _m ? _m + "m " + String(_s).padStart(2, "0") + "s" : _s + "s"; };
+      const crD = segReduce("callrail", "Source", rs => rs, curY, mo).map(r => { const rw = r.rows, calls = rw.length, dur = rw.reduce((a, x) => a + num(x["Duration Seconds"]), 0), ft = rw.filter(x => Number(x["First-Time Caller"]) === 1).length; return { k: r.k === "—" ? "(blank)" : r.k, calls, dur, avg: calls ? dur / calls : 0, ft }; }).sort((a, b) => b.calls - a.calls).slice(0, 10);
+      if (crD.length) {
+        const tCalls = crD.reduce((a, r) => a + r.calls, 0), tDur = crD.reduce((a, r) => a + r.dur, 0), tFt = crD.reduce((a, r) => a + r.ft, 0);
+        const crHtml = `<table class="mrx-tbl"><thead><tr><th>Source</th><th style="text-align:right">Calls</th><th style="text-align:right">First-time</th><th style="text-align:right">Total time</th><th style="text-align:right">Avg call</th></tr></thead><tbody>${crD.map(r => `<tr><td>${esc(r.k)}</td>${td(fmtN(r.calls), "text-align:right")}${td(fmtN(r.ft), "text-align:right")}${td(durF(r.dur), "text-align:right")}${td(durF(r.avg), "text-align:right;font-weight:800;color:" + (r.avg >= 120 ? "#1c7a4a" : r.avg >= 45 ? "#7a5a12" : "#b02a37"))}</tr>`).join("")}<tr class="tot"><td>All tracked numbers</td>${td(fmtN(tCalls), "text-align:right")}${td(fmtN(tFt), "text-align:right")}${td(durF(tDur), "text-align:right")}${td(tCalls ? durF(tDur / tCalls) : "—", "text-align:right")}</tr></tbody></table>`;
+        tableCard(g, "Call duration by source", monLbl + " · CallRail tracked numbers", crHtml, { icon: KIC.grid, headVal: tCalls ? durF(tDur / tCalls) + " avg" : "—", noteKind: "how", note: "Total and average talk time per channel — a channel with many very short calls is sending noise; long calls mean real buyers. The average INCLUDES missed/abandoned (0-second) calls, matching the phone KPIs. Green ≥2m, amber ≥45s, red below." });
+      }
     }
 
     /* ---- Phone & Response (S3: RingCentral — the WHOLE phone system, deck s75) ----
@@ -1810,6 +1818,16 @@ async function renderMonthly(host, MRCFG) {
       groupedBars(g, "Packing written vs estimate by foreman", packCur.map(r => r.k), packCur.map(r => estM[nrmF(r.k)] || 0), "Estimate", packCur.map(r => r.v), "Written", money, { sub: monLbl });
       const refByFm = segReduce("refunds", "Foreman", rs => Math.abs(rs.reduce((a, x) => a + num(x["Total refund"]), 0)), curY, mo).filter(r => r.v > 0 && r.k !== "—");
       if (refByFm.length) rankBars(g, "Refunds by foreman", refByFm, money, { top: 10 });
+      // deck s43: per-foreman pay RATE ($/hour) + hours — the scorecard shows pay but never the rate behind it
+      const fmPay = segSeries("closing", "Forman Salary", "Foreman").filter(r => r.k !== "—");
+      const fmHrsM = {}; segSeries("closing", "Hours Worked by Forman", "Foreman").forEach(r => fmHrsM[r.k] = r.v);
+      const fmRate = fmPay.map(r => ({ k: r.k, pay: r.v, hrs: fmHrsM[r.k] || 0 })).filter(r => r.hrs > 0)
+        .map(r => ({ k: r.k, pay: r.pay, hrs: r.hrs, rate: r.pay / r.hrs })).sort((a, b) => b.pay - a.pay).slice(0, 14);
+      if (fmRate.length) {
+        const tP = fmRate.reduce((a, r) => a + r.pay, 0), tH = fmRate.reduce((a, r) => a + r.hrs, 0);
+        const frHtml = `<table class="mrx-tbl"><thead><tr><th>Foreman</th><th style="text-align:right">Hours</th><th style="text-align:right">Pay</th><th style="text-align:right">Rate $/hr</th></tr></thead><tbody>${fmRate.map(r => `<tr><td>${esc(r.k)}</td>${td(fmt1(r.hrs), "text-align:right")}${td(money(r.pay), "text-align:right")}${td("$" + fmt1(r.rate), "text-align:right;font-weight:800")}</tr>`).join("")}<tr class="tot"><td>All foremen</td>${td(fmt1(tH), "text-align:right")}${td(money(tP), "text-align:right")}${td(tH ? "$" + fmt1(tP / tH) : "—", "text-align:right")}</tr></tbody></table>`;
+        tableCard(g, "Foreman pay rate — $ per hour", monLbl + " · pay ÷ hours worked", frHtml, { icon: KIC.grid, headVal: tH ? "$" + fmt1(tP / tH) : "—", noteKind: "how", note: "Total pay ÷ hours worked, per foreman — the effective hourly rate behind the scorecard's pay column. Pay includes every component (hourly, CF, packing, review, tip, trips), so a high rate usually means strong bonus earning rather than a higher base rate." });
+      }
       // foreman efficiency — packing density & review rate, WITH month-over-month movement + arrows
       if (scRows.length) {
         const prevEff = {}; scPrev.forEach(r => prevEff[r.Foreman] = { p100: num(r["Packing per 100 CF"]), rtj: num(r["Reviews to Jobs Ratio"]) });
@@ -1870,6 +1888,13 @@ async function renderMonthly(host, MRCFG) {
       const stoRec = momReduce("storage", 14, rs => { const set = new Set(); rs.forEach(r => { if (!/pickup|delivery/i.test(String(r["Payment Type"] || ""))) set.add(String(r.Customer || "")); }); return set.size; });
       const cStC = lines(g, "Storage customers — active vs recurring", "last 14 months", [ { label: "Active", series: stoCust, color: TEAL }, { label: "Recurring", series: stoRec, color: INK } ], fmtN, { headVal: fmtN(lastV(stoCust) || 0) });
       note(cStC, "Active = any storage payment that month; recurring = monthly-billed customers (excludes one-off pickup/delivery payments). Growth or churn in the recurring line is the storage-planning signal.", "how");
+      // deck s13/19/27a: the storage revenue SPLIT — billed separately vs bundled into the job's bill (Tornike 2026-07-15)
+      const stoAddS = momSeries("storage", "Storage Additional Revenue", 14), stoInclS = momSeries("storage", "Storage Revenue Included in Total Bill", 14);
+      const cSpl = stackedTime(g, "Storage revenue — additional vs included in the bill", "last 14 months", stoAddS.map(r => r.k),
+        [ { label: "Additional (billed separately)", data: stoAddS.map(r => r.v || 0), color: TEAL },
+          { label: "Included in the bill (paid at pickup)", data: stoInclS.map(r => r.v || 0), color: INK } ], money, { span2: true });
+      const lAdd = lastV(stoAddS) || 0, lIncl = lastV(stoInclS) || 0;
+      note(cSpl, `Storage money arrives two ways: billed SEPARATELY as its own storage payment (${money(lAdd)} this month) or bundled INTO the job's total bill and collected at pickup (${money(lIncl)}). The income charts above track only the additional half — the bundled half is already inside Revenue, so the two must never be added to Revenue again.`, "how");
       // (#1) "Packing by type — estimate vs written" removed per Tornike 2026-07-15.
     }
 
@@ -1923,11 +1948,13 @@ async function renderMonthly(host, MRCFG) {
       }
       // #6 (Tornike 2026-07-15): ONE chart combining "Reviews by source" + "Footprint by platform" —
       // per listing, TOTAL public reviews on file with THIS MONTH's additions highlighted. Reconciles
-      // Source (reviews_breakdown) ↔ Platform (review_counts) by case-folded name; "Google NJ" was renamed
-      // to "Google Shafto" (his call 2026-07-15) so it's aliased. Tuji sources have no Zip footprint → drop out.
+      // Source (reviews_breakdown) ↔ Platform (review_counts) by case-folded name. NOTE: "Google NJ" and
+      // "Google Shafto" are SEPARATE listings (both tracked every month, both with their own goal) — they
+      // must NOT be aliased together. A listing only appears here if the latest footprint snapshot has a
+      // row for it, so a listing missing from that snapshot (e.g. Google NJ in Jun-2026) drops out until the
+      // sheet is filled in. Tuji sources have no Zip footprint → they drop out too.
       const nk6 = s => String(s == null ? "" : s).toLowerCase().replace(/[^a-z0-9]/g, "");
-      const ALIAS6 = { googlenj: "googleshafto" };
-      const rk6 = s => { const k = nk6(s); return ALIAS6[k] || k; };
+      const rk6 = s => nk6(s);
       const rc6 = (DS.review_counts || []).filter(coRow);
       const snaps6 = [...new Set(rc6.map(r => String(r.Date || "").slice(0, 10)))].filter(d => /^\d{4}-\d{2}-\d{2}$/.test(d) && d <= monthEndKey).sort();
       const snap6 = snaps6[snaps6.length - 1];
