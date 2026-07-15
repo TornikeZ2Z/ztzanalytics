@@ -35,6 +35,11 @@ var RRP_SEED = {
     "Customer was unfriendly / not willing to engage", "Other"]
 };
 var RRP = { data: null, err: null, view: "log", draft: null, saving: false, saved: 0, fq: "", goals: null, openJobs: {}, openDays: {} };
+// SPEED: cache the last good reviewData in localStorage so a repeat visit paints the schedule
+// INSTANTLY from cache, then refreshes in the background (the relay read is ~30-50s cold).
+var RRP_CACHE_KEY = "ztz_rrp_reviewData_v2";
+function rrpCacheRead() { try { var s = localStorage.getItem(RRP_CACHE_KEY); return s ? JSON.parse(s) : null; } catch (e) { return null; } }
+function rrpCacheWrite(data) { try { localStorage.setItem(RRP_CACHE_KEY, JSON.stringify({ ts: Date.now(), data: data })); } catch (e) {} }
 
 registerPage({
   id: "reviews-reminders",
@@ -106,6 +111,17 @@ registerPage({
         ".pill.s-sched{background:rgba(91,155,255,.16);color:#5b9bff}",
         ".rrp-jchev{color:var(--faint);font-size:12px;text-align:center}",
         ".rrp-jobevents{border-top:1px solid var(--line);background:var(--panel-2)}",
+        ".rrp-fgroup{background:var(--panel);border:1px solid var(--line);border-radius:14px;margin-bottom:10px;overflow:hidden}",
+        ".rrp-fhead{display:grid;grid-template-columns:34px 1fr auto;gap:11px;align-items:center;padding:12px 15px}",
+        ".rrp-favatar{width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,var(--brand),#e0a015);color:var(--brand-ink);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:12.5px;flex:0 0 auto}",
+        ".rrp-fname{font-weight:800;font-size:14.5px}",
+        ".rrp-fmeta{font-size:11.5px;color:var(--faint);font-weight:700;white-space:nowrap;justify-self:end;text-align:right}",
+        ".rrp-morning{border-top:1px solid var(--line)}",
+        ".rrp-jrhead{display:grid;grid-template-columns:16px 1fr auto;gap:11px;align-items:center;padding:10px 15px;cursor:pointer;border-top:1px solid var(--line)}",
+        ".rrp-jrhead:hover{background:var(--panel-2)}",
+        ".rrp-jrchev{color:var(--faint);font-size:12px;text-align:center}",
+        ".rrp-jrc{font-size:13px}.rrp-jrc small{display:block;color:var(--faint);font-size:11px;margin-top:1px}",
+        ".rrp-jrstages{display:flex;gap:5px;justify-self:end;flex-wrap:wrap;justify-content:flex-end}",
         ".rrp-evrow{display:flex;align-items:center;gap:12px;padding:9px 15px 9px 20px;border-top:1px solid var(--line);font-size:12.5px}",
         ".rrp-evrow:first-child{border-top:0}",
         ".rrp-evrow .tm{font-variant-numeric:tabular-nums;color:var(--muted);min-width:60px}",
@@ -197,12 +213,16 @@ registerPage({
     }
 
     async function ensureData(force) {
-      if (RRP.data && !force) return;
+      if (RRP.dataFresh && !force) return;   // already have a FRESH fetch this page-load
       RRP.err = null;
-      try { RRP.data = await jsonp(RRP_RELAY + "?req=reviewData"); }
-      catch (e) { RRP.err = e.message || String(e); RRP.data = null; }
+      try {
+        var d = await jsonp(RRP_RELAY + "?req=reviewData");
+        RRP.data = d; RRP.dataFresh = true; RRP.fromCache = false; rrpCacheWrite(d);
+      } catch (e) {
+        RRP.err = e.message || String(e);   // keep any cached RRP.data so the page still shows the last schedule
+      }
       if (RRP.data && RRP.data.config && RRP.data.config.google && RRP.data.config.google.length) RRP.cfgSource = "live";
-      else RRP.cfgSource = "seed";
+      else if (!RRP.cfgSource) RRP.cfgSource = "seed";
     }
 
     // ---------- ET time helpers ----------
@@ -287,6 +307,10 @@ registerPage({
       });
       return { mBy: mBy, midBy: midBy, finBy: finBy };
     }
+    function initials(name) {
+      var p = String(name || "").trim().split(/\s+/); if (!p[0]) return "—";
+      return ((p[0][0] || "") + (p.length > 1 ? (p[p.length - 1][0] || "") : "")).toUpperCase();
+    }
     function viewSchedule(sched) {
       var idx = indexLog();
       var todayKey = etDayKey(new Date().toISOString());
@@ -295,13 +319,17 @@ registerPage({
         var isToday = D.day === todayKey, isTomorrow = D.day === tKey, isYesterday = D.day === yKey;
         var open = (D.day in RRP.openDays) ? RRP.openDays[D.day] : isToday;   // default: today open, yesterday/tomorrow closed
         var jobs = (D.jobs || []).filter(jobMatches);
+        // group a day's jobs UNDER their foreman (parent), preserving first-seen order
+        var order = [], byF = {};
+        jobs.forEach(function (j) { var k = j.foremanEmail || j.foreman || "?"; if (!byF[k]) { byF[k] = []; order.push(k); } byF[k].push(j); });
         var body = "";
-        if (open) body = jobs.length ? jobs.map(function (j) { return scheduleCard(D.day, j, idx); }).join("")
+        if (open) body = order.length ? order.map(function (k) { return foremanGroup(D.day, byF[k], idx); }).join("")
           : '<div class="rrp-empty" style="margin:6px 0 14px;padding:20px">No Zip-to-Zip jobs ' + (isToday ? "today" : isYesterday ? "yesterday" : "scheduled") + ".</div>";
+        var count = (D.jobs || []).length;
         return '<div class="rrp-dayhead' + (open ? " open" : "") + '" data-day="' + esc(D.day) + '">'
           + '<span class="rrp-daychev">' + (open ? "▾" : "▸") + "</span>"
           + "<h3>" + esc(dayHeadLabel(D.day, isToday, isTomorrow, isYesterday)) + "</h3>"
-          + "<span>" + (D.jobs || []).length + " job" + ((D.jobs || []).length === 1 ? "" : "s") + "</span></div>" + body;
+          + "<span>" + count + " job" + (count === 1 ? "" : "s") + (open && order.length ? " · " + order.length + " foreman" + (order.length === 1 ? "" : "s") : "") + "</span></div>" + body;
       }).join("");
     }
     // "View message sent" — the exact Slack text if the bot logged it, else the actual clickable
@@ -346,59 +374,61 @@ registerPage({
       var idline = e.eventId ? '<div class="rrp-msgnote" style="margin-top:8px">Event ID · ' + esc(e.eventId) + "</div>" : "";
       return '<details class="rrp-msg" style="margin:10px 15px 6px 20px"><summary>👁 View event</summary><div class="rrp-msgbody">' + dl + idline + "</div></details>";
     }
-    // one job card: Morning · Mid · Final each with its scheduled/sent TIME; expand for detail
-    function scheduleCard(dayKey, j, idx) {
-      var now = Date.now();
-      var mk = function (label, atIso, row) {
-        if (!atIso) return { label: label, state: "na" };
-        var st, at = atIso;
-        if (row && /^sent/i.test(row.status)) { st = "sent"; at = row.ts; }
-        else if (row && /skip/i.test(row.status)) st = "skip";
-        else if (row && /error/i.test(row.status)) st = "err";
-        else st = (new Date(atIso).getTime() <= now) ? "due" : "sched";
-        return { label: label, state: st, at: at, sched: atIso, row: row };
-      };
-      var stages = [
-        mk("Morning", j.morningAt, idx.mBy[dayKey + "|" + j.foremanEmail]),
-        mk("Mid", j.midAt, idx.midBy[dayKey + "|" + j.job]),
-        mk("Final", j.finalAt, idx.finBy[dayKey + "|" + j.job])
-      ];
-      var applic = stages.filter(function (s) { return s.state !== "na"; });
-      var sentN = applic.filter(function (s) { return s.state === "sent"; }).length;
-      var N = applic.length || 3;
-      var hasSkip = applic.some(function (s) { return s.state === "skip" || s.state === "err"; });
-      var pcls = (applic.length && sentN === applic.length) ? "p3" : (hasSkip || !j.hasSlack) ? "pskip" : sentN > 0 ? "p2" : "pfut";
-      var pills = stages.map(function (s) {
-        if (s.state === "na") return '<span class="rrp-stage st-na">' + s.label + " —</span>";
-        var t = fmtT(s.state === "sent" ? s.at : s.sched);
-        return '<span class="rrp-stage st-' + s.state + '">' + s.label + " <b>" + esc(t) + "</b></span>";
-      }).join("");
-      var key = dayKey + "|" + j.job, open = !!RRP.openJobs[key];
-      var warn = j.hasSlack ? "" : ' <span class="rrp-noid">no Slack ID</span>';
-      var head = '<div class="rrp-jobhead" data-job="' + esc(key) + '">'
-        + '<span class="rrp-prog ' + pcls + '">' + sentN + "/" + N + "</span>"
-        + '<span class="rrp-jw">' + esc(j.foreman || "—") + warn + "</span>"
-        + '<span class="rrp-jc">' + esc(j.customer || "—") + "<small>" + esc(j.job) + (j.state ? " · " + esc(j.state) : "") + "</small></span>"
-        + '<span class="rrp-jstages">' + pills + "</span>"
-        + '<span class="rrp-jchev">' + (open ? "▾" : "▸") + "</span></div>";
-      var detail = "";
-      if (open) {
-        detail = '<div class="rrp-jobevents">' + eventPanel(j) + stages.map(function (s) {
-          var ty = TYPE[s.label.toLowerCase()] || { c: "" };
-          if (s.state === "na") {
-            var es = j.detail && j.detail.endSource;
-            var msg = es === "cal-unreachable" ? "on hold — the job’s scheduled end time can’t be read from the calendar yet (mid/final resume once it’s reachable)"
-              : es === "no-match" ? "on hold — no matching calendar event was found for this job"
-              : "not sent — this job has no end time (ACT), so only the morning summary applies";
-            return '<div class="rrp-evrow"><span class="tm">—</span><span class="pill ' + ty.c + '">' + s.label + '</span><span class="rrp-evlnk">' + msg + "</span></div>";
-          }
-          var status = s.state === "sent" ? statusPill("sent") : s.state === "skip" ? statusPill("skipped") : s.state === "err" ? statusPill("error")
-            : '<span class="pill s-sched">' + (s.state === "due" ? "Pending" : "Scheduled") + "</span>";
-          var line = s.state === "sent" ? ("sent at " + fmtT(s.at)) : ("will send at " + fmtT(s.sched));
-          return '<div class="rrp-evrow"><span class="tm">' + esc(fmtT(s.sched)) + '</span><span class="pill ' + ty.c + '">' + s.label + '</span><span class="rrp-evlnk">' + esc(line) + "</span>" + status + "</div>" + msgPanel(s);
-        }).join("") + "</div>";
+    // ---- foreman-grouped schedule: foreman (parent) → their jobs → each job's reminders ----
+    function mkStage(label, atIso, row) {
+      if (!atIso) return { label: label, state: "na" };
+      var now = Date.now(), st, at = atIso;
+      if (row && /^sent/i.test(row.status)) { st = "sent"; at = row.ts; }
+      else if (row && /skip/i.test(row.status)) st = "skip";
+      else if (row && /error/i.test(row.status)) st = "err";
+      else st = (new Date(atIso).getTime() <= now) ? "due" : "sched";
+      return { label: label, state: st, at: at, sched: atIso, row: row };
+    }
+    function stagePill(s) {
+      if (s.state === "na") return '<span class="rrp-stage st-na">' + s.label + " —</span>";
+      var t = fmtT(s.state === "sent" ? s.at : s.sched);
+      return '<span class="rrp-stage st-' + s.state + '">' + s.label + " <b>" + esc(t) + "</b></span>";
+    }
+    // one reminder detail line (morning/mid/final): time · label · status/reason · message panel
+    function stageDetailRow(s, j) {
+      var ty = TYPE[s.label.toLowerCase()] || { c: "" };
+      if (s.state === "na") {
+        var es = j && j.detail && j.detail.endSource;
+        var msg = es === "cal-unreachable" ? "on hold — the job’s scheduled end time can’t be read from the calendar yet (mid/final resume once it’s reachable)"
+          : es === "no-match" ? "on hold — no matching calendar event was found for this job"
+          : "not sent — this job has no end time (ACT), so only the morning summary applies";
+        return '<div class="rrp-evrow"><span class="tm">—</span><span class="pill ' + ty.c + '">' + s.label + '</span><span class="rrp-evlnk">' + msg + "</span></div>";
       }
-      return '<div class="rrp-jobcard' + (open ? " open" : "") + '">' + head + detail + "</div>";
+      var status = s.state === "sent" ? statusPill("sent") : s.state === "skip" ? statusPill("skipped") : s.state === "err" ? statusPill("error")
+        : '<span class="pill s-sched">' + (s.state === "due" ? "Pending" : "Scheduled") + "</span>";
+      var line = s.state === "sent" ? ("sent at " + fmtT(s.at)) : ("will send at " + fmtT(s.sched));
+      return '<div class="rrp-evrow"><span class="tm">' + esc(fmtT(s.sched)) + '</span><span class="pill ' + ty.c + '">' + s.label + '</span><span class="rrp-evlnk">' + esc(line) + "</span>" + status + "</div>" + msgPanel(s);
+    }
+    // foreman parent: header (name · N jobs) + the shared MORNING reminder + each job (expandable)
+    function foremanGroup(dayKey, jobs, idx) {
+      var j0 = jobs[0];
+      var name = j0.foreman || j0.foremanEmail || "—";
+      var mStage = mkStage("Morning", j0.morningAt, idx.mBy[dayKey + "|" + j0.foremanEmail]);
+      var warn = j0.hasSlack ? "" : ' <span class="rrp-noid">no Slack ID</span>';
+      var head = '<div class="rrp-fhead">'
+        + '<span class="rrp-favatar">' + esc(initials(name)) + "</span>"
+        + '<span class="rrp-fname">' + esc(name) + warn + "</span>"
+        + '<span class="rrp-fmeta">' + jobs.length + " job" + (jobs.length === 1 ? "" : "s") + "</span></div>";
+      var morningRow = '<div class="rrp-morning">' + stageDetailRow(mStage, j0) + "</div>";
+      var jobRows = jobs.map(function (j) { return jobRow(dayKey, j, idx); }).join("");
+      return '<div class="rrp-fgroup">' + head + morningRow + jobRows + "</div>";
+    }
+    // one job under a foreman: customer + its Mid/Final pills; expand for View event + reminder detail
+    function jobRow(dayKey, j, idx) {
+      var midS = mkStage("Mid", j.midAt, idx.midBy[dayKey + "|" + j.job]);
+      var finS = mkStage("Final", j.finalAt, idx.finBy[dayKey + "|" + j.job]);
+      var key = dayKey + "|" + j.job, open = !!RRP.openJobs[key];
+      var head = '<div class="rrp-jrhead" data-job="' + esc(key) + '">'
+        + '<span class="rrp-jrchev">' + (open ? "▾" : "▸") + "</span>"
+        + '<span class="rrp-jrc">' + esc(j.customer || "—") + "<small>" + esc(j.job) + (j.state ? " · " + esc(j.state) : "") + "</small></span>"
+        + '<span class="rrp-jrstages">' + stagePill(midS) + stagePill(finS) + "</span></div>";
+      var detail = open ? '<div class="rrp-jobevents">' + eventPanel(j) + stageDetailRow(midS, j) + stageDetailRow(finS, j) + "</div>" : "";
+      return "<div>" + head + detail + "</div>";
     }
 
     // ---------- MISSED-REVIEW REASONS ----------
@@ -526,8 +556,8 @@ registerPage({
       Array.prototype.forEach.call(root.querySelectorAll(".rrp-seg button"), function (b) {
         b.onclick = function () { RRP.view = b.getAttribute("data-v"); if (RRP.view === "links") loadGoals().then(paint); else paint(); };
       });
-      var rf = root.querySelector("#rrpRefresh"); if (rf) rf.onclick = function () { RRP.data = null; RRP.draft = null; RRP.goals = null; render(host); };
-      var rt = root.querySelector("#rrpRetry"); if (rt) rt.onclick = function () { RRP.data = null; render(host); };
+      var rf = root.querySelector("#rrpRefresh"); if (rf) rf.onclick = function () { RRP.data = null; RRP.dataFresh = false; RRP.draft = null; RRP.goals = null; render(host); };
+      var rt = root.querySelector("#rrpRetry"); if (rt) rt.onclick = function () { RRP.data = null; RRP.dataFresh = false; render(host); };
       // live clock — one interval; it self-clears once the page is gone
       if (window.__rrpClockTimer) clearInterval(window.__rrpClockTimer);
       window.__rrpClockTimer = setInterval(function () { var c = document.getElementById("rrpClock"); if (!c) { clearInterval(window.__rrpClockTimer); window.__rrpClockTimer = null; return; } c.textContent = nowLabel(); }, 15000);
@@ -537,7 +567,7 @@ registerPage({
         h.onclick = function () { var d = h.getAttribute("data-day"); var todayKey = etDayKey(new Date().toISOString());
           var cur = (d in RRP.openDays) ? RRP.openDays[d] : (d === todayKey); RRP.openDays[d] = !cur; paint(); };
       });
-      Array.prototype.forEach.call(root.querySelectorAll(".rrp-jobhead[data-job]"), function (h) {
+      Array.prototype.forEach.call(root.querySelectorAll(".rrp-jrhead[data-job]"), function (h) {
         h.onclick = function () { var j = h.getAttribute("data-job"); RRP.openJobs[j] = !RRP.openJobs[j]; paint(); };
       });
       // wire search
@@ -601,7 +631,17 @@ registerPage({
 
     // ---------- boot ---------- paint the shell instantly, then load in the background so the
     // Review-links editor is usable immediately and the log doesn't block on the relay.
+    // SPEED: if we have no data yet, hydrate from the localStorage cache (only when it still covers
+    // TODAY, so we never show a stale day) — the schedule appears instantly, then refreshes below.
     RRP.loading = !RRP.data;
+    if (!RRP.data) {
+      var todayKey0 = etDayKey(new Date().toISOString());
+      var cached = rrpCacheRead();
+      if (cached && cached.data && cached.data.schedule && cached.data.schedule.some(function (D) { return D.day === todayKey0; })) {
+        RRP.data = cached.data; RRP.fromCache = true; RRP.loading = false;
+        if (RRP.data.config && RRP.data.config.google && RRP.data.config.google.length) RRP.cfgSource = "live";
+      }
+    }
     paint();
     (async function () {
       try {
@@ -609,7 +649,7 @@ registerPage({
         await ensureData(false);
         if (RRP.view === "links") await loadGoals();
       } catch (e) {}
-      RRP.loading = false;
+      RRP.loading = false; RRP.fromCache = false;
       paint();
     })();
   }
