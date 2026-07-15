@@ -235,8 +235,10 @@ registerPage({
         ".rrp-bub .warn{color:var(--red);font-weight:800}",
         ".rrp-pvfoot{padding:10px 16px 13px;font-size:11px;color:var(--faint);line-height:1.5;border-top:1px solid var(--line)}",
         /* ---------- sticky save bar ---------- */
-        ".rrp-savebar{position:sticky;bottom:0;display:flex;align-items:center;gap:12px;justify-content:flex-end;padding:12px 14px;margin-top:14px;background:var(--panel);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);z-index:5}",
-        ".rrp-savebar.dirty{border-color:var(--brand)}",
+        /* Sticky action bar. It floats OVER same-coloured cards, so it needs to read as a separate
+           layer: translucent + blur + a real lift shadow, never a flat panel-on-panel rectangle. */
+        ".rrp-savebar{position:sticky;bottom:10px;display:flex;align-items:center;gap:12px;justify-content:flex-end;padding:11px 13px;margin-top:14px;background:color-mix(in srgb,var(--panel) 86%,transparent);backdrop-filter:saturate(180%) blur(12px);-webkit-backdrop-filter:saturate(180%) blur(12px);border:1px solid var(--line-2);border-radius:14px;box-shadow:0 8px 28px rgba(0,0,0,.16),0 1px 2px rgba(0,0,0,.08);z-index:5}",
+        ".rrp-savebar.dirty{border-color:var(--brand);box-shadow:0 8px 28px color-mix(in srgb,var(--brand) 22%,transparent),0 1px 2px rgba(0,0,0,.08)}",
         ".rrp-save{border:0;background:var(--brand);color:var(--brand-ink);border-radius:10px;padding:10px 20px;font:inherit;font-size:13.5px;font-weight:800;cursor:pointer;transition:.12s}",
         ".rrp-save:hover:not(:disabled){background:var(--brand-d)}",
         ".rrp-save:disabled{opacity:.55;cursor:default}",
@@ -686,7 +688,9 @@ registerPage({
         + '<button data-pvmode="yelp"' + (RRP.pvYelp ? ' class="on"' : "") + ">Yelp</button></span></div>"
         + '<div class="rrp-pvbody" id="rrpPvBody">' + pvBodyHtml(d) + "</div>"
         + '<div class="rrp-pvfoot">Yelp customers never get a Yelp link — the bot warns the foreman an hour before the job and asks them to request the review verbally.</div></aside>';
-      return note + '<div class="rrp-set"><div>' + sec1 + sec2 + sec3 + savebar + "</div>" + pv + "</div>";
+      // trailing spacer: lets the last section scroll clear of the sticky save bar instead of
+      // permanently hiding its final row behind it
+      return note + '<div class="rrp-set"><div>' + sec1 + sec2 + sec3 + savebar + '<div style="height:6px"></div></div>' + pv + "</div>";
     }
 
     // ---------- paint + wire ----------
