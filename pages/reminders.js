@@ -385,7 +385,13 @@ registerPage({
       if (open) {
         detail = '<div class="rrp-jobevents">' + eventPanel(j) + stages.map(function (s) {
           var ty = TYPE[s.label.toLowerCase()] || { c: "" };
-          if (s.state === "na") return '<div class="rrp-evrow"><span class="tm">—</span><span class="pill ' + ty.c + '">' + s.label + '</span><span class="rrp-evlnk">not sent — this job has no end time (ACT), so only the morning summary applies</span></div>';
+          if (s.state === "na") {
+            var es = j.detail && j.detail.endSource;
+            var msg = es === "cal-unreachable" ? "on hold — the job’s scheduled end time can’t be read from the calendar yet (mid/final resume once it’s reachable)"
+              : es === "no-match" ? "on hold — no matching calendar event was found for this job"
+              : "not sent — this job has no end time (ACT), so only the morning summary applies";
+            return '<div class="rrp-evrow"><span class="tm">—</span><span class="pill ' + ty.c + '">' + s.label + '</span><span class="rrp-evlnk">' + msg + "</span></div>";
+          }
           var status = s.state === "sent" ? statusPill("sent") : s.state === "skip" ? statusPill("skipped") : s.state === "err" ? statusPill("error")
             : '<span class="pill s-sched">' + (s.state === "due" ? "Pending" : "Scheduled") + "</span>";
           var line = s.state === "sent" ? ("sent at " + fmtT(s.at)) : ("will send at " + fmtT(s.sched));
