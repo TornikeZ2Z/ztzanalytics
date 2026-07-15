@@ -247,6 +247,14 @@ registerPage({
         "body.rs-app.light .rrp-savemsg.ok{color:var(--brand-d)}",
         ".rrp-savemsg.bad{color:var(--amber)}",
         ".rrp-warnbanner{background:color-mix(in srgb,var(--amber) 12%,transparent);border:1px solid color-mix(in srgb,var(--amber) 40%,transparent);border-radius:12px;padding:12px 15px;font-size:12.5px;color:var(--ink);line-height:1.55;margin-bottom:16px}",
+        ".rrp-fresh{display:flex;align-items:center;gap:10px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px 14px;font-size:12px;color:var(--muted);line-height:1.5;margin-bottom:14px;flex-wrap:wrap}",
+        ".rrp-fresh b{color:var(--ink);font-weight:700}",
+        ".rrp-fresh .dot{width:7px;height:7px;border-radius:50%;background:var(--brand);flex:0 0 auto;box-shadow:0 0 0 3px var(--brand-glow)}",
+        ".rrp-fresh .dot.stale{background:var(--amber);box-shadow:0 0 0 3px color-mix(in srgb,var(--amber) 20%,transparent)}",
+        ".rrp-fresh span:nth-of-type(2){flex:1;min-width:220px}",
+        ".rrp-freshbtn{border:1px solid var(--line-2);background:var(--panel-2);color:var(--ink);border-radius:9px;padding:6px 11px;font:inherit;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap}",
+        ".rrp-freshbtn:hover:not(:disabled){border-color:var(--brand)}",
+        ".rrp-freshbtn:disabled{opacity:.6;cursor:default}",
         "@media(max-width:820px){.rrp-row{grid-template-columns:56px 70px 1fr 90px}.rrp-row .cust,.rrp-row .lnk{display:none}.rrp-loc{grid-template-columns:18px minmax(0,1fr) 28px}.rrp-loc input[type=text].url{grid-column:2/4}.rrp-plat{grid-template-columns:36px minmax(0,1fr) 28px}.rrp-plat .url{grid-column:2/4}}"
       ].join("\n");
       document.head.appendChild(st);
@@ -307,7 +315,7 @@ registerPage({
       RRP.err = null;
       try {
         var d = await relayRead(force);   // manual Refresh punches through the proxy cache AND the relay's 60s schedule cache
-        RRP.data = d; RRP.dataFresh = true; RRP.fromCache = false; rrpCacheWrite(d);
+        RRP.data = d; RRP.dataFresh = true; RRP.fromCache = false; RRP.fetchedAt = Date.now(); rrpCacheWrite(d);
       } catch (e) {
         RRP.err = e.message || String(e);   // keep any cached RRP.data so the page still shows the last schedule
       }
@@ -528,9 +536,24 @@ registerPage({
     }
 
     // ---------- MISSED-REVIEW REASONS ----------
+    // "how fresh is this?" — Tornike 2026-07-16. Three different clocks matter here and the page
+    // used to show none of them: when WE last read the relay, whether this paint came from the
+    // localStorage cache, and the fact that a foreman's answer needs a relay round-trip (the bot
+    // writes the sheet immediately, but the relay caches its read ~30s at the bridge proxy).
+    function freshBar() {
+      var when = RRP.fetchedAt ? new Date(RRP.fetchedAt) : null;
+      var t = when ? when.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : "—";
+      var age = when ? Math.round((Date.now() - RRP.fetchedAt) / 60000) : null;
+      var agoTx = age == null ? "" : age < 1 ? " · just now" : " · " + age + " min ago";
+      return '<div class="rrp-fresh">'
+        + '<span class="dot' + (RRP.fromCache ? " stale" : "") + '"></span>'
+        + "<span><b>" + (RRP.fromCache ? "Showing your last saved copy" : "Live from the reminder bot") + "</b> — read at " + esc(t) + esc(agoTx) + ". "
+        + "A foreman’s answer lands here within about a minute of them tapping it; hit <b>Refresh</b> to pull again.</span>"
+        + '<button class="rrp-freshbtn" id="rrpFresh2">↻ Refresh now</button></div>';
+    }
     function viewReasons() {
       var resp = (RRP.data && RRP.data.responses) || [];
-      if (!resp.length) return '<div class="rrp-empty">No reasons yet. When a foreman taps “why no review?” on the final Slack nudge, it lands here.</div>';
+      if (!resp.length) return freshBar() + '<div class="rrp-empty">No reasons yet. When a foreman taps “why no review?” on the final Slack nudge, it lands here.</div>';
       var freq = {}; resp.forEach(function (r) { var k = r.reason || "—"; freq[k] = (freq[k] || 0) + 1; });
       var fr = Object.keys(freq).map(function (k) { return { k: k, n: freq[k] }; }).sort(function (a, b) { return b.n - a.n; });
       var max = fr[0] ? fr[0].n : 1;
@@ -542,7 +565,7 @@ registerPage({
           return "<tr><td>" + esc(etDay(r.ts) || String(r.date || "")) + "</td><td>" + esc(r.job || "—") + "</td><td>" + esc(r.foreman || "—")
             + '</td><td><span class="pill s-skip">' + esc(r.reason || "—") + "</span></td><td>" + esc(r.note || "") + "</td></tr>";
         }).join("") + "</tbody></table></div>";
-      return bars + tbl;
+      return freshBar() + bars + tbl;
     }
 
     // ---------- REVIEW LINKS (editable control) ----------
@@ -721,6 +744,15 @@ registerPage({
         b.onclick = function () { RRP.view = b.getAttribute("data-v"); if (RRP.view === "links") loadGoals().then(paint); else paint(); };
       });
       var rf = root.querySelector("#rrpRefresh"); if (rf) rf.onclick = function () { RRP.data = null; RRP.dataFresh = false; RRP.draft = null; RRP.goals = null; render(host); };
+      // the reasons-tab refresh: force=true so it bypasses the bridge proxy's 30s cache AND the
+      // relay's own schedule cache — otherwise "Refresh" could hand back the same stale answer
+      var rf2 = root.querySelector("#rrpFresh2");
+      if (rf2) rf2.onclick = function () {
+        rf2.disabled = true; rf2.textContent = "Refreshing…";
+        RRP.dataFresh = false;
+        // paint() re-wires everything itself, so no separate wire step
+        ensureData(true).then(paint, paint);
+      };
       var rt = root.querySelector("#rrpRetry"); if (rt) rt.onclick = function () { RRP.data = null; RRP.dataFresh = false; render(host); };
       // live clock — one interval; it self-clears once the page is gone
       if (window.__rrpClockTimer) clearInterval(window.__rrpClockTimer);
@@ -829,6 +861,7 @@ registerPage({
       var cached = rrpCacheRead();
       if (cached && cached.data && cached.data.schedule && cached.data.schedule.some(function (D) { return D.day === todayKey0; })) {
         RRP.data = cached.data; RRP.fromCache = true; RRP.loading = false;
+        RRP.fetchedAt = cached.ts || null;   // cached paint must report the CACHE's age, not "now"
         if (RRP.data.config && RRP.data.config.google && RRP.data.config.google.length) RRP.cfgSource = "live";
       }
     }
