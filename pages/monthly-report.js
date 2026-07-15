@@ -1608,6 +1608,13 @@ async function renderMonthly(host, MRCFG) {
       const topReps = revSP.slice(0, 14);
       groupedBars(g, "Revenue by salesperson — YoY", topReps.map(r => r.k), topReps.map(r => revSPly[r.k] || 0), String(curY - 1), topReps.map(r => r.v), String(curY), money, { sub: MON[mo] });
       groupedBars(g, "Gross profit by salesperson — YoY", topReps.map(r => r.k), topReps.map(r => opSPly[r.k] || 0), String(curY - 1), topReps.map(r => opMap[r.k] || 0), String(curY), money, { sub: MON[mo] + " · before refunds" });
+      // per-rep lead-funnel YoY (deck s31-35): Qualified / Confirmed / Booking-rate, prior year vs current (Tornike 2026-07-15)
+      const spBookedLY = groupByCol(bookedRowsFor(curY - 1, mo), "Assigned"), mbMapLY = {};
+      segReduce("moveboard", "Assigned", rs => rs, curY - 1, mo).forEach(r => { const q = r.rows.filter(x => x["Status Category"] !== "Bad Lead").length, c = (spBookedLY[r.k] || []).filter(x => x["Status Category"] === "Confirmed").length; mbMapLY[normName(r.k)] = { q, c, book: RS.bookingRate(r.rows, spBookedLY[r.k] || []) }; });
+      const lyM = r => mbMapLY[normName(r.k)] || {}, cyM = r => mbMap[normName(r.k)] || {};
+      groupedBars(g, "Qualified leads by salesperson — YoY", topReps.map(r => r.k), topReps.map(r => lyM(r).q || 0), String(curY - 1), topReps.map(r => cyM(r).q || 0), String(curY), fmtN, { sub: MON[mo] });
+      groupedBars(g, "Confirmed jobs by salesperson — YoY", topReps.map(r => r.k), topReps.map(r => lyM(r).c || 0), String(curY - 1), topReps.map(r => cyM(r).c || 0), String(curY), fmtN, { sub: MON[mo] });
+      groupedBars(g, "Booking rate by salesperson — YoY", topReps.map(r => r.k), topReps.map(r => lyM(r).book || 0), String(curY - 1), topReps.map(r => cyM(r).book || 0), String(curY), pct, { sub: MON[mo] + " · jobs booked ÷ qualified" });
       // C27: the filter is the Moveboard "Big Job" flag — the title must not claim a CF threshold
       if (bigMb.length) groupedBars(g, "Large moves (Big Job flag) — Qualified vs Confirmed", bigMb.map(r => r.k), bigMb.map(r => r.q), "Qualified", bigMb.map(r => r.c), "Confirmed", fmtN, { sub: monLbl });
       const bigBook = bigMb.filter(r => r.book != null).map(r => ({ k: r.k, v: r.book }));
@@ -1696,6 +1703,15 @@ async function renderMonthly(host, MRCFG) {
       const seRows = revBySrc.slice(0, 12).map(r => ({ k: r.k, jobs: jbM[r.k] || 0, rev: r.v, op: opM[r.k] || 0 }));
       const seHtml = `<table class="mrx-tbl"><thead><tr><th>Source</th><th>Jobs</th><th>Revenue</th><th>Gross Profit</th></tr></thead><tbody>${seRows.map(r => `<tr><td>${esc(r.k)}</td>${td(fmtN(r.jobs))}${td(money(r.rev))}${td(money(r.op))}</tr>`).join("")}</tbody></table>`;
       tableCard(g, "Source mix — jobs · revenue · profit", monLbl + " · top " + seRows.length + " sources by revenue", seHtml, { icon: KIC.grid, headVal: money(seRows.reduce((a, r) => a + r.rev, 0)), noteKind: "how", note: "Ranked by revenue (top 12); Gross Profit is before refunds. Use ⬇ Excel to re-rank by jobs or profit." });
+      // per-source YoY (deck s68-73): revenue / jobs / gross profit, prior year vs current (Tornike 2026-07-15)
+      const srcTop = revBySrc.slice(0, 10);
+      const revSrcLY = {}, jobSrcLY = {}, opSrcLY = {};
+      segSeries("closing", "Revenue", "Source", curY - 1, mo).forEach(r => revSrcLY[r.k] = r.v);
+      segSeries("closing", "Total Jobs", "Source", curY - 1, mo).forEach(r => jobSrcLY[r.k] = r.v);
+      segSeries("closing", "Operational Profit by Formula", "Source", curY - 1, mo).forEach(r => opSrcLY[r.k] = r.v);
+      groupedBars(g, "Revenue by source — YoY", srcTop.map(r => r.k), srcTop.map(r => revSrcLY[r.k] || 0), String(curY - 1), srcTop.map(r => r.v), String(curY), money, { sub: MON[mo] });
+      groupedBars(g, "Jobs by source — YoY", srcTop.map(r => r.k), srcTop.map(r => jobSrcLY[r.k] || 0), String(curY - 1), srcTop.map(r => jbM[r.k] || 0), String(curY), fmtN, { sub: MON[mo] });
+      groupedBars(g, "Gross profit by source — YoY", srcTop.map(r => r.k), srcTop.map(r => opSrcLY[r.k] || 0), String(curY - 1), srcTop.map(r => opM[r.k] || 0), String(curY), money, { sub: MON[mo] + " · before refunds" });
       // ad-leads funnel by channel (deck s61-62): does the channel's lead VOLUME convert, not just its revenue.
       // C2: Booking % per channel is the canonical dual-basis helper.
       const lfBooked = groupByCol(bookedRowsFor(curY, mo), "Source");
