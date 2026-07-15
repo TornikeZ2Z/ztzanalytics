@@ -1854,7 +1854,7 @@ async function renderMonthly(host, MRCFG) {
               tooltip: { callbacks: { label: x => x.dataset.label + ": " + fmtN(x.parsed.x) } } },
             scales: { x: { stacked: true, display: false, beginAtZero: true, max: rows6[0].total * 1.04 }, y: { stacked: true, ticks: { color: INK2, font: { size: 13, weight: "600" } }, grid: { display: false }, border: { display: false } } } }),
           plugins: [crosshair, { id: "ftlab", afterDatasetsDraw(ch) { const ctx = ch.ctx; ctx.save(); ctx.textBaseline = "middle"; ch.getDatasetMeta(1).data.forEach((el, i) => { const r = rows6[i]; ctx.textAlign = "left"; ctx.font = "800 11.5px " + MONO; ctx.fillStyle = INK; ctx.fillText(fmtN(r.total), el.x + 6, el.y); if (r.added > 0) { const w = ctx.measureText(fmtN(r.total)).width; ctx.font = "800 10.5px " + MONO; ctx.fillStyle = LIMED; ctx.fillText("+" + fmtN(r.added), el.x + 6 + w + 6, el.y); } }); ctx.restore(); } }] });
-        note(cc6, `Each bar is total public reviews on file for that listing (${fmtN(footTot6)} across the top ${rows6.length}); the lime tip is what was added in ${MON[mo]} (+${fmtN(addTot6)}, from reviews written this month by source, matched to the footprint listing). This footprint is the reputation that drives lead flow.`, "how");
+        note(cc6.c, `Each bar is total public reviews on file for that listing (${fmtN(footTot6)} across the top ${rows6.length}); the lime tip is what was added in ${MON[mo]} (+${fmtN(addTot6)}, from reviews written this month by source, matched to the footprint listing). This footprint is the reputation that drives lead flow.`, "how");
       }
     }
 
