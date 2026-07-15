@@ -45,7 +45,10 @@ registerPage({
   id: "reviews-reminders",
   group: "reviews",
   title: "Reminders",
-  async render(host) {
+  // NAMED function expression (not a shorthand method) so `render` is callable inside itself —
+  // the Refresh/Retry handlers call render(host) to fully re-run (Tornike 2026-07-15 fix; was a
+  // ReferenceError → Refresh button did nothing).
+  render: async function render(host) {
     var esc = RSC.esc, N = RS.fmtN;
     var TYPE = { morning: { l: "Morning", c: "t-blue" }, mid: { l: "Mid-job", c: "t-amber" }, final: { l: "Final", c: "t-green" } };
 
