@@ -1654,6 +1654,37 @@ async function renderMonthly(host, MRCFG) {
       }
       const adTrend = momReduce("card_expenses", 12, rs => { const ad = rs.filter(r => Number(r["Is Advertising"]) === 1); return ad.length ? ad.reduce((a, r) => a + num(r.Amount), 0) : null; });
       lines(g, "Advertising spend — momentum", "last 12 months", [ { label: "Ad Spend", series: adTrend, color: AMBER } ], moneyC, { headVal: money(lastV(adTrend)) });
+
+      // ===== 4 · MULTI-WINDOW ROI GROWTH (deck slides 65-67) =====
+      // ROI = NET return per $1 of ad = (operational profit − ad spend) ÷ ad spend, per source, summed over
+      // the window; shown across 4 years with each year's YoY ROI-growth (arrows/colours). Three windows —
+      // the selected month, its quarter, and year-to-date — smooth single-month noise at two wider scales.
+      // (Pre-2023 data was removed from the warehouse, so the earliest column has no YoY denominator.)
+      const roiWin = (y, months) => { const ad = {}, op = {}; months.forEach(m => { const a = adSrcMonth(y, m), o = bySrcMonth("Operational Profit by Formula", y, m); Object.keys(a).forEach(k => ad[k] = (ad[k] || 0) + a[k]); Object.keys(o).forEach(k => op[k] = (op[k] || 0) + o[k]); }); return { ad, op }; };
+      const roiVal = (ad, op) => ad ? (op - ad) / ad : null;
+      const Qn = Math.floor((mo - 1) / 3), qM = [Qn * 3 + 1, Qn * 3 + 2, Qn * 3 + 3];
+      const ytdM = []; for (let _m = 1; _m <= mo; _m++) ytdM.push(_m);
+      const roiWindows = [
+        { label: MON[mo], sub: `${MON[mo]} each year`, months: [mo] },
+        { label: `Q${Qn + 1} — ${MON[qM[0]]}–${MON[qM[2]]}`, sub: "the full quarter, each year", months: qM },
+        { label: `Year to date — ${MON[1]}–${MON[mo]}`, sub: "January through the selected month, each year", months: ytdM }
+      ];
+      const roiDispYears = [curY - 3, curY - 2, curY - 1, curY];
+      roiWindows.forEach(W => {
+        const per = {}; for (let y = curY - 4; y <= curY; y++) per[y] = roiWin(y, W.months);   // 5 yrs computed → the first shown year still has a YoY denominator
+        const spendRank = {}; roiDispYears.forEach(y => Object.keys(per[y].ad).forEach(k => { if (k !== "—" && per[y].ad[k] > 0) spendRank[k] = Math.max(spendRank[k] || 0, per[y].ad[k]); }));
+        const srcList = Object.keys(spendRank).filter(k => src2026.has(k)).sort((a, b) => spendRank[b] - spendRank[a]).slice(0, 12);   // only channels we still buy
+        if (!srcList.length) return;
+        const roiCell = v => v == null ? '<td style="text-align:right;color:#8a94a3">—</td>' : `<td style="text-align:right;font-weight:800;color:${v >= 3 ? "#1c7a4a" : v >= 1 ? "#7a5a12" : "#b02a37"}">$${v.toFixed(2)}</td>`;
+        const growCell = (now, prev) => (now == null || prev == null || !prev) ? '<td style="text-align:right;color:#8a94a3">—</td>' : (function () { const d = (now - prev) / Math.abs(prev); return `<td style="text-align:right;font-weight:800;color:${d >= 0 ? "#1c7a4a" : "#b02a37"}">${d >= 0 ? "▲" : "▼"} ${Math.abs(d * 100).toFixed(0)}%</td>`; })();
+        const cellsFor = arr => roiDispYears.map(y => roiCell(arr[y]) + growCell(arr[y], arr[y - 1])).join("");
+        const totArr = {}; for (let y = curY - 4; y <= curY; y++) { let ad = 0, op = 0; srcList.forEach(k => { ad += per[y].ad[k] || 0; op += per[y].op[k] || 0; }); totArr[y] = roiVal(ad, op); }
+        const yrHead = roiDispYears.map(y => `<th style="text-align:right">${y} ROI</th><th style="text-align:right">YoY</th>`).join("");
+        const bodyH = srcList.map(k => { const arr = {}; for (let y = curY - 4; y <= curY; y++) arr[y] = roiVal(per[y].ad[k] || 0, per[y].op[k] || 0); return `<tr><td>${esc(k)}</td>${cellsFor(arr)}</tr>`; }).join("")
+          + `<tr class="tot"><td>All paid</td>${cellsFor(totArr)}</tr>`;
+        const html = `<table class="mrx-tbl"><thead><tr><th>Source</th>${yrHead}</tr></thead><tbody>${bodyH}</tbody></table>`;
+        tableCard(g, `ROI growth — ${W.label}`, `${W.sub} · net $ returned per $1 of ad spend ((profit − spend) ÷ spend)`, html, { icon: KIC.trend, headVal: totArr[curY] == null ? "—" : "$" + totArr[curY].toFixed(2) });
+      });
     }
 
     /* ---- 11 · Lead Sources (theme split B of former "Marketing & Channels") ---- */
