@@ -424,12 +424,12 @@ async function renderMonthly(host, MRCFG) {
       .mrx-chleft{display:flex;gap:8px;align-items:flex-start;min-width:0}
       .mrx-chico{display:flex;flex:0 0 auto;margin-top:1px}.mrx-chico svg{width:16px;height:16px;fill:none;stroke:${INK};stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
       .mrx-cttl{min-width:0}
-      .mrx-ct{font-size:14.5px;font-weight:750;color:${INK};line-height:1.25}
-      .mrx-cs{font-size:10.5px;font-weight:700;color:${FAINT};text-transform:uppercase;letter-spacing:.04em;font-family:${MONO}}
+      .mrx-ct{font-size:16px;font-weight:750;color:${INK};line-height:1.25}
+      .mrx-cs{font-size:11.5px;font-weight:700;color:${FAINT};text-transform:uppercase;letter-spacing:.04em;font-family:${MONO}}
       .mrx-chd{text-align:right;flex:0 0 auto;white-space:nowrap}
       .mrx-chval{font-family:${MONO};font-size:20px;font-weight:800;color:${INK};letter-spacing:-.4px;line-height:1.05}
       .mrx-chd .mrx-chips{justify-content:flex-end;margin-top:3px}
-      .mrx-box{position:relative;height:280px}
+      .mrx-box{position:relative;height:340px}
       .mrx-note{margin-top:10px;font-size:13px;color:#48505e;line-height:1.55;background:#f6f8fb;border-left:3px solid ${LIME};padding:8px 11px;border-radius:0 7px 7px 0}
       .mrx-note.how{border-left-color:#c9d1dc;background:#f5f7fa;color:#5a6775;font-size:12.5px}
       .mrx-kpi{position:relative;background:#fff;border:1px solid ${LINE};border-radius:14px;padding:14px 15px 13px;box-shadow:0 1px 2px rgba(14,22,33,.05);overflow:hidden}
@@ -444,7 +444,7 @@ async function renderMonthly(host, MRCFG) {
       .mrx-spark{height:30px;position:relative;margin-top:9px}
       .mrx-exec{background:${INK};color:#e8edf3;border-radius:12px;padding:14px 16px;font-size:13.5px;line-height:1.55;margin-top:16px}
       .mrx-exec b{color:${LIME}}
-      .mrx-tbl{width:100%;border-collapse:collapse;font-size:13px;font-variant-numeric:tabular-nums;font-family:${MONO}}
+      .mrx-tbl{width:100%;border-collapse:collapse;font-size:13.5px;font-variant-numeric:tabular-nums;font-family:${MONO}}
       .mrx-tbl th{font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:${SUB};text-align:right;padding:7px 9px;border-bottom:2px solid ${INK};white-space:nowrap;font-family:Inter,sans-serif}
       .mrx-tbl th:first-child{text-align:left}
       .mrx-tbl td{padding:7px 9px;text-align:right;border-bottom:1px solid #eef1f5;color:${INK2};white-space:nowrap}
@@ -500,10 +500,10 @@ async function renderMonthly(host, MRCFG) {
       // Without this the global {mode:'index'} default maps by the wrong axis → tooltip shows another bar.
       interaction: { mode: "index", axis: (extra && extra.indexAxis === "y") ? "y" : "x", intersect: false },
       plugins: { legend: { display: false } } }, extra || {});
-    const axX = (o) => Object.assign({ ticks: { color: AXIS, font: { family: MONO, size: 10.5 } }, grid: { display: false }, border: { color: LINE } }, o || {});
-    const axY = (fmt, o) => Object.assign({ ticks: { color: AXIS, font: { family: MONO, size: 10 }, maxTicksLimit: 6, callback: v => fmt ? fmt(v) : v }, grid: { color: GRID }, border: { display: false } }, o || {});
+    const axX = (o) => Object.assign({ ticks: { color: AXIS, font: { family: MONO, size: 12 } }, grid: { display: false }, border: { color: LINE } }, o || {});
+    const axY = (fmt, o) => Object.assign({ ticks: { color: AXIS, font: { family: MONO, size: 11.5 }, maxTicksLimit: 7, callback: v => fmt ? fmt(v) : v }, grid: { color: GRID }, border: { display: false } }, o || {});
     const valLabels = (fmt, horiz, color) => ({ id: "vlab", afterDatasetsDraw(ch) {
-      const ctx = ch.ctx; ctx.save(); ctx.font = "700 10px " + MONO; ctx.fillStyle = color || INK;
+      const ctx = ch.ctx; ctx.save(); ctx.font = "700 11.5px " + MONO; ctx.fillStyle = color || INK;
       ch.data.datasets.forEach((d, di) => { const meta = ch.getDatasetMeta(di); if (meta.hidden) return; meta.data.forEach((el, i) => {
         const raw = d.data[i]; const v = Array.isArray(raw) ? raw[1] - raw[0] : raw; if (v == null || isNaN(v)) return;
         if (horiz) { ctx.textAlign = "left"; ctx.textBaseline = "middle"; ctx.fillText(fmt(v), el.x + 5, el.y); }
@@ -625,7 +625,7 @@ async function renderMonthly(host, MRCFG) {
       if (!s.length) { emptyBox(box); return c; }
       const avg = s.reduce((a, b) => a + b.v, 0) / s.length;
       // opts.yoyPct: print the % change vs the PREVIOUS bar inside each bar top (green/red)
-      const yoyLab = { id: "yoypct", afterDatasetsDraw(ch) { const ctx = ch.ctx; ctx.save(); ctx.font = "800 10px " + MONO; ctx.textAlign = "center"; ctx.textBaseline = "top";
+      const yoyLab = { id: "yoypct", afterDatasetsDraw(ch) { const ctx = ch.ctx; ctx.save(); ctx.font = "800 11.5px " + MONO; ctx.textAlign = "center"; ctx.textBaseline = "top";
         ch.getDatasetMeta(0).data.forEach((el, i) => { if (!i) return; const cur = s[i].v, prev = s[i - 1].v; if (cur == null || !prev) return; const d = (cur - prev) / Math.abs(prev);
           ctx.fillStyle = d >= 0 ? POS : NEG; ctx.fillText((d >= 0 ? "+" : "") + (d * 100).toFixed(0) + "%", el.x, el.y + 5); }); ctx.restore(); } };
       new Chart(cv, { type: "bar",
@@ -642,11 +642,11 @@ async function renderMonthly(host, MRCFG) {
       if (!labels.length) { emptyBox(box); return c; }
       new Chart(cv, { type: "line",
         data: { labels, datasets: sets.map((d, i) => ({ label: d.label, data: d.series.map(r => r.v), borderColor: d.color || CAT[i], backgroundColor: d.color || CAT[i], fill: false, tension: 0, borderWidth: 2.6, pointRadius: labels.map((_, j) => j === labels.length - 1 ? 4 : 0), pointBackgroundColor: d.color || CAT[i], pointBorderColor: "#fff", pointBorderWidth: 1.5, spanGaps: true, yAxisID: d.axis || "y" })) },
-        options: baseOpts({ layout: { padding: { top: 16, right: 30, bottom: 4 } }, plugins: { legend: { display: sets.length > 1, position: "top", align: "end", labels: { color: SUB, font: { size: 11, weight: "600" }, boxWidth: 9, boxHeight: 9, usePointStyle: true } }, tooltip: { callbacks: { label: x => x.dataset.label + ": " + tip(x.dataset.yAxisID === "y1" ? (opts.fmt1 || fmt) : fmt)(x.parsed.y) } } },
+        options: baseOpts({ layout: { padding: { top: 16, right: 30, bottom: 4 } }, plugins: { legend: { display: sets.length > 1, position: "top", align: "end", labels: { color: SUB, font: { size: 12.5, weight: "600" }, boxWidth: 9, boxHeight: 9, usePointStyle: true } }, tooltip: { callbacks: { label: x => x.dataset.label + ": " + tip(x.dataset.yAxisID === "y1" ? (opts.fmt1 || fmt) : fmt)(x.parsed.y) } } },
           scales: opts.dual ? { x: axX(), y: axY(fmt), y1: axY(opts.fmt1 || fmt, { position: "right", grid: { display: false } }) } : { x: axX(), y: axY(fmt) } }), plugins: [crosshair, { id: "lelab", afterDatasetsDraw(ch) {
           // point value labels — compact form, staggered per series, and auto-THINNED: step = how many
           // points one label's width needs, anchored on the newest point (which is therefore always labeled)
-          const ctx = ch.ctx; ctx.save(); ctx.font = "700 10px " + MONO; ctx.textAlign = "center";
+          const ctx = ch.ctx; ctx.save(); ctx.font = "700 11.5px " + MONO; ctx.textAlign = "center";
           const area = ch.chartArea, nPts = labels.length;
           const xSp = nPts > 1 ? (area.right - area.left) / (nPts - 1) : 1e9;
           sets.forEach((d, di) => { const meta = ch.getDatasetMeta(di); if (meta.hidden) return;
@@ -666,21 +666,21 @@ async function renderMonthly(host, MRCFG) {
       new Chart(cv, { data: { labels, datasets: [
         { type: "bar", label: barLabel, data: barSeries.map(r => r.v), backgroundColor: labels.map((_, i) => i === labels.length - 1 ? LIME : INK), borderRadius: 4, maxBarThickness: 44, yAxisID: "y", order: 2 },
         { type: "line", label: lineLabel, data: lineSeries.map(r => r.v), borderColor: BLUE, backgroundColor: BLUE, tension: 0, borderWidth: 2.6, pointRadius: 3, pointBorderColor: "#fff", pointBorderWidth: 1.2, yAxisID: "y1", order: 1 }] },
-        options: baseOpts({ layout: { padding: { top: 18, right: 30 } }, plugins: { legend: { display: true, position: "top", align: "end", labels: { color: SUB, font: { size: 11, weight: "600" }, boxWidth: 9, usePointStyle: true } }, tooltip: { callbacks: { label: x => x.dataset.yAxisID === "y1" ? `${lineLabel}: ${tip(lineFmt)(x.parsed.y)}` : `${barLabel}: ${tip(barFmt)(x.parsed.y)}` } } },
+        options: baseOpts({ layout: { padding: { top: 18, right: 30 } }, plugins: { legend: { display: true, position: "top", align: "end", labels: { color: SUB, font: { size: 12.5, weight: "600" }, boxWidth: 9, usePointStyle: true } }, tooltip: { callbacks: { label: x => x.dataset.yAxisID === "y1" ? `${lineLabel}: ${tip(lineFmt)(x.parsed.y)}` : `${barLabel}: ${tip(barFmt)(x.parsed.y)}` } } },
           scales: { x: axX(), y: axY(barFmt, { beginAtZero: true, title: { display: true, text: barLabel, color: SUB, font: { size: 10, weight: "700" } } }), y1: axY(lineFmt, { position: "right", grid: { display: false }, title: { display: true, text: lineLabel, color: BLUE, font: { size: 10, weight: "700" } } }) } }), plugins: [crosshair, { id: "cblab", afterDatasetsDraw(ch) {
           // labels thinned like lelab, and bar vs line labels PHASE-SHIFTED so the two rows never stack on one column
           const ctx = ch.ctx; ctx.save(); ctx.textAlign = "center";
           const area = ch.chartArea, nPts = labels.length;
           const xSp = nPts > 1 ? (area.right - area.left) / (nPts - 1) : 1e9;
           const bf = lbf(barFmt), lf = lbf(lineFmt);
-          ctx.font = "700 10.5px " + MONO;
+          ctx.font = "700 11.5px " + MONO;
           let wB = 0; barSeries.forEach(r => { if (r.v != null) { const w = ctx.measureText(bf(r.v)).width; if (w > wB) wB = w; } });
           let wL = 0; lineSeries.forEach(r => { if (r.v != null) { const w = ctx.measureText(lf(r.v)).width; if (w > wL) wL = w; } });
           const step = Math.max(1, Math.ceil((Math.max(wB, wL) + 6) / xSp));
           const off = step > 1 ? Math.floor(step / 2) : 0;
           ctx.fillStyle = INK; ctx.textBaseline = "bottom";
           ch.getDatasetMeta(0).data.forEach((el, i) => { const v = barSeries[i] && barSeries[i].v; if (v == null || isNaN(v) || (nPts - 1 - i) % step !== 0) return; ctx.fillText(bf(v), el.x, el.y - 3); });
-          ctx.font = "700 10px " + MONO; ctx.fillStyle = BLUE;
+          ctx.font = "700 11.5px " + MONO; ctx.fillStyle = BLUE;
           ch.getDatasetMeta(1).data.forEach((el, i) => { const v = lineSeries[i] && lineSeries[i].v; if (v == null || isNaN(v) || (nPts - 1 - i + off) % step !== 0) return; ctx.fillText(lf(v), el.x, el.y - 7); });
           ctx.restore(); } }] });
       return c;
@@ -705,7 +705,7 @@ async function renderMonthly(host, MRCFG) {
           s.push({ k: `All others (${cut}) — click to expand`, v: tail.reduce((a, b) => a + (b.v || 0), 0), __other: 1 });
         }
         if (chart) chart.destroy();
-        box.style.height = Math.max(190, 40 + s.length * 27) + "px";
+        box.style.height = Math.max(216, 48 + s.length * 31) + "px";
         chart = new Chart(cv, { type: "bar",
           data: { labels: s.map(r => r.k), datasets: [{ data: s.map(r => r.v), backgroundColor: s.map((r, i) => r.__other ? "#aeb9c8" : (!expanded && i === 0) ? LIME : INK), hoverBackgroundColor: s.map(r => r.__other ? "#98a5b6" : "#34465f"), borderRadius: 4, maxBarThickness: 20 }] },
           options: baseOpts({ indexAxis: "y", layout: { padding: { right: 58 } },
@@ -724,7 +724,7 @@ async function renderMonthly(host, MRCFG) {
                 if (tail.length > 14) lines.push(`… +${tail.length - 14} more — click to expand`);
                 return lines;
               } } } },
-            scales: { x: axY(fmt, { beginAtZero: true }), y: { ticks: { color: INK2, font: { size: 11.5, weight: "600" } }, grid: { display: false }, border: { display: false } } } }),
+            scales: { x: axY(fmt, { beginAtZero: true }), y: { ticks: { color: INK2, font: { size: 13, weight: "600" } }, grid: { display: false }, border: { display: false } } } }),
           plugins: [valLabels(fmt, true), crosshair] });
       };
       draw();
@@ -738,7 +738,7 @@ async function renderMonthly(host, MRCFG) {
       if (!labels.length) { emptyBox(box); return c; }
       new Chart(cv, { type: "bar",
         data: { labels, datasets: [ { label: la, data: sa, backgroundColor: CTX, hoverBackgroundColor: "#aab6c4", borderRadius: 3, maxBarThickness: 12 }, { label: lb, data: sb, backgroundColor: INK, hoverBackgroundColor: "#34465f", borderRadius: 3, maxBarThickness: 12 } ] },
-        options: baseOpts({ indexAxis: "y", layout: { padding: { right: 84 } }, plugins: { legend: { display: true, position: "top", align: "end", labels: { color: SUB, font: { size: 11, weight: "600" }, boxWidth: 9, usePointStyle: true } }, tooltip: { callbacks: { label: x => x.dataset.label + ": " + tip(fmt)(x.parsed.x) } } }, scales: { x: axY(fmt, { beginAtZero: true }), y: { ticks: { color: INK2, font: { size: 11, weight: "600" } }, grid: { display: false }, border: { display: false } } } }), plugins: [crosshair, valLabels(fmt, true)] });
+        options: baseOpts({ indexAxis: "y", layout: { padding: { right: 84 } }, plugins: { legend: { display: true, position: "top", align: "end", labels: { color: SUB, font: { size: 12.5, weight: "600" }, boxWidth: 9, usePointStyle: true } }, tooltip: { callbacks: { label: x => x.dataset.label + ": " + tip(fmt)(x.parsed.x) } } }, scales: { x: axY(fmt, { beginAtZero: true }), y: { ticks: { color: INK2, font: { size: 12.5, weight: "600" } }, grid: { display: false }, border: { display: false } } } }), plugins: [crosshair, valLabels(fmt, true)] });
       return c;
     }
     function donut(mount, title, series, fmt, opts) {
@@ -754,7 +754,7 @@ async function renderMonthly(host, MRCFG) {
         const s = tail.length ? head.concat([{ k: `All others (${tail.length}) — click to expand`, v: tail.reduce((a, b) => a + b.v, 0), __other: 1 }]) : head;
         const tot = s.reduce((a, b) => a + b.v, 0);
         if (chart) chart.destroy();
-        box.style.height = Math.max(250, expanded ? 120 + s.length * 15 : 250) + "px";
+        box.style.height = Math.max(292, expanded ? 140 + s.length * 17 : 292) + "px";
         chart = new Chart(cv, { type: "doughnut", data: { labels: s.map(r => r.k), datasets: [{ data: s.map(r => r.v), backgroundColor: s.map((r, i) => r.__other ? "#aeb9c8" : CAT[i % CAT.length]), borderColor: "#fff", borderWidth: 3, hoverOffset: 5 }] },
           options: baseOpts({ cutout: "66%", interaction: { mode: "nearest", intersect: true },
             onClick: (e, els) => {
@@ -763,7 +763,7 @@ async function renderMonthly(host, MRCFG) {
             },
             onHover: (e, els) => { if (e.native && e.native.target) e.native.target.style.cursor =
               (expanded || (els && els.length && s[els[0].index] && s[els[0].index].__other)) ? "pointer" : "default"; },
-            plugins: { legend: { position: "right", labels: { color: INK2, font: { size: 11 }, boxWidth: 11, padding: expanded ? 4 : 7, usePointStyle: true } }, tooltip: { callbacks: {
+            plugins: { legend: { position: "right", labels: { color: INK2, font: { size: 12.5 }, boxWidth: 12, padding: expanded ? 5 : 8, usePointStyle: true } }, tooltip: { callbacks: {
               label: x => `${x.label}: ${tip(fmt)(x.parsed)} (${(x.parsed / tot * 100).toFixed(0)}%)`,
               afterBody: items => {
                 const it = items && items[0];
@@ -775,7 +775,7 @@ async function renderMonthly(host, MRCFG) {
           plugins: [{ id: "ctr", afterDraw(ch) { const a = ch.chartArea, ctx = ch.ctx, x = (a.left + a.right) / 2, y = (a.top + a.bottom) / 2; ctx.save(); ctx.textAlign = "center"; ctx.fillStyle = INK; ctx.font = "800 19px " + MONO; ctx.fillText(opts.center || fmt(tot), x, y - 2); ctx.fillStyle = FAINT; ctx.font = "700 10px Inter"; ctx.fillText(opts.centerLbl || "total", x, y + 15); ctx.restore(); } },
           { id: "dlab", afterDatasetsDraw(ch) {
             // % label on every slice big enough to hold one (>=4% of the ring)
-            const ctx = ch.ctx; ctx.save(); ctx.font = "800 10px " + MONO; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+            const ctx = ch.ctx; ctx.save(); ctx.font = "800 11.5px " + MONO; ctx.textAlign = "center"; ctx.textBaseline = "middle";
             ch.getDatasetMeta(0).data.forEach((el, i) => {
               const p = s[i] ? s[i].v / tot : 0; if (p < 0.04) return;
               const pt = el.tooltipPosition ? el.tooltipPosition() : el.getCenterPoint();
@@ -800,7 +800,7 @@ async function renderMonthly(host, MRCFG) {
         options: baseOpts({ layout: { padding: { top: 20 } }, plugins: { legend: { display: false }, tooltip: { callbacks: { label: x => { const d = x.raw; return money(Array.isArray(d) ? d[1] - d[0] : d); } } } }, scales: { x: axX({ ticks: { color: AXIS, font: { family: MONO, size: 10 }, maxRotation: 40, minRotation: 0 } }), y: axY(moneyC, { beginAtZero: true }) } }),
         plugins: [crosshair,
           { id: "wconn", beforeDatasetsDraw(ch) { const ctx = ch.ctx, meta = ch.getDatasetMeta(0); if (!meta.data.length) return; ctx.save(); ctx.strokeStyle = "#c8cfda"; ctx.setLineDash([3, 3]); for (let i = 0; i < meta.data.length - 1; i++) { const y = ch.scales.y.getPixelForValue(bars[i][1]); ctx.beginPath(); ctx.moveTo(meta.data[i].x, y); ctx.lineTo(meta.data[i + 1].x, y); ctx.stroke(); } ctx.setLineDash([]); ctx.restore(); } },
-          { id: "wlab", afterDatasetsDraw(ch) { const ctx = ch.ctx; ctx.save(); ctx.font = "800 10px " + MONO; ctx.textAlign = "center"; ctx.textBaseline = "bottom"; ch.getDatasetMeta(0).data.forEach((el, i) => { const d = bars[i]; const v = d[1] - d[0]; ctx.fillStyle = steps[i].type === "total" ? INK : (v >= 0 ? POS : NEG); ctx.fillText((v < 0 ? "-" : "") + money(Math.abs(v)), el.x, Math.min(el.y, ch.scales.y.getPixelForValue(Math.max(d[0], d[1]))) - 3); }); ctx.restore(); } }] });
+          { id: "wlab", afterDatasetsDraw(ch) { const ctx = ch.ctx; ctx.save(); ctx.font = "800 11.5px " + MONO; ctx.textAlign = "center"; ctx.textBaseline = "bottom"; ch.getDatasetMeta(0).data.forEach((el, i) => { const d = bars[i]; const v = d[1] - d[0]; ctx.fillStyle = steps[i].type === "total" ? INK : (v >= 0 ? POS : NEG); ctx.fillText((v < 0 ? "-" : "") + money(Math.abs(v)), el.x, Math.min(el.y, ch.scales.y.getPixelForValue(Math.max(d[0], d[1]))) - 3); }); ctx.restore(); } }] });
       return c;
     }
     function funnel(mount, title, sub, stages, opts) {
@@ -809,8 +809,8 @@ async function renderMonthly(host, MRCFG) {
       if (!stages.length || !stages[0].v) { emptyBox(box); return c; }
       const top = stages[0].v;
       new Chart(cv, { type: "bar", data: { labels: stages.map(s2 => s2.k), datasets: [{ data: stages.map(s2 => s2.v), backgroundColor: stages.map((_, i) => i === stages.length - 1 ? LIME : INK), hoverBackgroundColor: stages.map((_, i) => i === stages.length - 1 ? LIMED : "#34465f"), borderRadius: 4, maxBarThickness: 36 }] },
-        options: baseOpts({ indexAxis: "y", layout: { padding: { right: 110 } }, plugins: { legend: { display: false }, tooltip: { callbacks: { label: x => fmtN(x.parsed.x) + ` (${(x.parsed.x / top * 100).toFixed(0)}% of top)` } } }, scales: { x: { display: false, beginAtZero: true, max: top * 1.02 }, y: { ticks: { color: INK2, font: { size: 12, weight: "700" } }, grid: { display: false }, border: { display: false } } } }),
-        plugins: [crosshair, { id: "flab", afterDatasetsDraw(ch) { const ctx = ch.ctx; ctx.save(); ctx.textAlign = "left"; ctx.textBaseline = "middle"; ch.getDatasetMeta(0).data.forEach((el, i) => { ctx.font = "800 12px " + MONO; ctx.fillStyle = INK; ctx.fillText(fmtN(stages[i].v), el.x + 6, el.y); if (i > 0) { ctx.font = "700 10px " + MONO; ctx.fillStyle = LIMED; ctx.fillText("  " + (stages[i].v / stages[i - 1].v * 100).toFixed(0) + "%", el.x + 6 + ctx.measureText(fmtN(stages[i].v)).width + 4, el.y); } }); ctx.restore(); } }] });
+        options: baseOpts({ indexAxis: "y", layout: { padding: { right: 110 } }, plugins: { legend: { display: false }, tooltip: { callbacks: { label: x => fmtN(x.parsed.x) + ` (${(x.parsed.x / top * 100).toFixed(0)}% of top)` } } }, scales: { x: { display: false, beginAtZero: true, max: top * 1.02 }, y: { ticks: { color: INK2, font: { size: 13.5, weight: "700" } }, grid: { display: false }, border: { display: false } } } }),
+        plugins: [crosshair, { id: "flab", afterDatasetsDraw(ch) { const ctx = ch.ctx; ctx.save(); ctx.textAlign = "left"; ctx.textBaseline = "middle"; ch.getDatasetMeta(0).data.forEach((el, i) => { ctx.font = "800 12px " + MONO; ctx.fillStyle = INK; ctx.fillText(fmtN(stages[i].v), el.x + 6, el.y); if (i > 0) { ctx.font = "700 11.5px " + MONO; ctx.fillStyle = LIMED; ctx.fillText("  " + (stages[i].v / stages[i - 1].v * 100).toFixed(0) + "%", el.x + 6 + ctx.measureText(fmtN(stages[i].v)).width + 4, el.y); } }); ctx.restore(); } }] });
       return c;
     }
     function bullet(mount, title, sub, rows, fmt, target, opts) {
@@ -819,7 +819,7 @@ async function renderMonthly(host, MRCFG) {
       const { c, box, cv } = chartCard(mount, title, sub, { span2: opts.span2, h: Math.max(190, 40 + rows.length * 27), icon: KIC.bars, headVal: "team avg " + fmt(target) });
       if (!rows.length) { emptyBox(box); return c; }
       new Chart(cv, { type: "bar", data: { labels: rows.map(r => r.k), datasets: [{ data: rows.map(r => r.v), backgroundColor: rows.map(r => r.v >= target ? INK : NEG), hoverBackgroundColor: rows.map(r => r.v >= target ? "#34465f" : "#f0817e"), borderRadius: 4, maxBarThickness: 18 }] },
-        options: baseOpts({ indexAxis: "y", layout: { padding: { right: 52 } }, plugins: { legend: { display: false }, tooltip: { callbacks: { label: x => tip(fmt)(x.parsed.x) + " (team avg " + tip(fmt)(target) + ")" } } }, scales: { x: axY(fmt, { beginAtZero: true }), y: { ticks: { color: INK2, font: { size: 11, weight: "600" } }, grid: { display: false }, border: { display: false } } } }),
+        options: baseOpts({ indexAxis: "y", layout: { padding: { right: 52 } }, plugins: { legend: { display: false }, tooltip: { callbacks: { label: x => tip(fmt)(x.parsed.x) + " (team avg " + tip(fmt)(target) + ")" } } }, scales: { x: axY(fmt, { beginAtZero: true }), y: { ticks: { color: INK2, font: { size: 12.5, weight: "600" } }, grid: { display: false }, border: { display: false } } } }),
         plugins: [crosshair, valLabels(fmt, true), { id: "tgt", afterDraw(ch) { const x = ch.scales.x.getPixelForValue(target), a = ch.chartArea, ctx = ch.ctx; ctx.save(); ctx.strokeStyle = LIME; ctx.lineWidth = 2.4; ctx.beginPath(); ctx.moveTo(x, a.top); ctx.lineTo(x, a.bottom); ctx.stroke(); ctx.fillStyle = LIMED; ctx.font = "800 9px " + MONO; ctx.textAlign = "center"; ctx.fillText("team avg " + fmt(target), x, a.top - 2); ctx.restore(); } }] });
       if (opts.note) note(c, opts.note, opts.noteKind);
       return c;
@@ -830,7 +830,7 @@ async function renderMonthly(host, MRCFG) {
       const { c, box, cv } = chartCard(mount, title, sub, { span2: opts.span2, icon: KIC.trend, headVal: fmt(lastTot) });
       if (!labels.length) { emptyBox(box); return c; }
       new Chart(cv, { type: "bar", data: { labels, datasets: sets.map((d, i) => ({ label: d.label, data: d.data, backgroundColor: d.color || CAT[i], borderRadius: 2, maxBarThickness: 26, stack: "s" })) },
-        options: baseOpts({ layout: { padding: { top: 18 } }, plugins: { legend: { display: true, position: "top", align: "end", labels: { color: SUB, font: { size: 11, weight: "600" }, boxWidth: 9, usePointStyle: true } }, tooltip: { callbacks: { label: x => x.dataset.label + ": " + tip(fmt)(x.parsed.y) } } }, scales: { x: Object.assign(axX(), { stacked: true }), y: Object.assign(axY(fmt, { beginAtZero: true }), { stacked: true }) } }), plugins: [crosshair, { id: "stlab", afterDatasetsDraw(ch) { const ctx = ch.ctx; ctx.save(); ctx.font = "700 9px " + MONO; ctx.fillStyle = INK; ctx.textAlign = "center"; ctx.textBaseline = "bottom"; ch.getDatasetMeta(0).data.forEach((el, i) => { let tot = 0, topY = Infinity; ch.data.datasets.forEach((d, di) => { const e = ch.getDatasetMeta(di).data[i]; if (e) { tot += (+d.data[i] || 0); topY = Math.min(topY, e.y); } }); if (tot) ctx.fillText(fmt(tot), el.x, topY - 3); }); ctx.restore(); } }] });
+        options: baseOpts({ layout: { padding: { top: 18 } }, plugins: { legend: { display: true, position: "top", align: "end", labels: { color: SUB, font: { size: 12.5, weight: "600" }, boxWidth: 9, usePointStyle: true } }, tooltip: { callbacks: { label: x => x.dataset.label + ": " + tip(fmt)(x.parsed.y) } } }, scales: { x: Object.assign(axX(), { stacked: true }), y: Object.assign(axY(fmt, { beginAtZero: true }), { stacked: true }) } }), plugins: [crosshair, { id: "stlab", afterDatasetsDraw(ch) { const ctx = ch.ctx; ctx.save(); ctx.font = "700 9px " + MONO; ctx.fillStyle = INK; ctx.textAlign = "center"; ctx.textBaseline = "bottom"; ch.getDatasetMeta(0).data.forEach((el, i) => { let tot = 0, topY = Infinity; ch.data.datasets.forEach((d, di) => { const e = ch.getDatasetMeta(di).data[i]; if (e) { tot += (+d.data[i] || 0); topY = Math.min(topY, e.y); } }); if (tot) ctx.fillText(fmt(tot), el.x, topY - 3); }); ctx.restore(); } }] });
       return c;
     }
 
@@ -1287,8 +1287,8 @@ async function renderMonthly(host, MRCFG) {
         new Chart(cvLL, { type: "bar", data: { labels: labs, datasets: [
           { label: "Local Moving", data: yrs.map(r => r.loc), backgroundColor: LIME, borderRadius: 3, maxBarThickness: 30 },
           { label: "Long-distance", data: yrs.map(r => r.ld), backgroundColor: INK, borderRadius: 3, maxBarThickness: 30 } ] },
-          options: baseOpts({ plugins: { legend: { display: true, position: "top", align: "end", labels: { color: SUB, font: { size: 11, weight: "600" }, boxWidth: 9, usePointStyle: true } }, tooltip: { callbacks: { label: x => x.dataset.label + ": " + money(x.parsed.y) } } },
-            scales: { y: axY(moneyC, { beginAtZero: true }), x: { ticks: { color: INK2, font: { size: 11, weight: "600" } }, grid: { display: false }, border: { display: false } } } }), plugins: [crosshair] });
+          options: baseOpts({ plugins: { legend: { display: true, position: "top", align: "end", labels: { color: SUB, font: { size: 12.5, weight: "600" }, boxWidth: 9, usePointStyle: true } }, tooltip: { callbacks: { label: x => x.dataset.label + ": " + money(x.parsed.y) } } },
+            scales: { y: axY(moneyC, { beginAtZero: true }), x: { ticks: { color: INK2, font: { size: 12.5, weight: "600" } }, grid: { display: false }, border: { display: false } } } }), plugins: [crosshair] });
         note(cLL, `Hourly “Local Moving” (the volume base) vs flat-rate long-distance (“Regular” + “Straight”), same month each year.`, "how");
       }
       // the matrix: every Local/LD number that used to be its own card, with YoY inline.
@@ -1340,11 +1340,11 @@ async function renderMonthly(host, MRCFG) {
         else new Chart(cvMt, { type: "bar", data: { labels: mtRows.map(r => r.k), datasets: [
           { label: "Gross profit", data: mtRows.map(r => r.op), backgroundColor: LIME, borderRadius: 3, maxBarThickness: 22 },
           { label: "All costs", data: mtRows.map(r => r.cost), backgroundColor: INK, borderRadius: 3, maxBarThickness: 22 } ] },
-          options: baseOpts({ indexAxis: "y", layout: { padding: { right: 110 } }, plugins: { legend: { display: true, position: "top", align: "end", labels: { color: SUB, font: { size: 11, weight: "600" }, boxWidth: 9, usePointStyle: true } }, tooltip: { callbacks: { label: x => x.dataset.label + ": " + money(x.parsed.x),
+          options: baseOpts({ indexAxis: "y", layout: { padding: { right: 110 } }, plugins: { legend: { display: true, position: "top", align: "end", labels: { color: SUB, font: { size: 12.5, weight: "600" }, boxWidth: 9, usePointStyle: true } }, tooltip: { callbacks: { label: x => x.dataset.label + ": " + money(x.parsed.x),
             // N27: the end-label decoding lives here in the tooltip, not in the note
             footer: items => { const r = mtRows[items[0].dataIndex]; return r && r.rev ? money(r.rev) + " revenue · " + Math.round(r.op / r.rev * 100) + "% profit margin" : ""; } } } },
             scales: { x: axY(moneyC, { beginAtZero: true, stacked: true }), y: { stacked: true, ticks: { color: INK2, font: { size: 11.5, weight: "600" } }, grid: { display: false }, border: { display: false } } } }),
-          plugins: [crosshair, { id: "mtlab", afterDatasetsDraw(ch) { const ctx = ch.ctx; ctx.save(); ctx.font = "700 10px " + MONO; ctx.textAlign = "left"; ctx.textBaseline = "middle"; ctx.fillStyle = INK;
+          plugins: [crosshair, { id: "mtlab", afterDatasetsDraw(ch) { const ctx = ch.ctx; ctx.save(); ctx.font = "700 11.5px " + MONO; ctx.textAlign = "left"; ctx.textBaseline = "middle"; ctx.fillStyle = INK;
             ch.getDatasetMeta(1).data.forEach((el, i) => { const r = mtRows[i]; ctx.fillText(money(r.rev) + (r.rev ? " · " + Math.round(r.op / r.rev * 100) + "%" : ""), el.x + 6, el.y); });
             ctx.restore(); } }] });
         note(cMt, `Each bar is that type's revenue; the green part is what we kept as profit (before refunds).`, "how");
