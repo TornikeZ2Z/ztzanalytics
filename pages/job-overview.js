@@ -80,8 +80,6 @@ registerPage({
           <select id="joMonth" class="jo-sel"></select>
           <input id="joSearch" type="text" autocomplete="off" spellcheck="false" placeholder="Search job #, customer, foreman…">
           <span id="joCount" class="st-note" style="color:var(--muted);font-size:12.5px"></span>
-          <span style="flex:1"></span>
-          <button id="joCsv" class="rs-btn" style="font-size:12.5px">⬇ CSV (all)</button>
         </div>
         <div id="joTable" style="padding:2px 6px 12px;overflow-x:auto"></div>
       </div>`;
@@ -195,16 +193,5 @@ registerPage({
     document.getElementById("joMonth").onchange = e => { JO_STATE.month = e.target.value; paintTable(); };
     let t = null;
     document.getElementById("joSearch").oninput = e => { clearTimeout(t); t = setTimeout(() => { JO_STATE.q = e.target.value; paintTable(); }, 120); };
-    document.getElementById("joCsv").onclick = () => {
-      const cols = ["Job No", "Move Date", "Customer", "Foreman", "Company", "Delivery State", "Estimated Bill", "Final Total Bill",
-        "Final Packing", "Bill Difference", "Bill Difference %", "Open Claim", "Claim Reason", "Support Intervention", "Support Reason",
-        "Review", "Negative Review", "Negative Review Score", "Status Color", "Status Reason"];
-      const q = s => `"${String(s == null ? "" : s).replace(/"/g, '""')}"`;
-      const lines = [cols.join(",")].concat(rows.map(r => cols.map(c => q(r[c])).join(",")));
-      const blob = new Blob([lines.join("\n")], { type: "text/csv" });
-      const a = document.createElement("a");
-      a.href = URL.createObjectURL(blob); a.download = "job-overview.csv"; a.click();
-      URL.revokeObjectURL(a.href);
-    };
   },
 });

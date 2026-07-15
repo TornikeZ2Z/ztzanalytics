@@ -67,8 +67,8 @@ body.mr-own-time #frowDates .rs-slicer[data-key="month"]{display:none}
 </div>
 
 <script src="assets/portal.js?v=8"></script>
-<script src="assets/rs-core.js?v=20"></script>
-<script src="assets/rs-components.js?v=7"></script>
+<script src="assets/rs-core.js?v=21"></script>
+<script src="assets/rs-components.js?v=8"></script>
 <script>
 /* ---------------- page registry ---------------- */
 window.PAGES = [];
@@ -98,7 +98,7 @@ const GROUP_OVERRIDE = {
   // Marketing
   "mkt-roi": "marketing", "mkt-sources": "marketing", "mkt-phone": "marketing",
   // Logistics
-  "log-foreman": "logistics", "log-packing": "logistics", "log-fleet": "logistics",
+  "log-foreman": "logistics", "log-packing": "logistics",
   // Financial
   "fin-revenue": "financial", "fin-rr": "financial", "financial-analysis": "financial", "executive-scorecard": "financial",
   "branch-owner": "financial",
@@ -113,7 +113,7 @@ const NAV_ORDER = {
   "monthly-report": 1, "analysis-by-category": 2,
   "sales-funnel": 1, "sales-perf": 2, "sales-speed": 3,
   "mkt-roi": 1, "mkt-sources": 2, "mkt-phone": 3,
-  "log-foreman": 1, "log-packing": 2, "log-fleet": 3,
+  "log-foreman": 1, "log-packing": 2,
   "fin-revenue": 1, "fin-rr": 2, "sales-geo": 3, "financial-analysis": 4, "executive-scorecard": 5, "branch-owner": 6,
   "review-performance": 1, "rev-production": 2, "reviews-reminders": 3,
   "sup-claims": 1, "sup-refunds": 2, "sup-phone": 3,
@@ -167,7 +167,7 @@ const PAGE_ICONS = {
   // themed dashboards + settings (2026-07-09 restructure)
   "sales-funnel": "funnel", "sales-perf": "user", "sales-geo": "pin", "sales-speed": "phone",
   "mkt-roi": "trend", "mkt-sources": "compass", "mkt-phone": "phone",
-  "log-foreman": "tool", "log-packing": "box", "log-fleet": "activity",
+  "log-foreman": "tool", "log-packing": "box",
   "fin-revenue": "trend", "fin-rr": "trend", "rev-production": "star",
   "sup-claims": "shield", "sup-refunds": "clipboard", "sup-phone": "phone",
   "data-quality": "clipboard", "source-trace": "activity", "multi-source-leads": "git-merge", "calendar-coverage": "calendar", "request-consistency": "alert-triangle", "review-performance": "star", "reviews-reminders": "megaphone",
@@ -477,7 +477,7 @@ const PAGE_DATASETS = {
 };
 // themed dashboards are lite-mode slices of the Monthly Report — same datasets
 ["sales-funnel", "sales-perf", "sales-geo", "mkt-roi", "mkt-sources", "mkt-phone",
- "log-foreman", "log-packing", "log-fleet", "fin-revenue", "fin-rr", "rev-production",
+ "log-foreman", "log-packing", "fin-revenue", "fin-rr", "rev-production",
  "sup-claims", "sup-refunds", "sup-phone"].forEach(id => PAGE_DATASETS[id] = MR_DATASETS);
 /* what each dataset's rows ARE, in plain words — for the date-basis caption */
 const DS_NOUN = { closing: "jobs", moveboard: "leads", storage: "storage payments",
@@ -490,7 +490,7 @@ const DATE_BASIS_TEXT = {
   "angi-vs-moveboard": "this page has its own date handling — the filters above don't apply here",
 };
 ["monthly-report", "sales-funnel", "sales-perf", "sales-geo", "mkt-roi",
-  "mkt-sources", "mkt-phone", "log-foreman", "log-packing", "log-fleet", "fin-revenue", "fin-rr",
+  "mkt-sources", "mkt-phone", "log-foreman", "log-packing", "fin-revenue", "fin-rr",
   "rev-production", "sup-claims", "sup-refunds", "sup-phone"].forEach(id =>
   DATE_BASIS_TEXT[id] = "money & jobs count by move date · leads by the date they came in");
 
@@ -625,7 +625,7 @@ const BARE_CHROME = new Set(["review-performance", "sales-speed", "reviews-remin
    2026-07-14). All other filters (Source, Foreman, State…) still apply and stay visible. */
 const MR_OWN_TIME = new Set(["monthly-report",
   "sales-funnel", "sales-perf", "sales-geo", "mkt-roi", "mkt-sources", "mkt-phone",
-  "log-foreman", "log-packing", "log-fleet", "fin-revenue", "fin-rr",
+  "log-foreman", "log-packing", "fin-revenue", "fin-rr",
   "rev-production", "sup-claims", "sup-refunds", "sup-phone"]);
 async function renderPage() {
   const host = document.getElementById("content");
@@ -694,7 +694,7 @@ const SEARCH_ALIASES = {
   // Logistics
   "log-foreman": "forman foreman foremen of the month scorecard crew labor helpers hours worked operations comparison",
   "log-packing": "packing storage packing analysis per 100 cf material materials boxes estimate vs written storage payments",
-  "log-fleet": "fleet trucks vehicles mileage",
+  
   // Financial
   "fin-revenue": "revenue profit growth executive summary composition segments per job profitability p&l pnl profit and loss gross profit gross margin operational",
   "financial-analysis": "p&l pnl profit and loss financial analysis job gross profit gross margin operational",
@@ -962,7 +962,7 @@ const REPORT_LABELS = {
   // Logistics
   "log-foreman": "Foreman of the Month",
   "log-packing": "Packing & Storage",
-  "log-fleet": "Fleet",
+  
   // Financial
   "fin-revenue": "Revenue & Profit",
   "financial-analysis": "Job P&L (profit & loss)",
@@ -1000,7 +1000,7 @@ const ACL_DEPTS = [
   { id: "company",   label: "Company Overview", icon: "spark",     reports: ["monthly-report", "analysis-by-category"] },
   { id: "sales",     label: "Sales",            icon: "funnel",    reports: ["sales-funnel", "sales-perf", "sales-speed"] },
   { id: "marketing", label: "Marketing",        icon: "megaphone", reports: ["mkt-roi", "mkt-sources", "mkt-phone"] },
-  { id: "logistics", label: "Logistics",        icon: "tool",      reports: ["log-foreman", "log-packing", "log-fleet"] },
+  { id: "logistics", label: "Logistics",        icon: "tool",      reports: ["log-foreman", "log-packing"] },
   { id: "financial", label: "Financial",        icon: "trend",     reports: ["fin-revenue", "fin-rr", "sales-geo", "financial-analysis", "executive-scorecard", "branch-owner"] },
   { id: "reviews",   label: "Reviews",          icon: "star",      reports: ["review-performance", "rev-production", "reviews-reminders"] },
   { id: "support",   label: "Support",          icon: "shield",    reports: ["sup-claims", "sup-refunds", "sup-phone"] },
@@ -1165,17 +1165,17 @@ registerPage({
 <script src="pages/labor-analysis.js?v=3"></script>
 <script src="pages/financial-analysis.js?v=7"></script>
 <script src="pages/post-card-analysis.js?v=4"></script>
-<script src="pages/monthly-report.js?v=68"></script>
-<script src="pages/leads-vs-moveboard.js?v=6"></script>
+<script src="pages/monthly-report.js?v=69"></script>
+<script src="pages/leads-vs-moveboard.js?v=7"></script>
 <script src="pages/source-analysis.js?v=3"></script>
 <script src="pages/data-quality.js?v=4"></script>
 <script src="pages/source-trace.js?v=6"></script>
-<script src="pages/multi-source-leads.js?v=1"></script>
-<script src="pages/calendar-coverage.js?v=6"></script>
-<script src="pages/request-consistency.js?v=2"></script>
+<script src="pages/multi-source-leads.js?v=2"></script>
+<script src="pages/calendar-coverage.js?v=7"></script>
+<script src="pages/request-consistency.js?v=3"></script>
 <script src="pages/branch-owner.js?v=6"></script>
-<script src="pages/review-performance.js?v=10"></script>
-<script src="pages/speed-to-lead.js?v=2"></script>
+<script src="pages/review-performance.js?v=11"></script>
+<script src="pages/speed-to-lead.js?v=3"></script>
 <script src="pages/reminders.js?v=17"></script>
 </body>
 </html>

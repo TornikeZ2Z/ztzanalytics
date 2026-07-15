@@ -91,8 +91,6 @@ registerPage({
             <input id="mslSearch" type="text" autocomplete="off" spellcheck="false"
               placeholder="Search by moveboard #, customer, or phone…">
             <span id="mslCount" class="st-note" style="color:var(--muted);font-size:12.5px"></span>
-            <span style="flex:1"></span>
-            <button id="mslCsv" class="rs-btn" style="font-size:12.5px">⬇ CSV (all)</button>
           </div>
         </div>
         <div id="mslTable" style="padding:2px 6px 10px;overflow-x:auto"></div>
@@ -177,18 +175,6 @@ registerPage({
     let t = null;
     document.getElementById("mslSearch").oninput = e => {
       clearTimeout(t); t = setTimeout(() => { MSL_STATE.q = e.target.value; paintTable(); }, 120);
-    };
-    document.getElementById("mslCsv").onclick = () => {
-      const hdr = ["Move #", "Customer", "Phone", "Company", "Move Date", "Trackers", "Resolved Source", "Match Path"];
-      const esc2 = s => `"${String(s == null ? "" : s).replace(/"/g, '""')}"`;
-      const lines = [hdr.join(",")].concat(multi.map(x => [
-        x.r["Job No"], x.r["Customer"], x.r["Customer Phone"], x.r["Company"], x.r["Move Date"],
-        x.t.join(" + "), x.r["Source Connector"], x.r["Match Path"],
-      ].map(esc2).join(",")));
-      const blob = new Blob([lines.join("\n")], { type: "text/csv" });
-      const a = document.createElement("a");
-      a.href = URL.createObjectURL(blob); a.download = "multi-source-leads.csv"; a.click();
-      URL.revokeObjectURL(a.href);
     };
   },
 });

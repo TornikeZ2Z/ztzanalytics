@@ -13,9 +13,9 @@
   if (window.RS && RS.DATASETS && !RS.DATASETS.fct_job_overview) {
     RS.DATASETS.fct_job_overview = {
       table: "fct_job_overview",
-      // ONLY the columns this page + its CSV actually use — the full 34-column fetch was
-      // ~12 MB and froze the tab (audit + Tornike 2026-07-13). Add columns here only
-      // together with a real consumer.
+      // A trimmed list, not the full 34 columns — that fetch was ~12 MB and froze the tab
+      // (audit + Tornike 2026-07-13). Kept as-is after the CSV export was removed: this list
+      // is a payload contract. Add columns here only together with a real consumer.
       cols: [
         "Week Ending", "Job Date", "Job No", "Customer", "Foreman", "Job Source", "Job Type",
         "Estimate Bill", "Actual Bill", "Bill Increase Amount", "Bill Increase %",
@@ -395,8 +395,7 @@ registerPage({
     ];
     var spring = document.createElement("span"); spring.className = "rp-spring"; bar.appendChild(spring);
     var resetBtn = document.createElement("button"); resetBtn.type = "button"; resetBtn.className = "rp-btn"; resetBtn.textContent = "Reset";
-    var csvBtn = document.createElement("button"); csvBtn.type = "button"; csvBtn.className = "rp-btn"; csvBtn.innerHTML = "⬇ CSV";
-    bar.appendChild(resetBtn); bar.appendChild(csvBtn);
+    bar.appendChild(resetBtn);
 
     function inSet(set, v) { return set.size === 0 || set.has(v); }
     function filtered() {
@@ -751,17 +750,6 @@ registerPage({
       closeDrawer();
       msControls.forEach(c => c.paintBtn());
       repaint();
-    };
-    csvBtn.onclick = () => {
-      var cols = ["Week Ending", "Job Date", "Job No", "Customer", "Foreman", "Job Source", "Job Type", "Estimate Bill",
-        "Actual Bill", "Bill Increase Amount", "Bill Increase %", "Bill Increase Category", "Review Received", "Number of Reviews",
-        "Review Source", "Review Breakdown", "Eligible", "Support Intervention", "Support Intervention Reason", "Review Expected",
-        "Exclusion Reason", "Foreman Response Received", "Foreman Reason", "Foreman Explanation", "Final Status"];
-      var q = s => `"${String(s == null ? "" : s).replace(/"/g, '""')}"`;
-      var lines = [cols.join(",")].concat(filtered().map(r => cols.map(c => q(r[c])).join(",")));
-      var a = document.createElement("a");
-      a.href = URL.createObjectURL(new Blob([lines.join("\n")], { type: "text/csv" }));
-      a.download = "review-performance.csv"; a.click(); URL.revokeObjectURL(a.href);
     };
 
     RP.cell = null;

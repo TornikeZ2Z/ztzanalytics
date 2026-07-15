@@ -29,7 +29,11 @@ window.RS = (function () {
         // so SUM(col) here = Closing + unlinked-Trips; the DAX's Trips[...] term is
         // the LINKED-trip residual only (fct_trips, not served) — flagged in data_gaps.
         "Car", "Fuel", "Hotel", "Tolls", "Truck", "Other Expenses",
-        "Driver $", "Forman Total $", "CF %", "Tip from Company Part",
+        // "Tip for Forman" = the CUSTOMER tip the foreman keeps (~$46k/mo) — distinct from
+        // "Tip from Company Part" (the company-paid share, which is a Forman Salary component).
+        // Customer money, never a company cost: it feeds the take-home column on the foreman
+        // pay-rate card and must stay OUT of any measure that reconciles to P&L labour cost.
+        "Driver $", "Forman Total $", "CF %", "Tip from Company Part", "Tip for Forman",
         "Profit per Job", "Storage", "State", "State Name", "Moving Type", "Size of Move",
         "Bill Range", "Commission Bucket Range", "Extra Bill From Trips", "Net Cash From Trips",
         "Crew Size", "Request Encounter", "Is Last Encounter", "Job Part of the Day",

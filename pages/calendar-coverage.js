@@ -71,8 +71,6 @@
           <input id="ccSearch" type="text" autocomplete="off" spellcheck="false"
             placeholder="Search by Request #, customer, or company…">
           <span id="ccCount" style="color:var(--muted);font-size:12.5px"></span>
-          <span style="flex:1"></span>
-          <button id="ccCsv" class="rs-btn" style="font-size:12.5px">⬇ CSV (all)</button>
         </div>
         <div id="ccReasons" style="padding:2px 16px 10px;display:flex;gap:8px;flex-wrap:wrap"></div>
         <div id="ccTable" style="padding:2px 6px 10px;overflow-x:auto"></div>
@@ -245,13 +243,4 @@
     paint();
     let t = null;
     document.getElementById("ccSearch").oninput = e => { clearTimeout(t); t = setTimeout(() => { q = e.target.value; paint(); }, 120); };
-    document.getElementById("ccCsv").onclick = () => {
-      const esc2 = s => `"${String(s == null ? "" : s).replace(/"/g, '""')}"`;
-      const out = reasonFilter ? unconnected.filter(r => reasonOf(r) === reasonFilter) : unconnected;
-      const lines = [["Request #", "Customer", "Company", "Move Date", "Why unconnected", "Unique Key"].join(",")].concat(
-        out.map(r => [r["Request #"], r["Customer"], r["Company"], r["Date"], reasonOf(r), r["Unique Key"]].map(esc2).join(",")));
-      const blob = new Blob([lines.join("\n")], { type: "text/csv" });
-      const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
-      a.download = "unconnected-closings.csv"; a.click(); URL.revokeObjectURL(a.href);
-    };
 };

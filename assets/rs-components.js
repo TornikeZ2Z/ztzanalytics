@@ -172,7 +172,6 @@ window.RSC = (function () {
         <span class="rs-ctl"></span>
         <span class="spacer"></span>
         <button class="btn on tg-g">▮ Graph</button><button class="btn tg-t">▤ Tabular</button>
-        <button class="btn tg-csv" title="Download the tabular view as CSV">⬇ CSV</button>
       </div>
       <div class="gview"><div class="chartbox"><canvas></canvas></div></div>
       <div class="tview hidden"><div class="tabwrap"></div></div>`;
@@ -202,16 +201,6 @@ window.RSC = (function () {
     };
     bg.onclick = () => { g.classList.remove("hidden"); t.classList.add("hidden"); bg.classList.add("on"); bt.classList.remove("on"); CARD_VIEW.set(viewKey, "graph"); render(); };
     bt.onclick = () => { t.classList.remove("hidden"); g.classList.add("hidden"); bt.classList.add("on"); bg.classList.remove("on"); CARD_VIEW.set(viewKey, "table"); render(); };
-    card.querySelector(".tg-csv").onclick = () => {
-      const tbl = el("div", "", cfg.buildTable()).querySelector("table");
-      if (!tbl) return;
-      const rows = [...tbl.rows].map(r => [...r.cells].map(c =>
-        /[",\n]/.test(c.innerText) ? '"' + c.innerText.replace(/"/g, '""') + '"' : c.innerText).join(","));
-      const b = new Blob([rows.join("\n")], { type: "text/csv" });
-      const a = document.createElement("a");
-      a.href = URL.createObjectURL(b); a.download = (cfg.title || "table") + ".csv"; a.click();
-      URL.revokeObjectURL(a.href);
-    };
     render();
     return { rerender: render, card };
   }

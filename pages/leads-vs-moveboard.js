@@ -25,8 +25,6 @@ registerPage({
       input.lvm-ctl::placeholder{color:#8fa0b5}
       .lvm-grp{display:flex;align-items:center;gap:5px;background:#eef1f6;border:1px solid #e4e9f0;border-radius:9px;padding:4px 8px}
       .lvm-lbl{font-size:10px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;color:#5a6775;white-space:nowrap}
-      .lvm-x{background:#b7e23b;color:#0e1621;border:0;border-radius:9px;padding:7px 14px;font-size:12px;font-weight:800;cursor:pointer}
-      .lvm-x:hover{background:#a8d32c}
       .lvm-ms{position:relative;display:inline-block}
       .lvm-msb{cursor:pointer}
       .lvm-msb .n{background:#b7e23b;color:#0e1621;border-radius:999px;padding:0 7px;margin-left:6px;font-size:10.5px;font-weight:800}
@@ -157,15 +155,6 @@ registerPage({
     /* ---------- helpers ---------- */
     const CHIP = { "Arrived same day": ["#e4f3ea", "#1c7a4a"], "Arrived 1–3 days off": ["#e7f0fb", "#1d4f91"], "Never arrived — customer exists from another lead": ["#fdf3d7", "#7a5a12"], "Matched (Angi file has no date)": ["#eef1f5", "#5a6775"], "Never arrived — customer unknown": ["#fbe6e7", "#b02a37"] };
     const chip = s => { const c = CHIP[s] || CHIP["Never arrived — customer unknown"]; return `<span style="background:${c[0]};color:${c[1]};padding:2px 8px;border-radius:999px;font-size:11px;font-weight:800;white-space:nowrap">${esc(s)}</span>`; };
-    async function toXlsx(headers, dataRows, name) {
-      try {
-        if (!window.XLSX) await new Promise((res, rej) => { const s = document.createElement("script"); s.src = "https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"; s.onload = res; s.onerror = () => rej(new Error("xlsx lib failed")); document.head.appendChild(s); });
-        const ws = XLSX.utils.aoa_to_sheet([headers, ...dataRows]);
-        ws["!cols"] = headers.map((h, i) => ({ wch: Math.min(38, Math.max(10, ...[h, ...dataRows.slice(0, 200).map(r => String(r[i] == null ? "" : r[i]))].map(v => String(v).length)) + 2) }));
-        const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, name.slice(0, 28));
-        XLSX.writeFile(wb, `${name.replace(/[^\w]+/g, "-")}-${new Date().toISOString().slice(0, 10)}.xlsx`);
-      } catch (e) { alert("Excel export failed: " + (e && e.message || e)); }
-    }
 
     /* ---------- page skeleton ---------- */
     const sameDay = rows.filter(r => r.status === "Arrived same day");
@@ -195,7 +184,7 @@ registerPage({
       { label: "Arrived under wrong source", value: fmtN(mis.length), sub: "Angi billed us, another source got the credit" },
     ]);
 
-    /* ---------- panel 1: full comparison with filters + export ---------- */
+    /* ---------- panel 1: full comparison with filters ---------- */
     const months = [...new Set(rows.map(r => r.month).filter(Boolean))].sort().reverse();
     const flags = [...new Set(rows.map(r => r.mbFlag).filter(Boolean))].sort();
     const mbStatuses = [...new Set(rows.map(r => r.mbStatus).filter(Boolean))].sort();
@@ -203,8 +192,7 @@ registerPage({
     const mainPanel = document.createElement("div"); mainPanel.className = "panel";
     mainPanel.innerHTML = `
       <div class="panel-head">
-        <span class="panel-title">Angi × Moveboard — full comparison</span><span class="spacer"></span>
-        <button class="lvm-x" id="fX">⬇ Excel</button></div>
+        <span class="panel-title">Angi × Moveboard — full comparison</span></div>
       <div class="lvm-filters">
         <input id="fQ" class="lvm-ctl" placeholder="search name / phone / email…" style="width:200px">
         <span id="msStatus"></span><span id="msAttr"></span><span id="msMB"></span><span id="msFlag"></span><span id="msMonth"></span>
@@ -285,27 +273,24 @@ registerPage({
       mainPanel.querySelector("#" + id).onchange = e => { st[k] = e.target.value; st.page = 0; renderTable(); });
     mainPanel.querySelector("#pPrev").onclick = () => { st.page--; renderTable(); };
     mainPanel.querySelector("#pNext").onclick = () => { st.page++; renderTable(); };
-    mainPanel.querySelector("#fX").onclick = () => toXlsx(HDR, filt().map(cellsOf), "angi-x-moveboard");
     renderTable();
 
     /* ---------- panel 2: chase list ---------- */
     const CH = ["Lead #", "Lead Date", "Why", "First", "Last", "Phone", "Email", "City", "State", "Angi Status", "Nearest match in our CRM", "In our CRM: Created", "Gap (days)"];
     const chCells = r => [r.lead, r.eff, r.status === "Never arrived — customer unknown" ? "customer unknown" : "customer exists from another lead", r.first, r.last, r.phone, r.email, r.city, r.state, r.lstatus, r.mbCust || "", r.mbCreate || "", sgTxt(r)];
     const p2 = document.createElement("div"); p2.className = "panel";
-    p2.innerHTML = `<div class="panel-head"><span class="panel-title">Didn't flow in — chase list (${fmtN(chase.length)})</span><span class="spacer"></span><button class="btn" id="chX">⬇ Excel</button></div>
+    p2.innerHTML = `<div class="panel-head"><span class="panel-title">Didn't flow in — chase list (${fmtN(chase.length)})</span></div>
       <div class="tabwrap" style="overflow:auto;max-height:420px">${`<table class="tab"><thead><tr>${CH.map(h => `<th>${esc(h)}</th>`).join("")}</tr></thead><tbody>${chase.map(r => `<tr>${chCells(r).map(v => `<td>${esc(v == null ? "" : String(v))}</td>`).join("")}</tr>`).join("")}</tbody></table>`}</div>`;
     document.getElementById("lvmChase").appendChild(p2);
-    p2.querySelector("#chX").onclick = () => toXlsx(CH, chase.map(chCells), "angi-chase-list");
 
     /* ---------- panel 3: misattributed with the source story ---------- */
     const MI = ["Lead #", "Lead Date", "First", "Last", "In our CRM: Source", "Source change (original → final)", "CallRail evidence", "Moveboard Flag", "Moveboard Status", "Assigned"];
     const miCells = r => [r.lead, r.eff, r.first, r.last, r.mbSrc, r.story || "", r.call || "", r.mbFlag || "", r.mbStatus || "", r.mbAssigned || ""];
     const p3 = document.createElement("div"); p3.className = "panel";
-    p3.innerHTML = `<div class="panel-head"><span class="panel-title">Arrived under the wrong source (${fmtN(mis.length)}) — why the source changed</span><span class="spacer"></span><button class="btn" id="miX">⬇ Excel</button></div>
+    p3.innerHTML = `<div class="panel-head"><span class="panel-title">Arrived under the wrong source (${fmtN(mis.length)}) — why the source changed</span></div>
       <div class="tabwrap" style="overflow:auto;max-height:420px">${`<table class="tab"><thead><tr>${MI.map(h => `<th>${esc(h)}</th>`).join("")}</tr></thead><tbody>${mis.map(r => `<tr>${miCells(r).map(v => `<td>${esc(v == null ? "" : String(v))}</td>`).join("")}</tr>`).join("")}</tbody></table>`}</div>
       <div style="padding:4px 14px 12px;color:var(--muted);font-size:12.5px">“Source change (original → final)” shows how the lead's source was recorded: the source name as it first arrived → the final source in our CRM. “CallRail evidence” shows when a tracked call from this customer's number sits near the lead — the usual reason the team credited an Angi-billed lead to another channel.</div>`;
     document.getElementById("lvmMis").appendChild(p3);
-    p3.querySelector("#miX").onclick = () => toXlsx(MI, mis.map(miCells), "angi-misattributed");
 
     /* ---------- panel 4: monthly arrival ---------- */
     const byM = {};
@@ -314,9 +299,8 @@ registerPage({
     const MH = ["Month", "Leads", "Same day", "1–3 days off", "Never arrived", "Same-day %"];
     const mCells = b => [b.m, b.n, b.ok, b.off, b.n - b.ok - b.off, (b.ok / b.n * 100).toFixed(1) + "%"];
     const p4 = document.createElement("div"); p4.className = "panel";
-    p4.innerHTML = `<div class="panel-head"><span class="panel-title">Monthly arrival — same-day standard</span><span class="spacer"></span><button class="btn" id="moX">⬇ Excel</button></div>
+    p4.innerHTML = `<div class="panel-head"><span class="panel-title">Monthly arrival — same-day standard</span></div>
       <div class="tabwrap" style="overflow:auto;max-height:420px">${`<table class="tab"><thead><tr>${MH.map(h => `<th>${esc(h)}</th>`).join("")}</tr></thead><tbody>${mrows.map(b => `<tr>${mCells(b).map(v => `<td>${esc(String(v))}</td>`).join("")}</tr>`).join("")}</tbody></table>`}</div>`;
     document.getElementById("lvmMonthly").appendChild(p4);
-    p4.querySelector("#moX").onclick = () => toXlsx(MH, mrows.map(mCells), "angi-monthly-arrival");
   }
 });

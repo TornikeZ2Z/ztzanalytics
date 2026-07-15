@@ -57,7 +57,7 @@ async function renderMonthly(host, MRCFG) {
       } finally { _give(); }
     }
     const grab = ds => pooled(ds, () => RS.load(ds));
-    const needPack = SEC("Packing & Storage"), needFleet = SEC("Fleet"), needPhone = SEC("Phone & Response");
+    const needPack = SEC("Packing & Storage"), needPhone = SEC("Phone & Response");
     // ISOLATED fetch of the card-expense COST flags. Kept OUT of the shared card_expenses
     // projection on purpose: these columns can vanish on a pipeline re-run, so a failed fetch
     // degrades only the storage/packing-cost panels. Cached on success only.
@@ -72,8 +72,6 @@ async function renderMonthly(host, MRCFG) {
       : pooled("RingCentral calls", () => ZTZ.api("/api/fct_ringcentral?limit=1000000&cols=" + encodeURIComponent("Date,Type,Direction,Action Result,Duration Seconds,Extension,Company,Final Account Name,Final Account Number")).then(j => j.rows || []));
     const smsP = (window.__mrRcSmsCache || !needPhone) ? null
       : pooled("RingCentral SMS", () => ZTZ.api("/api/fct_ringcentral_sms?limit=1000000&cols=" + encodeURIComponent("Date,Direction,Message Status,Company")).then(j => j.rows || []));
-    const fleetP = (window.__mrFleetCache2 || !needFleet) ? null
-      : pooled("fleet (truck) data", () => ZTZ.api("/api/fct_closing?limit=1000000&cols=" + encodeURIComponent("Date,Truck #,Total Bill,Fuel,Truck,Car,Tolls,Company")).then(j => j.rows || []));
     const packP = (window.__mrPackCache2 || !needPack) ? null
       : pooled("per-job packing", () => ZTZ.api("/api/moveboard?limit=1000000&cols=" + encodeURIComponent("Move Date,Service Type,Sales Packing total,Closing Packing total,Company")).then(j => j.rows || []));
     // (long_distance dropped from the fetch 2026-07-14 — its only consumer, the LD
@@ -151,13 +149,8 @@ async function renderMonthly(host, MRCFG) {
       if (smsRows.length) window.__mrRcSmsCache = agg2;
     }
     const rcSms = window.__mrRcSmsCache || {};
-    // fleet (Truck #) + per-job packing (estimate vs written) — narrow isolated fetches, cached on success
-    if (fleetP) {
-      const fl0 = await fleetP;
-      if (fl0.length) window.__mrFleetCache2 = fl0;
-    }
-    delete window.__mrFleetCache;  // pre-C43 cache (no Company column) — retire it
-    const fleetRows = (window.__mrFleetCache2 || []).filter(coRow);
+    // per-job packing (estimate vs written) — narrow isolated fetch, cached on success
+    delete window.__mrFleetCache; delete window.__mrFleetCache2;   // Fleet section removed 2026-07-15 — free both caches
     if (packP) {
       // per-job packing totals live only in the RAW moveboard table (not carried into fct_moveboard).
       // C28: fetch Move Date — this card buckets by MOVE month, like the rest of the packing section.
@@ -296,6 +289,17 @@ async function renderMonthly(host, MRCFG) {
     function groupByCol(rows, col) {
       const g = {}; rows.forEach(r => { const k = r[col] == null || r[col] === "" ? "—" : String(r[col]); (g[k] = g[k] || []).push(r); }); return g;
     }
+    /* ---------- shared blank-key test (Tornike 2026-07-15) ----------
+       segSeries/segReduce/groupByCol above turn every null/empty group key into the em-dash placeholder
+       "—"; the claims table also stores a literal "(blank)". Neither is a NAME, so neither may render as
+       a named bar in a per-person ranking.
+       USE ON: name-keyed RATE/ranking charts (salesperson, foreman, teammate).
+       DO NOT USE ON: any card whose headline is a total the bars are meant to add up to (rankBars /
+       groupedBars derive their headline FROM the series) — dropping a bucket there silently shrinks the
+       headline and the bars stop reconciling. For those, prefer the funnelTable pattern: hide the row,
+       keep it in the Total, disclose it in the note. */
+    const BLANK_KEYS = new Set(["—", "(blank)", "", "null", "undefined"]);
+    const isBlankKey = k => k == null || BLANK_KEYS.has(String(k).trim());
     // 12-month booking-rate trend (optionally pre-filtered) — canonical dual basis per month
     function bookRateTrend(pre, n) {
       const out = []; let y = curY, m = mo;
@@ -405,7 +409,12 @@ async function renderMonthly(host, MRCFG) {
       .mrx-bmsg{flex:1}
       .mrx-btoggle{flex:0 0 auto;font-family:${MONO};font-size:11.5px;font-weight:800;color:${INK};cursor:pointer;white-space:nowrap;border-bottom:1.5px solid ${AMBER};user-select:none}
       .mrx-bdetail{margin-top:7px;background:#fff;border:1px solid #f2d492;border-radius:9px;padding:9px 13px;max-height:300px;overflow:auto}
-      .mrx-toc{position:sticky;top:0;z-index:60;background:#fff;box-shadow:0 4px 14px rgba(14,22,33,.14);border-bottom:1px solid ${LINE};display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:9px 24px;margin:0 -24px 10px}
+      /* top:-16px, NOT 0 — sticky insets resolve against the SCROLLER'S CONTENT box, and the scroller is
+         .rs-content{padding:16px 20px 60px} (assets/rs.css:58). With top:0 the bar parked 16px BELOW the
+         pane's visible edge, and a scroll container's top padding is not clipped — so that 16px strip
+         stayed a live window onto the report sliding under it (the dark cover / INK bars / .mrx-rule
+         showing above the white bar). -16px parks it flush. Keep in sync with .rs-content's padding-top. */
+      .mrx-toc{position:sticky;top:-16px;z-index:60;background:#fff;box-shadow:0 4px 14px rgba(14,22,33,.14);border-bottom:1px solid ${LINE};display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:9px 24px;margin:0 -24px 10px}
       .mrx-tocpart{font-size:9.5px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:${FAINT};margin:0 1px 0 7px;white-space:nowrap}
       .mrx-tocpart:first-child{margin-left:0}
       .mrx-tocchip{font-family:${MONO};font-size:11.5px;font-weight:700;color:${INK2};background:#fff;border:1px solid ${LINE};border-radius:7px;padding:4px 9px;cursor:pointer;white-space:nowrap;user-select:none}
@@ -474,8 +483,6 @@ async function renderMonthly(host, MRCFG) {
       .mrx-pgbtn:hover:not([disabled]){border-color:${INK};background:#eef1f6}
       .mrx-pgbtn[disabled]{opacity:.38;cursor:default}
       .mrx-pgbtn.ghost{color:${SUB}}
-      .mrx-pgbtn.xls{background:${INK};color:#fff;border-color:${INK}}
-      .mrx-pgbtn.xls:hover{background:${INK2}}
       .mrx-tbl th{font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:${SUB};text-align:right;padding:7px 9px;border-bottom:2px solid ${INK};white-space:nowrap;font-family:Inter,sans-serif}
       .mrx-tbl th:first-child{text-align:left}
       .mrx-tbl td{padding:7px 9px;text-align:right;border-bottom:1px solid #eef1f5;color:${INK2};white-space:nowrap}
@@ -541,8 +548,12 @@ async function renderMonthly(host, MRCFG) {
         else { ctx.textAlign = "center"; ctx.textBaseline = "bottom"; ctx.fillText(fmt(v), el.x, el.y - 4); }
       }); }); ctx.restore();
     } });
-    // hover crosshair — adaptive: vertical line for column charts, horizontal line for bar (y-indexed) charts
-    const crosshair = { id: "crossh", afterDraw(ch) { const t = ch.tooltip; if (t && t._active && t._active.length) { const el = t._active[0].element, ca = ch.chartArea, ctx = ch.ctx; ctx.save(); ctx.strokeStyle = "#9fabbb"; ctx.lineWidth = 1.3; ctx.setLineDash([3, 3]); ctx.beginPath(); if (ch.options.indexAxis === "y") { ctx.moveTo(ca.left, el.y); ctx.lineTo(ca.right, el.y); } else { ctx.moveTo(el.x, ca.top); ctx.lineTo(el.x, ca.bottom); } ctx.stroke(); ctx.setLineDash([]); ctx.restore(); } } };
+    // hover crosshair — adaptive: vertical line for column charts, horizontal line for bar (y-indexed) charts.
+    // MUST stay on afterDatasetsDraw: the tooltip is Chart.js's own CANVAS tooltip (not a DOM node, so
+    // z-index cannot reach it), and Chart.js notifies REGISTERED plugins — including that tooltip, which
+    // strokes in afterDraw — BEFORE config-inline plugins like this one. An afterDraw crosshair therefore
+    // paints THROUGH the tooltip box. afterDatasetsDraw = still above the bars, but behind the tooltip.
+    const crosshair = { id: "crossh", afterDatasetsDraw(ch) { const t = ch.tooltip; if (t && t._active && t._active.length) { const el = t._active[0].element, ca = ch.chartArea, ctx = ch.ctx; ctx.save(); ctx.strokeStyle = "#9fabbb"; ctx.lineWidth = 1.3; ctx.setLineDash([3, 3]); ctx.beginPath(); if (ch.options.indexAxis === "y") { ctx.moveTo(ca.left, el.y); ctx.lineTo(ca.right, el.y); } else { ctx.moveTo(el.x, ca.top); ctx.lineTo(el.x, ca.bottom); } ctx.stroke(); ctx.setLineDash([]); ctx.restore(); } } };
 
     /* ---------- card + section scaffolding ---------- */
     function card(mount, title, sub, opts) {
@@ -662,7 +673,7 @@ async function renderMonthly(host, MRCFG) {
       new Chart(cv, { type: "bar",
         data: { labels: s.map(r => r.k), datasets: [{ data: s.map(r => r.v), backgroundColor: s.map((_, i) => i === s.length - 1 ? LIME : INK), borderRadius: 5, maxBarThickness: 52, categoryPercentage: .7, barPercentage: .82 }] },
         options: baseOpts({ layout: { padding: { top: 22 } }, plugins: { legend: { display: false }, tooltip: { callbacks: { label: x => tip(fmt)(x.parsed.y) } } }, scales: { x: axX(), y: axY(fmt, { beginAtZero: true }) } }),
-        plugins: [valLabels(fmt, false), crosshair, ...(opts.yoyPct ? [yoyLab] : []), { id: "avg", afterDraw(ch) { const y = ch.scales.y.getPixelForValue(avg), a = ch.chartArea, ctx = ch.ctx; ctx.save(); ctx.strokeStyle = "#b7c0cd"; ctx.setLineDash([4, 4]); ctx.beginPath(); ctx.moveTo(a.left, y); ctx.lineTo(a.right, y); ctx.stroke(); ctx.setLineDash([]); ctx.fillStyle = SUB; ctx.font = "700 9px " + MONO; ctx.textAlign = "left"; ctx.fillText("avg " + fmt(avg), a.left + 3, y - 3); ctx.restore(); } }] });
+        plugins: [valLabels(fmt, false), crosshair, ...(opts.yoyPct ? [yoyLab] : []), { id: "avg", afterDatasetsDraw(ch) { const y = ch.scales.y.getPixelForValue(avg), a = ch.chartArea, ctx = ch.ctx; ctx.save(); ctx.strokeStyle = "#b7c0cd"; ctx.setLineDash([4, 4]); ctx.beginPath(); ctx.moveTo(a.left, y); ctx.lineTo(a.right, y); ctx.stroke(); ctx.setLineDash([]); ctx.fillStyle = SUB; ctx.font = "700 9px " + MONO; ctx.textAlign = "left"; ctx.fillText("avg " + fmt(avg), a.left + 3, y - 3); ctx.restore(); } }] });
       return c;
     }
     function lines(mount, title, sub, sets, fmt, opts) {
@@ -765,11 +776,27 @@ async function renderMonthly(host, MRCFG) {
     function groupedBars(mount, title, labels, sa, la, sb, lb, fmt, opts) {
       opts = opts || {}; opts.icon = opts.icon || KIC.bars;
       if (opts.headVal == null) { const t = sb.reduce((a, b) => a + (b || 0), 0); opts.headVal = fmt(t); }
+      // Optional per-category DERIVED annotation (Tornike 2026-07-15: "maybe we can simply display booking
+      // rate on this graph"). opts.catLab = an array index-aligned to `labels`, each item {txt, color} or
+      // null, drawn once per category at the row's right edge — so ONE chart carries the pair AND the ratio
+      // between them. Inert when absent: the other 14 callers keep the old 84px right padding untouched.
+      const catLab = opts.catLab || null, padR = catLab ? 152 : 84;
       const { c, box, cv } = chartCard(mount, title, opts.sub || "", { span2: opts.span2, h: Math.max(200, 44 + labels.length * 30), icon: opts.icon, headVal: opts.headVal, chips: opts.chips });
       if (!labels.length) { emptyBox(box); return c; }
       new Chart(cv, { type: "bar",
         data: { labels, datasets: [ { label: la, data: sa, backgroundColor: CTX, hoverBackgroundColor: "#aab6c4", borderRadius: 3, maxBarThickness: 12 }, { label: lb, data: sb, backgroundColor: INK, hoverBackgroundColor: "#34465f", borderRadius: 3, maxBarThickness: 12 } ] },
-        options: baseOpts({ indexAxis: "y", layout: { padding: { right: 84 } }, plugins: { legend: { display: true, position: "top", align: "end", labels: { color: SUB, font: { size: 12.5, weight: "600" }, boxWidth: 9, usePointStyle: true } }, tooltip: { callbacks: { label: x => x.dataset.label + ": " + tip(fmt)(x.parsed.x) } } }, scales: { x: axY(fmt, { beginAtZero: true }), y: { ticks: { color: INK2, font: { size: 12.5, weight: "600" } }, grid: { display: false }, border: { display: false } } } }), plugins: [crosshair, valLabels(fmt, true)] });
+        options: baseOpts({ indexAxis: "y", layout: { padding: { right: padR } }, plugins: { legend: { display: true, position: "top", align: "end", labels: { color: SUB, font: { size: 12.5, weight: "600" }, boxWidth: 9, usePointStyle: true } }, tooltip: { callbacks: { label: x => x.dataset.label + ": " + tip(fmt)(x.parsed.x) } } }, scales: { x: axY(fmt, { beginAtZero: true }), y: { ticks: { color: INK2, font: { size: 12.5, weight: "600" } }, grid: { display: false }, border: { display: false } } } }),
+        plugins: [crosshair, valLabels(fmt, true)].concat(catLab ? [{ id: "catlab", afterDatasetsDraw(ch) {
+          const m0 = ch.getDatasetMeta(0), m1 = ch.getDatasetMeta(1), ctx = ch.ctx;
+          ctx.save(); ctx.font = "800 11.5px " + MONO; ctx.textAlign = "right"; ctx.textBaseline = "middle";
+          labels.forEach((_, i) => {
+            const t = catLab[i], a = m0.data[i], b = m1.data[i];
+            if (!t || t.txt == null || !a || !b) return;
+            ctx.fillStyle = t.color || SUB;
+            ctx.fillText(t.txt, ch.width - 8, (a.y + b.y) / 2);   // midpoint of the category's two bars
+          }); ctx.restore();
+        } }] : []) });
+      if (opts.note) note(c, opts.note, opts.noteKind);
       return c;
     }
     function donut(mount, title, series, fmt, opts) {
@@ -851,7 +878,7 @@ async function renderMonthly(host, MRCFG) {
       if (!rows.length) { emptyBox(box); return c; }
       new Chart(cv, { type: "bar", data: { labels: rows.map(r => r.k), datasets: [{ data: rows.map(r => r.v), backgroundColor: rows.map(r => r.v >= target ? INK : NEG), hoverBackgroundColor: rows.map(r => r.v >= target ? "#34465f" : "#f0817e"), borderRadius: 4, maxBarThickness: 18 }] },
         options: baseOpts({ indexAxis: "y", layout: { padding: { right: 52 } }, plugins: { legend: { display: false }, tooltip: { callbacks: { label: x => tip(fmt)(x.parsed.x) + " (team avg " + tip(fmt)(target) + ")" } } }, scales: { x: axY(fmt, { beginAtZero: true }), y: { ticks: { color: INK2, font: { size: 12.5, weight: "600" } }, grid: { display: false }, border: { display: false } } } }),
-        plugins: [crosshair, valLabels(fmt, true), { id: "tgt", afterDraw(ch) { const x = ch.scales.x.getPixelForValue(target), a = ch.chartArea, ctx = ch.ctx; ctx.save(); ctx.strokeStyle = LIME; ctx.lineWidth = 2.4; ctx.beginPath(); ctx.moveTo(x, a.top); ctx.lineTo(x, a.bottom); ctx.stroke(); ctx.fillStyle = LIMED; ctx.font = "800 9px " + MONO; ctx.textAlign = "center"; ctx.fillText("team avg " + fmt(target), x, a.top - 2); ctx.restore(); } }] });
+        plugins: [crosshair, valLabels(fmt, true), { id: "tgt", afterDatasetsDraw(ch) { const x = ch.scales.x.getPixelForValue(target), a = ch.chartArea, ctx = ch.ctx; ctx.save(); ctx.strokeStyle = LIME; ctx.lineWidth = 2.4; ctx.beginPath(); ctx.moveTo(x, a.top); ctx.lineTo(x, a.bottom); ctx.stroke(); ctx.fillStyle = LIMED; ctx.font = "800 9px " + MONO; ctx.textAlign = "center"; ctx.fillText("team avg " + fmt(target), x, a.top - 2); ctx.restore(); } }] });
       if (opts.note) note(c, opts.note, opts.noteKind);
       return c;
     }
@@ -869,19 +896,11 @@ async function renderMonthly(host, MRCFG) {
     function tableCard(mount, title, sub, html, opts) {
       opts = opts || {}; const c = card(mount, title, sub || monLbl, { span2: opts.span2 !== false, icon: opts.icon || KIC.grid, headVal: opts.headVal, chips: opts.chips });
       const w = document.createElement("div"); w.className = "mrx-scroll"; w.innerHTML = html; c.appendChild(w);
-      const tbl = w.querySelector("table");
-      if (tbl) {
-        const foot = document.createElement("div"); foot.style.cssText = "display:flex;justify-content:flex-end;margin-top:9px";
-        const xb = document.createElement("button"); xb.type = "button"; xb.className = "mrx-xls"; xb.innerHTML = "⬇ Excel"; xb.title = "Export this table to Excel";
-        xb.style.cssText = "background:#0e1621;color:#fff;border:0;border-radius:8px;padding:6px 11px;font:800 10.5px/1 " + MONO + ";letter-spacing:.03em;cursor:pointer";
-        xb.onmouseenter = () => xb.style.background = "#1b2a3f"; xb.onmouseleave = () => xb.style.background = "#0e1621";
-        xb.onclick = () => exportTableXlsx(tbl, title);
-        foot.appendChild(xb); c.appendChild(foot);
-      }
+      // Excel export removed portal-wide 2026-07-15 (Tornike).
       if (opts.note) note(c, opts.note, opts.noteKind); return c;
     }
     // Paginated line-item register (Tornike 2026-07-15): 10 rows/page + ‹ prev/next › + "Show all",
-    // Excel export of the FULL set. rows = data; rowHtml(r) => one <tr>; headers = [{label, align?}].
+    // Paginated table. rows = data; rowHtml(r) => one <tr>; headers = [{label, align?}].
     function paginatedTable(mount, title, sub, headers, rows, rowHtml, opts) {
       opts = opts || {};
       const per = opts.per || 10;
@@ -897,15 +916,14 @@ async function renderMonthly(host, MRCFG) {
           const from = showAll ? 1 : page * per + 1, to = showAll ? rows.length : Math.min(rows.length, page * per + per);
           foot = `<div class="mrx-pgfoot"><span>${from}–${to} of ${fmtN(rows.length)}</span>`
             + (showAll ? "" : `<span class="mrx-pgnav"><button class="mrx-pgbtn" data-prev${page === 0 ? " disabled" : ""}>‹</button><b>${page + 1} / ${pages}</b><button class="mrx-pgbtn" data-next${page >= pages - 1 ? " disabled" : ""}>›</button></span>`)
-            + `<span class="mrx-pgright"><button class="mrx-pgbtn ghost" data-all>${showAll ? "Paginate" : "Show all"}</button><button class="mrx-pgbtn xls" data-xls>⬇ Excel</button></span></div>`;
+            + `<span class="mrx-pgright"><button class="mrx-pgbtn ghost" data-all>${showAll ? "Paginate" : "Show all"}</button></span></div>`;
         } else {
-          foot = `<div class="mrx-pgfoot"><span>${fmtN(rows.length)} row${rows.length === 1 ? "" : "s"}</span><button class="mrx-pgbtn xls" data-xls>⬇ Excel</button></div>`;
+          foot = `<div class="mrx-pgfoot"><span>${fmtN(rows.length)} row${rows.length === 1 ? "" : "s"}</span></div>`;
         }
         box.innerHTML = `<div class="mrx-scroll"><table class="mrx-tbl">${thead}<tbody>${shown.map(rowHtml).join("")}</tbody></table></div>${foot}`;
         const pv = box.querySelector("[data-prev]"); if (pv) pv.onclick = () => { if (page > 0) { page--; draw(); } };
         const nx = box.querySelector("[data-next]"); if (nx) nx.onclick = () => { if (page < pages - 1) { page++; draw(); } };
         const al = box.querySelector("[data-all]"); if (al) al.onclick = () => { showAll = !showAll; page = 0; draw(); };
-        const xl = box.querySelector("[data-xls]"); if (xl) xl.onclick = () => { const full = document.createElement("table"); full.innerHTML = thead + `<tbody>${rows.map(rowHtml).join("")}</tbody>`; exportTableXlsx(full, title); };
       }
       draw();
       if (opts.note) note(c, opts.note, opts.noteKind);
@@ -913,7 +931,7 @@ async function renderMonthly(host, MRCFG) {
     }
     const td = (v, style) => `<td${style ? ` style="${style}"` : ""}>${v}</td>`;
 
-    /* ---------- exports: lazy CDN libs · Excel (SheetJS) · real PDF (jsPDF+html2canvas) ---------- */
+    /* ---------- export: lazy CDN libs · real PDF (jsPDF+html2canvas) ---------- */
     function ensureLib(check, url) {
       return new Promise((resolve, reject) => {
         if (check()) return resolve();
@@ -923,43 +941,10 @@ async function renderMonthly(host, MRCFG) {
         document.head.appendChild(s);
       });
     }
-    const XLS_URL = "https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js";
+    // Excel export (SheetJS) removed portal-wide 2026-07-15 (Tornike) — XLS_URL, xlsCell, XHEAD/xlsHead
+    // and exportTableXlsx went with it. ensureLib() STAYS: the PDF path below still uses it.
     const H2C_URL = "https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js";
     const JSPDF_URL = "https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js";
-    function xlsCell(s) {   // coerce "$1,234"/"1,234" → numbers so Excel can sum; keep %, ×, — as text
-      const t = String(s == null ? "" : s).trim().replace(/^👑\s*/, "");
-      if (t === "" || t === "—" || t === "–") return "";
-      // "$1,234 ▲12%" / "97.4 ▲" → strip the trailing MoM-arrow annotation so the value stays NUMERIC;
-      // pure-delta cells ("▲ 34%") have no leading digit and pass through as text untouched
-      const m2 = t.match(/^(.*\d)\s*[▲▼–]\s*[\d.]*%?$/);
-      const core = m2 ? m2[1].trim() : t;
-      const n = core.replace(/[$,\s]/g, "");
-      if (/^-?\d+(\.\d+)?$/.test(n)) return Number(n);
-      return t;
-    }
-    // Q7: exported headers use FULL words — abbreviations that survive on screen (for space)
-    // are mapped to plain English at export time, so the Excel file explains itself.
-    const XHEAD = { "CF": "Cubic feet (CF)", "vs Est": "Written vs estimate", "Gross Profit": "Gross profit — revenue minus direct job costs (crew/driver/helper/sales pay, job expenses, refunds)",
-      "Qual.": "Qualified (leads created this month, minus bad)", "Conf.": "Confirmed — jobs booked this month (by booked date)", "Ref%": "Refund %", "Dead%": "Bad-lead %",
-      "Booking%": "Booking %", "Pay": "Foreman pay" };
-    function xlsHead(s) {
-      const t = String(s == null ? "" : s).trim();
-      if (XHEAD[t]) return XHEAD[t];
-      const m = t.match(/^vs '(\d{2})$/); if (m) return "vs 20" + m[1];
-      return t;
-    }
-    async function exportTableXlsx(tbl, title) {
-      try {
-        await ensureLib(() => window.XLSX, XLS_URL);
-        const aoa = [].map.call(tbl.rows, tr => [].map.call(tr.cells, c => c.tagName === "TH" ? xlsHead(c.textContent) : xlsCell(c.textContent)));
-        const ws = XLSX.utils.aoa_to_sheet(aoa);
-        const wch = []; aoa.forEach(r => r.forEach((v, i) => { const l = String(v).length; if (!wch[i] || wch[i] < l) wch[i] = l; }));
-        ws["!cols"] = wch.map(w => ({ wch: Math.min(42, Math.max(9, w + 2)) }));
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, ((title || "Sheet1").replace(/[^\w ]+/g, "").trim().slice(0, 28)) || "Sheet1");
-        XLSX.writeFile(wb, `${(title || "table").replace(/[^\w]+/g, "-").replace(/^-|-$/g, "")}-${MON[mo]}-${curY}.xlsx`);
-      } catch (e) { console.error("Excel export failed", e); alert("Excel export failed: " + (e && e.message || e)); }
-    }
     async function downloadReportPDF() {
       const btn = document.getElementById("mrPrint"); const rt = document.querySelector(".mrx");
       if (!rt) return; const label = btn ? btn.innerHTML : "";
@@ -1119,10 +1104,6 @@ async function renderMonthly(host, MRCFG) {
       const detail = document.createElement("div"); detail.className = "mrx-bdetail"; detail.style.display = "none";
       const rowsH = pendRows.map(r => `<tr><td>${esc(String(r.Date || "").slice(0, 10))}</td><td>${esc(r.Customer || "—")}</td><td>${esc(String(r["Request #"] || "—"))}</td><td>${esc(r["Sales Person"] || "—")}</td><td>${esc(r.Foreman || "—")}</td></tr>`).join("");
       detail.innerHTML = `<div class="mrx-scroll"><table class="mrx-tbl"><thead><tr><th>Move date</th><th>Customer</th><th>Request #</th><th>Sales person</th><th>Foreman</th></tr></thead><tbody>${rowsH}</tbody></table></div>`;
-      // this list IS a to-do (chase the paperwork) — let it leave the page as a worklist
-      const bx = document.createElement("button"); bx.type = "button"; bx.className = "mrx-xls"; bx.textContent = "⬇ Excel — chase list";
-      bx.onclick = () => exportTableXlsx(detail.querySelector("table"), "Pending closings chase list");
-      detail.appendChild(bx);
       wrap.appendChild(b); wrap.appendChild(detail);
       b.querySelector(".mrx-btoggle").onclick = () => { const open = detail.style.display === "none"; detail.style.display = open ? "block" : "none"; b.querySelector(".mrx-btoggle").textContent = (open ? "▾ hide the " : "▸ view the ") + pend + " jobs"; };
       root.appendChild(wrap);
@@ -1468,6 +1449,42 @@ async function renderMonthly(host, MRCFG) {
       note(oec, `Uncategorized per-job field reimbursements — ${money(oeCur)} in ${MON[mo]}${jobs ? `, about ${money(oeCur / jobs)}/job` : ""}. Captured as one closing-sheet total with no category behind it, so it can't be split further; the trend is what to watch.`, "how");
     }
 
+    /* ---- Repeat & Referral Business — sits in PART 2 "The money" (Tornike 2026-07-15:
+       "it is money related thing"). Section numbers are assigned by section() in CALL order,
+       so moving this block renumbered every later section automatically — no registry to edit. ---- */
+    if (SEC("Repeat & Referral Business")) {
+      const g = section("Repeat & Referral Business", "repeat and referral customers — how much our service is liked");
+      const RRS = ["Returned Customer", "Recommended"];
+      const isRR = r => RRS.indexOf(String(r.Source)) >= 0;
+      const rrRev = valueFor("closing", "Revenue", curY, mo, { pre: isRR }) || 0, rrRevLY = valueFor("closing", "Revenue", curY - 1, mo, { pre: isRR }), rrRevPM = valueFor("closing", "Revenue", PMY, PM, { pre: isRR });
+      const rrJobs = valueFor("closing", "Total Jobs", curY, mo, { pre: isRR }) || 0, rrJobsLY = valueFor("closing", "Total Jobs", curY - 1, mo, { pre: isRR }), rrJobsPM = valueFor("closing", "Total Jobs", PMY, PM, { pre: isRR });
+      // op profit needs segKeys scoping → sum the two Source segments (current month reuses opBySrcCur)
+      const sumRR = arr => arr.reduce((t, s2) => RRS.indexOf(s2.k) >= 0 ? t + s2.v : t, 0);
+      const rrOp = sumRR(opBySrcCur), rrOpLY = sumRR(segSeries("closing", "Operational Profit by Formula", "Source", curY - 1, mo));
+      const rrShare = rev ? rrRev / rev : null, rrShareLY = revLY ? (rrRevLY || 0) / revLY : null, rrSharePM = revPM ? (rrRevPM || 0) / revPM : null;
+      const kg2 = document.createElement("div"); kg2.className = "mrx-grid k"; kg2.style.gridColumn = "1/-1"; g.appendChild(kg2);
+      [ { l: "Repeat + Referral Revenue", v: money(rrRev), c: rrRev, ly: rrRevLY, pm: rrRevPM, icon: KIC.dollar },
+        { l: "Share of Revenue", v: pct(rrShare), c: rrShare, ly: rrShareLY, pm: rrSharePM, icon: KIC.pct },
+        { l: "Repeat + Referral Jobs", v: fmtN(rrJobs), c: rrJobs, ly: rrJobsLY, pm: rrJobsPM, icon: KIC.truck },
+        { l: "Gross Profit (before refunds)", v: money(rrOp), c: rrOp, ly: rrOpLY, icon: KIC.trend }
+      ].forEach(k => kpiTile(kg2, k));
+      const rrT = yearsArr(5).map(y => ({ k: String(y), v: valueFor("closing", "Revenue", y, mo, { pre: isRR }) }));
+      yoyBars(g, "Repeat & Referral revenue — 5-yr", rrT, moneyC, { headVal: money(rrRev), chips: dchips([[rrRev, rrRevLY, "YoY"]]) });
+      const shareT = momReduce("closing", 12, rs => { const t = M["Revenue"].fn(rs); const rr2 = M["Revenue"].fn(rs.filter(isRR)); return t ? rr2 / t : null; });
+      const cSh = lines(g, "Share of revenue from repeat & referral", "last 12 months", [{ label: "Repeat & Referral share", series: shareT, color: BLUE }], pct, { headVal: pct(rrShare) });
+      note(cSh, `Every point is the % of that month's revenue that came from repeat or referred customers — the cleanest loyalty pulse. ${MON[mo]}: ${pct(rrShare)}.`, "how");
+      const retT = yearsArr(5).map(y => valueFor("closing", "Revenue", y, mo, { pre: r => String(r.Source) === "Returned Customer" }) || 0);
+      const recT = yearsArr(5).map(y => valueFor("closing", "Revenue", y, mo, { pre: r => String(r.Source) === "Recommended" }) || 0);
+      groupedBars(g, "Repeat vs Referral — revenue by year", yearsArr(5).map(String), retT, "Repeat (returned customer)", recT, "Referral (recommended)", money, { sub: MON[mo] + " each year" });
+      // C2: both trend lines use the canonical dual-basis Booking Rate (no inline ratios)
+      // #8 (Tornike 2026-07-15): show Repeat (returned) and Referral (recommended) as SEPARATE lines vs overall.
+      const retBookT = bookRateTrend(r => String(r.Source) === "Returned Customer", 12);
+      const recBookT = bookRateTrend(r => String(r.Source) === "Recommended", 12);
+      const allBookT = bookRateTrend(null, 12);
+      const cBk = lines(g, "Repeat & Referral booking rate vs overall", "last 12 months", [ { label: "Repeat (returned)", series: retBookT, color: LIMED }, { label: "Referral (recommended)", series: recBookT, color: BLUE }, { label: "All leads", series: allBookT, color: CTX } ], pct);
+      note(cBk, `Repeat (returned) and Referral (recommended) leads should each convert far above the average — they already trust you. If either coloured line dips toward the gray (all-leads) line, warm-lead follow-up is slipping.`);
+    }
+
     part(3, "Leads & sales", "leads, segments, geography, reps and channels");
 
     /* ---- 06 · Demand & Lead Funnel ---- */
@@ -1500,7 +1517,14 @@ async function renderMonthly(host, MRCFG) {
       // under-performers this card exists to expose. C2: booking rate per rep is the canonical
       // dual-basis formula (RS.bookingRate), never an inline ratio.
       const bookedByAssign = groupByCol(bookedRowsFor(curY, mo), "Assigned");
+      // Drop the UNASSIGNED bucket. segReduce turns every null/empty group key into the placeholder "—",
+      // and an unassigned lead is by definition one nobody booked → bookingRate returns 0 (not null), so it
+      // cleared the `v != null` guard and rendered as a named rep at 0.0%. It also outranks real reps on
+      // volume, stealing one of the 12 slots. Safe to drop: bullet's headline is the TARGET (the global
+      // "Booking Rate" measure), never a sum of these bars, so nothing stops reconciling. Filter BEFORE
+      // slice(0,12) so a real 13th rep takes the freed slot.
       const spBook = segReduce("moveboard", "Assigned", rs => rs, curY, mo)
+        .filter(r => !isBlankKey(r.k))
         .map(r => ({ k: r.k, rows: r.rows, v: RS.bookingRate(r.rows, bookedByAssign[r.k] || []) }))
         .filter(r => r.v != null && r.rows.length >= 5).sort((a, b) => b.rows.length - a.rows.length).slice(0, 12);
       bullet(g, "Booking rate by salesperson", monLbl + " · vs team average", spBook, pct, bk || 0, { noteKind: "how", note: `The 12 reps handling the most leads, ordered by volume. Bars below the lime line are converting under the team average (${pct(bk)}) — coaching targets. Booking rate = jobs booked this month (by booked date) ÷ qualified leads created. Reps who book jobs WITHOUT Moveboard-assigned leads (e.g. Peter Montanaro) have no lead base, so no rate can be computed — they appear in the revenue tables instead.` });
@@ -1630,9 +1654,16 @@ async function renderMonthly(host, MRCFG) {
       groupedBars(g, "Confirmed jobs by salesperson — YoY", topReps.map(r => r.k), topReps.map(r => lyM(r).c || 0), String(curY - 1), topReps.map(r => cyM(r).c || 0), String(curY), fmtN, { sub: MON[mo] });
       groupedBars(g, "Booking rate by salesperson — YoY", topReps.map(r => r.k), topReps.map(r => lyM(r).book || 0), String(curY - 1), topReps.map(r => cyM(r).book || 0), String(curY), pct, { sub: MON[mo] + " · jobs booked ÷ qualified", headVal: bk == null ? "—" : pct(bk) + " team avg" });
       // C27: the filter is the Moveboard "Big Job" flag — the title must not claim a CF threshold
-      if (bigMb.length) groupedBars(g, "Large moves (Big Job flag) — Qualified vs Confirmed", bigMb.map(r => r.k), bigMb.map(r => r.q), "Qualified", bigMb.map(r => r.c), "Confirmed", fmtN, { sub: monLbl });
-      const bigBook = bigMb.filter(r => r.book != null).map(r => ({ k: r.k, v: r.book }));
-      if (bigBook.length) bullet(g, "Large-move (Big Job flag) booking rate by rep", monLbl + " · vs team avg", bigBook, pct, bk || 0, {});
+      // Tornike 2026-07-15: large moves had TWO cards. The bullet's only extra signal was "rate vs team
+      // avg", which now rides on THIS chart as a per-rep right-edge % — green at/above the team average,
+      // red below (same convention as the scorecard above). NOTE: the % is r.book (canonical
+      // RS.bookingRate — dual date basis, capped at 100%), NEVER r.c/r.q, so it can legitimately differ
+      // from dividing the two bars by eye. bullet() itself stays: "Booking rate by salesperson" still uses it.
+      if (bigMb.length) groupedBars(g, "Large moves (Big Job flag) — Qualified vs Confirmed", bigMb.map(r => r.k), bigMb.map(r => r.q), "Qualified", bigMb.map(r => r.c), "Confirmed", fmtN, {
+        sub: monLbl + " · % = booking rate" + (bk == null ? "" : " · team avg " + pct(bk)),
+        catLab: bigMb.map(r => r.book == null ? null : { txt: pct(r.book), color: r.book >= (bk || 0) ? POS : NEG }),
+        noteKind: "how",
+        note: `Big-Job-flagged leads per rep: qualified (leads minus bad leads, by create date) vs confirmed (by booked date). The % at each row's right edge is that rep's large-move booking rate — green at or above the ${pct(bk)} team average, red below. Because qualified and confirmed use different date bases, the % is the canonical booking rate and won't always equal the two bars divided.` });
     }
 
     /* ---- 10 · Marketing ROI (theme split A of former "Marketing & Channels") ---- */
@@ -1716,7 +1747,7 @@ async function renderMonthly(host, MRCFG) {
       const opM = {}, jbM = {}; opBySrc.forEach(r => opM[r.k] = r.v); jobBySrc.forEach(r => jbM[r.k] = r.v);
       const seRows = revBySrc.slice(0, 12).map(r => ({ k: r.k, jobs: jbM[r.k] || 0, rev: r.v, op: opM[r.k] || 0 }));
       const seHtml = `<table class="mrx-tbl"><thead><tr><th>Source</th><th>Jobs</th><th>Revenue</th><th>Gross Profit</th></tr></thead><tbody>${seRows.map(r => `<tr><td>${esc(r.k)}</td>${td(fmtN(r.jobs))}${td(money(r.rev))}${td(money(r.op))}</tr>`).join("")}</tbody></table>`;
-      tableCard(g, "Source mix — jobs · revenue · profit", monLbl + " · top " + seRows.length + " sources by revenue", seHtml, { icon: KIC.grid, headVal: money(seRows.reduce((a, r) => a + r.rev, 0)), noteKind: "how", note: "Ranked by revenue (top 12); Gross Profit is before refunds. Use ⬇ Excel to re-rank by jobs or profit." });
+      tableCard(g, "Source mix — jobs · revenue · profit", monLbl + " · top " + seRows.length + " sources by revenue", seHtml, { icon: KIC.grid, headVal: money(seRows.reduce((a, r) => a + r.rev, 0)), noteKind: "how", note: "Ranked by revenue (top 12); Gross Profit is before refunds." });
       // per-source YoY (deck s68-73): revenue / jobs / gross profit, prior year vs current (Tornike 2026-07-15)
       const srcTop = revBySrc.slice(0, 10);
       const revSrcLY = {}, jobSrcLY = {}, opSrcLY = {};
@@ -1847,46 +1878,45 @@ async function renderMonthly(host, MRCFG) {
       const refByFm = segReduce("refunds", "Foreman", rs => Math.abs(rs.reduce((a, x) => a + num(x["Total refund"]), 0)), curY, mo).filter(r => r.v > 0 && r.k !== "—");
       if (refByFm.length) rankBars(g, "Refunds by foreman", refByFm, money, { top: 10 });
       // deck s43: per-foreman pay RATE ($/hour) + hours — the scorecard shows pay but never the rate behind it
-      const fmPay = segSeries("closing", "Forman Salary", "Foreman").filter(r => r.k !== "—");
+      const fmPay = segSeries("closing", "Forman Salary", "Foreman").filter(r => !isBlankKey(r.k));
       const fmHrsM = {}; segSeries("closing", "Hours Worked by Forman", "Foreman").forEach(r => fmHrsM[r.k] = r.v);
-      const fmRate = fmPay.map(r => ({ k: r.k, pay: r.v, hrs: fmHrsM[r.k] || 0 })).filter(r => r.hrs > 0)
-        .map(r => ({ k: r.k, pay: r.pay, hrs: r.hrs, rate: r.pay / r.hrs })).sort((a, b) => b.pay - a.pay).slice(0, 14);
+      // Customer tips (Tornike 2026-07-15): "Forman Salary" is COMPANY-paid comp only — it carries the
+      // foreman's cut of a COMPANY tip ("Tip from Company Part") but NOT the customer tip itself
+      // ("Tip for Forman", $46k in June 2026 — a third of the money these crews take home). Tips are the
+      // CUSTOMER's money, not a company cost, so they must not enter the company rate that reconciles to
+      // P&L labour cost. Shown as a SEPARATE take-home column instead of being folded into the rate.
+      const fmTipM = {}; segReduce("closing", "Foreman", rs => rs.reduce((a, x) => a + num(x["Tip for Forman"]), 0), curY, mo).forEach(r => fmTipM[r.k] = r.v);
+      const fmRate = fmPay.map(r => ({ k: r.k, pay: r.v, hrs: fmHrsM[r.k] || 0, tip: fmTipM[r.k] || 0 })).filter(r => r.hrs > 0)
+        .map(r => ({ ...r, rate: r.pay / r.hrs, rateT: (r.pay + r.tip) / r.hrs })).sort((a, b) => b.pay - a.pay).slice(0, 14);
       if (fmRate.length) {
-        const tP = fmRate.reduce((a, r) => a + r.pay, 0), tH = fmRate.reduce((a, r) => a + r.hrs, 0);
-        const frHtml = `<table class="mrx-tbl"><thead><tr><th>Foreman</th><th style="text-align:right">Hours</th><th style="text-align:right">Pay</th><th style="text-align:right">Rate $/hr</th></tr></thead><tbody>${fmRate.map(r => `<tr><td>${esc(r.k)}</td>${td(fmt1(r.hrs), "text-align:right")}${td(money(r.pay), "text-align:right")}${td("$" + fmt1(r.rate), "text-align:right;font-weight:800")}</tr>`).join("")}<tr class="tot"><td>All foremen</td>${td(fmt1(tH), "text-align:right")}${td(money(tP), "text-align:right")}${td(tH ? "$" + fmt1(tP / tH) : "—", "text-align:right")}</tr></tbody></table>`;
-        tableCard(g, "Foreman pay rate — $ per hour", monLbl + " · pay ÷ hours worked", frHtml, { icon: KIC.grid, headVal: tH ? "$" + fmt1(tP / tH) : "—", noteKind: "how", note: "Total pay ÷ hours worked, per foreman — the effective hourly rate behind the scorecard's pay column. Pay includes every component (hourly, CF, packing, review, tip, trips), so a high rate usually means strong bonus earning rather than a higher base rate." });
+        const tP = fmRate.reduce((a, r) => a + r.pay, 0), tH = fmRate.reduce((a, r) => a + r.hrs, 0), tT = fmRate.reduce((a, r) => a + r.tip, 0);
+        const frHtml = `<table class="mrx-tbl"><thead><tr><th>Foreman</th><th style="text-align:right">Hours</th><th style="text-align:right">Company pay</th><th style="text-align:right">Company $/hr</th><th style="text-align:right">Customer tips</th><th style="text-align:right">With tips $/hr</th></tr></thead><tbody>${fmRate.map(r => `<tr><td>${esc(r.k)}</td>${td(fmt1(r.hrs), "text-align:right")}${td(money(r.pay), "text-align:right")}${td("$" + fmt1(r.rate), "text-align:right;font-weight:800")}${td(r.tip ? money(r.tip) : "—", "text-align:right;color:" + SUB)}${td("$" + fmt1(r.rateT), "text-align:right;font-weight:800;color:" + POS)}</tr>`).join("")}<tr class="tot"><td>All foremen</td>${td(fmt1(tH), "text-align:right")}${td(money(tP), "text-align:right")}${td(tH ? "$" + fmt1(tP / tH) : "—", "text-align:right")}${td(money(tT), "text-align:right")}${td(tH ? "$" + fmt1((tP + tT) / tH) : "—", "text-align:right")}</tr></tbody></table>`;
+        tableCard(g, "Foreman pay rate — $ per hour", monLbl + " · company pay vs take-home", frHtml, { icon: KIC.grid, headVal: tH ? "$" + fmt1((tP + tT) / tH) : "—", noteKind: "how", note: "Company pay already includes every component the company pays: hourly, CF, packing commission, review bonus and the foreman's share of company tips (trips are a known gap — linked-trip pay lives in a table we don't serve yet, so it's missing from both columns). Company $/hr is the cost basis and reconciles with P&L labour cost. Customer tips are the customer's money, not a company cost, so they sit in their own column — With tips $/hr is what the foreman actually takes home per hour. A high rate usually means strong bonus earning rather than a higher base rate." });
       }
       // foreman efficiency — packing density & review rate, WITH month-over-month movement + arrows
       if (scRows.length) {
         const prevEff = {}; scPrev.forEach(r => prevEff[r.Foreman] = { p100: num(r["Packing per 100 CF"]), rtj: num(r["Reviews to Jobs Ratio"]) });
-        const eff = scRows.map(r => ({ f: r.Foreman, p100: num(r["Packing per 100 CF"]), rtj: num(r["Reviews to Jobs Ratio"]), jobs: num(r["Total Jobs"]) }))
+        // Tornike 2026-07-15: estimate vs real packing, per crew. Both live on the scorecard row already.
+        const eff = scRows.map(r => ({ f: r.Foreman, p100: num(r["Packing per 100 CF"]), rtj: num(r["Reviews to Jobs Ratio"]), jobs: num(r["Total Jobs"]), est: num(r["Total Packing Estimate"]), wrt: num(r["Total Packing Written"]) }))
           .filter(r => r.f && r.jobs > 0).sort((a, b) => b.p100 - a.p100).slice(0, 15);
         if (eff.length) {
-          const dCell = (cur, prev) => { if (prev == null || !prev) return td("—", "color:#8a94a3"); const d2 = (cur - prev) / Math.abs(prev); return td(`${d2 >= 0 ? "▲" : "▼"} ${Math.abs(d2 * 100).toFixed(0)}%`, `color:${d2 >= 0 ? "#1c7a4a" : "#b02a37"};font-weight:800`); };
-          const effHtml = `<table class="mrx-tbl"><thead><tr><th>Foreman</th><th>Packing $ / 100 CF</th><th>vs ${MS[PM]}</th><th>Reviews / job</th><th>vs ${MS[PM]}</th></tr></thead><tbody>${eff.map((r, i) => { const p = prevEff[r.f] || {}; return `<tr><td>${i === 0 ? "👑 " : ""}${esc(r.f)}</td>${td(money(r.p100))}${dCell(r.p100, p.p100)}${td(fmt1(r.rtj))}${dCell(r.rtj, p.rtj)}</tr>`; }).join("")}</tbody></table>`;
-          tableCard(g, "Foreman efficiency — packing density & review rate", monLbl + " vs " + MS[PM], effHtml, { icon: KIC.grid, headVal: fmtN(eff.length) + " crews", noteKind: "how", note: `Packing $ written per 100 CF moved, and reviews collected per job — ranked by packing density, ▲▼ vs ${MS[PM]}. Green = improving crew, red = slipping.` });
+          const dCell = (cur, prev) => { if (prev == null || !prev) return td("—", "color:" + FAINT); const d2 = (cur - prev) / Math.abs(prev); return td(`${d2 >= 0 ? "▲" : "▼"} ${Math.abs(d2 * 100).toFixed(0)}%`, `color:${d2 >= 0 ? POS : NEG};font-weight:800`); };
+          // hit rate = written ÷ estimate: at/above estimate is good (green), under-selling the estimate is red
+          const hitCell = r => { if (!r.est) return td("—", "color:" + FAINT); const h = r.wrt / r.est; return td(pct(h), `color:${h >= 1 ? POS : h >= .8 ? "#7a5a12" : NEG};font-weight:800`); };
+          const tEst = eff.reduce((a, r) => a + r.est, 0), tWrt = eff.reduce((a, r) => a + r.wrt, 0);
+          const effHtml = `<table class="mrx-tbl"><thead><tr><th>Foreman</th><th>Packing estimate</th><th>Packing written</th><th>vs estimate</th><th>Packing $ / 100 CF</th><th>vs ${MS[PM]}</th><th>Reviews / job</th><th>vs ${MS[PM]}</th></tr></thead><tbody>${eff.map((r, i) => { const p = prevEff[r.f] || {}; return `<tr><td>${i === 0 ? "👑 " : ""}${esc(r.f)}</td>${td(r.est ? money(r.est) : "—", "color:" + SUB)}${td(money(r.wrt))}${hitCell(r)}${td(money(r.p100))}${dCell(r.p100, p.p100)}${td(fmt1(r.rtj))}${dCell(r.rtj, p.rtj)}</tr>`; }).join("")}<tr class="tot"><td>All crews</td>${td(money(tEst))}${td(money(tWrt))}${td(tEst ? pct(tWrt / tEst) : "—")}${td("")}${td("")}${td("")}${td("")}</tr></tbody></table>`;
+          tableCard(g, "Foreman efficiency — packing estimate vs written, density & reviews", monLbl + " vs " + MS[PM], effHtml, { icon: KIC.grid, headVal: tEst ? pct(tWrt / tEst) + " of estimate" : fmtN(eff.length) + " crews", noteKind: "how", note: `Packing estimate = what the job was quoted to pack; Packing written = what the crew actually sold on site. "vs estimate" is written ÷ estimate — green at or above the estimate, amber from 80%, red below, so you can see which crews leave packing money on the truck. Then packing $ written per 100 CF moved, and reviews collected per job — ranked by density, ▲▼ vs ${MS[PM]}. Estimates come from the scorecard sheet; a crew with no estimate on file shows "—".` });
         }
       }
     }
 
-    /* ---- 12 · Fleet (theme split from Operations & Crew) ---- */
-    if (SEC("Fleet")) {
-      const g = section("Fleet", "truck revenue vs running cost");
-      // fleet profitability: revenue vs direct running cost per truck
-      if (fleetRows.length) {
-        const mmF = `${curY}-${String(mo).padStart(2, "0")}`, fm2 = {};
-        fleetRows.forEach(r => { if (String(r.Date || "").slice(0, 7) !== mmF) return; const t = String(r["Truck #"] || "").trim(); if (!t) return; const b = fm2[t] || (fm2[t] = { jobs: 0, rev: 0, cost: 0 }); b.jobs++; b.rev += num(r["Total Bill"]); b.cost += num(r.Fuel) + num(r.Truck) + num(r.Car) + num(r.Tolls); });
-        const fl = Object.keys(fm2).map(k => { const v = fm2[k]; return { k, jobs: v.jobs, rev: v.rev, cost: v.cost, net: v.rev - v.cost }; }).sort((a, b) => b.rev - a.rev).slice(0, 15);
-        if (fl.length) {
-          // Tornike confirmed 2026-07-08: closing-sheet truck "Ent" = Enterprise rental
-          const truckLbl = k => /^ent$/i.test(k) ? "Rental (Enterprise)" : k;
-          const flHtml = `<table class="mrx-tbl"><thead><tr><th>Truck</th><th>Jobs</th><th>Revenue</th><th>Running cost</th><th>Net</th><th>Cost %</th></tr></thead><tbody>${fl.map(r => `<tr><td>${esc(truckLbl(r.k))}</td>${td(fmtN(r.jobs))}${td(money(r.rev))}${td(money(r.cost))}${td(money(r.net))}${td(r.rev ? pct(r.cost / r.rev) : "—")}</tr>`).join("")}</tbody></table>`;
-          tableCard(g, "Fleet — revenue & running cost per truck", monLbl, flHtml, { icon: KIC.grid, headVal: fmtN(fl.length) + " trucks", noteKind: "how", note: "Revenue of the jobs each truck ran vs its direct running costs (fuel, truck expense, car, tolls). Labor isn't truck-attributable and is excluded — this ranks the fleet, it isn't a full profit & loss. Truck names come from closing sheets as written; Rental (Enterprise) is a rented truck." });
-        }
-      }
-    }
+    /* ---- Fleet section REMOVED 2026-07-15 (Tornike: "remove this part completely").
+       It held exactly one card ("Fleet — revenue & running cost per truck"), so the section and the
+       log-fleet themed dashboard went with it, along with the isolated fleet fetch (needFleet/fleetP/
+       fleetRows) that had no other consumer, the MR_DASH entry, and the nine log-fleet refs in
+       index.html. The bridge's REPORT_TABLES grant tile is removed + redeployed alongside. ---- */
 
-    /* ---- 13 · Packing & Storage ---- */
+    /* ---- 12 · Packing & Storage ---- */
     if (SEC("Packing & Storage")) {
       const g = section("Packing & Storage", "packing written vs material cost, storage income vs cost");
       // Packing economics — written revenue vs material cost, MONTH-over-month. FULL WIDTH (Tornike 2026-07-15).
@@ -2027,14 +2057,14 @@ async function renderMonthly(host, MRCFG) {
       [ { l: "Claims Filed", v: fmtN(claimsN), c: claimsN, ly: claimsLY, pm: claimsPM, icon: KIC.warn, inv: 1 },
         { l: "Claims / 100 jobs", v: claimRate == null ? "—" : fmt1(claimRate), c: claimRate, ly: (jobsLY ? claimsLY / jobsLY * 100 : null), pm: (jobsPM ? claimsPM / jobsPM * 100 : null), icon: KIC.pct, inv: 1 },
         { l: "Amount Refunded", v: money(refTot), c: refTot, ly: refTotLY, pm: refTotPM, icon: KIC.dollar, inv: 1 },
-        { l: "Amount Reduced from Sales Person", v: money(redTot), c: redTot, ly: redTotLY, pm: redTotPM, icon: KIC.tag, inv: 1 },
-        { l: "Refund % of revenue", v: rev ? pct(refTot / rev) : "—", c: rev ? refTot / rev : null, ly: revLY ? refTotLY / revLY : null, icon: KIC.pct, inv: 1 }
+        { l: "Amount Reduced from Sales Person", v: money(redTot), c: redTot, ly: redTotLY, pm: redTotPM, icon: KIC.tag, inv: 1 }
       ].forEach(k => kpiTile(kg, k));
       // ---- breakdown charts ----
       rankBars(g, "Claims by responsibility", segReduce("claims", "Responsibility", rs => rs.length, curY, mo).map(s => ({ ...s, k: dispResp(s.k) })), fmtN, { top: 8 });
       donut(g, "Claims by reason", segReduce("claims", "Reason", rs => rs.length, curY, mo).filter(r => r.k !== "—" && r.k !== "(blank)"), fmtN, { center: fmtN(reduceMonth("claims", curY, mo, rs => rs.filter(r => r.Reason && r.Reason !== "(blank)").length) || 0), centerLbl: "classified" });
-      const refByReason = segReduce("refunds", "Reason", rs => Math.abs(rs.reduce((a, r) => a + num(r["Total refund"]), 0)), curY, mo).filter(r => r.v > 0);
-      rankBars(g, "Refunds by reason", refByReason, money, { top: 8, sub: `${money(refTot)} · ${rev ? pct(refTot / rev) : "—"} of revenue`, headVal: money(refTot) });
+      // "Refunds by reason" chart + the "Refund % of revenue" tile removed 2026-07-15 (Tornike):
+      // the refund register below already carries reason per row, and refunds are ~0.2% of revenue —
+      // a whole chart + tile for a rounding-error line was noise. refByReason kept OUT deliberately.
       // ---- refund lookup by Request Joinkey (a claim's refund can be paid in a LATER month) ----
       const refByJk = {};
       (DS.refunds || []).filter(coRow).forEach(r => {
@@ -2058,39 +2088,6 @@ async function renderMonthly(host, MRCFG) {
         { icon: KIC.dollar, headVal: money(refTot) });
     }
 
-    /* ---- 14 · Repeat & Referral Business (formerly "Returned & Recommended" — N3) ---- */
-    if (SEC("Repeat & Referral Business")) {
-      const g = section("Repeat & Referral Business", "repeat and referral customers — how much our service is liked");
-      const RRS = ["Returned Customer", "Recommended"];
-      const isRR = r => RRS.indexOf(String(r.Source)) >= 0;
-      const rrRev = valueFor("closing", "Revenue", curY, mo, { pre: isRR }) || 0, rrRevLY = valueFor("closing", "Revenue", curY - 1, mo, { pre: isRR }), rrRevPM = valueFor("closing", "Revenue", PMY, PM, { pre: isRR });
-      const rrJobs = valueFor("closing", "Total Jobs", curY, mo, { pre: isRR }) || 0, rrJobsLY = valueFor("closing", "Total Jobs", curY - 1, mo, { pre: isRR }), rrJobsPM = valueFor("closing", "Total Jobs", PMY, PM, { pre: isRR });
-      // op profit needs segKeys scoping → sum the two Source segments (current month reuses opBySrcCur)
-      const sumRR = arr => arr.reduce((t, s2) => RRS.indexOf(s2.k) >= 0 ? t + s2.v : t, 0);
-      const rrOp = sumRR(opBySrcCur), rrOpLY = sumRR(segSeries("closing", "Operational Profit by Formula", "Source", curY - 1, mo));
-      const rrShare = rev ? rrRev / rev : null, rrShareLY = revLY ? (rrRevLY || 0) / revLY : null, rrSharePM = revPM ? (rrRevPM || 0) / revPM : null;
-      const kg2 = document.createElement("div"); kg2.className = "mrx-grid k"; kg2.style.gridColumn = "1/-1"; g.appendChild(kg2);
-      [ { l: "Repeat + Referral Revenue", v: money(rrRev), c: rrRev, ly: rrRevLY, pm: rrRevPM, icon: KIC.dollar },
-        { l: "Share of Revenue", v: pct(rrShare), c: rrShare, ly: rrShareLY, pm: rrSharePM, icon: KIC.pct },
-        { l: "Repeat + Referral Jobs", v: fmtN(rrJobs), c: rrJobs, ly: rrJobsLY, pm: rrJobsPM, icon: KIC.truck },
-        { l: "Gross Profit (before refunds)", v: money(rrOp), c: rrOp, ly: rrOpLY, icon: KIC.trend }
-      ].forEach(k => kpiTile(kg2, k));
-      const rrT = yearsArr(5).map(y => ({ k: String(y), v: valueFor("closing", "Revenue", y, mo, { pre: isRR }) }));
-      yoyBars(g, "Repeat & Referral revenue — 5-yr", rrT, moneyC, { headVal: money(rrRev), chips: dchips([[rrRev, rrRevLY, "YoY"]]) });
-      const shareT = momReduce("closing", 12, rs => { const t = M["Revenue"].fn(rs); const rr2 = M["Revenue"].fn(rs.filter(isRR)); return t ? rr2 / t : null; });
-      const cSh = lines(g, "Share of revenue from repeat & referral", "last 12 months", [{ label: "Repeat & Referral share", series: shareT, color: BLUE }], pct, { headVal: pct(rrShare) });
-      note(cSh, `Every point is the % of that month's revenue that came from repeat or referred customers — the cleanest loyalty pulse. ${MON[mo]}: ${pct(rrShare)}.`, "how");
-      const retT = yearsArr(5).map(y => valueFor("closing", "Revenue", y, mo, { pre: r => String(r.Source) === "Returned Customer" }) || 0);
-      const recT = yearsArr(5).map(y => valueFor("closing", "Revenue", y, mo, { pre: r => String(r.Source) === "Recommended" }) || 0);
-      groupedBars(g, "Repeat vs Referral — revenue by year", yearsArr(5).map(String), retT, "Repeat (returned customer)", recT, "Referral (recommended)", money, { sub: MON[mo] + " each year" });
-      // C2: both trend lines use the canonical dual-basis Booking Rate (no inline ratios)
-      // #8 (Tornike 2026-07-15): show Repeat (returned) and Referral (recommended) as SEPARATE lines vs overall.
-      const retBookT = bookRateTrend(r => String(r.Source) === "Returned Customer", 12);
-      const recBookT = bookRateTrend(r => String(r.Source) === "Recommended", 12);
-      const allBookT = bookRateTrend(null, 12);
-      const cBk = lines(g, "Repeat & Referral booking rate vs overall", "last 12 months", [ { label: "Repeat (returned)", series: retBookT, color: LIMED }, { label: "Referral (recommended)", series: recBookT, color: BLUE }, { label: "All leads", series: allBookT, color: CTX } ], pct);
-      note(cBk, `Repeat (returned) and Referral (recommended) leads should each convert far above the average — they already trust you. If either coloured line dips toward the gray (all-leads) line, warm-lead follow-up is slipping.`);
-    }
 
     /* ---------- layout parity: no half-empty rows, ever ----------
        Walk each section grid in order; any half-width card left without a partner (because a full-row
@@ -2113,12 +2110,31 @@ async function renderMonthly(host, MRCFG) {
        view), part-group labels, and a ‹ month › stepper so month-to-month comparison —
        the page's core gesture — is one click without scrolling back to the cover. */
     if (secList.length >= 3) {
+      /* Chip -> section jump. The page scrolls inside #content (.rs-content), NEVER the window, and the
+         TOC is a 2-3 row sticky bar whose height changes with the viewport — so neither scrollIntoView()
+         nor a constant scroll-margin-top can land a section:
+           - scrollIntoView() scrolls EVERY scrollable ancestor, and the scroll-spy below fired its own
+             scrollIntoView() on the active chip mid-flight. A scroll on a box cancels an in-flight smooth
+             scroll on that same box — so the click appeared to do nothing at all.
+           - .mrx-sec{scroll-margin-top:56px} is ~half the real wrapped bar height (~105px), so even when
+             it did land, the heading sat under the bar.
+         So: measure the live bar, scroll .rs-content explicitly, and mute the spy's nudge while in flight. */
+      const scrollerOf = () => root.closest(".rs-content") || document.querySelector(".rs-content");
+      let spyMute = 0;
+      const gotoSec = wrap => {
+        const sc = scrollerOf(); if (!sc) return;
+        const landing = sc.getBoundingClientRect().top + toc.offsetHeight + 10;   // first free px under the bar
+        const delta = wrap.getBoundingClientRect().top - landing;
+        if (!delta) return;
+        spyMute = Date.now() + 1200;                                              // smooth scroll in flight — hands off
+        sc.scrollTo({ top: Math.max(0, sc.scrollTop + delta), behavior: "smooth" });
+      };
       secList.forEach((s, i) => {
         const p = tocParts.find(x => x.at === i);
         if (p) { const lb = document.createElement("span"); lb.className = "mrx-tocpart"; lb.textContent = p.label; toc.appendChild(lb); }
         const chip = document.createElement("span"); chip.className = "mrx-tocchip"; chip.dataset.sec = s.n;
         chip.textContent = s.n + " " + (TOCNAME[s.title] || s.title);
-        chip.onclick = () => { s.wrap.classList.remove("collapsed"); collapsedSet.delete(s.title); saveCollapsed(); s.wrap.scrollIntoView({ behavior: "smooth", block: "start" }); };
+        chip.onclick = () => { s.wrap.classList.remove("collapsed"); collapsedSet.delete(s.title); saveCollapsed(); gotoSec(s.wrap); };
         toc.appendChild(chip);
       });
       // month stepper — the dominant gesture, one click, scroll position preserved by reRender
@@ -2133,7 +2149,18 @@ async function renderMonthly(host, MRCFG) {
           const n = (secList.find(s => s.wrap === en.target) || {}).n; if (!n) return;
           toc.querySelectorAll(".mrx-tocchip.on").forEach(c => c.classList.remove("on"));
           const c = toc.querySelector(`.mrx-tocchip[data-sec="${n}"]`);
-          if (c) { c.classList.add("on"); if (c.scrollIntoView) c.scrollIntoView({ block: "nearest", inline: "nearest" }); }
+          if (!c) return;
+          c.classList.add("on");
+          // Keep the active chip visible WITHOUT touching the page scroller. scrollIntoView() walks every
+          // scrollable ancestor, so on desktop (where the bar WRAPS and is not itself a scroller) it
+          // scrolled #content — cancelling the chip-click's smooth scroll. The nudge is only needed at
+          // <=900px where .mrx-toc is a horizontal strip; when the bar wraps this is a no-op.
+          if (Date.now() < spyMute) return;
+          if (toc.scrollWidth > toc.clientWidth + 1) {
+            const cr = c.getBoundingClientRect(), tr = toc.getBoundingClientRect();
+            if (cr.left < tr.left + 8) toc.scrollLeft += cr.left - tr.left - 8;
+            else if (cr.right > tr.right - 8) toc.scrollLeft += cr.right - tr.right + 8;
+          }
         });
       }, { rootMargin: "-15% 0px -70% 0px" });
       secList.forEach(s => io.observe(s.wrap));
@@ -2172,7 +2199,6 @@ const MR_DASH = [
   // Logistics
   { id: "log-foreman", group: "logistics", title: "Foreman of the Month", sections: ["Operations & Crew (Foreman)"] },
   { id: "log-packing", group: "logistics", title: "Packing & Storage", sections: ["Packing & Storage"] },
-  { id: "log-fleet", group: "logistics", title: "Fleet", sections: ["Fleet"] },
   // Financial
   { id: "fin-revenue", group: "financial", title: "Revenue & Profit", sections: ["Executive Summary", "Revenue & Growth", "Revenue Composition & Segments", "Per-Job Profitability", "Profitability & P&L"] },
   { id: "fin-rr", group: "financial", title: "Repeat & Referral", sections: ["Repeat & Referral Business"] },

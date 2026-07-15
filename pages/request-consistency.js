@@ -65,8 +65,6 @@
           <input id="rcSearch" type="text" autocomplete="off" spellcheck="false"
             placeholder="Search by Request #, customer, or company…">
           <span id="rcCount" style="color:var(--muted);font-size:12.5px"></span>
-          <span style="flex:1"></span>
-          <button id="rcCsv" class="rs-btn" style="font-size:12.5px">⬇ CSV</button>
         </div>
         <div id="rcChips" style="padding:2px 16px 10px;display:flex;gap:8px;flex-wrap:wrap"></div>
         <div id="rcTable" style="padding:2px 6px 10px;overflow-x:auto"></div>
@@ -146,13 +144,4 @@
     paint();
     let t = null;
     document.getElementById("rcSearch").oninput = e => { clearTimeout(t); t = setTimeout(() => { q = e.target.value; paint(); }, 120); };
-    document.getElementById("rcCsv").onclick = () => {
-      const esc2 = s => `"${String(s == null ? "" : s).replace(/"/g, '""')}"`;
-      const keep = statusFilter ? all.filter(r => r["Status"] === statusFilter) : all;
-      const cols = ["Request #", "Company", "Date", "Closing Customer", "Moveboard Customer", "Calendar Customer", "Status", "Revenue"];
-      const lines = [cols.join(",")].concat(keep.map(r => cols.map(k => esc2(r[k])).join(",")));
-      const blob = new Blob([lines.join("\n")], { type: "text/csv" });
-      const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
-      a.download = "request-consistency.csv"; a.click(); URL.revokeObjectURL(a.href);
-    };
 };

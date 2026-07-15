@@ -52,9 +52,6 @@ registerPage({
         .sl-sel{padding:9px 13px;border-radius:11px;border:1px solid var(--line-2);background:var(--panel-2);color:var(--ink);
           font-size:13.5px;font-family:inherit;outline:none}
         .sl-sel:focus{border-color:var(--brand)}
-        .sl-btn{padding:9px 14px;border-radius:11px;border:1px solid var(--line-2);background:var(--panel-2);color:var(--ink);font-size:13.5px;font-family:inherit;cursor:pointer}
-        .sl-btn:hover{border-color:var(--brand)}
-        .sl-spring{flex:1 1 auto}
         .sl-kpis{display:flex;gap:10px;overflow-x:auto;padding:12px 0;scrollbar-width:thin}
         .sl-kpi{flex:0 0 auto;min-width:132px;background:var(--panel);border:1px solid var(--line);border-radius:13px;padding:11px 15px}
         .sl-kpi b{display:block;font-size:25px;font-weight:800;letter-spacing:-.02em;line-height:1.1}
@@ -112,9 +109,7 @@ registerPage({
       <select class="sl-sel" id="slWin">${[[1, "This month"], [3, "Last 3 months"], [6, "Last 6 months"], [12, "Last 12 months"], [0, "All (since Mar 2025)"]]
         .map(o => `<option value="${o[0]}"${o[0] === SL.months ? " selected" : ""}>${o[1]}</option>`).join("")}</select>
       <select class="sl-sel" id="slRep"><option value="">All reps</option>${reps.map(r => `<option${SL.rep === r ? " selected" : ""}>${esc(r)}</option>`).join("")}</select>
-      <select class="sl-sel" id="slSrc"><option value="">All sources</option>${srcs.map(s => `<option${SL.source === s ? " selected" : ""}>${esc(s)}</option>`).join("")}</select>
-      <span class="sl-spring"></span>
-      <button class="sl-btn" id="slCsv" type="button">⬇ CSV</button>`;
+      <select class="sl-sel" id="slSrc"><option value="">All sources</option>${srcs.map(s => `<option${SL.source === s ? " selected" : ""}>${esc(s)}</option>`).join("")}</select>`;
 
     function filtered() {
       var mset = SL.months ? new Set(months.slice(0, SL.months)) : null;
@@ -292,16 +287,6 @@ registerPage({
     document.getElementById("slWin").onchange = e => { SL.months = +e.target.value; paint(); };
     document.getElementById("slRep").onchange = e => { SL.rep = e.target.value; paint(); };
     document.getElementById("slSrc").onchange = e => { SL.source = e.target.value; paint(); };
-    document.getElementById("slCsv").onclick = () => {
-      var cols = ["Job No", "Customer", "Create Datetime", "Status", "Status Category", "Source", "Assigned",
-        "Called", "Connected", "First Out At", "TTO Biz Min", "TTO Wall Min", "Speed Bucket", "Out Calls",
-        "In Calls", "In Before Create", "First Out Extension", "Texted", "TTS Biz Min"];
-      var q = s => `"${String(s == null ? "" : s).replace(/"/g, '""')}"`;
-      var lines = [cols.join(",")].concat(filtered().map(r => cols.map(c => q(r[c])).join(",")));
-      var a = document.createElement("a");
-      a.href = URL.createObjectURL(new Blob([lines.join("\n")], { type: "text/csv" }));
-      a.download = "speed-to-lead.csv"; a.click(); URL.revokeObjectURL(a.href);
-    };
 
     paint();
   },
