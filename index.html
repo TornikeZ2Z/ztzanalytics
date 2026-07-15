@@ -618,7 +618,7 @@ function navigate(id, push) {
 /* Pages that bring their OWN toolbar and ignore the global filter bar (PAGE_DATASETS=[])
    render "bare" — the global date/slicer bar + company chip are hidden so the page's board
    starts right under the header instead of below two rows of greyed-out, unusable filters. */
-const BARE_CHROME = new Set(["review-performance", "sales-speed", "reviews-reminders"]);
+const BARE_CHROME = new Set(["review-performance", "sales-speed", "reviews-reminders", "monthly-report"]);
 /* Monthly-Report-family pages OWN their time: they have a Month/Year picker on the cover
    and neutralize the global Year/Month slicers in every computation (withMonth), so those
    two slicers are hidden there — two competing time controls confused everyone (Tornike
@@ -1165,7 +1165,7 @@ registerPage({
 <script src="pages/labor-analysis.js?v=3"></script>
 <script src="pages/financial-analysis.js?v=7"></script>
 <script src="pages/post-card-analysis.js?v=4"></script>
-<script src="pages/monthly-report.js?v=60"></script>
+<script src="pages/monthly-report.js?v=61"></script>
 <script src="pages/leads-vs-moveboard.js?v=6"></script>
 <script src="pages/source-analysis.js?v=3"></script>
 <script src="pages/data-quality.js?v=4"></script>

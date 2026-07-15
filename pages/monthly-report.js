@@ -176,32 +176,38 @@ async function renderMonthly(host, MRCFG) {
     /* ---------- month engine ---------- */
     function rangeFor(y, m) { const mm = String(m).padStart(2, "0"), last = new Date(y, m, 0).getDate(); return [`${y}-${mm}-01`, `${y}-${mm}-${String(last).padStart(2, "0")}`]; }
     function withMonth(y, m, fn) {
-      const S = RS.state, sv = { f: S.dateFrom, t: S.dateTo, df: S.dayFrom, dt: S.dayTo, co: S.multi.company, hadCo: Object.prototype.hasOwnProperty.call(S.multi, "company"),
-        yr: S.multi.year, hadYr: Object.prototype.hasOwnProperty.call(S.multi, "year"),
-        mn: S.multi.month, hadMn: Object.prototype.hasOwnProperty.call(S.multi, "month") };
+      const S = RS.state, savedMulti = S.multi;
+      const sv = { f: S.dateFrom, t: S.dateTo, df: S.dayFrom, dt: S.dayTo };
       const [a, b] = rangeFor(y, m); S.dateFrom = a; S.dateTo = b; S.dayFrom = S.dayTo = null;
-      // This page OWNS time: the global Year/Month slicers are neutralized during every
-      // computation (previously they silently intersected the page's own Month picker —
-      // the C31 zero-rows trap). The global date row is also hidden on this page (shell).
-      delete S.multi.year; delete S.multi.month;
-      // C43: default the Company filter to Zip to Zip for EVERY computation on this page
-      // (flows into every RS.filtered call, incl. the salary tables' closing-key scope and
-      // the registry Booking Rate's booked-date pass). An explicit slicer choice still wins.
-      if (!sv.co || !sv.co.size) S.multi.company = new Set([MR_CO]);
+      // Company defaults to Zip to Zip for every computation (flows into every RS.filtered call).
+      const coSet = (savedMulti.company && savedMulti.company.size) ? savedMulti.company : new Set([MR_CO]);
+      if (!MRCFG) {
+        // MAIN Monthly Report = MONTH-SELECTOR-ONLY (Tornike 2026-07-15): the whole filter bar is hidden
+        // on this page, so ignore EVERY global slicer except Company. A Source/Foreman/State/Moving-Type
+        // value left set on another page can no longer silently filter the report. The page owns time.
+        S.multi = { company: coSet };
+      } else {
+        // lite themed dashboards keep their OWN visible filter bar → only neutralize the page-owned time
+        // slicers (Year/Month, which would else intersect the page's Month picker — the C31 zero-rows trap).
+        S.multi = Object.assign({}, savedMulti); delete S.multi.year; delete S.multi.month; S.multi.company = coSet;
+      }
       try { return fn(); } finally {
         S.dateFrom = sv.f; S.dateTo = sv.t; S.dayFrom = sv.df; S.dayTo = sv.dt;
-        if (sv.hadCo) S.multi.company = sv.co; else delete S.multi.company;
-        if (sv.hadYr) S.multi.year = sv.yr;
-        if (sv.hadMn) S.multi.month = sv.mn;
+        S.multi = savedMulti;
       }
     }
     // Month-scalar memo (perf): valueFor is called hundreds of times per render and its
     // result depends only on (ds, measure, y, m) + the non-time slicer state. Caching it
     // across renders makes adjacent month flips near-instant. Only parameter-free calls
     // are cached (opts.pre closures aren't serializable).
-    const memoSerial = JSON.stringify(Object.entries(RS.state.multi)
-      .filter(([k, s]) => k !== "year" && k !== "month" && s && s.size)
-      .map(([k, s]) => [k, [...s].sort()]).sort());
+    // The MAIN report ignores every slicer but Company, so its memo key is Company-only and prefixed —
+    // this keeps it DISTINCT from the lite dashboards' keys (which DO apply slicers) in the shared
+    // __mrMemo2 store, so a set slicer can never cross-contaminate the two.
+    const memoSerial = !MRCFG
+      ? "mr-main:" + JSON.stringify([...((RS.state.multi.company && RS.state.multi.company.size) ? RS.state.multi.company : [MR_CO])].sort())
+      : JSON.stringify(Object.entries(RS.state.multi)
+          .filter(([k, s]) => k !== "year" && k !== "month" && s && s.size)
+          .map(([k, s]) => [k, [...s].sort()]).sort());
     // NEVER persist month-scalars computed from partial data — a failed feed would poison
     // the cache with plausible-but-wrong numbers (the inflated-Gross-Profit bug). A render
     // with failures gets a throwaway map; __mrMemo (pre-fix store) is retired outright.
