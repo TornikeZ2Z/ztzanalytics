@@ -148,33 +148,104 @@ registerPage({
         ".rrp-bar .track i{display:block;height:100%;background:linear-gradient(90deg,#e0a015,#f6c944)}",
         ".rrp-bar b{font-variant-numeric:tabular-nums;text-align:right;font-weight:800}",
         ".rrp-note{background:var(--brand-glow);border:1px solid var(--line-2);border-left:3px solid var(--brand);border-radius:10px;padding:11px 14px;font-size:12.5px;color:var(--ink);line-height:1.55;margin-bottom:16px}",
-        ".rrp-state{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px 16px;margin-bottom:11px}",
-        ".rrp-state h4{margin:0 0 3px;font-size:14.5px;font-weight:800;display:flex;align-items:center;gap:8px}",
-        ".rrp-state h4 .gp{font-size:11px;font-weight:700;color:var(--muted)}",
-        ".rrp-loc{display:grid;grid-template-columns:22px 150px 1fr 30px;gap:9px;align-items:center;margin-top:9px}",
-        ".rrp-loc input[type=text]{font:inherit;font-size:12.5px;background:var(--panel-2);color:var(--ink);border:1px solid var(--line-2);border-radius:8px;padding:7px 10px;width:100%}",
-        ".rrp-loc input[type=radio]{width:16px;height:16px;accent-color:var(--brand)}",
-        ".rrp-loc .del{border:0;background:transparent;color:var(--faint);cursor:pointer;font-size:16px;line-height:1;border-radius:6px}",
-        ".rrp-loc .del:hover{color:#e5484d}",
-        ".rrp-addloc{margin-top:9px;border:1px dashed var(--line-2);background:transparent;color:var(--muted);border-radius:9px;padding:7px 11px;font:inherit;font-size:12px;font-weight:700;cursor:pointer}",
-        ".rrp-addloc:hover{border-color:var(--brand);color:var(--brand)}",
-        ".rrp-platnote{font-size:11.5px;color:var(--muted);margin:2px 0 10px}",
-        ".rrp-plats{display:flex;flex-direction:column;gap:9px;margin-top:6px}",
-        ".rrp-plat{display:grid;grid-template-columns:20px 150px 1fr 30px;gap:9px;align-items:center}",
-        ".rrp-reason{display:grid;grid-template-columns:1fr 66px;gap:9px;align-items:center}",
-        ".rrp-reason input{font:inherit;font-size:12.5px;background:var(--panel-2);color:var(--ink);border:1px solid var(--line-2);border-radius:8px;padding:7px 10px;width:100%}",
-        ".rrp-reason input[readonly]{opacity:.75;cursor:default}",
-        ".rrp-lockpill{font-size:9.5px;font-weight:800;color:var(--muted);text-align:center;text-transform:uppercase;letter-spacing:.03em}",
+        /* ---------- Settings (redesign 2026-07-16) ----------
+           Two columns: editor + a STICKY live preview of the real Slack message. Everything is
+           built from the shell's theme tokens, so it works in dark AND light with no overrides. */
+        ".rrp-set{display:grid;grid-template-columns:minmax(0,1fr) 372px;gap:18px;align-items:start}",
+        "@media(max-width:1120px){.rrp-set{grid-template-columns:minmax(0,1fr)}}",
+        ".rrp-sec{background:var(--panel);border:1px solid var(--line);border-radius:16px;margin-bottom:14px;overflow:hidden;box-shadow:var(--shadow)}",
+        ".rrp-sech{display:flex;align-items:flex-start;gap:12px;padding:15px 17px 13px;border-bottom:1px solid var(--line)}",
+        ".rrp-secn{flex:0 0 auto;width:24px;height:24px;border-radius:8px;background:var(--brand-glow);color:var(--brand);display:flex;align-items:center;justify-content:center;font-size:11.5px;font-weight:800;font-variant-numeric:tabular-nums}",
+        "body.rs-app.light .rrp-secn{color:var(--brand-d)}",
+        ".rrp-sect{min-width:0}",
+        ".rrp-sect h4{margin:0;font-size:15.5px;font-weight:800;letter-spacing:-.01em}",
+        ".rrp-sect p{margin:3px 0 0;font-size:12.5px;color:var(--muted);line-height:1.55}",
+        ".rrp-secb{padding:6px 17px 15px}",
+        /* state block: header (chip + goal meter) then its location rows */
+        ".rrp-st{border-top:1px solid var(--line);padding:13px 0 11px}",
+        ".rrp-st:first-child{border-top:0}",
+        ".rrp-sth{display:flex;align-items:center;gap:11px;margin-bottom:9px}",
+        ".rrp-stchip{flex:0 0 auto;min-width:34px;text-align:center;font-size:11.5px;font-weight:800;letter-spacing:.03em;padding:4px 9px;border-radius:8px;background:var(--panel-2);border:1px solid var(--line-2);color:var(--ink)}",
+        ".rrp-goal{flex:1;min-width:0;display:flex;align-items:center;gap:9px}",
+        ".rrp-goalbar{flex:1;height:5px;border-radius:999px;background:var(--panel-2);border:1px solid var(--line);overflow:hidden;min-width:60px}",
+        ".rrp-goalbar i{display:block;height:100%;background:var(--brand);border-radius:999px}",
+        ".rrp-goaltx{font-size:11px;font-weight:700;color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap}",
+        /* location row — the ACTIVE one carries a lime rail + tint, so 'which link is live' reads at a glance */
+        ".rrp-loc{display:grid;grid-template-columns:18px 148px minmax(0,1fr) 28px;gap:10px;align-items:center;padding:7px 10px 7px 8px;border-radius:10px;border:1px solid transparent;margin-top:5px;position:relative}",
+        ".rrp-loc:hover{background:var(--panel-2)}",
+        ".rrp-loc.on{background:var(--brand-glow);border-color:var(--line-2)}",
+        ".rrp-loc.on:before{content:'';position:absolute;left:0;top:7px;bottom:7px;width:3px;border-radius:999px;background:var(--brand)}",
+        ".rrp-loc input[type=radio]{width:15px;height:15px;accent-color:var(--brand);cursor:pointer;margin:0}",
+        ".rrp-loc input[type=text]{font:inherit;font-size:12.5px;background:var(--panel);color:var(--ink);border:1px solid var(--line-2);border-radius:8px;padding:7px 10px;width:100%;transition:border-color .12s}",
+        ".rrp-loc input[type=text]:focus{outline:none;border-color:var(--brand)}",
+        ".rrp-loc input.url{font-size:12px;color:var(--muted)}",
+        ".rrp-loc .del{border:0;background:transparent;color:var(--faint);cursor:pointer;font-size:15px;line-height:1;border-radius:7px;padding:4px;opacity:0;transition:opacity .12s}",
+        ".rrp-loc:hover .del,.rrp-loc:focus-within .del{opacity:1}",
+        ".rrp-loc .del:hover{color:var(--red);background:var(--panel)}",
+        ".rrp-addloc{margin-top:8px;border:1px dashed var(--line-2);background:transparent;color:var(--muted);border-radius:9px;padding:7px 11px;font:inherit;font-size:12px;font-weight:700;cursor:pointer;transition:.12s}",
+        ".rrp-addloc:hover{border-color:var(--brand);color:var(--brand);border-style:solid}",
+        /* platform + reason rows */
+        ".rrp-plats{display:flex;flex-direction:column;gap:7px;margin-top:8px}",
+        ".rrp-plat{display:grid;grid-template-columns:36px 138px minmax(0,1fr) 28px;gap:10px;align-items:center;padding:7px 10px;border-radius:10px;border:1px solid transparent}",
+        ".rrp-plat:hover{background:var(--panel-2)}",
+        ".rrp-plat input[type=text]{font:inherit;font-size:12.5px;background:var(--panel);color:var(--ink);border:1px solid var(--line-2);border-radius:8px;padding:7px 10px;width:100%}",
+        ".rrp-plat input[type=text]:focus{outline:none;border-color:var(--brand)}",
+        ".rrp-plat .url{font-size:12px;color:var(--muted)}",
+        ".rrp-plat .del{border:0;background:transparent;color:var(--faint);cursor:pointer;font-size:15px;line-height:1;border-radius:7px;padding:4px;opacity:0;transition:opacity .12s}",
+        ".rrp-plat:hover .del,.rrp-plat:focus-within .del{opacity:1}",
+        ".rrp-plat .del:hover{color:var(--red);background:var(--panel)}",
+        /* real toggle switch (the checkbox itself keeps its data-pon hook) */
+        ".rrp-sw{position:relative;display:inline-block;width:34px;height:19px;flex:0 0 auto}",
+        ".rrp-sw input{position:absolute;opacity:0;width:0;height:0}",
+        ".rrp-sw i{position:absolute;inset:0;background:var(--line-2);border-radius:999px;cursor:pointer;transition:background .15s}",
+        ".rrp-sw i:before{content:'';position:absolute;width:13px;height:13px;left:3px;top:3px;background:var(--panel);border-radius:50%;transition:transform .15s;box-shadow:0 1px 2px rgba(0,0,0,.3)}",
+        ".rrp-sw input:checked+i{background:var(--brand)}",
+        ".rrp-sw input:checked+i:before{transform:translateX(15px)}",
+        ".rrp-sw input:focus-visible+i{outline:2px solid var(--brand);outline-offset:2px}",
+        ".rrp-reason{display:grid;grid-template-columns:minmax(0,1fr) 76px;gap:10px;align-items:center}",
+        ".rrp-reason input{font:inherit;font-size:12.5px;background:var(--panel);color:var(--ink);border:1px solid var(--line-2);border-radius:8px;padding:7px 10px;width:100%}",
+        ".rrp-reason input:focus{outline:none;border-color:var(--brand)}",
+        ".rrp-reason input[readonly]{opacity:.7;cursor:default;background:var(--panel-2)}",
+        ".rrp-reason .del{border:0;background:transparent;color:var(--faint);cursor:pointer;font-size:15px;border-radius:7px;padding:4px}",
+        ".rrp-reason .del:hover{color:var(--red)}",
+        ".rrp-lockpill{font-size:9.5px;font-weight:800;color:var(--faint);text-align:center;text-transform:uppercase;letter-spacing:.04em}",
         ".rrp-clock{font-size:12px;font-weight:700;color:var(--muted);background:var(--panel);border:1px solid var(--line-2);border-radius:9px;padding:7px 12px;white-space:nowrap;font-variant-numeric:tabular-nums}",
         ".rrp-headright{display:flex;align-items:center;gap:9px;flex-wrap:wrap;justify-content:flex-end}",
-        ".rrp-plat input[type=checkbox]{width:16px;height:16px;accent-color:var(--brand)}",
-        ".rrp-plat input[type=text]{font:inherit;font-size:12.5px;background:var(--panel-2);color:var(--ink);border:1px solid var(--line-2);border-radius:8px;padding:7px 10px}",
-        ".rrp-savebar{display:flex;align-items:center;gap:12px;justify-content:flex-end;padding:16px 2px 8px;margin-top:16px;border-top:1px solid var(--line)}",
-        ".rrp-save{border:0;background:var(--brand);color:var(--brand-ink);border-radius:10px;padding:10px 20px;font:inherit;font-size:13.5px;font-weight:800;cursor:pointer}",
+        /* ---------- live preview ---------- */
+        ".rrp-pv{position:sticky;top:8px;background:var(--panel);border:1px solid var(--line);border-radius:16px;overflow:hidden;box-shadow:var(--shadow)}",
+        "@media(max-width:1120px){.rrp-pv{position:static}}",
+        ".rrp-pvh{padding:14px 16px 12px;border-bottom:1px solid var(--line)}",
+        ".rrp-pvh h4{margin:0;font-size:14px;font-weight:800;display:flex;align-items:center;gap:8px}",
+        ".rrp-pvh h4 em{font-style:normal;font-size:9.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--blue);background:color-mix(in srgb,var(--blue) 15%,transparent);padding:2px 7px;border-radius:999px}",
+        ".rrp-pvh p{margin:4px 0 0;font-size:11.5px;color:var(--muted);line-height:1.5}",
+        ".rrp-pvctl{display:flex;gap:7px;padding:11px 16px;border-bottom:1px solid var(--line);flex-wrap:wrap;align-items:center}",
+        ".rrp-pvctl select{font:inherit;font-size:12px;font-weight:700;background:var(--panel-2);color:var(--ink);border:1px solid var(--line-2);border-radius:8px;padding:6px 9px}",
+        ".rrp-pvseg{display:inline-flex;background:var(--panel-2);border:1px solid var(--line-2);border-radius:9px;padding:2px}",
+        ".rrp-pvseg button{border:0;background:transparent;color:var(--muted);font:inherit;font-size:11.5px;font-weight:800;padding:5px 10px;border-radius:7px;cursor:pointer}",
+        ".rrp-pvseg button.on{background:var(--brand);color:var(--brand-ink)}",
+        ".rrp-pvbody{padding:15px 16px 17px;background:var(--panel-2)}",
+        ".rrp-msg{display:flex;gap:10px;align-items:flex-start}",
+        ".rrp-msgav{flex:0 0 auto;width:28px;height:28px;border-radius:7px;background:linear-gradient(135deg,var(--brand),var(--brand-d));color:var(--brand-ink);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800}",
+        ".rrp-msgb{min-width:0;flex:1}",
+        ".rrp-msgn{font-size:12px;font-weight:800;margin-bottom:3px}",
+        ".rrp-msgn span{font-size:9.5px;font-weight:700;color:var(--faint);margin-left:5px;text-transform:uppercase;letter-spacing:.04em}",
+        ".rrp-bub{background:var(--panel);border:1px solid var(--line);border-radius:4px 12px 12px 12px;padding:11px 13px;font-size:12.5px;line-height:1.6;color:var(--ink);white-space:pre-wrap;word-break:break-word}",
+        ".rrp-bub b{font-weight:800}",
+        ".rrp-bub a{color:var(--blue);text-decoration:none}",
+        ".rrp-bub .warn{color:var(--red);font-weight:800}",
+        ".rrp-pvfoot{padding:10px 16px 13px;font-size:11px;color:var(--faint);line-height:1.5;border-top:1px solid var(--line)}",
+        /* ---------- sticky save bar ---------- */
+        ".rrp-savebar{position:sticky;bottom:0;display:flex;align-items:center;gap:12px;justify-content:flex-end;padding:12px 14px;margin-top:14px;background:var(--panel);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);z-index:5}",
+        ".rrp-savebar.dirty{border-color:var(--brand)}",
+        ".rrp-save{border:0;background:var(--brand);color:var(--brand-ink);border-radius:10px;padding:10px 20px;font:inherit;font-size:13.5px;font-weight:800;cursor:pointer;transition:.12s}",
+        ".rrp-save:hover:not(:disabled){background:var(--brand-d)}",
         ".rrp-save:disabled{opacity:.55;cursor:default}",
-        ".rrp-savemsg{font-size:12.5px;color:var(--muted)}",
-        ".rrp-warnbanner{background:rgba(224,145,42,.12);border:1px solid rgba(224,145,42,.4);border-radius:12px;padding:12px 15px;font-size:12.5px;color:var(--ink);line-height:1.55;margin-bottom:16px}",
-        "@media(max-width:820px){.rrp-row{grid-template-columns:56px 70px 1fr 90px}.rrp-row .cust,.rrp-row .lnk{display:none}.rrp-loc{grid-template-columns:22px 1fr 30px}.rrp-loc input[type=text].url{grid-column:2/4}}"
+        ".rrp-savemsg{font-size:12.5px;color:var(--muted);margin-right:auto}",
+        ".rrp-savemsg.ok{color:var(--brand)}",
+        "body.rs-app.light .rrp-savemsg.ok{color:var(--brand-d)}",
+        ".rrp-savemsg.bad{color:var(--amber)}",
+        ".rrp-warnbanner{background:color-mix(in srgb,var(--amber) 12%,transparent);border:1px solid color-mix(in srgb,var(--amber) 40%,transparent);border-radius:12px;padding:12px 15px;font-size:12.5px;color:var(--ink);line-height:1.55;margin-bottom:16px}",
+        "@media(max-width:820px){.rrp-row{grid-template-columns:56px 70px 1fr 90px}.rrp-row .cust,.rrp-row .lnk{display:none}.rrp-loc{grid-template-columns:18px minmax(0,1fr) 28px}.rrp-loc input[type=text].url{grid-column:2/4}.rrp-plat{grid-template-columns:36px minmax(0,1fr) 28px}.rrp-plat .url{grid-column:2/4}}"
       ].join("\n");
       document.head.appendChild(st);
     }
@@ -497,15 +568,64 @@ registerPage({
       var pct = Math.min(100, Math.round(now / goal * 100));
       return '<span class="gp">· ' + N(now) + " / " + N(goal) + " goal (" + pct + "%)</span>";
     }
+    // ---- goal meter for a Google listing (same data as goalTag, shown as a real bar) ----
+    function goalMeter(name, state) {
+      var g = RRP.goals; if (!g) return "";
+      var nk = g.nk, now = g.now[nk(name)], goal = g.goal[nk(name)];
+      if (now == null) now = g.now[nk("google " + state)];
+      if (goal == null) goal = g.goal[nk("google " + state)];
+      if (now == null || goal == null || !goal) return "";
+      var pct = Math.min(100, Math.round(now / goal * 100));
+      return '<span class="rrp-goal" title="' + N(now) + ' of ' + N(goal) + ' review goal for this listing">'
+        + '<span class="rrp-goalbar"><i style="width:' + pct + '%"></i></span>'
+        + '<span class="rrp-goaltx">' + N(now) + " / " + N(goal) + " · " + pct + "%</span></span>";
+    }
+    // ---- live preview of the actual Slack message, built from the DRAFT being edited ----
+    // The wording mirrors combined_relay.gs (mid-job + the Yelp pre-start template). KEEP IN SYNC:
+    // if the relay's message text changes, change it here too — this is a preview, not the source.
+    function pvLinks(d, state) {
+      var locs = d.google.filter(function (g) { return g.state === state; });
+      var g = locs.filter(function (x) { return x.active && x.url; })[0] || locs.filter(function (x) { return x.url; })[0];
+      var out = [];
+      if (g) out.push({ n: "Google", u: g.url });
+      (d.platforms || []).forEach(function (p) { if (p.active && p.url) out.push({ n: p.name || "Platform", u: p.url }); });
+      return out;
+    }
+    function pvBodyHtml(d) {
+      var slack = function (s) { return esc(s).replace(/\*([^*]+)\*/g, "<b>$1</b>"); };
+      var st = RRP.pvState || (d.google[0] && d.google[0].state) || "NJ";
+      var links = pvLinks(d, st);
+      var block = links.length
+        ? links.map(function (l) { return esc(l.n) + ": " + '<a href="' + esc(l.u) + '" target="_blank" rel="noopener">' + esc(l.u) + "</a>"; }).join("\n")
+        : '<span class="warn">No link set for ' + esc(st) + " — the bot would send an empty list.</span>";
+      var txt = RRP.pvYelp
+        ? slack("Hi Bacho 👋, your next job with *Katie Darcy* starts in 1 hour. This is a *Yelp customer*: ⚠️ please do *NOT* send them a Yelp review link. Instead, ask them verbally on-site for a review once the job is done, and send them these links:") + "\n" + block
+        : slack("Hi Bacho 👋, your job with *Katie Darcy* wraps up soon. Once it’s done well, please send them our review links:") + "\n" + block;
+      return '<div class="rrp-msg"><div class="rrp-msgav">Z</div><div class="rrp-msgb">'
+        + '<div class="rrp-msgn">Review Bot<span>' + (RRP.pvYelp ? "pre-start · 1h before" : "mid-job") + "</span></div>"
+        + '<div class="rrp-bub">' + txt + "</div></div></div>";
+    }
+    function refreshPv() {
+      var el = document.getElementById("rrpPvBody");
+      if (el) el.innerHTML = pvBodyHtml(RRP.draft);
+      var sb = document.getElementById("rrpSaveBar");
+      if (sb) {
+        var dty = JSON.stringify(RRP.draft) !== RRP.draftBase;
+        sb.classList.toggle("dirty", dty);
+        var m = sb.querySelector(".rrp-savemsg");
+        if (m && !RRP.saving && !RRP.saved) { m.className = "rrp-savemsg"; m.textContent = dty ? "Unsaved changes" : ""; }
+      }
+    }
     function viewLinks() {
       if (!RRP.draft) {
         var src = (RRP.data && RRP.data.config && RRP.data.config.google && RRP.data.config.google.length) ? RRP.data.config : RRP_SEED;
         RRP.draft = JSON.parse(JSON.stringify(src));
+        RRP.draftBase = JSON.stringify(RRP.draft);   // dirty-state baseline
       }
       var d = RRP.draft;
       if (!d.reasons) d.reasons = (RRP.data && RRP.data.config && RRP.data.config.reasons) ? RRP.data.config.reasons.slice() : RRP_SEED.reasons.slice();
-      var note = '<div class="rrp-note"><b>Settings for the review-reminder bot.</b> Set which Google link goes out per delivery state, which extra platforms ride along, and the “why no review?” reasons foremen can pick. <b>Save</b> and the bot uses everything on its very next reminder — no redeploy.</div>';
-      if (RRP.cfgSource === "seed") note += '<div class="rrp-warnbanner">Showing the default catalog — the live config couldn’t be read from the relay yet. You can edit and preview here; <b>Saving needs the relay published</b> (Apps Script ▸ Deploy ▸ New version).</div>';
+      var note = "";
+      if (RRP.cfgSource === "seed") note = '<div class="rrp-warnbanner">Showing the default catalog — the live config couldn’t be read from the relay yet. You can edit and preview here; <b>Saving needs the relay published</b> (Apps Script ▸ Deploy ▸ New version).</div>';
       // group google by state (in first-seen order)
       var states = [], byState = {};
       d.google.forEach(function (g) { if (!byState[g.state]) { byState[g.state] = []; states.push(g.state); } byState[g.state].push(g); });
@@ -513,44 +633,60 @@ registerPage({
         var locs = byState[s2];
         var rows = locs.map(function (g) {
           var gi = d.google.indexOf(g);
-          return '<div class="rrp-loc">'
-            + '<input type="radio" name="act-' + esc(s2) + '" data-act="' + gi + '"' + (g.active ? " checked" : "") + ' title="Send this one for ' + esc(s2) + '">'
-            + '<input type="text" class="nm" data-nm="' + gi + '" value="' + esc(g.name) + '" placeholder="Location name">'
+          return '<div class="rrp-loc' + (g.active ? " on" : "") + '">'
+            + '<input type="radio" name="act-' + esc(s2) + '" data-act="' + gi + '"' + (g.active ? " checked" : "") + ' title="Send this listing for ' + esc(s2) + '">'
+            + '<input type="text" class="nm" data-nm="' + gi + '" value="' + esc(g.name) + '" placeholder="Listing name">'
             + '<input type="text" class="url" data-url="' + gi + '" value="' + esc(g.url) + '" placeholder="https://…">'
-            + '<button class="del" data-del="' + gi + '" title="Remove">✕</button>'
+            + '<button class="del" data-del="' + gi + '" title="Remove this listing">✕</button>'
             + "</div>";
         }).join("");
         var activeLoc = locs.filter(function (g) { return g.active; })[0] || locs[0];
-        return '<div class="rrp-state"><h4>' + esc(s2) + " " + (activeLoc ? goalTag(activeLoc.name, s2) : "") + "</h4>" + rows
-          + '<button class="rrp-addloc" data-addstate="' + esc(s2) + '">+ Add a location for ' + esc(s2) + "</button></div>";
+        return '<div class="rrp-st"><div class="rrp-sth"><span class="rrp-stchip">' + esc(s2) + "</span>"
+          + (activeLoc ? goalMeter(activeLoc.name, s2) : "") + "</div>" + rows
+          + '<button class="rrp-addloc" data-addstate="' + esc(s2) + '">+ Add a listing for ' + esc(s2) + "</button></div>";
       }).join("");
-      var platHtml = '<div class="rrp-state"><h4>Other platforms (added to every message)</h4>'
-        + '<div class="rrp-platnote">Tick a platform to include its link; untick to leave it out. Add a new one (e.g. Thumbtack) with the button below.</div>'
-        + '<div class="rrp-plats">'
+      var sec1 = '<div class="rrp-sec"><div class="rrp-sech"><span class="rrp-secn">1</span><div class="rrp-sect">'
+        + "<h4>Google link by state</h4><p>Each delivery state sends one Google listing — the highlighted row. The bar shows that listing’s reviews against its goal.</p>"
+        + '</div></div><div class="rrp-secb">' + stateHtml + "</div></div>";
+      var sec2 = '<div class="rrp-sec"><div class="rrp-sech"><span class="rrp-secn">2</span><div class="rrp-sect">'
+        + "<h4>Extra platforms</h4><p>These ride along in every message, under the Google link. Toggle one off to drop it.</p>"
+        + '</div></div><div class="rrp-secb"><div class="rrp-plats">'
         + d.platforms.map(function (p, i) {
-          return '<div class="rrp-plat"><input type="checkbox" data-pon="' + i + '"' + (p.active ? " checked" : "") + ' title="Include this platform">'
+          return '<div class="rrp-plat"><label class="rrp-sw"><input type="checkbox" data-pon="' + i + '"' + (p.active ? " checked" : "") + ' title="Include this platform"><i></i></label>'
             + '<input type="text" data-pnm="' + i + '" value="' + esc(p.name) + '" placeholder="Platform name">'
-            + '<input type="text" data-purl="' + i + '" value="' + esc(p.url) + '" placeholder="https://…">'
+            + '<input type="text" class="url" data-purl="' + i + '" value="' + esc(p.url) + '" placeholder="https://…">'
             + '<button class="del" data-pdel="' + i + '" title="Remove platform">✕</button></div>';
         }).join("") + "</div>"
-        + '<button class="rrp-addloc" data-addplat="1">+ Add a platform</button></div>';
-      // ---- reason list foremen pick from on the "why no review?" form ----
-      var reasonHtml = '<div class="rrp-state"><h4>“Why no review?” reasons</h4>'
-        + '<div class="rrp-platnote">These are the buttons a foreman sees when a review wasn’t left. <b>Other</b> is always included — with it, whatever they type in the note is captured even if nothing fits.</div>'
-        + '<div class="rrp-plats">'
+        + '<button class="rrp-addloc" data-addplat="1">+ Add a platform</button></div></div>';
+      var sec3 = '<div class="rrp-sec"><div class="rrp-sech"><span class="rrp-secn">3</span><div class="rrp-sect">'
+        + "<h4>“Why no review?” reasons</h4><p>The buttons a foreman sees when a review wasn’t left. <b>Other</b> always stays — it captures anything the list doesn’t cover.</p>"
+        + '</div></div><div class="rrp-secb"><div class="rrp-plats">'
         + d.reasons.map(function (rz, i) {
           var isOther = String(rz).trim().toLowerCase() === "other";
           return '<div class="rrp-reason"><input type="text" data-rzn="' + i + '" value="' + esc(rz) + '"' + (isOther ? " readonly title=\"Other is always kept\"" : "") + ' placeholder="Reason foremen can pick">'
             + (isOther ? '<span class="rrp-lockpill">always on</span>' : '<button class="del" data-rzdel="' + i + '" title="Remove reason">✕</button>') + "</div>";
         }).join("") + "</div>"
-        + '<button class="rrp-addloc" data-addrzn="1">+ Add a reason</button></div>';
+        + '<button class="rrp-addloc" data-addrzn="1">+ Add a reason</button></div></div>';
+      var dirty = JSON.stringify(d) !== RRP.draftBase;
       var savemsg = RRP.saving ? "Saving…"
         : RRP.saved === 1 ? "Saved ✓ — confirmed on the sheet. The bot uses it on its next reminder."
         : RRP.saved === 2 ? "⚠ Saved, but read-back didn’t match — open the “Review Link Config” sheet to check."
         : RRP.saved === 3 ? "Sent — but the relay isn’t published yet, so I can’t confirm it landed. Redeploy the Apps Script, then Save again."
-        : "";
-      var savebar = '<div class="rrp-savebar"><span class="rrp-savemsg">' + esc(savemsg) + '</span><button class="rrp-save" id="rrpSave"' + (RRP.saving ? " disabled" : "") + ">Save settings</button></div>";
-      return note + stateHtml + platHtml + reasonHtml + savebar;
+        : dirty ? "Unsaved changes" : "";
+      var msgCls = RRP.saved === 1 ? "rrp-savemsg ok" : (RRP.saved === 2 || RRP.saved === 3) ? "rrp-savemsg bad" : "rrp-savemsg";
+      var savebar = '<div class="rrp-savebar' + (dirty ? " dirty" : "") + '" id="rrpSaveBar"><span class="' + msgCls + '">' + esc(savemsg) + '</span>'
+        + '<button class="rrp-save" id="rrpSave"' + (RRP.saving ? " disabled" : "") + ">Save settings</button></div>";
+      // preview column
+      var pvState = RRP.pvState || (d.google[0] && d.google[0].state) || "NJ";
+      var pv = '<aside class="rrp-pv"><div class="rrp-pvh"><h4>What the foreman gets <em>preview</em></h4>'
+        + "<p>Built from your edits above — it updates as you type.</p></div>"
+        + '<div class="rrp-pvctl"><select data-pvstate>' + states.map(function (s2) {
+            return '<option value="' + esc(s2) + '"' + (s2 === pvState ? " selected" : "") + ">" + esc(s2) + " delivery</option>"; }).join("") + "</select>"
+        + '<span class="rrp-pvseg"><button data-pvmode="reg"' + (RRP.pvYelp ? "" : ' class="on"') + ">Regular</button>"
+        + '<button data-pvmode="yelp"' + (RRP.pvYelp ? ' class="on"' : "") + ">Yelp</button></span></div>"
+        + '<div class="rrp-pvbody" id="rrpPvBody">' + pvBodyHtml(d) + "</div>"
+        + '<div class="rrp-pvfoot">Yelp customers never get a Yelp link — the bot warns the foreman an hour before the job and asks them to request the review verbally.</div></aside>';
+      return note + '<div class="rrp-set"><div>' + sec1 + sec2 + sec3 + savebar + "</div>" + pv + "</div>";
     }
 
     // ---------- paint + wire ----------
@@ -629,6 +765,22 @@ registerPage({
         if (oi >= 0) d.reasons.splice(oi, 0, ""); else d.reasons.push("");   // keep Other last
         RRP.saved = 0; paint();
       };
+      // ---- live preview controls ----
+      var pvSel = root.querySelector("[data-pvstate]");
+      if (pvSel) pvSel.onchange = function () { RRP.pvState = pvSel.value; refreshPv(); };
+      Array.prototype.forEach.call(root.querySelectorAll("[data-pvmode]"), function (el) {
+        el.onclick = function () {
+          RRP.pvYelp = el.getAttribute("data-pvmode") === "yelp";
+          Array.prototype.forEach.call(root.querySelectorAll("[data-pvmode]"), function (b) {
+            b.classList.toggle("on", (b.getAttribute("data-pvmode") === "yelp") === !!RRP.pvYelp);
+          });
+          refreshPv();
+        };
+      });
+      // Typing a name/URL must update the preview WITHOUT a repaint (a repaint would steal focus).
+      // Delegated, so it fires after the per-input oninput handlers above have written to the draft.
+      var setRoot = root.querySelector(".rrp-set");
+      if (setRoot) setRoot.addEventListener("input", function () { refreshPv(); });
       var sv = root.querySelector("#rrpSave");
       if (sv) sv.onclick = function () {
         // basic guard: every state needs exactly one active link
@@ -652,7 +804,10 @@ registerPage({
         setTimeout(function () {
           relayRead().then(function (live) {
             RRP.saving = false;
-            if (live && live.config && activeSig(live.config) === want) { RRP.saved = 1; RRP.data = live; }
+            if (live && live.config && activeSig(live.config) === want) {
+              RRP.saved = 1; RRP.data = live;
+              RRP.draftBase = JSON.stringify(RRP.draft);   // saved → the draft IS the baseline again
+            }
             else { RRP.saved = 2; }
             paint();
           }).catch(function () { RRP.saving = false; RRP.saved = 3; paint(); });
