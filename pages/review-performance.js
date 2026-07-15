@@ -414,17 +414,24 @@ registerPage({
       return ac.slice(start, start + win());
     }
 
-    // ---- explain-reason action (posts to the SAME relay as the Slack form) ----
-    function submitExplain(r, reason, note) {
+    // ---- explain-reason action ----
+    // Was a fire-and-forget `mode:"no-cors"` POST straight to script.google.com with no await and
+    // no catch, followed by an UNCONDITIONAL "✓ Saved" — so a failed write looked identical to a
+    // successful one and the explanation was silently lost. Worse, that direct-to-Google path is
+    // exactly the one that is broken for some users' browsers (see reminders.js relayRead).
+    // Now: POST through the bridge proxy (same origin as every other portal call, real status
+    // codes), await it, and only claim success when the bridge says so.
+    async function submitExplain(r, reason, note) {
       var who = "portal";
       try { who = (window.ZTZ && ZTZ.email && ZTZ.email()) || "portal"; } catch (e) {}
-      try {
-        fetch(RP_RELAY, { method: "POST", mode: "no-cors", headers: { "Content-Type": "text/plain;charset=utf-8" },
-          body: JSON.stringify({ kind: "reviewReason", jobCode: String(r["Job No"] || ""),
-            foreman: String(r["Foreman"] || ""), date: String(r["Job Date"] || "").slice(0, 10),
-            reason: reason, note: (note ? note + " — " : "") + "via portal (" + who + ")" }) });
-      } catch (e) {}
-      // optimistic local update — the warehouse ingests the sheet within ~6h
+      var body = JSON.stringify({ kind: "reviewReason", jobCode: String(r["Job No"] || ""),
+        foreman: String(r["Foreman"] || ""), date: String(r["Job Date"] || "").slice(0, 10),
+        reason: reason, note: (note ? note + " — " : "") + "via portal (" + who + ")" });
+      var res = await fetch(ZTZ.API + "/api/_rrp", { method: "POST",
+        headers: { "Content-Type": "text/plain;charset=utf-8", "Authorization": "Bearer " + ZTZ.getToken() },
+        body: body });
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      // only NOW is the optimistic local update honest (the warehouse ingests the sheet within ~6h)
       r["Foreman Response Received"] = "Yes";
       r["Foreman Reason"] = reason;
       r["Foreman Explanation"] = reason + (note ? " — " + note : "");
@@ -446,9 +453,20 @@ registerPage({
         f.querySelector("[data-exno]").onclick = () => { f.remove(); b.style.display = ""; };
         f.querySelector("[data-exgo]").onclick = () => {
           var r = jobs[+i];
-          submitExplain(r, f.querySelector("[data-exr]").value, f.querySelector("[data-exn]").value.trim());
-          f.outerHTML = `<span class="rp-ok">✓ Saved — shows here now, syncs to the warehouse within ~6h</span>`;
-          if (onSaved) onSaved();
+          var go = f.querySelector("[data-exgo]");
+          go.disabled = true; go.textContent = "Saving…";
+          submitExplain(r, f.querySelector("[data-exr]").value, f.querySelector("[data-exn]").value.trim())
+            .then(() => {
+              f.outerHTML = `<span class="rp-ok">✓ Saved — shows here now, syncs to the warehouse within ~6h</span>`;
+              if (onSaved) onSaved();
+            })
+            .catch(e => {
+              // never claim a save we didn't get — leave the form up so the reason isn't lost
+              go.disabled = false; go.textContent = "Save reason";
+              var w = f.querySelector(".rp-exerr") || f.insertAdjacentElement("beforeend", Object.assign(document.createElement("div"), { className: "rp-exerr" }));
+              w.textContent = "Couldn't save (" + (e && e.message || e) + ") — nothing was recorded. Try again.";
+              w.style.cssText = "color:#b91c1c;font-size:11.5px;font-weight:700;margin-top:6px";
+            });
         };
       });
     }
