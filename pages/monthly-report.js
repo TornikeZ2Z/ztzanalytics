@@ -1826,10 +1826,36 @@ async function renderMonthly(host, MRCFG) {
           note(gc, `Goals are end-of-period targets: by ${MON[endM]} ${endY} the total public reviews on each platform must reach the Goal column. "Reviews now" is the latest footprint snapshot (fct_review_counts); progress = now ÷ goal.`, "how");
         }
       }
-      rankBars(g, "Reviews by source", segReduce("reviews_breakdown", "Source", rs => rs.reduce((a, r) => a + num(r["Number of Reviews"]), 0), curY, mo), fmtN, { top: 8 });
-      // public review footprint by platform (fct_review_counts — served, never rendered before)
-      const revByPlat = segReduce("review_counts", "Platform", rs => rs.reduce((a, r) => a + num(r["Number of Reviews"]), 0), curY, mo).filter(r => r.v > 0 && r.k !== "—");
-      if (revByPlat.length) rankBars(g, "Public review footprint by platform", revByPlat, fmtN, { top: 12, span2: true, sub: monLbl, noteKind: "how", note: "Total public reviews on file per platform — the reputation that drives lead flow." });
+      // #6 (Tornike 2026-07-15): ONE chart combining "Reviews by source" + "Footprint by platform" —
+      // per listing, TOTAL public reviews on file with THIS MONTH's additions highlighted. Reconciles
+      // Source (reviews_breakdown) ↔ Platform (review_counts) by case-folded name; "Google NJ" was renamed
+      // to "Google Shafto" (his call 2026-07-15) so it's aliased. Tuji sources have no Zip footprint → drop out.
+      const nk6 = s => String(s == null ? "" : s).toLowerCase().replace(/[^a-z0-9]/g, "");
+      const ALIAS6 = { googlenj: "googleshafto" };
+      const rk6 = s => { const k = nk6(s); return ALIAS6[k] || k; };
+      const rc6 = (DS.review_counts || []).filter(coRow);
+      const snaps6 = [...new Set(rc6.map(r => String(r.Date || "").slice(0, 10)))].filter(d => /^\d{4}-\d{2}-\d{2}$/.test(d) && d <= monthEndKey).sort();
+      const snap6 = snaps6[snaps6.length - 1];
+      const foot6 = {}, footLbl6 = {};
+      if (snap6) rc6.filter(r => String(r.Date || "").slice(0, 10) === snap6).forEach(r => { const k = rk6(r.Platform); const n = num(r["Number of Reviews"]); foot6[k] = (foot6[k] || 0) + n; if (!footLbl6[k]) footLbl6[k] = String(r.Platform || "—"); });
+      const add6 = {};
+      segReduce("reviews_breakdown", "Source", rs => rs.reduce((a, r) => a + num(r["Number of Reviews"]), 0), curY, mo).forEach(s => { add6[rk6(s.k)] = (add6[rk6(s.k)] || 0) + s.v; });
+      const rows6 = Object.keys(foot6).filter(k => foot6[k] > 0).map(k => ({ k: footLbl6[k], total: foot6[k], added: Math.min(add6[k] || 0, foot6[k]) })).sort((a, b) => b.total - a.total).slice(0, 14);
+      if (rows6.length) {
+        const addTot6 = rows6.reduce((a, r) => a + r.added, 0), footTot6 = rows6.reduce((a, r) => a + r.total, 0);
+        const cc6 = chartCard(g, "Public review footprint — total on file + added this month", `${monLbl} · ${fmtN(footTot6)} on file, +${fmtN(addTot6)} in ${MON[mo]}`, { span2: true, icon: KIC.star, headVal: fmtN(footTot6) });
+        cc6.box.style.height = Math.max(220, 52 + rows6.length * 31) + "px";
+        new Chart(cc6.cv, { type: "bar", data: { labels: rows6.map(r => r.k), datasets: [
+          { label: "On file", data: rows6.map(r => r.total - r.added), backgroundColor: CTX, borderRadius: 2, stack: "f" },
+          { label: "Added " + MON[mo], data: rows6.map(r => r.added), backgroundColor: LIME, borderRadius: 2, stack: "f" }
+        ] },
+          options: baseOpts({ indexAxis: "y", layout: { padding: { right: 104 } },
+            plugins: { legend: { display: true, position: "top", align: "end", labels: { color: SUB, font: { size: 12.5, weight: "600" }, boxWidth: 9, usePointStyle: true } },
+              tooltip: { callbacks: { label: x => x.dataset.label + ": " + fmtN(x.parsed.x) } } },
+            scales: { x: { stacked: true, display: false, beginAtZero: true, max: rows6[0].total * 1.04 }, y: { stacked: true, ticks: { color: INK2, font: { size: 13, weight: "600" } }, grid: { display: false }, border: { display: false } } } }),
+          plugins: [crosshair, { id: "ftlab", afterDatasetsDraw(ch) { const ctx = ch.ctx; ctx.save(); ctx.textBaseline = "middle"; ch.getDatasetMeta(1).data.forEach((el, i) => { const r = rows6[i]; ctx.textAlign = "left"; ctx.font = "800 11.5px " + MONO; ctx.fillStyle = INK; ctx.fillText(fmtN(r.total), el.x + 6, el.y); if (r.added > 0) { const w = ctx.measureText(fmtN(r.total)).width; ctx.font = "800 10.5px " + MONO; ctx.fillStyle = LIMED; ctx.fillText("+" + fmtN(r.added), el.x + 6 + w + 6, el.y); } }); ctx.restore(); } }] });
+        note(cc6, `Each bar is total public reviews on file for that listing (${fmtN(footTot6)} across the top ${rows6.length}); the lime tip is what was added in ${MON[mo]} (+${fmtN(addTot6)}, from reviews written this month by source, matched to the footprint listing). This footprint is the reputation that drives lead flow.`, "how");
+      }
     }
 
     /* ---- 14 · Claims ---- */
