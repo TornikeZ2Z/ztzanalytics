@@ -1614,7 +1614,7 @@ async function renderMonthly(host, MRCFG) {
       const lyM = r => mbMapLY[normName(r.k)] || {}, cyM = r => mbMap[normName(r.k)] || {};
       groupedBars(g, "Qualified leads by salesperson — YoY", topReps.map(r => r.k), topReps.map(r => lyM(r).q || 0), String(curY - 1), topReps.map(r => cyM(r).q || 0), String(curY), fmtN, { sub: MON[mo] });
       groupedBars(g, "Confirmed jobs by salesperson — YoY", topReps.map(r => r.k), topReps.map(r => lyM(r).c || 0), String(curY - 1), topReps.map(r => cyM(r).c || 0), String(curY), fmtN, { sub: MON[mo] });
-      groupedBars(g, "Booking rate by salesperson — YoY", topReps.map(r => r.k), topReps.map(r => lyM(r).book || 0), String(curY - 1), topReps.map(r => cyM(r).book || 0), String(curY), pct, { sub: MON[mo] + " · jobs booked ÷ qualified" });
+      groupedBars(g, "Booking rate by salesperson — YoY", topReps.map(r => r.k), topReps.map(r => lyM(r).book || 0), String(curY - 1), topReps.map(r => cyM(r).book || 0), String(curY), pct, { sub: MON[mo] + " · jobs booked ÷ qualified", headVal: bk == null ? "—" : pct(bk) + " team avg" });
       // C27: the filter is the Moveboard "Big Job" flag — the title must not claim a CF threshold
       if (bigMb.length) groupedBars(g, "Large moves (Big Job flag) — Qualified vs Confirmed", bigMb.map(r => r.k), bigMb.map(r => r.q), "Qualified", bigMb.map(r => r.c), "Confirmed", fmtN, { sub: monLbl });
       const bigBook = bigMb.filter(r => r.book != null).map(r => ({ k: r.k, v: r.book }));
