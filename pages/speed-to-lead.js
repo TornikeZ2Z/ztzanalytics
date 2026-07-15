@@ -195,9 +195,14 @@ registerPage({
         var cl = rs.filter(r => num(r["Called"]) === 1);
         var tm = cl.filter(r => num(r["TTO Biz Min"]) != null).map(r => num(r["TTO Biz Min"]));
         var w1 = cl.filter(r => num(r["TTO Biz Min"]) != null && num(r["TTO Biz Min"]) <= 60).length;
-        return { k, n: rs.length, cp: rs.length ? cl.length / rs.length : 0, med: median(tm),
+        // Tornike 2026-07-15: "if the qualified lead count is below 10 - lets hide it." The old guard was
+        // `x.n >= 10` where n = rs.length = ALL leads INCLUDING bad ones — it LOOKED like this rule but a
+        // rep with 12 leads of which 9 are bad passed on 3 qualified. Threshold on QUALIFIED (leads minus
+        // bad leads), the same population every other booking rate in the portal divides by.
+        var qual = rs.filter(r => String(r["Status Category"]) !== "Bad Lead").length;
+        return { k, n: rs.length, qual: qual, cp: rs.length ? cl.length / rs.length : 0, med: median(tm),
           w1: rs.length ? w1 / rs.length : 0, bk: rs.length ? rs.filter(booked).length / rs.length : 0 };
-      }).filter(x => x.n >= 10).sort((a, b) => b.n - a.n).slice(0, 14);
+      }).filter(x => x.qual >= 10).sort((a, b) => b.qual - a.qual).slice(0, 14);
       var asgHtml = asgRows.map(x => `<tr><td>${esc(x.k)}</td><td class="r">${N(x.n)}</td>
         <td class="r">${Math.round(x.cp * 100)}%</td><td class="r"><b>${fmtMin(x.med)}</b></td>
         <td class="r">${Math.round(x.w1 * 100)}%</td><td class="r">${Math.round(x.bk * 1000) / 10}%</td></tr>`).join("");
@@ -270,7 +275,7 @@ registerPage({
           <div class="sl-panel"><h3>When do leads come in?</h3><div class="sub">lead creation by hour × day (NY time) — staff where it's dark</div>${heatHtml}</div>
         </div>
         <div class="sl-grid">
-          <div class="sl-panel"><h3>By assigned rep</h3><div class="sub">the rep who OWNS the lead (min 10 leads)</div>
+          <div class="sl-panel"><h3>By assigned rep</h3><div class="sub">the rep who OWNS the lead (min 10 qualified leads)</div>
             <div style="overflow-x:auto"><table class="sl-tbl"><thead><tr><th>Rep</th><th class="r">Leads</th><th class="r">Called</th><th class="r">Median</th><th class="r">≤1 hr</th><th class="r">Booked</th></tr></thead><tbody>${asgHtml}</tbody></table></div></div>
           <div class="sl-panel"><h3>Who actually dials first</h3><div class="sub">the extension that made the FIRST call (min 10 first-calls) — ours only, her file couldn't see this</div>
             <div style="overflow-x:auto"><table class="sl-tbl"><thead><tr><th>Dialer</th><th class="r">First calls</th><th class="r">Median</th><th class="r">≤5 min</th></tr></thead><tbody>${extHtml}</tbody></table></div></div>

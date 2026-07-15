@@ -300,6 +300,16 @@ async function renderMonthly(host, MRCFG) {
        keep it in the Total, disclose it in the note. */
     const BLANK_KEYS = new Set(["—", "(blank)", "", "null", "undefined"]);
     const isBlankKey = k => k == null || BLANK_KEYS.has(String(k).trim());
+    /* ---------- minimum lead base for a per-rep booking RATE (Tornike 2026-07-15) ----------
+       "if there is no qualified lead for sales person, or if the qualified lead count is below 10 -
+       lets hide it." A rate on a handful of leads is noise, not performance: 1 qualified + 1 booking
+       reads as 100%, and RS.bookingRate returns 1 (not null) when qualified is 0 but something booked,
+       so a zero-lead account can render at 100% unless we guard on the COUNT.
+       Must be measured on QUALIFIED leads (all leads MINUS bad leads) — NOT rows.length. June 2026
+       proof: "TEST TEST" has 7 leads but 0 qualified, so it clears a rows.length>=5 guard and only the
+       top-12 slice was hiding it; "Mary Della Russo" has 22 leads but 9 qualified. Both must go. */
+    const MIN_QUAL = 10;
+    const qualOf = rows => rows.filter(x => String(x["Status Category"]) !== "Bad Lead").length;
     // 12-month booking-rate trend (optionally pre-filtered) — canonical dual basis per month
     function bookRateTrend(pre, n) {
       const out = []; let y = curY, m = mo;
@@ -1525,9 +1535,9 @@ async function renderMonthly(host, MRCFG) {
       // slice(0,12) so a real 13th rep takes the freed slot.
       const spBook = segReduce("moveboard", "Assigned", rs => rs, curY, mo)
         .filter(r => !isBlankKey(r.k))
-        .map(r => ({ k: r.k, rows: r.rows, v: RS.bookingRate(r.rows, bookedByAssign[r.k] || []) }))
-        .filter(r => r.v != null && r.rows.length >= 5).sort((a, b) => b.rows.length - a.rows.length).slice(0, 12);
-      bullet(g, "Booking rate by salesperson", monLbl + " · vs team average", spBook, pct, bk || 0, { noteKind: "how", note: `The 12 reps handling the most leads, ordered by volume. Bars below the lime line are converting under the team average (${pct(bk)}) — coaching targets. Booking rate = jobs booked this month (by booked date) ÷ qualified leads created. Reps who book jobs WITHOUT Moveboard-assigned leads (e.g. Peter Montanaro) have no lead base, so no rate can be computed — they appear in the revenue tables instead.` });
+        .map(r => ({ k: r.k, rows: r.rows, qual: qualOf(r.rows), v: RS.bookingRate(r.rows, bookedByAssign[r.k] || []) }))
+        .filter(r => r.v != null && r.qual >= MIN_QUAL).sort((a, b) => b.qual - a.qual).slice(0, 12);
+      bullet(g, "Booking rate by salesperson", monLbl + " · vs team average", spBook, pct, bk || 0, { noteKind: "how", note: `Reps with at least ${MIN_QUAL} qualified leads this month, ordered by volume (max 12). Bars below the lime line are converting under the team average (${pct(bk)}) — coaching targets. Booking rate = jobs booked this month (by booked date) ÷ qualified leads created (qualified = leads minus bad leads). A rep below ${MIN_QUAL} qualified leads is hidden rather than shown at a rate their lead base can't support — one lead and one booking would read as 100%. Reps who book jobs WITHOUT Moveboard-assigned leads (e.g. Peter Montanaro) have no lead base at all, so no rate exists for them — they appear in the revenue tables instead.` });
       // ("Leads lost to capacity" estimate REMOVED from every report — Tornike 2026-07-13)
     }
 
@@ -1633,12 +1643,13 @@ async function renderMonthly(host, MRCFG) {
       const rowsH = reps.map(r => `<tr><td>${esc(r.k)}</td>
         <td class="bar"><i style="width:${(r.rev / rmax * 100).toFixed(1)}%"></i><span>${money(r.rev)}</span></td>
         ${td(money(r.op))}${td(r.ref ? money(r.ref) : "—", r.ref ? "color:#b02a37;font-weight:800" : "")}${td(r.ref && r.rev ? pct(r.ref / r.rev) : "—", r.ref && r.rev && r.ref / r.rev > 0.02 ? "color:#b02a37;font-weight:800" : "")}${td(fmtN(r.m.q || 0))}${td(fmtN(r.m.c || 0))}
-        ${td(r.m.book == null ? "—" : pct(r.m.book), r.m.book == null ? "" : `color:${r.m.book >= (bk || 0) ? "#1c7a4a" : "#b02a37"};font-weight:800`)}
-        ${td(r.m.dead == null ? "—" : pct(r.m.dead), r.m.dead == null ? "" : `color:${r.m.dead > .3 ? "#b02a37" : "#1c7a4a"};font-weight:800`)}</tr>`).join("");
-      tableCard(g, "Salesperson scorecard", monLbl + " · top " + reps.length + " reps by revenue", `<table class="mrx-tbl"><thead><tr><th>Sales Person</th><th>Revenue</th><th>Gross Profit</th><th>Refunds</th><th>Refund %</th><th>Qualified</th><th>Confirmed</th><th>Booking %</th><th>Bad-lead %</th></tr></thead><tbody>${rowsH}</tbody></table>`, { icon: KIC.grid, headVal: money(reps.reduce((a, r) => a + r.rev, 0)), noteKind: "how", note: `Bars = revenue share. Refunds / Refund % = money refunded on the rep's jobs as a share of their revenue (red above 2%). Booking % = jobs booked this month (by booked date) ÷ qualified leads created (qualified = all leads minus bad leads); green above the team average (${pct(bk)}). Bad-lead % red when high. Gross Profit is before refunds. Lead columns come from Moveboard assignment, revenue and refunds from closing sheets — names are matched after trimming spaces and ignoring case.` });
+        ${(() => { const thin = r.m.book == null || (r.m.q || 0) < MIN_QUAL;   // <10 qualified → no rate, per Tornike's floor
+          return td(thin ? "—" : pct(r.m.book), thin ? "color:" + FAINT : `color:${r.m.book >= (bk || 0) ? POS : NEG};font-weight:800`); })()}
+        ${td(r.m.dead == null ? "—" : pct(r.m.dead), r.m.dead == null ? "" : `color:${r.m.dead > .3 ? NEG : POS};font-weight:800`)}</tr>`).join("");
+      tableCard(g, "Salesperson scorecard", monLbl + " · top " + reps.length + " reps by revenue", `<table class="mrx-tbl"><thead><tr><th>Sales Person</th><th>Revenue</th><th>Gross Profit</th><th>Refunds</th><th>Refund %</th><th>Qualified</th><th>Confirmed</th><th>Booking %</th><th>Bad-lead %</th></tr></thead><tbody>${rowsH}</tbody></table>`, { icon: KIC.grid, headVal: money(reps.reduce((a, r) => a + r.rev, 0)), noteKind: "how", note: `Bars = revenue share. Refunds / Refund % = money refunded on the rep's jobs as a share of their revenue (red above 2%). Booking % = jobs booked this month (by booked date) ÷ qualified leads created (qualified = all leads minus bad leads); green above the team average (${pct(bk)}). It shows "—" for any rep with fewer than ${MIN_QUAL} qualified leads — the rate would be noise at that volume — but the rep keeps their row, because their revenue is real either way. Bad-lead % red when high. Gross Profit is before refunds. Lead columns come from Moveboard assignment, revenue and refunds from closing sheets — names are matched after trimming spaces and ignoring case.` });
       const bigPre = { pre: r => String(r["Big Job Status"]) === "Yes" };  // clean flag, not a CF-range regex
       const bigBooked = groupByCol(bookedRowsFor(curY, mo, bigPre.pre), "Assigned");
-      const bigMb = segReduce("moveboard", "Assigned", rs => rs, curY, mo, bigPre).map(r => { const q = r.rows.filter(x => x["Status Category"] !== "Bad Lead").length, c = (bigBooked[r.k] || []).filter(x => x["Status Category"] === "Confirmed").length; return { k: r.k, q, c, book: RS.bookingRate(r.rows, bigBooked[r.k] || []) }; }).filter(r => r.q >= 2).sort((a, b) => b.q - a.q).slice(0, 10);
+      const bigMb = segReduce("moveboard", "Assigned", rs => rs, curY, mo, bigPre).map(r => { const q = r.rows.filter(x => x["Status Category"] !== "Bad Lead").length, c = (bigBooked[r.k] || []).filter(x => x["Status Category"] === "Confirmed").length; return { k: r.k, q, c, book: RS.bookingRate(r.rows, bigBooked[r.k] || []) }; }).filter(r => !isBlankKey(r.k) && r.q >= MIN_QUAL).sort((a, b) => b.q - a.q).slice(0, 10);
       const revSPly = {}; segSeries("closing", "Revenue", "Sales Person", curY - 1, mo).forEach(r => revSPly[r.k] = r.v);
       const opSPly = {}; segSeries("closing", "Operational Profit by Formula", "Sales Person", curY - 1, mo).forEach(r => opSPly[r.k] = r.v);
       // top 14 (was 10): with ~13 active reps the old cut silently hid the newest hires
@@ -1652,7 +1663,12 @@ async function renderMonthly(host, MRCFG) {
       const lyM = r => mbMapLY[normName(r.k)] || {}, cyM = r => mbMap[normName(r.k)] || {};
       groupedBars(g, "Qualified leads by salesperson — YoY", topReps.map(r => r.k), topReps.map(r => lyM(r).q || 0), String(curY - 1), topReps.map(r => cyM(r).q || 0), String(curY), fmtN, { sub: MON[mo] });
       groupedBars(g, "Confirmed jobs by salesperson — YoY", topReps.map(r => r.k), topReps.map(r => lyM(r).c || 0), String(curY - 1), topReps.map(r => cyM(r).c || 0), String(curY), fmtN, { sub: MON[mo] });
-      groupedBars(g, "Booking rate by salesperson — YoY", topReps.map(r => r.k), topReps.map(r => lyM(r).book || 0), String(curY - 1), topReps.map(r => cyM(r).book || 0), String(curY), pct, { sub: MON[mo] + " · jobs booked ÷ qualified", headVal: bk == null ? "—" : pct(bk) + " team avg" });
+      // Booking-rate YoY: blank each YEAR independently below the qualified floor — a rep can clear it this
+      // year and not last. `|| 0` would be a lie twice over here (it plots "no lead base" as a real 0%), so
+      // thin/absent years pass null and Chart.js simply draws no bar. topReps itself is NOT filtered: it is
+      // shared with the two count charts above, where a low-volume rep's raw counts are perfectly legitimate.
+      const bkYr = m => (m.book == null || (m.q || 0) < MIN_QUAL) ? null : m.book;
+      groupedBars(g, "Booking rate by salesperson — YoY", topReps.map(r => r.k), topReps.map(r => bkYr(lyM(r))), String(curY - 1), topReps.map(r => bkYr(cyM(r))), String(curY), pct, { sub: MON[mo] + " · jobs booked ÷ qualified", headVal: bk == null ? "—" : pct(bk) + " team avg", noteKind: "how", note: `Each rep's booking rate this ${MON[mo]} vs last. A year is left blank when that rep had fewer than ${MIN_QUAL} qualified leads in it — including reps who weren't here last year — so a missing bar means "too few leads to judge", never a genuine 0%.` });
       // C27: the filter is the Moveboard "Big Job" flag — the title must not claim a CF threshold
       // Tornike 2026-07-15: large moves had TWO cards. The bullet's only extra signal was "rate vs team
       // avg", which now rides on THIS chart as a per-rep right-edge % — green at/above the team average,
