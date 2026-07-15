@@ -58,13 +58,11 @@ async function renderMonthly(host, MRCFG) {
     }
     const grab = ds => pooled(ds, () => RS.load(ds));
     const needPack = SEC("Packing & Storage"), needPhone = SEC("Phone & Response");
-    // ISOLATED fetch of the card-expense COST flags. Kept OUT of the shared card_expenses
-    // projection on purpose: these columns can vanish on a pipeline re-run, so a failed fetch
-    // degrades only the storage/packing-cost panels. Cached on success only.
-    const cardCostP = window.__mrCostCache2 ? Promise.resolve(window.__mrCostCache2)
-      : !needPack ? Promise.resolve([])
-      : pooled("card cost flags", () => ZTZ.api("/api/fct_card_expenses?limit=1000000&cols=" + encodeURIComponent("Transaction Date,Amount,Is Storage Cost,Is Packing Material Cost,Company"))
-        .then(j => (j.rows || []).filter(coRow).map(r => { const d = String(r["Transaction Date"] || "").slice(0, 10); return { ym: d.slice(0, 7), amt: -num(r.Amount), sto: Number(r["Is Storage Cost"]) === 1, pk: Number(r["Is Packing Material Cost"]) === 1 }; })));
+    // Card-expense COST flags now ride the SHARED card_expenses projection (perf batch A,
+    // 2026-07-15) — the same table used to be downloaded TWICE (~1s + a pool slot each load).
+    // The bridge drops unknown cols silently, so a pipeline re-run that loses the flag columns
+    // still degrades only the storage/packing-cost panels, exactly like the old isolated fetch.
+    // NOTE: RS.load already negates card_expenses Amount (bank convention) — do NOT negate again.
     // "Final Account Name/Number" = the COMPANY line that rang (acct_no = To on Incoming) → the deck-s75
     // per-line breakdown. Cache key bumped to __mrRcCache2: a pre-existing __mrRcCache aggregate was folded
     // WITHOUT the per-line data and would silently serve a table with no lines.
@@ -72,8 +70,9 @@ async function renderMonthly(host, MRCFG) {
       : pooled("RingCentral calls", () => ZTZ.api("/api/fct_ringcentral?limit=1000000&cols=" + encodeURIComponent("Date,Type,Direction,Action Result,Duration Seconds,Extension,Company,Final Account Name,Final Account Number")).then(j => j.rows || []));
     const smsP = (window.__mrRcSmsCache || !needPhone) ? null
       : pooled("RingCentral SMS", () => ZTZ.api("/api/fct_ringcentral_sms?limit=1000000&cols=" + encodeURIComponent("Date,Direction,Message Status,Company")).then(j => j.rows || []));
-    const packP = (window.__mrPackCache2 || !needPack) ? null
-      : pooled("per-job packing", () => ZTZ.api("/api/moveboard?limit=1000000&cols=" + encodeURIComponent("Move Date,Service Type,Sales Packing total,Closing Packing total,Company")).then(j => j.rows || []));
+    // (per-job packing fetch of the RAW moveboard table DELETED 2026-07-15, perf batch A:
+    //  it was the page's second-slowest call — 19.2s, ~108k raw rows — and its only consumer,
+    //  the "Packing by type" card, was removed earlier that day. `packJobs` was write-only.)
     // (long_distance dropped from the fetch 2026-07-14 — its only consumer, the LD
     //  carrier-economics cards, was removed at Tornike's request)
     const [closing, moveboard, storage, claims, refunds, cardEx,
@@ -82,9 +81,13 @@ async function renderMonthly(host, MRCFG) {
       ["closing", "moveboard", "storage", "claims", "refunds", "card_expenses",
        "reviews_breakdown", "negative_reviews", "callrail", "scorecard", "review_counts", "review_goals",
        "helper_salaries", "sales_salaries"].map(grab));
-    const cardCost = await cardCostP;
-    if (cardCost.length && !window.__mrCostCache2) window.__mrCostCache2 = cardCost;
-    delete window.__mrCostCache;   // pre-C43 cache (no company filter) — retire it
+    // Derive the cost flags from the shared rows. Amount is ALREADY positive here (RS.load
+    // negates the bank convention once) — `amt: num(r.Amount)`, never a second negation.
+    const cardCost = !needPack ? [] : cardEx.filter(coRow).map(r => {
+      const d = String(r["Transaction Date"] || "").slice(0, 10);
+      return { ym: d.slice(0, 7), amt: num(r.Amount), sto: Number(r["Is Storage Cost"]) === 1, pk: Number(r["Is Packing Material Cost"]) === 1 };
+    });
+    delete window.__mrCostCache; delete window.__mrCostCache2;   // old isolated-fetch caches — retire both
     const costByMonth = (ym, flag) => cardCost.reduce((a, r) => (r.ym === ym && r[flag]) ? a + r.amt : a, 0);
     const hasCostData = cardCost.some(r => r.sto || r.pk);
     // RingCentral phone-system stats — isolated narrow fetch from fct_ringcentral, folded into
@@ -149,16 +152,9 @@ async function renderMonthly(host, MRCFG) {
       if (smsRows.length) window.__mrRcSmsCache = agg2;
     }
     const rcSms = window.__mrRcSmsCache || {};
-    // per-job packing (estimate vs written) — narrow isolated fetch, cached on success
-    delete window.__mrFleetCache; delete window.__mrFleetCache2;   // Fleet section removed 2026-07-15 — free both caches
-    if (packP) {
-      // per-job packing totals live only in the RAW moveboard table (not carried into fct_moveboard).
-      // C28: fetch Move Date — this card buckets by MOVE month, like the rest of the packing section.
-      const pk0 = await packP;
-      if (pk0.length) window.__mrPackCache2 = pk0;
-    }
-    delete window.__mrPackCache;   // pre-C28 cache (Create Date, no Move Date column) — retire it
-    const packJobs = (window.__mrPackCache2 || []).filter(coRow);
+    // retired caches (Fleet section removed + dead per-job packing fetch deleted, 2026-07-15)
+    delete window.__mrFleetCache; delete window.__mrFleetCache2;
+    delete window.__mrPackCache; delete window.__mrPackCache2;
     const DS = { closing, moveboard, storage, claims, refunds, card_expenses: cardEx, reviews_breakdown: reviews, negative_reviews: negrev, callrail, scorecard, review_counts: rcounts, review_goals: rgoals, helper_salaries: helperSalDs, sales_salaries: salesSalDs };
 
     const latest = closing.reduce((a, r) => (coRow(r) && r._d && r._d > a ? r._d : a), "");

@@ -112,8 +112,12 @@ window.RS = (function () {
     },
     card_expenses: {
       table: "fct_card_expenses",
+      // "Is Storage Cost"/"Is Packing Material Cost" joined the shared projection 2026-07-15
+      // (perf batch A): they used to ride a SEPARATE fct_card_expenses fetch, duplicating the
+      // whole table download. The bridge silently drops unknown cols, so if a pipeline re-run
+      // loses these flags the packing/storage cost panels degrade — nothing else breaks.
       cols: ["Company", "Transaction Date", "Expense Category", "Provider", "Amount",
-        "Is Advertising", "Source", "Record Source"],
+        "Is Advertising", "Is Storage Cost", "Is Packing Material Cost", "Source", "Record Source"],
       dateCols: { "Transaction Date": "Transaction Date" }, defaultDate: "Transaction Date",
     },
     callrail: {

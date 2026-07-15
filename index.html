@@ -67,7 +67,7 @@ body.mr-own-time #frowDates .rs-slicer[data-key="month"]{display:none}
 </div>
 
 <script src="assets/portal.js?v=8"></script>
-<script src="assets/rs-core.js?v=21"></script>
+<script src="assets/rs-core.js?v=22"></script>
 <script src="assets/rs-components.js?v=8"></script>
 <script>
 /* ---------------- page registry ---------------- */
@@ -935,7 +935,17 @@ if (!ZTZ.getToken()) {
           { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
       } catch (e) {}
     })();
-    await buildFilters();
+    // PERF (2026-07-15 plan, batch A): boot used to be SERIAL — `await buildFilters()` (which
+    // itself awaits the full closing+moveboard downloads for the slicer option lists) before the
+    // page was allowed to render, so every page's own fetches started ~12s late ("wave 2").
+    // The ONLY state buildFilters seeds that affects NUMBERS is the Company default (slicer
+    // selections are session-only and start empty = "All"; company single-select seeds
+    // "Zip to Zip"). Seed that synchronously, then build the filter UI in the BACKGROUND while
+    // the page renders — RS.load dedupes in-flight loads, so buildFilters and the page share
+    // the same closing/moveboard requests instead of queuing behind them.
+    if (!RS.state.multi.company || !RS.state.multi.company.size)
+      RS.state.multi.company = new Set(["Zip to Zip"]);
+    buildFilters().catch(e => console.error("filter bar build failed", e));
     // navigate() handles a denied deep link: falls back + explains itself (C32)
     navigate(hashId() || firstAllowedId(), false);
   });
@@ -1165,7 +1175,7 @@ registerPage({
 <script src="pages/labor-analysis.js?v=3"></script>
 <script src="pages/financial-analysis.js?v=7"></script>
 <script src="pages/post-card-analysis.js?v=4"></script>
-<script src="pages/monthly-report.js?v=73"></script>
+<script src="pages/monthly-report.js?v=74"></script>
 <script src="pages/leads-vs-moveboard.js?v=7"></script>
 <script src="pages/source-analysis.js?v=4"></script>
 <script src="pages/data-quality.js?v=4"></script>
