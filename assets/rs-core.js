@@ -155,17 +155,69 @@ window.RS = (function () {
   };
   const _cache = {};
   const _loading = {};
+  /* ---------- IndexedDB dataset persistence (perf batch E, 2026-07-15) ----------
+     Rows are stored POST-processed (with _d/_y/_m derived and the card_expenses Amount
+     negation already applied — re-processing a cached copy would double-negate).
+     Freshness key = the bridge's data-epoch `marker` from /api/_stats: written by the
+     pipeline strictly at END of a run, so a cached copy is either exactly current or
+     rejected — never "probably fine". No TTLs. Marker unavailable (old bridge, _stats
+     error, private browsing, quota) → every path degrades to plain network. */
+  const IDB_VER = "v1|";
+  let _idbP = null;
+  function _idb() {
+    if (_idbP) return _idbP;
+    _idbP = new Promise(res => {
+      try {
+        const rq = indexedDB.open("ztz-datasets", 1);
+        rq.onupgradeneeded = () => { try { rq.result.createObjectStore("ds"); } catch (e) {} };
+        rq.onsuccess = () => res(rq.result);
+        rq.onerror = () => res(null);
+        rq.onblocked = () => res(null);
+      } catch (e) { res(null); }
+    });
+    return _idbP;
+  }
+  const _idbGet = k => _idb().then(db => new Promise(res => {
+    if (!db) return res(null);
+    try {
+      const rq = db.transaction("ds").objectStore("ds").get(k);
+      rq.onsuccess = () => res(rq.result || null); rq.onerror = () => res(null);
+    } catch (e) { res(null); }
+  }));
+  const _idbPut = (k, v) => _idb().then(db => {
+    if (!db) return;
+    try { db.transaction("ds", "readwrite").objectStore("ds").put(v, k); } catch (e) {}
+  });
+  let _markerP = null;
+  function _dataMarker() {
+    // one /api/_stats per page-load (server answers from its epoch-keyed cache in ~0.2s,
+    // browser caches it 5 min) — shared by the footer and every dataset validation
+    if (_markerP) return _markerP;
+    _markerP = ZTZ.api("/api/_stats").then(s => (s && s.marker) || null).catch(() => null);
+    return _markerP;
+  }
+
   async function load(ds) {
     if (_cache[ds]) return _cache[ds];
     if (_loading[ds]) return _loading[ds];
     const spec = DATASETS[ds];
-    // Column projection always applies — the bridge (>= rev 00016) doubles literal '%'
-    // in identifiers before pymysql formatting, so `Bill Increase %`-style names are
-    // safe. (The old colsSafe fallback silently fetched WHOLE tables — fct_job_overview
-    // came in at ~12 MB and froze the page.)
-    _loading[ds] = ZTZ.api("/api/" + encodeURIComponent(spec.table) +
-      "?limit=1000000&cols=" + encodeURIComponent(spec.cols.join(",")))
-      .then(j => {
+    _loading[ds] = (async () => {
+      try {
+        const mk = await _dataMarker();
+        const key = IDB_VER + spec.table + "|" + spec.cols.join(",");
+        if (mk) {
+          const hit = await _idbGet(key);
+          if (hit && hit.marker === mk && Array.isArray(hit.rows)) {
+            _cache[ds] = hit.rows; delete _loading[ds];
+            return hit.rows;                     // exact same post-processed rows, zero network
+          }
+        }
+        // Column projection always applies — the bridge (>= rev 00016) doubles literal '%'
+        // in identifiers before pymysql formatting, so `Bill Increase %`-style names are
+        // safe. (The old colsSafe fallback silently fetched WHOLE tables — fct_job_overview
+        // came in at ~12 MB and froze the page.)
+        const j = await ZTZ.api("/api/" + encodeURIComponent(spec.table) +
+          "?limit=1000000&cols=" + encodeURIComponent(spec.cols.join(",")));
         const rows = j.rows || [];
         if (spec.defaultDate) rows.forEach(r => {   // pre-derive default date parts
           const d = String(r[spec.defaultDate] || "").slice(0, 10);
@@ -178,12 +230,13 @@ window.RS = (function () {
           r.Amount = -num(r.Amount);
         });
         _cache[ds] = rows; delete _loading[ds];
+        if (mk && rows.length) _idbPut(key, { marker: mk, rows });   // fire-and-forget
         return rows;
-      })
-      .catch(e => {
+      } catch (e) {
         delete _loading[ds];   // never cache a failed load (e.g. expired token)
         throw e;
-      });
+      }
+    })();
     return _loading[ds];
   }
 
