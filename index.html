@@ -406,13 +406,13 @@ function applyTheme(mode, rerender) {
   const btn = document.getElementById("themeBtn");
   if (btn) btn.innerHTML = mode === "light" ? ICON_MOON : ICON_SUN;
   if (rerender && CURRENT) {
-    // Preserve scroll position across the theme re-render (renderPage rebuilds the DOM, which would
-    // otherwise jump the reader back to the top — Tornike 2026-07-15).
-    const sy = window.scrollY || window.pageYOffset || 0;
-    const restore = () => window.scrollTo(0, sy);
+    // Preserve scroll position across the theme re-render — the page scrolls inside #content (not the
+    // window), and renderPage rebuilds it, which would otherwise jump to the top (Tornike 2026-07-15).
+    const st = (document.getElementById("content") || {}).scrollTop || 0;
+    const restore = () => { const s = document.getElementById("content"); if (s) s.scrollTop = st; };
     const p = renderPage();
-    if (p && typeof p.then === "function") p.then(() => { restore(); setTimeout(restore, 80); });
-    else { requestAnimationFrame(restore); setTimeout(restore, 80); }
+    if (p && typeof p.then === "function") p.then(() => { restore(); setTimeout(restore, 80); setTimeout(restore, 250); });
+    else { requestAnimationFrame(restore); setTimeout(restore, 80); setTimeout(restore, 250); }
   }
 }
 function mountThemeToggle() {
