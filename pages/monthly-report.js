@@ -84,12 +84,20 @@ async function renderMonthly(host, MRCFG) {
     //  the "Packing by type" card, was removed earlier that day. `packJobs` was write-only.)
     // (long_distance dropped from the fetch 2026-07-14 — its only consumer, the LD
     //  carrier-economics cards, was removed at Tornike's request)
+    // PERF batch D: themed dashboards skip datasets whose EVERY consumer sits inside one
+    // section (grep-verified line-by-line): storage → Packing & Storage, negative_reviews →
+    // Reviews Production, callrail → Lead Sources. Everything else feeds the shared pre-compute
+    // block (exec movers/banners/GP) and MUST always load — gating those would zero numbers.
+    // The main report has all sections, so it still loads everything.
+    const grabIf = (ds, on) => on ? grab(ds) : Promise.resolve([]);
     const [closing, moveboard, storage, claims, refunds, cardEx,
            reviews, negrev, callrail, scorecard, rcounts, rgoals,
-           helperSalDs, salesSalDs] = await Promise.all(
-      ["closing", "moveboard", "storage", "claims", "refunds", "card_expenses",
-       "reviews_breakdown", "negative_reviews", "callrail", "scorecard", "review_counts", "review_goals",
-       "helper_salaries", "sales_salaries"].map(grab));
+           helperSalDs, salesSalDs] = await Promise.all([
+      grab("closing"), grab("moveboard"), grabIf("storage", SEC("Packing & Storage")),
+      grab("claims"), grab("refunds"), grab("card_expenses"),
+      grab("reviews_breakdown"), grabIf("negative_reviews", SEC("Reviews Production")),
+      grabIf("callrail", SEC("Lead Sources")), grab("scorecard"), grab("review_counts"),
+      grab("review_goals"), grab("helper_salaries"), grab("sales_salaries")]);
     // Derive the cost flags from the shared rows. Amount is ALREADY positive here (RS.load
     // negates the bank convention once) — `amt: num(r.Amount)`, never a second negation.
     const cardCost = !needPack ? [] : cardEx.filter(coRow).map(r => {
@@ -239,18 +247,51 @@ async function renderMonthly(host, MRCFG) {
         window.__mrMemo2 = { serial: memoSerial, map: new Map() };
       memo = window.__mrMemo2.map;
     }
+    /* ---------- month-bucket index (PERF batch D, 2026-07-15) ----------
+       One render makes ~300+ month-scoped passes; each used to scan the FULL dataset
+       (77k moveboard rows x ~300 = millions of row visits, and 2-5s month flips).
+       Bucket rows by (dateColumn month) ONCE, then hand RS.filtered only the bucket.
+       PROVABLY output-identical: withMonth always sets a full-month dateFrom/dateTo,
+       and RS.filtered DROPS rows with empty/short dates when a range is set — exactly
+       the rows the bucket excludes. Non-date slicers still run inside RS.filtered.
+       Salary/keyed datasets (no own date column) are NEVER bucketed — they scope by
+       Unique-Key membership in the filtered closing set and must see all rows.
+       The index lives in a WeakMap keyed on the rows ARRAY, so a warehouse refresh
+       (new array in RS._cache) drops it automatically. */
+    const MBUX = window.__mrBux || (window.__mrBux = new WeakMap());
+    function monthRows(ds, y, m, dateColumn) {
+      const rows = DS[ds]; if (!rows || !rows.length) return rows || [];
+      const spec = RS.DATASETS[ds];
+      const col = dateColumn || (spec && spec.defaultDate);
+      if (!col) return rows;                              // keyed/salary datasets: no bucketing
+      let byCol = MBUX.get(rows);
+      if (!byCol) { byCol = new Map(); MBUX.set(rows, byCol); }
+      let idx = byCol.get(col);
+      if (!idx) {
+        idx = new Map();
+        const useD = col === (spec && spec.defaultDate);
+        for (const r of rows) {
+          const d = useD ? (r._d || "") : String(r[col] || "").slice(0, 10);
+          if (d.length !== 10) continue;                  // malformed dates: RS.filtered drops them too
+          const k = d.slice(0, 7);
+          const a = idx.get(k); if (a) a.push(r); else idx.set(k, [r]);
+        }
+        byCol.set(col, idx);
+      }
+      return idx.get(y + "-" + String(m).padStart(2, "0")) || [];
+    }
     function valueFor(ds, measure, y, m, opts) {
       const rows = DS[ds]; if (!rows || !rows.length) return null;
       const cacheable = !opts;
       const key = cacheable ? ds + "|" + measure + "|" + y + "|" + m : null;
       if (cacheable && memo.has(key)) return memo.get(key);
-      const v = withMonth(y, m, () => { let f = RS.filtered(ds, rows, opts); if (opts && opts.pre) f = f.filter(opts.pre); return M[measure] ? M[measure].fn(f) : null; });
+      const v = withMonth(y, m, () => { let f = RS.filtered(ds, monthRows(ds, y, m, opts && opts.dateColumn), opts); if (opts && opts.pre) f = f.filter(opts.pre); return M[measure] ? M[measure].fn(f) : null; });
       if (cacheable) memo.set(key, v);
       return v;
     }
     function reduceMonth(ds, y, m, reducer, opts) {
       const rows = DS[ds]; if (!rows || !rows.length) return null;
-      return withMonth(y, m, () => { let f = RS.filtered(ds, rows, opts); if (opts && opts.pre) f = f.filter(opts.pre); return reducer(f); });
+      return withMonth(y, m, () => { let f = RS.filtered(ds, monthRows(ds, y, m, opts && opts.dateColumn), opts); if (opts && opts.pre) f = f.filter(opts.pre); return reducer(f); });
     }
     // Floor at 2023: pre-2023 rows are hard-removed from the warehouse (2023 cutoff), so
     // earlier years would render as hollow zero slots on every 5-yr chart (Tornike: "we
@@ -270,7 +311,7 @@ async function renderMonthly(host, MRCFG) {
     function segSeries(ds, measure, col, y, m, opts) {
       const rows = DS[ds]; if (!rows || !rows.length) return [];
       return withMonth(y || curY, m || mo, () => {
-        let f = RS.filtered(ds, rows, opts); if (opts && opts.pre) f = f.filter(opts.pre);
+        let f = RS.filtered(ds, monthRows(ds, y || curY, m || mo, opts && opts.dateColumn), opts); if (opts && opts.pre) f = f.filter(opts.pre);
         const g = {}; f.forEach(r => { const k = r[col] == null || r[col] === "" ? "—" : String(r[col]); (g[k] = g[k] || []).push(r); });
         return Object.entries(g).map(([k, rs]) => {
           const segKeys = new Set(); for (const r of rs) { const u = r["Unique Key"]; if (u != null) segKeys.add(u); }
@@ -281,7 +322,7 @@ async function renderMonthly(host, MRCFG) {
     function segReduce(ds, col, reducer, y, m, opts) {
       const rows = DS[ds]; if (!rows || !rows.length) return [];
       return withMonth(y || curY, m || mo, () => {
-        let f = RS.filtered(ds, rows, opts); if (opts && opts.pre) f = f.filter(opts.pre);
+        let f = RS.filtered(ds, monthRows(ds, y || curY, m || mo, opts && opts.dateColumn), opts); if (opts && opts.pre) f = f.filter(opts.pre);
         const g = {}; f.forEach(r => { const k = r[col] == null || r[col] === "" ? "—" : String(r[col]); (g[k] = g[k] || []).push(r); });
         return Object.entries(g).map(([k, rs]) => ({ k, v: reducer(rs), rows: rs })).filter(x => x.v != null).sort((a, b) => (b.v || 0) - (a.v || 0));
       });
@@ -294,7 +335,8 @@ async function renderMonthly(host, MRCFG) {
     function bookedRowsFor(y, m, pre) {
       const rows = DS.moveboard; if (!rows || !rows.length) return [];
       return withMonth(y, m, () => {
-        let f = RS.filtered("moveboard", rows, { dateColumn: "Booked Date" });
+        // second moveboard index on "Booked Date" — the dual-basis Booking Rate's booked side
+        let f = RS.filtered("moveboard", monthRows("moveboard", y, m, "Booked Date"), { dateColumn: "Booked Date" });
         if (pre) f = f.filter(pre);
         return f;
       });

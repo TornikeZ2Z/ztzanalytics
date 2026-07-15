@@ -9,12 +9,11 @@
   if (window.RS && RS.DATASETS && !RS.DATASETS.fct_lead_call) {
     RS.DATASETS.fct_lead_call = {
       table: "fct_lead_call",
-      cols: ["Job No", "Request Joinkey", "Create Datetime", "Create Date", "Month", "Week Ending",
-        "Customer", "Phone Norm", "Status", "Status Category", "Source", "Assigned", "Booked Date",
-        "Closing Total", "Called", "Connected", "First Out At", "First Connect At", "TTO Biz Min",
-        "TTO Wall Min", "Speed Bucket", "Out Calls", "In Calls", "Followups", "In Before Create",
-        "Pre Create Out Call", "First Out Extension", "First Out Result", "Created Hour",
-        "Created Dow", "Created OOB", "Texted", "First Sms At", "TTS Biz Min"],
+      // Trimmed to the exact set this page reads (perf batch D, 2026-07-15): 34→19 cols, ~44% less payload.
+      // cols is a payload contract — add a column back ONLY together with a real consumer on this page.
+      cols: ["Job No", "Create Datetime", "Month", "Customer", "Status", "Status Category",
+        "Source", "Assigned", "Booked Date", "Called", "Connected", "TTO Biz Min", "Speed Bucket",
+        "In Calls", "In Before Create", "First Out Extension", "Created Hour", "Created Dow", "Texted"],
     };
   }
 })();
