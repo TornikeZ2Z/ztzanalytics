@@ -65,8 +65,11 @@ async function renderMonthly(host, MRCFG) {
       : !needPack ? Promise.resolve([])
       : pooled("card cost flags", () => ZTZ.api("/api/fct_card_expenses?limit=1000000&cols=" + encodeURIComponent("Transaction Date,Amount,Is Storage Cost,Is Packing Material Cost,Company"))
         .then(j => (j.rows || []).filter(coRow).map(r => { const d = String(r["Transaction Date"] || "").slice(0, 10); return { ym: d.slice(0, 7), amt: -num(r.Amount), sto: Number(r["Is Storage Cost"]) === 1, pk: Number(r["Is Packing Material Cost"]) === 1 }; })));
-    const rcP = (window.__mrRcCache || !needPhone) ? null
-      : pooled("RingCentral calls", () => ZTZ.api("/api/fct_ringcentral?limit=1000000&cols=" + encodeURIComponent("Date,Type,Direction,Action Result,Duration Seconds,Extension,Company")).then(j => j.rows || []));
+    // "Final Account Name/Number" = the COMPANY line that rang (acct_no = To on Incoming) → the deck-s75
+    // per-line breakdown. Cache key bumped to __mrRcCache2: a pre-existing __mrRcCache aggregate was folded
+    // WITHOUT the per-line data and would silently serve a table with no lines.
+    const rcP = (window.__mrRcCache2 || !needPhone) ? null
+      : pooled("RingCentral calls", () => ZTZ.api("/api/fct_ringcentral?limit=1000000&cols=" + encodeURIComponent("Date,Type,Direction,Action Result,Duration Seconds,Extension,Company,Final Account Name,Final Account Number")).then(j => j.rows || []));
     const smsP = (window.__mrRcSmsCache || !needPhone) ? null
       : pooled("RingCentral SMS", () => ZTZ.api("/api/fct_ringcentral_sms?limit=1000000&cols=" + encodeURIComponent("Date,Direction,Message Status,Company")).then(j => j.rows || []));
     const fleetP = (window.__mrFleetCache2 || !needFleet) ? null
@@ -100,14 +103,20 @@ async function renderMonthly(host, MRCFG) {
         if (String(r.Type) !== "Voice") return;   // sessions only — legs & faxes never count as calls
         if (String(r.Company) === "Tuji") return; // Tuji lines are a separate business — ZtZ scope only
         const ym = String(r.Date || "").slice(0, 7); if (!/^\d{4}-\d{2}$/.test(ym)) return;
-        const b = agg[ym] || (agg[ym] = { in: 0, out: 0, ans: 0, miss: 0, vm: 0, inDur: 0, outDur: 0, names: {} });
+        const b = agg[ym] || (agg[ym] = { in: 0, out: 0, ans: 0, miss: 0, vm: 0, inDur: 0, outDur: 0, names: {}, lines: {} });
         const dur = +r["Duration Seconds"] || 0;
         const res = String(r["Action Result"] || "");
         if (String(r.Direction) === "Incoming") {
           b.in++; b.inDur += dur;
-          if (/^Accepted$/i.test(res)) b.ans++;
-          else if (/^Missed$/i.test(res)) b.miss++;
-          else if (/^Voicemail$/i.test(res)) b.vm++;
+          // deck s75: per-LINE inbound — which company number rang and how it was handled. Handle time
+          // accrues ONLY on answered calls (a missed call has no handle time), so AHT = ansDur / ans.
+          const lnName = String(r["Final Account Name"] || "").trim() || "(unmapped number)";
+          const L = b.lines[lnName] || (b.lines[lnName] = { num: "", in: 0, ans: 0, miss: 0, vm: 0, ansDur: 0 });
+          if (!L.num) L.num = String(r["Final Account Number"] || "").trim();
+          L.in++;
+          if (/^Accepted$/i.test(res)) { b.ans++; L.ans++; L.ansDur += dur; }
+          else if (/^Missed$/i.test(res)) { b.miss++; L.miss++; }
+          else if (/^Voicemail$/i.test(res)) { b.vm++; L.vm++; }
         } else if (String(r.Direction) === "Outgoing") {
           b.out++; b.outDur += dur;
           const ext = String(r.Extension || "").trim();
@@ -118,9 +127,10 @@ async function renderMonthly(host, MRCFG) {
           }
         }
       });
-      if (rcRows.length) window.__mrRcCache = agg;
+      if (rcRows.length) window.__mrRcCache2 = agg;
     }
-    const rcAgg = window.__mrRcCache || {};
+    delete window.__mrRcCache;                 // pre-per-line aggregate — retire it outright
+    const rcAgg = window.__mrRcCache2 || {};
     // RingCentral SMS (first consumer 2026-07-13) — same isolated-fold pattern; the export's
     // own Direction column is trusted; ZtZ lines only (Tuji excluded like the calls fold).
     if (smsP) {
@@ -1760,6 +1770,16 @@ async function renderMonthly(host, MRCFG) {
         const cAns = lines(g, "Incoming answer rate", "last 12 months (RingCentral)", [{ label: "Answered %", series: ansT, color: LIMED }], pct, { headVal: pct(lastV(ansT)) });
         // C29: state the counting rule — RingCentral's own report may group voicemail differently
         if (curB && curB.in) note(cAns, `${MON[mo]}: ${fmtN(curB.ans)} of ${fmtN(curB.in)} incoming calls answered (${pct(curB.ans / curB.in)}) — ${fmtN(curB.miss)} missed + ${fmtN(curB.vm)} to voicemail. Counted on real calls (sessions), not ring-legs: one call ringing five phones counts once. Answered = accepted by a person. Outbound side: ${fmtN(curB.out)} calls, ${fmt1(curB.outDur / 3600)}h outbound talk time.`, "how");
+        // deck s75: the per-LINE inbound table — which branch number rings, how well it's handled, and AHT
+        if (curB && curB.lines && Object.keys(curB.lines).length) {
+          const hms = s => { const _m = Math.floor(s / 60), _s = Math.round(s % 60); return _m + "m " + String(_s).padStart(2, "0") + "s"; };
+          const fmtPh = p => { const d = String(p || "").replace(/[^0-9]/g, ""); return d.length === 10 ? `(${d.slice(0, 3)}) ${d.slice(3, 6)}-${d.slice(6)}` : (String(p || "").trim() || "—"); };
+          const lnRows = Object.entries(curB.lines).map(([k, v]) => ({ k, num: v.num, in: v.in, ans: v.ans, miss: v.miss, vm: v.vm, ansDur: v.ansDur })).sort((a, b) => b.in - a.in).slice(0, 14);
+          const T = lnRows.reduce((a, r) => ({ in: a.in + r.in, ans: a.ans + r.ans, miss: a.miss + r.miss, vm: a.vm + r.vm, ansDur: a.ansDur + r.ansDur }), { in: 0, ans: 0, miss: 0, vm: 0, ansDur: 0 });
+          const ansCol = p => p >= .8 ? "#1c7a4a" : p >= .6 ? "#7a5a12" : "#b02a37";
+          const lnHtml = `<table class="mrx-tbl"><thead><tr><th>Line</th><th>Number</th><th style="text-align:right">Inbound</th><th style="text-align:right">Answered</th><th style="text-align:right">Missed</th><th style="text-align:right">Voicemail</th><th style="text-align:right">Answer %</th><th style="text-align:right">Avg handle</th></tr></thead><tbody>${lnRows.map(r => `<tr><td>${esc(r.k)}</td>${td(esc(fmtPh(r.num)))}${td(fmtN(r.in), "text-align:right")}${td(fmtN(r.ans), "text-align:right")}${td(fmtN(r.miss), "text-align:right" + (r.miss ? ";color:#b02a37;font-weight:800" : ""))}${td(fmtN(r.vm), "text-align:right")}${td(r.in ? pct(r.ans / r.in) : "—", "text-align:right;font-weight:800" + (r.in ? ";color:" + ansCol(r.ans / r.in) : ""))}${td(r.ans ? hms(r.ansDur / r.ans) : "—", "text-align:right")}</tr>`).join("")}<tr class="tot"><td>All lines</td>${td("")}${td(fmtN(T.in), "text-align:right")}${td(fmtN(T.ans), "text-align:right")}${td(fmtN(T.miss), "text-align:right")}${td(fmtN(T.vm), "text-align:right")}${td(T.in ? pct(T.ans / T.in) : "—", "text-align:right")}${td(T.ans ? hms(T.ansDur / T.ans) : "—", "text-align:right")}</tr></tbody></table>`;
+          tableCard(g, "Inbound by line — answer rate & handle time", monLbl + " · RingCentral · real calls (sessions)", lnHtml, { icon: KIC.grid, headVal: T.in ? pct(T.ans / T.in) + " answered" : "—", noteKind: "how", note: "Every company number that rang this month — inbound volume, how each call ended, and Average Handle Time (mean talk time on ANSWERED calls only; a missed call or voicemail has no handle time, so they're excluded from AHT but still counted in Inbound). Counted on real calls (sessions), never per-device ring-legs. Answer % green ≥80%, amber ≥60%, red below. Tuji lines are excluded." });
+        }
         if (curB && Object.keys(curB.names).length) {
           // (talk-time card folded in here — same 10 names in near-identical order taught nothing new;
           //  the effort metric survives as team totals on this card)
