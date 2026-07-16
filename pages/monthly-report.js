@@ -86,7 +86,7 @@ async function renderMonthly(host, MRCFG) {
     //  carrier-economics cards, was removed at Tornike's request)
     // PERF batch D: themed dashboards skip datasets whose EVERY consumer sits inside one
     // section (grep-verified line-by-line): storage → Packing & Storage, negative_reviews →
-    // Reviews Production, callrail → Lead Sources. Everything else feeds the shared pre-compute
+    // Reviews Production, callrail → Phone & Response. Everything else feeds the shared pre-compute
     // block (exec movers/banners/GP) and MUST always load — gating those would zero numbers.
     // The main report has all sections, so it still loads everything.
     const grabIf = (ds, on) => on ? grab(ds) : Promise.resolve([]);
@@ -96,7 +96,7 @@ async function renderMonthly(host, MRCFG) {
       grab("closing"), grab("moveboard"), grabIf("storage", SEC("Packing & Storage")),
       grab("claims"), grab("refunds"), grab("card_expenses"),
       grab("reviews_breakdown"), grabIf("negative_reviews", SEC("Reviews Production")),
-      grabIf("callrail", SEC("Lead Sources") || SEC("Phone & Response")), grab("scorecard"), grab("review_counts"),
+      grabIf("callrail", SEC("Phone & Response")), grab("scorecard"), grab("review_counts"),
       grab("review_goals"), grab("helper_salaries"), grab("sales_salaries")]);
     // Derive the cost flags from the shared rows. Amount is ALREADY positive here (RS.load
     // negates the bank convention once) — `amt: num(r.Amount)`, never a second negation.
@@ -470,9 +470,9 @@ async function renderMonthly(host, MRCFG) {
       .mrx{background:${PAGE_BG};color:${INK};border-radius:16px;padding:24px 24px 46px;font-family:Inter,system-ui,sans-serif;-webkit-font-smoothing:antialiased;
         box-shadow:0 10px 44px rgba(14,22,33,.35)}
       .mrx *{box-sizing:border-box}
-      .mrx-info{display:inline-flex;align-items:center;justify-content:center;width:17px;height:17px;margin-left:7px;vertical-align:-2px;
+      .mrx-info{display:inline-flex;align-items:center;justify-content:center;width:19px;height:19px;margin-left:7px;vertical-align:-2px;
         border:1.4px solid ${CTX};border-radius:50%;background:transparent;color:${FAINT};cursor:pointer;padding:0;
-        font:italic 700 11px/1 Georgia,serif}
+        font:italic 700 12px/1 Georgia,serif}
       .mrx-info:hover{border-color:${INK};color:${INK}}
       .mrx-info.on{background:${INK};border-color:${INK};color:${LIME}}
       .mrx-loaderr{background:${NEG_T1};border:1.5px solid ${NEG_BD};border-left:5px solid ${NEG};color:${NEG_TXT};border-radius:12px;
@@ -480,7 +480,7 @@ async function renderMonthly(host, MRCFG) {
       .mrx-loaderr button{margin-top:0}
       .mrx-cover{position:relative;background:${INK};color:#fff;border-radius:16px;padding:24px 26px;margin-bottom:16px;overflow:hidden}
       .mrx-cover .mrx-accent{position:absolute;left:0;top:0;bottom:0;width:6px;background:${LIME}}
-      .mrx-eyebrow{font-size:10.5px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:${LIME}}
+      .mrx-eyebrow{font-size:12px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:${LIME}}
       .mrx-h1{font-size:33px;font-weight:800;letter-spacing:-.9px;margin:6px 0 4px;color:#fff}
       .mrx-cvsub{color:${DK_TXT};font-size:12.5px;font-weight:600}
       .mrx-cvactions{position:absolute;top:22px;right:24px;display:flex;gap:8px;z-index:2}
@@ -492,7 +492,7 @@ async function renderMonthly(host, MRCFG) {
       .mrx-ctl:focus-visible{outline:2px solid ${LIME};outline-offset:1px}
       .mrx-lite-h{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;background:#fff;border:1px solid ${LINE};border-left:5px solid ${LIME};border-radius:12px;padding:13px 18px;margin-bottom:14px;box-shadow:0 1px 2px rgba(14,22,33,.05)}
       .mrx-lite-tt{font-size:20px;font-weight:800;letter-spacing:-.4px;color:${INK}}
-      .mrx-lite-tt b{display:block;font-size:10.5px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:${LIMED}}
+      .mrx-lite-tt b{display:block;font-size:12px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:${LIMED}}
       .mrx-lite-ctl{font-size:12.5px;font-weight:700;color:${SUB};white-space:nowrap}
       .mrx-lite-ctl select{font:inherit;font-weight:700;color:${INK};background:${PAGE_BG};border:1px solid ${LINE};border-radius:7px;padding:3px 8px;margin-left:4px}
       .mrx-bwrap{margin-bottom:16px}
@@ -500,28 +500,32 @@ async function renderMonthly(host, MRCFG) {
       .mrx-banner b{font-family:${MONO};color:${INK};font-weight:800}
       .mrx-banner .bic{display:flex;flex:0 0 auto}.mrx-banner .bic svg{width:19px;height:19px;fill:none;stroke:${WARN_A};stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
       .mrx-bmsg{flex:1}
-      .mrx-btoggle{flex:0 0 auto;font-family:${MONO};font-size:11.5px;font-weight:800;color:${INK};cursor:pointer;white-space:nowrap;border-bottom:1.5px solid ${WARN_A};user-select:none}
+      .mrx-btoggle{flex:0 0 auto;font-family:${MONO};font-size:12px;font-weight:800;color:${INK};cursor:pointer;white-space:nowrap;border-bottom:1.5px solid ${WARN_A};user-select:none}
       .mrx-bdetail{margin-top:7px;background:#fff;border:1px solid ${WARN_BD};border-radius:9px;padding:9px 13px;max-height:300px;overflow:auto}
       /* top:-16px, NOT 0 — sticky insets resolve against the SCROLLER'S CONTENT box, and the scroller is
          .rs-content{padding:16px 20px 60px} (assets/rs.css:58). With top:0 the bar parked 16px BELOW the
          pane's visible edge, and a scroll container's top padding is not clipped — so that 16px strip
          stayed a live window onto the report sliding under it (the dark cover / INK bars / .mrx-rule
          showing above the white bar). -16px parks it flush. Keep in sync with .rs-content's padding-top. */
-      .mrx-toc{position:sticky;top:-16px;z-index:60;background:#fff;box-shadow:0 4px 14px rgba(14,22,33,.14);border-bottom:1px solid ${LINE};display:flex;flex-wrap:wrap;align-items:center;gap:6px 4px;padding:10px 24px;margin:0 -24px 10px}
-      .mrx-tocpart{display:inline-flex;align-items:center;gap:8px;font-size:9.5px;font-weight:800;letter-spacing:.13em;text-transform:uppercase;color:${SUB};white-space:nowrap;margin:0 4px 0 12px}
-      .mrx-tocpart::before{content:"";display:block;width:1px;height:12px;background:${LINE}}
-      .mrx-tocpart:first-child{margin-left:0}
-      .mrx-tocpart:first-child::before{display:none}
-      .mrx-tocchip{display:inline-flex;align-items:baseline;font-family:${MONO};font-size:11.5px;font-weight:400;color:${INK2};background:transparent;border:1px solid transparent;border-radius:8px;padding:4px 9px;cursor:pointer;white-space:nowrap;user-select:none;line-height:1.1;transition:background .12s,color .12s,box-shadow .12s}
-      .mrx-tocn{font-weight:700;font-size:10.5px;color:${FAINT};font-variant-numeric:tabular-nums;letter-spacing:.02em;margin-right:6px;transition:color .12s}
+      .mrx-toc{position:sticky;top:-16px;z-index:60;background:#fff;box-shadow:0 4px 14px rgba(14,22,33,.14);border-bottom:1px solid ${LINE};display:flex;flex-direction:column;padding:0;margin:0 -24px 10px}
+      .mrx-tocrow{display:flex;align-items:center;gap:8px;padding:10px 24px 9px;flex-wrap:wrap}
+      .mrx-tocrow.sub{gap:6px;padding:8px 24px 10px;border-top:1px solid ${GRID};background:#fbfcfd}
+      .mrx-tocmain{display:inline-flex;align-items:center;gap:9px;font:inherit;font-size:13px;font-weight:800;letter-spacing:-.1px;color:${INK2};background:#fff;border:1px solid ${LINE};border-radius:10px;padding:7px 14px;cursor:pointer;white-space:nowrap;user-select:none;transition:background .12s,color .12s,border-color .12s,box-shadow .12s}
+      .mrx-tocmain i{font-style:normal;font-family:${MONO};font-size:12px;font-weight:800;color:${FAINT};font-variant-numeric:tabular-nums;transition:color .12s}
+      .mrx-tocmain:hover{border-color:${INK};background:${GRID}}
+      .mrx-tocmain.on{background:${INK};color:#fff;border-color:${INK};box-shadow:0 3px 10px rgba(14,22,33,.25)}
+      .mrx-tocmain.on i{color:${LIME}}
+      .mrx-tocsublbl{font-family:${MONO};font-size:12px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:${FAINT};margin-right:4px;white-space:nowrap}
+      .mrx-tocchip{display:inline-flex;align-items:baseline;font-family:${MONO};font-size:12.5px;font-weight:600;color:${INK2};background:transparent;border:1px solid transparent;border-radius:8px;padding:5px 10px;cursor:pointer;white-space:nowrap;user-select:none;line-height:1.1;transition:background .12s,color .12s,box-shadow .12s}
+      .mrx-tocn{font-weight:700;font-size:12px;color:${FAINT};font-variant-numeric:tabular-nums;letter-spacing:.02em;margin-right:6px;transition:color .12s}
       .mrx-tocchip:hover{background:${GRID};color:${INK}}
       .mrx-tocchip:hover .mrx-tocn{color:${LIMED}}
       .mrx-tocchip.on{background:${INK};color:${LIME};font-weight:700;border-color:${INK};box-shadow:0 3px 10px rgba(14,22,33,.28)}
       .mrx-tocchip.on .mrx-tocn{color:${LIME}}
       .mrx-tocchip.on:hover{background:${INK};color:${LIME}}
       .mrx-tocstep{margin-left:auto;display:inline-flex;align-items:center;gap:0;background:#fff;border:1px solid ${LINE};border-radius:9px;overflow:hidden;white-space:nowrap}
-      .mrx-tocstep b{font-family:${MONO};font-size:12px;font-weight:700;color:${INK};min-width:58px;text-align:center;padding:0 8px;border-left:1px solid ${LINE};border-right:1px solid ${LINE}}
-      .mrx-tocstep button{display:inline-flex;align-items:center;justify-content:center;border:0;background:transparent;color:${SUB};width:28px;height:26px;padding:0;font-size:15px;line-height:1;cursor:pointer;transition:background .12s,color .12s}
+      .mrx-tocstep b{font-family:${MONO};font-size:12.5px;font-weight:700;color:${INK};min-width:60px;text-align:center;padding:0 8px;border-left:1px solid ${LINE};border-right:1px solid ${LINE}}
+      .mrx-tocstep button{display:inline-flex;align-items:center;justify-content:center;border:0;background:transparent;color:${SUB};width:29px;height:27px;padding:0;font-size:15px;line-height:1;cursor:pointer;transition:background .12s,color .12s}
       .mrx-tocstep button:hover{background:${GRID};color:${INK}}
       .mrx-tocstep button:active{background:${LINE}}
       /* branded topic interstitial — a lime "new topic" band that announces each part */
@@ -543,9 +547,9 @@ async function renderMonthly(host, MRCFG) {
       .mrx-sec-ic{display:flex}
       .mrx-sec-tt{display:flex;flex-direction:column;line-height:1.14}
       .mrx-sec-t{font-size:19px;font-weight:800;color:${INK};letter-spacing:-.4px}
-      .mrx-sec-s{font-size:11.5px;font-weight:600;color:${SUB}}
-      .mrx-code{margin-left:auto;font-family:${MONO};font-size:10.5px;font-weight:700;color:${FAINT};letter-spacing:.08em}
-      .mrx-caret{flex:0 0 auto;color:${FAINT};transition:transform .15s;font-size:11px;margin-left:10px}
+      .mrx-sec-s{font-size:12px;font-weight:600;color:${SUB}}
+      .mrx-code{margin-left:auto;font-family:${MONO};font-size:12px;font-weight:700;color:${FAINT};letter-spacing:.08em}
+      .mrx-caret{flex:0 0 auto;color:${FAINT};transition:transform .15s;font-size:12px;margin-left:10px}
       .mrx-sec.collapsed .mrx-caret{transform:rotate(-90deg)}
       .mrx-sec.collapsed .mrx-grid{display:none}
       .mrx-sec.collapsed .mrx-rule{opacity:.45}
@@ -554,18 +558,24 @@ async function renderMonthly(host, MRCFG) {
       .mrx-grid{display:grid;gap:15px;grid-template-columns:repeat(2,minmax(0,1fr));margin-top:14px}
       .mrx-grid.k{grid-template-columns:repeat(4,minmax(0,1fr))}
       @media(max-width:900px){.mrx-grid{grid-template-columns:1fr}.mrx-grid.k{grid-template-columns:repeat(2,minmax(0,1fr))}}
-      .mrx-card{position:relative;background:#fff;border:1px solid ${LINE};border-radius:14px;padding:15px 16px;box-shadow:0 1px 2px rgba(14,22,33,.05)}
+      /* Cards are flex columns and the chart box GROWS to absorb any extra height the grid row gives the
+         card (Tornike 2026-07-16: "graphs must use the full height of the placeholder — no white screen").
+         Chart.js is responsive, so the canvas re-fills the stretched box automatically. */
+      .mrx-card{position:relative;display:flex;flex-direction:column;background:#fff;border:1px solid ${LINE};border-radius:14px;padding:15px 16px;box-shadow:0 1px 2px rgba(14,22,33,.05)}
       .mrx-card:before{content:"";position:absolute;left:16px;top:0;width:34px;height:3px;background:${LIME};border-radius:0 0 3px 3px}
       .mrx-card.span2{grid-column:1/-1}
+      .mrx-chead{flex:0 0 auto}
+      .mrx-card .mrx-box{flex:1 0 auto}
+      .mrx-card .mrx-note{flex:0 0 auto}
       .mrx-subhead{grid-column:1/-1;display:flex;align-items:baseline;gap:10px;margin:8px 0 -4px;padding-bottom:8px;border-bottom:2px solid ${INK}}
       .mrx-subhead .sh-t{font-size:14px;font-weight:800;color:${INK};letter-spacing:-.2px}
-      .mrx-subhead .sh-s{font-size:11px;font-weight:700;color:${FAINT};text-transform:uppercase;letter-spacing:.06em;font-family:${MONO}}
+      .mrx-subhead .sh-s{font-size:12px;font-weight:700;color:${FAINT};text-transform:uppercase;letter-spacing:.06em;font-family:${MONO}}
       .mrx-chead{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:10px;border-bottom:1px solid ${GRID};padding-bottom:9px}
       .mrx-chleft{display:flex;gap:8px;align-items:flex-start;min-width:0}
       .mrx-chico{display:flex;flex:0 0 auto;margin-top:1px}.mrx-chico svg{width:16px;height:16px;fill:none;stroke:${INK};stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
       .mrx-cttl{min-width:0}
       .mrx-ct{font-size:16px;font-weight:750;color:${INK};line-height:1.25}
-      .mrx-cs{font-size:11.5px;font-weight:700;color:${FAINT};text-transform:uppercase;letter-spacing:.04em;font-family:${MONO}}
+      .mrx-cs{font-size:12px;font-weight:700;color:${FAINT};text-transform:uppercase;letter-spacing:.04em;font-family:${MONO}}
       .mrx-chd{text-align:right;flex:0 0 auto;white-space:nowrap}
       .mrx-chval{font-family:${MONO};font-size:20px;font-weight:800;color:${INK};letter-spacing:-.4px;line-height:1.05}
       .mrx-chd .mrx-chips{justify-content:flex-end;margin-top:3px}
@@ -575,25 +585,26 @@ async function renderMonthly(host, MRCFG) {
       .mrx-kpi{position:relative;background:#fff;border:1px solid ${LINE};border-radius:14px;padding:14px 15px 13px;box-shadow:0 1px 2px rgba(14,22,33,.05);overflow:hidden}
       .mrx-kpi:before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:${INK}}
       .mrx-kpi.mrx-hero:before{background:${LIME}}
-      .mrx-kl{font-size:11px;font-weight:750;color:${SUB};text-transform:uppercase;letter-spacing:.05em;display:flex;align-items:center;gap:6px}
+      .mrx-kl{font-size:12px;font-weight:750;color:${SUB};text-transform:uppercase;letter-spacing:.05em;display:flex;align-items:center;gap:6px}
       .mrx-ic{display:flex}.mrx-ic svg{width:14px;height:14px;fill:none;stroke:${FAINT};stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
       .mrx-kv{font-size:31px;font-weight:800;color:${INK};letter-spacing:-.6px;margin:4px 0 0;font-family:${MONO};font-variant-numeric:tabular-nums}
       .mrx-uline{display:block;width:24px;height:3px;background:${LIME};border-radius:2px;margin:3px 0 7px}
       .mrx-chips{display:flex;gap:5px;flex-wrap:wrap}
-      .mrx-chip{font-size:10.5px;font-weight:750;padding:2px 6px;border-radius:5px;font-family:${MONO};font-variant-numeric:tabular-nums}
+      .mrx-chip{font-size:12px;font-weight:750;padding:2px 6px;border-radius:5px;font-family:${MONO};font-variant-numeric:tabular-nums}
       .mrx-spark{height:30px;position:relative;margin-top:9px}
       .mrx-exec{background:${INK};color:${DK_BODY};border-radius:12px;padding:14px 16px;font-size:13.5px;line-height:1.55;margin-top:16px}
       .mrx-exec b{color:${LIME}}
       .mrx-tbl{width:100%;border-collapse:collapse;font-size:13.5px;font-variant-numeric:tabular-nums;font-family:${MONO}}
-      .mrx-pgfoot{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:11px;flex-wrap:wrap;font-family:${MONO};font-size:11.5px;font-weight:700;color:${SUB}}
+      .mrx-pgfoot{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:11px;flex-wrap:wrap;font-family:${MONO};font-size:12.5px;font-weight:700;color:${SUB}}
       .mrx-pgnav{display:inline-flex;align-items:center;gap:7px}
-      .mrx-pgnav b{color:${INK};font-size:11.5px}
+      .mrx-pgnav b{color:${INK};font-size:12.5px}
       .mrx-pgright{display:inline-flex;gap:7px;align-items:center}
-      .mrx-pgbtn{border:1px solid ${LINE};background:#fff;color:${INK};border-radius:7px;padding:4px 11px;font:inherit;font-family:${MONO};font-size:11.5px;font-weight:700;cursor:pointer;line-height:1.3}
+      .mrx-pgbtn{border:1px solid ${LINE};background:#fff;color:${INK};border-radius:7px;padding:5px 13px;font:inherit;font-family:${MONO};font-size:12.5px;font-weight:700;cursor:pointer;line-height:1.3}
       .mrx-pgbtn:hover:not([disabled]){border-color:${INK};background:${GRID}}
       .mrx-pgbtn[disabled]{opacity:.38;cursor:default}
-      .mrx-pgbtn.ghost{color:${SUB}}
-      .mrx-tbl th{font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:${SUB};text-align:right;padding:7px 9px;border-bottom:2px solid ${INK};white-space:nowrap;font-family:Inter,sans-serif}
+      .mrx-pgbtn.ghost{background:${LIME};border-color:${LIME};color:${INK};font-weight:800}
+      .mrx-pgbtn.ghost:hover:not([disabled]){background:${LIMED};border-color:${LIMED};color:#fff}
+      .mrx-tbl th{font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:${SUB};text-align:right;padding:7px 9px;border-bottom:2px solid ${INK};white-space:nowrap;font-family:Inter,sans-serif}
       .mrx-tbl th:first-child{text-align:left}
       .mrx-tbl td{padding:7px 9px;text-align:right;border-bottom:1px solid ${GRID};color:${INK2};white-space:nowrap}
       .mrx-tbl td:first-child{text-align:left;font-weight:600;color:${INK};font-family:Inter,sans-serif}
@@ -608,10 +619,11 @@ async function renderMonthly(host, MRCFG) {
       .mrx-xls:hover{border-color:${INK};background:${GRID}}
       .mrx-xls:focus-visible{outline:2px solid ${LIMED};outline-offset:1px}
       @media(max-width:900px){
-        .mrx-toc{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}
-        .mrx-toc::-webkit-scrollbar{display:none}
+        .mrx-tocrow{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}
+        .mrx-tocrow::-webkit-scrollbar{display:none}
+        .mrx-tocmain{flex:none}
         .mrx-tocchip{flex:none}
-        .mrx-tocpart{flex:none}
+        .mrx-tocsublbl{flex:none}
         .mrx-tocstep{flex:none;margin-left:8px;position:sticky;right:0;background:#fff;box-shadow:-8px 0 8px -4px rgba(14,22,33,.10)}
         .mrx-ctl{padding:10px 12px}
         .mrx-lite-ctl select{padding:9px 11px}
@@ -652,9 +664,9 @@ async function renderMonthly(host, MRCFG) {
       interaction: { mode: "index", axis: (extra && extra.indexAxis === "y") ? "y" : "x", intersect: false },
       plugins: { legend: { display: false } } }, extra || {});
     const axX = (o) => Object.assign({ ticks: { color: AXIS, font: { family: MONO, size: 12 } }, grid: { display: false }, border: { color: LINE } }, o || {});
-    const axY = (fmt, o) => Object.assign({ ticks: { color: AXIS, font: { family: MONO, size: 11.5 }, maxTicksLimit: 7, callback: v => fmt ? fmt(v) : v }, grid: { color: GRID }, border: { display: false } }, o || {});
+    const axY = (fmt, o) => Object.assign({ ticks: { color: AXIS, font: { family: MONO, size: 12 }, maxTicksLimit: 7, callback: v => fmt ? fmt(v) : v }, grid: { color: GRID }, border: { display: false } }, o || {});
     const valLabels = (fmt, horiz, color) => ({ id: "vlab", afterDatasetsDraw(ch) {
-      const ctx = ch.ctx; ctx.save(); ctx.font = "700 11.5px " + MONO; ctx.fillStyle = color || INK;
+      const ctx = ch.ctx; ctx.save(); ctx.font = "700 12px " + MONO; ctx.fillStyle = color || INK;
       ch.data.datasets.forEach((d, di) => { const meta = ch.getDatasetMeta(di); if (meta.hidden) return; meta.data.forEach((el, i) => {
         const raw = d.data[i]; const v = Array.isArray(raw) ? raw[1] - raw[0] : raw; if (v == null || isNaN(v)) return;
         if (horiz) { ctx.textAlign = "left"; ctx.textBaseline = "middle"; ctx.fillText(fmt(v), el.x + 5, el.y); }
@@ -782,13 +794,13 @@ async function renderMonthly(host, MRCFG) {
       if (!s.length) { emptyBox(box); return c; }
       const avg = s.reduce((a, b) => a + b.v, 0) / s.length;
       // opts.yoyPct: print the % change vs the PREVIOUS bar inside each bar top (green/red)
-      const yoyLab = { id: "yoypct", afterDatasetsDraw(ch) { const ctx = ch.ctx; ctx.save(); ctx.font = "800 11.5px " + MONO; ctx.textAlign = "center"; ctx.textBaseline = "top";
+      const yoyLab = { id: "yoypct", afterDatasetsDraw(ch) { const ctx = ch.ctx; ctx.save(); ctx.font = "800 12px " + MONO; ctx.textAlign = "center"; ctx.textBaseline = "top";
         ch.getDatasetMeta(0).data.forEach((el, i) => { if (!i) return; const cur = s[i].v, prev = s[i - 1].v; if (cur == null || !prev) return; const d = (cur - prev) / Math.abs(prev);
           ctx.fillStyle = d >= 0 ? POS : NEG; ctx.fillText((d >= 0 ? "+" : "") + (d * 100).toFixed(0) + "%", el.x, el.y + 5); }); ctx.restore(); } };
       new Chart(cv, { type: "bar",
         data: { labels: s.map(r => r.k), datasets: [{ data: s.map(r => r.v), backgroundColor: s.map((_, i) => i === s.length - 1 ? LIME : INK), borderRadius: 5, maxBarThickness: 52, categoryPercentage: .7, barPercentage: .82 }] },
         options: baseOpts({ layout: { padding: { top: 22 } }, plugins: { legend: { display: false }, tooltip: { callbacks: { label: x => tip(fmt)(x.parsed.y) } } }, scales: { x: axX(), y: axY(fmt, { beginAtZero: true }) } }),
-        plugins: [valLabels(fmt, false), crosshair, ...(opts.yoyPct ? [yoyLab] : []), { id: "avg", afterDatasetsDraw(ch) { const y = ch.scales.y.getPixelForValue(avg), a = ch.chartArea, ctx = ch.ctx; ctx.save(); ctx.strokeStyle = CTX; ctx.setLineDash([4, 4]); ctx.beginPath(); ctx.moveTo(a.left, y); ctx.lineTo(a.right, y); ctx.stroke(); ctx.setLineDash([]); ctx.fillStyle = SUB; ctx.font = "700 9px " + MONO; ctx.textAlign = "left"; ctx.fillText("avg " + fmt(avg), a.left + 3, y - 3); ctx.restore(); } }] });
+        plugins: [valLabels(fmt, false), crosshair, ...(opts.yoyPct ? [yoyLab] : []), { id: "avg", afterDatasetsDraw(ch) { const y = ch.scales.y.getPixelForValue(avg), a = ch.chartArea, ctx = ch.ctx; ctx.save(); ctx.strokeStyle = CTX; ctx.setLineDash([4, 4]); ctx.beginPath(); ctx.moveTo(a.left, y); ctx.lineTo(a.right, y); ctx.stroke(); ctx.setLineDash([]); ctx.fillStyle = SUB; ctx.font = "700 12px " + MONO; ctx.textAlign = "left"; ctx.fillText("avg " + fmt(avg), a.left + 3, y - 3); ctx.restore(); } }] });
       return c;
     }
     function lines(mount, title, sub, sets, fmt, opts) {
@@ -803,7 +815,7 @@ async function renderMonthly(host, MRCFG) {
           scales: opts.dual ? { x: axX(), y: axY(fmt), y1: axY(opts.fmt1 || fmt, { position: "right", grid: { display: false } }) } : { x: axX(), y: axY(fmt) } }), plugins: [crosshair, { id: "lelab", afterDatasetsDraw(ch) {
           // point value labels — compact form, staggered per series, and auto-THINNED: step = how many
           // points one label's width needs, anchored on the newest point (which is therefore always labeled)
-          const ctx = ch.ctx; ctx.save(); ctx.font = "700 11.5px " + MONO; ctx.textAlign = "center";
+          const ctx = ch.ctx; ctx.save(); ctx.font = "700 12px " + MONO; ctx.textAlign = "center";
           const area = ch.chartArea, nPts = labels.length;
           const xSp = nPts > 1 ? (area.right - area.left) / (nPts - 1) : 1e9;
           sets.forEach((d, di) => { const meta = ch.getDatasetMeta(di); if (meta.hidden) return;
@@ -824,20 +836,20 @@ async function renderMonthly(host, MRCFG) {
         { type: "bar", label: barLabel, data: barSeries.map(r => r.v), backgroundColor: labels.map((_, i) => i === labels.length - 1 ? LIME : INK), borderRadius: 4, maxBarThickness: 44, yAxisID: "y", order: 2 },
         { type: "line", label: lineLabel, data: lineSeries.map(r => r.v), borderColor: BLUE, backgroundColor: BLUE, tension: 0, borderWidth: 2.6, pointRadius: 3, pointBorderColor: "#fff", pointBorderWidth: 1.2, yAxisID: "y1", order: 1 }] },
         options: baseOpts({ layout: { padding: { top: 18, right: 30 } }, plugins: { legend: { display: true, position: "top", align: "end", labels: { color: SUB, font: { size: 12.5, weight: "600" }, boxWidth: 9, usePointStyle: true } }, tooltip: { callbacks: { label: x => x.dataset.yAxisID === "y1" ? `${lineLabel}: ${tip(lineFmt)(x.parsed.y)}` : `${barLabel}: ${tip(barFmt)(x.parsed.y)}` } } },
-          scales: { x: axX(), y: axY(barFmt, { beginAtZero: true, title: { display: true, text: barLabel, color: SUB, font: { size: 10, weight: "700" } } }), y1: axY(lineFmt, { position: "right", grid: { display: false }, title: { display: true, text: lineLabel, color: BLUE, font: { size: 10, weight: "700" } } }) } }), plugins: [crosshair, { id: "cblab", afterDatasetsDraw(ch) {
+          scales: { x: axX(), y: axY(barFmt, { beginAtZero: true, title: { display: true, text: barLabel, color: SUB, font: { size: 12, weight: "700" } } }), y1: axY(lineFmt, { position: "right", grid: { display: false }, title: { display: true, text: lineLabel, color: BLUE, font: { size: 12, weight: "700" } } }) } }), plugins: [crosshair, { id: "cblab", afterDatasetsDraw(ch) {
           // labels thinned like lelab, and bar vs line labels PHASE-SHIFTED so the two rows never stack on one column
           const ctx = ch.ctx; ctx.save(); ctx.textAlign = "center";
           const area = ch.chartArea, nPts = labels.length;
           const xSp = nPts > 1 ? (area.right - area.left) / (nPts - 1) : 1e9;
           const bf = lbf(barFmt), lf = lbf(lineFmt);
-          ctx.font = "700 11.5px " + MONO;
+          ctx.font = "700 12px " + MONO;
           let wB = 0; barSeries.forEach(r => { if (r.v != null) { const w = ctx.measureText(bf(r.v)).width; if (w > wB) wB = w; } });
           let wL = 0; lineSeries.forEach(r => { if (r.v != null) { const w = ctx.measureText(lf(r.v)).width; if (w > wL) wL = w; } });
           const step = Math.max(1, Math.ceil((Math.max(wB, wL) + 6) / xSp));
           const off = step > 1 ? Math.floor(step / 2) : 0;
           ctx.fillStyle = INK; ctx.textBaseline = "bottom";
           ch.getDatasetMeta(0).data.forEach((el, i) => { const v = barSeries[i] && barSeries[i].v; if (v == null || isNaN(v) || (nPts - 1 - i) % step !== 0) return; ctx.fillText(bf(v), el.x, el.y - 3); });
-          ctx.font = "700 11.5px " + MONO; ctx.fillStyle = BLUE;
+          ctx.font = "700 12px " + MONO; ctx.fillStyle = BLUE;
           ch.getDatasetMeta(1).data.forEach((el, i) => { const v = lineSeries[i] && lineSeries[i].v; if (v == null || isNaN(v) || (nPts - 1 - i + off) % step !== 0) return; ctx.fillText(lf(v), el.x, el.y - 7); });
           ctx.restore(); } }] });
       return c;
@@ -903,7 +915,7 @@ async function renderMonthly(host, MRCFG) {
         options: baseOpts({ indexAxis: "y", layout: { padding: { right: padR } }, plugins: { legend: { display: true, position: "top", align: "end", labels: { color: SUB, font: { size: 12.5, weight: "600" }, boxWidth: 9, usePointStyle: true } }, tooltip: { callbacks: { label: x => x.dataset.label + ": " + tip(fmt)(x.parsed.x) } } }, scales: { x: axY(fmt, { beginAtZero: true }), y: { ticks: { color: INK2, font: { size: 12.5, weight: "600" } }, grid: { display: false }, border: { display: false } } } }),
         plugins: [crosshair, valLabels(fmt, true)].concat(catLab ? [{ id: "catlab", afterDatasetsDraw(ch) {
           const m0 = ch.getDatasetMeta(0), m1 = ch.getDatasetMeta(1), ctx = ch.ctx;
-          ctx.save(); ctx.font = "800 11.5px " + MONO; ctx.textAlign = "right"; ctx.textBaseline = "middle";
+          ctx.save(); ctx.font = "800 12px " + MONO; ctx.textAlign = "right"; ctx.textBaseline = "middle";
           labels.forEach((_, i) => {
             const t = catLab[i], a = m0.data[i], b = m1.data[i];
             if (!t || t.txt == null || !a || !b) return;
@@ -945,10 +957,10 @@ async function renderMonthly(host, MRCFG) {
                 if (tail.length > 14) lines.push(`… +${tail.length - 14} more — click to expand`);
                 return lines;
               } } } } }),
-          plugins: [{ id: "ctr", afterDraw(ch) { const a = ch.chartArea, ctx = ch.ctx, x = (a.left + a.right) / 2, y = (a.top + a.bottom) / 2; ctx.save(); ctx.textAlign = "center"; ctx.fillStyle = INK; ctx.font = "800 19px " + MONO; ctx.fillText(opts.center || fmt(tot), x, y - 2); ctx.fillStyle = FAINT; ctx.font = "700 10px Inter"; ctx.fillText(opts.centerLbl || "total", x, y + 15); ctx.restore(); } },
+          plugins: [{ id: "ctr", afterDraw(ch) { const a = ch.chartArea, ctx = ch.ctx, x = (a.left + a.right) / 2, y = (a.top + a.bottom) / 2; ctx.save(); ctx.textAlign = "center"; ctx.fillStyle = INK; ctx.font = "800 19px " + MONO; ctx.fillText(opts.center || fmt(tot), x, y - 2); ctx.fillStyle = FAINT; ctx.font = "700 12px Inter"; ctx.fillText(opts.centerLbl || "total", x, y + 15); ctx.restore(); } },
           { id: "dlab", afterDatasetsDraw(ch) {
             // % label on every slice big enough to hold one (>=4% of the ring)
-            const ctx = ch.ctx; ctx.save(); ctx.font = "800 11.5px " + MONO; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+            const ctx = ch.ctx; ctx.save(); ctx.font = "800 12px " + MONO; ctx.textAlign = "center"; ctx.textBaseline = "middle";
             ch.getDatasetMeta(0).data.forEach((el, i) => {
               const p = s[i] ? s[i].v / tot : 0; if (p < 0.04) return;
               const pt = el.tooltipPosition ? el.tooltipPosition() : el.getCenterPoint();
@@ -970,10 +982,10 @@ async function renderMonthly(host, MRCFG) {
         else { const from = run, to = run + st2.v; bars.push([from, to]); colors.push(st2.v >= 0 ? POS : NEG); run = to; }
       });
       new Chart(cv, { type: "bar", data: { labels, datasets: [{ data: bars, backgroundColor: colors, borderRadius: 3, maxBarThickness: 84, categoryPercentage: 0.9, barPercentage: 0.98 }] },
-        options: baseOpts({ layout: { padding: { top: 20 } }, plugins: { legend: { display: false }, tooltip: { callbacks: { label: x => { const d = x.raw; return money(Array.isArray(d) ? d[1] - d[0] : d); } } } }, scales: { x: axX({ ticks: { color: AXIS, font: { family: MONO, size: 10 }, maxRotation: 40, minRotation: 0 } }), y: axY(moneyC, { beginAtZero: true }) } }),
+        options: baseOpts({ layout: { padding: { top: 20 } }, plugins: { legend: { display: false }, tooltip: { callbacks: { label: x => { const d = x.raw; return money(Array.isArray(d) ? d[1] - d[0] : d); } } } }, scales: { x: axX({ ticks: { color: AXIS, font: { family: MONO, size: 12 }, maxRotation: 40, minRotation: 0 } }), y: axY(moneyC, { beginAtZero: true }) } }),
         plugins: [crosshair,
           { id: "wconn", beforeDatasetsDraw(ch) { const ctx = ch.ctx, meta = ch.getDatasetMeta(0); if (!meta.data.length) return; ctx.save(); ctx.strokeStyle = CTX; ctx.setLineDash([3, 3]); for (let i = 0; i < meta.data.length - 1; i++) { const y = ch.scales.y.getPixelForValue(bars[i][1]); ctx.beginPath(); ctx.moveTo(meta.data[i].x, y); ctx.lineTo(meta.data[i + 1].x, y); ctx.stroke(); } ctx.setLineDash([]); ctx.restore(); } },
-          { id: "wlab", afterDatasetsDraw(ch) { const ctx = ch.ctx; ctx.save(); ctx.font = "800 11.5px " + MONO; ctx.textAlign = "center"; ctx.textBaseline = "bottom"; ch.getDatasetMeta(0).data.forEach((el, i) => { const d = bars[i]; const v = d[1] - d[0]; ctx.fillStyle = steps[i].type === "total" ? INK : (v >= 0 ? POS : NEG); ctx.fillText((v < 0 ? "-" : "") + money(Math.abs(v)), el.x, Math.min(el.y, ch.scales.y.getPixelForValue(Math.max(d[0], d[1]))) - 3); }); ctx.restore(); } }] });
+          { id: "wlab", afterDatasetsDraw(ch) { const ctx = ch.ctx; ctx.save(); ctx.font = "800 12px " + MONO; ctx.textAlign = "center"; ctx.textBaseline = "bottom"; ch.getDatasetMeta(0).data.forEach((el, i) => { const d = bars[i]; const v = d[1] - d[0]; ctx.fillStyle = steps[i].type === "total" ? INK : (v >= 0 ? POS : NEG); ctx.fillText((v < 0 ? "-" : "") + money(Math.abs(v)), el.x, Math.min(el.y, ch.scales.y.getPixelForValue(Math.max(d[0], d[1]))) - 3); }); ctx.restore(); } }] });
       return c;
     }
     function funnel(mount, title, sub, stages, opts) {
@@ -983,7 +995,7 @@ async function renderMonthly(host, MRCFG) {
       const top = stages[0].v;
       new Chart(cv, { type: "bar", data: { labels: stages.map(s2 => s2.k), datasets: [{ data: stages.map(s2 => s2.v), backgroundColor: stages.map((_, i) => i === stages.length - 1 ? LIME : INK), hoverBackgroundColor: stages.map((_, i) => i === stages.length - 1 ? LIMED : INK_H), borderRadius: 4, maxBarThickness: 36 }] },
         options: baseOpts({ indexAxis: "y", layout: { padding: { right: 110 } }, plugins: { legend: { display: false }, tooltip: { callbacks: { label: x => fmtN(x.parsed.x) + ` (${(x.parsed.x / top * 100).toFixed(0)}% of top)` } } }, scales: { x: { display: false, beginAtZero: true, max: top * 1.02 }, y: { ticks: { color: INK2, font: { size: 13.5, weight: "700" } }, grid: { display: false }, border: { display: false } } } }),
-        plugins: [crosshair, { id: "flab", afterDatasetsDraw(ch) { const ctx = ch.ctx; ctx.save(); ctx.textAlign = "left"; ctx.textBaseline = "middle"; ch.getDatasetMeta(0).data.forEach((el, i) => { ctx.font = "800 12px " + MONO; ctx.fillStyle = INK; ctx.fillText(fmtN(stages[i].v), el.x + 6, el.y); if (i > 0) { ctx.font = "700 11.5px " + MONO; ctx.fillStyle = LIMED; ctx.fillText("  " + (stages[i].v / stages[i - 1].v * 100).toFixed(0) + "%", el.x + 6 + ctx.measureText(fmtN(stages[i].v)).width + 4, el.y); } }); ctx.restore(); } }] });
+        plugins: [crosshair, { id: "flab", afterDatasetsDraw(ch) { const ctx = ch.ctx; ctx.save(); ctx.textAlign = "left"; ctx.textBaseline = "middle"; ch.getDatasetMeta(0).data.forEach((el, i) => { ctx.font = "800 12px " + MONO; ctx.fillStyle = INK; ctx.fillText(fmtN(stages[i].v), el.x + 6, el.y); if (i > 0) { ctx.font = "700 12px " + MONO; ctx.fillStyle = LIMED; ctx.fillText("  " + (stages[i].v / stages[i - 1].v * 100).toFixed(0) + "%", el.x + 6 + ctx.measureText(fmtN(stages[i].v)).width + 4, el.y); } }); ctx.restore(); } }] });
       return c;
     }
     function bullet(mount, title, sub, rows, fmt, target, opts) {
@@ -993,7 +1005,7 @@ async function renderMonthly(host, MRCFG) {
       if (!rows.length) { emptyBox(box); return c; }
       new Chart(cv, { type: "bar", data: { labels: rows.map(r => r.k), datasets: [{ data: rows.map(r => r.v), backgroundColor: rows.map(r => r.v >= target ? INK : NEG), hoverBackgroundColor: rows.map(r => r.v >= target ? INK_H : NEG_H), borderRadius: 4, maxBarThickness: 18 }] },
         options: baseOpts({ indexAxis: "y", layout: { padding: { right: 52 } }, plugins: { legend: { display: false }, tooltip: { callbacks: { label: x => tip(fmt)(x.parsed.x) + " (team avg " + tip(fmt)(target) + ")" } } }, scales: { x: axY(fmt, { beginAtZero: true }), y: { ticks: { color: INK2, font: { size: 12.5, weight: "600" } }, grid: { display: false }, border: { display: false } } } }),
-        plugins: [crosshair, valLabels(fmt, true), { id: "tgt", afterDatasetsDraw(ch) { const x = ch.scales.x.getPixelForValue(target), a = ch.chartArea, ctx = ch.ctx; ctx.save(); ctx.strokeStyle = LIME; ctx.lineWidth = 2.4; ctx.beginPath(); ctx.moveTo(x, a.top); ctx.lineTo(x, a.bottom); ctx.stroke(); ctx.fillStyle = LIMED; ctx.font = "800 9px " + MONO; ctx.textAlign = "center"; ctx.fillText("team avg " + fmt(target), x, a.top - 2); ctx.restore(); } }] });
+        plugins: [crosshair, valLabels(fmt, true), { id: "tgt", afterDatasetsDraw(ch) { const x = ch.scales.x.getPixelForValue(target), a = ch.chartArea, ctx = ch.ctx; ctx.save(); ctx.strokeStyle = LIME; ctx.lineWidth = 2.4; ctx.beginPath(); ctx.moveTo(x, a.top); ctx.lineTo(x, a.bottom); ctx.stroke(); ctx.fillStyle = LIMED; ctx.font = "800 12px " + MONO; ctx.textAlign = "center"; ctx.fillText("team avg " + fmt(target), x, a.top - 2); ctx.restore(); } }] });
       if (opts.note) note(c, opts.note, opts.noteKind);
       return c;
     }
@@ -1003,7 +1015,7 @@ async function renderMonthly(host, MRCFG) {
       const { c, box, cv } = chartCard(mount, title, sub, { span2: opts.span2, icon: KIC.trend, headVal: fmt(lastTot) });
       if (!labels.length) { emptyBox(box); return c; }
       new Chart(cv, { type: "bar", data: { labels, datasets: sets.map((d, i) => ({ label: d.label, data: d.data, backgroundColor: d.color || CAT[i], borderRadius: 2, maxBarThickness: 26, stack: "s" })) },
-        options: baseOpts({ layout: { padding: { top: 18 } }, plugins: { legend: { display: true, position: "top", align: "end", labels: { color: SUB, font: { size: 12.5, weight: "600" }, boxWidth: 9, usePointStyle: true } }, tooltip: { callbacks: { label: x => x.dataset.label + ": " + tip(fmt)(x.parsed.y) } } }, scales: { x: Object.assign(axX(), { stacked: true }), y: Object.assign(axY(fmt, { beginAtZero: true }), { stacked: true }) } }), plugins: [crosshair, { id: "stlab", afterDatasetsDraw(ch) { const ctx = ch.ctx; ctx.save(); ctx.font = "700 9px " + MONO; ctx.fillStyle = INK; ctx.textAlign = "center"; ctx.textBaseline = "bottom"; ch.getDatasetMeta(0).data.forEach((el, i) => { let tot = 0, topY = Infinity; ch.data.datasets.forEach((d, di) => { const e = ch.getDatasetMeta(di).data[i]; if (e) { tot += (+d.data[i] || 0); topY = Math.min(topY, e.y); } }); if (tot) ctx.fillText(fmt(tot), el.x, topY - 3); }); ctx.restore(); } }] });
+        options: baseOpts({ layout: { padding: { top: 18 } }, plugins: { legend: { display: true, position: "top", align: "end", labels: { color: SUB, font: { size: 12.5, weight: "600" }, boxWidth: 9, usePointStyle: true } }, tooltip: { callbacks: { label: x => x.dataset.label + ": " + tip(fmt)(x.parsed.y) } } }, scales: { x: Object.assign(axX(), { stacked: true }), y: Object.assign(axY(fmt, { beginAtZero: true }), { stacked: true }) } }), plugins: [crosshair, { id: "stlab", afterDatasetsDraw(ch) { const ctx = ch.ctx; ctx.save(); ctx.font = "700 12px " + MONO; ctx.fillStyle = INK; ctx.textAlign = "center"; ctx.textBaseline = "bottom"; ch.getDatasetMeta(0).data.forEach((el, i) => { let tot = 0, topY = Infinity; ch.data.datasets.forEach((d, di) => { const e = ch.getDatasetMeta(di).data[i]; if (e) { tot += (+d.data[i] || 0); topY = Math.min(topY, e.y); } }); if (tot) ctx.fillText(fmt(tot), el.x, topY - 3); }); ctx.restore(); } }] });
       return c;
     }
 
@@ -1445,8 +1457,8 @@ async function renderMonthly(host, MRCFG) {
         new Chart(cvLL, { type: "bar", data: { labels: labs, datasets: [
           { label: "Local Moving", data: yrs.map(r => r.loc), backgroundColor: LIME, borderRadius: 3, maxBarThickness: 30 },
           { label: "Long-distance", data: yrs.map(r => r.ld), backgroundColor: INK, borderRadius: 3, maxBarThickness: 30 } ] },
-          options: baseOpts({ plugins: { legend: { display: true, position: "top", align: "end", labels: { color: SUB, font: { size: 12.5, weight: "600" }, boxWidth: 9, usePointStyle: true } }, tooltip: { callbacks: { label: x => x.dataset.label + ": " + money(x.parsed.y) } } },
-            scales: { y: axY(moneyC, { beginAtZero: true }), x: { ticks: { color: INK2, font: { size: 12.5, weight: "600" } }, grid: { display: false }, border: { display: false } } } }), plugins: [crosshair] });
+          options: baseOpts({ layout: { padding: { top: 18 } }, plugins: { legend: { display: true, position: "top", align: "end", labels: { color: SUB, font: { size: 12.5, weight: "600" }, boxWidth: 9, usePointStyle: true } }, tooltip: { callbacks: { label: x => x.dataset.label + ": " + money(x.parsed.y) } } },
+            scales: { y: axY(moneyC, { beginAtZero: true }), x: { ticks: { color: INK2, font: { size: 12.5, weight: "600" } }, grid: { display: false }, border: { display: false } } } }), plugins: [crosshair, valLabels(moneyC, false)] });
         note(cLL, `Hourly “Local Moving” (the volume base) vs flat-rate long-distance (“Regular” + “Straight”), same month each year.`, "how");
       }
       { // job-count head-to-head, paired next to the revenue chart (Tornike 2026-07-16)
@@ -1457,8 +1469,8 @@ async function renderMonthly(host, MRCFG) {
         new Chart(cvJJ, { type: "bar", data: { labels: labsJ, datasets: [
           { label: "Local Moving", data: yrsJ.map(r => r.loc), backgroundColor: LIME, borderRadius: 3, maxBarThickness: 30 },
           { label: "Long-distance", data: yrsJ.map(r => r.ld), backgroundColor: INK, borderRadius: 3, maxBarThickness: 30 } ] },
-          options: baseOpts({ plugins: { legend: { display: true, position: "top", align: "end", labels: { color: SUB, font: { size: 12.5, weight: "600" }, boxWidth: 9, usePointStyle: true } }, tooltip: { callbacks: { label: x => x.dataset.label + ": " + fmtN(x.parsed.y) } } },
-            scales: { y: axY(fmtN, { beginAtZero: true }), x: { ticks: { color: INK2, font: { size: 12.5, weight: "600" } }, grid: { display: false }, border: { display: false } } } }), plugins: [crosshair] });
+          options: baseOpts({ layout: { padding: { top: 18 } }, plugins: { legend: { display: true, position: "top", align: "end", labels: { color: SUB, font: { size: 12.5, weight: "600" }, boxWidth: 9, usePointStyle: true } }, tooltip: { callbacks: { label: x => x.dataset.label + ": " + fmtN(x.parsed.y) } } },
+            scales: { y: axY(fmtN, { beginAtZero: true }), x: { ticks: { color: INK2, font: { size: 12.5, weight: "600" } }, grid: { display: false }, border: { display: false } } } }), plugins: [crosshair, valLabels(fmtN, false)] });
         note(cJJ, `Job counts, same head-to-head — read next to the revenue chart to separate volume (jobs) from value (revenue). Long-distance is far fewer jobs but a bigger ticket.`, "how");
       }
       // the matrix: every Local/LD number that used to be its own card, with YoY inline.
@@ -1515,10 +1527,10 @@ async function renderMonthly(host, MRCFG) {
         new Chart(cv, { type: "bar", data: { labels: rows.map(r => r.k), datasets: [
           { label: "Gross profit", data: rows.map(r => r.op), backgroundColor: LIME, borderRadius: 3, maxBarThickness: 20 },
           { label: "All costs", data: rows.map(r => r.cost), backgroundColor: INK, borderRadius: 3, maxBarThickness: 20 } ] },
-          options: baseOpts({ indexAxis: "y", layout: { padding: { right: 104 } }, plugins: { legend: { display: true, position: "top", align: "end", labels: { color: SUB, font: { size: 11.5, weight: "600" }, boxWidth: 9, usePointStyle: true } }, tooltip: { callbacks: { label: x => x.dataset.label + ": " + money(x.parsed.x),
+          options: baseOpts({ indexAxis: "y", layout: { padding: { right: 104 } }, plugins: { legend: { display: true, position: "top", align: "end", labels: { color: SUB, font: { size: 12.5, weight: "600" }, boxWidth: 9, usePointStyle: true } }, tooltip: { callbacks: { label: x => x.dataset.label + ": " + money(x.parsed.x),
             footer: items => { const r = rows[items[0].dataIndex]; return r && r.rev ? money(r.rev) + " revenue · " + Math.round(r.op / r.rev * 100) + "% gross margin" : ""; } } } },
-            scales: { x: axY(moneyC, { beginAtZero: true, stacked: true }), y: { stacked: true, ticks: { color: INK2, font: { size: 11, weight: "600" } }, grid: { display: false }, border: { display: false } } } }),
-          plugins: [crosshair, { id: pid, afterDatasetsDraw(ch) { const ctx = ch.ctx; ctx.save(); ctx.font = "700 11px " + MONO; ctx.textAlign = "left"; ctx.textBaseline = "middle"; ctx.fillStyle = INK;
+            scales: { x: axY(moneyC, { beginAtZero: true, stacked: true }), y: { stacked: true, ticks: { color: INK2, font: { size: 12.5, weight: "600" } }, grid: { display: false }, border: { display: false } } } }),
+          plugins: [crosshair, { id: pid, afterDatasetsDraw(ch) { const ctx = ch.ctx; ctx.save(); ctx.font = "700 12px " + MONO; ctx.textAlign = "left"; ctx.textBaseline = "middle"; ctx.fillStyle = INK;
             ch.getDatasetMeta(1).data.forEach((el, i) => { const r = rows[i]; ctx.fillText(money(r.rev) + (r.rev ? " · " + Math.round(r.op / r.rev * 100) + "%" : ""), el.x + 6, el.y); });
             ctx.restore(); } }] });
         note(c, opts.note || `Each bar is that segment's revenue; the green part is the gross profit kept (before refunds), the dark part is field cost. End label = revenue · gross margin.`, "how");
@@ -1584,14 +1596,18 @@ async function renderMonthly(host, MRCFG) {
         const { c, box, cv } = chartCard(g, title, monLbl + " · vs last year & last month · top 10", { h: Math.max(230, 46 + rows.length * 30), icon: KIC.bars, headVal: "" });
         if (!rows.length) { emptyBox(box); return c; }
         const sgn = v => (v >= 0 ? "+" : "−") + fmt(Math.abs(v));
+        // house convention: INK = the primary series (YoY — the one to trust for states), CTX = context (MoM)
         new Chart(cv, { type: "bar", data: { labels: rows.map(r => r.k), datasets: [
-          { label: "vs last year", data: rows.map(r => r.yoyAbs), backgroundColor: BLUE, borderRadius: 3, maxBarThickness: 11 },
-          { label: "vs last month", data: rows.map(r => r.momAbs), backgroundColor: LIMED, borderRadius: 3, maxBarThickness: 11 } ] },
-          options: baseOpts({ indexAxis: "y", plugins: { legend: { display: true, position: "top", align: "end", labels: { color: SUB, font: { size: 12, weight: "600" }, boxWidth: 9, usePointStyle: true } },
+          { label: "vs last year", data: rows.map(r => r.yoyAbs), backgroundColor: INK, borderRadius: 3, maxBarThickness: 12 },
+          { label: "vs last month", data: rows.map(r => r.momAbs), backgroundColor: CTX, borderRadius: 3, maxBarThickness: 12 } ] },
+          options: baseOpts({ indexAxis: "y", layout: { padding: { left: 8, right: 74 } }, plugins: { legend: { display: true, position: "top", align: "end", labels: { color: SUB, font: { size: 12.5, weight: "600" }, boxWidth: 9, usePointStyle: true } },
             tooltip: { callbacks: { label: x => { const r = rows[x.dataIndex]; const p = x.dataset.label === "vs last year" ? r.yoyPct : r.momPct; return x.dataset.label + ": " + sgn(x.parsed.x) + (p == null ? "" : " (" + (p >= 0 ? "+" : "") + pct(p) + ")"); } } } },
-            scales: { x: { beginAtZero: true, ticks: { callback: sgn, color: AXIS, font: { size: 10 } }, grid: { color: GRID }, border: { display: false } },
-              y: { ticks: { color: INK2, font: { size: 11, weight: "600" } }, grid: { display: false }, border: { display: false } } } }), plugins: [crosshair] });
-        note(c, `Bars right of zero = growth, left = decline — vs the same month last year (blue) and vs last month (green). Exact % is in the tooltip. For states, the year-over-year bar is the one to trust: month-to-month is seasonal and jumpy, especially for smaller states.`, "how");
+            scales: { x: { beginAtZero: true, ticks: { callback: sgn, color: AXIS, font: { family: MONO, size: 12 } }, grid: { color: GRID }, border: { display: false } },
+              y: { ticks: { color: INK2, font: { size: 12.5, weight: "600" } }, grid: { display: false }, border: { display: false } } } }), plugins: [crosshair,
+          { id: "growlab", afterDatasetsDraw(ch) { const ctx = ch.ctx; ctx.save(); ctx.font = "700 12px " + MONO; ctx.textBaseline = "middle";
+            ch.data.datasets.forEach((d, di) => { const meta = ch.getDatasetMeta(di); meta.data.forEach((el, i) => { const v = d.data[i]; if (v == null || isNaN(v)) return;
+              ctx.fillStyle = v >= 0 ? POS : NEG; ctx.textAlign = v >= 0 ? "left" : "right"; ctx.fillText(sgn(v), el.x + (v >= 0 ? 4 : -4), el.y); }); }); ctx.restore(); } }] });
+        note(c, `Bars right of zero = growth, left = decline — vs the same month last year (dark) and vs last month (light gray). Exact % is in the tooltip. For states, the year-over-year bar is the one to trust: month-to-month is seasonal and jumpy, especially for smaller states.`, "how");
         return c;
       }
       const jobsGrowthRows = jobS.slice(0, 10).map(r => { const j = r.v, jl = jobLyMap[r.k] || 0, jp = jobPmMap[r.k] || 0; return { k: nm(r.k), yoyAbs: j - jl, momAbs: j - jp, yoyPct: jl ? (j - jl) / jl : null, momPct: jp ? (j - jp) / jp : null }; });
@@ -1635,16 +1651,13 @@ async function renderMonthly(host, MRCFG) {
       const oeT = momSeries("closing", "Other Expenses", 14);
       const oeCur = valueFor("closing", "Other Expenses", curY, mo) || 0;
       const oec = lines(g, "Other Expenses — momentum", "last 14 months", [{ label: "Other Expenses", series: oeT, color: VIOLET }], money, { headVal: money(oeCur) });
-      note(oec, `Uncategorized per-job field reimbursements — ${money(oeCur)} in ${MON[mo]}${jobs ? `, about ${money(oeCur / jobs)}/job` : ""}. Captured as one closing-sheet total with no category behind it, so it can't be split further; the trend is what to watch.`, "how");
-      // Dive into Other Expenses (Tornike 2026-07-16): the data has no sub-category, so the honest drill-in
-      // is the biggest single instances — plus a clear note that tips are NOT part of this field.
-      const oeJobs = rowsW.map(r => ({ cust: r.Customer, req: r["Request #"], moType: r["Moving Type"] || "—", amt: num(r["Other Expenses"]) })).filter(r => r.amt > 0).sort((a, b) => b.amt - a.amt);
-      if (oeJobs.length) {
-        const topN = oeJobs.slice(0, 10), shown = topN.reduce((a, r) => a + r.amt, 0);
-        const ldShare = oeJobs.filter(r => r.moType !== "Local Moving").reduce((a, r) => a + r.amt, 0);
-        const oeHtml = `<table class="mrx-tbl"><thead><tr><th>Customer</th><th>Request #</th><th>Move type</th><th style="text-align:right">Other Expenses</th></tr></thead><tbody>${topN.map(r => `<tr><td>${esc(r.cust || "—")}</td>${td(esc(String(r.req || "—")))}${td(esc(r.moType))}${td(money(r.amt), "text-align:right;font-weight:800")}</tr>`).join("")}</tbody></table>`;
-        tableCard(g, "Biggest Other Expenses this month", monLbl + " · top " + topN.length + " of " + fmtN(oeJobs.length) + " jobs with reimbursements", oeHtml, { span2: true, icon: KIC.grid, headVal: money(shown), noteKind: "how", note: `“Other Expenses” is a single uncategorized reimbursement field on each closing sheet — no sub-category exists behind it in the data, so this is the honest drill-in: the individual jobs carrying the most.${oeCur ? " About " + pct(ldShare / oeCur) + " of the month's Other Expenses is on long-distance (Regular/Straight) jobs — out-of-town moves carry more field reimbursements." : ""} IMPORTANT: tips are NOT in this field — “Tip from Company” is its own separate column, and the portion that reaches the crew (“Tip from Company Part”) sits inside Foreman Salaries, not Expenses.` });
-      }
+      note(oec, `Uncategorized per-job field reimbursements — ${money(oeCur)} in ${MON[mo]}${jobs ? `, about ${money(oeCur / jobs)}/job` : ""}. Captured as one closing-sheet total with no category behind it, so it can't be split further; the trend is what to watch. Tips are NOT in this field — “Tip from Company” is its own column, and the crew's part sits inside Foreman Salaries.`, "how");
+      // Fuel momentum pairs with Other Expenses (Tornike 2026-07-16) — the two biggest expense components side by side.
+      const fuT = momSeries("closing", "Fuel Expense", 14);
+      const fuCur = valueFor("closing", "Fuel Expense", curY, mo) || 0;
+      const fuc = lines(g, "Fuel — momentum", "last 14 months", [{ label: "Fuel", series: fuT, color: BLUE }], money, { headVal: money(fuCur) });
+      note(fuc, `Fuel across all jobs — ${money(fuCur)} in ${MON[mo]}${jobs ? `, about ${money(fuCur / jobs)}/job` : ""}. Read against the jobs count: fuel growing faster than jobs means longer hauls or waste.`, "how");
+      // ("Biggest Other Expenses this month" table removed — Tornike 2026-07-16)
     }
 
     /* ---- Repeat & Referral Business — sits in PART 2 "The money" (Tornike 2026-07-15:
@@ -1679,8 +1692,8 @@ async function renderMonthly(host, MRCFG) {
         new Chart(cvRRb, { type: "bar", data: { labels: labsRR, datasets: [
           { label: "Repeat (returned customer)", data: retT, backgroundColor: LIMED, borderRadius: 3, maxBarThickness: 30 },
           { label: "Referral (recommended)", data: recT, backgroundColor: BLUE, borderRadius: 3, maxBarThickness: 30 } ] },
-          options: baseOpts({ plugins: { legend: { display: true, position: "top", align: "end", labels: { color: SUB, font: { size: 12.5, weight: "600" }, boxWidth: 9, usePointStyle: true } }, tooltip: { callbacks: { label: x => x.dataset.label + ": " + money(x.parsed.y) } } },
-            scales: { y: axY(moneyC, { beginAtZero: true }), x: { ticks: { color: INK2, font: { size: 12.5, weight: "600" } }, grid: { display: false }, border: { display: false } } } }), plugins: [crosshair] });
+          options: baseOpts({ layout: { padding: { top: 18 } }, plugins: { legend: { display: true, position: "top", align: "end", labels: { color: SUB, font: { size: 12.5, weight: "600" }, boxWidth: 9, usePointStyle: true } }, tooltip: { callbacks: { label: x => x.dataset.label + ": " + money(x.parsed.y) } } },
+            scales: { y: axY(moneyC, { beginAtZero: true }), x: { ticks: { color: INK2, font: { size: 12.5, weight: "600" } }, grid: { display: false }, border: { display: false } } } }), plugins: [crosshair, valLabels(moneyC, false)] });
       }
       // C2: both trend lines use the canonical dual-basis Booking Rate (no inline ratios)
       // #8 (Tornike 2026-07-15): show Repeat (returned) and Referral (recommended) as SEPARATE lines vs overall.
@@ -1813,11 +1826,11 @@ async function renderMonthly(host, MRCFG) {
       const rmax = Math.max(...reps.map(r => r.rev));
       const rowsH = reps.map(r => `<tr><td>${esc(r.k)}</td>
         <td class="bar"><i style="width:${(r.rev / rmax * 100).toFixed(1)}%"></i><span>${money(r.rev)}</span></td>
-        ${td(money(r.op))}${td(r.ref ? money(r.ref) : "—", r.ref ? `color:${NEG};font-weight:800` : "")}${td(r.ref && r.rev ? pct(r.ref / r.rev) : "—", r.ref && r.rev && r.ref / r.rev > 0.02 ? `color:${NEG};font-weight:800` : "")}${td(fmtN(r.m.q || 0))}${td(fmtN(r.m.c || 0))}
+        ${td(money(r.op))}${td(r.ref ? money(r.ref) : "—", r.ref ? `color:${NEG};font-weight:800` : "")}${td(r.ref && r.rev ? pct(r.ref / r.rev) : "—", r.ref && r.rev && r.ref / r.rev > 0.02 ? `color:${NEG};font-weight:800` : "")}${td(r.m.q == null ? "—" : fmtN(r.m.q), r.m.q == null ? "color:" + FAINT : "")}${td(r.m.c == null ? "—" : fmtN(r.m.c), r.m.c == null ? "color:" + FAINT : "")}
         ${(() => { const thin = r.m.book == null || (r.m.q || 0) < MIN_QUAL;   // <10 qualified → no rate, per Tornike's floor
           return td(thin ? "—" : pct(r.m.book), thin ? "color:" + FAINT : `color:${r.m.book >= (bk || 0) ? POS : NEG};font-weight:800`); })()}
         ${td(r.m.dead == null ? "—" : pct(r.m.dead), r.m.dead == null ? "" : `color:${r.m.dead > .3 ? NEG : POS};font-weight:800`)}</tr>`).join("");
-      tableCard(g, "Salesperson scorecard", monLbl + " · top " + reps.length + " reps by revenue", `<table class="mrx-tbl"><thead><tr><th>Sales Person</th><th>Revenue</th><th>Gross Profit</th><th>Refunds</th><th>Refund %</th><th>Qualified</th><th>Confirmed</th><th>Booking %</th><th>Bad-lead %</th></tr></thead><tbody>${rowsH}</tbody></table>`, { icon: KIC.grid, headVal: money(reps.reduce((a, r) => a + r.rev, 0)), noteKind: "how", note: `Bars = revenue share. Refunds / Refund % = money refunded on the rep's jobs as a share of their revenue (red above 2%). Booking % = jobs booked this month (by booked date) ÷ qualified leads created (qualified = all leads minus bad leads); green above the team average (${pct(bk)}). It shows "—" for any rep with fewer than ${MIN_QUAL} qualified leads — the rate would be noise at that volume — but the rep keeps their row, because their revenue is real either way. Bad-lead % red when high. Gross Profit is before refunds. Lead columns come from Moveboard assignment, revenue and refunds from closing sheets — names are matched after trimming spaces and ignoring case.` });
+      tableCard(g, "Salesperson scorecard", monLbl + " · top " + reps.length + " reps by revenue", `<table class="mrx-tbl"><thead><tr><th>Sales Person</th><th>Revenue</th><th>Gross Profit</th><th>Refunds</th><th>Refund %</th><th>Qualified</th><th>Confirmed</th><th>Booking %</th><th>Bad-lead %</th></tr></thead><tbody>${rowsH}</tbody></table>`, { icon: KIC.grid, headVal: money(reps.reduce((a, r) => a + r.rev, 0)), noteKind: "how", note: `Bars = revenue share. Refunds / Refund % = money refunded on the rep's jobs as a share of their revenue (red above 2%). Booking % = jobs booked this month (by booked date) ÷ qualified leads created (qualified = all leads minus bad leads); green above the team average (${pct(bk)}). It shows "—" for any rep with fewer than ${MIN_QUAL} qualified leads — the rate would be noise at that volume — but the rep keeps their row, because their revenue is real either way. Partners who bring already-confirmed jobs without working Moveboard leads (e.g. Peter Montanaro) show "—" across all lead columns: they have no lead base, so no funnel numbers exist for them. Bad-lead % red when high. Gross Profit is before refunds. Lead columns come from Moveboard assignment, revenue and refunds from closing sheets — names are matched after trimming spaces and ignoring case.` });
       const bigPre = { pre: r => String(r["Big Job Status"]) === "Yes" };  // clean flag, not a CF-range regex
       const bigBooked = groupByCol(bookedRowsFor(curY, mo, bigPre.pre), "Assigned");
       const bigMb = segReduce("moveboard", "Assigned", rs => rs, curY, mo, bigPre).map(r => { const q = r.rows.filter(x => x["Status Category"] !== "Bad Lead").length, c = (bigBooked[r.k] || []).filter(x => x["Status Category"] === "Confirmed").length; return { k: r.k, q, c, book: RS.bookingRate(r.rows, bigBooked[r.k] || []) }; }).filter(r => !isBlankKey(r.k) && r.q >= MIN_QUAL).sort((a, b) => b.q - a.q).slice(0, 10);
@@ -1832,14 +1845,18 @@ async function renderMonthly(host, MRCFG) {
       const spBookedLY = groupByCol(bookedRowsFor(curY - 1, mo), "Assigned"), mbMapLY = {};
       segReduce("moveboard", "Assigned", rs => rs, curY - 1, mo).forEach(r => { const q = r.rows.filter(x => x["Status Category"] !== "Bad Lead").length, c = (spBookedLY[r.k] || []).filter(x => x["Status Category"] === "Confirmed").length; mbMapLY[normName(r.k)] = { q, c, book: RS.bookingRate(r.rows, spBookedLY[r.k] || []) }; });
       const lyM = r => mbMapLY[normName(r.k)] || {}, cyM = r => mbMap[normName(r.k)] || {};
-      groupedBars(g, "Qualified leads by salesperson — YoY", topReps.map(r => r.k), topReps.map(r => lyM(r).q || 0), String(curY - 1), topReps.map(r => cyM(r).q || 0), String(curY), fmtN, { sub: MON[mo] });
-      groupedBars(g, "Confirmed jobs by salesperson — YoY", topReps.map(r => r.k), topReps.map(r => lyM(r).c || 0), String(curY - 1), topReps.map(r => cyM(r).c || 0), String(curY), fmtN, { sub: MON[mo] });
+      // Moveboard-based charts EXCLUDE reps with no lead base in either year (Tornike 2026-07-16:
+      // partners like Peter Montanaro bring already-confirmed jobs — no leads, so no funnel/booking
+      // numbers exist for them; they stay in the revenue/profit charts above).
+      const topRepsMb = topReps.filter(r => cyM(r).q != null || lyM(r).q != null);
+      groupedBars(g, "Qualified leads by salesperson — YoY", topRepsMb.map(r => r.k), topRepsMb.map(r => lyM(r).q || 0), String(curY - 1), topRepsMb.map(r => cyM(r).q || 0), String(curY), fmtN, { sub: MON[mo] });
+      groupedBars(g, "Confirmed jobs by salesperson — YoY", topRepsMb.map(r => r.k), topRepsMb.map(r => lyM(r).c || 0), String(curY - 1), topRepsMb.map(r => cyM(r).c || 0), String(curY), fmtN, { sub: MON[mo] });
       // Booking-rate YoY: blank each YEAR independently below the qualified floor — a rep can clear it this
       // year and not last. `|| 0` would be a lie twice over here (it plots "no lead base" as a real 0%), so
       // thin/absent years pass null and Chart.js simply draws no bar. topReps itself is NOT filtered: it is
       // shared with the two count charts above, where a low-volume rep's raw counts are perfectly legitimate.
       const bkYr = m => (m.book == null || (m.q || 0) < MIN_QUAL) ? null : m.book;
-      groupedBars(g, "Booking rate by salesperson — YoY", topReps.map(r => r.k), topReps.map(r => bkYr(lyM(r))), String(curY - 1), topReps.map(r => bkYr(cyM(r))), String(curY), pct, { sub: MON[mo] + " · jobs booked ÷ qualified", headVal: bk == null ? "—" : pct(bk) + " team avg", noteKind: "how", note: `Each rep's booking rate this ${MON[mo]} vs last. A year is left blank when that rep had fewer than ${MIN_QUAL} qualified leads in it — including reps who weren't here last year — so a missing bar means "too few leads to judge", never a genuine 0%.` });
+      groupedBars(g, "Booking rate by salesperson — YoY", topRepsMb.map(r => r.k), topRepsMb.map(r => bkYr(lyM(r))), String(curY - 1), topRepsMb.map(r => bkYr(cyM(r))), String(curY), pct, { sub: MON[mo] + " · jobs booked ÷ qualified", headVal: bk == null ? "—" : pct(bk) + " team avg", noteKind: "how", note: `Each rep's booking rate this ${MON[mo]} vs last. A year is left blank when that rep had fewer than ${MIN_QUAL} qualified leads in it — including reps who weren't here last year — so a missing bar means "too few leads to judge", never a genuine 0%.` });
       // C27: the filter is the Moveboard "Big Job" flag — the title must not claim a CF threshold
       // Tornike 2026-07-15: large moves had TWO cards. The bullet's only extra signal was "rate vs team
       // avg", which now rides on THIS chart as a per-rep right-edge % — green at/above the team average,
@@ -1938,13 +1955,12 @@ async function renderMonthly(host, MRCFG) {
       tableCard(g, "Source mix — jobs · revenue · profit", monLbl + " · top " + seRows.length + " sources by revenue", seHtml, { icon: KIC.grid, headVal: money(seRows.reduce((a, r) => a + r.rev, 0)), noteKind: "how", note: "Ranked by revenue (top 12); Gross Profit is before refunds." });
       // per-source YoY (deck s68-73): revenue / jobs / gross profit, prior year vs current (Tornike 2026-07-15)
       const srcTop = revBySrc.slice(0, 10);
-      const revSrcLY = {}, jobSrcLY = {}, opSrcLY = {};
+      const revSrcLY = {}, jobSrcLY = {};
       segSeries("closing", "Revenue", "Source", curY - 1, mo).forEach(r => revSrcLY[r.k] = r.v);
       segSeries("closing", "Total Jobs", "Source", curY - 1, mo).forEach(r => jobSrcLY[r.k] = r.v);
-      segSeries("closing", "Operational Profit by Formula", "Source", curY - 1, mo).forEach(r => opSrcLY[r.k] = r.v);
       groupedBars(g, "Revenue by source — YoY", srcTop.map(r => r.k), srcTop.map(r => revSrcLY[r.k] || 0), String(curY - 1), srcTop.map(r => r.v), String(curY), money, { sub: MON[mo] });
       groupedBars(g, "Jobs by source — YoY", srcTop.map(r => r.k), srcTop.map(r => jobSrcLY[r.k] || 0), String(curY - 1), srcTop.map(r => jbM[r.k] || 0), String(curY), fmtN, { sub: MON[mo] });
-      groupedBars(g, "Gross profit by source — YoY", srcTop.map(r => r.k), srcTop.map(r => opSrcLY[r.k] || 0), String(curY - 1), srcTop.map(r => opM[r.k] || 0), String(curY), money, { sub: MON[mo] + " · before refunds" });
+      // ("Gross profit by source — YoY" removed — Tornike 2026-07-16)
       // ad-leads funnel by channel (deck s61-62): does the channel's lead VOLUME convert, not just its revenue.
       // C2: Booking % per channel is the canonical dual-basis helper.
       const lfBooked = groupByCol(bookedRowsFor(curY, mo), "Source");
@@ -1959,22 +1975,8 @@ async function renderMonthly(host, MRCFG) {
         const lfHtml = `<table class="mrx-tbl"><thead><tr><th>Source</th><th>Leads</th><th>Qualified</th><th>Confirmed</th><th>Bad leads</th><th>Booking %</th></tr></thead><tbody>${lfRows.map(r => `<tr><td>${esc(r.k)}</td>${td(fmtN(r.tot))}${td(fmtN(r.q))}${td(fmtN(r.c))}${td(fmtN(r.bad))}${td(r.book == null ? "—" : pct(r.book), r.book == null ? "" : `color:${r.book >= (bk || 0) ? POS : NEG};font-weight:800`)}</tr>`).join("")}<tr class="tot"><td>Total${lfAll.length > 12 ? ` (all ${lfAll.length} sources)` : ""}</td>${td(fmtN(lfTot.tot))}${td(fmtN(lfTot.q))}${td(fmtN(lfTot.c))}${td(fmtN(lfTot.bad))}${td(lfTotBook == null ? "—" : pct(lfTotBook))}</tr></tbody></table>`;
         tableCard(g, "Lead funnel by source", monLbl + (lfAll.length > 12 ? " · top 12 of " + lfAll.length : ""), lfHtml, { icon: KIC.grid, headVal: fmtN(lfTot.tot) + " leads", noteKind: "how", note: `Each channel's lead volume through the funnel — a channel can look great on revenue but be wasting leads. Red = below the team average (${pct(bk)}). The Total row counts every source, so it matches the Leads KPI.${lfBlank ? ` ${fmtN(lfBlank)} leads with no source recorded count in Total but aren't listed.` : ""}` });
       }
-      // ===== INBOUND DEMAND (tracked marketing numbers · CallRail) =====
-      const callLabels = momReduce("callrail", 12, rs => rs.length).map(r => r.k);
-      const answered = momReduce("callrail", 12, rs => rs.filter(r => String(r["Call Status"]) === "Answered Call").length).map(r => r.v);
-      const missed = momReduce("callrail", 12, rs => rs.filter(r => /Missed|Abandoned/.test(String(r["Call Status"]))).length).map(r => r.v);
-      stackedTime(g, "Inbound calls — answered vs missed", "last 12 months (CallRail)", callLabels, [ { label: "Answered", data: answered, color: INK }, { label: "Missed/Abandoned", data: missed, color: NEG } ], fmtN);
-      const callsBySrc = segReduce("callrail", "Source", rs => rs.length, curY, mo).slice(0, 10);
-      const ftc = reduceMonth("callrail", curY, mo, rs => { const t = rs.length, f = rs.filter(r => Number(r["First-Time Caller"]) === 1).length; return t ? f / t : null; });
-      rankBars(g, "Calls by source", callsBySrc, fmtN, { top: 10, sub: monLbl, note: ftc == null ? "" : `${pct(ftc)} of calls this month were first-time callers.` });
-      // deck s74: call DURATION by source — volume alone can't tell a real conversation from a 5-second hang-up
-      const durF = s => { const _m = Math.floor(s / 60), _s = Math.round(s % 60); return _m ? _m + "m " + String(_s).padStart(2, "0") + "s" : _s + "s"; };
-      const crD = segReduce("callrail", "Source", rs => rs, curY, mo).map(r => { const rw = r.rows, calls = rw.length, dur = rw.reduce((a, x) => a + num(x["Duration Seconds"]), 0), ft = rw.filter(x => Number(x["First-Time Caller"]) === 1).length; return { k: r.k === "—" ? "(blank)" : r.k, calls, dur, avg: calls ? dur / calls : 0, ft }; }).sort((a, b) => b.calls - a.calls).slice(0, 10);
-      if (crD.length) {
-        const tCalls = crD.reduce((a, r) => a + r.calls, 0), tDur = crD.reduce((a, r) => a + r.dur, 0), tFt = crD.reduce((a, r) => a + r.ft, 0);
-        const crHtml = `<table class="mrx-tbl"><thead><tr><th>Source</th><th style="text-align:right">Calls</th><th style="text-align:right">First-time</th><th style="text-align:right">Total time</th><th style="text-align:right">Avg call</th></tr></thead><tbody>${crD.map(r => `<tr><td>${esc(r.k)}</td>${td(fmtN(r.calls), "text-align:right")}${td(fmtN(r.ft), "text-align:right")}${td(durF(r.dur), "text-align:right")}${td(durF(r.avg), "text-align:right;font-weight:800;color:" + (r.avg >= 120 ? POS : r.avg >= 45 ? WARN : NEG))}</tr>`).join("")}<tr class="tot"><td>All tracked numbers</td>${td(fmtN(tCalls), "text-align:right")}${td(fmtN(tFt), "text-align:right")}${td(durF(tDur), "text-align:right")}${td(tCalls ? durF(tDur / tCalls) : "—", "text-align:right")}</tr></tbody></table>`;
-        tableCard(g, "Call duration by source", monLbl + " · CallRail tracked numbers", crHtml, { icon: KIC.grid, headVal: tCalls ? durF(tDur / tCalls) + " avg" : "—", noteKind: "how", note: "Total and average talk time per channel — a channel with many very short calls is sending noise; long calls mean real buyers. The average INCLUDES missed/abandoned (0-second) calls, matching the phone KPIs. Green ≥2m, amber ≥45s, red below." });
-      }
+      // (CallRail cards MOVED to "Phone & Response" — Tornike 2026-07-16: all phone reporting lives
+      //  in the Phone segment, RingCentral and CallRail side by side.)
     }
 
     /* ---- Phone & Response (S3: RingCentral — the WHOLE phone system, deck s75) ----
@@ -2039,6 +2041,18 @@ async function renderMonthly(host, MRCFG) {
         const crCurTot = crTot.length ? crTot[crTot.length - 1].v : 0, crCurAns = crAns.length ? crAns[crAns.length - 1].v : 0;
         const cCRr = lines(g, "CallRail answer rate", "last 12 months (CallRail)", [{ label: "Answered %", series: crAnsRate, color: LIMED }], pct, { headVal: pct(lastV(crAnsRate)) });
         if (cCRr && crCurTot) note(cCRr, `${MON[mo]}: ${fmtN(crCurAns)} of ${fmtN(crCurTot)} tracked marketing calls answered (${pct(crCurAns / crCurTot)}). Compare with the RingCentral incoming answer rate above — CallRail is only the marketing lines, RingCentral is the whole phone system.`, "how");
+        // moved here from Lead Sources (Tornike 2026-07-16): calls by source + duration by source
+        const callsBySrc = segReduce("callrail", "Source", rs => rs.length, curY, mo).slice(0, 10);
+        const ftc = reduceMonth("callrail", curY, mo, rs => { const t = rs.length, f = rs.filter(r => Number(r["First-Time Caller"]) === 1).length; return t ? f / t : null; });
+        rankBars(g, "Calls by source", callsBySrc, fmtN, { top: 10, sub: monLbl + " · CallRail", note: ftc == null ? "" : `${pct(ftc)} of calls this month were first-time callers.` });
+        // deck s74: call DURATION by source — volume alone can't tell a real conversation from a 5-second hang-up
+        const durF = s => { const _m = Math.floor(s / 60), _s = Math.round(s % 60); return _m ? _m + "m " + String(_s).padStart(2, "0") + "s" : _s + "s"; };
+        const crD = segReduce("callrail", "Source", rs => rs, curY, mo).map(r => { const rw = r.rows, calls = rw.length, dur = rw.reduce((a, x) => a + num(x["Duration Seconds"]), 0), ft = rw.filter(x => Number(x["First-Time Caller"]) === 1).length; return { k: r.k === "—" ? "(blank)" : r.k, calls, dur, avg: calls ? dur / calls : 0, ft }; }).sort((a, b) => b.calls - a.calls).slice(0, 10);
+        if (crD.length) {
+          const tCalls = crD.reduce((a, r) => a + r.calls, 0), tDur = crD.reduce((a, r) => a + r.dur, 0), tFt = crD.reduce((a, r) => a + r.ft, 0);
+          const crHtml = `<table class="mrx-tbl"><thead><tr><th>Source</th><th style="text-align:right">Calls</th><th style="text-align:right">First-time</th><th style="text-align:right">Total time</th><th style="text-align:right">Avg call</th></tr></thead><tbody>${crD.map(r => `<tr><td>${esc(r.k)}</td>${td(fmtN(r.calls), "text-align:right")}${td(fmtN(r.ft), "text-align:right")}${td(durF(r.dur), "text-align:right")}${td(durF(r.avg), "text-align:right;font-weight:800;color:" + (r.avg >= 120 ? POS : r.avg >= 45 ? WARN : NEG))}</tr>`).join("")}<tr class="tot"><td>All tracked numbers</td>${td(fmtN(tCalls), "text-align:right")}${td(fmtN(tFt), "text-align:right")}${td(durF(tDur), "text-align:right")}${td(tCalls ? durF(tDur / tCalls) : "—", "text-align:right")}</tr></tbody></table>`;
+          tableCard(g, "Call duration by source", monLbl + " · CallRail tracked numbers", crHtml, { icon: KIC.grid, headVal: tCalls ? durF(tDur / tCalls) + " avg" : "—", noteKind: "how", note: "Total and average talk time per channel — a channel with many very short calls is sending noise; long calls mean real buyers. The average INCLUDES missed/abandoned (0-second) calls, matching the phone KPIs. Green ≥2m, amber ≥45s, red below." });
+        }
       }
     }
 
@@ -2245,7 +2259,7 @@ async function renderMonthly(host, MRCFG) {
             plugins: { legend: { display: true, position: "top", align: "end", labels: { color: SUB, font: { size: 12.5, weight: "600" }, boxWidth: 9, usePointStyle: true } },
               tooltip: { callbacks: { label: x => x.dataset.label + ": " + fmtN(x.parsed.x) } } },
             scales: { x: { stacked: true, display: false, beginAtZero: true, max: rows6[0].total * 1.04 }, y: { stacked: true, ticks: { color: INK2, font: { size: 13, weight: "600" } }, grid: { display: false }, border: { display: false } } } }),
-          plugins: [crosshair, { id: "ftlab", afterDatasetsDraw(ch) { const ctx = ch.ctx; ctx.save(); ctx.textBaseline = "middle"; ch.getDatasetMeta(1).data.forEach((el, i) => { const r = rows6[i]; ctx.textAlign = "left"; ctx.font = "800 11.5px " + MONO; ctx.fillStyle = INK; ctx.fillText(fmtN(r.total), el.x + 6, el.y); if (r.added > 0) { const w = ctx.measureText(fmtN(r.total)).width; ctx.font = "800 10.5px " + MONO; ctx.fillStyle = LIMED; ctx.fillText("+" + fmtN(r.added), el.x + 6 + w + 6, el.y); } }); ctx.restore(); } }] });
+          plugins: [crosshair, { id: "ftlab", afterDatasetsDraw(ch) { const ctx = ch.ctx; ctx.save(); ctx.textBaseline = "middle"; ch.getDatasetMeta(1).data.forEach((el, i) => { const r = rows6[i]; ctx.textAlign = "left"; ctx.font = "800 12px " + MONO; ctx.fillStyle = INK; ctx.fillText(fmtN(r.total), el.x + 6, el.y); if (r.added > 0) { const w = ctx.measureText(fmtN(r.total)).width; ctx.font = "800 12px " + MONO; ctx.fillStyle = LIMED; ctx.fillText("+" + fmtN(r.added), el.x + 6 + w + 6, el.y); } }); ctx.restore(); } }] });
         note(cc6.c, `Each bar is total public reviews on file for that listing (${fmtN(footTot6)} across the top ${rows6.length}); the lime tip is what was added in ${MON[mo]} (+${fmtN(addTot6)}, from reviews written this month by source, matched to the footprint listing). This footprint is the reputation that drives lead flow.`, "how");
       }
     }
@@ -2345,38 +2359,62 @@ async function renderMonthly(host, MRCFG) {
         // tab can actually paint; otherwise jump. Same landing either way.
         sc.scrollTo({ top, behavior: document.visibilityState === "visible" ? "smooth" : "auto" });
       };
-      secList.forEach((s, i) => {
-        const p = tocParts.find(x => x.at === i);
-        if (p) { const lb = document.createElement("span"); lb.className = "mrx-tocpart"; lb.textContent = p.label; toc.appendChild(lb); }
-        const chip = document.createElement("span"); chip.className = "mrx-tocchip"; chip.dataset.sec = s.n;
-        const cn = document.createElement("i"); cn.className = "mrx-tocn"; cn.textContent = s.n; chip.appendChild(cn);
-        chip.appendChild(document.createTextNode(TOCNAME[s.title] || s.title));
-        chip.onclick = () => { s.wrap.classList.remove("collapsed"); collapsedSet.delete(s.title); saveCollapsed(); gotoSec(s.wrap); };
-        toc.appendChild(chip);
+      /* Two-level TOC (Tornike 2026-07-16: "Main Menus and after that subtopic"): row 1 = the six
+         topic tabs + month stepper, row 2 = the section chips OF THE ACTIVE TOPIC only. Scroll-spy
+         drives both: entering a section highlights its chip AND swaps the sub-row to its topic. */
+      const mainRow = document.createElement("div"); mainRow.className = "mrx-tocrow main"; toc.appendChild(mainRow);
+      const subRow = document.createElement("div"); subRow.className = "mrx-tocrow sub"; toc.appendChild(subRow);
+      const parts = (tocParts.length ? tocParts : [{ at: 0, label: "Sections" }])
+        .map((p, pi, arr) => ({ at: p.at, label: p.label, end: arr[pi + 1] ? arr[pi + 1].at : secList.length }));
+      const topicOf = i => { let t = 0; parts.forEach((p, pi) => { if (i >= p.at) t = pi; }); return t; };
+      const jump = s => { s.wrap.classList.remove("collapsed"); collapsedSet.delete(s.title); saveCollapsed(); gotoSec(s.wrap); };
+      let curPart = -1;
+      const mainBtns = parts.map((p, pi) => {
+        const b = document.createElement("button"); b.type = "button"; b.className = "mrx-tocmain";
+        b.innerHTML = `<i>${String(pi + 1).padStart(2, "0")}</i>${esc(p.label)}`;
+        b.onclick = () => { renderSub(pi); const s = secList[p.at]; if (s) jump(s); };
+        mainRow.appendChild(b); return b;
       });
+      function renderSub(pi) {
+        if (pi === curPart) return;
+        curPart = pi;
+        mainBtns.forEach((b, bi) => b.classList.toggle("on", bi === pi));
+        subRow.innerHTML = "";
+        const lbl = document.createElement("span"); lbl.className = "mrx-tocsublbl"; lbl.textContent = "In " + parts[pi].label; subRow.appendChild(lbl);
+        for (let i = parts[pi].at; i < parts[pi].end; i++) {
+          const s = secList[i]; if (!s) continue;
+          const chip = document.createElement("span"); chip.className = "mrx-tocchip"; chip.dataset.sec = s.n;
+          const cn = document.createElement("i"); cn.className = "mrx-tocn"; cn.textContent = s.n; chip.appendChild(cn);
+          chip.appendChild(document.createTextNode(TOCNAME[s.title] || s.title));
+          chip.onclick = () => jump(s);
+          subRow.appendChild(chip);
+        }
+      }
+      renderSub(0);
       // month stepper — the dominant gesture, one click, scroll position preserved by reRender
       const step = document.createElement("span"); step.className = "mrx-tocstep";
       step.innerHTML = `<button type="button" data-mprev title="Previous month">‹</button><b>${MS[mo]} '${String(curY).slice(2)}</b><button type="button" data-mnext title="Next month">›</button>`;
-      toc.appendChild(step);
+      mainRow.appendChild(step);
       step.querySelector("[data-mprev]").onclick = () => { st.month--; if (st.month < 1) { st.month = 12; st.year--; } saveMonth(); reRender(); };
       step.querySelector("[data-mnext]").onclick = () => { st.month++; if (st.month > 12) { st.month = 1; st.year++; } saveMonth(); reRender(); };
-      // scroll-spy: highlight the chip of the topmost visible section
+      // scroll-spy: highlight the chip of the topmost visible section (and swap the sub-row to its topic)
       const io = new IntersectionObserver(entries => {
         entries.forEach(en => { if (!en.isIntersecting) return;
-          const n = (secList.find(s => s.wrap === en.target) || {}).n; if (!n) return;
+          const idx = secList.findIndex(s => s.wrap === en.target); if (idx < 0) return;
+          renderSub(topicOf(idx));
+          const n = secList[idx].n;
           toc.querySelectorAll(".mrx-tocchip.on").forEach(c => c.classList.remove("on"));
           const c = toc.querySelector(`.mrx-tocchip[data-sec="${n}"]`);
           if (!c) return;
           c.classList.add("on");
-          // Keep the active chip visible WITHOUT touching the page scroller. scrollIntoView() walks every
-          // scrollable ancestor, so on desktop (where the bar WRAPS and is not itself a scroller) it
-          // scrolled #content — cancelling the chip-click's smooth scroll. The nudge is only needed at
-          // <=900px where .mrx-toc is a horizontal strip; when the bar wraps this is a no-op.
+          // Keep the active chip visible WITHOUT touching the page scroller (scrollIntoView() walks every
+          // scrollable ancestor and would cancel the chip-click's smooth scroll). Only needed at <=900px
+          // where the sub-row is a horizontal strip; when it wraps this is a no-op.
           if (Date.now() < spyMute) return;
-          if (toc.scrollWidth > toc.clientWidth + 1) {
-            const cr = c.getBoundingClientRect(), tr = toc.getBoundingClientRect();
-            if (cr.left < tr.left + 8) toc.scrollLeft += cr.left - tr.left - 8;
-            else if (cr.right > tr.right - 8) toc.scrollLeft += cr.right - tr.right + 8;
+          if (subRow.scrollWidth > subRow.clientWidth + 1) {
+            const cr = c.getBoundingClientRect(), tr = subRow.getBoundingClientRect();
+            if (cr.left < tr.left + 8) subRow.scrollLeft += cr.left - tr.left - 8;
+            else if (cr.right > tr.right - 8) subRow.scrollLeft += cr.right - tr.right + 8;
           }
         });
       }, { rootMargin: "-15% 0px -70% 0px" });
