@@ -517,10 +517,15 @@ async function renderMonthly(host, MRCFG) {
       .mrx-tocstep b{font-family:${MONO};font-size:12px;color:${INK};min-width:56px;text-align:center}
       .mrx-tocstep button{border:1px solid ${LINE};background:#fff;color:${INK};border-radius:7px;width:26px;height:26px;font-size:14px;line-height:1;cursor:pointer}
       .mrx-tocstep button:hover{border-color:${INK};background:${GRID}}
-      .mrx-parth{display:flex;align-items:baseline;gap:12px;margin:38px 0 -10px;padding-top:18px;border-top:3px solid ${INK}}
-      .mrx-parth .pn{font-family:${MONO};font-size:11px;font-weight:800;letter-spacing:.14em;background:${INK};color:${LIME};padding:3px 9px;border-radius:6px;white-space:nowrap}
-      .mrx-parth .pt{font-size:15.5px;font-weight:800;letter-spacing:-.2px;color:${INK};white-space:nowrap}
-      .mrx-parth .ps{font-size:12px;color:${SUB};font-weight:600}
+      /* branded topic interstitial — a lime "new topic" band that announces each part */
+      .mrx-parth{position:relative;overflow:hidden;background:${LIME};border-radius:18px;padding:30px 30px;margin:46px 0 22px;box-shadow:0 10px 30px ${LIME}55,0 1px 0 #ffffff88 inset}
+      .mrx-parth .pl{position:relative;z-index:1;display:flex;flex-direction:column;gap:5px}
+      .mrx-parth .pn{font-family:${MONO};font-size:10.5px;font-weight:800;letter-spacing:.22em;text-transform:uppercase;color:${INK};opacity:.5}
+      .mrx-parth .pt{font-size:32px;font-weight:900;letter-spacing:-.8px;line-height:1;color:${INK}}
+      .mrx-parth .ps{font-size:13px;color:${INK};opacity:.62;font-weight:600;letter-spacing:.1px}
+      .mrx-parth .pnum{position:absolute;right:14px;top:50%;transform:translateY(-50%);font-family:${MONO};font-weight:900;font-size:104px;line-height:1;letter-spacing:-4px;color:${INK};opacity:.09;pointer-events:none}
+      @media(max-width:640px){.mrx-parth{padding:22px 20px}.mrx-parth .pt{font-size:25px}.mrx-parth .pnum{font-size:74px}}
+      @media print{.mrx-parth{box-shadow:none;break-inside:avoid}}
       .mrx-sec{margin:26px 0 4px;scroll-margin-top:56px}
       .mrx-sec-h{display:flex;align-items:center;gap:12px;cursor:pointer;user-select:none}
       .mrx-badge{width:34px;height:34px;flex:0 0 34px;border-radius:9px;background:${INK};color:#fff;font-weight:800;font-size:15px;display:grid;place-items:center;font-family:${MONO}}
@@ -696,7 +701,7 @@ async function renderMonthly(host, MRCFG) {
       if (ONLY) return;
       tocParts.push({ at: secN, label: title });   // chip-row group label boundary
       const el = document.createElement("div"); el.className = "mrx-parth";
-      el.innerHTML = `<span class="pn">PART ${n}</span><span class="pt">${esc(title)}</span><span class="ps">${esc(sub || "")}</span>`;
+      el.innerHTML = `<div class="pl"><span class="pn">New topic</span><div class="pt">${esc(title)}</div>${sub ? `<span class="ps">${esc(sub)}</span>` : ""}</div><span class="pnum">${String(n).padStart(2, "0")}</span>`;
       bodyEl.appendChild(el);
     }
     function section(title, sub, klass) {
@@ -1327,7 +1332,7 @@ async function renderMonthly(host, MRCFG) {
     // deptHeader (the per-team KPI strip) is retired with the old team views — themed
     // dashboards use lite mode and never call it. Function left defined but unused.
 
-    part(1, "The month at a glance", "headline numbers and the executive read");
+    part(1, "Summary", "the headline read for the month");
 
     /* ---- 01 · Executive Summary ---- */
     if (SEC("Executive Summary")) {
@@ -1395,7 +1400,7 @@ async function renderMonthly(host, MRCFG) {
       }
     }
 
-    part(2, "The money", "revenue, mix, unit economics and profit");
+    part(2, "Financials", "revenue, margins, geography and P&L");
 
     /* ---- 02 · Revenue & Growth ---- */
     if (SEC("Revenue & Growth")) {
@@ -1504,6 +1509,32 @@ async function renderMonthly(host, MRCFG) {
       // "Gross profit per foreman-hour" + "Jobs per 100 foreman-hours" removed 2026-07-16 (Tornike).
     }
 
+    /* ---- Geography — moved into Financials, before P&L (Tornike 2026-07-16) ---- */
+    if (SEC("Geography — by State")) {
+      const g = section("Geography — by State", "revenue, profit & booking per state with year-over-year");
+      const revS = segSeries("closing", "Revenue", "State Name"), opS = segSeries("closing", "Operational Profit by Formula", "State Name"), jobS = segSeries("closing", "Total Jobs", "State Name");
+      const opMap = {}, jobMap = {}; opS.forEach(r => opMap[r.k] = r.v); jobS.forEach(r => jobMap[r.k] = r.v);
+      const revLyMap = {}; segSeries("closing", "Revenue", "State Name", curY - 1, mo).forEach(r => revLyMap[r.k] = r.v);
+      // C2: per-state booking rate uses the canonical dual-basis helper
+      const bkStBooked = groupByCol(bookedRowsFor(curY, mo), "State Name");
+      const bkMap = {}; segReduce("moveboard", "State Name", rs => rs, curY, mo).forEach(r => bkMap[r.k] = RS.bookingRate(r.rows, bkStBooked[r.k] || []));
+      const states = revS.slice(0, 12).map(r => ({ k: r.k === "—" ? "No state on file" : r.k, rev: r.v, revLy: revLyMap[r.k] || 0, op: opMap[r.k] || 0, jobs: jobMap[r.k] || 0, bk: bkMap[r.k] }));
+      const rmin = Math.min(...states.map(s2 => s2.rev)), rmax = Math.max(...states.map(s2 => s2.rev));
+      const omin = Math.min(...states.map(s2 => s2.op)), omax = Math.max(...states.map(s2 => s2.op));
+      const jmin = Math.min(...states.map(s2 => s2.jobs)), jmax = Math.max(...states.map(s2 => s2.jobs));
+      const barCell = (v, f, max, col) => `<td class="bar"><i style="width:${max > 0 ? Math.max(0, Math.min(100, v / max * 100)).toFixed(1) : 0}%;background:${col}"></i><span>${f(v)}</span></td>`;
+      const yoyCell = (cur, ly) => { if (!ly) return td("—"); const d = (cur - ly) / ly; return td((d >= 0 ? "+" : "") + pct(d), `color:${d >= 0 ? POS : NEG};font-weight:800`); };
+      const rowsH = states.map(s2 => `<tr><td>${esc(s2.k)}</td>
+        ${barCell(s2.rev, money, rmax, BLUE_BG)}
+        ${yoyCell(s2.rev, s2.revLy)}
+        ${barCell(s2.op, money, omax, LIME_BG)}
+        ${barCell(s2.jobs, fmtN, jmax, GRID)}
+        ${td(s2.bk == null ? "—" : pct(s2.bk), s2.bk == null ? "" : `color:${s2.bk >= (bk || 0) ? POS : NEG};font-weight:800`)}</tr>`).join("");
+      tableCard(g, "State performance matrix", monLbl + " · top " + states.length + " states", `<table class="mrx-tbl"><thead><tr><th>State</th><th>Revenue</th><th>vs '${String(curY - 1).slice(2)}</th><th>Gross Profit</th><th>Jobs</th><th>Booking %</th></tr></thead><tbody>${rowsH}</tbody></table>`, { icon: KIC.grid, headVal: money(states.reduce((a, s2) => a + s2.rev, 0)), noteKind: "how", note: "Bars show $ / jobs magnitude; vs '" + String(curY - 1).slice(2) + " is revenue YoY (green up, red down). Booking % = jobs booked in the month (by booked date) ÷ qualified leads created; green above the team average (" + pct(bk) + "). States are pickup-based; standalone trip jobs (grouped multi-job hauls with no closing sheet) use the trip's delivery state instead. “No state on file” = closing sheets where State was left empty, plus a few trips without one — not a mapping error." });
+      rankBars(g, "Revenue by state", revS.map(r => ({ k: r.k === "—" ? "No state on file" : r.k, v: r.v })), money, { top: 10 });
+      rankBars(g, "Jobs by state", jobS.map(r => ({ k: r.k === "—" ? "No state on file" : r.k, v: r.v })), fmtN, { top: 10 });
+    }
+
     /* ---- 05 · Profitability & P&L ---- */
     if (SEC("Profitability & P&L")) {
       const g = section("Profitability & P&L", "where the revenue goes, and margin trend");
@@ -1576,7 +1607,7 @@ async function renderMonthly(host, MRCFG) {
       note(cBk, `Repeat (returned) and Referral (recommended) leads should each convert far above the average — they already trust you. If either coloured line dips toward the gray (all-leads) line, warm-lead follow-up is slipping.`);
     }
 
-    part(3, "Leads & sales", "leads, segments, geography, reps and channels");
+    part(3, "Sales", "demand, funnel and the sales team");
 
     /* ---- 06 · Demand & Lead Funnel ---- */
     if (SEC("Demand & Lead Funnel")) {
@@ -1676,31 +1707,6 @@ async function renderMonthly(host, MRCFG) {
       funnelTable("Leads by cubic feet (CF range)", "CF Range", (a, b) => cfKey(a.k) - cfKey(b.k));
     }
 
-    /* ---- 08 · Geography ---- */
-    if (SEC("Geography — by State")) {
-      const g = section("Geography — by State", "revenue, profit & booking per state with year-over-year");
-      const revS = segSeries("closing", "Revenue", "State Name"), opS = segSeries("closing", "Operational Profit by Formula", "State Name"), jobS = segSeries("closing", "Total Jobs", "State Name");
-      const opMap = {}, jobMap = {}; opS.forEach(r => opMap[r.k] = r.v); jobS.forEach(r => jobMap[r.k] = r.v);
-      const revLyMap = {}; segSeries("closing", "Revenue", "State Name", curY - 1, mo).forEach(r => revLyMap[r.k] = r.v);
-      // C2: per-state booking rate uses the canonical dual-basis helper
-      const bkStBooked = groupByCol(bookedRowsFor(curY, mo), "State Name");
-      const bkMap = {}; segReduce("moveboard", "State Name", rs => rs, curY, mo).forEach(r => bkMap[r.k] = RS.bookingRate(r.rows, bkStBooked[r.k] || []));
-      const states = revS.slice(0, 12).map(r => ({ k: r.k === "—" ? "No state on file" : r.k, rev: r.v, revLy: revLyMap[r.k] || 0, op: opMap[r.k] || 0, jobs: jobMap[r.k] || 0, bk: bkMap[r.k] }));
-      const rmin = Math.min(...states.map(s2 => s2.rev)), rmax = Math.max(...states.map(s2 => s2.rev));
-      const omin = Math.min(...states.map(s2 => s2.op)), omax = Math.max(...states.map(s2 => s2.op));
-      const jmin = Math.min(...states.map(s2 => s2.jobs)), jmax = Math.max(...states.map(s2 => s2.jobs));
-      const barCell = (v, f, max, col) => `<td class="bar"><i style="width:${max > 0 ? Math.max(0, Math.min(100, v / max * 100)).toFixed(1) : 0}%;background:${col}"></i><span>${f(v)}</span></td>`;
-      const yoyCell = (cur, ly) => { if (!ly) return td("—"); const d = (cur - ly) / ly; return td((d >= 0 ? "+" : "") + pct(d), `color:${d >= 0 ? POS : NEG};font-weight:800`); };
-      const rowsH = states.map(s2 => `<tr><td>${esc(s2.k)}</td>
-        ${barCell(s2.rev, money, rmax, BLUE_BG)}
-        ${yoyCell(s2.rev, s2.revLy)}
-        ${barCell(s2.op, money, omax, LIME_BG)}
-        ${barCell(s2.jobs, fmtN, jmax, GRID)}
-        ${td(s2.bk == null ? "—" : pct(s2.bk), s2.bk == null ? "" : `color:${s2.bk >= (bk || 0) ? POS : NEG};font-weight:800`)}</tr>`).join("");
-      tableCard(g, "State performance matrix", monLbl + " · top " + states.length + " states", `<table class="mrx-tbl"><thead><tr><th>State</th><th>Revenue</th><th>vs '${String(curY - 1).slice(2)}</th><th>Gross Profit</th><th>Jobs</th><th>Booking %</th></tr></thead><tbody>${rowsH}</tbody></table>`, { icon: KIC.grid, headVal: money(states.reduce((a, s2) => a + s2.rev, 0)), noteKind: "how", note: "Bars show $ / jobs magnitude; vs '" + String(curY - 1).slice(2) + " is revenue YoY (green up, red down). Booking % = jobs booked in the month (by booked date) ÷ qualified leads created; green above the team average (" + pct(bk) + "). States are pickup-based; standalone trip jobs (grouped multi-job hauls with no closing sheet) use the trip's delivery state instead. “No state on file” = closing sheets where State was left empty, plus a few trips without one — not a mapping error." });
-      rankBars(g, "Revenue by state", revS.map(r => ({ k: r.k === "—" ? "No state on file" : r.k, v: r.v })), money, { top: 10 });
-      rankBars(g, "Jobs by state", jobS.map(r => ({ k: r.k === "—" ? "No state on file" : r.k, v: r.v })), fmtN, { top: 10 });
-    }
 
     /* ---- 09 · Sales Team ---- */
     if (SEC("Sales Team Performance")) {
@@ -1763,6 +1769,7 @@ async function renderMonthly(host, MRCFG) {
         note: `Big-Job-flagged leads per rep: qualified (leads minus bad leads, by create date) vs confirmed (by booked date). The % at each row's right edge is that rep's large-move booking rate — green at or above the ${pct(bk)} team average, red below. Because qualified and confirmed use different date bases, the % is the canonical booking rate and won't always equal the two bars divided.` });
     }
 
+    part(4, "Marketing", "channels, ROI and the phone system");
     /* ---- 10 · Marketing ROI (theme split A of former "Marketing & Channels") ---- */
     if (SEC("Marketing ROI")) {
       const g = section("Marketing ROI", "ad spend and what it returns");
@@ -1934,7 +1941,7 @@ async function renderMonthly(host, MRCFG) {
       }
     }
 
-    part(4, "Delivery & after-sale", "crew operations, packing, quality and repeat business");
+    part(5, "Logistics", "crew, packing and storage");
 
     /* ---- 11 · Operations & Crew ---- */
     if (SEC("Operations & Crew (Foreman)")) {
@@ -2059,6 +2066,7 @@ async function renderMonthly(host, MRCFG) {
       // (#1) "Packing by type — estimate vs written" removed per Tornike 2026-07-15.
     }
 
+    part(6, "Reviews and Claims", "reviews collected, and claims & refunds");
     /* ---- 13 · Reviews Production ---- */
     if (SEC("Reviews Production")) {
       const g = section("Reviews Production", "reviews written, negative reviews and platform footprint");
