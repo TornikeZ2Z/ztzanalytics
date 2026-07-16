@@ -443,6 +443,7 @@ async function renderMonthly(host, MRCFG) {
       "Leads Segments": '<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="4" rx="1"/><rect x="3" y="10" width="18" height="4" rx="1"/><rect x="3" y="16" width="18" height="4" rx="1"/></svg>',
       "Per-Job Profitability": '<svg viewBox="0 0 24 24"><path d="M19 5L5 19"/><rect x="3.5" y="3.5" width="6.5" height="6.5" rx="1.2"/><path d="M17 14v6.5"/><path d="M13.8 17.2h6.5"/></svg>',
       "Repeat & Referral Business": '<svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 0 1 13.6-5.7L20 8.5"/><path d="M20 3.5v5h-5"/><path d="M20 12a8 8 0 0 1-13.6 5.7L4 15.5"/><path d="M4 20.5v-5h5"/></svg>',
+      "CT Branch": '<svg viewBox="0 0 24 24"><path d="M3 21V8l7-5 7 5v13"/><path d="M8 21v-6h4v6"/><path d="M17 21h4"/><path d="M6 11h2"/><path d="M12 11h2"/></svg>',
       "Marketing ROI": '<svg viewBox="0 0 24 24"><path d="M3 10v4l12 5V5z"/><path d="M15 8.5a4 4 0 010 7"/></svg>',
       "Lead Sources": '<svg viewBox="0 0 24 24"><path d="M3 4h18l-7 8v7l-4-2v-5z"/></svg>',
       "Fleet": '<svg viewBox="0 0 24 24"><rect x="1.5" y="6" width="12" height="9" rx="1"/><path d="M13.5 9h4l3 3v3h-7z"/><circle cx="6" cy="18" r="1.8"/><circle cx="17.5" cy="18" r="1.8"/></svg>',
@@ -1240,6 +1241,12 @@ async function renderMonthly(host, MRCFG) {
     bodyEl = document.createElement("div"); root.appendChild(bodyEl);
 
     const PM = mo === 1 ? 12 : mo - 1, PMY = mo === 1 ? curY - 1 : curY;
+    // Moving-Type display rule (Tornike 2026-07-16): closing distinguishes "Regular Moving" from
+    // "Straight Moving" (both long-distance), but a month with zero Straight jobs would show a lone
+    // "Regular Moving" bar — confusing ("either both, or long distance only"). So every user-facing
+    // Moving-Type breakdown collapses to Local Moving vs Long Distance Moving (Regular + Straight summed).
+    const mtKey = k => k === "Local Moving" ? k : (k === "Regular Moving" || k === "Straight Moving") ? "Long Distance Moving" : k;
+    const mergeMT = arr => { const m2 = {}; arr.forEach(r => { const k = mtKey(r.k); m2[k] = (m2[k] || 0) + r.v; }); return Object.entries(m2).map(([k, v]) => ({ k, v })).sort((a, b) => b.v - a.v); };
     const rev = valueFor("closing", "Revenue", curY, mo), revLY = valueFor("closing", "Revenue", curY - 1, mo), revPM = valueFor("closing", "Revenue", PMY, PM);
     // Revenue split — group the (unchanged) Revenue measure by Record Source so the two parts
     // sum EXACTLY to `rev`. closing = closing-sheet jobs (+ ~$0 linked-trip residual); trip =
@@ -1410,7 +1417,7 @@ async function renderMonthly(host, MRCFG) {
           });
         };
         addDim("revenue", segSeries("closing", "Revenue", "Source"), segSeries("closing", "Revenue", "Source", PMY, PM));
-        addDim("revenue", segSeries("closing", "Revenue", "Moving Type"), segSeries("closing", "Revenue", "Moving Type", PMY, PM));
+        addDim("revenue", mergeMT(segSeries("closing", "Revenue", "Moving Type")), mergeMT(segSeries("closing", "Revenue", "Moving Type", PMY, PM)));
         const refCurM = Math.abs(reduceMonth("refunds", curY, mo, rs => rs.reduce((a, r) => a + num(r["Total refund"]), 0)) || 0);
         const refPrevM = Math.abs(reduceMonth("refunds", PMY, PM, rs => rs.reduce((a, r) => a + num(r["Total refund"]), 0)) || 0);
         if (Math.abs(refCurM - refPrevM) >= 3000) movers.push({ txt: `Refunds ${refCurM >= refPrevM ? "rose" : "dropped"} <b>${refCurM >= refPrevM ? "+" : "−"}${money(Math.abs(refCurM - refPrevM))}</b> vs ${MS[PM]} (now ${money(refCurM)})`, w: Math.abs(refCurM - refPrevM) * 2, up: refCurM < refPrevM });
@@ -1517,8 +1524,12 @@ async function renderMonthly(host, MRCFG) {
       // append order Moving Type, Bill, State, Size gives left = Moving Type + State, right = Bill + Size.
       function revSeg(title, col, opts) {
         opts = opts || {};
-        const opM = {}; segSeries("closing", "Operational Profit by Formula", col).forEach(r => opM[r.k] = r.v);
-        let rows = segSeries("closing", "Revenue", col).map(r => { const op2 = Math.max(0, opM[r.k] || 0); return { k: (r.k === "—" || r.k === "") ? "Not recorded" : r.k, rk: r.k, rev: r.v, op: Math.min(op2, r.v), cost: Math.max(0, r.v - op2) }; });
+        // opts.mapKey folds raw segment keys into display buckets (e.g. Regular+Straight → Long
+        // Distance Moving) — revenue AND profit are re-aggregated under the mapped key.
+        const km = opts.mapKey || (k => k);
+        const agg = arr => { const m2 = {}; arr.forEach(r => { const k = km(r.k); m2[k] = (m2[k] || 0) + r.v; }); return Object.entries(m2).map(([k, v]) => ({ k, v })).sort((a, b) => b.v - a.v); };
+        const opM = {}; agg(segSeries("closing", "Operational Profit by Formula", col)).forEach(r => opM[r.k] = r.v);
+        let rows = agg(segSeries("closing", "Revenue", col)).map(r => { const op2 = Math.max(0, opM[r.k] || 0); return { k: (r.k === "—" || r.k === "") ? "Not recorded" : r.k, rk: r.k, rev: r.v, op: Math.min(op2, r.v), cost: Math.max(0, r.v - op2) }; });
         if (opts.order) rows.sort(opts.order);
         rows = rows.slice(0, opts.top || 8);
         const pid = "seglab_" + col.replace(/\W/g, "");
@@ -1537,7 +1548,8 @@ async function renderMonthly(host, MRCFG) {
         return c;
       }
       const billRank = s => { const m = String(s.rk).match(/\$?\s*([\d,]+)/); return /over/i.test(String(s.rk)) ? 9e9 : (m ? +m[1].replace(/,/g, "") : 9e12); };
-      revSeg("Revenue by moving type", "Moving Type");                                                            // 1 · left-top
+      revSeg("Revenue by moving type", "Moving Type", { mapKey: mtKey,                                            // 1 · left-top
+        note: "Long Distance combines the closing sheet's Regular and Straight moving types — a lone “Regular Moving” bar in months with no Straight jobs read as if Straight had vanished. Green = gross profit kept; end label = revenue · gross margin." });
       revSeg("Revenue by bill size", "Bill Range", { order: (a, b) => billRank(a) - billRank(b), top: 10,        // 2 · right-top
         note: "Closed jobs don't carry cubic feet, so revenue is banded by each job's total bill — a reliable stand-in for move size. Green = gross profit kept; end label = revenue · gross margin." });
       revSeg("Revenue by state", "State Name", { top: 8 });                                                       // 3 · left-bottom
@@ -1690,8 +1702,8 @@ async function renderMonthly(host, MRCFG) {
         const labsRR = yearsArr(5).map(String);
         const { c: cRRb, cv: cvRRb } = chartCard(g, "Repeat vs Referral — revenue by year", MON[mo] + " each year", { icon: KIC.bars, headVal: money((retT[retT.length - 1] || 0) + (recT[recT.length - 1] || 0)) });
         new Chart(cvRRb, { type: "bar", data: { labels: labsRR, datasets: [
-          { label: "Repeat (returned customer)", data: retT, backgroundColor: LIMED, borderRadius: 3, maxBarThickness: 30 },
-          { label: "Referral (recommended)", data: recT, backgroundColor: BLUE, borderRadius: 3, maxBarThickness: 30 } ] },
+          { label: "Repeat (returned customer)", data: retT, backgroundColor: LIME, borderRadius: 3, maxBarThickness: 30 },
+          { label: "Referral (recommended)", data: recT, backgroundColor: INK, borderRadius: 3, maxBarThickness: 30 } ] },
           options: baseOpts({ layout: { padding: { top: 18 } }, plugins: { legend: { display: true, position: "top", align: "end", labels: { color: SUB, font: { size: 12.5, weight: "600" }, boxWidth: 9, usePointStyle: true } }, tooltip: { callbacks: { label: x => x.dataset.label + ": " + money(x.parsed.y) } } },
             scales: { y: axY(moneyC, { beginAtZero: true }), x: { ticks: { color: INK2, font: { size: 12.5, weight: "600" } }, grid: { display: false }, border: { display: false } } } }), plugins: [crosshair, valLabels(moneyC, false)] });
       }
@@ -1702,6 +1714,67 @@ async function renderMonthly(host, MRCFG) {
       const allBookT = bookRateTrend(null, 12);
       const cBk = lines(g, "Repeat & Referral booking rate vs overall", "last 12 months", [ { label: "Repeat (returned)", series: retBookT, color: LIMED }, { label: "Referral (recommended)", series: recBookT, color: BLUE }, { label: "All leads", series: allBookT, color: CTX } ], pct);
       note(cBk, `Repeat (returned) and Referral (recommended) leads should each convert far above the average — they already trust you. If either coloured line dips toward the gray (all-leads) line, warm-lead follow-up is slipping.`);
+    }
+
+    /* ---- CT Branch (Tornike 2026-07-16): the branch-owner page folded into the report, restyled,
+       month-scoped, no chart/table switches. Basis = jobs where Giorgi Kolbaia sits in a Sales-Person
+       slot and takes his cut (`Branch Owner` / `Branch Owner Cut` columns — his SP-slot book, never
+       his foreman work). Gross profit is AFTER his cut, built the Job P&L way (helper/sales joined by
+       Unique Key, refunds by Request Joinkey — attached to the job whenever paid). ---- */
+    if (SEC("CT Branch")) {
+      const g = section("CT Branch", "the CT branch book — revenue, the owner's cut and profitability (Giorgi Kolbaia)");
+      const isBO = r => r["Record Source"] === "closing" && r["Branch Owner"] != null && String(r["Branch Owner"]).trim() !== "";
+      const accum = (src, keyCol, valCol) => { const m2 = new Map(); (src || []).forEach(r => { const k = r[keyCol]; if (k == null || k === "") return; m2.set(k, (m2.get(k) || 0) + num(r[valCol])); }); return m2; };
+      const boSalesUK = accum(DS.sales_salaries, "Unique Key", "Salary");
+      const boHelpUK = accum(DS.helper_salaries, "Unique Key", "Amount Received");
+      const boRefRJ = accum(DS.refunds, "Request Joinkey", "Total refund");
+      const boPnl = rs => {
+        const bill = M["Total Bill"].fn(rs);
+        const cut = rs.reduce((a, r) => a + num(r["Branch Owner Cut"]), 0);
+        const cost = M["Forman Salary"].fn(rs) + M["Driver Salary"].fn(rs)
+          + rs.reduce((a, r) => a + (boHelpUK.get(r["Unique Key"]) || 0) + (boSalesUK.get(r["Unique Key"]) || 0), 0)
+          + M["Car Expense"].fn(rs) + M["Fuel Expense"].fn(rs) + M["Hotel Expense"].fn(rs) + M["Other Expenses"].fn(rs) + M["Toll Expense"].fn(rs) + M["Truck Expense"].fn(rs)
+          + rs.reduce((a, r) => a + (boRefRJ.get(r["Request Joinkey"]) || 0), 0);
+        const op = bill - cost;
+        return { jobs: rs.length, bill, cut, op, opm: bill ? op / bill : null };
+      };
+      const boMonth = (y2, m2) => withMonth(y2, m2, () => RS.filtered("closing", closing)).filter(r => r["Record Source"] === "closing");
+      const mAll = boMonth(curY, mo), bo = mAll.filter(isBO);
+      const p = boPnl(bo), pr = boPnl(mAll.filter(r => !isBO(r)));
+      const pLY = boPnl(boMonth(curY - 1, mo).filter(isBO)), pPM = boPnl(boMonth(PMY, PM).filter(isBO));
+      const kg3 = document.createElement("div"); kg3.className = "mrx-grid k"; kg3.style.gridColumn = "1/-1"; g.appendChild(kg3);
+      [ { l: "CT Branch Jobs", v: fmtN(p.jobs), c: p.jobs, ly: pLY.jobs, pm: pPM.jobs, icon: KIC.truck },
+        { l: "CT Branch Revenue", v: money(p.bill), c: p.bill, ly: pLY.bill, pm: pPM.bill, icon: KIC.dollar },
+        { l: "Owner Cut (Giorgi)", v: money(p.cut), c: p.cut, ly: pLY.cut, pm: pPM.cut, icon: KIC.tag },
+        { l: "Gross Margin (after cut)", v: pct(p.opm), c: p.opm, ly: pLY.opm, pm: pPM.opm, icon: KIC.pct }
+      ].forEach(k => kpiTile(kg3, k));
+      // owner cut + branch revenue, 14-month momentum
+      const boM = (() => { const out = []; let y2 = curY, m2 = mo; for (let i = 0; i < 14; i++) { out.unshift({ y: y2, m: m2, k: MS[m2] + " " + String(y2).slice(2) }); m2--; if (m2 < 1) { m2 = 12; y2--; } } return out; })();
+      const cutT = boM.map(x => ({ k: x.k, v: reduceMonth("closing", x.y, x.m, rs => rs.filter(isBO).reduce((a, r) => a + num(r["Branch Owner Cut"]), 0)) || 0 }));
+      const brevT = boM.map(x => ({ k: x.k, v: reduceMonth("closing", x.y, x.m, rs => M["Total Bill"].fn(rs.filter(isBO))) || 0 }));
+      const cTr = combo(g, "Owner cut & branch revenue — momentum", "last 14 months", cutT, "His Cut", moneyC, brevT, "Branch revenue", moneyC, { headVal: money(p.cut) });
+      note(cTr, `Bars = what Giorgi took as branch owner each month; line = the revenue of the jobs it came from. His cut counts ONLY when he's in a Sales-Person slot — his own foreman jobs never appear here.`, "how");
+      // by move type (Local vs Long Distance — merged display rule), with the vs-rest read in the note
+      const byT = (() => { const g2 = {}; bo.forEach(r => { const t = mtKey((r["Moving Type"] == null || r["Moving Type"] === "") ? "Not recorded" : String(r["Moving Type"])); (g2[t] = g2[t] || []).push(r); });
+        return Object.entries(g2).map(([t, rs]) => Object.assign({ t }, boPnl(rs))).sort((a, b) => b.bill - a.bill); })();
+      if (byT.length) {
+        const mgnBefore = p.bill ? (p.op + p.cut) / p.bill : null;
+        const btH = `<table class="mrx-tbl"><thead><tr><th>Move type</th><th>Jobs</th><th>Revenue</th><th>His Cut</th><th>Gross Profit</th><th>Gross Margin</th></tr></thead><tbody>${
+          byT.map(r => `<tr><td>${esc(r.t)}</td>${td(fmtN(r.jobs))}${td(money(r.bill))}${td(money(r.cut))}${td(money(r.op))}${td(r.opm == null ? "—" : pct(r.opm), "font-weight:800")}</tr>`).join("")
+        }<tr class="tot"><td>Total</td>${td(fmtN(p.jobs))}${td(money(p.bill))}${td(money(p.cut))}${td(money(p.op))}${td(p.opm == null ? "—" : pct(p.opm))}</tr></tbody></table>`;
+        tableCard(g, "CT branch by move type", monLbl + " · gross profit after his cut", btH, { span2: false, icon: KIC.grid, headVal: money(p.bill), noteKind: "how", note: `Long Distance combines Regular + Straight moving. Cut % of revenue: ${p.bill ? pct(p.cut / p.bill) : "—"}. Margin BEFORE his cut would be ${mgnBefore == null ? "—" : pct(mgnBefore)}; the rest of the business ran ${pr.opm == null ? "—" : pct(pr.opm)} this month.` });
+      } else {
+        const ec = card(g, "CT branch by move type", monLbl, { icon: KIC.grid });
+        const eb = document.createElement("div"); eb.className = "mrx-box"; eb.style.height = "140px"; ec.appendChild(eb); emptyBox(eb, "No branch-owner jobs in " + monLbl);
+      }
+      // per-job detail for the selected period
+      const det = bo.slice().sort((a, b) => String(b.Date || "").localeCompare(String(a.Date || "")))
+        .map(r => ({ dt: String(r.Date || "").slice(0, 10), cust: r.Customer, req: r["Request #"], t: mtKey(String(r["Moving Type"] || "—")), bill: num(r["Total Bill"]), cut: num(r["Branch Owner Cut"]) }));
+      if (det.length) paginatedTable(g, "CT branch jobs — every job", monLbl + " · " + fmtN(det.length) + " jobs · newest first",
+        [{ label: "Move date" }, { label: "Customer" }, { label: "Request #" }, { label: "Move type" }, { label: "Revenue", align: "right" }, { label: "Cut %", align: "right" }, { label: "His Cut", align: "right" }],
+        det,
+        r => `<tr><td>${esc(r.dt || "—")}</td><td>${esc(r.cust || "—")}</td>${td(esc(String(r.req || "—")))}${td(esc(r.t))}${td(money(r.bill), "text-align:right")}${td(r.bill ? pct(r.cut / r.bill) : "—", "text-align:right")}${td(money(r.cut), "text-align:right;font-weight:800")}</tr>`,
+        { icon: KIC.grid, headVal: money(p.cut) + " cut" });
     }
 
     part(3, "Sales", "demand, funnel and the sales team");
