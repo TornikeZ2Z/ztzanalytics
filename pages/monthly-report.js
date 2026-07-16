@@ -525,17 +525,16 @@ async function renderMonthly(host, MRCFG) {
       .mrx-tocstep button:hover{background:${GRID};color:${INK}}
       .mrx-tocstep button:active{background:${LINE}}
       /* branded topic interstitial — a lime "new topic" band that announces each part */
-      .mrx-parth{position:relative;background:none;border:0;border-radius:0;padding:36px 0 4px;margin:56px 0 26px;border-top:1px solid ${LINE};overflow:visible;box-shadow:none}
-      .mrx-parth::before{content:"";position:absolute;left:0;top:-1px;width:56px;height:2px;border-radius:2px;background:${LIME};pointer-events:none}
-      .mrx-parth::after{content:"";position:absolute;right:0;top:-1px;width:20px;height:2px;border-radius:2px;background:${LIME};opacity:.5;pointer-events:none}
-      .mrx-parth .pl{position:relative;z-index:1;display:flex;flex-direction:column;gap:0;min-width:0}
-      .mrx-parth .pnum{position:static;transform:none;opacity:1;pointer-events:auto;display:inline-flex;align-items:baseline;gap:7px;margin-bottom:15px;font-family:${MONO};font-size:12px;font-weight:700;letter-spacing:1.5px;line-height:1;font-variant-numeric:tabular-nums}
-      .mrx-parth .pn-n{font-style:normal;font-weight:800;color:${LIMED}}
-      .mrx-parth .pn-s{font-style:normal;font-weight:600;letter-spacing:1px;color:${FAINT}}
-      .mrx-parth .pt{margin:0 0 10px;font-size:36px;font-weight:800;letter-spacing:-1.2px;line-height:1.04;color:${INK}}
-      .mrx-parth .ps{margin:0;font-size:15px;font-weight:500;letter-spacing:.1px;line-height:1.5;color:${SUB};opacity:1;max-width:64ch}
-      @media(max-width:640px){.mrx-parth{padding:28px 0 4px;margin:42px 0 22px}.mrx-parth::before{width:44px}.mrx-parth::after{width:16px}.mrx-parth .pnum{margin-bottom:12px;font-size:11.5px;letter-spacing:1.3px}.mrx-parth .pt{font-size:28px;letter-spacing:-.8px}.mrx-parth .ps{font-size:14px}}
-      @media print{.mrx-parth{break-inside:avoid;page-break-inside:avoid;margin:34px 0 20px;border-top-color:${LINE};box-shadow:none}.mrx-parth::before{background:${LIMED}}.mrx-parth::after{background:${LIMED};opacity:.55}.mrx-parth .pn-n{color:${LIMED}}.mrx-parth .pn-s{color:${SUB}}.mrx-parth .pt{font-size:30px;color:${INK}}.mrx-parth .ps{color:${SUB}}}
+      .mrx-parth{position:relative;overflow:hidden;display:flex;align-items:center;gap:22px;background:linear-gradient(118deg, ${LIME}1c 0%, ${LIME}40 100%);border:1px solid ${LIME}7a;border-radius:16px;padding:24px 28px;margin:52px 0 24px;box-shadow:0 6px 20px ${LIME}22}
+      .mrx-parth::before{content:"";position:absolute;left:0;top:0;bottom:0;width:6px;background:linear-gradient(180deg, ${LIME}, ${LIMED});pointer-events:none}
+      .mrx-parth .pl{position:relative;z-index:1;display:flex;flex-direction:column;gap:6px;flex:1 1 auto;min-width:0}
+      .mrx-parth .pt{font-size:33px;font-weight:900;letter-spacing:-.9px;line-height:1;color:${INK}}
+      .mrx-parth .ps{font-size:13.5px;font-weight:600;color:${INK};opacity:.64;letter-spacing:.1px}
+      .mrx-parth .pnum{position:relative;z-index:1;flex:0 0 auto;display:flex;align-items:baseline;gap:3px;font-family:${MONO};line-height:.9;pointer-events:none}
+      .mrx-parth .pn-n{font-style:normal;font-weight:900;font-size:58px;letter-spacing:-3px;color:${LIMED};opacity:.85}
+      .mrx-parth .pn-s{font-style:normal;font-weight:800;font-size:18px;color:${LIMED};opacity:.5}
+      @media(max-width:640px){.mrx-parth{padding:20px 20px;gap:12px;margin:40px 0 20px}.mrx-parth .pt{font-size:25px}.mrx-parth .pn-n{font-size:42px}.mrx-parth .pn-s{font-size:14px}}
+      @media print{.mrx-parth{box-shadow:none;break-inside:avoid;background:${LIME}22;border-color:${LIME}}.mrx-parth .pn-n{color:${LIMED};opacity:.9}}
       .mrx-sec{margin:26px 0 4px;scroll-margin-top:56px}
       .mrx-sec-h{display:flex;align-items:center;gap:12px;cursor:pointer;user-select:none}
       .mrx-badge{width:34px;height:34px;flex:0 0 34px;border-radius:9px;background:${INK};color:#fff;font-weight:800;font-size:15px;display:grid;place-items:center;font-family:${MONO}}
@@ -717,7 +716,7 @@ async function renderMonthly(host, MRCFG) {
       if (ONLY) return;
       tocParts.push({ at: secN, label: title });   // chip-row group label boundary
       const el = document.createElement("div"); el.className = "mrx-parth";
-      el.innerHTML = `<div class="pl"><span class="pnum"><em class="pn-n">${String(n).padStart(2, "0")}</em><em class="pn-s">/ 06</em></span><div class="pt">${esc(title)}</div>${sub ? `<span class="ps">${esc(sub)}</span>` : ""}</div>`;
+      el.innerHTML = `<div class="pl"><div class="pt">${esc(title)}</div>${sub ? `<span class="ps">${esc(sub)}</span>` : ""}</div><span class="pnum"><em class="pn-n">${String(n).padStart(2, "0")}</em><em class="pn-s">/ 06</em></span>`;
       bodyEl.appendChild(el);
     }
     function section(title, sub, klass) {
