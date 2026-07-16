@@ -96,7 +96,7 @@ async function renderMonthly(host, MRCFG) {
       grab("closing"), grab("moveboard"), grabIf("storage", SEC("Packing & Storage")),
       grab("claims"), grab("refunds"), grab("card_expenses"),
       grab("reviews_breakdown"), grabIf("negative_reviews", SEC("Reviews Production")),
-      grabIf("callrail", SEC("Lead Sources")), grab("scorecard"), grab("review_counts"),
+      grabIf("callrail", SEC("Lead Sources") || SEC("Phone & Response")), grab("scorecard"), grab("review_counts"),
       grab("review_goals"), grab("helper_salaries"), grab("sales_salaries")]);
     // Derive the cost flags from the shared rows. Amount is ALREADY positive here (RS.load
     // negates the bank convention once) — `amt: num(r.Amount)`, never a second negation.
@@ -525,13 +525,17 @@ async function renderMonthly(host, MRCFG) {
       .mrx-tocstep button:hover{background:${GRID};color:${INK}}
       .mrx-tocstep button:active{background:${LINE}}
       /* branded topic interstitial — a lime "new topic" band that announces each part */
-      .mrx-parth{position:relative;overflow:hidden;background:${LIME};border-radius:18px;padding:30px 30px;margin:46px 0 22px;box-shadow:0 10px 30px ${LIME}55,0 1px 0 #ffffff88 inset}
-      .mrx-parth .pl{position:relative;z-index:1;display:flex;flex-direction:column;gap:6px}
-      .mrx-parth .pt{font-size:32px;font-weight:900;letter-spacing:-.8px;line-height:1;color:${INK}}
-      .mrx-parth .ps{font-size:13px;color:${INK};opacity:.62;font-weight:600;letter-spacing:.1px}
-      .mrx-parth .pnum{position:absolute;right:14px;top:50%;transform:translateY(-50%);font-family:${MONO};font-weight:900;font-size:104px;line-height:1;letter-spacing:-4px;color:${INK};opacity:.09;pointer-events:none}
-      @media(max-width:640px){.mrx-parth{padding:22px 20px}.mrx-parth .pt{font-size:25px}.mrx-parth .pnum{font-size:74px}}
-      @media print{.mrx-parth{box-shadow:none;break-inside:avoid}}
+      .mrx-parth{position:relative;background:none;border:0;border-radius:0;padding:36px 0 4px;margin:56px 0 26px;border-top:1px solid ${LINE};overflow:visible;box-shadow:none}
+      .mrx-parth::before{content:"";position:absolute;left:0;top:-1px;width:56px;height:2px;border-radius:2px;background:${LIME};pointer-events:none}
+      .mrx-parth::after{content:"";position:absolute;right:0;top:-1px;width:20px;height:2px;border-radius:2px;background:${LIME};opacity:.5;pointer-events:none}
+      .mrx-parth .pl{position:relative;z-index:1;display:flex;flex-direction:column;gap:0;min-width:0}
+      .mrx-parth .pnum{position:static;transform:none;opacity:1;pointer-events:auto;display:inline-flex;align-items:baseline;gap:7px;margin-bottom:15px;font-family:${MONO};font-size:12px;font-weight:700;letter-spacing:1.5px;line-height:1;font-variant-numeric:tabular-nums}
+      .mrx-parth .pn-n{font-style:normal;font-weight:800;color:${LIMED}}
+      .mrx-parth .pn-s{font-style:normal;font-weight:600;letter-spacing:1px;color:${FAINT}}
+      .mrx-parth .pt{margin:0 0 10px;font-size:36px;font-weight:800;letter-spacing:-1.2px;line-height:1.04;color:${INK}}
+      .mrx-parth .ps{margin:0;font-size:15px;font-weight:500;letter-spacing:.1px;line-height:1.5;color:${SUB};opacity:1;max-width:64ch}
+      @media(max-width:640px){.mrx-parth{padding:28px 0 4px;margin:42px 0 22px}.mrx-parth::before{width:44px}.mrx-parth::after{width:16px}.mrx-parth .pnum{margin-bottom:12px;font-size:11.5px;letter-spacing:1.3px}.mrx-parth .pt{font-size:28px;letter-spacing:-.8px}.mrx-parth .ps{font-size:14px}}
+      @media print{.mrx-parth{break-inside:avoid;page-break-inside:avoid;margin:34px 0 20px;border-top-color:${LINE};box-shadow:none}.mrx-parth::before{background:${LIMED}}.mrx-parth::after{background:${LIMED};opacity:.55}.mrx-parth .pn-n{color:${LIMED}}.mrx-parth .pn-s{color:${SUB}}.mrx-parth .pt{font-size:30px;color:${INK}}.mrx-parth .ps{color:${SUB}}}
       .mrx-sec{margin:26px 0 4px;scroll-margin-top:56px}
       .mrx-sec-h{display:flex;align-items:center;gap:12px;cursor:pointer;user-select:none}
       .mrx-badge{width:34px;height:34px;flex:0 0 34px;border-radius:9px;background:${INK};color:#fff;font-weight:800;font-size:15px;display:grid;place-items:center;font-family:${MONO}}
@@ -554,6 +558,9 @@ async function renderMonthly(host, MRCFG) {
       .mrx-card{position:relative;background:#fff;border:1px solid ${LINE};border-radius:14px;padding:15px 16px;box-shadow:0 1px 2px rgba(14,22,33,.05)}
       .mrx-card:before{content:"";position:absolute;left:16px;top:0;width:34px;height:3px;background:${LIME};border-radius:0 0 3px 3px}
       .mrx-card.span2{grid-column:1/-1}
+      .mrx-subhead{grid-column:1/-1;display:flex;align-items:baseline;gap:10px;margin:8px 0 -4px;padding-bottom:8px;border-bottom:2px solid ${INK}}
+      .mrx-subhead .sh-t{font-size:14px;font-weight:800;color:${INK};letter-spacing:-.2px}
+      .mrx-subhead .sh-s{font-size:11px;font-weight:700;color:${FAINT};text-transform:uppercase;letter-spacing:.06em;font-family:${MONO}}
       .mrx-chead{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:10px;border-bottom:1px solid ${GRID};padding-bottom:9px}
       .mrx-chleft{display:flex;gap:8px;align-items:flex-start;min-width:0}
       .mrx-chico{display:flex;flex:0 0 auto;margin-top:1px}.mrx-chico svg{width:16px;height:16px;fill:none;stroke:${INK};stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
@@ -710,7 +717,7 @@ async function renderMonthly(host, MRCFG) {
       if (ONLY) return;
       tocParts.push({ at: secN, label: title });   // chip-row group label boundary
       const el = document.createElement("div"); el.className = "mrx-parth";
-      el.innerHTML = `<div class="pl"><div class="pt">${esc(title)}</div>${sub ? `<span class="ps">${esc(sub)}</span>` : ""}</div><span class="pnum">${String(n).padStart(2, "0")}</span>`;
+      el.innerHTML = `<div class="pl"><span class="pnum"><em class="pn-n">${String(n).padStart(2, "0")}</em><em class="pn-s">/ 06</em></span><div class="pt">${esc(title)}</div>${sub ? `<span class="ps">${esc(sub)}</span>` : ""}</div>`;
       bodyEl.appendChild(el);
     }
     function section(title, sub, klass) {
@@ -1424,7 +1431,7 @@ async function renderMonthly(host, MRCFG) {
       // booked-date Booking Rate on the same chart (was create-date via trendSeries).
       const confT = yearsArr().map(y => ({ k: String(y), v: bookedRowsFor(y, mo).filter(r => r["Status Category"] === "Confirmed").length }));
       const bkT = trendSeries("moveboard", "Booking Rate");
-      combo(g, "Leads Confirmed & Booking Rate", MON[mo] + " · " + confT.length + "-yr", confT, "Confirmed leads", fmtN, bkT, "Booking %", pct, { headVal: pct(bk) });
+      combo(g, "Leads Confirmed & Booking Rate", MON[mo] + " · " + confT.length + "-yr", confT, "Confirmed leads", fmtN, bkT, "Booking %", pct, { headVal: pct(bk), span2: true });
       // ---- Local vs Long-distance — ONE head-to-head view (UX audit: was 8 mirrored cards
       // saying the same thing four ways; now a grouped 5-yr revenue chart + a compact matrix) ----
       const isLocal = r => String(r["Moving Type"]) === "Local Moving";
@@ -1442,6 +1449,18 @@ async function renderMonthly(host, MRCFG) {
           options: baseOpts({ plugins: { legend: { display: true, position: "top", align: "end", labels: { color: SUB, font: { size: 12.5, weight: "600" }, boxWidth: 9, usePointStyle: true } }, tooltip: { callbacks: { label: x => x.dataset.label + ": " + money(x.parsed.y) } } },
             scales: { y: axY(moneyC, { beginAtZero: true }), x: { ticks: { color: INK2, font: { size: 12.5, weight: "600" } }, grid: { display: false }, border: { display: false } } } }), plugins: [crosshair] });
         note(cLL, `Hourly “Local Moving” (the volume base) vs flat-rate long-distance (“Regular” + “Straight”), same month each year.`, "how");
+      }
+      { // job-count head-to-head, paired next to the revenue chart (Tornike 2026-07-16)
+        const locJT = trendSeries("closing", "Total Jobs", { pre: isLocal }), ldJT = trendSeries("closing", "Total Jobs", { pre: notLocal });
+        const yrsJ = locJT.map((r, i) => ({ k: r.k, loc: r.v, ld: (ldJT[i] || {}).v })).filter(r => r.loc || r.ld);
+        const labsJ = yrsJ.map(r => r.k);
+        const { c: cJJ, cv: cvJJ } = chartCard(g, "Local vs Long-distance — jobs", MON[mo] + " · " + labsJ.length + "-yr head-to-head", { h: 230, icon: KIC.bars, headVal: fmtN(lastV(locJT)) });
+        new Chart(cvJJ, { type: "bar", data: { labels: labsJ, datasets: [
+          { label: "Local Moving", data: yrsJ.map(r => r.loc), backgroundColor: LIME, borderRadius: 3, maxBarThickness: 30 },
+          { label: "Long-distance", data: yrsJ.map(r => r.ld), backgroundColor: INK, borderRadius: 3, maxBarThickness: 30 } ] },
+          options: baseOpts({ plugins: { legend: { display: true, position: "top", align: "end", labels: { color: SUB, font: { size: 12.5, weight: "600" }, boxWidth: 9, usePointStyle: true } }, tooltip: { callbacks: { label: x => x.dataset.label + ": " + fmtN(x.parsed.y) } } },
+            scales: { y: axY(fmtN, { beginAtZero: true }), x: { ticks: { color: INK2, font: { size: 12.5, weight: "600" } }, grid: { display: false }, border: { display: false } } } }), plugins: [crosshair] });
+        note(cJJ, `Job counts, same head-to-head — read next to the revenue chart to separate volume (jobs) from value (revenue). Long-distance is far fewer jobs but a bigger ticket.`, "how");
       }
       // the matrix: every Local/LD number that used to be its own card, with YoY inline.
       // op profit by segment must be segKeys-scoped (composite measure) → group by Moving Type per year.
@@ -1522,6 +1541,14 @@ async function renderMonthly(host, MRCFG) {
       const c1 = lines(g, "Avg job value (12-month trend)", "last 12 months", [{ label: "Avg job value", series: revJobT, color: INK }], money, { headVal: money(lastV(revJobT)) });
       note(c1, `Average job value — ${money(lastV(revJobT) || 0)} this month. Rising means bigger jobs, not just more of them.`, "how");
       lines(g, "Gross profit per job", "last 12 months", [{ label: "Gross profit / job", series: opJobT, color: BLUE }], money, { headVal: money(lastV(opJobT)) });
+      // Avg job value split by moving type (Tornike 2026-07-16) — Local vs Long-distance, as their own trends
+      const isLoc4 = r => String(r["Moving Type"]) === "Local Moving";
+      const avgLocT = momReduce("closing", 12, rs => { const f = rs.filter(isLoc4); const j = f.length; return j ? M["Revenue"].fn(f) / j : null; });
+      const avgLDT = momReduce("closing", 12, rs => { const f = rs.filter(r => !isLoc4(r)); const j = f.length; return j ? M["Revenue"].fn(f) / j : null; });
+      const cLoc4 = lines(g, "Avg job value — Local Moving", "last 12 months", [{ label: "Local avg job value", series: avgLocT, color: LIMED }], money, { headVal: money(lastV(avgLocT)) });
+      note(cLoc4, `Average value of a Local Moving job — ${money(lastV(avgLocT) || 0)} this month. The hourly, high-volume base.`, "how");
+      const cLD4 = lines(g, "Avg job value — Long Distance", "last 12 months", [{ label: "Long-distance avg job value", series: avgLDT, color: VIOLET }], money, { headVal: money(lastV(avgLDT)) });
+      note(cLD4, `Average value of a long-distance job (Regular + Straight) — ${money(lastV(avgLDT) || 0)} this month. Far fewer jobs, much bigger ticket than Local.`, "how");
       // "Gross profit per foreman-hour" + "Jobs per 100 foreman-hours" removed 2026-07-16 (Tornike).
     }
 
@@ -1549,26 +1576,31 @@ async function renderMonthly(host, MRCFG) {
         ${td(s2.mgn == null ? "—" : pct(s2.mgn), "font-weight:800")}
         ${ppCell(s2.mgn, s2.mgnLy)}</tr>`).join("");
       tableCard(g, "State performance matrix", monLbl + " · top " + states.length + " states", `<table class="mrx-tbl"><thead><tr><th>State</th><th>Jobs</th><th>vs '${yy}</th><th>Revenue</th><th>vs '${yy}</th><th>Gross Margin</th><th>vs '${yy}</th></tr></thead><tbody>${rowsH}</tbody></table>`, { span2: true, icon: KIC.grid, headVal: money(states.reduce((a, s2) => a + s2.rev, 0)), noteKind: "how", note: "Jobs and Revenue bars show magnitude; each “vs '" + yy + "” is the year-over-year change (green up, red down). Gross Margin = gross profit ÷ revenue, and its “vs '" + yy + "” is the change in percentage points (pp). States are pickup-based; standalone trip jobs use the trip's delivery state. “No state on file” = closing sheets where State was left empty." });
-      // Combined Revenue + Jobs by state on ONE chart, YoY & MoM in the tooltip (Tornike 2026-07-16 —
-      // replaces the two separate "Revenue by state" / "Jobs by state" rank charts).
-      const top = states.slice(0, 10);
-      const { c: cGeo, box: bGeo, cv: cvGeo } = chartCard(g, "Revenue & jobs by state", monLbl + " · top 10 · hover for YoY & MoM", { span2: true, h: Math.max(360, 44 + top.length * 30), icon: KIC.bars, headVal: money(top.reduce((a, s2) => a + s2.rev, 0)) });
-      if (!top.length) emptyBox(bGeo);
-      else new Chart(cvGeo, { type: "bar", data: { labels: top.map(s2 => s2.k), datasets: [
-        { label: "Revenue", data: top.map(s2 => s2.rev), backgroundColor: BLUE, xAxisID: "x", borderRadius: 3, maxBarThickness: 13 },
-        { label: "Jobs", data: top.map(s2 => s2.jobs), backgroundColor: LIMED, xAxisID: "x2", borderRadius: 3, maxBarThickness: 13 } ] },
-        options: baseOpts({ indexAxis: "y", plugins: { legend: { display: true, position: "top", align: "end", labels: { color: SUB, font: { size: 12, weight: "600" }, boxWidth: 9, usePointStyle: true } },
-          tooltip: { callbacks: { label: x => { const s2 = top[x.dataIndex];
-            const dd = (cur, base) => base ? (cur - base) / base : null, tag = v => v == null ? "—" : (v >= 0 ? "+" : "") + pct(v);
-            return x.dataset.label === "Revenue"
-              ? "Revenue: " + money(s2.rev) + "   YoY " + tag(dd(s2.rev, s2.revLy)) + " · MoM " + tag(dd(s2.rev, s2.revPm))
-              : "Jobs: " + fmtN(s2.jobs) + "   YoY " + tag(dd(s2.jobs, s2.jobsLy)) + " · MoM " + tag(dd(s2.jobs, s2.jobsPm)); } } } },
-          scales: {
-            x: { position: "bottom", beginAtZero: true, ticks: { callback: moneyC, color: BLUE, font: { size: 10.5, weight: "700" } }, grid: { color: GRID }, border: { display: false } },
-            x2: { position: "top", beginAtZero: true, ticks: { callback: fmtN, color: LIMED, font: { size: 10.5, weight: "700" } }, grid: { display: false }, border: { display: false } },
-            y: { ticks: { color: INK2, font: { size: 11.5, weight: "600" } }, grid: { display: false }, border: { display: false } } } }),
-        plugins: [crosshair] });
-      note(cGeo, `Blue bars = revenue (bottom axis), green bars = jobs (top axis), for the top 10 states. Hover any bar for its year-over-year and month-over-month change. The matrix above carries the full per-state comparison.`, "how");
+      // 2x2 by state (Tornike 2026-07-16): jobs + jobs-growth on top, revenue + revenue-growth below.
+      // Growth is shown as ABSOLUTE change (Δ jobs / Δ $) so big states aren't dwarfed by small-base % spikes;
+      // exact % rides in the tooltip. ADVICE built into the note: for states trust the YEAR-over-year read —
+      // month-to-month is seasonal and jumpy, especially for smaller states — so YoY is the solid bar.
+      const nmr = arr => arr.map(r => ({ k: nm(r.k), v: r.v }));
+      function growthBars(title, rows, fmt) {
+        const { c, box, cv } = chartCard(g, title, monLbl + " · vs last year & last month · top 10", { h: Math.max(230, 46 + rows.length * 30), icon: KIC.bars, headVal: "" });
+        if (!rows.length) { emptyBox(box); return c; }
+        const sgn = v => (v >= 0 ? "+" : "−") + fmt(Math.abs(v));
+        new Chart(cv, { type: "bar", data: { labels: rows.map(r => r.k), datasets: [
+          { label: "vs last year", data: rows.map(r => r.yoyAbs), backgroundColor: BLUE, borderRadius: 3, maxBarThickness: 11 },
+          { label: "vs last month", data: rows.map(r => r.momAbs), backgroundColor: LIMED, borderRadius: 3, maxBarThickness: 11 } ] },
+          options: baseOpts({ indexAxis: "y", plugins: { legend: { display: true, position: "top", align: "end", labels: { color: SUB, font: { size: 12, weight: "600" }, boxWidth: 9, usePointStyle: true } },
+            tooltip: { callbacks: { label: x => { const r = rows[x.dataIndex]; const p = x.dataset.label === "vs last year" ? r.yoyPct : r.momPct; return x.dataset.label + ": " + sgn(x.parsed.x) + (p == null ? "" : " (" + (p >= 0 ? "+" : "") + pct(p) + ")"); } } } },
+            scales: { x: { beginAtZero: true, ticks: { callback: sgn, color: AXIS, font: { size: 10 } }, grid: { color: GRID }, border: { display: false } },
+              y: { ticks: { color: INK2, font: { size: 11, weight: "600" } }, grid: { display: false }, border: { display: false } } } }), plugins: [crosshair] });
+        note(c, `Bars right of zero = growth, left = decline — vs the same month last year (blue) and vs last month (green). Exact % is in the tooltip. For states, the year-over-year bar is the one to trust: month-to-month is seasonal and jumpy, especially for smaller states.`, "how");
+        return c;
+      }
+      const jobsGrowthRows = jobS.slice(0, 10).map(r => { const j = r.v, jl = jobLyMap[r.k] || 0, jp = jobPmMap[r.k] || 0; return { k: nm(r.k), yoyAbs: j - jl, momAbs: j - jp, yoyPct: jl ? (j - jl) / jl : null, momPct: jp ? (j - jp) / jp : null }; });
+      const revGrowthRows = revS.slice(0, 10).map(r => { const v = r.v, vl = revLyMap[r.k] || 0, vp = revPmMap[r.k] || 0; return { k: nm(r.k), yoyAbs: v - vl, momAbs: v - vp, yoyPct: vl ? (v - vl) / vl : null, momPct: vp ? (v - vp) / vp : null }; });
+      rankBars(g, "Jobs by state", nmr(jobS.slice(0, 10)), fmtN, { top: 10, sub: monLbl + " · top 10" });
+      growthBars("Jobs — increase / decrease by state", jobsGrowthRows, fmtN);
+      rankBars(g, "Revenue by state", nmr(revS.slice(0, 10)), money, { top: 10, sub: monLbl + " · top 10" });
+      growthBars("Revenue — increase / decrease by state", revGrowthRows, moneyC);
     }
 
     /* ---- 05 · Profitability & P&L ---- */
@@ -1605,6 +1637,15 @@ async function renderMonthly(host, MRCFG) {
       const oeCur = valueFor("closing", "Other Expenses", curY, mo) || 0;
       const oec = lines(g, "Other Expenses — momentum", "last 14 months", [{ label: "Other Expenses", series: oeT, color: VIOLET }], money, { headVal: money(oeCur) });
       note(oec, `Uncategorized per-job field reimbursements — ${money(oeCur)} in ${MON[mo]}${jobs ? `, about ${money(oeCur / jobs)}/job` : ""}. Captured as one closing-sheet total with no category behind it, so it can't be split further; the trend is what to watch.`, "how");
+      // Dive into Other Expenses (Tornike 2026-07-16): the data has no sub-category, so the honest drill-in
+      // is the biggest single instances — plus a clear note that tips are NOT part of this field.
+      const oeJobs = rowsW.map(r => ({ cust: r.Customer, req: r["Request #"], moType: r["Moving Type"] || "—", amt: num(r["Other Expenses"]) })).filter(r => r.amt > 0).sort((a, b) => b.amt - a.amt);
+      if (oeJobs.length) {
+        const topN = oeJobs.slice(0, 10), shown = topN.reduce((a, r) => a + r.amt, 0);
+        const ldShare = oeJobs.filter(r => r.moType !== "Local Moving").reduce((a, r) => a + r.amt, 0);
+        const oeHtml = `<table class="mrx-tbl"><thead><tr><th>Customer</th><th>Request #</th><th>Move type</th><th style="text-align:right">Other Expenses</th></tr></thead><tbody>${topN.map(r => `<tr><td>${esc(r.cust || "—")}</td>${td(esc(String(r.req || "—")))}${td(esc(r.moType))}${td(money(r.amt), "text-align:right;font-weight:800")}</tr>`).join("")}</tbody></table>`;
+        tableCard(g, "Biggest Other Expenses this month", monLbl + " · top " + topN.length + " of " + fmtN(oeJobs.length) + " jobs with reimbursements", oeHtml, { span2: true, icon: KIC.grid, headVal: money(shown), noteKind: "how", note: `“Other Expenses” is a single uncategorized reimbursement field on each closing sheet — no sub-category exists behind it in the data, so this is the honest drill-in: the individual jobs carrying the most.${oeCur ? " About " + pct(ldShare / oeCur) + " of the month's Other Expenses is on long-distance (Regular/Straight) jobs — out-of-town moves carry more field reimbursements." : ""} IMPORTANT: tips are NOT in this field — “Tip from Company” is its own separate column, and the portion that reaches the crew (“Tip from Company Part”) sits inside Foreman Salaries, not Expenses.` });
+      }
     }
 
     /* ---- Repeat & Referral Business — sits in PART 2 "The money" (Tornike 2026-07-15:
@@ -1633,7 +1674,15 @@ async function renderMonthly(host, MRCFG) {
       note(cSh, `Every point is the % of that month's revenue that came from repeat or referred customers — the cleanest loyalty pulse. ${MON[mo]}: ${pct(rrShare)}.`, "how");
       const retT = yearsArr(5).map(y => valueFor("closing", "Revenue", y, mo, { pre: r => String(r.Source) === "Returned Customer" }) || 0);
       const recT = yearsArr(5).map(y => valueFor("closing", "Revenue", y, mo, { pre: r => String(r.Source) === "Recommended" }) || 0);
-      groupedBars(g, "Repeat vs Referral — revenue by year", yearsArr(5).map(String), retT, "Repeat (returned customer)", recT, "Referral (recommended)", money, { sub: MON[mo] + " each year" });
+      { // vertical COLUMN chart (Tornike 2026-07-16: reads better than horizontal bars here)
+        const labsRR = yearsArr(5).map(String);
+        const { c: cRRb, cv: cvRRb } = chartCard(g, "Repeat vs Referral — revenue by year", MON[mo] + " each year", { icon: KIC.bars, headVal: money((retT[retT.length - 1] || 0) + (recT[recT.length - 1] || 0)) });
+        new Chart(cvRRb, { type: "bar", data: { labels: labsRR, datasets: [
+          { label: "Repeat (returned customer)", data: retT, backgroundColor: LIMED, borderRadius: 3, maxBarThickness: 30 },
+          { label: "Referral (recommended)", data: recT, backgroundColor: BLUE, borderRadius: 3, maxBarThickness: 30 } ] },
+          options: baseOpts({ plugins: { legend: { display: true, position: "top", align: "end", labels: { color: SUB, font: { size: 12.5, weight: "600" }, boxWidth: 9, usePointStyle: true } }, tooltip: { callbacks: { label: x => x.dataset.label + ": " + money(x.parsed.y) } } },
+            scales: { y: axY(moneyC, { beginAtZero: true }), x: { ticks: { color: INK2, font: { size: 12.5, weight: "600" } }, grid: { display: false }, border: { display: false } } } }), plugins: [crosshair] });
+      }
       // C2: both trend lines use the canonical dual-basis Booking Rate (no inline ratios)
       // #8 (Tornike 2026-07-15): show Repeat (returned) and Referral (recommended) as SEPARATE lines vs overall.
       const retBookT = bookRateTrend(r => String(r.Source) === "Returned Customer", 12);
@@ -1933,13 +1982,15 @@ async function renderMonthly(host, MRCFG) {
        Split out of Marketing & Channels so the Support view sees answer rate and missed
        calls — the metrics that ARE their job. Marketing keeps it in its view list too. */
     if (SEC("Phone & Response")) {
-      const g = section("Phone & Response", "call volume, answer rate and outbound effort — the whole phone system");
+      const g = section("Phone & Response", "the whole phone system — RingCentral, plus the CallRail tracked marketing numbers, side by side");
+      const subHead = (t, s) => { const d = document.createElement("div"); d.className = "mrx-subhead"; d.innerHTML = `<span class="sh-t">${esc(t)}</span>${s ? `<span class="sh-s">${esc(s)}</span>` : ""}`; g.appendChild(d); };
       const rcMonths = (() => { const o = []; let y = curY, m = mo; for (let i = 0; i < 12; i++) { o.unshift({ ym: `${y}-${String(m).padStart(2, "0")}`, k: MS[m] + " " + String(y).slice(2) }); m--; if (m < 1) { m = 12; y--; } } return o; })();
       if (rcMonths.some(x => rcAgg[x.ym])) {
+        subHead("RingCentral", "the whole company phone system · inbound + outbound, every line");
         const cVol = stackedTime(g, "Phone system — call volume", "last 12 months (RingCentral)", rcMonths.map(x => x.k),
           [ { label: "Incoming", data: rcMonths.map(x => (rcAgg[x.ym] || {}).in || 0), color: INK },
             { label: "Outgoing", data: rcMonths.map(x => (rcAgg[x.ym] || {}).out || 0), color: CTX } ], fmtN);
-        if (cVol) note(cVol, "The company phone system end-to-end — inbound AND outbound on every line, counted as real calls (sessions), never per-device ring-legs. The CallRail card in Marketing & Channels covers only tracked marketing numbers.", "how");
+        if (cVol) note(cVol, "The company phone system end-to-end — inbound AND outbound on every line, counted as real calls (sessions), never per-device ring-legs. The CallRail block below covers only the tracked marketing numbers.", "how");
         const ansT = rcMonths.map(x => { const b = rcAgg[x.ym]; return { k: x.k, v: b && b.in ? b.ans / b.in : null }; });
         const curB = rcAgg[`${curY}-${String(mo).padStart(2, "0")}`];
         const cAns = lines(g, "Incoming answer rate", "last 12 months (RingCentral)", [{ label: "Answered %", series: ansT, color: LIMED }], pct, { headVal: pct(lastV(ansT)) });
@@ -1974,6 +2025,21 @@ async function renderMonthly(host, MRCFG) {
           [ { label: "Received", data: rcMonths.map(x => (rcSms[x.ym] || {}).in || 0), color: INK },
             { label: "Sent", data: rcMonths.map(x => (rcSms[x.ym] || {}).out || 0), color: CTX } ], fmtN);
         if (cSms && smsB) note(cSms, `${MON[mo]}: ${fmtN(smsB.in)} received, ${fmtN(smsB.out)} sent${smsB.fail ? `, ${fmtN(smsB.fail)} failed to deliver` : ""}. Zip to Zip lines only (Tuji excluded). Direction comes straight from the RingCentral export.`, "how");
+      }
+      // ---- CallRail — the tracked marketing numbers, shown SEPARATELY from RingCentral (Tornike 2026-07-16) ----
+      if (callrail && callrail.length) {
+        subHead("CallRail", "tracked marketing numbers · inbound only · used for source attribution");
+        const crTot = momReduce("callrail", 12, rs => rs.length);
+        const crAns = momReduce("callrail", 12, rs => rs.filter(r => String(r["Call Status"]) === "Answered Call").length);
+        const crMiss = momReduce("callrail", 12, rs => rs.filter(r => /Missed|Abandoned/.test(String(r["Call Status"]))).length);
+        const crLabels = crTot.map(r => r.k);
+        const cCR = stackedTime(g, "CallRail inbound calls — answered vs missed", "last 12 months (CallRail)", crLabels,
+          [ { label: "Answered", data: crAns.map(r => r.v), color: INK }, { label: "Missed/Abandoned", data: crMiss.map(r => r.v), color: NEG } ], fmtN);
+        if (cCR) note(cCR, "Inbound calls to the tracked marketing numbers only (CallRail) — the ad/listing call-tracking lines used for source attribution. Separate from the RingCentral company-wide system above, which counts every line, inbound and outbound.", "how");
+        const crAnsRate = crTot.map((r, i) => ({ k: r.k, v: r.v ? crAns[i].v / r.v : null }));
+        const crCurTot = crTot.length ? crTot[crTot.length - 1].v : 0, crCurAns = crAns.length ? crAns[crAns.length - 1].v : 0;
+        const cCRr = lines(g, "CallRail answer rate", "last 12 months (CallRail)", [{ label: "Answered %", series: crAnsRate, color: LIMED }], pct, { headVal: pct(lastV(crAnsRate)) });
+        if (cCRr && crCurTot) note(cCRr, `${MON[mo]}: ${fmtN(crCurAns)} of ${fmtN(crCurTot)} tracked marketing calls answered (${pct(crCurAns / crCurTot)}). Compare with the RingCentral incoming answer rate above — CallRail is only the marketing lines, RingCentral is the whole phone system.`, "how");
       }
     }
 
