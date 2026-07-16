@@ -333,12 +333,21 @@ registerPage({ id: "review-settings", group: "reviews", title: "Settings",
 
     // ---------- per-job reviews (warehouse) for Response Analysis ----------
     // A job that already GOT a review needs no explanation (Tornike 2026-07-16). Reviews live in
-    // fct_job_overview (registered by review-performance.js at boot), keyed by Job No = the same job
-    // code the reminder bot uses. Warehouse-refreshed: a review written since the last pipeline run
-    // isn't matched yet — the page says so. RS.load caches by data epoch, so this is cheap.
+    // fct_job_overview, but its Job No is the NUMERIC Moveboard request # for ~99% of jobs, while
+    // the reminder bot speaks CALENDAR JOB CODES ("LM20-1004"). calendar_events carries both
+    // (job_code + request_no), so the chain is: bot job code → calendar → request # → reviews.
+    // Warehouse-refreshed: a review written since the last pipeline run isn't matched yet — the
+    // page says so. RS.load caches by data epoch, so this is cheap.
+    if (window.RS && RS.DATASETS && !RS.DATASETS.calendar_events_link) {
+      RS.DATASETS.calendar_events_link = {
+        table: "calendar_events",
+        cols: ["job_code", "request_no"],   // payload contract — the 2-column link only
+      };
+    }
     async function loadJobReviews() {
       try {
-        var rows = await RS.load("fct_job_overview");
+        var loaded = await Promise.all([RS.load("fct_job_overview"), RS.load("calendar_events_link")]);
+        var rows = loaded[0], cal = loaded[1];
         var m = {};
         rows.forEach(function (r) {
           var k = jobKey(r["Job No"]); if (!k) return;
@@ -348,6 +357,12 @@ registerPage({ id: "review-settings", group: "reviews", title: "Settings",
           var o = m[k] || (m[k] = { n: 0, src: "" });
           o.n += (n || 1);
           if (!o.src && r["Review Source"]) o.src = String(r["Review Source"]);
+        });
+        // expose every request-#-keyed entry under its calendar job code too
+        (cal || []).forEach(function (r) {
+          var ck = jobKey(r.job_code), rk = jobKey(r.request_no);
+          if (!ck || !rk || ck === rk) return;
+          if (m[rk] && !m[ck]) m[ck] = m[rk];
         });
         RRP.revMap = m; RRP.revErr = null;
       } catch (e) { if (!RRP.revMap) RRP.revMap = null; RRP.revErr = String(e && e.message || e); }
