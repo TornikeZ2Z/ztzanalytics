@@ -63,7 +63,10 @@ registerPage({ id: "review-settings", group: "reviews", title: "Settings",
     if (!document.getElementById("rrp-style")) {
       var st = document.createElement("style"); st.id = "rrp-style";
       st.textContent = [
-        ".rrp{max-width:1120px;margin:0 auto;padding:2px 2px 40px}",
+        /* full-width like the rest of the portal (Tornike 2026-07-16: the 1120px cap left huge dead
+           gutters at zoom — the page looked pushed right). Settings keeps its tuned editor width. */
+        ".rrp{max-width:none;margin:0;padding:2px 4px 40px}",
+        ".rrp.rrp-vlinks{max-width:1120px;margin:0 auto}",
         ".rrp-head{display:flex;align-items:flex-start;gap:12px;flex-wrap:wrap;justify-content:space-between;margin-bottom:14px}",
         ".rrp-head h1{margin:0;font-size:22px;font-weight:800;letter-spacing:-.01em;display:flex;align-items:center;gap:9px}",
         ".rrp-star{width:26px;height:26px;border-radius:8px;background:linear-gradient(135deg,#f6c944,#e0a015);color:#3a2a05;display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto}",
@@ -279,7 +282,7 @@ registerPage({ id: "review-settings", group: "reviews", title: "Settings",
     }
 
     host.innerHTML = "";   // clear the shell's "Loading…" spinner before mounting
-    var root = document.createElement("div"); root.className = "rrp"; host.appendChild(root);
+    var root = document.createElement("div"); root.className = "rrp rrp-v" + (RRP.view || "log"); host.appendChild(root);
 
     // ---------- relay reads: bridge proxy FIRST, direct JSONP as FALLBACK ----------
     // The direct <script src="script.google.com/..."> path breaks PER USER — a stale Google
@@ -326,6 +329,29 @@ registerPage({ id: "review-settings", group: "reviews", title: "Settings",
         RRP.goals = { now: now, goal: goal, snap: lastSnap, goalDate: goalDate, nk: nk };
       } catch (e) { RRP.goals = { now: {}, goal: {}, nk: function (s) { return String(s || "").toLowerCase().replace(/[^a-z0-9]/g, ""); } }; }
       return RRP.goals;
+    }
+
+    // ---------- per-job reviews (warehouse) for Response Analysis ----------
+    // A job that already GOT a review needs no explanation (Tornike 2026-07-16). Reviews live in
+    // fct_job_overview (registered by review-performance.js at boot), keyed by Job No = the same job
+    // code the reminder bot uses. Warehouse-refreshed: a review written since the last pipeline run
+    // isn't matched yet — the page says so. RS.load caches by data epoch, so this is cheap.
+    async function loadJobReviews() {
+      try {
+        var rows = await RS.load("fct_job_overview");
+        var m = {};
+        rows.forEach(function (r) {
+          var k = jobKey(r["Job No"]); if (!k) return;
+          var n = +(r["Number of Reviews"] || 0);
+          var got = n > 0 || /^yes$/i.test(String(r["Review Received"] || ""));
+          if (!got) return;
+          var o = m[k] || (m[k] = { n: 0, src: "" });
+          o.n += (n || 1);
+          if (!o.src && r["Review Source"]) o.src = String(r["Review Source"]);
+        });
+        RRP.revMap = m; RRP.revErr = null;
+      } catch (e) { if (!RRP.revMap) RRP.revMap = null; RRP.revErr = String(e && e.message || e); }
+      return RRP.revMap;
     }
 
     async function ensureData(force) {
@@ -608,45 +634,64 @@ registerPage({ id: "review-settings", group: "reviews", title: "Settings",
         if (!o.customer && r.customer) o.customer = r.customer;
       });
       var expl = {}; resp.forEach(function (r) { var k = jobKey(r.job); if (k && (!expl[k] || String(r.ts) > String(expl[k].ts))) expl[k] = r; });
-      var jobs = Object.keys(byJob).map(function (k) { var o = byJob[k]; o.exp = expl[k] || null; return o; })
-        .sort(function (a, b) { return (a.exp ? 1 : 0) - (b.exp ? 1 : 0) || String(b.day).localeCompare(a.day); });
+      var rm = RRP.revMap || {};
+      var jobs = Object.keys(byJob).map(function (k) { var o = byJob[k]; o.exp = expl[k] || null; o.rev = rm[k] || null; return o; })
+        .sort(function (a, b) { return ((a.exp || a.rev) ? 1 : 0) - ((b.exp || b.rev) ? 1 : 0) || String(b.day).localeCompare(a.day); });
       return { jobs: jobs, resp: resp, winDays: Object.keys(win).sort().reverse() };
     }
     function viewResponse() {
       var m = responseModel(), jobs = m.jobs;
-      var total = jobs.length, expd = jobs.filter(function (j) { return j.exp; }).length, waiting = total - expd;
-      var cov = total ? Math.round(expd / total * 100) : 0;
-      // KPI row
+      var total = jobs.length, expd = jobs.filter(function (j) { return j.exp; }).length;
+      var revJobs = jobs.filter(function (j) { return j.rev; });
+      var revd = revJobs.length, revTot = revJobs.reduce(function (a, j) { return a + (j.rev.n || 1); }, 0);
+      // a job is WAITING only if it has neither a review nor an explanation — a written review
+      // answers the question by itself (Tornike 2026-07-16)
+      var waiting = jobs.filter(function (j) { return !j.exp && !j.rev; }).length;
+      var cov = total ? Math.round((total - waiting) / total * 100) : 0;
+      // KPI row — reviewed jobs vs total review events are SEPARATE numbers (10 reviews on 1 job → 1 and 10)
       var kp = '<div class="rrp-kpis">'
         + '<div class="rrp-kpi"><b>' + N(total) + '</b><span>Recent jobs</span><small>yesterday → 7 days ago</small></div>'
+        + '<div class="rrp-kpi good"><b>' + N(revd) + '</b><span>Reviewed jobs</span><small>review written — no reason needed</small></div>'
+        + '<div class="rrp-kpi good"><b>' + N(revTot) + '</b><span>Reviews written</span><small>total, on those ' + N(revd) + ' job' + (revd === 1 ? "" : "s") + '</small></div>'
         + '<div class="rrp-kpi good"><b>' + N(expd) + '</b><span>Explained</span><small>foreman told us why</small></div>'
-        + '<div class="rrp-kpi warn"><b>' + N(waiting) + '</b><span>Waiting</span><small>no reason yet</small></div>'
-        + '<div class="rrp-kpi"><b>' + cov + '%</b><span>Response rate</span><small>explained ÷ recent</small></div></div>';
+        + '<div class="rrp-kpi warn"><b>' + N(waiting) + '</b><span>Waiting</span><small>no review, no reason</small></div>'
+        + '<div class="rrp-kpi"><b>' + cov + '%</b><span>Response rate</span><small>reviewed + explained ÷ recent</small></div></div>';
       // reason distribution (from all responses)
       var freq = {}; m.resp.forEach(function (r) { var k = r.reason || "—"; freq[k] = (freq[k] || 0) + 1; });
       var fr = Object.keys(freq).map(function (k) { return { k: k, n: freq[k] }; }).sort(function (a, b) { return b.n - a.n; });
       var fmax = fr[0] ? fr[0].n : 1;
       var bars = fr.length ? '<div class="rrp-card" style="padding:14px 16px"><h4 style="margin:0 0 10px;font-size:13px;font-weight:800">Reason breakdown</h4><div class="rrp-bars">'
         + fr.map(function (f) { return '<div class="rrp-bar"><span>' + esc(f.k) + '</span><span class="track"><i style="width:' + (f.n / fmax * 100).toFixed(0) + '%"></i></span><b>' + f.n + "</b></div>"; }).join("") + "</div></div>" : "";
-      // by-day response rate
+      // by-day response rate (reviewed OR explained both count as answered)
       var dayRows = m.winDays.map(function (dk) {
         var day = jobs.filter(function (j) { return j.day === dk; });
+        var rv = day.filter(function (j) { return j.rev; }).length;
         var e = day.filter(function (j) { return j.exp; }).length;
-        return "<tr><td>" + esc(etDay(dk + "T12:00:00") || dk) + '</td><td class="r">' + day.length + '</td><td class="r">' + e + '</td><td class="r">' + (day.length ? Math.round(e / day.length * 100) + "%" : "—") + "</td></tr>";
+        var ok = day.filter(function (j) { return j.exp || j.rev; }).length;
+        return "<tr><td>" + esc(etDay(dk + "T12:00:00") || dk) + '</td><td class="r">' + day.length + '</td><td class="r">' + rv + '</td><td class="r">' + e + '</td><td class="r">' + (day.length ? Math.round(ok / day.length * 100) + "%" : "—") + "</td></tr>";
       }).join("");
-      var dayTbl = '<div class="rrp-card" style="padding:0"><table class="rrp-reasontbl"><thead><tr><th>Day</th><th style="text-align:right">Jobs</th><th style="text-align:right">Explained</th><th style="text-align:right">Rate</th></tr></thead><tbody>' + (dayRows || '<tr><td colspan="4" style="color:var(--faint);padding:14px">No recent jobs.</td></tr>') + "</tbody></table></div>";
+      var dayTbl = '<div class="rrp-card" style="padding:0"><table class="rrp-reasontbl"><thead><tr><th>Day</th><th style="text-align:right">Jobs</th><th style="text-align:right">Reviewed</th><th style="text-align:right">Explained</th><th style="text-align:right">Rate</th></tr></thead><tbody>' + (dayRows || '<tr><td colspan="5" style="color:var(--faint);padding:14px">No recent jobs.</td></tr>') + "</tbody></table></div>";
       // worklist with inline explain (waiting first)
       var reasons = (RRP.data && RRP.data.config && RRP.data.config.reasons) || RRP_SEED.reasons;
       var work = jobs.map(function (j, i) {
-        var right = j.exp
-          ? '<span class="pill s-sent" title="' + esc(j.exp.note || "") + '">✓ ' + esc(j.exp.reason || "explained") + "</span>"
-          : '<button class="rrp-exbtn" data-exi="' + i + '">Add reason</button>';
+        var right;
+        if (j.rev) {
+          // review written → nothing to explain; no Add-reason button (Tornike 2026-07-16)
+          right = '<span class="pill s-sent" title="' + esc(j.rev.src ? "via " + j.rev.src : "review on file") + '">★ Review written' + (j.rev.n > 1 ? " ×" + j.rev.n : "") + "</span>"
+            + (j.exp ? ' <span class="pill s-skip" title="' + esc(j.exp.note || "") + '">' + esc(j.exp.reason || "explained") + "</span>" : "");
+        } else if (j.exp) {
+          right = '<span class="pill s-sent" title="' + esc(j.exp.note || "") + '">✓ ' + esc(j.exp.reason || "explained") + "</span>";
+        } else {
+          right = '<button class="rrp-exbtn" data-exi="' + i + '">Add reason</button>';
+        }
         return "<tr><td>" + esc(etDay(j.day + "T12:00:00") || j.day) + '</td><td>' + esc(j.job || "—")
           + '</td><td>' + esc(j.customer || "—") + '</td><td>' + esc(j.foreman || "—") + '</td><td>' + right + "</td></tr>";
       }).join("");
+      var revNote = '<div class="rrp-msgnote" style="margin:8px 2px 0">Reviews are matched from the warehouse job table, which refreshes with the data pipeline — a review written in the last hour may not be matched yet. Only counting reviews reach that table, so a job whose only review is on a Counts=No platform can still show as waiting.'
+        + (RRP.revErr ? ' <b style="color:#e0912a">Review matching is OFF right now (' + esc(RRP.revErr) + ') — every unexplained job shows as waiting.</b>' : "") + "</div>";
       var workTbl = '<div class="rrp-card" style="padding:0;margin-top:12px"><div style="padding:12px 15px 4px;font-size:14px;font-weight:800">Recent jobs — ' + N(waiting) + ' waiting for a reason</div>'
-        + '<div style="overflow-x:auto"><table class="rrp-reasontbl" id="rrpWork"><thead><tr><th>Date</th><th>Job</th><th>Customer</th><th>Foreman</th><th>Reason</th></tr></thead><tbody>'
-        + (work || '<tr><td colspan="5" style="color:var(--faint);padding:14px">No jobs in the last 7 days. As the bot sends nudges, they land here.</td></tr>') + "</tbody></table></div></div>";
+        + '<div style="overflow-x:auto"><table class="rrp-reasontbl" id="rrpWork"><thead><tr><th>Date</th><th>Job</th><th>Customer</th><th>Foreman</th><th>Status / Reason</th></tr></thead><tbody>'
+        + (work || '<tr><td colspan="5" style="color:var(--faint);padding:14px">No jobs in the last 7 days. As the bot sends nudges, they land here.</td></tr>') + "</tbody></table></div></div>" + revNote;
       // stash the model + reason list for wireResponse
       RRP._rm = { jobs: jobs, reasons: reasons };
       return freshBar() + kp + '<div class="rrp-rgrid">' + bars + dayTbl + "</div>" + workTbl;
@@ -984,7 +1029,9 @@ registerPage({ id: "review-settings", group: "reviews", title: "Settings",
     (async function () {
       try {
         if (RRP.view === "links") await loadGoals();
-        await ensureData(false);
+        // response view: the warehouse review match loads IN PARALLEL with the relay feed —
+        // neither blocks the other, and paint() below shows both together.
+        await Promise.all([ensureData(false), RRP.view === "response" ? loadJobReviews() : Promise.resolve()]);
         if (RRP.view === "links") await loadGoals();
       } catch (e) {}
       RRP.loading = false; RRP.fromCache = false;
