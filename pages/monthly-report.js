@@ -1767,6 +1767,19 @@ async function renderMonthly(host, MRCFG) {
         const ec = card(g, "CT branch by move type", monLbl, { icon: KIC.grid });
         const eb = document.createElement("div"); eb.className = "mrx-box"; eb.style.height = "140px"; ec.appendChild(eb); emptyBox(eb, "No branch-owner jobs in " + monLbl);
       }
+      // by foreman — chart + table pair (Tornike 2026-07-16: "like the Branch Owner page"; work-focused
+      // columns, selected month, pay = the FULL Forman Salary so it ties out with that page)
+      const byF = (() => { const g2 = {}; bo.forEach(r => { const f = (r.Foreman == null || String(r.Foreman).trim() === "") ? "Not recorded" : String(r.Foreman); (g2[f] = g2[f] || []).push(r); });
+        return Object.entries(g2).map(([f, rs]) => { const pay = M["Forman Salary"].fn(rs), hrs = M["Hours Worked by Forman"].fn(rs), bill = M["Total Bill"].fn(rs);
+          return { f, jobs: rs.length, hrs, pay, rate: hrs ? pay / hrs : null, pctb: bill ? pay / bill : null }; }).sort((a, b) => b.jobs - a.jobs); })();
+      if (byF.length) {
+        rankBars(g, "CT branch — jobs by foreman", byF.map(r => ({ k: r.f, v: r.jobs })), fmtN, { top: 12, sub: monLbl + " · who ran his jobs", noteKind: "how", note: "Job counts on branch-owner jobs only — a foreman's other work doesn't appear here. The table beside carries hours, pay and rate." });
+        const totHrs = M["Hours Worked by Forman"].fn(bo), totPay = M["Forman Salary"].fn(bo);
+        const fH = `<table class="mrx-tbl"><thead><tr><th>Foreman</th><th>Jobs</th><th>Hours</th><th>Foreman Pay</th><th>$/hr</th><th>Pay % of revenue</th></tr></thead><tbody>${
+          byF.map(r => `<tr><td>${esc(r.f)}</td>${td(fmtN(r.jobs))}${td(fmt1(r.hrs))}${td(money(r.pay))}${td(r.rate == null ? "—" : money(r.rate), "font-weight:800")}${td(r.pctb == null ? "—" : pct(r.pctb))}</tr>`).join("")
+        }<tr class="tot"><td>Total</td>${td(fmtN(p.jobs))}${td(fmt1(totHrs))}${td(money(totPay))}${td(totHrs ? money(totPay / totHrs) : "—")}${td(p.bill ? pct(totPay / p.bill) : "—")}</tr></tbody></table>`;
+        tableCard(g, "CT branch by foreman — hours & pay", monLbl + " · pay = full company pay", fH, { span2: false, icon: KIC.grid, headVal: money(totPay), noteKind: "how", note: "Foreman Pay is the FULL company pay (hourly + packing + review + CF + company-tip part) — the same Forman Salary the Branch Owner page uses, so the two tie out. Customer tips are not included. $/hr = pay ÷ hours on these jobs; Pay % of revenue = pay ÷ the jobs' revenue." });
+      }
       // per-job detail for the selected period
       const det = bo.slice().sort((a, b) => String(b.Date || "").localeCompare(String(a.Date || "")))
         .map(r => ({ dt: String(r.Date || "").slice(0, 10), cust: r.Customer, req: r["Request #"], t: mtKey(String(r["Moving Type"] || "—")), bill: num(r["Total Bill"]), cut: num(r["Branch Owner Cut"]) }));
