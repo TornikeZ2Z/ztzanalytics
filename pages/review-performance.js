@@ -21,6 +21,8 @@
         "Estimate Bill", "Actual Bill", "Bill Increase Amount", "Bill Increase %",
         "Bill Increase Category", "Review Received", "Number of Reviews", "Review Source",
         "Review Breakdown", "Eligible", "Support Intervention", "Support Intervention Reason",
+        // Date/Type/Notes ADDED 2026-07-16 for the new Support Interventions list (their consumer)
+        "Support Intervention Date", "Support Intervention Type", "Support Notes",
         "Review Expected", "Exclusion Reason", "Foreman Response Received", "Foreman Reason",
         "Foreman Explanation", "Final Status", "Event ID",
       ],
@@ -47,7 +49,7 @@ var RP_REASONS = ["Customer refused", "The customer was dissatisfied", "Open cla
   "Customer was unfriendly / not willing to engage"];
 var RP = { sources: new Set(), statuses: new Set(), billcats: new Set(), foremen: new Set(),
   grain: "week", winD: 14, winW: 12, winM: 6, offset: 0, sortCol: null, sortDir: "desc", cell: null, view: "perf",
-  wlPage: 0 };
+  wlPage: 0, supPage: 0, supQ: "", supType: "" };
 
 registerPage({
   id: "review-performance",
@@ -218,6 +220,18 @@ registerPage({
         @media (max-width:900px){.rp-rgrid{grid-template-columns:1fr}}
         .rp-panel{border:1px solid var(--line);border-radius:12px;background:var(--panel);padding:12px 14px}
         .rp-panel h3{margin:0 0 10px;font-size:13px;font-weight:800}
+        .rp-supsub{margin:-6px 0 12px;font-size:11.5px;color:var(--faint);line-height:1.5}
+        .rp-supbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
+        .rp-supbar input{flex:1;min-width:220px;font:inherit;font-size:12.5px;background:var(--panel-2);color:var(--ink);border:1px solid var(--line-2);border-radius:9px;padding:8px 11px}
+        .rp-supbar input:focus{outline:none;border-color:var(--brand)}
+        .rp-supchips{display:flex;gap:6px;flex-wrap:wrap}
+        .rp-supchip{font:inherit;font-size:11.5px;font-weight:700;color:var(--muted);background:var(--panel-2);border:1px solid var(--line-2);border-radius:999px;padding:5px 11px;cursor:pointer;white-space:nowrap}
+        .rp-supchip:hover{border-color:var(--brand)}
+        .rp-supchip.on{background:var(--brand);color:var(--brand-ink);border-color:var(--brand)}
+        .rp-suppage{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:11px;font-size:12px;color:var(--muted);font-weight:600}
+        .rp-suppage b{margin:0 8px;font-variant-numeric:tabular-nums}
+        .rp-tag{display:inline-block;font-size:11px;font-weight:700;padding:3px 9px;border-radius:999px;background:var(--panel-2);border:1px solid var(--line-2);color:var(--ink);white-space:nowrap}
+        .rp-live-dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--brand);box-shadow:0 0 0 3px var(--brand-glow);vertical-align:middle;margin:0 2px}
         .rp-tbl2{width:100%;border-collapse:collapse;font-size:13px}
         .rp-tbl2 th{color:var(--faint);font-size:10px;font-weight:800;text-transform:uppercase;text-align:left;padding:5px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
         .rp-tbl2 td{padding:6px 8px;border-bottom:1px solid var(--line);vertical-align:top}
@@ -236,7 +250,8 @@ registerPage({
       <div class="rp-bar" id="rpBar"></div>
       <div id="rpLegend" class="rp-legend"></div>
       <div class="rp-wrap" id="rpWrapEl"><div id="rpMatrix"></div></div>
-      <div id="rpReasons" style="display:none"></div>`;
+      <div id="rpReasons" style="display:none"></div>
+      <div id="rpSupport" style="display:none"></div>`;
 
     var rows;
     try { rows = await RS.load("fct_job_overview"); }
@@ -370,7 +385,7 @@ registerPage({
       return d;
     }
     bar.appendChild(mkSeg(
-      [{ v: "perf", label: "Performance" }, { v: "reasons", label: "Reasons" }],
+      [{ v: "perf", label: "Performance" }, { v: "reasons", label: "Reasons" }, { v: "support", label: "Support" }],
       () => RP.view,
       v => { RP.view = v; closeDrawer(); repaint(); }));
     bar.appendChild(mkSeg(
@@ -648,8 +663,47 @@ registerPage({
       });
     }
 
+    // ---- LIVE foreman explanations (Tornike 2026-07-16) ----
+    // The warehouse-backed worklist below can show ZERO explanations for a real reason: a job only
+    // enters this report once its CLOSING SHEET is filed (days later), while a foreman's explanation
+    // is logged within minutes. So a fresh explanation exists in the relay long before its job
+    // appears here. This panel reads those explanations LIVE (bridge proxy /api/_rrp, same source as
+    // the Reminders page) so the office sees them the instant they arrive, independent of the lag.
+    // Best-effort: a 403 (user lacks the reviews-reminders grant) or a relay hiccup just hides it.
+    var liveResp = null, liveRespState = "idle";   // idle | loading | done | fail
+    function loadLiveResp() {
+      if (liveRespState !== "idle") return;
+      liveRespState = "loading";
+      ZTZ.api("/api/_rrp?req=reviewData").then(function (d) {
+        liveResp = (d && d.responses) || [];
+        liveRespState = "done";
+        if (RP.view === "reasons") paintReasons();
+      }).catch(function () { liveRespState = "fail"; if (RP.view === "reasons") paintReasons(); });
+    }
+    function liveRespPanel() {
+      if (liveRespState === "idle" || liveRespState === "loading")
+        return `<div class="rp-panel rp-live-wrap"><h3>Recent foreman explanations · live from the field</h3><div class="rs-loading" style="padding:14px">Loading…</div></div>`;
+      if (liveRespState === "fail") return "";   // silent — the warehouse worklist still renders
+      var rs = (liveResp || []).slice().sort(function (a, b) { return String(b.ts || b.date || "").localeCompare(String(a.ts || a.date || "")); });
+      var fmt = function (r) { var d = new Date(r.ts || r.date); return isNaN(d) ? String(r.date || "") : d.toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }); };
+      var body = rs.length
+        ? rs.slice(0, 30).map(function (r) {
+            return "<tr><td style=\"white-space:nowrap;color:var(--muted)\">" + esc(fmt(r)) + "</td>"
+              + "<td style=\"white-space:nowrap;font-weight:700\">" + esc(r.job || "—") + "</td>"
+              + "<td style=\"white-space:nowrap\">" + esc(r.foreman || "—") + "</td>"
+              + "<td><span class=\"rp-tag\">" + esc(r.reason || "—") + "</span></td>"
+              + "<td style=\"color:var(--muted)\">" + esc(r.note || "") + "</td></tr>";
+          }).join("")
+        : "<tr><td colspan=\"5\" style=\"color:var(--faint)\">No foreman explanations submitted yet. When a foreman taps “why no review?” on the Slack nudge, it appears here within about a minute.</td></tr>";
+      return `<div class="rp-panel rp-live-wrap" style="margin-bottom:12px">
+        <h3>Recent foreman explanations · <span class="rp-live-dot"></span> live from the field${rs.length ? " (" + N(rs.length) + ")" : ""}</h3>
+        <p class="rp-supsub">Straight from the reminder bot, ahead of the ~6-hour warehouse sync. Each one attaches to its job in the worklist below once that job’s closing sheet is filed (usually a few days), so a brand-new explanation may not yet line up with a job in the window above.</p>
+        <div style="overflow-x:auto"><table class="rp-tbl2"><thead><tr><th>When</th><th>Job</th><th>Foreman</th><th>Reason</th><th>Note</th></tr></thead><tbody>${body}</tbody></table></div>
+      </div>`;
+    }
     // ---- Reasons view ----
     function paintReasons() {
+      loadLiveResp();
       var data = filteredWindowed();
       var tot = paintKpis(data);
       var missing = data.filter(r => num(r["Eligible"]) === 1 && num(r["Number of Reviews"]) === 0);
@@ -722,7 +776,7 @@ registerPage({
         <button type="button" class="rp-btn" data-wlnext${RP.wlPage >= wlPages - 1 ? " disabled" : ""}>Next ›</button></div>` : "";
 
       var el = document.getElementById("rpReasons");
-      el.innerHTML = `
+      el.innerHTML = liveRespPanel() + `
         <div class="rp-rgrid">
           <div class="rp-panel"><h3>Why reviews are missing · ${N(explained.length)} of ${N(missing.length)} explained</h3>
             <div class="rp-roll">${barsHtml}</div></div>
@@ -745,12 +799,86 @@ registerPage({
       document.getElementById("rpNewer").disabled = RP.offset <= 0;
     }
 
+    // ---- Support interventions list (Tornike 2026-07-16) ----
+    // A plain, searchable list of every job Support stepped in on — Claim / Negative Review / Refund
+    // etc. These are the interventions that EXCLUDE a job from review eligibility (the "Support excl."
+    // KPI). It reads the SAME warehouse rows already loaded — respects the Source/Status/Bill/Foreman
+    // filters, but NOT the date window (support work spans all history and you want to see it all).
+    var yesSup = r => { var v = String(r["Support Intervention"] == null ? "" : r["Support Intervention"]).trim().toLowerCase(); return v === "yes" || v === "1" || v === "true"; };
+    var supDate = r => { var d = String(r["Support Intervention Date"] || "").slice(0, 10); return /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : (String(r["Job Date"] || "").slice(0, 10)); };
+    function paintSupport() {
+      var SUP_PAGE = 25;
+      var all = filtered().filter(yesSup);
+      // distinct types for the little filter chips (a job can carry a comma-joined combo — keep it whole)
+      var typeCounts = {};
+      all.forEach(r => { var t = String(r["Support Intervention Type"] || "").trim() || "—"; typeCounts[t] = (typeCounts[t] || 0) + 1; });
+      var q = RP.supQ.trim().toLowerCase();
+      var list = all.filter(r => {
+        if (RP.supType && String(r["Support Intervention Type"] || "").trim() !== RP.supType) return false;
+        if (!q) return true;
+        return [r["Job No"], r["Customer"], r["Foreman"], r["Support Intervention Type"], r["Support Intervention Reason"], r["Support Notes"]]
+          .some(v => String(v == null ? "" : v).toLowerCase().indexOf(q) >= 0);
+      }).sort((a, b) => supDate(b).localeCompare(supDate(a)));
+
+      var pages = Math.max(1, Math.ceil(list.length / SUP_PAGE));
+      if (RP.supPage >= pages) RP.supPage = 0;
+      var shown = list.slice(RP.supPage * SUP_PAGE, RP.supPage * SUP_PAGE + SUP_PAGE);
+      var typeTag = t => { var k = String(t || "").toLowerCase();
+        var c = /neg/.test(k) ? "#b45309" : /claim/.test(k) ? "#b91c1c" : /refund/.test(k) ? "#7c3aed" : "var(--muted)";
+        return `<span style="font-weight:700;color:${c}">${esc(t || "—")}</span>`; };
+      var rowsH = shown.map(r => `<tr>
+          <td style="white-space:nowrap;color:var(--muted)">${esc(supDate(r))}</td>
+          <td style="white-space:nowrap;font-weight:700">${esc(r["Job No"] || "—")}<br><span style="color:var(--faint);font-weight:400;font-size:11px">${esc(r["Customer"] || "")}</span></td>
+          <td style="white-space:nowrap">${esc(r["Foreman"] || "—")}</td>
+          <td>${typeTag(r["Support Intervention Type"])}</td>
+          <td>${esc(r["Support Intervention Reason"] || "—")}</td>
+          <td style="color:var(--muted)">${esc(r["Support Notes"] || "")}</td>
+        </tr>`).join("");
+      var chips = [{ t: "", label: "All types (" + N(all.length) + ")" }]
+        .concat(Object.keys(typeCounts).sort((a, b) => typeCounts[b] - typeCounts[a]).map(t => ({ t: t, label: t + " (" + N(typeCounts[t]) + ")" })))
+        .map(c => `<button type="button" class="rp-supchip${RP.supType === c.t ? " on" : ""}" data-suptype="${esc(c.t)}">${esc(c.label)}</button>`).join("");
+      var from = list.length ? RP.supPage * SUP_PAGE + 1 : 0, to = Math.min(list.length, (RP.supPage + 1) * SUP_PAGE);
+      var pager = list.length > SUP_PAGE
+        ? `<div class="rp-suppage"><span>${N(from)}–${N(to)} of ${N(list.length)}</span>
+             <span><button type="button" class="rp-btn" data-supprev ${RP.supPage === 0 ? "disabled" : ""}>‹ Prev</button>
+             <b>${RP.supPage + 1} / ${pages}</b>
+             <button type="button" class="rp-btn" data-supnext ${RP.supPage >= pages - 1 ? "disabled" : ""}>Next ›</button></span></div>`
+        : `<div class="rp-suppage"><span>${N(list.length)} intervention${list.length === 1 ? "" : "s"}</span></div>`;
+
+      var el = document.getElementById("rpSupport");
+      el.innerHTML = `
+        <div class="rp-panel">
+          <h3>Support interventions — every job Support stepped in on</h3>
+          <p class="rp-supsub">All-time (not limited by the date window above). A job with a support intervention is excluded from review eligibility. Respects the Source / Foreman filters.</p>
+          <div class="rp-supbar">
+            <input type="text" id="rpSupQ" placeholder="Search job, customer, foreman, reason, notes…" value="${esc(RP.supQ)}">
+            <div class="rp-supchips">${chips}</div>
+          </div>
+          <div style="overflow-x:auto"><table class="rp-tbl2">
+            <thead><tr><th>Date</th><th>Job</th><th>Foreman</th><th>Type</th><th>Reason</th><th>Notes</th></tr></thead>
+            <tbody>${rowsH || `<tr><td colspan="6" style="color:var(--faint)">No support interventions match.</td></tr>`}</tbody>
+          </table></div>
+          ${pager}
+        </div>`;
+      var qi = el.querySelector("#rpSupQ");
+      if (qi) qi.oninput = () => { RP.supQ = qi.value; RP.supPage = 0;
+        var el2 = document.getElementById("rpSupport"); // re-render body but keep focus in the search box
+        paintSupport(); var q2 = document.getElementById("rpSupQ"); if (q2) { q2.focus(); q2.setSelectionRange(q2.value.length, q2.value.length); } };
+      el.querySelectorAll("[data-suptype]").forEach(b => b.onclick = () => { RP.supType = b.getAttribute("data-suptype"); RP.supPage = 0; paintSupport(); });
+      var sp = el.querySelector("[data-supprev]"), sn = el.querySelector("[data-supnext]");
+      if (sp) sp.onclick = () => { RP.supPage--; paintSupport(); };
+      if (sn) sn.onclick = () => { RP.supPage++; paintSupport(); };
+    }
+
     function repaint() {
-      var perf = RP.view === "perf";
-      document.getElementById("rpWrapEl").style.display = perf ? "" : "none";
-      document.getElementById("rpLegend").style.display = perf ? "" : "none";
-      document.getElementById("rpReasons").style.display = perf ? "none" : "";
-      if (perf) paintMatrix(); else paintReasons();
+      var v = RP.view;
+      document.getElementById("rpWrapEl").style.display = v === "perf" ? "" : "none";
+      document.getElementById("rpLegend").style.display = v === "perf" ? "" : "none";
+      document.getElementById("rpReasons").style.display = v === "reasons" ? "" : "none";
+      document.getElementById("rpSupport").style.display = v === "support" ? "" : "none";
+      if (v === "perf") paintMatrix();
+      else if (v === "reasons") paintReasons();
+      else paintSupport();
     }
 
     // ---- control wiring ----
