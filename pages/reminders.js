@@ -332,12 +332,13 @@ registerPage({ id: "review-settings", group: "reviews", title: "Settings",
     }
 
     // ---------- per-job reviews (warehouse) for Response Analysis ----------
-    // A job that already GOT a review needs no explanation (Tornike 2026-07-16). Reviews live in
-    // fct_job_overview, but its Job No is the NUMERIC Moveboard request # for ~99% of jobs, while
-    // the reminder bot speaks CALENDAR JOB CODES ("LM20-1004"). calendar_events carries both
-    // (job_code + request_no), so the chain is: bot job code → calendar → request # → reviews.
-    // Warehouse-refreshed: a review written since the last pipeline run isn't matched yet — the
-    // page says so. RS.load caches by data epoch, so this is cheap.
+    // A job that already GOT a review needs no explanation (Tornike 2026-07-16). The review register
+    // is fct_reviews_breakdown — EVERY review event (counting or not), keyed by "Request Joinkey" =
+    // "<COMPANY> <request #>" (company-scoped so Tuji never cross-matches). The reminder bot speaks
+    // CALENDAR JOB CODES ("LM20-1004"), and calendar_events carries both job_code + request_no —
+    // so the chain is: bot job code → calendar link → request # → "ZIP TO ZIP <req>" review key.
+    // Validated end-to-end 2026-07-16: 1,725 job codes resolve to reviews this way.
+    // Warehouse-refreshed: a review written since the last pipeline run isn't matched yet.
     if (window.RS && RS.DATASETS && !RS.DATASETS.calendar_events_link) {
       RS.DATASETS.calendar_events_link = {
         table: "calendar_events",
@@ -346,27 +347,28 @@ registerPage({ id: "review-settings", group: "reviews", title: "Settings",
     }
     async function loadJobReviews() {
       try {
-        var loaded = await Promise.all([RS.load("fct_job_overview"), RS.load("calendar_events_link")]);
-        var rows = loaded[0], cal = loaded[1];
-        var m = {};
-        rows.forEach(function (r) {
-          var k = jobKey(r["Job No"]); if (!k) return;
-          var n = +(r["Number of Reviews"] || 0);
-          var got = n > 0 || /^yes$/i.test(String(r["Review Received"] || ""));
-          if (!got) return;
-          var o = m[k] || (m[k] = { n: 0, src: "" });
-          o.n += (n || 1);
-          if (!o.src && r["Review Source"]) o.src = String(r["Review Source"]);
+        var loaded = await Promise.all([RS.load("reviews_breakdown"), RS.load("calendar_events_link")]);
+        var rb = loaded[0], cal = loaded[1];
+        var set = {}; (rb || []).forEach(function (r) {
+          var k = jobKey(r["Request Joinkey"]); if (!k) return;
+          var o = set[k] || (set[k] = { n: 0, src: "" });
+          o.n += (+(r["Number of Reviews"] || 1) || 1);
+          if (!o.src && r.Source) o.src = String(r.Source);
         });
-        // expose every request-#-keyed entry under its calendar job code too
-        (cal || []).forEach(function (r) {
+        var c2r = {}; (cal || []).forEach(function (r) {
           var ck = jobKey(r.job_code), rk = jobKey(r.request_no);
-          if (!ck || !rk || ck === rk) return;
-          if (m[rk] && !m[ck]) m[ck] = m[rk];
+          if (ck && rk && !c2r[ck]) c2r[ck] = rk;
         });
-        RRP.revMap = m; RRP.revErr = null;
-      } catch (e) { if (!RRP.revMap) RRP.revMap = null; RRP.revErr = String(e && e.message || e); }
-      return RRP.revMap;
+        RRP.revIdx = { set: set, c2r: c2r };
+        RRP.revErr = null;
+      } catch (e) { if (!RRP.revIdx) RRP.revIdx = null; RRP.revErr = String(e && e.message || e); }
+      return RRP.revIdx;
+    }
+    // review lookup for one bot job key — tries the job code directly (closings sometimes record
+    // the code as the Request #), then the calendar-linked request #. ZIP TO ZIP scope only.
+    function reviewFor(k) {
+      var ix = RRP.revIdx; if (!ix || !k) return null;
+      return ix.set["ZIP TO ZIP " + k] || (ix.c2r[k] ? ix.set["ZIP TO ZIP " + ix.c2r[k]] : null) || null;
     }
 
     async function ensureData(force) {
@@ -649,8 +651,7 @@ registerPage({ id: "review-settings", group: "reviews", title: "Settings",
         if (!o.customer && r.customer) o.customer = r.customer;
       });
       var expl = {}; resp.forEach(function (r) { var k = jobKey(r.job); if (k && (!expl[k] || String(r.ts) > String(expl[k].ts))) expl[k] = r; });
-      var rm = RRP.revMap || {};
-      var jobs = Object.keys(byJob).map(function (k) { var o = byJob[k]; o.exp = expl[k] || null; o.rev = rm[k] || null; return o; })
+      var jobs = Object.keys(byJob).map(function (k) { var o = byJob[k]; o.exp = expl[k] || null; o.rev = reviewFor(k); return o; })
         .sort(function (a, b) { return ((a.exp || a.rev) ? 1 : 0) - ((b.exp || b.rev) ? 1 : 0) || String(b.day).localeCompare(a.day); });
       return { jobs: jobs, resp: resp, winDays: Object.keys(win).sort().reverse() };
     }
@@ -702,7 +703,7 @@ registerPage({ id: "review-settings", group: "reviews", title: "Settings",
         return "<tr><td>" + esc(etDay(j.day + "T12:00:00") || j.day) + '</td><td>' + esc(j.job || "—")
           + '</td><td>' + esc(j.customer || "—") + '</td><td>' + esc(j.foreman || "—") + '</td><td>' + right + "</td></tr>";
       }).join("");
-      var revNote = '<div class="rrp-msgnote" style="margin:8px 2px 0">Reviews are matched from the warehouse job table, which refreshes with the data pipeline — a review written in the last hour may not be matched yet. Only counting reviews reach that table, so a job whose only review is on a Counts=No platform can still show as waiting.'
+      var revNote = '<div class="rrp-msgnote" style="margin:8px 2px 0">Reviews are matched from the warehouse review register (every review event, counting or not), joined to the job by its Request # via the calendar link. The register refreshes with the data pipeline — a review written since the last refresh isn’t matched yet, so a freshly-reviewed job can briefly show as waiting.'
         + (RRP.revErr ? ' <b style="color:#e0912a">Review matching is OFF right now (' + esc(RRP.revErr) + ') — every unexplained job shows as waiting.</b>' : "") + "</div>";
       var workTbl = '<div class="rrp-card" style="padding:0;margin-top:12px"><div style="padding:12px 15px 4px;font-size:14px;font-weight:800">Recent jobs — ' + N(waiting) + ' waiting for a reason</div>'
         + '<div style="overflow-x:auto"><table class="rrp-reasontbl" id="rrpWork"><thead><tr><th>Date</th><th>Job</th><th>Customer</th><th>Foreman</th><th>Status / Reason</th></tr></thead><tbody>'
