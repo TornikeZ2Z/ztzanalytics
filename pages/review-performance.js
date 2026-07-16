@@ -54,7 +54,7 @@ var RP = { sources: new Set(), statuses: new Set(), billcats: new Set(), foremen
 registerPage({
   id: "review-performance",
   group: "reviews",
-  title: "Review Performance",
+  title: "Foreman Performance",   // renamed 2026-07-16; Reasons tab moved to the Response Analysis page
   async render(host) {
     var esc = RSC.esc, N = RS.fmtN;
     var num = function (v) { var n = parseFloat(String(v == null ? "" : v).replace(/[^0-9.\-]/g, "")); return isFinite(n) ? n : 0; };
@@ -243,8 +243,8 @@ registerPage({
 
     host.innerHTML = `
       <div class="rp-head">
-        <h1>Review Performance <span id="rpLive" class="rp-live pending" title="Live reviews are read straight from the Data for Reviews sheet, ahead of the ~6-hour warehouse refresh">◷ syncing live…</span></h1>
-        <p>Reviews generated per foreman · <b>reviews ÷ eligible jobs</b> · target 100% · click a cell for the jobs and where each review came from — missing reviews can be explained right here →</p>
+        <h1>Foreman Performance <span id="rpLive" class="rp-live pending" title="Live reviews are read straight from the Data for Reviews sheet, ahead of the ~6-hour warehouse refresh">◷ syncing live…</span></h1>
+        <p>Reviews generated per foreman · <b>reviews ÷ eligible jobs</b> · target 100% · click a cell for the jobs and where each review came from. The <b>Support</b> tab lists every job Support stepped in on.</p>
       </div>
       <div class="rp-kpis" id="rpKpis"><div class="rs-loading">Loading jobs…</div></div>
       <div class="rp-bar" id="rpBar"></div>
@@ -384,8 +384,9 @@ registerPage({
       });
       return d;
     }
+    // Reasons tab removed 2026-07-16 — it became the Response Analysis page (reminder-feed driven).
     bar.appendChild(mkSeg(
-      [{ v: "perf", label: "Performance" }, { v: "reasons", label: "Reasons" }, { v: "support", label: "Support" }],
+      [{ v: "perf", label: "Performance" }, { v: "support", label: "Support" }],
       () => RP.view,
       v => { RP.view = v; closeDrawer(); repaint(); }));
     bar.appendChild(mkSeg(

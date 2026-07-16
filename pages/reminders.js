@@ -41,14 +41,22 @@ var RRP_CACHE_KEY = "ztz_rrp_reviewData_v2";
 function rrpCacheRead() { try { var s = localStorage.getItem(RRP_CACHE_KEY); return s ? JSON.parse(s) : null; } catch (e) { return null; } }
 function rrpCacheWrite(data) { try { localStorage.setItem(RRP_CACHE_KEY, JSON.stringify({ ts: Date.now(), data: data })); } catch (e) {} }
 
-registerPage({
-  id: "reviews-reminders",
-  group: "reviews",
-  title: "Reminders",
+// SPLIT into 3 flat sidebar pages (Tornike 2026-07-16): Send Reminders / Response Analysis / Settings.
+// One shared render, each page presets RRP.view and hides the in-page toolbar. The old single
+// "reviews-reminders" page (with Daily/Missed/Settings tabs) is gone; "reviews-reminders" now IS
+// "Send Reminders". "response" is the NEW reminder-feed Response Analysis (replaces "Missed-review
+// reasons"). "review-settings" is the Settings view as its own page.
+registerPage({ id: "reviews-reminders", group: "reviews", title: "Send Reminders",
+  render: function (host) { RRP.view = "log"; RRP.solo = 1; return render(host); } });
+registerPage({ id: "response-analysis", group: "reviews", title: "Response Analysis",
+  render: function (host) { RRP.view = "response"; RRP.solo = 1; return render(host); } });
+registerPage({ id: "review-settings", group: "reviews", title: "Settings",
+  render: function (host) { RRP.view = "links"; RRP.solo = 1; return render(host); } });
+{
   // NAMED function expression (not a shorthand method) so `render` is callable inside itself —
   // the Refresh/Retry handlers call render(host) to fully re-run (Tornike 2026-07-15 fix; was a
   // ReferenceError → Refresh button did nothing).
-  render: async function render(host) {
+  var render = async function render(host) {
     var esc = RSC.esc, N = RS.fmtN;
     var TYPE = { morning: { l: "Morning", c: "t-blue" }, pre: { l: "Pre-start · Yelp", c: "t-red" }, mid: { l: "Mid-job", c: "t-amber" }, final: { l: "Final", c: "t-green" } };
 
@@ -255,6 +263,16 @@ registerPage({
         ".rrp-freshbtn{border:1px solid var(--line-2);background:var(--panel-2);color:var(--ink);border-radius:9px;padding:6px 11px;font:inherit;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap}",
         ".rrp-freshbtn:hover:not(:disabled){border-color:var(--brand)}",
         ".rrp-freshbtn:disabled{opacity:.6;cursor:default}",
+        ".rrp-rgrid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px;margin-top:12px}",
+        "@media(max-width:900px){.rrp-rgrid{grid-template-columns:minmax(0,1fr)}}",
+        ".rrp-exbtn{font:inherit;font-size:11.5px;font-weight:700;color:var(--brand-ink);background:var(--brand);border:0;border-radius:8px;padding:5px 11px;cursor:pointer}",
+        ".rrp-exbtn:hover{background:var(--brand-d)}",
+        ".rrp-exform{display:inline-flex;gap:6px;align-items:center;flex-wrap:wrap}",
+        ".rrp-exform select,.rrp-exform input{font:inherit;font-size:12px;background:var(--panel-2);color:var(--ink);border:1px solid var(--line-2);border-radius:7px;padding:5px 8px}",
+        ".rrp-exform input{min-width:130px}",
+        ".rrp-exform .rrp-exgo{background:var(--brand);color:var(--brand-ink);border:0;border-radius:7px;padding:5px 10px;font-weight:700;cursor:pointer}",
+        ".rrp-exform .rrp-exgo:disabled{opacity:.6;cursor:default}",
+        ".rrp-exform .rrp-exno{background:transparent;border:1px solid var(--line-2);color:var(--muted);border-radius:7px;padding:5px 8px;cursor:pointer}",
         "@media(max-width:820px){.rrp-row{grid-template-columns:56px 70px 1fr 90px}.rrp-row .cust,.rrp-row .lnk{display:none}.rrp-loc{grid-template-columns:18px minmax(0,1fr) 28px}.rrp-loc input[type=text].url{grid-column:2/4}.rrp-plat{grid-template-columns:36px minmax(0,1fr) 28px}.rrp-plat .url{grid-column:2/4}}"
       ].join("\n");
       document.head.appendChild(st);
@@ -568,6 +586,101 @@ registerPage({
       return freshBar() + bars + tbl;
     }
 
+    // ---------- RESPONSE ANALYSIS (reminder-feed, Tornike 2026-07-16) ----------
+    // Built entirely from the LIVE relay feed, not the warehouse — so it shows RECENT jobs the
+    // warehouse hasn't ingested yet. "Recent jobs" = distinct jobs the bot sent a mid/final nudge
+    // for in the last 7 days, EXCLUDING today (a job today can't fairly be judged yet). Each is
+    // joined to the foreman's explanation (responses). The office can log a reason inline for any
+    // of them — a job up to a week old can still be explained.
+    var jobKey = function (j) { return String(j == null ? "" : j).trim().toUpperCase(); };
+    function responseModel() {
+      var log = cleanLog(), resp = (RRP.data && RRP.data.responses) || [];
+      var todayKey = etDayKey(new Date().toISOString());
+      var win = {}; for (var i = 1; i <= 7; i++) { var dt = new Date(); dt.setDate(dt.getDate() - i); win[etDayKey(dt.toISOString())] = i; }
+      var byJob = {};
+      log.forEach(function (r) {
+        if (r.type !== "mid" && r.type !== "final") return;   // per-job review nudges (morning = per-foreman, no job)
+        var dk = etDayKey(r.ts); if (dk === todayKey || !(dk in win)) return;
+        var k = jobKey(r.job); if (!k) return;
+        var o = byJob[k] || (byJob[k] = { job: r.job, foreman: r.foreman || "", customer: r.customer || "", day: dk });
+        if (dk > o.day) o.day = dk;
+        if (!o.foreman && r.foreman) o.foreman = r.foreman;
+        if (!o.customer && r.customer) o.customer = r.customer;
+      });
+      var expl = {}; resp.forEach(function (r) { var k = jobKey(r.job); if (k && (!expl[k] || String(r.ts) > String(expl[k].ts))) expl[k] = r; });
+      var jobs = Object.keys(byJob).map(function (k) { var o = byJob[k]; o.exp = expl[k] || null; return o; })
+        .sort(function (a, b) { return (a.exp ? 1 : 0) - (b.exp ? 1 : 0) || String(b.day).localeCompare(a.day); });
+      return { jobs: jobs, resp: resp, winDays: Object.keys(win).sort().reverse() };
+    }
+    function viewResponse() {
+      var m = responseModel(), jobs = m.jobs;
+      var total = jobs.length, expd = jobs.filter(function (j) { return j.exp; }).length, waiting = total - expd;
+      var cov = total ? Math.round(expd / total * 100) : 0;
+      // KPI row
+      var kp = '<div class="rrp-kpis">'
+        + '<div class="rrp-kpi"><b>' + N(total) + '</b><span>Recent jobs</span><small>yesterday → 7 days ago</small></div>'
+        + '<div class="rrp-kpi good"><b>' + N(expd) + '</b><span>Explained</span><small>foreman told us why</small></div>'
+        + '<div class="rrp-kpi warn"><b>' + N(waiting) + '</b><span>Waiting</span><small>no reason yet</small></div>'
+        + '<div class="rrp-kpi"><b>' + cov + '%</b><span>Response rate</span><small>explained ÷ recent</small></div></div>';
+      // reason distribution (from all responses)
+      var freq = {}; m.resp.forEach(function (r) { var k = r.reason || "—"; freq[k] = (freq[k] || 0) + 1; });
+      var fr = Object.keys(freq).map(function (k) { return { k: k, n: freq[k] }; }).sort(function (a, b) { return b.n - a.n; });
+      var fmax = fr[0] ? fr[0].n : 1;
+      var bars = fr.length ? '<div class="rrp-card" style="padding:14px 16px"><h4 style="margin:0 0 10px;font-size:13px;font-weight:800">Reason breakdown</h4><div class="rrp-bars">'
+        + fr.map(function (f) { return '<div class="rrp-bar"><span>' + esc(f.k) + '</span><span class="track"><i style="width:' + (f.n / fmax * 100).toFixed(0) + '%"></i></span><b>' + f.n + "</b></div>"; }).join("") + "</div></div>" : "";
+      // by-day response rate
+      var dayRows = m.winDays.map(function (dk) {
+        var day = jobs.filter(function (j) { return j.day === dk; });
+        var e = day.filter(function (j) { return j.exp; }).length;
+        return "<tr><td>" + esc(etDay(dk + "T12:00:00") || dk) + '</td><td class="r">' + day.length + '</td><td class="r">' + e + '</td><td class="r">' + (day.length ? Math.round(e / day.length * 100) + "%" : "—") + "</td></tr>";
+      }).join("");
+      var dayTbl = '<div class="rrp-card" style="padding:0"><table class="rrp-reasontbl"><thead><tr><th>Day</th><th style="text-align:right">Jobs</th><th style="text-align:right">Explained</th><th style="text-align:right">Rate</th></tr></thead><tbody>' + (dayRows || '<tr><td colspan="4" style="color:var(--faint);padding:14px">No recent jobs.</td></tr>') + "</tbody></table></div>";
+      // worklist with inline explain (waiting first)
+      var reasons = (RRP.data && RRP.data.config && RRP.data.config.reasons) || RRP_SEED.reasons;
+      var work = jobs.map(function (j, i) {
+        var right = j.exp
+          ? '<span class="pill s-sent" title="' + esc(j.exp.note || "") + '">✓ ' + esc(j.exp.reason || "explained") + "</span>"
+          : '<button class="rrp-exbtn" data-exi="' + i + '">Add reason</button>';
+        return "<tr><td>" + esc(etDay(j.day + "T12:00:00") || j.day) + '</td><td>' + esc(j.job || "—")
+          + '</td><td>' + esc(j.customer || "—") + '</td><td>' + esc(j.foreman || "—") + '</td><td>' + right + "</td></tr>";
+      }).join("");
+      var workTbl = '<div class="rrp-card" style="padding:0;margin-top:12px"><div style="padding:12px 15px 4px;font-size:14px;font-weight:800">Recent jobs — ' + N(waiting) + ' waiting for a reason</div>'
+        + '<div style="overflow-x:auto"><table class="rrp-reasontbl" id="rrpWork"><thead><tr><th>Date</th><th>Job</th><th>Customer</th><th>Foreman</th><th>Reason</th></tr></thead><tbody>'
+        + (work || '<tr><td colspan="5" style="color:var(--faint);padding:14px">No jobs in the last 7 days. As the bot sends nudges, they land here.</td></tr>') + "</tbody></table></div></div>";
+      // stash the model + reason list for wireResponse
+      RRP._rm = { jobs: jobs, reasons: reasons };
+      return freshBar() + kp + '<div class="rrp-rgrid">' + bars + dayTbl + "</div>" + workTbl;
+    }
+    // POST a reason for a recent job, honestly (awaited bridge write, real error), then refresh.
+    function wireResponse() {
+      var rm = RRP._rm; if (!rm) return;
+      Array.prototype.forEach.call(root.querySelectorAll("[data-exi]"), function (b) {
+        b.onclick = function () {
+          var j = rm.jobs[+b.getAttribute("data-exi")]; if (!j) return;
+          var opts = rm.reasons.map(function (r) { return '<option>' + esc(r) + "</option>"; }).join("");
+          var f = document.createElement("span"); f.className = "rrp-exform";
+          f.innerHTML = '<select class="rrp-exr">' + opts + '</select><input class="rrp-exn" placeholder="note (optional)"><button class="rrp-exgo">Save</button><button class="rrp-exno">✕</button>';
+          b.replaceWith(f);
+          f.querySelector(".rrp-exno").onclick = function () { paint(); };
+          f.querySelector(".rrp-exgo").onclick = function () {
+            var go = f.querySelector(".rrp-exgo"); go.disabled = true; go.textContent = "Saving…";
+            var who = ""; try { who = (window.ZTZ && ZTZ.email && ZTZ.email()) || ""; } catch (e) {}
+            var body = JSON.stringify({ kind: "reviewReason", jobCode: String(j.job || ""), foreman: String(j.foreman || ""),
+              date: String(j.day || ""), reason: f.querySelector(".rrp-exr").value,
+              note: (f.querySelector(".rrp-exn").value.trim() ? f.querySelector(".rrp-exn").value.trim() + " — " : "") + "via portal" + (who ? " (" + who + ")" : "") });
+            fetch(ZTZ.API + "/api/_rrp", { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8", "Authorization": "Bearer " + ZTZ.getToken() }, body: body })
+              .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status);
+                RRP.dataFresh = false; return ensureData(true); })
+              .then(function () { paint(); }, function (e) {
+                go.disabled = false; go.textContent = "Save";
+                var w = f.querySelector(".rrp-exerr") || (function () { var d = document.createElement("div"); d.className = "rrp-exerr"; d.style.cssText = "color:#e5484d;font-size:11px;font-weight:700;margin-top:4px"; f.appendChild(d); return d; })();
+                w.textContent = "Couldn't save (" + (e && e.message || e) + ") — nothing recorded.";
+              });
+          };
+        };
+      });
+    }
+
     // ---------- REVIEW LINKS (editable control) ----------
     // canonical signature of "what actually gets sent" — active Google URL per state + platform
     // on/off — so a Save can be CONFIRMED by reading the config back (no-cors writes are opaque).
@@ -717,32 +830,33 @@ registerPage({
     }
 
     // ---------- paint + wire ----------
+    // per-page header (each of the 3 split pages sets RRP.view via its registerPage wrapper)
+    var HEAD = {
+      log: { t: "Send Reminders", p: "The Slack nudges the bot sends foremen to collect reviews — today’s jobs, what went out, and what got skipped." },
+      response: { t: "Response Analysis", p: "Why reviews were missed — every recent job the bot asked about, whether the foreman explained, and the reasons. Statistics run from yesterday back; you can still log a reason for a job up to a week old." },
+      links: { t: "Settings", p: "Which review link the bot sends per delivery state, the extra platforms, and the “why no review?” reasons foremen can pick." }
+    };
     function paint() {
       var body;
-      // Review links works from the live config OR the seed catalog — never blocked by the relay.
+      // Settings works from the live config OR the seed catalog — never blocked by the relay.
       if (RRP.view === "links") body = viewLinks();
-      else if (RRP.loading && !RRP.data) body = '<div class="rrp-empty">Loading reminders…</div>';
+      else if (RRP.loading && !RRP.data) body = '<div class="rrp-empty">Loading…</div>';
       else if (RRP.err && !RRP.data) {
         body = '<div class="rrp-empty">Couldn’t reach the Reviews relay (' + esc(RRP.err) + ').<br><br>'
           + 'Both paths failed — the bridge proxy and the direct Google call. That usually means the relay '
-          + 'is cold-starting (up to ~1 min) or the bridge is mid-redeploy; it is not about your account. '
-          + 'You can still open <b>Review links</b> to preview and edit.<br><br>'
+          + 'is cold-starting (up to ~1 min) or the bridge is mid-redeploy; it is not about your account.<br><br>'
           + '<button class="rrp-refresh" id="rrpRetry">Try again</button></div>';
-      } else if (RRP.view === "log") body = kpis() + viewLog();
-      else body = viewReasons();
+      } else if (RRP.view === "response") body = viewResponse();
+      else body = kpis() + viewLog();
+      var hd = HEAD[RRP.view] || HEAD.log;
 
       root.innerHTML =
         '<div class="rrp-head"><div>'
-        + '<h1><span class="rrp-star"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 17.3l-6.2 3.7 1.6-7L2 9.2l7.1-.6L12 2l2.9 6.6 7.1.6-5.4 4.8 1.6 7z"/></svg></span>Review Reminders</h1>'
-        + '<p>The automated Slack nudges the bot sends foremen to collect reviews — what went out, what got skipped, why reviews were missed, and which links to send.</p></div>'
+        + '<h1><span class="rrp-star"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 17.3l-6.2 3.7 1.6-7L2 9.2l7.1-.6L12 2l2.9 6.6 7.1.6-5.4 4.8 1.6 7z"/></svg></span>' + esc(hd.t) + '</h1>'
+        + '<p>' + esc(hd.p) + '</p></div>'
         + '<div class="rrp-headright"><div class="rrp-clock" id="rrpClock" title="Reminders fire on New Jersey time — compare a job’s scheduled time to this">' + nowLabel() + "</div>"
         + '<button class="rrp-refresh" id="rrpRefresh">↻ Refresh</button></div></div>'
-        + toolbar() + '<div id="rrpBody">' + body + "</div>";
-
-      // wire toolbar
-      Array.prototype.forEach.call(root.querySelectorAll(".rrp-seg button"), function (b) {
-        b.onclick = function () { RRP.view = b.getAttribute("data-v"); if (RRP.view === "links") loadGoals().then(paint); else paint(); };
-      });
+        + '<div id="rrpBody">' + body + "</div>";
       var rf = root.querySelector("#rrpRefresh"); if (rf) rf.onclick = function () { RRP.data = null; RRP.dataFresh = false; RRP.draft = null; RRP.goals = null; render(host); };
       // the reasons-tab refresh: force=true so it bypasses the bridge proxy's 30s cache AND the
       // relay's own schedule cache — otherwise "Refresh" could hand back the same stale answer
@@ -769,8 +883,9 @@ registerPage({
       // wire search
       var fq = root.querySelector("#rrpQ"); if (fq) { fq.oninput = function () { RRP.fq = fq.value; var pos = fq.selectionStart; paint(); var n = root.querySelector("#rrpQ"); if (n) { n.focus(); try { n.setSelectionRange(pos, pos); } catch (e) {} } }; }
 
-      // wire link editor
+      // wire link editor + response-analysis inline explain
       wireLinks();
+      if (RRP.view === "response") wireResponse();
     }
 
     function wireLinks() {
@@ -875,5 +990,5 @@ registerPage({
       RRP.loading = false; RRP.fromCache = false;
       paint();
     })();
-  }
-});
+  };
+}
