@@ -1495,17 +1495,13 @@ async function renderMonthly(host, MRCFG) {
 
     /* ---- 04 · Per-Job Profitability (formerly "Unit Economics" — N20) ---- */
     if (SEC("Per-Job Profitability")) {
-      const g = section("Per-Job Profitability", "profitability per job and per foreman-hour");
+      const g = section("Per-Job Profitability", "profitability per job");
       const revJobT = momReduce("closing", 12, rs => { const j = rs.length; return j ? M["Revenue"].fn(rs) / j : null; });
       const opJobT = momReduce("closing", 12, rs => { const j = rs.length; return j ? M["Operational Profit by Formula"].fn(rs) / j : null; });
-      const opHrT = momReduce("closing", 12, rs => { const h = rs.reduce((a, r) => a + num(r["Foreman Hours"]), 0); return h ? M["Operational Profit by Formula"].fn(rs) / h : null; });
-      const jobsPer100hT = momReduce("closing", 12, rs => { const j = rs.length, h = rs.reduce((a, r) => a + num(r["Foreman Hours"]), 0); return h ? 100 * j / h : null; });
       const c1 = lines(g, "Avg job value (12-month trend)", "last 12 months", [{ label: "Avg job value", series: revJobT, color: INK }], money, { headVal: money(lastV(revJobT)) });
       note(c1, `Average job value — ${money(lastV(revJobT) || 0)} this month. Rising means bigger jobs, not just more of them.`, "how");
       lines(g, "Gross profit per job", "last 12 months", [{ label: "Gross profit / job", series: opJobT, color: BLUE }], money, { headVal: money(lastV(opJobT)) });
-      lines(g, "Gross profit per foreman-hour", "last 12 months", [{ label: "Gross profit / hr", series: opHrT, color: BLUE }], money, { headVal: money(lastV(opHrT)) });
-      const cJ100 = lines(g, "Jobs per 100 foreman-hours", "last 12 months", [{ label: "Jobs / 100h", series: jobsPer100hT, color: INK }], fmt1, { headVal: fmt1(lastV(jobsPer100hT) || 0) });
-      note(cJ100, `Completed jobs per 100 foreman-hours worked — higher = crews finish jobs in fewer hours.`, "how");
+      // "Gross profit per foreman-hour" + "Jobs per 100 foreman-hours" removed 2026-07-16 (Tornike).
     }
 
     /* ---- 05 · Profitability & P&L ---- */
