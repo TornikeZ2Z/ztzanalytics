@@ -430,7 +430,7 @@ async function renderMonthly(host, MRCFG) {
       "Operations & Crew (Foreman)": '<svg viewBox="0 0 24 24"><rect x="1.5" y="6" width="12" height="9" rx="1"/><path d="M13.5 9h4l3 3v3h-7z"/><circle cx="6" cy="18" r="1.8"/><circle cx="17.5" cy="18" r="1.8"/></svg>',
       "Packing & Storage": '<svg viewBox="0 0 24 24"><path d="M12 3l8 4v10l-8 4-8-4V7z"/><path d="M4 7l8 4 8-4"/><path d="M12 11v10"/></svg>',
       "Revenue & Growth": '<svg viewBox="0 0 24 24"><path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/></svg>',
-      "Revenue Composition & Segments": '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 3v9h9"/></svg>',
+      "Revenue Segments": '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 3v9h9"/></svg>',
       "Profitability & P&L": '<svg viewBox="0 0 24 24"><circle cx="9" cy="9" r="5"/><path d="M14 6.5a5 5 0 010 11"/></svg>',
       "Marketing & Channels": '<svg viewBox="0 0 24 24"><path d="M3 10v4l12 5V5z"/><path d="M15 8.5a4 4 0 010 7"/></svg>',
       "Phone & Response": '<svg viewBox="0 0 24 24"><path d="M4 3h4l2 5-2.5 2a14 14 0 006.5 6.5L16 14l5 2v4a1 1 0 01-1 1C10.6 21 3 13.4 3 4a1 1 0 011-1z"/></svg>',
@@ -440,7 +440,7 @@ async function renderMonthly(host, MRCFG) {
       "Claims & Refunds": '<svg viewBox="0 0 24 24"><path d="M12 3l9 16H3z"/><path d="M12 10v4"/><path d="M12 17h.01"/></svg>',
       "Refunds & Cost of Quality": '<svg viewBox="0 0 24 24"><path d="M12 2v20"/><path d="M17 6c0-2-2.2-3-5-3S7 4 7 6s2.2 3 5 3 5 1 5 3-2.2 3-5 3-5-1-5-3"/></svg>',
       "Geography — by State": '<svg viewBox="0 0 24 24"><path d="M12 21s7-5.6 7-11a7 7 0 10-14 0c0 5.4 7 11 7 11z"/><circle cx="12" cy="10" r="2.5"/></svg>',
-      "Lead Segmentation": '<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="4" rx="1"/><rect x="3" y="10" width="18" height="4" rx="1"/><rect x="3" y="16" width="18" height="4" rx="1"/></svg>',
+      "Leads Segments": '<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="4" rx="1"/><rect x="3" y="10" width="18" height="4" rx="1"/><rect x="3" y="16" width="18" height="4" rx="1"/></svg>',
       "Per-Job Profitability": '<svg viewBox="0 0 24 24"><path d="M19 5L5 19"/><rect x="3.5" y="3.5" width="6.5" height="6.5" rx="1.2"/><path d="M17 14v6.5"/><path d="M13.8 17.2h6.5"/></svg>',
       "Repeat & Referral Business": '<svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 0 1 13.6-5.7L20 8.5"/><path d="M20 3.5v5h-5"/><path d="M20 12a8 8 0 0 1-13.6 5.7L4 15.5"/><path d="M4 20.5v-5h5"/></svg>',
       "Marketing ROI": '<svg viewBox="0 0 24 24"><path d="M3 10v4l12 5V5z"/><path d="M15 8.5a4 4 0 010 7"/></svg>',
@@ -507,20 +507,26 @@ async function renderMonthly(host, MRCFG) {
          pane's visible edge, and a scroll container's top padding is not clipped — so that 16px strip
          stayed a live window onto the report sliding under it (the dark cover / INK bars / .mrx-rule
          showing above the white bar). -16px parks it flush. Keep in sync with .rs-content's padding-top. */
-      .mrx-toc{position:sticky;top:-16px;z-index:60;background:#fff;box-shadow:0 4px 14px rgba(14,22,33,.14);border-bottom:1px solid ${LINE};display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:9px 24px;margin:0 -24px 10px}
-      .mrx-tocpart{font-size:9.5px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:${FAINT};margin:0 1px 0 7px;white-space:nowrap}
+      .mrx-toc{position:sticky;top:-16px;z-index:60;background:#fff;box-shadow:0 4px 14px rgba(14,22,33,.14);border-bottom:1px solid ${LINE};display:flex;flex-wrap:wrap;align-items:center;gap:6px 4px;padding:10px 24px;margin:0 -24px 10px}
+      .mrx-tocpart{display:inline-flex;align-items:center;gap:8px;font-size:9.5px;font-weight:800;letter-spacing:.13em;text-transform:uppercase;color:${SUB};white-space:nowrap;margin:0 4px 0 12px}
+      .mrx-tocpart::before{content:"";display:block;width:1px;height:12px;background:${LINE}}
       .mrx-tocpart:first-child{margin-left:0}
-      .mrx-tocchip{font-family:${MONO};font-size:11.5px;font-weight:700;color:${INK2};background:#fff;border:1px solid ${LINE};border-radius:7px;padding:4px 9px;cursor:pointer;white-space:nowrap;user-select:none}
-      .mrx-tocchip:hover{border-color:${INK};background:${GRID}}
-      .mrx-tocchip.on{background:${INK};color:${LIME};border-color:${INK}}
-      .mrx-tocstep{margin-left:auto;display:inline-flex;align-items:center;gap:4px;white-space:nowrap}
-      .mrx-tocstep b{font-family:${MONO};font-size:12px;color:${INK};min-width:56px;text-align:center}
-      .mrx-tocstep button{border:1px solid ${LINE};background:#fff;color:${INK};border-radius:7px;width:26px;height:26px;font-size:14px;line-height:1;cursor:pointer}
-      .mrx-tocstep button:hover{border-color:${INK};background:${GRID}}
+      .mrx-tocpart:first-child::before{display:none}
+      .mrx-tocchip{display:inline-flex;align-items:baseline;font-family:${MONO};font-size:11.5px;font-weight:400;color:${INK2};background:transparent;border:1px solid transparent;border-radius:8px;padding:4px 9px;cursor:pointer;white-space:nowrap;user-select:none;line-height:1.1;transition:background .12s,color .12s,box-shadow .12s}
+      .mrx-tocn{font-weight:700;font-size:10.5px;color:${FAINT};font-variant-numeric:tabular-nums;letter-spacing:.02em;margin-right:6px;transition:color .12s}
+      .mrx-tocchip:hover{background:${GRID};color:${INK}}
+      .mrx-tocchip:hover .mrx-tocn{color:${LIMED}}
+      .mrx-tocchip.on{background:${INK};color:${LIME};font-weight:700;border-color:${INK};box-shadow:0 3px 10px rgba(14,22,33,.28)}
+      .mrx-tocchip.on .mrx-tocn{color:${LIME}}
+      .mrx-tocchip.on:hover{background:${INK};color:${LIME}}
+      .mrx-tocstep{margin-left:auto;display:inline-flex;align-items:center;gap:0;background:#fff;border:1px solid ${LINE};border-radius:9px;overflow:hidden;white-space:nowrap}
+      .mrx-tocstep b{font-family:${MONO};font-size:12px;font-weight:700;color:${INK};min-width:58px;text-align:center;padding:0 8px;border-left:1px solid ${LINE};border-right:1px solid ${LINE}}
+      .mrx-tocstep button{display:inline-flex;align-items:center;justify-content:center;border:0;background:transparent;color:${SUB};width:28px;height:26px;padding:0;font-size:15px;line-height:1;cursor:pointer;transition:background .12s,color .12s}
+      .mrx-tocstep button:hover{background:${GRID};color:${INK}}
+      .mrx-tocstep button:active{background:${LINE}}
       /* branded topic interstitial — a lime "new topic" band that announces each part */
       .mrx-parth{position:relative;overflow:hidden;background:${LIME};border-radius:18px;padding:30px 30px;margin:46px 0 22px;box-shadow:0 10px 30px ${LIME}55,0 1px 0 #ffffff88 inset}
-      .mrx-parth .pl{position:relative;z-index:1;display:flex;flex-direction:column;gap:5px}
-      .mrx-parth .pn{font-family:${MONO};font-size:10.5px;font-weight:800;letter-spacing:.22em;text-transform:uppercase;color:${INK};opacity:.5}
+      .mrx-parth .pl{position:relative;z-index:1;display:flex;flex-direction:column;gap:6px}
       .mrx-parth .pt{font-size:32px;font-weight:900;letter-spacing:-.8px;line-height:1;color:${INK}}
       .mrx-parth .ps{font-size:13px;color:${INK};opacity:.62;font-weight:600;letter-spacing:.1px}
       .mrx-parth .pnum{position:absolute;right:14px;top:50%;transform:translateY(-50%);font-family:${MONO};font-weight:900;font-size:104px;line-height:1;letter-spacing:-4px;color:${INK};opacity:.09;pointer-events:none}
@@ -597,7 +603,10 @@ async function renderMonthly(host, MRCFG) {
       .mrx-xls:focus-visible{outline:2px solid ${LIMED};outline-offset:1px}
       @media(max-width:900px){
         .mrx-toc{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}
-        .mrx-tocstep{margin-left:8px}
+        .mrx-toc::-webkit-scrollbar{display:none}
+        .mrx-tocchip{flex:none}
+        .mrx-tocpart{flex:none}
+        .mrx-tocstep{flex:none;margin-left:8px;position:sticky;right:0;background:#fff;box-shadow:-8px 0 8px -4px rgba(14,22,33,.10)}
         .mrx-ctl{padding:10px 12px}
         .mrx-lite-ctl select{padding:9px 11px}
       }
@@ -690,7 +699,7 @@ async function renderMonthly(host, MRCFG) {
       c.appendChild(n);
     }
     function emptyBox(box, msg) { box.innerHTML = `<div class="mrx-empty">${esc(msg || ("No data for " + monLbl))}</div>`; }
-    const TOCNAME = { "Executive Summary": "Summary", "Demand & Lead Funnel": "Leads", "Sales Team Performance": "Sales", "Operations & Crew (Foreman)": "Crew", "Packing & Storage": "Packing", "Revenue & Growth": "Revenue", "Revenue Composition & Segments": "Rev. Mix", "Profitability & P&L": "P&L", "Marketing & Channels": "Marketing", "Marketing ROI": "Mkt ROI", "Lead Sources": "Sources", "Fleet": "Fleet", "Phone & Response": "Phone", "Quality & Customer Experience": "Quality", "Reviews Production": "Reviews", "Claims": "Claims", "Claims & Refunds": "Claims/Refunds", "Refunds & Cost of Quality": "Refunds", "Geography — by State": "Geography", "Lead Segmentation": "Segments", "Repeat & Referral Business": "Repeat & Referral", "Per-Job Profitability": "Per Job" };
+    const TOCNAME = { "Executive Summary": "Summary", "Demand & Lead Funnel": "Leads", "Sales Team Performance": "Sales", "Operations & Crew (Foreman)": "Crew", "Packing & Storage": "Packing", "Revenue & Growth": "Revenue", "Revenue Segments": "Rev. Segments", "Profitability & P&L": "P&L", "Marketing & Channels": "Marketing", "Marketing ROI": "Mkt ROI", "Lead Sources": "Sources", "Fleet": "Fleet", "Phone & Response": "Phone", "Quality & Customer Experience": "Quality", "Reviews Production": "Reviews", "Claims": "Claims", "Claims & Refunds": "Claims/Refunds", "Refunds & Cost of Quality": "Refunds", "Geography — by State": "Geography", "Leads Segments": "Lead Segments", "Repeat & Referral Business": "Repeat & Referral", "Per-Job Profitability": "Per Job" };
     let bodyEl, secN = 0; const secList = [], tocParts = [];
     // collapsed-section memory (UX audit 2026-07-14): survives month flips and visits
     const collapsedSet = (() => { try { return new Set(JSON.parse(localStorage.getItem("ztzMrCollapsed") || "[]")); } catch (e) { return new Set(); } })();
@@ -701,7 +710,7 @@ async function renderMonthly(host, MRCFG) {
       if (ONLY) return;
       tocParts.push({ at: secN, label: title });   // chip-row group label boundary
       const el = document.createElement("div"); el.className = "mrx-parth";
-      el.innerHTML = `<div class="pl"><span class="pn">New topic</span><div class="pt">${esc(title)}</div>${sub ? `<span class="ps">${esc(sub)}</span>` : ""}</div><span class="pnum">${String(n).padStart(2, "0")}</span>`;
+      el.innerHTML = `<div class="pl"><div class="pt">${esc(title)}</div>${sub ? `<span class="ps">${esc(sub)}</span>` : ""}</div><span class="pnum">${String(n).padStart(2, "0")}</span>`;
       bodyEl.appendChild(el);
     }
     function section(title, sub, klass) {
@@ -1470,32 +1479,39 @@ async function renderMonthly(host, MRCFG) {
     }
 
     /* ---- 03 · Composition & Segments ---- */
-    if (SEC("Revenue Composition & Segments")) {
-      const g = section("Revenue Composition & Segments", "how revenue splits this month");
-      // Revenue by moving type, opened up: each bar IS the revenue, split into the op-profit
-      // portion (lime) and the field-cost portion (ink). End label = revenue · margin.
-      const mtRev = segSeries("closing", "Revenue", "Moving Type");
-      const mtOpM = {}; segSeries("closing", "Operational Profit by Formula", "Moving Type").forEach(r => mtOpM[r.k] = r.v);
-      const mtRows = mtRev.slice(0, 6).map(r => { const op2 = Math.max(0, mtOpM[r.k] || 0); return { k: r.k, rev: r.v, op: Math.min(op2, r.v), cost: Math.max(0, r.v - op2) }; });
-      {
-        const { c: cMt, box: bMt, cv: cvMt } = chartCard(g, "Revenue by moving type — profit vs costs", monLbl + " · before refunds", { h: Math.max(190, 46 + mtRows.length * 36), icon: KIC.bars, headVal: money(mtRows.reduce((a, r) => a + r.rev, 0)) });
-        if (!mtRows.length) emptyBox(bMt);
-        else new Chart(cvMt, { type: "bar", data: { labels: mtRows.map(r => r.k), datasets: [
-          { label: "Gross profit", data: mtRows.map(r => r.op), backgroundColor: LIME, borderRadius: 3, maxBarThickness: 22 },
-          { label: "All costs", data: mtRows.map(r => r.cost), backgroundColor: INK, borderRadius: 3, maxBarThickness: 22 } ] },
-          options: baseOpts({ indexAxis: "y", layout: { padding: { right: 110 } }, plugins: { legend: { display: true, position: "top", align: "end", labels: { color: SUB, font: { size: 12.5, weight: "600" }, boxWidth: 9, usePointStyle: true } }, tooltip: { callbacks: { label: x => x.dataset.label + ": " + money(x.parsed.x),
-            // N27: the end-label decoding lives here in the tooltip, not in the note
-            footer: items => { const r = mtRows[items[0].dataIndex]; return r && r.rev ? money(r.rev) + " revenue · " + Math.round(r.op / r.rev * 100) + "% profit margin" : ""; } } } },
-            scales: { x: axY(moneyC, { beginAtZero: true, stacked: true }), y: { stacked: true, ticks: { color: INK2, font: { size: 11.5, weight: "600" } }, grid: { display: false }, border: { display: false } } } }),
-          plugins: [crosshair, { id: "mtlab", afterDatasetsDraw(ch) { const ctx = ch.ctx; ctx.save(); ctx.font = "700 11.5px " + MONO; ctx.textAlign = "left"; ctx.textBaseline = "middle"; ctx.fillStyle = INK;
-            ch.getDatasetMeta(1).data.forEach((el, i) => { const r = mtRows[i]; ctx.fillText(money(r.rev) + (r.rev ? " · " + Math.round(r.op / r.rev * 100) + "%" : ""), el.x + 6, el.y); });
+    if (SEC("Revenue Segments")) {
+      const g = section("Revenue Segments", "revenue opened into gross profit vs cost, by segment");
+      // Each bar IS that segment's revenue, split into the gross-profit portion (lime) and the
+      // field-cost portion (ink). End label = revenue · gross margin. One helper, four segments.
+      // Layout (Tornike 2026-07-16): 1 & 3 on the left, 2 & 4 on the right → in the 2-col grid the
+      // append order Moving Type, Bill, State, Size gives left = Moving Type + State, right = Bill + Size.
+      function revSeg(title, col, opts) {
+        opts = opts || {};
+        const opM = {}; segSeries("closing", "Operational Profit by Formula", col).forEach(r => opM[r.k] = r.v);
+        let rows = segSeries("closing", "Revenue", col).map(r => { const op2 = Math.max(0, opM[r.k] || 0); return { k: (r.k === "—" || r.k === "") ? "Not recorded" : r.k, rk: r.k, rev: r.v, op: Math.min(op2, r.v), cost: Math.max(0, r.v - op2) }; });
+        if (opts.order) rows.sort(opts.order);
+        rows = rows.slice(0, opts.top || 8);
+        const pid = "seglab_" + col.replace(/\W/g, "");
+        const { c, box, cv } = chartCard(g, title, monLbl + " · before refunds", { h: Math.max(184, 44 + rows.length * 34), icon: KIC.bars, headVal: money(rows.reduce((a, r) => a + r.rev, 0)) });
+        if (!rows.length) { emptyBox(box); return c; }
+        new Chart(cv, { type: "bar", data: { labels: rows.map(r => r.k), datasets: [
+          { label: "Gross profit", data: rows.map(r => r.op), backgroundColor: LIME, borderRadius: 3, maxBarThickness: 20 },
+          { label: "All costs", data: rows.map(r => r.cost), backgroundColor: INK, borderRadius: 3, maxBarThickness: 20 } ] },
+          options: baseOpts({ indexAxis: "y", layout: { padding: { right: 104 } }, plugins: { legend: { display: true, position: "top", align: "end", labels: { color: SUB, font: { size: 11.5, weight: "600" }, boxWidth: 9, usePointStyle: true } }, tooltip: { callbacks: { label: x => x.dataset.label + ": " + money(x.parsed.x),
+            footer: items => { const r = rows[items[0].dataIndex]; return r && r.rev ? money(r.rev) + " revenue · " + Math.round(r.op / r.rev * 100) + "% gross margin" : ""; } } } },
+            scales: { x: axY(moneyC, { beginAtZero: true, stacked: true }), y: { stacked: true, ticks: { color: INK2, font: { size: 11, weight: "600" } }, grid: { display: false }, border: { display: false } } } }),
+          plugins: [crosshair, { id: pid, afterDatasetsDraw(ch) { const ctx = ch.ctx; ctx.save(); ctx.font = "700 11px " + MONO; ctx.textAlign = "left"; ctx.textBaseline = "middle"; ctx.fillStyle = INK;
+            ch.getDatasetMeta(1).data.forEach((el, i) => { const r = rows[i]; ctx.fillText(money(r.rev) + (r.rev ? " · " + Math.round(r.op / r.rev * 100) + "%" : ""), el.x + 6, el.y); });
             ctx.restore(); } }] });
-        note(cMt, `Each bar is that type's revenue; the green part is what we kept as profit (before refunds).`, "how");
+        note(c, opts.note || `Each bar is that segment's revenue; the green part is the gross profit kept (before refunds), the dark part is field cost. End label = revenue · gross margin.`, "how");
+        return c;
       }
-      rankBars(g, "Revenue by size of move", segSeries("closing", "Revenue", "Size of Move"), money, { top: 8 });
-      // ("Revenue by source" removed — it duplicated the Marketing section's by-source table,
-      //  which has the same numbers WITH ad-spend/ROAS context. One home per fact.)
-      // (S5: the lead-status donut moved to Section "Demand & Lead Funnel", next to the funnel)
+      const billRank = s => { const m = String(s.rk).match(/\$?\s*([\d,]+)/); return /over/i.test(String(s.rk)) ? 9e9 : (m ? +m[1].replace(/,/g, "") : 9e12); };
+      revSeg("Revenue by moving type", "Moving Type");                                                            // 1 · left-top
+      revSeg("Revenue by bill size", "Bill Range", { order: (a, b) => billRank(a) - billRank(b), top: 10,        // 2 · right-top
+        note: "Closed jobs don't carry cubic feet, so revenue is banded by each job's total bill — a reliable stand-in for move size. Green = gross profit kept; end label = revenue · gross margin." });
+      revSeg("Revenue by state", "State Name", { top: 8 });                                                       // 3 · left-bottom
+      revSeg("Revenue by size of move", "Size of Move", { top: 8 });                                              // 4 · right-bottom
     }
 
     /* ---- 04 · Per-Job Profitability (formerly "Unit Economics" — N20) ---- */
@@ -1511,28 +1527,48 @@ async function renderMonthly(host, MRCFG) {
 
     /* ---- Geography — moved into Financials, before P&L (Tornike 2026-07-16) ---- */
     if (SEC("Geography — by State")) {
-      const g = section("Geography — by State", "revenue, profit & booking per state with year-over-year");
-      const revS = segSeries("closing", "Revenue", "State Name"), opS = segSeries("closing", "Operational Profit by Formula", "State Name"), jobS = segSeries("closing", "Total Jobs", "State Name");
-      const opMap = {}, jobMap = {}; opS.forEach(r => opMap[r.k] = r.v); jobS.forEach(r => jobMap[r.k] = r.v);
-      const revLyMap = {}; segSeries("closing", "Revenue", "State Name", curY - 1, mo).forEach(r => revLyMap[r.k] = r.v);
-      // C2: per-state booking rate uses the canonical dual-basis helper
-      const bkStBooked = groupByCol(bookedRowsFor(curY, mo), "State Name");
-      const bkMap = {}; segReduce("moveboard", "State Name", rs => rs, curY, mo).forEach(r => bkMap[r.k] = RS.bookingRate(r.rows, bkStBooked[r.k] || []));
-      const states = revS.slice(0, 12).map(r => ({ k: r.k === "—" ? "No state on file" : r.k, rev: r.v, revLy: revLyMap[r.k] || 0, op: opMap[r.k] || 0, jobs: jobMap[r.k] || 0, bk: bkMap[r.k] }));
-      const rmin = Math.min(...states.map(s2 => s2.rev)), rmax = Math.max(...states.map(s2 => s2.rev));
-      const omin = Math.min(...states.map(s2 => s2.op)), omax = Math.max(...states.map(s2 => s2.op));
-      const jmin = Math.min(...states.map(s2 => s2.jobs)), jmax = Math.max(...states.map(s2 => s2.jobs));
-      const barCell = (v, f, max, col) => `<td class="bar"><i style="width:${max > 0 ? Math.max(0, Math.min(100, v / max * 100)).toFixed(1) : 0}%;background:${col}"></i><span>${f(v)}</span></td>`;
+      const g = section("Geography — by State", "jobs, revenue and gross margin per state — vs last year & last month");
+      const mapOf = arr => { const m = {}; arr.forEach(r => m[r.k] = r.v); return m; };
+      const revS = segSeries("closing", "Revenue", "State Name"), jobS = segSeries("closing", "Total Jobs", "State Name");
+      const opMap = mapOf(segSeries("closing", "Operational Profit by Formula", "State Name")), jobMap = mapOf(jobS);
+      const revLyMap = mapOf(segSeries("closing", "Revenue", "State Name", curY - 1, mo)), opLyMap = mapOf(segSeries("closing", "Operational Profit by Formula", "State Name", curY - 1, mo)), jobLyMap = mapOf(segSeries("closing", "Total Jobs", "State Name", curY - 1, mo));
+      const revPmMap = mapOf(segSeries("closing", "Revenue", "State Name", PMY, PM)), jobPmMap = mapOf(segSeries("closing", "Total Jobs", "State Name", PMY, PM));
+      const nm = k => k === "—" ? "No state on file" : k;
+      const states = revS.slice(0, 12).map(r => { const rev = r.v, revLy = revLyMap[r.k] || 0, op = opMap[r.k] || 0, opLy = opLyMap[r.k] || 0, jobs = jobMap[r.k] || 0, jobsLy = jobLyMap[r.k] || 0;
+        return { k: nm(r.k), rev, revLy, revPm: revPmMap[r.k] || 0, op, jobs, jobsLy, jobsPm: jobPmMap[r.k] || 0, mgn: rev ? op / rev : null, mgnLy: revLy ? opLy / revLy : null }; });
+      const rmax = Math.max(1, ...states.map(s2 => s2.rev)), jmax = Math.max(1, ...states.map(s2 => s2.jobs));
+      const barCell = (v, f, max, col) => `<td class="bar"><i style="width:${Math.max(0, Math.min(100, v / max * 100)).toFixed(1)}%;background:${col}"></i><span>${f(v)}</span></td>`;
       const yoyCell = (cur, ly) => { if (!ly) return td("—"); const d = (cur - ly) / ly; return td((d >= 0 ? "+" : "") + pct(d), `color:${d >= 0 ? POS : NEG};font-weight:800`); };
+      const ppCell = (cur, ly) => { if (cur == null || ly == null) return td("—"); const d = (cur - ly) * 100; return td((d >= 0 ? "+" : "") + d.toFixed(1) + "pp", `color:${d >= 0 ? POS : NEG};font-weight:800`); };
+      const yy = String(curY - 1).slice(2);
       const rowsH = states.map(s2 => `<tr><td>${esc(s2.k)}</td>
+        ${barCell(s2.jobs, fmtN, jmax, GRID)}
+        ${yoyCell(s2.jobs, s2.jobsLy)}
         ${barCell(s2.rev, money, rmax, BLUE_BG)}
         ${yoyCell(s2.rev, s2.revLy)}
-        ${barCell(s2.op, money, omax, LIME_BG)}
-        ${barCell(s2.jobs, fmtN, jmax, GRID)}
-        ${td(s2.bk == null ? "—" : pct(s2.bk), s2.bk == null ? "" : `color:${s2.bk >= (bk || 0) ? POS : NEG};font-weight:800`)}</tr>`).join("");
-      tableCard(g, "State performance matrix", monLbl + " · top " + states.length + " states", `<table class="mrx-tbl"><thead><tr><th>State</th><th>Revenue</th><th>vs '${String(curY - 1).slice(2)}</th><th>Gross Profit</th><th>Jobs</th><th>Booking %</th></tr></thead><tbody>${rowsH}</tbody></table>`, { icon: KIC.grid, headVal: money(states.reduce((a, s2) => a + s2.rev, 0)), noteKind: "how", note: "Bars show $ / jobs magnitude; vs '" + String(curY - 1).slice(2) + " is revenue YoY (green up, red down). Booking % = jobs booked in the month (by booked date) ÷ qualified leads created; green above the team average (" + pct(bk) + "). States are pickup-based; standalone trip jobs (grouped multi-job hauls with no closing sheet) use the trip's delivery state instead. “No state on file” = closing sheets where State was left empty, plus a few trips without one — not a mapping error." });
-      rankBars(g, "Revenue by state", revS.map(r => ({ k: r.k === "—" ? "No state on file" : r.k, v: r.v })), money, { top: 10 });
-      rankBars(g, "Jobs by state", jobS.map(r => ({ k: r.k === "—" ? "No state on file" : r.k, v: r.v })), fmtN, { top: 10 });
+        ${td(s2.mgn == null ? "—" : pct(s2.mgn), "font-weight:800")}
+        ${ppCell(s2.mgn, s2.mgnLy)}</tr>`).join("");
+      tableCard(g, "State performance matrix", monLbl + " · top " + states.length + " states", `<table class="mrx-tbl"><thead><tr><th>State</th><th>Jobs</th><th>vs '${yy}</th><th>Revenue</th><th>vs '${yy}</th><th>Gross Margin</th><th>vs '${yy}</th></tr></thead><tbody>${rowsH}</tbody></table>`, { span2: true, icon: KIC.grid, headVal: money(states.reduce((a, s2) => a + s2.rev, 0)), noteKind: "how", note: "Jobs and Revenue bars show magnitude; each “vs '" + yy + "” is the year-over-year change (green up, red down). Gross Margin = gross profit ÷ revenue, and its “vs '" + yy + "” is the change in percentage points (pp). States are pickup-based; standalone trip jobs use the trip's delivery state. “No state on file” = closing sheets where State was left empty." });
+      // Combined Revenue + Jobs by state on ONE chart, YoY & MoM in the tooltip (Tornike 2026-07-16 —
+      // replaces the two separate "Revenue by state" / "Jobs by state" rank charts).
+      const top = states.slice(0, 10);
+      const { c: cGeo, box: bGeo, cv: cvGeo } = chartCard(g, "Revenue & jobs by state", monLbl + " · top 10 · hover for YoY & MoM", { span2: true, h: Math.max(360, 44 + top.length * 30), icon: KIC.bars, headVal: money(top.reduce((a, s2) => a + s2.rev, 0)) });
+      if (!top.length) emptyBox(bGeo);
+      else new Chart(cvGeo, { type: "bar", data: { labels: top.map(s2 => s2.k), datasets: [
+        { label: "Revenue", data: top.map(s2 => s2.rev), backgroundColor: BLUE, xAxisID: "x", borderRadius: 3, maxBarThickness: 13 },
+        { label: "Jobs", data: top.map(s2 => s2.jobs), backgroundColor: LIMED, xAxisID: "x2", borderRadius: 3, maxBarThickness: 13 } ] },
+        options: baseOpts({ indexAxis: "y", plugins: { legend: { display: true, position: "top", align: "end", labels: { color: SUB, font: { size: 12, weight: "600" }, boxWidth: 9, usePointStyle: true } },
+          tooltip: { callbacks: { label: x => { const s2 = top[x.dataIndex];
+            const dd = (cur, base) => base ? (cur - base) / base : null, tag = v => v == null ? "—" : (v >= 0 ? "+" : "") + pct(v);
+            return x.dataset.label === "Revenue"
+              ? "Revenue: " + money(s2.rev) + "   YoY " + tag(dd(s2.rev, s2.revLy)) + " · MoM " + tag(dd(s2.rev, s2.revPm))
+              : "Jobs: " + fmtN(s2.jobs) + "   YoY " + tag(dd(s2.jobs, s2.jobsLy)) + " · MoM " + tag(dd(s2.jobs, s2.jobsPm)); } } } },
+          scales: {
+            x: { position: "bottom", beginAtZero: true, ticks: { callback: moneyC, color: BLUE, font: { size: 10.5, weight: "700" } }, grid: { color: GRID }, border: { display: false } },
+            x2: { position: "top", beginAtZero: true, ticks: { callback: fmtN, color: LIMED, font: { size: 10.5, weight: "700" } }, grid: { display: false }, border: { display: false } },
+            y: { ticks: { color: INK2, font: { size: 11.5, weight: "600" } }, grid: { display: false }, border: { display: false } } } }),
+        plugins: [crosshair] });
+      note(cGeo, `Blue bars = revenue (bottom axis), green bars = jobs (top axis), for the top 10 states. Hover any bar for its year-over-year and month-over-month change. The matrix above carries the full per-state comparison.`, "how");
     }
 
     /* ---- 05 · Profitability & P&L ---- */
@@ -1653,9 +1689,9 @@ async function renderMonthly(host, MRCFG) {
       // ("Leads lost to capacity" estimate REMOVED from every report — Tornike 2026-07-13)
     }
 
-    /* ---- 07 · Lead Segmentation ---- */
-    if (SEC("Lead Segmentation")) {
-      const g = section("Lead Segmentation", "booking funnel by service type, size and cubic feet");
+    /* ---- 09 · Leads Segments ---- */
+    if (SEC("Leads Segments")) {
+      const g = section("Leads Segments", "booking funnel by service type, cubic feet, state and size");
       // C2: one created-scope + one booked-scope row set per year, shared by all four tables —
       // every Booking % below is the canonical RS.bookingRate, never an inline ratio.
       const ftCreated = reduceMonth("moveboard", curY, mo, rs => rs) || [];
@@ -1689,10 +1725,8 @@ async function renderMonthly(host, MRCFG) {
           (blankN ? `${fmtN(blankN)} leads with no ${colLbl.toLowerCase()} recorded count in Total but aren't listed.` : "");
         tableCard(g, title, monLbl, `<table class="mrx-tbl"><thead><tr><th>${esc(colLbl)}</th><th>Total</th><th>Qualified</th><th>Confirmed</th><th>Bad leads</th><th>Booking %</th><th>vs '${yy}</th></tr></thead><tbody>${rowsH}${trow}</tbody></table>`, { span2: false, icon: KIC.grid, headVal: fmtN(tot.tot), noteKind: "how", note: extras || undefined });
       }
-      // Pairing (Tornike 2026-07-13): row 1 = service type + state (demand mix),
-      // row 2 = size of move + CF range (they describe the same thing: move size).
-      funnelTable("Leads by service type", "Service Type");
-      funnelTable("Leads by state", "State Name");
+      // Layout (Tornike 2026-07-16): Service Type + State on the LEFT, Cubic Feet + Size on the RIGHT —
+      // in the 2-col grid the append order below (ServiceType, CF, State, Size) places each where it belongs.
       // sizes sort small→large: Single Item, Studio, 1-4 bedrooms (condo before house), then Storage/Office
       const sizeKey = s => { const t = String(s).toLowerCase();
         if (/single item/.test(t)) return 1;
@@ -1701,10 +1735,12 @@ async function renderMonthly(host, MRCFG) {
         if (/storage/.test(t)) return 100;
         if (/office/.test(t)) return 101;
         return 200; };
-      funnelTable("Leads by size of move", "Size of Move", (a, b) => sizeKey(a.k) - sizeKey(b.k) || String(a.k).localeCompare(String(b.k)));
       // CF ranges sort by their RANGE (numeric start; "Over …" last), not by lead volume
       const cfKey = s => { const m = String(s).match(/\d+/); if (!m) return Infinity; return (+m[0]) + (/over|\+|>/i.test(String(s)) ? 0.5 : 0); };
-      funnelTable("Leads by cubic feet (CF range)", "CF Range", (a, b) => cfKey(a.k) - cfKey(b.k));
+      funnelTable("Leads by service type", "Service Type");                                                                            // left-top
+      funnelTable("Leads by cubic feet (CF range)", "CF Range", (a, b) => cfKey(a.k) - cfKey(b.k));                                    // right-top
+      funnelTable("Leads by state", "State Name");                                                                                     // left-bottom
+      funnelTable("Leads by size of move", "Size of Move", (a, b) => sizeKey(a.k) - sizeKey(b.k) || String(a.k).localeCompare(String(b.k)));  // right-bottom
     }
 
 
@@ -2248,7 +2284,8 @@ async function renderMonthly(host, MRCFG) {
         const p = tocParts.find(x => x.at === i);
         if (p) { const lb = document.createElement("span"); lb.className = "mrx-tocpart"; lb.textContent = p.label; toc.appendChild(lb); }
         const chip = document.createElement("span"); chip.className = "mrx-tocchip"; chip.dataset.sec = s.n;
-        chip.textContent = s.n + " " + (TOCNAME[s.title] || s.title);
+        const cn = document.createElement("i"); cn.className = "mrx-tocn"; cn.textContent = s.n; chip.appendChild(cn);
+        chip.appendChild(document.createTextNode(TOCNAME[s.title] || s.title));
         chip.onclick = () => { s.wrap.classList.remove("collapsed"); collapsedSet.delete(s.title); saveCollapsed(); gotoSec(s.wrap); };
         toc.appendChild(chip);
       });
@@ -2304,7 +2341,7 @@ registerPage({ id: "monthly-report", group: "pulse", title: "Monthly Report", re
    "*-team" Monthly Review pages + MR_TEAMS. */
 const MR_DASH = [
   // Sales
-  { id: "sales-funnel", group: "sales", title: "Lead Funnel & Conversion", sections: ["Demand & Lead Funnel", "Lead Segmentation"] },
+  { id: "sales-funnel", group: "sales", title: "Lead Funnel & Conversion", sections: ["Demand & Lead Funnel", "Leads Segments"] },
   { id: "sales-perf", group: "sales", title: "Sales Team Performance", sections: ["Sales Team Performance"] },
   { id: "sales-geo", group: "financial", title: "Geography", sections: ["Geography — by State"] },
   // Marketing
@@ -2315,7 +2352,7 @@ const MR_DASH = [
   { id: "log-foreman", group: "logistics", title: "Foreman of the Month", sections: ["Operations & Crew (Foreman)"] },
   { id: "log-packing", group: "logistics", title: "Packing & Storage", sections: ["Packing & Storage"] },
   // Financial
-  { id: "fin-revenue", group: "financial", title: "Revenue & Profit", sections: ["Executive Summary", "Revenue & Growth", "Revenue Composition & Segments", "Per-Job Profitability", "Profitability & P&L"] },
+  { id: "fin-revenue", group: "financial", title: "Revenue & Profit", sections: ["Executive Summary", "Revenue & Growth", "Revenue Segments", "Per-Job Profitability", "Profitability & P&L"] },
   { id: "fin-rr", group: "financial", title: "Repeat & Referral", sections: ["Repeat & Referral Business"] },
   // Reviews
   { id: "rev-production", group: "reviews", title: "Reviews Production", sections: ["Reviews Production"] },
