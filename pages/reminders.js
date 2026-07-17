@@ -579,8 +579,12 @@ registerPage({ id: "review-settings", group: "reviews", title: "Settings",
     }
     // one job under a foreman: customer + its Mid/Final pills; expand for View event + reminder detail
     function jobRow(dayKey, j, idx) {
-      var midS = mkStage("Mid", j.midAt, idx.midBy[dayKey + "|" + j.job]);
-      var finS = mkStage("Final", j.finalAt, idx.finBy[dayKey + "|" + j.job]);
+      // Long-distance jobs get NO review reminders (relay flags reviewEligible:false) — pickup and
+      // delivery are days apart, so the on-site review ask doesn't apply. Show that plainly instead of
+      // phantom Mid/Final chips. (Undefined flag = older relay payload → keep the normal reminders.)
+      var ld = j.reviewEligible === false;
+      var midS = ld ? null : mkStage("Mid", j.midAt, idx.midBy[dayKey + "|" + j.job]);
+      var finS = ld ? null : mkStage("Final", j.finalAt, idx.finBy[dayKey + "|" + j.job]);
       var key = dayKey + "|" + j.job, open = !!RRP.openJobs[key];
       // Yelp jobs get a loud badge: the crew must NOT send a Yelp link (verbal ask + our links
       // instead), and the bot fires an extra pre-start warning 1h before the job. The field
@@ -588,11 +592,14 @@ registerPage({ id: "review-settings", group: "reviews", title: "Settings",
       var yelpBadge = j.isYelp
         ? '<span style="display:inline-block;margin-left:7px;padding:1px 8px;border-radius:999px;background:#fbe6e7;color:#7a1f28;font-size:10.5px;font-weight:800;letter-spacing:.03em" title="Yelp customer — never send a Yelp review link. The bot warns the foreman 1h before start: ask verbally, send Google/Trustpilot/Facebook.">⚠ YELP — no Yelp link</span>'
         : "";
+      var stages = ld
+        ? '<span class="rrp-stage st-na" title="Long-distance job — pickup and delivery are days apart, so the on-site review ask doesn’t apply. The bot sends no review reminders for these.">🚚 Long distance · no reminder</span>'
+        : stagePill(midS) + stagePill(finS);
       var head = '<div class="rrp-jrhead" data-job="' + esc(key) + '">'
         + '<span class="rrp-jrchev">' + (open ? "▾" : "▸") + "</span>"
         + '<span class="rrp-jrc">' + esc(j.customer || "—") + yelpBadge + "<small>" + esc(j.job) + (j.state ? " · " + esc(j.state) : "") + "</small></span>"
-        + '<span class="rrp-jrstages">' + stagePill(midS) + stagePill(finS) + "</span></div>";
-      var detail = open ? '<div class="rrp-jobevents">' + eventPanel(j) + stageDetailRow(midS, j) + stageDetailRow(finS, j) + "</div>" : "";
+        + '<span class="rrp-jrstages">' + stages + "</span></div>";
+      var detail = open ? '<div class="rrp-jobevents">' + eventPanel(j) + (ld ? "" : stageDetailRow(midS, j) + stageDetailRow(finS, j)) + "</div>" : "";
       return "<div>" + head + detail + "</div>";
     }
 
