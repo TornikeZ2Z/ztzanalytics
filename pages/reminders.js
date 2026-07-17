@@ -579,9 +579,10 @@ registerPage({ id: "review-settings", group: "reviews", title: "Settings",
     }
     // one job under a foreman: customer + its Mid/Final pills; expand for View event + reminder detail
     function jobRow(dayKey, j, idx) {
-      // Long-distance jobs get NO review reminders (relay flags reviewEligible:false) — pickup and
-      // delivery are days apart, so the on-site review ask doesn't apply. Show that plainly instead of
-      // phantom Mid/Final chips. (Undefined flag = older relay payload → keep the normal reminders.)
+      // Regular-moving jobs get NO review reminders (relay flags reviewEligible:false) — a consolidated
+      // long-distance haul is delivered days later by a different crew, so the on-site review ask doesn't
+      // apply. Straight & Local still get reminders. Show that plainly instead of phantom Mid/Final chips.
+      // (Undefined flag = older relay payload → keep the normal reminders.)
       var ld = j.reviewEligible === false;
       var midS = ld ? null : mkStage("Mid", j.midAt, idx.midBy[dayKey + "|" + j.job]);
       var finS = ld ? null : mkStage("Final", j.finalAt, idx.finBy[dayKey + "|" + j.job]);
@@ -593,7 +594,7 @@ registerPage({ id: "review-settings", group: "reviews", title: "Settings",
         ? '<span style="display:inline-block;margin-left:7px;padding:1px 8px;border-radius:999px;background:#fbe6e7;color:#7a1f28;font-size:10.5px;font-weight:800;letter-spacing:.03em" title="Yelp customer — never send a Yelp review link. The bot warns the foreman 1h before start: ask verbally, send Google/Trustpilot/Facebook.">⚠ YELP — no Yelp link</span>'
         : "";
       var stages = ld
-        ? '<span class="rrp-stage st-na" title="Long-distance job — pickup and delivery are days apart, so the on-site review ask doesn’t apply. The bot sends no review reminders for these.">🚚 Long distance · no reminder</span>'
+        ? '<span class="rrp-stage st-na" title="Regular move (consolidated long-distance) — delivered days later by a different crew, so the on-site review ask doesn’t apply. The bot sends no review reminders for these. Straight and local moves still get reminders.">🚚 Regular move · no reminder</span>'
         : stagePill(midS) + stagePill(finS);
       var head = '<div class="rrp-jrhead" data-job="' + esc(key) + '">'
         + '<span class="rrp-jrchev">' + (open ? "▾" : "▸") + "</span>"
