@@ -94,7 +94,7 @@ const GROUP_OVERRIDE = {
   // Company Overview
   "monthly-report": "company", "analysis-by-category": "company",
   // Sales ("sales-geo" moved to Financial — Tornike 2026-07-13: geography is a money view)
-  "sales-funnel": "sales", "sales-perf": "sales", "sales-geo": "financial", "sales-speed": "sales",
+  "sales-funnel": "sales", "sales-perf": "sales", "sales-geo": "financial", "sales-speed": "sales", "leads-inflow": "sales",
   // Marketing
   "mkt-roi": "marketing", "mkt-sources": "marketing", "mkt-phone": "marketing",
   // Logistics
@@ -112,7 +112,7 @@ const groupOf = p => GROUP_OVERRIDE[p.id] || p.group;
 /* explicit per-container item order (numbers are scoped within each group's display list) */
 const NAV_ORDER = {
   "monthly-report": 1, "analysis-by-category": 2,
-  "sales-funnel": 1, "sales-perf": 2, "sales-speed": 3,
+  "sales-funnel": 1, "sales-perf": 2, "sales-speed": 3, "leads-inflow": 4,
   "mkt-roi": 1, "mkt-sources": 2, "mkt-phone": 3,
   "log-foreman": 1, "log-packing": 2,
   "fin-revenue": 1, "fin-rr": 2, "sales-geo": 3, "financial-analysis": 4, "executive-scorecard": 5, "branch-owner": 6,
@@ -166,7 +166,7 @@ const PAGE_ICONS = {
   "angi-vs-moveboard": "compass", "reviews-team": "star", "support-team": "shield", "lead-source-analysis": "compass", "source-analysis": "compass", "movers-analysis": "megaphone",
   "financial-team": "trend", "sales-team": "user", "marketing-team": "megaphone", "logistics-team": "tool",
   // themed dashboards + settings (2026-07-09 restructure)
-  "sales-funnel": "funnel", "sales-perf": "user", "sales-geo": "pin", "sales-speed": "phone",
+  "sales-funnel": "funnel", "sales-perf": "user", "sales-geo": "pin", "sales-speed": "phone", "leads-inflow": "activity",
   "mkt-roi": "trend", "mkt-sources": "compass", "mkt-phone": "phone",
   "log-foreman": "tool", "log-packing": "box",
   "fin-revenue": "trend", "fin-rr": "trend", "rev-production": "star",
@@ -475,6 +475,7 @@ const PAGE_DATASETS = {
   "review-performance": [],
   "response-analysis": [], "review-settings": [],
   "sales-speed": [],
+  "leads-inflow": [],
   "reviews-reminders": [],   // talks to the Apps Script relay (JSONP) + loads its own goal data
 };
 // themed dashboards are lite-mode slices of the Monthly Report — same datasets
@@ -620,7 +621,7 @@ function navigate(id, push) {
 /* Pages that bring their OWN toolbar and ignore the global filter bar (PAGE_DATASETS=[])
    render "bare" — the global date/slicer bar + company chip are hidden so the page's board
    starts right under the header instead of below two rows of greyed-out, unusable filters. */
-const BARE_CHROME = new Set(["review-performance", "sales-speed", "reviews-reminders", "response-analysis", "review-settings", "monthly-report"]);
+const BARE_CHROME = new Set(["review-performance", "sales-speed", "leads-inflow", "reviews-reminders", "response-analysis", "review-settings", "monthly-report"]);
 /* Monthly-Report-family pages OWN their time: they have a Month/Year picker on the cover
    and neutralize the global Year/Month slicers in every computation (withMonth), so those
    two slicers are hidden there — two competing time controls confused everyone (Tornike
@@ -692,6 +693,7 @@ const SEARCH_ALIASES = {
   "sales-perf": "sales person analysis salesperson salespeople rep reps commission commissions sales team performance",
   "sales-geo": "leads by state geography states region map",
   "sales-speed": "speed to lead response time first call ringcentral calls per lead not called never called crm entry lag booking by speed",
+  "leads-inflow": "leads inflow analysis when leads come in 15 minute window staffing schedule heatmap hour day peak time create datetime",
   // Marketing
   "mkt-roi": "marketing roi return on investment ads analysis ad spend advertising google returns callrail call rail call tracking calls",
   "mkt-sources": "source analysis sources source overview lead source identification attribution angi movers movers.com home advisor homeadvisor post card postcard post cards channels",
@@ -972,6 +974,7 @@ const REPORT_LABELS = {
   "sales-perf": "Sales Team Performance",
   "sales-geo": "Geography (by state)",
   "sales-speed": "Speed to Lead",
+  "leads-inflow": "Leads Inflow Analysis",
   // Marketing
   "mkt-roi": "Marketing — Return on Investment",
   "mkt-sources": "Marketing — Lead Sources & Channels",
@@ -1017,7 +1020,7 @@ const aclIconFor = id => (MERGED.find(m => m.id === id) || {}).icon ||
    only in how admins pick. Report lists mirror the sidebar groups. */
 const ACL_DEPTS = [
   { id: "company",   label: "Company Overview", icon: "spark",     reports: ["monthly-report", "analysis-by-category"] },
-  { id: "sales",     label: "Sales",            icon: "funnel",    reports: ["sales-funnel", "sales-perf", "sales-speed"] },
+  { id: "sales",     label: "Sales",            icon: "funnel",    reports: ["sales-funnel", "sales-perf", "sales-speed", "leads-inflow"] },
   { id: "marketing", label: "Marketing",        icon: "megaphone", reports: ["mkt-roi", "mkt-sources", "mkt-phone"] },
   { id: "logistics", label: "Logistics",        icon: "tool",      reports: ["log-foreman", "log-packing"] },
   { id: "financial", label: "Financial",        icon: "trend",     reports: ["fin-revenue", "fin-rr", "sales-geo", "financial-analysis", "executive-scorecard", "branch-owner"] },
@@ -1194,6 +1197,7 @@ registerPage({
 <script src="pages/request-consistency.js?v=3"></script>
 <script src="pages/branch-owner.js?v=6"></script>
 <script src="pages/review-performance.js?v=14"></script>
+<script src="pages/leads-inflow.js?v=1"></script>
 <script src="pages/speed-to-lead.js?v=6"></script>
 <script src="pages/reminders.js?v=26"></script>
 </body>
