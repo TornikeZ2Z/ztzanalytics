@@ -869,13 +869,27 @@ registerPage({ id: "review-settings", group: "reviews", title: "Settings",
         }).join("") + "</div>"
         + '<button class="rrp-addloc" data-addplat="1">+ Add a platform</button></div></div>';
       var sec3 = '<div class="rrp-sec"><div class="rrp-sech"><span class="rrp-secn">3</span><div class="rrp-sect">'
-        + "<h4>“Why no review?” reasons</h4><p>The buttons a foreman sees when a review wasn’t left. <b>Other</b> always stays — it captures anything the list doesn’t cover.</p>"
+        + "<h4>“Why no review?” reasons</h4><p>The buttons a foreman sees when a review wasn’t left. One free-text option (an <b>“Other…”</b>) always stays — it opens a comment box so the foreman can explain. You can rename it; you just can’t remove the last one.</p>"
         + '</div></div><div class="rrp-secb"><div class="rrp-plats">'
-        + d.reasons.map(function (rz, i) {
-          var isOther = String(rz).trim().toLowerCase() === "other";
-          return '<div class="rrp-reason"><input type="text" data-rzn="' + i + '" value="' + esc(rz) + '"' + (isOther ? " readonly title=\"Other is always kept\"" : "") + ' placeholder="Reason foremen can pick">'
-            + (isOther ? '<span class="rrp-lockpill">always on</span>' : '<button class="del" data-rzdel="' + i + '" title="Remove reason">✕</button>') + "</div>";
-        }).join("") + "</div>"
+        // Pin the FIRST "Other…" row, whatever it is called — NOT a literal "Other" (2026-07-20).
+        // The old exact test pinned only the word "Other", so when the office added
+        // "Other (Comment)" the literal one stayed undeletable and the list kept BOTH forever.
+        // It was also readonly, which is why a second one got created instead of renaming it —
+        // so the pinned row is now editable too, and only deletion is blocked.
+        + (function () {
+          var pin = -1;
+          for (var k = 0; k < d.reasons.length; k++) {
+            if (/^other\b/i.test(String(d.reasons[k]).trim())) { pin = k; break; }
+          }
+          return d.reasons.map(function (rz, i) {
+            var locked = (i === pin);
+            return '<div class="rrp-reason"><input type="text" data-rzn="' + i + '" value="' + esc(rz) + '"'
+              + (locked ? ' title="This is the free-text option — rename it if you like, but it can’t be removed"' : "")
+              + ' placeholder="Reason foremen can pick">'
+              + (locked ? '<span class="rrp-lockpill">always on</span>'
+                        : '<button class="del" data-rzdel="' + i + '" title="Remove reason">✕</button>') + "</div>";
+          }).join("");
+        })() + "</div>"
         + '<button class="rrp-addloc" data-addrzn="1">+ Add a reason</button></div></div>';
       var dirty = JSON.stringify(d) !== RRP.draftBase;
       var savemsg = RRP.saving ? "Saving…"
