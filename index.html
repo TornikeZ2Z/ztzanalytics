@@ -111,7 +111,7 @@ const GROUP_OVERRIDE = {
   "log-foreman": "logistics", "log-packing": "logistics",
   // Financial
   "fin-revenue": "financial", "fin-rr": "financial", "financial-analysis": "financial", "executive-scorecard": "financial",
-  "branch-owner": "financial", "money-flow": "financial",
+  "branch-owner": "financial", "money-flow": "logistics",
   // Reviews
   "review-performance": "reviews", "rev-production": "reviews", "reviews-reminders": "reviews",
   "response-analysis": "reviews", "review-settings": "reviews",
@@ -124,11 +124,11 @@ const NAV_ORDER = {
   "monthly-report": 1, "analysis-by-category": 2,
   "sales-funnel": 1, "sales-perf": 2, "sales-speed": 3, "leads-inflow": 4,
   "mkt-roi": 1, "mkt-sources": 2, "mkt-phone": 3,
-  "log-foreman": 1, "log-packing": 2,
-  "fin-revenue": 1, "fin-rr": 2, "money-flow": 3, "sales-geo": 4, "financial-analysis": 5, "executive-scorecard": 6, "branch-owner": 7,
+  "money-flow": 1, "log-foreman": 2, "log-packing": 3,
+  "fin-revenue": 1, "fin-rr": 2, "sales-geo": 3, "financial-analysis": 4, "executive-scorecard": 5, "branch-owner": 6,
   "rev-production": 1, "review-performance": 2, "response-analysis": 3, "reviews-reminders": 4, "review-settings": 5,
   "sup-claims": 1, "sup-refunds": 2, "sup-phone": 3,
-  "data-quality": 1, "source-trace": 2, "multi-source-leads": 3, "admin-users": 4,
+  "data-quality": 1, "source-trace": 2, "multi-source-leads": 3, "admin-users": 4, "general-settings": 5,
 };
 
 /* Inline SVG icon set (Feather-style, stroke-based) — no emojis anywhere. */
@@ -183,7 +183,7 @@ const PAGE_ICONS = {
   "log-foreman": "tool", "log-packing": "box",
   "fin-revenue": "trend", "fin-rr": "trend", "rev-production": "star",
   "sup-claims": "shield", "sup-refunds": "clipboard", "sup-phone": "phone",
-  "data-quality": "clipboard", "source-trace": "activity", "multi-source-leads": "git-merge", "calendar-coverage": "calendar", "request-consistency": "alert-triangle", "review-performance": "star", "reviews-reminders": "megaphone", "response-analysis": "activity", "review-settings": "tool",
+  "general-settings": "sliders", "data-quality": "clipboard", "source-trace": "activity", "multi-source-leads": "git-merge", "calendar-coverage": "calendar", "request-consistency": "alert-triangle", "review-performance": "star", "reviews-reminders": "megaphone", "response-analysis": "activity", "review-settings": "tool",
 };
 
 /* Pages not yet built — shown greyed with a SOON tag so the full scope is visible. */
@@ -274,7 +274,7 @@ const idOwner = id => (id && MERGED_BY_TAB[id]) ? MERGED_BY_TAB[id].id : id;
 function canSee(id) {
   if (!id || !ME) return false;
   if (ME.admin) return true;
-  if (id === "admin-users") return false;
+  if (id === "admin-users" || id === "general-settings") return false;
   const reports = ME.reports || [];
   if (reports.includes(id)) return true;
   // department grant: holding a department id opens ALL of its reports, incl. ones added later
@@ -479,6 +479,7 @@ const PAGE_DATASETS = {
   "angi-vs-moveboard": [],   // fetches its own raw data — the global filter bar doesn't reach it
   "monthly-report": MR_DATASETS,
   "admin-users": [],
+  "general-settings": [],
   "data-quality": [],
   "source-trace": [],
   "multi-source-leads": [],
@@ -692,7 +693,8 @@ const NAV_TITLES = {
   "review-performance": "Foreman Performance",
   "reviews-reminders": "Send Reminders",
   "response-analysis": "Response Analysis",
-  "review-settings": "Settings",
+  "review-settings": "Review URLs and Reasons",
+  "general-settings": "General Settings",
   "rev-production": "Actual Reviews",
 };
 /* C46: hidden search keywords per nav item — old Power BI page names, singular/plural,
@@ -1030,7 +1032,8 @@ const REPORT_LABELS = {
   "rev-production": "Actual Reviews",
   "reviews-reminders": "Send Reminders",
   "response-analysis": "Response Analysis",
-  "review-settings": "Settings",
+  "review-settings": "Review URLs and Reasons",
+  "general-settings": "General Settings",
   // Support
   "sup-claims": "Claims",
   "sup-refunds": "Refunds & Cost of Quality",
@@ -1232,10 +1235,11 @@ registerPage({
 <script src="pages/calendar-coverage.js?v=7"></script>
 <script src="pages/request-consistency.js?v=3"></script>
 <script src="pages/branch-owner.js?v=6"></script>
-<script src="pages/money-flow.js?v=6"></script>
+<script src="pages/money-flow.js?v=7"></script>
+<script src="pages/general-settings.js?v=1"></script>
 <script src="pages/review-performance.js?v=16"></script>
 <script src="pages/leads-inflow.js?v=1"></script>
 <script src="pages/speed-to-lead.js?v=6"></script>
-<script src="pages/reminders.js?v=33"></script>
+<script src="pages/reminders.js?v=34"></script>
 </body>
 </html>

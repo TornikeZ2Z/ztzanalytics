@@ -50,7 +50,7 @@ registerPage({ id: "reviews-reminders", group: "reviews", title: "Send Reminders
   render: function (host) { RRP.view = "log"; RRP.solo = 1; return render(host); } });
 registerPage({ id: "response-analysis", group: "reviews", title: "Response Analysis",
   render: function (host) { RRP.view = "response"; RRP.solo = 1; return render(host); } });
-registerPage({ id: "review-settings", group: "reviews", title: "Settings",
+registerPage({ id: "review-settings", group: "reviews", title: "Review URLs and Reasons",
   render: function (host) { RRP.view = "links"; RRP.solo = 1; return render(host); } });
 {
   // NAMED function expression (not a shorthand method) so `render` is callable inside itself —
@@ -1166,7 +1166,7 @@ registerPage({ id: "review-settings", group: "reviews", title: "Settings",
     var HEAD = {
       log: { t: "Send Reminders", p: "The Slack nudges the bot sends foremen to collect reviews — today’s jobs, what went out, and what got skipped." },
       response: { t: "Response Analysis", p: "Why reviews were missed — every recent job the bot asked about, whether the foreman explained, and the reasons. Statistics run from yesterday back; you can still log a reason for a job up to a week old." },
-      links: { t: "Settings", p: "Which review link the bot sends per delivery state, the extra platforms, and the “why no review?” reasons foremen can pick." }
+      links: { t: "Review URLs and Reasons", p: "Which review link the bot sends per delivery state, the extra platforms, and the “why no review?” reasons foremen can pick." }
     };
     function paint() {
       var body;

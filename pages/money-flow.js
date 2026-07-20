@@ -31,7 +31,7 @@ var MF_TOL = 10;   // settled when |balance| <= this — same constant as src/mo
 
 registerPage({
   id: "money-flow",
-  group: "financial",
+  group: "logistics",
   title: "Money Flow",
   async render(host) {
     var esc = RSC.esc;
