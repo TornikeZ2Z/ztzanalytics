@@ -111,7 +111,7 @@ const GROUP_OVERRIDE = {
   "log-foreman": "logistics", "log-packing": "logistics",
   // Financial
   "fin-revenue": "financial", "fin-rr": "financial", "financial-analysis": "financial", "executive-scorecard": "financial",
-  "branch-owner": "financial",
+  "branch-owner": "financial", "money-flow": "financial",
   // Reviews
   "review-performance": "reviews", "rev-production": "reviews", "reviews-reminders": "reviews",
   "response-analysis": "reviews", "review-settings": "reviews",
@@ -125,7 +125,7 @@ const NAV_ORDER = {
   "sales-funnel": 1, "sales-perf": 2, "sales-speed": 3, "leads-inflow": 4,
   "mkt-roi": 1, "mkt-sources": 2, "mkt-phone": 3,
   "log-foreman": 1, "log-packing": 2,
-  "fin-revenue": 1, "fin-rr": 2, "sales-geo": 3, "financial-analysis": 4, "executive-scorecard": 5, "branch-owner": 6,
+  "fin-revenue": 1, "fin-rr": 2, "money-flow": 3, "sales-geo": 4, "financial-analysis": 5, "executive-scorecard": 6, "branch-owner": 7,
   "rev-production": 1, "review-performance": 2, "response-analysis": 3, "reviews-reminders": 4, "review-settings": 5,
   "sup-claims": 1, "sup-refunds": 2, "sup-phone": 3,
   "data-quality": 1, "source-trace": 2, "multi-source-leads": 3, "admin-users": 4,
@@ -134,6 +134,7 @@ const NAV_ORDER = {
 /* Inline SVG icon set (Feather-style, stroke-based) — no emojis anywhere. */
 const ICONS = {
   activity:  '<path d="M22 12h-4l-3 9L9 3l-3 9H2"/>',
+  dollar:    '<line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>',
   trend:     '<path d="M23 6l-9.5 9.5-5-5L1 18"/><path d="M17 6h6v6"/>',
   compass:   '<circle cx="12" cy="12" r="10"/><path d="M16.24 7.76l-2.12 6.36-6.36 2.12 2.12-6.36 6.36-2.12z"/>',
   user:      '<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>',
@@ -170,6 +171,7 @@ const PAGE_ICONS = {
   "packing": "box", "claims": "shield", "insights": "spark",
   "source-identification": "compass",
   "executive-scorecard": "gauge", "branch-owner": "user", "customer-experience": "user",
+  "money-flow": "dollar",
   "labor-analysis": "activity",
   "financial-analysis": "trend", "post-card-analysis": "megaphone",
   "monthly-report": "spark",
@@ -486,6 +488,7 @@ const PAGE_DATASETS = {
   "response-analysis": [], "review-settings": [],
   "sales-speed": [],
   "leads-inflow": [],
+  "money-flow": [],          // loads fct_money_flow itself + the /api/_mf live overlay
   "reviews-reminders": [],   // talks to the Apps Script relay (JSONP) + loads its own goal data
 };
 // themed dashboards are lite-mode slices of the Monthly Report — same datasets
@@ -679,6 +682,7 @@ const NAV_TITLES = {
   "financial-analysis": "Job P&L",
   "executive-scorecard": "Executive Scorecard",
   "branch-owner": "Branch Owner",
+  "money-flow": "Money Flow",
   "data-quality": "Data Quality",
   "source-trace": "Source Trace",
   "multi-source-leads": "Multi-Source Leads",
@@ -1228,6 +1232,7 @@ registerPage({
 <script src="pages/calendar-coverage.js?v=7"></script>
 <script src="pages/request-consistency.js?v=3"></script>
 <script src="pages/branch-owner.js?v=6"></script>
+<script src="pages/money-flow.js?v=1"></script>
 <script src="pages/review-performance.js?v=15"></script>
 <script src="pages/leads-inflow.js?v=1"></script>
 <script src="pages/speed-to-lead.js?v=6"></script>
