@@ -287,7 +287,12 @@ registerPage({ id: "review-settings", group: "reviews", title: "Settings",
         ".ra-ftbl tbody tr:hover{background:var(--panel-2)}",
         ".ra-ftbl tr.on{background:var(--panel-2)}",
         ".ra-ftbl tr.on td{font-weight:800}",
-        ".ra-chev{color:var(--faint);font-weight:800}",
+        ".ra-chev{color:var(--faint);font-weight:800;width:22px}",
+        // the reason strings run long ("Elderly customer (not comfortable with technology)");
+        // clip them here rather than making a half-width card scroll sideways
+        ".ra-ftbl{table-layout:fixed;width:100%}",
+        ".ra-ftbl td,.ra-ftbl th{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}",
+        ".ra-top{color:var(--muted)}",
         ".ra-drill{margin-top:12px;padding:0;border-color:var(--brand)}",
         ".ra-drillgrid{display:grid;grid-template-columns:minmax(240px,340px) minmax(0,1fr);gap:0;align-items:start}",
         ".ra-drillbars{padding:14px 16px;border-right:1px solid var(--line)}",
@@ -739,6 +744,23 @@ registerPage({ id: "review-settings", group: "reviews", title: "Settings",
       });
       return Object.keys(latest).map(function (k) { return latest[k]; });
     }
+    // The relay records whoever answered, and that is sometimes the raw email rather than the
+    // crew name — which then shows up as its own "foreman" in the stats. The reminder log
+    // carries both for every nudge, so it doubles as an email→name directory.
+    function foremanName(v) {
+      var s = String(v == null ? "" : v).trim();
+      if (!s) return "—";
+      if (s.indexOf("@") < 0) return s;
+      var map = RRP._fmap;
+      if (!map) {
+        map = RRP._fmap = {};
+        cleanLog().forEach(function (r) {
+          var e = String(r.email || "").trim().toLowerCase(), n = String(r.foreman || "").trim();
+          if (e && n && n.indexOf("@") < 0 && !map[e]) map[e] = n;
+        });
+      }
+      return map[s.toLowerCase()] || s;
+    }
     function periodLabel() {
       var d = RRP.raPeriod == null ? 30 : RRP.raPeriod;
       return d ? "last " + d + " days" : "all time";
@@ -760,7 +782,7 @@ registerPage({ id: "review-settings", group: "reviews", title: "Settings",
     function statsByForeman(rows) {
       var by = {};
       rows.forEach(function (r) {
-        var f = String(r.foreman || "").trim() || "—";
+        var f = foremanName(r.foreman);
         var o = by[f] || (by[f] = { f: f, n: 0, reasons: {} });
         o.n++;
         var k = r.reason || "—"; o.reasons[k] = (o.reasons[k] || 0) + 1;
@@ -776,7 +798,7 @@ registerPage({ id: "review-settings", group: "reviews", title: "Settings",
       var st = statsByForeman(rows), sel = RRP.raForeman || "";
       var body = st.length ? st.map(function (o) {
         return '<tr class="ra-frow' + (o.f === sel ? " on" : "") + '" data-raf="' + esc(o.f) + '">'
-          + "<td>" + esc(o.f) + '</td><td class="r"><b>' + o.n + "</b></td><td>" + esc(o.top)
+          + "<td>" + esc(o.f) + '</td><td class="r"><b>' + o.n + '</b></td><td class="ra-top" title="' + esc(o.top) + '">' + esc(o.top)
           + '</td><td class="r ra-chev">' + (o.f === sel ? "▾" : "›") + "</td></tr>";
       }).join("") : '<tr><td colspan="4" class="ra-none">No answers in this period.</td></tr>';
       return '<div class="rrp-card" style="padding:0"><div class="ra-cardhd pad"><h4>By foreman</h4>'
@@ -789,7 +811,7 @@ registerPage({ id: "review-settings", group: "reviews", title: "Settings",
     // N4: the drill-down for the selected foreman — his reason mix + the jobs behind it.
     function foremanDrill(rows) {
       var sel = RRP.raForeman; if (!sel) return "";
-      var mine = rows.filter(function (r) { return (String(r.foreman || "").trim() || "—") === sel; });
+      var mine = rows.filter(function (r) { return foremanName(r.foreman) === sel; });
       var freq = {}; mine.forEach(function (r) { var k = r.reason || "—"; freq[k] = (freq[k] || 0) + 1; });
       var fr = Object.keys(freq).map(function (k) { return { k: k, n: freq[k] }; }).sort(function (a, b) { return b.n - a.n; });
       var jobs = mine.slice().sort(function (a, b) { return String(b.ts).localeCompare(String(a.ts)); }).map(function (r) {
@@ -834,7 +856,7 @@ registerPage({ id: "review-settings", group: "reviews", title: "Settings",
         ].filter(Boolean).join('<span class="ra-dot">·</span>') || '<span class="ra-none-i">no contact on file</span>';
         return '<tr' + (x.rev ? ' class="ra-done"' : "") + "><td>" + esc(etDay(x.r.ts) || "—")
           + '</td><td class="r">' + (x.age == null ? "—" : x.age + "d") + "</td><td>" + esc(x.r.job || "—")
-          + "</td><td>" + esc(c.name || "—") + "</td><td>" + contact + "</td><td>" + esc(x.r.foreman || "—")
+          + "</td><td>" + esc(c.name || "—") + "</td><td>" + contact + "</td><td>" + esc(foremanName(x.r.foreman))
           + "</td><td>" + (x.rev ? '<span class="pill s-sent">★ Review landed</span>' : '<span class="pill s-wait">Still waiting</span>') + "</td></tr>";
       }).join("") : '<tr><td colspan="7" class="ra-none">Nobody has promised a review yet.</td></tr>';
       return '<div class="rrp-card" style="padding:0;margin-top:12px"><div class="ra-cardhd pad">'
