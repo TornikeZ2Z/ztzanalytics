@@ -293,6 +293,7 @@ registerPage({ id: "review-settings", group: "reviews", title: "Settings",
         ".ra-ftbl{table-layout:fixed;width:100%}",
         ".ra-ftbl td,.ra-ftbl th{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}",
         ".ra-top{color:var(--muted)}",
+        ".ra-nocrew{color:var(--faint);border-bottom:1px dotted var(--line-2);cursor:help}",
         ".ra-drill{margin-top:12px;padding:0;border-color:var(--brand)}",
         ".ra-drillgrid{display:grid;grid-template-columns:minmax(240px,340px) minmax(0,1fr);gap:0;align-items:start}",
         ".ra-drillbars{padding:14px 16px;border-right:1px solid var(--line)}",
@@ -756,10 +757,25 @@ registerPage({ id: "review-settings", group: "reviews", title: "Settings",
         map = RRP._fmap = {};
         cleanLog().forEach(function (r) {
           var e = String(r.email || "").trim().toLowerCase(), n = String(r.foreman || "").trim();
-          if (e && n && n.indexOf("@") < 0 && !map[e]) map[e] = n;
+          // only learn from rows that actually carry a NAME — a row whose foreman field is
+          // itself an address teaches nothing and would map the email to itself
+          if (e && n && n.indexOf("@") < 0 && e.indexOf(",") < 0 && !map[e]) map[e] = n;
         });
       }
-      return map[s.toLowerCase()] || s;
+      // a calendar foreman cell may hold "owner, foreman" — resolve each address separately,
+      // otherwise the pair becomes its own phantom foreman in the stats
+      return s.split(",").map(function (p) {
+        p = p.trim(); if (!p) return "";
+        return p.indexOf("@") < 0 ? p : (map[p.toLowerCase()] || p);
+      }).filter(Boolean).join(", ") || s;
+    }
+    // an address that survived foremanName has nobody behind it in the crew sheet — say so
+    // rather than showing a bare gmail with no explanation
+    function foremanCell(v) {
+      var n = foremanName(v);
+      return n.indexOf("@") < 0 ? esc(n)
+        : '<span class="ra-nocrew" title="Not in the fleet sheet’s Crew tab — add this email there with a name and it will show here">'
+          + esc(n) + "</span>";
     }
     function periodLabel() {
       var d = RRP.raPeriod == null ? 30 : RRP.raPeriod;
@@ -798,7 +814,7 @@ registerPage({ id: "review-settings", group: "reviews", title: "Settings",
       var st = statsByForeman(rows), sel = RRP.raForeman || "";
       var body = st.length ? st.map(function (o) {
         return '<tr class="ra-frow' + (o.f === sel ? " on" : "") + '" data-raf="' + esc(o.f) + '">'
-          + "<td>" + esc(o.f) + '</td><td class="r"><b>' + o.n + '</b></td><td class="ra-top" title="' + esc(o.top) + '">' + esc(o.top)
+          + "<td>" + foremanCell(o.f) + '</td><td class="r"><b>' + o.n + '</b></td><td class="ra-top" title="' + esc(o.top) + '">' + esc(o.top)
           + '</td><td class="r ra-chev">' + (o.f === sel ? "▾" : "›") + "</td></tr>";
       }).join("") : '<tr><td colspan="4" class="ra-none">No answers in this period.</td></tr>';
       return '<div class="rrp-card" style="padding:0"><div class="ra-cardhd pad"><h4>By foreman</h4>'
@@ -856,7 +872,7 @@ registerPage({ id: "review-settings", group: "reviews", title: "Settings",
         ].filter(Boolean).join('<span class="ra-dot">·</span>') || '<span class="ra-none-i">no contact on file</span>';
         return '<tr' + (x.rev ? ' class="ra-done"' : "") + "><td>" + esc(etDay(x.r.ts) || "—")
           + '</td><td class="r">' + (x.age == null ? "—" : x.age + "d") + "</td><td>" + esc(x.r.job || "—")
-          + "</td><td>" + esc(c.name || "—") + "</td><td>" + contact + "</td><td>" + esc(foremanName(x.r.foreman))
+          + "</td><td>" + esc(c.name || "—") + "</td><td>" + contact + "</td><td>" + foremanCell(x.r.foreman)
           + "</td><td>" + (x.rev ? '<span class="pill s-sent">★ Review landed</span>' : '<span class="pill s-wait">Still waiting</span>') + "</td></tr>";
       }).join("") : '<tr><td colspan="7" class="ra-none">Nobody has promised a review yet.</td></tr>';
       return '<div class="rrp-card" style="padding:0;margin-top:12px"><div class="ra-cardhd pad">'
