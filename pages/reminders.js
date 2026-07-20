@@ -755,7 +755,10 @@ registerPage({ id: "review-settings", group: "reviews", title: "Settings",
     // on/off — so a Save can be CONFIRMED by reading the config back (no-cors writes are opaque).
     function normReasons(list) {   // match the relay: trim, drop blanks, ensure Other present
       var out = (list || []).map(function (x) { return String(x || "").trim(); }).filter(Boolean);
-      if (out.map(function (x) { return x.toLowerCase(); }).indexOf("other") < 0) out.push("Other");
+      // "Other" counts if ANY entry STARTS with it — "Other (Comment)" is an Other. The old exact
+      // test appended a duplicate literal "Other" the moment the office renamed it, which is how
+      // two look-alike options ended up on the foreman form (Tornike 2026-07-20).
+      if (!out.some(function (x) { return /^other\b/i.test(x); })) out.push("Other");
       return out;
     }
     function activeSig(cfg) {
