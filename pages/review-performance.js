@@ -51,12 +51,34 @@ var RP_WIN = { day: [7, 14, 30, 60], week: [8, 12, 26, 52], month: [3, 6, 12, 24
 var RP_PLAT = { Google: "#4285F4", Yelp: "#d32323", Angi: "#1aa64b", Trustpilot: "#00b67a",
   Facebook: "#1877f2", Consumer: "#6d28d9", Birdeye: "#f59e0b", BBB: "#0a4d8c", Thumbtack: "#009fd9",
   Nextdoor: "#5aa700", Unpakt: "#e11d48", Mymovingreviews: "#0ea5e9" };
-// same relay + reasons as the foremen's Slack form (review_response.html) — ONE system of record
+// same relay as the foremen's Slack form (review_response.html) — ONE system of record
 var RP_RELAY = "https://script.google.com/macros/s/AKfycbzX3q9VqyZKd3FUbGCPKN9JcQgcp15rz0QXxzNnxTYeXSRCY16Ei8n_9D07c9EQvOxM/exec";
-var RP_REASONS = ["Customer refused", "The customer was dissatisfied", "Open claim",
+// FALLBACK ONLY — the real list is the relay's live config (loaded per page view below).
+// This used to be the actual list, and it silently drifted: the office added "Other
+// (Comment)" and admins here had NO Other option at all (quality team, 2026-07-20).
+// A hardcoded reason list is the same staleness trap as a stale Apps Script deployment.
+var RP_REASONS_FALLBACK = ["Customer refused", "The customer was dissatisfied", "Open claim",
   "Support intervention was required", "Billing issue", "The customer promised to write later",
   "Elderly customer (not comfortable with technology)", "No internet / poor internet connection",
-  "Customer was unfriendly / not willing to engage"];
+  "Customer was unfriendly / not willing to engage", "Other (Comment)"];
+var RP_LIVE_REASONS = null;   // filled from the relay config; survives repaints
+function rpReasons() {
+  var list = (RP_LIVE_REASONS && RP_LIVE_REASONS.length) ? RP_LIVE_REASONS.slice() : RP_REASONS_FALLBACK.slice();
+  // whatever happens to the config, an Other option must exist — it is the escape hatch
+  if (!list.some(function (x) { return /^other\b/i.test(String(x)); })) list.push("Other (Comment)");
+  return list;
+}
+function rpLoadReasons() {
+  // the bridge caches this relay read server-side, so it is cheap when warm; fired in the
+  // background at render so the list is live by the time anyone opens an explain form
+  fetch(ZTZ.API + "/api/_rrp?req=reviewData", { headers: { "Authorization": "Bearer " + ZTZ.getToken() } })
+    .then(function (r) { return r.ok ? r.json() : null; })
+    .then(function (d) {
+      var rs = d && d.config && d.config.reasons;
+      if (rs && rs.length) RP_LIVE_REASONS = rs.map(function (x) { return String(x); });
+    })
+    .catch(function () {});   // fallback list already covers the form
+}
 var RP = { sources: new Set(), statuses: new Set(), billcats: new Set(), foremen: new Set(),
   grain: "week", winD: 14, winW: 12, winM: 6, offset: 0, sortCol: null, sortDir: "desc", cell: null, view: "perf",
   wlPage: 0, supPage: 0, supQ: "", supType: "" };
@@ -269,6 +291,7 @@ registerPage({
       <div id="rpSupport" style="display:none"></div>`;
 
     var rows;
+    rpLoadReasons();   // background — live reason list ready before anyone opens an explain form
     try { rows = await RS.load("fct_job_overview"); }
     catch (e) { document.getElementById("rpKpis").innerHTML = `<div class="rs-loading">Couldn't load — ${esc(e.message)}</div>`; return; }
     if (!document.getElementById("rpMatrix")) return;
@@ -517,7 +540,7 @@ registerPage({
     }
     function explainFormHTML(idx) {
       return `<div class="rp-exform" data-exform="${idx}">
-        <select data-exr>${RP_REASONS.map(x => `<option>${esc(x)}</option>`).join("")}</select>
+        <select data-exr>${rpReasons().map(x => `<option>${esc(x)}</option>`).join("")}</select>
         <textarea data-exn placeholder="Optional note…"></textarea>
         <div class="row2"><button type="button" class="go" data-exgo>Save reason</button>
         <button type="button" class="no" data-exno>Cancel</button></div></div>`;
