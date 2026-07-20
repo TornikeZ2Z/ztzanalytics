@@ -51,12 +51,12 @@ registerPage({
       },
       calendar_email_corrections: {
         t: "Calendar e-mail corrections",
-        p: "Applied by the calendar loader: whenever the LEFT address appears as the foreman, it is recorded as the RIGHT one.",
+        p: "Step 1, at calendar load: the LEFT address is recorded as the RIGHT one — the address the fleet/closing world uses. (A person can have two addresses; this and the next map translate between the sheets that disagree about which one is 'his'. They run at different steps, so they do not conflict.)",
         kind: "pairs",
       },
       foreman_translator_corrections: {
         t: "Foreman translator corrections",
-        p: "Applied by Money Flow before looking a foreman up in the translator sheet.",
+        p: "Step 2, inside Money Flow only: applied right before the ForFormulas translator lookup, because that sheet may list the person under the other address. Once the old Net Cash sheet is retired, aligning the sheets on one address makes both maps deletable.",
         kind: "pairs",
       },
     };
