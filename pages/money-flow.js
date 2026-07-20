@@ -18,7 +18,7 @@
       table: "fct_money_flow",
       // payload contract — add columns only with a real consumer
       cols: ["Event ID", "Job Date", "Event Title", "Job No", "Job Code", "Customer",
-             "Forman Email", "Job Type", "Contract Type", "Net Cash (DC)", "Net Cash (Closing)",
+             "Forman Email", "Forman", "Job Type", "Contract Type", "Net Cash (DC)", "Net Cash (Closing)",
              "Expected Net Cash", "Cash Flow", "Cash Flow Time", "Cash Flow Source",
              "Cash Flow Records", "Advance", "Deduction", "Balance", "Status"],
     };
@@ -155,7 +155,7 @@ registerPage({
         var r = {
           ev: ev, date: String(b["Job Date"]).slice(0, 10), title: b["Event Title"],
           jobNo: b["Job No"], jobCode: b["Job Code"], customer: b["Customer"],
-          forman: crewName(b["Forman Email"]), formanEmail: b["Forman Email"],
+          forman: b["Forman"] || crewName(b["Forman Email"]), formanEmail: b["Forman Email"],
           jobType: b["Job Type"], ct: b["Contract Type"],
           expected: num(lv && lv.expected != null ? lv.expected : b["Expected Net Cash"]),
           closingNC: num(b["Net Cash (Closing)"]),
