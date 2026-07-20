@@ -141,7 +141,9 @@ registerPage({
       var p = s.split("@")[0].replace(/[._\d]+/g, " ").trim();
       return p ? p.replace(/\b\w/g, function (c) { return c.toUpperCase(); }) : s;
     }
-    var todayIso = new Date().toISOString().slice(0, 10);
+    // business "today" is New Jersey's, not UTC's — at 9pm NY, tomorrow's jobs must not
+    // surface in worklists as missing money (en-CA locale renders YYYY-MM-DD)
+    var todayIso = new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
 
     // ---------- live overlay ----------
     // Merge order matters: the overlay's money numbers REPLACE the base row's, then the
@@ -182,6 +184,7 @@ registerPage({
       if (r.baseStatus === "Filter Out" || jt === "Box Delivery" || jt === "In-Home Estimate"
           || jt === "Cancelled" || /cancel/i.test(String(r.title || ""))) return "Filter Out";
       if (r.date > todayIso) return "Job is in the Future";
+      if (r.baseStatus === "Tracked on Sibling Event" && r.expected == null) return "Tracked on Sibling Event";
       if (r.expected == null) return "Contract Not Received";
       if (r.flow == null && r.expected !== 0) return "Money Not Received";
       if (Math.abs(r.balance == null ? 0 : r.balance) <= MF_TOL) return "Money Received";
@@ -189,7 +192,8 @@ registerPage({
     }
     var PILL = { "Money Received": "mf-st-rec", "Money Not Received": "mf-st-not",
                  "Not in Balance": "mf-st-bal", "Contract Not Received": "mf-st-con",
-                 "Job is in the Future": "mf-st-fut", "Filter Out": "mf-st-fil" };
+                 "Job is in the Future": "mf-st-fut", "Filter Out": "mf-st-fil",
+                 "Tracked on Sibling Event": "mf-st-fil" };
 
     var entriesByEv = {};
     function indexEntries() {
@@ -218,6 +222,7 @@ registerPage({
         out: rows.filter(function (r) { return r.status === "Money Not Received" || r.status === "Not in Balance"; }),
         con: rows.filter(function (r) { return r.status === "Contract Not Received"; }),
         rec: rows.filter(function (r) { return r.status === "Money Received"; }),
+        fut: rows.filter(function (r) { return r.status === "Job is in the Future"; }),
         all: rows.filter(function (r) { return r.status !== "Filter Out" && r.status !== "Job is in the Future"; }),
       };
       var cur = views[S.view] || views.out;
@@ -238,7 +243,8 @@ registerPage({
                : k === "Expected" ? (a.expected == null ? -Infinity : a.expected) : a.date;
         var vb = k === "Balance" ? (b.balance == null ? -Infinity : b.balance)
                : k === "Expected" ? (b.expected == null ? -Infinity : b.expected) : b.date;
-        return va < vb ? d : va > vb ? -d : 0;
+        // d=-1 means DESC (arrow ↓): a smaller value must sort AFTER a larger one
+        return va < vb ? -d : va > vb ? d : 0;
       });
 
       // KPIs — over ACTIONABLE rows (outstanding + not-in-balance), not the current view
@@ -275,7 +281,8 @@ registerPage({
       };
       var bar = '<div class="mf-bar">'
         + '<div class="mf-seg">' + segBtn("out", "Outstanding", views.out.length) + segBtn("con", "No Contract", views.con.length)
-        + segBtn("rec", "Received", views.rec.length) + segBtn("all", "All Jobs", views.all.length) + "</div>"
+        + segBtn("rec", "Received", views.rec.length) + segBtn("fut", "Future", views.fut.length)
+        + segBtn("all", "All Jobs", views.all.length) + "</div>"
         + '<input class="mf-q" id="mfQ" placeholder="Search customer / job #" value="' + esc(S.q) + '">'
         + '<select class="mf-sel" id="mfF"><option value="">All foremen</option>' + Object.keys(formen).sort().map(function (f) {
             return '<option' + (S.forman === f ? " selected" : "") + ">" + esc(f) + "</option>"; }).join("") + "</select>"
@@ -382,6 +389,7 @@ registerPage({
         var msg = root.querySelector("#mfMsg");
         var amt = parseFloat(root.querySelector("#mfAmt").value);
         if (isNaN(amt)) { msg.innerHTML = '<div class="mf-err">Enter an amount.</div>'; return; }
+        if (amt < 0) { msg.innerHTML = '<div class="mf-err">Amount must be positive — the direction comes from the type.</div>'; return; }
         go.disabled = true; go.textContent = "Saving…";
         var body = {
           entry_type: root.querySelector("#mfType").value, amount: amt,
@@ -404,7 +412,7 @@ registerPage({
           await loadLive(true);   // the entry must be visible in the very next paint
           setLiveBadge(); paint();
           var msg2 = root.querySelector("#mfMsg");
-          if (msg2) msg2.innerHTML = '<div class="mf-okmsg">Saved' + (j.mirrored ? " · copied to the old sheet" : " · sheet copy pending") + ".</div>";
+          if (msg2) msg2.innerHTML = '<div class="mf-okmsg">Saved' + (j.mirrored ? " · copied to the old sheet" : " · recorded here (old-sheet copy off until its add-on is updated)") + ".</div>";
         } catch (err) {
           go.disabled = false; go.textContent = rep ? "Save correction" : "Save entry";
           msg.innerHTML = '<div class="mf-err">Couldn’t save (' + esc(String(err && err.message || err)) + ") — nothing recorded.</div>";
