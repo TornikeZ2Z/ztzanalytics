@@ -3,6 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- Always revalidate the SHELL. Every asset below is ?v=-busted, but index.html itself is not —
+     so a cached shell keeps requesting the OLD asset versions and a deploy silently does nothing.
+     That has now bitten twice: a pre-v14 screenshot read as a live bug, and (2026-07-20) a stale
+     v28 re-added the duplicate "Other" reason client-side, undoing the very fix that had shipped.
+     The shell is ~200KB and only revalidates (304 when unchanged), so the cost is one round-trip. -->
+<meta http-equiv="Cache-Control" content="no-cache, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
 <title>Zip to Zip — Reporting System</title>
 <link rel="icon" type="image/png" href="logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
