@@ -274,13 +274,16 @@ registerPage({
           var amt = settleAmount(r);
           action = '<button class="mf-confirm" data-mfc="' + esc(r.ev) + '" title="Records this amount as handed over — the balance becomes $0">Confirm ' + money(amt) + "</button>";
         }
+        // the Not-Confirmed view drops "Handed over" (almost always blank there) so the
+        // CONFIRM button is on screen without horizontal scrolling — it is the main action
+        var handed = S.view === "done" ? '<td class="r">' + money(r.flow) + "</td>" : "";
         var tr = '<tr class="mf-row" data-ev="' + esc(r.ev) + '">'
           + "<td>" + fmtD(r.date) + (S.view === "todo" && age > 0 ? ' <span class="mf-age">' + age + "d</span>" : "") + "</td>"
           + "<td>" + esc(r.jobNo || "—") + "</td>"
           + "<td>" + esc(r.customer || "—") + "</td>"
           + "<td>" + esc(r.forman) + "</td>"
           + '<td class="r">' + money(r.expected) + "</td>"
-          + '<td class="r">' + money(r.flow) + "</td>"
+          + handed
           + '<td class="r ' + ((r.balance || 0) > MF_TOL ? "mf-neg" : (r.balance || 0) < -MF_TOL ? "mf-pos" : "") + '">' + money(r.balance) + "</td>"
           + "<td>" + action + "</td>"
           + '<td><button class="mf-more" data-mfo="' + esc(r.ev) + '" title="Details, corrections, advance, deduction">⋯</button></td></tr>';
@@ -291,7 +294,8 @@ registerPage({
       var veil = S.busy ? '<div class="mf-veil"><div class="mf-spin"></div>Updating…</div>' : "";
       var tbl = '<div class="mf-card">' + veil + '<div class="mf-wrap"><table class="mf-tbl"><thead><tr>'
         + '<th data-mfs="Job Date">Job date' + arrow("Job Date") + "</th><th>Job #</th><th>Customer</th><th>Foreman</th>"
-        + '<th class="r" data-mfs="Expected">Expected' + arrow("Expected") + '</th><th class="r">Handed over</th>'
+        + '<th class="r" data-mfs="Expected">Expected' + arrow("Expected") + "</th>"
+        + (S.view === "done" ? '<th class="r">Handed over</th>' : "")
         + '<th class="r" data-mfs="Balance">Balance' + arrow("Balance") + "</th><th></th><th></th>"
         + "</tr></thead><tbody>"
         + (body || '<tr><td colspan="9" style="color:var(--faint);padding:18px">' + (S.view === "done" ? "Nothing confirmed yet." : "Nothing waiting — all cash is confirmed. 🎉") + "</td></tr>")
