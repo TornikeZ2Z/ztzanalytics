@@ -184,14 +184,13 @@ registerPage({
       });
     }
     function computeStatus(r) {
+      // Job Type in the table is now the LITERAL replica of the old workbook's formula
+      // (title overrides description; includes On Hold), so the client only re-applies
+      // the same Filter-Out set + the blank-record and cancelled-title rules he asked for
       var jt = String(r.jobType || "");
-      // same non-move TITLE patterns as the pipeline: the type field can say "Regular
-      // Moving" while the title says In-Home Estimate (job 109184); and an event with no
-      // job number at all ("Women Moving Women") is not a job
       if (r.baseStatus === "Filter Out" || jt === "Box Delivery" || jt === "In-Home Estimate"
-          || jt === "Cancelled" || !String(r.jobNo || "").trim()
-          || /cancel|in.?home|estimate|box.?deliver|meeting|walk.?through|drive from|ticket|left beh/i
-             .test(String(r.title || ""))) return "Filter Out";
+          || jt === "Cancelled" || jt === "On Hold" || !String(r.jobNo || "").trim()
+          || /cancel/i.test(String(r.title || ""))) return "Filter Out";
       if (r.date > todayIso) return "Job is in the Future";
       if (r.baseStatus === "Tracked on Sibling Event" && r.expected == null) return "Tracked on Sibling Event";
       if (r.expected == null) return "Contract Not Received";
