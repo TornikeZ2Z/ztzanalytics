@@ -28,6 +28,16 @@
       ],
     };
   }
+  // Jobs the calendar has but no closing sheet does — so they are in NO report. Without
+  // this, looking at the matrix on a Monday shows last week with 6 days and says nothing
+  // about the 7th (quality team via Tornike 2026-07-20). Registered independently of the
+  // block above: that one is skipped once fct_job_overview exists.
+  if (window.RS && RS.DATASETS && !RS.DATASETS.jobs_pending_closing) {
+    RS.DATASETS.jobs_pending_closing = {
+      table: "fct_jobs_pending_closing",
+      cols: ["Job Date", "Job No", "Customer", "Foreman", "Days Old", "Status"],
+    };
+  }
 })();
 
 var RP_BANDS = [
@@ -237,6 +247,10 @@ registerPage({
         .rp-tbl2 td{padding:6px 8px;border-bottom:1px solid var(--line);vertical-align:top}
         .rp-tbl2 tr:last-child td{border-bottom:none}
         .rp-tbl2 td.r{text-align:right;font-variant-numeric:tabular-nums}
+        .rp-pending{display:flex;gap:11px;align-items:flex-start;background:rgba(224,145,42,.10);border:1px solid rgba(224,145,42,.34);border-radius:12px;padding:12px 15px;margin:0 0 14px}
+        .rp-pending .rp-pico{color:#e0912a;font-size:15px;line-height:1.35;flex:0 0 auto}
+        .rp-ptxt{font-size:12.5px;line-height:1.5;color:var(--ink)}
+        .rp-plink{margin-top:7px;font:inherit;font-size:11.5px;font-weight:700;color:#e0912a;background:transparent;border:0;padding:0;cursor:pointer;text-decoration:underline}
         @media (max-width:640px){.rp-wrap{max-height:calc(100vh - 300px)}}`;
       document.head.appendChild(st);
     }
@@ -247,6 +261,7 @@ registerPage({
         <p>Reviews generated per foreman · <b>reviews ÷ eligible jobs</b> · target 100% · click a cell for the jobs and where each review came from. The <b>Support</b> tab lists every job Support stepped in on.</p>
       </div>
       <div class="rp-kpis" id="rpKpis"><div class="rs-loading">Loading jobs…</div></div>
+      <div id="rpPending"></div>
       <div class="rp-bar" id="rpBar"></div>
       <div id="rpLegend" class="rp-legend"></div>
       <div class="rp-wrap" id="rpWrapEl"><div id="rpMatrix"></div></div>
@@ -257,6 +272,53 @@ registerPage({
     try { rows = await RS.load("fct_job_overview"); }
     catch (e) { document.getElementById("rpKpis").innerHTML = `<div class="rs-loading">Couldn't load — ${esc(e.message)}</div>`; return; }
     if (!document.getElementById("rpMatrix")) return;
+
+    // ---- what ISN'T in this report (N1) ----
+    // Loaded in the background so a slow/denied fetch never delays the matrix. Splits the
+    // two very different cases: yesterday's paperwork (resolves itself) vs jobs that were
+    // never filed at all (someone has to chase them).
+    (async function () {
+      var el = document.getElementById("rpPending"); if (!el) return;
+      var pend;
+      try { pend = await RS.load("jobs_pending_closing"); } catch (e) { return; }
+      el = document.getElementById("rpPending"); if (!el || !pend || !pend.length) return;
+      var awaiting = pend.filter(function (r) { return String(r.Status) === "Awaiting filing"; });
+      var never = pend.filter(function (r) { return String(r.Status) === "Never filed"; });
+      var recentNever = never.filter(function (r) { return (+r["Days Old"] || 0) <= 90; });
+      if (!awaiting.length && !recentNever.length) return;
+      var byDay = {}; awaiting.forEach(function (r) { var d = String(r["Job Date"]).slice(0, 10); byDay[d] = (byDay[d] || 0) + 1; });
+      var days = Object.keys(byDay).sort().reverse();
+      var dayTxt = days.map(function (d) {
+        var dt = new Date(d + "T12:00:00");
+        var lbl = isNaN(dt) ? d : dt.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+        return "<b>" + esc(lbl) + "</b> (" + byDay[d] + " job" + (byDay[d] === 1 ? "" : "s") + ")";
+      }).join(", ");
+      var parts = [];
+      if (awaiting.length) parts.push("Not in this report yet: " + dayTxt
+        + " — the jobs are on the calendar, their closing sheets just aren’t filed.");
+      if (recentNever.length) parts.push("<b>" + recentNever.length + "</b> job"
+        + (recentNever.length === 1 ? "" : "s") + " from the last 90 days "
+        + (recentNever.length === 1 ? "has" : "have") + " <b>never</b> been filed and will never appear — worth chasing.");
+      el.innerHTML = '<div class="rp-pending">'
+        + '<span class="rp-pico">◷</span><div><div class="rp-ptxt">' + parts.join(" ") + "</div>"
+        + (recentNever.length ? '<button class="rp-plink" id="rpPendMore">Show the unfiled jobs</button>' : "")
+        + '<div id="rpPendList" style="display:none"></div></div></div>';
+      var btn = document.getElementById("rpPendMore");
+      if (btn) btn.onclick = function () {
+        var box = document.getElementById("rpPendList");
+        if (box.style.display === "none") {
+          box.innerHTML = '<table class="rp-tbl2" style="margin-top:10px"><thead><tr><th>Job Date</th><th>Job No</th>'
+            + '<th>Customer</th><th>Foreman</th><th class="r">Days old</th></tr></thead><tbody>'
+            + recentNever.slice().sort(function (a, b) { return String(b["Job Date"]).localeCompare(String(a["Job Date"])); })
+              .map(function (r) {
+                return "<tr><td>" + esc(String(r["Job Date"]).slice(0, 10)) + "</td><td>" + esc(r["Job No"] || "—")
+                  + "</td><td>" + esc(r.Customer || "—") + "</td><td>" + esc(r.Foreman || "—")
+                  + '</td><td class="r">' + esc(r["Days Old"]) + "</td></tr>";
+              }).join("") + "</tbody></table>";
+          box.style.display = ""; btn.textContent = "Hide the unfiled jobs";
+        } else { box.style.display = "none"; btn.textContent = "Show the unfiled jobs"; }
+      };
+    })();
 
     // ---- LIVE reviews overlay (no 6h wait) ----
     // The warehouse's Review Received refreshes every ~6h and matches reviews to jobs by request #

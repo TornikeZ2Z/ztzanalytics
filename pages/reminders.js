@@ -268,6 +268,36 @@ registerPage({ id: "review-settings", group: "reviews", title: "Settings",
         ".rrp-freshbtn:disabled{opacity:.6;cursor:default}",
         ".rrp-rgrid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px;margin-top:12px}",
         "@media(max-width:900px){.rrp-rgrid{grid-template-columns:minmax(0,1fr)}}",
+        // ---- answer statistics (N3/N4/N5) ----
+        ".ra-sechd{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;margin:22px 0 0}",
+        ".ra-sechd h3{margin:0;font-size:15px;font-weight:800;letter-spacing:-.2px}",
+        ".ra-sechd .rrp-seg{margin-bottom:0}",
+        ".ra-cardhd{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap;margin:0 0 10px}",
+        ".ra-cardhd.pad{padding:13px 15px 9px;margin:0}",
+        ".ra-cardhd h4{margin:0;font-size:13.5px;font-weight:800}",
+        ".ra-sub{font-size:11.5px;font-weight:700;color:var(--faint)}",
+        ".ra-hint{padding:9px 15px 12px;font-size:11.5px;color:var(--faint);border-top:1px solid var(--line)}",
+        ".ra-none{color:var(--faint);padding:14px;font-size:12.5px}",
+        ".ra-none-i{color:var(--faint);font-style:italic}",
+        // the reason bar gains a % column, so the grid gets a 4th track
+        ".rrp-card .rrp-bars{margin-bottom:0}",
+        ".rrp-bar{grid-template-columns:200px 1fr 34px 38px}",
+        ".ra-pct{font-style:normal;font-size:11px;font-weight:700;color:var(--faint);text-align:right;font-variant-numeric:tabular-nums}",
+        ".ra-ftbl tbody tr{cursor:pointer}",
+        ".ra-ftbl tbody tr:hover{background:var(--panel-2)}",
+        ".ra-ftbl tr.on{background:var(--panel-2)}",
+        ".ra-ftbl tr.on td{font-weight:800}",
+        ".ra-chev{color:var(--faint);font-weight:800}",
+        ".ra-drill{margin-top:12px;padding:0;border-color:var(--brand)}",
+        ".ra-drillgrid{display:grid;grid-template-columns:minmax(240px,340px) minmax(0,1fr);gap:0;align-items:start}",
+        ".ra-drillbars{padding:14px 16px;border-right:1px solid var(--line)}",
+        "@media(max-width:900px){.ra-drillgrid{grid-template-columns:minmax(0,1fr)}.ra-drillbars{border-right:0;border-bottom:1px solid var(--line)}}",
+        ".ra-close{font:inherit;font-size:11.5px;font-weight:700;color:var(--muted);background:var(--panel-2);border:1px solid var(--line-2);border-radius:8px;padding:4px 10px;cursor:pointer}",
+        ".ra-close:hover{color:var(--ink)}",
+        ".ra-note{color:var(--muted);font-size:12px;max-width:340px}",
+        ".ra-dot{color:var(--faint);margin:0 6px}",
+        ".ra-done td{opacity:.6}",
+        ".s-wait{background:rgba(224,145,42,.18);color:#e0912a}",
         ".rrp-exbtn{font:inherit;font-size:11.5px;font-weight:700;color:var(--brand-ink);background:var(--brand);border:0;border-radius:8px;padding:5px 11px;cursor:pointer}",
         ".rrp-exbtn:hover{background:var(--brand-d)}",
         ".rrp-exform{display:inline-flex;gap:6px;align-items:center;flex-wrap:wrap}",
@@ -345,6 +375,15 @@ registerPage({ id: "review-settings", group: "reviews", title: "Settings",
         cols: ["job_code", "request_no"],   // payload contract — the 2-column link only
       };
     }
+    // Contact details for the "promised to write later" follow-up list. 180-day slice
+    // (~2.4k rows) built by src/job_overview.py, so chasing a promised review doesn't
+    // mean shipping the whole calendar to the browser.
+    if (window.RS && RS.DATASETS && !RS.DATASETS.recent_job_contact) {
+      RS.DATASETS.recent_job_contact = {
+        table: "fct_recent_job_contact",
+        cols: ["Job Code", "Job No", "Job Date", "Customer", "Customer Mobile", "Customer Email"],
+      };
+    }
     async function loadJobReviews() {
       try {
         var loaded = await Promise.all([RS.load("reviews_breakdown"), RS.load("calendar_events_link")]);
@@ -363,6 +402,25 @@ registerPage({ id: "review-settings", group: "reviews", title: "Settings",
         RRP.revErr = null;
       } catch (e) { if (!RRP.revIdx) RRP.revIdx = null; RRP.revErr = String(e && e.message || e); }
       return RRP.revIdx;
+    }
+    // Contact index for the follow-up list, keyed by BOTH the calendar job code and the
+    // request # — the relay logs whichever the calendar carried, and a Request # can
+    // itself be a job code. Never blocks the page: no contacts just means no phone column.
+    async function loadContacts() {
+      if (RRP.contactIdx) return RRP.contactIdx;
+      try {
+        var rows = await RS.load("recent_job_contact");
+        var ix = {};
+        (rows || []).forEach(function (r) {
+          var rec = { name: r["Customer"] || "", mobile: r["Customer Mobile"] || "", email: r["Customer Email"] || "" };
+          if (!rec.mobile && !rec.email && !rec.name) return;
+          var a = jobKey(r["Job Code"]), b = jobKey(r["Job No"]);
+          if (a && !ix[a]) ix[a] = rec;
+          if (b && !ix[b]) ix[b] = rec;
+        });
+        RRP.contactIdx = ix;
+      } catch (e) { RRP.contactIdx = {}; }
+      return RRP.contactIdx;
     }
     // review lookup for one bot job key — tries the job code directly (closings sometimes record
     // the code as the Request #), then the calendar-linked request #. ZIP TO ZIP scope only.
@@ -663,6 +721,132 @@ registerPage({ id: "review-settings", group: "reviews", title: "Settings",
         .sort(function (a, b) { return ((a.exp || a.rev) ? 1 : 0) - ((b.exp || b.rev) ? 1 : 0) || String(b.day).localeCompare(a.day); });
       return { jobs: jobs, resp: resp, winDays: Object.keys(win).sort().reverse() };
     }
+    // ---------- ANSWER STATISTICS (N3/N4/N5) ----------
+    // ONE answer per job — the latest — which is exactly how the worklist above resolves a
+    // job's explanation. Without this a job answered twice (Misho's LD18-0130 was) counts
+    // its reason twice and quietly inflates whatever it was answered with.
+    function answerRows() {
+      var resp = (RRP.data && RRP.data.responses) || [];
+      var days = RRP.raPeriod == null ? 30 : RRP.raPeriod;
+      var cut = "";
+      if (days) { var d = new Date(); d.setDate(d.getDate() - days); cut = etDayKey(d.toISOString()); }
+      var latest = {};
+      resp.forEach(function (r) {
+        var dk = etDayKey(r.ts);
+        if (cut && dk && dk < cut) return;
+        var k = jobKey(r.job) || ("ts:" + r.ts);
+        if (!latest[k] || String(r.ts) > String(latest[k].ts)) latest[k] = r;
+      });
+      return Object.keys(latest).map(function (k) { return latest[k]; });
+    }
+    function periodLabel() {
+      var d = RRP.raPeriod == null ? 30 : RRP.raPeriod;
+      return d ? "last " + d + " days" : "all time";
+    }
+    function periodBar() {
+      var cur = RRP.raPeriod == null ? 30 : RRP.raPeriod;
+      return '<div class="rrp-seg ra-seg">' + [[7, "7 days"], [30, "30 days"], [0, "All time"]].map(function (o) {
+        return '<button class="' + (cur === o[0] ? "on" : "") + '" data-rap="' + o[0] + '">' + o[1] + "</button>";
+      }).join("") + "</div>";
+    }
+    function reasonBars(fr) {
+      var max = fr[0] ? fr[0].n : 1, tot = fr.reduce(function (a, f) { return a + f.n; }, 0);
+      return '<div class="rrp-bars">' + fr.map(function (f) {
+        return '<div class="rrp-bar" title="' + esc(f.k) + '"><span>' + esc(f.k) + '</span><span class="track"><i style="width:'
+          + (f.n / max * 100).toFixed(0) + '%"></i></span><b>' + f.n + '</b><em class="ra-pct">'
+          + (tot ? Math.round(f.n / tot * 100) : 0) + "%</em></div>";
+      }).join("") + "</div>";
+    }
+    function statsByForeman(rows) {
+      var by = {};
+      rows.forEach(function (r) {
+        var f = String(r.foreman || "").trim() || "—";
+        var o = by[f] || (by[f] = { f: f, n: 0, reasons: {} });
+        o.n++;
+        var k = r.reason || "—"; o.reasons[k] = (o.reasons[k] || 0) + 1;
+      });
+      return Object.keys(by).map(function (k) {
+        var o = by[k];
+        o.top = Object.keys(o.reasons).sort(function (a, b) { return o.reasons[b] - o.reasons[a]; })[0] || "—";
+        return o;
+      }).sort(function (a, b) { return b.n - a.n || a.f.localeCompare(b.f); });
+    }
+    // N3: the per-foreman table. Rows are clickable — that's N4.
+    function foremanCard(rows, per) {
+      var st = statsByForeman(rows), sel = RRP.raForeman || "";
+      var body = st.length ? st.map(function (o) {
+        return '<tr class="ra-frow' + (o.f === sel ? " on" : "") + '" data-raf="' + esc(o.f) + '">'
+          + "<td>" + esc(o.f) + '</td><td class="r"><b>' + o.n + "</b></td><td>" + esc(o.top)
+          + '</td><td class="r ra-chev">' + (o.f === sel ? "▾" : "›") + "</td></tr>";
+      }).join("") : '<tr><td colspan="4" class="ra-none">No answers in this period.</td></tr>';
+      return '<div class="rrp-card" style="padding:0"><div class="ra-cardhd pad"><h4>By foreman</h4>'
+        + '<span class="ra-sub">' + N(st.length) + " foreman" + (st.length === 1 ? "" : "en") + " · " + esc(per) + "</span></div>"
+        + '<div style="overflow-x:auto"><table class="rrp-reasontbl ra-ftbl"><thead><tr><th>Foreman</th>'
+        + '<th style="text-align:right">Answers</th><th>Most common reason</th><th></th></tr></thead><tbody>'
+        + body + "</tbody></table></div>"
+        + '<div class="ra-hint">Click a foreman to see his own breakdown.</div></div>';
+    }
+    // N4: the drill-down for the selected foreman — his reason mix + the jobs behind it.
+    function foremanDrill(rows) {
+      var sel = RRP.raForeman; if (!sel) return "";
+      var mine = rows.filter(function (r) { return (String(r.foreman || "").trim() || "—") === sel; });
+      var freq = {}; mine.forEach(function (r) { var k = r.reason || "—"; freq[k] = (freq[k] || 0) + 1; });
+      var fr = Object.keys(freq).map(function (k) { return { k: k, n: freq[k] }; }).sort(function (a, b) { return b.n - a.n; });
+      var jobs = mine.slice().sort(function (a, b) { return String(b.ts).localeCompare(String(a.ts)); }).map(function (r) {
+        return "<tr><td>" + esc(etDay(r.ts) || "—") + "</td><td>" + esc(r.job || "—") + "</td><td>" + esc(r.reason || "—")
+          + '</td><td class="ra-note">' + esc(cleanNote(r.note) || "—") + "</td></tr>";
+      }).join("");
+      return '<div class="rrp-card ra-drill"><div class="ra-cardhd pad"><h4>' + esc(sel) + " — " + N(mine.length)
+        + " answer" + (mine.length === 1 ? "" : "s") + " · " + esc(periodLabel()) + "</h4>"
+        + '<button class="ra-close" id="raClose">✕ Close</button></div>'
+        + '<div class="ra-drillgrid"><div class="ra-drillbars">' + reasonBars(fr) + "</div>"
+        + '<div style="overflow-x:auto"><table class="rrp-reasontbl"><thead><tr><th>Answered</th><th>Job</th><th>Reason</th><th>Note</th></tr></thead><tbody>'
+        + jobs + "</tbody></table></div></div></div>";
+    }
+    // the relay appends provenance to the note ("… — via portal (quality@…)"); useful in the
+    // raw sheet, noise in a table that already has its own columns.
+    function cleanNote(s) { return String(s == null ? "" : s).replace(/\s*—?\s*via portal\s*(\([^)]*\))?\s*$/i, "").trim(); }
+    // N5: "the customer promised to write later" is a warm review, not a dead end — it only
+    // pays off if somebody calls them back, so this list carries the phone/email.
+    function promisedCard() {
+      var resp = (RRP.data && RRP.data.responses) || [];
+      var latest = {};
+      resp.forEach(function (r) {
+        var k = jobKey(r.job) || ("ts:" + r.ts);
+        if (!latest[k] || String(r.ts) > String(latest[k].ts)) latest[k] = r;
+      });
+      var ix = RRP.contactIdx || {};
+      var rows = Object.keys(latest).map(function (k) { return latest[k]; })
+        .filter(function (r) { return /promised to write/i.test(String(r.reason || "")); })
+        .map(function (r) {
+          var k = jobKey(r.job), c = (k && ix[k]) || null, rv = reviewFor(k);
+          var when = new Date(r.ts);
+          var age = isNaN(when) ? null : Math.floor((Date.now() - when.getTime()) / 86400000);
+          return { r: r, c: c, rev: rv, age: age };
+        })
+        .sort(function (a, b) { return (b.age || 0) - (a.age || 0); });
+      var landed = rows.filter(function (x) { return x.rev; }).length;
+      var body = rows.length ? rows.map(function (x) {
+        var c = x.c || {}, tel = String(c.mobile || "").trim(), mail = String(c.email || "").trim();
+        var contact = [
+          tel ? '<a href="tel:' + esc(tel.replace(/[^0-9+]/g, "")) + '">' + esc(tel) + "</a>" : "",
+          mail ? '<a href="mailto:' + esc(mail) + '">' + esc(mail) + "</a>" : "",
+        ].filter(Boolean).join('<span class="ra-dot">·</span>') || '<span class="ra-none-i">no contact on file</span>';
+        return '<tr' + (x.rev ? ' class="ra-done"' : "") + "><td>" + esc(etDay(x.r.ts) || "—")
+          + '</td><td class="r">' + (x.age == null ? "—" : x.age + "d") + "</td><td>" + esc(x.r.job || "—")
+          + "</td><td>" + esc(c.name || "—") + "</td><td>" + contact + "</td><td>" + esc(x.r.foreman || "—")
+          + "</td><td>" + (x.rev ? '<span class="pill s-sent">★ Review landed</span>' : '<span class="pill s-wait">Still waiting</span>') + "</td></tr>";
+      }).join("") : '<tr><td colspan="7" class="ra-none">Nobody has promised a review yet.</td></tr>';
+      return '<div class="rrp-card" style="padding:0;margin-top:12px"><div class="ra-cardhd pad">'
+        + "<h4>Promised a review — follow up</h4>"
+        + '<span class="ra-sub">' + N(rows.length) + " customer" + (rows.length === 1 ? "" : "s")
+        + (landed ? " · " + N(landed) + " already landed" : "") + " · all time</span></div>"
+        + '<div style="overflow-x:auto"><table class="rrp-reasontbl"><thead><tr><th>Promised</th>'
+        + '<th style="text-align:right">Age</th><th>Job</th><th>Customer</th><th>Contact</th><th>Foreman</th><th>Status</th>'
+        + "</tr></thead><tbody>" + body + "</tbody></table></div>"
+        + '<div class="ra-hint">Oldest first — these customers said yes, they just need reminding.</div></div>';
+    }
+
     function viewResponse() {
       var m = responseModel(), jobs = m.jobs;
       var total = jobs.length, expd = jobs.filter(function (j) { return j.exp; }).length;
@@ -680,12 +864,18 @@ registerPage({ id: "review-settings", group: "reviews", title: "Settings",
         + '<div class="rrp-kpi good"><b>' + N(expd) + '</b><span>Explained</span><small>foreman told us why</small></div>'
         + '<div class="rrp-kpi warn"><b>' + N(waiting) + '</b><span>Waiting</span><small>no review, no reason</small></div>'
         + '<div class="rrp-kpi"><b>' + cov + '%</b><span>Response rate</span><small>reviewed + explained ÷ recent</small></div></div>';
-      // reason distribution (from all responses)
-      var freq = {}; m.resp.forEach(function (r) { var k = r.reason || "—"; freq[k] = (freq[k] || 0) + 1; });
+      // ---- answer statistics (N3/N4, quality team via Tornike 2026-07-20) ----
+      // Two bugs fixed here at the same time: these bars used to count ALL-TIME answers
+      // while the KPIs above them covered 7 days (unlabelled), and they double-counted a
+      // job answered twice. Now the period is explicit and picked by the user, and
+      // answerRows() keeps one answer per job.
+      var arows = answerRows(), aPer = periodLabel();
+      var freq = {}; arows.forEach(function (r) { var k = r.reason || "—"; freq[k] = (freq[k] || 0) + 1; });
       var fr = Object.keys(freq).map(function (k) { return { k: k, n: freq[k] }; }).sort(function (a, b) { return b.n - a.n; });
-      var fmax = fr[0] ? fr[0].n : 1;
-      var bars = fr.length ? '<div class="rrp-card" style="padding:14px 16px"><h4 style="margin:0 0 10px;font-size:13px;font-weight:800">Reason breakdown</h4><div class="rrp-bars">'
-        + fr.map(function (f) { return '<div class="rrp-bar"><span>' + esc(f.k) + '</span><span class="track"><i style="width:' + (f.n / fmax * 100).toFixed(0) + '%"></i></span><b>' + f.n + "</b></div>"; }).join("") + "</div></div>" : "";
+      var bars = '<div class="rrp-card" style="padding:14px 16px"><div class="ra-cardhd"><h4>Why reviews are missing</h4>'
+        + '<span class="ra-sub">' + N(arows.length) + " answer" + (arows.length === 1 ? "" : "s") + " · " + esc(aPer) + "</span></div>"
+        + (fr.length ? reasonBars(fr) : '<div class="ra-none">No answers in this period.</div>') + "</div>";
+      var fmTbl = foremanCard(arows, aPer);
       // by-day response rate (reviewed OR explained both count as answered)
       var dayRows = m.winDays.map(function (dk) {
         var day = jobs.filter(function (j) { return j.day === dk; });
@@ -718,10 +908,28 @@ registerPage({ id: "review-settings", group: "reviews", title: "Settings",
         + (work || '<tr><td colspan="5" style="color:var(--faint);padding:14px">No jobs in the last 7 days. As the bot sends nudges, they land here.</td></tr>') + "</tbody></table></div></div>" + revNote;
       // stash the model + reason list for wireResponse
       RRP._rm = { jobs: jobs, reasons: reasons };
-      return freshBar() + kp + '<div class="rrp-rgrid">' + bars + dayTbl + "</div>" + workTbl;
+      return freshBar() + kp
+        + '<div class="ra-sechd"><h3>Answer statistics</h3>' + periodBar() + "</div>"
+        + '<div class="rrp-rgrid">' + bars + fmTbl + "</div>"
+        + foremanDrill(arows)
+        + promisedCard()
+        + dayTbl + workTbl;
     }
     // POST a reason for a recent job, honestly (awaited bridge write, real error), then refresh.
     function wireResponse() {
+      // answer-statistics controls: period toggle + foreman drill-down (click again to close)
+      Array.prototype.forEach.call(root.querySelectorAll("[data-rap]"), function (b) {
+        b.onclick = function () { RRP.raPeriod = +b.getAttribute("data-rap"); paint(); };
+      });
+      Array.prototype.forEach.call(root.querySelectorAll("[data-raf]"), function (t) {
+        t.onclick = function () {
+          var f = t.getAttribute("data-raf");
+          RRP.raForeman = (RRP.raForeman === f) ? null : f;
+          paint();
+          if (RRP.raForeman) { var d = root.querySelector(".ra-drill"); if (d && d.scrollIntoView) d.scrollIntoView({ block: "nearest", behavior: "smooth" }); }
+        };
+      });
+      var rc = root.querySelector("#raClose"); if (rc) rc.onclick = function () { RRP.raForeman = null; paint(); };
       var rm = RRP._rm; if (!rm) return;
       Array.prototype.forEach.call(root.querySelectorAll("[data-exi]"), function (b) {
         b.onclick = function () {
@@ -1072,7 +1280,9 @@ registerPage({ id: "review-settings", group: "reviews", title: "Settings",
         if (RRP.view === "links") await loadGoals();
         // response view: the warehouse review match loads IN PARALLEL with the relay feed —
         // neither blocks the other, and paint() below shows both together.
-        await Promise.all([ensureData(false), RRP.view === "response" ? loadJobReviews() : Promise.resolve()]);
+        await Promise.all([ensureData(false),
+          RRP.view === "response" ? loadJobReviews() : Promise.resolve(),
+          RRP.view === "response" ? loadContacts() : Promise.resolve()]);
         if (RRP.view === "links") await loadGoals();
       } catch (e) {}
       RRP.loading = false; RRP.fromCache = false;
