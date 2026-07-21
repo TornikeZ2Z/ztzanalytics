@@ -83,7 +83,7 @@ registerPage({
         .mf-tbl.fx.det{min-width:1520px}
         /* every row the SAME height — a "No Contract" pill used to make its row shorter
            than the button rows (his catch 2026-07-22) */
-        .mf-tbl.fx tbody tr{height:52px}
+        .mf-tbl.fx tbody tr{height:56px}
         .mf-fmmeta{font-size:12px;font-weight:600;color:var(--faint);margin-left:10px}
         .mf-tbl td.ck{padding:0 0 0 12px;overflow:visible;text-overflow:clip}
         .mf-tbl td.ck input{margin:0;width:15px;height:15px;cursor:pointer}
@@ -503,10 +503,10 @@ registerPage({
       // `before` / `after` = how many columns sit either side of Net Cash Balance, so a
       // foreman's TOTAL can be placed in exactly that column.
       var PLAN = det ? {
-        cols: '<col style="width:2.5%"><col style="width:7%"><col style="width:5%"><col style="width:10.5%">'
+        cols: '<col style="width:2.5%"><col style="width:7%"><col style="width:5%"><col style="width:8.5%">'
             + '<col style="width:6.5%"><col style="width:8%"><col style="width:8.5%"><col style="width:7.5%">'
-            + '<col style="width:8.5%"><col style="width:9%"><col style="width:5.5%"><col style="width:5.5%">'
-            + '<col style="width:7%"><col style="width:9%">',
+            + '<col style="width:8.5%"><col style="width:8.5%"><col style="width:5.5%"><col style="width:5.5%">'
+            + '<col style="width:8%"><col style="width:10.5%">',
         head: "<th></th><th>Job date</th><th>Job #</th><th>Customer</th>"
             + '<th class="r">Net Cash</th><th class="r">Advance Payment</th>'
             + '<th class="r">Forman Deduction</th><th class="r">Net Cash Flow</th>'
