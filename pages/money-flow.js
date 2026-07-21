@@ -515,10 +515,15 @@ registerPage({
       }
 
       // repainting replaces the whole table — without restoring the scroll, expanding a
-      // foreman far down the list snapped the page back to the top (his catch 2026-07-21)
+      // foreman far down the list snapped back to the top (his catch 2026-07-21). The
+      // vertical scroller is the TABLE WRAP (.mf-wrap), not the window — restore both.
       var sx = window.scrollX, sy = window.scrollY;
+      var wrap0 = document.querySelector("#mfBody .mf-wrap");
+      var wt = wrap0 ? wrap0.scrollTop : 0, wl = wrap0 ? wrap0.scrollLeft : 0;
       document.getElementById("mfBody").innerHTML = kp + bar + content;
       wire();
+      var wrap1 = document.querySelector("#mfBody .mf-wrap");
+      if (wrap1) { wrap1.scrollTop = wt; wrap1.scrollLeft = wl; }
       window.scrollTo(sx, sy);
     }
 

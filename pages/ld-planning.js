@@ -302,10 +302,15 @@ registerPage({
             : "Click a row for the full details. Sorted by urgency: overdue first, then open windows by days left.")
         + " Data refreshes with the pipeline (~6h).</div></div>";
 
-      // keep the scroll position — a repaint used to snap the page back to the top
+      // keep the scroll position — a repaint used to snap back to the top; the vertical
+      // scroller is the table wrap (.ldp-wrap), not the window — restore both
       var sx = window.scrollX, sy = window.scrollY;
+      var wrap0 = document.querySelector("#ldpBody .ldp-wrap");
+      var wt = wrap0 ? wrap0.scrollTop : 0, wl = wrap0 ? wrap0.scrollLeft : 0;
       document.getElementById("ldpBody").innerHTML = kp + bar + tbl;
       wire();
+      var wrap1 = document.querySelector("#ldpBody .ldp-wrap");
+      if (wrap1) { wrap1.scrollTop = wt; wrap1.scrollLeft = wl; }
       window.scrollTo(sx, sy);
     }
 
