@@ -84,6 +84,69 @@ registerPage({
     try { rows = await RS.load("fct_ld_planning"); }
     catch (e) { document.getElementById("ldpBody").innerHTML = '<div class="rs-loading">Couldn’t load — ' + esc(e.message) + "</div>"; return; }
 
+    // ---- the PORTAL's manual planning fields (trip days / final FAD / final CF) ----
+    // The portal is the source of truth for these (his call 2026-07-21). The pipeline
+    // bakes current entries into fct_ld_planning every ~6h; this live overlay applies
+    // anything entered SINCE, so a save shows its effect immediately.
+    var LDP_ENT = {};
+    async function loadEntries() {
+      try {
+        var j = await fetch(ZTZ.API + "/api/_ldp", { headers: { "Authorization": "Bearer " + ZTZ.getToken() } }).then(function (r) { return r.json(); });
+        LDP_ENT = {};
+        (j.entries || []).forEach(function (e) {
+          (LDP_ENT[e.company + "|" + e.request_no] = LDP_ENT[e.company + "|" + e.request_no] || {})[e.field] = e;
+        });
+      } catch (e) {}
+    }
+    function daysBetween2(a, b) { return Math.round((new Date(b + "T12:00:00") - new Date(a + "T12:00:00")) / 864e5); }
+    function isoAdd(iso, n) { var d = new Date(iso + "T12:00:00"); d.setDate(d.getDate() + n); return d.toLocaleDateString("en-CA"); }
+    function fmtShort(iso) { var d = new Date(String(iso).slice(0, 10) + "T12:00:00"); return d.toLocaleDateString("en-US", { month: "short", day: "numeric" }); }
+    function overlaid() {
+      var t = new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+      return rows.map(function (b) {
+        var co = String(b["Company"] || ""), rq = String(b["Request #"] || "");
+        var en = LDP_ENT[co + "|" + rq] || {};
+        var r = Object.assign({}, b); r._ent = en; r._co = co; r._rq = rq;
+        if (!en.trip_days && !en.final_fad && !en.final_cf) return r;  // pipeline is current
+        // recompute with the SAME rules as the pipeline's _plan (src/ld_planning.py)
+        if (en.final_fad && en.final_fad.value) {
+          r["FAD"] = en.final_fad.value; r["FAD Source"] = "portal";
+          var note = String(r["Window Note"] || "");
+          var m = note.match(/^(\d+) (business )?days/);
+          if (note === "same day") r["Window End"] = r["FAD"];
+          else if (m) r["Window End"] = isoAdd(r["FAD"], m[2] ? Math.ceil(+m[1] * 7 / 5) : +m[1]);
+        }
+        if (en.trip_days && en.trip_days.value) r["Trip Days"] = +en.trip_days.value;
+        if (en.final_cf && en.final_cf.value) r["CF"] = +en.final_cf.value;
+        var fad = r["FAD"] ? String(r["FAD"]).slice(0, 10) : null;
+        var end = r["Window End"] ? String(r["Window End"]).slice(0, 10) : null;
+        var deadline = r["Type"] === "Straight" ? fad : end;
+        var trip = r["Trip Days"] != null ? +r["Trip Days"] : 1;
+        r["Depart By"] = deadline ? isoAdd(deadline, -trip) : null;
+        var dd = deadline ? daysBetween2(t, deadline) : null;
+        var dp = r["Depart By"] ? daysBetween2(t, r["Depart By"]) : null;
+        var urg, why;
+        if (!fad && !end) { urg = "Missing data"; why = "no delivery window"; }
+        else if (dd != null && dd < 0) { urg = "Act now"; why = r["Type"] === "Straight" ? "delivery date passed" : "delivery window expired"; }
+        else if (dp != null && dp <= 0) { urg = "Act now"; why = "departure date passed"; }
+        else if (dp != null && dp <= 2) { urg = "Act soon"; why = "depart within " + dp + "d"; }
+        else if (fad && daysBetween2(t, fad) <= 0) { urg = "Act soon"; why = "window is open"; }
+        else { urg = "On track"; why = null; }
+        r["Urgency"] = urg; r["Urgency Reason"] = why;
+        var doTxt;
+        if (r["Location"] === "At Carrier") doTxt = "Mark Delivered in the sheet — carrier already has it";
+        else if (r["CF"] != null && +r["CF"] > 1500) doTxt = "Too big for one truck (" + Number(r["CF"]).toLocaleString() + " CF) — assign a carrier";
+        else if (urg === "Act now" && dd != null && dd < 0) doTxt = "OVERDUE — call the customer, deliver ASAP (" + (-dd) + "d late)";
+        else if (urg === "Act now") doTxt = deadline ? "Start moving now — deliver by " + fmtShort(deadline) : "Start moving now";
+        else if (urg === "Act soon" && r["Depart By"]) doTxt = "Plan departure by " + fmtShort(r["Depart By"]) + (String(r["Location"]).indexOf("Storage") >= 0 ? " — pull from storage first" : "");
+        else if (urg === "Missing data") doTxt = "Fill FAD / timeframe in the calendar, or set Final FAD here";
+        else if (r["Depart By"]) doTxt = "On track — truck departs by " + fmtShort(r["Depart By"]);
+        else doTxt = "On track";
+        r["Do"] = doTxt;
+        return r;
+      });
+    }
+
     function fmtD(v) {
       if (!v) return "—";
       var d = new Date(String(v).slice(0, 10) + "T12:00:00");
@@ -122,8 +185,9 @@ registerPage({
     }
 
     function paint() {
-      var live = rows.filter(function (r) { return !r["Data Issue"]; });
-      var fix = rows.filter(function (r) { return r["Data Issue"]; });
+      var all = overlaid();
+      var live = all.filter(function (r) { return !r["Data Issue"]; });
+      var fix = all.filter(function (r) { return r["Data Issue"]; });
       var actNow = live.filter(function (r) { return r["Urgency"] === "Act now"; }).length;
       var actSoon = live.filter(function (r) { return r["Urgency"] === "Act soon"; }).length;
       var noWin = live.filter(function (r) { return r["Urgency"] === "Missing data"; }).length;
@@ -162,7 +226,7 @@ registerPage({
       });
 
       var cos = {}; var locs = {};
-      rows.forEach(function (r) { cos[r["Company"]] = 1; locs[r["Location"]] = 1; });
+      all.forEach(function (r) { cos[r["Company"]] = 1; locs[r["Location"]] = 1; });
       var segBtn = function (id, label, n) {
         return '<button class="' + (S.view === id ? "on" : "") + '" data-ldv="' + id + '">' + label + "<i>" + n + "</i></button>";
       };
@@ -207,6 +271,18 @@ registerPage({
             + " &nbsp; <b>Depart by:</b> " + fmtD(r["Depart By"]) + (r["Trip Days"] != null ? " (" + r["Trip Days"] + "d trip)" : " (trip days not set)")
             + " &nbsp; <b>Sticker:</b> " + esc(r["Sticker"] || "—")
             + (r["Do"] ? "<br><b>Do:</b> " + esc(r["Do"]) : "")
+            // the PORTAL's manual planning fields — editable right here, saved with history
+            + '<div style="margin-top:10px;display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end" data-ldpform="1" data-co="' + esc(r._co) + '" data-req="' + esc(r._rq) + '">'
+            + '<label style="font-size:11px;font-weight:800;color:var(--faint)">TRIP DAYS<br><input type="number" min="1" max="60" data-ldf="trip_days" value="' + esc(r._ent.trip_days && r._ent.trip_days.value || "") + '" style="width:80px;font:inherit;padding:6px 8px;border:1px solid var(--line-2);border-radius:8px;background:var(--panel);color:var(--ink)"></label>'
+            + '<label style="font-size:11px;font-weight:800;color:var(--faint)">FINAL FAD<br><input type="date" data-ldf="final_fad" value="' + esc(r._ent.final_fad && r._ent.final_fad.value || "") + '" style="font:inherit;padding:6px 8px;border:1px solid var(--line-2);border-radius:8px;background:var(--panel);color:var(--ink)"></label>'
+            + '<label style="font-size:11px;font-weight:800;color:var(--faint)">FINAL CF<br><input type="number" min="1" max="20000" data-ldf="final_cf" value="' + esc(r._ent.final_cf && r._ent.final_cf.value || "") + '" style="width:100px;font:inherit;padding:6px 8px;border:1px solid var(--line-2);border-radius:8px;background:var(--panel);color:var(--ink)"></label>'
+            + '<button class="ldp-savebtn" style="font:inherit;font-weight:800;font-size:12.5px;padding:8px 16px;border:0;border-radius:9px;background:var(--brand);color:var(--brand-ink);cursor:pointer">Save</button>'
+            + '<span class="ldp-saveinfo ldp-det">' + (function () {
+                var last = ["trip_days", "final_fad", "final_cf"].map(function (f) { return r._ent[f]; }).filter(Boolean)
+                  .sort(function (a, b) { return String(b.at || "").localeCompare(String(a.at || "")); })[0];
+                return last ? "last set by " + esc(String(last.by || "").split("@")[0].replace("import:ld-sheet", "old sheet import")) + " · " + esc(String(last.at || "").slice(0, 16)) : "not set yet";
+              })() + "</span>"
+            + "</div>"
             + (r["Balance Due"] != null ? " &nbsp; <b>Balance due:</b> $" + Number(r["Balance Due"]).toLocaleString() : "")
             + (r["CF"] != null ? " &nbsp; <b>CF:</b> " + Number(r["CF"]).toLocaleString() : "")
             + " &nbsp; <b>Sheet row:</b> " + esc(r["Sheet Row"] || "—")
@@ -244,8 +320,44 @@ registerPage({
           S.open[k] = !S.open[k]; paint();
         };
       });
+      // the manual-fields form: Save posts ONLY what changed, each change keeps history
+      Array.prototype.forEach.call(host.querySelectorAll("[data-ldpform]"), function (box) {
+        box.onclick = function (e) { e.stopPropagation(); };
+        var btn = box.querySelector(".ldp-savebtn");
+        if (!btn) return;
+        btn.onclick = async function () {
+          var co = box.getAttribute("data-co"), rq = box.getAttribute("data-req");
+          var en = LDP_ENT[co + "|" + rq] || {};
+          var posts = [];
+          Array.prototype.forEach.call(box.querySelectorAll("[data-ldf]"), function (inp) {
+            var f = inp.getAttribute("data-ldf");
+            var cur = en[f] && en[f].value != null ? String(en[f].value) : "";
+            var val = String(inp.value || "").trim();
+            if (val !== cur) posts.push({ field: f, value: val === "" ? null : val });
+          });
+          if (!posts.length) return;
+          btn.disabled = true; btn.textContent = "Saving…";
+          var info = box.querySelector(".ldp-saveinfo");
+          try {
+            for (var i = 0; i < posts.length; i++) {
+              var res = await fetch(ZTZ.API + "/api/_ldp", {
+                method: "POST",
+                headers: { "Content-Type": "application/json", "Authorization": "Bearer " + ZTZ.getToken() },
+                body: JSON.stringify({ company: co, request_no: rq, field: posts[i].field, value: posts[i].value }),
+              });
+              var j = await res.json().catch(function () { return {}; });
+              if (!res.ok || !j.ok) throw new Error(j.error || ("HTTP " + res.status));
+            }
+            await loadEntries(); paint();
+          } catch (err) {
+            btn.disabled = false; btn.textContent = "Save";
+            if (info) info.textContent = "couldn’t save: " + String(err && err.message || err);
+          }
+        };
+      });
     }
 
+    await loadEntries();
     paint();
   },
 });
