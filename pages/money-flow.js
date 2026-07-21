@@ -308,11 +308,12 @@ registerPage({
         } else {
           action = '<button class="mf-confirm" data-mfc="' + esc(r.ev) + '">Confirm ' + money(settle(r).type === "Cash Taken Away from Base" ? -settle(r).amount : settle(r).amount) + "</button>";
         }
-        // column names = the ORIGINAL system's headers (Net Cash / Advance Payment /
-        // Net Cash Flow / Forman Deduction / Net Cash Balance) — users already know them
-        var handed = S.view === "done"
-          ? '<td class="r">' + money(r.flow) + "</td>" : "";
-        var subTime = S.view === "done" ? "<td>" + fmtTs(r.flowTs) + "</td>" : "";
+        // column names AND order = the ORIGINAL system's (Net Cash / Advance Payment /
+        // Net Cash Flow / Forman Deduction / Net Cash Balance / Submission Time) — users
+        // already know them, and Net Cash Flow sits BEFORE the balance on BOTH views so
+        // anyone can feel how the balance is calculated (his ask 2026-07-21)
+        var handed = '<td class="r">' + money(r.flow) + "</td>";
+        var subTime = "<td>" + fmtTs(r.flowTs) + "</td>";
         var doc = r.contractUrl
           ? '<a class="mf-doc" href="' + esc(r.contractUrl) + '" target="_blank" rel="noopener" title="Open the contract file">Open ↗</a>'
           : '<span style="color:var(--faint)">—</span>';
@@ -332,15 +333,15 @@ registerPage({
       }).join("");
 
       var veil = S.busy ? '<div class="mf-veil"><div class="mf-spin"></div>Updating…</div>' : "";
-      var cols = S.view === "done" ? 12 : 10;
+      var cols = 12;
       var tbl = '<div class="mf-card">' + veil + '<div class="mf-wrap"><table class="mf-tbl"><thead><tr>'
         + '<th data-mfs="Job Date">Job date' + arrow("Job Date") + "</th><th>Job #</th><th>Customer</th><th>Foreman</th>"
         + '<th class="r" data-mfs="Expected">Net Cash' + arrow("Expected") + "</th>"
         + '<th class="r">Advance Payment</th>'
-        + (S.view === "done" ? '<th class="r">Net Cash Flow</th>' : "")
+        + '<th class="r">Net Cash Flow</th>'
         + '<th class="r">Forman Deduction</th>'
         + '<th class="r" data-mfs="Balance">Net Cash Balance' + arrow("Balance") + "</th>"
-        + (S.view === "done" ? "<th>Submission Time</th>" : "")
+        + "<th>Submission Time</th>"
         + "<th>Contract</th><th></th>"
         + "</tr></thead><tbody>"
         + (body || '<tr><td colspan="' + cols + '" style="color:var(--faint);padding:18px">' + (S.view === "done" ? "Nothing confirmed yet." : "Nothing waiting — all cash is confirmed. 🎉") + "</td></tr>")
