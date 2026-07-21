@@ -192,7 +192,7 @@ registerPage({
       var jt = String(r.jobType || "");
       if (r.baseStatus === "Filter Out" || jt === "Box Delivery" || jt === "In-Home Estimate"
           || jt === "Cancelled" || jt === "On Hold" || !String(r.jobNo || "").trim()
-          || /cancel/i.test(String(r.title || ""))) return "Filter Out";
+          || /cancel|cancl|canel|o[n]?[ -]?hold/i.test(String(r.title || ""))) return "Filter Out";
       if (r.date > todayIso) return "Job is in the Future";
       if (r.baseStatus === "Tracked on Sibling Event" && r.expected == null) return "Tracked on Sibling Event";
       if (r.expected == null) return "Contract Not Received";
