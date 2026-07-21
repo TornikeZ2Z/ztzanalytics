@@ -179,10 +179,15 @@ registerPage({
     var todayIso = new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
 
     // ---------- live overlay (same rules as src/money_flow.py) ----------
+    // MEMOIZED (2026-07-21): recomputing 3.5k rows' statuses on EVERY repaint cost ~1s —
+    // ticks, expands and the post-save update all felt heavy. The result only changes
+    // when the DATA changes (loadLive / patchLive), so those two invalidate the cache.
+    var _ov = null;
     function overlaid() {
+      if (_ov) return _ov;
       var liveByEv = {};
       if (S.live) S.live.rows.forEach(function (r) { liveByEv[r.ev] = r; });
-      return base.map(function (b) {
+      _ov = base.map(function (b) {
         var ev = b["Event ID"], lv = liveByEv[ev];
         var r = {
           ev: ev, date: String(b["Job Date"]).slice(0, 10), title: b["Event Title"],
@@ -217,6 +222,7 @@ registerPage({
         r.status = computeStatus(r);
         return r;
       });
+      return _ov;
     }
     function computeStatus(r) {
       // Job Type in the table is now the LITERAL replica of the old workbook's formula
@@ -270,6 +276,7 @@ registerPage({
       if (S.live.entries) S.live.entries.push({ event_id: evId, type: type, amount: amount,
         at: nowTs, by: "you", note: "", current: 1 });
       indexEntries();
+      _ov = null;   // data changed — recompute the overlay on the next paint
     }
 
     async function loadLive(fresh) {
@@ -278,6 +285,7 @@ registerPage({
           { headers: { "Authorization": "Bearer " + ZTZ.getToken() } });
         if (!r.ok) throw new Error("HTTP " + r.status);
         S.live = await r.json(); S.liveOk = true; indexEntries();
+        _ov = null;   // data changed — recompute the overlay on the next paint
       } catch (e) { S.liveOk = false; S.liveErr = String(e && e.message || e); }
     }
 
