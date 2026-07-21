@@ -23,7 +23,8 @@
         "Review Breakdown", "Eligible", "Support Intervention", "Support Intervention Reason",
         // Date/Type/Notes ADDED 2026-07-16 for the new Support Interventions list (their consumer)
         "Support Intervention Date", "Support Intervention Type", "Support Notes",
-        "Review Expected", "Exclusion Reason", "Foreman Response Received", "Foreman Reason",
+        "Review Expected", "Exclusion Reason", "Closing Filed",
+        "Foreman Response Received", "Foreman Reason",
         "Foreman Explanation", "Final Status", "Event ID",
       ],
     };
@@ -305,23 +306,17 @@ registerPage({
       var pend;
       try { pend = await RS.load("jobs_pending_closing"); } catch (e) { return; }
       el = document.getElementById("rpPending"); if (!el || !pend || !pend.length) return;
-      var awaiting = pend.filter(function (r) { return String(r.Status) === "Awaiting filing"; });
+      // Since 2026-07-21 unfiled recent moves ARE in the report (foreman comes from the
+      // calendar; money columns wait for the closing) — so no more "not in this report yet"
+      // for fresh paperwork. The banner now only chases genuinely NEVER-filed jobs.
       var never = pend.filter(function (r) { return String(r.Status) === "Never filed"; });
       var recentNever = never.filter(function (r) { return (+r["Days Old"] || 0) <= 90; });
-      if (!awaiting.length && !recentNever.length) return;
-      var byDay = {}; awaiting.forEach(function (r) { var d = String(r["Job Date"]).slice(0, 10); byDay[d] = (byDay[d] || 0) + 1; });
-      var days = Object.keys(byDay).sort().reverse();
-      var dayTxt = days.map(function (d) {
-        var dt = new Date(d + "T12:00:00");
-        var lbl = isNaN(dt) ? d : dt.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
-        return "<b>" + esc(lbl) + "</b> (" + byDay[d] + " job" + (byDay[d] === 1 ? "" : "s") + ")";
-      }).join(", ");
+      if (!recentNever.length) return;
       var parts = [];
-      if (awaiting.length) parts.push("Not in this report yet: " + dayTxt
-        + " — the jobs are on the calendar, their closing sheets just aren’t filed.");
-      if (recentNever.length) parts.push("<b>" + recentNever.length + "</b> job"
-        + (recentNever.length === 1 ? "" : "s") + " from the last 90 days "
-        + (recentNever.length === 1 ? "has" : "have") + " <b>never</b> been filed and will never appear — worth chasing.");
+      parts.push("<b>" + recentNever.length + "</b> job"
+        + (recentNever.length === 1 ? "" : "s") + " from the last 90 days still "
+        + (recentNever.length === 1 ? "has" : "have") + " <b>no closing sheet</b> — "
+        + "the jobs are counted in the report (foreman from the calendar), but their bills stay empty until the paperwork is filed.");
       el.innerHTML = '<div class="rp-pending">'
         + '<span class="rp-pico">◷</span><div><div class="rp-ptxt">' + parts.join(" ") + "</div>"
         + (recentNever.length ? '<button class="rp-plink" id="rpPendMore">Show the unfiled jobs</button>' : "")
@@ -632,7 +627,7 @@ registerPage({
           <div class="meta"><span>${esc(shortD(String(r["Job Date"] || "").slice(0, 10)))}</span>
             <span>${esc(r["Job Source"] || "—")}</span>
             <span><b>${money(r["Estimate Bill"])}</b> → <b>${money(r["Actual Bill"])}</b>${dpct != null ? ` <span style="color:${dpct > 0 ? "#b45309" : "var(--muted)"}">(${dpct > 0 ? "+" : ""}${dpct}%)</span>` : ""}</span>
-            ${billPill(r["Bill Increase Category"])}</div>
+            ${r["Closing Filed"] === "No" ? '<span style="color:var(--faint);font-size:11px">closing sheet pending</span>' : billPill(r["Bill Increase Category"])}</div>
           ${revHtml}${fexpl}${expl}
           ${canExplain ? `<button type="button" class="rp-exbtn" data-exbtn="${i}">✍ Explain why there's no review</button>` : ""}</div>`;
       }).join("");
