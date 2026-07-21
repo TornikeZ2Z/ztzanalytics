@@ -177,8 +177,10 @@ registerPage({
           baseStatus: b["Status"],
         };
         if (r.expected == null && r.closingNC != null) r.expected = r.closingNC;
+        // advance SUBTRACTS — the original system's sign (cash already taken counts
+        // toward what the foreman owes)
         r.balance = (r.expected == null) ? null
-          : r.expected + (r.adv || 0) - (r.flow || 0) - (r.ded || 0);
+          : r.expected - (r.adv || 0) - (r.flow || 0) - (r.ded || 0);
         r.status = computeStatus(r);
         return r;
       });
@@ -194,7 +196,7 @@ registerPage({
       if (r.date > todayIso) return "Job is in the Future";
       if (r.baseStatus === "Tracked on Sibling Event" && r.expected == null) return "Tracked on Sibling Event";
       if (r.expected == null) return "Contract Not Received";
-      if (r.flow == null && r.expected !== 0) return "Money Not Received";
+      if (r.flow == null && Math.abs(r.balance == null ? 0 : r.balance) > MF_TOL) return "Money Not Received";
       if (Math.abs(r.balance == null ? 0 : r.balance) <= MF_TOL) return "Money Received";
       return "Not in Balance";
     }
@@ -221,7 +223,7 @@ registerPage({
     // (a new record REPLACES the old one — last-record-wins — so this is the full figure)
     function settle(r) {
       if (r.expected == null) return null;
-      var v = Math.round((r.expected + (r.adv || 0) - (r.ded || 0)) * 100) / 100;
+      var v = Math.round((r.expected - (r.adv || 0) - (r.ded || 0)) * 100) / 100;
       return { type: v < 0 ? "Cash Taken Away from Base" : "Cash Brought to Base", amount: Math.abs(v) };
     }
 
@@ -358,7 +360,7 @@ registerPage({
         var ded = num(document.getElementById("mfMDed").value) || 0;
         var adv = num(document.getElementById("mfMAdv").value) || 0;
         var flow = amt == null ? 0 : (type === "Cash Taken Away from Base" ? -amt : amt);
-        var bal = (r.expected || 0) + adv - flow - ded;
+        var bal = (r.expected || 0) - adv - flow - ded;
         var el = document.getElementById("mfMBal"), row = document.getElementById("mfMBalRow");
         el.textContent = money2(bal);
         row.className = "mf-ro bal " + (Math.abs(bal) <= MF_TOL ? "ok" : "off");
