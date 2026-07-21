@@ -247,6 +247,31 @@ registerPage({
         if (k) (entriesByEv[k] = entriesByEv[k] || []).push(en);
       });
     }
+    // OPTIMISTIC UPDATE (2026-07-21: after the save got fast, the operator still watched
+    // an "Updating…" veil while the live query re-ran). We know exactly what was saved —
+    // patch the in-memory overlay, repaint INSTANTLY, and let the real refresh reconcile
+    // silently in the background.
+    function patchLive(evId, type, amount) {
+      if (!S.live || !S.live.rows) return;
+      var lv = null;
+      for (var i = 0; i < S.live.rows.length; i++) if (S.live.rows[i].ev === evId) { lv = S.live.rows[i]; break; }
+      if (!lv) {
+        var b = overlaid().filter(function (x) { return x.ev === evId; })[0];
+        lv = { ev: evId, expected: b ? b.expected : null, flow: b ? b.flow : null,
+               flow_ts: b ? b.flowTs : null, flow_src: b ? b.flowSrc : null,
+               records: 0, adv: b ? b.adv : null, adv_ts: null, ded: b ? b.ded : null };
+        S.live.rows.push(lv);
+      }
+      var nowTs = new Date().toISOString().slice(0, 16).replace("T", " ");
+      if (type === "Cash Brought to Base") { lv.flow = amount; lv.flow_ts = nowTs; lv.flow_src = "portal"; lv.records = (lv.records || 0) + 1; }
+      else if (type === "Cash Taken Away from Base") { lv.flow = -amount; lv.flow_ts = nowTs; lv.flow_src = "portal"; lv.records = (lv.records || 0) + 1; }
+      else if (type === "Advance Payment") { lv.adv = amount; lv.adv_ts = nowTs; }
+      else if (type === "Forman Deduction") { lv.ded = amount; }
+      if (S.live.entries) S.live.entries.push({ event_id: evId, type: type, amount: amount,
+        at: nowTs, by: "you", note: "", current: 1 });
+      indexEntries();
+    }
+
     async function loadLive(fresh) {
       try {
         var r = await fetch(ZTZ.API + "/api/_mf" + (fresh ? "?fresh=1" : ""),
@@ -576,11 +601,11 @@ registerPage({
             var j = await res.json().catch(function () { return {}; });
             if (!res.ok || !j.ok) throw new Error((r.customer || r.ev) + ": " + (j.error || ("HTTP " + res.status)));
             saved++; delete S.sel[r.ev];
+            patchLive(r.ev, p.type, p.amount);              // instant local truth
           }
           close();
-          S.busy = true; paint();
-          await loadLive(true);
-          S.busy = false; setLiveBadge(); paint();
+          paint();                                          // table updates immediately
+          loadLive(true).then(function () { setLiveBadge(); paint(); });  // silent reconcile
         } catch (err) {
           btn.disabled = false; btn.textContent = "Confirm all";
           errEl.innerHTML = '<div class="mf-merr">Saved ' + saved + " of " + jobs.length + ", then failed ("
@@ -713,11 +738,11 @@ registerPage({
             var j = await res.json().catch(function () { return {}; });
             if (!res.ok || !j.ok) throw new Error(j.error || ("HTTP " + res.status));
             saved++;
+            patchLive(ev, body.entry_type, body.amount);   // instant local truth
           }
           close();
-          S.busy = true; paint();
-          await loadLive(true);
-          S.busy = false; setLiveBadge(); paint();
+          paint();                                          // table updates immediately
+          loadLive(true).then(function () { setLiveBadge(); paint(); });  // silent reconcile
         } catch (err) {
           sv.disabled = false; sv.textContent = "Save";
           // each POST commits on its own — never claim "nothing recorded" if some landed
