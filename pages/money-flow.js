@@ -75,7 +75,12 @@ registerPage({
         .mf-tbl td{padding:10px 12px;border-top:1px solid var(--line);vertical-align:middle;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:240px}
         .mf-tbl tbody tr.mf-row{cursor:pointer}
         .mf-tbl tbody tr.mf-row:hover{background:var(--panel-2)}
-        .mf-wrap{overflow-y:auto;overflow-x:hidden;max-height:calc(100vh - 320px)}
+        .mf-wrap{overflow-y:auto;overflow-x:auto;max-height:calc(100vh - 320px)}
+        /* the fixed layouts need their full width — below it the wrap scrolls rather
+           than CLIPPING the right-hand headers (the real cause of "headers not fully
+           visible", 2026-07-22) */
+        .mf-tbl.fx{min-width:1180px}
+        .mf-tbl.mfc.fx{min-width:1100px}
         .mf-confirm{font:inherit;font-size:12.5px;font-weight:800;background:${POS};color:#fff;border:0;border-radius:9px;padding:8px 14px;cursor:pointer;white-space:nowrap}
         .mf-confirm:hover{filter:brightness(1.08)}
         .mf-pill{display:inline-block;font-size:11px;font-weight:800;padding:3px 10px;border-radius:999px;white-space:nowrap}
@@ -192,6 +197,14 @@ registerPage({
       return isNaN(d) ? String(v).slice(0, 10) : d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
     }
     function fmtTs(v) { return v ? String(v).slice(0, 16).replace("T", " ") : "—"; }
+    // Google's event deep link: base64url(event_id + " " + calendar_id)
+    function calUrl(r) {
+      if (!r || !r.ev || !r.calendarId) return null;
+      try {
+        return "https://calendar.google.com/calendar/u/0/r/event?eid="
+          + btoa(r.ev + " " + r.calendarId).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+      } catch (e) { return null; }
+    }
     var todayIso = new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
 
     // ---------- live overlay (same rules as src/money_flow.py) ----------
@@ -454,6 +467,13 @@ registerPage({
           ? '<a class="mf-doc" href="' + esc(r.contractUrl) + '" target="_blank" rel="noopener" title="Open the contract file">Open ↗</a>'
           : '<span style="color:var(--faint)">—</span>';
       };
+      // Google Calendar deep link — same shape as the popup's (his ask 2026-07-22: the
+      // link must be reachable straight from the table, like the contract one)
+      var calCell = function (r) {
+        var u = calUrl(r);
+        return u ? '<a class="mf-doc" href="' + esc(u) + '" target="_blank" rel="noopener" title="Open the calendar event">Open ↗</a>'
+                 : '<span style="color:var(--faint)">—</span>';
+      };
       var balCls = function (r) {
         return (r.balance || 0) > MF_TOL ? "mf-neg" : (r.balance || 0) < -MF_TOL ? "mf-pos" : "";
       };
@@ -487,7 +507,7 @@ registerPage({
                 + '<th class="r">Net Cash</th><th class="r">Advance Payment</th>'
                 + '<th class="r">Forman Deduction</th><th class="r">Net Cash Flow</th>'
                 + '<th class="r">Net Cash Balance</th><th>Submission Time</th>'
-                + "<th>Contract</th><th>Status</th><th></th>";
+                + "<th>Contract</th><th>Calendar</th><th>Status</th><th></th><th></th>";
               subBody = jobs.map(function (r) {
                 return '<tr class="mf-row" data-ev="' + esc(r.ev) + '">'
                   + ckCell(r)
@@ -501,12 +521,13 @@ registerPage({
                   + '<td class="r ' + balCls(r) + '">' + money(r.balance) + "</td>"
                   + "<td>" + fmtTs(r.flowTs) + "</td>"
                   + "<td>" + docCell(r) + "</td>"
+                  + "<td>" + calCell(r) + "</td>"
                   + "<td>" + statusPill(r) + "</td>"
-                  + "<td>" + actionCell(r) + "</td></tr>";
+                  + "<td>" + actionCell(r) + "</td><td></td></tr>";
               }).join("");
             } else {
               subHead = "<th></th><th>Job date</th><th>Customer</th><th class=\"r\">Net Cash Balance</th>"
-                + "<th>Contract</th><th>Status</th><th></th>";
+                + "<th>Contract</th><th>Calendar</th><th>Status</th><th></th><th></th>";
               subBody = jobs.map(function (r) {
                 return '<tr class="mf-row" data-ev="' + esc(r.ev) + '">'
                   + ckCell(r)
@@ -514,16 +535,22 @@ registerPage({
                   + '<td title="' + esc(r.customer || "") + '">' + esc(r.customer || "—") + "</td>"
                   + '<td class="r ' + balCls(r) + '">' + money(r.balance) + "</td>"
                   + "<td>" + docCell(r) + "</td>"
+                  + "<td>" + calCell(r) + "</td>"
                   + "<td>" + statusPill(r) + "</td>"
-                  + "<td>" + actionCell(r) + "</td></tr>";
+                  + "<td>" + actionCell(r) + "</td><td></td></tr>";
               }).join("");
             }
+            // widths: every header gets room for its full label, the customer name is
+            // capped (ellipsis + hover tooltip), and a trailing SPACER column absorbs
+            // whatever is left so nothing stretches (his ask 2026-07-22)
             var subCols = S.dense === "details"
-              ? '<colgroup><col style="width:32px"><col style="width:95px"><col style="width:85px"><col>'
-                + '<col style="width:95px"><col style="width:110px"><col style="width:115px"><col style="width:100px">'
-                + '<col style="width:110px"><col style="width:125px"><col style="width:70px"><col style="width:110px"><col style="width:160px"></colgroup>'
-              : '<colgroup><col style="width:36px"><col style="width:110px"><col>'
-                + '<col style="width:130px"><col style="width:90px"><col style="width:140px"><col style="width:180px"></colgroup>';
+              ? '<colgroup><col style="width:32px"><col style="width:100px"><col style="width:88px"><col style="width:200px">'
+                + '<col style="width:112px"><col style="width:140px"><col style="width:150px"><col style="width:132px">'
+                + '<col style="width:150px"><col style="width:140px"><col style="width:92px"><col style="width:92px">'
+                + '<col style="width:126px"><col style="width:168px"><col></colgroup>'
+              : '<colgroup><col style="width:36px"><col style="width:112px"><col style="width:260px">'
+                + '<col style="width:152px"><col style="width:92px"><col style="width:92px">'
+                + '<col style="width:132px"><col style="width:172px"><col></colgroup>';
             sub = '<tr class="mf-fmsub"><td colspan="4"><table class="mf-tbl mfc fx">' + subCols + '<thead><tr>'
               + subHead + "</tr></thead><tbody>" + subBody + "</tbody></table></td></tr>";
           }
@@ -551,16 +578,18 @@ registerPage({
             + "<td>" + esc(r.forman) + "</td>"
             + '<td class="r ' + balCls(r) + '">' + money(r.balance) + "</td>"
             + "<td>" + docCell(r) + "</td>"
+            + "<td>" + calCell(r) + "</td>"
             + "<td>" + statusPill(r) + "</td>"
-            + "<td>" + actionCell(r) + "</td></tr>";
+            + "<td>" + actionCell(r) + "</td><td></td></tr>";
         }).join("");
         content = '<div class="mf-card">' + veil + '<div class="mf-wrap"><table class="mf-tbl mfc fx">'
-          + '<colgroup><col style="width:115px"><col><col style="width:170px"><col style="width:140px"><col style="width:90px"><col style="width:140px"><col style="width:180px"></colgroup><thead><tr>'
+          + '<colgroup><col style="width:118px"><col style="width:260px"><col style="width:180px"><col style="width:152px">'
+          + '<col style="width:92px"><col style="width:92px"><col style="width:132px"><col style="width:172px"><col></colgroup><thead><tr>'
           + '<th data-mfs="Job Date">Job date' + arrow("Job Date") + "</th><th>Customer</th><th>Foreman</th>"
           + '<th class="r" data-mfs="Balance">Net Cash Balance' + arrow("Balance") + "</th>"
-          + "<th>Contract</th><th>Status</th><th></th>"
+          + "<th>Contract</th><th>Calendar</th><th>Status</th><th></th><th></th>"
           + "</tr></thead><tbody>"
-          + (bodyO || '<tr><td colspan="7" style="color:var(--faint);padding:18px">' + "Nothing confirmed yet." + "</td></tr>")
+          + (bodyO || '<tr><td colspan="9" style="color:var(--faint);padding:18px">' + "Nothing confirmed yet." + "</td></tr>")
           + "</tbody></table></div></div>";
       } else {
         // ---- full Details: the ORIGINAL system's columns; Net Cash Flow sits to the RIGHT
@@ -580,10 +609,14 @@ registerPage({
             + '<td class="r ' + balCls(r) + '">' + money(r.balance) + "</td>"
             + "<td>" + fmtTs(r.flowTs) + "</td>"
             + "<td>" + docCell(r) + "</td>"
-            + "<td>" + actionCell(r) + "</td></tr>";
+            + "<td>" + calCell(r) + "</td>"
+            + "<td>" + actionCell(r) + "</td><td></td></tr>";
         }).join("");
         content = '<div class="mf-card">' + veil + '<div class="mf-wrap"><table class="mf-tbl fx">'
-          + '<colgroup><col style="width:100px"><col style="width:90px"><col><col style="width:150px"><col style="width:100px"><col style="width:115px"><col style="width:120px"><col style="width:105px"><col style="width:120px"><col style="width:130px"><col style="width:80px"><col style="width:170px"></colgroup><thead><tr>'
+          + '<colgroup><col style="width:104px"><col style="width:92px"><col style="width:200px"><col style="width:168px">'
+          + '<col style="width:112px"><col style="width:140px"><col style="width:150px"><col style="width:132px">'
+          + '<col style="width:150px"><col style="width:140px"><col style="width:92px"><col style="width:92px">'
+          + '<col style="width:168px"><col></colgroup><thead><tr>'
           + '<th data-mfs="Job Date">Job date' + arrow("Job Date") + "</th><th>Job #</th><th>Customer</th><th>Foreman</th>"
           + '<th class="r" data-mfs="Expected">Net Cash' + arrow("Expected") + "</th>"
           + '<th class="r">Advance Payment</th>'
@@ -591,9 +624,9 @@ registerPage({
           + '<th class="r">Net Cash Flow</th>'
           + '<th class="r" data-mfs="Balance">Net Cash Balance' + arrow("Balance") + "</th>"
           + "<th>Submission Time</th>"
-          + "<th>Contract</th><th></th>"
+          + "<th>Contract</th><th>Calendar</th><th></th><th></th>"
           + "</tr></thead><tbody>"
-          + (bodyD || '<tr><td colspan="12" style="color:var(--faint);padding:18px">' + "Nothing confirmed yet." + "</td></tr>")
+          + (bodyD || '<tr><td colspan="14" style="color:var(--faint);padding:18px">' + "Nothing confirmed yet." + "</td></tr>")
           + "</tbody></table></div></div>";
       }
 
@@ -688,8 +721,7 @@ registerPage({
         + '<div class="mf-mbody">'
         + '<div class="mf-ro"><span>Net Cash</span><b>' + money2(r.expected)
         + (r.contractUrl ? ' <a class="mf-doc" href="' + esc(r.contractUrl) + '" target="_blank" rel="noopener">contract ↗</a>' : "")
-        + (r.calendarId ? ' <a class="mf-doc" href="https://calendar.google.com/calendar/u/0/r/event?eid='
-            + esc(btoa(r.ev + " " + r.calendarId).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, ""))
+        + (calUrl(r) ? ' <a class="mf-doc" href="' + esc(calUrl(r))
             + '" target="_blank" rel="noopener">calendar ↗</a>' : "")
         + "</b></div>"
         + (r.dcTs ? '<div class="mf-mdc">Recorded in the contract system ' + fmtTs(r.dcTs) + "</div>" : "")
