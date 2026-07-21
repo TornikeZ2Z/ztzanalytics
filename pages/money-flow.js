@@ -138,15 +138,15 @@ registerPage({
     host.innerHTML = `
       <div class="mf-head"><div>
         <h1>Money Flow <span class="mf-live off" id="mfLive">◷ syncing…</span></h1>
-        <p>Every job’s cash: what we expect vs what was handed over. Press <b>Confirm</b>, check the popup, press <b>Save</b> — done.</p>
       </div><div><button class="mf-cancel" id="mfRefresh" style="padding:8px 14px;font-size:12.5px">↻ Refresh</button></div></div>
       <div id="mfBody"><div class="mf-load"><div class="mf-spin" style="margin:0 auto 12px"></div>Loading jobs…</div></div>
       <div id="mfModalHost"></div>`;
 
     var S = window.__MF || (window.__MF = {
-      view: "todo", q: "", formen: [], live: null, liveOk: false,
+      view: "foreman",     // Balance by Foreman is the landing view (his pick 2026-07-21)
+      q: "", formen: [], live: null, liveOk: false,
       sort: { k: "Job Date", d: -1 }, months: 0, fmOpen: false, busy: false, modalEv: null,
-      dense: "overview",   // 'overview' = the compact 6-column table (default); 'details' = every column
+      dense: "overview",   // 'overview' = the compact table (default); 'details' = every column
       fmx: {},             // Balance-by-Foreman view: which foremen are expanded
     });
     if (!S.dense) S.dense = "overview";
@@ -334,7 +334,7 @@ registerPage({
         + '<input class="mf-q" id="mfQ" placeholder="' + (S.view === "foreman" ? "Search foreman" : "Search customer / job / foreman") + '" value="' + esc(S.q) + '">'
         + '<div class="mf-fmwrap"><button class="mf-fmbtn' + (S.formen.length ? " on" : "") + '" id="mfFmBtn">' + esc(fmLabel) + ' ▾</button>' + fmPop + "</div>"
         + '<select class="mf-sel" id="mfM"><option value="0"' + (!S.months ? " selected" : "") + '>All time</option><option value="1"' + (S.months === 1 ? " selected" : "") + '>Last month</option><option value="3"' + (S.months === 3 ? " selected" : "") + '>Last 3 months</option></select>'
-        + (S.view === "foreman" ? "" : '<div class="mf-seg mf-dseg">' + dBtn("overview", "Overview") + dBtn("details", "Details") + "</div>")
+        + '<div class="mf-seg mf-dseg">' + dBtn("overview", "Overview") + dBtn("details", "Details") + "</div>"
         + "</div>";
 
       var arrow = function (kk) { return S.sort.k === kk ? (S.sort.d < 0 ? " ↓" : " ↑") : ""; };
@@ -373,19 +373,45 @@ registerPage({
             + '<td class="r ' + (g.total > MF_TOL ? "mf-neg" : "") + '"><b>' + money(g.total) + "</b></td></tr>";
           var sub = "";
           if (open) {
+            // the job list honours the Overview/Details toggle too (his ask 2026-07-21)
+            var jobs = g.jobs.slice().sort(function (a, b) { return a.date < b.date ? 1 : -1; });
+            var subHead, subBody;
+            if (S.dense === "details") {
+              subHead = '<th>Job date</th><th>Job #</th><th>Customer</th>'
+                + '<th class="r">Net Cash</th><th class="r">Advance Payment</th>'
+                + '<th class="r">Forman Deduction</th><th class="r">Net Cash Flow</th>'
+                + '<th class="r">Net Cash Balance</th><th>Submission Time</th>'
+                + "<th>Contract</th><th>Status</th><th></th>";
+              subBody = jobs.map(function (r) {
+                return '<tr class="mf-row" data-ev="' + esc(r.ev) + '">'
+                  + "<td>" + fmtD(r.date) + "</td>"
+                  + "<td>" + esc(r.jobNo || "—") + "</td>"
+                  + "<td>" + esc(r.customer || "—") + "</td>"
+                  + '<td class="r">' + money(r.expected) + "</td>"
+                  + '<td class="r">' + (r.adv ? money(r.adv) : "—") + "</td>"
+                  + '<td class="r">' + (r.ded ? money(r.ded) : "—") + "</td>"
+                  + '<td class="r">' + money(r.flow) + "</td>"
+                  + '<td class="r ' + balCls(r) + '">' + money(r.balance) + "</td>"
+                  + "<td>" + fmtTs(r.flowTs) + "</td>"
+                  + "<td>" + docCell(r) + "</td>"
+                  + "<td>" + statusPill(r) + "</td>"
+                  + "<td>" + actionCell(r) + "</td></tr>";
+              }).join("");
+            } else {
+              subHead = '<th>Job date</th><th>Customer</th><th class="r">Net Cash Balance</th>'
+                + "<th>Contract</th><th>Status</th><th></th>";
+              subBody = jobs.map(function (r) {
+                return '<tr class="mf-row" data-ev="' + esc(r.ev) + '">'
+                  + "<td>" + fmtD(r.date) + "</td>"
+                  + "<td>" + esc(r.customer || "—") + "</td>"
+                  + '<td class="r ' + balCls(r) + '">' + money(r.balance) + "</td>"
+                  + "<td>" + docCell(r) + "</td>"
+                  + "<td>" + statusPill(r) + "</td>"
+                  + "<td>" + actionCell(r) + "</td></tr>";
+              }).join("");
+            }
             sub = '<tr class="mf-fmsub"><td colspan="4"><table class="mf-tbl mfc"><thead><tr>'
-              + '<th>Job date</th><th>Customer</th><th class="r">Net Cash Balance</th><th>Contract</th><th>Status</th><th></th>'
-              + "</tr></thead><tbody>"
-              + g.jobs.slice().sort(function (a, b) { return a.date < b.date ? 1 : -1; }).map(function (r) {
-                  return '<tr class="mf-row" data-ev="' + esc(r.ev) + '">'
-                    + "<td>" + fmtD(r.date) + "</td>"
-                    + "<td>" + esc(r.customer || "—") + "</td>"
-                    + '<td class="r ' + balCls(r) + '">' + money(r.balance) + "</td>"
-                    + "<td>" + docCell(r) + "</td>"
-                    + "<td>" + statusPill(r) + "</td>"
-                    + "<td>" + actionCell(r) + "</td></tr>";
-                }).join("")
-              + "</tbody></table></td></tr>";
+              + subHead + "</tr></thead><tbody>" + subBody + "</tbody></table></td></tr>";
           }
           return head + sub;
         }).join("");
