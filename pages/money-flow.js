@@ -322,16 +322,27 @@ registerPage({
       var main = rows.filter(function (r) { return MAINSET[r.status]; });
       var nib = rows.filter(function (r) { return r.status === "Not in Balance"; });
       var done = rows.filter(function (r) { return r.status === "Money Received"; });
+      // SEARCH EVERYTHING (his ask 2026-07-22): customer, request #, job code, foreman —
+      // and plain numbers match the amounts too ("2132" finds the $2,132 job)
+      var qNum = q.replace(/[$,\s]/g, "");
+      var matches = function (r) {
+        if (!q) return true;
+        if (String(r.customer || "").toLowerCase().indexOf(q) >= 0
+          || String(r.jobNo || "").toLowerCase().indexOf(q) >= 0
+          || String(r.jobCode || "").toLowerCase().indexOf(q) >= 0
+          || String(r.forman || "").toLowerCase().indexOf(q) >= 0) return true;
+        if (qNum && /^\d+$/.test(qNum)) {
+          if (r.balance != null && String(Math.round(Math.abs(r.balance))).indexOf(qNum) >= 0) return true;
+          if (r.expected != null && String(Math.round(Math.abs(r.expected))).indexOf(qNum) >= 0) return true;
+          if (r.flow != null && String(Math.round(Math.abs(r.flow))).indexOf(qNum) >= 0) return true;
+        }
+        return false;
+      };
       var cur = done.slice();                          // History = the flat table
       if (S.formen.length) cur = cur.filter(function (r) { return S.formen.indexOf(r.forman) >= 0; });
       if (S.dateFrom) cur = cur.filter(function (r) { return r.date >= S.dateFrom; });
       if (S.dateTo) cur = cur.filter(function (r) { return r.date <= S.dateTo; });
-      if (q) cur = cur.filter(function (r) {
-        return String(r.customer || "").toLowerCase().indexOf(q) >= 0
-          || String(r.jobNo || "").toLowerCase().indexOf(q) >= 0
-          || String(r.jobCode || "").toLowerCase().indexOf(q) >= 0
-          || String(r.forman || "").toLowerCase().indexOf(q) >= 0;
-      });
+      if (q) cur = cur.filter(matches);
       var k = S.sort.k, d = S.sort.d;
       cur.sort(function (a, b) {
         var va = k === "Balance" ? (a.balance == null ? -Infinity : a.balance)
@@ -365,6 +376,7 @@ registerPage({
         var jobs = jobsIn.slice();
         if (S.dateFrom) jobs = jobs.filter(function (r) { return r.date >= S.dateFrom; });
         if (S.dateTo) jobs = jobs.filter(function (r) { return r.date <= S.dateTo; });
+        if (q) jobs = jobs.filter(matches);   // job-level search; foreman name matches keep his whole group
         var groups = {};
         jobs.forEach(function (r) {
           var f = r.forman || "—";
@@ -373,7 +385,6 @@ registerPage({
         });
         var gnames = Object.keys(groups);
         if (S.formen.length) gnames = gnames.filter(function (f) { return S.formen.indexOf(f) >= 0; });
-        if (q) gnames = gnames.filter(function (f) { return f.toLowerCase().indexOf(q) >= 0; });
         gnames.sort(function (a, b) { return Math.abs(groups[b].total) - Math.abs(groups[a].total); });
         return { groups: groups, names: gnames };
       };
@@ -421,7 +432,7 @@ registerPage({
         + '<div class="mf-seg mf-dseg">' + dBtn("overview", "Overview") + dBtn("details", "Details") + "</div>"
         + '<div class="mf-fmwrap"><button class="mf-fmbtn' + (S.formen.length ? " on" : "") + '" id="mfFmBtn">' + esc(fmLabel) + ' ▾</button>' + fmPop + "</div>"
         + '<div class="mf-dtwrap"><button class="mf-fmbtn' + (S.dateFrom || S.dateTo ? " on" : "") + '" id="mfDtBtn">📅 ' + esc(S.dateLabel) + ' ▾</button>' + dtPop + "</div>"
-        + '<input class="mf-q" id="mfQ" placeholder="' + (S.view === "history" ? "Search customer / job / foreman" : "Search foreman") + '" value="' + esc(S.q) + '">'
+        + '<input class="mf-q" id="mfQ" placeholder="Search customer / request # / job code / foreman / amount" value="' + esc(S.q) + '">'
         + (selJobs.length ? '<button class="mf-confirm" id="mfBulk" style="padding:9px 16px">Confirm ' + selJobs.length + " selected — " + money(selTotal) + "</button>" : "")
         + "</div></div>";
 
@@ -459,7 +470,8 @@ registerPage({
       var renderGrouped = function (jobsSet, label) {
         var gg = groupsFor(jobsSet), groups = gg.groups, gnames = gg.names;
         var frows = gnames.map(function (f) {
-          var g = groups[f], open = !!S.fmx[f];
+          // while searching, matching groups open by themselves so the hits are visible
+          var g = groups[f], open = !!S.fmx[f] || !!q;
           var head = '<tr class="mf-fmrow" data-mfx="' + esc(f) + '">'
             + '<td><span class="mf-caret">' + (open ? "▾" : "▸") + "</span>" + esc(f) + "</td>"
             + '<td class="r">' + g.jobs.length + "</td>"
