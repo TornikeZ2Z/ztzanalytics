@@ -14,7 +14,8 @@
              "Moving To", "Delivery State", "Location", "Location Detail", "Sticker",
              "FAD", "FAD Source", "Window End", "Timeframe", "Window Note", "Window Status",
              "Data Issue", "Carrier Driver", "Total To Carrier", "Balance Due", "CF",
-             "Sibling Delivered", "Sheet Row", "Update Date"],
+             "Sibling Delivered", "Sheet Row", "Update Date",
+             "Type", "Trip Days", "Depart By", "Urgency", "Urgency Reason", "Do"],
     };
   }
 })();
@@ -123,14 +124,14 @@ registerPage({
     function paint() {
       var live = rows.filter(function (r) { return !r["Data Issue"]; });
       var fix = rows.filter(function (r) { return r["Data Issue"]; });
-      var overdue = live.filter(function (r) { return r["Window Status"] === "Overdue"; }).length;
-      var open = live.filter(function (r) { return r["Window Status"] === "Window Open"; }).length;
-      var noWin = live.filter(function (r) { return r["Window Status"] === "No Window Set"; }).length;
+      var actNow = live.filter(function (r) { return r["Urgency"] === "Act now"; }).length;
+      var actSoon = live.filter(function (r) { return r["Urgency"] === "Act soon"; }).length;
+      var noWin = live.filter(function (r) { return r["Urgency"] === "Missing data"; }).length;
 
       var kp = '<div class="ldp-kpis">'
-        + '<div class="ldp-kpi neg"><b>' + overdue + "</b><span>Overdue</span><small>window already closed</small></div>"
-        + '<div class="ldp-kpi warn"><b>' + open + "</b><span>Window open</span><small>deliver now</small></div>"
-        + '<div class="ldp-kpi"><b>' + noWin + "</b><span>No window set</span><small>FAD / timeframe missing</small></div>"
+        + '<div class="ldp-kpi neg"><b>' + actNow + "</b><span>Act now</span><small>overdue or departure passed</small></div>"
+        + '<div class="ldp-kpi warn"><b>' + actSoon + "</b><span>Act soon</span><small>departure or window is close</small></div>"
+        + '<div class="ldp-kpi"><b>' + noWin + "</b><span>Missing data</span><small>FAD / timeframe not set</small></div>"
         + '<div class="ldp-kpi"><b>' + fix.length + "</b><span>Data cleanup</span><small>rows to fix in the sheets</small></div></div>";
 
       var cur = (S.view === "board" ? live : fix).slice();
@@ -143,20 +144,20 @@ registerPage({
           || String(r["Job Code"] || "").toLowerCase().indexOf(q) >= 0
           || String(r["Sticker"] || "").toLowerCase().indexOf(q) >= 0;
       });
-      // urgency first: overdue (most late first), then open (least days left), then
-      // upcoming, then no-window; cleanup view groups by issue
-      var rank = { "Overdue": 0, "Window Open": 1, "Upcoming": 2, "No Window Set": 3 };
+      // urgency ladder first (his tool's model), then by how soon the truck must leave;
+      // cleanup view groups by issue
+      var rank = { "Act now": 0, "Act soon": 1, "On track": 2, "Missing data": 3 };
       cur.sort(function (a, b) {
         if (S.view === "fix") {
           var ia = String(a["Data Issue"]), ib = String(b["Data Issue"]);
           if (ia !== ib) return ia < ib ? -1 : 1;
           return String(b["Pickup Date"]) < String(a["Pickup Date"]) ? -1 : 1;
         }
-        var ra = rank[a["Window Status"]] != null ? rank[a["Window Status"]] : 9;
-        var rb = rank[b["Window Status"]] != null ? rank[b["Window Status"]] : 9;
+        var ra = rank[a["Urgency"]] != null ? rank[a["Urgency"]] : 9;
+        var rb = rank[b["Urgency"]] != null ? rank[b["Urgency"]] : 9;
         if (ra !== rb) return ra - rb;
-        var ea = a["Window End"] ? String(a["Window End"]) : "9999";
-        var eb = b["Window End"] ? String(b["Window End"]) : "9999";
+        var ea = a["Depart By"] ? String(a["Depart By"]) : (a["Window End"] ? String(a["Window End"]) : "9999");
+        var eb = b["Depart By"] ? String(b["Depart By"]) : (b["Window End"] ? String(b["Window End"]) : "9999");
         return ea < eb ? -1 : ea > eb ? 1 : 0;
       });
 
@@ -174,18 +175,25 @@ registerPage({
             return '<option' + (S.loc === l ? " selected" : "") + ">" + esc(l) + "</option>"; }).join("") + "</select>"
         + "</div>";
 
+      var urgPill = function (r) {
+        var u = String(r["Urgency"] || "");
+        var cls = u === "Act now" ? "late" : u === "Act soon" ? "open" : u === "Missing data" ? "none" : "up";
+        return '<span class="ldp-due ' + cls + '">' + esc(u || "—") + "</span>";
+      };
       var body = cur.map(function (r, i) {
         var key = String(r["Sheet Row"] || i);
         var det = String(r["Location Detail"] || "");
         var main = '<tr class="ldp-row" data-ldk="' + esc(key) + '">'
           + "<td>" + fmtD(r["Pickup Date"]) + "</td>"
-          + "<td><b>" + esc(r["Customer"] || "—") + "</b><div class=\"ldp-det\">" + esc(String(r["Request #"] || "")) + (r["Job Code"] ? " · " + esc(String(r["Job Code"]).split(",")[0]) : "") + "</div></td>"
-          + "<td>" + esc(r["Company"] || "—") + "</td>"
-          + "<td>" + esc(String(r["Moving To"] || "—").slice(0, 44)) + "</td>"
-          + "<td>" + locPill(r) + (det ? '<div class="ldp-det">' + esc(det.slice(0, 60)) + "</div>" : "") + "</td>"
-          + "<td>" + esc(r["Sticker"] || "—") + "</td>"
-          + "<td>" + windowTxt(r) + (r["Timeframe"] ? '<div class="ldp-det">timeframe: ' + esc(String(r["Timeframe"]).slice(0, 26)) + "</div>" : "") + "</td>"
-          + "<td>" + (S.view === "fix" ? '<span class="ldp-issue">' + esc(r["Data Issue"]) + "</span>" : dueBadge(r)) + "</td></tr>";
+          + "<td><b>" + esc(r["Customer"] || "—") + "</b><div class=\"ldp-det\">" + esc(String(r["Request #"] || "")) + (r["Job Code"] ? " · " + esc(String(r["Job Code"]).split(",")[0]) : "") + (r["Company"] && r["Company"] !== "Zip to Zip" ? " · " + esc(r["Company"]) : "") + "</div></td>"
+          + "<td>" + esc(r["Type"] || "—") + (r["CF"] != null ? '<div class="ldp-det">' + Number(r["CF"]).toLocaleString() + " CF</div>" : "") + "</td>"
+          + "<td>" + esc(String(r["Moving To"] || "—").slice(0, 40)) + "</td>"
+          + "<td>" + locPill(r) + (det ? '<div class="ldp-det">' + esc(det.slice(0, 54)) + "</div>" : "") + "</td>"
+          + "<td>" + windowTxt(r) + (r["Timeframe"] ? '<div class="ldp-det">timeframe: ' + esc(String(r["Timeframe"]).slice(0, 24)) + "</div>" : "") + "</td>"
+          + "<td>" + fmtD(r["Depart By"]) + (r["Trip Days"] != null ? '<div class="ldp-det">' + r["Trip Days"] + "d trip</div>" : "") + "</td>"
+          + "<td>" + (S.view === "fix"
+              ? '<span class="ldp-issue">' + esc(r["Data Issue"]) + "</span>"
+              : urgPill(r) + (r["Do"] ? '<div class="ldp-det" style="max-width:230px">' + esc(r["Do"]) + "</div>" : "")) + "</td></tr>";
         var sub = "";
         if (S.open[key]) {
           sub = '<tr class="ldp-sub"><td colspan="8">'
@@ -196,6 +204,9 @@ registerPage({
             + (r["Total To Carrier"] != null ? " &nbsp; <b>To carrier:</b> $" + Number(r["Total To Carrier"]).toLocaleString() : "")
             + "<br><b>FAD:</b> " + fmtD(r["FAD"]) + (r["FAD Source"] ? " (" + esc(r["FAD Source"]) + ")" : "")
             + " &nbsp; <b>Window:</b> " + windowTxt(r) + (r["Window Note"] ? " — " + esc(r["Window Note"]) : "")
+            + " &nbsp; <b>Depart by:</b> " + fmtD(r["Depart By"]) + (r["Trip Days"] != null ? " (" + r["Trip Days"] + "d trip)" : " (trip days not set)")
+            + " &nbsp; <b>Sticker:</b> " + esc(r["Sticker"] || "—")
+            + (r["Do"] ? "<br><b>Do:</b> " + esc(r["Do"]) : "")
             + (r["Balance Due"] != null ? " &nbsp; <b>Balance due:</b> $" + Number(r["Balance Due"]).toLocaleString() : "")
             + (r["CF"] != null ? " &nbsp; <b>CF:</b> " + Number(r["CF"]).toLocaleString() : "")
             + " &nbsp; <b>Sheet row:</b> " + esc(r["Sheet Row"] || "—")
@@ -205,8 +216,8 @@ registerPage({
       }).join("");
 
       var tbl = '<div class="ldp-card"><div class="ldp-wrap"><table class="ldp-tbl"><thead><tr>'
-        + "<th>Pickup</th><th>Customer</th><th>Company</th><th>Delivering to</th><th>Location</th><th>Sticker</th><th>Delivery window</th><th>"
-        + (S.view === "fix" ? "What to fix" : "Urgency") + "</th>"
+        + "<th>Pickup</th><th>Customer</th><th>Type</th><th>Delivering to</th><th>Location</th><th>Delivery window</th><th>Depart by</th><th>"
+        + (S.view === "fix" ? "What to fix" : "What to do") + "</th>"
         + "</tr></thead><tbody>"
         + (body || '<tr><td colspan="8" style="color:var(--faint);padding:18px">Nothing here. 🎉</td></tr>')
         + "</tbody></table></div>"
