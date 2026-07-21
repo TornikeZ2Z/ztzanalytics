@@ -514,8 +514,12 @@ registerPage({
           + '<div class="mf-fnote">Click any row (or the green button) to open the job — the amount is prefilled so the balance becomes $0. Every save keeps its history.</div></div>';
       }
 
+      // repainting replaces the whole table — without restoring the scroll, expanding a
+      // foreman far down the list snapped the page back to the top (his catch 2026-07-21)
+      var sx = window.scrollX, sy = window.scrollY;
       document.getElementById("mfBody").innerHTML = kp + bar + content;
       wire();
+      window.scrollTo(sx, sy);
     }
 
     // ---------- BULK CONFIRM: one summary popup for all ticked jobs ----------

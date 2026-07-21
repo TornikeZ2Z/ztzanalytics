@@ -302,8 +302,11 @@ registerPage({
             : "Click a row for the full details. Sorted by urgency: overdue first, then open windows by days left.")
         + " Data refreshes with the pipeline (~6h).</div></div>";
 
+      // keep the scroll position — a repaint used to snap the page back to the top
+      var sx = window.scrollX, sy = window.scrollY;
       document.getElementById("ldpBody").innerHTML = kp + bar + tbl;
       wire();
+      window.scrollTo(sx, sy);
     }
 
     function wire() {
