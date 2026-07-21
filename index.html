@@ -840,7 +840,10 @@ function paintChips() {
   host.innerHTML = compChip + chips.map(c =>
     `<span class="rs-chip">${RSC.esc(c.label)}<button data-k="${c.k}" title="Remove filter">×</button></span>`).join("") +
     (chips.length ? `<button class="rs-chip clear" id="chipClearAll">Clear all</button>` : "");
-  host.classList.toggle("hidden", !compChip && !chips.length);
+  // bare pages own their toolbar: the async buildFilters()->paintChips() must not
+  // resurrect the chip row renderPage just hid (raced on money-flow, 2026-07-21)
+  host.classList.toggle("hidden",
+    (!compChip && !chips.length) || BARE_CHROME.has(currentLeafId()));
   host.querySelectorAll(".rs-chip button[data-k]").forEach(b => b.onclick = () => {
     const k = b.dataset.k;
     if (k === "_date") { RS.state.dateFrom = RS.state.dateTo = null; }
