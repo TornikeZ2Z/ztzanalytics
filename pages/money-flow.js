@@ -21,7 +21,7 @@
   if (window.RS && RS.DATASETS && !RS.DATASETS.fct_money_flow) {
     RS.DATASETS.fct_money_flow = {
       table: "fct_money_flow",
-      cols: ["Event ID", "Job Date", "Event Title", "Job No", "Job Code", "Customer",
+      cols: ["Event ID", "Calendar ID", "Job Date", "Event Title", "Job No", "Job Code", "Customer",
              "Forman Email", "Forman", "Job Type", "Contract Type", "Net Cash (DC)", "Net Cash (Closing)",
              "Expected Net Cash", "Contract URL", "DC Submission Time",
              "Cash Flow", "Cash Flow Time", "Cash Flow Source",
@@ -151,6 +151,7 @@ registerPage({
     });
     if (!S.dense) S.dense = "overview";
     if (!S.fmx) S.fmx = {};
+    if (!S.sel) S.sel = {};   // bulk-confirm ticks (event ids)
     if (!Array.isArray(S.formen)) S.formen = [];
     S.modalEv = null;
 
@@ -198,6 +199,7 @@ registerPage({
           baseAdv: num(b["Advance"]),
           contractUrl: b["Contract URL"] || null,
           dcTs: b["DC Submission Time"] || null,
+          calendarId: b["Calendar ID"] || null,
           baseStatus: b["Status"],
         };
         if (r.expected == null && r.closingNC != null) r.expected = r.closingNC;
@@ -231,6 +233,10 @@ registerPage({
       if (Math.abs(r.balance == null ? 0 : r.balance) <= MF_TOL) return "Money Received";
       return "Not in Balance";
     }
+    // view split (his spec 2026-07-21): Balance by Foreman = waiting for cash
+    // (incl. no-contract); Not in Balance Jobs = its own foreman-grouped tab; History =
+    // everything confirmed. The old flat "Not Confirmed" list is gone.
+    var MAINSET = { "Money Not Received": 1, "Contract Not Received": 1 };
     var NOTCONF = { "Money Not Received": 1, "Not in Balance": 1, "Contract Not Received": 1 };
 
     var entriesByEv = {};
@@ -260,11 +266,14 @@ registerPage({
 
     // ---------- painting ----------
     function paint() {
+      if (S.view === "todo") S.view = "foreman";      // migrate pre-rework stored state
+      if (S.view === "done") S.view = "history";
       var rows = overlaid();
       var q = S.q.trim().toLowerCase();
-      var todo = rows.filter(function (r) { return NOTCONF[r.status]; });
+      var main = rows.filter(function (r) { return MAINSET[r.status]; });
+      var nib = rows.filter(function (r) { return r.status === "Not in Balance"; });
       var done = rows.filter(function (r) { return r.status === "Money Received"; });
-      var cur = (S.view === "done" ? done : todo).slice();
+      var cur = done.slice();                          // History = the flat table
       if (S.formen.length) cur = cur.filter(function (r) { return S.formen.indexOf(r.forman) >= 0; });
       if (S.months) {
         var lim = new Date(); lim.setMonth(lim.getMonth() - S.months);
@@ -286,15 +295,15 @@ registerPage({
         return va < vb ? -d : va > vb ? d : 0;
       });
 
-      var outBal = 0; todo.forEach(function (r) { outBal += (r.balance || 0); });
-      var age30 = todo.filter(function (r) { return (Date.now() - new Date(r.date + "T12:00:00")) / 864e5 > 30; }).length;
-      var noCon = todo.filter(function (r) { return r.status === "Contract Not Received"; }).length;
+      var outBal = 0; main.forEach(function (r) { outBal += (r.balance || 0); });
+      var nibBal = 0; nib.forEach(function (r) { nibBal += (r.balance || 0); });
+      var noCon = main.filter(function (r) { return r.status === "Contract Not Received"; }).length;
 
       var kp = '<div class="mf-kpis">'
-        + '<div class="mf-kpi neg"><b>' + money(outBal) + '</b><span>Waiting for cash</span><small>' + todo.length + ' job' + (todo.length === 1 ? "" : "s") + ' not confirmed</small></div>'
-        + '<div class="mf-kpi"><b>' + age30 + '</b><span>Older than 30 days</span><small>chase these first</small></div>'
+        + '<div class="mf-kpi neg"><b>' + money(outBal) + '</b><span>Waiting for cash</span><small>' + main.length + ' job' + (main.length === 1 ? "" : "s") + ' open</small></div>'
+        + '<div class="mf-kpi"><b>' + money(nibBal) + '</b><span>Not in balance</span><small>' + nib.length + ' job' + (nib.length === 1 ? "" : "s") + ' off by more than $' + MF_TOL + '</small></div>'
         + '<div class="mf-kpi"><b>' + noCon + '</b><span>No contract data</span><small>needs a manual amount</small></div>'
-        + '<div class="mf-kpi pos"><b>' + done.length.toLocaleString() + '</b><span>Confirmed</span><small>settled within $' + MF_TOL + '</small></div></div>';
+        + '<div class="mf-kpi pos"><b>' + done.length.toLocaleString() + '</b><span>History</span><small>confirmed, settled within $' + MF_TOL + '</small></div></div>';
 
       var allF = {};
       rows.forEach(function (r) { if (NOTCONF[r.status] || r.status === "Money Received") { if (r.forman && r.forman !== "—") allF[r.forman] = 1; } });
@@ -303,24 +312,36 @@ registerPage({
           return '<label><input type="checkbox" data-mff="' + esc(f) + '"' + (S.formen.indexOf(f) >= 0 ? " checked" : "") + '> ' + esc(f) + "</label>";
         }).join("") + '<button class="clr" id="mfFmClr">Show all foremen</button></div>' : "";
 
-      // Balance by Foreman groups — from the NOT-CONFIRMED set, same time window; jobs
+      // foreman grouping — used by BOTH grouped tabs (Balance by Foreman = waiting for
+      // cash incl. no-contract; Not in Balance Jobs = its own identical screen); jobs
       // with no contract amount are LISTED but add $0 to the total (his call 2026-07-21)
-      var fmJobs = todo.slice();
-      if (S.months) {
-        var lim2 = new Date(); lim2.setMonth(lim2.getMonth() - S.months);
-        var lim2Iso = lim2.toISOString().slice(0, 10);
-        fmJobs = fmJobs.filter(function (r) { return r.date >= lim2Iso; });
-      }
-      var groups = {};
-      fmJobs.forEach(function (r) {
-        var f = r.forman || "—";
-        (groups[f] = groups[f] || { jobs: [], total: 0, noCon: 0 }).jobs.push(r);
-        if (r.balance != null) groups[f].total += r.balance; else groups[f].noCon++;
+      var groupsFor = function (jobsIn) {
+        var jobs = jobsIn.slice();
+        if (S.months) {
+          var lim2 = new Date(); lim2.setMonth(lim2.getMonth() - S.months);
+          var lim2Iso = lim2.toISOString().slice(0, 10);
+          jobs = jobs.filter(function (r) { return r.date >= lim2Iso; });
+        }
+        var groups = {};
+        jobs.forEach(function (r) {
+          var f = r.forman || "—";
+          (groups[f] = groups[f] || { jobs: [], total: 0, noCon: 0 }).jobs.push(r);
+          if (r.balance != null) groups[f].total += r.balance; else groups[f].noCon++;
+        });
+        var gnames = Object.keys(groups);
+        if (S.formen.length) gnames = gnames.filter(function (f) { return S.formen.indexOf(f) >= 0; });
+        if (q) gnames = gnames.filter(function (f) { return f.toLowerCase().indexOf(q) >= 0; });
+        gnames.sort(function (a, b) { return Math.abs(groups[b].total) - Math.abs(groups[a].total); });
+        return { groups: groups, names: gnames };
+      };
+
+      // bulk selection — the presets of every ticked job (only settleable jobs tick)
+      var selEvs = Object.keys(S.sel).filter(function (ev) { return S.sel[ev]; });
+      var selJobs = rows.filter(function (r) { return S.sel[r.ev] && settle(r) && r.status !== "Money Received"; });
+      var selTotal = 0;
+      selJobs.forEach(function (r) {
+        var p = settle(r); selTotal += (p.type === "Cash Taken Away from Base" ? -p.amount : p.amount);
       });
-      var gnames = Object.keys(groups);
-      if (S.formen.length) gnames = gnames.filter(function (f) { return S.formen.indexOf(f) >= 0; });
-      if (q) gnames = gnames.filter(function (f) { return f.toLowerCase().indexOf(q) >= 0; });
-      gnames.sort(function (a, b) { return groups[b].total - groups[a].total; });
 
       var segBtn = function (id, label, n) {
         return '<button class="' + (S.view === id ? "on" : "") + '" data-mfv="' + id + '">' + label + "<i>" + n + "</i></button>";
@@ -329,12 +350,14 @@ registerPage({
         return '<button class="' + (S.dense === id ? "on" : "") + '" data-mfd="' + id + '">' + label + "</button>";
       };
       var bar = '<div class="mf-bar">'
-        + '<div class="mf-seg">' + segBtn("todo", "Not Confirmed", todo.length) + segBtn("done", "Confirmed", done.length)
-        + segBtn("foreman", "Balance by Foreman", Object.keys(groups).length) + "</div>"
-        + '<input class="mf-q" id="mfQ" placeholder="' + (S.view === "foreman" ? "Search foreman" : "Search customer / job / foreman") + '" value="' + esc(S.q) + '">'
+        + '<div class="mf-seg">' + segBtn("foreman", "Balance by Foreman", main.length)
+        + segBtn("nib", "Not in Balance Jobs", nib.length)
+        + segBtn("history", "History", done.length) + "</div>"
+        + '<input class="mf-q" id="mfQ" placeholder="' + (S.view === "history" ? "Search customer / job / foreman" : "Search foreman") + '" value="' + esc(S.q) + '">'
         + '<div class="mf-fmwrap"><button class="mf-fmbtn' + (S.formen.length ? " on" : "") + '" id="mfFmBtn">' + esc(fmLabel) + ' ▾</button>' + fmPop + "</div>"
         + '<select class="mf-sel" id="mfM"><option value="0"' + (!S.months ? " selected" : "") + '>All time</option><option value="1"' + (S.months === 1 ? " selected" : "") + '>Last month</option><option value="3"' + (S.months === 3 ? " selected" : "") + '>Last 3 months</option></select>'
         + '<div class="mf-seg mf-dseg">' + dBtn("overview", "Overview") + dBtn("details", "Details") + "</div>"
+        + (selJobs.length ? '<button class="mf-confirm" id="mfBulk" style="padding:9px 16px">Confirm ' + selJobs.length + " selected — " + money(selTotal) + "</button>" : "")
         + "</div>";
 
       var arrow = function (kk) { return S.sort.k === kk ? (S.sort.d < 0 ? " ↓" : " ↑") : ""; };
@@ -362,28 +385,35 @@ registerPage({
       var veil = S.busy ? '<div class="mf-veil"><div class="mf-spin"></div>Updating…</div>' : "";
       var content;
 
-      if (S.view === "foreman") {
-        // ---- Balance by Foreman: totals first, click a foreman for his open jobs ----
+      // one checkbox per settleable job — ticked jobs confirm together (his ask)
+      var ckCell = function (r) {
+        if (!settle(r) || r.status === "Money Received") return "<td></td>";
+        return '<td><input type="checkbox" class="mf-ck" data-mfsel="' + esc(r.ev) + '"'
+          + (S.sel[r.ev] ? " checked" : "") + "></td>";
+      };
+      var renderGrouped = function (jobsSet, label) {
+        var gg = groupsFor(jobsSet), groups = gg.groups, gnames = gg.names;
         var frows = gnames.map(function (f) {
           var g = groups[f], open = !!S.fmx[f];
           var head = '<tr class="mf-fmrow" data-mfx="' + esc(f) + '">'
             + '<td><span class="mf-caret">' + (open ? "▾" : "▸") + "</span>" + esc(f) + "</td>"
             + '<td class="r">' + g.jobs.length + "</td>"
             + '<td class="r">' + (g.noCon ? g.noCon : "—") + "</td>"
-            + '<td class="r ' + (g.total > MF_TOL ? "mf-neg" : "") + '"><b>' + money(g.total) + "</b></td></tr>";
+            + '<td class="r ' + (Math.abs(g.total) > MF_TOL ? "mf-neg" : "") + '"><b>' + money(g.total) + "</b></td></tr>";
           var sub = "";
           if (open) {
             // the job list honours the Overview/Details toggle too (his ask 2026-07-21)
             var jobs = g.jobs.slice().sort(function (a, b) { return a.date < b.date ? 1 : -1; });
             var subHead, subBody;
             if (S.dense === "details") {
-              subHead = '<th>Job date</th><th>Job #</th><th>Customer</th>'
+              subHead = "<th></th><th>Job date</th><th>Job #</th><th>Customer</th>"
                 + '<th class="r">Net Cash</th><th class="r">Advance Payment</th>'
                 + '<th class="r">Forman Deduction</th><th class="r">Net Cash Flow</th>'
                 + '<th class="r">Net Cash Balance</th><th>Submission Time</th>'
                 + "<th>Contract</th><th>Status</th><th></th>";
               subBody = jobs.map(function (r) {
                 return '<tr class="mf-row" data-ev="' + esc(r.ev) + '">'
+                  + ckCell(r)
                   + "<td>" + fmtD(r.date) + "</td>"
                   + "<td>" + esc(r.jobNo || "—") + "</td>"
                   + "<td>" + esc(r.customer || "—") + "</td>"
@@ -398,10 +428,11 @@ registerPage({
                   + "<td>" + actionCell(r) + "</td></tr>";
               }).join("");
             } else {
-              subHead = '<th>Job date</th><th>Customer</th><th class="r">Net Cash Balance</th>'
+              subHead = "<th></th><th>Job date</th><th>Customer</th><th class=\"r\">Net Cash Balance</th>"
                 + "<th>Contract</th><th>Status</th><th></th>";
               subBody = jobs.map(function (r) {
                 return '<tr class="mf-row" data-ev="' + esc(r.ev) + '">'
+                  + ckCell(r)
                   + "<td>" + fmtD(r.date) + "</td>"
                   + "<td>" + esc(r.customer || "—") + "</td>"
                   + '<td class="r ' + balCls(r) + '">' + money(r.balance) + "</td>"
@@ -415,18 +446,24 @@ registerPage({
           }
           return head + sub;
         }).join("");
-        content = '<div class="mf-card">' + veil + '<div class="mf-wrap"><table class="mf-tbl"><thead><tr>'
+        return '<div class="mf-card">' + veil + '<div class="mf-wrap"><table class="mf-tbl"><thead><tr>'
           + '<th>Foreman</th><th class="r">Open jobs</th><th class="r">No contract</th><th class="r">Total Net Cash Balance</th>'
           + "</tr></thead><tbody>"
-          + (frows || '<tr><td colspan="4" style="color:var(--faint);padding:18px">No outstanding balances. 🎉</td></tr>')
+          + (frows || '<tr><td colspan="4" style="color:var(--faint);padding:18px">' + label + " 🎉</td></tr>")
           + "</tbody></table></div>"
-          + '<div class="mf-fnote">Foremen sorted by what is still outstanding. Click a foreman to open his job list; click a job to confirm it. No-contract jobs are listed but add $0 to the total.</div></div>';
+          + '<div class="mf-fnote">Click a foreman to open his job list; click a job to confirm it, or tick several and confirm them together. No-contract jobs are listed but add $0 to the total.</div></div>';
+      };
+
+      if (S.view === "foreman") {
+        content = renderGrouped(main, "No outstanding balances.");
+      } else if (S.view === "nib") {
+        content = renderGrouped(nib, "Nothing out of balance.");
       } else if (S.dense === "overview") {
         // ---- compact Overview: Job date · Customer · Foreman · Balance · Contract · Status ----
         var bodyO = cur.map(function (r) {
           var age = Math.floor((Date.now() - new Date(r.date + "T12:00:00")) / 864e5);
           return '<tr class="mf-row" data-ev="' + esc(r.ev) + '">'
-            + "<td>" + fmtD(r.date) + (S.view === "todo" && age > 0 ? ' <span class="mf-age">' + age + "d</span>" : "") + "</td>"
+            + "<td>" + fmtD(r.date) + "</td>"
             + "<td>" + esc(r.customer || "—") + "</td>"
             + "<td>" + esc(r.forman) + "</td>"
             + '<td class="r ' + balCls(r) + '">' + money(r.balance) + "</td>"
@@ -439,7 +476,7 @@ registerPage({
           + '<th class="r" data-mfs="Balance">Net Cash Balance' + arrow("Balance") + "</th>"
           + "<th>Contract</th><th>Status</th><th></th>"
           + "</tr></thead><tbody>"
-          + (bodyO || '<tr><td colspan="7" style="color:var(--faint);padding:18px">' + (S.view === "done" ? "Nothing confirmed yet." : "Nothing waiting — all cash is confirmed. 🎉") + "</td></tr>")
+          + (bodyO || '<tr><td colspan="7" style="color:var(--faint);padding:18px">' + "Nothing confirmed yet." + "</td></tr>")
           + "</tbody></table></div>"
           + '<div class="mf-fnote">Click any row (or the green button) to open the job — the amount is prefilled so the balance becomes $0. Switch to <b>Details</b> for every column.</div></div>';
       } else {
@@ -449,7 +486,7 @@ registerPage({
         var bodyD = cur.map(function (r) {
           var age = Math.floor((Date.now() - new Date(r.date + "T12:00:00")) / 864e5);
           return '<tr class="mf-row" data-ev="' + esc(r.ev) + '">'
-            + "<td>" + fmtD(r.date) + (S.view === "todo" && age > 0 ? ' <span class="mf-age">' + age + "d</span>" : "") + "</td>"
+            + "<td>" + fmtD(r.date) + "</td>"
             + "<td>" + esc(r.jobNo || "—") + "</td>"
             + "<td>" + esc(r.customer || "—") + "</td>"
             + "<td>" + esc(r.forman) + "</td>"
@@ -472,13 +509,76 @@ registerPage({
           + "<th>Submission Time</th>"
           + "<th>Contract</th><th></th>"
           + "</tr></thead><tbody>"
-          + (bodyD || '<tr><td colspan="12" style="color:var(--faint);padding:18px">' + (S.view === "done" ? "Nothing confirmed yet." : "Nothing waiting — all cash is confirmed. 🎉") + "</td></tr>")
+          + (bodyD || '<tr><td colspan="12" style="color:var(--faint);padding:18px">' + "Nothing confirmed yet." + "</td></tr>")
           + "</tbody></table></div>"
           + '<div class="mf-fnote">Click any row (or the green button) to open the job — the amount is prefilled so the balance becomes $0. Every save keeps its history.</div></div>';
       }
 
       document.getElementById("mfBody").innerHTML = kp + bar + content;
       wire();
+    }
+
+    // ---------- BULK CONFIRM: one summary popup for all ticked jobs ----------
+    function openBulkModal() {
+      var rows = overlaid();
+      var jobs = rows.filter(function (r) { return S.sel[r.ev] && settle(r) && r.status !== "Money Received"; });
+      if (!jobs.length) return;
+      var total = 0;
+      jobs.forEach(function (r) {
+        var p = settle(r); total += (p.type === "Cash Taken Away from Base" ? -p.amount : p.amount);
+      });
+      var hostEl = document.getElementById("mfModalHost");
+      hostEl.innerHTML = '<div class="mf-back" id="mfBack"><div class="mf-modal">'
+        + '<button class="mf-mx" id="mfMx">✕</button>'
+        + '<div class="mf-mhead"><b>Confirm ' + jobs.length + " job" + (jobs.length === 1 ? "" : "s") + "</b><div>each records its preset amount so its balance becomes $0</div></div>"
+        + '<div class="mf-mbody">'
+        + '<table class="mf-htbl"><thead><tr><th>Job date</th><th>Customer</th><th class="r">Amount</th></tr></thead><tbody>'
+        + jobs.map(function (r) {
+            var p = settle(r);
+            return "<tr><td>" + fmtD(r.date) + "</td><td>" + esc(r.customer || "—") + '</td><td class="r">'
+              + money2(p.type === "Cash Taken Away from Base" ? -p.amount : p.amount) + "</td></tr>";
+          }).join("")
+        + '</tbody></table>'
+        + '<div class="mf-ro bal ok" style="margin-top:10px"><span>Total</span><b>' + money2(total) + "</b></div>"
+        + '<div class="mf-mfoot"><button class="mf-cancel" id="mfMCancel">Cancel</button>'
+        + '<button class="mf-save" id="mfBulkSave">Confirm all</button></div>'
+        + '<div id="mfMErr"></div>'
+        + "</div></div></div>";
+      function close() { hostEl.innerHTML = ""; }
+      document.getElementById("mfMx").onclick = close;
+      document.getElementById("mfMCancel").onclick = close;
+      document.getElementById("mfBack").onclick = function (e) { if (e.target && e.target.id === "mfBack") close(); };
+      document.getElementById("mfBulkSave").onclick = async function () {
+        var btn = this, errEl = document.getElementById("mfMErr");
+        btn.disabled = true;
+        var saved = 0;
+        try {
+          for (var i = 0; i < jobs.length; i++) {
+            var r = jobs[i], p = settle(r);
+            if (!S.sel[r.ev]) continue;   // already saved on a previous attempt
+            btn.textContent = "Saving " + (i + 1) + " / " + jobs.length + "…";
+            var res = await fetch(ZTZ.API + "/api/_mf", {
+              method: "POST",
+              headers: { "Content-Type": "application/json", "Authorization": "Bearer " + ZTZ.getToken() },
+              body: JSON.stringify({ entry_type: p.type, amount: p.amount, note: "bulk confirmed",
+                                     event_id: r.ev, job_code: r.jobCode || "",
+                                     customer: r.customer || "", forman: r.formanEmail || "" }),
+            });
+            var j = await res.json().catch(function () { return {}; });
+            if (!res.ok || !j.ok) throw new Error((r.customer || r.ev) + ": " + (j.error || ("HTTP " + res.status)));
+            saved++; delete S.sel[r.ev];
+          }
+          close();
+          S.busy = true; paint();
+          await loadLive(true);
+          S.busy = false; setLiveBadge(); paint();
+        } catch (err) {
+          btn.disabled = false; btn.textContent = "Confirm all";
+          errEl.innerHTML = '<div class="mf-merr">Saved ' + saved + " of " + jobs.length + ", then failed ("
+            + esc(String(err && err.message || err)) + "). The saved ones are recorded — press Confirm all to retry the rest.</div>";
+          loadLive(true).then(function () { setLiveBadge(); });
+        }
+      };
     }
 
     // ---------- THE POPUP ----------
@@ -496,6 +596,9 @@ registerPage({
         + '<div class="mf-mbody">'
         + '<div class="mf-ro"><span>Net Cash</span><b>' + money2(r.expected)
         + (r.contractUrl ? ' <a class="mf-doc" href="' + esc(r.contractUrl) + '" target="_blank" rel="noopener">contract ↗</a>' : "")
+        + (r.calendarId ? ' <a class="mf-doc" href="https://calendar.google.com/calendar/u/0/r/event?eid='
+            + esc(btoa(r.ev + " " + r.calendarId).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, ""))
+            + '" target="_blank" rel="noopener">calendar ↗</a>' : "")
         + "</b></div>"
         + (r.dcTs ? '<div class="mf-mdc">Recorded in the contract system ' + fmtTs(r.dcTs) + "</div>" : "")
         + '<div class="mf-ro bal ok" id="mfMBalRow"><span>Net Cash Balance</span><b id="mfMBal">$0</b></div>'
@@ -670,6 +773,17 @@ registerPage({
       Array.prototype.forEach.call(root.querySelectorAll("a.mf-doc"), function (a) {
         a.onclick = function (e) { e.stopPropagation(); };
       });
+      // bulk-select checkboxes: tick without opening the popup, repaint the bulk button
+      Array.prototype.forEach.call(root.querySelectorAll("input.mf-ck"), function (ck) {
+        ck.onclick = function (e) { e.stopPropagation(); };
+        ck.onchange = function () {
+          var ev2 = ck.getAttribute("data-mfsel");
+          if (ck.checked) S.sel[ev2] = true; else delete S.sel[ev2];
+          paint();
+        };
+      });
+      var bulk = root.querySelector("#mfBulk");
+      if (bulk) bulk.onclick = function () { openBulkModal(); };
       // every action opens THE popup
       Array.prototype.forEach.call(root.querySelectorAll("[data-mfc]"), function (b) {
         b.onclick = function (e) { e.stopPropagation(); openModal(b.getAttribute("data-mfc")); };
