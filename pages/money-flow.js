@@ -85,6 +85,8 @@ registerPage({
            than the button rows (his catch 2026-07-22) */
         .mf-tbl.fx tbody tr{height:52px}
         .mf-fmmeta{font-size:12px;font-weight:600;color:var(--faint);margin-left:10px}
+        .mf-tbl td.ck{padding:0 0 0 12px;overflow:visible;text-overflow:clip}
+        .mf-tbl td.ck input{margin:0;width:15px;height:15px;cursor:pointer}
         .mf-tbl .mf-fmrow td{background:var(--panel-2);font-weight:800;font-size:14.5px}
         .mf-confirm{font:inherit;font-size:13.5px;font-weight:800;background:${POS};color:#fff;border:0;border-radius:9px;padding:8px 14px;cursor:pointer;white-space:nowrap}
         .mf-confirm:hover{filter:brightness(1.08)}
@@ -488,8 +490,8 @@ registerPage({
 
       // one checkbox per settleable job — ticked jobs confirm together (his ask)
       var ckCell = function (r) {
-        if (!settle(r) || r.status === "Money Received") return "<td></td>";
-        return '<td><input type="checkbox" class="mf-ck" data-mfsel="' + esc(r.ev) + '"'
+        if (!settle(r) || r.status === "Money Received") return '<td class="ck"></td>';
+        return '<td class="ck"><input type="checkbox" class="mf-ck" data-mfsel="' + esc(r.ev) + '"'
           + (S.sel[r.ev] ? " checked" : "") + "></td>";
       };
       var det = S.dense === "details";
@@ -501,7 +503,7 @@ registerPage({
       // `before` / `after` = how many columns sit either side of Net Cash Balance, so a
       // foreman's TOTAL can be placed in exactly that column.
       var PLAN = det ? {
-        cols: '<col style="width:2.5%"><col style="width:6%"><col style="width:5%"><col style="width:11.5%">'
+        cols: '<col style="width:2.5%"><col style="width:7%"><col style="width:5%"><col style="width:10.5%">'
             + '<col style="width:6.5%"><col style="width:8%"><col style="width:8.5%"><col style="width:7.5%">'
             + '<col style="width:8.5%"><col style="width:9%"><col style="width:5.5%"><col style="width:5.5%">'
             + '<col style="width:7%"><col style="width:9%">',
@@ -582,7 +584,7 @@ registerPage({
         // ---- History: the same grid plus Foreman, flat (everything here is settled, so
         // the last column IS the status) ----
         var HP = det ? {
-          cols: '<col style="width:6%"><col style="width:5%"><col style="width:12%"><col style="width:10.5%">'
+          cols: '<col style="width:7%"><col style="width:5%"><col style="width:11%"><col style="width:10.5%">'
               + '<col style="width:6.5%"><col style="width:8%"><col style="width:8.5%"><col style="width:7.5%">'
               + '<col style="width:8.5%"><col style="width:9%"><col style="width:5.5%"><col style="width:5.5%">'
               + '<col style="width:7.5%">',
