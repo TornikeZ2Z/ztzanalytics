@@ -81,6 +81,17 @@ registerPage({
         .mf-pill{display:inline-block;font-size:11px;font-weight:800;padding:3px 10px;border-radius:999px;white-space:nowrap}
         .mf-st-rec{background:rgba(28,122,74,.13);color:${POS}}
         .mf-st-con{background:rgba(47,111,208,.12);color:${BLUE}}
+        .mf-st-mnr{background:rgba(176,42,55,.12);color:${NEG}}
+        .mf-st-nib{background:rgba(245,165,36,.16);color:#a06a00}
+        .mf-tbl.mfc th{padding:9px 10px}
+        .mf-tbl.mfc td{padding:8px 10px;font-size:12.5px}
+        .mf-dseg button{padding:8px 13px;font-size:12px}
+        .mf-fmrow{cursor:pointer}
+        .mf-fmrow:hover{background:var(--panel-2)}
+        .mf-fmrow td{font-weight:700}
+        .mf-caret{color:var(--faint);font-size:11px;display:inline-block;width:14px}
+        .mf-fmsub>td{padding:0 0 16px 24px;background:var(--panel-2)}
+        .mf-fmsub .mf-tbl{background:var(--panel);border:1px solid var(--line-2);border-radius:10px}
         .mf-neg{color:${NEG};font-weight:700} .mf-pos{color:${POS};font-weight:700}
         .mf-age{font-size:10.5px;color:var(--faint)}
         .mf-doc{font-size:12px;font-weight:800;color:${BLUE};text-decoration:none;white-space:nowrap}
@@ -135,7 +146,11 @@ registerPage({
     var S = window.__MF || (window.__MF = {
       view: "todo", q: "", formen: [], live: null, liveOk: false,
       sort: { k: "Job Date", d: -1 }, months: 0, fmOpen: false, busy: false, modalEv: null,
+      dense: "overview",   // 'overview' = the compact 6-column table (default); 'details' = every column
+      fmx: {},             // Balance-by-Foreman view: which foremen are expanded
     });
+    if (!S.dense) S.dense = "overview";
+    if (!S.fmx) S.fmx = {};
     if (!Array.isArray(S.formen)) S.formen = [];
     S.modalEv = null;
 
@@ -288,67 +303,155 @@ registerPage({
           return '<label><input type="checkbox" data-mff="' + esc(f) + '"' + (S.formen.indexOf(f) >= 0 ? " checked" : "") + '> ' + esc(f) + "</label>";
         }).join("") + '<button class="clr" id="mfFmClr">Show all foremen</button></div>' : "";
 
+      // Balance by Foreman groups — from the NOT-CONFIRMED set, same time window; jobs
+      // with no contract amount are LISTED but add $0 to the total (his call 2026-07-21)
+      var fmJobs = todo.slice();
+      if (S.months) {
+        var lim2 = new Date(); lim2.setMonth(lim2.getMonth() - S.months);
+        var lim2Iso = lim2.toISOString().slice(0, 10);
+        fmJobs = fmJobs.filter(function (r) { return r.date >= lim2Iso; });
+      }
+      var groups = {};
+      fmJobs.forEach(function (r) {
+        var f = r.forman || "—";
+        (groups[f] = groups[f] || { jobs: [], total: 0, noCon: 0 }).jobs.push(r);
+        if (r.balance != null) groups[f].total += r.balance; else groups[f].noCon++;
+      });
+      var gnames = Object.keys(groups);
+      if (S.formen.length) gnames = gnames.filter(function (f) { return S.formen.indexOf(f) >= 0; });
+      if (q) gnames = gnames.filter(function (f) { return f.toLowerCase().indexOf(q) >= 0; });
+      gnames.sort(function (a, b) { return groups[b].total - groups[a].total; });
+
       var segBtn = function (id, label, n) {
         return '<button class="' + (S.view === id ? "on" : "") + '" data-mfv="' + id + '">' + label + "<i>" + n + "</i></button>";
       };
+      var dBtn = function (id, label) {
+        return '<button class="' + (S.dense === id ? "on" : "") + '" data-mfd="' + id + '">' + label + "</button>";
+      };
       var bar = '<div class="mf-bar">'
-        + '<div class="mf-seg">' + segBtn("todo", "Not Confirmed", todo.length) + segBtn("done", "Confirmed", done.length) + "</div>"
-        + '<input class="mf-q" id="mfQ" placeholder="Search customer / job / foreman" value="' + esc(S.q) + '">'
+        + '<div class="mf-seg">' + segBtn("todo", "Not Confirmed", todo.length) + segBtn("done", "Confirmed", done.length)
+        + segBtn("foreman", "Balance by Foreman", Object.keys(groups).length) + "</div>"
+        + '<input class="mf-q" id="mfQ" placeholder="' + (S.view === "foreman" ? "Search foreman" : "Search customer / job / foreman") + '" value="' + esc(S.q) + '">'
         + '<div class="mf-fmwrap"><button class="mf-fmbtn' + (S.formen.length ? " on" : "") + '" id="mfFmBtn">' + esc(fmLabel) + ' ▾</button>' + fmPop + "</div>"
-        + '<select class="mf-sel" id="mfM"><option value="0"' + (!S.months ? " selected" : "") + '>All time</option><option value="1"' + (S.months === 1 ? " selected" : "") + '>Last month</option><option value="3"' + (S.months === 3 ? " selected" : "") + '>Last 3 months</option></select></div>';
+        + '<select class="mf-sel" id="mfM"><option value="0"' + (!S.months ? " selected" : "") + '>All time</option><option value="1"' + (S.months === 1 ? " selected" : "") + '>Last month</option><option value="3"' + (S.months === 3 ? " selected" : "") + '>Last 3 months</option></select>'
+        + (S.view === "foreman" ? "" : '<div class="mf-seg mf-dseg">' + dBtn("overview", "Overview") + dBtn("details", "Details") + "</div>")
+        + "</div>";
 
       var arrow = function (kk) { return S.sort.k === kk ? (S.sort.d < 0 ? " ↓" : " ↑") : ""; };
-      var body = cur.map(function (r) {
-        var age = Math.floor((Date.now() - new Date(r.date + "T12:00:00")) / 864e5);
-        var action;
-        if (S.view === "done") {
-          action = '<span class="mf-pill mf-st-rec">✓ Confirmed</span>';
-        } else if (r.status === "Contract Not Received") {
-          action = '<span class="mf-pill mf-st-con" title="No contract amount yet — click the row and enter the cash manually">no contract</span>';
-        } else {
-          action = '<button class="mf-confirm" data-mfc="' + esc(r.ev) + '">Confirm ' + money(settle(r).type === "Cash Taken Away from Base" ? -settle(r).amount : settle(r).amount) + "</button>";
-        }
-        // column names AND order = the ORIGINAL system's (Net Cash / Advance Payment /
-        // Net Cash Flow / Forman Deduction / Net Cash Balance / Submission Time) — users
-        // already know them, and Net Cash Flow sits BEFORE the balance on BOTH views so
-        // anyone can feel how the balance is calculated (his ask 2026-07-21)
-        var handed = '<td class="r">' + money(r.flow) + "</td>";
-        var subTime = "<td>" + fmtTs(r.flowTs) + "</td>";
-        var doc = r.contractUrl
+      var statusPill = function (r) {
+        if (r.status === "Money Received") return '<span class="mf-pill mf-st-rec">Received</span>';
+        if (r.status === "Contract Not Received") return '<span class="mf-pill mf-st-con">No Contract</span>';
+        if (r.status === "Not in Balance") return '<span class="mf-pill mf-st-nib">Not in Balance</span>';
+        return '<span class="mf-pill mf-st-mnr">Not Received</span>';
+      };
+      var actionCell = function (r) {
+        if (r.status === "Money Received") return '<span class="mf-pill mf-st-rec">✓ Confirmed</span>';
+        if (r.status === "Contract Not Received")
+          return '<span class="mf-pill mf-st-con" title="No contract amount yet — click the row and enter the cash manually">no contract</span>';
+        return '<button class="mf-confirm" data-mfc="' + esc(r.ev) + '">Confirm ' + money(settle(r).type === "Cash Taken Away from Base" ? -settle(r).amount : settle(r).amount) + "</button>";
+      };
+      var docCell = function (r) {
+        return r.contractUrl
           ? '<a class="mf-doc" href="' + esc(r.contractUrl) + '" target="_blank" rel="noopener" title="Open the contract file">Open ↗</a>'
           : '<span style="color:var(--faint)">—</span>';
-        return '<tr class="mf-row" data-ev="' + esc(r.ev) + '">'
-          + "<td>" + fmtD(r.date) + (S.view === "todo" && age > 0 ? ' <span class="mf-age">' + age + "d</span>" : "") + "</td>"
-          + "<td>" + esc(r.jobNo || "—") + "</td>"
-          + "<td>" + esc(r.customer || "—") + "</td>"
-          + "<td>" + esc(r.forman) + "</td>"
-          + '<td class="r">' + money(r.expected) + "</td>"
-          + '<td class="r">' + (r.adv ? money(r.adv) : "—") + "</td>"
-          + handed
-          + '<td class="r">' + (r.ded ? money(r.ded) : "—") + "</td>"
-          + '<td class="r ' + ((r.balance || 0) > MF_TOL ? "mf-neg" : (r.balance || 0) < -MF_TOL ? "mf-pos" : "") + '">' + money(r.balance) + "</td>"
-          + subTime
-          + "<td>" + doc + "</td>"
-          + "<td>" + action + "</td></tr>";
-      }).join("");
+      };
+      var balCls = function (r) {
+        return (r.balance || 0) > MF_TOL ? "mf-neg" : (r.balance || 0) < -MF_TOL ? "mf-pos" : "";
+      };
 
       var veil = S.busy ? '<div class="mf-veil"><div class="mf-spin"></div>Updating…</div>' : "";
-      var cols = 12;
-      var tbl = '<div class="mf-card">' + veil + '<div class="mf-wrap"><table class="mf-tbl"><thead><tr>'
-        + '<th data-mfs="Job Date">Job date' + arrow("Job Date") + "</th><th>Job #</th><th>Customer</th><th>Foreman</th>"
-        + '<th class="r" data-mfs="Expected">Net Cash' + arrow("Expected") + "</th>"
-        + '<th class="r">Advance Payment</th>'
-        + '<th class="r">Net Cash Flow</th>'
-        + '<th class="r">Forman Deduction</th>'
-        + '<th class="r" data-mfs="Balance">Net Cash Balance' + arrow("Balance") + "</th>"
-        + "<th>Submission Time</th>"
-        + "<th>Contract</th><th></th>"
-        + "</tr></thead><tbody>"
-        + (body || '<tr><td colspan="' + cols + '" style="color:var(--faint);padding:18px">' + (S.view === "done" ? "Nothing confirmed yet." : "Nothing waiting — all cash is confirmed. 🎉") + "</td></tr>")
-        + "</tbody></table></div>"
-        + '<div class="mf-fnote">Click any row (or the green button) to open the job — the amount is prefilled so the balance becomes $0. Every save keeps its history.</div></div>';
+      var content;
 
-      document.getElementById("mfBody").innerHTML = kp + bar + tbl;
+      if (S.view === "foreman") {
+        // ---- Balance by Foreman: totals first, click a foreman for his open jobs ----
+        var frows = gnames.map(function (f) {
+          var g = groups[f], open = !!S.fmx[f];
+          var head = '<tr class="mf-fmrow" data-mfx="' + esc(f) + '">'
+            + '<td><span class="mf-caret">' + (open ? "▾" : "▸") + "</span>" + esc(f) + "</td>"
+            + '<td class="r">' + g.jobs.length + "</td>"
+            + '<td class="r">' + (g.noCon ? g.noCon : "—") + "</td>"
+            + '<td class="r ' + (g.total > MF_TOL ? "mf-neg" : "") + '"><b>' + money(g.total) + "</b></td></tr>";
+          var sub = "";
+          if (open) {
+            sub = '<tr class="mf-fmsub"><td colspan="4"><table class="mf-tbl mfc"><thead><tr>'
+              + '<th>Job date</th><th>Customer</th><th class="r">Net Cash Balance</th><th>Contract</th><th>Status</th><th></th>'
+              + "</tr></thead><tbody>"
+              + g.jobs.slice().sort(function (a, b) { return a.date < b.date ? 1 : -1; }).map(function (r) {
+                  return '<tr class="mf-row" data-ev="' + esc(r.ev) + '">'
+                    + "<td>" + fmtD(r.date) + "</td>"
+                    + "<td>" + esc(r.customer || "—") + "</td>"
+                    + '<td class="r ' + balCls(r) + '">' + money(r.balance) + "</td>"
+                    + "<td>" + docCell(r) + "</td>"
+                    + "<td>" + statusPill(r) + "</td>"
+                    + "<td>" + actionCell(r) + "</td></tr>";
+                }).join("")
+              + "</tbody></table></td></tr>";
+          }
+          return head + sub;
+        }).join("");
+        content = '<div class="mf-card">' + veil + '<div class="mf-wrap"><table class="mf-tbl"><thead><tr>'
+          + '<th>Foreman</th><th class="r">Open jobs</th><th class="r">No contract</th><th class="r">Total Net Cash Balance</th>'
+          + "</tr></thead><tbody>"
+          + (frows || '<tr><td colspan="4" style="color:var(--faint);padding:18px">No outstanding balances. 🎉</td></tr>')
+          + "</tbody></table></div>"
+          + '<div class="mf-fnote">Foremen sorted by what is still outstanding. Click a foreman to open his job list; click a job to confirm it. No-contract jobs are listed but add $0 to the total.</div></div>';
+      } else if (S.dense === "overview") {
+        // ---- compact Overview: Job date · Customer · Foreman · Balance · Contract · Status ----
+        var bodyO = cur.map(function (r) {
+          var age = Math.floor((Date.now() - new Date(r.date + "T12:00:00")) / 864e5);
+          return '<tr class="mf-row" data-ev="' + esc(r.ev) + '">'
+            + "<td>" + fmtD(r.date) + (S.view === "todo" && age > 0 ? ' <span class="mf-age">' + age + "d</span>" : "") + "</td>"
+            + "<td>" + esc(r.customer || "—") + "</td>"
+            + "<td>" + esc(r.forman) + "</td>"
+            + '<td class="r ' + balCls(r) + '">' + money(r.balance) + "</td>"
+            + "<td>" + docCell(r) + "</td>"
+            + "<td>" + statusPill(r) + "</td>"
+            + "<td>" + actionCell(r) + "</td></tr>";
+        }).join("");
+        content = '<div class="mf-card">' + veil + '<div class="mf-wrap"><table class="mf-tbl mfc"><thead><tr>'
+          + '<th data-mfs="Job Date">Job date' + arrow("Job Date") + "</th><th>Customer</th><th>Foreman</th>"
+          + '<th class="r" data-mfs="Balance">Net Cash Balance' + arrow("Balance") + "</th>"
+          + "<th>Contract</th><th>Status</th><th></th>"
+          + "</tr></thead><tbody>"
+          + (bodyO || '<tr><td colspan="7" style="color:var(--faint);padding:18px">' + (S.view === "done" ? "Nothing confirmed yet." : "Nothing waiting — all cash is confirmed. 🎉") + "</td></tr>")
+          + "</tbody></table></div>"
+          + '<div class="mf-fnote">Click any row (or the green button) to open the job — the amount is prefilled so the balance becomes $0. Switch to <b>Details</b> for every column.</div></div>';
+      } else {
+        // ---- full Details: the ORIGINAL system's columns; Net Cash Flow sits to the RIGHT
+        // of Forman Deduction (his order, 2026-07-21) so the arithmetic still reads
+        // left-to-right into the balance ----
+        var bodyD = cur.map(function (r) {
+          var age = Math.floor((Date.now() - new Date(r.date + "T12:00:00")) / 864e5);
+          return '<tr class="mf-row" data-ev="' + esc(r.ev) + '">'
+            + "<td>" + fmtD(r.date) + (S.view === "todo" && age > 0 ? ' <span class="mf-age">' + age + "d</span>" : "") + "</td>"
+            + "<td>" + esc(r.jobNo || "—") + "</td>"
+            + "<td>" + esc(r.customer || "—") + "</td>"
+            + "<td>" + esc(r.forman) + "</td>"
+            + '<td class="r">' + money(r.expected) + "</td>"
+            + '<td class="r">' + (r.adv ? money(r.adv) : "—") + "</td>"
+            + '<td class="r">' + (r.ded ? money(r.ded) : "—") + "</td>"
+            + '<td class="r">' + money(r.flow) + "</td>"
+            + '<td class="r ' + balCls(r) + '">' + money(r.balance) + "</td>"
+            + "<td>" + fmtTs(r.flowTs) + "</td>"
+            + "<td>" + docCell(r) + "</td>"
+            + "<td>" + actionCell(r) + "</td></tr>";
+        }).join("");
+        content = '<div class="mf-card">' + veil + '<div class="mf-wrap"><table class="mf-tbl"><thead><tr>'
+          + '<th data-mfs="Job Date">Job date' + arrow("Job Date") + "</th><th>Job #</th><th>Customer</th><th>Foreman</th>"
+          + '<th class="r" data-mfs="Expected">Net Cash' + arrow("Expected") + "</th>"
+          + '<th class="r">Advance Payment</th>'
+          + '<th class="r">Forman Deduction</th>'
+          + '<th class="r">Net Cash Flow</th>'
+          + '<th class="r" data-mfs="Balance">Net Cash Balance' + arrow("Balance") + "</th>"
+          + "<th>Submission Time</th>"
+          + "<th>Contract</th><th></th>"
+          + "</tr></thead><tbody>"
+          + (bodyD || '<tr><td colspan="12" style="color:var(--faint);padding:18px">' + (S.view === "done" ? "Nothing confirmed yet." : "Nothing waiting — all cash is confirmed. 🎉") + "</td></tr>")
+          + "</tbody></table></div>"
+          + '<div class="mf-fnote">Click any row (or the green button) to open the job — the amount is prefilled so the balance becomes $0. Every save keeps its history.</div></div>';
+      }
+
+      document.getElementById("mfBody").innerHTML = kp + bar + content;
       wire();
     }
 
@@ -492,6 +595,17 @@ registerPage({
       var root = host;
       Array.prototype.forEach.call(root.querySelectorAll("[data-mfv]"), function (b) {
         b.onclick = function () { S.view = b.getAttribute("data-mfv"); paint(); };
+      });
+      // Overview / Details density toggle
+      Array.prototype.forEach.call(root.querySelectorAll("[data-mfd]"), function (b) {
+        b.onclick = function () { S.dense = b.getAttribute("data-mfd"); paint(); };
+      });
+      // Balance by Foreman: a foreman row expands/collapses his open-job list
+      Array.prototype.forEach.call(root.querySelectorAll("tr[data-mfx]"), function (tr) {
+        tr.onclick = function () {
+          var f = tr.getAttribute("data-mfx");
+          S.fmx[f] = !S.fmx[f]; paint();
+        };
       });
       Array.prototype.forEach.call(root.querySelectorAll("th[data-mfs]"), function (th) {
         th.onclick = function () {
