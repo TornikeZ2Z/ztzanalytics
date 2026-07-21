@@ -59,7 +59,7 @@ registerPage({
         .mf-seg button{border:0;background:transparent;color:var(--muted);cursor:pointer;font:inherit;font-size:13.5px;font-weight:800;padding:8px 18px;border-radius:8px}
         .mf-seg button.on{background:var(--brand);color:var(--brand-ink)}
         .mf-seg button i{font-style:normal;font-weight:800;font-size:11px;opacity:.75;margin-left:6px}
-        .mf-q{font:inherit;font-size:13px;background:var(--panel);color:var(--ink);border:1px solid var(--line-2);border-radius:10px;padding:8px 12px;min-width:200px}
+        .mf-q{font:inherit;font-size:13px;background:var(--panel);color:var(--ink);border:1px solid var(--line-2);border-radius:10px;padding:8px 12px;min-width:260px;flex:1;max-width:480px}
         .mf-sel{font:inherit;font-size:12.5px;background:var(--panel);color:var(--ink);border:1px solid var(--line-2);border-radius:10px;padding:8px 10px}
         .mf-fmwrap{position:relative}
         .mf-fmbtn{font:inherit;font-size:12.5px;font-weight:700;background:var(--panel);color:var(--ink);border:1px solid var(--line-2);border-radius:10px;padding:8px 12px;cursor:pointer}
@@ -86,6 +86,21 @@ registerPage({
         .mf-tbl.mfc th{padding:9px 10px}
         .mf-tbl.mfc td{padding:8px 10px;font-size:12.5px}
         .mf-dseg button{padding:8px 13px;font-size:12px}
+        /* FIXED column layout: a wide customer name must never re-shape the table —
+           every table locks its column widths, long text ellipses (his ask 2026-07-22) */
+        .mf-tbl.fx{table-layout:fixed}
+        .mf-tbl.fx td{max-width:none}
+        .mf-bars{display:flex;flex-direction:column;gap:10px;margin-bottom:12px}
+        .mf-bars .mf-bar{margin-bottom:0}
+        .mf-dtwrap{position:relative}
+        .mf-dtpop{position:absolute;top:calc(100% + 6px);left:0;z-index:40;background:var(--panel);border:1px solid var(--line-2);border-radius:12px;box-shadow:0 10px 30px rgba(14,22,33,.14);padding:10px;min-width:280px}
+        .mf-dtpop .pre{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:10px}
+        .mf-dtpop .pre button{font:inherit;font-size:12px;font-weight:700;padding:7px 8px;border:1px solid var(--line-2);border-radius:8px;background:var(--panel);color:var(--ink);cursor:pointer}
+        .mf-dtpop .pre button:hover{background:var(--panel-2)}
+        .mf-dtpop .pre button.on{background:var(--brand);color:var(--brand-ink);border-color:var(--brand)}
+        .mf-dtpop .rng{display:flex;gap:6px;align-items:center;font-size:12px;color:var(--faint);margin-bottom:8px}
+        .mf-dtpop input[type=date]{font:inherit;font-size:12px;padding:6px 7px;border:1px solid var(--line-2);border-radius:8px;background:var(--panel);color:var(--ink);flex:1;min-width:0}
+        .mf-dtpop .clr{display:block;width:100%;font:inherit;font-size:11.5px;font-weight:700;color:${BLUE};background:transparent;border:1px solid var(--line-2);border-radius:8px;padding:7px;cursor:pointer}
         .mf-fmrow{cursor:pointer}
         .mf-fmrow:hover{background:var(--panel-2)}
         .mf-fmrow td{font-weight:700}
@@ -152,6 +167,7 @@ registerPage({
     if (!S.dense) S.dense = "overview";
     if (!S.fmx) S.fmx = {};
     if (!S.sel) S.sel = {};   // bulk-confirm ticks (event ids)
+    if (!S.dateLabel) { S.dateFrom = null; S.dateTo = null; S.dateLabel = "All time"; S.dtOpen = false; }
     if (!Array.isArray(S.formen)) S.formen = [];
     S.modalEv = null;
 
@@ -308,11 +324,8 @@ registerPage({
       var done = rows.filter(function (r) { return r.status === "Money Received"; });
       var cur = done.slice();                          // History = the flat table
       if (S.formen.length) cur = cur.filter(function (r) { return S.formen.indexOf(r.forman) >= 0; });
-      if (S.months) {
-        var lim = new Date(); lim.setMonth(lim.getMonth() - S.months);
-        var limIso = lim.toISOString().slice(0, 10);
-        cur = cur.filter(function (r) { return r.date >= limIso; });
-      }
+      if (S.dateFrom) cur = cur.filter(function (r) { return r.date >= S.dateFrom; });
+      if (S.dateTo) cur = cur.filter(function (r) { return r.date <= S.dateTo; });
       if (q) cur = cur.filter(function (r) {
         return String(r.customer || "").toLowerCase().indexOf(q) >= 0
           || String(r.jobNo || "").toLowerCase().indexOf(q) >= 0
@@ -350,11 +363,8 @@ registerPage({
       // with no contract amount are LISTED but add $0 to the total (his call 2026-07-21)
       var groupsFor = function (jobsIn) {
         var jobs = jobsIn.slice();
-        if (S.months) {
-          var lim2 = new Date(); lim2.setMonth(lim2.getMonth() - S.months);
-          var lim2Iso = lim2.toISOString().slice(0, 10);
-          jobs = jobs.filter(function (r) { return r.date >= lim2Iso; });
-        }
+        if (S.dateFrom) jobs = jobs.filter(function (r) { return r.date >= S.dateFrom; });
+        if (S.dateTo) jobs = jobs.filter(function (r) { return r.date <= S.dateTo; });
         var groups = {};
         jobs.forEach(function (r) {
           var f = r.forman || "—";
@@ -382,16 +392,38 @@ registerPage({
       var dBtn = function (id, label) {
         return '<button class="' + (S.dense === id ? "on" : "") + '" data-mfd="' + id + '">' + label + "</button>";
       };
-      var bar = '<div class="mf-bar">'
-        + '<div class="mf-seg">' + segBtn("foreman", "Balance by Foreman", main.length)
+      // date filter: preset ranges + a custom from→to, in a popover like the foremen one
+      var iso = function (d2) { return d2.toLocaleDateString("en-CA"); };
+      var now2 = new Date();
+      var firstThis = iso(new Date(now2.getFullYear(), now2.getMonth(), 1));
+      var firstPrev = iso(new Date(now2.getFullYear(), now2.getMonth() - 1, 1));
+      var lastPrev = iso(new Date(now2.getFullYear(), now2.getMonth(), 0));
+      var back3 = new Date(now2); back3.setMonth(back3.getMonth() - 3);
+      var presets = [
+        ["All time", "", ""], ["This month", firstThis, todayIso],
+        ["Past month", firstPrev, lastPrev], ["Last 3 months", iso(back3), todayIso],
+        ["This year", now2.getFullYear() + "-01-01", todayIso],
+      ];
+      var dtPop = S.dtOpen ? '<div class="mf-dtpop">'
+        + '<div class="pre">' + presets.map(function (p) {
+            return '<button data-mfdt="' + esc(p[0]) + '" data-f="' + p[1] + '" data-t="' + p[2] + '"'
+              + (S.dateLabel === p[0] ? ' class="on"' : "") + ">" + esc(p[0]) + "</button>";
+          }).join("") + "</div>"
+        + '<div class="rng"><input type="date" id="mfDtFrom" value="' + esc(S.dateFrom || "") + '"><span>→</span>'
+        + '<input type="date" id="mfDtTo" value="' + esc(S.dateTo || "") + '"></div>'
+        + '<button class="clr" id="mfDtApply">Apply this range</button>'
+        + "</div>" : "";
+      var bar = '<div class="mf-bars">'
+        + '<div class="mf-bar"><div class="mf-seg">' + segBtn("foreman", "Balance by Foreman", main.length)
         + segBtn("nib", "Not in Balance Jobs", nib.length)
-        + segBtn("history", "History", done.length) + "</div>"
-        + '<input class="mf-q" id="mfQ" placeholder="' + (S.view === "history" ? "Search customer / job / foreman" : "Search foreman") + '" value="' + esc(S.q) + '">'
-        + '<div class="mf-fmwrap"><button class="mf-fmbtn' + (S.formen.length ? " on" : "") + '" id="mfFmBtn">' + esc(fmLabel) + ' ▾</button>' + fmPop + "</div>"
-        + '<select class="mf-sel" id="mfM"><option value="0"' + (!S.months ? " selected" : "") + '>All time</option><option value="1"' + (S.months === 1 ? " selected" : "") + '>Last month</option><option value="3"' + (S.months === 3 ? " selected" : "") + '>Last 3 months</option></select>'
+        + segBtn("history", "History", done.length) + "</div></div>"
+        + '<div class="mf-bar">'
         + '<div class="mf-seg mf-dseg">' + dBtn("overview", "Overview") + dBtn("details", "Details") + "</div>"
+        + '<div class="mf-fmwrap"><button class="mf-fmbtn' + (S.formen.length ? " on" : "") + '" id="mfFmBtn">' + esc(fmLabel) + ' ▾</button>' + fmPop + "</div>"
+        + '<div class="mf-dtwrap"><button class="mf-fmbtn' + (S.dateFrom || S.dateTo ? " on" : "") + '" id="mfDtBtn">📅 ' + esc(S.dateLabel) + ' ▾</button>' + dtPop + "</div>"
+        + '<input class="mf-q" id="mfQ" placeholder="' + (S.view === "history" ? "Search customer / job / foreman" : "Search foreman") + '" value="' + esc(S.q) + '">'
         + (selJobs.length ? '<button class="mf-confirm" id="mfBulk" style="padding:9px 16px">Confirm ' + selJobs.length + " selected — " + money(selTotal) + "</button>" : "")
-        + "</div>";
+        + "</div></div>";
 
       var arrow = function (kk) { return S.sort.k === kk ? (S.sort.d < 0 ? " ↓" : " ↑") : ""; };
       var statusPill = function (r) {
@@ -449,7 +481,7 @@ registerPage({
                   + ckCell(r)
                   + "<td>" + fmtD(r.date) + "</td>"
                   + "<td>" + esc(r.jobNo || "—") + "</td>"
-                  + "<td>" + esc(r.customer || "—") + "</td>"
+                  + '<td title="' + esc(r.customer || "") + '">' + esc(r.customer || "—") + "</td>"
                   + '<td class="r">' + money(r.expected) + "</td>"
                   + '<td class="r">' + (r.adv ? money(r.adv) : "—") + "</td>"
                   + '<td class="r">' + (r.ded ? money(r.ded) : "—") + "</td>"
@@ -467,24 +499,30 @@ registerPage({
                 return '<tr class="mf-row" data-ev="' + esc(r.ev) + '">'
                   + ckCell(r)
                   + "<td>" + fmtD(r.date) + "</td>"
-                  + "<td>" + esc(r.customer || "—") + "</td>"
+                  + '<td title="' + esc(r.customer || "") + '">' + esc(r.customer || "—") + "</td>"
                   + '<td class="r ' + balCls(r) + '">' + money(r.balance) + "</td>"
                   + "<td>" + docCell(r) + "</td>"
                   + "<td>" + statusPill(r) + "</td>"
                   + "<td>" + actionCell(r) + "</td></tr>";
               }).join("");
             }
-            sub = '<tr class="mf-fmsub"><td colspan="4"><table class="mf-tbl mfc"><thead><tr>'
+            var subCols = S.dense === "details"
+              ? '<colgroup><col style="width:32px"><col style="width:95px"><col style="width:85px"><col>'
+                + '<col style="width:95px"><col style="width:110px"><col style="width:115px"><col style="width:100px">'
+                + '<col style="width:110px"><col style="width:125px"><col style="width:70px"><col style="width:110px"><col style="width:160px"></colgroup>'
+              : '<colgroup><col style="width:36px"><col style="width:110px"><col>'
+                + '<col style="width:130px"><col style="width:90px"><col style="width:140px"><col style="width:180px"></colgroup>';
+            sub = '<tr class="mf-fmsub"><td colspan="4"><table class="mf-tbl mfc fx">' + subCols + '<thead><tr>'
               + subHead + "</tr></thead><tbody>" + subBody + "</tbody></table></td></tr>";
           }
           return head + sub;
         }).join("");
-        return '<div class="mf-card">' + veil + '<div class="mf-wrap"><table class="mf-tbl"><thead><tr>'
+        return '<div class="mf-card">' + veil + '<div class="mf-wrap"><table class="mf-tbl fx">'
+          + '<colgroup><col><col style="width:110px"><col style="width:110px"><col style="width:180px"></colgroup><thead><tr>'
           + '<th>Foreman</th><th class="r">Open jobs</th><th class="r">No contract</th><th class="r">Total Net Cash Balance</th>'
           + "</tr></thead><tbody>"
           + (frows || '<tr><td colspan="4" style="color:var(--faint);padding:18px">' + label + " 🎉</td></tr>")
-          + "</tbody></table></div>"
-          + '<div class="mf-fnote">Click a foreman to open his job list; click a job to confirm it, or tick several and confirm them together. No-contract jobs are listed but add $0 to the total.</div></div>';
+          + "</tbody></table></div></div>";
       };
 
       if (S.view === "foreman") {
@@ -497,21 +535,21 @@ registerPage({
           var age = Math.floor((Date.now() - new Date(r.date + "T12:00:00")) / 864e5);
           return '<tr class="mf-row" data-ev="' + esc(r.ev) + '">'
             + "<td>" + fmtD(r.date) + "</td>"
-            + "<td>" + esc(r.customer || "—") + "</td>"
+            + '<td title="' + esc(r.customer || "") + '">' + esc(r.customer || "—") + "</td>"
             + "<td>" + esc(r.forman) + "</td>"
             + '<td class="r ' + balCls(r) + '">' + money(r.balance) + "</td>"
             + "<td>" + docCell(r) + "</td>"
             + "<td>" + statusPill(r) + "</td>"
             + "<td>" + actionCell(r) + "</td></tr>";
         }).join("");
-        content = '<div class="mf-card">' + veil + '<div class="mf-wrap"><table class="mf-tbl mfc"><thead><tr>'
+        content = '<div class="mf-card">' + veil + '<div class="mf-wrap"><table class="mf-tbl mfc fx">'
+          + '<colgroup><col style="width:115px"><col><col style="width:170px"><col style="width:140px"><col style="width:90px"><col style="width:140px"><col style="width:180px"></colgroup><thead><tr>'
           + '<th data-mfs="Job Date">Job date' + arrow("Job Date") + "</th><th>Customer</th><th>Foreman</th>"
           + '<th class="r" data-mfs="Balance">Net Cash Balance' + arrow("Balance") + "</th>"
           + "<th>Contract</th><th>Status</th><th></th>"
           + "</tr></thead><tbody>"
           + (bodyO || '<tr><td colspan="7" style="color:var(--faint);padding:18px">' + "Nothing confirmed yet." + "</td></tr>")
-          + "</tbody></table></div>"
-          + '<div class="mf-fnote">Click any row (or the green button) to open the job — the amount is prefilled so the balance becomes $0. Switch to <b>Details</b> for every column.</div></div>';
+          + "</tbody></table></div></div>";
       } else {
         // ---- full Details: the ORIGINAL system's columns; Net Cash Flow sits to the RIGHT
         // of Forman Deduction (his order, 2026-07-21) so the arithmetic still reads
@@ -521,7 +559,7 @@ registerPage({
           return '<tr class="mf-row" data-ev="' + esc(r.ev) + '">'
             + "<td>" + fmtD(r.date) + "</td>"
             + "<td>" + esc(r.jobNo || "—") + "</td>"
-            + "<td>" + esc(r.customer || "—") + "</td>"
+            + '<td title="' + esc(r.customer || "") + '">' + esc(r.customer || "—") + "</td>"
             + "<td>" + esc(r.forman) + "</td>"
             + '<td class="r">' + money(r.expected) + "</td>"
             + '<td class="r">' + (r.adv ? money(r.adv) : "—") + "</td>"
@@ -532,7 +570,8 @@ registerPage({
             + "<td>" + docCell(r) + "</td>"
             + "<td>" + actionCell(r) + "</td></tr>";
         }).join("");
-        content = '<div class="mf-card">' + veil + '<div class="mf-wrap"><table class="mf-tbl"><thead><tr>'
+        content = '<div class="mf-card">' + veil + '<div class="mf-wrap"><table class="mf-tbl fx">'
+          + '<colgroup><col style="width:100px"><col style="width:90px"><col><col style="width:150px"><col style="width:100px"><col style="width:115px"><col style="width:120px"><col style="width:105px"><col style="width:120px"><col style="width:130px"><col style="width:80px"><col style="width:170px"></colgroup><thead><tr>'
           + '<th data-mfs="Job Date">Job date' + arrow("Job Date") + "</th><th>Job #</th><th>Customer</th><th>Foreman</th>"
           + '<th class="r" data-mfs="Expected">Net Cash' + arrow("Expected") + "</th>"
           + '<th class="r">Advance Payment</th>'
@@ -543,8 +582,7 @@ registerPage({
           + "<th>Contract</th><th></th>"
           + "</tr></thead><tbody>"
           + (bodyD || '<tr><td colspan="12" style="color:var(--faint);padding:18px">' + "Nothing confirmed yet." + "</td></tr>")
-          + "</tbody></table></div>"
-          + '<div class="mf-fnote">Click any row (or the green button) to open the job — the amount is prefilled so the balance becomes $0. Every save keeps its history.</div></div>';
+          + "</tbody></table></div></div>";
       }
 
       // repainting replaces the whole table — without restoring the scroll, expanding a
@@ -787,11 +825,32 @@ registerPage({
       });
       var q = root.querySelector("#mfQ");
       if (q) q.oninput = function () { S.q = q.value; var pos = q.selectionStart; paint(); var n2 = root.querySelector("#mfQ"); if (n2) { n2.focus(); try { n2.setSelectionRange(pos, pos); } catch (e) {} } };
-      var m = root.querySelector("#mfM"); if (m) m.onchange = function () { S.months = +m.value; paint(); };
+      var db2 = root.querySelector("#mfDtBtn");
+      if (db2) db2.onclick = function (e) { e.stopPropagation(); S.dtOpen = !S.dtOpen; S.fmOpen = false; paint(); };
+      var dpop = root.querySelector(".mf-dtpop");
+      if (dpop) dpop.onclick = function (e) { e.stopPropagation(); };
+      Array.prototype.forEach.call(root.querySelectorAll("[data-mfdt]"), function (b) {
+        b.onclick = function (e) {
+          e.stopPropagation();
+          S.dateFrom = b.getAttribute("data-f") || null;
+          S.dateTo = b.getAttribute("data-t") || null;
+          S.dateLabel = b.getAttribute("data-mfdt");
+          S.dtOpen = false; paint();
+        };
+      });
+      var dap = root.querySelector("#mfDtApply");
+      if (dap) dap.onclick = function (e) {
+        e.stopPropagation();
+        var f = root.querySelector("#mfDtFrom").value || null;
+        var t = root.querySelector("#mfDtTo").value || null;
+        S.dateFrom = f; S.dateTo = t;
+        S.dateLabel = (f || t) ? ((f ? fmtD(f) : "…") + " – " + (t ? fmtD(t) : "…")) : "All time";
+        S.dtOpen = false; paint();
+      };
       var rf = root.querySelector("#mfRefresh");
       if (rf) rf.onclick = async function () { S.busy = true; paint(); await loadLive(true); S.busy = false; setLiveBadge(); paint(); };
       var fb = root.querySelector("#mfFmBtn");
-      if (fb) fb.onclick = function (e) { e.stopPropagation(); S.fmOpen = !S.fmOpen; paint(); };
+      if (fb) fb.onclick = function (e) { e.stopPropagation(); S.fmOpen = !S.fmOpen; S.dtOpen = false; paint(); };
       var pop = root.querySelector(".mf-fmpop");
       if (pop) pop.onclick = function (e) { e.stopPropagation(); };
       Array.prototype.forEach.call(root.querySelectorAll("[data-mff]"), function (cb) {
@@ -804,10 +863,10 @@ registerPage({
         };
       });
       var fc = root.querySelector("#mfFmClr"); if (fc) fc.onclick = function () { S.formen = []; S.fmOpen = false; paint(); };
-      if (S.fmOpen && !wire._docClose) {
+      if ((S.fmOpen || S.dtOpen) && !wire._docClose) {
         wire._docClose = true;
         document.addEventListener("click", function closeFm() {
-          if (S.fmOpen) { S.fmOpen = false; paint(); }
+          if (S.fmOpen || S.dtOpen) { S.fmOpen = false; S.dtOpen = false; paint(); }
           document.removeEventListener("click", closeFm); wire._docClose = false;
         });
       }
