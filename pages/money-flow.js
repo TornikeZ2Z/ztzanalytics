@@ -69,8 +69,8 @@ registerPage({
         .mf-fmpop label:hover{background:var(--panel-2)}
         .mf-fmpop .clr{display:block;width:100%;margin-top:6px;font:inherit;font-size:11.5px;font-weight:700;color:${BLUE};background:transparent;border:1px solid var(--line-2);border-radius:8px;padding:6px;cursor:pointer}
         .mf-card{background:var(--panel);border:1px solid var(--line-2);border-radius:14px;overflow:hidden;position:relative}
-        .mf-tbl{width:100%;border-collapse:collapse;font-size:13px}
-        .mf-tbl th{position:sticky;top:0;background:var(--panel);text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--faint);font-weight:800;padding:10px 12px;border-bottom:1px solid var(--line);white-space:nowrap;cursor:pointer;user-select:none;z-index:2}
+        .mf-tbl{width:100%;border-collapse:collapse;font-size:14px}
+        .mf-tbl th{position:sticky;top:0;background:var(--panel);text-align:left;font-size:11.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--faint);font-weight:800;padding:11px 12px;border-bottom:1px solid var(--line);white-space:nowrap;cursor:pointer;user-select:none;z-index:2}
         .mf-tbl th.r,.mf-tbl td.r{text-align:right;font-variant-numeric:tabular-nums}
         .mf-tbl td{padding:10px 12px;border-top:1px solid var(--line);vertical-align:middle;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:240px}
         .mf-tbl tbody tr.mf-row{cursor:pointer}
@@ -79,17 +79,22 @@ registerPage({
         /* the fixed layouts need their full width — below it the wrap scrolls rather
            than CLIPPING the right-hand headers (the real cause of "headers not fully
            visible", 2026-07-22) */
-        .mf-tbl.fx{min-width:1180px}
-        .mf-tbl.mfc.fx{min-width:1100px}
-        .mf-confirm{font:inherit;font-size:12.5px;font-weight:800;background:${POS};color:#fff;border:0;border-radius:9px;padding:8px 14px;cursor:pointer;white-space:nowrap}
+        .mf-tbl.fx{min-width:1150px}
+        .mf-tbl.fx.det{min-width:1520px}
+        /* every row the SAME height — a "No Contract" pill used to make its row shorter
+           than the button rows (his catch 2026-07-22) */
+        .mf-tbl.fx tbody tr{height:52px}
+        .mf-fmmeta{font-size:12px;font-weight:600;color:var(--faint);margin-left:10px}
+        .mf-tbl .mf-fmrow td{background:var(--panel-2);font-weight:800;font-size:14.5px}
+        .mf-confirm{font:inherit;font-size:13.5px;font-weight:800;background:${POS};color:#fff;border:0;border-radius:9px;padding:8px 14px;cursor:pointer;white-space:nowrap}
         .mf-confirm:hover{filter:brightness(1.08)}
-        .mf-pill{display:inline-block;font-size:11px;font-weight:800;padding:3px 10px;border-radius:999px;white-space:nowrap}
+        .mf-pill{display:inline-block;font-size:12px;font-weight:800;padding:3px 10px;border-radius:999px;white-space:nowrap}
         .mf-st-rec{background:rgba(28,122,74,.13);color:${POS}}
         .mf-st-con{background:rgba(47,111,208,.12);color:${BLUE}}
         .mf-st-mnr{background:rgba(176,42,55,.12);color:${NEG}}
         .mf-st-nib{background:rgba(245,165,36,.16);color:#a06a00}
         .mf-tbl.mfc th{padding:9px 10px}
-        .mf-tbl.mfc td{padding:8px 10px;font-size:12.5px}
+        .mf-tbl.mfc td{padding:8px 10px;font-size:13.5px}
         .mf-dseg button{padding:8px 13px;font-size:12px}
         /* FIXED column layout: a wide customer name must never re-shape the table —
            every table locks its column widths, long text ellipses (his ask 2026-07-22) */
@@ -114,7 +119,7 @@ registerPage({
         .mf-fmsub .mf-tbl{background:var(--panel);border:1px solid var(--line-2);border-radius:10px}
         .mf-neg{color:${NEG};font-weight:700} .mf-pos{color:${POS};font-weight:700}
         .mf-age{font-size:10.5px;color:var(--faint)}
-        .mf-doc{font-size:12px;font-weight:800;color:${BLUE};text-decoration:none;white-space:nowrap}
+        .mf-doc{font-size:13px;font-weight:800;color:${BLUE};text-decoration:none;white-space:nowrap}
         .mf-doc:hover{text-decoration:underline}
         .mf-mdc{font-size:10.5px;color:var(--faint);margin:-4px 0 6px}
         .mf-fnote{padding:10px 14px;font-size:11px;color:var(--faint);border-top:1px solid var(--line)}
@@ -166,10 +171,10 @@ registerPage({
       view: "foreman",     // Balance by Foreman is the landing view (his pick 2026-07-21)
       q: "", formen: [], live: null, liveOk: false,
       sort: { k: "Job Date", d: -1 }, months: 0, fmOpen: false, busy: false, modalEv: null,
-      dense: "overview",   // 'overview' = the compact table (default); 'details' = every column
+      dense: "details",    // 'details' = every column (default); 'overview' = the compact table
       fmx: {},             // Balance-by-Foreman view: which foremen are expanded
     });
-    if (!S.dense) S.dense = "overview";
+    if (!S.dense) S.dense = "details";        // Details is the landing density (his pick)
     if (!S.fmx) S.fmx = {};
     if (!S.sel) S.sel = {};   // bulk-confirm ticks (event ids)
     if (!S.dateLabel) { S.dateFrom = null; S.dateTo = null; S.dateLabel = "All time"; S.dtOpen = false; }
@@ -442,7 +447,7 @@ registerPage({
         + segBtn("nib", "Not in Balance Jobs", nib.length)
         + segBtn("history", "History", done.length) + "</div></div>"
         + '<div class="mf-bar">'
-        + '<div class="mf-seg mf-dseg">' + dBtn("overview", "Overview") + dBtn("details", "Details") + "</div>"
+        + '<div class="mf-seg mf-dseg">' + dBtn("details", "Details") + dBtn("overview", "Compact") + "</div>"
         + '<div class="mf-fmwrap"><button class="mf-fmbtn' + (S.formen.length ? " on" : "") + '" id="mfFmBtn">' + esc(fmLabel) + ' ▾</button>' + fmPop + "</div>"
         + '<div class="mf-dtwrap"><button class="mf-fmbtn' + (S.dateFrom || S.dateTo ? " on" : "") + '" id="mfDtBtn">📅 ' + esc(S.dateLabel) + ' ▾</button>' + dtPop + "</div>"
         + '<input class="mf-q" id="mfQ" placeholder="Search customer / request # / job code / foreman / amount" value="' + esc(S.q) + '">'
@@ -459,7 +464,7 @@ registerPage({
       var actionCell = function (r) {
         if (r.status === "Money Received") return '<span class="mf-pill mf-st-rec">✓ Confirmed</span>';
         if (r.status === "Contract Not Received")
-          return '<span class="mf-pill mf-st-con" title="No contract amount yet — click the row and enter the cash manually">no contract</span>';
+          return '<span class="mf-pill mf-st-con" title="No contract amount yet — click the row and enter the cash manually">No Contract</span>';
         return '<button class="mf-confirm" data-mfc="' + esc(r.ev) + '">Confirm ' + money(settle(r).type === "Cash Taken Away from Base" ? -settle(r).amount : settle(r).amount) + "</button>";
       };
       var docCell = function (r) {
@@ -487,80 +492,85 @@ registerPage({
         return '<td><input type="checkbox" class="mf-ck" data-mfsel="' + esc(r.ev) + '"'
           + (S.sel[r.ev] ? " checked" : "") + "></td>";
       };
+      var det = S.dense === "details";
+
+      // ---- COLUMN PLANS -------------------------------------------------------------
+      // PERCENTAGES: the table always fills the whole window (his ask 2026-07-22) while
+      // the widths stay content-independent, so a long customer name can never reshape
+      // the grid — it ellipses instead (full name on hover).
+      // `before` / `after` = how many columns sit either side of Net Cash Balance, so a
+      // foreman's TOTAL can be placed in exactly that column.
+      var PLAN = det ? {
+        cols: '<col style="width:2.5%"><col style="width:6%"><col style="width:5%"><col style="width:11.5%">'
+            + '<col style="width:6.5%"><col style="width:8%"><col style="width:8.5%"><col style="width:7.5%">'
+            + '<col style="width:8.5%"><col style="width:9%"><col style="width:5.5%"><col style="width:5.5%">'
+            + '<col style="width:7%"><col style="width:9%">',
+        head: "<th></th><th>Job date</th><th>Job #</th><th>Customer</th>"
+            + '<th class="r">Net Cash</th><th class="r">Advance Payment</th>'
+            + '<th class="r">Forman Deduction</th><th class="r">Net Cash Flow</th>'
+            + '<th class="r">Net Cash Balance</th><th>Submission Time</th>'
+            + "<th>Contract</th><th>Calendar</th><th>Status</th><th>Action</th>",
+        before: 8, after: 5, n: 14,
+      } : {
+        cols: '<col style="width:3%"><col style="width:12%"><col style="width:22%"><col style="width:15%">'
+            + '<col style="width:10%"><col style="width:10%"><col style="width:13%"><col style="width:15%">',
+        head: '<th></th><th>Job date</th><th>Customer</th><th class="r">Net Cash Balance</th>'
+            + "<th>Contract</th><th>Calendar</th><th>Status</th><th>Action</th>",
+        before: 3, after: 4, n: 8,
+      };
+
+      // Submission Time = when the DIGITAL CONTRACT was submitted (the source of the net
+      // cash figure), NOT when the money-flow entry was recorded — his call 2026-07-22.
+      var jobRow = function (r) {
+        var cust = '<td title="' + esc(r.customer || "") + '">' + esc(r.customer || "—") + "</td>";
+        if (det) {
+          return '<tr class="mf-row" data-ev="' + esc(r.ev) + '">'
+            + ckCell(r)
+            + "<td>" + fmtD(r.date) + "</td>"
+            + "<td>" + esc(r.jobNo || "—") + "</td>"
+            + cust
+            + '<td class="r">' + money(r.expected) + "</td>"
+            + '<td class="r">' + (r.adv ? money(r.adv) : "—") + "</td>"
+            + '<td class="r">' + (r.ded ? money(r.ded) : "—") + "</td>"
+            + '<td class="r">' + money(r.flow) + "</td>"
+            + '<td class="r ' + balCls(r) + '">' + money(r.balance) + "</td>"
+            + "<td>" + fmtTs(r.dcTs) + "</td>"
+            + "<td>" + docCell(r) + "</td>"
+            + "<td>" + calCell(r) + "</td>"
+            + "<td>" + statusPill(r) + "</td>"
+            + "<td>" + actionCell(r) + "</td></tr>";
+        }
+        return '<tr class="mf-row" data-ev="' + esc(r.ev) + '">'
+          + ckCell(r)
+          + "<td>" + fmtD(r.date) + "</td>"
+          + cust
+          + '<td class="r ' + balCls(r) + '">' + money(r.balance) + "</td>"
+          + "<td>" + docCell(r) + "</td>"
+          + "<td>" + calCell(r) + "</td>"
+          + "<td>" + statusPill(r) + "</td>"
+          + "<td>" + actionCell(r) + "</td></tr>";
+      };
+
       var renderGrouped = function (jobsSet, label) {
         var gg = groupsFor(jobsSet), groups = gg.groups, gnames = gg.names;
-        var frows = gnames.map(function (f) {
-          // while searching, matching groups open by themselves so the hits are visible
+        var body = gnames.map(function (f) {
           var g = groups[f], open = !!S.fmx[f] || !!q;
+          // ONE table for foremen AND their jobs: the foreman row spans the columns before
+          // the balance, so his total lands exactly under the job rows' Net Cash Balance
+          // (his ask 2026-07-22); the counts ride along the name as quiet grey text.
           var head = '<tr class="mf-fmrow" data-mfx="' + esc(f) + '">'
-            + '<td><span class="mf-caret">' + (open ? "▾" : "▸") + "</span>" + esc(f) + "</td>"
-            + '<td class="r">' + g.jobs.length + "</td>"
-            + '<td class="r">' + (g.noCon ? g.noCon : "—") + "</td>"
-            + '<td class="r ' + (Math.abs(g.total) > MF_TOL ? "mf-neg" : "") + '"><b>' + money(g.total) + "</b></td></tr>";
-          var sub = "";
-          if (open) {
-            // the job list honours the Overview/Details toggle too (his ask 2026-07-21)
-            var jobs = g.jobs.slice().sort(function (a, b) { return a.date < b.date ? 1 : -1; });
-            var subHead, subBody;
-            if (S.dense === "details") {
-              subHead = "<th></th><th>Job date</th><th>Job #</th><th>Customer</th>"
-                + '<th class="r">Net Cash</th><th class="r">Advance Payment</th>'
-                + '<th class="r">Forman Deduction</th><th class="r">Net Cash Flow</th>'
-                + '<th class="r">Net Cash Balance</th><th>Submission Time</th>'
-                + "<th>Contract</th><th>Calendar</th><th>Status</th><th></th>";
-              subBody = jobs.map(function (r) {
-                return '<tr class="mf-row" data-ev="' + esc(r.ev) + '">'
-                  + ckCell(r)
-                  + "<td>" + fmtD(r.date) + "</td>"
-                  + "<td>" + esc(r.jobNo || "—") + "</td>"
-                  + '<td title="' + esc(r.customer || "") + '">' + esc(r.customer || "—") + "</td>"
-                  + '<td class="r">' + money(r.expected) + "</td>"
-                  + '<td class="r">' + (r.adv ? money(r.adv) : "—") + "</td>"
-                  + '<td class="r">' + (r.ded ? money(r.ded) : "—") + "</td>"
-                  + '<td class="r">' + money(r.flow) + "</td>"
-                  + '<td class="r ' + balCls(r) + '">' + money(r.balance) + "</td>"
-                  + "<td>" + fmtTs(r.flowTs) + "</td>"
-                  + "<td>" + docCell(r) + "</td>"
-                  + "<td>" + calCell(r) + "</td>"
-                  + "<td>" + statusPill(r) + "</td>"
-                  + "<td>" + actionCell(r) + "</td></tr>";
-              }).join("");
-            } else {
-              subHead = "<th></th><th>Job date</th><th>Customer</th><th class=\"r\">Net Cash Balance</th>"
-                + "<th>Contract</th><th>Calendar</th><th>Status</th><th></th>";
-              subBody = jobs.map(function (r) {
-                return '<tr class="mf-row" data-ev="' + esc(r.ev) + '">'
-                  + ckCell(r)
-                  + "<td>" + fmtD(r.date) + "</td>"
-                  + '<td title="' + esc(r.customer || "") + '">' + esc(r.customer || "—") + "</td>"
-                  + '<td class="r ' + balCls(r) + '">' + money(r.balance) + "</td>"
-                  + "<td>" + docCell(r) + "</td>"
-                  + "<td>" + calCell(r) + "</td>"
-                  + "<td>" + statusPill(r) + "</td>"
-                  + "<td>" + actionCell(r) + "</td></tr>";
-              }).join("");
-            }
-            // widths: every header gets room for its full label, the customer name is
-            // capped (ellipsis + hover tooltip), and a trailing SPACER column absorbs
-            // whatever is left so nothing stretches (his ask 2026-07-22)
-            var subCols = S.dense === "details"
-              ? '<colgroup><col style="width:32px"><col style="width:100px"><col style="width:88px"><col style="width:200px">'
-                + '<col style="width:112px"><col style="width:140px"><col style="width:150px"><col style="width:132px">'
-                + '<col style="width:150px"><col style="width:140px"><col style="width:92px"><col style="width:92px">'
-                + '<col style="width:126px"><col></colgroup>'
-              : '<colgroup><col style="width:36px"><col style="width:112px"><col style="width:260px">'
-                + '<col style="width:152px"><col style="width:92px"><col style="width:92px">'
-                + '<col style="width:132px"><col></colgroup>';
-            sub = '<tr class="mf-fmsub"><td colspan="4"><table class="mf-tbl mfc fx">' + subCols + '<thead><tr>'
-              + subHead + "</tr></thead><tbody>" + subBody + "</tbody></table></td></tr>";
-          }
-          return head + sub;
+            + '<td colspan="' + PLAN.before + '"><span class="mf-caret">' + (open ? "▾" : "▸") + "</span>"
+            + esc(f) + '<span class="mf-fmmeta">' + g.jobs.length + " job" + (g.jobs.length === 1 ? "" : "s")
+            + (g.noCon ? " · " + g.noCon + " no contract" : "") + "</span></td>"
+            + '<td class="r ' + (Math.abs(g.total) > MF_TOL ? "mf-neg" : "") + '">' + money(g.total) + "</td>"
+            + '<td colspan="' + PLAN.after + '"></td></tr>';
+          if (!open) return head;
+          var jobs = g.jobs.slice().sort(function (a, b) { return a.date < b.date ? 1 : -1; });
+          return head + jobs.map(jobRow).join("");
         }).join("");
-        return '<div class="mf-card">' + veil + '<div class="mf-wrap"><table class="mf-tbl fx">'
-          + '<colgroup><col><col style="width:110px"><col style="width:110px"><col style="width:180px"></colgroup><thead><tr>'
-          + '<th>Foreman</th><th class="r">Open jobs</th><th class="r">No contract</th><th class="r">Total Net Cash Balance</th>'
-          + "</tr></thead><tbody>"
-          + (frows || '<tr><td colspan="4" style="color:var(--faint);padding:18px">' + label + " 🎉</td></tr>")
+        return '<div class="mf-card">' + veil + '<div class="mf-wrap"><table class="mf-tbl fx' + (det ? " det" : "") + '">'
+          + "<colgroup>" + PLAN.cols + "</colgroup><thead><tr>" + PLAN.head + "</tr></thead><tbody>"
+          + (body || '<tr><td colspan="' + PLAN.n + '" style="color:var(--faint);padding:18px">' + label + " 🎉</td></tr>")
           + "</tbody></table></div></div>";
       };
 
@@ -568,65 +578,60 @@ registerPage({
         content = renderGrouped(main, "No outstanding balances.");
       } else if (S.view === "nib") {
         content = renderGrouped(nib, "Nothing out of balance.");
-      } else if (S.dense === "overview") {
-        // ---- compact Overview: Job date · Customer · Foreman · Balance · Contract · Status ----
-        var bodyO = cur.map(function (r) {
-          var age = Math.floor((Date.now() - new Date(r.date + "T12:00:00")) / 864e5);
-          return '<tr class="mf-row" data-ev="' + esc(r.ev) + '">'
-            + "<td>" + fmtD(r.date) + "</td>"
-            + '<td title="' + esc(r.customer || "") + '">' + esc(r.customer || "—") + "</td>"
-            + "<td>" + esc(r.forman) + "</td>"
-            + '<td class="r ' + balCls(r) + '">' + money(r.balance) + "</td>"
-            + "<td>" + docCell(r) + "</td>"
-            + "<td>" + calCell(r) + "</td>"
-            + "<td>" + statusPill(r) + "</td>"
-            + "<td>" + actionCell(r) + "</td></tr>";
-        }).join("");
-        content = '<div class="mf-card">' + veil + '<div class="mf-wrap"><table class="mf-tbl mfc fx">'
-          + '<colgroup><col style="width:118px"><col style="width:260px"><col style="width:180px"><col style="width:152px">'
-          + '<col style="width:92px"><col style="width:92px"><col style="width:132px"><col></colgroup><thead><tr>'
-          + '<th data-mfs="Job Date">Job date' + arrow("Job Date") + "</th><th>Customer</th><th>Foreman</th>"
-          + '<th class="r" data-mfs="Balance">Net Cash Balance' + arrow("Balance") + "</th>"
-          + "<th>Contract</th><th>Calendar</th><th>Status</th><th></th>"
-          + "</tr></thead><tbody>"
-          + (bodyO || '<tr><td colspan="8" style="color:var(--faint);padding:18px">' + "Nothing confirmed yet." + "</td></tr>")
-          + "</tbody></table></div></div>";
       } else {
-        // ---- full Details: the ORIGINAL system's columns; Net Cash Flow sits to the RIGHT
-        // of Forman Deduction (his order, 2026-07-21) so the arithmetic still reads
-        // left-to-right into the balance ----
-        var bodyD = cur.map(function (r) {
-          var age = Math.floor((Date.now() - new Date(r.date + "T12:00:00")) / 864e5);
+        // ---- History: the same grid plus Foreman, flat (everything here is settled, so
+        // the last column IS the status) ----
+        var HP = det ? {
+          cols: '<col style="width:6%"><col style="width:5%"><col style="width:12%"><col style="width:10.5%">'
+              + '<col style="width:6.5%"><col style="width:8%"><col style="width:8.5%"><col style="width:7.5%">'
+              + '<col style="width:8.5%"><col style="width:9%"><col style="width:5.5%"><col style="width:5.5%">'
+              + '<col style="width:7.5%">',
+          head: '<th data-mfs="Job Date">Job date' + arrow("Job Date") + "</th><th>Job #</th><th>Customer</th><th>Foreman</th>"
+              + '<th class="r" data-mfs="Expected">Net Cash' + arrow("Expected") + "</th>"
+              + '<th class="r">Advance Payment</th><th class="r">Forman Deduction</th>'
+              + '<th class="r">Net Cash Flow</th>'
+              + '<th class="r" data-mfs="Balance">Net Cash Balance' + arrow("Balance") + "</th>"
+              + "<th>Submission Time</th><th>Contract</th><th>Calendar</th><th>Status</th>",
+          n: 13,
+        } : {
+          cols: '<col style="width:12%"><col style="width:20%"><col style="width:16%"><col style="width:13%">'
+              + '<col style="width:12%"><col style="width:8%"><col style="width:8%"><col style="width:11%">',
+          head: '<th data-mfs="Job Date">Job date' + arrow("Job Date") + "</th><th>Customer</th><th>Foreman</th>"
+              + '<th class="r" data-mfs="Balance">Net Cash Balance' + arrow("Balance") + "</th>"
+              + "<th>Submission Time</th><th>Contract</th><th>Calendar</th><th>Status</th>",
+          n: 8,
+        };
+        var hRow = function (r) {
+          var cust = '<td title="' + esc(r.customer || "") + '">' + esc(r.customer || "—") + "</td>";
+          if (det) {
+            return '<tr class="mf-row" data-ev="' + esc(r.ev) + '">'
+              + "<td>" + fmtD(r.date) + "</td>"
+              + "<td>" + esc(r.jobNo || "—") + "</td>"
+              + cust
+              + "<td>" + esc(r.forman) + "</td>"
+              + '<td class="r">' + money(r.expected) + "</td>"
+              + '<td class="r">' + (r.adv ? money(r.adv) : "—") + "</td>"
+              + '<td class="r">' + (r.ded ? money(r.ded) : "—") + "</td>"
+              + '<td class="r">' + money(r.flow) + "</td>"
+              + '<td class="r ' + balCls(r) + '">' + money(r.balance) + "</td>"
+              + "<td>" + fmtTs(r.dcTs) + "</td>"
+              + "<td>" + docCell(r) + "</td>"
+              + "<td>" + calCell(r) + "</td>"
+              + "<td>" + actionCell(r) + "</td></tr>";
+          }
           return '<tr class="mf-row" data-ev="' + esc(r.ev) + '">'
             + "<td>" + fmtD(r.date) + "</td>"
-            + "<td>" + esc(r.jobNo || "—") + "</td>"
-            + '<td title="' + esc(r.customer || "") + '">' + esc(r.customer || "—") + "</td>"
+            + cust
             + "<td>" + esc(r.forman) + "</td>"
-            + '<td class="r">' + money(r.expected) + "</td>"
-            + '<td class="r">' + (r.adv ? money(r.adv) : "—") + "</td>"
-            + '<td class="r">' + (r.ded ? money(r.ded) : "—") + "</td>"
-            + '<td class="r">' + money(r.flow) + "</td>"
             + '<td class="r ' + balCls(r) + '">' + money(r.balance) + "</td>"
-            + "<td>" + fmtTs(r.flowTs) + "</td>"
+            + "<td>" + fmtTs(r.dcTs) + "</td>"
             + "<td>" + docCell(r) + "</td>"
             + "<td>" + calCell(r) + "</td>"
             + "<td>" + actionCell(r) + "</td></tr>";
-        }).join("");
-        content = '<div class="mf-card">' + veil + '<div class="mf-wrap"><table class="mf-tbl fx">'
-          + '<colgroup><col style="width:104px"><col style="width:92px"><col style="width:200px"><col style="width:168px">'
-          + '<col style="width:112px"><col style="width:140px"><col style="width:150px"><col style="width:132px">'
-          + '<col style="width:150px"><col style="width:140px"><col style="width:92px"><col style="width:92px">'
-          + '<col></colgroup><thead><tr>'
-          + '<th data-mfs="Job Date">Job date' + arrow("Job Date") + "</th><th>Job #</th><th>Customer</th><th>Foreman</th>"
-          + '<th class="r" data-mfs="Expected">Net Cash' + arrow("Expected") + "</th>"
-          + '<th class="r">Advance Payment</th>'
-          + '<th class="r">Forman Deduction</th>'
-          + '<th class="r">Net Cash Flow</th>'
-          + '<th class="r" data-mfs="Balance">Net Cash Balance' + arrow("Balance") + "</th>"
-          + "<th>Submission Time</th>"
-          + "<th>Contract</th><th>Calendar</th><th></th>"
-          + "</tr></thead><tbody>"
-          + (bodyD || '<tr><td colspan="13" style="color:var(--faint);padding:18px">' + "Nothing confirmed yet." + "</td></tr>")
+        };
+        content = '<div class="mf-card">' + veil + '<div class="mf-wrap"><table class="mf-tbl fx' + (det ? " det" : "") + '">'
+          + "<colgroup>" + HP.cols + "</colgroup><thead><tr>" + HP.head + "</tr></thead><tbody>"
+          + (cur.map(hRow).join("") || '<tr><td colspan="' + HP.n + '" style="color:var(--faint);padding:18px">Nothing confirmed yet.</td></tr>')
           + "</tbody></table></div></div>";
       }
 
