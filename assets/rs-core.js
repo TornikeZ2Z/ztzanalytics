@@ -167,13 +167,18 @@ window.RS = (function () {
   function _idb() {
     if (_idbP) return _idbP;
     _idbP = new Promise(res => {
+      // DEADLINE: an open() queued behind a pending deleteDatabase (some other tab still
+      // holds a connection) never settles and fires NO event at all — not even onblocked —
+      // so without this timeout the whole portal hangs at "Loading…" forever (hit
+      // 2026-07-21). The cache is an optimization; when in doubt, use the network.
+      const t = setTimeout(() => res(null), 1500);
       try {
         const rq = indexedDB.open("ztz-datasets", 1);
         rq.onupgradeneeded = () => { try { rq.result.createObjectStore("ds"); } catch (e) {} };
-        rq.onsuccess = () => res(rq.result);
-        rq.onerror = () => res(null);
-        rq.onblocked = () => res(null);
-      } catch (e) { res(null); }
+        rq.onsuccess = () => { clearTimeout(t); res(rq.result); };
+        rq.onerror = () => { clearTimeout(t); res(null); };
+        rq.onblocked = () => { clearTimeout(t); res(null); };
+      } catch (e) { clearTimeout(t); res(null); }
     });
     return _idbP;
   }

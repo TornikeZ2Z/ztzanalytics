@@ -7,8 +7,10 @@
      * two views only — Not Confirmed / Confirmed (future + filtered jobs hidden entirely)
      * the green CONFIRM button and the row itself both open the SAME popup, with Type and
        Amount already filled so the Balance reads $0 — he checks, presses Save, done.
-     * popup fields exactly as specified: Expected (read-only), Balance (live calculation,
-       read-only), Type, Amount, Deduction, Advance Payment, small Note.
+     * popup fields exactly as specified: Net Cash (read-only, + contract link), Net Cash
+       Balance (live calculation, read-only), Type, Amount, Forman Deduction, Advance
+       Payment, small Note. Labels use the ORIGINAL system's column names (his ask
+       2026-07-21) so nobody needs retraining; table adds Contract URL + Submission Time.
      * Save records ONLY what changed (untouched deduction/advance write nothing).
      * a full-card LOADER whenever data is fetched or saved, so nothing silently shifts
      * no horizontal scrollbar — the table fits, details live in the popup
@@ -21,7 +23,8 @@
       table: "fct_money_flow",
       cols: ["Event ID", "Job Date", "Event Title", "Job No", "Job Code", "Customer",
              "Forman Email", "Forman", "Job Type", "Contract Type", "Net Cash (DC)", "Net Cash (Closing)",
-             "Expected Net Cash", "Cash Flow", "Cash Flow Time", "Cash Flow Source",
+             "Expected Net Cash", "Contract URL", "DC Submission Time",
+             "Cash Flow", "Cash Flow Time", "Cash Flow Source",
              "Cash Flow Records", "Advance", "Deduction", "Balance", "Status"],
     };
   }
@@ -80,6 +83,9 @@ registerPage({
         .mf-st-con{background:rgba(47,111,208,.12);color:${BLUE}}
         .mf-neg{color:${NEG};font-weight:700} .mf-pos{color:${POS};font-weight:700}
         .mf-age{font-size:10.5px;color:var(--faint)}
+        .mf-doc{font-size:12px;font-weight:800;color:${BLUE};text-decoration:none;white-space:nowrap}
+        .mf-doc:hover{text-decoration:underline}
+        .mf-mdc{font-size:10.5px;color:var(--faint);margin:-4px 0 6px}
         .mf-fnote{padding:10px 14px;font-size:11px;color:var(--faint);border-top:1px solid var(--line)}
         .mf-load{padding:40px;text-align:center;color:var(--faint)}
         .mf-veil{position:absolute;inset:0;z-index:30;background:color-mix(in srgb, var(--panel) 72%, transparent);display:flex;align-items:center;justify-content:center;gap:12px;font-size:14px;font-weight:800;color:var(--muted)}
@@ -174,9 +180,18 @@ registerPage({
           flowSrc: lv ? lv.flow_src : b["Cash Flow Source"],
           adv: lv ? lv.adv : num(b["Advance"]),
           ded: lv ? lv.ded : num(b["Deduction"]),
+          baseAdv: num(b["Advance"]),
+          contractUrl: b["Contract URL"] || null,
+          dcTs: b["DC Submission Time"] || null,
           baseStatus: b["Status"],
         };
         if (r.expected == null && r.closingNC != null) r.expected = r.closingNC;
+        // DEPLOY-SKEW GUARD: an older bridge serves "taken away" advances UNSIGNED (+A)
+        // while the nightly fact knows the true −A. When the two differ ONLY by sign,
+        // trust the negative — otherwise the balance (and the Confirm preset that gets
+        // WRITTEN to the ledger) is wrong by 2A. Harmless once both agree.
+        if (lv && r.adv != null && r.baseAdv != null && r.adv > 0 && r.baseAdv < 0
+            && Math.abs(r.adv + r.baseAdv) < 0.01) r.adv = r.baseAdv;
         // Balance = Expected − Advance − Flow + Deduction — the original system's exact
         // formula (col U−V−W+X). Advance arrives SIGNED from the server (brought +,
         // taken-away −); deduction ADDS: withheld foreman pay must still reach base.
@@ -293,25 +308,40 @@ registerPage({
         } else {
           action = '<button class="mf-confirm" data-mfc="' + esc(r.ev) + '">Confirm ' + money(settle(r).type === "Cash Taken Away from Base" ? -settle(r).amount : settle(r).amount) + "</button>";
         }
-        var handed = S.view === "done" ? '<td class="r">' + money(r.flow) + "</td>" : "";
+        // column names = the ORIGINAL system's headers (Net Cash / Advance Payment /
+        // Net Cash Flow / Forman Deduction / Net Cash Balance) — users already know them
+        var handed = S.view === "done"
+          ? '<td class="r">' + money(r.flow) + "</td>" : "";
+        var subTime = S.view === "done" ? "<td>" + fmtTs(r.flowTs) + "</td>" : "";
+        var doc = r.contractUrl
+          ? '<a class="mf-doc" href="' + esc(r.contractUrl) + '" target="_blank" rel="noopener" title="Open the contract file">Open ↗</a>'
+          : '<span style="color:var(--faint)">—</span>';
         return '<tr class="mf-row" data-ev="' + esc(r.ev) + '">'
           + "<td>" + fmtD(r.date) + (S.view === "todo" && age > 0 ? ' <span class="mf-age">' + age + "d</span>" : "") + "</td>"
           + "<td>" + esc(r.jobNo || "—") + "</td>"
           + "<td>" + esc(r.customer || "—") + "</td>"
           + "<td>" + esc(r.forman) + "</td>"
           + '<td class="r">' + money(r.expected) + "</td>"
+          + '<td class="r">' + (r.adv ? money(r.adv) : "—") + "</td>"
           + handed
+          + '<td class="r">' + (r.ded ? money(r.ded) : "—") + "</td>"
           + '<td class="r ' + ((r.balance || 0) > MF_TOL ? "mf-neg" : (r.balance || 0) < -MF_TOL ? "mf-pos" : "") + '">' + money(r.balance) + "</td>"
+          + subTime
+          + "<td>" + doc + "</td>"
           + "<td>" + action + "</td></tr>";
       }).join("");
 
       var veil = S.busy ? '<div class="mf-veil"><div class="mf-spin"></div>Updating…</div>' : "";
-      var cols = S.view === "done" ? 8 : 7;
+      var cols = S.view === "done" ? 12 : 10;
       var tbl = '<div class="mf-card">' + veil + '<div class="mf-wrap"><table class="mf-tbl"><thead><tr>'
         + '<th data-mfs="Job Date">Job date' + arrow("Job Date") + "</th><th>Job #</th><th>Customer</th><th>Foreman</th>"
-        + '<th class="r" data-mfs="Expected">Expected' + arrow("Expected") + "</th>"
-        + (S.view === "done" ? '<th class="r">Handed over</th>' : "")
-        + '<th class="r" data-mfs="Balance">Balance' + arrow("Balance") + "</th><th></th>"
+        + '<th class="r" data-mfs="Expected">Net Cash' + arrow("Expected") + "</th>"
+        + '<th class="r">Advance Payment</th>'
+        + (S.view === "done" ? '<th class="r">Net Cash Flow</th>' : "")
+        + '<th class="r">Forman Deduction</th>'
+        + '<th class="r" data-mfs="Balance">Net Cash Balance' + arrow("Balance") + "</th>"
+        + (S.view === "done" ? "<th>Submission Time</th>" : "")
+        + "<th>Contract</th><th></th>"
         + "</tr></thead><tbody>"
         + (body || '<tr><td colspan="' + cols + '" style="color:var(--faint);padding:18px">' + (S.view === "done" ? "Nothing confirmed yet." : "Nothing waiting — all cash is confirmed. 🎉") + "</td></tr>")
         + "</tbody></table></div>"
@@ -334,15 +364,25 @@ registerPage({
         + '<div class="mf-mhead"><b>' + esc(r.customer || "—") + "</b><div>"
         + esc(r.jobNo || "") + " · " + esc(r.forman) + " · " + fmtD(r.date) + "</div></div>"
         + '<div class="mf-mbody">'
-        + '<div class="mf-ro"><span>Expected</span><b>' + money2(r.expected) + "</b></div>"
-        + '<div class="mf-ro bal ok" id="mfMBalRow"><span>Balance</span><b id="mfMBal">$0</b></div>'
+        + '<div class="mf-ro"><span>Net Cash</span><b>' + money2(r.expected)
+        + (r.contractUrl ? ' <a class="mf-doc" href="' + esc(r.contractUrl) + '" target="_blank" rel="noopener">contract ↗</a>' : "")
+        + "</b></div>"
+        + (r.dcTs ? '<div class="mf-mdc">Recorded in the contract system ' + fmtTs(r.dcTs) + "</div>" : "")
+        + '<div class="mf-ro bal ok" id="mfMBalRow"><span>Net Cash Balance</span><b id="mfMBal">$0</b></div>'
         + '<div class="mf-fld"><label>Type</label><select id="mfMType">'
         + ["Cash Brought to Base", "Cash Taken Away from Base"].map(function (t) {
             return "<option" + (t === pre.type ? " selected" : "") + ">" + t + "</option>"; }).join("") + "</select></div>"
         + '<div class="mf-fld"><label>Amount ($)</label><input id="mfMAmt" type="number" step="0.01" min="0" value="' + esc(String(pre.amount)) + '"></div>'
         + '<div class="mf-mrow">'
-        + '<div class="mf-fld"><label>Deduction ($)</label><input id="mfMDed" type="number" step="0.01" min="0" value="' + esc(String(r.ded != null ? Math.abs(r.ded) : "")) + '" placeholder="0"></div>'
-        + '<div class="mf-fld"><label>Advance Payment ($)</label><input id="mfMAdv" type="number" step="0.01" value="' + esc(String(r.adv != null ? r.adv : "")) + '" placeholder="0"></div>'
+        + '<div class="mf-fld"><label>Forman Deduction ($)</label><input id="mfMDed" type="number" step="0.01" min="0" value="' + esc(String(r.ded != null ? Math.abs(r.ded) : "")) + '" placeholder="0"></div>'
+        // a NEGATIVE advance is a legacy office refund ('Cash Taken Away from Base' in the
+        // old advance form) — the portal write path is positive-only (bridge rejects
+        // negatives; direction lives in the entry TYPE), so show it locked, not editable
+        + '<div class="mf-fld"><label>Advance Payment ($)</label><input id="mfMAdv" type="number" step="0.01"'
+        + (r.adv != null && r.adv < 0
+            ? ' disabled title="Recorded by the office as a refund (taken away from base) — edited only in the office ledger"'
+            : ' min="0"')
+        + ' value="' + esc(String(r.adv != null ? r.adv : "")) + '" placeholder="0"></div>'
         + "</div>"
         + '<div class="mf-fld"><label>Note</label><input id="mfMNote" class="note" placeholder="optional"></div>'
         + '<div class="mf-mfoot"><button class="mf-cancel" id="mfMCancel">Cancel</button>'
@@ -356,13 +396,16 @@ registerPage({
         + "</div></div></div>";
 
       function calc() {
+        var el = document.getElementById("mfMBal"), row = document.getElementById("mfMBalRow");
+        // no contract amount -> no balance to compute; a red "−$X" here would tell the
+        // operator his CORRECT manual entry is wrong (he was trained: green $0 = good)
+        if (r.expected == null) { el.textContent = "no contract amount"; row.className = "mf-ro bal"; return; }
         var type = document.getElementById("mfMType").value;
         var amt = num(document.getElementById("mfMAmt").value);
         var ded = num(document.getElementById("mfMDed").value) || 0;
         var adv = num(document.getElementById("mfMAdv").value) || 0;
         var flow = amt == null ? 0 : (type === "Cash Taken Away from Base" ? -amt : amt);
-        var bal = (r.expected || 0) - adv - flow + ded;
-        var el = document.getElementById("mfMBal"), row = document.getElementById("mfMBalRow");
+        var bal = r.expected - adv - flow + ded;
         el.textContent = money2(bal);
         row.className = "mf-ro bal " + (Math.abs(bal) <= MF_TOL ? "ok" : "off");
       }
@@ -388,9 +431,19 @@ registerPage({
         var type = document.getElementById("mfMType").value;
         var amt = num(document.getElementById("mfMAmt").value);
         var ded = num(document.getElementById("mfMDed").value);
-        var adv = num(document.getElementById("mfMAdv").value);
+        // a locked (legacy-refund) advance is display-only — never read it back for saving
+        var advEl = document.getElementById("mfMAdv");
+        var adv = advEl.disabled ? null : num(advEl.value);
         var note = document.getElementById("mfMNote").value.trim();
         if (amt == null || amt < 0) { errEl.innerHTML = '<div class="mf-merr">Enter the amount (a positive number).</div>'; return; }
+        // the write path is positive-only: direction comes from the TYPE, and the bridge
+        // rejects negatives — catch a typed minus here with words, not an HTTP 400
+        if (ded != null && ded < 0) { errEl.innerHTML = '<div class="mf-merr">Forman Deduction must be a positive number.</div>'; return; }
+        if (adv != null && adv < 0) { errEl.innerHTML = '<div class="mf-merr">Advance Payment must be a positive number.</div>'; return; }
+        // CLEARING a prefilled deduction/advance means "remove it" — record an explicit $0
+        // (last-record-wins), otherwise the deletion is silently dropped
+        if (ded == null && r.ded != null) ded = 0;
+        if (adv == null && r.adv != null && r.adv >= 0) adv = 0;
         // only what CHANGED gets recorded — an untouched deduction/advance writes nothing
         var posts = [];
         var curFlow = r.flow == null ? null : r.flow;
@@ -404,6 +457,7 @@ registerPage({
         if (!posts.length) { close(); return; }
         var sv = document.getElementById("mfMSave");
         sv.disabled = true; sv.textContent = "Saving…";
+        var saved = 0;
         try {
           for (var i = 0; i < posts.length; i++) {
             var body = posts[i];
@@ -416,6 +470,7 @@ registerPage({
             });
             var j = await res.json().catch(function () { return {}; });
             if (!res.ok || !j.ok) throw new Error(j.error || ("HTTP " + res.status));
+            saved++;
           }
           close();
           S.busy = true; paint();
@@ -423,7 +478,11 @@ registerPage({
           S.busy = false; setLiveBadge(); paint();
         } catch (err) {
           sv.disabled = false; sv.textContent = "Save";
-          errEl.innerHTML = '<div class="mf-merr">Couldn’t save (' + esc(String(err && err.message || err)) + ") — nothing recorded.</div>";
+          // each POST commits on its own — never claim "nothing recorded" if some landed
+          var state = saved ? "Saved " + saved + " of " + posts.length + " changes, then failed"
+                            : "Nothing was recorded";
+          errEl.innerHTML = '<div class="mf-merr">Couldn’t finish saving (' + esc(String(err && err.message || err)) + "). " + state + " — press Save to try the rest again.</div>";
+          if (saved) { loadLive(true).then(function () { setLiveBadge(); }); }
         }
       };
     }
@@ -466,6 +525,10 @@ registerPage({
           document.removeEventListener("click", closeFm); wire._docClose = false;
         });
       }
+      // contract links open the FILE, not the popup — stop the row click underneath
+      Array.prototype.forEach.call(root.querySelectorAll("a.mf-doc"), function (a) {
+        a.onclick = function (e) { e.stopPropagation(); };
+      });
       // every action opens THE popup
       Array.prototype.forEach.call(root.querySelectorAll("[data-mfc]"), function (b) {
         b.onclick = function (e) { e.stopPropagation(); openModal(b.getAttribute("data-mfc")); };
