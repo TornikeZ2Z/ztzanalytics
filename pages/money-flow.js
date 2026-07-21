@@ -507,7 +507,7 @@ registerPage({
                 + '<th class="r">Net Cash</th><th class="r">Advance Payment</th>'
                 + '<th class="r">Forman Deduction</th><th class="r">Net Cash Flow</th>'
                 + '<th class="r">Net Cash Balance</th><th>Submission Time</th>'
-                + "<th>Contract</th><th>Calendar</th><th>Status</th><th></th><th></th>";
+                + "<th>Contract</th><th>Calendar</th><th>Status</th><th></th>";
               subBody = jobs.map(function (r) {
                 return '<tr class="mf-row" data-ev="' + esc(r.ev) + '">'
                   + ckCell(r)
@@ -523,11 +523,11 @@ registerPage({
                   + "<td>" + docCell(r) + "</td>"
                   + "<td>" + calCell(r) + "</td>"
                   + "<td>" + statusPill(r) + "</td>"
-                  + "<td>" + actionCell(r) + "</td><td></td></tr>";
+                  + "<td>" + actionCell(r) + "</td></tr>";
               }).join("");
             } else {
               subHead = "<th></th><th>Job date</th><th>Customer</th><th class=\"r\">Net Cash Balance</th>"
-                + "<th>Contract</th><th>Calendar</th><th>Status</th><th></th><th></th>";
+                + "<th>Contract</th><th>Calendar</th><th>Status</th><th></th>";
               subBody = jobs.map(function (r) {
                 return '<tr class="mf-row" data-ev="' + esc(r.ev) + '">'
                   + ckCell(r)
@@ -537,7 +537,7 @@ registerPage({
                   + "<td>" + docCell(r) + "</td>"
                   + "<td>" + calCell(r) + "</td>"
                   + "<td>" + statusPill(r) + "</td>"
-                  + "<td>" + actionCell(r) + "</td><td></td></tr>";
+                  + "<td>" + actionCell(r) + "</td></tr>";
               }).join("");
             }
             // widths: every header gets room for its full label, the customer name is
@@ -547,10 +547,10 @@ registerPage({
               ? '<colgroup><col style="width:32px"><col style="width:100px"><col style="width:88px"><col style="width:200px">'
                 + '<col style="width:112px"><col style="width:140px"><col style="width:150px"><col style="width:132px">'
                 + '<col style="width:150px"><col style="width:140px"><col style="width:92px"><col style="width:92px">'
-                + '<col style="width:126px"><col style="width:168px"><col></colgroup>'
+                + '<col style="width:126px"><col></colgroup>'
               : '<colgroup><col style="width:36px"><col style="width:112px"><col style="width:260px">'
                 + '<col style="width:152px"><col style="width:92px"><col style="width:92px">'
-                + '<col style="width:132px"><col style="width:172px"><col></colgroup>';
+                + '<col style="width:132px"><col></colgroup>';
             sub = '<tr class="mf-fmsub"><td colspan="4"><table class="mf-tbl mfc fx">' + subCols + '<thead><tr>'
               + subHead + "</tr></thead><tbody>" + subBody + "</tbody></table></td></tr>";
           }
@@ -580,16 +580,16 @@ registerPage({
             + "<td>" + docCell(r) + "</td>"
             + "<td>" + calCell(r) + "</td>"
             + "<td>" + statusPill(r) + "</td>"
-            + "<td>" + actionCell(r) + "</td><td></td></tr>";
+            + "<td>" + actionCell(r) + "</td></tr>";
         }).join("");
         content = '<div class="mf-card">' + veil + '<div class="mf-wrap"><table class="mf-tbl mfc fx">'
           + '<colgroup><col style="width:118px"><col style="width:260px"><col style="width:180px"><col style="width:152px">'
-          + '<col style="width:92px"><col style="width:92px"><col style="width:132px"><col style="width:172px"><col></colgroup><thead><tr>'
+          + '<col style="width:92px"><col style="width:92px"><col style="width:132px"><col></colgroup><thead><tr>'
           + '<th data-mfs="Job Date">Job date' + arrow("Job Date") + "</th><th>Customer</th><th>Foreman</th>"
           + '<th class="r" data-mfs="Balance">Net Cash Balance' + arrow("Balance") + "</th>"
-          + "<th>Contract</th><th>Calendar</th><th>Status</th><th></th><th></th>"
+          + "<th>Contract</th><th>Calendar</th><th>Status</th><th></th>"
           + "</tr></thead><tbody>"
-          + (bodyO || '<tr><td colspan="9" style="color:var(--faint);padding:18px">' + "Nothing confirmed yet." + "</td></tr>")
+          + (bodyO || '<tr><td colspan="8" style="color:var(--faint);padding:18px">' + "Nothing confirmed yet." + "</td></tr>")
           + "</tbody></table></div></div>";
       } else {
         // ---- full Details: the ORIGINAL system's columns; Net Cash Flow sits to the RIGHT
@@ -610,13 +610,13 @@ registerPage({
             + "<td>" + fmtTs(r.flowTs) + "</td>"
             + "<td>" + docCell(r) + "</td>"
             + "<td>" + calCell(r) + "</td>"
-            + "<td>" + actionCell(r) + "</td><td></td></tr>";
+            + "<td>" + actionCell(r) + "</td></tr>";
         }).join("");
         content = '<div class="mf-card">' + veil + '<div class="mf-wrap"><table class="mf-tbl fx">'
           + '<colgroup><col style="width:104px"><col style="width:92px"><col style="width:200px"><col style="width:168px">'
           + '<col style="width:112px"><col style="width:140px"><col style="width:150px"><col style="width:132px">'
           + '<col style="width:150px"><col style="width:140px"><col style="width:92px"><col style="width:92px">'
-          + '<col style="width:168px"><col></colgroup><thead><tr>'
+          + '<col></colgroup><thead><tr>'
           + '<th data-mfs="Job Date">Job date' + arrow("Job Date") + "</th><th>Job #</th><th>Customer</th><th>Foreman</th>"
           + '<th class="r" data-mfs="Expected">Net Cash' + arrow("Expected") + "</th>"
           + '<th class="r">Advance Payment</th>'
@@ -624,9 +624,9 @@ registerPage({
           + '<th class="r">Net Cash Flow</th>'
           + '<th class="r" data-mfs="Balance">Net Cash Balance' + arrow("Balance") + "</th>"
           + "<th>Submission Time</th>"
-          + "<th>Contract</th><th>Calendar</th><th></th><th></th>"
+          + "<th>Contract</th><th>Calendar</th><th></th>"
           + "</tr></thead><tbody>"
-          + (bodyD || '<tr><td colspan="14" style="color:var(--faint);padding:18px">' + "Nothing confirmed yet." + "</td></tr>")
+          + (bodyD || '<tr><td colspan="13" style="color:var(--faint);padding:18px">' + "Nothing confirmed yet." + "</td></tr>")
           + "</tbody></table></div></div>";
       }
 
