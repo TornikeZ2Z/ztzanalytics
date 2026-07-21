@@ -177,10 +177,11 @@ registerPage({
           baseStatus: b["Status"],
         };
         if (r.expected == null && r.closingNC != null) r.expected = r.closingNC;
-        // advance SUBTRACTS — the original system's sign (cash already taken counts
-        // toward what the foreman owes)
+        // Balance = Expected − Advance − Flow + Deduction — the original system's exact
+        // formula (col U−V−W+X). Advance arrives SIGNED from the server (brought +,
+        // taken-away −); deduction ADDS: withheld foreman pay must still reach base.
         r.balance = (r.expected == null) ? null
-          : r.expected - (r.adv || 0) - (r.flow || 0) - (r.ded || 0);
+          : r.expected - (r.adv || 0) - (r.flow || 0) + (r.ded || 0);
         r.status = computeStatus(r);
         return r;
       });
@@ -223,7 +224,7 @@ registerPage({
     // (a new record REPLACES the old one — last-record-wins — so this is the full figure)
     function settle(r) {
       if (r.expected == null) return null;
-      var v = Math.round((r.expected - (r.adv || 0) - (r.ded || 0)) * 100) / 100;
+      var v = Math.round((r.expected - (r.adv || 0) + (r.ded || 0)) * 100) / 100;
       return { type: v < 0 ? "Cash Taken Away from Base" : "Cash Brought to Base", amount: Math.abs(v) };
     }
 
@@ -341,7 +342,7 @@ registerPage({
         + '<div class="mf-fld"><label>Amount ($)</label><input id="mfMAmt" type="number" step="0.01" min="0" value="' + esc(String(pre.amount)) + '"></div>'
         + '<div class="mf-mrow">'
         + '<div class="mf-fld"><label>Deduction ($)</label><input id="mfMDed" type="number" step="0.01" min="0" value="' + esc(String(r.ded != null ? Math.abs(r.ded) : "")) + '" placeholder="0"></div>'
-        + '<div class="mf-fld"><label>Advance Payment ($)</label><input id="mfMAdv" type="number" step="0.01" min="0" value="' + esc(String(r.adv != null ? Math.abs(r.adv) : "")) + '" placeholder="0"></div>'
+        + '<div class="mf-fld"><label>Advance Payment ($)</label><input id="mfMAdv" type="number" step="0.01" value="' + esc(String(r.adv != null ? r.adv : "")) + '" placeholder="0"></div>'
         + "</div>"
         + '<div class="mf-fld"><label>Note</label><input id="mfMNote" class="note" placeholder="optional"></div>'
         + '<div class="mf-mfoot"><button class="mf-cancel" id="mfMCancel">Cancel</button>'
@@ -360,7 +361,7 @@ registerPage({
         var ded = num(document.getElementById("mfMDed").value) || 0;
         var adv = num(document.getElementById("mfMAdv").value) || 0;
         var flow = amt == null ? 0 : (type === "Cash Taken Away from Base" ? -amt : amt);
-        var bal = (r.expected || 0) - adv - flow - ded;
+        var bal = (r.expected || 0) - adv - flow + ded;
         var el = document.getElementById("mfMBal"), row = document.getElementById("mfMBalRow");
         el.textContent = money2(bal);
         row.className = "mf-ro bal " + (Math.abs(bal) <= MF_TOL ? "ok" : "off");
@@ -398,7 +399,7 @@ registerPage({
           posts.push({ entry_type: type, amount: amt, note: note || "confirmed" });
         if (ded != null && Math.abs(ded - Math.abs(r.ded || 0)) > 0.009)
           posts.push({ entry_type: "Forman Deduction", amount: ded, note: note });
-        if (adv != null && Math.abs(adv - Math.abs(r.adv || 0)) > 0.009)
+        if (adv != null && Math.abs(adv - (r.adv || 0)) > 0.009)
           posts.push({ entry_type: "Advance Payment", amount: adv, note: note });
         if (!posts.length) { close(); return; }
         var sv = document.getElementById("mfMSave");
