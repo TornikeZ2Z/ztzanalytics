@@ -1,0 +1,2555 @@
+/* Monthly Report — "Monthly Business Review" (v17: deck order + hover axis fix). [rebuild-nudge-2]
+   SOLID flat fills (no gradients), monospaced numerals, section number-badges + icons +
+   "loaded-bar" rules. v10 adds: funnel-flow section order (lead→cash→after-sale); headline
+   stat + delta + icon on EVERY chart card ("max infographic"); a data-completeness banner
+   (closings awaiting return); a sticky table-of-contents; collapsible sections; symmetric
+   2-up / 4-up grids; rich hover (crosshair + tooltip). Data/measure logic unchanged. */
+/* One renderer, five pages: the full Monthly Report plus four TEAM VIEWS that render a
+   filtered subset of the SAME sections (same data, same visuals — nothing duplicated).
+   Each team page has its own page id so access can be granted per team. */
+async function renderMonthly(host, MRCFG) {
+    const ONLY = MRCFG && MRCFG.sections ? new Set(MRCFG.sections) : null;
+    const SEC = t => !ONLY || ONLY.has(t);
+    // N2: every team page is titled "Monthly Review" in the sidebar; the team name lives in
+    // MRCFG.label and is used on the cover + PDF so the report still says whose view it is.
+    const TEAM = MRCFG ? (MRCFG.label || MRCFG.title || "") : "";
+    const PDF_NAME = TEAM ? TEAM + " Monthly Review" : "Monthly Report";
+    /* C43: the Monthly Report is Zip-to-Zip ONLY. Every computation gets a default
+       Company = "Zip to Zip" filter (an explicit Company pick in the global slicer still
+       wins — see withMonth); the isolated fetches below apply the same rule. Rows with no
+       Company value pass through so a missing lineage column can never blank a card. */
+    const MR_CO = "Zip to Zip";
+    const coRow = r => r.Company == null || String(r.Company) === MR_CO;
+    const M = RS.M;
+    const MON = ["", "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+    const MS = ["", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    const money = RS.money, moneyC = RS.moneyC, fmtN = RS.fmtN, pct = RS.fmtPct, fmt1 = RS.fmt1;
+    const esc = RSC.esc;
+    const num = v => (v == null || isNaN(v)) ? 0 : +v;
+    const blank = v => v == null || String(v).trim() === "";
+
+    /* ---------- data ---------- */
+    // PERF (2026-07-14 audit): everything downloads concurrently — the old 3 serial
+    // Promise.all waves + 5 sequential isolated fetches were a ~7-hop waterfall. The
+    // isolated fetches are additionally GATED by SEC() so a one-section themed dashboard
+    // no longer pays for data it never renders (full report: SEC is always true).
+    /* REGRESSION FIX (same day, Tornike's blank-sections report): the first cut fired
+       ~20 requests at once and swallowed failures with catch(()=>[]) — under that burst
+       the bridge dropped some requests, and the page rendered blank sections and, far
+       worse, WRONG composites (Gross Profit computed without helper/commission/refunds
+       looks plausible but is inflated). Now: at most 6 requests in flight, each retried
+       twice with backoff, and a dataset that still fails lands in loadFailures and
+       becomes a red banner — never a silent blank, never a silently wrong number. */
+    const loadFailures = [];
+    let _fly = 0; const _fq = [];
+    const _take = () => new Promise(res => { if (_fly < 6) { _fly++; res(); } else _fq.push(res); });
+    const _give = () => { const n = _fq.shift(); if (n) n(); else _fly--; };
+    async function pooled(label, fn) {
+      await _take();
+      try {
+        for (let a = 0; ; a++) {
+          try { return await fn(); }
+          catch (e) {
+            if (a >= 2) { loadFailures.push(label); console.error("MR feed failed:", label, e); return []; }
+            await new Promise(r => setTimeout(r, 500 * (a + 1) + Math.random() * 400));
+          }
+        }
+      } finally { _give(); }
+    }
+    const grab = ds => pooled(ds, () => RS.load(ds));
+    const needPack = SEC("Packing & Storage"), needPhone = SEC("Phone & Response");
+    // Card-expense COST flags now ride the SHARED card_expenses projection (perf batch A,
+    // 2026-07-15) — the same table used to be downloaded TWICE (~1s + a pool slot each load).
+    // The bridge drops unknown cols silently, so a pipeline re-run that loses the flag columns
+    // still degrades only the storage/packing-cost panels, exactly like the old isolated fetch.
+    // NOTE: RS.load already negates card_expenses Amount (bank convention) — do NOT negate again.
+    // "Final Account Name/Number" = the COMPANY line that rang (acct_no = To on Incoming) → the deck-s75
+    // per-line breakdown. Cache key bumped to __mrRcCache2: a pre-existing __mrRcCache aggregate was folded
+    // WITHOUT the per-line data and would silently serve a table with no lines.
+    // PERF batch C (2026-07-15): the Phone & Response numbers now come from server-side MONTHLY
+    // rollups (mart_rc_monthly / _line / _agent / _sms_monthly, built in curated.py) instead of
+    // downloading all ~368k fct_ringcentral rows (82MB decoded, the page's 30.8s terminator).
+    // The fold below is the SAME fold — it sums pre-grouped Calls/Duration instead of counting
+    // rows. Sessions-not-legs (Type='Voice') is baked into the marts; Tuji is still skipped
+    // HERE (Company kept as a dim) so every number matches the old path exactly.
+    const rcP = (window.__mrRcCache3 || !needPhone) ? null
+      : pooled("RingCentral marts", () => Promise.all([
+          ZTZ.api("/api/mart_rc_monthly?limit=100000"),
+          ZTZ.api("/api/mart_rc_monthly_line?limit=100000"),
+          ZTZ.api("/api/mart_rc_monthly_agent?limit=100000")]).then(a => a.map(j => j.rows || [])));
+    const smsP = (window.__mrRcSmsCache2 || !needPhone) ? null
+      : pooled("RingCentral SMS mart", () => ZTZ.api("/api/mart_rc_sms_monthly?limit=100000").then(j => j.rows || []));
+    // (per-job packing fetch of the RAW moveboard table DELETED 2026-07-15, perf batch A:
+    //  it was the page's second-slowest call — 19.2s, ~108k raw rows — and its only consumer,
+    //  the "Packing by type" card, was removed earlier that day. `packJobs` was write-only.)
+    // (long_distance dropped from the fetch 2026-07-14 — its only consumer, the LD
+    //  carrier-economics cards, was removed at Tornike's request)
+    // PERF batch D: themed dashboards skip datasets whose EVERY consumer sits inside one
+    // section (grep-verified line-by-line): storage → Packing & Storage, negative_reviews →
+    // Reviews Production, callrail → Phone & Response. Everything else feeds the shared pre-compute
+    // block (exec movers/banners/GP) and MUST always load — gating those would zero numbers.
+    // The main report has all sections, so it still loads everything.
+    const grabIf = (ds, on) => on ? grab(ds) : Promise.resolve([]);
+    const [closing, moveboard, storage, claims, refunds, cardEx,
+           reviews, negrev, callrail, scorecard, rcounts, rgoals,
+           helperSalDs, salesSalDs] = await Promise.all([
+      grab("closing"), grab("moveboard"), grabIf("storage", SEC("Packing & Storage")),
+      grab("claims"), grab("refunds"), grab("card_expenses"),
+      grab("reviews_breakdown"), grabIf("negative_reviews", SEC("Reviews Production")),
+      grabIf("callrail", SEC("Phone & Response")), grab("scorecard"), grab("review_counts"),
+      grab("review_goals"), grab("helper_salaries"), grab("sales_salaries")]);
+    // Derive the cost flags from the shared rows. Amount is ALREADY positive here (RS.load
+    // negates the bank convention once) — `amt: num(r.Amount)`, never a second negation.
+    const cardCost = !needPack ? [] : cardEx.filter(coRow).map(r => {
+      const d = String(r["Transaction Date"] || "").slice(0, 10);
+      return { ym: d.slice(0, 7), amt: num(r.Amount), sto: Number(r["Is Storage Cost"]) === 1, pk: Number(r["Is Packing Material Cost"]) === 1 };
+    });
+    delete window.__mrCostCache; delete window.__mrCostCache2;   // old isolated-fetch caches — retire both
+    const costByMonth = (ym, flag) => cardCost.reduce((a, r) => (r.ym === ym && r[flag]) ? a + r.amt : a, 0);
+    const hasCostData = cardCost.some(r => r.sto || r.pk);
+    // RingCentral phone-system stats — isolated narrow fetch from fct_ringcentral, folded into
+    // per-month buckets ONCE and cached. GRAIN RULE (audit 2026-07-13): the export is LEG-level —
+    // only Type='Voice' rows are real phone calls (Type NULL = ring/forward legs of the SAME call,
+    // Type='Fax' = faxes). Counting every row inflated volumes ~2.5-3.4x and mislabeled ~71k
+    // inbound ring-legs as outbound. Definitions: answered = Action Result 'Accepted';
+    // missed = 'Missed' + 'Voicemail' (kept separately); teammate = the agent's Extension
+    // (the Name column is the OTHER party — ranking it credited customers as "teammates").
+    if (rcP) {
+      const [mrows, lrows, arows] = await rcP;
+      const agg = {};
+      const B = ym => agg[ym] || (agg[ym] = { in: 0, out: 0, ans: 0, miss: 0, vm: 0, inDur: 0, outDur: 0, names: {}, lines: {} });
+      const okYm = ym => /^\d{4}-\d{2}$/.test(ym);
+      // monthly volume/result buckets (definitions unchanged: answered='Accepted', missed/'Voicemail' separate)
+      mrows.forEach(r => {
+        if (String(r.Company) === "Tuji") return;   // Tuji lines are a separate business — ZtZ scope only
+        const ym = String(r.Month || ""); if (!okYm(ym)) return;
+        const b = B(ym), n = +r.Calls || 0, dur = +r["Duration Seconds"] || 0, res = String(r["Action Result"] || "");
+        if (String(r.Direction) === "Incoming") {
+          b.in += n; b.inDur += dur;
+          if (/^Accepted$/i.test(res)) b.ans += n;
+          else if (/^Missed$/i.test(res)) b.miss += n;
+          else if (/^Voicemail$/i.test(res)) b.vm += n;
+        } else if (String(r.Direction) === "Outgoing") { b.out += n; b.outDur += dur; }
+      });
+      // deck s75 per-LINE inbound — AHT accrues ONLY on answered calls; unnamed numbers pool
+      // into "__unmapped__" with their distinct-number set (same rules as the old row-level fold)
+      lrows.forEach(r => {
+        if (String(r.Company) === "Tuji") return;
+        const ym = String(r.Month || ""); if (!okYm(ym)) return;
+        const b = B(ym), n = +r.Calls || 0, dur = +r["Duration Seconds"] || 0, res = String(r["Action Result"] || "");
+        const lnName = String(r["Line Name"] || "").trim(), lnNum = String(r["Line Number"] || "").trim();
+        const L = b.lines[lnName || "__unmapped__"] || (b.lines[lnName || "__unmapped__"] = { num: "", in: 0, ans: 0, miss: 0, vm: 0, ansDur: 0, nums: {} });
+        if (lnNum) { L.nums[lnNum] = (L.nums[lnNum] || 0) + n; if (!L.num) L.num = lnNum; }
+        L.in += n;
+        if (/^Accepted$/i.test(res)) { L.ans += n; L.ansDur += dur; }
+        else if (/^Missed$/i.test(res)) L.miss += n;
+        else if (/^Voicemail$/i.test(res)) L.vm += n;
+      });
+      // outbound by teammate — skip the shared support queue + empty extensions, strip "NNN - "
+      arows.forEach(r => {
+        if (String(r.Company) === "Tuji") return;
+        const ym = String(r.Month || ""); if (!okYm(ym)) return;
+        const ext = String(r.Extension || "").trim();
+        if (!ext || /support zip to zip/i.test(ext)) return;
+        const b = B(ym), n = +r.Calls || 0, dur = +r["Duration Seconds"] || 0;
+        const nm = ext.replace(/^\d+\s*-\s*/, "");
+        const n2 = b.names[nm] || (b.names[nm] = { out: 0, dur: 0 }); n2.out += n; n2.dur += dur;
+      });
+      if (mrows.length) window.__mrRcCache3 = agg;
+    }
+    delete window.__mrRcCache; delete window.__mrRcCache2;   // row-level-fold caches — retire
+    const rcAgg = window.__mrRcCache3 || {};
+    // RingCentral SMS (first consumer 2026-07-13) — same isolated-fold pattern; the export's
+    // own Direction column is trusted; ZtZ lines only (Tuji excluded like the calls fold).
+    if (smsP) {
+      const smsRows = await smsP;
+      const agg2 = {};
+      smsRows.forEach(r => {
+        if (String(r.Company) === "Tuji") return;
+        const ym = String(r.Month || ""); if (!/^\d{4}-\d{2}$/.test(ym)) return;
+        const b = agg2[ym] || (agg2[ym] = { in: 0, out: 0, fail: 0 });
+        const n = +r.Messages || 0;
+        if (String(r.Direction) === "Inbound") b.in += n;
+        else if (String(r.Direction) === "Outbound") b.out += n;
+        if (String(r["Message Status"]) === "Failed") b.fail += n;
+      });
+      if (smsRows.length) window.__mrRcSmsCache2 = agg2;
+    }
+    delete window.__mrRcSmsCache;   // row-level-fold cache — retire
+    const rcSms = window.__mrRcSmsCache2 || {};
+    // retired caches (Fleet section removed + dead per-job packing fetch deleted, 2026-07-15)
+    delete window.__mrFleetCache; delete window.__mrFleetCache2;
+    delete window.__mrPackCache; delete window.__mrPackCache2;
+    const DS = { closing, moveboard, storage, claims, refunds, card_expenses: cardEx, reviews_breakdown: reviews, negative_reviews: negrev, callrail, scorecard, review_counts: rcounts, review_goals: rgoals, helper_salaries: helperSalDs, sales_salaries: salesSalDs };
+
+    const latest = closing.reduce((a, r) => (coRow(r) && r._d && r._d > a ? r._d : a), "");
+    if (!st.month) {
+      // remembered month first (UX audit: the picked month survives visits) — else auto-detect
+      let saved = null;
+      try { saved = String(localStorage.getItem("ztzMrMonth") || ""); } catch (e) {}
+      const sm = /^(\d{4})-(\d{2})$/.exec(saved);
+      if (sm && +sm[1] >= 2023 && +sm[1] <= new Date().getFullYear() + 1) { st.year = +sm[1]; st.month = +sm[2]; }
+      else {
+        const now = new Date(); let dy, dm;
+        if (latest) { dy = +latest.slice(0, 4); dm = +latest.slice(5, 7); } else { dy = now.getFullYear(); dm = now.getMonth() + 1; }
+        if (dy === now.getFullYear() && dm === now.getMonth() + 1) { dm--; if (dm < 1) { dm = 12; dy--; } }
+        st.month = dm; st.year = dy;
+      }
+    }
+    const curY = st.year, mo = st.month, monLbl = MON[mo] + " " + curY;
+    // C43: plain-English freshness date ("July 6, 2026", not ISO)
+    const dateLong = d => MON[+d.slice(5, 7)] + " " + (+d.slice(8, 10)) + ", " + d.slice(0, 4);
+    const freshness = latest ? `data through ${dateLong(latest)}` : "";
+
+    /* ---------- month engine ---------- */
+    function rangeFor(y, m) { const mm = String(m).padStart(2, "0"), last = new Date(y, m, 0).getDate(); return [`${y}-${mm}-01`, `${y}-${mm}-${String(last).padStart(2, "0")}`]; }
+    function withMonth(y, m, fn) {
+      const S = RS.state, savedMulti = S.multi;
+      const sv = { f: S.dateFrom, t: S.dateTo, df: S.dayFrom, dt: S.dayTo };
+      const [a, b] = rangeFor(y, m); S.dateFrom = a; S.dateTo = b; S.dayFrom = S.dayTo = null;
+      // Company defaults to Zip to Zip for every computation (flows into every RS.filtered call).
+      const coSet = (savedMulti.company && savedMulti.company.size) ? savedMulti.company : new Set([MR_CO]);
+      if (!MRCFG) {
+        // MAIN Monthly Report = MONTH-SELECTOR-ONLY (Tornike 2026-07-15): the whole filter bar is hidden
+        // on this page, so ignore EVERY global slicer except Company. A Source/Foreman/State/Moving-Type
+        // value left set on another page can no longer silently filter the report. The page owns time.
+        S.multi = { company: coSet };
+      } else {
+        // lite themed dashboards keep their OWN visible filter bar → only neutralize the page-owned time
+        // slicers (Year/Month, which would else intersect the page's Month picker — the C31 zero-rows trap).
+        S.multi = Object.assign({}, savedMulti); delete S.multi.year; delete S.multi.month; S.multi.company = coSet;
+      }
+      try { return fn(); } finally {
+        S.dateFrom = sv.f; S.dateTo = sv.t; S.dayFrom = sv.df; S.dayTo = sv.dt;
+        S.multi = savedMulti;
+      }
+    }
+    // Month-scalar memo (perf): valueFor is called hundreds of times per render and its
+    // result depends only on (ds, measure, y, m) + the non-time slicer state. Caching it
+    // across renders makes adjacent month flips near-instant. Only parameter-free calls
+    // are cached (opts.pre closures aren't serializable).
+    // The MAIN report ignores every slicer but Company, so its memo key is Company-only and prefixed —
+    // this keeps it DISTINCT from the lite dashboards' keys (which DO apply slicers) in the shared
+    // __mrMemo2 store, so a set slicer can never cross-contaminate the two.
+    const memoSerial = !MRCFG
+      ? "mr-main:" + JSON.stringify([...((RS.state.multi.company && RS.state.multi.company.size) ? RS.state.multi.company : [MR_CO])].sort())
+      : JSON.stringify(Object.entries(RS.state.multi)
+          .filter(([k, s]) => k !== "year" && k !== "month" && s && s.size)
+          .map(([k, s]) => [k, [...s].sort()]).sort());
+    // NEVER persist month-scalars computed from partial data — a failed feed would poison
+    // the cache with plausible-but-wrong numbers (the inflated-Gross-Profit bug). A render
+    // with failures gets a throwaway map; __mrMemo (pre-fix store) is retired outright.
+    delete window.__mrMemo;
+    let memo;
+    if (loadFailures.length) memo = new Map();
+    else {
+      if (!window.__mrMemo2 || window.__mrMemo2.serial !== memoSerial)
+        window.__mrMemo2 = { serial: memoSerial, map: new Map() };
+      memo = window.__mrMemo2.map;
+    }
+    /* ---------- month-bucket index (PERF batch D, 2026-07-15) ----------
+       One render makes ~300+ month-scoped passes; each used to scan the FULL dataset
+       (77k moveboard rows x ~300 = millions of row visits, and 2-5s month flips).
+       Bucket rows by (dateColumn month) ONCE, then hand RS.filtered only the bucket.
+       PROVABLY output-identical: withMonth always sets a full-month dateFrom/dateTo,
+       and RS.filtered DROPS rows with empty/short dates when a range is set — exactly
+       the rows the bucket excludes. Non-date slicers still run inside RS.filtered.
+       Salary/keyed datasets (no own date column) are NEVER bucketed — they scope by
+       Unique-Key membership in the filtered closing set and must see all rows.
+       The index lives in a WeakMap keyed on the rows ARRAY, so a warehouse refresh
+       (new array in RS._cache) drops it automatically. */
+    const MBUX = window.__mrBux || (window.__mrBux = new WeakMap());
+    function monthRows(ds, y, m, dateColumn) {
+      const rows = DS[ds]; if (!rows || !rows.length) return rows || [];
+      const spec = RS.DATASETS[ds];
+      const col = dateColumn || (spec && spec.defaultDate);
+      if (!col) return rows;                              // keyed/salary datasets: no bucketing
+      let byCol = MBUX.get(rows);
+      if (!byCol) { byCol = new Map(); MBUX.set(rows, byCol); }
+      let idx = byCol.get(col);
+      if (!idx) {
+        idx = new Map();
+        const useD = col === (spec && spec.defaultDate);
+        for (const r of rows) {
+          const d = useD ? (r._d || "") : String(r[col] || "").slice(0, 10);
+          if (d.length !== 10) continue;                  // malformed dates: RS.filtered drops them too
+          const k = d.slice(0, 7);
+          const a = idx.get(k); if (a) a.push(r); else idx.set(k, [r]);
+        }
+        byCol.set(col, idx);
+      }
+      return idx.get(y + "-" + String(m).padStart(2, "0")) || [];
+    }
+    function valueFor(ds, measure, y, m, opts) {
+      const rows = DS[ds]; if (!rows || !rows.length) return null;
+      const cacheable = !opts;
+      const key = cacheable ? ds + "|" + measure + "|" + y + "|" + m : null;
+      if (cacheable && memo.has(key)) return memo.get(key);
+      const v = withMonth(y, m, () => { let f = RS.filtered(ds, monthRows(ds, y, m, opts && opts.dateColumn), opts); if (opts && opts.pre) f = f.filter(opts.pre); return M[measure] ? M[measure].fn(f) : null; });
+      if (cacheable) memo.set(key, v);
+      return v;
+    }
+    function reduceMonth(ds, y, m, reducer, opts) {
+      const rows = DS[ds]; if (!rows || !rows.length) return null;
+      return withMonth(y, m, () => { let f = RS.filtered(ds, monthRows(ds, y, m, opts && opts.dateColumn), opts); if (opts && opts.pre) f = f.filter(opts.pre); return reducer(f); });
+    }
+    // Floor at 2023: pre-2023 rows are hard-removed from the warehouse (2023 cutoff), so
+    // earlier years would render as hollow zero slots on every 5-yr chart (Tornike: "we
+    // have hidden 2022 data — why do I still have them in graphs?").
+    const yearsArr = n => { const a = []; for (let y = Math.max(2023, curY - (n || st.years) + 1); y <= curY; y++) a.push(y); return a; };
+    const trendSeries = (ds, measure, opts, n) => yearsArr(n).map(y => ({ k: String(y), v: valueFor(ds, measure, y, mo, opts) }));
+    function momSeries(ds, measure, n, opts) {
+      const out = []; let y = curY, m = mo;
+      for (let i = 0; i < (n || 12); i++) { out.unshift({ k: MS[m] + " " + String(y).slice(2), y, m, v: valueFor(ds, measure, y, m, opts) }); m--; if (m < 1) { m = 12; y--; } }
+      return out;
+    }
+    function momReduce(ds, n, reducer, opts) {
+      const out = []; let y = curY, m = mo;
+      for (let i = 0; i < (n || 12); i++) { out.unshift({ k: MS[m] + " " + String(y).slice(2), y, m, v: reduceMonth(ds, y, m, reducer, opts) }); m--; if (m < 1) { m = 12; y--; } }
+      return out;
+    }
+    function segSeries(ds, measure, col, y, m, opts) {
+      const rows = DS[ds]; if (!rows || !rows.length) return [];
+      return withMonth(y || curY, m || mo, () => {
+        let f = RS.filtered(ds, monthRows(ds, y || curY, m || mo, opts && opts.dateColumn), opts); if (opts && opts.pre) f = f.filter(opts.pre);
+        const g = {}; f.forEach(r => { const k = r[col] == null || r[col] === "" ? "—" : String(r[col]); (g[k] = g[k] || []).push(r); });
+        return Object.entries(g).map(([k, rs]) => {
+          const segKeys = new Set(); for (const r of rs) { const u = r["Unique Key"]; if (u != null) segKeys.add(u); }
+          return { k, v: M[measure] ? M[measure].fn(rs, segKeys) : null, rows: rs };
+        }).filter(x => x.v != null && x.v !== 0).sort((a, b) => (b.v || 0) - (a.v || 0));
+      });
+    }
+    function segReduce(ds, col, reducer, y, m, opts) {
+      const rows = DS[ds]; if (!rows || !rows.length) return [];
+      return withMonth(y || curY, m || mo, () => {
+        let f = RS.filtered(ds, monthRows(ds, y || curY, m || mo, opts && opts.dateColumn), opts); if (opts && opts.pre) f = f.filter(opts.pre);
+        const g = {}; f.forEach(r => { const k = r[col] == null || r[col] === "" ? "—" : String(r[col]); (g[k] = g[k] || []).push(r); });
+        return Object.entries(g).map(([k, rs]) => ({ k, v: reducer(rs), rows: rs })).filter(x => x.v != null).sort((a, b) => (b.v || 0) - (a.v || 0));
+      });
+    }
+    /* ---------- canonical Booking Rate scaffolding (C2/D4) ----------
+       RS.bookingRate(createdRows, bookedRows) is dual-basis: Qualified counts by CREATE
+       date, Confirmed by BOOKED date. These helpers build the booked-date row scope for a
+       month (and per-segment groups of it) so NO booking rate on this page is computed
+       inline any more. */
+    function bookedRowsFor(y, m, pre) {
+      const rows = DS.moveboard; if (!rows || !rows.length) return [];
+      return withMonth(y, m, () => {
+        // second moveboard index on "Booked Date" — the dual-basis Booking Rate's booked side
+        let f = RS.filtered("moveboard", monthRows("moveboard", y, m, "Booked Date"), { dateColumn: "Booked Date" });
+        if (pre) f = f.filter(pre);
+        return f;
+      });
+    }
+    function groupByCol(rows, col) {
+      const g = {}; rows.forEach(r => { const k = r[col] == null || r[col] === "" ? "—" : String(r[col]); (g[k] = g[k] || []).push(r); }); return g;
+    }
+    /* ---------- shared blank-key test (Tornike 2026-07-15) ----------
+       segSeries/segReduce/groupByCol above turn every null/empty group key into the em-dash placeholder
+       "—"; the claims table also stores a literal "(blank)". Neither is a NAME, so neither may render as
+       a named bar in a per-person ranking.
+       USE ON: name-keyed RATE/ranking charts (salesperson, foreman, teammate).
+       DO NOT USE ON: any card whose headline is a total the bars are meant to add up to (rankBars /
+       groupedBars derive their headline FROM the series) — dropping a bucket there silently shrinks the
+       headline and the bars stop reconciling. For those, prefer the funnelTable pattern: hide the row,
+       keep it in the Total, disclose it in the note. */
+    const BLANK_KEYS = new Set(["—", "(blank)", "", "null", "undefined"]);
+    const isBlankKey = k => k == null || BLANK_KEYS.has(String(k).trim());
+    /* ---------- minimum lead base for a per-rep booking RATE (Tornike 2026-07-15) ----------
+       "if there is no qualified lead for sales person, or if the qualified lead count is below 10 -
+       lets hide it." A rate on a handful of leads is noise, not performance: 1 qualified + 1 booking
+       reads as 100%, and RS.bookingRate returns 1 (not null) when qualified is 0 but something booked,
+       so a zero-lead account can render at 100% unless we guard on the COUNT.
+       Must be measured on QUALIFIED leads (all leads MINUS bad leads) — NOT rows.length. June 2026
+       proof: "TEST TEST" has 7 leads but 0 qualified, so it clears a rows.length>=5 guard and only the
+       top-12 slice was hiding it; "Mary Della Russo" has 22 leads but 9 qualified. Both must go. */
+    const MIN_QUAL = 10;
+    const qualOf = rows => rows.filter(x => String(x["Status Category"]) !== "Bad Lead").length;
+    // 12-month booking-rate trend (optionally pre-filtered) — canonical dual basis per month
+    function bookRateTrend(pre, n) {
+      const out = []; let y = curY, m = mo;
+      for (let i = 0; i < (n || 12); i++) {
+        const created = reduceMonth("moveboard", y, m, rs => rs, pre ? { pre } : undefined) || [];
+        const booked = bookedRowsFor(y, m, pre);
+        out.unshift({ k: MS[m] + " " + String(y).slice(2), y, m, v: RS.bookingRate(created, booked) });
+        m--; if (m < 1) { m = 12; y--; }
+      }
+      return out;
+    }
+
+    /* ---------- palette ---------- */
+    const INK = "#0e1621", INK2 = "#1b2a3f", SUB = "#5a6775", FAINT = "#93a0b2", LINE = "#e4e9f0";
+    const LIME = "#b7e23b", LIMED = "#7ba317";
+    /* ---------- palette (Tornike 2026-07-15: "identify 4 core colors, negative and positive colors
+       which goes well with our brand main color and use those") ----------
+       FOUR CORE, and nothing else, for categorical data. Ordered DARK -> BRIGHT (Ink, Blue, Violet, Lime)
+       so they stay separable by BRIGHTNESS alone — that is what keeps them readable for red-green colour
+       blindness (~8% of men), rather than relying on hue.
+       RETIRED as data colours: AMBER, TEAL, CORAL, PINK, SKY (Tailwind defaults that harmonised with
+       nothing). CORAL/PINK/SKY were already dead — declared, never drawn. AMBER moved to the warning
+       tier where it was really earning its keep; TEAL's storage series moved onto VIOLET. */
+    const BLUE = "#2f6fd0", VIOLET = "#8b5cf6";
+    // Donut slices 5-8 are TINTS of the same four, never new hues: donut() cycles CAT[i % CAT.length]
+    // over up to 7 slices (+ "All others"), and click-to-expand shows every slice — so a 4-long CAT
+    // would silently give two different slices the same colour.
+    const INK_L = "#4a6285", BLUE_L = "#84aef0", VIOLET_L = "#c4aef9";
+    const CAT = [INK, BLUE, VIOLET, LIME, INK_L, BLUE_L, VIOLET_L, LIMED];
+    /* Semantic — good / caution / bad. NEVER a category, and never the only cue: always paired with an
+       arrow, word or score so the meaning survives without colour. WARN_A is the brighter amber used
+       ONLY for warning-banner chrome (border + icon on its cream background), never for data. */
+    const POS = "#1c7a4a", WARN = "#7a5a12", NEG = "#b02a37", WARN_A = "#f5a524";
+    const CTX = "#c6d0db";   // "last year" / prior-month context — deliberately quiet
+    /* ---------- blessed chrome tiers (colour pass 2026-07-15) ----------
+       These hexes were already painted all over the file — now they have names.
+       OTHER = the "All others" aggregate (a DATA colour, but semantically a non-category;
+       do NOT reuse CTX for it — CTX means "last year"). _H = hover states of data marks.
+       DK_* = text/borders on INK surfaces (cover, exec panel, every chart tooltip).
+       *_T* = semantic tint ramps for cell washes & delta chips. PAGE_BG must stay ONE
+       token: the html2canvas PDF background and the .mrx CSS must never drift apart. */
+    const OTHER = "#aeb9c8", OTHER_H = "#98a5b6";
+    const INK_H = "#34465f", CTX_H = "#aab6c4", NEG_H = "#f0817e";
+    const DK_TXT = "#a9b6c6", DK_LINE = "#2c3e57", DK_LINE_H = "#46607f", DK_BODY = "#e8edf3";
+    const POS_T1 = "#e0f0e6", POS_T2 = "#bfe3ca";
+    const NEG_T1 = "#fbe6e7", NEG_T2 = "#f5cccc", NEG_T3 = "#efa3a3", NEG_BD = "#e5b6ba", NEG_TXT = "#7a1f28";
+    const WARN_BG = "#fff8ec", WARN_BD = "#f2d492";
+    const BLUE_BG = "#e7ecfb", LIME_BG = "#dcecab";
+    const PAGE_BG = "#f4f6fa", NOTE_BG = "#f6f8fb";
+    const AXIS = "#7b869a", GRID = "#eef1f6";
+    const MONO = "ui-monospace, 'SF Mono', 'Cascadia Mono', 'Roboto Mono', Menlo, monospace";
+    const HEAT = ["#eef2ee", "#dce7c4", "#c3dc8e", "#a6d22a", "#7ba317"];
+    const seqBg = (v, min, max) => { if (v == null || max <= min) return "transparent"; const t = Math.max(0, Math.min(1, (v - min) / (max - min))); return HEAT[Math.max(0, Math.min(HEAT.length - 1, Math.floor(t * HEAT.length - 1e-9)))]; };
+    const seqInk = (v, min, max) => { const t = max <= min ? 0 : (v - min) / (max - min); return t > 0.82 ? "#fff" : INK; };
+    const divBg = t => { if (t == null) return "transparent"; const c = Math.max(-1, Math.min(1, t)); if (Math.abs(c) < 0.12) return "transparent"; return c >= 0 ? (c > .55 ? POS_T2 : POS_T1) : (c < -.55 ? NEG_T2 : NEG_T1); };
+    const redBg = t => { t = Math.max(0, Math.min(1, t || 0)); return t < 0.02 ? "transparent" : t > .66 ? NEG_T3 : t > .33 ? NEG_T2 : NEG_T1; };
+
+    /* ---------- icons ---------- */
+    const ICONS = {
+      "Executive Summary": '<svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="8" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="11" width="7" height="10" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg>',
+      "Demand & Lead Funnel": '<svg viewBox="0 0 24 24"><path d="M3 4h18l-7 8v7l-4-2v-5z"/></svg>',
+      "Sales Team Performance": '<svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.2"/><path d="M3.5 20c0-3.3 2.5-5 5.5-5s5.5 1.7 5.5 5"/><path d="M16 5a3 3 0 010 6"/><path d="M20.5 20c0-2.4-1.3-3.9-3.5-4.6"/></svg>',
+      "Operations & Crew (Foreman)": '<svg viewBox="0 0 24 24"><rect x="1.5" y="6" width="12" height="9" rx="1"/><path d="M13.5 9h4l3 3v3h-7z"/><circle cx="6" cy="18" r="1.8"/><circle cx="17.5" cy="18" r="1.8"/></svg>',
+      "Packing & Storage": '<svg viewBox="0 0 24 24"><path d="M12 3l8 4v10l-8 4-8-4V7z"/><path d="M4 7l8 4 8-4"/><path d="M12 11v10"/></svg>',
+      "Revenue & Growth": '<svg viewBox="0 0 24 24"><path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/></svg>',
+      "Revenue Segments": '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 3v9h9"/></svg>',
+      "Profitability & P&L": '<svg viewBox="0 0 24 24"><circle cx="9" cy="9" r="5"/><path d="M14 6.5a5 5 0 010 11"/></svg>',
+      "Marketing & Channels": '<svg viewBox="0 0 24 24"><path d="M3 10v4l12 5V5z"/><path d="M15 8.5a4 4 0 010 7"/></svg>',
+      "Phone & Response": '<svg viewBox="0 0 24 24"><path d="M4 3h4l2 5-2.5 2a14 14 0 006.5 6.5L16 14l5 2v4a1 1 0 01-1 1C10.6 21 3 13.4 3 4a1 1 0 011-1z"/></svg>',
+      "Quality & Customer Experience": '<svg viewBox="0 0 24 24"><path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.7L12 17l-5.2 2.5 1-5.7L3.5 9.7l5.9-.9z"/></svg>',
+      "Reviews Production": '<svg viewBox="0 0 24 24"><path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.7L12 17l-5.2 2.5 1-5.7L3.5 9.7l5.9-.9z"/></svg>',
+      "Claims": '<svg viewBox="0 0 24 24"><path d="M12 3l9 16H3z"/><path d="M12 10v4"/><path d="M12 17h.01"/></svg>',
+      "Claims & Refunds": '<svg viewBox="0 0 24 24"><path d="M12 3l9 16H3z"/><path d="M12 10v4"/><path d="M12 17h.01"/></svg>',
+      "Refunds & Cost of Quality": '<svg viewBox="0 0 24 24"><path d="M12 2v20"/><path d="M17 6c0-2-2.2-3-5-3S7 4 7 6s2.2 3 5 3 5 1 5 3-2.2 3-5 3-5-1-5-3"/></svg>',
+      "Geography — by State": '<svg viewBox="0 0 24 24"><path d="M12 21s7-5.6 7-11a7 7 0 10-14 0c0 5.4 7 11 7 11z"/><circle cx="12" cy="10" r="2.5"/></svg>',
+      "Leads Segments": '<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="4" rx="1"/><rect x="3" y="10" width="18" height="4" rx="1"/><rect x="3" y="16" width="18" height="4" rx="1"/></svg>',
+      "Per-Job Profitability": '<svg viewBox="0 0 24 24"><path d="M19 5L5 19"/><rect x="3.5" y="3.5" width="6.5" height="6.5" rx="1.2"/><path d="M17 14v6.5"/><path d="M13.8 17.2h6.5"/></svg>',
+      "Repeat & Referral Business": '<svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 0 1 13.6-5.7L20 8.5"/><path d="M20 3.5v5h-5"/><path d="M20 12a8 8 0 0 1-13.6 5.7L4 15.5"/><path d="M4 20.5v-5h5"/></svg>',
+      "CT Branch": '<svg viewBox="0 0 24 24"><path d="M3 21V8l7-5 7 5v13"/><path d="M8 21v-6h4v6"/><path d="M17 21h4"/><path d="M6 11h2"/><path d="M12 11h2"/></svg>',
+      "Marketing ROI": '<svg viewBox="0 0 24 24"><path d="M3 10v4l12 5V5z"/><path d="M15 8.5a4 4 0 010 7"/></svg>',
+      "Lead Sources": '<svg viewBox="0 0 24 24"><path d="M3 4h18l-7 8v7l-4-2v-5z"/></svg>',
+      "Fleet": '<svg viewBox="0 0 24 24"><rect x="1.5" y="6" width="12" height="9" rx="1"/><path d="M13.5 9h4l3 3v3h-7z"/><circle cx="6" cy="18" r="1.8"/><circle cx="17.5" cy="18" r="1.8"/></svg>',
+      _def: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/></svg>'
+    };
+    const KIC = {
+      dollar: '<svg viewBox="0 0 24 24"><path d="M12 2v20"/><path d="M17 6c0-2-2.2-3-5-3S7 4 7 6s2.2 3 5 3 5 1 5 3-2.2 3-5 3-5-1-5-3"/></svg>',
+      trend: '<svg viewBox="0 0 24 24"><path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/></svg>',
+      pct: '<svg viewBox="0 0 24 24"><path d="M19 5L5 19"/><circle cx="7.5" cy="7.5" r="2.5"/><circle cx="16.5" cy="16.5" r="2.5"/></svg>',
+      truck: '<svg viewBox="0 0 24 24"><rect x="1.5" y="6" width="12" height="9" rx="1"/><path d="M13.5 9h4l3 3v3h-7z"/><circle cx="6" cy="18" r="1.8"/><circle cx="17.5" cy="18" r="1.8"/></svg>',
+      funnel: '<svg viewBox="0 0 24 24"><path d="M3 4h18l-7 8v7l-4-2v-5z"/></svg>',
+      check: '<svg viewBox="0 0 24 24"><path d="M4 12l5 5L20 6"/></svg>',
+      tag: '<svg viewBox="0 0 24 24"><path d="M3 3h8l10 10-8 8L3 11z"/><circle cx="7.5" cy="7.5" r="1.6"/></svg>',
+      star: '<svg viewBox="0 0 24 24"><path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.7L12 17l-5.2 2.5 1-5.7L3.5 9.7l5.9-.9z"/></svg>',
+      warn: '<svg viewBox="0 0 24 24"><path d="M12 3l9 16H3z"/><path d="M12 10v4"/><path d="M12 17h.01"/></svg>',
+      bars: '<svg viewBox="0 0 24 24"><rect x="3" y="12" width="4" height="8" rx="1"/><rect x="10" y="7" width="4" height="13" rx="1"/><rect x="17" y="4" width="4" height="16" rx="1"/></svg>',
+      pie: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 3v9h9"/></svg>',
+      grid: '<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="4" rx="1"/><rect x="3" y="10" width="18" height="4" rx="1"/><rect x="3" y="16" width="18" height="4" rx="1"/></svg>'
+    };
+
+    /* ---------- design system ---------- */
+    if (!document.getElementById("mrx-css")) {
+      const s = document.createElement("style"); s.id = "mrx-css";
+      s.textContent = `
+      .mrx{background:${PAGE_BG};color:${INK};border-radius:16px;padding:24px 24px 46px;font-family:Inter,system-ui,sans-serif;-webkit-font-smoothing:antialiased;
+        box-shadow:0 10px 44px rgba(14,22,33,.35)}
+      .mrx *{box-sizing:border-box}
+      .mrx-info{display:inline-flex;align-items:center;justify-content:center;width:19px;height:19px;margin-left:7px;vertical-align:-2px;
+        border:1.4px solid ${CTX};border-radius:50%;background:transparent;color:${FAINT};cursor:pointer;padding:0;
+        font:italic 700 12px/1 Georgia,serif}
+      .mrx-info:hover{border-color:${INK};color:${INK}}
+      .mrx-info.on{background:${INK};border-color:${INK};color:${LIME}}
+      .mrx-loaderr{background:${NEG_T1};border:1.5px solid ${NEG_BD};border-left:5px solid ${NEG};color:${NEG_TXT};border-radius:12px;
+        padding:13px 16px;margin-bottom:14px;font-size:13.5px;line-height:1.55;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+      .mrx-loaderr button{margin-top:0}
+      .mrx-cover{position:relative;background:${INK};color:#fff;border-radius:16px;padding:24px 26px;margin-bottom:16px;overflow:hidden}
+      .mrx-cover .mrx-accent{position:absolute;left:0;top:0;bottom:0;width:6px;background:${LIME}}
+      .mrx-eyebrow{font-size:12px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:${LIME}}
+      .mrx-h1{font-size:33px;font-weight:800;letter-spacing:-.9px;margin:6px 0 4px;color:#fff}
+      .mrx-cvsub{color:${DK_TXT};font-size:12.5px;font-weight:600}
+      .mrx-cvactions{position:absolute;top:22px;right:24px;display:flex;gap:8px;z-index:2}
+      .mrx-print{background:${LIME};color:${INK};border:0;border-radius:9px;padding:9px 15px;font-size:13px;font-weight:800;cursor:pointer}
+      .mrx-print2{background:transparent;color:${DK_TXT};border:1px solid ${DK_LINE};border-radius:9px;padding:9px 12px;font-size:12.5px;font-weight:700;cursor:pointer}
+      .mrx-print2:hover{color:#fff;border-color:${DK_LINE_H}}
+      .mrx-cvpick{display:flex;gap:8px;margin:10px 0 8px}
+      .mrx-ctl{font:inherit;font-size:14px;font-weight:700;color:#fff;background:${INK2};border:1px solid ${DK_LINE};border-radius:9px;padding:8px 12px;cursor:pointer;outline:none}
+      .mrx-ctl:focus-visible{outline:2px solid ${LIME};outline-offset:1px}
+      .mrx-lite-h{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;background:#fff;border:1px solid ${LINE};border-left:5px solid ${LIME};border-radius:12px;padding:13px 18px;margin-bottom:14px;box-shadow:0 1px 2px rgba(14,22,33,.05)}
+      .mrx-lite-tt{font-size:20px;font-weight:800;letter-spacing:-.4px;color:${INK}}
+      .mrx-lite-tt b{display:block;font-size:12px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:${LIMED}}
+      .mrx-lite-ctl{font-size:12.5px;font-weight:700;color:${SUB};white-space:nowrap}
+      .mrx-lite-ctl select{font:inherit;font-weight:700;color:${INK};background:${PAGE_BG};border:1px solid ${LINE};border-radius:7px;padding:3px 8px;margin-left:4px}
+      .mrx-bwrap{margin-bottom:16px}
+      .mrx-banner{display:flex;align-items:center;gap:11px;background:${WARN_BG};border:1px solid ${WARN_BD};border-left:4px solid ${WARN_A};border-radius:11px;padding:11px 15px;font-size:13px;color:${WARN};font-weight:600}
+      .mrx-banner b{font-family:${MONO};color:${INK};font-weight:800}
+      .mrx-banner .bic{display:flex;flex:0 0 auto}.mrx-banner .bic svg{width:19px;height:19px;fill:none;stroke:${WARN_A};stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+      .mrx-bmsg{flex:1}
+      .mrx-btoggle{flex:0 0 auto;font-family:${MONO};font-size:12px;font-weight:800;color:${INK};cursor:pointer;white-space:nowrap;border-bottom:1.5px solid ${WARN_A};user-select:none}
+      .mrx-bdetail{margin-top:7px;background:#fff;border:1px solid ${WARN_BD};border-radius:9px;padding:9px 13px;max-height:300px;overflow:auto}
+      /* top:-16px, NOT 0 — sticky insets resolve against the SCROLLER'S CONTENT box, and the scroller is
+         .rs-content{padding:16px 20px 60px} (assets/rs.css:58). With top:0 the bar parked 16px BELOW the
+         pane's visible edge, and a scroll container's top padding is not clipped — so that 16px strip
+         stayed a live window onto the report sliding under it (the dark cover / INK bars / .mrx-rule
+         showing above the white bar). -16px parks it flush. Keep in sync with .rs-content's padding-top. */
+      .mrx-toc{position:sticky;top:-16px;z-index:60;background:#fff;box-shadow:0 4px 14px rgba(14,22,33,.14);border-bottom:1px solid ${LINE};display:flex;flex-direction:column;padding:0;margin:0 -24px 10px}
+      .mrx-tocrow{display:flex;align-items:center;gap:8px;padding:10px 24px 9px;flex-wrap:wrap}
+      .mrx-tocrow.sub{gap:6px;padding:8px 24px 10px;border-top:1px solid ${GRID};background:#fbfcfd}
+      .mrx-tocmain{display:inline-flex;align-items:center;gap:9px;font:inherit;font-size:13px;font-weight:800;letter-spacing:-.1px;color:${INK2};background:#fff;border:1px solid ${LINE};border-radius:10px;padding:7px 14px;cursor:pointer;white-space:nowrap;user-select:none;transition:background .12s,color .12s,border-color .12s,box-shadow .12s}
+      .mrx-tocmain i{font-style:normal;font-family:${MONO};font-size:12px;font-weight:800;color:${FAINT};font-variant-numeric:tabular-nums;transition:color .12s}
+      .mrx-tocmain:hover{border-color:${INK};background:${GRID}}
+      .mrx-tocmain.on{background:${INK};color:#fff;border-color:${INK};box-shadow:0 3px 10px rgba(14,22,33,.25)}
+      .mrx-tocmain.on i{color:${LIME}}
+      .mrx-tocsublbl{font-family:${MONO};font-size:12px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:${FAINT};margin-right:4px;white-space:nowrap}
+      .mrx-tocchip{display:inline-flex;align-items:baseline;font-family:${MONO};font-size:12.5px;font-weight:600;color:${INK2};background:transparent;border:1px solid transparent;border-radius:8px;padding:5px 10px;cursor:pointer;white-space:nowrap;user-select:none;line-height:1.1;transition:background .12s,color .12s,box-shadow .12s}
+      .mrx-tocn{font-weight:700;font-size:12px;color:${FAINT};font-variant-numeric:tabular-nums;letter-spacing:.02em;margin-right:6px;transition:color .12s}
+      .mrx-tocchip:hover{background:${GRID};color:${INK}}
+      .mrx-tocchip:hover .mrx-tocn{color:${LIMED}}
+      .mrx-tocchip.on{background:${INK};color:${LIME};font-weight:700;border-color:${INK};box-shadow:0 3px 10px rgba(14,22,33,.28)}
+      .mrx-tocchip.on .mrx-tocn{color:${LIME}}
+      .mrx-tocchip.on:hover{background:${INK};color:${LIME}}
+      .mrx-tocstep{margin-left:auto;display:inline-flex;align-items:center;gap:0;background:#fff;border:1px solid ${LINE};border-radius:9px;overflow:hidden;white-space:nowrap}
+      .mrx-tocstep b{font-family:${MONO};font-size:12.5px;font-weight:700;color:${INK};min-width:60px;text-align:center;padding:0 8px;border-left:1px solid ${LINE};border-right:1px solid ${LINE}}
+      .mrx-tocstep button{display:inline-flex;align-items:center;justify-content:center;border:0;background:transparent;color:${SUB};width:29px;height:27px;padding:0;font-size:15px;line-height:1;cursor:pointer;transition:background .12s,color .12s}
+      .mrx-tocstep button:hover{background:${GRID};color:${INK}}
+      .mrx-tocstep button:active{background:${LINE}}
+      /* branded topic interstitial — a lime "new topic" band that announces each part */
+      .mrx-parth{position:relative;overflow:hidden;display:flex;align-items:center;gap:22px;background:linear-gradient(118deg, ${LIME}1c 0%, ${LIME}40 100%);border:1px solid ${LIME}7a;border-radius:16px;padding:24px 28px;margin:52px 0 24px;box-shadow:0 6px 20px ${LIME}22}
+      .mrx-parth::before{content:"";position:absolute;left:0;top:0;bottom:0;width:6px;background:linear-gradient(180deg, ${LIME}, ${LIMED});pointer-events:none}
+      .mrx-parth .pl{position:relative;z-index:1;display:flex;flex-direction:column;gap:6px;flex:1 1 auto;min-width:0}
+      .mrx-parth .pt{font-size:33px;font-weight:900;letter-spacing:-.9px;line-height:1;color:${INK}}
+      .mrx-parth .ps{font-size:13.5px;font-weight:600;color:${INK};opacity:.64;letter-spacing:.1px}
+      .mrx-parth .pnum{position:relative;z-index:1;flex:0 0 auto;display:flex;align-items:baseline;gap:3px;font-family:${MONO};line-height:.9;pointer-events:none}
+      .mrx-parth .pn-n{font-style:normal;font-weight:900;font-size:58px;letter-spacing:-3px;color:${LIMED};opacity:.85}
+      .mrx-parth .pn-s{font-style:normal;font-weight:800;font-size:18px;color:${LIMED};opacity:.5}
+      @media(max-width:640px){.mrx-parth{padding:20px 20px;gap:12px;margin:40px 0 20px}.mrx-parth .pt{font-size:25px}.mrx-parth .pn-n{font-size:42px}.mrx-parth .pn-s{font-size:14px}}
+      @media print{.mrx-parth{box-shadow:none;break-inside:avoid;background:${LIME}22;border-color:${LIME}}.mrx-parth .pn-n{color:${LIMED};opacity:.9}}
+      .mrx-sec{margin:26px 0 4px;scroll-margin-top:56px}
+      .mrx-sec-h{display:flex;align-items:center;gap:12px;cursor:pointer;user-select:none}
+      .mrx-badge{width:34px;height:34px;flex:0 0 34px;border-radius:9px;background:${INK};color:#fff;font-weight:800;font-size:15px;display:grid;place-items:center;font-family:${MONO}}
+      .mrx-badge.mrx-hero{background:${LIME};color:${INK}}
+      .mrx-sec-ic svg{width:20px;height:20px;fill:none;stroke:${INK};stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+      .mrx-sec-ic{display:flex}
+      .mrx-sec-tt{display:flex;flex-direction:column;line-height:1.14}
+      .mrx-sec-t{font-size:19px;font-weight:800;color:${INK};letter-spacing:-.4px}
+      .mrx-sec-s{font-size:12px;font-weight:600;color:${SUB}}
+      .mrx-code{margin-left:auto;font-family:${MONO};font-size:12px;font-weight:700;color:${FAINT};letter-spacing:.08em}
+      .mrx-caret{flex:0 0 auto;color:${FAINT};transition:transform .15s;font-size:12px;margin-left:10px}
+      .mrx-sec.collapsed .mrx-caret{transform:rotate(-90deg)}
+      .mrx-sec.collapsed .mrx-grid{display:none}
+      .mrx-sec.collapsed .mrx-rule{opacity:.45}
+      .mrx-rule{position:relative;height:2px;background:${INK};margin:11px 0 2px}
+      .mrx-rule i{position:absolute;left:0;top:0;height:2px;width:46px;background:${LIME}}
+      .mrx-grid{display:grid;gap:15px;grid-template-columns:repeat(2,minmax(0,1fr));margin-top:14px}
+      .mrx-grid.k{grid-template-columns:repeat(4,minmax(0,1fr))}
+      @media(max-width:900px){.mrx-grid{grid-template-columns:1fr}.mrx-grid.k{grid-template-columns:repeat(2,minmax(0,1fr))}}
+      /* Cards are flex columns and the chart box GROWS to absorb any extra height the grid row gives the
+         card (Tornike 2026-07-16: "graphs must use the full height of the placeholder — no white screen").
+         Chart.js is responsive, so the canvas re-fills the stretched box automatically. */
+      .mrx-card{position:relative;display:flex;flex-direction:column;background:#fff;border:1px solid ${LINE};border-radius:14px;padding:15px 16px;box-shadow:0 1px 2px rgba(14,22,33,.05)}
+      .mrx-card:before{content:"";position:absolute;left:16px;top:0;width:34px;height:3px;background:${LIME};border-radius:0 0 3px 3px}
+      .mrx-card.span2{grid-column:1/-1}
+      .mrx-chead{flex:0 0 auto}
+      .mrx-card .mrx-box{flex:1 0 auto}
+      .mrx-card .mrx-note{flex:0 0 auto}
+      .mrx-subhead{grid-column:1/-1;display:flex;align-items:baseline;gap:10px;margin:8px 0 -4px;padding-bottom:8px;border-bottom:2px solid ${INK}}
+      .mrx-subhead .sh-t{font-size:14px;font-weight:800;color:${INK};letter-spacing:-.2px}
+      .mrx-subhead .sh-s{font-size:12px;font-weight:700;color:${FAINT};text-transform:uppercase;letter-spacing:.06em;font-family:${MONO}}
+      .mrx-chead{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:10px;border-bottom:1px solid ${GRID};padding-bottom:9px}
+      .mrx-chleft{display:flex;gap:8px;align-items:flex-start;min-width:0}
+      .mrx-chico{display:flex;flex:0 0 auto;margin-top:1px}.mrx-chico svg{width:16px;height:16px;fill:none;stroke:${INK};stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+      .mrx-cttl{min-width:0}
+      .mrx-ct{font-size:16px;font-weight:750;color:${INK};line-height:1.25}
+      .mrx-cs{font-size:12px;font-weight:700;color:${FAINT};text-transform:uppercase;letter-spacing:.04em;font-family:${MONO}}
+      .mrx-chd{text-align:right;flex:0 0 auto;white-space:nowrap}
+      .mrx-chval{font-family:${MONO};font-size:20px;font-weight:800;color:${INK};letter-spacing:-.4px;line-height:1.05}
+      .mrx-chd .mrx-chips{justify-content:flex-end;margin-top:3px}
+      .mrx-box{position:relative;height:340px}
+      .mrx-note{margin-top:10px;font-size:13px;color:${SUB};line-height:1.55;background:${NOTE_BG};border-left:3px solid ${LIME};padding:8px 11px;border-radius:0 7px 7px 0}
+      .mrx-note.how{border-left-color:${CTX};background:${NOTE_BG};color:${SUB};font-size:12.5px}
+      .mrx-kpi{position:relative;background:#fff;border:1px solid ${LINE};border-radius:14px;padding:14px 15px 13px;box-shadow:0 1px 2px rgba(14,22,33,.05);overflow:hidden}
+      .mrx-kpi:before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:${INK}}
+      .mrx-kpi.mrx-hero:before{background:${LIME}}
+      .mrx-kl{font-size:12px;font-weight:750;color:${SUB};text-transform:uppercase;letter-spacing:.05em;display:flex;align-items:center;gap:6px}
+      .mrx-ic{display:flex}.mrx-ic svg{width:14px;height:14px;fill:none;stroke:${FAINT};stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+      .mrx-kv{font-size:31px;font-weight:800;color:${INK};letter-spacing:-.6px;margin:4px 0 0;font-family:${MONO};font-variant-numeric:tabular-nums}
+      .mrx-uline{display:block;width:24px;height:3px;background:${LIME};border-radius:2px;margin:3px 0 7px}
+      .mrx-chips{display:flex;gap:5px;flex-wrap:wrap}
+      .mrx-chip{font-size:12px;font-weight:750;padding:2px 6px;border-radius:5px;font-family:${MONO};font-variant-numeric:tabular-nums}
+      .mrx-spark{height:30px;position:relative;margin-top:9px}
+      .mrx-exec{background:${INK};color:${DK_BODY};border-radius:12px;padding:14px 16px;font-size:13.5px;line-height:1.55;margin-top:16px}
+      .mrx-exec b{color:${LIME}}
+      .mrx-tbl{width:100%;border-collapse:collapse;font-size:13.5px;font-variant-numeric:tabular-nums;font-family:${MONO}}
+      .mrx-pgfoot{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:11px;flex-wrap:wrap;font-family:${MONO};font-size:12.5px;font-weight:700;color:${SUB}}
+      .mrx-pgnav{display:inline-flex;align-items:center;gap:7px}
+      .mrx-pgnav b{color:${INK};font-size:12.5px}
+      .mrx-pgright{display:inline-flex;gap:7px;align-items:center}
+      .mrx-pgbtn{border:1px solid ${LINE};background:#fff;color:${INK};border-radius:7px;padding:5px 13px;font:inherit;font-family:${MONO};font-size:12.5px;font-weight:700;cursor:pointer;line-height:1.3}
+      .mrx-pgbtn:hover:not([disabled]){border-color:${INK};background:${GRID}}
+      .mrx-pgbtn[disabled]{opacity:.38;cursor:default}
+      .mrx-pgbtn.ghost{background:${LIME};border-color:${LIME};color:${INK};font-weight:800}
+      .mrx-pgbtn.ghost:hover:not([disabled]){background:${LIMED};border-color:${LIMED};color:#fff}
+      .mrx-tbl th{font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:${SUB};text-align:right;padding:7px 9px;border-bottom:2px solid ${INK};white-space:nowrap;font-family:Inter,sans-serif}
+      .mrx-tbl th:first-child{text-align:left}
+      .mrx-tbl td{padding:7px 9px;text-align:right;border-bottom:1px solid ${GRID};color:${INK2};white-space:nowrap}
+      .mrx-tbl td:first-child{text-align:left;font-weight:600;color:${INK};font-family:Inter,sans-serif}
+      .mrx-tbl tr:last-child td{border-bottom:0}
+      .mrx-tbl tr.tot td{font-weight:800;border-top:2px solid ${INK};color:${INK}}
+      .mrx-tbl .bar{position:relative}
+      .mrx-tbl .bar i{position:absolute;left:0;top:3px;bottom:3px;background:${BLUE_BG};border-radius:3px;z-index:0}
+      .mrx-tbl .bar span{position:relative;z-index:1}
+      .mrx-scroll{overflow-x:auto}
+      .mrx-empty{height:100%;display:grid;place-items:center;color:${FAINT};font-size:13px;font-weight:600}
+      .mrx-xls{font:inherit;font-size:12px;font-weight:700;color:${INK};background:transparent;border:1px solid ${LINE};border-radius:8px;padding:6px 11px;cursor:pointer;margin-top:9px}
+      .mrx-xls:hover{border-color:${INK};background:${GRID}}
+      .mrx-xls:focus-visible{outline:2px solid ${LIMED};outline-offset:1px}
+      @media(max-width:900px){
+        .mrx-tocrow{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}
+        .mrx-tocrow::-webkit-scrollbar{display:none}
+        .mrx-tocmain{flex:none}
+        .mrx-tocchip{flex:none}
+        .mrx-tocsublbl{flex:none}
+        .mrx-tocstep{flex:none;margin-left:8px;position:sticky;right:0;background:#fff;box-shadow:-8px 0 8px -4px rgba(14,22,33,.10)}
+        .mrx-ctl{padding:10px 12px}
+        .mrx-lite-ctl select{padding:9px 11px}
+      }
+      @media print{
+        @page{margin:9mm}
+        html,body{height:auto!important;overflow:visible!important}
+        body.rs-app,.rs-layout,.rs-main,.rs-content,#content,#app{height:auto!important;max-height:none!important;min-height:0!important;overflow:visible!important;display:block!important}
+        .rs-content{padding:0!important}
+        .top,.rs-side,.rs-filters,.rs-chips,.rs-topbar,header{display:none!important}
+        .mrx{background:#fff;padding:0}
+        .mrx-print,#mrMonth,#mrYear,.mrx-ctl,.mrx-toc,.mrx-caret{display:none!important}
+        .mrx-sec.collapsed .mrx-grid{display:grid!important}
+        .mrx-sec-h{break-after:avoid}
+        .mrx-sec{break-inside:auto;margin-top:14px}
+        .mrx-card,.mrx-kpi,.mrx-tbl tr{break-inside:avoid}
+        .mrx-cover,.mrx-banner{break-inside:avoid}
+        *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+      }`;
+      document.head.appendChild(s);
+    }
+    // global tooltip + hover (rich, index-mode) — once
+    if (window.Chart && !Chart.__mrx) {
+      Chart.__mrx = 1; const T = Chart.defaults.plugins.tooltip;
+      T.backgroundColor = INK; T.titleColor = "#fff"; T.bodyColor = DK_BODY; T.borderColor = DK_LINE; T.borderWidth = 1;
+      T.cornerRadius = 7; T.padding = 9; T.titleFont = { family: "Inter", weight: "700", size: 12 }; T.bodyFont = { family: MONO, size: 12 };
+      T.displayColors = true; T.boxWidth = 9; T.boxHeight = 9; T.usePointStyle = true;
+      Chart.defaults.interaction = { mode: "index", intersect: false };
+      Chart.defaults.hover = { mode: "index", intersect: false };
+    }
+    // resize all charts to the print column before printing so nothing is cut/stretched in the PDF
+    if (!window.__mrxPrint) { window.__mrxPrint = 1; window.addEventListener("beforeprint", () => { try { if (window.Chart) Object.values(Chart.instances || {}).forEach(ch => { try { ch.resize(); } catch (e) {} }); } catch (e) {} }); }
+
+    /* ---------- chart primitives ---------- */
+    const baseOpts = extra => Object.assign({ __solidBars: true, maintainAspectRatio: false, animation: false,
+      // hover axis MUST match orientation: horizontal (indexAxis 'y') charts index by Y, vertical by X.
+      // Without this the global {mode:'index'} default maps by the wrong axis → tooltip shows another bar.
+      interaction: { mode: "index", axis: (extra && extra.indexAxis === "y") ? "y" : "x", intersect: false },
+      plugins: { legend: { display: false } } }, extra || {});
+    const axX = (o) => Object.assign({ ticks: { color: AXIS, font: { family: MONO, size: 12 } }, grid: { display: false }, border: { color: LINE } }, o || {});
+    const axY = (fmt, o) => Object.assign({ ticks: { color: AXIS, font: { family: MONO, size: 12 }, maxTicksLimit: 7, callback: v => fmt ? fmt(v) : v }, grid: { color: GRID }, border: { display: false } }, o || {});
+    const valLabels = (fmt, horiz, color) => ({ id: "vlab", afterDatasetsDraw(ch) {
+      const ctx = ch.ctx; ctx.save(); ctx.font = "700 12px " + MONO; ctx.fillStyle = color || INK;
+      ch.data.datasets.forEach((d, di) => { const meta = ch.getDatasetMeta(di); if (meta.hidden) return; meta.data.forEach((el, i) => {
+        const raw = d.data[i]; const v = Array.isArray(raw) ? raw[1] - raw[0] : raw; if (v == null || isNaN(v)) return;
+        if (horiz) { ctx.textAlign = "left"; ctx.textBaseline = "middle"; ctx.fillText(fmt(v), el.x + 5, el.y); }
+        else { ctx.textAlign = "center"; ctx.textBaseline = "bottom"; ctx.fillText(fmt(v), el.x, el.y - 4); }
+      }); }); ctx.restore();
+    } });
+    // hover crosshair — adaptive: vertical line for column charts, horizontal line for bar (y-indexed) charts.
+    // MUST stay on afterDatasetsDraw: the tooltip is Chart.js's own CANVAS tooltip (not a DOM node, so
+    // z-index cannot reach it), and Chart.js notifies REGISTERED plugins — including that tooltip, which
+    // strokes in afterDraw — BEFORE config-inline plugins like this one. An afterDraw crosshair therefore
+    // paints THROUGH the tooltip box. afterDatasetsDraw = still above the bars, but behind the tooltip.
+    const crosshair = { id: "crossh", afterDatasetsDraw(ch) { const t = ch.tooltip; if (t && t._active && t._active.length) { const el = t._active[0].element, ca = ch.chartArea, ctx = ch.ctx; ctx.save(); ctx.strokeStyle = FAINT; ctx.lineWidth = 1.3; ctx.setLineDash([3, 3]); ctx.beginPath(); if (ch.options.indexAxis === "y") { ctx.moveTo(ca.left, el.y); ctx.lineTo(ca.right, el.y); } else { ctx.moveTo(el.x, ca.top); ctx.lineTo(el.x, ca.bottom); } ctx.stroke(); ctx.setLineDash([]); ctx.restore(); } } };
+
+    /* ---------- card + section scaffolding ---------- */
+    function card(mount, title, sub, opts) {
+      opts = opts || {}; const c = document.createElement("div"); c.className = "mrx-card" + (opts.span2 ? " span2" : "");
+      const hv = opts.headVal != null ? `<div class="mrx-chd"><div class="mrx-chval">${opts.headVal}</div>${opts.chips ? `<div class="mrx-chips">${opts.chips}</div>` : ""}</div>` : "";
+      c.innerHTML = `<div class="mrx-chead"><div class="mrx-chleft">${opts.icon ? `<span class="mrx-chico">${opts.icon}</span>` : ""}<div class="mrx-cttl"><div class="mrx-ct">${esc(title)}</div>${sub ? `<div class="mrx-cs">${esc(sub)}</div>` : ""}</div></div>${hv}</div>`;
+      mount.appendChild(c); return c;
+    }
+    function chartCard(mount, title, sub, opts) {
+      opts = opts || {}; const c = card(mount, title, sub, opts);
+      const box = document.createElement("div"); box.className = "mrx-box"; if (opts.h) box.style.height = opts.h + "px";
+      const cv = document.createElement("canvas"); box.appendChild(cv); c.appendChild(box);
+      return { c, box, cv };
+    }
+    // C48/Q8: two note kinds — "Insight ·" is reserved for genuine findings; methodology /
+    // definition notes carry "How it's counted ·" so readers never learn to skip insights.
+    function note(c, txt, kind) {
+      if (!txt) return; const n = document.createElement("div");
+      const how = kind === "how";
+      n.className = "mrx-note" + (how ? " how" : "");   // gray = methodology, lime = finding
+      n.innerHTML = `<b style="color:${how ? SUB : LIMED}">${how ? "How it's counted · " : "Insight · "}</b>${esc(txt)}`;
+      if (how) {
+        // Methodology hides behind an ℹ icon next to the card title (Tornike 2026-07-14:
+        // "it makes the dashboard ugly — at least hide them in Information icon").
+        // Insight notes (lime, findings) stay visible — only the how-text folds away.
+        n.style.display = "none";
+        const ic = document.createElement("button"); ic.type = "button"; ic.className = "mrx-info";
+        ic.title = "How it's counted"; ic.textContent = "i";
+        ic.onclick = e => {
+          e.stopPropagation();
+          const open = n.style.display === "none";
+          n.style.display = open ? "block" : "none"; ic.classList.toggle("on", open);
+        };
+        const tt = c.querySelector(".mrx-ct"); (tt || c).appendChild(ic);
+      }
+      c.appendChild(n);
+    }
+    function emptyBox(box, msg) { box.innerHTML = `<div class="mrx-empty">${esc(msg || ("No data for " + monLbl))}</div>`; }
+    const TOCNAME = { "Executive Summary": "Summary", "Demand & Lead Funnel": "Leads", "Sales Team Performance": "Sales", "Operations & Crew (Foreman)": "Crew", "Packing & Storage": "Packing", "Revenue & Growth": "Revenue", "Revenue Segments": "Rev. Segments", "Profitability & P&L": "P&L", "Marketing & Channels": "Marketing", "Marketing ROI": "Mkt ROI", "Lead Sources": "Sources", "Fleet": "Fleet", "Phone & Response": "Phone", "Quality & Customer Experience": "Quality", "Reviews Production": "Reviews", "Claims": "Claims", "Claims & Refunds": "Claims/Refunds", "Refunds & Cost of Quality": "Refunds", "Geography — by State": "Geography", "Leads Segments": "Lead Segments", "Repeat & Referral Business": "Repeat & Referral", "Per-Job Profitability": "Per Job" };
+    let bodyEl, secN = 0; const secList = [], tocParts = [];
+    // collapsed-section memory (UX audit 2026-07-14): survives month flips and visits
+    const collapsedSet = (() => { try { return new Set(JSON.parse(localStorage.getItem("ztzMrCollapsed") || "[]")); } catch (e) { return new Set(); } })();
+    const saveCollapsed = () => { try { localStorage.setItem("ztzMrCollapsed", JSON.stringify([...collapsedSet])); } catch (e) {} };
+    // narrative block divider — the report reads as 4 parts: month → money → demand → delivery.
+    // Team views are single-topic slices, so the part headers are skipped there.
+    function part(n, title, sub) {
+      if (ONLY) return;
+      tocParts.push({ at: secN, label: title });   // chip-row group label boundary
+      const el = document.createElement("div"); el.className = "mrx-parth";
+      el.innerHTML = `<div class="pl"><div class="pt">${esc(title)}</div>${sub ? `<span class="ps">${esc(sub)}</span>` : ""}</div><span class="pnum"><em class="pn-n">${String(n).padStart(2, "0")}</em><em class="pn-s">/ 06</em></span>`;
+      bodyEl.appendChild(el);
+    }
+    function section(title, sub, klass) {
+      secN++; const n = String(secN).padStart(2, "0");
+      const wrap = document.createElement("section"); wrap.className = "mrx-sec";
+      if (collapsedSet.has(title)) wrap.classList.add("collapsed");
+      wrap.innerHTML = `<div class="mrx-sec-h">
+        <span class="mrx-badge${secN === 1 ? " mrx-hero" : ""}">${n}</span>
+        <span class="mrx-sec-ic">${ICONS[title] || ICONS._def}</span>
+        <span class="mrx-sec-tt"><span class="mrx-sec-t">${esc(title)}</span><span class="mrx-sec-s">${esc(sub || "")}</span></span>
+        <span class="mrx-code">SEC ${n}</span><span class="mrx-caret">▼</span>
+      </div><div class="mrx-rule"><i></i></div>`;
+      const grid = document.createElement("div"); grid.className = "mrx-grid" + (klass ? " " + klass : ""); wrap.appendChild(grid);
+      wrap.querySelector(".mrx-sec-h").addEventListener("click", () => {
+        wrap.classList.toggle("collapsed");
+        if (wrap.classList.contains("collapsed")) collapsedSet.add(title); else collapsedSet.delete(title);
+        saveCollapsed();
+      });
+      bodyEl.appendChild(wrap); secList.push({ n, title, wrap }); return grid;
+    }
+
+    /* ---------- delta chip + KPI tile ---------- */
+    function chip(cur, prev, label, inv) {
+      // C19/Q1: one title tooltip here explains YoY/MoM on every card at once
+      const tt = label === "YoY" ? "YoY = vs the same month last year" : label === "MoM" ? "MoM = vs the previous month" : "";
+      const ttA = tt ? ` title="${tt}"` : "";
+      if (cur == null || prev == null || !prev) return `<span class="mrx-chip"${ttA} style="background:${GRID};color:${SUB}">${label} —</span>`;
+      const g = (cur - prev) / Math.abs(prev); const up = g >= 0; const good = inv ? !up : up;
+      const col = good ? POS : NEG; const bg = good ? POS_T1 : NEG_T1;
+      return `<span class="mrx-chip"${ttA} style="background:${bg};color:${col}">${label} ${up ? "▲" : "▼"} ${Math.abs(g * 100).toFixed(0)}%</span>`;
+    }
+    const dchips = arr => arr.map(d => chip(d[0], d[1], d[2], d[3])).join("");
+    function kpiTile(g, k) {
+      const el = document.createElement("div"); el.className = "mrx-kpi" + (k.hero ? " mrx-hero" : "");
+      el.innerHTML = `<div class="mrx-kl">${k.icon ? `<span class="mrx-ic">${k.icon}</span>` : ""}${esc(k.l)}</div>
+        <div class="mrx-kv">${k.v}</div><span class="mrx-uline"></span>
+        <div class="mrx-chips">${k.ly !== undefined ? chip(k.c, k.ly, "YoY", k.inv) : ""}${k.pm !== undefined ? chip(k.c, k.pm, "MoM", k.inv) : ""}</div>
+        ${k.spk ? `<div class="mrx-spark"></div>` : ""}`;
+      g.appendChild(el);
+      if (k.spk) sparkBars(el.querySelector(".mrx-spark"), k.spk);
+      return el;
+    }
+    function sparkBars(el, series) {
+      const s = series.filter(r => r.v != null); if (!s.length) return;
+      const cv = document.createElement("canvas"); el.appendChild(cv);
+      new Chart(cv, { type: "bar", data: { labels: s.map((_, i) => i), datasets: [{ data: s.map(r => r.v), backgroundColor: s.map((_, i) => i === s.length - 1 ? LIME : CTX), borderRadius: 2, maxBarThickness: 7, categoryPercentage: .92, barPercentage: .82 }] },
+        options: baseOpts({ plugins: { legend: { display: false }, tooltip: { enabled: false } }, scales: { x: { display: false }, y: { display: false, beginAtZero: true } } }) });
+    }
+
+    /* ---------- chart builders (headline stat + icon + solid) ---------- */
+    function lastV(series) { const s = series.filter(r => r.v != null); return s.length ? s[s.length - 1].v : null; }
+    const tip = f => (f === moneyC ? money : f);  // tooltips ALWAYS show full money (never the compact M/k form)
+    const lbf = f => (f === money ? moneyC : f);  // per-POINT data labels use the compact form so 12+ of them fit; hover still shows full
+    // label ink: 9px value labels inherit the series colour, so darken the LIGHT members of the palette
+    // or the text drops under contrast on white. Keep in sync with CAT — every light entry needs a case.
+    const lblc = c => c === CTX ? AXIS : c === LIME ? LIMED : c === BLUE_L ? BLUE : c === VIOLET_L ? VIOLET : c === INK_L ? INK2 : c;
+    function yoyBars(mount, title, series, fmt, opts) {
+      opts = opts || {}; const s = series.filter(r => r.v != null);
+      opts.icon = opts.icon || KIC.trend;
+      if (opts.headVal == null && s.length) opts.headVal = fmt(s[s.length - 1].v);
+      if (opts.chips == null && s.length >= 2) opts.chips = dchips([[s[s.length - 1].v, s[s.length - 2].v, "YoY"]]);
+      const { c, box, cv } = chartCard(mount, title, opts.sub || (MS[mo] + " · " + s.length + "-yr"), opts);
+      if (!s.length) { emptyBox(box); return c; }
+      const avg = s.reduce((a, b) => a + b.v, 0) / s.length;
+      // opts.yoyPct: print the % change vs the PREVIOUS bar inside each bar top (green/red)
+      const yoyLab = { id: "yoypct", afterDatasetsDraw(ch) { const ctx = ch.ctx; ctx.save(); ctx.font = "800 12px " + MONO; ctx.textAlign = "center"; ctx.textBaseline = "top";
+        ch.getDatasetMeta(0).data.forEach((el, i) => { if (!i) return; const cur = s[i].v, prev = s[i - 1].v; if (cur == null || !prev) return; const d = (cur - prev) / Math.abs(prev);
+          ctx.fillStyle = d >= 0 ? POS : NEG; ctx.fillText((d >= 0 ? "+" : "") + (d * 100).toFixed(0) + "%", el.x, el.y + 5); }); ctx.restore(); } };
+      new Chart(cv, { type: "bar",
+        data: { labels: s.map(r => r.k), datasets: [{ data: s.map(r => r.v), backgroundColor: s.map((_, i) => i === s.length - 1 ? LIME : INK), borderRadius: 5, maxBarThickness: 52, categoryPercentage: .7, barPercentage: .82 }] },
+        options: baseOpts({ layout: { padding: { top: 22 } }, plugins: { legend: { display: false }, tooltip: { callbacks: { label: x => tip(fmt)(x.parsed.y) } } }, scales: { x: axX(), y: axY(fmt, { beginAtZero: true }) } }),
+        plugins: [valLabels(fmt, false), crosshair, ...(opts.yoyPct ? [yoyLab] : []), { id: "avg", afterDatasetsDraw(ch) { const y = ch.scales.y.getPixelForValue(avg), a = ch.chartArea, ctx = ch.ctx; ctx.save(); ctx.strokeStyle = CTX; ctx.setLineDash([4, 4]); ctx.beginPath(); ctx.moveTo(a.left, y); ctx.lineTo(a.right, y); ctx.stroke(); ctx.setLineDash([]); ctx.fillStyle = SUB; ctx.font = "700 12px " + MONO; ctx.textAlign = "left"; ctx.fillText("avg " + fmt(avg), a.left + 3, y - 3); ctx.restore(); } }] });
+      return c;
+    }
+    function lines(mount, title, sub, sets, fmt, opts) {
+      opts = opts || {}; opts.icon = opts.icon || KIC.trend;
+      if (opts.headVal == null) { const lv = lastV(sets[0].series); if (lv != null) opts.headVal = fmt(lv); }
+      const { c, box, cv } = chartCard(mount, title, sub, opts);
+      const labels = sets[0].series.map(r => r.k);
+      if (!labels.length) { emptyBox(box); return c; }
+      new Chart(cv, { type: "line",
+        data: { labels, datasets: sets.map((d, i) => ({ label: d.label, data: d.series.map(r => r.v), borderColor: d.color || CAT[i], backgroundColor: d.color || CAT[i], fill: false, tension: 0, borderWidth: 2.6, pointRadius: labels.map((_, j) => j === labels.length - 1 ? 4 : 0), pointBackgroundColor: d.color || CAT[i], pointBorderColor: "#fff", pointBorderWidth: 1.5, spanGaps: true, yAxisID: d.axis || "y" })) },
+        options: baseOpts({ layout: { padding: { top: 16, right: 30, bottom: 4 } }, plugins: { legend: { display: sets.length > 1, position: "top", align: "end", labels: { color: SUB, font: { size: 12.5, weight: "600" }, boxWidth: 9, boxHeight: 9, usePointStyle: true } }, tooltip: { callbacks: { label: x => x.dataset.label + ": " + tip(x.dataset.yAxisID === "y1" ? (opts.fmt1 || fmt) : fmt)(x.parsed.y) } } },
+          scales: opts.dual ? { x: axX(), y: axY(fmt), y1: axY(opts.fmt1 || fmt, { position: "right", grid: { display: false } }) } : { x: axX(), y: axY(fmt) } }), plugins: [crosshair, { id: "lelab", afterDatasetsDraw(ch) {
+          // point value labels — compact form, staggered per series, and auto-THINNED: step = how many
+          // points one label's width needs, anchored on the newest point (which is therefore always labeled)
+          const ctx = ch.ctx; ctx.save(); ctx.font = "700 12px " + MONO; ctx.textAlign = "center";
+          const area = ch.chartArea, nPts = labels.length;
+          const xSp = nPts > 1 ? (area.right - area.left) / (nPts - 1) : 1e9;
+          sets.forEach((d, di) => { const meta = ch.getDatasetMeta(di); if (meta.hidden) return;
+            const f = lbf(d.axis === "y1" ? (opts.fmt1 || fmt) : fmt); const above = di % 2 === 0;
+            let maxW = 0; d.series.forEach(r => { if (r.v != null) { const w = ctx.measureText(f(r.v)).width; if (w > maxW) maxW = w; } });
+            const step = Math.max(1, Math.ceil((maxW + 6) / xSp));
+            ctx.fillStyle = lblc(d.color || CAT[di]); ctx.textBaseline = above ? "bottom" : "top";
+            meta.data.forEach((el, i) => { const v = d.series[i] && d.series[i].v; if (v == null || (nPts - 1 - i) % step !== 0) return; ctx.fillText(f(v), el.x, above ? el.y - 5 : el.y + 5); });
+          }); ctx.restore(); } }] });
+      return c;
+    }
+    function combo(mount, title, sub, barSeries, barLabel, barFmt, lineSeries, lineLabel, lineFmt, opts) {
+      opts = opts || {}; opts.icon = opts.icon || KIC.trend;
+      if (opts.headVal == null) { const lv = lastV(barSeries); if (lv != null) opts.headVal = barFmt(lv); }
+      const { c, box, cv } = chartCard(mount, title, sub, opts);
+      const labels = barSeries.map(r => r.k); if (!labels.length) { emptyBox(box); return c; }
+      new Chart(cv, { data: { labels, datasets: [
+        { type: "bar", label: barLabel, data: barSeries.map(r => r.v), backgroundColor: labels.map((_, i) => i === labels.length - 1 ? LIME : INK), borderRadius: 4, maxBarThickness: 44, yAxisID: "y", order: 2 },
+        { type: "line", label: lineLabel, data: lineSeries.map(r => r.v), borderColor: BLUE, backgroundColor: BLUE, tension: 0, borderWidth: 2.6, pointRadius: 3, pointBorderColor: "#fff", pointBorderWidth: 1.2, yAxisID: "y1", order: 1 }] },
+        options: baseOpts({ layout: { padding: { top: 18, right: 30 } }, plugins: { legend: { display: true, position: "top", align: "end", labels: { color: SUB, font: { size: 12.5, weight: "600" }, boxWidth: 9, usePointStyle: true } }, tooltip: { callbacks: { label: x => x.dataset.yAxisID === "y1" ? `${lineLabel}: ${tip(lineFmt)(x.parsed.y)}` : `${barLabel}: ${tip(barFmt)(x.parsed.y)}` } } },
+          scales: { x: axX(), y: axY(barFmt, { beginAtZero: true, title: { display: true, text: barLabel, color: SUB, font: { size: 12, weight: "700" } } }), y1: axY(lineFmt, { position: "right", grid: { display: false }, title: { display: true, text: lineLabel, color: BLUE, font: { size: 12, weight: "700" } } }) } }), plugins: [crosshair, { id: "cblab", afterDatasetsDraw(ch) {
+          // labels thinned like lelab, and bar vs line labels PHASE-SHIFTED so the two rows never stack on one column
+          const ctx = ch.ctx; ctx.save(); ctx.textAlign = "center";
+          const area = ch.chartArea, nPts = labels.length;
+          const xSp = nPts > 1 ? (area.right - area.left) / (nPts - 1) : 1e9;
+          const bf = lbf(barFmt), lf = lbf(lineFmt);
+          ctx.font = "700 12px " + MONO;
+          let wB = 0; barSeries.forEach(r => { if (r.v != null) { const w = ctx.measureText(bf(r.v)).width; if (w > wB) wB = w; } });
+          let wL = 0; lineSeries.forEach(r => { if (r.v != null) { const w = ctx.measureText(lf(r.v)).width; if (w > wL) wL = w; } });
+          const step = Math.max(1, Math.ceil((Math.max(wB, wL) + 6) / xSp));
+          const off = step > 1 ? Math.floor(step / 2) : 0;
+          ctx.fillStyle = INK; ctx.textBaseline = "bottom";
+          ch.getDatasetMeta(0).data.forEach((el, i) => { const v = barSeries[i] && barSeries[i].v; if (v == null || isNaN(v) || (nPts - 1 - i) % step !== 0) return; ctx.fillText(bf(v), el.x, el.y - 3); });
+          ctx.font = "700 12px " + MONO; ctx.fillStyle = BLUE;
+          ch.getDatasetMeta(1).data.forEach((el, i) => { const v = lineSeries[i] && lineSeries[i].v; if (v == null || isNaN(v) || (nPts - 1 - i + off) % step !== 0) return; ctx.fillText(lf(v), el.x, el.y - 7); });
+          ctx.restore(); } }] });
+      return c;
+    }
+    function rankBars(mount, title, series, fmt, opts) {
+      opts = opts || {}; opts.icon = opts.icon || KIC.bars;
+      const topN = opts.top || 12;
+      if (opts.headVal == null) { const tot = series.reduce((a, b) => a + (b.v || 0), 0); opts.headVal = fmt(tot); if (opts.subCode == null) opts.subCode = 1; }
+      const firstLen = Math.min(series.length, topN) + (series.length > topN ? 1 : 0);
+      const { c, box, cv } = chartCard(mount, title, opts.sub || monLbl, { span2: opts.span2, h: Math.max(190, 40 + firstLen * 27), icon: opts.icon, headVal: opts.headVal, chips: opts.chips });
+      if (!series.length) { emptyBox(box); return c; }
+      // C33 + Tornike 2026-07-14: the cut segments roll into one "All others (N)" bar so the
+      // bars add up to the headline; hovering it LISTS what's inside, clicking it EXPANDS the
+      // chart to every segment (clicking anywhere while expanded collapses back).
+      let chart = null, expanded = false;
+      const draw = () => {
+        const s = expanded ? series.slice() : series.slice(0, topN);
+        const cut = series.length - s.length;
+        let tail = [];
+        if (!expanded && cut > 0) {
+          tail = series.slice(s.length);
+          s.push({ k: `All others (${cut}) — click to expand`, v: tail.reduce((a, b) => a + (b.v || 0), 0), __other: 1 });
+        }
+        if (chart) chart.destroy();
+        box.style.height = Math.max(216, 48 + s.length * 31) + "px";
+        chart = new Chart(cv, { type: "bar",
+          data: { labels: s.map(r => r.k), datasets: [{ data: s.map(r => r.v), backgroundColor: s.map((r, i) => r.__other ? OTHER : (!expanded && i === 0) ? LIME : INK), hoverBackgroundColor: s.map(r => r.__other ? OTHER_H : INK_H), borderRadius: 4, maxBarThickness: 20 }] },
+          options: baseOpts({ indexAxis: "y", layout: { padding: { right: 58 } },
+            onClick: (e, els) => {
+              if (expanded) { expanded = false; draw(); return; }
+              if (els && els.length && s[els[0].index] && s[els[0].index].__other) { expanded = true; draw(); }
+            },
+            onHover: (e, els) => { if (e.native && e.native.target) e.native.target.style.cursor =
+              (expanded || (els && els.length && s[els[0].index] && s[els[0].index].__other)) ? "pointer" : "default"; },
+            plugins: { legend: { display: false }, tooltip: { callbacks: {
+              label: x => tip(fmt)(x.parsed.x),
+              afterBody: items => {
+                const it = items && items[0];
+                if (!it || !s[it.dataIndex] || !s[it.dataIndex].__other) return;
+                const lines = tail.slice(0, 14).map(t => `${t.k}: ${fmt(t.v)}`);
+                if (tail.length > 14) lines.push(`… +${tail.length - 14} more — click to expand`);
+                return lines;
+              } } } },
+            scales: { x: axY(fmt, { beginAtZero: true }), y: { ticks: { color: INK2, font: { size: 13, weight: "600" } }, grid: { display: false }, border: { display: false } } } }),
+          plugins: [valLabels(fmt, true), crosshair] });
+      };
+      draw();
+      if (opts.note) note(c, opts.note, opts.noteKind);
+      return c;
+    }
+    function groupedBars(mount, title, labels, sa, la, sb, lb, fmt, opts) {
+      opts = opts || {}; opts.icon = opts.icon || KIC.bars;
+      if (opts.headVal == null) { const t = sb.reduce((a, b) => a + (b || 0), 0); opts.headVal = fmt(t); }
+      // Optional per-category DERIVED annotation (Tornike 2026-07-15: "maybe we can simply display booking
+      // rate on this graph"). opts.catLab = an array index-aligned to `labels`, each item {txt, color} or
+      // null, drawn once per category at the row's right edge — so ONE chart carries the pair AND the ratio
+      // between them. Inert when absent: the other 14 callers keep the old 84px right padding untouched.
+      const catLab = opts.catLab || null, padR = catLab ? 152 : 84;
+      const { c, box, cv } = chartCard(mount, title, opts.sub || "", { span2: opts.span2, h: Math.max(200, 44 + labels.length * 30), icon: opts.icon, headVal: opts.headVal, chips: opts.chips });
+      if (!labels.length) { emptyBox(box); return c; }
+      new Chart(cv, { type: "bar",
+        data: { labels, datasets: [ { label: la, data: sa, backgroundColor: CTX, hoverBackgroundColor: CTX_H, borderRadius: 3, maxBarThickness: 12 }, { label: lb, data: sb, backgroundColor: INK, hoverBackgroundColor: INK_H, borderRadius: 3, maxBarThickness: 12 } ] },
+        options: baseOpts({ indexAxis: "y", layout: { padding: { right: padR } }, plugins: { legend: { display: true, position: "top", align: "end", labels: { color: SUB, font: { size: 12.5, weight: "600" }, boxWidth: 9, usePointStyle: true } }, tooltip: { callbacks: { label: x => x.dataset.label + ": " + tip(fmt)(x.parsed.x) } } }, scales: { x: axY(fmt, { beginAtZero: true }), y: { ticks: { color: INK2, font: { size: 12.5, weight: "600" } }, grid: { display: false }, border: { display: false } } } }),
+        plugins: [crosshair, valLabels(fmt, true)].concat(catLab ? [{ id: "catlab", afterDatasetsDraw(ch) {
+          const m0 = ch.getDatasetMeta(0), m1 = ch.getDatasetMeta(1), ctx = ch.ctx;
+          ctx.save(); ctx.font = "800 12px " + MONO; ctx.textAlign = "right"; ctx.textBaseline = "middle";
+          labels.forEach((_, i) => {
+            const t = catLab[i], a = m0.data[i], b = m1.data[i];
+            if (!t || t.txt == null || !a || !b) return;
+            ctx.fillStyle = t.color || SUB;
+            ctx.fillText(t.txt, ch.width - 8, (a.y + b.y) / 2);   // midpoint of the category's two bars
+          }); ctx.restore();
+        } }] : []) });
+      if (opts.note) note(c, opts.note, opts.noteKind);
+      return c;
+    }
+    function donut(mount, title, series, fmt, opts) {
+      opts = opts || {}; const pos = series.filter(r => r.v > 0);
+      const firstLen = Math.min(pos.length, 7) + (pos.length > 7 ? 1 : 0);
+      const { c, box, cv } = chartCard(mount, title, opts.sub || monLbl, { h: Math.max(250, 90 + firstLen * 0), span2: opts.span2, icon: KIC.pie, headVal: opts.center || fmt(pos.reduce((a, b) => a + b.v, 0)) });
+      if (!pos.length) { emptyBox(box); return c; }
+      // Tornike 2026-07-14: "All others" must be inspectable — hover lists its contents,
+      // click expands the donut to every slice (click again collapses).
+      let chart = null, expanded = false;
+      const draw = () => {
+        const head = expanded ? pos.slice() : pos.slice(0, 7), tail = expanded ? [] : pos.slice(7);
+        const s = tail.length ? head.concat([{ k: `All others (${tail.length}) — click to expand`, v: tail.reduce((a, b) => a + b.v, 0), __other: 1 }]) : head;
+        const tot = s.reduce((a, b) => a + b.v, 0);
+        if (chart) chart.destroy();
+        box.style.height = Math.max(292, expanded ? 140 + s.length * 17 : 292) + "px";
+        chart = new Chart(cv, { type: "doughnut", data: { labels: s.map(r => r.k), datasets: [{ data: s.map(r => r.v), backgroundColor: s.map((r, i) => r.__other ? OTHER : CAT[i % CAT.length]), borderColor: "#fff", borderWidth: 3, hoverOffset: 5 }] },
+          options: baseOpts({ cutout: "66%", interaction: { mode: "nearest", intersect: true },
+            onClick: (e, els) => {
+              if (expanded) { expanded = false; draw(); return; }
+              if (els && els.length && s[els[0].index] && s[els[0].index].__other) { expanded = true; draw(); }
+            },
+            onHover: (e, els) => { if (e.native && e.native.target) e.native.target.style.cursor =
+              (expanded || (els && els.length && s[els[0].index] && s[els[0].index].__other)) ? "pointer" : "default"; },
+            plugins: { legend: { position: "right", labels: { color: INK2, font: { size: 12.5 }, boxWidth: 12, padding: expanded ? 5 : 8, usePointStyle: true } }, tooltip: { callbacks: {
+              label: x => `${x.label}: ${tip(fmt)(x.parsed)} (${(x.parsed / tot * 100).toFixed(0)}%)`,
+              afterBody: items => {
+                const it = items && items[0];
+                if (!it || !s[it.dataIndex] || !s[it.dataIndex].__other) return;
+                const lines = tail.slice(0, 14).map(t => `${t.k}: ${fmt(t.v)}`);
+                if (tail.length > 14) lines.push(`… +${tail.length - 14} more — click to expand`);
+                return lines;
+              } } } } }),
+          plugins: [{ id: "ctr", afterDraw(ch) { const a = ch.chartArea, ctx = ch.ctx, x = (a.left + a.right) / 2, y = (a.top + a.bottom) / 2; ctx.save(); ctx.textAlign = "center"; ctx.fillStyle = INK; ctx.font = "800 19px " + MONO; ctx.fillText(opts.center || fmt(tot), x, y - 2); ctx.fillStyle = FAINT; ctx.font = "700 12px Inter"; ctx.fillText(opts.centerLbl || "total", x, y + 15); ctx.restore(); } },
+          { id: "dlab", afterDatasetsDraw(ch) {
+            // % label on every slice big enough to hold one (>=4% of the ring)
+            const ctx = ch.ctx; ctx.save(); ctx.font = "800 12px " + MONO; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+            ch.getDatasetMeta(0).data.forEach((el, i) => {
+              const p = s[i] ? s[i].v / tot : 0; if (p < 0.04) return;
+              const pt = el.tooltipPosition ? el.tooltipPosition() : el.getCenterPoint();
+              ctx.strokeStyle = INK; ctx.lineWidth = 2.5; ctx.strokeText((p * 100).toFixed(0) + "%", pt.x, pt.y);
+              ctx.fillStyle = "#fff"; ctx.fillText((p * 100).toFixed(0) + "%", pt.x, pt.y);
+            }); ctx.restore(); } }] });
+      };
+      draw();
+      return c;
+    }
+    function waterfall(mount, title, sub, steps, opts) {
+      opts = opts || {};
+      const { c, box, cv } = chartCard(mount, title, sub, { span2: true, h: 300, icon: KIC.trend, headVal: opts.headVal, chips: opts.chips });
+      if (!steps.length) { emptyBox(box); return c; }
+      let run = 0; const bars = [], colors = [], labels = [];
+      steps.forEach(st2 => {
+        labels.push(st2.label);
+        if (st2.type === "total") { bars.push([0, st2.v]); colors.push(INK); run = st2.v; }
+        else { const from = run, to = run + st2.v; bars.push([from, to]); colors.push(st2.v >= 0 ? POS : NEG); run = to; }
+      });
+      new Chart(cv, { type: "bar", data: { labels, datasets: [{ data: bars, backgroundColor: colors, borderRadius: 3, maxBarThickness: 84, categoryPercentage: 0.9, barPercentage: 0.98 }] },
+        options: baseOpts({ layout: { padding: { top: 20 } }, plugins: { legend: { display: false }, tooltip: { callbacks: { label: x => { const d = x.raw; return money(Array.isArray(d) ? d[1] - d[0] : d); } } } }, scales: { x: axX({ ticks: { color: AXIS, font: { family: MONO, size: 12 }, maxRotation: 40, minRotation: 0 } }), y: axY(moneyC, { beginAtZero: true }) } }),
+        plugins: [crosshair,
+          { id: "wconn", beforeDatasetsDraw(ch) { const ctx = ch.ctx, meta = ch.getDatasetMeta(0); if (!meta.data.length) return; ctx.save(); ctx.strokeStyle = CTX; ctx.setLineDash([3, 3]); for (let i = 0; i < meta.data.length - 1; i++) { const y = ch.scales.y.getPixelForValue(bars[i][1]); ctx.beginPath(); ctx.moveTo(meta.data[i].x, y); ctx.lineTo(meta.data[i + 1].x, y); ctx.stroke(); } ctx.setLineDash([]); ctx.restore(); } },
+          { id: "wlab", afterDatasetsDraw(ch) { const ctx = ch.ctx; ctx.save(); ctx.font = "800 12px " + MONO; ctx.textAlign = "center"; ctx.textBaseline = "bottom"; ch.getDatasetMeta(0).data.forEach((el, i) => { const d = bars[i]; const v = d[1] - d[0]; ctx.fillStyle = steps[i].type === "total" ? INK : (v >= 0 ? POS : NEG); ctx.fillText((v < 0 ? "-" : "") + money(Math.abs(v)), el.x, Math.min(el.y, ch.scales.y.getPixelForValue(Math.max(d[0], d[1]))) - 3); }); ctx.restore(); } }] });
+      return c;
+    }
+    function funnel(mount, title, sub, stages, opts) {
+      opts = opts || {};
+      const { c, box, cv } = chartCard(mount, title, sub, { h: 210, span2: opts.span2, icon: KIC.funnel, headVal: opts.headVal, chips: opts.chips });
+      if (!stages.length || !stages[0].v) { emptyBox(box); return c; }
+      const top = stages[0].v;
+      new Chart(cv, { type: "bar", data: { labels: stages.map(s2 => s2.k), datasets: [{ data: stages.map(s2 => s2.v), backgroundColor: stages.map((_, i) => i === stages.length - 1 ? LIME : INK), hoverBackgroundColor: stages.map((_, i) => i === stages.length - 1 ? LIMED : INK_H), borderRadius: 4, maxBarThickness: 36 }] },
+        options: baseOpts({ indexAxis: "y", layout: { padding: { right: 110 } }, plugins: { legend: { display: false }, tooltip: { callbacks: { label: x => fmtN(x.parsed.x) + ` (${(x.parsed.x / top * 100).toFixed(0)}% of top)` } } }, scales: { x: { display: false, beginAtZero: true, max: top * 1.02 }, y: { ticks: { color: INK2, font: { size: 13.5, weight: "700" } }, grid: { display: false }, border: { display: false } } } }),
+        plugins: [crosshair, { id: "flab", afterDatasetsDraw(ch) { const ctx = ch.ctx; ctx.save(); ctx.textAlign = "left"; ctx.textBaseline = "middle"; ch.getDatasetMeta(0).data.forEach((el, i) => { ctx.font = "800 12px " + MONO; ctx.fillStyle = INK; ctx.fillText(fmtN(stages[i].v), el.x + 6, el.y); if (i > 0) { ctx.font = "700 12px " + MONO; ctx.fillStyle = LIMED; ctx.fillText("  " + (stages[i].v / stages[i - 1].v * 100).toFixed(0) + "%", el.x + 6 + ctx.measureText(fmtN(stages[i].v)).width + 4, el.y); } }); ctx.restore(); } }] });
+      return c;
+    }
+    function bullet(mount, title, sub, rows, fmt, target, opts) {
+      opts = opts || {};
+      // C26/Q5: the benchmark line is the current TEAM AVERAGE, not a management target
+      const { c, box, cv } = chartCard(mount, title, sub, { span2: opts.span2, h: Math.max(190, 40 + rows.length * 27), icon: KIC.bars, headVal: "team avg " + fmt(target) });
+      if (!rows.length) { emptyBox(box); return c; }
+      new Chart(cv, { type: "bar", data: { labels: rows.map(r => r.k), datasets: [{ data: rows.map(r => r.v), backgroundColor: rows.map(r => r.v >= target ? INK : NEG), hoverBackgroundColor: rows.map(r => r.v >= target ? INK_H : NEG_H), borderRadius: 4, maxBarThickness: 18 }] },
+        options: baseOpts({ indexAxis: "y", layout: { padding: { right: 52 } }, plugins: { legend: { display: false }, tooltip: { callbacks: { label: x => tip(fmt)(x.parsed.x) + " (team avg " + tip(fmt)(target) + ")" } } }, scales: { x: axY(fmt, { beginAtZero: true }), y: { ticks: { color: INK2, font: { size: 12.5, weight: "600" } }, grid: { display: false }, border: { display: false } } } }),
+        plugins: [crosshair, valLabels(fmt, true), { id: "tgt", afterDatasetsDraw(ch) { const x = ch.scales.x.getPixelForValue(target), a = ch.chartArea, ctx = ch.ctx; ctx.save(); ctx.strokeStyle = LIME; ctx.lineWidth = 2.4; ctx.beginPath(); ctx.moveTo(x, a.top); ctx.lineTo(x, a.bottom); ctx.stroke(); ctx.fillStyle = LIMED; ctx.font = "800 12px " + MONO; ctx.textAlign = "center"; ctx.fillText("team avg " + fmt(target), x, a.top - 2); ctx.restore(); } }] });
+      if (opts.note) note(c, opts.note, opts.noteKind);
+      return c;
+    }
+    function stackedTime(mount, title, sub, labels, sets, fmt, opts) {
+      opts = opts || {};
+      const lastTot = sets.reduce((a, d) => a + (d.data.length ? (d.data[d.data.length - 1] || 0) : 0), 0);
+      const { c, box, cv } = chartCard(mount, title, sub, { span2: opts.span2, icon: KIC.trend, headVal: fmt(lastTot) });
+      if (!labels.length) { emptyBox(box); return c; }
+      new Chart(cv, { type: "bar", data: { labels, datasets: sets.map((d, i) => ({ label: d.label, data: d.data, backgroundColor: d.color || CAT[i], borderRadius: 2, maxBarThickness: 26, stack: "s" })) },
+        options: baseOpts({ layout: { padding: { top: 18 } }, plugins: { legend: { display: true, position: "top", align: "end", labels: { color: SUB, font: { size: 12.5, weight: "600" }, boxWidth: 9, usePointStyle: true } }, tooltip: { callbacks: { label: x => x.dataset.label + ": " + tip(fmt)(x.parsed.y) } } }, scales: { x: Object.assign(axX(), { stacked: true }), y: Object.assign(axY(fmt, { beginAtZero: true }), { stacked: true }) } }), plugins: [crosshair, { id: "stlab", afterDatasetsDraw(ch) { const ctx = ch.ctx; ctx.save(); ctx.font = "700 12px " + MONO; ctx.fillStyle = INK; ctx.textAlign = "center"; ctx.textBaseline = "bottom"; ch.getDatasetMeta(0).data.forEach((el, i) => { let tot = 0, topY = Infinity; ch.data.datasets.forEach((d, di) => { const e = ch.getDatasetMeta(di).data[i]; if (e) { tot += (+d.data[i] || 0); topY = Math.min(topY, e.y); } }); if (tot) ctx.fillText(fmt(tot), el.x, topY - 3); }); ctx.restore(); } }] });
+      return c;
+    }
+
+    /* ---------- tables ---------- */
+    function tableCard(mount, title, sub, html, opts) {
+      opts = opts || {}; const c = card(mount, title, sub || monLbl, { span2: opts.span2 !== false, icon: opts.icon || KIC.grid, headVal: opts.headVal, chips: opts.chips });
+      const w = document.createElement("div"); w.className = "mrx-scroll"; w.innerHTML = html; c.appendChild(w);
+      // Excel export removed portal-wide 2026-07-15 (Tornike).
+      if (opts.note) note(c, opts.note, opts.noteKind); return c;
+    }
+    // Paginated line-item register (Tornike 2026-07-15): 10 rows/page + ‹ prev/next › + "Show all",
+    // Paginated table. rows = data; rowHtml(r) => one <tr>; headers = [{label, align?}].
+    function paginatedTable(mount, title, sub, headers, rows, rowHtml, opts) {
+      opts = opts || {};
+      const per = opts.per || 10;
+      const c = card(mount, title, sub || monLbl, { span2: opts.span2 !== false, icon: opts.icon || KIC.grid, headVal: opts.headVal });
+      const box = document.createElement("div"); c.appendChild(box);
+      const thead = `<thead><tr>${headers.map(h => `<th${h.align ? ` style="text-align:${h.align}"` : ""}>${esc(h.label)}</th>`).join("")}</tr></thead>`;
+      let page = 0, showAll = false;
+      const pages = Math.max(1, Math.ceil(rows.length / per));
+      function draw() {
+        const shown = showAll ? rows : rows.slice(page * per, page * per + per);
+        let foot;
+        if (rows.length > per) {
+          const from = showAll ? 1 : page * per + 1, to = showAll ? rows.length : Math.min(rows.length, page * per + per);
+          foot = `<div class="mrx-pgfoot"><span>${from}–${to} of ${fmtN(rows.length)}</span>`
+            + (showAll ? "" : `<span class="mrx-pgnav"><button class="mrx-pgbtn" data-prev${page === 0 ? " disabled" : ""}>‹</button><b>${page + 1} / ${pages}</b><button class="mrx-pgbtn" data-next${page >= pages - 1 ? " disabled" : ""}>›</button></span>`)
+            + `<span class="mrx-pgright"><button class="mrx-pgbtn ghost" data-all>${showAll ? "Paginate" : "Show all"}</button></span></div>`;
+        } else {
+          foot = `<div class="mrx-pgfoot"><span>${fmtN(rows.length)} row${rows.length === 1 ? "" : "s"}</span></div>`;
+        }
+        box.innerHTML = `<div class="mrx-scroll"><table class="mrx-tbl">${thead}<tbody>${shown.map(rowHtml).join("")}</tbody></table></div>${foot}`;
+        const pv = box.querySelector("[data-prev]"); if (pv) pv.onclick = () => { if (page > 0) { page--; draw(); } };
+        const nx = box.querySelector("[data-next]"); if (nx) nx.onclick = () => { if (page < pages - 1) { page++; draw(); } };
+        const al = box.querySelector("[data-all]"); if (al) al.onclick = () => { showAll = !showAll; page = 0; draw(); };
+      }
+      draw();
+      if (opts.note) note(c, opts.note, opts.noteKind);
+      return c;
+    }
+    const td = (v, style) => `<td${style ? ` style="${style}"` : ""}>${v}</td>`;
+
+    /* ---------- export: lazy CDN libs · real PDF (jsPDF+html2canvas) ---------- */
+    function ensureLib(check, url) {
+      return new Promise((resolve, reject) => {
+        if (check()) return resolve();
+        const s = document.createElement("script"); s.src = url; s.async = true;
+        s.onload = () => check() ? resolve() : reject(new Error("global missing after " + url));
+        s.onerror = () => reject(new Error("failed to load " + url));
+        document.head.appendChild(s);
+      });
+    }
+    // Excel export (SheetJS) removed portal-wide 2026-07-15 (Tornike) — XLS_URL, xlsCell, XHEAD/xlsHead
+    // and exportTableXlsx went with it. ensureLib() STAYS: the PDF path below still uses it.
+    const H2C_URL = "https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js";
+    const JSPDF_URL = "https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js";
+    async function downloadReportPDF() {
+      const btn = document.getElementById("mrPrint"); const rt = document.querySelector(".mrx");
+      if (!rt) return; const label = btn ? btn.innerHTML : "";
+      const hidden = [].slice.call(rt.querySelectorAll(".mrx-print,.mrx-xls,.mrx-caret,.mrx-code,.mrx-ctl,.mrx-toc,.mrx-btoggle,.mrx-info,.mrx-loaderr"));
+      const collapsed = [].slice.call(rt.querySelectorAll(".mrx-sec.collapsed"));
+      // full-screen scrim: the build mutates the DOM for ~10s (expands sections, swaps canvases) —
+      // without it the page looks broken and a stray click mid-build corrupts the capture.
+      const scrim = document.createElement("div");
+      scrim.style.cssText = "position:fixed;inset:0;z-index:9999;background:rgba(14,22,33,.55);display:flex;align-items:center;justify-content:center";
+      scrim.innerHTML = `<div style="background:#fff;color:${INK};font:700 14px/1.5 system-ui;padding:18px 26px;border-radius:12px;box-shadow:0 12px 40px rgba(14,22,33,.35);max-width:340px;text-align:center">⏳ Building the PDF…<div class="mrx-pdfprog" style="margin-top:6px;font-weight:600;color:${SUB};font-size:12.5px">The page will flicker for a few seconds — don't click.</div></div>`;
+      document.body.appendChild(scrim);
+      const prog = scrim.querySelector(".mrx-pdfprog");
+      try {
+        if (btn) { btn.innerHTML = "⏳ Building PDF…"; btn.disabled = true; }
+        await ensureLib(() => window.html2canvas, H2C_URL);
+        await ensureLib(() => (window.jspdf && window.jspdf.jsPDF) || window.jsPDF, JSPDF_URL);
+        const JsPDF = (window.jspdf && window.jspdf.jsPDF) || window.jsPDF;
+        collapsed.forEach(s => s.classList.remove("collapsed"));
+        hidden.forEach(e => { e.__pd = e.style.display; e.style.display = "none"; });
+        await new Promise(r => setTimeout(r, 180));
+        const pdf = new JsPDF({ unit: "pt", format: "a4", orientation: "portrait", compress: true });
+        const pageW = pdf.internal.pageSize.getWidth(), pageH = pdf.internal.pageSize.getHeight();
+        const M = 20, cW = pageW - M * 2;
+        const blocks = [];
+        const cov = rt.querySelector(".mrx-cover"); if (cov) blocks.push(cov);
+        const ban = rt.querySelector(".mrx-bwrap"); if (ban) blocks.push(ban);
+        [].slice.call(rt.querySelectorAll(".mrx-parth,.mrx-sec")).forEach(s => blocks.push(s));
+        let y = M, bi = 0;
+        for (const el of blocks) {
+          bi++; if (btn) btn.innerHTML = `⏳ Building… ${bi}/${blocks.length}`;   // C50: live progress
+          if (prog) prog.textContent = `Rendering section ${bi} of ${blocks.length}…`;
+          // swap live chart canvases → static images so html2canvas captures them reliably
+          const swaps = [];
+          [].slice.call(el.querySelectorAll("canvas")).forEach(cv => {
+            try { const im = document.createElement("img"); im.src = cv.toDataURL("image/png"); const w = cv.clientWidth, h = cv.clientHeight; im.style.width = w + "px"; im.style.height = h + "px"; cv.style.display = "none"; cv.parentNode.insertBefore(im, cv.nextSibling); swaps.push([cv, im]); } catch (e) {}
+          });
+          let canvas;
+          try { canvas = await html2canvas(el, { scale: 2, backgroundColor: PAGE_BG, useCORS: true, logging: false, windowWidth: rt.scrollWidth }); }
+          finally { swaps.forEach(p => { p[1].remove(); p[0].style.display = ""; }); }
+          const sc = cW / canvas.width;                                   // canvas-px → pt
+          const rTop = el.getBoundingClientRect().top;
+          const pxScale = canvas.height / el.getBoundingClientRect().height;  // css-px → canvas-px
+          const rowBot = {};                                              // row bottoms (avoid cutting a card)
+          [].slice.call(el.querySelectorAll(".mrx-card,.mrx-kpi,.mrx-exec")).forEach(cd => { const r = cd.getBoundingClientRect(); const key = Math.round((r.top - rTop) / 12); const b = (r.bottom - rTop) * pxScale; if (!rowBot[key] || rowBot[key] < b) rowBot[key] = b; });
+          const breaks = Object.keys(rowBot).map(k => rowBot[k]).concat([canvas.height]).sort((a, b) => a - b);
+          let sy = 0;
+          while (sy < canvas.height - 1) {
+            let availPt = pageH - M - y;
+            if (availPt < 70) { pdf.addPage(); y = M; availPt = pageH - M - y; }
+            let cut = sy + availPt / sc;
+            if (cut < canvas.height) { const fit = breaks.filter(b => b > sy + 10 && b <= cut); if (fit.length) cut = fit[fit.length - 1]; }
+            else cut = canvas.height;
+            const sliceH = Math.max(1, Math.round(cut - sy));
+            const sl = document.createElement("canvas"); sl.width = canvas.width; sl.height = sliceH;
+            sl.getContext("2d").drawImage(canvas, 0, sy, canvas.width, sliceH, 0, 0, canvas.width, sliceH);
+            const hPt = sliceH * sc;
+            pdf.addImage(sl.toDataURL("image/jpeg", 0.92), "JPEG", M, y, cW, hPt);
+            y += hPt + 4; sy = cut;
+          }
+          y += 8;
+        }
+        const np = pdf.internal.getNumberOfPages();
+        for (let i = 1; i <= np; i++) { pdf.setPage(i); pdf.setFontSize(8); pdf.setTextColor(150); pdf.text(`Zip to Zip · ${PDF_NAME} · ${MON[mo]} ${curY} · ${i}/${np}`, pageW / 2, pageH - 8, { align: "center" }); }
+        console.log("PDF_OK pages=" + np);
+        pdf.save(`Zip-to-Zip-${PDF_NAME.replace(/\s+/g, "-")}-${MON[mo]}-${curY}.pdf`);
+      } catch (e) { console.error("PDF generation failed", e); alert("PDF generation failed: " + (e && e.message || e)); }
+      finally {
+        scrim.remove();   // NEVER leave a full-screen overlay behind (the .rp-scrim lesson)
+        collapsed.forEach(s => s.classList.add("collapsed"));
+        hidden.forEach(e => { e.style.display = e.__pd != null ? e.__pd : ""; });
+        if (btn) { btn.innerHTML = label; btn.disabled = false; }
+      }
+    }
+
+    /* ---------- insight text ---------- */
+    function trendInsight(label, series, fmt, monthName) {
+      const v = series.filter(r => r.v != null); if (v.length < 2) return "";
+      const cur = v[v.length - 1], prev = v[v.length - 2], max = v.reduce((a, b) => b.v > a.v ? b : a);
+      const g = prev.v ? (cur.v - prev.v) / Math.abs(prev.v) : null;
+      let s = `${label} was ${fmt(cur.v)} in ${monLbl}`;
+      if (g != null) s += `, ${g >= 0 ? "up" : "down"} ${Math.abs(g * 100).toFixed(0)}% vs ${prev.k} (${fmt(prev.v)})`;
+      if (max.k === cur.k && v.length >= 3) s += ` — the strongest ${monthName} in ${v.length} years`;
+      return s + ".";
+    }
+    function segInsight(series, fmt) {
+      const v = series.filter(r => r.v != null); if (!v.length) return "";
+      const tot = v.reduce((a, b) => a + b.v, 0), top = v[0];
+      let s = `${top.k} leads with ${fmt(top.v)}`; if (tot) s += ` (${(top.v / tot * 100).toFixed(0)}% of ${fmt(tot)})`;
+      if (v.length >= 4) s += `; top 3 = ${(v.slice(0, 3).reduce((a, b) => a + b.v, 0) / tot * 100).toFixed(0)}%`;
+      return s + ".";
+    }
+
+    /* =====================================================================
+       ASSEMBLE
+       ===================================================================== */
+    // destroy this page's previous Chart instances BEFORE wiping the DOM — otherwise ~70 zombie
+    // charts leak on every month switch / re-render and the session slowly degrades
+    Object.values(Chart.instances || {}).forEach(ch => { try { if (ch.canvas && host.contains(ch.canvas)) ch.destroy(); } catch (e) {} });
+    host.innerHTML = "";
+    const root = document.createElement("div"); root.className = "mrx"; host.appendChild(root);
+    // Q3/C43: the year picker lists the years the closing data actually covers (oldest→newest,
+    // no empty future year); the selected year is always offered even if it has no rows yet.
+    const dataYears = [...new Set(closing.filter(r => coRow(r) && r._y >= "2000").map(r => +r._y))];
+    if (dataYears.indexOf(curY) < 0) dataYears.push(curY);
+    const yearOpts = dataYears.filter(y => y <= new Date().getFullYear()).sort((a, b) => a - b);
+    const monthOptions = MON.slice(1).map((m, i) => `<option value="${i + 1}"${i + 1 === mo ? " selected" : ""}>${m}</option>`).join("");
+    const yearOptions = yearOpts.map(y => `<option${y === curY ? " selected" : ""}>${y}</option>`).join("");
+    const LITE = !!(MRCFG && MRCFG.lite);
+    // Data-feed failure banner — LOUD and first. A feed that failed all retries means the
+    // page below is missing data (and composites like Gross Profit would read wrong), so
+    // say it plainly instead of letting anyone trust a half-loaded report.
+    if (loadFailures.length) {
+      const eb = document.createElement("div"); eb.className = "mrx-loaderr";
+      eb.innerHTML = `<span><b>⚠ ${loadFailures.length} data feed${loadFailures.length > 1 ? "s" : ""} failed to load:</b> ${esc(loadFailures.join(", "))}.
+        The numbers below are <b>incomplete</b> — retry before reading this report.</span>
+        <button type="button" class="mrx-xls" id="mrRetryLoad">↻ Retry now</button>`;
+      root.appendChild(eb);
+    }
+    if (LITE) {
+      // themed dashboards: a compact header (topic title + month/year selector) — no hero, no PDF.
+      const hdr = document.createElement("div"); hdr.className = "mrx-lite-h";
+      hdr.innerHTML = `<div class="mrx-lite-tt"><b>Monthly · Zip to Zip</b>${esc(MRCFG.title || TEAM || "Monthly Review")}</div>
+        <div class="mrx-lite-ctl">Month: <select id="mrMonth">${monthOptions}</select> Year: <select id="mrYear">${yearOptions}</select></div>`;
+      root.appendChild(hdr);
+    } else {
+      const cover = document.createElement("div"); cover.className = "mrx-cover";
+      // UX audit 2026-07-14: the Month/Year picker is the page's PRIMARY control — promoted
+      // out of the fine print into its own block, with a vector-print secondary action.
+      cover.innerHTML = `
+        <div class="mrx-accent"></div>
+        <div class="mrx-cvactions">
+          <button class="mrx-print" id="mrPrint" title="Download a polished PDF (no print dialog)">⬇ Download PDF</button>
+          <button class="mrx-print2" id="mrPrint2" title="Browser print — selectable text">🖨 Print</button>
+        </div>
+        <div class="mrx-eyebrow">${esc(TEAM ? TEAM + " — Monthly Review" : "Monthly Business Review")} · Zip to Zip</div>
+        <div class="mrx-h1">Report for ${MON[mo]} ${curY}</div>
+        <div class="mrx-cvpick">
+          <select id="mrMonth" class="mrx-ctl">${monthOptions}</select>
+          <select id="mrYear" class="mrx-ctl">${yearOptions}</select>
+        </div>
+        <div class="mrx-cvsub">${esc(freshness)} · Zip to Zip only</div>`;
+      root.appendChild(cover);
+    }
+
+    // completeness banner — closings awaiting return (blank Net Cash), with an expandable job list
+    const pendRows = (reduceMonth("closing", curY, mo, rs => rs.filter(r => blank(r["Net Cash"]))) || []).slice().sort((a, b) => String(a.Date).localeCompare(String(b.Date)));
+    const pend = pendRows.length;
+    const totClose = reduceMonth("closing", curY, mo, rs => rs.length) || 0;
+    // In lite mode the banner only rides along on dashboards that actually show revenue/profit
+    // (so fin-revenue keeps the data-completeness honesty note; Claims/Reviews stay clean).
+    const bannerRelevant = !LITE || SEC("Executive Summary") || SEC("Revenue & Growth") || SEC("Profitability & P&L");
+    if (bannerRelevant && pend > 0 && totClose > 0) {
+      const rptPctVal = ((totClose - pend) / totClose * 100).toFixed(0);
+      const wrap = document.createElement("div"); wrap.className = "mrx-bwrap";
+      const b = document.createElement("div"); b.className = "mrx-banner";
+      b.innerHTML = `<span class="bic">${KIC.warn}</span><span class="mrx-bmsg"><b>${pend}</b> of <b>${totClose}</b> ${MON[mo]} jobs haven't had their closing paperwork turned in yet, so ${MON[mo]}'s revenue and profit are still incomplete (<b>~${rptPctVal}%</b> of jobs counted) and will grow as sheets come in.</span><span class="mrx-btoggle">▸ view the ${pend} jobs</span>`;
+      const detail = document.createElement("div"); detail.className = "mrx-bdetail"; detail.style.display = "none";
+      const rowsH = pendRows.map(r => `<tr><td>${esc(String(r.Date || "").slice(0, 10))}</td><td>${esc(r.Customer || "—")}</td><td>${esc(String(r["Request #"] || "—"))}</td><td>${esc(r["Sales Person"] || "—")}</td><td>${esc(r.Foreman || "—")}</td></tr>`).join("");
+      detail.innerHTML = `<div class="mrx-scroll"><table class="mrx-tbl"><thead><tr><th>Move date</th><th>Customer</th><th>Request #</th><th>Sales person</th><th>Foreman</th></tr></thead><tbody>${rowsH}</tbody></table></div>`;
+      wrap.appendChild(b); wrap.appendChild(detail);
+      b.querySelector(".mrx-btoggle").onclick = () => { const open = detail.style.display === "none"; detail.style.display = open ? "block" : "none"; b.querySelector(".mrx-btoggle").textContent = (open ? "▾ hide the " : "▸ view the ") + pend + " jobs"; };
+      root.appendChild(wrap);
+    }
+
+    const toc = document.createElement("div"); toc.className = "mrx-toc"; root.appendChild(toc);
+    bodyEl = document.createElement("div"); root.appendChild(bodyEl);
+
+    const PM = mo === 1 ? 12 : mo - 1, PMY = mo === 1 ? curY - 1 : curY;
+    // Moving-Type display rule (Tornike 2026-07-16): closing distinguishes "Regular Moving" from
+    // "Straight Moving" (both long-distance), but a month with zero Straight jobs would show a lone
+    // "Regular Moving" bar — confusing ("either both, or long distance only"). So every user-facing
+    // Moving-Type breakdown collapses to Local Moving vs Long Distance Moving (Regular + Straight summed).
+    const mtKey = k => k === "Local Moving" ? k : (k === "Regular Moving" || k === "Straight Moving") ? "Long Distance Moving" : k;
+    const mergeMT = arr => { const m2 = {}; arr.forEach(r => { const k = mtKey(r.k); m2[k] = (m2[k] || 0) + r.v; }); return Object.entries(m2).map(([k, v]) => ({ k, v })).sort((a, b) => b.v - a.v); };
+    const rev = valueFor("closing", "Revenue", curY, mo), revLY = valueFor("closing", "Revenue", curY - 1, mo), revPM = valueFor("closing", "Revenue", PMY, PM);
+    // Revenue split — group the (unchanged) Revenue measure by Record Source so the two parts
+    // sum EXACTLY to `rev`. closing = closing-sheet jobs (+ ~$0 linked-trip residual); trip =
+    // standalone "trip" jobs appended to fct_closing. No shared measure is repointed.
+    const revSrc = segSeries("closing", "Revenue", "Record Source", curY, mo);
+    const revClose = (revSrc.find(r => r.k === "closing") || {}).v || 0;
+    const revTrip = (revSrc.find(r => r.k === "trip") || {}).v || 0;
+    const tripShare = rev ? revTrip / rev : 0;
+    const op = valueFor("closing", "Operational Profit by Formula", curY, mo), opLY = valueFor("closing", "Operational Profit by Formula", curY - 1, mo), opPM = valueFor("closing", "Operational Profit by Formula", PMY, PM);
+    const jobs = valueFor("closing", "Total Jobs", curY, mo), jobsLY = valueFor("closing", "Total Jobs", curY - 1, mo), jobsPM = valueFor("closing", "Total Jobs", PMY, PM);
+    const bk = valueFor("moveboard", "Booking Rate", curY, mo), bkLY = valueFor("moveboard", "Booking Rate", curY - 1, mo), bkPM = valueFor("moveboard", "Booking Rate", PMY, PM);
+    const leadsN = valueFor("moveboard", "Total Leads", curY, mo), leadsLY = valueFor("moveboard", "Total Leads", curY - 1, mo), leadsPM = valueFor("moveboard", "Total Leads", PMY, PM);
+    // Confirmed = jobs BOOKED this month (Booked Date), matching the canonical
+    // Booking Rate — NOT create date. Feeds the Confirmed KPI + the funnel bar.
+    // (create-date confirmed understated it, e.g. June ZtZ 429 vs booked 499.)
+    const conf = bookedRowsFor(curY, mo).filter(r => r["Status Category"] === "Confirmed").length;
+    const qual = valueFor("moveboard", "Qualified Leads", curY, mo);
+    const margin = rev ? op / rev : null, marginLY = revLY ? opLY / revLY : null, marginPM = revPM ? opPM / revPM : null;
+    const avgJob = jobs ? rev / jobs : null, avgJobLY = jobsLY ? revLY / jobsLY : null, avgJobPM = jobsPM ? revPM / jobsPM : null;
+    const revWritten = reduceMonth("reviews_breakdown", curY, mo, rs => rs.reduce((a, r) => a + num(r["Number of Reviews"]), 0)) || 0;
+    const revWrittenLY = reduceMonth("reviews_breakdown", curY - 1, mo, rs => rs.reduce((a, r) => a + num(r["Number of Reviews"]), 0)) || 0;
+    const revWrittenPM = reduceMonth("reviews_breakdown", PMY, PM, rs => rs.reduce((a, r) => a + num(r["Number of Reviews"]), 0)) || 0;
+    /* Review goals are END-OF-PERIOD targets (Tornike 2026-07-14): a fct_review_goals row
+       dated 2026-09-01 means "by the END OF AUGUST the public review footprint
+       (fct_review_counts, cumulative per platform) must total these numbers". They are
+       NOT monthly written-review quotas — so the written-reviews tiles stay plain and the
+       goal renders as a progress card (footprint now vs the next period-end target). */
+    const goalRows = (DS.review_goals || []).filter(coRow);
+    const goalDates = [...new Set(goalRows.map(r => String(r.Date || "").slice(0, 10)).filter(d => /^\d{4}-\d{2}-\d{2}$/.test(d)))].sort();
+    const monthEndKey = `${curY}-${String(mo).padStart(2, "0")}-31`;
+    const goalNext = goalDates.find(d => d > monthEndKey) || null;                       // the period this month belongs to
+    const goalPast = goalNext ? null : (goalDates.filter(d => d <= monthEndKey).pop() || null);
+    const goalDate = goalNext || goalPast;                                               // fall back to the last finished period
+
+    /* shared across sections (R&R + Marketing) — the op-profit composite is the page's priciest
+       measure, compute the current-month by-Source split ONCE (pre-refund per segment; disclosed
+       wherever shown). Lives up here so section order can change freely. */
+    const opBySrcCur = segSeries("closing", "Operational Profit by Formula", "Source");
+
+    /* ---- per-department KPI header ----
+       One `mrx-grid k` strip at the very top of a TEAM view's sections area (never on the full
+       report; Financial is skipped because it already opens with the full Executive Summary).
+       Every tile is null-guarded so a metric that can't be computed shows "—" and never throws. */
+    function deptHeader(root, id) {
+      const showN = (n, f) => (n == null || isNaN(n)) ? "—" : f(n);
+      const tiles = [];
+      if (id === "sales-team") {
+        tiles.push(
+          { l: "Leads", v: showN(leadsN, fmtN), c: leadsN, ly: leadsLY, pm: leadsPM, icon: KIC.funnel, hero: 1 },
+          { l: "Booking Rate", v: showN(bk, pct), c: bk, ly: bkLY, pm: bkPM, icon: KIC.check },
+          { l: "Confirmed", v: showN(conf, fmtN), c: conf, icon: KIC.check },
+          { l: "Revenue", v: showN(rev, money), c: rev, ly: revLY, pm: revPM, icon: KIC.dollar },
+          { l: "Avg Job Value", v: showN(avgJob, money), c: avgJob, ly: avgJobLY, pm: avgJobPM, icon: KIC.tag }
+        );
+      } else if (id === "marketing-team") {
+        // ad spend with the same ~1-month posting-lag fallback the Marketing section uses; blended
+        // ROAS = paid-source revenue ÷ paid-source ad spend (post-card variants pooled, like the section).
+        const adMonth = (y, m) => reduceMonth("card_expenses", y, m, rs => rs.filter(r => Number(r["Is Advertising"]) === 1).reduce((a, r) => a + num(r.Amount), 0)) || 0;
+        let adY = curY, adM = mo, adSpend = adMonth(curY, mo);
+        if (!adSpend) { adY = PMY; adM = PM; adSpend = adMonth(PMY, PM); }
+        const normSrc = s => /post\s*card/i.test(String(s)) ? "Post Card" : (blank(s) ? "—" : String(s));
+        const adBySrc = {}; (reduceMonth("card_expenses", adY, adM, rs => rs.filter(r => Number(r["Is Advertising"]) === 1)) || []).forEach(r => { const k = normSrc(r.Source); adBySrc[k] = (adBySrc[k] || 0) + num(r.Amount); });
+        const revBySrc = {}; segSeries("closing", "Revenue", "Source", adY, adM).forEach(r => { const k = normSrc(r.k); revBySrc[k] = (revBySrc[k] || 0) + r.v; });
+        let paidSpend = 0, paidRev = 0; Object.keys(adBySrc).forEach(k => { if (k !== "—" && adBySrc[k] > 0) { paidSpend += adBySrc[k]; paidRev += revBySrc[k] || 0; } });
+        const roas = paidSpend ? paidRev / paidSpend : null;
+        tiles.push(
+          { l: "Ad Spend", v: adSpend ? money(adSpend) : "—", c: adSpend || null, icon: KIC.dollar, hero: 1 },
+          { l: "ROAS", v: roas == null ? "—" : roas.toFixed(1) + "×", c: roas, icon: KIC.trend },
+          { l: "Cost per Job", v: (adSpend && jobs) ? money(adSpend / jobs) : "—", c: (adSpend && jobs) ? adSpend / jobs : null, icon: KIC.truck, inv: 1 },
+          { l: "Leads", v: showN(leadsN, fmtN), c: leadsN, ly: leadsLY, pm: leadsPM, icon: KIC.funnel },
+          { l: "Cost per Lead", v: (adSpend && leadsN) ? money(adSpend / leadsN) : "—", c: (adSpend && leadsN) ? adSpend / leadsN : null, icon: KIC.pct, inv: 1 }
+        );
+      } else if (id === "logistics-team") {
+        const foremanHours = reduceMonth("closing", curY, mo, rs => rs.reduce((a, r) => a + num(r["Foreman Hours"]), 0)) || 0;
+        const jobsPer100h = foremanHours ? 100 * (jobs || 0) / foremanHours : null;
+        const scMo = (DS.scorecard || []).filter(r => String(r["Month"] || "").slice(0, 7) === `${curY}-${String(mo).padStart(2, "0")}`);
+        const totCF = scMo.reduce((a, r) => a + num(r["Total CF"]), 0), totWr = scMo.reduce((a, r) => a + num(r["Total Packing Written"]), 0);
+        const pack100 = totCF ? totWr / totCF * 100 : null;
+        const ffClaims = reduceMonth("claims", curY, mo, rs => rs.filter(r => /forman/i.test(String(r.Responsibility || ""))).length) || 0;
+        tiles.push(
+          { l: "Jobs Done", v: showN(jobs, fmtN), c: jobs, icon: KIC.truck, hero: 1 },
+          { l: "Foreman Hours", v: foremanHours ? fmtN(foremanHours) : "—", c: foremanHours || null, icon: KIC.trend },
+          { l: "Jobs / 100h", v: jobsPer100h == null ? "—" : fmt1(jobsPer100h), c: jobsPer100h, icon: KIC.pct },
+          { l: "Packing $ / 100 CF", v: pack100 == null ? "—" : money(pack100), c: pack100, icon: KIC.bars },
+          { l: "Foreman-Fault Claims", v: fmtN(ffClaims), c: ffClaims, icon: KIC.warn, inv: 1 }
+        );
+      } else if (id === "reviews-team") {
+        const counted = valueFor("reviews_breakdown", "Counted Reviews Written", curY, mo);
+        const factual = valueFor("review_counts", "Total Factual Reviews", curY, mo);
+        const score = valueFor("reviews_breakdown", "Review Score (avg)", curY, mo);
+        tiles.push(
+          { l: "Reviews Written", v: fmtN(revWritten), c: revWritten, ly: revWrittenLY, pm: revWrittenPM, icon: KIC.star, hero: 1 },
+          { l: "Counted Reviews", v: showN(counted, fmtN), c: counted, icon: KIC.check },
+          { l: "Factual Reviews", v: showN(factual, fmtN), c: factual, icon: KIC.grid },
+          { l: "Review Score", v: (score == null || isNaN(score)) ? "—" : Number(score).toFixed(2), c: score, icon: KIC.pct }
+        );
+      } else if (id === "support-team") {
+        const claimsN = reduceMonth("claims", curY, mo, rs => rs.length) || 0;
+        const claimRate = jobs ? claimsN / jobs * 100 : null;
+        const refTot = Math.abs(reduceMonth("refunds", curY, mo, rs => rs.reduce((a, r) => a + num(r["Total refund"]), 0)) || 0);
+        const rcB = rcAgg[`${curY}-${String(mo).padStart(2, "0")}`];
+        const ansRate = rcB && rcB.in ? rcB.ans / rcB.in : null;
+        const missed = rcB ? (rcB.miss + rcB.vm) : null;   // explicit Missed + Voicemail (session grain)
+        tiles.push(
+          { l: "Claims Filed", v: fmtN(claimsN), c: claimsN, icon: KIC.warn, hero: 1, inv: 1 },
+          { l: "Claims / 100 jobs", v: claimRate == null ? "—" : fmt1(claimRate), c: claimRate, icon: KIC.pct, inv: 1 },
+          { l: "Refunds Paid", v: money(refTot), c: refTot, icon: KIC.dollar, inv: 1 },
+          { l: "Answer Rate", v: ansRate == null ? "—" : pct(ansRate), c: ansRate, icon: KIC.check },
+          { l: "Missed Calls", v: missed == null ? "—" : fmtN(missed), c: missed, icon: KIC.warn, inv: 1 }
+        );
+      }
+      if (!tiles.length) return;
+      const kg = document.createElement("div"); kg.className = "mrx-grid k"; kg.style.gridColumn = "1/-1";
+      bodyEl.appendChild(kg);
+      tiles.forEach(k => kpiTile(kg, k));
+    }
+    // deptHeader (the per-team KPI strip) is retired with the old team views — themed
+    // dashboards use lite mode and never call it. Function left defined but unused.
+
+    part(1, "Summary", "the headline read for the month");
+
+    /* ---- 01 · Executive Summary ---- */
+    if (SEC("Executive Summary")) {
+      const g = section("Executive Summary", monLbl + " · vs last year & last month", "k");
+      [
+        { l: "Revenue", v: money(rev), c: rev, ly: revLY, pm: revPM, spk: momSeries("closing", "Revenue", 12), icon: KIC.dollar, hero: 1 },
+        { l: "Gross Profit", v: money(op), c: op, ly: opLY, pm: opPM, spk: momSeries("closing", "Operational Profit by Formula", 12), icon: KIC.trend },
+        { l: "Gross Margin", v: pct(margin), c: margin, ly: marginLY, pm: marginPM, spk: momSeries("closing", "Operational Profit Margin", 12), icon: KIC.pct },
+        { l: "Jobs Done", v: fmtN(jobs), c: jobs, ly: jobsLY, pm: jobsPM, spk: momSeries("closing", "Total Jobs", 12), icon: KIC.truck },
+        { l: "Leads", v: fmtN(leadsN), c: leadsN, ly: leadsLY, pm: leadsPM, spk: momSeries("moveboard", "Total Leads", 12), icon: KIC.funnel },
+        { l: "Booking Rate", v: pct(bk), c: bk, ly: bkLY, pm: bkPM, spk: momSeries("moveboard", "Booking Rate", 12), icon: KIC.check },
+        { l: "Avg Job Value", v: money(avgJob), c: avgJob, ly: avgJobLY, pm: avgJobPM, spk: momReduce("closing", 12, rs => { const b = M["Revenue"].fn(rs), j = rs.length; return j ? b / j : null; }), icon: KIC.tag },
+        { l: "All Reviews Written (incl. non-counting)", v: fmtN(revWritten), c: revWritten, ly: revWrittenLY, pm: revWrittenPM, spk: momReduce("reviews_breakdown", 12, rs => rs.reduce((a, r) => a + num(r["Number of Reviews"]), 0)), icon: KIC.star }
+      ].forEach(k => kpiTile(g, k));
+      const gpRev = revLY ? (rev - revLY) / Math.abs(revLY) : 0;
+      const tone = gpRev > 0.08 ? "A strong" : gpRev < -0.05 ? "A softer" : "A steady";
+      // UX audit 2026-07-14: the verdict is MULTI-SIGNAL (all 8 headline pairs scored, not
+      // just revenue), names what to WATCH, and is honest about data completeness.
+      const pairs = [["Revenue", rev, revLY, 0], ["Gross profit", op, opLY, 0], ["Gross margin", margin, marginLY, 0],
+        ["Jobs", jobs, jobsLY, 0], ["Leads", leadsN, leadsLY, 0], ["Booking rate", bk, bkLY, 0],
+        ["Avg job value", avgJob, avgJobLY, 0], ["Reviews", revWritten, revWrittenLY, 0]];
+      const scored = pairs.filter(p => p[1] != null && p[2] != null && p[2] !== 0);
+      const ups = scored.filter(p => p[1] >= p[2]).length;
+      const downs = scored.filter(p => p[1] < p[2])
+        .sort((a, b) => ((a[1] - a[2]) / Math.abs(a[2])) - ((b[1] - b[2]) / Math.abs(b[2]))).slice(0, 2);
+      const watch = downs.length ? ` <b>Watch:</b> ${downs.map(p => `${p[0]} ${((p[1] - p[2]) / Math.abs(p[2]) * 100).toFixed(0)}%`).join(", ")} vs last ${MON[mo]}.` : "";
+      const incomplete = (pend > 0 && totClose > 0 && pend / totClose > 0.05)
+        ? ` <b>⚠ ${pct(pend / totClose)} of ${MON[mo]}'s jobs aren't counted yet</b> (paperwork pending) — these numbers will grow.` : "";
+      const ex = document.createElement("div"); ex.className = "mrx-exec"; ex.style.gridColumn = "1/-1";
+      // C16: no false causality — jobs (by move date) and leads (by create date) are two
+      // different cohorts, so they are stated as separate facts with a date-basis footnote.
+      ex.innerHTML = `<b>${tone} ${MON[mo]} ${curY} — ${scored.length ? `${ups} of ${scored.length} headline numbers improved vs last year.` : ""}</b> Revenue ${money(rev)} (${gpRev >= 0 ? "+" : ""}${(gpRev * 100).toFixed(0)}% YoY), gross profit ${money(op)} at ${pct(margin)} margin. ${fmtN(jobs)} jobs completed; ${fmtN(leadsN)} new leads came in, booking at ${pct(bk)}.${watch}${incomplete}${revTrip ? ` Standalone trips added ${money(revTrip)} (${(tripShare * 100).toFixed(1)}%).` : ""}
+        <div style="margin-top:8px;font-size:11.5px;color:${FAINT};font-weight:600">YoY = vs the same month last year · MoM = vs the previous month · money &amp; jobs count by move date · leads count by the date the lead came in.</div>`;
+      g.appendChild(ex);
+
+      /* ---- "What changed most in {Month}" — automatic movers panel (UX audit's #1 ask).
+         Top movers by absolute $ (or point) impact vs the PREVIOUS month, across fixed
+         dimensions. Plain sentences, no chart — the report's decision layer. */
+      if (revPM != null) {
+        const movers = [];
+        const mapOf = arr => { const m2 = {}; arr.forEach(r => m2[r.k] = r.v); return m2; };
+        const addDim = (dimLabel, curArr, prevArr) => {
+          const c2 = mapOf(curArr), p2 = mapOf(prevArr);
+          [...new Set([...Object.keys(c2), ...Object.keys(p2)])].forEach(k => {
+            if (k === "—") return;
+            const d = (c2[k] || 0) - (p2[k] || 0);
+            if (Math.abs(d) >= 8000) movers.push({ txt: `${esc(k)} ${dimLabel} ${d >= 0 ? "grew" : "fell"} <b>${d >= 0 ? "+" : "−"}${money(Math.abs(d))}</b> vs ${MS[PM]} (now ${money(c2[k] || 0)})`, w: Math.abs(d), up: d >= 0 });
+          });
+        };
+        addDim("revenue", segSeries("closing", "Revenue", "Source"), segSeries("closing", "Revenue", "Source", PMY, PM));
+        addDim("revenue", mergeMT(segSeries("closing", "Revenue", "Moving Type")), mergeMT(segSeries("closing", "Revenue", "Moving Type", PMY, PM)));
+        const refCurM = Math.abs(reduceMonth("refunds", curY, mo, rs => rs.reduce((a, r) => a + num(r["Total refund"]), 0)) || 0);
+        const refPrevM = Math.abs(reduceMonth("refunds", PMY, PM, rs => rs.reduce((a, r) => a + num(r["Total refund"]), 0)) || 0);
+        if (Math.abs(refCurM - refPrevM) >= 3000) movers.push({ txt: `Refunds ${refCurM >= refPrevM ? "rose" : "dropped"} <b>${refCurM >= refPrevM ? "+" : "−"}${money(Math.abs(refCurM - refPrevM))}</b> vs ${MS[PM]} (now ${money(refCurM)})`, w: Math.abs(refCurM - refPrevM) * 2, up: refCurM < refPrevM });
+        if (bk != null && bkPM != null && Math.abs(bk - bkPM) >= 0.02) movers.push({ txt: `Booking rate moved <b>${bk >= bkPM ? "+" : "−"}${Math.abs((bk - bkPM) * 100).toFixed(1)}pt</b> to ${pct(bk)}`, w: Math.abs(bk - bkPM) * 900000, up: bk >= bkPM });
+        movers.sort((a, b) => b.w - a.w);
+        if (movers.length) {
+          const mc = card(g, "What changed most in " + MON[mo], "vs " + MS[PM] + " · top movers by $ impact", { span2: true, icon: KIC.trend });
+          const listEl = document.createElement("div");
+          listEl.style.cssText = "display:flex;flex-direction:column;gap:7px;font-size:13.5px;line-height:1.5";
+          listEl.innerHTML = movers.slice(0, 5).map(m2 =>
+            `<div><span style="font-weight:800;color:${m2.up ? POS : NEG}">${m2.up ? "▲" : "▼"}</span> ${m2.txt}</div>`).join("");
+          mc.appendChild(listEl);
+        }
+      }
+    }
+
+    part(2, "Financials", "revenue, margins, geography and P&L");
+
+    /* ---- 02 · Revenue & Growth ---- */
+    if (SEC("Revenue & Growth")) {
+      const g = section("Revenue & Growth", "5-year " + MON[mo] + " trend and 12-month momentum");
+      const revT = trendSeries("closing", "Revenue"), opT = trendSeries("closing", "Operational Profit by Formula"), jobT = trendSeries("closing", "Total Jobs");
+      lines(g, "Revenue & Profit — momentum", "last 12 months", [ { label: "Revenue", series: momSeries("closing", "Revenue", 12), color: INK }, { label: "Gross Profit", series: momSeries("closing", "Operational Profit by Formula", 12), color: BLUE } ], moneyC, { span2: true, headVal: money(rev), chips: dchips([[rev, revPM, "MoM"]]) });
+      yoyBars(g, "Total Revenue", revT, moneyC, { headVal: money(rev), chips: dchips([[rev, revLY, "YoY"], [rev, revPM, "MoM"]]) });
+      const c1 = yoyBars(g, "Gross Profit", opT, moneyC, { yoyPct: true, headVal: money(op), chips: dchips([[op, opLY, "YoY"], [op, opPM, "MoM"]]) }); note(c1, trendInsight("Gross Profit", opT, money, MON[mo]));
+      const c2 = yoyBars(g, "Jobs Done", jobT, fmtN, { headVal: fmtN(jobs), chips: dchips([[jobs, jobsLY, "YoY"], [jobs, jobsPM, "MoM"]]) }); note(c2, trendInsight("Jobs Done", jobT, fmtN, MON[mo]));
+      // N17: these are confirmed LEADS, not completed jobs — "jobs" is reserved for closings
+      // Confirmed counted by BOOKED date (bookedRowsFor) so the line is consistent with the
+      // booked-date Booking Rate on the same chart (was create-date via trendSeries).
+      const confT = yearsArr().map(y => ({ k: String(y), v: bookedRowsFor(y, mo).filter(r => r["Status Category"] === "Confirmed").length }));
+      const bkT = trendSeries("moveboard", "Booking Rate");
+      combo(g, "Leads Confirmed & Booking Rate", MON[mo] + " · " + confT.length + "-yr", confT, "Confirmed leads", fmtN, bkT, "Booking %", pct, { headVal: pct(bk), span2: true });
+      // ---- Local vs Long-distance — ONE head-to-head view (UX audit: was 8 mirrored cards
+      // saying the same thing four ways; now a grouped 5-yr revenue chart + a compact matrix) ----
+      const isLocal = r => String(r["Moving Type"]) === "Local Moving";
+      const notLocal = r => !isLocal(r);
+      const localT = trendSeries("closing", "Revenue", { pre: isLocal });
+      const ldT = trendSeries("closing", "Revenue", { pre: notLocal });
+      {
+        // drop years empty on BOTH sides (pre-2023 cutoff yields 0s, not nulls) — no hollow slots
+        const yrs = localT.map((r, i) => ({ k: r.k, loc: r.v, ld: (ldT[i] || {}).v })).filter(r => r.loc || r.ld);
+        const labs = yrs.map(r => r.k);
+        const { c: cLL, cv: cvLL } = chartCard(g, "Local vs Long-distance — revenue", MON[mo] + " · " + labs.length + "-yr head-to-head", { h: 230, icon: KIC.bars, headVal: money(lastV(localT)) });
+        new Chart(cvLL, { type: "bar", data: { labels: labs, datasets: [
+          { label: "Local Moving", data: yrs.map(r => r.loc), backgroundColor: LIME, borderRadius: 3, maxBarThickness: 30 },
+          { label: "Long-distance", data: yrs.map(r => r.ld), backgroundColor: INK, borderRadius: 3, maxBarThickness: 30 } ] },
+          options: baseOpts({ layout: { padding: { top: 18 } }, plugins: { legend: { display: true, position: "top", align: "end", labels: { color: SUB, font: { size: 12.5, weight: "600" }, boxWidth: 9, usePointStyle: true } }, tooltip: { callbacks: { label: x => x.dataset.label + ": " + money(x.parsed.y) } } },
+            scales: { y: axY(moneyC, { beginAtZero: true }), x: { ticks: { color: INK2, font: { size: 12.5, weight: "600" } }, grid: { display: false }, border: { display: false } } } }), plugins: [crosshair, valLabels(moneyC, false)] });
+        note(cLL, `Hourly “Local Moving” (the volume base) vs flat-rate long-distance (“Regular” + “Straight”), same month each year.`, "how");
+      }
+      { // job-count head-to-head, paired next to the revenue chart (Tornike 2026-07-16)
+        const locJT = trendSeries("closing", "Total Jobs", { pre: isLocal }), ldJT = trendSeries("closing", "Total Jobs", { pre: notLocal });
+        const yrsJ = locJT.map((r, i) => ({ k: r.k, loc: r.v, ld: (ldJT[i] || {}).v })).filter(r => r.loc || r.ld);
+        const labsJ = yrsJ.map(r => r.k);
+        const { c: cJJ, cv: cvJJ } = chartCard(g, "Local vs Long-distance — jobs", MON[mo] + " · " + labsJ.length + "-yr head-to-head", { h: 230, icon: KIC.bars, headVal: fmtN(lastV(locJT)) });
+        new Chart(cvJJ, { type: "bar", data: { labels: labsJ, datasets: [
+          { label: "Local Moving", data: yrsJ.map(r => r.loc), backgroundColor: LIME, borderRadius: 3, maxBarThickness: 30 },
+          { label: "Long-distance", data: yrsJ.map(r => r.ld), backgroundColor: INK, borderRadius: 3, maxBarThickness: 30 } ] },
+          options: baseOpts({ layout: { padding: { top: 18 } }, plugins: { legend: { display: true, position: "top", align: "end", labels: { color: SUB, font: { size: 12.5, weight: "600" }, boxWidth: 9, usePointStyle: true } }, tooltip: { callbacks: { label: x => x.dataset.label + ": " + fmtN(x.parsed.y) } } },
+            scales: { y: axY(fmtN, { beginAtZero: true }), x: { ticks: { color: INK2, font: { size: 12.5, weight: "600" } }, grid: { display: false }, border: { display: false } } } }), plugins: [crosshair, valLabels(fmtN, false)] });
+        note(cJJ, `Job counts, same head-to-head — read next to the revenue chart to separate volume (jobs) from value (revenue). Long-distance is far fewer jobs but a bigger ticket.`, "how");
+      }
+      // the matrix: every Local/LD number that used to be its own card, with YoY inline.
+      // op profit by segment must be segKeys-scoped (composite measure) → group by Moving Type per year.
+      // NOTE: refunds can't be attributed to a segment (no clean refund→job mapping: ~7% of refund $ don't
+      // match a closing job and some join-keys span both moving types) — so segment op-profit is BEFORE refunds.
+      const opSplitT = yearsArr(5).map(y => { let loc = 0, ld = 0; segSeries("closing", "Operational Profit by Formula", "Moving Type", y, mo).forEach(s2 => { if (s2.k === "Local Moving") loc += s2.v; else ld += s2.v; }); return { k: String(y), loc, ld }; });
+      const refCur = Math.abs(reduceMonth("refunds", curY, mo, rs => rs.reduce((a, r) => a + num(r["Total refund"]), 0)) || 0);
+      {
+        const at = (t, off) => (t.length >= off ? t[t.length - off] : {}).v;
+        const locRev = lastV(localT), locRevLY = at(localT, 2), ldRev = lastV(ldT), ldRevLY = at(ldT, 2);
+        const locJobsT = trendSeries("closing", "Total Jobs", { pre: isLocal }), ldJobsT = trendSeries("closing", "Total Jobs", { pre: notLocal });
+        const locJ = lastV(locJobsT), locJLY = at(locJobsT, 2), ldJ = lastV(ldJobsT), ldJLY = at(ldJobsT, 2);
+        const opL = (opSplitT[opSplitT.length - 1] || {}).loc, opLLY = (opSplitT[opSplitT.length - 2] || {}).loc;
+        const opD = (opSplitT[opSplitT.length - 1] || {}).ld, opDLY = (opSplitT[opSplitT.length - 2] || {}).ld;
+        const cell = (cur2, prev2, f) => {
+          if (cur2 == null) return td("—");
+          if (prev2 == null || !prev2) return td(f(cur2));
+          const d = (cur2 - prev2) / Math.abs(prev2);
+          return td(`${f(cur2)} <span style="color:${d >= 0 ? POS : NEG};font-weight:800;font-size:11px">${d >= 0 ? "▲" : "▼"}${Math.abs(d * 100).toFixed(0)}%</span>`);
+        };
+        const rowsH = [
+          `<tr><td style="font-weight:800">Revenue</td>${cell(locRev, locRevLY, money)}${cell(ldRev, ldRevLY, money)}${td(locRev + ldRev ? pct(ldRev / (locRev + ldRev)) : "—")}</tr>`,
+          `<tr><td style="font-weight:800">Jobs</td>${cell(locJ, locJLY, fmtN)}${cell(ldJ, ldJLY, fmtN)}${td(locJ + ldJ ? pct(ldJ / (locJ + ldJ)) : "—")}</tr>`,
+          `<tr><td style="font-weight:800">Avg job value</td>${cell(locJ ? locRev / locJ : null, locJLY ? locRevLY / locJLY : null, money)}${cell(ldJ ? ldRev / ldJ : null, ldJLY ? ldRevLY / ldJLY : null, money)}${td("")}</tr>`,
+          `<tr><td style="font-weight:800">Gross profit*</td>${cell(opL, opLLY, money)}${cell(opD, opDLY, money)}${td(opL + opD ? pct(opD / (opL + opD)) : "—")}</tr>`
+        ].join("");
+        const tc = tableCard(g, "Local vs Long-distance — the numbers", MON[mo] + " " + curY + " · YoY vs " + MON[mo] + " " + (curY - 1),
+          `<table class="mrx-tbl"><thead><tr><th></th><th>Local Moving</th><th>Long-distance</th><th>LD share</th></tr></thead><tbody>${rowsH}</tbody></table>`,
+          { icon: KIC.grid });
+        note(tc, `*Segment gross profit is before refunds — refunds can't be tied to a moving type, so Local + Long-distance together sit ${refCur ? money(refCur) + " " : ""}above the headline Gross Profit.`, "how");
+      }
+      // (LD carrier-economics cards REMOVED — Tornike 2026-07-14: "I don't need this long
+      //  distance to carrier thing at all". `Total To Carrier` was also filled on ~1 job/month,
+      //  so the cards claimed ~98% self-haul from a column nobody maintains.)
+    }
+
+    /* ---- 03 · Composition & Segments ---- */
+    if (SEC("Revenue Segments")) {
+      const g = section("Revenue Segments", "revenue opened into gross profit vs cost, by segment");
+      // Each bar IS that segment's revenue, split into the gross-profit portion (lime) and the
+      // field-cost portion (ink). End label = revenue · gross margin. One helper, four segments.
+      // Layout (Tornike 2026-07-16): 1 & 3 on the left, 2 & 4 on the right → in the 2-col grid the
+      // append order Moving Type, Bill, State, Size gives left = Moving Type + State, right = Bill + Size.
+      function revSeg(title, col, opts) {
+        opts = opts || {};
+        // opts.mapKey folds raw segment keys into display buckets (e.g. Regular+Straight → Long
+        // Distance Moving) — revenue AND profit are re-aggregated under the mapped key.
+        const km = opts.mapKey || (k => k);
+        const agg = arr => { const m2 = {}; arr.forEach(r => { const k = km(r.k); m2[k] = (m2[k] || 0) + r.v; }); return Object.entries(m2).map(([k, v]) => ({ k, v })).sort((a, b) => b.v - a.v); };
+        const opM = {}; agg(segSeries("closing", "Operational Profit by Formula", col)).forEach(r => opM[r.k] = r.v);
+        let rows = agg(segSeries("closing", "Revenue", col)).map(r => { const op2 = Math.max(0, opM[r.k] || 0); return { k: (r.k === "—" || r.k === "") ? "Not recorded" : r.k, rk: r.k, rev: r.v, op: Math.min(op2, r.v), cost: Math.max(0, r.v - op2) }; });
+        if (opts.order) rows.sort(opts.order);
+        rows = rows.slice(0, opts.top || 8);
+        const pid = "seglab_" + col.replace(/\W/g, "");
+        const { c, box, cv } = chartCard(g, title, monLbl + " · before refunds", { h: Math.max(184, 44 + rows.length * 34), icon: KIC.bars, headVal: money(rows.reduce((a, r) => a + r.rev, 0)) });
+        if (!rows.length) { emptyBox(box); return c; }
+        new Chart(cv, { type: "bar", data: { labels: rows.map(r => r.k), datasets: [
+          { label: "Gross profit", data: rows.map(r => r.op), backgroundColor: LIME, borderRadius: 3, maxBarThickness: 20 },
+          { label: "All costs", data: rows.map(r => r.cost), backgroundColor: INK, borderRadius: 3, maxBarThickness: 20 } ] },
+          options: baseOpts({ indexAxis: "y", layout: { padding: { right: 104 } }, plugins: { legend: { display: true, position: "top", align: "end", labels: { color: SUB, font: { size: 12.5, weight: "600" }, boxWidth: 9, usePointStyle: true } }, tooltip: { callbacks: { label: x => x.dataset.label + ": " + money(x.parsed.x),
+            footer: items => { const r = rows[items[0].dataIndex]; return r && r.rev ? money(r.rev) + " revenue · " + Math.round(r.op / r.rev * 100) + "% gross margin" : ""; } } } },
+            scales: { x: axY(moneyC, { beginAtZero: true, stacked: true }), y: { stacked: true, ticks: { color: INK2, font: { size: 12.5, weight: "600" } }, grid: { display: false }, border: { display: false } } } }),
+          plugins: [crosshair, { id: pid, afterDatasetsDraw(ch) { const ctx = ch.ctx; ctx.save(); ctx.font = "700 12px " + MONO; ctx.textAlign = "left"; ctx.textBaseline = "middle"; ctx.fillStyle = INK;
+            ch.getDatasetMeta(1).data.forEach((el, i) => { const r = rows[i]; ctx.fillText(money(r.rev) + (r.rev ? " · " + Math.round(r.op / r.rev * 100) + "%" : ""), el.x + 6, el.y); });
+            ctx.restore(); } }] });
+        note(c, opts.note || `Each bar is that segment's revenue; the green part is the gross profit kept (before refunds), the dark part is field cost. End label = revenue · gross margin.`, "how");
+        return c;
+      }
+      const billRank = s => { const m = String(s.rk).match(/\$?\s*([\d,]+)/); return /over/i.test(String(s.rk)) ? 9e9 : (m ? +m[1].replace(/,/g, "") : 9e12); };
+      revSeg("Revenue by moving type", "Moving Type", { mapKey: mtKey,                                            // 1 · left-top
+        note: "Long Distance combines the closing sheet's Regular and Straight moving types — a lone “Regular Moving” bar in months with no Straight jobs read as if Straight had vanished. Green = gross profit kept; end label = revenue · gross margin." });
+      revSeg("Revenue by bill size", "Bill Range", { order: (a, b) => billRank(a) - billRank(b), top: 10,        // 2 · right-top
+        note: "Closed jobs don't carry cubic feet, so revenue is banded by each job's total bill — a reliable stand-in for move size. Green = gross profit kept; end label = revenue · gross margin." });
+      revSeg("Revenue by state", "State Name", { top: 8 });                                                       // 3 · left-bottom
+      revSeg("Revenue by size of move", "Size of Move", { top: 8 });                                              // 4 · right-bottom
+    }
+
+    /* ---- 04 · Per-Job Profitability (formerly "Unit Economics" — N20) ---- */
+    if (SEC("Per-Job Profitability")) {
+      const g = section("Per-Job Profitability", "profitability per job");
+      const revJobT = momReduce("closing", 12, rs => { const j = rs.length; return j ? M["Revenue"].fn(rs) / j : null; });
+      const opJobT = momReduce("closing", 12, rs => { const j = rs.length; return j ? M["Operational Profit by Formula"].fn(rs) / j : null; });
+      const c1 = lines(g, "Avg job value (12-month trend)", "last 12 months", [{ label: "Avg job value", series: revJobT, color: INK }], money, { headVal: money(lastV(revJobT)) });
+      note(c1, `Average job value — ${money(lastV(revJobT) || 0)} this month. Rising means bigger jobs, not just more of them.`, "how");
+      lines(g, "Gross profit per job", "last 12 months", [{ label: "Gross profit / job", series: opJobT, color: BLUE }], money, { headVal: money(lastV(opJobT)) });
+      // Avg job value split by moving type (Tornike 2026-07-16) — Local vs Long-distance, as their own trends
+      const isLoc4 = r => String(r["Moving Type"]) === "Local Moving";
+      const avgLocT = momReduce("closing", 12, rs => { const f = rs.filter(isLoc4); const j = f.length; return j ? M["Revenue"].fn(f) / j : null; });
+      const avgLDT = momReduce("closing", 12, rs => { const f = rs.filter(r => !isLoc4(r)); const j = f.length; return j ? M["Revenue"].fn(f) / j : null; });
+      const cLoc4 = lines(g, "Avg job value — Local Moving", "last 12 months", [{ label: "Local avg job value", series: avgLocT, color: LIMED }], money, { headVal: money(lastV(avgLocT)) });
+      note(cLoc4, `Average value of a Local Moving job — ${money(lastV(avgLocT) || 0)} this month. The hourly, high-volume base.`, "how");
+      const cLD4 = lines(g, "Avg job value — Long Distance", "last 12 months", [{ label: "Long-distance avg job value", series: avgLDT, color: VIOLET }], money, { headVal: money(lastV(avgLDT)) });
+      note(cLD4, `Average value of a long-distance job (Regular + Straight) — ${money(lastV(avgLDT) || 0)} this month. Far fewer jobs, much bigger ticket than Local.`, "how");
+      // "Gross profit per foreman-hour" + "Jobs per 100 foreman-hours" removed 2026-07-16 (Tornike).
+    }
+
+    /* ---- Geography — moved into Financials, before P&L (Tornike 2026-07-16) ---- */
+    if (SEC("Geography — by State")) {
+      const g = section("Geography — by State", "jobs, revenue and gross margin per state — vs last year & last month");
+      const mapOf = arr => { const m = {}; arr.forEach(r => m[r.k] = r.v); return m; };
+      const revS = segSeries("closing", "Revenue", "State Name"), jobS = segSeries("closing", "Total Jobs", "State Name");
+      const opMap = mapOf(segSeries("closing", "Operational Profit by Formula", "State Name")), jobMap = mapOf(jobS);
+      const revLyMap = mapOf(segSeries("closing", "Revenue", "State Name", curY - 1, mo)), opLyMap = mapOf(segSeries("closing", "Operational Profit by Formula", "State Name", curY - 1, mo)), jobLyMap = mapOf(segSeries("closing", "Total Jobs", "State Name", curY - 1, mo));
+      const revPmMap = mapOf(segSeries("closing", "Revenue", "State Name", PMY, PM)), jobPmMap = mapOf(segSeries("closing", "Total Jobs", "State Name", PMY, PM));
+      const nm = k => k === "—" ? "No state on file" : k;
+      const states = revS.slice(0, 12).map(r => { const rev = r.v, revLy = revLyMap[r.k] || 0, op = opMap[r.k] || 0, opLy = opLyMap[r.k] || 0, jobs = jobMap[r.k] || 0, jobsLy = jobLyMap[r.k] || 0;
+        return { k: nm(r.k), rev, revLy, revPm: revPmMap[r.k] || 0, op, jobs, jobsLy, jobsPm: jobPmMap[r.k] || 0, mgn: rev ? op / rev : null, mgnLy: revLy ? opLy / revLy : null }; });
+      const rmax = Math.max(1, ...states.map(s2 => s2.rev)), jmax = Math.max(1, ...states.map(s2 => s2.jobs));
+      const barCell = (v, f, max, col) => `<td class="bar"><i style="width:${Math.max(0, Math.min(100, v / max * 100)).toFixed(1)}%;background:${col}"></i><span>${f(v)}</span></td>`;
+      const yoyCell = (cur, ly) => { if (!ly) return td("—"); const d = (cur - ly) / ly; return td((d >= 0 ? "+" : "") + pct(d), `color:${d >= 0 ? POS : NEG};font-weight:800`); };
+      const ppCell = (cur, ly) => { if (cur == null || ly == null) return td("—"); const d = (cur - ly) * 100; return td((d >= 0 ? "+" : "") + d.toFixed(1) + "pp", `color:${d >= 0 ? POS : NEG};font-weight:800`); };
+      const yy = String(curY - 1).slice(2);
+      const rowsH = states.map(s2 => `<tr><td>${esc(s2.k)}</td>
+        ${barCell(s2.jobs, fmtN, jmax, GRID)}
+        ${yoyCell(s2.jobs, s2.jobsLy)}
+        ${barCell(s2.rev, money, rmax, BLUE_BG)}
+        ${yoyCell(s2.rev, s2.revLy)}
+        ${td(s2.mgn == null ? "—" : pct(s2.mgn), "font-weight:800")}
+        ${ppCell(s2.mgn, s2.mgnLy)}</tr>`).join("");
+      tableCard(g, "State performance matrix", monLbl + " · top " + states.length + " states", `<table class="mrx-tbl"><thead><tr><th>State</th><th>Jobs</th><th>vs '${yy}</th><th>Revenue</th><th>vs '${yy}</th><th>Gross Margin</th><th>vs '${yy}</th></tr></thead><tbody>${rowsH}</tbody></table>`, { span2: true, icon: KIC.grid, headVal: money(states.reduce((a, s2) => a + s2.rev, 0)), noteKind: "how", note: "Jobs and Revenue bars show magnitude; each “vs '" + yy + "” is the year-over-year change (green up, red down). Gross Margin = gross profit ÷ revenue, and its “vs '" + yy + "” is the change in percentage points (pp). States are pickup-based; standalone trip jobs use the trip's delivery state. “No state on file” = closing sheets where State was left empty." });
+      // 2x2 by state (Tornike 2026-07-16): jobs + jobs-growth on top, revenue + revenue-growth below.
+      // Growth is shown as ABSOLUTE change (Δ jobs / Δ $) so big states aren't dwarfed by small-base % spikes;
+      // exact % rides in the tooltip. ADVICE built into the note: for states trust the YEAR-over-year read —
+      // month-to-month is seasonal and jumpy, especially for smaller states — so YoY is the solid bar.
+      const nmr = arr => arr.map(r => ({ k: nm(r.k), v: r.v }));
+      function growthBars(title, rows, fmt) {
+        const { c, box, cv } = chartCard(g, title, monLbl + " · vs last year & last month · top 10", { h: Math.max(230, 46 + rows.length * 30), icon: KIC.bars, headVal: "" });
+        if (!rows.length) { emptyBox(box); return c; }
+        const sgn = v => (v >= 0 ? "+" : "−") + fmt(Math.abs(v));
+        // house convention: INK = the primary series (YoY — the one to trust for states), CTX = context (MoM)
+        new Chart(cv, { type: "bar", data: { labels: rows.map(r => r.k), datasets: [
+          { label: "vs last year", data: rows.map(r => r.yoyAbs), backgroundColor: INK, borderRadius: 3, maxBarThickness: 12 },
+          { label: "vs last month", data: rows.map(r => r.momAbs), backgroundColor: CTX, borderRadius: 3, maxBarThickness: 12 } ] },
+          options: baseOpts({ indexAxis: "y", layout: { padding: { left: 8, right: 74 } }, plugins: { legend: { display: true, position: "top", align: "end", labels: { color: SUB, font: { size: 12.5, weight: "600" }, boxWidth: 9, usePointStyle: true } },
+            tooltip: { callbacks: { label: x => { const r = rows[x.dataIndex]; const p = x.dataset.label === "vs last year" ? r.yoyPct : r.momPct; return x.dataset.label + ": " + sgn(x.parsed.x) + (p == null ? "" : " (" + (p >= 0 ? "+" : "") + pct(p) + ")"); } } } },
+            scales: { x: { beginAtZero: true, ticks: { callback: sgn, color: AXIS, font: { family: MONO, size: 12 } }, grid: { color: GRID }, border: { display: false } },
+              y: { ticks: { color: INK2, font: { size: 12.5, weight: "600" } }, grid: { display: false }, border: { display: false } } } }), plugins: [crosshair,
+          { id: "growlab", afterDatasetsDraw(ch) { const ctx = ch.ctx; ctx.save(); ctx.font = "700 12px " + MONO; ctx.textBaseline = "middle";
+            ch.data.datasets.forEach((d, di) => { const meta = ch.getDatasetMeta(di); meta.data.forEach((el, i) => { const v = d.data[i]; if (v == null || isNaN(v)) return;
+              ctx.fillStyle = v >= 0 ? POS : NEG; ctx.textAlign = v >= 0 ? "left" : "right"; ctx.fillText(sgn(v), el.x + (v >= 0 ? 4 : -4), el.y); }); }); ctx.restore(); } }] });
+        note(c, `Bars right of zero = growth, left = decline — vs the same month last year (dark) and vs last month (light gray). Exact % is in the tooltip. For states, the year-over-year bar is the one to trust: month-to-month is seasonal and jumpy, especially for smaller states.`, "how");
+        return c;
+      }
+      const jobsGrowthRows = jobS.slice(0, 10).map(r => { const j = r.v, jl = jobLyMap[r.k] || 0, jp = jobPmMap[r.k] || 0; return { k: nm(r.k), yoyAbs: j - jl, momAbs: j - jp, yoyPct: jl ? (j - jl) / jl : null, momPct: jp ? (j - jp) / jp : null }; });
+      const revGrowthRows = revS.slice(0, 10).map(r => { const v = r.v, vl = revLyMap[r.k] || 0, vp = revPmMap[r.k] || 0; return { k: nm(r.k), yoyAbs: v - vl, momAbs: v - vp, yoyPct: vl ? (v - vl) / vl : null, momPct: vp ? (v - vp) / vp : null }; });
+      rankBars(g, "Jobs by state", nmr(jobS.slice(0, 10)), fmtN, { top: 10, sub: monLbl + " · top 10" });
+      growthBars("Jobs — increase / decrease by state", jobsGrowthRows, fmtN);
+      rankBars(g, "Revenue by state", nmr(revS.slice(0, 10)), money, { top: 10, sub: monLbl + " · top 10" });
+      growthBars("Revenue — increase / decrease by state", revGrowthRows, moneyC);
+    }
+
+    /* ---- 05 · Profitability & P&L ---- */
+    if (SEC("Profitability & P&L")) {
+      const g = section("Profitability & P&L", "where the revenue goes, and margin trend");
+      const rowsW = withMonth(curY, mo, () => RS.filtered("closing", closing));
+      const totBill = M["Total Bill"].fn(rowsW);
+      const forman = M["Forman Salary"].fn(rowsW), driver = M["Driver Salary"].fn(rowsW);
+      const helper = withMonth(curY, mo, () => M["Helper Salary"].fn(RS.filtered("helper_salaries", DS.helper_salaries || [])));
+      const comm = withMonth(curY, mo, () => M["Sales Commission"].fn(RS.filtered("sales_salaries", DS.sales_salaries || [])));
+      const expense = M["Car Expense"].fn(rowsW) + M["Fuel Expense"].fn(rowsW) + M["Hotel Expense"].fn(rowsW) + M["Toll Expense"].fn(rowsW) + M["Truck Expense"].fn(rowsW) + M["Other Expenses"].fn(rowsW);
+      const refundTot = withMonth(curY, mo, () => M["Total Refunds"] ? M["Total Refunds"].fn(RS.filtered("refunds", DS.refunds || [])) : 0);
+      // C20/N4: "Total Bill" and "Revenue" are two names for the byte-identical formula
+      // (verified to the cent) — shown as "Revenue (Total Bill)" during the name transition.
+      const steps = [ { label: "Revenue", v: totBill, type: "total" }, { label: "Foreman Salaries", v: -forman }, { label: "Driver Salaries", v: -driver }, { label: "Helper Salaries", v: -(helper || 0) }, { label: "Sales Commission", v: -(comm || 0) }, { label: "Expenses", v: -expense }, { label: "Refunds", v: -(refundTot || 0) }, { label: "Gross Profit", v: op, type: "total" } ];
+      const wc = waterfall(g, "Revenue → Gross Profit", monLbl, steps, { headVal: money(op), chips: dchips([[op, opLY, "YoY"]]) });
+      note(wc, `From ${money(totBill)} in revenue, labor + expenses + refunds leave ${money(op)} gross profit — a ${pct(margin)} margin.`);
+      note(wc, `Revenue here is the same figure as the Revenue card in Section 01 (closing-sheet + trip billings, before refunds — refunds are deducted as their own step below).`, "how");
+      // what's inside the waterfall's single "Expenses" bar — its six components, ranked
+      const expParts = [
+        { k: "Fuel", v: M["Fuel Expense"].fn(rowsW) }, { k: "Other Expenses", v: M["Other Expenses"].fn(rowsW) },
+        { k: "Car", v: M["Car Expense"].fn(rowsW) }, { k: "Hotel", v: M["Hotel Expense"].fn(rowsW) },
+        { k: "Tolls", v: M["Toll Expense"].fn(rowsW) }, { k: "Truck", v: M["Truck Expense"].fn(rowsW) }
+      ].filter(p => p.v > 0).sort((a, b) => b.v - a.v);
+      const top2 = expParts.slice(0, 2).reduce((a, p) => a + p.v, 0);
+      rankBars(g, "What's inside “Expenses”", expParts, money, { sub: monLbl + " · the waterfall bar, opened up", headVal: money(expense), noteKind: "how", note: `The ${money(expense)} Expenses step decomposed — ${expParts.slice(0, 2).map(p => p.k).join(" + ")} are ${expense ? pct(top2 / expense) : "—"} of it. “Other Expenses” is the uncategorized per-job field (see its trend card below).` });
+      lines(g, "Gross Profit Margin", "last 12 months", [ { label: "Margin", series: momSeries("closing", "Operational Profit Margin", 12), color: BLUE } ], pct, { headVal: pct(margin) });
+      // ("Op profit by state" removed — it duplicated the Geography matrix's Op. Profit column)
+      // ("Cost structure" donut removed — it re-plotted the waterfall's own steps as shares;
+      //  the waterfall IS the cost structure. One home per fact.)
+      // Other Expenses — honest trend. It's a single free-text per-job field on the closing sheet with no
+      // sub-detail, so it can't be broken down — but we can watch it grow.
+      const oeT = momSeries("closing", "Other Expenses", 14);
+      const oeCur = valueFor("closing", "Other Expenses", curY, mo) || 0;
+      const oec = lines(g, "Other Expenses — momentum", "last 14 months", [{ label: "Other Expenses", series: oeT, color: VIOLET }], money, { headVal: money(oeCur) });
+      note(oec, `Uncategorized per-job field reimbursements — ${money(oeCur)} in ${MON[mo]}${jobs ? `, about ${money(oeCur / jobs)}/job` : ""}. Captured as one closing-sheet total with no category behind it, so it can't be split further; the trend is what to watch. Tips are NOT in this field — “Tip from Company” is its own column, and the crew's part sits inside Foreman Salaries.`, "how");
+      // Fuel momentum pairs with Other Expenses (Tornike 2026-07-16) — the two biggest expense components side by side.
+      const fuT = momSeries("closing", "Fuel Expense", 14);
+      const fuCur = valueFor("closing", "Fuel Expense", curY, mo) || 0;
+      const fuc = lines(g, "Fuel — momentum", "last 14 months", [{ label: "Fuel", series: fuT, color: BLUE }], money, { headVal: money(fuCur) });
+      note(fuc, `Fuel across all jobs — ${money(fuCur)} in ${MON[mo]}${jobs ? `, about ${money(fuCur / jobs)}/job` : ""}. Read against the jobs count: fuel growing faster than jobs means longer hauls or waste.`, "how");
+      // ("Biggest Other Expenses this month" table removed — Tornike 2026-07-16)
+    }
+
+    /* ---- Repeat & Referral Business — sits in PART 2 "The money" (Tornike 2026-07-15:
+       "it is money related thing"). Section numbers are assigned by section() in CALL order,
+       so moving this block renumbered every later section automatically — no registry to edit. ---- */
+    if (SEC("Repeat & Referral Business")) {
+      const g = section("Repeat & Referral Business", "repeat and referral customers — how much our service is liked");
+      const RRS = ["Returned Customer", "Recommended"];
+      const isRR = r => RRS.indexOf(String(r.Source)) >= 0;
+      const rrRev = valueFor("closing", "Revenue", curY, mo, { pre: isRR }) || 0, rrRevLY = valueFor("closing", "Revenue", curY - 1, mo, { pre: isRR }), rrRevPM = valueFor("closing", "Revenue", PMY, PM, { pre: isRR });
+      const rrJobs = valueFor("closing", "Total Jobs", curY, mo, { pre: isRR }) || 0, rrJobsLY = valueFor("closing", "Total Jobs", curY - 1, mo, { pre: isRR }), rrJobsPM = valueFor("closing", "Total Jobs", PMY, PM, { pre: isRR });
+      // op profit needs segKeys scoping → sum the two Source segments (current month reuses opBySrcCur)
+      const sumRR = arr => arr.reduce((t, s2) => RRS.indexOf(s2.k) >= 0 ? t + s2.v : t, 0);
+      const rrOp = sumRR(opBySrcCur), rrOpLY = sumRR(segSeries("closing", "Operational Profit by Formula", "Source", curY - 1, mo));
+      const rrShare = rev ? rrRev / rev : null, rrShareLY = revLY ? (rrRevLY || 0) / revLY : null, rrSharePM = revPM ? (rrRevPM || 0) / revPM : null;
+      const kg2 = document.createElement("div"); kg2.className = "mrx-grid k"; kg2.style.gridColumn = "1/-1"; g.appendChild(kg2);
+      [ { l: "Repeat + Referral Revenue", v: money(rrRev), c: rrRev, ly: rrRevLY, pm: rrRevPM, icon: KIC.dollar },
+        { l: "Share of Revenue", v: pct(rrShare), c: rrShare, ly: rrShareLY, pm: rrSharePM, icon: KIC.pct },
+        { l: "Repeat + Referral Jobs", v: fmtN(rrJobs), c: rrJobs, ly: rrJobsLY, pm: rrJobsPM, icon: KIC.truck },
+        { l: "Gross Profit (before refunds)", v: money(rrOp), c: rrOp, ly: rrOpLY, icon: KIC.trend }
+      ].forEach(k => kpiTile(kg2, k));
+      const rrT = yearsArr(5).map(y => ({ k: String(y), v: valueFor("closing", "Revenue", y, mo, { pre: isRR }) }));
+      yoyBars(g, "Repeat & Referral revenue — 5-yr", rrT, moneyC, { headVal: money(rrRev), chips: dchips([[rrRev, rrRevLY, "YoY"]]) });
+      const shareT = momReduce("closing", 12, rs => { const t = M["Revenue"].fn(rs); const rr2 = M["Revenue"].fn(rs.filter(isRR)); return t ? rr2 / t : null; });
+      const cSh = lines(g, "Share of revenue from repeat & referral", "last 12 months", [{ label: "Repeat & Referral share", series: shareT, color: BLUE }], pct, { headVal: pct(rrShare) });
+      note(cSh, `Every point is the % of that month's revenue that came from repeat or referred customers — the cleanest loyalty pulse. ${MON[mo]}: ${pct(rrShare)}.`, "how");
+      const retT = yearsArr(5).map(y => valueFor("closing", "Revenue", y, mo, { pre: r => String(r.Source) === "Returned Customer" }) || 0);
+      const recT = yearsArr(5).map(y => valueFor("closing", "Revenue", y, mo, { pre: r => String(r.Source) === "Recommended" }) || 0);
+      { // vertical COLUMN chart (Tornike 2026-07-16: reads better than horizontal bars here)
+        const labsRR = yearsArr(5).map(String);
+        const { c: cRRb, cv: cvRRb } = chartCard(g, "Repeat vs Referral — revenue by year", MON[mo] + " each year", { icon: KIC.bars, headVal: money((retT[retT.length - 1] || 0) + (recT[recT.length - 1] || 0)) });
+        new Chart(cvRRb, { type: "bar", data: { labels: labsRR, datasets: [
+          { label: "Repeat (returned customer)", data: retT, backgroundColor: LIME, borderRadius: 3, maxBarThickness: 30 },
+          { label: "Referral (recommended)", data: recT, backgroundColor: INK, borderRadius: 3, maxBarThickness: 30 } ] },
+          options: baseOpts({ layout: { padding: { top: 18 } }, plugins: { legend: { display: true, position: "top", align: "end", labels: { color: SUB, font: { size: 12.5, weight: "600" }, boxWidth: 9, usePointStyle: true } }, tooltip: { callbacks: { label: x => x.dataset.label + ": " + money(x.parsed.y) } } },
+            scales: { y: axY(moneyC, { beginAtZero: true }), x: { ticks: { color: INK2, font: { size: 12.5, weight: "600" } }, grid: { display: false }, border: { display: false } } } }), plugins: [crosshair, valLabels(moneyC, false)] });
+      }
+      // C2: both trend lines use the canonical dual-basis Booking Rate (no inline ratios)
+      // #8 (Tornike 2026-07-15): show Repeat (returned) and Referral (recommended) as SEPARATE lines vs overall.
+      const retBookT = bookRateTrend(r => String(r.Source) === "Returned Customer", 12);
+      const recBookT = bookRateTrend(r => String(r.Source) === "Recommended", 12);
+      const allBookT = bookRateTrend(null, 12);
+      const cBk = lines(g, "Repeat & Referral booking rate vs overall", "last 12 months", [ { label: "Repeat (returned)", series: retBookT, color: LIMED }, { label: "Referral (recommended)", series: recBookT, color: BLUE }, { label: "All leads", series: allBookT, color: CTX } ], pct);
+      note(cBk, `Repeat (returned) and Referral (recommended) leads should each convert far above the average — they already trust you. If either coloured line dips toward the gray (all-leads) line, warm-lead follow-up is slipping.`);
+    }
+
+    /* ---- CT Branch (Tornike 2026-07-16): the branch-owner page folded into the report, restyled,
+       month-scoped, no chart/table switches. Basis = jobs where Giorgi Kolbaia sits in a Sales-Person
+       slot and takes his cut (`Branch Owner` / `Branch Owner Cut` columns — his SP-slot book, never
+       his foreman work). Gross profit is AFTER his cut, built the Job P&L way (helper/sales joined by
+       Unique Key, refunds by Request Joinkey — attached to the job whenever paid). ---- */
+    if (SEC("CT Branch")) {
+      const g = section("CT Branch", "the CT branch book — revenue, the owner's cut and profitability (Giorgi Kolbaia)");
+      const isBO = r => r["Record Source"] === "closing" && r["Branch Owner"] != null && String(r["Branch Owner"]).trim() !== "";
+      const accum = (src, keyCol, valCol) => { const m2 = new Map(); (src || []).forEach(r => { const k = r[keyCol]; if (k == null || k === "") return; m2.set(k, (m2.get(k) || 0) + num(r[valCol])); }); return m2; };
+      const boSalesUK = accum(DS.sales_salaries, "Unique Key", "Salary");
+      const boHelpUK = accum(DS.helper_salaries, "Unique Key", "Amount Received");
+      const boRefRJ = accum(DS.refunds, "Request Joinkey", "Total refund");
+      const boPnl = rs => {
+        const bill = M["Total Bill"].fn(rs);
+        const cut = rs.reduce((a, r) => a + num(r["Branch Owner Cut"]), 0);
+        const cost = M["Forman Salary"].fn(rs) + M["Driver Salary"].fn(rs)
+          + rs.reduce((a, r) => a + (boHelpUK.get(r["Unique Key"]) || 0) + (boSalesUK.get(r["Unique Key"]) || 0), 0)
+          + M["Car Expense"].fn(rs) + M["Fuel Expense"].fn(rs) + M["Hotel Expense"].fn(rs) + M["Other Expenses"].fn(rs) + M["Toll Expense"].fn(rs) + M["Truck Expense"].fn(rs)
+          + rs.reduce((a, r) => a + (boRefRJ.get(r["Request Joinkey"]) || 0), 0);
+        const op = bill - cost;
+        return { jobs: rs.length, bill, cut, op, opm: bill ? op / bill : null };
+      };
+      const boMonth = (y2, m2) => withMonth(y2, m2, () => RS.filtered("closing", closing)).filter(r => r["Record Source"] === "closing");
+      const mAll = boMonth(curY, mo), bo = mAll.filter(isBO);
+      const p = boPnl(bo), pr = boPnl(mAll.filter(r => !isBO(r)));
+      const pLY = boPnl(boMonth(curY - 1, mo).filter(isBO)), pPM = boPnl(boMonth(PMY, PM).filter(isBO));
+      const kg3 = document.createElement("div"); kg3.className = "mrx-grid k"; kg3.style.gridColumn = "1/-1"; g.appendChild(kg3);
+      [ { l: "CT Branch Jobs", v: fmtN(p.jobs), c: p.jobs, ly: pLY.jobs, pm: pPM.jobs, icon: KIC.truck },
+        { l: "CT Branch Revenue", v: money(p.bill), c: p.bill, ly: pLY.bill, pm: pPM.bill, icon: KIC.dollar },
+        { l: "Owner Cut (Giorgi)", v: money(p.cut), c: p.cut, ly: pLY.cut, pm: pPM.cut, icon: KIC.tag },
+        { l: "Gross Margin (after cut)", v: pct(p.opm), c: p.opm, ly: pLY.opm, pm: pPM.opm, icon: KIC.pct }
+      ].forEach(k => kpiTile(kg3, k));
+      // owner cut + branch revenue, 14-month momentum
+      const boM = (() => { const out = []; let y2 = curY, m2 = mo; for (let i = 0; i < 14; i++) { out.unshift({ y: y2, m: m2, k: MS[m2] + " " + String(y2).slice(2) }); m2--; if (m2 < 1) { m2 = 12; y2--; } } return out; })();
+      const cutT = boM.map(x => ({ k: x.k, v: reduceMonth("closing", x.y, x.m, rs => rs.filter(isBO).reduce((a, r) => a + num(r["Branch Owner Cut"]), 0)) || 0 }));
+      const brevT = boM.map(x => ({ k: x.k, v: reduceMonth("closing", x.y, x.m, rs => M["Total Bill"].fn(rs.filter(isBO))) || 0 }));
+      const cTr = combo(g, "Owner cut & branch revenue — momentum", "last 14 months", cutT, "His Cut", moneyC, brevT, "Branch revenue", moneyC, { headVal: money(p.cut) });
+      note(cTr, `Bars = what Giorgi took as branch owner each month; line = the revenue of the jobs it came from. His cut counts ONLY when he's in a Sales-Person slot — his own foreman jobs never appear here.`, "how");
+      // by move type (Local vs Long Distance — merged display rule), with the vs-rest read in the note
+      const byT = (() => { const g2 = {}; bo.forEach(r => { const t = mtKey((r["Moving Type"] == null || r["Moving Type"] === "") ? "Not recorded" : String(r["Moving Type"])); (g2[t] = g2[t] || []).push(r); });
+        return Object.entries(g2).map(([t, rs]) => Object.assign({ t }, boPnl(rs))).sort((a, b) => b.bill - a.bill); })();
+      if (byT.length) {
+        const mgnBefore = p.bill ? (p.op + p.cut) / p.bill : null;
+        const btH = `<table class="mrx-tbl"><thead><tr><th>Move type</th><th>Jobs</th><th>Revenue</th><th>His Cut</th><th>Gross Profit</th><th>Gross Margin</th></tr></thead><tbody>${
+          byT.map(r => `<tr><td>${esc(r.t)}</td>${td(fmtN(r.jobs))}${td(money(r.bill))}${td(money(r.cut))}${td(money(r.op))}${td(r.opm == null ? "—" : pct(r.opm), "font-weight:800")}</tr>`).join("")
+        }<tr class="tot"><td>Total</td>${td(fmtN(p.jobs))}${td(money(p.bill))}${td(money(p.cut))}${td(money(p.op))}${td(p.opm == null ? "—" : pct(p.opm))}</tr></tbody></table>`;
+        tableCard(g, "CT branch by move type", monLbl + " · gross profit after his cut", btH, { span2: false, icon: KIC.grid, headVal: money(p.bill), noteKind: "how", note: `Long Distance combines Regular + Straight moving. Cut % of revenue: ${p.bill ? pct(p.cut / p.bill) : "—"}. Margin BEFORE his cut would be ${mgnBefore == null ? "—" : pct(mgnBefore)}; the rest of the business ran ${pr.opm == null ? "—" : pct(pr.opm)} this month.` });
+      } else {
+        const ec = card(g, "CT branch by move type", monLbl, { icon: KIC.grid });
+        const eb = document.createElement("div"); eb.className = "mrx-box"; eb.style.height = "140px"; ec.appendChild(eb); emptyBox(eb, "No branch-owner jobs in " + monLbl);
+      }
+      // by foreman — chart + table pair (Tornike 2026-07-16: "like the Branch Owner page"; work-focused
+      // columns, selected month, pay = the FULL Forman Salary so it ties out with that page)
+      const byF = (() => { const g2 = {}; bo.forEach(r => { const f = (r.Foreman == null || String(r.Foreman).trim() === "") ? "Not recorded" : String(r.Foreman); (g2[f] = g2[f] || []).push(r); });
+        return Object.entries(g2).map(([f, rs]) => { const pay = M["Forman Salary"].fn(rs), hrs = M["Hours Worked by Forman"].fn(rs), bill = M["Total Bill"].fn(rs);
+          return { f, jobs: rs.length, hrs, pay, rate: hrs ? pay / hrs : null, pctb: bill ? pay / bill : null }; }).sort((a, b) => b.jobs - a.jobs); })();
+      if (byF.length) {
+        rankBars(g, "CT branch — jobs by foreman", byF.map(r => ({ k: r.f, v: r.jobs })), fmtN, { top: 12, sub: monLbl + " · who ran his jobs", noteKind: "how", note: "Job counts on branch-owner jobs only — a foreman's other work doesn't appear here. The table beside carries hours, pay and rate." });
+        const totHrs = M["Hours Worked by Forman"].fn(bo), totPay = M["Forman Salary"].fn(bo);
+        const fH = `<table class="mrx-tbl"><thead><tr><th>Foreman</th><th>Jobs</th><th>Hours</th><th>Foreman Pay</th><th>$/hr</th><th>Pay % of revenue</th></tr></thead><tbody>${
+          byF.map(r => `<tr><td>${esc(r.f)}</td>${td(fmtN(r.jobs))}${td(fmt1(r.hrs))}${td(money(r.pay))}${td(r.rate == null ? "—" : money(r.rate), "font-weight:800")}${td(r.pctb == null ? "—" : pct(r.pctb))}</tr>`).join("")
+        }<tr class="tot"><td>Total</td>${td(fmtN(p.jobs))}${td(fmt1(totHrs))}${td(money(totPay))}${td(totHrs ? money(totPay / totHrs) : "—")}${td(p.bill ? pct(totPay / p.bill) : "—")}</tr></tbody></table>`;
+        tableCard(g, "CT branch by foreman — hours & pay", monLbl + " · pay = full company pay", fH, { span2: false, icon: KIC.grid, headVal: money(totPay), noteKind: "how", note: "Foreman Pay is the FULL company pay (hourly + packing + review + CF + company-tip part) — the same Forman Salary the Branch Owner page uses, so the two tie out. Customer tips are not included. $/hr = pay ÷ hours on these jobs; Pay % of revenue = pay ÷ the jobs' revenue." });
+      }
+      // per-job detail for the selected period
+      const det = bo.slice().sort((a, b) => String(b.Date || "").localeCompare(String(a.Date || "")))
+        .map(r => ({ dt: String(r.Date || "").slice(0, 10), cust: r.Customer, req: r["Request #"], t: mtKey(String(r["Moving Type"] || "—")), bill: num(r["Total Bill"]), cut: num(r["Branch Owner Cut"]) }));
+      if (det.length) paginatedTable(g, "CT branch jobs — every job", monLbl + " · " + fmtN(det.length) + " jobs · newest first",
+        [{ label: "Move date" }, { label: "Customer" }, { label: "Request #" }, { label: "Move type" }, { label: "Revenue", align: "right" }, { label: "Cut %", align: "right" }, { label: "His Cut", align: "right" }],
+        det,
+        r => `<tr><td>${esc(r.dt || "—")}</td><td>${esc(r.cust || "—")}</td>${td(esc(String(r.req || "—")))}${td(esc(r.t))}${td(money(r.bill), "text-align:right")}${td(r.bill ? pct(r.cut / r.bill) : "—", "text-align:right")}${td(money(r.cut), "text-align:right;font-weight:800")}</tr>`,
+        { icon: KIC.grid, headVal: money(p.cut) + " cut" });
+    }
+
+    part(3, "Sales", "demand, funnel and the sales team");
+
+    /* ---- 06 · Demand & Lead Funnel ---- */
+    if (SEC("Demand & Lead Funnel")) {
+      const g = section("Demand & Lead Funnel", "conversion this month and rep performance");
+      const cFun = funnel(g, "Lead Funnel", monLbl + " · Total → Qualified → Confirmed", [ { k: "Total Leads", v: leadsN || 0 }, { k: "Qualified", v: qual || 0 }, { k: "Confirmed", v: conf || 0 } ], { headVal: pct(bk), chips: dchips([[bk, bkLY, "YoY"], [bk, bkPM, "MoM"]]) });
+      // C2: bk is the canonical dual-basis rate (confirmed by booked date ÷ qualified by
+      // create date), so it can legitimately differ from Confirmed ÷ Qualified in the bars.
+      if (cFun) note(cFun, `Total and Qualified count leads created in ${MON[mo]}; Confirmed counts jobs booked this month (by booked date) — the same basis as the Booking Rate ${pct(bk)} (confirmed by booked date ÷ qualified created), so the funnel matches the official rate. From all incoming leads (bad included) it is ${pct(leadsN ? conf / leadsN : 0)}.`, "how");
+      // S5: the lead-status donut lives here, next to the funnel it explains
+      donut(g, "Lead status mix", segReduce("moveboard", "Status Category", rs => rs.length), fmtN, { center: fmtN(leadsN), centerLbl: "leads" });
+      const badCur = segReduce("moveboard", "Status", rs => rs.length, curY, mo, { pre: r => r["Status Category"] === "Bad Lead" }).slice(0, 6);
+      const badLY = segReduce("moveboard", "Status", rs => rs.length, curY - 1, mo, { pre: r => r["Status Category"] === "Bad Lead" });
+      const badMap = {}; badLY.forEach(r => badMap[r.k] = r.v);
+      groupedBars(g, "Bad Leads by reason — YoY", badCur.map(r => r.k), badCur.map(r => badMap[r.k] || 0), String(curY - 1), badCur.map(r => r.v), String(curY), fmtN, { sub: MON[mo] });
+      const badRateT = momReduce("moveboard", 12, rs => { const t = rs.length, b = rs.filter(r => r["Status Category"] === "Bad Lead").length; return t ? b / t : null; });
+      const cBad = lines(g, "Bad-lead rate", "last 12 months", [{ label: "Bad %", series: badRateT, color: NEG }], pct, { headVal: pct(lastV(badRateT)) });
+      // evaluative, but only when the month actually IS an outlier — silence beats filler
+      {
+        const bs = badRateT.filter(r => r.v != null), bCur = bs.length ? bs[bs.length - 1].v : null;
+        if (bCur != null && bs.length >= 6) {
+          const others = bs.slice(0, -1).map(r => r.v);
+          if (bCur >= Math.max(...others)) note(cBad, `${pct(bCur)} is the WORST bad-lead rate of the last ${bs.length} months — check "Bad leads by source" to see which channel degraded.`);
+          else if (bCur <= Math.min(...others)) note(cBad, `${pct(bCur)} is the cleanest lead month of the last ${bs.length} — whatever changed in channel mix, it's working.`);
+        }
+      }
+      const badBySrc = segReduce("moveboard", "Source", rs => rs.filter(r => r["Status Category"] === "Bad Lead").length, curY, mo).filter(r => r.v > 0 && r.k !== "—").sort((a, b) => b.v - a.v);
+      rankBars(g, "Bad leads by source", badBySrc, fmtN, { top: 10, sub: monLbl, note: "Which channels send junk — pair with Marketing's lead-funnel table to see each channel's bad share." });
+      // keep the reps with the MOST leads (not the best rates) — slicing by rate hid exactly the
+      // under-performers this card exists to expose. C2: booking rate per rep is the canonical
+      // dual-basis formula (RS.bookingRate), never an inline ratio.
+      const bookedByAssign = groupByCol(bookedRowsFor(curY, mo), "Assigned");
+      // Drop the UNASSIGNED bucket. segReduce turns every null/empty group key into the placeholder "—",
+      // and an unassigned lead is by definition one nobody booked → bookingRate returns 0 (not null), so it
+      // cleared the `v != null` guard and rendered as a named rep at 0.0%. It also outranks real reps on
+      // volume, stealing one of the 12 slots. Safe to drop: bullet's headline is the TARGET (the global
+      // "Booking Rate" measure), never a sum of these bars, so nothing stops reconciling. Filter BEFORE
+      // slice(0,12) so a real 13th rep takes the freed slot.
+      const spBook = segReduce("moveboard", "Assigned", rs => rs, curY, mo)
+        .filter(r => !isBlankKey(r.k))
+        .map(r => ({ k: r.k, rows: r.rows, qual: qualOf(r.rows), v: RS.bookingRate(r.rows, bookedByAssign[r.k] || []) }))
+        .filter(r => r.v != null && r.qual >= MIN_QUAL).sort((a, b) => b.qual - a.qual).slice(0, 12);
+      bullet(g, "Booking rate by salesperson", monLbl + " · vs team average", spBook, pct, bk || 0, { noteKind: "how", note: `Reps with at least ${MIN_QUAL} qualified leads this month, ordered by volume (max 12). Bars below the lime line are converting under the team average (${pct(bk)}) — coaching targets. Booking rate = jobs booked this month (by booked date) ÷ qualified leads created (qualified = leads minus bad leads). A rep below ${MIN_QUAL} qualified leads is hidden rather than shown at a rate their lead base can't support — one lead and one booking would read as 100%. Reps who book jobs WITHOUT Moveboard-assigned leads (e.g. Peter Montanaro) have no lead base at all, so no rate exists for them — they appear in the revenue tables instead.` });
+      // ("Leads lost to capacity" estimate REMOVED from every report — Tornike 2026-07-13)
+    }
+
+    /* ---- 09 · Leads Segments ---- */
+    if (SEC("Leads Segments")) {
+      const g = section("Leads Segments", "booking funnel by service type, cubic feet, state and size");
+      // C2: one created-scope + one booked-scope row set per year, shared by all four tables —
+      // every Booking % below is the canonical RS.bookingRate, never an inline ratio.
+      const ftCreated = reduceMonth("moveboard", curY, mo, rs => rs) || [];
+      const ftBooked = bookedRowsFor(curY, mo);
+      const ftCreatedLY = reduceMonth("moveboard", curY - 1, mo, rs => rs) || [];
+      const ftBookedLY = bookedRowsFor(curY - 1, mo);
+      function funnelTable(title, col, sortFn) {
+        const yy = String(curY - 1).slice(2);
+        const bkGrp = groupByCol(ftBooked, col), bkGrpLY = groupByCol(ftBookedLY, col);
+        // Confirmed is BOOKED-DATE basis everywhere (Tornike 2026-07-13): confirmed jobs whose
+        // Booked Date falls in the month (any create date) — the exact Booking-% numerator, so
+        // Confirmed ÷ Qualified = Booking % in every row. Total/Qualified/Bad count leads CREATED
+        // in the month (the dual basis of the canonical rate).
+        const dAll = Object.entries(groupByCol(ftCreated, col)).map(([k, rows2]) => { const tot = rows2.length, bad = rows2.filter(x => x["Status Category"] === "Bad Lead").length, q = tot - bad, c = (bkGrp[k] || []).filter(x => x["Status Category"] === "Confirmed").length; return { k, tot, q, c, bad, book: RS.bookingRate(rows2, bkGrp[k] || []) }; }).sort(sortFn || ((a, b) => b.tot - a.tot));
+        const d = dAll.filter(r => r.k !== "—").slice(0, 12);  // blank segment hidden per feedback; Total row still counts it
+        if (!d.length) return;
+        const plyMap = {};
+        Object.entries(groupByCol(ftCreatedLY, col)).forEach(([k, rows2]) => { plyMap[k] = RS.bookingRate(rows2, bkGrpLY[k] || []); });
+        // Total row covers ALL segments (both years) — the table body shows the top 12 by volume
+        const tot = dAll.reduce((a, b) => ({ tot: a.tot + b.tot, q: a.q + b.q, c: a.c + b.c, bad: a.bad + b.bad }), { tot: 0, q: 0, c: 0, bad: 0 });
+        const totBook = RS.bookingRate(ftCreated, ftBooked), totBookLY = RS.bookingRate(ftCreatedLY, ftBookedLY);
+        const bkCell = (cur, ply) => { if (cur == null) return td("—"); const better = ply == null ? null : cur >= ply; return td(pct(cur), better == null ? "" : `color:${better ? POS : NEG};font-weight:800`); };
+        const rowsH = d.map(r => `<tr><td>${esc(r.k)}</td>${td(fmtN(r.tot))}${td(fmtN(r.q))}${td(fmtN(r.c))}${td(fmtN(r.bad))}${bkCell(r.book, plyMap[r.k])}${td(plyMap[r.k] == null ? "—" : pct(plyMap[r.k]), "color:" + FAINT)}</tr>`).join("");
+        const trow = `<tr class="tot"><td>Total</td>${td(fmtN(tot.tot))}${td(fmtN(tot.q))}${td(fmtN(tot.c))}${td(fmtN(tot.bad))}${td(totBook == null ? "—" : pct(totBook))}${td(totBookLY == null ? "—" : pct(totBookLY), "color:" + FAINT)}</tr>`;
+        const blankN = (dAll.find(r => r.k === "—") || {}).tot || 0;
+        const colLbl = col === "Service Type" ? "Service type" : col === "CF Range" ? "Cubic feet (CF range)" : col;
+        // Methodology boilerplate REMOVED (Tornike 2026-07-14: same text repeated on every
+        // table) — the dual-basis rule is explained ONCE on the Lead Funnel card; here we
+        // keep only this table's own caveats (top-12 cut / unlisted blanks), when they apply.
+        const extras = (dAll.length > 12 ? `Top 12 of ${dAll.length} segments — the Total row covers all of them. ` : "") +
+          (blankN ? `${fmtN(blankN)} leads with no ${colLbl.toLowerCase()} recorded count in Total but aren't listed.` : "");
+        tableCard(g, title, monLbl, `<table class="mrx-tbl"><thead><tr><th>${esc(colLbl)}</th><th>Total</th><th>Qualified</th><th>Confirmed</th><th>Bad leads</th><th>Booking %</th><th>vs '${yy}</th></tr></thead><tbody>${rowsH}${trow}</tbody></table>`, { span2: false, icon: KIC.grid, headVal: fmtN(tot.tot), noteKind: "how", note: extras || undefined });
+      }
+      // Layout (Tornike 2026-07-16): Service Type + State on the LEFT, Cubic Feet + Size on the RIGHT —
+      // in the 2-col grid the append order below (ServiceType, CF, State, Size) places each where it belongs.
+      // sizes sort small→large: Single Item, Studio, 1-4 bedrooms (condo before house), then Storage/Office
+      const sizeKey = s => { const t = String(s).toLowerCase();
+        if (/single item/.test(t)) return 1;
+        if (/studio/.test(t)) return 5;
+        const m = t.match(/(\d+)\s*(bed|br\b)/); if (m) return 10 * (+m[1]) + (/house/.test(t) ? 1 : 0);
+        if (/storage/.test(t)) return 100;
+        if (/office/.test(t)) return 101;
+        return 200; };
+      // CF ranges sort by their RANGE (numeric start; "Over …" last), not by lead volume
+      const cfKey = s => { const m = String(s).match(/\d+/); if (!m) return Infinity; return (+m[0]) + (/over|\+|>/i.test(String(s)) ? 0.5 : 0); };
+      funnelTable("Leads by service type", "Service Type");                                                                            // left-top
+      funnelTable("Leads by cubic feet (CF range)", "CF Range", (a, b) => cfKey(a.k) - cfKey(b.k));                                    // right-top
+      funnelTable("Leads by state", "State Name");                                                                                     // left-bottom
+      funnelTable("Leads by size of move", "Size of Move", (a, b) => sizeKey(a.k) - sizeKey(b.k) || String(a.k).localeCompare(String(b.k)));  // right-bottom
+    }
+
+
+    /* ---- 09 · Sales Team ---- */
+    if (SEC("Sales Team Performance")) {
+      const g = section("Sales Team Performance", "per-rep scorecard and large-move conversion");
+      // trips (grouped multi-job hauls, incl. hauls for OTHER movers' customers) carry NO sales person by
+      // design — the blank bucket is excluded so per-rep revenue never shows an unattributable "—" row
+      const revSP = segSeries("closing", "Revenue", "Sales Person").filter(r => r.k !== "—"), opSP = segSeries("closing", "Operational Profit by Formula", "Sales Person");
+      const opMap = {}; opSP.forEach(r => opMap[r.k] = r.v);
+      // C30: revenue keys on closing "Sales Person", lead columns on Moveboard "Assigned" —
+      // join after TRIM + CASE-ONLY normalization (never fuzzy matching: wrongly merging two
+      // reps' money is worse than a visible "—").
+      const normName = s => String(s == null ? "" : s).trim().toLowerCase();
+      const mb = segReduce("moveboard", "Assigned", rs => rs, curY, mo);
+      // C2: per-rep booking rate is the canonical dual-basis helper
+      const spBooked = groupByCol(bookedRowsFor(curY, mo), "Assigned");
+      // Confirmed = booked-date basis (Tornike 2026-07-13) — the rep's Booking-% numerator
+      const mbMap = {}; mb.forEach(r => { const q = r.rows.filter(x => x["Status Category"] !== "Bad Lead").length, c = (spBooked[r.k] || []).filter(x => x["Status Category"] === "Confirmed").length, bad = r.rows.filter(x => x["Status Category"] === "Bad Lead").length; mbMap[normName(r.k)] = { q, c, bad, tot: r.rows.length, book: RS.bookingRate(r.rows, spBooked[r.k] || []), dead: r.rows.length ? bad / r.rows.length : null }; });
+      const refSP = {}; segReduce("refunds", "Sales Person", rs => Math.abs(rs.reduce((a, x) => a + num(x["Total refund"]), 0)), curY, mo).forEach(r => refSP[normName(r.k)] = r.v);
+      const reps = revSP.slice(0, 14).map(r => ({ k: r.k, rev: r.v, op: opMap[r.k] || 0, ref: refSP[normName(r.k)] || 0, m: mbMap[normName(r.k)] || {} }));
+      const rmax = Math.max(...reps.map(r => r.rev));
+      const rowsH = reps.map(r => `<tr><td>${esc(r.k)}</td>
+        <td class="bar"><i style="width:${(r.rev / rmax * 100).toFixed(1)}%"></i><span>${money(r.rev)}</span></td>
+        ${td(money(r.op))}${td(r.ref ? money(r.ref) : "—", r.ref ? `color:${NEG};font-weight:800` : "")}${td(r.ref && r.rev ? pct(r.ref / r.rev) : "—", r.ref && r.rev && r.ref / r.rev > 0.02 ? `color:${NEG};font-weight:800` : "")}${td(r.m.q == null ? "—" : fmtN(r.m.q), r.m.q == null ? "color:" + FAINT : "")}${td(r.m.c == null ? "—" : fmtN(r.m.c), r.m.c == null ? "color:" + FAINT : "")}
+        ${(() => { const thin = r.m.book == null || (r.m.q || 0) < MIN_QUAL;   // <10 qualified → no rate, per Tornike's floor
+          return td(thin ? "—" : pct(r.m.book), thin ? "color:" + FAINT : `color:${r.m.book >= (bk || 0) ? POS : NEG};font-weight:800`); })()}
+        ${td(r.m.dead == null ? "—" : pct(r.m.dead), r.m.dead == null ? "" : `color:${r.m.dead > .3 ? NEG : POS};font-weight:800`)}</tr>`).join("");
+      tableCard(g, "Salesperson scorecard", monLbl + " · top " + reps.length + " reps by revenue", `<table class="mrx-tbl"><thead><tr><th>Sales Person</th><th>Revenue</th><th>Gross Profit</th><th>Refunds</th><th>Refund %</th><th>Qualified</th><th>Confirmed</th><th>Booking %</th><th>Bad-lead %</th></tr></thead><tbody>${rowsH}</tbody></table>`, { icon: KIC.grid, headVal: money(reps.reduce((a, r) => a + r.rev, 0)), noteKind: "how", note: `Bars = revenue share. Refunds / Refund % = money refunded on the rep's jobs as a share of their revenue (red above 2%). Booking % = jobs booked this month (by booked date) ÷ qualified leads created (qualified = all leads minus bad leads); green above the team average (${pct(bk)}). It shows "—" for any rep with fewer than ${MIN_QUAL} qualified leads — the rate would be noise at that volume — but the rep keeps their row, because their revenue is real either way. Partners who bring already-confirmed jobs without working Moveboard leads (e.g. Peter Montanaro) show "—" across all lead columns: they have no lead base, so no funnel numbers exist for them. Bad-lead % red when high. Gross Profit is before refunds. Lead columns come from Moveboard assignment, revenue and refunds from closing sheets — names are matched after trimming spaces and ignoring case.` });
+      const bigPre = { pre: r => String(r["Big Job Status"]) === "Yes" };  // clean flag, not a CF-range regex
+      const bigBooked = groupByCol(bookedRowsFor(curY, mo, bigPre.pre), "Assigned");
+      const bigMb = segReduce("moveboard", "Assigned", rs => rs, curY, mo, bigPre).map(r => { const q = r.rows.filter(x => x["Status Category"] !== "Bad Lead").length, c = (bigBooked[r.k] || []).filter(x => x["Status Category"] === "Confirmed").length; return { k: r.k, q, c, book: RS.bookingRate(r.rows, bigBooked[r.k] || []) }; }).filter(r => !isBlankKey(r.k) && r.q >= MIN_QUAL).sort((a, b) => b.q - a.q).slice(0, 10);
+      const revSPly = {}; segSeries("closing", "Revenue", "Sales Person", curY - 1, mo).forEach(r => revSPly[r.k] = r.v);
+      const opSPly = {}; segSeries("closing", "Operational Profit by Formula", "Sales Person", curY - 1, mo).forEach(r => opSPly[r.k] = r.v);
+      // top 14 (was 10): with ~13 active reps the old cut silently hid the newest hires
+      // (Peter Montanaro ranked #11 with real revenue and never appeared) — show them all.
+      const topReps = revSP.slice(0, 14);
+      groupedBars(g, "Revenue by salesperson — YoY", topReps.map(r => r.k), topReps.map(r => revSPly[r.k] || 0), String(curY - 1), topReps.map(r => r.v), String(curY), money, { sub: MON[mo] });
+      groupedBars(g, "Gross profit by salesperson — YoY", topReps.map(r => r.k), topReps.map(r => opSPly[r.k] || 0), String(curY - 1), topReps.map(r => opMap[r.k] || 0), String(curY), money, { sub: MON[mo] + " · before refunds" });
+      // per-rep lead-funnel YoY (deck s31-35): Qualified / Confirmed / Booking-rate, prior year vs current (Tornike 2026-07-15)
+      const spBookedLY = groupByCol(bookedRowsFor(curY - 1, mo), "Assigned"), mbMapLY = {};
+      segReduce("moveboard", "Assigned", rs => rs, curY - 1, mo).forEach(r => { const q = r.rows.filter(x => x["Status Category"] !== "Bad Lead").length, c = (spBookedLY[r.k] || []).filter(x => x["Status Category"] === "Confirmed").length; mbMapLY[normName(r.k)] = { q, c, book: RS.bookingRate(r.rows, spBookedLY[r.k] || []) }; });
+      const lyM = r => mbMapLY[normName(r.k)] || {}, cyM = r => mbMap[normName(r.k)] || {};
+      // Moveboard-based charts EXCLUDE reps with no lead base in either year (Tornike 2026-07-16:
+      // partners like Peter Montanaro bring already-confirmed jobs — no leads, so no funnel/booking
+      // numbers exist for them; they stay in the revenue/profit charts above).
+      const topRepsMb = topReps.filter(r => cyM(r).q != null || lyM(r).q != null);
+      groupedBars(g, "Qualified leads by salesperson — YoY", topRepsMb.map(r => r.k), topRepsMb.map(r => lyM(r).q || 0), String(curY - 1), topRepsMb.map(r => cyM(r).q || 0), String(curY), fmtN, { sub: MON[mo] });
+      groupedBars(g, "Confirmed jobs by salesperson — YoY", topRepsMb.map(r => r.k), topRepsMb.map(r => lyM(r).c || 0), String(curY - 1), topRepsMb.map(r => cyM(r).c || 0), String(curY), fmtN, { sub: MON[mo] });
+      // Booking-rate YoY: blank each YEAR independently below the qualified floor — a rep can clear it this
+      // year and not last. `|| 0` would be a lie twice over here (it plots "no lead base" as a real 0%), so
+      // thin/absent years pass null and Chart.js simply draws no bar. topReps itself is NOT filtered: it is
+      // shared with the two count charts above, where a low-volume rep's raw counts are perfectly legitimate.
+      const bkYr = m => (m.book == null || (m.q || 0) < MIN_QUAL) ? null : m.book;
+      groupedBars(g, "Booking rate by salesperson — YoY", topRepsMb.map(r => r.k), topRepsMb.map(r => bkYr(lyM(r))), String(curY - 1), topRepsMb.map(r => bkYr(cyM(r))), String(curY), pct, { sub: MON[mo] + " · jobs booked ÷ qualified", headVal: bk == null ? "—" : pct(bk) + " team avg", noteKind: "how", note: `Each rep's booking rate this ${MON[mo]} vs last. A year is left blank when that rep had fewer than ${MIN_QUAL} qualified leads in it — including reps who weren't here last year — so a missing bar means "too few leads to judge", never a genuine 0%.` });
+      // C27: the filter is the Moveboard "Big Job" flag — the title must not claim a CF threshold
+      // Tornike 2026-07-15: large moves had TWO cards. The bullet's only extra signal was "rate vs team
+      // avg", which now rides on THIS chart as a per-rep right-edge % — green at/above the team average,
+      // red below (same convention as the scorecard above). NOTE: the % is r.book (canonical
+      // RS.bookingRate — dual date basis, capped at 100%), NEVER r.c/r.q, so it can legitimately differ
+      // from dividing the two bars by eye. bullet() itself stays: "Booking rate by salesperson" still uses it.
+      if (bigMb.length) groupedBars(g, "Large moves (Big Job flag) — Qualified vs Confirmed", bigMb.map(r => r.k), bigMb.map(r => r.q), "Qualified", bigMb.map(r => r.c), "Confirmed", fmtN, {
+        sub: monLbl + " · % = booking rate" + (bk == null ? "" : " · team avg " + pct(bk)),
+        catLab: bigMb.map(r => r.book == null ? null : { txt: pct(r.book), color: r.book >= (bk || 0) ? POS : NEG }),
+        noteKind: "how",
+        note: `Big-Job-flagged leads per rep: qualified (leads minus bad leads, by create date) vs confirmed (by booked date). The % at each row's right edge is that rep's large-move booking rate — green at or above the ${pct(bk)} team average, red below. Because qualified and confirmed use different date bases, the % is the canonical booking rate and won't always equal the two bars divided.` });
+    }
+
+    part(4, "Marketing", "channels, ROI and the phone system");
+    /* ---- 10 · Marketing ROI (theme split A of former "Marketing & Channels") ---- */
+    if (SEC("Marketing ROI")) {
+      const g = section("Marketing ROI", "ad spend and what it returns");
+      // ===== RETURN (headline) =====
+      // ad feed splits post cards by state ("Post Card - MA/DE/NJ…") while bookings pool them as "Post Card" — align both sides so ROI isn't falsely 0×
+      const normSrc = s => /post\s*card/i.test(String(s)) ? "Post Card" : (blank(s) ? "—" : String(s));
+      const adSrcMonth = (y, m) => { const o = {}; (reduceMonth("card_expenses", y, m, rs => rs.filter(r => Number(r["Is Advertising"]) === 1)) || []).forEach(r => { const s2 = normSrc(r.Source); o[s2] = (o[s2] || 0) + num(r.Amount); }); return o; };
+      const bySrcMonth = (measure, y, m) => { const o = {}; segSeries("closing", measure, "Source", y, m).forEach(r => { const k = normSrc(r.k); o[k] = (o[k] || 0) + r.v; }); return o; };
+      // C25: the ad feed lags ~1 month — but only fall back to the PREVIOUS month when the
+      // SELECTED month has no posted ad spend yet. An older report month shows its own ROI.
+      const adSel = adSrcMonth(curY, mo);
+      const selHasSpend = Object.keys(adSel).some(k => adSel[k] > 0 && k !== "—");
+      const roiY = selHasSpend ? curY : PMY, roiM = selHasSpend ? mo : PM, roiFellBack = !selHasSpend;
+      const adPM = selHasSpend ? adSel : adSrcMonth(roiY, roiM), revPMs = bySrcMonth("Revenue", roiY, roiM), opPMs = bySrcMonth("Operational Profit by Formula", roiY, roiM), jobPMs = bySrcMonth("Total Jobs", roiY, roiM);
+      const adLYr = adSrcMonth(roiY - 1, roiM), revLYr = bySrcMonth("Revenue", roiY - 1, roiM);
+      const roiLbl = MON[roiM] + " " + roiY;
+      // hide channels we no longer buy: only sources with ad spend in the CURRENT year appear in the ROI suite
+      const src2026 = new Set(); (DS.card_expenses || []).forEach(r => { if (coRow(r) && Number(r["Is Advertising"]) === 1 && String(r["Transaction Date"] || "").slice(0, 4) === String(curY) && num(r.Amount)) src2026.add(normSrc(r.Source)); });
+      const paidPM = Object.keys(adPM).filter(k => adPM[k] > 0 && k !== "—" && src2026.has(k)).sort((a, b) => adPM[b] - adPM[a]);
+      if (paidPM.length) {
+        const roiRows = paidPM.map(k => { const roi = adPM[k] ? (revPMs[k] || 0) / adPM[k] : null; const roiLY = adLYr[k] ? (revLYr[k] || 0) / adLYr[k] : null; return { k, ad: adPM[k], rev: revPMs[k] || 0, op: opPMs[k] || 0, jobs: jobPMs[k] || 0, roi, roiLY, ppd: adPM[k] ? (opPMs[k] || 0) / adPM[k] : null }; });
+        const rt = roiRows.reduce((a, r) => ({ ad: a.ad + r.ad, rev: a.rev + r.rev, op: a.op + r.op }), { ad: 0, rev: 0, op: 0 });
+        const roiCol = v => v >= 5 ? POS : v >= 2 ? WARN : NEG;
+        const growCell = r => { if (r.roi == null || r.roiLY == null || !r.roiLY) return td("—", "color:" + FAINT); const d2 = (r.roi - r.roiLY) / r.roiLY; return td(`${d2 >= 0 ? "▲" : "▼"} ${Math.abs(d2 * 100).toFixed(0)}%`, `color:${d2 >= 0 ? POS : NEG};font-weight:800`); };
+        const yyR = String(roiY - 1).slice(2);
+        const roiHtml = `<table class="mrx-tbl"><thead><tr><th>Source</th><th>Ad Spend</th><th>Revenue</th><th>ROAS</th><th>ROAS vs '${yyR}</th><th>Profit / $1 ad</th></tr></thead><tbody>${roiRows.map(r => `<tr><td>${esc(r.k)}</td>${td(money(r.ad))}${td(money(r.rev))}${td(r.roi == null ? "—" : r.roi.toFixed(1) + "×", r.roi == null ? "" : `color:${roiCol(r.roi)};font-weight:800`)}${growCell(r)}${td(r.ppd == null ? "—" : "$" + fmt1(r.ppd), r.ppd == null ? "" : `color:${r.ppd >= 3 ? POS : r.ppd >= 1 ? WARN : NEG};font-weight:800`)}</tr>`).join("")}<tr class="tot"><td>All paid</td>${td(money(rt.ad))}${td(money(rt.rev))}${td(rt.ad ? (rt.rev / rt.ad).toFixed(1) + "×" : "—")}${td("")}${td(rt.ad ? "$" + fmt1(rt.op / rt.ad) : "—")}</tr></tbody></table>`;
+        tableCard(g, "Return on ad spend by source", roiLbl + (roiFellBack ? " · latest fully-posted ad month" : ""), roiHtml, { icon: KIC.grid, headVal: (rt.ad ? (rt.rev / rt.ad).toFixed(1) + "×" : "—") + " blended", noteKind: "how", note: `${roiFellBack ? `Ad spend posts ~1 month behind and ${MON[mo]}'s hasn't landed yet, so returns are shown for ${roiLbl} (the latest complete ad month) — ${MON[mo]}'s numbers fill in once the feed lands. ` : ""}ROAS = revenue ÷ ad spend; “ROAS vs '${yyR}” is the growth of that return vs the same month last year; Profit/$1 = gross profit per ad dollar (before refunds). Green ROAS ≥5×, amber ≥2×, red below. Post-card variants pooled.` });
+        // ===== 2 · EFFICIENCY ===== (headlines are BLENDED totals — summing per-channel ratios is meaningless)
+        const totAdJobs = paidPM.reduce((a, k) => a + (jobPMs[k] || 0), 0);
+        rankBars(g, "Gross profit per $1 of ad spend", paidPM.map(k => ({ k, v: adPM[k] ? (opPMs[k] || 0) / adPM[k] : 0 })).filter(r => r.v > 0).sort((a, b) => b.v - a.v), v => "$" + fmt1(v), { top: 10, sub: roiLbl, headVal: rt.ad ? "$" + fmt1(rt.op / rt.ad) : "—", noteKind: "how", note: "Each ad dollar's gross-profit return, by channel (before refunds) — the cleanest 'is this channel worth it' number. Headline = blended: total gross profit ÷ total ad spend." });
+        // N32: one name portal-wide for spend ÷ jobs — "Ad cost per completed job"
+        rankBars(g, "Ad cost per completed job", paidPM.map(k => ({ k, v: (jobPMs[k] || 0) > 0 ? adPM[k] / jobPMs[k] : 0 })).filter(r => r.v > 0).sort((a, b) => b.v - a.v), money, { top: 10, sub: roiLbl, headVal: totAdJobs ? money(rt.ad / totAdJobs) : "—", noteKind: "how", note: "Ad spend ÷ completed jobs, per source. Lower is better; the top of the list is where a job costs the most to win. Headline = blended: total ad spend ÷ total completed jobs." });
+        // ===== 3 · TREND & SPEND =====
+        const t3 = []; { let y = roiY, m = roiM; for (let i = 0; i < 3; i++) { t3.push([y, m]); m--; if (m < 1) { m = 12; y--; } } }
+        const adT3 = {}, revT3 = {}; t3.forEach(p => { const a = adSrcMonth(p[0], p[1]), rv = bySrcMonth("Revenue", p[0], p[1]); Object.keys(a).forEach(k => adT3[k] = (adT3[k] || 0) + a[k]); Object.keys(rv).forEach(k => revT3[k] = (revT3[k] || 0) + rv[k]); });
+        const topPaid = paidPM.slice(0, 8);
+        groupedBars(g, "ROAS — latest month vs last 3 months combined", topPaid, topPaid.map(k => adT3[k] ? (revT3[k] || 0) / adT3[k] : 0), "last 3 months combined", topPaid.map(k => adPM[k] ? (revPMs[k] || 0) / adPM[k] : 0), roiLbl, v => v.toFixed(1) + "×", { sub: "revenue ÷ ad spend · which channels are trending up", headVal: (rt.ad ? (rt.rev / rt.ad).toFixed(1) + "×" : "—") });
+      }
+      const adTrend = momReduce("card_expenses", 12, rs => { const ad = rs.filter(r => Number(r["Is Advertising"]) === 1); return ad.length ? ad.reduce((a, r) => a + num(r.Amount), 0) : null; });
+      lines(g, "Advertising spend — momentum", "last 12 months", [ { label: "Ad Spend", series: adTrend, color: VIOLET } ], moneyC, { headVal: money(lastV(adTrend)) });
+
+      // ===== 4 · MULTI-WINDOW ROI GROWTH (deck slides 65-67) =====
+      // ROI = NET return per $1 of ad = (operational profit − ad spend) ÷ ad spend, per source, summed over
+      // the window; shown across 4 years with each year's YoY ROI-growth (arrows/colours). Three windows —
+      // the selected month, its quarter, and year-to-date — smooth single-month noise at two wider scales.
+      // (Pre-2023 data was removed from the warehouse, so the earliest column has no YoY denominator.)
+      const roiWin = (y, months) => { const ad = {}, op = {}; months.forEach(m => { const a = adSrcMonth(y, m), o = bySrcMonth("Operational Profit by Formula", y, m); Object.keys(a).forEach(k => ad[k] = (ad[k] || 0) + a[k]); Object.keys(o).forEach(k => op[k] = (op[k] || 0) + o[k]); }); return { ad, op }; };
+      const roiVal = (ad, op) => ad ? (op - ad) / ad : null;
+      const Qn = Math.floor((mo - 1) / 3), qM = [Qn * 3 + 1, Qn * 3 + 2, Qn * 3 + 3];
+      const ytdM = []; for (let _m = 1; _m <= mo; _m++) ytdM.push(_m);
+      const roiWindows = [
+        { label: MON[mo], sub: `${MON[mo]} each year`, months: [mo] },
+        { label: `Q${Qn + 1} — ${MON[qM[0]]}–${MON[qM[2]]}`, sub: "the full quarter, each year", months: qM },
+        { label: `Year to date — ${MON[1]}–${MON[mo]}`, sub: "January through the selected month, each year", months: ytdM }
+      ];
+      const roiDispYears = [curY - 3, curY - 2, curY - 1, curY];
+      roiWindows.forEach(W => {
+        const per = {}; for (let y = curY - 4; y <= curY; y++) per[y] = roiWin(y, W.months);   // 5 yrs computed → the first shown year still has a YoY denominator
+        const spendRank = {}; roiDispYears.forEach(y => Object.keys(per[y].ad).forEach(k => { if (k !== "—" && per[y].ad[k] > 0) spendRank[k] = Math.max(spendRank[k] || 0, per[y].ad[k]); }));
+        const srcList = Object.keys(spendRank).filter(k => src2026.has(k)).sort((a, b) => spendRank[b] - spendRank[a]).slice(0, 12);   // only channels we still buy
+        if (!srcList.length) return;
+        const roiCell = v => v == null ? `<td style="text-align:right;color:${FAINT}">—</td>` : `<td style="text-align:right;font-weight:800;color:${v >= 3 ? POS : v >= 1 ? WARN : NEG}">$${v.toFixed(2)}</td>`;
+        const growCell = (now, prev) => (now == null || prev == null || !prev) ? `<td style="text-align:right;color:${FAINT}">—</td>` : (function () { const d = (now - prev) / Math.abs(prev); return `<td style="text-align:right;font-weight:800;color:${d >= 0 ? POS : NEG}">${d >= 0 ? "▲" : "▼"} ${Math.abs(d * 100).toFixed(0)}%</td>`; })();
+        const cellsFor = arr => roiDispYears.map(y => roiCell(arr[y]) + growCell(arr[y], arr[y - 1])).join("");
+        const totArr = {}; for (let y = curY - 4; y <= curY; y++) { let ad = 0, op = 0; srcList.forEach(k => { ad += per[y].ad[k] || 0; op += per[y].op[k] || 0; }); totArr[y] = roiVal(ad, op); }
+        const yrHead = roiDispYears.map(y => `<th style="text-align:right">${y} ROI</th><th style="text-align:right">YoY</th>`).join("");
+        const bodyH = srcList.map(k => { const arr = {}; for (let y = curY - 4; y <= curY; y++) arr[y] = roiVal(per[y].ad[k] || 0, per[y].op[k] || 0); return `<tr><td>${esc(k)}</td>${cellsFor(arr)}</tr>`; }).join("")
+          + `<tr class="tot"><td>All paid</td>${cellsFor(totArr)}</tr>`;
+        const html = `<table class="mrx-tbl"><thead><tr><th>Source</th>${yrHead}</tr></thead><tbody>${bodyH}</tbody></table>`;
+        tableCard(g, `ROI growth — ${W.label}`, `${W.sub} · net $ returned per $1 of ad spend ((profit − spend) ÷ spend)`, html, { icon: KIC.trend, headVal: totArr[curY] == null ? "—" : "$" + totArr[curY].toFixed(2) });
+      });
+    }
+
+    /* ---- 11 · Lead Sources (theme split B of former "Marketing & Channels") ---- */
+    if (SEC("Lead Sources")) {
+      const g = section("Lead Sources", "where leads come from and how each channel converts");
+      // ===== OUTCOMES BY CHANNEL ===== (one rich table; the old profit/jobs rank bars duplicated it)
+      const revBySrc = segSeries("closing", "Revenue", "Source"), opBySrc = opBySrcCur, jobBySrc = segSeries("closing", "Total Jobs", "Source");
+      const opM = {}, jbM = {}; opBySrc.forEach(r => opM[r.k] = r.v); jobBySrc.forEach(r => jbM[r.k] = r.v);
+      const seRows = revBySrc.slice(0, 12).map(r => ({ k: r.k, jobs: jbM[r.k] || 0, rev: r.v, op: opM[r.k] || 0 }));
+      const seHtml = `<table class="mrx-tbl"><thead><tr><th>Source</th><th>Jobs</th><th>Revenue</th><th>Gross Profit</th></tr></thead><tbody>${seRows.map(r => `<tr><td>${esc(r.k)}</td>${td(fmtN(r.jobs))}${td(money(r.rev))}${td(money(r.op))}</tr>`).join("")}</tbody></table>`;
+      tableCard(g, "Source mix — jobs · revenue · profit", monLbl + " · top " + seRows.length + " sources by revenue", seHtml, { icon: KIC.grid, headVal: money(seRows.reduce((a, r) => a + r.rev, 0)), noteKind: "how", note: "Ranked by revenue (top 12); Gross Profit is before refunds." });
+      // per-source YoY (deck s68-73): revenue / jobs / gross profit, prior year vs current (Tornike 2026-07-15)
+      const srcTop = revBySrc.slice(0, 10);
+      const revSrcLY = {}, jobSrcLY = {};
+      segSeries("closing", "Revenue", "Source", curY - 1, mo).forEach(r => revSrcLY[r.k] = r.v);
+      segSeries("closing", "Total Jobs", "Source", curY - 1, mo).forEach(r => jobSrcLY[r.k] = r.v);
+      groupedBars(g, "Revenue by source — YoY", srcTop.map(r => r.k), srcTop.map(r => revSrcLY[r.k] || 0), String(curY - 1), srcTop.map(r => r.v), String(curY), money, { sub: MON[mo] });
+      groupedBars(g, "Jobs by source — YoY", srcTop.map(r => r.k), srcTop.map(r => jobSrcLY[r.k] || 0), String(curY - 1), srcTop.map(r => jbM[r.k] || 0), String(curY), fmtN, { sub: MON[mo] });
+      // ("Gross profit by source — YoY" removed — Tornike 2026-07-16)
+      // ad-leads funnel by channel (deck s61-62): does the channel's lead VOLUME convert, not just its revenue.
+      // C2: Booking % per channel is the canonical dual-basis helper.
+      const lfBooked = groupByCol(bookedRowsFor(curY, mo), "Source");
+      const lfCreated = reduceMonth("moveboard", curY, mo, rs => rs) || [];
+      const lfAll = segReduce("moveboard", "Source", rs => rs, curY, mo).map(r => { const rows2 = r.rows, tot = rows2.length, bad = rows2.filter(x => x["Status Category"] === "Bad Lead").length, q = tot - bad, c2 = (lfBooked[r.k] || []).filter(x => x["Status Category"] === "Confirmed").length; return { k: r.k === "—" ? "(blank)" : r.k, tot, q, c: c2, bad, book: RS.bookingRate(rows2, lfBooked[r.k] || []) }; }).sort((a, b) => b.tot - a.tot);
+      const lfRows = lfAll.filter(r => r.k !== "(blank)").slice(0, 12);  // blank source hidden; Total row still counts it
+      if (lfRows.length) {
+        // Total row covers ALL sources, so it reconciles with the Leads KPI (the body shows the top 12)
+        const lfTot = lfAll.reduce((a, b) => ({ tot: a.tot + b.tot, q: a.q + b.q, c: a.c + b.c, bad: a.bad + b.bad }), { tot: 0, q: 0, c: 0, bad: 0 });
+        const lfTotBook = RS.bookingRate(lfCreated, bookedRowsFor(curY, mo));
+        const lfBlank = (lfAll.find(r => r.k === "(blank)") || {}).tot || 0;
+        const lfHtml = `<table class="mrx-tbl"><thead><tr><th>Source</th><th>Leads</th><th>Qualified</th><th>Confirmed</th><th>Bad leads</th><th>Booking %</th></tr></thead><tbody>${lfRows.map(r => `<tr><td>${esc(r.k)}</td>${td(fmtN(r.tot))}${td(fmtN(r.q))}${td(fmtN(r.c))}${td(fmtN(r.bad))}${td(r.book == null ? "—" : pct(r.book), r.book == null ? "" : `color:${r.book >= (bk || 0) ? POS : NEG};font-weight:800`)}</tr>`).join("")}<tr class="tot"><td>Total${lfAll.length > 12 ? ` (all ${lfAll.length} sources)` : ""}</td>${td(fmtN(lfTot.tot))}${td(fmtN(lfTot.q))}${td(fmtN(lfTot.c))}${td(fmtN(lfTot.bad))}${td(lfTotBook == null ? "—" : pct(lfTotBook))}</tr></tbody></table>`;
+        tableCard(g, "Lead funnel by source", monLbl + (lfAll.length > 12 ? " · top 12 of " + lfAll.length : ""), lfHtml, { icon: KIC.grid, headVal: fmtN(lfTot.tot) + " leads", noteKind: "how", note: `Each channel's lead volume through the funnel — a channel can look great on revenue but be wasting leads. Red = below the team average (${pct(bk)}). The Total row counts every source, so it matches the Leads KPI.${lfBlank ? ` ${fmtN(lfBlank)} leads with no source recorded count in Total but aren't listed.` : ""}` });
+      }
+      // (CallRail cards MOVED to "Phone & Response" — Tornike 2026-07-16: all phone reporting lives
+      //  in the Phone segment, RingCentral and CallRail side by side.)
+    }
+
+    /* ---- Phone & Response (S3: RingCentral — the WHOLE phone system, deck s75) ----
+       Split out of Marketing & Channels so the Support view sees answer rate and missed
+       calls — the metrics that ARE their job. Marketing keeps it in its view list too. */
+    if (SEC("Phone & Response")) {
+      const g = section("Phone & Response", "the whole phone system — RingCentral, plus the CallRail tracked marketing numbers, side by side");
+      const subHead = (t, s) => { const d = document.createElement("div"); d.className = "mrx-subhead"; d.innerHTML = `<span class="sh-t">${esc(t)}</span>${s ? `<span class="sh-s">${esc(s)}</span>` : ""}`; g.appendChild(d); };
+      const rcMonths = (() => { const o = []; let y = curY, m = mo; for (let i = 0; i < 12; i++) { o.unshift({ ym: `${y}-${String(m).padStart(2, "0")}`, k: MS[m] + " " + String(y).slice(2) }); m--; if (m < 1) { m = 12; y--; } } return o; })();
+      if (rcMonths.some(x => rcAgg[x.ym])) {
+        subHead("RingCentral", "the whole company phone system · inbound + outbound, every line");
+        const cVol = stackedTime(g, "Phone system — call volume", "last 12 months (RingCentral)", rcMonths.map(x => x.k),
+          [ { label: "Incoming", data: rcMonths.map(x => (rcAgg[x.ym] || {}).in || 0), color: INK },
+            { label: "Outgoing", data: rcMonths.map(x => (rcAgg[x.ym] || {}).out || 0), color: CTX } ], fmtN);
+        if (cVol) note(cVol, "The company phone system end-to-end — inbound AND outbound on every line, counted as real calls (sessions), never per-device ring-legs. The CallRail block below covers only the tracked marketing numbers.", "how");
+        const ansT = rcMonths.map(x => { const b = rcAgg[x.ym]; return { k: x.k, v: b && b.in ? b.ans / b.in : null }; });
+        const curB = rcAgg[`${curY}-${String(mo).padStart(2, "0")}`];
+        const cAns = lines(g, "Incoming answer rate", "last 12 months (RingCentral)", [{ label: "Answered %", series: ansT, color: LIMED }], pct, { headVal: pct(lastV(ansT)) });
+        // C29: state the counting rule — RingCentral's own report may group voicemail differently
+        if (curB && curB.in) note(cAns, `${MON[mo]}: ${fmtN(curB.ans)} of ${fmtN(curB.in)} incoming calls answered (${pct(curB.ans / curB.in)}) — ${fmtN(curB.miss)} missed + ${fmtN(curB.vm)} to voicemail. Counted on real calls (sessions), not ring-legs: one call ringing five phones counts once. Answered = accepted by a person. Outbound side: ${fmtN(curB.out)} calls, ${fmt1(curB.outDur / 3600)}h outbound talk time.`, "how");
+        // deck s75: the per-LINE inbound table — which branch number rings, how well it's handled, and AHT
+        if (curB && curB.lines && Object.keys(curB.lines).length) {
+          const hms = s => { const _m = Math.floor(s / 60), _s = Math.round(s % 60); return _m + "m " + String(_s).padStart(2, "0") + "s"; };
+          const fmtPh = p => { const d = String(p || "").replace(/[^0-9]/g, ""); return d.length === 10 ? `(${d.slice(0, 3)}) ${d.slice(3, 6)}-${d.slice(6)}` : (String(p || "").trim() || "—"); };
+          const all = Object.entries(curB.lines).map(([k, v]) => ({ k, num: v.num, in: v.in, ans: v.ans, miss: v.miss, vm: v.vm, ansDur: v.ansDur, nums: v.nums || {} }));
+          const un = all.find(r => r.k === "__unmapped__");
+          const named = all.filter(r => r.k !== "__unmapped__").sort((a, b) => b.in - a.in).slice(0, 14);
+          const lnRows = un ? named.concat([un]) : named;      // the gap row sits last, never ranked as a "line"
+          const T = lnRows.reduce((a, r) => ({ in: a.in + r.in, ans: a.ans + r.ans, miss: a.miss + r.miss, vm: a.vm + r.vm, ansDur: a.ansDur + r.ansDur }), { in: 0, ans: 0, miss: 0, vm: 0, ansDur: 0 });
+          const ansCol = p => p >= .8 ? POS : p >= .6 ? WARN : NEG;
+          const nDist = un ? Object.keys(un.nums).length : 0;
+          const lnHtml = `<table class="mrx-tbl"><thead><tr><th>Line</th><th>Number</th><th style="text-align:right">Inbound</th><th style="text-align:right">Answered</th><th style="text-align:right">Missed</th><th style="text-align:right">Voicemail</th><th style="text-align:right">Answer %</th><th style="text-align:right">Avg handle</th></tr></thead><tbody>${lnRows.map(r => { const isU = r.k === "__unmapped__"; return `<tr${isU ? ' style="background:rgba(176,42,55,.05)"' : ""}><td${isU ? `  style="color:${NEG};font-weight:700"` : ""}>${isU ? "Unnamed numbers" : esc(r.k)}</td>${td(isU ? fmtN(nDist) + " different numbers" : esc(fmtPh(r.num)), isU ? `color:${NEG}` : "")}${td(fmtN(r.in), "text-align:right")}${td(fmtN(r.ans), "text-align:right")}${td(fmtN(r.miss), "text-align:right" + (r.miss ? `;color:${NEG};font-weight:800` : ""))}${td(fmtN(r.vm), "text-align:right")}${td(r.in ? pct(r.ans / r.in) : "—", "text-align:right;font-weight:800" + (r.in ? ";color:" + ansCol(r.ans / r.in) : ""))}${td(r.ans ? hms(r.ansDur / r.ans) : "—", "text-align:right")}</tr>`; }).join("")}<tr class="tot"><td>All lines</td>${td("")}${td(fmtN(T.in), "text-align:right")}${td(fmtN(T.ans), "text-align:right")}${td(fmtN(T.miss), "text-align:right")}${td(fmtN(T.vm), "text-align:right")}${td(T.in ? pct(T.ans / T.in) : "—", "text-align:right")}${td(T.ans ? hms(T.ansDur / T.ans) : "—", "text-align:right")}</tr></tbody></table>`;
+          tableCard(g, "Inbound by line — answer rate & handle time", monLbl + " · RingCentral · real calls (sessions)", lnHtml, { icon: KIC.grid, headVal: T.in ? pct(T.ans / T.in) + " answered" : "—", noteKind: "how", note: "Every company number that rang this month — inbound volume, how each call ended, and Average Handle Time (mean talk time on ANSWERED calls only; a missed call or voicemail carries no handle time, so they're excluded from AHT but still counted in Inbound). Counted on real calls (sessions), never per-device ring-legs. Answer % green ≥80%, amber ≥60%, red below. Tuji lines are excluded." + (nDist ? " — “Unnamed numbers” are " + fmtN(nDist) + " company numbers that rang but carry no name in RingCentral's account mapping, so they can't be credited to a branch yet; they're pooled into one row rather than shown under any single number." : "") });
+        }
+        if (curB && Object.keys(curB.names).length) {
+          // (talk-time card folded in here — same 10 names in near-identical order taught nothing new;
+          //  the effort metric survives as team totals on this card)
+          const byN = Object.entries(curB.names).map(([k, v]) => ({ k, v: v.out, dur: v.dur })).sort((a, b) => b.v - a.v);
+          const teamH = byN.reduce((a, r) => a + r.dur, 0) / 3600, teamCalls = byN.reduce((a, r) => a + r.v, 0);
+          rankBars(g, "Outbound calls by teammate", byN.map(r => ({ k: r.k, v: r.v })), fmtN, { top: 10, sub: monLbl + " (RingCentral)", noteKind: "how", note: `By the agent's own extension (the shared Support line is excluded). Real dialed calls only — no ring-legs. Talk time behind these dials: ${fmt1(teamH)}h across the team${teamCalls ? ` (~${fmt1(teamH * 60 / teamCalls)} min per call)` : ""}.` });
+        }
+      }
+      // ---- SMS: texting volume was previously loaded but shown NOWHERE (audit 2026-07-13) ----
+      if (rcMonths.some(x => rcSms[x.ym])) {
+        const smsB = rcSms[`${curY}-${String(mo).padStart(2, "0")}`];
+        const cSms = stackedTime(g, "Text messages — received vs sent", "last 12 months (RingCentral SMS)", rcMonths.map(x => x.k),
+          [ { label: "Received", data: rcMonths.map(x => (rcSms[x.ym] || {}).in || 0), color: INK },
+            { label: "Sent", data: rcMonths.map(x => (rcSms[x.ym] || {}).out || 0), color: CTX } ], fmtN);
+        if (cSms && smsB) note(cSms, `${MON[mo]}: ${fmtN(smsB.in)} received, ${fmtN(smsB.out)} sent${smsB.fail ? `, ${fmtN(smsB.fail)} failed to deliver` : ""}. Zip to Zip lines only (Tuji excluded). Direction comes straight from the RingCentral export.`, "how");
+      }
+      // ---- CallRail — the tracked marketing numbers, shown SEPARATELY from RingCentral (Tornike 2026-07-16) ----
+      if (callrail && callrail.length) {
+        subHead("CallRail", "tracked marketing numbers · inbound only · used for source attribution");
+        const crTot = momReduce("callrail", 12, rs => rs.length);
+        const crAns = momReduce("callrail", 12, rs => rs.filter(r => String(r["Call Status"]) === "Answered Call").length);
+        const crMiss = momReduce("callrail", 12, rs => rs.filter(r => /Missed|Abandoned/.test(String(r["Call Status"]))).length);
+        const crLabels = crTot.map(r => r.k);
+        const cCR = stackedTime(g, "CallRail inbound calls — answered vs missed", "last 12 months (CallRail)", crLabels,
+          [ { label: "Answered", data: crAns.map(r => r.v), color: INK }, { label: "Missed/Abandoned", data: crMiss.map(r => r.v), color: NEG } ], fmtN);
+        if (cCR) note(cCR, "Inbound calls to the tracked marketing numbers only (CallRail) — the ad/listing call-tracking lines used for source attribution. Separate from the RingCentral company-wide system above, which counts every line, inbound and outbound.", "how");
+        const crAnsRate = crTot.map((r, i) => ({ k: r.k, v: r.v ? crAns[i].v / r.v : null }));
+        const crCurTot = crTot.length ? crTot[crTot.length - 1].v : 0, crCurAns = crAns.length ? crAns[crAns.length - 1].v : 0;
+        const cCRr = lines(g, "CallRail answer rate", "last 12 months (CallRail)", [{ label: "Answered %", series: crAnsRate, color: LIMED }], pct, { headVal: pct(lastV(crAnsRate)) });
+        if (cCRr && crCurTot) note(cCRr, `${MON[mo]}: ${fmtN(crCurAns)} of ${fmtN(crCurTot)} tracked marketing calls answered (${pct(crCurAns / crCurTot)}). Compare with the RingCentral incoming answer rate above — CallRail is only the marketing lines, RingCentral is the whole phone system.`, "how");
+        // moved here from Lead Sources (Tornike 2026-07-16): calls by source + duration by source
+        const callsBySrc = segReduce("callrail", "Source", rs => rs.length, curY, mo).slice(0, 10);
+        const ftc = reduceMonth("callrail", curY, mo, rs => { const t = rs.length, f = rs.filter(r => Number(r["First-Time Caller"]) === 1).length; return t ? f / t : null; });
+        rankBars(g, "Calls by source", callsBySrc, fmtN, { top: 10, sub: monLbl + " · CallRail", note: ftc == null ? "" : `${pct(ftc)} of calls this month were first-time callers.` });
+        // deck s74: call DURATION by source — volume alone can't tell a real conversation from a 5-second hang-up
+        const durF = s => { const _m = Math.floor(s / 60), _s = Math.round(s % 60); return _m ? _m + "m " + String(_s).padStart(2, "0") + "s" : _s + "s"; };
+        const crD = segReduce("callrail", "Source", rs => rs, curY, mo).map(r => { const rw = r.rows, calls = rw.length, dur = rw.reduce((a, x) => a + num(x["Duration Seconds"]), 0), ft = rw.filter(x => Number(x["First-Time Caller"]) === 1).length; return { k: r.k === "—" ? "(blank)" : r.k, calls, dur, avg: calls ? dur / calls : 0, ft }; }).sort((a, b) => b.calls - a.calls).slice(0, 10);
+        if (crD.length) {
+          const tCalls = crD.reduce((a, r) => a + r.calls, 0), tDur = crD.reduce((a, r) => a + r.dur, 0), tFt = crD.reduce((a, r) => a + r.ft, 0);
+          const crHtml = `<table class="mrx-tbl"><thead><tr><th>Source</th><th style="text-align:right">Calls</th><th style="text-align:right">First-time</th><th style="text-align:right">Total time</th><th style="text-align:right">Avg call</th></tr></thead><tbody>${crD.map(r => `<tr><td>${esc(r.k)}</td>${td(fmtN(r.calls), "text-align:right")}${td(fmtN(r.ft), "text-align:right")}${td(durF(r.dur), "text-align:right")}${td(durF(r.avg), "text-align:right;font-weight:800;color:" + (r.avg >= 120 ? POS : r.avg >= 45 ? WARN : NEG))}</tr>`).join("")}<tr class="tot"><td>All tracked numbers</td>${td(fmtN(tCalls), "text-align:right")}${td(fmtN(tFt), "text-align:right")}${td(durF(tDur), "text-align:right")}${td(tCalls ? durF(tDur / tCalls) : "—", "text-align:right")}</tr></tbody></table>`;
+          tableCard(g, "Call duration by source", monLbl + " · CallRail tracked numbers", crHtml, { icon: KIC.grid, headVal: tCalls ? durF(tDur / tCalls) + " avg" : "—", noteKind: "how", note: "Total and average talk time per channel — a channel with many very short calls is sending noise; long calls mean real buyers. The average INCLUDES missed/abandoned (0-second) calls, matching the phone KPIs. Green ≥2m, amber ≥45s, red below." });
+        }
+      }
+    }
+
+    part(5, "Logistics", "crew, packing and storage");
+
+    /* ---- 11 · Operations & Crew ---- */
+    if (SEC("Operations & Crew (Foreman)")) {
+      const g = section("Operations & Crew (Foreman)", "productivity, quality score and month-over-month");
+      const payM = {}, tipsM = {}, refM = {}, payPM = {}, tipsPM = {}, jobsFmPM = {};
+      segReduce("closing", "Foreman", rs => rs.reduce((a, x) => a + num(x["Forman Total $"]), 0), curY, mo).forEach(r => payM[r.k] = r.v);
+      segReduce("closing", "Foreman", rs => rs.reduce((a, x) => a + num(x["Tip from Company Part"]) + num(x["Tip From the Customers"]), 0), curY, mo).forEach(r => tipsM[r.k] = r.v);
+      segReduce("refunds", "Foreman", rs => Math.abs(rs.reduce((a, x) => a + num(x["Total refund"]), 0)), curY, mo).forEach(r => refM[r.k] = r.v);
+      segReduce("closing", "Foreman", rs => rs.reduce((a, x) => a + num(x["Forman Total $"]), 0), PMY, PM).forEach(r => payPM[r.k] = r.v);
+      segReduce("closing", "Foreman", rs => rs.reduce((a, x) => a + num(x["Tip from Company Part"]) + num(x["Tip From the Customers"]), 0), PMY, PM).forEach(r => tipsPM[r.k] = r.v);
+      segReduce("closing", "Foreman", rs => rs.length, PMY, PM).forEach(r => jobsFmPM[r.k] = r.v);
+      // tiny MoM arrow: ▲/▼ + % vs previous month, green/red
+      const mArrow = (cur, prev) => { if (prev == null || !prev) return ""; const d2 = (cur - prev) / Math.abs(prev); return ` <span style="color:${d2 >= 0 ? POS : NEG};font-size:10px;font-weight:800">${d2 >= 0 ? "▲" : "▼"}${Math.abs(d2 * 100).toFixed(0)}%</span>`; };
+      const scRows = (DS.scorecard || []).filter(r => { const d = String(r["Month"] || "").slice(0, 7); return d === `${curY}-${String(mo).padStart(2, "0")}`; });
+      const scPrev = (DS.scorecard || []).filter(r => { const d = String(r["Month"] || "").slice(0, 7); return d === `${PMY}-${String(PM).padStart(2, "0")}`; });
+      if (scRows.length) {
+        const sc = scRows.map(r => ({ f: r.Foreman, jobs: num(r["Total Jobs"]), cf: num(r["Total CF"]), written: num(r["Total Packing Written"]), est: num(r["Total Packing Estimate"]), rev: num(r["Total Reviews Written"]), claims: num(r["Forman Fault Claims"]), score: num(r["Forman Score"]), rank: num(r["Forman Score Rank"]), prev: num(r["Forman Score Prev Month"]) }))
+          .sort((a, b) => (a.rank || 999) - (b.rank || 999)).slice(0, 15);
+        const smax = Math.max(...sc.map(r => r.score || 0)) || 1;
+        // C24/Q5: 'vs Est' is colored BY VALUE — green only when written ≥ estimate (≥1×);
+        // under-delivery is red, never a flattering unconditional green.
+        const rowsH = sc.map((r, i) => { const arrow = r.prev ? (r.score > r.prev ? `<span style="color:${POS}">▲</span>` : r.score < r.prev ? `<span style="color:${NEG}">▼</span>` : "–") : ""; const up = r.est > 0 ? r.written / r.est : null; return `<tr><td>${i === 0 ? "👑 " : ""}${esc(r.f)}</td>
+          ${td(fmtN(r.jobs) + mArrow(r.jobs, jobsFmPM[r.f]))}${td(fmtN(r.cf))}${td(money(payM[r.f] || 0) + mArrow(payM[r.f] || 0, payPM[r.f]))}${td(money(tipsM[r.f] || 0) + mArrow(tipsM[r.f] || 0, tipsPM[r.f]))}${td(money(r.written))}${td(up == null ? "—" : up.toFixed(1) + "×", up == null ? "" : `color:${up >= 1 ? POS : NEG};font-weight:800`)}${td(r.rev ? fmtN(r.rev) : "0", r.rev ? "" : `color:${NEG};font-weight:800`)}${td(fmtN(r.claims), r.claims > 0 ? `color:${NEG};font-weight:800` : "")}${td(refM[r.f] ? money(refM[r.f]) : "—", refM[r.f] ? `color:${NEG};font-weight:800` : "")}
+          <td class="bar"><i style="width:${(r.score / smax * 100).toFixed(0)}%;background:${LIME_BG}"></i><span>${fmt1(r.score)} ${arrow}</span></td></tr>`; }).join("");
+        tableCard(g, "Foreman scorecard — ranked", monLbl, `<table class="mrx-tbl"><thead><tr><th>Foreman</th><th>Jobs</th><th>CF</th><th>Pay</th><th>Tips</th><th>Packing</th><th>vs Est</th><th>Reviews</th><th>Claims</th><th>Refunds</th><th>Score</th></tr></thead><tbody>${rowsH}</tbody></table>`, { icon: KIC.grid, headVal: fmtN(sc.length) + " crews", noteKind: "how", note: `Pay/Tips from closings; ▲▼ arrows on Jobs/Pay/Tips compare vs ${MS[PM]}. 'vs Est' = packing written ÷ quoted estimate (green at 1× or above, red below). Score combines jobs, packing, reviews and fault claims — higher is better; the ▲▼ beside it compares vs ${MS[PM]}. Rank 1 crowned.` });
+      }
+      const jobF = segSeries("closing", "Total Jobs", "Foreman").slice(0, 12);
+      const hrMap = {}; segSeries("closing", "Hours Worked by Forman", "Foreman").forEach(r => hrMap[r.k] = r.v);
+      combo(g, "Jobs vs hours by foreman", monLbl, jobF, "Jobs", fmtN, jobF.map(r => ({ k: r.k, v: hrMap[r.k] || 0 })), "Hours", fmtN);
+      const packCur = segSeries("closing", "Total Packing Written", "Foreman").slice(0, 12);
+      const packPrev = {}; segSeries("closing", "Total Packing Written", "Foreman", PMY, PM).forEach(r => packPrev[r.k] = r.v);
+      groupedBars(g, "Packing written by foreman — MoM", packCur.map(r => r.k), packCur.map(r => packPrev[r.k] || 0), MS[PM], packCur.map(r => r.v), MS[mo], money, { sub: `${MS[PM]} vs ${MS[mo]}` });
+      // estimate keys come from the SCORECARD's Foreman, bars from CLOSING's Foreman —
+      // join on trimmed+case-folded names so a stray space can't zero an estimate bar
+      const nrmF = s => String(s == null ? "" : s).trim().toLowerCase();
+      const estM = {}; scRows.forEach(r => estM[nrmF(r.Foreman)] = num(r["Total Packing Estimate"]));
+      groupedBars(g, "Packing written vs estimate by foreman", packCur.map(r => r.k), packCur.map(r => estM[nrmF(r.k)] || 0), "Estimate", packCur.map(r => r.v), "Written", money, { sub: monLbl });
+      const refByFm = segReduce("refunds", "Foreman", rs => Math.abs(rs.reduce((a, x) => a + num(x["Total refund"]), 0)), curY, mo).filter(r => r.v > 0 && r.k !== "—");
+      if (refByFm.length) rankBars(g, "Refunds by foreman", refByFm, money, { top: 10 });
+      // deck s43: per-foreman pay RATE ($/hour) + hours — the scorecard shows pay but never the rate behind it
+      const fmPay = segSeries("closing", "Forman Salary", "Foreman").filter(r => !isBlankKey(r.k));
+      const fmHrsM = {}; segSeries("closing", "Hours Worked by Forman", "Foreman").forEach(r => fmHrsM[r.k] = r.v);
+      // Customer tips (Tornike 2026-07-15): "Forman Salary" is COMPANY-paid comp only — it carries the
+      // foreman's cut of a COMPANY tip ("Tip from Company Part") but NOT the customer tip itself
+      // ("Tip for Forman", $46k in June 2026 — a third of the money these crews take home). Tips are the
+      // CUSTOMER's money, not a company cost, so they must not enter the company rate that reconciles to
+      // P&L labour cost. Shown as a SEPARATE take-home column instead of being folded into the rate.
+      const fmTipM = {}; segReduce("closing", "Foreman", rs => rs.reduce((a, x) => a + num(x["Tip for Forman"]), 0), curY, mo).forEach(r => fmTipM[r.k] = r.v);
+      const fmRate = fmPay.map(r => ({ k: r.k, pay: r.v, hrs: fmHrsM[r.k] || 0, tip: fmTipM[r.k] || 0 })).filter(r => r.hrs > 0)
+        .map(r => ({ ...r, rate: r.pay / r.hrs, rateT: (r.pay + r.tip) / r.hrs })).sort((a, b) => b.pay - a.pay).slice(0, 14);
+      if (fmRate.length) {
+        const tP = fmRate.reduce((a, r) => a + r.pay, 0), tH = fmRate.reduce((a, r) => a + r.hrs, 0), tT = fmRate.reduce((a, r) => a + r.tip, 0);
+        const frHtml = `<table class="mrx-tbl"><thead><tr><th>Foreman</th><th style="text-align:right">Hours</th><th style="text-align:right">Company pay</th><th style="text-align:right">Company $/hr</th><th style="text-align:right">Customer tips</th><th style="text-align:right">With tips $/hr</th></tr></thead><tbody>${fmRate.map(r => `<tr><td>${esc(r.k)}</td>${td(fmt1(r.hrs), "text-align:right")}${td(money(r.pay), "text-align:right")}${td("$" + fmt1(r.rate), "text-align:right;font-weight:800")}${td(r.tip ? money(r.tip) : "—", "text-align:right;color:" + SUB)}${td("$" + fmt1(r.rateT), "text-align:right;font-weight:800;color:" + POS)}</tr>`).join("")}<tr class="tot"><td>All foremen</td>${td(fmt1(tH), "text-align:right")}${td(money(tP), "text-align:right")}${td(tH ? "$" + fmt1(tP / tH) : "—", "text-align:right")}${td(money(tT), "text-align:right")}${td(tH ? "$" + fmt1((tP + tT) / tH) : "—", "text-align:right")}</tr></tbody></table>`;
+        tableCard(g, "Foreman pay rate — $ per hour", monLbl + " · company pay vs take-home", frHtml, { icon: KIC.grid, headVal: tH ? "$" + fmt1((tP + tT) / tH) : "—", noteKind: "how", note: "Company pay already includes every component the company pays: hourly, CF, packing commission, review bonus and the foreman's share of company tips (trips are a known gap — linked-trip pay lives in a table we don't serve yet, so it's missing from both columns). Company $/hr is the cost basis and reconciles with P&L labour cost. Customer tips are the customer's money, not a company cost, so they sit in their own column — With tips $/hr is what the foreman actually takes home per hour. A high rate usually means strong bonus earning rather than a higher base rate." });
+      }
+      // foreman efficiency — packing density & review rate, WITH month-over-month movement + arrows
+      if (scRows.length) {
+        const prevEff = {}; scPrev.forEach(r => prevEff[r.Foreman] = { p100: num(r["Packing per 100 CF"]), rtj: num(r["Reviews to Jobs Ratio"]) });
+        // Tornike 2026-07-15: estimate vs real packing, per crew — all four values already live on the
+        // scorecard row. CRITICAL: do NOT judge this ratio against 100%. The packing estimate is a FLOOR
+        // to beat, not a target to hit: the company's own `packing_vs_estimate_score` bands score 0.90-1.05x
+        // at 20/100 (nearly worst) and only pay 100/100 at >=3.30x — and every crew in June ran 1.4-3.0x
+        // (company 1.92x). So we grade with `Packing Vs Estimate Score`, the SAME 0-100 the warehouse already
+        // derived from those bands and feeds into Forman Score at 20% weight. That keeps this card agreeing
+        // with the scorecard instead of inventing a second, contradictory verdict.
+        const eff = scRows.map(r => ({ f: r.Foreman, p100: num(r["Packing per 100 CF"]), rtj: num(r["Reviews to Jobs Ratio"]), jobs: num(r["Total Jobs"]), est: num(r["Total Packing Estimate"]), wrt: num(r["Total Packing Written"]), pve: num(r["Packing Difference %"]), pveS: num(r["Packing Vs Estimate Score"]) }))
+          .filter(r => r.f && r.jobs > 0).sort((a, b) => b.p100 - a.p100).slice(0, 15);
+        if (eff.length) {
+          const dCell = (cur, prev) => { if (prev == null || !prev) return td("—", "color:" + FAINT); const d2 = (cur - prev) / Math.abs(prev); return td(`${d2 >= 0 ? "▲" : "▼"} ${Math.abs(d2 * 100).toFixed(0)}%`, `color:${d2 >= 0 ? POS : NEG};font-weight:800`); };
+          const pveCell = r => { if (!r.est || !r.pve) return td("—", "color:" + FAINT); const s = r.pveS;
+            return td(fmt1(r.pve) + "×" + (s ? ` <span style="color:${SUB};font-weight:600">${fmt1(s)}/100</span>` : ""), `font-weight:800;color:${s >= 70 ? POS : s >= 45 ? WARN : NEG}`); };
+          const tEst = eff.reduce((a, r) => a + r.est, 0), tWrt = eff.reduce((a, r) => a + r.wrt, 0);
+          const effHtml = `<table class="mrx-tbl"><thead><tr><th>Foreman</th><th>Packing estimate</th><th>Packing written</th><th>× estimate · score</th><th>Packing $ / 100 CF</th><th>vs ${MS[PM]}</th><th>Reviews / job</th><th>vs ${MS[PM]}</th></tr></thead><tbody>${eff.map((r, i) => { const p = prevEff[r.f] || {}; return `<tr><td>${i === 0 ? "👑 " : ""}${esc(r.f)}</td>${td(r.est ? money(r.est) : "—", "color:" + SUB)}${td(money(r.wrt))}${pveCell(r)}${td(money(r.p100))}${dCell(r.p100, p.p100)}${td(fmt1(r.rtj))}${dCell(r.rtj, p.rtj)}</tr>`; }).join("")}<tr class="tot"><td>All crews</td>${td(money(tEst))}${td(money(tWrt))}${td(tEst ? fmt1(tWrt / tEst) + "×" : "—")}${td("")}${td("")}${td("")}${td("")}</tr></tbody></table>`;
+          tableCard(g, "Foreman efficiency — packing estimate vs written, density & reviews", monLbl + " vs " + MS[PM], effHtml, { icon: KIC.grid, headVal: tEst ? fmt1(tWrt / tEst) + "× estimate" : fmtN(eff.length) + " crews", noteKind: "how", note: `Packing estimate = what the job was quoted to pack; Packing written = what the crew actually sold on site. The estimate is a floor to beat, NOT a target to hit — your packing-vs-estimate scoring bands score 1.0× at only 20/100 and pay full marks at 3.3× and above, so "× estimate" is shown with that same 0–100 score beside it (green 70+, amber 45+, red below). It is the identical score that feeds Forman Score at 20% weight, so this card and the scorecard always agree. Then packing $ written per 100 CF moved, and reviews collected per job — ranked by density, ▲▼ vs ${MS[PM]}. A crew with no estimate on file shows "—".` });
+        }
+      }
+    }
+
+    /* ---- Fleet section REMOVED 2026-07-15 (Tornike: "remove this part completely").
+       It held exactly one card ("Fleet — revenue & running cost per truck"), so the section and the
+       log-fleet themed dashboard went with it, along with the isolated fleet fetch (needFleet/fleetP/
+       fleetRows) that had no other consumer, the MR_DASH entry, and the nine log-fleet refs in
+       index.html. The bridge's REPORT_TABLES grant tile is removed + redeployed alongside. ---- */
+
+    /* ---- 12 · Packing & Storage ---- */
+    if (SEC("Packing & Storage")) {
+      const g = section("Packing & Storage", "packing written vs material cost, storage income vs cost");
+      // Packing economics — written revenue vs material cost, MONTH-over-month. FULL WIDTH (Tornike 2026-07-15).
+      const packMoM = momSeries("closing", "Total Packing Written", 14);
+      let pkCard;
+      if (hasCostData) {
+        const pkCost = packMoM.map(r => ({ k: r.k, v: costByMonth(`${r.y}-${String(r.m).padStart(2, "0")}`, "pk") }));
+        pkCard = combo(g, "Packing written vs material cost", "last 14 months", packMoM.map(r => ({ k: r.k, v: r.v || 0 })), "Written", money, pkCost, "Material cost", money, { headVal: money(lastV(packMoM)) });
+        const lastCost = pkCost.length ? pkCost[pkCost.length - 1].v : 0, lastWr = lastV(packMoM) || 0;
+        note(pkCard, `Packing written ${money(lastWr)} vs material bought ${money(lastCost)} this month${lastWr ? ` — material is ${pct(lastCost / lastWr)} of packing revenue` : ""}. Material cost = card spend in the "Job Supplies / Packing Material" category.`, "how");
+      } else {
+        pkCard = lines(g, "Packing written — momentum", "last 14 months", [{ label: "Packing written", series: packMoM, color: LIMED }], money, { headVal: money(lastV(packMoM)) });
+      }
+      pkCard.classList.add("span2");   // #2: packing spans the full row
+      // Storage — income vs rent/lease cost + the active/recurring customer base, SIDE BY SIDE (two halves).
+      const stoRev = momSeries("storage", "Storage Additional Revenue", 14);
+      if (hasCostData) {
+        const stoCost = stoRev.map(r => ({ k: r.k, v: costByMonth(`${r.y}-${String(r.m).padStart(2, "0")}`, "sto") }));
+        const sc = combo(g, "Storage income vs cost", "last 14 months", stoRev.map(r => ({ k: r.k, v: r.v || 0 })), "Income", money, stoCost, "Storage cost", money, { headVal: money(lastV(stoRev)) });
+        const lc = stoCost.length ? stoCost[stoCost.length - 1].v : 0, li = lastV(stoRev) || 0;
+        note(sc, `Storage income ${money(li)} vs cost ${money(lc)} this month — net ${money(li - lc)}. Cost = card spend in the "Rent and Lease / Storage" category.`, "how");
+      } else {
+        lines(g, "Storage income", "last 14 months", [{ label: "Storage income", series: stoRev, color: VIOLET }], money, { headVal: money(lastV(stoRev)) });
+      }
+      // storage base: active vs recurring customers — the number storage PLANNING grows from
+      const stoCust = momReduce("storage", 14, rs => { const set = new Set(); rs.forEach(r => set.add(String(r.Customer || ""))); return set.size; });
+      const stoRec = momReduce("storage", 14, rs => { const set = new Set(); rs.forEach(r => { if (!/pickup|delivery/i.test(String(r["Payment Type"] || ""))) set.add(String(r.Customer || "")); }); return set.size; });
+      const cStC = lines(g, "Storage customers — active vs recurring", "last 14 months", [ { label: "Active", series: stoCust, color: VIOLET }, { label: "Recurring", series: stoRec, color: INK } ], fmtN, { headVal: fmtN(lastV(stoCust) || 0) });
+      note(cStC, "Active = any storage payment that month; recurring = monthly-billed customers (excludes one-off pickup/delivery payments). Growth or churn in the recurring line is the storage-planning signal.", "how");
+      // deck s13/19/27a: the storage revenue SPLIT — billed separately vs bundled into the job's bill (Tornike 2026-07-15)
+      const stoAddS = momSeries("storage", "Storage Additional Revenue", 14), stoInclS = momSeries("storage", "Storage Revenue Included in Total Bill", 14);
+      const cSpl = stackedTime(g, "Storage revenue — additional vs included in the bill", "last 14 months", stoAddS.map(r => r.k),
+        [ { label: "Additional (billed separately)", data: stoAddS.map(r => r.v || 0), color: VIOLET },
+          { label: "Included in the bill (paid at pickup)", data: stoInclS.map(r => r.v || 0), color: INK } ], money, { span2: true });
+      const lAdd = lastV(stoAddS) || 0, lIncl = lastV(stoInclS) || 0;
+      note(cSpl, `Storage money arrives two ways: billed SEPARATELY as its own storage payment (${money(lAdd)} this month) or bundled INTO the job's total bill and collected at pickup (${money(lIncl)}). The income charts above track only the additional half — the bundled half is already inside Revenue, so the two must never be added to Revenue again.`, "how");
+      // (#1) "Packing by type — estimate vs written" removed per Tornike 2026-07-15.
+    }
+
+    part(6, "Reviews and Claims", "reviews collected, and claims & refunds");
+    /* ---- 13 · Reviews Production ---- */
+    if (SEC("Reviews Production")) {
+      const g = section("Reviews Production", "reviews written, negative reviews and platform footprint");
+      const negN = reduceMonth("negative_reviews", curY, mo, rs => rs.length) || 0;
+      const negPM = reduceMonth("negative_reviews", PMY, PM, rs => rs.length) || 0;
+      const negLY = reduceMonth("negative_reviews", curY - 1, mo, rs => rs.length) || 0;
+      const kg = document.createElement("div"); kg.className = "mrx-grid k"; kg.style.gridColumn = "1/-1"; g.appendChild(kg);
+      // C8: number unchanged (all breakdown reviews) — the label now says so
+      [ { l: "All Reviews Written (incl. non-counting)", v: fmtN(revWritten), c: revWritten, ly: revWrittenLY, pm: revWrittenPM, icon: KIC.star },
+        { l: "Negative Reviews", v: fmtN(negN), c: negN, ly: negLY, pm: negPM, icon: KIC.warn, inv: 1 }
+      ].forEach(k => kpiTile(kg, k));
+      /* ---- goal progress — END-OF-PERIOD footprint target (Tornike 2026-07-14) ----
+         "the goals are set for the end of the period — at the end of aug it must be those
+         numbers": per-platform cumulative public-review targets vs the current footprint. */
+      if (goalDate) {
+        const gY = +goalDate.slice(0, 4), gM = +goalDate.slice(5, 7);
+        const endM = gM === 1 ? 12 : gM - 1, endY = gM === 1 ? gY - 1 : gY;    // goal dated Sep 1 = target for END of August
+        const gp = {}; goalRows.filter(r => String(r.Date || "").slice(0, 10) === goalDate)
+          .forEach(r => { const k = String(r.Platform || "—"); gp[k] = (gp[k] || 0) + num(r["Number of Reviews"]); });
+        const rcRows2 = (DS.review_counts || []).filter(coRow);
+        // the goals sheet and the counts sheet spell platforms slightly differently
+        // ("NextdoorShafto" vs "Nextdoor Shafto") — join on case-folded alphanumerics.
+        // Display always uses the GOAL sheet's name.
+        const nk = s => String(s == null ? "" : s).toLowerCase().replace(/[^a-z0-9]/g, "");
+        const snapDates = [...new Set(rcRows2.map(r => String(r.Date || "").slice(0, 10)))].filter(d => d <= monthEndKey).sort();
+        const snap = snapDates[snapDates.length - 1], snapPrev = snapDates[snapDates.length - 2];
+        const footAt = d => { const m2 = {}; rcRows2.filter(r => String(r.Date || "").slice(0, 10) === d).forEach(r => { const k = nk(r.Platform); m2[k] = (m2[k] || 0) + num(r["Number of Reviews"]); }); return m2; };
+        const cur2 = snap ? footAt(snap) : {}, prev2 = snapPrev ? footAt(snapPrev) : null;
+        const plats = Object.keys(gp).sort((a, b) => gp[b] - gp[a]);
+        if (plats.length) {
+          const goalTot = plats.reduce((a, k) => a + gp[k], 0);
+          const nowTot = plats.reduce((a, k) => a + (cur2[nk(k)] || 0), 0);
+          const toGo = Math.max(0, goalTot - nowTot);
+          const monthsLeft = Math.max(0, (gY * 12 + gM - 1) - (curY * 12 + mo));
+          const addedPM = prev2 ? plats.reduce((a, k) => a + (cur2[nk(k)] || 0), 0) - plats.reduce((a, k) => a + (prev2[nk(k)] || 0), 0) : null;
+          const ended = !!goalPast;
+          const untracked = plats.filter(k => !(nk(k) in cur2));
+          const pcell = (now, goal2) => { const p = goal2 ? Math.min(100, now / goal2 * 100) : 0; return `<td class="bar"><i style="width:${p.toFixed(0)}%;background:${p >= 100 ? LIME_BG : BLUE_BG}"></i><span>${p.toFixed(0)}%</span></td>`; };
+          const rowsH = plats.map(k => { const now = cur2[nk(k)] || 0, gl = gp[k], d = gl - now; return `<tr><td>${esc(k)}${(nk(k) in cur2) ? "" : ` <span style="color:${WARN};font-weight:800" title="No platform with this name in the review-counts sheet">⚠</span>`}</td>${td(fmtN(now))}${td(fmtN(gl))}${td(d > 0 ? fmtN(d) : "✓ done", d > 0 ? "font-weight:800" : `color:${POS};font-weight:800`)}${pcell(now, gl)}</tr>`; }).join("")
+            + `<tr style="font-weight:800;border-top:2px solid ${CTX}"><td>Total</td>${td(fmtN(nowTot))}${td(fmtN(goalTot))}${td(toGo > 0 ? fmtN(toGo) : "✓ done", toGo > 0 ? "" : `color:${POS}`)}${pcell(nowTot, goalTot)}</tr>`;
+          const gc = tableCard(g, "Review goal — where we stand", (ended ? `period ended ${MON[endM]} ${endY}` : `target for end of ${MON[endM]} ${endY}`) + ` · footprint as of ${snap || "—"}`,
+            `<table class="mrx-tbl"><thead><tr><th>Platform</th><th>Reviews now</th><th>Goal</th><th>To go</th><th>Progress</th></tr></thead><tbody>${rowsH}</tbody></table>`,
+            { icon: KIC.trend, headVal: goalTot ? pct(nowTot / goalTot) : "—" });
+          if (!ended && toGo > 0 && monthsLeft > 0) note(gc, `${fmtN(toGo)} reviews to go in ${monthsLeft} month${monthsLeft > 1 ? "s" : ""} — that's ~${fmtN(Math.ceil(toGo / monthsLeft))}/month${addedPM != null ? `; the footprint grew ${addedPM >= 0 ? "+" : ""}${fmtN(addedPM)} last month${addedPM < toGo / monthsLeft ? " — BELOW the needed pace" : " — on pace"}` : ""}.`);
+          if (untracked.length) note(gc, `⚠ ${untracked.map(esc).join(", ")}: the goal sheet names ${untracked.length > 1 ? "these platforms" : "this platform"} but the review-counts sheet has no matching row — showing 0. If ${untracked.length > 1 ? "they exist" : "it exists"} under another name there, align the naming and this fixes itself.`);
+          note(gc, `Goals are end-of-period targets: by ${MON[endM]} ${endY} the total public reviews on each platform must reach the Goal column. "Reviews now" is the latest footprint snapshot (fct_review_counts); progress = now ÷ goal.`, "how");
+        }
+      }
+      // #6 (Tornike 2026-07-15): ONE chart combining "Reviews by source" + "Footprint by platform" —
+      // per listing, TOTAL public reviews on file with THIS MONTH's additions highlighted. Reconciles
+      // Source (reviews_breakdown) ↔ Platform (review_counts) by case-folded name. NOTE: "Google NJ" and
+      // "Google Shafto" are SEPARATE listings (both tracked every month, both with their own goal) — they
+      // must NOT be aliased together. A listing only appears here if the latest footprint snapshot has a
+      // row for it, so a listing missing from that snapshot (e.g. Google NJ in Jun-2026) drops out until the
+      // sheet is filled in. Tuji sources have no Zip footprint → they drop out too.
+      const nk6 = s => String(s == null ? "" : s).toLowerCase().replace(/[^a-z0-9]/g, "");
+      const rk6 = s => nk6(s);
+      const rc6 = (DS.review_counts || []).filter(coRow);
+      const snaps6 = [...new Set(rc6.map(r => String(r.Date || "").slice(0, 10)))].filter(d => /^\d{4}-\d{2}-\d{2}$/.test(d) && d <= monthEndKey).sort();
+      const snap6 = snaps6[snaps6.length - 1];
+      const foot6 = {}, footLbl6 = {};
+      if (snap6) rc6.filter(r => String(r.Date || "").slice(0, 10) === snap6).forEach(r => { const k = rk6(r.Platform); const n = num(r["Number of Reviews"]); foot6[k] = (foot6[k] || 0) + n; if (!footLbl6[k]) footLbl6[k] = String(r.Platform || "—"); });
+      const add6 = {};
+      segReduce("reviews_breakdown", "Source", rs => rs.reduce((a, r) => a + num(r["Number of Reviews"]), 0), curY, mo).forEach(s => { add6[rk6(s.k)] = (add6[rk6(s.k)] || 0) + s.v; });
+      const rows6 = Object.keys(foot6).filter(k => foot6[k] > 0).map(k => ({ k: footLbl6[k], total: foot6[k], added: Math.min(add6[k] || 0, foot6[k]) })).sort((a, b) => b.total - a.total).slice(0, 14);
+      if (rows6.length) {
+        const addTot6 = rows6.reduce((a, r) => a + r.added, 0), footTot6 = rows6.reduce((a, r) => a + r.total, 0);
+        const cc6 = chartCard(g, "Public review footprint — total on file + added this month", `${monLbl} · ${fmtN(footTot6)} on file, +${fmtN(addTot6)} in ${MON[mo]}`, { span2: true, icon: KIC.star, headVal: fmtN(footTot6) });
+        cc6.box.style.height = Math.max(220, 52 + rows6.length * 31) + "px";
+        new Chart(cc6.cv, { type: "bar", data: { labels: rows6.map(r => r.k), datasets: [
+          { label: "On file", data: rows6.map(r => r.total - r.added), backgroundColor: CTX, borderRadius: 2, stack: "f" },
+          { label: "Added " + MON[mo], data: rows6.map(r => r.added), backgroundColor: LIME, borderRadius: 2, stack: "f" }
+        ] },
+          options: baseOpts({ indexAxis: "y", layout: { padding: { right: 104 } },
+            plugins: { legend: { display: true, position: "top", align: "end", labels: { color: SUB, font: { size: 12.5, weight: "600" }, boxWidth: 9, usePointStyle: true } },
+              tooltip: { callbacks: { label: x => x.dataset.label + ": " + fmtN(x.parsed.x) } } },
+            scales: { x: { stacked: true, display: false, beginAtZero: true, max: rows6[0].total * 1.04 }, y: { stacked: true, ticks: { color: INK2, font: { size: 13, weight: "600" } }, grid: { display: false }, border: { display: false } } } }),
+          plugins: [crosshair, { id: "ftlab", afterDatasetsDraw(ch) { const ctx = ch.ctx; ctx.save(); ctx.textBaseline = "middle"; ch.getDatasetMeta(1).data.forEach((el, i) => { const r = rows6[i]; ctx.textAlign = "left"; ctx.font = "800 12px " + MONO; ctx.fillStyle = INK; ctx.fillText(fmtN(r.total), el.x + 6, el.y); if (r.added > 0) { const w = ctx.measureText(fmtN(r.total)).width; ctx.font = "800 12px " + MONO; ctx.fillStyle = LIMED; ctx.fillText("+" + fmtN(r.added), el.x + 6 + w + 6, el.y); } }); ctx.restore(); } }] });
+        note(cc6.c, `Each bar is total public reviews on file for that listing (${fmtN(footTot6)} across the top ${rows6.length}); the lime tip is what was added in ${MON[mo]} (+${fmtN(addTot6)}, from reviews written this month by source, matched to the footprint listing). This footprint is the reputation that drives lead flow.`, "how");
+      }
+    }
+
+    /* ---- 14 · Claims ---- */
+    /* ---- 14 · Claims & Refunds (merged 2026-07-15: claims by claim date, refunds by refund date) ---- */
+    if (SEC("Claims") || SEC("Refunds & Cost of Quality")) {
+      const g = section("Claims & Refunds", "claims filed (by claim date) + refunds paid (by refund date) — and who's responsible");
+      // raw claims-sheet values spell it 'Forman' — display-side fix only, data keys untouched
+      const dispResp = v => String(v).replace(/\bForman('s)?\b/g, (m, p) => "Foreman" + (p || ""));
+      // ---- cards: claims counted by CLAIM date, refund money by REFUND date (matches the P&L) ----
+      const claimsN = reduceMonth("claims", curY, mo, rs => rs.length) || 0;
+      const claimsPM = reduceMonth("claims", PMY, PM, rs => rs.length) || 0;
+      const claimsLY = reduceMonth("claims", curY - 1, mo, rs => rs.length) || 0;
+      const claimRate = jobs ? claimsN / jobs * 100 : null;
+      const refSum = (y, m2) => Math.abs(reduceMonth("refunds", y, m2, rs => rs.reduce((a, r) => a + num(r["Total refund"]), 0)) || 0);
+      const redSum = (y, m2) => reduceMonth("refunds", y, m2, rs => rs.reduce((a, r) => a + num(r["Sales Commission Reduced Amount"]), 0)) || 0;
+      const refTot = refSum(curY, mo), refTotLY = refSum(curY - 1, mo), refTotPM = refSum(PMY, PM);
+      const redTot = redSum(curY, mo), redTotLY = redSum(curY - 1, mo), redTotPM = redSum(PMY, PM);
+      const kg = document.createElement("div"); kg.className = "mrx-grid k"; kg.style.gridColumn = "1/-1"; g.appendChild(kg);
+      [ { l: "Claims Filed", v: fmtN(claimsN), c: claimsN, ly: claimsLY, pm: claimsPM, icon: KIC.warn, inv: 1 },
+        { l: "Claims / 100 jobs", v: claimRate == null ? "—" : fmt1(claimRate), c: claimRate, ly: (jobsLY ? claimsLY / jobsLY * 100 : null), pm: (jobsPM ? claimsPM / jobsPM * 100 : null), icon: KIC.pct, inv: 1 },
+        { l: "Amount Refunded", v: money(refTot), c: refTot, ly: refTotLY, pm: refTotPM, icon: KIC.dollar, inv: 1 },
+        { l: "Amount Reduced from Sales Person", v: money(redTot), c: redTot, ly: redTotLY, pm: redTotPM, icon: KIC.tag, inv: 1 }
+      ].forEach(k => kpiTile(kg, k));
+      // ---- breakdown charts ----
+      rankBars(g, "Claims by responsibility", segReduce("claims", "Responsibility", rs => rs.length, curY, mo).map(s => ({ ...s, k: dispResp(s.k) })), fmtN, { top: 8 });
+      donut(g, "Claims by reason", segReduce("claims", "Reason", rs => rs.length, curY, mo).filter(r => r.k !== "—" && r.k !== "(blank)"), fmtN, { center: fmtN(reduceMonth("claims", curY, mo, rs => rs.filter(r => r.Reason && r.Reason !== "(blank)").length) || 0), centerLbl: "classified" });
+      // "Refunds by reason" chart + the "Refund % of revenue" tile removed 2026-07-15 (Tornike):
+      // the refund register below already carries reason per row, and refunds are ~0.2% of revenue —
+      // a whole chart + tile for a rounding-error line was noise. refByReason kept OUT deliberately.
+      // ---- refund lookup by Request Joinkey (a claim's refund can be paid in a LATER month) ----
+      const refByJk = {};
+      (DS.refunds || []).filter(coRow).forEach(r => {
+        const jk = String(r["Request Joinkey"] || ""); if (!jk.trim()) return;
+        const o = refByJk[jk] || (refByJk[jk] = { refund: 0, reduced: 0 });
+        o.refund += Math.abs(num(r["Total refund"])); o.reduced += num(r["Sales Commission Reduced Amount"]);
+      });
+      // ---- register 1: CLAIMS filed this month (by claim date) + the refund tied to each ----
+      const clReg = (reduceMonth("claims", curY, mo, rs => rs) || []).slice().sort((a, b) => String(b["Created Date"]).localeCompare(String(a["Created Date"])));
+      if (clReg.length) paginatedTable(g, "Claims filed this month", `${monLbl} · by claim date · ${fmtN(clReg.length)} claim${clReg.length === 1 ? "" : "s"}`,
+        [{ label: "Date" }, { label: "Customer" }, { label: "Request #" }, { label: "Reason" }, { label: "Responsibility" }, { label: "Status" }, { label: "Refund", align: "right" }, { label: "Reduced", align: "right" }],
+        clReg,
+        r => { const rf = refByJk[String(r["Request Joinkey"] || "")]; return `<tr><td>${esc(String(r["Created Date"] || "").slice(0, 10))}</td><td>${esc(r.Customer || "—")}</td>${td(esc(r["Request No"] || "—"))}${td(esc(r.Reason || "—"))}${td(esc(dispResp(r.Responsibility || "—")))}${td(esc(r.Status || "—"))}${td(rf && rf.refund ? money(rf.refund) : "—", "text-align:right;font-weight:" + (rf && rf.refund ? "800" : "400"))}${td(rf && rf.reduced ? money(rf.reduced) : "—", "text-align:right")}</tr>`; },
+        { icon: KIC.warn, headVal: fmtN(claimsN), note: "Every claim created this month. Refund / Reduced show the money tied to that claim's Request # whenever it was paid (blank if none yet) — so this Refund column won't equal the by-refund-date total in the cards; a claim filed this month can be refunded in a later month.", noteKind: "how" });
+      // ---- register 2: REFUNDS paid this month (by refund date) ----
+      const rfReg = (reduceMonth("refunds", curY, mo, rs => rs) || []).slice().sort((a, b) => Math.abs(num(b["Total refund"])) - Math.abs(num(a["Total refund"])));
+      if (rfReg.length) paginatedTable(g, "Refunds paid this month", `${monLbl} · by refund date · ${money(refTot)} total`,
+        [{ label: "Refund date" }, { label: "Customer" }, { label: "Request #" }, { label: "Foreman" }, { label: "Sales rep" }, { label: "Reason" }, { label: "Refund", align: "right" }, { label: "Reduced", align: "right" }],
+        rfReg,
+        r => `<tr><td>${esc(String(r["Refund Date"] || "").slice(0, 10))}</td><td>${esc(r.Customer || "—")}</td>${td(esc(r["Request No"] || "—"))}${td(esc(r.Foreman || "—"))}${td(esc(r["Sales Person"] || "—"))}${td(esc(r.Reason || "—"))}${td(money(Math.abs(num(r["Total refund"]))), "text-align:right;font-weight:800")}${td(num(r["Sales Commission Reduced Amount"]) ? money(num(r["Sales Commission Reduced Amount"])) : "—", "text-align:right")}</tr>`,
+        { icon: KIC.dollar, headVal: money(refTot) });
+    }
+
+
+    /* ---------- layout parity: no half-empty rows, ever ----------
+       Walk each section grid in order; any half-width card left without a partner (because a full-row
+       element or the section end follows it) is promoted to full row. Conditional cards can no longer
+       leave a dangling half-empty cell. */
+    [].forEach.call(root.querySelectorAll(".mrx-sec > .mrx-grid"), gr => {
+      if (gr.classList.contains("k")) return;                      // KPI grids lay themselves out
+      let pending = null;
+      [].forEach.call(gr.children, el => {
+        const isCard = el.classList && el.classList.contains("mrx-card");
+        if (!isCard || el.classList.contains("span2")) {           // full-row: span2 card, KPI sub-grid, exec text
+          if (pending) { pending.classList.add("span2"); pending = null; }
+        } else pending = pending ? null : el;
+      });
+      if (pending) pending.classList.add("span2");
+    });
+
+    /* ---------- TOC + controls (UX audit 2026-07-14) ----------
+       Always-visible sticky TOC with scroll-spy (the active chip highlights and stays in
+       view), part-group labels, and a ‹ month › stepper so month-to-month comparison —
+       the page's core gesture — is one click without scrolling back to the cover. */
+    if (secList.length >= 3) {
+      /* Chip -> section jump. The page scrolls inside #content (.rs-content), NEVER the window, and the
+         TOC is a 2-3 row sticky bar whose height changes with the viewport — so neither scrollIntoView()
+         nor a constant scroll-margin-top can land a section:
+           - scrollIntoView() scrolls EVERY scrollable ancestor, and the scroll-spy below fired its own
+             scrollIntoView() on the active chip mid-flight. A scroll on a box cancels an in-flight smooth
+             scroll on that same box — so the click appeared to do nothing at all.
+           - .mrx-sec{scroll-margin-top:56px} is ~half the real wrapped bar height (~105px), so even when
+             it did land, the heading sat under the bar.
+         So: measure the live bar, scroll .rs-content explicitly, and mute the spy's nudge while in flight. */
+      const scrollerOf = () => root.closest(".rs-content") || document.querySelector(".rs-content");
+      let spyMute = 0;
+      const gotoSec = wrap => {
+        const sc = scrollerOf(); if (!sc) return;
+        const landing = sc.getBoundingClientRect().top + toc.offsetHeight + 10;   // first free px under the bar
+        const delta = wrap.getBoundingClientRect().top - landing;
+        if (!delta) return;
+        const top = Math.max(0, sc.scrollTop + delta);
+        spyMute = Date.now() + 1200;                                              // scroll in flight — spy hands off
+        // Smooth scrolling is driven by requestAnimationFrame, which is PAUSED in a hidden/background
+        // tab — there, scrollTo({behavior:"smooth"}) silently never moves at all. Animate only when the
+        // tab can actually paint; otherwise jump. Same landing either way.
+        sc.scrollTo({ top, behavior: document.visibilityState === "visible" ? "smooth" : "auto" });
+      };
+      /* Two-level TOC (Tornike 2026-07-16: "Main Menus and after that subtopic"): row 1 = the six
+         topic tabs + month stepper, row 2 = the section chips OF THE ACTIVE TOPIC only. Scroll-spy
+         drives both: entering a section highlights its chip AND swaps the sub-row to its topic. */
+      const mainRow = document.createElement("div"); mainRow.className = "mrx-tocrow main"; toc.appendChild(mainRow);
+      const subRow = document.createElement("div"); subRow.className = "mrx-tocrow sub"; toc.appendChild(subRow);
+      const parts = (tocParts.length ? tocParts : [{ at: 0, label: "Sections" }])
+        .map((p, pi, arr) => ({ at: p.at, label: p.label, end: arr[pi + 1] ? arr[pi + 1].at : secList.length }));
+      const topicOf = i => { let t = 0; parts.forEach((p, pi) => { if (i >= p.at) t = pi; }); return t; };
+      const jump = s => { s.wrap.classList.remove("collapsed"); collapsedSet.delete(s.title); saveCollapsed(); gotoSec(s.wrap); };
+      let curPart = -1;
+      const mainBtns = parts.map((p, pi) => {
+        const b = document.createElement("button"); b.type = "button"; b.className = "mrx-tocmain";
+        b.innerHTML = `<i>${String(pi + 1).padStart(2, "0")}</i>${esc(p.label)}`;
+        b.onclick = () => { renderSub(pi); const s = secList[p.at]; if (s) jump(s); };
+        mainRow.appendChild(b); return b;
+      });
+      function renderSub(pi) {
+        if (pi === curPart) return;
+        curPart = pi;
+        mainBtns.forEach((b, bi) => b.classList.toggle("on", bi === pi));
+        subRow.innerHTML = "";
+        const lbl = document.createElement("span"); lbl.className = "mrx-tocsublbl"; lbl.textContent = "In " + parts[pi].label; subRow.appendChild(lbl);
+        for (let i = parts[pi].at; i < parts[pi].end; i++) {
+          const s = secList[i]; if (!s) continue;
+          const chip = document.createElement("span"); chip.className = "mrx-tocchip"; chip.dataset.sec = s.n;
+          const cn = document.createElement("i"); cn.className = "mrx-tocn"; cn.textContent = s.n; chip.appendChild(cn);
+          chip.appendChild(document.createTextNode(TOCNAME[s.title] || s.title));
+          chip.onclick = () => jump(s);
+          subRow.appendChild(chip);
+        }
+      }
+      renderSub(0);
+      // month stepper — the dominant gesture, one click, scroll position preserved by reRender
+      const step = document.createElement("span"); step.className = "mrx-tocstep";
+      step.innerHTML = `<button type="button" data-mprev title="Previous month">‹</button><b>${MS[mo]} '${String(curY).slice(2)}</b><button type="button" data-mnext title="Next month">›</button>`;
+      mainRow.appendChild(step);
+      step.querySelector("[data-mprev]").onclick = () => { st.month--; if (st.month < 1) { st.month = 12; st.year--; } saveMonth(); reRender(); };
+      step.querySelector("[data-mnext]").onclick = () => { st.month++; if (st.month > 12) { st.month = 1; st.year++; } saveMonth(); reRender(); };
+      // scroll-spy: highlight the chip of the topmost visible section (and swap the sub-row to its topic)
+      const io = new IntersectionObserver(entries => {
+        entries.forEach(en => { if (!en.isIntersecting) return;
+          const idx = secList.findIndex(s => s.wrap === en.target); if (idx < 0) return;
+          renderSub(topicOf(idx));
+          const n = secList[idx].n;
+          toc.querySelectorAll(".mrx-tocchip.on").forEach(c => c.classList.remove("on"));
+          const c = toc.querySelector(`.mrx-tocchip[data-sec="${n}"]`);
+          if (!c) return;
+          c.classList.add("on");
+          // Keep the active chip visible WITHOUT touching the page scroller (scrollIntoView() walks every
+          // scrollable ancestor and would cancel the chip-click's smooth scroll). Only needed at <=900px
+          // where the sub-row is a horizontal strip; when it wraps this is a no-op.
+          if (Date.now() < spyMute) return;
+          if (subRow.scrollWidth > subRow.clientWidth + 1) {
+            const cr = c.getBoundingClientRect(), tr = subRow.getBoundingClientRect();
+            if (cr.left < tr.left + 8) subRow.scrollLeft += cr.left - tr.left - 8;
+            else if (cr.right > tr.right - 8) subRow.scrollLeft += cr.right - tr.right + 8;
+          }
+        });
+      }, { rootMargin: "-15% 0px -70% 0px" });
+      secList.forEach(s => io.observe(s.wrap));
+    } else toc.style.display = "none";
+    function saveMonth() { try { localStorage.setItem("ztzMrMonth", st.year + "-" + String(st.month).padStart(2, "0")); } catch (e) {} }
+    // month flips keep the reader's place — full re-render, then restore the scroll offset
+    const reRender = async () => {
+      if (typeof renderPage !== "function") { location.reload(); return; }
+      const scroller = root.closest(".rs-content") || document.querySelector(".rs-content");
+      const y = scroller ? scroller.scrollTop : 0;
+      await renderPage();
+      const s2 = document.querySelector(".rs-content"); if (s2) s2.scrollTop = y;
+    };
+    document.getElementById("mrMonth").onchange = e => { st.month = +e.target.value; saveMonth(); reRender(); };
+    document.getElementById("mrYear").onchange = e => { st.year = +e.target.value; saveMonth(); reRender(); };
+    const pb = document.getElementById("mrPrint"); if (pb) pb.onclick = downloadReportPDF;
+    const pv = document.getElementById("mrPrint2"); if (pv) pv.onclick = () => window.print();
+    const rl = document.getElementById("mrRetryLoad"); if (rl) rl.onclick = () => reRender();   // failed feeds aren't cached — a re-render refetches them
+}
+
+registerPage({ id: "monthly-report", group: "pulse", title: "Monthly Report", render(host) { return renderMonthly(host, null); } });
+
+/* Themed dashboards — one page per topic, each a lite-mode slice of the SAME report
+   (same data, same visuals, section subset). Overlaps (Repeat & Referral, Phone & Response)
+   are intentional so each department's dashboard is self-contained. Replaces the six old
+   "*-team" Monthly Review pages + MR_TEAMS. */
+const MR_DASH = [
+  // Sales
+  { id: "sales-funnel", group: "sales", title: "Lead Funnel & Conversion", sections: ["Demand & Lead Funnel", "Leads Segments"] },
+  { id: "sales-perf", group: "sales", title: "Sales Team Performance", sections: ["Sales Team Performance"] },
+  { id: "sales-geo", group: "financial", title: "Geography", sections: ["Geography — by State"] },
+  // Marketing
+  { id: "mkt-roi", group: "marketing", title: "Return on Investment", sections: ["Marketing ROI"] },
+  { id: "mkt-sources", group: "marketing", title: "Lead Sources & Channels", sections: ["Lead Sources"] },
+  { id: "mkt-phone", group: "marketing", title: "Phone & Response", sections: ["Phone & Response"] },
+  // Logistics
+  { id: "log-foreman", group: "logistics", title: "Foreman of the Month", sections: ["Operations & Crew (Foreman)"] },
+  { id: "log-packing", group: "logistics", title: "Packing & Storage", sections: ["Packing & Storage"] },
+  // Financial
+  { id: "fin-revenue", group: "financial", title: "Revenue & Profit", sections: ["Executive Summary", "Revenue & Growth", "Revenue Segments", "Per-Job Profitability", "Profitability & P&L"] },
+  { id: "fin-rr", group: "financial", title: "Repeat & Referral", sections: ["Repeat & Referral Business"] },
+  // Reviews
+  { id: "rev-production", group: "reviews", title: "Reviews Production", sections: ["Reviews Production"] },
+  // Support
+  { id: "sup-claims", group: "support", title: "Claims", sections: ["Claims"] },
+  { id: "sup-refunds", group: "support", title: "Refunds & Cost of Quality", sections: ["Refunds & Cost of Quality"] },
+  { id: "sup-phone", group: "support", title: "Phone & Response", sections: ["Phone & Response"] },
+];
+MR_DASH.forEach(d => registerPage({ id: d.id, group: d.group, title: d.title, render(host) { return renderMonthly(host, { id: d.id, title: d.title, label: d.title, sections: d.sections, lite: true }); } }));
+
+var st = window.__mrState || (window.__mrState = { month: 0, year: 0, years: 5 });

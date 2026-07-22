@@ -1,0 +1,1258 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- Always revalidate the SHELL. Every asset below is ?v=-busted, but index.html itself is not —
+     so a cached shell keeps requesting the OLD asset versions and a deploy silently does nothing.
+     That has now bitten twice: a pre-v14 screenshot read as a live bug, and (2026-07-20) a stale
+     v28 re-added the duplicate "Other" reason client-side, undoing the very fix that had shipped.
+     The shell is ~200KB and only revalidates (304 when unchanged), so the cost is one round-trip. -->
+<meta http-equiv="Cache-Control" content="no-cache, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<title>Zip to Zip — Reporting System</title>
+<link rel="icon" type="image/png" href="logo.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/portal.css?v=2">
+<link rel="stylesheet" href="assets/rs.css?v=10">
+<style>
+/* collapsible sidebar groups + nested hub sub-items */
+#nav .g-title{cursor:pointer;user-select:none;display:flex;align-items:center;justify-content:space-between}
+#nav .g-title .g-car{font-size:9px;opacity:.55;transition:transform .15s ease;margin-left:8px}
+#nav .rs-group.collapsed .g-title .g-car{transform:rotate(-90deg)}
+#nav .rs-group.collapsed .rs-nav-item{display:none}
+#nav .rs-nav-sub{padding-left:36px !important;font-size:12.5px;opacity:.92}
+#nav .rs-nav-sub svg{display:none}
+#nav .rs-nav-sub::before{content:"·";margin-right:8px;opacity:.5;font-weight:800}
+/* Monthly-Report-family pages own their time — the global Year/Month slicers hide there
+   (the page's cover Month/Year picker is the one time control); see MR_OWN_TIME. */
+body.mr-own-time #frowDates .rs-slicer[data-key="year"],
+body.mr-own-time #frowDates .rs-slicer[data-key="month"]{display:none}
+</style>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+</head>
+<body class="rs-app">
+<header class="top" id="ztzHeader"></header>
+
+<section id="gate" class="gate hidden">
+  <div class="card">
+    <img src="logo.png" alt="Zip to Zip Moving" style="width:92px;height:92px;border-radius:20px;display:block;margin:0 auto 18px;box-shadow:var(--shadow)">
+    <h1>Reporting System</h1>
+    <p>Sign in with the Google account that was given access.<br>
+    No access yet? Contact <b>Tornike</b>.</p>
+    <div class="signin-slot" id="gateSign"></div>
+    <div class="err" id="gateErr" style="margin-top:12px"></div>
+  </div>
+</section>
+
+<div class="rs-layout hidden" id="app">
+  <aside class="rs-side" id="side">
+    <div class="search"><input type="text" id="navSearch" placeholder="Find a report…"></div>
+    <div id="nav"></div>
+    <div class="foot"><b>Live company data</b><br><!-- C5: verified live Cloud Scheduler 2026-07-08: ztz-sharepoint-loader-daily = "0 */6 * * *"
+     (every 6 hours, America/New_York) — docs/deploy.md's daily-6AM note is stale.
+     This static line is only the fallback; boot swaps in the real "Data updated:" timestamp. -->
+     <span id="footFresh">Refreshed automatically every 6 hours</span></div>
+  </aside>
+  <div class="rs-backdrop hidden" id="sideBackdrop"></div>
+  <div class="rs-main">
+    <div class="rs-filters" id="filters">
+      <div class="rs-frow" id="frowDates"></div>
+      <div class="rs-frow" id="frowSlicers"></div>
+      <div class="rs-datebasis hidden" id="dateBasisNote"></div>
+    </div>
+    <div class="rs-chips hidden" id="chips"></div>
+    <div class="rs-banner hidden" id="accessBanner"></div>
+    <!-- pipeline alarms (2026-07-20): lives OUTSIDE #content, which renderPage() overwrites on
+         every navigation — a banner inside it would vanish on the first click. -->
+    <div id="pipeHealth" class="hidden"></div>
+    <div class="rs-banner hidden" id="noDataBanner">
+      <span>No data matches your combined filters — check <b>Month</b> vs <b>Date range</b> (they narrow each other down).</span>
+      <button class="rs-banner-btn" id="noDataClear">Clear all filters</button>
+    </div>
+    <div class="rs-content" id="content"></div>
+  </div>
+</div>
+
+<script src="assets/portal.js?v=8"></script>
+<script src="assets/rs-core.js?v=24"></script>
+<script src="assets/rs-components.js?v=8"></script>
+<script>
+/* ---------------- page registry ---------------- */
+window.PAGES = [];
+window.registerPage = p => PAGES.push(p);
+
+/* Groups shown in the sidebar (pages register with group keys). */
+const GROUPS = [
+  { key: "settings",  title: "Settings" },
+  { key: "company",   title: "Company Overview" },
+  { key: "sales",     title: "Sales" },
+  { key: "marketing", title: "Marketing" },
+  { key: "logistics", title: "Logistics" },
+  { key: "financial", title: "Financial" },
+  { key: "reviews",   title: "Reviews" },
+  { key: "support",   title: "Support" },
+];
+
+/* Sidebar placement is decided HERE (id -> container), overriding whatever group a page
+   module registered with — so restructures never require touching 20 page files. */
+const GROUP_OVERRIDE = {
+  // Settings
+  "data-quality": "settings", "source-trace": "settings", "multi-source-leads": "settings", "admin-users": "settings",
+  // Company Overview
+  "monthly-report": "company", "analysis-by-category": "company",
+  // Sales ("sales-geo" moved to Financial — Tornike 2026-07-13: geography is a money view)
+  "sales-funnel": "sales", "sales-perf": "sales", "sales-geo": "financial", "sales-speed": "sales", "leads-inflow": "sales",
+  // Marketing
+  "mkt-roi": "marketing", "mkt-sources": "marketing", "mkt-phone": "marketing",
+  // Logistics
+  "log-foreman": "logistics", "log-packing": "logistics",
+  // Financial
+  "fin-revenue": "financial", "fin-rr": "financial", "financial-analysis": "financial", "executive-scorecard": "financial",
+  "branch-owner": "financial", "money-flow": "logistics", "ld-planning": "logistics", "foreman-closings": "logistics",
+  // Reviews
+  "review-performance": "reviews", "rev-production": "reviews", "reviews-reminders": "reviews",
+  "response-analysis": "reviews", "review-settings": "reviews",
+  // Support
+  "sup-claims": "support", "sup-refunds": "support", "sup-phone": "support",
+};
+const groupOf = p => GROUP_OVERRIDE[p.id] || p.group;
+/* explicit per-container item order (numbers are scoped within each group's display list) */
+const NAV_ORDER = {
+  "monthly-report": 1, "analysis-by-category": 2,
+  "sales-funnel": 1, "sales-perf": 2, "sales-speed": 3, "leads-inflow": 4,
+  "mkt-roi": 1, "mkt-sources": 2, "mkt-phone": 3,
+  "money-flow": 1, "ld-planning": 2, "foreman-closings": 3, "log-foreman": 4, "log-packing": 5,
+  "fin-revenue": 1, "fin-rr": 2, "sales-geo": 3, "financial-analysis": 4, "executive-scorecard": 5, "branch-owner": 6,
+  "rev-production": 1, "review-performance": 2, "response-analysis": 3, "reviews-reminders": 4, "review-settings": 5,
+  "sup-claims": 1, "sup-refunds": 2, "sup-phone": 3,
+  "data-quality": 1, "source-trace": 2, "multi-source-leads": 3, "admin-users": 4, "general-settings": 5,
+};
+
+/* Inline SVG icon set (Feather-style, stroke-based) — no emojis anywhere. */
+const ICONS = {
+  activity:  '<path d="M22 12h-4l-3 9L9 3l-3 9H2"/>',
+  dollar:    '<line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>',
+  truck:     '<rect x="1.5" y="6" width="12" height="9" rx="1"/><path d="M13.5 9h4l3 3v3h-7z"/><circle cx="6" cy="18" r="1.8"/><circle cx="17.5" cy="18" r="1.8"/>',
+  receipt:   '<path d="M5 2v20l2-1.5L9 22l2-1.5L13 22l2-1.5L17 22l2-1.5V2l-2 1.5L15 2l-2 1.5L11 2 9 3.5 7 2z"/><path d="M8 8h8M8 12h8M8 16h5"/>',
+  trend:     '<path d="M23 6l-9.5 9.5-5-5L1 18"/><path d="M17 6h6v6"/>',
+  compass:   '<circle cx="12" cy="12" r="10"/><path d="M16.24 7.76l-2.12 6.36-6.36 2.12 2.12-6.36 6.36-2.12z"/>',
+  user:      '<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>',
+  funnel:    '<path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z"/>',
+  pin:       '<path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/>',
+  megaphone: '<path d="M3 11l18-5v12L3 14v-3z"/><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"/>',
+  phone:     '<path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/>',
+  tool:      '<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>',
+  sliders:   '<path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/>',
+  box:       '<path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><path d="M3.27 6.96L12 12.01l8.73-5.05M12 22.08V12"/>',
+  clipboard: '<path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/>',
+  gauge:     '<circle cx="12" cy="12" r="10"/><path d="M12 12l4.5-4.5"/><path d="M7 12h.01M12 7v.01M17 12h.01"/>',
+  shield:    '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>',
+  star:      '<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>',
+  archive:   '<path d="M21 8v13H3V8"/><path d="M1 3h22v5H1z"/><path d="M10 12h4"/>',
+  doc:       '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/>',
+  spark:     '<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>',
+};
+const icon = k => `<svg viewBox="0 0 24 24">${ICONS[k] || ICONS.doc}</svg>`;
+/* page id / planned title → icon key */
+const PAGE_ICONS = {
+  "jobs-vs-hours": "activity", "yoy-diff": "trend", "leads-analysis": "funnel",
+  "leads-by-state": "pin", "storage": "archive", "analysis-by-category": "compass",
+  "Analysis by Category": "compass", "Sales Person Analysis": "user",
+  "sales-person-analysis": "user",
+  "Ads Analysis": "megaphone", "CallRail": "phone", "Forman": "tool",
+  "Forman Analysis": "sliders", "forman-analysis": "sliders",
+  "Packing": "box", "Packing Analysis": "clipboard",
+  "packing-analysis": "clipboard",
+  "Packing per 100 CF": "gauge", "packing-per-100cf": "gauge",
+  "Claims": "shield", "Reviews": "star",
+  "reviews": "star",
+  "ads-analysis": "megaphone", "callrail": "phone", "forman": "tool",
+  "packing": "box", "claims": "shield", "insights": "spark",
+  "source-identification": "compass",
+  "executive-scorecard": "gauge", "branch-owner": "user", "customer-experience": "user",
+  "money-flow": "dollar",
+  "ld-planning": "truck",
+  "foreman-closings": "receipt",
+  "labor-analysis": "activity",
+  "financial-analysis": "trend", "post-card-analysis": "megaphone",
+  "monthly-report": "spark",
+  "angi-vs-moveboard": "compass", "reviews-team": "star", "support-team": "shield", "lead-source-analysis": "compass", "source-analysis": "compass", "movers-analysis": "megaphone",
+  "financial-team": "trend", "sales-team": "user", "marketing-team": "megaphone", "logistics-team": "tool",
+  // themed dashboards + settings (2026-07-09 restructure)
+  "sales-funnel": "funnel", "sales-perf": "user", "sales-geo": "pin", "sales-speed": "phone", "leads-inflow": "activity",
+  "mkt-roi": "trend", "mkt-sources": "compass", "mkt-phone": "phone",
+  "log-foreman": "tool", "log-packing": "box",
+  "fin-revenue": "trend", "fin-rr": "trend", "rev-production": "star",
+  "sup-claims": "shield", "sup-refunds": "clipboard", "sup-phone": "phone",
+  "general-settings": "sliders", "data-quality": "clipboard", "source-trace": "activity", "multi-source-leads": "git-merge", "calendar-coverage": "calendar", "request-consistency": "alert-triangle", "review-performance": "star", "reviews-reminders": "megaphone", "response-analysis": "activity", "review-settings": "tool",
+};
+
+/* Pages not yet built — shown greyed with a SOON tag so the full scope is visible. */
+const PLANNED = [];  // all 16 General Overview pages are built
+
+/* Virtual tab groups (user-approved merges): the sidebar shows ONE item; the
+   content area renders a tab bar over the constituent pages. Page modules stay
+   untouched — future merges are one entry here. */
+/* Virtual tab-group merges were retired in the 2026-07-09 themed-dashboard restructure —
+   every constituent page is now hidden and redirected to a themed dashboard (see REDIRECTS).
+   The machinery below is kept intact but empty so pageFor/navigate/canSee stay well-defined. */
+const MERGED = [];
+const MERGED_BY_TAB = {};
+MERGED.forEach(m => m.tabs.forEach(([tid]) => MERGED_BY_TAB[tid] = m));
+const mergedActiveTab = {};
+
+/* Retired pages (2026-07-09 restructure): code + <script> registrations stay (harmless),
+   but they're hidden from nav/search/tiles and any hit — deep link, old ACL grant, hash —
+   is silently forwarded to its themed-dashboard replacement. */
+const RETIRED = new Set([
+  // pre-existing
+  "jobs-vs-hours", "yoy-diff", "packing",
+  // sales
+  "leads-analysis", "leads-by-state", "sales-person-analysis",
+  // marketing
+  "source-analysis", "source-identification", "angi-vs-moveboard", "leads-vs-moveboard",
+  "movers-analysis", "post-card-analysis", "callrail", "ads-analysis",
+  // logistics
+  "storage", "packing-analysis", "packing-per-100cf", "forman", "forman-analysis", "labor-analysis",
+  // support / reviews
+  "claims", "customer-experience", "reviews",
+  // old per-department Monthly Review pages (replaced by themed dashboards)
+  "financial-team", "sales-team", "marketing-team", "logistics-team", "reviews-team", "support-team",
+]);
+const REDIRECTS = {
+  // pre-existing
+  "jobs-vs-hours": "monthly-report",
+  "yoy-diff": "analysis-by-category",
+  // sales — leads / funnel / geography / rep performance
+  "leads-analysis": "sales-funnel", "leads": "sales-funnel", "sales-team": "sales-funnel",
+  "leads-by-state": "sales-geo",
+  "sales-person-analysis": "sales-perf",
+  // marketing — ROI / sources / calls
+  "ads-analysis": "mkt-roi", "callrail": "mkt-roi", "marketing": "mkt-roi", "marketing-team": "mkt-roi",
+  "source-analysis": "mkt-sources", "source-identification": "mkt-sources",
+  "lead-source-analysis": "mkt-sources", "angi-vs-moveboard": "mkt-sources",
+  "leads-vs-moveboard": "mkt-sources", "movers-analysis": "mkt-sources", "post-card-analysis": "mkt-sources",
+  // logistics — foreman / packing / storage
+  "forman": "log-foreman", "forman-analysis": "log-foreman", "foremen": "log-foreman",
+  "labor-analysis": "log-foreman", "logistics-team": "log-foreman",
+  "packing": "log-packing", "packing-suite": "log-packing",
+  "packing-analysis": "log-packing", "packing-per-100cf": "log-packing", "storage": "log-packing",
+  // financial
+  "financial-team": "fin-revenue",
+  // reviews
+  "reviews": "rev-production", "reviews-team": "rev-production",
+  // support — claims / refunds
+  "claims": "sup-claims", "support-team": "sup-claims",
+  "customer-experience": "sup-refunds",
+};
+
+function mergedPage(m) {
+  return { id: m.id, group: m.group, title: m.title, async render(host) {
+    const active = mergedActiveTab[m.id] || m.tabs[0][0];
+    host.innerHTML = `<div class="rs-tabs">` + m.tabs.map(([tid, label]) =>
+      `<button class="rs-tab ${tid === active ? "on" : ""}" data-t="${tid}">${RSC.esc(label)}</button>`).join("") +
+      `</div><div id="mergedHost"></div>`;
+    host.querySelectorAll(".rs-tab").forEach(b => b.onclick = () => {
+      // navigate() (not a bare re-render) so the hash keeps hub:tab — copied links
+      // land on THIS tab, not the hub's first one (C32).
+      mergedActiveTab[m.id] = b.dataset.t; navigate(m.id);
+    });
+    const page = PAGES.find(p => p.id === active);
+    if (page) await page.render(host.querySelector("#mergedHost"));
+  } };
+}
+/* Resolve any id — retired id (→ replacement), merged id, constituent id (old deep link),
+   or plain page. */
+function pageFor(id) {
+  if (id && id.indexOf(":") > 0) id = id.split(":")[0];   // collapse any legacy "hub:tab" deep link
+  if (id && REDIRECTS[id]) id = REDIRECTS[id];            // retired page → its themed replacement
+  return PAGES.find(p => p.id === id);
+}
+
+/* ---------------- access control (per-user report grants) ---------------- */
+window.ME = null;   // {email, admin, reports:[report_id]} from /api/_me
+const idOwner = id => (id && MERGED_BY_TAB[id]) ? MERGED_BY_TAB[id].id : id;
+function canSee(id) {
+  if (!id || !ME) return false;
+  if (ME.admin) return true;
+  if (id === "admin-users" || id === "general-settings") return false;
+  const reports = ME.reports || [];
+  if (reports.includes(id)) return true;
+  // department grant: holding a department id opens ALL of its reports, incl. ones added later
+  for (const d of ACL_DEPTS) { if (reports.includes(d.id) && d.reports.includes(id)) return true; }
+  // a lingering grant to a retired page opens its replacement, so nobody loses access
+  for (const src in REDIRECTS) {
+    if (reports.includes(src) && REDIRECTS[src].split(":")[0] === id) return true;
+  }
+  // a grant to a page that got merged into a hub (e.g. the old standalone Labor & Crew,
+  // now a Foremen & Crew tab) opens that hub — the merge must not revoke access
+  const m = MERGED.find(x => x.id === id);
+  if (m && m.tabs.some(([tid]) => reports.includes(tid))) return true;
+  return false;
+}
+function firstAllowedId() {
+  for (const p of PAGES) { const oid = idOwner(p.id); if (canSee(oid)) return oid; }
+  return null;
+}
+function requestAccessScreen(email, errMsg) {
+  document.getElementById("filters").classList.add("hidden");
+  document.getElementById("chips").classList.add("hidden");
+  // a user with zero reports has nothing to search — hide the box so it can't "find nothing"
+  const search = document.querySelector("#side .search");
+  if (search) search.classList.add("hidden");
+  const contact = `Ask <b style="color:var(--muted)">Tornike</b> —
+      <a href="mailto:tornike@datastudio.ge" style="color:var(--brand)">tornike@datastudio.ge</a>`;
+  const body = errMsg
+    ? `<div style="font-size:17px;font-weight:800;color:var(--ink);margin-bottom:8px">We couldn't check your access</div>
+       <div style="line-height:1.65">The data service didn't answer — this is usually a connection hiccup, not a permissions problem.</div>
+       <button class="btn on" style="margin-top:14px" onclick="location.reload()">Try again</button>
+       <details style="margin-top:12px;font-size:11.5px;color:var(--faint)"><summary style="cursor:pointer">Technical details</summary>
+         <div style="margin-top:6px;word-break:break-all">${RSC.esc(errMsg)}</div></details>
+       <div style="margin-top:14px;font-size:12px">Still stuck? ${contact}</div>`
+    : `<div style="font-size:17px;font-weight:800;color:var(--ink);margin-bottom:8px">Access not granted yet</div>
+       <div style="line-height:1.65">You are signed in as <b style="color:var(--muted)">${RSC.esc(email || "")}</b>,
+       but no reports have been assigned to you yet.<br>${contact}</div>`;
+  document.getElementById("content").innerHTML =
+    `<div class="rs-loading"><div style="max-width:440px;text-align:center">${body}</div></div>`;
+}
+async function fetchMe() {
+  try {
+    const r = await fetch(ZTZ.API + "/api/_me",
+      { headers: { Authorization: "Bearer " + ZTZ.getToken() } });
+    const j = await r.json().catch(() => ({}));
+    if (r.status === 404 || (j.error || "").indexOf("unknown dataset") >= 0) {
+      // Legacy bridge (ACL endpoints not deployed yet) — open access, no admin UI.
+      console.warn("ACL bridge not deployed yet — running open.");
+      return { email: ZTZ.email(), authorized: true, admin: false,
+               reports: Object.keys(PAGE_ICONS), legacy: true };
+    }
+    if (!r.ok) throw new Error(j.error || ("HTTP " + r.status));
+    return j;
+  } catch (e) { return { authorized: false, email: ZTZ.email(), error: e.message }; }
+}
+
+/* Dark chart theme (applies to every Chart.js instance). */
+Chart.defaults.color = "#8b98a8";
+Chart.defaults.borderColor = "#1c2636";
+Chart.defaults.font.family = "Inter, -apple-system, 'Segoe UI', Roboto, sans-serif";
+Chart.defaults.font.size = 11.5;
+Chart.defaults.plugins.tooltip.backgroundColor = "#0d1320";
+Chart.defaults.plugins.tooltip.borderColor = "#243248";
+Chart.defaults.plugins.tooltip.borderWidth = 1;
+Chart.defaults.plugins.tooltip.titleColor = "#e9eef6";
+Chart.defaults.plugins.tooltip.bodyColor = "#8b98a8";
+Chart.defaults.plugins.tooltip.padding = 10;
+Chart.defaults.plugins.tooltip.cornerRadius = 9;
+Chart.defaults.plugins.legend.labels.usePointStyle = true;
+Chart.defaults.plugins.legend.labels.pointStyle = "rectRounded";
+Chart.defaults.plugins.legend.labels.boxWidth = 9;
+Chart.defaults.plugins.legend.labels.boxHeight = 9;
+Chart.defaults.datasets.bar.maxBarThickness = 44;
+
+/* ---- beautifier: solid 100%-opaque fills only (no gradients, no alpha) + crisp hovers,
+   applied by wrapping the Chart constructor so page modules stay untouched. ---- */
+function _beautify(config) {
+  try {
+    const datasets = (config.data && config.data.datasets) || [];
+    datasets.forEach(ds => {
+      const t = ds.type || config.type;
+      if (t === "bar" && typeof ds.backgroundColor === "string" && ds.backgroundColor[0] === "#") {
+        // flat solid fill — leave ds.backgroundColor as the opaque hex it already is
+        ds.hoverBackgroundColor = ds.backgroundColor;
+        if (ds.borderRadius == null) ds.borderRadius = 6;
+      }
+      if (t === "line") {
+        if (ds.pointHoverRadius == null) ds.pointHoverRadius = 5;
+        if (!ds.borderWidth || ds.borderWidth < 2) ds.borderWidth = 2;
+      }
+      if ((t === "doughnut" || t === "pie") && Array.isArray(ds.backgroundColor)) {
+        if (ds.borderColor == null)   // theme-aware separator between slices
+          ds.borderColor = () => document.body.classList.contains("light") ? "#ffffff" : "#0f1523";
+        if (ds.borderWidth == null || ds.borderWidth <= 1) ds.borderWidth = 2;
+        if (ds.hoverOffset == null) ds.hoverOffset = 8;
+      }
+    });
+  } catch (e) { console.warn("chart beautify skipped:", e); }
+}
+/* ---- auto-fit: dense horizontal-bar charts get enough vertical room that every
+   category label renders (Chart.js otherwise silently drops "too tight" ticks).
+   Sizes the .chartbox ancestor by category count and disables tick auto-skip. ---- */
+function _fitBox(item, config) {
+  try {
+    const canvas = (item && item.canvas) ? item.canvas : item;
+    if (!canvas || !canvas.closest) return;
+    const box = canvas.closest(".chartbox");
+    if (!box) return;
+    const n = ((config.data && config.data.labels) || []).length;
+    const datasets = (config.data && config.data.datasets) || [];
+    const horiz = !!(config.options && config.options.indexAxis === "y");
+    const hasBar = datasets.some(d => (d.type || config.type) === "bar");
+    if (horiz && hasBar && n > 8) {
+      box.style.height = Math.min(1000, Math.max(340, n * 30 + 70)) + "px";  // ~30px per row
+      const o = config.options = config.options || {};
+      o.scales = o.scales || {}; o.scales.y = o.scales.y || {};
+      o.scales.y.ticks = Object.assign({ autoSkip: false }, o.scales.y.ticks);
+    }
+  } catch (e) {}
+}
+const _RawChart = Chart;
+window.Chart = class extends _RawChart {
+  constructor(item, config) { _beautify(config || {}); _fitBox(item, config || {}); super(item, config); }
+};
+
+/* ---------------- light / dark theme ---------------- */
+const THEME_CHART = {
+  dark:  { color: "#8b98a8", border: "#1c2636", tipBg: "#0d1320", tipBorder: "#243248", tipTitle: "#e9eef6" },
+  light: { color: "#5b6b7c", border: "#e3e8f0", tipBg: "#ffffff", tipBorder: "#cdd6e2", tipTitle: "#16202c" },
+};
+const ICON_SUN = '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>';
+const ICON_MOON = '<svg viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>';
+function applyTheme(mode, rerender) {
+  document.body.classList.toggle("light", mode === "light");
+  try { localStorage.setItem("rs_theme", mode); } catch (e) {}
+  const t = THEME_CHART[mode] || THEME_CHART.dark;
+  Chart.defaults.color = t.color;
+  Chart.defaults.borderColor = t.border;
+  Chart.defaults.plugins.tooltip.backgroundColor = t.tipBg;
+  Chart.defaults.plugins.tooltip.borderColor = t.tipBorder;
+  Chart.defaults.plugins.tooltip.titleColor = t.tipTitle;
+  Chart.defaults.plugins.tooltip.bodyColor = t.color;
+  const btn = document.getElementById("themeBtn");
+  if (btn) btn.innerHTML = mode === "light" ? ICON_MOON : ICON_SUN;
+  if (rerender && CURRENT) {
+    // Preserve scroll position across the theme re-render — the page scrolls inside #content (not the
+    // window), and renderPage rebuilds it, which would otherwise jump to the top (Tornike 2026-07-15).
+    const st = (document.getElementById("content") || {}).scrollTop || 0;
+    const restore = () => { const s = document.getElementById("content"); if (s) s.scrollTop = st; };
+    const p = renderPage();
+    if (p && typeof p.then === "function") p.then(() => { restore(); setTimeout(restore, 80); setTimeout(restore, 250); });
+    else { requestAnimationFrame(restore); setTimeout(restore, 80); setTimeout(restore, 250); }
+  }
+}
+function mountThemeToggle() {
+  const host = document.getElementById("ztzHeader");
+  if (!host || document.getElementById("themeBtn")) return;
+  const b = document.createElement("button");
+  b.id = "themeBtn"; b.className = "rs-theme"; b.title = "Light / dark mode";
+  b.onclick = () => applyTheme(document.body.classList.contains("light") ? "dark" : "light", true);
+  host.appendChild(b);
+  applyTheme((() => { try { return localStorage.getItem("rs_theme"); } catch (e) { return null; } })() || "dark", false);
+}
+
+let CURRENT = null;
+
+/* ---------------- shell context: date-basis caption + no-op slicer greying ----------------
+   Pages don't declare their datasets, so the shell keeps this map (primary dataset FIRST —
+   it drives the empty-filter check). Consumed with the rs-core contracts RS.dateBasis(ds)
+   and RS.fieldsFor(ds). When adding a page, list what it RS.load()s. */
+const MR_DATASETS = ["closing", "moveboard", "storage", "claims", "refunds", "card_expenses",
+  "reviews_breakdown", "negative_reviews", "callrail", "scorecard", "review_counts",
+  "review_goals", "helper_salaries", "sales_salaries", "long_distance"];
+const PAGE_DATASETS = {
+  "insights": ["closing", "moveboard", "scorecard", "card_expenses", "claims", "refunds",
+    "storage", "callrail", "leads", "review_counts", "review_goals", "long_distance",
+    "negative_reviews", "helper_salaries", "sales_salaries"],
+  "source-identification": ["moveboard", "closing"],
+  "jobs-vs-hours": ["closing"],
+  "analysis-by-category": ["closing", "moveboard"],
+  "yoy-diff": ["closing"],
+  "leads-analysis": ["moveboard"],
+  "leads-by-state": ["moveboard"],
+  "storage": ["storage", "closing"],
+  "sales-person-analysis": ["closing", "sales_salaries", "refunds"],
+  "ads-analysis": ["card_expenses", "closing", "moveboard"],
+  "callrail": ["callrail"],
+  "forman": ["scorecard"],
+  "forman-analysis": ["closing", "helper_salaries"],
+  "packing": ["closing", "scorecard"],
+  "packing-analysis": ["closing", "scorecard"],
+  "packing-per-100cf": ["scorecard"],
+  "claims": ["claims", "closing", "scorecard", "rollup"],
+  "reviews": ["reviews_breakdown", "review_counts", "review_goals"],
+  "executive-scorecard": ["closing", "card_expenses", "claims", "storage", "refunds"],
+  "branch-owner": ["closing"],
+  "customer-experience": ["closing", "claims", "refunds", "negative_reviews", "rollup"],
+  "labor-analysis": ["closing", "helper_salaries"],
+  "financial-analysis": ["closing", "moveboard", "sales_salaries", "helper_salaries", "refunds"],
+  "post-card-analysis": ["card_expenses", "moveboard", "closing", "helper_salaries", "sales_salaries", "refunds"],
+  "source-analysis": ["closing", "moveboard", "card_expenses"],
+  "movers-analysis": ["closing", "moveboard", "card_expenses"],
+  "angi-vs-moveboard": [],   // fetches its own raw data — the global filter bar doesn't reach it
+  "monthly-report": MR_DATASETS,
+  "admin-users": [],
+  "general-settings": [],
+  "data-quality": [],
+  "source-trace": [],
+  "multi-source-leads": [],
+  "calendar-coverage": [],
+  "request-consistency": [],
+  "review-performance": [],
+  "response-analysis": [], "review-settings": [],
+  "sales-speed": [],
+  "leads-inflow": [],
+  "money-flow": [],          // loads fct_money_flow itself + the /api/_mf live overlay
+  "ld-planning": [],         // loads fct_ld_planning itself; no global slicers apply
+  "foreman-closings": [],    // loads via /api/_fnc; no global slicers apply
+  "reviews-reminders": [],   // talks to the Apps Script relay (JSONP) + loads its own goal data
+};
+// themed dashboards are lite-mode slices of the Monthly Report — same datasets
+["sales-funnel", "sales-perf", "sales-geo", "mkt-roi", "mkt-sources", "mkt-phone",
+ "log-foreman", "log-packing", "fin-revenue", "fin-rr", "rev-production",
+ "sup-claims", "sup-refunds", "sup-phone"].forEach(id => PAGE_DATASETS[id] = MR_DATASETS);
+/* what each dataset's rows ARE, in plain words — for the date-basis caption */
+const DS_NOUN = { closing: "jobs", moveboard: "leads", storage: "storage payments",
+  refunds: "refunds", claims: "claims", negative_reviews: "negative reviews",
+  reviews_breakdown: "reviews", card_expenses: "expenses", callrail: "calls",
+  leads: "provider leads", scorecard: "foreman scorecards", review_counts: "review totals",
+  review_goals: "review goals", long_distance: "long-distance jobs" };
+/* pages where a derived list would be noise — one hand-written line instead */
+const DATE_BASIS_TEXT = {
+  "angi-vs-moveboard": "this page has its own date handling — the filters above don't apply here",
+};
+["monthly-report", "sales-funnel", "sales-perf", "sales-geo", "mkt-roi",
+  "mkt-sources", "mkt-phone", "log-foreman", "log-packing", "fin-revenue", "fin-rr",
+  "rev-production", "sup-claims", "sup-refunds", "sup-phone"].forEach(id =>
+  DATE_BASIS_TEXT[id] = "money & jobs count by move date · leads by the date they came in");
+
+/* leaf page id — for a merged hub, the ACTIVE tab's page id */
+function currentLeafId() {
+  if (!CURRENT) return null;
+  const m = MERGED.find(x => x.id === CURRENT.id);
+  return m ? (mergedActiveTab[m.id] || m.tabs[0][0]) : CURRENT.id;
+}
+/* N13: per-slicer tooltips shown while the slicer is active (the "not used here"
+   message below takes priority when it's greyed). rs-core may also ship RS.FIELDS[k].tip. */
+const SLICER_TIPS = { cfRange: "Estimated move volume in cubic feet" };
+/* C1: say what "Date" means on this page. C6: grey out slicers whose field has no
+   mapping in any of the page's datasets — a silent no-op filter misleads with confidence. */
+function updateFilterContext() {
+  const leaf = currentLeafId();
+  const dsList = PAGE_DATASETS[leaf];
+  const note = document.getElementById("dateBasisNote");
+  if (note) {
+    let txt = DATE_BASIS_TEXT[leaf] || null;
+    if (!txt && dsList && dsList.length) {
+      const seen = new Map();               // basis label -> first dataset noun
+      dsList.forEach(ds => {
+        const b = RS.dateBasis(ds);
+        if (b && !seen.has(b)) seen.set(b, DS_NOUN[ds] || ds);
+      });
+      if (seen.size) txt = [...seen].map(([b, noun]) => `${b} (${noun})`).join(" · ");
+    }
+    note.textContent = txt ? "The Date filter on this page goes by: " + txt : "";
+    note.classList.toggle("hidden", !txt);
+  }
+  let active = null;                        // null = unknown page -> grey nothing
+  if (dsList) {
+    active = new Set();
+    dsList.forEach(ds => RS.fieldsFor(ds).forEach(k => active.add(k)));
+  }
+  document.querySelectorAll("#frowSlicers .rs-slicer[data-key]").forEach(w => {
+    const k = w.dataset.key;
+    const off = !!(active && !active.has(k));
+    w.classList.toggle("rs-off", off);
+    w.title = off
+      ? "Not used on this page — this report's data has no " + ((RS.FIELDS[k] || {}).label || k) + " field"
+      : ((RS.FIELDS[k] || {}).tip || SLICER_TIPS[k] || "");
+  });
+}
+/* C31: Month=March + Date=Jan 1-31 silently intersects to zero rows. Detect it and say so. */
+async function updateNoDataBanner() {
+  const banner = document.getElementById("noDataBanner");
+  if (!banner) return;
+  const dsList = PAGE_DATASETS[currentLeafId()];
+  const primary = dsList && dsList[0];
+  const anyFilter = !!(RS.state.dateFrom || RS.state.dateTo ||
+    RS.state.dayFrom != null || RS.state.dayTo != null ||
+    Object.entries(RS.state.multi).some(([k, s]) => k !== "company" && s && s.size));
+  let empty = false;
+  if (primary && anyFilter) {
+    try {
+      const rows = await RS.load(primary);
+      empty = rows.length > 0 && RS.filtered(primary, rows).length === 0;
+    } catch (e) {}
+  }
+  banner.classList.toggle("hidden", !empty);
+}
+/* C32: a deep link to a report the user can't open falls back to their first report —
+   with a banner saying so instead of a silent switcheroo. */
+function showAccessBanner(deniedTitle) {
+  const b = document.getElementById("accessBanner");
+  if (!b) return;
+  if (!deniedTitle) { b.classList.add("hidden"); return; }
+  b.innerHTML = `<span>You don't have access to <b>${RSC.esc(deniedTitle)}</b> — ask Tornike if you need it.
+    Showing your first report instead.</span>
+    <button class="rs-banner-btn" id="accessBannerX">Dismiss</button>`;
+  b.classList.remove("hidden");
+  b.querySelector("#accessBannerX").onclick = () => b.classList.add("hidden");
+}
+const titleOf = id => (MERGED.find(m => m.id === id) || {}).title ||
+  ((PAGES.find(p => p.id === id) || {}).title) ||
+  (typeof REPORT_LABELS !== "undefined" && REPORT_LABELS[id]) || id;
+
+/* C7: mobile hamburger — under 900px the sidebar is off-canvas; this is the only way in. */
+function toggleSide(open) {
+  const side = document.getElementById("side");
+  const bd = document.getElementById("sideBackdrop");
+  if (!side) return;
+  const on = open != null ? open : !side.classList.contains("open");
+  side.classList.toggle("open", on);
+  if (bd) bd.classList.toggle("hidden", !on);
+}
+function mountBurger() {
+  const host = document.getElementById("ztzHeader");
+  if (!host || document.getElementById("navBurger")) return;
+  const b = document.createElement("button");
+  b.id = "navBurger"; b.className = "rs-burger"; b.title = "Reports menu";
+  b.innerHTML = '<svg viewBox="0 0 24 24"><path d="M3 6h18M3 12h18M3 18h18"/></svg>';
+  b.onclick = () => toggleSide();
+  host.insertBefore(b, host.firstChild);
+  const bd = document.getElementById("sideBackdrop");
+  if (bd) bd.onclick = () => toggleSide(false);
+}
+
+function navigate(id, push) {
+  let deniedTitle = null;
+  if (id && id.indexOf(":") > 0) id = id.split(":")[0];   // collapse any legacy "hub:tab" deep link
+  if (id && REDIRECTS[id]) id = REDIRECTS[id];            // retired id → themed replacement
+  if (!canSee(idOwner(id))) {
+    // only announce a denial for a REAL page — a mistyped hash falls back silently
+    if (id && pageFor(id)) deniedTitle = titleOf(idOwner(id));
+    id = firstAllowedId();
+  }
+  if (!id) { requestAccessScreen(ME && ME.email); return; }
+  const page = pageFor(id) || (PAGES[0] && pageFor(PAGES[0].id));
+  if (!page) return;
+  CURRENT = page;
+  const m = MERGED.find(x => x.id === page.id);
+  const mAct = m ? page.id + ":" + (mergedActiveTab[page.id] || m.tabs[0][0]) : null;
+  // keep the ACTIVE TAB in the hash so copied links reopen the same view (C32)
+  if (push !== false) location.hash = "page=" + (mAct || page.id);
+  document.querySelectorAll(".rs-nav-item").forEach(n =>
+    n.classList.toggle("active", n.dataset.id === page.id || (mAct != null && n.dataset.id === mAct)));
+  showAccessBanner(deniedTitle);
+  toggleSide(false);          // picking a report on a phone closes the menu
+  renderPage();
+}
+
+/* Pages that bring their OWN toolbar and ignore the global filter bar (PAGE_DATASETS=[])
+   render "bare" — the global date/slicer bar + company chip are hidden so the page's board
+   starts right under the header instead of below two rows of greyed-out, unusable filters. */
+const BARE_CHROME = new Set(["review-performance", "sales-speed", "leads-inflow", "reviews-reminders", "response-analysis", "review-settings", "monthly-report", "money-flow", "ld-planning", "foreman-closings"]);
+/* Monthly-Report-family pages OWN their time: they have a Month/Year picker on the cover
+   and neutralize the global Year/Month slicers in every computation (withMonth), so those
+   two slicers are hidden there — two competing time controls confused everyone (Tornike
+   2026-07-14). All other filters (Source, Foreman, State…) still apply and stay visible. */
+const MR_OWN_TIME = new Set(["monthly-report",
+  "sales-funnel", "sales-perf", "sales-geo", "mkt-roi", "mkt-sources", "mkt-phone",
+  "log-foreman", "log-packing", "fin-revenue", "fin-rr",
+  "rev-production", "sup-claims", "sup-refunds", "sup-phone"]);
+async function renderPage() {
+  const host = document.getElementById("content");
+  updateFilterContext();
+  const bare = BARE_CHROME.has(currentLeafId());
+  document.body.classList.toggle("mr-own-time", MR_OWN_TIME.has(currentLeafId()));
+  const fEl = document.getElementById("filters"); if (fEl) fEl.classList.toggle("hidden", bare);
+  { const cEl = document.getElementById("chips"); if (cEl) { if (bare) cEl.classList.add("hidden"); else paintChips(); } }
+  // destroy the outgoing page's Chart instances BEFORE wiping the DOM — otherwise they leak on
+  // every navigation / theme change / re-render (worst on chart-heavy pages)
+  try { Object.values(Chart.instances || {}).forEach(ch => { if (ch.canvas && host.contains(ch.canvas)) ch.destroy(); }); } catch (e) {}
+  host.innerHTML = `<div class="rs-loading"><div>Loading <b>${RSC.esc(CURRENT.title)}</b>…</div><div class="bar"><i></i></div></div>`;
+  try {
+    await CURRENT.render(host);
+  } catch (e) {
+    // human words first, the raw error folded away, and a Retry that actually retries (C42)
+    host.innerHTML = `<div class="rs-loading"><div style="max-width:440px;text-align:center">
+      <div style="font-size:16px;font-weight:800;color:var(--ink);margin-bottom:6px">This report couldn't load</div>
+      <div style="line-height:1.6">Usually a brief connection problem — trying again fixes it.
+        If it keeps failing, tell <b style="color:var(--muted)">Tornike</b>.</div>
+      <button class="btn on" id="pageRetry" style="margin-top:14px">Try again</button>
+      <details style="margin-top:12px;font-size:11.5px;color:var(--faint)">
+        <summary style="cursor:pointer">Technical details</summary>
+        <div style="margin-top:6px;word-break:break-all">${RSC.esc(e.message)}</div></details>
+    </div></div>`;
+    const rb = host.querySelector("#pageRetry");
+    if (rb) rb.onclick = () => renderPage();
+    console.error(e);
+  }
+  updateNoDataBanner();
+}
+
+/* Sidebar display-name overrides — page modules keep their ids/titles, the shell decides
+   what the nav item is CALLED (same pattern as GROUP_OVERRIDE). */
+const NAV_TITLES = {
+  "analysis-by-category": "Custom Breakdown",
+  "insights": "Recommendations",
+  "financial-analysis": "Job P&L",
+  "executive-scorecard": "Executive Scorecard",
+  "branch-owner": "Branch Owner",
+  "money-flow": "Money Flow",
+  "ld-planning": "Long Distance Planning",
+  "foreman-closings": "Foreman Closings",
+  "data-quality": "Data Quality",
+  "source-trace": "Source Trace",
+  "multi-source-leads": "Multi-Source Leads",
+  "calendar-coverage": "Calendar Coverage",
+  "request-consistency": "Request # Consistency",
+  "admin-users": "Users & Access",
+  "review-performance": "Foreman Performance",
+  "reviews-reminders": "Send Reminders",
+  "response-analysis": "Response Analysis",
+  "review-settings": "Review URLs and Reasons",
+  "general-settings": "General Settings",
+  "rev-production": "Actual Reviews",
+};
+/* C46: hidden search keywords per nav item — old Power BI page names, singular/plural,
+   vendor names — so the transition period doesn't break muscle memory. Never shown. */
+const SEARCH_ALIASES = {
+  // Company Overview
+  "monthly-report": "monthly report month review presentation ppt slides jobs done vs hours worked jobs vs hours job hour efficiency all in one",
+  "analysis-by-category": "analysis by category custom breakdown categories explorer yoy diff year over year comparison annual vs last year",
+  // ("insights" hidden for now — Tornike 2026-07-13: recommendations page needs rework)
+  // Sales
+  "sales-funnel": "leads analysis lead funnel conversion booking demand segmentation leads",
+  "sales-perf": "sales person analysis salesperson salespeople rep reps commission commissions sales team performance",
+  "sales-geo": "leads by state geography states region map",
+  "sales-speed": "speed to lead response time first call ringcentral calls per lead not called never called crm entry lag booking by speed",
+  "leads-inflow": "leads inflow analysis when leads come in 15 minute window staffing schedule heatmap hour day peak time create datetime",
+  // Marketing
+  "mkt-roi": "marketing roi return on investment ads analysis ad spend advertising google returns callrail call rail call tracking calls",
+  "mkt-sources": "source analysis sources source overview lead source identification attribution angi movers movers.com home advisor homeadvisor post card postcard post cards channels",
+  "mkt-phone": "phone response callrail call rail call tracking calls answer rate",
+  // Logistics
+  "log-foreman": "forman foreman foremen of the month scorecard crew labor helpers hours worked operations comparison",
+  "log-packing": "packing storage packing analysis per 100 cf material materials boxes estimate vs written storage payments",
+  
+  // Financial
+  "fin-revenue": "revenue profit growth executive summary composition segments per job profitability p&l pnl profit and loss gross profit gross margin operational",
+  "financial-analysis": "p&l pnl profit and loss financial analysis job gross profit gross margin operational",
+  "executive-scorecard": "executive scorecard kpi kpis trends",
+  "branch-owner": "branch owner giorgi kolbaia cut payout sales person financial ct",
+  "fin-rr": "repeat referral repeat business referral business returning customers financial revenue reviews",
+  // Reviews
+  "rev-production": "actual reviews review rating ratings stars review production generated",
+  // Support
+  "review-performance": "foreman performance review weekly matrix reviews per eligible job R J percent target support intervention excluded bill increase estimate vs actual drill down claim negative refund",
+  "reviews-reminders": "send reminders review request slack automation bot foreman nudge daily jobs log sent skipped",
+  "response-analysis": "response analysis missed review reasons why no review foreman explanation waiting for reason response rate accountability",
+  "review-settings": "review settings link control google trustpilot facebook kearny shafto qr code delivery state reasons why no review platform config",
+  "sup-claims": "claim claims damage damages",
+  "sup-refunds": "refund refunds negative review reviews complaints cx cost of quality customer experience",
+  "sup-phone": "phone response callrail call rail call tracking calls answer rate",
+  // Settings
+  "data-quality": "data quality freshness completeness health integrity checks",
+  "source-trace": "source trace lineage attribution callrail google local phone match booked from moveboard corrected final source faithful pbix diagnostic audit",
+  "multi-source-leads": "multi source multiple sources overlap conflict callrail google local angi thumbtack tracker match contested attribution leads",
+  "calendar-coverage": "calendar coverage connection linked unconnected google calendar event closing job request match bridge scheduling gap missing",
+  "request-consistency": "request consistency miskey mis-key wrong request number customer mismatch moveboard calendar data quality typo audit",
+  "admin-users": "users access acl permissions grants admin administrator",
+};
+
+function buildNav() {
+  const q = (document.getElementById("navSearch").value || "").toLowerCase();
+  const navHost = document.getElementById("nav");
+  navHost.innerHTML = "";
+  GROUPS.forEach(g => {
+    // Display list: pages in registration order; each merge group appears once
+    // (at its first constituent's position) and its constituents are hidden.
+    const display = [];
+    const seenMerged = new Set();
+    PAGES.filter(p => groupOf(p) === g.key && !RETIRED.has(p.id)).forEach(p => {
+      const m = MERGED_BY_TAB[p.id];
+      if (m) {
+        if (!seenMerged.has(m.id) && canSee(m.id)) {
+          seenMerged.add(m.id);
+          display.push({ id: m.id, title: NAV_TITLES[m.id] || m.title, iconKey: m.icon,
+            search: m.title + " " + m.tabs.map(t => t[1]).join(" ") + " " + (SEARCH_ALIASES[m.id] || ""),
+            children: m.tabs.map(([tid, label]) => ({ tid, label })) });
+        }
+      } else if (canSee(p.id)) {
+        display.push({ id: p.id, title: NAV_TITLES[p.id] || p.title, iconKey: PAGE_ICONS[p.id],
+          search: p.title + " " + (NAV_TITLES[p.id] || "") + " " + (SEARCH_ALIASES[p.id] || "") });
+      }
+    });
+    display.sort((a, b) => (NAV_ORDER[a.id] || 50) - (NAV_ORDER[b.id] || 50));
+    const items = display.filter(p => p.search.toLowerCase().includes(q));
+    const planned = PLANNED.filter(p => p.group === g.key && p.title.toLowerCase().includes(q));
+    if (!items.length && !planned.length) return;
+    const collapsedSet = new Set(JSON.parse(localStorage.getItem("rsNavCollapsed") || "[]"));
+    // while searching, always show matches even inside collapsed groups
+    const box = RSC.el("div", "rs-group" + (!q && collapsedSet.has(g.key) ? " collapsed" : ""),
+      `<div class="g-title">${g.title}<span class="g-car">▼</span></div>`);
+    box.querySelector(".g-title").onclick = () => {
+      const set = new Set(JSON.parse(localStorage.getItem("rsNavCollapsed") || "[]"));
+      set.has(g.key) ? set.delete(g.key) : set.add(g.key);
+      localStorage.setItem("rsNavCollapsed", JSON.stringify([...set]));
+      box.classList.toggle("collapsed");
+    };
+    items.forEach(p => {
+      const a = RSC.el("div", "rs-nav-item" + (CURRENT && CURRENT.id === p.id ? " active" : ""),
+        icon(p.iconKey) + RSC.esc(p.title));
+      a.dataset.id = p.id;
+      a.onclick = () => navigate(p.id);
+      box.appendChild(a);
+      // merged hubs list their tabs as indented sub-items (e.g. Angi under Lead Source Analysis)
+      (p.children || []).forEach(ch => {
+        const sub = RSC.el("div", "rs-nav-item rs-nav-sub" +
+          (CURRENT && CURRENT.id === p.id && (mergedActiveTab[p.id] || p.children[0].tid) === ch.tid ? " active" : ""),
+          RSC.esc(ch.label));
+        sub.dataset.id = p.id + ":" + ch.tid;
+        sub.onclick = () => { mergedActiveTab[p.id] = ch.tid; navigate(p.id); };
+        box.appendChild(sub);
+      });
+    });
+    planned.forEach(p => box.appendChild(RSC.el("div", "rs-nav-item disabled",
+      icon(PAGE_ICONS[p.title]) + RSC.esc(p.title) + `<span class="soon">SOON</span>`)));
+    navHost.appendChild(box);
+  });
+}
+
+/* ------------- global filter bar v2: primary slicers + More popover + chips ------------- */
+let rerenderTimer = null;
+function onFilterChange() {
+  clearTimeout(rerenderTimer);
+  paintChips();
+  rerenderTimer = setTimeout(renderPage, 120);
+}
+
+const PRIMARY   = ["year", "month", "company", "source", "foreman"];
+// N13: the two size filters (Size of Move + Volume) sit next to each other on purpose.
+const SECONDARY = ["sales", "state", "sizeOfMove", "cfRange", "billRange", "movingType", "statusCat"];
+const activeCount = keys => keys.reduce((a, k) =>
+  a + ((RS.state.multi[k] && RS.state.multi[k].size) ? 1 : 0), 0);
+
+function paintChips() {
+  const host = document.getElementById("chips");
+  if (!host) return;
+  const chips = [];
+  if (RS.state.dateFrom || RS.state.dateTo)
+    chips.push({ k: "_date", label: "Date " + (RS.state.dateFrom || "…") + " → " + (RS.state.dateTo || "…") });
+  if (RS.state.dayFrom != null || RS.state.dayTo != null)
+    chips.push({ k: "_day", label: "Day " + (RS.state.dayFrom ?? 1) + "–" + (RS.state.dayTo ?? 31) });
+  // Always-on company scope (audit F4): shown as a permanent, non-removable chip so
+  // every total is self-explaining — the hidden default fooled PBI comparisons.
+  const compSet = RS.state.multi.company;
+  const compChip = (compSet && compSet.size)
+    ? `<span class="rs-chip" title="Permanent scope — change it on the Company selector">` +
+      `${RSC.esc("Company: " + [...compSet].join(", "))}</span>` : "";
+  Object.entries(RS.state.multi).forEach(([k, set]) => {
+    if (!set || !set.size || !RS.FIELDS[k]) return;
+    if (k === "company") return;   // rendered as the permanent scope chip above
+    const vals = [...set];
+    chips.push({ k, label: RS.FIELDS[k].label + ": " +
+      (vals.length <= 2 ? vals.join(", ") : vals.length + " selected") });
+  });
+  host.innerHTML = compChip + chips.map(c =>
+    `<span class="rs-chip">${RSC.esc(c.label)}<button data-k="${c.k}" title="Remove filter">×</button></span>`).join("") +
+    (chips.length ? `<button class="rs-chip clear" id="chipClearAll">Clear all</button>` : "");
+  // bare pages own their toolbar: the async buildFilters()->paintChips() must not
+  // resurrect the chip row renderPage just hid (raced on money-flow, 2026-07-21)
+  host.classList.toggle("hidden",
+    (!compChip && !chips.length) || BARE_CHROME.has(currentLeafId()));
+  host.querySelectorAll(".rs-chip button[data-k]").forEach(b => b.onclick = () => {
+    const k = b.dataset.k;
+    if (k === "_date") { RS.state.dateFrom = RS.state.dateTo = null; }
+    else if (k === "_day") { RS.state.dayFrom = RS.state.dayTo = null; }
+    else RS.state.multi[k].clear();
+    buildFilters().then(renderPage);
+  });
+  const ca = host.querySelector("#chipClearAll");
+  if (ca) ca.onclick = () => {
+    Object.values(RS.state.multi).forEach(s => s.clear());
+    RS.state.dateFrom = RS.state.dateTo = RS.state.dayFrom = RS.state.dayTo = null;
+    buildFilters().then(renderPage);
+  };
+}
+
+async function buildFilters() {
+  // Line 1 = date controls; line 2 = every other filter (user-specified layout).
+  const rowDates = document.getElementById("frowDates");
+  const rowSlicers = document.getElementById("frowSlicers");
+  rowDates.innerHTML = ""; rowSlicers.innerHTML = "";
+  RSC.dateBar(rowDates, onFilterChange);
+  const [closing, moveboard] = await Promise.all([RS.load("closing"), RS.load("moveboard")]);
+  // Frequency-counted value lists ({v,l,n}) — most common values first, counts shown.
+  const counted = (rowsets) => {          // rowsets: [[rows, col], ...] → unioned counts
+    const g = {};
+    rowsets.forEach(([rows, col]) => rows.forEach(r => {
+      const v = r[col]; if (v != null && v !== "") g[String(v)] = (g[String(v)] || 0) + 1;
+    }));
+    return Object.entries(g).sort((a, b) => b[1] - a[1])
+      .map(([v, n]) => ({ v, l: v, n }));
+  };
+  const VALUES = {
+    year:       counted([[closing, "_y"]]).sort((a, b) => b.v.localeCompare(a.v)),
+    month:      ["1","2","3","4","5","6","7","8","9","10","11","12"]
+                  .map(v => ({ v, l: RS.monthName(+v) })),
+    company:    counted([[closing, "Company"], [moveboard, "Company"]]),
+    source:     counted([[closing, "Source"], [moveboard, "Source"]]),
+    foreman:    counted([[closing, "Foreman"]]),
+    sales:      counted([[closing, "Sales Person"]]),
+    state:      counted([[closing, "State"], [moveboard, "State"]]),
+    // N13: dropdown shows the unit; the raw bucket value (matched against the data) stays as-is.
+    cfRange:    ["0-200","201-500","501-800","801-1000","1001-1500","1501-2000","Over 2000"]
+                  .map(v => ({ v, l: v === "Over 2000" ? "Over 2,000 cu ft" : v + " cu ft" })),
+    billRange:  ["$0 - $500","$501 - $1,000","$1,001 - $3,000","$3,001 - $5,000","$5,001 - $10,000","$10,001 - $20,000","Over $20,000"],
+    movingType: ["Local Moving","Regular Moving","Straight Moving"],
+    sizeOfMove: counted([[closing, "Size of Move"], [moveboard, "Size of Move"]]),
+    statusCat:  counted([[moveboard, "Status Category"]]),
+  };
+  PRIMARY.concat(SECONDARY).forEach(key => {
+    // Year + Month live on the DATE row with the other time controls (Tornike 2026-07-13);
+    // everything else stays on the slicer row.
+    const mount = (key === "year" || key === "month") ? rowDates : rowSlicers;
+    if (key === "company") {
+      // Company is a SINGLE-select with a permanent selection (default Zip to Zip).
+      RSC.singleSelect(rowSlicers, { key, label: "Company", values: VALUES.company,
+        defaultValue: "Zip to Zip", onChange: onFilterChange });
+    } else {
+      RSC.multiSelect(mount,
+        { key, label: RS.FIELDS[key].label, values: VALUES[key], onChange: onFilterChange });
+    }
+  });
+  paintChips();
+  updateFilterContext();   // slicers were just rebuilt — re-apply the not-used-here greying
+}
+
+/* ---------------- boot ---------------- */
+ZTZ.header("reporting", "Reporting System");
+mountThemeToggle();
+if (!ZTZ.getToken()) {
+  document.getElementById("gate").classList.remove("hidden");
+  ZTZ.mountSignin(document.getElementById("gateSign"))
+    .catch(e => {
+      document.getElementById("gateErr").textContent =
+        "Google sign-in couldn't load — check your internet connection and refresh this page.";
+      console.error(e);
+    });
+} else {
+  document.getElementById("app").classList.remove("hidden");
+  mountBurger();
+  // Immediate boot state — the first dataset fetch takes a few seconds and the
+  // slicers can't populate until it lands; never show an empty void.
+  document.getElementById("content").innerHTML =
+    `<div class="rs-loading"><div>Loading the latest <b>company data</b>…</div>` +
+    `<div class="bar"><i></i></div></div>`;
+  document.getElementById("navSearch").oninput = buildNav;
+  document.getElementById("noDataClear").onclick = () => {
+    Object.values(RS.state.multi).forEach(s => s.clear());
+    RS.state.dateFrom = RS.state.dateTo = RS.state.dayFrom = RS.state.dayTo = null;
+    buildFilters().then(renderPage);
+  };
+  // hash may carry "hub:tab" (deep link to a specific tab) — see navigate() (C32)
+  const hashId = () => (location.hash.match(/page=([\w-]+(?::[\w-]+)?)/) || [])[1];
+  window.addEventListener("hashchange", () => {
+    const raw = hashId();
+    if (!raw || !CURRENT) { if (raw) navigate(raw, false); return; }
+    const [hub, tab] = raw.split(":");
+    const m = MERGED.find(x => x.id === CURRENT.id);
+    const curTab = m ? (mergedActiveTab[CURRENT.id] || m.tabs[0][0]) : null;
+    if (CURRENT.id !== hub || (tab && tab !== curTab)) navigate(raw, false);
+  });
+  // Pages register themselves as their scripts load (see below); boot after load.
+  window.addEventListener("load", async () => {
+    ME = await fetchMe();
+    if (!ME.authorized) { requestAccessScreen(ME.email, ME.error); return; }
+    if (!firstAllowedId()) { requestAccessScreen(ME.email); return; }
+    buildNav();
+    // C5: swap the static schedule promise for the real thing — newest "Update Date"
+    // across the tables this user can see (/api/_stats, server-cached). If the endpoint
+    // is slow or errors, the "Refreshed automatically every 6 hours" fallback stays.
+    (async () => {
+      try {
+        const st = await ZTZ.api("/api/_stats");
+        const ts = (st.tables || []).map(t => t.last_update).filter(Boolean).sort().pop();
+        const d = ts && new Date(String(ts).replace(" ", "T"));
+        const el = document.getElementById("footFresh");
+        if (el && d && !isNaN(d)) el.textContent = "Data updated: " + d.toLocaleString(undefined,
+          { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+      } catch (e) {}
+    })();
+    // PIPELINE ALARMS (2026-07-20). Two faults ran for weeks unseen: a run killed mid-way so the
+    // job list froze, and a spreadsheet silently skipped for 19 days. Both looked healthy — the
+    // footer even said "fresh". This banner sits above every page while a check is failing, so a
+    // silent breakage cannot hide again. Failures shout; warnings are quieter; healthy shows nothing.
+    (async () => {
+      try {
+        const h = await ZTZ.api("/api/_health");
+        if (!h || !h.checks || !h.checks.length) return;
+        const bad = h.checks.filter(c => c.status === "fail" || c.status === "warn");
+        const wrap = document.getElementById("pipeHealth");
+        if (!wrap || !bad.length) return;
+        const fail = h.status === "fail";
+        wrap.style.cssText = "margin:0 16px 12px;border-radius:12px;padding:11px 15px;font-size:13px;line-height:1.55;"
+          + "display:flex;gap:11px;align-items:flex-start;flex-wrap:wrap;border:1px solid "
+          + (fail ? "#f0b4ba;background:#fdeced;color:#7a1f28" : "#f2ddb0;background:#fdf4e3;color:#6b4c12");
+        wrap.innerHTML = '<b style="flex:0 0 auto">' + (fail ? "⚠ Data pipeline problem" : "Data pipeline notice")
+          + "</b><span style='flex:1;min-width:240px'>"
+          + bad.map(c => RSC.esc(c.detail)).join("<br>")
+          + "</span>";
+        wrap.classList.remove("hidden");
+      } catch (e) {}
+    })();
+    // PERF (2026-07-15 plan, batch A): boot used to be SERIAL — `await buildFilters()` (which
+    // itself awaits the full closing+moveboard downloads for the slicer option lists) before the
+    // page was allowed to render, so every page's own fetches started ~12s late ("wave 2").
+    // The ONLY state buildFilters seeds that affects NUMBERS is the Company default (slicer
+    // selections are session-only and start empty = "All"; company single-select seeds
+    // "Zip to Zip"). Seed that synchronously, then build the filter UI in the BACKGROUND while
+    // the page renders — RS.load dedupes in-flight loads, so buildFilters and the page share
+    // the same closing/moveboard requests instead of queuing behind them.
+    if (!RS.state.multi.company || !RS.state.multi.company.size)
+      RS.state.multi.company = new Set(["Zip to Zip"]);
+    buildFilters().catch(e => console.error("filter bar build failed", e));
+    // navigate() handles a denied deep link: falls back + explains itself (C32)
+    navigate(hashId() || firstAllowedId(), false);
+  });
+}
+</script>
+<script>
+/* ---------------- admin page: Users & Access (admins only) ---------------- */
+PAGE_ICONS["admin-users"] = "user";
+/* Grant-tile labels — plain English, kept in sync with the sidebar renames (N34). */
+const REPORT_LABELS = {
+  // Company Overview
+  "monthly-report": "Monthly Report (all-in-one)",
+  "analysis-by-category": "Custom Breakdown",
+  "insights": "Insights & Recommendations",
+  // Sales
+  "sales-funnel": "Lead Funnel & Conversion",
+  "sales-perf": "Sales Team Performance",
+  "sales-geo": "Geography (by state)",
+  "sales-speed": "Speed to Lead",
+  "leads-inflow": "Leads Inflow Analysis",
+  // Marketing
+  "mkt-roi": "Marketing — Return on Investment",
+  "mkt-sources": "Marketing — Lead Sources & Channels",
+  "mkt-phone": "Marketing — Phone & Response",
+  // Logistics
+  "log-foreman": "Foreman of the Month",
+  "log-packing": "Packing & Storage",
+  
+  // Financial
+  "fin-revenue": "Revenue & Profit",
+  "financial-analysis": "Job P&L (profit & loss)",
+  "executive-scorecard": "Executive Scorecard",
+  "branch-owner": "Branch Owner (Giorgi)",
+  "fin-rr": "Repeat & Referral",
+  // Reviews
+  "review-performance": "Foreman Performance",
+  "rev-production": "Actual Reviews",
+  "reviews-reminders": "Send Reminders",
+  "response-analysis": "Response Analysis",
+  "review-settings": "Review URLs and Reasons",
+  "general-settings": "General Settings",
+  // Support
+  "sup-claims": "Claims",
+  "sup-refunds": "Refunds & Cost of Quality",
+  "sup-phone": "Support — Phone & Response",
+  // Settings / data portal
+  "data-quality": "Data Quality",
+  "explorer": "Data Explorer (the Data portal — every table)",
+};
+async function aclCall(method, body) {
+  const r = await fetch(ZTZ.API + "/api/_acl", {
+    method, headers: { Authorization: "Bearer " + ZTZ.getToken(),
+      "Content-Type": "application/json" },
+    body: body ? JSON.stringify(body) : undefined });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error || ("HTTP " + r.status));
+  return j;
+}
+const aclIconFor = id => (MERGED.find(m => m.id === id) || {}).icon ||
+  PAGE_ICONS[id] || (id === "explorer" ? "archive" : "doc");
+/* Departments for access granting (Tornike 2026-07-13: grant by department, not by
+   report). The UI grants a DEPARTMENT; under the hood the bridge still stores +
+   enforces the department's individual report ids — nothing changes in enforcement,
+   only in how admins pick. Report lists mirror the sidebar groups. */
+const ACL_DEPTS = [
+  { id: "company",   label: "Company Overview", icon: "spark",     reports: ["monthly-report", "analysis-by-category"] },
+  { id: "sales",     label: "Sales",            icon: "funnel",    reports: ["sales-funnel", "sales-perf", "sales-speed", "leads-inflow"] },
+  { id: "marketing", label: "Marketing",        icon: "megaphone", reports: ["mkt-roi", "mkt-sources", "mkt-phone"] },
+  { id: "logistics", label: "Logistics",        icon: "tool",      reports: ["money-flow", "ld-planning", "foreman-closings", "log-foreman", "log-packing"] },
+  { id: "financial", label: "Financial",        icon: "trend",     reports: ["fin-revenue", "fin-rr", "sales-geo", "financial-analysis", "executive-scorecard", "branch-owner"] },
+  { id: "reviews",   label: "Reviews",          icon: "star",      reports: ["review-performance", "rev-production", "reviews-reminders", "response-analysis", "review-settings"] },
+  { id: "support",   label: "Support",          icon: "shield",    reports: ["sup-claims", "sup-refunds", "sup-phone"] },
+  { id: "quality",   label: "Data Quality",     icon: "clipboard", reports: ["data-quality"] },
+  { id: "explorer",  label: "Data Explorer — every table", icon: "archive", reports: ["explorer"] },
+];
+registerPage({
+  id: "admin-users", group: "pulse", title: "Users & Access",
+  async render(host) {
+    const self = this;
+    if (!ME || !ME.admin) { host.innerHTML = `<div class="rs-loading">Admins only.</div>`; return; }
+    let data;
+    try { data = await aclCall("GET"); }
+    catch (e) {
+      host.innerHTML = `<div class="rs-loading"><span class="err">${RSC.esc(e.message)}</span></div>`;
+      return;
+    }
+    // only grant what the bridge actually serves — a stale bridge degrades gracefully
+    const avail = new Set(data.report_ids);
+    const depts = ACL_DEPTS.map(d => ({ ...d, reports: d.reports.filter(r => avail.has(r)) }))
+      .filter(d => d.reports.length);
+    host.innerHTML = `
+      <div class="rs-page-head"><h1>Users & Access</h1>
+        <p>Deny-by-default access, granted by department. Every grant is enforced by the data bridge itself — reports a user can't see are also reports they can't query.</p></div>
+      <div class="panel">
+        <div class="panel-head">
+          <span class="panel-title">Users <span style="color:var(--faint);font-weight:600">· ${data.users.length}</span></span>
+          <span class="spacer"></span>
+          <button class="btn on" id="aclAdd">+ Add user</button>
+        </div>
+        <div id="aclEditor" class="hidden" style="border:1px solid var(--line-2);border-radius:13px;padding:15px 16px;margin-bottom:13px;background:var(--panel-2)">
+          <div style="display:flex;gap:9px;flex-wrap:wrap;margin-bottom:12px">
+            <input id="uEmail" class="acl-field" style="flex:2;min-width:230px" placeholder="email@ziptozipmoving.com">
+            <input id="uName" class="acl-field" style="flex:1;min-width:130px" placeholder="Name (optional)">
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px">
+            <span class="acl-switch" id="uAdmin"></span>
+            <span style="font-size:13px;color:var(--ink)"><b style="color:var(--ink)">Administrator</b> — every report, the data portal, and user management</span>
+          </div>
+          <div id="uReports">
+            <div class="insight-note" style="margin:10px 0 0">Or pick the departments they can open (a department = all of its reports):</div>
+            <div class="acl-tilegrid">` +
+      depts.map(d => `<div class="acl-tile" data-d="${d.id}" title="${RSC.esc(d.reports.map(r => REPORT_LABELS[r] || r).join(" · "))}">${icon(d.icon)}<span>${RSC.esc(d.label)}</span></div>`).join("") +
+      `</div>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <button class="btn on" id="uSave">Save user</button>
+            <button class="btn" id="uCancel">Cancel</button>
+            <span class="insight-note" id="uMsg" style="margin:0 0 0 6px"></span>
+          </div>
+        </div>
+        <div id="aclList"></div>
+      </div>`;
+
+    const editor = host.querySelector("#aclEditor");
+    const admSwitch = host.querySelector("#uAdmin");
+    const setAdmin = on => {
+      admSwitch.classList.toggle("on", on);
+      host.querySelector("#uReports").style.opacity = on ? .35 : 1;
+      host.querySelector("#uReports").style.pointerEvents = on ? "none" : "auto";
+    };
+    admSwitch.onclick = () => setAdmin(!admSwitch.classList.contains("on"));
+    host.querySelectorAll(".acl-tile").forEach(t =>
+      t.onclick = () => t.classList.toggle("on"));
+
+    const dmap = Object.fromEntries(depts.map(d => [d.id, d]));
+    const openEditor = (u) => {
+      editor.classList.remove("hidden");
+      host.querySelector("#uEmail").value = u ? u.email : "";
+      host.querySelector("#uEmail").disabled = !!u;
+      host.querySelector("#uName").value = (u && u.name) || "";
+      setAdmin(!!(u && u.admin));
+      // a department lights up when it's granted by id (new) OR all its reports are held (legacy)
+      host.querySelectorAll(".acl-tile").forEach(t => {
+        const d = dmap[t.dataset.d];
+        t.classList.toggle("on", !!(u && d && (u.reports.includes(d.id) || d.reports.every(r => u.reports.includes(r)))));
+      });
+      host.querySelector("#uMsg").textContent = "";
+      if (!u) host.querySelector("#uEmail").focus();
+    };
+    host.querySelector("#aclAdd").onclick = () => openEditor(null);
+    host.querySelector("#uCancel").onclick = () => editor.classList.add("hidden");
+
+    const grantChips = u => {
+      if (u.admin) return `<span class="acl-badge admin">Admin · everything</span>`;
+      if (!u.reports.length) return `<span class="acl-badge none">No access</span>`;
+      // department chips: a department counts when granted by id (new) or all its reports held (legacy);
+      // leftover single-report grants show as a count.
+      const deptIds = new Set(depts.map(d => d.id));
+      const full = depts.filter(d => u.reports.includes(d.id) || d.reports.every(r => u.reports.includes(r)));
+      const covered = new Set(full.flatMap(d => d.reports));
+      const extra = u.reports.filter(r => !deptIds.has(r) && !covered.has(r)).length;
+      const shown = full.slice(0, 4).map(d => `<span class="acl-badge r">${RSC.esc(d.label.split(" — ")[0])}</span>`).join("");
+      return shown + (full.length > 4 ? `<span class="acl-badge r">+${full.length - 4}</span>` : "") +
+        (extra ? `<span class="acl-badge r">+${extra} single report${extra === 1 ? "" : "s"}</span>` : "");
+    };
+    host.querySelector("#aclList").innerHTML = data.users.map(u => `
+      <div class="acl-user">
+        <span class="avatar">${RSC.esc((u.name || u.email)[0].toUpperCase())}</span>
+        <div class="u-main">
+          <div class="u-email">${RSC.esc(u.email)}</div>
+          <div class="u-sub">${RSC.esc(u.name || "")}${u.name ? " · " : ""}${u.admin ? "administrator" : (() => { const s = new Set(); (u.reports || []).forEach(r => { const d = dmap[r]; if (d) d.reports.forEach(x => s.add(x)); else s.add(r); }); return s.size + " report" + (s.size === 1 ? "" : "s"); })()}</div>
+        </div>
+        <div class="u-grants">${grantChips(u)}</div>
+        <div class="u-actions">
+          <button class="btn" data-edit="${RSC.esc(u.email)}">Edit</button>
+          ${u.email === ME.email ? "" : `<button class="btn" data-del="${RSC.esc(u.email)}" style="color:var(--red)">Remove</button>`}
+        </div>
+      </div>`).join("");
+
+    host.querySelectorAll("[data-edit]").forEach(b => b.onclick = () =>
+      openEditor(data.users.find(x => x.email === b.dataset.edit)));
+    host.querySelectorAll("[data-del]").forEach(b => b.onclick = async () => {
+      if (!confirm("Remove ALL access for " + b.dataset.del + "?")) return;
+      try { await aclCall("POST", { action: "delete", email: b.dataset.del });
+        ZTZ.toast("Access removed"); self.render(host); }
+      catch (e) { alert(e.message); }
+    });
+    host.querySelector("#uSave").onclick = async () => {
+      const msg = host.querySelector("#uMsg");
+      try {
+        msg.textContent = "Saving…";
+        await aclCall("POST", {
+          action: "upsert",
+          email: host.querySelector("#uEmail").value,
+          name: host.querySelector("#uName").value,
+          admin: admSwitch.classList.contains("on"),
+          // store DEPARTMENT ids — a granted department auto-includes reports added to it later
+          // (the bridge + canSee expand dept id → its current reports). Deny-by-default is kept.
+          reports: [...host.querySelectorAll(".acl-tile.on")].map(t => t.dataset.d),
+        });
+        ZTZ.toast("User saved");
+        self.render(host);
+      } catch (e) { msg.textContent = e.message; }
+    };
+  },
+});
+</script>
+<!-- page modules (each calls registerPage) -->
+<!-- Recommendations HIDDEN for now (Tornike 2026-07-13: "needs a lot of work") — re-enable by
+     restoring this tag + the GROUP_OVERRIDE/NAV_ORDER/ACL_DEPTS/SEARCH_ALIASES "insights" entries.
+<script src="pages/insights.js?v=6"></script> -->
+<script src="pages/source-identification.js?v=3"></script>
+<script src="pages/jobs-vs-hours.js?v=7"></script>
+<script src="pages/analysis-by-category.js?v=8"></script>
+<script src="pages/yoy-diff.js?v=7"></script>
+<script src="pages/leads-analysis.js?v=7"></script>
+<script src="pages/leads-by-state.js?v=5"></script>
+<script src="pages/storage.js?v=5"></script>
+<script src="pages/sales-person-analysis.js?v=7"></script>
+<script src="pages/ads-analysis.js?v=8"></script>
+<script src="pages/callrail.js?v=5"></script>
+<script src="pages/forman.js?v=6"></script>
+<script src="pages/packing.js?v=6"></script>
+<script src="pages/claims.js?v=6"></script>
+<script src="pages/reviews.js?v=10"></script>
+<script src="pages/packing-analysis.js?v=7"></script>
+<script src="pages/forman-analysis.js?v=6"></script>
+<script src="pages/packing-per-100cf.js?v=6"></script>
+<script src="pages/executive-scorecard.js?v=3"></script>
+<script src="pages/customer-experience.js?v=3"></script>
+<script src="pages/labor-analysis.js?v=3"></script>
+<script src="pages/financial-analysis.js?v=7"></script>
+<script src="pages/post-card-analysis.js?v=4"></script>
+<script src="pages/monthly-report.js?v=85"></script>
+<script src="pages/leads-vs-moveboard.js?v=7"></script>
+<script src="pages/source-analysis.js?v=4"></script>
+<script src="pages/data-quality.js?v=4"></script>
+<script src="pages/source-trace.js?v=6"></script>
+<script src="pages/multi-source-leads.js?v=2"></script>
+<script src="pages/calendar-coverage.js?v=7"></script>
+<script src="pages/request-consistency.js?v=3"></script>
+<script src="pages/branch-owner.js?v=6"></script>
+<script src="pages/money-flow.js?v=28"></script>
+<script src="pages/ld-planning.js?v=5"></script>
+<script src="pages/foreman-closings.js?v=3"></script>
+<script src="pages/general-settings.js?v=2"></script>
+<script src="pages/review-performance.js?v=17"></script>
+<script src="pages/leads-inflow.js?v=1"></script>
+<script src="pages/speed-to-lead.js?v=6"></script>
+<script src="pages/reminders.js?v=34"></script>
+</body>
+</html>
