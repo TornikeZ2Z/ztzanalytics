@@ -57,6 +57,26 @@ registerPage({
         .fnc-pill.auto{background:rgba(28,122,74,.12);color:${POS}} .fnc-pill.imp{background:rgba(47,111,208,.12);color:${BLUE}}
         .fnc-note{padding:10px 14px;font-size:11px;color:var(--faint);border-top:1px solid var(--line)}
         .fnc-load{padding:40px;text-align:center;color:var(--faint)}
+        .fnc-run{font:inherit;font-size:13px;font-weight:800;background:${POS};color:#fff;border:0;border-radius:9px;padding:9px 16px;cursor:pointer;white-space:nowrap}
+        .fnc-run:hover{filter:brightness(1.08)} .fnc-run:disabled{opacity:.6;cursor:default}
+        .fnc-auto{font-size:12px;color:var(--muted);display:inline-flex;align-items:center;gap:6px;margin-left:auto}
+        .fnc-auto b{color:var(--ink);font-variant-numeric:tabular-nums}
+        .fnc-mini{font:inherit;font-size:11.5px;font-weight:800;border:1px solid var(--line-2);background:var(--panel);color:var(--ink);border-radius:8px;padding:5px 11px;cursor:pointer;white-space:nowrap;margin-left:6px}
+        .fnc-mini:hover{background:var(--panel-2)} .fnc-mini.go{border-color:${POS};color:${POS}} .fnc-mini:disabled{opacity:.5;cursor:default}
+        .fnc-back{position:fixed;inset:0;z-index:90;background:rgba(14,22,33,.5);display:flex;align-items:center;justify-content:center;padding:20px}
+        .fnc-doc-modal{background:#fff;color:#222;border-radius:10px;box-shadow:0 24px 70px rgba(14,22,33,.4);width:min(960px,96vw);max-height:92vh;overflow:auto;position:relative;font-family:Arial,Helvetica,sans-serif}
+        .fnc-mx{position:absolute;top:8px;right:10px;font-size:20px;font-weight:800;color:#fff;background:transparent;border:0;cursor:pointer;z-index:3;line-height:1}
+        .fnc-doc-title{background:#111821;color:#fff;font-size:19px;font-weight:800;padding:14px 20px}
+        .fnc-doc-body{padding:16px 20px 22px}
+        .fnc-dh{display:flex;gap:40px;flex-wrap:wrap;margin-bottom:14px}
+        .fnc-dh table{border-collapse:collapse;font-size:13px}
+        .fnc-dh td{padding:4px 0}.fnc-dh td.l{color:#6e747c;padding-right:22px}.fnc-dh td.v{font-weight:700}.fnc-dh td.v.neg{color:#b02a37}
+        .fnc-dbanner{background:#f4f6f8;color:#6e747c;font-size:11px;font-weight:800;letter-spacing:.05em;padding:6px 10px;margin:6px 0 8px}
+        .fnc-dt{width:100%;border-collapse:collapse;font-size:12.5px}
+        .fnc-dt th{text-align:left;color:#6e747c;font-size:11px;font-weight:800;border-bottom:1px solid #dde2e6;padding:6px 8px;white-space:nowrap}
+        .fnc-dt th.r,.fnc-dt td.r{text-align:right;font-variant-numeric:tabular-nums}
+        .fnc-dt td{border-bottom:1px solid #eef1f3;padding:6px 8px;white-space:nowrap}
+        .fnc-dt td.neg{color:#b02a37}
       `;
       document.head.appendChild(st);
     }
@@ -84,6 +104,18 @@ registerPage({
     function fmtD(v) { if (!v) return "—"; var d = new Date(String(v).slice(0, 10) + "T12:00:00"); return isNaN(d) ? String(v).slice(0, 10) : d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }); }
     function fmtTs(v) { return v ? String(v).slice(0, 16).replace("T", " ") : "—"; }
     function balCls(b) { return (b || 0) > 0.5 ? "fnc-neg" : (b || 0) < -0.5 ? "fnc-pos" : ""; }
+    function fmtCountdown(nextIso) {
+      if (!nextIso) return "—";
+      var ms = new Date(nextIso) - new Date();
+      if (ms <= 0) return "any moment";
+      var s = Math.floor(ms / 1000), h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60);
+      return (h > 0 ? h + "h " : "") + m + "m " + (s % 60) + "s";
+    }
+    function autoStatusHtml() {
+      return data.auto_on
+        ? '⏱ Automatic run in <b id="fncCd">' + fmtCountdown(data.next_auto) + "</b>"
+        : '<span style="color:var(--faint)">Automatic closing is off — runs only when you press the button</span>';
+    }
 
     function calUrl(j) {
       if (!j.event_id || !j.calendar_id) return null;
@@ -134,6 +166,12 @@ registerPage({
         n: 7
       };
     }
+    // per-foreman actions in the trailing cell: Preview the PDF + Close (manual) this batch
+    function fmActions(name) {
+      var prev = '<button class="fnc-mini" data-fnc-prev="' + esc(name) + '">Preview</button>';
+      var close = data.can_run ? '<button class="fnc-mini go" data-fnc-close="' + esc(name) + '">Close now</button>' : "";
+      return '<div style="text-align:right">' + prev + close + "</div>";
+    }
     // a foreman header row with its batch totals aligned under Net Cash / Confirmed / Balance
     function fmRow(key, name, meta, netCash, confirmed, balance, open) {
       var caret = '<span class="fnc-caret">' + (open ? "▾" : "▸") + "</span>";
@@ -143,14 +181,14 @@ registerPage({
           + '<td class="r">' + money(netCash) + "</td><td></td><td></td>"
           + '<td class="r">' + money(confirmed) + "</td>"
           + '<td class="r ' + balCls(balance) + '">' + money(balance) + "</td>"
-          + '<td colspan="3"></td></tr>';
+          + '<td colspan="3">' + fmActions(name) + "</td></tr>";
       }
       return '<tr class="fnc-fmrow" data-fk="' + esc(key) + '">'
         + '<td colspan="2">' + caret + esc(name) + '<span class="fnc-meta">' + meta + "</span></td>"
         + '<td class="r">' + money(netCash) + "</td>"
         + '<td class="r">' + money(confirmed) + "</td>"
         + '<td class="r ' + balCls(balance) + '">' + money(balance) + "</td>"
-        + '<td colspan="2"></td></tr>';
+        + '<td colspan="2">' + fmActions(name) + "</td></tr>";
     }
 
     function paint() {
@@ -170,7 +208,10 @@ registerPage({
       var bar = '<div class="fnc-bar"><div class="fnc-seg">'
         + segBtn("pending", "Pending", pend.length) + segBtn("history", "History", hist.length) + "</div>"
         + '<div class="fnc-seg fnc-dseg">' + dBtn("details", "Details") + dBtn("overview", "Compact") + "</div>"
-        + '<input class="fnc-q" id="fncQ" placeholder="Search foreman" value="' + esc(S.q) + '"></div>';
+        + '<input class="fnc-q" id="fncQ" placeholder="Search foreman" value="' + esc(S.q) + '">'
+        + (S.view === "pending" ? '<div class="fnc-auto" id="fncAuto">' + autoStatusHtml() + "</div>"
+             + (data.can_run ? '<button class="fnc-run" id="fncRunAll">Run closings now</button>' : "") : "")
+        + "</div>";
 
       var P = plan();
       var content;
@@ -242,6 +283,71 @@ registerPage({
       var wrap1 = document.querySelector("#fncBody .fnc-wrap");
       if (wrap1) { wrap1.scrollTop = wt; wrap1.scrollLeft = wl; }
       window.scrollTo(window.scrollX, sy);
+
+      // live countdown to the next automatic run (updates the #fncCd span each second)
+      if (window.__FNC_TICK) clearInterval(window.__FNC_TICK);
+      window.__FNC_TICK = setInterval(function () {
+        if (!document.getElementById("fncBody")) { clearInterval(window.__FNC_TICK); return; }
+        var el = document.getElementById("fncCd");
+        if (el) el.textContent = fmtCountdown(data.next_auto);
+      }, 1000);
+    }
+
+    // PREVIEW — a white, PDF-styled modal built from the foreman's pending batch, so the
+    // user sees exactly how the archived statement will look before it's generated.
+    function openPreview(name) {
+      var p = (data.pending || []).filter(function (x) { return x.foreman === name; })[0];
+      if (!p) return;
+      var today = new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+      var vneg = function (x) { return x < 0 ? " neg" : ""; };
+      var jobsHtml = p.jobs.map(function (j) {
+        return "<tr><td>" + esc(j.job_code || "-") + "</td><td>" + fmtD(j.job_date)
+          + '</td><td>' + esc(j.customer || "-") + "</td><td>" + esc(j.submit_time || "")
+          + '</td><td class="r">' + money2(j.net_cash) + '</td><td class="r">' + (j.advance ? money2(j.advance) : "-")
+          + '</td><td class="r">' + (j.deduction ? money2(j.deduction) : "-") + '</td><td class="r">' + money2(j.confirmed)
+          + '</td><td class="r' + (Math.abs(j.balance) > 0.01 ? " neg" : "") + '">' + money2(j.balance) + "</td></tr>";
+      }).join("");
+      var m = document.createElement("div");
+      m.className = "fnc-back"; m.id = "fncPrevBack";
+      m.innerHTML = '<div class="fnc-doc-modal"><button class="fnc-mx" id="fncPrevX">✕</button>'
+        + '<div class="fnc-doc-title">Foreman Weekly Net Cash Closing</div><div class="fnc-doc-body">'
+        + '<div class="fnc-dh"><table>'
+        + '<tr><td class="l">Foreman</td><td class="v">' + esc(p.foreman) + "</td></tr>"
+        + '<tr><td class="l">Email</td><td class="v">' + esc(p.email || "-") + "</td></tr>"
+        + '<tr><td class="l">Date To</td><td class="v">' + today + "</td></tr>"
+        + '<tr><td class="l">Number of Jobs</td><td class="v">' + p.n_jobs + "</td></tr></table><table>"
+        + '<tr><td class="l">Total Net Cash</td><td class="v">' + money2(p.total_net_cash) + "</td></tr>"
+        + '<tr><td class="l">Total Advance</td><td class="v' + vneg(p.total_advance) + '">' + money2(p.total_advance) + "</td></tr>"
+        + '<tr><td class="l">Total Deduction</td><td class="v">' + money2(p.total_deduction) + "</td></tr>"
+        + '<tr><td class="l">Total Confirmed</td><td class="v' + vneg(p.total_confirmed) + '">' + money2(p.total_confirmed) + "</td></tr>"
+        + '<tr><td class="l">Final Balance</td><td class="v' + vneg(p.balance) + '">' + money2(p.balance) + "</td></tr></table></div>"
+        + '<div class="fnc-dbanner">DETAILED BREAKDOWN</div>'
+        + '<table class="fnc-dt"><thead><tr><th>Job Code</th><th>Job Date</th><th>Customer</th><th>Submit Time</th><th class="r">Net Cash</th><th class="r">Advance</th><th class="r">Deduction</th><th class="r">Confirmed</th><th class="r">Balance</th></tr></thead><tbody>'
+        + jobsHtml + "</tbody></table>"
+        + '<div style="margin-top:12px;font-size:11px;color:#9aa0a6">Preview — this is how the archived PDF statement will look. Amounts in USD.</div>'
+        + "</div></div>";
+      document.body.appendChild(m);
+      m.onclick = function (e) { if (e.target === m) m.remove(); };
+      document.getElementById("fncPrevX").onclick = function () { m.remove(); };
+    }
+
+    // MANUAL RUN — POST to the bridge, which invokes the pipeline to close (force=true).
+    async function doRun(foreman, btn) {
+      var orig = btn ? btn.textContent : "";
+      if (btn) { btn.disabled = true; btn.textContent = foreman ? "Closing…" : "Running…"; }
+      try {
+        var body = { action: "run" };
+        if (foreman) body.foreman = foreman;
+        var res = await fetch(ZTZ.API + "/api/_fnc", { method: "POST",
+          headers: { "Content-Type": "application/json", "Authorization": "Bearer " + ZTZ.getToken() },
+          body: JSON.stringify(body) });
+        var j = await res.json().catch(function () { return {}; });
+        if (!res.ok || !j.ok) throw new Error(j.error || ("HTTP " + res.status));
+        data = await fetch(ZTZ.API + "/api/_fnc", { headers: { "Authorization": "Bearer " + ZTZ.getToken() } }).then(function (r) { return r.json(); });
+        paint();
+      } catch (e) {
+        if (btn) { btn.disabled = false; btn.textContent = "Failed — retry"; setTimeout(function () { btn.textContent = orig; }, 3000); }
+      }
     }
 
     function wire() {
@@ -250,6 +356,25 @@ registerPage({
       var q = host.querySelector("#fncQ");
       if (q) q.oninput = function () { S.q = q.value; var pos = q.selectionStart; paint(); var n2 = host.querySelector("#fncQ"); if (n2) { n2.focus(); try { n2.setSelectionRange(pos, pos); } catch (e) {} } };
       Array.prototype.forEach.call(host.querySelectorAll("a.fnc-doc"), function (a) { a.onclick = function (e) { e.stopPropagation(); }; });
+      // manual-run controls
+      var runAll = host.querySelector("#fncRunAll");
+      if (runAll) runAll.onclick = function () {
+        var n = (data.pending || []).length;
+        if (!n) return;
+        if (confirm("Close " + n + " pending foreman" + (n === 1 ? "" : "s") + " now? This generates their statements and archives the PDFs. (No emails are sent.)"))
+          doRun(null, runAll);
+      };
+      Array.prototype.forEach.call(host.querySelectorAll("[data-fnc-prev]"), function (b) {
+        b.onclick = function (e) { e.stopPropagation(); openPreview(b.getAttribute("data-fnc-prev")); };
+      });
+      Array.prototype.forEach.call(host.querySelectorAll("[data-fnc-close]"), function (b) {
+        b.onclick = function (e) {
+          e.stopPropagation();
+          var f = b.getAttribute("data-fnc-close");
+          if (confirm("Close " + f + "'s batch now? This generates his statement and archives the PDF. (No email is sent.)"))
+            doRun(f, b);
+        };
+      });
       Array.prototype.forEach.call(host.querySelectorAll("tr[data-fk]"), function (tr) { tr.onclick = function () { var f = tr.getAttribute("data-fk"); S.open[f] = !S.open[f]; paint(); }; });
       Array.prototype.forEach.call(host.querySelectorAll("tr[data-hk]"), function (tr) { tr.onclick = function () { var f = tr.getAttribute("data-hk"); S.hopen[f] = !S.hopen[f]; paint(); }; });
       Array.prototype.forEach.call(host.querySelectorAll("tr[data-hc]"), function (tr) {
