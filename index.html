@@ -111,7 +111,7 @@ const GROUP_OVERRIDE = {
   "log-foreman": "logistics", "log-packing": "logistics",
   // Financial
   "fin-revenue": "financial", "fin-rr": "financial", "financial-analysis": "financial", "executive-scorecard": "financial",
-  "branch-owner": "financial", "money-flow": "logistics", "ld-planning": "logistics",
+  "branch-owner": "financial", "money-flow": "logistics", "ld-planning": "logistics", "foreman-closings": "logistics",
   // Reviews
   "review-performance": "reviews", "rev-production": "reviews", "reviews-reminders": "reviews",
   "response-analysis": "reviews", "review-settings": "reviews",
@@ -124,7 +124,7 @@ const NAV_ORDER = {
   "monthly-report": 1, "analysis-by-category": 2,
   "sales-funnel": 1, "sales-perf": 2, "sales-speed": 3, "leads-inflow": 4,
   "mkt-roi": 1, "mkt-sources": 2, "mkt-phone": 3,
-  "money-flow": 1, "ld-planning": 2, "log-foreman": 3, "log-packing": 4,
+  "money-flow": 1, "ld-planning": 2, "foreman-closings": 3, "log-foreman": 4, "log-packing": 5,
   "fin-revenue": 1, "fin-rr": 2, "sales-geo": 3, "financial-analysis": 4, "executive-scorecard": 5, "branch-owner": 6,
   "rev-production": 1, "review-performance": 2, "response-analysis": 3, "reviews-reminders": 4, "review-settings": 5,
   "sup-claims": 1, "sup-refunds": 2, "sup-phone": 3,
@@ -136,6 +136,7 @@ const ICONS = {
   activity:  '<path d="M22 12h-4l-3 9L9 3l-3 9H2"/>',
   dollar:    '<line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>',
   truck:     '<rect x="1.5" y="6" width="12" height="9" rx="1"/><path d="M13.5 9h4l3 3v3h-7z"/><circle cx="6" cy="18" r="1.8"/><circle cx="17.5" cy="18" r="1.8"/>',
+  receipt:   '<path d="M5 2v20l2-1.5L9 22l2-1.5L13 22l2-1.5L17 22l2-1.5V2l-2 1.5L15 2l-2 1.5L11 2 9 3.5 7 2z"/><path d="M8 8h8M8 12h8M8 16h5"/>',
   trend:     '<path d="M23 6l-9.5 9.5-5-5L1 18"/><path d="M17 6h6v6"/>',
   compass:   '<circle cx="12" cy="12" r="10"/><path d="M16.24 7.76l-2.12 6.36-6.36 2.12 2.12-6.36 6.36-2.12z"/>',
   user:      '<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>',
@@ -174,6 +175,7 @@ const PAGE_ICONS = {
   "executive-scorecard": "gauge", "branch-owner": "user", "customer-experience": "user",
   "money-flow": "dollar",
   "ld-planning": "truck",
+  "foreman-closings": "receipt",
   "labor-analysis": "activity",
   "financial-analysis": "trend", "post-card-analysis": "megaphone",
   "monthly-report": "spark",
@@ -493,6 +495,7 @@ const PAGE_DATASETS = {
   "leads-inflow": [],
   "money-flow": [],          // loads fct_money_flow itself + the /api/_mf live overlay
   "ld-planning": [],         // loads fct_ld_planning itself; no global slicers apply
+  "foreman-closings": [],    // loads via /api/_fnc; no global slicers apply
   "reviews-reminders": [],   // talks to the Apps Script relay (JSONP) + loads its own goal data
 };
 // themed dashboards are lite-mode slices of the Monthly Report — same datasets
@@ -638,7 +641,7 @@ function navigate(id, push) {
 /* Pages that bring their OWN toolbar and ignore the global filter bar (PAGE_DATASETS=[])
    render "bare" — the global date/slicer bar + company chip are hidden so the page's board
    starts right under the header instead of below two rows of greyed-out, unusable filters. */
-const BARE_CHROME = new Set(["review-performance", "sales-speed", "leads-inflow", "reviews-reminders", "response-analysis", "review-settings", "monthly-report", "money-flow", "ld-planning"]);
+const BARE_CHROME = new Set(["review-performance", "sales-speed", "leads-inflow", "reviews-reminders", "response-analysis", "review-settings", "monthly-report", "money-flow", "ld-planning", "foreman-closings"]);
 /* Monthly-Report-family pages OWN their time: they have a Month/Year picker on the cover
    and neutralize the global Year/Month slicers in every computation (withMonth), so those
    two slicers are hidden there — two competing time controls confused everyone (Tornike
@@ -688,6 +691,7 @@ const NAV_TITLES = {
   "branch-owner": "Branch Owner",
   "money-flow": "Money Flow",
   "ld-planning": "Long Distance Planning",
+  "foreman-closings": "Foreman Closings",
   "data-quality": "Data Quality",
   "source-trace": "Source Trace",
   "multi-source-leads": "Multi-Source Leads",
@@ -1068,7 +1072,7 @@ const ACL_DEPTS = [
   { id: "company",   label: "Company Overview", icon: "spark",     reports: ["monthly-report", "analysis-by-category"] },
   { id: "sales",     label: "Sales",            icon: "funnel",    reports: ["sales-funnel", "sales-perf", "sales-speed", "leads-inflow"] },
   { id: "marketing", label: "Marketing",        icon: "megaphone", reports: ["mkt-roi", "mkt-sources", "mkt-phone"] },
-  { id: "logistics", label: "Logistics",        icon: "tool",      reports: ["money-flow", "ld-planning", "log-foreman", "log-packing"] },
+  { id: "logistics", label: "Logistics",        icon: "tool",      reports: ["money-flow", "ld-planning", "foreman-closings", "log-foreman", "log-packing"] },
   { id: "financial", label: "Financial",        icon: "trend",     reports: ["fin-revenue", "fin-rr", "sales-geo", "financial-analysis", "executive-scorecard", "branch-owner"] },
   { id: "reviews",   label: "Reviews",          icon: "star",      reports: ["review-performance", "rev-production", "reviews-reminders", "response-analysis", "review-settings"] },
   { id: "support",   label: "Support",          icon: "shield",    reports: ["sup-claims", "sup-refunds", "sup-phone"] },
@@ -1244,6 +1248,7 @@ registerPage({
 <script src="pages/branch-owner.js?v=6"></script>
 <script src="pages/money-flow.js?v=28"></script>
 <script src="pages/ld-planning.js?v=5"></script>
+<script src="pages/foreman-closings.js?v=1"></script>
 <script src="pages/general-settings.js?v=2"></script>
 <script src="pages/review-performance.js?v=17"></script>
 <script src="pages/leads-inflow.js?v=1"></script>
