@@ -162,6 +162,7 @@ registerPage({
       }
       return '<tr class="fnc-jrow"><td></td>'
         + "<td>" + fmtD(j.job_date) + "</td>"
+        + "<td>" + esc(j.job_code || "—") + "</td>"
         + cust
         + '<td class="r ' + balCls(j.balance) + '">' + money(j.balance) + "</td>"
         + "<td>" + docCell(j) + "</td>"
@@ -171,7 +172,8 @@ registerPage({
     }
 
     // column grids — copied 1:1 from Money Flow's Balance-by-Foreman view so the two systems
-    // are identical (widths, headers, order). 14 cols in Details, 8 in Compact.
+    // are identical (widths, headers, order). 15 cols in Details, 9 in Compact (Job Code kept
+    // in compact too, his ask 2026-07-22).
     function plan() {
       return det() ? {
         cols: '<colgroup><col style="width:2.5%"><col style="width:6.5%"><col style="width:5.5%"><col style="width:5%"><col style="width:8%">'
@@ -185,11 +187,11 @@ registerPage({
             + "<th>Contract</th><th>Calendar</th><th>Status</th><th>Action</th>",
         n: 15
       } : {
-        cols: '<colgroup><col style="width:3%"><col style="width:12%"><col style="width:22%"><col style="width:15%">'
-            + '<col style="width:10%"><col style="width:10%"><col style="width:13%"><col style="width:15%"></colgroup>',
-        head: '<th></th><th>Job date</th><th>Customer</th><th class="r">Net Cash Balance</th>'
+        cols: '<colgroup><col style="width:3%"><col style="width:11%"><col style="width:10%"><col style="width:18%"><col style="width:14%">'
+            + '<col style="width:9%"><col style="width:9%"><col style="width:11%"><col style="width:15%"></colgroup>',
+        head: '<th></th><th>Job date</th><th>Job Code</th><th>Customer</th><th class="r">Net Cash Balance</th>'
             + "<th>Contract</th><th>Calendar</th><th>Status</th><th>Action</th>",
-        n: 8
+        n: 9
       };
     }
 
@@ -214,7 +216,7 @@ registerPage({
           + "<td>" + fmActions(name) + "</td></tr>";
       }
       return '<tr class="fnc-fmrow" data-fk="' + esc(name) + '">'
-        + '<td colspan="3">' + caret + esc(name) + '<span class="fnc-meta">' + meta + "</span></td>"
+        + '<td colspan="4">' + caret + esc(name) + '<span class="fnc-meta">' + meta + "</span></td>"
         + '<td class="r ' + balCls(tBal) + '">' + money(tBal) + "</td>"
         + '<td colspan="3"></td>'
         + "<td>" + fmActions(name) + "</td></tr>";

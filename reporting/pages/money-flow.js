@@ -517,11 +517,11 @@ registerPage({
             + "<th>Contract</th><th>Calendar</th><th>Status</th><th>Action</th>",
         before: 9, after: 5, n: 15,
       } : {
-        cols: '<col style="width:3%"><col style="width:12%"><col style="width:22%"><col style="width:15%">'
-            + '<col style="width:10%"><col style="width:10%"><col style="width:13%"><col style="width:15%">',
-        head: '<th></th><th>Job date</th><th>Customer</th><th class="r">Net Cash Balance</th>'
+        cols: '<col style="width:3%"><col style="width:11%"><col style="width:10%"><col style="width:18%"><col style="width:14%">'
+            + '<col style="width:9%"><col style="width:9%"><col style="width:11%"><col style="width:15%">',
+        head: '<th></th><th>Job date</th><th>Job Code</th><th>Customer</th><th class="r">Net Cash Balance</th>'
             + "<th>Contract</th><th>Calendar</th><th>Status</th><th>Action</th>",
-        before: 3, after: 4, n: 8,
+        before: 4, after: 4, n: 9,
       };
 
       // Submission Time = when the DIGITAL CONTRACT was submitted (the source of the net
@@ -549,6 +549,7 @@ registerPage({
         return '<tr class="mf-row" data-ev="' + esc(r.ev) + '">'
           + ckCell(r)
           + "<td>" + fmtD(r.date) + "</td>"
+          + "<td>" + esc(r.jobCode || "—") + "</td>"
           + cust
           + '<td class="r ' + balCls(r) + '">' + money(r.balance) + "</td>"
           + "<td>" + docCell(r) + "</td>"
