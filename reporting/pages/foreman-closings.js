@@ -223,6 +223,10 @@ registerPage({
     }
 
     function paint() {
+      // race guard: if the user switched pages before an async reload resolved, #fncBody is
+      // gone — writing innerHTML on null would throw (his catch 2026-07-22). Bail quietly.
+      var fncBody = document.getElementById("fncBody");
+      if (!fncBody) { if (window.__FNC_TICK) clearInterval(window.__FNC_TICK); return; }
       var pend = data.pending || [], hist = data.history || [];
       var q = S.q.trim().toLowerCase();
       var pendJobs = pend.reduce(function (a, p) { return a + p.n_jobs; }, 0);
@@ -307,7 +311,7 @@ registerPage({
       var wrap0 = document.querySelector("#fncBody .fnc-wrap");
       var wt = wrap0 ? wrap0.scrollTop : 0, wl = wrap0 ? wrap0.scrollLeft : 0;
       var sy = window.scrollY;
-      document.getElementById("fncBody").innerHTML = kp + bar + content;
+      fncBody.innerHTML = kp + bar + content;
       wire();
       var wrap1 = document.querySelector("#fncBody .fnc-wrap");
       if (wrap1) { wrap1.scrollTop = wt; wrap1.scrollLeft = wl; }

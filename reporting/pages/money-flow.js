@@ -48,6 +48,8 @@ registerPage({
         .mf-head p{margin:4px 0 0;font-size:12.5px;color:var(--muted)}
         .mf-live{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:800;padding:3px 10px;border-radius:999px;background:rgba(28,122,74,.12);color:${POS};vertical-align:2px}
         .mf-live.off{background:rgba(245,165,36,.14);color:#a06a00}
+        .mf-refwrap{display:flex;align-items:center;gap:10px}
+        .mf-last{font-size:11.5px;color:var(--faint);white-space:nowrap}
         .mf-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-bottom:14px}
         .mf-kpi{background:var(--panel);border:1px solid var(--line-2);border-radius:12px;padding:12px 14px}
         .mf-kpi b{display:block;font-size:20px;font-weight:800;letter-spacing:-.4px;font-variant-numeric:tabular-nums}
@@ -165,7 +167,7 @@ registerPage({
     host.innerHTML = `
       <div class="mf-head"><div>
         <h1>Money Flow <span class="mf-live off" id="mfLive">◷ syncing…</span></h1>
-      </div><div><button class="mf-cancel" id="mfRefresh" style="padding:8px 14px;font-size:12.5px">↻ Refresh</button></div></div>
+      </div><div class="mf-refwrap"><span class="mf-last" id="mfLast"></span><button class="mf-cancel" id="mfRefresh" style="padding:8px 14px;font-size:12.5px">↻ Refresh</button></div></div>
       <div id="mfBody"><div class="mf-load"><div class="mf-spin" style="margin:0 auto 12px"></div>Loading jobs…</div></div>
       <div id="mfModalHost"></div>`;
 
@@ -182,10 +184,13 @@ registerPage({
     if (!S.dateLabel) { S.dateFrom = null; S.dateTo = null; S.dateLabel = "All time"; S.dtOpen = false; }
     if (!Array.isArray(S.formen)) S.formen = [];
     S.modalEv = null;
+    // generation token: each page-open bumps it; a stale render's async callbacks compare
+    // against it and skip painting once a newer open has taken over (see paint()).
+    var myGen = (window.__MFGEN = (window.__MFGEN || 0) + 1);
 
     var base;
     try { base = await RS.load("fct_money_flow"); }
-    catch (e) { document.getElementById("mfBody").innerHTML = '<div class="mf-load">Couldn’t load — ' + esc(e.message) + "</div>"; return; }
+    catch (e) { var b0 = document.getElementById("mfBody"); if (b0) b0.innerHTML = '<div class="mf-load">Couldn’t load — ' + esc(e.message) + "</div>"; return; }
 
     // ---------- helpers ----------
     function num(v) { var x = parseFloat(v); return isNaN(x) ? null : x; }
@@ -320,7 +325,7 @@ registerPage({
         var r = await fetch(ZTZ.API + "/api/_mf" + (fresh ? "?fresh=1" : ""),
           { headers: { "Authorization": "Bearer " + ZTZ.getToken() } });
         if (!r.ok) throw new Error("HTTP " + r.status);
-        S.live = await r.json(); S.liveOk = true; indexEntries();
+        S.live = await r.json(); S.liveOk = true; S.liveAt = Date.now(); indexEntries();
         _ov = null;   // data changed — recompute the overlay on the next paint
       } catch (e) { S.liveOk = false; S.liveErr = String(e && e.message || e); }
     }
@@ -335,6 +340,12 @@ registerPage({
 
     // ---------- painting ----------
     function paint() {
+      // RACE GUARD (his catch 2026-07-22): when you switch pages fast, an in-flight loadLive()
+      // resolves AFTER this page's #mfBody has been torn down — writing innerHTML on the (now
+      // null) element threw "Cannot set properties of null". Bail if the container is gone, and
+      // ignore a paint from a render that a newer page-open has superseded.
+      var mfBody = document.getElementById("mfBody");
+      if (!mfBody || myGen !== window.__MFGEN) return;
       if (S.view === "todo") S.view = "foreman";      // migrate pre-rework stored state
       if (S.view === "done") S.view = "history";
       var rows = overlaid();
@@ -654,7 +665,7 @@ registerPage({
       var sx = window.scrollX, sy = window.scrollY;
       var wrap0 = document.querySelector("#mfBody .mf-wrap");
       var wt = wrap0 ? wrap0.scrollTop : 0, wl = wrap0 ? wrap0.scrollLeft : 0;
-      document.getElementById("mfBody").innerHTML = kp + bar + content;
+      mfBody.innerHTML = kp + bar + content;
       wire();
       var wrap1 = document.querySelector("#mfBody .mf-wrap");
       if (wrap1) { wrap1.scrollTop = wt; wrap1.scrollLeft = wl; }
@@ -957,12 +968,24 @@ registerPage({
     }
 
     function setLiveBadge() {
+      var last = document.getElementById("mfLast");
+      if (last) last.textContent = S.liveAt
+        ? ("Updated " + new Date(S.liveAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }))
+        : "";
       var el = document.getElementById("mfLive"); if (!el) return;
       if (S.liveOk) { el.className = "mf-live"; el.textContent = "● live"; el.title = "Figures are current to about a minute — digital contracts and portal entries included."; }
       else { el.className = "mf-live off"; el.textContent = "◷ snapshot"; el.title = "Live update unreachable (" + (S.liveErr || "?") + ") — showing the last pipeline build."; }
     }
 
-    S.busy = true; paint();
-    loadLive(false).then(function () { S.busy = false; setLiveBadge(); paint(); });
+    // SKIP the live sync if we already synced within the last minute (his ask 2026-07-22 —
+    // switching pages fast shouldn't re-hit the server each time; reuse the in-memory data).
+    // Otherwise sync + repaint, guarding against a stale open so a late resolve can't paint
+    // over a newer page.
+    if (S.live && S.liveAt && (Date.now() - S.liveAt < 60000)) {
+      S.busy = false; setLiveBadge(); paint();
+    } else {
+      S.busy = true; paint();
+      loadLive(false).then(function () { if (myGen === window.__MFGEN) { S.busy = false; setLiveBadge(); paint(); } });
+    }
   },
 });
