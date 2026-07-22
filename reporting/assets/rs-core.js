@@ -749,8 +749,19 @@ window.RS = (function () {
     return { from: lo, to: hi };
   }
 
+  // Force the next load() to re-check the pipeline epoch and re-pull: drop the in-memory
+  // dataset cache + the /api/_stats marker promise. IndexedDB stays (it's epoch-keyed, so it
+  // only serves rows matching the CURRENT marker — a genuinely newer pipeline build misses it
+  // and re-fetches; an unchanged one correctly reuses the identical rows). The global footer
+  // "Refresh" calls this, then re-renders the page (his ask 2026-07-22).
+  function refresh() {
+    for (const k in _cache) delete _cache[k];
+    for (const k in _loading) delete _loading[k];
+    _markerP = null;
+  }
+
   return { DATASETS, FIELDS, state, load, filtered, monthName, M, value, yoy, groupBy, moneyC,
            fmtN, money, fmtPct, fmt1, num,
            MIN_MONTH_DAYS, displayMonth, coverage,
-           bookingRate, dateBasis, fieldsFor, displayName };
+           bookingRate, dateBasis, fieldsFor, displayName, refresh };
 })();

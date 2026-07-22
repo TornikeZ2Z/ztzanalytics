@@ -47,6 +47,9 @@ body.rs-app .gate p{color:var(--muted)}
 .rs-nav-item.disabled:hover{background:none;color:var(--muted)}
 .rs-side .foot{margin-top:auto;padding:14px 16px;font-size:11px;color:var(--faint);line-height:1.6;border-top:1px solid var(--line)}
 .rs-side .foot b{color:var(--muted)}
+.rs-side .foot #footRefresh{margin-top:9px;display:inline-flex;align-items:center;gap:5px;font:inherit;font-size:11px;font-weight:700;color:var(--muted);background:var(--panel-2);border:1px solid var(--line);border-radius:8px;padding:5px 11px;cursor:pointer}
+.rs-side .foot #footRefresh:hover{background:var(--panel);color:var(--ink)}
+.rs-side .foot #footRefresh:disabled{opacity:.55;cursor:default}
 
 /* ---------- main ---------- */
 .rs-main{flex:1;display:flex;flex-direction:column;min-width:0;background:
