@@ -44,7 +44,7 @@ registerPage({
         .fnc-tbl tbody tr.fnc-row:hover{background:var(--panel-2)}
         .fnc-tbl.fx tbody tr{height:56px}
         .fnc-tbl.fx{min-width:1150px}
-        .fnc-tbl.fx.det{min-width:1560px}
+        .fnc-tbl.fx.det{min-width:1680px}
         .fnc-fmrow{cursor:pointer}
         .fnc-fmrow:hover{background:var(--panel-2)}
         .fnc-tbl .fnc-fmrow td{background:var(--panel-2);font-weight:800;font-size:14.5px}
@@ -55,6 +55,7 @@ registerPage({
         .fnc-doc:hover{text-decoration:underline}
         .fnc-pill{display:inline-block;font-size:11px;font-weight:800;padding:3px 9px;border-radius:999px;white-space:nowrap;background:var(--panel-2);color:var(--faint)}
         .fnc-pill.auto{background:rgba(28,122,74,.12);color:${POS}} .fnc-pill.imp{background:rgba(47,111,208,.12);color:${BLUE}}
+        .fnc-pill.conf{background:rgba(28,122,74,.12);color:${POS}}
         .fnc-note{padding:10px 14px;font-size:11px;color:var(--faint);border-top:1px solid var(--line)}
         .fnc-load{padding:40px;text-align:center;color:var(--faint)}
         .fnc-run{font:inherit;font-size:13px;font-weight:800;background:${POS};color:#fff;border:0;border-radius:9px;padding:9px 16px;cursor:pointer;white-space:nowrap}
@@ -63,6 +64,7 @@ registerPage({
         .fnc-auto b{color:var(--ink);font-variant-numeric:tabular-nums}
         .fnc-mini{font:inherit;font-size:11.5px;font-weight:800;border:1px solid var(--line-2);background:var(--panel);color:var(--ink);border-radius:8px;padding:5px 11px;cursor:pointer;white-space:nowrap;margin-left:6px}
         .fnc-mini:hover{background:var(--panel-2)} .fnc-mini.go{border-color:${POS};color:${POS}} .fnc-mini:disabled{opacity:.5;cursor:default}
+        .fnc-act{display:flex;gap:6px;align-items:center} .fnc-act .fnc-mini{margin-left:0}
         .fnc-back{position:fixed;inset:0;z-index:90;background:rgba(14,22,33,.5);display:flex;align-items:center;justify-content:center;padding:20px}
         .fnc-doc-modal{background:#fff;color:#222;border-radius:10px;box-shadow:0 24px 70px rgba(14,22,33,.4);width:min(960px,96vw);max-height:92vh;overflow:auto;position:relative;font-family:Arial,Helvetica,sans-serif}
         .fnc-mx{position:absolute;top:8px;right:10px;font-size:20px;font-weight:800;color:#fff;background:transparent;border:0;cursor:pointer;z-index:3;line-height:1}
@@ -127,68 +129,94 @@ registerPage({
 
     var det = function () { return S.dense === "details"; };
 
-    // job sub-rows — the exact columns of the Money Flow foreman view (minus confirm)
-    function jobRow(j) {
-      var cust = '<td title="' + esc(j.customer || "") + '">' + esc(j.customer || "—") + "</td>";
-      if (det()) {
-        return '<tr class="fnc-jrow">'
-          + "<td>" + fmtD(j.job_date) + "</td>"
-          + "<td>" + esc(j.job_code || "—") + "</td>"
-          + cust
-          + '<td class="r">' + money2(j.net_cash) + "</td>"
-          + '<td class="r">' + (j.advance ? money2(j.advance) : "—") + "</td>"
-          + '<td class="r">' + (j.deduction ? money2(j.deduction) : "—") + "</td>"
-          + '<td class="r">' + money2(j.confirmed) + "</td>"
-          + '<td class="r ' + balCls(j.balance) + '">' + money2(j.balance) + "</td>"
-          + "<td>" + fmtTs(j.submit_time) + "</td>"
-          + "<td>" + docCell(j) + "</td>"
-          + "<td>" + calCell(j) + "</td></tr>";
-      }
-      return '<tr class="fnc-jrow">'
-        + "<td>" + fmtD(j.job_date) + "</td>"
-        + cust
-        + '<td class="r">' + money2(j.net_cash) + "</td>"
-        + '<td class="r">' + money2(j.confirmed) + "</td>"
-        + '<td class="r ' + balCls(j.balance) + '">' + money2(j.balance) + "</td>"
-        + "<td>" + docCell(j) + "</td>"
-        + "<td>" + calCell(j) + "</td></tr>";
-    }
-
-    // column grids — percentages so the table always fills the window (like Money Flow)
-    function plan() {
-      return det() ? {
-        cols: '<colgroup><col style="width:8%"><col style="width:8%"><col style="width:18%"><col style="width:9%"><col style="width:8%"><col style="width:9%"><col style="width:9%"><col style="width:9%"><col style="width:10%"><col style="width:6%"><col style="width:6%"></colgroup>',
-        head: '<th>Job date</th><th>Job code</th><th>Customer</th><th class="r">Net Cash</th><th class="r">Advance</th><th class="r">Deduction</th><th class="r">Confirmed</th><th class="r">Balance</th><th>Submission Time</th><th>Contract</th><th>Calendar</th>',
-        n: 11
-      } : {
-        cols: '<colgroup><col style="width:12%"><col style="width:30%"><col style="width:15%"><col style="width:15%"><col style="width:14%"><col style="width:7%"><col style="width:7%"></colgroup>',
-        head: '<th>Job date</th><th>Customer</th><th class="r">Net Cash</th><th class="r">Confirmed</th><th class="r">Balance</th><th>Contract</th><th>Calendar</th>',
-        n: 7
-      };
-    }
-    // per-foreman actions in the trailing cell: Preview the PDF + Close (manual) this batch
+    // every pending closing job is confirmed by definition — a green Status pill, mirroring
+    // Money Flow's "Received" pill so the two tables read identically.
+    function statusPill() { return '<span class="fnc-pill conf">✓ Confirmed</span>'; }
+    // the per-foreman batch actions, shown in the Action column of the FOREMAN row
     function fmActions(name) {
       var prev = '<button class="fnc-mini" data-fnc-prev="' + esc(name) + '">Preview</button>';
       var close = data.can_run ? '<button class="fnc-mini go" data-fnc-close="' + esc(name) + '">Close now</button>' : "";
-      return '<div style="text-align:right">' + prev + close + "</div>";
+      return '<div class="fnc-act">' + prev + close + "</div>";
     }
-    // a foreman header row with its batch totals aligned under Net Cash / Confirmed / Balance
-    function fmRow(key, name, meta, netCash, confirmed, balance, open) {
-      var caret = '<span class="fnc-caret">' + (open ? "▾" : "▸") + "</span>";
+
+    // job sub-rows — columns 1:1 with the Money Flow foreman view (his ask 2026-07-22). The
+    // Action cell is blank on jobs; the batch's Preview/Close live on the foreman row.
+    function jobRow(j) {
+      var cust = '<td title="' + esc(j.customer || "") + '">' + esc(j.customer || "—") + "</td>";
       if (det()) {
-        return '<tr class="fnc-fmrow" data-fk="' + esc(key) + '">'
-          + '<td colspan="3">' + caret + esc(name) + '<span class="fnc-meta">' + meta + "</span></td>"
-          + '<td class="r">' + money(netCash) + "</td><td></td><td></td>"
-          + '<td class="r">' + money(confirmed) + "</td>"
-          + '<td class="r ' + balCls(balance) + '">' + money(balance) + "</td>"
-          + '<td colspan="3">' + fmActions(name) + "</td></tr>";
+        return '<tr class="fnc-jrow"><td></td>'
+          + "<td>" + fmtD(j.job_date) + "</td>"
+          + "<td>" + esc(j.job_no || j.job_code || "—") + "</td>"
+          + cust
+          + '<td class="r">' + money(j.net_cash) + "</td>"
+          + '<td class="r">' + (j.advance ? money(j.advance) : "—") + "</td>"
+          + '<td class="r">' + (j.deduction ? money(j.deduction) : "—") + "</td>"
+          + '<td class="r">' + money(j.confirmed) + "</td>"
+          + '<td class="r ' + balCls(j.balance) + '">' + money(j.balance) + "</td>"
+          + "<td>" + fmtTs(j.submit_time) + "</td>"
+          + "<td>" + docCell(j) + "</td>"
+          + "<td>" + calCell(j) + "</td>"
+          + "<td>" + statusPill() + "</td>"
+          + "<td></td></tr>";
       }
-      return '<tr class="fnc-fmrow" data-fk="' + esc(key) + '">'
-        + '<td colspan="2">' + caret + esc(name) + '<span class="fnc-meta">' + meta + "</span></td>"
-        + '<td class="r">' + money(netCash) + "</td>"
-        + '<td class="r">' + money(confirmed) + "</td>"
-        + '<td class="r ' + balCls(balance) + '">' + money(balance) + "</td>"
-        + '<td colspan="2">' + fmActions(name) + "</td></tr>";
+      return '<tr class="fnc-jrow"><td></td>'
+        + "<td>" + fmtD(j.job_date) + "</td>"
+        + cust
+        + '<td class="r ' + balCls(j.balance) + '">' + money(j.balance) + "</td>"
+        + "<td>" + docCell(j) + "</td>"
+        + "<td>" + calCell(j) + "</td>"
+        + "<td>" + statusPill() + "</td>"
+        + "<td></td></tr>";
+    }
+
+    // column grids — copied 1:1 from Money Flow's Balance-by-Foreman view so the two systems
+    // are identical (widths, headers, order). 14 cols in Details, 8 in Compact.
+    function plan() {
+      return det() ? {
+        cols: '<colgroup><col style="width:2.5%"><col style="width:7%"><col style="width:5%"><col style="width:8.5%">'
+            + '<col style="width:6.5%"><col style="width:8%"><col style="width:8.5%"><col style="width:7.5%">'
+            + '<col style="width:8.5%"><col style="width:8.5%"><col style="width:5.5%"><col style="width:5.5%">'
+            + '<col style="width:8%"><col style="width:10.5%"></colgroup>',
+        head: "<th></th><th>Job date</th><th>Job #</th><th>Customer</th>"
+            + '<th class="r">Net Cash</th><th class="r">Advance Payment</th>'
+            + '<th class="r">Forman Deduction</th><th class="r">Net Cash Flow</th>'
+            + '<th class="r">Net Cash Balance</th><th>Submission Time</th>'
+            + "<th>Contract</th><th>Calendar</th><th>Status</th><th>Action</th>",
+        n: 14
+      } : {
+        cols: '<colgroup><col style="width:3%"><col style="width:12%"><col style="width:22%"><col style="width:15%">'
+            + '<col style="width:10%"><col style="width:10%"><col style="width:13%"><col style="width:15%"></colgroup>',
+        head: '<th></th><th>Job date</th><th>Customer</th><th class="r">Net Cash Balance</th>'
+            + "<th>Contract</th><th>Calendar</th><th>Status</th><th>Action</th>",
+        n: 8
+      };
+    }
+
+    // foreman header row — a SUBTOTAL under every numeric column (his ask), and the batch's
+    // Preview/Close in the Action column. Subtotals sum the visible jobs so they always
+    // reconcile with the rows below.
+    function fmRow(p, open) {
+      var name = p.foreman, meta = p.n_jobs + " job" + (p.n_jobs === 1 ? "" : "s");
+      var caret = '<span class="fnc-caret">' + (open ? "▾" : "▸") + "</span>";
+      var sum = function (k) { return (p.jobs || []).reduce(function (a, j) { return a + (j[k] || 0); }, 0); };
+      var tNet = sum("net_cash"), tAdv = sum("advance"), tDed = sum("deduction"),
+          tFlow = sum("confirmed"), tBal = sum("balance");
+      if (det()) {
+        return '<tr class="fnc-fmrow" data-fk="' + esc(name) + '">'
+          + '<td colspan="4">' + caret + esc(name) + '<span class="fnc-meta">' + meta + "</span></td>"
+          + '<td class="r">' + money(tNet) + "</td>"
+          + '<td class="r">' + money(tAdv) + "</td>"
+          + '<td class="r">' + money(tDed) + "</td>"
+          + '<td class="r">' + money(tFlow) + "</td>"
+          + '<td class="r ' + balCls(tBal) + '">' + money(tBal) + "</td>"
+          + '<td colspan="4"></td>'
+          + "<td>" + fmActions(name) + "</td></tr>";
+      }
+      return '<tr class="fnc-fmrow" data-fk="' + esc(name) + '">'
+        + '<td colspan="3">' + caret + esc(name) + '<span class="fnc-meta">' + meta + "</span></td>"
+        + '<td class="r ' + balCls(tBal) + '">' + money(tBal) + "</td>"
+        + '<td colspan="3"></td>'
+        + "<td>" + fmActions(name) + "</td></tr>";
     }
 
     function paint() {
@@ -219,9 +247,7 @@ registerPage({
         var rows = pend.filter(function (p) { return !q || String(p.foreman || "").toLowerCase().indexOf(q) >= 0; });
         var body = rows.map(function (p) {
           var open = !!S.open[p.foreman];
-          var head = fmRow(p.foreman, p.foreman, p.n_jobs + " job" + (p.n_jobs === 1 ? "" : "s"),
-                           p.total_net_cash, p.total_confirmed, p.balance, open);
-          return head + (open ? p.jobs.map(jobRow).join("") : "");
+          return fmRow(p, open) + (open ? p.jobs.map(jobRow).join("") : "");
         }).join("");
         content = '<div class="fnc-card"><div class="fnc-wrap"><table class="fnc-tbl fx' + (det() ? " det" : "") + '">'
           + P.cols + "<thead><tr>" + P.head + "</tr></thead><tbody>"

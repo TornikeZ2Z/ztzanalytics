@@ -400,8 +400,11 @@ registerPage({
         var groups = {};
         jobs.forEach(function (r) {
           var f = r.forman || "—";
-          (groups[f] = groups[f] || { jobs: [], total: 0, noCon: 0 }).jobs.push(r);
-          if (r.balance != null) groups[f].total += r.balance; else groups[f].noCon++;
+          var g = (groups[f] = groups[f] || { jobs: [], total: 0, noCon: 0, tNet: 0, tAdv: 0, tDed: 0, tFlow: 0 });
+          g.jobs.push(r);
+          if (r.balance != null) g.total += r.balance; else g.noCon++;
+          g.tNet += (r.expected || 0); g.tAdv += (r.adv || 0);
+          g.tDed += (r.ded || 0); g.tFlow += (r.flow || 0);
         });
         var gnames = Object.keys(groups);
         if (S.formen.length) gnames = gnames.filter(function (f) { return S.formen.indexOf(f) >= 0; });
@@ -560,12 +563,18 @@ registerPage({
           // ONE table for foremen AND their jobs: the foreman row spans the columns before
           // the balance, so his total lands exactly under the job rows' Net Cash Balance
           // (his ask 2026-07-22); the counts ride along the name as quiet grey text.
-          var head = '<tr class="mf-fmrow" data-mfx="' + esc(f) + '">'
-            + '<td colspan="' + PLAN.before + '"><span class="mf-caret">' + (open ? "▾" : "▸") + "</span>"
+          var nameCell = '<td colspan="' + (det ? 4 : PLAN.before) + '"><span class="mf-caret">' + (open ? "▾" : "▸") + "</span>"
             + esc(f) + '<span class="mf-fmmeta">' + g.jobs.length + " job" + (g.jobs.length === 1 ? "" : "s")
-            + (g.noCon ? " · " + g.noCon + " no contract" : "") + "</span></td>"
-            + '<td class="r ' + (Math.abs(g.total) > MF_TOL ? "mf-neg" : "") + '">' + money(g.total) + "</td>"
-            + '<td colspan="' + PLAN.after + '"></td></tr>';
+            + (g.noCon ? " · " + g.noCon + " no contract" : "") + "</span></td>";
+          var balCls2 = Math.abs(g.total) > MF_TOL ? "mf-neg" : "";
+          // DETAIL: a subtotal under every numeric column (his ask 2026-07-22); COMPACT: just the balance
+          var head = det
+            ? '<tr class="mf-fmrow" data-mfx="' + esc(f) + '">' + nameCell
+              + '<td class="r">' + money(g.tNet) + "</td><td class=\"r\">" + money(g.tAdv) + "</td>"
+              + '<td class="r">' + money(g.tDed) + "</td><td class=\"r\">" + money(g.tFlow) + "</td>"
+              + '<td class="r ' + balCls2 + '">' + money(g.total) + '</td><td colspan="5"></td></tr>'
+            : '<tr class="mf-fmrow" data-mfx="' + esc(f) + '">' + nameCell
+              + '<td class="r ' + balCls2 + '">' + money(g.total) + '</td><td colspan="' + PLAN.after + '"></td></tr>';
           if (!open) return head;
           var jobs = g.jobs.slice().sort(function (a, b) { return a.date < b.date ? 1 : -1; });
           return head + jobs.map(jobRow).join("");
