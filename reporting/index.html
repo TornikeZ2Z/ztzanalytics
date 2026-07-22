@@ -101,7 +101,7 @@ const GROUPS = [
    module registered with — so restructures never require touching 20 page files. */
 const GROUP_OVERRIDE = {
   // Settings
-  "data-quality": "settings", "source-trace": "settings", "multi-source-leads": "settings", "admin-users": "settings",
+  "data-quality": "settings", "refresh-log": "settings", "source-trace": "settings", "multi-source-leads": "settings", "admin-users": "settings",
   // Company Overview
   "monthly-report": "company", "analysis-by-category": "company",
   // Sales ("sales-geo" moved to Financial — Tornike 2026-07-13: geography is a money view)
@@ -129,7 +129,7 @@ const NAV_ORDER = {
   "fin-revenue": 1, "fin-rr": 2, "sales-geo": 3, "financial-analysis": 4, "executive-scorecard": 5, "branch-owner": 6,
   "rev-production": 1, "review-performance": 2, "response-analysis": 3, "reviews-reminders": 4, "review-settings": 5,
   "sup-claims": 1, "sup-refunds": 2, "sup-phone": 3,
-  "data-quality": 1, "source-trace": 2, "multi-source-leads": 3, "admin-users": 4, "general-settings": 5,
+  "data-quality": 1, "refresh-log": 1.5, "source-trace": 2, "multi-source-leads": 3, "admin-users": 4, "general-settings": 5,
 };
 
 /* Inline SVG icon set (Feather-style, stroke-based) — no emojis anywhere. */
@@ -188,7 +188,7 @@ const PAGE_ICONS = {
   "log-foreman": "tool", "log-packing": "box",
   "fin-revenue": "trend", "fin-rr": "trend", "rev-production": "star",
   "sup-claims": "shield", "sup-refunds": "clipboard", "sup-phone": "phone",
-  "general-settings": "sliders", "data-quality": "clipboard", "source-trace": "activity", "multi-source-leads": "git-merge", "calendar-coverage": "calendar", "request-consistency": "alert-triangle", "review-performance": "star", "reviews-reminders": "megaphone", "response-analysis": "activity", "review-settings": "tool",
+  "general-settings": "sliders", "data-quality": "clipboard", "refresh-log": "activity", "source-trace": "activity", "multi-source-leads": "git-merge", "calendar-coverage": "calendar", "request-consistency": "alert-triangle", "review-performance": "star", "reviews-reminders": "megaphone", "response-analysis": "activity", "review-settings": "tool",
 };
 
 /* Pages not yet built — shown greyed with a SOON tag so the full scope is visible. */
@@ -222,6 +222,13 @@ const RETIRED = new Set([
   "claims", "customer-experience", "reviews",
   // old per-department Monthly Review pages (replaced by themed dashboards)
   "financial-team", "sales-team", "marketing-team", "logistics-team", "reviews-team", "support-team",
+  // themed dashboards = redundant lite slices of the Monthly Report (which is manually shared with
+  // everyone). Removed from the departments 2026-07-22 (Tornike): the full Monthly Report covers
+  // them, so a per-department copy was just more reports without more information. Marketing and
+  // Support were made up ENTIRELY of these, so those two departments auto-hide (empty).
+  "sales-funnel", "sales-perf", "sales-geo", "mkt-roi", "mkt-sources", "mkt-phone",
+  "log-foreman", "log-packing", "fin-revenue", "fin-rr", "rev-production",
+  "sup-claims", "sup-refunds", "sup-phone",
 ]);
 const REDIRECTS = {
   // pre-existing
@@ -248,7 +255,21 @@ const REDIRECTS = {
   // support — claims / refunds
   "claims": "sup-claims", "support-team": "sup-claims",
   "customer-experience": "sup-refunds",
+  // themed dashboards now fold into the full Monthly Report (2026-07-22). Because the constituent
+  // redirects above point at these slices, resolveRedirect() chains through to monthly-report.
+  "sales-funnel": "monthly-report", "sales-perf": "monthly-report", "sales-geo": "monthly-report",
+  "mkt-roi": "monthly-report", "mkt-sources": "monthly-report", "mkt-phone": "monthly-report",
+  "log-foreman": "monthly-report", "log-packing": "monthly-report",
+  "fin-revenue": "monthly-report", "fin-rr": "monthly-report", "rev-production": "monthly-report",
+  "sup-claims": "monthly-report", "sup-refunds": "monthly-report", "sup-phone": "monthly-report",
 };
+/* Follow the redirect chain to its final target (bounded). A retired constituent points at a themed
+   slice, which now points at monthly-report — so resolution must chain, not stop after one hop. */
+function resolveRedirect(id) {
+  let hops = 0;
+  while (id && REDIRECTS[id] && hops++ < 8) id = REDIRECTS[id];
+  return id;
+}
 
 function mergedPage(m) {
   return { id: m.id, group: m.group, title: m.title, async render(host) {
@@ -269,7 +290,7 @@ function mergedPage(m) {
    or plain page. */
 function pageFor(id) {
   if (id && id.indexOf(":") > 0) id = id.split(":")[0];   // collapse any legacy "hub:tab" deep link
-  if (id && REDIRECTS[id]) id = REDIRECTS[id];            // retired page → its themed replacement
+  id = resolveRedirect(id);                               // retired page / slice → final target
   return PAGES.find(p => p.id === id);
 }
 
@@ -279,14 +300,14 @@ const idOwner = id => (id && MERGED_BY_TAB[id]) ? MERGED_BY_TAB[id].id : id;
 function canSee(id) {
   if (!id || !ME) return false;
   if (ME.admin) return true;
-  if (id === "admin-users" || id === "general-settings") return false;
+  if (id === "admin-users" || id === "general-settings" || id === "refresh-log") return false;
   const reports = ME.reports || [];
   if (reports.includes(id)) return true;
   // department grant: holding a department id opens ALL of its reports, incl. ones added later
   for (const d of ACL_DEPTS) { if (reports.includes(d.id) && d.reports.includes(id)) return true; }
   // a lingering grant to a retired page opens its replacement, so nobody loses access
   for (const src in REDIRECTS) {
-    if (reports.includes(src) && REDIRECTS[src].split(":")[0] === id) return true;
+    if (reports.includes(src) && resolveRedirect(src) === id) return true;
   }
   // a grant to a page that got merged into a hub (e.g. the old standalone Labor & Crew,
   // now a Foremen & Crew tab) opens that hub — the merge must not revoke access
@@ -618,7 +639,7 @@ function mountBurger() {
 function navigate(id, push) {
   let deniedTitle = null;
   if (id && id.indexOf(":") > 0) id = id.split(":")[0];   // collapse any legacy "hub:tab" deep link
-  if (id && REDIRECTS[id]) id = REDIRECTS[id];            // retired id → themed replacement
+  id = resolveRedirect(id);                               // retired id / slice → final target
   if (!canSee(idOwner(id))) {
     // only announce a denial for a REAL page — a mistyped hash falls back silently
     if (id && pageFor(id)) deniedTitle = titleOf(idOwner(id));
@@ -642,7 +663,7 @@ function navigate(id, push) {
 /* Pages that bring their OWN toolbar and ignore the global filter bar (PAGE_DATASETS=[])
    render "bare" — the global date/slicer bar + company chip are hidden so the page's board
    starts right under the header instead of below two rows of greyed-out, unusable filters. */
-const BARE_CHROME = new Set(["review-performance", "sales-speed", "leads-inflow", "reviews-reminders", "response-analysis", "review-settings", "monthly-report", "money-flow", "ld-planning", "foreman-closings"]);
+const BARE_CHROME = new Set(["review-performance", "sales-speed", "leads-inflow", "reviews-reminders", "response-analysis", "review-settings", "monthly-report", "money-flow", "ld-planning", "foreman-closings", "refresh-log"]);
 /* Monthly-Report-family pages OWN their time: they have a Month/Year picker on the cover
    and neutralize the global Year/Month slicers in every computation (withMonth), so those
    two slicers are hidden there — two competing time controls confused everyone (Tornike
@@ -745,6 +766,7 @@ const SEARCH_ALIASES = {
   "sup-phone": "phone response callrail call rail call tracking calls answer rate",
   // Settings
   "data-quality": "data quality freshness completeness health integrity checks",
+  "refresh-log": "refresh log pipeline curation raw source timing history update run duration",
   "source-trace": "source trace lineage attribution callrail google local phone match booked from moveboard corrected final source faithful pbix diagnostic audit",
   "multi-source-leads": "multi source multiple sources overlap conflict callrail google local angi thumbtack tracker match contested attribution leads",
   "calendar-coverage": "calendar coverage connection linked unconnected google calendar event closing job request match bridge scheduling gap missing",
@@ -1268,6 +1290,7 @@ registerPage({
 <script src="pages/leads-vs-moveboard.js?v=7"></script>
 <script src="pages/source-analysis.js?v=4"></script>
 <script src="pages/data-quality.js?v=4"></script>
+<script src="pages/refresh-log.js?v=1"></script>
 <script src="pages/source-trace.js?v=6"></script>
 <script src="pages/multi-source-leads.js?v=2"></script>
 <script src="pages/calendar-coverage.js?v=7"></script>
