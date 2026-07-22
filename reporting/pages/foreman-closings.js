@@ -44,7 +44,7 @@ registerPage({
         .fnc-tbl tbody tr.fnc-row:hover{background:var(--panel-2)}
         .fnc-tbl.fx tbody tr{height:56px}
         .fnc-tbl.fx{min-width:1150px}
-        .fnc-tbl.fx.det{min-width:1680px}
+        .fnc-tbl.fx.det{min-width:1800px}
         .fnc-fmrow{cursor:pointer}
         .fnc-fmrow:hover{background:var(--panel-2)}
         .fnc-tbl .fnc-fmrow td{background:var(--panel-2);font-weight:800;font-size:14.5px}
@@ -146,7 +146,8 @@ registerPage({
       if (det()) {
         return '<tr class="fnc-jrow"><td></td>'
           + "<td>" + fmtD(j.job_date) + "</td>"
-          + "<td>" + esc(j.job_no || j.job_code || "—") + "</td>"
+          + "<td>" + esc(j.job_code || "—") + "</td>"
+          + "<td>" + esc(j.job_no || "—") + "</td>"
           + cust
           + '<td class="r">' + money(j.net_cash) + "</td>"
           + '<td class="r">' + (j.advance ? money(j.advance) : "—") + "</td>"
@@ -173,16 +174,16 @@ registerPage({
     // are identical (widths, headers, order). 14 cols in Details, 8 in Compact.
     function plan() {
       return det() ? {
-        cols: '<colgroup><col style="width:2.5%"><col style="width:7%"><col style="width:5%"><col style="width:8.5%">'
-            + '<col style="width:6.5%"><col style="width:8%"><col style="width:8.5%"><col style="width:7.5%">'
-            + '<col style="width:8.5%"><col style="width:8.5%"><col style="width:5.5%"><col style="width:5.5%">'
-            + '<col style="width:8%"><col style="width:10.5%"></colgroup>',
-        head: "<th></th><th>Job date</th><th>Job #</th><th>Customer</th>"
+        cols: '<colgroup><col style="width:2.5%"><col style="width:6.5%"><col style="width:5.5%"><col style="width:5%"><col style="width:8%">'
+            + '<col style="width:6%"><col style="width:7.5%"><col style="width:8%"><col style="width:7%">'
+            + '<col style="width:8%"><col style="width:8%"><col style="width:5%"><col style="width:5%">'
+            + '<col style="width:7.5%"><col style="width:10.5%"></colgroup>',
+        head: "<th></th><th>Job date</th><th>Job Code</th><th>Job #</th><th>Customer</th>"
             + '<th class="r">Net Cash</th><th class="r">Advance Payment</th>'
             + '<th class="r">Forman Deduction</th><th class="r">Net Cash Flow</th>'
             + '<th class="r">Net Cash Balance</th><th>Submission Time</th>'
             + "<th>Contract</th><th>Calendar</th><th>Status</th><th>Action</th>",
-        n: 14
+        n: 15
       } : {
         cols: '<colgroup><col style="width:3%"><col style="width:12%"><col style="width:22%"><col style="width:15%">'
             + '<col style="width:10%"><col style="width:10%"><col style="width:13%"><col style="width:15%"></colgroup>',
@@ -203,7 +204,7 @@ registerPage({
           tFlow = sum("confirmed"), tBal = sum("balance");
       if (det()) {
         return '<tr class="fnc-fmrow" data-fk="' + esc(name) + '">'
-          + '<td colspan="4">' + caret + esc(name) + '<span class="fnc-meta">' + meta + "</span></td>"
+          + '<td colspan="5">' + caret + esc(name) + '<span class="fnc-meta">' + meta + "</span></td>"
           + '<td class="r">' + money(tNet) + "</td>"
           + '<td class="r">' + money(tAdv) + "</td>"
           + '<td class="r">' + money(tDed) + "</td>"

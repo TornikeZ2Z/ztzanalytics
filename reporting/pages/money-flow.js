@@ -80,7 +80,7 @@ registerPage({
            than CLIPPING the right-hand headers (the real cause of "headers not fully
            visible", 2026-07-22) */
         .mf-tbl.fx{min-width:1150px}
-        .mf-tbl.fx.det{min-width:1520px}
+        .mf-tbl.fx.det{min-width:1650px}
         /* every row the SAME height — a "No Contract" pill used to make its row shorter
            than the button rows (his catch 2026-07-22) */
         .mf-tbl.fx tbody tr{height:56px}
@@ -506,16 +506,16 @@ registerPage({
       // `before` / `after` = how many columns sit either side of Net Cash Balance, so a
       // foreman's TOTAL can be placed in exactly that column.
       var PLAN = det ? {
-        cols: '<col style="width:2.5%"><col style="width:7%"><col style="width:5%"><col style="width:8.5%">'
-            + '<col style="width:6.5%"><col style="width:8%"><col style="width:8.5%"><col style="width:7.5%">'
-            + '<col style="width:8.5%"><col style="width:8.5%"><col style="width:5.5%"><col style="width:5.5%">'
-            + '<col style="width:8%"><col style="width:10.5%">',
-        head: "<th></th><th>Job date</th><th>Job #</th><th>Customer</th>"
+        cols: '<col style="width:2.5%"><col style="width:6.5%"><col style="width:5.5%"><col style="width:5%"><col style="width:8%">'
+            + '<col style="width:6%"><col style="width:7.5%"><col style="width:8%"><col style="width:7%">'
+            + '<col style="width:8%"><col style="width:8%"><col style="width:5%"><col style="width:5%">'
+            + '<col style="width:7.5%"><col style="width:10.5%">',
+        head: "<th></th><th>Job date</th><th>Job Code</th><th>Job #</th><th>Customer</th>"
             + '<th class="r">Net Cash</th><th class="r">Advance Payment</th>'
             + '<th class="r">Forman Deduction</th><th class="r">Net Cash Flow</th>'
             + '<th class="r">Net Cash Balance</th><th>Submission Time</th>'
             + "<th>Contract</th><th>Calendar</th><th>Status</th><th>Action</th>",
-        before: 8, after: 5, n: 14,
+        before: 9, after: 5, n: 15,
       } : {
         cols: '<col style="width:3%"><col style="width:12%"><col style="width:22%"><col style="width:15%">'
             + '<col style="width:10%"><col style="width:10%"><col style="width:13%"><col style="width:15%">',
@@ -532,6 +532,7 @@ registerPage({
           return '<tr class="mf-row" data-ev="' + esc(r.ev) + '">'
             + ckCell(r)
             + "<td>" + fmtD(r.date) + "</td>"
+            + "<td>" + esc(r.jobCode || "—") + "</td>"
             + "<td>" + esc(r.jobNo || "—") + "</td>"
             + cust
             + '<td class="r">' + money(r.expected) + "</td>"
@@ -563,7 +564,7 @@ registerPage({
           // ONE table for foremen AND their jobs: the foreman row spans the columns before
           // the balance, so his total lands exactly under the job rows' Net Cash Balance
           // (his ask 2026-07-22); the counts ride along the name as quiet grey text.
-          var nameCell = '<td colspan="' + (det ? 4 : PLAN.before) + '"><span class="mf-caret">' + (open ? "▾" : "▸") + "</span>"
+          var nameCell = '<td colspan="' + (det ? 5 : PLAN.before) + '"><span class="mf-caret">' + (open ? "▾" : "▸") + "</span>"
             + esc(f) + '<span class="mf-fmmeta">' + g.jobs.length + " job" + (g.jobs.length === 1 ? "" : "s")
             + (g.noCon ? " · " + g.noCon + " no contract" : "") + "</span></td>";
           var balCls2 = Math.abs(g.total) > MF_TOL ? "mf-neg" : "";
