@@ -980,21 +980,21 @@ if (!ZTZ.getToken()) {
     {
       const rfb = document.getElementById("footRefresh");
       if (rfb) rfb.onclick = async () => {
-        rfb.disabled = true; const t0 = rfb.textContent; rfb.textContent = "↻ Syncing sheets…";
+        rfb.disabled = true; const t0 = rfb.textContent; rfb.textContent = "↻ Syncing fleet…";
         let synced = false, bgRebuild = false;
         try {
-          // LIVE SYNC (his ask 2026-07-22): pull the Google Sheets now (fleet + all sources,
-          // modifiedTime-checked) — ~15s — and kick off the dashboard rebuild in the background.
+          // LIVE SYNC (his ask 2026-07-22): pull the FLEET now (crew + vehicles) — ~5s — and
+          // kick off the full sheet sync + dashboard rebuild in the background.
           const r = await fetch(ZTZ.API + "/api/_syncnow", { method: "POST",
             headers: { Authorization: "Bearer " + ZTZ.getToken() } });
-          if (r.ok) { const j = await r.json().catch(() => ({})); synced = true; bgRebuild = !!(j && j.curated_started); }
+          if (r.ok) { const j = await r.json().catch(() => ({})); synced = true; bgRebuild = !!(j && j.rebuild_started); }
         } catch (e) {}   // non-admin (403) or failure — fall through to a plain client refresh
         rfb.textContent = "↻ Reloading…";
         try { if (window.RS && RS.refresh) RS.refresh(); await renderPage(); await updateFooterFresh(); } catch (e) {}
         rfb.disabled = false; rfb.textContent = t0;
         try {
-          if (synced && bgRebuild) ZTZ.toast("Sheets synced. Dashboards rebuilding in the background (~5 min).");
-          else if (synced) ZTZ.toast("Sheets synced — everything's current.");
+          if (synced && bgRebuild) ZTZ.toast("Fleet synced. The rest + dashboards are rebuilding in the background (~5 min).");
+          else if (synced) ZTZ.toast("Fleet synced.");
         } catch (e) {}
       };
     }
