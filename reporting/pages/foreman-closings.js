@@ -21,6 +21,10 @@ registerPage({
         .fnc-head{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;flex-wrap:wrap;margin-bottom:14px}
         .fnc-head h1{margin:0;font-size:22px;font-weight:800;letter-spacing:-.4px}
         .fnc-head p{margin:4px 0 0;font-size:12.5px;color:var(--muted);max-width:760px}
+        .fnc-refwrap{display:flex;align-items:center;gap:10px}
+        .fnc-last{font-size:11.5px;color:var(--faint);white-space:nowrap}
+        .fnc-refresh{font:inherit;font-size:12.5px;font-weight:700;color:var(--muted);background:var(--panel-2);border:1px solid var(--line-2);border-radius:10px;padding:9px 15px;cursor:pointer}
+        .fnc-refresh:hover{background:var(--panel)} .fnc-refresh:disabled{opacity:.6;cursor:default}
         .fnc-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-bottom:14px}
         .fnc-kpi{background:var(--panel);border:1px solid var(--line-2);border-radius:12px;padding:12px 14px}
         .fnc-kpi b{display:block;font-size:20px;font-weight:800;letter-spacing:-.4px;font-variant-numeric:tabular-nums}
@@ -87,18 +91,33 @@ registerPage({
       <div class="fnc-head"><div>
         <h1>Foreman Net Cash Closings</h1>
         <p>Every job a foreman confirms in Money Flow is grouped into a batch, closed once, and archived as a PDF statement. <b>Pending</b> is each foreman's next batch; <b>History</b> is every closing sent.</p>
-      </div></div>
+      </div><div class="fnc-refwrap"><span class="fnc-last" id="fncLast"></span><button class="fnc-refresh" id="fncRefresh">↻ Refresh</button></div></div>
       <div id="fncBody"><div class="fnc-load">Loading closings…</div></div>`;
 
     var S = window.__FNC || (window.__FNC = { view: "pending", dense: "details", q: "", open: {}, hopen: {}, copen: {}, _jobs: {} });
     if (!S.dense) S.dense = "details";
 
+    // DATA — reuse the last pull if it's under a minute old (his ask 2026-07-22: switching
+    // pages fast shouldn't re-hit the server); Refresh forces a fresh fetch. Cached on window
+    // so it survives the page teardown/rebuild.
     var data;
-    try {
+    async function loadData(force) {
+      if (!force && window.__FNC_DATA && window.__FNC_AT && (Date.now() - window.__FNC_AT < 60000)) {
+        data = window.__FNC_DATA; return;
+      }
       data = await fetch(ZTZ.API + "/api/_fnc", { headers: { "Authorization": "Bearer " + ZTZ.getToken() } }).then(function (r) { return r.json(); });
-      if (data.error) throw new Error(data.error);
-    } catch (e) {
-      document.getElementById("fncBody").innerHTML = '<div class="fnc-load">Couldn’t load — ' + esc(String(e.message || e)) + "</div>"; return;
+      if (data && data.error) throw new Error(data.error);
+      window.__FNC_DATA = data; window.__FNC_AT = Date.now();
+    }
+    function setLast() {
+      var el = document.getElementById("fncLast");
+      if (el) el.textContent = window.__FNC_AT
+        ? ("Updated " + new Date(window.__FNC_AT).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }))
+        : "";
+    }
+    try { await loadData(false); }
+    catch (e) {
+      var b0 = document.getElementById("fncBody"); if (b0) b0.innerHTML = '<div class="fnc-load">Couldn’t load — ' + esc(String(e.message || e)) + "</div>"; return;
     }
 
     function money(v) { if (v == null) return "—"; var n = Math.round(v); return (n < 0 ? "-$" : "$") + Math.abs(n).toLocaleString("en-US"); }
@@ -227,6 +246,7 @@ registerPage({
       // gone — writing innerHTML on null would throw (his catch 2026-07-22). Bail quietly.
       var fncBody = document.getElementById("fncBody");
       if (!fncBody) { if (window.__FNC_TICK) clearInterval(window.__FNC_TICK); return; }
+      setLast();
       var pend = data.pending || [], hist = data.history || [];
       var q = S.q.trim().toLowerCase();
       var pendJobs = pend.reduce(function (a, p) { return a + p.n_jobs; }, 0);
@@ -376,7 +396,7 @@ registerPage({
           body: JSON.stringify(body) });
         var j = await res.json().catch(function () { return {}; });
         if (!res.ok || !j.ok) throw new Error(j.error || ("HTTP " + res.status));
-        data = await fetch(ZTZ.API + "/api/_fnc", { headers: { "Authorization": "Bearer " + ZTZ.getToken() } }).then(function (r) { return r.json(); });
+        await loadData(true);   // force-refresh the cache after a manual close
         paint();
       } catch (e) {
         if (btn) { btn.disabled = false; btn.textContent = "Failed — retry"; setTimeout(function () { btn.textContent = orig; }, 3000); }
@@ -424,6 +444,14 @@ registerPage({
         };
       });
     }
+
+    var rb = document.getElementById("fncRefresh");
+    if (rb) rb.onclick = async function () {
+      rb.disabled = true; rb.textContent = "↻ Refreshing…";
+      try { await loadData(true); } catch (e) {}
+      rb.disabled = false; rb.textContent = "↻ Refresh";
+      paint();
+    };
 
     paint();
   },
