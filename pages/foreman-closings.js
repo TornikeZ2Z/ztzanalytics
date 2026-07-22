@@ -150,7 +150,7 @@ registerPage({
         + '<td class="r">' + money(netCash) + "</td>"
         + '<td class="r">' + money(confirmed) + "</td>"
         + '<td class="r ' + balCls(balance) + '">' + money(balance) + "</td>"
-        + '<td colspan="2"></td></tr>";
+        + '<td colspan="2"></td></tr>';
     }
 
     function paint() {
@@ -200,7 +200,7 @@ registerPage({
             + '<td colspan="2"><span class="fnc-caret">' + (open ? "▾" : "▸") + "</span>" + esc(f)
             + '<span class="fnc-meta">' + closings.length + " closing" + (closings.length === 1 ? "" : "s") + " · " + jobs + " jobs</span></td>"
             + '<td class="r">' + money(closings.reduce(function (a, c) { return a + c.total_net_cash; }, 0)) + "</td>"
-            + '<td colspan="4"></td></tr>";
+            + '<td colspan="4"></td></tr>';
           var sub = "";
           if (open) {
             sub = closings.map(function (c) {
