@@ -45,6 +45,9 @@
   const isDead = r => String(r["Status Category"] || "").trim() === "Bad Lead";
   const isQual = r => !isDead(r);
   const isContacted = r => !!+r["Contacted"] || !!+r["Called"];   // Contacted col post-rebuild; Called fallback
+  // Leads created after the newest call in the warehouse can't be judged on contact
+  // (Austin Hayes case: confirmed next-day, but the RC export ends earlier).
+  const inWindow = r => r["In Call Window"] == null ? true : !!+r["In Call Window"];
   const estActual = r => {
     const q = num(r["Avg Quote"]), b = num(r["Total Bill"]);
     if (q == null && b == null) return "—";
@@ -56,6 +59,7 @@
   const contactCell = r => {
     if (+r["Called"]) return r["TTO Biz Min"] != null ? mins(+r["TTO Biz Min"]) : "yes";
     if (isContacted(r)) return `<span class="st-good">in call</span>`;
+    if (!inWindow(r)) return `<span class="st-dim" title="This lead was created after the newest call data in the warehouse — refresh the RingCentral export to see its calls">no data yet</span>`;
     return `<span class="st-bad">no contact</span>`;
   };
 
@@ -81,6 +85,7 @@
     .st-tbl tr:last-child td{border-bottom:0}
     .st-tbl tr.click{cursor:pointer} .st-tbl tr.click:hover td{background:var(--panel-2)}
     .st-bad{color:var(--red);font-weight:750} .st-good{color:var(--brand);font-weight:700}
+    .st-dim{color:var(--faint);font-weight:600}
     .st-flag{display:inline-block;font-size:10px;font-weight:800;letter-spacing:.03em;border:1px solid;border-radius:999px;padding:1px 8px;margin-right:4px}
     .st-flag.r{color:var(--red);border-color:var(--red)} .st-flag.a{color:var(--amber);border-color:var(--amber)}
     .st-flag.b{color:var(--blue);border-color:var(--blue)} .st-flag.p{color:var(--purple);border-color:var(--purple)}
@@ -215,6 +220,7 @@
     const j = d.journey || {}, ev = d.events || [];
     const flags = [];
     if (+j["Flag Never Called"]) flags.push(`<span class="st-flag r">NO CONTACT</span>`);
+    if (!inWindow(j)) flags.push(`<span class="st-flag a">CREATED AFTER NEWEST CALL DATA</span>`);
     if (+j["Flag Slow First Call"]) flags.push(`<span class="st-flag a">SLOW FIRST CALL</span>`);
     if (+j["Flag Big Quote Gap"]) flags.push(`<span class="st-flag p">QUOTE GAP</span>`);
     if (+j["Flag Confirmed No Closing"]) flags.push(`<span class="st-flag r">NO CLOSING</span>`);
@@ -241,7 +247,8 @@
 
     const resp = `<div class="st-sec">Response</div><div class="st-fin">
       ${finCard("First contact", (+j["Called"] ? (j["TTO Biz Min"] != null ? mins(+j["TTO Biz Min"]) + " (biz)" : "called")
-                   : (isContacted(j) ? "answered incoming" : "<span class='st-bad'>none</span>")))}
+                   : (isContacted(j) ? "answered incoming"
+                      : (!inWindow(j) ? "<span class='st-dim'>no call data yet</span>" : "<span class='st-bad'>none</span>"))))}
       ${finCard("Calls out / in", (+j["Out Calls"] || 0) + " / " + (+j["In Calls"] || 0))}
       ${finCard("Answered incoming", (+j["Answered In"] || 0))}
       ${finCard("Texts out / in", (+j["Sms Out"] || 0) + " / " + (+j["Sms In"] || 0))}
@@ -280,7 +287,7 @@
       const k = (name || "Unassigned").trim() || "Unassigned";
       if (EXCLUDE_SP.has(k.toLowerCase())) return;
       (by[k] = by[k] || { name: k, leads: 0, qual: 0, dead: 0, conf: 0, confEv: 0,
-        contacted: 0, tto: [], out: 0, talk: 0, rev: 0, closed: 0, gaps: [] }).x = 1;
+        contacted: 0, covered: 0, tto: [], out: 0, talk: 0, rev: 0, closed: 0, gaps: [] }).x = 1;
       fn(by[k]);
     };
     rows.forEach(r => add(r["Assigned"], p => {
@@ -288,7 +295,10 @@
       if (isQual(r)) p.qual++;
       if (isDead(r)) p.dead++;
       if (isConf(r)) p.conf++;
-      if (isContacted(r)) p.contacted++;
+      if (inWindow(r)) {
+        p.covered++;
+        if (isContacted(r)) p.contacted++;
+      }
       if (r["TTO Biz Min"] != null) p.tto.push(+r["TTO Biz Min"]);
       p.out += +r["Out Calls"] || 0;
       p.talk += +r["Talk Sec Out"] || 0;
@@ -300,7 +310,7 @@
     list.forEach(p => {
       p.deadPct = p.leads ? 100 * p.dead / p.leads : null;
       p.convPct = p.qual ? Math.min(100, 100 * p.conf / p.qual) : null;    // canonical: conf/QUALIFIED
-      p.noContactPct = p.leads ? 100 * (p.leads - p.contacted) / p.leads : null;
+      p.noContactPct = p.covered ? 100 * (p.covered - p.contacted) / p.covered : null;
       p.medTto = median(p.tto);
       p.revLead = p.leads ? p.rev / p.leads : 0;
       p.avgGap = p.gaps.length ? p.gaps.reduce((a, b) => a + b, 0) / p.gaps.length : null;
@@ -331,7 +341,8 @@
     const teamAvgConv = nQual ? 100 * rows.filter(isConf).length / nQual : 0;
     const kpi = (l, v, s) => `<div class="st-kpi"><div class="l">${l}</div><div class="v">${v}</div><div class="s">${s || ""}</div></div>`;
     const medAll = median(rows.map(r => r["TTO Biz Min"]).filter(v => v != null).map(Number));
-    const noContact = rows.length ? 100 * rows.filter(r => !isContacted(r)).length / rows.length : 0;
+    const covered = rows.filter(inWindow);
+    const noContact = covered.length ? 100 * covered.filter(r => !isContacted(r)).length / covered.length : null;
     const rev = rows.reduce((a, r) => a + (+r["Total Bill"] || 0), 0);
     const dense = ctx.dense || "detail";
 
@@ -379,7 +390,7 @@
         ${kpi("Confirmed (in period)", RS.fmtN(confRows.length), "by their confirmed date")}
         ${kpi("Booking rate", brate != null ? pct1(100 * brate) : "—", "confirmed ÷ qualified (canonical)")}
         ${kpi("Median first call", medAll != null ? mins(medAll) : "—", "business minutes")}
-        ${kpi("No contact", pct1(noContact), "no call made or answered")}
+        ${kpi("No contact", pct1(noContact), "of the " + RS.fmtN(covered.length) + " leads within call-data coverage")}
         ${kpi("Revenue (closed)", money0(rev), "billed on these leads")}
       </div>
       <div class="st-card">
@@ -488,7 +499,7 @@
           || String(r["Source"] || "").toLowerCase().includes(q));
       }
       if (state.chip === "important") rows = rows.filter(r => +r["Is LD"] || (num(r["Total CF"]) || 0) >= 700 || (num(r["Avg Quote"]) || 0) >= 4000);
-      if (state.chip === "nocontact") rows = rows.filter(r => !isContacted(r));
+      if (state.chip === "nocontact") rows = rows.filter(r => inWindow(r) && !isContacted(r));
       if (state.chip === "slow") rows = rows.filter(r => +r["Flag Slow First Call"]);
       if (state.chip === "gap") rows = rows.filter(r => +r["Flag Big Quote Gap"]);
       if (state.chip === "noclose") rows = rows.filter(r => +r["Flag Confirmed No Closing"]);
@@ -508,7 +519,7 @@
       const pg = rows.slice(start, start + PAGE);
       const flagIcons = r => {
         const f = [];
-        if (!isContacted(r)) f.push(`<span class="st-flag r">✕ contact</span>`);
+        if (!isContacted(r) && inWindow(r)) f.push(`<span class="st-flag r">✕ contact</span>`);
         else if (+r["Flag Slow First Call"]) f.push(`<span class="st-flag a">slow</span>`);
         if (+r["Flag Big Quote Gap"]) f.push(`<span class="st-flag p">gap</span>`);
         if (+r["Flag Confirmed No Closing"]) f.push(`<span class="st-flag r">no closing</span>`);
