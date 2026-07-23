@@ -56,6 +56,10 @@
     return `${money0(q)} → <b>${money0(b)}</b>` +
       (d != null ? ` <span class="${+d >= 0 ? "st-good" : "st-bad"}">${+d > 0 ? "+" : ""}${pct1(+d)}</span>` : "");
   };
+  const stripExt = s => String(s == null ? "" : s).replace(/\b\d+\s*-\s*/g, "").trim();
+  const calMismatch = r => !!+r["Cal Found"] &&
+    ((r["Cal Date Match"] != null && !+r["Cal Date Match"]) ||
+     (r["Cal Loc Match"] != null && !+r["Cal Loc Match"]));
   const contactCell = r => {
     if (+r["Called"]) return r["TTO Biz Min"] != null ? mins(+r["TTO Biz Min"]) : "yes";
     if (isContacted(r)) return `<span class="st-good">in call</span>`;
@@ -131,6 +135,8 @@
     .st-ev .m{font-size:12.5px;color:var(--muted);margin-top:2px;line-height:1.5}
     .st-all{margin-top:8px}
     .st-calrow{display:flex;flex-wrap:wrap;gap:7px;margin-top:8px}
+    .st-xfer{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:9px 13px;margin-top:8px;font-size:12.5px;color:var(--muted)}
+    .st-xfer b{color:var(--ink)}
     .st-callink{display:inline-flex;align-items:center;gap:5px;font-size:12.5px;font-weight:700;color:var(--blue);text-decoration:none;border:1px solid var(--line-2);border-radius:9px;padding:6px 11px;background:var(--panel)}
     .st-callink:hover{border-color:var(--blue)}
     .st-all summary{font-size:12px;font-weight:700;color:var(--blue);cursor:pointer;padding:4px 0}
@@ -193,11 +199,53 @@
     else stateHtml = `<span class="st-dim">no move date</span>`;
     const cal = (d.calendar || []).map(c =>
       `<a class="st-callink" href="${esc(c.url || "#")}" target="_blank" rel="noopener">📅 ${esc((c.event_date || "").slice(0, 10))} ${esc(c.event_title || "calendar event").slice(0, 44)}</a>`).join("");
+    // transfer-accuracy: did the salesperson copy Moveboard -> Calendar correctly?
+    let xfer = "";
+    const ce = (d.calendar || [])[0];
+    if (ce) {
+      const mb = d.moveboard || {};
+      const dOk = mv && ce.event_date ? String(ce.event_date).slice(0, 10) === mv : null;
+      const zip = String(mb["Pickup Zip"] || "").trim();
+      const lOk = zip && ce.location ? String(ce.location).includes(zip) : null;
+      const mark = ok => ok == null ? `<span class="st-dim">n/a</span>`
+        : ok ? `<span class="st-good">✓</span>` : `<span class="st-bad">✗</span>`;
+      xfer = `<div class="st-xfer">
+        <b>Moveboard → Calendar transfer:</b>
+        date ${mark(dOk)} <span class="st-dim">${esc(mv || "?")} vs ${esc(String(ce.event_date || "?").slice(0, 10))}</span>
+        &nbsp;·&nbsp; address ${mark(lOk)} <span class="st-dim">${esc(String(mb["Moving From"] || "").slice(0, 44))} vs ${esc(String(ce.location || "—").slice(0, 44))}</span>
+      </div>`;
+    }
     return `<div class="st-sec">Job</div><div class="st-fin">
       ${finCard("Status", stateHtml, true)}
       ${finCard("Move date", esc(mv || "—"))}
       ${finCard("Confirmed on", esc((j["Booked Date"] || "—").slice(0, 10)))}
-    </div>${cal ? `<div class="st-calrow">${cal}</div>` : `<div class="st-note" style="margin:6px 0 0">No calendar event linked.</div>`}`;
+    </div>${cal ? `<div class="st-calrow">${cal}</div>` : `<div class="st-note" style="margin:6px 0 0">No calendar event linked.</div>`}${xfer}`;
+  }
+
+  /* Field curation (Tornike: "keep only the important / sales-connected ones — but don't
+     delete anything, keep it usable"): the main grids show what matters; the expandable
+     shows useful extras; the PLUMBING fields live in a nested "Technical" expandable. */
+  const TECH_CLOSING = new Set(["Request Joinkey", "Unique Key", "Record Source",
+    "Is Last Encounter", "Request Encounter", "Is Flat Rate", "Cancellation Reason",
+    "Source1", "Source2", "Source From Moveboard", "Corrected Source", "Bill Range",
+    "Commission Bucket Range", "State Name", "Total Bill by Cash Rate", "Forman Raw",
+    "Forman Job Order", "Total Jobs Done by Forman", "Move Type", "Company", "File Name",
+    "File Path", "Update Date", "Pickup Zip"]);
+  const TECH_MB = new Set(["Request Joinkey", "Closing Sheet Connector", "Label",
+    "Create Datetime NY", "Source Before Adjustment", "Source Connector", "Source M",
+    "State Name", "CF/Lbs", "Bill Range", "CF Range", "Sales Commission Bucket Range",
+    "Big Job Status", "Closing Total", "Payment total", "Company", "File Name",
+    "File Path", "Update Date"]);
+  function fieldsDump(obj, techSet, label) {
+    const keys = Object.keys(obj).filter(k =>
+      obj[k] != null && String(obj[k]).trim() !== "" && !k.startsWith("__"));
+    const useful = keys.filter(k => !techSet.has(k)).sort();
+    const tech = keys.filter(k => techSet.has(k)).sort();
+    const kv = list => `<div class="st-kv" style="margin-top:8px">` +
+      list.map(k => `<div><span>${esc(k)}</span><span>${esc(String(obj[k]).slice(0, 60))}</span></div>`).join("") + `</div>`;
+    return `<details class="st-all"><summary>${label} (${useful.length})</summary>${kv(useful)}
+      ${tech.length ? `<details class="st-all" style="margin-left:6px"><summary>Technical fields (${tech.length})</summary>${kv(tech)}</details>` : ""}
+    </details>`;
   }
 
   function moveboardSection(mb, j) {
@@ -212,16 +260,14 @@
       ${finCard("Min quote", money0(num(src["Min Quote"])))}
       ${finCard("Avg quote", money0(num(src["Average Quote"] != null ? src["Average Quote"] : j["Avg Quote"])))}
       ${finCard("Max quote", money0(num(src["Max Quote"])))}
+      ${mb ? finCard("Moving from", esc(String(mb["Moving From"] || "—").slice(0, 60)), true) : ""}
+      ${mb ? finCard("Moving to", esc(String(mb["Moving To"] || "—").slice(0, 60)), true) : ""}
+      ${mb ? finCard("Phone", esc(mb["Phone"] || "—"), true) : ""}
+      ${mb ? finCard("Email", esc(String(mb["Email"] || "—").slice(0, 40)), true) : ""}
     </div>`;
     if (!mb) return `<div class="st-sec">Moveboard</div>` + main;
-    const rest = Object.keys(mb).filter(k =>
-      mb[k] != null && String(mb[k]).trim() !== "" &&
-      !["File Path", "Update Date", "File Name"].includes(k)).sort();
     return `<div class="st-sec">Moveboard</div>` + main +
-      `<details class="st-all"><summary>All Moveboard fields (${rest.length})</summary>
-      <div class="st-kv" style="margin-top:8px">` +
-      rest.map(k => `<div><span>${esc(k)}</span><span>${esc(String(mb[k]).slice(0, 60))}</span></div>`).join("") +
-      `</div></details>`;
+      fieldsDump(mb, TECH_MB, "More Moveboard fields");
   }
 
   function closingSection(cl) {
@@ -254,14 +300,8 @@
       ${finCard("Driver", esc(g("Driver") || "—"), true)}
       ${helpers.length ? finCard("Helpers", helpers.join(", "), true) : ""}
     </div>`;
-    const rest = Object.keys(cl).filter(k =>
-      cl[k] != null && String(cl[k]).trim() !== "" &&
-      !["File Path", "Update Date", "File Name"].includes(k)).sort();
-    const all = `<details class="st-all"><summary>All closing-sheet fields (${rest.length})</summary>
-      <div class="st-kv" style="margin-top:8px">` +
-      rest.map(k => `<div><span>${esc(k)}</span><span>${esc(String(cl[k]).slice(0, 60))}</span></div>`).join("") +
-      `</div></details>`;
-    return `<div class="st-sec">Closing sheet</div>` + main + all;
+    return `<div class="st-sec">Closing sheet</div>` + main +
+      fieldsDump(cl, TECH_CLOSING, "More closing-sheet fields");
   }
 
   function paintDrawer(d) {
@@ -301,7 +341,7 @@
       ${finCard("Answered incoming", (+j["Answered In"] || 0))}
       ${finCard("Texts out / in", (+j["Sms Out"] || 0) + " / " + (+j["Sms In"] || 0))}
       ${finCard("Talk time (out)", secH(j["Talk Sec Out"]))}
-      ${finCard("Dialers", esc(j["Dialers"] || "—"), true)}
+      ${finCard("Dialers", esc(stripExt(j["Dialers"]) || "—"), true)}
       ${finCard("Last touch", esc((j["Last Touch At"] || "—").slice(0, 16)), true)}
     </div>`;
 
@@ -319,7 +359,7 @@
         const dur = e["Duration Sec"] != null ? ` · ${secH(e["Duration Sec"])}` : "";
         const amt = e["Amount"] != null ? ` · ${money0(+e["Amount"])}` : "";
         return `<div class="st-ev ${esc(kind)}">
-          <div class="h"><b>${esc(EV_LABEL[kind] || kind)}</b>${e["Actor"] ? " — " + esc(e["Actor"]) : ""}<span style="color:var(--faint)"> · ${esc(t)}${dur}${amt}</span></div>
+          <div class="h"><b>${esc(EV_LABEL[kind] || kind)}</b>${e["Actor"] ? " — " + esc(kind.indexOf("call") === 0 || kind.indexOf("sms") === 0 ? stripExt(e["Actor"]) : e["Actor"]) : ""}<span style="color:var(--faint)"> · ${esc(t)}${dur}${amt}</span></div>
           ${e["Detail"] ? `<div class="m">${esc(e["Detail"])}</div>` : ""}</div>`;
       }).join("") + `</div>`;
 
@@ -501,6 +541,7 @@
     const CHIPS = [
       ["important", "★ Important"], ["nocontact", "No contact"], ["slow", "Slow first call"],
       ["gap", "Quote gap"], ["noclose", "Confirmed, no closing"], ["dead", "Dead leads"],
+      ["calbad", "Calendar mismatch"],
     ];
     const sel = (id, label, opts, cur) =>
       `<select id="${id}"><option value="">${label}</option>` +
@@ -554,6 +595,7 @@
       if (state.chip === "gap") rows = rows.filter(r => +r["Flag Big Quote Gap"]);
       if (state.chip === "noclose") rows = rows.filter(r => +r["Flag Confirmed No Closing"]);
       if (state.chip === "dead") rows = rows.filter(isDead);
+      if (state.chip === "calbad") rows = rows.filter(calMismatch);
       const key = { new: r => r["Create Date"] || "", slow: r => (r["TTO Biz Min"] != null ? +r["TTO Biz Min"] : -1),
         bill: r => +(r["Total Bill"] || 0), gap: r => Math.abs(+(r["Bill Vs Quote Pct"] || 0)),
         cf: r => +(r["Total CF"] || 0),
