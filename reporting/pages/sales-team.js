@@ -138,8 +138,12 @@
     drawerEl.querySelector("#stDB").innerHTML = `<div class="rs-loading" style="padding:22px">Loading the lead file…</div>`;
     fetch(ZTZ.API + "/api/_leadfile?jk=" + encodeURIComponent(jk),
       { headers: { Authorization: "Bearer " + ZTZ.getToken() } })
-      .then(r => r.json()).then(d => paintDrawer(d))
-      .catch(e => { drawerEl.querySelector("#stDB").innerHTML = `<div class="st-card">Couldn't load: ${esc(e.message)}</div>`; });
+      .then(r => r.json()).then(d => {
+        if (d && d.error) throw new Error(d.error);
+        if (!d || !d.journey) throw new Error("lead not found in the journey mart");
+        paintDrawer(d);
+      })
+      .catch(e => { drawerEl.querySelector("#stDB").innerHTML = `<div class="st-card">Couldn't load this lead: ${esc(e.message)}</div>`; });
   }
 
   function paintDrawer(d) {
@@ -313,26 +317,49 @@
   }
 
   function renderExplorer(host, ctx) {
-    const state = { q: "", sp: (ctx.explorerPreset && ctx.explorerPreset.sp) || "", chip: "", sort: "new", page: 0 };
+    const state = { q: "", sp: (ctx.explorerPreset && ctx.explorerPreset.sp) || "", chip: "",
+      sort: "new", page: 0, src: "", stat: "", called: "", type: "", bucket: "" };
     ctx.explorerPreset = null;
     const PAGE = 100;
+    const uniq = col => {
+      const cnt = {};
+      ctx.rows.forEach(r => { const v = (r[col] || "").toString().trim(); if (v) cnt[v] = (cnt[v] || 0) + 1; });
+      return Object.keys(cnt).sort((a, b) => cnt[b] - cnt[a]);
+    };
     const sps = [...new Set(ctx.rows.map(r => (r["Assigned"] || "").trim()).filter(Boolean))].sort();
+    const sources = uniq("Source").slice(0, 40);
+    const stats = uniq("Status Category");
+    const buckets = ["<= 5 min", "5-15 min", "15-30 min", "30-60 min", "> 1 hour", "Not called"];
 
     const CHIPS = [
       ["important", "★ Important"], ["never", "Never called"], ["slow", "Slow first call"],
       ["gap", "Quote gap"], ["noclose", "Confirmed, no closing"],
     ];
+    const sel = (id, label, opts, cur) =>
+      `<select id="${id}"><option value="">${label}</option>` +
+      opts.map(o => `<option${o === cur ? " selected" : ""}>${esc(o)}</option>`).join("") + `</select>`;
     host.innerHTML = `
       <div class="st-bar">
         <input type="text" id="stQ" placeholder="Search customer / # / source…">
-        <select id="stSp"><option value="">All salespeople</option>${sps.map(s => `<option${s === state.sp ? " selected" : ""}>${esc(s)}</option>`).join("")}</select>
-        ${CHIPS.map(([k, l]) => `<button class="st-chip" data-c="${k}">${l}</button>`).join("")}
+        ${sel("stSp", "All salespeople", sps, state.sp)}
+        ${sel("stSrc", "All sources", sources, "")}
+        ${sel("stStat", "All statuses", stats, "")}
+        <select id="stCalled"><option value="">Called + not</option>
+          <option value="y">Called</option><option value="n">Never called</option>
+          <option value="c">Connected</option></select>
+        <select id="stType"><option value="">LD + local</option>
+          <option value="ld">Long distance</option><option value="loc">Local</option></select>
+        ${sel("stBucket", "Any speed", buckets, "")}
         <span style="flex:1"></span>
         <select id="stSort">
           <option value="new">Newest first</option><option value="slow">Slowest first call</option>
           <option value="bill">Biggest bill</option><option value="gap">Biggest quote gap</option>
-          <option value="cf">Biggest CF</option>
+          <option value="cf">Biggest CF</option><option value="calls">Most calls</option>
+          <option value="talk">Most talk time</option>
         </select>
+      </div>
+      <div class="st-bar" style="margin-top:-4px">
+        ${CHIPS.map(([k, l]) => `<button class="st-chip" data-c="${k}">${l}</button>`).join("")}
       </div>
       <div class="st-card" style="padding:0 8px"><div style="overflow-x:auto" id="stTblWrap"></div>
       <div class="st-pg" id="stPg"></div></div>`;
@@ -340,6 +367,14 @@
     const apply = () => {
       let rows = ctx.rows;
       if (state.sp) rows = rows.filter(r => (r["Assigned"] || "").trim() === state.sp);
+      if (state.src) rows = rows.filter(r => (r["Source"] || "").trim() === state.src);
+      if (state.stat) rows = rows.filter(r => (r["Status Category"] || "").trim() === state.stat);
+      if (state.called === "y") rows = rows.filter(r => +r["Called"]);
+      if (state.called === "n") rows = rows.filter(r => !+r["Called"]);
+      if (state.called === "c") rows = rows.filter(r => +r["Connected"]);
+      if (state.type === "ld") rows = rows.filter(r => +r["Is LD"]);
+      if (state.type === "loc") rows = rows.filter(r => !+r["Is LD"]);
+      if (state.bucket) rows = rows.filter(r => (r["Speed Bucket"] || "") === state.bucket);
       if (state.q) {
         const q = state.q.toLowerCase();
         rows = rows.filter(r => String(r["Customer"] || "").toLowerCase().includes(q)
@@ -353,7 +388,9 @@
       if (state.chip === "noclose") rows = rows.filter(r => +r["Flag Confirmed No Closing"]);
       const key = { new: r => r["Create Date"] || "", slow: r => (r["TTO Biz Min"] != null ? +r["TTO Biz Min"] : -1),
         bill: r => +(r["Total Bill"] || 0), gap: r => Math.abs(+(r["Bill Vs Quote Pct"] || 0)),
-        cf: r => +(r["Total CF"] || 0) }[state.sort];
+        cf: r => +(r["Total CF"] || 0),
+        calls: r => (+r["Out Calls"] || 0) + (+r["In Calls"] || 0),
+        talk: r => +(r["Talk Sec Out"] || 0) }[state.sort];
       rows = rows.slice().sort((a, b) => (key(b) > key(a) ? 1 : key(b) < key(a) ? -1 : 0));
       return rows;
     };
@@ -404,8 +441,10 @@
     };
 
     host.querySelector("#stQ").oninput = e => { state.q = e.target.value; state.page = 0; paint(); };
-    host.querySelector("#stSp").onchange = e => { state.sp = e.target.value; state.page = 0; paint(); };
-    host.querySelector("#stSort").onchange = e => { state.sort = e.target.value; state.page = 0; paint(); };
+    [["stSp", "sp"], ["stSrc", "src"], ["stStat", "stat"], ["stCalled", "called"],
+     ["stType", "type"], ["stBucket", "bucket"], ["stSort", "sort"]].forEach(([id, k]) => {
+      host.querySelector("#" + id).onchange = e => { state[k] = e.target.value; state.page = 0; paint(); };
+    });
     host.querySelectorAll(".st-chip[data-c]").forEach(b => b.onclick = () => {
       state.chip = state.chip === b.dataset.c ? "" : b.dataset.c;
       host.querySelectorAll(".st-chip[data-c]").forEach(x => x.classList.toggle("on", x.dataset.c === state.chip));
@@ -452,8 +491,10 @@
         if (k === "inflow") return renderSub(hostEl, "leads-inflow");
         const all = await RS.load("lead_journey");
         ctx.rows = RS.filtered("lead_journey", all);
+        // only REAL confirmed dates count (raw Booked Date is polluted for unbooked leads)
         ctx.confRows = RS.filtered("lead_journey",
-          all.filter(r => r["Booked Date"]), { dateColumn: "Booked Date" });
+          all.filter(r => /^\d{4}-\d{2}-\d{2}/.test(String(r["Booked Date"] || ""))),
+          { dateColumn: "Booked Date" });
         if (k === "team") return renderTeam(hostEl, ctx);
         return renderExplorer(hostEl, ctx);
       };

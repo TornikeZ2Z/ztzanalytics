@@ -108,48 +108,80 @@ window.RSC = (function () {
     return { repaint: paint };
   }
 
-  /* ---------------- date range + presets + day slider ---------------- */
+  /* ---------------- date filter: Money-Flow-style 📅 button + preset popover ----------------
+     Tornike 2026-07-23: "make sure period selector is easy, as we did for Money Flow" —
+     one compact button showing the active period; the popover holds one-click presets,
+     a custom from→to with Apply, and the day-of-month pacing inputs. Same visual pattern
+     as money-flow.js's mfDtBtn/mf-dtpop (rs-datebtn/rs-datepop in rs.css). */
   function dateBar(host, onChange) {
-    const wrap = el("div", "rs-daterange");
+    const wrap = el("div", "rs-daterange rs-dtwrap");
+    const iso = d => d.toLocaleDateString("en-CA");
+    const now = new Date();
+    const today = iso(now);
+    const firstThis = iso(new Date(now.getFullYear(), now.getMonth(), 1));
+    const firstPrev = iso(new Date(now.getFullYear(), now.getMonth() - 1, 1));
+    const lastPrev = iso(new Date(now.getFullYear(), now.getMonth(), 0));
+    const b3 = new Date(now); b3.setMonth(b3.getMonth() - 3);
+    const PRESETS = [
+      ["All time", "", ""],
+      ["This month", firstThis, today],
+      ["Past month", firstPrev, lastPrev],
+      ["Last 3 months", iso(b3), today],
+      ["This year", now.getFullYear() + "-01-01", today],
+      ["Last year", (now.getFullYear() - 1) + "-01-01", (now.getFullYear() - 1) + "-12-31"],
+    ];
+    const label = () => {
+      const f = RS.state.dateFrom || "", t = RS.state.dateTo || "";
+      if (!f && !t) return "All time";
+      const hit = PRESETS.find(p => p[1] === f && p[2] === t);
+      return hit ? hit[0] : (f || "…") + " → " + (t || "…");
+    };
     wrap.innerHTML = `
-      <span class="lbl">Date</span>
-      <input type="date" class="from"><span class="dash">–</span><input type="date" class="to">
-      <select class="preset">
-        <option value="">Presets…</option>
-        <option value="tm">This month</option><option value="lm">Last month</option>
-        <option value="ytd">Year to date</option><option value="ly">Last year</option>
-        <option value="12m">Last 12 months</option><option value="all">All time</option>
-      </select>
-      <span class="lbl" style="margin-left:10px" title="Day of month — e.g. 1–15 compares the first half of every month (pacing)">Day</span>
-      <input type="number" class="dayf" min="1" max="31" placeholder="1" title="Day of month — e.g. 1–15 compares the first half of every month (pacing)">
-      <span class="dash">–</span>
-      <input type="number" class="dayt" min="1" max="31" placeholder="31" title="Day of month — e.g. 1–15 compares the first half of every month (pacing)">`;
+      <button class="rs-datebtn" type="button"></button>
+      <div class="rs-datepop hidden">
+        <div class="pre">${PRESETS.map((p, i) =>
+          `<button type="button" data-p="${i}">${esc(p[0])}</button>`).join("")}</div>
+        <div class="rng"><input type="date" class="from"><span>→</span><input type="date" class="to"></div>
+        <div class="dayrow" title="Day of month — e.g. 1–15 compares the first half of every month (pacing)">
+          <span>Day of month</span>
+          <input type="number" class="dayf" min="1" max="31" placeholder="1"><span>–</span>
+          <input type="number" class="dayt" min="1" max="31" placeholder="31"></div>
+        <button class="apply" type="button">Apply this range</button>
+      </div>`;
+    const btn = wrap.querySelector(".rs-datebtn"), pop = wrap.querySelector(".rs-datepop");
     const from = wrap.querySelector(".from"), to = wrap.querySelector(".to");
     const dayf = wrap.querySelector(".dayf"), dayt = wrap.querySelector(".dayt");
+    const paintBtn = () => {
+      const dayOn = RS.state.dayFrom != null || RS.state.dayTo != null;
+      btn.innerHTML = "📅 " + esc(label()) + (dayOn ? " · day " + (RS.state.dayFrom || 1) + "–" + (RS.state.dayTo || 31) : "") + " ▾";
+      btn.classList.toggle("on", !!(RS.state.dateFrom || RS.state.dateTo || dayOn));
+      pop.querySelectorAll(".pre button").forEach(b => {
+        const p = PRESETS[+b.dataset.p];
+        b.classList.toggle("on", p[1] === (RS.state.dateFrom || "") && p[2] === (RS.state.dateTo || ""));
+      });
+    };
     const sync = () => {
       RS.state.dateFrom = from.value || null;
       RS.state.dateTo = to.value || null;
       RS.state.dayFrom = dayf.value ? +dayf.value : null;
       RS.state.dayTo = dayt.value ? +dayt.value : null;
-      onChange();
+      paintBtn(); onChange();
     };
-    [from, to, dayf, dayt].forEach(i => i.onchange = sync);
-    wrap.querySelector(".preset").onchange = e => {
-      const now = new Date(); const p = e.target.value; e.target.value = "";
-      const iso = d => d.toISOString().slice(0, 10);
-      const som = new Date(now.getFullYear(), now.getMonth(), 1);
-      if (p === "tm") { from.value = iso(som); to.value = iso(now); }
-      else if (p === "lm") {
-        from.value = iso(new Date(now.getFullYear(), now.getMonth() - 1, 1));
-        to.value = iso(new Date(now.getFullYear(), now.getMonth(), 0));
-      }
-      else if (p === "ytd") { from.value = now.getFullYear() + "-01-01"; to.value = iso(now); }
-      else if (p === "ly") { from.value = (now.getFullYear() - 1) + "-01-01"; to.value = (now.getFullYear() - 1) + "-12-31"; }
-      else if (p === "12m") { from.value = iso(new Date(now.getFullYear() - 1, now.getMonth(), now.getDate())); to.value = iso(now); }
-      else if (p === "all") { from.value = ""; to.value = ""; }
-      sync();
+    pop.querySelectorAll(".pre button").forEach(b => b.onclick = () => {
+      const p = PRESETS[+b.dataset.p];
+      from.value = p[1]; to.value = p[2];
+      pop.classList.add("hidden"); sync();
+    });
+    wrap.querySelector(".apply").onclick = () => { pop.classList.add("hidden"); sync(); };
+    btn.onclick = e => {
+      e.stopPropagation();
+      document.querySelectorAll(".rs-slicer-pop").forEach(p => p.classList.add("hidden"));
+      pop.classList.toggle("hidden");
     };
+    pop.addEventListener("click", e => e.stopPropagation());
+    document.addEventListener("click", () => pop.classList.add("hidden"));
     host.appendChild(wrap);
+    paintBtn();
     return {
       clear() { from.value = to.value = dayf.value = dayt.value = ""; sync(); },
     };
