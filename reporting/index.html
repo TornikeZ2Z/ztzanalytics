@@ -78,7 +78,7 @@ body.mr-own-time #frowDates .rs-slicer[data-key="month"]{display:none}
 </div>
 
 <script src="assets/portal.js?v=8"></script>
-<script src="assets/rs-core.js?v=25"></script>
+<script src="assets/rs-core.js?v=26"></script>
 <script src="assets/rs-components.js?v=8"></script>
 <script>
 /* ---------------- page registry ---------------- */
@@ -105,7 +105,7 @@ const GROUP_OVERRIDE = {
   // Company Overview
   "monthly-report": "company", "analysis-by-category": "company",
   // Sales ("sales-geo" moved to Financial — Tornike 2026-07-13: geography is a money view)
-  "sales-funnel": "sales", "sales-perf": "sales", "sales-geo": "financial", "sales-speed": "sales", "leads-inflow": "sales",
+  "sales-funnel": "sales", "sales-perf": "sales", "sales-geo": "financial", "sales-speed": "sales", "leads-inflow": "sales", "sales-command": "sales",
   // Marketing
   "mkt-roi": "marketing", "mkt-sources": "marketing", "mkt-phone": "marketing",
   // Logistics
@@ -123,7 +123,7 @@ const groupOf = p => GROUP_OVERRIDE[p.id] || p.group;
 /* explicit per-container item order (numbers are scoped within each group's display list) */
 const NAV_ORDER = {
   "monthly-report": 1, "analysis-by-category": 2,
-  "sales-funnel": 1, "sales-perf": 2, "sales-speed": 3, "leads-inflow": 4,
+  "sales-command": 0.5, "sales-funnel": 1, "sales-perf": 2, "sales-speed": 3, "leads-inflow": 4,
   "mkt-roi": 1, "mkt-sources": 2, "mkt-phone": 3,
   "money-flow": 1, "foreman-closings": 2, "ld-planning": 3, "log-foreman": 4, "log-packing": 5,
   "fin-revenue": 1, "fin-rr": 2, "sales-geo": 3, "financial-analysis": 4, "executive-scorecard": 5, "branch-owner": 6,
@@ -183,7 +183,7 @@ const PAGE_ICONS = {
   "angi-vs-moveboard": "compass", "reviews-team": "star", "support-team": "shield", "lead-source-analysis": "compass", "source-analysis": "compass", "movers-analysis": "megaphone",
   "financial-team": "trend", "sales-team": "user", "marketing-team": "megaphone", "logistics-team": "tool",
   // themed dashboards + settings (2026-07-09 restructure)
-  "sales-funnel": "funnel", "sales-perf": "user", "sales-geo": "pin", "sales-speed": "phone", "leads-inflow": "activity",
+  "sales-command": "gauge", "sales-funnel": "funnel", "sales-perf": "user", "sales-geo": "pin", "sales-speed": "phone", "leads-inflow": "activity",
   "mkt-roi": "trend", "mkt-sources": "compass", "mkt-phone": "phone",
   "log-foreman": "tool", "log-packing": "box",
   "fin-revenue": "trend", "fin-rr": "trend", "rev-production": "star",
@@ -515,6 +515,7 @@ const PAGE_DATASETS = {
   "response-analysis": [], "review-settings": [],
   "sales-speed": [],
   "leads-inflow": [],
+  "sales-command": ["lead_journey"],
   "money-flow": [],          // loads fct_money_flow itself + the /api/_mf live overlay
   "ld-planning": [],         // loads fct_ld_planning itself; no global slicers apply
   "foreman-closings": [],    // loads via /api/_fnc; no global slicers apply
@@ -532,6 +533,7 @@ const DS_NOUN = { closing: "jobs", moveboard: "leads", storage: "storage payment
   review_goals: "review goals", long_distance: "long-distance jobs" };
 /* pages where a derived list would be noise — one hand-written line instead */
 const DATE_BASIS_TEXT = {
+  "sales-command": "leads count by their created date · confirmations by their confirmed date",
   "angi-vs-moveboard": "this page has its own date handling — the filters above don't apply here",
 };
 ["monthly-report", "sales-funnel", "sales-perf", "sales-geo", "mkt-roi",
@@ -767,6 +769,7 @@ const SEARCH_ALIASES = {
   // Settings
   "data-quality": "data quality freshness completeness health integrity checks",
   "refresh-log": "refresh log pipeline curation raw source timing history update run duration",
+  "sales-command": "sales team command lead journey 360 explorer call history timeline salesperson lead file important",
   "source-trace": "source trace lineage attribution callrail google local phone match booked from moveboard corrected final source faithful pbix diagnostic audit",
   "multi-source-leads": "multi source multiple sources overlap conflict callrail google local angi thumbtack tracker match contested attribution leads",
   "calendar-coverage": "calendar coverage connection linked unconnected google calendar event closing job request match bridge scheduling gap missing",
@@ -1126,6 +1129,7 @@ const ACL_DEPTS = [
   { id: "reviews",   label: "Reviews",          icon: "star",      reports: ["review-performance", "rev-production", "reviews-reminders", "response-analysis", "review-settings"] },
   { id: "support",   label: "Support",          icon: "shield",    reports: ["sup-claims", "sup-refunds", "sup-phone"] },
   { id: "quality",   label: "Data Quality",     icon: "clipboard", reports: ["data-quality"] },
+  { id: "sales-lead", label: "Sales Lead — team command", icon: "gauge", reports: ["sales-command"] },
   { id: "explorer",  label: "Data Explorer — every table", icon: "archive", reports: ["explorer"] },
 ];
 registerPage({
@@ -1291,6 +1295,7 @@ registerPage({
 <script src="pages/source-analysis.js?v=4"></script>
 <script src="pages/data-quality.js?v=4"></script>
 <script src="pages/refresh-log.js?v=1"></script>
+<script src="pages/sales-team.js?v=1"></script>
 <script src="pages/source-trace.js?v=6"></script>
 <script src="pages/multi-source-leads.js?v=2"></script>
 <script src="pages/calendar-coverage.js?v=7"></script>
