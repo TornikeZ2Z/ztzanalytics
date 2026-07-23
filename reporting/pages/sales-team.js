@@ -130,6 +130,9 @@
     .st-ev .h{font-size:13.5px;color:var(--ink)} .st-ev .h b{font-weight:750}
     .st-ev .m{font-size:12.5px;color:var(--muted);margin-top:2px;line-height:1.5}
     .st-all{margin-top:8px}
+    .st-calrow{display:flex;flex-wrap:wrap;gap:7px;margin-top:8px}
+    .st-callink{display:inline-flex;align-items:center;gap:5px;font-size:12.5px;font-weight:700;color:var(--blue);text-decoration:none;border:1px solid var(--line-2);border-radius:9px;padding:6px 11px;background:var(--panel)}
+    .st-callink:hover{border-color:var(--blue)}
     .st-all summary{font-size:12px;font-weight:700;color:var(--blue);cursor:pointer;padding:4px 0}
     .st-kv{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:5px 14px;font-size:12px}
     .st-kv div{display:flex;justify-content:space-between;gap:8px;border-bottom:1px dashed var(--line);padding:3px 0}
@@ -178,6 +181,49 @@
   const finCard = (l, v, small) =>
     `<div class="c"><div class="l">${l}</div><div class="v${small ? " small" : ""}">${v}</div></div>`;
 
+  function jobSection(j, d) {
+    const mv = (j["Move Date"] || "").slice(0, 10);
+    const today = new Date().toISOString().slice(0, 10);
+    let stateHtml;
+    if (d.closing) stateHtml = `<span class="st-good">✓ Job done — closing filed</span>`;
+    else if (mv && mv >= today) {
+      const days = Math.round((Date.parse(mv) - Date.parse(today)) / 864e5);
+      stateHtml = `<span style="color:var(--blue);font-weight:750">Upcoming — in ${days} day${days === 1 ? "" : "s"}</span>`;
+    } else if (mv) stateHtml = `<span class="st-bad">Move date passed — no closing filed</span>`;
+    else stateHtml = `<span class="st-dim">no move date</span>`;
+    const cal = (d.calendar || []).map(c =>
+      `<a class="st-callink" href="${esc(c.url || "#")}" target="_blank" rel="noopener">📅 ${esc((c.event_date || "").slice(0, 10))} ${esc(c.event_title || "calendar event").slice(0, 44)}</a>`).join("");
+    return `<div class="st-sec">Job</div><div class="st-fin">
+      ${finCard("Status", stateHtml, true)}
+      ${finCard("Move date", esc(mv || "—"))}
+      ${finCard("Confirmed on", esc((j["Booked Date"] || "—").slice(0, 10)))}
+    </div>${cal ? `<div class="st-calrow">${cal}</div>` : `<div class="st-note" style="margin:6px 0 0">No calendar event linked.</div>`}`;
+  }
+
+  function moveboardSection(mb, j) {
+    const src = mb || j;
+    const main = `<div class="st-fin">
+      ${finCard("Status", esc(src["Status"] || "—"), true)}
+      ${finCard("Category", esc(src["Status Category"] || "—"), true)}
+      ${finCard("Flag", esc(src["Flag"] || j["Flag"] || "—"), true)}
+      ${finCard("Service type", esc(src["Service Type"] || "—"), true)}
+      ${finCard("Size of move", esc(src["Size of Move"] || "—"), true)}
+      ${finCard("Total CF", src["Total CF"] != null ? RS.fmtN(Math.round(+src["Total CF"])) : "—")}
+      ${finCard("Min quote", money0(num(src["Min Quote"])))}
+      ${finCard("Avg quote", money0(num(src["Average Quote"] != null ? src["Average Quote"] : j["Avg Quote"])))}
+      ${finCard("Max quote", money0(num(src["Max Quote"])))}
+    </div>`;
+    if (!mb) return `<div class="st-sec">Moveboard</div>` + main;
+    const rest = Object.keys(mb).filter(k =>
+      mb[k] != null && String(mb[k]).trim() !== "" &&
+      !["File Path", "Update Date", "File Name"].includes(k)).sort();
+    return `<div class="st-sec">Moveboard</div>` + main +
+      `<details class="st-all"><summary>All Moveboard fields (${rest.length})</summary>
+      <div class="st-kv" style="margin-top:8px">` +
+      rest.map(k => `<div><span>${esc(k)}</span><span>${esc(String(mb[k]).slice(0, 60))}</span></div>`).join("") +
+      `</div></details>`;
+  }
+
   function closingSection(cl) {
     if (!cl) return `<div class="st-sec">Closing sheet</div>
       <div class="st-note" style="margin:0 0 6px">No closing sheet filed for this lead yet.</div>`;
@@ -201,6 +247,8 @@
       ${finCard("Foreman total $", m("Forman Total $"))}
       ${finCard("Total expense", m("Total Expense"))}
       ${finCard("Profit per job", m("Profit per Job"))}
+      ${finCard("Sales commission", money0((num(cl["Sales 1 Salary"]) || 0) + (num(cl["Sales 2 Salary"]) || 0) + (num(cl["Sales 3 Salary"]) || 0) || null))}
+      ${finCard("Bill increase", (cl.__gapPct != null ? ((+cl.__gapPct > 0 ? "+" : "") + pct1(+cl.__gapPct)) : "—"))}
       ${finCard("Sales person", esc(g("Sales Person") || "—"), true)}
       ${finCard("Crew size", esc(g("Crew Size") || "—"))}
       ${finCard("Driver", esc(g("Driver") || "—"), true)}
@@ -275,8 +323,10 @@
           ${e["Detail"] ? `<div class="m">${esc(e["Detail"])}</div>` : ""}</div>`;
       }).join("") + `</div>`;
 
+    if (d.closing) d.closing.__gapPct = j["Bill Vs Quote Pct"];
     drawerEl.querySelector("#stDB").innerHTML =
-      `<div class="st-cols"><div>` + est + fin + resp + closingSection(d.closing) + aftermath +
+      `<div class="st-cols"><div>` + est + jobSection(j, d) + fin + resp
+      + moveboardSection(d.moveboard, j) + closingSection(d.closing) + aftermath +
       `</div><div>` + tl + `</div></div>`;
   }
 
