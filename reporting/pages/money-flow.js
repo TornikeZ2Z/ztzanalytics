@@ -66,9 +66,12 @@ registerPage({
         .mf-fmwrap{position:relative}
         .mf-fmbtn{font:inherit;font-size:12.5px;font-weight:700;background:var(--panel);color:var(--ink);border:1px solid var(--line-2);border-radius:10px;padding:8px 12px;cursor:pointer}
         .mf-fmbtn.on{border-color:var(--brand)}
-        .mf-fmpop{position:absolute;top:calc(100% + 6px);left:0;z-index:40;background:var(--panel);border:1px solid var(--line-2);border-radius:12px;box-shadow:0 10px 30px rgba(14,22,33,.14);padding:8px;min-width:230px;max-height:320px;overflow:auto}
-        .mf-fmpop label{display:flex;gap:8px;align-items:center;font-size:12.5px;padding:6px 8px;border-radius:8px;cursor:pointer}
+        .mf-fmpop{position:absolute;top:calc(100% + 6px);left:0;z-index:40;background:var(--panel);border:1px solid var(--line-2);border-radius:12px;box-shadow:0 10px 30px rgba(14,22,33,.14);padding:8px;min-width:340px;max-height:380px;overflow:auto}
+        .mf-fmhd{font-size:11px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--faint);padding:4px 8px 8px;border-bottom:1px solid var(--line);margin-bottom:4px}
+        .mf-fmpop label{display:flex;gap:9px;align-items:center;font-size:13px;padding:7px 8px;border-radius:8px;cursor:pointer}
         .mf-fmpop label:hover{background:var(--panel-2)}
+        .mf-fmname{flex:1;color:var(--ink);font-weight:600}
+        .mf-fmct{font-size:11.5px;font-weight:800;color:var(--brand-d,var(--ink));background:var(--panel-2);border:1px solid var(--line-2);border-radius:999px;padding:1px 9px;min-width:26px;text-align:center;font-variant-numeric:tabular-nums}
         .mf-fmpop .clr{display:block;width:100%;margin-top:6px;font:inherit;font-size:11.5px;font-weight:700;color:${BLUE};background:transparent;border:1px solid var(--line-2);border-radius:8px;padding:6px;cursor:pointer}
         .mf-card{background:var(--panel);border:1px solid var(--line-2);border-radius:14px;overflow:hidden;position:relative}
         .mf-tbl{width:100%;border-collapse:collapse;font-size:14px}
@@ -396,21 +399,29 @@ registerPage({
       // Foreman filter is VIEW-SCOPED (his ask): the working views (Balance / Not in Balance)
       // list only foremen with something to close; departed / settled-only foremen — who have
       // nothing open and live only in the History — appear in the filter ONLY on the History view.
+      // count each foreman's jobs in the current view (working = open jobs still to close;
+      // History = settled) so the filter shows the workload at a glance.
       var allF = {};
       var fSrc = S.view === "history" ? done : main.concat(nib);
-      fSrc.forEach(function (r) { if (r.forman && r.forman !== "—") allF[r.forman] = 1; });
+      fSrc.forEach(function (r) { if (r.forman && r.forman !== "—") allF[r.forman] = (allF[r.forman] || 0) + 1; });
+      var fmKeys = Object.keys(allF).sort(function (a, b) { return allF[b] - allF[a] || a.localeCompare(b); });
       var fmLabel = S.formen.length ? "Foremen (" + S.formen.length + ")" : "All foremen";
-      var fmPop = S.fmOpen ? '<div class="mf-fmpop">' + Object.keys(allF).sort().map(function (f) {
-          return '<label><input type="checkbox" data-mff="' + esc(f) + '"' + (S.formen.indexOf(f) >= 0 ? " checked" : "") + '> ' + esc(f) + "</label>";
-        }).join("") + '<button class="clr" id="mfFmClr">Show all foremen</button></div>' : "";
+      var fmHdN = fSrc.filter(function (r) { return r.forman && r.forman !== "—"; }).length;
+      var fmPop = S.fmOpen ? '<div class="mf-fmpop">'
+          + '<div class="mf-fmhd">' + fmKeys.length + ' foremen · ' + fmHdN + (S.view === "history" ? " settled jobs" : " jobs to close") + '</div>'
+          + fmKeys.map(function (f) {
+              return '<label><input type="checkbox" data-mff="' + esc(f) + '"' + (S.formen.indexOf(f) >= 0 ? " checked" : "")
+                + '><span class="mf-fmname">' + esc(f) + '</span><span class="mf-fmct">' + allF[f] + '</span></label>';
+            }).join("")
+          + '<button class="clr" id="mfFmClr">Show all foremen</button></div>' : "";
 
       // foreman grouping — used by BOTH grouped tabs (Balance by Foreman = waiting for
       // cash incl. no-contract; Not in Balance Jobs = its own identical screen); jobs
       // with no contract amount are LISTED but add $0 to the total (his call 2026-07-21)
       var groupsFor = function (jobsIn) {
         var jobs = jobsIn.slice();
-        if (S.dateFrom) jobs = jobs.filter(function (r) { return r.date >= S.dateFrom; });
-        if (S.dateTo) jobs = jobs.filter(function (r) { return r.date <= S.dateTo; });
+        // no date filter on the working views (his call) — Balance / Not-in-Balance are just
+        // the open worklist; a date range only makes sense on History.
         if (q) jobs = jobs.filter(matches);   // job-level search; foreman name matches keep his whole group
         var groups = {};
         jobs.forEach(function (r) {
@@ -469,7 +480,7 @@ registerPage({
         + '<div class="mf-bar">'
         + '<div class="mf-seg mf-dseg">' + dBtn("details", "Details") + dBtn("overview", "Compact") + "</div>"
         + '<div class="mf-fmwrap"><button class="mf-fmbtn' + (S.formen.length ? " on" : "") + '" id="mfFmBtn">' + esc(fmLabel) + ' ▾</button>' + fmPop + "</div>"
-        + '<div class="mf-dtwrap"><button class="mf-fmbtn' + (S.dateFrom || S.dateTo ? " on" : "") + '" id="mfDtBtn">📅 ' + esc(S.dateLabel) + ' ▾</button>' + dtPop + "</div>"
+        + (S.view === "history" ? '<div class="mf-dtwrap"><button class="mf-fmbtn' + (S.dateFrom || S.dateTo ? " on" : "") + '" id="mfDtBtn">📅 ' + esc(S.dateLabel) + ' ▾</button>' + dtPop + "</div>" : "")
         + '<input class="mf-q" id="mfQ" placeholder="Search customer / request # / job code / foreman / amount" value="' + esc(S.q) + '">'
         + (selJobs.length ? '<button class="mf-confirm" id="mfBulk" style="padding:9px 16px">Confirm ' + selJobs.length + " selected — " + money(selTotal) + "</button>" : "")
         + "</div></div>";

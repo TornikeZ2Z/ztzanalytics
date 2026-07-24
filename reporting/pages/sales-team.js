@@ -167,12 +167,13 @@
     .rp-cardcap{font-size:13px;font-weight:800;color:var(--ink);margin-bottom:12px;letter-spacing:-.1px}
     .rp-stack{display:flex;height:14px;border-radius:7px;overflow:hidden;background:var(--panel-2);gap:1px}
     .rp-stack>div{min-width:2px}
-    .rp-trend{display:flex;gap:5px;align-items:flex-end;height:74px;padding-top:6px;overflow-x:auto}
-    .rp-mo{display:flex;flex-direction:column;align-items:center;gap:3px;min-width:22px}
-    .rp-mo-bars{display:flex;align-items:flex-end;gap:2px;height:48px}
-    .rp-mo-l{width:7px;background:var(--blue);border-radius:2px 2px 0 0;min-height:1px}
-    .rp-mo-c{width:7px;background:var(--brand);border-radius:2px 2px 0 0;min-height:1px}
-    .rp-mo-x{font-size:9px;color:var(--faint);font-variant-numeric:tabular-nums}
+    .rp-trend{display:flex;gap:12px;align-items:flex-end;padding:10px 2px 2px;overflow-x:auto}
+    .rp-mo{display:flex;flex-direction:column;align-items:center;gap:5px;min-width:32px}
+    .rp-mo-val{font-size:10px;font-weight:700;color:var(--faint);font-variant-numeric:tabular-nums}
+    .rp-mo-bars{display:flex;align-items:flex-end;gap:3px}
+    .rp-mo-l{width:11px;background:var(--blue);border-radius:3px 3px 0 0;min-height:2px}
+    .rp-mo-c{width:11px;background:var(--brand);border-radius:3px 3px 0 0;min-height:2px}
+    .rp-mo-x{font-size:10px;color:var(--faint);font-variant-numeric:tabular-nums}
     .rp-lg{display:inline-block;width:9px;height:9px;border-radius:2px;vertical-align:middle}
     .rp-lg-l{background:var(--blue)} .rp-lg-c{background:var(--brand)}
     /* mix-adjusted booking — visual gauge */
@@ -934,10 +935,20 @@
   const dv = (r, k) => { const v = (r[k] == null ? "" : String(r[k])).trim(); return v || "—"; };
   // first number in a range label, for natural (label) sorting of CF/Revenue ranges
   const rangeNum = s => { const m = String(s).replace(/,/g, "").match(/-?\d+/); return m ? +m[0] : (s === "—" ? 1e15 : 9e14); };
-  const _segKey = r => `${dv(r, "Source")}|${dv(r, "CF Range")}|${+r["Is LD"] ? 1 : 0}|${dv(r, "Size of Move")}`;
+  // COARSE job-size band — 3 buckets instead of the raw 7 CF ranges, so segments stay big.
+  const cfBand = r => {
+    const cf = +r["Total CF"];
+    if (!isFinite(cf) || cf <= 0) return "size n/a";
+    return cf <= 500 ? "small (≤500 CF)" : cf <= 1000 ? "medium (501–1000 CF)" : "large (1000+ CF)";
+  };
+  // Mix-adjust segment = Source × coarse size band ONLY. Source is by far the biggest driver
+  // of booking rate (Angi ~7% vs Returned Customer ~64%); size is the useful second axis.
+  // Dropping the old ×LD×Size-of-move collapses ~97 tiny 1-4 lead buckets into ~12-18 real
+  // ones — so team baselines are computed on samples big enough to mean something.
+  const _segKey = r => `${dv(r, "Source")} · ${cfBand(r)}`;
   function teamIndex(rows) {
     const dim = {}; DIMS.forEach(d => dim[d.key] = {});
-    const seg = {};              // mix-adjust segment: Source|CFRange|IsLD|Size
+    const seg = {};              // mix-adjust segment: Source × size-band
     let leads = 0, qual = 0, dead = 0, conf = 0, conn = 0;
     rows.forEach(r => {
       leads++; const q = isQual(r), dd = isDead(r), cf = isConf(r), cn = !!+r["Connected"];
@@ -1024,63 +1035,65 @@
       </div>` : "";
     const months = Object.keys(p.byMonth).sort();
     const maxM = Math.max(1, ...months.map(m => p.byMonth[m].leads));
-    const trend = months.length ? `<div class="rp-trend">${months.map(m => {
-      const d = p.byMonth[m];
-      return `<div class="rp-mo" title="${m}: ${d.leads} leads, ${d.conf} confirmed">
-        <div class="rp-mo-bars"><div class="rp-mo-l" style="height:${Math.round(46 * d.leads / maxM)}px"></div>
-        <div class="rp-mo-c" style="height:${Math.round(46 * d.conf / maxM)}px"></div></div>
-        <div class="rp-mo-x">${m.slice(2)}</div></div>`;
-    }).join("")}</div>` : `<div class="st-note">No leads in the selected period.</div>`;
+    const TH = 92;   // chart body height
+    const trend = !months.length ? `<div class="st-note">No leads in the selected period.</div>`
+      : `<div class="rp-trend">${months.map(m => {
+          const d = p.byMonth[m];
+          const lh = Math.max(2, Math.round(TH * d.leads / maxM));
+          const ch = d.conf ? Math.max(2, Math.round(TH * d.conf / maxM)) : 0;
+          return `<div class="rp-mo" title="${m}: ${d.leads} leads, ${d.conf} confirmed${d.qual ? " (" + Math.round(100 * d.conf / d.qual) + "% of qualified)" : ""}">
+            <div class="rp-mo-val">${RS.fmtN(d.leads)}</div>
+            <div class="rp-mo-bars" style="height:${TH}px">
+              <div class="rp-mo-l" style="height:${lh}px"></div>
+              <div class="rp-mo-c" style="height:${ch}px"></div></div>
+            <div class="rp-mo-x">${m.slice(2)}</div></div>`;
+        }).join("")}</div>${months.length === 1 ? `<div class="st-note" style="margin-top:8px">Only one month falls in the current date range — widen it (top bar) to see the trend over time.</div>` : ""}`;
     const srcRows = Object.entries(p.bySrc).sort((a, b) => b[1].leads - a[1].leads).slice(0, 8)
       .map(([s, d]) => `<tr><td>${esc(s)}</td><td style="text-align:right">${RS.fmtN(d.leads)}</td>
         <td style="text-align:right">${d.qual ? pct1(100 * d.conf / d.qual) : "—"}</td></tr>`).join("");
 
-    // ---- mix-adjusted booking (skill vs luck) ----
-    let expConf = 0, mixN = 0;
-    p.rows.forEach(r => {
-      if (!isQual(r)) return;
-      mixN++;
-      const b = team.seg[team.segKey(r)];
-      if (b && b.qual) expConf += b.conf / b.qual;
-    });
-    const expRate = mixN ? 100 * expConf / mixN : null;
-    const gap = (expRate == null || p.bookRate == null) ? null : p.bookRate - expRate;
-    const gapCls = gap == null ? "" : gap >= 0 ? "st-good" : "st-bad";
-    const mixMax = Math.max(expRate || 0, p.bookRate || 0, 10) * 1.18;
-    // per-segment breakdown so the calculation is fully transparent
+    // ---- mix-adjusted booking (skill vs luck), with empirical-Bayes shrinkage ----
+    // Each segment's team rate is blended toward the overall team booking rate, weighted by
+    // how many team leads that segment has: a segment needs ~M_PRIOR leads before its own
+    // rate outweighs the mean. This stops a 1-3 lead segment from swinging the expected number.
+    const M_PRIOR = 25;
+    const p0 = team.qual ? team.conf / team.qual : 0;
+    const shrunk = k => { const b = team.seg[k]; const tq = b ? b.qual : 0, tc = b ? b.conf : 0; return (tc + M_PRIOR * p0) / (tq + M_PRIOR); };
     const segAgg = {};
     p.rows.forEach(r => {
       if (!isQual(r)) return;
       const k = team.segKey(r);
-      const a = (segAgg[k] = segAgg[k] || { qual: 0, conf: 0, label: null });
+      const a = (segAgg[k] = segAgg[k] || { qual: 0, conf: 0 });
       a.qual++; if (isConf(r)) a.conf++;
-      if (!a.label) a.label = `${dv(r, "Source")} · ${dv(r, "CF Range")} · ${+r["Is LD"] ? "LD" : "Local"} · ${dv(r, "Size of Move")}`;
     });
     const segList = Object.entries(segAgg).map(([k, a]) => {
-      const tb = team.seg[k]; const rate = tb && tb.qual ? tb.conf / tb.qual : 0;
-      return { label: a.label, qual: a.qual, conf: a.conf, rate, exp: a.qual * rate };
+      const tb = team.seg[k];
+      return { label: k, qual: a.qual, conf: a.conf, tq: tb ? tb.qual : 0, rate: shrunk(k), exp: a.qual * shrunk(k) };
     }).sort((x, y) => y.qual - x.qual);
-    const segTop = segList.slice(0, 8);
-    const segRest = segList.slice(8).reduce((a, s) => { a.qual += s.qual; a.conf += s.conf; a.exp += s.exp; return a; }, { qual: 0, conf: 0, exp: 0 });
-    const calcRow = s => `<tr><td>${esc(s.label)}</td>
+    let expConf = 0, mixN = 0;
+    segList.forEach(s => { mixN += s.qual; expConf += s.exp; });
+    const expRate = mixN ? 100 * expConf / mixN : null;
+    const gap = (expRate == null || p.bookRate == null) ? null : p.bookRate - expRate;
+    const gapCls = gap == null ? "" : gap >= 0 ? "st-good" : "st-bad";
+    const mixMax = Math.max(expRate || 0, p.bookRate || 0, 10) * 1.18;
+    const calcRow = s => `<tr><td><b>${esc(s.label)}</b></td>
       <td style="text-align:right">${RS.fmtN(s.qual)}</td>
-      <td style="text-align:right">${pct1(100 * s.rate)}</td>
+      <td style="text-align:right">${pct1(100 * s.rate)}${s.tq < M_PRIOR ? ` <span class="st-dim" title="Only ${s.tq} team leads here — pulled toward the ${pct1(100 * p0)} team average">~</span>` : ""} <span class="st-dim" style="font-size:10.5px">(${RS.fmtN(s.tq)} team)</span></td>
       <td style="text-align:right;color:var(--muted)">${(Math.round(s.exp * 10) / 10).toFixed(1)}</td>
       <td style="text-align:right;font-weight:700">${RS.fmtN(s.conf)}</td></tr>`;
     const mixCalc = `<details class="rp-calc"><summary>How the expected rate is calculated ▾</summary>
-      <div class="st-note" style="margin:8px 0 10px">For every one of ${esc(name.split(" ")[0])}'s <b>${RS.fmtN(mixN)} qualified leads</b>, we take how often the <b>whole team</b> converts that exact segment (Source × Volume × Distance × Size) and add those odds up. That sum is the <b>expected confirms</b> — what an average rep would book from this exact pile of leads. Compare to what they actually booked.</div>
+      <div class="st-note" style="margin:8px 0 10px">Each of ${esc(name.split(" ")[0])}'s <b>${RS.fmtN(mixN)} qualified leads</b> is grouped by <b>lead source × job-size band</b> — the two things that actually move booking rate. For each group we take how often the <b>whole team</b> converts it and add those odds up: that sum is the <b>expected confirms</b>, what an average rep would book from this exact pile of leads. Thin groups (few team leads, marked <span class="st-dim">~</span>) are pulled toward the ${pct1(100 * p0)} team average so a 1–2 lead segment can't swing the number.</div>
       <div style="overflow-x:auto"><table class="st-tbl rp-dist"><thead><tr>
-        <th>Segment — top 8 by volume</th><th style="text-align:right">Qualified</th>
+        <th>Source × size segment</th><th style="text-align:right">Qualified</th>
         <th style="text-align:right">Team books</th><th style="text-align:right">Expected</th>
         <th style="text-align:right">Actual</th></tr></thead><tbody>
-        ${segTop.map(calcRow).join("")}
-        ${segRest.qual ? `<tr><td class="st-dim">+ ${RS.fmtN(segList.length - 8)} smaller segments</td><td style="text-align:right">${RS.fmtN(segRest.qual)}</td><td style="text-align:right" class="st-dim">—</td><td style="text-align:right;color:var(--muted)">${segRest.exp.toFixed(1)}</td><td style="text-align:right;font-weight:700">${RS.fmtN(segRest.conf)}</td></tr>` : ""}
-        <tr class="rp-dist-tot"><td>Total</td>
+        ${segList.map(calcRow).join("")}
+        <tr class="rp-dist-tot"><td>Total · ${segList.length} segments</td>
           <td style="text-align:right">${RS.fmtN(mixN)}</td><td></td>
           <td style="text-align:right;font-weight:800;color:var(--muted)">${expConf.toFixed(1)}</td>
           <td style="text-align:right;font-weight:800">${RS.fmtN(p.conf)}</td></tr>
       </tbody></table></div>
-      <div class="st-note" style="margin-top:9px"><b>Expected rate</b> = ${expConf.toFixed(1)} expected confirms ÷ ${RS.fmtN(mixN)} qualified = <b>${pct1(expRate)}</b>. &nbsp;<b>Actual rate</b> = ${RS.fmtN(p.conf)} confirms ÷ ${RS.fmtN(mixN)} qualified = <b>${pct1(p.bookRate)}</b>. &nbsp;Difference = <b class="${gapCls}">${gap == null ? "—" : (gap >= 0 ? "+" : "−") + Math.abs(Math.round(gap * 10) / 10) + " pts</b> — this is skill above/below the leads they were dealt."}</div>
+      <div class="st-note" style="margin-top:9px"><b>Expected rate</b> = ${expConf.toFixed(1)} expected confirms ÷ ${RS.fmtN(mixN)} qualified = <b>${pct1(expRate)}</b>. &nbsp;<b>Actual rate</b> = ${RS.fmtN(p.conf)} confirms ÷ ${RS.fmtN(mixN)} qualified = <b>${pct1(p.bookRate)}</b>. &nbsp;Difference = <b class="${gapCls}">${gap == null ? "—" : (gap >= 0 ? "+" : "−") + Math.abs(Math.round(gap * 10) / 10) + " pts"}</b> — skill above/below the leads they were dealt.</div>
     </details>`;
     const mixCard = mixN ? `<div class="st-card">
       <div class="rp-cardcap">🎯 Skill vs luck — mix-adjusted booking rate</div>
@@ -1099,10 +1112,11 @@
     </div>` : "";
 
     // ================= HEAD-OF-SALES ASSESSMENT =================
-    // per-rep mix gap (skill), computed across the whole team for ranking
+    // per-rep mix gap (skill), computed across the whole team for ranking — uses the SAME
+    // shrunk segment rates as the card above, so the rank agrees with the shown number.
     const repMixGap = q => {
       let e = 0, n = 0;
-      q.rows.forEach(r => { if (!isQual(r)) return; n++; const b = team.seg[team.segKey(r)]; if (b && b.qual) e += b.conf / b.qual; });
+      q.rows.forEach(r => { if (!isQual(r)) return; n++; e += shrunk(team.segKey(r)); });
       return (n && q.bookRate != null) ? q.bookRate - 100 * e / n : null;
     };
     Object.values(book).forEach(q => { if (q.__mg === undefined) q.__mg = repMixGap(q); });
