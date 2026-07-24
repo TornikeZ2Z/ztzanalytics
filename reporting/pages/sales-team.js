@@ -11,6 +11,7 @@
 
 (() => {
   const EXCLUDE_SP = new Set(["giorgi kolbaia"]);
+  let ST_LAST_TAB = "team";   // remembers the active tab across a global page re-render
   const TH_KEY = "st_thresholds_v1";
   const thDefaults = { slowMin: 30, neverPct: 10, convFrac: 0.5, minLeads: 5 };
   const thGet = () => { try { return { ...thDefaults, ...(JSON.parse(localStorage.getItem(TH_KEY)) || {}) }; } catch (e) { return { ...thDefaults }; } };
@@ -82,12 +83,13 @@
     .st-tabbar{display:flex;gap:6px;flex-wrap:wrap;border-bottom:1px solid var(--line);margin:4px 2px 16px;padding-left:2px}
     .st-tab{appearance:none;border:0;background:none;font-family:inherit;font-size:14.5px;font-weight:650;color:var(--muted);padding:10px 15px;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px}
     .st-tab:hover{color:var(--ink)} .st-tab.on{color:var(--brand);border-bottom-color:var(--brand)}
-    .st-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:11px;margin-bottom:15px}
+    .st-page{max-width:1680px;margin:0 auto}
+    .st-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:16px}
     @media(max-width:1100px){.st-kpis{grid-template-columns:repeat(2,1fr)}}
-    .st-kpi{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 16px;box-shadow:var(--shadow)}
-    .st-kpi .l{font-size:10.5px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)}
-    .st-kpi .v{font-size:24px;font-weight:820;color:var(--ink);margin-top:6px;letter-spacing:-.4px;font-variant-numeric:tabular-nums}
-    .st-kpi .s{font-size:11.5px;color:var(--faint);margin-top:3px}
+    .st-kpi{background:var(--panel);border:1px solid var(--line);border-radius:13px;padding:18px 20px;box-shadow:var(--shadow)}
+    .st-kpi .l{font-size:11.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+    .st-kpi .v{font-size:31px;font-weight:820;color:var(--ink);margin-top:7px;letter-spacing:-.5px;font-variant-numeric:tabular-nums}
+    .st-kpi .s{font-size:12.5px;color:var(--faint);margin-top:4px}
     .st-card{background:var(--panel);border:1px solid var(--line);border-radius:13px;box-shadow:var(--shadow);padding:15px 17px;margin-bottom:14px}
     .st-tbl{width:100%;border-collapse:collapse;font-size:13.5px}
     .st-tbl th{text-align:left;color:var(--muted);font-weight:750;font-size:11px;text-transform:uppercase;letter-spacing:.04em;padding:9px 11px;border-bottom:1px solid var(--line);white-space:nowrap}
@@ -130,6 +132,30 @@
     .rp-mo-x{font-size:9px;color:var(--faint);font-variant-numeric:tabular-nums}
     .rp-lg{display:inline-block;width:9px;height:9px;border-radius:2px;vertical-align:middle}
     .rp-lg-l{background:var(--blue)} .rp-lg-c{background:var(--brand)}
+    /* mix-adjusted booking */
+    .rp-mix{display:flex;align-items:center;gap:18px;flex-wrap:wrap;margin:4px 0 4px}
+    .rp-mix-cell{min-width:150px}
+    .rp-mix-l{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+    .rp-mix-v{font-size:27px;font-weight:820;color:var(--ink);font-variant-numeric:tabular-nums;letter-spacing:-.4px}
+    .rp-mix-arrow{font-size:22px;color:var(--faint)}
+    .rp-mix-gap{font-size:19px;font-weight:820;padding:6px 14px;border-radius:10px;background:var(--panel-2);font-variant-numeric:tabular-nums}
+    /* distribution / win-leak */
+    .rp-dimbar{display:flex;gap:6px;flex-wrap:wrap;margin:2px 0 10px}
+    .rp-dimbtn{appearance:none;border:1px solid var(--line-2);background:var(--panel);color:var(--muted);font:inherit;font-size:12.5px;font-weight:700;padding:6px 12px;border-radius:9px;cursor:pointer}
+    .rp-dimbtn:hover{color:var(--ink)} .rp-dimbtn.on{background:var(--brand);color:var(--brand-ink);border-color:var(--brand)}
+    .rp-dist td,.rp-dist th{font-size:13px}
+    /* integrity */
+    .rp-intgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:2px 0 4px}
+    @media(max-width:900px){.rp-intgrid{grid-template-columns:1fr}}
+    .rp-int{display:flex;gap:11px;align-items:flex-start;padding:11px 13px;border:1px solid var(--line);border-radius:11px;background:var(--panel-2)}
+    .rp-int.flag{border-color:var(--red);background:color-mix(in srgb,var(--red) 8%,var(--panel-2))}
+    .rp-int-i{font-size:16px;line-height:1.2}
+    .rp-int.ok .rp-int-i{color:var(--brand)} .rp-int.flag .rp-int-i{color:var(--red)}
+    .rp-int-b{flex:1}
+    .rp-int-t{font-weight:750;font-size:13.5px;color:var(--ink)}
+    .rp-int-n{font-size:12px;color:var(--muted);margin-top:2px}
+    .rp-int-v{font-size:13px;font-weight:750;color:var(--ink);text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+    .st-hint{font-size:12px;color:var(--faint);font-style:italic;align-self:center}
     .st-seg{display:inline-flex;border:1px solid var(--line-2);border-radius:10px;overflow:hidden}
     .st-seg button{appearance:none;border:0;background:var(--panel);color:var(--muted);font:inherit;font-size:12.5px;font-weight:700;padding:8px 14px;cursor:pointer}
     .st-seg button.on{background:var(--brand);color:var(--brand-ink)}
@@ -583,9 +609,7 @@
     host.innerHTML = `
       <div class="st-bar">
         <input type="text" id="stQ" placeholder="Search customer / # / source…">
-        ${sel("stSp", "All salespeople", sps, state.sp)}
-        ${sel("stSrc", "All sources", sources, "")}
-        ${sel("stStat", "All statuses", stats, "")}
+        <span class="st-hint">Salesperson · source · status · state — use the filter bar at the top ↑</span>
         <select id="stCalled"><option value="">Contact — any</option>
           <option value="y">Contacted</option><option value="n">No contact</option>
           <option value="c">Connected out</option></select>
@@ -683,10 +707,11 @@
     };
 
     host.querySelector("#stQ").oninput = e => { state.q = e.target.value; state.page = 0; paint(); };
-    [["stSp", "sp"], ["stSrc", "src"], ["stStat", "stat"], ["stCalled", "called"],
-     ["stType", "type"], ["stBucket", "bucket"], ["stSort", "sort"]].forEach(([id, k]) => {
-      host.querySelector("#" + id).onchange = e => { state[k] = e.target.value; state.page = 0; paint(); };
-    });
+    [["stCalled", "called"], ["stType", "type"], ["stBucket", "bucket"], ["stSort", "sort"]]
+      .forEach(([id, k]) => {
+        const el = host.querySelector("#" + id);
+        if (el) el.onchange = e => { state[k] = e.target.value; state.page = 0; paint(); };
+      });
     paint();
   }
 
@@ -714,13 +739,16 @@
     const cmap = ctx.repCanon || {};
     const canonOf = n => cmap[(n || "").trim().toLowerCase()] || (n || "").trim() || "Unassigned";
     const by = {};
-    const get = name => (by[name] = by[name] || { name, leads: 0, qual: 0, dead: 0, conf: 0,
+    const get = name => (by[name] = by[name] || { name, rows: [], leads: 0, qual: 0, dead: 0, conf: 0,
       closed: 0, rev: 0, net: 0, mat: 0, tto: [], slow: 0, called: 0, reached: 0, covered: 0,
-      gaps: [], rev5: [], claims: 0, bySrc: {}, byMonth: {} });
+      gaps: [], rev5: [], claims: 0, bySrc: {}, byMonth: {},
+      profit: 0, expense: 0, commission: 0, sat5: [], refunds: 0, connLeads: 0,
+      confNoClose: 0, deadUnworked: 0 });
     ctx.rows.forEach(r => {
       const c = canonOf(r["Assigned"]);
       if (EXCLUDE_SP.has(c.toLowerCase())) return;
       const p = get(c);
+      p.rows.push(r);
       p.leads++;
       if (isQual(r)) p.qual++;
       if (isDead(r)) p.dead++;
@@ -728,10 +756,18 @@
       if (r["Total Bill"] != null) { p.rev += +r["Total Bill"]; p.closed++; }
       if (r["Net Cash"] != null) p.net += +r["Net Cash"];
       if (r["Material Total"] != null) p.mat += +r["Material Total"];
+      if (r["Profit"] != null) p.profit += +r["Profit"];
+      if (r["Total Expense"] != null) p.expense += +r["Total Expense"];
+      if (r["Sales Commission"] != null) p.commission += +r["Sales Commission"];
+      if (r["Satisfaction"] != null) p.sat5.push(+r["Satisfaction"]);
+      if (r["Refund Total"] != null) p.refunds += +r["Refund Total"];
       if (r["TTO Biz Min"] != null) p.tto.push(+r["TTO Biz Min"]);
       if (+r["Called"]) p.called++;
+      if (+r["Connected"]) p.connLeads++;
       if (inWindow(r)) { p.covered++; if (isReached(r)) p.reached++; }
       if (+r["Flag Slow First Call"]) p.slow++;
+      if (isConf(r) && +r["Flag Confirmed No Closing"]) p.confNoClose++;
+      if (isDead(r) && !+r["Called"] && inWindow(r)) p.deadUnworked++;
       if (r["Bill Vs Quote Pct"] != null) p.gaps.push(+r["Bill Vs Quote Pct"]);
       if (r["Review Score"] != null) p.rev5.push(+r["Review Score"]);
       p.claims += +r["Claims N"] || 0;
@@ -752,6 +788,17 @@
       p.avgGap = p.gaps.length ? p.gaps.reduce((a, b) => a + b, 0) / p.gaps.length : null;
       p.avgReview = p.rev5.length ? p.rev5.reduce((a, b) => a + b, 0) / p.rev5.length : null;
       p.slowPct = p.called ? 100 * p.slow / p.called : null;
+      // margin & comp efficiency (closed jobs)
+      p.margin = p.rev ? 100 * p.profit / p.rev : null;
+      p.profitLead = p.leads ? p.profit / p.leads : 0;
+      p.commPerKRev = p.rev ? 1000 * p.commission / p.rev : null;
+      p.commPerKProfit = p.profit > 0 ? 1000 * p.commission / p.profit : null;
+      p.netRev = p.rev - p.refunds;
+      p.avgSat = p.sat5.length ? p.sat5.reduce((a, b) => a + b, 0) / p.sat5.length : null;
+      // integrity signals
+      p.vanityPct = p.conf ? 100 * p.confNoClose / p.conf : null;
+      p.deadUnworkedPct = p.dead ? 100 * p.deadUnworked / p.dead : null;
+      p.talkPerOut = p.out ? p.talk / p.out : null;
       const s = stat[p.name.toLowerCase()] || {};
       const c = {
         ext: s["Ext Label"] || null, type: s["Type"] || null, status: s["Status"] || null,
@@ -783,12 +830,49 @@
     { key: "bookRate", dir: "hi", label: "Booking rate", fmt: v => pct1(v) },
     { key: "medTto", dir: "lo", label: "First-call speed", fmt: v => mins(v) },
     { key: "revLead", dir: "hi", label: "Revenue / lead", fmt: v => money0(v) },
+    { key: "profitLead", dir: "hi", label: "Profit / lead", fmt: v => money0(v) },
+    { key: "margin", dir: "hi", label: "Gross margin", fmt: v => pct1(v) },
     { key: "upsell", dir: "hi", label: "Upsell / job", fmt: v => money0(v) },
     { key: "avgReview", dir: "hi", label: "Review score", fmt: v => v == null ? "—" : v.toFixed(1) + "★" },
     { key: "deadPct", dir: "lo", label: "Dead-lead share", fmt: v => pct1(v) },
     { key: "call.inAcceptRate", dir: "hi", label: "Inbound answer rate", fmt: v => pct1(v) },
     { key: "call.outConnRate", dir: "hi", label: "Outbound connect rate", fmt: v => pct1(v) },
   ];
+
+  /* ---- team baselines for mix-adjustment, distribution & win/leak ---- */
+  const DIMS = [
+    { key: "Size of Move", label: "Size of move" },
+    { key: "CF Range", label: "Volume (CF)" },
+    { key: "Bill Range", label: "Revenue range" },
+    { key: "State", label: "State" },
+    { key: "Service Type", label: "Moving type" },
+  ];
+  const dv = (r, k) => { const v = (r[k] == null ? "" : String(r[k])).trim(); return v || "—"; };
+  function teamIndex(rows) {
+    const dim = {}; DIMS.forEach(d => dim[d.key] = {});
+    const seg = {};              // mix-adjust segment: Source|CFRange|IsLD|Size
+    let leads = 0, qual = 0, conf = 0;
+    rows.forEach(r => {
+      leads++; const q = isQual(r), cf = isConf(r);
+      if (q) qual++; if (cf) conf++;
+      DIMS.forEach(d => {
+        const b = (dim[d.key][dv(r, d.key)] = dim[d.key][dv(r, d.key)] || { leads: 0, qual: 0, conf: 0 });
+        b.leads++; if (q) b.qual++; if (cf) b.conf++;
+      });
+      const sk = `${dv(r, "Source")}|${dv(r, "CF Range")}|${+r["Is LD"] ? 1 : 0}|${dv(r, "Size of Move")}`;
+      const b = (seg[sk] = seg[sk] || { qual: 0, conf: 0 });
+      if (q) b.qual++; if (cf) b.conf++;
+    });
+    return { dim, seg, leads, qual, conf, segKey: r => `${dv(r, "Source")}|${dv(r, "CF Range")}|${+r["Is LD"] ? 1 : 0}|${dv(r, "Size of Move")}` };
+  }
+  // diverging color for (rep booking% − team booking%): green good, red bad
+  function heatColor(delta) {
+    if (delta == null) return "transparent";
+    const x = Math.max(-1, Math.min(1, delta / 20));   // ±20pts saturates
+    return x >= 0
+      ? `color-mix(in srgb, var(--brand) ${Math.round(x * 62)}%, transparent)`
+      : `color-mix(in srgb, var(--red) ${Math.round(-x * 62)}%, transparent)`;
+  }
 
   function renderRep(host, ctx) {
     const book = repBook(ctx);
@@ -809,11 +893,25 @@
         <button class="st-chip" id="rpJump">Open their leads in Explorer →</button></div>
       <div id="rpBody"></div>`;
     host.querySelector("#rpSel").onchange = e => { ctx.repSel = e.target.value; renderRep(host, ctx); };
-    host.querySelector("#rpJump").onclick = () => { ctx.explorerPreset = { sp: ctx.repSel }; ctx.go("explorer"); };
-    paintRep(host.querySelector("#rpBody"), book, ctx.repSel, th);
+    host.querySelector("#rpJump").onclick = () => jumpToRepLeads(ctx, ctx.repSel);
+    paintRep(host.querySelector("#rpBody"), book, ctx.repSel, th, teamIndex(ctx.rows));
   }
 
-  function paintRep(host, book, name, th) {
+  // send the rep's leads to the Lead Explorer via the GLOBAL Sales Person filter (one
+  // filter home — no duplicate in-page dropdown). Sets every raw Assigned alias for the
+  // canonical rep, remembers the target tab, and re-renders the whole page.
+  function jumpToRepLeads(ctx, canon) {
+    const cmap = ctx.repCanon || {};
+    const aliases = Object.keys(cmap).filter(k => cmap[k].toLowerCase() === canon.toLowerCase());
+    const names = new Set();
+    ctx.rows.forEach(r => { const a = (r["Assigned"] || "").trim(); if (a && aliases.indexOf(a.toLowerCase()) !== -1) names.add(a); });
+    if (!names.size) names.add(canon);
+    RS.state.multi.sales = names;
+    ST_LAST_TAB = "explorer";
+    if (window.renderPage) window.renderPage(); else ctx.go("explorer");
+  }
+
+  function paintRep(host, book, name, th, team) {
     const p = book[name], c = p.call;
     const elig = q => q.leads >= th.minLeads;
     const eligCall = q => (q.call.outDials + q.call.inTotal) >= 200;
@@ -851,6 +949,102 @@
       .map(([s, d]) => `<tr><td>${esc(s)}</td><td style="text-align:right">${RS.fmtN(d.leads)}</td>
         <td style="text-align:right">${d.qual ? pct1(100 * d.conf / d.qual) : "—"}</td></tr>`).join("");
 
+    // ---- mix-adjusted booking (skill vs luck) ----
+    let expConf = 0, mixN = 0;
+    p.rows.forEach(r => {
+      if (!isQual(r)) return;
+      mixN++;
+      const b = team.seg[team.segKey(r)];
+      if (b && b.qual) expConf += b.conf / b.qual;
+    });
+    const expRate = mixN ? 100 * expConf / mixN : null;
+    const gap = (expRate == null || p.bookRate == null) ? null : p.bookRate - expRate;
+    const gapCls = gap == null ? "" : gap >= 0 ? "st-good" : "st-bad";
+    const mixCard = mixN ? `<div class="st-card">
+      <div class="rp-cardcap">🎯 Skill vs luck — mix-adjusted booking rate</div>
+      <div class="rp-mix">
+        <div class="rp-mix-cell"><div class="rp-mix-l">Expected for their lead mix</div><div class="rp-mix-v">${pct1(expRate)}</div></div>
+        <div class="rp-mix-arrow">→</div>
+        <div class="rp-mix-cell"><div class="rp-mix-l">Actual booking rate</div><div class="rp-mix-v">${pct1(p.bookRate)}</div></div>
+        <div class="rp-mix-gap ${gapCls}">${gap == null ? "—" : (gap >= 0 ? "+" : "−") + Math.abs(Math.round(gap * 10) / 10) + " pts"}</div>
+      </div>
+      <div class="st-note">Expected = the team's own conversion on each lead segment (Source × volume × distance × size), applied to ${esc(name.split(" ")[0])}'s exact mix. Above expected = real skill beyond the leads they were handed.</div>
+    </div>` : "";
+
+    // ---- margin & commission ----
+    const marginCard = `<div class="st-card">
+      <div class="rp-cardcap">💰 Margin & commission — the profit behind the revenue</div>
+      <div class="st-kpis" style="grid-template-columns:repeat(4,1fr);margin-top:2px">
+        ${kpi("Gross profit", money0(p.profit), p.margin != null ? pct1(p.margin) + " margin" : "")}
+        ${kpi("Profit / lead", money0(p.profitLead), "revenue/lead " + money0(p.revLead))}
+        ${kpi("Commission paid", money0(p.commission), p.commPerKRev != null ? money0(p.commPerKRev) + " / $1k rev" : "")}
+        ${kpi("Net revenue", money0(p.netRev), p.refunds ? "after " + money0(p.refunds) + " refunds" : "no refunds")}
+      </div>
+      <div class="st-note">Gross profit &amp; margin from the closing sheet.${p.commPerKProfit != null ? " Commission costs " + money0(p.commPerKProfit) + " per $1k of gross profit." : ""}${p.avgSat != null ? " Internal satisfaction " + p.avgSat.toFixed(1) + "/10." : ""}</div>
+    </div>`;
+
+    // ---- lead distribution & win/leak (item 1 + routing) ----
+    const distTbl = d => {
+      const rd = {};
+      p.rows.forEach(r => { const v = dv(r, d.key); const b = (rd[v] = rd[v] || { leads: 0, qual: 0, conf: 0 }); b.leads++; if (isQual(r)) b.qual++; if (isConf(r)) b.conf++; });
+      const rows = Object.entries(rd).sort((a, b) => b[1].leads - a[1].leads).slice(0, 8);
+      if (!rows.length) return `<div class="st-note">No leads in period.</div>`;
+      return `<table class="st-tbl rp-dist"><thead><tr><th>${esc(d.label)}</th>
+        <th style="text-align:right">Leads</th><th style="text-align:right">Their mix</th>
+        <th style="text-align:right">Team mix</th><th style="text-align:right">Book % (rep / team)</th></tr></thead><tbody>` +
+        rows.map(([v, b]) => {
+          const repShare = p.leads ? 100 * b.leads / p.leads : 0;
+          const tb = (team.dim[d.key] || {})[v] || { leads: 0, qual: 0, conf: 0 };
+          const teamShare = team.leads ? 100 * tb.leads / team.leads : 0;
+          const repBook = b.qual ? 100 * b.conf / b.qual : null;
+          const teamBook = tb.qual ? 100 * tb.conf / tb.qual : null;
+          const delta = (repBook != null && teamBook != null) ? repBook - teamBook : null;
+          const over = repShare - teamShare;
+          return `<tr><td>${esc(v)}</td>
+            <td style="text-align:right">${RS.fmtN(b.leads)}</td>
+            <td style="text-align:right">${pct1(repShare)}${Math.abs(over) >= 5 ? ` <span class="${over > 0 ? "st-good" : "st-dim"}" style="font-size:10.5px">${over > 0 ? "▲" : "▼"}</span>` : ""}</td>
+            <td style="text-align:right;color:var(--faint)">${pct1(teamShare)}</td>
+            <td style="text-align:right;background:${heatColor(delta)}">${repBook != null ? pct1(repBook) : "—"}${teamBook != null ? ` <span class="st-dim" style="font-size:11px">/ ${Math.round(teamBook)}%</span>` : ""}</td></tr>`;
+        }).join("") + `</tbody></table>`;
+    };
+    const distBtns = DIMS.map((d, i) => `<button class="rp-dimbtn${i === 0 ? " on" : ""}" data-dim="${i}">${esc(d.label)}</button>`).join("");
+    const distPanels = DIMS.map((d, i) => `<div class="rp-dimpanel${i === 0 ? "" : " hidden"}" data-dim="${i}">${distTbl(d)}</div>`).join("");
+    const distCard = `<div class="st-card">
+      <div class="rp-cardcap">🧭 Lead distribution &amp; win/leak — where their leads come from, and how they convert vs the team</div>
+      <div class="rp-dimbar">${distBtns}</div>${distPanels}
+      <div class="st-note"><b>Their mix vs team mix</b> shows over-/under-allocation (▲ gets more of this than the team). <b>Book %</b> is shaded <span class="st-good">green where they beat</span> / <span class="st-bad">red where they leak</span> vs the team on that segment — a routing guide for who should get which leads.</div>
+    </div>`;
+
+    // ---- integrity / anti-gaming ----
+    const eligReps = Object.values(book).filter(q => q.leads >= th.minLeads);
+    const mean = f => { const v = eligReps.map(f).filter(x => x != null); return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null; };
+    const tVanity = mean(q => q.vanityPct), tDeadU = mean(q => q.deadUnworkedPct),
+          tGap = mean(q => q.avgGap), tTto = mean(q => q.medTto), tTPO = mean(q => q.talkPerOut);
+    const chk = (label, val, teamv, bad, fmt, note) =>
+      `<div class="rp-int ${bad ? "flag" : "ok"}"><span class="rp-int-i">${bad ? "⚠" : "✓"}</span>
+        <div class="rp-int-b"><div class="rp-int-t">${label}</div><div class="rp-int-n">${note}</div></div>
+        <div class="rp-int-v">${fmt(val)} <span class="st-dim">vs ${fmt(teamv)} team</span></div></div>`;
+    const intChecks = [
+      chk("Vanity confirms", p.vanityPct, tVanity,
+        p.vanityPct != null && tVanity != null && p.vanityPct > tVanity * 1.4 && p.confNoClose >= 3,
+        v => v == null ? "—" : pct1(v), "Confirmed leads that never reached a closing sheet"),
+      chk("Disqualified un-worked", p.deadUnworkedPct, tDeadU,
+        p.deadUnworkedPct != null && tDeadU != null && p.deadUnworkedPct > tDeadU * 1.4 && p.deadUnworked >= 3,
+        v => v == null ? "—" : pct1(v), "Leads marked Bad Lead without a single dial (in coverage)"),
+      chk("Chronic under-quoting", p.avgGap, tGap,
+        p.avgGap != null && tGap != null && p.avgGap > tGap + 6 && p.avgGap > 8,
+        v => v == null ? "—" : (v > 0 ? "+" : "") + pct1(v), "Final bill runs above quote — bill-shock / dispute risk"),
+      chk("Speed without substance", p.talkPerOut, tTPO,
+        p.medTto != null && tTto != null && p.medTto < tTto && p.talkPerOut != null && tTPO != null && p.talkPerOut < tTPO * 0.6,
+        v => v == null ? "—" : secH(v), "Fast to dial, but very short calls — SLA met without a real conversation"),
+    ].join("");
+    const anyFlag = /rp-int flag/.test(intChecks);
+    const integrityCard = `<div class="st-card">
+      <div class="rp-cardcap">🛡️ Are these numbers earned? — metric-integrity checks</div>
+      <div class="rp-intgrid">${intChecks}</div>
+      <div class="st-note">${anyFlag ? "One or more headline metrics may be inflated — review before acting on rank or comp." : "No gaming signals — this rep's headline metrics look earned."}</div>
+    </div>`;
+
     host.innerHTML = `
       <div class="rp-head">
         <div><div class="rp-name">${esc(name)}</div>
@@ -868,6 +1062,8 @@
         ${kpi("Upsell / job", money0(p.upsell), "materials on closed jobs")}
         ${kpi("Review score", p.avgReview != null ? p.avgReview.toFixed(1) + "★" : "—", p.claims ? p.claims + " claim(s)" : "no claims")}
       </div>
+
+      <div class="rp-cols">${mixCard}${marginCard}</div>
 
       <div class="rp-cols">
         <div class="st-card">
@@ -892,6 +1088,10 @@
         </div>
       </div>
 
+      ${distCard}
+
+      ${integrityCard}
+
       <div class="rp-cols">
         <div class="st-card"><div class="rp-cardcap">Monthly — leads <span class="rp-lg rp-lg-l"></span> &nbsp; confirmed <span class="rp-lg rp-lg-c"></span></div>${trend}</div>
         <div class="st-card"><div class="rp-cardcap">By source</div>
@@ -899,6 +1099,13 @@
           <tbody>${srcRows || `<tr><td colspan="3" class="st-dim">No leads in period</td></tr>`}</tbody></table>
         </div>
       </div>`;
+
+    // distribution dimension toggle
+    const dimBar = host.querySelector(".rp-dimbar");
+    if (dimBar) dimBar.querySelectorAll(".rp-dimbtn").forEach(b => b.onclick = () => {
+      dimBar.querySelectorAll(".rp-dimbtn").forEach(x => x.classList.toggle("on", x === b));
+      host.querySelectorAll(".rp-dimpanel").forEach(x => x.classList.toggle("hidden", x.dataset.dim !== b.dataset.dim));
+    });
   }
 
   /* ---------------- page ---------------- */
@@ -908,15 +1115,15 @@
     title: "Sales Team Command",
     async render(host) {
       injectStyle();
-      host.innerHTML = `
+      host.innerHTML = `<div class="st-page">
         <div class="rs-page-head"><h1>Sales Team Command</h1>
           <p>Every lead's full story — calls, texts, routing, and the money it became.
           <span class="freshness">· leads count by created date · confirmations by confirmed date</span></p></div>
-        <div class="st-tabbar" id="stTabs"></div><div id="stHost"></div>`;
+        <div class="st-tabbar" id="stTabs"></div><div id="stHost"></div></div>`;
       const TABS = [["team", "Team"], ["rep", "Rep Profile"], ["explorer", "Lead Explorer"]];
       const tabsEl = host.querySelector("#stTabs");
       const hostEl = host.querySelector("#stHost");
-      let active = "team";
+      let active = ST_LAST_TAB;   // survive a global re-render (e.g. the rep→Explorer jump)
 
       const ctx = { rows: [], confRows: [], explorerPreset: null, dense: "detail",
         repStats: null, repCanon: null, repSel: null, go: k => go(k) };
@@ -926,7 +1133,7 @@
         tabsEl.querySelectorAll(".st-tab").forEach(b => b.onclick = () => go(b.dataset.k));
       };
       const go = async k => {
-        active = k; paintTabs();
+        active = k; ST_LAST_TAB = k; paintTabs();
         hostEl.innerHTML = `<div class="rs-loading" style="padding:22px">Loading…</div>`;
         const all = await RS.load("lead_journey");
         ctx.rows = RS.filtered("lead_journey", all);

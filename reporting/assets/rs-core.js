@@ -54,13 +54,14 @@ window.RS = (function () {
       table: "fct_lead_journey",
       cols: ["Request Joinkey", "Job No", "Company", "Customer", "Create Date", "Source",
         "Assigned", "Status", "Status Category", "Flag", "Label", "Service Type",
-        "Size of Move", "Total CF", "CF Range", "Bill Range", "Is LD", "Move Date",
+        "Size of Move", "Total CF", "CF Range", "Bill Range", "State", "Is LD", "Move Date",
         "Booked Date", "Cal Found", "Cal Event Date", "Cal Date Match", "Cal Loc Match",
         "Avg Quote", "Called", "Connected", "In Call Window", "Conf After Horizon", "Contacted", "Answered In",
         "First Contact At", "First Out At", "TTO Biz Min",
         "Speed Bucket", "First Out Extension", "Out Calls", "In Calls", "Sms Out", "Sms In",
         "Talk Sec Out", "Distinct Dialers", "Dialers", "Last Touch At", "Closed",
-        "Closing Date", "Total Bill", "Net Cash", "Material Total", "Sales Person",
+        "Closing Date", "Total Bill", "Net Cash", "Material Total",
+        "Profit", "Total Expense", "Sales Commission", "Satisfaction", "Deposit", "Sales Person",
         "Sales People", "Sales Split N", "Bill Vs Quote Pct", "Refund Total", "Claims N",
         "Review Score", "Flag Never Called", "Flag Slow First Call", "Flag Single Touch",
         "Flag Big Quote Gap", "Flag Confirmed No Closing"],
@@ -273,7 +274,7 @@ window.RS = (function () {
     month:       { label: "Month",        closing: "_m",            moveboard: "_m",             storage: "_m", refunds: "_m", long_distance: "_m", claims: "_m", negative_reviews: "_m", reviews_breakdown: "_m", card_expenses: "_m", callrail: "_m", leads: "_m", scorecard: "_m", review_counts: "_m", review_goals: "_m", lead_journey: "_m" },
     company:     { label: "Company",      closing: "Company",       moveboard: "Company",        storage: "Company", refunds: "Company", long_distance: "Company", negative_reviews: "Company", reviews_breakdown: "Company", card_expenses: "Company", callrail: "Company", leads: "Company", review_counts: "Company", review_goals: "Company", lead_journey: "Company" },
     source:      { label: "Source",       closing: "Source",        moveboard: "Source",         refunds: "Source", long_distance: "Source", negative_reviews: "Source", reviews_breakdown: "Source", card_expenses: "Source", callrail: "Source", leads: "Source", lead_journey: "Source" },
-    state:       { label: "State",        closing: "State",         moveboard: "State",          leads: "State" },
+    state:       { label: "State",        closing: "State",         moveboard: "State",          leads: "State", lead_journey: "State" },
     foreman:     { label: "Foreman",      closing: "Foreman",       refunds: "Foreman",          scorecard: "Foreman" },
     // Reviews have NO relationship to Sales Person in PBI — omit reviews_breakdown so the
     // sales slicer skips reviews (it used to zero them). moveboard `Assigned` now carries the
@@ -281,7 +282,7 @@ window.RS = (function () {
     sales:       { label: "Sales Person", closing: "Sales Person",  moveboard: "Assigned",       refunds: "Sales Person", long_distance: "Sales Person", lead_journey: "Assigned" },
     cfRange:     { label: "Volume (cu ft)", moveboard: "CF Range",  lead_journey: "CF Range" },  // display label only — field key + column stay "CF Range"
     billRange:   { label: "Revenue Range", closing: "Bill Range",   moveboard: "Bill Range", lead_journey: "Bill Range" },  // display label only — column stays "Bill Range"
-    movingType:  { label: "Moving Type",  closing: "Moving Type" },
+    movingType:  { label: "Moving Type",  closing: "Moving Type", lead_journey: "Service Type" },
     sizeOfMove:  { label: "Size of Move", closing: "Size of Move",  moveboard: "Size of Move", lead_journey: "Size of Move" },
     statusCat:   { label: "Lead Status",  moveboard: "Status Category", lead_journey: "Status Category" },
   };
