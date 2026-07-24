@@ -545,17 +545,24 @@
       p.revLead = p.leads ? p.rev / p.leads : 0;
       p.avgGap = p.gaps.length ? p.gaps.reduce((a, b) => a + b, 0) / p.gaps.length : null;
     });
-    const ranked = list.filter(p => p.leads >= th.minLeads && p.name !== "Unassigned");
+    // normalise against the reps the table actually SHOWS — a hidden 5-lead outlier used to
+    // set the 100% ceiling and quietly deflate every visible score.
+    const scoreMin = Math.max(th.minLeads, ASSESS_MIN);
+    const ranked = list.filter(p => p.leads >= scoreMin && p.name !== "Unassigned");
     const mx = {
       conv: Math.max(1e-9, ...ranked.map(p => p.convPct || 0)),
       rev: Math.max(1e-9, ...ranked.map(p => p.revLead || 0)),
     };
     list.forEach(p => {
-      if (p.leads < th.minLeads || p.name === "Unassigned") { p.score = null; return; }
-      const sConv = (p.convPct || 0) / mx.conv;
-      const sSpeed = p.medTto == null ? 0 : Math.max(0, 1 - Math.min(p.medTto, 120) / 120);
-      const sRev = (p.revLead || 0) / mx.rev;
-      p.score = Math.round(100 * (0.5 * sConv + 0.3 * sSpeed + 0.2 * sRev));
+      if (p.leads < scoreMin || p.name === "Unassigned") { p.score = null; return; }
+      // weight only the components that HAVE data (a missing first-call median means
+      // "no call data in range", not "slowest on the team").
+      let sc = 0, ws = 0;
+      const add = (w, v) => { if (v != null) { sc += w * v; ws += w; } };
+      add(0.5, mx.conv ? (p.convPct || 0) / mx.conv : null);
+      add(0.3, p.medTto == null ? null : Math.max(0, 1 - Math.min(p.medTto, 120) / 120));
+      add(0.2, mx.rev ? (p.revLead || 0) / mx.rev : null);
+      p.score = ws ? Math.round(100 * sc / ws) : null;
     });
     list.sort((a, b) => ((b.score != null ? b.score : -1) - (a.score != null ? a.score : -1)) || b.leads - a.leads);
     return list;
@@ -647,9 +654,18 @@
 
     host.querySelectorAll(".st-seg button").forEach(b => b.onclick = () => { ctx.dense = b.dataset.d; renderTeam(host, ctx); });
     const pop = host.querySelector("#stThPop");
-    host.querySelector("#stTh").onclick = e => { e.stopPropagation(); pop.classList.toggle("hidden"); };
+    host.querySelector("#stTh").onclick = e => {
+      e.stopPropagation();
+      pop.classList.toggle("hidden");
+      // arm the outside-click closer when the panel OPENS (a {once:true} listener registered
+      // at render time was consumed by an unrelated click and left the popup stuck open).
+      if (!pop.classList.contains("hidden")) {
+        setTimeout(() => document.addEventListener("click", function close() {
+          pop.classList.add("hidden"); document.removeEventListener("click", close);
+        }, { once: true }), 0);
+      }
+    };
     pop.onclick = e => e.stopPropagation();
-    document.addEventListener("click", () => pop.classList.add("hidden"), { once: true });
     ["thSlow", "thNever", "thConv", "thMin"].forEach(id => {
       host.querySelector("#" + id).onchange = () => {
         thSet({ slowMin: +host.querySelector("#thSlow").value || 30,
@@ -718,8 +734,8 @@
       if (state.sp) rows = rows.filter(r => (r["Assigned"] || "").trim() === state.sp);
       if (state.src) rows = rows.filter(r => (r["Source"] || "").trim() === state.src);
       if (state.stat) rows = rows.filter(r => (r["Status Category"] || "").trim() === state.stat);
-      if (state.called === "y") rows = rows.filter(isContacted);
-      if (state.called === "n") rows = rows.filter(r => !isContacted(r));
+      if (state.called === "y") rows = rows.filter(isReached);
+      if (state.called === "n") rows = rows.filter(isNeverContacted);
       if (state.called === "c") rows = rows.filter(r => +r["Connected"]);
       if (state.type === "ld") rows = rows.filter(r => +r["Is LD"]);
       if (state.type === "loc") rows = rows.filter(r => !+r["Is LD"]);
@@ -731,7 +747,7 @@
           || String(r["Source"] || "").toLowerCase().includes(q));
       }
       if (state.chip === "important") rows = rows.filter(r => +r["Is LD"] || (num(r["Total CF"]) || 0) >= 700 || (num(r["Avg Quote"]) || 0) >= 4000);
-      if (state.chip === "nocontact") rows = rows.filter(r => inWindow(r) && !isContacted(r));
+      if (state.chip === "nocontact") rows = rows.filter(isNeverContacted);
       if (state.chip === "slow") rows = rows.filter(r => +r["Flag Slow First Call"]);
       if (state.chip === "gap") rows = rows.filter(r => +r["Flag Big Quote Gap"]);
       if (state.chip === "noclose") rows = rows.filter(r => +r["Flag Confirmed No Closing"]);
@@ -752,7 +768,7 @@
       const pg = rows.slice(start, start + PAGE);
       const flagIcons = r => {
         const f = [];
-        if (!isContacted(r) && inWindow(r)) f.push(`<span class="st-flag r">✕ contact</span>`);
+        if (isNeverContacted(r)) f.push(`<span class="st-flag r">✕ contact</span>`);
         else if (+r["Flag Slow First Call"]) f.push(`<span class="st-flag a">slow</span>`);
         if (+r["Flag Big Quote Gap"]) f.push(`<span class="st-flag p">gap</span>`);
         if (+r["Flag Confirmed No Closing"]) f.push(`<span class="st-flag r">no closing</span>`);
@@ -793,6 +809,14 @@
     };
 
     host.querySelector("#stQ").oninput = e => { state.q = e.target.value; state.page = 0; paint(); };
+    // worklist chips (toggle): rendered + filtered in apply(), but the click binding was lost
+    // in the toolbar redesign, leaving all seven dead.
+    host.querySelectorAll(".st-chips .st-chip").forEach(b => b.onclick = () => {
+      state.chip = state.chip === b.dataset.c ? "" : b.dataset.c;
+      state.page = 0;
+      host.querySelectorAll(".st-chips .st-chip").forEach(x => x.classList.toggle("on", x.dataset.c === state.chip));
+      paint();
+    });
     [["stCalled", "called"], ["stType", "type"], ["stBucket", "bucket"], ["stSort", "sort"]]
       .forEach(([id, k]) => {
         const el = host.querySelector("#" + id);
@@ -823,14 +847,16 @@
 
   function repBook(ctx) {
     const cmap = ctx.repCanon || {};
+    const srcRows = ctx.repRows || ctx.rows;   // sales-slicer-free: peers must stay comparable
     const canonOf = n => cmap[(n || "").trim().toLowerCase()] || (n || "").trim() || "Unassigned";
     const by = {};
     const get = name => (by[name] = by[name] || { name, rows: [], leads: 0, qual: 0, dead: 0, conf: 0,
       closed: 0, rev: 0, net: 0, mat: 0, tto: [], slow: 0, called: 0, reached: 0, covered: 0,
+      out: 0, talk: 0,
       gaps: [], rev5: [], claims: 0, bySrc: {}, byMonth: {},
       profit: 0, expense: 0, commission: 0, sat5: [], refunds: 0, connLeads: 0,
       confNoClose: 0, deadUnworked: 0 });
-    ctx.rows.forEach(r => {
+    srcRows.forEach(r => {
       const c = canonOf(r["Assigned"]);
       if (excluded(c)) return;
       const p = get(c);
@@ -850,10 +876,12 @@
       if (r["TTO Biz Min"] != null) p.tto.push(+r["TTO Biz Min"]);
       if (+r["Called"]) p.called++;
       if (+r["Connected"]) p.connLeads++;
+      p.out += +r["Out Calls"] || 0;
+      p.talk += +r["Talk Sec Out"] || 0;
       if (inWindow(r)) { p.covered++; if (isReached(r)) p.reached++; }
       if (+r["Flag Slow First Call"]) p.slow++;
       if (isConf(r) && +r["Flag Confirmed No Closing"]) p.confNoClose++;
-      if (isDead(r) && !+r["Called"] && inWindow(r)) p.deadUnworked++;
+      if (isDead(r) && !isReached(r) && inWindow(r)) p.deadUnworked++;
       if (r["Bill Vs Quote Pct"] != null) p.gaps.push(+r["Bill Vs Quote Pct"]);
       if (r["Review Score"] != null) p.rev5.push(+r["Review Score"]);
       p.claims += +r["Claims N"] || 0;
@@ -876,7 +904,10 @@
       p.slowPct = p.called ? 100 * p.slow / p.called : null;
       // margin & comp efficiency (closed jobs)
       p.margin = p.rev ? 100 * p.profit / p.rev : null;
-      p.profitLead = p.leads ? p.profit / p.leads : 0;
+      // null (not 0) when nothing is measurable — the axis then drops out of the composite
+      // instead of scoring the rep as the worst on the team for un-filed paperwork.
+      p.hasProfit = p.rows.some(r => r["Profit"] != null);
+      p.profitLead = (p.leads && p.hasProfit) ? p.profit / p.leads : null;
       p.commPerKRev = p.rev ? 1000 * p.commission / p.rev : null;
       p.commPerKProfit = p.profit > 0 ? 1000 * p.commission / p.profit : null;
       p.netRev = p.rev - p.refunds;
@@ -992,7 +1023,7 @@
       <div id="rpBody"></div>`;
     host.querySelector("#rpSel").onchange = e => { ctx.repSel = e.target.value; renderRep(host, ctx); };
     host.querySelector("#rpJump").onclick = () => jumpToRepLeads(ctx, ctx.repSel);
-    paintRep(host.querySelector("#rpBody"), book, ctx.repSel, th, teamIndex(ctx.rows));
+    paintRep(host.querySelector("#rpBody"), book, ctx.repSel, th, teamIndex(ctx.repRows || ctx.rows));
   }
 
   // send the rep's leads to the Lead Explorer via the GLOBAL Sales Person filter (one
@@ -1011,8 +1042,8 @@
 
   function paintRep(host, book, name, th, team) {
     const p = book[name], c = p.call;
-    const elig = q => q.leads >= ASSESS_MIN && !excluded(q.name) && !inactive(q);
-    const eligCall = q => q.leads >= ASSESS_MIN && (q.call.outDials + q.call.inTotal) >= 200 && !excluded(q.name) && !inactive(q);
+    const elig = q => q.leads >= ASSESS_MIN && q.name !== "Unassigned" && !excluded(q.name) && !inactive(q);
+    const eligCall = q => elig(q) && (q.call.outDials + q.call.inTotal) >= 200;
     const kpi = (l, v, s, cls) => `<div class="st-kpi"><div class="l">${l}</div><div class="v ${cls || ""}">${v}</div><div class="s">${s || ""}</div></div>`;
 
     // strong sides / watch areas
@@ -1126,7 +1157,12 @@
       const vals = Object.values(book).filter(eligA).map(fn).filter(v => v != null);
       const v = fn(p);
       if (v == null || vals.length < 4) return null;
-      return vals.filter(x => dir === "hi" ? x < v : x > v).length / vals.length;
+      // MID-RANK: ties share the middle of their band. Counting only strictly-worse peers
+      // put every tied rep at the bottom — so a rep with ZERO claims (the best value, but
+      // tied with many others) was ranked worst and told they had a "high claim rate".
+      const worse = vals.filter(x => dir === "hi" ? x < v : x > v).length;
+      const ties = vals.filter(x => x === v).length - 1;      // exclude self
+      return vals.length > 1 ? (worse + 0.5 * ties) / (vals.length - 1) : 0.5;
     };
     const AX = [
       { k: "Conversion skill", g: good(q => q.__mg, "hi"), w: 0.30, val: gap == null ? "—" : (gap >= 0 ? "+" : "−") + Math.abs(Math.round(gap * 10) / 10) + " pts",
@@ -1263,7 +1299,7 @@
     </div>`;
 
     // ---- integrity / anti-gaming ----
-    const eligReps = Object.values(book).filter(q => q.leads >= th.minLeads);
+    const eligReps = Object.values(book).filter(eligA);   // same pool as the score/rankings
     const mean = f => { const v = eligReps.map(f).filter(x => x != null); return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null; };
     const tVanity = mean(q => q.vanityPct), tDeadU = mean(q => q.deadUnworkedPct),
           tGap = mean(q => q.avgGap), tTto = mean(q => q.medTto), tTPO = mean(q => q.talkPerOut);
@@ -1396,10 +1432,43 @@
         hostEl.innerHTML = `<div class="rs-loading" style="padding:22px">Loading…</div>`;
         const all = await RS.load("lead_journey");
         ctx.rows = RS.filtered("lead_journey", all);
-        // only REAL confirmed dates count (mart stores Booked Date only for confirmed leads)
-        ctx.confRows = RS.filtered("lead_journey",
-          all.filter(r => /^\d{4}-\d{2}-\d{2}/.test(String(r["Booked Date"] || ""))),
-          { dateColumn: "Booked Date" });
+
+        // ---- confirmations, on the CONFIRMED-date basis --------------------------------
+        // RS.filtered()'s `dateColumn` only redirects the date-RANGE check; the Year/Month
+        // slicers always filter on the dataset's derived create-date parts (_y/_m). So with
+        // Year+Month picked, "Confirmed (in period)" silently collapsed to the create-date
+        // cohort while still captioned "by their confirmed date". Neutralise those two
+        // slicers for this pass and apply them against Booked Date ourselves.
+        const bookedOnly = all.filter(r => /^\d{4}-\d{2}-\d{2}/.test(String(r["Booked Date"] || "")));
+        const yrSet = RS.state.multi.year, moSet = RS.state.multi.month;
+        const yrOn = yrSet && yrSet.size, moOn = moSet && moSet.size;
+        try {
+          if (yrOn) RS.state.multi.year = new Set();
+          if (moOn) RS.state.multi.month = new Set();
+          ctx.confRows = RS.filtered("lead_journey", bookedOnly, { dateColumn: "Booked Date" });
+        } finally {
+          if (yrOn) RS.state.multi.year = yrSet;
+          if (moOn) RS.state.multi.month = moSet;
+        }
+        if (yrOn || moOn) {
+          ctx.confRows = ctx.confRows.filter(r => {
+            const bd = String(r["Booked Date"] || "");
+            if (yrOn && !yrSet.has(bd.slice(0, 4))) return false;
+            if (moOn && !moSet.has(String(+bd.slice(5, 7)))) return false;
+            return true;
+          });
+        }
+
+        // ---- peer baseline for the Rep Profile -----------------------------------------
+        // The Rep Profile has its own rep selector, so the GLOBAL Sales-Person slicer must
+        // not scope it: with one name selected, teamIndex()/the ranking pool collapsed to
+        // that rep alone — every "vs team" comparison became self-vs-self (gap 0.0 pts,
+        // neutral heat-map, "not enough data"). Build the rep view from sales-unfiltered rows.
+        const spSet = RS.state.multi.sales;
+        if (spSet && spSet.size) {
+          try { RS.state.multi.sales = new Set(); ctx.repRows = RS.filtered("lead_journey", all); }
+          finally { RS.state.multi.sales = spSet; }
+        } else ctx.repRows = ctx.rows;
         // rep-stats power the canonical identity + roster status; load once, used by ALL
         // tabs (the Team tab needs it to drop Not-Active reps too).
         if (!ctx.repStats) {
@@ -1422,7 +1491,9 @@
         return renderExplorer(hostEl, ctx);
       };
       paintTabs();
-      await go("team");
+      // honour the remembered tab — the rep->Explorer jump and any global-filter
+      // re-render both rely on this (hardcoding "team" made ST_LAST_TAB dead).
+      await go(TABS.some(t => t[0] === active) ? active : "team");
     },
   });
 })();
