@@ -166,6 +166,7 @@
     .rp-cols{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px}
     @media(max-width:900px){.rp-cols{grid-template-columns:1fr}}
     .rp-cardcap{font-size:13px;font-weight:800;color:var(--ink);margin-bottom:12px;letter-spacing:-.1px}
+    .rp-alltime{font-size:10px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--amber);border:1px solid color-mix(in srgb,var(--amber) 45%,transparent);border-radius:999px;padding:1px 8px;margin-left:7px;vertical-align:middle}
     .rp-stack{display:flex;height:14px;border-radius:7px;overflow:hidden;background:var(--panel-2);gap:1px}
     .rp-stack>div{min-width:2px}
     .rp-trend{display:flex;gap:12px;align-items:flex-end;padding:10px 2px 2px;overflow-x:auto}
@@ -852,7 +853,7 @@
     const by = {};
     const get = name => (by[name] = by[name] || { name, rows: [], leads: 0, qual: 0, dead: 0, conf: 0,
       closed: 0, rev: 0, net: 0, mat: 0, tto: [], slow: 0, called: 0, reached: 0, covered: 0,
-      out: 0, talk: 0,
+      out: 0, talk: 0, gapBill: 0, gapQuote: 0, gapN: 0,
       gaps: [], rev5: [], claims: 0, bySrc: {}, byMonth: {},
       profit: 0, expense: 0, commission: 0, sat5: [], refunds: 0, connLeads: 0,
       confNoClose: 0, deadUnworked: 0 });
@@ -883,6 +884,10 @@
       if (isConf(r) && +r["Flag Confirmed No Closing"]) p.confNoClose++;
       if (isDead(r) && !isReached(r) && inWindow(r)) p.deadUnworked++;
       if (r["Bill Vs Quote Pct"] != null) p.gaps.push(+r["Bill Vs Quote Pct"]);
+      // dollar-weighted gap: sum(bill - quote) / sum(quote), so job size counts
+      if (r["Total Bill"] != null && num(r["Avg Quote"])) {
+        p.gapBill += +r["Total Bill"]; p.gapQuote += +r["Avg Quote"]; p.gapN++;
+      }
       if (r["Review Score"] != null) p.rev5.push(+r["Review Score"]);
       p.claims += +r["Claims N"] || 0;
       const s = (r["Source"] || "—").trim() || "—";
@@ -900,6 +905,8 @@
       p.revLead = p.leads ? p.rev / p.leads : 0;
       p.upsell = p.closed ? p.mat / p.closed : 0;
       p.avgGap = p.gaps.length ? p.gaps.reduce((a, b) => a + b, 0) / p.gaps.length : null;
+      // $-weighted gap drives the under-quoting flag (a small job can't tip it alone)
+      p.gapWtd = p.gapQuote ? 100 * (p.gapBill - p.gapQuote) / p.gapQuote : null;
       p.avgReview = p.rev5.length ? p.rev5.reduce((a, b) => a + b, 0) / p.rev5.length : null;
       p.slowPct = p.called ? 100 * p.slow / p.called : null;
       // margin & comp efficiency (closed jobs)
@@ -933,8 +940,20 @@
   }
 
   // rank helper: returns {rank, of, better} for a rep on a metric across eligible peers
+  // How many observations a metric needs before a rep can be RANKED on it. Without this a
+  // rep with a single review or a single closed job could be crowned "#1 of 11" on noise.
+  const METRIC_N = {
+    avgReview: p => p.rev5.length, margin: p => p.closed, upsell: p => p.closed,
+    profitLead: p => p.closed, revLead: p => p.closed, medTto: p => p.tto.length,
+  };
+  const MIN_N = { avgReview: 5, margin: 5, upsell: 5, profitLead: 5, revLead: 5, medTto: 8 };
+  const enoughFor = (p, key) => {
+    const f = METRIC_N[key];
+    return !f || (f(p) || 0) >= (MIN_N[key] || 0);
+  };
   function rankOn(book, name, key, dir, elig) {
-    const vals = Object.values(book).filter(elig).map(p => ({ n: p.name, v: keyVal(p, key) }))
+    const vals = Object.values(book).filter(q => elig(q) && enoughFor(q, key))
+      .map(p => ({ n: p.name, v: keyVal(p, key) }))
       .filter(x => x.v != null);
     vals.sort((a, b) => dir === "hi" ? b.v - a.v : a.v - b.v);
     const idx = vals.findIndex(x => x.n === name);
@@ -1054,7 +1073,9 @@
       if (!rk || rk.of < 4) return;
       const v = keyVal(p, m.key);
       if (v == null) return;
-      const chip = `<div class="rp-str"><span class="rp-str-l">${m.label}</span><span class="rp-str-v">${m.fmt(v)}</span><span class="rp-str-r">#${rk.rank} of ${rk.of}</span></div>`;
+      const nObs = METRIC_N[m.key] ? (METRIC_N[m.key](p) || 0) : null;
+      const alltime = m.key.indexOf("call.") === 0;   // RingCentral stats ignore the date filter
+      const chip = `<div class="rp-str"><span class="rp-str-l">${m.label}${nObs != null ? ` <span class="st-dim" style="font-weight:600">· n=${nObs}</span>` : ""}${alltime ? ` <span class="st-dim" style="font-weight:600">· all-time</span>` : ""}</span><span class="rp-str-v">${m.fmt(v)}</span><span class="rp-str-r">#${rk.rank} of ${rk.of}</span></div>`;
       if (rk.pctile <= 0.34 && rk.rank <= 4) strengths.push({ chip, pctile: rk.pctile });
       else if (rk.pctile >= 0.75) watch.push({ chip, pctile: rk.pctile });
     });
@@ -1167,6 +1188,7 @@
     const AX = [
       { k: "Conversion skill", g: good(q => q.__mg, "hi"), w: 0.30, val: gap == null ? "—" : (gap >= 0 ? "+" : "−") + Math.abs(Math.round(gap * 10) / 10) + " pts",
         strong: "converts above the leads they're dealt", weak: "converts below what their lead mix should yield",
+        absBad: gap != null && gap < -1,
         fix: "Have them shadow a top closer and review their pitch/qualification — the leads are fine, the conversion isn't." },
       { k: "Profit / lead", g: good(q => q.profitLead, "hi"), w: 0.22, val: money0(p.profitLead),
         strong: "builds high-profit jobs", weak: "low profit per lead",
@@ -1174,15 +1196,18 @@
       { k: "Quality (claims)", g: good(q => (q.closed ? q.claims / q.closed : null), "lo"), w: 0.12,
         val: p.claims + " claim" + (p.claims === 1 ? "" : "s") + (p.closed ? " · " + pct1(100 * p.claims / p.closed) + " of jobs" : ""),
         strong: "clean jobs — low claim rate", weak: "high claim rate on their jobs",
+        absBad: !!(p.closed && p.claims / p.closed > 0.1),
         fix: "Review their claims and over-promising on quotes — durable revenue beats booked revenue." },
       { k: "First-call speed", g: good(q => q.medTto, "lo"), w: 0.14, val: p.medTto != null ? mins(p.medTto) : "—",
         strong: "fast to the phone", weak: "slow to make first contact",
+        absBad: p.medTto != null && p.medTto > th.slowMin,
         fix: "Hold them to the speed SLA — target under 30 min; slow first calls quietly lose winnable jobs." },
       { k: "Call effort", g: good(q => q.call.outConnRate, "hi"), w: 0.14, val: p.call.outConnRate != null ? pct1(p.call.outConnRate) : "—",
-        strong: "strong phone connect rate", weak: "weak call connect / activity",
+        strong: "strong phone connect rate", weak: "weak call connect / activity", allTime: true,
         fix: "Put accountability on dials & connect rate — low activity is the easiest gap to close." },
       { k: "Lead qualification", g: good(q => q.deadPct, "lo"), w: 0.08, val: pct1(p.deadPct),
         strong: "qualifies well (low dead share)", weak: "high dead-lead share",
+        absBad: p.deadPct != null && p.deadPct > 40,
         fix: "Audit their dead-lead marks — are reachable leads being written off to protect booking rate?" },
     ];
     let ws = 0, sc = 0; AX.forEach(a => { if (a.g != null) { sc += a.w * a.g; ws += a.w; } });
@@ -1199,14 +1224,21 @@
     else { verdict = "At risk"; vClass = "bad"; vIcon = "▲"; }
     let summary;
     if (score == null || !enough) summary = `Only ${RS.fmtN(p.leads)} leads in this period — widen the date range for a reliable read.`;
-    else if (strongAx[0] && weakAx[0]) summary = `Strong on ${strongAx[0].strong}${strongAx[1] ? " and " + strongAx[1].strong : ""}, but ${weakAx[0].weak}.`;
+    else if (strongAx[0] && weakAx[0]) summary = `Strong on ${strongAx[0].strong}${strongAx[1] ? " and " + strongAx[1].strong : ""}, but ${weakAx[0].absBad === false ? "trails the team on " + weakAx[0].k.toLowerCase() : weakAx[0].weak}.`;
     else if (strongAx[0]) summary = `Strong on ${strongAx[0].strong}${strongAx[1] ? " and " + strongAx[1].strong : ""} — no major weak spots.`;
-    else if (weakAx[0]) summary = `Underperforming — ${weakAx[0].weak}${weakAx[1] ? ", and " + weakAx[1].weak : ""}.`;
+    else if (weakAx[0]) summary = weakAx.some(a => a.absBad !== false)
+      ? `Underperforming — ${weakAx[0].weak}${weakAx[1] ? ", and " + weakAx[1].weak : ""}.`
+      : `No absolute problems — they simply sit at the back of the team on ${weakAx.slice(0, 2).map(a => a.k.toLowerCase()).join(" and ")}.`;
     else summary = `A balanced, middle-of-the-pack profile — no standout strengths or weaknesses.`;
     const actions = [];
     if (AX[0].g != null && gap != null && gap > 1.5 && AX[0].g >= 0.6)
       actions.push("<b>Feed them more volume</b> — they convert above their lead mix. Route more of their green segments (see the distribution below).");
-    weakAx.slice(0, 3).forEach(a => actions.push(a.fix));
+    // only prescribe a fix for a REAL (absolute) problem; a merely bottom-of-a-strong-team
+    // metric gets a watch note instead of a corrective action.
+    weakAx.slice(0, 3).forEach(a => actions.push(
+      a.absBad === false
+        ? `<span class="st-dim">${esc(a.k)} is the team's weakest at ${a.val}, but not an absolute problem — watch, don't correct.</span>`
+        : a.fix));
     if (!actions.length) actions.push("Hold steady — no red flags. Keep the lead flow and current coaching; revisit next month for trend.");
     const bullets = (arr, fn) => arr.length ? `<ul class="rp-alist">${arr.map(fn).join("")}</ul>` : `<div class="st-dim" style="font-size:12.5px">—</div>`;
     const assessCard = `<div class="rp-assess ${vClass}">
@@ -1218,8 +1250,8 @@
         </div>
       </div>
       <div class="rp-assess-cols">
-        <div><div class="rp-cap">Doing well</div>${bullets(strongAx, a => `<li><b>${esc(a.k)}</b> — ${a.strong} <span class="st-dim">(${a.val})</span></li>`)}</div>
-        <div><div class="rp-cap">Needs work</div>${bullets(weakAx, a => `<li><b>${esc(a.k)}</b> — ${a.weak} <span class="st-dim">(${a.val})</span></li>`)}</div>
+        <div><div class="rp-cap">Doing well</div>${bullets(strongAx, a => `<li><b>${esc(a.k)}</b> — ${a.strong} <span class="st-dim">(${a.val}${a.allTime ? ", all-time" : ""})</span></li>`)}</div>
+        <div><div class="rp-cap">Needs work</div>${bullets(weakAx, a => `<li><b>${esc(a.k)}</b> — ${a.absBad === false ? "trails the team (not an absolute problem)" : a.weak} <span class="st-dim">(${a.val}${a.allTime ? ", all-time" : ""})</span></li>`)}</div>
         <div><div class="rp-cap">What I'd do</div><ul class="rp-alist">${actions.map(x => `<li>${x}</li>`).join("")}</ul></div>
       </div>
       <div class="st-note">Score blends conversion skill (mix-adjusted, 30%), profit/lead (22%), quality (12%), first-call speed (14%), call effort (14%) and qualification (8%), each ranked against the team. It's a starting read, not a verdict on its own — click through the panels below before acting.</div>
@@ -1302,7 +1334,7 @@
     const eligReps = Object.values(book).filter(eligA);   // same pool as the score/rankings
     const mean = f => { const v = eligReps.map(f).filter(x => x != null); return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null; };
     const tVanity = mean(q => q.vanityPct), tDeadU = mean(q => q.deadUnworkedPct),
-          tGap = mean(q => q.avgGap), tTto = mean(q => q.medTto), tTPO = mean(q => q.talkPerOut);
+          tGap = mean(q => q.gapWtd), tTto = mean(q => q.medTto), tTPO = mean(q => q.talkPerOut);
     const chk = (label, val, teamv, bad, fmt, note) =>
       `<div class="rp-int ${bad ? "flag" : "ok"}"><span class="rp-int-i">${bad ? "⚠" : "✓"}</span>
         <div class="rp-int-b"><div class="rp-int-t">${label}</div><div class="rp-int-n">${note}</div></div>
@@ -1314,8 +1346,8 @@
       chk("Disqualified un-worked", p.deadUnworkedPct, tDeadU,
         p.deadUnworkedPct != null && tDeadU != null && p.deadUnworkedPct > tDeadU * 1.4 && p.deadUnworked >= 3,
         v => v == null ? "—" : pct1(v), "Leads marked Bad Lead without a single dial (in coverage)"),
-      chk("Chronic under-quoting", p.avgGap, tGap,
-        p.avgGap != null && tGap != null && p.avgGap > tGap + 6 && p.avgGap > 8,
+      chk("Chronic under-quoting", p.gapWtd, tGap,
+        p.gapWtd != null && tGap != null && p.gapN >= 5 && p.gapWtd > tGap + 6 && p.gapWtd > 8,
         v => v == null ? "—" : (v > 0 ? "+" : "") + pct1(v), "Final bill runs above quote — bill-shock / dispute risk"),
       chk("Speed without substance", p.talkPerOut, tTPO,
         p.medTto != null && tTto != null && p.medTto < tTto && p.talkPerOut != null && tTPO != null && p.talkPerOut < tTPO * 0.6,
@@ -1362,7 +1394,7 @@
 
       <div class="rp-cols">
         <div class="st-card">
-          <div class="rp-cardcap">📞 Inbound from their leads — when a lead of ${esc(name.split(" ")[0])}'s called in</div>
+          <div class="rp-cardcap">📞 Inbound from their leads — when a lead of ${esc(name.split(" ")[0])}'s called in <span class="rp-alltime">all-time</span></div>
           <div class="st-kpis" style="grid-template-columns:repeat(3,1fr);margin:2px 0 10px">
             ${kpi("Calls received", RS.fmtN(c.inTotal), "from their own leads")}
             ${kpi("Answered", RS.fmtN(c.inAcc), c.inAcceptRate != null ? pct1(c.inAcceptRate) + " answer rate" : "", "st-good")}
@@ -1372,13 +1404,13 @@
           <div class="st-note" style="margin-top:8px">Avg answered call ${secH(c.avgIn)} · total talk ${secH(c.inTalk)} · <span class="st-dim">matched to their leads within the call-data window</span></div>
         </div>
         <div class="st-card">
-          <div class="rp-cardcap">☎️ Outbound — dials this rep made</div>
+          <div class="rp-cardcap">☎️ Outbound — dials this rep made <span class="rp-alltime">all-time</span></div>
           <div class="st-kpis" style="grid-template-columns:repeat(3,1fr);margin:2px 0 10px">
             ${kpi("Dials", RS.fmtN(c.outDials), "all-time (RingCentral)")}
             ${kpi("Connected", RS.fmtN(c.outConn), c.outConnRate != null ? pct1(c.outConnRate) + " connect rate" : "", "st-good")}
             ${kpi("Texts sent", RS.fmtN(c.smsOut), "outbound SMS")}
           </div>
-          <div class="st-note">Avg connected call ${secH(c.avgOut)} · total talk ${secH(c.outTalk)}</div>
+          <div class="st-note">Avg connected call ${secH(c.avgOut)} · total talk ${secH(c.outTalk)} · <span class="st-dim">RingCentral totals are lifetime — they do <b>not</b> follow the date filter above, unlike every other number on this page.</span></div>
           ${watch.length ? `<div class="rp-watch"><div class="rp-cap">Watch areas</div>${watch.slice(0, 3).map(x => x.chip).join("")}</div>` : ""}
         </div>
       </div>
