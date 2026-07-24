@@ -5,11 +5,21 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <!-- Always revalidate the SHELL. Every asset below is ?v=-busted, but index.html itself is not —
      so a cached shell keeps requesting the OLD asset versions and a deploy silently does nothing.
-     That has now bitten twice: a pre-v14 screenshot read as a live bug, and (2026-07-20) a stale
-     v28 re-added the duplicate "Other" reason client-side, undoing the very fix that had shipped.
-     The shell is ~200KB and only revalidates (304 when unchanged), so the cost is one round-trip. -->
+     That has now bitten repeatedly: a pre-v14 screenshot read as a live bug; a stale v28 re-added the
+     duplicate "Other" reason (2026-07-20); and v9/v10 margin/monthly showed empty until a forced reload.
+     GitHub Pages hard-codes `Cache-Control: max-age=600` on HTML and the meta tags below are IGNORED for
+     the document's own HTTP cache — so the REAL enforcement is sw.js, a service worker that fetches the
+     navigation document network-first (versioned ?v= assets keep their long cache). The meta tags stay as
+     a best-effort belt-and-suspenders. NOTE: the SW controls from the SECOND load after it first installs;
+     the one load right after adding it may still be stale (hard-refresh once), fresh automatically after. -->
 <meta http-equiv="Cache-Control" content="no-cache, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
+<script>
+  /* register the shell-freshness service worker (see sw.js) */
+  if ('serviceWorker' in navigator) {
+    addEventListener('load', function () { navigator.serviceWorker.register('sw.js').catch(function () {}); });
+  }
+</script>
 <title>Zip to Zip — Reporting System</title>
 <link rel="icon" type="image/png" href="logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
