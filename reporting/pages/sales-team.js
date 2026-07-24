@@ -83,7 +83,7 @@
      (r["Cal Loc Match"] != null && !+r["Cal Loc Match"]));
   const contactCell = r => {
     if (+r["Called"]) return r["TTO Biz Min"] != null ? mins(+r["TTO Biz Min"]) : "yes";
-    if (isContacted(r)) return `<span class="st-good">in call</span>`;
+    if (isContacted(r)) return `<span class="st-good" title="The customer called in and we answered — counted as contact (a call still open at export time is treated as completed).">answered ✓</span>`;
     if (isConf(r)) return `<span class="st-good" title="${+r["Conf After Horizon"] ? "Confirmed after the RingCentral export cutoff — the closing calls are past the data window" : "Confirmed — sales spoke to the customer; the call isn't in RingCentral (off-system or after the export cutoff)"}">confirmed ✓</span>`;
     if (!inWindow(r)) return `<span class="st-dim" title="This lead was created after the newest call data in the warehouse — refresh the RingCentral export to see its calls">no data yet</span>`;
     return `<span class="st-bad">no contact</span>`;
@@ -207,6 +207,8 @@
     .rp-int-n{font-size:12px;color:var(--muted);margin-top:2px}
     .rp-int-v{font-size:13px;font-weight:800;color:var(--ink);text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
     .st-hint{display:none}
+    .rp-who{font-size:14.5px;font-weight:750;color:var(--muted)}
+    .rp-who b{color:var(--ink);font-weight:820}
     /* head-of-sales assessment */
     .rp-assess{border-radius:18px;border:1px solid var(--line);box-shadow:var(--shadow);padding:20px 22px;margin-bottom:16px;background:linear-gradient(180deg,var(--panel),var(--panel-2))}
     .rp-assess.top{border-color:color-mix(in srgb,var(--brand) 55%,transparent)}
@@ -356,7 +358,8 @@
     return `<div class="st-sec">Job</div><div class="st-fin">
       ${finCard("Status", stateHtml, true)}
       ${finCard("Move date", esc(mv || "—"))}
-      ${finCard("Confirmed on", esc((j["Booked Date"] || "—").slice(0, 10)))}
+      ${j["Booked Date"] ? finCard("Confirmed on", esc(String(j["Booked Date"]).slice(0, 10)))
+                         : finCard("Confirmed", `<span class="st-dim">not yet</span>`, true)}
     </div>${cal ? `<div class="st-calrow">${cal}</div>` : `<div class="st-note" style="margin:6px 0 0">No calendar event linked.</div>`}${xfer}`;
   }
 
@@ -461,16 +464,24 @@
 
     const est = `<div class="st-sec">Estimate → actual</div>
       <div class="st-est">${estActual(j)}
-        <span style="color:var(--faint);font-size:12px;margin-left:8px">quote range ${money0(num(j["Min Quote"]))} – ${money0(num(j["Max Quote"]))} · ${j["Total CF"] != null ? RS.fmtN(Math.round(+j["Total CF"])) + " CF" : "no CF"}</span></div>`;
+        <span style="color:var(--faint);font-size:12px;margin-left:8px">${
+          num(j["Min Quote"]) != null && num(j["Max Quote"]) != null && num(j["Min Quote"]) !== num(j["Max Quote"])
+            ? `quote range ${money0(num(j["Min Quote"]))} – ${money0(num(j["Max Quote"]))} · ` : "flat quote · "
+        }${j["Total CF"] != null ? RS.fmtN(Math.round(+j["Total CF"])) + " CF" : "no CF"}</span></div>`;
 
-    const fin = `<div class="st-sec">Money summary</div><div class="st-fin">
-      ${finCard("Net cash", money0(num(j["Net Cash"])))}
-      ${finCard("Materials (upsell)", money0(num(j["Material Total"])))}
-      ${finCard("Refunded", j["Refund Total"] != null ? money0(+j["Refund Total"]) : "—")}
-      ${finCard("Sales people", esc(j["Sales People"] || j["Sales Person"] || "—"), true)}
-      ${finCard("Review", j["Review Score"] != null ? (+j["Review Score"]).toFixed(1) + "★" : "—")}
-      ${finCard("Claims", j["Claims N"] || "—")}
-    </div>`;
+    // only render the cards that actually have something — an unclosed lead used to show six
+    // empty "—" tiles.
+    const finCards = [
+      num(j["Net Cash"]) != null ? finCard("Net cash", money0(num(j["Net Cash"]))) : "",
+      num(j["Material Total"]) ? finCard("Materials (upsell)", money0(num(j["Material Total"]))) : "",
+      j["Refund Total"] != null ? finCard("Refunded", money0(+j["Refund Total"])) : "",
+      (j["Sales People"] || j["Sales Person"]) ? finCard("Sales people", esc(j["Sales People"] || j["Sales Person"]), true) : "",
+      j["Review Score"] != null ? finCard("Review", (+j["Review Score"]).toFixed(1) + "★") : "",
+      +j["Claims N"] ? finCard("Claims", j["Claims N"]) : "",
+    ].filter(Boolean).join("");
+    const fin = `<div class="st-sec">Money summary</div>` + (finCards
+      ? `<div class="st-fin">${finCards}</div>`
+      : `<div class="st-note">Nothing billed yet — this lead has no closing sheet, refund, review or claim.</div>`);
 
     const resp = `<div class="st-sec">Response</div><div class="st-fin">
       ${finCard("First contact", (+j["Called"] ? (j["TTO Biz Min"] != null ? mins(+j["TTO Biz Min"]) + " (biz)" : "called")
@@ -479,10 +490,10 @@
                          : (!inWindow(j) ? "<span class='st-dim'>no call data yet</span>" : "<span class='st-bad'>none</span>")))))}
       ${finCard("Calls out / in", (+j["Out Calls"] || 0) + " / " + (+j["In Calls"] || 0))}
       ${finCard("Answered incoming", (+j["Answered In"] || 0))}
-      ${finCard("Texts out / in", (+j["Sms Out"] || 0) + " / " + (+j["Sms In"] || 0))}
-      ${finCard("Talk time (out)", secH(j["Talk Sec Out"]))}
-      ${finCard("Dialers", esc(stripExt(j["Dialers"]) || "—"), true)}
-      ${finCard("Last touch", esc((j["Last Touch At"] || "—").slice(0, 16)), true)}
+      ${((+j["Sms Out"] || 0) + (+j["Sms In"] || 0)) ? finCard("Texts out / in", (+j["Sms Out"] || 0) + " / " + (+j["Sms In"] || 0)) : ""}
+      ${+j["Talk Sec Out"] ? finCard("Talk time (out)", secH(j["Talk Sec Out"])) : ""}
+      ${stripExt(j["Dialers"]) ? finCard("Dialers", esc(stripExt(j["Dialers"])), true) : ""}
+      ${j["Last Touch At"] ? finCard("Last touch", esc(String(j["Last Touch At"]).slice(0, 16)), true) : ""}
     </div>`;
 
     const aftermath = (d.refunds || []).length || (d.claims || []).length || (d.reviews || []).length
@@ -650,7 +661,7 @@
         </div>
         <div style="overflow-x:auto"><table class="st-tbl"><thead><tr>${dense === "compact" ? COMPACT_COLS : DETAIL_COLS}</tr></thead>
         <tbody>${people.map(dense === "compact" ? crow : drow).join("")}</tbody></table></div>
-        <div class="st-note">Click a person to open their leads in the Explorer. Booking % = confirmed ÷ qualified (the portal's canonical formula); "Confirms in period" counts by confirmed date; other columns follow the lead's created date. Branch owner excluded. Call data currently ends at the newest RingCentral export.</div>
+        <div class="st-note">Click a person to open their Rep Profile (and pin the Sales Person filter to them). Booking % = confirmed ÷ qualified (the portal's canonical formula); "Confirms in period" counts by confirmed date; other columns follow the lead's created date. Branch owner excluded. Call data currently ends at the newest RingCentral export.</div>
       </div>`;
 
     host.querySelectorAll(".st-seg button").forEach(b => b.onclick = () => { ctx.dense = b.dataset.d; renderTeam(host, ctx); });
@@ -676,9 +687,9 @@
         renderTeam(host, ctx);
       };
     });
+    // clicking a person opens THEIR profile, and pins the top Sales Person filter to them
     host.querySelectorAll("tr.click").forEach(tr => tr.onclick = () => {
-      ctx.explorerPreset = { sp: tr.dataset.sp };
-      ctx.go("explorer");
+      jumpToRepLeads(ctx, tr.dataset.sp, "rep");
     });
   }
 
@@ -893,8 +904,18 @@
       const s = (r["Source"] || "—").trim() || "—";
       (p.bySrc[s] = p.bySrc[s] || { leads: 0, conf: 0, qual: 0 });
       p.bySrc[s].leads++; if (isQual(r)) p.bySrc[s].qual++; if (isConf(r)) p.bySrc[s].conf++;
-      const mo = (r["Create Date"] || "").slice(0, 7);   // "Month" isn't in the cols contract; derive it
-      if (mo) { (p.byMonth[mo] = p.byMonth[mo] || { leads: 0, conf: 0 }).leads++; if (isConf(r)) p.byMonth[mo].conf++; }
+    });
+    // TREND: always the full history (the date filter scopes every other number on the page,
+    // but a "trend" cropped to one month is just a single bar and tells you nothing).
+    (ctx.trendRows || srcRows).forEach(r => {
+      const c = canonOf(r["Assigned"]);
+      if (excluded(c)) return;
+      const mo = (r["Create Date"] || "").slice(0, 7);
+      if (!mo) return;
+      const p = get(c);
+      (p.byMonth[mo] = p.byMonth[mo] || { leads: 0, conf: 0, qual: 0 }).leads++;
+      if (isQual(r)) p.byMonth[mo].qual++;
+      if (isConf(r)) p.byMonth[mo].conf++;
     });
     const stat = {};
     (ctx.repStats || []).forEach(r => { stat[(r["Sales Person"] || "").toLowerCase()] = r; get(r["Sales Person"] || ""); });
@@ -1031,31 +1052,46 @@
       p.leads >= ASSESS_MIN);
     reps.sort((a, b) => b.leads - a.leads || (b.call.outDials + b.call.inTotal) - (a.call.outDials + a.call.inTotal));
     if (!reps.length) { host.innerHTML = `<div class="st-card">No sales reps in the current filter.</div>`; return; }
-    if (!ctx.repSel || !reps.some(p => p.name === ctx.repSel)) ctx.repSel = reps[0].name;
+    // WHO we show = the top Sales Person filter (canonicalised). It is enforced single-select
+    // on this tab, so the newest pick wins; with nothing picked we open on the biggest book.
+    const cmap = ctx.repCanon || {};
+    const picked = [...(RS.state.multi.sales || [])]
+      .map(n => cmap[String(n).trim().toLowerCase()] || String(n).trim())
+      .filter(n => reps.some(p => p.name === n));
+    if (picked.length) {
+      ctx.repSel = picked[picked.length - 1];
+      if ((RS.state.multi.sales || new Set()).size > 1) {   // collapse to a single rep
+        const keep = new Set();
+        ctx.rows.concat(ctx.repRows || []).forEach(r => {
+          const a = (r["Assigned"] || "").trim();
+          if (a && (cmap[a.toLowerCase()] || a) === ctx.repSel) keep.add(a);
+        });
+        if (keep.size) RS.state.multi.sales = keep;
+      }
+    } else if (!ctx.repSel || !reps.some(p => p.name === ctx.repSel)) ctx.repSel = reps[0].name;
 
-    const opts = reps.map(p => `<option value="${esc(p.name)}"${p.name === ctx.repSel ? " selected" : ""}>${esc(p.name)}${p.leads ? " · " + RS.fmtN(p.leads) + " leads" : " · phone only"}${inactive(p) ? " · inactive" : ""}</option>`).join("");
     host.innerHTML = `
-      <div class="st-bar"><label style="font-weight:750;color:var(--muted);font-size:12.5px">Sales rep</label>
-        <select id="rpSel" style="min-width:260px;font-size:14px;font-weight:700">${opts}</select>
+      <div class="st-bar">
+        <span class="rp-who">Showing <b>${esc(ctx.repSel)}</b></span>
+        <span class="st-dim" style="font-size:12.5px">— pick anyone with the <b>Sales Person</b> filter at the top</span>
         <span style="flex:1"></span>
         <button class="st-chip" id="rpJump">Open their leads in Explorer →</button></div>
       <div id="rpBody"></div>`;
-    host.querySelector("#rpSel").onchange = e => { ctx.repSel = e.target.value; renderRep(host, ctx); };
-    host.querySelector("#rpJump").onclick = () => jumpToRepLeads(ctx, ctx.repSel);
+    host.querySelector("#rpJump").onclick = () => { ST_LAST_TAB = "explorer"; ctx.go("explorer"); };
     paintRep(host.querySelector("#rpBody"), book, ctx.repSel, th, teamIndex(ctx.repRows || ctx.rows));
   }
 
   // send the rep's leads to the Lead Explorer via the GLOBAL Sales Person filter (one
   // filter home — no duplicate in-page dropdown). Sets every raw Assigned alias for the
   // canonical rep, remembers the target tab, and re-renders the whole page.
-  function jumpToRepLeads(ctx, canon) {
+  function jumpToRepLeads(ctx, canon, tab) {
     const cmap = ctx.repCanon || {};
     const aliases = Object.keys(cmap).filter(k => cmap[k].toLowerCase() === canon.toLowerCase());
     const names = new Set();
     ctx.rows.forEach(r => { const a = (r["Assigned"] || "").trim(); if (a && aliases.indexOf(a.toLowerCase()) !== -1) names.add(a); });
     if (!names.size) names.add(canon);
     RS.state.multi.sales = names;
-    ST_LAST_TAB = "explorer";
+    ST_LAST_TAB = tab || "explorer";
     if (window.renderPage) window.renderPage(); else ctx.go("explorer");
   }
 
@@ -1089,7 +1125,7 @@
     const months = Object.keys(p.byMonth).sort();
     const maxM = Math.max(1, ...months.map(m => p.byMonth[m].leads));
     const TH = 92;   // chart body height
-    const trend = !months.length ? `<div class="st-note">No leads in the selected period.</div>`
+    const trend = !months.length ? `<div class="st-note">No leads on record.</div>`
       : `<div class="rp-trend">${months.map(m => {
           const d = p.byMonth[m];
           const lh = Math.max(2, Math.round(TH * d.leads / maxM));
@@ -1100,7 +1136,7 @@
               <div class="rp-mo-l" style="height:${lh}px"></div>
               <div class="rp-mo-c" style="height:${ch}px"></div></div>
             <div class="rp-mo-x">${m.slice(2)}</div></div>`;
-        }).join("")}</div>${months.length === 1 ? `<div class="st-note" style="margin-top:8px">Only one month falls in the current date range — widen it (top bar) to see the trend over time.</div>` : ""}`;
+        }).join("")}</div><div class="st-note" style="margin-top:8px">Full history — this chart deliberately ignores the date filter so the trend is always readable. Blue = leads created that month, green = how many of them confirmed.</div>`;
     const srcRows = Object.entries(p.bySrc).sort((a, b) => b[1].leads - a[1].leads).slice(0, 8)
       .map(([s, d]) => `<tr><td>${esc(s)}</td><td style="text-align:right">${RS.fmtN(d.leads)}</td>
         <td style="text-align:right">${d.qual ? pct1(100 * d.conf / d.qual) : "—"}</td></tr>`).join("");
@@ -1501,6 +1537,20 @@
           try { RS.state.multi.sales = new Set(); ctx.repRows = RS.filtered("lead_journey", all); }
           finally { RS.state.multi.sales = spSet; }
         } else ctx.repRows = ctx.rows;
+
+        // trend rows: date- AND sales-unfiltered (company/source/etc still apply) so the
+        // monthly chart always shows the full history.
+        const dF = RS.state.dateFrom, dT = RS.state.dateTo, yS = RS.state.multi.year, mS = RS.state.multi.month;
+        try {
+          RS.state.dateFrom = null; RS.state.dateTo = null;
+          RS.state.multi.year = new Set(); RS.state.multi.month = new Set();
+          if (spSet && spSet.size) RS.state.multi.sales = new Set();
+          ctx.trendRows = RS.filtered("lead_journey", all);
+        } finally {
+          RS.state.dateFrom = dF; RS.state.dateTo = dT;
+          RS.state.multi.year = yS; RS.state.multi.month = mS;
+          if (spSet && spSet.size) RS.state.multi.sales = spSet;
+        }
         // rep-stats power the canonical identity + roster status; load once, used by ALL
         // tabs (the Team tab needs it to drop Not-Active reps too).
         if (!ctx.repStats) {
