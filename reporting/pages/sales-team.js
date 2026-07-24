@@ -774,7 +774,7 @@
       const s = (r["Source"] || "—").trim() || "—";
       (p.bySrc[s] = p.bySrc[s] || { leads: 0, conf: 0, qual: 0 });
       p.bySrc[s].leads++; if (isQual(r)) p.bySrc[s].qual++; if (isConf(r)) p.bySrc[s].conf++;
-      const mo = (r["Month"] || "").slice(0, 7);
+      const mo = (r["Create Date"] || "").slice(0, 7);   // "Month" isn't in the cols contract; derive it
       if (mo) { (p.byMonth[mo] = p.byMonth[mo] || { leads: 0, conf: 0 }).leads++; if (isConf(r)) p.byMonth[mo].conf++; }
     });
     const stat = {};
