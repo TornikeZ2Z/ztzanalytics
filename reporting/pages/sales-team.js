@@ -190,6 +190,31 @@
     .rp-int-n{font-size:12px;color:var(--muted);margin-top:2px}
     .rp-int-v{font-size:13px;font-weight:800;color:var(--ink);text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
     .st-hint{display:none}
+    /* head-of-sales assessment */
+    .rp-assess{border-radius:18px;border:1px solid var(--line);box-shadow:var(--shadow);padding:20px 22px;margin-bottom:16px;background:linear-gradient(180deg,var(--panel),var(--panel-2))}
+    .rp-assess.top{border-color:color-mix(in srgb,var(--brand) 55%,transparent)}
+    .rp-assess.warn,.rp-assess.bad{border-color:color-mix(in srgb,var(--red) 45%,transparent)}
+    .rp-verdict{display:flex;align-items:center;gap:20px;margin-bottom:14px;flex-wrap:wrap}
+    .rp-vscore{display:flex;align-items:baseline;gap:4px;min-width:92px}
+    .rp-vnum{font-size:46px;font-weight:870;letter-spacing:-1.6px;color:var(--ink);font-variant-numeric:tabular-nums;line-height:1}
+    .rp-assess.top .rp-vnum{color:var(--brand-d)} .rp-assess.warn .rp-vnum,.rp-assess.bad .rp-vnum{color:var(--red)}
+    .rp-vout{font-size:14px;font-weight:750;color:var(--faint)}
+    .rp-vmeta{flex:1;min-width:240px}
+    .rp-vtitle{font-size:19px;font-weight:850;color:var(--ink);letter-spacing:-.3px;display:flex;align-items:center;gap:9px}
+    .rp-vicon{width:27px;height:27px;border-radius:8px;display:grid;place-items:center;font-size:14px;background:var(--panel-2);border:1px solid var(--line)}
+    .rp-assess.top .rp-vicon{color:var(--brand-ink);background:var(--brand);border-color:var(--brand)}
+    .rp-assess.good .rp-vicon{color:var(--brand-d);background:var(--brand-glow)}
+    .rp-assess.warn .rp-vicon,.rp-assess.bad .rp-vicon{color:var(--red);background:color-mix(in srgb,var(--red) 12%,transparent);border-color:color-mix(in srgb,var(--red) 40%,transparent)}
+    .rp-vsum{font-size:14px;color:var(--muted);margin-top:4px;font-weight:600;line-height:1.5}
+    .rp-assess-cols{display:grid;grid-template-columns:1fr 1fr 1.25fr;gap:22px;padding:15px 0 6px;border-top:1px solid var(--line)}
+    @media(max-width:900px){.rp-assess-cols{grid-template-columns:1fr}}
+    .rp-alist{margin:6px 0 0;padding-left:16px;display:grid;gap:6px}
+    .rp-alist li{font-size:12.8px;color:var(--ink);line-height:1.5}
+    .rp-alist li b{font-weight:750}
+    .rp-calc{margin-top:13px;border-top:1px dashed var(--line);padding-top:9px}
+    .rp-calc summary{font-size:12px;font-weight:750;color:var(--brand-d);cursor:pointer;list-style:none}
+    .rp-calc summary::-webkit-details-marker{display:none}
+    .rp-dist-tot td{border-top:2px solid var(--line-2)!important;font-weight:800;background:var(--panel-2)}
     .st-seg{display:inline-flex;border:1px solid var(--line-2);border-radius:10px;overflow:hidden}
     .st-seg button{appearance:none;border:0;background:var(--panel);color:var(--muted);font:inherit;font-size:12.5px;font-weight:700;padding:8px 14px;cursor:pointer}
     .st-seg button.on{background:var(--brand);color:var(--brand-ink)}
@@ -882,29 +907,31 @@
 
   /* ---- team baselines for mix-adjustment, distribution & win/leak ---- */
   const DIMS = [
-    { key: "Size of Move", label: "Size of move" },
-    { key: "CF Range", label: "Volume (CF)" },
-    { key: "Bill Range", label: "Revenue range" },
-    { key: "State", label: "State" },
-    { key: "Service Type", label: "Moving type" },
+    { key: "Size of Move", label: "Size of move", ordinal: false },
+    { key: "CF Range", label: "Volume (CF)", ordinal: true },
+    { key: "Bill Range", label: "Revenue range", ordinal: true },
+    { key: "State", label: "State", ordinal: false },
+    { key: "Service Type", label: "Moving type", ordinal: false },
   ];
   const dv = (r, k) => { const v = (r[k] == null ? "" : String(r[k])).trim(); return v || "—"; };
+  // first number in a range label, for natural (label) sorting of CF/Revenue ranges
+  const rangeNum = s => { const m = String(s).replace(/,/g, "").match(/-?\d+/); return m ? +m[0] : (s === "—" ? 1e15 : 9e14); };
+  const _segKey = r => `${dv(r, "Source")}|${dv(r, "CF Range")}|${+r["Is LD"] ? 1 : 0}|${dv(r, "Size of Move")}`;
   function teamIndex(rows) {
     const dim = {}; DIMS.forEach(d => dim[d.key] = {});
     const seg = {};              // mix-adjust segment: Source|CFRange|IsLD|Size
-    let leads = 0, qual = 0, conf = 0;
+    let leads = 0, qual = 0, dead = 0, conf = 0, conn = 0;
     rows.forEach(r => {
-      leads++; const q = isQual(r), cf = isConf(r);
-      if (q) qual++; if (cf) conf++;
+      leads++; const q = isQual(r), dd = isDead(r), cf = isConf(r), cn = !!+r["Connected"];
+      if (q) qual++; if (dd) dead++; if (cf) conf++; if (cn) conn++;
       DIMS.forEach(d => {
-        const b = (dim[d.key][dv(r, d.key)] = dim[d.key][dv(r, d.key)] || { leads: 0, qual: 0, conf: 0 });
-        b.leads++; if (q) b.qual++; if (cf) b.conf++;
+        const b = (dim[d.key][dv(r, d.key)] = dim[d.key][dv(r, d.key)] || { leads: 0, qual: 0, dead: 0, conf: 0, conn: 0 });
+        b.leads++; if (q) b.qual++; if (dd) b.dead++; if (cf) b.conf++; if (cn) b.conn++;
       });
-      const sk = `${dv(r, "Source")}|${dv(r, "CF Range")}|${+r["Is LD"] ? 1 : 0}|${dv(r, "Size of Move")}`;
-      const b = (seg[sk] = seg[sk] || { qual: 0, conf: 0 });
+      const b = (seg[_segKey(r)] = seg[_segKey(r)] || { qual: 0, conf: 0 });
       if (q) b.qual++; if (cf) b.conf++;
     });
-    return { dim, seg, leads, qual, conf, segKey: r => `${dv(r, "Source")}|${dv(r, "CF Range")}|${+r["Is LD"] ? 1 : 0}|${dv(r, "Size of Move")}` };
+    return { dim, seg, leads, qual, dead, conf, conn, segKey: _segKey };
   }
   // diverging color for (rep booking% − team booking%): green good, red bad
   function heatColor(delta) {
@@ -1002,6 +1029,41 @@
     const gap = (expRate == null || p.bookRate == null) ? null : p.bookRate - expRate;
     const gapCls = gap == null ? "" : gap >= 0 ? "st-good" : "st-bad";
     const mixMax = Math.max(expRate || 0, p.bookRate || 0, 10) * 1.18;
+    // per-segment breakdown so the calculation is fully transparent
+    const segAgg = {};
+    p.rows.forEach(r => {
+      if (!isQual(r)) return;
+      const k = team.segKey(r);
+      const a = (segAgg[k] = segAgg[k] || { qual: 0, conf: 0, label: null });
+      a.qual++; if (isConf(r)) a.conf++;
+      if (!a.label) a.label = `${dv(r, "Source")} · ${dv(r, "CF Range")} · ${+r["Is LD"] ? "LD" : "Local"} · ${dv(r, "Size of Move")}`;
+    });
+    const segList = Object.entries(segAgg).map(([k, a]) => {
+      const tb = team.seg[k]; const rate = tb && tb.qual ? tb.conf / tb.qual : 0;
+      return { label: a.label, qual: a.qual, conf: a.conf, rate, exp: a.qual * rate };
+    }).sort((x, y) => y.qual - x.qual);
+    const segTop = segList.slice(0, 8);
+    const segRest = segList.slice(8).reduce((a, s) => { a.qual += s.qual; a.conf += s.conf; a.exp += s.exp; return a; }, { qual: 0, conf: 0, exp: 0 });
+    const calcRow = s => `<tr><td>${esc(s.label)}</td>
+      <td style="text-align:right">${RS.fmtN(s.qual)}</td>
+      <td style="text-align:right">${pct1(100 * s.rate)}</td>
+      <td style="text-align:right;color:var(--muted)">${(Math.round(s.exp * 10) / 10).toFixed(1)}</td>
+      <td style="text-align:right;font-weight:700">${RS.fmtN(s.conf)}</td></tr>`;
+    const mixCalc = `<details class="rp-calc"><summary>How the expected rate is calculated ▾</summary>
+      <div class="st-note" style="margin:8px 0 10px">For every one of ${esc(name.split(" ")[0])}'s <b>${RS.fmtN(mixN)} qualified leads</b>, we take how often the <b>whole team</b> converts that exact segment (Source × Volume × Distance × Size) and add those odds up. That sum is the <b>expected confirms</b> — what an average rep would book from this exact pile of leads. Compare to what they actually booked.</div>
+      <div style="overflow-x:auto"><table class="st-tbl rp-dist"><thead><tr>
+        <th>Segment — top 8 by volume</th><th style="text-align:right">Qualified</th>
+        <th style="text-align:right">Team books</th><th style="text-align:right">Expected</th>
+        <th style="text-align:right">Actual</th></tr></thead><tbody>
+        ${segTop.map(calcRow).join("")}
+        ${segRest.qual ? `<tr><td class="st-dim">+ ${RS.fmtN(segList.length - 8)} smaller segments</td><td style="text-align:right">${RS.fmtN(segRest.qual)}</td><td style="text-align:right" class="st-dim">—</td><td style="text-align:right;color:var(--muted)">${segRest.exp.toFixed(1)}</td><td style="text-align:right;font-weight:700">${RS.fmtN(segRest.conf)}</td></tr>` : ""}
+        <tr class="rp-dist-tot"><td>Total</td>
+          <td style="text-align:right">${RS.fmtN(mixN)}</td><td></td>
+          <td style="text-align:right;font-weight:800;color:var(--muted)">${expConf.toFixed(1)}</td>
+          <td style="text-align:right;font-weight:800">${RS.fmtN(p.conf)}</td></tr>
+      </tbody></table></div>
+      <div class="st-note" style="margin-top:9px"><b>Expected rate</b> = ${expConf.toFixed(1)} expected confirms ÷ ${RS.fmtN(mixN)} qualified = <b>${pct1(expRate)}</b>. &nbsp;<b>Actual rate</b> = ${RS.fmtN(p.conf)} confirms ÷ ${RS.fmtN(mixN)} qualified = <b>${pct1(p.bookRate)}</b>. &nbsp;Difference = <b class="${gapCls}">${gap == null ? "—" : (gap >= 0 ? "+" : "−") + Math.abs(Math.round(gap * 10) / 10) + " pts</b> — this is skill above/below the leads they were dealt."}</div>
+    </details>`;
     const mixCard = mixN ? `<div class="st-card">
       <div class="rp-cardcap">🎯 Skill vs luck — mix-adjusted booking rate</div>
       <div class="rp-mix">
@@ -1014,8 +1076,84 @@
         <div class="rp-track-fill" style="width:${Math.min(100, 100 * (p.bookRate || 0) / mixMax)}%"></div>
         <div class="rp-track-mark" style="left:${Math.min(100, 100 * (expRate || 0) / mixMax)}%" title="Expected ${pct1(expRate)}"></div>
       </div>
-      <div class="st-note" style="margin-top:9px">Expected = the team's own conversion on each lead segment (Source × volume × distance × size), applied to ${esc(name.split(" ")[0])}'s exact mix. The <b>marker</b> is expected, the <b>bar</b> is actual — bar past the marker = real skill beyond the leads they were handed.</div>
+      <div class="st-note" style="margin-top:9px">The <b>marker</b> is expected, the <b>bar</b> is actual — bar past the marker = real skill beyond the leads they were handed.</div>
+      ${mixCalc}
     </div>` : "";
+
+    // ================= HEAD-OF-SALES ASSESSMENT =================
+    // per-rep mix gap (skill), computed across the whole team for ranking
+    const repMixGap = q => {
+      let e = 0, n = 0;
+      q.rows.forEach(r => { if (!isQual(r)) return; n++; const b = team.seg[team.segKey(r)]; if (b && b.qual) e += b.conf / b.qual; });
+      return (n && q.bookRate != null) ? q.bookRate - 100 * e / n : null;
+    };
+    Object.values(book).forEach(q => { if (q.__mg === undefined) q.__mg = repMixGap(q); });
+    const eligA = q => q.leads >= th.minLeads && q.name !== "Unassigned" && !EXCLUDE_SP.has(q.name.toLowerCase());
+    const good = (fn, dir) => {                 // this rep's percentile (0..1, higher = better)
+      const vals = Object.values(book).filter(eligA).map(fn).filter(v => v != null);
+      const v = fn(p);
+      if (v == null || vals.length < 4) return null;
+      return vals.filter(x => dir === "hi" ? x < v : x > v).length / vals.length;
+    };
+    const AX = [
+      { k: "Conversion skill", g: good(q => q.__mg, "hi"), w: 0.30, val: gap == null ? "—" : (gap >= 0 ? "+" : "−") + Math.abs(Math.round(gap * 10) / 10) + " pts",
+        strong: "converts above the leads they're dealt", weak: "converts below what their lead mix should yield",
+        fix: "Have them shadow a top closer and review their pitch/qualification — the leads are fine, the conversion isn't." },
+      { k: "Profit / lead", g: good(q => q.profitLead, "hi"), w: 0.22, val: money0(p.profitLead),
+        strong: "builds high-profit jobs", weak: "low profit per lead",
+        fix: "Tighten quoting & discount discipline — the revenue may be fine but the margin isn't." },
+      { k: "Quality", g: good(q => q.avgReview, "hi"), w: 0.12, val: p.avgReview != null ? p.avgReview.toFixed(1) + "★" : "—",
+        strong: "clean, well-reviewed jobs", weak: "review/claims quality risk",
+        fix: "Review their claims and over-promising on quotes — durable revenue beats booked revenue." },
+      { k: "First-call speed", g: good(q => q.medTto, "lo"), w: 0.14, val: p.medTto != null ? mins(p.medTto) : "—",
+        strong: "fast to the phone", weak: "slow to make first contact",
+        fix: "Hold them to the speed SLA — target under 30 min; slow first calls quietly lose winnable jobs." },
+      { k: "Call effort", g: good(q => q.call.outConnRate, "hi"), w: 0.14, val: p.call.outConnRate != null ? pct1(p.call.outConnRate) : "—",
+        strong: "strong phone connect rate", weak: "weak call connect / activity",
+        fix: "Put accountability on dials & connect rate — low activity is the easiest gap to close." },
+      { k: "Lead qualification", g: good(q => q.deadPct, "lo"), w: 0.08, val: pct1(p.deadPct),
+        strong: "qualifies well (low dead share)", weak: "high dead-lead share",
+        fix: "Audit their dead-lead marks — are reachable leads being written off to protect booking rate?" },
+    ];
+    let ws = 0, sc = 0; AX.forEach(a => { if (a.g != null) { sc += a.w * a.g; ws += a.w; } });
+    const score = ws ? Math.round(100 * sc / ws) : null;
+    const enough = p.leads >= Math.max(th.minLeads, 20);
+    const strongAx = AX.filter(a => a.g != null && a.g >= 0.68).sort((a, b) => b.g - a.g);
+    const weakAx = AX.filter(a => a.g != null && a.g <= 0.32).sort((a, b) => a.g - b.g);
+    let verdict, vClass, vIcon;
+    if (score == null || !enough) { verdict = "Not enough data"; vClass = "dim"; vIcon = "…"; }
+    else if (score >= 75) { verdict = "Top performer"; vClass = "top"; vIcon = "★"; }
+    else if (score >= 58) { verdict = "Solid"; vClass = "good"; vIcon = "✓"; }
+    else if (score >= 42) { verdict = "Developing"; vClass = "mid"; vIcon = "◐"; }
+    else if (score >= 27) { verdict = "Needs attention"; vClass = "warn"; vIcon = "!"; }
+    else { verdict = "At risk"; vClass = "bad"; vIcon = "▲"; }
+    let summary;
+    if (score == null || !enough) summary = `Only ${RS.fmtN(p.leads)} leads in this period — widen the date range for a reliable read.`;
+    else if (strongAx[0] && weakAx[0]) summary = `Strong on ${strongAx[0].strong}${strongAx[1] ? " and " + strongAx[1].strong : ""}, but ${weakAx[0].weak}.`;
+    else if (strongAx[0]) summary = `Strong on ${strongAx[0].strong}${strongAx[1] ? " and " + strongAx[1].strong : ""} — no major weak spots.`;
+    else if (weakAx[0]) summary = `Underperforming — ${weakAx[0].weak}${weakAx[1] ? ", and " + weakAx[1].weak : ""}.`;
+    else summary = `A balanced, middle-of-the-pack profile — no standout strengths or weaknesses.`;
+    const actions = [];
+    if (AX[0].g != null && gap != null && gap > 1.5 && AX[0].g >= 0.6)
+      actions.push("<b>Feed them more volume</b> — they convert above their lead mix. Route more of their green segments (see the distribution below).");
+    weakAx.slice(0, 3).forEach(a => actions.push(a.fix));
+    if (!actions.length) actions.push("Hold steady — no red flags. Keep the lead flow and current coaching; revisit next month for trend.");
+    const bullets = (arr, fn) => arr.length ? `<ul class="rp-alist">${arr.map(fn).join("")}</ul>` : `<div class="st-dim" style="font-size:12.5px">—</div>`;
+    const assessCard = `<div class="rp-assess ${vClass}">
+      <div class="rp-verdict">
+        <div class="rp-vscore"><div class="rp-vnum">${score == null ? "—" : score}</div><div class="rp-vout">/ 100</div></div>
+        <div class="rp-vmeta">
+          <div class="rp-vtitle"><span class="rp-vicon">${vIcon}</span>${esc(verdict)}</div>
+          <div class="rp-vsum">${summary}</div>
+        </div>
+      </div>
+      <div class="rp-assess-cols">
+        <div><div class="rp-cap">Doing well</div>${bullets(strongAx, a => `<li><b>${esc(a.k)}</b> — ${a.strong} <span class="st-dim">(${a.val})</span></li>`)}</div>
+        <div><div class="rp-cap">Needs work</div>${bullets(weakAx, a => `<li><b>${esc(a.k)}</b> — ${a.weak} <span class="st-dim">(${a.val})</span></li>`)}</div>
+        <div><div class="rp-cap">What I'd do</div><ul class="rp-alist">${actions.map(x => `<li>${x}</li>`).join("")}</ul></div>
+      </div>
+      <div class="st-note">Score blends conversion skill (mix-adjusted, 30%), profit/lead (22%), quality (12%), first-call speed (14%), call effort (14%) and qualification (8%), each ranked against the team. It's a starting read, not a verdict on its own — click through the panels below before acting.</div>
+    </div>`;
 
     // ---- margin & commission ----
     const marginCard = `<div class="st-card">
@@ -1029,36 +1167,65 @@
       <div class="st-note">Gross profit &amp; margin from the closing sheet.${p.commPerKProfit != null ? " Commission costs " + money0(p.commPerKProfit) + " per $1k of gross profit." : ""}${p.avgSat != null ? " Internal satisfaction " + p.avgSat.toFixed(1) + "/10." : ""}</div>
     </div>`;
 
-    // ---- lead distribution & win/leak (item 1 + routing) ----
+    // ---- lead distribution & win/leak (full funnel per segment) ----
+    const cellNP = (n, pct) => `<td style="text-align:right">${RS.fmtN(n)}${pct != null ? ` <span class="st-dim" style="font-size:11px">${Math.round(pct)}%</span>` : ""}</td>`;
     const distTbl = d => {
       const rd = {};
-      p.rows.forEach(r => { const v = dv(r, d.key); const b = (rd[v] = rd[v] || { leads: 0, qual: 0, conf: 0 }); b.leads++; if (isQual(r)) b.qual++; if (isConf(r)) b.conf++; });
-      const rows = Object.entries(rd).sort((a, b) => b[1].leads - a[1].leads).slice(0, 8);
+      p.rows.forEach(r => {
+        const v = dv(r, d.key);
+        const b = (rd[v] = rd[v] || { leads: 0, qual: 0, dead: 0, conf: 0, conn: 0 });
+        b.leads++;
+        if (isQual(r)) b.qual++;
+        if (isDead(r)) b.dead++;
+        if (isConf(r)) b.conf++;
+        if (+r["Connected"]) b.conn++;
+      });
+      let rows = Object.entries(rd);
       if (!rows.length) return `<div class="st-note">No leads in period.</div>`;
-      return `<table class="st-tbl rp-dist"><thead><tr><th>${esc(d.label)}</th>
-        <th style="text-align:right">Leads</th><th style="text-align:right">Their mix</th>
-        <th style="text-align:right">Team mix</th><th style="text-align:right">Book % (rep / team)</th></tr></thead><tbody>` +
-        rows.map(([v, b]) => {
-          const repShare = p.leads ? 100 * b.leads / p.leads : 0;
-          const tb = (team.dim[d.key] || {})[v] || { leads: 0, qual: 0, conf: 0 };
-          const teamShare = team.leads ? 100 * tb.leads / team.leads : 0;
-          const repBook = b.qual ? 100 * b.conf / b.qual : null;
-          const teamBook = tb.qual ? 100 * tb.conf / tb.qual : null;
-          const delta = (repBook != null && teamBook != null) ? repBook - teamBook : null;
-          const over = repShare - teamShare;
-          return `<tr><td>${esc(v)}</td>
-            <td style="text-align:right">${RS.fmtN(b.leads)}</td>
-            <td style="text-align:right">${pct1(repShare)}${Math.abs(over) >= 5 ? ` <span class="${over > 0 ? "st-good" : "st-dim"}" style="font-size:10.5px">${over > 0 ? "▲" : "▼"}</span>` : ""}</td>
-            <td style="text-align:right;color:var(--faint)">${pct1(teamShare)}</td>
-            <td style="text-align:right;background:${heatColor(delta)}">${repBook != null ? pct1(repBook) : "—"}${teamBook != null ? ` <span class="st-dim" style="font-size:11px">/ ${Math.round(teamBook)}%</span>` : ""}</td></tr>`;
-        }).join("") + `</tbody></table>`;
+      // his ask: CF/Revenue ranges sort by LABEL (natural order); the rest by volume
+      rows = d.ordinal ? rows.sort((a, b) => rangeNum(a[0]) - rangeNum(b[0]))
+                       : rows.sort((a, b) => b[1].leads - a[1].leads).slice(0, 12);
+      const rowHtml = ([v, b]) => {
+        const repShare = p.leads ? 100 * b.leads / p.leads : 0;
+        const tb = (team.dim[d.key] || {})[v] || { leads: 0, qual: 0, dead: 0, conf: 0, conn: 0 };
+        const teamShare = team.leads ? 100 * tb.leads / team.leads : 0;
+        const repBook = b.qual ? 100 * b.conf / b.qual : null;
+        const teamBook = tb.qual ? 100 * tb.conf / tb.qual : null;
+        const delta = (repBook != null && teamBook != null) ? repBook - teamBook : null;
+        const over = repShare - teamShare;
+        return `<tr><td><b>${esc(v)}</b></td>
+          <td style="text-align:right">${RS.fmtN(b.leads)} <span class="st-dim" style="font-size:11px">${pct1(repShare)}${Math.abs(over) >= 5 ? ` <span class="${over > 0 ? "st-good" : "st-bad"}">${over > 0 ? "▲" : "▼"}</span>` : ""} <span style="color:var(--faint)">/ ${Math.round(teamShare)}%</span></span></td>
+          ${cellNP(b.qual, b.leads ? 100 * b.qual / b.leads : null)}
+          ${cellNP(b.dead, b.leads ? 100 * b.dead / b.leads : null)}
+          ${cellNP(b.conf, null)}
+          ${cellNP(b.conn, b.leads ? 100 * b.conn / b.leads : null)}
+          <td style="text-align:right;background:${heatColor(delta)};font-weight:750">${repBook != null ? pct1(repBook) : "—"}${teamBook != null ? ` <span class="st-dim" style="font-size:11px">/ ${Math.round(teamBook)}%</span>` : ""}</td></tr>`;
+      };
+      const t = rows.reduce((a, [, b]) => { a.leads += b.leads; a.qual += b.qual; a.dead += b.dead; a.conf += b.conf; a.conn += b.conn; return a; }, { leads: 0, qual: 0, dead: 0, conf: 0, conn: 0 });
+      const totBook = t.qual ? 100 * t.conf / t.qual : null;
+      const totRow = `<tr class="rp-dist-tot"><td>All shown</td>
+        <td style="text-align:right">${RS.fmtN(t.leads)}</td>
+        ${cellNP(t.qual, t.leads ? 100 * t.qual / t.leads : null)}
+        ${cellNP(t.dead, t.leads ? 100 * t.dead / t.leads : null)}
+        ${cellNP(t.conf, null)}
+        ${cellNP(t.conn, t.leads ? 100 * t.conn / t.leads : null)}
+        <td style="text-align:right;font-weight:800">${totBook != null ? pct1(totBook) : "—"}</td></tr>`;
+      return `<div style="overflow-x:auto"><table class="st-tbl rp-dist"><thead><tr>
+        <th>${esc(d.label)}</th>
+        <th style="text-align:right">Leads · mix rep/team</th>
+        <th style="text-align:right">Qualified</th>
+        <th style="text-align:right">Dead</th>
+        <th style="text-align:right">Confirmed</th>
+        <th style="text-align:right">Connected</th>
+        <th style="text-align:right">Book % rep/team</th>
+      </tr></thead><tbody>${rows.map(rowHtml).join("")}${totRow}</tbody></table></div>`;
     };
     const distBtns = DIMS.map((d, i) => `<button class="rp-dimbtn${i === 0 ? " on" : ""}" data-dim="${i}">${esc(d.label)}</button>`).join("");
     const distPanels = DIMS.map((d, i) => `<div class="rp-dimpanel${i === 0 ? "" : " hidden"}" data-dim="${i}">${distTbl(d)}</div>`).join("");
     const distCard = `<div class="st-card">
-      <div class="rp-cardcap">🧭 Lead distribution &amp; win/leak — where their leads come from, and how they convert vs the team</div>
+      <div class="rp-cardcap">🧭 Lead distribution &amp; win/leak — the full funnel per segment</div>
       <div class="rp-dimbar">${distBtns}</div>${distPanels}
-      <div class="st-note"><b>Their mix vs team mix</b> shows over-/under-allocation (▲ gets more of this than the team). <b>Book %</b> is shaded <span class="st-good">green where they beat</span> / <span class="st-bad">red where they leak</span> vs the team on that segment — a routing guide for who should get which leads.</div>
+      <div class="st-note">Per segment: total <b>leads</b> (with their mix % ▲/▼ vs the team's mix), how many were <b>qualified</b>, <b>dead</b>, <b>confirmed</b>, and <b>connected</b> on a call — plus <b>booking %</b> shaded <span class="st-good">green where they beat</span> / <span class="st-bad">red where they leak</span> vs the team. Percentages are of that segment's leads; booking % is confirmed ÷ qualified. This is the routing guide — send more of the green, review the red.</div>
     </div>`;
 
     // ---- integrity / anti-gaming ----
@@ -1107,6 +1274,8 @@
         </div>
         ${strengths.length ? `<div class="rp-strengths"><div class="rp-cap">Strong sides · ranked vs team</div>${strengths.slice(0, 4).map(x => x.chip).join("")}</div>` : ""}
       </div>
+
+      ${assessCard}
 
       <div class="st-kpis" style="grid-template-columns:repeat(4,1fr)">
         ${kpi("Leads received", RS.fmtN(p.leads), "in the selected period")}
