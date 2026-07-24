@@ -21,6 +21,10 @@
   // so the assessment compares each rep only against the current active team. Status comes
   // from the crew roster (fct_rep_stats); reps with no roster status are treated as active.
   const inactive = p => /not/i.test((p && p.call && p.call.status) || "");
+  // Minimum leads (in the current filter) to list & assess a rep — below this we can't
+  // read them reliably, so low-volume stragglers (estimators/support who catch a stray
+  // lead) drop off the Rep Profile instead of showing "Not enough data".
+  const ASSESS_MIN = 20;
   let ST_LAST_TAB = "team";   // remembers the active tab across a global page re-render
   const TH_KEY = "st_thresholds_v1";
   const thDefaults = { slowMin: 30, neverPct: 10, convFrac: 0.5, minLeads: 5 };
@@ -504,11 +508,12 @@
   }
 
   /* ---------------- per-person aggregation ---------------- */
-  function personStats(rows, confRows, th) {
+  function personStats(rows, confRows, th, omit) {
     const by = {};
     const add = (name, fn) => {
       const k = (name || "Unassigned").trim() || "Unassigned";
       if (excluded(k)) return;
+      if (omit && omit.has(k.toLowerCase())) return;   // Not-Active reps (from the roster)
       (by[k] = by[k] || { name: k, leads: 0, qual: 0, dead: 0, conf: 0, confEv: 0,
         contacted: 0, covered: 0, tto: [], out: 0, talk: 0, rev: 0, closed: 0, gaps: [] }).x = 1;
       fn(by[k]);
@@ -569,7 +574,7 @@
     const rev = rows.reduce((a, r) => a + (+r["Total Bill"] || 0), 0);
     const dense = ctx.dense || "detail";
 
-    const people = personStats(rows, confRows, th);
+    const people = personStats(rows, confRows, th, ctx.inactiveNames);
     const flagCell = p => {
       const f = [];
       if (p.noContactPct != null && p.noContactPct > th.neverPct) f.push(`<span class="st-flag r">${Math.round(p.noContactPct)}% NO CONTACT</span>`);
@@ -958,7 +963,7 @@
     // rep list: those with leads in the current filter OR any phone activity, active-ish first
     const reps = Object.values(book).filter(p =>
       p.name && p.name !== "Unassigned" && !excluded(p.name) && !inactive(p) &&
-      (p.leads > 0 || (p.call && (p.call.outDials + p.call.inTotal) > 0)));
+      p.leads >= ASSESS_MIN);
     reps.sort((a, b) => b.leads - a.leads || (b.call.outDials + b.call.inTotal) - (a.call.outDials + a.call.inTotal));
     if (!reps.length) { host.innerHTML = `<div class="st-card">No sales reps in the current filter.</div>`; return; }
     if (!ctx.repSel || !reps.some(p => p.name === ctx.repSel)) ctx.repSel = reps[0].name;
@@ -991,8 +996,8 @@
 
   function paintRep(host, book, name, th, team) {
     const p = book[name], c = p.call;
-    const elig = q => q.leads >= th.minLeads && !excluded(q.name) && !inactive(q);
-    const eligCall = q => (q.call.outDials + q.call.inTotal) >= 200 && !excluded(q.name) && !inactive(q);
+    const elig = q => q.leads >= ASSESS_MIN && !excluded(q.name) && !inactive(q);
+    const eligCall = q => q.leads >= ASSESS_MIN && (q.call.outDials + q.call.inTotal) >= 200 && !excluded(q.name) && !inactive(q);
     const kpi = (l, v, s, cls) => `<div class="st-kpi"><div class="l">${l}</div><div class="v ${cls || ""}">${v}</div><div class="s">${s || ""}</div></div>`;
 
     // strong sides / watch areas
@@ -1098,7 +1103,7 @@
       return (n && q.bookRate != null) ? q.bookRate - 100 * e / n : null;
     };
     Object.values(book).forEach(q => { if (q.__mg === undefined) q.__mg = repMixGap(q); });
-    const eligA = q => q.leads >= th.minLeads && q.name !== "Unassigned" && !excluded(q.name) && !inactive(q);
+    const eligA = q => q.leads >= ASSESS_MIN && q.name !== "Unassigned" && !excluded(q.name) && !inactive(q);
     const good = (fn, dir) => {                 // this rep's percentile (0..1, higher = better)
       const vals = Object.values(book).filter(eligA).map(fn).filter(v => v != null);
       const v = fn(p);
@@ -1128,7 +1133,7 @@
     ];
     let ws = 0, sc = 0; AX.forEach(a => { if (a.g != null) { sc += a.w * a.g; ws += a.w; } });
     const score = ws ? Math.round(100 * sc / ws) : null;
-    const enough = p.leads >= Math.max(th.minLeads, 20);
+    const enough = p.leads >= ASSESS_MIN;
     const strongAx = AX.filter(a => a.g != null && a.g >= 0.68).sort((a, b) => b.g - a.g);
     const weakAx = AX.filter(a => a.g != null && a.g <= 0.32).sort((a, b) => a.g - b.g);
     let verdict, vClass, vIcon;
@@ -1377,18 +1382,25 @@
         ctx.confRows = RS.filtered("lead_journey",
           all.filter(r => /^\d{4}-\d{2}-\d{2}/.test(String(r["Booked Date"] || ""))),
           { dateColumn: "Booked Date" });
-        if (k === "team") return renderTeam(hostEl, ctx);
-        if (k === "rep") {
-          if (!ctx.repStats) {
-            try {
-              const d = await fetch(ZTZ.API + "/api/fct_rep_stats?limit=200",
-                { headers: { Authorization: "Bearer " + ZTZ.getToken() } }).then(r => r.json());
-              ctx.repStats = d.rows || [];
-              ctx.repCanon = repCanonMap(ctx.repStats);
-            } catch (e) { ctx.repStats = []; ctx.repCanon = {}; }
-          }
-          return renderRep(hostEl, ctx);
+        // rep-stats power the canonical identity + roster status; load once, used by ALL
+        // tabs (the Team tab needs it to drop Not-Active reps too).
+        if (!ctx.repStats) {
+          try {
+            const d = await fetch(ZTZ.API + "/api/fct_rep_stats?limit=200",
+              { headers: { Authorization: "Bearer " + ZTZ.getToken() } }).then(r => r.json());
+            ctx.repStats = d.rows || [];
+          } catch (e) { ctx.repStats = []; }
+          ctx.repCanon = repCanonMap(ctx.repStats);
+          // every raw name (canon + aliases) that belongs to a Not-Active rep
+          ctx.inactiveNames = new Set();
+          ctx.repStats.forEach(r => {
+            if (!/not/i.test(r["Status"] || "")) return;
+            ctx.inactiveNames.add((r["Sales Person"] || "").trim().toLowerCase());
+            (r["Aliases"] || "").split(",").forEach(a => { a = a.trim().toLowerCase(); if (a) ctx.inactiveNames.add(a); });
+          });
         }
+        if (k === "team") return renderTeam(hostEl, ctx);
+        if (k === "rep") return renderRep(hostEl, ctx);
         return renderExplorer(hostEl, ctx);
       };
       paintTabs();
