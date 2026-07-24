@@ -393,8 +393,12 @@ registerPage({
         + '<div class="mf-kpi"><b>' + noCon + '</b><span>No contract data</span><small>needs a manual amount</small></div>'
         + '<div class="mf-kpi pos"><b>' + done.length.toLocaleString() + '</b><span>History</span><small>confirmed, settled within $' + MF_TOL + '</small></div></div>';
 
+      // Foreman filter is VIEW-SCOPED (his ask): the working views (Balance / Not in Balance)
+      // list only foremen with something to close; departed / settled-only foremen — who have
+      // nothing open and live only in the History — appear in the filter ONLY on the History view.
       var allF = {};
-      rows.forEach(function (r) { if (NOTCONF[r.status] || r.status === "Money Received") { if (r.forman && r.forman !== "—") allF[r.forman] = 1; } });
+      var fSrc = S.view === "history" ? done : main.concat(nib);
+      fSrc.forEach(function (r) { if (r.forman && r.forman !== "—") allF[r.forman] = 1; });
       var fmLabel = S.formen.length ? "Foremen (" + S.formen.length + ")" : "All foremen";
       var fmPop = S.fmOpen ? '<div class="mf-fmpop">' + Object.keys(allF).sort().map(function (f) {
           return '<label><input type="checkbox" data-mff="' + esc(f) + '"' + (S.formen.indexOf(f) >= 0 ? " checked" : "") + '> ' + esc(f) + "</label>";

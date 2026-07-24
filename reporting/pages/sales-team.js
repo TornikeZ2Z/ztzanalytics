@@ -574,7 +574,10 @@
     const rev = rows.reduce((a, r) => a + (+r["Total Bill"] || 0), 0);
     const dense = ctx.dense || "detail";
 
-    const people = personStats(rows, confRows, th, ctx.inactiveNames);
+    // real active reps only: drop the Unassigned bucket + low-volume stragglers, matching
+    // the Rep Profile list (inactive already removed inside personStats).
+    const people = personStats(rows, confRows, th, ctx.inactiveNames)
+      .filter(p => p.name !== "Unassigned" && p.leads >= ASSESS_MIN);
     const flagCell = p => {
       const f = [];
       if (p.noContactPct != null && p.noContactPct > th.neverPct) f.push(`<span class="st-flag r">${Math.round(p.noContactPct)}% NO CONTACT</span>`);
