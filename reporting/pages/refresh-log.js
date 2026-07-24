@@ -350,7 +350,13 @@ registerPage({
       run.disabled = true;
       msg.innerHTML = `<span class="rl-dot run"></span>Starting…`;
       try {
-        const r = await ZTZ.api("/api/_refresh_run", { method: "POST" });
+        // ZTZ.api() is GET-only (it takes just a path), so POST with raw fetch.
+        const resp = await fetch(ZTZ.API + "/api/_refresh_run", {
+          method: "POST",
+          headers: { Authorization: "Bearer " + ZTZ.getToken(), "Content-Type": "application/json" },
+          body: "{}",
+        });
+        const r = await resp.json();
         msg.innerHTML = r && r.started
           ? `<span class="rl-dot ok"></span>Refresh started — this page will show it when it finishes (~15 min).`
           : `<span class="rl-dot bad"></span>${RSC.esc((r && r.error) || "Could not start the refresh.")}`;
