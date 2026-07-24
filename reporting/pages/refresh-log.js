@@ -78,6 +78,29 @@ function rlInjectStyle() {
   if (document.getElementById("rl-style")) return;
   const st = document.createElement("style"); st.id = "rl-style";
   st.textContent = `
+  .rl-bar{display:flex;gap:9px;align-items:center;flex-wrap:wrap;margin:2px 0 16px}
+  .rl-btn{font:inherit;font-size:12.5px;font-weight:700;background:var(--panel);color:var(--ink);border:1px solid var(--line-2);border-radius:10px;padding:8px 14px;cursor:pointer}
+  .rl-btn:hover:not(:disabled){border-color:var(--brand)}
+  .rl-btn.primary{background:var(--brand);color:var(--brand-ink);border-color:var(--brand)}
+  .rl-btn:disabled{opacity:.5;cursor:default}
+  .rl-runmsg{font-size:12.5px;color:var(--muted);display:inline-flex;align-items:center;gap:7px}
+  .rl-dot{width:8px;height:8px;border-radius:50%;background:var(--faint);display:inline-block;flex:none}
+  .rl-dot.ok{background:var(--brand)} .rl-dot.warn{background:var(--amber)} .rl-dot.bad{background:var(--red)}
+  .rl-dot.run{background:var(--blue);animation:rlpulse 1.1s infinite}
+  @keyframes rlpulse{0%,100%{opacity:1}50%{opacity:.25}}
+  .rl-alert{background:color-mix(in srgb,var(--red) 8%,var(--panel));border:1px solid color-mix(in srgb,var(--red) 45%,transparent);border-radius:14px;padding:14px 17px;margin-bottom:16px}
+  .rl-alert-h{font-weight:800;color:var(--red);font-size:13.5px;margin-bottom:8px}
+  .rl-alert-r{font-size:12.5px;color:var(--ink);padding:6px 0;border-top:1px solid var(--line)}
+  .rl-alert-d{color:var(--muted);font-family:ui-monospace,monospace;font-size:11.5px}
+  .rl-alert-when{font-size:11px;color:var(--faint);margin-top:3px}
+  .rl-covgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px;margin:4px 0 2px}
+  .rl-cov{background:var(--panel-2);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+  .rl-cov .lbl{font-size:11px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
+  .rl-covsub{font-weight:600;letter-spacing:0;text-transform:none;color:var(--faint)}
+  .rl-cov .rng{font-size:14px;font-weight:700;color:var(--ink);margin-top:6px;font-variant-numeric:tabular-nums}
+  .rl-cov .rng .arw{color:var(--faint);margin:0 3px}
+  .rl-cov .meta{font-size:11.5px;color:var(--muted);margin-top:5px;display:flex;align-items:center;gap:6px}
+  .rl-note{font-size:11.5px;color:var(--faint);margin-top:10px}
   .rl-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px}
   @media(max-width:820px){.rl-kpis{grid-template-columns:repeat(2,1fr)}}
   .rl-kpi{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 16px;box-shadow:var(--shadow);position:relative;overflow:hidden}
@@ -175,7 +198,40 @@ function rlSplit(p) {
     <div class="rl-split"><div class="seg raw" style="width:${rawPct.toFixed(1)}%"></div><div class="seg cur" style="width:${curPct.toFixed(1)}%"></div></div>`;
 }
 
-function rlRender(host, runs) {
+// ---- data coverage: what the warehouse actually holds right now -----------------
+function rlCoverage(cov) {
+  if (!cov) return "";
+  const S = [
+    ["leads", "Leads", "lead journey"], ["jobs", "Jobs", "closing sheets"],
+    ["calls", "Calls & SMS", "RingCentral"], ["reviews", "Reviews", "review events"],
+  ];
+  const cards = S.map(([k, lbl, sub]) => {
+    const c = cov[k];
+    if (!c) return "";
+    const to = String(c.to || "").slice(0, 10), from = String(c.from || "").slice(0, 10);
+    // how stale is the newest record?
+    let age = "", cls = "";
+    if (to) {
+      const d = Math.floor((Date.now() - Date.parse(to + "T12:00:00Z")) / 864e5);
+      age = d <= 0 ? "today" : d === 1 ? "yesterday" : d + " days ago";
+      cls = d <= 2 ? "ok" : d <= 7 ? "warn" : "bad";
+    }
+    return `<div class="rl-cov">
+      <div class="lbl">${RSC.esc(lbl)} <span class="rl-covsub">${RSC.esc(sub)}</span></div>
+      <div class="rng">${RSC.esc(from || "—")} <span class="arw">→</span> <b>${RSC.esc(to || "—")}</b></div>
+      <div class="meta"><span class="rl-dot ${cls}"></span>newest ${RSC.esc(age || "—")} · ${Number(c.rows || 0).toLocaleString()} rows</div>
+    </div>`;
+  }).join("");
+  if (!cards) return "";
+  return `<div class="rl-card">
+    <div class="rl-hhead"><span class="rl-htitle">Data on hand</span>
+      <span class="rl-hsub">what the warehouse currently covers${cov.stamped_at ? " · stamped " + RSC.esc(String(cov.stamped_at).slice(0, 16)) : ""}</span></div>
+    <div class="rl-covgrid">${cards}</div>
+    <div class="rl-note">First → newest record in each source. "Newest" is how far the data reaches, not when it was loaded — a source can refresh successfully and still have no new records.</div>
+  </div>`;
+}
+
+function rlRender(host, runs, cov) {
   const procs = runs.map(RL.process);
   const L = procs[0];
   const kpi = (cls, lbl, val, sub) => `<div class="rl-kpi ${cls}"><div class="lbl">${lbl}</div><div class="val">${val}</div><div class="sub">${sub}</div></div>`;
@@ -223,7 +279,26 @@ function rlRender(host, runs) {
     ? `<div class="rl-sec">Earlier runs · last ${procs.length - 1}</div>` + procs.slice(1).map((p, i) => rrow(p, i + 1)).join("")
     : "";
 
-  host.innerHTML = kpis + hero + history;
+  // surface failing steps prominently — an error buried in a per-source row got missed
+  const failing = [];
+  procs.forEach(p => (p.run.steps || []).forEach(st => {
+    if (String(st.status).toLowerCase() === "error")
+      failing.push({ run: p.run.started_at, step: st.step, detail: st.detail });
+  }));
+  let alert = "";
+  if (failing.length) {
+    const byStep = {};
+    failing.forEach(f => { (byStep[f.step] = byStep[f.step] || []).push(f); });
+    alert = `<div class="rl-alert">
+      <div class="rl-alert-h">⚠ ${failing.length} failed step${failing.length === 1 ? "" : "s"} in the last ${procs.length} runs</div>
+      ${Object.entries(byStep).map(([step, list]) => `<div class="rl-alert-r">
+        <b>${RSC.esc(RL.srcLabel({ step }))}</b> — failed ${list.length}× ·
+        <span class="rl-alert-d">${RSC.esc(list[0].detail || "no detail recorded")}</span>
+        <div class="rl-alert-when">${list.map(f => RSC.esc(String(f.run).slice(0, 16))).join(" · ")}</div>
+      </div>`).join("")}
+    </div>`;
+  }
+  host.innerHTML = kpis + alert + rlCoverage(cov) + hero + history;
   host.querySelectorAll(".rl-run .rl-rhead").forEach(h => h.onclick = () => h.parentNode.classList.toggle("open"));
 }
 
@@ -236,7 +311,12 @@ registerPage({
     host.innerHTML = `<div class="rs-page-head">
         <h1>Refresh Log</h1>
         <p>How each data refresh ran — the raw source loads and the curation build, per run.
-          <span class="freshness">· read-only · the pipeline runs every 6 hours or on demand</span></p>
+          <span class="freshness">· the pipeline runs every 6 hours</span></p>
+      </div>
+      <div class="rl-bar">
+        <button class="rl-btn" id="rlReload">↻ Reload this page's data</button>
+        <button class="rl-btn primary" id="rlRun">▶ Run a refresh now</button>
+        <span class="rl-runmsg" id="rlMsg"></span>
       </div>
       <div id="rlBody"><div class="rs-loading" style="padding:26px">Loading refresh history…</div></div>`;
     const body = host.querySelector("#rlBody");
@@ -254,6 +334,30 @@ registerPage({
         (every 6 hours, or when a refresh is triggered).</div>`;
       return;
     }
-    rlRender(body, runs);
+    rlRender(body, runs, data && data.coverage);
+
+    // ---- controls -------------------------------------------------------------
+    const msg = host.querySelector("#rlMsg");
+    const reload = host.querySelector("#rlReload");
+    if (reload) reload.onclick = async () => {
+      msg.textContent = "Reloading…";
+      try { if (window.RS && RS.refresh) RS.refresh(); await renderPage(); }
+      catch (e) { msg.textContent = "Reload failed: " + (e.message || e); }
+    };
+    const run = host.querySelector("#rlRun");
+    if (run) run.onclick = async () => {
+      if (!confirm("Start a full data refresh now? It takes about 15 minutes — you can keep using the portal, and the numbers update when it finishes.")) return;
+      run.disabled = true;
+      msg.innerHTML = `<span class="rl-dot run"></span>Starting…`;
+      try {
+        const r = await ZTZ.api("/api/_refresh_run", { method: "POST" });
+        msg.innerHTML = r && r.started
+          ? `<span class="rl-dot ok"></span>Refresh started — this page will show it when it finishes (~15 min).`
+          : `<span class="rl-dot bad"></span>${RSC.esc((r && r.error) || "Could not start the refresh.")}`;
+      } catch (e) {
+        msg.innerHTML = `<span class="rl-dot bad"></span>${RSC.esc(e.message || String(e))}`;
+      }
+      setTimeout(() => { run.disabled = false; }, 30000);
+    };
   },
 });
