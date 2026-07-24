@@ -56,7 +56,7 @@ window.RS = (function () {
         "Assigned", "Status", "Status Category", "Flag", "Label", "Service Type",
         "Size of Move", "Total CF", "CF Range", "Bill Range", "Is LD", "Move Date",
         "Booked Date", "Cal Found", "Cal Event Date", "Cal Date Match", "Cal Loc Match",
-        "Avg Quote", "Called", "Connected", "In Call Window", "Contacted", "Answered In",
+        "Avg Quote", "Called", "Connected", "In Call Window", "Conf After Horizon", "Contacted", "Answered In",
         "First Contact At", "First Out At", "TTO Biz Min",
         "Speed Bucket", "First Out Extension", "Out Calls", "In Calls", "Sms Out", "Sms In",
         "Talk Sec Out", "Distinct Dialers", "Dialers", "Last Touch At", "Closed",

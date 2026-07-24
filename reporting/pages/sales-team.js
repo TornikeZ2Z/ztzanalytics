@@ -44,7 +44,12 @@
   const isConf = r => String(r["Status Category"] || "").trim() === "Confirmed";
   const isDead = r => String(r["Status Category"] || "").trim() === "Bad Lead";
   const isQual = r => !isDead(r);
-  const isContacted = r => !!+r["Contacted"] || !!+r["Called"];   // Contacted col post-rebuild; Called fallback
+  const isContacted = r => !!+r["Contacted"] || !!+r["Called"];   // RC evidence: Contacted col, Called fallback
+  // Confirmation is proof of contact ("no way to confirm without talking to them" — Tornike).
+  // A confirmed lead is REACHED even when RingCentral shows no call (it happened after the
+  // export cutoff, or on a line we don't capture). Only un-confirmed leads can be "no contact".
+  const isReached = r => isContacted(r) || isConf(r);
+  const isNeverContacted = r => inWindow(r) && !isReached(r);
   // Leads created after the newest call in the warehouse can't be judged on contact
   // (Austin Hayes case: confirmed next-day, but the RC export ends earlier).
   const inWindow = r => r["In Call Window"] == null ? true : !!+r["In Call Window"];
@@ -63,6 +68,7 @@
   const contactCell = r => {
     if (+r["Called"]) return r["TTO Biz Min"] != null ? mins(+r["TTO Biz Min"]) : "yes";
     if (isContacted(r)) return `<span class="st-good">in call</span>`;
+    if (isConf(r)) return `<span class="st-good" title="${+r["Conf After Horizon"] ? "Confirmed after the RingCentral export cutoff — the closing calls are past the data window" : "Confirmed — sales spoke to the customer; the call isn't in RingCentral (off-system or after the export cutoff)"}">confirmed ✓</span>`;
     if (!inWindow(r)) return `<span class="st-dim" title="This lead was created after the newest call data in the warehouse — refresh the RingCentral export to see its calls">no data yet</span>`;
     return `<span class="st-bad">no contact</span>`;
   };
@@ -98,6 +104,32 @@
     .st-bar select{background:var(--panel);border:1px solid var(--line);border-radius:9px;color:var(--ink);font:inherit;font-size:13px;padding:8px 10px;outline:0}
     .st-chip{appearance:none;border:1px solid var(--line);background:var(--panel);border-radius:999px;color:var(--muted);font:inherit;font-size:12.5px;font-weight:650;padding:6px 13px;cursor:pointer}
     .st-chip.on{color:var(--brand);border-color:var(--brand);background:var(--brand-glow)}
+    /* rep profile */
+    .rp-head{display:flex;gap:20px;align-items:flex-start;flex-wrap:wrap;justify-content:space-between;background:var(--panel);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);padding:16px 20px;margin-bottom:14px}
+    .rp-name{font-size:24px;font-weight:850;color:var(--ink);letter-spacing:-.4px}
+    .rp-sub{font-size:12.5px;color:var(--muted);margin-top:4px;font-weight:600}
+    .rp-strengths,.rp-watch{min-width:250px}
+    .rp-watch{margin-top:12px}
+    .rp-cap{font-size:10px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:6px}
+    .rp-str{display:flex;align-items:center;gap:8px;font-size:12.5px;padding:5px 0;border-bottom:1px dashed var(--line)}
+    .rp-str:last-child{border-bottom:0}
+    .rp-str-l{flex:1;color:var(--ink);font-weight:650}
+    .rp-str-v{font-weight:800;color:var(--brand);font-variant-numeric:tabular-nums}
+    .rp-str-r{font-size:11px;color:var(--faint);font-weight:700;min-width:64px;text-align:right}
+    .rp-watch .rp-str-v{color:var(--amber)}
+    .rp-cols{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
+    @media(max-width:900px){.rp-cols{grid-template-columns:1fr}}
+    .rp-cardcap{font-size:12px;font-weight:800;color:var(--ink);margin-bottom:8px}
+    .rp-stack{display:flex;height:14px;border-radius:7px;overflow:hidden;background:var(--panel-2);gap:1px}
+    .rp-stack>div{min-width:2px}
+    .rp-trend{display:flex;gap:5px;align-items:flex-end;height:74px;padding-top:6px;overflow-x:auto}
+    .rp-mo{display:flex;flex-direction:column;align-items:center;gap:3px;min-width:22px}
+    .rp-mo-bars{display:flex;align-items:flex-end;gap:2px;height:48px}
+    .rp-mo-l{width:7px;background:var(--blue);border-radius:2px 2px 0 0;min-height:1px}
+    .rp-mo-c{width:7px;background:var(--brand);border-radius:2px 2px 0 0;min-height:1px}
+    .rp-mo-x{font-size:9px;color:var(--faint);font-variant-numeric:tabular-nums}
+    .rp-lg{display:inline-block;width:9px;height:9px;border-radius:2px;vertical-align:middle}
+    .rp-lg-l{background:var(--blue)} .rp-lg-c{background:var(--brand)}
     .st-seg{display:inline-flex;border:1px solid var(--line-2);border-radius:10px;overflow:hidden}
     .st-seg button{appearance:none;border:0;background:var(--panel);color:var(--muted);font:inherit;font-size:12.5px;font-weight:700;padding:8px 14px;cursor:pointer}
     .st-seg button.on{background:var(--brand);color:var(--brand-ink)}
@@ -308,6 +340,7 @@
     const j = d.journey || {}, ev = d.events || [];
     const flags = [];
     if (+j["Flag Never Called"]) flags.push(`<span class="st-flag r">NO CONTACT</span>`);
+    else if (isConf(j) && !isContacted(j)) flags.push(`<span class="st-flag a" title="Confirmed, so sales did talk to them — the call just isn't in RingCentral (${+j["Conf After Horizon"] ? "confirmed after the export cutoff" : "off-system or after the cutoff"})">CALL NOT IN RC</span>`);
     if (!inWindow(j)) flags.push(`<span class="st-flag a">CREATED AFTER NEWEST CALL DATA</span>`);
     if (+j["Flag Slow First Call"]) flags.push(`<span class="st-flag a">SLOW FIRST CALL</span>`);
     if (+j["Flag Big Quote Gap"]) flags.push(`<span class="st-flag p">QUOTE GAP</span>`);
@@ -336,7 +369,8 @@
     const resp = `<div class="st-sec">Response</div><div class="st-fin">
       ${finCard("First contact", (+j["Called"] ? (j["TTO Biz Min"] != null ? mins(+j["TTO Biz Min"]) + " (biz)" : "called")
                    : (isContacted(j) ? "answered incoming"
-                      : (!inWindow(j) ? "<span class='st-dim'>no call data yet</span>" : "<span class='st-bad'>none</span>"))))}
+                      : (isConf(j) ? "<span class='st-good'>confirmed ✓</span> <span class='st-dim'>" + (+j["Conf After Horizon"] ? "call after data cutoff" : "call not in RC") + "</span>"
+                         : (!inWindow(j) ? "<span class='st-dim'>no call data yet</span>" : "<span class='st-bad'>none</span>")))))}
       ${finCard("Calls out / in", (+j["Out Calls"] || 0) + " / " + (+j["In Calls"] || 0))}
       ${finCard("Answered incoming", (+j["Answered In"] || 0))}
       ${finCard("Texts out / in", (+j["Sms Out"] || 0) + " / " + (+j["Sms In"] || 0))}
@@ -387,7 +421,7 @@
       if (isConf(r)) p.conf++;
       if (inWindow(r)) {
         p.covered++;
-        if (isContacted(r)) p.contacted++;
+        if (isReached(r)) p.contacted++;   // RC evidence OR confirmed (confirmation = contact)
       }
       if (r["TTO Biz Min"] != null) p.tto.push(+r["TTO Biz Min"]);
       p.out += +r["Out Calls"] || 0;
@@ -432,7 +466,7 @@
     const kpi = (l, v, s) => `<div class="st-kpi"><div class="l">${l}</div><div class="v">${v}</div><div class="s">${s || ""}</div></div>`;
     const medAll = median(rows.map(r => r["TTO Biz Min"]).filter(v => v != null).map(Number));
     const covered = rows.filter(inWindow);
-    const noContact = covered.length ? 100 * covered.filter(r => !isContacted(r)).length / covered.length : null;
+    const noContact = covered.length ? 100 * covered.filter(r => !isReached(r)).length / covered.length : null;
     const rev = rows.reduce((a, r) => a + (+r["Total Bill"] || 0), 0);
     const dense = ctx.dense || "detail";
 
@@ -480,7 +514,7 @@
         ${kpi("Confirmed (in period)", RS.fmtN(confRows.length), "by their confirmed date")}
         ${kpi("Booking rate", brate != null ? pct1(100 * brate) : "—", "confirmed ÷ qualified (canonical)")}
         ${kpi("Median first call", medAll != null ? mins(medAll) : "—", "business minutes")}
-        ${kpi("No contact", pct1(noContact), "of the " + RS.fmtN(covered.length) + " leads within call-data coverage")}
+        ${kpi("Never worked", pct1(noContact), "no call & not confirmed, within call-data coverage")}
         ${kpi("Revenue (closed)", money0(rev), "billed on these leads")}
       </div>
       <div class="st-card">
@@ -656,6 +690,217 @@
     paint();
   }
 
+  /* ================= Rep Profile ================= *
+   * A statistical deep-dive on ONE selected salesperson. Two lenses merged by a
+   * CANONICAL identity (the mart folds cross-system name typos like Moveboard
+   * 'Mike Greeup' -> RC 'Mike Greenup'):
+   *   Lead lens (respects the global filter bar) — funnel, speed, financials, quality.
+   *   Phone lens (all-time RingCentral) — outbound dials/connects & INBOUND received:
+   *     when a customer called and reached this rep, what happened (accepted/missed/vm).
+   * Plus a ranked "Strong sides" read comparing the rep against the whole team. */
+
+  function repCanonMap(repStats) {
+    const m = {};
+    (repStats || []).forEach(r => {
+      const c = (r["Sales Person"] || "").trim();
+      if (!c) return;
+      m[c.toLowerCase()] = c;
+      (r["Aliases"] || "").split(",").forEach(a => { a = a.trim(); if (a) m[a.toLowerCase()] = c; });
+    });
+    return m;
+  }
+
+  function repBook(ctx) {
+    const cmap = ctx.repCanon || {};
+    const canonOf = n => cmap[(n || "").trim().toLowerCase()] || (n || "").trim() || "Unassigned";
+    const by = {};
+    const get = name => (by[name] = by[name] || { name, leads: 0, qual: 0, dead: 0, conf: 0,
+      closed: 0, rev: 0, net: 0, mat: 0, tto: [], slow: 0, called: 0, reached: 0, covered: 0,
+      gaps: [], rev5: [], claims: 0, bySrc: {}, byMonth: {} });
+    ctx.rows.forEach(r => {
+      const c = canonOf(r["Assigned"]);
+      if (EXCLUDE_SP.has(c.toLowerCase())) return;
+      const p = get(c);
+      p.leads++;
+      if (isQual(r)) p.qual++;
+      if (isDead(r)) p.dead++;
+      if (isConf(r)) p.conf++;
+      if (r["Total Bill"] != null) { p.rev += +r["Total Bill"]; p.closed++; }
+      if (r["Net Cash"] != null) p.net += +r["Net Cash"];
+      if (r["Material Total"] != null) p.mat += +r["Material Total"];
+      if (r["TTO Biz Min"] != null) p.tto.push(+r["TTO Biz Min"]);
+      if (+r["Called"]) p.called++;
+      if (inWindow(r)) { p.covered++; if (isReached(r)) p.reached++; }
+      if (+r["Flag Slow First Call"]) p.slow++;
+      if (r["Bill Vs Quote Pct"] != null) p.gaps.push(+r["Bill Vs Quote Pct"]);
+      if (r["Review Score"] != null) p.rev5.push(+r["Review Score"]);
+      p.claims += +r["Claims N"] || 0;
+      const s = (r["Source"] || "—").trim() || "—";
+      (p.bySrc[s] = p.bySrc[s] || { leads: 0, conf: 0, qual: 0 });
+      p.bySrc[s].leads++; if (isQual(r)) p.bySrc[s].qual++; if (isConf(r)) p.bySrc[s].conf++;
+      const mo = (r["Month"] || "").slice(0, 7);
+      if (mo) { (p.byMonth[mo] = p.byMonth[mo] || { leads: 0, conf: 0 }).leads++; if (isConf(r)) p.byMonth[mo].conf++; }
+    });
+    const stat = {};
+    (ctx.repStats || []).forEach(r => { stat[(r["Sales Person"] || "").toLowerCase()] = r; get(r["Sales Person"] || ""); });
+    Object.values(by).forEach(p => {
+      p.deadPct = p.leads ? 100 * p.dead / p.leads : null;
+      p.bookRate = p.qual ? Math.min(100, 100 * p.conf / p.qual) : null;
+      p.medTto = median(p.tto);
+      p.revLead = p.leads ? p.rev / p.leads : 0;
+      p.upsell = p.closed ? p.mat / p.closed : 0;
+      p.avgGap = p.gaps.length ? p.gaps.reduce((a, b) => a + b, 0) / p.gaps.length : null;
+      p.avgReview = p.rev5.length ? p.rev5.reduce((a, b) => a + b, 0) / p.rev5.length : null;
+      p.slowPct = p.called ? 100 * p.slow / p.called : null;
+      const s = stat[p.name.toLowerCase()] || {};
+      const c = {
+        ext: s["Ext Label"] || null, type: s["Type"] || null, status: s["Status"] || null,
+        outDials: +s["Out Dials"] || 0, outConn: +s["Out Connected"] || 0, outTalk: +s["Out Talk Sec"] || 0,
+        inTotal: +s["In Total"] || 0, inAcc: +s["In Accepted"] || 0, inMiss: +s["In Missed"] || 0,
+        inVm: +s["In Voicemail"] || 0, inTalk: +s["In Talk Sec"] || 0, smsOut: +s["Sms Out"] || 0,
+      };
+      c.outConnRate = c.outDials ? 100 * c.outConn / c.outDials : null;
+      c.inAcceptRate = c.inTotal ? 100 * c.inAcc / c.inTotal : null;
+      c.avgOut = c.outConn ? c.outTalk / c.outConn : null;
+      c.avgIn = c.inAcc ? c.inTalk / c.inAcc : null;
+      p.call = c;
+    });
+    return by;
+  }
+
+  // rank helper: returns {rank, of, better} for a rep on a metric across eligible peers
+  function rankOn(book, name, key, dir, elig) {
+    const vals = Object.values(book).filter(elig).map(p => ({ n: p.name, v: keyVal(p, key) }))
+      .filter(x => x.v != null);
+    vals.sort((a, b) => dir === "hi" ? b.v - a.v : a.v - b.v);
+    const idx = vals.findIndex(x => x.n === name);
+    if (idx < 0) return null;
+    return { rank: idx + 1, of: vals.length, pctile: vals.length > 1 ? idx / (vals.length - 1) : 0 };
+  }
+  const keyVal = (p, key) => key.indexOf("call.") === 0 ? p.call[key.slice(5)] : p[key];
+
+  const METRICS = [
+    { key: "bookRate", dir: "hi", label: "Booking rate", fmt: v => pct1(v) },
+    { key: "medTto", dir: "lo", label: "First-call speed", fmt: v => mins(v) },
+    { key: "revLead", dir: "hi", label: "Revenue / lead", fmt: v => money0(v) },
+    { key: "upsell", dir: "hi", label: "Upsell / job", fmt: v => money0(v) },
+    { key: "avgReview", dir: "hi", label: "Review score", fmt: v => v == null ? "—" : v.toFixed(1) + "★" },
+    { key: "deadPct", dir: "lo", label: "Dead-lead share", fmt: v => pct1(v) },
+    { key: "call.inAcceptRate", dir: "hi", label: "Inbound answer rate", fmt: v => pct1(v) },
+    { key: "call.outConnRate", dir: "hi", label: "Outbound connect rate", fmt: v => pct1(v) },
+  ];
+
+  function renderRep(host, ctx) {
+    const book = repBook(ctx);
+    const th = thGet();
+    // rep list: those with leads in the current filter OR any phone activity, active-ish first
+    const reps = Object.values(book).filter(p =>
+      p.name && p.name !== "Unassigned" && !EXCLUDE_SP.has(p.name.toLowerCase()) &&
+      (p.leads > 0 || (p.call && (p.call.outDials + p.call.inTotal) > 0)));
+    reps.sort((a, b) => b.leads - a.leads || (b.call.outDials + b.call.inTotal) - (a.call.outDials + a.call.inTotal));
+    if (!reps.length) { host.innerHTML = `<div class="st-card">No sales reps in the current filter.</div>`; return; }
+    if (!ctx.repSel || !reps.some(p => p.name === ctx.repSel)) ctx.repSel = reps[0].name;
+
+    const opts = reps.map(p => `<option value="${esc(p.name)}"${p.name === ctx.repSel ? " selected" : ""}>${esc(p.name)}${p.leads ? " · " + RS.fmtN(p.leads) + " leads" : " · phone only"}</option>`).join("");
+    host.innerHTML = `
+      <div class="st-bar"><label style="font-weight:750;color:var(--muted);font-size:12.5px">Sales rep</label>
+        <select id="rpSel" style="min-width:260px;font-size:14px;font-weight:700">${opts}</select>
+        <span style="flex:1"></span>
+        <button class="st-chip" id="rpJump">Open their leads in Explorer →</button></div>
+      <div id="rpBody"></div>`;
+    host.querySelector("#rpSel").onchange = e => { ctx.repSel = e.target.value; renderRep(host, ctx); };
+    host.querySelector("#rpJump").onclick = () => { ctx.explorerPreset = { sp: ctx.repSel }; ctx.go("explorer"); };
+    paintRep(host.querySelector("#rpBody"), book, ctx.repSel, th);
+  }
+
+  function paintRep(host, book, name, th) {
+    const p = book[name], c = p.call;
+    const elig = q => q.leads >= th.minLeads;
+    const eligCall = q => (q.call.outDials + q.call.inTotal) >= 200;
+    const kpi = (l, v, s, cls) => `<div class="st-kpi"><div class="l">${l}</div><div class="v ${cls || ""}">${v}</div><div class="s">${s || ""}</div></div>`;
+
+    // strong sides / watch areas
+    const strengths = [], watch = [];
+    METRICS.forEach(m => {
+      const isCall = m.key.indexOf("call.") === 0;
+      const rk = rankOn(book, name, m.key, m.dir, isCall ? eligCall : elig);
+      if (!rk || rk.of < 4) return;
+      const v = keyVal(p, m.key);
+      if (v == null) return;
+      const chip = `<div class="rp-str"><span class="rp-str-l">${m.label}</span><span class="rp-str-v">${m.fmt(v)}</span><span class="rp-str-r">#${rk.rank} of ${rk.of}</span></div>`;
+      if (rk.pctile <= 0.34 && rk.rank <= 4) strengths.push({ chip, pctile: rk.pctile });
+      else if (rk.pctile >= 0.75) watch.push({ chip, pctile: rk.pctile });
+    });
+    strengths.sort((a, b) => a.pctile - b.pctile);
+    watch.sort((a, b) => b.pctile - a.pctile);
+
+    const inBar = c.inTotal ? `<div class="rp-stack">
+        <div style="flex:${c.inAcc};background:var(--brand)" title="Answered ${c.inAcc}"></div>
+        <div style="flex:${Math.max(0, c.inTotal - c.inAcc)};background:var(--red)" title="Not answered ${c.inMiss}"></div>
+      </div>` : "";
+    const months = Object.keys(p.byMonth).sort();
+    const maxM = Math.max(1, ...months.map(m => p.byMonth[m].leads));
+    const trend = months.length ? `<div class="rp-trend">${months.map(m => {
+      const d = p.byMonth[m];
+      return `<div class="rp-mo" title="${m}: ${d.leads} leads, ${d.conf} confirmed">
+        <div class="rp-mo-bars"><div class="rp-mo-l" style="height:${Math.round(46 * d.leads / maxM)}px"></div>
+        <div class="rp-mo-c" style="height:${Math.round(46 * d.conf / maxM)}px"></div></div>
+        <div class="rp-mo-x">${m.slice(2)}</div></div>`;
+    }).join("")}</div>` : `<div class="st-note">No leads in the selected period.</div>`;
+    const srcRows = Object.entries(p.bySrc).sort((a, b) => b[1].leads - a[1].leads).slice(0, 8)
+      .map(([s, d]) => `<tr><td>${esc(s)}</td><td style="text-align:right">${RS.fmtN(d.leads)}</td>
+        <td style="text-align:right">${d.qual ? pct1(100 * d.conf / d.qual) : "—"}</td></tr>`).join("");
+
+    host.innerHTML = `
+      <div class="rp-head">
+        <div><div class="rp-name">${esc(name)}</div>
+          <div class="rp-sub">${c.type ? esc(c.type) : "Sales Rep"}${c.status ? ` · <span class="${/not/i.test(c.status) ? "st-dim" : "st-good"}">${esc(c.status)}</span>` : ""}${c.ext && /^\d+/.test(c.ext) ? ` · ext ${esc(c.ext.match(/^\d+/)[0])}` : ""}</div></div>
+        ${strengths.length ? `<div class="rp-strengths"><div class="rp-cap">Strong sides</div>${strengths.slice(0, 4).map(x => x.chip).join("")}</div>` : ""}
+      </div>
+
+      <div class="st-kpis" style="grid-template-columns:repeat(4,1fr)">
+        ${kpi("Leads received", RS.fmtN(p.leads), "in the selected period")}
+        ${kpi("Qualified", RS.fmtN(p.qual), pct1(p.leads ? 100 * p.qual / p.leads : null) + " of received")}
+        ${kpi("Dead leads", RS.fmtN(p.dead), pct1(p.deadPct) + " of received", p.deadPct > 40 ? "st-bad" : "")}
+        ${kpi("Confirmed", RS.fmtN(p.conf), "booking rate " + (p.bookRate != null ? pct1(p.bookRate) : "—"))}
+        ${kpi("Median 1st call", p.medTto != null ? mins(p.medTto) : "—", "business time to first call")}
+        ${kpi("Revenue", money0(p.rev), money0(p.revLead) + " / lead")}
+        ${kpi("Upsell / job", money0(p.upsell), "materials on closed jobs")}
+        ${kpi("Review score", p.avgReview != null ? p.avgReview.toFixed(1) + "★" : "—", p.claims ? p.claims + " claim(s)" : "no claims")}
+      </div>
+
+      <div class="rp-cols">
+        <div class="st-card">
+          <div class="rp-cardcap">📞 Inbound from their leads — when a lead of ${esc(name.split(" ")[0])}'s called in</div>
+          <div class="st-kpis" style="grid-template-columns:repeat(3,1fr);margin:2px 0 10px">
+            ${kpi("Calls received", RS.fmtN(c.inTotal), "from their own leads")}
+            ${kpi("Answered", RS.fmtN(c.inAcc), c.inAcceptRate != null ? pct1(c.inAcceptRate) + " answer rate" : "", "st-good")}
+            ${kpi("Not answered", RS.fmtN(c.inMiss), "missed / to voicemail", c.inMiss > c.inAcc ? "st-bad" : "")}
+          </div>
+          ${inBar}
+          <div class="st-note" style="margin-top:8px">Avg answered call ${secH(c.avgIn)} · total talk ${secH(c.inTalk)} · <span class="st-dim">matched to their leads within the call-data window</span></div>
+        </div>
+        <div class="st-card">
+          <div class="rp-cardcap">☎️ Outbound — dials this rep made</div>
+          <div class="st-kpis" style="grid-template-columns:repeat(3,1fr);margin:2px 0 10px">
+            ${kpi("Dials", RS.fmtN(c.outDials), "all-time (RingCentral)")}
+            ${kpi("Connected", RS.fmtN(c.outConn), c.outConnRate != null ? pct1(c.outConnRate) + " connect rate" : "", "st-good")}
+            ${kpi("Texts sent", RS.fmtN(c.smsOut), "outbound SMS")}
+          </div>
+          <div class="st-note">Avg connected call ${secH(c.avgOut)} · total talk ${secH(c.outTalk)}</div>
+          ${watch.length ? `<div class="rp-watch"><div class="rp-cap">Watch areas</div>${watch.slice(0, 3).map(x => x.chip).join("")}</div>` : ""}
+        </div>
+      </div>
+
+      <div class="rp-cols">
+        <div class="st-card"><div class="rp-cardcap">Monthly — leads <span class="rp-lg rp-lg-l"></span> &nbsp; confirmed <span class="rp-lg rp-lg-c"></span></div>${trend}</div>
+        <div class="st-card"><div class="rp-cardcap">By source</div>
+          <table class="st-tbl" style="font-size:13px"><thead><tr><th>Source</th><th style="text-align:right">Leads</th><th style="text-align:right">Book %</th></tr></thead>
+          <tbody>${srcRows || `<tr><td colspan="3" class="st-dim">No leads in period</td></tr>`}</tbody></table>
+        </div>
+      </div>`;
+  }
+
   /* ---------------- page ---------------- */
   registerPage({
     id: "sales-command",     // NOT "sales-team" — that id is a RETIRED legacy page (old Monthly Review)
@@ -668,12 +913,13 @@
           <p>Every lead's full story — calls, texts, routing, and the money it became.
           <span class="freshness">· leads count by created date · confirmations by confirmed date</span></p></div>
         <div class="st-tabbar" id="stTabs"></div><div id="stHost"></div>`;
-      const TABS = [["team", "Team"], ["explorer", "Lead Explorer"]];
+      const TABS = [["team", "Team"], ["rep", "Rep Profile"], ["explorer", "Lead Explorer"]];
       const tabsEl = host.querySelector("#stTabs");
       const hostEl = host.querySelector("#stHost");
       let active = "team";
 
-      const ctx = { rows: [], confRows: [], explorerPreset: null, dense: "detail", go: k => go(k) };
+      const ctx = { rows: [], confRows: [], explorerPreset: null, dense: "detail",
+        repStats: null, repCanon: null, repSel: null, go: k => go(k) };
 
       const paintTabs = () => {
         tabsEl.innerHTML = TABS.map(([k, l]) => `<button class="st-tab ${k === active ? "on" : ""}" data-k="${k}">${l}</button>`).join("");
@@ -689,6 +935,17 @@
           all.filter(r => /^\d{4}-\d{2}-\d{2}/.test(String(r["Booked Date"] || ""))),
           { dateColumn: "Booked Date" });
         if (k === "team") return renderTeam(hostEl, ctx);
+        if (k === "rep") {
+          if (!ctx.repStats) {
+            try {
+              const d = await fetch(ZTZ.API + "/api/fct_rep_stats?limit=200",
+                { headers: { Authorization: "Bearer " + ZTZ.getToken() } }).then(r => r.json());
+              ctx.repStats = d.rows || [];
+              ctx.repCanon = repCanonMap(ctx.repStats);
+            } catch (e) { ctx.repStats = []; ctx.repCanon = {}; }
+          }
+          return renderRep(hostEl, ctx);
+        }
         return renderExplorer(hostEl, ctx);
       };
       paintTabs();
