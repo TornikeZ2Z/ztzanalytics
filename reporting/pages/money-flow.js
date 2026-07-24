@@ -68,6 +68,13 @@ registerPage({
         .mf-fmbtn.on{border-color:var(--brand)}
         .mf-fmpop{position:absolute;top:calc(100% + 6px);left:0;z-index:40;background:var(--panel);border:1px solid var(--line-2);border-radius:12px;box-shadow:0 10px 30px rgba(14,22,33,.14);padding:8px;min-width:340px;max-height:380px;overflow:auto}
         .mf-fmhd{font-size:11px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--faint);padding:4px 8px 8px;border-bottom:1px solid var(--line);margin-bottom:4px}
+        .mf-pager{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:12px 16px;border-top:1px solid var(--line);font-size:12.5px;color:var(--muted)}
+        .mf-pager b{color:var(--ink);font-variant-numeric:tabular-nums}
+        .mf-pgnav{display:flex;align-items:center;gap:9px}
+        .mf-pgnav span{font-weight:700;color:var(--ink);font-variant-numeric:tabular-nums;min-width:92px;text-align:center}
+        .mf-pgnav button{font:inherit;font-size:12.5px;font-weight:700;background:var(--panel);color:var(--ink);border:1px solid var(--line-2);border-radius:9px;padding:7px 14px;cursor:pointer}
+        .mf-pgnav button:hover:not(:disabled){border-color:var(--brand)}
+        .mf-pgnav button:disabled{opacity:.35;cursor:default}
         .mf-fmpop label{display:flex;gap:9px;align-items:center;font-size:13px;padding:7px 8px;border-radius:8px;cursor:pointer}
         .mf-fmpop label:hover{background:var(--panel-2)}
         .mf-fmname{flex:1;color:var(--ink);font-weight:600}
@@ -183,6 +190,7 @@ registerPage({
     });
     if (!S.dense) S.dense = "details";        // Details is the landing density (his pick)
     if (!S.fmx) S.fmx = {};
+    if (S.hpage == null) S.hpage = 0;         // History pager (2,890 settled rows = too slow to paint at once)
     if (!S.sel) S.sel = {};   // bulk-confirm ticks (event ids)
     if (!S.dateLabel) { S.dateFrom = null; S.dateTo = null; S.dateLabel = "All time"; S.dtOpen = false; }
     if (!Array.isArray(S.formen)) S.formen = [];
@@ -402,13 +410,16 @@ registerPage({
       // count each foreman's jobs in the current view (working = open jobs still to close;
       // History = settled) so the filter shows the workload at a glance.
       var allF = {};
-      var fSrc = S.view === "history" ? done : main.concat(nib);
+      // EXACTLY the current view's jobs — "Not in Balance" must list only foremen who have
+      // NIB jobs (using main+nib here leaked Balance-only foremen into the NIB filter).
+      var fSrc = S.view === "history" ? done : S.view === "nib" ? nib : main;
       fSrc.forEach(function (r) { if (r.forman && r.forman !== "—") allF[r.forman] = (allF[r.forman] || 0) + 1; });
       var fmKeys = Object.keys(allF).sort(function (a, b) { return allF[b] - allF[a] || a.localeCompare(b); });
       var fmLabel = S.formen.length ? "Foremen (" + S.formen.length + ")" : "All foremen";
       var fmHdN = fSrc.filter(function (r) { return r.forman && r.forman !== "—"; }).length;
+      var fmNoun = S.view === "history" ? " settled jobs" : S.view === "nib" ? " jobs off balance" : " jobs to close";
       var fmPop = S.fmOpen ? '<div class="mf-fmpop">'
-          + '<div class="mf-fmhd">' + fmKeys.length + ' foremen · ' + fmHdN + (S.view === "history" ? " settled jobs" : " jobs to close") + '</div>'
+          + '<div class="mf-fmhd">' + fmKeys.length + ' foremen · ' + fmHdN + fmNoun + '</div>'
           + fmKeys.map(function (f) {
               return '<label><input type="checkbox" data-mff="' + esc(f) + '"' + (S.formen.indexOf(f) >= 0 ? " checked" : "")
                 + '><span class="mf-fmname">' + esc(f) + '</span><span class="mf-fmct">' + allF[f] + '</span></label>';
@@ -668,10 +679,25 @@ registerPage({
             + "<td>" + calCell(r) + "</td>"
             + "<td>" + actionCell(r) + "</td></tr>";
         };
+        // PAGINATED (2026-07-25): painting all ~2,900 settled rows x 13 columns on every
+        // repaint made History crawl. Render one page at a time; search/sort still span
+        // the whole set, we just show a slice of the result.
+        var HPP = 150;
+        var hPages = Math.max(1, Math.ceil(cur.length / HPP));
+        if (S.hpage >= hPages) S.hpage = hPages - 1;
+        if (S.hpage < 0) S.hpage = 0;
+        var hStart = S.hpage * HPP;
+        var hSlice = cur.slice(hStart, hStart + HPP);
+        var hPager = cur.length ? '<div class="mf-pager">'
+            + '<div>Showing <b>' + (hStart + 1).toLocaleString() + "–" + Math.min(hStart + HPP, cur.length).toLocaleString()
+            + "</b> of <b>" + cur.length.toLocaleString() + "</b> settled jobs</div>"
+            + '<div class="mf-pgnav"><button id="mfHPrev"' + (S.hpage ? "" : " disabled") + ">‹ Prev</button>"
+            + "<span>Page " + (S.hpage + 1) + " of " + hPages + "</span>"
+            + '<button id="mfHNext"' + (S.hpage + 1 < hPages ? "" : " disabled") + ">Next ›</button></div></div>" : "";
         content = '<div class="mf-card">' + veil + '<div class="mf-wrap"><table class="mf-tbl fx' + (det ? " det" : "") + '">'
           + "<colgroup>" + HP.cols + "</colgroup><thead><tr>" + HP.head + "</tr></thead><tbody>"
-          + (cur.map(hRow).join("") || '<tr><td colspan="' + HP.n + '" style="color:var(--faint);padding:18px">Nothing confirmed yet.</td></tr>')
-          + "</tbody></table></div></div>";
+          + (hSlice.map(hRow).join("") || '<tr><td colspan="' + HP.n + '" style="color:var(--faint);padding:18px">Nothing confirmed yet.</td></tr>')
+          + "</tbody></table></div>" + hPager + "</div>";
       }
 
       // repainting replaces the whole table — without restoring the scroll, expanding a
@@ -891,8 +917,13 @@ registerPage({
     function wire() {
       var root = host;
       Array.prototype.forEach.call(root.querySelectorAll("[data-mfv]"), function (b) {
-        b.onclick = function () { S.view = b.getAttribute("data-mfv"); paint(); };
+        b.onclick = function () { S.view = b.getAttribute("data-mfv"); S.hpage = 0; paint(); };
       });
+      // History pager
+      var hp = root.querySelector("#mfHPrev");
+      if (hp) hp.onclick = function () { S.hpage--; paint(); var w = root.querySelector(".mf-wrap"); if (w) w.scrollTop = 0; };
+      var hn = root.querySelector("#mfHNext");
+      if (hn) hn.onclick = function () { S.hpage++; paint(); var w = root.querySelector(".mf-wrap"); if (w) w.scrollTop = 0; };
       // Overview / Details density toggle
       Array.prototype.forEach.call(root.querySelectorAll("[data-mfd]"), function (b) {
         b.onclick = function () { S.dense = b.getAttribute("data-mfd"); paint(); };
@@ -912,7 +943,7 @@ registerPage({
         };
       });
       var q = root.querySelector("#mfQ");
-      if (q) q.oninput = function () { S.q = q.value; var pos = q.selectionStart; paint(); var n2 = root.querySelector("#mfQ"); if (n2) { n2.focus(); try { n2.setSelectionRange(pos, pos); } catch (e) {} } };
+      if (q) q.oninput = function () { S.q = q.value; S.hpage = 0; var pos = q.selectionStart; paint(); var n2 = root.querySelector("#mfQ"); if (n2) { n2.focus(); try { n2.setSelectionRange(pos, pos); } catch (e) {} } };
       var db2 = root.querySelector("#mfDtBtn");
       if (db2) db2.onclick = function (e) { e.stopPropagation(); S.dtOpen = !S.dtOpen; S.fmOpen = false; paint(); };
       var dpop = root.querySelector(".mf-dtpop");
@@ -923,7 +954,7 @@ registerPage({
           S.dateFrom = b.getAttribute("data-f") || null;
           S.dateTo = b.getAttribute("data-t") || null;
           S.dateLabel = b.getAttribute("data-mfdt");
-          S.dtOpen = false; paint();
+          S.dtOpen = false; S.hpage = 0; paint();
         };
       });
       var dap = root.querySelector("#mfDtApply");
@@ -933,7 +964,7 @@ registerPage({
         var t = root.querySelector("#mfDtTo").value || null;
         S.dateFrom = f; S.dateTo = t;
         S.dateLabel = (f || t) ? ((f ? fmtD(f) : "…") + " – " + (t ? fmtD(t) : "…")) : "All time";
-        S.dtOpen = false; paint();
+        S.dtOpen = false; S.hpage = 0; paint();
       };
       var rf = root.querySelector("#mfRefresh");
       if (rf) rf.onclick = async function () { S.busy = true; paint(); await loadLive(true); S.busy = false; setLiveBadge(); paint(); };
@@ -947,10 +978,10 @@ registerPage({
           var i = S.formen.indexOf(f);
           if (cb.checked && i < 0) S.formen.push(f);
           if (!cb.checked && i >= 0) S.formen.splice(i, 1);
-          paint(); S.fmOpen = true;
+          S.hpage = 0; paint(); S.fmOpen = true;
         };
       });
-      var fc = root.querySelector("#mfFmClr"); if (fc) fc.onclick = function () { S.formen = []; S.fmOpen = false; paint(); };
+      var fc = root.querySelector("#mfFmClr"); if (fc) fc.onclick = function () { S.formen = []; S.fmOpen = false; S.hpage = 0; paint(); };
       if ((S.fmOpen || S.dtOpen) && !wire._docClose) {
         wire._docClose = true;
         document.addEventListener("click", function closeFm() {

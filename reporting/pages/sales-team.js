@@ -1,4 +1,5 @@
-/* Sales Team Command — the sales LEAD's lead-360 report (report id: sales-command).
+/* Sales Person Analysis — the sales LEAD's lead-360 report (report id: sales-command;
+   page was named "Sales Team Command" until 2026-07-25 — the ID never changes, ACLs ride on it).
    v3 (Tornike 2026-07-23 feedback round):
      - Speed/Inflow tabs REMOVED (they live as their own pages)
      - CONTACT truth: contacted = outbound call OR answered incoming ("we spoke")
@@ -1370,11 +1371,11 @@
   registerPage({
     id: "sales-command",     // NOT "sales-team" — that id is a RETIRED legacy page (old Monthly Review)
     group: "sales",
-    title: "Sales Team Command",
+    title: "Sales Person Analysis",
     async render(host) {
       injectStyle();
       host.innerHTML = `<div class="st-page">
-        <div class="rs-page-head"><h1>Sales Team Command</h1>
+        <div class="rs-page-head"><h1>Sales Person Analysis</h1>
           <p>Every lead's full story — calls, texts, routing, and the money it became.
           <span class="freshness">· leads count by created date · confirmations by confirmed date</span></p></div>
         <div class="st-tabbar" id="stTabs"></div><div id="stHost"></div></div>`;
