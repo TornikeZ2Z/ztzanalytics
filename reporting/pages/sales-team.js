@@ -11,6 +11,16 @@
 
 (() => {
   const EXCLUDE_SP = new Set(["giorgi kolbaia"]);
+  // branch owner + non-person accounts (test/training/draft/routing buckets) never count
+  // as an individual salesperson to assess.
+  const excluded = n => {
+    n = (n || "").trim().toLowerCase();
+    return !n || EXCLUDE_SP.has(n) || /\btest\b|training|draft user|yelp team|^-\d|^-\s|^test/.test(n);
+  };
+  // Not-Active (departed) reps are dropped from the Rep Profile — list AND the ranking pool,
+  // so the assessment compares each rep only against the current active team. Status comes
+  // from the crew roster (fct_rep_stats); reps with no roster status are treated as active.
+  const inactive = p => /not/i.test((p && p.call && p.call.status) || "");
   let ST_LAST_TAB = "team";   // remembers the active tab across a global page re-render
   const TH_KEY = "st_thresholds_v1";
   const thDefaults = { slowMin: 30, neverPct: 10, convFrac: 0.5, minLeads: 5 };
@@ -498,7 +508,7 @@
     const by = {};
     const add = (name, fn) => {
       const k = (name || "Unassigned").trim() || "Unassigned";
-      if (EXCLUDE_SP.has(k.toLowerCase())) return;
+      if (excluded(k)) return;
       (by[k] = by[k] || { name: k, leads: 0, qual: 0, dead: 0, conf: 0, confEv: 0,
         contacted: 0, covered: 0, tto: [], out: 0, talk: 0, rev: 0, closed: 0, gaps: [] }).x = 1;
       fn(by[k]);
@@ -812,7 +822,7 @@
       confNoClose: 0, deadUnworked: 0 });
     ctx.rows.forEach(r => {
       const c = canonOf(r["Assigned"]);
-      if (EXCLUDE_SP.has(c.toLowerCase())) return;
+      if (excluded(c)) return;
       const p = get(c);
       p.rows.push(r);
       p.leads++;
@@ -947,13 +957,13 @@
     const th = thGet();
     // rep list: those with leads in the current filter OR any phone activity, active-ish first
     const reps = Object.values(book).filter(p =>
-      p.name && p.name !== "Unassigned" && !EXCLUDE_SP.has(p.name.toLowerCase()) &&
+      p.name && p.name !== "Unassigned" && !excluded(p.name) && !inactive(p) &&
       (p.leads > 0 || (p.call && (p.call.outDials + p.call.inTotal) > 0)));
     reps.sort((a, b) => b.leads - a.leads || (b.call.outDials + b.call.inTotal) - (a.call.outDials + a.call.inTotal));
     if (!reps.length) { host.innerHTML = `<div class="st-card">No sales reps in the current filter.</div>`; return; }
     if (!ctx.repSel || !reps.some(p => p.name === ctx.repSel)) ctx.repSel = reps[0].name;
 
-    const opts = reps.map(p => `<option value="${esc(p.name)}"${p.name === ctx.repSel ? " selected" : ""}>${esc(p.name)}${p.leads ? " · " + RS.fmtN(p.leads) + " leads" : " · phone only"}</option>`).join("");
+    const opts = reps.map(p => `<option value="${esc(p.name)}"${p.name === ctx.repSel ? " selected" : ""}>${esc(p.name)}${p.leads ? " · " + RS.fmtN(p.leads) + " leads" : " · phone only"}${inactive(p) ? " · inactive" : ""}</option>`).join("");
     host.innerHTML = `
       <div class="st-bar"><label style="font-weight:750;color:var(--muted);font-size:12.5px">Sales rep</label>
         <select id="rpSel" style="min-width:260px;font-size:14px;font-weight:700">${opts}</select>
@@ -981,8 +991,8 @@
 
   function paintRep(host, book, name, th, team) {
     const p = book[name], c = p.call;
-    const elig = q => q.leads >= th.minLeads;
-    const eligCall = q => (q.call.outDials + q.call.inTotal) >= 200;
+    const elig = q => q.leads >= th.minLeads && !excluded(q.name) && !inactive(q);
+    const eligCall = q => (q.call.outDials + q.call.inTotal) >= 200 && !excluded(q.name) && !inactive(q);
     const kpi = (l, v, s, cls) => `<div class="st-kpi"><div class="l">${l}</div><div class="v ${cls || ""}">${v}</div><div class="s">${s || ""}</div></div>`;
 
     // strong sides / watch areas
@@ -1088,7 +1098,7 @@
       return (n && q.bookRate != null) ? q.bookRate - 100 * e / n : null;
     };
     Object.values(book).forEach(q => { if (q.__mg === undefined) q.__mg = repMixGap(q); });
-    const eligA = q => q.leads >= th.minLeads && q.name !== "Unassigned" && !EXCLUDE_SP.has(q.name.toLowerCase());
+    const eligA = q => q.leads >= th.minLeads && q.name !== "Unassigned" && !excluded(q.name) && !inactive(q);
     const good = (fn, dir) => {                 // this rep's percentile (0..1, higher = better)
       const vals = Object.values(book).filter(eligA).map(fn).filter(v => v != null);
       const v = fn(p);
