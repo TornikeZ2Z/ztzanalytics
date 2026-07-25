@@ -46,15 +46,46 @@ registerPage({
         .ldp-seg button i{font-style:normal;font-weight:800;font-size:11px;opacity:.75;margin-left:6px}
         .ldp-q{font:inherit;font-size:13px;background:var(--panel);color:var(--ink);border:1px solid var(--line-2);border-radius:10px;padding:8px 12px;min-width:200px}
         .ldp-sel{font:inherit;font-size:12.5px;background:var(--panel);color:var(--ink);border:1px solid var(--line-2);border-radius:10px;padding:8px 10px}
-        .ldp-card{position:relative;background:var(--panel);border:1px solid var(--line-2);border-radius:14px;overflow:hidden}
-        .ldp-wrap{overflow-x:auto}
-        .ldp-tbl{width:100%;border-collapse:collapse;font-size:13px}
-        .ldp-tbl th{font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--faint);text-align:left;padding:10px 11px;border-bottom:1px solid var(--line);white-space:nowrap;cursor:default}
-        .ldp-tbl td{padding:9px 11px;border-bottom:1px solid var(--line);vertical-align:top}
+        .ldp-card{position:relative;background:var(--panel);border:1px solid var(--line);border-radius:16px;overflow:hidden;box-shadow:var(--shadow)}
+        .ldp-wrap{overflow:auto;max-height:calc(100vh - 330px);min-height:320px}
+        .ldp-tbl{width:100%;border-collapse:separate;border-spacing:0;font-size:13px}
+        .ldp-tbl th{position:sticky;top:0;z-index:3;background:var(--panel-2);font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);text-align:left;padding:12px 13px;border-bottom:1px solid var(--line-2);white-space:nowrap;cursor:default;box-shadow:0 1px 0 var(--line-2)}
+        .ldp-tbl td{padding:11px 13px;border-bottom:1px solid var(--line);vertical-align:top}
         .ldp-tbl tbody tr:last-child td{border-bottom:0}
         .ldp-tbl .r{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
         .ldp-tbl tbody tr.ldp-row{cursor:pointer}
-        .ldp-tbl tbody tr.ldp-row:hover{background:var(--panel-2)}
+        .ldp-tbl tbody tr.ldp-row:hover{background:var(--brand-glow)}
+        /* pickup / delivery jobs + delivery status */
+        .ldp-jobs{display:flex;flex-direction:column;gap:3px;align-items:flex-start}
+        .ldp-callink{display:inline-flex;align-items:center;gap:4px;font-size:11.5px;font-weight:700;color:var(--blue);text-decoration:none;border:1px solid var(--line-2);border-radius:8px;padding:2px 8px;background:var(--panel);white-space:nowrap}
+        .ldp-callink:hover{border-color:var(--blue)}
+        .ldp-nolink{font-size:11.5px;color:var(--faint);font-weight:600}
+        .ldp-dstat{font-size:10.5px;font-weight:800;padding:1px 8px;border-radius:999px;white-space:nowrap;margin-top:1px}
+        .ldp-dstat.late{background:rgba(176,42,55,.13);color:${NEG}}
+        .ldp-dstat.up{background:rgba(28,122,74,.13);color:${POS}}
+        .ldp-dstat.open{background:var(--panel-2);color:var(--muted)}
+        .ldp-dstat.none{background:var(--panel-2);color:var(--faint)}
+        /* edit form */
+        .ldp-fgrp{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;padding:9px 12px;border:1px solid var(--line);border-radius:11px;background:var(--panel);margin-right:10px}
+        .ldp-flbl{font-size:10px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--faint);align-self:center}
+        .ldp-fgrp label{font-size:10.5px;font-weight:800;color:var(--faint);text-transform:uppercase;letter-spacing:.04em;display:flex;flex-direction:column;gap:4px}
+        .ldp-fgrp input,.ldp-fgrp select{font:inherit;font-size:12.5px;font-weight:600;text-transform:none;letter-spacing:0;color:var(--ink);padding:6px 8px;border:1px solid var(--line-2);border-radius:8px;background:var(--panel)}
+        .ldp-fgrp input:focus,.ldp-fgrp select:focus{outline:0;border-color:var(--brand)}
+        .ldp-mapbtn{font:inherit;font-size:12px;font-weight:700;padding:7px 12px;border:1px solid var(--line-2);border-radius:9px;background:var(--panel);color:var(--ink);cursor:pointer}
+        .ldp-mapbtn:hover{border-color:var(--brand)}
+        .ldp-savebtn{font:inherit;font-weight:800;font-size:12.5px;padding:9px 18px;border:0;border-radius:9px;background:var(--brand);color:var(--brand-ink);cursor:pointer;align-self:flex-end}
+        /* map modal */
+        .ldp-mapscrim{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:200;display:grid;place-items:center}
+        .ldp-mapbox{width:min(860px,94vw);background:var(--panel);border:1px solid var(--line-2);border-radius:16px;overflow:hidden;box-shadow:0 24px 60px rgba(0,0,0,.35)}
+        .ldp-maphd{display:flex;align-items:center;gap:10px;padding:13px 16px;border-bottom:1px solid var(--line)}
+        .ldp-maphd b{font-size:14.5px;color:var(--ink)}
+        .ldp-maphd span{font-size:12px;color:var(--muted);flex:1}
+        .ldp-mapx{border:0;background:none;font-size:18px;color:var(--muted);cursor:pointer}
+        .ldp-mapel{height:min(60vh,460px);width:100%}
+        .ldp-mapft{display:flex;align-items:center;gap:10px;padding:12px 16px;border-top:1px solid var(--line)}
+        .ldp-mapco{flex:1;font-size:12.5px;font-weight:700;color:var(--ink);font-variant-numeric:tabular-nums}
+        .ldp-mapclear{font:inherit;font-size:12.5px;font-weight:700;padding:8px 14px;border:1px solid var(--line-2);border-radius:9px;background:var(--panel);color:var(--ink);cursor:pointer}
+        .ldp-mapok{font:inherit;font-size:12.5px;font-weight:800;padding:8px 16px;border:0;border-radius:9px;background:var(--brand);color:var(--brand-ink);cursor:pointer}
         .ldp-pill{display:inline-block;font-size:11px;font-weight:800;padding:3px 10px;border-radius:999px;white-space:nowrap}
         .ldp-loc-store{background:rgba(28,122,74,.13);color:${POS}}
         .ldp-loc-rent{background:rgba(47,111,208,.12);color:${BLUE}}
@@ -258,6 +289,14 @@ registerPage({
         var cls = u === "Act now" ? "late" : u === "Act soon" ? "open" : u === "Missing data" ? "none" : "up";
         return '<span class="ldp-due ' + cls + '">' + esc(u || "—") + "</span>";
       };
+      function LOC_OPTS(cur) {
+        var opts = ["", "Our Storage", "Rented Storage", "Other Storage", "On Our Truck",
+                    "At Carrier", "In Transit", "Delivered Area", "Unknown"];
+        return opts.map(function (o) {
+          return '<option value="' + esc(o) + '"' + (o === cur ? " selected" : "") + ">"
+            + (o || "— derived automatically —") + "</option>";
+        }).join("");
+      }
       var body = cur.map(function (r, i) {
         var key = String(r["Sheet Row"] || i);
         var det = String(r["Location Detail"] || "");
@@ -274,7 +313,7 @@ registerPage({
               : urgPill(r) + (r["Do"] ? '<div class="ldp-det" style="max-width:230px">' + esc(r["Do"]) + "</div>" : "")) + "</td></tr>";
         var sub = "";
         if (S.open[key]) {
-          sub = '<tr class="ldp-sub"><td colspan="8">'
+          sub = '<tr class="ldp-sub"><td colspan="9">'
             + "<b>From:</b> " + esc(r["Moving From"] || "—") + " &nbsp; <b>To:</b> " + esc(r["Moving To"] || "—")
             + (r["Delivery State"] ? " (" + esc(r["Delivery State"]) + ")" : "")
             + "<br><b>Location:</b> " + esc(r["Location"]) + (det ? " — " + esc(det) : "")
@@ -287,12 +326,23 @@ registerPage({
             + (r["Do"] ? "<br><b>Do:</b> " + esc(r["Do"]) : "")
             // the PORTAL's manual planning fields — editable right here, saved with history
             + '<div style="margin-top:10px;display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end" data-ldpform="1" data-co="' + esc(r._co) + '" data-req="' + esc(r._rq) + '" data-row="' + esc(r["Sheet Row"] || "") + '">'
-            + '<label style="font-size:11px;font-weight:800;color:var(--faint)">TRIP DAYS<br><input type="number" min="1" max="60" data-ldf="trip_days" value="' + esc(r._ent.trip_days && r._ent.trip_days.value || "") + '" style="width:80px;font:inherit;padding:6px 8px;border:1px solid var(--line-2);border-radius:8px;background:var(--panel);color:var(--ink)"></label>'
-            + '<label style="font-size:11px;font-weight:800;color:var(--faint)">FINAL FAD<br><input type="date" data-ldf="final_fad" value="' + esc(r._ent.final_fad && r._ent.final_fad.value || "") + '" style="font:inherit;padding:6px 8px;border:1px solid var(--line-2);border-radius:8px;background:var(--panel);color:var(--ink)"></label>'
-            + '<label style="font-size:11px;font-weight:800;color:var(--faint)">FINAL CF<br><input type="number" min="1" max="20000" data-ldf="final_cf" value="' + esc(r._ent.final_cf && r._ent.final_cf.value || "") + '" style="width:100px;font:inherit;padding:6px 8px;border:1px solid var(--line-2);border-radius:8px;background:var(--panel);color:var(--ink)"></label>'
-            + '<button class="ldp-savebtn" style="font:inherit;font-weight:800;font-size:12.5px;padding:8px 16px;border:0;border-radius:9px;background:var(--brand);color:var(--brand-ink);cursor:pointer">Save</button>'
+            + '<div class="ldp-fgrp"><span class="ldp-flbl">Plan</span>'
+            +   '<label>Trip days<input type="number" min="1" max="60" data-ldf="trip_days" value="' + esc(r._ent.trip_days && r._ent.trip_days.value || "") + '" style="width:78px"></label>'
+            +   '<label>Final FAD<input type="date" data-ldf="final_fad" value="' + esc(r._ent.final_fad && r._ent.final_fad.value || "") + '"></label>'
+            +   '<label>Timeframe<input type="text" data-ldf="timeframe" placeholder="e.g. 7-10 business days" value="' + esc(r._ent.timeframe && r._ent.timeframe.value || "") + '" style="width:170px"></label>'
+            +   '<label>Final CF<input type="number" min="1" max="20000" data-ldf="final_cf" value="' + esc(r._ent.final_cf && r._ent.final_cf.value || "") + '" style="width:96px"></label>'
+            + '</div>'
+            + '<div class="ldp-fgrp"><span class="ldp-flbl">Where it is</span>'
+            +   '<label>Location<select data-ldf="location">' + LOC_OPTS(r._ent.location && r._ent.location.value || "") + '</select></label>'
+            +   '<label>Detail<input type="text" data-ldf="location_note" placeholder="unit / address / who has it" value="' + esc(r._ent.location_note && r._ent.location_note.value || "") + '" style="width:220px"></label>'
+            +   '<input type="hidden" data-ldf="location_lat" value="' + esc(r._ent.location_lat && r._ent.location_lat.value || "") + '">'
+            +   '<input type="hidden" data-ldf="location_lng" value="' + esc(r._ent.location_lng && r._ent.location_lng.value || "") + '">'
+            +   '<button class="ldp-mapbtn" type="button">📍 ' + ((r._ent.location_lat && r._ent.location_lat.value) ? "Move pin" : "Pin on map") + '</button>'
+            +   '<span class="ldp-pin ldp-det">' + ((r._ent.location_lat && r._ent.location_lat.value) ? esc(Number(r._ent.location_lat.value).toFixed(4)) + ", " + esc(Number(r._ent.location_lng.value).toFixed(4)) : "no pin") + '</span>'
+            + '</div>'
+            + '<button class="ldp-savebtn">Save</button>'
             + '<span class="ldp-saveinfo ldp-det">' + (function () {
-                var last = ["trip_days", "final_fad", "final_cf"].map(function (f) { return r._ent[f]; }).filter(Boolean)
+                var last = ["trip_days", "final_fad", "final_cf", "timeframe", "location", "location_note"].map(function (f) { return r._ent[f]; }).filter(Boolean)
                   .sort(function (a, b) { return String(b.at || "").localeCompare(String(a.at || "")); })[0];
                 return last ? "last set by " + esc(String(last.by || "").split("@")[0].replace("import:ld-sheet", "old sheet import")) + " · " + esc(String(last.at || "").slice(0, 16)) : "not set yet";
               })() + "</span>"
@@ -306,10 +356,10 @@ registerPage({
       }).join("");
 
       var tbl = '<div class="ldp-card"><div class="ldp-wrap"><table class="ldp-tbl"><thead><tr>'
-        + "<th>Pickup</th><th>Customer</th><th>Type</th><th>Delivering to</th><th>Location</th><th>Delivery window</th><th>Depart by</th><th>"
+        + "<th>Pickup</th><th>Customer</th><th>Type</th><th>Delivering to</th><th>Jobs &amp; status</th><th>Location</th><th>Delivery window</th><th>Depart by</th><th>"
         + (S.view === "fix" ? "What to fix" : "What to do") + "</th>"
         + "</tr></thead><tbody>"
-        + (body || '<tr><td colspan="8" style="color:var(--faint);padding:18px">Nothing here. 🎉</td></tr>')
+        + (body || '<tr><td colspan="9" style="color:var(--faint);padding:18px">No rows match — clear the filters, or the last build produced nothing.</td></tr>')
         + "</tbody></table></div>"
         + '<div class="ldp-fnote">' + (S.view === "fix"
             ? "These rows need a correction in the Long Distance sheet itself — the board can only be as clean as the sheet."
@@ -326,6 +376,81 @@ registerPage({
       var wrap1 = document.querySelector("#ldpBody .ldp-wrap");
       if (wrap1) { wrap1.scrollTop = wt; wrap1.scrollLeft = wl; }
       window.scrollTo(sx, sy);
+    }
+
+    // Map pin picker — Leaflet is fetched from the CDN the first time it is needed so the
+    // page carries no extra weight for dispatchers who never open it.
+    var _leaflet = null;
+    function loadLeaflet() {
+      if (_leaflet) return _leaflet;
+      _leaflet = new Promise(function (res, rej) {
+        if (window.L) return res(window.L);
+        var css = document.createElement("link");
+        css.rel = "stylesheet"; css.href = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
+        document.head.appendChild(css);
+        var js = document.createElement("script");
+        js.src = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js";
+        js.onload = function () { res(window.L); };
+        js.onerror = function () { rej(new Error("map library unavailable")); };
+        document.head.appendChild(js);
+      });
+      return _leaflet;
+    }
+    async function pickOnMap(box) {
+      var latI = box.querySelector('[data-ldf="location_lat"]');
+      var lngI = box.querySelector('[data-ldf="location_lng"]');
+      var pin = box.querySelector(".ldp-pin");
+      var L;
+      try { L = await loadLeaflet(); }
+      catch (e) {
+        var typed = prompt("Map couldn't load. Enter coordinates as lat, lng:",
+                           (latI.value && lngI.value) ? latI.value + ", " + lngI.value : "");
+        if (typed) {
+          var m = typed.split(",");
+          if (m.length === 2 && !isNaN(+m[0]) && !isNaN(+m[1])) {
+            latI.value = (+m[0]).toFixed(6); lngI.value = (+m[1]).toFixed(6);
+            pin.textContent = (+m[0]).toFixed(4) + ", " + (+m[1]).toFixed(4);
+          }
+        }
+        return;
+      }
+      var scrim = document.createElement("div"); scrim.className = "ldp-mapscrim";
+      scrim.innerHTML = '<div class="ldp-mapbox"><div class="ldp-maphd">'
+        + "<b>Where is this shipment?</b><span>Click the map to drop a pin</span>"
+        + '<button class="ldp-mapx" type="button">✕</button></div>'
+        + '<div class="ldp-mapel"></div>'
+        + '<div class="ldp-mapft"><span class="ldp-mapco">—</span>'
+        + '<button class="ldp-mapclear" type="button">Clear pin</button>'
+        + '<button class="ldp-mapok" type="button">Use this location</button></div></div>';
+      document.body.appendChild(scrim);
+      var lat0 = parseFloat(latI.value) || 39.5, lng0 = parseFloat(lngI.value) || -98.35;
+      var zoom = latI.value ? 11 : 4;
+      var map = L.map(scrim.querySelector(".ldp-mapel")).setView([lat0, lng0], zoom);
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+                  { maxZoom: 19, attribution: "© OpenStreetMap" }).addTo(map);
+      var marker = latI.value ? L.marker([lat0, lng0]).addTo(map) : null;
+      var chosen = latI.value ? { lat: lat0, lng: lng0 } : null;
+      var co = scrim.querySelector(".ldp-mapco");
+      if (chosen) co.textContent = chosen.lat.toFixed(5) + ", " + chosen.lng.toFixed(5);
+      map.on("click", function (e) {
+        chosen = { lat: e.latlng.lat, lng: e.latlng.lng };
+        if (marker) marker.setLatLng(e.latlng); else marker = L.marker(e.latlng).addTo(map);
+        co.textContent = chosen.lat.toFixed(5) + ", " + chosen.lng.toFixed(5);
+      });
+      setTimeout(function () { map.invalidateSize(); }, 60);
+      var close = function () { try { map.remove(); } catch (e) {} scrim.remove(); };
+      scrim.querySelector(".ldp-mapx").onclick = close;
+      scrim.onclick = function (e) { if (e.target === scrim) close(); };
+      scrim.querySelector(".ldp-mapclear").onclick = function () {
+        latI.value = ""; lngI.value = ""; pin.textContent = "no pin"; close();
+      };
+      scrim.querySelector(".ldp-mapok").onclick = function () {
+        if (chosen) {
+          latI.value = chosen.lat.toFixed(6); lngI.value = chosen.lng.toFixed(6);
+          pin.textContent = chosen.lat.toFixed(4) + ", " + chosen.lng.toFixed(4);
+        }
+        close();
+      };
     }
 
     function wire() {
@@ -345,6 +470,8 @@ registerPage({
       // the manual-fields form: Save posts ONLY what changed, each change keeps history
       Array.prototype.forEach.call(host.querySelectorAll("[data-ldpform]"), function (box) {
         box.onclick = function (e) { e.stopPropagation(); };
+        var mb = box.querySelector(".ldp-mapbtn");
+        if (mb) mb.onclick = function (e) { e.stopPropagation(); pickOnMap(box); };
         var btn = box.querySelector(".ldp-savebtn");
         if (!btn) return;
         btn.onclick = async function () {
