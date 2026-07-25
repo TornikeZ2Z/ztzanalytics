@@ -117,7 +117,7 @@ registerPage({
       var t = new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
       return rows.map(function (b) {
         var co = String(b["Company"] || ""), rq = String(b["Request #"] || "");
-        var en = entFor(co, rq, r["Sheet Row"]);
+        var en = entFor(co, rq, b["Sheet Row"]);   // `b` is the source row; `r` isn't built yet
         var r = Object.assign({}, b); r._ent = en; r._co = co; r._rq = rq;
         if (!en.trip_days && !en.final_fad && !en.final_cf) return r;  // pipeline is current
         // recompute with the SAME rules as the pipeline's _plan (src/ld_planning.py)
@@ -286,7 +286,7 @@ registerPage({
             + " &nbsp; <b>Sticker:</b> " + esc(r["Sticker"] || "—")
             + (r["Do"] ? "<br><b>Do:</b> " + esc(r["Do"]) : "")
             // the PORTAL's manual planning fields — editable right here, saved with history
-            + '<div style="margin-top:10px;display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end" data-ldpform="1" data-co="' + esc(r._co) + '" data-req="' + esc(r._rq) + '">'
+            + '<div style="margin-top:10px;display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end" data-ldpform="1" data-co="' + esc(r._co) + '" data-req="' + esc(r._rq) + '" data-row="' + esc(r["Sheet Row"] || "") + '">'
             + '<label style="font-size:11px;font-weight:800;color:var(--faint)">TRIP DAYS<br><input type="number" min="1" max="60" data-ldf="trip_days" value="' + esc(r._ent.trip_days && r._ent.trip_days.value || "") + '" style="width:80px;font:inherit;padding:6px 8px;border:1px solid var(--line-2);border-radius:8px;background:var(--panel);color:var(--ink)"></label>'
             + '<label style="font-size:11px;font-weight:800;color:var(--faint)">FINAL FAD<br><input type="date" data-ldf="final_fad" value="' + esc(r._ent.final_fad && r._ent.final_fad.value || "") + '" style="font:inherit;padding:6px 8px;border:1px solid var(--line-2);border-radius:8px;background:var(--panel);color:var(--ink)"></label>'
             + '<label style="font-size:11px;font-weight:800;color:var(--faint)">FINAL CF<br><input type="number" min="1" max="20000" data-ldf="final_cf" value="' + esc(r._ent.final_cf && r._ent.final_cf.value || "") + '" style="width:100px;font:inherit;padding:6px 8px;border:1px solid var(--line-2);border-radius:8px;background:var(--panel);color:var(--ink)"></label>'
@@ -349,7 +349,8 @@ registerPage({
         if (!btn) return;
         btn.onclick = async function () {
           var co = box.getAttribute("data-co"), rq = box.getAttribute("data-req");
-          var en = entFor(co, rq, r["Sheet Row"]);
+          var sr = box.getAttribute("data-row") || "";   // LD row identity (per-trip key)
+          var en = entFor(co, rq, sr);
           var posts = [];
           Array.prototype.forEach.call(box.querySelectorAll("[data-ldf]"), function (inp) {
             var f = inp.getAttribute("data-ldf");
@@ -365,7 +366,7 @@ registerPage({
               var res = await fetch(ZTZ.API + "/api/_ldp", {
                 method: "POST",
                 headers: { "Content-Type": "application/json", "Authorization": "Bearer " + ZTZ.getToken() },
-                body: JSON.stringify({ company: co, request_no: rq, sheet_row: r["Sheet Row"] || "",
+                body: JSON.stringify({ company: co, request_no: rq, sheet_row: sr,
                                        field: posts[i].field, value: posts[i].value }),
               });
               var j = await res.json().catch(function () { return {}; });
