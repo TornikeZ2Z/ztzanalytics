@@ -61,10 +61,10 @@ body.mr-own-time #frowDates .rs-slicer[data-key="month"]{display:none}
   <aside class="rs-side" id="side">
     <div class="search"><input type="text" id="navSearch" placeholder="Find a report…"></div>
     <div id="nav"></div>
-    <div class="foot"><b>Live company data</b><br><!-- C5: verified live Cloud Scheduler 2026-07-08: ztz-sharepoint-loader-daily = "0 */6 * * *"
-     (every 6 hours, America/New_York) — docs/deploy.md's daily-6AM note is stale.
+    <div class="foot"><b>Live company data</b><br><!-- Cloud Scheduler ztz-sharepoint-loader-daily = "0 * * * *"
+     (HOURLY, America/New_York, moved from every-6h on 2026-07-25).
      This static line is only the fallback; boot swaps in the real "Data updated:" timestamp. -->
-     <span id="footFresh">Refreshed automatically every 6 hours</span>
+     <span id="footFresh">Refreshed automatically every hour</span>
      <button id="footRefresh" title="Re-check for newer data and reload this report">↻ Refresh</button></div>
   </aside>
   <div class="rs-backdrop hidden" id="sideBackdrop"></div>
@@ -1018,7 +1018,7 @@ if (!ZTZ.getToken()) {
     buildNav();
     // C5: swap the static schedule promise for the real thing — newest "Update Date"
     // across the tables this user can see (/api/_stats, server-cached). If the endpoint
-    // is slow or errors, the "Refreshed automatically every 6 hours" fallback stays.
+    // is slow or errors, the "Refreshed automatically every hour" fallback stays.
     async function updateFooterFresh() {
       try {
         const st = await ZTZ.api("/api/_stats");
@@ -1337,9 +1337,9 @@ registerPage({
 <script src="pages/ld-planning.js?v=10"></script>
 <script src="pages/foreman-closings.js?v=9"></script>
 <script src="pages/general-settings.js?v=3"></script>
-<script src="pages/review-performance.js?v=18"></script>
+<script src="pages/review-performance.js?v=19"></script>
 <script src="pages/leads-inflow.js?v=1"></script>
 <script src="pages/speed-to-lead.js?v=6"></script>
-<script src="pages/reminders.js?v=35"></script>
+<script src="pages/reminders.js?v=36"></script>
 </body>
 </html>

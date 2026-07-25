@@ -953,11 +953,12 @@ registerPage({
       var recent = all.filter(r => supDate(r) >= cut).length;
       var fms = new Set(all.map(r => r["Foreman"]).filter(Boolean));
       var types = new Set(all.map(r => String(r["Support Intervention Type"] || "").trim()).filter(Boolean));
-      var excl = all.filter(r => num(r["Eligible"]) !== 1).length;
+      // a job can carry more than one intervention row, so rows ≠ jobs
+      var jobs = new Set(all.map(r => String(r["Job No"] || "").trim()).filter(Boolean));
       var K = [
         { l: "Interventions", v: N(all.length), s: "all time", a: 1 },
         { l: "Last 30 days", v: N(recent), s: "since " + cut },
-        { l: "Jobs excluded", v: N(excl), s: "from review eligibility" },
+        { l: "Jobs affected", v: N(jobs.size), s: "excluded from eligibility" },
         { l: "Foremen", v: N(fms.size), s: "involved" },
         { l: "Types", v: N(types.size), s: "distinct" },
         { l: "In this list", v: N(list.length), s: (RP.supType || RP.supQ.trim()) ? "after search / chip" : "no filter" },

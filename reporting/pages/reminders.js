@@ -851,7 +851,7 @@ registerPage({ id: "review-settings", group: "reviews", title: "Review URLs and 
         // table-layout:fixed reads its widths from the FIRST row — with four unsized columns the
         // 1-character chevron owned a full quarter and the reason text was ellipsised away.
         + '<div style="overflow-x:auto"><table class="rrp-reasontbl ra-ftbl"><colgroup>'
-        + '<col style="width:34%"><col style="width:78px"><col><col style="width:30px"></colgroup>'
+        + '<col style="width:34%"><col style="width:98px"><col><col style="width:30px"></colgroup>'
         + '<thead><tr><th>Foreman</th>'
         + '<th class="r">Answers</th><th>Most common reason</th><th></th></tr></thead><tbody>'
         + body + "</tbody></table></div>"
