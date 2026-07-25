@@ -14,6 +14,8 @@
              "Moving To", "Delivery State", "Location", "Location Detail", "Sticker",
              "FAD", "FAD Source", "Window End", "Timeframe", "Window Note", "Window Status",
              "Data Issue", "Issue Kind", "Carrier Driver", "Total To Carrier", "Balance Due", "CF",
+             "Pickup Event URL", "Pickup Event Date", "Delivery Event URL", "Delivery Event Date",
+             "Delivery Status", "Location Source",
              "Sibling Delivered", "Sheet Row", "Update Date",
              "Type", "Trip Days", "Depart By", "Urgency", "Urgency Reason", "Do"],
     };
@@ -289,6 +291,27 @@ registerPage({
         var cls = u === "Act now" ? "late" : u === "Act soon" ? "open" : u === "Missing data" ? "none" : "up";
         return '<span class="ldp-due ' + cls + '">' + esc(u || "—") + "</span>";
       };
+      // PICKUP / DELIVERY calendar jobs + the delivery status. A delivery event can EXIST
+      // while the goods are still with us - that is exactly what has to be visible.
+      function calLink(url, dt, label) {
+        if (!url) return '<span class="ldp-nolink">' + label + " not created</span>";
+        return '<a class="ldp-callink" href="' + esc(url) + '" target="_blank" rel="noopener"'
+          + ' onclick="event.stopPropagation()">' + label + " " + (dt ? fmtD(dt) : "open") + "</a>";
+      }
+      function dlvClass(st) {
+        st = String(st || "");
+        if (st.indexOf("passed") >= 0) return "late";
+        if (st.indexOf("booked") >= 0) return "up";
+        if (st.indexOf("cancelled") >= 0) return "none";
+        return "open";
+      }
+      function jobsCell(r) {
+        return '<div class="ldp-jobs">'
+          + calLink(r["Pickup Event URL"], r["Pickup Event Date"], "Pickup")
+          + calLink(r["Delivery Event URL"], r["Delivery Event Date"], "Delivery")
+          + '<span class="ldp-dstat ' + dlvClass(r["Delivery Status"]) + '">'
+          + esc(r["Delivery Status"] || "-") + "</span></div>";
+      }
       function LOC_OPTS(cur) {
         var opts = ["", "Our Storage", "Rented Storage", "Other Storage", "On Our Truck",
                     "At Carrier", "In Transit", "Delivered Area", "Unknown"];
@@ -305,6 +328,7 @@ registerPage({
           + "<td><b>" + esc(r["Customer"] || "—") + "</b><div class=\"ldp-det\">" + esc(String(r["Request #"] || "")) + (r["Job Code"] ? " · " + esc(String(r["Job Code"]).split(",")[0]) : "") + (r["Company"] && r["Company"] !== "Zip to Zip" ? " · " + esc(r["Company"]) : "") + "</div></td>"
           + "<td>" + esc(r["Type"] || "—") + (r["CF"] != null ? '<div class="ldp-det">' + Number(r["CF"]).toLocaleString() + " CF</div>" : "") + "</td>"
           + "<td>" + esc(String(r["Moving To"] || "—").slice(0, 40)) + "</td>"
+          + "<td>" + jobsCell(r) + "</td>"
           + "<td>" + locPill(r) + (det ? '<div class="ldp-det">' + esc(det.slice(0, 54)) + "</div>" : "") + "</td>"
           + "<td>" + windowTxt(r) + (r["Timeframe"] ? '<div class="ldp-det">timeframe: ' + esc(String(r["Timeframe"]).slice(0, 24)) + "</div>" : "") + "</td>"
           + "<td>" + fmtD(r["Depart By"]) + (r["Trip Days"] != null ? '<div class="ldp-det">' + r["Trip Days"] + "d trip</div>" : "") + "</td>"
