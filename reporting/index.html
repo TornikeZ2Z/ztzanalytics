@@ -97,7 +97,6 @@ window.registerPage = p => PAGES.push(p);
 
 /* Groups shown in the sidebar (pages register with group keys). */
 const GROUPS = [
-  { key: "settings",  title: "Settings" },
   { key: "company",   title: "Company Overview" },
   { key: "sales",     title: "Sales" },
   { key: "marketing", title: "Marketing" },
@@ -105,13 +104,22 @@ const GROUPS = [
   { key: "financial", title: "Financial" },
   { key: "reviews",   title: "Reviews" },
   { key: "support",   title: "Support" },
+  // Admin-only, and collapsed on first visit (see ADMIN_GROUPS / DEFAULT_COLLAPSED below).
+  { key: "admin",     title: "Administration" },
 ];
+
+/* Groups only administrators may see at all. */
+const ADMIN_GROUPS = new Set(["admin"]);
+/* Groups that start collapsed the first time someone opens the portal. */
+const DEFAULT_COLLAPSED = ["admin"];
 
 /* Sidebar placement is decided HERE (id -> container), overriding whatever group a page
    module registered with — so restructures never require touching 20 page files. */
 const GROUP_OVERRIDE = {
-  // Settings
-  "data-quality": "settings", "refresh-log": "settings", "source-trace": "settings", "multi-source-leads": "settings", "admin-users": "settings",
+  // Administration (admin-only, collapsed by default)
+  "data-quality": "admin", "refresh-log": "admin", "general-settings": "admin", "admin-users": "admin",
+  // Marketing — source attribution belongs with the marketing views
+  "source-trace": "marketing", "multi-source-leads": "marketing",
   // Company Overview
   "monthly-report": "company", "analysis-by-category": "company",
   // Sales ("sales-geo" moved to Financial — Tornike 2026-07-13: geography is a money view)
@@ -139,7 +147,8 @@ const NAV_ORDER = {
   "fin-revenue": 1, "fin-rr": 2, "sales-geo": 3, "financial-analysis": 4, "executive-scorecard": 5, "branch-owner": 6,
   "rev-production": 1, "review-performance": 2, "response-analysis": 3, "reviews-reminders": 4, "review-settings": 5,
   "sup-claims": 1, "sup-refunds": 2, "sup-phone": 3,
-  "data-quality": 1, "refresh-log": 1.5, "source-trace": 2, "multi-source-leads": 3, "admin-users": 4, "general-settings": 5,
+  "data-quality": 2, "refresh-log": 1, "general-settings": 3, "admin-users": 4,
+  "source-trace": 8, "multi-source-leads": 9,
 };
 
 /* Inline SVG icon set (Feather-style, stroke-based) — no emojis anywhere. */
@@ -310,7 +319,9 @@ const idOwner = id => (id && MERGED_BY_TAB[id]) ? MERGED_BY_TAB[id].id : id;
 function canSee(id) {
   if (!id || !ME) return false;
   if (ME.admin) return true;
-  if (id === "admin-users" || id === "general-settings" || id === "refresh-log") return false;
+  // everything in the Administration container is admin-only
+  if (id === "admin-users" || id === "general-settings" || id === "refresh-log"
+      || id === "data-quality") return false;
   const reports = ME.reports || [];
   if (reports.includes(id)) return true;
   // department grant: holding a department id opens ALL of its reports, incl. ones added later
@@ -736,7 +747,7 @@ const NAV_TITLES = {
   "reviews-reminders": "Send Reminders",
   "response-analysis": "Response Analysis",
   "review-settings": "Review URLs and Reasons",
-  "general-settings": "General Settings",
+  "general-settings": "General Translators",
   "rev-production": "Actual Reviews",
 };
 /* C46: hidden search keywords per nav item — old Power BI page names, singular/plural,
@@ -814,7 +825,11 @@ function buildNav() {
     const items = display.filter(p => p.search.toLowerCase().includes(q));
     const planned = PLANNED.filter(p => p.group === g.key && p.title.toLowerCase().includes(q));
     if (!items.length && !planned.length) return;
-    const collapsedSet = new Set(JSON.parse(localStorage.getItem("rsNavCollapsed") || "[]"));
+    if (ADMIN_GROUPS.has(g.key) && !(ME && ME.admin)) return;   // admin-only container
+    // first visit: the admin container starts collapsed (the key is absent from storage)
+    var _stored = localStorage.getItem("rsNavCollapsed");
+    const collapsedSet = new Set(_stored ? JSON.parse(_stored) : DEFAULT_COLLAPSED);
+    if (_stored === null) localStorage.setItem("rsNavCollapsed", JSON.stringify(DEFAULT_COLLAPSED));
     // while searching, always show matches even inside collapsed groups
     const box = RSC.el("div", "rs-group" + (!q && collapsedSet.has(g.key) ? " collapsed" : ""),
       `<div class="g-title">${g.title}<span class="g-car">▼</span></div>`);
@@ -1106,7 +1121,7 @@ const REPORT_LABELS = {
   "reviews-reminders": "Send Reminders",
   "response-analysis": "Response Analysis",
   "review-settings": "Review URLs and Reasons",
-  "general-settings": "General Settings",
+  "general-settings": "General Translators",
   // Support
   "sup-claims": "Claims",
   "sup-refunds": "Refunds & Cost of Quality",
@@ -1304,17 +1319,17 @@ registerPage({
 <script src="pages/leads-vs-moveboard.js?v=7"></script>
 <script src="pages/source-analysis.js?v=4"></script>
 <script src="pages/data-quality.js?v=4"></script>
-<script src="pages/refresh-log.js?v=3"></script>
+<script src="pages/refresh-log.js?v=4"></script>
 <script src="pages/sales-team.js?v=22"></script>
 <script src="pages/source-trace.js?v=6"></script>
-<script src="pages/multi-source-leads.js?v=2"></script>
+<script src="pages/multi-source-leads.js?v=3"></script>
 <script src="pages/calendar-coverage.js?v=7"></script>
 <script src="pages/request-consistency.js?v=3"></script>
 <script src="pages/branch-owner.js?v=6"></script>
 <script src="pages/money-flow.js?v=35"></script>
 <script src="pages/ld-planning.js?v=9"></script>
 <script src="pages/foreman-closings.js?v=9"></script>
-<script src="pages/general-settings.js?v=2"></script>
+<script src="pages/general-settings.js?v=3"></script>
 <script src="pages/review-performance.js?v=17"></script>
 <script src="pages/leads-inflow.js?v=1"></script>
 <script src="pages/speed-to-lead.js?v=6"></script>

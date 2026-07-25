@@ -63,6 +63,14 @@ registerPage({
         .msl-combo.on{background:var(--brand);border-color:var(--brand);color:var(--brand-ink)}
         .msl-combo .n{opacity:.7;font-weight:800;margin-left:5px}
         .msl-tbl{width:100%;border-collapse:collapse}
+  .msl-row{cursor:pointer}
+  .msl-row:hover td{background:var(--brand-glow)}
+  .msl-pager{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:11px 13px;border-top:1px solid var(--line);font-size:12.5px;color:var(--muted)}
+  .msl-pager b{color:var(--ink);font-variant-numeric:tabular-nums}
+  .msl-pgnav{display:flex;gap:8px}
+  .msl-pgnav button{font:inherit;font-size:12.5px;font-weight:700;background:var(--panel);color:var(--ink);border:1px solid var(--line-2);border-radius:9px;padding:7px 14px;cursor:pointer}
+  .msl-pgnav button:hover:not(:disabled){border-color:var(--brand)}
+  .msl-pgnav button:disabled{opacity:.35;cursor:default}
         .msl-tbl th,.msl-tbl td{padding:8px 12px;font-size:12.5px;text-align:left;border-bottom:1px solid var(--line)}
         .msl-tbl th{color:var(--faint);font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.04em}
         .msl-tbl tr:hover td{background:var(--panel-2)}
@@ -138,6 +146,20 @@ registerPage({
     const chip = k => `<span class="src-chip ${k.replace(/\s/g, "")}">${esc(k)}</span>`;
     const digits = s => String(s || "").replace(/[^0-9]/g, "");
 
+    // pager + row click must be (re)bound after every paint, since paintTable replaces markup
+    const wireTable = () => {
+      const pv = document.getElementById("mslPrev");
+      if (pv) pv.onclick = () => { MSL_STATE.page--; paintTable(); };
+      const nx = document.getElementById("mslNext");
+      if (nx) nx.onclick = () => { MSL_STATE.page++; paintTable(); };
+      document.querySelectorAll(".msl-row").forEach(tr => {
+        tr.onclick = () => {
+          const job = tr.getAttribute("data-job") || "";
+          if (!job || job === "—") return;
+          location.hash = "#page=source-trace&job=" + encodeURIComponent(job);
+        };
+      });
+    };
     const paintTable = () => {
       const nq = norm(MSL_STATE.q), dq = digits(MSL_STATE.q);
       let list = multi;
@@ -147,11 +169,22 @@ registerPage({
         return norm(r["Job No"]).includes(nq) || norm(r["Customer"]).includes(nq)
           || (dq.length >= 4 && digits(r["Customer Phone"]).includes(dq));
       });
+      // NEWEST first, 10 per page (his ask). The whole matched set is still searchable —
+      // only the rendered slice is capped, so the page stays fast as the data grows.
+      list = list.slice().sort((a, b) =>
+        String(b.r["Move Date"] || "").localeCompare(String(a.r["Move Date"] || "")));
+      const PER = 10;
+      const pages = Math.max(1, Math.ceil(list.length / PER));
+      if (MSL_STATE.page == null || MSL_STATE.page >= pages) MSL_STATE.page = 0;
+      if (MSL_STATE.page < 0) MSL_STATE.page = 0;
+      const start = MSL_STATE.page * PER;
+      const pageRows = list.slice(start, start + PER);
       document.getElementById("mslCount").textContent =
-        RS.fmtN(list.length) + " lead" + (list.length === 1 ? "" : "s") + (list.length > CAP ? " · showing first " + CAP : "");
-      const rowsHtml = list.slice(0, CAP).map(x => {
+        RS.fmtN(list.length) + " lead" + (list.length === 1 ? "" : "s")
+        + (list.length ? " · showing " + (start + 1) + "-" + Math.min(start + PER, list.length) : "");
+      const rowsHtml = pageRows.map(x => {
         const r = x.r;
-        return `<tr>
+        return `<tr class="msl-row" data-jk="${esc(r["Request Joinkey"] || "")}" data-job="${esc(show(r["Job No"]))}" title="Open this lead">
           <td><b>#${esc(show(r["Job No"]))}</b></td>
           <td>${esc(show(r["Customer"]))}</td>
           <td>${esc(show(r["Customer Phone"]))}</td>
@@ -165,8 +198,15 @@ registerPage({
         ? `<table class="msl-tbl"><thead><tr>
              <th>Move #</th><th>Customer</th><th>Phone</th><th>Company</th><th>Move Date</th>
              <th>Trackers that matched</th><th>Resolved source</th></tr></thead>
-           <tbody>${rowsHtml}</tbody></table>`
+           <tbody>${rowsHtml}</tbody></table>
+           ${pages > 1 ? `<div class="msl-pager">
+             <div>Page <b>${MSL_STATE.page + 1}</b> of <b>${pages}</b></div>
+             <div class="msl-pgnav">
+               <button id="mslPrev"${MSL_STATE.page ? "" : " disabled"}>‹ Prev</button>
+               <button id="mslNext"${MSL_STATE.page + 1 < pages ? "" : " disabled"}>Next ›</button>
+             </div></div>` : ""}`
         : `<div class="rs-loading" style="padding:18px">No leads match.</div>`;
+      wireTable();
     };
 
     paintCombos();
@@ -174,7 +214,7 @@ registerPage({
 
     let t = null;
     document.getElementById("mslSearch").oninput = e => {
-      clearTimeout(t); t = setTimeout(() => { MSL_STATE.q = e.target.value; paintTable(); }, 120);
+      clearTimeout(t); t = setTimeout(() => { MSL_STATE.q = e.target.value; MSL_STATE.page = 0; paintTable(); }, 120);
     };
   },
 });

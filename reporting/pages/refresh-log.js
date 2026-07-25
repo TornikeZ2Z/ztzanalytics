@@ -5,6 +5,8 @@
    (--panel/--ink/--blue/--purple/--brand...), so it follows dark & light themes automatically. */
 
 const RL = (() => {
+  // history pager index (module state so it survives a re-render)
+  var hpage = 0;
   const STAGE_LABEL = {
     sharepoint: "SharePoint exports", closing: "Closing sheets", card_expenses: "Card expenses",
     sheets: "Google Sheets", calendar: "Google Calendar", excel: "Reference workbooks",
@@ -71,7 +73,7 @@ const RL = (() => {
       totalRows: sources.filter(s => s.status === "ok").reduce((a, s) => a + (s.rows || 0), 0),
     };
   }
-  return { stLabel, srcLabel, phase, ms, fmtDur, tOnly, dOnly, ago, pill, process };
+  return { stLabel, srcLabel, phase, ms, fmtDur, tOnly, dOnly, ago, pill, process, hpage };
 })();
 
 function rlInjectStyle() {
@@ -101,6 +103,13 @@ function rlInjectStyle() {
   .rl-cov .rng .arw{color:var(--faint);margin:0 3px}
   .rl-cov .meta{font-size:11.5px;color:var(--muted);margin-top:5px;display:flex;align-items:center;gap:6px}
   .rl-note{font-size:11.5px;color:var(--faint);margin-top:10px}
+  .rl-pager{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:12px 4px 2px;font-size:12.5px;color:var(--muted)}
+  .rl-pager b{color:var(--ink);font-variant-numeric:tabular-nums}
+  .rl-pgnav{display:flex;align-items:center;gap:9px}
+  .rl-pgnav span{font-weight:700;color:var(--ink);font-variant-numeric:tabular-nums;min-width:92px;text-align:center}
+  .rl-pgnav button{font:inherit;font-size:12.5px;font-weight:700;background:var(--panel);color:var(--ink);border:1px solid var(--line-2);border-radius:9px;padding:7px 14px;cursor:pointer}
+  .rl-pgnav button:hover:not(:disabled){border-color:var(--brand)}
+  .rl-pgnav button:disabled{opacity:.35;cursor:default}
   .rl-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px}
   @media(max-width:820px){.rl-kpis{grid-template-columns:repeat(2,1fr)}}
   .rl-kpi{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 16px;box-shadow:var(--shadow);position:relative;overflow:hidden}
@@ -275,8 +284,25 @@ function rlRender(host, runs, cov) {
       </div>
     </div>`;
   };
-  const history = procs.length > 1
-    ? `<div class="rl-sec">Earlier runs · last ${procs.length - 1}</div>` + procs.slice(1).map((p, i) => rrow(p, i + 1)).join("")
+  // Paginated: the run list grows with every refresh (now hourly), and each row carries a
+  // full gantt + source grid, so rendering them all makes the page crawl.
+  const RPP = 8;
+  const rest = procs.slice(1);
+  const pages = Math.max(1, Math.ceil(rest.length / RPP));
+  if (RL.hpage >= pages) RL.hpage = pages - 1;
+  if (RL.hpage < 0) RL.hpage = 0;
+  const from = RL.hpage * RPP;
+  const slice = rest.slice(from, from + RPP);
+  const history = rest.length
+    ? `<div class="rl-sec">Earlier runs · ${rest.length}</div>`
+      + slice.map((p, i) => rrow(p, from + i + 1)).join("")
+      + (pages > 1 ? `<div class="rl-pager">
+          <div>Showing <b>${from + 1}–${Math.min(from + RPP, rest.length)}</b> of <b>${rest.length}</b> earlier runs</div>
+          <div class="rl-pgnav">
+            <button id="rlPrev"${RL.hpage ? "" : " disabled"}>‹ Prev</button>
+            <span>Page ${RL.hpage + 1} of ${pages}</span>
+            <button id="rlNext"${RL.hpage + 1 < pages ? "" : " disabled"}>Next ›</button>
+          </div></div>` : "")
     : "";
 
   // surface failing steps prominently — an error buried in a per-source row got missed
@@ -300,6 +326,10 @@ function rlRender(host, runs, cov) {
   }
   host.innerHTML = kpis + alert + rlCoverage(cov) + hero + history;
   host.querySelectorAll(".rl-run .rl-rhead").forEach(h => h.onclick = () => h.parentNode.classList.toggle("open"));
+  const pv = host.querySelector("#rlPrev");
+  if (pv) pv.onclick = () => { RL.hpage--; rlRender(host, runs, cov); };
+  const nx = host.querySelector("#rlNext");
+  if (nx) nx.onclick = () => { RL.hpage++; rlRender(host, runs, cov); };
 }
 
 registerPage({

@@ -7,7 +7,7 @@
 registerPage({
   id: "general-settings",
   group: "settings",
-  title: "General Settings",
+  title: "General Translators",
   async render(host) {
     var esc = RSC.esc;
 
@@ -61,7 +61,7 @@ registerPage({
       },
     };
 
-    host.innerHTML = '<div class="gs-head"><h1>General Settings</h1>'
+    host.innerHTML = '<div class="gs-head"><h1>General Translators</h1>'
       + '<p>Values the system used to have hardcoded — now editable here. Changes apply on the next pipeline run (within ~6 hours); Money Flow foreman names refresh on the next rebuild.</p></div>'
       + '<div id="gsBody"><div class="gs-load">Loading…</div></div>';
 
