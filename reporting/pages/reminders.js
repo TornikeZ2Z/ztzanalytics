@@ -301,6 +301,9 @@ registerPage({ id: "review-settings", group: "reviews", title: "Review URLs and 
         ".ra-ftbl tr.on{background:var(--panel-2)}",
         ".ra-ftbl tr.on td{font-weight:800}",
         ".ra-chev{color:var(--faint);font-weight:800;width:22px}",
+        /* the chevron column is 30px wide but inherits the table's 14px side padding, which left
+           2px for the glyph and ellipsised it to "›.." — drop the padding on that column */
+        ".ra-ftbl td.ra-chev,.ra-ftbl th:last-child{padding-left:0;padding-right:12px;text-align:right}",
         // the reason strings run long ("Elderly customer (not comfortable with technology)");
         // clip them here rather than making a half-width card scroll sideways
         ".ra-ftbl{table-layout:fixed;width:100%}",
@@ -847,7 +850,7 @@ registerPage({ id: "review-settings", group: "reviews", title: "Review URLs and 
           + '</td><td class="r ra-chev">' + (o.f === sel ? "▾" : "›") + "</td></tr>";
       }).join("") : '<tr><td colspan="4" class="ra-none">No answers in this period.</td></tr>';
       return '<div class="rrp-card" style="padding:0"><div class="ra-cardhd pad"><h4>By foreman</h4>'
-        + '<span class="ra-sub">' + N(st.length) + " foreman" + (st.length === 1 ? "" : "en") + " · " + esc(per) + "</span></div>"
+        + '<span class="ra-sub">' + N(st.length) + (st.length === 1 ? " foreman" : " foremen") + " · " + esc(per) + "</span></div>"
         // table-layout:fixed reads its widths from the FIRST row — with four unsized columns the
         // 1-character chevron owned a full quarter and the reason text was ellipsised away.
         + '<div style="overflow-x:auto"><table class="rrp-reasontbl ra-ftbl"><colgroup>'
