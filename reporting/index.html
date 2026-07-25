@@ -326,8 +326,15 @@ function canSee(id) {
   if (reports.includes(id)) return true;
   // department grant: holding a department id opens ALL of its reports, incl. ones added later
   for (const d of ACL_DEPTS) { if (reports.includes(d.id) && d.reports.includes(id)) return true; }
-  // a lingering grant to a retired page opens its replacement, so nobody loses access
+  // A lingering grant to a RETIRED PAGE opens its replacement, so nobody loses access.
+  // BUT a department id is not a page id, and the two namespaces collide: "reviews" and
+  // "marketing" exist as BOTH department ids and retired page ids. Since the themed
+  // dashboards folded into the Monthly Report (2026-07-22) every REDIRECTS chain now ends
+  // at monthly-report, so this loop was quietly upgrading those two DEPARTMENT grants into
+  // a Monthly Report grant — reported 2026-07-26 (a reviews-team member saw the Monthly
+  // Report she was never granted). Skip any src that is a department id.
   for (const src in REDIRECTS) {
+    if (ACL_DEPTS.some(d => d.id === src)) continue;
     if (reports.includes(src) && resolveRedirect(src) === id) return true;
   }
   // a grant to a page that got merged into a hub (e.g. the old standalone Labor & Crew,
