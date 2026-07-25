@@ -13,7 +13,7 @@
       cols: ["Company", "Request #", "Job Code", "Customer", "Pickup Date", "Moving From",
              "Moving To", "Delivery State", "Location", "Location Detail", "Sticker",
              "FAD", "FAD Source", "Window End", "Timeframe", "Window Note", "Window Status",
-             "Data Issue", "Carrier Driver", "Total To Carrier", "Balance Due", "CF",
+             "Data Issue", "Issue Kind", "Carrier Driver", "Total To Carrier", "Balance Due", "CF",
              "Sibling Delivered", "Sheet Row", "Update Date",
              "Type", "Trip Days", "Depart By", "Urgency", "Urgency Reason", "Do"],
     };
@@ -89,12 +89,24 @@ registerPage({
     // bakes current entries into fct_ld_planning every ~6h; this live overlay applies
     // anything entered SINCE, so a save shows its effect immediately.
     var LDP_ENT = {};
+    // Manual values live at LD-ROW grain (a multi-trip job has one row per trip and they
+    // share a Request #). A legacy entry saved before that fix has an empty sheet_row and
+    // still applies to the whole job.
+    function entFor(co, rq, sr) {
+      var job = LDP_ENT[co + "|" + rq + "|"] || {};
+      var row = LDP_ENT[co + "|" + rq + "|" + (sr || "")] || {};
+      var out = {};
+      Object.keys(job).forEach(function (k) { out[k] = job[k]; });
+      Object.keys(row).forEach(function (k) { out[k] = row[k]; });
+      return out;
+    }
     async function loadEntries() {
       try {
         var j = await fetch(ZTZ.API + "/api/_ldp", { headers: { "Authorization": "Bearer " + ZTZ.getToken() } }).then(function (r) { return r.json(); });
         LDP_ENT = {};
         (j.entries || []).forEach(function (e) {
-          (LDP_ENT[e.company + "|" + e.request_no] = LDP_ENT[e.company + "|" + e.request_no] || {})[e.field] = e;
+          var k = e.company + "|" + e.request_no + "|" + (e.sheet_row || "");
+          (LDP_ENT[k] = LDP_ENT[k] || {})[e.field] = e;
         });
       } catch (e) {}
     }
@@ -105,7 +117,7 @@ registerPage({
       var t = new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
       return rows.map(function (b) {
         var co = String(b["Company"] || ""), rq = String(b["Request #"] || "");
-        var en = LDP_ENT[co + "|" + rq] || {};
+        var en = entFor(co, rq, r["Sheet Row"]);
         var r = Object.assign({}, b); r._ent = en; r._co = co; r._rq = rq;
         if (!en.trip_days && !en.final_fad && !en.final_cf) return r;  // pipeline is current
         // recompute with the SAME rules as the pipeline's _plan (src/ld_planning.py)
@@ -186,8 +198,10 @@ registerPage({
 
     function paint() {
       var all = overlaid();
-      var live = all.filter(function (r) { return !r["Data Issue"]; });
-      var fix = all.filter(function (r) { return r["Data Issue"]; });
+      var blocking = function (r) { return String(r["Issue Kind"] || "") === "blocking"
+             || (r["Data Issue"] && !r["Issue Kind"]); };   // pre-Issue-Kind marts: old behaviour
+      var live = all.filter(function (r) { return !blocking(r); });
+      var fix = all.filter(blocking);
       var actNow = live.filter(function (r) { return r["Urgency"] === "Act now"; }).length;
       var actSoon = live.filter(function (r) { return r["Urgency"] === "Act soon"; }).length;
       var noWin = live.filter(function (r) { return r["Urgency"] === "Missing data"; }).length;
@@ -335,7 +349,7 @@ registerPage({
         if (!btn) return;
         btn.onclick = async function () {
           var co = box.getAttribute("data-co"), rq = box.getAttribute("data-req");
-          var en = LDP_ENT[co + "|" + rq] || {};
+          var en = entFor(co, rq, r["Sheet Row"]);
           var posts = [];
           Array.prototype.forEach.call(box.querySelectorAll("[data-ldf]"), function (inp) {
             var f = inp.getAttribute("data-ldf");
@@ -351,7 +365,8 @@ registerPage({
               var res = await fetch(ZTZ.API + "/api/_ldp", {
                 method: "POST",
                 headers: { "Content-Type": "application/json", "Authorization": "Bearer " + ZTZ.getToken() },
-                body: JSON.stringify({ company: co, request_no: rq, field: posts[i].field, value: posts[i].value }),
+                body: JSON.stringify({ company: co, request_no: rq, sheet_row: r["Sheet Row"] || "",
+                                       field: posts[i].field, value: posts[i].value }),
               });
               var j = await res.json().catch(function () { return {}; });
               if (!res.ok || !j.ok) throw new Error(j.error || ("HTTP " + res.status));
