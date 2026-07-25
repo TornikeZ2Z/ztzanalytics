@@ -21,8 +21,10 @@
         "Estimate Bill", "Actual Bill", "Bill Increase Amount", "Bill Increase %",
         "Bill Increase Category", "Review Received", "Number of Reviews", "Review Source",
         "Review Breakdown", "Eligible", "Support Intervention", "Support Intervention Reason",
-        // Date/Type/Notes ADDED 2026-07-16 for the new Support Interventions list (their consumer)
-        "Support Intervention Date", "Support Intervention Type", "Support Notes",
+        // Date/Type ADDED 2026-07-16 for the Support Interventions list (their consumer).
+        // "Support Notes" DROPPED 2026-07-25: job_overview.py emits it as a literal NULL, so the
+        // column was structurally always blank — shipped bytes for an empty table column.
+        "Support Intervention Date", "Support Intervention Type",
         "Review Expected", "Exclusion Reason", "Closing Filed",
         "Foreman Response Received", "Foreman Reason",
         "Foreman Explanation", "Final Status", "Event ID",
@@ -269,7 +271,12 @@ registerPage({
         .rp-tbl2 th{color:var(--faint);font-size:10px;font-weight:800;text-transform:uppercase;text-align:left;padding:5px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
         .rp-tbl2 td{padding:6px 8px;border-bottom:1px solid var(--line);vertical-align:top}
         .rp-tbl2 tr:last-child td{border-bottom:none}
-        .rp-tbl2 td.r{text-align:right;font-variant-numeric:tabular-nums}
+        /* right-aligned columns: the HEADER must follow its cells, or every numeric column
+           reads as a left-aligned label sitting over right-aligned digits (audit 2026-07-25) */
+        .rp-tbl2 td.r,.rp-tbl2 th.r{text-align:right;font-variant-numeric:tabular-nums}
+        .rp-pager{display:flex;align-items:center;justify-content:flex-end;gap:10px;padding:9px 2px 0;font-size:12px;color:var(--muted);font-weight:600}
+        .rp-pager b{color:var(--ink);font-variant-numeric:tabular-nums}
+        .rp-pager .sp{margin-right:auto;font-weight:600}
         .rp-pending{display:flex;gap:11px;align-items:flex-start;background:rgba(224,145,42,.10);border:1px solid rgba(224,145,42,.34);border-radius:12px;padding:12px 15px;margin:0 0 14px}
         .rp-pending .rp-pico{color:#e0912a;font-size:15px;line-height:1.35;flex:0 0 auto}
         .rp-ptxt{font-size:12.5px;line-height:1.5;color:var(--ink)}
@@ -321,18 +328,36 @@ registerPage({
         + '<span class="rp-pico">◷</span><div><div class="rp-ptxt">' + parts.join(" ") + "</div>"
         + (recentNever.length ? '<button class="rp-plink" id="rpPendMore">Show the unfiled jobs</button>' : "")
         + '<div id="rpPendList" style="display:none"></div></div></div>';
+      // Paginated 25/page — this list grows with every unfiled job and used to render whole.
+      var PEND_PAGE = 25, pendPage = 0;
+      var pendSorted = recentNever.slice().sort(function (a, b) { return String(b["Job Date"]).localeCompare(String(a["Job Date"])); });
+      function paintPend() {
+        var box = document.getElementById("rpPendList"); if (!box) return;
+        var pages = Math.max(1, Math.ceil(pendSorted.length / PEND_PAGE));
+        if (pendPage >= pages) pendPage = pages - 1;
+        if (pendPage < 0) pendPage = 0;
+        var from = pendPage * PEND_PAGE, shown = pendSorted.slice(from, from + PEND_PAGE);
+        box.innerHTML = '<table class="rp-tbl2" style="margin-top:10px"><thead><tr><th>Job Date</th><th>Job No</th>'
+          + '<th>Customer</th><th>Foreman</th><th class="r">Days old</th></tr></thead><tbody>'
+          + shown.map(function (r) {
+              return "<tr><td>" + esc(String(r["Job Date"]).slice(0, 10)) + "</td><td>" + esc(r["Job No"] || "—")
+                + "</td><td>" + esc(r.Customer || "—") + "</td><td>" + esc(r.Foreman || "—")
+                + '</td><td class="r">' + esc(r["Days Old"]) + "</td></tr>";
+            }).join("") + "</tbody></table>"
+          + (pages > 1 ? '<div class="rp-pager"><span class="sp">' + (from + 1) + "–" + (from + shown.length)
+              + " of " + pendSorted.length + "</span>"
+              + '<button type="button" class="rp-btn" data-pendprev' + (pendPage === 0 ? " disabled" : "") + ">‹ Prev</button>"
+              + "<b>" + (pendPage + 1) + " / " + pages + "</b>"
+              + '<button type="button" class="rp-btn" data-pendnext' + (pendPage >= pages - 1 ? " disabled" : "") + ">Next ›</button></div>" : "");
+        var pp = box.querySelector("[data-pendprev]"), pn = box.querySelector("[data-pendnext]");
+        if (pp) pp.onclick = function () { pendPage--; paintPend(); };
+        if (pn) pn.onclick = function () { pendPage++; paintPend(); };
+      }
       var btn = document.getElementById("rpPendMore");
       if (btn) btn.onclick = function () {
         var box = document.getElementById("rpPendList");
         if (box.style.display === "none") {
-          box.innerHTML = '<table class="rp-tbl2" style="margin-top:10px"><thead><tr><th>Job Date</th><th>Job No</th>'
-            + '<th>Customer</th><th>Foreman</th><th class="r">Days old</th></tr></thead><tbody>'
-            + recentNever.slice().sort(function (a, b) { return String(b["Job Date"]).localeCompare(String(a["Job Date"])); })
-              .map(function (r) {
-                return "<tr><td>" + esc(String(r["Job Date"]).slice(0, 10)) + "</td><td>" + esc(r["Job No"] || "—")
-                  + "</td><td>" + esc(r.Customer || "—") + "</td><td>" + esc(r.Foreman || "—")
-                  + '</td><td class="r">' + esc(r["Days Old"]) + "</td></tr>";
-              }).join("") + "</tbody></table>";
+          paintPend();
           box.style.display = ""; btn.textContent = "Hide the unfiled jobs";
         } else { box.style.display = "none"; btn.textContent = "Show the unfiled jobs"; }
       };
@@ -367,12 +392,13 @@ registerPage({
         if (!v) return;
         var cur = num(r["Number of Reviews"]);
         if (v.counted > cur) {                                   // fresher than the warehouse → adopt it
+          n += (v.counted - cur);   // the badge says "N fresh REVIEWS" — count reviews, not jobs
           r["Number of Reviews"] = v.counted;
           r["Review Received"] = v.counted > 1 ? "Multiple Reviews Received" : "Review Received";
           if (v.source) r["Review Source"] = v.source;
           if (v.breakdown) r["Review Breakdown"] = v.breakdown;
           if (String(r["Final Status"] || "").indexOf("Missing Review") === 0) r["Final Status"] = "Review Received";
-          r._live = true; n++;
+          r._live = true;
         }
       });
       return n;
@@ -396,7 +422,10 @@ registerPage({
 
     var sources = [...new Set(rows.map(r => r["Job Source"]).filter(Boolean))].sort();
     var statuses = [...new Set(rows.map(r => r["Final Status"]).filter(Boolean))].sort();
-    var billcats = ["Normal", "Attention", "High Increase", "Estimate Missing"];
+    // Derived, NOT hardcoded — the literal list omitted 'Closing Pending' (job_overview.py emits
+    // it for any job whose closing isn't filed yet), so "Select all" on this filter silently
+    // deleted every unfiled job from the report (audit 2026-07-25).
+    var billcats = [...new Set(rows.map(r => r["Bill Increase Category"]).filter(Boolean))].sort();
     var foremenAll = [...new Set(rows.map(r => r["Foreman"]).filter(Boolean))].sort();
 
     // ---- multiselect popover component (unchanged pattern) ----
@@ -429,7 +458,10 @@ registerPage({
             `<label class="rp-pop-i"><input type="checkbox" value="${esc(o.v)}"${cfg.sel.has(o.v) ? " checked" : ""}><span>${esc(o.label)}</span></label>`).join("") + `</div>`
             : `<div class="rp-pop-none">No matches.</div>`);
         var s = pop.querySelector(".rp-pop-s");
-        if (s) { s.value = q; s.oninput = () => paintPop(s.value); setTimeout(() => s.focus(), 0); }
+        // keep the caret where the user left it — a full re-render used to drop it to the end
+        if (s) { s.value = q; s.oninput = () => { var a = s.selectionStart, b = s.selectionEnd; paintPop(s.value);
+          var s2 = pop.querySelector(".rp-pop-s"); if (s2) { s2.focus(); try { s2.setSelectionRange(a, b); } catch (e) {} } };
+          setTimeout(() => s.focus(), 0); }
         pop.querySelectorAll(".rp-pop-act button").forEach(b => b.onclick = () => {
           if (b.dataset.a === "clear") cfg.sel.clear();
           else opts.forEach(o => cfg.sel.add(o.v));
@@ -574,7 +606,9 @@ registerPage({
     function closeDrawer() {
       scrim.classList.remove("show"); drawer.classList.remove("show");
       RP.cell = null;
-      RP.wlPage = 0;   // every view-changing control calls closeDrawer — reset the worklist page too
+      // every view-changing control calls closeDrawer — reset the paged lists too, or a filter
+      // change lands you on page 7 of a list that now has 2 pages
+      RP.wlPage = 0; RP.supPage = 0;
       var m = document.getElementById("rpMatrix"); if (m) m.querySelectorAll(".rp-cell.sel").forEach(el => el.classList.remove("sel"));
     }
     scrim.onclick = closeDrawer;
@@ -597,12 +631,18 @@ registerPage({
       var J = jobs.filter(r => num(r["Eligible"]) === 1).length;
       var pct = J ? Math.round(R / J * 100) : 0, b = band(pct);
 
-      var roll = {};
-      jobs.forEach(r => parseBk(r["Review Breakdown"]).forEach(p => { roll[p.src] = (roll[p.src] || 0) + p.n; }));
+      // The roll counts reviews on EVERY job in the cell; the headline counts only eligible ones.
+      // They can differ (a review on an excluded job), so say so instead of showing two totals
+      // that silently disagree (audit 2026-07-25).
+      var roll = {}, exclRev = 0;
+      jobs.forEach(r => {
+        var e = num(r["Eligible"]) === 1;
+        parseBk(r["Review Breakdown"]).forEach(p => { roll[p.src] = (roll[p.src] || 0) + p.n; if (!e) exclRev += p.n; });
+      });
       var rollArr = Object.keys(roll).map(k => ({ src: k, n: roll[k] })).sort((a, b) => b.n - a.n);
       var rollMax = rollArr.reduce((m, x) => Math.max(m, x.n), 0);
       var rollTot = rollArr.reduce((s, x) => s + x.n, 0);
-      var rollHtml = rollArr.length ? `<div class="rp-sec">Where the reviews came from · ${rollTot} total</div><div class="rp-roll">` +
+      var rollHtml = rollArr.length ? `<div class="rp-sec">Where the reviews came from · ${rollTot} total${exclRev ? ` · incl. ${exclRev} on excluded job${exclRev === 1 ? "" : "s"}` : ""}</div><div class="rp-roll">` +
         rollArr.map(x => `<div class="row"><span class="nm"><i class="dot" style="background:${platColor(x.src)}"></i>${esc(x.src)}</span>
           <span class="bar"><i style="width:${rollMax ? Math.round(x.n / rollMax * 100) : 0}%;background:${platColor(x.src)}"></i></span>
           <span class="vn">${x.n}</span></div>`).join("") + `</div>`
@@ -652,6 +692,22 @@ registerPage({
       return filtered().filter(r => colSet.has(colKey(r)));
     }
 
+    // ONE owner for the ‹ / window / › control, called from every view. It used to be inlined in
+    // the two paint functions that honour the date window, so the Support tab (which is all-time
+    // by design) left the arrows live and the range label stale: clicking ‹ there silently moved
+    // the matrix behind your back (audit 2026-07-25). Now Support dims and disables them.
+    function paintTimeBar() {
+      var timeOn = RP.view !== "support";
+      var cols = windowCols(), ac = allCols(), maxOff = Math.max(0, ac.length - win());
+      var rl = document.getElementById("rpRange"), ob = document.getElementById("rpOlder"), nb = document.getElementById("rpNewer"), ws = document.getElementById("rpWin");
+      if (rl) rl.textContent = !timeOn ? "all time" : (cols.length ? colLabel(cols[cols.length - 1]) + " – " + colLabel(cols[0]) : "—");
+      if (ob) ob.disabled = !timeOn || RP.offset >= maxOff;
+      if (nb) nb.disabled = !timeOn || RP.offset <= 0;
+      if (ws) ws.disabled = !timeOn;
+      if (ws && ws.parentElement) ws.parentElement.style.opacity = timeOn ? "" : ".45";
+      if (rl) rl.style.opacity = timeOn ? "" : ".6";
+    }
+
     function paintKpis(data) {
       var tot = { completed: 0, eligible: 0, reviews: 0, jobsWithReview: 0, support: 0, missing: 0, noResp: 0, highBill: 0 };
       data.forEach(r => {
@@ -690,11 +746,10 @@ registerPage({
         f.completed++; if (elig) { f.J++; f.R += nrev; }
       });
       paintKpis(data);
-
-      var ac = allCols(), maxOff = Math.max(0, ac.length - win());
-      document.getElementById("rpRange").textContent = cols.length ? colLabel(cols[cols.length - 1]) + " – " + colLabel(cols[0]) : "—";
-      document.getElementById("rpOlder").disabled = RP.offset >= maxOff;
-      document.getElementById("rpNewer").disabled = RP.offset <= 0;
+      paintTimeBar();
+      // A sort on a period column that has scrolled out of the window silently reordered the
+      // matrix with no caret to explain it — drop it once its column is gone (audit 2026-07-25).
+      if (RP.sortCol && RP.sortCol !== "total" && RP.sortCol !== "__name" && cols.indexOf(RP.sortCol) < 0) RP.sortCol = null;
 
       function sortVal(fm) {
         if (RP.sortCol === "total") { var f = foremen[fm]; return f.J ? f.R / f.J : -1; }
@@ -703,7 +758,14 @@ registerPage({
       }
       var fmList = Object.keys(foremen);
       if (RP.sortCol === "__name") fmList.sort((a, b) => RP.sortDir === "asc" ? a.localeCompare(b) : b.localeCompare(a));
-      else fmList.sort((a, b) => { var d = sortVal(a) - sortVal(b); if (d === 0) d = foremen[b].completed - foremen[a].completed; return RP.sortDir === "asc" ? d : -d; });
+      // The direction applies to the PRIMARY key only — negating the tie-break too put
+      // one-job foremen on top of a "best first" sort (audit 2026-07-25).
+      else fmList.sort((a, b) => {
+        var d = sortVal(a) - sortVal(b);
+        if (RP.sortDir !== "asc") d = -d;
+        if (d === 0) d = foremen[b].completed - foremen[a].completed;
+        return d;
+      });
 
       var caret = key => RP.sortCol === key ? (RP.sortDir === "asc" ? " ▲" : " ▼") : "";
       var head = `<tr><th class="fm${RP.sortCol === "__name" ? " srt" : ""}" data-srt="__name">Foreman${caret("__name")}</th>` +
@@ -872,12 +934,7 @@ registerPage({
       var wp = el.querySelector("[data-wlprev]"), wn = el.querySelector("[data-wlnext]");
       if (wp) wp.onclick = () => { RP.wlPage--; paintReasons(); };
       if (wn) wn.onclick = () => { RP.wlPage++; paintReasons(); };
-
-      var ac = allCols(), maxOff = Math.max(0, ac.length - win());
-      var cols = windowCols();
-      document.getElementById("rpRange").textContent = cols.length ? colLabel(cols[cols.length - 1]) + " – " + colLabel(cols[0]) : "—";
-      document.getElementById("rpOlder").disabled = RP.offset >= maxOff;
-      document.getElementById("rpNewer").disabled = RP.offset <= 0;
+      paintTimeBar();
     }
 
     // ---- Support interventions list (Tornike 2026-07-16) ----
@@ -887,19 +944,47 @@ registerPage({
     // filters, but NOT the date window (support work spans all history and you want to see it all).
     var yesSup = r => { var v = String(r["Support Intervention"] == null ? "" : r["Support Intervention"]).trim().toLowerCase(); return v === "yes" || v === "1" || v === "true"; };
     var supDate = r => { var d = String(r["Support Intervention Date"] || "").slice(0, 10); return /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : (String(r["Job Date"] || "").slice(0, 10)); };
+    // The Support tab is ALL-TIME, so the windowed performance tiles above it were both stale and
+    // contradictory (and stuck on "Loading jobs…" if you landed here first). Its own tiles now
+    // describe exactly the list underneath them (audit 2026-07-25).
+    function paintSupKpis(all, list) {
+      var d30 = new Date(); d30.setDate(d30.getDate() - 30);
+      var cut = d30.toISOString().slice(0, 10);
+      var recent = all.filter(r => supDate(r) >= cut).length;
+      var fms = new Set(all.map(r => r["Foreman"]).filter(Boolean));
+      var types = new Set(all.map(r => String(r["Support Intervention Type"] || "").trim()).filter(Boolean));
+      var excl = all.filter(r => num(r["Eligible"]) !== 1).length;
+      var K = [
+        { l: "Interventions", v: N(all.length), s: "all time", a: 1 },
+        { l: "Last 30 days", v: N(recent), s: "since " + cut },
+        { l: "Jobs excluded", v: N(excl), s: "from review eligibility" },
+        { l: "Foremen", v: N(fms.size), s: "involved" },
+        { l: "Types", v: N(types.size), s: "distinct" },
+        { l: "In this list", v: N(list.length), s: (RP.supType || RP.supQ.trim()) ? "after search / chip" : "no filter" },
+      ];
+      var el = document.getElementById("rpKpis"); if (!el) return;
+      el.innerHTML = K.map(k => `<div class="rp-kpi${k.a ? " accent" : ""}"><b>${k.v}</b><span>${k.l}</span><small>${esc(k.s)}</small></div>`).join("");
+    }
     function paintSupport() {
       var SUP_PAGE = 25;
       var all = filtered().filter(yesSup);
-      // distinct types for the little filter chips (a job can carry a comma-joined combo — keep it whole)
+      // distinct types for the little filter chips (a job can carry a comma-joined combo — keep it whole).
+      // Blank types collapse to "—" on BOTH sides: the chip used to be labelled with a real count
+      // and then match nothing, because the predicate compared "—" against "" (audit 2026-07-25).
+      var supType = r => String(r["Support Intervention Type"] || "").trim() || "—";
       var typeCounts = {};
-      all.forEach(r => { var t = String(r["Support Intervention Type"] || "").trim() || "—"; typeCounts[t] = (typeCounts[t] || 0) + 1; });
+      all.forEach(r => { var t = supType(r); typeCounts[t] = (typeCounts[t] || 0) + 1; });
+      // a chip that no longer exists under the current global filters must not keep filtering invisibly
+      if (RP.supType && !(RP.supType in typeCounts)) { RP.supType = ""; RP.supPage = 0; }
       var q = RP.supQ.trim().toLowerCase();
       var list = all.filter(r => {
-        if (RP.supType && String(r["Support Intervention Type"] || "").trim() !== RP.supType) return false;
+        if (RP.supType && supType(r) !== RP.supType) return false;
         if (!q) return true;
-        return [r["Job No"], r["Customer"], r["Foreman"], r["Support Intervention Type"], r["Support Intervention Reason"], r["Support Notes"]]
+        return [r["Job No"], r["Customer"], r["Foreman"], r["Support Intervention Type"], r["Support Intervention Reason"]]
           .some(v => String(v == null ? "" : v).toLowerCase().indexOf(q) >= 0);
       }).sort((a, b) => supDate(b).localeCompare(supDate(a)));
+      paintSupKpis(all, list);
+      paintTimeBar();
 
       var pages = Math.max(1, Math.ceil(list.length / SUP_PAGE));
       if (RP.supPage >= pages) RP.supPage = 0;
@@ -913,7 +998,6 @@ registerPage({
           <td style="white-space:nowrap">${esc(r["Foreman"] || "—")}</td>
           <td>${typeTag(r["Support Intervention Type"])}</td>
           <td>${esc(r["Support Intervention Reason"] || "—")}</td>
-          <td style="color:var(--muted)">${esc(r["Support Notes"] || "")}</td>
         </tr>`).join("");
       var chips = [{ t: "", label: "All types (" + N(all.length) + ")" }]
         .concat(Object.keys(typeCounts).sort((a, b) => typeCounts[b] - typeCounts[a]).map(t => ({ t: t, label: t + " (" + N(typeCounts[t]) + ")" })))
@@ -932,19 +1016,30 @@ registerPage({
           <h3>Support interventions — every job Support stepped in on</h3>
           <p class="rp-supsub">All-time (not limited by the date window above). A job with a support intervention is excluded from review eligibility. Respects the Source / Foreman filters.</p>
           <div class="rp-supbar">
-            <input type="text" id="rpSupQ" placeholder="Search job, customer, foreman, reason, notes…" value="${esc(RP.supQ)}">
+            <input type="text" id="rpSupQ" placeholder="Search job, customer, foreman, type, reason…" value="${esc(RP.supQ)}">
             <div class="rp-supchips">${chips}</div>
           </div>
           <div style="overflow-x:auto"><table class="rp-tbl2">
-            <thead><tr><th>Date</th><th>Job</th><th>Foreman</th><th>Type</th><th>Reason</th><th>Notes</th></tr></thead>
-            <tbody>${rowsH || `<tr><td colspan="6" style="color:var(--faint)">No support interventions match.</td></tr>`}</tbody>
+            <thead><tr><th>Date</th><th>Job</th><th>Foreman</th><th>Type</th><th>Reason</th></tr></thead>
+            <tbody>${rowsH || `<tr><td colspan="5" style="color:var(--faint)">No support interventions match.</td></tr>`}</tbody>
           </table></div>
           ${pager}
         </div>`;
+      // Debounced (~140ms) so a fast typist doesn't re-scan the whole job table per keystroke, and
+      // the REAL caret position is restored — it used to jump to the end, so editing mid-word was
+      // impossible (audit 2026-07-25).
       var qi = el.querySelector("#rpSupQ");
-      if (qi) qi.oninput = () => { RP.supQ = qi.value; RP.supPage = 0;
-        var el2 = document.getElementById("rpSupport"); // re-render body but keep focus in the search box
-        paintSupport(); var q2 = document.getElementById("rpSupQ"); if (q2) { q2.focus(); q2.setSelectionRange(q2.value.length, q2.value.length); } };
+      if (qi) qi.oninput = () => {
+        RP.supQ = qi.value; RP.supPage = 0;
+        var a = qi.selectionStart, b = qi.selectionEnd;
+        clearTimeout(RP._supT);
+        RP._supT = setTimeout(function () {
+          if (!document.getElementById("rpSupport")) return;
+          paintSupport();
+          var q2 = document.getElementById("rpSupQ");
+          if (q2) { q2.focus(); try { q2.setSelectionRange(a, b); } catch (e) {} }
+        }, 140);
+      };
       el.querySelectorAll("[data-suptype]").forEach(b => b.onclick = () => { RP.supType = b.getAttribute("data-suptype"); RP.supPage = 0; paintSupport(); });
       var sp = el.querySelector("[data-supprev]"), sn = el.querySelector("[data-supnext]");
       if (sp) sp.onclick = () => { RP.supPage--; paintSupport(); };

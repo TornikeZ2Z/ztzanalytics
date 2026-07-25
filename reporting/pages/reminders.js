@@ -153,6 +153,16 @@ registerPage({ id: "review-settings", group: "reviews", title: "Review URLs and 
         ".rrp-reasontbl{width:100%;border-collapse:collapse;font-size:13px}",
         ".rrp-reasontbl th{text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--faint);font-weight:800;padding:10px 14px;border-bottom:1px solid var(--line)}",
         ".rrp-reasontbl td{padding:11px 14px;border-top:1px solid var(--line);vertical-align:top}",
+        /* class="r" was used on numeric cells in three tables here with NO rule behind it — the
+           right-aligned headers sat over left-aligned numbers (audit 2026-07-25). One rule,
+           both sides, so a header can never drift from its column again. */
+        ".rrp-reasontbl td.r,.rrp-reasontbl th.r{text-align:right;font-variant-numeric:tabular-nums}",
+        ".rrp-pager{display:flex;align-items:center;gap:10px;padding:10px 15px;border-top:1px solid var(--line);font-size:12px;color:var(--muted);font-weight:700}",
+        ".rrp-pager .sp{margin-right:auto;font-weight:600}",
+        ".rrp-pager b{color:var(--ink);font-variant-numeric:tabular-nums}",
+        ".rrp-pgbtn{border:1px solid var(--line-2);background:var(--panel-2);color:var(--ink);border-radius:8px;padding:5px 11px;font:inherit;font-size:12px;font-weight:700;cursor:pointer}",
+        ".rrp-pgbtn:hover:not(:disabled){border-color:var(--brand)}",
+        ".rrp-pgbtn:disabled{opacity:.4;cursor:default}",
         ".rrp-bars{display:flex;flex-direction:column;gap:7px;margin-bottom:18px}",
         ".rrp-bar{display:grid;grid-template-columns:210px 1fr 40px;gap:10px;align-items:center;font-size:12.5px}",
         ".rrp-bar .track{background:var(--panel-2);border-radius:6px;height:16px;overflow:hidden;border:1px solid var(--line)}",
@@ -235,7 +245,10 @@ registerPage({ id: "review-settings", group: "reviews", title: "Review URLs and 
         ".rrp-pvseg button{border:0;background:transparent;color:var(--muted);font:inherit;font-size:11.5px;font-weight:800;padding:5px 10px;border-radius:7px;cursor:pointer}",
         ".rrp-pvseg button.on{background:var(--brand);color:var(--brand-ink)}",
         ".rrp-pvbody{padding:15px 16px 17px;background:var(--panel-2)}",
-        ".rrp-msg{display:flex;gap:10px;align-items:flex-start}",
+        /* RENAMED from .rrp-msg 2026-07-25: that name already belongs to the send-log <details>
+           panels above, and this display:flex leaked into them — two unrelated components were
+           fighting over one class, last one wins. */
+        ".rrp-pvmsg{display:flex;gap:10px;align-items:flex-start}",
         ".rrp-msgav{flex:0 0 auto;width:28px;height:28px;border-radius:7px;background:linear-gradient(135deg,var(--brand),var(--brand-d));color:var(--brand-ink);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800}",
         ".rrp-msgb{min-width:0;flex:1}",
         ".rrp-msgn{font-size:12px;font-weight:800;margin-bottom:3px}",
@@ -297,6 +310,11 @@ registerPage({ id: "review-settings", group: "reviews", title: "Review URLs and 
         ".ra-drill{margin-top:12px;padding:0;border-color:var(--brand)}",
         ".ra-drillgrid{display:grid;grid-template-columns:minmax(240px,340px) minmax(0,1fr);gap:0;align-items:start}",
         ".ra-drillbars{padding:14px 16px;border-right:1px solid var(--line)}",
+        /* the shared .rrp-bar grid hardcodes a 200px label; inside this ~300px column that left the
+           track about 5px wide, so the drill-down chart rendered as a column of dots. Give the
+           label a flexible track here and let the bar keep the rest (audit 2026-07-25). */
+        ".ra-drillbars .rrp-bar{grid-template-columns:minmax(0,1.1fr) minmax(46px,1fr) 26px 34px;gap:8px}",
+        ".ra-drillbars .rrp-bar>span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}",
         "@media(max-width:900px){.ra-drillgrid{grid-template-columns:minmax(0,1fr)}.ra-drillbars{border-right:0;border-bottom:1px solid var(--line)}}",
         ".ra-close{font:inherit;font-size:11.5px;font-weight:700;color:var(--muted);background:var(--panel-2);border:1px solid var(--line-2);border-radius:8px;padding:4px 10px;cursor:pointer}",
         ".ra-close:hover{color:var(--ink)}",
@@ -440,7 +458,10 @@ registerPage({ id: "review-settings", group: "reviews", title: "Review URLs and 
       RRP.err = null;
       try {
         var d = await relayRead(force);   // manual Refresh punches through the proxy cache AND the relay's 60s schedule cache
-        RRP.data = d; RRP.dataFresh = true; RRP.fromCache = false; RRP.fetchedAt = Date.now(); rrpCacheWrite(d);
+        // _fmap is the email→foreman-name directory derived from THIS log — a new log must
+        // rebuild it, or a foreman added since page-load keeps showing as a bare address.
+        RRP.data = d; RRP._fmap = null;
+        RRP.dataFresh = true; RRP.fromCache = false; RRP.fetchedAt = Date.now(); rrpCacheWrite(d);
       } catch (e) {
         RRP.err = e.message || String(e);   // keep any cached RRP.data so the page still shows the last schedule
       }
@@ -545,14 +566,20 @@ registerPage({ id: "review-settings", group: "reviews", title: "Review URLs and 
         // group a day's jobs UNDER their foreman (parent), preserving first-seen order
         var order = [], byF = {};
         jobs.forEach(function (j) { var k = j.foremanEmail || j.foreman || "?"; if (!byF[k]) { byF[k] = []; order.push(k); } byF[k].push(j); });
+        var total = (D.jobs || []).length, count = jobs.length;
         var body = "";
+        // The header used to count the day's UNFILTERED jobs while the body showed the filtered
+        // ones, and a search that matched nothing rendered "no jobs scheduled" — as if the day
+        // were empty rather than filtered out (audit 2026-07-25).
         if (open) body = order.length ? order.map(function (k) { return foremanGroup(D.day, byF[k], idx); }).join("")
-          : '<div class="rrp-empty" style="margin:6px 0 14px;padding:20px">No Zip-to-Zip jobs ' + (isToday ? "today" : isYesterday ? "yesterday" : "scheduled") + ".</div>";
-        var count = (D.jobs || []).length;
+          : '<div class="rrp-empty" style="margin:6px 0 14px;padding:20px">'
+            + (RRP.fq ? 'No jobs match “' + esc(RRP.fq) + '” on this day.'
+                      : "No Zip-to-Zip jobs " + (isToday ? "today" : isYesterday ? "yesterday" : "scheduled") + ".") + "</div>";
         return '<div class="rrp-dayhead' + (open ? " open" : "") + '" data-day="' + esc(D.day) + '">'
           + '<span class="rrp-daychev">' + (open ? "▾" : "▸") + "</span>"
           + "<h3>" + esc(dayHeadLabel(D.day, isToday, isTomorrow, isYesterday)) + "</h3>"
-          + "<span>" + count + " job" + (count === 1 ? "" : "s") + (open && order.length ? " · " + order.length + " foreman" + (order.length === 1 ? "" : "s") : "") + "</span></div>" + body;
+          + "<span>" + (RRP.fq ? count + " of " + total : String(count)) + " job" + ((RRP.fq ? total : count) === 1 ? "" : "s")
+          + (open && order.length ? " · " + order.length + " foreman" + (order.length === 1 ? "" : "s") : "") + "</span></div>" + body;
       }).join("");
     }
     // "View message sent" — the exact Slack text if the bot logged it, else the actual clickable
@@ -678,9 +705,11 @@ registerPage({ id: "review-settings", group: "reviews", title: "Review URLs and 
       var t = when ? when.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : "—";
       var age = when ? Math.round((Date.now() - RRP.fetchedAt) / 60000) : null;
       var agoTx = age == null ? "" : age < 1 ? " · just now" : " · " + age + " min ago";
+      var failed = !!(RRP.err && RRP.data);
       return '<div class="rrp-fresh">'
-        + '<span class="dot' + (RRP.fromCache ? " stale" : "") + '"></span>'
+        + '<span class="dot' + (RRP.fromCache || failed ? " stale" : "") + '"></span>'
         + "<span><b>" + (RRP.fromCache ? "Showing your last saved copy" : "Live from the reminder bot") + "</b> — read at " + esc(t) + esc(agoTx) + ". "
+        + (failed ? '<b style="color:#e0912a">The last refresh failed (' + esc(RRP.err) + ") — these numbers are the previous read.</b> " : "")
         + "A foreman’s answer lands here within about a minute of them tapping it; hit <b>Refresh</b> to pull again.</span>"
         + '<button class="rrp-freshbtn" id="rrpFresh2">↻ Refresh now</button></div>';
     }
@@ -819,8 +848,12 @@ registerPage({ id: "review-settings", group: "reviews", title: "Review URLs and 
       }).join("") : '<tr><td colspan="4" class="ra-none">No answers in this period.</td></tr>';
       return '<div class="rrp-card" style="padding:0"><div class="ra-cardhd pad"><h4>By foreman</h4>'
         + '<span class="ra-sub">' + N(st.length) + " foreman" + (st.length === 1 ? "" : "en") + " · " + esc(per) + "</span></div>"
-        + '<div style="overflow-x:auto"><table class="rrp-reasontbl ra-ftbl"><thead><tr><th>Foreman</th>'
-        + '<th style="text-align:right">Answers</th><th>Most common reason</th><th></th></tr></thead><tbody>'
+        // table-layout:fixed reads its widths from the FIRST row — with four unsized columns the
+        // 1-character chevron owned a full quarter and the reason text was ellipsised away.
+        + '<div style="overflow-x:auto"><table class="rrp-reasontbl ra-ftbl"><colgroup>'
+        + '<col style="width:34%"><col style="width:78px"><col><col style="width:30px"></colgroup>'
+        + '<thead><tr><th>Foreman</th>'
+        + '<th class="r">Answers</th><th>Most common reason</th><th></th></tr></thead><tbody>'
         + body + "</tbody></table></div>"
         + '<div class="ra-hint">Click a foreman to see his own breakdown.</div></div>';
     }
@@ -833,7 +866,7 @@ registerPage({ id: "review-settings", group: "reviews", title: "Review URLs and 
       var jobs = mine.slice().sort(function (a, b) { return String(b.ts).localeCompare(String(a.ts)); }).map(function (r) {
         return "<tr><td>" + esc(etDay(r.ts) || "—") + "</td><td>" + esc(r.job || "—") + "</td><td>" + esc(r.reason || "—")
           + '</td><td class="ra-note">' + esc(cleanNote(r.note) || "—") + "</td></tr>";
-      }).join("");
+      }).join("") || '<tr><td colspan="4" class="ra-none">No answers from this foreman in the selected period.</td></tr>';
       return '<div class="rrp-card ra-drill"><div class="ra-cardhd pad"><h4>' + esc(sel) + " — " + N(mine.length)
         + " answer" + (mine.length === 1 ? "" : "s") + " · " + esc(periodLabel()) + "</h4>"
         + '<button class="ra-close" id="raClose">✕ Close</button></div>'
@@ -844,6 +877,15 @@ registerPage({ id: "review-settings", group: "reviews", title: "Review URLs and 
     // the relay appends provenance to the note ("… — via portal (quality@…)"); useful in the
     // raw sheet, noise in a table that already has its own columns.
     function cleanNote(s) { return String(s == null ? "" : s).replace(/\s*—?\s*via portal\s*(\([^)]*\))?\s*$/i, "").trim(); }
+    // ONE pager for every long table on this page — none of them were bounded before
+    // (audit 2026-07-25). `key` namespaces the buttons so wireResponse knows which list moved.
+    function pager(total, from, shown, page, pages, key) {
+      if (pages <= 1) return "";
+      return '<div class="rrp-pager"><span class="sp">' + N(from + 1) + "–" + N(from + shown) + " of " + N(total) + "</span>"
+        + '<button class="rrp-pgbtn" data-pg="' + key + ':prev"' + (page === 0 ? " disabled" : "") + ">‹ Prev</button>"
+        + "<b>" + (page + 1) + " / " + pages + "</b>"
+        + '<button class="rrp-pgbtn" data-pg="' + key + ':next"' + (page >= pages - 1 ? " disabled" : "") + ">Next ›</button></div>";
+    }
     // N5: "the customer promised to write later" is a warm review, not a dead end — it only
     // pays off if somebody calls them back, so this list carries the phone/email.
     function promisedCard() {
@@ -864,7 +906,12 @@ registerPage({ id: "review-settings", group: "reviews", title: "Review URLs and 
         })
         .sort(function (a, b) { return (b.age || 0) - (a.age || 0); });
       var landed = rows.filter(function (x) { return x.rev; }).length;
-      var body = rows.length ? rows.map(function (x) {
+      var PM_PAGE = 25;
+      var pmPages = Math.max(1, Math.ceil(rows.length / PM_PAGE));
+      if (!(RRP.pmPage >= 0)) RRP.pmPage = 0;
+      if (RRP.pmPage >= pmPages) RRP.pmPage = pmPages - 1;
+      var pmFrom = RRP.pmPage * PM_PAGE, pmShown = rows.slice(pmFrom, pmFrom + PM_PAGE);
+      var body = rows.length ? pmShown.map(function (x) {
         var c = x.c || {}, tel = String(c.mobile || "").trim(), mail = String(c.email || "").trim();
         var contact = [
           tel ? '<a href="tel:' + esc(tel.replace(/[^0-9+]/g, "")) + '">' + esc(tel) + "</a>" : "",
@@ -880,8 +927,9 @@ registerPage({ id: "review-settings", group: "reviews", title: "Review URLs and 
         + '<span class="ra-sub">' + N(rows.length) + " customer" + (rows.length === 1 ? "" : "s")
         + (landed ? " · " + N(landed) + " already landed" : "") + " · all time</span></div>"
         + '<div style="overflow-x:auto"><table class="rrp-reasontbl"><thead><tr><th>Promised</th>'
-        + '<th style="text-align:right">Age</th><th>Job</th><th>Customer</th><th>Contact</th><th>Foreman</th><th>Status</th>'
+        + '<th class="r">Age</th><th>Job</th><th>Customer</th><th>Contact</th><th>Foreman</th><th>Status</th>'
         + "</tr></thead><tbody>" + body + "</tbody></table></div>"
+        + pager(rows.length, pmFrom, pmShown.length, RRP.pmPage, pmPages, "pm")
         + '<div class="ra-hint">Oldest first — these customers said yes, they just need reminding.</div></div>';
     }
 
@@ -894,14 +942,20 @@ registerPage({ id: "review-settings", group: "reviews", title: "Review URLs and 
       // answers the question by itself (Tornike 2026-07-16)
       var waiting = jobs.filter(function (j) { return !j.exp && !j.rev; }).length;
       var cov = total ? Math.round((total - waiting) / total * 100) : 0;
-      // KPI row — reviewed jobs vs total review events are SEPARATE numbers (10 reviews on 1 job → 1 and 10)
-      var kp = '<div class="rrp-kpis">'
+      // KPI row — reviewed jobs vs total review events are SEPARATE numbers (10 reviews on 1 job → 1 and 10).
+      // When the warehouse review join is DOWN, the review-derived tiles are not "0" — they are
+      // unknown. Show "—" and put the warning ABOVE the numbers, not three screens below them
+      // (audit 2026-07-25); everything else on the row is still true.
+      var rvBad = !!RRP.revErr;
+      var kpBanner = rvBad ? '<div class="rrp-warnbanner">Review matching is <b>off</b> right now (' + esc(RRP.revErr)
+        + ") — the warehouse review register couldn’t be read, so reviewed/response numbers are unknown and every unexplained job shows as waiting. Foreman explanations below are unaffected.</div>" : "";
+      var kp = kpBanner + '<div class="rrp-kpis">'
         + '<div class="rrp-kpi"><b>' + N(total) + '</b><span>Recent jobs</span><small>yesterday → 7 days ago</small></div>'
-        + '<div class="rrp-kpi good"><b>' + N(revd) + '</b><span>Reviewed jobs</span><small>review written — no reason needed</small></div>'
-        + '<div class="rrp-kpi good"><b>' + N(revTot) + '</b><span>Reviews written</span><small>total, on those ' + N(revd) + ' job' + (revd === 1 ? "" : "s") + '</small></div>'
+        + '<div class="rrp-kpi' + (rvBad ? "" : " good") + '"><b>' + (rvBad ? "—" : N(revd)) + '</b><span>Reviewed jobs</span><small>' + (rvBad ? "review matching is off" : "review written — no reason needed") + '</small></div>'
+        + '<div class="rrp-kpi' + (rvBad ? "" : " good") + '"><b>' + (rvBad ? "—" : N(revTot)) + '</b><span>Reviews written</span><small>' + (rvBad ? "review matching is off" : "total, on those " + N(revd) + " job" + (revd === 1 ? "" : "s")) + '</small></div>'
         + '<div class="rrp-kpi good"><b>' + N(expd) + '</b><span>Explained</span><small>foreman told us why</small></div>'
-        + '<div class="rrp-kpi warn"><b>' + N(waiting) + '</b><span>Waiting</span><small>no review, no reason</small></div>'
-        + '<div class="rrp-kpi"><b>' + cov + '%</b><span>Response rate</span><small>reviewed + explained ÷ recent</small></div></div>';
+        + '<div class="rrp-kpi warn"><b>' + N(waiting) + '</b><span>' + (rvBad ? "Unanswered" : "Waiting") + '</span><small>' + (rvBad ? "no reason logged" : "no review, no reason") + '</small></div>'
+        + '<div class="rrp-kpi"><b>' + (rvBad ? "—" : cov + "%") + '</b><span>Response rate</span><small>' + (rvBad ? "needs review matching" : "reviewed + explained ÷ recent") + '</small></div></div>';
       // ---- answer statistics (N3/N4, quality team via Tornike 2026-07-20) ----
       // Two bugs fixed here at the same time: these bars used to count ALL-TIME answers
       // while the KPIs above them covered 7 days (unlabelled), and they double-counted a
@@ -922,10 +976,18 @@ registerPage({ id: "review-settings", group: "reviews", title: "Review URLs and 
         var ok = day.filter(function (j) { return j.exp || j.rev; }).length;
         return "<tr><td>" + esc(etDay(dk + "T12:00:00") || dk) + '</td><td class="r">' + day.length + '</td><td class="r">' + rv + '</td><td class="r">' + e + '</td><td class="r">' + (day.length ? Math.round(ok / day.length * 100) + "%" : "—") + "</td></tr>";
       }).join("");
-      var dayTbl = '<div class="rrp-card" style="padding:0"><table class="rrp-reasontbl"><thead><tr><th>Day</th><th style="text-align:right">Jobs</th><th style="text-align:right">Reviewed</th><th style="text-align:right">Explained</th><th style="text-align:right">Rate</th></tr></thead><tbody>' + (dayRows || '<tr><td colspan="5" style="color:var(--faint);padding:14px">No recent jobs.</td></tr>') + "</tbody></table></div>";
+      var dayTbl = '<div class="rrp-card" style="padding:0"><table class="rrp-reasontbl"><thead><tr><th>Day</th><th class="r">Jobs</th><th class="r">Reviewed</th><th class="r">Explained</th><th class="r">Rate</th></tr></thead><tbody>' + (dayRows || '<tr><td colspan="5" style="color:var(--faint);padding:14px">No recent jobs.</td></tr>') + "</tbody></table></div>";
       // worklist with inline explain (waiting first)
       var reasons = (RRP.data && RRP.data.config && RRP.data.config.reasons) || RRP_SEED.reasons;
-      var work = jobs.map(function (j, i) {
+      // Paginated 25/page (audit 2026-07-25) — this rendered every recent job at once. data-exi
+      // carries the ABSOLUTE index into `jobs` so wireResponse resolves the right job on any page.
+      var RJ_PAGE = 25;
+      var rjPages = Math.max(1, Math.ceil(jobs.length / RJ_PAGE));
+      if (!(RRP.rjPage >= 0)) RRP.rjPage = 0;
+      if (RRP.rjPage >= rjPages) RRP.rjPage = rjPages - 1;
+      var rjFrom = RRP.rjPage * RJ_PAGE, rjShown = jobs.slice(rjFrom, rjFrom + RJ_PAGE);
+      var work = rjShown.map(function (j, i0) {
+        var i = rjFrom + i0;
         var right;
         if (j.rev) {
           // review written → nothing to explain; no Add-reason button (Tornike 2026-07-16)
@@ -943,7 +1005,8 @@ registerPage({ id: "review-settings", group: "reviews", title: "Review URLs and 
         + (RRP.revErr ? ' <b style="color:#e0912a">Review matching is OFF right now (' + esc(RRP.revErr) + ') — every unexplained job shows as waiting.</b>' : "") + "</div>";
       var workTbl = '<div class="rrp-card" style="padding:0;margin-top:12px"><div style="padding:12px 15px 4px;font-size:14px;font-weight:800">Recent jobs — ' + N(waiting) + ' waiting for a reason</div>'
         + '<div style="overflow-x:auto"><table class="rrp-reasontbl" id="rrpWork"><thead><tr><th>Date</th><th>Job</th><th>Customer</th><th>Foreman</th><th>Status / Reason</th></tr></thead><tbody>'
-        + (work || '<tr><td colspan="5" style="color:var(--faint);padding:14px">No jobs in the last 7 days. As the bot sends nudges, they land here.</td></tr>') + "</tbody></table></div></div>" + revNote;
+        + (work || '<tr><td colspan="5" style="color:var(--faint);padding:14px">No jobs in the last 7 days. As the bot sends nudges, they land here.</td></tr>') + "</tbody></table></div>"
+        + pager(jobs.length, rjFrom, rjShown.length, RRP.rjPage, rjPages, "rj") + "</div>" + revNote;
       // stash the model + reason list for wireResponse
       RRP._rm = { jobs: jobs, reasons: reasons };
       return freshBar() + kp
@@ -957,7 +1020,18 @@ registerPage({ id: "review-settings", group: "reviews", title: "Review URLs and 
     function wireResponse() {
       // answer-statistics controls: period toggle + foreman drill-down (click again to close)
       Array.prototype.forEach.call(root.querySelectorAll("[data-rap]"), function (b) {
-        b.onclick = function () { RRP.raPeriod = +b.getAttribute("data-rap"); paint(); };
+        // Changing the period drops the drill-down: the selected foreman may have no answers in
+        // the new window, which rendered an empty card with no explanation (audit 2026-07-25).
+        b.onclick = function () { RRP.raPeriod = +b.getAttribute("data-rap"); RRP.raForeman = null; paint(); };
+      });
+      // pagers (recent-jobs worklist + promised-review follow-ups)
+      Array.prototype.forEach.call(root.querySelectorAll("[data-pg]"), function (b) {
+        b.onclick = function () {
+          var p = String(b.getAttribute("data-pg")).split(":"), d = p[1] === "next" ? 1 : -1;
+          if (p[0] === "rj") RRP.rjPage = (RRP.rjPage || 0) + d;
+          else if (p[0] === "pm") RRP.pmPage = (RRP.pmPage || 0) + d;
+          paint();
+        };
       });
       Array.prototype.forEach.call(root.querySelectorAll("[data-raf]"), function (t) {
         t.onclick = function () {
@@ -1057,7 +1131,7 @@ registerPage({ id: "review-settings", group: "reviews", title: "Review URLs and 
       var txt = RRP.pvYelp
         ? slack("Hi Bacho 👋, your next job with *Katie Darcy* starts in 1 hour. This is a *Yelp customer*: ⚠️ please do *NOT* send them a Yelp review link. Instead, ask them verbally on-site for a review once the job is done, and send them these links:") + "\n" + block
         : slack("Hi Bacho 👋, your job with *Katie Darcy* wraps up soon. Once it’s done well, please send them our review links:") + "\n" + block;
-      return '<div class="rrp-msg"><div class="rrp-msgav">Z</div><div class="rrp-msgb">'
+      return '<div class="rrp-pvmsg"><div class="rrp-msgav">Z</div><div class="rrp-msgb">'
         + '<div class="rrp-msgn">Review Bot<span>' + (RRP.pvYelp ? "pre-start · 1h before" : "mid-job") + "</span></div>"
         + '<div class="rrp-bub">' + txt + "</div></div></div>";
     }
@@ -1073,10 +1147,21 @@ registerPage({ id: "review-settings", group: "reviews", title: "Review URLs and 
       }
     }
     function viewLinks() {
-      if (!RRP.draft) {
-        var src = (RRP.data && RRP.data.config && RRP.data.config.google && RRP.data.config.google.length) ? RRP.data.config : RRP_SEED;
+      // The editor paints INSTANTLY from the seed catalog (the relay read is 30-50s cold), so the
+      // first draft is usually the seed. When the live config lands a moment later it must REPLACE
+      // that draft — otherwise the untouched-looking editor is showing defaults, and Save writes
+      // them straight over the real config (audit 2026-07-25). Only re-seed while the draft is
+      // still pristine: a draft the user has edited is never thrown away.
+      var live = (RRP.data && RRP.data.config && RRP.data.config.google && RRP.data.config.google.length) ? RRP.data.config : null;
+      var pristine = !RRP.draft || JSON.stringify(RRP.draft) === RRP.draftBase;
+      if (!RRP.draft || (live && RRP.draftSrc !== "live" && pristine)) {
+        var src = live || RRP_SEED;
         RRP.draft = JSON.parse(JSON.stringify(src));
+        // fill the reason list BEFORE stamping the baseline, or the page opens already claiming
+        // "Unsaved changes" against a draft nobody has touched
+        if (!RRP.draft.reasons) RRP.draft.reasons = (live && live.reasons ? live.reasons : RRP_SEED.reasons).slice();
         RRP.draftBase = JSON.stringify(RRP.draft);   // dirty-state baseline
+        RRP.draftSrc = live ? "live" : "seed";
       }
       var d = RRP.draft;
       if (!d.reasons) d.reasons = (RRP.data && RRP.data.config && RRP.data.config.reasons) ? RRP.data.config.reasons.slice() : RRP_SEED.reasons.slice();
@@ -1146,7 +1231,9 @@ registerPage({ id: "review-settings", group: "reviews", title: "Review URLs and 
       var msgCls = RRP.saved === 1 ? "rrp-savemsg ok" : (RRP.saved === 2 || RRP.saved === 3) ? "rrp-savemsg bad" : "rrp-savemsg";
       var savebar = '<div class="rrp-savebar' + (dirty ? " dirty" : "") + '" id="rrpSaveBar"><span class="' + msgCls + '">' + esc(savemsg) + '</span>'
         + '<button class="rrp-save" id="rrpSave"' + (RRP.saving ? " disabled" : "") + ">Save settings</button></div>";
-      // preview column
+      // preview column — self-heal a preview state whose last listing was just deleted, otherwise
+      // the bubble keeps naming a state the dropdown no longer offers (audit 2026-07-25)
+      if (RRP.pvState && states.indexOf(RRP.pvState) < 0) RRP.pvState = states[0] || null;
       var pvState = RRP.pvState || (d.google[0] && d.google[0].state) || "NJ";
       var pv = '<aside class="rrp-pv"><div class="rrp-pvh"><h4>What the foreman gets <em>preview</em></h4>'
         + "<p>Built from your edits above — it updates as you type.</p></div>"
@@ -1168,7 +1255,7 @@ registerPage({ id: "review-settings", group: "reviews", title: "Review URLs and 
       response: { t: "Response Analysis", p: "Why reviews were missed — every recent job the bot asked about, whether the foreman explained, and the reasons. Statistics run from yesterday back; you can still log a reason for a job up to a week old." },
       links: { t: "Review URLs and Reasons", p: "Which review link the bot sends per delivery state, the extra platforms, and the “why no review?” reasons foremen can pick." }
     };
-    function paint() {
+    function bodyHtml() {
       var body;
       // Settings works from the live config OR the seed catalog — never blocked by the relay.
       if (RRP.view === "links") body = viewLinks();
@@ -1180,6 +1267,10 @@ registerPage({ id: "review-settings", group: "reviews", title: "Review URLs and 
           + '<button class="rrp-refresh" id="rrpRetry">Try again</button></div>';
       } else if (RRP.view === "response") body = viewResponse();
       else body = kpis() + viewLog();
+      return body;
+    }
+    function paint() {
+      var body = bodyHtml();
       var hd = HEAD[RRP.view] || HEAD.log;
 
       root.innerHTML =
@@ -1189,7 +1280,23 @@ registerPage({ id: "review-settings", group: "reviews", title: "Review URLs and 
         + '<div class="rrp-headright"><div class="rrp-clock" id="rrpClock" title="Reminders fire on New Jersey time — compare a job’s scheduled time to this">' + nowLabel() + "</div>"
         + '<button class="rrp-refresh" id="rrpRefresh">↻ Refresh</button></div></div>'
         + '<div id="rrpBody">' + body + "</div>";
-      var rf = root.querySelector("#rrpRefresh"); if (rf) rf.onclick = function () { RRP.data = null; RRP.dataFresh = false; RRP.draft = null; RRP.goals = null; render(host); };
+      var rf = root.querySelector("#rrpRefresh"); if (rf) rf.onclick = function () {
+        RRP.data = null; RRP._fmap = null; RRP.dataFresh = false; RRP.draft = null; RRP.draftSrc = null; RRP.goals = null; render(host);
+      };
+      // live clock — one interval; it self-clears once the page is gone
+      if (window.__rrpClockTimer) clearInterval(window.__rrpClockTimer);
+      window.__rrpClockTimer = setInterval(function () { var c = document.getElementById("rrpClock"); if (!c) { clearInterval(window.__rrpClockTimer); window.__rrpClockTimer = null; return; } c.textContent = nowLabel(); }, 15000);
+      wireBody();
+    }
+    // Re-render ONLY the body. The search box repaints per keystroke; rebuilding the whole page
+    // (header, clock, listeners) for a filter change was needless work (audit 2026-07-25).
+    function paintBody() {
+      var el = root.querySelector("#rrpBody");
+      if (!el) return paint();
+      el.innerHTML = bodyHtml();
+      wireBody();
+    }
+    function wireBody() {
       // the reasons-tab refresh: force=true so it bypasses the bridge proxy's 30s cache AND the
       // relay's own schedule cache — otherwise "Refresh" could hand back the same stale answer
       var rf2 = root.querySelector("#rrpFresh2");
@@ -1200,20 +1307,28 @@ registerPage({ id: "review-settings", group: "reviews", title: "Review URLs and 
         ensureData(true).then(paint, paint);
       };
       var rt = root.querySelector("#rrpRetry"); if (rt) rt.onclick = function () { RRP.data = null; RRP.dataFresh = false; render(host); };
-      // live clock — one interval; it self-clears once the page is gone
-      if (window.__rrpClockTimer) clearInterval(window.__rrpClockTimer);
-      window.__rrpClockTimer = setInterval(function () { var c = document.getElementById("rrpClock"); if (!c) { clearInterval(window.__rrpClockTimer); window.__rrpClockTimer = null; return; } c.textContent = nowLabel(); }, 15000);
 
       // wire day collapse/expand + per-job expand
       Array.prototype.forEach.call(root.querySelectorAll(".rrp-dayhead[data-day]"), function (h) {
         h.onclick = function () { var d = h.getAttribute("data-day"); var todayKey = etDayKey(new Date().toISOString());
-          var cur = (d in RRP.openDays) ? RRP.openDays[d] : (d === todayKey); RRP.openDays[d] = !cur; paint(); };
+          var cur = (d in RRP.openDays) ? RRP.openDays[d] : (d === todayKey); RRP.openDays[d] = !cur; paintBody(); };
       });
       Array.prototype.forEach.call(root.querySelectorAll(".rrp-jrhead[data-job]"), function (h) {
-        h.onclick = function () { var j = h.getAttribute("data-job"); RRP.openJobs[j] = !RRP.openJobs[j]; paint(); };
+        h.onclick = function () { var j = h.getAttribute("data-job"); RRP.openJobs[j] = !RRP.openJobs[j]; paintBody(); };
       });
-      // wire search
-      var fq = root.querySelector("#rrpQ"); if (fq) { fq.oninput = function () { RRP.fq = fq.value; var pos = fq.selectionStart; paint(); var n = root.querySelector("#rrpQ"); if (n) { n.focus(); try { n.setSelectionRange(pos, pos); } catch (e) {} } }; }
+      // wire search — debounced, body-only, caret preserved
+      var fq = root.querySelector("#rrpQ");
+      if (fq) fq.oninput = function () {
+        RRP.fq = fq.value;
+        var a = fq.selectionStart, b = fq.selectionEnd;
+        clearTimeout(RRP._fqT);
+        RRP._fqT = setTimeout(function () {
+          if (!root.isConnected) return;
+          paintBody();
+          var n = root.querySelector("#rrpQ");
+          if (n) { n.focus(); try { n.setSelectionRange(a, b); } catch (e) {} }
+        }, 150);
+      };
 
       // wire link editor + response-analysis inline explain
       wireLinks();
@@ -1244,7 +1359,10 @@ registerPage({ id: "review-settings", group: "reviews", title: "Review URLs and 
       Array.prototype.forEach.call(root.querySelectorAll("[data-rzn]"), function (el) { el.oninput = function () { d.reasons[+el.getAttribute("data-rzn")] = el.value; RRP.saved = 0; }; });
       Array.prototype.forEach.call(root.querySelectorAll("[data-rzdel]"), function (el) { el.onclick = function () { d.reasons.splice(+el.getAttribute("data-rzdel"), 1); RRP.saved = 0; paint(); }; });
       var addR = root.querySelector("[data-addrzn]"); if (addR) addR.onclick = function () {
-        var oi = d.reasons.map(function (x) { return String(x).trim().toLowerCase(); }).indexOf("other");
+        // same predicate as the pin above — an exact "other" test missed the renamed
+        // "Other (Comment)" and appended the blank row AFTER it (audit 2026-07-25)
+        var oi = -1;
+        for (var k = 0; k < d.reasons.length; k++) { if (/^other\b/i.test(String(d.reasons[k]).trim())) { oi = k; break; } }
         if (oi >= 0) d.reasons.splice(oi, 0, ""); else d.reasons.push("");   // keep Other last
         RRP.saved = 0; paint();
       };
@@ -1323,7 +1441,11 @@ registerPage({ id: "review-settings", group: "reviews", title: "Review URLs and 
           RRP.view === "response" ? loadContacts() : Promise.resolve()]);
         if (RRP.view === "links") await loadGoals();
       } catch (e) {}
-      RRP.loading = false; RRP.fromCache = false;
+      RRP.loading = false;
+      // Only a SUCCESSFUL fetch clears the cache flag. Clearing it unconditionally relabelled a
+      // failed background refresh as "Live from the reminder bot", complete with a green dot,
+      // while the numbers on screen were still the stale localStorage copy (audit 2026-07-25).
+      if (RRP.dataFresh) RRP.fromCache = false;
       paint();
     })();
   };
