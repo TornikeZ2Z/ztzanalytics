@@ -5,6 +5,45 @@ window.ZTZ = (function () {
   const API = "https://ztz-bridge-32168089642.us-east4.run.app";
   const CLIENT_ID = "32168089642-fkk3rglncf6hl5ikq7pi6jbornug1kbb.apps.googleusercontent.com";
   const TOKEN_KEY = "ztz_tok";
+  const VIEW_AS_KEY = "ztz_view_as";
+
+  /* ---------- admin "view as user" ----------
+     Which user the portal is currently being previewed AS. sessionStorage, not
+     localStorage, on purpose: impersonation must not survive into a new tab or outlive
+     the session — closing the tab always drops you back to yourself.
+     The bridge is the enforcer (it swaps the ACL entry server-side and refuses writes);
+     this is only the client half that says who to ask for. */
+  function getViewAs() { try { return sessionStorage.getItem(VIEW_AS_KEY) || ""; } catch (e) { return ""; } }
+  function setViewAs(em) {
+    try { em ? sessionStorage.setItem(VIEW_AS_KEY, String(em).toLowerCase()) : sessionStorage.removeItem(VIEW_AS_KEY); }
+    catch (e) {}
+  }
+  /* Inject X-View-As on EVERY bridge request from ONE place.
+     There are ~20 call sites that build their own fetch() instead of going through
+     ZTZ.api — money-flow, ld-planning, foreman-closings, the relay proxies, and so on.
+     Adding the header at each of them would guarantee a forgotten one, and a preview that
+     silently answers as the admin for some requests is worse than no preview at all. That
+     "a gate some paths bypass" shape is exactly the 2026-07-26 access bug. So patch once,
+     match on the bridge origin, and add nothing but the header. */
+  (function patchFetchForViewAs() {
+    if (typeof window.fetch !== "function" || window.__ztzViewAsPatched) return;
+    window.__ztzViewAsPatched = true;
+    const orig = window.fetch;
+    window.fetch = function (input, init) {
+      try {
+        const as = getViewAs();
+        const url = typeof input === "string" ? input : (input && input.url) || "";
+        if (as && url.indexOf(API) === 0) {
+          init = Object.assign({}, init || {});
+          const h = new Headers((init.headers) ||
+            (typeof input !== "string" && input && input.headers) || {});
+          h.set("X-View-As", as);
+          init.headers = h;
+        }
+      } catch (e) { /* never let the preview break a real request */ }
+      return orig.call(this, input, init);
+    };
+  })();
 
   /* ---------- token ---------- */
   function decodeJwt(t) {
@@ -130,5 +169,6 @@ window.ZTZ = (function () {
   const money = n => { const r = Math.round(n) || 0; return (r < 0 ? "-$" : "$") + Math.abs(r).toLocaleString(); };
 
   return { API, CLIENT_ID, decodeJwt, tokenValid, getToken, setToken, clearToken, email,
+           getViewAs, setViewAs,
            api, mountSignin, header, toast, num, fmtN, money };
 })();

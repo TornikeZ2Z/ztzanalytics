@@ -173,6 +173,7 @@ window.RS = (function () {
     },
   };
   const _cache = {};
+  let _cacheOwner = "";   // which viewer _cache belongs to ("" = the signed-in user; see load())
   const _loading = {};
   /* ---------- IndexedDB dataset persistence (perf batch E, 2026-07-15) ----------
      Rows are stored POST-processed (with _d/_y/_m derived and the card_expenses Amount
@@ -222,6 +223,21 @@ window.RS = (function () {
   }
 
   async function load(ds) {
+    // While an admin is previewing the portal AS someone else, every cache has to be
+    // bypassed. The caches are keyed on table+epoch, NOT on the viewer — so a table the
+    // admin already pulled would be served straight from memory/IndexedDB and the preview
+    // would show data the target actually gets a 403 on. That would make the feature lie
+    // in exactly the case it exists to catch. Correctness beats speed here; the preview is
+    // slower, and that is the right trade.
+    const viewAs = (window.ZTZ && ZTZ.getViewAs && ZTZ.getViewAs()) || "";
+    // Self-healing rather than relying on the caller to clear: the moment the viewer
+    // changes, the whole in-memory cache is dropped. Rows fetched as the admin can never
+    // be handed to a preview, and rows fetched during a preview can never survive back
+    // into the admin's own session.
+    if (_cacheOwner !== viewAs) {
+      for (const k in _cache) delete _cache[k];
+      _cacheOwner = viewAs;
+    }
     if (_cache[ds]) return _cache[ds];
     if (_loading[ds]) return _loading[ds];
     const spec = DATASETS[ds];
@@ -229,7 +245,7 @@ window.RS = (function () {
       try {
         const mk = await _dataMarker();
         const key = IDB_VER + spec.table + "|" + spec.cols.join(",");
-        if (mk) {
+        if (mk && !viewAs) {
           const hit = await _idbGet(key);
           if (hit && hit.marker === mk && Array.isArray(hit.rows)) {
             _cache[ds] = hit.rows; delete _loading[ds];
@@ -254,7 +270,10 @@ window.RS = (function () {
           r.Amount = -num(r.Amount);
         });
         _cache[ds] = rows; delete _loading[ds];
-        if (mk && rows.length) _idbPut(key, { marker: mk, rows });   // fire-and-forget
+        // IndexedDB is NOT viewer-scoped and outlives the preview, so a preview must never
+        // write to it — otherwise the target's narrower result set would later be served
+        // back to the admin as if it were their own.
+        if (mk && rows.length && !viewAs) _idbPut(key, { marker: mk, rows });   // fire-and-forget
         return rows;
       } catch (e) {
         delete _loading[ds];   // never cache a failed load (e.g. expired token)
