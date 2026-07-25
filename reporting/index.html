@@ -1172,14 +1172,18 @@ const aclIconFor = id => (MERGED.find(m => m.id === id) || {}).icon ||
    report). The UI grants a DEPARTMENT; under the hood the bridge still stores +
    enforces the department's individual report ids — nothing changes in enforcement,
    only in how admins pick. Report lists mirror the sidebar groups. */
+/* MUST MIRROR DEPT_REPORTS in bridge/app.py — the client hides, the bridge enforces.
+   Retired themed dashboards removed from every department 2026-07-26: they were folded into
+   the Monthly Report on 2026-07-22 but only in the RETIRED nav set above, so they stayed in
+   these lists and kept granting the full Monthly Report table set. */
 const ACL_DEPTS = [
   { id: "company",   label: "Company Overview", icon: "spark",     reports: ["monthly-report", "analysis-by-category"] },
-  { id: "sales",     label: "Sales",            icon: "funnel",    reports: ["sales-funnel", "sales-perf", "sales-speed", "leads-inflow"] },
-  { id: "marketing", label: "Marketing",        icon: "megaphone", reports: ["mkt-roi", "mkt-sources", "mkt-phone"] },
-  { id: "logistics", label: "Logistics",        icon: "tool",      reports: ["money-flow", "ld-planning", "foreman-closings", "log-foreman", "log-packing"] },
-  { id: "financial", label: "Financial",        icon: "trend",     reports: ["fin-revenue", "fin-rr", "sales-geo", "financial-analysis", "executive-scorecard", "branch-owner"] },
-  { id: "reviews",   label: "Reviews",          icon: "star",      reports: ["review-performance", "rev-production", "reviews-reminders", "response-analysis", "review-settings"] },
-  { id: "support",   label: "Support",          icon: "shield",    reports: ["sup-claims", "sup-refunds", "sup-phone"] },
+  { id: "sales",     label: "Sales",            icon: "funnel",    reports: ["sales-speed", "leads-inflow"] },
+  { id: "marketing", label: "Marketing",        icon: "megaphone", reports: ["source-trace", "multi-source-leads"] },
+  { id: "logistics", label: "Logistics",        icon: "tool",      reports: ["money-flow", "ld-planning", "foreman-closings"] },
+  { id: "financial", label: "Financial",        icon: "trend",     reports: ["financial-analysis", "executive-scorecard", "branch-owner"] },
+  { id: "reviews",   label: "Reviews",          icon: "star",      reports: ["review-performance", "reviews-reminders", "response-analysis", "review-settings"] },
+  { id: "support",   label: "Support",          icon: "shield",    reports: [] },
   { id: "quality",   label: "Data Quality",     icon: "clipboard", reports: ["data-quality"] },
   { id: "sales-lead", label: "Sales Lead — person analysis", icon: "gauge", reports: ["sales-command"] },
   { id: "explorer",  label: "Data Explorer — every table", icon: "archive", reports: ["explorer"] },
