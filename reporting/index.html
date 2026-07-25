@@ -344,7 +344,15 @@ function canSee(id) {
   return false;
 }
 function firstAllowedId() {
-  for (const p of PAGES) { const oid = idOwner(p.id); if (canSee(oid)) return oid; }
+  for (const p of PAGES) {
+    // A RETIRED id must never be the landing page: navigate() runs it back through
+    // pageFor(), which resolves the redirect and renders the REPLACEMENT — so returning
+    // e.g. "sales-funnel" here handed the user the Monthly Report even though canSee()
+    // had just refused it (found 2026-07-26 while fixing the department-grant leak).
+    if (RETIRED.has(p.id)) continue;
+    const oid = idOwner(p.id);
+    if (canSee(oid)) return oid;
+  }
   return null;
 }
 function requestAccessScreen(email, errMsg) {
@@ -678,6 +686,11 @@ function navigate(id, push) {
   if (!id) { requestAccessScreen(ME && ME.email); return; }
   const page = pageFor(id) || (PAGES[0] && pageFor(PAGES[0].id));
   if (!page) return;
+  // BELT AND BRACES: pageFor() resolves redirects, so the page we ended up with is not
+  // necessarily the id the gate just approved — and the PAGES[0] fallback isn't checked at
+  // all. Re-verify against the page we are about to RENDER, so no resolution path can put a
+  // report on screen that canSee() refuses (2026-07-26).
+  if (!canSee(idOwner(page.id))) { requestAccessScreen(ME && ME.email); return; }
   CURRENT = page;
   const m = MERGED.find(x => x.id === page.id);
   const mAct = m ? page.id + ":" + (mergedActiveTab[page.id] || m.tabs[0][0]) : null;
