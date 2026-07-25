@@ -119,7 +119,7 @@ registerPage({
 
     // ---- the PORTAL's manual planning fields (trip days / final FAD / final CF) ----
     // The portal is the source of truth for these (his call 2026-07-21). The pipeline
-    // bakes current entries into fct_ld_planning every ~6h; this live overlay applies
+    // bakes current entries into fct_ld_planning hourly; this live overlay applies
     // anything entered SINCE, so a save shows its effect immediately.
     var LDP_ENT = {};
     // Manual values live at LD-ROW grain (a multi-trip job has one row per trip and they
@@ -388,7 +388,7 @@ registerPage({
         + '<div class="ldp-fnote">' + (S.view === "fix"
             ? "These rows need a correction in the Long Distance sheet itself — the board can only be as clean as the sheet."
             : "Click a row for the full details. Sorted by urgency: overdue first, then open windows by days left.")
-        + " Data refreshes with the pipeline (~6h).</div></div>";
+        + " Data refreshes with the pipeline (hourly).</div></div>";
 
       // keep the scroll position — a repaint used to snap back to the top; the vertical
       // scroller is the table wrap (.ldp-wrap), not the window — restore both

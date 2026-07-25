@@ -341,7 +341,7 @@ registerPage({
     host.innerHTML = `<div class="rs-page-head">
         <h1>Refresh Log</h1>
         <p>How each data refresh ran — the raw source loads and the curation build, per run.
-          <span class="freshness">· the pipeline runs every 6 hours</span></p>
+          <span class="freshness">· the pipeline runs every hour</span></p>
       </div>
       <div class="rl-bar">
         <button class="rl-btn" id="rlReload">↻ Reload this page's data</button>
@@ -361,7 +361,7 @@ registerPage({
     if (!runs.length) {
       body.innerHTML = `<div class="rl-card" style="text-align:center;color:var(--muted);padding:30px">
         No refresh runs recorded yet. This fills in automatically as the pipeline runs
-        (every 6 hours, or when a refresh is triggered).</div>`;
+        (every hour, or when a refresh is triggered).</div>`;
       return;
     }
     rlRender(body, runs, data && data.coverage);
