@@ -826,10 +826,17 @@ function buildNav() {
     const planned = PLANNED.filter(p => p.group === g.key && p.title.toLowerCase().includes(q));
     if (!items.length && !planned.length) return;
     if (ADMIN_GROUPS.has(g.key) && !(ME && ME.admin)) return;   // admin-only container
-    // first visit: the admin container starts collapsed (the key is absent from storage)
-    var _stored = localStorage.getItem("rsNavCollapsed");
-    const collapsedSet = new Set(_stored ? JSON.parse(_stored) : DEFAULT_COLLAPSED);
-    if (_stored === null) localStorage.setItem("rsNavCollapsed", JSON.stringify(DEFAULT_COLLAPSED));
+    // The admin container starts COLLAPSED on every sign-in (his ask). Once collapsed for
+    // this browser session it behaves normally, so opening it mid-session sticks.
+    try {
+      if (!sessionStorage.getItem("rsNavAdminInit")) {
+        sessionStorage.setItem("rsNavAdminInit", "1");
+        const init = new Set(JSON.parse(localStorage.getItem("rsNavCollapsed") || "[]"));
+        DEFAULT_COLLAPSED.forEach(k => init.add(k));
+        localStorage.setItem("rsNavCollapsed", JSON.stringify([...init]));
+      }
+    } catch (e) {}
+    const collapsedSet = new Set(JSON.parse(localStorage.getItem("rsNavCollapsed") || "[]"));
     // while searching, always show matches even inside collapsed groups
     const box = RSC.el("div", "rs-group" + (!q && collapsedSet.has(g.key) ? " collapsed" : ""),
       `<div class="g-title">${g.title}<span class="g-car">▼</span></div>`);
