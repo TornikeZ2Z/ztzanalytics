@@ -106,6 +106,73 @@ registerPage({
         .ldp-dnote{font-size:12.5px;line-height:1.5;color:var(--ink);background:var(--panel-2);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
         .ldp-dissue{font-size:12.5px;line-height:1.5;font-weight:700;color:${WARN};background:rgba(160,106,0,.10);border:1px solid rgba(160,106,0,.28);border-radius:10px;padding:10px 12px}
         .ldp-dissue.blk{color:${NEG};background:rgba(176,42,55,.09);border-color:rgba(176,42,55,.28)}
+        /* ================= TIMELINE VIEW =================
+           Modelled on his own longdistance.html planner: a 42-day grid where a STRAIGHT job
+           is drawn as depart-marker -> trip bar -> deadline diamond (one committed date) and
+           a REGULAR job as a window band (delivered anywhere inside it). Two different
+           planning shapes, so they must not look alike. Pickup is a hollow circle, today is
+           a tinted column, and a deadline outside the window collapses to an edge chevron
+           rather than vanishing. */
+        .ldp-tlbar{display:flex;align-items:center;gap:16px;margin:0 0 12px;flex-wrap:wrap}
+        .ldp-tlnav{display:inline-flex;background:var(--panel);border:1px solid var(--line-2);border-radius:11px;overflow:hidden}
+        .ldp-tlnav button{border:0;border-right:1px solid var(--line);background:none;font:inherit;font-size:13px;font-weight:700;color:var(--ink);padding:8px 14px;cursor:pointer}
+        .ldp-tlnav button:last-child{border-right:0}
+        .ldp-tlnav button:hover{background:var(--panel-2)}
+        .ldp-tlrange{font-size:19px;font-weight:800;letter-spacing:-.3px;line-height:1.05}
+        .ldp-tlrange small{display:block;font-size:10px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--faint);margin-top:2px}
+        .ldp-tllg{display:flex;gap:15px;margin-left:auto;font-size:12px;color:var(--muted);flex-wrap:wrap;align-items:center}
+        .ldp-tllg span{display:flex;align-items:center;gap:6px}
+        .lg-pk{width:11px;height:11px;border-radius:50%;border:2px solid var(--faint);background:var(--panel);flex:0 0 auto}
+        .lg-s{position:relative;width:22px;height:3px;background:var(--line-2);border-radius:2px;flex:0 0 auto}
+        .lg-s::after{content:"";position:absolute;right:-2px;top:50%;width:10px;height:10px;border-radius:2px;background:${WARN};transform:translateY(-50%) rotate(45deg)}
+        .lg-r{width:24px;height:14px;border-radius:4px;background:rgba(47,111,208,.13);border:1px solid rgba(47,111,208,.35);border-left:3px solid ${BLUE};flex:0 0 auto}
+        .ldp-tlgrid{position:relative;border:1px solid var(--line-2);border-radius:14px;overflow:hidden;background:var(--panel)}
+        .ldp-tlhead{display:flex;height:50px;background:var(--panel-2);border-bottom:1px solid var(--line-2)}
+        .ldp-tlhlab{width:236px;flex:0 0 236px;border-right:1px solid var(--line)}
+        .ldp-tlhcal{position:relative;flex:1;min-width:0}
+        .ldp-tlmon{position:absolute;top:7px;font-size:12px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);padding-left:6px}
+        .ldp-tlday{position:absolute;bottom:6px;font-size:11.5px;color:var(--faint);font-weight:700;transform:translateX(-50%)}
+        .ldp-tltodaylab{position:absolute;top:0;transform:translateX(-50%);font-size:9.5px;font-weight:800;letter-spacing:.08em;color:#fff;background:${NEG};padding:3px 7px 2px;border-radius:0 0 7px 7px;z-index:3}
+        .ldp-tlbody{max-height:calc(100vh - 360px);overflow-y:auto}
+        .ldp-tlrow{display:flex;min-height:56px;border-bottom:1px solid var(--line);cursor:pointer}
+        .ldp-tlrow:last-child{border-bottom:0}
+        .ldp-tlrow:hover{background:var(--panel-2)}
+        .ldp-tlrow.on{background:var(--brand-glow)}
+        .ldp-tlrow.u-red{box-shadow:inset 3px 0 0 ${NEG}}
+        .ldp-tlrow.u-amber{box-shadow:inset 3px 0 0 ${WARN}}
+        .ldp-tllab{width:236px;flex:0 0 236px;border-right:1px solid var(--line);padding:0 14px;display:flex;align-items:center;gap:10px}
+        .ldp-tlmk{flex:0 0 auto;display:flex;align-items:center;justify-content:center;width:20px}
+        .ldp-tlmk.s::before{content:"";width:12px;height:12px;background:${WARN};border-radius:2px;transform:rotate(45deg)}
+        .ldp-tlmk.r::before{content:"";width:18px;height:12px;border-radius:3px;background:rgba(47,111,208,.13);border:1px solid rgba(47,111,208,.35);border-left:3px solid ${BLUE}}
+        .ldp-tllabtx{min-width:0;flex:1}
+        .ldp-tllabtx b{display:block;font-size:13.5px;font-weight:800;letter-spacing:-.2px;line-height:1.25;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+        .ldp-tllabtx span{display:block;font-size:11.5px;color:var(--faint);font-weight:600;line-height:1.2;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+        .ldp-tlcal{position:relative;flex:1;min-width:0;overflow:hidden;background-image:repeating-linear-gradient(to right,var(--line) 0 1px,transparent 1px calc(100%/6))}
+        .ldp-tlcal.grabbing{cursor:grabbing}
+        .ldp-tlband{position:absolute;top:0;bottom:0;background:rgba(176,42,55,.055);z-index:0}
+        .ldp-tltoday{position:absolute;top:0;bottom:0;width:2px;background:${NEG};opacity:.5;z-index:1}
+        .ldp-tlpk{position:absolute;top:50%;width:11px;height:11px;border-radius:50%;transform:translate(-50%,-50%);background:var(--panel);border:2px solid var(--faint);z-index:5}
+        .ldp-tltrip{position:absolute;top:50%;height:3px;transform:translateY(-50%);border-radius:2px;background:var(--line-2);z-index:2}
+        .ldp-tltrip.u-amber{background:rgba(160,106,0,.45)} .ldp-tltrip.u-red{background:rgba(176,42,55,.45)}
+        .ldp-tldep{position:absolute;top:50%;width:10px;height:10px;border-radius:50%;transform:translate(-50%,-50%);background:var(--faint);border:2px solid var(--panel);z-index:3}
+        .ldp-tldep.u-amber{background:${WARN}} .ldp-tldep.u-red{background:${NEG}}
+        .ldp-tldead{position:absolute;top:50%;transform:translate(-8px,-50%);display:flex;align-items:center;gap:7px;z-index:4;white-space:nowrap}
+        .ldp-tldead.lft{transform:translate(calc(-100% + 8px),-50%)}
+        .ldp-tldead.off{transform:translateY(-50%);gap:3px}
+        .ldp-tldead .chev{font-size:14px;font-weight:800;color:var(--faint)}
+        .ldp-tldead .dot{flex:0 0 auto;width:14px;height:14px;border-radius:3px;background:${WARN};transform:rotate(45deg);box-shadow:0 0 0 3px var(--panel)}
+        .ldp-tldead .dt{font-size:12.5px;font-weight:700;color:${WARN}}
+        .ldp-tldead.u-red .dot{background:${NEG}} .ldp-tldead.u-red .dt{color:${NEG}}
+        .ldp-tlwin{position:absolute;top:50%;height:28px;transform:translateY(-50%);border-radius:8px;background:rgba(47,111,208,.10);border:1px solid rgba(47,111,208,.32);border-left:3px solid ${BLUE};display:flex;align-items:center;padding:0 10px;z-index:2;overflow:hidden}
+        .ldp-tlwin .dt{font-size:12px;font-weight:700;color:${BLUE};overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+        .ldp-tlwin.u-amber{background:rgba(160,106,0,.10);border-color:rgba(160,106,0,.32);border-left-color:${WARN}}
+        .ldp-tlwin.u-amber .dt{color:${WARN}}
+        .ldp-tlwin.u-red{background:rgba(176,42,55,.09);border-color:rgba(176,42,55,.30);border-left-color:${NEG}}
+        .ldp-tlwin.u-red .dt{color:${NEG}}
+        .ldp-vw{display:inline-flex;background:var(--panel);border:1px solid var(--line-2);border-radius:11px;overflow:hidden}
+        .ldp-vw button{border:0;border-right:1px solid var(--line);background:none;font:inherit;font-size:13px;font-weight:700;color:var(--muted);padding:8px 16px;cursor:pointer}
+        .ldp-vw button:last-child{border-right:0}
+        .ldp-vw button.on{background:var(--brand);color:var(--brand-ink)}
         /* pickup / delivery jobs + delivery status */
         .ldp-jobs{display:flex;flex-direction:column;gap:3px;align-items:flex-start}
         .ldp-callink{display:inline-flex;align-items:center;gap:4px;font-size:11.5px;font-weight:700;color:var(--blue);text-decoration:none;border:1px solid var(--line-2);border-radius:8px;padding:2px 8px;background:var(--panel);white-space:nowrap}
@@ -180,7 +247,7 @@ registerPage({
       <div class="ldp-scrim" id="ldpScrim"></div>
       <aside class="ldp-drawer" id="ldpDrawer" aria-label="Shipment detail"></aside>`;
 
-    var S = window.__LDP || (window.__LDP = { view: "board", q: "", co: "", loc: "", sel: null });
+    var S = window.__LDP || (window.__LDP = { view: "board", q: "", co: "", loc: "", sel: null, tlStart: null });
 
     var rows;
     try { rows = await RS.load("fct_ld_planning"); }
@@ -386,6 +453,10 @@ registerPage({
       // actually filtering (so it never adds noise at rest).
       var anyF = !!(S.q || S.co || S.loc);
       var bar = '<div class="ldp-bar">'
+        + '<div class="ldp-vw">'
+        +   '<button data-ldview="board"' + (S.view !== "timeline" ? ' class="on"' : "") + ">Board</button>"
+        +   '<button data-ldview="timeline"' + (S.view === "timeline" ? ' class="on"' : "") + ">Timeline</button>"
+        + "</div>"
         + '<div class="ldp-fbox">'
         +   '<span class="ldp-srch"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>'
         +   '<input id="ldpQ" placeholder="Search customer, request #, job code or sticker" value="' + esc(S.q) + '"></span>'
@@ -526,6 +597,105 @@ registerPage({
       }
       host.__ldpOpen = openDrawer;
 
+
+      // ===================== TIMELINE =====================
+      // Same planning model as his longdistance.html: STRAIGHT = one committed date, drawn
+      // as depart -> trip -> deadline diamond; REGULAR = a window band. A deadline outside
+      // the visible range collapses to an edge chevron instead of silently disappearing,
+      // which is the difference between "nothing due" and "you cannot see what is due".
+      var TL_DAYS = 42;
+      function tlMid(d) { var x = new Date(d); x.setHours(0, 0, 0, 0); return x; }
+      function tlParse(v) { var t = String(v || "").slice(0, 10); return /^\d{4}-\d{2}-\d{2}$/.test(t) ? tlMid(new Date(t + "T12:00:00")) : null; }
+      function tlStart() { return S.tlStart ? tlMid(new Date(S.tlStart)) : tlMid(new Date()); }
+      function tlIdx(d, st) { return d ? Math.round((tlMid(d).getTime() - st.getTime()) / 86400000) : null; }
+      function tlTone(r) {
+        var u = String(r["Urgency"] || "");
+        return u === "Act now" ? "u-red" : u === "Act soon" ? "u-amber" : "";
+      }
+      function tlRow(r, i, st, days, dp) {
+        var key = String(r["Sheet Row"] || i), tone = tlTone(r), st8 = isStraight(r);
+        var pk = tlParse(r["Pickup Date"]), tdi = tlIdx(tlMid(new Date()), st);
+        var bars = "";
+        if (tdi >= 0 && tdi < days) {
+          bars += '<i class="ldp-tlband" style="left:' + (tdi * dp) + "%;width:" + dp + '%"></i>'
+                + '<i class="ldp-tltoday" style="left:' + ((tdi + 0.5) * dp) + '%"></i>';
+        }
+        if (st8) {
+          var dep = tlParse(r["Depart By"]), dead = tlParse(r["FAD"]);
+          var ddi = tlIdx(dep, st), fdi = tlIdx(dead, st);
+          if (ddi != null && fdi != null && fdi > ddi)
+            bars += '<span class="ldp-tltrip ' + tone + '" style="left:' + ((ddi + 0.5) * dp) + "%;width:" + ((fdi - ddi) * dp) + '%"></span>';
+          if (ddi != null && ddi >= 0 && ddi < days)
+            bars += '<span class="ldp-tldep ' + tone + '" style="left:' + ((ddi + 0.5) * dp) + '%" title="truck departs ' + esc(fmtD(r["Depart By"])) + '"></span>';
+          if (fdi != null) {
+            var dot = '<span class="dot"></span>', dt = '<span class="dt">' + fmtD(r["FAD"]) + "</span>";
+            if (fdi < 0)
+              bars += '<span class="ldp-tldead ' + tone + ' off" style="left:3px" title="deliver ' + esc(fmtD(r["FAD"])) + ' (before this range)"><span class="chev">\u2039</span>' + dt + "</span>";
+            else if (fdi >= days)
+              bars += '<span class="ldp-tldead ' + tone + ' off" style="right:3px" title="deliver ' + esc(fmtD(r["FAD"])) + ' (beyond this range)">' + dt + '<span class="chev">\u203a</span></span>';
+            else {
+              var near = (fdi + 0.5) * dp > 84;
+              bars += '<span class="ldp-tldead ' + tone + (near ? " lft" : "") + '" style="left:' + ((fdi + 0.5) * dp) + '%" title="deliver by ' + esc(fmtD(r["FAD"])) + '">' + (near ? dt + dot : dot + dt) + "</span>";
+            }
+          }
+        } else {
+          var ws = tlParse(r["FAD"]), we = tlParse(r["Window End"]) || ws;
+          var a = tlIdx(ws, st), b = tlIdx(we, st);
+          if (a != null && b != null && b >= a) {
+            var a2 = Math.max(a, 0), b2 = Math.min(b, days - 1);
+            if (b2 >= a2)
+              bars += '<span class="ldp-tlwin ' + tone + '" style="left:' + (a2 * dp) + "%;width:" + ((b2 - a2 + 1) * dp) + '%" title="delivery window ' + esc(fmtD(r["FAD"])) + " \u2013 " + esc(fmtD(r["Window End"])) + '"><span class="dt">' + fmtD(r["FAD"]) + " \u2013 " + fmtD(r["Window End"]) + "</span></span>";
+          }
+        }
+        var pdi = tlIdx(pk, st);
+        if (pdi != null && pdi >= 0 && pdi < days)
+          bars += '<span class="ldp-tlpk" style="left:' + ((pdi + 0.5) * dp) + '%" title="picked up ' + esc(fmtD(r["Pickup Date"])) + '"></span>';
+        return '<div class="ldp-tlrow ' + tone + (S.sel === key ? " on" : "") + '" data-ldk="' + esc(key) + '">'
+          + '<div class="ldp-tllab"><span class="ldp-tlmk ' + (st8 ? "s" : "r") + '"></span>'
+          + '<span class="ldp-tllabtx"><b>' + esc(r["Customer"] || "\u2014") + "</b>"
+          + "<span>" + esc(String(r["Request #"] || "\u2014")) + (r["Moving To"] ? " \u00b7 " + esc(String(r["Moving To"])) : "") + "</span></span></div>"
+          + '<div class="ldp-tlcal">' + bars + "</div></div>";
+      }
+      function timelineHtml(rows) {
+        var st = tlStart(), days = TL_DAYS, dp = 100 / days;
+        var end = new Date(st.getTime() + (days - 1) * 86400000);
+        var MONS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+        var cal = "";
+        for (var d = 0; d < days; d++) {
+          var dt = new Date(st.getTime() + d * 86400000);
+          if (d === 0 || dt.getDate() === 1)
+            cal += '<span class="ldp-tlmon" style="left:' + (d * dp) + '%">' + MONS[dt.getMonth()] + "</span>";
+          if (d % 7 === 0)
+            cal += '<span class="ldp-tlday" style="left:' + ((d + 0.5) * dp) + '%">' + dt.getDate() + "</span>";
+        }
+        var tdi = tlIdx(tlMid(new Date()), st);
+        if (tdi >= 0 && tdi < days)
+          cal += '<span class="ldp-tltodaylab" style="left:' + ((tdi + 0.5) * dp) + '%">TODAY</span>';
+        // soonest deadline first, exactly like the board
+        var ord = rows.slice().sort(function (a, b) {
+          var da = actDate(a), db = actDate(b);
+          if (!da && !db) return 0;
+          if (!da) return 1;
+          if (!db) return -1;
+          return da < db ? -1 : da > db ? 1 : 0;
+        });
+        var body = ord.map(function (r, i) { return tlRow(r, i, st, days, dp); }).join("")
+          || '<div style="padding:26px;color:var(--faint)">No shipments match these filters.</div>';
+        return '<div class="ldp-tlbar">'
+          + '<div class="ldp-tlnav"><button data-tl="prev" title="Earlier">\u2039</button>'
+          +   '<button data-tl="today">Today</button>'
+          +   '<button data-tl="next" title="Later">\u203a</button></div>'
+          + '<div class="ldp-tlrange">' + MONS[st.getMonth()] + " " + st.getDate() + " \u2013 " + MONS[end.getMonth()] + " " + end.getDate()
+          +   "<small>" + days + "-day plan window</small></div>"
+          + '<div class="ldp-tllg"><span><i class="lg-pk"></i>pickup</span>'
+          +   '<span><i class="lg-s"></i>straight \u2014 committed date</span>'
+          +   '<span><i class="lg-r"></i>regular \u2014 delivery window</span></div>'
+          + "</div>"
+          + '<div class="ldp-tlgrid"><div class="ldp-tlhead"><div class="ldp-tlhlab"></div>'
+          +   '<div class="ldp-tlhcal">' + cal + "</div></div>"
+          +   '<div class="ldp-tlbody">' + body + "</div></div>";
+      }
+
       var body = cur.map(function (r, i) {
         var key = String(r["Sheet Row"] || i);
         var det = String(r["Location Detail"] || "");
@@ -568,7 +738,7 @@ registerPage({
       var sx = window.scrollX, sy = window.scrollY;
       var wrap0 = document.querySelector("#ldpBody .ldp-wrap");
       var wt = wrap0 ? wrap0.scrollTop : 0, wl = wrap0 ? wrap0.scrollLeft : 0;
-      document.getElementById("ldpBody").innerHTML = kp + bar + tbl;
+      document.getElementById("ldpBody").innerHTML = kp + bar + (S.view === "timeline" ? timelineHtml(cur) : tbl);
       var _sc = document.getElementById("ldpScrim");
       if (_sc) _sc.onclick = function () { if (host.__ldpOpen) host.__ldpOpen(null); };
       if (!host.__ldpEsc) {
@@ -666,6 +836,28 @@ registerPage({
       var co = host.querySelector("#ldpCo"); if (co) co.onchange = function () { S.co = co.value; paint(); };
       var lo = host.querySelector("#ldpLoc"); if (lo) lo.onchange = function () { S.loc = lo.value; paint(); };
       var cl = host.querySelector("#ldpClr"); if (cl) cl.onclick = function () { S.q = ""; S.co = ""; S.loc = ""; paint(); };
+      Array.prototype.forEach.call(host.querySelectorAll("[data-ldview]"), function (b) {
+        b.onclick = function () { S.view = b.getAttribute("data-ldview"); paint(); };
+      });
+      Array.prototype.forEach.call(host.querySelectorAll("[data-tl]"), function (b) {
+        b.onclick = function () {
+          var a = b.getAttribute("data-tl");
+          if (a === "today") S.tlStart = null;
+          else {
+            var d0 = S.tlStart ? new Date(S.tlStart) : new Date();
+            d0.setDate(d0.getDate() + (a === "next" ? 14 : -14));
+            S.tlStart = d0.toISOString().slice(0, 10);
+          }
+          paint();
+        };
+      });
+      // timeline rows open the SAME drawer as the board rows
+      Array.prototype.forEach.call(host.querySelectorAll(".ldp-tlrow[data-ldk]"), function (row) {
+        row.onclick = function () {
+          var k = row.getAttribute("data-ldk");
+          if (host.__ldpOpen) host.__ldpOpen(k === S.sel ? null : k);
+        };
+      });
       Array.prototype.forEach.call(host.querySelectorAll("tr.ldp-row"), function (tr) {
         tr.onclick = function () {
           var k = tr.getAttribute("data-ldk");
