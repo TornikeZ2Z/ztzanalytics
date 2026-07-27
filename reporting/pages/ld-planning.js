@@ -603,7 +603,9 @@ registerPage({
       Array.prototype.forEach.call(host.querySelectorAll("tr.ldp-row"), function (tr) {
         tr.onclick = function () {
           var k = tr.getAttribute("data-ldk");
-          openDrawer(k === S.sel ? null : k);
+          // openDrawer is closed over paint()'s row list, so it is reached via the handle
+          // paint() publishes rather than by name — wire() is a different scope.
+          if (host.__ldpOpen) host.__ldpOpen(k === S.sel ? null : k);
         };
       });
       // the manual-fields form: Save posts ONLY what changed, each change keeps history
