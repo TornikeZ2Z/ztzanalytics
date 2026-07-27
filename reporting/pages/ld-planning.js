@@ -15,7 +15,7 @@
              "FAD", "FAD Source", "Window End", "Timeframe", "Window Note", "Window Status",
              "Data Issue", "Issue Kind", "Carrier Driver", "Total To Carrier", "Balance Due", "CF",
              "Pickup Event URL", "Pickup Event Date", "Delivery Event URL", "Delivery Event Date",
-             "Delivery Status", "Location Source",
+             "Delivery Status", "Location Source", "Possession",
              "Sibling Delivered", "Sheet Row", "Update Date",
              "Type", "Trip Days", "Depart By", "Urgency", "Urgency Reason", "Do"],
     };
@@ -100,7 +100,18 @@ registerPage({
         .ldp-sub>td{background:var(--panel-2);font-size:12.5px;padding:12px 16px}
         .ldp-sub b{font-weight:800}
         .ldp-fnote{padding:10px 14px;font-size:11px;color:var(--faint);border-top:1px solid var(--line)}
-        .ldp-issue{font-size:11.5px;font-weight:700;color:${WARN}}
+        .ldp-issue{font-size:11.5px;font-weight:700;color:${WARN};margin-top:5px;max-width:230px;line-height:1.35}
+        .ldp-issue.blk{color:${NEG}}
+        .ldp-count{font-size:13px;font-weight:700;color:var(--muted);margin-right:2px}
+        .ldp-count b{font-size:15px;font-weight:800;color:var(--ink);font-variant-numeric:tabular-nums}
+        .ldp-dt{font-size:13px;font-weight:700;color:var(--ink);white-space:nowrap}
+        /* CUSTODY — do we physically have it, and did we collect it? */
+        .ldp-pos{display:inline-block;font-size:10.5px;font-weight:800;padding:2px 9px;border-radius:999px;white-space:nowrap;letter-spacing:.01em}
+        .ldp-pos-us{background:rgba(28,122,74,.14);color:${POS}}
+        .ldp-pos-car{background:rgba(47,111,208,.14);color:${BLUE}}
+        .ldp-pos-3p{background:rgba(160,106,0,.15);color:${WARN}}
+        .ldp-pos-no{background:var(--panel-2);color:var(--muted)}
+        .ldp-pos-unk{background:rgba(176,42,55,.11);color:${NEG}}
       `;
       document.head.appendChild(st);
     }
@@ -228,24 +239,58 @@ registerPage({
       if (fad && end && String(fad) === String(end)) return fmtD(fad);
       return (fad ? fmtD(fad) : "…") + " → " + (end ? fmtD(end) : "open");
     }
+    // STRAIGHT HAS NO FAD (Tornike 2026-07-27) — the office stores the committed DELIVERY
+    // DATE in the FAD field, and the calendar does the same. Same value, different meaning,
+    // so it must not be labelled "FAD" on a straight job.
+    function isStraight(r) { return String(r["Type"] || "") === "Straight"; }
+    function dateLabel(r) { return isStraight(r) ? "Delivery date" : "FAD"; }
+    function windowCell(r) {
+      var tf = r["Timeframe"] ? String(r["Timeframe"]).slice(0, 26) : "";
+      if (isStraight(r)) {
+        return '<b class="ldp-dt">' + fmtD(r["FAD"]) + "</b>"
+          + '<div class="ldp-det">delivery date' + (tf ? " · " + esc(tf) : "") + "</div>";
+      }
+      return '<b class="ldp-dt">' + windowTxt(r) + "</b>"
+        + '<div class="ldp-det">FAD + window' + (tf ? " · " + esc(tf) : "") + "</div>";
+    }
+    // "Do we physically have it, and did we collect it?"
+    function possPill(r) {
+      var p = String(r["Possession"] || "—");
+      var cls = p === "With us" ? "ldp-pos-us"
+        : p === "With carrier" ? "ldp-pos-car"
+        : p === "Third-party storage" ? "ldp-pos-3p"
+        : p === "Not picked up yet" ? "ldp-pos-no" : "ldp-pos-unk";
+      return '<span class="ldp-pos ' + cls + '">' + esc(p) + "</span>";
+    }
+    // The date the row is actually asking us to act on: dispatch deadline first, then the
+    // delivery deadline. This is the sort key — his rule is "soonest thing to act on wins",
+    // regardless of how old the pickup is.
+    function actDate(r) {
+      return r["Depart By"] ? String(r["Depart By"]).slice(0, 10)
+           : r["Window End"] ? String(r["Window End"]).slice(0, 10)
+           : r["FAD"] ? String(r["FAD"]).slice(0, 10) : "";
+    }
 
     function paint() {
+      // ONE BOARD (Tornike 2026-07-27: "delete the data cleanup thing - that cleanup should
+      // be handled by the main page"). Flagged rows used to be exiled to a second tab, which
+      // is how a loaded truck went unnoticed: a data problem is a reason to look HARDER at a
+      // shipment, not to hide it. The flag now rides along on the row itself.
       var all = overlaid();
-      var blocking = function (r) { return String(r["Issue Kind"] || "") === "blocking"
-             || (r["Data Issue"] && !r["Issue Kind"]); };   // pre-Issue-Kind marts: old behaviour
-      var live = all.filter(function (r) { return !blocking(r); });
-      var fix = all.filter(blocking);
-      var actNow = live.filter(function (r) { return r["Urgency"] === "Act now"; }).length;
-      var actSoon = live.filter(function (r) { return r["Urgency"] === "Act soon"; }).length;
-      var noWin = live.filter(function (r) { return r["Urgency"] === "Missing data"; }).length;
+      var flagged = all.filter(function (r) { return !!r["Data Issue"]; });
+      var actNow = all.filter(function (r) { return r["Urgency"] === "Act now"; }).length;
+      var actSoon = all.filter(function (r) { return r["Urgency"] === "Act soon"; }).length;
+      var noWin = all.filter(function (r) { return r["Urgency"] === "Missing data"; }).length;
+      var held = all.filter(function (r) { return String(r["Possession"] || "").indexOf("unknown") >= 0; }).length;
 
       var kp = '<div class="ldp-kpis">'
         + '<div class="ldp-kpi neg"><b>' + actNow + "</b><span>Act now</span><small>overdue or departure passed</small></div>"
         + '<div class="ldp-kpi warn"><b>' + actSoon + "</b><span>Act soon</span><small>departure or window is close</small></div>"
         + '<div class="ldp-kpi"><b>' + noWin + "</b><span>Missing data</span><small>FAD / timeframe not set</small></div>"
-        + '<div class="ldp-kpi"><b>' + fix.length + "</b><span>Data cleanup</span><small>rows to fix in the sheets</small></div></div>";
+        + '<div class="ldp-kpi"><b>' + held + "</b><span>Location unknown</span><small>picked up, whereabouts unrecorded</small></div>"
+        + '<div class="ldp-kpi"><b>' + flagged.length + "</b><span>Flagged</span><small>needs a sheet correction</small></div></div>";
 
-      var cur = (S.view === "board" ? live : fix).slice();
+      var cur = all.slice();
       if (S.co) cur = cur.filter(function (r) { return String(r["Company"]) === S.co; });
       if (S.loc) cur = cur.filter(function (r) { return String(r["Location"]) === S.loc; });
       var q = S.q.trim().toLowerCase();
@@ -255,30 +300,23 @@ registerPage({
           || String(r["Job Code"] || "").toLowerCase().indexOf(q) >= 0
           || String(r["Sticker"] || "").toLowerCase().indexOf(q) >= 0;
       });
-      // urgency ladder first (his tool's model), then by how soon the truck must leave;
-      // cleanup view groups by issue
-      var rank = { "Act now": 0, "Act soon": 1, "On track": 2, "Missing data": 3 };
+      // SORTED BY WHEN WE MUST ACT, soonest first (his rule 2026-07-27): "if a job had
+      // pickup last year and we should deliver in 5 days, and 5 days is the smallest there
+      // is, it should be first". So the pickup age is irrelevant — only the next deadline
+      // counts. Rows with no deadline at all cannot be ordered and go last.
       cur.sort(function (a, b) {
-        if (S.view === "fix") {
-          var ia = String(a["Data Issue"]), ib = String(b["Data Issue"]);
-          if (ia !== ib) return ia < ib ? -1 : 1;
-          return String(b["Pickup Date"]) < String(a["Pickup Date"]) ? -1 : 1;
-        }
-        var ra = rank[a["Urgency"]] != null ? rank[a["Urgency"]] : 9;
-        var rb = rank[b["Urgency"]] != null ? rank[b["Urgency"]] : 9;
-        if (ra !== rb) return ra - rb;
-        var ea = a["Depart By"] ? String(a["Depart By"]) : (a["Window End"] ? String(a["Window End"]) : "9999");
-        var eb = b["Depart By"] ? String(b["Depart By"]) : (b["Window End"] ? String(b["Window End"]) : "9999");
-        return ea < eb ? -1 : ea > eb ? 1 : 0;
+        var da = actDate(a), db = actDate(b);
+        if (!da && !db) return String(a["Pickup Date"]) < String(b["Pickup Date"]) ? -1 : 1;
+        if (!da) return 1;
+        if (!db) return -1;
+        if (da !== db) return da < db ? -1 : 1;
+        return String(a["Pickup Date"]) < String(b["Pickup Date"]) ? -1 : 1;
       });
 
       var cos = {}; var locs = {};
       all.forEach(function (r) { cos[r["Company"]] = 1; locs[r["Location"]] = 1; });
-      var segBtn = function (id, label, n) {
-        return '<button class="' + (S.view === id ? "on" : "") + '" data-ldv="' + id + '">' + label + "<i>" + n + "</i></button>";
-      };
       var bar = '<div class="ldp-bar">'
-        + '<div class="ldp-seg">' + segBtn("board", "Live Board", live.length) + segBtn("fix", "Data Cleanup", fix.length) + "</div>"
+        + '<span class="ldp-count"><b>' + cur.length + "</b> shipment" + (cur.length === 1 ? "" : "s") + "</span>"
         + '<input class="ldp-q" id="ldpQ" placeholder="Search customer / request / sticker" value="' + esc(S.q) + '">'
         + '<select class="ldp-sel" id="ldpCo"><option value="">All companies</option>' + Object.keys(cos).sort().map(function (c) {
             return '<option' + (S.co === c ? " selected" : "") + ">" + esc(c) + "</option>"; }).join("") + "</select>"
@@ -329,15 +367,19 @@ registerPage({
           + "<td>" + esc(r["Type"] || "—") + (r["CF"] != null ? '<div class="ldp-det">' + Number(r["CF"]).toLocaleString() + " CF</div>" : "") + "</td>"
           + "<td>" + esc(String(r["Moving To"] || "—").slice(0, 40)) + "</td>"
           + "<td>" + jobsCell(r) + "</td>"
+          + "<td>" + possPill(r) + "</td>"
           + "<td>" + locPill(r) + (det ? '<div class="ldp-det">' + esc(det.slice(0, 54)) + "</div>" : "") + "</td>"
-          + "<td>" + windowTxt(r) + (r["Timeframe"] ? '<div class="ldp-det">timeframe: ' + esc(String(r["Timeframe"]).slice(0, 24)) + "</div>" : "") + "</td>"
+          + "<td>" + windowCell(r) + "</td>"
           + "<td>" + fmtD(r["Depart By"]) + (r["Trip Days"] != null ? '<div class="ldp-det">' + r["Trip Days"] + "d trip</div>" : "") + "</td>"
-          + "<td>" + (S.view === "fix"
-              ? '<span class="ldp-issue">' + esc(r["Data Issue"]) + "</span>"
-              : urgPill(r) + (r["Do"] ? '<div class="ldp-det" style="max-width:230px">' + esc(r["Do"]) + "</div>" : "")) + "</td></tr>";
+          + "<td>" + urgPill(r)
+              + (r["Do"] ? '<div class="ldp-det" style="max-width:230px">' + esc(r["Do"]) + "</div>" : "")
+              // the flag rides WITH the row now that Data Cleanup is gone
+              + (r["Data Issue"] ? '<div class="ldp-issue' + (String(r["Issue Kind"]) === "blocking" ? " blk" : "") + '">⚠ '
+                  + esc(r["Data Issue"]) + "</div>" : "")
+            + "</td></tr>";
         var sub = "";
         if (S.open[key]) {
-          sub = '<tr class="ldp-sub"><td colspan="9">'
+          sub = '<tr class="ldp-sub"><td colspan="10">'
             + "<b>From:</b> " + esc(r["Moving From"] || "—") + " &nbsp; <b>To:</b> " + esc(r["Moving To"] || "—")
             + (r["Delivery State"] ? " (" + esc(r["Delivery State"]) + ")" : "")
             + "<br><b>Location:</b> " + esc(r["Location"]) + (det ? " — " + esc(det) : "")
@@ -380,15 +422,15 @@ registerPage({
       }).join("");
 
       var tbl = '<div class="ldp-card"><div class="ldp-wrap"><table class="ldp-tbl"><thead><tr>'
-        + "<th>Pickup</th><th>Customer</th><th>Type</th><th>Delivering to</th><th>Jobs &amp; status</th><th>Location</th><th>Delivery window</th><th>Depart by</th><th>"
-        + (S.view === "fix" ? "What to fix" : "What to do") + "</th>"
+        + "<th>Pickup</th><th>Customer</th><th>Type</th><th>Delivering to</th><th>Jobs &amp; status</th>"
+        + "<th>Custody</th><th>Location</th><th>Delivery date / window</th><th>Depart by</th><th>What to do</th>"
         + "</tr></thead><tbody>"
-        + (body || '<tr><td colspan="9" style="color:var(--faint);padding:18px">No rows match — clear the filters, or the last build produced nothing.</td></tr>')
+        + (body || '<tr><td colspan="10" style="color:var(--faint);padding:18px">No rows match — clear the filters, or the last build produced nothing.</td></tr>')
         + "</tbody></table></div>"
-        + '<div class="ldp-fnote">' + (S.view === "fix"
-            ? "These rows need a correction in the Long Distance sheet itself — the board can only be as clean as the sheet."
-            : "Click a row for the full details. Sorted by urgency: overdue first, then open windows by days left.")
-        + " Data refreshes with the pipeline (hourly).</div></div>";
+        + '<div class="ldp-fnote">Click a row for the full details. <b>Sorted by when we must act</b> — '
+        + "soonest deadline first, whatever the pickup date. <b>Straight</b> jobs show a committed "
+        + "delivery date (the office records it in the FAD field); <b>Regular</b> jobs show the FAD "
+        + "and its window. Data refreshes with the pipeline (hourly).</div></div>";
 
       // keep the scroll position — a repaint used to snap back to the top; the vertical
       // scroller is the table wrap (.ldp-wrap), not the window — restore both
@@ -478,9 +520,6 @@ registerPage({
     }
 
     function wire() {
-      Array.prototype.forEach.call(host.querySelectorAll("[data-ldv]"), function (b) {
-        b.onclick = function () { S.view = b.getAttribute("data-ldv"); paint(); };
-      });
       var q = host.querySelector("#ldpQ");
       if (q) q.oninput = function () { S.q = q.value; var pos = q.selectionStart; paint(); var n2 = host.querySelector("#ldpQ"); if (n2) { n2.focus(); try { n2.setSelectionRange(pos, pos); } catch (e) {} } };
       var co = host.querySelector("#ldpCo"); if (co) co.onchange = function () { S.co = co.value; paint(); };
