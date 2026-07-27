@@ -124,6 +124,7 @@ registerPage({
         .ldp-tllg{display:flex;gap:15px;margin-left:auto;font-size:12px;color:var(--muted);flex-wrap:wrap;align-items:center}
         .ldp-tllg span{display:flex;align-items:center;gap:6px}
         .lg-pk{width:11px;height:11px;border-radius:50%;border:2px solid var(--faint);background:var(--panel);flex:0 0 auto}
+        .lg-hold{width:22px;height:4px;border-radius:2px;background:rgba(160,106,0,.5);flex:0 0 auto}
         .lg-s{position:relative;width:22px;height:3px;background:var(--line-2);border-radius:2px;flex:0 0 auto}
         .lg-s::after{content:"";position:absolute;right:-2px;top:50%;width:10px;height:10px;border-radius:2px;background:${WARN};transform:translateY(-50%) rotate(45deg)}
         .lg-r{width:24px;height:14px;border-radius:4px;background:rgba(47,111,208,.13);border:1px solid rgba(47,111,208,.35);border-left:3px solid ${BLUE};flex:0 0 auto}
@@ -170,6 +171,26 @@ registerPage({
         .ldp-tlwin.u-amber .dt{color:${WARN}}
         .ldp-tlwin.u-red{background:rgba(176,42,55,.09);border-color:rgba(176,42,55,.30);border-left-color:${NEG}}
         .ldp-tlwin.u-red .dt{color:${NEG}}
+        /* custody + holding, on the timeline */
+        .ldp-tlcust{display:inline-block;font-size:9.5px;font-weight:800;padding:1px 7px;border-radius:999px;white-space:nowrap;letter-spacing:.02em;margin-top:3px}
+        .ldp-tlcust.us{background:rgba(28,122,74,.14);color:${POS}}
+        .ldp-tlcust.car{background:rgba(47,111,208,.14);color:${BLUE}}
+        .ldp-tlcust.tp{background:rgba(160,106,0,.15);color:${WARN}}
+        .ldp-tlcust.unk{background:rgba(176,42,55,.11);color:${NEG}}
+        .ldp-tltype{font-size:9.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--faint);margin-left:6px}
+        /* how long the goods have been in our hands: pickup -> today */
+        .ldp-tlhold{position:absolute;top:72%;height:4px;border-radius:2px;z-index:1;opacity:.8}
+        .ldp-tlhold.us{background:rgba(28,122,74,.5)}
+        .ldp-tlhold.car{background:rgba(47,111,208,.5)}
+        .ldp-tlhold.tp{background:rgba(160,106,0,.5)}
+        .ldp-tlhold.unk{background:rgba(176,42,55,.42)}
+        .ldp-tlheld{position:absolute;top:72%;transform:translate(6px,-45%);font-size:10px;font-weight:800;color:var(--faint);white-space:nowrap;z-index:2}
+        /* quick segmentation chips */
+        .ldp-tlf{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 10px}
+        .ldp-tlchip{font:inherit;font-size:11.5px;font-weight:700;color:var(--muted);background:var(--panel);border:1px solid var(--line-2);border-radius:999px;padding:5px 12px;cursor:pointer;white-space:nowrap}
+        .ldp-tlchip:hover{border-color:var(--brand)}
+        .ldp-tlchip.on{background:var(--brand);color:var(--brand-ink);border-color:var(--brand)}
+        .ldp-tlchip i{font-style:normal;opacity:.7;margin-left:5px;font-weight:800}
         .ldp-vw{display:inline-flex;background:var(--panel);border:1px solid var(--line-2);border-radius:11px;overflow:hidden}
         .ldp-vw button{border:0;border-right:1px solid var(--line);background:none;font:inherit;font-size:13px;font-weight:700;color:var(--muted);padding:8px 16px;cursor:pointer}
         .ldp-vw button:last-child{border-right:0}
@@ -248,7 +269,7 @@ registerPage({
       <div class="ldp-scrim" id="ldpScrim"></div>
       <aside class="ldp-drawer" id="ldpDrawer" aria-label="Shipment detail"></aside>`;
 
-    var S = window.__LDP || (window.__LDP = { view: "board", q: "", co: "", loc: "", sel: null, tlStart: null });
+    var S = window.__LDP || (window.__LDP = { view: "board", q: "", co: "", loc: "", sel: null, tlStart: null, tlSeg: "" });
 
     var rows;
     try { rows = await RS.load("fct_ld_planning"); }
@@ -604,6 +625,14 @@ registerPage({
       // as depart -> trip -> deadline diamond; REGULAR = a window band. A deadline outside
       // the visible range collapses to an edge chevron instead of silently disappearing,
       // which is the difference between "nothing due" and "you cannot see what is due".
+      // Custody in one token, used for the chip, the holding bar and the filter chips.
+      function custKey(r) {
+        var p = String(r["Possession"] || "");
+        return p === "With us" ? "us" : p === "With carrier" ? "car"
+             : p === "Third-party storage" ? "tp" : "unk";
+      }
+      var CUST_LABEL = { us: "With us", car: "Carrier", tp: "Storage", unk: "Where?" };
+
       var TL_DAYS = 42;
       function tlMid(d) { var x = new Date(d); x.setHours(0, 0, 0, 0); return x; }
       function tlParse(v) { var t = String(v || "").slice(0, 10); return /^\d{4}-\d{2}-\d{2}$/.test(t) ? tlMid(new Date(t + "T12:00:00")) : null; }
@@ -623,7 +652,7 @@ registerPage({
         return u === "Act now" ? "u-red" : u === "Act soon" ? "u-amber" : "";
       }
       function tlRow(r, i, st, days, dp) {
-        var key = String(r["Sheet Row"] || i), tone = tlTone(r), st8 = isStraight(r);
+        var key = String(r["Sheet Row"] || i), tone = tlTone(r), st8 = isStraight(r), ck2 = custKey(r);
         var pk = tlParse(r["Pickup Date"]), tdi = tlIdx(tlMid(new Date()), st);
         var bars = "";
         if (tdi >= 0 && tdi < days) {
@@ -657,13 +686,28 @@ registerPage({
               bars += '<span class="ldp-tlwin ' + tone + '" style="left:' + (a2 * dp) + "%;width:" + ((b2 - a2 + 1) * dp) + '%" title="delivery window ' + esc(fmtD(r["FAD"])) + " \u2013 " + esc(fmtD(r["Window End"])) + '"><span class="dt">' + fmtD(r["FAD"]) + " \u2013 " + fmtD(r["Window End"]) + "</span></span>";
           }
         }
-        var pdi = tlIdx(pk, st);
+        // HOW LONG WE HAVE HELD IT. Every row on this board is already collected (a job only
+        // reaches the LD sheet after pickup), so the useful question is not "picked up?" but
+        // "how long have we been sitting on it" — median 19 days, worst 360. Drawn from the
+        // pickup to today in the custody colour, clamped to the visible range.
+        var pdi = tlIdx(pk, st), ck = custKey(r);
+        if (pdi != null && tdi != null) {
+          var h0 = Math.max(pdi, 0), h1 = Math.min(tdi, days - 1);
+          if (h1 >= h0 && pdi <= tdi) {
+            bars += '<span class="ldp-tlhold ' + ck + '" style="left:' + ((h0 + 0.5) * dp) + "%;width:" + Math.max((h1 - h0) * dp, 0.6) + '%"'
+                 + ' title="' + esc(CUST_LABEL[ck]) + " \u00b7 held " + (tdi - pdi) + ' days"></span>';
+            if ((h1 - h0) * dp > 9)
+              bars += '<span class="ldp-tlheld" style="left:' + ((h0 + 0.5) * dp) + '%">' + (tdi - pdi) + "d</span>";
+          }
+        }
         if (pdi != null && pdi >= 0 && pdi < days)
           bars += '<span class="ldp-tlpk" style="left:' + ((pdi + 0.5) * dp) + '%" title="picked up ' + esc(fmtD(r["Pickup Date"])) + '"></span>';
         return '<div class="ldp-tlrow ' + tone + (S.sel === key ? " on" : "") + '" data-ldk="' + esc(key) + '">'
           + '<div class="ldp-tllab"><span class="ldp-tlmk ' + (st8 ? "s" : "r") + '"></span>'
-          + '<span class="ldp-tllabtx"><b>' + esc(r["Customer"] || "\u2014") + "</b>"
-          + "<span>" + esc(String(r["Request #"] || "\u2014")) + (r["Moving To"] ? " \u00b7 " + esc(String(r["Moving To"])) : "") + "</span></span></div>"
+          + '<span class="ldp-tllabtx"><b>' + esc(r["Customer"] || "\u2014")
+          +   '<span class="ldp-tltype">' + (st8 ? "STRAIGHT" : "REGULAR") + "</span></b>"
+          + "<span>" + esc(String(r["Request #"] || "\u2014")) + (r["Moving To"] ? " \u00b7 " + esc(String(r["Moving To"])) : "") + "</span>"
+          + '<span class="ldp-tlcust ' + ck2 + '">' + CUST_LABEL[ck2] + "</span></span></div>"
           + '<div class="ldp-tlcal">' + bars + "</div></div>";
       }
       function timelineHtml(rows) {
@@ -682,7 +726,13 @@ registerPage({
         if (tdi >= 0 && tdi < days)
           cal += '<span class="ldp-tltodaylab" style="left:' + ((tdi + 0.5) * dp) + '%">TODAY</span>';
         // soonest deadline first, exactly like the board
-        var ord = rows.slice().sort(function (a, b) {
+        var ord = rows.filter(function (r) {
+          var k = S.tlSeg;
+          if (!k) return true;
+          if (k === "straight") return isStraight(r);
+          if (k === "regular") return !isStraight(r);
+          return custKey(r) === k;
+        }).sort(function (a, b) {
           var da = actDate(a), db = actDate(b);
           if (!da && !db) return 0;
           if (!da) return 1;
@@ -691,7 +741,23 @@ registerPage({
         });
         var body = ord.map(function (r, i) { return tlRow(r, i, st, days, dp); }).join("")
           || '<div style="padding:26px;color:var(--faint)">No shipments match these filters.</div>';
-        return '<div class="ldp-tlbar">'
+        // Segment the board without leaving the view: type and custody are the two questions
+        // a dispatcher actually asks of it.
+        var segs = [["", "All"], ["straight", "Straight"], ["regular", "Regular"],
+                    ["us", "With us"], ["tp", "Storage"], ["car", "Carrier"], ["unk", "Location unknown"]];
+        var segCount = function (k) {
+          return rows.filter(function (r) {
+            if (!k) return true;
+            if (k === "straight") return isStraight(r);
+            if (k === "regular") return !isStraight(r);
+            return custKey(r) === k;
+          }).length;
+        };
+        var chips = '<div class="ldp-tlf">' + segs.map(function (o) {
+          return '<button class="ldp-tlchip' + (S.tlSeg === o[0] ? " on" : "") + '" data-tlseg="' + o[0] + '">'
+            + o[1] + "<i>" + segCount(o[0]) + "</i></button>";
+        }).join("") + "</div>";
+        return chips + '<div class="ldp-tlbar">'
           + '<div class="ldp-tlnav"><button data-tl="prev" title="Earlier">\u2039</button>'
           +   '<button data-tl="today">Today</button>'
           +   '<button data-tl="next" title="Later">\u203a</button></div>'
@@ -710,7 +776,8 @@ registerPage({
                     + (before && after ? " · " : "") + (after ? after + " beyond it" : "") + "</div>"
                 : "";
             })()
-          + '<div class="ldp-tllg"><span><i class="lg-pk"></i>pickup</span>'
+          + '<div class="ldp-tllg"><span><i class="lg-pk"></i>picked up</span>'
+          +   '<span><i class="lg-hold"></i>days in our hands</span>'
           +   '<span><i class="lg-s"></i>straight \u2014 committed date</span>'
           +   '<span><i class="lg-r"></i>regular \u2014 delivery window</span></div>'
           + "</div>"
@@ -861,6 +928,9 @@ registerPage({
       var cl = host.querySelector("#ldpClr"); if (cl) cl.onclick = function () { S.q = ""; S.co = ""; S.loc = ""; paint(); };
       Array.prototype.forEach.call(host.querySelectorAll("[data-ldview]"), function (b) {
         b.onclick = function () { S.view = b.getAttribute("data-ldview"); paint(); };
+      });
+      Array.prototype.forEach.call(host.querySelectorAll("[data-tlseg]"), function (b) {
+        b.onclick = function () { S.tlSeg = b.getAttribute("data-tlseg"); paint(); };
       });
       Array.prototype.forEach.call(host.querySelectorAll("[data-tl]"), function (b) {
         b.onclick = function () {
