@@ -120,6 +120,7 @@ registerPage({
         .ldp-tlnav button:hover{background:var(--panel-2)}
         .ldp-tlrange{font-size:19px;font-weight:800;letter-spacing:-.3px;line-height:1.05}
         .ldp-tlrange small{display:block;font-size:10px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--faint);margin-top:2px}
+        .ldp-tloff{font-size:11.5px;font-weight:700;color:${WARN};background:rgba(160,106,0,.10);border:1px solid rgba(160,106,0,.26);border-radius:999px;padding:5px 12px}
         .ldp-tllg{display:flex;gap:15px;margin-left:auto;font-size:12px;color:var(--muted);flex-wrap:wrap;align-items:center}
         .ldp-tllg span{display:flex;align-items:center;gap:6px}
         .lg-pk{width:11px;height:11px;border-radius:50%;border:2px solid var(--faint);background:var(--panel);flex:0 0 auto}
@@ -606,7 +607,16 @@ registerPage({
       var TL_DAYS = 42;
       function tlMid(d) { var x = new Date(d); x.setHours(0, 0, 0, 0); return x; }
       function tlParse(v) { var t = String(v || "").slice(0, 10); return /^\d{4}-\d{2}-\d{2}$/.test(t) ? tlMid(new Date(t + "T12:00:00")) : null; }
-      function tlStart() { return S.tlStart ? tlMid(new Date(S.tlStart)) : tlMid(new Date()); }
+      // Default the window to start a week BEFORE today, not on it. Anchoring at today put
+      // TODAY flush against the left edge and pushed every overdue deadline off-range as a
+      // chevron — and this board is mostly overdue work, so the default view was a column of
+      // chevrons. A week of lead-in also means a pickup that just happened is still visible.
+      function tlStart() {
+        if (S.tlStart) return tlMid(new Date(S.tlStart));
+        var d = tlMid(new Date());
+        d.setDate(d.getDate() - 7);
+        return d;
+      }
       function tlIdx(d, st) { return d ? Math.round((tlMid(d).getTime() - st.getTime()) / 86400000) : null; }
       function tlTone(r) {
         var u = String(r["Urgency"] || "");
@@ -687,6 +697,19 @@ registerPage({
           +   '<button data-tl="next" title="Later">\u203a</button></div>'
           + '<div class="ldp-tlrange">' + MONS[st.getMonth()] + " " + st.getDate() + " \u2013 " + MONS[end.getMonth()] + " " + end.getDate()
           +   "<small>" + days + "-day plan window</small></div>"
+          + (function () {
+              var before = 0, after = 0;
+              ord.forEach(function (r) {
+                var t = tlParse(isStraight(r) ? r["FAD"] : (r["Window End"] || r["FAD"]));
+                var i2 = tlIdx(t, st);
+                if (i2 == null) return;
+                if (i2 < 0) before++; else if (i2 >= days) after++;
+              });
+              return (before || after)
+                ? '<div class="ldp-tloff">' + (before ? before + " due before this range" : "")
+                    + (before && after ? " · " : "") + (after ? after + " beyond it" : "") + "</div>"
+                : "";
+            })()
           + '<div class="ldp-tllg"><span><i class="lg-pk"></i>pickup</span>'
           +   '<span><i class="lg-s"></i>straight \u2014 committed date</span>'
           +   '<span><i class="lg-r"></i>regular \u2014 delivery window</span></div>'
