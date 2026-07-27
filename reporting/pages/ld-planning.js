@@ -100,7 +100,14 @@ registerPage({
         .ldp-dstat.open{background:var(--panel-2);color:var(--muted)}
         .ldp-dstat.none{background:var(--panel-2);color:var(--faint)}
         /* edit form */
-        .ldp-fgrp{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;padding:9px 12px;border:1px solid var(--line);border-radius:11px;background:var(--panel);margin-right:10px}
+        .ldp-fgrp{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;padding:9px 12px;border:1px solid var(--line);border-radius:11px;background:var(--panel-2);margin:0 0 9px}
+        .ldp-drawer .ldp-fgrp{width:100%;box-sizing:border-box}
+        .ldp-drawer .ldp-fgrp label{flex:1 1 120px}
+        .ldp-drawer .ldp-fgrp input,.ldp-drawer .ldp-fgrp select{width:100%;box-sizing:border-box}
+        .ldp-drawer [data-ldpform]{display:block!important;margin-top:0!important}
+        .ldp-drawer .ldp-savebtn{width:100%;margin-top:2px}
+        .ldp-drawer .ldp-saveinfo{display:block;margin-top:7px}
+        .ldp-drawer .ldp-jobs{gap:5px}
         .ldp-flbl{font-size:10px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--faint);align-self:center}
         .ldp-fgrp label{font-size:10.5px;font-weight:800;color:var(--faint);text-transform:uppercase;letter-spacing:.04em;display:flex;flex-direction:column;gap:4px}
         .ldp-fgrp input,.ldp-fgrp select{font:inherit;font-size:12.5px;font-weight:600;text-transform:none;letter-spacing:0;color:var(--ink);padding:6px 8px;border:1px solid var(--line-2);border-radius:8px;background:var(--panel)}
@@ -398,18 +405,43 @@ registerPage({
       // same right-side overlay pattern the Reviews drawer uses.
       function drawerBody(r) {
         var det = String(r["Location Detail"] || "");
+        var kv = function (pairs) {
+          return '<dl class="ldp-kv">' + pairs.filter(Boolean).map(function (p) {
+            return "<dt>" + p[0] + "</dt><dd>" + p[1] + "</dd>";
+          }).join("") + "</dl>";
+        };
+        var money = function (v) { return v == null ? null : "$" + Number(v).toLocaleString(); };
+        // Type-aware, exactly as in the table: a Straight job has no FAD — the office keeps
+        // the committed DELIVERY DATE in that field, so labelling it "FAD" here would lie.
+        var delivery = isStraight(r)
+          ? [["Delivery date", fmtD(r["FAD"]) + (r["FAD Source"] ? ' <span class="ldp-sub">(' + esc(r["FAD Source"]) + ")</span>" : "")],
+             ["Timeframe", esc(r["Timeframe"] || "—")]]
+          : [["FAD", fmtD(r["FAD"]) + (r["FAD Source"] ? ' <span class="ldp-sub">(' + esc(r["FAD Source"]) + ")</span>" : "")],
+             ["Window", windowTxt(r) + (r["Window Note"] ? ' <span class="ldp-sub">' + esc(r["Window Note"]) + "</span>" : "")],
+             ["Timeframe", esc(r["Timeframe"] || "—")]];
+
         return ''
-            + "<b>From:</b> " + esc(r["Moving From"] || "—") + " &nbsp; <b>To:</b> " + esc(r["Moving To"] || "—")
-            + (r["Delivery State"] ? " (" + esc(r["Delivery State"]) + ")" : "")
-            + "<br><b>Location:</b> " + esc(r["Location"]) + (det ? " — " + esc(det) : "")
-            + (r["Carrier Driver"] ? " &nbsp; <b>Carrier driver:</b> " + esc(r["Carrier Driver"]) : "")
-            + (r["Total To Carrier"] != null ? " &nbsp; <b>To carrier:</b> $" + Number(r["Total To Carrier"]).toLocaleString() : "")
-            + "<br><b>FAD:</b> " + fmtD(r["FAD"]) + (r["FAD Source"] ? " (" + esc(r["FAD Source"]) + ")" : "")
-            + " &nbsp; <b>Window:</b> " + windowTxt(r) + (r["Window Note"] ? " — " + esc(r["Window Note"]) : "")
-            + " &nbsp; <b>Depart by:</b> " + fmtD(r["Depart By"]) + (r["Trip Days"] != null ? " (" + r["Trip Days"] + "d trip)" : " (trip days not set)")
-            + " &nbsp; <b>Sticker:</b> " + esc(r["Sticker"] || "—")
-            + (r["Do"] ? "<br><b>Do:</b> " + esc(r["Do"]) : "")
-            // the PORTAL's manual planning fields — editable right here, saved with history
+          + (r["Do"] ? '<div class="ldp-dnote"><b>Do:</b> ' + esc(r["Do"]) + "</div>" : "")
+          + (r["Data Issue"] ? '<div class="ldp-dissue' + (String(r["Issue Kind"]) === "blocking" ? " blk" : "")
+              + '" style="margin-top:9px">⚠ ' + esc(r["Data Issue"]) + "</div>" : "")
+          + '<div class="ldp-sec">Calendar jobs</div>' + jobsCell(r)
+          + '<div class="ldp-sec">Route</div>'
+          + kv([["From", esc(r["Moving From"] || "—")],
+                ["To", esc(r["Moving To"] || "—") + (r["Delivery State"] ? " (" + esc(r["Delivery State"]) + ")" : "")]])
+          + '<div class="ldp-sec">Delivery</div>'
+          + kv(delivery.concat([
+                ["Depart by", fmtD(r["Depart By"]) + (r["Trip Days"] != null ? ' <span class="ldp-sub">' + r["Trip Days"] + "d trip</span>" : ' <span class="ldp-sub">trip days not set</span>')]]))
+          + '<div class="ldp-sec">Where it is</div>'
+          + kv([["Custody", esc(r["Possession"] || "—")],
+                ["Location", esc(r["Location"] || "—") + (det ? ' <span class="ldp-sub">' + esc(det) + "</span>" : "")],
+                r["Carrier Driver"] ? ["Carrier", esc(r["Carrier Driver"])] : null,
+                r["Total To Carrier"] != null ? ["To carrier", money(r["Total To Carrier"])] : null,
+                ["Sticker", esc(r["Sticker"] || "—")]])
+          + '<div class="ldp-sec">Job</div>'
+          + kv([r["Balance Due"] != null ? ["Balance due", money(r["Balance Due"])] : null,
+                r["CF"] != null ? ["CF", Number(r["CF"]).toLocaleString()] : null,
+                ["Sheet row", esc(r["Sheet Row"] || "—")]])
+          + '<div class="ldp-sec">Plan — saved with history</div>'
             + '<div style="margin-top:10px;display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end" data-ldpform="1" data-co="' + esc(r._co) + '" data-req="' + esc(r._rq) + '" data-row="' + esc(r["Sheet Row"] || "") + '">'
             + '<div class="ldp-fgrp"><span class="ldp-flbl">Plan</span>'
             +   '<label>Trip days<input type="number" min="1" max="60" data-ldf="trip_days" value="' + esc(r._ent.trip_days && r._ent.trip_days.value || "") + '" style="width:78px"></label>'
@@ -432,9 +464,7 @@ registerPage({
                 return last ? "last set by " + esc(String(last.by || "").split("@")[0].replace("import:ld-sheet", "old sheet import")) + " · " + esc(String(last.at || "").slice(0, 16)) : "not set yet";
               })() + "</span>"
             + "</div>"
-            + (r["Balance Due"] != null ? " &nbsp; <b>Balance due:</b> $" + Number(r["Balance Due"]).toLocaleString() : "")
-            + (r["CF"] != null ? " &nbsp; <b>CF:</b> " + Number(r["CF"]).toLocaleString() : "")
-            + " &nbsp; <b>Sheet row:</b> " + esc(r["Sheet Row"] || "—");
+        ;
       }
 
       // The drawer is rendered OUTSIDE the table, so a repaint of the list never destroys
