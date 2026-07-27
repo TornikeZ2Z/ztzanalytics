@@ -294,6 +294,12 @@ body.rs-app.light ::-webkit-scrollbar-thumb{background:#c6d0dc;border-color:var(
 .acl-tile:hover{border-color:var(--line-2)}
 .acl-tile.on{border-color:var(--brand);background:var(--brand-glow);color:var(--brand)}
 .acl-tile.on svg{opacity:1}
+/* Administration is a tile like the rest, but it grants EVERYTHING — it must not look
+   like just another department, or it gets ticked by muscle memory. Violet, matching the
+   view-as banner, which is the other "you have more power than usual" signal in the app. */
+.acl-tile.adm{border-style:dashed}
+.acl-tile.adm.on{border-style:solid;border-color:#7c3aed;background:color-mix(in srgb,#7c3aed 13%,transparent);color:#7c3aed}
+body.rs-app:not(.light) .acl-tile.adm.on{color:#a78bfa;border-color:#a78bfa}
 .acl-field{border:1px solid var(--line);background:var(--panel-2);color:var(--ink);border-radius:10px;padding:9px 12px;font-size:13px;outline:0;transition:border-color .12s}
 .acl-field:focus{border-color:var(--brand);box-shadow:0 0 0 3px var(--brand-glow)}
 .acl-switch{position:relative;width:40px;height:22px;border-radius:999px;background:var(--line);cursor:pointer;transition:background .15s;flex:none}

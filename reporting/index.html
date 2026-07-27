@@ -26,7 +26,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/portal.css?v=2">
-<link rel="stylesheet" href="assets/rs.css?v=12">
+<link rel="stylesheet" href="assets/rs.css?v=13">
 <style>
 /* collapsible sidebar groups + nested hub sub-items */
 #nav .g-title{cursor:pointer;user-select:none;display:flex;align-items:center;justify-content:space-between}
@@ -111,7 +111,7 @@ body.rs-viewas .rs-layout{box-shadow:inset 0 0 0 2px #7c3aed}
   </div>
 </div>
 
-<script src="assets/portal.js?v=10"></script>
+<script src="assets/portal.js?v=11"></script>
 <script src="assets/rs-core.js?v=32"></script>
 <script src="assets/rs-components.js?v=9"></script>
 <script>
@@ -1235,16 +1235,20 @@ const aclIconFor = id => (MERGED.find(m => m.id === id) || {}).icon ||
    these lists and kept granting the full Monthly Report table set. */
 const ACL_DEPTS = [
   { id: "company",   label: "Company Overview", icon: "spark",     reports: ["monthly-report", "analysis-by-category"] },
-  { id: "sales",     label: "Sales",            icon: "funnel",    reports: ["sales-speed", "leads-inflow"] },
+  { id: "sales",     label: "Sales",            icon: "funnel",    reports: ["sales-command", "sales-speed", "leads-inflow"] },
   { id: "marketing", label: "Marketing",        icon: "megaphone", reports: ["source-trace", "multi-source-leads"] },
   { id: "logistics", label: "Logistics",        icon: "tool",      reports: ["money-flow", "ld-planning", "foreman-closings"] },
   { id: "financial", label: "Financial",        icon: "trend",     reports: ["financial-analysis", "executive-scorecard", "branch-owner"] },
   { id: "reviews",   label: "Reviews",          icon: "star",      reports: ["review-performance", "reviews-reminders", "response-analysis", "review-settings"] },
-  /* "support" removed 2026-07-26 (Tornike: not needed) — it consisted only of retired slices. */
-  { id: "quality",   label: "Data Quality",     icon: "clipboard", reports: ["data-quality"] },
-  { id: "sales-lead", label: "Sales Lead — person analysis", icon: "gauge", reports: ["sales-command"] },
-  { id: "explorer",  label: "Data Explorer — every table", icon: "archive", reports: ["explorer"] },
+  { id: "explorer",  label: "Data Explorer — the separate Data Management app", icon: "archive", reports: ["explorer"] },
 ];
+/* ADMINISTRATION is granted as a tile like everything else (Tornike 2026-07-27), but it is
+   NOT a department — ticking it sets is_admin, i.e. every report plus the admin pages. It is
+   modelled separately because its pages are the ones that hand out access, so it can never be
+   just another bundle of report ids. Rendered last in the same grid so the whole access model
+   is one uniform set of tiles with no stray toggle beside it. */
+const ACL_ADMIN_TILE = { id: "__admin", label: "Administration", icon: "user",
+  reports: ["refresh-log", "data-quality", "general-settings", "admin-users"] };
 registerPage({
   id: "admin-users", group: "pulse", title: "Users & Access",
   async render(host) {
@@ -1274,15 +1278,14 @@ registerPage({
             <input id="uEmail" class="acl-field" style="flex:2;min-width:230px" placeholder="email@ziptozipmoving.com">
             <input id="uName" class="acl-field" style="flex:1;min-width:130px" placeholder="Name (optional)">
           </div>
-          <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px">
-            <span class="acl-switch" id="uAdmin"></span>
-            <span style="font-size:13px;color:var(--ink)"><b style="color:var(--ink)">Administrator</b> — every report, the data portal, and user management</span>
-          </div>
           <div id="uReports">
-            <div class="insight-note" style="margin:10px 0 0">Or pick the departments they can open (a department = all of its reports):</div>
+            <div class="insight-note" style="margin:10px 0 0">Pick the menu groups they can open — a group grants exactly what it shows in the sidebar, including reports added to it later:</div>
             <div class="acl-tilegrid">` +
       depts.map(d => `<div class="acl-tile" data-d="${d.id}" title="${RSC.esc(d.reports.map(r => REPORT_LABELS[r] || r).join(" · "))}">${icon(d.icon)}<span>${RSC.esc(d.label)}</span></div>`).join("") +
+      `<div class="acl-tile adm" data-d="${ACL_ADMIN_TILE.id}" title="Every report, the data portal, and user management. ${RSC.esc(ACL_ADMIN_TILE.reports.map(r => REPORT_LABELS[r] || r).join(" · "))}">${icon(ACL_ADMIN_TILE.icon)}<span>${RSC.esc(ACL_ADMIN_TILE.label)}</span></div>` +
       `</div>
+            <div class="insight-note" id="uAdmNote" style="margin:9px 0 0;display:none">
+              <b>Administration</b> grants everything — every report plus the pages that hand out access. The other groups are implied, so they are switched off above.</div>
           </div>
           <div style="display:flex;gap:8px;align-items:center">
             <button class="btn on" id="uSave">Save user</button>
@@ -1294,15 +1297,21 @@ registerPage({
       </div>`;
 
     const editor = host.querySelector("#aclEditor");
-    const admSwitch = host.querySelector("#uAdmin");
-    const setAdmin = on => {
-      admSwitch.classList.toggle("on", on);
-      host.querySelector("#uReports").style.opacity = on ? .35 : 1;
-      host.querySelector("#uReports").style.pointerEvents = on ? "none" : "auto";
+    const admTile = host.querySelector(".acl-tile.adm");
+    const isAdminOn = () => admTile.classList.contains("on");
+    // Administration subsumes every other group, so showing them still ticked would be a
+    // lie about what the grant actually is — dim them and say why.
+    const syncAdmin = () => {
+      const on = isAdminOn();
+      host.querySelectorAll(".acl-tile:not(.adm)").forEach(t => {
+        t.style.opacity = on ? .35 : 1;
+        t.style.pointerEvents = on ? "none" : "auto";
+      });
+      host.querySelector("#uAdmNote").style.display = on ? "" : "none";
     };
-    admSwitch.onclick = () => setAdmin(!admSwitch.classList.contains("on"));
+    const setAdmin = on => { admTile.classList.toggle("on", !!on); syncAdmin(); };
     host.querySelectorAll(".acl-tile").forEach(t =>
-      t.onclick = () => t.classList.toggle("on"));
+      t.onclick = () => { t.classList.toggle("on"); if (t === admTile) syncAdmin(); });
 
     const dmap = Object.fromEntries(depts.map(d => [d.id, d]));
     const openEditor = (u) => {
@@ -1310,12 +1319,12 @@ registerPage({
       host.querySelector("#uEmail").value = u ? u.email : "";
       host.querySelector("#uEmail").disabled = !!u;
       host.querySelector("#uName").value = (u && u.name) || "";
-      setAdmin(!!(u && u.admin));
       // a department lights up when it's granted by id (new) OR all its reports are held (legacy)
-      host.querySelectorAll(".acl-tile").forEach(t => {
+      host.querySelectorAll(".acl-tile:not(.adm)").forEach(t => {
         const d = dmap[t.dataset.d];
         t.classList.toggle("on", !!(u && d && (u.reports.includes(d.id) || d.reports.every(r => u.reports.includes(r)))));
       });
+      setAdmin(!!(u && u.admin));   // last: it dims the others when on
       host.querySelector("#uMsg").textContent = "";
       if (!u) host.querySelector("#uEmail").focus();
     };
@@ -1367,10 +1376,14 @@ registerPage({
           action: "upsert",
           email: host.querySelector("#uEmail").value,
           name: host.querySelector("#uName").value,
-          admin: admSwitch.classList.contains("on"),
+          // The Administration tile IS the admin flag (his call 2026-07-27) — it is never sent
+          // as a report id, so the server contract is unchanged and __admin can't leak into
+          // acl_grants as a phantom grant.
+          admin: isAdminOn(),
           // store DEPARTMENT ids — a granted department auto-includes reports added to it later
           // (the bridge + canSee expand dept id → its current reports). Deny-by-default is kept.
-          reports: [...host.querySelectorAll(".acl-tile.on")].map(t => t.dataset.d),
+          reports: isAdminOn() ? []
+            : [...host.querySelectorAll(".acl-tile.on:not(.adm)")].map(t => t.dataset.d),
         });
         ZTZ.toast("User saved");
         self.render(host);

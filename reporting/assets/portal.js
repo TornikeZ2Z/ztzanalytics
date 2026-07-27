@@ -126,15 +126,15 @@ window.ZTZ = (function () {
      submission_datetime) are recorded in Tbilisi time. Showing both live is the cheap fix for
      "is it even working hours over there right now?". */
   const CLOCK_ZONES = [
-    { label: "Tbilisi", tz: "Asia/Tbilisi" },
-    { label: "New Jersey", tz: "America/New_York" },
+    { label: "Tbilisi", short: "TBI", tz: "Asia/Tbilisi" },
+    { label: "New Jersey", short: "NJ", tz: "America/New_York" },
   ];
   const CLOCK_TITLE = "Local time in both offices. Most reports (sales, leads, reviews, the " +
     "reminder bot) are on New Jersey time; Money Flow entry times are Tbilisi time.";
   function clockHtml() {
     const now = new Date();
     const z = CLOCK_ZONES.map(function (c) {
-      return { label: c.label,
+      return { label: c.label, short: c.short,
         t: now.toLocaleTimeString("en-GB", { timeZone: c.tz, hour: "2-digit", minute: "2-digit" }),
         d: now.toLocaleDateString("en-CA", { timeZone: c.tz }) };
     });
@@ -143,7 +143,8 @@ window.ZTZ = (function () {
     const diff = z[0].d !== z[1].d;
     return z.map(function (p, i) {
       const mark = (diff && i === 1) ? '<em>' + (p.d < z[0].d ? "prev day" : "next day") + '</em>' : "";
-      return '<span class="ztzcz"><i>' + p.label + '</i><b>' + p.t + '</b>' + mark + '</span>';
+      return '<span class="ztzcz"><i><span class="lg">' + p.label + '</span>'
+        + '<span class="sm">' + p.short + '</span></i><b>' + p.t + '</b>' + mark + '</span>';
     }).join('<span class="ztzcsep">·</span>');
   }
   function mountClock() {
@@ -159,8 +160,12 @@ window.ZTZ = (function () {
         ".ztzcz em{font-style:normal;font-size:9.5px;font-weight:700;color:var(--faint,#8a97a6);" +
         "opacity:.85}" +
         ".ztzcsep{color:var(--faint,#8a97a6);opacity:.5}" +
-        "@media(max-width:860px){.ztzcz i{display:none}.ztzclock{gap:7px;margin-right:9px}}" +
-        "@media(max-width:560px){.ztzclock{display:none}}";
+        ".ztzcz i .sm{display:none}" +
+        // Never hidden, only abbreviated. "What time is it over there" is the whole point,
+        // and it is MORE useful on a phone, not less.
+        "@media(max-width:900px){.ztzcz i .lg{display:none}.ztzcz i .sm{display:inline}" +
+        ".ztzclock{gap:7px;margin-right:9px}.ztzcz em{display:none}}" +
+        "@media(max-width:420px){.ztzcz b{font-size:12px}.ztzclock{gap:5px;margin-right:6px}}";
       document.head.appendChild(st);
     }
     if (window.__ztzClockTimer) clearInterval(window.__ztzClockTimer);
