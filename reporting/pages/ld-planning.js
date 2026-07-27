@@ -48,15 +48,47 @@ registerPage({
         .ldp-seg button i{font-style:normal;font-weight:800;font-size:11px;opacity:.75;margin-left:6px}
         .ldp-q{font:inherit;font-size:13px;background:var(--panel);color:var(--ink);border:1px solid var(--line-2);border-radius:10px;padding:8px 12px;min-width:200px}
         .ldp-sel{font:inherit;font-size:12.5px;background:var(--panel);color:var(--ink);border:1px solid var(--line-2);border-radius:10px;padding:8px 10px}
-        .ldp-card{position:relative;background:var(--panel);border:1px solid var(--line);border-radius:16px;overflow:hidden;box-shadow:var(--shadow)}
-        .ldp-wrap{overflow:auto;max-height:calc(100vh - 330px);min-height:320px}
-        .ldp-tbl{width:100%;border-collapse:separate;border-spacing:0;font-size:13px}
-        .ldp-tbl th{position:sticky;top:0;z-index:3;background:var(--panel-2);font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);text-align:left;padding:12px 13px;border-bottom:1px solid var(--line-2);white-space:nowrap;cursor:default;box-shadow:0 1px 0 var(--line-2)}
-        .ldp-tbl td{padding:11px 13px;border-bottom:1px solid var(--line);vertical-align:top}
-        .ldp-tbl tbody tr:last-child td{border-bottom:0}
+        /* TABLE — deliberately the same language as Money Flow (his ask 2026-07-27): one
+           card, --line-2 border, sticky 11.5px uppercase headers, uniform row height and
+           strictly SINGLE-LINE cells that ellipsise. The old board stacked three lines into
+           several cells, which is what made it read as cluttered; everything that used to be
+           crammed in now lives in the detail drawer. */
+        .ldp-card{position:relative;background:var(--panel);border:1px solid var(--line-2);border-radius:14px;overflow:hidden}
+        .ldp-wrap{overflow-y:auto;overflow-x:auto;max-height:calc(100vh - 330px);min-height:320px}
+        .ldp-tbl{width:100%;border-collapse:collapse;font-size:14px;min-width:1180px}
+        .ldp-tbl th{position:sticky;top:0;z-index:2;background:var(--panel);font-size:11.5px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--faint);text-align:left;padding:11px 12px;border-bottom:1px solid var(--line);white-space:nowrap;user-select:none}
+        .ldp-tbl td{padding:10px 12px;border-top:1px solid var(--line);vertical-align:middle;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:230px}
+        .ldp-tbl tbody tr{height:56px}
         .ldp-tbl .r{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
         .ldp-tbl tbody tr.ldp-row{cursor:pointer}
-        .ldp-tbl tbody tr.ldp-row:hover{background:var(--brand-glow)}
+        .ldp-tbl tbody tr.ldp-row:hover{background:var(--panel-2)}
+        .ldp-tbl tbody tr.ldp-row.on{background:var(--brand-glow)}
+        .ldp-cust{font-weight:700;color:var(--ink)}
+        .ldp-sub{font-size:11.5px;color:var(--faint);font-weight:600}
+        /* ---- right-side detail drawer ---- */
+        /* pointer-events MUST toggle with visibility: an opacity-0 fixed overlay still
+           hit-tests and would make the whole page unclickable while it sat there. */
+        .ldp-scrim{position:fixed;inset:0;background:rgba(15,23,42,.34);z-index:60;opacity:0;transition:opacity .18s;backdrop-filter:blur(1px);pointer-events:none;visibility:hidden}
+        .ldp-scrim.show{opacity:1;pointer-events:auto;visibility:visible}
+        .ldp-drawer{position:fixed;top:0;right:0;height:100vh;width:min(460px,95vw);background:var(--panel);z-index:61;
+          box-shadow:-18px 0 48px rgba(0,0,0,.24);transform:translateX(100%);transition:transform .22s cubic-bezier(.4,0,.2,1);
+          display:flex;flex-direction:column;visibility:hidden}
+        .ldp-drawer.show{transform:none;visibility:visible}
+        .ldp-dhd{padding:16px 18px 13px;border-bottom:1px solid var(--line);position:relative;flex:0 0 auto}
+        .ldp-dhd .x{position:absolute;top:13px;right:13px;border:0;background:var(--panel-2);color:var(--muted);width:30px;height:30px;border-radius:9px;cursor:pointer;font-size:15px;line-height:1}
+        .ldp-dhd .x:hover{color:var(--ink)}
+        .ldp-dnm{font-size:17px;font-weight:800;letter-spacing:-.3px;padding-right:38px}
+        .ldp-dmeta{font-size:12px;color:var(--muted);margin-top:2px}
+        .ldp-dpills{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+        .ldp-dbody{overflow-y:auto;padding:14px 18px 34px;flex:1}
+        .ldp-sec{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--faint);margin:16px 0 8px}
+        .ldp-sec:first-child{margin-top:0}
+        .ldp-kv{display:grid;grid-template-columns:104px minmax(0,1fr);gap:5px 12px;font-size:12.5px;align-items:baseline}
+        .ldp-kv dt{color:var(--faint);font-weight:700}
+        .ldp-kv dd{margin:0;color:var(--ink);font-weight:600;word-break:break-word}
+        .ldp-dnote{font-size:12.5px;line-height:1.5;color:var(--ink);background:var(--panel-2);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+        .ldp-dissue{font-size:12.5px;line-height:1.5;font-weight:700;color:${WARN};background:rgba(160,106,0,.10);border:1px solid rgba(160,106,0,.28);border-radius:10px;padding:10px 12px}
+        .ldp-dissue.blk{color:${NEG};background:rgba(176,42,55,.09);border-color:rgba(176,42,55,.28)}
         /* pickup / delivery jobs + delivery status */
         .ldp-jobs{display:flex;flex-direction:column;gap:3px;align-items:flex-start}
         .ldp-callink{display:inline-flex;align-items:center;gap:4px;font-size:11.5px;font-weight:700;color:var(--blue);text-decoration:none;border:1px solid var(--line-2);border-radius:8px;padding:2px 8px;background:var(--panel);white-space:nowrap}
@@ -100,6 +132,8 @@ registerPage({
         .ldp-sub>td{background:var(--panel-2);font-size:12.5px;padding:12px 16px}
         .ldp-sub b{font-weight:800}
         .ldp-fnote{padding:10px 14px;font-size:11px;color:var(--faint);border-top:1px solid var(--line)}
+        .ldp-flagdot{display:inline-block;margin-left:5px;font-size:12px;font-weight:800;color:${WARN};cursor:help}
+        .ldp-flagdot.blk{color:${NEG}}
         .ldp-issue{font-size:11.5px;font-weight:700;color:${WARN};margin-top:5px;max-width:230px;line-height:1.35}
         .ldp-issue.blk{color:${NEG}}
         .ldp-count{font-size:13px;font-weight:700;color:var(--muted);margin-right:2px}
@@ -120,9 +154,11 @@ registerPage({
       <div class="ldp-head"><div>
         <h1>Long Distance Planning</h1>
       </div></div>
-      <div id="ldpBody"><div class="rs-loading">Loading shipments…</div></div>`;
+      <div id="ldpBody"><div class="rs-loading">Loading shipments…</div></div>
+      <div class="ldp-scrim" id="ldpScrim"></div>
+      <aside class="ldp-drawer" id="ldpDrawer" aria-label="Shipment detail"></aside>`;
 
-    var S = window.__LDP || (window.__LDP = { view: "board", q: "", co: "", loc: "", open: {} });
+    var S = window.__LDP || (window.__LDP = { view: "board", q: "", co: "", loc: "", sel: null });
 
     var rows;
     try { rows = await RS.load("fct_ld_planning"); }
@@ -358,28 +394,11 @@ registerPage({
             + (o || "— derived automatically —") + "</option>";
         }).join("");
       }
-      var body = cur.map(function (r, i) {
-        var key = String(r["Sheet Row"] || i);
+      // DETAIL DRAWER body. Everything the table no longer shows lives here, in the
+      // same right-side overlay pattern the Reviews drawer uses.
+      function drawerBody(r) {
         var det = String(r["Location Detail"] || "");
-        var main = '<tr class="ldp-row" data-ldk="' + esc(key) + '">'
-          + "<td>" + fmtD(r["Pickup Date"]) + "</td>"
-          + "<td><b>" + esc(r["Customer"] || "—") + "</b><div class=\"ldp-det\">" + esc(String(r["Request #"] || "")) + (r["Job Code"] ? " · " + esc(String(r["Job Code"]).split(",")[0]) : "") + (r["Company"] && r["Company"] !== "Zip to Zip" ? " · " + esc(r["Company"]) : "") + "</div></td>"
-          + "<td>" + esc(r["Type"] || "—") + (r["CF"] != null ? '<div class="ldp-det">' + Number(r["CF"]).toLocaleString() + " CF</div>" : "") + "</td>"
-          + "<td>" + esc(String(r["Moving To"] || "—").slice(0, 40)) + "</td>"
-          + "<td>" + jobsCell(r) + "</td>"
-          + "<td>" + possPill(r) + "</td>"
-          + "<td>" + locPill(r) + (det ? '<div class="ldp-det">' + esc(det.slice(0, 54)) + "</div>" : "") + "</td>"
-          + "<td>" + windowCell(r) + "</td>"
-          + "<td>" + fmtD(r["Depart By"]) + (r["Trip Days"] != null ? '<div class="ldp-det">' + r["Trip Days"] + "d trip</div>" : "") + "</td>"
-          + "<td>" + urgPill(r)
-              + (r["Do"] ? '<div class="ldp-det" style="max-width:230px">' + esc(r["Do"]) + "</div>" : "")
-              // the flag rides WITH the row now that Data Cleanup is gone
-              + (r["Data Issue"] ? '<div class="ldp-issue' + (String(r["Issue Kind"]) === "blocking" ? " blk" : "") + '">⚠ '
-                  + esc(r["Data Issue"]) + "</div>" : "")
-            + "</td></tr>";
-        var sub = "";
-        if (S.open[key]) {
-          sub = '<tr class="ldp-sub"><td colspan="10">'
+        return ''
             + "<b>From:</b> " + esc(r["Moving From"] || "—") + " &nbsp; <b>To:</b> " + esc(r["Moving To"] || "—")
             + (r["Delivery State"] ? " (" + esc(r["Delivery State"]) + ")" : "")
             + "<br><b>Location:</b> " + esc(r["Location"]) + (det ? " — " + esc(det) : "")
@@ -415,17 +434,64 @@ registerPage({
             + "</div>"
             + (r["Balance Due"] != null ? " &nbsp; <b>Balance due:</b> $" + Number(r["Balance Due"]).toLocaleString() : "")
             + (r["CF"] != null ? " &nbsp; <b>CF:</b> " + Number(r["CF"]).toLocaleString() : "")
-            + " &nbsp; <b>Sheet row:</b> " + esc(r["Sheet Row"] || "—")
+            + " &nbsp; <b>Sheet row:</b> " + esc(r["Sheet Row"] || "—");
+      }
+
+      // The drawer is rendered OUTSIDE the table, so a repaint of the list never destroys
+      // a half-filled edit form — and closing it does not re-render the board.
+      function openDrawer(key) {
+        var dr = document.getElementById("ldpDrawer"), sc = document.getElementById("ldpScrim");
+        if (!dr || !sc) return;
+        S.sel = key;
+        host.querySelectorAll("tr.ldp-row").forEach(function (tr) {
+          tr.classList.toggle("on", tr.getAttribute("data-ldk") === key);
+        });
+        if (!key) { dr.classList.remove("show"); sc.classList.remove("show"); return; }
+        var r = cur.filter(function (x, i2) { return String(x["Sheet Row"] || i2) === key; })[0];
+        if (!r) { dr.classList.remove("show"); sc.classList.remove("show"); return; }
+        dr.innerHTML =
+          '<div class="ldp-dhd"><button class="x" id="ldpDx" title="Close">✕</button>'
+          + '<div class="ldp-dnm">' + esc(r["Customer"] || "—") + "</div>"
+          + '<div class="ldp-dmeta">' + esc(String(r["Request #"] || "—"))
+          + (r["Job Code"] ? " · " + esc(String(r["Job Code"]).split(",")[0]) : "")
+          + " · " + esc(r["Company"] || "") + " · picked up " + fmtD(r["Pickup Date"]) + "</div>"
+          + '<div class="ldp-dpills">' + urgPill(r) + possPill(r) + locPill(r) + "</div></div>"
+          + '<div class="ldp-dbody">' + drawerBody(r) + "</div>";
+        dr.classList.add("show"); sc.classList.add("show");
+        var x = document.getElementById("ldpDx");
+        if (x) x.onclick = function () { openDrawer(null); };
+        wireForms(dr);
+      }
+      host.__ldpOpen = openDrawer;
+
+      var body = cur.map(function (r, i) {
+        var key = String(r["Sheet Row"] || i);
+        var det = String(r["Location Detail"] || "");
+        // ONE LINE PER CELL. Anything that needs a second line belongs in the drawer —
+        // that is what keeps every row the same height and the whole table scannable.
+        var dvDate = isStraight(r) ? fmtD(r["FAD"]) : windowTxt(r);
+        var main = '<tr class="ldp-row' + (S.sel === key ? " on" : "") + '" data-ldk="' + esc(key) + '">'
+          + "<td>" + fmtD(r["Pickup Date"]) + "</td>"
+          + '<td><span class="ldp-cust">' + esc(r["Customer"] || "—") + "</span>"
+              + '<span class="ldp-sub"> · ' + esc(String(r["Request #"] || "—")) + "</span></td>"
+          + "<td>" + esc(r["Type"] || "—") + "</td>"
+          + "<td>" + esc(String(r["Moving To"] || "—")) + "</td>"
+          + "<td>" + possPill(r) + "</td>"
+          + "<td>" + locPill(r) + "</td>"
+          + "<td>" + dvDate + '<span class="ldp-sub"> · ' + esc(r["Timeframe"] ? String(r["Timeframe"]) : (isStraight(r) ? "fixed date" : "no timeframe")) + "</span></td>"
+          + "<td>" + fmtD(r["Depart By"]) + "</td>"
+          + "<td>" + urgPill(r)
+              + (r["Data Issue"] ? ' <span class="ldp-flagdot' + (String(r["Issue Kind"]) === "blocking" ? " blk" : "")
+                  + '" title="' + esc(r["Data Issue"]) + '">⚠</span>' : "")
             + "</td></tr>";
-        }
-        return main + sub;
+        return main;
       }).join("");
 
       var tbl = '<div class="ldp-card"><div class="ldp-wrap"><table class="ldp-tbl"><thead><tr>'
-        + "<th>Pickup</th><th>Customer</th><th>Type</th><th>Delivering to</th><th>Jobs &amp; status</th>"
-        + "<th>Custody</th><th>Location</th><th>Delivery date / window</th><th>Depart by</th><th>What to do</th>"
+        + "<th>Pickup</th><th>Customer</th><th>Type</th><th>Delivering to</th>"
+        + "<th>Custody</th><th>Location</th><th>Delivery date / window</th><th>Depart by</th><th>Status</th>"
         + "</tr></thead><tbody>"
-        + (body || '<tr><td colspan="10" style="color:var(--faint);padding:18px">No rows match — clear the filters, or the last build produced nothing.</td></tr>')
+        + (body || '<tr><td colspan="9" style="color:var(--faint);padding:18px">No rows match — clear the filters, or the last build produced nothing.</td></tr>')
         + "</tbody></table></div>"
         + '<div class="ldp-fnote">Click a row for the full details. <b>Sorted by when we must act</b> — '
         + "soonest deadline first, whatever the pickup date. <b>Straight</b> jobs show a committed "
@@ -438,6 +504,16 @@ registerPage({
       var wrap0 = document.querySelector("#ldpBody .ldp-wrap");
       var wt = wrap0 ? wrap0.scrollTop : 0, wl = wrap0 ? wrap0.scrollLeft : 0;
       document.getElementById("ldpBody").innerHTML = kp + bar + tbl;
+      var _sc = document.getElementById("ldpScrim");
+      if (_sc) _sc.onclick = function () { if (host.__ldpOpen) host.__ldpOpen(null); };
+      if (!host.__ldpEsc) {
+        host.__ldpEsc = function (e) {
+          if (!host.isConnected) { document.removeEventListener("keydown", host.__ldpEsc); return; }
+          if (e.key === "Escape" && host.__ldpOpen) host.__ldpOpen(null);
+        };
+        document.addEventListener("keydown", host.__ldpEsc);
+      }
+
       wire();
       var wrap1 = document.querySelector("#ldpBody .ldp-wrap");
       if (wrap1) { wrap1.scrollTop = wt; wrap1.scrollLeft = wl; }
@@ -527,11 +603,16 @@ registerPage({
       Array.prototype.forEach.call(host.querySelectorAll("tr.ldp-row"), function (tr) {
         tr.onclick = function () {
           var k = tr.getAttribute("data-ldk");
-          S.open[k] = !S.open[k]; paint();
+          openDrawer(k === S.sel ? null : k);
         };
       });
       // the manual-fields form: Save posts ONLY what changed, each change keeps history
-      Array.prototype.forEach.call(host.querySelectorAll("[data-ldpform]"), function (box) {
+      wireForms(host);
+    }
+
+    // Form wiring is scoped to a ROOT so it can bind either the page or the drawer.
+    function wireForms(root) {
+      Array.prototype.forEach.call(root.querySelectorAll("[data-ldpform]"), function (box) {
         box.onclick = function (e) { e.stopPropagation(); };
         var mb = box.querySelector(".ldp-mapbtn");
         if (mb) mb.onclick = function (e) { e.stopPropagation(); pickOnMap(box); };
