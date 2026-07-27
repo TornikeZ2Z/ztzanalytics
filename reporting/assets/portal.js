@@ -118,6 +118,59 @@ window.ZTZ = (function () {
      No nav links — just the brand, one subtitle, the user, and the theme toggle.
      The signed-in email opens a small account menu with Sign out — shared front-desk
      computers hold 12-hour sessions, so people need a way to hand the seat over. */
+  /* ---------- dual clock (Tbilisi + New Jersey) ----------
+     The office is in Georgia, the business runs in New Jersey, and the reports do NOT all
+     agree on a zone: sales/leads/reviews are converted to America/New_York (curated.py's
+     `Create Datetime NY`, lead_call's 08:00 NY working hours, the reminder bot), while Money
+     Flow entry times are Asia/Tbilisi on purpose — its legacy streams (the forms sheet and DC
+     submission_datetime) are recorded in Tbilisi time. Showing both live is the cheap fix for
+     "is it even working hours over there right now?". */
+  const CLOCK_ZONES = [
+    { label: "Tbilisi", tz: "Asia/Tbilisi" },
+    { label: "New Jersey", tz: "America/New_York" },
+  ];
+  const CLOCK_TITLE = "Local time in both offices. Most reports (sales, leads, reviews, the " +
+    "reminder bot) are on New Jersey time; Money Flow entry times are Tbilisi time.";
+  function clockHtml() {
+    const now = new Date();
+    const z = CLOCK_ZONES.map(function (c) {
+      return { label: c.label,
+        t: now.toLocaleTimeString("en-GB", { timeZone: c.tz, hour: "2-digit", minute: "2-digit" }),
+        d: now.toLocaleDateString("en-CA", { timeZone: c.tz }) };
+    });
+    // Only worth the pixels when the two offices are on DIFFERENT calendar days — which for
+    // most of the working day they are, and that is exactly when a time alone misleads.
+    const diff = z[0].d !== z[1].d;
+    return z.map(function (p, i) {
+      const mark = (diff && i === 1) ? '<em>' + (p.d < z[0].d ? "prev day" : "next day") + '</em>' : "";
+      return '<span class="ztzcz"><i>' + p.label + '</i><b>' + p.t + '</b>' + mark + '</span>';
+    }).join('<span class="ztzcsep">·</span>');
+  }
+  function mountClock() {
+    if (!document.getElementById("ztz-clock-style")) {
+      const st = document.createElement("style"); st.id = "ztz-clock-style";
+      st.textContent =
+        ".ztzclock{display:flex;align-items:center;gap:9px;margin-right:14px;white-space:nowrap;" +
+        "font-variant-numeric:tabular-nums;line-height:1.15}" +
+        ".ztzcz{display:flex;align-items:baseline;gap:5px}" +
+        ".ztzcz i{font-style:normal;font-size:10px;font-weight:700;letter-spacing:.04em;" +
+        "text-transform:uppercase;color:var(--faint,#8a97a6)}" +
+        ".ztzcz b{font-size:13px;font-weight:700;color:var(--ink,#16202c)}" +
+        ".ztzcz em{font-style:normal;font-size:9.5px;font-weight:700;color:var(--faint,#8a97a6);" +
+        "opacity:.85}" +
+        ".ztzcsep{color:var(--faint,#8a97a6);opacity:.5}" +
+        "@media(max-width:860px){.ztzcz i{display:none}.ztzclock{gap:7px;margin-right:9px}}" +
+        "@media(max-width:560px){.ztzclock{display:none}}";
+      document.head.appendChild(st);
+    }
+    if (window.__ztzClockTimer) clearInterval(window.__ztzClockTimer);
+    window.__ztzClockTimer = setInterval(function () {
+      const el = document.getElementById("ztzClock");
+      if (!el) { clearInterval(window.__ztzClockTimer); window.__ztzClockTimer = null; return; }
+      el.innerHTML = clockHtml();
+    }, 15000);
+  }
+
   function header(active, subtitle) {
     const host = document.getElementById("ztzHeader");
     if (!host) return;
@@ -127,8 +180,11 @@ window.ZTZ = (function () {
     host.innerHTML =
       `<div class="brand"><a href="${base}index.html" title="Home"><img class="brandlogo" src="${base}logo-wide.png" alt="Zip to Zip Moving"></a>` +
       (subtitle ? `<span class="brandsub">${subtitle}</span>` : "") + `</div>` +
-      `<div class="spacer"></div><div class="who" id="ztzWho">${who}</div>` +
+      `<div class="spacer"></div>` +
+      `<div class="ztzclock" id="ztzClock" title="${CLOCK_TITLE}">${clockHtml()}</div>` +
+      `<div class="who" id="ztzWho">${who}</div>` +
       `<span id="ztzHeadSign"></span>`;
+    mountClock();
     if (!em) { mountSignin(document.getElementById("ztzHeadSign"), { button: { size: "medium" } }); return; }
     const whoEl = document.getElementById("ztzWho");
     whoEl.style.cursor = "pointer";
