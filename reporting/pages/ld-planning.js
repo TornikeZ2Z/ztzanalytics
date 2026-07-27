@@ -36,7 +36,9 @@ registerPage({
         .ldp-head{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;flex-wrap:wrap;margin-bottom:14px}
         .ldp-head h1{margin:0;font-size:22px;font-weight:800;letter-spacing:-.4px}
         .ldp-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-bottom:14px}
-        .ldp-kpi{background:var(--panel);border:1px solid var(--line-2);border-radius:12px;padding:12px 14px}
+        .ldp-kpi{background:var(--panel);border:1px solid var(--line-2);border-radius:12px;padding:12px 14px;cursor:pointer;transition:border-color .12s,box-shadow .12s;user-select:none}
+        .ldp-kpi:hover{border-color:var(--brand)}
+        .ldp-kpi.sel{border-color:var(--brand);box-shadow:inset 0 0 0 1px var(--brand);background:var(--brand-glow)}
         .ldp-kpi b{display:block;font-size:20px;font-weight:800;letter-spacing:-.4px;font-variant-numeric:tabular-nums}
         .ldp-kpi span{display:block;font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--faint);margin-top:2px}
         .ldp-kpi small{display:block;font-size:10.5px;color:var(--faint);margin-top:2px}
@@ -210,6 +212,7 @@ registerPage({
         .ldp-vw button.on{background:var(--brand);color:var(--brand-ink)}
         /* pickup / delivery jobs + delivery status */
         .ldp-jobs{display:flex;flex-direction:column;gap:3px;align-items:flex-start}
+        .ldp-whsub{max-width:210px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
         .ldp-callink{display:inline-flex;align-items:center;gap:4px;font-size:11.5px;font-weight:700;color:var(--blue);text-decoration:none;border:1px solid var(--line-2);border-radius:8px;padding:2px 8px;background:var(--panel);white-space:nowrap}
         .ldp-callink:hover{border-color:var(--blue)}
         .ldp-nolink{font-size:11.5px;color:var(--faint);font-weight:600}
@@ -282,7 +285,7 @@ registerPage({
       <div class="ldp-scrim" id="ldpScrim"></div>
       <aside class="ldp-drawer" id="ldpDrawer" aria-label="Shipment detail"></aside>`;
 
-    var S = window.__LDP || (window.__LDP = { view: "board", q: "", co: "", loc: "", sel: null, tlStart: null, tlSeg: "" });
+    var S = window.__LDP || (window.__LDP = { view: "board", q: "", co: "", loc: "", sel: null, tlStart: null, tlSeg: "", kpi: "" });
 
     var rows;
     try { rows = await RS.load("fct_ld_planning"); }
@@ -323,7 +326,24 @@ registerPage({
         var co = String(b["Company"] || ""), rq = String(b["Request #"] || "");
         var en = entFor(co, rq, b["Sheet Row"]);   // `b` is the source row; `r` isn't built yet
         var r = Object.assign({}, b); r._ent = en; r._co = co; r._rq = rq;
-        if (!en.trip_days && !en.final_fad && !en.final_cf) return r;  // pipeline is current
+        var touched = ["trip_days", "final_fad", "final_cf", "timeframe", "location", "location_note"]
+          .some(function (f) { return en[f] && en[f].value; });
+        if (!touched) return r;  // pipeline is current
+        // location entered in the portal takes effect on THIS paint, custody included —
+        // waiting an hour for the rebuild made Save feel broken
+        if (en.location && en.location.value) {
+          var lv = String(en.location.value);
+          r["Location"] = lv; r["Location Source"] = "portal";
+          if (en.location_note && en.location_note.value) r["Location Detail"] = String(en.location_note.value);
+          if (String(r["Possession"] || "") !== "Not picked up yet") {
+            r["Possession"] = lv === "At Carrier" ? "With carrier"
+              : (lv === "Our Storage" || lv === "On Our Truck") ? "With us"
+              : lv.indexOf("Storage") >= 0 ? "Third-party storage"
+              : "Picked up \u2014 location unknown";
+          }
+        } else if (en.location_note && en.location_note.value) {
+          r["Location Detail"] = String(en.location_note.value);
+        }
         // recompute with the SAME rules as the pipeline's _plan (src/ld_planning.py)
         if (en.final_fad && en.final_fad.value) {
           r["FAD"] = en.final_fad.value; r["FAD Source"] = "portal";
@@ -331,6 +351,16 @@ registerPage({
           var m = note.match(/^(\d+) (business )?days/);
           if (note === "same day") r["Window End"] = r["FAD"];
           else if (m) r["Window End"] = isoAdd(r["FAD"], m[2] ? Math.ceil(+m[1] * 7 / 5) : +m[1]);
+        }
+        // a portal TIMEFRAME reshapes the window off whatever FAD is current
+        if (en.timeframe && en.timeframe.value && r["FAD"]) {
+          var tf = String(en.timeframe.value).toLowerCase();
+          r["Timeframe"] = String(en.timeframe.value);
+          var mr = tf.match(/(\d{1,3})\s*-\s*(\d{1,3})/);
+          var mo = tf.match(/(\d{1,3})/);
+          var nD = mr ? Math.max(+mr[1], +mr[2]) : (mo ? +mo[1] : null);
+          if (tf.indexOf("same day") >= 0 || nD === 0) r["Window End"] = r["FAD"];
+          else if (nD != null) r["Window End"] = isoAdd(String(r["FAD"]).slice(0, 10), tf.indexOf("business") >= 0 ? Math.ceil(nD * 7 / 5) : nD);
         }
         if (en.trip_days && en.trip_days.value) r["Trip Days"] = +en.trip_days.value;
         if (en.final_cf && en.final_cf.value) r["CF"] = +en.final_cf.value;
@@ -423,6 +453,31 @@ registerPage({
       var b = new Date(); b.setHours(0, 0, 0, 0);
       return Math.round((a - b) / 86400000);
     }
+    // WHERE IT IS — custody pill with the concrete place under it. Custody and Location
+    // were two columns saying overlapping things ("With carrier" | "At Carrier");
+    // one column, two levels of detail.
+    // DEPART — when the truck must leave. The board's second actionable date; it gets the
+    // same countdown treatment as Deliver from instead of a bare date.
+    function departCell(r) {
+      var d = r["Depart By"];
+      if (!d) return '<span class="ldp-nodate">\u2014</span>';
+      var n = dayDiff(d), sub, cls;
+      if (n > 0) { sub = "in " + n + "d"; cls = n <= 2 ? "soon" : "ok"; }
+      else if (n === 0) { sub = "TODAY"; cls = "soon"; }
+      else { sub = "passed " + Math.abs(n) + "d ago"; cls = "late"; }
+      return '<b class="ldp-dt">' + fmtD(d) + "</b>"
+        + '<div class="ldp-when ' + cls + '">' + sub
+        + (r["Trip Days"] != null ? ' \u00b7 ' + r["Trip Days"] + "d trip" : "") + "</div>";
+    }
+    function whereCell(r) {
+      var det = String(r["Location Detail"] || "");
+      var loc = String(r["Location"] || "");
+      var sub = [];
+      if (loc && loc !== "Unknown" && loc !== "Not collected") sub.push(loc);
+      if (det) sub.push(det);
+      return possPill(r)
+        + (sub.length ? '<div class="ldp-sub ldp-whsub">' + esc(sub.join(" \u00b7 ").slice(0, 60)) + "</div>" : "");
+    }
     function beginCell(r) {
       var st = isStraight(r);
       var begin = st ? r["FAD"] : (r["FAD"] || r["Window End"]);
@@ -447,6 +502,14 @@ registerPage({
         + '<div class="ldp-det">FAD + window' + (tf ? " · " + esc(tf) : "") + "</div>";
     }
     // "Do we physically have it, and did we collect it?"
+    // Custody in one token, used for pills, holding bars and the filter chips.
+    function custKey(r) {
+      var p = String(r["Possession"] || "");
+      return p === "With us" ? "us" : p === "With carrier" ? "car"
+           : p === "Third-party storage" ? "tp"
+           : p === "Not picked up yet" ? "no" : "unk";
+    }
+    var CUST_LABEL = { us: "With us", car: "Carrier", tp: "Storage", no: "To collect", unk: "Where?" };
     function possPill(r) {
       var p = String(r["Possession"] || "—");
       var cls = p === "With us" ? "ldp-pos-us"
@@ -476,14 +539,49 @@ registerPage({
       var noWin = all.filter(function (r) { return r["Urgency"] === "Missing data"; }).length;
       var held = all.filter(function (r) { return String(r["Possession"] || "").indexOf("unknown") >= 0; }).length;
 
-      var kp = '<div class="ldp-kpis">'
-        + '<div class="ldp-kpi neg"><b>' + actNow + "</b><span>Act now</span><small>overdue or departure passed</small></div>"
-        + '<div class="ldp-kpi warn"><b>' + actSoon + "</b><span>Act soon</span><small>departure or window is close</small></div>"
-        + '<div class="ldp-kpi"><b>' + noWin + "</b><span>Missing data</span><small>FAD / timeframe not set</small></div>"
-        + '<div class="ldp-kpi"><b>' + held + "</b><span>Location unknown</span><small>picked up, whereabouts unrecorded</small></div>"
-        + '<div class="ldp-kpi"><b>' + flagged.length + "</b><span>Flagged</span><small>needs a sheet correction</small></div></div>";
+      // KPI cards are FILTERS, not decoration — click one to see exactly those rows;
+      // click again to release. The counts always describe the whole board.
+      var kpiDefs = [
+        ["now",  "neg",  actNow,         "Act now",          "overdue or departure passed"],
+        ["soon", "warn", actSoon,        "Act soon",         "departure or window is close"],
+        ["miss", "",     noWin,          "Missing data",     "FAD / timeframe not set"],
+        ["unk",  "",     held,           "Location unknown", "picked up, whereabouts unrecorded"],
+        ["flag", "",     flagged.length, "Flagged",          "needs a sheet correction"],
+      ];
+      var kp = '<div class="ldp-kpis">' + kpiDefs.map(function (k) {
+        return '<div class="ldp-kpi ' + k[1] + (S.kpi === k[0] ? " sel" : "") + '" data-kpi="' + k[0] + '" role="button" tabindex="0">'
+          + "<b>" + k[2] + "</b><span>" + k[3] + "</span><small>" + k[4] + "</small></div>";
+      }).join("") + "</div>";
+      var kpiPass = function (r) {
+        if (!S.kpi) return true;
+        if (S.kpi === "now") return r["Urgency"] === "Act now";
+        if (S.kpi === "soon") return r["Urgency"] === "Act soon";
+        if (S.kpi === "miss") return r["Urgency"] === "Missing data";
+        if (S.kpi === "unk") return String(r["Possession"] || "").indexOf("unknown") >= 0;
+        return !!r["Data Issue"];
+      };
+      var segPass = function (r) {
+        var k = S.tlSeg;
+        if (!k) return true;
+        if (k === "straight") return isStraight(r);
+        if (k === "regular") return !isStraight(r);
+        return custKey(r) === k;
+      };
+      var segsAll = [["", "All"], ["straight", "Straight"], ["regular", "Regular"],
+                     ["no", "To collect"], ["us", "With us"], ["tp", "Storage"],
+                     ["car", "Carrier"], ["unk", "Location unknown"]];
+      var chips = '<div class="ldp-tlf">' + segsAll.map(function (o) {
+        var n = all.filter(function (r) {
+          if (!o[0]) return true;
+          if (o[0] === "straight") return isStraight(r);
+          if (o[0] === "regular") return !isStraight(r);
+          return custKey(r) === o[0];
+        }).length;
+        return '<button class="ldp-tlchip' + (S.tlSeg === o[0] ? " on" : "") + '" data-tlseg="' + o[0] + '">'
+          + o[1] + "<i>" + n + "</i></button>";
+      }).join("") + "</div>";
 
-      var cur = all.slice();
+      var cur = all.filter(kpiPass).filter(segPass);
       if (S.co) cur = cur.filter(function (r) { return String(r["Company"]) === S.co; });
       if (S.loc) cur = cur.filter(function (r) { return String(r["Location"]) === S.loc; });
       var q = S.q.trim().toLowerCase();
@@ -511,8 +609,8 @@ registerPage({
       // FILTER BAR — one bordered strip instead of three loose controls: a search field with
       // an inline icon, labelled selects, and a Clear that only appears when something is
       // actually filtering (so it never adds noise at rest).
-      var anyF = !!(S.q || S.co || S.loc);
-      var bar = '<div class="ldp-bar">'
+      var anyF = !!(S.q || S.co || S.loc || S.kpi || S.tlSeg);
+      var bar = chips + '<div class="ldp-bar">'
         + '<div class="ldp-vw">'
         +   '<button data-ldview="board"' + (S.view !== "timeline" ? ' class="on"' : "") + ">Board</button>"
         +   '<button data-ldview="timeline"' + (S.view === "timeline" ? ' class="on"' : "") + ">Timeline</button>"
@@ -550,11 +648,19 @@ registerPage({
         return "open";
       }
       function jobsCell(r) {
-        return '<div class="ldp-jobs">'
-          + calLink(r["Pickup Event URL"], r["Pickup Event Date"], "Pickup")
-          + calLink(r["Delivery Event URL"], r["Delivery Event Date"], "Delivery")
-          + '<span class="ldp-dstat ' + dlvClass(r["Delivery Status"]) + '">'
-          + esc(r["Delivery Status"] || "-") + "</span></div>";
+        // ONE statement per fact. The old cell printed "Delivery not created" AND a
+        // "No delivery job yet" pill — the same fact twice on every second row.
+        var ds = String(r["Delivery Status"] || "");
+        var h = calLink(r["Pickup Event URL"], r["Pickup Event Date"], "Pickup");
+        if (r["Delivery Event URL"]) {
+          h += calLink(r["Delivery Event URL"], r["Delivery Event Date"], "Delivery")
+            + '<span class="ldp-dstat ' + dlvClass(ds) + '">' + esc(ds || "-") + "</span>";
+        } else if (ds === "Pickup scheduled") {
+          h += '<span class="ldp-dstat open">Pickup scheduled</span>';
+        } else {
+          h += '<span class="ldp-dstat none">No delivery job yet</span>';
+        }
+        return '<div class="ldp-jobs">' + h + "</div>";
       }
       function LOC_OPTS(cur) {
         var opts = ["", "Our Storage", "Rented Storage", "Other Storage", "On Our Truck",
@@ -663,14 +769,6 @@ registerPage({
       // as depart -> trip -> deadline diamond; REGULAR = a window band. A deadline outside
       // the visible range collapses to an edge chevron instead of silently disappearing,
       // which is the difference between "nothing due" and "you cannot see what is due".
-      // Custody in one token, used for the chip, the holding bar and the filter chips.
-      function custKey(r) {
-        var p = String(r["Possession"] || "");
-        return p === "With us" ? "us" : p === "With carrier" ? "car"
-             : p === "Third-party storage" ? "tp" : "unk";
-      }
-      var CUST_LABEL = { us: "With us", car: "Carrier", tp: "Storage", unk: "Where?" };
-
       var TL_DAYS = 42;
       function tlMid(d) { var x = new Date(d); x.setHours(0, 0, 0, 0); return x; }
       function tlParse(v) { var t = String(v || "").slice(0, 10); return /^\d{4}-\d{2}-\d{2}$/.test(t) ? tlMid(new Date(t + "T12:00:00")) : null; }
@@ -781,21 +879,7 @@ registerPage({
           || '<div style="padding:26px;color:var(--faint)">No shipments match these filters.</div>';
         // Segment the board without leaving the view: type and custody are the two questions
         // a dispatcher actually asks of it.
-        var segs = [["", "All"], ["straight", "Straight"], ["regular", "Regular"],
-                    ["us", "With us"], ["tp", "Storage"], ["car", "Carrier"], ["unk", "Location unknown"]];
-        var segCount = function (k) {
-          return rows.filter(function (r) {
-            if (!k) return true;
-            if (k === "straight") return isStraight(r);
-            if (k === "regular") return !isStraight(r);
-            return custKey(r) === k;
-          }).length;
-        };
-        var chips = '<div class="ldp-tlf">' + segs.map(function (o) {
-          return '<button class="ldp-tlchip' + (S.tlSeg === o[0] ? " on" : "") + '" data-tlseg="' + o[0] + '">'
-            + o[1] + "<i>" + segCount(o[0]) + "</i></button>";
-        }).join("") + "</div>";
-        return chips + '<div class="ldp-tlbar">'
+        return '<div class="ldp-tlbar">'
           + '<div class="ldp-tlnav"><button data-tl="prev" title="Earlier">\u2039</button>'
           +   '<button data-tl="today">Today</button>'
           +   '<button data-tl="next" title="Later">\u203a</button></div>'
@@ -838,25 +922,25 @@ registerPage({
               + (r["Company"] && r["Company"] !== "Zip to Zip" ? " · " + esc(r["Company"]) : "")
               + "</div></td>"
           + "<td>" + typeChip(r) + "</td>"
-          + "<td>" + esc(String(r["Moving To"] || "—")) + "</td>"
+          + "<td>" + esc(String(r["Moving To"] || r["Delivery State"] || "—")) + "</td>"
           + '<td class="ldp-jobstd">' + jobsCell(r) + "</td>"
-          + "<td>" + possPill(r) + "</td>"
-          + "<td>" + locPill(r) + "</td>"
+          + "<td>" + whereCell(r) + "</td>"
           + '<td class="ldp-begin">' + beginCell(r) + "</td>"
-          + "<td>" + fmtD(r["Depart By"]) + "</td>"
+          + '<td class="ldp-begin">' + departCell(r) + "</td>"
           + "<td>" + urgPill(r)
               + (r["Data Issue"] ? ' <span class="ldp-flagdot' + (String(r["Issue Kind"]) === "blocking" ? " blk" : "")
                   + '" title="' + esc(r["Data Issue"]) + '">⚠</span>' : "")
+              + (r["Urgency Reason"] ? '<div class="ldp-sub">' + esc(String(r["Urgency Reason"]).slice(0, 34)) + "</div>" : "")
             + "</td></tr>";
         return main;
       }).join("");
 
       var tbl = '<div class="ldp-card"><div class="ldp-wrap"><table class="ldp-tbl"><thead><tr>'
         + "<th>Customer</th><th>Type</th><th>Delivering to</th>"
-        + "<th>Jobs &amp; status</th><th>Custody</th><th>Location</th>"
-        + "<th class=\"ldp-hbegin\">Deliver from</th><th>Depart by</th><th>Status</th>"
+        + "<th>Jobs &amp; status</th><th>Where it is</th>"
+        + "<th class=\"ldp-hbegin\">Deliver from</th><th>Depart</th><th>Status</th>"
         + "</tr></thead><tbody>"
-        + (body || '<tr><td colspan="9" style="color:var(--faint);padding:18px">No rows match — clear the filters, or the last build produced nothing.</td></tr>')
+        + (body || '<tr><td colspan="8" style="color:var(--faint);padding:18px">No rows match — clear the filters, or the last build produced nothing.</td></tr>')
         + "</tbody></table></div>"
         + '<div class="ldp-fnote">Click a row for the full details. <b>Sorted by when we must act</b> — '
         + "soonest deadline first, whatever the pickup date. <b>Straight</b> jobs show a committed "
@@ -965,12 +1049,19 @@ registerPage({
       if (q) q.oninput = function () { S.q = q.value; var pos = q.selectionStart; paint(); var n2 = host.querySelector("#ldpQ"); if (n2) { n2.focus(); try { n2.setSelectionRange(pos, pos); } catch (e) {} } };
       var co = host.querySelector("#ldpCo"); if (co) co.onchange = function () { S.co = co.value; paint(); };
       var lo = host.querySelector("#ldpLoc"); if (lo) lo.onchange = function () { S.loc = lo.value; paint(); };
-      var cl = host.querySelector("#ldpClr"); if (cl) cl.onclick = function () { S.q = ""; S.co = ""; S.loc = ""; paint(); };
+      var cl = host.querySelector("#ldpClr"); if (cl) cl.onclick = function () { S.q = ""; S.co = ""; S.loc = ""; S.kpi = ""; S.tlSeg = ""; paint(); };
       Array.prototype.forEach.call(host.querySelectorAll("[data-ldview]"), function (b) {
         b.onclick = function () { S.view = b.getAttribute("data-ldview"); paint(); };
       });
       Array.prototype.forEach.call(host.querySelectorAll("[data-tlseg]"), function (b) {
         b.onclick = function () { S.tlSeg = b.getAttribute("data-tlseg"); paint(); };
+      });
+      Array.prototype.forEach.call(host.querySelectorAll("[data-kpi]"), function (b) {
+        b.onclick = function () {
+          var k = b.getAttribute("data-kpi");
+          S.kpi = (S.kpi === k) ? "" : k;   // click again to release
+          paint();
+        };
       });
       Array.prototype.forEach.call(host.querySelectorAll("[data-tl]"), function (b) {
         b.onclick = function () {
