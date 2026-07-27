@@ -41,7 +41,18 @@ registerPage({
         .ldp-kpi span{display:block;font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--faint);margin-top:2px}
         .ldp-kpi small{display:block;font-size:10.5px;color:var(--faint);margin-top:2px}
         .ldp-kpi.neg b{color:${NEG}} .ldp-kpi.warn b{color:${WARN}} .ldp-kpi.pos b{color:${POS}}
-        .ldp-bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
+        .ldp-bar{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
+        .ldp-fbox{display:flex;align-items:center;gap:0;background:var(--panel);border:1px solid var(--line-2);border-radius:12px;padding:4px 4px 4px 10px;flex-wrap:wrap}
+        .ldp-srch{display:flex;align-items:center;gap:7px;color:var(--faint)}
+        .ldp-srch input{font:inherit;font-size:13px;background:transparent;color:var(--ink);border:0;outline:none;padding:7px 4px;min-width:270px}
+        .ldp-fdiv{width:1px;align-self:stretch;background:var(--line);margin:4px 10px}
+        .ldp-fl{display:flex;align-items:center;gap:6px;font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--faint);padding-right:8px}
+        .ldp-fl select{font:inherit;font-size:12.5px;font-weight:600;text-transform:none;letter-spacing:0;color:var(--ink);background:var(--panel-2);border:1px solid var(--line-2);border-radius:8px;padding:6px 8px;cursor:pointer}
+        .ldp-fl select:focus{outline:none;border-color:var(--brand)}
+        .ldp-clr{font:inherit;font-size:12px;font-weight:700;color:var(--muted);background:var(--panel-2);border:1px solid var(--line-2);border-radius:8px;padding:6px 12px;cursor:pointer;margin-right:4px}
+        .ldp-clr:hover{border-color:var(--brand);color:var(--ink)}
+        .ldp-count{font-size:12.5px;font-weight:600;color:var(--muted);margin-left:auto}
+        .ldp-count b{font-size:15px;font-weight:800;color:var(--ink);font-variant-numeric:tabular-nums}
         .ldp-seg{display:inline-flex;background:var(--panel-2);border:1px solid var(--line-2);border-radius:11px;padding:3px}
         .ldp-seg button{border:0;background:transparent;color:var(--muted);cursor:pointer;font:inherit;font-size:13.5px;font-weight:800;padding:8px 18px;border-radius:8px}
         .ldp-seg button.on{background:var(--brand);color:var(--brand-ink)}
@@ -55,15 +66,21 @@ registerPage({
            crammed in now lives in the detail drawer. */
         .ldp-card{position:relative;background:var(--panel);border:1px solid var(--line-2);border-radius:14px;overflow:hidden}
         .ldp-wrap{overflow-y:auto;overflow-x:auto;max-height:calc(100vh - 330px);min-height:320px}
-        .ldp-tbl{width:100%;border-collapse:collapse;font-size:14px;min-width:1180px}
+        .ldp-tbl{width:100%;border-collapse:collapse;font-size:14px;min-width:1480px}
         .ldp-tbl th{position:sticky;top:0;z-index:2;background:var(--panel);font-size:11.5px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--faint);text-align:left;padding:11px 12px;border-bottom:1px solid var(--line);white-space:nowrap;user-select:none}
         .ldp-tbl td{padding:10px 12px;border-top:1px solid var(--line);vertical-align:middle;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:230px}
-        .ldp-tbl tbody tr{height:56px}
+        .ldp-tbl tbody tr{height:62px}
         .ldp-tbl .r{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
         .ldp-tbl tbody tr.ldp-row{cursor:pointer}
         .ldp-tbl tbody tr.ldp-row:hover{background:var(--panel-2)}
         .ldp-tbl tbody tr.ldp-row.on{background:var(--brand-glow)}
         .ldp-cust{font-weight:700;color:var(--ink)}
+        .ldp-ty{display:inline-block;font-size:11px;font-weight:800;padding:2px 9px;border-radius:999px;white-space:nowrap;letter-spacing:.01em}
+        .ldp-ty.s{background:rgba(160,106,0,.15);color:${WARN}}
+        .ldp-ty.r{background:rgba(47,111,208,.13);color:${BLUE}}
+        /* the calendar-jobs cell carries two stacked links + a status pill, so it is the one
+           cell allowed to be taller than a single line */
+        .ldp-tbl td.ldp-jobstd{white-space:normal;max-width:250px;padding-top:7px;padding-bottom:7px}
         .ldp-sub{font-size:11.5px;color:var(--faint);font-weight:600}
         /* ---- right-side detail drawer ---- */
         /* pointer-events MUST toggle with visibility: an opacity-0 fixed overlay still
@@ -143,8 +160,6 @@ registerPage({
         .ldp-flagdot.blk{color:${NEG}}
         .ldp-issue{font-size:11.5px;font-weight:700;color:${WARN};margin-top:5px;max-width:230px;line-height:1.35}
         .ldp-issue.blk{color:${NEG}}
-        .ldp-count{font-size:13px;font-weight:700;color:var(--muted);margin-right:2px}
-        .ldp-count b{font-size:15px;font-weight:800;color:var(--ink);font-variant-numeric:tabular-nums}
         .ldp-dt{font-size:13px;font-weight:700;color:var(--ink);white-space:nowrap}
         /* CUSTODY — do we physically have it, and did we collect it? */
         .ldp-pos{display:inline-block;font-size:10.5px;font-weight:800;padding:2px 9px;border-radius:999px;white-space:nowrap;letter-spacing:.01em}
@@ -286,6 +301,14 @@ registerPage({
     // DATE in the FAD field, and the calendar does the same. Same value, different meaning,
     // so it must not be labelled "FAD" on a straight job.
     function isStraight(r) { return String(r["Type"] || "") === "Straight"; }
+    // Straight = one committed date; Regular = a window. Different planning shapes, so they
+    // get different chips rather than the same grey word.
+    function typeChip(r) {
+      var st = isStraight(r);
+      return '<span class="ldp-ty ' + (st ? "s" : "r") + '" title="'
+        + (st ? "Straight — one committed delivery date" : "Regular — delivered inside a window")
+        + '">' + (st ? "Straight" : "Regular") + "</span>";
+    }
     function dateLabel(r) { return isStraight(r) ? "Delivery date" : "FAD"; }
     function windowCell(r) {
       var tf = r["Timeframe"] ? String(r["Timeframe"]).slice(0, 26) : "";
@@ -358,13 +381,22 @@ registerPage({
 
       var cos = {}; var locs = {};
       all.forEach(function (r) { cos[r["Company"]] = 1; locs[r["Location"]] = 1; });
+      // FILTER BAR — one bordered strip instead of three loose controls: a search field with
+      // an inline icon, labelled selects, and a Clear that only appears when something is
+      // actually filtering (so it never adds noise at rest).
+      var anyF = !!(S.q || S.co || S.loc);
       var bar = '<div class="ldp-bar">'
-        + '<span class="ldp-count"><b>' + cur.length + "</b> shipment" + (cur.length === 1 ? "" : "s") + "</span>"
-        + '<input class="ldp-q" id="ldpQ" placeholder="Search customer / request / sticker" value="' + esc(S.q) + '">'
-        + '<select class="ldp-sel" id="ldpCo"><option value="">All companies</option>' + Object.keys(cos).sort().map(function (c) {
-            return '<option' + (S.co === c ? " selected" : "") + ">" + esc(c) + "</option>"; }).join("") + "</select>"
-        + '<select class="ldp-sel" id="ldpLoc"><option value="">All locations</option>' + Object.keys(locs).sort().map(function (l) {
-            return '<option' + (S.loc === l ? " selected" : "") + ">" + esc(l) + "</option>"; }).join("") + "</select>"
+        + '<div class="ldp-fbox">'
+        +   '<span class="ldp-srch"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>'
+        +   '<input id="ldpQ" placeholder="Search customer, request #, job code or sticker" value="' + esc(S.q) + '"></span>'
+        +   '<span class="ldp-fdiv"></span>'
+        +   '<label class="ldp-fl">Company<select class="ldp-sel" id="ldpCo"><option value="">All</option>' + Object.keys(cos).sort().map(function (c) {
+              return '<option' + (S.co === c ? " selected" : "") + ">" + esc(c) + "</option>"; }).join("") + "</select></label>"
+        +   '<label class="ldp-fl">Location<select class="ldp-sel" id="ldpLoc"><option value="">All</option>' + Object.keys(locs).sort().map(function (l) {
+              return '<option' + (S.loc === l ? " selected" : "") + ">" + esc(l) + "</option>"; }).join("") + "</select></label>"
+        +   (anyF ? '<button class="ldp-clr" id="ldpClr">Clear</button>' : "")
+        + "</div>"
+        + '<span class="ldp-count"><b>' + cur.length + "</b> of " + all.length + " shipments</span>"
         + "</div>";
 
       var urgPill = function (r) {
@@ -504,8 +536,10 @@ registerPage({
           + "<td>" + fmtD(r["Pickup Date"]) + "</td>"
           + '<td><span class="ldp-cust">' + esc(r["Customer"] || "—") + "</span>"
               + '<span class="ldp-sub"> · ' + esc(String(r["Request #"] || "—")) + "</span></td>"
-          + "<td>" + esc(r["Type"] || "—") + "</td>"
+          + "<td>" + typeChip(r) + "</td>"
+          + "<td>" + esc(r["Company"] || "—") + "</td>"
           + "<td>" + esc(String(r["Moving To"] || "—")) + "</td>"
+          + '<td class="ldp-jobstd">' + jobsCell(r) + "</td>"
           + "<td>" + possPill(r) + "</td>"
           + "<td>" + locPill(r) + "</td>"
           + "<td>" + dvDate + '<span class="ldp-sub"> · ' + esc(r["Timeframe"] ? String(r["Timeframe"]) : (isStraight(r) ? "fixed date" : "no timeframe")) + "</span></td>"
@@ -518,10 +552,11 @@ registerPage({
       }).join("");
 
       var tbl = '<div class="ldp-card"><div class="ldp-wrap"><table class="ldp-tbl"><thead><tr>'
-        + "<th>Pickup</th><th>Customer</th><th>Type</th><th>Delivering to</th>"
-        + "<th>Custody</th><th>Location</th><th>Delivery date / window</th><th>Depart by</th><th>Status</th>"
+        + "<th>Pickup</th><th>Customer</th><th>Type</th><th>Company</th><th>Delivering to</th>"
+        + "<th>Jobs &amp; status</th><th>Custody</th><th>Location</th><th>Delivery date / window</th>"
+        + "<th>Depart by</th><th>Status</th>"
         + "</tr></thead><tbody>"
-        + (body || '<tr><td colspan="9" style="color:var(--faint);padding:18px">No rows match — clear the filters, or the last build produced nothing.</td></tr>')
+        + (body || '<tr><td colspan="11" style="color:var(--faint);padding:18px">No rows match — clear the filters, or the last build produced nothing.</td></tr>')
         + "</tbody></table></div>"
         + '<div class="ldp-fnote">Click a row for the full details. <b>Sorted by when we must act</b> — '
         + "soonest deadline first, whatever the pickup date. <b>Straight</b> jobs show a committed "
@@ -630,6 +665,7 @@ registerPage({
       if (q) q.oninput = function () { S.q = q.value; var pos = q.selectionStart; paint(); var n2 = host.querySelector("#ldpQ"); if (n2) { n2.focus(); try { n2.setSelectionRange(pos, pos); } catch (e) {} } };
       var co = host.querySelector("#ldpCo"); if (co) co.onchange = function () { S.co = co.value; paint(); };
       var lo = host.querySelector("#ldpLoc"); if (lo) lo.onchange = function () { S.loc = lo.value; paint(); };
+      var cl = host.querySelector("#ldpClr"); if (cl) cl.onclick = function () { S.q = ""; S.co = ""; S.loc = ""; paint(); };
       Array.prototype.forEach.call(host.querySelectorAll("tr.ldp-row"), function (tr) {
         tr.onclick = function () {
           var k = tr.getAttribute("data-ldk");
