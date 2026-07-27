@@ -66,7 +66,7 @@ registerPage({
            crammed in now lives in the detail drawer. */
         .ldp-card{position:relative;background:var(--panel);border:1px solid var(--line-2);border-radius:14px;overflow:hidden}
         .ldp-wrap{overflow-y:auto;overflow-x:auto;max-height:calc(100vh - 330px);min-height:320px}
-        .ldp-tbl{width:100%;border-collapse:collapse;font-size:14px;min-width:1480px}
+        .ldp-tbl{width:100%;border-collapse:collapse;font-size:14px;min-width:1280px}
         .ldp-tbl th{position:sticky;top:0;z-index:2;background:var(--panel);font-size:11.5px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--faint);text-align:left;padding:11px 12px;border-bottom:1px solid var(--line);white-space:nowrap;user-select:none}
         .ldp-tbl td{padding:10px 12px;border-top:1px solid var(--line);vertical-align:middle;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:230px}
         .ldp-tbl tbody tr{height:62px}
@@ -74,6 +74,19 @@ registerPage({
         .ldp-tbl tbody tr.ldp-row{cursor:pointer}
         .ldp-tbl tbody tr.ldp-row:hover{background:var(--panel-2)}
         .ldp-tbl tbody tr.ldp-row.on{background:var(--brand-glow)}
+        .ldp-tbl tbody tr.u-red>td:first-child{box-shadow:inset 3px 0 0 ${NEG}}
+        .ldp-tbl tbody tr.u-amber>td:first-child{box-shadow:inset 3px 0 0 ${WARN}}
+        .ldp-tbl tbody tr.u-red>td{background:rgba(176,42,55,.035)}
+        .ldp-tbl tbody tr.u-red:hover>td{background:rgba(176,42,55,.07)}
+        .ldp-cust-td{padding-left:15px!important}
+        .ldp-cust-td .ldp-sub{display:block;margin-top:1px}
+        .ldp-hbegin{color:var(--ink)!important}
+        .ldp-begin .ldp-dt{font-size:14.5px}
+        .ldp-when{font-size:11px;font-weight:800;letter-spacing:.02em;margin-top:1px}
+        .ldp-when.ok{color:var(--faint)}
+        .ldp-when.soon{color:${WARN}}
+        .ldp-when.late{color:${NEG}}
+        .ldp-nodate{font-size:12.5px;font-weight:700;color:var(--faint)}
         .ldp-cust{font-weight:700;color:var(--ink)}
         .ldp-ty{display:inline-block;font-size:11px;font-weight:800;padding:2px 9px;border-radius:999px;white-space:nowrap;letter-spacing:.01em}
         .ldp-ty.s{background:rgba(160,106,0,.15);color:${WARN}}
@@ -399,6 +412,31 @@ registerPage({
         + '">' + (st ? "Straight" : "Regular") + "</span>";
     }
     function dateLabel(r) { return isStraight(r) ? "Delivery date" : "FAD"; }
+    // WHEN DELIVERY SHOULD BEGIN — the number this board exists to protect (his words:
+    // "we should not miss when the delivery should begin"). A Regular job becomes
+    // deliverable ON its FAD and its window closes later; a Straight job is one committed
+    // date. Either way the answer is a date plus how far away it is, so it is drawn as one
+    // strong date with a countdown beneath rather than buried in prose.
+    function dayDiff(iso) {
+      if (!iso) return null;
+      var a = new Date(String(iso).slice(0, 10) + "T00:00:00");
+      var b = new Date(); b.setHours(0, 0, 0, 0);
+      return Math.round((a - b) / 86400000);
+    }
+    function beginCell(r) {
+      var st = isStraight(r);
+      var begin = st ? r["FAD"] : (r["FAD"] || r["Window End"]);
+      if (!begin) return '<span class="ldp-nodate">not set</span>';
+      var n = dayDiff(begin), end = r["Window End"], sub, cls;
+      if (n > 0) { sub = "in " + n + "d"; cls = n <= 3 ? "soon" : "ok"; }
+      else if (n === 0) { sub = "TODAY"; cls = "soon"; }
+      else if (st) { sub = Math.abs(n) + "d late"; cls = "late"; }
+      else if (end && dayDiff(end) >= 0) { sub = "open · " + dayDiff(end) + "d left"; cls = "soon"; }
+      else { sub = "closed " + Math.abs(dayDiff(end || begin)) + "d ago"; cls = "late"; }
+      return '<b class="ldp-dt">' + fmtD(begin) + "</b>"
+        + '<div class="ldp-when ' + cls + '">' + sub + "</div>";
+    }
+
     function windowCell(r) {
       var tf = r["Timeframe"] ? String(r["Timeframe"]).slice(0, 26) : "";
       if (isStraight(r)) {
@@ -792,17 +830,19 @@ registerPage({
         // ONE LINE PER CELL. Anything that needs a second line belongs in the drawer —
         // that is what keeps every row the same height and the whole table scannable.
         var dvDate = isStraight(r) ? fmtD(r["FAD"]) : windowTxt(r);
-        var main = '<tr class="ldp-row' + (S.sel === key ? " on" : "") + '" data-ldk="' + esc(key) + '">'
-          + "<td>" + fmtD(r["Pickup Date"]) + "</td>"
-          + '<td><span class="ldp-cust">' + esc(r["Customer"] || "—") + "</span>"
-              + '<span class="ldp-sub"> · ' + esc(String(r["Request #"] || "—")) + "</span></td>"
+        var uk = String(r["Urgency"] || "") === "Act now" ? "u-red"
+              : String(r["Urgency"] || "") === "Act soon" ? "u-amber" : "";
+        var main = '<tr class="ldp-row ' + uk + (S.sel === key ? " on" : "") + '" data-ldk="' + esc(key) + '">'
+          + '<td class="ldp-cust-td"><span class="ldp-cust">' + esc(r["Customer"] || "—") + "</span>"
+              + '<div class="ldp-sub">' + esc(String(r["Request #"] || "—"))
+              + (r["Company"] && r["Company"] !== "Zip to Zip" ? " · " + esc(r["Company"]) : "")
+              + "</div></td>"
           + "<td>" + typeChip(r) + "</td>"
-          + "<td>" + esc(r["Company"] || "—") + "</td>"
           + "<td>" + esc(String(r["Moving To"] || "—")) + "</td>"
           + '<td class="ldp-jobstd">' + jobsCell(r) + "</td>"
           + "<td>" + possPill(r) + "</td>"
           + "<td>" + locPill(r) + "</td>"
-          + "<td>" + dvDate + '<span class="ldp-sub"> · ' + esc(r["Timeframe"] ? String(r["Timeframe"]) : (isStraight(r) ? "fixed date" : "no timeframe")) + "</span></td>"
+          + '<td class="ldp-begin">' + beginCell(r) + "</td>"
           + "<td>" + fmtD(r["Depart By"]) + "</td>"
           + "<td>" + urgPill(r)
               + (r["Data Issue"] ? ' <span class="ldp-flagdot' + (String(r["Issue Kind"]) === "blocking" ? " blk" : "")
@@ -812,11 +852,11 @@ registerPage({
       }).join("");
 
       var tbl = '<div class="ldp-card"><div class="ldp-wrap"><table class="ldp-tbl"><thead><tr>'
-        + "<th>Pickup</th><th>Customer</th><th>Type</th><th>Company</th><th>Delivering to</th>"
-        + "<th>Jobs &amp; status</th><th>Custody</th><th>Location</th><th>Delivery date / window</th>"
-        + "<th>Depart by</th><th>Status</th>"
+        + "<th>Customer</th><th>Type</th><th>Delivering to</th>"
+        + "<th>Jobs &amp; status</th><th>Custody</th><th>Location</th>"
+        + "<th class=\"ldp-hbegin\">Deliver from</th><th>Depart by</th><th>Status</th>"
         + "</tr></thead><tbody>"
-        + (body || '<tr><td colspan="11" style="color:var(--faint);padding:18px">No rows match — clear the filters, or the last build produced nothing.</td></tr>')
+        + (body || '<tr><td colspan="9" style="color:var(--faint);padding:18px">No rows match — clear the filters, or the last build produced nothing.</td></tr>')
         + "</tbody></table></div>"
         + '<div class="ldp-fnote">Click a row for the full details. <b>Sorted by when we must act</b> — '
         + "soonest deadline first, whatever the pickup date. <b>Straight</b> jobs show a committed "
