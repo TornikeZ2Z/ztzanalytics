@@ -247,7 +247,14 @@ window.RS = (function () {
         const key = IDB_VER + spec.table + "|" + spec.cols.join(",");
         if (mk && !viewAs) {
           const hit = await _idbGet(key);
-          if (hit && hit.marker === mk && Array.isArray(hit.rows)) {
+          // The key covers the columns we ASKED for, not the ones we GOT. If a response was
+          // written while the warehouse was mid-migration — the column existed in the page's
+          // spec but not yet in the table — the short payload matches this key forever and
+          // gets served as if it were complete. Verify the shape, not just the key.
+          // (2026-07-27: cost a real debugging session on the LD board's Possession column.)
+          const shapeOk = hit && Array.isArray(hit.rows)
+            && (!hit.rows.length || spec.cols.every(c => c in hit.rows[0]));
+          if (hit && hit.marker === mk && shapeOk) {
             _cache[ds] = hit.rows; delete _loading[ds];
             return hit.rows;                     // exact same post-processed rows, zero network
           }
@@ -273,7 +280,11 @@ window.RS = (function () {
         // IndexedDB is NOT viewer-scoped and outlives the preview, so a preview must never
         // write to it — otherwise the target's narrower result set would later be served
         // back to the admin as if it were their own.
-        if (mk && rows.length && !viewAs) _idbPut(key, { marker: mk, rows });   // fire-and-forget
+        // Nor do we PERSIST a payload that is missing columns we asked for: that is the
+        // mid-migration case above, and caching it just extends the problem past the fix.
+        const full = !rows.length || spec.cols.every(c => c in rows[0]);
+        if (mk && rows.length && !viewAs && full) _idbPut(key, { marker: mk, rows });   // fire-and-forget
+        if (!full) console.warn("RS.load(" + ds + "): response missing requested columns — not cached.");
         return rows;
       } catch (e) {
         delete _loading[ds];   // never cache a failed load (e.g. expired token)
