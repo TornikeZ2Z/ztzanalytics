@@ -970,11 +970,11 @@
       p.avgReview = p.rev5.length ? p.rev5.reduce((a, b) => a + b, 0) / p.rev5.length : null;
       p.slowPct = p.called ? 100 * p.slow / p.called : null;
       // margin & comp efficiency (closed jobs)
+      p.hasProfit = p.rows.some(r => r["Profit"] != null);
+      p.hasComm = p.rows.some(r => r["Sales Commission"] != null);
       p.margin = (p.rev && p.hasProfit) ? 100 * p.profit / p.rev : null;
       // null (not 0) when nothing is measurable — the axis then drops out of the composite
       // instead of scoring the rep as the worst on the team for un-filed paperwork.
-      p.hasProfit = p.rows.some(r => r["Profit"] != null);
-      p.hasComm = p.rows.some(r => r["Sales Commission"] != null);
       p.profitLead = (p.leads && p.hasProfit) ? p.profit / p.leads : null;
       p.commPerKRev = p.rev ? 1000 * p.commission / p.rev : null;
       p.commPerKProfit = p.profit > 0 ? 1000 * p.commission / p.profit : null;
