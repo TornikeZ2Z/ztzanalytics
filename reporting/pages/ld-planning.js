@@ -165,13 +165,13 @@ registerPage({
         .ldp-tlday{position:absolute;bottom:6px;font-size:11.5px;color:var(--faint);font-weight:700;transform:translateX(-50%)}
         .ldp-tltodaylab{position:absolute;top:0;transform:translateX(-50%);font-size:9.5px;font-weight:800;letter-spacing:.08em;color:#fff;background:${NEG};padding:3px 7px 2px;border-radius:0 0 7px 7px;z-index:3}
         .ldp-tlbody{max-height:calc(100vh - 360px);overflow-y:auto}
-        .ldp-tlrow{display:flex;min-height:56px;border-bottom:1px solid var(--line);cursor:pointer}
+        .ldp-tlrow{display:flex;min-height:46px;border-bottom:1px solid var(--line);cursor:pointer}
         .ldp-tlrow:last-child{border-bottom:0}
         .ldp-tlrow:hover{background:var(--panel-2)}
         .ldp-tlrow.on{background:var(--brand-glow)}
         .ldp-tlrow.u-red{box-shadow:inset 3px 0 0 ${NEG}}
         .ldp-tlrow.u-amber{box-shadow:inset 3px 0 0 ${WARN}}
-        .ldp-tllab{width:236px;flex:0 0 236px;border-right:1px solid var(--line);padding:0 14px;display:flex;align-items:center;gap:10px}
+        .ldp-tllab{width:262px;flex:0 0 262px;border-right:1px solid var(--line);padding:0 12px;display:flex;align-items:center;gap:9px}
         .ldp-tlmk{flex:0 0 auto;display:flex;align-items:center;justify-content:center;width:20px}
         .ldp-tlmk.s::before{content:"";width:12px;height:12px;background:${WARN};border-radius:2px;transform:rotate(45deg)}
         .ldp-tlmk.r::before{content:"";width:18px;height:12px;border-radius:3px;background:rgba(47,111,208,.13);border:1px solid rgba(47,111,208,.35);border-left:3px solid ${BLUE}}
@@ -201,7 +201,8 @@ registerPage({
         .ldp-tlwin.u-red{background:rgba(176,42,55,.09);border-color:rgba(176,42,55,.30);border-left-color:${NEG}}
         .ldp-tlwin.u-red .dt{color:${NEG}}
         /* custody + holding, on the timeline */
-        .ldp-tlcust{display:inline-block;font-size:9.5px;font-weight:800;padding:1px 7px;border-radius:999px;white-space:nowrap;letter-spacing:.02em;margin-top:3px}
+        .ldp-tlcust{display:inline-block;font-size:9px;font-weight:800;padding:1px 6px;border-radius:999px;white-space:nowrap;letter-spacing:.02em;margin:0;flex:0 0 auto}
+        .ldp-tlmeta{display:flex!important;align-items:center;gap:6px;margin-top:2px;font-variant-numeric:tabular-nums}
         .ldp-tlcust.us{background:rgba(28,122,74,.14);color:${POS}}
         .ldp-tlcust.car{background:rgba(47,111,208,.14);color:${BLUE}}
         .ldp-tlcust.tp{background:rgba(160,106,0,.15);color:${WARN}}
@@ -952,10 +953,11 @@ registerPage({
           bars += '<span class="ldp-tlpk" style="left:' + ((pdi + 0.5) * dp) + '%" title="picked up ' + esc(fmtD(r["Pickup Date"])) + '"></span>';
         return '<div class="ldp-tlrow ' + tone + (S.sel === key ? " on" : "") + '" data-ldk="' + esc(key) + '">'
           + '<div class="ldp-tllab"><span class="ldp-tlmk ' + (st8 ? "s" : "r") + '"></span>'
-          + '<span class="ldp-tllabtx"><b>' + esc(r["Customer"] || "\u2014")
-          +   '<span class="ldp-tltype">' + (st8 ? "STRAIGHT" : "REGULAR") + "</span></b>"
-          + "<span>" + esc(String(r["Request #"] || "\u2014")) + (r["Moving To"] ? " \u00b7 " + esc(String(r["Moving To"])) : "") + "</span>"
-          + '<span class="ldp-tlcust ' + ck2 + '">' + CUST_LABEL[ck2] + "</span></span></div>"
+          + '<span class="ldp-tllabtx"><b>' + esc(r["Customer"] || "—") + "</b>"
+          + '<span class="ldp-tlmeta">'
+          +   esc(r["Job Code"] ? String(r["Job Code"]).split(",")[0] : "—")
+          +   (stateZip(r["Moving To"], r["Delivery State"]) ? ' · ' + esc(stateZip(r["Moving To"], r["Delivery State"])) : "")
+          +   '<span class="ldp-tlcust ' + ck2 + '">' + CUST_LABEL[ck2] + "</span></span></span></div>"
           + '<div class="ldp-tlcal">' + bars + "</div></div>";
       }
       function timelineHtml(rows) {
