@@ -102,22 +102,35 @@ registerPage({
            hit-tests and would make the whole page unclickable while it sat there. */
         .ldp-scrim{position:fixed;inset:0;background:rgba(15,23,42,.34);z-index:60;opacity:0;transition:opacity .18s;backdrop-filter:blur(1px);pointer-events:none;visibility:hidden}
         .ldp-scrim.show{opacity:1;pointer-events:auto;visibility:visible}
-        .ldp-drawer{position:fixed;top:0;right:0;height:100vh;width:min(460px,95vw);background:var(--panel);z-index:61;
-          box-shadow:-18px 0 48px rgba(0,0,0,.24);transform:translateX(100%);transition:transform .22s cubic-bezier(.4,0,.2,1);
-          display:flex;flex-direction:column;visibility:hidden}
-        .ldp-drawer.show{transform:none;visibility:visible}
-        .ldp-dhd{padding:16px 18px 13px;border-bottom:1px solid var(--line);position:relative;flex:0 0 auto}
-        .ldp-dhd .x{position:absolute;top:13px;right:13px;border:0;background:var(--panel-2);color:var(--muted);width:30px;height:30px;border-radius:9px;cursor:pointer;font-size:15px;line-height:1}
-        .ldp-dhd .x:hover{color:var(--ink)}
-        .ldp-dnm{font-size:17px;font-weight:800;letter-spacing:-.3px;padding-right:38px}
-        .ldp-dmeta{font-size:12px;color:var(--muted);margin-top:2px}
-        .ldp-dpills{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
-        .ldp-dbody{overflow-y:auto;padding:14px 18px 34px;flex:1}
-        .ldp-sec{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--faint);margin:16px 0 8px}
+        /* The drawer is READ-ONLY now, so it is a briefing card, not a form: a floating panel
+           with a tinted header, sections as cards, and label/value rows that read as data. */
+        .ldp-drawer{position:fixed;top:10px;right:10px;height:calc(100vh - 20px);width:min(486px,95vw);
+          background:var(--panel);z-index:61;border:1px solid var(--line);border-radius:18px;
+          box-shadow:0 24px 60px rgba(0,0,0,.28),0 2px 8px rgba(0,0,0,.10);
+          transform:translateX(calc(100% + 18px));transition:transform .26s cubic-bezier(.32,.72,0,1),opacity .2s;
+          display:flex;flex-direction:column;visibility:hidden;opacity:0;overflow:hidden}
+        .ldp-drawer.show{transform:none;visibility:visible;opacity:1}
+        @media (prefers-reduced-motion:reduce){.ldp-drawer{transition:none}}
+        .ldp-dhd{padding:17px 19px 15px;position:relative;flex:0 0 auto;
+          background:linear-gradient(180deg,color-mix(in srgb,var(--blue) 9%,var(--panel)),var(--panel));
+          border-bottom:1px solid var(--line)}
+        .ldp-dhd .x{position:absolute;top:14px;right:14px;border:1px solid var(--line);background:var(--panel);
+          color:var(--muted);width:30px;height:30px;border-radius:10px;cursor:pointer;font-size:14px;line-height:1;
+          transition:background .12s,color .12s}
+        .ldp-dhd .x:hover{color:var(--ink);background:var(--panel-2)}
+        .ldp-dnm{font-size:18.5px;font-weight:850;letter-spacing:-.4px;padding-right:40px;line-height:1.2}
+        .ldp-dmeta{font-size:11.5px;color:var(--muted);margin-top:4px;font-variant-numeric:tabular-nums}
+        .ldp-dpills{display:flex;gap:6px;flex-wrap:wrap;margin-top:11px}
+        .ldp-dbody{overflow-y:auto;padding:15px 19px 30px;flex:1;scrollbar-width:thin}
+        .ldp-sec{font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--faint);
+          margin:17px 0 7px;display:flex;align-items:center;gap:9px}
+        .ldp-sec::after{content:"";flex:1;height:1px;background:var(--line)}
         .ldp-sec:first-child{margin-top:0}
-        .ldp-kv{display:grid;grid-template-columns:104px minmax(0,1fr);gap:5px 12px;font-size:12.5px;align-items:baseline}
-        .ldp-kv dt{color:var(--faint);font-weight:700}
-        .ldp-kv dd{margin:0;color:var(--ink);font-weight:600;word-break:break-word}
+        .ldp-kv{display:grid;grid-template-columns:108px minmax(0,1fr);gap:0 12px;font-size:12.5px;align-items:baseline;
+          background:var(--panel-2);border:1px solid var(--line);border-radius:12px;padding:4px 12px}
+        .ldp-kv dt{color:var(--faint);font-weight:700;padding:6px 0;border-top:1px solid var(--line)}
+        .ldp-kv dd{margin:0;color:var(--ink);font-weight:650;word-break:break-word;padding:6px 0;border-top:1px solid var(--line)}
+        .ldp-kv dt:first-of-type,.ldp-kv dt:first-of-type + dd{border-top:0}
         .ldp-dnote{font-size:12.5px;line-height:1.5;color:var(--ink);background:var(--panel-2);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
         .ldp-dissue{font-size:12.5px;line-height:1.5;font-weight:700;color:${WARN};background:rgba(160,106,0,.10);border:1px solid rgba(160,106,0,.28);border-radius:10px;padding:10px 12px}
         .ldp-dissue.blk{color:${NEG};background:rgba(176,42,55,.09);border-color:rgba(176,42,55,.28)}
@@ -307,9 +320,10 @@ registerPage({
     // S survives on window.__LDP across page visits, but the drawer DOM does not — a
     // persisted S.sel would paint a highlighted row whose first click closes a drawer
     // that is not open. Selection resets per visit.
-    // No trip-day figure on the sheet means "assume a two-day drive" (Tornike 2026-07-28),
-  // not "assume one" and not "unknown" -- the depart-by date has to exist either way.
-  var TRIP_DEFAULT = 2;
+    // No trip-day figure on the sheet means assume ONE day (Tornike 2026-07-28: "i was wrong
+  // about havign 2 as a default - make it 1. 2 is too high"). The depart-by date has to exist
+  // either way, and over-estimating the drive pulls it forward and cries wolf.
+  var TRIP_DEFAULT = 1;
   var S = window.__LDP || (window.__LDP = { view: "board", q: "", co: "", loc: "", sel: null, tlStart: null, tlSeg: "", kpi: "", ms: { type: [], cust: [] } });
   if (!S.ms) S.ms = { type: [], cust: [] };   // older cached state from a previous version
     S.sel = null;
