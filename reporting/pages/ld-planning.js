@@ -104,7 +104,7 @@ registerPage({
         .ldp-scrim.show{opacity:1;pointer-events:auto;visibility:visible}
         /* The drawer is READ-ONLY now, so it is a briefing card, not a form: a floating panel
            with a tinted header, sections as cards, and label/value rows that read as data. */
-        .ldp-drawer{position:fixed;top:10px;right:10px;height:calc(100vh - 20px);width:min(486px,95vw);
+        .ldp-drawer{position:fixed;top:10px;right:10px;height:calc(100vh - 20px);width:min(620px,96vw);
           background:var(--panel);z-index:61;border:1px solid var(--line);border-radius:18px;
           box-shadow:0 24px 60px rgba(0,0,0,.28),0 2px 8px rgba(0,0,0,.10);
           transform:translateX(calc(100% + 18px));transition:transform .26s cubic-bezier(.32,.72,0,1),opacity .2s;
@@ -118,7 +118,7 @@ registerPage({
           color:var(--muted);width:30px;height:30px;border-radius:10px;cursor:pointer;font-size:14px;line-height:1;
           transition:background .12s,color .12s}
         .ldp-dhd .x:hover{color:var(--ink);background:var(--panel-2)}
-        .ldp-dnm{font-size:18.5px;font-weight:850;letter-spacing:-.4px;padding-right:40px;line-height:1.2}
+        .ldp-dnm{font-size:21px;font-weight:850;letter-spacing:-.4px;padding-right:40px;line-height:1.2}
         .ldp-dmeta{font-size:11.5px;color:var(--muted);margin-top:4px;font-variant-numeric:tabular-nums}
         .ldp-dpills{display:flex;gap:6px;flex-wrap:wrap;margin-top:11px}
         .ldp-dbody{overflow-y:auto;padding:15px 19px 30px;flex:1;scrollbar-width:thin}
@@ -126,10 +126,11 @@ registerPage({
           margin:17px 0 7px;display:flex;align-items:center;gap:9px}
         .ldp-sec::after{content:"";flex:1;height:1px;background:var(--line)}
         .ldp-sec:first-child{margin-top:0}
-        .ldp-kv{display:grid;grid-template-columns:108px minmax(0,1fr);gap:0 12px;font-size:12.5px;align-items:baseline;
+        .ldp-big{font-size:16px;font-weight:800;letter-spacing:-.2px;line-height:1.25;display:block}
+        .ldp-kv{display:grid;grid-template-columns:124px minmax(0,1fr);gap:0 14px;font-size:13.5px;align-items:baseline;
           background:var(--panel-2);border:1px solid var(--line);border-radius:12px;padding:4px 12px}
-        .ldp-kv dt{color:var(--faint);font-weight:700;padding:6px 0;border-top:1px solid var(--line)}
-        .ldp-kv dd{margin:0;color:var(--ink);font-weight:650;word-break:break-word;padding:6px 0;border-top:1px solid var(--line)}
+        .ldp-kv dt{color:var(--faint);font-weight:700;padding:9px 0;border-top:1px solid var(--line);font-size:12px}
+        .ldp-kv dd{margin:0;color:var(--ink);font-weight:650;word-break:break-word;padding:9px 0;border-top:1px solid var(--line)}
         .ldp-kv dt:first-of-type,.ldp-kv dt:first-of-type + dd{border-top:0}
         .ldp-dnote{font-size:12.5px;line-height:1.5;color:var(--ink);background:var(--panel-2);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
         .ldp-dissue{font-size:12.5px;line-height:1.5;font-weight:700;color:${WARN};background:rgba(160,106,0,.10);border:1px solid rgba(160,106,0,.28);border-radius:10px;padding:10px 12px}
@@ -216,7 +217,15 @@ registerPage({
         .ldp-tlhold.unk{background:rgba(176,42,55,.42)}
         .ldp-tlheld{position:absolute;top:72%;transform:translate(6px,-45%);font-size:10px;font-weight:800;color:var(--faint);white-space:nowrap;z-index:2}
         /* quick segmentation chips */
-        .ldp-tlf{display:flex;gap:9px;flex-wrap:wrap;margin:0 0 12px;align-items:center}
+        .ldp-tlf{display:flex;gap:9px;flex-wrap:wrap;margin:0;align-items:center}
+        /* compact board: it must fit the viewport without sideways scrolling */
+        .ldp-tbl{font-size:12px}
+        .ldp-tbl thead th{font-size:9.5px;letter-spacing:.05em;padding:7px 8px;white-space:nowrap}
+        .ldp-tbl tbody td{padding:7px 8px;vertical-align:top}
+        .ldp-tbl tbody td .ldp-sub{font-size:10.5px;line-height:1.3}
+        .ldp-wrap{overflow-x:auto}
+        @media (min-width:1240px){.ldp-wrap{overflow-x:visible}.ldp-tbl{table-layout:fixed;width:100%}
+          .ldp-tbl td,.ldp-tbl th{overflow:hidden;text-overflow:ellipsis}}
         .ldp-ms{position:relative}
         .ldp-msb{font:inherit;font-size:12px;font-weight:650;color:var(--ink);background:var(--panel);
           border:1px solid var(--line-2);border-radius:10px;padding:7px 12px;cursor:pointer;display:inline-flex;
@@ -326,6 +335,29 @@ registerPage({
   var TRIP_DEFAULT = 1;
   // 0 in the sheet means "not filled in", not "a zero-day drive" -- it printed "0d trip" and
   // collapsed depart-by onto the delivery date itself.
+  // "PA 15317" style, matching how every other destination on the board is written.
+  function stateZip(addr, st) {
+    var a = String(addr || ""), zip = (a.match(/\d{5}(?:-\d{4})?/) || [])[0] || "";
+    var stm = (a.match(/,\s*([A-Z]{2})\s*\d{5}/) || [])[1] || String(st || "").trim();
+    return (stm + " " + zip).trim() || String(st || "").trim() || "";
+  }
+  // ROUTE, as Tornike defines it: once we HAVE the goods, "from" is where they physically
+  // are (our storage / the carrier), not the customer's old address -- that address stops
+  // being actionable the moment the truck leaves. Until pickup, "from" is the pickup address
+  // and the customer's delivery address is shown separately as a not-yet-final destination.
+  function routeOf(r) {
+    var picked = String(r["Possession"] || "").toLowerCase().indexOf("not picked up") < 0
+              && String(r["Possession"] || "").trim() !== "";
+    var here = String(r["Location"] || "").trim();
+    var detail = String(r["Location Detail"] || "").trim();
+    var dest = stateZip(r["Moving To"], r["Delivery State"]);
+    if (picked && here && here !== "Unknown" && here !== "Not collected") {
+      return { from: here, fromSub: detail, to: dest, toLabel: "Delivering to", firm: true };
+    }
+    return { from: String(r["Moving From"] || "").trim() || "—", fromSub: "",
+             to: dest, toLabel: "Delivery location", firm: false };
+  }
+
   function tripDays(r) { var v = +(r["Trip Days"] || 0); return v > 0 ? v : TRIP_DEFAULT; }
   function tripTxt(r) { return tripDays(r) + "d trip" + (+(r["Trip Days"] || 0) > 0 ? "" : " (assumed)"); }
   var S = window.__LDP || (window.__LDP = { view: "board", q: "", co: "", loc: "", sel: null, tlStart: null, tlSeg: "", kpi: "", ms: { type: [], cust: [] } });
@@ -647,11 +679,7 @@ registerPage({
           +   '<div class="ldp-msact"><button data-msall="' + dim + '">Select all</button>'
           +   '<button data-msnone="' + dim + '">Clear</button></div></div></div>';
       }
-      var chips = '<div class="ldp-tlf">'
-        + msBox("type", "Type", [["straight", "Straight"], ["regular", "Regular"]])
-        + msBox("cust", "Status", [["no", "To collect"], ["us", "With us"], ["tp", "Storage"],
-                                   ["car", "Carrier"], ["unk", "Missing Closing"]])
-        + "</div>";
+      var chips = "";   // Type/Status now live in the one filter bar, not a second row
 
       var cur = all.filter(kpiPass).filter(segPass).filter(msPass);
       if (S.co) cur = cur.filter(function (r) { return String(r["Company"]) === S.co; });
@@ -695,6 +723,9 @@ registerPage({
               return '<option' + (S.co === c ? " selected" : "") + ">" + esc(c) + "</option>"; }).join("") + "</select></label>"
         +   '<label class="ldp-fl">Location<select class="ldp-sel" id="ldpLoc"><option value="">All</option>' + Object.keys(locs).sort().map(function (l) {
               return '<option' + (S.loc === l ? " selected" : "") + ">" + esc(l) + "</option>"; }).join("") + "</select></label>"
+        +   msBox("type", "Type", [["straight", "Straight"], ["regular", "Regular"]])
+        +   msBox("cust", "Status", [["no", "To collect"], ["us", "With us"], ["tp", "Storage"],
+                                     ["car", "Carrier"], ["unk", "Missing Closing"]])
         +   (anyF ? '<button class="ldp-clr" id="ldpClr">Clear</button>' : "")
         + "</div>"
         + '<span class="ldp-count"><b>' + cur.length + "</b> of " + all.length + " shipments</span>"
@@ -769,8 +800,12 @@ registerPage({
               + '" style="margin-top:9px">⚠ ' + esc(r["Data Issue"]) + "</div>" : "")
           + '<div class="ldp-sec">Calendar jobs</div>' + jobsCell(r)
           + '<div class="ldp-sec">Route</div>'
-          + kv([["From", esc(r["Moving From"] || "—")],
-                ["To", esc(r["Moving To"] || "—") + (r["Delivery State"] ? " (" + esc(r["Delivery State"]) + ")" : "")]])
+          + (function () { var rt = routeOf(r); return kv([
+                ["From", '<b class="ldp-big">' + esc(rt.from) + "</b>"
+                  + (rt.fromSub ? '<div class="ldp-sub">' + esc(rt.fromSub) + "</div>" : "")],
+                [rt.toLabel, '<b class="ldp-big">' + esc(rt.to || "—") + "</b>"
+                  + (rt.firm ? "" : '<div class="ldp-sub">customer address — not the final drop yet</div>')
+                  + (r["Moving To"] ? '<div class="ldp-sub">' + esc(r["Moving To"]) + "</div>" : "")]]); })()
           + '<div class="ldp-sec">Delivery</div>'
           + kv(delivery.concat([
                 ["Depart by", fmtD(r["Depart By"]) + ' <span class="ldp-sub">' + tripTxt(r) + "</span>"]]))
@@ -1009,7 +1044,7 @@ registerPage({
               + (r["Company"] && r["Company"] !== "Zip to Zip" ? " · " + esc(r["Company"]) : "")
               + "</div></td>"
           + "<td>" + typeChip(r) + "</td>"
-          + "<td>" + esc(String(r["Moving To"] || r["Delivery State"] || "—")) + "</td>"
+          + "<td>" + esc(stateZip(r["Moving To"], r["Delivery State"]) || "—") + "</td>"
           + '<td class="ldp-jobstd">' + jobsCell(r) + "</td>"
           + "<td>" + whereCell(r) + "</td>"
           + '<td class="ldp-begin">' + beginCell(r) + "</td>"
