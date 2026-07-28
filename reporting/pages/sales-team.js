@@ -170,12 +170,12 @@
     .rp-alltime{font-size:10px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--amber);border:1px solid color-mix(in srgb,var(--amber) 45%,transparent);border-radius:999px;padding:1px 8px;margin-left:7px;vertical-align:middle}
     .rp-stack{display:flex;height:14px;border-radius:7px;overflow:hidden;background:var(--panel-2);gap:1px}
     .rp-stack>div{min-width:2px}
-    .rp-trend{display:flex;gap:12px;align-items:flex-end;padding:10px 2px 2px;overflow-x:auto}
-    .rp-mo{display:flex;flex-direction:column;align-items:center;gap:5px;min-width:32px}
-    .rp-mo-val{font-size:10px;font-weight:700;color:var(--faint);font-variant-numeric:tabular-nums}
+    .rp-trend{display:flex;gap:12px;align-items:flex-end;padding:10px 2px 2px;overflow-x:auto;width:100%}
+    .rp-mo{display:flex;flex-direction:column;align-items:center;gap:5px;min-width:32px;flex:1}
+    .rp-mo-val{font-size:10.5px;font-weight:750;color:var(--muted);font-variant-numeric:tabular-nums}
     .rp-mo-bars{display:flex;align-items:flex-end;gap:3px}
-    .rp-mo-l{width:11px;background:var(--blue);border-radius:3px 3px 0 0;min-height:2px}
-    .rp-mo-c{width:11px;background:var(--brand);border-radius:3px 3px 0 0;min-height:2px}
+    .rp-mo-l{width:min(18px,42%);background:var(--blue);border-radius:3px 3px 0 0;min-height:2px}
+    .rp-mo-c{width:min(18px,42%);background:var(--brand);border-radius:3px 3px 0 0;min-height:2px}
     .rp-mo-x{font-size:10px;color:var(--faint);font-variant-numeric:tabular-nums}
     .rp-lg{display:inline-block;width:9px;height:9px;border-radius:2px;vertical-align:middle}
     .rp-lg-l{background:var(--blue)} .rp-lg-c{background:var(--brand)}
@@ -1127,7 +1127,7 @@
       </div>` : "";
     const months = Object.keys(p.byMonth).sort();
     const maxM = Math.max(1, ...months.map(m => p.byMonth[m].leads));
-    const TH = 92;   // chart body height
+    const TH = 150;   // chart body height — was 92px inside a ~260px card, mostly air
     const trend = !months.length ? `<div class="st-note">No leads on record.</div>`
       : `<div class="rp-trend">${months.map(m => {
           const d = p.byMonth[m];
