@@ -179,12 +179,17 @@
     .rp-stack{display:flex;height:14px;border-radius:7px;overflow:hidden;background:var(--panel-2);gap:1px}
     .rp-stack>div{min-width:2px}
     .rp-trend{display:flex;gap:12px;align-items:flex-end;padding:10px 2px 2px;overflow-x:auto;width:100%}
-    .rp-mo{display:flex;flex-direction:column;align-items:center;gap:5px;min-width:32px;flex:1}
-    .rp-mo-val{font-size:10.5px;font-weight:750;color:var(--muted);font-variant-numeric:tabular-nums}
-    .rp-mo-bars{display:flex;align-items:flex-end;gap:3px}
-    .rp-mo-l{width:min(18px,42%);background:var(--blue);border-radius:3px 3px 0 0;min-height:2px}
-    .rp-mo-c{width:min(18px,42%);background:var(--brand);border-radius:3px 3px 0 0;min-height:2px}
-    .rp-mo-x{font-size:10px;color:var(--faint);font-variant-numeric:tabular-nums}
+    .rp-mo{flex:1 1 0;min-width:0;display:flex;flex-direction:column;gap:6px;cursor:default}
+    .rp-mo-val{font-size:11px;font-weight:750;color:var(--muted);font-variant-numeric:tabular-nums;text-align:center}
+    /* fixed-height slot so every month shares one baseline; the bar sits at its bottom */
+    .rp-mo-slot{display:flex;align-items:flex-end;justify-content:center}
+    .rp-mo-bar{width:100%;max-width:30px;background:var(--blue);border-radius:4px 4px 0 0;
+      display:flex;align-items:flex-end;overflow:hidden;transition:filter .12s}
+    .rp-mo-fill{width:100%;background:var(--brand)}
+    .rp-mo:hover .rp-mo-bar{filter:brightness(1.14)}
+    .rp-mo-x{font-size:10px;color:var(--faint);font-variant-numeric:tabular-nums;text-align:center}
+    .rp-mo-pct{font-size:9.5px;font-weight:700;color:var(--brand);font-variant-numeric:tabular-nums;text-align:center}
+    .rp-trend-base{height:1px;background:var(--line);margin:0 2px}
     .rp-lg{display:inline-block;width:9px;height:9px;border-radius:2px;vertical-align:middle}
     .rp-lg-l{background:var(--blue)} .rp-lg-c{background:var(--brand)}
     /* mix-adjusted booking — visual gauge */
@@ -749,7 +754,7 @@
           <option value="ld">Long distance</option><option value="loc">Local</option></select>
         ${sel("stBucket", "Any speed", buckets, "")}
         <select id="stSort">
-          <option value="new">Newest first</option><option value="slow">Slowest first call</option>
+          <option value="new">Newest first</option><option value="booked">Booked date (newest)</option><option value="slow">Slowest first call</option>
           <option value="bill">Biggest bill</option><option value="gap">Biggest quote gap</option>
           <option value="cf">Biggest CF</option><option value="calls">Most calls</option>
           <option value="talk">Most talk time</option>
@@ -787,7 +792,8 @@
       if (state.chip === "noclose") rows = rows.filter(r => +r["Flag Confirmed No Closing"]);
       if (state.chip === "dead") rows = rows.filter(isDead);
       if (state.chip === "calbad") rows = rows.filter(calMismatch);
-      const key = { new: r => r["Create Date"] || "", slow: r => (r["TTO Biz Min"] != null ? +r["TTO Biz Min"] : -1),
+      const key = { new: r => r["Create Date"] || "", booked: r => String(r["Booked Date"] || ""),
+        slow: r => (r["TTO Biz Min"] != null ? +r["TTO Biz Min"] : -1),
         bill: r => +(r["Total Bill"] || 0), gap: r => Math.abs(+(r["Bill Vs Quote Pct"] || 0)),
         cf: r => +(r["Total CF"] || 0),
         calls: r => (+r["Out Calls"] || 0) + (+r["In Calls"] || 0),
@@ -811,11 +817,16 @@
         return f.join("");
       };
       host.querySelector("#stTblWrap").innerHTML = `<table class="st-tbl"><thead><tr>
-        <th>Created</th><th>#</th><th>Customer</th><th>Source</th><th>Assigned</th><th>CF</th>
+        <th>Created</th><th title="When the lead confirmed — the date the portal's canonical booking rate counts it on">Booked</th>
+        <th>#</th><th>Customer</th><th>Source</th><th>Assigned</th><th>CF</th>
         <th>Status</th><th>Contact</th><th>Calls</th><th>Texts</th>
         <th>Estimate → actual</th><th>Flags</th></tr></thead><tbody>` +
         pg.map(r => `<tr class="click" data-jk="${esc(r["Request Joinkey"])}">
           <td>${esc((r["Create Date"] || "").slice(0, 10))}</td>
+          <td>${r["Booked Date"] ? `<b class="st-good">${esc(String(r["Booked Date"]).slice(0, 10))}</b>`
+            + (r["Create Date"] ? ` <span class="st-dim" style="font-size:10.5px">+${Math.max(0, Math.round(
+                (new Date(String(r["Booked Date"]).slice(0, 10)) - new Date(String(r["Create Date"]).slice(0, 10))) / 86400000))}d</span>` : "")
+            : `<span style="color:var(--faint)">—</span>`}</td>
           <td>${esc(r["Job No"] || "—")}</td>
           <td>${String(r["Customer"] || "").trim() === "Draft User"
             ? `<b class="st-draftnm" title="Moveboard draft placeholder — a real lead with a real phone whose name was never filled in. Kept because excluding it would understate lead counts and booking rates.">(name not filled)</b>`
@@ -1170,19 +1181,29 @@
       </div>` : "";
     const months = Object.keys(p.byMonth).sort();
     const maxM = Math.max(1, ...months.map(m => p.byMonth[m].leads));
-    const TH = 150;   // chart body height — was 92px inside a ~260px card, mostly air
+    const TH = 150;   // chart body height in px
+    const best = months.reduce((a, m) => {
+      const d = p.byMonth[m]; const r = d.qual ? d.conf / d.qual : -1;
+      return r > a.r ? { m, r } : a; }, { m: null, r: -1 });
     const trend = !months.length ? `<div class="st-note">No leads on record.</div>`
       : `<div class="rp-trend">${months.map(m => {
           const d = p.byMonth[m];
-          const lh = Math.max(2, Math.round(TH * d.leads / maxM));
-          const ch = d.conf ? Math.max(2, Math.round(TH * d.conf / maxM)) : 0;
-          return `<div class="rp-mo" title="${m}: ${d.leads} leads, ${d.conf} confirmed${d.qual ? " (" + Math.round(100 * d.conf / d.qual) + "% of qualified)" : ""}">
+          const lh = Math.max(3, Math.round(TH * d.leads / maxM));
+          // confirmed is a SUBSET of that month's leads -> draw it INSIDE the bar, so the green
+          // fraction you see IS the conversion. Two adjacent bars implied two separate totals.
+          const fh = d.leads ? Math.min(lh, Math.round(lh * d.conf / d.leads)) : 0;
+          const rate = d.qual ? Math.round(100 * d.conf / d.qual) : null;
+          return `<div class="rp-mo" title="${m} — ${d.leads} leads created, ${d.conf} of them confirmed${rate != null ? " (" + rate + "% of the " + d.qual + " qualified)" : ""}">
             <div class="rp-mo-val">${RS.fmtN(d.leads)}</div>
-            <div class="rp-mo-bars" style="height:${TH}px">
-              <div class="rp-mo-l" style="height:${lh}px"></div>
-              <div class="rp-mo-c" style="height:${ch}px"></div></div>
+            <div class="rp-mo-slot" style="height:${TH}px">
+              <div class="rp-mo-bar" style="height:${lh}px"><div class="rp-mo-fill" style="height:${fh}px"></div></div>
+            </div>
+            <div class="rp-mo-pct">${rate != null ? rate + "%" : "—"}</div>
             <div class="rp-mo-x">${m.slice(2)}</div></div>`;
-        }).join("")}</div><div class="st-note" style="margin-top:8px">Full history — this chart deliberately ignores the date filter so the trend is always readable. Blue = leads created that month, green = how many of them confirmed.</div>`;
+        }).join("")}</div><div class="rp-trend-base"></div>
+        <div class="st-note" style="margin-top:8px">Full history — this chart deliberately ignores the date filter so the trend is always readable.
+        Bar height = leads created that month; the <b style="color:var(--brand)">green fill</b> is how many of them confirmed, so the filled fraction is the conversion.
+        The % under each bar is confirmed ÷ qualified.${best.m ? ` Best month: <b>${best.m}</b> at ${Math.round(100 * best.r)}%.` : ""}</div>`;
     const srcRows = Object.entries(p.bySrc).sort((a, b) => b[1].leads - a[1].leads).slice(0, 8)
       .map(([s, d]) => `<tr><td>${esc(s)}</td><td style="text-align:right">${RS.fmtN(d.leads)}</td>
         <td style="text-align:right">${d.qual ? pct1(100 * d.conf / d.qual) : "—"}</td></tr>`).join("");
