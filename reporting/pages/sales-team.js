@@ -105,14 +105,15 @@
     /* KPI tiles */
     .st-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:18px}
     @media(max-width:900px){.st-kpis{grid-template-columns:repeat(2,1fr)}}
-    .st-kpi{position:relative;background:linear-gradient(180deg,var(--panel),var(--panel-2));border:1px solid var(--line);border-radius:16px;padding:18px 20px 17px;box-shadow:var(--shadow);overflow:hidden;transition:transform .16s,box-shadow .16s,border-color .16s}
+    .st-draftnm{color:var(--faint);font-style:italic;font-weight:650;border-bottom:1px dotted var(--line-2);cursor:help}
+    .st-kpi{position:relative;background:linear-gradient(180deg,var(--panel),var(--panel-2));border:1px solid var(--line);border-radius:14px;padding:12px 16px 11px;box-shadow:var(--shadow);overflow:hidden;transition:transform .16s,box-shadow .16s,border-color .16s}
     .st-kpi::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:linear-gradient(var(--brand),var(--brand-d));opacity:0;transition:opacity .16s}
     .st-kpi:hover{transform:translateY(-2px);border-color:var(--line-2);box-shadow:0 2px 4px rgba(0,0,0,.04),0 18px 42px rgba(0,0,0,.13)}
     .st-kpi:hover::before{opacity:.95}
     .st-kpi .l{font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
-    .st-kpi .v{font-size:34px;font-weight:850;color:var(--ink);margin-top:8px;letter-spacing:-.7px;font-variant-numeric:tabular-nums;line-height:1.04}
+    .st-kpi .v{font-size:27px;font-weight:850;color:var(--ink);margin-top:5px;letter-spacing:-.5px;font-variant-numeric:tabular-nums;line-height:1.04}
     .st-kpi .v.st-bad{color:var(--red)} .st-kpi .v.st-good{color:var(--brand-d)}
-    .st-kpi .s{font-size:12.5px;color:var(--faint);margin-top:5px}
+    .st-kpi .s{font-size:11.5px;color:var(--faint);margin-top:3px}
     /* cards */
     .st-card{background:var(--panel);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);padding:18px 20px;margin-bottom:16px}
     /* tables (shared) */
@@ -795,7 +796,9 @@
         pg.map(r => `<tr class="click" data-jk="${esc(r["Request Joinkey"])}">
           <td>${esc((r["Create Date"] || "").slice(0, 10))}</td>
           <td>${esc(r["Job No"] || "—")}</td>
-          <td><b>${esc(r["Customer"] || "—")}</b></td>
+          <td>${String(r["Customer"] || "").trim() === "Draft User"
+            ? `<b class="st-draftnm" title="Moveboard draft placeholder — a real lead with a real phone whose name was never filled in. Kept because excluding it would understate lead counts and booking rates.">(name not filled)</b>`
+            : `<b>${esc(r["Customer"] || "—")}</b>`}</td>
           <td>${esc(r["Source"] || "—")}</td>
           <td>${esc(r["Assigned"] || "—")}</td>
           <td>${r["Total CF"] != null ? RS.fmtN(Math.round(+r["Total CF"])) : "—"}</td>
@@ -1163,7 +1166,11 @@
     segList.forEach(s => { mixN += s.qual; expConf += s.exp; });
     const expRate = mixN ? 100 * expConf / mixN : null;
     const gap = (expRate == null || p.bookRate == null) ? null : p.bookRate - expRate;
-    const gapCls = gap == null ? "" : gap >= 0 ? "st-good" : "st-bad";
+    // |gap| under 1pt is statistical noise, not a verdict — neutral, never red/green
+    const gapCls = gap == null || Math.abs(gap) < 1 ? "" : gap >= 0 ? "st-good" : "st-bad";
+    const gapTxt = gap == null ? "—"
+      : Math.abs(gap) < 1 ? "on par (" + (gap >= 0 ? "+" : "−") + Math.abs(Math.round(gap * 10) / 10) + " pts)"
+      : (gap >= 0 ? "+" : "−") + Math.abs(Math.round(gap * 10) / 10) + " pts";
     const mixMax = Math.max(expRate || 0, p.bookRate || 0, 10) * 1.18;
     const calcRow = s => `<tr><td><b>${esc(s.label)}</b></td>
       <td style="text-align:right">${RS.fmtN(s.qual)}</td>
@@ -1182,7 +1189,7 @@
           <td style="text-align:right;font-weight:800;color:var(--muted)">${expConf.toFixed(1)}</td>
           <td style="text-align:right;font-weight:800">${RS.fmtN(p.conf)}</td></tr>
       </tbody></table></div>
-      <div class="st-note" style="margin-top:9px"><b>Expected rate</b> = ${expConf.toFixed(1)} expected confirms ÷ ${RS.fmtN(mixN)} qualified = <b>${pct1(expRate)}</b>. &nbsp;<b>Actual rate</b> = ${RS.fmtN(p.conf)} confirms ÷ ${RS.fmtN(mixN)} qualified = <b>${pct1(p.bookRate)}</b>. &nbsp;Difference = <b class="${gapCls}">${gap == null ? "—" : (gap >= 0 ? "+" : "−") + Math.abs(Math.round(gap * 10) / 10) + " pts"}</b> — skill above/below the leads they were dealt.</div>
+      <div class="st-note" style="margin-top:9px"><b>Expected rate</b> = ${expConf.toFixed(1)} expected confirms ÷ ${RS.fmtN(mixN)} qualified = <b>${pct1(expRate)}</b>. &nbsp;<b>Actual rate</b> = ${RS.fmtN(p.conf)} confirms ÷ ${RS.fmtN(mixN)} qualified = <b>${pct1(p.bookRate)}</b>. &nbsp;Difference = <b class="${gapCls}">${gapTxt}</b> — skill above/below the leads they were dealt.</div>
     </details>`;
     const mixCard = mixN ? `<div class="st-card">
       <div class="rp-cardcap">🎯 Skill vs luck — mix-adjusted booking rate</div>
@@ -1190,7 +1197,7 @@
         <div class="rp-mix-cell"><div class="rp-mix-l">Expected for their lead mix</div><div class="rp-mix-v" style="color:var(--muted)">${pct1(expRate)}</div></div>
         <div class="rp-mix-arrow">→</div>
         <div class="rp-mix-cell"><div class="rp-mix-l">Actual booking rate</div><div class="rp-mix-v">${pct1(p.bookRate)}</div></div>
-        <div class="rp-mix-gap ${gapCls}">${gap == null ? "—" : (gap >= 0 ? "+" : "−") + Math.abs(Math.round(gap * 10) / 10) + " pts"}</div>
+        <div class="rp-mix-gap ${gapCls}">${gapTxt}</div>
       </div>
       <div class="rp-track" title="Actual ${pct1(p.bookRate)} vs expected ${pct1(expRate)}">
         <div class="rp-track-fill" style="width:${Math.min(100, 100 * (p.bookRate || 0) / mixMax)}%"></div>
