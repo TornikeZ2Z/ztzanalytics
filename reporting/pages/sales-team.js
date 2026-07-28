@@ -548,11 +548,20 @@
       if (r["Total Bill"] != null) { p.rev += +r["Total Bill"]; p.closed++; }
       if (r["Bill Vs Quote Pct"] != null) p.gaps.push(+r["Bill Vs Quote Pct"]);
     }));
-    confRows.forEach(r => add(r["Assigned"], p => { p.confEv++; }));
+    confRows.forEach(r => add(r["Assigned"], p => { if (isConf(r)) p.confEv++; }));
     const list = Object.values(by);
     list.forEach(p => {
       p.deadPct = p.leads ? 100 * p.dead / p.leads : null;
-      p.convPct = p.qual ? Math.min(100, 100 * p.conf / p.qual) : null;    // canonical: conf/QUALIFIED
+      // CANONICAL booking rate, the rs-core.bookingRate SWITCH verbatim: confirmations counted
+      // on their CONFIRMED date (confEv), qualified on the lead's CREATE date. This column used
+      // the create-date cohort, so it disagreed with the "Booking rate" KPI card above it while
+      // both carried the same "canonical" caption -- reps looked worse the more their bookings
+      // lagged lead creation.
+      p.convPct = p.confEv > p.qual ? 100
+        : (!p.qual && !p.confEv) ? null
+        : !p.confEv ? 0
+        : 100 * p.confEv / p.qual;
+      p.cohortPct = p.qual ? 100 * p.conf / p.qual : null;   // of THIS period's leads, % confirmed so far
       p.noContactPct = p.covered ? 100 * (p.covered - p.contacted) / p.covered : null;
       p.medTto = median(p.tto);
       p.revLead = p.leads ? p.rev / p.leads : 0;
@@ -588,7 +597,9 @@
     const nQual = rows.filter(isQual).length;
     const nDead = rows.filter(isDead).length;
     const brate = RS.bookingRate(rows, confRows);
-    const teamAvgConv = nQual ? 100 * rows.filter(isConf).length / nQual : 0;
+    // LOW CONV judges each rep's canonical Booking % -- so the team baseline must be the
+    // canonical team rate too, not the create-date cohort (mixed bases fired false flags).
+    const teamAvgConv = brate != null ? 100 * brate : 0;
     const kpi = (l, v, s) => `<div class="st-kpi"><div class="l">${l}</div><div class="v">${v}</div><div class="s">${s || ""}</div></div>`;
     const medAll = median(rows.map(r => r["TTO Biz Min"]).filter(v => v != null).map(Number));
     const covered = rows.filter(inWindow);
@@ -609,18 +620,20 @@
     };
 
     const DETAIL_COLS = `<th>Salesperson</th><th>Score</th><th>Leads</th><th>Qualified</th><th>Dead %</th>
-      <th>Confirmed</th><th>Booking %</th><th>Confirms in period</th><th>Median 1st call</th>
+      <th title="Of the leads created in this period, how many have confirmed so far">Confirmed (cohort)</th>
+      <th title="Confirmations that happened in this period, whenever the lead came in - the Booking % numerator">Confirms in period</th>
+      <th title="Confirms in period ÷ Qualified - the portal's canonical formula">Booking %</th><th>Median 1st call</th>
       <th>No contact</th><th>Calls</th><th>Talk</th><th>Revenue</th><th>$ / lead</th><th>Δ est→act</th><th>Flags</th>`;
     const COMPACT_COLS = `<th>Salesperson</th><th>Score</th><th>Leads</th><th>Qualified</th>
-      <th>Confirmed</th><th>Booking %</th><th>No contact</th><th>Revenue</th><th>Flags</th>`;
+      <th>Confirms in period</th><th>Booking %</th><th>No contact</th><th>Revenue</th><th>Flags</th>`;
     const drow = p => `<tr class="click" data-sp="${esc(p.name)}">
       <td><b>${esc(p.name)}</b></td>
       <td>${p.score != null ? `<b>${p.score}</b>` : `<span style="color:var(--faint)">—</span>`}</td>
       <td>${RS.fmtN(p.leads)}</td><td>${RS.fmtN(p.qual)}</td>
       <td>${p.deadPct != null ? pct1(p.deadPct) : "—"}</td>
       <td>${RS.fmtN(p.conf)}</td>
-      <td>${p.convPct != null ? pct1(p.convPct) : "—"}</td>
       <td>${RS.fmtN(p.confEv)}</td>
+      <td>${p.convPct != null ? pct1(p.convPct) : "—"}</td>
       <td>${p.medTto != null ? mins(p.medTto) : "—"}</td>
       <td class="${p.noContactPct > th.neverPct ? "st-bad" : ""}">${p.noContactPct != null ? pct1(p.noContactPct) : "—"}</td>
       <td>${RS.fmtN(p.out)}</td><td>${secH(p.talk)}</td>
@@ -630,7 +643,7 @@
     const crow = p => `<tr class="click" data-sp="${esc(p.name)}">
       <td><b>${esc(p.name)}</b></td>
       <td>${p.score != null ? `<b>${p.score}</b>` : `<span style="color:var(--faint)">—</span>`}</td>
-      <td>${RS.fmtN(p.leads)}</td><td>${RS.fmtN(p.qual)}</td><td>${RS.fmtN(p.conf)}</td>
+      <td>${RS.fmtN(p.leads)}</td><td>${RS.fmtN(p.qual)}</td><td>${RS.fmtN(p.confEv)}</td>
       <td>${p.convPct != null ? pct1(p.convPct) : "—"}</td>
       <td class="${p.noContactPct > th.neverPct ? "st-bad" : ""}">${p.noContactPct != null ? pct1(p.noContactPct) : "—"}</td>
       <td>${money0(p.rev)}</td><td>${flagCell(p)}</td></tr>`;
@@ -643,7 +656,7 @@
         ${kpi("Confirmed (in period)", RS.fmtN(confRows.length), "by their confirmed date")}
         ${kpi("Booking rate", brate != null ? pct1(100 * brate) : "—", "confirmed ÷ qualified (canonical)")}
         ${kpi("Median first call", medAll != null ? mins(medAll) : "—", "business minutes")}
-        ${kpi("Never worked", pct1(noContact), "no call & not confirmed, within call-data coverage")}
+        ${kpi("Never worked", pct1(noContact), "no contact & not confirmed, within call-data coverage")}
         ${kpi("Revenue (closed)", money0(rev), "billed on these leads")}
       </div>
       <div class="st-card">
@@ -662,7 +675,7 @@
         </div>
         <div style="overflow-x:auto"><table class="st-tbl"><thead><tr>${dense === "compact" ? COMPACT_COLS : DETAIL_COLS}</tr></thead>
         <tbody>${people.map(dense === "compact" ? crow : drow).join("")}</tbody></table></div>
-        <div class="st-note">Click a person to open their Rep Profile (and pin the Sales Person filter to them). Booking % = confirmed ÷ qualified (the portal's canonical formula); "Confirms in period" counts by confirmed date; other columns follow the lead's created date. Branch owner excluded. Call data currently ends at the newest RingCentral export.</div>
+        <div class="st-note">Click a person to open their Rep Profile (and pin the Sales Person filter to them). Booking % = <b>Confirms in period ÷ Qualified</b> — the portal's canonical formula, the same one behind the Booking rate card above (confirmations count on their confirmed date, qualified leads on their created date). "Confirmed (cohort)" is the different question: how many of <i>this period's</i> leads have confirmed so far — always lower for recent months, because bookings lag creation. Every other column follows the lead's created date. Branch owner excluded. Call data currently ends at the newest RingCentral export.</div>
       </div>`;
 
     host.querySelectorAll(".st-seg button").forEach(b => b.onclick = () => { ctx.dense = b.dataset.d; renderTeam(host, ctx); });
@@ -870,7 +883,7 @@
       out: 0, talk: 0, gapBill: 0, gapQuote: 0, gapN: 0,
       gaps: [], rev5: [], claims: 0, bySrc: {}, byMonth: {},
       profit: 0, expense: 0, commission: 0, sat5: [], refunds: 0, connLeads: 0,
-      confNoClose: 0, deadUnworked: 0 });
+      confNoClose: 0, deadUnworked: 0, confEv: 0 });
     srcRows.forEach(r => {
       const c = canonOf(r["Assigned"]);
       if (excluded(c)) return;
@@ -920,11 +933,26 @@
       if (isQual(r)) p.byMonth[mo].qual++;
       if (isConf(r)) p.byMonth[mo].conf++;
     });
+    // confirmations on the CONFIRMED-date basis, per rep -> canonical booking rate
+    (ctx.repConfRows || []).forEach(r => {
+      const c = canonOf(r["Assigned"]);
+      if (excluded(c) || !isConf(r)) return;
+      get(c).confEv++;
+    });
     const stat = {};
     (ctx.repStats || []).forEach(r => { stat[(r["Sales Person"] || "").toLowerCase()] = r; get(r["Sales Person"] || ""); });
     Object.values(by).forEach(p => {
       p.deadPct = p.leads ? 100 * p.dead / p.leads : null;
+      // TWO different questions, kept apart on purpose:
+      //  bookRate  - of the leads in THIS period, how many have confirmed so far (cohort). The
+      //              mix-adjustment panel needs this basis on both sides to be a fair skill read.
+      //  bookCanon - the portal's canonical booking rate (confirms in period / qualified), the
+      //              number the Team table and the KPI card show.
       p.bookRate = p.qual ? Math.min(100, 100 * p.conf / p.qual) : null;
+      p.bookCanon = p.confEv > p.qual ? 100
+        : (!p.qual && !p.confEv) ? null
+        : !p.confEv ? 0
+        : 100 * p.confEv / p.qual;
       p.medTto = median(p.tto);
       p.revLead = p.leads ? p.rev / p.leads : 0;
       p.upsell = p.closed ? p.mat / p.closed : 0;
@@ -987,7 +1015,7 @@
   const keyVal = (p, key) => key.indexOf("call.") === 0 ? p.call[key.slice(5)] : p[key];
 
   const METRICS = [
-    { key: "bookRate", dir: "hi", label: "Booking rate", fmt: v => pct1(v) },
+    { key: "bookRate", dir: "hi", label: "Conversion of own leads", fmt: v => pct1(v) },
     { key: "medTto", dir: "lo", label: "First-call speed", fmt: v => mins(v) },
     { key: "revLead", dir: "hi", label: "Revenue / lead", fmt: v => money0(v) },
     { key: "profitLead", dir: "hi", label: "Profit / lead", fmt: v => money0(v) },
@@ -1189,14 +1217,14 @@
           <td style="text-align:right;font-weight:800;color:var(--muted)">${expConf.toFixed(1)}</td>
           <td style="text-align:right;font-weight:800">${RS.fmtN(p.conf)}</td></tr>
       </tbody></table></div>
-      <div class="st-note" style="margin-top:9px"><b>Expected rate</b> = ${expConf.toFixed(1)} expected confirms ÷ ${RS.fmtN(mixN)} qualified = <b>${pct1(expRate)}</b>. &nbsp;<b>Actual rate</b> = ${RS.fmtN(p.conf)} confirms ÷ ${RS.fmtN(mixN)} qualified = <b>${pct1(p.bookRate)}</b>. &nbsp;Difference = <b class="${gapCls}">${gapTxt}</b> — skill above/below the leads they were dealt.</div>
+      <div class="st-note" style="margin-top:9px"><b>Expected rate</b> = ${expConf.toFixed(1)} expected confirms ÷ ${RS.fmtN(mixN)} qualified = <b>${pct1(expRate)}</b>. &nbsp;<b>Actual rate</b> = ${RS.fmtN(p.conf)} confirms ÷ ${RS.fmtN(mixN)} qualified = <b>${pct1(p.bookRate)}</b> — both sides count <i>this period's leads</i>, which is what makes the comparison fair (the headline booking rate above uses the canonical confirmed-date basis instead). &nbsp;Difference = <b class="${gapCls}">${gapTxt}</b> — skill above/below the leads they were dealt.</div>
     </details>`;
     const mixCard = mixN ? `<div class="st-card">
       <div class="rp-cardcap">🎯 Skill vs luck — mix-adjusted booking rate</div>
       <div class="rp-mix">
         <div class="rp-mix-cell"><div class="rp-mix-l">Expected for their lead mix</div><div class="rp-mix-v" style="color:var(--muted)">${pct1(expRate)}</div></div>
         <div class="rp-mix-arrow">→</div>
-        <div class="rp-mix-cell"><div class="rp-mix-l">Actual booking rate</div><div class="rp-mix-v">${pct1(p.bookRate)}</div></div>
+        <div class="rp-mix-cell"><div class="rp-mix-l">Actual, same leads</div><div class="rp-mix-v">${pct1(p.bookRate)}</div></div>
         <div class="rp-mix-gap ${gapCls}">${gapTxt}</div>
       </div>
       <div class="rp-track" title="Actual ${pct1(p.bookRate)} vs expected ${pct1(expRate)}">
@@ -1426,7 +1454,7 @@
         ${kpi("Leads received", RS.fmtN(p.leads), "in the selected period")}
         ${kpi("Qualified", RS.fmtN(p.qual), pct1(p.leads ? 100 * p.qual / p.leads : null) + " of received")}
         ${kpi("Dead leads", RS.fmtN(p.dead), pct1(p.deadPct) + " of received", p.deadPct > 40 ? "st-bad" : "")}
-        ${kpi("Confirmed", RS.fmtN(p.conf), "booking rate " + (p.bookRate != null ? pct1(p.bookRate) : "—"))}
+        ${kpi("Confirmed", RS.fmtN(p.conf), "booking rate " + (p.bookCanon != null ? pct1(p.bookCanon) : "—") + " · " + (p.bookRate != null ? pct1(p.bookRate) : "—") + " of this cohort")}
         ${kpi("Median 1st call", p.medTto != null ? mins(p.medTto) : "—", "business time to first call")}
         ${kpi("Revenue", money0(p.rev), money0(p.revLead) + " / lead")}
         ${kpi("Upsell / job", money0(p.upsell), "materials on closed jobs")}
@@ -1544,6 +1572,18 @@
           try { RS.state.multi.sales = new Set(); ctx.repRows = RS.filtered("lead_journey", all); }
           finally { RS.state.multi.sales = spSet; }
         } else ctx.repRows = ctx.rows;
+        // ...and the matching sales-slicer-free CONFIRMED set, so the Rep Profile can show the
+        // same canonical booking rate as the Team table instead of a second, different number.
+        if (spSet && spSet.size) {
+          try { RS.state.multi.sales = new Set(); ctx.repConfRows = RS.filtered("lead_journey", bookedOnly, { dateColumn: "Booked Date" }); }
+          finally { RS.state.multi.sales = spSet; }
+          if (yrOn || moOn) ctx.repConfRows = ctx.repConfRows.filter(r => {
+            const bd = String(r["Booked Date"] || "");
+            if (yrOn && !yrSet.has(bd.slice(0, 4))) return false;
+            if (moOn && !moSet.has(String(+bd.slice(5, 7)))) return false;
+            return true;
+          });
+        } else ctx.repConfRows = ctx.confRows;
 
         // trend rows: date- AND sales-unfiltered (company/source/etc still apply) so the
         // monthly chart always shows the full history.
