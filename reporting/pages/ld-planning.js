@@ -192,6 +192,8 @@ registerPage({
         .ldp-tlcust.car{background:rgba(47,111,208,.14);color:${BLUE}}
         .ldp-tlcust.tp{background:rgba(160,106,0,.15);color:${WARN}}
         .ldp-tlcust.unk{background:rgba(176,42,55,.11);color:${NEG}}
+        .ldp-tlcust.no{background:var(--panel-2);color:var(--muted)}
+        .ldp-tlhold.no{background:var(--line-2)}
         .ldp-tltype{font-size:9.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--faint);margin-left:6px}
         /* how long the goods have been in our hands: pickup -> today */
         .ldp-tlhold{position:absolute;top:72%;height:4px;border-radius:2px;z-index:1;opacity:.8}
@@ -285,7 +287,11 @@ registerPage({
       <div class="ldp-scrim" id="ldpScrim"></div>
       <aside class="ldp-drawer" id="ldpDrawer" aria-label="Shipment detail"></aside>`;
 
+    // S survives on window.__LDP across page visits, but the drawer DOM does not — a
+    // persisted S.sel would paint a highlighted row whose first click closes a drawer
+    // that is not open. Selection resets per visit.
     var S = window.__LDP || (window.__LDP = { view: "board", q: "", co: "", loc: "", sel: null, tlStart: null, tlSeg: "", kpi: "" });
+    S.sel = null;
 
     var rows;
     try { rows = await RS.load("fct_ld_planning"); }
@@ -743,7 +749,7 @@ registerPage({
         var dr = document.getElementById("ldpDrawer"), sc = document.getElementById("ldpScrim");
         if (!dr || !sc) return;
         S.sel = key;
-        host.querySelectorAll("tr.ldp-row").forEach(function (tr) {
+        host.querySelectorAll("tr.ldp-row, .ldp-tlrow[data-ldk]").forEach(function (tr) {
           tr.classList.toggle("on", tr.getAttribute("data-ldk") === key);
         });
         if (!key) { dr.classList.remove("show"); sc.classList.remove("show"); return; }
@@ -778,7 +784,7 @@ registerPage({
       // chevron — and this board is mostly overdue work, so the default view was a column of
       // chevrons. A week of lead-in also means a pickup that just happened is still visible.
       function tlStart() {
-        if (S.tlStart) return tlMid(new Date(S.tlStart));
+        if (S.tlStart) return tlMid(new Date(S.tlStart + "T12:00:00"));
         var d = tlMid(new Date());
         d.setDate(d.getDate() - 7);
         return d;
@@ -821,6 +827,11 @@ registerPage({
             var a2 = Math.max(a, 0), b2 = Math.min(b, days - 1);
             if (b2 >= a2)
               bars += '<span class="ldp-tlwin ' + tone + '" style="left:' + (a2 * dp) + "%;width:" + ((b2 - a2 + 1) * dp) + '%" title="delivery window ' + esc(fmtD(r["FAD"])) + " \u2013 " + esc(fmtD(r["Window End"])) + '"><span class="dt">' + fmtD(r["FAD"]) + " \u2013 " + fmtD(r["Window End"]) + "</span></span>";
+            else if (b < 0)
+              // whole window before the visible range — an edge chevron, like Straight gets
+              bars += '<span class="ldp-tldead ' + tone + ' off" style="left:3px" title="window closed ' + esc(fmtD(r["Window End"])) + '"><span class="chev">\u2039</span><span class="dt">' + fmtD(r["Window End"]) + "</span></span>";
+            else if (a >= days)
+              bars += '<span class="ldp-tldead ' + tone + ' off" style="right:3px" title="window opens ' + esc(fmtD(r["FAD"])) + '"><span class="dt">' + fmtD(r["FAD"]) + '</span><span class="chev">\u203a</span></span>';
           }
         }
         // HOW LONG WE HAVE HELD IT. Every row on this board is already collected (a job only
@@ -953,7 +964,11 @@ registerPage({
       var sx = window.scrollX, sy = window.scrollY;
       var wrap0 = document.querySelector("#ldpBody .ldp-wrap");
       var wt = wrap0 ? wrap0.scrollTop : 0, wl = wrap0 ? wrap0.scrollLeft : 0;
-      document.getElementById("ldpBody").innerHTML = kp + bar + (S.view === "timeline" ? timelineHtml(cur) : tbl);
+      // the user may have switched pages while loadEntries()/save was awaiting — the mount
+      // is gone and painting would throw "innerHTML on null" (money-flow had this same bug)
+      var _bd = document.getElementById("ldpBody");
+      if (!_bd || !host.isConnected) return;
+      _bd.innerHTML = kp + bar + (S.view === "timeline" ? timelineHtml(cur) : tbl);
       var _sc = document.getElementById("ldpScrim");
       if (_sc) _sc.onclick = function () { if (host.__ldpOpen) host.__ldpOpen(null); };
       if (!host.__ldpEsc) {
@@ -1073,9 +1088,16 @@ registerPage({
           var a = b.getAttribute("data-tl");
           if (a === "today") S.tlStart = null;
           else {
-            var d0 = S.tlStart ? new Date(S.tlStart) : new Date();
+            // Step from what is on SCREEN (the default anchor is today-7, not today).
+            // tlStart() is scoped inside paint() and NOT visible here — calling it,
+            // as the review verifier "confirmed", throws on every click — so the
+            // anchor is computed inline. Stored as the LOCAL date: toISOString gave
+            // the UTC day, one off for a US viewer at night.
+            var d0;
+            if (S.tlStart) d0 = new Date(S.tlStart + "T12:00:00");
+            else { d0 = new Date(); d0.setDate(d0.getDate() - 7); }
             d0.setDate(d0.getDate() + (a === "next" ? 14 : -14));
-            S.tlStart = d0.toISOString().slice(0, 10);
+            S.tlStart = d0.toLocaleDateString("en-CA");
           }
           paint();
         };
@@ -1133,6 +1155,10 @@ registerPage({
               if (!res.ok || !j.ok) throw new Error(j.error || ("HTTP " + res.status));
             }
             await loadEntries(); paint();
+            // success must restore the control it disabled, and the drawer must show the
+            // POST-save state — paint() only rewrites #ldpBody, never the drawer
+            btn.disabled = false; btn.textContent = "Save";
+            if (S.sel && host.__ldpOpen) host.__ldpOpen(S.sel);
           } catch (err) {
             btn.disabled = false; btn.textContent = "Save";
             if (info) info.textContent = "couldn’t save: " + String(err && err.message || err);
