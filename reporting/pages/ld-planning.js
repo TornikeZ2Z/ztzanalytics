@@ -17,7 +17,8 @@
              "Pickup Event URL", "Pickup Event Date", "Delivery Event URL", "Delivery Event Date",
              "Delivery Status", "Location Source", "Possession",
              "Sibling Delivered", "Sheet Row", "Update Date",
-             "Type", "Trip Days", "Depart By", "Urgency", "Urgency Reason", "Do"],
+             "Type", "Trip Days", "Depart By", "Urgency", "Urgency Reason", "Do",
+             "Storage Sold"],
     };
   }
 })();
@@ -126,13 +127,16 @@ registerPage({
           margin:17px 0 7px;display:flex;align-items:center;gap:9px}
         .ldp-sec::after{content:"";flex:1;height:1px;background:var(--line)}
         .ldp-sec:first-child{margin-top:0}
-        .ldp-stage{display:inline-block;font-size:10px;font-weight:800;letter-spacing:.03em;padding:2px 8px;border-radius:999px;white-space:nowrap}
+        .ldp-stor{display:inline-block;font-size:8.5px;font-weight:800;letter-spacing:.04em;padding:1px 5px;
+      border-radius:4px;background:rgba(124,58,237,.13);color:var(--violet,#7c3aed);white-space:nowrap;margin-top:3px}
+    .ldp-stage{display:inline-block;font-size:10px;font-weight:800;letter-spacing:.03em;padding:2px 8px;border-radius:999px;white-space:nowrap}
     .ldp-stage.p{background:rgba(37,99,235,.11);color:var(--blue)}
     .ldp-stage.d{background:rgba(28,122,74,.12);color:${POS}}
     .ldp-from{font-size:11.5px;font-weight:650;color:var(--ink);line-height:1.3;display:block;white-space:normal}
     .ldp-fromtd{max-width:200px;white-space:normal}
     .ldp-addr{font-size:12.5px;font-weight:600;color:var(--muted);line-height:1.4;margin-top:3px;white-space:normal}
-    .ldp-whsub{white-space:normal !important;overflow:visible !important;text-overflow:clip !important}
+    .ldp-whsub{white-space:normal !important;overflow:visible !important;text-overflow:clip !important;max-width:none !important}
+    .ldp-pill,.ldp-pos{white-space:normal;line-height:1.25;display:inline-block}
     .ldp-big{font-size:16px;font-weight:800;letter-spacing:-.2px;line-height:1.25;display:block}
         .ldp-kv{display:grid;grid-template-columns:124px minmax(0,1fr);gap:0 14px;font-size:13.5px;align-items:baseline;
           background:var(--panel-2);border:1px solid var(--line);border-radius:12px;padding:4px 12px}
@@ -233,7 +237,14 @@ registerPage({
         .ldp-tbl tbody td .ldp-sub{font-size:10.5px;line-height:1.3}
         .ldp-wrap{overflow-x:auto}
         @media (min-width:1240px){.ldp-wrap{overflow-x:visible}.ldp-tbl{table-layout:fixed;width:100%}
-          .ldp-tbl td,.ldp-tbl th{overflow:hidden;text-overflow:ellipsis}}
+          .ldp-tbl td,.ldp-tbl th{overflow:hidden;text-overflow:ellipsis}
+          .ldp-tbl th:nth-child(3),.ldp-tbl th:nth-child(4){width:74px}
+          .ldp-tbl th:nth-child(1){width:186px}
+          .ldp-tbl th:nth-child(5){width:150px}}
+        .ldp-tbl thead th{background:var(--panel-2);color:var(--muted);font-weight:800;
+          border-bottom:2px solid var(--line);vertical-align:bottom}
+        .ldp-tbl thead th:first-child{border-top-left-radius:10px}
+        .ldp-tbl thead th:last-child{border-top-right-radius:10px}
         .ldp-ms{position:relative}
         .ldp-msb{font:inherit;font-size:12px;font-weight:650;color:var(--ink);background:var(--panel);
           border:1px solid var(--line-2);border-radius:10px;padding:7px 12px;cursor:pointer;display:inline-flex;
@@ -389,7 +400,7 @@ registerPage({
     var det = String(r["Location Detail"] || "").trim();
     var carrier = String(r["Carrier Driver"] || "").trim();
     if (!loc || loc === "Not collected" || loc === "Unknown") return { text: "", sub: "" };
-    if (loc === "Our Storage") return { text: OUR_STORAGE_ADDR, sub: det };
+    if (loc === "Our Storage") return { text: stateZip(OUR_STORAGE_ADDR) || "NJ 07753", sub: "Our storage · " + OUR_STORAGE_ADDR };
     if (loc === "With carrier" || carrier) {
       var nm = carrier || "Carrier";
       return { text: nm, sub: (det && det.toLowerCase().indexOf(nm.toLowerCase()) < 0) ? det : "" };
@@ -401,7 +412,8 @@ registerPage({
     if (det) {
       var dl = det.toLowerCase(), ll = String(loc).toLowerCase();
       var echo = dl.indexOf(ll) >= 0 || (/storage/.test(ll) && /storage/.test(dl));
-      return { text: det, sub: echo ? "" : loc };
+      var sz = stateZip(det);
+      return sz ? { text: sz, sub: det } : { text: det, sub: echo ? "" : loc };
     }
     return { text: loc, sub: "" };
   }
@@ -553,6 +565,18 @@ registerPage({
         + (sub.length ? '<div class="ldp-sub ldp-whsub">' + esc(sub.join(" \u00b7 ")) + "</div>" : "");
     }
     function beginCell(r) {
+      // A pickup has ONE committed calendar date -- it is not a window, and reading it as one
+      // is how a collection gets missed (Tornike 2026-07-28).
+      if (stageOf(r) === "Pickup") {
+        var pd = r["Pickup Event Date"] || r["Pickup Date"];
+        if (!pd) return '<span class="ldp-nodate">no pickup date</span>';
+        var pn = dayDiff(pd);
+        return '<b class="ldp-dt">' + fmtD(pd) + "</b>"
+          + '<div class="ldp-when ' + (pn < 0 ? "late" : pn <= 2 ? "soon" : "ok") + '">'
+          + (pn > 0 ? "collect in " + pn + "d" : pn === 0 ? "COLLECT TODAY" : Math.abs(pn) + "d overdue")
+          + "</div>"
+          + '<div class="ldp-sub">fixed date — not a window</div>';
+      }
       var st = isStraight(r);
       var begin = st ? r["FAD"] : (r["FAD"] || r["Window End"]);
       if (!begin) return '<span class="ldp-nodate">not set</span>';
@@ -736,7 +760,7 @@ registerPage({
       // PICKUP / DELIVERY calendar jobs + the delivery status. A delivery event can EXIST
       // while the goods are still with us - that is exactly what has to be visible.
       function calLink(url, dt, label) {
-        if (!url) return '<span class="ldp-nolink">' + label + " not created</span>";
+        if (!url) return '<span class="ldp-nolink">No ' + label + "</span>";
         return '<a class="ldp-callink" href="' + esc(url) + '" target="_blank" rel="noopener"'
           + ' onclick="event.stopPropagation()">' + label + " " + (dt ? fmtD(dt) : "open") + "</a>";
       }
@@ -751,14 +775,16 @@ registerPage({
         // ONE statement per fact. The old cell printed "Delivery not created" AND a
         // "No delivery job yet" pill — the same fact twice on every second row.
         var ds = String(r["Delivery Status"] || "");
-        var h = calLink(r["Pickup Event URL"], r["Pickup Event Date"], "Pickup");
-        if (r["Delivery Event URL"]) {
-          h += calLink(r["Delivery Event URL"], r["Delivery Event Date"], "Delivery")
-            + '<span class="ldp-dstat ' + dlvClass(ds) + '">' + esc(ds || "-") + "</span>";
+        var h = calLink(r["Pickup Event URL"], r["Pickup Event Date"], "Pickup Calendar Event");
+        if (r["Delivery Event URL"] || r["Delivery Event Date"]) {
+          // a delivery event dated in the FUTURE has a date but the row is still open --
+          // it used to be invisible because only the URL branch rendered it
+          h += calLink(r["Delivery Event URL"], r["Delivery Event Date"], "Delivery Calendar Event")
+            + (ds ? '<span class="ldp-dstat ' + dlvClass(ds) + '">' + esc(ds) + "</span>" : "");
         } else if (ds === "Pickup scheduled") {
           h += '<span class="ldp-dstat open">Pickup scheduled</span>';
         } else {
-          h += '<span class="ldp-dstat none">No delivery job yet</span>';
+          h += '<span class="ldp-dstat none">No Delivery Calendar Event</span>';
         }
         return '<div class="ldp-jobs">' + h + "</div>";
       }
@@ -808,8 +834,11 @@ registerPage({
                   + (!dfrom.text && det ? '<div class="ldp-addr">' + esc(det) + "</div>" : "")],
                 // Carrier only exists on REGULAR moving -- a Straight job is driven by our own
                 // crew, so showing carrier fields there invites a wrong reading (Tornike 2026-07-28).
-                (!isStraight(r) && r["Carrier Driver"]) ? ["Carrier", esc(r["Carrier Driver"])] : null,
-                (!isStraight(r) && r["Total To Carrier"] != null) ? ["To carrier", money(r["Total To Carrier"])] : null,
+                // Regular jobs ride with a carrier -- name them, and call the money what it is
+                !isStraight(r) ? ["Carrier name", esc(r["Carrier Driver"] || "not assigned yet")] : null,
+                (!isStraight(r) && r["Total To Carrier"] != null)
+                  ? ["Carrier balance", money(r["Total To Carrier"])] : null,
+                (+r["Storage Sold"]) ? ["Storage", "Sales person sold storage on this job"] : null,
                 ["Sticker", esc(r["Sticker"] || "—")]]); })()
           + '<div class="ldp-sec">Job</div>'
           + kv([r["Balance Due"] != null ? ["Balance due", money(r["Balance Due"])] : null,
@@ -1035,15 +1064,15 @@ registerPage({
         var uk = String(r["Urgency"] || "") === "Act now" ? "u-red"
               : String(r["Urgency"] || "") === "Act soon" ? "u-amber" : "";
         var main = '<tr class="ldp-row ' + uk + (S.sel === key ? " on" : "") + '" data-ldk="' + esc(key) + '">'
+          + '<td class="ldp-jobstd">' + jobsCell(r) + "</td>"
           + '<td class="ldp-cust-td"><span class="ldp-cust">' + esc(r["Customer"] || "—") + "</span>"
               + '<div class="ldp-sub">' + esc(r["Job Code"] ? String(r["Job Code"]).split(",")[0] : "—")
               + (r["Company"] && r["Company"] !== "Zip to Zip" ? " · " + esc(r["Company"]) : "")
               + "</div></td>"
-          + "<td>" + typeChip(r) + "</td>"
+          + "<td>" + typeChip(r) + (+r["Storage Sold"] ? ' <span class="ldp-stor" title="The calendar event says Storage Service Requested — the salesperson sold storage on this job">STORAGE SOLD</span>' : "") + "</td>"
           + "<td>" + stageChip(r) + "</td>"
           + '<td class="ldp-fromtd">' + departCellFrom(r) + "</td>"
           + "<td>" + esc(stateZip(r["Moving To"], r["Delivery State"]) || "—") + "</td>"
-          + '<td class="ldp-jobstd">' + jobsCell(r) + "</td>"
           + "<td>" + whereCell(r) + "</td>"
           + '<td class="ldp-begin">' + beginCell(r) + "</td>"
           + '<td class="ldp-begin">' + departCell(r) + "</td>"
@@ -1056,11 +1085,10 @@ registerPage({
       }).join("");
 
       var tbl = '<div class="ldp-card"><div class="ldp-wrap"><table class="ldp-tbl"><thead><tr>'
-        + "<th>Customer</th><th>Type</th>"
+        + "<th title=\"The Google Calendar events for this job\">Calendar events</th><th>Customer</th><th>Type</th>"
         + "<th title=\"Which leg is next: collect it from the customer, or deliver what we already hold\">Stage</th>"
         + "<th title=\"Where the delivery truck loads from. Blank while the goods are still with the customer.\">Departing from</th>"
-        + "<th>Delivering to</th>"
-        + "<th>Jobs &amp; status</th><th>Where it is</th>"
+        + "<th>Delivering to</th><th>Where it is</th>"
         + "<th class=\"ldp-hbegin\" title=\"FAD - the first available date of delivery from the long-distance sheet - and the last day of the delivery window (FAD + timeframe)\">Delivery window (FAD)</th>"
         + "<th title=\"The latest the truck can leave and still deliver inside the window\">Depart by</th><th>Status</th>"
         + "</tr></thead><tbody>"
