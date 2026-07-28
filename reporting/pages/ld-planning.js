@@ -390,7 +390,10 @@ registerPage({
     var carrier = String(r["Carrier Driver"] || "").trim();
     if (!loc || loc === "Not collected" || loc === "Unknown") return { text: "", sub: "" };
     if (loc === "Our Storage") return { text: OUR_STORAGE_ADDR, sub: det };
-    if (loc === "With carrier" || carrier) return { text: carrier || "Carrier", sub: det };
+    if (loc === "With carrier" || carrier) {
+      var nm = carrier || "Carrier";
+      return { text: nm, sub: (det && det.toLowerCase().indexOf(nm.toLowerCase()) < 0) ? det : "" };
+    }
     // don't echo the bucket under the address when the address already says it
     // ("Bacho's Storage" + a "Storage" subtitle read as a stutter)
     // don't echo the bucket under the address when the address already conveys it -- a
@@ -799,9 +802,10 @@ registerPage({
           + '<div class="ldp-sec">Where it is</div>'
           + (function () { var dfrom = departFrom(r); return kv([
                 ["Status", esc(r["Possession"] || "—")],
+                // ROUTE above already carries the full address -- printing it again here was
+                // the "extra stuff" (Tornike 2026-07-28); this row names the bucket only
                 ["Location", '<b class="ldp-big">' + esc(r["Location"] || "—") + "</b>"
-                  + (dfrom.text ? '<div class="ldp-addr">' + esc(dfrom.text) + "</div>"
-                                : (det ? '<div class="ldp-addr">' + esc(det) + "</div>" : ""))],
+                  + (!dfrom.text && det ? '<div class="ldp-addr">' + esc(det) + "</div>" : "")],
                 // Carrier only exists on REGULAR moving -- a Straight job is driven by our own
                 // crew, so showing carrier fields there invites a wrong reading (Tornike 2026-07-28).
                 (!isStraight(r) && r["Carrier Driver"]) ? ["Carrier", esc(r["Carrier Driver"])] : null,
