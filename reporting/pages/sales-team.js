@@ -8,7 +8,10 @@
      - Estimate -> Actual with the change % everywhere
      - Detailed / Compact toggle on the people table (Money-Flow style), bigger type
      - Lead File drawer MUCH bigger: full closing-sheet section + refunds/claims/reviews
-   Global filter bar fully applies. Giorgi Kolbaia (branch owner) excluded from people. */
+   Global filter bar applies, EXCEPT Moving Type: that slicer's options are the closing
+   sheet's coarse job vocabulary and this dataset carries moveboard's fine-grained lead
+   Service Type, so it is deliberately unmapped here (see FIELDS in rs-core.js) rather
+   than silently dropping most leads. Giorgi Kolbaia (branch owner) excluded from people. */
 
 (() => {
   const EXCLUDE_SP = new Set(["giorgi kolbaia"]);
@@ -83,7 +86,12 @@
      (r["Cal Loc Match"] != null && !+r["Cal Loc Match"]));
   const contactCell = r => {
     if (+r["Called"]) return r["TTO Biz Min"] != null ? mins(+r["TTO Biz Min"]) : "yes";
-    if (isContacted(r)) return `<span class="st-good" title="The customer called in and we answered — counted as contact (a call still open at export time is treated as completed).">answered ✓</span>`;
+    // Contacted=1 with Called=0 is EITHER an answered incoming call OR an outbound dial in the
+    // 24h before the lead was entered (CRM lag). Only claim "they called in" when an answered
+    // incoming call is actually on record.
+    if (isContacted(r)) return +r["Answered In"]
+      ? `<span class="st-good" title="The customer called in and we answered — counted as contact (a call still open at export time is treated as completed).">answered ✓</span>`
+      : `<span class="st-good" title="Contact happened just before this lead was entered in the CRM — the call is on the customer's number within 24h of creation.">contacted ✓</span>`;
     if (isConf(r)) return `<span class="st-good" title="${+r["Conf After Horizon"] ? "Confirmed after the RingCentral export cutoff — the closing calls are past the data window" : "Confirmed — sales spoke to the customer; the call isn't in RingCentral (off-system or after the export cutoff)"}">confirmed ✓</span>`;
     if (!inWindow(r)) return `<span class="st-dim" title="This lead was created after the newest call data in the warehouse — refresh the RingCentral export to see its calls">no data yet</span>`;
     return `<span class="st-bad">no contact</span>`;
@@ -581,7 +589,7 @@
       // "no call data in range", not "slowest on the team").
       let sc = 0, ws = 0;
       const add = (w, v) => { if (v != null) { sc += w * v; ws += w; } };
-      add(0.5, mx.conv ? (p.convPct || 0) / mx.conv : null);
+      add(0.5, (mx.conv && p.convPct != null) ? p.convPct / mx.conv : null);
       add(0.3, p.medTto == null ? null : Math.max(0, 1 - Math.min(p.medTto, 120) / 120));
       add(0.2, mx.rev ? (p.revLead || 0) / mx.rev : null);
       p.score = ws ? Math.round(100 * sc / ws) : null;
@@ -955,17 +963,18 @@
         : 100 * p.confEv / p.qual;
       p.medTto = median(p.tto);
       p.revLead = p.leads ? p.rev / p.leads : 0;
-      p.upsell = p.closed ? p.mat / p.closed : 0;
+      p.upsell = p.closed ? p.mat / p.closed : null;   // no closed jobs -> unknown, not $0
       p.avgGap = p.gaps.length ? p.gaps.reduce((a, b) => a + b, 0) / p.gaps.length : null;
       // $-weighted gap drives the under-quoting flag (a small job can't tip it alone)
       p.gapWtd = p.gapQuote ? 100 * (p.gapBill - p.gapQuote) / p.gapQuote : null;
       p.avgReview = p.rev5.length ? p.rev5.reduce((a, b) => a + b, 0) / p.rev5.length : null;
       p.slowPct = p.called ? 100 * p.slow / p.called : null;
       // margin & comp efficiency (closed jobs)
-      p.margin = p.rev ? 100 * p.profit / p.rev : null;
+      p.margin = (p.rev && p.hasProfit) ? 100 * p.profit / p.rev : null;
       // null (not 0) when nothing is measurable — the axis then drops out of the composite
       // instead of scoring the rep as the worst on the team for un-filed paperwork.
       p.hasProfit = p.rows.some(r => r["Profit"] != null);
+      p.hasComm = p.rows.some(r => r["Sales Commission"] != null);
       p.profitLead = (p.leads && p.hasProfit) ? p.profit / p.leads : null;
       p.commPerKRev = p.rev ? 1000 * p.commission / p.rev : null;
       p.commPerKProfit = p.profit > 0 ? 1000 * p.commission / p.profit : null;
@@ -1008,9 +1017,15 @@
       .map(p => ({ n: p.name, v: keyVal(p, key) }))
       .filter(x => x.v != null);
     vals.sort((a, b) => dir === "hi" ? b.v - a.v : a.v - b.v);
-    const idx = vals.findIndex(x => x.n === name);
-    if (idx < 0) return null;
-    return { rank: idx + 1, of: vals.length, pctile: vals.length > 1 ? idx / (vals.length - 1) : 0 };
+    const me = vals.find(x => x.n === name);
+    if (!me) return null;
+    // MID-RANK ties. findIndex() gave tied reps different ranks by insertion order, so two reps
+    // with the identical value (0 claims, same review score) could read "#2 of 8" and "#3 of 8"
+    // -- and only one of them landed in Watch areas. Same rule good() already uses below.
+    const better = vals.filter(x => (dir === "hi" ? x.v > me.v : x.v < me.v)).length;
+    const tied = vals.filter(x => x.v === me.v).length - 1;
+    return { rank: better + 1, of: vals.length,
+             pctile: vals.length > 1 ? (better + 0.5 * tied) / (vals.length - 1) : 0 };
   }
   const keyVal = (p, key) => key.indexOf("call.") === 0 ? p.call[key.slice(5)] : p[key];
 
@@ -1265,7 +1280,7 @@
         strong: "builds high-profit jobs", weak: "low profit per lead",
         fix: "Tighten quoting & discount discipline — the revenue may be fine but the margin isn't." },
       { k: "Quality (claims)", g: good(q => (q.closed ? q.claims / q.closed : null), "lo"), w: 0.12,
-        val: p.claims + " claim" + (p.claims === 1 ? "" : "s") + (p.closed ? " · " + pct1(100 * p.claims / p.closed) + " of jobs" : ""),
+        val: p.claims + " claim" + (p.claims === 1 ? "" : "s") + (p.closed ? " · " + (Math.round(1000 * p.claims / p.closed) / 10) + " per 100 jobs" : ""),
         strong: "clean jobs — low claim rate", weak: "high claim rate on their jobs",
         absBad: !!(p.closed && p.claims / p.closed > 0.1),
         fix: "Review their claims and over-promising on quotes — durable revenue beats booked revenue." },
@@ -1273,7 +1288,10 @@
         strong: "fast to the phone", weak: "slow to make first contact",
         absBad: p.medTto != null && p.medTto > th.slowMin,
         fix: "Hold them to the speed SLA — target under 30 min; slow first calls quietly lose winnable jobs." },
-      { k: "Call effort", g: good(q => q.call.outConnRate, "hi"), w: 0.14, val: p.call.outConnRate != null ? pct1(p.call.outConnRate) : "—",
+      // volume floor: a connect rate off a handful of dials is noise, and ranking a rep on it
+      // contradicts the >=200-interaction gate the same metric uses elsewhere on this page.
+      { k: "Call effort", g: good(q => (q.call.outDials >= 200 ? q.call.outConnRate : null), "hi"), w: 0.14,
+        val: p.call.outDials >= 200 ? pct1(p.call.outConnRate) : (p.call.outDials ? pct1(p.call.outConnRate) + " (only " + RS.fmtN(p.call.outDials) + " dials — not ranked)" : "—"),
         strong: "strong phone connect rate", weak: "weak call connect / activity", allTime: true,
         fix: "Put accountability on dials & connect rate — low activity is the easiest gap to close." },
       { k: "Lead qualification", g: good(q => q.deadPct, "lo"), w: 0.08, val: pct1(p.deadPct),
@@ -1332,12 +1350,12 @@
     const marginCard = `<div class="st-card">
       <div class="rp-cardcap">💰 Margin & commission — the profit behind the revenue</div>
       <div class="st-kpis" style="grid-template-columns:repeat(4,1fr);margin-top:2px">
-        ${kpi("Gross profit", money0(p.profit), p.margin != null ? pct1(p.margin) + " margin" : "")}
-        ${kpi("Profit / lead", money0(p.profitLead), "revenue/lead " + money0(p.revLead))}
-        ${kpi("Commission paid", money0(p.commission), p.commPerKRev != null ? money0(p.commPerKRev) + " / $1k rev" : "")}
+        ${kpi("Gross profit", p.hasProfit ? money0(p.profit) : "—", p.hasProfit ? (p.margin != null ? pct1(p.margin) + " margin" : "") : "not filed on these jobs")}
+        ${kpi("Profit / lead", p.profitLead == null ? "—" : money0(p.profitLead), "revenue/lead " + money0(p.revLead))}
+        ${kpi("Commission paid", p.hasComm ? money0(p.commission) : "—", p.hasComm ? (p.commPerKRev != null ? money0(p.commPerKRev) + " / $1k rev" : "") : "not filed on these jobs")}
         ${kpi("Net revenue", money0(p.netRev), p.refunds ? "after " + money0(p.refunds) + " refunds" : "no refunds")}
       </div>
-      <div class="st-note">Gross profit &amp; margin from the closing sheet.${p.commPerKProfit != null ? " Commission costs " + money0(p.commPerKProfit) + " per $1k of gross profit." : ""}${p.avgSat != null ? " Internal satisfaction " + p.avgSat.toFixed(1) + "/10." : ""}</div>
+      <div class="st-note">Gross profit &amp; margin from the closing sheet${p.hasProfit ? "" : " — <b>no profit figures are filed</b> on this rep's closed jobs in this range, so these read as — rather than $0"}.${p.commPerKProfit != null ? " Commission costs " + money0(p.commPerKProfit) + " per $1k of gross profit." : ""}${p.avgSat != null ? " Internal satisfaction " + p.avgSat.toFixed(1) + "/10." : ""}</div>
     </div>`;
 
     // ---- lead distribution & win/leak (full funnel per segment) ----
@@ -1457,7 +1475,7 @@
         ${kpi("Confirmed", RS.fmtN(p.conf), "booking rate " + (p.bookCanon != null ? pct1(p.bookCanon) : "—") + " · " + (p.bookRate != null ? pct1(p.bookRate) : "—") + " of this cohort")}
         ${kpi("Median 1st call", p.medTto != null ? mins(p.medTto) : "—", "business time to first call")}
         ${kpi("Revenue", money0(p.rev), money0(p.revLead) + " / lead")}
-        ${kpi("Upsell / job", money0(p.upsell), "materials on closed jobs")}
+        ${kpi("Upsell / job", p.upsell == null ? "—" : money0(p.upsell), p.closed ? "materials on " + RS.fmtN(p.closed) + " closed jobs" : "no closed jobs in range")}
         ${kpi("Review score", p.avgReview != null ? p.avgReview.toFixed(1) + "★" : "—", p.claims ? p.claims + " claim(s)" : "no claims")}
       </div>
 

@@ -312,7 +312,13 @@ window.RS = (function () {
     sales:       { label: "Sales Person", closing: "Sales Person",  moveboard: "Assigned",       refunds: "Sales Person", long_distance: "Sales Person", lead_journey: "Assigned" },
     cfRange:     { label: "Volume (cu ft)", moveboard: "CF Range",  lead_journey: "CF Range" },  // display label only — field key + column stay "CF Range"
     billRange:   { label: "Revenue Range", closing: "Bill Range",   moveboard: "Bill Range", lead_journey: "Bill Range" },  // display label only — column stays "Bill Range"
-    movingType:  { label: "Moving Type",  closing: "Moving Type", lead_journey: "Service Type" },
+    // NO lead_journey mapping on purpose. The slicer's options are fct_closing's coarse
+    // 3-value job vocabulary (Local / Regular / Straight Moving); lead_journey's `Service Type`
+    // is moveboard's fine-grained lead vocabulary (Flat Rate, Packing Day, Loading Help,
+    // Move To Storage, ...). Matching one against the other silently dropped most leads --
+    // picking "Local Moving" threw away every Flat Rate / Packing Day / storage-move lead and
+    // understated every number on the Sales page. Unmapped = the slicer greys out here instead.
+    movingType:  { label: "Moving Type",  closing: "Moving Type" },
     sizeOfMove:  { label: "Size of Move", closing: "Size of Move",  moveboard: "Size of Move", lead_journey: "Size of Move" },
     statusCat:   { label: "Lead Status",  moveboard: "Status Category", lead_journey: "Status Category" },
   };
