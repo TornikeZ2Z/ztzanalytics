@@ -129,7 +129,7 @@ registerPage({
         .ldp-sec:first-child{margin-top:0}
         .ldp-stor{display:inline-block;font-size:9px;font-weight:800;letter-spacing:.05em;padding:1px 6px;
       border-radius:5px;background:rgba(124,58,237,.13);color:var(--violet,#7c3aed);white-space:nowrap;margin-left:5px}
-    .ldp-stage{display:inline-block;font-size:12px;font-weight:800;letter-spacing:.01em;padding:3px 10px;border-radius:999px;white-space:nowrap;margin-top:4px}
+    .ldp-stage{display:inline-block;font-size:12px;font-weight:800;letter-spacing:.01em;padding:3px 10px;border-radius:999px;white-space:nowrap}
     .ldp-stage.p{background:rgba(37,99,235,.11);color:var(--blue)}
     .ldp-stage.d{background:rgba(28,122,74,.12);color:${POS}}
     .ldp-from{font-size:11.5px;font-weight:650;color:var(--ink);line-height:1.3;display:block;white-space:normal}
@@ -237,10 +237,10 @@ registerPage({
         .ldp-tbl th{background:var(--panel);border-bottom:1px solid var(--line-2)}
         .ldp-tbl tbody tr{height:56px}
         .ldp-tbl td{vertical-align:middle;max-width:none}
-        .ldp-tbl col.c-ev{width:78px}
+        .ldp-tbl col.c-ev{width:112px}
         .ldp-tbl col.c-cust{width:170px}
         .ldp-tbl col.c-type{width:104px}
-        .ldp-tbl col.c-from{width:158px}
+        .ldp-tbl col.c-from{width:118px}
         .ldp-tbl col.c-to{width:96px}
         .ldp-tbl col.c-where{width:132px}
         .ldp-tbl col.c-date{width:132px}
@@ -253,6 +253,14 @@ registerPage({
           border:1px solid rgba(47,111,208,.22);border-radius:8px;padding:4px 12px;text-decoration:none}
         .ldp-evlink:hover{background:rgba(47,111,208,.18)}
         .ldp-evnone{color:var(--faint);font-size:13px}
+        /* chips wrap onto a second line when the viewport (or a browser zoom) squeezes the
+           column -- they used to overflow the cell instead */
+        .ldp-evtd,.ldp-typetd{white-space:normal}
+        .ldp-evtd{display:table-cell}
+        .ldp-evtd .ldp-evlink{margin:2px 4px 2px 0}
+        .ldp-evlink.dl{color:${POS};background:rgba(28,122,74,.10);border-color:rgba(28,122,74,.24)}
+        .ldp-evlink.dl:hover{background:rgba(28,122,74,.18)}
+        .ldp-typetd .ldp-ty,.ldp-typetd .ldp-stage{margin:2px 6px 2px 0}
         .ldp-ms{position:relative}
         .ldp-msb{font:inherit;font-size:12px;font-weight:650;color:var(--ink);background:var(--panel);
           border:1px solid var(--line-2);border-radius:10px;padding:7px 12px;cursor:pointer;display:inline-flex;
@@ -339,6 +347,7 @@ registerPage({
         .ldp-pos-us{background:rgba(28,122,74,.14);color:${POS}}
         .ldp-pos-car{background:rgba(47,111,208,.14);color:${BLUE}}
         .ldp-pos-3p{background:rgba(160,106,0,.15);color:${WARN}}
+        .ldp-pos-cnr{background:rgba(47,111,208,.12);color:${BLUE}}
         .ldp-pos-no{background:var(--panel-2);color:var(--muted)}
         .ldp-pos-unk{background:rgba(176,42,55,.11);color:${NEG}}
       `;
@@ -413,7 +422,9 @@ registerPage({
     var carrier = String(r["Carrier Driver"] || "").trim();
     if (!loc || loc === "Not collected") return { text: "", sub: "" };
     if (loc === "Unknown") return { text: "", sub: "", unknown: true };
-    if (loc === "Our Storage") return { text: stateZip(OUR_STORAGE_ADDR) || "NJ 07753", sub: "Our storage · " + OUR_STORAGE_ADDR };
+    // the bucket name IS the useful label here -- the full depot address made the column
+    // enormous for no gain, and it is one click away in the drawer (Tornike 2026-07-29)
+    if (loc === "Our Storage") return { text: "Our Storage", sub: "", addr: OUR_STORAGE_ADDR };
     if (loc === "With carrier" || carrier) {
       var nm = carrier || "Carrier";
       return { text: nm, sub: (det && det.toLowerCase().indexOf(nm.toLowerCase()) < 0) ? det : "" };
@@ -425,8 +436,10 @@ registerPage({
     if (det) {
       var dl = det.toLowerCase(), ll = String(loc).toLowerCase();
       var echo = dl.indexOf(ll) >= 0 || (/storage/.test(ll) && /storage/.test(dl));
+      // a storage bucket shows its NAME; the concrete address is drawer material
+      if (/storage/i.test(loc)) return { text: loc, sub: "", addr: det };
       var sz = stateZip(det) || ((det.match(/(?:^|[\s,])([A-Z]{2})(?:[\s,]|$)/) || [])[1] || "");
-      return sz ? { text: sz, sub: det } : { text: det, sub: echo ? "" : loc };
+      return sz ? { text: sz, sub: "", addr: det } : { text: det, sub: "", addr: "" };
     }
     return { text: loc, sub: "" };
   }
@@ -626,14 +639,17 @@ registerPage({
     function custKey(r) {
       var p = String(r["Possession"] || "");
       return p === "With us" ? "us" : p === "With carrier" ? "car"
+           : p === "Contracts Not Received" ? "cnr"
            : (p === "Rented Storage" || p === "Third-party storage") ? "tp"
            : p === "Not picked up yet" ? "no" : "unk";
     }
-    var CUST_LABEL = { us: "With us", car: "Carrier", tp: "Storage", no: "To collect", unk: "Missing Closing" };
+    var CUST_LABEL = { us: "With us", car: "Carrier", tp: "Storage", no: "To collect",
+                       cnr: "Contracts Not Received", unk: "Missing Closing" };
     function possPill(r) {
       var p = String(r["Possession"] || "—");
       var cls = p === "With us" ? "ldp-pos-us"
         : p === "With carrier" ? "ldp-pos-car"
+        : p === "Contracts Not Received" ? "ldp-pos-cnr"
         : (p === "Rented Storage" || p === "Third-party storage") ? "ldp-pos-3p"
         : p === "Not picked up yet" ? "ldp-pos-no" : "ldp-pos-unk";
       return '<span class="ldp-pos ' + cls + '">' + esc(p) + "</span>";
@@ -767,7 +783,8 @@ registerPage({
               return '<option' + (S.loc === l ? " selected" : "") + ">" + esc(l) + "</option>"; }).join("") + "</select></label>"
         +   msBox("type", "Type", [["straight", "Straight"], ["regular", "Regular"]])
         +   msBox("cust", "Status", [["no", "To collect"], ["us", "With us"], ["tp", "Storage"],
-                                     ["car", "Carrier"], ["unk", "Missing Closing"]])
+                                     ["car", "Carrier"], ["cnr", "Contracts Not Received"],
+                                     ["unk", "Missing Closing"]])
         +   (anyF ? '<button class="ldp-clr" id="ldpClr">Clear</button>' : "")
         + "</div>"
         + '<span class="ldp-count"><b>' + cur.length + "</b> of " + all.length + " shipments</span>"
@@ -782,11 +799,16 @@ registerPage({
       // while the goods are still with us - that is exactly what has to be visible.
       // Just a way IN to the event. The dates are already on the board in their own columns,
       // so repeating them here was noise (Tornike 2026-07-29).
-      function calLink(url, dt, label) {
-        if (!url) return '<span class="ldp-evnone">—</span>';
-        return '<a class="ldp-evlink" href="' + esc(url) + '" target="_blank" rel="noopener"'
-          + ' title="' + esc(label + (dt ? " · " + fmtD(dt) : "")) + '"'
-          + ' onclick="event.stopPropagation()">Open</a>';
+      function calChip(url, dt, label, cls) {
+        if (!url) return "";
+        return '<a class="ldp-evlink ' + cls + '" href="' + esc(url) + '" target="_blank" rel="noopener"'
+          + ' title="' + esc("Open the " + label.toLowerCase() + " event" + (dt ? " · " + fmtD(dt) : "")) + '"'
+          + ' onclick="event.stopPropagation()">' + label + "</a>";
+      }
+      function calCell(r) {
+        var h = calChip(r["Pickup Event URL"], r["Pickup Event Date"], "Pickup", "pk")
+              + calChip(r["Delivery Event URL"], r["Delivery Event Date"], "Delivery", "dl");
+        return h || '<span class="ldp-evnone">—</span>';
       }
       function dlvClass(st) {
         st = String(st || "");
@@ -1088,14 +1110,16 @@ registerPage({
         var uk = String(r["Urgency"] || "") === "Act now" ? "u-red"
               : String(r["Urgency"] || "") === "Act soon" ? "u-amber" : "";
         var main = '<tr class="ldp-row ' + uk + (S.sel === key ? " on" : "") + '" data-ldk="' + esc(key) + '">'
-          + "<td>" + calLink(r["Pickup Event URL"], r["Pickup Event Date"], "Pickup event") + "</td>"
-          + "<td>" + calLink(r["Delivery Event URL"], r["Delivery Event Date"], "Delivery event") + "</td>"
+          + '<td class="ldp-evtd">' + calCell(r) + "</td>"
           + '<td class="ldp-cust-td"><span class="ldp-cust">' + esc(r["Customer"] || "—") + "</span>"
-              + '<div class="ldp-sub">' + esc(r["Job Code"] ? String(r["Job Code"]).split(",")[0] : "—")
-              + (r["Company"] && r["Company"] !== "Zip to Zip" ? " · " + esc(r["Company"]) : "")
-              + (+r["Storage Sold"] ? ' <span class="ldp-stor" title="The calendar event says Storage Service Requested — the salesperson sold storage on this job">STORAGE</span>' : "")
-              + "</div></td>"
-          + "<td>" + typeChip(r) + stageChip(r) + "</td>"
+              + ((r["Company"] && r["Company"] !== "Zip to Zip") || +r["Storage Sold"]
+                  ? '<div class="ldp-sub">'
+                    + (r["Company"] && r["Company"] !== "Zip to Zip" ? esc(r["Company"]) : "")
+                    + (+r["Storage Sold"] ? ' <span class="ldp-stor" title="The calendar event says Storage Service Requested — the salesperson sold storage on this job">STORAGE</span>' : "")
+                    + "</div>"
+                  : "")
+              + "</td>"
+          + '<td class="ldp-typetd">' + typeChip(r) + stageChip(r) + "</td>"
           + '<td class="ldp-fromtd">' + departCellFrom(r) + "</td>"
           + "<td>" + esc(stateZip(r["Moving To"], r["Delivery State"]) || "—") + "</td>"
           + "<td>" + whereCell(r) + "</td>"
@@ -1110,12 +1134,11 @@ registerPage({
       }).join("");
 
       var tbl = '<div class="ldp-card"><div class="ldp-wrap"><table class="ldp-tbl">'
-        + '<colgroup><col class="c-ev"><col class="c-ev"><col class="c-cust"><col class="c-type">'
+        + '<colgroup><col class="c-ev"><col class="c-cust"><col class="c-type">'
         +   '<col class="c-from"><col class="c-to"><col class="c-where"><col class="c-date">'
         +   '<col class="c-date"><col class="c-status"></colgroup>'
         + "<thead><tr>"
-        + "<th title=\"Open the pickup event in Google Calendar\">Pickup event</th>"
-        + "<th title=\"Open the delivery event in Google Calendar\">Delivery event</th>"
+        + "<th title=\"Open this job's Google Calendar events\">Calendar events</th>"
         + "<th>Customer</th>"
         + "<th title=\"Straight or Regular, and which leg is next\">Type</th>"
         + "<th title=\"Where the delivery truck loads from\">Departing from</th>"
