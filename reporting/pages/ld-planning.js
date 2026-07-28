@@ -237,14 +237,14 @@ registerPage({
         .ldp-tbl th{background:var(--panel);border-bottom:1px solid var(--line-2)}
         .ldp-tbl tbody tr{height:56px}
         .ldp-tbl td{vertical-align:middle;max-width:none}
-        .ldp-tbl col.c-ev{width:112px}
-        .ldp-tbl col.c-cust{width:170px}
-        .ldp-tbl col.c-type{width:104px}
-        .ldp-tbl col.c-from{width:118px}
-        .ldp-tbl col.c-to{width:96px}
-        .ldp-tbl col.c-where{width:132px}
-        .ldp-tbl col.c-when{width:140px}
-        .ldp-tbl col.c-todo{width:250px}
+        .ldp-tbl col.c-ev{width:118px}
+        .ldp-tbl col.c-cust{width:172px}
+        .ldp-tbl col.c-type{width:142px}
+        .ldp-tbl col.c-from{width:132px}
+        .ldp-tbl col.c-to{width:98px}
+        .ldp-tbl col.c-where{width:156px}
+        .ldp-tbl col.c-when{width:166px}
+        .ldp-tbl col.c-todo{width:248px}
         .ldp-wlab{font-size:9.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--faint)}
         .ldp-arrow{color:var(--faint);font-weight:600}
         .ldp-todotd{white-space:normal}
@@ -348,7 +348,7 @@ registerPage({
         .ldp-flagdot.blk{color:${NEG}}
         .ldp-issue{font-size:11.5px;font-weight:700;color:${WARN};margin-top:5px;max-width:230px;line-height:1.35}
         .ldp-issue.blk{color:${NEG}}
-        .ldp-dt{font-size:13px;font-weight:700;color:var(--ink);white-space:nowrap}
+        .ldp-dt{font-size:13px;font-weight:700;color:var(--ink);white-space:normal;line-height:1.25}
         /* CUSTODY — do we physically have it, and did we collect it? */
         .ldp-pos{display:inline-block;font-size:10.5px;font-weight:800;padding:2px 9px;border-radius:999px;white-space:nowrap;letter-spacing:.01em}
         .ldp-pos-us{background:rgba(28,122,74,.14);color:${POS}}
@@ -609,6 +609,8 @@ registerPage({
     // and Status told overlapping halves of this ("closed 24d ago" and "Act now / delivery
     // window expired" were the same sentence twice), so they collapse into two columns:
     // WHEN (this) and WHAT TO DO (the Do line the mart already computes).
+    // "Jun 25 -> Jul 5" reads in one glance; the year twice does not
+    function fmtDShort(d) { return d ? String(fmtD(d)).replace(/,\s*\d{4}$/, "") : "\u2014"; }
     function whenCell(r) {
       var dep = r["Depart By"], trip = tripDays(r);
       // depart-by only earns a line when it is NOT simply "the day before"
@@ -627,7 +629,7 @@ registerPage({
       if (!fad && !end) return '<span class="ldp-nodate">no date set</span>';
       var head = (st || !end || String(end) === String(fad))
         ? fmtD(fad || end)
-        : fmtD(fad) + ' <span class="ldp-arrow">\u2192</span> ' + fmtD(end);
+        : fmtDShort(fad) + ' <span class="ldp-arrow">\u2192</span> ' + fmtDShort(end);
       var dl = st ? fad : (end || fad), n2 = dayDiff(dl), sub, cls;
       if (n2 > 0) { sub = "in " + n2 + "d"; cls = n2 <= 3 ? "soon" : "ok"; }
       else if (n2 === 0) { sub = "TODAY"; cls = "soon"; }
