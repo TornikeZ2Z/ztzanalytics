@@ -1563,22 +1563,32 @@
         const bookedOnly = all.filter(r => /^\d{4}-\d{2}-\d{2}/.test(String(r["Booked Date"] || "")));
         const yrSet = RS.state.multi.year, moSet = RS.state.multi.month;
         const yrOn = yrSet && yrSet.size, moOn = moSet && moSet.size;
-        try {
-          if (yrOn) RS.state.multi.year = new Set();
-          if (moOn) RS.state.multi.month = new Set();
-          ctx.confRows = RS.filtered("lead_journey", bookedOnly, { dateColumn: "Booked Date" });
-        } finally {
-          if (yrOn) RS.state.multi.year = yrSet;
-          if (moOn) RS.state.multi.month = moSet;
-        }
-        if (yrOn || moOn) {
-          ctx.confRows = ctx.confRows.filter(r => {
+        const spSet0 = RS.state.multi.sales;
+        // ONE builder for every confirmed-date row set. It was two near-copies, and the copy
+        // dropped the year/month half -- so the Rep Profile's booking rate was filtered on BOTH
+        // bases at once (created in the month AND confirmed in the month) and read lower than
+        // the Team table's for the same rep. Anything that needs confirmations by confirmed date
+        // must come through here.
+        const confirmedRows = (salesFree) => {
+          let out;
+          try {
+            if (yrOn) RS.state.multi.year = new Set();
+            if (moOn) RS.state.multi.month = new Set();
+            if (salesFree && spSet0 && spSet0.size) RS.state.multi.sales = new Set();
+            out = RS.filtered("lead_journey", bookedOnly, { dateColumn: "Booked Date" });
+          } finally {
+            if (yrOn) RS.state.multi.year = yrSet;
+            if (moOn) RS.state.multi.month = moSet;
+            if (salesFree && spSet0 && spSet0.size) RS.state.multi.sales = spSet0;
+          }
+          return (yrOn || moOn) ? out.filter(r => {
             const bd = String(r["Booked Date"] || "");
             if (yrOn && !yrSet.has(bd.slice(0, 4))) return false;
             if (moOn && !moSet.has(String(+bd.slice(5, 7)))) return false;
             return true;
-          });
-        }
+          }) : out;
+        };
+        ctx.confRows = confirmedRows(false);
 
         // ---- peer baseline for the Rep Profile -----------------------------------------
         // The Rep Profile has its own rep selector, so the GLOBAL Sales-Person slicer must
@@ -1590,18 +1600,9 @@
           try { RS.state.multi.sales = new Set(); ctx.repRows = RS.filtered("lead_journey", all); }
           finally { RS.state.multi.sales = spSet; }
         } else ctx.repRows = ctx.rows;
-        // ...and the matching sales-slicer-free CONFIRMED set, so the Rep Profile can show the
+        // ...and the matching sales-slicer-free CONFIRMED set, so the Rep Profile shows the
         // same canonical booking rate as the Team table instead of a second, different number.
-        if (spSet && spSet.size) {
-          try { RS.state.multi.sales = new Set(); ctx.repConfRows = RS.filtered("lead_journey", bookedOnly, { dateColumn: "Booked Date" }); }
-          finally { RS.state.multi.sales = spSet; }
-          if (yrOn || moOn) ctx.repConfRows = ctx.repConfRows.filter(r => {
-            const bd = String(r["Booked Date"] || "");
-            if (yrOn && !yrSet.has(bd.slice(0, 4))) return false;
-            if (moOn && !moSet.has(String(+bd.slice(5, 7)))) return false;
-            return true;
-          });
-        } else ctx.repConfRows = ctx.confRows;
+        ctx.repConfRows = (spSet && spSet.size) ? confirmedRows(true) : ctx.confRows;
 
         // trend rows: date- AND sales-unfiltered (company/source/etc still apply) so the
         // monthly chart always shows the full history.
