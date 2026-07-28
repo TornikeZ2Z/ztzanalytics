@@ -183,15 +183,20 @@
     .rp-mo-val{font-size:11px;font-weight:750;color:var(--muted);font-variant-numeric:tabular-nums;text-align:center}
     /* fixed-height slot so every month shares one baseline; the bar sits at its bottom */
     .rp-mo-slot{display:flex;align-items:flex-end;justify-content:center}
-    .rp-mo-bar{width:100%;max-width:30px;background:var(--blue);border-radius:4px 4px 0 0;
-      display:flex;align-items:flex-end;overflow:hidden;transition:filter .12s}
+    /* one bar = that month's leads, split bottom-up: confirmed / qualified-not-confirmed / dead.
+       The printed % is confirmed / qualified, which is now exactly the green share of the
+       non-grey part -- you can check the number against the picture. */
+    .rp-mo-bar{width:100%;max-width:30px;border-radius:4px 4px 0 0;display:flex;flex-direction:column;
+      overflow:hidden;transition:filter .12s;background:var(--blue)}
+    .rp-mo-dead{width:100%;background:var(--line)}
+    .rp-mo-open{width:100%;background:var(--blue)}
     .rp-mo-fill{width:100%;background:var(--brand)}
     .rp-mo:hover .rp-mo-bar{filter:brightness(1.14)}
     .rp-mo-x{font-size:10px;color:var(--faint);font-variant-numeric:tabular-nums;text-align:center}
     .rp-mo-pct{font-size:9.5px;font-weight:700;color:var(--brand);font-variant-numeric:tabular-nums;text-align:center}
     .rp-trend-base{height:1px;background:var(--line);margin:0 2px}
     .rp-lg{display:inline-block;width:9px;height:9px;border-radius:2px;vertical-align:middle}
-    .rp-lg-l{background:var(--blue)} .rp-lg-c{background:var(--brand)}
+    .rp-lg-l{background:var(--blue)} .rp-lg-c{background:var(--brand)} .rp-lg-d{background:var(--line)}
     /* mix-adjusted booking — visual gauge */
     .rp-mix{display:flex;align-items:center;gap:22px;flex-wrap:wrap;margin:2px 0 10px}
     .rp-mix-cell{min-width:140px}
@@ -1189,21 +1194,31 @@
       : `<div class="rp-trend">${months.map(m => {
           const d = p.byMonth[m];
           const lh = Math.max(3, Math.round(TH * d.leads / maxM));
-          // confirmed is a SUBSET of that month's leads -> draw it INSIDE the bar, so the green
-          // fraction you see IS the conversion. Two adjacent bars implied two separate totals.
-          const fh = d.leads ? Math.min(lh, Math.round(lh * d.conf / d.leads)) : 0;
+          // confirmed is a SUBSET of that month's leads, so it goes INSIDE the bar. Split three
+          // ways bottom-up (confirmed / still-open qualified / dead) so the printed booking %
+          // -- confirmed over QUALIFIED -- is the green share of the non-grey part, not a number
+          // that quietly disagrees with the picture beside it.
+          const dead = Math.max(0, d.leads - d.qual);
+          const hDead = d.leads ? Math.round(lh * dead / d.leads) : 0;
+          const hConf = d.leads ? Math.round(lh * d.conf / d.leads) : 0;
+          const hOpen = Math.max(0, lh - hDead - hConf);
           const rate = d.qual ? Math.round(100 * d.conf / d.qual) : null;
-          return `<div class="rp-mo" title="${m} — ${d.leads} leads created, ${d.conf} of them confirmed${rate != null ? " (" + rate + "% of the " + d.qual + " qualified)" : ""}">
+          return `<div class="rp-mo" title="${m} — ${d.leads} leads created: ${d.conf} confirmed, ${Math.max(0, d.qual - d.conf)} qualified but never confirmed, ${dead} dead${rate != null ? ". Booking " + rate + "% (" + d.conf + " of " + d.qual + " qualified)" : ""}">
             <div class="rp-mo-val">${RS.fmtN(d.leads)}</div>
             <div class="rp-mo-slot" style="height:${TH}px">
-              <div class="rp-mo-bar" style="height:${lh}px"><div class="rp-mo-fill" style="height:${fh}px"></div></div>
+              <div class="rp-mo-bar" style="height:${lh}px">
+                <div class="rp-mo-dead" style="height:${hDead}px"></div>
+                <div class="rp-mo-open" style="height:${hOpen}px"></div>
+                <div class="rp-mo-fill" style="height:${hConf}px"></div>
+              </div>
             </div>
             <div class="rp-mo-pct">${rate != null ? rate + "%" : "—"}</div>
             <div class="rp-mo-x">${m.slice(2)}</div></div>`;
         }).join("")}</div><div class="rp-trend-base"></div>
         <div class="st-note" style="margin-top:8px">Full history — this chart deliberately ignores the date filter so the trend is always readable.
-        Bar height = leads created that month; the <b style="color:var(--brand)">green fill</b> is how many of them confirmed, so the filled fraction is the conversion.
-        The % under each bar is confirmed ÷ qualified.${best.m ? ` Best month: <b>${best.m}</b> at ${Math.round(100 * best.r)}%.` : ""}</div>`;
+        Bar height = leads created that month, split bottom-up:
+        <b style="color:var(--brand)">confirmed</b> · <b style="color:var(--blue)">qualified but never confirmed</b> · <span style="color:var(--faint)"><b>dead</b></span>.
+        The % under each bar is the booking rate — the green share of everything above the grey.${best.m ? ` Best month: <b>${best.m}</b> at ${Math.round(100 * best.r)}%.` : ""}</div>`;
     const srcRows = Object.entries(p.bySrc).sort((a, b) => b[1].leads - a[1].leads).slice(0, 8)
       .map(([s, d]) => `<tr><td>${esc(s)}</td><td style="text-align:right">${RS.fmtN(d.leads)}</td>
         <td style="text-align:right">${d.qual ? pct1(100 * d.conf / d.qual) : "—"}</td></tr>`).join("");
@@ -1530,7 +1545,7 @@
       ${integrityCard}
 
       <div class="rp-cols">
-        <div class="st-card"><div class="rp-cardcap">Monthly — leads <span class="rp-lg rp-lg-l"></span> &nbsp; confirmed <span class="rp-lg rp-lg-c"></span></div>${trend}</div>
+        <div class="st-card"><div class="rp-cardcap">Monthly — confirmed <span class="rp-lg rp-lg-c"></span> &nbsp; still open <span class="rp-lg rp-lg-l"></span> &nbsp; dead <span class="rp-lg rp-lg-d"></span></div>${trend}</div>
         <div class="st-card"><div class="rp-cardcap">By source</div>
           <table class="st-tbl" style="font-size:13px"><thead><tr><th>Source</th><th style="text-align:right">Leads</th><th style="text-align:right">Book %</th></tr></thead>
           <tbody>${srcRows || `<tr><td colspan="3" class="st-dim">No leads in period</td></tr>`}</tbody></table>
