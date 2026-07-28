@@ -290,7 +290,10 @@ registerPage({
     // S survives on window.__LDP across page visits, but the drawer DOM does not — a
     // persisted S.sel would paint a highlighted row whose first click closes a drawer
     // that is not open. Selection resets per visit.
-    var S = window.__LDP || (window.__LDP = { view: "board", q: "", co: "", loc: "", sel: null, tlStart: null, tlSeg: "", kpi: "" });
+    // No trip-day figure on the sheet means "assume a two-day drive" (Tornike 2026-07-28),
+  // not "assume one" and not "unknown" -- the depart-by date has to exist either way.
+  var TRIP_DEFAULT = 2;
+  var S = window.__LDP || (window.__LDP = { view: "board", q: "", co: "", loc: "", sel: null, tlStart: null, tlSeg: "", kpi: "" });
     S.sel = null;
 
     var rows;
@@ -345,7 +348,7 @@ registerPage({
             r["Possession"] = lv === "At Carrier" ? "With carrier"
               : (lv === "Our Storage" || lv === "On Our Truck") ? "With us"
               : lv.indexOf("Storage") >= 0 ? "Third-party storage"
-              : "Picked up \u2014 location unknown";
+              : "Picked up \u2014 missing closing";
           }
         } else if (en.location_note && en.location_note.value) {
           r["Location Detail"] = String(en.location_note.value);
@@ -373,7 +376,7 @@ registerPage({
         var fad = r["FAD"] ? String(r["FAD"]).slice(0, 10) : null;
         var end = r["Window End"] ? String(r["Window End"]).slice(0, 10) : null;
         var deadline = r["Type"] === "Straight" ? fad : end;
-        var trip = r["Trip Days"] != null ? +r["Trip Days"] : 1;
+        var trip = r["Trip Days"] != null ? +r["Trip Days"] : TRIP_DEFAULT;
         r["Depart By"] = deadline ? isoAdd(deadline, -trip) : null;
         var dd = deadline ? daysBetween2(t, deadline) : null;
         var dp = r["Depart By"] ? daysBetween2(t, r["Depart By"]) : null;
@@ -552,7 +555,7 @@ registerPage({
         ["now",  "neg",  actNow,         "Act now",          "overdue or departure passed"],
         ["soon", "warn", actSoon,        "Act soon",         "departure or window is close"],
         ["miss", "",     noWin,          "Missing data",     "FAD / timeframe not set"],
-        ["unk",  "",     held,           "Location unknown", "picked up, whereabouts unrecorded"],
+        ["unk",  "",     held,           "Missing Closing",  "picked up, but no closing sheet records where it is"],
         ["flag", "",     flagged.length, "Flagged",          "needs a sheet correction"],
       ];
       var kp = '<div class="ldp-kpis">' + kpiDefs.map(function (k) {
@@ -576,7 +579,7 @@ registerPage({
       };
       var segsAll = [["", "All"], ["straight", "Straight"], ["regular", "Regular"],
                      ["no", "To collect"], ["us", "With us"], ["tp", "Storage"],
-                     ["car", "Carrier"], ["unk", "Location unknown"]];
+                     ["car", "Carrier"], ["unk", "Missing Closing"]];
       var chips = '<div class="ldp-tlf">' + segsAll.map(function (o) {
         var n = all.filter(function (r) {
           if (!o[0]) return true;
@@ -708,7 +711,7 @@ registerPage({
           + kv(delivery.concat([
                 ["Depart by", fmtD(r["Depart By"]) + (r["Trip Days"] != null ? ' <span class="ldp-sub">' + r["Trip Days"] + "d trip</span>" : ' <span class="ldp-sub">trip days not set</span>')]]))
           + '<div class="ldp-sec">Where it is</div>'
-          + kv([["Custody", esc(r["Possession"] || "—")],
+          + kv([["Status", esc(r["Possession"] || "—")],
                 ["Location", esc(r["Location"] || "—") + (det ? ' <span class="ldp-sub">' + esc(det) + "</span>" : "")],
                 r["Carrier Driver"] ? ["Carrier", esc(r["Carrier Driver"])] : null,
                 r["Total To Carrier"] != null ? ["To carrier", money(r["Total To Carrier"])] : null,
@@ -717,29 +720,9 @@ registerPage({
           + kv([r["Balance Due"] != null ? ["Balance due", money(r["Balance Due"])] : null,
                 r["CF"] != null ? ["CF", Number(r["CF"]).toLocaleString()] : null,
                 ["Sheet row", esc(r["Sheet Row"] || "—")]])
-          + '<div class="ldp-sec">Plan — saved with history</div>'
-            + '<div style="margin-top:10px;display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end" data-ldpform="1" data-co="' + esc(r._co) + '" data-req="' + esc(r._rq) + '" data-row="' + esc(r["Sheet Row"] || "") + '">'
-            + '<div class="ldp-fgrp"><span class="ldp-flbl">Plan</span>'
-            +   '<label>Trip days<input type="number" min="1" max="60" data-ldf="trip_days" value="' + esc(r._ent.trip_days && r._ent.trip_days.value || "") + '" style="width:78px"></label>'
-            +   '<label>Final FAD<input type="date" data-ldf="final_fad" value="' + esc(r._ent.final_fad && r._ent.final_fad.value || "") + '"></label>'
-            +   '<label>Timeframe<input type="text" data-ldf="timeframe" placeholder="e.g. 7-10 business days" value="' + esc(r._ent.timeframe && r._ent.timeframe.value || "") + '" style="width:170px"></label>'
-            +   '<label>Final CF<input type="number" min="1" max="20000" data-ldf="final_cf" value="' + esc(r._ent.final_cf && r._ent.final_cf.value || "") + '" style="width:96px"></label>'
-            + '</div>'
-            + '<div class="ldp-fgrp"><span class="ldp-flbl">Where it is</span>'
-            +   '<label>Location<select data-ldf="location">' + LOC_OPTS(r._ent.location && r._ent.location.value || "") + '</select></label>'
-            +   '<label>Detail<input type="text" data-ldf="location_note" placeholder="unit / address / who has it" value="' + esc(r._ent.location_note && r._ent.location_note.value || "") + '" style="width:220px"></label>'
-            +   '<input type="hidden" data-ldf="location_lat" value="' + esc(r._ent.location_lat && r._ent.location_lat.value || "") + '">'
-            +   '<input type="hidden" data-ldf="location_lng" value="' + esc(r._ent.location_lng && r._ent.location_lng.value || "") + '">'
-            +   '<button class="ldp-mapbtn" type="button">📍 ' + ((r._ent.location_lat && r._ent.location_lat.value) ? "Move pin" : "Pin on map") + '</button>'
-            +   '<span class="ldp-pin ldp-det">' + ((r._ent.location_lat && r._ent.location_lat.value) ? esc(Number(r._ent.location_lat.value).toFixed(4)) + ", " + esc(Number(r._ent.location_lng.value).toFixed(4)) : "no pin") + '</span>'
-            + '</div>'
-            + '<button class="ldp-savebtn">Save</button>'
-            + '<span class="ldp-saveinfo ldp-det">' + (function () {
-                var last = ["trip_days", "final_fad", "final_cf", "timeframe", "location", "location_note"].map(function (f) { return r._ent[f]; }).filter(Boolean)
-                  .sort(function (a, b) { return String(b.at || "").localeCompare(String(a.at || "")); })[0];
-                return last ? "last set by " + esc(String(last.by || "").split("@")[0].replace("import:ld-sheet", "old sheet import")) + " · " + esc(String(last.at || "").slice(0, 16)) : "not set yet";
-              })() + "</span>"
-            + "</div>"
+          // The drawer is READ-ONLY (Tornike 2026-07-28: "i dont need user to input anything
+          // here"). The Plan / Where-it-is form lived here; corrections belong in the long-distance
+          // sheet, the system of record. overlaid() still APPLIES entries saved before this change.
         ;
       }
 
@@ -758,8 +741,7 @@ registerPage({
         dr.innerHTML =
           '<div class="ldp-dhd"><button class="x" id="ldpDx" title="Close">✕</button>'
           + '<div class="ldp-dnm">' + esc(r["Customer"] || "—") + "</div>"
-          + '<div class="ldp-dmeta">' + esc(String(r["Request #"] || "—"))
-          + (r["Job Code"] ? " · " + esc(String(r["Job Code"]).split(",")[0]) : "")
+          + '<div class="ldp-dmeta">' + esc(r["Job Code"] ? String(r["Job Code"]).split(",")[0] : "—")
           + " · " + esc(r["Company"] || "") + " · picked up " + fmtD(r["Pickup Date"]) + "</div>"
           + '<div class="ldp-dpills">' + urgPill(r) + possPill(r) + locPill(r) + "</div></div>"
           + '<div class="ldp-dbody">' + drawerBody(r) + "</div>";
@@ -930,7 +912,7 @@ registerPage({
               : String(r["Urgency"] || "") === "Act soon" ? "u-amber" : "";
         var main = '<tr class="ldp-row ' + uk + (S.sel === key ? " on" : "") + '" data-ldk="' + esc(key) + '">'
           + '<td class="ldp-cust-td"><span class="ldp-cust">' + esc(r["Customer"] || "—") + "</span>"
-              + '<div class="ldp-sub">' + esc(String(r["Request #"] || "—"))
+              + '<div class="ldp-sub">' + esc(r["Job Code"] ? String(r["Job Code"]).split(",")[0] : "—")
               + (r["Company"] && r["Company"] !== "Zip to Zip" ? " · " + esc(r["Company"]) : "")
               + "</div></td>"
           + "<td>" + typeChip(r) + "</td>"
