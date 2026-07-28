@@ -126,7 +126,14 @@ registerPage({
           margin:17px 0 7px;display:flex;align-items:center;gap:9px}
         .ldp-sec::after{content:"";flex:1;height:1px;background:var(--line)}
         .ldp-sec:first-child{margin-top:0}
-        .ldp-big{font-size:16px;font-weight:800;letter-spacing:-.2px;line-height:1.25;display:block}
+        .ldp-stage{display:inline-block;font-size:10px;font-weight:800;letter-spacing:.03em;padding:2px 8px;border-radius:999px;white-space:nowrap}
+    .ldp-stage.p{background:rgba(37,99,235,.11);color:var(--blue)}
+    .ldp-stage.d{background:rgba(28,122,74,.12);color:${POS}}
+    .ldp-from{font-size:11.5px;font-weight:650;color:var(--ink);line-height:1.3;display:block;white-space:normal}
+    .ldp-fromtd{max-width:200px;white-space:normal}
+    .ldp-addr{font-size:12.5px;font-weight:600;color:var(--muted);line-height:1.4;margin-top:3px;white-space:normal}
+    .ldp-whsub{white-space:normal !important;overflow:visible !important;text-overflow:clip !important}
+    .ldp-big{font-size:16px;font-weight:800;letter-spacing:-.2px;line-height:1.25;display:block}
         .ldp-kv{display:grid;grid-template-columns:124px minmax(0,1fr);gap:0 14px;font-size:13.5px;align-items:baseline;
           background:var(--panel-2);border:1px solid var(--line);border-radius:12px;padding:4px 12px}
         .ldp-kv dt{color:var(--faint);font-weight:700;padding:9px 0;border-top:1px solid var(--line);font-size:12px}
@@ -364,6 +371,39 @@ registerPage({
              to: dest, toLabel: "Delivery location", firm: false };
   }
 
+  // Our own depot. The sheet just says "Our Storage" / "boxes Space O, 44" -- a driver needs
+  // the actual address (Tornike 2026-07-28).
+  var OUR_STORAGE_ADDR = "3212 Shafto Rd unit 3, Tinton Falls, NJ 07753, United States";
+
+  // WHERE THE DELIVERY LEG STARTS. Empty while the goods are still with the customer: that leg
+  // is a PICKUP and its origin is the customer's own address. Once we hold them, this is the
+  // concrete place the truck loads from -- our depot's real address, the rented unit's full
+  // address, or the carrier holding it.
+  function departFrom(r) {
+    var loc = String(r["Location"] || "").trim();
+    var det = String(r["Location Detail"] || "").trim();
+    var carrier = String(r["Carrier Driver"] || "").trim();
+    if (!loc || loc === "Not collected" || loc === "Unknown") return { text: "", sub: "" };
+    if (loc === "Our Storage") return { text: OUR_STORAGE_ADDR, sub: det };
+    if (loc === "With carrier" || carrier) return { text: carrier || "Carrier", sub: det };
+    if (det) return { text: det, sub: loc };
+    return { text: loc, sub: "" };
+  }
+  function departCellFrom(r) {
+    var d = departFrom(r);
+    if (!d.text) return '<span class="ldp-nodate">picking up</span>';
+    return '<span class="ldp-from">' + esc(d.text) + "</span>"
+      + (d.sub ? '<div class="ldp-sub">' + esc(d.sub) + "</div>" : "");
+  }
+  function stageOf(r) {
+    return (String(r["Possession"] || "").toLowerCase().indexOf("not picked up") >= 0
+      || String(r["Location"] || "") === "Not collected") ? "Pickup" : "Delivery";
+  }
+  function stageChip(r) {
+    var st = stageOf(r);
+    return '<span class="ldp-stage ' + (st === "Pickup" ? "p" : "d") + '">' + st + "</span>";
+  }
+
   function tripDays(r) { var v = +(r["Trip Days"] || 0); return v > 0 ? v : TRIP_DEFAULT; }
   function tripTxt(r) { return tripDays(r) + "d trip" + (+(r["Trip Days"] || 0) > 0 ? "" : " (assumed)"); }
   var S = window.__LDP || (window.__LDP = { view: "board", q: "", co: "", loc: "", sel: null, tlStart: null, tlSeg: "", kpi: "", ms: { type: [], cust: [] } });
@@ -421,7 +461,7 @@ registerPage({
     function locPill(r) {
       var l = String(r["Location"] || "Unknown");
       var cls = l === "At Carrier" ? "ldp-loc-car"
-        : /Our Storage|Other Storage|Storage \(sheet\)/.test(l) ? "ldp-loc-store"
+        : /Our Storage|Other Storage|^Storage$/.test(l) ? "ldp-loc-store"
         : l === "Rented Storage" ? "ldp-loc-rent"
         : /Truck|Trailer/.test(l) ? "ldp-loc-truck"
         : l === "Left Storage" ? "ldp-loc-truck" : "ldp-loc-unk";
@@ -491,9 +531,10 @@ registerPage({
       var loc = String(r["Location"] || "");
       var sub = [];
       if (loc && loc !== "Unknown" && loc !== "Not collected") sub.push(loc);
-      if (det) sub.push(det);
+      // the concrete address now lives in "Departing from" IN FULL -- this cell keeps the
+      // custody pill and the bucket name so the same address is not printed twice
       return possPill(r)
-        + (sub.length ? '<div class="ldp-sub ldp-whsub">' + esc(sub.join(" \u00b7 ").slice(0, 60)) + "</div>" : "");
+        + (sub.length ? '<div class="ldp-sub ldp-whsub">' + esc(sub.join(" \u00b7 ")) + "</div>" : "");
     }
     function beginCell(r) {
       var st = isStraight(r);
@@ -705,14 +746,6 @@ registerPage({
         }
         return '<div class="ldp-jobs">' + h + "</div>";
       }
-      function LOC_OPTS(cur) {
-        var opts = ["", "Our Storage", "Rented Storage", "Other Storage", "On Our Truck",
-                    "At Carrier", "In Transit", "Delivered Area", "Unknown"];
-        return opts.map(function (o) {
-          return '<option value="' + esc(o) + '"' + (o === cur ? " selected" : "") + ">"
-            + (o || "— derived automatically —") + "</option>";
-        }).join("");
-      }
       // DETAIL DRAWER body. Everything the table no longer shows lives here, in the
       // same right-side overlay pattern the Reviews drawer uses.
       function drawerBody(r) {
@@ -751,17 +784,20 @@ registerPage({
           + kv(delivery.concat([
                 ["Depart by", fmtD(r["Depart By"]) + ' <span class="ldp-sub">' + tripTxt(r) + "</span>"]]))
           + '<div class="ldp-sec">Where it is</div>'
-          + kv([["Status", esc(r["Possession"] || "—")],
-                ["Location", esc(r["Location"] || "—") + (det ? ' <span class="ldp-sub">' + esc(det) + "</span>" : "")],
+          + (function () { var dfrom = departFrom(r); return kv([
+                ["Status", esc(r["Possession"] || "—")],
+                ["Location", '<b class="ldp-big">' + esc(r["Location"] || "—") + "</b>"
+                  + (dfrom.text ? '<div class="ldp-addr">' + esc(dfrom.text) + "</div>"
+                                : (det ? '<div class="ldp-addr">' + esc(det) + "</div>" : ""))],
                 // Carrier only exists on REGULAR moving -- a Straight job is driven by our own
                 // crew, so showing carrier fields there invites a wrong reading (Tornike 2026-07-28).
                 (!isStraight(r) && r["Carrier Driver"]) ? ["Carrier", esc(r["Carrier Driver"])] : null,
                 (!isStraight(r) && r["Total To Carrier"] != null) ? ["To carrier", money(r["Total To Carrier"])] : null,
-                ["Sticker", esc(r["Sticker"] || "—")]])
+                ["Sticker", esc(r["Sticker"] || "—")]]); })()
           + '<div class="ldp-sec">Job</div>'
           + kv([r["Balance Due"] != null ? ["Balance due", money(r["Balance Due"])] : null,
                 r["CF"] != null ? ["CF", Number(r["CF"]).toLocaleString()] : null,
-                ["Sheet row", esc(r["Sheet Row"] || "—")]])
+])
           // The drawer is READ-ONLY (Tornike 2026-07-28: "i dont need user to input anything
           // here"). The Plan / Where-it-is form lived here; corrections belong in the long-distance
           // sheet, the system of record. overlaid() still APPLIES entries saved before this change.
@@ -987,6 +1023,8 @@ registerPage({
               + (r["Company"] && r["Company"] !== "Zip to Zip" ? " · " + esc(r["Company"]) : "")
               + "</div></td>"
           + "<td>" + typeChip(r) + "</td>"
+          + "<td>" + stageChip(r) + "</td>"
+          + '<td class="ldp-fromtd">' + departCellFrom(r) + "</td>"
           + "<td>" + esc(stateZip(r["Moving To"], r["Delivery State"]) || "—") + "</td>"
           + '<td class="ldp-jobstd">' + jobsCell(r) + "</td>"
           + "<td>" + whereCell(r) + "</td>"
@@ -1001,7 +1039,10 @@ registerPage({
       }).join("");
 
       var tbl = '<div class="ldp-card"><div class="ldp-wrap"><table class="ldp-tbl"><thead><tr>'
-        + "<th>Customer</th><th>Type</th><th>Delivering to</th>"
+        + "<th>Customer</th><th>Type</th>"
+        + "<th title=\"Which leg is next: collect it from the customer, or deliver what we already hold\">Stage</th>"
+        + "<th title=\"Where the delivery truck loads from. Blank while the goods are still with the customer.\">Departing from</th>"
+        + "<th>Delivering to</th>"
         + "<th>Jobs &amp; status</th><th>Where it is</th>"
         + "<th class=\"ldp-hbegin\" title=\"FAD - the first available date of delivery from the long-distance sheet - and the last day of the delivery window (FAD + timeframe)\">Delivery window (FAD)</th>"
         + "<th title=\"The latest the truck can leave and still deliver inside the window\">Depart by</th><th>Status</th>"
