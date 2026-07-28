@@ -824,7 +824,11 @@
       if (state.chip === "noclose") rows = rows.filter(r => +r["Flag Confirmed No Closing"]);
       if (state.chip === "dead") rows = rows.filter(isDead);
       if (state.chip === "calbad") rows = rows.filter(calMismatch);
-      const key = { new: r => r["Create Date"] || "", move: r => String(r["Move Date"] || ""),
+      // "soonest" = ASCENDING; the shared comparator below is descending-only, so the move
+      // key inverts per character (ISO dates compare lexicographically) with blanks pushed last
+      const key = { new: r => r["Create Date"] || "",
+        move: r => { const d = String(r["Move Date"] || "").slice(0, 10);
+          return d ? d.split("").map(c => String.fromCharCode(255 - c.charCodeAt(0))).join("") : ""; },
         slow: r => (r["TTO Biz Min"] != null ? +r["TTO Biz Min"] : -1),
         bill: r => +(r["Total Bill"] || 0), gap: r => Math.abs(+(r["Bill Vs Quote Pct"] || 0)),
         cf: r => +(r["Total CF"] || 0),

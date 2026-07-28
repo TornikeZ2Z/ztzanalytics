@@ -339,9 +339,11 @@ registerPage({
   // "PA 15317" style, matching how every other destination on the board is written.
   function stateZip(addr, st) {
     var a = String(addr || "");
-    var zip = (a.match(/(\d{5})(?:-\d{4})?(?!\d)/) || [])[1] || "";
-    var stm = (a.match(/,\s*([A-Z]{2})\s*\d{5}/) || (a.match(/^\s*([A-Z]{2})\s+\d{5}/) || []))[1]
-              || String(st || "").trim();
+    // the zip is the one BESIDE the state, never the first 5-digit run (which is
+    // usually the street number: "12345 Biscayne Blvd, Miami, FL 33181")
+    var m = a.match(/,?\s*([A-Z]{2})\s+(\d{5})(?:-\d{4})?(?!\d)/);
+    var zip = m ? m[2] : ((a.match(/(\d{5})(?:-\d{4})?\s*(?:,?\s*USA?\.?)?\s*$/) || [])[1] || "");
+    var stm = (m && m[1]) || String(st || "").trim();
     return ((stm || "") + " " + zip).trim() || String(st || "").trim() || "";
   }
 
@@ -553,7 +555,7 @@ registerPage({
       var actNow = all.filter(function (r) { return r["Urgency"] === "Act now"; }).length;
       var actSoon = all.filter(function (r) { return r["Urgency"] === "Act soon"; }).length;
       var noWin = all.filter(function (r) { return r["Urgency"] === "Missing data"; }).length;
-      var held = all.filter(function (r) { return String(r["Possession"] || "").indexOf("unknown") >= 0; }).length;
+      var held = all.filter(function (r) { return custKey(r) === "unk"; }).length;
 
       // KPI cards are FILTERS, not decoration — click one to see exactly those rows;
       // click again to release. The counts always describe the whole board.
@@ -573,7 +575,7 @@ registerPage({
         if (S.kpi === "now") return r["Urgency"] === "Act now";
         if (S.kpi === "soon") return r["Urgency"] === "Act soon";
         if (S.kpi === "miss") return r["Urgency"] === "Missing data";
-        if (S.kpi === "unk") return String(r["Possession"] || "").indexOf("unknown") >= 0;
+        if (S.kpi === "unk") return custKey(r) === "unk";
         return !!r["Data Issue"];
       };
       var segPass = function (r) {
@@ -613,7 +615,7 @@ registerPage({
           +   "<span>" + (sel.length ? sel.length + " selected" : "All") + "</span>"
           +   (sel.length ? '<span class="cnt">' + sel.length + "</span>" : "")
           + "</button>"
-          + '<div class="ldp-mspop hidden" data-mspop="' + dim + '">' + body
+          + '<div class="ldp-mspop' + (S.msOpen === dim ? "" : " hidden") + '" data-mspop="' + dim + '">' + body
           +   '<div class="ldp-msact"><button data-msall="' + dim + '">Select all</button>'
           +   '<button data-msnone="' + dim + '">Clear</button></div></div></div>';
       }
@@ -910,6 +912,7 @@ registerPage({
           days = Math.max(21, Math.min(180, Math.max(TL_DAYS, need)));
         })();
         var dp = 100 / days;
+        S._tlAnchor = st.toLocaleDateString("en-CA");   // the stepper steps from what is shown
         var end = new Date(st.getTime() + (days - 1) * 86400000);
         var MONS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
         var cal = "";
@@ -1013,7 +1016,7 @@ registerPage({
       // keep the scroll position — a repaint used to snap back to the top; the vertical
       // scroller is the table wrap (.ldp-wrap), not the window — restore both
       var sx = window.scrollX, sy = window.scrollY;
-      var wrap0 = document.querySelector("#ldpBody .ldp-wrap");
+      var wrap0 = document.querySelector("#ldpBody .ldp-wrap") || document.querySelector("#ldpBody .ldp-tlbody");
       var wt = wrap0 ? wrap0.scrollTop : 0, wl = wrap0 ? wrap0.scrollLeft : 0;
       // the user may have switched pages while loadEntries()/save was awaiting — the mount
       // is gone and painting would throw "innerHTML on null" (money-flow had this same bug)
@@ -1031,7 +1034,7 @@ registerPage({
       }
 
       wire();
-      var wrap1 = document.querySelector("#ldpBody .ldp-wrap");
+      var wrap1 = document.querySelector("#ldpBody .ldp-wrap") || document.querySelector("#ldpBody .ldp-tlbody");
       if (wrap1) { wrap1.scrollTop = wt; wrap1.scrollLeft = wl; }
       window.scrollTo(sx, sy);
     }
@@ -1126,7 +1129,8 @@ registerPage({
           e.stopPropagation();
           var dim = b.getAttribute("data-mstoggle");
           var pop = host.querySelector('[data-mspop="' + dim + '"]');
-          var wasOpen = pop && !pop.classList.contains("hidden");
+          var wasOpen = S.msOpen === dim;
+          S.msOpen = wasOpen ? "" : dim;
           host.querySelectorAll(".ldp-mspop").forEach(function (p) { p.classList.add("hidden"); });
           if (pop && !wasOpen) pop.classList.remove("hidden");
         };
@@ -1156,6 +1160,7 @@ registerPage({
       // one outside-click closer for the whole page
       if (!host.__msClose) {
         host.__msClose = function () {
+          S.msOpen = "";
           document.querySelectorAll(".ldp-mspop").forEach(function (p) { p.classList.add("hidden"); });
         };
         document.addEventListener("click", host.__msClose);
@@ -1187,6 +1192,7 @@ registerPage({
             // the UTC day, one off for a US viewer at night.
             var d0;
             if (S.tlStart) d0 = new Date(S.tlStart + "T12:00:00");
+            else if (S._tlAnchor) d0 = new Date(S._tlAnchor + "T12:00:00");   // the auto-fit start on screen
             else { d0 = new Date(); d0.setDate(d0.getDate() - 7); }
             d0.setDate(d0.getDate() + (a === "next" ? 14 : -14));
             S.tlStart = d0.toLocaleDateString("en-CA");

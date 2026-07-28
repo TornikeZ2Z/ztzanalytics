@@ -324,17 +324,27 @@ async function rlPollLive(host) {
   const slot = host.querySelector("#rlLive");
   if (!slot) return;                       // page navigated away
   let st = null;
-  try { st = await ZTZ.api("/api/_refresh_status"); } catch (e) { return; }
+  try { st = await ZTZ.api("/api/_refresh_status"); }
+  catch (e) {
+    // one failed fetch must not kill the poll chain -- retry on the idle cadence
+    clearTimeout(host.__rlTimer);
+    host.__rlTimer = setTimeout(() => rlPollLive(host), 15000);
+    return;
+  }
   if (!host.querySelector("#rlLive")) return;
   slot.innerHTML = rlLiveHtml(st);
   const wasRunning = host.__rlRunning;
   host.__rlRunning = !!(st && st.running);
-  // a run just ended -> pull the full log once so the history/KPIs show it
-  if (wasRunning && !host.__rlRunning) {
+  if (host.__rlRunning) host.__rlSeenRun = true;
+  // "just clicked Run" is not "a run ended": the marker takes a cold start to appear, so the
+  // ended-transition only fires once a running marker has actually been OBSERVED (and the
+  // awaiting window keeps the fast cadence until it shows up, capped at 90s)
+  const awaiting = host.__rlAwait && (Date.now() - host.__rlAwait < 90000) && !host.__rlSeenRun;
+  if (host.__rlSeenRun && wasRunning && !host.__rlRunning) {
     try { if (window.RS && RS.refresh) RS.refresh(); await renderPage(); return; } catch (e) {}
   }
   clearTimeout(host.__rlTimer);
-  host.__rlTimer = setTimeout(() => rlPollLive(host), host.__rlRunning ? 4000 : 20000);
+  host.__rlTimer = setTimeout(() => rlPollLive(host), (host.__rlRunning || awaiting) ? 4000 : 20000);
 }
 
 function rlRender(host, runs, cov) {
@@ -491,8 +501,11 @@ registerPage({
           ? `<span class="rl-dot ok"></span>Refresh started — progress is shown below, live.`
           : `<span class="rl-dot bad"></span>${RSC.esc((r && r.error) || "Could not start the refresh.")}`;
         if (r && r.started) {
-          // the loader needs a moment to publish its run marker; poll fast until it appears
-          host.__rlRunning = true;
+          // poll fast until the loader publishes its run marker -- but do NOT pretend the run
+          // is already visible (the optimistic flag used to trip the "run ended" branch 2.5s
+          // after the click, wiping the message and dropping to the idle cadence)
+          host.__rlAwait = Date.now();
+          host.__rlSeenRun = false;
           clearTimeout(host.__rlTimer);
           setTimeout(() => rlPollLive(host), 2500);
         }
