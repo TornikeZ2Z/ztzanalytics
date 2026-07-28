@@ -324,6 +324,10 @@ registerPage({
   // about havign 2 as a default - make it 1. 2 is too high"). The depart-by date has to exist
   // either way, and over-estimating the drive pulls it forward and cries wolf.
   var TRIP_DEFAULT = 1;
+  // 0 in the sheet means "not filled in", not "a zero-day drive" -- it printed "0d trip" and
+  // collapsed depart-by onto the delivery date itself.
+  function tripDays(r) { var v = +(r["Trip Days"] || 0); return v > 0 ? v : TRIP_DEFAULT; }
+  function tripTxt(r) { return tripDays(r) + "d trip" + (+(r["Trip Days"] || 0) > 0 ? "" : " (assumed)"); }
   var S = window.__LDP || (window.__LDP = { view: "board", q: "", co: "", loc: "", sel: null, tlStart: null, tlSeg: "", kpi: "", ms: { type: [], cust: [] } });
   if (!S.ms) S.ms = { type: [], cust: [] };   // older cached state from a previous version
     S.sel = null;
@@ -408,7 +412,7 @@ registerPage({
         var fad = r["FAD"] ? String(r["FAD"]).slice(0, 10) : null;
         var end = r["Window End"] ? String(r["Window End"]).slice(0, 10) : null;
         var deadline = r["Type"] === "Straight" ? fad : end;
-        var trip = r["Trip Days"] != null ? +r["Trip Days"] : TRIP_DEFAULT;
+        var trip = tripDays(r);
         r["Depart By"] = deadline ? isoAdd(deadline, -trip) : null;
         var dd = deadline ? daysBetween2(t, deadline) : null;
         var dp = r["Depart By"] ? daysBetween2(t, r["Depart By"]) : null;
@@ -508,7 +512,7 @@ registerPage({
       else { sub = "passed " + Math.abs(n) + "d ago"; cls = "late"; }
       return '<b class="ldp-dt">' + fmtD(d) + "</b>"
         + '<div class="ldp-when ' + cls + '">' + sub
-        + (r["Trip Days"] != null ? ' \u00b7 ' + r["Trip Days"] + "d trip" : "") + "</div>";
+        + ' · ' + tripTxt(r) + "</div>";
     }
     function whereCell(r) {
       var det = String(r["Location Detail"] || "");
@@ -752,10 +756,12 @@ registerPage({
         // the committed DELIVERY DATE in that field, so labelling it "FAD" here would lie.
         var delivery = isStraight(r)
           ? [["Delivery date", fmtD(r["FAD"]) + (r["FAD Source"] ? ' <span class="ldp-sub">(' + esc(r["FAD Source"]) + ")</span>" : "")],
-             ["Timeframe", esc(r["Timeframe"] || "—")]]
+             ["Timeframe", (r["Timeframe"] && String(r["Timeframe"]).trim() !== "0")
+               ? esc(r["Timeframe"]) : '<span class="ldp-sub">none — deliver on the FAD</span>']]
           : [["FAD", fmtD(r["FAD"]) + (r["FAD Source"] ? ' <span class="ldp-sub">(' + esc(r["FAD Source"]) + ")</span>" : "")],
              ["Window", windowTxt(r) + (r["Window Note"] ? ' <span class="ldp-sub">' + esc(r["Window Note"]) + "</span>" : "")],
-             ["Timeframe", esc(r["Timeframe"] || "—")]];
+             ["Timeframe", (r["Timeframe"] && String(r["Timeframe"]).trim() !== "0")
+               ? esc(r["Timeframe"]) : '<span class="ldp-sub">none — deliver on the FAD</span>']];
 
         return ''
           + (r["Do"] ? '<div class="ldp-dnote"><b>Do:</b> ' + esc(r["Do"]) + "</div>" : "")
@@ -767,7 +773,7 @@ registerPage({
                 ["To", esc(r["Moving To"] || "—") + (r["Delivery State"] ? " (" + esc(r["Delivery State"]) + ")" : "")]])
           + '<div class="ldp-sec">Delivery</div>'
           + kv(delivery.concat([
-                ["Depart by", fmtD(r["Depart By"]) + (r["Trip Days"] != null ? ' <span class="ldp-sub">' + r["Trip Days"] + "d trip</span>" : ' <span class="ldp-sub">trip days not set</span>')]]))
+                ["Depart by", fmtD(r["Depart By"]) + ' <span class="ldp-sub">' + tripTxt(r) + "</span>"]]))
           + '<div class="ldp-sec">Where it is</div>'
           + kv([["Status", esc(r["Possession"] || "—")],
                 ["Location", esc(r["Location"] || "—") + (det ? ' <span class="ldp-sub">' + esc(det) + "</span>" : "")],
