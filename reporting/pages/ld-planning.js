@@ -359,7 +359,7 @@ registerPage({
     var a = String(addr || "");
     // the zip is the one BESIDE the state, never the first 5-digit run (which is
     // usually the street number: "12345 Biscayne Blvd, Miami, FL 33181")
-    var m = a.match(/,?\s*([A-Z]{2})\s+(\d{5})(?:-\d{4})?(?!\d)/);
+    var m = a.match(/,?\s*([A-Z]{2})[,\s]+(\d{5})(?:-\d{4})?(?!\d)/);
     var zip = m ? m[2] : ((a.match(/(\d{5})(?:-\d{4})?\s*(?:,?\s*USA?\.?)?\s*$/) || [])[1] || "");
     var stm = (m && m[1]) || String(st || "").trim();
     return ((stm || "") + " " + zip).trim() || String(st || "").trim() || "";
@@ -383,7 +383,8 @@ registerPage({
       return { from: d.text || here, fromSub: d.text ? d.sub : detail,
                to: dest, toLabel: "Delivering to", firm: true };
     }
-    return { from: String(r["Moving From"] || "").trim() || "—", fromSub: "",
+    var raw = String(r["Moving From"] || "").trim();
+    return { from: stateZip(raw) || raw || "—", fromSub: stateZip(raw) ? raw : "",
              to: dest, toLabel: "Delivery location", firm: false };
   }
 
@@ -605,7 +606,7 @@ registerPage({
     function custKey(r) {
       var p = String(r["Possession"] || "");
       return p === "With us" ? "us" : p === "With carrier" ? "car"
-           : p === "Third-party storage" ? "tp"
+           : (p === "Rented Storage" || p === "Third-party storage") ? "tp"
            : p === "Not picked up yet" ? "no" : "unk";
     }
     var CUST_LABEL = { us: "With us", car: "Carrier", tp: "Storage", no: "To collect", unk: "Missing Closing" };
@@ -613,7 +614,7 @@ registerPage({
       var p = String(r["Possession"] || "—");
       var cls = p === "With us" ? "ldp-pos-us"
         : p === "With carrier" ? "ldp-pos-car"
-        : p === "Third-party storage" ? "ldp-pos-3p"
+        : (p === "Rented Storage" || p === "Third-party storage") ? "ldp-pos-3p"
         : p === "Not picked up yet" ? "ldp-pos-no" : "ldp-pos-unk";
       return '<span class="ldp-pos ' + cls + '">' + esc(p) + "</span>";
     }
