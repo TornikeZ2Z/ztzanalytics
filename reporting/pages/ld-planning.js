@@ -567,9 +567,9 @@ registerPage({
       if (n > 0) { sub = "in " + n + "d"; cls = n <= 2 ? "soon" : "ok"; }
       else if (n === 0) { sub = "TODAY"; cls = "soon"; }
       else { sub = "passed " + Math.abs(n) + "d ago"; cls = "late"; }
+      var tt = tripTxt(r);
       return '<b class="ldp-dt">' + fmtD(d) + "</b>"
-        + '<div class="ldp-when ' + cls + '">' + sub
-        + ' · ' + tripTxt(r) + "</div>";
+        + '<div class="ldp-when ' + cls + '">' + sub + (tt ? " · " + tt : "") + "</div>";
     }
     function whereCell(r) {
       var det = String(r["Location Detail"] || "");
@@ -848,7 +848,7 @@ registerPage({
                        ? '<div class="ldp-sub">' + esc(r["Moving To"]) + "</div>" : "")]]); })()
           + '<div class="ldp-sec">Delivery</div>'
           + kv(delivery.concat([
-                ["Depart by", fmtD(r["Depart By"]) + ' <span class="ldp-sub">' + tripTxt(r) + "</span>"]]))
+                ["Depart by", fmtD(r["Depart By"]) + (tripTxt(r) ? ' <span class="ldp-sub">' + tripTxt(r) + "</span>" : "")]]))
           + '<div class="ldp-sec">Where it is</div>'
           + (function () { var dfrom = departFrom(r); return kv([
                 ["Status", esc(r["Possession"] || "—")],
