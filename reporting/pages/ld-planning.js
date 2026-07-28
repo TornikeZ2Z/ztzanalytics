@@ -401,78 +401,12 @@ registerPage({
     function daysBetween2(a, b) { return Math.round((new Date(b + "T12:00:00") - new Date(a + "T12:00:00")) / 864e5); }
     function isoAdd(iso, n) { var d = new Date(iso + "T12:00:00"); d.setDate(d.getDate() + n); return d.toLocaleDateString("en-CA"); }
     function fmtShort(iso) { var d = new Date(String(iso).slice(0, 10) + "T12:00:00"); return d.toLocaleDateString("en-US", { month: "short", day: "numeric" }); }
-    function overlaid() {
-      var t = new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
-      return rows.map(function (b) {
-        var co = String(b["Company"] || ""), rq = String(b["Request #"] || "");
-        var en = entFor(co, rq, b["Sheet Row"]);   // `b` is the source row; `r` isn't built yet
-        var r = Object.assign({}, b); r._ent = en; r._co = co; r._rq = rq;
-        var touched = ["trip_days", "final_fad", "final_cf", "timeframe", "location", "location_note"]
-          .some(function (f) { return en[f] && en[f].value; });
-        if (!touched) return r;  // pipeline is current
-        // location entered in the portal takes effect on THIS paint, custody included —
-        // waiting an hour for the rebuild made Save feel broken
-        if (en.location && en.location.value) {
-          var lv = String(en.location.value);
-          r["Location"] = lv; r["Location Source"] = "portal";
-          if (en.location_note && en.location_note.value) r["Location Detail"] = String(en.location_note.value);
-          if (String(r["Possession"] || "") !== "Not picked up yet") {
-            r["Possession"] = lv === "At Carrier" ? "With carrier"
-              : (lv === "Our Storage" || lv === "On Our Truck") ? "With us"
-              : lv.indexOf("Storage") >= 0 ? "Third-party storage"
-              : "Picked up \u2014 missing closing";
-          }
-        } else if (en.location_note && en.location_note.value) {
-          r["Location Detail"] = String(en.location_note.value);
-        }
-        // recompute with the SAME rules as the pipeline's _plan (src/ld_planning.py)
-        if (en.final_fad && en.final_fad.value) {
-          r["FAD"] = en.final_fad.value; r["FAD Source"] = "portal";
-          var note = String(r["Window Note"] || "");
-          var m = note.match(/^(\d+) (business )?days/);
-          if (note === "same day") r["Window End"] = r["FAD"];
-          else if (m) r["Window End"] = isoAdd(r["FAD"], m[2] ? Math.ceil(+m[1] * 7 / 5) : +m[1]);
-        }
-        // a portal TIMEFRAME reshapes the window off whatever FAD is current
-        if (en.timeframe && en.timeframe.value && r["FAD"]) {
-          var tf = String(en.timeframe.value).toLowerCase();
-          r["Timeframe"] = String(en.timeframe.value);
-          var mr = tf.match(/(\d{1,3})\s*-\s*(\d{1,3})/);
-          var mo = tf.match(/(\d{1,3})/);
-          var nD = mr ? Math.max(+mr[1], +mr[2]) : (mo ? +mo[1] : null);
-          if (tf.indexOf("same day") >= 0 || nD === 0) r["Window End"] = r["FAD"];
-          else if (nD != null) r["Window End"] = isoAdd(String(r["FAD"]).slice(0, 10), tf.indexOf("business") >= 0 ? Math.ceil(nD * 7 / 5) : nD);
-        }
-        if (en.trip_days && en.trip_days.value) r["Trip Days"] = +en.trip_days.value;
-        if (en.final_cf && en.final_cf.value) r["CF"] = +en.final_cf.value;
-        var fad = r["FAD"] ? String(r["FAD"]).slice(0, 10) : null;
-        var end = r["Window End"] ? String(r["Window End"]).slice(0, 10) : null;
-        var deadline = r["Type"] === "Straight" ? fad : end;
-        var trip = tripDays(r);
-        r["Depart By"] = deadline ? isoAdd(deadline, -trip) : null;
-        var dd = deadline ? daysBetween2(t, deadline) : null;
-        var dp = r["Depart By"] ? daysBetween2(t, r["Depart By"]) : null;
-        var urg, why;
-        if (!fad && !end) { urg = "Missing data"; why = "no delivery window"; }
-        else if (dd != null && dd < 0) { urg = "Act now"; why = r["Type"] === "Straight" ? "delivery date passed" : "delivery window expired"; }
-        else if (dp != null && dp <= 0) { urg = "Act now"; why = "departure date passed"; }
-        else if (dp != null && dp <= 2) { urg = "Act soon"; why = "depart within " + dp + "d"; }
-        else if (fad && daysBetween2(t, fad) <= 0) { urg = "Act soon"; why = "window is open"; }
-        else { urg = "On track"; why = null; }
-        r["Urgency"] = urg; r["Urgency Reason"] = why;
-        var doTxt;
-        if (r["Location"] === "At Carrier") doTxt = "Mark Delivered in the sheet — carrier already has it";
-        else if (r["CF"] != null && +r["CF"] > 1500) doTxt = "Too big for one truck (" + Number(r["CF"]).toLocaleString() + " CF) — assign a carrier";
-        else if (urg === "Act now" && dd != null && dd < 0) doTxt = "OVERDUE — call the customer, deliver ASAP (" + (-dd) + "d late)";
-        else if (urg === "Act now") doTxt = deadline ? "Start moving now — deliver by " + fmtShort(deadline) : "Start moving now";
-        else if (urg === "Act soon" && r["Depart By"]) doTxt = "Plan departure by " + fmtShort(r["Depart By"]) + (String(r["Location"]).indexOf("Storage") >= 0 ? " — pull from storage first" : "");
-        else if (urg === "Missing data") doTxt = "Fill FAD / timeframe in the calendar, or set Final FAD here";
-        else if (r["Depart By"]) doTxt = "On track — truck departs by " + fmtShort(r["Depart By"]);
-        else doTxt = "On track";
-        r["Do"] = doTxt;
-        return r;
-      });
-    }
+    // The LD SHEET is the system of record for planning values (Tornike 2026-07-28: "whatever
+    // is written there - thats the final FAD"), and the portal inputs that used to write these
+    // are gone. Overlaying old saved entries on top of the mart made a STALE portal value beat
+    // the sheet -- Mary Head's sheet FAD of 30 Aug was being overridden back to the 30 Apr
+    // pickup date by an entry saved months ago. The mart's row is now shown as-is.
+    function overlaid() { return rows; }
 
     function fmtD(v) {
       if (!v) return "—";
