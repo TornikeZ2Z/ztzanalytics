@@ -337,10 +337,13 @@ registerPage({
   // collapsed depart-by onto the delivery date itself.
   // "PA 15317" style, matching how every other destination on the board is written.
   function stateZip(addr, st) {
-    var a = String(addr || ""), zip = (a.match(/\d{5}(?:-\d{4})?/) || [])[0] || "";
-    var stm = (a.match(/,\s*([A-Z]{2})\s*\d{5}/) || [])[1] || String(st || "").trim();
-    return (stm + " " + zip).trim() || String(st || "").trim() || "";
+    var a = String(addr || "");
+    var zip = (a.match(/(\d{5})(?:-\d{4})?(?!\d)/) || [])[1] || "";
+    var stm = (a.match(/,\s*([A-Z]{2})\s*\d{5}/) || (a.match(/^\s*([A-Z]{2})\s+\d{5}/) || []))[1]
+              || String(st || "").trim();
+    return ((stm || "") + " " + zip).trim() || String(st || "").trim() || "";
   }
+
   // ROUTE, as Tornike defines it: once we HAVE the goods, "from" is where they physically
   // are (our storage / the carrier), not the customer's old address -- that address stops
   // being actionable the moment the truck leaves. Until pickup, "from" is the pickup address
@@ -805,7 +808,8 @@ registerPage({
                   + (rt.fromSub ? '<div class="ldp-sub">' + esc(rt.fromSub) + "</div>" : "")],
                 [rt.toLabel, '<b class="ldp-big">' + esc(rt.to || "—") + "</b>"
                   + (rt.firm ? "" : '<div class="ldp-sub">customer address — not the final drop yet</div>')
-                  + (r["Moving To"] ? '<div class="ldp-sub">' + esc(r["Moving To"]) + "</div>" : "")]]); })()
+                  + (r["Moving To"] && String(r["Moving To"]).replace(/\s+/g, " ") !== rt.to
+                       ? '<div class="ldp-sub">' + esc(r["Moving To"]) + "</div>" : "")]]); })()
           + '<div class="ldp-sec">Delivery</div>'
           + kv(delivery.concat([
                 ["Depart by", fmtD(r["Depart By"]) + ' <span class="ldp-sub">' + tripTxt(r) + "</span>"]]))
