@@ -247,7 +247,7 @@ registerPage({
         .ldp-tbl col.c-todo{width:248px}
         .ldp-wlab{font-size:9.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--faint)}
         .ldp-arrow{color:var(--faint);font-weight:600}
-        .ldp-todotd{white-space:normal}
+        .ldp-tbl td.ldp-begin{white-space:normal}
         .ldp-todo{font-size:12.5px;font-weight:650;line-height:1.35;color:var(--ink);white-space:normal}
         .ldp-todo.late{color:${NEG};font-weight:750}
         .ldp-todo.soon{color:${WARN};font-weight:750}
@@ -262,7 +262,7 @@ registerPage({
         .ldp-evnone{color:var(--faint);font-size:13px}
         /* chips wrap onto a second line when the viewport (or a browser zoom) squeezes the
            column -- they used to overflow the cell instead */
-        .ldp-evtd,.ldp-typetd{white-space:normal}
+        .ldp-tbl td.ldp-evtd,.ldp-tbl td.ldp-typetd,.ldp-tbl td.ldp-todotd{white-space:normal}
         .ldp-evtd{display:table-cell}
         .ldp-evtd .ldp-evlink{margin:2px 4px 2px 0}
         .ldp-evlink.dl{color:${POS};background:rgba(28,122,74,.10);border-color:rgba(28,122,74,.24)}
