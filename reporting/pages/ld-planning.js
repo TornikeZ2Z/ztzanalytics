@@ -386,7 +386,9 @@ registerPage({
     if (!loc || loc === "Not collected" || loc === "Unknown") return { text: "", sub: "" };
     if (loc === "Our Storage") return { text: OUR_STORAGE_ADDR, sub: det };
     if (loc === "With carrier" || carrier) return { text: carrier || "Carrier", sub: det };
-    if (det) return { text: det, sub: loc };
+    // don't echo the bucket under the address when the address already says it
+    // ("Bacho's Storage" + a "Storage" subtitle read as a stutter)
+    if (det) return { text: det, sub: (loc && det.toLowerCase().indexOf(loc.toLowerCase()) < 0) ? loc : "" };
     return { text: loc, sub: "" };
   }
   function departCellFrom(r) {
