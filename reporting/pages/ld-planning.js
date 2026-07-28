@@ -718,7 +718,12 @@ registerPage({
       // be handled by the main page"). Flagged rows used to be exiled to a second tab, which
       // is how a loaded truck went unnoticed: a data problem is a reason to look HARDER at a
       // shipment, not to hide it. The flag now rides along on the row itself.
-      var all = overlaid();
+      var allBase = overlaid();
+      // Not-picked-up jobs are hidden by DEFAULT (Tornike 2026-07-29: "they are not
+      // important") -- tick "To collect" in the Status filter to see them. The filter
+      // option's count comes from allBase so it still shows how many are waiting.
+      var showNo = (S.ms && S.ms.cust || []).indexOf("no") >= 0;
+      var all = showNo ? allBase : allBase.filter(function (r) { return custKey(r) !== "no"; });
       var flagged = all.filter(function (r) { return !!r["Data Issue"]; });
       var actNow = all.filter(function (r) { return r["Urgency"] === "Act now"; }).length;
       var actSoon = all.filter(function (r) { return r["Urgency"] === "Act soon"; }).length;
@@ -768,7 +773,7 @@ registerPage({
       // select options, similar to what we have for foreman in money flow"). One-at-a-time chips
       // could not express "Straight AND Regular" or "with us OR at a carrier".
       function msCount(dim, key) {
-        return all.filter(function (r) { return dim === "type" ? (key === "straight" ? isStraight(r) : !isStraight(r)) : custKey(r) === key; }).length;
+        return allBase.filter(function (r) { return dim === "type" ? (key === "straight" ? isStraight(r) : !isStraight(r)) : custKey(r) === key; }).length;
       }
       function msBox(dim, cap, opts) {
         var sel = S.ms[dim] || [];
@@ -854,6 +859,13 @@ registerPage({
         return '<a class="ldp-evlink ' + cls + '" href="' + esc(url) + '" target="_blank" rel="noopener"'
           + ' title="' + esc("Open the " + label.toLowerCase() + " event" + (dt ? " · " + fmtD(dt) : "")) + '"'
           + ' onclick="event.stopPropagation()">' + label + "</a>";
+      }
+      // drawer variant: label + date ARE wanted there (the board's chips carry neither)
+      function calLink(url, dt, label) {
+        if (!url) return '<span class="ldp-nolink">No ' + label.replace(" Calendar Event", " event") + "</span>";
+        return '<a class="ldp-evlink" href="' + esc(url) + '" target="_blank" rel="noopener"'
+          + ' onclick="event.stopPropagation()">' + label.replace(" Calendar Event", "")
+          + (dt ? " · " + fmtD(dt) : "") + "</a>";
       }
       function calCell(r) {
         var h = calChip(r["Pickup Event URL"], r["Pickup Event Date"], "Pickup", "pk")
