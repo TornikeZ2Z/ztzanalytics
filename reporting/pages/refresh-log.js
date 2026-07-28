@@ -121,8 +121,8 @@ function rlInjectStyle() {
   .rl-lvcount{font-size:11.5px;color:var(--muted);font-variant-numeric:tabular-nums}
   .rl-lvcount .bad{color:var(--neg)}
   .rl-lvpulse{width:9px;height:9px;border-radius:50%;background:var(--line);flex:none}
-  .rl-lvpulse.on{background:var(--blue);animation:rlpulse 1.25s ease-in-out infinite}
-  @keyframes rlpulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.35;transform:scale(.8)}}
+  .rl-lvpulse.on{background:var(--blue);animation:rllive 1.25s ease-in-out infinite}
+  @keyframes rllive{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.35;transform:scale(.8)}}
   @media (prefers-reduced-motion:reduce){.rl-lvpulse.on{animation:none}}
   .rl-lvbar{height:6px;border-radius:99px;background:var(--panel-2);overflow:hidden;margin:11px 0 8px}
   .rl-lvfill{height:100%;background:var(--blue);border-radius:99px;transition:width .5s ease}
