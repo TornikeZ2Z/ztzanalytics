@@ -368,7 +368,9 @@ registerPage({
       // same resolved place the board's "Departing from" shows -- our depot's real address,
       // the rented unit's full address, or the carrier -- not just the bucket name
       var d = departFrom(r);
-      return { from: d.text || here, fromSub: d.sub || detail, to: dest, toLabel: "Delivering to", firm: true };
+      // `|| detail` would resurrect the very line departFrom() just suppressed as an echo
+      return { from: d.text || here, fromSub: d.text ? d.sub : detail,
+               to: dest, toLabel: "Delivering to", firm: true };
     }
     return { from: String(r["Moving From"] || "").trim() || "—", fromSub: "",
              to: dest, toLabel: "Delivery location", firm: false };
