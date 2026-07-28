@@ -811,10 +811,23 @@ registerPage({
       // TODAY flush against the left edge and pushed every overdue deadline off-range as a
       // chevron — and this board is mostly overdue work, so the default view was a column of
       // chevrons. A week of lead-in also means a pickup that just happened is still visible.
+      // The window used to be "today minus 7" for a fixed 42 days. Nearly every live shipment
+      // is OVERDUE, so their windows sat BEFORE the range: every bar clamped into the first
+      // ~15% behind a "< Apr 30" chevron while two thirds of the chart stayed empty. Default
+      // now FITS THE DATA -- earliest date that matters, a couple of days of lead-in -- and the
+      // Today button still snaps back to a today-anchored view.
       function tlStart() {
         if (S.tlStart) return tlMid(new Date(S.tlStart + "T12:00:00"));
-        var d = tlMid(new Date());
-        d.setDate(d.getDate() - 7);
+        var today = tlMid(new Date());
+        var earliest = null;
+        (cur || []).forEach(function (r) {
+          [tlParse(r["FAD"]), tlParse(r["Depart By"]), tlParse(r["Pickup Date"])].forEach(function (d) {
+            if (d && (!earliest || d < earliest)) earliest = d;
+          });
+        });
+        var d = earliest ? tlMid(earliest) : today;
+        d.setDate(d.getDate() - 2);                 // a little lead-in before the first marker
+        if (d > today) { d = today; d.setDate(d.getDate() - 7); }   // never start after today
         return d;
       }
       function tlIdx(d, st) { return d ? Math.round((tlMid(d).getTime() - st.getTime()) / 86400000) : null; }
@@ -887,7 +900,21 @@ registerPage({
           + '<div class="ldp-tlcal">' + bars + "</div></div>";
       }
       function timelineHtml(rows) {
-        var st = tlStart(), days = TL_DAYS, dp = 100 / days;
+        // span the window so the LAST thing that matters is still on screen -- a fixed 42 days
+        // truncated every job whose delivery window ran past it (the right edge was empty while
+        // bars piled up on the left)
+        var st = tlStart(), days = TL_DAYS;
+        (function () {
+          var last = null;
+          (rows || []).forEach(function (r) {
+            [tlParse(r["Window End"]), tlParse(r["FAD"]), tlParse(r["Depart By"])].forEach(function (d) {
+              if (d && (!last || d > last)) last = d;
+            });
+          });
+          var need = last ? Math.ceil((tlMid(last).getTime() - st.getTime()) / 86400000) + 3 : 0;
+          days = Math.max(21, Math.min(180, Math.max(TL_DAYS, need)));
+        })();
+        var dp = 100 / days;
         var end = new Date(st.getTime() + (days - 1) * 86400000);
         var MONS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
         var cal = "";
