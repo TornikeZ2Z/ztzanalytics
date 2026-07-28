@@ -36,8 +36,19 @@ const RL = (() => {
     sec = Math.round(sec); if (sec < 60) return sec + "s";
     const m = Math.floor(sec / 60), r = sec % 60; return m + "m" + (r ? " " + r + "s" : "");
   };
-  const tOnly = t => (t ? t.slice(11, 19) : "—");
-  const dOnly = t => (t ? t.slice(0, 10) : "—");
+  // The pipeline runs on Cloud Run and stores UTC (verified: a run stamped 13:32 was 17:32
+  // in Tbilisi). ms() already parses with a "Z", so every time on this page is formatted
+  // through Intl in Asia/Tbilisi -- Tornike reads these in Georgian time.
+  const TZ = "Asia/Tbilisi";
+  const _tz = (t, opts) => {
+    const m = ms(t);
+    if (m == null || isNaN(m)) return "—";
+    return new Intl.DateTimeFormat("en-GB", Object.assign({ timeZone: TZ, hour12: false }, opts))
+      .format(new Date(m));
+  };
+  const tOnly = t => _tz(t, { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  const dOnly = t => { const v = _tz(t, { year: "numeric", month: "2-digit", day: "2-digit" });
+    return v === "—" ? v : v.split("/").reverse().join("-"); };
   const ago = t => {
     if (!t) return "—";
     const mn = (Date.now() - ms(t)) / 6e4;
@@ -73,7 +84,7 @@ const RL = (() => {
       totalRows: sources.filter(s => s.status === "ok").reduce((a, s) => a + (s.rows || 0), 0),
     };
   }
-  return { stLabel, srcLabel, phase, ms, fmtDur, tOnly, dOnly, ago, pill, process, hpage };
+  return { stLabel, srcLabel, phase, ms, fmtDur, tOnly, dOnly, ago, pill, process, hpage, TZ };
 })();
 
 function rlInjectStyle() {
@@ -103,6 +114,26 @@ function rlInjectStyle() {
   .rl-cov .rng .arw{color:var(--faint);margin:0 3px}
   .rl-cov .meta{font-size:11.5px;color:var(--muted);margin-top:5px;display:flex;align-items:center;gap:6px}
   .rl-note{font-size:11.5px;color:var(--faint);margin-top:10px}
+  .rl-live{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px 16px;margin-bottom:14px;box-shadow:var(--shadow)}
+  .rl-live.on{border-color:var(--blue)}
+  .rl-lvhead{display:flex;align-items:center;gap:9px;flex-wrap:wrap;font-size:13.5px;color:var(--ink)}
+  .rl-lvsub{font-size:11.5px;color:var(--faint);font-weight:500}
+  .rl-lvcount{font-size:11.5px;color:var(--muted);font-variant-numeric:tabular-nums}
+  .rl-lvcount .bad{color:var(--neg)}
+  .rl-lvpulse{width:9px;height:9px;border-radius:50%;background:var(--line);flex:none}
+  .rl-lvpulse.on{background:var(--blue);animation:rlpulse 1.25s ease-in-out infinite}
+  @keyframes rlpulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.35;transform:scale(.8)}}
+  @media (prefers-reduced-motion:reduce){.rl-lvpulse.on{animation:none}}
+  .rl-lvbar{height:6px;border-radius:99px;background:var(--panel-2);overflow:hidden;margin:11px 0 8px}
+  .rl-lvfill{height:100%;background:var(--blue);border-radius:99px;transition:width .5s ease}
+  .rl-lvnow{font-size:12.5px;color:var(--ink)}
+  .rl-lvlist{margin-top:11px;border-top:1px solid var(--line);padding-top:9px}
+  .rl-lvcap{font-size:10.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--faint);margin-bottom:6px}
+  .rl-lvrow{display:flex;align-items:center;gap:9px;font-size:12px;padding:2.5px 0}
+  .rl-lvstep{color:var(--ink);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .rl-lvmeta{color:var(--faint);font-variant-numeric:tabular-nums}
+  .rl-lvtime{color:var(--faint);font-variant-numeric:tabular-nums;min-width:62px;text-align:right}
+  .rl-dot.skip{background:var(--faint)}
   .rl-pager{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:12px 4px 2px;font-size:12.5px;color:var(--muted)}
   .rl-pager b{color:var(--ink);font-variant-numeric:tabular-nums}
   .rl-pgnav{display:flex;align-items:center;gap:9px}
@@ -240,6 +271,72 @@ function rlCoverage(cov) {
   </div>`;
 }
 
+/* LIVE PROGRESS. Before this, steps were buffered in memory and written only when the run
+   ENDED, so a refresh in flight looked identical to nothing happening (Tornike 2026-07-28:
+   "i dont see that it is refreshing or the refresh is in progress"). runlog now writes each
+   step as it starts and finishes, so this panel can show what the pipeline is doing right now. */
+const RL_STAGE_ORDER = ["sharepoint", "closing", "card_expenses", "sheets", "calendar", "excel",
+  "curated", "calendar_curated", "money_flow", "job_overview", "lead_call", "lead_journey",
+  "ld_planning", "foreman_closings", "health"];
+
+function rlLiveHtml(st) {
+  if (!st || !st.run) return "";
+  const r = st.run, live = !!st.running;
+  const started = RL.ms(r.started_at);
+  const elapsed = started ? Math.max(0, Math.round((Date.now() - started) / 1000)) : null;
+  const cur = st.current;
+  const done = st.steps_done || 0;
+  // progress is indicative: stages are a known list, sources are not, so show BOTH a stage
+  // position and a raw completed-step count rather than a fake precise percentage.
+  const idx = cur ? RL_STAGE_ORDER.indexOf(cur.step) : -1;
+  const pct = live
+    ? (idx >= 0 ? Math.round(100 * (idx + 0.5) / RL_STAGE_ORDER.length) : Math.min(96, 6 + done * 1.2))
+    : 100;
+  const recent = (st.recent || []).slice(0, 6).map(x => {
+    const cls = x.status === "error" ? "bad" : x.status === "skipped" ? "skip" : "ok";
+    const lbl = x.kind === "source" ? RL.srcLabel(x) : RL.stLabel(x);
+    return `<div class="rl-lvrow"><span class="rl-dot ${cls}"></span>
+      <span class="rl-lvstep">${RSC.esc(lbl)}</span>
+      <span class="rl-lvmeta">${x.rows != null ? RS.fmtN(x.rows) + " rows" : (x.status === "skipped" ? "unchanged" : "")}</span>
+      <span class="rl-lvtime">${RL.tOnly(x.ended_at)}</span></div>`;
+  }).join("");
+  return `<div class="rl-live ${live ? "on" : "off"}">
+    <div class="rl-lvhead">
+      <span class="rl-lvpulse ${live ? "on" : ""}"></span>
+      <b>${live ? "Refresh in progress" : "No refresh running"}</b>
+      <span class="rl-lvsub">${live
+        ? `started ${RSC.esc(RL.tOnly(r.started_at))} · running ${RL.fmtDur(elapsed)} · ${RSC.esc(r.trigger || "")}`
+        : `last run finished ${RSC.esc(RL.tOnly(r.ended_at || r.started_at))} · ${RSC.esc(r.status || "")}`}</span>
+      <span style="flex:1"></span>
+      <span class="rl-lvcount">${done} step${done === 1 ? "" : "s"} done${st.steps_error ? ` · <b class="bad">${st.steps_error} error</b>` : ""}</span>
+    </div>
+    ${live ? `<div class="rl-lvbar"><div class="rl-lvfill" style="width:${pct}%"></div></div>
+    <div class="rl-lvnow">${cur
+      ? `Now: <b>${RSC.esc(cur.kind === "source" ? RL.srcLabel(cur) : RL.stLabel(cur))}</b>
+         <span class="rl-lvsub">since ${RSC.esc(RL.tOnly(cur.started_at))}</span>`
+      : `<span class="rl-lvsub">starting…</span>`}</div>` : ""}
+    ${recent ? `<div class="rl-lvlist"><div class="rl-lvcap">${live ? "Just finished" : "Last steps"}</div>${recent}</div>` : ""}
+    <div class="rl-note" style="margin-top:8px">All times Georgian (Tbilisi).</div>
+  </div>`;
+}
+
+async function rlPollLive(host) {
+  const slot = host.querySelector("#rlLive");
+  if (!slot) return;                       // page navigated away
+  let st = null;
+  try { st = await ZTZ.api("/api/_refresh_status"); } catch (e) { return; }
+  if (!host.querySelector("#rlLive")) return;
+  slot.innerHTML = rlLiveHtml(st);
+  const wasRunning = host.__rlRunning;
+  host.__rlRunning = !!(st && st.running);
+  // a run just ended -> pull the full log once so the history/KPIs show it
+  if (wasRunning && !host.__rlRunning) {
+    try { if (window.RS && RS.refresh) RS.refresh(); await renderPage(); return; } catch (e) {}
+  }
+  clearTimeout(host.__rlTimer);
+  host.__rlTimer = setTimeout(() => rlPollLive(host), host.__rlRunning ? 4000 : 20000);
+}
+
 function rlRender(host, runs, cov) {
   const procs = runs.map(RL.process);
   const L = procs[0];
@@ -348,6 +445,7 @@ registerPage({
         <button class="rl-btn primary" id="rlRun">▶ Run a refresh now</button>
         <span class="rl-runmsg" id="rlMsg"></span>
       </div>
+      <div id="rlLive"></div>
       <div id="rlBody"><div class="rs-loading" style="padding:26px">Loading refresh history…</div></div>`;
     const body = host.querySelector("#rlBody");
     let data;
@@ -367,6 +465,8 @@ registerPage({
     rlRender(body, runs, data && data.coverage);
 
     // ---- controls -------------------------------------------------------------
+    clearTimeout(host.__rlTimer);
+    rlPollLive(host);                       // live progress: paints now, then polls itself
     const msg = host.querySelector("#rlMsg");
     const reload = host.querySelector("#rlReload");
     if (reload) reload.onclick = async () => {
@@ -388,8 +488,14 @@ registerPage({
         });
         const r = await resp.json();
         msg.innerHTML = r && r.started
-          ? `<span class="rl-dot ok"></span>Refresh started — this page will show it when it finishes (~15 min).`
+          ? `<span class="rl-dot ok"></span>Refresh started — progress is shown below, live.`
           : `<span class="rl-dot bad"></span>${RSC.esc((r && r.error) || "Could not start the refresh.")}`;
+        if (r && r.started) {
+          // the loader needs a moment to publish its run marker; poll fast until it appears
+          host.__rlRunning = true;
+          clearTimeout(host.__rlTimer);
+          setTimeout(() => rlPollLive(host), 2500);
+        }
       } catch (e) {
         msg.innerHTML = `<span class="rl-dot bad"></span>${RSC.esc(e.message || String(e))}`;
       }
