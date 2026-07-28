@@ -365,7 +365,10 @@ registerPage({
     var detail = String(r["Location Detail"] || "").trim();
     var dest = stateZip(r["Moving To"], r["Delivery State"]);
     if (picked && here && here !== "Unknown" && here !== "Not collected") {
-      return { from: here, fromSub: detail, to: dest, toLabel: "Delivering to", firm: true };
+      // same resolved place the board's "Departing from" shows -- our depot's real address,
+      // the rented unit's full address, or the carrier -- not just the bucket name
+      var d = departFrom(r);
+      return { from: d.text || here, fromSub: d.sub || detail, to: dest, toLabel: "Delivering to", firm: true };
     }
     return { from: String(r["Moving From"] || "").trim() || "—", fromSub: "",
              to: dest, toLabel: "Delivery location", firm: false };
@@ -388,7 +391,13 @@ registerPage({
     if (loc === "With carrier" || carrier) return { text: carrier || "Carrier", sub: det };
     // don't echo the bucket under the address when the address already says it
     // ("Bacho's Storage" + a "Storage" subtitle read as a stutter)
-    if (det) return { text: det, sub: (loc && det.toLowerCase().indexOf(loc.toLowerCase()) < 0) ? loc : "" };
+    // don't echo the bucket under the address when the address already conveys it -- a
+    // "Rented Storage" subtitle under "rented public storage, 2629 Brunswick Ave" is noise
+    if (det) {
+      var dl = det.toLowerCase(), ll = String(loc).toLowerCase();
+      var echo = dl.indexOf(ll) >= 0 || (/storage/.test(ll) && /storage/.test(dl));
+      return { text: det, sub: echo ? "" : loc };
+    }
     return { text: loc, sub: "" };
   }
   function departCellFrom(r) {
