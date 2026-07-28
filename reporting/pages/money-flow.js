@@ -710,6 +710,10 @@ registerPage({
       wire();
       var wrap1 = document.querySelector("#mfBody .mf-wrap");
       if (wrap1) { wrap1.scrollTop = wt; wrap1.scrollLeft = wl; }
+      // same idea for the foremen POPOVER list: it has its own scroller and was rebuilt
+      // at the top on every checkbox tick
+      var fmp = document.querySelector(".mf-fmpop");
+      if (fmp && S.fmScroll) { fmp.scrollTop = S.fmScroll; }
       window.scrollTo(sx, sy);
     }
 
@@ -978,7 +982,9 @@ registerPage({
           var i = S.formen.indexOf(f);
           if (cb.checked && i < 0) S.formen.push(f);
           if (!cb.checked && i >= 0) S.formen.splice(i, 1);
-          S.hpage = 0; paint(); S.fmOpen = true;
+          var _pop = root.querySelector(".mf-fmpop");
+          S.fmScroll = _pop ? _pop.scrollTop : 0;   // the tick repaints the whole bar -- keep the
+          S.hpage = 0; paint(); S.fmOpen = true;    // list where the user had scrolled it
         };
       });
       var fc = root.querySelector("#mfFmClr"); if (fc) fc.onclick = function () { S.formen = []; S.fmOpen = false; S.hpage = 0; paint(); };

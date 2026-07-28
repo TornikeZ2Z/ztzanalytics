@@ -407,7 +407,7 @@ registerPage({
       // the rented unit's full address, or the carrier -- not just the bucket name
       var d = departFrom(r);
       // `|| detail` would resurrect the very line departFrom() just suppressed as an echo
-      return { from: d.text || here, fromSub: d.text ? d.sub : detail,
+      return { from: d.text || here, fromSub: d.text ? (d.sub || d.addr || "") : detail,
                to: dest, toLabel: "Delivering to", firm: true };
     }
     var raw = String(r["Moving From"] || "").trim();
@@ -939,7 +939,7 @@ registerPage({
                 // ROUTE above already carries the full address -- printing it again here was
                 // the "extra stuff" (Tornike 2026-07-28); this row names the bucket only
                 ["Location", '<b class="ldp-big">' + esc(r["Location"] || "—") + "</b>"
-                  + (!dfrom.text && det ? '<div class="ldp-addr">' + esc(det) + "</div>" : "")],
+                  + ((dfrom.addr || det) ? '<div class="ldp-addr">' + esc(dfrom.addr || det) + "</div>" : "")],
                 // Carrier only exists on REGULAR moving -- a Straight job is driven by our own
                 // crew, so showing carrier fields there invites a wrong reading (Tornike 2026-07-28).
                 // Regular jobs ride with a carrier -- name them, and call the money what it is
