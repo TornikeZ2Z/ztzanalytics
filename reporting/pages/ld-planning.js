@@ -1175,11 +1175,7 @@ registerPage({
           + "<td>" + whereCell(r) + "</td>"
           + '<td class="ldp-begin">' + whenCell(r) + "</td>"
           + '<td class="ldp-todotd">' + todoCell(r) + "</td>"
-          + "<td>" + urgPill(r)
-              + (r["Data Issue"] ? ' <span class="ldp-flagdot' + (String(r["Issue Kind"]) === "blocking" ? " blk" : "")
-                  + '" title="' + esc(r["Data Issue"]) + '">⚠</span>' : "")
-              + (r["Urgency Reason"] ? '<div class="ldp-sub">' + esc(String(r["Urgency Reason"]).slice(0, 34)) + "</div>" : "")
-            + "</td></tr>";
+          + "</tr>";
         return main;
       }).join("");
 
