@@ -84,6 +84,28 @@
   const calMismatch = r => !!+r["Cal Found"] &&
     ((r["Cal Date Match"] != null && !+r["Cal Date Match"]) ||
      (r["Cal Loc Match"] != null && !+r["Cal Loc Match"]));
+  // Move date + (when we have one) a button straight to the Google Calendar event, and the
+  // calendar's own date underneath whenever the two sources disagree.
+  const calLink = r => {
+    const u = String(r["Cal Link"] || "").trim();
+    if (/^https:\/\/(www\.)?(calendar\.)?google\.com\//i.test(u)) return u;
+    // no stored link (event predates the loader change): fall back to the calendar's day view
+    const d = String(r["Cal Event Date"] || "").slice(0, 10);
+    return /^\d{4}-\d{2}-\d{2}$/.test(d)
+      ? `https://calendar.google.com/calendar/u/0/r/day/${d.slice(0, 4)}/${+d.slice(5, 7)}/${+d.slice(8, 10)}`
+      : null;
+  };
+  const moveCell = r => {
+    const mv = String(r["Move Date"] || "").slice(0, 10);
+    const cd = String(r["Cal Event Date"] || "").slice(0, 10);
+    const u = +r["Cal Found"] ? calLink(r) : null;
+    const btn = u ? `<a class="st-cal" href="${esc(u)}" target="_blank" rel="noopener"
+        title="Open this job's Google Calendar event" onclick="event.stopPropagation()">📅</a>` : "";
+    const diff = mv && cd && mv !== cd
+      ? `<span class="st-caldiff" title="Moveboard says ${mv}, the calendar event says ${cd}">calendar: ${cd}</span>` : "";
+    return (mv ? `<b>${esc(mv)}</b>` : `<span style="color:var(--faint)">—</span>`) + btn + diff;
+  };
+
   const contactCell = r => {
     if (+r["Called"]) return r["TTO Biz Min"] != null ? mins(+r["TTO Biz Min"]) : "yes";
     // Contacted=1 with Called=0 is EITHER an answered incoming call OR an outbound dial in the
@@ -195,6 +217,11 @@
     .rp-mo-x{font-size:10px;color:var(--faint);font-variant-numeric:tabular-nums;text-align:center}
     .rp-mo-pct{font-size:9.5px;font-weight:700;color:var(--brand);font-variant-numeric:tabular-nums;text-align:center}
     .rp-trend-base{height:1px;background:var(--line);margin:0 2px}
+    .st-cal{display:inline-flex;align-items:center;justify-content:center;width:19px;height:19px;
+      border:1px solid var(--line);border-radius:6px;text-decoration:none;font-size:11px;line-height:1;
+      background:var(--panel-2);vertical-align:middle;margin-left:5px}
+    .st-cal:hover{border-color:var(--blue);background:var(--panel)}
+    .st-caldiff{display:block;font-size:10.5px;font-weight:700;color:var(--warn);font-variant-numeric:tabular-nums}
     .rp-lg{display:inline-block;width:9px;height:9px;border-radius:2px;vertical-align:middle}
     .rp-lg-l{background:var(--blue)} .rp-lg-c{background:var(--brand)} .rp-lg-d{background:var(--line)}
     /* mix-adjusted booking — visual gauge */
@@ -759,7 +786,7 @@
           <option value="ld">Long distance</option><option value="loc">Local</option></select>
         ${sel("stBucket", "Any speed", buckets, "")}
         <select id="stSort">
-          <option value="new">Newest first</option><option value="booked">Booked date (newest)</option><option value="slow">Slowest first call</option>
+          <option value="new">Newest first</option><option value="move">Move date (soonest)</option><option value="slow">Slowest first call</option>
           <option value="bill">Biggest bill</option><option value="gap">Biggest quote gap</option>
           <option value="cf">Biggest CF</option><option value="calls">Most calls</option>
           <option value="talk">Most talk time</option>
@@ -797,7 +824,7 @@
       if (state.chip === "noclose") rows = rows.filter(r => +r["Flag Confirmed No Closing"]);
       if (state.chip === "dead") rows = rows.filter(isDead);
       if (state.chip === "calbad") rows = rows.filter(calMismatch);
-      const key = { new: r => r["Create Date"] || "", booked: r => String(r["Booked Date"] || ""),
+      const key = { new: r => r["Create Date"] || "", move: r => String(r["Move Date"] || ""),
         slow: r => (r["TTO Biz Min"] != null ? +r["TTO Biz Min"] : -1),
         bill: r => +(r["Total Bill"] || 0), gap: r => Math.abs(+(r["Bill Vs Quote Pct"] || 0)),
         cf: r => +(r["Total CF"] || 0),
@@ -817,21 +844,23 @@
         else if (+r["Flag Slow First Call"]) f.push(`<span class="st-flag a">slow</span>`);
         if (+r["Flag Big Quote Gap"]) f.push(`<span class="st-flag p">gap</span>`);
         if (+r["Flag Confirmed No Closing"]) f.push(`<span class="st-flag r">no closing</span>`);
+        // calendar vs Moveboard disagreement -- name WHICH field differs, not a generic "mismatch"
+        if (+r["Cal Found"] && r["Cal Date Match"] != null && !+r["Cal Date Match"])
+          f.push(`<span class="st-flag r" title="Moveboard move date ${esc(String(r["Move Date"] || "—").slice(0, 10))} vs calendar event ${esc(String(r["Cal Event Date"] || "—").slice(0, 10))}">cal date ≠</span>`);
+        if (+r["Cal Found"] && r["Cal Loc Match"] != null && !+r["Cal Loc Match"])
+          f.push(`<span class="st-flag a" title="The calendar event's location does not contain this job's pickup zip">cal place ≠</span>`);
         if (+r["Is LD"]) f.push(`<span class="st-flag b">LD</span>`);
         if (r["Flag"]) f.push(`<span class="st-flag b">${esc(r["Flag"])}</span>`);
         return f.join("");
       };
       host.querySelector("#stTblWrap").innerHTML = `<table class="st-tbl"><thead><tr>
-        <th>Created</th><th title="When the lead confirmed — the date the portal's canonical booking rate counts it on">Booked</th>
+        <th>Created</th><th title="The move date from Moveboard. When a Google Calendar event exists for the job, the button opens it; if the calendar says a different date, that date is shown underneath in amber.">Move date</th>
         <th>#</th><th>Customer</th><th>Source</th><th>Assigned</th><th>CF</th>
         <th>Status</th><th>Contact</th><th>Calls</th><th>Texts</th>
         <th>Estimate → actual</th><th>Flags</th></tr></thead><tbody>` +
         pg.map(r => `<tr class="click" data-jk="${esc(r["Request Joinkey"])}">
           <td>${esc((r["Create Date"] || "").slice(0, 10))}</td>
-          <td>${r["Booked Date"] ? `<b class="st-good">${esc(String(r["Booked Date"]).slice(0, 10))}</b>`
-            + (r["Create Date"] ? ` <span class="st-dim" style="font-size:10.5px">+${Math.max(0, Math.round(
-                (new Date(String(r["Booked Date"]).slice(0, 10)) - new Date(String(r["Create Date"]).slice(0, 10))) / 86400000))}d</span>` : "")
-            : `<span style="color:var(--faint)">—</span>`}</td>
+          <td>${moveCell(r)}</td>
           <td>${esc(r["Job No"] || "—")}</td>
           <td>${String(r["Customer"] || "").trim() === "Draft User"
             ? `<b class="st-draftnm" title="Moveboard draft placeholder — a real lead with a real phone whose name was never filled in. Kept because excluding it would understate lead counts and booking rates.">(name not filled)</b>`
