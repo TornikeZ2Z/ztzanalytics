@@ -203,7 +203,24 @@ registerPage({
         .ldp-tlhold.unk{background:rgba(176,42,55,.42)}
         .ldp-tlheld{position:absolute;top:72%;transform:translate(6px,-45%);font-size:10px;font-weight:800;color:var(--faint);white-space:nowrap;z-index:2}
         /* quick segmentation chips */
-        .ldp-tlf{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 10px}
+        .ldp-tlf{display:flex;gap:9px;flex-wrap:wrap;margin:0 0 12px;align-items:center}
+        .ldp-ms{position:relative}
+        .ldp-msb{font:inherit;font-size:12px;font-weight:650;color:var(--ink);background:var(--panel);
+          border:1px solid var(--line-2);border-radius:10px;padding:7px 12px;cursor:pointer;display:inline-flex;
+          align-items:center;gap:7px;white-space:nowrap}
+        .ldp-msb:hover{border-color:var(--blue)}
+        .ldp-msb.on{border-color:var(--blue);box-shadow:0 0 0 2px color-mix(in srgb,var(--blue) 18%, transparent)}
+        .ldp-msb .cap{color:var(--faint);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.04em}
+        .ldp-msb .cnt{background:var(--blue);color:#fff;border-radius:999px;font-size:10.5px;padding:1px 7px;font-weight:800}
+        .ldp-mspop{position:absolute;z-index:60;top:calc(100% + 6px);left:0;min-width:225px;background:var(--panel);
+          border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);padding:7px;max-height:320px;overflow:auto}
+        .ldp-mspop.hidden{display:none}
+        .ldp-msopt{display:flex;align-items:center;gap:9px;padding:6px 9px;border-radius:8px;cursor:pointer;font-size:12.5px;color:var(--ink)}
+        .ldp-msopt:hover{background:var(--panel-2)}
+        .ldp-msopt input{margin:0;cursor:pointer}
+        .ldp-msopt .n{margin-left:auto;color:var(--faint);font-variant-numeric:tabular-nums;font-size:11.5px}
+        .ldp-msact{display:flex;gap:8px;border-top:1px solid var(--line);margin-top:6px;padding-top:7px}
+        .ldp-msact button{font:inherit;font-size:11.5px;font-weight:650;color:var(--blue);background:none;border:0;cursor:pointer;padding:2px 5px}
         .ldp-tlchip{font:inherit;font-size:11.5px;font-weight:700;color:var(--muted);background:var(--panel);border:1px solid var(--line-2);border-radius:999px;padding:5px 12px;cursor:pointer;white-space:nowrap}
         .ldp-tlchip:hover{border-color:var(--brand)}
         .ldp-tlchip.on{background:var(--brand);color:var(--brand-ink);border-color:var(--brand)}
@@ -293,7 +310,8 @@ registerPage({
     // No trip-day figure on the sheet means "assume a two-day drive" (Tornike 2026-07-28),
   // not "assume one" and not "unknown" -- the depart-by date has to exist either way.
   var TRIP_DEFAULT = 2;
-  var S = window.__LDP || (window.__LDP = { view: "board", q: "", co: "", loc: "", sel: null, tlStart: null, tlSeg: "", kpi: "" });
+  var S = window.__LDP || (window.__LDP = { view: "board", q: "", co: "", loc: "", sel: null, tlStart: null, tlSeg: "", kpi: "", ms: { type: [], cust: [] } });
+  if (!S.ms) S.ms = { type: [], cust: [] };   // older cached state from a previous version
     S.sel = null;
 
     var rows;
@@ -577,21 +595,47 @@ registerPage({
         if (k === "regular") return !isStraight(r);
         return custKey(r) === k;
       };
+      // multi-select: empty dimension = no constraint; otherwise the row must match ONE of the
+      // ticked values in EVERY constrained dimension
+      var msPass = function (r) {
+        var t = S.ms.type || [], c = S.ms.cust || [];
+        if (t.length && t.indexOf(isStraight(r) ? "straight" : "regular") < 0) return false;
+        if (c.length && c.indexOf(custKey(r)) < 0) return false;
+        return true;
+      };
       var segsAll = [["", "All"], ["straight", "Straight"], ["regular", "Regular"],
                      ["no", "To collect"], ["us", "With us"], ["tp", "Storage"],
                      ["car", "Carrier"], ["unk", "Missing Closing"]];
-      var chips = '<div class="ldp-tlf">' + segsAll.map(function (o) {
-        var n = all.filter(function (r) {
-          if (!o[0]) return true;
-          if (o[0] === "straight") return isStraight(r);
-          if (o[0] === "regular") return !isStraight(r);
-          return custKey(r) === o[0];
-        }).length;
-        return '<button class="ldp-tlchip' + (S.tlSeg === o[0] ? " on" : "") + '" data-tlseg="' + o[0] + '">'
-          + o[1] + "<i>" + n + "</i></button>";
-      }).join("") + "</div>";
+      // MULTI-SELECT filters (Tornike 2026-07-28: "i need to have literal filters with multi
+      // select options, similar to what we have for foreman in money flow"). One-at-a-time chips
+      // could not express "Straight AND Regular" or "with us OR at a carrier".
+      function msCount(dim, key) {
+        return all.filter(function (r) { return dim === "type" ? (key === "straight" ? isStraight(r) : !isStraight(r)) : custKey(r) === key; }).length;
+      }
+      function msBox(dim, cap, opts) {
+        var sel = S.ms[dim] || [];
+        var body = opts.map(function (o) {
+          return '<label class="ldp-msopt"><input type="checkbox" data-msdim="' + dim + '" data-msval="' + o[0] + '"'
+            + (sel.indexOf(o[0]) >= 0 ? " checked" : "") + '><span>' + o[1] + '</span><span class="n">'
+            + msCount(dim, o[0]) + "</span></label>";
+        }).join("");
+        return '<div class="ldp-ms" data-msbox="' + dim + '">'
+          + '<button class="ldp-msb' + (sel.length ? " on" : "") + '" data-mstoggle="' + dim + '">'
+          +   '<span class="cap">' + cap + "</span>"
+          +   "<span>" + (sel.length ? sel.length + " selected" : "All") + "</span>"
+          +   (sel.length ? '<span class="cnt">' + sel.length + "</span>" : "")
+          + "</button>"
+          + '<div class="ldp-mspop hidden" data-mspop="' + dim + '">' + body
+          +   '<div class="ldp-msact"><button data-msall="' + dim + '">Select all</button>'
+          +   '<button data-msnone="' + dim + '">Clear</button></div></div></div>';
+      }
+      var chips = '<div class="ldp-tlf">'
+        + msBox("type", "Type", [["straight", "Straight"], ["regular", "Regular"]])
+        + msBox("cust", "Status", [["no", "To collect"], ["us", "With us"], ["tp", "Storage"],
+                                   ["car", "Carrier"], ["unk", "Missing Closing"]])
+        + "</div>";
 
-      var cur = all.filter(kpiPass).filter(segPass);
+      var cur = all.filter(kpiPass).filter(segPass).filter(msPass);
       if (S.co) cur = cur.filter(function (r) { return String(r["Company"]) === S.co; });
       if (S.loc) cur = cur.filter(function (r) { return String(r["Location"]) === S.loc; });
       var q = S.q.trim().toLowerCase();
@@ -619,7 +663,7 @@ registerPage({
       // FILTER BAR — one bordered strip instead of three loose controls: a search field with
       // an inline icon, labelled selects, and a Clear that only appears when something is
       // actually filtering (so it never adds noise at rest).
-      var anyF = !!(S.q || S.co || S.loc || S.kpi || S.tlSeg);
+      var anyF = !!(S.q || S.co || S.loc || S.kpi || S.tlSeg || (S.ms.type || []).length || (S.ms.cust || []).length);
       var bar = chips + '<div class="ldp-bar">'
         + '<div class="ldp-vw">'
         +   '<button data-ldview="board"' + (S.view !== "timeline" ? ' class="on"' : "") + ">Board</button>"
@@ -713,8 +757,10 @@ registerPage({
           + '<div class="ldp-sec">Where it is</div>'
           + kv([["Status", esc(r["Possession"] || "—")],
                 ["Location", esc(r["Location"] || "—") + (det ? ' <span class="ldp-sub">' + esc(det) + "</span>" : "")],
-                r["Carrier Driver"] ? ["Carrier", esc(r["Carrier Driver"])] : null,
-                r["Total To Carrier"] != null ? ["To carrier", money(r["Total To Carrier"])] : null,
+                // Carrier only exists on REGULAR moving -- a Straight job is driven by our own
+                // crew, so showing carrier fields there invites a wrong reading (Tornike 2026-07-28).
+                (!isStraight(r) && r["Carrier Driver"]) ? ["Carrier", esc(r["Carrier Driver"])] : null,
+                (!isStraight(r) && r["Total To Carrier"] != null) ? ["To carrier", money(r["Total To Carrier"])] : null,
                 ["Sticker", esc(r["Sticker"] || "—")]])
           + '<div class="ldp-sec">Job</div>'
           + kv([r["Balance Due"] != null ? ["Balance due", money(r["Balance Due"])] : null,
@@ -932,7 +978,8 @@ registerPage({
       var tbl = '<div class="ldp-card"><div class="ldp-wrap"><table class="ldp-tbl"><thead><tr>'
         + "<th>Customer</th><th>Type</th><th>Delivering to</th>"
         + "<th>Jobs &amp; status</th><th>Where it is</th>"
-        + "<th class=\"ldp-hbegin\">Deliver from</th><th>Depart</th><th>Status</th>"
+        + "<th class=\"ldp-hbegin\" title=\"FAD - the first available date of delivery from the long-distance sheet - and the last day of the delivery window (FAD + timeframe)\">Delivery window (FAD)</th>"
+        + "<th title=\"The latest the truck can leave and still deliver inside the window\">Depart by</th><th>Status</th>"
         + "</tr></thead><tbody>"
         + (body || '<tr><td colspan="8" style="color:var(--faint);padding:18px">No rows match — clear the filters, or the last build produced nothing.</td></tr>')
         + "</tbody></table></div>"
@@ -1047,10 +1094,51 @@ registerPage({
       if (q) q.oninput = function () { S.q = q.value; var pos = q.selectionStart; paint(); var n2 = host.querySelector("#ldpQ"); if (n2) { n2.focus(); try { n2.setSelectionRange(pos, pos); } catch (e) {} } };
       var co = host.querySelector("#ldpCo"); if (co) co.onchange = function () { S.co = co.value; paint(); };
       var lo = host.querySelector("#ldpLoc"); if (lo) lo.onchange = function () { S.loc = lo.value; paint(); };
-      var cl = host.querySelector("#ldpClr"); if (cl) cl.onclick = function () { S.q = ""; S.co = ""; S.loc = ""; S.kpi = ""; S.tlSeg = ""; paint(); };
+      var cl = host.querySelector("#ldpClr"); if (cl) cl.onclick = function () { S.q = ""; S.co = ""; S.loc = ""; S.kpi = ""; S.tlSeg = ""; S.ms = { type: [], cust: [] }; paint(); };
       Array.prototype.forEach.call(host.querySelectorAll("[data-ldview]"), function (b) {
         b.onclick = function () { S.view = b.getAttribute("data-ldview"); paint(); };
       });
+      // ---- multi-select filters ----
+      Array.prototype.forEach.call(host.querySelectorAll("[data-mstoggle]"), function (b) {
+        b.onclick = function (e) {
+          e.stopPropagation();
+          var dim = b.getAttribute("data-mstoggle");
+          var pop = host.querySelector('[data-mspop="' + dim + '"]');
+          var wasOpen = pop && !pop.classList.contains("hidden");
+          host.querySelectorAll(".ldp-mspop").forEach(function (p) { p.classList.add("hidden"); });
+          if (pop && !wasOpen) pop.classList.remove("hidden");
+        };
+      });
+      Array.prototype.forEach.call(host.querySelectorAll("[data-msdim]"), function (cb) {
+        cb.onclick = function (e) { e.stopPropagation(); };
+        cb.onchange = function () {
+          var dim = cb.getAttribute("data-msdim"), val = cb.getAttribute("data-msval");
+          var cur2 = (S.ms[dim] || []).slice();
+          var i = cur2.indexOf(val);
+          if (cb.checked) { if (i < 0) cur2.push(val); } else if (i >= 0) { cur2.splice(i, 1); }
+          S.ms[dim] = cur2; paint();
+        };
+      });
+      Array.prototype.forEach.call(host.querySelectorAll("[data-msall]"), function (b) {
+        b.onclick = function (e) {
+          e.stopPropagation();
+          var dim = b.getAttribute("data-msall");
+          S.ms[dim] = Array.prototype.map.call(
+            host.querySelectorAll('[data-msdim="' + dim + '"]'), function (c) { return c.getAttribute("data-msval"); });
+          paint();
+        };
+      });
+      Array.prototype.forEach.call(host.querySelectorAll("[data-msnone]"), function (b) {
+        b.onclick = function (e) { e.stopPropagation(); S.ms[b.getAttribute("data-msnone")] = []; paint(); };
+      });
+      // one outside-click closer for the whole page
+      if (!host.__msClose) {
+        host.__msClose = function () {
+          document.querySelectorAll(".ldp-mspop").forEach(function (p) { p.classList.add("hidden"); });
+        };
+        document.addEventListener("click", host.__msClose);
+      }
+
       Array.prototype.forEach.call(host.querySelectorAll("[data-tlseg]"), function (b) {
         b.onclick = function () { S.tlSeg = b.getAttribute("data-tlseg"); paint(); };
       });
