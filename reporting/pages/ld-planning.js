@@ -487,7 +487,8 @@ registerPage({
       else if (n === 0) { sub = "TODAY"; cls = "soon"; }
       else if (st) { sub = Math.abs(n) + "d late"; cls = "late"; }
       else if (end && dayDiff(end) >= 0) { sub = "open · " + dayDiff(end) + "d left"; cls = "soon"; }
-      else { sub = "closed " + Math.abs(dayDiff(end || begin)) + "d ago"; cls = "late"; }
+      else if (!end) { sub = "open · no end set"; cls = "soon"; }   // deliverable, deadline unrecorded — not "closed"
+      else { sub = "closed " + Math.abs(dayDiff(end)) + "d ago"; cls = "late"; }
       return '<b class="ldp-dt">' + fmtD(begin) + "</b>"
         + '<div class="ldp-when ' + cls + '">' + sub + "</div>";
     }
@@ -1061,6 +1062,10 @@ registerPage({
           var k = b.getAttribute("data-kpi");
           S.kpi = (S.kpi === k) ? "" : k;   // click again to release
           paint();
+        };
+        // the cards carry role=button + tabindex — Enter/Space must work, not just the mouse
+        b.onkeydown = function (e) {
+          if (e.key === "Enter" || e.key === " ") { e.preventDefault(); b.onclick(); }
         };
       });
       Array.prototype.forEach.call(host.querySelectorAll("[data-tl]"), function (b) {
