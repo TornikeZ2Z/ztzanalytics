@@ -357,13 +357,16 @@ registerPage({
   // "PA 15317" style, matching how every other destination on the board is written.
   function stateZip(addr, st) {
     var a = String(addr || "");
-    // the zip is the one BESIDE the state, never the first 5-digit run (which is
-    // usually the street number: "12345 Biscayne Blvd, Miami, FL 33181")
-    var m = a.match(/,?\s*([A-Z]{2})[,\s]+(\d{5})(?:-\d{4})?(?!\d)/);
+    // The zip is the one BESIDE the state, never the first 5-digit run (that is usually the
+    // street number: "12345 Biscayne Blvd, Miami, FL 33181"). The separator between state and
+    // zip may be a space OR a comma -- "Georgetown, DE, 19947" and "Bridgeport, CT 06606" both
+    // occur in the calendar descriptions.
+    var m = a.match(/(?:^|[\s,])([A-Z]{2})[\s,]+(\d{5})(?:-\d{4})?(?!\d)/);
     var zip = m ? m[2] : ((a.match(/(\d{5})(?:-\d{4})?\s*(?:,?\s*USA?\.?)?\s*$/) || [])[1] || "");
     var stm = (m && m[1]) || String(st || "").trim();
     return ((stm || "") + " " + zip).trim() || String(st || "").trim() || "";
   }
+
 
   // ROUTE, as Tornike defines it: once we HAVE the goods, "from" is where they physically
   // are (our storage / the carrier), not the customer's old address -- that address stops
