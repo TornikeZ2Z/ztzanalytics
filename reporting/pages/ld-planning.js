@@ -243,8 +243,15 @@ registerPage({
         .ldp-tbl col.c-from{width:118px}
         .ldp-tbl col.c-to{width:96px}
         .ldp-tbl col.c-where{width:132px}
-        .ldp-tbl col.c-date{width:132px}
-        .ldp-tbl col.c-status{width:124px}
+        .ldp-tbl col.c-when{width:140px}
+        .ldp-tbl col.c-todo{width:250px}
+        .ldp-wlab{font-size:9.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--faint)}
+        .ldp-arrow{color:var(--faint);font-weight:600}
+        .ldp-todotd{white-space:normal}
+        .ldp-todo{font-size:12.5px;font-weight:650;line-height:1.35;color:var(--ink);white-space:normal}
+        .ldp-todo.late{color:${NEG};font-weight:750}
+        .ldp-todo.soon{color:${WARN};font-weight:750}
+        .ldp-todo.miss{color:var(--muted)}
         /* two-line cells wrap cleanly instead of truncating mid-word */
         .ldp-tbl td .ldp-sub{font-size:11px;line-height:1.3;color:var(--faint);white-space:normal;
           display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
@@ -597,6 +604,47 @@ registerPage({
       // custody pill and the bucket name so the same address is not printed twice
       return possPill(r)
         + (sub.length ? '<div class="ldp-sub ldp-whsub">' + esc(sub.join(" \u00b7 ")) + "</div>" : "");
+    }
+    // WHEN — one answer to "when does this have to happen", stage-aware. Key date, Depart by
+    // and Status told overlapping halves of this ("closed 24d ago" and "Act now / delivery
+    // window expired" were the same sentence twice), so they collapse into two columns:
+    // WHEN (this) and WHAT TO DO (the Do line the mart already computes).
+    function whenCell(r) {
+      var dep = r["Depart By"], trip = tripDays(r);
+      // depart-by only earns a line when it is NOT simply "the day before"
+      var depSub = (dep && trip > 1)
+        ? '<div class="ldp-sub">leave by ' + fmtD(dep) + " \u00b7 " + trip + "d trip</div>" : "";
+      if (stageOf(r) === "Pickup") {
+        var pd = r["Pickup Event Date"] || r["Pickup Date"];
+        if (!pd) return '<span class="ldp-nodate">no pickup date</span>';
+        var pn = dayDiff(pd);
+        return '<div class="ldp-wlab">Collect</div><b class="ldp-dt">' + fmtD(pd) + "</b>"
+          + '<div class="ldp-when ' + (pn < 0 ? "late" : pn <= 2 ? "soon" : "ok") + '">'
+          + (pn > 0 ? "in " + pn + "d" : pn === 0 ? "TODAY" : Math.abs(pn) + "d overdue")
+          + "</div>" + depSub;
+      }
+      var st = isStraight(r), fad = r["FAD"], end = r["Window End"];
+      if (!fad && !end) return '<span class="ldp-nodate">no date set</span>';
+      var head = (st || !end || String(end) === String(fad))
+        ? fmtD(fad || end)
+        : fmtD(fad) + ' <span class="ldp-arrow">\u2192</span> ' + fmtD(end);
+      var dl = st ? fad : (end || fad), n2 = dayDiff(dl), sub, cls;
+      if (n2 > 0) { sub = "in " + n2 + "d"; cls = n2 <= 3 ? "soon" : "ok"; }
+      else if (n2 === 0) { sub = "TODAY"; cls = "soon"; }
+      else { sub = Math.abs(n2) + "d late"; cls = "late"; }
+      return '<div class="ldp-wlab">Deliver</div><b class="ldp-dt">' + head + "</b>"
+        + '<div class="ldp-when ' + cls + '">' + sub + "</div>" + depSub;
+    }
+    // WHAT TO DO — the mart's own imperative, which was buried in the drawer.
+    function todoCell(r) {
+      var u = String(r["Urgency"] || "");
+      var cls = u === "Act now" ? "late" : u === "Act soon" ? "soon"
+              : u === "Missing data" ? "miss" : "ok";
+      return '<div class="ldp-todo ' + cls + '">' + esc(String(r["Do"] || r["Urgency Reason"] || "\u2014")) + "</div>"
+        + (r["Data Issue"]
+            ? '<div class="ldp-sub"><span class="ldp-flagdot'
+              + (String(r["Issue Kind"]) === "blocking" ? " blk" : "") + '">\u26a0</span> '
+              + esc(String(r["Data Issue"])) + "</div>" : "");
     }
     function beginCell(r) {
       // A pickup has ONE committed calendar date -- it is not a window, and reading it as one
@@ -1123,8 +1171,8 @@ registerPage({
           + '<td class="ldp-fromtd">' + departCellFrom(r) + "</td>"
           + "<td>" + esc(stateZip(r["Moving To"], r["Delivery State"]) || "—") + "</td>"
           + "<td>" + whereCell(r) + "</td>"
-          + '<td class="ldp-begin">' + beginCell(r) + "</td>"
-          + '<td class="ldp-begin">' + departCell(r) + "</td>"
+          + '<td class="ldp-begin">' + whenCell(r) + "</td>"
+          + '<td class="ldp-todotd">' + todoCell(r) + "</td>"
           + "<td>" + urgPill(r)
               + (r["Data Issue"] ? ' <span class="ldp-flagdot' + (String(r["Issue Kind"]) === "blocking" ? " blk" : "")
                   + '" title="' + esc(r["Data Issue"]) + '">⚠</span>' : "")
@@ -1135,16 +1183,16 @@ registerPage({
 
       var tbl = '<div class="ldp-card"><div class="ldp-wrap"><table class="ldp-tbl">'
         + '<colgroup><col class="c-ev"><col class="c-cust"><col class="c-type">'
-        +   '<col class="c-from"><col class="c-to"><col class="c-where"><col class="c-date">'
-        +   '<col class="c-date"><col class="c-status"></colgroup>'
+        +   '<col class="c-from"><col class="c-to"><col class="c-where"><col class="c-when">'
+        +   '<col class="c-todo"></colgroup>'
         + "<thead><tr>"
         + "<th title=\"Open this job's Google Calendar events\">Calendar events</th>"
         + "<th>Customer</th>"
         + "<th title=\"Straight or Regular, and which leg is next\">Type</th>"
         + "<th title=\"Where the delivery truck loads from\">Departing from</th>"
         + "<th>Delivering to</th><th>Where it is</th>"
-        + "<th class=\"ldp-hbegin\" title=\"Delivery jobs show the FAD and its window; pickup jobs show the committed collection date\">Key date</th>"
-        + "<th title=\"The latest the truck can leave and still make the key date\">Depart by</th><th>Status</th>"
+        + "<th class=\"ldp-hbegin\" title=\"Deliveries show the FAD and the end of its window; pickups show the committed collection date. A depart-by line appears only when the trip runs longer than a day.\">When</th>"
+        + "<th title=\"The single next action for this shipment\">What to do</th>"
         + "</tr></thead><tbody>"
         + (body || '<tr><td colspan="8" style="color:var(--faint);padding:18px">No rows match — clear the filters, or the last build produced nothing.</td></tr>')
         + "</tbody></table></div>"
