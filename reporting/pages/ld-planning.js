@@ -525,7 +525,7 @@ registerPage({
            : p === "Third-party storage" ? "tp"
            : p === "Not picked up yet" ? "no" : "unk";
     }
-    var CUST_LABEL = { us: "With us", car: "Carrier", tp: "Storage", no: "To collect", unk: "Where?" };
+    var CUST_LABEL = { us: "With us", car: "Carrier", tp: "Storage", no: "To collect", unk: "Missing Closing" };
     function possPill(r) {
       var p = String(r["Possession"] || "—");
       var cls = p === "With us" ? "ldp-pos-us"
