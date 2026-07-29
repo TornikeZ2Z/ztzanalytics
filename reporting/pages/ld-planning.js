@@ -18,7 +18,7 @@
              "Delivery Status", "Location Source", "Possession",
              "Sibling Delivered", "Sheet Row", "Update Date",
              "Type", "Trip Days", "Depart By", "Urgency", "Urgency Reason", "Do",
-             "Storage Sold"],
+             "Storage Sold", "Route Status"],
     };
   }
 })();
@@ -129,6 +129,11 @@ registerPage({
         .ldp-sec:first-child{margin-top:0}
         .ldp-stor{display:inline-block;font-size:9px;font-weight:800;letter-spacing:.05em;padding:1px 6px;
       border-radius:5px;background:rgba(124,58,237,.13);color:var(--violet,#7c3aed);white-space:nowrap;margin-left:5px}
+    .ldp-rt{display:inline-block;font-size:9px;font-weight:800;letter-spacing:.05em;padding:1px 6px;
+      border-radius:5px;white-space:nowrap;margin-top:4px}
+    .ldp-rt.over{background:rgba(176,42,55,.12);color:${NEG}}
+    .ldp-rt.acc{background:rgba(28,122,74,.13);color:${POS}}
+    .ldp-rt.cand{background:rgba(47,111,208,.10);color:${BLUE}}
     .ldp-stage{display:inline-block;font-size:12px;font-weight:800;letter-spacing:.01em;padding:3px 10px;border-radius:999px;white-space:nowrap}
     .ldp-stage.p{background:rgba(37,99,235,.11);color:var(--blue)}
     .ldp-stage.d{background:rgba(28,122,74,.12);color:${POS}}
@@ -465,6 +470,18 @@ registerPage({
     return (String(r["Possession"] || "").toLowerCase().indexOf("not picked up") >= 0
       || String(r["Location"] || "") === "Not collected") ? "Pickup" : "Delivery";
   }
+  // ROUTE STATUS chip -- legacy's second dimension. "Not Routed" and the at-carrier
+  // dash stay silent on the board (noise); the drawer always states it in full.
+  function routeChip(r) {
+    var v = String(r["Route Status"] || "");
+    if (v === "Over truck (carrier)")
+      return ' <span class="ldp-rt over" title="More CF than one of our trucks holds - a carrier must take it">OVER TRUCK</span>';
+    if (v === "Accepted Route")
+      return ' <span class="ldp-rt acc" title="Locked into an accepted route">ROUTED</span>';
+    if (v === "Route Candidate")
+      return ' <span class="ldp-rt cand" title="Eligible for route consolidation">CANDIDATE</span>';
+    return "";
+  }
   function stageChip(r) {
     var st = stageOf(r);
     return '<span class="ldp-stage ' + (st === "Pickup" ? "p" : "d") + '">' + st + "</span>";
@@ -476,6 +493,7 @@ registerPage({
   function tripTxt(r) { return +(r["Trip Days"] || 0) > 0 ? r["Trip Days"] + "d trip" : ""; }
   var S = window.__LDP || (window.__LDP = { view: "board", q: "", co: "", loc: "", sel: null, tlStart: null, tlSeg: "", kpi: "", ms: { type: [], cust: [] } });
   if (!S.ms) S.ms = { type: [], cust: [] };   // older cached state from a previous version
+  if (!S.ms.route) S.ms.route = [];
     S.sel = null;
 
     var rows;
@@ -741,6 +759,8 @@ registerPage({
         ["miss", "",     noWin,          "Missing data",     "FAD / timeframe not set"],
         ["unk",  "",     held,           "Missing Closing",  "picked up, but no closing sheet records where it is"],
         ["flag", "",     flagged.length, "Flagged",          "needs a sheet correction"],
+        ["carw", "",     all.filter(function (r) { return custKey(r) === "car"; }).length,
+                         "Carrier Watch",    "with carriers \u2014 confirm deliveries"],
       ];
       var kp = '<div class="ldp-kpis">' + kpiDefs.map(function (k) {
         return '<div class="ldp-kpi ' + k[1] + (S.kpi === k[0] ? " sel" : "") + '" data-kpi="' + k[0] + '" role="button" tabindex="0">'
@@ -752,6 +772,7 @@ registerPage({
         if (S.kpi === "soon") return r["Urgency"] === "Act soon";
         if (S.kpi === "miss") return r["Urgency"] === "Missing data";
         if (S.kpi === "unk") return custKey(r) === "unk";
+        if (S.kpi === "carw") return custKey(r) === "car";
         return !!r["Data Issue"];
       };
       var segPass = function (r) {
@@ -764,9 +785,10 @@ registerPage({
       // multi-select: empty dimension = no constraint; otherwise the row must match ONE of the
       // ticked values in EVERY constrained dimension
       var msPass = function (r) {
-        var t = S.ms.type || [], c = S.ms.cust || [];
+        var t = S.ms.type || [], c = S.ms.cust || [], rt = S.ms.route || [];
         if (t.length && t.indexOf(isStraight(r) ? "straight" : "regular") < 0) return false;
         if (c.length && c.indexOf(custKey(r)) < 0) return false;
+        if (rt.length && rt.indexOf(routeKey(r)) < 0) return false;
         return true;
       };
       var segsAll = [["", "All"], ["straight", "Straight"], ["regular", "Regular"],
@@ -775,8 +797,17 @@ registerPage({
       // MULTI-SELECT filters (Tornike 2026-07-28: "i need to have literal filters with multi
       // select options, similar to what we have for foreman in money flow"). One-at-a-time chips
       // could not express "Straight AND Regular" or "with us OR at a carrier".
+      function routeKey(r) {
+        var v = String(r["Route Status"] || "");
+        return v === "Route Candidate" ? "cand" : v === "Accepted Route" ? "acc"
+             : v === "Over truck (carrier)" ? "over" : v === "Not Routed" ? "not" : "";
+      }
       function msCount(dim, key) {
-        return allBase.filter(function (r) { return dim === "type" ? (key === "straight" ? isStraight(r) : !isStraight(r)) : custKey(r) === key; }).length;
+        return allBase.filter(function (r) {
+          if (dim === "type") return key === "straight" ? isStraight(r) : !isStraight(r);
+          if (dim === "route") return routeKey(r) === key;
+          return custKey(r) === key;
+        }).length;
       }
       function msBox(dim, cap, opts) {
         var sel = S.ms[dim] || [];
@@ -853,6 +884,8 @@ registerPage({
         +   msBox("cust", "Status", [["no", "To collect"], ["us", "With us"], ["tp", "Storage"],
                                      ["car", "Carrier"], ["cnr", "Contracts Not Received"],
                                      ["unk", "Missing Closing"]])
+        +   msBox("route", "Routing", [["cand", "Route Candidate"], ["acc", "Accepted Route"],
+                                       ["over", "Over truck"], ["not", "Not Routed"]])
         +   (anyF ? '<button class="ldp-clr" id="ldpClr">Clear</button>' : "")
         + "</div>"
         + '<span class="ldp-count"><b>' + cur.length + "</b> of " + all.length + " shipments</span>"
@@ -960,7 +993,8 @@ registerPage({
                 (!isStraight(r) && r["Total To Carrier"] != null)
                   ? ["Carrier balance", money(r["Total To Carrier"])] : null,
                 (+r["Storage Sold"]) ? ["Storage", "Sales person sold storage on this job"] : null,
-                ["Sticker", esc(r["Sticker"] || "—")]]); })()
+                ["Sticker", esc(r["Sticker"] || "—")],
+                ["Route status", esc(r["Route Status"] || "—")]]); })()
           + '<div class="ldp-sec">Job</div>'
           + kv([r["Balance Due"] != null ? ["Balance due", money(r["Balance Due"])] : null,
                 r["CF"] != null ? ["CF", Number(r["CF"]).toLocaleString()] : null,
@@ -1194,7 +1228,7 @@ registerPage({
                     + "</div>"
                   : "")
               + "</td>"
-          + '<td class="ldp-typetd">' + typeChip(r) + stageChip(r) + "</td>"
+          + '<td class="ldp-typetd">' + typeChip(r) + stageChip(r) + routeChip(r) + "</td>"
           + '<td class="ldp-fromtd">' + departCellFrom(r) + "</td>"
           + "<td>" + esc(stateZip(r["Moving To"], r["Delivery State"]) || "—") + "</td>"
           + "<td>" + whereCell(r) + "</td>"
@@ -1330,7 +1364,7 @@ registerPage({
       if (q) q.oninput = function () { S.q = q.value; var pos = q.selectionStart; paint(); var n2 = host.querySelector("#ldpQ"); if (n2) { n2.focus(); try { n2.setSelectionRange(pos, pos); } catch (e) {} } };
       var co = host.querySelector("#ldpCo"); if (co) co.onchange = function () { S.co = co.value; paint(); };
       var lo = host.querySelector("#ldpLoc"); if (lo) lo.onchange = function () { S.loc = lo.value; paint(); };
-      var cl = host.querySelector("#ldpClr"); if (cl) cl.onclick = function () { S.q = ""; S.co = ""; S.loc = ""; S.kpi = ""; S.tlSeg = ""; S.ms = { type: [], cust: [] }; paint(); };
+      var cl = host.querySelector("#ldpClr"); if (cl) cl.onclick = function () { S.q = ""; S.co = ""; S.loc = ""; S.kpi = ""; S.tlSeg = ""; S.ms = { type: [], cust: [], route: [] }; paint(); };
       Array.prototype.forEach.call(host.querySelectorAll("[data-ldview]"), function (b) {
         b.onclick = function () { S.view = b.getAttribute("data-ldview"); paint(); };
       });
