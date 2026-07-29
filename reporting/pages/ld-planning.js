@@ -160,6 +160,14 @@ registerPage({
     .ldp-mifl{background:#6C5CE0;color:#fff;border:0;border-radius:8px;font-weight:750;font-size:11px;
       padding:2px 8px;box-shadow:0 1px 5px rgba(0,0,0,.3)}
     .ldp-mifl::before{display:none}
+    .ldp-ovmap{height:max(460px,calc(100vh - 350px))}
+    .ldp-ovleg{display:flex;flex-wrap:wrap;gap:6px 16px;align-items:center;margin:2px 2px 10px;font-size:12px;color:var(--faint)}
+    .ldp-ovk{display:inline-flex;align-items:center;gap:6px;font-weight:650}
+    .ldp-ovdot{width:10px;height:10px;border-radius:50%;display:inline-block;border:2px solid #fff;box-shadow:0 0 0 1px rgba(0,0,0,.12)}
+    .ldp-ovln{width:22px;height:0;border-top:3px solid var(--faint);display:inline-block;border-radius:2px}
+    .ldp-ovln.dash{border-top-style:dashed}
+    .ldp-ovln.thin{border-top:2px dashed #a7aebc}
+    .ldp-ovnote{margin-left:auto;font-weight:500}
     .ldp-stage{display:inline-block;font-size:12px;font-weight:800;letter-spacing:.01em;padding:3px 10px;border-radius:999px;white-space:nowrap}
     .ldp-stage.p{background:rgba(37,99,235,.11);color:var(--blue)}
     .ldp-stage.d{background:rgba(28,122,74,.12);color:${POS}}
@@ -897,9 +905,10 @@ registerPage({
       var anyF = !!(S.q || S.co || S.loc || S.kpi || S.tlSeg || (S.ms.type || []).length || (S.ms.cust || []).length);
       var bar = chips + '<div class="ldp-bar">'
         + '<div class="ldp-vw">'
-        +   '<button data-ldview="board"' + (S.view !== "timeline" ? ' class="on"' : "") + ">Board</button>"
+        +   '<button data-ldview="board"' + (S.view === "timeline" || S.view === "routes" || S.view === "map" ? "" : ' class="on"') + ">Board</button>"
         +   '<button data-ldview="timeline"' + (S.view === "timeline" ? ' class="on"' : "") + ">Timeline</button>"
         +   '<button data-ldview="routes"' + (S.view === "routes" ? ' class="on"' : "") + ">Routes</button>"
+        +   '<button data-ldview="map"' + (S.view === "map" ? ' class="on"' : "") + ">Map</button>"
         + "</div>"
         + '<div class="ldp-fbox">'
         +   '<span class="ldp-srch"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>'
@@ -1253,6 +1262,27 @@ registerPage({
             }).join("")
           + "</div>";
       }
+      function mapviewHtml(rows2) {
+        // the overview draws AFTER mount (wire) -- stash the exact filtered rowset the
+        // board sees so the shared filter bar governs the map too (one filter system)
+        var use = rows2.filter(function (r) { return custKey(r) !== "car"; });
+        S._mvRows = use;
+        var car = rows2.length - use.length;
+        return '<div class="ldp-card" style="padding:12px 14px">'
+          + '<div class="ldp-ovleg">'
+          + '<span class="ldp-ovk"><i class="ldp-ovdot" style="background:' + OV_COLORS["Act now"] + '"></i>Act now</span>'
+          + '<span class="ldp-ovk"><i class="ldp-ovdot" style="background:' + OV_COLORS["Act soon"] + '"></i>Act soon</span>'
+          + '<span class="ldp-ovk"><i class="ldp-ovdot" style="background:' + OV_COLORS["On track"] + '"></i>On track</span>'
+          + '<span class="ldp-ovk"><i class="ldp-ovdot" style="background:' + OV_COLORS[""] + '"></i>Missing data</span>'
+          + '<span class="ldp-ovk"><i class="ldp-ovln"></i>Straight</span>'
+          + '<span class="ldp-ovk"><i class="ldp-ovln dash"></i>Regular</span>'
+          + '<span class="ldp-ovk"><i class="ldp-ovln thin"></i>Collection ahead</span>'
+          + '<span class="ldp-ovk"><span class="ldp-mstop base" style="position:static;display:inline-block">B</span> NJ base</span>'
+          + '<span class="ldp-ovnote" id="ldpOvNote">'
+          + (car ? car + " at a carrier hidden (Carrier Watch, not planning)" : "") + "</span>"
+          + "</div>"
+          + '<div class="ldp-jmap ldp-ovmap"></div></div>';
+      }
       function timelineHtml(rows) {
         // span the window so the LAST thing that matters is still on screen -- a fixed 42 days
         // truncated every job whose delivery window ran past it (the right edge was empty while
@@ -1393,7 +1423,8 @@ registerPage({
         if (n._ldmap) { try { n._ldmap.remove(); } catch (e) {} n._ldmap = null; }
       });
       _bd.innerHTML = kp + bar + (S.view === "timeline" ? timelineHtml(cur)
-        : S.view === "routes" ? routesHtml() : tbl);
+        : S.view === "routes" ? routesHtml()
+        : S.view === "map" ? mapviewHtml(cur) : tbl);
       var _sc = document.getElementById("ldpScrim");
       if (_sc) _sc.onclick = function () { if (host.__ldpOpen) host.__ldpOpen(null); };
       if (!host.__ldpEsc) {
@@ -1543,12 +1574,97 @@ registerPage({
         setTimeout(function () { m.invalidateSize(); if (bounds.length) m.fitBounds(bounds, { padding: [22, 22] }); }, 80);
       });
     }
+    var OV_COLORS = { "Act now": "#B02A37", "Act soon": "#B26B0B",
+                      "On track": "#1C7A4A", "": "#8A93A6" };
+    function drawOverview(box, rows2) {
+      if (!box) return;
+      var need = {};
+      rows2.forEach(function (r) {
+        var dz = zipOnly(r["Moving To"]);
+        if (dz) need[dz] = 1;
+        if (custKey(r) === "no") { var oz = zipOnly(r["Moving From"]); if (oz) need[oz] = 1; }
+      });
+      need[LD_BASE_ZIP] = 1;
+      S._zipGeo = S._zipGeo || {};
+      var missing = Object.keys(need).filter(function (z) { return S._zipGeo[z] === undefined; });
+      var go = function () { paintOverview(box, rows2); };
+      if (!missing.length) { go(); return; }
+      fetch(ZTZ.API + "/api/_ldgeo?zips=" + missing.join(","),
+            { headers: { Authorization: "Bearer " + ZTZ.getToken() } })
+        .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+        .then(function (j) {
+          var g = (j && j.zips) || {};
+          missing.forEach(function (z) { S._zipGeo[z] = g[z] || null; });   // null = known-unmappable
+          go();
+        })
+        .catch(function () {
+          box.innerHTML = '<div style="padding:18px;color:var(--faint)">Map unavailable</div>';
+        });
+    }
+    function paintOverview(box, rows2) {
+      ensureLeaflet(function () {
+        if (!box.isConnected) return;   // view switched while zips were loading
+        var m = box._ldmap;
+        if (!m) {
+          m = L.map(box, { zoomSnap: 0.5 });
+          L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png",
+            { maxZoom: 18, subdomains: "abcd", attribution: "\u00a9 OpenStreetMap \u00b7 \u00a9 CARTO" }).addTo(m);
+          m.setView([39.5, -83], 5);   // the legacy overview frame: our east-coast lanes
+          box._ldmap = m; box._ldlay = [];
+        }
+        (box._ldlay || []).forEach(function (l) { try { m.removeLayer(l); } catch (e) {} });
+        box._ldlay = [];
+        var base = S._zipGeo[LD_BASE_ZIP];
+        var skipped = 0;
+        if (base)
+          box._ldlay.push(L.marker(base, { icon: L.divIcon({ className: "",
+            html: '<span class="ldp-mstop base">B</span>', iconSize: [20, 20], iconAnchor: [10, 10] }),
+            zIndexOffset: 500 }).addTo(m));
+        rows2.forEach(function (r) {
+          var dz = zipOnly(r["Moving To"]);
+          var dest = dz && S._zipGeo[dz];
+          if (!dest) { skipped++; return; }
+          var col = OV_COLORS[String(r["Urgency"] || "")] || OV_COLORS[""];
+          var st8 = isStraight(r);
+          var notPicked = custKey(r) === "no";
+          var style = { color: col, weight: 2.5, opacity: 0.7 };
+          if (!st8) style.dashArray = "7 7";   // legacy: Straight solid, Regular dashed
+          if (base) {
+            box._ldlay.push(L.polyline([base, dest], style).addTo(m));
+            if (notPicked) {
+              var oz = zipOnly(r["Moving From"]);
+              var org = oz && S._zipGeo[oz];
+              // goods still at the customer: the collection leg is ahead of us too
+              if (org) box._ldlay.push(L.polyline([org, base],
+                { color: "#A7AEBC", weight: 2, opacity: 0.75, dashArray: "3 6" }).addTo(m));
+            }
+          }
+          var key = String(r["Sheet Row"] || "");
+          var mk = L.circleMarker(dest, { radius: 7, color: "#fff", weight: 2,
+            fillColor: col, fillOpacity: 0.95 }).addTo(m);
+          mk.bindTooltip("<b>" + esc(r["Customer"] || "\u2014") + "</b> \u00b7 "
+            + esc(stateZip(r["Moving To"], r["Delivery State"]) || dz)
+            + "<br>" + esc(r["Type"] || "") + " \u00b7 "
+            + esc(String(r["Urgency"] || "\u2014"))
+            + (r["Do"] ? "<br>" + esc(String(r["Do"])) : ""), { sticky: true });
+          mk.on("click", function () { if (host.__ldpOpen) host.__ldpOpen(key); });
+          box._ldlay.push(mk);
+        });
+        var note = document.getElementById("ldpOvNote");
+        if (note && skipped) {
+          var extra = skipped + " without a mappable zip";
+          note.textContent = note.textContent ? note.textContent + " \u00b7 " + extra : extra;
+        }
+        setTimeout(function () { m.invalidateSize(); }, 60);
+      });
+    }
     function wire() {
       var q = host.querySelector("#ldpQ");
       if (q) q.oninput = function () { S.q = q.value; var pos = q.selectionStart; paint(); var n2 = host.querySelector("#ldpQ"); if (n2) { n2.focus(); try { n2.setSelectionRange(pos, pos); } catch (e) {} } };
       var co = host.querySelector("#ldpCo"); if (co) co.onchange = function () { S.co = co.value; paint(); };
       var lo = host.querySelector("#ldpLoc"); if (lo) lo.onchange = function () { S.loc = lo.value; paint(); };
       var cl = host.querySelector("#ldpClr"); if (cl) cl.onclick = function () { S.q = ""; S.co = ""; S.loc = ""; S.kpi = ""; S.tlSeg = ""; S.ms = { type: [], cust: [], route: [] }; paint(); };
+      if (S.view === "map") drawOverview(host.querySelector(".ldp-ovmap"), S._mvRows || []);
       if (S.view === "routes" && (S._rsug == null || S._racc == null) && !S._rsugLoading) {
         S._rsugLoading = true;
         fetch(ZTZ.API + "/api/fct_ld_route_suggestions?limit=500",
