@@ -150,7 +150,7 @@ registerPage({
       background:var(--panel-2);border:1px solid var(--line-2);border-radius:10px;padding:7px 13px;cursor:pointer}
     .ldp-bhbtn:hover{border-color:var(--blue)}
     .ldp-bhbtn.done{color:var(--pos,#1c7a4a);border-color:rgba(28,122,74,.4)}
-    .ldp-mapbtn{margin:11px 0 0 8px;font-size:12px}
+    .ldp-jmapbtn{margin:11px 0 0 8px;font-size:12px}
     .ldp-mapwrap{margin-top:11px;display:none}
     .ldp-mapwrap.on{display:block}
     .ldp-jmap{height:290px;border-radius:12px;border:1px solid var(--line-2);overflow:hidden;background:var(--panel-2)}
@@ -1204,12 +1204,13 @@ registerPage({
             + (+h["Feasible"] ? "" : ' \u00b7 <b style="color:var(--neg,#b02a37)">schedule tight</b>') + "</span></div>"
             + stops
             + '<button class="ldp-raccept" data-rkey="' + esc(k) + '" data-codes="'
-            + esc(st.map(function (x) { return x["Job Code"]; }).join(",")) + '" data-truck="' + esc(h["Truck"] || "") + '" data-miles="' + esc(String(h["Miles"] || "")) + '">Accept route</button>'
+            + esc(st.map(function (x) { return x["Job Code"]; }).join(",")) + '" data-zips="'
+            + esc(st.map(function (x) { return String(x["Dest Zip"] || "").trim(); }).join(",")) + '" data-truck="' + esc(h["Truck"] || "") + '" data-miles="' + esc(String(h["Miles"] || "")) + '">Accept route</button>'
             + (function () {
                 var zs = st.map(function (x) { return String(x["Dest Zip"] || "").trim(); })
                   .filter(function (z) { return /^\d{5}$/.test(z); });
                 if (!zs.length) return "";
-                return '<button class="ldp-bhbtn ldp-mapbtn" data-mapfor="' + esc(k) + '" data-legzips="'
+                return '<button class="ldp-bhbtn ldp-jmapbtn" data-mapfor="' + esc(k) + '" data-legzips="'
                   + [LD_BASE_ZIP].concat(zs).concat([LD_BASE_ZIP]).join(",") + '">Map</button>'
                   + '<div class="ldp-mapwrap" data-mapwrap="' + esc(k) + '"><div class="ldp-jmap"></div></div>';
               })()
@@ -1224,23 +1225,31 @@ registerPage({
         return '<div class="ldp-card" style="margin-top:14px;padding:14px 16px">'
           + '<div class="ldp-sec" style="margin-top:0">Accepted routes</div>'
           + acc.map(function (x) {
-              var zs = String(x.job_codes || "").split(",").map(function (code) {
-                var hit = overlaid().filter(function (r2) {
-                  return String(r2["Job Code"] || "").split(",").indexOf(code) >= 0;
-                })[0];
-                return hit ? zipOnly(hit["Moving To"]) : "";
-              }).filter(function (z) { return /^\d{5}$/.test(z); });
+              var codes = String(x.job_codes || "").split(",").filter(Boolean);
+              // zips persisted at accept time are authoritative; recovery from the live board
+              // is a legacy fallback and only trusted when EVERY stop resolves (a delivered job
+              // leaves the board -- a partial chain would renumber stops and mislabel the
+              // empty-return leg)
+              var zs = String(x.job_zips || "").split(",").filter(function (z) { return /^\d{5}$/.test(z); });
+              if (zs.length !== codes.length)
+                zs = codes.map(function (code) {
+                  var hit = overlaid().filter(function (r2) {
+                    return String(r2["Job Code"] || "").split(",").indexOf(code) >= 0;
+                  })[0];
+                  return hit ? zipOnly(hit["Moving To"]) : "";
+                }).filter(function (z) { return /^\d{5}$/.test(z); });
+              var mappable = zs.length === codes.length && zs.length > 0;
               var mk = "acc" + x.id;
               return '<div class="ldp-rstop"><b>' + esc(String(x.job_codes || "").split(",").join(" + "))
                 + "</b> <span class=\"ldp-sub\">truck " + esc(x.truck || "?")
                 + (x.miles ? " \u00b7 ~" + (+x.miles).toLocaleString() + " mi" : "")
                 + " \u00b7 accepted " + esc(String(x.accepted_at || "").slice(0, 16))
                 + " by " + esc(String(x.accepted_by || "").split("@")[0]) + "</span>"
-                + (zs.length ? '<button class="ldp-bhbtn ldp-mapbtn" data-mapfor="' + mk + '" data-legzips="'
+                + (mappable ? '<button class="ldp-bhbtn ldp-jmapbtn" data-mapfor="' + mk + '" data-legzips="'
                     + [LD_BASE_ZIP].concat(zs).concat([LD_BASE_ZIP]).join(",") + '" style="margin:0 0 0 auto">Map</button>' : "")
                 + '<button class="ldp-bhbtn ldp-unacc" data-unacc="' + x.id + '" style="margin:0 0 0 '
-                + (zs.length ? "8px" : "auto") + '">Un-accept</button></div>'
-                + (zs.length ? '<div class="ldp-mapwrap" data-mapwrap="' + mk + '"><div class="ldp-jmap"></div></div>' : "");
+                + (mappable ? "8px" : "auto") + '">Un-accept</button></div>'
+                + (mappable ? '<div class="ldp-mapwrap" data-mapwrap="' + mk + '"><div class="ldp-jmap"></div></div>' : "");
             }).join("")
           + "</div>";
       }
@@ -1378,6 +1387,11 @@ registerPage({
       // is gone and painting would throw "innerHTML on null" (money-flow had this same bug)
       var _bd = document.getElementById("ldpBody");
       if (!_bd || !host.isConnected) return;
+      // journey maps register a window resize listener (Leaflet trackResize) -- discarding
+      // their DOM without remove() leaks the whole map per repaint
+      Array.prototype.forEach.call(_bd.querySelectorAll(".ldp-jmap"), function (n) {
+        if (n._ldmap) { try { n._ldmap.remove(); } catch (e) {} n._ldmap = null; }
+      });
       _bd.innerHTML = kp + bar + (S.view === "timeline" ? timelineHtml(cur)
         : S.view === "routes" ? routesHtml() : tbl);
       var _sc = document.getElementById("ldpScrim");
@@ -1558,6 +1572,7 @@ registerPage({
           fetch(ZTZ.API + "/api/_ldroutes", { method: "POST",
             headers: { Authorization: "Bearer " + ZTZ.getToken(), "Content-Type": "application/json" },
             body: JSON.stringify({ codes: b.getAttribute("data-codes").split(","),
+                                   zips: (b.getAttribute("data-zips") || "").split(",").filter(Boolean),
                                    truck: b.getAttribute("data-truck"),
                                    miles: +b.getAttribute("data-miles") || null }) })
             .then(function (r) { return r.json(); })
@@ -1581,27 +1596,37 @@ registerPage({
             if (bx0 && bx0._ldmap) setTimeout(function () { bx0._ldmap.invalidateSize(); }, 60);
             return;
           }
-          wrap._ldloaded = true;
           var zips = (b.getAttribute("data-legzips") || "").split(",").filter(Boolean);
           var legs = [];
           for (var i = 0; i + 1 < zips.length; i++) legs.push(zips[i] + ":" + zips[i + 1]);
           var box = wrap.querySelector(".ldp-jmap");
           var qs = legs.join(",");
-          var draw = function (j) { if (j && j.legs && j.legs.length) drawJourney(box, j.legs); };
-          fetch(ZTZ.API + "/api/_ldgeo?est=1&legs=" + encodeURIComponent(qs),
-                { headers: { Authorization: "Bearer " + ZTZ.getToken() } })
-            .then(function (r) { return r.json(); })
+          var fail = function (msg) {
+            box.innerHTML = '<div style="padding:18px;color:var(--faint)">' + msg + "</div>";
+          };
+          // draw() succeeds only when real geometry came back; _ldloaded is set on success
+          // (a failed load leaves it unset, so closing and reopening the map retries), and a
+          // later empty/error response can never erase an already-drawn map
+          var draw = function (j) {
+            var ok = j && j.legs && j.legs.some(function (l) { return l.coords && l.coords.length > 1; });
+            if (!ok) return false;
+            drawJourney(box, j.legs);
+            wrap._ldloaded = true;
+            return true;
+          };
+          var hdr = { headers: { Authorization: "Bearer " + ZTZ.getToken() } };
+          var chk = function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); };
+          fetch(ZTZ.API + "/api/_ldgeo?est=1&legs=" + encodeURIComponent(qs), hdr)
+            .then(chk)
             .then(function (j) {
-              draw(j);   // instant straight lines (legacy estimate-first behaviour)
+              if (!draw(j))   // instant straight lines (legacy estimate-first behaviour)
+                fail("Map unavailable \u2014 no geometry for these stops yet (retries on reopen)");
               var need = j && j.legs && j.legs.some(function (l) { return l.source !== "here"; });
               if (need)
-                fetch(ZTZ.API + "/api/_ldgeo?legs=" + encodeURIComponent(qs),
-                      { headers: { Authorization: "Bearer " + ZTZ.getToken() } })
-                  .then(function (r) { return r.json(); }).then(draw).catch(function () {});
+                fetch(ZTZ.API + "/api/_ldgeo?legs=" + encodeURIComponent(qs), hdr)
+                  .then(chk).then(draw).catch(function () {});
             })
-            .catch(function () {
-              box.innerHTML = '<div style="padding:18px;color:var(--faint)">Map unavailable</div>';
-            });
+            .catch(function () { fail("Map unavailable"); });
         };
       });
       Array.prototype.forEach.call(host.querySelectorAll("[data-unacc]"), function (b) {
