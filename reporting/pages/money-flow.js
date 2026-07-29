@@ -193,7 +193,10 @@ registerPage({
     if (!S.fmx) S.fmx = {};
     if (S.hpage == null) S.hpage = 0;         // History pager (2,890 settled rows = too slow to paint at once)
     if (!S.sel) S.sel = {};   // bulk-confirm ticks (event ids)
-    if (S.hideNoNC == null) S.hideNoNC = false;   // missing-closing legs are SHOWN by default
+    // HIDDEN by default (his ask 2026-07-29: "we have a filter, hide this extra stuff") — the
+    // second leg of a closing has nothing to collect, so it only clutters the worklist. The
+    // toggle brings them back, and Data Quality › Issues in Money Flow lists the real problems.
+    if (S.hideNoNC == null) S.hideNoNC = true;
     if (!S.dateLabel) { S.dateFrom = null; S.dateTo = null; S.dateLabel = "All time"; S.dtOpen = false; }
     if (!Array.isArray(S.formen)) S.formen = [];
     S.modalEv = null;

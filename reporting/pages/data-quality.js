@@ -37,6 +37,7 @@ registerPage({
       { key: "checks", label: "Warehouse checks", render: renderChecks },
       { key: "coverage", label: "Calendar Coverage", render: (window.DQ_SUB || {}).coverage },
       { key: "consistency", label: "Request # Consistency", render: (window.DQ_SUB || {}).consistency },
+      { key: "mfissues", label: "Issues in Money Flow", render: (window.DQ_SUB || {}).mfissues },
     ];
     host.innerHTML = `<div class="dq-tabbar" id="dqTabs"></div><div id="dqContent"></div>`;
     const content = host.querySelector("#dqContent");
