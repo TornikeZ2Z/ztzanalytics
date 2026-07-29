@@ -107,6 +107,7 @@ registerPage({
         .mf-st-con{background:rgba(47,111,208,.12);color:${BLUE}}
         .mf-st-mnr{background:rgba(176,42,55,.12);color:${NEG}}
         .mf-st-nib{background:rgba(245,165,36,.16);color:#a06a00}
+        .mf-st-nnc{background:var(--panel-2);color:var(--faint);border:1px solid var(--line-2)}
         .mf-tbl.mfc th{padding:9px 10px}
         .mf-tbl.mfc td{padding:8px 10px;font-size:13.5px}
         .mf-dseg button{padding:8px 13px;font-size:12px}
@@ -192,6 +193,7 @@ registerPage({
     if (!S.fmx) S.fmx = {};
     if (S.hpage == null) S.hpage = 0;         // History pager (2,890 settled rows = too slow to paint at once)
     if (!S.sel) S.sel = {};   // bulk-confirm ticks (event ids)
+    if (S.hideNoNC == null) S.hideNoNC = false;   // no-net-cash legs are SHOWN by default
     if (!S.dateLabel) { S.dateFrom = null; S.dateTo = null; S.dateLabel = "All time"; S.dtOpen = false; }
     if (!Array.isArray(S.formen)) S.formen = [];
     S.modalEv = null;
@@ -286,6 +288,10 @@ registerPage({
           || /cancel|cancl|canel|o[n]?[ -]?hold/i.test(String(r.title || ""))) return "Filter Out";
       if (r.date > todayIso) return "Job is in the Future";
       if (r.baseStatus === "Tracked on Sibling Event" && r.expected == null) return "Tracked on Sibling Event";
+      // the job's other leg: its closing is reconciled on the sibling and it took no money
+      // of its own. Shown, never confirmable — either an extra calendar record or a job
+      // missing from the closing registry (Tornike 2026-07-29)
+      if (r.baseStatus === "No Net Cash" && r.expected == null) return "No Net Cash";
       if (r.expected == null) return "Contract Not Received";
       if (r.flow == null && Math.abs(r.balance == null ? 0 : r.balance) > MF_TOL) return "Money Not Received";
       if (Math.abs(r.balance == null ? 0 : r.balance) <= MF_TOL) return "Money Received";
@@ -294,7 +300,7 @@ registerPage({
     // view split (his spec 2026-07-21): Balance by Foreman = waiting for cash
     // (incl. no-contract); Not in Balance Jobs = its own foreman-grouped tab; History =
     // everything confirmed. The old flat "Not Confirmed" list is gone.
-    var MAINSET = { "Money Not Received": 1, "Contract Not Received": 1 };
+    var MAINSET = { "Money Not Received": 1, "Contract Not Received": 1, "No Net Cash": 1 };
     var NOTCONF = { "Money Not Received": 1, "Not in Balance": 1, "Contract Not Received": 1 };
 
     var entriesByEv = {};
@@ -362,6 +368,8 @@ registerPage({
       var rows = overlaid();
       var q = S.q.trim().toLowerCase();
       var main = rows.filter(function (r) { return MAINSET[r.status]; });
+      var noNC = main.filter(function (r) { return r.status === "No Net Cash"; }).length;
+      if (S.hideNoNC) main = main.filter(function (r) { return r.status !== "No Net Cash"; });
       var nib = rows.filter(function (r) { return r.status === "Not in Balance"; });
       var done = rows.filter(function (r) { return r.status === "Money Received"; });
       // SEARCH EVERYTHING (his ask 2026-07-22): customer, request #, job code, foreman —
@@ -492,6 +500,9 @@ registerPage({
         + '<div class="mf-seg mf-dseg">' + dBtn("details", "Details") + dBtn("overview", "Compact") + "</div>"
         + '<div class="mf-fmwrap"><button class="mf-fmbtn' + (S.formen.length ? " on" : "") + '" id="mfFmBtn">' + esc(fmLabel) + ' ▾</button>' + fmPop + "</div>"
         + (S.view === "history" ? '<div class="mf-dtwrap"><button class="mf-fmbtn' + (S.dateFrom || S.dateTo ? " on" : "") + '" id="mfDtBtn">📅 ' + esc(S.dateLabel) + ' ▾</button>' + dtPop + "</div>" : "")
+        + (noNC ? '<button class="mf-fmbtn' + (S.hideNoNC ? " on" : "") + '" id="mfNoNC" '
+            + 'title="Events whose closing is reconciled on another leg and that took no money: an extra calendar record, or a job missing from the closing registry">'
+            + (S.hideNoNC ? "Show" : "Hide") + " no-net-cash (" + noNC + ")</button>" : "")
         + '<input class="mf-q" id="mfQ" placeholder="Search customer / request # / job code / foreman / amount" value="' + esc(S.q) + '">'
         + (selJobs.length ? '<button class="mf-confirm" id="mfBulk" style="padding:9px 16px">Confirm ' + selJobs.length + " selected — " + money(selTotal) + "</button>" : "")
         + "</div></div>";
@@ -501,10 +512,13 @@ registerPage({
         if (r.status === "Money Received") return '<span class="mf-pill mf-st-rec">Received</span>';
         if (r.status === "Contract Not Received") return '<span class="mf-pill mf-st-con">No Contract</span>';
         if (r.status === "Not in Balance") return '<span class="mf-pill mf-st-nib">Not in Balance</span>';
+        if (r.status === "No Net Cash") return '<span class="mf-pill mf-st-nnc">No Net Cash</span>';
         return '<span class="mf-pill mf-st-mnr">Not Received</span>';
       };
       var actionCell = function (r) {
         if (r.status === "Money Received") return '<span class="mf-pill mf-st-rec">✓ Confirmed</span>';
+        if (r.status === "No Net Cash")
+          return '<span class="mf-pill mf-st-nnc" title="No net cash on this leg — the closing is reconciled on the other event of this job. Nothing to confirm here.">Nothing to collect</span>';
         if (r.status === "Contract Not Received")
           return '<span class="mf-pill mf-st-con" title="No contract amount yet — click the row and enter the cash manually">No Contract</span>';
         return '<button class="mf-confirm" data-mfc="' + esc(r.ev) + '">Confirm ' + money(settle(r).type === "Cash Taken Away from Base" ? -settle(r).amount : settle(r).amount) + "</button>";
@@ -972,6 +986,8 @@ registerPage({
       };
       var rf = root.querySelector("#mfRefresh");
       if (rf) rf.onclick = async function () { S.busy = true; paint(); await loadLive(true); S.busy = false; setLiveBadge(); paint(); };
+      var nnc = root.querySelector("#mfNoNC");
+      if (nnc) nnc.onclick = function () { S.hideNoNC = !S.hideNoNC; paint(); };
       var fb = root.querySelector("#mfFmBtn");
       if (fb) fb.onclick = function (e) { e.stopPropagation(); S.fmOpen = !S.fmOpen; S.dtOpen = false; paint(); };
       var pop = root.querySelector(".mf-fmpop");
