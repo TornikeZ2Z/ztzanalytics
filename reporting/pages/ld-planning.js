@@ -1681,15 +1681,25 @@ registerPage({
           if (S._ovgen !== gen || !box.isConnected) return;
           ((j && j.legs) || []).forEach(function (lg) {
             if (lg.source === "here" && lg.coords && lg.coords.length > 1) {
-              S._roadGeo[lg.leg] = lg.coords;
+              var thin = thinLine(lg.coords);
+              S._roadGeo[lg.leg] = thin;
               (box._ldlay || []).forEach(function (l) {
-                if (l._pair === lg.leg && l.setLatLngs) l.setLatLngs(lg.coords);
+                if (l._pair === lg.leg && l.setLatLngs) l.setLatLngs(thin);
               });
             }
           });
           if (rest.length) refineOverview(box, rest, gen);
         })
         .catch(function () {});
+    }
+    function thinLine(c) {
+      // country-zoom trails do not need HERE's full ~15k-point geometry: ~200 points keep
+      // the road shape; the full-res overview saturated the renderer and froze the page
+      if (!c || c.length <= 240) return c;
+      var step = Math.ceil(c.length / 200), out2 = [];
+      for (var i = 0; i < c.length; i += step) out2.push(c[i]);
+      out2.push(c[c.length - 1]);
+      return out2;
     }
     function paintOverview(box, rows2) {
       S._ovgen = (S._ovgen || 0) + 1;
@@ -1698,7 +1708,7 @@ registerPage({
         if (S._ovgen !== _og || !box.isConnected) return;   // view switched while loading
         var m = box._ldmap;
         if (!m) {
-          m = L.map(box, { zoomSnap: 0.5 });
+          m = L.map(box, { zoomSnap: 0.5, preferCanvas: true });
           L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png",
             { maxZoom: 18, subdomains: "abcd", attribution: "\u00a9 OpenStreetMap \u00b7 \u00a9 CARTO" }).addTo(m);
           m.setView([39.5, -83], 5);   // the legacy overview frame: our east-coast lanes
