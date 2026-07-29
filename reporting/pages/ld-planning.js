@@ -376,9 +376,6 @@ registerPage({
         .ldp-pos-car{background:rgba(47,111,208,.14);color:${BLUE}}
         .ldp-pos-3p{background:rgba(160,106,0,.15);color:${WARN}}
         .ldp-pos-cnr{background:rgba(47,111,208,.12);color:${BLUE}}
-        .ldp-pkwarn{display:inline-block;font-size:12px;font-weight:750;color:#a06a00;background:rgba(245,165,36,.14);
-          border:1px solid rgba(160,106,0,.30);border-radius:10px;padding:7px 13px;margin:0 0 12px;cursor:pointer}
-        .ldp-pkwarn:hover{background:rgba(245,165,36,.22)}
         .ldp-pos-no{background:var(--panel-2);color:var(--muted)}
         .ldp-pos-unk{background:rgba(176,42,55,.11);color:${NEG}}
       `;
@@ -776,11 +773,7 @@ registerPage({
       // is how a loaded truck went unnoticed: a data problem is a reason to look HARDER at a
       // shipment, not to hide it. The flag now rides along on the row itself.
       var allBase = overlaid();
-      // Not-picked-up jobs are hidden by DEFAULT (Tornike 2026-07-29: "they are not
-      // important") -- tick "To collect" in the Status filter to see them. The filter
-      // option's count comes from allBase so it still shows how many are waiting.
-      var showNo = (S.ms && S.ms.cust || []).indexOf("no") >= 0;
-      var all = showNo ? allBase : allBase.filter(function (r) { return custKey(r) !== "no"; });
+      var all = allBase;
       var flagged = all.filter(function (r) { return !!r["Data Issue"]; });
       var actNow = all.filter(function (r) { return r["Urgency"] === "Act now"; }).length;
       var actSoon = all.filter(function (r) { return r["Urgency"] === "Act soon"; }).length;
@@ -862,18 +855,7 @@ registerPage({
           +   '<div class="ldp-msact"><button data-msall="' + dim + '">Select all</button>'
           +   '<button data-msnone="' + dim + '">Clear</button></div></div></div>';
       }
-      var chips = "";   // Type/Status live in the one filter bar; only the pickup notice renders here
-      if (!showNo) {
-        var hiddenActionable = allBase.filter(function (r) {
-          return custKey(r) === "no" && (r["Urgency"] === "Act soon" || r["Urgency"] === "Act now");
-        }).length;
-        if (hiddenActionable) {
-          chips = '<div class="ldp-pkwarn" id="ldpPkWarn" role="button" tabindex="0">⚠ '
-            + hiddenActionable + " upcoming pickup" + (hiddenActionable === 1 ? "" : "s")
-            + " need" + (hiddenActionable === 1 ? "s" : "") + " a decision — show them</div>";
-        }
-      }
-
+      var chips = "";   // Type/Status/Routing live in the one filter bar
       var cur = all.filter(kpiPass).filter(segPass).filter(msPass);
       if (S.co) cur = cur.filter(function (r) { return String(r["Company"]) === S.co; });
       if (S.loc) cur = cur.filter(function (r) { return String(r["Location"]) === S.loc; });
@@ -1517,8 +1499,6 @@ registerPage({
       Array.prototype.forEach.call(host.querySelectorAll("[data-ldview]"), function (b) {
         b.onclick = function () { S.view = b.getAttribute("data-ldview"); paint(); };
       });
-      var pw = host.querySelector("#ldpPkWarn");
-      if (pw) pw.onclick = function () { S.ms.cust = ["no"]; paint(); };
       // ---- multi-select filters ----
       Array.prototype.forEach.call(host.querySelectorAll("[data-mstoggle]"), function (b) {
         b.onclick = function (e) {
