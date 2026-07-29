@@ -1215,7 +1215,23 @@ registerPage({
             + esc(st.map(function (x) { return x["Job Code"]; }).join(",")) + '" data-truck="' + esc(h["Truck"] || "") + '" data-miles="' + esc(String(h["Miles"] || "")) + '">Accept route</button>'
             + "</div>";
         }).join("") + "</div>"
+        + acceptedHtml()
         + '<div class="ldp-note" style="margin-top:10px;color:var(--faint);font-size:12px">Engine rules (management\u2019s numbers): \u22641,500 CF combined \u00b7 every stop pair \u2264100 mi \u00b7 \u2264180 min detour \u00b7 windows within 5 days \u00b7 \u22642.5 extra mi per CF \u00b7 Straights first \u00b7 ~11 driving h/day. Accepting converts Regulars to Straight and locks the jobs out of future suggestions.</div>';
+      }
+      function acceptedHtml() {
+        var acc = (S._racc || []).filter(function (x) { return String(x.status) === "accepted"; });
+        if (!acc.length) return "";
+        return '<div class="ldp-card" style="margin-top:14px;padding:14px 16px">'
+          + '<div class="ldp-sec" style="margin-top:0">Accepted routes</div>'
+          + acc.map(function (x) {
+              return '<div class="ldp-rstop"><b>' + esc(String(x.job_codes || "").split(",").join(" + "))
+                + "</b> <span class=\"ldp-sub\">truck " + esc(x.truck || "?")
+                + (x.miles ? " \u00b7 ~" + (+x.miles).toLocaleString() + " mi" : "")
+                + " \u00b7 accepted " + esc(String(x.accepted_at || "").slice(0, 16))
+                + " by " + esc(String(x.accepted_by || "").split("@")[0]) + "</span>"
+                + '<button class="ldp-bhbtn ldp-unacc" data-unacc="' + x.id + '" style="margin:0 0 0 auto">Un-accept</button></div>';
+            }).join("")
+          + "</div>";
       }
       function timelineHtml(rows) {
         // span the window so the LAST thing that matters is still on screen -- a fixed 42 days
@@ -1450,13 +1466,20 @@ registerPage({
       var co = host.querySelector("#ldpCo"); if (co) co.onchange = function () { S.co = co.value; paint(); };
       var lo = host.querySelector("#ldpLoc"); if (lo) lo.onchange = function () { S.loc = lo.value; paint(); };
       var cl = host.querySelector("#ldpClr"); if (cl) cl.onclick = function () { S.q = ""; S.co = ""; S.loc = ""; S.kpi = ""; S.tlSeg = ""; S.ms = { type: [], cust: [], route: [] }; paint(); };
-      if (S.view === "routes" && S._rsug == null && !S._rsugLoading) {
+      if (S.view === "routes" && (S._rsug == null || S._racc == null) && !S._rsugLoading) {
         S._rsugLoading = true;
         fetch(ZTZ.API + "/api/fct_ld_route_suggestions?limit=500",
               { headers: { Authorization: "Bearer " + ZTZ.getToken() } })
           .then(function (r) { return r.json(); })
           .then(function (j) { S._rsug = j.rows || j.data || j || []; })
           .catch(function () { S._rsug = []; })
+          .then(function () {
+            return fetch(ZTZ.API + "/api/_ldroutes",
+                         { headers: { Authorization: "Bearer " + ZTZ.getToken() } })
+              .then(function (r) { return r.json(); })
+              .then(function (j) { S._racc = (j && j.routes) || []; })
+              .catch(function () { S._racc = []; });
+          })
           .then(function () { S._rsugLoading = false; paint(); });
       }
       Array.prototype.forEach.call(host.querySelectorAll(".ldp-raccept"), function (b) {
@@ -1474,6 +1497,21 @@ registerPage({
               else { b.disabled = false; b.textContent = "Accept route"; alert((j && j.error) || "Could not accept"); }
             })
             .catch(function (e) { b.disabled = false; b.textContent = "Accept route"; alert(String(e)); });
+        };
+      });
+      Array.prototype.forEach.call(host.querySelectorAll("[data-unacc]"), function (b) {
+        b.onclick = function () {
+          if (!confirm("Un-accept this route? Its jobs return to Route Candidate and to the suggestion pool on the next rebuild.")) return;
+          b.disabled = true; b.textContent = "Un-accepting\u2026";
+          fetch(ZTZ.API + "/api/_ldroutes", { method: "POST",
+            headers: { Authorization: "Bearer " + ZTZ.getToken(), "Content-Type": "application/json" },
+            body: JSON.stringify({ cancel: +b.getAttribute("data-unacc") }) })
+            .then(function (r) { return r.json(); })
+            .then(function (j) {
+              if (j && j.cancelled) { S._racc = null; S._rsug = null; paint(); }
+              else { b.disabled = false; b.textContent = "Un-accept"; alert((j && j.error) || "Could not un-accept"); }
+            })
+            .catch(function (e) { b.disabled = false; b.textContent = "Un-accept"; alert(String(e)); });
         };
       });
       Array.prototype.forEach.call(host.querySelectorAll("[data-ldview]"), function (b) {
