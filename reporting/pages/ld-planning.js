@@ -498,7 +498,16 @@ registerPage({
   // is a PICKUP and its origin is the customer's own address. Once we hold them, this is the
   // concrete place the truck loads from -- our depot's real address, the rented unit's full
   // address, or the carrier holding it.
-  function departFrom(r) {
+  // A job we have not collected yet has no "departing from" yet — what the dispatcher
+    // needs is WHICH DEPOT to send the truck from, which the base picker already worked
+    // out (shortest round trip). Show it there (Tornike 2026-07-29).
+    function departFrom(r) {
+      if (custKey(r) === "no" && r["Base"])
+        return { label: "Base " + r["Base"],
+                 addr: "send the truck from here \u00b7 " + (r["Base Zip"] || ""), base: true };
+      return departFrom0(r);
+    }
+    function departFrom0(r) {
     var loc = String(r["Location"] || "").trim();
     var det = String(r["Location Detail"] || "").trim();
     var carrier = String(r["Carrier Driver"] || "").trim();
@@ -539,15 +548,31 @@ registerPage({
   }
   // ROUTE STATUS chip -- legacy's second dimension. "Not Routed" and the at-carrier
   // dash stay silent on the board (noise); the drawer always states it in full.
-  var HOME_STATES = ["NJ", "PA", "NY", "DE", "CT", "MA"];   // legacy OUR_STATES, verbatim
+  // the states we actually keep a depot in — filled from the live bases table, with the
+  // legacy OUR_STATES as the fallback until it loads
+  var HOME_STATES = ["NJ", "PA", "NY", "DE", "CT", "MA"];
+  function stOf(addr, fallback) {
+    return String(fallback || "").trim().toUpperCase()
+        || (String(addr || "").match(/(?:^|[\s,])([A-Z]{2})[\s,]+\d{5}/) || [])[1] || "";
+  }
+  // A truck that runs OUT OF our base states comes home empty whichever end is far: a
+  // pickup in Ohio is as much a backhaul opportunity as a delivery in Florida
+  // (Tornike 2026-07-29 — was delivery-only).
   function isBackhaul(r) {
-    var st = String(r["Delivery State"] || "").trim().toUpperCase()
-          || (String(r["Moving To"] || "").match(/(?:^|[\s,])([A-Z]{2})[\s,]+\d{5}/) || [])[1] || "";
-    return isStraight(r) && st && HOME_STATES.indexOf(st) < 0;
+    if (!isStraight(r)) return false;
+    var to = stOf(r["Moving To"], r["Delivery State"]);
+    var from = stOf(r["Moving From"], "");
+    var out = function (st) { return st && HOME_STATES.indexOf(st) < 0; };
+    return out(to) || out(from);
+  }
+  function bhFarEnd(r) {
+    var to = stOf(r["Moving To"], r["Delivery State"]);
+    return (to && HOME_STATES.indexOf(to) < 0) ? (r["Moving To"] || to)
+         : (r["Moving From"] || stOf(r["Moving From"], ""));
   }
   // the legacy bhMsg wording, near-verbatim
   function bhMsg(r) {
-    var dest = String(r["Moving To"] || r["Delivery State"] || "the destination");
+    var dest = String(bhFarEnd(r) || r["Moving To"] || r["Delivery State"] || "the destination");
     var when = r["FAD"] ? fmtD(r["FAD"]) : "soon";
     var cf = Math.round(+r["CF"] || 0);
     return "Hi - we have a truck delivering to " + dest + " around " + when
@@ -561,7 +586,7 @@ registerPage({
     if (v === "Accepted Route")
       return ' <span class="ldp-rt acc" title="Locked into an accepted route">ROUTED</span>';
     if (v === "Route Candidate")
-      return ' <span class="ldp-rt cand" title="Eligible for route consolidation">CANDIDATE</span>';
+      return "";   // CANDIDATE chip removed (Tornike 2026-07-29) — Route Status still filters
     return "";
   }
   function backhaulChip(r) {
@@ -746,6 +771,11 @@ registerPage({
         + '<div class="ldp-when ' + cls + '">' + sub + "</div>" + depSub;
     }
     // WHAT TO DO — the mart's own imperative, which was buried in the drawer.
+    function carrierChip(r) {
+      return needCarrierZip(r)
+        ? ' <span class="ldp-rt over" title="A carrier is assigned but its location is unknown — open the job and enter the carrier zip">CARRIER ZIP?</span>'
+        : "";
+    }
     function todoCell(r) {
       var u = String(r["Urgency"] || "");
       var cls = u === "Act now" ? "late" : u === "Act soon" ? "soon"
@@ -794,6 +824,11 @@ registerPage({
     }
     // "Do we physically have it, and did we collect it?"
     // Custody in one token, used for pills, holding bars and the filter chips.
+    // a Regular with a carrier but no carrier zip: we cannot plan the truck's leg at all
+    function needCarrierZip(r) {
+      return !isStraight(r) && String(r["Carrier Driver"] || "").trim()
+             && !String(r["Carrier Location"] || "").trim();
+    }
     function custKey(r) {
       var p = String(r["Possession"] || "");
       return p === "With us" ? "us" : p === "With carrier" ? "car"
@@ -1051,6 +1086,11 @@ registerPage({
 
         return ''
           + (r["Do"] ? '<div class="ldp-dnote"><b>Do:</b> ' + esc(r["Do"]) + "</div>" : "")
+          + (needCarrierZip(r)
+              ? '<div class="ldp-dissue" style="margin-top:9px">\u26a0 A carrier is assigned ('
+                + esc(r["Carrier Driver"]) + ') but we do not know WHERE it takes the goods. '
+                + 'Enter the carrier zip below \u2014 the depot and the route are measured to it.</div>'
+              : "")
           + (r["Data Issue"] ? '<div class="ldp-dissue' + (String(r["Issue Kind"]) === "blocking" ? " blk" : "")
               + '" style="margin-top:9px">⚠ ' + esc(r["Data Issue"]) + "</div>" : "")
           + '<div class="ldp-sec">Calendar jobs</div>' + jobsCell(r)
@@ -1082,7 +1122,8 @@ registerPage({
                 // WHERE the carrier holds the goods has no other source, and the base
                 // picker needs it -- so this one field is editable on Regular jobs
                 !isStraight(r) ? ["Carrier location",
-                  '<input class="ldp-cinp" id="ldpCarLoc" placeholder="address or zip where the carrier holds it" value="'
+                  '<input class="ldp-cinp" id="ldpCarLoc" inputmode="numeric" maxlength="5"'
+                  + ' placeholder="5-digit zip where the carrier takes it" value="'
                   + esc(r["Carrier Location"] || "") + '">'
                   + '<button class="ldp-bhbtn" id="ldpCarSave" style="margin-top:7px">Save</button>'
                   + '<span class="ldp-sub" id="ldpCarMsg" style="margin-left:8px"></span>'] : null,
@@ -1356,7 +1397,6 @@ registerPage({
             + "</div>";
         }).join("") + "</div>"
         + acceptedHtml()
-        + basesHtml()
         + '<div class="ldp-note" style="margin-top:10px;color:var(--faint);font-size:12px">Engine rules (management\u2019s numbers): \u22641,500 CF combined \u00b7 every stop pair \u2264100 mi \u00b7 \u2264180 min detour \u00b7 windows within 5 days \u00b7 \u22642.5 extra mi per CF \u00b7 Straights first \u00b7 ~11 driving h/day. Accepting converts Regulars to Straight and locks the jobs out of future suggestions.</div>';
       }
       function acceptedHtml() {
@@ -1413,31 +1453,6 @@ registerPage({
           + '<button class="ldp-bhbtn" id="ldpOvFull" style="margin:0 0 0 12px;font-size:11.5px;padding:5px 10px">\u26f6 Fullscreen</button>'
           + "</div>"
           + '<div class="ldp-jmap ldp-ovmap"></div></div>';
-      }
-      // DEPOTS. A truck leaves its base and returns to it, so the base decides which
-      // truck can run a job at all -- editable here, applied on the next rebuild.
-      function basesHtml() {
-        var bs = S._bases;
-        return '<div class="ldp-card" style="margin-top:14px;padding:14px 16px">'
-          + '<div class="ldp-sec" style="margin-top:0">Bases \u00b7 our depots</div>'
-          + '<div class="ldp-sub" style="margin:-2px 0 9px">A job is assigned the base with the shortest round trip \u2014 out to where the goods are, on to the delivery, and back to the same base.</div>'
-          + (bs == null ? '<div class="ldp-sub">Loading\u2026</div>'
-             : '<table class="ldp-btbl"><tr><th>Name</th><th>Zip</th><th>Address</th><th></th></tr>'
-               + bs.filter(function (b) { return +b.active; }).map(function (b) {
-                   return '<tr data-bid="' + b.id + '">'
-                     + '<td><input class="ldp-cinp" data-bf="name" value="' + esc(b.name) + '"></td>'
-                     + '<td><input class="ldp-cinp" data-bf="zip" value="' + esc(b.zip) + '" style="width:80px"></td>'
-                     + '<td><input class="ldp-cinp" data-bf="address" value="' + esc(b.address || "") + '"></td>'
-                     + '<td style="white-space:nowrap"><button class="ldp-bhbtn" data-bsave="' + b.id + '" style="margin:0">Save</button>'
-                     + '<button class="ldp-bhbtn" data-bdel="' + b.id + '" style="margin:0 0 0 6px">Remove</button></td></tr>';
-                 }).join("")
-               + '<tr data-bid="new"><td><input class="ldp-cinp" data-bf="name" placeholder="e.g. VA"></td>'
-               + '<td><input class="ldp-cinp" data-bf="zip" placeholder="22102" style="width:80px"></td>'
-               + '<td><input class="ldp-cinp" data-bf="address" placeholder="optional"></td>'
-               + '<td><button class="ldp-bhbtn" data-bsave="new" style="margin:0">Add base</button></td></tr>'
-               + "</table>")
-          + '<div class="ldp-sub" id="ldpBaseMsg" style="margin-top:7px"></div>'
-          + "</div>";
       }
       function timelineHtml(rows) {
         // span the window so the LAST thing that matters is still on screen -- a fixed 42 days
@@ -1535,7 +1550,7 @@ registerPage({
                     + "</div>"
                   : "")
               + "</td>"
-          + '<td class="ldp-typetd">' + typeChip(r) + stageChip(r) + routeChip(r) + backhaulChip(r) + "</td>"
+          + '<td class="ldp-typetd">' + typeChip(r) + stageChip(r) + routeChip(r) + backhaulChip(r) + carrierChip(r) + "</td>"
           + '<td class="ldp-fromtd">' + departCellFrom(r) + "</td>"
           + "<td>" + esc(stateZip(r["Moving To"], r["Delivery State"]) || "—") + "</td>"
           + "<td>" + whereCell(r) + "</td>"
@@ -1689,6 +1704,7 @@ registerPage({
         if (custKey(r) === "no") { var oz = zipOnly(r["Moving From"]); if (oz) need[oz] = 1; }
       });
       need[LD_BASE_ZIP] = 1;
+      (S._bases || []).forEach(function (b) { if (+b.active && b.zip) need[b.zip] = 1; });
       S._zipGeo = S._zipGeo || {};
       var missing = Object.keys(need).filter(function (z) { return S._zipGeo[z] === undefined; });
       var go = function () { paintOverview(box, rows2); };
@@ -1754,6 +1770,16 @@ registerPage({
         box._ldlay = [];
         var base = S._zipGeo[LD_BASE_ZIP];
         var skipped = 0;
+        // every depot we run trucks out of, not just the NJ one (Tornike 2026-07-29)
+        (S._bases || []).forEach(function (b) {
+          if (!+b.active) return;
+          var g = S._zipGeo[b.zip];
+          if (!g) return;
+          box._ldlay.push(L.marker(g, { icon: L.divIcon({ className: "",
+            html: '<span class="ldp-mstop base">' + esc(String(b.name || "?").slice(0, 2)) + "</span>",
+            iconSize: [20, 20], iconAnchor: [10, 10] }), zIndexOffset: 400 })
+            .addTo(m).bindTooltip("Base " + esc(b.name) + " \u00b7 " + esc(b.zip), { sticky: true }));
+        });
         S._roadGeo = S._roadGeo || {};   // pair -> HERE road coords, session cache
         var wantRoad = {};
         if (base)
@@ -2038,6 +2064,14 @@ registerPage({
         a2.click();
         setTimeout(function () { URL.revokeObjectURL(a2.href); }, 4000);
       };
+      if (S.view === "map" && S._bases == null && !S._basesLoading) {
+        S._basesLoading = true;                     // the map draws a marker per depot
+        fetch(ZTZ.API + "/api/_ldbases", { headers: { Authorization: "Bearer " + ZTZ.getToken() } })
+          .then(function (r) { return r.json(); })
+          .then(function (j) { S._bases = (j && j.bases) || []; })
+          .catch(function () { S._bases = []; })
+          .then(function () { S._basesLoading = false; paint(); });
+      }
       if (S.view === "map") drawOverview(host.querySelector(".ldp-ovmap"), S._mvRows || []);
       var ovf = host.querySelector("#ldpOvFull");
       if (ovf) ovf.onclick = function () {
@@ -2047,47 +2081,6 @@ registerPage({
         ovf.textContent = on ? "\u2715 Exit fullscreen" : "\u26f6 Fullscreen";
         setTimeout(function () { if (bx._ldmap) bx._ldmap.invalidateSize(); }, 160);
       };
-      if (S.view === "routes" && S._bases == null && !S._basesLoading) {
-        S._basesLoading = true;
-        fetch(ZTZ.API + "/api/_ldbases", { headers: { Authorization: "Bearer " + ZTZ.getToken() } })
-          .then(function (r) { return r.json(); })
-          .then(function (j) { S._bases = (j && j.bases) || []; })
-          .catch(function () { S._bases = []; })
-          .then(function () { S._basesLoading = false; paint(); });
-      }
-      Array.prototype.forEach.call(host.querySelectorAll("[data-bsave],[data-bdel]"), function (b) {
-        b.onclick = function () {
-          var del = b.hasAttribute("data-bdel");
-          var id = b.getAttribute(del ? "data-bdel" : "data-bsave");
-          var tr = b.closest("tr");
-          var m = host.querySelector("#ldpBaseMsg");
-          var send = function (body) {
-            b.disabled = true; m.textContent = "Saving\u2026";
-            fetch(ZTZ.API + "/api/_ldbases", { method: "POST",
-              headers: { Authorization: "Bearer " + ZTZ.getToken(), "Content-Type": "application/json" },
-              body: JSON.stringify(body) })
-              .then(function (res) { return res.json().then(function (j) { return { ok: res.ok, j: j }; }); })
-              .then(function (o) {
-                b.disabled = false;
-                if (!o.ok || (o.j && o.j.error)) { m.textContent = (o.j && o.j.error) || "Save failed"; return; }
-                m.textContent = "Saved \u2713 \u2014 base assignments refresh on the next data rebuild";
-                S._bases = null; paint();
-              })
-              .catch(function (e) { b.disabled = false; m.textContent = String(e); });
-          };
-          if (del) {
-            ldpAsk("Remove this base? Jobs assigned to it will move to the next-best depot on the next rebuild.",
-                   function () { send({ id: +id, delete: 1 }); });
-            return;
-          }
-          var body = { name: "", zip: "", address: "" };
-          Array.prototype.forEach.call(tr.querySelectorAll("[data-bf]"), function (i2) {
-            body[i2.getAttribute("data-bf")] = i2.value.trim();
-          });
-          if (id !== "new") body.id = +id;
-          send(body);
-        };
-      });
       if ((S._rsug == null || S._racc == null) && !S._rsugLoading) {
         S._rsugLoading = true;
         fetch(ZTZ.API + "/api/fct_ld_route_suggestions?limit=500",
