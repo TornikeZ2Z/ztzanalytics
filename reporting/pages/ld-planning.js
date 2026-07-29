@@ -145,6 +145,11 @@ registerPage({
     .ldp-rt.over{background:rgba(176,42,55,.12);color:${NEG}}
     .ldp-rt.acc{background:rgba(28,122,74,.13);color:${POS}}
     .ldp-rt.cand{background:rgba(47,111,208,.10);color:${BLUE}}
+    .ldp-rt.bh{background:rgba(124,58,237,.12);color:var(--violet,#7c3aed)}
+    .ldp-bhbtn{margin-top:9px;font:inherit;font-size:12px;font-weight:750;color:var(--ink);
+      background:var(--panel-2);border:1px solid var(--line-2);border-radius:10px;padding:7px 13px;cursor:pointer}
+    .ldp-bhbtn:hover{border-color:var(--blue)}
+    .ldp-bhbtn.done{color:var(--pos,#1c7a4a);border-color:rgba(28,122,74,.4)}
     .ldp-stage{display:inline-block;font-size:12px;font-weight:800;letter-spacing:.01em;padding:3px 10px;border-radius:999px;white-space:nowrap}
     .ldp-stage.p{background:rgba(37,99,235,.11);color:var(--blue)}
     .ldp-stage.d{background:rgba(28,122,74,.12);color:${POS}}
@@ -483,6 +488,21 @@ registerPage({
   }
   // ROUTE STATUS chip -- legacy's second dimension. "Not Routed" and the at-carrier
   // dash stay silent on the board (noise); the drawer always states it in full.
+  var HOME_STATES = ["NJ", "PA", "NY", "DE", "CT", "MA"];   // legacy OUR_STATES, verbatim
+  function isBackhaul(r) {
+    var st = String(r["Delivery State"] || "").trim().toUpperCase()
+          || (String(r["Moving To"] || "").match(/(?:^|[\s,])([A-Z]{2})[\s,]+\d{5}/) || [])[1] || "";
+    return isStraight(r) && st && HOME_STATES.indexOf(st) < 0;
+  }
+  // the legacy bhMsg wording, near-verbatim
+  function bhMsg(r) {
+    var dest = String(r["Moving To"] || r["Delivery State"] || "the destination");
+    var when = r["FAD"] ? fmtD(r["FAD"]) : "soon";
+    var cf = Math.round(+r["CF"] || 0);
+    return "Hi - we have a truck delivering to " + dest + " around " + when
+      + ", returning empty afterward (~" + cf + " cf of space). Looking for backhaul cargo "
+      + "heading back toward NJ/PA/NY/DE. Any leads? - Zip To Zip";
+  }
   function routeChip(r) {
     var v = String(r["Route Status"] || "");
     if (v === "Over truck (carrier)")
@@ -492,6 +512,11 @@ registerPage({
     if (v === "Route Candidate")
       return ' <span class="ldp-rt cand" title="Eligible for route consolidation">CANDIDATE</span>';
     return "";
+  }
+  function backhaulChip(r) {
+    return isBackhaul(r)
+      ? ' <span class="ldp-rt bh" title="Straight delivery outside NJ/PA/NY/DE/CT/MA \u2014 the truck returns empty. Open the job for the outreach draft.">BACKHAUL</span>'
+      : "";
   }
   function stageChip(r) {
     var st = stageOf(r);
@@ -1007,6 +1032,9 @@ registerPage({
                 (+r["Storage Sold"]) ? ["Storage", "Sales person sold storage on this job"] : null,
                 ["Sticker", esc(r["Sticker"] || "—")],
                 ["Route status", esc(r["Route Status"] || "—")]]); })()
+          + (isBackhaul(r)
+              ? '<button class="ldp-bhbtn" data-bh="1">\ud83d\ude9a Find backhaul \u2014 truck returns empty (copy outreach)</button>'
+              : "")
           + '<div class="ldp-sec">Job</div>'
           + kv([r["Balance Due"] != null ? ["Balance due", money(r["Balance Due"])] : null,
                 r["CF"] != null ? ["CF", Number(r["CF"]).toLocaleString()] : null,
@@ -1019,6 +1047,17 @@ registerPage({
 
       // The drawer is rendered OUTSIDE the table, so a repaint of the list never destroys
       // a half-filled edit form — and closing it does not re-render the board.
+      function wireBackhaul(dr2, r) {
+        var b = dr2.querySelector("[data-bh]");
+        if (!b) return;
+        b.onclick = function () {
+          var msg = bhMsg(r);
+          var done = function () { b.textContent = "Copied \u2713 \u2014 paste it to your carrier contacts"; b.classList.add("done"); };
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(msg).then(done, function () { window.prompt("Copy the outreach message:", msg); });
+          } else { window.prompt("Copy the outreach message:", msg); }
+        };
+      }
       function openDrawer(key) {
         var dr = document.getElementById("ldpDrawer"), sc = document.getElementById("ldpScrim");
         if (!dr || !sc) return;
@@ -1037,6 +1076,7 @@ registerPage({
           + '<div class="ldp-dpills">' + urgPill(r) + possPill(r) + locPill(r) + "</div></div>"
           + '<div class="ldp-dbody">' + drawerBody(r) + "</div>";
         dr.classList.add("show"); sc.classList.add("show");
+        wireBackhaul(dr, r);
         var x = document.getElementById("ldpDx");
         if (x) x.onclick = function () { openDrawer(null); };
         wireForms(dr);
@@ -1272,7 +1312,7 @@ registerPage({
                     + "</div>"
                   : "")
               + "</td>"
-          + '<td class="ldp-typetd">' + typeChip(r) + stageChip(r) + routeChip(r) + "</td>"
+          + '<td class="ldp-typetd">' + typeChip(r) + stageChip(r) + routeChip(r) + backhaulChip(r) + "</td>"
           + '<td class="ldp-fromtd">' + departCellFrom(r) + "</td>"
           + "<td>" + esc(stateZip(r["Moving To"], r["Delivery State"]) || "—") + "</td>"
           + "<td>" + whereCell(r) + "</td>"
