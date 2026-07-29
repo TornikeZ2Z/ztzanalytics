@@ -150,6 +150,16 @@ registerPage({
       background:var(--panel-2);border:1px solid var(--line-2);border-radius:10px;padding:7px 13px;cursor:pointer}
     .ldp-bhbtn:hover{border-color:var(--blue)}
     .ldp-bhbtn.done{color:var(--pos,#1c7a4a);border-color:rgba(28,122,74,.4)}
+    .ldp-mapbtn{margin:11px 0 0 8px;font-size:12px}
+    .ldp-mapwrap{margin-top:11px;display:none}
+    .ldp-mapwrap.on{display:block}
+    .ldp-mapbox{height:290px;border-radius:12px;border:1px solid var(--line-2);overflow:hidden;background:var(--panel-2)}
+    .ldp-mstop{width:20px;height:20px;border-radius:50%;background:#B26B0B;color:#fff;
+      font:800 10.5px/20px system-ui;text-align:center;display:block;box-shadow:0 1px 4px rgba(0,0,0,.35)}
+    .ldp-mstop.base{background:#233043}
+    .ldp-mifl{background:#6C5CE0;color:#fff;border:0;border-radius:8px;font-weight:750;font-size:11px;
+      padding:2px 8px;box-shadow:0 1px 5px rgba(0,0,0,.3)}
+    .ldp-mifl::before{display:none}
     .ldp-stage{display:inline-block;font-size:12px;font-weight:800;letter-spacing:.01em;padding:3px 10px;border-radius:999px;white-space:nowrap}
     .ldp-stage.p{background:rgba(37,99,235,.11);color:var(--blue)}
     .ldp-stage.d{background:rgba(28,122,74,.12);color:${POS}}
@@ -1195,6 +1205,14 @@ registerPage({
             + stops
             + '<button class="ldp-raccept" data-rkey="' + esc(k) + '" data-codes="'
             + esc(st.map(function (x) { return x["Job Code"]; }).join(",")) + '" data-truck="' + esc(h["Truck"] || "") + '" data-miles="' + esc(String(h["Miles"] || "")) + '">Accept route</button>'
+            + (function () {
+                var zs = st.map(function (x) { return String(x["Dest Zip"] || "").trim(); })
+                  .filter(function (z) { return /^\d{5}$/.test(z); });
+                if (!zs.length) return "";
+                return '<button class="ldp-bhbtn ldp-mapbtn" data-mapfor="' + esc(k) + '" data-legzips="'
+                  + [LD_BASE_ZIP].concat(zs).concat([LD_BASE_ZIP]).join(",") + '">Map</button>'
+                  + '<div class="ldp-mapwrap" data-mapwrap="' + esc(k) + '"><div class="ldp-mapbox"></div></div>';
+              })()
             + "</div>";
         }).join("") + "</div>"
         + acceptedHtml()
@@ -1206,12 +1224,23 @@ registerPage({
         return '<div class="ldp-card" style="margin-top:14px;padding:14px 16px">'
           + '<div class="ldp-sec" style="margin-top:0">Accepted routes</div>'
           + acc.map(function (x) {
+              var zs = String(x.job_codes || "").split(",").map(function (code) {
+                var hit = overlaid().filter(function (r2) {
+                  return String(r2["Job Code"] || "").split(",").indexOf(code) >= 0;
+                })[0];
+                return hit ? zipOnly(hit["Moving To"]) : "";
+              }).filter(function (z) { return /^\d{5}$/.test(z); });
+              var mk = "acc" + x.id;
               return '<div class="ldp-rstop"><b>' + esc(String(x.job_codes || "").split(",").join(" + "))
                 + "</b> <span class=\"ldp-sub\">truck " + esc(x.truck || "?")
                 + (x.miles ? " \u00b7 ~" + (+x.miles).toLocaleString() + " mi" : "")
                 + " \u00b7 accepted " + esc(String(x.accepted_at || "").slice(0, 16))
                 + " by " + esc(String(x.accepted_by || "").split("@")[0]) + "</span>"
-                + '<button class="ldp-bhbtn ldp-unacc" data-unacc="' + x.id + '" style="margin:0 0 0 auto">Un-accept</button></div>';
+                + (zs.length ? '<button class="ldp-bhbtn ldp-mapbtn" data-mapfor="' + mk + '" data-legzips="'
+                    + [LD_BASE_ZIP].concat(zs).concat([LD_BASE_ZIP]).join(",") + '" style="margin:0 0 0 auto">Map</button>' : "")
+                + '<button class="ldp-bhbtn ldp-unacc" data-unacc="' + x.id + '" style="margin:0 0 0 '
+                + (zs.length ? "8px" : "auto") + '">Un-accept</button></div>'
+                + (zs.length ? '<div class="ldp-mapwrap" data-mapwrap="' + mk + '"><div class="ldp-mapbox"></div></div>' : "");
             }).join("")
           + "</div>";
       }
@@ -1442,6 +1471,64 @@ registerPage({
       };
     }
 
+    // M1 journey maps: Leaflet is vendored (assets/vendor/leaflet), loaded on first use.
+    var LD_BASE_ZIP = "07728";   // NJ base, same as the route engine
+    function zipOnly(s2) { return (String(s2 || "").match(/\b\d{5}\b/g) || []).pop() || ""; }
+    function ensureLeaflet(cb) {
+      if (window.L && window.L.map) { cb(); return; }
+      if (!document.getElementById("ldLeafCss")) {
+        var lc = document.createElement("link");
+        lc.id = "ldLeafCss"; lc.rel = "stylesheet"; lc.href = "assets/vendor/leaflet/leaflet.css";
+        document.head.appendChild(lc);
+      }
+      var sc = document.getElementById("ldLeafJs");
+      if (sc) { sc.addEventListener("load", function () { cb(); }); return; }
+      sc = document.createElement("script");
+      sc.id = "ldLeafJs"; sc.src = "assets/vendor/leaflet/leaflet.js";
+      sc.onload = function () { cb(); };
+      document.head.appendChild(sc);
+    }
+    function drawJourney(box, legs) {
+      ensureLeaflet(function () {
+        var m = box._ldmap;
+        if (!m) {
+          m = L.map(box, { scrollWheelZoom: false, zoomSnap: 0.5 });
+          L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png",
+            { maxZoom: 18, subdomains: "abcd", attribution: "\u00a9 OpenStreetMap \u00b7 \u00a9 CARTO" }).addTo(m);
+          box._ldmap = m; box._ldlay = [];
+        }
+        (box._ldlay || []).forEach(function (l) { try { m.removeLayer(l); } catch (e) {} });
+        box._ldlay = [];
+        var bounds = [];
+        legs.forEach(function (lg, i) {
+          var c = lg.coords || [];
+          if (c.length < 2) return;
+          var ret = i === legs.length - 1;   // last leg = the empty return to base
+          var pl = L.polyline(c, ret
+            ? { color: "#6C5CE0", weight: 3, dashArray: "6 7", opacity: 0.85 }
+            : { color: "#B26B0B", weight: 4, opacity: 0.9 });
+          pl.addTo(m); box._ldlay.push(pl);
+          if (ret && lg.miles) {
+            pl.bindTooltip("empty return \u00b7 ~" + Math.round(lg.miles).toLocaleString() + " mi",
+              { permanent: true, className: "ldp-mifl", direction: "center" });
+            pl.openTooltip(c[Math.floor(c.length / 2)]);
+          }
+          c.forEach(function (p) { bounds.push(p); });
+        });
+        legs.forEach(function (lg, i) {
+          var c = lg.coords || [];
+          if (!c.length) return;
+          if (i === 0)
+            box._ldlay.push(L.marker(c[0], { icon: L.divIcon({ className: "",
+              html: '<span class="ldp-mstop base">B</span>', iconSize: [20, 20], iconAnchor: [10, 10] }) }).addTo(m));
+          if (i < legs.length - 1)
+            box._ldlay.push(L.marker(c[c.length - 1], { icon: L.divIcon({ className: "",
+              html: '<span class="ldp-mstop">' + (i + 1) + "</span>", iconSize: [20, 20], iconAnchor: [10, 10] }) }).addTo(m));
+        });
+        if (bounds.length) m.fitBounds(bounds, { padding: [22, 22] });
+        setTimeout(function () { m.invalidateSize(); if (bounds.length) m.fitBounds(bounds, { padding: [22, 22] }); }, 80);
+      });
+    }
     function wire() {
       var q = host.querySelector("#ldpQ");
       if (q) q.oninput = function () { S.q = q.value; var pos = q.selectionStart; paint(); var n2 = host.querySelector("#ldpQ"); if (n2) { n2.focus(); try { n2.setSelectionRange(pos, pos); } catch (e) {} } };
@@ -1479,6 +1566,42 @@ registerPage({
               else { b.disabled = false; b.textContent = "Accept route"; alert((j && j.error) || "Could not accept"); }
             })
             .catch(function (e) { b.disabled = false; b.textContent = "Accept route"; alert(String(e)); });
+        };
+      });
+      Array.prototype.forEach.call(host.querySelectorAll("[data-mapfor]"), function (b) {
+        b.onclick = function () {
+          var key = b.getAttribute("data-mapfor");
+          var wrap = host.querySelector('[data-mapwrap="' + key + '"]');
+          if (!wrap) return;
+          var on = wrap.classList.toggle("on");
+          b.textContent = on ? "Hide map" : "Map";
+          if (!on) return;
+          if (wrap._ldloaded) {   // reopening: just re-fit the existing map
+            var bx0 = wrap.querySelector(".ldp-mapbox");
+            if (bx0 && bx0._ldmap) setTimeout(function () { bx0._ldmap.invalidateSize(); }, 60);
+            return;
+          }
+          wrap._ldloaded = true;
+          var zips = (b.getAttribute("data-legzips") || "").split(",").filter(Boolean);
+          var legs = [];
+          for (var i = 0; i + 1 < zips.length; i++) legs.push(zips[i] + ":" + zips[i + 1]);
+          var box = wrap.querySelector(".ldp-mapbox");
+          var qs = legs.join(",");
+          var draw = function (j) { if (j && j.legs && j.legs.length) drawJourney(box, j.legs); };
+          fetch(ZTZ.API + "/api/_ldgeo?est=1&legs=" + encodeURIComponent(qs),
+                { headers: { Authorization: "Bearer " + ZTZ.getToken() } })
+            .then(function (r) { return r.json(); })
+            .then(function (j) {
+              draw(j);   // instant straight lines (legacy estimate-first behaviour)
+              var need = j && j.legs && j.legs.some(function (l) { return l.source !== "here"; });
+              if (need)
+                fetch(ZTZ.API + "/api/_ldgeo?legs=" + encodeURIComponent(qs),
+                      { headers: { Authorization: "Bearer " + ZTZ.getToken() } })
+                  .then(function (r) { return r.json(); }).then(draw).catch(function () {});
+            })
+            .catch(function () {
+              box.innerHTML = '<div style="padding:18px;color:var(--faint)">Map unavailable</div>';
+            });
         };
       });
       Array.prototype.forEach.call(host.querySelectorAll("[data-unacc]"), function (b) {
