@@ -169,6 +169,7 @@ registerPage({
     .ldp-ovln.thin{border-top:2px dashed #a7aebc}
     .ldp-ovnote{margin-left:auto;font-weight:500}
     .ldp-dmap{height:240px;margin-top:2px}
+    .ldp-dmapnote{margin-top:6px;font-size:11.5px;font-weight:650;color:#B26B0B}
     .ldp-stage{display:inline-block;font-size:12px;font-weight:800;letter-spacing:.01em;padding:3px 10px;border-radius:999px;white-space:nowrap}
     .ldp-stage.p{background:rgba(37,99,235,.11);color:var(--blue)}
     .ldp-stage.d{background:rgba(28,122,74,.12);color:${POS}}
@@ -1066,6 +1067,10 @@ registerPage({
       function openDrawer(key) {
         var dr = document.getElementById("ldpDrawer"), sc = document.getElementById("ldpScrim");
         if (!dr || !sc) return;
+        // any open/close invalidates in-flight journey-map work: the closed drawer is only
+        // visibility:hidden, so isConnected alone cannot tell a late fetch to stand down
+        S._dgen = (S._dgen || 0) + 1;
+        if (S._dctl) { try { S._dctl.abort(); } catch (e) {} S._dctl = null; }
         S.sel = key;
         host.querySelectorAll("tr.ldp-row, .ldp-tlrow[data-ldk]").forEach(function (tr) {
           tr.classList.toggle("on", tr.getAttribute("data-ldk") === key);
@@ -1528,7 +1533,14 @@ registerPage({
 
     // M1 journey maps: Leaflet is vendored (assets/vendor/leaflet), loaded on first use.
     var LD_BASE_ZIP = "07728";   // NJ base, same as the route engine
-    function zipOnly(s2) { return (String(s2 || "").match(/\b\d{5}\b/g) || []).pop() || ""; }
+    // A bare 5-digit run is USUALLY a street number ("20345 Main St") -- trust only a zip
+    // beside a state code or terminating the address (stateZip's and the route engine's rule)
+    function zipOnly(s2) {
+      var a = String(s2 || "");
+      var m = a.match(/(?:^|[\s,])[A-Z]{2}[\s,]+(\d{5})(?:-\d{4})?(?!\d)/);
+      if (m) return m[1];
+      return (a.match(/(\d{5})(?:-\d{4})?\s*(?:,?\s*USA?\.?)?\s*$/) || [])[1] || "";
+    }
     function ensureLeaflet(cb) {
       if (window.L && window.L.map) { cb(); return; }
       if (!document.getElementById("ldLeafCss")) {
@@ -1670,42 +1682,58 @@ registerPage({
     }
     function drawFocused(box, r) {
       // legacy focused view, one job at a time: the leg already driven is grey dashed,
-      // what is ahead of us is orange, and a carrier's leg is violet (out of our hands)
+      // in-storage grey with its own wording, ahead-of-us orange, a carrier's leg violet
       if (!box) return;
       var dz = zipOnly(r["Moving To"]);
       if (!dz) return;
       var oz = zipOnly(r["Moving From"]);
       var ck = custKey(r);
+      // goods in RENTED / third-party storage sit at the unit's address, not our base --
+      // route the midpoint there when its zip is known (drawer facts already show it)
+      var mid = LD_BASE_ZIP;
+      if (ck === "tp") {
+        var df = departFrom(r) || {};
+        var sz2 = zipOnly(df.addr || String(r["Location Detail"] || ""));
+        if (sz2 && sz2 !== dz) mid = sz2;
+      }
       var plan = [];
-      if (oz && oz !== dz && oz !== LD_BASE_ZIP)
-        plan.push({ a: oz, b: LD_BASE_ZIP, kind: ck === "no" ? "ahead" : "done" });
-      plan.push({ a: LD_BASE_ZIP, b: dz, kind: ck === "car" ? "carrier" : "ahead" });
+      if (oz && oz !== dz && oz !== mid)
+        plan.push({ a: oz, b: mid, kind: ck === "no" ? "ahead" : ck === "tp" ? "stored" : "done" });
+      plan.push({ a: mid, b: dz, kind: ck === "car" ? "carrier" : "ahead" });
       var qs = plan.map(function (l) { return l.a + ":" + l.b; }).join(",");
+      var gen = S._dgen;
+      var ctl = window.AbortController ? new AbortController() : null;
+      S._dctl = ctl;
       var hdr = { headers: { Authorization: "Bearer " + ZTZ.getToken() } };
+      if (ctl) hdr.signal = ctl.signal;
+      var live = function () { return S._dgen === gen && box.isConnected; };
       var chk = function (r2) { if (!r2.ok) throw new Error("HTTP " + r2.status); return r2.json(); };
       var fail = function () {
-        if (box.isConnected) box.innerHTML = '<div style="padding:14px;color:var(--faint)">Map unavailable</div>';
+        if (live()) box.innerHTML = '<div style="padding:14px;color:var(--faint)">Map unavailable</div>';
       };
       var draw = function (j) {
         var ok = j && j.legs && j.legs.some(function (l) { return l.coords && l.coords.length > 1; });
-        if (!ok || !box.isConnected) return false;
-        paintFocused(box, r, plan, j.legs);
+        if (!ok || !live()) return false;
+        paintFocused(box, r, plan, j.legs, gen, mid);
         return true;
       };
       fetch(ZTZ.API + "/api/_ldgeo?est=1&legs=" + encodeURIComponent(qs), hdr)
         .then(chk)
         .then(function (j) {
-          if (!draw(j)) fail();
+          var ok = draw(j);
+          if (!ok) fail();
           var need = j && j.legs && j.legs.some(function (l) { return l.source !== "here"; });
-          if (need)
+          // the refine is real HERE spend on the shared bridge: only for a drawer that is
+          // still open on this same job, and only when the instant pass actually drew
+          if (ok && need && live())
             fetch(ZTZ.API + "/api/_ldgeo?legs=" + encodeURIComponent(qs), hdr)
               .then(chk).then(draw).catch(function () {});
         })
         .catch(fail);
     }
-    function paintFocused(box, r, plan, legs) {
+    function paintFocused(box, r, plan, legs, gen, mid) {
       ensureLeaflet(function () {
-        if (!box.isConnected) return;
+        if (S._dgen !== gen || !box.isConnected) return;
         var m = box._ldmap;
         if (!m) {
           m = L.map(box, { scrollWheelZoom: false, zoomSnap: 0.5 });
@@ -1717,10 +1745,12 @@ registerPage({
         box._ldlay = [];
         var STYLES = {
           done: { color: "#8A93A6", weight: 3, dashArray: "5 7", opacity: 0.8 },
+          stored: { color: "#8A93A6", weight: 3, dashArray: "5 7", opacity: 0.8 },
           ahead: { color: "#B26B0B", weight: 4, opacity: 0.9 },
           carrier: { color: "#6C5CE0", weight: 3, dashArray: "6 7", opacity: 0.85 }
         };
-        var LEGEND = { done: "in our hands \u2014 already collected", ahead: "ahead of us",
+        var LEGEND = { done: "in our hands \u2014 already collected",
+                       stored: "in storage \u2014 already collected", ahead: "ahead of us",
                        carrier: "carrier leg \u2014 out of our hands" };
         var bounds = [], basePt = null, destPt = null, origPt = null;
         legs.forEach(function (lg, i) {
@@ -1732,12 +1762,14 @@ registerPage({
             { sticky: true });
           box._ldlay.push(pl);
           c.forEach(function (p) { bounds.push(p); });
-          if ((plan[i] || {}).b === LD_BASE_ZIP) { origPt = c[0]; basePt = c[c.length - 1]; }
-          if ((plan[i] || {}).a === LD_BASE_ZIP) { basePt = basePt || c[0]; destPt = c[c.length - 1]; }
+          if ((plan[i] || {}).b === mid) { origPt = c[0]; basePt = c[c.length - 1]; }
+          if ((plan[i] || {}).a === mid) { basePt = basePt || c[0]; destPt = c[c.length - 1]; }
         });
         if (basePt)
           box._ldlay.push(L.marker(basePt, { icon: L.divIcon({ className: "",
-            html: '<span class="ldp-mstop base">B</span>', iconSize: [20, 20], iconAnchor: [10, 10] }) }).addTo(m));
+            html: '<span class="ldp-mstop base">' + (mid === LD_BASE_ZIP ? "B" : "S") + "</span>",
+            iconSize: [20, 20], iconAnchor: [10, 10] }) }).addTo(m)
+            .bindTooltip(mid === LD_BASE_ZIP ? "NJ base" : "storage unit", { sticky: true }));
         if (origPt)
           box._ldlay.push(L.circleMarker(origPt, { radius: 5, color: "#fff", weight: 2,
             fillColor: "#8A93A6", fillOpacity: 0.95 }).addTo(m).bindTooltip("pickup", { sticky: true }));
@@ -1747,6 +1779,21 @@ registerPage({
             fillColor: col, fillOpacity: 0.95 }).addTo(m)
             .bindTooltip("delivery \u00b7 " + esc(stateZip(r["Moving To"], r["Delivery State"]) || ""), { sticky: true }));
         }
+        // a not-picked-up job whose collection leg could not be drawn (no mappable pickup
+        // zip) would otherwise look exactly like goods sitting ready at base -- say so
+        var missedPickup = custKey(r) === "no" && !legs.some(function (lg, i) {
+          return (plan[i] || {}).b === mid && lg.coords && lg.coords.length > 1;
+        });
+        var cap = box.nextElementSibling;
+        if (cap && !(cap.classList && cap.classList.contains("ldp-dmapnote"))) cap = null;
+        if (missedPickup) {
+          if (!cap) {
+            cap = document.createElement("div");
+            cap.className = "ldp-dmapnote";
+            box.parentNode.insertBefore(cap, box.nextSibling);
+          }
+          cap.textContent = "\u26a0 Not collected yet \u2014 the pickup address has no mappable zip, so the collection leg is not drawn.";
+        } else if (cap) cap.remove();
         if (bounds.length) m.fitBounds(bounds, { padding: [20, 20] });
         setTimeout(function () { m.invalidateSize(); if (bounds.length) m.fitBounds(bounds, { padding: [20, 20] }); }, 80);
       });
