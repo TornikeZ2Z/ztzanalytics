@@ -168,6 +168,7 @@ registerPage({
     .ldp-ovln.dash{border-top-style:dashed}
     .ldp-ovln.thin{border-top:2px dashed #a7aebc}
     .ldp-ovnote{margin-left:auto;font-weight:500}
+    .ldp-dmap{height:240px;margin-top:2px}
     .ldp-stage{display:inline-block;font-size:12px;font-weight:800;letter-spacing:.01em;padding:3px 10px;border-radius:999px;white-space:nowrap}
     .ldp-stage.p{background:rgba(37,99,235,.11);color:var(--blue)}
     .ldp-stage.d{background:rgba(28,122,74,.12);color:${POS}}
@@ -1014,6 +1015,9 @@ registerPage({
                   + (rt.firm ? "" : '<div class="ldp-sub">customer address — not the final drop yet</div>')
                   + (r["Moving To"] && String(r["Moving To"]).replace(/\s+/g, " ") !== rt.to
                        ? '<div class="ldp-sub">' + esc(r["Moving To"]) + "</div>" : "")]]); })()
+          + (zipOnly(r["Moving To"])
+              ? '<div class="ldp-sec">Journey</div><div class="ldp-jmap ldp-dmap" id="ldpDMap"></div>'
+              : "")
           + '<div class="ldp-sec">Delivery</div>'
           + kv(delivery.concat([
                 ["Depart by", fmtD(r["Depart By"]) + (tripTxt(r) ? ' <span class="ldp-sub">' + tripTxt(r) + "</span>" : "")]]))
@@ -1066,6 +1070,11 @@ registerPage({
         host.querySelectorAll("tr.ldp-row, .ldp-tlrow[data-ldk]").forEach(function (tr) {
           tr.classList.toggle("on", tr.getAttribute("data-ldk") === key);
         });
+        // the drawer map holds a Leaflet instance (window resize listener) -- destroy it
+        // whenever this content is about to be discarded or hidden
+        Array.prototype.forEach.call(dr.querySelectorAll(".ldp-jmap"), function (n) {
+          if (n._ldmap) { try { n._ldmap.remove(); } catch (e) {} n._ldmap = null; }
+        });
         if (!key) { dr.classList.remove("show"); sc.classList.remove("show"); return; }
         var r = cur.filter(function (x, i2) { return String(x["Sheet Row"] || i2) === key; })[0];
         if (!r) { dr.classList.remove("show"); sc.classList.remove("show"); return; }
@@ -1078,6 +1087,7 @@ registerPage({
           + '<div class="ldp-dbody">' + drawerBody(r) + "</div>";
         dr.classList.add("show"); sc.classList.add("show");
         wireBackhaul(dr, r);
+        drawFocused(document.getElementById("ldpDMap"), r);
         var x = document.getElementById("ldpDx");
         if (x) x.onclick = function () { openDrawer(null); };
         wireForms(dr);
@@ -1656,6 +1666,89 @@ registerPage({
           note.textContent = note.textContent ? note.textContent + " \u00b7 " + extra : extra;
         }
         setTimeout(function () { m.invalidateSize(); }, 60);
+      });
+    }
+    function drawFocused(box, r) {
+      // legacy focused view, one job at a time: the leg already driven is grey dashed,
+      // what is ahead of us is orange, and a carrier's leg is violet (out of our hands)
+      if (!box) return;
+      var dz = zipOnly(r["Moving To"]);
+      if (!dz) return;
+      var oz = zipOnly(r["Moving From"]);
+      var ck = custKey(r);
+      var plan = [];
+      if (oz && oz !== dz && oz !== LD_BASE_ZIP)
+        plan.push({ a: oz, b: LD_BASE_ZIP, kind: ck === "no" ? "ahead" : "done" });
+      plan.push({ a: LD_BASE_ZIP, b: dz, kind: ck === "car" ? "carrier" : "ahead" });
+      var qs = plan.map(function (l) { return l.a + ":" + l.b; }).join(",");
+      var hdr = { headers: { Authorization: "Bearer " + ZTZ.getToken() } };
+      var chk = function (r2) { if (!r2.ok) throw new Error("HTTP " + r2.status); return r2.json(); };
+      var fail = function () {
+        if (box.isConnected) box.innerHTML = '<div style="padding:14px;color:var(--faint)">Map unavailable</div>';
+      };
+      var draw = function (j) {
+        var ok = j && j.legs && j.legs.some(function (l) { return l.coords && l.coords.length > 1; });
+        if (!ok || !box.isConnected) return false;
+        paintFocused(box, r, plan, j.legs);
+        return true;
+      };
+      fetch(ZTZ.API + "/api/_ldgeo?est=1&legs=" + encodeURIComponent(qs), hdr)
+        .then(chk)
+        .then(function (j) {
+          if (!draw(j)) fail();
+          var need = j && j.legs && j.legs.some(function (l) { return l.source !== "here"; });
+          if (need)
+            fetch(ZTZ.API + "/api/_ldgeo?legs=" + encodeURIComponent(qs), hdr)
+              .then(chk).then(draw).catch(function () {});
+        })
+        .catch(fail);
+    }
+    function paintFocused(box, r, plan, legs) {
+      ensureLeaflet(function () {
+        if (!box.isConnected) return;
+        var m = box._ldmap;
+        if (!m) {
+          m = L.map(box, { scrollWheelZoom: false, zoomSnap: 0.5 });
+          L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png",
+            { maxZoom: 18, subdomains: "abcd", attribution: "\u00a9 OpenStreetMap \u00b7 \u00a9 CARTO" }).addTo(m);
+          box._ldmap = m; box._ldlay = [];
+        }
+        (box._ldlay || []).forEach(function (l) { try { m.removeLayer(l); } catch (e) {} });
+        box._ldlay = [];
+        var STYLES = {
+          done: { color: "#8A93A6", weight: 3, dashArray: "5 7", opacity: 0.8 },
+          ahead: { color: "#B26B0B", weight: 4, opacity: 0.9 },
+          carrier: { color: "#6C5CE0", weight: 3, dashArray: "6 7", opacity: 0.85 }
+        };
+        var LEGEND = { done: "in our hands \u2014 already collected", ahead: "ahead of us",
+                       carrier: "carrier leg \u2014 out of our hands" };
+        var bounds = [], basePt = null, destPt = null, origPt = null;
+        legs.forEach(function (lg, i) {
+          var c = lg.coords || [];
+          if (c.length < 2) return;
+          var kind = (plan[i] || {}).kind || "ahead";
+          var pl = L.polyline(c, STYLES[kind]).addTo(m);
+          pl.bindTooltip(LEGEND[kind] + (lg.miles ? " \u00b7 ~" + Math.round(lg.miles).toLocaleString() + " mi" : ""),
+            { sticky: true });
+          box._ldlay.push(pl);
+          c.forEach(function (p) { bounds.push(p); });
+          if ((plan[i] || {}).b === LD_BASE_ZIP) { origPt = c[0]; basePt = c[c.length - 1]; }
+          if ((plan[i] || {}).a === LD_BASE_ZIP) { basePt = basePt || c[0]; destPt = c[c.length - 1]; }
+        });
+        if (basePt)
+          box._ldlay.push(L.marker(basePt, { icon: L.divIcon({ className: "",
+            html: '<span class="ldp-mstop base">B</span>', iconSize: [20, 20], iconAnchor: [10, 10] }) }).addTo(m));
+        if (origPt)
+          box._ldlay.push(L.circleMarker(origPt, { radius: 5, color: "#fff", weight: 2,
+            fillColor: "#8A93A6", fillOpacity: 0.95 }).addTo(m).bindTooltip("pickup", { sticky: true }));
+        if (destPt) {
+          var col = OV_COLORS[String(r["Urgency"] || "")] || OV_COLORS[""];
+          box._ldlay.push(L.circleMarker(destPt, { radius: 7, color: "#fff", weight: 2,
+            fillColor: col, fillOpacity: 0.95 }).addTo(m)
+            .bindTooltip("delivery \u00b7 " + esc(stateZip(r["Moving To"], r["Delivery State"]) || ""), { sticky: true }));
+        }
+        if (bounds.length) m.fitBounds(bounds, { padding: [20, 20] });
+        setTimeout(function () { m.invalidateSize(); if (bounds.length) m.fitBounds(bounds, { padding: [20, 20] }); }, 80);
       });
     }
     function wire() {
