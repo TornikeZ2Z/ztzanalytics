@@ -129,6 +129,17 @@ registerPage({
         .ldp-sec:first-child{margin-top:0}
         .ldp-stor{display:inline-block;font-size:9px;font-weight:800;letter-spacing:.05em;padding:1px 6px;
       border-radius:5px;background:rgba(124,58,237,.13);color:var(--violet,#7c3aed);white-space:nowrap;margin-left:5px}
+    .ldp-rgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:14px}
+    .ldp-rcard{background:var(--panel);border:1px solid var(--line-2);border-radius:14px;padding:14px 16px}
+    .ldp-rhd{display:flex;justify-content:space-between;align-items:baseline;gap:10px;margin-bottom:10px;flex-wrap:wrap}
+    .ldp-rhd b{font-size:15px;letter-spacing:-.2px}
+    .ldp-rstop{display:flex;gap:9px;align-items:baseline;padding:5px 0;border-top:1px solid var(--line);font-size:13px}
+    .ldp-rstop .rn{flex:0 0 auto;width:18px;height:18px;border-radius:50%;background:var(--panel-2);
+      border:1px solid var(--line-2);font-size:10.5px;font-weight:800;display:inline-flex;align-items:center;justify-content:center}
+    .ldp-raccept{margin-top:11px;font:inherit;font-size:12.5px;font-weight:750;color:var(--brand-ink);
+      background:var(--brand);border:0;border-radius:10px;padding:8px 16px;cursor:pointer}
+    .ldp-raccept:disabled{opacity:.6;cursor:default}
+    .ldp-raccept.done{background:rgba(28,122,74,.15);color:var(--pos,#1c7a4a)}
     .ldp-rt{display:inline-block;font-size:9px;font-weight:800;letter-spacing:.05em;padding:1px 6px;
       border-radius:5px;white-space:nowrap;margin-top:4px}
     .ldp-rt.over{background:rgba(176,42,55,.12);color:${NEG}}
@@ -871,6 +882,7 @@ registerPage({
         + '<div class="ldp-vw">'
         +   '<button data-ldview="board"' + (S.view !== "timeline" ? ' class="on"' : "") + ">Board</button>"
         +   '<button data-ldview="timeline"' + (S.view === "timeline" ? ' class="on"' : "") + ">Timeline</button>"
+        +   '<button data-ldview="routes"' + (S.view === "routes" ? ' class="on"' : "") + ">Routes</button>"
         + "</div>"
         + '<div class="ldp-fbox">'
         +   '<span class="ldp-srch"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>'
@@ -1133,6 +1145,38 @@ registerPage({
           +   '<span class="ldp-tlcust ' + ck2 + '">' + CUST_LABEL[ck2] + "</span></span></span></div>"
           + '<div class="ldp-tlcal">' + bars + "</div></div>";
       }
+      // ROUTES VIEW (Phase 3): the engine's suggested consolidations. Data is loaded once
+      // per paint-generation into S._rsug by wire(); Accept POSTs to /api/_ldroutes and the
+      // jobs flip to Accepted Route on the next mart rebuild (the ladder already reads it).
+      function routesHtml() {
+        var sug = S._rsug;
+        if (sug == null) return '<div class="ldp-card" style="padding:26px;color:var(--faint)">Loading route suggestions\u2026</div>';
+        var byKey = {};
+        sug.forEach(function (x) { (byKey[x["Route Key"]] = byKey[x["Route Key"]] || []).push(x); });
+        var keys = Object.keys(byKey);
+        if (!keys.length) return '<div class="ldp-card" style="padding:26px;color:var(--faint)">No combinable routes right now \u2014 the engine found no pair of candidates inside the five constraints (\u22641,500 CF \u00b7 stops \u2264100 mi apart \u00b7 \u2264180 min detour \u00b7 windows within 5 days \u00b7 \u22642.5 mi/CF).</div>';
+        return '<div class="ldp-rgrid">' + keys.map(function (k) {
+          var st = byKey[k].sort(function (a, b) { return a["Seq"] - b["Seq"]; });
+          var h = st[0];
+          var stops = st.map(function (x, i) {
+            return '<div class="ldp-rstop"><span class="rn">' + (i + 1) + "</span><b>"
+              + esc(x["Customer"] || x["Job Code"]) + "</b> <span class=\"ldp-sub\">"
+              + esc((x["Dest State"] || "") + " " + (x["Dest Zip"] || "")) + " \u00b7 "
+              + Math.round(x["CF"]) + " cf \u00b7 " + (+x["Converts"] ? "Regular \u2192 Straight" : "Straight")
+              + " \u00b7 by " + fmtD(x["Window End"]) + "</span></div>";
+          }).join("");
+          return '<div class="ldp-rcard" data-rk="' + esc(k) + '">'
+            + '<div class="ldp-rhd"><b>' + st.length + " stops \u00b7 " + Math.round(h["Route CF"]).toLocaleString()
+            + ' cf</b><span class="ldp-sub">truck ' + esc(h["Truck"] || "?") + " (" + Math.round(h["Truck CF"]).toLocaleString() + " cf)"
+            + " \u00b7 ~" + (+h["Miles"]).toLocaleString() + " mi \u00b7 detour " + h["Detour Min"] + " min"
+            + (+h["Feasible"] ? "" : ' \u00b7 <b style="color:var(--neg,#b02a37)">schedule tight</b>') + "</span></div>"
+            + stops
+            + '<button class="ldp-raccept" data-rkey="' + esc(k) + '" data-codes="'
+            + esc(st.map(function (x) { return x["Job Code"]; }).join(",")) + '" data-truck="' + esc(h["Truck"] || "") + '" data-miles="' + esc(String(h["Miles"] || "")) + '">Accept route</button>'
+            + "</div>";
+        }).join("") + "</div>"
+        + '<div class="ldp-note" style="margin-top:10px;color:var(--faint);font-size:12px">Engine rules (management\u2019s numbers): \u22641,500 CF combined \u00b7 every stop pair \u2264100 mi \u00b7 \u2264180 min detour \u00b7 windows within 5 days \u00b7 \u22642.5 extra mi per CF \u00b7 Straights first \u00b7 ~11 driving h/day. Accepting converts Regulars to Straight and locks the jobs out of future suggestions.</div>';
+      }
       function timelineHtml(rows) {
         // span the window so the LAST thing that matters is still on screen -- a fixed 42 days
         // truncated every job whose delivery window ran past it (the right edge was empty while
@@ -1267,7 +1311,8 @@ registerPage({
       // is gone and painting would throw "innerHTML on null" (money-flow had this same bug)
       var _bd = document.getElementById("ldpBody");
       if (!_bd || !host.isConnected) return;
-      _bd.innerHTML = kp + bar + (S.view === "timeline" ? timelineHtml(cur) : tbl);
+      _bd.innerHTML = kp + bar + (S.view === "timeline" ? timelineHtml(cur)
+        : S.view === "routes" ? routesHtml() : tbl);
       var _sc = document.getElementById("ldpScrim");
       if (_sc) _sc.onclick = function () { if (host.__ldpOpen) host.__ldpOpen(null); };
       if (!host.__ldpEsc) {
@@ -1365,6 +1410,32 @@ registerPage({
       var co = host.querySelector("#ldpCo"); if (co) co.onchange = function () { S.co = co.value; paint(); };
       var lo = host.querySelector("#ldpLoc"); if (lo) lo.onchange = function () { S.loc = lo.value; paint(); };
       var cl = host.querySelector("#ldpClr"); if (cl) cl.onclick = function () { S.q = ""; S.co = ""; S.loc = ""; S.kpi = ""; S.tlSeg = ""; S.ms = { type: [], cust: [], route: [] }; paint(); };
+      if (S.view === "routes" && S._rsug == null && !S._rsugLoading) {
+        S._rsugLoading = true;
+        fetch(ZTZ.API + "/api/fct_ld_route_suggestions?limit=500",
+              { headers: { Authorization: "Bearer " + ZTZ.getToken() } })
+          .then(function (r) { return r.json(); })
+          .then(function (j) { S._rsug = j.rows || j.data || j || []; })
+          .catch(function () { S._rsug = []; })
+          .then(function () { S._rsugLoading = false; paint(); });
+      }
+      Array.prototype.forEach.call(host.querySelectorAll(".ldp-raccept"), function (b) {
+        b.onclick = function () {
+          if (!confirm("Accept this route? Its jobs are locked out of future suggestions, and Regulars on it are planned as Straight.")) return;
+          b.disabled = true; b.textContent = "Accepting\u2026";
+          fetch(ZTZ.API + "/api/_ldroutes", { method: "POST",
+            headers: { Authorization: "Bearer " + ZTZ.getToken(), "Content-Type": "application/json" },
+            body: JSON.stringify({ codes: b.getAttribute("data-codes").split(","),
+                                   truck: b.getAttribute("data-truck"),
+                                   miles: +b.getAttribute("data-miles") || null }) })
+            .then(function (r) { return r.json(); })
+            .then(function (j) {
+              if (j && j.accepted) { b.textContent = "Accepted \u2713"; b.classList.add("done"); }
+              else { b.disabled = false; b.textContent = "Accept route"; alert((j && j.error) || "Could not accept"); }
+            })
+            .catch(function (e) { b.disabled = false; b.textContent = "Accept route"; alert(String(e)); });
+        };
+      });
       Array.prototype.forEach.call(host.querySelectorAll("[data-ldview]"), function (b) {
         b.onclick = function () { S.view = b.getAttribute("data-ldview"); paint(); };
       });
