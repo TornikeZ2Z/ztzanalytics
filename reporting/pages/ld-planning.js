@@ -153,7 +153,7 @@ registerPage({
     .ldp-mapbtn{margin:11px 0 0 8px;font-size:12px}
     .ldp-mapwrap{margin-top:11px;display:none}
     .ldp-mapwrap.on{display:block}
-    .ldp-mapbox{height:290px;border-radius:12px;border:1px solid var(--line-2);overflow:hidden;background:var(--panel-2)}
+    .ldp-jmap{height:290px;border-radius:12px;border:1px solid var(--line-2);overflow:hidden;background:var(--panel-2)}
     .ldp-mstop{width:20px;height:20px;border-radius:50%;background:#B26B0B;color:#fff;
       font:800 10.5px/20px system-ui;text-align:center;display:block;box-shadow:0 1px 4px rgba(0,0,0,.35)}
     .ldp-mstop.base{background:#233043}
@@ -1211,7 +1211,7 @@ registerPage({
                 if (!zs.length) return "";
                 return '<button class="ldp-bhbtn ldp-mapbtn" data-mapfor="' + esc(k) + '" data-legzips="'
                   + [LD_BASE_ZIP].concat(zs).concat([LD_BASE_ZIP]).join(",") + '">Map</button>'
-                  + '<div class="ldp-mapwrap" data-mapwrap="' + esc(k) + '"><div class="ldp-mapbox"></div></div>';
+                  + '<div class="ldp-mapwrap" data-mapwrap="' + esc(k) + '"><div class="ldp-jmap"></div></div>';
               })()
             + "</div>";
         }).join("") + "</div>"
@@ -1240,7 +1240,7 @@ registerPage({
                     + [LD_BASE_ZIP].concat(zs).concat([LD_BASE_ZIP]).join(",") + '" style="margin:0 0 0 auto">Map</button>' : "")
                 + '<button class="ldp-bhbtn ldp-unacc" data-unacc="' + x.id + '" style="margin:0 0 0 '
                 + (zs.length ? "8px" : "auto") + '">Un-accept</button></div>'
-                + (zs.length ? '<div class="ldp-mapwrap" data-mapwrap="' + mk + '"><div class="ldp-mapbox"></div></div>' : "");
+                + (zs.length ? '<div class="ldp-mapwrap" data-mapwrap="' + mk + '"><div class="ldp-jmap"></div></div>' : "");
             }).join("")
           + "</div>";
       }
@@ -1577,7 +1577,7 @@ registerPage({
           b.textContent = on ? "Hide map" : "Map";
           if (!on) return;
           if (wrap._ldloaded) {   // reopening: just re-fit the existing map
-            var bx0 = wrap.querySelector(".ldp-mapbox");
+            var bx0 = wrap.querySelector(".ldp-jmap");
             if (bx0 && bx0._ldmap) setTimeout(function () { bx0._ldmap.invalidateSize(); }, 60);
             return;
           }
@@ -1585,7 +1585,7 @@ registerPage({
           var zips = (b.getAttribute("data-legzips") || "").split(",").filter(Boolean);
           var legs = [];
           for (var i = 0; i + 1 < zips.length; i++) legs.push(zips[i] + ":" + zips[i + 1]);
-          var box = wrap.querySelector(".ldp-mapbox");
+          var box = wrap.querySelector(".ldp-jmap");
           var qs = legs.join(",");
           var draw = function (j) { if (j && j.legs && j.legs.length) drawJourney(box, j.legs); };
           fetch(ZTZ.API + "/api/_ldgeo?est=1&legs=" + encodeURIComponent(qs),
