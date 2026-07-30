@@ -60,6 +60,7 @@ registerPage({
         .fnc-pill{display:inline-block;font-size:11px;font-weight:800;padding:3px 9px;border-radius:999px;white-space:nowrap;background:var(--panel-2);color:var(--faint)}
         .fnc-pill.auto{background:rgba(28,122,74,.12);color:${POS}} .fnc-pill.imp{background:rgba(47,111,208,.12);color:${BLUE}}
         .fnc-pill.conf{background:rgba(28,122,74,.12);color:${POS}}
+        .fnc-pill.queued{background:rgba(176,42,55,.10);color:${NEG}}
         .fnc-note{padding:10px 14px;font-size:11px;color:var(--faint);border-top:1px solid var(--line)}
         .fnc-load{padding:40px;text-align:center;color:var(--faint)}
         .fnc-run{font:inherit;font-size:13px;font-weight:800;background:${POS};color:#fff;border:0;border-radius:9px;padding:9px 16px;cursor:pointer;white-space:nowrap}
@@ -241,6 +242,17 @@ registerPage({
         + "<td>" + fmActions(name) + "</td></tr>";
     }
 
+    // Did the foreman actually RECEIVE this? The closing time next to it is when the batch
+    // was settled, which says nothing about delivery -- a statement that silently failed to
+    // send looked exactly like one that arrived, which is what made a quiet failure quiet.
+    function deliveryPill(c) {
+      if (c.emailed_to === "suppressed:pre-delivery")
+        return '<span class="fnc-pill" title="Closed before statements were emailed at all">not emailed</span>';
+      if (c.emailed_at)
+        return '<span class="fnc-pill auto" title="' + esc(c.emailed_at + " → " + (c.emailed_to || "")) + '">✓ emailed</span>';
+      return '<span class="fnc-pill queued" title="Goes out on the next scheduled run">queued</span>';
+    }
+
     function paint() {
       // race guard: if the user switched pages before an async reload resolved, #fncBody is
       // gone — writing innerHTML on null would throw (his catch 2026-07-22). Bail quietly.
@@ -294,7 +306,7 @@ registerPage({
             + '<td colspan="2"><span class="fnc-caret">' + (open ? "▾" : "▸") + "</span>" + esc(f)
             + '<span class="fnc-meta">' + closings.length + " closing" + (closings.length === 1 ? "" : "s") + " · " + jobs + " jobs</span></td>"
             + '<td class="r">' + money(closings.reduce(function (a, c) { return a + c.total_net_cash; }, 0)) + "</td>"
-            + '<td colspan="4"></td></tr>';
+            + '<td colspan="5"></td></tr>';
           var sub = "";
           if (open) {
             sub = closings.map(function (c) {
@@ -306,11 +318,12 @@ registerPage({
                 + '<td class="r">' + money(c.total_confirmed) + "</td>"
                 + '<td class="r ' + balCls(c.balance) + '">' + money(c.balance) + "</td>"
                 + "<td>" + src + "</td>"
+                + "<td>" + deliveryPill(c) + "</td>"
                 + "<td>" + (c.statement_url ? '<a class="fnc-doc" href="' + esc(c.statement_url) + '" target="_blank" rel="noopener">PDF ↗</a>' : '<span style="color:var(--faint)">—</span>') + "</td></tr>";
               var jr = "";
               if (S.copen[c.id]) {
                 var jobsData = S._jobs[c.id];
-                jr = '<tr><td colspan="7" style="padding:0 0 8px 20px;background:var(--panel-2)"><table class="fnc-tbl" style="min-width:0;table-layout:auto;background:var(--panel);border:1px solid var(--line-2);border-radius:10px">'
+                jr = '<tr><td colspan="8" style="padding:0 0 8px 20px;background:var(--panel-2)"><table class="fnc-tbl" style="min-width:0;table-layout:auto;background:var(--panel);border:1px solid var(--line-2);border-radius:10px">'
                   + '<thead><tr><th>Job date</th><th>Job code</th><th>Customer</th><th class="r">Net Cash</th><th class="r">Confirmed</th><th class="r">Balance</th></tr></thead><tbody>'
                   + (jobsData ? jobsData.map(function (j) { return "<tr><td>" + fmtD(j.job_date) + "</td><td>" + esc(j.job_code) + '</td><td title="' + esc(j.customer || "") + '">' + esc(j.customer || "—") + '</td><td class="r">' + money2(j.net_cash) + '</td><td class="r">' + money2(j.confirmed) + '</td><td class="r ' + balCls(j.balance) + '">' + money2(j.balance) + "</td></tr>"; }).join("") : '<tr><td colspan="6" style="color:var(--faint);padding:10px">Loading…</td></tr>')
                   + "</tbody></table></td></tr>";
@@ -320,10 +333,10 @@ registerPage({
           }
           return head + sub;
         }).join("");
-        content = '<div class="fnc-card"><div class="fnc-wrap"><table class="fnc-tbl fx" style="min-width:1040px">'
-          + '<colgroup><col style="width:24%"><col style="width:8%"><col style="width:14%"><col style="width:14%"><col style="width:13%"><col style="width:13%"><col style="width:14%"></colgroup>'
-          + '<thead><tr><th>Foreman / Period</th><th class="r">Jobs</th><th class="r">Net Cash</th><th class="r">Confirmed</th><th class="r">Balance</th><th>Source</th><th>Statement</th></tr></thead><tbody>'
-          + (hbody || '<tr><td colspan="7" style="color:var(--faint);padding:18px">No closings yet.</td></tr>')
+        content = '<div class="fnc-card"><div class="fnc-wrap"><table class="fnc-tbl fx" style="min-width:1160px">'
+          + '<colgroup><col style="width:22%"><col style="width:7%"><col style="width:13%"><col style="width:13%"><col style="width:12%"><col style="width:10%"><col style="width:12%"><col style="width:11%"></colgroup>'
+          + '<thead><tr><th>Foreman / Period</th><th class="r">Jobs</th><th class="r">Net Cash</th><th class="r">Confirmed</th><th class="r">Balance</th><th>Source</th><th>Delivery</th><th>Statement</th></tr></thead><tbody>'
+          + (hbody || '<tr><td colspan="8" style="color:var(--faint);padding:18px">No closings yet.</td></tr>')
           + "</tbody></table></div>"
           + '<div class="fnc-note">Every closing, grouped by foreman. Click a foreman to see his closings; click a closing to see its jobs, or open its PDF statement.</div></div>';
       }
@@ -414,7 +427,7 @@ registerPage({
       if (runAll) runAll.onclick = function () {
         var n = (data.pending || []).length;
         if (!n) return;
-        if (confirm("Close " + n + " pending foreman" + (n === 1 ? "" : "s") + " now? This generates their statements and archives the PDFs. (No emails are sent.)"))
+        if (confirm("Close " + n + " pending foreman" + (n === 1 ? "" : "s") + " now? This settles their batches and archives the PDFs, and each statement is EMAILED on the next scheduled run. A closing cannot be undone."))
           doRun(null, runAll);
       };
       Array.prototype.forEach.call(host.querySelectorAll("[data-fnc-prev]"), function (b) {
@@ -424,7 +437,7 @@ registerPage({
         b.onclick = function (e) {
           e.stopPropagation();
           var f = b.getAttribute("data-fnc-close");
-          if (confirm("Close " + f + "'s batch now? This generates his statement and archives the PDF. (No email is sent.)"))
+          if (confirm("Close " + f + "'s batch now? This settles his batch and archives the PDF, and his statement is EMAILED on the next scheduled run. A closing cannot be undone."))
             doRun(f, b);
         };
       });
