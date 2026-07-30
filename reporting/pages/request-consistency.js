@@ -78,11 +78,17 @@
       return;
     }
     if (!document.getElementById("rcSearch")) return;
+    // 2026+ only (Tornike 2026-07-30) — dateless rows stay, a missing date is itself a fault
+    const _since = window.DQ_SINCE || "2026-01-01";
+    all = all.filter(r => {
+      const d = String(r["Date"] || "").slice(0, 10);
+      return !d || d >= _since;
+    });
 
     const miskeys = all.filter(r => r["Status"] === "miskey");
     const riskRev = miskeys.reduce((a, r) => a + (+r["Revenue"] || 0), 0);
     RSC.kpis(document.getElementById("rcKpis"), [
-      { label: "Flagged closings", value: fmtN(all.length), sub: "of 12,706 checked" },
+      { label: "Flagged closings", value: fmtN(all.length), sub: "2026 onwards" },
       { label: "Likely mis-keys", value: fmtN(miskeys.length), sub: "different-person, high confidence" },
       { label: "Revenue on mis-keyed", value: money(riskRev), sub: "attributed to the wrong job" },
     ]);

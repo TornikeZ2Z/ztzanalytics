@@ -51,7 +51,13 @@
   }
 
   // group the LIVE legs of each closing row, then keep the ones where money landed twice
-  var live = rows.filter(function (r) { return String(r["Status"]) !== "Filter Out"; });
+  // 2026+ only, the same scope as the rest of Data Quality (Tornike 2026-07-30)
+  var since = window.DQ_SINCE || "2026-01-01";
+  var live = rows.filter(function (r) {
+    if (String(r["Status"]) === "Filter Out") return false;
+    var d = String(r["Job Date"] || "").slice(0, 10);
+    return !d || d >= since;
+  });
   var byKey = {};
   live.forEach(function (r) {
     var k = String(r["Closing Unique Key"] || "");
@@ -90,7 +96,7 @@
     + 'long-distance departure and its arrival, or a job that ran over two days. Its net cash is owed '
     + '<b>once</b>. These closings have money recorded on <b>more than one</b> leg, so the same cash may '
     + 'have been submitted twice. Every leg balances on its own, which is why nothing looks wrong '
-    + 'anywhere else. Read-only — fix them at the source.</p>'
+    + 'anywhere else. Read-only — fix them at the source. <b>2026 onwards.</b></p>'
     + '<div class="mfi-kpi">'
     + '<div class="mfi-card"><b>' + dup.length + "</b><span>same amount twice</span></div>"
     + '<div class="mfi-card"><b>' + money(total) + "</b><span>possibly counted twice</span></div>"

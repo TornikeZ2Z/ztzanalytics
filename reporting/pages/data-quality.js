@@ -18,6 +18,9 @@ function _dqSig() {
 }
 const _tick = () => new Promise(r => setTimeout(r));   // yield to the event loop (paint)
 
+// SCOPE: 2026 onwards. Older rows are history nobody is going back to fix, and carrying
+// them made every count read like a mountain (Tornike 2026-07-30).
+window.DQ_SINCE = "2026-01-01";
 registerPage({
   id: "data-quality",
   group: "settings",
@@ -143,7 +146,7 @@ async function renderChecks(host) {
         <h1>Warehouse checks</h1>
         <p>Rows that look wrong or unfinished for the current filters — fix them at the
            source sheet. <b id="dqTotal">checking…</b>
-           <span class="freshness">· read-only · this page lists problems, it never edits data</span></p>
+           <span class="freshness">· <b>2026 onwards</b> · read-only · this page lists problems, it never edits data</span></p>
       </div>
       <div class="rs-kpis" id="dqKpis"></div>
       <div id="dqChecks"></div>`;
@@ -208,11 +211,14 @@ async function renderChecks(host) {
 
     // filter each dataset with a yield between them (keeps the longest block short)
     const ctx = {};
-    ctx.closing = RS.filtered("closing", closingAll); await _tick();
-    ctx.moveboard = RS.filtered("moveboard", moveboardAll); await _tick();
-    ctx.refunds = RS.filtered("refunds", refundsAll); await _tick();
-    ctx.leads = RS.filtered("leads", leadsAll); await _tick();
-    ctx.claims = RS.filtered("claims", claimsAll); await _tick();
+    // 2026+ only. A row with NO date is KEPT — "the date is missing" is itself one of the
+    // faults this page exists to catch, so a date rule must not hide it.
+    const since = rows => rows.filter(r => !r._d || r._d >= window.DQ_SINCE);
+    ctx.closing = since(RS.filtered("closing", closingAll)); await _tick();
+    ctx.moveboard = since(RS.filtered("moveboard", moveboardAll)); await _tick();
+    ctx.refunds = since(RS.filtered("refunds", refundsAll)); await _tick();
+    ctx.leads = since(RS.filtered("leads", leadsAll)); await _tick();
+    ctx.claims = since(RS.filtered("claims", claimsAll)); await _tick();
 
     // shared predicates / helpers passed to each check's compute()
     const isTrip = r => String(r["Record Source"] || "").trim().toLowerCase() === "trip";

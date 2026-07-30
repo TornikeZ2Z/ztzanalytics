@@ -54,7 +54,7 @@
     host.innerHTML = `
       <div class="rs-page-head">
         <h1>Calendar Coverage</h1>
-        <p>Which closing jobs are linked to a <b>Google-Calendar</b> event, and which aren't.
+        <p>Which closing jobs are linked to a <b>Google-Calendar</b> event, and which aren't. <b>2026 onwards.</b>
            A job is connected via <b>Request #</b> (Job Code for Peter), duplicates broken by move date; a
            2nd entry of the same job (e.g. a delivery leg) links as a <b>sibling</b>, and a job whose branch tag
            differs between the calendar and the closing sheet is recovered as a <b>branch-fix</b> (same customer,
@@ -85,6 +85,13 @@
       return;
     }
     if (!document.getElementById("ccSearch")) return;
+    // 2026+ only (Tornike 2026-07-30) — dateless rows stay, a missing date is itself a fault
+    const _since = window.DQ_SINCE || "2026-01-01";
+    closingAll = closingAll.filter(r => !r._d || r._d >= _since);
+    unconnAll = (unconnAll || []).filter(r => {
+      const d = String(r["Date"] || r["Move Date"] || r._d || "").slice(0, 10);
+      return !d || d >= _since;
+    });
 
     // confident-connected closings (drop dup_ambiguous). `secondary` = a 2nd closing entry
     // (e.g. a delivery leg) linked via a Request # whose primary move matched — counts as connected.
