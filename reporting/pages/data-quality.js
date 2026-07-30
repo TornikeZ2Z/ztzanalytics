@@ -91,7 +91,7 @@ async function renderChecks(host) {
           ...x.moveboard.filter(r => x.missing(r["Assigned"]) && x.leadWentSomewhere(r)).map(r => ({
             table: "Moveboard", val: x.showVal(r["Assigned"]), key: r["Job No"] || "—",
             date: r._d || "—", customer: r["Customer"] || "—",
-            why: r["Booked Date"] ? "booked" : "still open · " + (r["Status"] || "?") })) ] },
+            why: "still open · " + (r["Status"] || "?") })) ] },
 
       { id: "dates", title: "Bad dates",
         desc: "Refunds dated in the future or before their move, and move / refund dates whose year looks wrong (before 2019 or after next year). Blank move dates only show when the Date filter is cleared or wide.",
@@ -256,9 +256,11 @@ async function renderChecks(host) {
     // (263 flagged, 259 of them dead; Tornike 2026-07-30).
     const DEAD_LEAD = new Set(["dead lead", "spam", "archive", "expired",
                                "we are not available", "not interested", "duplicate"]);
+    // NOT "Booked Date" -- measured 2026-07-30: all 263 unassigned leads carry one,
+    // including every Dead Lead and Archive, so it timestamps the request and not a
+    // booking. Status is the only honest signal of a lead that went somewhere.
     ctx.leadWentSomewhere = r =>
-      !!String(r["Booked Date"] || "").trim()
-      || (norm(r["Status Category"]) !== "bad lead" && !DEAD_LEAD.has(norm(r["Status"])));
+      norm(r["Status Category"]) !== "bad lead" && !DEAD_LEAD.has(norm(r["Status"]));
     ctx.showVal = v => ctx.blank(v) ? "(blank)" : String(v);
     ctx.cKey = r => r["Request #"] || r["Unique Key"] || "—";
     ctx.today = new Date().toISOString().slice(0, 10);
