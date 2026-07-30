@@ -267,8 +267,10 @@ async function renderChecks(host) {
     ctx.validISO = s => /^\d{4}-\d{2}-\d{2}$/.test(s);
     ctx.badYear = s => { const y = +s.slice(0, 4); return y < 2019 || y > curYear + 1; };
 
-    // guard: if the user navigated away while we were loading, don't paint stale DOM
-    const stillHere = () => document.getElementById("dqTotal");
+    // guard: if the user navigated away while we were loading, don't paint stale DOM.
+    // MUST name an element the shell actually renders -- it pointed at #dqTotal after that
+    // element was replaced by #dqScore, so every check silently stayed on "..." (2026-07-30).
+    const stillHere = () => document.getElementById("dqScore");
 
     const results = [];
     for (const d of DEFS) {
