@@ -280,7 +280,7 @@ registerPage({
           + P.cols + "<thead><tr>" + P.head + "</tr></thead><tbody>"
           + (body || '<tr><td colspan="' + P.n + '" style="color:var(--faint);padding:18px">Nothing pending — every confirmed job is closed. 🎉</td></tr>')
           + "</tbody></table></div>"
-          + '<div class="fnc-note">Click a foreman to see the jobs in his next batch. These close automatically on the next scheduled run once go-live is on.</div></div>';
+          + '<div class="fnc-note">Click a foreman to see the jobs in his next batch. These close automatically on the next scheduled run, and the statement is emailed once closed.</div></div>';
       } else {
         // History grouped by foreman: foreman → his closings (with PDF + drill to jobs)
         var byFm = {};
