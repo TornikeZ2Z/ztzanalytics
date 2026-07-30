@@ -245,7 +245,7 @@ registerPage({
         var r = {
           ev: ev, date: String(b["Job Date"]).slice(0, 10), title: b["Event Title"],
           jobNo: b["Job No"], jobCode: b["Job Code"], customer: b["Customer"],
-          forman: b["Forman"] || "—", formanEmail: b["Forman Email"],
+          forman: b["Forman"] || MF_NO_FOREMAN, formanEmail: b["Forman Email"],
           jobType: b["Job Type"], ct: b["Contract Type"],
           expected: num(lv && lv.expected != null ? lv.expected : b["Expected Net Cash"]),
           closingNC: num(b["Net Cash (Closing)"]),
@@ -302,6 +302,9 @@ registerPage({
     // "Missing Closing" is deliberately NOT here: the second leg of a closing has nothing
     // to collect, so it never belongs in the cash worklist (Tornike 2026-07-29). The real
     // problems are listed in Data Quality > Issues in Money Flow.
+    // A job the translator could not resolve to a person: say that, never a bare dash —
+    // "—" reads as "no data here" when the truth is "nobody is on the hook for this cash".
+    var MF_NO_FOREMAN = "Foreman Not Identified";
     var MAINSET = { "Money Not Received": 1, "Contract Not Received": 1 };
     var NOTCONF = { "Money Not Received": 1, "Not in Balance": 1, "Contract Not Received": 1 };
 
@@ -421,10 +424,10 @@ registerPage({
       // EXACTLY the current view's jobs — "Not in Balance" must list only foremen who have
       // NIB jobs (using main+nib here leaked Balance-only foremen into the NIB filter).
       var fSrc = S.view === "history" ? done : S.view === "nib" ? nib : main;
-      fSrc.forEach(function (r) { if (r.forman && r.forman !== "—") allF[r.forman] = (allF[r.forman] || 0) + 1; });
+      fSrc.forEach(function (r) { if (r.forman && r.forman !== MF_NO_FOREMAN) allF[r.forman] = (allF[r.forman] || 0) + 1; });
       var fmKeys = Object.keys(allF).sort(function (a, b) { return allF[b] - allF[a] || a.localeCompare(b); });
       var fmLabel = S.formen.length ? "Foremen (" + S.formen.length + ")" : "All foremen";
-      var fmHdN = fSrc.filter(function (r) { return r.forman && r.forman !== "—"; }).length;
+      var fmHdN = fSrc.filter(function (r) { return r.forman && r.forman !== MF_NO_FOREMAN; }).length;
       var fmNoun = S.view === "history" ? " settled jobs" : S.view === "nib" ? " jobs off balance" : " jobs to close";
       var fmPop = S.fmOpen ? '<div class="mf-fmpop">'
           + '<div class="mf-fmhd">' + fmKeys.length + ' foremen · ' + fmHdN + fmNoun + '</div>'
@@ -444,7 +447,7 @@ registerPage({
         if (q) jobs = jobs.filter(matches);   // job-level search; foreman name matches keep his whole group
         var groups = {};
         jobs.forEach(function (r) {
-          var f = r.forman || "—";
+          var f = r.forman || MF_NO_FOREMAN;
           var g = (groups[f] = groups[f] || { jobs: [], total: 0, noCon: 0, tNet: 0, tAdv: 0, tDed: 0, tFlow: 0 });
           g.jobs.push(r);
           if (r.balance != null) g.total += r.balance; else g.noCon++;
