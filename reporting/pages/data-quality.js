@@ -127,6 +127,9 @@ async function renderChecks(host) {
     if (!document.getElementById("dq-look")) {
       const st = document.createElement("style"); st.id = "dq-look";
       st.textContent = [
+        // a worklist reads badly at full monitor width: the count ends up a screen away
+        // from the check it belongs to. Cap it and the number sits beside its title.
+        ".dq-head,.dq-card{max-width:1080px}",
         ".dq-head{display:flex;align-items:flex-start;gap:16px;flex-wrap:wrap;margin:2px 2px 18px}",
         ".dq-head h1{margin:0 0 5px;font-size:23px;letter-spacing:-.4px}",
         ".dq-head p{margin:0;max-width:640px;color:var(--muted);font-size:13px;line-height:1.55}",
