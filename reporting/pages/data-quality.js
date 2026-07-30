@@ -77,30 +77,21 @@ async function renderChecks(host) {
           customer: r["Customer"] || "—", sales: r["Sales Person"] || "—" })) },
 
       { id: "sales", title: "Sales person missing",
-        desc: "Closing jobs and moveboard leads with no sales person / assigned owner. Trip rows are excluded (they legitimately have none).",
+        desc: "A job that HAPPENED, or a lead that went somewhere, with nobody owning it. "
+            + "Dead / spam / expired / archived leads are not counted — nobody was ever "
+            + "assigned to those and nobody should be (Tornike 2026-07-30).",
         cols: [{ key: "table", label: "Where" }, { key: "val", label: "Sales person" },
                { key: "key", label: "Job / Lead #" }, { key: "date", label: "Date" },
-               { key: "customer", label: "Customer" }],
+               { key: "customer", label: "Customer" }, { key: "why", label: "Why it counts" }],
         compute: x => [
+          // a closing IS the action: the job ran, so somebody sold it
           ...x.closingJobs.filter(r => x.missing(r["Sales Person"])).map(r => ({
             table: "Closing", val: x.showVal(r["Sales Person"]), key: x.cKey(r),
-            date: r._d || "—", customer: r["Customer"] || "—" })),
-          ...x.moveboard.filter(r => x.missing(r["Assigned"])).map(r => ({
+            date: r._d || "—", customer: r["Customer"] || "—", why: "job completed" })),
+          ...x.moveboard.filter(r => x.missing(r["Assigned"]) && x.leadWentSomewhere(r)).map(r => ({
             table: "Moveboard", val: x.showVal(r["Assigned"]), key: r["Job No"] || "—",
-            date: r._d || "—", customer: r["Customer"] || "—" })) ] },
-
-      { id: "source", title: "Lead source missing or unmapped",
-        desc: "Leads and closing jobs with a blank source or a catch-all placeholder (OTHER, UNKNOWN, N/A, …). Trip rows are excluded.",
-        cols: [{ key: "table", label: "Where" }, { key: "val", label: "Source" },
-               { key: "key", label: "Request #" }, { key: "date", label: "Date" },
-               { key: "customer", label: "Customer" }],
-        compute: x => [
-          ...x.leads.filter(r => x.missing(r["Source"])).map(r => ({
-            table: "Lead", val: x.showVal(r["Source"]), key: r["Request # From Moveboard"] || "—",
-            date: r._d || "—", customer: r["Customer"] || "—" })),
-          ...x.closingJobs.filter(r => x.missing(r["Source"])).map(r => ({
-            table: "Closing", val: x.showVal(r["Source"]), key: x.cKey(r),
-            date: r._d || "—", customer: r["Customer"] || "—" })) ] },
+            date: r._d || "—", customer: r["Customer"] || "—",
+            why: r["Booked Date"] ? "booked" : "still open · " + (r["Status"] || "?") })) ] },
 
       { id: "dates", title: "Bad dates",
         desc: "Refunds dated in the future or before their move, and move / refund dates whose year looks wrong (before 2019 or after next year). Blank move dates only show when the Date filter is cleared or wide.",
@@ -130,68 +121,100 @@ async function renderChecks(host) {
           key: x.cKey(r), date: r._d || "—", customer: r["Customer"] || "—",
           bill: RS.money(RS.num(r["Total Bill"])) })) },
 
-      { id: "resp", title: "Claim responsibility unmapped",
-        desc: "Claims with a blank or placeholder Responsibility — can't be attributed to foreman / sales without it.",
-        cols: [{ key: "val", label: "Responsibility" }, { key: "key", label: "Request #" },
-               { key: "date", label: "Claim date" }, { key: "customer", label: "Customer" },
-               { key: "reason", label: "Reason" }],
-        compute: x => x.claims.filter(r => x.missing(r["Responsibility"])).map(r => ({
-          val: x.showVal(r["Responsibility"]), key: r["Request No"] || "—",
-          date: r._d || "—", customer: r["Customer"] || "—", reason: r["Reason"] || "—" })) },
     ];
 
     /* ---------------- 1) paint the shell immediately (no compute yet) ---------------- */
+    if (!document.getElementById("dq-look")) {
+      const st = document.createElement("style"); st.id = "dq-look";
+      st.textContent = [
+        ".dq-head{display:flex;align-items:flex-start;gap:16px;flex-wrap:wrap;margin:2px 2px 18px}",
+        ".dq-head h1{margin:0 0 5px;font-size:23px;letter-spacing:-.4px}",
+        ".dq-head p{margin:0;max-width:640px;color:var(--muted);font-size:13px;line-height:1.55}",
+        ".dq-score{margin-left:auto;text-align:right;flex:none}",
+        ".dq-score b{display:block;font-size:30px;letter-spacing:-.8px;line-height:1.05;font-variant-numeric:tabular-nums}",
+        ".dq-score span{font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:var(--faint)}",
+        ".dq-score.clean b{color:var(--pos,#1c7a4a)}",
+        ".dq-card{background:var(--panel);border:1px solid var(--line);border-radius:15px;margin-bottom:13px;overflow:hidden}",
+        ".dq-card.clean{background:var(--panel-2);border-style:dashed}",
+        ".dq-ch{display:flex;align-items:center;gap:11px;padding:13px 16px;cursor:pointer;user-select:none}",
+        ".dq-ch:hover{background:var(--panel-2)}",
+        ".dq-card.clean .dq-ch:hover{background:transparent}",
+        ".dq-dot{width:9px;height:9px;border-radius:50%;flex:none;background:var(--line-2)}",
+        ".dq-dot.bad{background:var(--neg,#b02a37)}",
+        ".dq-dot.warn{background:#d99100}",
+        ".dq-dot.ok{background:var(--pos,#1c7a4a)}",
+        ".dq-ttl{font-size:14.5px;font-weight:750;letter-spacing:-.15px}",
+        ".dq-cnt{margin-left:auto;font-size:12.5px;font-weight:800;font-variant-numeric:tabular-nums;padding:3px 11px;border-radius:999px;background:var(--panel-2);color:var(--muted);flex:none}",
+        ".dq-cnt.bad{background:rgba(176,42,55,.11);color:var(--neg,#b02a37)}",
+        ".dq-cnt.warn{background:rgba(217,145,0,.14);color:#a06a00}",
+        ".dq-cnt.ok{background:rgba(28,122,74,.12);color:var(--pos,#1c7a4a)}",
+        ".dq-caret{flex:none;color:var(--faint);font-size:11px;transition:transform .15s}",
+        ".dq-card.open .dq-caret{transform:rotate(90deg)}",
+        ".dq-desc{padding:0 16px 12px 36px;color:var(--muted);font-size:12.5px;line-height:1.55;max-width:760px}",
+        ".dq-body{display:none;padding:0 6px 8px}",
+        ".dq-card.open .dq-body{display:block}",
+        ".dq-more{color:var(--faint);font-size:11.5px;padding:7px 12px 3px}"
+      ].join("");
+      document.head.appendChild(st);
+    }
     host.innerHTML = `
-      <div class="rs-page-head">
-        <h1>Warehouse checks</h1>
-        <p>Rows that look wrong or unfinished for the current filters — fix them at the
-           source sheet. <b id="dqTotal">checking…</b>
-           <span class="freshness">· <b>2026 onwards</b> · read-only · this page lists problems, it never edits data</span></p>
+      <div class="dq-head">
+        <div>
+          <h1>Warehouse checks</h1>
+          <p>Rows that look wrong or unfinished — fix them at the source sheet.
+             <b>2026 onwards</b>, read-only: this page never edits data.</p>
+        </div>
+        <div class="dq-score" id="dqScore"><b>…</b><span>rows to fix</span></div>
       </div>
-      <div class="rs-kpis" id="dqKpis"></div>
       <div id="dqChecks"></div>`;
 
-    // KPI tiles (start at "…") and a panel per check (start "Checking…")
-    RSC.kpis(document.getElementById("dqKpis"),
-      DEFS.map(d => ({ label: d.title, value: "…", sub: "rows to fix" })));
-    const kpiEls = [...document.querySelectorAll("#dqKpis .kpi .v, #dqKpis .rs-kpi .v")];
     const cont = document.getElementById("dqChecks");
     const panelById = {};
-    DEFS.forEach((d, i) => {
-      const panel = RSC.el("div", "panel");
+    DEFS.forEach((d) => {
+      const panel = RSC.el("div", "dq-card");
+      panel.id = "dq-card-" + d.id;
       panel.innerHTML =
-        `<div class="panel-head"><span class="panel-title">${RSC.esc(d.title)}</span>
-           <span class="spacer"></span>
-           <span class="rs-ctl"><span class="lbl" id="dq-n-${d.id}">checking…</span></span></div>
-         <div style="padding:0 14px 6px;color:var(--muted);font-size:12.5px">${RSC.esc(d.desc)}</div>
-         <div class="tabwrap" id="dq-body-${d.id}">
-           <div style="padding:14px;color:var(--muted);font-size:13px">Checking… <span class="dq-spin">◍</span></div>
+        `<div class="dq-ch"><span class="dq-dot" id="dq-dot-${d.id}"></span>
+           <span class="dq-ttl">${RSC.esc(d.title)}</span>
+           <span class="dq-cnt" id="dq-n-${d.id}">…</span>
+           <span class="dq-caret">▶</span></div>
+         <div class="dq-desc">${RSC.esc(d.desc)}</div>
+         <div class="dq-body" id="dq-body-${d.id}">
+           <div style="padding:12px;color:var(--muted);font-size:13px">Checking…</div>
          </div>`;
+      // the whole header row toggles it — a check with nothing to fix simply stays shut
+      panel.querySelector(".dq-ch").onclick = () => panel.classList.toggle("open");
       cont.appendChild(panel);
-      panelById[d.id] = { kpi: kpiEls[i] };
+      panelById[d.id] = {};
     });
 
     const paintPanel = (d, rows) => {
       const n = rows.length;
+      const card = document.getElementById("dq-card-" + d.id);
       const nEl = document.getElementById("dq-n-" + d.id);
+      const dot = document.getElementById("dq-dot-" + d.id);
       const body = document.getElementById("dq-body-" + d.id);
-      if (panelById[d.id].kpi) panelById[d.id].kpi.textContent = RS.fmtN(n);
-      if (nEl) nEl.textContent = RS.fmtN(n) + " rows to fix";
+      // severity is simply size: clear / a handful / a pile. It drives the dot and the
+      // pill so the state of every check reads at a glance without opening anything.
+      const lvl = !n ? "ok" : n > 100 ? "bad" : "warn";
+      if (nEl) { nEl.textContent = n ? RS.fmtN(n) : "clear"; nEl.className = "dq-cnt " + lvl; }
+      if (dot) dot.className = "dq-dot " + lvl;
+      if (card) card.classList.toggle("clean", !n);
       if (!body) return;
       if (!n) {
-        body.innerHTML = `<div style="padding:14px;color:var(--brand);font-size:13px">✓ Nothing to fix for this check in the current scope.</div>`;
+        body.innerHTML = `<div style="padding:10px 12px 14px;color:var(--muted);font-size:13px">Nothing to fix here.</div>`;
       } else {
         const shown = rows.slice(0, CAP);
-        const note = n > CAP
-          ? `showing ${CAP} of ${RS.fmtN(n)} · narrow the filters to see the rest`
-          : `${RS.fmtN(n)} total`;
-        body.innerHTML = RSC.table(d.cols, shown) +
-          `<div style="color:var(--muted);font-size:12px;padding:6px 2px">${note}</div>`;
+        body.innerHTML = RSC.table(d.cols, shown)
+          + (n > CAP ? `<div class="dq-more">showing ${CAP} of ${RS.fmtN(n)} — narrow the filters to see the rest</div>` : "");
       }
     };
     const paintTotal = results => {
-      const el = document.getElementById("dqTotal");
-      if (el) el.textContent = RS.fmtN(results.reduce((a, r) => a + r.rows.length, 0)) + " rows flagged in scope";
+      const el = document.getElementById("dqScore");
+      if (!el) return;
+      const n = results.reduce((a, r) => a + r.rows.length, 0);
+      el.innerHTML = `<b>${RS.fmtN(n)}</b><span>${n ? "rows to fix" : "all clear"}</span>`;
+      el.classList.toggle("clean", !n);
     };
 
     /* ---------------- 2) cache hit → paint instantly and stop ---------------- */
@@ -228,6 +251,14 @@ async function renderChecks(host) {
       "tbd", "test", "-", "--", "?", ".", "null", "undefined", "xxx", "x"]);
     const norm = v => String(v == null ? "" : v).trim().toLowerCase();
     ctx.missing = v => ctx.blank(v) || PLACEHOLDER.has(norm(v));
+    // A lead only needs an owner once it went somewhere. Dead / spam / expired / archived
+    // leads never had one and never will — counting them buried the handful that matter
+    // (263 flagged, 259 of them dead; Tornike 2026-07-30).
+    const DEAD_LEAD = new Set(["dead lead", "spam", "archive", "expired",
+                               "we are not available", "not interested", "duplicate"]);
+    ctx.leadWentSomewhere = r =>
+      !!String(r["Booked Date"] || "").trim()
+      || (norm(r["Status Category"]) !== "bad lead" && !DEAD_LEAD.has(norm(r["Status"])));
     ctx.showVal = v => ctx.blank(v) ? "(blank)" : String(v);
     ctx.cKey = r => r["Request #"] || r["Unique Key"] || "—";
     ctx.today = new Date().toISOString().slice(0, 10);
