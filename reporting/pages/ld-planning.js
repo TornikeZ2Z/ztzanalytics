@@ -130,14 +130,59 @@ registerPage({
         .ldp-sec:first-child{margin-top:0}
         .ldp-stor{display:inline-block;font-size:9px;font-weight:800;letter-spacing:.05em;padding:1px 6px;
       border-radius:5px;background:rgba(124,58,237,.13);color:var(--violet,#7c3aed);white-space:nowrap;margin-left:5px}
-    .ldp-rgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:14px}
-    .ldp-rcard{background:var(--panel);border:1px solid var(--line-2);border-radius:14px;padding:14px 16px}
-    .ldp-rhd{display:flex;justify-content:space-between;align-items:baseline;gap:10px;margin-bottom:10px;flex-wrap:wrap}
-    .ldp-rhd b{font-size:15px;letter-spacing:-.2px}
-    .ldp-rstop{display:flex;gap:9px;align-items:baseline;padding:5px 0;border-top:1px solid var(--line);font-size:13px}
-    .ldp-rstop .rn{flex:0 0 auto;width:18px;height:18px;border-radius:50%;background:var(--panel-2);
-      border:1px solid var(--line-2);font-size:10.5px;font-weight:800;display:inline-flex;align-items:center;justify-content:center}
-    .ldp-raccept{margin-top:11px;font:inherit;font-size:12.5px;font-weight:750;color:var(--brand-ink);
+    /* ROUTE CARDS. A route is a decision, and the two things that decide it are how full
+       the truck ends up and when each stop has to land. Both used to be buried in a grey
+       run-on line, so they lead now: a fill bar you can read at a glance, and a journey
+       rail that shows the trip leaving base and coming back rather than a list of rows. */
+    .ldp-rgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(390px,1fr));gap:14px}
+    .ldp-rcard{background:var(--panel);border:1px solid var(--line-2);border-radius:14px;
+      padding:0;overflow:hidden;display:flex;flex-direction:column}
+    .ldp-rcard.tight{border-color:rgba(176,42,55,.4)}
+    .ldp-rtop{padding:13px 15px 12px}
+    .ldp-rttl{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+    .ldp-rttl b{font-size:16px;letter-spacing:-.3px}
+    .ldp-rchip{font-size:10.5px;font-weight:750;padding:2px 8px;border-radius:999px;
+      background:var(--panel-2);color:var(--faint);white-space:nowrap}
+    /* how full does this truck end up — the number that decides whether to run it */
+    .ldp-cap{margin-top:10px}
+    .ldp-capbar{height:7px;border-radius:999px;background:var(--panel-2);overflow:hidden}
+    .ldp-capfill{height:100%;border-radius:999px;background:${POS};transition:width .3s ease}
+    .ldp-capfill.low{background:#b26b0b}
+    .ldp-capmeta{display:flex;justify-content:space-between;gap:8px;margin-top:5px;
+      font-size:11px;color:var(--faint);font-variant-numeric:tabular-nums}
+    .ldp-capmeta b{color:var(--ink);font-weight:700}
+    /* the trip's cost, as discrete figures instead of a sentence */
+    .ldp-rmet{display:grid;grid-template-columns:repeat(4,1fr);
+      border-top:1px solid var(--line);border-bottom:1px solid var(--line);background:var(--panel-2)}
+    .ldp-rmet>div{padding:7px 4px;text-align:center;border-right:1px solid var(--line)}
+    .ldp-rmet>div:last-child{border-right:0}
+    .ldp-rmet i{display:block;font-style:normal;font-size:9px;font-weight:800;letter-spacing:.07em;
+      text-transform:uppercase;color:var(--faint)}
+    .ldp-rmet b{display:block;font-size:13px;font-weight:700;margin-top:2px;font-variant-numeric:tabular-nums}
+    .ldp-rmet b.bad{color:${NEG}}
+    /* the journey: base -> stops -> base, joined by a rail */
+    .ldp-rjour{padding:11px 15px 6px}
+    .ldp-rstop{display:flex;gap:11px;padding:0 0 11px;position:relative;font-size:13px}
+    .ldp-rstop:last-child{padding-bottom:2px}
+    .ldp-rstop::before{content:"";position:absolute;left:9px;top:19px;bottom:-1px;width:2px;
+      background:var(--line-2)}
+    .ldp-rstop:last-child::before{display:none}
+    .ldp-rstop .rn{flex:0 0 auto;width:20px;height:20px;border-radius:50%;background:var(--panel);
+      border:1.5px solid var(--line-2);font-size:10.5px;font-weight:800;display:inline-flex;
+      align-items:center;justify-content:center;position:relative;z-index:1}
+    .ldp-rstop.base .rn{border-style:dashed;color:var(--faint);font-size:9px}
+    .ldp-rstop.base{font-size:12px;color:var(--faint)}
+    .ldp-rsbody{min-width:0;flex:1}
+    .ldp-rsname{font-weight:700;letter-spacing:-.1px;line-height:1.3}
+    .ldp-rsmeta{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:3px;
+      font-size:11.5px;color:var(--faint)}
+    .ldp-rsmeta .cf{font-variant-numeric:tabular-nums;font-weight:650;color:var(--ink)}
+    .ldp-rsdate{font-size:11px;font-weight:700;padding:1px 7px;border-radius:999px;
+      background:var(--panel-2);white-space:nowrap}
+    .ldp-rsdate.soon{background:rgba(176,42,55,.12);color:${NEG}}
+    .ldp-rsdate.conv{background:rgba(47,111,208,.10);color:${BLUE}}
+    .ldp-ract{display:flex;gap:8px;align-items:center;padding:0 15px 13px;margin-top:auto}
+    .ldp-raccept{font:inherit;font-size:12.5px;font-weight:750;color:var(--brand-ink);
       background:var(--brand);border:0;border-radius:10px;padding:8px 16px;cursor:pointer}
     .ldp-raccept:disabled{opacity:.6;cursor:default}
     .ldp-raccept.done{background:rgba(28,122,74,.15);color:var(--pos,#1c7a4a)}
@@ -1359,30 +1404,73 @@ registerPage({
           var h = st[0];
           var mpc = (+h["Miles"] && +h["Route CF"])
             ? ((+h["Miles"]) / (+h["Route CF"])).toFixed(1) : null;
+          // How soon a stop must land is what makes a route urgent, so the date carries the
+          // colour rather than sitting at the end of a sentence.
+          var daysTo = function (d) {
+            var t = Date.parse(String(d || "").slice(0, 10));
+            if (!isFinite(t)) return null;
+            return Math.round((t - Date.now()) / 86400000);
+          };
+          var baseZip = String(h["Base Zip"] || LD_BASE_ZIP || "").trim();
+          var baseRow = function (label) {
+            return '<div class="ldp-rstop base"><span class="rn">\u25c6</span>'
+              + '<div class="ldp-rsbody"><div>' + esc(label)
+              + (baseZip ? " \u00b7 " + esc(baseZip) : "") + "</div></div></div>";
+          };
           var stops = st.map(function (x, i) {
-            return '<div class="ldp-rstop"><span class="rn">' + (i + 1) + "</span><b>"
-              + esc(x["Customer"] || x["Job Code"]) + "</b> <span class=\"ldp-sub\">"
-              + esc((x["Dest State"] || "") + " " + (x["Dest Zip"] || "")) + " \u00b7 "
-              + Math.round(x["CF"]) + " cf \u00b7 "
-              + (+x["Converts"]
-                  ? "Regular \u2192 Straight \u00b7 by " + fmtD(x["Window End"]) + " (window)"
-                  : "Straight \u00b7 deliver " + fmtD(x["Window End"]) + " (fixed)") + "</span></div>";
+            var dn = daysTo(x["Window End"]);
+            var conv = !!+x["Converts"];
+            var cls = conv ? "conv" : ((dn !== null && dn <= 7) ? "soon" : "");
+            var when = (conv ? "by " : "") + fmtD(x["Window End"])
+              + (dn !== null && dn >= 0 && dn <= 14 ? " \u00b7 " + dn + "d" : "");
+            return '<div class="ldp-rstop"><span class="rn">' + (i + 1) + "</span>"
+              + '<div class="ldp-rsbody">'
+              + '<div class="ldp-rsname">' + esc(x["Customer"] || x["Job Code"]) + "</div>"
+              + '<div class="ldp-rsmeta">'
+              + "<span>" + esc((x["Dest State"] || "") + " " + (x["Dest Zip"] || "")) + "</span>"
+              + '<span class="cf">' + Math.round(x["CF"]).toLocaleString() + " cf</span>"
+              + '<span class="ldp-rsdate ' + cls + '" title="'
+              + (conv ? "Regular converted to Straight \u2014 deliver inside the window"
+                      : "Straight \u2014 fixed delivery date") + '">' + esc(when) + "</span>"
+              + (conv ? '<span class="ldp-rsdate conv">Regular \u2192 Straight</span>' : "")
+              + "</div></div></div>";
           }).join("");
+          // truck fill: the single number that says whether this route is worth running
+          var tcf = +h["Truck CF"] || 0, rcf = +h["Route CF"] || 0;
+          var pct = tcf ? Math.min(100, Math.round(rcf / tcf * 100)) : 0;
+          var capHtml = tcf
+            ? '<div class="ldp-cap"><div class="ldp-capbar"><div class="ldp-capfill'
+              + (pct < 55 ? " low" : "") + '" style="width:' + pct + '%"></div></div>'
+              + '<div class="ldp-capmeta"><span><b>' + pct + "%</b> of truck "
+              + esc(h["Truck"] || "?") + "</span><span>"
+              + Math.max(0, Math.round(tcf - rcf)).toLocaleString() + " cf spare</span></div></div>"
+            : "";
+          var metHtml = '<div class="ldp-rmet">'
+            + "<div><i>Miles</i><b>" + (+h["Miles"]).toLocaleString() + "</b></div>"
+            + "<div><i>Drive</i><b>" + fmtHrs(h["Drive Min"]) + "</b></div>"
+            + "<div><i>Detour</i><b" + (+h["Detour Min"] > 120 ? ' class="bad"' : "") + ">"
+            + h["Detour Min"] + "m</b></div>"
+            + "<div><i>Mi / CF</i><b" + (mpc && +mpc > 2.5 ? ' class="bad"' : "") + ">"
+            + (mpc || "\u2014") + "</b></div></div>";
           var codesArr = st.map(function (x) { return String(x["Job Code"]); });
           var isAcc = (S._racc || []).some(function (x2) {
             if (String(x2.status) !== "accepted") return false;
             var have = String(x2.job_codes || "").split(",");
             return codesArr.every(function (c2) { return have.indexOf(c2) >= 0; });
           });
-          return '<div class="ldp-rcard" data-rk="' + esc(k) + '">'
-            + '<div class="ldp-rhd"><b>' + st.length + " stops \u00b7 " + Math.round(h["Route CF"]).toLocaleString()
-            + ' cf</b><span class="ldp-sub">truck ' + esc(h["Truck"] || "?") + " (" + Math.round(h["Truck CF"]).toLocaleString() + " cf)"
-            + " \u00b7 ~" + (+h["Miles"]).toLocaleString() + " mi \u00b7 " + fmtHrs(h["Drive Min"]) + " drive"
-            + (mpc ? " \u00b7 " + mpc + " mi/cf" : "") + " \u00b7 detour " + h["Detour Min"] + " min"
-            + (+h["Feasible"] ? "" : ' \u00b7 <b style="color:var(--neg,#b02a37)">schedule tight</b>') + "</span></div>"
-            + stops
-            + (+h["Feasible"] ? "" : '<div class="ldp-dissue" style="margin-top:8px">\u26a0 '
+          return '<div class="ldp-rcard' + (+h["Feasible"] ? "" : " tight") + '" data-rk="' + esc(k) + '">'
+            + '<div class="ldp-rtop"><div class="ldp-rttl">'
+            + "<b>" + st.length + " stop" + (st.length === 1 ? "" : "s") + " \u00b7 "
+            + Math.round(h["Route CF"]).toLocaleString() + " cf</b>"
+            + '<span class="ldp-rchip">truck ' + esc(h["Truck"] || "?") + "</span>"
+            + (+h["Feasible"] ? "" : '<span class="ldp-rt over">SCHEDULE TIGHT</span>')
+            + "</div>" + capHtml + "</div>"
+            + metHtml
+            + '<div class="ldp-rjour">' + baseRow("Leaves base") + stops
+            + baseRow("Returns to base") + "</div>"
+            + (+h["Feasible"] ? "" : '<div class="ldp-dissue" style="margin:0 15px 10px">\u26a0 '
                 + esc(h["Feasible Note"] || "schedule tight \u2014 check the dates") + "</div>")
+            + '<div class="ldp-ract">'
             + (isAcc ? '<button class="ldp-raccept done" disabled style="cursor:default">Accepted \u2713 \u2014 un-accept below</button>'
                      : '<button class="ldp-raccept" data-rkey="' + esc(k) + '" data-codes="'
             + esc(codesArr.join(",")) + '" data-zips="'
@@ -1392,9 +1480,9 @@ registerPage({
                   .filter(function (z) { return /^\d{5}$/.test(z); });
                 if (!zs.length) return "";
                 return '<button class="ldp-bhbtn ldp-jmapbtn" data-mapfor="' + esc(k) + '" data-legzips="'
-                  + [LD_BASE_ZIP].concat(zs).concat([LD_BASE_ZIP]).join(",") + '">Visualize route</button>';
+                  + [baseZip || LD_BASE_ZIP].concat(zs).concat([baseZip || LD_BASE_ZIP]).join(",") + '">Visualize route</button>';
               })()
-            + "</div>";
+            + "</div></div>";
         }).join("") + "</div>"
         + acceptedHtml()
         + '<div class="ldp-note" style="margin-top:10px;color:var(--faint);font-size:12px">Engine rules (management\u2019s numbers): \u22641,500 CF combined \u00b7 every stop pair \u2264100 mi \u00b7 \u2264180 min detour \u00b7 windows within 5 days \u00b7 \u22642.5 extra mi per CF \u00b7 Straights first \u00b7 ~11 driving h/day. Accepting converts Regulars to Straight and locks the jobs out of future suggestions.</div>';
