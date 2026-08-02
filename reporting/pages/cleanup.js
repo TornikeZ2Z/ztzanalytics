@@ -17,6 +17,14 @@
                "Chained Jobs"],
       };
     }
+    if (!RS.DATASETS.fct_cleanup_option) {
+      RS.DATASETS.fct_cleanup_option = {
+        table: "fct_cleanup_option",
+        cols: ["Day", "Rank", "Kind", "Job Code", "Customer", "CF", "After Code",
+               "After Customer", "Move To", "Target Spare", "Link Miles", "Link Minutes",
+               "Cost", "Discount", "Recommended", "Purpose", "Lands Behind", "Status"],
+      };
+    }
     if (!RS.DATASETS.fct_cleanup_job) {
       RS.DATASETS.fct_cleanup_job = {
         table: "fct_cleanup_job",
@@ -42,7 +50,8 @@ registerPage({
         return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
       });
     };
-    var S = window.__CU || (window.__CU = { days: null, jobs: null, sel: null, probOnly: false });
+    var S = window.__CU || (window.__CU = { days: null, jobs: null, opts: null,
+      sel: null, probOnly: false, busy: "", msg: "" });
 
     host.innerHTML = '<style id="cuCss">'
       + ".cu-wrap{max-width:1280px}"
@@ -92,6 +101,18 @@ registerPage({
       + ".cu-rt.ch{background:rgba(47,111,208,.12);color:var(--blue)}"
       + ".cu-note{font-size:12px;color:var(--faint);line-height:1.6;margin-top:10px}"
       + ".cu-empty{color:var(--faint);font-size:13.5px;padding:16px 0}"
+      + ".cu-opt{display:flex;gap:12px;align-items:flex-start;padding:11px 0;border-top:1px solid var(--line-2)}"
+      + ".cu-opt:first-child{border-top:0}"
+      + ".cu-opt.done{opacity:.5}"
+      + ".cu-obody{flex:1;min-width:0}"
+      + ".cu-otitle{font-size:13.5px;font-weight:700;letter-spacing:-.1px}"
+      + ".cu-owhy{font-size:12.5px;color:var(--faint);line-height:1.55;margin-top:2px}"
+      + ".cu-oact{display:flex;gap:6px;flex:0 0 auto}"
+      + ".cu-btn{font:inherit;font-size:12px;font-weight:750;color:var(--ink);background:var(--panel-2);"
+      + "border:1px solid var(--line-2);border-radius:9px;padding:6px 12px;cursor:pointer;white-space:nowrap}"
+      + ".cu-btn:hover{border-color:var(--blue)} .cu-btn:disabled{opacity:.5;cursor:default}"
+      + ".cu-btn.pri{background:var(--brand);color:var(--brand-ink);border:0}"
+      + ".cu-msg{font-size:12.5px;font-weight:650;min-height:17px;margin-top:8px}"
       + "</style><div class='cu-wrap'><div id='cuBody'><div class='cu-empty'>Loading the horizon…</div></div></div>";
 
     var gen = (window.__CUGEN = (window.__CUGEN || 0) + 1);
@@ -180,6 +201,64 @@ registerPage({
           return String(j.Day).slice(0, 10) === S.sel; })
           .sort(function (a, b) { return String(a.Start).localeCompare(String(b.Start)); });
 
+        // WHAT COULD BE DONE — the three-tier ladder, cheapest first. Shown even when the
+        // day is comfortable, because a free chain is a crew freed for tomorrow's sale.
+        var opts = (S.opts || []).filter(function (o) {
+          return String(o.Day).slice(0, 10) === S.sel; })
+          .sort(function (a, b) {
+            return (+b.Recommended - +a.Recommended) || ((+a.Rank) - (+b.Rank)); });
+        var openOpts = opts.filter(function (o) { return o.Status === "open"; });
+        var optHtml = "";
+        if (opts.length) {
+          optHtml = "<div class='cu-card'><div class='cu-hd'><b>What could free a crew</b>"
+            + "<span class='cu-pill'>" + openOpts.length + " open</span>"
+            + (opts.length - openOpts.length
+                ? "<span class='cu-pill'>" + (opts.length - openOpts.length) + " decided</span>" : "")
+            + "</div>"
+            + opts.map(function (o) {
+                var done = o.Status !== "open";
+                var isCall = o.Kind === "call";
+                var title = isCall
+                  ? esc(o.Customer || o["Job Code"]) + " runs after " + esc(o["After Customer"] || o["After Code"])
+                  : esc(o.Customer || o["Job Code"]) + " moves to " + fmtDay(o["Move To"]);
+                var why = isCall
+                  ? ("Chaining this job behind " + esc(o["After Code"] || "") + " frees one crew. "
+                     + (o["Link Minutes"] != null ? "About " + o["Link Minutes"] + " min ("
+                        + o["Link Miles"] + " mi) between them. " : "")
+                     + (o.Discount ? "Needs a call and a $" + o.Discount + " same-day discount." : ""))
+                  : ("Moving the date frees a crew here; "
+                     + fmtDay(o["Move To"]) + " has " + (o["Target Spare"] != null ? o["Target Spare"] : "?")
+                     + " spare. "
+                     + (o["Lands Behind"] ? "It would chain behind " + esc(o["Lands Behind"])
+                        + " there, so it costs no crew on the day it moves to."
+                        : "It would need its own crew on that day."));
+                return "<div class='cu-opt" + (done ? " done" : "") + "'>"
+                  + "<div class='cu-obody'><div class='cu-otitle'>"
+                  + "<span class='cu-pill " + (isCall ? "" : "tight") + "' style='margin-right:7px'>"
+                  + (isCall ? "chain" : "move date") + "</span>" + title
+                  + (+o.Recommended ? " <span class='cu-pill ok'>recommended</span>" : "")
+                  + "</div><div class='cu-owhy'>" + why + "</div></div>"
+                  + "<div class='cu-oact'>"
+                  + (done
+                     ? "<span class='cu-pill " + (o.Status === "accepted" ? "ok" : "short") + "'>"
+                       + esc(o.Status) + "</span>"
+                     : "<button class='cu-btn pri' data-dec='accepted' data-kind='" + esc(o.Kind)
+                       + "' data-code='" + esc(o["Job Code"]) + "' data-cust='" + esc(o.Customer || "")
+                       + "' data-after='" + esc(o["After Code"] || "") + "' data-to='"
+                       + esc(o["Move To"] || "") + "'" + (S.busy ? " disabled" : "") + ">Accept</button>"
+                       + "<button class='cu-btn' data-dec='declined' data-kind='" + esc(o.Kind)
+                       + "' data-code='" + esc(o["Job Code"]) + "' data-cust='" + esc(o.Customer || "")
+                       + "' data-after='" + esc(o["After Code"] || "") + "' data-to='"
+                       + esc(o["Move To"] || "") + "'" + (S.busy ? " disabled" : "") + ">Decline</button>")
+                  + "</div></div>";
+              }).join("")
+            + "<div class='cu-msg'>" + esc(S.msg || "") + "</div>"
+            + "<div class='cu-note'>Declining is <b>permanent and per customer</b> — you only "
+            + "get to ask someone once, so a customer who says no is never suggested again, on "
+            + "any day. Decisions are recorded for everyone, not just this browser. Accepting "
+            + "records the decision; the calendar is not changed yet.</div></div>";
+        }
+
         detail = "<div class='cu-card'>"
           + "<div class='cu-hd'><b>" + new Date(S.sel + "T12:00").toLocaleDateString("en-US",
               { weekday: "long", month: "long", day: "numeric" }) + "</b>"
@@ -221,20 +300,61 @@ registerPage({
         + (S.probOnly ? "Showing days that need attention" : "Show only days that need attention")
         + "</button></div>";
 
-      body.innerHTML = kpis + toggle + strip + detail;
+      body.innerHTML = kpis + toggle + strip + detail + (typeof optHtml === "string" ? optHtml : "");
 
       Array.prototype.forEach.call(body.querySelectorAll("[data-day]"), function (b) {
         b.onclick = function () { S.sel = b.getAttribute("data-day"); paint(); };
       });
       var pb = document.getElementById("cuProb");
       if (pb) pb.onclick = function () { S.probOnly = !S.probOnly; paint(); };
+
+      Array.prototype.forEach.call(body.querySelectorAll("[data-dec]"), function (b) {
+        b.onclick = function () { decide(b); };
+      });
     }
 
-    if (S.days && S.jobs) { paint(); return; }
-    Promise.all([RS.load("fct_cleanup_day"), RS.load("fct_cleanup_job")])
+    function decide(btn) {
+      if (S.busy) return;
+      var action = btn.getAttribute("data-dec");
+      var code = btn.getAttribute("data-code");
+      var cust = btn.getAttribute("data-cust");
+      // Declining is permanent and reaches every other day, so it gets a confirm; accepting
+      // only records an intention and is easily reopened.
+      if (action === "declined" && !window.confirm(
+            "Decline for " + (cust || code) + "?\n\nThis is permanent: " + (cust || "this customer")
+            + " will not be suggested again on any day, for any option.")) return;
+      S.busy = code; S.msg = ""; paint();
+      fetch(ZTZ.API + "/api/_cleanupdecide", {
+        method: "POST",
+        headers: { "Content-Type": "application/json",
+                   Authorization: "Bearer " + ZTZ.getToken() },
+        body: JSON.stringify({
+          day: S.sel, job_code: code, customer: cust, kind: btn.getAttribute("data-kind"),
+          action: action, after_code: btn.getAttribute("data-after") || null,
+          move_to: btn.getAttribute("data-to") || null }),
+      }).then(function (r) { return r.json().then(function (j) {
+          if (!r.ok || j.error) throw new Error(j.error || ("HTTP " + r.status));
+          // reflect it now; the mart re-reads decisions on its next build
+          (S.opts || []).forEach(function (o) {
+            if (o["Job Code"] === code && String(o.Day).slice(0, 10) === S.sel) o.Status = action;
+            if (action === "declined" && cust && o.Customer === cust) o.Status = "declined";
+          });
+          S.busy = ""; S.msg = "Recorded — " + action + " for " + (cust || code) + ".";
+          paint();
+        }); })
+        .catch(function (e) {
+          S.busy = ""; S.msg = "Could not record that: " + String(e.message || e);
+          paint();
+        });
+    }
+
+    if (S.days && S.jobs && S.opts) { paint(); return; }
+    Promise.all([RS.load("fct_cleanup_day"), RS.load("fct_cleanup_job"),
+                 RS.load("fct_cleanup_option")])
       .then(function (res) {
         S.days = res[0] || [];
         S.jobs = res[1] || [];
+        S.opts = res[2] || [];
         paint();
       })
       .catch(function (e) {
