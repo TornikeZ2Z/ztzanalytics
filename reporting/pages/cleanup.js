@@ -31,7 +31,7 @@
         cols: ["Day", "Job Code", "Customer", "Start", "Hours", "CF", "Crew", "Moving Type",
                "Job Type", "Pickup Zip", "Pickup City", "Pickup State", "Delivery Zip",
                "Delivery City", "Delivery State", "Foreman Email", "Route", "Route Legs",
-               "Chained After"],
+               "Chained After", "Base", "Company"],
       };
     }
   }
@@ -51,7 +51,8 @@ registerPage({
       });
     };
     var S = window.__CU || (window.__CU = { days: null, jobs: null, opts: null,
-      sel: null, probOnly: false, busy: "", msg: "" });
+      sel: null, probOnly: false, busy: "", msg: "",
+      baseF: null, coF: null, focus: null, mapOn: true });
 
     host.innerHTML = '<style id="cuCss">'
       + ".cu-wrap{max-width:1280px}"
@@ -113,6 +114,40 @@ registerPage({
       + ".cu-btn:hover{border-color:var(--blue)} .cu-btn:disabled{opacity:.5;cursor:default}"
       + ".cu-btn.pri{background:var(--brand);color:var(--brand-ink);border:0}"
       + ".cu-msg{font-size:12.5px;font-weight:650;min-height:17px;margin-top:8px}"
+      /* FILTERS */
+      + ".cu-fil{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:12px}"
+      + ".cu-fil .lab{font-size:9.5px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;"
+      + "color:var(--faint);margin-right:2px}"
+      + ".cu-chip{font:inherit;font-size:11.5px;font-weight:700;padding:4px 10px;border-radius:999px;"
+      + "background:var(--panel-2);border:1px solid var(--line-2);color:var(--faint);cursor:pointer}"
+      + ".cu-chip.on{background:var(--ink);border-color:var(--ink);color:var(--panel)}"
+      /* TIMELINE: a route is a bar on a clock, grouped by the depot it leaves from */
+      + ".cu-tl{margin-top:4px}"
+      + ".cu-tlax{position:relative;height:16px;margin-left:150px;border-bottom:1px solid var(--line)}"
+      + ".cu-tlax span{position:absolute;top:0;font-size:9.5px;color:var(--faint);"
+      + "transform:translateX(-50%);font-variant-numeric:tabular-nums}"
+      + ".cu-base{margin-top:10px}"
+      + ".cu-bhd{font-size:10px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;"
+      + "color:var(--faint);background:var(--panel-2);border-radius:7px;padding:3px 9px;"
+      + "display:inline-block;margin-bottom:5px}"
+      + ".cu-row{display:flex;align-items:center;gap:0;min-height:30px}"
+      + ".cu-rlab{flex:0 0 150px;font-size:11.5px;line-height:1.3;padding-right:10px}"
+      + ".cu-rlab b{font-size:12px;font-variant-numeric:tabular-nums}"
+      + ".cu-rlab span{display:block;color:var(--faint);font-size:10.5px;overflow:hidden;"
+      + "text-overflow:ellipsis;white-space:nowrap}"
+      + ".cu-track{position:relative;flex:1;height:26px;border-left:1px solid var(--line-2)}"
+      + ".cu-bar{position:absolute;top:3px;height:20px;border-radius:6px;background:var(--pos,#1c7a4a);"
+      + "color:#fff;font-size:10.5px;font-weight:700;line-height:20px;padding:0 7px;overflow:hidden;"
+      + "white-space:nowrap;text-overflow:ellipsis;cursor:pointer}"
+      + ".cu-bar.long{background:#b26b0b} .cu-bar.straight{background:#7c5ce0}"
+      + ".cu-bar.labor{background:#78808d}"
+      + ".cu-bar.dim{opacity:.35} .cu-bar.sel{outline:2px solid var(--ink);outline-offset:1px}"
+      /* MAP */
+      + ".cu-map{height:420px;border-radius:12px;overflow:hidden;border:1px solid var(--line);"
+      + "background:var(--panel-2)}"
+      + ".cu-mleg{display:flex;gap:12px;flex-wrap:wrap;font-size:11px;color:var(--faint);margin-top:8px}"
+      + ".cu-mleg i{display:inline-block;width:16px;height:3px;border-radius:2px;margin-right:5px;"
+      + "vertical-align:2px}"
       + "</style><div class='cu-wrap'><div id='cuBody'><div class='cu-empty'>Loading the horizon…</div></div></div>";
 
     var gen = (window.__CUGEN = (window.__CUGEN || 0) + 1);
@@ -123,6 +158,208 @@ registerPage({
       return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
     }
     var TODAY = new Date().toISOString().slice(0, 10);
+
+    // ---- filters -------------------------------------------------------------------
+    function filters(jobs) {
+      var bases = [], cos = [];
+      jobs.forEach(function (j) {
+        if (j.Base && bases.indexOf(j.Base) < 0) bases.push(j.Base);
+        if (j.Company && cos.indexOf(j.Company) < 0) cos.push(j.Company);
+      });
+      bases.sort(); cos.sort();
+      if (bases.length < 2 && cos.length < 2) return "";
+      function chips(list, cur, attr) {
+        return list.map(function (v) {
+          return "<button class='cu-chip" + (cur === v ? " on" : "") + "' " + attr + "='"
+            + esc(v) + "'>" + esc(v) + "</button>";
+        }).join("");
+      }
+      return "<div class='cu-fil'>"
+        + (bases.length > 1 ? "<span class='lab'>Base</span>"
+            + "<button class='cu-chip" + (S.baseF ? "" : " on") + "' data-base=''>All</button>"
+            + chips(bases, S.baseF, "data-base") : "")
+        + (cos.length > 1 ? "<span class='lab' style='margin-left:10px'>Company</span>"
+            + "<button class='cu-chip" + (S.coF ? "" : " on") + "' data-co=''>All</button>"
+            + chips(cos, S.coF, "data-co") : "")
+        + "</div>";
+    }
+
+    // ---- the timeline: one row per crew, grouped by depot ---------------------------
+    var DAY_FROM = 7, DAY_TO = 21;   // the clock the board uses
+    function pos(hhmm) {
+      var p = String(hhmm || "").split(":");
+      var h = (+p[0] || 0) + (+p[1] || 0) / 60;
+      return Math.max(0, Math.min(100, (h - DAY_FROM) / (DAY_TO - DAY_FROM) * 100));
+    }
+    function barClass(j) {
+      var mt = String(j["Moving Type"] || "").toLowerCase();
+      var jt = String(j["Job Type"] || "").toLowerCase();
+      if (jt.indexOf("labor") >= 0) return "labor";
+      if (jt.indexOf("straight") >= 0) return "straight";
+      if (mt.indexOf("long") >= 0) return "long";
+      return "";
+    }
+    function timeline(jobs) {
+      // group jobs into their crew's route, then routes into their depot
+      var byRoute = {};
+      jobs.forEach(function (j) {
+        var k = j.Route || ("solo:" + j["Job Code"]);
+        (byRoute[k] = byRoute[k] || []).push(j);
+      });
+      var byBase = {};
+      Object.keys(byRoute).forEach(function (k) {
+        var legs = byRoute[k].sort(function (a, b) {
+          return String(a.Start).localeCompare(String(b.Start)); });
+        var b = legs[0].Base || "—";
+        (byBase[b] = byBase[b] || []).push({ id: k, legs: legs });
+      });
+
+      var axis = "<div class='cu-tlax'>";
+      for (var h = DAY_FROM; h <= DAY_TO; h += 2) {
+        axis += "<span style='left:" + ((h - DAY_FROM) / (DAY_TO - DAY_FROM) * 100) + "%'>"
+          + h + ":00</span>";
+      }
+      axis += "</div>";
+
+      return "<div class='cu-tl'>" + axis + Object.keys(byBase).sort().map(function (b) {
+        var rs = byBase[b].sort(function (x, y) {
+          return String(x.legs[0].Start).localeCompare(String(y.legs[0].Start)); });
+        return "<div class='cu-base'><div class='cu-bhd'>" + esc(b) + " base · "
+          + rs.length + " crew" + (rs.length === 1 ? "" : "s") + "</div>"
+          + rs.map(function (r) {
+              var cf = r.legs.reduce(function (a, j) { return a + (+j.CF || 0); }, 0);
+              var first = r.legs[0];
+              return "<div class='cu-row'>"
+                + "<div class='cu-rlab'><b>" + esc(r.id) + " · " + money(cf) + " CF</b>"
+                + "<span>" + esc((first["Pickup City"] || "") + " → "
+                    + (r.legs[r.legs.length - 1]["Delivery City"] || "")) + "</span></div>"
+                + "<div class='cu-track'>"
+                + r.legs.map(function (j, i) {
+                    var l = pos(j.Start);
+                    var hrs = +j.Hours || 2;
+                    var w = Math.max(3, (hrs / (DAY_TO - DAY_FROM)) * 100);
+                    var dim = S.focus && S.focus !== r.id;
+                    return "<button class='cu-bar " + barClass(j) + (dim ? " dim" : "")
+                      + (S.focus === r.id ? " sel" : "") + "' data-route='" + esc(r.id)
+                      + "' style='left:" + l + "%;width:" + Math.min(w, 100 - l) + "%' title='"
+                      + esc((j.Customer || j["Job Code"]) + " · " + j.Start + " · " + hrs + "h · "
+                            + money(j.CF) + " CF") + "'>"
+                      + (r.legs.length > 1 ? (i + 1) + "/" + r.legs.length + " · " : "")
+                      + esc((j["Pickup City"] || "") + " → " + (j["Delivery City"] || ""))
+                      + " · " + money(j.CF) + " CF</button>";
+                  }).join("")
+                + "</div></div>";
+            }).join("")
+          + "</div>";
+      }).join("") + "</div>";
+    }
+
+    // ---- the map: real road routes, via the same HERE service the LD board uses -----
+    function ensureLeaflet(cb) {
+      if (window.L && window.L.map) { cb(); return; }
+      if (!document.getElementById("ldLeafCss")) {
+        var lc = document.createElement("link");
+        lc.id = "ldLeafCss"; lc.rel = "stylesheet"; lc.href = "assets/vendor/leaflet/leaflet.css";
+        document.head.appendChild(lc);
+      }
+      var sc = document.getElementById("ldLeafJs");
+      if (sc) { sc.addEventListener("load", function () { cb(); }); return; }
+      sc = document.createElement("script");
+      sc.id = "ldLeafJs"; sc.src = "assets/vendor/leaflet/leaflet.js";
+      sc.onload = function () { cb(); };
+      document.head.appendChild(sc);
+    }
+
+    function drawMap(jobs) {
+      var box = document.getElementById("cuMap");
+      if (!box || !jobs.length) return;
+      // Every leg we want drawn: the loaded run of each job, plus the EMPTY drive between
+      // two jobs a crew runs back to back -- that empty leg is the cost chaining is trading
+      // away, so it is the one a dispatcher most needs to see.
+      var byRoute = {};
+      jobs.forEach(function (j) {
+        var k = j.Route || ("solo:" + j["Job Code"]);
+        (byRoute[k] = byRoute[k] || []).push(j);
+      });
+      var legs = [];
+      Object.keys(byRoute).forEach(function (k) {
+        if (S.focus && S.focus !== k) return;
+        var r = byRoute[k].sort(function (a, b) {
+          return String(a.Start).localeCompare(String(b.Start)); });
+        r.forEach(function (j, i) {
+          if (j["Pickup Zip"] && j["Delivery Zip"])
+            legs.push({ a: j["Pickup Zip"], b: j["Delivery Zip"], kind: barClass(j) || "loaded",
+                        route: k, label: (j.Customer || j["Job Code"]) });
+          var nx = r[i + 1];
+          if (nx && j["Delivery Zip"] && nx["Pickup Zip"])
+            legs.push({ a: j["Delivery Zip"], b: nx["Pickup Zip"], kind: "empty", route: k,
+                        label: "empty drive" });
+        });
+      });
+      if (!legs.length) { box.innerHTML = "<div style='padding:18px;color:var(--faint)'>"
+        + "No mappable stops on this day.</div>"; return; }
+
+      var qs = legs.map(function (l) { return l.a + "-" + l.b; }).join(",");
+      var hdr = { headers: { Authorization: "Bearer " + ZTZ.getToken() } };
+      var gen = window.__CUGEN;
+
+      function render(j) {
+        if (window.__CUGEN !== gen) return false;
+        var got = (j && j.legs) || [];
+        ensureLeaflet(function () {
+          var m = box._m;
+          if (!m) {
+            m = L.map(box, { scrollWheelZoom: false, zoomSnap: 0.5 });
+            L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png",
+              { maxZoom: 18, subdomains: "abcd",
+                attribution: "© OpenStreetMap · © CARTO" }).addTo(m);
+            box._m = m; box._lay = [];
+          }
+          (box._lay || []).forEach(function (l) { try { m.removeLayer(l); } catch (e) {} });
+          box._lay = [];
+          var bounds = [];
+          got.forEach(function (g, i) {
+            var c = g.coords || [];
+            if (c.length < 2) return;
+            var meta = legs[i] || {};
+            var empty = meta.kind === "empty";
+            var col = empty ? "#7c5ce0" : (meta.kind === "long" ? "#b26b0b"
+                      : meta.kind === "straight" ? "#7c5ce0" : "#1c7a4a");
+            var pl = L.polyline(c, empty
+              ? { color: col, weight: 2.5, dashArray: "6 7", opacity: 0.9 }
+              : { color: col, weight: 4, opacity: 0.85 }).addTo(m);
+            pl.bindTooltip((meta.label || "") + (g.miles ? " · " + g.miles + " mi" : "")
+                           + (empty ? " (empty)" : ""), { sticky: true });
+            box._lay.push(pl);
+            c.forEach(function (p) { bounds.push(p); });
+            if (!empty) {
+              var mk = L.circleMarker(c[0], { radius: 4, color: col, fillColor: "#fff",
+                                              fillOpacity: 1, weight: 2 }).addTo(m);
+              box._lay.push(mk);
+            }
+          });
+          if (bounds.length) m.fitBounds(bounds, { padding: [24, 24] });
+          // Leaflet measures the container at creation; it was hidden until now
+          setTimeout(function () { try { m.invalidateSize(); } catch (e) {} }, 60);
+        });
+        return got.length > 0;
+      }
+
+      // straight lines first so something is on screen immediately, then the real roads
+      fetch(ZTZ.API + "/api/_ldgeo?est=1&legs=" + encodeURIComponent(qs), hdr)
+        .then(function (r) { return r.json(); })
+        .then(function (j) {
+          render(j);
+          var need = j && j.legs && j.legs.some(function (l) { return l.source !== "here"; });
+          if (need && window.__CUGEN === gen)
+            fetch(ZTZ.API + "/api/_ldgeo?legs=" + encodeURIComponent(qs), hdr)
+              .then(function (r) { return r.json(); }).then(render).catch(function () {});
+        })
+        .catch(function () {
+          if (window.__CUGEN === gen && box)
+            box.innerHTML = "<div style='padding:18px;color:var(--faint)'>Map unavailable.</div>";
+        });
+    }
 
     function paint() {
       // the page may have been swapped out while the tables were loading
@@ -201,6 +438,12 @@ registerPage({
           return String(j.Day).slice(0, 10) === S.sel; })
           .sort(function (a, b) { return String(a.Start).localeCompare(String(b.Start)); });
 
+        // filters narrow WHAT IS SHOWN, never what the day's verdict was computed from --
+        // the crew count is a fact about the whole day, not about the slice you are looking at
+        var shown = jobs.filter(function (j) {
+          return (!S.baseF || j.Base === S.baseF) && (!S.coF || j.Company === S.coF);
+        });
+
         // WHAT COULD BE DONE — the three-tier ladder, cheapest first. Shown even when the
         // day is comfortable, because a free chain is a crew freed for tomorrow's sale.
         var opts = (S.opts || []).filter(function (o) {
@@ -267,31 +510,24 @@ registerPage({
           + "<span class='cu-pill'>" + rt + " crews needed</span></div>"
           + "<div class='cu-verdict'>" + verdict + "</div>"
           + (d["Crews Off"] ? "<div class='cu-off'><b>Off today:</b> " + esc(d["Crews Off"]) + "</div>" : "")
-          + (jobs.length ? "<table class='cu-tbl'><thead><tr>"
-              + "<th>Start</th><th>Job</th><th>Customer</th><th>From</th><th>To</th>"
-              + "<th class='r'>CF</th><th class='r'>Crew</th><th class='r'>Hrs</th><th>Type</th><th>Crew slot</th>"
-              + "</tr></thead><tbody>"
-              + jobs.map(function (j) {
-                  var sh = (+j["Route Legs"] || 1) > 1;
-                  return "<tr" + (sh ? " class='chained'" : "") + ">"
-                    + "<td>" + esc(j.Start || "") + "</td>"
-                    + "<td>" + esc(j["Job Code"] || "") + "</td>"
-                    + "<td>" + esc(j.Customer || "") + "</td>"
-                    + "<td>" + esc((j["Pickup City"] || "") + " " + (j["Pickup State"] || "")) + "</td>"
-                    + "<td>" + esc((j["Delivery City"] || "") + " " + (j["Delivery State"] || "")) + "</td>"
-                    + "<td class='r'>" + money(j.CF) + "</td>"
-                    + "<td class='r'>" + esc(j.Crew || "") + "</td>"
-                    + "<td class='r'>" + esc(j.Hours || "") + "</td>"
-                    + "<td>" + esc(j["Job Type"] || j["Moving Type"] || "") + "</td>"
-                    + "<td><span class='cu-rt" + (sh ? " ch" : "") + "'>" + esc(j.Route || "—")
-                    + (sh ? " · shared" : "") + "</span></td></tr>";
-                }).join("")
-              + "</tbody></table>"
-            : "<div class='cu-empty'>No jobs on this day.</div>")
-          + "<div class='cu-note'>A <b>crew slot</b> is one foreman's day. Jobs on the same slot "
-          + "are chained — one crew runs them back to back, which is why the day needs fewer "
-          + "crews than it has jobs. The target keeps 2 crews spare for callbacks and same-day sales.</div>"
-          + "</div>";
+          + filters(jobs)
+          + (shown.length ? timeline(shown)
+            : "<div class='cu-empty'>No jobs match this filter.</div>")
+          + "<div class='cu-note'>Each row is <b>one crew's day</b>, grouped by the depot it "
+          + "leaves from and laid out on the clock. A row with two bars is a chain — one crew "
+          + "running both jobs, which is why the day needs fewer crews than it has jobs. Click "
+          + "a bar to trace that run on the map.</div>"
+          + "</div>"
+          + (shown.length ? "<div class='cu-card'><div class='cu-hd'><b>Where the day goes</b>"
+              + "<span class='cu-pill'>" + (S.focus ? "one run" : "every run") + "</span>"
+              + (S.focus ? "<button class='cu-btn' id='cuAll' style='margin-left:auto'>"
+                  + "Show every run</button>" : "") + "</div>"
+              + "<div class='cu-map' id='cuMap'></div>"
+              + "<div class='cu-mleg'>"
+              + "<span><i style='background:#1c7a4a'></i>loaded — pickup to delivery</span>"
+              + "<span><i style='background:#7c5ce0'></i>empty — the drive between two chained jobs</span>"
+              + "<span><i style='background:#b26b0b'></i>long distance</span>"
+              + "<span>◆ depot</span></div></div>" : "");
       }
 
       var toggle = "<div class='cu-hd' style='margin-bottom:10px'>"
@@ -311,6 +547,29 @@ registerPage({
       Array.prototype.forEach.call(body.querySelectorAll("[data-dec]"), function (b) {
         b.onclick = function () { decide(b); };
       });
+      Array.prototype.forEach.call(body.querySelectorAll("[data-base]"), function (b) {
+        b.onclick = function () { S.baseF = b.getAttribute("data-base") || null; S.focus = null; paint(); };
+      });
+      Array.prototype.forEach.call(body.querySelectorAll("[data-co]"), function (b) {
+        b.onclick = function () { S.coF = b.getAttribute("data-co") || null; S.focus = null; paint(); };
+      });
+      Array.prototype.forEach.call(body.querySelectorAll("[data-route]"), function (b) {
+        b.onclick = function () {
+          var r = b.getAttribute("data-route");
+          S.focus = (S.focus === r) ? null : r;   // click the same run again to see them all
+          paint();
+        };
+      });
+      var ab = document.getElementById("cuAll");
+      if (ab) ab.onclick = function () { S.focus = null; paint(); };
+
+      // the map is drawn after the DOM exists, and only for what is actually shown
+      if (document.getElementById("cuMap")) {
+        var vis = (S.jobs || []).filter(function (j) {
+          return String(j.Day).slice(0, 10) === S.sel
+            && (!S.baseF || j.Base === S.baseF) && (!S.coF || j.Company === S.coF); });
+        drawMap(vis);
+      }
     }
 
     function decide(btn) {
