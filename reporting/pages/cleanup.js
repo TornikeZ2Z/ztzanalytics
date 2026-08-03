@@ -463,7 +463,7 @@ registerPage({
                              + " — booked for " + clock(booked) });
           } else if (cur != null && booked <= cur) {
             retime = true;
-            rows.push({ cls: "wait", t: clock(booked),
+            rows.push({ cls: "wait", t: "",
                         txt: "Booked " + clock(booked) + " as well — this job has to be "
                              + "re-timed to run after job " + i });
           }
@@ -505,7 +505,13 @@ registerPage({
       var endH = hrOf(last.Start) + (+last.Hours || 2);
       var home = rows.filter(function (x) { return x.cls === "home"; })[0];
       var HOME_BY = 22;                        // the engine's own limit, CLEAN.maxHomeHr
-      var overrun = cur != null && cur > HOME_BY;
+      // judged on when the crew is actually back, not when the last box is off the truck
+      var homeH = null;
+      if (cur != null && bp) {
+        var dhx = drive(pt(last, "Delivery"), bp);
+        homeH = dhx ? cur + dhx.min / 60 : cur;
+      }
+      var overrun = homeH != null && homeH > HOME_BY;
       var warn = "";
       if (retime || overrun) {
         warn = "<div class='cu-warn'>"
@@ -515,7 +521,7 @@ registerPage({
                + "is the call in the plan above. "
              : "")
           + (overrun
-             ? "Run as sequenced, this crew is not home until <b>" + clock(cur)
+             ? "Run as sequenced, this crew is not home until <b>" + clock(homeH)
                + "</b>, past the " + HOME_BY + ":00 limit."
              : "")
           + "</div>";
