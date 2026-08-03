@@ -299,9 +299,25 @@ registerPage({
       if (!legs.length) { box.innerHTML = "<div style='padding:18px;color:var(--faint)'>"
         + "No mappable stops on this day.</div>"; return; }
 
-      var qs = legs.map(function (l) { return l.a + "-" + l.b; }).join(",");
+      // the geometry service joins a leg's two zips with ":" and takes at most 16 per call,
+      // so a busy day is fetched in batches and stitched back in order
+      var pairs = legs.map(function (l) { return l.a + ":" + l.b; });
       var hdr = { headers: { Authorization: "Bearer " + ZTZ.getToken() } };
       var gen = window.__CUGEN;
+
+      function fetchAll(est) {
+        var out = [], i = 0;
+        function next() {
+          if (i >= pairs.length) return Promise.resolve({ legs: out });
+          var batch = pairs.slice(i, i + 16);
+          i += 16;
+          return fetch(ZTZ.API + "/api/_ldgeo?" + (est ? "est=1&" : "") + "legs="
+                       + encodeURIComponent(batch.join(",")), hdr)
+            .then(function (r) { return r.json(); })
+            .then(function (j) { out = out.concat((j && j.legs) || []); return next(); });
+        }
+        return next();
+      }
 
       function render(j) {
         if (window.__CUGEN !== gen) return false;
@@ -346,14 +362,11 @@ registerPage({
       }
 
       // straight lines first so something is on screen immediately, then the real roads
-      fetch(ZTZ.API + "/api/_ldgeo?est=1&legs=" + encodeURIComponent(qs), hdr)
-        .then(function (r) { return r.json(); })
+      fetchAll(true)
         .then(function (j) {
           render(j);
-          var need = j && j.legs && j.legs.some(function (l) { return l.source !== "here"; });
-          if (need && window.__CUGEN === gen)
-            fetch(ZTZ.API + "/api/_ldgeo?legs=" + encodeURIComponent(qs), hdr)
-              .then(function (r) { return r.json(); }).then(render).catch(function () {});
+          var need = (j.legs || []).some(function (l) { return l.source !== "here"; });
+          if (need && window.__CUGEN === gen) fetchAll(false).then(render).catch(function () {});
         })
         .catch(function () {
           if (window.__CUGEN === gen && box)
