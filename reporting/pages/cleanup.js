@@ -31,7 +31,9 @@
         cols: ["Day", "Job Code", "Customer", "Start", "Hours", "CF", "Crew", "Moving Type",
                "Job Type", "Pickup Zip", "Pickup City", "Pickup State", "Delivery Zip",
                "Delivery City", "Delivery State", "Foreman Email", "Foreman", "Route", "Route Legs",
-               "Chained After", "Base", "Company"],
+               "Chained After", "Base", "Company",
+               "Pickup Lat", "Pickup Lon", "Delivery Lat", "Delivery Lon",
+               "Base Zip", "Base Lat", "Base Lon"],
       };
     }
   }
@@ -52,7 +54,7 @@ registerPage({
     };
     var S = window.__CU || (window.__CU = { days: null, jobs: null, opts: null,
       sel: null, probOnly: false, busy: "", msg: "",
-      baseF: null, coF: null, focus: null, mapOn: true });
+      baseF: null, coF: null, focus: null, mapOn: false, openRun: null, shut: {} });
 
     host.innerHTML = '<style id="cuCss">'
       + ".cu-wrap{max-width:1280px}"
@@ -124,27 +126,85 @@ registerPage({
       + ".cu-chip{font:inherit;font-size:11.5px;font-weight:700;padding:4px 10px;border-radius:999px;"
       + "background:var(--panel-2);border:1px solid var(--line-2);color:var(--faint);cursor:pointer}"
       + ".cu-chip.on{background:var(--ink);border-color:var(--ink);color:var(--panel)}"
-      /* TIMELINE: a route is a bar on a clock, grouped by the depot it leaves from */
+      /* THE DAY'S WORK: a route is one crew's row on a clock, grouped by its depot */
+      + ".cu-split{display:flex;gap:16px;align-items:flex-start}"
+      + ".cu-tlwrap{flex:1;min-width:0}"
       + ".cu-tl{margin-top:4px}"
-      + ".cu-tlax{position:relative;height:16px;margin-left:150px;border-bottom:1px solid var(--line)}"
+      + ".cu-tlax{position:relative;height:15px;margin-left:186px;border-bottom:1px solid var(--line)}"
       + ".cu-tlax span{position:absolute;top:0;font-size:9.5px;color:var(--faint);"
       + "transform:translateX(-50%);font-variant-numeric:tabular-nums}"
-      + ".cu-base{margin-top:10px}"
-      + ".cu-bhd{font-size:10px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;"
-      + "color:var(--faint);background:var(--panel-2);border-radius:7px;padding:3px 9px;"
-      + "display:inline-block;margin-bottom:5px}"
-      + ".cu-row{display:flex;align-items:center;gap:0;min-height:30px}"
-      + ".cu-rlab{flex:0 0 150px;font-size:11.5px;line-height:1.3;padding-right:10px}"
-      + ".cu-rlab b{font-size:12px;font-variant-numeric:tabular-nums}"
+      + ".cu-tlax i{position:absolute;top:15px;width:1px;height:1200px;background:var(--line-2);"
+      + "opacity:.45;pointer-events:none}"
+      + ".cu-base{margin-top:12px;position:relative;overflow:hidden}"
+      + ".cu-bhd{display:flex;align-items:center;gap:7px;width:100%;font:inherit;font-size:10px;"
+      + "font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);"
+      + "background:transparent;border:0;border-bottom:1px solid var(--line-2);padding:0 0 4px;"
+      + "margin-bottom:6px;cursor:pointer;text-align:left}"
+      + ".cu-bhd:hover{color:var(--ink)}"
+      + ".cu-bhd i{font-style:normal;font-size:11px;transition:transform .15s}"
+      + ".cu-bhd.shut i{transform:rotate(-90deg)}"
+      + ".cu-bhd em{font-style:normal;font-weight:650;letter-spacing:0;text-transform:none;"
+      + "font-size:11px;margin-left:auto;font-variant-numeric:tabular-nums}"
+      /* the ROW is the hit target, not just the bar */
+      + ".cu-row{display:flex;align-items:center;min-height:38px;border-radius:9px;cursor:pointer;"
+      + "border-left:3px solid transparent;padding-left:4px}"
+      + ".cu-row:hover{background:var(--panel-2)}"
+      + ".cu-row:focus-visible{outline:2px solid var(--blue);outline-offset:-2px}"
+      + ".cu-row.on{background:var(--panel-2);border-left-color:var(--ink)}"
+      + ".cu-rlab{flex:0 0 182px;font-size:11.5px;line-height:1.35;padding-right:12px}"
+      + ".cu-rlab b{font-size:12px;font-variant-numeric:tabular-nums;letter-spacing:-.1px}"
+      + ".cu-rlab b .ch{font-style:normal;color:var(--blue);font-size:10px}"
       + ".cu-rlab span{display:block;color:var(--faint);font-size:10.5px;overflow:hidden;"
       + "text-overflow:ellipsis;white-space:nowrap}"
-      + ".cu-track{position:relative;flex:1;height:26px;border-left:1px solid var(--line-2)}"
-      + ".cu-bar{position:absolute;top:3px;height:20px;border-radius:6px;background:var(--pos,#1c7a4a);"
+      + ".cu-rlab em{display:block;font-style:normal;color:var(--faint);font-size:10px;"
+      + "font-variant-numeric:tabular-nums;opacity:.75}"
+      + ".cu-track{position:relative;flex:1;height:30px;border-left:1px solid var(--line-2)}"
+      + ".cu-bar{position:absolute;top:5px;height:20px;border-radius:6px;background:#1c7a4a;"
       + "color:#fff;font-size:10.5px;font-weight:700;line-height:20px;padding:0 7px;overflow:hidden;"
-      + "white-space:nowrap;text-overflow:ellipsis;cursor:pointer}"
+      + "white-space:nowrap;text-overflow:ellipsis}"
       + ".cu-bar.long{background:#b26b0b} .cu-bar.straight{background:#7c5ce0}"
       + ".cu-bar.labor{background:#78808d}"
-      + ".cu-bar.dim{opacity:.35} .cu-bar.sel{outline:2px solid var(--ink);outline-offset:1px}"
+      /* the empty drive between two chained jobs -- the cost chaining trades away */
+      + ".cu-gap{position:absolute;top:12px;height:6px;border-radius:3px;"
+      + "background:repeating-linear-gradient(115deg,var(--line) 0 3px,transparent 3px 6px)}"
+      /* THE RUN DRAWER */
+      + ".cu-drw{flex:0 0 356px;position:sticky;top:12px;max-height:calc(100vh - 90px);"
+      + "overflow:auto;background:var(--panel-2);border:1px solid var(--line);border-radius:13px;"
+      + "padding:14px 15px}"
+      + ".cu-dhd{display:flex;align-items:flex-start;gap:10px;margin-bottom:12px}"
+      + ".cu-dhd b{display:block;font-size:14px;letter-spacing:-.2px}"
+      + ".cu-dhd span{display:block;font-size:11.5px;color:var(--faint);margin-top:2px}"
+      + ".cu-x{margin-left:auto;font:inherit;font-size:13px;line-height:1;color:var(--faint);"
+      + "background:transparent;border:0;cursor:pointer;padding:2px 4px}"
+      + ".cu-x:hover{color:var(--ink)}"
+      + ".cu-vit{display:grid;grid-template-columns:repeat(3,1fr);gap:9px 6px;padding:11px 0;"
+      + "border-top:1px solid var(--line-2);border-bottom:1px solid var(--line-2)}"
+      + ".cu-vit b{display:block;font-size:12.5px;font-variant-numeric:tabular-nums;"
+      + "letter-spacing:-.2px}"
+      + ".cu-vit span{display:block;font-size:9.5px;font-weight:800;letter-spacing:.06em;"
+      + "text-transform:uppercase;color:var(--faint);margin-top:1px}"
+      + ".cu-who{font-size:12px;font-weight:650;padding:10px 0 2px;line-height:1.45}"
+      + ".cu-who em{display:block;font-style:normal;font-size:10.5px;color:var(--faint);"
+      + "font-family:ui-monospace,SFMono-Regular,Menlo,monospace;margin-top:2px}"
+      /* the run, step by step */
+      + ".cu-step{margin:10px 0 4px;border-left:2px solid var(--line-2);padding-left:13px}"
+      + ".cu-step>div{display:flex;gap:9px;font-size:11.5px;line-height:1.5;padding:4px 0;"
+      + "position:relative}"
+      + ".cu-step>div::before{content:'';position:absolute;left:-17px;top:10px;width:7px;"
+      + "height:7px;border-radius:50%;background:var(--line);"
+      + "box-shadow:0 0 0 2px var(--panel-2)}"
+      + ".cu-step>div.job::before{background:#1c7a4a} .cu-step>div.ld::before{background:#b26b0b}"
+      + ".cu-step>div.home::before{background:var(--ink)}"
+      + ".cu-step>div.wait::before{background:#b26b0b}"
+      + ".cu-step i{flex:0 0 40px;font-style:normal;font-variant-numeric:tabular-nums;"
+      + "font-size:11px;font-weight:700;color:var(--faint)}"
+      + ".cu-step .go span,.cu-step .wait span{color:var(--faint)}"
+      + ".cu-step .wait span{font-weight:650}"
+      + ".cu-dfoot{font-size:11px;color:var(--faint);line-height:1.55;margin-top:8px;"
+      + "padding-top:9px;border-top:1px solid var(--line-2)}"
+      + ".cu-dbtn{width:100%;margin-top:11px;padding:9px}"
+      + "@media(max-width:1180px){.cu-split{flex-direction:column}"
+      + ".cu-drw{flex:1 1 auto;width:100%;position:static;max-height:none}}"
       /* MAP */
       + ".cu-map{height:420px;border-radius:12px;overflow:hidden;border:1px solid var(--line);"
       + "background:var(--panel-2)}"
@@ -187,12 +247,33 @@ registerPage({
         + "</div>";
     }
 
-    // ---- the timeline: one row per crew, grouped by depot ---------------------------
-    var DAY_FROM = 7, DAY_TO = 21;   // the clock the board uses
-    function pos(hhmm) {
+    // ---- the day's work: one row per crew, grouped by depot -------------------------
+    // The clock is derived from the day, not fixed at 7-21. A 6am load and a 9pm finish are
+    // both real, and clamping either one to the edge tells the dispatcher the opposite of
+    // what happened.
+    var AX = { a: 7, b: 21 };
+    function hrOf(hhmm) {
       var p = String(hhmm || "").split(":");
-      var h = (+p[0] || 0) + (+p[1] || 0) / 60;
-      return Math.max(0, Math.min(100, (h - DAY_FROM) / (DAY_TO - DAY_FROM) * 100));
+      return (+p[0] || 0) + (+p[1] || 0) / 60;
+    }
+    function setAxis(jobs) {
+      var lo = 24, hi = 0;
+      jobs.forEach(function (j) {
+        var st = hrOf(j.Start);
+        if (!isFinite(st)) return;
+        lo = Math.min(lo, st);
+        hi = Math.max(hi, st + (+j.Hours || 2));
+      });
+      if (lo > hi) { AX = { a: 7, b: 21 }; return; }
+      AX = { a: Math.max(0, Math.floor(lo) - 1), b: Math.min(24, Math.max(Math.ceil(hi) + 1, 19)) };
+    }
+    function pos(hhmm) {
+      return Math.max(0, Math.min(100, (hrOf(hhmm) - AX.a) / (AX.b - AX.a) * 100));
+    }
+    function clock(h) {
+      var hh = Math.floor(h), mm = Math.round((h - hh) * 60);
+      if (mm === 60) { hh += 1; mm = 0; }
+      return (hh < 10 ? "0" : "") + hh + ":" + (mm < 10 ? "0" : "") + mm;
     }
     function barClass(j) {
       var mt = String(j["Moving Type"] || "").toLowerCase();
@@ -202,61 +283,244 @@ registerPage({
       if (mt.indexOf("long") >= 0) return "long";
       return "";
     }
-    function timeline(jobs) {
-      // group jobs into their crew's route, then routes into their depot
+
+    // Distances from the coordinates the mart ships with every job, so the whole drawer --
+    // drive times, arrival windows, the run home -- costs nothing. Road geometry is metered
+    // and is only ever bought when someone clicks for it.
+    var MPH = 35, ROAD = 1.15;
+    function hav(a, b) {
+      if (!a || !b || a.lat == null || b.lat == null) return null;
+      var R = 3958.8, t = Math.PI / 180;
+      var dLa = (b.lat - a.lat) * t, dLo = (b.lon - a.lon) * t;
+      var x = Math.sin(dLa / 2) * Math.sin(dLa / 2)
+            + Math.cos(a.lat * t) * Math.cos(b.lat * t) * Math.sin(dLo / 2) * Math.sin(dLo / 2);
+      return R * 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x));
+    }
+    function drive(a, b) {
+      var mi = hav(a, b);
+      if (mi == null) return null;
+      mi = mi * ROAD;
+      return { mi: mi, min: Math.round(mi / MPH * 60) + 4 };
+    }
+    function pt(j, side) {
+      var la = j[side + " Lat"], lo = j[side + " Lon"];
+      return (la == null || lo == null) ? null
+        : { lat: +la, lon: +lo, city: j[side + " City"], zip: j[side + " Zip"] };
+    }
+    function basePt(j) {
+      return (j["Base Lat"] == null) ? null
+        : { lat: +j["Base Lat"], lon: +j["Base Lon"], city: j.Base + " base", zip: j["Base Zip"] };
+    }
+    function fmtMin(m) {
+      if (m == null) return "—";
+      var h = Math.floor(m / 60), r = Math.round(m % 60);
+      return h ? (h + "h" + (r ? " " + r + "m" : "")) : (r + " min");
+    }
+
+    function routesOf(jobs) {
       var byRoute = {};
       jobs.forEach(function (j) {
         var k = j.Route || ("solo:" + j["Job Code"]);
         (byRoute[k] = byRoute[k] || []).push(j);
       });
+      return Object.keys(byRoute).map(function (k) {
+        return { id: k, legs: byRoute[k].sort(function (a, b) {
+          return String(a.Start).localeCompare(String(b.Start)); }) };
+      });
+    }
+
+    function timeline(jobs) {
+      setAxis(jobs);
       var byBase = {};
-      Object.keys(byRoute).forEach(function (k) {
-        var legs = byRoute[k].sort(function (a, b) {
-          return String(a.Start).localeCompare(String(b.Start)); });
-        var b = legs[0].Base || "—";
-        (byBase[b] = byBase[b] || []).push({ id: k, legs: legs });
+      routesOf(jobs).forEach(function (r) {
+        var b = r.legs[0].Base || "—";
+        (byBase[b] = byBase[b] || []).push(r);
       });
 
       var axis = "<div class='cu-tlax'>";
-      for (var h = DAY_FROM; h <= DAY_TO; h += 2) {
-        axis += "<span style='left:" + ((h - DAY_FROM) / (DAY_TO - DAY_FROM) * 100) + "%'>"
-          + h + ":00</span>";
+      var step = (AX.b - AX.a) > 12 ? 2 : 1;
+      for (var h = Math.ceil(AX.a); h <= AX.b; h += step) {
+        var left = (h - AX.a) / (AX.b - AX.a) * 100;
+        axis += "<i style='left:" + left + "%'></i>"
+          + "<span style='left:" + left + "%'>" + h + ":00</span>";
       }
       axis += "</div>";
 
       return "<div class='cu-tl'>" + axis + Object.keys(byBase).sort().map(function (b) {
         var rs = byBase[b].sort(function (x, y) {
           return String(x.legs[0].Start).localeCompare(String(y.legs[0].Start)); });
-        return "<div class='cu-base'><div class='cu-bhd'>" + esc(b) + " base · "
-          + rs.length + " crew" + (rs.length === 1 ? "" : "s") + "</div>"
-          + rs.map(function (r) {
-              var cf = r.legs.reduce(function (a, j) { return a + (+j.CF || 0); }, 0);
-              var first = r.legs[0];
+        var shut = !!S.shut[b];
+        var cf = rs.reduce(function (a, r) {
+          return a + r.legs.reduce(function (n, j) { return n + (+j.CF || 0); }, 0); }, 0);
+        var chains = rs.filter(function (r) { return r.legs.length > 1; }).length;
+        return "<div class='cu-base'>"
+          + "<button class='cu-bhd" + (shut ? " shut" : "") + "' data-base-grp='" + esc(b) + "'>"
+          + "<i>▾</i>" + esc(b) + " base<em>" + rs.length + " crew"
+          + (rs.length === 1 ? "" : "s") + (chains ? " · " + chains + " chained" : "")
+          + " · " + money(cf) + " CF</em></button>"
+          + (shut ? "" : rs.map(function (r) {
+              var rcf = r.legs.reduce(function (a, j) { return a + (+j.CF || 0); }, 0);
+              var first = r.legs[0], last = r.legs[r.legs.length - 1];
               var who = first.Foreman || "";
-              return "<div class='cu-row'>"
-                + "<div class='cu-rlab'><b>" + esc(r.id) + (who ? " " + esc(who) : "")
-                + " · " + money(cf) + " CF</b>"
-                + "<span>" + esc((first["Pickup City"] || "") + " → "
-                    + (r.legs[r.legs.length - 1]["Delivery City"] || "")) + "</span></div>"
+              var endH = hrOf(last.Start) + (+last.Hours || 2);
+              var sub = r.legs.length > 1
+                ? (r.legs.length + " jobs · " + esc(first["Pickup City"] || "") + " → "
+                   + esc(last["Delivery City"] || ""))
+                : (esc(first["Pickup City"] || "") + " → " + esc(last["Delivery City"] || ""));
+              return "<div class='cu-row" + (S.openRun === r.id ? " on" : "") + "' "
+                + "data-run='" + esc(r.id) + "' tabindex='0'>"
+                + "<div class='cu-rlab'>"
+                + "<b>" + esc(r.id) + (r.legs.length > 1 ? " <i class='ch'>⛓</i>" : "")
+                + (who ? " " + esc(who) : "") + "</b>"
+                + "<span>" + sub + "</span>"
+                + "<em>" + clock(hrOf(first.Start)) + "–" + clock(endH) + " · "
+                + money(rcf) + " CF</em></div>"
                 + "<div class='cu-track'>"
                 + r.legs.map(function (j, i) {
                     var l = pos(j.Start);
                     var hrs = +j.Hours || 2;
-                    var w = Math.max(3, (hrs / (DAY_TO - DAY_FROM)) * 100);
-                    var dim = S.focus && S.focus !== r.id;
-                    return "<button class='cu-bar " + barClass(j) + (dim ? " dim" : "")
-                      + (S.focus === r.id ? " sel" : "") + "' data-route='" + esc(r.id)
+                    var w = Math.max(2.5, (hrs / (AX.b - AX.a)) * 100);
+                    var wide = w > 13, mid = w > 7;
+                    // the empty drive to the next job is the thing chaining trades away, so
+                    // it is drawn rather than left as a gap
+                    var nx = r.legs[i + 1], gap = "";
+                    if (nx) {
+                      var gl = pos(clock(hrOf(j.Start) + hrs)), gr = pos(nx.Start);
+                      var dr = drive(pt(j, "Delivery"), pt(nx, "Pickup"));
+                      if (gr > gl + 0.4) {
+                        gap = "<span class='cu-gap' style='left:" + gl + "%;width:"
+                          + (gr - gl) + "%'" + (dr ? " title='empty drive · " + fmtMin(dr.min)
+                          + " · " + Math.round(dr.mi) + " mi'" : "") + "></span>";
+                      }
+                    }
+                    return gap + "<span class='cu-bar " + barClass(j)
                       + "' style='left:" + l + "%;width:" + Math.min(w, 100 - l) + "%' title='"
-                      + esc((j.Customer || j["Job Code"]) + " · " + j.Start + " · " + hrs + "h · "
-                            + money(j.CF) + " CF") + "'>"
-                      + (r.legs.length > 1 ? (i + 1) + "/" + r.legs.length + " · " : "")
-                      + esc((j["Pickup City"] || "") + " → " + (j["Delivery City"] || ""))
-                      + " · " + money(j.CF) + " CF</button>";
+                      + esc(r.id + " · " + (j["Job Code"] || "") + " · "
+                            + (j["Pickup City"] || "") + " → " + (j["Delivery City"] || "")
+                            + " · " + clock(hrOf(j.Start)) + "–" + clock(hrOf(j.Start) + hrs)
+                            + " · " + money(j.CF) + " CF") + "'>"
+                      + (wide && r.legs.length > 1 ? (i + 1) + "/" + r.legs.length + " · " : "")
+                      + (wide ? esc((j["Pickup City"] || "") + " → " + (j["Delivery City"] || ""))
+                          + " · " : "")
+                      + (mid ? money(j.CF) + " CF" : "") + "</span>";
                   }).join("")
                 + "</div></div>";
-            }).join("")
+            }).join(""))
           + "</div>";
       }).join("") + "</div>";
+    }
+
+    // ---- the run drawer: a crew's whole day, worked out from arithmetic ---------------
+    function runDrawer(jobs) {
+      if (!S.openRun) return "";
+      var r = routesOf(jobs).filter(function (x) { return x.id === S.openRun; })[0];
+      if (!r) return "";
+      var legs = r.legs, first = legs[0], last = legs[legs.length - 1];
+      var bp = basePt(first);
+      var cf = legs.reduce(function (a, j) { return a + (+j.CF || 0); }, 0);
+      var act = legs.reduce(function (a, j) { return a + (+j.Hours || 0); }, 0);
+      var isLD = legs.some(function (j) {
+        return String(j["Moving Type"] || "").toLowerCase().indexOf("long") >= 0; });
+
+      // the run, step by step. The clock is max(arrive, booked) -- a crew that gets there
+      // early waits, work never starts before the customer's time.
+      var rows = [], totMin = 0, totMi = 0, empMin = 0, empMi = 0, cur = null;
+      function travel(from, to, label, empty) {
+        var d = drive(from, to);
+        if (!d) return;
+        totMin += d.min; totMi += d.mi;
+        if (empty) { empMin += d.min; empMi += d.mi; }
+        var eta = cur == null ? null : cur + d.min / 60;
+        rows.push({ cls: "go", t: eta == null ? "" : clock(eta),
+                    txt: label + " · " + fmtMin(d.min) + " · " + Math.round(d.mi) + " mi" });
+        if (eta != null) cur = eta;
+      }
+      legs.forEach(function (j, i) {
+        var booked = hrOf(j.Start), hrs = +j.Hours || 2;
+        var pu = pt(j, "Pickup"), de = pt(j, "Delivery");
+        if (i === 0) {
+          if (bp && pu) {
+            var d0 = drive(bp, pu);
+            if (d0) {
+              totMin += d0.min; totMi += d0.mi; empMin += d0.min; empMi += d0.mi;
+              rows.push({ cls: "go", t: clock(booked - d0.min / 60),
+                          txt: "Leave " + esc(first.Base || "") + " base · " + fmtMin(d0.min)
+                               + " · " + Math.round(d0.mi) + " mi" });
+            }
+          }
+        } else {
+          travel(pt(legs[i - 1], "Delivery"), pu, "Empty drive to job " + (i + 1), true);
+          if (cur != null && cur < booked) {
+            rows.push({ cls: "wait", t: clock(cur),
+                        txt: "Waits " + fmtMin(Math.round((booked - cur) * 60))
+                             + " — booked for " + clock(booked) });
+          }
+        }
+        cur = Math.max(cur == null ? booked : cur, booked);
+        rows.push({ cls: "job", t: clock(cur),
+                    txt: "<b>Job " + (i + 1) + "</b> · " + esc(j["Job Code"] || "")
+                         + " · " + esc(j.Customer || "") + " — load "
+                         + esc(j["Pickup City"] || "") + ", " + fmtMin(Math.round(hrs * 60))
+                         + " of work" + (+j.Crew ? " · crew of " + j.Crew : "") });
+        var dl = drive(pu, de);
+        if (dl && Math.round(dl.mi) > 0) {
+          totMin += dl.min; totMi += dl.mi;
+          rows.push({ cls: "go", t: "",
+                      txt: "Loaded to " + esc(j["Delivery City"] || "") + " · "
+                           + fmtMin(dl.min) + " · " + Math.round(dl.mi) + " mi" });
+        }
+        cur += hrs;
+        var far = String(j["Moving Type"] || "").toLowerCase().indexOf("long") >= 0;
+        rows.push({ cls: far ? "ld" : "drop", t: clock(cur),
+                    txt: far
+                      ? "Departs long distance → " + esc((j["Delivery City"] || "") + ", "
+                          + (j["Delivery State"] || "")) + " — no same-day return"
+                      : "Delivers " + esc(j["Delivery City"] || "") + " · done "
+                          + money(j.CF) + " CF" });
+        if (far) cur = null;
+      });
+      if (cur != null && bp) {
+        var dh = drive(pt(last, "Delivery"), bp);
+        if (dh) {
+          totMin += dh.min; totMi += dh.mi; empMin += dh.min; empMi += dh.mi;
+          rows.push({ cls: "home", t: clock(cur + dh.min / 60),
+                      txt: "Back at " + esc(last.Base || "") + " base · " + fmtMin(dh.min)
+                           + " · " + Math.round(dh.mi) + " mi" });
+        }
+      }
+
+      function cell(v, l) { return "<div><b>" + v + "</b><span>" + l + "</span></div>"; }
+      var endH = hrOf(last.Start) + (+last.Hours || 2);
+      var home = rows.filter(function (x) { return x.cls === "home"; })[0];
+
+      return "<aside class='cu-drw' id='cuDrw'>"
+        + "<div class='cu-dhd'><div><b>" + esc(r.id)
+        + (first.Foreman ? " · " + esc(first.Foreman) : "") + "</b>"
+        + "<span>" + esc(first.Base || "") + " base · " + legs.length + " job"
+        + (legs.length === 1 ? "" : "s") + " · the whole run for this day</span></div>"
+        + "<button class='cu-x' id='cuDrwX' title='Close'>✕</button></div>"
+        + "<div class='cu-vit'>"
+        + cell(clock(hrOf(first.Start)) + "–" + clock(endH), "booked")
+        + cell(money(cf) + " CF", "volume")
+        + cell(String(legs.length), legs.length === 1 ? "job" : "jobs")
+        + (act ? cell(fmtMin(Math.round(act * 60)), "work") : "")
+        + (home ? cell("~" + home.t, "back at base") : (isLD ? cell("—", "stays out") : ""))
+        + (empMin ? cell(fmtMin(empMin) + " · " + Math.round(empMi) + " mi", "empty driving") : "")
+        + "</div>"
+        + "<div class='cu-who'>" + legs.map(function (j) {
+            return esc(j.Customer || j["Job Code"]); }).join(" + ")
+        + "<em>" + legs.map(function (j) { return esc(j["Job Code"] || ""); }).join(" · ")
+        + "</em></div>"
+        + "<div class='cu-step'>" + rows.map(function (x) {
+            return "<div class='" + x.cls + "'><i>" + x.t + "</i><span>" + x.txt + "</span></div>";
+          }).join("") + "</div>"
+        + "<div class='cu-dfoot'>Day driving <b>" + fmtMin(totMin) + "</b> · "
+        + Math.round(totMi) + " mi, of which <b>" + fmtMin(empMin) + "</b> is empty. "
+        + "Times are estimated from straight-line distance at " + MPH + " mph; work never "
+        + "starts before the booked time.</div>"
+        + "<button class='cu-btn pri cu-dbtn' id='cuDrwMap'>"
+        + (S.mapOn ? "Map is open below" : "Analyze this run on the map") + "</button>"
+        + "</aside>";
     }
 
     // ---- the map: real road routes, via the same HERE service the LD board uses -----
@@ -310,16 +574,38 @@ registerPage({
       var hdr = { headers: { Authorization: "Bearer " + ZTZ.getToken() } };
       var gen = window.__CUGEN;
 
+      // A leg is a zip pair and nothing else, so once the road between two zips is known it
+      // is known for the rest of the session — focusing one run, coming back to the day, or
+      // switching a base filter must never buy the same road twice.
+      var CACHE = (window.__CUGEO = window.__CUGEO || {});
+
       function fetchAll(est) {
-        var out = [], i = 0;
+        var out = new Array(pairs.length);
+        var want = [];                     // indexes we still have to pay for
+        pairs.forEach(function (p, i) {
+          if (CACHE[p]) out[i] = CACHE[p]; else want.push(i);
+        });
+        var i = 0;
         function next() {
-          if (i >= pairs.length) return Promise.resolve({ legs: out });
-          var batch = pairs.slice(i, i + 16);
+          if (i >= want.length) {
+            return Promise.resolve({ legs: out.map(function (l) { return l || {}; }) });
+          }
+          var idx = want.slice(i, i + 16);
           i += 16;
           return fetch(ZTZ.API + "/api/_ldgeo?" + (est ? "est=1&" : "") + "legs="
-                       + encodeURIComponent(batch.join(",")), hdr)
+                       + encodeURIComponent(idx.map(function (k) { return pairs[k]; }).join(",")), hdr)
             .then(function (r) { return r.json(); })
-            .then(function (j) { out = out.concat((j && j.legs) || []); return next(); });
+            .then(function (j) {
+              ((j && j.legs) || []).forEach(function (lg, n) {
+                var k = idx[n];
+                if (k === undefined) return;
+                out[k] = lg;
+                // only the real road is worth keeping; a straight-line estimate is a
+                // placeholder that the refine pass is about to replace
+                if (lg && lg.source === "here") CACHE[pairs[k]] = lg;
+              });
+              return next();
+            });
         }
         return next();
       }
@@ -483,7 +769,7 @@ registerPage({
           .sort(function (a, b) {
             return (+b.Recommended - +a.Recommended) || ((+a.Rank) - (+b.Rank)); });
         var openOpts = opts.filter(function (o) { return o.Status === "open"; });
-        var optHtml = "";
+        var optHtml = "";   // built here, rendered ABOVE the day's routes
         if (opts.length) {
           optHtml = "<div class='cu-card'><div class='cu-hd'><b>What could free a crew</b>"
             + "<span class='cu-pill'>" + openOpts.length + " open</span>"
@@ -538,6 +824,8 @@ registerPage({
             + "records the decision; the calendar is not changed yet.</div></div>";
         }
 
+        // ORDER: the verdict, then what to DO about it, then the day itself. The plan is the
+        // reason a dispatcher opened this page; the routes are the evidence behind it.
         detail = "<div class='cu-card'>"
           + "<div class='cu-hd'><b>" + new Date(S.sel + "T12:00").toLocaleDateString("en-US",
               { weekday: "long", month: "long", day: "numeric" }) + "</b>"
@@ -552,32 +840,47 @@ registerPage({
           + (+d.Skipped ? "<div class='cu-off'><b>Not counted:</b> "
               + esc(d["Skipped Why"] || "") + "</div>" : "")
           + (d["Crews Off"] ? "<div class='cu-off'><b>Off today:</b> " + esc(d["Crews Off"]) + "</div>" : "")
+          + "</div>"
+          + optHtml
+          + "<div class='cu-card'>"
+          + "<div class='cu-hd'><b>The day itself</b>"
+          + "<span class='cu-pill'>" + rt + " crew" + (rt === 1 ? "" : "s") + "</span>"
+          + "<span class='cu-pill'>" + shown.length + " of " + jobs.length + " jobs</span></div>"
           + filters(jobs)
           + "<div class='cu-mleg' style='margin:0 0 6px'>"
           + "<span><i style='background:#1c7a4a'></i>local</span>"
           + "<span><i style='background:#b26b0b'></i>long distance</span>"
           + "<span><i style='background:#7c5ce0'></i>straight</span>"
           + "<span><i style='background:#78808d'></i>labor only</span></div>"
+          + "<div class='cu-split'>"
+          + "<div class='cu-tlwrap'>"
           + (shown.length ? timeline(shown)
             : "<div class='cu-empty'>No jobs match this filter.</div>")
           + "<div class='cu-note'>Each row is <b>one crew's day</b>, grouped by the depot it "
           + "leaves from and laid out on the clock. A row with two bars is a chain — one crew "
-          + "running both jobs, which is why the day needs fewer crews than it has jobs. Click "
-          + "a bar to trace that run on the map.</div>"
-          + "</div>"
+          + "running both jobs, and the hatched gap between them is the empty drive that costs. "
+          + "Click a row to open the run.</div></div>"
+          + runDrawer(shown)
+          + "</div></div>"
           + (shown.length ? "<div class='cu-card'><div class='cu-hd'><b>Where the day goes</b>"
-              + "<span class='cu-pill'>" + (S.focus ? "one run" : "every run") + "</span>"
+              + (S.mapOn ? "<span class='cu-pill'>" + (S.focus ? "one run" : "every run")
+                  + "</span>" : "")
               + (S.focus && S.mapOn ? "<button class='cu-btn' id='cuAll' style='margin-left:auto'>"
                   + "Show every run</button>" : "")
-              + "<button class='cu-btn' id='cuMapT' style='margin-left:"
+              + "<button class='cu-btn" + (S.mapOn ? "" : " pri") + "' id='cuMapT' style='margin-left:"
               + (S.focus && S.mapOn ? "6px" : "auto") + "'>"
-              + (S.mapOn ? "Hide map" : "Show map") + "</button></div>"
-              + (S.mapOn ? "<div class='cu-map' id='cuMap'></div>" : "")
-              + (S.mapOn ? "<div class='cu-mleg'>"
-              + "<span><i style='background:#1c7a4a'></i>loaded — pickup to delivery</span>"
-              + "<span><i style='background:#7c5ce0'></i>empty — the drive between two chained jobs</span>"
-              + "<span><i style='background:#b26b0b'></i>long distance</span>"
-              + "<span id='cuFar'></span></div>" : "") + "</div>" : "");
+              + (S.mapOn ? "Hide map" : "Analyze routes") + "</button></div>"
+              + (S.mapOn
+                 ? "<div class='cu-map' id='cuMap'></div><div class='cu-mleg'>"
+                   + "<span><i style='background:#1c7a4a'></i>loaded — pickup to delivery</span>"
+                   + "<span><i style='background:#7c5ce0'></i>empty — the drive between two chained jobs</span>"
+                   + "<span><i style='background:#b26b0b'></i>long distance</span>"
+                   + "<span id='cuFar'></span></div>"
+                 // Road geometry is metered, so nothing is fetched until it is asked for.
+                 : "<div class='cu-note' style='margin:0'>Every leg of this day drawn on real "
+                   + "roads, including the empty drives between chained jobs. Routing is "
+                   + "charged per leg, so it is only fetched when you ask for it.</div>")
+              + "</div>" : "");
       }
 
       // day navigation: the strip is for scanning the horizon, these are for walking it
@@ -602,7 +905,7 @@ registerPage({
         + (S.probOnly ? "Showing days that need attention" : "Show only days that need attention")
         + "</button></div>";
 
-      body.innerHTML = kpis + toggle + strip + detail + (typeof optHtml === "string" ? optHtml : "");
+      body.innerHTML = kpis + toggle + strip + detail;
 
       Array.prototype.forEach.call(body.querySelectorAll("[data-day]"), function (b) {
         b.onclick = function () { S.sel = b.getAttribute("data-day"); paint(); };
@@ -611,12 +914,14 @@ registerPage({
       if (pb) pb.onclick = function () { S.probOnly = !S.probOnly; paint(); };
       var pv = document.getElementById("cuPrev"), nx = document.getElementById("cuNext");
       if (pv) pv.onclick = function () {
-        if (at > 0) { S.sel = order[at - 1]; S.focus = null; paint(); } };
+        if (at > 0) { S.sel = order[at - 1]; S.focus = S.openRun = null; paint(); } };
       if (nx) nx.onclick = function () {
-        if (at >= 0 && at < order.length - 1) { S.sel = order[at + 1]; S.focus = null; paint(); } };
+        if (at >= 0 && at < order.length - 1) {
+          S.sel = order[at + 1]; S.focus = S.openRun = null; paint();
+        } };
       Array.prototype.forEach.call(body.querySelectorAll("[data-jump]"), function (b) {
         b.onclick = function () {
-          S.sel = b.getAttribute("data-jump"); S.focus = null;
+          S.sel = b.getAttribute("data-jump"); S.focus = S.openRun = null;
           // jumping to a day the "needs attention" view has hidden would land on nothing
           if (order.indexOf(S.sel) < 0) S.probOnly = false;
           paint();
@@ -627,20 +932,51 @@ registerPage({
         b.onclick = function () { decide(b); };
       });
       Array.prototype.forEach.call(body.querySelectorAll("[data-base]"), function (b) {
-        b.onclick = function () { S.baseF = b.getAttribute("data-base") || null; S.focus = null; paint(); };
+        b.onclick = function () {
+          S.baseF = b.getAttribute("data-base") || null; S.focus = S.openRun = null; paint(); };
       });
       Array.prototype.forEach.call(body.querySelectorAll("[data-co]"), function (b) {
-        b.onclick = function () { S.coF = b.getAttribute("data-co") || null; S.focus = null; paint(); };
-      });
-      Array.prototype.forEach.call(body.querySelectorAll("[data-route]"), function (b) {
         b.onclick = function () {
-          var r = b.getAttribute("data-route");
-          S.focus = (S.focus === r) ? null : r;   // click the same run again to see them all
+          S.coF = b.getAttribute("data-co") || null; S.focus = S.openRun = null; paint(); };
+      });
+      Array.prototype.forEach.call(body.querySelectorAll("[data-run]"), function (b) {
+        var open = function () {
+          var r = b.getAttribute("data-run");
+          var same = S.openRun === r;
+          S.openRun = same ? null : r;
+          // the map, if it is already open, follows the run you are reading
+          S.focus = S.openRun;
+          paint();
+        };
+        b.onclick = open;
+        b.onkeydown = function (e) {
+          if (e.key === "Enter" || e.key === " ") { e.preventDefault(); open(); } };
+      });
+      Array.prototype.forEach.call(body.querySelectorAll("[data-base-grp]"), function (b) {
+        b.onclick = function (e) {
+          e.stopPropagation();
+          var k = b.getAttribute("data-base-grp");
+          S.shut[k] = !S.shut[k];
           paint();
         };
       });
+      var dx = document.getElementById("cuDrwX");
+      if (dx) dx.onclick = function () { S.openRun = null; S.focus = null; paint(); };
+      var dm = document.getElementById("cuDrwMap");
+      if (dm) dm.onclick = function () {
+        S.mapOn = true; paint();
+        var mp = document.getElementById("cuMap");
+        if (mp) mp.scrollIntoView({ behavior: "smooth", block: "center" });
+      };
       var ab = document.getElementById("cuAll");
       if (ab) ab.onclick = function () { S.focus = null; paint(); };
+      // Esc closes the run the same way the X does
+      if (!window.__CUESC) {
+        window.__CUESC = true;
+        document.addEventListener("keydown", function (e) {
+          if (e.key === "Escape" && S.openRun) { S.openRun = null; S.focus = null; paint(); }
+        });
+      }
       var mt = document.getElementById("cuMapT");
       if (mt) mt.onclick = function () { S.mapOn = !S.mapOn; paint(); };
 
