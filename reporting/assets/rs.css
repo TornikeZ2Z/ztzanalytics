@@ -5,6 +5,16 @@ body.rs-app{
   --brand:#b7e23b; --brand-d:#8fb427; --brand-ink:#16200a; --brand-glow:rgba(183,226,59,.16);
   --blue:#5b8cff; --purple:#a78bfa; --amber:#fbbf24; --red:#f87171;
   --shadow:0 1px 2px rgba(0,0,0,.4),0 12px 32px rgba(0,0,0,.35);
+  /* SEMANTIC tier. Pages were reaching for var(--pos,#1c7a4a) and always getting the
+     fallback, which is a light-theme green sitting at 1.8:1 on this panel. Capacity colour
+     and category colour are deliberately separate: green only ever means "we have room". */
+  --pos:var(--brand); --pos-bg:rgba(183,226,59,.14);
+  --warn:var(--amber); --warn-bg:rgba(251,191,36,.14);
+  --neg:var(--red); --neg-bg:rgba(248,113,113,.14);
+  --blue-bg:rgba(91,140,255,.16);
+  --job-local:var(--blue); --job-long:var(--amber);
+  --job-straight:var(--purple); --job-labor:var(--muted);
+  --job-ink:#0a0e14; --empty:var(--faint);
   background:var(--bg);color:var(--ink);overflow:hidden;
   font-family:Inter,-apple-system,"Segoe UI",Roboto,sans-serif;
 }
@@ -215,6 +225,11 @@ body.rs-app.light{
   --brand:#7fa32b; --brand-d:#5f7c20; --brand-ink:#ffffff; --brand-glow:rgba(127,163,43,.14);
   --blue:#2f62d8; --purple:#7c5cd6; --amber:#b97b0a; --red:#d43d55;
   --shadow:0 1px 2px rgba(16,32,48,.05),0 8px 24px rgba(16,32,48,.07);
+  --pos:var(--brand-d); --pos-bg:rgba(127,163,43,.12);
+  --warn:var(--amber); --warn-bg:rgba(185,123,10,.12);
+  --neg:var(--red); --neg-bg:rgba(212,61,85,.10);
+  --blue-bg:rgba(47,98,216,.10);
+  --job-ink:#ffffff;
 }
 body.rs-app.light header.top{background:rgba(255,255,255,.88);border-bottom-color:var(--line)}
 body.rs-app.light nav.hubs a:hover:not(.active){background:#eef1f6;color:var(--ink)}

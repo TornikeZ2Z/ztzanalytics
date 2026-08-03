@@ -14,7 +14,8 @@
         table: "fct_cleanup_day",
         cols: ["Day", "Weekday", "Jobs", "Routes", "Routes Before Chaining", "Crews Available",
                "Target", "Spare", "Status", "Near Full", "Chains Applied", "Crews Off",
-               "Chained Jobs", "Skipped", "Skipped Why"],
+               "Chained Jobs", "Skipped", "Skipped Why",
+               "Routes As Booked", "Auto Chains"],
       };
     }
     if (!RS.DATASETS.fct_cleanup_option) {
@@ -57,15 +58,15 @@ registerPage({
       baseF: null, coF: null, focus: null, mapOn: false, openRun: null, shut: {} });
 
     host.innerHTML = '<style id="cuCss">'
-      + ".cu-wrap{max-width:1280px}"
+      + ".cu-wrap{--t1:26px;--t2:15px;--t3:13.5px;--t4:12px;--t5:11px;--t6:9.5px;--r-card:14px;--r-ctl:10px;--r-bar:6px;--cu-lab:182px;max-width:1280px}"
       + ".cu-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:16px}"
       + ".cu-kpi{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:13px 16px}"
-      + ".cu-kpi b{display:block;font-size:26px;letter-spacing:-.5px;line-height:1.1}"
+      + ".cu-kpi b{font-variant-numeric:tabular-nums;display:block;font-size:26px;letter-spacing:-.5px;line-height:1.1}"
       + ".cu-kpi span{display:block;font-size:10.5px;font-weight:800;letter-spacing:.06em;"
       + "text-transform:uppercase;color:var(--faint);margin-top:4px}"
       + ".cu-kpi small{display:block;font-size:11px;color:var(--faint);margin-top:2px}"
-      + ".cu-kpi.bad b{color:var(--neg,#b02a37)} .cu-kpi.warn b{color:#b26b0b}"
-      + ".cu-kpi.good b{color:var(--pos,#1c7a4a)}"
+      + ".cu-kpi.bad b{color:var(--neg)} .cu-kpi.warn b{color:var(--warn)}"
+      + ".cu-kpi.good b{color:var(--pos)}"
       /* the horizon: one tile per day, so a problem is found by scanning not reading */
       + ".cu-strip{display:flex;gap:8px;overflow-x:auto;padding:2px 2px 10px;margin-bottom:16px}"
       + ".cu-day{flex:0 0 auto;width:104px;background:var(--panel);border:1px solid var(--line);"
@@ -75,9 +76,13 @@ registerPage({
       + ".cu-day .dow{font-size:10px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--faint)}"
       + ".cu-day .dat{font-size:14px;font-weight:750;letter-spacing:-.2px;margin-top:1px}"
       + ".cu-day .bar{height:5px;border-radius:99px;background:var(--panel-2);margin:8px 0 6px;overflow:hidden}"
-      + ".cu-day .bar i{display:block;height:100%;border-radius:99px;background:var(--pos,#1c7a4a)}"
-      + ".cu-day.tight .bar i{background:#b26b0b} .cu-day.short .bar i{background:var(--neg,#b02a37)}"
-      + ".cu-day .fig{font-size:11.5px;color:var(--faint);font-variant-numeric:tabular-nums}"
+      + ".cu-day .bar u{position:absolute;top:0;height:100%;background:var(--neg)}"
+      + ".cu-day .bar{position:relative}"
+      + ".cu-day .bar i{display:block;height:100%;border-radius:99px;background:var(--pos)}"
+      + ".cu-day.tight .bar i{background:var(--warn)} .cu-day.short .bar i{background:var(--neg)}"
+      + ".cu-day .fig.neg{color:var(--neg);font-weight:750}"
+      + ".cu-day .fig.warn{color:var(--warn);font-weight:750}"
+      + ".cu-day .fig{font-variant-numeric:tabular-nums;font-size:11.5px;color:var(--faint);font-variant-numeric:tabular-nums}"
       + ".cu-day .fig b{color:var(--ink);font-weight:700}"
       + ".cu-day.today{background:linear-gradient(0deg,var(--panel-2),var(--panel))}"
       + ".cu-day.today .dow{color:var(--blue)}"
@@ -86,22 +91,18 @@ registerPage({
       + ".cu-hd b{font-size:16px;letter-spacing:-.25px}"
       + ".cu-pill{font-size:10px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;"
       + "padding:2px 8px;border-radius:999px;background:var(--panel-2);color:var(--faint)}"
-      + ".cu-pill.ok{background:rgba(28,122,74,.12);color:var(--pos,#1c7a4a)}"
-      + ".cu-pill.tight{background:rgba(178,107,11,.14);color:#b26b0b}"
-      + ".cu-pill.short{background:rgba(176,42,55,.12);color:var(--neg,#b02a37)}"
+      + ".cu-pill.ok{background:var(--pos-bg);color:var(--pos)}"
+      + ".cu-pill.tight{background:var(--warn-bg);color:var(--warn)}"
+      + ".cu-pill.k-chain{background:var(--blue-bg);color:var(--blue)}"
+      + ".cu-pill.k-move{background:var(--warn-bg);color:var(--warn)}"
+      + ".cu-pill.k-free{background:var(--pos-bg);color:var(--pos)}"
+      + ".cu-pill.k-rec{background:var(--pos-bg);color:var(--pos)}"
+      + ".cu-otitle .cu-pill{margin-right:7px}"
+      + ".cu-pill.short{background:var(--neg-bg);color:var(--neg)}"
       /* the sentence a dispatcher actually needs */
       + ".cu-verdict{font-size:14px;line-height:1.6;color:var(--ink);margin-bottom:12px}"
       + ".cu-verdict b{font-variant-numeric:tabular-nums}"
       + ".cu-off{font-size:12.5px;color:var(--faint);margin-bottom:12px}"
-      + ".cu-tbl{width:100%;border-collapse:collapse;font-size:13px}"
-      + ".cu-tbl th{text-align:left;font-size:9.5px;font-weight:800;text-transform:uppercase;"
-      + "letter-spacing:.07em;color:var(--faint);padding:0 10px 7px 0;white-space:nowrap}"
-      + ".cu-tbl td{padding:6px 10px 6px 0;border-top:1px solid var(--line-2);vertical-align:top}"
-      + ".cu-tbl tr.chained td{background:rgba(47,111,208,.05)}"
-      + ".cu-tbl .r{text-align:right;font-variant-numeric:tabular-nums}"
-      + ".cu-rt{display:inline-block;font-size:10px;font-weight:800;padding:1px 6px;border-radius:6px;"
-      + "background:var(--panel-2);color:var(--faint);white-space:nowrap}"
-      + ".cu-rt.ch{background:rgba(47,111,208,.12);color:var(--blue)}"
       + ".cu-note{font-size:12px;color:var(--faint);line-height:1.6;margin-top:10px}"
       + ".cu-empty{color:var(--faint);font-size:13.5px;padding:16px 0}"
       + ".cu-opt{display:flex;gap:12px;align-items:flex-start;padding:11px 0;border-top:1px solid var(--line-2)}"
@@ -114,8 +115,38 @@ registerPage({
       + ".cu-btn{font:inherit;font-size:12px;font-weight:750;color:var(--ink);background:var(--panel-2);"
       + "border:1px solid var(--line-2);border-radius:9px;padding:6px 12px;cursor:pointer;white-space:nowrap}"
       + ".cu-btn:hover{border-color:var(--blue)} .cu-btn:disabled{opacity:.5;cursor:default}"
-      + ".cu-btn.pri{background:var(--brand);color:var(--brand-ink);border:0}"
+      + ".cu-btn.pri{background:var(--brand);color:var(--brand-ink);border:1px solid transparent}"
+      /* a view toggle must not look like the button that records a permanent decision */
+      + ".cu-btn.sel{background:var(--blue-bg);border-color:var(--blue);color:var(--blue)}"
+      + ".cu-btn.danger:hover{border-color:var(--neg);color:var(--neg)}"
+      + ".cu-wrap :focus-visible{outline:2px solid var(--blue);outline-offset:2px}"
       + ".cu-msg{font-size:12.5px;font-weight:650;min-height:17px;margin-top:8px}"
+      /* THE CHAINS ALREADY COUNTED -- history, not an offer, so it is quiet and green */
+      + ".cu-led{margin-top:12px;border:1px solid var(--line-2);border-radius:var(--r-ctl);"
+      + "background:var(--pos-bg);padding:10px 12px}"
+      + ".cu-led.flat{background:transparent}"
+      + ".cu-ledhd b{font-size:var(--t4);letter-spacing:-.1px}"
+      + ".cu-ledhd span{display:block;font-size:var(--t5);color:var(--faint);line-height:1.5;"
+      + "margin-top:2px}"
+      + ".cu-lrow{display:flex;align-items:center;gap:9px;padding:6px 0;font-size:var(--t4);"
+      + "border-top:1px solid var(--line-2);margin-top:6px;flex-wrap:wrap}"
+      + ".cu-lrow b{font-weight:700}"
+      + ".cu-lrow i,.cu-lrow em,.cu-lrow u{font-style:normal;text-decoration:none;"
+      + "color:var(--faint);font-size:var(--t5)}"
+      + ".cu-lrow em{font-variant-numeric:tabular-nums}"
+      + ".cu-lrow u{margin-left:auto;font-variant-numeric:tabular-nums}"
+      + ".cu-lrow.late u{color:var(--neg);font-weight:750}"
+      + ".cu-lwarn{font-size:var(--t5);line-height:1.55;color:var(--ink);margin-top:8px;"
+      + "padding-top:8px;border-top:1px solid var(--line-2)}"
+      + ".cu-lnote{font-size:var(--t5);color:var(--faint);margin-top:8px;padding-top:8px;"
+      + "border-top:1px solid var(--line-2)}"
+      /* group headings inside the ladder */
+      + ".cu-ghd{display:flex;align-items:baseline;gap:8px;margin:14px 0 2px;"
+      + "padding-bottom:5px;border-bottom:1px solid var(--line-2)}"
+      + ".cu-ghd:first-of-type{margin-top:6px}"
+      + ".cu-ghd b{font-size:var(--t6);font-weight:800;letter-spacing:.07em;"
+      + "text-transform:uppercase;color:var(--faint)}"
+      + ".cu-ghd span{font-size:var(--t5);color:var(--faint)}"
       /* DAY NAV */
       + ".cu-nav{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:10px}"
       + ".cu-nav .cu-btn{padding:5px 11px}"
@@ -130,11 +161,10 @@ registerPage({
       + ".cu-split{display:flex;gap:16px;align-items:flex-start}"
       + ".cu-tlwrap{flex:1;min-width:0}"
       + ".cu-tl{margin-top:4px}"
-      + ".cu-tlax{position:relative;height:15px;margin-left:186px;border-bottom:1px solid var(--line)}"
+      + ".cu-tlax{position:relative;height:15px;margin-left:calc(var(--cu-lab) + 7px);border-bottom:1px solid var(--line)}"
       + ".cu-tlax span{position:absolute;top:0;font-size:9.5px;color:var(--faint);"
       + "transform:translateX(-50%);font-variant-numeric:tabular-nums}"
-      + ".cu-tlax i{position:absolute;top:15px;width:1px;height:1200px;background:var(--line-2);"
-      + "opacity:.45;pointer-events:none}"
+      + ".cu-tlax i{display:none}"
       + ".cu-base{margin-top:12px;position:relative;overflow:hidden}"
       + ".cu-bhd{display:flex;align-items:center;gap:7px;width:100%;font:inherit;font-size:10px;"
       + "font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);"
@@ -151,22 +181,25 @@ registerPage({
       + ".cu-row:hover{background:var(--panel-2)}"
       + ".cu-row:focus-visible{outline:2px solid var(--blue);outline-offset:-2px}"
       + ".cu-row.on{background:var(--panel-2);border-left-color:var(--ink)}"
-      + ".cu-rlab{flex:0 0 182px;font-size:11.5px;line-height:1.35;padding-right:12px}"
+      + ".cu-rlab{flex:0 0 var(--cu-lab);font-size:11.5px;line-height:1.35;padding-right:12px}"
       + ".cu-rlab b{font-size:12px;font-variant-numeric:tabular-nums;letter-spacing:-.1px}"
       + ".cu-rlab b .ch{font-style:normal;color:var(--blue);font-size:10px}"
       + ".cu-rlab span{display:block;color:var(--faint);font-size:10.5px;overflow:hidden;"
       + "text-overflow:ellipsis;white-space:nowrap}"
       + ".cu-rlab em{display:block;font-style:normal;color:var(--faint);font-size:10px;"
       + "font-variant-numeric:tabular-nums;opacity:.75}"
-      + ".cu-track{position:relative;flex:1;height:30px;border-left:1px solid var(--line-2)}"
-      + ".cu-bar{position:absolute;top:5px;height:20px;border-radius:6px;background:#1c7a4a;"
+      + ".cu-track{position:relative;flex:1;height:30px;border-left:1px solid var(--line-2);background-image:repeating-linear-gradient(to right,var(--line) 0 1px,transparent 1px var(--cu-step,100%))}"
+      + ".cu-bar{position:absolute;top:5px;height:20px;border-radius:var(--r-bar);background:var(--job-local);"
       + "color:#fff;font-size:10.5px;font-weight:700;line-height:20px;padding:0 7px;overflow:hidden;"
       + "white-space:nowrap;text-overflow:ellipsis}"
-      + ".cu-bar.long{background:#b26b0b} .cu-bar.straight{background:#7c5ce0}"
-      + ".cu-bar.labor{background:#78808d}"
+      + ".cu-bar.long{background:var(--job-long)} .cu-bar.straight{background:var(--job-straight)}"
+      + ".cu-bar.labor{background:var(--job-labor)}"
       /* the empty drive between two chained jobs -- the cost chaining trades away */
-      + ".cu-gap{position:absolute;top:12px;height:6px;border-radius:3px;"
-      + "background:repeating-linear-gradient(115deg,var(--line) 0 3px,transparent 3px 6px)}"
+      + ".cu-gap{position:absolute;top:11px;height:8px;border-radius:4px;opacity:.9;"
+      + "background:repeating-linear-gradient(115deg,var(--empty) 0 3px,transparent 3px 7px)}"
+      + ".cu-gap.over{background:var(--neg);opacity:.45}"
+      + ".cu-mleg i.hatch{background:repeating-linear-gradient(115deg,var(--empty) 0 3px,"
+      + "transparent 3px 7px);height:5px}"
       /* THE RUN DRAWER */
       + ".cu-drw{flex:0 0 356px;position:sticky;top:12px;max-height:calc(100vh - 90px);"
       + "overflow:auto;background:var(--panel-2);border:1px solid var(--line);border-radius:13px;"
@@ -193,16 +226,16 @@ registerPage({
       + ".cu-step>div::before{content:'';position:absolute;left:-17px;top:10px;width:7px;"
       + "height:7px;border-radius:50%;background:var(--line);"
       + "box-shadow:0 0 0 2px var(--panel-2)}"
-      + ".cu-step>div.job::before{background:#1c7a4a} .cu-step>div.ld::before{background:#b26b0b}"
+      + ".cu-step>div.job::before{background:var(--job-local)} .cu-step>div.ld::before{background:var(--job-long)}"
       + ".cu-step>div.home::before{background:var(--ink)}"
-      + ".cu-step>div.wait::before{background:#b26b0b}"
+      + ".cu-step>div.wait::before{background:var(--warn)}"
       + ".cu-step i{flex:0 0 40px;font-style:normal;font-variant-numeric:tabular-nums;"
       + "font-size:11px;font-weight:700;color:var(--faint)}"
       + ".cu-step .go span,.cu-step .wait span{color:var(--faint)}"
       + ".cu-step .wait span{font-weight:650}"
-      + ".cu-vit .bad b{color:var(--neg,#b02a37)}"
-      + ".cu-warn{font-size:11.5px;line-height:1.55;color:var(--ink);background:rgba(178,107,11,.1);"
-      + "border-left:3px solid #b26b0b;border-radius:0 8px 8px 0;padding:8px 10px;margin-top:11px}"
+      + ".cu-vit .bad b{color:var(--neg)}"
+      + ".cu-warn{font-size:11.5px;line-height:1.55;color:var(--ink);background:var(--warn-bg);"
+      + "border-left:3px solid var(--warn);border-radius:0 8px 8px 0;padding:8px 10px;margin-top:11px}"
       + ".cu-dfoot{font-size:11px;color:var(--faint);line-height:1.55;margin-top:8px;"
       + "padding-top:9px;border-top:1px solid var(--line-2)}"
       + ".cu-dbtn{width:100%;margin-top:11px;padding:9px}"
@@ -352,7 +385,11 @@ registerPage({
       }
       axis += "</div>";
 
-      return "<div class='cu-tl'>" + axis + Object.keys(byBase).sort().map(function (b) {
+      // the hour pitch drives the track's gridlines, so they can never fall out of register
+      // with the axis above them -- both are derived from the same number
+      var pitch = step / (AX.b - AX.a) * 100;
+      return "<div class='cu-tl' style='--cu-step:" + pitch + "%'>" + axis
+        + Object.keys(byBase).sort().map(function (b) {
         var rs = byBase[b].sort(function (x, y) {
           return String(x.legs[0].Start).localeCompare(String(y.legs[0].Start)); });
         var shut = !!S.shut[b];
@@ -386,7 +423,7 @@ registerPage({
                     var l = pos(j.Start);
                     var hrs = +j.Hours || 2;
                     var w = Math.max(2.5, (hrs / (AX.b - AX.a)) * 100);
-                    var wide = w > 13, mid = w > 7;
+                    var wide = w > 14, mid = w > 9;
                     // the empty drive to the next job is the thing chaining trades away, so
                     // it is drawn rather than left as a gap
                     var nx = r.legs[i + 1], gap = "";
@@ -397,6 +434,12 @@ registerPage({
                         gap = "<span class='cu-gap' style='left:" + gl + "%;width:"
                           + (gr - gl) + "%'" + (dr ? " title='empty drive · " + fmtMin(dr.min)
                           + " · " + Math.round(dr.mi) + " mi'" : "") + "></span>";
+                      } else if (gl > gr + 0.4) {
+                        // the anchor is still working when the next job is booked to start --
+                        // this is the chain that needs re-timing, and it used to draw nothing
+                        gap = "<span class='cu-gap over' style='left:" + gr + "%;width:"
+                          + (gl - gr) + "%' title='overlaps — the second job cannot start "
+                          + "at its booked time'></span>";
                       }
                     }
                     return gap + "<span class='cu-bar " + barClass(j)
@@ -555,7 +598,7 @@ registerPage({
         + Math.round(totMi) + " mi, of which <b>" + fmtMin(empMin) + "</b> is empty. "
         + "Times are estimated from straight-line distance at " + MPH + " mph; work never "
         + "starts before the booked time.</div>"
-        + "<button class='cu-btn pri cu-dbtn' id='cuDrwMap'>"
+        + "<button class='cu-btn sel cu-dbtn' id='cuDrwMap'>"
         + (S.mapOn ? "Map is open below" : "Analyze this run on the map") + "</button>"
         + "</aside>";
     }
@@ -574,6 +617,12 @@ registerPage({
       sc.id = "ldLeafJs"; sc.src = "assets/vendor/leaflet/leaflet.js";
       sc.onload = function () { cb(); };
       document.head.appendChild(sc);
+    }
+
+    // read the live token so a polyline, its legend swatch and the bar it belongs to can
+    // never drift apart, and so both themes are handled in one place
+    function tok(name) {
+      return getComputedStyle(document.body).getPropertyValue(name).trim() || "#888";
     }
 
     function drawMap(jobs) {
@@ -654,7 +703,9 @@ registerPage({
           var m = box._m;
           if (!m) {
             m = L.map(box, { scrollWheelZoom: false, zoomSnap: 0.5 });
-            L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png",
+            var light = document.body.classList.contains("light");
+            L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/"
+              + (light ? "voyager" : "dark_all") + "/{z}/{x}/{y}{r}.png",
               { maxZoom: 18, subdomains: "abcd",
                 attribution: "© OpenStreetMap · © CARTO" }).addTo(m);
             box._m = m; box._lay = [];
@@ -671,8 +722,8 @@ registerPage({
             if (c.length < 2) return;
             var meta = legs[i] || {};
             var empty = meta.kind === "empty";
-            var col = empty ? "#7c5ce0" : (meta.kind === "long" ? "#b26b0b"
-                      : meta.kind === "straight" ? "#7c5ce0" : "#1c7a4a");
+            var col = empty ? tok("--empty") : (meta.kind === "long" ? tok("--job-long")
+                      : meta.kind === "straight" ? tok("--job-straight") : tok("--job-local"));
             var pl = L.polyline(c, empty
               ? { color: col, weight: 2.5, dashArray: "6 7", opacity: 0.9 }
               : { color: col, weight: 4, opacity: 0.85 }).addTo(m);
@@ -682,7 +733,7 @@ registerPage({
             if (meta.kind === "long" || meta.kind === "straight") far++;
             else c.forEach(function (p) { bounds.push(p); });
             if (!empty) {
-              var mk = L.circleMarker(c[0], { radius: 4, color: col, fillColor: "#fff",
+              var mk = L.circleMarker(c[0], { radius: 4, color: col, fillColor: tok("--panel"),
                                               fillOpacity: 1, weight: 2 }).addTo(m);
               box._lay.push(mk);
             }
@@ -750,26 +801,34 @@ registerPage({
         + "<span>Days short of crews</span><small>fewer crews than routes</small></div>"
         + "<div class='cu-kpi " + (nNear ? "warn" : "") + "'><b>" + nNear + "</b>"
         + "<span>Days with no buffer</span><small>staffed, but nothing spare</small></div>"
-        + "<div class='cu-kpi'><b>" + (tightest ? tightest.Spare : "—") + "</b>"
+        + "<div class='cu-kpi" + (tightest && +tightest.Spare < 0 ? " bad"
+            : (tightest && +tightest.Spare === 0 ? " warn" : "")) + "'><b>"
+        + (tightest ? ((+tightest.Spare > 0 ? "+" : "") + tightest.Spare) : "—") + "</b>"
         + "<span>Tightest day</span><small>" + (tightest ? fmtDay(tightest.Day) : "") + " · spare crews</small></div>"
         + "<div class='cu-kpi'><b>" + money(totJobs) + "</b>"
         + "<span>Jobs in horizon</span><small>" + days.length + " days</small></div>"
         + "<div class='cu-kpi'><b>" + totChain + "</b>"
-        + "<span>Crews freed by chaining</span><small>jobs sharing a crew</small></div>"
+        + "<span>Chains already counted</span><small>jobs the board put on one crew</small></div>"
         + "</div>";
 
       var strip = "<div class='cu-strip'>" + dayList.map(function (d) {
         var iso = String(d.Day).slice(0, 10);
         var av = +d["Crews Available"] || 0, rt = +d.Routes || 0;
-        var pct = av ? Math.min(100, Math.round(rt / av * 100)) : 0;
+        // scale to whichever is larger, so a day needing 12 of 9 crews reads as OVER full
+        // rather than identical to a day that fits exactly
+        var span = Math.max(av, rt) || 1;
+        var pct = Math.round(Math.min(av, rt) / span * 100);
+        var over = rt > av ? Math.round((rt - av) / span * 100) : 0;
         return "<button class='cu-day " + esc(d.Status)
           + (iso === S.sel ? " on" : "") + (iso === TODAY ? " today" : "")
           + "' data-day='" + esc(iso) + "'>"
           + "<div class='dow'>" + esc(d.Weekday) + (iso === TODAY ? " · today" : "") + "</div>"
           + "<div class='dat'>" + fmtDay(iso) + "</div>"
-          + "<div class='bar'><i style='width:" + pct + "%'></i></div>"
+          + "<div class='bar'><i style='width:" + pct + "%'></i>"
+          + (over ? "<u style='left:" + pct + "%;width:" + over + "%'></u>" : "") + "</div>"
           + "<div class='fig'><b>" + rt + "</b>/" + av + " crews</div>"
-          + "<div class='fig'>" + (+d.Spare >= 0 ? "+" : "") + d.Spare + " spare</div>"
+          + "<div class='fig " + (+d.Spare < 0 ? "neg" : (+d.Spare === 0 ? "warn" : ""))
+          + "'>" + (+d.Spare > 0 ? "+" : "") + d.Spare + " spare</div>"
           + "</button>";
       }).join("") + "</div>";
 
@@ -784,10 +843,13 @@ registerPage({
              ? "Staffed, but with <b>" + sp + "</b> spare there is no room for a callback or a same-day sale."
              : "Comfortable: <b>" + rt + "</b> crews needed of <b>" + av + "</b> available, "
                + "<b>" + sp + "</b> spare.");
-        var chained = +d["Chains Applied"] || 0;
-        if (chained) {
-          verdict += " Chaining already saved <b>" + (+d["Routes Before Chaining"] - rt)
-            + "</b> " + ((+d["Routes Before Chaining"] - rt) === 1 ? "crew" : "crews") + ".";
+        // Routes As Booked is the count before ANY chain was merged; Routes Before Chaining
+        // is snapshotted after the automatic layer, so on its own it under-reports.
+        var asBooked = +d["Routes As Booked"] || 0;
+        var saved = asBooked ? asBooked - rt : (+d["Routes Before Chaining"] || rt) - rt;
+        if (saved > 0) {
+          verdict += " Chaining has already taken it from <b>" + (asBooked || (rt + saved))
+            + "</b> crews to <b>" + rt + "</b>.";
         }
         var jobs = (S.jobs || []).filter(function (j) {
           return String(j.Day).slice(0, 10) === S.sel; })
@@ -801,64 +863,135 @@ registerPage({
 
         // WHAT COULD BE DONE — the three-tier ladder, cheapest first. Shown even when the
         // day is comfortable, because a free chain is a crew freed for tomorrow's sale.
-        var opts = (S.opts || []).filter(function (o) {
-          return String(o.Day).slice(0, 10) === S.sel; })
+        var allOpts = (S.opts || []).filter(function (o) {
+          return String(o.Day).slice(0, 10) === S.sel; });
+        // TIER 1 is history, not an offer: these chains are already inside the crew count
+        var freeCh = allOpts.filter(function (o) { return o.Kind === "chain"; })
+          .sort(function (a, b) { return (+a.Rank) - (+b.Rank); });
+        var opts = allOpts.filter(function (o) { return o.Kind !== "chain"; })
           .sort(function (a, b) {
             return (+b.Recommended - +a.Recommended) || ((+a.Rank) - (+b.Rank)); });
         var openOpts = opts.filter(function (o) { return o.Status === "open"; });
+        // THE CHAINS ALREADY MADE. Past tense throughout, deliberately: the day's crew count
+        // was computed after these were folded in, so calling them "frees a crew" would tell
+        // a dispatcher a crew is available that has already been spent. And nothing has been
+        // written to the calendar -- the two jobs still sit on two foremen there.
+        var ledger = "";
+        // The board found no free chain to add. That is worth saying out loud, because the
+        // timeline still shows crews running two jobs -- those chains came from the calendar
+        // (someone typed an After Job Code), not from the board, and a dispatcher looking at
+        // a ⛓ row deserves to know which of the two it is.
+        if (!freeCh.length) {
+          var already = {};
+          jobs.forEach(function (j) {
+            if (+j["Route Legs"] > 1) already[j.Route] = 1; });
+          var nAlready = Object.keys(already).length;
+          if (nAlready) {
+            ledger = "<div class='cu-led flat'><div class='cu-ledhd'><b>"
+              + nAlready + " crew" + (nAlready === 1 ? "" : "s") + " already running two jobs"
+              + "</b><span>booked that way in the calendar, not chained by the board. "
+              + "The board found no further chain it could make for free — every job here is "
+              + "booked for the morning, so a second job means asking someone to move to the "
+              + "afternoon.</span></div></div>";
+          }
+        }
+        if (freeCh.length) {
+          var late = freeCh.filter(function (o) { return +o["Arrives Late"]; }).length;
+          ledger = "<div class='cu-led'>"
+            + "<div class='cu-ledhd'><b>" + freeCh.length + " chain"
+            + (freeCh.length === 1 ? "" : "s") + " already counted</b>"
+            + "<span>no call needed — an afternoon job riding along on a crew that is "
+            + "already out. This is why the day needs " + rt + " crews and not "
+            + ((+d["Routes As Booked"] || rt + freeCh.length)) + ".</span></div>"
+            + freeCh.map(function (o) {
+                var ar = o.Arrive ? String(o.Arrive) : null;
+                return "<div class='cu-lrow" + (+o["Arrives Late"] ? " late" : "") + "'>"
+                  + "<span class='cu-pill k-free'>"
+                  + (o.Purpose === "auto" ? "same route" : "afternoon") + "</span>"
+                  + "<b>" + esc(o.Customer || o["Job Code"]) + "</b>"
+                  + "<i>after " + esc(o["After Customer"] || o["After Code"] || "—") + "</i>"
+                  + "<em>" + (o["Link Minutes"] != null
+                      ? o["Link Minutes"] + " min · " + (o["Link Miles"] != null
+                          ? o["Link Miles"] + " mi" : "—")
+                      : "—") + "</em>"
+                  + (ar ? "<u>arrives " + esc(ar) + "</u>" : "")
+                  + "</div>";
+              }).join("")
+            + (late ? "<div class='cu-lwarn'><b>" + late + " of these arrive more than half "
+                + "an hour after the hour the customer booked</b>, and nobody has rung them. "
+                + "The merge is an assumption in the plan — the calendar still shows two "
+                + "separate crews.</div>"
+               : "<div class='cu-lnote'>Counted, not yet arranged: the calendar still shows "
+                 + "these as separate crews.</div>")
+            + "</div>";
+        }
+
         var optHtml = "";   // built here, rendered ABOVE the day's routes
+
+        function optRow(o) {
+          var done = o.Status !== "open";
+          var isCall = o.Kind === "call";
+          var title = isCall
+            ? esc(o.Customer || o["Job Code"]) + " runs after "
+              + esc(o["After Customer"] || o["After Code"])
+            : esc(o.Customer || o["Job Code"]) + " moves to " + fmtDay(o["Move To"]);
+          var why = isCall
+            ? ("Ring them and ask to run in the afternoon behind "
+               + esc(o["After Customer"] || o["After Code"] || "") + ". "
+               + (o.Arrive ? "They would arrive about " + esc(o.Arrive) + ". " : "")
+               + (o["Link Minutes"] != null ? "About " + o["Link Minutes"] + " min ("
+                  + o["Link Miles"] + " mi) between the two. " : "")
+               + (o.Discount ? "Costs a $" + o.Discount + " same-day discount." : ""))
+            : ("Moving the date would free a crew here; "
+               + fmtDay(o["Move To"]) + " has "
+               + (o["Target Spare"] != null ? o["Target Spare"] : "?") + " spare. "
+               + (o["Lands Behind"] ? "It would chain behind " + esc(o["Lands Behind"])
+                  + " there, so it costs no crew on the day it moves to."
+                  : "It would need its own crew on that day."));
+          var btn = function (act, label, cls) {
+            return "<button class='cu-btn" + (cls ? " " + cls : "") + "' data-dec='" + act
+              + "' data-kind='" + esc(o.Kind) + "' data-code='" + esc(o["Job Code"])
+              + "' data-cust='" + esc(o.Customer || "") + "' data-after='"
+              + esc(o["After Code"] || "") + "' data-to='" + esc(o["Move To"] || "") + "'"
+              + (S.busy ? " disabled" : "") + ">" + label + "</button>";
+          };
+          return "<div class='cu-opt" + (done ? " done" : "") + "'>"
+            + "<div class='cu-obody'><div class='cu-otitle'>"
+            + "<span class='cu-pill " + (isCall ? "k-chain" : "k-move") + "'>"
+            + (isCall ? "call" : "move date") + "</span>" + title
+            + (+o.Recommended ? " <span class='cu-pill k-rec'>recommended</span>" : "")
+            + "</div><div class='cu-owhy'>" + why + "</div></div>"
+            + "<div class='cu-oact'>"
+            + (done
+               ? "<span class='cu-pill " + (o.Status === "accepted" ? "ok" : "short") + "'>"
+                 + esc(o.Status) + "</span>" + btn("reopened", "Reopen")
+               : btn("accepted", "Accept", "pri") + btn("declined", "Decline", "danger"))
+            + "</div></div>";
+        }
+
         if (opts.length) {
-          optHtml = "<div class='cu-card'><div class='cu-hd'><b>What could free a crew</b>"
+          var group = function (kind, head, sub) {
+            var list = opts.filter(function (o) { return o.Kind === kind; });
+            if (!list.length) return "";
+            return "<div class='cu-ghd'><b>" + head + "</b><span>" + sub + "</span></div>"
+              + list.map(optRow).join("");
+          };
+          optHtml = "<div class='cu-card'><div class='cu-hd'>"
+            + "<b>What would free another crew</b>"
             + "<span class='cu-pill'>" + openOpts.length + " open</span>"
             + (opts.length - openOpts.length
-                ? "<span class='cu-pill'>" + (opts.length - openOpts.length) + " decided</span>" : "")
+                ? "<span class='cu-pill'>" + (opts.length - openOpts.length)
+                  + " decided</span>" : "")
             + "</div>"
-            + opts.map(function (o) {
-                var done = o.Status !== "open";
-                var isCall = o.Kind === "call";
-                var title = isCall
-                  ? esc(o.Customer || o["Job Code"]) + " runs after " + esc(o["After Customer"] || o["After Code"])
-                  : esc(o.Customer || o["Job Code"]) + " moves to " + fmtDay(o["Move To"]);
-                var why = isCall
-                  ? ("Chaining this job behind " + esc(o["After Code"] || "") + " frees one crew. "
-                     + (o["Link Minutes"] != null ? "About " + o["Link Minutes"] + " min ("
-                        + o["Link Miles"] + " mi) between them. " : "")
-                     + (o.Discount ? "Needs a call and a $" + o.Discount + " same-day discount." : ""))
-                  : ("Moving the date frees a crew here; "
-                     + fmtDay(o["Move To"]) + " has " + (o["Target Spare"] != null ? o["Target Spare"] : "?")
-                     + " spare. "
-                     + (o["Lands Behind"] ? "It would chain behind " + esc(o["Lands Behind"])
-                        + " there, so it costs no crew on the day it moves to."
-                        : "It would need its own crew on that day."));
-                return "<div class='cu-opt" + (done ? " done" : "") + "'>"
-                  + "<div class='cu-obody'><div class='cu-otitle'>"
-                  + "<span class='cu-pill " + (isCall ? "" : "tight") + "' style='margin-right:7px'>"
-                  + (isCall ? "chain" : "move date") + "</span>" + title
-                  + (+o.Recommended ? " <span class='cu-pill ok'>recommended</span>" : "")
-                  + "</div><div class='cu-owhy'>" + why + "</div></div>"
-                  + "<div class='cu-oact'>"
-                  + (done
-                     ? "<span class='cu-pill " + (o.Status === "accepted" ? "ok" : "short") + "'>"
-                       + esc(o.Status) + "</span>"
-                       + "<button class='cu-btn' data-dec='reopened' data-kind='" + esc(o.Kind)
-                       + "' data-code='" + esc(o["Job Code"]) + "' data-cust='" + esc(o.Customer || "")
-                       + "' data-after='" + esc(o["After Code"] || "") + "' data-to='"
-                       + esc(o["Move To"] || "") + "'" + (S.busy ? " disabled" : "") + ">Reopen</button>"
-                     : "<button class='cu-btn pri' data-dec='accepted' data-kind='" + esc(o.Kind)
-                       + "' data-code='" + esc(o["Job Code"]) + "' data-cust='" + esc(o.Customer || "")
-                       + "' data-after='" + esc(o["After Code"] || "") + "' data-to='"
-                       + esc(o["Move To"] || "") + "'" + (S.busy ? " disabled" : "") + ">Accept</button>"
-                       + "<button class='cu-btn' data-dec='declined' data-kind='" + esc(o.Kind)
-                       + "' data-code='" + esc(o["Job Code"]) + "' data-cust='" + esc(o.Customer || "")
-                       + "' data-after='" + esc(o["After Code"] || "") + "' data-to='"
-                       + esc(o["Move To"] || "") + "'" + (S.busy ? " disabled" : "") + ">Decline</button>")
-                  + "</div></div>";
-              }).join("")
+            // the ladder is an order, not a list: a call is cheaper than moving someone's date
+            + group("call", "Calls", "a phone call and a $50 same-day discount")
+            + group("move", "Date moves", "only when calls cannot clear the day")
             + "<div class='cu-msg'>" + esc(S.msg || "") + "</div>"
             + "<div class='cu-note'>Declining is <b>permanent and per customer</b> — you only "
             + "get to ask someone once, so a customer who says no is never suggested again, on "
-            + "any day. Decisions are recorded for everyone, not just this browser. Accepting "
-            + "records the decision; the calendar is not changed yet.</div></div>";
+            + "any day, until you reopen it. Decisions are recorded for everyone, not just this "
+            + "browser. Accepting records the decision; the calendar is not changed yet.</div>"
+            + "</div>";
         }
 
         // ORDER: the verdict, then what to DO about it, then the day itself. The plan is the
@@ -877,6 +1010,7 @@ registerPage({
           + (+d.Skipped ? "<div class='cu-off'><b>Not counted:</b> "
               + esc(d["Skipped Why"] || "") + "</div>" : "")
           + (d["Crews Off"] ? "<div class='cu-off'><b>Off today:</b> " + esc(d["Crews Off"]) + "</div>" : "")
+          + ledger
           + "</div>"
           + optHtml
           + "<div class='cu-card'>"
@@ -885,10 +1019,11 @@ registerPage({
           + "<span class='cu-pill'>" + shown.length + " of " + jobs.length + " jobs</span></div>"
           + filters(jobs)
           + "<div class='cu-mleg' style='margin:0 0 6px'>"
-          + "<span><i style='background:#1c7a4a'></i>local</span>"
-          + "<span><i style='background:#b26b0b'></i>long distance</span>"
-          + "<span><i style='background:#7c5ce0'></i>straight</span>"
-          + "<span><i style='background:#78808d'></i>labor only</span></div>"
+          + "<span><i style='background:var(--job-local)'></i>local</span>"
+          + "<span><i style='background:var(--job-long)'></i>long distance</span>"
+          + "<span><i style='background:var(--job-straight)'></i>straight</span>"
+          + "<span><i style='background:var(--job-labor)'></i>labor only</span>"
+          + "<span><i class='hatch'></i>empty drive between two chained jobs</span></div>"
           + "<div class='cu-split'>"
           + "<div class='cu-tlwrap'>"
           + (shown.length ? timeline(shown)
@@ -904,14 +1039,14 @@ registerPage({
                   + "</span>" : "")
               + (S.focus && S.mapOn ? "<button class='cu-btn' id='cuAll' style='margin-left:auto'>"
                   + "Show every run</button>" : "")
-              + "<button class='cu-btn" + (S.mapOn ? "" : " pri") + "' id='cuMapT' style='margin-left:"
+              + "<button class='cu-btn" + (S.mapOn ? "" : " sel") + "' id='cuMapT' style='margin-left:"
               + (S.focus && S.mapOn ? "6px" : "auto") + "'>"
               + (S.mapOn ? "Hide map" : "Analyze routes") + "</button></div>"
               + (S.mapOn
                  ? "<div class='cu-map' id='cuMap'></div><div class='cu-mleg'>"
-                   + "<span><i style='background:#1c7a4a'></i>loaded — pickup to delivery</span>"
-                   + "<span><i style='background:#7c5ce0'></i>empty — the drive between two chained jobs</span>"
-                   + "<span><i style='background:#b26b0b'></i>long distance</span>"
+                   + "<span><i style='background:var(--job-local)'></i>loaded — pickup to delivery</span>"
+                   + "<span><i class='hatch'></i>empty — the drive between two chained jobs</span>"
+                   + "<span><i style='background:var(--job-long)'></i>long distance</span>"
                    + "<span id='cuFar'></span></div>"
                  // Road geometry is metered, so nothing is fetched until it is asked for.
                  : "<div class='cu-note' style='margin:0'>Every leg of this day drawn on real "
@@ -933,9 +1068,9 @@ registerPage({
         + "<button class='cu-btn' id='cuPrev'" + (at <= 0 ? " disabled" : "") + ">‹</button>"
         + "<button class='cu-btn' id='cuNext'"
         + (at < 0 || at >= order.length - 1 ? " disabled" : "") + ">›</button>"
-        + "<button class='cu-btn" + (S.sel === TODAY ? " pri" : "") + "' data-jump='" + TODAY + "'"
+        + "<button class='cu-btn" + (S.sel === TODAY ? " sel" : "") + "' data-jump='" + TODAY + "'"
         + (has(TODAY) ? "" : " disabled") + ">Today</button>"
-        + "<button class='cu-btn" + (S.sel === TOM ? " pri" : "") + "' data-jump='" + TOM + "'"
+        + "<button class='cu-btn" + (S.sel === TOM ? " sel" : "") + "' data-jump='" + TOM + "'"
         + (has(TOM) ? "" : " disabled") + ">Tomorrow</button>"
         + "<button class='cu-pill" + (S.probOnly ? " tight" : "") + "' id='cuProb' "
         + "style='cursor:pointer;border:0;font:inherit;font-size:10px;font-weight:800;margin-left:auto'>"
