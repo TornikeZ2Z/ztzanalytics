@@ -14,12 +14,30 @@ async function renderMonthly(host, MRCFG) {
     // MRCFG.label and is used on the cover + PDF so the report still says whose view it is.
     const TEAM = MRCFG ? (MRCFG.label || MRCFG.title || "") : "";
     const PDF_NAME = TEAM ? TEAM + " Monthly Review" : "Monthly Report";
-    /* C43: the Monthly Report is Zip-to-Zip ONLY. Every computation gets a default
-       Company = "Zip to Zip" filter (an explicit Company pick in the global slicer still
-       wins — see withMonth); the isolated fetches below apply the same rule. Rows with no
-       Company value pass through so a missing lineage column can never blank a card. */
-    const MR_CO = "Zip to Zip";
-    const coRow = r => r.Company == null || String(r.Company) === MR_CO;
+    /* ONE company, resolved once, read by everything. The report used to be Zip-to-Zip only
+       with a hidden escape hatch (an explicit global slicer pick changed every number while
+       the cover still said "Zip to Zip"). It now has its own selector in the header, and the
+       rule is: this page's pick beats the global slicer beats the default.
+
+       Everything downstream must read CO — the framework filter, the eight hand-rolled
+       coRow folds, the four RingCentral folds, the memo key and every label. Two of those
+       reading different sources is how you get one screen showing two companies.
+
+       Rows with no Company value pass through, so a missing lineage column can never blank
+       a card. */
+    const MR_CO_DEFAULT = "Zip to Zip";
+    const CO = (!MRCFG && st && st.company) ? String(st.company)
+             : ((RS.state.multi.company && RS.state.multi.company.size)
+                ? String([...RS.state.multi.company][0]) : MR_CO_DEFAULT);
+    const coRow = r => r.Company == null || String(r.Company) === CO;
+    // the phone folds want an ALLOW-list, not a deny-list: a third company would sail past
+    // "skip Tuji" and describe a business the rest of the page is not reporting on
+    const rcCo = r => String(r.Company) === CO;
+    // fct_claims carries NO Company column at all -- curated.py builds it without one. The
+    // only company signal is the Request Joinkey, which is prefixed with the company name.
+    // That is a real signal but weaker than a column, and the register says so on screen.
+    const jkCo = r => String(r["Request Joinkey"] || "").toLowerCase()
+                      .indexOf(String(CO).toLowerCase() + " ") === 0;
     const M = RS.M;
     const MON = ["", "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
     const MS = ["", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -72,12 +90,14 @@ async function renderMonthly(host, MRCFG) {
     // The fold below is the SAME fold — it sums pre-grouped Calls/Duration instead of counting
     // rows. Sessions-not-legs (Type='Voice') is baked into the marts; Tuji is still skipped
     // HERE (Company kept as a dim) so every number matches the old path exactly.
-    const rcP = (window.__mrRcCache3 || !needPhone) ? null
+    const RCK = window.__mrRc4 || (window.__mrRc4 = {});      // { [company]: agg }
+    const RCS = window.__mrRcSms4 || (window.__mrRcSms4 = {});
+    const rcP = (RCK[CO] || !needPhone) ? null
       : pooled("RingCentral marts", () => Promise.all([
           ZTZ.api("/api/mart_rc_monthly?limit=100000"),
           ZTZ.api("/api/mart_rc_monthly_line?limit=100000"),
           ZTZ.api("/api/mart_rc_monthly_agent?limit=100000")]).then(a => a.map(j => j.rows || [])));
-    const smsP = (window.__mrRcSmsCache2 || !needPhone) ? null
+    const smsP = (RCS[CO] || !needPhone) ? null
       : pooled("RingCentral SMS mart", () => ZTZ.api("/api/mart_rc_sms_monthly?limit=100000").then(j => j.rows || []));
     // (per-job packing fetch of the RAW moveboard table DELETED 2026-07-15, perf batch A:
     //  it was the page's second-slowest call — 19.2s, ~108k raw rows — and its only consumer,
@@ -121,7 +141,7 @@ async function renderMonthly(host, MRCFG) {
       const okYm = ym => /^\d{4}-\d{2}$/.test(ym);
       // monthly volume/result buckets (definitions unchanged: answered='Accepted', missed/'Voicemail' separate)
       mrows.forEach(r => {
-        if (String(r.Company) === "Tuji") return;   // Tuji lines are a separate business — ZtZ scope only
+        if (!rcCo(r)) return;   // one company's lines only — the picked one
         const ym = String(r.Month || ""); if (!okYm(ym)) return;
         const b = B(ym), n = +r.Calls || 0, dur = +r["Duration Seconds"] || 0, res = String(r["Action Result"] || "");
         if (String(r.Direction) === "Incoming") {
@@ -134,7 +154,7 @@ async function renderMonthly(host, MRCFG) {
       // deck s75 per-LINE inbound — AHT accrues ONLY on answered calls; unnamed numbers pool
       // into "__unmapped__" with their distinct-number set (same rules as the old row-level fold)
       lrows.forEach(r => {
-        if (String(r.Company) === "Tuji") return;
+        if (!rcCo(r)) return;
         const ym = String(r.Month || ""); if (!okYm(ym)) return;
         const b = B(ym), n = +r.Calls || 0, dur = +r["Duration Seconds"] || 0, res = String(r["Action Result"] || "");
         const lnName = String(r["Line Name"] || "").trim(), lnNum = String(r["Line Number"] || "").trim();
@@ -147,7 +167,7 @@ async function renderMonthly(host, MRCFG) {
       });
       // outbound by teammate — skip the shared support queue + empty extensions, strip "NNN - "
       arows.forEach(r => {
-        if (String(r.Company) === "Tuji") return;
+        if (!rcCo(r)) return;
         const ym = String(r.Month || ""); if (!okYm(ym)) return;
         const ext = String(r.Extension || "").trim();
         if (!ext || /support zip to zip/i.test(ext)) return;
@@ -155,17 +175,18 @@ async function renderMonthly(host, MRCFG) {
         const nm = ext.replace(/^\d+\s*-\s*/, "");
         const n2 = b.names[nm] || (b.names[nm] = { out: 0, dur: 0 }); n2.out += n; n2.dur += dur;
       });
-      if (mrows.length) window.__mrRcCache3 = agg;
+      if (mrows.length) RCK[CO] = agg;
     }
-    delete window.__mrRcCache; delete window.__mrRcCache2;   // row-level-fold caches — retire
-    const rcAgg = window.__mrRcCache3 || {};
+    // retired cache names: row-level folds, then the company-blind aggregates
+    delete window.__mrRcCache; delete window.__mrRcCache2; delete window.__mrRcCache3;
+    const rcAgg = RCK[CO] || {};
     // RingCentral SMS (first consumer 2026-07-13) — same isolated-fold pattern; the export's
     // own Direction column is trusted; ZtZ lines only (Tuji excluded like the calls fold).
     if (smsP) {
       const smsRows = await smsP;
       const agg2 = {};
       smsRows.forEach(r => {
-        if (String(r.Company) === "Tuji") return;
+        if (!rcCo(r)) return;
         const ym = String(r.Month || ""); if (!/^\d{4}-\d{2}$/.test(ym)) return;
         const b = agg2[ym] || (agg2[ym] = { in: 0, out: 0, fail: 0 });
         const n = +r.Messages || 0;
@@ -173,16 +194,19 @@ async function renderMonthly(host, MRCFG) {
         else if (String(r.Direction) === "Outbound") b.out += n;
         if (String(r["Message Status"]) === "Failed") b.fail += n;
       });
-      if (smsRows.length) window.__mrRcSmsCache2 = agg2;
+      if (smsRows.length) RCS[CO] = agg2;
     }
-    delete window.__mrRcSmsCache;   // row-level-fold cache — retire
-    const rcSms = window.__mrRcSmsCache2 || {};
+    delete window.__mrRcSmsCache; delete window.__mrRcSmsCache2;
+    const rcSms = RCS[CO] || {};
     // retired caches (Fleet section removed + dead per-job packing fetch deleted, 2026-07-15)
     delete window.__mrFleetCache; delete window.__mrFleetCache2;
     delete window.__mrPackCache; delete window.__mrPackCache2;
     const DS = { closing, moveboard, storage, claims, refunds, card_expenses: cardEx, reviews_breakdown: reviews, negative_reviews: negrev, callrail, scorecard, review_counts: rcounts, review_goals: rgoals, helper_salaries: helperSalDs, sales_salaries: salesSalDs };
 
     const latest = closing.reduce((a, r) => (coRow(r) && r._d && r._d > a ? r._d : a), "");
+    if (!MRCFG && !st.company) {
+      try { st.company = String(localStorage.getItem("ztzMrCompany") || ""); } catch (e) {}
+    }
     if (!st.month) {
       // remembered month first (UX audit: the picked month survives visits) — else auto-detect
       let saved = null;
@@ -207,8 +231,9 @@ async function renderMonthly(host, MRCFG) {
       const S = RS.state, savedMulti = S.multi;
       const sv = { f: S.dateFrom, t: S.dateTo, df: S.dayFrom, dt: S.dayTo };
       const [a, b] = rangeFor(y, m); S.dateFrom = a; S.dateTo = b; S.dayFrom = S.dayTo = null;
-      // Company defaults to Zip to Zip for every computation (flows into every RS.filtered call).
-      const coSet = (savedMulti.company && savedMulti.company.size) ? savedMulti.company : new Set([MR_CO]);
+      // the resolved company flows into every RS.filtered call from here
+      // CO already folded in the global slicer, so it is the single source here too
+      const coSet = new Set([CO]);
       if (!MRCFG) {
         // MAIN Monthly Report = MONTH-SELECTOR-ONLY (Tornike 2026-07-15): the whole filter bar is hidden
         // on this page, so ignore EVERY global slicer except Company. A Source/Foreman/State/Moving-Type
@@ -232,7 +257,9 @@ async function renderMonthly(host, MRCFG) {
     // this keeps it DISTINCT from the lite dashboards' keys (which DO apply slicers) in the shared
     // __mrMemo2 store, so a set slicer can never cross-contaminate the two.
     const memoSerial = !MRCFG
-      ? "mr-main:" + JSON.stringify([...((RS.state.multi.company && RS.state.multi.company.size) ? RS.state.multi.company : [MR_CO])].sort())
+      // must be CO, not the raw slicer: valueFor's own key has no company component, so a
+      // serial that misses a company switch serves last company's scalars under this one's header
+      ? "mr-main:" + CO
       : JSON.stringify(Object.entries(RS.state.multi)
           .filter(([k, s]) => k !== "year" && k !== "month" && s && s.size)
           .map(([k, s]) => [k, [...s].sort()]).sort());
@@ -636,7 +663,7 @@ async function renderMonthly(host, MRCFG) {
         .rs-content{padding:0!important}
         .top,.rs-side,.rs-filters,.rs-chips,.rs-topbar,header{display:none!important}
         .mrx{background:#fff;padding:0}
-        .mrx-print,#mrMonth,#mrYear,.mrx-ctl,.mrx-toc,.mrx-caret{display:none!important}
+        .mrx-print,#mrMonth,#mrYear,#mrCo,.mrx-ctl,.mrx-toc,.mrx-caret{display:none!important}
         .mrx-sec.collapsed .mrx-grid{display:grid!important}
         .mrx-sec-h{break-after:avoid}
         .mrx-sec{break-inside:auto;margin-top:14px}
@@ -1135,9 +1162,9 @@ async function renderMonthly(host, MRCFG) {
           y += 8;
         }
         const np = pdf.internal.getNumberOfPages();
-        for (let i = 1; i <= np; i++) { pdf.setPage(i); pdf.setFontSize(8); pdf.setTextColor(150); pdf.text(`Zip to Zip · ${PDF_NAME} · ${MON[mo]} ${curY} · ${i}/${np}`, pageW / 2, pageH - 8, { align: "center" }); }
+        for (let i = 1; i <= np; i++) { pdf.setPage(i); pdf.setFontSize(8); pdf.setTextColor(150); pdf.text(`${CO} · ${PDF_NAME} · ${MON[mo]} ${curY} · ${i}/${np}`, pageW / 2, pageH - 8, { align: "center" }); }
         console.log("PDF_OK pages=" + np);
-        pdf.save(`Zip-to-Zip-${PDF_NAME.replace(/\s+/g, "-")}-${MON[mo]}-${curY}.pdf`);
+        pdf.save(`${CO.replace(/\s+/g, "-")}-${PDF_NAME.replace(/\s+/g, "-")}-${MON[mo]}-${curY}.pdf`);
       } catch (e) { console.error("PDF generation failed", e); alert("PDF generation failed: " + (e && e.message || e)); }
       finally {
         scrim.remove();   // NEVER leave a full-screen overlay behind (the .rp-scrim lesson)
@@ -1194,10 +1221,18 @@ async function renderMonthly(host, MRCFG) {
     if (LITE) {
       // themed dashboards: a compact header (topic title + month/year selector) — no hero, no PDF.
       const hdr = document.createElement("div"); hdr.className = "mrx-lite-h";
-      hdr.innerHTML = `<div class="mrx-lite-tt"><b>Monthly · Zip to Zip</b>${esc(MRCFG.title || TEAM || "Monthly Review")}</div>
+      hdr.innerHTML = `<div class="mrx-lite-tt"><b>Monthly · ${esc(CO)}</b>${esc(MRCFG.title || TEAM || "Monthly Review")}</div>
         <div class="mrx-lite-ctl">Month: <select id="mrMonth">${monthOptions}</select> Year: <select id="mrYear">${yearOptions}</select></div>`;
       root.appendChild(hdr);
     } else {
+      // The companies the data actually has -- never a hardcoded pair. fct_closing.Company is
+      // the raw closing-sheet value, so a third one can appear without anyone telling us.
+      const coVals = [...new Set([...(closing || []), ...(moveboard || [])]
+        .map(r => r.Company).filter(v => v != null && String(v).trim() !== ""))].map(String).sort();
+      if (coVals.indexOf(CO) < 0) coVals.push(CO);
+      const coOptions = coVals.map(v =>
+        `<option value="${esc(v)}"${v === CO ? " selected" : ""}>${esc(v)}</option>`).join("");
+
       const cover = document.createElement("div"); cover.className = "mrx-cover";
       // UX audit 2026-07-14: the Month/Year picker is the page's PRIMARY control — promoted
       // out of the fine print into its own block, with a vector-print secondary action.
@@ -1207,13 +1242,14 @@ async function renderMonthly(host, MRCFG) {
           <button class="mrx-print" id="mrPrint" title="Download a polished PDF (no print dialog)">⬇ Download PDF</button>
           <button class="mrx-print2" id="mrPrint2" title="Browser print — selectable text">🖨 Print</button>
         </div>
-        <div class="mrx-eyebrow">${esc(TEAM ? TEAM + " — Monthly Review" : "Monthly Business Review")} · Zip to Zip</div>
+        <div class="mrx-eyebrow">${esc(TEAM ? TEAM + " — Monthly Review" : "Monthly Business Review")} · ${esc(CO)}</div>
         <div class="mrx-h1">Report for ${MON[mo]} ${curY}</div>
         <div class="mrx-cvpick">
           <select id="mrMonth" class="mrx-ctl">${monthOptions}</select>
           <select id="mrYear" class="mrx-ctl">${yearOptions}</select>
+          <select id="mrCo" class="mrx-ctl" title="Which company this report covers">${coOptions}</select>
         </div>
-        <div class="mrx-cvsub">${esc(freshness)} · Zip to Zip only</div>`;
+        <div class="mrx-cvsub">${esc(freshness)} · ${esc(CO)} only</div>`;
       root.appendChild(cover);
     }
 
@@ -1325,7 +1361,7 @@ async function renderMonthly(host, MRCFG) {
         const scMo = (DS.scorecard || []).filter(r => String(r["Month"] || "").slice(0, 7) === `${curY}-${String(mo).padStart(2, "0")}`);
         const totCF = scMo.reduce((a, r) => a + num(r["Total CF"]), 0), totWr = scMo.reduce((a, r) => a + num(r["Total Packing Written"]), 0);
         const pack100 = totCF ? totWr / totCF * 100 : null;
-        const ffClaims = reduceMonth("claims", curY, mo, rs => rs.filter(r => /forman/i.test(String(r.Responsibility || ""))).length) || 0;
+        const ffClaims = reduceMonth("claims", curY, mo, rs => rs.filter(jkCo).filter(r => /forman/i.test(String(r.Responsibility || ""))).length) || 0;
         tiles.push(
           { l: "Jobs Done", v: showN(jobs, fmtN), c: jobs, icon: KIC.truck, hero: 1 },
           { l: "Foreman Hours", v: foremanHours ? fmtN(foremanHours) : "—", c: foremanHours || null, icon: KIC.trend },
@@ -1344,7 +1380,7 @@ async function renderMonthly(host, MRCFG) {
           { l: "Review Score", v: (score == null || isNaN(score)) ? "—" : Number(score).toFixed(2), c: score, icon: KIC.pct }
         );
       } else if (id === "support-team") {
-        const claimsN = reduceMonth("claims", curY, mo, rs => rs.length) || 0;
+        const claimsN = reduceMonth("claims", curY, mo, rs => rs.filter(jkCo).length) || 0;
         const claimRate = jobs ? claimsN / jobs * 100 : null;
         const refTot = Math.abs(reduceMonth("refunds", curY, mo, rs => rs.reduce((a, r) => a + num(r["Total refund"]), 0)) || 0);
         const rcB = rcAgg[`${curY}-${String(mo).padStart(2, "0")}`];
@@ -2095,7 +2131,7 @@ async function renderMonthly(host, MRCFG) {
           const ansCol = p => p >= .8 ? POS : p >= .6 ? WARN : NEG;
           const nDist = un ? Object.keys(un.nums).length : 0;
           const lnHtml = `<table class="mrx-tbl"><thead><tr><th>Line</th><th>Number</th><th style="text-align:right">Inbound</th><th style="text-align:right">Answered</th><th style="text-align:right">Missed</th><th style="text-align:right">Voicemail</th><th style="text-align:right">Answer %</th><th style="text-align:right">Avg handle</th></tr></thead><tbody>${lnRows.map(r => { const isU = r.k === "__unmapped__"; return `<tr${isU ? ' style="background:rgba(176,42,55,.05)"' : ""}><td${isU ? `  style="color:${NEG};font-weight:700"` : ""}>${isU ? "Unnamed numbers" : esc(r.k)}</td>${td(isU ? fmtN(nDist) + " different numbers" : esc(fmtPh(r.num)), isU ? `color:${NEG}` : "")}${td(fmtN(r.in), "text-align:right")}${td(fmtN(r.ans), "text-align:right")}${td(fmtN(r.miss), "text-align:right" + (r.miss ? `;color:${NEG};font-weight:800` : ""))}${td(fmtN(r.vm), "text-align:right")}${td(r.in ? pct(r.ans / r.in) : "—", "text-align:right;font-weight:800" + (r.in ? ";color:" + ansCol(r.ans / r.in) : ""))}${td(r.ans ? hms(r.ansDur / r.ans) : "—", "text-align:right")}</tr>`; }).join("")}<tr class="tot"><td>All lines</td>${td("")}${td(fmtN(T.in), "text-align:right")}${td(fmtN(T.ans), "text-align:right")}${td(fmtN(T.miss), "text-align:right")}${td(fmtN(T.vm), "text-align:right")}${td(T.in ? pct(T.ans / T.in) : "—", "text-align:right")}${td(T.ans ? hms(T.ansDur / T.ans) : "—", "text-align:right")}</tr></tbody></table>`;
-          tableCard(g, "Inbound by line — answer rate & handle time", monLbl + " · RingCentral · real calls (sessions)", lnHtml, { icon: KIC.grid, headVal: T.in ? pct(T.ans / T.in) + " answered" : "—", noteKind: "how", note: "Every company number that rang this month — inbound volume, how each call ended, and Average Handle Time (mean talk time on ANSWERED calls only; a missed call or voicemail carries no handle time, so they're excluded from AHT but still counted in Inbound). Counted on real calls (sessions), never per-device ring-legs. Answer % green ≥80%, amber ≥60%, red below. Tuji lines are excluded." + (nDist ? " — “Unnamed numbers” are " + fmtN(nDist) + " company numbers that rang but carry no name in RingCentral's account mapping, so they can't be credited to a branch yet; they're pooled into one row rather than shown under any single number." : "") });
+          tableCard(g, "Inbound by line — answer rate & handle time", monLbl + " · RingCentral · real calls (sessions)", lnHtml, { icon: KIC.grid, headVal: T.in ? pct(T.ans / T.in) + " answered" : "—", noteKind: "how", note: "Every company number that rang this month — inbound volume, how each call ended, and Average Handle Time (mean talk time on ANSWERED calls only; a missed call or voicemail carries no handle time, so they're excluded from AHT but still counted in Inbound). Counted on real calls (sessions), never per-device ring-legs. Answer % green ≥80%, amber ≥60%, red below. Only ${esc(CO)} lines are counted." + (nDist ? " — “Unnamed numbers” are " + fmtN(nDist) + " company numbers that rang but carry no name in RingCentral's account mapping, so they can't be credited to a branch yet; they're pooled into one row rather than shown under any single number." : "") });
         }
         if (curB && Object.keys(curB.names).length) {
           // (talk-time card folded in here — same 10 names in near-identical order taught nothing new;
@@ -2111,7 +2147,7 @@ async function renderMonthly(host, MRCFG) {
         const cSms = stackedTime(g, "Text messages — received vs sent", "last 12 months (RingCentral SMS)", rcMonths.map(x => x.k),
           [ { label: "Received", data: rcMonths.map(x => (rcSms[x.ym] || {}).in || 0), color: INK },
             { label: "Sent", data: rcMonths.map(x => (rcSms[x.ym] || {}).out || 0), color: CTX } ], fmtN);
-        if (cSms && smsB) note(cSms, `${MON[mo]}: ${fmtN(smsB.in)} received, ${fmtN(smsB.out)} sent${smsB.fail ? `, ${fmtN(smsB.fail)} failed to deliver` : ""}. Zip to Zip lines only (Tuji excluded). Direction comes straight from the RingCentral export.`, "how");
+        if (cSms && smsB) note(cSms, `${MON[mo]}: ${fmtN(smsB.in)} received, ${fmtN(smsB.out)} sent${smsB.fail ? `, ${fmtN(smsB.fail)} failed to deliver` : ""}. ${esc(CO)} lines only. Direction comes straight from the RingCentral export.`, "how");
       }
       // ---- CallRail — the tracked marketing numbers, shown SEPARATELY from RingCentral (Tornike 2026-07-16) ----
       if (callrail && callrail.length) {
@@ -2167,7 +2203,7 @@ async function renderMonthly(host, MRCFG) {
         const rowsH = sc.map((r, i) => { const arrow = r.prev ? (r.score > r.prev ? `<span style="color:${POS}">▲</span>` : r.score < r.prev ? `<span style="color:${NEG}">▼</span>` : "–") : ""; const up = r.est > 0 ? r.written / r.est : null; return `<tr><td>${i === 0 ? "👑 " : ""}${esc(r.f)}</td>
           ${td(fmtN(r.jobs) + mArrow(r.jobs, jobsFmPM[r.f]))}${td(fmtN(r.cf))}${td(money(payM[r.f] || 0) + mArrow(payM[r.f] || 0, payPM[r.f]))}${td(money(tipsM[r.f] || 0) + mArrow(tipsM[r.f] || 0, tipsPM[r.f]))}${td(money(r.written))}${td(up == null ? "—" : up.toFixed(1) + "×", up == null ? "" : `color:${up >= 1 ? POS : NEG};font-weight:800`)}${td(r.rev ? fmtN(r.rev) : "0", r.rev ? "" : `color:${NEG};font-weight:800`)}${td(fmtN(r.claims), r.claims > 0 ? `color:${NEG};font-weight:800` : "")}${td(refM[r.f] ? money(refM[r.f]) : "—", refM[r.f] ? `color:${NEG};font-weight:800` : "")}
           <td class="bar"><i style="width:${(r.score / smax * 100).toFixed(0)}%;background:${LIME_BG}"></i><span>${fmt1(r.score)} ${arrow}</span></td></tr>`; }).join("");
-        tableCard(g, "Foreman scorecard — ranked", monLbl, `<table class="mrx-tbl"><thead><tr><th>Foreman</th><th>Jobs</th><th>CF</th><th>Pay</th><th>Tips</th><th>Packing</th><th>vs Est</th><th>Reviews</th><th>Claims</th><th>Refunds</th><th>Score</th></tr></thead><tbody>${rowsH}</tbody></table>`, { icon: KIC.grid, headVal: fmtN(sc.length) + " crews", noteKind: "how", note: `Pay/Tips from closings; ▲▼ arrows on Jobs/Pay/Tips compare vs ${MS[PM]}. 'vs Est' = packing written ÷ quoted estimate (green at 1× or above, red below). Score combines jobs, packing, reviews and fault claims — higher is better; the ▲▼ beside it compares vs ${MS[PM]}. Rank 1 crowned.` });
+        tableCard(g, "Foreman scorecard — ranked", monLbl, `<table class="mrx-tbl"><thead><tr><th>Foreman</th><th>Jobs</th><th>CF</th><th>Pay</th><th>Tips</th><th>Packing</th><th>vs Est</th><th>Reviews</th><th>Claims</th><th>Refunds</th><th>Score</th></tr></thead><tbody>${rowsH}</tbody></table>`, { icon: KIC.grid, headVal: fmtN(sc.length) + " crews", noteKind: "how", note: `Pay/Tips from closings; ▲▼ arrows on Jobs/Pay/Tips compare vs ${MS[PM]}. 'vs Est' = packing written ÷ quoted estimate (green at 1× or above, red below). Score combines jobs, packing, reviews and fault claims — higher is better; the ▲▼ beside it compares vs ${MS[PM]}. Rank 1 crowned.${CO === MR_CO_DEFAULT ? "" : ` <b>Not split by company:</b> the foreman scorecard mart carries no Company column, so these crews are ranked across every book, not just ${esc(CO)}.`}` });
       }
       const jobF = segSeries("closing", "Total Jobs", "Foreman").slice(0, 12);
       const hrMap = {}; segSeries("closing", "Hours Worked by Forman", "Foreman").forEach(r => hrMap[r.k] = r.v);
@@ -2357,9 +2393,9 @@ async function renderMonthly(host, MRCFG) {
       // raw claims-sheet values spell it 'Forman' — display-side fix only, data keys untouched
       const dispResp = v => String(v).replace(/\bForman('s)?\b/g, (m, p) => "Foreman" + (p || ""));
       // ---- cards: claims counted by CLAIM date, refund money by REFUND date (matches the P&L) ----
-      const claimsN = reduceMonth("claims", curY, mo, rs => rs.length) || 0;
-      const claimsPM = reduceMonth("claims", PMY, PM, rs => rs.length) || 0;
-      const claimsLY = reduceMonth("claims", curY - 1, mo, rs => rs.length) || 0;
+      const claimsN = reduceMonth("claims", curY, mo, rs => rs.filter(jkCo).length) || 0;
+      const claimsPM = reduceMonth("claims", PMY, PM, rs => rs.filter(jkCo).length) || 0;
+      const claimsLY = reduceMonth("claims", curY - 1, mo, rs => rs.filter(jkCo).length) || 0;
       const claimRate = jobs ? claimsN / jobs * 100 : null;
       const refSum = (y, m2) => Math.abs(reduceMonth("refunds", y, m2, rs => rs.reduce((a, r) => a + num(r["Total refund"]), 0)) || 0);
       const redSum = (y, m2) => reduceMonth("refunds", y, m2, rs => rs.reduce((a, r) => a + num(r["Sales Commission Reduced Amount"]), 0)) || 0;
@@ -2373,7 +2409,7 @@ async function renderMonthly(host, MRCFG) {
       ].forEach(k => kpiTile(kg, k));
       // ---- breakdown charts ----
       rankBars(g, "Claims by responsibility", segReduce("claims", "Responsibility", rs => rs.length, curY, mo).map(s => ({ ...s, k: dispResp(s.k) })), fmtN, { top: 8 });
-      donut(g, "Claims by reason", segReduce("claims", "Reason", rs => rs.length, curY, mo).filter(r => r.k !== "—" && r.k !== "(blank)"), fmtN, { center: fmtN(reduceMonth("claims", curY, mo, rs => rs.filter(r => r.Reason && r.Reason !== "(blank)").length) || 0), centerLbl: "classified" });
+      donut(g, "Claims by reason", segReduce("claims", "Reason", rs => rs.filter(jkCo).length, curY, mo).filter(r => r.k !== "—" && r.k !== "(blank)"), fmtN, { center: fmtN(reduceMonth("claims", curY, mo, rs => rs.filter(jkCo).filter(r => r.Reason && r.Reason !== "(blank)").length) || 0), centerLbl: "classified" });
       // "Refunds by reason" chart + the "Refund % of revenue" tile removed 2026-07-15 (Tornike):
       // the refund register below already carries reason per row, and refunds are ~0.2% of revenue —
       // a whole chart + tile for a rounding-error line was noise. refByReason kept OUT deliberately.
@@ -2385,8 +2421,8 @@ async function renderMonthly(host, MRCFG) {
         o.refund += Math.abs(num(r["Total refund"])); o.reduced += num(r["Sales Commission Reduced Amount"]);
       });
       // ---- register 1: CLAIMS filed this month (by claim date) + the refund tied to each ----
-      const clReg = (reduceMonth("claims", curY, mo, rs => rs) || []).slice().sort((a, b) => String(b["Created Date"]).localeCompare(String(a["Created Date"])));
-      if (clReg.length) paginatedTable(g, "Claims filed this month", `${monLbl} · by claim date · ${fmtN(clReg.length)} claim${clReg.length === 1 ? "" : "s"}`,
+      const clReg = (reduceMonth("claims", curY, mo, rs => rs.filter(jkCo)) || []).slice().sort((a, b) => String(b["Created Date"]).localeCompare(String(a["Created Date"])));
+      if (clReg.length) paginatedTable(g, "Claims filed this month", `${monLbl} · by claim date · ${fmtN(clReg.length)} claim${clReg.length === 1 ? "" : "s"} · ${esc(CO)} (attributed by Request # prefix)`,
         [{ label: "Date" }, { label: "Customer" }, { label: "Request #" }, { label: "Reason" }, { label: "Responsibility" }, { label: "Status" }, { label: "Refund", align: "right" }, { label: "Reduced", align: "right" }],
         clReg,
         r => { const rf = refByJk[String(r["Request Joinkey"] || "")]; return `<tr><td>${esc(String(r["Created Date"] || "").slice(0, 10))}</td><td>${esc(r.Customer || "—")}</td>${td(esc(r["Request No"] || "—"))}${td(esc(r.Reason || "—"))}${td(esc(dispResp(r.Responsibility || "—")))}${td(esc(r.Status || "—"))}${td(rf && rf.refund ? money(rf.refund) : "—", "text-align:right;font-weight:" + (rf && rf.refund ? "800" : "400"))}${td(rf && rf.reduced ? money(rf.reduced) : "—", "text-align:right")}</tr>`; },
@@ -2517,6 +2553,15 @@ async function renderMonthly(host, MRCFG) {
     };
     document.getElementById("mrMonth").onchange = e => { st.month = +e.target.value; saveMonth(); reRender(); };
     document.getElementById("mrYear").onchange = e => { st.year = +e.target.value; saveMonth(); reRender(); };
+    // The pick lives on the PAGE, not in RS.state.multi: that object is session-global and read
+    // by every other report, so writing it here would silently re-scope pages the user cannot
+    // see a filter bar on. withMonth injects CO into the filter state and puts it back after.
+    const coSel = document.getElementById("mrCo");
+    if (coSel) coSel.onchange = e => {
+      st.company = e.target.value;
+      try { localStorage.setItem("ztzMrCompany", st.company || ""); } catch (err) {}
+      reRender();
+    };
     const pb = document.getElementById("mrPrint"); if (pb) pb.onclick = downloadReportPDF;
     const pv = document.getElementById("mrPrint2"); if (pv) pv.onclick = () => window.print();
     const rl = document.getElementById("mrRetryLoad"); if (rl) rl.onclick = () => reRender();   // failed feeds aren't cached — a re-render refetches them
@@ -2552,4 +2597,4 @@ const MR_DASH = [
 ];
 MR_DASH.forEach(d => registerPage({ id: d.id, group: d.group, title: d.title, render(host) { return renderMonthly(host, { id: d.id, title: d.title, label: d.title, sections: d.sections, lite: true }); } }));
 
-var st = window.__mrState || (window.__mrState = { month: 0, year: 0, years: 5 });
+var st = window.__mrState || (window.__mrState = { month: 0, year: 0, years: 5, company: "" });

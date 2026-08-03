@@ -125,6 +125,9 @@ const GROUPS = [
   { key: "sales",     title: "Sales" },
   { key: "marketing", title: "Marketing" },
   { key: "logistics", title: "Logistics" },
+  // Calendar Cleanup lives here, not under Logistics: every recommendation it makes is a
+  // conversation with a customer (ring them to move to the afternoon, or to another day).
+  { key: "customer-service", title: "Customer Service" },
   { key: "financial", title: "Financial" },
   { key: "reviews",   title: "Reviews" },
   { key: "support",   title: "Support" },
@@ -156,7 +159,8 @@ const GROUP_OVERRIDE = {
   // Financial
   "fin-revenue": "financial", "fin-rr": "financial", "financial-analysis": "financial", "executive-scorecard": "financial",
   "branch-owner": "financial", "money-flow": "logistics", "ld-planning": "logistics", "foreman-closings": "logistics",
-  "cleanup": "logistics",
+  // Customer Service
+  "cleanup": "customer-service",
   // Reviews
   "review-performance": "reviews", "rev-production": "reviews", "reviews-reminders": "reviews",
   "response-analysis": "reviews", "review-settings": "reviews",
@@ -169,7 +173,8 @@ const NAV_ORDER = {
   "monthly-report": 1, "analysis-by-category": 2,
   "sales-command": 0.5, "sales-funnel": 1, "sales-perf": 2, "sales-speed": 3, "leads-inflow": 4,
   "mkt-roi": 1, "mkt-sources": 2, "mkt-phone": 3,
-  "money-flow": 1, "foreman-closings": 2, "ld-planning": 3, "cleanup": 4, "log-foreman": 4, "log-packing": 5,
+  "money-flow": 1, "foreman-closings": 2, "ld-planning": 3, "log-foreman": 4, "log-packing": 5,
+  "cleanup": 1,
   "fin-revenue": 1, "fin-rr": 2, "sales-geo": 3, "financial-analysis": 4, "executive-scorecard": 5, "branch-owner": 6,
   "rev-production": 1, "review-performance": 2, "response-analysis": 3, "reviews-reminders": 4, "review-settings": 5,
   "sup-claims": 1, "sup-refunds": 2, "sup-phone": 3,
@@ -1183,6 +1188,8 @@ if (!ZTZ.getToken()) {
 PAGE_ICONS["admin-users"] = "user";
 /* Grant-tile labels — plain English, kept in sync with the sidebar renames (N34). */
 const REPORT_LABELS = {
+  // Customer Service
+  "cleanup": "Calendar Cleanup",
   // Company Overview
   "monthly-report": "Monthly Report (all-in-one)",
   "analysis-by-category": "Custom Breakdown",
@@ -1246,7 +1253,8 @@ const ACL_DEPTS = [
   { id: "company",   label: "Company Overview", icon: "spark",     reports: ["monthly-report", "analysis-by-category"] },
   { id: "sales",     label: "Sales",            icon: "funnel",    reports: ["sales-command", "sales-speed", "leads-inflow"] },
   { id: "marketing", label: "Marketing",        icon: "megaphone", reports: ["source-trace", "multi-source-leads"] },
-  { id: "logistics", label: "Logistics",        icon: "tool",      reports: ["money-flow", "ld-planning", "cleanup", "foreman-closings"] },
+  { id: "logistics", label: "Logistics",        icon: "tool",      reports: ["money-flow", "ld-planning", "foreman-closings"] },
+  { id: "customer-service", label: "Customer Service", icon: "calendar", reports: ["cleanup"] },
   { id: "financial", label: "Financial",        icon: "trend",     reports: ["financial-analysis", "executive-scorecard", "branch-owner"] },
   { id: "reviews",   label: "Reviews",          icon: "star",      reports: ["review-performance", "reviews-reminders", "response-analysis", "review-settings"] },
   { id: "explorer",  label: "Data Explorer — the separate Data Management app", icon: "archive", reports: ["explorer"] },
@@ -1427,7 +1435,7 @@ registerPage({
 <script src="pages/labor-analysis.js?v=3"></script>
 <script src="pages/financial-analysis.js?v=7"></script>
 <script src="pages/post-card-analysis.js?v=4"></script>
-<script src="pages/monthly-report.js?v=85"></script>
+<script src="pages/monthly-report.js?v=86"></script>
 <script src="pages/leads-vs-moveboard.js?v=7"></script>
 <script src="pages/source-analysis.js?v=4"></script>
 <script src="pages/data-quality.js?v=9"></script>
