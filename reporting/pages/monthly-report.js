@@ -33,11 +33,12 @@ async function renderMonthly(host, MRCFG) {
     // the phone folds want an ALLOW-list, not a deny-list: a third company would sail past
     // "skip Tuji" and describe a business the rest of the page is not reporting on
     const rcCo = r => String(r.Company) === CO;
-    // fct_claims carries NO Company column at all -- curated.py builds it without one. The
-    // only company signal is the Request Joinkey, which is prefixed with the company name.
-    // That is a real signal but weaker than a column, and the register says so on screen.
-    const jkCo = r => String(r["Request Joinkey"] || "").toLowerCase()
-                      .indexOf(String(CO).toLowerCase() + " ") === 0;
+    // fct_claims carries NO Company column at all -- curated.py builds it without one. Its
+    // only link is the Request Joinkey, and that joinkey is NOT the company: curated.py maps
+    // Boston, and everything that is not Tuji, to a "Zip to Zip" prefix. So a prefix test
+    // would hand every Zip to Zip claim to Boston. Instead the joinkeys are taken from the
+    // picked company's OWN closings, which attributes each claim to the brand that filed the
+    // job it belongs to.
     const M = RS.M;
     const MON = ["", "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
     const MS = ["", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -202,6 +203,9 @@ async function renderMonthly(host, MRCFG) {
     delete window.__mrFleetCache; delete window.__mrFleetCache2;
     delete window.__mrPackCache; delete window.__mrPackCache2;
     const DS = { closing, moveboard, storage, claims, refunds, card_expenses: cardEx, reviews_breakdown: reviews, negative_reviews: negrev, callrail, scorecard, review_counts: rcounts, review_goals: rgoals, helper_salaries: helperSalDs, sales_salaries: salesSalDs };
+    const coJk = new Set((closing || []).filter(r => String(r.Company) === CO)
+      .map(r => String(r["Request Joinkey"] || "")).filter(Boolean));
+    const jkCo = r => coJk.has(String(r["Request Joinkey"] || ""));
 
     const latest = closing.reduce((a, r) => (coRow(r) && r._d && r._d > a ? r._d : a), "");
     if (!MRCFG && !st.company) {
@@ -1225,32 +1229,39 @@ async function renderMonthly(host, MRCFG) {
         <div class="mrx-lite-ctl">Month: <select id="mrMonth">${monthOptions}</select> Year: <select id="mrYear">${yearOptions}</select></div>`;
       root.appendChild(hdr);
     } else {
-      // TWO BOOKS, not four values. fct_closing.Company is the raw closing-sheet folder name
-      // and carries branches as well as businesses -- "Boston" (103 closings) and
-      // "Virginia MD" (5) sit alongside "Zip to Zip" and "Tuji". The pipeline already rules
-      // on this: curated.py's Request Joinkey maps Boston, and everything that is not Tuji,
-      // to 'Zip to Zip'. Offering a branch as a company would produce a five-row report whose
-      // claims section finds nothing at all, because claims are attributed by that joinkey.
-      // So the picker offers the two real books and nothing else.
-      const bookOf = v => String(v) === "Tuji" ? "Tuji" : "Zip to Zip";
-      const rawCos = [...new Set([...(closing || []), ...(moveboard || [])]
-        .map(r => r.Company).filter(v => v != null && String(v).trim() !== ""))].map(String);
-      const coVals = [...new Set(rawCos.map(bookOf))].sort();
-      if (coVals.indexOf(CO) < 0) coVals.push(CO);
-      const coOptions = coVals.map(v =>
-        `<option value="${esc(v)}"${v === CO ? " selected" : ""}>${esc(v)}</option>`).join("");
+      // THE PICKER FOLLOWS THE MONTH. Zip to Zip and Tuji trade throughout; Boston and
+      // Virginia MD were sub-brands with closed windows (Boston May 2025 – Apr 2026,
+      // Virginia MD Jan – Mar 2026, both derived here from the data rather than hardcoded,
+      // so a new brand appears on its own). Offering a retired brand in a month it never
+      // traded is how you get a report that is a wall of zeros with nothing saying why.
+      // Tornike's ruling, 2026-08-03: keep them separate, offer each only when it was trading.
+      const ymKey = `${curY}-${String(mo).padStart(2, "0")}`;
+      const coWin = {};                                   // company -> [first, last] closing date
+      (closing || []).forEach(r => {
+        const c = String(r.Company || ""), d = String(r.Date || "").slice(0, 10);
+        if (!c || !/^\d{4}-\d{2}/.test(d)) return;
+        const w = coWin[c] || (coWin[c] = [d, d]);
+        if (d < w[0]) w[0] = d;
+        if (d > w[1]) w[1] = d;
+      });
+      const tradedThisMonth = new Set((closing || [])
+        .filter(r => String(r.Date || "").slice(0, 7) === ymKey)
+        .map(r => String(r.Company || "")).filter(Boolean));
+      // the two ongoing books are always offered, so the picker can never collapse to one
+      const coVals = [...new Set([MR_CO_DEFAULT, "Tuji", ...tradedThisMonth, CO])]
+        .filter(Boolean).sort();
+      const coOptions = coVals.map(v => {
+        const gone = !tradedThisMonth.has(v);
+        return `<option value="${esc(v)}"${v === CO ? " selected" : ""}>`
+             + `${esc(v)}${gone ? " — no jobs this month" : ""}</option>`;
+      }).join("");
 
-      // ...and say so, rather than letting rows go quietly missing. Company matching stays an
-      // EXACT match, which is what it has always been, so no number on this page moves --
-      // but that means a Boston row is in neither book's totals. Naming them is the honest
-      // state until Tornike rules on whether Boston belongs inside Zip to Zip.
-      const orphanCos = rawCos.filter(v => v !== "Zip to Zip" && v !== "Tuji");
-      const orphanN = (closing || []).filter(r => orphanCos.indexOf(String(r.Company)) >= 0
-        && String(r.Date || "").slice(0, 7) === `${curY}-${String(mo).padStart(2, "0")}`).length;
-      const orphanNote = orphanN
-        ? `<div class="mrx-cvsub" style="opacity:.75">${orphanN} closing${orphanN === 1 ? "" : "s"} this month `
-          + `booked under ${esc(orphanCos.join(" / "))} — counted in neither book.</div>`
-        : "";
+      // and if the picked brand was not trading, say so with its real window instead of
+      // rendering a page of zeros that looks like a data failure
+      const win = coWin[CO];
+      const orphanNote = tradedThisMonth.has(CO) ? "" :
+        `<div class="mrx-cvsub" style="opacity:.8">${esc(CO)} filed no closings in `
+        + `${MON[mo]} ${curY}${win ? ` — it ran ${esc(win[0])} to ${esc(win[1])}` : ""}.</div>`;
 
       const cover = document.createElement("div"); cover.className = "mrx-cover";
       // UX audit 2026-07-14: the Month/Year picker is the page's PRIMARY control — promoted
@@ -2441,7 +2452,7 @@ async function renderMonthly(host, MRCFG) {
       });
       // ---- register 1: CLAIMS filed this month (by claim date) + the refund tied to each ----
       const clReg = (reduceMonth("claims", curY, mo, rs => rs.filter(jkCo)) || []).slice().sort((a, b) => String(b["Created Date"]).localeCompare(String(a["Created Date"])));
-      if (clReg.length) paginatedTable(g, "Claims filed this month", `${monLbl} · by claim date · ${fmtN(clReg.length)} claim${clReg.length === 1 ? "" : "s"} · ${esc(CO)} (attributed by Request # prefix)`,
+      if (clReg.length) paginatedTable(g, "Claims filed this month", `${monLbl} · by claim date · ${fmtN(clReg.length)} claim${clReg.length === 1 ? "" : "s"} · ${esc(CO)} (matched to that book\u2019s own jobs)`,
         [{ label: "Date" }, { label: "Customer" }, { label: "Request #" }, { label: "Reason" }, { label: "Responsibility" }, { label: "Status" }, { label: "Refund", align: "right" }, { label: "Reduced", align: "right" }],
         clReg,
         r => { const rf = refByJk[String(r["Request Joinkey"] || "")]; return `<tr><td>${esc(String(r["Created Date"] || "").slice(0, 10))}</td><td>${esc(r.Customer || "—")}</td>${td(esc(r["Request No"] || "—"))}${td(esc(r.Reason || "—"))}${td(esc(dispResp(r.Responsibility || "—")))}${td(esc(r.Status || "—"))}${td(rf && rf.refund ? money(rf.refund) : "—", "text-align:right;font-weight:" + (rf && rf.refund ? "800" : "400"))}${td(rf && rf.reduced ? money(rf.reduced) : "—", "text-align:right")}</tr>`; },
