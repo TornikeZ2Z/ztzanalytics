@@ -1225,13 +1225,32 @@ async function renderMonthly(host, MRCFG) {
         <div class="mrx-lite-ctl">Month: <select id="mrMonth">${monthOptions}</select> Year: <select id="mrYear">${yearOptions}</select></div>`;
       root.appendChild(hdr);
     } else {
-      // The companies the data actually has -- never a hardcoded pair. fct_closing.Company is
-      // the raw closing-sheet value, so a third one can appear without anyone telling us.
-      const coVals = [...new Set([...(closing || []), ...(moveboard || [])]
-        .map(r => r.Company).filter(v => v != null && String(v).trim() !== ""))].map(String).sort();
+      // TWO BOOKS, not four values. fct_closing.Company is the raw closing-sheet folder name
+      // and carries branches as well as businesses -- "Boston" (103 closings) and
+      // "Virginia MD" (5) sit alongside "Zip to Zip" and "Tuji". The pipeline already rules
+      // on this: curated.py's Request Joinkey maps Boston, and everything that is not Tuji,
+      // to 'Zip to Zip'. Offering a branch as a company would produce a five-row report whose
+      // claims section finds nothing at all, because claims are attributed by that joinkey.
+      // So the picker offers the two real books and nothing else.
+      const bookOf = v => String(v) === "Tuji" ? "Tuji" : "Zip to Zip";
+      const rawCos = [...new Set([...(closing || []), ...(moveboard || [])]
+        .map(r => r.Company).filter(v => v != null && String(v).trim() !== ""))].map(String);
+      const coVals = [...new Set(rawCos.map(bookOf))].sort();
       if (coVals.indexOf(CO) < 0) coVals.push(CO);
       const coOptions = coVals.map(v =>
         `<option value="${esc(v)}"${v === CO ? " selected" : ""}>${esc(v)}</option>`).join("");
+
+      // ...and say so, rather than letting rows go quietly missing. Company matching stays an
+      // EXACT match, which is what it has always been, so no number on this page moves --
+      // but that means a Boston row is in neither book's totals. Naming them is the honest
+      // state until Tornike rules on whether Boston belongs inside Zip to Zip.
+      const orphanCos = rawCos.filter(v => v !== "Zip to Zip" && v !== "Tuji");
+      const orphanN = (closing || []).filter(r => orphanCos.indexOf(String(r.Company)) >= 0
+        && String(r.Date || "").slice(0, 7) === `${curY}-${String(mo).padStart(2, "0")}`).length;
+      const orphanNote = orphanN
+        ? `<div class="mrx-cvsub" style="opacity:.75">${orphanN} closing${orphanN === 1 ? "" : "s"} this month `
+          + `booked under ${esc(orphanCos.join(" / "))} — counted in neither book.</div>`
+        : "";
 
       const cover = document.createElement("div"); cover.className = "mrx-cover";
       // UX audit 2026-07-14: the Month/Year picker is the page's PRIMARY control — promoted
@@ -1249,7 +1268,7 @@ async function renderMonthly(host, MRCFG) {
           <select id="mrYear" class="mrx-ctl">${yearOptions}</select>
           <select id="mrCo" class="mrx-ctl" title="Which company this report covers">${coOptions}</select>
         </div>
-        <div class="mrx-cvsub">${esc(freshness)} · ${esc(CO)} only</div>`;
+        <div class="mrx-cvsub">${esc(freshness)} · ${esc(CO)} only</div>${orphanNote}`;
       root.appendChild(cover);
     }
 
