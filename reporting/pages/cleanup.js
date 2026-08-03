@@ -23,7 +23,8 @@
         table: "fct_cleanup_option",
         cols: ["Day", "Rank", "Kind", "Job Code", "Customer", "CF", "After Code",
                "After Customer", "Move To", "Target Spare", "Link Miles", "Link Minutes",
-               "Cost", "Discount", "Recommended", "Purpose", "Lands Behind", "Status"],
+               "Cost", "Discount", "Recommended", "Purpose", "Lands Behind", "Status",
+               "Arrive", "Arrives Late", "Anchor Route"],
       };
     }
     if (!RS.DATASETS.fct_cleanup_job) {
