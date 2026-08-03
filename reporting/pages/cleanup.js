@@ -404,7 +404,9 @@ registerPage({
           + "builds this on its next run.</div>";
         return;
       }
-      var shown = S.probOnly
+      // NOT `shown` -- the day detail below declares its own `shown` for the job slice, and
+      // one hoisted `var` for both would have the day nav walking a list of jobs
+      var dayList = S.probOnly
         ? days.filter(function (d) { return d.Status !== "ok" || +d["Near Full"]; })
         : days;
       if (!S.sel || !days.some(function (d) { return String(d.Day).slice(0, 10) === S.sel; })) {
@@ -433,7 +435,7 @@ registerPage({
         + "<span>Crews freed by chaining</span><small>jobs sharing a crew</small></div>"
         + "</div>";
 
-      var strip = "<div class='cu-strip'>" + shown.map(function (d) {
+      var strip = "<div class='cu-strip'>" + dayList.map(function (d) {
         var iso = String(d.Day).slice(0, 10);
         var av = +d["Crews Available"] || 0, rt = +d.Routes || 0;
         var pct = av ? Math.min(100, Math.round(rt / av * 100)) : 0;
@@ -579,7 +581,7 @@ registerPage({
       }
 
       // day navigation: the strip is for scanning the horizon, these are for walking it
-      var order = shown.map(function (x) { return String(x.Day).slice(0, 10); });
+      var order = dayList.map(function (x) { return String(x.Day).slice(0, 10); });
       var at = order.indexOf(S.sel);
       var tomorrow = new Date(TODAY + "T12:00");
       tomorrow.setDate(tomorrow.getDate() + 1);
