@@ -945,20 +945,22 @@ registerPage({
       body.innerHTML = kpis + toggle + strip + detail;
 
       Array.prototype.forEach.call(body.querySelectorAll("[data-day]"), function (b) {
-        b.onclick = function () { S.sel = b.getAttribute("data-day"); paint(); };
+        b.onclick = function () {
+          S.sel = b.getAttribute("data-day");
+          S.focus = S.openRun = null; S.mapOn = false; paint(); };
       });
       var pb = document.getElementById("cuProb");
       if (pb) pb.onclick = function () { S.probOnly = !S.probOnly; paint(); };
       var pv = document.getElementById("cuPrev"), nx = document.getElementById("cuNext");
       if (pv) pv.onclick = function () {
-        if (at > 0) { S.sel = order[at - 1]; S.focus = S.openRun = null; paint(); } };
+        if (at > 0) { S.sel = order[at - 1]; S.focus = S.openRun = null; S.mapOn = false; paint(); } };
       if (nx) nx.onclick = function () {
         if (at >= 0 && at < order.length - 1) {
-          S.sel = order[at + 1]; S.focus = S.openRun = null; paint();
+          S.sel = order[at + 1]; S.focus = S.openRun = null; S.mapOn = false; paint();
         } };
       Array.prototype.forEach.call(body.querySelectorAll("[data-jump]"), function (b) {
         b.onclick = function () {
-          S.sel = b.getAttribute("data-jump"); S.focus = S.openRun = null;
+          S.sel = b.getAttribute("data-jump"); S.focus = S.openRun = null; S.mapOn = false;
           // jumping to a day the "needs attention" view has hidden would land on nothing
           if (order.indexOf(S.sel) < 0) S.probOnly = false;
           paint();
@@ -970,19 +972,23 @@ registerPage({
       });
       Array.prototype.forEach.call(body.querySelectorAll("[data-base]"), function (b) {
         b.onclick = function () {
-          S.baseF = b.getAttribute("data-base") || null; S.focus = S.openRun = null; paint(); };
+          S.baseF = b.getAttribute("data-base") || null;
+          S.focus = S.openRun = null; S.mapOn = false; paint(); };
       });
       Array.prototype.forEach.call(body.querySelectorAll("[data-co]"), function (b) {
         b.onclick = function () {
-          S.coF = b.getAttribute("data-co") || null; S.focus = S.openRun = null; paint(); };
+          S.coF = b.getAttribute("data-co") || null;
+          S.focus = S.openRun = null; S.mapOn = false; paint(); };
       });
       Array.prototype.forEach.call(body.querySelectorAll("[data-run]"), function (b) {
         var open = function () {
           var r = b.getAttribute("data-run");
           var same = S.openRun === r;
           S.openRun = same ? null : r;
-          // the map, if it is already open, follows the run you are reading
           S.focus = S.openRun;
+          // the map does not follow you around: geometry is metered, so a new run means a
+          // new deliberate "analyze", never a silent fetch for wherever you clicked
+          S.mapOn = false;
           paint();
         };
         b.onclick = open;
@@ -998,7 +1004,8 @@ registerPage({
         };
       });
       var dx = document.getElementById("cuDrwX");
-      if (dx) dx.onclick = function () { S.openRun = null; S.focus = null; paint(); };
+      if (dx) dx.onclick = function () {
+        S.openRun = null; S.focus = null; S.mapOn = false; paint(); };
       var dm = document.getElementById("cuDrwMap");
       if (dm) dm.onclick = function () {
         S.mapOn = true; paint();
@@ -1011,7 +1018,9 @@ registerPage({
       if (!window.__CUESC) {
         window.__CUESC = true;
         document.addEventListener("keydown", function (e) {
-          if (e.key === "Escape" && S.openRun) { S.openRun = null; S.focus = null; paint(); }
+          if (e.key === "Escape" && S.openRun) {
+            S.openRun = null; S.focus = null; S.mapOn = false; paint();
+          }
         });
       }
       var mt = document.getElementById("cuMapT");
