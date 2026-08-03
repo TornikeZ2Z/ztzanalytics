@@ -161,7 +161,6 @@ registerPage({
     .ldp-rmet b{display:block;font-size:13px;font-weight:700;margin-top:2px;font-variant-numeric:tabular-nums}
     .ldp-rmet b.bad{color:${NEG}}
     /* the journey: base -> stops -> base, joined by a rail */
-    .ldp-rjour{padding:11px 15px 6px}
     .ldp-rstop{display:flex;gap:11px;padding:0 0 11px;position:relative;font-size:13px}
     .ldp-rstop:last-child{padding-bottom:2px}
     .ldp-rstop::before{content:"";position:absolute;left:9px;top:19px;bottom:-1px;width:2px;
@@ -203,6 +202,16 @@ registerPage({
       background:#25D366;border-radius:10px;padding:8px 14px}
     .ldp-bhwa:hover{filter:brightness(.95)}
     .ldp-jmapbtn{margin:11px 0 0 8px;font-size:12px}
+    .ldp-jmapbtn.pri{background:var(--brand);color:var(--brand-ink);border-color:transparent}
+    /* the route's shape in one line: base, the states it touches, base again */
+    .ldp-rpath{display:flex;gap:5px;align-items:center;flex-wrap:wrap;padding:0 15px 12px}
+    .ldp-rpath .hop{font-size:11px;font-weight:750;letter-spacing:.02em;color:var(--faint);
+      background:var(--panel-2);border-radius:999px;padding:3px 9px;position:relative}
+    .ldp-rpath .hop+.hop::before{content:"";position:absolute;left:-5px;top:50%;width:5px;
+      height:1px;background:var(--line)}
+    .ldp-rpath .hop.base{color:var(--ink);font-weight:800}
+    .ldp-rpath .due{margin-left:auto;font-size:11px;font-weight:750;color:var(--faint)}
+    .ldp-rpath .due.soon{color:var(--warn,#b26b0b)}
     .ldp-btbl{width:100%;border-collapse:collapse;font-size:12.5px}
     .ldp-btbl th{text-align:left;font-size:9.5px;font-weight:800;text-transform:uppercase;
       letter-spacing:.07em;color:var(--faint);padding:0 8px 5px 0}
@@ -1412,29 +1421,21 @@ registerPage({
             return Math.round((t - Date.now()) / 86400000);
           };
           var baseZip = String(h["Base Zip"] || LD_BASE_ZIP || "").trim();
-          var baseRow = function (label) {
-            return '<div class="ldp-rstop base"><span class="rn">\u25c6</span>'
-              + '<div class="ldp-rsbody"><div>' + esc(label)
-              + (baseZip ? " \u00b7 " + esc(baseZip) : "") + "</div></div></div>";
-          };
-          var stops = st.map(function (x, i) {
-            var dn = daysTo(x["Window End"]);
-            var conv = !!+x["Converts"];
-            var cls = conv ? "conv" : ((dn !== null && dn <= 7) ? "soon" : "");
-            var when = (conv ? "by " : "") + fmtD(x["Window End"])
-              + (dn !== null && dn >= 0 && dn <= 14 ? " \u00b7 " + dn + "d" : "");
-            return '<div class="ldp-rstop"><span class="rn">' + (i + 1) + "</span>"
-              + '<div class="ldp-rsbody">'
-              + '<div class="ldp-rsname">' + esc(x["Customer"] || x["Job Code"]) + "</div>"
-              + '<div class="ldp-rsmeta">'
-              + "<span>" + esc((x["Dest State"] || "") + " " + (x["Dest Zip"] || "")) + "</span>"
-              + '<span class="cf">' + Math.round(x["CF"]).toLocaleString() + " cf</span>"
-              + '<span class="ldp-rsdate ' + cls + '" title="'
-              + (conv ? "Regular converted to Straight \u2014 deliver inside the window"
-                      : "Straight \u2014 fixed delivery date") + '">' + esc(when) + "</span>"
-              + (conv ? '<span class="ldp-rsdate conv">Regular \u2192 Straight</span>' : "")
-              + "</div></div></div>";
-          }).join("");
+          // The card says WHERE the route goes and WHEN the first stop is due. The stop list
+          // -- who, how much, which window -- lives behind "Visualize route", so a screen of
+          // candidates reads as a set of routes rather than a wall of jobs.
+          var soonest = st.map(function (x) { return daysTo(x["Window End"]); })
+            .filter(function (n) { return n !== null; }).sort(function (a, b) { return a - b; })[0];
+          var pathHtml = '<div class="ldp-rpath">'
+            + '<span class="hop base">\u25c6 ' + esc(baseZip || "base") + "</span>"
+            + st.map(function (x) {
+                return '<span class="hop">' + esc(x["Dest State"] || x["Dest Zip"] || "?") + "</span>";
+              }).join("")
+            + '<span class="hop base">\u25c6</span>'
+            + (soonest !== undefined
+                ? '<span class="due' + (soonest <= 7 ? " soon" : "") + '">first due '
+                  + (soonest < 0 ? "overdue" : "in " + soonest + "d") + "</span>" : "")
+            + "</div>";
           // truck fill: the single number that says whether this route is worth running
           var tcf = +h["Truck CF"] || 0, rcf = +h["Route CF"] || 0;
           var pct = tcf ? Math.min(100, Math.round(rcf / tcf * 100)) : 0;
@@ -1466,8 +1467,7 @@ registerPage({
             + (+h["Feasible"] ? "" : '<span class="ldp-rt over">SCHEDULE TIGHT</span>')
             + "</div>" + capHtml + "</div>"
             + metHtml
-            + '<div class="ldp-rjour">' + baseRow("Leaves base") + stops
-            + baseRow("Returns to base") + "</div>"
+            + pathHtml
             + (+h["Feasible"] ? "" : '<div class="ldp-dissue" style="margin:0 15px 10px">\u26a0 '
                 + esc(h["Feasible Note"] || "schedule tight \u2014 check the dates") + "</div>")
             + '<div class="ldp-ract">'
@@ -1476,11 +1476,14 @@ registerPage({
             + esc(codesArr.join(",")) + '" data-zips="'
             + esc(st.map(function (x) { return String(x["Dest Zip"] || "").trim(); }).join(",")) + '" data-truck="' + esc(h["Truck"] || "") + '" data-miles="' + esc(String(h["Miles"] || "")) + '">Accept route</button>')
             + (function () {
+                // always offered -- it is now the only way into the stops, so a route with
+                // unmappable zips still opens the panel (the map says so, the list is there)
                 var zs = st.map(function (x) { return String(x["Dest Zip"] || "").trim(); })
                   .filter(function (z) { return /^\d{5}$/.test(z); });
-                if (!zs.length) return "";
-                return '<button class="ldp-bhbtn ldp-jmapbtn" data-mapfor="' + esc(k) + '" data-legzips="'
-                  + [baseZip || LD_BASE_ZIP].concat(zs).concat([baseZip || LD_BASE_ZIP]).join(",") + '">Visualize route</button>';
+                var legzips = zs.length
+                  ? [baseZip || LD_BASE_ZIP].concat(zs).concat([baseZip || LD_BASE_ZIP]).join(",") : "";
+                return '<button class="ldp-bhbtn ldp-jmapbtn pri" data-mapfor="' + esc(k)
+                  + '" data-legzips="' + legzips + '">Visualize route</button>';
               })()
             + "</div></div>";
         }).join("") + "</div>"

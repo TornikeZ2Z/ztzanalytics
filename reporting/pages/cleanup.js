@@ -30,7 +30,7 @@
         table: "fct_cleanup_job",
         cols: ["Day", "Job Code", "Customer", "Start", "Hours", "CF", "Crew", "Moving Type",
                "Job Type", "Pickup Zip", "Pickup City", "Pickup State", "Delivery Zip",
-               "Delivery City", "Delivery State", "Foreman Email", "Route", "Route Legs",
+               "Delivery City", "Delivery State", "Foreman Email", "Foreman", "Route", "Route Legs",
                "Chained After", "Base", "Company"],
       };
     }
@@ -114,6 +114,9 @@ registerPage({
       + ".cu-btn:hover{border-color:var(--blue)} .cu-btn:disabled{opacity:.5;cursor:default}"
       + ".cu-btn.pri{background:var(--brand);color:var(--brand-ink);border:0}"
       + ".cu-msg{font-size:12.5px;font-weight:650;min-height:17px;margin-top:8px}"
+      /* DAY NAV */
+      + ".cu-nav{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:10px}"
+      + ".cu-nav .cu-btn{padding:5px 11px}"
       /* FILTERS */
       + ".cu-fil{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:12px}"
       + ".cu-fil .lab{font-size:9.5px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;"
@@ -229,8 +232,10 @@ registerPage({
           + rs.map(function (r) {
               var cf = r.legs.reduce(function (a, j) { return a + (+j.CF || 0); }, 0);
               var first = r.legs[0];
+              var who = first.Foreman || "";
               return "<div class='cu-row'>"
-                + "<div class='cu-rlab'><b>" + esc(r.id) + " · " + money(cf) + " CF</b>"
+                + "<div class='cu-rlab'><b>" + esc(r.id) + (who ? " " + esc(who) : "")
+                + " · " + money(cf) + " CF</b>"
                 + "<span>" + esc((first["Pickup City"] || "") + " → "
                     + (r.legs[r.legs.length - 1]["Delivery City"] || "")) + "</span></div>"
                 + "<div class='cu-track'>"
@@ -333,7 +338,11 @@ registerPage({
           }
           (box._lay || []).forEach(function (l) { try { m.removeLayer(l); } catch (e) {} });
           box._lay = [];
-          var bounds = [];
+          // The frame follows the LOCAL work. One job to Florida would otherwise zoom the
+          // whole day out to the eastern seaboard and turn the crews' actual morning into a
+          // smudge, so long runs are drawn in full but do not get a vote on the bounds --
+          // click their bar to follow one out.
+          var bounds = [], far = 0;
           got.forEach(function (g, i) {
             var c = g.coords || [];
             if (c.length < 2) return;
@@ -347,14 +356,22 @@ registerPage({
             pl.bindTooltip((meta.label || "") + (g.miles ? " · " + g.miles + " mi" : "")
                            + (empty ? " (empty)" : ""), { sticky: true });
             box._lay.push(pl);
-            c.forEach(function (p) { bounds.push(p); });
+            if (meta.kind === "long" || meta.kind === "straight") far++;
+            else c.forEach(function (p) { bounds.push(p); });
             if (!empty) {
               var mk = L.circleMarker(c[0], { radius: 4, color: col, fillColor: "#fff",
                                               fillOpacity: 1, weight: 2 }).addTo(m);
               box._lay.push(mk);
             }
           });
+          if (!bounds.length) {   // a day of nothing but long runs still has to show them
+            got.forEach(function (g) { (g.coords || []).forEach(function (p) { bounds.push(p); }); });
+          }
           if (bounds.length) m.fitBounds(bounds, { padding: [24, 24] });
+          var fn = document.getElementById("cuFar");
+          if (fn) fn.textContent = far
+            ? (far + " long-distance " + (far === 1 ? "run runs" : "runs run")
+               + " off the frame — click the bar to follow one.") : "";
           // Leaflet measures the container at creation; it was hidden until now
           setTimeout(function () { try { m.invalidateSize(); } catch (e) {} }, 60);
         });
@@ -498,6 +515,10 @@ registerPage({
                   + (done
                      ? "<span class='cu-pill " + (o.Status === "accepted" ? "ok" : "short") + "'>"
                        + esc(o.Status) + "</span>"
+                       + "<button class='cu-btn' data-dec='reopened' data-kind='" + esc(o.Kind)
+                       + "' data-code='" + esc(o["Job Code"]) + "' data-cust='" + esc(o.Customer || "")
+                       + "' data-after='" + esc(o["After Code"] || "") + "' data-to='"
+                       + esc(o["Move To"] || "") + "'" + (S.busy ? " disabled" : "") + ">Reopen</button>"
                      : "<button class='cu-btn pri' data-dec='accepted' data-kind='" + esc(o.Kind)
                        + "' data-code='" + esc(o["Job Code"]) + "' data-cust='" + esc(o.Customer || "")
                        + "' data-after='" + esc(o["After Code"] || "") + "' data-to='"
@@ -524,6 +545,11 @@ registerPage({
           + "<div class='cu-verdict'>" + verdict + "</div>"
           + (d["Crews Off"] ? "<div class='cu-off'><b>Off today:</b> " + esc(d["Crews Off"]) + "</div>" : "")
           + filters(jobs)
+          + "<div class='cu-mleg' style='margin:0 0 6px'>"
+          + "<span><i style='background:#1c7a4a'></i>local</span>"
+          + "<span><i style='background:#b26b0b'></i>long distance</span>"
+          + "<span><i style='background:#7c5ce0'></i>straight</span>"
+          + "<span><i style='background:#78808d'></i>labor only</span></div>"
           + (shown.length ? timeline(shown)
             : "<div class='cu-empty'>No jobs match this filter.</div>")
           + "<div class='cu-note'>Each row is <b>one crew's day</b>, grouped by the depot it "
@@ -540,12 +566,28 @@ registerPage({
               + "<span><i style='background:#1c7a4a'></i>loaded — pickup to delivery</span>"
               + "<span><i style='background:#7c5ce0'></i>empty — the drive between two chained jobs</span>"
               + "<span><i style='background:#b26b0b'></i>long distance</span>"
-              + "<span>◆ depot</span></div></div>" : "");
+              + "<span id='cuFar'></span></div></div>" : "");
       }
 
-      var toggle = "<div class='cu-hd' style='margin-bottom:10px'>"
+      // day navigation: the strip is for scanning the horizon, these are for walking it
+      var order = shown.map(function (x) { return String(x.Day).slice(0, 10); });
+      var at = order.indexOf(S.sel);
+      var tomorrow = new Date(TODAY + "T12:00");
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      var TOM = tomorrow.toISOString().slice(0, 10);
+      var has = function (iso) {
+        return days.some(function (x) { return String(x.Day).slice(0, 10) === iso; }); };
+
+      var toggle = "<div class='cu-nav'>"
+        + "<button class='cu-btn' id='cuPrev'" + (at <= 0 ? " disabled" : "") + ">‹</button>"
+        + "<button class='cu-btn' id='cuNext'"
+        + (at < 0 || at >= order.length - 1 ? " disabled" : "") + ">›</button>"
+        + "<button class='cu-btn" + (S.sel === TODAY ? " pri" : "") + "' data-jump='" + TODAY + "'"
+        + (has(TODAY) ? "" : " disabled") + ">Today</button>"
+        + "<button class='cu-btn" + (S.sel === TOM ? " pri" : "") + "' data-jump='" + TOM + "'"
+        + (has(TOM) ? "" : " disabled") + ">Tomorrow</button>"
         + "<button class='cu-pill" + (S.probOnly ? " tight" : "") + "' id='cuProb' "
-        + "style='cursor:pointer;border:0;font:inherit;font-size:10px;font-weight:800'>"
+        + "style='cursor:pointer;border:0;font:inherit;font-size:10px;font-weight:800;margin-left:auto'>"
         + (S.probOnly ? "Showing days that need attention" : "Show only days that need attention")
         + "</button></div>";
 
@@ -556,6 +598,19 @@ registerPage({
       });
       var pb = document.getElementById("cuProb");
       if (pb) pb.onclick = function () { S.probOnly = !S.probOnly; paint(); };
+      var pv = document.getElementById("cuPrev"), nx = document.getElementById("cuNext");
+      if (pv) pv.onclick = function () {
+        if (at > 0) { S.sel = order[at - 1]; S.focus = null; paint(); } };
+      if (nx) nx.onclick = function () {
+        if (at >= 0 && at < order.length - 1) { S.sel = order[at + 1]; S.focus = null; paint(); } };
+      Array.prototype.forEach.call(body.querySelectorAll("[data-jump]"), function (b) {
+        b.onclick = function () {
+          S.sel = b.getAttribute("data-jump"); S.focus = null;
+          // jumping to a day the "needs attention" view has hidden would land on nothing
+          if (order.indexOf(S.sel) < 0) S.probOnly = false;
+          paint();
+        };
+      });
 
       Array.prototype.forEach.call(body.querySelectorAll("[data-dec]"), function (b) {
         b.onclick = function () { decide(b); };
@@ -607,11 +662,18 @@ registerPage({
       }).then(function (r) { return r.json().then(function (j) {
           if (!r.ok || j.error) throw new Error(j.error || ("HTTP " + r.status));
           // reflect it now; the mart re-reads decisions on its next build
+          var shows = action === "reopened" ? "open" : action;
           (S.opts || []).forEach(function (o) {
-            if (o["Job Code"] === code && String(o.Day).slice(0, 10) === S.sel) o.Status = action;
+            if (o["Job Code"] === code && String(o.Day).slice(0, 10) === S.sel) o.Status = shows;
             if (action === "declined" && cust && o.Customer === cust) o.Status = "declined";
+            // reopening lifts the customer-wide block the decline had cast
+            if (action === "reopened" && cust && o.Customer === cust && o.Status === "declined")
+              o.Status = "open";
           });
-          S.busy = ""; S.msg = "Recorded — " + action + " for " + (cust || code) + ".";
+          S.busy = "";
+          S.msg = action === "reopened"
+            ? "Reopened — " + (cust || code) + " is back on the list."
+            : "Recorded — " + action + " for " + (cust || code) + ".";
           paint();
         }); })
         .catch(function (e) {
