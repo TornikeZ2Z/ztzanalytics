@@ -14,7 +14,7 @@
         table: "fct_cleanup_day",
         cols: ["Day", "Weekday", "Jobs", "Routes", "Routes Before Chaining", "Crews Available",
                "Target", "Spare", "Status", "Near Full", "Chains Applied", "Crews Off",
-               "Chained Jobs"],
+               "Chained Jobs", "Skipped", "Skipped Why"],
       };
     }
     if (!RS.DATASETS.fct_cleanup_option) {
@@ -541,8 +541,14 @@ registerPage({
               { weekday: "long", month: "long", day: "numeric" }) + "</b>"
           + "<span class='cu-pill " + esc(d.Status) + "'>" + esc(d.Status) + "</span>"
           + "<span class='cu-pill'>" + d.Jobs + " jobs</span>"
-          + "<span class='cu-pill'>" + rt + " crews needed</span></div>"
+          + "<span class='cu-pill'>" + rt + " crews needed</span>"
+          + (+d.Skipped ? "<span class='cu-pill tight' title='" + esc(d["Skipped Why"] || "")
+              + "'>" + d.Skipped + " event" + (+d.Skipped === 1 ? "" : "s")
+              + " skipped</span>" : "")
+          + "</div>"
           + "<div class='cu-verdict'>" + verdict + "</div>"
+          + (+d.Skipped ? "<div class='cu-off'><b>Not counted:</b> "
+              + esc(d["Skipped Why"] || "") + "</div>" : "")
           + (d["Crews Off"] ? "<div class='cu-off'><b>Off today:</b> " + esc(d["Crews Off"]) + "</div>" : "")
           + filters(jobs)
           + "<div class='cu-mleg' style='margin:0 0 6px'>"
@@ -559,14 +565,17 @@ registerPage({
           + "</div>"
           + (shown.length ? "<div class='cu-card'><div class='cu-hd'><b>Where the day goes</b>"
               + "<span class='cu-pill'>" + (S.focus ? "one run" : "every run") + "</span>"
-              + (S.focus ? "<button class='cu-btn' id='cuAll' style='margin-left:auto'>"
-                  + "Show every run</button>" : "") + "</div>"
-              + "<div class='cu-map' id='cuMap'></div>"
-              + "<div class='cu-mleg'>"
+              + (S.focus && S.mapOn ? "<button class='cu-btn' id='cuAll' style='margin-left:auto'>"
+                  + "Show every run</button>" : "")
+              + "<button class='cu-btn' id='cuMapT' style='margin-left:"
+              + (S.focus && S.mapOn ? "6px" : "auto") + "'>"
+              + (S.mapOn ? "Hide map" : "Show map") + "</button></div>"
+              + (S.mapOn ? "<div class='cu-map' id='cuMap'></div>" : "")
+              + (S.mapOn ? "<div class='cu-mleg'>"
               + "<span><i style='background:#1c7a4a'></i>loaded — pickup to delivery</span>"
               + "<span><i style='background:#7c5ce0'></i>empty — the drive between two chained jobs</span>"
               + "<span><i style='background:#b26b0b'></i>long distance</span>"
-              + "<span id='cuFar'></span></div></div>" : "");
+              + "<span id='cuFar'></span></div>" : "") + "</div>" : "");
       }
 
       // day navigation: the strip is for scanning the horizon, these are for walking it
@@ -630,6 +639,8 @@ registerPage({
       });
       var ab = document.getElementById("cuAll");
       if (ab) ab.onclick = function () { S.focus = null; paint(); };
+      var mt = document.getElementById("cuMapT");
+      if (mt) mt.onclick = function () { S.mapOn = !S.mapOn; paint(); };
 
       // the map is drawn after the DOM exists, and only for what is actually shown
       if (document.getElementById("cuMap")) {
