@@ -200,6 +200,9 @@ registerPage({
       + "font-size:11px;font-weight:700;color:var(--faint)}"
       + ".cu-step .go span,.cu-step .wait span{color:var(--faint)}"
       + ".cu-step .wait span{font-weight:650}"
+      + ".cu-vit .bad b{color:var(--neg,#b02a37)}"
+      + ".cu-warn{font-size:11.5px;line-height:1.55;color:var(--ink);background:rgba(178,107,11,.1);"
+      + "border-left:3px solid #b26b0b;border-radius:0 8px 8px 0;padding:8px 10px;margin-top:11px}"
       + ".cu-dfoot{font-size:11px;color:var(--faint);line-height:1.55;margin-top:8px;"
       + "padding-top:9px;border-top:1px solid var(--line-2)}"
       + ".cu-dbtn{width:100%;margin-top:11px;padding:9px}"
@@ -273,7 +276,10 @@ registerPage({
     function clock(h) {
       var hh = Math.floor(h), mm = Math.round((h - hh) * 60);
       if (mm === 60) { hh += 1; mm = 0; }
-      return (hh < 10 ? "0" : "") + hh + ":" + (mm < 10 ? "0" : "") + mm;
+      // a run that spills past midnight says so rather than printing 32:24
+      var nd = hh >= 24 ? " +1" : "";
+      hh = hh % 24;
+      return (hh < 10 ? "0" : "") + hh + ":" + (mm < 10 ? "0" : "") + mm + nd;
     }
     function barClass(j) {
       var mt = String(j["Moving Type"] || "").toLowerCase();
@@ -425,6 +431,7 @@ registerPage({
       // the run, step by step. The clock is max(arrive, booked) -- a crew that gets there
       // early waits, work never starts before the customer's time.
       var rows = [], totMin = 0, totMi = 0, empMin = 0, empMi = 0, cur = null;
+      var retime = false;
       function travel(from, to, label, empty) {
         var d = drive(from, to);
         if (!d) return;
@@ -454,6 +461,11 @@ registerPage({
             rows.push({ cls: "wait", t: clock(cur),
                         txt: "Waits " + fmtMin(Math.round((booked - cur) * 60))
                              + " — booked for " + clock(booked) });
+          } else if (cur != null && booked <= cur) {
+            retime = true;
+            rows.push({ cls: "wait", t: clock(booked),
+                        txt: "Booked " + clock(booked) + " as well — this job has to be "
+                             + "re-timed to run after job " + i });
           }
         }
         cur = Math.max(cur == null ? booked : cur, booked);
@@ -492,6 +504,22 @@ registerPage({
       function cell(v, l) { return "<div><b>" + v + "</b><span>" + l + "</span></div>"; }
       var endH = hrOf(last.Start) + (+last.Hours || 2);
       var home = rows.filter(function (x) { return x.cls === "home"; })[0];
+      var HOME_BY = 22;                        // the engine's own limit, CLEAN.maxHomeHr
+      var overrun = cur != null && cur > HOME_BY;
+      var warn = "";
+      if (retime || overrun) {
+        warn = "<div class='cu-warn'>"
+          + (retime
+             ? "<b>Both jobs are booked at the same hour.</b> The board has put them on one "
+               + "crew, which only works if the second customer accepts a later arrival — that "
+               + "is the call in the plan above. "
+             : "")
+          + (overrun
+             ? "Run as sequenced, this crew is not home until <b>" + clock(cur)
+               + "</b>, past the " + HOME_BY + ":00 limit."
+             : "")
+          + "</div>";
+      }
 
       return "<aside class='cu-drw' id='cuDrw'>"
         + "<div class='cu-dhd'><div><b>" + esc(r.id)
@@ -504,13 +532,16 @@ registerPage({
         + cell(money(cf) + " CF", "volume")
         + cell(String(legs.length), legs.length === 1 ? "job" : "jobs")
         + (act ? cell(fmtMin(Math.round(act * 60)), "work") : "")
-        + (home ? cell("~" + home.t, "back at base") : (isLD ? cell("—", "stays out") : ""))
+        + (home ? "<div" + (overrun ? " class='bad'" : "") + "><b>~" + home.t
+            + "</b><span>back at base</span></div>"
+           : (isLD ? cell("—", "stays out") : ""))
         + (empMin ? cell(fmtMin(empMin) + " · " + Math.round(empMi) + " mi", "empty driving") : "")
         + "</div>"
         + "<div class='cu-who'>" + legs.map(function (j) {
             return esc(j.Customer || j["Job Code"]); }).join(" + ")
         + "<em>" + legs.map(function (j) { return esc(j["Job Code"] || ""); }).join(" · ")
         + "</em></div>"
+        + warn
         + "<div class='cu-step'>" + rows.map(function (x) {
             return "<div class='" + x.cls + "'><i>" + x.t + "</i><span>" + x.txt + "</span></div>";
           }).join("") + "</div>"
