@@ -24,7 +24,7 @@
     RS.DATASETS.fct_packing_job = {
       table: "fct_packing_job",
       cols: ["Job Code", "Day", "Customer", "Foreman", "Foreman Email", "Company",
-             "Job Type", "Moving Type",
+             "Job Type", "Moving Type", "Foreman Typed",
              "Sold USD", "Quoted USD", "Real CF", "Sold CF", "Total Charge",
              "Boxes Sold", "Tape Sold", "Wrap Sold", "Covers Sold", "Item Lines",
              "Calendar CF", "Inv Boxes", "Inv Furniture", "Inv Wrappable", "Inv Mattresses",
@@ -161,6 +161,7 @@ registerPage({
           if (!f || f <= 0 || v == null) return 0;
           return Math.max(0, Math.min(1, (f - v) / f)) * w;
         }
+        var scored = n >= DIAL.minJobs;
         var zeroRate = n ? rs.filter(function (r) { return r["Zero Pack"]; }).length / n : 0;
         var score = 0;
         MEASURES.forEach(function (m) { score += short(m.k, m.w); });
@@ -181,11 +182,10 @@ registerPage({
         var conf = !tested ? "THIN"
           : (below >= 2 || (bestP != null && bestP < 0.005)) ? "STRONG"
           : below === 1 ? "WEAK" : "NORMAL";
-        var scored = n >= DIAL.minJobs;
 
         // rough size of what may be going unrecorded: the per-unit gap, over the units handled
         var opp = 0;
-        if (fleet["USD per Unit"] && med["USD per Unit"] != null) {
+        if (scored && fleet["USD per Unit"] && med["USD per Unit"] != null) {
           var gap = fleet["USD per Unit"] - med["USD per Unit"];
           if (gap > 0) rs.forEach(function (r) { opp += gap * (r["Packing Units"] || 0); });
         }
@@ -608,7 +608,14 @@ registerPage({
       S.open = p.name;
       var v = VERDICT[p.verdict];
 
+      var typed = {};
+      p.all.forEach(function (r) { if (r["Foreman Typed"]) typed[r["Foreman Typed"]] = 1; });
+      typed = Object.keys(typed);
+
       var h = '<div class="pk-dh"><div><h3>' + esc(p.name) + "</h3>"
+        + (typed.length ? '<p style="color:var(--muted)">also typed on the sheet as '
+            + typed.map(function (t) { return "“" + esc(t) + "”"; }).join(", ")
+            + " — counted as one man</p>" : "")
         + "<p>" + p.n + " comparable job" + (p.n === 1 ? "" : "s")
         + (p.selfPacked ? " · " + p.selfPacked + " excluded (customer packed their own)" : "")
         + " · " + usd(p.sold) + " booked</p></div>"
