@@ -159,7 +159,7 @@ const GROUP_OVERRIDE = {
   // Financial
   "fin-revenue": "financial", "fin-rr": "financial", "financial-analysis": "financial", "executive-scorecard": "financial",
   "branch-owner": "financial", "money-flow": "logistics", "ld-planning": "logistics", "foreman-closings": "logistics",
-  "packing-control": "logistics",
+  "packing-control": "logistics", "storage-control": "logistics",
   // Customer Service
   "cleanup": "customer-service",
   // Reviews
@@ -174,7 +174,7 @@ const NAV_ORDER = {
   "monthly-report": 1, "analysis-by-category": 2,
   "sales-command": 0.5, "sales-funnel": 1, "sales-perf": 2, "sales-speed": 3, "leads-inflow": 4,
   "mkt-roi": 1, "mkt-sources": 2, "mkt-phone": 3,
-  "money-flow": 1, "foreman-closings": 2, "ld-planning": 3, "packing-control": 4, "log-foreman": 5, "log-packing": 6,
+  "money-flow": 1, "foreman-closings": 2, "ld-planning": 3, "packing-control": 4, "storage-control": 5, "log-foreman": 6, "log-packing": 7,
   "cleanup": 1,
   "fin-revenue": 1, "fin-rr": 2, "sales-geo": 3, "financial-analysis": 4, "executive-scorecard": 5, "branch-owner": 6,
   "rev-production": 1, "review-performance": 2, "response-analysis": 3, "reviews-reminders": 4, "review-settings": 5,
@@ -229,6 +229,7 @@ const PAGE_ICONS = {
   "money-flow": "dollar",
   "ld-planning": "truck",
   "packing-control": "box",
+  "storage-control": "archive",
   "cleanup": "calendar",
   "foreman-closings": "receipt",
   "labor-analysis": "activity",
@@ -621,6 +622,7 @@ const PAGE_DATASETS = {
   "ld-planning": [],         // loads fct_ld_planning itself; no global slicers apply
   "cleanup": [],             // its own horizon; a global date filter would fight it
   "packing-control": [],     // loads fct_packing_job itself; its month picker owns the window
+  "storage-control": [],     // loads the storage register itself; no global slicers apply
   "foreman-closings": [],    // loads via /api/_fnc; no global slicers apply
   "reviews-reminders": [],   // talks to the Apps Script relay (JSONP) + loads its own goal data
 };
@@ -773,7 +775,7 @@ function navigate(id, push) {
 /* Pages that bring their OWN toolbar and ignore the global filter bar (PAGE_DATASETS=[])
    render "bare" — the global date/slicer bar + company chip are hidden so the page's board
    starts right under the header instead of below two rows of greyed-out, unusable filters. */
-const BARE_CHROME = new Set(["review-performance", "sales-speed", "leads-inflow", "reviews-reminders", "response-analysis", "review-settings", "monthly-report", "money-flow", "ld-planning", "cleanup", "packing-control", "foreman-closings", "refresh-log", "general-tables"]);
+const BARE_CHROME = new Set(["review-performance", "sales-speed", "leads-inflow", "reviews-reminders", "response-analysis", "review-settings", "monthly-report", "money-flow", "ld-planning", "cleanup", "packing-control", "storage-control", "foreman-closings", "refresh-log", "general-tables"]);
 /* Monthly-Report-family pages OWN their time: they have a Month/Year picker on the cover
    and neutralize the global Year/Month slicers in every computation (withMonth), so those
    two slicers are hidden there — two competing time controls confused everyone (Tornike
@@ -824,6 +826,7 @@ const NAV_TITLES = {
   "money-flow": "Money Flow",
   "ld-planning": "Long Distance Planning",
   "packing-control": "Packing Control",
+  "storage-control": "Storage Control",
   "cleanup": "Calendar Cleanup",
   "foreman-closings": "Foreman Closings",
   "data-quality": "Data Quality",
@@ -1196,6 +1199,7 @@ const REPORT_LABELS = {
   "cleanup": "Calendar Cleanup",
   // Logistics
   "packing-control": "Packing Control",
+  "storage-control": "Storage Control",
   // Company Overview
   "monthly-report": "Monthly Report (all-in-one)",
   "analysis-by-category": "Custom Breakdown",
@@ -1259,7 +1263,7 @@ const ACL_DEPTS = [
   { id: "company",   label: "Company Overview", icon: "spark",     reports: ["monthly-report", "analysis-by-category"] },
   { id: "sales",     label: "Sales",            icon: "funnel",    reports: ["sales-command", "sales-speed", "leads-inflow"] },
   { id: "marketing", label: "Marketing",        icon: "megaphone", reports: ["source-trace", "multi-source-leads"] },
-  { id: "logistics", label: "Logistics",        icon: "tool",      reports: ["money-flow", "ld-planning", "foreman-closings", "packing-control"] },
+  { id: "logistics", label: "Logistics",        icon: "tool",      reports: ["money-flow", "ld-planning", "foreman-closings", "packing-control", "storage-control"] },
   { id: "customer-service", label: "Customer Service", icon: "calendar", reports: ["cleanup"] },
   { id: "financial", label: "Financial",        icon: "trend",     reports: ["financial-analysis", "executive-scorecard", "branch-owner"] },
   { id: "reviews",   label: "Reviews",          icon: "star",      reports: ["review-performance", "reviews-reminders", "response-analysis", "review-settings"] },
@@ -1456,6 +1460,7 @@ registerPage({
 <script src="pages/ld-planning.js?v=70"></script>
 <script src="pages/cleanup.js?v=21"></script>
 <script src="pages/packing-control.js?v=8"></script>
+<script src="pages/storage-control.js?v=1"></script>
 <script src="pages/general-tables.js?v=1"></script>
 <script src="pages/money-flow-issues.js?v=2"></script>
 <script src="pages/foreman-closings.js?v=11"></script>
