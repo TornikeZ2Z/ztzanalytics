@@ -59,6 +59,7 @@ registerPage({
       minJobs: 10,     // fewer comparable jobs than this: a profile, never a judgement
       mwuN: 8,         // each side of the rank-sum test needs this many jobs
       minPeers: 3,     // below this many comparable foremen there is no fleet to compare with
+      fdr: 0.05,       // false-discovery rate across every test on screen (Benjamini-Hochberg)
       boxesPerTape: 8, // one roll of tape covers about this many boxes
       cfUnder: 0.9,    // real CF below this share of the calendar's = under-reporting
       zeroUsd: 20,     // "booked nothing" -- the mart's own threshold, named here for the page
@@ -120,23 +121,58 @@ registerPage({
       return 0.5 * erfc(-z / Math.SQRT2);
     }
 
-    // the five measures a foreman is compared on, in the order they carry weight
+    /* THE MEASURES. Every one is peer-relative: the score is entirely "how does he compare
+     * with the other foremen on this", with no absolute thresholds anywhere. An earlier build
+     * charged the zero-booking rate and the cubic-feet ratio against fixed constants, and
+     * simulation showed what that does -- hold twelve foremen identical and raise the FLEET's
+     * own zero-booking rate from 10% to 45%, and the number of them above the concern line
+     * goes from three to all twelve, with nobody having changed his behaviour.
+     *
+     * `group` is the multiplicity guard. The two money measures share a numerator (one Sold
+     * USD over two different denominators) and their p-values correlate at about r = 0.93, so
+     * counting them as two independent confirmations counts one fact twice. Signals are
+     * counted once per group, never once per measure.
+     */
     var MEASURES = [
-      { k: "USD per 100 CF", lab: "$ per 100 CF", w: 30, fmt: "usd",
-        help: "Packing booked per 100 cubic feet actually moved — the headline rate." },
-      { k: "USD per Unit", lab: "$ per packing unit", w: 30, fmt: "usd",
-        help: "Packing booked per box + wrappable piece on the truck. Corrects for load size." },
-      { k: "Cover Cover Pct", lab: "Mattress covers", w: 10, fmt: "pct",
+      { k: "USD per 100 CF", lab: "$ per 100 CF", w: 30, fmt: "usd", group: "rate",
+        help: "Packing booked per 100 cubic feet moved, over the jobs where he booked something." },
+      { k: "USD per Unit", lab: "$ per packing unit", w: 30, fmt: "usd", group: "rate",
+        help: "Packing booked per box and wrappable piece on the truck. Corrects for load size." },
+      { k: "Booked Anything", lab: "Jobs that booked", w: 15, fmt: "pct", group: "booked",
+        help: "Share of his jobs where any packing at all was booked." },
+      { k: "CF Ratio", lab: "CF vs the calendar", w: 15, fmt: "num", group: "cf",
+        help: "Cubic feet the crew reported against what the calendar recorded." },
+      { k: "Cover Cover Pct", lab: "Mattress covers", w: 10, fmt: "pct", group: "covers",
         help: "Share of the mattresses on the truck that got a cover." },
-      { k: "Wrap Cover Pct", lab: "Shrink wrap", w: 5, fmt: "pct",
+      { k: "Wrap Cover Pct", lab: "Shrink wrap", w: 5, fmt: "pct", group: "wrap",
         help: "Share of wrappable pieces that got wrap." },
-      { k: "Tape per Box", lab: "Tape per box", w: 5, fmt: "num",
+      { k: "Tape per Box", lab: "Tape per box", w: 5, fmt: "num", group: "tape",
         help: "Rolls booked per box on the truck. One roll covers about " + DIAL.boxesPerTape + "." },
     ];
+    var SCALE = MEASURES.reduce(function (a, m) { return a + m.w; }, 0);
+
+    /* Benjamini-Hochberg across every test on screen.
+     *
+     * This is the correction the board cannot do without. Seven tests per foreman across
+     * twenty of them is well over a hundred chances for an ordinary man to look unusual, and a
+     * simulation of a null world -- everyone drawn from one distribution, nobody doing
+     * anything wrong -- put at least one innocent foreman on the strongest badge in 71% of
+     * runs. Controlling the false-discovery rate over the whole screen, rather than testing
+     * each man as though he were the only one being looked at, is what makes the badge mean
+     * what it says.
+     */
+    function bhCutoff(ps, q) {
+      var v = ps.filter(function (x) { return x != null; }).sort(function (a, b) { return a - b; });
+      var m = v.length, cut = 0;
+      for (var i = 0; i < m; i++) if (v[i] <= (i + 1) / m * q) cut = v[i];
+      return cut;                        // 0 means nothing survives, which is a real answer
+    }
 
     /* Per foreman: the profile, the score, and how far it can be trusted. */
     function rollup(jobs) {
-      var live = jobs.filter(function (r) { return !r["Packed By Owner"]; });
+      // Only jobs that were actually written up can be compared. A job the office has not
+      // closed out is not a job the crew got wrong.
+      var live = jobs.filter(function (r) { return !r["Packed By Owner"] && r["Recorded"]; });
       var by = {};
       live.forEach(function (r) {
         var f = r.Foreman;
@@ -145,60 +181,83 @@ registerPage({
       });
       function col(rs, k) { return rs.map(function (r) { return r[k]; }); }
 
-      var fleet = {};
-      MEASURES.concat([{ k: "CF Ratio" }]).forEach(function (m) { fleet[m.k] = median(col(live, m.k)); });
-
       var names = Object.keys(by).sort();
-      return names.map(function (name) {
-        var rs = by[name], n = rs.length;
-        var med = {}, ps = {}, below = 0, tested = 0;
-        var others = [];
-        names.forEach(function (o) { if (o !== name) others = others.concat(by[o]); });
+      var others = {};
+      names.forEach(function (name) {
+        var o = [];
+        names.forEach(function (x) { if (x !== name) o = o.concat(by[x]); });
+        others[name] = o;
+      });
 
-        MEASURES.concat([{ k: "CF Ratio" }]).forEach(function (m) { med[m.k] = median(col(rs, m.k)); });
+      // LEAVE ONE OUT. The baseline a man is scored against has to be the one he is tested
+      // against. Scoring him against a fleet median that includes his own jobs, while the
+      // rank-sum test compared him with a pool that excluded them, had the score and the test
+      // answering two different questions -- and on a heavily tied measure the card could
+      // report a shortfall the test had just declined to confirm.
+      var fleetEx = {}, fleetAll = {};
+      MEASURES.forEach(function (m) {
+        fleetAll[m.k] = median(col(live, m.k));
+        fleetEx[m.k] = {};
+        names.forEach(function (name) { fleetEx[m.k][name] = median(col(others[name], m.k)); });
+      });
 
-        // shortfall on one measure, as a fraction of the fleet median, capped at 1
-        // A MEASURE IS ONLY CHARGED FOR IF IT COULD BE COMPARED. Covers exist only on jobs
-        // with mattresses, tape only on jobs with boxes -- so a man with ten jobs can have a
-        // "median" cover rate resting on two of them, and that was worth up to ten points.
-        // The bar is the same one the rank-sum test uses: if we would not test it, we do not
-        // charge for it.
-        function cnt(k) { return col(rs, k).filter(function (x) { return x != null; }).length; }
-        var scoredOn = 0;
-        function short(k, w) {
-          var f = fleet[k], v = med[k];
-          if (!f || f <= 0 || v == null || cnt(k) < DIAL.mwuN) return 0;
-          scoredOn++;
-          return Math.max(0, Math.min(1, (f - v) / f)) * w;
-        }
-        var zeroRate = n ? rs.filter(function (r) { return r["Zero Pack"]; }).length / n : 0;
-        var score = 0, absScore = 0;
-        MEASURES.forEach(function (m) { score += short(m.k, m.w); });
-        var cfr = med["CF Ratio"];
-        if (cfr != null && cnt("CF Ratio") >= DIAL.mwuN && cfr < DIAL.cfUnder) {
-          absScore += Math.min(1, (DIAL.cfUnder - cfr) / 0.3) * 15;
-        }
-        absScore += Math.min(1, zeroRate / 0.3) * 15;
-        score += absScore;
-        // No peers, no score. Filter down to one book in one month and a lone foreman becomes
-        // his own fleet median: every peer term is zero by construction, and only the two
-        // absolute terms remain -- which would put him on a board captioned "below his peers"
-        // with nobody to be below.
-        var scored = n >= DIAL.minJobs && names.length >= DIAL.minPeers && scoredOn > 0;
-
+      // pass one: every p-value on screen, so the correction can see them all at once
+      var raw = names.map(function (name) {
+        var rs = by[name], ps = {}, med = {}, cnt = {}, tested = 0;
         MEASURES.forEach(function (m) {
-          var p = mwu(col(rs, m.k), col(others, m.k));
-          ps[m.k] = p;
-          if (p == null) return;
-          tested++;
-          if (p < 0.05 && med[m.k] != null && fleet[m.k] != null && med[m.k] < fleet[m.k]) below++;
+          var mine = col(rs, m.k);
+          med[m.k] = median(mine);
+          cnt[m.k] = mine.filter(function (x) { return x != null; }).length;
+          ps[m.k] = mwu(mine, col(others[name], m.k));
+          if (ps[m.k] != null) tested++;
+        });
+        return { name: name, rs: rs, ps: ps, med: med, cnt: cnt, tested: tested };
+      });
+      var allP = [];
+      raw.forEach(function (r) { MEASURES.forEach(function (m) { allP.push(r.ps[m.k]); }); });
+      var cut = bhCutoff(allP, DIAL.fdr);
+
+      return raw.map(function (r) {
+        var name = r.name, rs = r.rs, n = rs.length, med = r.med, ps = r.ps;
+        var fleet = {};
+        MEASURES.forEach(function (m) { fleet[m.k] = fleetEx[m.k][name]; });
+
+        // A measure is only charged for if it could be compared. Covers exist only on jobs
+        // carrying mattresses and tape only on jobs carrying boxes, so a man with ten jobs can
+        // have a "median" cover rate resting on two of them -- which used to be worth ten
+        // points. The bar is the one the rank-sum test uses: what we would not test, we do not
+        // charge for.
+        var scoredOn = 0, score = 0, maxScore = 0;
+        MEASURES.forEach(function (m) {
+          var f = fleet[m.k], v = med[m.k];
+          if (!f || f <= 0 || v == null || r.cnt[m.k] < DIAL.mwuN) return;
+          scoredOn++;
+          maxScore += m.w;
+          score += Math.max(0, Math.min(1, (f - v) / f)) * m.w;
+        });
+        // scored out of what could actually be measured, then put back on the full scale, so
+        // two foremen with different measurable job mixes still sit on one axis
+        if (maxScore > 0) score = score / maxScore * SCALE;
+
+        // A SIGNAL is: survives the false-discovery correction, sits below the leave-one-out
+        // baseline, and is counted once per group so correlated measures cannot vote twice.
+        var seen = {}, below = 0, lowKeys = [];
+        MEASURES.forEach(function (m) {
+          if (ps[m.k] == null || cut <= 0 || ps[m.k] > cut) return;
+          if (med[m.k] == null || fleet[m.k] == null || med[m.k] >= fleet[m.k]) return;
+          lowKeys.push(m.lab);
+          if (!seen[m.group]) { seen[m.group] = 1; below++; }
         });
         var bestP = null;
-        MEASURES.forEach(function (m) { if (ps[m.k] != null && (bestP == null || ps[m.k] < bestP)) bestP = ps[m.k]; });
+        MEASURES.forEach(function (m) {
+          if (ps[m.k] != null && (bestP == null || ps[m.k] < bestP)) bestP = ps[m.k];
+        });
+        var tested = r.tested;
 
-        var conf = !tested ? "THIN"
-          : (below >= 2 || (bestP != null && bestP < 0.005)) ? "STRONG"
-          : below === 1 ? "WEAK" : "NORMAL";
+        var conf = !tested ? "THIN" : below >= 2 ? "STRONG" : below === 1 ? "WEAK" : "NORMAL";
+        // No peers, no score: filter down to one book in one month and a lone foreman becomes
+        // his own baseline, with nobody left to be below.
+        var scored = n >= DIAL.minJobs && names.length >= DIAL.minPeers && scoredOn > 0;
 
         // rough size of what may be going unrecorded: the per-unit gap, over the units handled
         var opp = 0;
@@ -219,8 +278,9 @@ registerPage({
         return {
           name: name, jobs: rs, n: n, med: med, ps: ps, below: below, bestP: bestP,
           score: shown, conf: conf, verdict: verdict, tested: tested,
-          scoredOn: scoredOn, absShare: score > 0 ? absScore / score : 0, peers: names.length,
-          zeroRate: zeroRate, opp: opp, fleet: fleet,
+          scoredOn: scoredOn, peers: names.length, lowKeys: lowKeys, cut: cut,
+          zeroRate: n ? rs.filter(function (r) { return r["Zero Pack"]; }).length / n : 0,
+          opp: opp, fleet: fleet, fleetAll: fleetAll,
           all: jobs.filter(function (r) { return r.Foreman === name; }),
           sold: rs.reduce(function (a, r) { return a + (+r["Sold USD"] || 0); }, 0),
           quoted: rs.reduce(function (a, r) { return a + (+r["Quoted USD"] || 0); }, 0),
@@ -402,6 +462,12 @@ registerPage({
           r[k] = r[k] == null || r[k] === "" ? null : +r[k];
         });
         r.Day = String(r.Day || "").slice(0, 10);
+        // A job that booked nothing has no RATE -- it has an absence, and an absence belongs
+        // in its own measure rather than entering the two money medians as a literal $0.
+        // Leaving the zeros in made the score a step function: it more than doubled the moment
+        // over half a foreman's jobs booked nothing, because a median of mostly-zeros is zero.
+        r["Booked Anything"] = !r["Recorded"] ? null : (r["Zero Pack"] ? 0 : 1);
+        if (r["Zero Pack"]) { r["USD per 100 CF"] = null; r["USD per Unit"] = null; }
         return r;
       });
       invalidate();
@@ -430,7 +496,7 @@ registerPage({
       var key = S.month + "|" + S.co;
       if (S.memoKey !== key || !S.memo) { S.memo = rollup(rows); S.memoKey = key; }
       var profiles = S.memo;
-      var fleet = profiles.length ? profiles[0].fleet : {};
+      var fleet = profiles.length ? profiles[0].fleetAll : {};
 
       var live = rows.filter(function (r) { return !r["Packed By Owner"]; });
       var sold = rows.reduce(function (a, r) { return a + (+r["Sold USD"] || 0); }, 0);
@@ -476,20 +542,18 @@ registerPage({
         + '<input id="pkQ" placeholder="Find a foreman…" value="' + esc(S.q) + '">'
         + "</div>";
 
-      // Be exact about what is and is not a peer comparison. 80 of the 110 score points come
-      // from the five bars on the cards; the other 30 are measured against fixed thresholds and
-      // appear on no bar at all, so a card whose bars all look ordinary can still carry a score.
       var tests = 0;
       profiles.forEach(function (p) { tests += p.tested; });
-      html += '<p class="pk-note"><b>How to read this.</b> The five measures on each card are comparisons '
-        + "with the other foremen on the same measure, over the window selected above. Two further parts of the "
-        + "score are not peer comparisons and appear on no bar: jobs that booked under $" + DIAL.zeroUsd
-        + ", and moving less cubic footage than the calendar recorded. Customers packing their own things is "
-        + "normal and legitimate — it lands at random, so it cannot explain a shortfall that is one man's, "
-        + "consistent, and present on several measures at once. That is what the certainty badge tests, though "
-        + "the two money measures share a numerator and are not fully independent of each other. "
-        + "<b>A high score is a reason to review, not proof of anything.</b> " + tests + " peer tests were run "
-        + "across " + profiles.length + " foremen, so expect a few low readings by chance alone.</p>";
+      html += '<p class="pk-note"><b>How to read this.</b> Every measure on a card is a comparison with '
+        + "the other foremen on the same measure, over the window selected above \u2014 nothing here is scored "
+        + "against a fixed target, so the fleet getting better or worse together moves nobody onto this board. "
+        + "Customers packing their own things is normal and legitimate; it lands at random, so it cannot "
+        + "explain a shortfall that is one man's, consistent, and present on separate signals at once. That is "
+        + "what the certainty badge tests. " + tests + " comparisons were run across " + profiles.length
+        + " foremen, and a badge is only awarded to readings that survive a false-discovery correction over all "
+        + "of them \u2014 without it, a simulation of a fleet where nobody was doing anything wrong still put an "
+        + "innocent name on the board most of the time. <b>A high score is a reason to review, not proof of "
+        + "anything.</b></p>";
 
       var shown = profiles.slice();
       if (S.flagOnly) shown = shown.filter(function (p) { return p.score != null && p.score >= DIAL.flag; });
@@ -721,8 +785,7 @@ registerPage({
             return z ? '<div class="pk-row"><span style="color:var(--faint)">  of which sales quoted '
               + "no packing</span><b>" + nq + " of " + z + "</b></div>" : "";
           })()
-        + '<div class="pk-row"><span>Real CF vs the calendar\'s</span><b>'
-        + (p.med["CF Ratio"] == null ? "—" : num(p.med["CF Ratio"]) + "×") + "</b></div>"
+
         + (p.opp > 0 && (p.verdict === "review" || p.verdict === "look")
             ? '<div class="pk-row"><span>If his jobs had booked at the median $/unit</span><b>+' + usd(p.opp)
               + "</b></div>" : "")
@@ -840,26 +903,16 @@ registerPage({
       if (p.verdict === "review") {
         // The raw best-p is the minimum of up to five tests on this man; quoting it bare would
         // overstate the case. It is shown beside the value corrected for how many were run.
-        var adj = p.bestP == null ? null : Math.min(1, p.bestP * Math.max(1, p.tested));
-        return "Books less packing than his peers on " + p.below + " of the " + p.tested
-          + " measure" + (p.tested === 1 ? "" : "s") + " that could be tested"
-          + (p.bestP != null ? " (lowest p = " + p.bestP.toFixed(4) + "; " + adj.toFixed(3)
-              + " once the " + p.tested + " tests run on him are allowed for)" : "")
-          + ". Chance is a less likely explanation here than for most of the fleet — which makes this a "
-          + "reason to review, not proof of anything. Work through the readings below in order.";
+        return "Books less packing than his peers on " + p.below + " separate signal"
+          + (p.below === 1 ? "" : "s") + " \u2014 " + p.lowKeys.join(", ")
+          + " \u2014 each one surviving a false-discovery correction applied across every comparison on "
+          + "this board, not just his own. That is what makes chance an unlikely explanation here, and it "
+          + "is a reason to review rather than proof of anything. Work through the readings below in order.";
       }
       if (p.verdict === "look") {
-        // Two different situations wear the same amber pill, and they deserve different
-        // sentences: a genuine peer shortfall, and a score driven mostly by the two absolute
-        // terms (jobs under $20, cubic feet below the calendar's) where no peer test fell low.
-        var mostlyAbs = p.absShare >= 0.6;
-        return (mostlyAbs
-          ? "Scores " + p.score + " mainly on the two measures that are not peer comparisons: jobs booking "
-            + "under $" + DIAL.zeroUsd + ", and moving less cubic footage than the calendar recorded. His "
-            + "rates against the other foremen are not the problem here."
-          : "Below his peers on the numbers (score " + p.score + "), but not consistently enough to rule "
-            + "out ordinary variation.")
-          + " Treat this as a question to answer, not a finding.";
+        return "Below his peers on the numbers (score " + p.score + "), but nothing came through the "
+          + "false-discovery correction applied across the whole board, so ordinary variation has not been "
+          + "ruled out. Treat this as a question to answer, not a finding.";
       }
       if (p.verdict === "untested") {
         return "Too few comparable jobs on the measures that matter, so no peer test could run. "
