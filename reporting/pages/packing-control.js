@@ -25,7 +25,7 @@
       table: "fct_packing_job",
       cols: ["Job Code", "Day", "Customer", "Foreman", "Foreman Email", "Company",
              "Job Type", "Moving Type", "Foreman Typed",
-             "Sold USD", "Quoted USD", "Real CF", "Sold CF", "Total Charge",
+             "Sold USD", "Quoted USD", "Real CF", "Sold CF", "Total Charge", "Recorded", "Itemised",
              "Boxes Sold", "Tape Sold", "Wrap Sold", "Covers Sold", "Item Lines",
              "Calendar CF", "Inv Boxes", "Inv Furniture", "Inv Wrappable", "Inv Mattresses",
              "Quoted Units", "Packed By Owner", "No Quote", "Has Inventory",
@@ -58,8 +58,10 @@ registerPage({
       flag: 12,        // concern score at or above this puts a foreman on the board
       minJobs: 10,     // fewer comparable jobs than this: a profile, never a judgement
       mwuN: 8,         // each side of the rank-sum test needs this many jobs
+      minPeers: 3,     // below this many comparable foremen there is no fleet to compare with
       boxesPerTape: 8, // one roll of tape covers about this many boxes
       cfUnder: 0.9,    // real CF below this share of the calendar's = under-reporting
+      zeroUsd: 20,     // "booked nothing" -- the mart's own threshold, named here for the page
     };
 
     var S = window.__PK || (window.__PK = {
@@ -156,18 +158,33 @@ registerPage({
         MEASURES.concat([{ k: "CF Ratio" }]).forEach(function (m) { med[m.k] = median(col(rs, m.k)); });
 
         // shortfall on one measure, as a fraction of the fleet median, capped at 1
+        // A MEASURE IS ONLY CHARGED FOR IF IT COULD BE COMPARED. Covers exist only on jobs
+        // with mattresses, tape only on jobs with boxes -- so a man with ten jobs can have a
+        // "median" cover rate resting on two of them, and that was worth up to ten points.
+        // The bar is the same one the rank-sum test uses: if we would not test it, we do not
+        // charge for it.
+        function cnt(k) { return col(rs, k).filter(function (x) { return x != null; }).length; }
+        var scoredOn = 0;
         function short(k, w) {
           var f = fleet[k], v = med[k];
-          if (!f || f <= 0 || v == null) return 0;
+          if (!f || f <= 0 || v == null || cnt(k) < DIAL.mwuN) return 0;
+          scoredOn++;
           return Math.max(0, Math.min(1, (f - v) / f)) * w;
         }
-        var scored = n >= DIAL.minJobs;
         var zeroRate = n ? rs.filter(function (r) { return r["Zero Pack"]; }).length / n : 0;
-        var score = 0;
+        var score = 0, absScore = 0;
         MEASURES.forEach(function (m) { score += short(m.k, m.w); });
         var cfr = med["CF Ratio"];
-        if (cfr != null && cfr < DIAL.cfUnder) score += Math.min(1, (DIAL.cfUnder - cfr) / 0.3) * 15;
-        score += Math.min(1, zeroRate / 0.3) * 15;
+        if (cfr != null && cnt("CF Ratio") >= DIAL.mwuN && cfr < DIAL.cfUnder) {
+          absScore += Math.min(1, (DIAL.cfUnder - cfr) / 0.3) * 15;
+        }
+        absScore += Math.min(1, zeroRate / 0.3) * 15;
+        score += absScore;
+        // No peers, no score. Filter down to one book in one month and a lone foreman becomes
+        // his own fleet median: every peer term is zero by construction, and only the two
+        // absolute terms remain -- which would put him on a board captioned "below his peers"
+        // with nobody to be below.
+        var scored = n >= DIAL.minJobs && names.length >= DIAL.minPeers && scoredOn > 0;
 
         MEASURES.forEach(function (m) {
           var p = mwu(col(rs, m.k), col(others, m.k));
@@ -201,7 +218,8 @@ registerPage({
 
         return {
           name: name, jobs: rs, n: n, med: med, ps: ps, below: below, bestP: bestP,
-          score: shown, conf: conf, verdict: verdict,
+          score: shown, conf: conf, verdict: verdict, tested: tested,
+          scoredOn: scoredOn, absShare: score > 0 ? absScore / score : 0, peers: names.length,
           zeroRate: zeroRate, opp: opp, fleet: fleet,
           all: jobs.filter(function (r) { return r.Foreman === name; }),
           sold: rs.reduce(function (a, r) { return a + (+r["Sold USD"] || 0); }, 0),
@@ -379,7 +397,8 @@ registerPage({
         });
         ["Boxes Sold", "Tape Sold", "Wrap Sold", "Covers Sold", "Item Lines", "Inv Boxes",
          "Inv Furniture", "Inv Wrappable", "Inv Mattresses", "Quoted Units", "Packing Units",
-         "Packed By Owner", "No Quote", "Has Inventory", "Zero Pack", "Quote Leak"].forEach(function (k) {
+         "Packed By Owner", "No Quote", "Has Inventory", "Zero Pack", "Quote Leak",
+         "Recorded", "Itemised"].forEach(function (k) {
           r[k] = r[k] == null || r[k] === "" ? null : +r[k];
         });
         r.Day = String(r.Day || "").slice(0, 10);
@@ -427,10 +446,15 @@ registerPage({
 
       var html = '<div class="pk-kpis">'
         + kpi(usd(sold), "Packing booked", rows.length.toLocaleString() + " jobs · " + usd(quoted) + " quoted by sales", "")
-        + kpi(String(profiles.length), "Foremen measured", live.length.toLocaleString() + " comparable jobs", "")
-        + kpi(String(flagged.length), "Above the concern line", strong.length + " of them on several independent measures",
+        + kpi(String(profiles.filter(function (p) { return p.score != null; }).length), "Foremen scored",
+              "of " + profiles.length + " on the board · "
+              + profiles.reduce(function (a, p) { return a + p.n; }, 0).toLocaleString() + " jobs in the comparison", "")
+        + kpi(String(flagged.length), "Above the concern line",
+              strong.length + " with a peer test below the strict threshold",
               flagged.length ? (strong.length ? "neg" : "warn") : "pos")
-        + kpi(usd(opp), "Gap against peers", "rough size of what may be going unrecorded", flagged.length ? "warn" : "")
+        + kpi(usd(opp), "Distance to the fleet median",
+              "what these jobs would have booked at the median rate — an arithmetic gap, not missing money",
+              flagged.length ? "warn" : "")
         + kpi(pct(invPct), "Loads itemised", "jobs whose calendar lists the goods", invPct > 0.8 ? "pos" : "warn")
         + "</div>";
 
@@ -452,13 +476,20 @@ registerPage({
         + '<input id="pkQ" placeholder="Find a foreman…" value="' + esc(S.q) + '">'
         + "</div>";
 
-      html += '<p class="pk-note"><b>How to read this.</b> Every figure is a comparison with the other foremen on '
-        + "the same measure, over the window selected above. Customers packing their own things is normal and "
-        + "legitimate — it lands at random, so it cannot explain a shortfall that is one man's, consistent, and "
-        + "present on several measures at once. That is what the certainty badge tests. "
-        + "<b>A high score is a reason to review, not proof of anything.</b> With "
-        + profiles.length + " foremen across " + MEASURES.length + " measures (~"
-        + (profiles.length * MEASURES.length) + " comparisons) expect a few weak hits by chance alone.</p>";
+      // Be exact about what is and is not a peer comparison. 80 of the 110 score points come
+      // from the five bars on the cards; the other 30 are measured against fixed thresholds and
+      // appear on no bar at all, so a card whose bars all look ordinary can still carry a score.
+      var tests = 0;
+      profiles.forEach(function (p) { tests += p.tested; });
+      html += '<p class="pk-note"><b>How to read this.</b> The five measures on each card are comparisons '
+        + "with the other foremen on the same measure, over the window selected above. Two further parts of the "
+        + "score are not peer comparisons and appear on no bar: jobs that booked under $" + DIAL.zeroUsd
+        + ", and moving less cubic footage than the calendar recorded. Customers packing their own things is "
+        + "normal and legitimate — it lands at random, so it cannot explain a shortfall that is one man's, "
+        + "consistent, and present on several measures at once. That is what the certainty badge tests, though "
+        + "the two money measures share a numerator and are not fully independent of each other. "
+        + "<b>A high score is a reason to review, not proof of anything.</b> " + tests + " peer tests were run "
+        + "across " + profiles.length + " foremen, so expect a few low readings by chance alone.</p>";
 
       var shown = profiles.slice();
       if (S.flagOnly) shown = shown.filter(function (p) { return p.score != null && p.score >= DIAL.flag; });
@@ -504,15 +535,24 @@ registerPage({
               "September", "October", "November", "December"][+p[1] - 1] + " " + p[0];
     }
 
+    /* What the certainty badge says out loud. STRONG can be reached on a single very low
+     * test, so it must not claim "several"; and NORMAL must never imply a clean bill when four
+     * of the five measures had too few comparable jobs to test at all -- the file's own rule at
+     * mwu() is that "too small to say" may never render as "clean". */
+    function confLab(p) {
+      if (p.conf === "STRONG") return p.below >= 2 ? "LOW ON " + p.below + " MEASURES" : "ONE STRONG SIGNAL";
+      if (p.conf === "WEAK") return "ONE SIGNAL";
+      if (p.conf === "THIN") return "NO TEST POSSIBLE";
+      return "TESTED ON " + p.tested + " OF " + MEASURES.length;
+    }
+
     /* one foreman, on the board */
     function card(p) {
       var v = VERDICT[p.verdict];
       var h = '<div class="pk-card ' + v.cls + (S.open === p.name ? " sel" : "") + '" data-f="' + esc(p.name) + '">'
         + '<div class="pk-head"><span class="pk-name">' + esc(p.name) + "</span>"
         + '<span class="pk-pill">' + v.lab + "</span>"
-        + (p.score != null ? '<span class="pk-conf c-' + p.conf.toLowerCase() + '">'
-            + (p.conf === "STRONG" ? "CONSISTENT" : p.conf === "WEAK" ? "ONE SIGNAL"
-               : p.conf === "THIN" ? "UNTESTABLE" : "WITHIN NOISE") + "</span>" : "")
+        + (p.score != null ? '<span class="pk-conf c-' + p.conf.toLowerCase() + '">' + confLab(p) + "</span>" : "")
         + '<span class="pk-sub">' + (p.score != null ? "score " + p.score + " · " : "")
         + p.n + " job" + (p.n === 1 ? "" : "s") + " · " + usd(p.sold) + "</span></div>"
         + '<div class="pk-bars">'
@@ -550,6 +590,12 @@ registerPage({
         + rows.filter(function (r) { return r["Packed By Owner"]; }).length + "</b></div>"
         + '<div class="pk-row"><span>Sales quoted no packing</span><b>'
         + rows.filter(function (r) { return r["No Quote"]; }).length + "</b></div>"
+        + (function () {
+            var nr = rows.filter(function (r) { return !r["Recorded"]; }).length;
+            var ni = rows.filter(function (r) { return !r["Itemised"]; }).length;
+            return '<div class="pk-row"><span>Packing not written up yet</span><b>' + nr + "</b></div>"
+              + '<div class="pk-row"><span>No material breakdown filed</span><b>' + ni + "</b></div>";
+          })()
         + "</div>";
 
       // spot-check queue — worst first, and deliberately capped with the remainder stated
@@ -627,15 +673,28 @@ registerPage({
 
       h += '<div class="pk-read ' + v.cls + '"><h5>Reading</h5><p>' + verdictText(p) + "</p>";
       if (p.verdict === "review" || p.verdict === "look") {
-        h += '<div class="pk-cause"><b>1</b><span><i>The customer packed their own things.</i> '
+        var nq = p.jobs.filter(function (r) { return r["Zero Pack"] && r["No Quote"]; }).length;
+        var i = 0;
+        h += '<div class="pk-cause"><b>' + (++i) + '</b><span><i>The customer packed their own things.</i> '
           + "Legitimate, common, and the first thing to rule out. It happens at random, so it does not "
           + "normally follow one foreman across months — which is what the certainty badge measures.</span></div>"
-          + '<div class="pk-cause"><b>2</b><span><i>Materials sold off the books.</i> Own materials brought to '
-          + "the job, charged to the customer, never recorded. This is the reading only when several "
-          + "independent measures fall together.</span></div>"
-          + '<div class="pk-cause"><b>3</b><span><i>Simply not offering it.</i> Lost revenue rather than lost '
-          + "cash — the likeliest explanation when the shortfall sits on the rate measures but the coverage "
-          + "ones (covers, wrap, tape) look ordinary.</span></div>"
+          + (nq ? '<div class="pk-cause"><b>' + (++i) + "</b><span><i>Sales never quoted packing.</i> On " + nq
+              + " of his " + p.n + " jobs the customer arrived with no packing quoted at all and none was booked. "
+              + "That is a job mix he did not choose, and it counts against him on the under-$" + DIAL.zeroUsd
+              + " measure.</span></div>" : "")
+          // The off-book reading is the one that accuses. It appears ONLY where the page's own
+          // definition of "review" is met -- several measures falling together. Printing it
+          // under "worth a look", whose text says the evidence is NOT consistent, would have the
+          // page contradict itself in the direction that damages a person.
+          + (p.verdict === "review" && p.below >= 2
+              ? '<div class="pk-cause"><b>' + (++i) + '</b><span><i>Materials sold off the books.</i> Own '
+                + "materials brought to the job, charged to the customer, never recorded. It is on this list "
+                + "because " + p.below + " independent measures fell together; it is still the last reading to "
+                + "reach for, not the first.</span></div>"
+              : "")
+          + '<div class="pk-cause"><b>' + (++i) + '</b><span><i>Simply not offering it.</i> Lost revenue rather '
+          + "than lost cash — the likeliest explanation when the shortfall sits on the rate measures but the "
+          + "coverage ones (covers, wrap, tape) look ordinary.</span></div>"
           + '<div class="pk-cause"><b>&#10003;</b><span><i>The physical check.</i> Take his next job: do the beds, '
           + "dressers and boxes on the truck match the covers, wrap and tape booked against it? That answers in "
           + "one morning what months of numbers can only suggest.</span></div>";
@@ -653,11 +712,20 @@ registerPage({
               + (pv == null ? " · untestable" : pv < 0.05 && d < 0 ? " · p=" + pv.toFixed(3) : "")
               + "</span></b></div>";
           }).join("")
-        + '<div class="pk-row"><span>Nothing booked at all</span><b>' + pct(p.zeroRate) + " of jobs</b></div>"
+        + '<div class="pk-row"><span>Jobs booking under $' + DIAL.zeroUsd + "</span><b>" + pct(p.zeroRate)
+        + " of jobs</b></div>"
+        + (function () {
+            var z = p.jobs.filter(function (r) { return r["Zero Pack"]; }).length;
+            var nq = p.jobs.filter(function (r) { return r["Zero Pack"] && r["No Quote"]; }).length;
+            // the confound, stated on the same screen as the number it explains
+            return z ? '<div class="pk-row"><span style="color:var(--faint)">  of which sales quoted '
+              + "no packing</span><b>" + nq + " of " + z + "</b></div>" : "";
+          })()
         + '<div class="pk-row"><span>Real CF vs the calendar\'s</span><b>'
         + (p.med["CF Ratio"] == null ? "—" : num(p.med["CF Ratio"]) + "×") + "</b></div>"
-        + (p.opp > 0 ? '<div class="pk-row"><span>Gap against peers, in money</span><b>' + usd(p.opp)
-            + "</b></div>" : "")
+        + (p.opp > 0 && (p.verdict === "review" || p.verdict === "look")
+            ? '<div class="pk-row"><span>If his jobs had booked at the median $/unit</span><b>+' + usd(p.opp)
+              + "</b></div>" : "")
         + "</div>";
 
       // month trend — a shortfall that appears in one month is a different story from one that
@@ -695,12 +763,14 @@ registerPage({
         + "<th>Job</th><th>Day</th><th>CF</th><th>Boxes</th><th>Wrappable</th><th>Booked</th>"
         + "<th>$/100CF</th><th>Tape</th><th>Covers</th></tr></thead><tbody>"
         + js.map(function (r) {
-            var cls = r["Packed By Owner"] ? "sp" : r.Flags ? "f" : "";
+            var cls = (r["Packed By Owner"] || !r["Recorded"]) ? "sp" : r.Flags ? "f" : "";
             return "<tr" + (cls ? ' class="' + cls + '"' : "")
               + (jobCode && r["Job Code"] === jobCode ? ' style="outline:2px solid var(--blue)"' : "") + ">"
               + "<td>" + esc(r.Customer || r["Job Code"])
               + (r["Packed By Owner"] ? '<br><span style="font-size:var(--t5);color:var(--faint)">'
                   + "customer packed their own — excluded</span>"
+                  : !r["Recorded"] ? '<br><span style="font-size:var(--t5);color:var(--faint)">'
+                    + "packing not written up yet — not counted either way</span>"
                   : r.Flags ? "<br><em>" + esc(r.Flags) + "</em>" : "") + "</td>"
               + "<td>" + dayLab(r.Day) + "</td>"
               + "<td>" + (r["Real CF"] == null ? "—" : Math.round(r["Real CF"])) + "</td>"
@@ -756,25 +826,51 @@ registerPage({
      * "stealing". The vocabulary is concern, review, off-book, worth checking. */
     function verdictText(p) {
       if (p.verdict === "thin") {
-        return "Only " + p.n + " job" + (p.n === 1 ? "" : "s") + " in this window — below the "
-          + DIAL.minJobs + " needed to compare fairly. This is a profile, not a judgement.";
+        if (p.peers < DIAL.minPeers) {
+          return "Only " + p.peers + " foreman" + (p.peers === 1 ? "" : "en") + " worked in this window, so "
+            + "there is no fleet to compare against. Widen the filter to score anyone.";
+        }
+        if (p.n < DIAL.minJobs) {
+          return "Only " + p.n + " job" + (p.n === 1 ? "" : "s") + " in this window — below the "
+            + DIAL.minJobs + " needed to compare fairly. This is a profile, not a judgement.";
+        }
+        return "None of the " + MEASURES.length + " measures had enough comparable jobs to score. This is a "
+          + "profile, not a judgement.";
       }
       if (p.verdict === "review") {
-        return "Books less packing than his peers on " + p.below + " independent measure"
-          + (p.below === 1 ? "" : "s") + ", consistently enough that chance is an unlikely explanation"
-          + (p.bestP != null ? " (best p = " + p.bestP.toFixed(4) + ")" : "")
-          + ". That is a reason to review, not proof of anything — work through the readings below in order.";
+        // The raw best-p is the minimum of up to five tests on this man; quoting it bare would
+        // overstate the case. It is shown beside the value corrected for how many were run.
+        var adj = p.bestP == null ? null : Math.min(1, p.bestP * Math.max(1, p.tested));
+        return "Books less packing than his peers on " + p.below + " of the " + p.tested
+          + " measure" + (p.tested === 1 ? "" : "s") + " that could be tested"
+          + (p.bestP != null ? " (lowest p = " + p.bestP.toFixed(4) + "; " + adj.toFixed(3)
+              + " once the " + p.tested + " tests run on him are allowed for)" : "")
+          + ". Chance is a less likely explanation here than for most of the fleet — which makes this a "
+          + "reason to review, not proof of anything. Work through the readings below in order.";
       }
       if (p.verdict === "look") {
-        return "Below his peers on the numbers (score " + p.score + "), but not consistently enough to rule "
-          + "out ordinary variation. Treat this as a question to answer, not a finding.";
+        // Two different situations wear the same amber pill, and they deserve different
+        // sentences: a genuine peer shortfall, and a score driven mostly by the two absolute
+        // terms (jobs under $20, cubic feet below the calendar's) where no peer test fell low.
+        var mostlyAbs = p.absShare >= 0.6;
+        return (mostlyAbs
+          ? "Scores " + p.score + " mainly on the two measures that are not peer comparisons: jobs booking "
+            + "under $" + DIAL.zeroUsd + ", and moving less cubic footage than the calendar recorded. His "
+            + "rates against the other foremen are not the problem here."
+          : "Below his peers on the numbers (score " + p.score + "), but not consistently enough to rule "
+            + "out ordinary variation.")
+          + " Treat this as a question to answer, not a finding.";
       }
       if (p.verdict === "untested") {
         return "Too few comparable jobs on the measures that matter, so no peer test could run. "
           + "Silence here is not a clean bill — it is an absence of evidence either way.";
       }
-      return "Books in line with his peers for the loads he handles"
-        + (p.score ? " (score " + p.score + ", below the line of " + DIAL.flag + ")" : "") + ".";
+      var untested = MEASURES.length - p.tested;
+      return "In line with his peers on the " + p.tested + " measure" + (p.tested === 1 ? "" : "s")
+        + " that could be tested"
+        + (p.score ? " (score " + p.score + ", below the line of " + DIAL.flag + ")" : "")
+        + (untested ? ". " + untested + " of the " + MEASURES.length + " had too few comparable jobs to test, "
+            + "so this is a clean reading on what could be measured rather than on everything." : ".");
     }
   },
 });
