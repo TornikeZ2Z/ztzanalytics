@@ -604,7 +604,7 @@ registerPage({
      * of the five measures had too few comparable jobs to test at all -- the file's own rule at
      * mwu() is that "too small to say" may never render as "clean". */
     function confLab(p) {
-      if (p.conf === "STRONG") return p.below >= 2 ? "LOW ON " + p.below + " MEASURES" : "ONE STRONG SIGNAL";
+      if (p.conf === "STRONG") return "LOW ON " + p.below + " SIGNALS";
       if (p.conf === "WEAK") return "ONE SIGNAL";
       if (p.conf === "THIN") return "NO TEST POSSIBLE";
       return "TESTED ON " + p.tested + " OF " + MEASURES.length;
@@ -901,10 +901,15 @@ registerPage({
           + "profile, not a judgement.";
       }
       if (p.verdict === "review") {
-        // The raw best-p is the minimum of up to five tests on this man; quoting it bare would
-        // overstate the case. It is shown beside the value corrected for how many were run.
+        // The two money measures are one takings figure over two denominators, so they are
+        // one signal. Listing five names under a badge that reads four needs a word of
+        // explanation, or the page looks like it cannot count.
+        var rateBoth = p.lowKeys.indexOf("$ per 100 CF") >= 0
+          && p.lowKeys.indexOf("$ per packing unit") >= 0;
         return "Books less packing than his peers on " + p.below + " separate signal"
           + (p.below === 1 ? "" : "s") + " \u2014 " + p.lowKeys.join(", ")
+          + (rateBoth ? " (the two money measures are the same takings over two different denominators, "
+              + "so they count once between them)" : "")
           + " \u2014 each one surviving a false-discovery correction applied across every comparison on "
           + "this board, not just his own. That is what makes chance an unlikely explanation here, and it "
           + "is a reason to review rather than proof of anything. Work through the readings below in order.";
