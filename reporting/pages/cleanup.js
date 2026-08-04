@@ -219,6 +219,7 @@ registerPage({
       + "background:var(--panel);color:var(--ink);border:1px solid var(--line-2);"
       + "box-shadow:0 1px 3px rgba(0,0,0,.18)}"
       + ".cu-mchip.pick{border-color:var(--blue)} .cu-mchip.drop{border-color:var(--pos)}"
+      + ".cu-mchip.below{top:5px}"
       + ".cu-mchip.base{background:var(--ink);color:var(--panel);border-color:var(--ink)}"
       + ".leaflet-tooltip.cu-mtip{background:var(--panel);color:var(--ink);"
       + "border:1px solid var(--line);border-radius:9px;box-shadow:var(--shadow);"
@@ -835,7 +836,7 @@ registerPage({
                 html: "<span class='cu-mchip " + (cls || "") + "'>" + esc(text) + "</span>" }) }));
           };
 
-          var bounds = [], far = 0;
+          var bounds = [], far = 0, baseChipped = false;
           got.forEach(function (g, i) {
             var c = g.coords || [];
             if (c.length < 2) return;
@@ -884,10 +885,14 @@ registerPage({
                   + "</span><span>" + esc(meta.title || "") + "</span>",
                   { className: "cu-mtip", direction: "top" });
               chip(c[0], meta.n + "P " + (meta.from || ""), "pick");
-              chip(c[c.length - 1], meta.n + "D " + (meta.to || ""), "drop");
+              chip(c[c.length - 1], meta.n + "D " + (meta.to || ""), "drop below");
             }
-            if (meta.kind === "out") chip(c[0], "\u25c6 " + (meta.from || "base"), "base");
-            if (meta.kind === "home") chip(c[c.length - 1], "\u25c6 " + (meta.to || "base"), "base");
+            if (!baseChipped && (meta.kind === "out" || meta.kind === "home")) {
+              baseChipped = true;
+              chip(meta.kind === "out" ? c[0] : c[c.length - 1],
+                   "\u25c6 " + (meta.kind === "out" ? (meta.from || "base")
+                                                     : (meta.to || "base")), "base");
+            }
           });
           if (!bounds.length) {   // a day of nothing but long runs still has to show them
             got.forEach(function (g) { (g.coords || []).forEach(function (p) { bounds.push(p); }); });
