@@ -257,7 +257,14 @@ registerPage({
       var d = new Date(String(iso).slice(0, 10) + "T12:00");
       return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
     }
-    var TODAY = new Date().toISOString().slice(0, 10);
+    // the crew's calendar day, not the browser's UTC one -- after 8pm in New Jersey those are
+    // different dates, and the board would open on tomorrow
+    var TODAY = (function () {
+      try {
+        return new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York",
+          year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+      } catch (e) { return new Date().toISOString().slice(0, 10); }
+    })();
 
     // ---- filters -------------------------------------------------------------------
     function filters(jobs) {
@@ -469,8 +476,11 @@ registerPage({
       var bp = basePt(first);
       var cf = legs.reduce(function (a, j) { return a + (+j.CF || 0); }, 0);
       var act = legs.reduce(function (a, j) { return a + (+j.Hours || 0); }, 0);
-      var isLD = legs.some(function (j) {
-        return String(j["Moving Type"] || "").toLowerCase().indexOf("long") >= 0; });
+      // a STRAIGHT job is the one the crew does not come home from -- that is the engine's
+      // rule (_carrier), and a regular long-distance job hands off and returns the same day
+      var isAway = function (j) {
+        return String(j["Job Type"] || "").toLowerCase().indexOf("straight") >= 0; };
+      var isLD = legs.some(isAway);
 
       // the run, step by step. The clock is max(arrive, booked) -- a crew that gets there
       // early waits, work never starts before the customer's time.
@@ -519,14 +529,18 @@ registerPage({
                          + esc(j["Pickup City"] || "") + ", " + fmtMin(Math.round(hrs * 60))
                          + " of work" + (+j.Crew ? " · crew of " + j.Crew : "") });
         var dl = drive(pu, de);
+        cur += hrs;
         if (dl && Math.round(dl.mi) > 0) {
           totMin += dl.min; totMi += dl.mi;
-          rows.push({ cls: "go", t: "",
+          // the loaded leg is time the crew is working, so it advances the clock -- the engine
+          // counts it in _endMs and the drawer used to leave it out, which is why a chained
+          // run's arrival here disagreed with the arrival in the ledger above
+          rows.push({ cls: "go", t: clock(cur),
                       txt: "Loaded to " + esc(j["Delivery City"] || "") + " · "
                            + fmtMin(dl.min) + " · " + Math.round(dl.mi) + " mi" });
+          cur += dl.min / 60;
         }
-        cur += hrs;
-        var far = String(j["Moving Type"] || "").toLowerCase().indexOf("long") >= 0;
+        var far = isAway(j);
         rows.push({ cls: far ? "ld" : "drop", t: clock(cur),
                     txt: far
                       ? "Departs long distance → " + esc((j["Delivery City"] || "") + ", "
@@ -728,7 +742,7 @@ registerPage({
             var pl = L.polyline(c, empty
               ? { color: col, weight: 2.5, dashArray: "6 7", opacity: 0.9 }
               : { color: col, weight: 4, opacity: 0.85 }).addTo(m);
-            pl.bindTooltip((meta.label || "") + (g.miles ? " · " + g.miles + " mi" : "")
+            pl.bindTooltip(esc(meta.label || "") + (g.miles ? " · " + esc(g.miles) + " mi" : "")
                            + (empty ? " (empty)" : ""), { sticky: true });
             box._lay.push(pl);
             if (meta.kind === "long" || meta.kind === "straight") far++;
@@ -791,8 +805,8 @@ registerPage({
         S.sel = String((prob || tod || days[0]).Day).slice(0, 10);
       }
 
-      var nProb = days.filter(function (d) { return d.Status !== "ok"; }).length;
-      var nNear = days.filter(function (d) { return d.Status === "ok" && +d["Near Full"]; }).length;
+      var nProb = days.filter(function (d) { return d.Status === "short"; }).length;
+      var nNear = days.filter(function (d) { return d.Status === "tight"; }).length;
       var tightest = days.slice().sort(function (a, b) { return (+a.Spare) - (+b.Spare); })[0];
       var totJobs = days.reduce(function (a, d) { return a + (+d.Jobs || 0); }, 0);
       var totChain = days.reduce(function (a, d) { return a + (+d["Chains Applied"] || 0); }, 0);
@@ -1202,6 +1216,7 @@ registerPage({
               o.Status = "open";
           });
           S.busy = "";
+          overlayDecisions(S.opts).then(function () { paint(); });
           S.msg = action === "reopened"
             ? "Reopened — " + (cust || code) + " is back on the list."
             : "Recorded — " + action + " for " + (cust || code) + ".";
@@ -1213,14 +1228,55 @@ registerPage({
         });
     }
 
-    if (S.days && S.jobs && S.opts) { paint(); return; }
+    // Replays ops_cleanup_decision over the mart's frozen Status. Mirrors the mart's own
+    // rule exactly (cleanup_mart.py): latest event wins per job; a decline blocks the whole
+    // customer; a reopen on ANY of that customer's jobs lifts the customer-wide block.
+    function overlayDecisions(rows) {
+      return fetch(ZTZ.API + "/api/_cleanupdecide", {
+        headers: { Authorization: "Bearer " + ZTZ.getToken() } })
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (j) {
+          var log = (j && (j.rows || j.decisions)) || [];
+          if (!log.length) return rows;
+          var key = function (v) { return String(v == null ? "" : v).trim().toLowerCase(); };
+          // oldest first so the last word on any job or customer is the one that stands
+          log = log.slice().sort(function (a, b) {
+            return String(a.at || "").localeCompare(String(b.at || "")); });
+          var byJob = {}, custBlocked = {};
+          log.forEach(function (d) {
+            var jk = String(d.day).slice(0, 10) + "|" + d.job_code;
+            if (d.action === "reopened") {
+              byJob[jk] = "open";
+              if (d.customer) custBlocked[key(d.customer)] = false;
+            } else {
+              byJob[jk] = d.action;
+              if (d.action === "declined" && d.customer) custBlocked[key(d.customer)] = true;
+            }
+          });
+          rows.forEach(function (o) {
+            var jk = String(o.Day).slice(0, 10) + "|" + o["Job Code"];
+            if (byJob[jk]) o.Status = byJob[jk];
+            else if (custBlocked[key(o.Customer)]) o.Status = "declined";
+          });
+          return rows;
+        })
+        .catch(function () { return rows; });   // never let the audit read break the board
+    }
+
+    if (S.days && S.jobs && S.opts) {
+      // re-entering the page must not show a stale decision another dispatcher has taken
+      overlayDecisions(S.opts).then(function () { paint(); });
+      paint();
+      return;
+    }
     Promise.all([RS.load("fct_cleanup_day"), RS.load("fct_cleanup_job"),
                  RS.load("fct_cleanup_option")])
       .then(function (res) {
         S.days = res[0] || [];
         S.jobs = res[1] || [];
         S.opts = res[2] || [];
-        paint();
+        paint();                                   // the board, immediately
+        overlayDecisions(S.opts).then(function () { paint(); });   // then the live decisions
       })
       .catch(function (e) {
         if (window.__CUGEN !== gen) return;
