@@ -190,14 +190,18 @@ registerPage({
           if (gap > 0) rs.forEach(function (r) { opp += gap * (r["Packing Units"] || 0); });
         }
 
+        // The verdict must be read off the SAME number the card prints. Judging the raw
+        // float while displaying the rounded one put "score 12 - in line" on a board whose
+        // own note says the line is 12, and a board that contradicts itself is not believed.
+        var shown = scored ? Math.round(score) : null;
         var verdict = !scored ? "thin"
-          : (score >= DIAL.flag && conf === "STRONG") ? "review"
-          : score >= DIAL.flag ? "look"
+          : (shown >= DIAL.flag && conf === "STRONG") ? "review"
+          : shown >= DIAL.flag ? "look"
           : conf === "THIN" ? "untested" : "ok";
 
         return {
           name: name, jobs: rs, n: n, med: med, ps: ps, below: below, bestP: bestP,
-          score: scored ? Math.round(score) : null, conf: conf, verdict: verdict,
+          score: shown, conf: conf, verdict: verdict,
           zeroRate: zeroRate, opp: opp, fleet: fleet,
           all: jobs.filter(function (r) { return r.Foreman === name; }),
           sold: rs.reduce(function (a, r) { return a + (+r["Sold USD"] || 0); }, 0),
