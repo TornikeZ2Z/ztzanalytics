@@ -210,6 +210,22 @@ registerPage({
       + ".cu-gap.over{background:var(--neg);opacity:.45}"
       + ".cu-mleg i.hatch{background:repeating-linear-gradient(115deg,var(--empty) 0 3px,"
       + "transparent 3px 7px);height:5px}"
+      /* MAP FURNITURE: arrows on the line, chips at the stops, a readable tooltip */
+      + ".cu-arrow i{font-style:normal;font-size:13px;line-height:1;display:block;"
+      + "text-shadow:0 0 3px var(--panel),0 0 3px var(--panel)}"
+      + ".cu-chipwrap{pointer-events:none}"
+      + ".cu-mchip{position:absolute;left:9px;top:-9px;white-space:nowrap;font-size:10px;"
+      + "font-weight:750;letter-spacing:-.1px;padding:2px 6px;border-radius:999px;"
+      + "background:var(--panel);color:var(--ink);border:1px solid var(--line-2);"
+      + "box-shadow:0 1px 3px rgba(0,0,0,.18)}"
+      + ".cu-mchip.pick{border-color:var(--blue)} .cu-mchip.drop{border-color:var(--pos)}"
+      + ".cu-mchip.base{background:var(--ink);color:var(--panel);border-color:var(--ink)}"
+      + ".leaflet-tooltip.cu-mtip{background:var(--panel);color:var(--ink);"
+      + "border:1px solid var(--line);border-radius:9px;box-shadow:var(--shadow);"
+      + "padding:7px 10px;font-size:11.5px;line-height:1.5;max-width:260px;white-space:normal}"
+      + ".leaflet-tooltip.cu-mtip b{display:block;font-size:12px;margin-bottom:2px}"
+      + ".leaflet-tooltip.cu-mtip span{display:block;color:var(--faint)}"
+      + ".leaflet-tooltip.cu-mtip:before{border-top-color:var(--line)}"
       /* THE RUN DRAWER */
       + ".cu-drw{flex:0 0 380px;position:sticky;top:12px;max-height:calc(100vh - 84px);"
       + "overflow:auto;background:var(--panel-2);border:1px solid var(--line);border-radius:13px;"
@@ -634,8 +650,11 @@ registerPage({
         + (S.mapOn
            ? "<div class='cu-dmap'><div class='cu-map' id='cuMap'></div>"
              + "<div class='cu-mleg'>"
-             + "<span><i style='background:var(--job-local)'></i>loaded</span>"
-             + "<span><i class='hatch'></i>empty drive</span>"
+             + "<span><i style='background:var(--blue)'></i>out to first pickup</span>"
+             + "<span><i style='background:var(--job-local)'></i>loaded — job 1</span>"
+             + "<span><i style='background:var(--pos)'></i>loaded — job 2</span>"
+             + "<span><i style='background:var(--job-straight)'></i>between jobs</span>"
+             + "<span><i style='background:var(--empty)'></i>run home</span>"
              + "<span><i style='background:var(--job-long)'></i>long distance</span>"
              + "<span id='cuFar'></span></div></div>"
            : "")
@@ -678,28 +697,54 @@ registerPage({
     function drawMap(jobs) {
       var box = document.getElementById("cuMap");
       if (!box || !jobs.length) return;
-      // Every leg we want drawn: the loaded run of each job, plus the EMPTY drive between
-      // two jobs a crew runs back to back -- that empty leg is the cost chaining is trading
-      // away, so it is the one a dispatcher most needs to see.
-      var byRoute = {};
-      jobs.forEach(function (j) {
-        var k = j.Route || ("solo:" + j["Job Code"]);
-        (byRoute[k] = byRoute[k] || []).push(j);
-      });
+      // THE WHOLE JOURNEY, not just the loaded parts. A crew's day is four kinds of driving
+      // and they cost differently: out to the first pickup, loaded with someone's home,
+      // empty between two chained jobs, and back to the depot. Only the loaded miles earn
+      // anything; the other three are what chaining is trading away, so each gets its own
+      // colour rather than being lumped together or left off the map entirely.
       var legs = [];
-      Object.keys(byRoute).forEach(function (k) {
-        var r = byRoute[k].sort(function (a, b) {
-          return String(a.Start).localeCompare(String(b.Start)); });
-        r.forEach(function (j, i) {
-          if (j["Pickup Zip"] && j["Delivery Zip"])
-            legs.push({ a: j["Pickup Zip"], b: j["Delivery Zip"], kind: barClass(j) || "loaded",
-                        route: k, label: (j.Customer || j["Job Code"]) });
-          var nx = r[i + 1];
-          if (nx && j["Delivery Zip"] && nx["Pickup Zip"])
-            legs.push({ a: j["Delivery Zip"], b: nx["Pickup Zip"], kind: "empty", route: k,
-                        label: "empty drive" });
-        });
+      var r = jobs.slice().sort(function (a, b) {
+        return String(a.Start).localeCompare(String(b.Start)); });
+      var bz = r[0] && r[0]["Base Zip"];
+      var baseName = (r[0] && r[0].Base ? r[0].Base + " base" : "base");
+      var hhmm = function (v) { return String(v || "").slice(0, 5); };
+
+      if (bz && r[0]["Pickup Zip"]) {
+        legs.push({ a: bz, b: r[0]["Pickup Zip"], kind: "out", n: 0,
+                    from: baseName, to: r[0]["Pickup City"] || r[0]["Pickup Zip"],
+                    title: "Leaving " + baseName,
+                    sub: "empty — heading out to the first pickup" });
+      }
+      r.forEach(function (j, i) {
+        var cust = j.Customer || j["Job Code"];
+        if (j["Pickup Zip"] && j["Delivery Zip"]) {
+          legs.push({ a: j["Pickup Zip"], b: j["Delivery Zip"],
+                      kind: barClass(j) === "long" || barClass(j) === "straight"
+                            ? "far" : "loaded",
+                      n: i + 1, job: j,
+                      from: j["Pickup City"] || j["Pickup Zip"],
+                      to: j["Delivery City"] || j["Delivery Zip"],
+                      title: "Job " + (i + 1) + " · " + cust,
+                      sub: "loaded · " + money(j.CF) + " CF"
+                           + (j["Job Code"] ? " · " + j["Job Code"] : "") });
+        }
+        var nx = r[i + 1];
+        if (nx && j["Delivery Zip"] && nx["Pickup Zip"]) {
+          legs.push({ a: j["Delivery Zip"], b: nx["Pickup Zip"], kind: "between", n: i + 1,
+                      from: j["Delivery City"] || j["Delivery Zip"],
+                      to: nx["Pickup City"] || nx["Pickup Zip"],
+                      title: "Between job " + (i + 1) + " and job " + (i + 2),
+                      sub: "empty — the drive chaining pays for" });
+        }
       });
+      var last = r[r.length - 1];
+      var lastIsAway = last && String(last["Job Type"] || "").toLowerCase()
+                                 .indexOf("straight") >= 0;
+      if (bz && last && last["Delivery Zip"] && !lastIsAway) {
+        legs.push({ a: last["Delivery Zip"], b: bz, kind: "home", n: r.length,
+                    from: last["Delivery City"] || last["Delivery Zip"], to: baseName,
+                    title: "Back to " + baseName, sub: "empty — the run home" });
+      }
       if (!legs.length) { box.innerHTML = "<div style='padding:18px;color:var(--faint)'>"
         + "No mappable stops on this day.</div>"; return; }
 
@@ -765,27 +810,84 @@ registerPage({
           // whole day out to the eastern seaboard and turn the crews' actual morning into a
           // smudge, so long runs are drawn in full but do not get a vote on the bounds --
           // click their bar to follow one out.
+          // one colour per kind of driving, one per job for the loaded legs
+          var KIND = { out: tok("--blue"), between: tok("--job-straight"),
+                       home: tok("--empty"), far: tok("--job-long") };
+          var JOBCOL = [tok("--job-local"), tok("--pos"), tok("--warn"),
+                        tok("--job-straight"), tok("--neg")];
+          var add = function (l) { box._lay.push(l.addTo(m)); return l; };
+          var bearing = function (a, b) {
+            return Math.atan2(b[1] - a[1], b[0] - a[0]) * 180 / Math.PI;
+          };
+          // an arrow sat on the line, pointing the way the truck is going
+          var arrow = function (c, col) {
+            if (c.length < 2) return;
+            var i = Math.max(1, Math.floor(c.length / 2));
+            var deg = 90 - bearing(c[i - 1], c[i]);
+            add(L.marker(c[i], { interactive: false, keyboard: false,
+              icon: L.divIcon({ className: "cu-arrow", iconSize: [16, 16],
+                html: "<i style='transform:rotate(" + deg.toFixed(0) + "deg);color:"
+                      + col + "'>\u27A4</i>" }) }));
+          };
+          var chip = function (at, text, cls) {
+            add(L.marker(at, { interactive: false, keyboard: false,
+              icon: L.divIcon({ className: "cu-chipwrap", iconSize: [0, 0],
+                html: "<span class='cu-mchip " + (cls || "") + "'>" + esc(text) + "</span>" }) }));
+          };
+
           var bounds = [], far = 0;
           got.forEach(function (g, i) {
             var c = g.coords || [];
             if (c.length < 2) return;
             var meta = legs[i] || {};
-            var empty = meta.kind === "empty";
-            var col = empty ? tok("--empty") : (meta.kind === "long" ? tok("--job-long")
-                      : meta.kind === "straight" ? tok("--job-straight") : tok("--job-local"));
-            var pl = L.polyline(c, empty
-              ? { color: col, weight: 2.5, dashArray: "6 7", opacity: 0.9 }
-              : { color: col, weight: 4, opacity: 0.85 }).addTo(m);
-            pl.bindTooltip(esc(meta.label || "") + (g.miles ? " · " + esc(g.miles) + " mi" : "")
-                           + (empty ? " (empty)" : ""), { sticky: true });
-            box._lay.push(pl);
-            if (meta.kind === "long" || meta.kind === "straight") far++;
+            var loaded = meta.kind === "loaded" || meta.kind === "far";
+            var col = loaded
+              ? (meta.kind === "far" ? KIND.far : JOBCOL[(meta.n - 1) % JOBCOL.length])
+              : KIND[meta.kind] || tok("--empty");
+
+            // a white casing under every line so a route stays readable over any map tile
+            add(L.polyline(c, { color: tok("--panel"), weight: loaded ? 8 : 6,
+                                opacity: 0.85, lineCap: "round" }));
+            var pl = add(L.polyline(c, loaded
+              ? { color: col, weight: 4.5, opacity: 0.95, lineCap: "round" }
+              : { color: col, weight: 3, opacity: 0.95, dashArray: "5 7", lineCap: "round" }));
+            arrow(c, col);
+
+            var mi = g.miles != null ? Math.round(g.miles) : null;
+            var mins = mi != null ? Math.round(mi / 35 * 60) + 4 : null;
+            pl.bindTooltip(
+              "<b>" + esc(meta.title || "") + "</b>"
+              + "<span>" + esc(meta.from || "") + " \u2192 " + esc(meta.to || "") + "</span>"
+              + "<span>" + esc(meta.sub || "") + "</span>"
+              + (mi != null ? "<span>" + mi + " mi · about " + fmtMin(mins)
+                              + (g.source === "here" ? "" : " · straight-line estimate")
+                              + "</span>" : ""),
+              { sticky: true, className: "cu-mtip", direction: "top" });
+
+            if (meta.kind === "far") far++;
             else c.forEach(function (p) { bounds.push(p); });
-            if (!empty) {
-              var mk = L.circleMarker(c[0], { radius: 4, color: col, fillColor: tok("--panel"),
-                                              fillOpacity: 1, weight: 2 }).addTo(m);
-              box._lay.push(mk);
+
+            // numbered stops: P where the load goes on, D where it comes off
+            if (loaded) {
+              var j = meta.job || {};
+              add(L.circleMarker(c[0], { radius: 7, color: col, weight: 3,
+                    fillColor: tok("--panel"), fillOpacity: 1 }))
+                .bindTooltip("<b>Job " + meta.n + " pickup</b><span>"
+                  + esc(j["Pickup City"] || "") + " " + esc(j["Pickup Zip"] || "")
+                  + "</span><span>booked " + esc(hhmm(j.Start)) + " · "
+                  + esc(money(j.CF)) + " CF" + (j.Crew ? " · crew of " + esc(j.Crew) : "")
+                  + "</span>", { className: "cu-mtip", direction: "top" });
+              add(L.circleMarker(c[c.length - 1], { radius: 7, color: col, weight: 3,
+                    fillColor: col, fillOpacity: 1 }))
+                .bindTooltip("<b>Job " + meta.n + " delivery</b><span>"
+                  + esc(j["Delivery City"] || "") + " " + esc(j["Delivery Zip"] || "")
+                  + "</span><span>" + esc(meta.title || "") + "</span>",
+                  { className: "cu-mtip", direction: "top" });
+              chip(c[0], meta.n + "P " + (meta.from || ""), "pick");
+              chip(c[c.length - 1], meta.n + "D " + (meta.to || ""), "drop");
             }
+            if (meta.kind === "out") chip(c[0], "\u25c6 " + (meta.from || "base"), "base");
+            if (meta.kind === "home") chip(c[c.length - 1], "\u25c6 " + (meta.to || "base"), "base");
           });
           if (!bounds.length) {   // a day of nothing but long runs still has to show them
             got.forEach(function (g) { (g.coords || []).forEach(function (p) { bounds.push(p); }); });
