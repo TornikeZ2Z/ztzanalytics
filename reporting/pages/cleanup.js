@@ -56,7 +56,7 @@ registerPage({
     };
     var S = window.__CU || (window.__CU = { days: null, jobs: null, opts: null,
       sel: null, probOnly: false, busy: "", msg: "",
-      baseF: null, coF: null, focus: null, mapOn: false, openRun: null, shut: {} });
+      baseF: null, coF: null, mapOn: false, openRun: null, shut: {} });
 
     host.innerHTML = '<style id="cuCss">'
       + ".cu-wrap{--t1:26px;--t2:15px;--t3:13.5px;--t4:12px;--t5:11px;--t6:9.5px;--r-card:14px;--r-ctl:10px;--r-bar:6px;--cu-lab:182px;max-width:1280px}"
@@ -240,6 +240,12 @@ registerPage({
       + ".cu-dfoot{font-size:11px;color:var(--faint);line-height:1.55;margin-top:8px;"
       + "padding-top:9px;border-top:1px solid var(--line-2)}"
       + ".cu-dbtn{width:100%;margin-top:11px;padding:9px}"
+      /* the drawer gives the map room rather than sending it to the foot of the page */
+      + ".cu-drw.wide{flex:0 0 min(620px,52vw)}"
+      + ".cu-dmap{margin-top:11px}"
+      + ".cu-dmap .cu-map{height:340px}"
+      + ".cu-dnote{font-size:var(--t5);color:var(--faint);line-height:1.55;margin-top:9px}"
+      + "@media(max-width:1180px){.cu-drw.wide{flex:1 1 auto}}"
       + "@media(max-width:1180px){.cu-split{flex-direction:column}"
       + ".cu-drw{flex:1 1 auto;width:100%;position:static;max-height:none}}"
       /* MAP */
@@ -585,7 +591,7 @@ registerPage({
           + "</div>";
       }
 
-      return "<aside class='cu-drw' id='cuDrw'>"
+      return "<aside class='cu-drw" + (S.mapOn ? " wide" : "") + "' id='cuDrw'>"
         + "<div class='cu-dhd'><div><b>" + esc(r.id)
         + (first.Foreman ? " · " + esc(first.Foreman) : "") + "</b>"
         + "<span>" + esc(first.Base || "") + " base · " + legs.length + " job"
@@ -613,8 +619,18 @@ registerPage({
         + Math.round(totMi) + " mi, of which <b>" + fmtMin(empMin) + "</b> is empty. "
         + "Times are estimated from straight-line distance at " + MPH + " mph; work never "
         + "starts before the booked time.</div>"
-        + "<button class='cu-btn sel cu-dbtn' id='cuDrwMap'>"
-        + (S.mapOn ? "Map is open below" : "Analyze this run on the map") + "</button>"
+        + "<button class='cu-btn" + (S.mapOn ? "" : " sel") + " cu-dbtn' id='cuDrwMap'>"
+        + (S.mapOn ? "Hide the map" : "Analyze this run on the map") + "</button>"
+        + (S.mapOn
+           ? "<div class='cu-dmap'><div class='cu-map' id='cuMap'></div>"
+             + "<div class='cu-mleg'>"
+             + "<span><i style='background:var(--job-local)'></i>loaded</span>"
+             + "<span><i class='hatch'></i>empty drive</span>"
+             + "<span><i style='background:var(--job-long)'></i>long distance</span>"
+             + "<span id='cuFar'></span></div></div>"
+           // metered: nothing is fetched until the button above is pressed
+           : "<div class='cu-dnote'>This run drawn on real roads, including the empty drives. "
+             + "Routing is charged per leg, so it is only fetched when you ask.</div>")
         + "</aside>";
     }
 
@@ -653,7 +669,6 @@ registerPage({
       });
       var legs = [];
       Object.keys(byRoute).forEach(function (k) {
-        if (S.focus && S.focus !== k) return;
         var r = byRoute[k].sort(function (a, b) {
           return String(a.Start).localeCompare(String(b.Start)); });
         r.forEach(function (j, i) {
@@ -1049,25 +1064,10 @@ registerPage({
           + "Click a row to open the run.</div></div>"
           + runDrawer(shown)
           + "</div></div>"
-          + (shown.length ? "<div class='cu-card'><div class='cu-hd'><b>Where the day goes</b>"
-              + (S.mapOn ? "<span class='cu-pill'>" + (S.focus ? "one run" : "every run")
-                  + "</span>" : "")
-              + (S.focus && S.mapOn ? "<button class='cu-btn' id='cuAll' style='margin-left:auto'>"
-                  + "Show every run</button>" : "")
-              + "<button class='cu-btn" + (S.mapOn ? "" : " sel") + "' id='cuMapT' style='margin-left:"
-              + (S.focus && S.mapOn ? "6px" : "auto") + "'>"
-              + (S.mapOn ? "Hide map" : "Analyze routes") + "</button></div>"
-              + (S.mapOn
-                 ? "<div class='cu-map' id='cuMap'></div><div class='cu-mleg'>"
-                   + "<span><i style='background:var(--job-local)'></i>loaded — pickup to delivery</span>"
-                   + "<span><i class='hatch'></i>empty — the drive between two chained jobs</span>"
-                   + "<span><i style='background:var(--job-long)'></i>long distance</span>"
-                   + "<span id='cuFar'></span></div>"
-                 // Road geometry is metered, so nothing is fetched until it is asked for.
-                 : "<div class='cu-note' style='margin:0'>Every leg of this day drawn on real "
-                   + "roads, including the empty drives between chained jobs. Routing is "
-                   + "charged per leg, so it is only fetched when you ask for it.</div>")
-              + "</div>" : "");
+          ;
+        // The map used to live in its own card at the bottom of the page, and could draw
+        // every route on the day at once. It belongs to ONE RUN, so it now opens inside the
+        // run drawer on the right, next to the itinerary it illustrates.
       }
 
       // day navigation: the strip is for scanning the horizon, these are for walking it
@@ -1097,20 +1097,20 @@ registerPage({
       Array.prototype.forEach.call(body.querySelectorAll("[data-day]"), function (b) {
         b.onclick = function () {
           S.sel = b.getAttribute("data-day");
-          S.focus = S.openRun = null; S.mapOn = false; paint(); };
+          S.openRun = null; S.mapOn = false; paint(); };
       });
       var pb = document.getElementById("cuProb");
       if (pb) pb.onclick = function () { S.probOnly = !S.probOnly; paint(); };
       var pv = document.getElementById("cuPrev"), nx = document.getElementById("cuNext");
       if (pv) pv.onclick = function () {
-        if (at > 0) { S.sel = order[at - 1]; S.focus = S.openRun = null; S.mapOn = false; paint(); } };
+        if (at > 0) { S.sel = order[at - 1]; S.openRun = null; S.mapOn = false; paint(); } };
       if (nx) nx.onclick = function () {
         if (at >= 0 && at < order.length - 1) {
-          S.sel = order[at + 1]; S.focus = S.openRun = null; S.mapOn = false; paint();
+          S.sel = order[at + 1]; S.openRun = null; S.mapOn = false; paint();
         } };
       Array.prototype.forEach.call(body.querySelectorAll("[data-jump]"), function (b) {
         b.onclick = function () {
-          S.sel = b.getAttribute("data-jump"); S.focus = S.openRun = null; S.mapOn = false;
+          S.sel = b.getAttribute("data-jump"); S.openRun = null; S.mapOn = false;
           // jumping to a day the "needs attention" view has hidden would land on nothing
           if (order.indexOf(S.sel) < 0) S.probOnly = false;
           paint();
@@ -1123,19 +1123,18 @@ registerPage({
       Array.prototype.forEach.call(body.querySelectorAll("[data-base]"), function (b) {
         b.onclick = function () {
           S.baseF = b.getAttribute("data-base") || null;
-          S.focus = S.openRun = null; S.mapOn = false; paint(); };
+          S.openRun = null; S.mapOn = false; paint(); };
       });
       Array.prototype.forEach.call(body.querySelectorAll("[data-co]"), function (b) {
         b.onclick = function () {
           S.coF = b.getAttribute("data-co") || null;
-          S.focus = S.openRun = null; S.mapOn = false; paint(); };
+          S.openRun = null; S.mapOn = false; paint(); };
       });
       Array.prototype.forEach.call(body.querySelectorAll("[data-run]"), function (b) {
         var open = function () {
           var r = b.getAttribute("data-run");
           var same = S.openRun === r;
           S.openRun = same ? null : r;
-          S.focus = S.openRun;
           // the map does not follow you around: geometry is metered, so a new run means a
           // new deliberate "analyze", never a silent fetch for wherever you clicked
           S.mapOn = false;
@@ -1155,33 +1154,34 @@ registerPage({
       });
       var dx = document.getElementById("cuDrwX");
       if (dx) dx.onclick = function () {
-        S.openRun = null; S.focus = null; S.mapOn = false; paint(); };
+        S.openRun = null; S.mapOn = false; paint(); };
       var dm = document.getElementById("cuDrwMap");
       if (dm) dm.onclick = function () {
-        S.mapOn = true; paint();
-        var mp = document.getElementById("cuMap");
-        if (mp) mp.scrollIntoView({ behavior: "smooth", block: "center" });
+        S.mapOn = !S.mapOn;
+        paint();
+        if (S.mapOn) {
+          var d = document.getElementById("cuDrw");
+          if (d && !window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+            d.scrollIntoView({ behavior: "smooth", block: "nearest" });
+          }
+        }
       };
-      var ab = document.getElementById("cuAll");
-      if (ab) ab.onclick = function () { S.focus = null; paint(); };
       // Esc closes the run the same way the X does
       if (!window.__CUESC) {
         window.__CUESC = true;
         document.addEventListener("keydown", function (e) {
           if (e.key === "Escape" && S.openRun) {
-            S.openRun = null; S.focus = null; S.mapOn = false; paint();
+            S.openRun = null; S.mapOn = false; paint();
           }
         });
       }
-      var mt = document.getElementById("cuMapT");
-      if (mt) mt.onclick = function () { S.mapOn = !S.mapOn; paint(); };
-
-      // the map is drawn after the DOM exists, and only for what is actually shown
-      if (document.getElementById("cuMap")) {
-        var vis = (S.jobs || []).filter(function (j) {
+      // the map is drawn after the DOM exists, and only ever for the ONE run that is open --
+      // there is no "every run" mode any more, which also means the day's whole geometry is
+      // never bought at once
+      if (document.getElementById("cuMap") && S.openRun) {
+        drawMap((S.jobs || []).filter(function (j) {
           return String(j.Day).slice(0, 10) === S.sel
-            && (!S.baseF || j.Base === S.baseF) && (!S.coF || j.Company === S.coF); });
-        drawMap(vis);
+            && (j.Route || ("solo:" + j["Job Code"])) === S.openRun; }));
       }
     }
 
