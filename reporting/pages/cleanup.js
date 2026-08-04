@@ -59,7 +59,7 @@ registerPage({
       baseF: null, coF: null, mapOn: false, openRun: null, shut: {} });
 
     host.innerHTML = '<style id="cuCss">'
-      + ".cu-wrap{--t1:26px;--t2:15px;--t3:13.5px;--t4:12px;--t5:11px;--t6:9.5px;--r-card:14px;--r-ctl:10px;--r-bar:6px;--cu-lab:182px;max-width:1280px}"
+      + ".cu-wrap{--t1:26px;--t2:15px;--t3:13.5px;--t4:12px;--t5:11px;--t6:9.5px;--r-card:14px;--r-ctl:10px;--r-bar:6px;--cu-lab:200px;max-width:none}"
       + ".cu-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:16px}"
       + ".cu-kpi{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:13px 16px}"
       + ".cu-kpi b{font-variant-numeric:tabular-nums;display:block;font-size:26px;letter-spacing:-.5px;line-height:1.1}"
@@ -202,10 +202,13 @@ registerPage({
       + ".cu-mleg i.hatch{background:repeating-linear-gradient(115deg,var(--empty) 0 3px,"
       + "transparent 3px 7px);height:5px}"
       /* THE RUN DRAWER */
-      + ".cu-drw{flex:0 0 356px;position:sticky;top:12px;max-height:calc(100vh - 90px);"
+      + ".cu-drw{flex:0 0 380px;position:sticky;top:12px;max-height:calc(100vh - 84px);"
       + "overflow:auto;background:var(--panel-2);border:1px solid var(--line);border-radius:13px;"
       + "padding:14px 15px}"
-      + ".cu-dhd{display:flex;align-items:flex-start;gap:10px;margin-bottom:12px}"
+      + ".cu-dhd{display:flex;align-items:flex-start;gap:10px;margin:-14px -15px 12px;"
+      + "padding:14px 15px 11px;position:sticky;top:-14px;z-index:2;background:var(--panel-2);"
+      + "border-bottom:1px solid var(--line-2);border-radius:var(--r-card) var(--r-card) 0 0}"
+      + ".cu-dhdbtn{margin-left:auto;display:flex;gap:6px;align-items:center}"
       + ".cu-dhd b{display:block;font-size:14px;letter-spacing:-.2px}"
       + ".cu-dhd span{display:block;font-size:11.5px;color:var(--faint);margin-top:2px}"
       + ".cu-x{margin-left:auto;font:inherit;font-size:13px;line-height:1;color:var(--faint);"
@@ -239,11 +242,14 @@ registerPage({
       + "border-left:3px solid var(--warn);border-radius:0 8px 8px 0;padding:8px 10px;margin-top:11px}"
       + ".cu-dfoot{font-size:11px;color:var(--faint);line-height:1.55;margin-top:8px;"
       + "padding-top:9px;border-top:1px solid var(--line-2)}"
-      + ".cu-dbtn{width:100%;margin-top:11px;padding:9px}"
       /* the drawer gives the map room rather than sending it to the foot of the page */
-      + ".cu-drw.wide{flex:0 0 min(620px,52vw)}"
-      + ".cu-dmap{margin-top:11px}"
-      + ".cu-dmap .cu-map{height:340px}"
+      /* map open = an even split, so the route gets as much screen as the day does */
+      + ".cu-drw.wide{flex:1 1 0;max-width:none}"
+      + ".cu-dmap{margin-top:12px}"
+      + ".cu-dmap .cu-map{height:min(56vh,600px)}"
+      /* at half-width the vitals stop wrapping into three cramped columns */
+      + ".cu-drw.wide .cu-vit{grid-template-columns:repeat(6,1fr)}"
+      + ".cu-drw.wide .cu-step{columns:1}"
       + ".cu-dnote{font-size:var(--t5);color:var(--faint);line-height:1.55;margin-top:9px}"
       + "@media(max-width:1180px){.cu-drw.wide{flex:1 1 auto}}"
       + "@media(max-width:1180px){.cu-split{flex-direction:column}"
@@ -596,7 +602,11 @@ registerPage({
         + (first.Foreman ? " · " + esc(first.Foreman) : "") + "</b>"
         + "<span>" + esc(first.Base || "") + " base · " + legs.length + " job"
         + (legs.length === 1 ? "" : "s") + " · the whole run for this day</span></div>"
-        + "<button class='cu-x' id='cuDrwX' title='Close'>✕</button></div>"
+        + "<div class='cu-dhdbtn'>"
+        + "<button class='cu-btn" + (S.mapOn ? "" : " sel") + "' id='cuDrwMap'>"
+        + (S.mapOn ? "Hide map" : "Analyze this run") + "</button>"
+        + "<button class='cu-x' id='cuDrwX' title='Close' aria-label='Close run'>✕</button>"
+        + "</div></div>"
         + "<div class='cu-vit'>"
         + cell(clock(hrOf(first.Start)) + "–" + clock(endH), "booked")
         + cell(money(cf) + " CF", "volume")
@@ -612,15 +622,6 @@ registerPage({
         + "<em>" + legs.map(function (j) { return esc(j["Job Code"] || ""); }).join(" · ")
         + "</em></div>"
         + warn
-        + "<div class='cu-step'>" + rows.map(function (x) {
-            return "<div class='" + x.cls + "'><i>" + x.t + "</i><span>" + x.txt + "</span></div>";
-          }).join("") + "</div>"
-        + "<div class='cu-dfoot'>Day driving <b>" + fmtMin(totMin) + "</b> · "
-        + Math.round(totMi) + " mi, of which <b>" + fmtMin(empMin) + "</b> is empty. "
-        + "Times are estimated from straight-line distance at " + MPH + " mph; work never "
-        + "starts before the booked time.</div>"
-        + "<button class='cu-btn" + (S.mapOn ? "" : " sel") + " cu-dbtn' id='cuDrwMap'>"
-        + (S.mapOn ? "Hide the map" : "Analyze this run on the map") + "</button>"
         + (S.mapOn
            ? "<div class='cu-dmap'><div class='cu-map' id='cuMap'></div>"
              + "<div class='cu-mleg'>"
@@ -628,7 +629,16 @@ registerPage({
              + "<span><i class='hatch'></i>empty drive</span>"
              + "<span><i style='background:var(--job-long)'></i>long distance</span>"
              + "<span id='cuFar'></span></div></div>"
-           // metered: nothing is fetched until the button above is pressed
+           : "")
+        + "<div class='cu-step'>" + rows.map(function (x) {
+            return "<div class='" + x.cls + "'><i>" + x.t + "</i><span>" + x.txt + "</span></div>";
+          }).join("") + "</div>"
+        + "<div class='cu-dfoot'>Day driving <b>" + fmtMin(totMin) + "</b> · "
+        + Math.round(totMi) + " mi, of which <b>" + fmtMin(empMin) + "</b> is empty. "
+        + "Times are estimated from straight-line distance at " + MPH + " mph; work never "
+        + "starts before the booked time.</div>"
+        + (S.mapOn ? ""
+           // metered: nothing is fetched until the header button is pressed
            : "<div class='cu-dnote'>This run drawn on real roads, including the empty drives. "
              + "Routing is charged per leg, so it is only fetched when you ask.</div>")
         + "</aside>";
