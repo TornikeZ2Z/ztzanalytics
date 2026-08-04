@@ -884,8 +884,11 @@ registerPage({
                   + esc(j["Delivery City"] || "") + " " + esc(j["Delivery Zip"] || "")
                   + "</span><span>" + esc(meta.title || "") + "</span>",
                   { className: "cu-mtip", direction: "top" });
-              chip(c[0], meta.n + "P " + (meta.from || ""), "pick");
-              chip(c[c.length - 1], meta.n + "D " + (meta.to || ""), "drop below");
+              // the chip names WHO, the tooltip says where -- a dispatcher thinks in
+              // customers, and the city is already one hover away (Tornike, 2026-08-04)
+              var who = (j.Customer || j["Job Code"] || meta.from || "");
+              chip(c[0], meta.n + "P " + who, "pick");
+              chip(c[c.length - 1], meta.n + "D " + who, "drop below");
             }
             if (!baseChipped && (meta.kind === "out" || meta.kind === "home")) {
               baseChipped = true;
