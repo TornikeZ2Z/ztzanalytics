@@ -106,7 +106,16 @@ registerPage({
       + ".cu-off{font-size:12.5px;color:var(--faint);margin-bottom:12px}"
       + ".cu-note{font-size:12px;color:var(--faint);line-height:1.6;margin-top:10px}"
       + ".cu-empty{color:var(--faint);font-size:13.5px;padding:16px 0}"
-      + ".cu-opt{display:flex;gap:12px;align-items:flex-start;padding:11px 0;border-top:1px solid var(--line-2)}"
+      /* Full width is right for the timeline and the map -- they are diagrams, and width is
+         what makes them readable. It is WRONG for prose and for a row whose action sits at
+         its end: at 2000px the Accept button ended up an inch from the far edge of the
+         screen, a long way from the sentence it answers. Text-bearing blocks keep a
+         comfortable measure; only the diagrams stretch. */
+      + ".cu-opt{display:flex;gap:12px;align-items:flex-start;padding:11px 0;"
+      + "border-top:1px solid var(--line-2);max-width:1180px}"
+      + ".cu-ghd,.cu-msg{max-width:1180px}"
+      + ".cu-verdict,.cu-note,.cu-off,.cu-ledhd span,.cu-lwarn,.cu-lnote{max-width:104ch}"
+      + ".cu-led{max-width:1180px}"
       + ".cu-opt:first-child{border-top:0}"
       + ".cu-opt.done{opacity:.5}"
       + ".cu-obody{flex:1;min-width:0}"
