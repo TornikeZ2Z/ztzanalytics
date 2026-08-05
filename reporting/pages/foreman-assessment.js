@@ -214,8 +214,10 @@ registerPage({
     }
 
     function load() {
-      const scP = S.sc ? Promise.resolve(S.sc) : RS.load("fa_scorecard");
-      return scP.then(sc => {
+      // ALWAYS through RS.load — it is epoch-keyed, so a pipeline rebuild reaches this
+      // page on the next visit. Caching rows on window state kept yesterday's scorecard
+      // alive for as long as the tab lived.
+      return RS.load("fa_scorecard").then(sc => {
         S.sc = sc;
         const months = openMonths();
         if (!months.length) { S.month = ""; paint(); return null; }
@@ -404,9 +406,10 @@ registerPage({
           + '<div class="fa2-stars">' + [1, 2, 3, 4, 5].map(n2 =>
               '<button class="fa2-star' + (stars != null && n2 <= stars ? " on" : "") + '"'
               + ' data-f="' + esc(f.Foreman) + '" data-q="' + q.k + '" data-s="' + n2 + '"'
+              + ' data-m="' + S.month + '"'
               + (S.locked ? " disabled" : "") + ' title="' + n2 + " star" + (n2 === 1 ? "" : "s") + '">★</button>').join("")
           + (stars != null && !S.locked ? '<button class="fa2-clr" data-f="' + esc(f.Foreman)
-              + '" data-q="' + q.k + '">clear</button>' : "")
+              + '" data-q="' + q.k + '" data-m="' + S.month + '">clear</button>' : "")
           + "</div>"
           + '<div class="fa2-pts' + (stars == null ? " un" : "") + '">'
           + (stars == null ? "unrated" : fmt1(stars)) + "</div></div>";
@@ -417,7 +420,13 @@ registerPage({
 
     function wire() {
       const m = main.querySelector("#fa2Mon");
-      if (m) m.onchange = function () { S.month = this.value; S.msg = ""; S.open = null; load(); };
+      if (m) m.onchange = function () {
+        S.month = this.value; S.msg = ""; S.open = null;
+        // clear the board BEFORE the async load: a star clicked on the old month's cards
+        // during the swap would otherwise write into the newly selected month
+        main.innerHTML = '<div class="fa2-empty">Loading ' + esc(monLab(S.month)) + "…</div>";
+        load();
+      };
       main.querySelectorAll(".fa2-chip").forEach(c => {
         c.onclick = () => { S.tab = c.dataset.tab; paint(); };
       });
@@ -437,7 +446,7 @@ registerPage({
         };
       });
       main.querySelectorAll(".fa2-star:not(:disabled)").forEach(b => {
-        b.onclick = e => { e.stopPropagation(); rate(b.dataset.f, b.dataset.q, +b.dataset.s); };
+        b.onclick = e => { e.stopPropagation(); rate(b.dataset.f, b.dataset.q, +b.dataset.s, b.dataset.m); };
         // preview: hovering the 4th star lights 1-4, so the click's meaning is visible first
         b.onmouseenter = () => {
           b.parentElement.querySelectorAll(".fa2-star").forEach(s2 =>
@@ -449,7 +458,7 @@ registerPage({
           .forEach(s2 => s2.classList.remove("pv"));
       });
       main.querySelectorAll(".fa2-clr").forEach(b => {
-        b.onclick = e => { e.stopPropagation(); rate(b.dataset.f, b.dataset.q, null); };
+        b.onclick = e => { e.stopPropagation(); rate(b.dataset.f, b.dataset.q, null, b.dataset.m); };
       });
       const sub = main.querySelector("#fa2Submit");
       if (sub) sub.onclick = submitMonth;
@@ -457,7 +466,15 @@ registerPage({
       if (ro) ro.onclick = reopenMonth;
     }
 
-    function rate(foreman, question, stars) {
+    function rate(foreman, question, stars, m) {
+      // a click that raced a month switch is dropped whole: its card belonged to the month
+      // that was on screen, not the one the picker now points at
+      if (m && m !== S.month) return;
+      const month = S.month;
+      const key = foreman + "|" + question;
+      const seq = S._seq || (S._seq = {});
+      const my = seq[key] = (seq[key] || 0) + 1;
+
       // paint the new value immediately, then confirm — a star that waits for a round trip
       // feels broken when you are rating a hundred and thirty of them
       const cur = (S.ratings[foreman] = S.ratings[foreman] || {});
@@ -467,15 +484,21 @@ registerPage({
                              "Entered By": "you", "Entered At": new Date().toISOString().slice(0, 10) };
       S.msg = "";
       paint();
-      api("/api/_fassess", { method: "POST", body: JSON.stringify({
-            month: S.month, foreman: foreman, question: question, stars: stars }) })
-        .catch(e => {
-          // put it back exactly as it was: a rating that silently failed is worse than none
-          if (before) cur[question] = before; else delete cur[question];
-          S.msg = "Not saved — " + e.message;
-          S.msgErr = true;
-          paint();
-        });
+      // SERIALIZED per question: two fast clicks otherwise race to the server and the last
+      // click can lose the ordering there, while a late failure here could roll the UI
+      // back over a newer, successful write
+      const chain = S._chain || (S._chain = {});
+      chain[key] = (chain[key] || Promise.resolve()).then(() =>
+        api("/api/_fassess", { method: "POST", body: JSON.stringify({
+              month: month, foreman: foreman, question: question, stars: stars }) })
+      ).then(() => {}, e => {
+        if (seq[key] !== my) return;   // a newer click owns this question now
+        // put it back exactly as it was: a rating that silently failed is worse than none
+        if (before) cur[question] = before; else delete cur[question];
+        S.msg = "Not saved — " + e.message;
+        S.msgErr = true;
+        paint();
+      });
     }
 
     function submitMonth() {
