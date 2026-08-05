@@ -1263,8 +1263,13 @@ registerPage({
         // sheet-vs-Slack: compare the board's possession bucket with the channel's word
         var poss = String(r["Possession"] || "").toLowerCase();
         var slackKind = String(latest.Custody || "");
-        var MAPPOSS = { rented_storage: /rent/, our_warehouse: /our|warehouse|base/,
-          carrier: /carrier/, delivered: /deliver/, truck: /truck|picked/ };
+        // COMPATIBLE means no alarm: the sheet's buckets are coarser than the channel's
+        // words ("With us" covers both a truck and the warehouse), and a false conflict
+        // teaches dispatchers to ignore the banner. Only clearly-incompatible pairs flag.
+        var MAPPOSS = { rented_storage: /rent/,
+          our_warehouse: /our|warehouse|base|with us/,
+          carrier: /carrier/, delivered: /deliver/,
+          truck: /truck|picked|with us/ };
         var conflict = poss && MAPPOSS[slackKind] && !MAPPOSS[slackKind].test(poss)
           && !(slackKind === "truck" && !poss);
         var h = '<div class="ldp-sec">Slack custody · ' + trail.length
