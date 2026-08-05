@@ -161,7 +161,7 @@ window.RS = (function () {
         "Forman Score Prev Month",
         // the 2026-08 model: 70 automatic + 30 from the logistics team's assessment
         "Auto Score", "Auto Weight Measured", "Manual Points", "Questions Answered",
-        "Assessed By", "Assessed At", "Total Score", "Total Score Rank"],
+        "Assessed By", "Assessed At", "Total Score", "Total Score Rank", "Qualified", "Not Qualified Because"],
       dateCols: { "Month": "Month" }, defaultDate: "Month",
     },
     headcount: {

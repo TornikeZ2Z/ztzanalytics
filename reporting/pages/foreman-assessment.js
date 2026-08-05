@@ -27,7 +27,8 @@
              "Packing Difference %", "Packing Vs Estimate Score", "Reviews to Jobs Ratio",
              "Review Score", "Claim Score", "Auto Score", "Auto Weight Measured",
              "Manual Points", "Questions Answered", "Assessed By", "Assessed At",
-             "Total Score", "Total Score Rank", "Forman Score"],
+             "Total Score", "Total Score Rank", "Qualified",
+             "Not Qualified Because", "Forman Score"],
     };
   }
 })();
@@ -198,7 +199,8 @@ registerPage({
       });
       var auto = num(f["Auto Score"]);
       return { f: f, r: r, answered: answered, manual: manual,
-               auto: auto, total: auto == null ? null : auto + manual };
+               auto: auto, total: auto == null ? null : auto + manual,
+               ok: +f["Qualified"] === 1, why: f["Not Qualified Because"] || "" };
     }
 
     function paint() {
@@ -216,6 +218,7 @@ registerPage({
         rows = rows.filter(function (x) { return x.f.Foreman.toLowerCase().indexOf(qq) >= 0; });
       }
       rows.sort(function (a, b) {
+        if (a.ok !== b.ok) return a.ok ? -1 : 1;
         if ((a.total == null) !== (b.total == null)) return a.total == null ? 1 : -1;
         return (b.total || 0) - (a.total || 0);
       });
@@ -223,7 +226,8 @@ registerPage({
       var done = rows.filter(function (x) { return x.answered === QUESTIONS.length; }).length;
       var part = rows.filter(function (x) { return x.answered > 0 && x.answered < QUESTIONS.length; }).length;
       var none = rows.filter(function (x) { return x.answered === 0; }).length;
-      var top = rows.filter(function (x) { return x.total != null; })[0];
+      var top = rows.filter(function (x) { return x.ok && x.total != null; })[0];
+      var nQual = rows.filter(function (x) { return x.ok; }).length;
 
       var h = '<div class="fa-bar">'
         + '<select id="faMonth">' + mList.map(function (m) {
@@ -244,7 +248,11 @@ registerPage({
         + "complaints upheld (10) — through the range tables the office maintains: <b>70 points</b>. "
         + "The six below are yours, five points each: <b>30 points</b>. A question you have not "
         + "answered is left out of the total and shown as unrated — it is never counted as zero, "
-        + "because a zero would say the man was assessed and failed.</p>";
+        + "because a zero would say the man was assessed and failed. "
+        + "<b>Who can win.</b> A foreman is only ranked once the month has said enough about "
+        + "him — at least five jobs run, and at least half the counted score measurable. "
+        + "Everyone else keeps their score and is still worth rating; they are simply not in "
+        + "the running for the month.</p>";
 
       h += '<div class="fa-kpis">'
         + kpi(String(rows.length), "Foremen this month", "with work recorded in " + monLab(S.month), "")
@@ -252,7 +260,10 @@ registerPage({
               part ? part + " partly · " + none + " not started" : (none ? none + " not started" : "all done"),
               done === rows.length && rows.length ? "pos" : "")
         + kpi(top ? top.f.Foreman.split(" ")[0] : "—", "Leading",
-              top ? (top.total.toFixed(1) + " of 100 · " + top.auto.toFixed(1) + " auto + " + top.manual.toFixed(1) + " yours") : "no scores yet", "")
+              top ? (top.total.toFixed(1) + " of 100 · " + top.auto.toFixed(1) + " counted + " + top.manual.toFixed(1) + " yours")
+                  : (rows.length ? "nobody qualifies yet this month" : "no scores yet"), "")
+        + kpi(nQual + " / " + rows.length, "In the running",
+              "5+ jobs and half the counted score measurable", "")
         + "</div>";
 
       h += rows.length ? rows.map(card).join("")
@@ -277,11 +288,13 @@ registerPage({
         + (num(f["Total CF"]) ? " · " + Math.round(num(f["Total CF"])).toLocaleString() + " CF" : "")
         + " · " + (x.answered === QUESTIONS.length ? "assessed"
             : x.answered ? x.answered + " of " + QUESTIONS.length + " answered" : "not assessed yet")
+        + (x.ok ? "" : ' · <span style="color:var(--warn)">' + esc(x.why) + "</span>")
         + "</div>"
         + '<div class="fa-split"><u class="a" style="width:' + pct((x.auto || 0)) + '%"></u>'
         + '<u class="m" style="width:' + pct(x.manual) + '%"></u></div></div>'
         + '<div class="fa-tot"><b>' + (x.total == null ? "—" : x.total.toFixed(1)) + "</b>"
-        + "<i>" + (x.total == null ? "not measurable" : "of 100") + "</i></div></div>";
+        + "<i>" + (x.total == null ? "not measurable" : x.ok ? "of 100" : "not in the running")
+        + "</i></div></div>";
 
       h += '<div class="fa-body">';
       // the automatic half, so the rater sees what the numbers already said

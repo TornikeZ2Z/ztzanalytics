@@ -2253,14 +2253,23 @@ async function renderMonthly(host, MRCFG) {
             total: nn(r["Total Score"]),
             p100: nn(r["Packing per 100 CF Score"]), pve: nn(r["Packing Vs Estimate Score"]),
             rev: nn(r["Review Score"]), clm: nn(r["Claim Score"]),
+            // A month has to say enough about a man before it can crown him: rescaling to
+            // the measurable weight is right, but on its own it hands July to a foreman who
+            // ran one job. The mart decides eligibility; the card just respects it.
+            ok: +r["Qualified"] === 1, why: r["Not Qualified Because"] || "",
           })).filter(r => r.auto != null);
-          if (M.length) {
-            const val = r => r.total != null ? r.total : r.auto;
-            M.sort((a, b) => val(b) - val(a) || b.jobs - a.jobs);
-            const win = M[0];
-            const assessed = M.filter(r => r.answered === 6).length;
-            const pv = scPrev.map(r => ({ f: r.Foreman, t: nn(r["Total Score"]), a: nn(r["Auto Score"]) }))
-              .filter(r => r.a != null)
+          const val = r => r.total != null ? r.total : r.auto;
+          M.sort((a, b) => (a.ok === b.ok ? 0 : a.ok ? -1 : 1)
+                        || val(b) - val(a) || b.jobs - a.jobs);
+          const Q = M.filter(r => r.ok);
+          // Five days into a month nobody has run five jobs yet, and that is the honest
+          // answer — the card waits rather than crowning whoever is ahead on two jobs.
+          if (Q.length) {
+            const win = Q[0];
+            const assessed = Q.filter(r => r.answered === 6).length;
+            const pv = scPrev.map(r => ({ f: r.Foreman, t: nn(r["Total Score"]),
+                                          a: nn(r["Auto Score"]), ok: +r["Qualified"] === 1 }))
+              .filter(r => r.a != null && r.ok)
               .sort((a, b) => (b.t != null ? b.t : b.a) - (a.t != null ? a.t : a.a))[0];
 
             // the four counted topics as bars, then the six assessed ones as one bar
@@ -2277,7 +2286,7 @@ async function renderMonthly(host, MRCFG) {
               + bar("Logistics assessment · 6 questions", win.answered ? win.manual : null, 30, BLUE_BG,
                     "not assessed yet");
 
-            const runners = M.slice(0, 6).map((r, i) => `<tr${i ? "" : ' style="font-weight:800"'}>
+            const runners = Q.slice(0, 6).map((r, i) => `<tr${i ? "" : ' style="font-weight:800"'}>
               <td>${i + 1}</td><td>${esc(r.f)}</td>${td(fmtN(r.jobs))}
               ${td(fmt1(r.auto))}
               ${td(r.answered ? fmt1(r.manual) : "—", r.answered ? "" : "color:var(--faint)")}
@@ -2310,8 +2319,12 @@ async function renderMonthly(host, MRCFG) {
                   + `scored zero — ${win.measured != null && win.measured < 70
                       ? esc(win.f.split(" ")[0]) + " had " + fmtN(win.measured) + " of the 70 points measurable this month. "
                       : "every topic was measurable for the leader this month. "}`
-                  + `${assessed} of ${M.length} foremen are fully assessed for ${monLbl}`
-                  + `${assessed < M.length ? " — <b>the ranking moves as the rest are assessed.</b>" : "."}` });
+                  + `<b>Only foremen the month says enough about are ranked</b> — at least five `
+                  + `jobs run and at least half the counted score measurable. `
+                  + `${Q.length} of ${M.length} qualified in ${monLbl}; the rest keep their score `
+                  + `but are out of the running. `
+                  + `${assessed} of ${Q.length} of them are fully assessed`
+                  + `${assessed < Q.length ? " — <b>the ranking moves as the rest are assessed.</b>" : "."}` });
           }
         })();
 
