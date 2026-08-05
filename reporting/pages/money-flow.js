@@ -423,12 +423,16 @@ registerPage({
       var allF = {};
       // EXACTLY the current view's jobs — "Not in Balance" must list only foremen who have
       // NIB jobs (using main+nib here leaked Balance-only foremen into the NIB filter).
-      var fSrc = S.view === "history" ? done : S.view === "nib" ? nib : main;
+      var fSrc = S.view === "history" ? done : S.view === "nib" ? nib
+        : S.view === "advded" ? rows.filter(function (r) {
+            return Math.abs(r.adv || 0) > 0.005 || Math.abs(r.ded || 0) > 0.005; })
+        : main;
       fSrc.forEach(function (r) { if (r.forman && r.forman !== MF_NO_FOREMAN) allF[r.forman] = (allF[r.forman] || 0) + 1; });
       var fmKeys = Object.keys(allF).sort(function (a, b) { return allF[b] - allF[a] || a.localeCompare(b); });
       var fmLabel = S.formen.length ? "Foremen (" + S.formen.length + ")" : "All foremen";
       var fmHdN = fSrc.filter(function (r) { return r.forman && r.forman !== MF_NO_FOREMAN; }).length;
-      var fmNoun = S.view === "history" ? " settled jobs" : S.view === "nib" ? " jobs off balance" : " jobs to close";
+      var fmNoun = S.view === "history" ? " settled jobs" : S.view === "nib" ? " jobs off balance"
+        : S.view === "advded" ? " jobs with money moved" : " jobs to close";
       var fmPop = S.fmOpen ? '<div class="mf-fmpop">'
           + '<div class="mf-fmhd">' + fmKeys.length + ' foremen · ' + fmHdN + fmNoun + '</div>'
           + fmKeys.map(function (f) {
@@ -468,6 +472,14 @@ registerPage({
         var p = settle(r); selTotal += (p.type === "Cash Taken Away from Base" ? -p.amount : p.amount);
       });
 
+      // ADVANCES & DEDUCTIONS — every job where money moved between us and the foreman,
+      // whatever the job's balance state. A job settled months ago still carries the advance
+      // that was paid on it, so this view deliberately spans ALL statuses (main + nib + done)
+      // rather than the open worklist the other tabs show.
+      var advDed = rows.filter(function (r) {
+        return Math.abs(r.adv || 0) > 0.005 || Math.abs(r.ded || 0) > 0.005;
+      });
+
       var segBtn = function (id, label, n) {
         return '<button class="' + (S.view === id ? "on" : "") + '" data-mfv="' + id + '">' + label + "<i>" + n + "</i></button>";
       };
@@ -498,7 +510,8 @@ registerPage({
       var bar = '<div class="mf-bars">'
         + '<div class="mf-bar"><div class="mf-seg">' + segBtn("foreman", "Balance by Foreman", main.length)
         + segBtn("nib", "Not in Balance Jobs", nib.length)
-        + segBtn("history", "History", done.length) + "</div></div>"
+        + segBtn("history", "History", done.length)
+        + segBtn("advded", "Advances & Deductions", advDed.length) + "</div></div>"
         + '<div class="mf-bar">'
         + '<div class="mf-seg mf-dseg">' + dBtn("details", "Details") + dBtn("overview", "Compact") + "</div>"
         + '<div class="mf-fmwrap"><button class="mf-fmbtn' + (S.formen.length ? " on" : "") + '" id="mfFmBtn">' + esc(fmLabel) + ' ▾</button>' + fmPop + "</div>"
@@ -638,7 +651,68 @@ registerPage({
           + "</tbody></table></div></div>";
       };
 
-      if (S.view === "foreman") {
+      if (S.view === "advded") {
+        /* Advances & Deductions — the same shape as Balance by Foreman (foreman row, click to
+         * open his jobs) but answering a different question: not "what is owed" but "what has
+         * moved". Advance arrives SIGNED from the server (brought + / taken −), so his total
+         * is a net; deductions are shown as the charge they are. */
+        var ad = advDed.slice();
+        if (q) ad = ad.filter(matches);
+        var adG = {};
+        ad.forEach(function (r) {
+          var f = r.forman || MF_NO_FOREMAN;
+          var g = (adG[f] = adG[f] || { jobs: [], adv: 0, ded: 0, advN: 0, dedN: 0 });
+          g.jobs.push(r);
+          if (Math.abs(r.adv || 0) > 0.005) { g.adv += r.adv; g.advN++; }
+          if (Math.abs(r.ded || 0) > 0.005) { g.ded += r.ded; g.dedN++; }
+        });
+        var adNames = Object.keys(adG);
+        if (S.formen.length) adNames = adNames.filter(function (f) { return S.formen.indexOf(f) >= 0; });
+        adNames.sort(function (a, b) {
+          return (Math.abs(adG[b].adv) + Math.abs(adG[b].ded)) - (Math.abs(adG[a].adv) + Math.abs(adG[a].ded));
+        });
+        var tAdvAll = 0, tDedAll = 0;
+        adNames.forEach(function (f) { tAdvAll += adG[f].adv; tDedAll += adG[f].ded; });
+
+        var adBody = adNames.map(function (f) {
+          var g = adG[f], open = !!S.fmx[f] || !!q;
+          var head = '<tr class="mf-fmrow" data-mfx="' + esc(f) + '">'
+            + '<td colspan="3"><span class="mf-caret">' + (open ? "\u25be" : "\u25b8") + "</span>"
+            + esc(f) + '<span class="mf-fmmeta">' + g.jobs.length + " job" + (g.jobs.length === 1 ? "" : "s")
+            + (g.advN ? " \u00b7 " + g.advN + " advance" + (g.advN === 1 ? "" : "s") : "")
+            + (g.dedN ? " \u00b7 " + g.dedN + " deduction" + (g.dedN === 1 ? "" : "s") : "")
+            + "</span></td>"
+            + '<td class="r">' + (g.adv ? money(g.adv) : "") + "</td>"
+            + '<td class="r">' + (g.ded ? money(g.ded) : "") + "</td>"
+            + '<td class="r"><b>' + money(g.adv + g.ded) + "</b></td></tr>";
+          if (!open) return head;
+          var jobs = g.jobs.slice().sort(function (a, b) { return a.date < b.date ? 1 : -1; });
+          return head + jobs.map(function (r) {
+            return '<tr class="mf-row" data-ev="' + esc(r.ev) + '">'
+              + "<td>" + fmtD(r.date) + "</td>"
+              + "<td>" + esc(r.jobCode || "\u2014") + "</td>"
+              + '<td title="' + esc(r.customer || "") + '">' + esc(r.customer || "\u2014") + "</td>"
+              + '<td class="r">' + (Math.abs(r.adv || 0) > 0.005 ? money(r.adv) : '<span style="color:var(--faint)">\u2014</span>') + "</td>"
+              + '<td class="r">' + (Math.abs(r.ded || 0) > 0.005 ? money(r.ded) : '<span style="color:var(--faint)">\u2014</span>') + "</td>"
+              + '<td class="r">' + money((r.adv || 0) + (r.ded || 0)) + "</td></tr>";
+          }).join("");
+        }).join("");
+
+        content = '<div class="mf-card">' + veil + '<div class="mf-wrap"><table class="mf-tbl fx">'
+          + '<colgroup><col style="width:11%"><col style="width:14%"><col style="width:29%">'
+          + '<col style="width:15%"><col style="width:15%"><col style="width:16%"></colgroup>'
+          + '<thead><tr><th>Job date</th><th>Job #</th><th>Customer</th>'
+          + '<th class="r">Advance Payment</th><th class="r">Forman Deduction</th>'
+          + '<th class="r">Net moved</th></tr></thead><tbody>'
+          + (adBody || '<tr><td colspan="6" style="color:var(--faint);padding:18px">'
+              + "No advances or deductions recorded" + (q ? " for that search" : "") + ".</td></tr>")
+          + (adNames.length ? '<tr class="mf-fmrow"><td colspan="3"><b>All foremen</b>'
+              + '<span class="mf-fmmeta">' + ad.length + " job" + (ad.length === 1 ? "" : "s") + "</span></td>"
+              + '<td class="r"><b>' + money(tAdvAll) + "</b></td>"
+              + '<td class="r"><b>' + money(tDedAll) + "</b></td>"
+              + '<td class="r"><b>' + money(tAdvAll + tDedAll) + "</b></td></tr>" : "")
+          + "</tbody></table></div></div>";
+      } else if (S.view === "foreman") {
         content = renderGrouped(main, "No outstanding balances.");
       } else if (S.view === "nib") {
         content = renderGrouped(nib, "Nothing out of balance.");

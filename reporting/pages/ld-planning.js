@@ -1582,11 +1582,43 @@ registerPage({
                 return '<button class="ldp-bhbtn ldp-jmapbtn pri" data-mapfor="' + esc(k)
                   + '" data-legzips="' + legzips + '">Visualize route</button>';
               })()
+            // DECLINE — "this combination is not going to happen". It locks nothing (unlike
+            // Accept) and is reversible; it only stops the engine proposing the same set of
+            // jobs again, and records who said no and why.
+            + (isAcc ? '' : '<button class="ldp-bhbtn ldp-rdecline" data-decline="' + esc(k)
+                + '" data-codes="' + esc(codesArr.join(",")) + '" data-truck="'
+                + esc(h["Truck"] || "") + '" data-miles="' + esc(String(h["Miles"] || ""))
+                + '">Decline</button>')
             + "</div></div>";
         }).join("") + "</div>"
         + acceptedHtml()
+        + declinedHtml()
         + '<div class="ldp-note" style="margin-top:10px;color:var(--faint);font-size:12px">Engine rules (management\u2019s numbers): \u22641,500 CF combined \u00b7 every stop pair \u2264100 mi \u00b7 \u2264180 min detour \u00b7 windows within 5 days \u00b7 \u22642.5 extra mi per CF \u00b7 Straights first \u00b7 ~11 driving h/day. Accepting converts Regulars to Straight and locks the jobs out of future suggestions.</div>';
       }
+      /* What the dispatchers have refused, with a way back. Kept visible rather than
+       * silently swallowed: a suggestion that vanished with no trace is indistinguishable
+       * from an engine that stopped working. */
+      function declinedHtml() {
+        var dec = (S._racc || []).filter(function (x) { return String(x.status) === "declined"; });
+        if (!dec.length) return "";
+        return '<div class="ldp-card" style="margin-top:14px;padding:14px 16px">'
+          + '<div class="ldp-sec" style="margin-top:0">Declined suggestions \u00b7 ' + dec.length + "</div>"
+          + '<div class="ldp-sub" style="margin-bottom:8px">The engine will not propose these '
+          + "combinations again. Put one back and it returns on the next rebuild.</div>"
+          + dec.map(function (x) {
+              var codes = String(x.job_codes || "").split(",").filter(Boolean);
+              return '<div class="ldp-cst"><span class="ldp-cst-d">'
+                + esc(String(x.accepted_at || "").slice(0, 10)) + "</span>"
+                + "<span><b>" + codes.map(esc).join(" + ") + "</b>"
+                + (x.decline_reason ? '<span class="ldp-sub"> \u2014 ' + esc(x.decline_reason) + "</span>" : "")
+                + (x.accepted_by ? '<span class="ldp-sub"> \u00b7 ' + esc(String(x.accepted_by).split("@")[0]) + "</span>" : "")
+                + "</span>"
+                + '<span class="ldp-cst-l"><button class="ldp-bhbtn" data-undecline="' + esc(String(x.id))
+                + '" style="margin-top:0">Put back</button></span></div>';
+            }).join("")
+          + "</div>";
+      }
+
       function acceptedHtml() {
         var acc = (S._racc || []).filter(function (x) { return String(x.status) === "accepted"; });
         if (!acc.length) return "";
@@ -2285,6 +2317,47 @@ registerPage({
           })
           .then(function () { S._rsugLoading = false; paint(); });
       }
+      // DECLINE + PUT BACK. Both go through the same /api/_ldroutes the accept uses, and both
+      // reload the decision list so the card disappears (or returns) without a page reload.
+      Array.prototype.forEach.call(host.querySelectorAll(".ldp-rdecline[data-decline]"), function (b) {
+        b.onclick = async function () {
+          var why = window.prompt("Decline this route — why? (optional, but it is what the next "
+            + "dispatcher will read)", "");
+          if (why === null) return;      // cancelled the prompt: do nothing
+          b.disabled = true; b.textContent = "Declining…";
+          try {
+            var res = await fetch(ZTZ.API + "/api/_ldroutes", { method: "POST",
+              headers: { Authorization: "Bearer " + ZTZ.getToken(), "Content-Type": "application/json" },
+              body: JSON.stringify({ decline: true,
+                                     codes: String(b.dataset.codes || "").split(",").filter(Boolean),
+                                     truck: b.dataset.truck, miles: b.dataset.miles,
+                                     reason: why }) });
+            var j = await res.json();
+            if (!res.ok || j.error) throw new Error(j.error || "decline failed");
+            // same refresh contract as un-accept: drop the caches, let paint() refetch
+            S._racc = null; S._rsug = null; paint();
+          } catch (e) {
+            b.disabled = false; b.textContent = "Decline";
+            window.alert("Could not decline: " + (e && e.message));
+          }
+        };
+      });
+      Array.prototype.forEach.call(host.querySelectorAll("[data-undecline]"), function (b) {
+        b.onclick = async function () {
+          b.disabled = true; b.textContent = "…";
+          try {
+            var res = await fetch(ZTZ.API + "/api/_ldroutes", { method: "POST",
+              headers: { Authorization: "Bearer " + ZTZ.getToken(), "Content-Type": "application/json" },
+              body: JSON.stringify({ undecline: +b.dataset.undecline }) });
+            var j = await res.json();
+            if (!res.ok || j.error) throw new Error(j.error || "failed");
+            S._racc = null; S._rsug = null; paint();
+          } catch (e) {
+            b.disabled = false; b.textContent = "Put back";
+            window.alert("Could not put it back: " + (e && e.message));
+          }
+        };
+      });
       Array.prototype.forEach.call(host.querySelectorAll(".ldp-raccept[data-codes]"), function (b) {
         b.onclick = function () {
           ldpAsk("Accept this route? Its jobs are locked out of future suggestions, and Regulars on it are planned as Straight. You can un-accept it afterwards from the Accepted routes list.", function () {
