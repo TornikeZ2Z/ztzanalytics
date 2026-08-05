@@ -69,7 +69,7 @@ registerPage({
 
     const S = window.__FUEL || (window.__FUEL = {
       rows: null, view: "queue", month: "", q: "", showResolved: false,
-      busy: "", msg: "", msgErr: false, open: null,
+      busy: "", msg: "", msgErr: false, msgFor: null, open: null, draft: {},
     });
 
     host.innerHTML = '<style id="fuCss">'
@@ -158,12 +158,25 @@ registerPage({
     }
 
     function load() {
-      return RS.load("fuel").then(rows => {
-        S.rows = rows || [];
-        paint();
-      }).catch(e => {
-        main.innerHTML = '<div class="fu-empty">Could not load — ' + esc(e.message) + "</div>";
-      });
+      // TWO SOURCES, and the second is not optional. The mart carries a resolution only from
+      // the next pipeline run onward, so a page that trusted it alone would hand somebody
+      // back the thirty exceptions they just cleared, the moment they refreshed. The live
+      // table is the truth about what has been answered; the mart is the truth about the money.
+      return Promise.all([RS.load("fuel"), api("/api/_fuelrev").catch(() => ({ reviews: [] }))])
+        .then(([rows, rev]) => {
+          const by = {};
+          (rev.reviews || []).forEach(x => { by[x["Line Key"]] = x; });
+          S.rows = (rows || []).map(r => {
+            const v = by[r["Line Key"]];
+            return Object.assign({}, r, v
+              ? { Resolved: 1, Resolution: v.Explanation,
+                  "Resolved By": v["Entered By"], "Resolved At": v["Entered At"] }
+              : { Resolved: 0, Resolution: null, "Resolved By": null, "Resolved At": null });
+          });
+          paint();
+        }).catch(e => {
+          main.innerHTML = '<div class="fu-empty">Could not load — ' + esc(e.message) + "</div>";
+        });
     }
 
     const months = () => [...new Set((S.rows || []).map(r => r.Month).filter(Boolean))]
@@ -223,8 +236,8 @@ registerPage({
               + '" id="fuShowRes">Show explained</button></div>' : "")
         + "</div>";
 
-      h += '<div class="fu-msg' + (S.msg ? (S.msgErr ? " err" : " on") : "") + '">'
-        + esc(S.msg || "") + "</div>";
+      h += '<div class="fu-msg' + (S.msg && !S.msgFor ? (S.msgErr ? " err" : " on") : "") + '">'
+        + esc(S.msgFor ? "" : (S.msg || "")) + "</div>";
 
       if (S.view === "queue") h += queueView(openQ, resolved);
       else if (S.view === "foremen") h += foremanView(rs);
@@ -332,8 +345,11 @@ registerPage({
       } else {
         h += '<div class="fu-res">'
           + '<input data-ex="' + key + '" placeholder="What actually happened? (required)" '
-          + 'value="" maxlength="300">'
+          + 'value="' + esc(S.draft[r["Line Key"]] || "") + '" maxlength="300">'
           + '<button class="fu-go" data-resolve="' + key + '">Checked — nothing to worry about</button>'
+          + (S.msgFor === r["Line Key"]
+              ? '<span style="font-size:11.5px;color:var(--neg);font-weight:650">'
+                + esc(S.msg) + "</span>" : "")
           + "</div>";
       }
       h += "</div></div>";
@@ -476,6 +492,9 @@ registerPage({
       });
       main.querySelectorAll("[data-ex]").forEach(i => {
         i.onclick = e => e.stopPropagation();
+        // keep the draft in state: any repaint (a search keystroke, another card resolving)
+        // rebuilds this input, and a half-written explanation must survive that
+        i.oninput = () => { S.draft[i.dataset.ex] = i.value; };
         i.onkeydown = e => {
           if (e.key !== "Enter") return;
           e.stopPropagation();
@@ -493,11 +512,15 @@ registerPage({
     function resolve(key, text, btn) {
       const ex = String(text || "").trim();
       if (!ex) {
-        S.msg = "Say what happened first — an explanation is what clears it.";
+        S.msg = "Say what happened first.";
         S.msgErr = true;
+        S.msgFor = key;              // shown beside the box being answered, not in the header
         paint();
+        const again = main.querySelector('[data-ex="' + CSS.escape(key) + '"]');
+        if (again) again.focus();
         return;
       }
+      S.msgFor = null;
       if (btn) { btn.disabled = true; btn.textContent = "Saving…"; }
       api("/api/_fuelrev", { method: "POST", body: JSON.stringify({
             line_key: key, explanation: ex }) })
@@ -510,8 +533,10 @@ registerPage({
             r["Resolved By"] = j.by || "you";
             r["Resolved At"] = new Date().toISOString().slice(0, 19).replace("T", " ");
           }
+          delete S.draft[key];
           S.msg = "Explained — it has left the queue and the note stays with the transaction.";
           S.msgErr = false;
+          S.msgFor = null;
           S.open = null;
           paint();
         })
