@@ -48,6 +48,14 @@
         cols: ["Date", "Brand", "Store", "Amount", "Company", "Facility"],
       };
     }
+    if (!RS.DATASETS.st_custody) {
+      RS.DATASETS.st_custody = {
+        table: "fct_ld_custody",
+        cols: ["TS", "Posted", "Customer", "Custody", "Carrier", "Rate", "CF",
+               "Facility", "Units", "Flags", "Photo Count", "Photos", "Permalink",
+               "Delivered", "Delivered On", "Job Code", "Request No"],
+      };
+    }
     if (!RS.DATASETS.st_payments) {
       RS.DATASETS.st_payments = {
         table: "fct_storage",
@@ -74,7 +82,7 @@ registerPage({
       });
     };
     var S = window.__STC || (window.__STC = {
-      reg: null, vaults: null, pays: null, crew: null, fac: null, rent: null,
+      reg: null, vaults: null, pays: null, crew: null, fac: null, rent: null, custody: null,
       q: "", show: "active", kind: "", owing: false, open: null,
     });
 
@@ -204,6 +212,7 @@ registerPage({
       RS.load("st_crew").catch(function () { return []; }),
       RS.load("fct_storage_facility").catch(function () { return []; }),
       RS.load("fct_storage_rent").catch(function () { return []; }),
+      RS.load("st_custody").catch(function () { return []; }),
     ]).then(function (rs) {
       S.reg = (rs[0] || []).map(function (r) {
         ["Chargeable CF", "Real CF", "Fee per CF", "Fee per CF Initial", "Monthly I", "Monthly II",
@@ -231,6 +240,11 @@ registerPage({
         r.Amount = num(r.Amount);
         r.Date = r.Date ? String(r.Date).slice(0, 10) : null;
         return r;
+      });
+      S.custody = (rs[6] || []).map(function (c) {
+        c.Posted = c.Posted ? String(c.Posted).slice(0, 10) : null;
+        c["Photo Count"] = num(c["Photo Count"]);
+        return c;
       });
       S.crew = {};
       (rs[3] || []).forEach(function (c) {
@@ -551,6 +565,7 @@ registerPage({
           + "</div>";
       }
 
+      h += custodyBlock(r.Customer);
       if (r.Notes) h += '<div class="stc-sec"><h5>Notes</h5><div class="stc-note">' + esc(r.Notes) + "</div></div>";
       h += "</div>";
 
@@ -613,6 +628,44 @@ registerPage({
       draw.classList.add("on");
       scrim.classList.add("on");
       draw.querySelector("#stcX").onclick = close;
+    }
+
+    /* The Slack trail: what the ops channel says about this customer's goods — the photos
+     * they uploaded by hand, as links into Slack itself (the team is signed in there; the
+     * portal never copies customer photos out). */
+    var CUSTODY_LAB = { rented_storage: "in rented storage", our_warehouse: "in our warehouse",
+      carrier: "with a carrier", delivered: "delivered", truck: "in a truck" };
+    function slugName(x) { return String(x || "").toLowerCase().replace(/[^a-z0-9]/g, ""); }
+    function custodyBlock(customer) {
+      var k = slugName(customer);
+      if (!k) return "";
+      var trail = (S.custody || []).filter(function (c) { return slugName(c.Customer) === k; })
+        .sort(function (a, b) { return String(b.TS || "").localeCompare(String(a.TS || "")); });
+      if (!trail.length) return "";
+      var h = '<div class="stc-sec"><h5>Slack custody trail \u00b7 ' + trail.length
+        + " post" + (trail.length === 1 ? "" : "s") + "</h5>";
+      trail.slice(0, 4).forEach(function (c) {
+        var what = CUSTODY_LAB[c.Custody] || c.Custody || "";
+        var detail = [
+          c.Facility ? esc(c.Facility) : "",
+          c.Units ? "unit " + esc(c.Units) : "",
+          c.Carrier ? "carrier " + esc(c.Carrier) + (c.Rate ? " @ $" + esc(c.Rate) : "") : "",
+          c.Delivered ? "delivered" + (c["Delivered On"] ? " " + esc(c["Delivered On"]) : "") : "",
+          c.Flags ? esc(c.Flags) : "",
+        ].filter(Boolean).join(" \u00b7 ");
+        var photos = [];
+        try { photos = JSON.parse(c.Photos || "[]"); } catch (e) {}
+        h += '<div class="stc-row" style="align-items:flex-start"><span>' + dayLab(c.Posted)
+          + ' <span class="sub">' + esc(what) + "</span>"
+          + (detail ? '<br><span class="sub">' + detail + "</span>" : "") + "</span>"
+          + "<b>" + photos.slice(0, 4).map(function (ph, i) {
+              return '<a href="' + esc(ph.link) + '" target="_blank" rel="noopener" '
+                + 'style="color:var(--blue);text-decoration:none;margin-left:8px">\ud83d\udcf7 ' + (i + 1) + "</a>";
+            }).join("")
+          + '<a href="' + esc(c.Permalink) + '" target="_blank" rel="noopener" '
+          + 'style="color:var(--faint);text-decoration:none;margin-left:8px">↗</a>' + "</b></div>";
+      });
+      return h + "</div>";
     }
 
     function row(k, v) {
