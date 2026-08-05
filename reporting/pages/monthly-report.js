@@ -116,12 +116,15 @@ async function renderMonthly(host, MRCFG) {
     const grabIf = (ds, on) => on ? grab(ds) : Promise.resolve([]);
     const [closing, moveboard, storage, claims, refunds, cardEx,
            reviews, negrev, callrail, scorecard, rcounts, rgoals,
-           helperSalDs, salesSalDs] = await Promise.all([
+           helperSalDs, salesSalDs, headcount] = await Promise.all([
       grab("closing"), grab("moveboard"), grabIf("storage", SEC("Packing & Storage")),
       grab("claims"), grab("refunds"), grab("card_expenses"),
       grab("reviews_breakdown"), grabIf("negative_reviews", SEC("Reviews Production")),
       grabIf("callrail", SEC("Phone & Response")), grab("scorecard"), grab("review_counts"),
-      grab("review_goals"), grab("helper_salaries"), grab("sales_salaries")]);
+      grab("review_goals"), grab("helper_salaries"), grab("sales_salaries"),
+      // 44 rows, one per month — cheap enough to always load, and the crew card sits in a
+      // section that is on by default
+      grab("headcount")]);
     // Derive the cost flags from the shared rows. Amount is ALREADY positive here (RS.load
     // negates the bank convention once) — `amt: num(r.Amount)`, never a second negation.
     const cardCost = !needPack ? [] : cardEx.filter(coRow).map(r => {
@@ -205,7 +208,7 @@ async function renderMonthly(host, MRCFG) {
     // retired caches (Fleet section removed + dead per-job packing fetch deleted, 2026-07-15)
     delete window.__mrFleetCache; delete window.__mrFleetCache2;
     delete window.__mrPackCache; delete window.__mrPackCache2;
-    const DS = { closing, moveboard, storage, claims, refunds, card_expenses: cardEx, reviews_breakdown: reviews, negative_reviews: negrev, callrail, scorecard, review_counts: rcounts, review_goals: rgoals, helper_salaries: helperSalDs, sales_salaries: salesSalDs };
+    const DS = { closing, moveboard, storage, claims, refunds, card_expenses: cardEx, reviews_breakdown: reviews, negative_reviews: negrev, callrail, scorecard, review_counts: rcounts, review_goals: rgoals, helper_salaries: helperSalDs, sales_salaries: salesSalDs, headcount };
     const coJk = new Set((closing || []).filter(r => String(r.Company) === CO)
       .map(r => String(r["Request Joinkey"] || "")).filter(Boolean));
     const jkCo = r => coJk.has(String(r["Request Joinkey"] || ""));
