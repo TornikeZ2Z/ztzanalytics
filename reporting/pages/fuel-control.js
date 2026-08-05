@@ -25,7 +25,7 @@
              "Merchant State", "Vehicle Raw", "Truck", "Truck Fuel", "Unique Key",
              "Job Request", "Job Customer", "Job Company", "Job Truck", "Job Start",
              "Job Moving Type", "Job State", "Jobs That Day", "Match Status", "Match Note",
-             "Flags", "Flag Count", "Needs Review", "Resolved", "Resolution",
+             "Flags", "Notes", "Flag Count", "Needs Review", "Resolved", "Resolution",
              "Resolved By", "Resolved At"],
       dateCols: { Date: "Date" }, defaultDate: "Date",
     };
@@ -59,9 +59,13 @@ registerPage({
       ambiguous_no_time: "several jobs that day and no way to tell which came first",
     };
     const STATUS_LABEL = {
-      assigned: "Assigned", unknown_foreman: "Unknown driver",
+      assigned: "Assigned", assigned_trip: "On a trip", unknown_foreman: "Unknown driver",
       no_job_that_day: "No job that day", ambiguous_no_time: "Which job?",
+      ambiguous_trip: "Which trip?",
     };
+    // Two ways a swipe lands on real work: a local job that day, or a long-distance trip
+    // whose span covers the date — a man away for six days has the truck for all six.
+    const PLACED = { assigned: 1, assigned_trip: 1 };
 
     const S = window.__FUEL || (window.__FUEL = {
       rows: null, view: "queue", month: "", q: "", showResolved: false,
@@ -114,6 +118,7 @@ registerPage({
       + ".fu-f .s{font-size:10.5px;color:var(--muted);margin-top:1px}"
       + ".fu-flags{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}"
       + ".fu-flag{font-size:11px;font-weight:650;padding:4px 10px;border-radius:999px;background:var(--warn-bg);color:var(--warn)}"
+      + ".fu-flag.ctx{background:var(--panel-2);color:var(--muted);font-weight:500}"
       + ".fu-res{display:flex;flex-wrap:wrap;gap:8px;align-items:center}"
       + ".fu-res input{flex:1;min-width:260px;background:var(--panel-2);border:1px solid var(--line);border-radius:10px;padding:9px 12px;color:var(--ink);font-family:inherit;font-size:12.5px}"
       + ".fu-go{font-family:inherit;font-size:12.5px;font-weight:800;padding:9px 16px;border-radius:10px;border:0;background:var(--brand);color:var(--brand-ink);cursor:pointer}"
@@ -186,11 +191,11 @@ registerPage({
       const rs = scope();
       const openQ = rs.filter(r => +r["Needs Review"] === 1 && +r.Resolved !== 1);
       const resolved = rs.filter(r => +r.Resolved === 1);
-      const unplaced = rs.filter(r => r["Match Status"] !== "assigned");
+      const unplaced = rs.filter(r => !PLACED[r["Match Status"]]);
       const spend = rs.reduce((a, r) => a + num(r["Net Cost"]), 0);
       const openSpend = openQ.reduce((a, r) => a + num(r["Net Cost"]), 0);
       const gallons = rs.reduce((a, r) => a + num(r.Gallons), 0);
-      const assigned = rs.filter(r => r["Match Status"] === "assigned");
+      const assigned = rs.filter(r => PLACED[r["Match Status"]]);
 
       let h = '<div class="fu-kpis">'
         + kpi(money0(spend), "Card spend", fmtN(rs.length) + " transaction" + (rs.length === 1 ? "" : "s"))
@@ -263,8 +268,9 @@ registerPage({
 
     function card(r) {
       const open = S.open === r["Line Key"], done = +r.Resolved === 1;
-      const st = r["Match Status"], placed = st === "assigned";
+      const st = r["Match Status"], placed = !!PLACED[st];
       const flags = String(r.Flags || "").split(";").map(x => x.trim()).filter(Boolean);
+      const notes = String(r.Notes || "").split(";").map(x => x.trim()).filter(Boolean);
       const key = esc(r["Line Key"]);
 
       let h = '<div class="fu-card' + (open ? " on" : "") + (done ? " done" : placed ? " ok" : "")
@@ -282,7 +288,8 @@ registerPage({
         + (r["Merchant State"] ? " " + esc(r["Merchant State"]) : "") + "</div></div>"
         + "<div>"
         + '<div class="fu-why' + (placed ? " ok" : "") + '">'
-        + esc(placed ? "On " + (r["Job Customer"] || r["Job Request"] || "a job") : (STATUS_LABEL[st] || st))
+        + esc(placed ? (st === "assigned_trip" ? "Trip · " : "On ")
+                     + (r["Job Customer"] || r["Job Request"] || "a job") : (STATUS_LABEL[st] || st))
         + (flags.length ? ' <span style="color:var(--warn)">· ' + flags.length + " to check</span>" : "")
         + "</div>"
         + '<div class="fu-whysub">' + esc(r["Match Note"] || WHY[st] || "") + "</div></div>"
@@ -298,7 +305,8 @@ registerPage({
                r.Truck ? (r["Truck Fuel"] ? "register: " + r["Truck Fuel"] : "in the fleet register")
                        : "not in the fleet register")
         + fact("Jobs that day", fmtN(r["Jobs That Day"]),
-               placed ? "fuel went on the first" : "none to place it on")
+               st === "assigned_trip" ? "away on a trip"
+                 : placed ? "fuel went on the first" : "none to place it on")
         + fact("The job", placed ? (r["Job Customer"] || r["Job Request"] || "—") : "—",
                placed ? [r["Job Request"] ? "#" + r["Job Request"] : "",
                          r["Job Truck"] ? "truck " + r["Job Truck"] : "",
@@ -309,9 +317,10 @@ registerPage({
         + fact("Ticket", r["Trans ID"] || "—", r.Ticket ? "ticket " + r.Ticket : "")
         + "</div>";
 
-      if (flags.length) {
+      if (flags.length || notes.length) {
         h += '<div class="fu-flags">'
-          + flags.map(f => '<span class="fu-flag">' + esc(f) + "</span>").join("") + "</div>";
+          + flags.map(f => '<span class="fu-flag">' + esc(f) + "</span>").join("")
+          + notes.map(f => '<span class="fu-flag ctx">' + esc(f) + "</span>").join("") + "</div>";
       }
 
       if (done) {
@@ -423,8 +432,8 @@ registerPage({
             + esc((r.Merchant || "—") + (r["Merchant State"] ? " " + r["Merchant State"] : ""))
             + "</td><td>" + esc(r["Fuel Kind"] || r.Product || "—") + "</td><td>"
             + (r.Gallons ? fmt1(r.Gallons) : "—") + "</td><td>" + money(r["Net Cost"]) + "</td><td"
-            + (r["Match Status"] === "assigned" ? "" : ' class="fu-neg"') + ">"
-            + esc(r["Match Status"] === "assigned"
+            + (PLACED[r["Match Status"]] ? "" : ' class="fu-neg"') + ">"
+            + esc(PLACED[r["Match Status"]]
                   ? (r["Job Customer"] || r["Job Request"] || "a job")
                   : (STATUS_LABEL[r["Match Status"]] || r["Match Status"]))
             + "</td></tr>").join("")
