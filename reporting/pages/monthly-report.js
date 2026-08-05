@@ -45,6 +45,9 @@ async function renderMonthly(host, MRCFG) {
     const money = RS.money, moneyC = RS.moneyC, fmtN = RS.fmtN, pct = RS.fmtPct, fmt1 = RS.fmt1;
     const esc = RSC.esc;
     const num = v => (v == null || isNaN(v)) ? 0 : +v;
+    // num() folds null to 0. Where "we did not measure this" and "he scored zero" are
+    // different statements — the foreman scorecard, the crew roster — read with nn().
+    const nn = v => (v == null || v === "" || isNaN(v)) ? null : +v;
     const blank = v => v == null || String(v).trim() === "";
 
     /* ---------- data ---------- */
@@ -2225,7 +2228,10 @@ async function renderMonthly(host, MRCFG) {
       const scRows = (DS.scorecard || []).filter(r => { const d = String(r["Month"] || "").slice(0, 7); return d === `${curY}-${String(mo).padStart(2, "0")}`; });
       const scPrev = (DS.scorecard || []).filter(r => { const d = String(r["Month"] || "").slice(0, 7); return d === `${PMY}-${String(PM).padStart(2, "0")}`; });
       if (scRows.length) {
-        const sc = scRows.map(r => ({ f: r.Foreman, jobs: num(r["Total Jobs"]), cf: num(r["Total CF"]), written: num(r["Total Packing Written"]), est: num(r["Total Packing Estimate"]), rev: num(r["Total Reviews Written"]), claims: num(r["Forman Fault Claims"]), score: num(r["Forman Score"]), rank: num(r["Forman Score Rank"]), prev: num(r["Forman Score Prev Month"]) }))
+        const sc = scRows.map(r => ({ f: r.Foreman, jobs: num(r["Total Jobs"]), cf: num(r["Total CF"]), written: num(r["Total Packing Written"]), est: num(r["Total Packing Estimate"]), rev: num(r["Total Reviews Written"]), claims: num(r["Forman Fault Claims"]), score: nn(r["Total Score"]) != null ? nn(r["Total Score"])
+                  : (nn(r["Auto Score"]) != null ? nn(r["Auto Score"]) : num(r["Forman Score"])),
+             rank: num(r["Total Score Rank"]) || num(r["Forman Score Rank"]),
+             prev: num(r["Forman Score Prev Month"]) }))
           .sort((a, b) => (a.rank || 999) - (b.rank || 999)).slice(0, 15);
         const smax = Math.max(...sc.map(r => r.score || 0)) || 1;
         // C24/Q5: 'vs Est' is colored BY VALUE — green only when written ≥ estimate (≥1×);
@@ -2233,8 +2239,132 @@ async function renderMonthly(host, MRCFG) {
         const rowsH = sc.map((r, i) => { const arrow = r.prev ? (r.score > r.prev ? `<span style="color:${POS}">▲</span>` : r.score < r.prev ? `<span style="color:${NEG}">▼</span>` : "–") : ""; const up = r.est > 0 ? r.written / r.est : null; return `<tr><td>${i === 0 ? "👑 " : ""}${esc(r.f)}</td>
           ${td(fmtN(r.jobs) + mArrow(r.jobs, jobsFmPM[r.f]))}${td(fmtN(r.cf))}${td(money(payM[r.f] || 0) + mArrow(payM[r.f] || 0, payPM[r.f]))}${td(money(tipsM[r.f] || 0) + mArrow(tipsM[r.f] || 0, tipsPM[r.f]))}${td(money(r.written))}${td(up == null ? "—" : up.toFixed(1) + "×", up == null ? "" : `color:${up >= 1 ? POS : NEG};font-weight:800`)}${td(r.rev ? fmtN(r.rev) : "0", r.rev ? "" : `color:${NEG};font-weight:800`)}${td(fmtN(r.claims), r.claims > 0 ? `color:${NEG};font-weight:800` : "")}${td(refM[r.f] ? money(refM[r.f]) : "—", refM[r.f] ? `color:${NEG};font-weight:800` : "")}
           <td class="bar"><i style="width:${(r.score / smax * 100).toFixed(0)}%;background:${LIME_BG}"></i><span>${fmt1(r.score)} ${arrow}</span></td></tr>`; }).join("");
+        // ---- FOREMAN OF THE MONTH, on the 2026-08 model ----------------------------
+        // 70 points the warehouse counts (packing per 100 CF 30, reviews 20, packing vs
+        // estimate 10, complaints 10) + 30 the logistics department assesses. A month
+        // nobody has assessed yet shows the automatic 70 and says so, rather than ranking
+        // people on a total that is missing a third of itself.
+        (function () {
+          const M = scRows.map(r => ({
+            f: r.Foreman, jobs: num(r["Total Jobs"]),
+            auto: nn(r["Auto Score"]), manual: nn(r["Manual Points"]),
+            answered: num(r["Questions Answered"]),
+            measured: nn(r["Auto Weight Measured"]),
+            total: nn(r["Total Score"]),
+            p100: nn(r["Packing per 100 CF Score"]), pve: nn(r["Packing Vs Estimate Score"]),
+            rev: nn(r["Review Score"]), clm: nn(r["Claim Score"]),
+          })).filter(r => r.auto != null);
+          if (M.length) {
+            const val = r => r.total != null ? r.total : r.auto;
+            M.sort((a, b) => val(b) - val(a) || b.jobs - a.jobs);
+            const win = M[0];
+            const assessed = M.filter(r => r.answered === 6).length;
+            const pv = scPrev.map(r => ({ f: r.Foreman, t: nn(r["Total Score"]), a: nn(r["Auto Score"]) }))
+              .filter(r => r.a != null)
+              .sort((a, b) => (b.t != null ? b.t : b.a) - (a.t != null ? a.t : a.a))[0];
+
+            // the four counted topics as bars, then the six assessed ones as one bar
+            const bar = (lab, pts, cap, col, sub) => `<div style="margin-bottom:8px">
+                <div style="display:flex;justify-content:space-between;gap:8px;font-size:11.5px">
+                  <span style="color:var(--muted)">${esc(lab)}</span>
+                  <span style="font-weight:700;${pts == null ? "color:var(--faint)" : ""}">${
+                    pts == null ? sub : fmt1(pts) + " <span style=\'color:var(--faint);font-weight:500\'>/ " + cap + "</span>"}</span></div>
+                <div style="height:7px;border-radius:5px;background:var(--panel-2);overflow:hidden;margin-top:3px">
+                  <i style="display:block;height:100%;width:${pts == null ? 0 : (pts / cap * 100).toFixed(0)}%;background:${col}"></i></div></div>`;
+            const bars = [["Packing per 100 CF", win.p100, 30], ["Reviews", win.rev, 20],
+                          ["Packing vs sales estimate", win.pve, 10], ["Complaints upheld", win.clm, 10]]
+              .map(t => bar(t[0], t[1] == null ? null : t[1] / 100 * t[2], t[2], LIME_BG, "not measured")).join("")
+              + bar("Logistics assessment · 6 questions", win.answered ? win.manual : null, 30, BLUE_BG,
+                    "not assessed yet");
+
+            const runners = M.slice(0, 6).map((r, i) => `<tr${i ? "" : ' style="font-weight:800"'}>
+              <td>${i + 1}</td><td>${esc(r.f)}</td>${td(fmtN(r.jobs))}
+              ${td(fmt1(r.auto))}
+              ${td(r.answered ? fmt1(r.manual) : "—", r.answered ? "" : "color:var(--faint)")}
+              ${td(fmt1(val(r)), "font-weight:800")}</tr>`).join("");
+
+            tableCard(g, "Foreman of the Month", monLbl,
+              `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:22px;align-items:start">
+                 <div>
+                   <div style="font-size:11px;letter-spacing:.09em;text-transform:uppercase;color:var(--faint);font-weight:800">Leading ${esc(monLbl)}</div>
+                   <div style="font-size:27px;font-weight:800;letter-spacing:-.6px;margin:1px 0 2px">${esc(win.f)}</div>
+                   <div style="font-size:12px;color:var(--muted);margin-bottom:13px">
+                     ${fmtN(win.jobs)} job${win.jobs === 1 ? "" : "s"} · ${fmt1(val(win))} of 100${
+                       win.total == null ? " (automatic only — not assessed yet)" : ""}${
+                       pv ? (pv.f === win.f ? " · led " + MS[PM] + " too" : " · " + esc(pv.f) + " led " + MS[PM]) : ""}
+                   </div>
+                   ${bars}
+                 </div>
+                 <div><div class="mrx-scroll"><table class="mrx-tbl"><thead><tr><th>#</th><th>Foreman</th>
+                   <th>Jobs</th><th>Counted /70</th><th>Assessed /30</th><th>Total</th></tr></thead>
+                   <tbody>${runners}</tbody></table></div></div>
+               </div>`,
+              { span2: true, icon: KIC.grid, headVal: fmt1(val(win)) + " / 100",
+                noteKind: "how",
+                note: `<b>70 points are counted, 30 are assessed.</b> Counted from the warehouse: `
+                  + `packing sold per 100 CF (30), reviews earned (20), packing against the sales `
+                  + `estimate (10), complaints upheld against him (10) — each converted to points by `
+                  + `the range tables the office maintains. Assessed by the logistics team on the `
+                  + `Foreman Assessment page: six questions scored 0–5 stars, 5 points each. `
+                  + `<b>A topic that could not be measured is excluded and the rest rescaled</b>, never `
+                  + `scored zero — ${win.measured != null && win.measured < 70
+                      ? esc(win.f.split(" ")[0]) + " had " + fmtN(win.measured) + " of the 70 points measurable this month. "
+                      : "every topic was measurable for the leader this month. "}`
+                  + `${assessed} of ${M.length} foremen are fully assessed for ${monLbl}`
+                  + `${assessed < M.length ? " — <b>the ranking moves as the rest are assessed.</b>" : "."}` });
+          }
+        })();
+
         tableCard(g, "Foreman scorecard — ranked", monLbl, `<table class="mrx-tbl"><thead><tr><th>Foreman</th><th>Jobs</th><th>CF</th><th>Pay</th><th>Tips</th><th>Packing</th><th>vs Est</th><th>Reviews</th><th>Claims</th><th>Refunds</th><th>Score</th></tr></thead><tbody>${rowsH}</tbody></table>`, { icon: KIC.grid, headVal: fmtN(sc.length) + " crews", noteKind: "how", note: `Pay/Tips from closings; ▲▼ arrows on Jobs/Pay/Tips compare vs ${MS[PM]}. 'vs Est' = packing written ÷ quoted estimate (green at 1× or above, red below). Score combines jobs, packing, reviews and fault claims — higher is better; the ▲▼ beside it compares vs ${MS[PM]}. Rank 1 crowned.${CO === MR_CO_DEFAULT ? "" : ` <b>Not split by company:</b> the foreman scorecard mart carries no Company column, so these crews are ranked across every book, not just ${esc(CO)}.`}` });
       }
+      // ---- HOW MANY CREW WE HAVE -------------------------------------------------
+      // Two counts, because there are two questions. WORKED comes from job records and is
+      // fully backfilled, so month-over-month is real. ROSTER comes from the crew file,
+      // which carries a Status but no hire or leave date — so it can only be snapshotted
+      // forward from the day it was first taken, and drivers exist ONLY on that side,
+      // because no job record names a driver.
+      (function () {
+        const hc = (DS.headcount || []);
+        const at = k => hc.filter(r => String(r.Month || "").slice(0, 7) === k)[0];
+        const cur = at(`${curY}-${String(mo).padStart(2, "0")}`);
+        const prv = at(`${PMY}-${String(PM).padStart(2, "0")}`);
+        if (!cur) return;
+        const delta = (a, b) => {
+          if (a == null || b == null) return "";
+          const dv = a - b;
+          if (!dv) return ` <span style="font-size:11px;color:var(--faint);font-weight:600">no change</span>`;
+          return ` <span style="font-size:12px;font-weight:800;color:${dv > 0 ? POS : NEG}">${dv > 0 ? "▲" : "▼"}${Math.abs(dv)}</span>`;
+        };
+        const cell = (lab, v, pvv, sub) => `<div style="background:var(--panel-2);border:1px solid var(--line);border-radius:12px;padding:12px 14px">
+            <div style="font-size:9.5px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--faint)">${esc(lab)}</div>
+            <div style="font-size:24px;font-weight:750;letter-spacing:-.5px;margin-top:3px;line-height:1.15">${v == null ? "—" : fmtN(v)}${delta(v, pvv)}</div>
+            <div style="font-size:11px;color:var(--muted);margin-top:2px">${esc(sub)}</div></div>`;
+        const g1 = (k) => cur ? nn(cur[k]) : null, g0 = (k) => prv ? nn(prv[k]) : null;
+        const idle = (g1("Roster Foremen") != null && g1("Foremen Worked") != null)
+          ? g1("Roster Foremen") - g1("Foremen Worked") : null;
+        tableCard(g, "Crew we have", monLbl + " · worked vs on the books",
+          `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(148px,1fr));gap:10px">
+             ${cell("Foremen who worked", g1("Foremen Worked"), g0("Foremen Worked"), "ran at least one job")}
+             ${cell("Helpers who worked", g1("Helpers Worked"), g0("Helpers Worked"), "crewed at least one job")}
+             ${cell("Crew who worked", g1("Crew Worked"), g0("Crew Worked"), "foremen + helpers")}
+             ${cell("Foremen on the roster", g1("Roster Foremen"), g0("Roster Foremen"), "crew file · Active")}
+             ${cell("Helpers on the roster", g1("Roster Helpers"), g0("Roster Helpers"), "crew file · Active")}
+             ${cell("Drivers on the roster", g1("Roster Drivers"), g0("Roster Drivers"), "roster only")}
+           </div>`,
+          { span2: true, icon: KIC.grid,
+            headVal: (g1("Crew Worked") == null ? "—" : fmtN(g1("Crew Worked"))) + " working",
+            noteKind: "how",
+            note: `<b>Two counts, because there are two questions.</b> <b>Worked</b> is counted from `
+              + `job records — the foreman named on each closing, and the helpers on its crew lines — `
+              + `so it is the operating number, and its arrows against ${MS[PM]} are real history back `
+              + `to 2023. <b>Roster</b> is the crew file's Active list; that file carries a status but `
+              + `<b>no hire or leave date</b>, so the roster can only be snapshotted forward from the `
+              + `month this first ran — earlier months show a dash rather than a guess. `
+              + `<b>Drivers appear on the roster side only:</b> no job record names a driver, so there `
+              + `is nothing to count them against.`
+              + `${idle != null && idle > 0 ? ` <b>${fmtN(idle)} foremen on the books did not run a job this month</b> — the gap between the two halves is the number worth watching.` : ""}` });
+      })();
+
       const jobF = segSeries("closing", "Total Jobs", "Foreman").slice(0, 12);
       const hrMap = {}; segSeries("closing", "Hours Worked by Forman", "Foreman").forEach(r => hrMap[r.k] = r.v);
       combo(g, "Jobs vs hours by foreman", monLbl, jobF, "Jobs", fmtN, jobF.map(r => ({ k: r.k, v: hrMap[r.k] || 0 })), "Hours", fmtN);

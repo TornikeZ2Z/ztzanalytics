@@ -158,7 +158,18 @@ window.RS = (function () {
         "Forman Fault Claims", "Packing per 100 CF", "Packing per 100 CF Score",
         "Packing Difference %", "Packing Vs Estimate Score", "Reviews to Jobs Ratio",
         "Review Score", "Claim Score", "Forman Score", "Forman Score Rank",
-        "Forman Score Prev Month"],
+        "Forman Score Prev Month",
+        // the 2026-08 model: 70 automatic + 30 from the logistics team's assessment
+        "Auto Score", "Auto Weight Measured", "Manual Points", "Questions Answered",
+        "Assessed By", "Assessed At", "Total Score", "Total Score Rank"],
+      dateCols: { "Month": "Month" }, defaultDate: "Month",
+    },
+    headcount: {
+      table: "mart_crew_headcount",
+      cols: ["Month", "Month Year", "Foremen Worked", "Helpers Worked", "Crew Worked",
+             "Jobs", "Helper Shifts", "Helper Hours", "Roster Foremen", "Roster Helpers",
+             "Roster Drivers", "Roster Total", "Foremen Worked Prev", "Helpers Worked Prev",
+             "Crew Worked Prev"],
       dateCols: { "Month": "Month" }, defaultDate: "Month",
     },
     review_counts: {
