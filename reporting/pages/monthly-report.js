@@ -2334,6 +2334,46 @@ async function renderMonthly(host, MRCFG) {
           }
         })();
 
+        // ---- REVIEW ASSESSMENT: who earns reviews, per job -------------------------
+        // His ask (2026-08-05): reviews per job written, and the improvement against the
+        // previous period. Reviews are the heaviest counted topic (20 of 70), so each row
+        // shows the rate, the movement, and what the rate contributed to the man's score.
+        (function () {
+          const cur = scRows.map(r => ({
+            f: r.Foreman, jobs: num(r["Total Jobs"]), rev: num(r["Total Reviews Written"]),
+            pts: nn(r["Review Score"]), ok: +r["Qualified"] === 1,
+          })).filter(r => r.jobs > 0);
+          if (!cur.length) return;
+          const pmap = {};
+          scPrev.forEach(r => { pmap[r.Foreman] = { jobs: num(r["Total Jobs"]), rev: num(r["Total Reviews Written"]) }; });
+          cur.forEach(r => {
+            r.rpj = r.jobs ? r.rev / r.jobs : null;
+            const p2 = pmap[r.f];
+            r.prev = (p2 && p2.jobs) ? p2.rev / p2.jobs : null;
+            r.d = (r.rpj != null && r.prev != null) ? (r.rpj - r.prev) * 100 : null;
+          });
+          cur.sort((a, b) => (b.rpj || 0) - (a.rpj || 0) || b.rev - a.rev || b.jobs - a.jobs);
+          const mx = Math.max.apply(null, cur.map(r => r.rpj || 0)) || 1;
+          const tj = cur.reduce((s2, r) => s2 + r.jobs, 0), tr = cur.reduce((s2, r) => s2 + r.rev, 0);
+          const pj = Object.keys(pmap).reduce((s2, k) => s2 + pmap[k].jobs, 0);
+          const pr = Object.keys(pmap).reduce((s2, k) => s2 + pmap[k].rev, 0);
+          const tNow = tj ? tr / tj : 0, tPrev = pj ? pr / pj : null;
+          const dcell = d2 => d2 == null ? td("—", "color:var(--faint)")
+            : td((d2 > 0 ? "▲" : d2 < 0 ? "▼" : "–") + Math.abs(d2).toFixed(0) + " pp",
+                `font-weight:800;color:${d2 > 0 ? POS : d2 < 0 ? NEG : "var(--faint)"}`);
+          const rowsH = cur.map(r => `<tr><td>${esc(r.f)}${r.ok ? "" : ' <span style="color:var(--faint);font-size:10px">not ranked</span>'}</td>
+            ${td(fmtN(r.jobs))}${td(fmtN(r.rev), r.rev ? "" : `color:${NEG};font-weight:800`)}
+            <td class="bar"><i style="width:${((r.rpj || 0) / mx * 100).toFixed(0)}%;background:${LIME_BG}"></i><span>${pct(r.rpj || 0)}</span></td>
+            ${td(r.prev == null ? "—" : pct(r.prev), r.prev == null ? "color:var(--faint)" : "")}${dcell(r.d)}
+            ${td(r.pts == null ? "—" : fmt1(r.pts / 100 * 20) + " / 20", r.pts == null ? "color:var(--faint)" : "font-weight:800")}</tr>`).join("");
+          tableCard(g, "Review assessment — reviews earned per job", monLbl + " vs " + MS[PM],
+            `<div class="mrx-scroll"><table class="mrx-tbl"><thead><tr><th>Foreman</th><th>Jobs</th><th>Reviews</th><th>Per job</th><th>${MS[PM]}</th><th>Change</th><th>Score /20</th></tr></thead>
+             <tbody>${rowsH}<tr class="tot"><td>Whole crew</td>${td(fmtN(tj))}${td(fmtN(tr))}${td(pct(tNow))}${td(tPrev == null ? "—" : pct(tPrev))}${dcell(tPrev == null ? null : (tNow - tPrev) * 100)}${td("")}</tr></tbody></table></div>`,
+            { span2: true, icon: KIC.grid, headVal: pct(tNow) + " of jobs",
+              noteKind: "how",
+              note: `Reviews are matched to the foreman's closed jobs, so <b>Per job</b> = reviews earned ÷ jobs run that month — the rate the 20 review points are scored on, through the office's range table. <b>Change</b> is against ${MS[PM]}, in percentage points. A red 0 in Reviews is a month where a foreman ran jobs and earned none — that scores zero, it is never skipped. <b>Score /20</b> is what the rate contributed to his counted 70.` });
+        })();
+
         tableCard(g, "Foreman scorecard — ranked", monLbl, `<table class="mrx-tbl"><thead><tr><th>Foreman</th><th>Jobs</th><th>CF</th><th>Pay</th><th>Tips</th><th>Packing</th><th>vs Est</th><th>Reviews</th><th>Claims</th><th>Refunds</th><th>Score</th></tr></thead><tbody>${rowsH}</tbody></table>`, { icon: KIC.grid, headVal: fmtN(sc.length) + " crews", noteKind: "how", note: `Pay/Tips from closings; ▲▼ arrows on Jobs/Pay/Tips compare vs ${MS[PM]}. 'vs Est' = packing written ÷ quoted estimate (green at 1× or above, red below). Score combines jobs, packing, reviews and fault claims — higher is better; the ▲▼ beside it compares vs ${MS[PM]}. Rank 1 crowned.${CO === MR_CO_DEFAULT ? "" : ` <b>Not split by company:</b> the foreman scorecard mart carries no Company column, so these crews are ranked across every book, not just ${esc(CO)}.`}` });
       }
       // ---- HOW MANY CREW WE HAVE -------------------------------------------------
