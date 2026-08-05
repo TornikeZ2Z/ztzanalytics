@@ -105,7 +105,9 @@ registerPage({
     host.innerHTML = '<style id="fa2Css">'
       + ".fa2{max-width:1240px;font-variant-numeric:tabular-nums}"
       // ---- hero ------------------------------------------------------------------------
-      + ".fa2-hero{background:var(--panel);border:1px solid var(--line);border-radius:16px;margin-bottom:14px;box-shadow:var(--shadow);overflow:hidden}"
+      // NOT overflow:hidden — the month list hangs out of the hero, and clipping it left
+      // the dropdown showing exactly one row. The progress bar rounds its own corners.
+      + ".fa2-hero{background:var(--panel);border:1px solid var(--line);border-radius:16px;margin-bottom:14px;box-shadow:var(--shadow);position:relative}"
       + ".fa2-hrow{display:flex;flex-wrap:wrap;gap:14px 30px;align-items:center;padding:18px 22px}"
       + ".fa2-eyebrow{font-size:9.5px;font-weight:800;letter-spacing:.13em;text-transform:uppercase;color:var(--faint);margin-bottom:2px}"
       // the month picker: a native <select> popup cannot be styled, so the trigger is the
@@ -131,7 +133,7 @@ registerPage({
       + ".fa2-st b{display:block;font-size:21px;font-weight:750;letter-spacing:-.4px;line-height:1.15;white-space:nowrap}"
       + ".fa2-st span{font-size:9px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--faint)}"
       + ".fa2-st small{display:block;font-size:10.5px;color:var(--muted);margin-top:1px;white-space:nowrap}"
-      + ".fa2-prog{height:5px;background:var(--panel-2)}"
+      + ".fa2-prog{height:5px;background:var(--panel-2);border-radius:0 0 15px 15px;overflow:hidden}"
       + ".fa2-prog i{display:block;height:100%;background:var(--blue);transition:width .4s ease}"
       // ---- toolbar ---------------------------------------------------------------------
       + ".fa2-bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:12px}"
