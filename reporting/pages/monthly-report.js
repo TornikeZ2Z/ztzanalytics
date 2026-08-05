@@ -2293,8 +2293,8 @@ async function renderMonthly(host, MRCFG) {
                     "not assessed yet");
 
             const runners = Q.slice(0, 6).map((r, i) => `<tr${i ? "" : ' style="font-weight:800"'}>
-              <td>${i + 1}</td><td>${esc(r.f)}</td>${td(fmtN(r.jobs))}
-              ${td(fmt1(r.auto))}
+              <td><span style="color:var(--faint);font-weight:600;margin-right:7px">${i + 1}</span>${esc(r.f)}</td>
+              ${td(fmtN(r.jobs))}${td(fmt1(r.auto))}
               ${td(r.answered ? fmt1(r.manual) : "—", r.answered ? "" : "color:var(--faint)")}
               ${td(fmt1(val(r)), "font-weight:800")}</tr>`).join("");
 
@@ -2310,7 +2310,7 @@ async function renderMonthly(host, MRCFG) {
                    </div>
                    ${bars}
                  </div>
-                 <div><div class="mrx-scroll"><table class="mrx-tbl"><thead><tr><th>#</th><th>Foreman</th>
+                 <div><div class="mrx-scroll"><table class="mrx-tbl"><thead><tr><th>Foreman</th>
                    <th>Jobs</th><th>Counted /70</th><th>Assessed /30</th><th>Total</th></tr></thead>
                    <tbody>${runners}</tbody></table></div></div>
                </div>`,
