@@ -2230,13 +2230,16 @@ async function renderMonthly(host, MRCFG) {
       if (scRows.length) {
         const sc = scRows.map(r => ({ f: r.Foreman, jobs: num(r["Total Jobs"]), cf: num(r["Total CF"]), written: num(r["Total Packing Written"]), est: num(r["Total Packing Estimate"]), rev: num(r["Total Reviews Written"]), claims: num(r["Forman Fault Claims"]), score: nn(r["Total Score"]) != null ? nn(r["Total Score"])
                   : (nn(r["Auto Score"]) != null ? nn(r["Auto Score"]) : num(r["Forman Score"])),
-             rank: num(r["Total Score Rank"]) || num(r["Forman Score Rank"]),
+             ok: +r["Qualified"] === 1,
+             rank: nn(r["Total Score Rank"]),
              prev: num(r["Forman Score Prev Month"]) }))
-          .sort((a, b) => (a.rank || 999) - (b.rank || 999)).slice(0, 15);
+          .sort((a, b) => (a.ok === b.ok ? 0 : a.ok ? -1 : 1)
+                       || (a.rank || 999) - (b.rank || 999)
+                       || (b.score || 0) - (a.score || 0)).slice(0, 15);
         const smax = Math.max(...sc.map(r => r.score || 0)) || 1;
         // C24/Q5: 'vs Est' is colored BY VALUE — green only when written ≥ estimate (≥1×);
         // under-delivery is red, never a flattering unconditional green.
-        const rowsH = sc.map((r, i) => { const arrow = r.prev ? (r.score > r.prev ? `<span style="color:${POS}">▲</span>` : r.score < r.prev ? `<span style="color:${NEG}">▼</span>` : "–") : ""; const up = r.est > 0 ? r.written / r.est : null; return `<tr><td>${i === 0 ? "👑 " : ""}${esc(r.f)}</td>
+        const rowsH = sc.map((r, i) => { const arrow = r.prev ? (r.score > r.prev ? `<span style="color:${POS}">▲</span>` : r.score < r.prev ? `<span style="color:${NEG}">▼</span>` : "–") : ""; const up = r.est > 0 ? r.written / r.est : null; return `<tr><td>${esc(r.f)}${r.ok ? "" : ' <span style="color:var(--faint);font-size:10px">not ranked</span>'}</td>
           ${td(fmtN(r.jobs) + mArrow(r.jobs, jobsFmPM[r.f]))}${td(fmtN(r.cf))}${td(money(payM[r.f] || 0) + mArrow(payM[r.f] || 0, payPM[r.f]))}${td(money(tipsM[r.f] || 0) + mArrow(tipsM[r.f] || 0, tipsPM[r.f]))}${td(money(r.written))}${td(up == null ? "—" : up.toFixed(1) + "×", up == null ? "" : `color:${up >= 1 ? POS : NEG};font-weight:800`)}${td(r.rev ? fmtN(r.rev) : "0", r.rev ? "" : `color:${NEG};font-weight:800`)}${td(fmtN(r.claims), r.claims > 0 ? `color:${NEG};font-weight:800` : "")}${td(refM[r.f] ? money(refM[r.f]) : "—", refM[r.f] ? `color:${NEG};font-weight:800` : "")}
           <td class="bar"><i style="width:${(r.score / smax * 100).toFixed(0)}%;background:${LIME_BG}"></i><span>${fmt1(r.score)} ${arrow}</span></td></tr>`; }).join("");
         // ---- FOREMAN OF THE MONTH, on the 2026-08 model ----------------------------
