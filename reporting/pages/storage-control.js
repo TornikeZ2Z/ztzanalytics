@@ -349,7 +349,10 @@ registerPage({
           return pa - pb || (b["Monthly Run Rate"] || 0) - (a["Monthly Run Rate"] || 0);
         });
         html += '<div class="stc-h2">Rented storage \u00b7 <b>' + facs.length + " facilities</b>"
-          + ' <span style="text-transform:none;letter-spacing:0;font-weight:500">\u2014 geography from the register, money from the card feed</span></div>';
+          + ' <span style="text-transform:none;letter-spacing:0;font-weight:500">\u2014 geography from the register, money from the card feed'
+          + (unplaced.length ? ". " + unplaced.length + " item" + (unplaced.length === 1 ? "" : "s")
+              + " below are not yet placed on a facility, so “nothing recorded inside” can simply mean the register names no unit we recognise"
+              : "") + "</span></div>";
         html += facs.length
           ? '<div class="stc-rent">' + facs.map(function (f) {
               var items = itemsByFac[f.Facility] || [];
