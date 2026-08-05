@@ -7,6 +7,15 @@
    Planning actions (manual transit days, trip grouping) come in v2. */
 
 (function () {
+  if (window.RS && RS.DATASETS && !RS.DATASETS.ldp_custody) {
+    // the ops channel's custody log (Phase 2) — joined to jobs here by code / request / name
+    RS.DATASETS.ldp_custody = {
+      table: "fct_ld_custody",
+      cols: ["TS", "Posted", "Customer", "Custody", "Carrier", "Rate", "CF",
+             "Facility", "Units", "Flags", "Photo Count", "Photos", "Permalink",
+             "Delivered", "Delivered On", "Job Code", "Request No"],
+    };
+  }
   if (window.RS && RS.DATASETS && !RS.DATASETS.fct_ld_planning) {
     RS.DATASETS.fct_ld_planning = {
       table: "fct_ld_planning",
@@ -487,6 +496,14 @@ registerPage({
       <div id="ldpBody"><div class="rs-loading">Loading shipments…</div></div>
       <div class="ldp-scrim" id="ldpScrim"></div>
       <aside class="ldp-drawer" id="ldpDrawer" aria-label="Shipment detail"></aside>
+      <style>
+        .ldp-cst{display:flex;gap:9px;align-items:baseline;padding:6px 0;border-bottom:1px solid var(--line);font-size:12px;line-height:1.5}
+        .ldp-cst:last-child{border-bottom:0}
+        .ldp-cst-d{color:var(--faint);white-space:nowrap;flex:none;min-width:64px}
+        .ldp-cst-l{margin-left:auto;white-space:nowrap}
+        .ldp-cst-l a{color:var(--blue);text-decoration:none;margin-left:7px}
+        .ldp-cst-l a:last-child{color:var(--faint)}
+      </style>
       <aside class="ldp-rpanel" id="ldpRPanel" aria-label="Route map"></aside>
       <div class="ldp-ask" id="ldpAsk" role="alertdialog">
         <div class="ldp-askbox">
@@ -665,6 +682,29 @@ registerPage({
     var rows;
     try { rows = await RS.load("fct_ld_planning"); }
     catch (e) { document.getElementById("ldpBody").innerHTML = '<div class="rs-loading">Couldn’t load — ' + esc(e.message) + "</div>"; return; }
+
+    // The Slack custody log — optional: the board must never die with the channel read.
+    var CUSTODY = [];
+    try { CUSTODY = await RS.load("ldp_custody"); } catch (e) { CUSTODY = []; }
+    var custSlug = function (x) { return String(x || "").toLowerCase().replace(/[^a-z0-9]/g, ""); };
+    // index by job code, request number, and customer slug — a drawer looks up in that order
+    var CUST_BY = { code: {}, req: {}, name: {} };
+    CUSTODY.forEach(function (c) {
+      if (c["Job Code"]) (CUST_BY.code[String(c["Job Code"]).toUpperCase()] =
+        CUST_BY.code[String(c["Job Code"]).toUpperCase()] || []).push(c);
+      if (c["Request No"]) (CUST_BY.req[String(c["Request No"])] =
+        CUST_BY.req[String(c["Request No"])] || []).push(c);
+      var k = custSlug(c.Customer);
+      if (k) (CUST_BY.name[k] = CUST_BY.name[k] || []).push(c);
+    });
+    function custodyOf(r) {
+      var hit = CUST_BY.code[String(r["Job Code"] || "").toUpperCase()]
+        || CUST_BY.req[String(r["Request #"] || "")]
+        || CUST_BY.name[custSlug(r["Customer"])] || [];
+      return hit.slice().sort(function (a, b) {
+        return String(b.TS || "").localeCompare(String(a.TS || ""));
+      });
+    }
 
     // ---- the PORTAL's manual planning fields (trip days / final FAD / final CF) ----
     // The portal is the source of truth for these (his call 2026-07-21). The pipeline
@@ -1199,6 +1239,7 @@ registerPage({
                 + '<div class="ldp-bhrow"><a class="ldp-bhwa" id="ldpBhWa" target="_blank" rel="noopener">Send on WhatsApp</a>'
                 + '<button class="ldp-bhbtn" data-bh="1" style="margin-top:0">Copy</button></div>'
               : "")
+          + custodySec(r)
           + '<div class="ldp-sec">Job</div>'
           + kv([r["Balance Due"] != null ? ["Balance due", money(r["Balance Due"])] : null,
                 r["CF"] != null ? ["CF", Number(r["CF"]).toLocaleString()] : null,
@@ -1207,6 +1248,55 @@ registerPage({
           // here"). The Plan / Where-it-is form lived here; corrections belong in the long-distance
           // sheet, the system of record. overlaid() still APPLIES entries saved before this change.
         ;
+      }
+
+      /* The Slack trail: what #long-distance-storage says about this job — the same
+       * statements the ops team writes by hand, with their photos as links into Slack.
+       * When the sheet and the channel disagree on custody, BOTH are shown; the board
+       * surfaces the conflict and reconciles nothing (the sheet stays the record). */
+      var CUST_WORD = { rented_storage: "in rented storage", our_warehouse: "in our warehouse",
+        carrier: "with a carrier", delivered: "delivered", truck: "in a truck" };
+      function custodySec(r) {
+        var trail = custodyOf(r);
+        if (!trail.length) return "";
+        var latest = trail[0];
+        // sheet-vs-Slack: compare the board's possession bucket with the channel's word
+        var poss = String(r["Possession"] || "").toLowerCase();
+        var slackKind = String(latest.Custody || "");
+        var MAPPOSS = { rented_storage: /rent/, our_warehouse: /our|warehouse|base/,
+          carrier: /carrier/, delivered: /deliver/, truck: /truck|picked/ };
+        var conflict = poss && MAPPOSS[slackKind] && !MAPPOSS[slackKind].test(poss)
+          && !(slackKind === "truck" && !poss);
+        var h = '<div class="ldp-sec">Slack custody · ' + trail.length
+          + ' post' + (trail.length === 1 ? "" : "s") + "</div>";
+        if (conflict) {
+          h += '<div class="ldp-dissue" style="margin-top:2px">⚠ The sheet says “'
+            + esc(r["Possession"]) + '” but the latest Slack post ('
+            + fmtD(latest.Posted) + ') says “' + esc(CUST_WORD[slackKind] || slackKind)
+            + '” — worth a look; the sheet stays the record.</div>';
+        }
+        h += trail.slice(0, 4).map(function (c) {
+          var photos = [];
+          try { photos = JSON.parse(c.Photos || "[]"); } catch (e2) {}
+          var bits = [
+            c.Facility ? esc(c.Facility) : "",
+            c.Units ? "unit " + esc(c.Units) : "",
+            c.Carrier ? "carrier " + esc(c.Carrier) + (c.Rate ? " @ $" + esc(c.Rate) : "")
+              + (c.CF ? " · " + esc(c.CF) + " CF" : "") : "",
+            +c.Delivered ? "delivered" + (c["Delivered On"] ? " " + esc(c["Delivered On"]) : "") : "",
+            c.Flags ? esc(c.Flags) : "",
+          ].filter(Boolean).join(" · ");
+          return '<div class="ldp-cst"><span class="ldp-cst-d">' + fmtD(c.Posted) + "</span>"
+            + "<span><b>" + esc(CUST_WORD[c.Custody] || c.Custody || "") + "</b>"
+            + (bits ? '<span class="ldp-sub"> — ' + bits + "</span>" : "") + "</span>"
+            + '<span class="ldp-cst-l">'
+            + photos.slice(0, 4).map(function (ph, i) {
+                return '<a href="' + esc(ph.link) + '" target="_blank" rel="noopener">\ud83d\udcf7' + (i + 1) + "</a>";
+              }).join("")
+            + '<a href="' + esc(c.Permalink) + '" target="_blank" rel="noopener" title="Open in Slack">↗</a>'
+            + "</span></div>";
+        }).join("");
+        return h;
       }
 
       // The drawer is rendered OUTSIDE the table, so a repaint of the list never destroys
