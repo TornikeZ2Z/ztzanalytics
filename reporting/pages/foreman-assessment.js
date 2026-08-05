@@ -108,9 +108,21 @@ registerPage({
       + ".fa2-hero{background:var(--panel);border:1px solid var(--line);border-radius:16px;margin-bottom:14px;box-shadow:var(--shadow);overflow:hidden}"
       + ".fa2-hrow{display:flex;flex-wrap:wrap;gap:14px 30px;align-items:center;padding:18px 22px}"
       + ".fa2-eyebrow{font-size:9.5px;font-weight:800;letter-spacing:.13em;text-transform:uppercase;color:var(--faint);margin-bottom:2px}"
+      // the month picker: a native <select> popup cannot be styled, so the trigger is the
+      // month title itself and the list is ours — each month carrying its open/submitted state
       + ".fa2-mon{position:relative;display:inline-block}"
-      + ".fa2-mon select{appearance:none;-webkit-appearance:none;background:transparent;border:0;color:var(--ink);font-family:inherit;font-size:25px;font-weight:800;letter-spacing:-.6px;padding:0 24px 0 0;cursor:pointer;font-variant-numeric:tabular-nums}"
-      + ".fa2-mon:after{content:'▾';position:absolute;right:2px;top:52%;transform:translateY(-50%);color:var(--faint);font-size:13px;pointer-events:none}"
+      + ".fa2-monbtn{display:flex;align-items:center;gap:10px;background:transparent;border:0;color:var(--ink);font-family:inherit;font-size:25px;font-weight:800;letter-spacing:-.6px;padding:0;cursor:pointer;font-variant-numeric:tabular-nums}"
+      + ".fa2-monbtn .car{font-size:11px;color:var(--faint);transition:transform .16s ease;margin-top:5px}"
+      + ".fa2-monbtn:hover .car{color:var(--muted)}"
+      + ".fa2-monbtn.open .car{transform:rotate(180deg)}"
+      + ".fa2-mlist{position:absolute;top:calc(100% + 10px);left:-10px;min-width:252px;background:var(--panel);border:1px solid var(--line-2);border-radius:14px;box-shadow:0 20px 44px rgba(0,0,0,.22),var(--shadow);padding:6px;z-index:44;display:none}"
+      + ".fa2-mlist.open{display:block;animation:fa2in .14s ease}"
+      + ".fa2-mopt{display:flex;align-items:center;gap:10px;width:100%;text-align:left;font-family:inherit;font-size:14px;font-weight:650;color:var(--ink);background:none;border:0;border-radius:9px;padding:9px 12px;cursor:pointer;font-variant-numeric:tabular-nums}"
+      + ".fa2-mopt:hover{background:var(--panel-2)}"
+      + ".fa2-mopt.cur{background:var(--brand-glow);color:var(--brand-d);font-weight:800}"
+      + "body.rs-app:not(.light) .fa2-mopt.cur{color:var(--brand)}"
+      + ".fa2-mopt .tag{margin-left:auto;font-size:9px;font-weight:800;letter-spacing:.07em;text-transform:uppercase}"
+      + ".fa2-mopt .tag.sub{color:var(--blue)} .fa2-mopt .tag.op{color:var(--pos)}"
       + ".fa2-pill{display:inline-flex;align-items:center;gap:7px;font-size:11px;font-weight:800;padding:5px 11px;border-radius:999px;margin-top:5px}"
       + ".fa2-pill.open{background:var(--pos-bg);color:var(--pos)}"
       + ".fa2-pill.sub{background:var(--blue-bg);color:var(--blue)}"
@@ -227,6 +239,12 @@ registerPage({
           S.subBy = j.submitted_by || null;
           S.subAt = j.submitted_at || null;
           S.canReopen = !!j.can_reopen;
+          // the whole lock table rides along on every GET — the month list uses it to tag
+          // each month open / submitted without a request per month
+          S.locks = {};
+          (j.locks || []).forEach(l => {
+            if (+l.Locked === 1) S.locks[String(l.Month || "").slice(0, 7)] = 1;
+          });
           S.ratings = {};
           (j.ratings || []).forEach(x => {
             (S.ratings[x.Foreman] = S.ratings[x.Foreman] || {})[x.Question] = x;
@@ -291,10 +309,14 @@ registerPage({
 
       let h = '<div class="fa2-hero"><div class="fa2-hrow">'
         + '<div><div class="fa2-eyebrow">Foreman assessment</div>'
-        + '<div class="fa2-mon"><select id="fa2Mon">'
-        + months.map(m => '<option value="' + m + '"' + (m === S.month ? " selected" : "") + ">"
-            + monLab(m) + "</option>").join("")
-        + "</select></div>"
+        + '<div class="fa2-mon"><button class="fa2-monbtn" id="fa2MonBtn" type="button">'
+        + esc(monLab(S.month)) + ' <span class="car">▼</span></button>'
+        + '<div class="fa2-mlist" id="fa2MList">'
+        + months.map(m => '<button class="fa2-mopt' + (m === S.month ? " cur" : "")
+            + '" type="button" data-m="' + m + '">' + monLab(m)
+            + '<span class="tag ' + ((S.locks || {})[m] ? "sub" : "op") + '">'
+            + ((S.locks || {})[m] ? "✓ submitted" : "open") + "</span></button>").join("")
+        + "</div></div>"
         + '<div><span class="fa2-pill ' + (S.locked ? "sub" : "open") + '">'
         + (S.locked ? "✓ Submitted — ratings are final" : "● Open for rating") + "</span></div></div>"
         + '<div class="fa2-stats">'
@@ -419,14 +441,40 @@ registerPage({
     }
 
     function wire() {
-      const m = main.querySelector("#fa2Mon");
-      if (m) m.onchange = function () {
-        S.month = this.value; S.msg = ""; S.open = null;
-        // clear the board BEFORE the async load: a star clicked on the old month's cards
-        // during the swap would otherwise write into the newly selected month
-        main.innerHTML = '<div class="fa2-empty">Loading ' + esc(monLab(S.month)) + "…</div>";
-        load();
-      };
+      const mb = main.querySelector("#fa2MonBtn"), ml = main.querySelector("#fa2MList");
+      if (mb && ml) {
+        mb.onclick = e => {
+          e.stopPropagation();
+          const open = ml.classList.toggle("open");
+          mb.classList.toggle("open", open);
+          if (open) {
+            // close on any click outside the list, or on Escape — the handlers remove
+            // themselves so repaints can't stack them up
+            const off = ev => {
+              if (ev.type === "keydown" && ev.key !== "Escape") return;
+              if (ev.type === "click" && ml.contains(ev.target)) return;
+              ml.classList.remove("open"); mb.classList.remove("open");
+              document.removeEventListener("click", off);
+              document.removeEventListener("keydown", off);
+            };
+            setTimeout(() => {
+              document.addEventListener("click", off);
+              document.addEventListener("keydown", off);
+            }, 0);
+          }
+        };
+        ml.querySelectorAll(".fa2-mopt").forEach(o => {
+          o.onclick = () => {
+            ml.classList.remove("open"); mb.classList.remove("open");
+            if (o.dataset.m === S.month) return;
+            S.month = o.dataset.m; S.msg = ""; S.open = null;
+            // clear the board BEFORE the async load: a star clicked on the old month's
+            // cards during the swap would otherwise write into the newly selected month
+            main.innerHTML = '<div class="fa2-empty">Loading ' + esc(monLab(S.month)) + "…</div>";
+            load();
+          };
+        });
+      }
       main.querySelectorAll(".fa2-chip").forEach(c => {
         c.onclick = () => { S.tab = c.dataset.tab; paint(); };
       });
