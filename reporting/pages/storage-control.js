@@ -22,7 +22,7 @@
                "Monthly I", "Monthly II", "Accruals I", "Accruals II", "Next Payment",
                "Total Bill", "Total Paid", "Balance", "Payment Status", "Inventory Status",
                "Location Kind", "Location", "Location Label", "Unit",
-               "Vaults", "Vault Count", "Facility", "Notes"],
+               "Vaults", "Vault Count", "Facility", "Matched Facility", "Notes"],
       };
     }
     if (!RS.DATASETS.fct_storage_vault) {
@@ -30,6 +30,22 @@
         table: "fct_storage_vault",
         cols: ["Vault", "Job Code", "Customer", "Company", "Entered", "Left", "Active",
                "Chargeable CF", "Balance", "Payment Status"],
+      };
+    }
+    if (!RS.DATASETS.fct_storage_facility) {
+      RS.DATASETS.fct_storage_facility = {
+        table: "fct_storage_facility",
+        cols: ["Facility", "Address", "State", "Brand", "Stores", "Units", "Unit Count",
+               "Capacity CF", "Seed Monthly", "Status", "Closed At",
+               "First Charge", "Last Charge", "Last Amount", "Monthly Run Rate",
+               "Paid 12mo", "Paid Total", "Charges", "USD per CF",
+               "Active Items", "Occupied CF"],
+      };
+    }
+    if (!RS.DATASETS.fct_storage_rent) {
+      RS.DATASETS.fct_storage_rent = {
+        table: "fct_storage_rent",
+        cols: ["Date", "Brand", "Store", "Amount", "Company", "Facility"],
       };
     }
     if (!RS.DATASETS.st_payments) {
@@ -58,7 +74,7 @@ registerPage({
       });
     };
     var S = window.__STC || (window.__STC = {
-      reg: null, vaults: null, pays: null, crew: null,
+      reg: null, vaults: null, pays: null, crew: null, fac: null, rent: null,
       q: "", show: "active", kind: "", owing: false, open: null,
     });
 
@@ -121,6 +137,10 @@ registerPage({
       + ".stc-v.full{border-left:3px solid var(--pos)}"
       + ".stc-v.full.owe{border-left-color:var(--neg)}"
       + ".stc-v.multi::after{content:'+';position:absolute;top:5px;right:8px;color:var(--faint);font-weight:800}"
+      + ".stc-flag{font-size:var(--t5);line-height:1.5;border-radius:8px;padding:7px 10px;margin-top:8px}"
+      + ".stc-flag.bad{background:var(--neg-bg);color:var(--neg);font-weight:600}"
+      + ".stc-flag.warn{background:var(--warn-bg);color:var(--warn);font-weight:600}"
+      + ".stc-fac{cursor:pointer}"
       // rented cards
       + ".stc-rent{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px}"
       + ".stc-r{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 14px}"
@@ -182,6 +202,8 @@ registerPage({
       RS.load("fct_storage_vault"),
       RS.load("st_payments").catch(function () { return []; }),
       RS.load("st_crew").catch(function () { return []; }),
+      RS.load("fct_storage_facility").catch(function () { return []; }),
+      RS.load("fct_storage_rent").catch(function () { return []; }),
     ]).then(function (rs) {
       S.reg = (rs[0] || []).map(function (r) {
         ["Chargeable CF", "Real CF", "Fee per CF", "Fee per CF Initial", "Monthly I", "Monthly II",
@@ -198,6 +220,18 @@ registerPage({
         return v;
       });
       S.pays = rs[2] || [];
+      S.fac = (rs[4] || []).map(function (f) {
+        ["Capacity CF", "Seed Monthly", "Last Amount", "Monthly Run Rate", "Paid 12mo",
+         "Paid Total", "Charges", "USD per CF", "Active Items", "Occupied CF",
+         "Unit Count"].forEach(function (k) { f[k] = num(f[k]); });
+        ["First Charge", "Last Charge"].forEach(function (k) { f[k] = f[k] ? String(f[k]).slice(0, 10) : null; });
+        return f;
+      });
+      S.rent = (rs[5] || []).map(function (r) {
+        r.Amount = num(r.Amount);
+        r.Date = r.Date ? String(r.Date).slice(0, 10) : null;
+        return r;
+      });
       S.crew = {};
       (rs[3] || []).forEach(function (c) {
         var e = String(c.Email || "").toLowerCase().trim();
@@ -241,7 +275,12 @@ registerPage({
         + kpi(String(act.length), "Goods in storage", S.reg.length + " items ever recorded", "")
         + kpi(Math.round(cf).toLocaleString(), "Cubic feet held", "chargeable, on active items", "")
         + kpi(String(Object.keys(occ).length), "Vaults occupied", "our warehouse", "")
-        + kpi(String(Object.keys(rentedLocs).length), "Rented locations in use", rentedActive.length + " items in them", "")
+        + (function () {
+            var act = (S.fac || []).filter(function (f) { return f.Status === "active"; });
+            var rate = act.reduce(function (a, f) { return a + (f["Monthly Run Rate"] || 0); }, 0);
+            return kpi(usd(rate) + "/mo", "Rent we are paying",
+              act.length + " facilities on the card feed", "");
+          })()
         + kpi(usd(owed), "Balance outstanding", owed > 0 ? "on goods still with us" : "everyone is current",
               owed > 0 ? "neg" : "pos")
         + "</div>";
@@ -291,26 +330,72 @@ registerPage({
           + "</div>";
       }
 
-      // ---- rented locations ------------------------------------------------------------
+      // ---- rented facilities: seed geography + card-feed money + register occupancy ----
       if (S.kind !== "our") {
-        var names = Object.keys(rentedLocs).sort(function (a, b) { return rentedLocs[b].length - rentedLocs[a].length; });
-        html += '<div class="stc-h2">Rented storage · <b>' + names.length + " locations</b></div>";
-        html += names.length
-          ? '<div class="stc-rent">' + names.map(function (nm) {
-              var items = rentedLocs[nm];
-              var lcf = items.reduce(function (a, r) { return a + (r["Chargeable CF"] || 0); }, 0);
-              return '<div class="stc-r"><div class="nm">' + esc(nm) + "</div>"
-                + '<div class="meta">' + items.length + " item" + (items.length === 1 ? "" : "s")
-                + (lcf ? " · " + Math.round(lcf).toLocaleString() + " CF" : "") + "</div>"
-                + '<div class="in">' + items.map(function (r) {
+        var facs = (S.fac || []).slice();
+        if (S.show === "active") facs = facs.filter(function (f) { return f.Status !== "closed"; });
+        var itemsByFac = {};
+        rentedActive.forEach(function (r) {
+          var k = r["Matched Facility"] || "";
+          if (k) (itemsByFac[k] = itemsByFac[k] || []).push(r);
+        });
+        var unplaced = rentedActive.filter(function (r) { return !r["Matched Facility"]; });
+        // problems first: goods inside but the card feed went quiet; then paying-but-empty;
+        // then by what each one costs us
+        var RANK = { dormant: 1, active: 2, "no charges seen": 3, closed: 4 };
+        facs.sort(function (a, b) {
+          var pa = (a.Status === "dormant" && a["Active Items"] ? 0 : RANK[a.Status] || 9);
+          var pb = (b.Status === "dormant" && b["Active Items"] ? 0 : RANK[b.Status] || 9);
+          return pa - pb || (b["Monthly Run Rate"] || 0) - (a["Monthly Run Rate"] || 0);
+        });
+        html += '<div class="stc-h2">Rented storage \u00b7 <b>' + facs.length + " facilities</b>"
+          + ' <span style="text-transform:none;letter-spacing:0;font-weight:500">\u2014 geography from the register, money from the card feed</span></div>';
+        html += facs.length
+          ? '<div class="stc-rent">' + facs.map(function (f) {
+              var items = itemsByFac[f.Facility] || [];
+              var flag = "";
+              if (f.Status === "dormant" && (f["Active Items"] || items.length)) {
+                flag = '<div class="stc-flag bad">Goods inside, but no card charge since '
+                  + (f["Last Charge"] ? dayLab(f["Last Charge"]) : "\u2014")
+                  + " \u2014 if this unit lapses, the goods are at risk. Check the account.</div>";
+              } else if (f.Status === "active" && !(f["Active Items"] || items.length)) {
+                flag = '<div class="stc-flag warn">Paying ' + usd(f["Monthly Run Rate"] || f["Last Amount"])
+                  + "/mo with nothing recorded inside \u2014 either goods went unregistered, or this unit can be closed.</div>";
+              }
+              return '<div class="stc-r stc-fac" data-fac="' + esc(f.Facility) + '">'
+                + '<div class="nm">' + esc(f.Facility.split(",")[0]) + " "
+                + '<span class="stc-pill ' + (f.Status === "active" ? "ok" : f.Status === "closed" ? "off" : "owe") + '">'
+                + esc(f.Status) + "</span></div>"
+                + '<div class="meta">' + esc(f.State || "") + " \u00b7 " + (f["Unit Count"] || 0) + " unit"
+                + ((f["Unit Count"] || 0) === 1 ? "" : "s")
+                + (f["Capacity CF"] ? " \u00b7 " + f["Capacity CF"].toLocaleString() + " CF" : "")
+                + (f["Monthly Run Rate"] ? " \u00b7 <b>" + usd(f["Monthly Run Rate"]) + "/mo</b>" : (f["Seed Monthly"] ? " \u00b7 ~" + usd(f["Seed Monthly"]) + "/mo" : ""))
+                + (f["USD per CF"] ? " \u00b7 " + usd(f["USD per CF"], 2) + "/CF" : "")
+                + (f["Last Charge"] ? " \u00b7 paid " + dayLab(f["Last Charge"]) : "") + "</div>"
+                + flag
+                + (items.length ? '<div class="in">' + items.map(function (r) {
                     return '<div class="jrow" data-job="' + esc(r["Job Code"] || "") + '" data-cust="' + esc(r.Customer) + '">'
                       + "<span>" + esc(r.Customer) + "</span>"
                       + (r.Unit ? '<span class="u">unit ' + esc(r.Unit) + "</span>" : "")
                       + (owes(r) ? '<span class="owe">' + usd(r.Balance) + " due</span>" : "")
                       + '<span class="cf">' + (r["Chargeable CF"] ? Math.round(r["Chargeable CF"]) + " CF" : "") + "</span></div>";
-                  }).join("") + "</div></div>";
+                  }).join("") + "</div>" : "")
+                + "</div>";
             }).join("") + "</div>"
-          : '<div class="stc-empty">Nothing sits in rented storage under this filter.</div>';
+          : '<div class="stc-empty">No rented facilities on file.</div>';
+        if (unplaced.length) {
+          html += '<div class="stc-h2" style="margin-top:14px">Rented items not yet placed on a facility \u00b7 <b>'
+            + unplaced.length + "</b>"
+            + ' <span style="text-transform:none;letter-spacing:0;font-weight:500">\u2014 the sheet names no unit the register recognises; worth fixing at the source</span></div>'
+            + '<div class="stc-rent"><div class="stc-r"><div class="in" style="border-top:0;margin-top:0">'
+            + unplaced.map(function (r) {
+                return '<div class="jrow" data-job="' + esc(r["Job Code"] || "") + '" data-cust="' + esc(r.Customer) + '">'
+                  + "<span>" + esc(r.Customer) + "</span>"
+                  + '<span class="u">' + esc(r.Facility || "?") + (r.Unit ? " \u00b7 " + esc(r.Unit) : "") + "</span>"
+                  + '<span class="cf">' + (r["Chargeable CF"] ? Math.round(r["Chargeable CF"]) + " CF" : "") + "</span></div>";
+              }).join("")
+            + "</div></div></div>";
+        }
       }
 
       // ---- the register ----------------------------------------------------------------
@@ -378,9 +463,16 @@ registerPage({
       if (ow) ow.onclick = function () { S.owing = !S.owing; paint(); };
       main.querySelectorAll("[data-job],[data-cust]").forEach(function (el) {
         if (el.classList.contains("empty")) return;
-        el.onclick = function () {
+        el.onclick = function (e) {
+          e.stopPropagation();
           var r = findItem(el.dataset.job, el.dataset.cust);
           if (r) openItem(r);
+        };
+      });
+      main.querySelectorAll(".stc-fac").forEach(function (el) {
+        el.onclick = function () {
+          var f = (S.fac || []).filter(function (x) { return x.Facility === el.dataset.fac; })[0];
+          if (f) openFacility(f);
         };
       });
       main.querySelectorAll(".stc-tbl tr[data-i]").forEach(function (tr) {
@@ -464,6 +556,62 @@ registerPage({
       scrim.classList.add("on");
       draw.querySelector("#stcX").onclick = close;
     }
+    /* the facility file: what it costs, what is inside, every charge on the card feed */
+    function openFacility(f) {
+      var items = (S.reg || []).filter(function (r) {
+        return r.Active === 1 && r["Matched Facility"] === f.Facility;
+      });
+      var charges = (S.rent || []).filter(function (c) { return c.Facility === f.Facility; })
+        .sort(function (a, b) { return String(b.Date || "").localeCompare(String(a.Date || "")); });
+
+      var h = '<div class="stc-dh"><div><h3>' + esc(f.Facility.split(",")[0]) + "</h3>"
+        + "<p>" + esc(f.Address || "") + (f.Stores ? " \u00b7 store " + esc(f.Stores) : "") + "</p></div>"
+        + '<button class="stc-x" id="stcX">&times;</button></div><div class="stc-db">';
+
+      h += '<div class="stc-sec"><h5>The unit' + ((f["Unit Count"] || 0) === 1 ? "" : "s") + "</h5>"
+        + row("Units", esc(f.Units || "\u2014"))
+        + (f["Capacity CF"] ? row("Capacity", f["Capacity CF"].toLocaleString() + " CF") : "")
+        + row("Status", esc(f.Status) + (f["Closed At"] ? " \u00b7 " + esc(f["Closed At"]) : ""))
+        + "</div>";
+
+      h += '<div class="stc-sec"><h5>What it costs us</h5>'
+        + (f["Monthly Run Rate"] ? row("Run rate", usd(f["Monthly Run Rate"]) + "/mo"
+            + (f["USD per CF"] ? ' <span class="sub">\u00b7 ' + usd(f["USD per CF"], 2) + " per CF</span>" : "")) : "")
+        + (f["Seed Monthly"] && !f["Monthly Run Rate"] ? row("Listed rent", "~" + usd(f["Seed Monthly"]) + "/mo") : "")
+        + (f["Last Charge"] ? row("Last charged", dayLab(f["Last Charge"]) + " \u00b7 " + usd(f["Last Amount"])) : "")
+        + (f["Paid 12mo"] ? row("Paid, last 12 months", usd(f["Paid 12mo"])) : "")
+        + (f["Paid Total"] ? row("Paid, all time", usd(f["Paid Total"])
+            + ' <span class="sub">\u00b7 ' + (f.Charges || 0) + " charges</span>") : "")
+        + (!f.Charges ? row("Card feed", "no charges matched \u2014 the store number for this address is not mapped yet") : "")
+        + "</div>";
+
+      h += '<div class="stc-sec"><h5>Inside \u00b7 ' + items.length + "</h5>"
+        + (items.length ? items.map(function (r) {
+            return '<div class="stc-row"><span>' + esc(r.Customer)
+              + (r.Unit ? ' <span class="sub">unit ' + esc(r.Unit) + "</span>" : "") + "</span>"
+              + "<b>" + (r["Chargeable CF"] ? Math.round(r["Chargeable CF"]) + " CF" : "")
+              + (owes(r) ? ' <span style="color:var(--neg)">' + usd(r.Balance) + " due</span>" : "") + "</b></div>";
+          }).join("") : '<div class="stc-row"><span>Nothing registered inside.</span></div>')
+        + "</div>";
+
+      if (charges.length) {
+        h += '<div class="stc-sec"><h5>Card charges \u00b7 newest ' + Math.min(24, charges.length)
+          + " of " + charges.length + "</h5>"
+          + charges.slice(0, 24).map(function (c) {
+              return '<div class="stc-row"><span>' + dayLab(c.Date)
+                + (c.Company ? ' <span class="sub">' + esc(c.Company) + "</span>" : "") + "</span>"
+                + "<b>" + usd(c.Amount) + "</b></div>";
+            }).join("")
+          + "</div>";
+      }
+      h += "</div>";
+
+      draw.querySelector("#stcDrawIn").innerHTML = h;
+      draw.classList.add("on");
+      scrim.classList.add("on");
+      draw.querySelector("#stcX").onclick = close;
+    }
+
     function row(k, v) {
       return '<div class="stc-row"><span>' + esc(k) + "</span><b>" + v + "</b></div>";
     }
