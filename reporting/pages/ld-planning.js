@@ -1288,7 +1288,9 @@ registerPage({
             c.Units ? "unit " + esc(c.Units) : "",
             c.Carrier ? "carrier " + esc(c.Carrier) + (c.Rate ? " @ $" + esc(c.Rate) : "")
               + (c.CF ? " · " + esc(c.CF) + " CF" : "") : "",
-            +c.Delivered ? "delivered" + (c["Delivered On"] ? " " + esc(c["Delivered On"]) : "") : "",
+            (+c.Delivered && c.Custody !== "delivered")
+              ? "delivered" + (c["Delivered On"] ? " " + esc(c["Delivered On"]) : "")
+              : (c["Delivered On"] ? "on " + esc(c["Delivered On"]) : ""),
             c.Flags ? esc(c.Flags) : "",
           ].filter(Boolean).join(" · ");
           return '<div class="ldp-cst"><span class="ldp-cst-d">' + fmtD(c.Posted) + "</span>"
