@@ -215,6 +215,16 @@ function rlInjectStyle() {
                    user-select:none;padding:4px 0}
   .rl-fdet[open] summary{margin-bottom:2px}
   .rl-fhelp{font-size:11px;color:var(--faint);line-height:1.6;margin-top:12px;max-width:100ch}
+  /* the per-feed reload switch */
+  .rl-sw{font-family:inherit;font-size:10px;font-weight:800;letter-spacing:.04em;
+         padding:2px 9px;border-radius:999px;cursor:pointer;border:1px solid;background:transparent}
+  .rl-sw.on{color:var(--brand-d);border-color:var(--brand)}
+  body.rs-app:not(.light) .rl-sw.on{color:var(--brand)}
+  .rl-sw.off{color:var(--muted);border-color:var(--line-2);background:var(--panel-2)}
+  .rl-sw:hover:not(:disabled){filter:brightness(1.15)}
+  .rl-sw:disabled{opacity:.6;cursor:default}
+  .rl-fr.paused td{background:var(--panel-2);opacity:.72}
+  .rl-fr.paused b{text-decoration:line-through;text-decoration-color:var(--faint)}
   .rl-sname{font-size:12.5px;font-weight:650;color:var(--ink);display:flex;align-items:center;justify-content:space-between;gap:6px}
   .rl-smeta{font-size:11.5px;color:var(--muted);margin-top:4px;display:flex;justify-content:space-between}
   .rl-smeta b{color:var(--ink);font-weight:700;font-variant-numeric:tabular-nums}
@@ -452,10 +462,11 @@ async function rlPollLive(host) {
 function rlFreshness(fresh) {
   if (!fresh || !fresh.length) return "";
   const STALE = 21, WATCH = 10;
-  const bad = fresh.filter(f => (f.days_since_file != null) && f.days_since_file >= STALE);
-  const watch = fresh.filter(f => (f.days_since_file != null)
-                                  && f.days_since_file >= WATCH && f.days_since_file < STALE);
-  const fine = fresh.filter(f => f.days_since_file == null || f.days_since_file < WATCH);
+  const live = fresh.filter(f => !f.paused), off = fresh.filter(f => f.paused);
+  const bad = live.filter(f => (f.days_since_file != null) && f.days_since_file >= STALE);
+  const watch = live.filter(f => (f.days_since_file != null)
+                                 && f.days_since_file >= WATCH && f.days_since_file < STALE);
+  const fine = live.filter(f => f.days_since_file == null || f.days_since_file < WATCH);
 
   const row = f => {
     const d = f.days_since_file;
@@ -464,17 +475,25 @@ function rlFreshness(fresh) {
     // The file date and the data date are different claims: a re-saved export is fresh by
     // file and stale by contents, and only showing both tells them apart.
     const dd = f.days_since_data;
-    return `<tr class="rl-fr ${cls}">
-      <td><b>${RSC.esc(f.feed || f.table)}</b><span class="rl-fkind">${RSC.esc(f.kind || "")}</span></td>
-      <td class="n"><span class="rl-age ${cls}">${age}</span></td>
+    // the switch. Admin-only server-side, so a non-admin simply gets told; the button is
+    // shown to everyone because knowing a feed is OFF matters more than tidiness
+    const sw = `<button class="rl-sw ${f.paused ? "off" : "on"}" data-t="${RSC.esc(f.table)}"
+      data-p="${f.paused ? 1 : 0}" title="${f.paused
+        ? "Paused — click to start reloading it again"
+        : "Reloading every run — click to pause"}">${f.paused ? "paused" : "on"}</button>`;
+    return `<tr class="rl-fr ${f.paused ? "paused" : cls}">
+      <td><b>${RSC.esc(f.feed || f.table)}</b><span class="rl-fkind">${RSC.esc(f.kind || "")}${
+        f.paused && f.pause_note ? " · " + RSC.esc(f.pause_note) : ""}</span></td>
+      <td class="n">${sw}</td>
+      <td class="n"><span class="rl-age ${f.paused ? "none" : cls}">${age}</span></td>
       <td class="n">${RSC.esc(f.file_updated ? String(f.file_updated).slice(0, 10) : "—")}</td>
       <td class="n">${RSC.esc(f.newest_data || "—")}${dd != null && dd > 30
         ? `<span class="rl-fnote">${dd}d of data</span>` : ""}</td>
       <td class="n">${f.rows == null ? "—" : RS.fmtN(f.rows)}</td>
     </tr>`;
   };
-  const head = `<thead><tr><th>Feed</th><th class="n">Last updated</th><th class="n">File date</th>
-    <th class="n">Newest row</th><th class="n">Rows</th></tr></thead>`;
+  const head = `<thead><tr><th>Feed</th><th class="n">Reload</th><th class="n">Last updated</th>
+    <th class="n">File date</th><th class="n">Newest row</th><th class="n">Rows</th></tr></thead>`;
 
   return `<div class="rl-card">
     <div class="rl-hhead">
@@ -485,6 +504,10 @@ function rlFreshness(fresh) {
     </div>
     ${bad.length || watch.length ? `<table class="rl-ftab">${head}<tbody>
         ${bad.map(row).join("")}${watch.map(row).join("")}</tbody></table>` : ""}
+    ${off.length ? `<details class="rl-fdet">
+      <summary>${off.length} feed${off.length === 1 ? "" : "s"} paused — not reloaded at all</summary>
+      <table class="rl-ftab">${head}<tbody>${off.map(row).join("")}</tbody></table>
+    </details>` : ""}
     <details class="rl-fdet"${bad.length || watch.length ? "" : " open"}>
       <summary>${fine.length} feed${fine.length === 1 ? "" : "s"} updated in the last ${WATCH} days</summary>
       <table class="rl-ftab">${head}<tbody>${fine.map(row).join("")}</tbody></table>
@@ -493,7 +516,11 @@ function rlFreshness(fresh) {
       Some are meant to sit still — reference tables like zip codes barely change — so this is a
       prompt to look, not a fault. <b>Last updated</b> is the export file's own modified date;
       <b>newest row</b> is the freshest date inside it, which is the one that catches a file
-      re-saved without new data.</div>
+      re-saved without new data. <b>Reload</b> switches a feed off entirely — useful for
+      reference tables that never change, like zip codes, which is 42,000 rows of United States
+      geography re-read every hour to arrive at the same 42,000 rows. A paused feed keeps its
+      data and stops being counted as stale; it is listed separately so it can never be
+      mistaken for a live one.</div>
   </div>`;
 }
 
@@ -599,6 +626,30 @@ function rlRender(host, runs, cov, fresh) {
   }
   host.innerHTML = kpis + alert + freshBoard + rlCoverage(cov) + hero + history;
   host.querySelectorAll(".rl-run .rl-rhead").forEach(h => h.onclick = () => h.parentNode.classList.toggle("open"));
+  host.querySelectorAll(".rl-sw").forEach(b => {
+    b.onclick = async () => {
+      const on = b.dataset.p === "1";          // currently paused -> we are turning it back on
+      const t = b.dataset.t;
+      let note = null;
+      if (!on) {
+        note = prompt("Pause \"" + t + "\" — it will stop reloading every run.
+"
+                      + "Why? (optional, but it helps whoever finds this later)", "");
+        if (note === null) return;             // cancelled
+      }
+      b.disabled = true; b.textContent = "…";
+      try {
+        await ZTZ.api("/api/_srcswitch", { method: "POST",
+          body: JSON.stringify({ table: t, paused: !on, note: note || undefined }) });
+        // the mart still holds the old flag until the next run, so repaint from the server
+        const d = await ZTZ.api("/api/_refresh_log");
+        rlRender(host, (d && d.runs) || runs, d && d.coverage, d && d.freshness);
+      } catch (e) {
+        b.disabled = false; b.textContent = on ? "paused" : "on";
+        alert("Could not change it: " + (e.message || e));
+      }
+    };
+  });
   const pv = host.querySelector("#rlPrev");
   if (pv) pv.onclick = () => { RL.hpage--; rlRender(host, runs, cov, fresh); };
   const nx = host.querySelector("#rlNext");
