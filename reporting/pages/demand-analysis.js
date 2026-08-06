@@ -48,7 +48,12 @@ registerPage({
   datasets: [],
 
   render: function (host) {
-    const RSC = window.RS_COMPONENTS || {};
+    // window.RSC is the real global (assets/rs-components.js:3). This read RS_COMPONENTS,
+    // which has never existed, so `|| {}` handed every one of these pages an EMPTY object
+    // and each helper quietly fell through to its local fallback. Nothing looked wrong
+    // until `collapsible` -- the one member with no fallback -- was called, and Packing
+    // Control and Storage Control died with "RSC.collapsible is not a function".
+    const RSC = window.RSC || {};
     const esc = RSC.esc || (v => String(v == null ? "" : v).replace(/[&<>"']/g,
       c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])));
 
