@@ -2121,17 +2121,29 @@ async function renderMonthly(host, MRCFG) {
       roiWindows.forEach(W => {
         const per = {}; for (let y = curY - 4; y <= curY; y++) per[y] = roiWin(W.pairs(y));   // 5 yrs computed → the first shown year still has a YoY denominator
         const spendRank = {}; roiDispYears.forEach(y => Object.keys(per[y].ad).forEach(k => { if (k !== "—" && per[y].ad[k] > 0) spendRank[k] = Math.max(spendRank[k] || 0, per[y].ad[k]); }));
-        const srcList = Object.keys(spendRank).filter(k => src2026.has(k)).sort((a, b) => spendRank[b] - spendRank[a]).slice(0, 12);   // only channels we still buy
+        /* TWO lists, on purpose. The table shows the biggest 12 because a 19-row table of
+           channels nobody buys any more is unreadable -- but the TOTAL sums every channel we
+           still buy. It used to sum the visible 12 and call itself "All paid", leaving 8
+           spending channels outside a row claiming to be the total: July 2026 read $8.02
+           where the true all-paid figure is $6.72, a headline number 16% too kind. */
+        const allPaid = Object.keys(spendRank).filter(k => src2026.has(k)).sort((a, b) => spendRank[b] - spendRank[a]);   // only channels we still buy
+        const srcList = allPaid.slice(0, 12);
         if (!srcList.length) return;
         const roiCell = v => v == null ? `<td style="text-align:right;color:${FAINT}">—</td>` : `<td style="text-align:right;font-weight:800;color:${v >= 3 ? POS : v >= 1 ? WARN : NEG}">$${v.toFixed(2)}</td>`;
         const growCell = (now, prev) => (now == null || prev == null || !prev) ? `<td style="text-align:right;color:${FAINT}">—</td>` : (function () { const d = (now - prev) / Math.abs(prev); return `<td style="text-align:right;font-weight:800;color:${d >= 0 ? POS : NEG}">${d >= 0 ? "▲" : "▼"} ${Math.abs(d * 100).toFixed(0)}%</td>`; })();
         const cellsFor = arr => roiDispYears.map(y => roiCell(arr[y]) + growCell(arr[y], arr[y - 1])).join("");
-        const totArr = {}; for (let y = curY - 4; y <= curY; y++) { let ad = 0, op = 0; srcList.forEach(k => { ad += per[y].ad[k] || 0; op += per[y].op[k] || 0; }); totArr[y] = roiVal(ad, op); }
-        const yrHead = roiDispYears.map(y => `<th style="text-align:right">${y} ROI</th><th style="text-align:right">YoY</th>`).join("");
+        const totArr = {}; for (let y = curY - 4; y <= curY; y++) { let ad = 0, op = 0; allPaid.forEach(k => { ad += per[y].ad[k] || 0; op += per[y].op[k] || 0; }); totArr[y] = roiVal(ad, op); }
+        const yrHead = roiDispYears.map(y => `<th style="text-align:right">${y}</th><th style="text-align:right">YoY</th>`).join("");
         const bodyH = srcList.map(k => { const arr = {}; for (let y = curY - 4; y <= curY; y++) arr[y] = roiVal(per[y].ad[k] || 0, per[y].op[k] || 0); return `<tr><td>${esc(k)}</td>${cellsFor(arr)}</tr>`; }).join("")
-          + `<tr class="tot"><td>All paid</td>${cellsFor(totArr)}</tr>`;
+          + `<tr class="tot"><td>All paid${allPaid.length > srcList.length ? ` <span style="font-weight:600;color:${FAINT}">· all ${allPaid.length} channels, incl. ${allPaid.length - srcList.length} not listed above</span>` : ""}</td>${cellsFor(totArr)}</tr>`;
         const html = `<table class="mrx-tbl"><thead><tr><th>Source</th>${yrHead}</tr></thead><tbody>${bodyH}</tbody></table>`;
-        tableCard(g, `ROI growth — ${W.label}`, `${W.sub} · net $ returned per $1 of ad spend ((profit − spend) ÷ spend)`, html, { icon: KIC.trend, headVal: totArr[curY] == null ? "—" : "$" + totArr[curY].toFixed(2) });
+        /* NOT called ROAS, deliberately. This page ALREADY has a ROAS -- revenue / ad spend,
+           shown as a multiple (11.9x) at the KPI tile and the by-source table. This card is
+           (profit - spend) / spend, a dollar figure. Two different numbers under one name on
+           one page is how someone ends up quoting the wrong one in a meeting; the table above
+           already calls this idea "Profit / $1 ad", so the page now agrees with itself.
+           Tornike's call, 2026-08-06. */
+        tableCard(g, `Profit per ad $ — ${W.label}`, `${W.sub} · net $ returned per $1 of ad spend ((profit − spend) ÷ spend)`, html, { icon: KIC.trend, headVal: totArr[curY] == null ? "—" : "$" + totArr[curY].toFixed(2) });
       });
     }
 
@@ -2844,7 +2856,7 @@ const MR_DASH = [
   { id: "sales-perf", group: "sales", title: "Sales Team Performance", sections: ["Sales Team Performance"] },
   { id: "sales-geo", group: "financial", title: "Geography", sections: ["Geography — by State"] },
   // Marketing
-  { id: "mkt-roi", group: "marketing", title: "Return on Investment", sections: ["Marketing ROI"] },
+  { id: "mkt-roi", group: "marketing", title: "Return on Ad Spend", sections: ["Marketing ROI"] },
   { id: "mkt-sources", group: "marketing", title: "Lead Sources & Channels", sections: ["Lead Sources"] },
   { id: "mkt-phone", group: "marketing", title: "Phone & Response", sections: ["Phone & Response"] },
   // Logistics
