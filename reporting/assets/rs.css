@@ -373,11 +373,17 @@ table.tab thead th{font-size:11px}
    that collapsing is meant to give back. Everything else in the bar hides, except controls
    a page marks .rs-ckeep (an action or a live status the collapse must not swallow). */
 .rs-cbar{display:inline-flex;align-items:center;gap:8px;min-width:0;max-width:100%}
-.rs-ctog{display:inline-flex;align-items:center;gap:7px;flex:none;border:1px solid var(--line);
-  background:var(--panel-2);color:var(--muted);border-radius:9px;height:30px;padding:0 11px;
-  font:inherit;font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;cursor:pointer}
-.rs-ctog:hover{color:var(--ink);border-color:var(--line-2)}
-.rs-ctog .rs-ccar{font-size:9px;opacity:.7;transition:transform .15s ease}
+/* This button was 10.5px of grey-on-grey uppercase sitting beside a bold green view switcher,
+   and it was reported MISSING by the person who asked for it -- looked at directly and not
+   seen. It is a control, so it now looks like the other controls on the row: same height,
+   readable size, real contrast, and a brand-tinted hover that says it responds. */
+.rs-ctog{display:inline-flex;align-items:center;gap:7px;flex:none;border:1px solid var(--line-2);
+  background:var(--panel);color:var(--ink);border-radius:10px;height:34px;padding:0 14px;
+  font:inherit;font-size:12.5px;font-weight:700;cursor:pointer;
+  transition:border-color .13s ease,color .13s ease,background .13s ease}
+.rs-ctog:hover{color:var(--brand-d);border-color:var(--brand);background:var(--brand-glow)}
+body.rs-app:not(.light) .rs-ctog:hover{color:var(--brand)}
+.rs-ctog .rs-ccar{font-size:10px;opacity:.85;transition:transform .15s ease}
 .rs-bar-off .rs-ctog{color:var(--ink);border-color:var(--line-2)}
 .rs-bar-off .rs-ctog .rs-ccar{transform:rotate(-90deg)}
 .rs-cpill{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;

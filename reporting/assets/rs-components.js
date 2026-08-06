@@ -345,7 +345,11 @@ window.RSC = (function () {
     };
     const paint = () => {
       const off = host.classList.contains("rs-bar-off");
-      btn.innerHTML = `<span class="rs-ccar">▾</span>${esc(cfg.label || "Filters")}`;
+      // SAY WHAT IT DOES, not what it sits next to. The first version was labelled "Filters",
+      // which reads as a heading for the row rather than a control -- Tornike looked straight
+      // at it and reported the button missing. A verb and a state fix that on their own.
+      const lbl = cfg.label || "filters";
+      btn.innerHTML = `<span class="rs-ccar">▾</span>${esc(off ? "Show " + lbl : "Hide " + lbl)}`;
       btn.setAttribute("aria-expanded", off ? "false" : "true");
       btn.title = off ? "Show the filters" : "Hide the filters";
       const s = summary();
