@@ -639,8 +639,14 @@ function rlRender(host, runs, cov, fresh) {
       }
       b.disabled = true; b.textContent = "…";
       try {
-        await ZTZ.api("/api/_srcswitch", { method: "POST",
-          body: JSON.stringify({ table: t, paused: !on, note: note || undefined }) });
+        const resp = await fetch(ZTZ.API + "/api/_srcswitch", {
+          method: "POST",
+          headers: { Authorization: "Bearer " + ZTZ.getToken(),
+                     "Content-Type": "application/json" },
+          body: JSON.stringify({ table: t, paused: !on, note: note || undefined }),
+        });
+        const j = await resp.json();
+        if (!resp.ok || j.error) throw new Error(j.error || ("HTTP " + resp.status));
         // the mart still holds the old flag until the next run, so repaint from the server
         const d = await ZTZ.api("/api/_refresh_log");
         rlRender(host, (d && d.runs) || runs, d && d.coverage, d && d.freshness);
