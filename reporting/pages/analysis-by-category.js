@@ -1,231 +1,657 @@
-/* GO page: Analysis by Category — the generic explorer: any core measure sliced
-   by any dimension (the PBI "Analyze by" field parameter × "Calculate by").
-   CF Range / Job Type come from moveboard via the Request Joinkey bridge
-   (client-side lookup — fct_closing doesn't carry them physically yet). */
-registerPage({
-  id: "analysis-by-category",        // id stays — bookmarks/ACL grants reference it
-  group: "overview",
-  title: "Custom Breakdown",
-  async render(host) {
+/* CUSTOM BREAKDOWN — a pivot builder over the job book and the lead book.
+ *
+ * It replaces a two-dropdown viewer ("this measure, by that dimension"). Tornike asked for
+ * "multiple different selections and cool stuff": rows BY columns, two measures at once,
+ * filters that stack, and a view you can keep. The old page is still in here — Columns = none
+ * with one measure IS the old page, so nothing anyone relied on has gone.
+ *
+ * TWO UNIVERSES, his call. JOBS reads fct_closing (what we did and what it earned). LEADS reads
+ * fct_moveboard (what came in and what we booked). They are different grains and must never be
+ * added together, so the universe is a switch rather than a filter: every dimension and every
+ * measure on screen belongs to the universe you are in.
+ *
+ * WHY THE STATE LIVES OUTSIDE render(). Every global slicer move re-enters render() with an
+ * empty host (index.html), so anything held in the render closure is reset the moment someone
+ * touches a filter — you would build a pivot, narrow the date range, and watch the builder snap
+ * back to Revenue-by-Source. CB below is module-level for exactly that reason.
+ *
+ * WHY THE PAGE FILTERS ARE PAGE-LOCAL. Putting them in RS.state.multi looks free and is not:
+ * the shell's "Clear all" wipes every key in that object including ours, and the no-data
+ * banner's anyFilter check has no RS.FIELDS guard, so a page-local pick would convince the
+ * shell a global filter was on -- and follow the user to every page afterwards. So this page
+ * keeps its own store and never writes to the shared one.
+ */
+
+/* ---------------------------------------------------------------------------------------
+   MODULE-LEVEL STATE — survives a re-render caused by a global filter change.
+   --------------------------------------------------------------------------------------- */
+const CB = {
+  universe: "jobs",          // jobs | leads
+  rowDim: "Source",
+  colDim: "",                // "" = no columns: a flat list, i.e. the old page
+  mA: "Revenue",
+  mB: "",                    // "" = single measure
+  topN: 20,
+  other: true,               // fold everything past Top N into one honest "Other" row
+  chart: "bar",              // bar | hbar | stacked | line | donut
+  sort: { key: "a", dir: -1 },
+  filters: {},               // { dimName: Set(values) } — PAGE-LOCAL, never RS.state.multi
+  view: "",                  // name of the loaded saved view, for the picker
+  _booted: false,
+};
+
+const CB_STORE = "ztzCbViews";
+
+function cbReadViews() {
+  try { return JSON.parse(localStorage.getItem(CB_STORE) || "{}") || {}; } catch (e) { return {}; }
+}
+function cbWriteViews(v) {
+  try { localStorage.setItem(CB_STORE, JSON.stringify(v)); } catch (e) { /* private mode: the
+    builder still works, it just cannot remember. Never break the page over a saved view. */ }
+}
+/* Only the spec travels — never the data, and never the global filter state. A link that
+   silently changed someone's date range would be a booby trap. */
+function cbSpec() {
+  return { universe: CB.universe, rowDim: CB.rowDim, colDim: CB.colDim, mA: CB.mA, mB: CB.mB,
+           topN: CB.topN, other: CB.other, chart: CB.chart, sort: CB.sort,
+           filters: Object.keys(CB.filters).reduce((o, k) => {
+             const s = CB.filters[k]; if (s && s.size) o[k] = [...s]; return o; }, {}) };
+}
+function cbApply(spec) {
+  if (!spec || typeof spec !== "object") return;
+  ["universe", "rowDim", "colDim", "mA", "mB", "chart"].forEach(k => {
+    if (typeof spec[k] === "string") CB[k] = spec[k]; });
+  if (typeof spec.topN === "number") CB.topN = spec.topN;
+  if (typeof spec.other === "boolean") CB.other = spec.other;
+  if (spec.sort && typeof spec.sort === "object") CB.sort = spec.sort;
+  CB.filters = {};
+  Object.keys(spec.filters || {}).forEach(k => { CB.filters[k] = new Set(spec.filters[k] || []); });
+}
+
+/* A NAMED module-level function, not an inline method on the registerPage literal. Every
+   control on the builder has to redraw the whole page (the spec bar itself changes shape when
+   the universe or the column dimension moves), and a method defined as `async render(host){}`
+   inside an object literal binds no identifier it can call itself by. */
+async function cbRender(host) {
     const [closingAll, moveboardAll] = await Promise.all([RS.load("closing"), RS.load("moveboard")]);
-    const rows = RS.filtered("closing", closingAll);
     const M = RS.M;
+    const esc = RSC.esc;
     const nz = fmt => v => (v == null || (typeof v === "number" && isNaN(v))) ? "—" : fmt(v);
 
-    // ---- moveboard bridge: Request Joinkey -> CF Range / Service Type (built once, cached)
-    if (!RS._mbBridge) {
-      RS._mbBridge = new Map();
+    /* ---- one-time boot: a link's spec beats the last-used view -------------------- */
+    if (!CB._booted) {
+      CB._booted = true;
+      try {
+        const m = /(?:[#&])cb=([^&]+)/.exec(location.hash || "");
+        if (m) cbApply(JSON.parse(decodeURIComponent(m[1])));
+        else { const last = cbReadViews()._last; if (last) cbApply(last); }
+      } catch (e) { /* a malformed link must not stop the page loading */ }
+    }
+
+    /* ---- moveboard bridge: Request Joinkey -> the lead behind a job ----------------
+       Stamped with the array it was built from. RS.refresh() replaces the cached rows
+       without clearing this map, and so does the admin "view as" preview — so an identity
+       check is the difference between a stale bridge and a correct one. */
+    if (!RS._mbBridge || RS._mbBridge.src !== moveboardAll) {
+      const map = new Map();
       moveboardAll.forEach(r => {
         const k = r["Request Joinkey"];
-        if (k && !RS._mbBridge.has(k))
-          RS._mbBridge.set(k, { cf: r["CF Range"] || null, svc: r["Service Type"] || null });
+        if (k && !map.has(k)) map.set(k, r);
       });
+      RS._mbBridge = { src: moveboardAll, map };
     }
-    const bridge = RS._mbBridge;
+    const bridge = RS._mbBridge.map;
     const mbOf = r => bridge.get(r["Request Joinkey"]);
 
-    // ---- the "Analyze by" dimension registry (PBI field parameter, 11 options)
-    const DIMS = {
-      "Source":        r => r.Source,
-      "Foreman":       r => r.Foreman,
-      "Sales Person":  r => r["Sales Person"],
-      "State":         r => r.State,
-      "Moving Type":   r => r["Moving Type"],
-      "Job Type":      r => { const b = mbOf(r); return b && b.svc; },
-      "Size of Move":  r => r["Size of Move"],
-      "Revenue Range": r => r["Bill Range"],
-      "CF Range":      r => { const b = mbOf(r); return b && b.cf; },
-      "Year":          r => r._y,
-      "Month":         r => RS.monthName(r._m),
-    };
-    const DIM_SORT = { // dimensions with a natural (non-value) order
-      "Year": (a, b) => a.k.localeCompare(b.k),
-      "Month": (a, b) => "JanFebMarAprMayJunJulAugSepOctNovDec".indexOf(a.k) -
-                         "JanFebMarAprMayJunJulAugSepOctNovDec".indexOf(b.k),
-      "Revenue Range": (a, b) => (RS.num(a.k.replace(/[^0-9]/g, "").slice(0, 5)) || 9e9) -
-                                 (RS.num(b.k.replace(/[^0-9]/g, "").slice(0, 5)) || 9e9),
-    };
-    // registry KEYS stay untouched; disp() maps them to user-visible labels
-    // ("Operating Profit Before Commission" → "Cash Collected (Net + Card)",
-    //  "Hours Worked by Forman" → "Foreman Hours" — the raw key spelling never renders).
-    const CALC = ["Total Jobs", "Revenue", "Net Cash", "Card Payment",
-                  "Operating Profit Before Commission", "Hours Worked by Forman", "Average Bill"];
-    const disp = k => k === "Hours Worked by Forman" ? "Foreman Hours" : RS.displayName(k);
-    let dimBy = "Source", calcBy = "Revenue";
+    /* ---- dimensions -------------------------------------------------------------- */
+    const MONTHS = "JanFebMarAprMayJunJulAugSepOctNovDec";
+    const byMonth = (a, b) => MONTHS.indexOf(a) - MONTHS.indexOf(b);
+    const byBand = (a, b) => (RS.num(String(a).replace(/[^0-9]/g, "").slice(0, 5)) || 9e9) -
+                             (RS.num(String(b).replace(/[^0-9]/g, "").slice(0, 5)) || 9e9);
 
+    // kind:'lead' marks a dimension that needs the Moveboard join, so the page can be honest
+    // about how many jobs actually matched a lead before anyone reads the "—" bucket as real.
+    const JOB_DIMS = {
+      "Source":        { fn: r => r.Source },
+      "Foreman":       { fn: r => r.Foreman },
+      "Driver":        { fn: r => r.Driver },
+      "Sales Person":  { fn: r => r["Sales Person"] },
+      "State":         { fn: r => r["State Name"] || r.State },
+      "Moving Type":   { fn: r => r["Moving Type"] },
+      "Move Type":     { fn: r => r["Move Type"] },
+      "Size of Move":  { fn: r => r["Size of Move"] },
+      "Revenue Range": { fn: r => r["Bill Range"], sort: byBand },
+      "Crew Size":     { fn: r => r["Crew Size"], sort: (a, b) => (+a || 0) - (+b || 0) },
+      "Company":       { fn: r => r.Company },
+      "Branch Owner":  { fn: r => r["Branch Owner"] },
+      "Year":          { fn: r => r._y, sort: (a, b) => String(a).localeCompare(String(b)) },
+      "Quarter":       { fn: r => r._y + " Q" + Math.ceil(r._m / 3), sort: (a, b) => String(a).localeCompare(String(b)) },
+      "Month":         { fn: r => RS.monthName(r._m), sort: byMonth },
+      "Year-Month":    { fn: r => r._y + "-" + String(r._m).padStart(2, "0"), sort: (a, b) => String(a).localeCompare(String(b)) },
+      "Repeat":        { fn: r => (+r["Request Encounter"] > 1 ? "Repeat customer" : "First time") },
+      // lead-side, through the bridge
+      "Job Type":      { fn: r => { const b = mbOf(r); return b && b["Service Type"]; }, kind: "lead" },
+      "CF Range":      { fn: r => { const b = mbOf(r); return b && b["CF Range"]; }, kind: "lead", sort: byBand },
+      "Lead Source":   { fn: r => { const b = mbOf(r); return b && b.Source; }, kind: "lead" },
+      "Big Job":       { fn: r => { const b = mbOf(r); return b && b["Big Job Status"]; }, kind: "lead" },
+      "City":          { fn: r => { const b = mbOf(r); return b && b["City Name"]; }, kind: "lead" },
+      "County":        { fn: r => { const b = mbOf(r); return b && b["County Name"]; }, kind: "lead" },
+    };
+    const LEAD_DIMS = {
+      "Source":         { fn: r => r.Source },
+      "Status":         { fn: r => r.Status },
+      "Status Category":{ fn: r => r["Status Category"] },
+      "Service Type":   { fn: r => r["Service Type"] },
+      "Size of Move":   { fn: r => r["Size of Move"] },
+      "State":          { fn: r => r["State Name"] || r.State },
+      "City":           { fn: r => r["City Name"] },
+      "County":         { fn: r => r["County Name"] },
+      "Assigned":       { fn: r => r.Assigned },
+      "CF Range":       { fn: r => r["CF Range"], sort: byBand },
+      "Quote Range":    { fn: r => r["Bill Range"], sort: byBand },
+      "Big Job":        { fn: r => r["Big Job Status"] },
+      "Company":        { fn: r => r.Company },
+      "Year":           { fn: r => r._y, sort: (a, b) => String(a).localeCompare(String(b)) },
+      "Quarter":        { fn: r => r._y + " Q" + Math.ceil(r._m / 3), sort: (a, b) => String(a).localeCompare(String(b)) },
+      "Month":          { fn: r => RS.monthName(r._m), sort: byMonth },
+      "Year-Month":     { fn: r => r._y + "-" + String(r._m).padStart(2, "0"), sort: (a, b) => String(a).localeCompare(String(b)) },
+    };
+
+    /* ---- measures ---------------------------------------------------------------- */
+    const JOB_MEASURES = ["Total Jobs", "Revenue", "Total Revenue", "Net Cash", "Card Payment",
+      "Operating Profit Before Commission", "Average Bill", "Hours Worked by Forman",
+      "Additional Revenue from Trips"];
+    const LEAD_MEASURES = ["Total Leads", "Qualified Leads", "Confirmed Leads", "Dead Leads",
+      "Booking Rate", "Average Quote (avg)"];
+    const disp = k => k === "Hours Worked by Forman" ? "Foreman Hours" : RS.displayName(k);
+
+    const isLeads = CB.universe === "leads";
+    const DIMS = isLeads ? LEAD_DIMS : JOB_DIMS;
+    const MEAS = isLeads ? LEAD_MEASURES : JOB_MEASURES;
+    // a spec restored from a link or a saved view may name something this universe lacks
+    if (!DIMS[CB.rowDim]) CB.rowDim = Object.keys(DIMS)[0];
+    if (CB.colDim && !DIMS[CB.colDim]) CB.colDim = "";
+    if (MEAS.indexOf(CB.mA) < 0) CB.mA = MEAS[isLeads ? 0 : 1];
+    if (CB.mB && MEAS.indexOf(CB.mB) < 0) CB.mB = "";
+
+    const DS = isLeads ? "moveboard" : "closing";
+    const ALL = isLeads ? moveboardAll : closingAll;
+    const scoped = RS.filtered(DS, ALL);
+
+    /* Booking Rate is the one measure that cannot be computed from a row subset alone: it
+       scores qualified on CREATE date and confirmed on BOOKED date (the portal's one official
+       formula). So a segment needs BOTH row sets, and the booked side has to be grouped the
+       same way. Everything else is a plain fn(rows). */
+    const bookedAll = isLeads ? RS.filtered("moveboard", ALL, { dateColumn: "Booked Date" }) : null;
+    const measure = (name) => {
+      if (name === "Booking Rate") {
+        return { fmt: RS.fmtPct, seg: (rowsIn, bookedIn) => RS.bookingRate(rowsIn, bookedIn || []) };
+      }
+      const m = M[name];
+      return { fmt: m ? m.fmt : RS.fmtN, seg: rowsIn => (m ? m.fn(rowsIn) : null) };
+    };
+    const mA = measure(CB.mA), mB = CB.mB ? measure(CB.mB) : null;
+
+    /* ---- page-local stacking filters --------------------------------------------- */
+    const keyOf = (dimName, r) => {
+      const d = DIMS[dimName]; if (!d) return "—";
+      const v = d.fn(r);
+      return (v == null || v === "") ? "—" : String(v);
+    };
+    const activeFilters = Object.keys(CB.filters).filter(k => DIMS[k] && CB.filters[k] && CB.filters[k].size);
+    const passes = r => activeFilters.every(k => CB.filters[k].has(keyOf(k, r)));
+    const rows = activeFilters.length ? scoped.filter(passes) : scoped;
+    const bookedRows = isLeads
+      ? (activeFilters.length ? bookedAll.filter(passes) : bookedAll) : null;
+
+    /* ---- the group engine: rows x columns ----------------------------------------
+       Returns plain data. It never writes to the row objects: the cached arrays are shared
+       with every other page, and stamping a __dim on them made this page's own table read a
+       key from the PREVIOUS render. */
+    function group() {
+      const rk = new Map(), ck = new Map();      // key -> rows
+      const cell = new Map();                    // "row col" -> rows
+      rows.forEach(r => {
+        const a = keyOf(CB.rowDim, r);
+        const b = CB.colDim ? keyOf(CB.colDim, r) : "";
+        if (!rk.has(a)) rk.set(a, []); rk.get(a).push(r);
+        if (CB.colDim) { if (!ck.has(b)) ck.set(b, []); ck.get(b).push(r); }
+        const ckey = a + " " + b;
+        if (!cell.has(ckey)) cell.set(ckey, []); cell.get(ckey).push(r);
+      });
+      // the booked-date twin, for Booking Rate only
+      const rkB = new Map(), cellB = new Map();
+      if (isLeads && (CB.mA === "Booking Rate" || CB.mB === "Booking Rate")) {
+        bookedRows.forEach(r => {
+          const a = keyOf(CB.rowDim, r);
+          const b = CB.colDim ? keyOf(CB.colDim, r) : "";
+          if (!rkB.has(a)) rkB.set(a, []); rkB.get(a).push(r);
+          const ckey = a + " " + b;
+          if (!cellB.has(ckey)) cellB.set(ckey, []); cellB.get(ckey).push(r);
+        });
+      }
+
+      const dimSort = DIMS[CB.rowDim] && DIMS[CB.rowDim].sort;
+      let rowKeys = [...rk.keys()];
+      // value order by default; a dimension with a natural order (Month, bands) keeps it
+      if (dimSort) rowKeys.sort(dimSort);
+      else rowKeys.sort((a, b) => (num(mA.seg(rk.get(b), rkB.get(b))) - num(mA.seg(rk.get(a), rkB.get(a)))));
+
+      let other = null;
+      if (CB.topN && rowKeys.length > CB.topN) {
+        const keep = rowKeys.slice(0, CB.topN), rest = rowKeys.slice(CB.topN);
+        if (CB.other && rest.length) {
+          const restRows = rest.reduce((acc, k) => acc.concat(rk.get(k)), []);
+          const restB = rest.reduce((acc, k) => acc.concat(rkB.get(k) || []), []);
+          other = { key: `Other (${rest.length} ${rest.length === 1 ? "category" : "categories"})`,
+                    rows: restRows, booked: restB, keys: rest };
+        }
+        rowKeys = keep;
+      }
+
+      const colSort = CB.colDim && DIMS[CB.colDim] && DIMS[CB.colDim].sort;
+      let colKeys = CB.colDim ? [...ck.keys()] : [""];
+      if (CB.colDim) {
+        if (colSort) colKeys.sort(colSort);
+        else colKeys.sort((a, b) => num(mA.seg(ck.get(b))) - num(mA.seg(ck.get(a))));
+      }
+      return { rk, ck, cell, rkB, cellB, rowKeys, colKeys, other };
+    }
+    const num = v => (v == null || isNaN(v)) ? 0 : +v;
+
+    /* ---- honesty: how many jobs actually matched a lead --------------------------- */
+    const usesLeadDim = !isLeads && [CB.rowDim, CB.colDim].concat(activeFilters)
+      .some(d => d && JOB_DIMS[d] && JOB_DIMS[d].kind === "lead");
+    let coverage = "";
+    if (usesLeadDim && rows.length) {
+      const matched = rows.reduce((n, r) => n + (mbOf(r) ? 1 : 0), 0);
+      if (matched < rows.length) {
+        coverage = `${RS.fmtN(matched)} of ${RS.fmtN(rows.length)} jobs matched a Moveboard lead — `
+                 + `the other ${RS.fmtN(rows.length - matched)} sit in “—” because there is no lead to read, not because the value is empty.`;
+      }
+    }
+
+    /* ---- page shell -------------------------------------------------------------- */
     host.innerHTML = `
       <div class="rs-page-head">
         <h1>Custom Breakdown</h1>
-        <p>(formerly Analysis by Category — you pick the metric and the dimension) ·
-           <b>${RS.fmtN(rows.length)}</b> jobs in scope
-           <span class="freshness">· CF Range &amp; Job Type come from the matching Moveboard lead</span></p>
+        <p>Pick what to break down, by what, and how — <b>${RS.fmtN(rows.length)}</b>
+           ${isLeads ? "leads" : "jobs"} in scope${activeFilters.length ? ` after ${activeFilters.length} page filter${activeFilters.length === 1 ? "" : "s"}` : ""}</p>
       </div>
+      <div class="panel cb-spec" id="cbSpec"></div>
+      ${coverage ? `<div class="cb-note" id="cbCov">${esc(coverage)}</div>` : ""}
       <div class="rs-kpis" id="kpis"></div>
       <div id="main"></div>
       <div id="trend"></div>`;
 
+    if (!document.getElementById("cbCss")) {
+      const st = document.createElement("style");
+      st.id = "cbCss";
+      st.textContent = `
+        .cb-spec{padding:12px 14px;margin-bottom:12px;display:flex;flex-wrap:wrap;gap:10px 14px;align-items:flex-end}
+        .cb-f{display:flex;flex-direction:column;gap:4px}
+        .cb-f > span{font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--faint)}
+        .cb-spec select,.cb-spec input{background:var(--panel-2);color:var(--ink);border:1px solid var(--line-2);
+          border-radius:8px;padding:6px 9px;font:inherit;font-size:12.5px}
+        .cb-seg{display:flex;gap:0;border:1px solid var(--line-2);border-radius:8px;overflow:hidden}
+        .cb-seg button{background:var(--panel-2);color:var(--muted);border:0;padding:6px 11px;font:inherit;
+          font-size:12px;font-weight:600;cursor:pointer}
+        .cb-seg button.on{background:var(--brand);color:var(--brand-ink)}
+        .cb-act{display:flex;gap:6px;margin-left:auto}
+        .cb-act button{background:var(--panel-2);color:var(--ink);border:1px solid var(--line-2);border-radius:8px;
+          padding:6px 11px;font:inherit;font-size:12px;font-weight:600;cursor:pointer}
+        .cb-act button:hover{border-color:var(--brand)}
+        .cb-note{background:var(--warn-bg);border:1px solid var(--line-2);border-radius:10px;padding:9px 12px;
+          font-size:11.5px;color:var(--ink);margin-bottom:12px;line-height:1.5}
+        .cb-chips{display:flex;flex-wrap:wrap;gap:6px;width:100%}
+        .cb-chip{background:var(--blue-bg);border:1px solid var(--line-2);border-radius:999px;padding:3px 9px;
+          font-size:11px;color:var(--ink);cursor:pointer}
+        .cb-chip:hover{border-color:var(--red);color:var(--red)}
+        .cb-piv th[data-s]{cursor:pointer;user-select:none}
+        .cb-piv th[data-s]:hover{color:var(--brand)}
+        .cb-piv td.num,.cb-piv th.num{text-align:right;font-variant-numeric:tabular-nums}
+        .cb-piv td.b{font-size:10.5px;color:var(--muted)}
+        .cb-drill{margin-top:10px}`;
+      document.head.appendChild(st);
+    }
+
     if (!rows.length) {
       document.getElementById("main").innerHTML =
-        `<div class="panel" style="padding:20px;color:var(--muted)">No data for the current filters.</div>`;
-      return;
+        `<div class="panel" style="padding:20px;color:var(--muted)">No ${isLeads ? "leads" : "jobs"} for the current filters.</div>`;
     }
 
-    const kBill = M["Revenue"].fn(rows), kNet = M["Net Cash"].fn(rows),
-          kCard = M["Card Payment"].fn(rows), kAvg = M["Average Bill"].fn(rows);
-    const kClosings = M["Total Revenue"].fn(rows), kTrips = M["Additional Revenue from Trips"].fn(rows);
-    RSC.kpis(document.getElementById("kpis"), [
+    /* ---- KPI strip --------------------------------------------------------------- */
+    const kpiItems = isLeads ? [
+      { label: "Total Leads", value: RS.fmtN(M["Total Leads"].fn(rows)), sub: "in scope" },
+      { label: "Qualified", value: RS.fmtN(M["Qualified Leads"].fn(rows)), sub: "not marked a bad lead" },
+      { label: "Confirmed", value: RS.fmtN(M["Confirmed Leads"].fn(rows)), sub: "booked" },
+      { label: "Booking Rate", value: nz(RS.fmtPct)(RS.bookingRate(rows, bookedRows)), sub: "confirmed ÷ qualified" },
+      { label: disp(CB.mA), value: nz(mA.fmt)(mA.seg(rows, bookedRows)), sub: "the measure on screen" },
+    ] : [
       { label: "Total Jobs", value: RS.fmtN(M["Total Jobs"].fn(rows)), sub: "closed jobs (incl. trips)" },
-      { label: "Revenue", value: RS.moneyC(kBill),
-        sub: nz(RS.moneyC)(kClosings) + " job bills + " + nz(RS.moneyC)(kTrips) + " linked-trip extras" },
-      { label: "Net Cash", value: RS.moneyC(kNet),
-        sub: nz(RS.money)(kNet) + " · Cash turned in per job: on-site cash collected (bill less card, deposit, balance due) minus field payouts (crew pay, fuel, tolls, hotel, misc)" },
-      { label: "Card Payment", value: RS.moneyC(kCard), sub: nz(RS.money)(kCard) + " · card volume" },
-      { label: "Avg Bill / Job", value: RS.moneyC(kAvg), sub: nz(RS.money)(kAvg) + " per job" },
-    ]);
+      { label: "Revenue", value: RS.moneyC(M["Revenue"].fn(rows)), sub: nz(RS.money)(M["Revenue"].fn(rows)) },
+      { label: "Net Cash", value: RS.moneyC(M["Net Cash"].fn(rows)), sub: "cash turned in per job" },
+      { label: "Avg Bill / Job", value: RS.moneyC(M["Average Bill"].fn(rows)), sub: "per job" },
+      { label: disp(CB.mA), value: nz(mA.fmt)(mA.seg(rows)), sub: "the measure on screen" },
+    ];
+    RSC.kpis(document.getElementById("kpis"), kpiItems);
 
-    // ---- YoY chips: cur-year window (Jan-1 → max date of filtered rows) vs same
-    // window last year, over the slicer-filtered but date-UNfiltered dataset.
-    {
-      const maxD = rows.reduce((a, r) => (r._d && r._d > a ? r._d : a), "");
-      if (maxD) {
-        const save = { f: RS.state.dateFrom, t: RS.state.dateTo, df: RS.state.dayFrom, dt: RS.state.dayTo };
-        RS.state.dateFrom = RS.state.dateTo = null; RS.state.dayFrom = RS.state.dayTo = null;
-        const noDate = RS.filtered("closing", closingAll);
-        RS.state.dateFrom = save.f; RS.state.dateTo = save.t; RS.state.dayFrom = save.df; RS.state.dayTo = save.dt;
-        const y = maxD.slice(0, 4);
-        const curW = noDate.filter(r => r._d >= y + "-01-01" && r._d <= maxD);
-        const prevW = noDate.filter(r => r._d >= (+y - 1) + "-01-01" && r._d <= (+y - 1) + maxD.slice(4));
-        const chip = name => {
-          const cur = M[name].fn(curW), prev = M[name].fn(prevW);
-          if (!prev || cur == null) return "";
-          const g = (cur - prev) / Math.abs(prev);
-          return ` <span class="${g >= 0 ? "up" : "down"}">${g >= 0 ? "▲" : "▼"} ${Math.abs(100 * g).toFixed(1)}% vs LY</span>`;
-        };
-        const kpiSubs = document.getElementById("kpis").querySelectorAll(".kpi .s");
-        const cJobs = chip("Total Jobs"), cBill = chip("Revenue");
-        if (cJobs && kpiSubs[0]) kpiSubs[0].innerHTML += cJobs;
-        if (cBill && kpiSubs[1]) kpiSubs[1].innerHTML += cBill;
-      }
+    /* ---- the builder bar --------------------------------------------------------- */
+    const opt = (list, cur) => list.map(d =>
+      `<option value="${esc(d)}"${d === cur ? " selected" : ""}>${esc(typeof d === "string" ? d : String(d))}</option>`).join("");
+    const optM = (list, cur) => list.map(d =>
+      `<option value="${esc(d)}"${d === cur ? " selected" : ""}>${esc(disp(d))}</option>`).join("");
+    const views = cbReadViews();
+    const viewNames = Object.keys(views).filter(k => k !== "_last").sort();
+
+    document.getElementById("cbSpec").innerHTML = `
+      <div class="cb-f"><span>Universe</span>
+        <div class="cb-seg" id="cbUni">
+          <button data-u="jobs" class="${isLeads ? "" : "on"}">Jobs</button>
+          <button data-u="leads" class="${isLeads ? "on" : ""}">Leads</button>
+        </div></div>
+      <div class="cb-f"><span>Rows</span><select id="cbRow">${opt(Object.keys(DIMS), CB.rowDim)}</select></div>
+      <div class="cb-f"><span>Columns</span><select id="cbCol">
+        <option value="">— none —</option>${opt(Object.keys(DIMS), CB.colDim)}</select></div>
+      <div class="cb-f"><span>Measure</span><select id="cbMA">${optM(MEAS, CB.mA)}</select></div>
+      <div class="cb-f"><span>2nd measure</span><select id="cbMB">
+        <option value="">— none —</option>${optM(MEAS, CB.mB)}</select></div>
+      <div class="cb-f"><span>Top</span><select id="cbTop">
+        ${[10, 20, 50, 0].map(n => `<option value="${n}"${n === CB.topN ? " selected" : ""}>${n || "all"}</option>`).join("")}
+        </select></div>
+      <div class="cb-f"><span>Chart</span><select id="cbChart">
+        ${[["bar", "Bars"], ["hbar", "Bars (horizontal)"], ["stacked", "Stacked"], ["line", "Lines"], ["donut", "Donut"]]
+          .map(([v, l]) => `<option value="${v}"${v === CB.chart ? " selected" : ""}>${l}</option>`).join("")}
+        </select></div>
+      <div class="cb-f"><span>Filter by</span><select id="cbAddF">
+        <option value="">+ add a filter…</option>${opt(Object.keys(DIMS), "")}</select></div>
+      <div class="cb-f"><span>Saved view</span><select id="cbView">
+        <option value="">— none —</option>${opt(viewNames, CB.view)}</select></div>
+      <div class="cb-act">
+        <button id="cbSave">Save view</button>
+        <button id="cbLink">Copy link</button>
+        <button id="cbCsv">CSV</button>
+        <button id="cbReset">Reset</button>
+      </div>
+      ${activeFilters.length ? `<div class="cb-chips">${activeFilters.map(k =>
+        [...CB.filters[k]].map(v =>
+          `<span class="cb-chip" data-fk="${esc(k)}" data-fv="${esc(v)}">${esc(k)}: ${esc(v)} ✕</span>`).join("")
+        ).join("")}<span class="cb-chip" data-clear="1">clear page filters ✕</span></div>` : ""}`;
+
+    /* ---- the pivot --------------------------------------------------------------- */
+    function pivotHtml() {
+      const G = group();
+      if (!G.rowKeys.length) return `<div style="padding:20px;color:var(--muted)">Nothing to break down.</div>`;
+      const grand = mA.seg(rows, bookedRows);
+      const cellVal = (rKey, cKey, m) => {
+        const rs = G.cell.get(rKey + " " + cKey) || [];
+        const bs = G.cellB.get(rKey + " " + cKey) || [];
+        return m.seg(rs, bs);
+      };
+      const rowTotal = (rKey, m) => m.seg(G.rk.get(rKey) || [], G.rkB.get(rKey) || []);
+
+      const cols = CB.colDim ? G.colKeys : [];
+      const head = `<tr><th data-s="k">${esc(CB.rowDim)}</th>`
+        + cols.map(c => `<th class="num" data-s="c:${esc(c)}">${esc(c === "" ? "—" : c)}</th>`).join("")
+        + `<th class="num" data-s="a">${esc(disp(CB.mA))}</th>`
+        + (mB ? `<th class="num" data-s="b">${esc(disp(CB.mB))}</th>` : "")
+        + `<th class="num" data-s="p">% of total</th>`
+        + `<th class="num">Jobs</th></tr>`;
+
+      const mk = (label, rs, bs, rKey) => {
+        const a = rKey != null ? rowTotal(rKey, mA) : mA.seg(rs, bs);
+        const b = mB ? (rKey != null ? rowTotal(rKey, mB) : mB.seg(rs, bs)) : null;
+        const cells = cols.map(c => {
+          const v = rKey != null ? cellVal(rKey, c, mA) : null;
+          const vb = (mB && rKey != null) ? cellVal(rKey, c, mB) : null;
+          return `<td class="num">${v == null ? "—" : esc(mA.fmt(v))}`
+               + (mB ? `<div class="b">${vb == null ? "—" : esc(mB.fmt(vb))}</div>` : "") + `</td>`;
+        }).join("");
+        const share = (grand && a != null && typeof a === "number") ? a / grand : null;
+        return `<tr data-row="${esc(label)}"><td>${esc(label)}</td>${cells}`
+             + `<td class="num">${a == null ? "—" : esc(mA.fmt(a))}</td>`
+             + (mB ? `<td class="num">${b == null ? "—" : esc(mB.fmt(b))}</td>` : "")
+             + `<td class="num">${share == null ? "—" : esc(RS.fmtPct(share))}</td>`
+             + `<td class="num">${RS.fmtN(rs.length)}</td></tr>`;
+      };
+
+      /* Apply the clicked header. group() has already ordered rows the natural way (by the
+         measure, or by a dimension's own order for months and bands); this re-orders what is
+         on screen without changing which rows made the Top N cut -- so clicking a header can
+         never quietly swap one category for another. "Other" is pinned last either way,
+         because it is a bucket, not a competitor. */
+      const S = CB.sort || { key: "a", dir: -1 };
+      const sortVal = k => {
+        if (S.key === "k") return k;
+        if (S.key === "a") return num(rowTotal(k, mA));
+        if (S.key === "b") return mB ? num(rowTotal(k, mB)) : 0;
+        if (S.key === "p") return num(rowTotal(k, mA));
+        if (S.key.indexOf("c:") === 0) return num(cellVal(k, S.key.slice(2), mA));
+        return 0;
+      };
+      const ordered = G.rowKeys.slice();
+      // dir -1 = biggest first (the useful default), dir 1 = smallest first
+      if (S.key === "k") ordered.sort((a, b) => -S.dir * String(a).localeCompare(String(b)));
+      else ordered.sort((a, b) => (sortVal(a) - sortVal(b)) * S.dir);
+
+      let body = ordered.map(k => mk(k, G.rk.get(k) || [], G.rkB.get(k) || [], k)).join("");
+      if (G.other) body += mk(G.other.key, G.other.rows, G.other.booked, null);
+      // the total is over EVERY row in scope, not the visible ones -- so it always ties to
+      // the KPI strip above, and Top N never quietly changes what "total" means
+      const tot = `<tr class="tot"><td>Total</td>`
+        + cols.map(c => {
+            const rs = rows.filter(r => keyOf(CB.colDim, r) === c);
+            const bs = isLeads ? bookedRows.filter(r => keyOf(CB.colDim, r) === c) : [];
+            const v = mA.seg(rs, bs);
+            return `<td class="num">${v == null ? "—" : esc(mA.fmt(v))}</td>`;
+          }).join("")
+        + `<td class="num">${grand == null ? "—" : esc(mA.fmt(grand))}</td>`
+        + (mB ? `<td class="num">${(() => { const v = mB.seg(rows, bookedRows); return v == null ? "—" : esc(mB.fmt(v)); })()}</td>` : "")
+        + `<td class="num">${grand ? esc(RS.fmtPct(1)) : "—"}</td>`
+        + `<td class="num">${RS.fmtN(rows.length)}</td></tr>`;
+
+      return `<table class="tab cb-piv"><thead>${head}</thead><tbody>${body}${tot}</tbody></table>`;
     }
 
-    const grouped = () => {
-      const get = DIMS[dimBy], g = {};
-      rows.forEach(r => {
-        let k = get(r); k = (k == null || k === "") ? "—" : String(k);
-        (g[k] = g[k] || []).push(r);
+    /* ---- the chart --------------------------------------------------------------- */
+    const PAL = ["#b7e23b", "#5b8cff", "#a78bfa", "#fbbf24", "#f87171", "#34d399", "#f472b6", "#38bdf8"];
+    function buildChart(canvas) {
+      const G = group();
+      const labels = G.rowKeys.concat(G.other ? [G.other.key] : []);
+      const rowsFor = k => (k === (G.other && G.other.key)) ? G.other.rows : (G.rk.get(k) || []);
+      const bookFor = k => (k === (G.other && G.other.key)) ? G.other.booked : (G.rkB.get(k) || []);
+      const stacked = CB.chart === "stacked";
+      const horiz = CB.chart === "hbar";
+      const donut = CB.chart === "donut";
+      let datasets;
+      if (CB.colDim && (stacked || CB.chart === "bar" || CB.chart === "line")) {
+        datasets = G.colKeys.slice(0, 8).map((c, i) => ({
+          label: c === "" ? "—" : c,
+          type: CB.chart === "line" ? "line" : "bar",
+          data: labels.map(k => {
+            const rs = (rowsFor(k) || []).filter(r => keyOf(CB.colDim, r) === c);
+            const bs = (bookFor(k) || []).filter(r => keyOf(CB.colDim, r) === c);
+            const v = mA.seg(rs, bs); return v == null ? null : +(+v).toFixed(2);
+          }),
+          backgroundColor: PAL[i % PAL.length], borderColor: PAL[i % PAL.length],
+          borderWidth: CB.chart === "line" ? 2 : 0, borderRadius: stacked ? 0 : 5,
+          pointRadius: 2, tension: .3,
+        }));
+      } else {
+        datasets = [{
+          label: disp(CB.mA),
+          type: CB.chart === "line" ? "line" : (donut ? "doughnut" : "bar"),
+          data: labels.map(k => { const v = mA.seg(rowsFor(k), bookFor(k)); return v == null ? null : +(+v).toFixed(2); }),
+          backgroundColor: donut ? labels.map((_, i) => PAL[i % PAL.length]) : "#b7e23b",
+          borderColor: "#b7e23b", borderWidth: CB.chart === "line" ? 2 : 0,
+          borderRadius: 5, pointRadius: 2, tension: .3,
+        }];
+      }
+      const trunc = { callback(v) { const l = this.getLabelForValue ? this.getLabelForValue(v) : v;
+        return typeof l === "string" && l.length > 16 ? l.slice(0, 15) + "…" : l; } };
+      return new Chart(canvas, {
+        type: donut ? "doughnut" : (CB.chart === "line" ? "line" : "bar"),
+        data: { labels, datasets },
+        options: {
+          indexAxis: horiz ? "y" : "x",
+          responsive: true, maintainAspectRatio: false,
+          plugins: {
+            legend: { display: donut || (!!CB.colDim && CB.chart !== "hbar"), position: "top", labels: { boxWidth: 12 } },
+            tooltip: { callbacks: { label: c => `${c.dataset.label}: ${mA.fmt(c.raw)}` } },
+          },
+          scales: donut ? {} : {
+            x: { stacked, ticks: Object.assign({}, horiz ? {} : trunc, { autoSkip: true, maxTicksLimit: 18, maxRotation: 45 }) },
+            y: { stacked, ticks: horiz ? trunc : {} },
+          },
+        },
       });
-      const m = M[calcBy];
-      let out = Object.entries(g).map(([k, rs]) => ({ k, v: m.fn(rs), n: rs.length, rs }));
-      out.sort(DIM_SORT[dimBy] || ((a, b) => (b.v || 0) - (a.v || 0)));
-      return out;
-    };
+    }
 
-    // ---- main: measure by dimension (bar + share) with the two switchers
-    const controls = `
-      <span class="lbl">Analyze by</span><select id="abcDim">` +
-      Object.keys(DIMS).map(d => `<option ${d === dimBy ? "selected" : ""}>${d}</option>`).join("") +
-      `</select><span class="lbl">Show:</span><select id="abcCalc">` +
-      CALC.map(c => `<option value="${c}" ${c === calcBy ? "selected" : ""}>${disp(c)}</option>`).join("") + `</select>`;
     const mainCard = RSC.chartCard(document.getElementById("main"), {
-      title: "Breakdown",
-      controlsHtml: controls,
-      buildChart(canvas) {
-        const m = M[calcBy];
-        const list = grouped().slice(0, 20);
-        const horiz = Object.keys(DIMS).indexOf(dimBy) < 5;
-        // truncate long category labels — applied to whichever axis holds the categories
-        const trunc = { callback(v) { const l = this.getLabelForValue ? this.getLabelForValue(v) : v;
-          return typeof l === "string" && l.length > 14 ? l.slice(0, 13) + "…" : l; } };
-        return new Chart(canvas, {
-          type: "bar",
-          data: {
-            labels: list.map(x => x.k),
-            datasets: [{ label: disp(calcBy), data: list.map(x => x.v == null ? 0 : +x.v.toFixed(2)),
-              backgroundColor: "#b7e23b", borderRadius: 5 }],
-          },
-          options: {
-            indexAxis: horiz ? "y" : "x",
-            responsive: true, maintainAspectRatio: false,
-            plugins: { legend: { display: false },
-              tooltip: { callbacks: { label: c => `${disp(calcBy)}: ${m.fmt(c.raw)}` } } },
-            scales: {
-              x: { ticks: Object.assign({}, horiz ? {} : trunc,
-                    (dimBy === "Month" || dimBy === "Year")
-                      ? { autoSkip: true, maxTicksLimit: 14, maxRotation: 45 } : {}) },
-              y: horiz ? { ticks: trunc } : {},
-            },
-          },
-        });
-      },
-      buildTable() {
-        const m = M[calcBy];
-        const list = grouped();
-        if (!list.length)
-          return `<div style="padding:20px;color:var(--muted)">No categories to break down for the current filters.</div>`;
-        const total = m.fn(rows);
-        const shown = list.slice(0, 50);
-        return RSC.table(
-          [{ key: "k", label: dimBy },
-           { key: "jobs", label: "Total Jobs", fmt: nz(RS.fmtN) },
-           { key: "v", label: disp(calcBy), fmt: nz(m.fmt) },
-           { key: "sh", label: "% of total", fmt: RS.fmtPct },
-           { key: "avg", label: "Avg Bill", fmt: nz(RS.money) }],
-          shown.map(x => ({
-            k: x.k, jobs: x.n, v: x.v,
-            sh: total ? (x.v || 0) / total : null,
-            avg: M["Average Bill"].fn(x.rs),
-          })),
-          { k: "Total", jobs: rows.length, v: total, sh: total ? 1 : null, avg: M["Average Bill"].fn(rows) }) +
-          (list.length > shown.length
-            ? `<div style="padding:6px 2px;color:var(--muted);font-size:11px">Showing ${shown.length} of ${list.length} categories.</div>`
-            : "");
-      },
+      // explicit key: chartCard remembers graph-vs-table under cfg.key || cfg.title, and that
+      // memory is GLOBAL across every page — a generic "Breakdown" would collide
+      key: "cb:breakdown",
+      title: CB.colDim ? `${disp(CB.mA)} — ${CB.rowDim} × ${CB.colDim}` : `${disp(CB.mA)} by ${CB.rowDim}`,
+      buildChart,
+      buildTable: pivotHtml,
     });
 
-    // ---- trend: monthly lines for the top 5 categories of the chosen dimension
-    const PAL = ["#b7e23b", "#5b8cff", "#a78bfa", "#fbbf24", "#f87171"];
-    const trendCard = RSC.chartCard(document.getElementById("trend"), {
-      title: "Monthly trend — top 5 categories",
+    /* ---- trend ------------------------------------------------------------------- */
+    RSC.chartCard(document.getElementById("trend"), {
+      key: "cb:trend",
+      title: `Monthly trend — top 5 ${CB.rowDim}`,
       buildChart(canvas) {
-        const m = M[calcBy];
-        const top = grouped().filter(x => x.k !== "—").slice(0, 5);
-        const months = [...new Set(rows.map(r => r._y + "-" + String(r._m).padStart(2, "0")))]
-          .sort().slice(-18);
-        const datasets = top.map((t, i) => {
-          const byM = {};
-          t.rs.forEach(r => { const k = r._y + "-" + String(r._m).padStart(2, "0");
-            (byM[k] = byM[k] || []).push(r); });
-          return { type: "line", label: t.k,
-            data: months.map(k => byM[k] ? +(m.fn(byM[k]) || 0).toFixed(1) : null),
-            borderColor: PAL[i], backgroundColor: PAL[i],
-            borderWidth: 2, pointRadius: 2, tension: .3 };
+        const G = group();
+        const top = G.rowKeys.filter(k => k !== "—").slice(0, 5);
+        const months = [...new Set(rows.map(r => r._y + "-" + String(r._m).padStart(2, "0")))].sort().slice(-18);
+        const datasets = top.map((k, i) => {
+          const byM = {}, byMB = {};
+          (G.rk.get(k) || []).forEach(r => { const mk2 = r._y + "-" + String(r._m).padStart(2, "0"); (byM[mk2] = byM[mk2] || []).push(r); });
+          (G.rkB.get(k) || []).forEach(r => { const mk2 = r._y + "-" + String(r._m).padStart(2, "0"); (byMB[mk2] = byMB[mk2] || []).push(r); });
+          return { type: "line", label: k,
+            data: months.map(mm => byM[mm] ? (() => { const v = mA.seg(byM[mm], byMB[mm] || []); return v == null ? null : +(+v).toFixed(2); })() : null),
+            borderColor: PAL[i], backgroundColor: PAL[i], borderWidth: 2, pointRadius: 2, tension: .3 };
         });
         return new Chart(canvas, {
           data: { labels: months.map(k => RS.monthName(+k.slice(5)) + " " + k.slice(2, 4)), datasets },
-          options: {
-            responsive: true, maintainAspectRatio: false,
+          options: { responsive: true, maintainAspectRatio: false,
             interaction: { mode: "index", intersect: false },
             plugins: { legend: { position: "top", labels: { boxWidth: 12 } },
-              tooltip: { callbacks: { label: c => `${c.dataset.label}: ${c.raw == null ? "—" : M[calcBy].fmt(c.raw)}` } } },
-            scales: { x: { ticks: { maxRotation: 45, autoSkip: true, maxTicksLimit: 14 } } },
-          },
+              tooltip: { callbacks: { label: c => `${c.dataset.label}: ${c.raw == null ? "—" : mA.fmt(c.raw)}` } } },
+            scales: { x: { ticks: { maxRotation: 45, autoSkip: true, maxTicksLimit: 14 } } } },
         });
       },
-      buildTable() {
-        // matrix() groups by a physical column — __dim is materialized below and
-        // refreshed on every switcher change (rerenderAll).
-        if (!rows.length)
-          return `<div style="padding:20px;color:var(--muted)">No data for the current filters.</div>`;
-        return RSC.matrix(rows, "__dim", calcBy, { rowLabel: dimBy, lastN: 13 });
-      },
+      buildTable: pivotHtml,
     });
-    rows.forEach(r => { const k = DIMS[dimBy](r); r.__dim = (k == null || k === "") ? "—" : String(k); });
 
-    const rerenderAll = () => {
-      rows.forEach(r => { const k = DIMS[dimBy](r); r.__dim = (k == null || k === "") ? "—" : String(k); });
-      mainCard.rerender(); trendCard.rerender();
+    /* ---- wiring ------------------------------------------------------------------ */
+    const redraw = () => cbRender(host);        // full re-render: the spec bar itself changes
+    const $ = id => document.getElementById(id);
+
+    $("cbUni").querySelectorAll("button").forEach(b => {
+      b.onclick = () => { if (CB.universe === b.dataset.u) return;
+        CB.universe = b.dataset.u; CB.filters = {}; CB.colDim = ""; redraw(); };
+    });
+    $("cbRow").onchange = e => { CB.rowDim = e.target.value; redraw(); };
+    $("cbCol").onchange = e => { CB.colDim = e.target.value; redraw(); };
+    $("cbMA").onchange = e => { CB.mA = e.target.value; redraw(); };
+    $("cbMB").onchange = e => { CB.mB = e.target.value; redraw(); };
+    $("cbTop").onchange = e => { CB.topN = +e.target.value; redraw(); };
+    $("cbChart").onchange = e => { CB.chart = e.target.value; mainCard.rerender(); };
+
+    // add a page filter: offer the values that exist, with counts, most common first
+    $("cbAddF").onchange = e => {
+      const dim = e.target.value; e.target.value = "";
+      if (!dim || !DIMS[dim]) return;
+      const counts = new Map();
+      scoped.forEach(r => { const k = keyOf(dim, r); counts.set(k, (counts.get(k) || 0) + 1); });
+      const vals = [...counts.entries()].sort((a, b) => b[1] - a[1]);
+      const picked = window.prompt(
+        `Filter ${dim} to which value?\n\n` +
+        vals.slice(0, 40).map(([v, n]) => `${v}  (${n})`).join("\n") +
+        `\n\nType the value exactly, or several separated by | :`, vals.length ? vals[0][0] : "");
+      if (picked == null) return;
+      const want = picked.split("|").map(s => s.trim()).filter(Boolean);
+      if (!want.length) return;
+      CB.filters[dim] = new Set([...(CB.filters[dim] || []), ...want]);
+      redraw();
     };
-    document.getElementById("abcDim").onchange = e => { dimBy = e.target.value; rerenderAll(); };
-    document.getElementById("abcCalc").onchange = e => { calcBy = e.target.value; rerenderAll(); };
-  },
+    host.querySelectorAll(".cb-chip").forEach(c => {
+      c.onclick = () => {
+        if (c.dataset.clear) { CB.filters = {}; redraw(); return; }
+        const s = CB.filters[c.dataset.fk];
+        if (s) { s.delete(c.dataset.fv); if (!s.size) delete CB.filters[c.dataset.fk]; }
+        redraw();
+      };
+    });
+
+    $("cbView").onchange = e => {
+      const v = cbReadViews()[e.target.value];
+      if (v) { cbApply(v); CB.view = e.target.value; redraw(); }
+    };
+    $("cbSave").onclick = () => {
+      const name = window.prompt("Name this view:", CB.view || `${CB.rowDim} × ${CB.colDim || "—"}`);
+      if (!name) return;
+      const v = cbReadViews(); v[name] = cbSpec(); cbWriteViews(v); CB.view = name; redraw();
+    };
+    $("cbLink").onclick = () => {
+      const url = location.origin + location.pathname
+        + "#page=analysis-by-category&cb=" + encodeURIComponent(JSON.stringify(cbSpec()));
+      const done = ok => window.alert(ok
+        ? "Link copied. It restores this builder on a fresh load.\n\nNote: it carries the BUILDER only — not the date range or the global slicers, so it can never change someone else's filters behind their back."
+        : "Could not copy automatically. The link is in the address bar.");
+      location.hash = "page=analysis-by-category&cb=" + encodeURIComponent(JSON.stringify(cbSpec()));
+      if (navigator.clipboard) navigator.clipboard.writeText(url).then(() => done(true), () => done(false));
+      else done(false);
+    };
+    $("cbReset").onclick = () => {
+      CB.rowDim = Object.keys(DIMS)[0]; CB.colDim = ""; CB.mB = ""; CB.topN = 20;
+      CB.chart = "bar"; CB.filters = {}; CB.view = ""; redraw();
+    };
+    $("cbCsv").onclick = () => {
+      const G = group();
+      const cols = CB.colDim ? G.colKeys : [];
+      // CSV quoting written with indexOf/split rather than regex literals containing a quote
+      // character -- those are easy to misread, and they defeat simple tooling that scans this
+      // file (mine included: a `/"/g` swallowed the rest of the file as a string).
+      const escC = v => {
+        const s = v == null ? "" : String(v);
+        const needs = s.indexOf(",") >= 0 || s.indexOf("\"") >= 0 || s.indexOf("\n") >= 0;
+        return needs ? "\"" + s.split("\"").join("\"\"") + "\"" : s;
+      };
+      const head = [CB.rowDim].concat(cols.map(c => c === "" ? "—" : c), [disp(CB.mA)], mB ? [disp(CB.mB)] : [], ["Rows"]);
+      const line = (label, rKey, rs, bs) => [label].concat(
+        cols.map(c => { const v = rKey != null ? mA.seg(G.cell.get(rKey + " " + c) || [], G.cellB.get(rKey + " " + c) || []) : ""; return v == null ? "" : v; }),
+        [(() => { const v = mA.seg(rs, bs); return v == null ? "" : v; })()],
+        mB ? [(() => { const v = mB.seg(rs, bs); return v == null ? "" : v; })()] : [],
+        [rs.length]);
+      const body = G.rowKeys.map(k => line(k, k, G.rk.get(k) || [], G.rkB.get(k) || []));
+      if (G.other) body.push(line(G.other.key, null, G.other.rows, G.other.booked));
+      const csv = [head].concat(body).map(r => r.map(escC).join(",")).join("\r\n");
+      const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = `custom-breakdown-${CB.universe}-${CB.rowDim}${CB.colDim ? "-by-" + CB.colDim : ""}.csv`;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(a.href), 0);
+    };
+
+    // remember the last spec so the page opens where it was left
+    const v = cbReadViews(); v._last = cbSpec(); cbWriteViews(v);
+
+    // sortable pivot headers — delegated, because the table is re-rendered on every change
+    document.getElementById("main").addEventListener("click", ev => {
+      const th = ev.target.closest && ev.target.closest("th[data-s]");
+      if (!th) return;
+      const k = th.dataset.s;
+      CB.sort = (CB.sort.key === k) ? { key: k, dir: -CB.sort.dir } : { key: k, dir: -1 };
+      mainCard.rerender();
+    });
+}
+
+registerPage({
+  id: "analysis-by-category",        // id stays — bookmarks and ACL grants reference it
+  group: "overview",
+  title: "Custom Breakdown",
+  render: cbRender,
 });
