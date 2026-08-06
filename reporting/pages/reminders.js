@@ -432,23 +432,52 @@ registerPage({ id: "review-settings", group: "reviews", title: "Review URLs and 
         cols: ["Timestamp", "Job Code", "Foreman", "Job Date", "Reason", "Note"],
       };
     }
+    /* The bot addresses people by Slack account, so its log records an EMAIL in the foreman
+       column, while the relay used to hand this page a resolved NAME. Without a directory
+       every crew member on the page would read as an address. fname() builds its own map from
+       log rows that carry both, which the sheet never does -- so the crew file, which is the
+       portal's canonical answer to "whose address is this", supplies it instead. */
+    if (window.RS && RS.DATASETS && !RS.DATASETS.rrp_crew) {
+      RS.DATASETS.rrp_crew = { table: "dim_crew", cols: ["Full Name", "Email"] };
+    }
     // the relay's field names, which the whole page is written against; the warehouse keeps
     // the sheet's headers, so the translation lives here and nowhere else
+    // MySQL hands back "2026-08-06 01:03:22" -- the same instant the sheet wrote as
+    // "...T01:03:22.726Z", but with the Z gone. new Date() reads a bare string as LOCAL time,
+    // so on a Tbilisi machine every stamp would land eight hours out and the ET day keys this
+    // page groups by would be wrong for a third of the log. Put the Z back.
+    const whInstant = v => {
+      const t = String(v == null ? "" : v).trim();
+      if (!t) return "";
+      return /[zZ]$|[+-]\d{2}:?\d{2}$/.test(t) ? t : t.replace(" ", "T") + "Z";
+    };
+
     async function loadFromWarehouse() {
-      const [lg, rs] = await Promise.all([RS.load("rrp_log"), RS.load("rrp_resp")]);
+      const [lg, rs, crew] = await Promise.all([
+        RS.load("rrp_log"), RS.load("rrp_resp"), RS.load("rrp_crew").catch(() => [])]);
+      const byEmail = {};
+      (crew || []).forEach(c => {
+        const e = String(c["Email"] || "").trim().toLowerCase();
+        const nm = String(c["Full Name"] || "").trim();
+        if (e && nm) byEmail[e] = nm;
+      });
+      const nameOf = e => byEmail[String(e || "").trim().toLowerCase()] || "";
       return {
         ok: true,
-        log: (lg || []).map(r => ({
-          ts: r["Timestamp"], type: String(r["Type"] || "").toLowerCase(),
-          job: r["Job Code"] || "", foreman: r["Foreman"] || "",
-          // a morning nudge is addressed to a person, not a job, and the sheet puts that
-          // person's address in the Foreman column -- the page reads it as `email`
-          email: r["Foreman"] || "",
-          customer: r["Customer"] || "", sentTo: r["Sent To"] || "",
-          links: r["Review Links"] || "", status: r["Status"] || "", key: r["Key"] || "",
-        })),
+        log: (lg || []).map(r => {
+          const em = r["Foreman"] || "";           // the sheet's foreman column IS the address
+          return {
+            ts: whInstant(r["Timestamp"]), type: String(r["Type"] || "").toLowerCase(),
+            job: r["Job Code"] || "",
+            // resolved where the crew file knows the address, and left as the address where it
+            // does not -- fname() renders a bare address rather than inventing a person
+            foreman: nameOf(em) || em, email: em,
+            customer: r["Customer"] || "", sentTo: r["Sent To"] || "",
+            links: r["Review Links"] || "", status: r["Status"] || "",
+          };
+        }),
         responses: (rs || []).map(r => ({
-          ts: r["Timestamp"], job: r["Job Code"] || "", foreman: r["Foreman"] || "",
+          ts: whInstant(r["Timestamp"]), job: r["Job Code"] || "", foreman: r["Foreman"] || "",
           date: r["Job Date"] || "", reason: r["Reason"] || "", note: r["Note"] || "",
         })),
         // config and schedule are the relay's business; this view never reads them
