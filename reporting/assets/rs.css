@@ -404,7 +404,11 @@ body.rs-app.light .rs-cpill{border-color:rgba(127,163,43,.4);color:var(--brand-d
 @media(min-width:901px){
   .rs-sidetog{display:inline-flex}
   .rs-side{transition:width .18s ease}
-  .rs-layout.side-min .rs-side{width:0;border-right-width:0;overflow:hidden}
+  /* min-width:0 is not optional here. A flex item's min-width defaults to AUTO, which means
+     min-content -- so width:0 alone left the sidebar at the width of its longest report name
+     (~130px) with every label wrapped onto two lines, which looks like a bug rather than a
+     collapsed menu. padding:0 stops the search box's own padding from propping it open. */
+  .rs-layout.side-min .rs-side{width:0;min-width:0;padding:0;border-right-width:0;overflow:hidden}
 }
 
 /* ---- Money-Flow-style global date button + popover (2026-07-23) ---- */
