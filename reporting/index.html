@@ -3,6 +3,12 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- Build stamp. "Is my change actually live?" was previously only answerable by reading a ?v=
+     number out of the page source and knowing what it should be. 2026-08-06: three GitHub Pages
+     builds failed instantly (0ms, "Page build failed") on one commit while the repo content was
+     byte-perfect, and the site quietly kept serving the previous deploy. A visible stamp makes
+     that state obvious instead of invisible. -->
+<meta name="ztz-build" content="2026-08-06 mf-deductions merge: money-flow v43, ld-planning v75">
 <!-- Always revalidate the SHELL. Every asset below is ?v=-busted, but index.html itself is not —
      so a cached shell keeps requesting the OLD asset versions and a deploy silently does nothing.
      That has now bitten repeatedly: a pre-v14 screenshot read as a live bug; a stale v28 re-added the
