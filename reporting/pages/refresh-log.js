@@ -195,6 +195,26 @@ function rlInjectStyle() {
   .rl-age.warn{color:var(--warn);border-color:var(--warn)}
   .rl-age.old{color:var(--red);border-color:var(--red);font-weight:800}
   .rl-kpi.stale::before{background:var(--amber)}
+  /* the freshness board */
+  .rl-fresh-ok{margin-left:auto;font-size:10.5px;font-weight:800;padding:2px 9px;border-radius:999px;
+               background:var(--pos-bg);color:var(--pos)}
+  .rl-ftab{width:100%;border-collapse:collapse;font-size:12.5px;margin-top:10px}
+  .rl-ftab th{text-align:left;font-size:10px;font-weight:800;letter-spacing:.07em;
+              text-transform:uppercase;color:var(--faint);padding:6px 10px;
+              border-bottom:1px solid var(--line);white-space:nowrap}
+  .rl-ftab th.n,.rl-ftab td.n{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+  .rl-ftab td{padding:7px 10px;border-bottom:1px solid var(--line);color:var(--muted)}
+  .rl-ftab tr:last-child td{border-bottom:0}
+  .rl-ftab td b{color:var(--ink);font-weight:650}
+  .rl-fr.old td{background:var(--neg-bg)}
+  .rl-fr.warn td{background:var(--warn-bg)}
+  .rl-fkind{display:block;font-size:10px;color:var(--faint);margin-top:1px}
+  .rl-fnote{display:block;font-size:9.5px;color:var(--faint)}
+  .rl-fdet{margin-top:12px}
+  .rl-fdet summary{cursor:pointer;font-size:12px;font-weight:700;color:var(--muted);
+                   user-select:none;padding:4px 0}
+  .rl-fdet[open] summary{margin-bottom:2px}
+  .rl-fhelp{font-size:11px;color:var(--faint);line-height:1.6;margin-top:12px;max-width:100ch}
   .rl-sname{font-size:12.5px;font-weight:650;color:var(--ink);display:flex;align-items:center;justify-content:space-between;gap:6px}
   .rl-smeta{font-size:11.5px;color:var(--muted);margin-top:4px;display:flex;justify-content:space-between}
   .rl-smeta b{color:var(--ink);font-weight:700;font-variant-numeric:tabular-nums}
@@ -424,7 +444,60 @@ async function rlPollLive(host) {
   host.__rlTimer = setTimeout(() => rlPollLive(host), (host.__rlRunning || awaiting) ? 4000 : 20000);
 }
 
-function rlRender(host, runs, cov) {
+// WHEN WAS EACH FEED LAST UPDATED UPSTREAM -- the whole point of this page for him.
+// The run history reaches back about a day, so it can only ever say "unchanged this hour".
+// This reads the SOURCE FILE's own modified date, which is what actually answers "did I
+// forget to drop an export". Sorted worst-first, because the stale ones are the reason to
+// look at all; anything under a fortnight collapses out of the way.
+function rlFreshness(fresh) {
+  if (!fresh || !fresh.length) return "";
+  const STALE = 21, WATCH = 10;
+  const bad = fresh.filter(f => (f.days_since_file != null) && f.days_since_file >= STALE);
+  const watch = fresh.filter(f => (f.days_since_file != null)
+                                  && f.days_since_file >= WATCH && f.days_since_file < STALE);
+  const fine = fresh.filter(f => f.days_since_file == null || f.days_since_file < WATCH);
+
+  const row = f => {
+    const d = f.days_since_file;
+    const cls = d == null ? "none" : d >= STALE ? "old" : d >= WATCH ? "warn" : "fresh";
+    const age = d == null ? "unknown" : d === 0 ? "today" : d === 1 ? "1 day" : d + " days";
+    // The file date and the data date are different claims: a re-saved export is fresh by
+    // file and stale by contents, and only showing both tells them apart.
+    const dd = f.days_since_data;
+    return `<tr class="rl-fr ${cls}">
+      <td><b>${RSC.esc(f.feed || f.table)}</b><span class="rl-fkind">${RSC.esc(f.kind || "")}</span></td>
+      <td class="n"><span class="rl-age ${cls}">${age}</span></td>
+      <td class="n">${RSC.esc(f.file_updated ? String(f.file_updated).slice(0, 10) : "—")}</td>
+      <td class="n">${RSC.esc(f.newest_data || "—")}${dd != null && dd > 30
+        ? `<span class="rl-fnote">${dd}d of data</span>` : ""}</td>
+      <td class="n">${f.rows == null ? "—" : RS.fmtN(f.rows)}</td>
+    </tr>`;
+  };
+  const head = `<thead><tr><th>Feed</th><th class="n">Last updated</th><th class="n">File date</th>
+    <th class="n">Newest row</th><th class="n">Rows</th></tr></thead>`;
+
+  return `<div class="rl-card">
+    <div class="rl-hhead">
+      <span class="rl-htitle">Is anything going stale?</span>
+      <span class="rl-hsub">when each feed was last updated at the source — not when we last looked</span>
+      ${bad.length ? `<span class="rl-stale">${bad.length} over three weeks</span>`
+                   : `<span class="rl-fresh-ok">everything current</span>`}
+    </div>
+    ${bad.length || watch.length ? `<table class="rl-ftab">${head}<tbody>
+        ${bad.map(row).join("")}${watch.map(row).join("")}</tbody></table>` : ""}
+    <details class="rl-fdet"${bad.length || watch.length ? "" : " open"}>
+      <summary>${fine.length} feed${fine.length === 1 ? "" : "s"} updated in the last ${WATCH} days</summary>
+      <table class="rl-ftab">${head}<tbody>${fine.map(row).join("")}</tbody></table>
+    </details>
+    <div class="rl-fhelp">A feed goes amber after ${WATCH} days and red after three weeks.
+      Some are meant to sit still — reference tables like zip codes barely change — so this is a
+      prompt to look, not a fault. <b>Last updated</b> is the export file's own modified date;
+      <b>newest row</b> is the freshest date inside it, which is the one that catches a file
+      re-saved without new data.</div>
+  </div>`;
+}
+
+function rlRender(host, runs, cov, fresh) {
   const procs = runs.map(RL.process);
   rlBuildLastLoaded(procs);
   const L = procs[0];
@@ -447,6 +520,8 @@ function rlRender(host, runs, cov) {
         RSC.esc(RL.srcLabel(worst.s)) + (stale.length > 1 ? " · " + stale.length + " over 3 weeks" : ""));
     })()}
   </div>`;
+
+  const freshBoard = rlFreshness(fresh);
 
   const hero = `<div class="rl-card">
     <div class="rl-hhead">
@@ -520,12 +595,12 @@ function rlRender(host, runs, cov) {
       </div>`).join("")}
     </div>`;
   }
-  host.innerHTML = kpis + alert + rlCoverage(cov) + hero + history;
+  host.innerHTML = kpis + alert + freshBoard + rlCoverage(cov) + hero + history;
   host.querySelectorAll(".rl-run .rl-rhead").forEach(h => h.onclick = () => h.parentNode.classList.toggle("open"));
   const pv = host.querySelector("#rlPrev");
-  if (pv) pv.onclick = () => { RL.hpage--; rlRender(host, runs, cov); };
+  if (pv) pv.onclick = () => { RL.hpage--; rlRender(host, runs, cov, fresh); };
   const nx = host.querySelector("#rlNext");
-  if (nx) nx.onclick = () => { RL.hpage++; rlRender(host, runs, cov); };
+  if (nx) nx.onclick = () => { RL.hpage++; rlRender(host, runs, cov, fresh); };
 }
 
 registerPage({
@@ -561,7 +636,7 @@ registerPage({
         (every hour, or when a refresh is triggered).</div>`;
       return;
     }
-    rlRender(body, runs, data && data.coverage);
+    rlRender(body, runs, data && data.coverage, data && data.freshness);
 
     // ---- controls -------------------------------------------------------------
     clearTimeout(host.__rlTimer);
