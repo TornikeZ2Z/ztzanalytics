@@ -1,0 +1,66 @@
+# Publish the reporting portal to GitHub Pages.
+#
+# WHY THIS FILE EXISTS. GitHub was auto-generating this workflow ("pages build and deployment")
+# and its deploy step aborts at a hard 10-minute default. On 2026-08-06 GitHub's CDN took just
+# over that: the job failed at 10m06s and the content went live one minute later. Four deploys
+# were reported as failures having actually succeeded -- which is worse than a plain failure,
+# because it trains everyone to ignore the alert that would matter. Owning the workflow is the
+# only way to raise that timeout; the auto-generated one cannot be edited.
+#
+# Switching to this file also requires flipping the repo's Pages build_type from "legacy" to
+# "workflow" -- scripts/apply_pages_workflow.py does both together.
+name: Deploy portal to Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:      # so a stuck publish can be retried without an empty commit
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Queue deploys, never cancel one mid-publish: a cancelled deploy is how a site ends up
+# serving half of one build and half of another.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/configure-pages@v6
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          # '.' -- the REPO ROOT, not ./reporting. The site publishes the root, which holds
+          # CNAME (the custom domain ziptozip.systems), index.html, data-portal/ (the separate
+          # Data Management app) and reporting/. Narrowing this path would silently drop the
+          # custom domain and the data portal on the first run.
+          path: .
+          # The action excludes every top-level dotfile by default, which would drop
+          # .nojekyll. Nothing here needs Jekyll disabled any more -- this workflow never runs
+          # Jekyll -- but shipping it keeps the published tree byte-identical to the tree that
+          # is live today, so the switchover changes the deploy mechanism and nothing else.
+          # .git and .github are excluded regardless of this flag.
+          include-hidden-files: true
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5
+        with:
+          # THE POINT OF ALL THIS. Milliseconds; the action's default is 600000 (10 min).
+          # 30 minutes is far past anything observed -- the slowest successful build here took
+          # 343 seconds -- so a failure now means something is genuinely wrong rather than
+          # GitHub being slow.
+          timeout: 1800000
+          # Tolerate more transient status-poll errors before giving up, for the same reason.
+          error_count: 20
