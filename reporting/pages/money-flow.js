@@ -87,7 +87,9 @@ registerPage({
         .mf-tbl td{padding:10px 12px;border-top:1px solid var(--line);vertical-align:middle;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:240px}
         .mf-tbl tbody tr.mf-row{cursor:pointer}
         .mf-tbl tbody tr.mf-row:hover{background:var(--panel-2)}
-        .mf-wrap{overflow-y:auto;overflow-x:auto;max-height:calc(100vh - 320px)}
+        /* the 320px is only the pre-measurement fallback — RSC.fitScroller sets --pg-chrome
+           from the chrome actually above the table, so a collapsed bar leaves no dead gap */
+        .mf-wrap{overflow-y:auto;overflow-x:auto;max-height:calc(100vh - var(--pg-chrome, 320px))}
         /* the fixed layouts need their full width — below it the wrap scrolls rather
            than CLIPPING the right-hand headers (the real cause of "headers not fully
            visible", 2026-07-22) */
@@ -496,10 +498,10 @@ registerPage({
         + '<button class="clr" id="mfDtApply">Apply this range</button>'
         + "</div>" : "";
       var bar = '<div class="mf-bars">'
-        + '<div class="mf-bar"><div class="mf-seg">' + segBtn("foreman", "Balance by Foreman", main.length)
+        + '<div class="mf-bar" id="mfVBar"><div class="mf-seg">' + segBtn("foreman", "Balance by Foreman", main.length)
         + segBtn("nib", "Not in Balance Jobs", nib.length)
         + segBtn("history", "History", done.length) + "</div></div>"
-        + '<div class="mf-bar">'
+        + '<div class="mf-bar" id="mfFBar">'
         + '<div class="mf-seg mf-dseg">' + dBtn("details", "Details") + dBtn("overview", "Compact") + "</div>"
         + '<div class="mf-fmwrap"><button class="mf-fmbtn' + (S.formen.length ? " on" : "") + '" id="mfFmBtn">' + esc(fmLabel) + ' ▾</button>' + fmPop + "</div>"
         + (S.view === "history" ? '<div class="mf-dtwrap"><button class="mf-fmbtn' + (S.dateFrom || S.dateTo ? " on" : "") + '" id="mfDtBtn">📅 ' + esc(S.dateLabel) + ' ▾</button>' + dtPop + "</div>" : "")
@@ -722,8 +724,21 @@ registerPage({
       var wt = wrap0 ? wrap0.scrollTop : 0, wl = wrap0 ? wrap0.scrollLeft : 0;
       mfBody.innerHTML = kp + bar + content;
       wire();
+      // the chevron lives in the VIEW row, so collapsing gives the whole filter row back
+      // instead of trading it for a toggle row of the same height
+      RSC.collapsible(document.getElementById("mfFBar"), "rsBarCollapsed:money-flow", {
+        host: document.getElementById("mfVBar"),
+        count: function () {
+          var labels = [];
+          if (S.formen.length) labels.push("Foremen (" + S.formen.length + ")");
+          if (S.q) labels.push("Search");
+          if (S.view === "history" && (S.dateFrom || S.dateTo)) labels.push(S.dateLabel);
+          return { n: labels.length, labels: labels };
+        },
+      });
       var wrap1 = document.querySelector("#mfBody .mf-wrap");
       if (wrap1) { wrap1.scrollTop = wt; wrap1.scrollLeft = wl; }
+      RSC.fitScroller(wrap1);
       // same idea for the foremen POPOVER list: it has its own scroller and was rebuilt
       // at the top on every checkbox tick
       var fmp = document.querySelector(".mf-fmpop");

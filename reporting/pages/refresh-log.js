@@ -632,8 +632,7 @@ function rlRender(host, runs, cov, fresh) {
       const t = b.dataset.t;
       let note = null;
       if (!on) {
-        note = prompt("Pause \"" + t + "\" — it will stop reloading every run.
-"
+        note = prompt("Pause \"" + t + "\" — it will stop reloading every run.\n"
                       + "Why? (optional, but it helps whoever finds this later)", "");
         if (note === null) return;             // cancelled
       }

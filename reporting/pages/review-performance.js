@@ -176,7 +176,10 @@ registerPage({
           font-size:12.5px;font-family:inherit;cursor:pointer}
         .rp-btn:hover{border-color:var(--brand)}
         .rp-btn[disabled]{opacity:.4;cursor:default;pointer-events:none}
-        .rp-wrap{overflow:auto;border:1px solid var(--line);border-radius:12px;max-height:calc(100vh - 232px)}
+        /* 232px (and the 300px in the mobile block below) are pre-measurement fallbacks —
+           RSC.fitScroller sets --pg-chrome from the chrome actually on screen, so collapsing
+           the bar above the matrix leaves no dead gap */
+        .rp-wrap{overflow:auto;border:1px solid var(--line);border-radius:12px;max-height:calc(100vh - var(--pg-chrome, 232px))}
         .rp-mx{border-collapse:separate;border-spacing:0;font-size:12px;min-width:560px}
         .rp-mx th,.rp-mx td{padding:0;text-align:center;white-space:nowrap;box-sizing:border-box}
         .rp-mx thead th{background:var(--panel-2);color:var(--faint);font-size:10.5px;font-weight:800;text-transform:uppercase;
@@ -281,7 +284,7 @@ registerPage({
         .rp-pending .rp-pico{color:#e0912a;font-size:15px;line-height:1.35;flex:0 0 auto}
         .rp-ptxt{font-size:12.5px;line-height:1.5;color:var(--ink)}
         .rp-plink{margin-top:7px;font:inherit;font-size:11.5px;font-weight:700;color:#e0912a;background:transparent;border:0;padding:0;cursor:pointer;text-decoration:underline}
-        @media (max-width:640px){.rp-wrap{max-height:calc(100vh - 300px)}}`;
+        @media (max-width:640px){.rp-wrap{max-height:calc(100vh - var(--pg-chrome, 300px))}}`;
       document.head.appendChild(st);
     }
 
@@ -524,6 +527,17 @@ registerPage({
     var spring = document.createElement("span"); spring.className = "rp-spring"; bar.appendChild(spring);
     var resetBtn = document.createElement("button"); resetBtn.type = "button"; resetBtn.className = "rp-btn"; resetBtn.textContent = "Reset";
     bar.appendChild(resetBtn);
+    // the four multiselects never announce themselves once the bar is shut, so the pill has to
+    var barC = RSC.collapsible(barEl, "rsBarCollapsed:review-performance", {
+      count: function () {
+        var labels = [];
+        if (RP.sources.size) labels.push("Source");
+        if (RP.statuses.size) labels.push("Status");
+        if (RP.billcats.size) labels.push("Bill");
+        if (RP.foremen.size) labels.push("Foreman");
+        return { n: labels.length, labels: labels };
+      },
+    });
 
     function inSet(set, v) { return set.size === 0 || set.has(v); }
     function filtered() {
@@ -1056,6 +1070,8 @@ registerPage({
       if (v === "perf") paintMatrix();
       else if (v === "reasons") paintReasons();
       else paintSupport();
+      if (barC) barC.refresh();
+      RSC.fitScroller(document.getElementById("rpWrapEl"));
     }
 
     // ---- control wiring ----

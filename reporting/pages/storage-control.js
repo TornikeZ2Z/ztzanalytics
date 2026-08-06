@@ -449,6 +449,18 @@ registerPage({
 
       main.innerHTML = html;
       wire(rows);
+      // "In storage now" vs "Everything" is the register's scope, not a filter you switch on —
+      // it always applies, so it is always stated
+      RSC.collapsible(main.querySelector(".stc-bar"), "rsBarCollapsed:storage-control", {
+        count: function () {
+          var labels = [];
+          if (S.q) labels.push("Search");
+          if (S.kind) labels.push(S.kind === "our" ? "Our warehouse" : "Rented");
+          if (S.owing) labels.push("Owing only");
+          return { n: labels.length, labels: labels,
+                   scope: S.show === "active" ? "In storage now" : "Everything" };
+        },
+      });
     }
 
     function kpi(v, lab, sub, cls) {

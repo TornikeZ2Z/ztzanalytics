@@ -368,6 +368,45 @@ table.tab thead th{font-size:11px}
 .rs-page-head h1{font-size:22px}
 .rs-page-head p{font-size:13.5px}
 
+/* ================= collapsible top filter bars (2026-08-06) =================
+   The toggle lives INSIDE the bar it collapses: a separate row above would cost the height
+   that collapsing is meant to give back. Everything else in the bar hides, except controls
+   a page marks .rs-ckeep (an action or a live status the collapse must not swallow). */
+.rs-cbar{display:inline-flex;align-items:center;gap:8px;min-width:0;max-width:100%}
+.rs-ctog{display:inline-flex;align-items:center;gap:7px;flex:none;border:1px solid var(--line);
+  background:var(--panel-2);color:var(--muted);border-radius:9px;height:30px;padding:0 11px;
+  font:inherit;font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;cursor:pointer}
+.rs-ctog:hover{color:var(--ink);border-color:var(--line-2)}
+.rs-ctog .rs-ccar{font-size:9px;opacity:.7;transition:transform .15s ease}
+.rs-bar-off .rs-ctog{color:var(--ink);border-color:var(--line-2)}
+.rs-bar-off .rs-ctog .rs-ccar{transform:rotate(-90deg)}
+.rs-cpill{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  background:var(--brand-glow);border:1px solid rgba(183,226,59,.35);color:var(--brand);
+  border-radius:999px;padding:3px 11px;font-size:11.5px;font-weight:700}
+/* nothing filtering, and nothing that cannot be counted, must ever look like an active filter */
+.rs-cpill.none{background:transparent;border-color:var(--line);color:var(--faint);font-weight:600}
+.rs-cpill.unknown{background:var(--warn-bg);border-color:var(--warn);color:var(--warn)}
+/* !important because page modules inject their <style> AFTER rs.css, and the global bar's
+   own rows are addressed by id (#frowDates) — an ordinary class rule loses to both. */
+.rs-bar-min > *:not(.rs-cbar):not(.rs-ckeep){display:none !important}
+.rs-cx-hide{display:none !important}
+body.rs-app.light .rs-cpill{border-color:rgba(127,163,43,.4);color:var(--brand-d)}
+
+/* ================= collapsible left navigation (2026-08-06) =================
+   .rs-layout is pure flexbox with no margin offsets, so shrinking the sidebar to zero
+   reflows the content for free. Desktop only: under 900px the sidebar is already an
+   off-canvas drawer driven by the burger, and a width:0 there would open onto nothing. */
+.rs-sidetog{display:none;align-items:center;justify-content:center;flex:none;border:1px solid var(--line);
+  background:transparent;border-radius:10px;height:32px;width:36px;margin-right:10px;cursor:pointer;color:var(--muted)}
+.rs-sidetog svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+.rs-sidetog:hover{color:var(--ink);border-color:var(--line-2)}
+.rs-sidetog.on{color:var(--brand);border-color:var(--brand)}
+@media(min-width:901px){
+  .rs-sidetog{display:inline-flex}
+  .rs-side{transition:width .18s ease}
+  .rs-layout.side-min .rs-side{width:0;border-right-width:0;overflow:hidden}
+}
+
 /* ---- Money-Flow-style global date button + popover (2026-07-23) ---- */
 .rs-dtwrap{position:relative;display:inline-block}
 .rs-datebtn{font:inherit;font-size:12.5px;font-weight:700;background:var(--panel);color:var(--ink);border:1px solid var(--line-2);border-radius:10px;padding:8px 12px;cursor:pointer}

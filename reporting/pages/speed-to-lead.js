@@ -322,9 +322,20 @@ registerPage({
         <div class="sl-note" style="margin-top:12px"><b>Method:</b> response time = business minutes (8:00–20:00 New York, 7 days) from lead creation to the first outbound RingCentral call at/after creation, matched by normalized phone; a lead created after 20:00 starts its clock at 8:00 next morning; same-evening calls count as ~0 business minutes. On shared phones every call belongs to exactly one lead. "Connected" = the call was actually answered. Zip to Zip lines only. Data since Mar 2025 (RingCentral history start).</div>`;
     }
 
-    document.getElementById("slWin").onchange = e => { SL.months = +e.target.value; paint(); };
-    document.getElementById("slRep").onchange = e => { SL.rep = e.target.value; paint(); };
-    document.getElementById("slSrc").onchange = e => { SL.source = e.target.value; paint(); };
+    // the window always applies (it is never "off"), so it reads as scope rather than a filter
+    var WINDOWS = { 1: "This month", 3: "Last 3 months", 6: "Last 6 months", 12: "Last 12 months", 0: "All (since Mar 2025)" };
+    var slBarC = RSC.collapsible(bar, "rsBarCollapsed:sales-speed", {
+      count: () => {
+        const labels = [];
+        if (SL.rep) labels.push(SL.rep);
+        if (SL.source) labels.push(SL.source);
+        return { n: labels.length, labels, scope: WINDOWS[SL.months] || null };
+      },
+    });
+    const repaintBar = () => { if (slBarC) slBarC.refresh(); };
+    document.getElementById("slWin").onchange = e => { SL.months = +e.target.value; paint(); repaintBar(); };
+    document.getElementById("slRep").onchange = e => { SL.rep = e.target.value; paint(); repaintBar(); };
+    document.getElementById("slSrc").onchange = e => { SL.source = e.target.value; paint(); repaintBar(); };
 
     paint();
   },

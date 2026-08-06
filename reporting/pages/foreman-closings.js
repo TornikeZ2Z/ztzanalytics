@@ -39,7 +39,9 @@ registerPage({
         .fnc-dseg button{padding:8px 13px;font-size:12px}
         .fnc-q{font:inherit;font-size:13px;background:var(--panel);color:var(--ink);border:1px solid var(--line-2);border-radius:10px;padding:8px 12px;min-width:260px;flex:1;max-width:480px}
         .fnc-card{background:var(--panel);border:1px solid var(--line-2);border-radius:14px;overflow:hidden;position:relative}
-        .fnc-wrap{overflow-y:auto;overflow-x:auto;max-height:calc(100vh - 320px)}
+        /* 320px is the pre-measurement fallback only — RSC.fitScroller measures the real
+           chrome, so collapsing the bar above leaves no dead gap */
+        .fnc-wrap{overflow-y:auto;overflow-x:auto;max-height:calc(100vh - var(--pg-chrome, 320px))}
         .fnc-tbl{width:100%;border-collapse:collapse;font-size:14px;table-layout:fixed}
         .fnc-tbl th{position:sticky;top:0;background:var(--panel);text-align:left;font-size:11.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--faint);font-weight:800;padding:11px 12px;border-bottom:1px solid var(--line);white-space:nowrap;z-index:2}
         .fnc-tbl th.r,.fnc-tbl td.r{text-align:right;font-variant-numeric:tabular-nums}
@@ -272,12 +274,14 @@ registerPage({
 
       var segBtn = function (id, label, n) { return '<button class="' + (S.view === id ? "on" : "") + '" data-fncv="' + id + '">' + label + "<i>" + n + "</i></button>"; };
       var dBtn = function (id, label) { return '<button class="' + (S.dense === id ? "on" : "") + '" data-fncd="' + id + '">' + label + "</button>"; };
-      var bar = '<div class="fnc-bar"><div class="fnc-seg">'
+      // rs-ckeep: the automatic-run status and the Run button are not filters — a collapsed
+      // bar may hide controls, never the state of the thing that pays the foremen
+      var bar = '<div class="fnc-bar" id="fncBar"><div class="fnc-seg">'
         + segBtn("pending", "Pending", pend.length) + segBtn("history", "History", hist.length) + "</div>"
         + '<div class="fnc-seg fnc-dseg">' + dBtn("details", "Details") + dBtn("overview", "Compact") + "</div>"
         + '<input class="fnc-q" id="fncQ" placeholder="Search foreman" value="' + esc(S.q) + '">'
-        + (S.view === "pending" ? '<div class="fnc-auto" id="fncAuto">' + autoStatusHtml() + "</div>"
-             + (data.can_run ? '<button class="fnc-run" id="fncRunAll">Run closings now</button>' : "") : "")
+        + (S.view === "pending" ? '<div class="fnc-auto rs-ckeep" id="fncAuto">' + autoStatusHtml() + "</div>"
+             + (data.can_run ? '<button class="fnc-run rs-ckeep" id="fncRunAll">Run closings now</button>' : "") : "")
         + "</div>";
 
       var P = plan();
@@ -346,8 +350,12 @@ registerPage({
       var sy = window.scrollY;
       fncBody.innerHTML = kp + bar + content;
       wire();
+      RSC.collapsible(document.getElementById("fncBar"), "rsBarCollapsed:foreman-closings", {
+        count: function () { return { n: S.q ? 1 : 0, labels: S.q ? ["Search"] : [] }; },
+      });
       var wrap1 = document.querySelector("#fncBody .fnc-wrap");
       if (wrap1) { wrap1.scrollTop = wt; wrap1.scrollLeft = wl; }
+      RSC.fitScroller(wrap1);
       window.scrollTo(window.scrollX, sy);
 
       // live countdown to the next automatic run (updates the #fncCd span each second)

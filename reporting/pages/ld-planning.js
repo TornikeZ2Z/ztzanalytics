@@ -78,7 +78,10 @@ registerPage({
            several cells, which is what made it read as cluttered; everything that used to be
            crammed in now lives in the detail drawer. */
         .ldp-card{position:relative;background:var(--panel);border:1px solid var(--line-2);border-radius:14px;overflow:hidden}
-        .ldp-wrap{overflow-y:auto;overflow-x:auto;max-height:calc(100vh - 330px);min-height:320px}
+        /* the px numbers here and on .ldp-tlbody / .ldp-ovmap are pre-measurement fallbacks
+           only — RSC.fitScroller sets --pg-chrome from the chrome actually on screen, so a
+           collapsed filter bar or sidebar leaves no dead gap under the board */
+        .ldp-wrap{overflow-y:auto;overflow-x:auto;max-height:calc(100vh - var(--pg-chrome, 330px));min-height:320px}
         .ldp-tbl{width:100%;border-collapse:collapse;font-size:14px;min-width:1280px}
         .ldp-tbl th{position:sticky;top:0;z-index:2;background:var(--panel);font-size:11.5px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--faint);text-align:left;padding:11px 12px;border-bottom:1px solid var(--line);white-space:nowrap;user-select:none}
         .ldp-tbl td{padding:10px 12px;border-top:1px solid var(--line);vertical-align:middle;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:230px}
@@ -236,7 +239,7 @@ registerPage({
     .ldp-mifl{background:#6C5CE0;color:#fff;border:0;border-radius:8px;font-weight:750;font-size:11px;
       padding:2px 8px;box-shadow:0 1px 5px rgba(0,0,0,.3)}
     .ldp-mifl::before{display:none}
-    .ldp-ovmap{height:max(460px,calc(100vh - 350px))}
+    .ldp-ovmap{height:max(460px,calc(100vh - var(--pg-chrome, 350px)))}
     .ldp-ovmap.full{position:fixed;inset:10px;z-index:65;height:auto;border-radius:14px;
       box-shadow:0 24px 70px rgba(0,0,0,.35)}
     .ldp-ovleg{display:flex;flex-wrap:wrap;gap:6px 16px;align-items:center;margin:2px 2px 10px;font-size:12px;color:var(--faint)}
@@ -317,7 +320,7 @@ registerPage({
         .ldp-tlmon{position:absolute;top:7px;font-size:12px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);padding-left:6px}
         .ldp-tlday{position:absolute;bottom:6px;font-size:11.5px;color:var(--faint);font-weight:700;transform:translateX(-50%)}
         .ldp-tltodaylab{position:absolute;top:0;transform:translateX(-50%);font-size:9.5px;font-weight:800;letter-spacing:.08em;color:#fff;background:${NEG};padding:3px 7px 2px;border-radius:0 0 7px 7px;z-index:3}
-        .ldp-tlbody{max-height:calc(100vh - 360px);overflow-y:auto}
+        .ldp-tlbody{max-height:calc(100vh - var(--pg-chrome, 360px));overflow-y:auto}
         .ldp-tlrow{display:flex;min-height:46px;border-bottom:1px solid var(--line);cursor:pointer}
         .ldp-tlrow:last-child{border-bottom:0}
         .ldp-tlrow:hover{background:var(--panel-2)}
@@ -1809,8 +1812,29 @@ registerPage({
       }
 
       wire();
+      // the chevron sits in the bar itself, beside the view switcher and the "N of M
+      // shipments" count — both stay visible, so a collapsed bar still says what is on screen
+      RSC.collapsible(_bd.querySelector(".ldp-fbox"), "rsBarCollapsed:ld-planning", {
+        host: _bd.querySelector(".ldp-bar"),
+        count: function () {
+          var labels = [];
+          if (S.q) labels.push("Search");
+          if (S.co) labels.push("Company");
+          if (S.loc) labels.push("Location");
+          if ((S.ms.type || []).length) labels.push("Type");
+          if ((S.ms.cust || []).length) labels.push("Status");
+          if ((S.ms.route || []).length) labels.push("Routing");
+          if (S.kpi) labels.push("KPI card");
+          if (S.tlSeg) labels.push("Segment");
+          return { n: labels.length, labels: labels };
+        },
+      });
       var wrap1 = document.querySelector("#ldpBody .ldp-wrap") || document.querySelector("#ldpBody .ldp-tlbody");
       if (wrap1) { wrap1.scrollTop = wt; wrap1.scrollLeft = wl; }
+      // every view has its own scroller; whichever is on screen measures its own chrome
+      [".ldp-wrap", ".ldp-tlbody", ".ldp-ovmap"].forEach(function (sel) {
+        RSC.fitScroller(_bd.querySelector(sel));
+      });
       window.scrollTo(sx, sy);
     }
 

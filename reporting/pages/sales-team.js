@@ -154,7 +154,9 @@
     .st-tbl tr.click{cursor:pointer} .st-tbl tr.click:hover td{background:var(--brand-glow)}
     /* Lead-Explorer data grid: rounded frame, frozen header, own scroll */
     .st-grid{border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);background:var(--panel);overflow:hidden}
-    .st-gridscroll{max-height:calc(100vh - 340px);min-height:340px;overflow:auto}
+    /* 340px is the pre-measurement fallback only — RSC.fitScroller sets --pg-chrome from the
+       chrome actually above the grid, so a collapsed toolbar leaves no dead gap */
+    .st-gridscroll{max-height:calc(100vh - var(--pg-chrome, 340px));min-height:340px;overflow:auto}
     .st-gridscroll .st-tbl thead th{position:sticky;top:0;z-index:3;background:var(--panel-2);border-bottom:1px solid var(--line-2);box-shadow:0 1px 0 var(--line-2)}
     .st-gridscroll .st-tbl tbody tr:hover td{background:var(--brand-glow)}
     .st-bad{color:var(--red);font-weight:750} .st-good{color:var(--brand);font-weight:700}
@@ -891,7 +893,27 @@
       host.querySelector("#stPrev").onclick = () => { state.page--; paint(); host.querySelector("#stTblWrap").scrollTop = 0; };
       host.querySelector("#stNext").onclick = () => { state.page++; paint(); host.querySelector("#stTblWrap").scrollTop = 0; };
       host.querySelectorAll("tr.click").forEach(tr => tr.onclick = () => openDrawer(tr.dataset.jk));
+      if (barC) barC.refresh();
+      RSC.fitScroller(host.querySelector("#stTblWrap"));
     };
+
+    // the worklist chips collapse WITH the toolbar (they are filters too), so the pill is the
+    // only thing left saying that this list is a slice rather than every lead
+    const barC = RSC.collapsible(host.querySelector(".st-toolbar"), "rsBarCollapsed:sales-command", {
+      also: [host.querySelector(".st-chips")],
+      count: () => {
+        const labels = [];
+        if (state.q) labels.push("Search");
+        if (state.sp) labels.push("Person: " + state.sp);
+        if (state.src) labels.push("Source");
+        if (state.stat) labels.push("Status");
+        if (state.called) labels.push("Contact");
+        if (state.type) labels.push(state.type === "ld" ? "Long distance" : "Local");
+        if (state.bucket) labels.push("Speed: " + state.bucket);
+        if (state.chip) { const c = CHIPS.find(x => x[0] === state.chip); labels.push(c ? c[1] : state.chip); }
+        return { n: labels.length, labels };
+      },
+    });
 
     host.querySelector("#stQ").oninput = e => { state.q = e.target.value; state.page = 0; paint(); };
     // worklist chips (toggle): rendered + filtered in apply(), but the click binding was lost

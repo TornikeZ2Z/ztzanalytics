@@ -237,6 +237,7 @@ registerPage({
       Array.prototype.forEach.call(document.querySelectorAll("[data-dow]"), function (b) {
         b.onclick = function () { LI.dow = b.getAttribute("data-dow"); LI.day = ""; var di = document.getElementById("liDay"); if (di) di.value = ""; draw(); };
       });
+      if (liBarC) liBarC.refresh();   // every heatmap number is read under these filters
     }
 
     // toolbar (built once — range chips, company, source, exact-day picker)
@@ -257,6 +258,18 @@ registerPage({
     document.getElementById("liCo").onchange = function (e) { LI.co = e.target.value; draw(); };
     document.getElementById("liSrc").onchange = function (e) { LI.src = e.target.value; draw(); };
     document.getElementById("liDay").onchange = function (e) { LI.day = e.target.value; draw(); };
+
+    // the period the chips choose is not optional — it is always applied, so it reads as scope
+    var liBarC = RSC.collapsible(bar, "rsBarCollapsed:leads-inflow", {
+      count: function () {
+        var labels = [];
+        if (LI.co) labels.push(LI.co);
+        if (LI.src) labels.push(LI.src);
+        if (LI.day) labels.push("Day " + LI.day);
+        var rl = ranges.filter(function (r) { return r[0] === LI.range; })[0];
+        return { n: labels.length, labels: labels, scope: rl ? rl[1] : null };
+      },
+    });
 
     draw();
   },

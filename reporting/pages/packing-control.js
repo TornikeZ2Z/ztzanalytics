@@ -577,6 +577,18 @@ registerPage({
 
       main.innerHTML = html;
       wire(rows, profiles);
+      // the note under the bar says every card is read "over the window selected above" — so
+      // the collapsed pill has to keep naming that window
+      RSC.collapsible(main.querySelector(".pk-bar"), "rsBarCollapsed:packing-control", {
+        count: function () {
+          var labels = [];
+          if (S.month) labels.push(monLab(S.month));
+          if (S.co) labels.push(S.co);
+          if (S.flagOnly) labels.push("Only above the line");
+          if (S.q) labels.push("Search");
+          return { n: labels.length, labels: labels };
+        },
+      });
       // an open file is a claim about the window on screen; if the window moved, either
       // restate it against the new numbers or take it down
       if (S.open) {

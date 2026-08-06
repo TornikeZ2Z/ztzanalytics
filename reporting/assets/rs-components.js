@@ -252,6 +252,129 @@ window.RSC = (function () {
     return `<table class="tab"><thead>${th}</thead><tbody>${body}</tbody>${foot}</table>`;
   }
 
+  /* ---------------- page scroller sizing: --pg-chrome ----------------
+     Seven scrollers across five pages baked their height as calc(100vh - NNNpx). Those
+     constants are hand-measured offsetTops — right for one arrangement of the chrome above
+     them, wrong the moment a bar or the sidebar collapses. Measure the same quantity instead:
+     the distance from the top of the viewport to the scroller, unscrolled. Deliberately NOT
+     including what sits BELOW (pagers, footnotes): that would shrink every table on load,
+     which is a different change from the one asked for — expanded must look like today.
+     The CSS keeps its old number as the var fallback, so the first paint is unchanged. */
+  function fitScroller(el) {
+    if (!el || !el.offsetParent) return;   // display:none measures as 0 and would collapse it
+    if (!window.innerHeight) return;       // no laid-out viewport = no measurement, not a zero one
+    el.setAttribute("data-rsfit", "1");
+    const sc = el.closest(".rs-content");
+    // + scrollTop so a page the user has already scrolled measures the same as one at rest
+    const top = el.getBoundingClientRect().top + (sc ? sc.scrollTop : (window.scrollY || 0));
+    // never measure a scroller out of existence — on a short window the chrome above can
+    // exceed the viewport, and a negative height would show nothing at all
+    el.style.setProperty("--pg-chrome",
+      Math.round(Math.min(Math.max(top, 0), Math.max(0, window.innerHeight - 200))) + "px");
+  }
+  /* Re-measure every scroller currently on screen. The registry IS the DOM (the attribute
+     above) — pages rebuild their tables wholesale, so a JS list of elements would leak. */
+  function fit() { document.querySelectorAll("[data-rsfit]").forEach(fitScroller); }
+
+  /* Charts and maps size themselves once and never look again. Chart.js has a
+     ResizeObserver, Leaflet does not, and neither is told anything by display:none. */
+  function reflow() {
+    fit();
+    try { Object.values(Chart.instances || {}).forEach(c => { try { c.resize(); } catch (e) {} }); } catch (e) {}
+    // Leaflet keeps no registry and each page parks its map on its own container property
+    // (_ldmap on LD Planning, _m on Cleanup) — so find it by shape, not by name.
+    document.querySelectorAll(".leaflet-container").forEach(n => {
+      Object.keys(n).forEach(k => {
+        const v = n[k];
+        if (v && typeof v.invalidateSize === "function") { try { v.invalidateSize(); } catch (e) {} }
+      });
+    });
+  }
+  /* Same, for a change that ANIMATES. CSS transitions do not run in a backgrounded tab, so
+     transitionend may never arrive — the timeout is the real path there, not a fallback
+     (the visibilityState guard in monthly-report.js is the same trap). */
+  function reflowAfter(el) {
+    reflow();
+    let done = false;
+    const fire = () => { if (done) return; done = true; reflow(); };
+    if (el) el.addEventListener("transitionend", fire, { once: true });
+    setTimeout(fire, 250);
+  }
+  let fitQueued = false;
+  window.addEventListener("resize", () => {
+    if (fitQueued) return;
+    fitQueued = true;
+    requestAnimationFrame(() => { fitQueued = false; fit(); });
+  });
+
+  /* ---------------- collapsible filter bar ----------------
+     A hidden bar that is still filtering is a lie about the numbers underneath it, so the
+     collapsed state always says what is on. cfg.count() returns {n, labels, scope} — or
+     null when the page cannot count its own filters, and then the pill says exactly that
+     rather than showing a reassuring zero.
+     The toggle mounts INSIDE the bar as its first child: a separate row above it would
+     cost as much height as collapsing the bar saves. Controls the page must not swallow
+     (a Run button, a live status) stay visible by carrying .rs-ckeep in the page's markup.
+     cfg.host parks the toggle in a DIFFERENT row that stays — the two-row bars (Money Flow,
+     LD Planning) put it beside the view switcher, so collapsing buys a whole row back
+     instead of trading one row for another. */
+  function collapsible(bar, storeKey, cfg) {
+    cfg = cfg || {};
+    if (!bar) return null;
+    if (bar.dataset.rscBar) return bar.__rscBar || null;   // idempotent: pages repaint freely
+    bar.dataset.rscBar = "1";
+    let key = storeKey;
+    const host = cfg.host || bar;
+    const row = el("div", "rs-cbar");
+    const btn = el("button", "rs-ctog");
+    btn.type = "button";
+    const pill = el("span", "rs-cpill");
+    row.appendChild(btn); row.appendChild(pill);
+    host.insertBefore(row, host.firstChild);
+
+    const read = () => { try { return localStorage.getItem(key) === "1"; } catch (e) { return false; } };
+    const summary = () => {
+      let c = null;
+      try { c = cfg.count ? cfg.count() : null; } catch (e) { c = null; }
+      if (typeof c === "number") c = { n: c };
+      if (!c || c.n == null) return { cls: " unknown", text: "Filters hidden — open to check" };
+      const scope = c.scope ? " · " + c.scope : "";
+      if (!c.n) return { cls: " none", text: "No filters" + scope };
+      const labels = (c.labels && c.labels.length) ? " · " + c.labels.join(", ") : "";
+      return { cls: "", text: c.n + (c.n === 1 ? " filter active" : " filters active") + labels + scope };
+    };
+    const paint = () => {
+      const off = host.classList.contains("rs-bar-off");
+      btn.innerHTML = `<span class="rs-ccar">▾</span>${esc(cfg.label || "Filters")}`;
+      btn.setAttribute("aria-expanded", off ? "false" : "true");
+      btn.title = off ? "Show the filters" : "Hide the filters";
+      const s = summary();
+      pill.className = "rs-cpill" + s.cls;
+      pill.textContent = s.text;
+      pill.style.display = off ? "" : "none";
+    };
+    const set = (off, persist) => {
+      host.classList.toggle("rs-bar-off", off);
+      // hosted elsewhere = the whole bar goes; hosting the toggle itself = everything in it
+      // goes except the toggle and the page's keepers
+      if (bar === host) bar.classList.toggle("rs-bar-min", off);
+      else bar.classList.toggle("rs-cx-hide", off);
+      (cfg.also || []).forEach(n => { if (n) n.classList.toggle("rs-cx-hide", off); });
+      if (persist) { try { localStorage.setItem(key, off ? "1" : "0"); } catch (e) {} }
+      paint();
+    };
+    btn.onclick = () => { set(!host.classList.contains("rs-bar-off"), true); reflow(); };
+    set(read(), false);
+    const api = {
+      refresh: paint,
+      /* the global bar is one element shared by every page, so its remembered state has to
+         follow the page you are on */
+      rekey(k) { if (!k || k === key) return; key = k; set(read(), false); },
+    };
+    bar.__rscBar = api;
+    return api;
+  }
+
   /* ---------------- matrix: rowDim × month columns for one measure ---------------- */
   function matrix(rows, rowCol, measureName, opts) {
     opts = opts || {};
@@ -286,5 +409,6 @@ window.RSC = (function () {
   document.addEventListener("click", () =>
     document.querySelectorAll(".rs-slicer-pop").forEach(p => p.classList.add("hidden")));
 
-  return { el, esc, multiSelect, singleSelect, dateBar, kpis, chartCard, table, matrix };
+  return { el, esc, multiSelect, singleSelect, dateBar, kpis, chartCard, table, matrix,
+           collapsible, fitScroller, fit, reflow, reflowAfter };
 })();

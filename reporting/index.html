@@ -26,7 +26,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/portal.css?v=2">
-<link rel="stylesheet" href="assets/rs.css?v=14">
+<link rel="stylesheet" href="assets/rs.css?v=15">
 <style>
 /* collapsible sidebar groups + nested hub sub-items */
 #nav .g-title{cursor:pointer;user-select:none;display:flex;align-items:center;justify-content:space-between}
@@ -113,7 +113,7 @@ body.rs-viewas .rs-layout{box-shadow:inset 0 0 0 2px #7c3aed}
 
 <script src="assets/portal.js?v=11"></script>
 <script src="assets/rs-core.js?v=38"></script>
-<script src="assets/rs-components.js?v=9"></script>
+<script src="assets/rs-components.js?v=10"></script>
 <script>
 /* ---------------- page registry ---------------- */
 window.PAGES = [];
@@ -748,6 +748,38 @@ function mountBurger() {
   if (bd) bd.onclick = () => toggleSide(false);
 }
 
+/* Desktop sidebar collapse (Task 4). Remembered in localStorage like the nav groups
+   (rsNavCollapsed) and the theme, and APPLIED BEFORE THE APP IS UNHIDDEN — read it after
+   first paint and the sidebar shows for a frame before snapping shut. The burger and its
+   off-canvas drawer under 900px are untouched; this button hides itself there. */
+const sideMinned = () => { try { return localStorage.getItem("rsSideCollapsed") === "1"; } catch (e) { return false; } };
+function applySideMin(on) {
+  const app = document.getElementById("app");
+  if (app) app.classList.toggle("side-min", on);
+  const b = document.getElementById("sideTog");
+  if (b) {
+    b.classList.toggle("on", on);
+    b.title = on ? "Show the reports menu" : "Hide the reports menu";
+    b.setAttribute("aria-expanded", String(!on));
+  }
+}
+function mountSideToggle() {
+  const host = document.getElementById("ztzHeader");
+  if (!host || document.getElementById("sideTog")) return;
+  const b = document.createElement("button");
+  b.id = "sideTog"; b.className = "rs-sidetog";
+  b.innerHTML = '<svg viewBox="0 0 24 24"><rect x="3" y="4.5" width="18" height="15" rx="2"/><path d="M9.5 4.5v15"/></svg>';
+  b.onclick = () => {
+    const on = !document.getElementById("app").classList.contains("side-min");
+    try { localStorage.setItem("rsSideCollapsed", on ? "1" : "0"); } catch (e) {}
+    applySideMin(on);
+    // the sidebar WIDTH is animated, so charts and maps must be told after it settles
+    RSC.reflowAfter(document.getElementById("side"));
+  };
+  host.insertBefore(b, host.firstChild);
+  applySideMin(sideMinned());
+}
+
 function navigate(id, push) {
   let deniedTitle = null;
   if (id && id.indexOf(":") > 0) id = id.split(":")[0];   // collapse any legacy "hub:tab" deep link
@@ -795,6 +827,7 @@ async function renderPage() {
   const bare = BARE_CHROME.has(currentLeafId());
   document.body.classList.toggle("mr-own-time", MR_OWN_TIME.has(currentLeafId()));
   const fEl = document.getElementById("filters"); if (fEl) fEl.classList.toggle("hidden", bare);
+  if (GBAR) GBAR.rekey("rsBarCollapsed:" + currentLeafId());
   { const cEl = document.getElementById("chips"); if (cEl) { if (bare) cEl.classList.add("hidden"); else paintChips(); } }
   // destroy the outgoing page's Chart instances BEFORE wiping the DOM — otherwise they leak on
   // every navigation / theme change / re-render (worst on chart-heavy pages)
@@ -817,6 +850,9 @@ async function renderPage() {
     if (rb) rb.onclick = () => renderPage();
     console.error(e);
   }
+  // one sweep after the page has painted: every scroller that measures its own chrome sits
+  // under whatever the shell decided to show above it (filter bar, chips, banners)
+  requestAnimationFrame(() => RSC.fit());
   updateNoDataBanner();
 }
 
@@ -969,6 +1005,35 @@ function buildNav() {
 }
 
 /* ------------- global filter bar v2: primary slicers + More popover + chips ------------- */
+/* The bar collapses (Task 3) with the same pill every page bar uses. Its remembered state
+   is PER PAGE — renderPage() rekeys it — because one shared element serving 40 reports
+   would otherwise carry a decision made on a dense table page into an analysis page. */
+let GBAR = null;
+function globalFilterCount() {
+  const labels = [];
+  if (RS.state.dateFrom || RS.state.dateTo) labels.push("Date");
+  if (RS.state.dayFrom != null || RS.state.dayTo != null) labels.push("Day of month");
+  Object.entries(RS.state.multi).forEach(([k, set]) => {
+    // Company is a permanent scope, not a filter you switch on and off (audit F4) — it is
+    // reported as scope so a collapsed bar still says which book the numbers are for.
+    if (k === "company" || !set || !set.size || !RS.FIELDS[k]) return;
+    labels.push(RS.FIELDS[k].label);
+  });
+  const comp = RS.state.multi.company;
+  return { n: labels.length, labels, scope: (comp && comp.size) ? [...comp].join(", ") : null };
+}
+/* The chevron rides in the DATE row rather than above the bar: a row of its own would cost
+   the height that collapsing the slicer row gives back. So the time controls stay put — they
+   are the ones every reading is quoted against — and the slicers, the date-basis caption and
+   the chip row go. */
+function mountGlobalBar() {
+  GBAR = RSC.collapsible(document.getElementById("frowSlicers"), "rsBarCollapsed:global", {
+    host: document.getElementById("frowDates"),
+    count: globalFilterCount,
+    also: [document.getElementById("dateBasisNote"), document.getElementById("chips")],
+  });
+}
+
 let rerenderTimer = null;
 function onFilterChange() {
   clearTimeout(rerenderTimer);
@@ -1017,6 +1082,7 @@ function paintChips() {
     else RS.state.multi[k].clear();
     buildFilters().then(renderPage);
   });
+  if (GBAR) GBAR.refresh();   // the collapsed pill is the only account of these chips
   const ca = host.querySelector("#chipClearAll");
   if (ca) ca.onclick = () => {
     Object.values(RS.state.multi).forEach(s => s.clear());
@@ -1087,8 +1153,11 @@ if (!ZTZ.getToken()) {
       console.error(e);
     });
 } else {
+  applySideMin(sideMinned());   // BEFORE the app is unhidden — otherwise the sidebar flashes open
   document.getElementById("app").classList.remove("hidden");
   mountBurger();
+  mountSideToggle();
+  mountGlobalBar();
   // Immediate boot state — the first dataset fetch takes a few seconds and the
   // slicers can't populate until it lands; never show an empty void.
   document.getElementById("content").innerHTML =
@@ -1457,27 +1526,27 @@ registerPage({
 <script src="pages/leads-vs-moveboard.js?v=7"></script>
 <script src="pages/source-analysis.js?v=4"></script>
 <script src="pages/data-quality.js?v=9"></script>
-<script src="pages/refresh-log.js?v=12"></script>
-<script src="pages/sales-team.js?v=32"></script>
+<script src="pages/refresh-log.js?v=13"></script>
+<script src="pages/sales-team.js?v=33"></script>
 <script src="pages/source-trace.js?v=6"></script>
 <script src="pages/multi-source-leads.js?v=3"></script>
 <script src="pages/calendar-coverage.js?v=8"></script>
 <script src="pages/request-consistency.js?v=4"></script>
 <script src="pages/branch-owner.js?v=6"></script>
-<script src="pages/money-flow.js?v=41"></script>
-<script src="pages/ld-planning.js?v=73"></script>
+<script src="pages/money-flow.js?v=42"></script>
+<script src="pages/ld-planning.js?v=74"></script>
 <script src="pages/cleanup.js?v=21"></script>
-<script src="pages/packing-control.js?v=8"></script>
-<script src="pages/storage-control.js?v=5"></script>
+<script src="pages/packing-control.js?v=9"></script>
+<script src="pages/storage-control.js?v=6"></script>
 <script src="pages/foreman-assessment.js?v=7"></script>
 <script src="pages/fuel-control.js?v=4"></script>
 <script src="pages/general-tables.js?v=1"></script>
 <script src="pages/money-flow-issues.js?v=2"></script>
-<script src="pages/foreman-closings.js?v=11"></script>
+<script src="pages/foreman-closings.js?v=12"></script>
 <script src="pages/general-settings.js?v=3"></script>
-<script src="pages/review-performance.js?v=19"></script>
-<script src="pages/leads-inflow.js?v=1"></script>
-<script src="pages/speed-to-lead.js?v=6"></script>
+<script src="pages/review-performance.js?v=20"></script>
+<script src="pages/leads-inflow.js?v=2"></script>
+<script src="pages/speed-to-lead.js?v=7"></script>
 <script src="pages/reminders.js?v=37"></script>
 </body>
 </html>
