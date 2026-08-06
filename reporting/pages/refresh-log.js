@@ -539,7 +539,7 @@ function rlRender(host, runs, cov, fresh) {
       // earlier version of this tile counted from the run history and said "today" while the
       // board said seventy-nine days -- two numbers, one question, and the smaller one on top.
       if (!fresh || !fresh.length) return "";
-      const aged = fresh.filter(f => f.days_since_file != null)
+      const aged = fresh.filter(f => f.days_since_file != null && !f.paused)
                         .sort((a, b) => b.days_since_file - a.days_since_file);
       if (!aged.length) return "";
       const w = aged[0], stale = aged.filter(f => f.days_since_file >= 21);
