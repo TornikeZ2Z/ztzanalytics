@@ -2292,7 +2292,7 @@ async function renderMonthly(host, MRCFG) {
               + bar("Logistics assessment · 6 questions", win.answered ? win.manual : null, 30, BLUE_BG,
                     "not assessed yet");
 
-            const runners = Q.slice(0, 6).map((r, i) => `<tr${i ? "" : ' style="font-weight:800"'}>
+            const runners = Q.map((r, i) => `<tr${i ? "" : ' style="font-weight:800"'}>
               <td><span style="color:var(--faint);font-weight:600;margin-right:7px">${i + 1}</span>${esc(r.f)}</td>
               ${td(fmtN(r.jobs))}${td(fmt1(r.auto))}
               ${td(r.answered ? fmt1(r.manual) : "—", r.answered ? "" : "color:var(--faint)")}
@@ -2310,9 +2310,14 @@ async function renderMonthly(host, MRCFG) {
                    </div>
                    ${bars}
                  </div>
-                 <div><div class="mrx-scroll"><table class="mrx-tbl"><thead><tr><th>Foreman</th>
+                 <div><div class="mrx-scroll" style="max-height:420px;overflow-y:auto">
+                   <table class="mrx-tbl"><thead><tr><th>Foreman</th>
                    <th>Jobs</th><th>Counted /70</th><th>Assessed /30</th><th>Total</th></tr></thead>
-                   <tbody>${runners}</tbody></table></div></div>
+                   <tbody>${runners}</tbody></table></div>
+                   ${M.length > Q.length ? `<div style="font-size:11px;color:var(--faint);margin-top:7px">`
+                     + `${M.length - Q.length} more foreman${M.length - Q.length === 1 ? "" : "en"} `
+                     + `worked this month but ${M.length - Q.length === 1 ? "is" : "are"} not in the `
+                     + `running — fewer than five jobs, or less than half the counted score measurable.</div>` : ""}</div>
                </div>`,
               { span2: true, icon: KIC.grid, headVal: fmt1(val(win)) + " / 100",
                 noteKind: "how",
@@ -2374,7 +2379,7 @@ async function renderMonthly(host, MRCFG) {
               note: `Reviews are matched to the foreman's closed jobs, so <b>Per job</b> = reviews earned ÷ jobs run that month — the rate the 20 review points are scored on, through the office's range table. <b>Change</b> is against ${MS[PM]}, in percentage points. A red 0 in Reviews is a month where a foreman ran jobs and earned none — that scores zero, it is never skipped. <b>Score /20</b> is what the rate contributed to his counted 70.` });
         })();
 
-        tableCard(g, "Foreman scorecard — ranked", monLbl, `<table class="mrx-tbl"><thead><tr><th>Foreman</th><th>Jobs</th><th>CF</th><th>Pay</th><th>Tips</th><th>Packing</th><th>vs Est</th><th>Reviews</th><th>Claims</th><th>Refunds</th><th>Score</th></tr></thead><tbody>${rowsH}</tbody></table>`, { icon: KIC.grid, headVal: fmtN(sc.length) + " crews", noteKind: "how", note: `Pay/Tips from closings; ▲▼ arrows on Jobs/Pay/Tips compare vs ${MS[PM]}. 'vs Est' = packing written ÷ quoted estimate (green at 1× or above, red below). Score combines jobs, packing, reviews and fault claims — higher is better; the ▲▼ beside it compares vs ${MS[PM]}. Rank 1 crowned.${CO === MR_CO_DEFAULT ? "" : ` <b>Not split by company:</b> the foreman scorecard mart carries no Company column, so these crews are ranked across every book, not just ${esc(CO)}.`}` });
+        tableCard(g, "Foreman scorecard — ranked", monLbl, `<table class="mrx-tbl"><thead><tr><th>Foreman</th><th>Jobs</th><th>CF</th><th>Pay</th><th>Tips</th><th>Packing</th><th>vs Est</th><th>Reviews</th><th>Claims</th><th>Refunds</th><th>Score</th></tr></thead><tbody>${rowsH}</tbody></table>`, { icon: KIC.grid, headVal: fmtN(sc.length) + " crews", noteKind: "how", note: `Pay/Tips from closings; ▲▼ arrows on Jobs/Pay/Tips compare vs ${MS[PM]}. 'vs Est' = packing written ÷ quoted estimate (green at 1× or above, red below). Score combines jobs, packing, reviews and fault claims — higher is better; the ▲▼ beside it compares vs ${MS[PM]}. The crown lives on the Foreman of the Month card above, which is the one that applies the eligibility rule.${CO === MR_CO_DEFAULT ? "" : ` <b>Not split by company:</b> the foreman scorecard mart carries no Company column, so these crews are ranked across every book, not just ${esc(CO)}.`}` });
       }
       // ---- HOW MANY CREW WE HAVE -------------------------------------------------
       // Two counts, because there are two questions. WORKED comes from job records and is
@@ -2394,34 +2399,40 @@ async function renderMonthly(host, MRCFG) {
           if (!dv) return ` <span style="font-size:11px;color:var(--faint);font-weight:600">no change</span>`;
           return ` <span style="font-size:12px;font-weight:800;color:${dv > 0 ? POS : NEG}">${dv > 0 ? "▲" : "▼"}${Math.abs(dv)}</span>`;
         };
+        // current number on the left, LAST MONTH on the right -- his ask: the previous period
+        // is the comparison worth carrying, not the payroll roster
         const cell = (lab, v, pvv, sub) => `<div style="background:var(--panel-2);border:1px solid var(--line);border-radius:12px;padding:12px 14px">
             <div style="font-size:9.5px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--faint)">${esc(lab)}</div>
-            <div style="font-size:24px;font-weight:750;letter-spacing:-.5px;margin-top:3px;line-height:1.15">${v == null ? "—" : fmtN(v)}${delta(v, pvv)}</div>
-            <div style="font-size:11px;color:var(--muted);margin-top:2px">${esc(sub)}</div></div>`;
+            <div style="display:flex;align-items:baseline;gap:10px;margin-top:3px">
+              <div style="font-size:24px;font-weight:750;letter-spacing:-.5px;line-height:1.15">${v == null ? "—" : fmtN(v)}${delta(v, pvv)}</div>
+              <div style="margin-left:auto;text-align:right;line-height:1.15">
+                <div style="font-size:15px;font-weight:650;color:var(--muted)">${pvv == null ? "—" : fmtN(pvv)}</div>
+                <div style="font-size:8.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--faint)">${esc(MS[PM])}</div>
+              </div>
+            </div>
+            <div style="font-size:11px;color:var(--muted);margin-top:4px">${esc(sub)}</div></div>`;
         const g1 = (k) => cur ? nn(cur[k]) : null, g0 = (k) => prv ? nn(prv[k]) : null;
         const idle = (g1("Roster Foremen") != null && g1("Foremen Worked") != null)
           ? g1("Roster Foremen") - g1("Foremen Worked") : null;
         tableCard(g, "Crew we have", monLbl + " · worked vs on the books",
-          `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(148px,1fr));gap:10px">
-             ${cell("Foremen who worked", g1("Foremen Worked"), g0("Foremen Worked"), "ran at least one job")}
-             ${cell("Helpers who worked", g1("Helpers Worked"), g0("Helpers Worked"), "crewed at least one job")}
-             ${cell("Crew who worked", g1("Crew Worked"), g0("Crew Worked"), "foremen + helpers")}
-             ${cell("Foremen on the roster", g1("Roster Foremen"), g0("Roster Foremen"), "crew file · Active")}
-             ${cell("Helpers on the roster", g1("Roster Helpers"), g0("Roster Helpers"), "crew file · Active")}
-             ${cell("Drivers on the roster", g1("Roster Drivers"), g0("Roster Drivers"), "roster only")}
+          `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px">
+             ${cell("Foremen", g1("Foremen Worked"), g0("Foremen Worked"), "ran at least one job")}
+             ${cell("Drivers", g1("Drivers Worked"), g0("Drivers Worked"), "drove at least one job")}
+             ${cell("Helpers", g1("Helpers Worked"), g0("Helpers Worked"), "crewed at least one job")}
+             ${cell("Total workforce", g1("Crew Worked"), g0("Crew Worked"), "distinct people who worked")}
            </div>`,
-          { span2: true, icon: KIC.grid,
+          { span2: false, icon: KIC.grid,
             headVal: (g1("Crew Worked") == null ? "—" : fmtN(g1("Crew Worked"))) + " working",
             noteKind: "how",
-            note: `<b>Two counts, because there are two questions.</b> <b>Worked</b> is counted from `
-              + `job records — the foreman named on each closing, and the helpers on its crew lines — `
-              + `so it is the operating number, and its arrows against ${MS[PM]} are real history back `
-              + `to 2023. <b>Roster</b> is the crew file's Active list; that file carries a status but `
-              + `<b>no hire or leave date</b>, so the roster can only be snapshotted forward from the `
-              + `month this first ran — earlier months show a dash rather than a guess. `
-              + `<b>Drivers appear on the roster side only:</b> no job record names a driver, so there `
-              + `is nothing to count them against.`
-              + `${idle != null && idle > 0 ? ` <b>${fmtN(idle)} foremen on the books did not run a job this month</b> — the gap between the two halves is the number worth watching.` : ""}` });
+            note: `Everyone here is counted from <b>job records</b> — the foreman and the driver `
+              + `named on each closing, and the helpers on its crew lines — so these are operating `
+              + `numbers, and the arrows against ${MS[PM]} are real history back to 2023. `
+              + `<b>Total workforce counts distinct PEOPLE, not the three roles added up:</b> a man `
+              + `who drove on Monday and ran a crew on Wednesday is one person who worked, and summing `
+              + `the roles would count him twice. `
+              + `<b>Drivers were missing from this card until 2026-08-06</b> — the first build claimed `
+              + `no job record named one, and the closing sheet has carried a Driver column, with hours `
+              + `and pay, the whole time.` });
       })();
 
       const jobF = segSeries("closing", "Total Jobs", "Foreman").slice(0, 12);
@@ -2463,15 +2474,17 @@ async function renderMonthly(host, MRCFG) {
         // (company 1.92x). So we grade with `Packing Vs Estimate Score`, the SAME 0-100 the warehouse already
         // derived from those bands and feeds into Forman Score at 20% weight. That keeps this card agreeing
         // with the scorecard instead of inventing a second, contradictory verdict.
-        const eff = scRows.map(r => ({ f: r.Foreman, p100: num(r["Packing per 100 CF"]), rtj: num(r["Reviews to Jobs Ratio"]), jobs: num(r["Total Jobs"]), est: num(r["Total Packing Estimate"]), wrt: num(r["Total Packing Written"]), pve: num(r["Packing Difference %"]), pveS: num(r["Packing Vs Estimate Score"]) }))
-          .filter(r => r.f && r.jobs > 0).sort((a, b) => b.p100 - a.p100).slice(0, 15);
+        const eff = scRows.map(r => ({ f: r.Foreman, p100: num(r["Packing per 100 CF"]), rtj: num(r["Reviews to Jobs Ratio"]), jobs: num(r["Total Jobs"]), est: num(r["Total Packing Estimate"]), wrt: num(r["Total Packing Written"]), pve: num(r["Packing Difference %"]), pveS: num(r["Packing Vs Estimate Score"]),
+            ok: +r["Qualified"] === 1, why: r["Not Qualified Because"] || "" }))
+          .filter(r => r.f && r.jobs > 0)
+          .sort((a, b) => (a.ok === b.ok ? 0 : a.ok ? -1 : 1) || b.p100 - a.p100).slice(0, 15);
         if (eff.length) {
           const dCell = (cur, prev) => { if (prev == null || !prev) return td("—", "color:" + FAINT); const d2 = (cur - prev) / Math.abs(prev); return td(`${d2 >= 0 ? "▲" : "▼"} ${Math.abs(d2 * 100).toFixed(0)}%`, `color:${d2 >= 0 ? POS : NEG};font-weight:800`); };
           const pveCell = r => { if (!r.est || !r.pve) return td("—", "color:" + FAINT); const s = r.pveS;
             return td(fmt1(r.pve) + "×" + (s ? ` <span style="color:${SUB};font-weight:600">${fmt1(s)}/100</span>` : ""), `font-weight:800;color:${s >= 70 ? POS : s >= 45 ? WARN : NEG}`); };
           const tEst = eff.reduce((a, r) => a + r.est, 0), tWrt = eff.reduce((a, r) => a + r.wrt, 0);
-          const effHtml = `<table class="mrx-tbl"><thead><tr><th>Foreman</th><th>Packing estimate</th><th>Packing written</th><th>× estimate · score</th><th>Packing $ / 100 CF</th><th>vs ${MS[PM]}</th><th>Reviews / job</th><th>vs ${MS[PM]}</th></tr></thead><tbody>${eff.map((r, i) => { const p = prevEff[r.f] || {}; return `<tr><td>${i === 0 ? "👑 " : ""}${esc(r.f)}</td>${td(r.est ? money(r.est) : "—", "color:" + SUB)}${td(money(r.wrt))}${pveCell(r)}${td(money(r.p100))}${dCell(r.p100, p.p100)}${td(fmt1(r.rtj))}${dCell(r.rtj, p.rtj)}</tr>`; }).join("")}<tr class="tot"><td>All crews</td>${td(money(tEst))}${td(money(tWrt))}${td(tEst ? fmt1(tWrt / tEst) + "×" : "—")}${td("")}${td("")}${td("")}${td("")}</tr></tbody></table>`;
-          tableCard(g, "Foreman efficiency — packing estimate vs written, density & reviews", monLbl + " vs " + MS[PM], effHtml, { icon: KIC.grid, headVal: tEst ? fmt1(tWrt / tEst) + "× estimate" : fmtN(eff.length) + " crews", noteKind: "how", note: `Packing estimate = what the job was quoted to pack; Packing written = what the crew actually sold on site. The estimate is a floor to beat, NOT a target to hit — your packing-vs-estimate scoring bands score 1.0× at only 20/100 and pay full marks at 3.3× and above, so "× estimate" is shown with that same 0–100 score beside it (green 70+, amber 45+, red below). It is the identical score that feeds Forman Score at 20% weight, so this card and the scorecard always agree. Then packing $ written per 100 CF moved, and reviews collected per job — ranked by density, ▲▼ vs ${MS[PM]}. A crew with no estimate on file shows "—".` });
+          const effHtml = `<table class="mrx-tbl"><thead><tr><th>Foreman</th><th>Packing estimate</th><th>Packing written</th><th>× estimate · score</th><th>Packing $ / 100 CF</th><th>vs ${MS[PM]}</th><th>Reviews / job</th><th>vs ${MS[PM]}</th></tr></thead><tbody>${eff.map((r, i) => { const p = prevEff[r.f] || {}; return `<tr><td>${i === 0 && r.ok ? "👑 " : ""}${esc(r.f)}${r.ok ? "" : ` <span style="color:var(--faint);font-size:10px" title="${esc(r.why)}">not ranked</span>`}</td>${td(r.est ? money(r.est) : "—", "color:" + SUB)}${td(money(r.wrt))}${pveCell(r)}${td(money(r.p100))}${dCell(r.p100, p.p100)}${td(fmt1(r.rtj))}${dCell(r.rtj, p.rtj)}</tr>`; }).join("")}<tr class="tot"><td>All crews</td>${td(money(tEst))}${td(money(tWrt))}${td(tEst ? fmt1(tWrt / tEst) + "×" : "—")}${td("")}${td("")}${td("")}${td("")}</tr></tbody></table>`;
+          tableCard(g, "Foreman efficiency — packing estimate vs written, density & reviews", monLbl + " vs " + MS[PM], effHtml, { icon: KIC.grid, headVal: tEst ? fmt1(tWrt / tEst) + "× estimate" : fmtN(eff.length) + " crews", noteKind: "how", note: `Packing estimate = what the job was quoted to pack; Packing written = what the crew actually sold on site. The estimate is a floor to beat, NOT a target to hit — your packing-vs-estimate scoring bands score 1.0× at only 20/100 and pay full marks at 3.3× and above, so "× estimate" is shown with that same 0–100 score beside it (green 70+, amber 45+, red below). It is the identical score that feeds Forman Score at 20% weight, so this card and the scorecard always agree. Then packing $ written per 100 CF moved, and reviews collected per job — ranked by density, ▲▼ vs ${MS[PM]}. A crew with no estimate on file shows "—". <b>The same eligibility rule as Foreman of the Month applies:</b> a crew with fewer than five jobs, or less than half the counted score measurable, still appears — the packing it sold is real — but sorts last, is marked "not ranked", and cannot take the crown.` });
         }
       }
     }

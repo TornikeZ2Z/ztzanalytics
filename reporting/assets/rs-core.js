@@ -166,10 +166,10 @@ window.RS = (function () {
     },
     headcount: {
       table: "mart_crew_headcount",
-      cols: ["Month", "Month Year", "Foremen Worked", "Helpers Worked", "Crew Worked",
+      cols: ["Month", "Month Year", "Foremen Worked", "Drivers Worked", "Helpers Worked", "Crew Worked",
              "Jobs", "Helper Shifts", "Helper Hours", "Roster Foremen", "Roster Helpers",
-             "Roster Drivers", "Roster Total", "Foremen Worked Prev", "Helpers Worked Prev",
-             "Crew Worked Prev"],
+             "Roster Drivers", "Roster Total", "Foremen Worked Prev",
+             "Drivers Worked Prev", "Helpers Worked Prev", "Crew Worked Prev", "Jobs Prev"],
       dateCols: { "Month": "Month" }, defaultDate: "Month",
     },
     review_counts: {

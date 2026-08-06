@@ -176,7 +176,25 @@ function rlInjectStyle() {
   .rl-gdur{font-size:12px;font-weight:700;color:var(--muted);text-align:right;font-variant-numeric:tabular-nums}
   .rl-src{display:grid;grid-template-columns:repeat(auto-fill,minmax(188px,1fr));gap:8px}
   .rl-scard{border:1px solid var(--line);border-radius:9px;padding:9px 11px;background:var(--panel-2)}
-  .rl-scard.skip{opacity:.5}
+  .rl-scard.skip{opacity:.55}
+  /* the two halves of the page: what a PERSON feeds in, and what the pipeline derives */
+  .rl-sgroup{margin-top:16px}
+  .rl-sghead{display:flex;align-items:baseline;gap:10px;margin-bottom:8px;padding-bottom:6px;
+             border-bottom:1px solid var(--line)}
+  .rl-sghead b{font-size:13px;font-weight:800;letter-spacing:-.1px;color:var(--ink)}
+  .rl-sghead span{font-size:11.5px;color:var(--faint)}
+  .rl-stale{margin-left:auto;font-size:10.5px;font-weight:800;padding:2px 9px;border-radius:999px;
+            background:var(--warn-bg);color:var(--warn)}
+  /* how long since this feed actually brought something new -- the "did I forget" signal */
+  .rl-age{display:inline-block;margin-top:6px;font-size:10px;font-weight:800;letter-spacing:.03em;
+          padding:1px 7px;border-radius:999px;background:var(--panel);border:1px solid var(--line);
+          color:var(--faint)}
+  .rl-age.fresh{color:var(--brand-d);border-color:var(--brand)}
+  body.rs-app:not(.light) .rl-age.fresh{color:var(--brand)}
+  .rl-age.ok{color:var(--muted)}
+  .rl-age.warn{color:var(--warn);border-color:var(--warn)}
+  .rl-age.old{color:var(--red);border-color:var(--red);font-weight:800}
+  .rl-kpi.stale::before{background:var(--amber)}
   .rl-sname{font-size:12.5px;font-weight:650;color:var(--ink);display:flex;align-items:center;justify-content:space-between;gap:6px}
   .rl-smeta{font-size:11.5px;color:var(--muted);margin-top:4px;display:flex;justify-content:space-between}
   .rl-smeta b{color:var(--ink);font-weight:700;font-variant-numeric:tabular-nums}
@@ -216,16 +234,75 @@ function rlGantt(p) {
   }).join("") + `</div>`;
 }
 
+// WHEN DID EACH SOURCE LAST ACTUALLY ARRIVE. Built once from the whole run history: for every
+// source, the most recent run in which it LOADED rather than skipped. That is the only signal
+// on this page that can answer "did I forget to drop an export" -- a feed nobody has updated
+// in three weeks reports unchanged every hour, indistinguishable from a feed where genuinely
+// nothing happened, unless somebody dates it.
+let RL_LAST = null;
+function rlBuildLastLoaded(runs) {
+  const out = {};
+  runs.forEach(r => {
+    (r.steps || []).forEach(x => {
+      if (x.kind !== "source" || x.status !== "ok") return;
+      const t = x.ended_at || x.started_at;
+      if (!t) return;
+      if (!out[x.step] || String(t) > String(out[x.step])) out[x.step] = t;
+    });
+  });
+  RL_LAST = out;
+}
+
+// Curated tables are DERIVED -- the pipeline rebuilds them from the raw feeds whenever their
+// inputs move, so "unchanged" there is the system working, never a person forgetting.
+const rlIsCurated = st => /^curated[:_]/i.test(String(st || ""));
+
+function rlDaysAgo(iso) {
+  if (!iso) return null;
+  const d = new Date(String(iso).replace(" ", "T"));
+  if (isNaN(d)) return null;
+  return Math.floor((Date.now() - d.getTime()) / 86400000);
+}
+
+function rlSourceCard(s, withAge) {
+  const skip = s.status === "skipped";
+  let age = "";
+  if (withAge) {
+    const d = rlDaysAgo((RL_LAST || {})[s.step]);
+    // The thresholds are deliberately loose. Some feeds are weekly by nature, so this is a
+    // prompt to look, never a verdict -- the tooltip carries the actual date.
+    const cls = d == null ? "none" : d <= 2 ? "fresh" : d <= 9 ? "ok" : d <= 20 ? "warn" : "old";
+    const lbl = d == null ? "never seen load" : d === 0 ? "today" : d === 1 ? "yesterday" : d + "d ago";
+    age = `<span class="rl-age ${cls}" title="last actually loaded: ${
+      RSC.esc((RL_LAST || {})[s.step] || "not in this history")}">${lbl}</span>`;
+  }
+  return `<div class="rl-scard ${skip ? "skip" : ""}">
+    <div class="rl-sname">${RSC.esc(RL.srcLabel(s))} ${RL.pill(s.status)}</div>
+    <div class="rl-smeta"><span>${skip ? "unchanged" : "loaded"}</span>
+      <b>${skip ? "\u2014" : RS.fmtN(s.rows || 0) + " rows"}</b></div>
+    ${age}
+  </div>`;
+}
+
 function rlSources(p) {
   if (!p.sources.length) return `<div style="color:var(--faint);font-size:12.5px;padding:4px 0">No individual source detail for this run.</div>`;
-  const cards = p.sources.slice().sort((a, b) => (b.rows || 0) - (a.rows || 0)).map(s => {
-    const skip = s.status === "skipped";
-    return `<div class="rl-scard ${skip ? "skip" : ""}">
-      <div class="rl-sname">${RSC.esc(RL.srcLabel(s))} ${RL.pill(s.status)}</div>
-      <div class="rl-smeta"><span>${skip ? "unchanged" : "loaded"}</span><b>${skip ? "—" : RS.fmtN(s.rows || 0) + " rows"}</b></div>
+  const all = p.sources.slice().sort((a, b) => (b.rows || 0) - (a.rows || 0));
+  const raw = all.filter(s => !rlIsCurated(s.step));
+  const cur = all.filter(s => rlIsCurated(s.step));
+  const stale = raw.filter(s => { const d = rlDaysAgo((RL_LAST || {})[s.step]); return d != null && d > 20; });
+
+  const block = (title, sub, list, withAge, extra) => !list.length ? "" : `
+    <div class="rl-sgroup">
+      <div class="rl-sghead"><b>${title}</b><span>${sub}</span>${extra || ""}</div>
+      <div class="rl-src">${list.map(s => rlSourceCard(s, withAge)).join("")}</div>
     </div>`;
-  }).join("");
-  return `<div class="rl-src">${cards}</div>`;
+
+  const staleChip = stale.length
+    ? `<span class="rl-stale">${stale.length} not updated in 3 weeks</span>` : "";
+  return block("What we feed it", raw.filter(s => s.status === "ok").length + " loaded · "
+               + raw.filter(s => s.status === "skipped").length + " unchanged", raw, true, staleChip)
+       + block("What it builds", cur.filter(s => s.status === "ok").length + " rebuilt · "
+               + cur.filter(s => s.status === "skipped").length + " already current", cur, false, "");
 }
 
 function rlSplit(p) {
@@ -349,6 +426,7 @@ async function rlPollLive(host) {
 
 function rlRender(host, runs, cov) {
   const procs = runs.map(RL.process);
+  rlBuildLastLoaded(procs);
   const L = procs[0];
   const kpi = (cls, lbl, val, sub) => `<div class="rl-kpi ${cls}"><div class="lbl">${lbl}</div><div class="val">${val}</div><div class="sub">${sub}</div></div>`;
   const kpis = `<div class="rl-kpis">
@@ -356,6 +434,18 @@ function rlRender(host, runs, cov) {
     ${kpi("raw", "Raw refresh", RL.fmtDur(L.rawDur), L.nLoaded + " sources loaded")}
     ${kpi("cur", "Curation", RL.fmtDur(L.curDur), "silver layer rebuilt")}
     ${kpi("tot", "Total run", RL.fmtDur(L.total), RSC.esc(L.run.trigger || "") + " · " + (L.run.status === "error" ? "had errors" : "all OK"))}
+    ${(() => {
+      // the one number he asked for: is anything we FEED the system going stale
+      const raw = L.sources.filter(s => !rlIsCurated(s.step));
+      const aged = raw.map(s => ({ s, d: rlDaysAgo((RL_LAST || {})[s.step]) }))
+                      .filter(x => x.d != null).sort((a, b) => b.d - a.d);
+      if (!aged.length) return "";
+      const worst = aged[0];
+      const stale = aged.filter(x => x.d > 20);
+      return kpi(stale.length ? "stale" : "", "Oldest feed",
+        worst.d === 0 ? "today" : worst.d + "d",
+        RSC.esc(RL.srcLabel(worst.s)) + (stale.length > 1 ? " · " + stale.length + " over 3 weeks" : ""));
+    })()}
   </div>`;
 
   const hero = `<div class="rl-card">
@@ -368,7 +458,6 @@ function rlRender(host, runs, cov) {
     ${rlSplit(L)}
     <div class="rl-mini-t">Timeline</div>
     ${rlGantt(L)}
-    <div class="rl-mini-t">Raw sources · ${L.nLoaded} loaded, ${L.nSkipped} unchanged</div>
     ${rlSources(L)}
   </div>`;
 
@@ -387,7 +476,7 @@ function rlRender(host, runs, cov) {
       <div class="rl-rbody">
         ${rlSplit(p)}
         <div class="rl-mini-t">Timeline</div>${rlGantt(p)}
-        <div class="rl-mini-t">Raw sources</div>${rlSources(p)}
+        ${rlSources(p)}
       </div>
     </div>`;
   };
