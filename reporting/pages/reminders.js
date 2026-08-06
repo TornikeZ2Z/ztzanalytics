@@ -411,6 +411,52 @@ registerPage({ id: "review-settings", group: "reviews", title: "Review URLs and 
         cols: ["Job Code", "Job No", "Job Date", "Customer", "Customer Mobile", "Customer Email"],
       };
     }
+    /* THE BOT'S OWN RECORD, FROM THE WAREHOUSE.
+       Response Analysis used to wait on the Apps Script relay for this: 12.0 seconds and 359KB
+       to deliver 500 log rows and 233 answers (measured 2026-08-06). That is Apps Script
+       latency, not data volume -- the same rows come out of MySQL in well under a second.
+       Both sheets are ingested hourly now, and the response model DELIBERATELY IGNORES TODAY
+       (`if (dk === todayKey) return`, and answers are cut at 30 days), so hourly data costs
+       this view nothing at all. The Daily Jobs and Settings views still read the relay,
+       because they DO show today and the live schedule. */
+    if (window.RS && RS.DATASETS && !RS.DATASETS.rrp_log) {
+      RS.DATASETS.rrp_log = {
+        table: "review_reminders_log",
+        cols: ["Timestamp", "Type", "Job Code", "Foreman", "Customer", "Sent To",
+               "Review Links", "Status", "Key"],   // Message is the whole Slack body: not needed here
+      };
+    }
+    if (window.RS && RS.DATASETS && !RS.DATASETS.rrp_resp) {
+      RS.DATASETS.rrp_resp = {
+        table: "review_responses",
+        cols: ["Timestamp", "Job Code", "Foreman", "Job Date", "Reason", "Note"],
+      };
+    }
+    // the relay's field names, which the whole page is written against; the warehouse keeps
+    // the sheet's headers, so the translation lives here and nowhere else
+    async function loadFromWarehouse() {
+      const [lg, rs] = await Promise.all([RS.load("rrp_log"), RS.load("rrp_resp")]);
+      return {
+        ok: true,
+        log: (lg || []).map(r => ({
+          ts: r["Timestamp"], type: String(r["Type"] || "").toLowerCase(),
+          job: r["Job Code"] || "", foreman: r["Foreman"] || "",
+          // a morning nudge is addressed to a person, not a job, and the sheet puts that
+          // person's address in the Foreman column -- the page reads it as `email`
+          email: r["Foreman"] || "",
+          customer: r["Customer"] || "", sentTo: r["Sent To"] || "",
+          links: r["Review Links"] || "", status: r["Status"] || "", key: r["Key"] || "",
+        })),
+        responses: (rs || []).map(r => ({
+          ts: r["Timestamp"], job: r["Job Code"] || "", foreman: r["Foreman"] || "",
+          date: r["Job Date"] || "", reason: r["Reason"] || "", note: r["Note"] || "",
+        })),
+        // config and schedule are the relay's business; this view never reads them
+        config: (RRP.data && RRP.data.config) || {}, schedule: (RRP.data && RRP.data.schedule) || [],
+        _fromWarehouse: true,
+      };
+    }
+
     async function loadJobReviews() {
       try {
         var loaded = await Promise.all([RS.load("reviews_breakdown"), RS.load("calendar_events_link")]);
@@ -1439,9 +1485,16 @@ registerPage({ id: "review-settings", group: "reviews", title: "Review URLs and 
         if (RRP.view === "links") await loadGoals();
         // response view: the warehouse review match loads IN PARALLEL with the relay feed —
         // neither blocks the other, and paint() below shows both together.
-        await Promise.all([ensureData(false),
-          RRP.view === "response" ? loadJobReviews() : Promise.resolve(),
-          RRP.view === "response" ? loadContacts() : Promise.resolve()]);
+        if (RRP.view === "response") {
+          // no relay in this path at all -- three warehouse reads in parallel, all cached
+          // against the data epoch, so a second visit is instant
+          const [wh] = await Promise.all([loadFromWarehouse(), loadJobReviews(), loadContacts()]);
+          RRP.data = Object.assign({}, RRP.data, wh);
+          RRP._fmap = null; RRP.dataFresh = true; RRP.fromCache = false;
+          RRP.fetchedAt = Date.now();
+        } else {
+          await ensureData(false);
+        }
         if (RRP.view === "links") await loadGoals();
       } catch (e) {}
       RRP.loading = false;
