@@ -151,7 +151,7 @@ const GROUP_OVERRIDE = {
   // Company Overview
   "monthly-report": "company", "analysis-by-category": "company",
   // Sales ("sales-geo" moved to Financial — Tornike 2026-07-13: geography is a money view)
-  "sales-funnel": "sales", "sales-perf": "sales", "sales-geo": "financial", "sales-speed": "sales", "leads-inflow": "sales", "sales-command": "sales",
+  "sales-funnel": "sales", "sales-perf": "sales", "sales-geo": "financial", "sales-speed": "sales", "leads-inflow": "sales", "demand-analysis": "sales", "sales-command": "sales",
   // Marketing
   "mkt-roi": "marketing", "mkt-sources": "marketing", "mkt-phone": "marketing",
   // Logistics
@@ -173,7 +173,7 @@ const groupOf = p => GROUP_OVERRIDE[p.id] || p.group;
 /* explicit per-container item order (numbers are scoped within each group's display list) */
 const NAV_ORDER = {
   "monthly-report": 1, "analysis-by-category": 2,
-  "sales-command": 0.5, "sales-funnel": 1, "sales-perf": 2, "sales-speed": 3, "leads-inflow": 4,
+  "sales-command": 0.5, "sales-funnel": 1, "sales-perf": 2, "sales-speed": 3, "leads-inflow": 4, "demand-analysis": 5,
   "mkt-roi": 1, "mkt-sources": 2, "mkt-phone": 3,
   "money-flow": 1, "foreman-closings": 2, "ld-planning": 3, "packing-control": 4, "storage-control": 5, "foreman-assessment": 6, "fuel-control": 7, "log-foreman": 8, "log-packing": 9,
   "cleanup": 1,
@@ -241,7 +241,7 @@ const PAGE_ICONS = {
   "angi-vs-moveboard": "compass", "reviews-team": "star", "support-team": "shield", "lead-source-analysis": "compass", "source-analysis": "compass", "movers-analysis": "megaphone",
   "financial-team": "trend", "sales-team": "user", "marketing-team": "megaphone", "logistics-team": "tool",
   // themed dashboards + settings (2026-07-09 restructure)
-  "sales-command": "gauge", "sales-funnel": "funnel", "sales-perf": "user", "sales-geo": "pin", "sales-speed": "phone", "leads-inflow": "activity",
+  "sales-command": "gauge", "sales-funnel": "funnel", "sales-perf": "user", "sales-geo": "pin", "sales-speed": "phone", "leads-inflow": "activity", "demand-analysis": "calendar",
   "mkt-roi": "trend", "mkt-sources": "compass", "mkt-phone": "phone",
   "log-foreman": "tool", "log-packing": "box",
   "fin-revenue": "trend", "fin-rr": "trend", "rev-production": "star",
@@ -620,6 +620,7 @@ const PAGE_DATASETS = {
   "response-analysis": [], "review-settings": [],
   "sales-speed": [],
   "leads-inflow": [],
+  "demand-analysis": [],   // its own year + company pickers own the window
   "sales-command": ["lead_journey"],
   "money-flow": [],          // loads fct_money_flow itself + the /api/_mf live overlay
   "ld-planning": [],         // loads fct_ld_planning itself; no global slicers apply
@@ -812,7 +813,7 @@ function navigate(id, push) {
 /* Pages that bring their OWN toolbar and ignore the global filter bar (PAGE_DATASETS=[])
    render "bare" — the global date/slicer bar + company chip are hidden so the page's board
    starts right under the header instead of below two rows of greyed-out, unusable filters. */
-const BARE_CHROME = new Set(["review-performance", "sales-speed", "leads-inflow", "reviews-reminders", "response-analysis", "review-settings", "monthly-report", "money-flow", "ld-planning", "cleanup", "packing-control", "storage-control", "foreman-assessment", "fuel-control", "foreman-closings", "refresh-log", "general-tables"]);
+const BARE_CHROME = new Set(["review-performance", "sales-speed", "leads-inflow", "demand-analysis", "reviews-reminders", "response-analysis", "review-settings", "monthly-report", "money-flow", "ld-planning", "cleanup", "packing-control", "storage-control", "foreman-assessment", "fuel-control", "foreman-closings", "refresh-log", "general-tables"]);
 /* Monthly-Report-family pages OWN their time: they have a Month/Year picker on the cover
    and neutralize the global Year/Month slicers in every computation (withMonth), so those
    two slicers are hidden there — two competing time controls confused everyone (Tornike
@@ -1287,6 +1288,7 @@ const REPORT_LABELS = {
   "sales-geo": "Geography (by state)",
   "sales-speed": "Speed to Lead",
   "leads-inflow": "Leads Inflow Analysis",
+  "demand-analysis": "Demand by Move Date",
   // Marketing
   "mkt-roi": "Marketing — Return on Investment",
   "mkt-sources": "Marketing — Lead Sources & Channels",
@@ -1338,7 +1340,7 @@ const aclIconFor = id => (MERGED.find(m => m.id === id) || {}).icon ||
    these lists and kept granting the full Monthly Report table set. */
 const ACL_DEPTS = [
   { id: "company",   label: "Company Overview", icon: "spark",     reports: ["monthly-report", "analysis-by-category"] },
-  { id: "sales",     label: "Sales",            icon: "funnel",    reports: ["sales-command", "sales-speed", "leads-inflow"] },
+  { id: "sales",     label: "Sales",            icon: "funnel",    reports: ["sales-command", "sales-speed", "leads-inflow", "demand-analysis"] },
   { id: "marketing", label: "Marketing",        icon: "megaphone", reports: ["source-trace", "multi-source-leads"] },
   { id: "logistics", label: "Logistics",        icon: "tool",      reports: ["money-flow", "ld-planning", "foreman-closings", "packing-control", "storage-control", "foreman-assessment", "fuel-control"] },
   { id: "customer-service", label: "Customer Service", icon: "calendar", reports: ["cleanup"] },
@@ -1540,6 +1542,7 @@ registerPage({
 <script src="pages/storage-control.js?v=6"></script>
 <script src="pages/foreman-assessment.js?v=7"></script>
 <script src="pages/fuel-control.js?v=4"></script>
+<script src="pages/demand-analysis.js?v=1"></script>
 <script src="pages/general-tables.js?v=1"></script>
 <script src="pages/money-flow-issues.js?v=2"></script>
 <script src="pages/foreman-closings.js?v=12"></script>
