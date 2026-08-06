@@ -508,16 +508,18 @@ function rlRender(host, runs, cov, fresh) {
     ${kpi("cur", "Curation", RL.fmtDur(L.curDur), "silver layer rebuilt")}
     ${kpi("tot", "Total run", RL.fmtDur(L.total), RSC.esc(L.run.trigger || "") + " · " + (L.run.status === "error" ? "had errors" : "all OK"))}
     ${(() => {
-      // the one number he asked for: is anything we FEED the system going stale
-      const raw = L.sources.filter(s => !rlIsCurated(s.step));
-      const aged = raw.map(s => ({ s, d: rlDaysAgo((RL_LAST || {})[s.step]) }))
-                      .filter(x => x.d != null).sort((a, b) => b.d - a.d);
+      // The same question the board below answers, and it MUST answer it the same way. An
+      // earlier version of this tile counted from the run history and said "today" while the
+      // board said seventy-nine days -- two numbers, one question, and the smaller one on top.
+      if (!fresh || !fresh.length) return "";
+      const aged = fresh.filter(f => f.days_since_file != null)
+                        .sort((a, b) => b.days_since_file - a.days_since_file);
       if (!aged.length) return "";
-      const worst = aged[0];
-      const stale = aged.filter(x => x.d > 20);
+      const w = aged[0], stale = aged.filter(f => f.days_since_file >= 21);
       return kpi(stale.length ? "stale" : "", "Oldest feed",
-        worst.d === 0 ? "today" : worst.d + "d",
-        RSC.esc(RL.srcLabel(worst.s)) + (stale.length > 1 ? " · " + stale.length + " over 3 weeks" : ""));
+        w.days_since_file === 0 ? "today" : w.days_since_file + "d",
+        RSC.esc(w.feed || w.table) + (stale.length > 1
+          ? " · " + stale.length + " over three weeks" : ""));
     })()}
   </div>`;
 
