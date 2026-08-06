@@ -2075,18 +2075,51 @@ async function renderMonthly(host, MRCFG) {
       // the window; shown across 4 years with each year's YoY ROI-growth (arrows/colours). Three windows —
       // the selected month, its quarter, and year-to-date — smooth single-month noise at two wider scales.
       // (Pre-2023 data was removed from the warehouse, so the earliest column has no YoY denominator.)
-      const roiWin = (y, months) => { const ad = {}, op = {}; months.forEach(m => { const a = adSrcMonth(y, m), o = bySrcMonth("Operational Profit by Formula", y, m); Object.keys(a).forEach(k => ad[k] = (ad[k] || 0) + a[k]); Object.keys(o).forEach(k => op[k] = (op[k] || 0) + o[k]); }); return { ad, op }; };
+      /* takes (year, month) PAIRS rather than a month list, so a window can cross the year
+         boundary -- "last 3 months" from February is Dec, Jan, Feb, not a truncated Jan, Feb */
+      const roiWin = (pairs) => { const ad = {}, op = {}; pairs.forEach(({ y, m }) => { const a = adSrcMonth(y, m), o = bySrcMonth("Operational Profit by Formula", y, m); Object.keys(a).forEach(k => ad[k] = (ad[k] || 0) + a[k]); Object.keys(o).forEach(k => op[k] = (op[k] || 0) + o[k]); }); return { ad, op }; };
       const roiVal = (ad, op) => ad ? (op - ad) / ad : null;
-      const Qn = Math.floor((mo - 1) / 3), qM = [Qn * 3 + 1, Qn * 3 + 2, Qn * 3 + 3];
-      const ytdM = []; for (let _m = 1; _m <= mo; _m++) ytdM.push(_m);
+
+      /* THE AD HORIZON. Profit and ad spend come off different feeds that end on different
+         days: fct_closing runs to yesterday, while a month's advertising posts to
+         fct_card_expenses in arrears. Any window reaching past the last POSTED ad month adds
+         profit to the numerator and nothing to the denominator, so (op − ad) / ad climbs for
+         free. Measured 2026-08-06: the calendar-quarter card read $9.18 against July's $8.02
+         purely because August contributed $79,353 of profit and $0.00 of spend. Year-to-date
+         had the identical hole one month-click away.
+         So every window is clamped to the newest month with real ad spend, and the SAME month
+         set is used for every year — comparing three months of 2025 against one of 2026 would
+         be the same lie wearing a different hat. */
+      let adHorizonM = 0;
+      for (let _m = 1; _m <= mo; _m++) {
+        const a = adSrcMonth(curY, _m);
+        if (Object.keys(a).some(k => a[k] > 0)) adHorizonM = _m;
+      }
+      const anchorM = adHorizonM || mo;              // no ad data at all -> behave as before
+      const adLag = anchorM < mo;                    // the selected month's spend has not posted
+      /* n months back from (y, anchorM), crossing the year boundary rather than truncating:
+         with February selected a "last 3 months" window is Dec–Feb, not Jan–Feb. */
+      const backFrom = (y, n) => { const out = []; for (let i = n - 1; i >= 0; i--) { let m = anchorM - i, yy = y; while (m < 1) { m += 12; yy -= 1; } out.push({ y: yy, m }); } return out; };
+      const sameYear = (y, months) => months.map(m => ({ y, m }));
+      const ytdM = []; for (let _m = 1; _m <= anchorM; _m++) ytdM.push(_m);
+      const l3 = backFrom(curY, 3);
+      const lagNote = adLag ? ` · ad spend has only posted through ${MON[anchorM]}` : "";
       const roiWindows = [
-        { label: MON[mo], sub: `${MON[mo]} each year`, months: [mo] },
-        { label: `Q${Qn + 1} — ${MON[qM[0]]}–${MON[qM[2]]}`, sub: "the full quarter, each year", months: qM },
-        { label: `Year to date — ${MON[1]}–${MON[mo]}`, sub: "January through the selected month, each year", months: ytdM }
+        { label: MON[anchorM], sub: `${MON[anchorM]} each year${lagNote}`,
+          pairs: y => sameYear(y, [anchorM]) },
+        /* Tornike's call: a rolling three months, not the calendar quarter. A quarter answers
+           "how is Q3 going" with however much of Q3 exists; this answers "how are we doing
+           lately", which is the question actually being asked of an ad channel. */
+        { label: `Last 3 months — ${MON[l3[0].m]}–${MON[l3[2].m]}`,
+          sub: `the three months ending ${MON[anchorM]}, each year${lagNote}`,
+          pairs: y => backFrom(y, 3) },
+        { label: `Year to date — ${MON[1]}–${MON[anchorM]}`,
+          sub: `January through ${MON[anchorM]}, each year${lagNote}`,
+          pairs: y => sameYear(y, ytdM) }
       ];
       const roiDispYears = [curY - 3, curY - 2, curY - 1, curY];
       roiWindows.forEach(W => {
-        const per = {}; for (let y = curY - 4; y <= curY; y++) per[y] = roiWin(y, W.months);   // 5 yrs computed → the first shown year still has a YoY denominator
+        const per = {}; for (let y = curY - 4; y <= curY; y++) per[y] = roiWin(W.pairs(y));   // 5 yrs computed → the first shown year still has a YoY denominator
         const spendRank = {}; roiDispYears.forEach(y => Object.keys(per[y].ad).forEach(k => { if (k !== "—" && per[y].ad[k] > 0) spendRank[k] = Math.max(spendRank[k] || 0, per[y].ad[k]); }));
         const srcList = Object.keys(spendRank).filter(k => src2026.has(k)).sort((a, b) => spendRank[b] - spendRank[a]).slice(0, 12);   // only channels we still buy
         if (!srcList.length) return;

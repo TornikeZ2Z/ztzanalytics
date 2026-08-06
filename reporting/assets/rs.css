@@ -15,6 +15,15 @@ body.rs-app{
   --job-local:var(--blue); --job-long:var(--amber);
   --job-straight:var(--purple); --job-labor:var(--muted);
   --job-ink:#0a0e14; --empty:var(--faint);
+  /* WIDTH. Tornike asked for "percentage usages of the screen and based on that expand the
+     content". So width is a PERCENTAGE of the viewport with a readability ceiling, not a fixed
+     px cap and not a raw 100%: past roughly 2100px a full-bleed table puts the row label and
+     its number so far apart that they stop reading as one row -- which is the complaint
+     cleanup.js:114-118 already records verbatim, when a button ended up far from its content.
+     --rs-page-max  the ceiling for a normal report
+     --rs-row-max   for dense rows where eye-travel matters more than space
+     --rs-prose     text measured in characters, because prose does not want pixels */
+  --rs-page-max:2100px; --rs-row-max:1400px; --rs-prose:104ch; --rs-gutter:20px;
   background:var(--bg);color:var(--ink);overflow:hidden;
   font-family:Inter,-apple-system,"Segoe UI",Roboto,sans-serif;
 }
@@ -68,7 +77,11 @@ body.rs-app .gate p{color:var(--muted)}
 .rs-filters{background:rgba(13,19,32,.72);backdrop-filter:blur(10px);border-bottom:1px solid var(--line);padding:9px 18px;z-index:30}
 .rs-frow{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .rs-frow + .rs-frow{margin-top:8px;padding-top:8px;border-top:1px dashed rgba(28,38,54,.9)}
-.rs-content{flex:1;overflow-y:auto;padding:16px 20px 60px}
+/* One rule gives every page the screen, up to the readability ceiling. Symmetric padding
+   grows with the viewport instead of a hard max-width on an inner wrapper, so the content
+   BOX widens (tables and grids expand) rather than sitting in a fixed column. */
+.rs-content{flex:1;overflow-y:auto;
+  padding:16px max(var(--rs-gutter),calc((100% - var(--rs-page-max)) / 2)) 60px}
 .rs-page-head{margin:0 0 13px}
 .rs-page-head h1{font-size:19px;font-weight:800;letter-spacing:-.5px;margin:0 0 3px;color:var(--ink)}
 .rs-page-head p{margin:0;color:var(--muted);font-size:13px}

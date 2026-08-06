@@ -89,7 +89,7 @@ registerPage({
     });
 
     host.innerHTML = '<style id="dmCss">'
-      + ".dm{max-width:1360px;font-variant-numeric:tabular-nums}"
+      + ".dm{font-variant-numeric:tabular-nums}"
       // ---- the basis banner: the one thing nobody may miss ------------------------------
       + ".dm-basis{display:flex;gap:12px;align-items:flex-start;background:var(--brand-glow);"
       + "border:1px solid var(--line);border-left:4px solid var(--brand);border-radius:13px;"

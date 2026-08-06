@@ -108,7 +108,7 @@ registerPage({
     }
 
     host.innerHTML = '<style id="fa2Css">'
-      + ".fa2{max-width:1240px;font-variant-numeric:tabular-nums}"
+      + ".fa2{font-variant-numeric:tabular-nums}"
       // ---- hero ------------------------------------------------------------------------
       // NOT overflow:hidden — the month list hangs out of the hero, and clipping it left
       // the dropdown showing exactly one row. The progress bar rounds its own corners.

@@ -321,7 +321,15 @@ window.RSC = (function () {
   function collapsible(bar, storeKey, cfg) {
     cfg = cfg || {};
     if (!bar) return null;
-    if (bar.dataset.rscBar) return bar.__rscBar || null;   // idempotent: pages repaint freely
+    // Idempotent so pages can repaint freely -- but the flag alone is not proof. It says
+    // "collapsible ran here once", not "its toggle is still in the document", and those came
+    // apart the moment a host row was rebuilt underneath us: the flag said mounted, the button
+    // was gone, and Hide filters silently did not exist. Trust the DOM, not the memory of it.
+    if (bar.dataset.rscBar) {
+      const prev = bar.__rscBar || null;
+      if (prev && prev.row && prev.row.isConnected) return prev;
+      delete bar.dataset.rscBar;                            // toggle was destroyed -> remount
+    }
     bar.dataset.rscBar = "1";
     let key = storeKey;
     const host = cfg.host || bar;
@@ -371,9 +379,18 @@ window.RSC = (function () {
     set(read(), false);
     const api = {
       refresh: paint,
+      /* the toggle row itself, so a caller -- and the remount guard above -- can ask the
+         DOM whether this bar is still really mounted instead of trusting a flag */
+      row,
       /* the global bar is one element shared by every page, so its remembered state has to
-         follow the page you are on */
-      rekey(k) { if (!k || k === key) return; key = k; set(read(), false); },
+         follow the page you are on.
+         It re-reads on EVERY call, not only when the key string changes. It used to bail
+         early on an unchanged key, so when two bars shared a storage cell, un-hiding one left
+         the other showing collapsed until something else happened to move the key. */
+      rekey(k) { if (k) key = k; set(read(), false); },
+      /* re-read the stored state without changing key -- for a caller that knows something
+         else may have written the same cell */
+      sync() { set(read(), false); },
     };
     bar.__rscBar = api;
     return api;
