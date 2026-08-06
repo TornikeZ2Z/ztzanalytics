@@ -157,14 +157,13 @@ const GROUP_OVERRIDE = {
   // Company Overview
   "monthly-report": "company", "analysis-by-category": "company",
   // Sales ("sales-geo" moved to Financial — Tornike 2026-07-13: geography is a money view)
-  "sales-funnel": "sales", "sales-perf": "sales", "sales-geo": "financial", "sales-speed": "sales", "leads-inflow": "sales", "demand-analysis": "sales", "sales-command": "sales",
+  "sales-funnel": "sales", "sales-perf": "sales", "sales-geo": "financial", "demand-analysis": "sales", "sales-command": "sales",
   // Marketing
   "mkt-roi": "marketing", "mkt-sources": "marketing", "mkt-phone": "marketing",
   // Logistics
   "log-foreman": "logistics", "log-packing": "logistics",
   // Financial
-  "fin-revenue": "financial", "fin-rr": "financial", "financial-analysis": "financial", "executive-scorecard": "financial",
-  "branch-owner": "financial", "money-flow": "logistics", "ld-planning": "logistics", "foreman-closings": "logistics",
+  "fin-revenue": "financial", "fin-rr": "financial", "branch-owner": "financial", "money-flow": "logistics", "ld-planning": "logistics", "foreman-closings": "logistics",
   "packing-control": "logistics", "storage-control": "logistics", "fuel-control": "logistics",
   "foreman-assessment": "logistics",
   // Customer Service
@@ -179,11 +178,11 @@ const groupOf = p => GROUP_OVERRIDE[p.id] || p.group;
 /* explicit per-container item order (numbers are scoped within each group's display list) */
 const NAV_ORDER = {
   "monthly-report": 1, "analysis-by-category": 2,
-  "sales-command": 0.5, "sales-funnel": 1, "sales-perf": 2, "sales-speed": 3, "leads-inflow": 4, "demand-analysis": 5,
+  "sales-command": 0.5, "sales-funnel": 1, "sales-perf": 2, "demand-analysis": 5,
   "mkt-roi": 1, "mkt-sources": 2, "mkt-phone": 3,
   "money-flow": 1, "foreman-closings": 2, "ld-planning": 3, "packing-control": 4, "storage-control": 5, "foreman-assessment": 6, "fuel-control": 7, "log-foreman": 8, "log-packing": 9,
   "cleanup": 1,
-  "fin-revenue": 1, "fin-rr": 2, "sales-geo": 3, "financial-analysis": 4, "executive-scorecard": 5, "branch-owner": 6,
+  "fin-revenue": 1, "fin-rr": 2, "sales-geo": 3, "branch-owner": 6,
   "rev-production": 1, "review-performance": 2, "response-analysis": 3, "reviews-reminders": 4, "review-settings": 5,
   "sup-claims": 1, "sup-refunds": 2, "sup-phone": 3,
   "data-quality": 2, "refresh-log": 1, "general-settings": 3, "general-tables": 4, "admin-users": 5,
@@ -232,7 +231,7 @@ const PAGE_ICONS = {
   "ads-analysis": "megaphone", "callrail": "phone", "forman": "tool",
   "packing": "box", "claims": "shield", "insights": "spark",
   "source-identification": "compass",
-  "executive-scorecard": "gauge", "branch-owner": "user", "customer-experience": "user",
+  "branch-owner": "user", "customer-experience": "user",
   "money-flow": "dollar",
   "ld-planning": "truck",
   "packing-control": "box",
@@ -242,12 +241,12 @@ const PAGE_ICONS = {
   "cleanup": "calendar",
   "foreman-closings": "receipt",
   "labor-analysis": "activity",
-  "financial-analysis": "trend", "post-card-analysis": "megaphone",
+  "post-card-analysis": "megaphone",
   "monthly-report": "spark",
   "angi-vs-moveboard": "compass", "reviews-team": "star", "support-team": "shield", "lead-source-analysis": "compass", "source-analysis": "compass", "movers-analysis": "megaphone",
   "financial-team": "trend", "sales-team": "user", "marketing-team": "megaphone", "logistics-team": "tool",
   // themed dashboards + settings (2026-07-09 restructure)
-  "sales-command": "gauge", "sales-funnel": "funnel", "sales-perf": "user", "sales-geo": "pin", "sales-speed": "phone", "leads-inflow": "activity", "demand-analysis": "calendar",
+  "sales-command": "gauge", "sales-funnel": "funnel", "sales-perf": "user", "sales-geo": "pin", "demand-analysis": "calendar",
   "mkt-roi": "trend", "mkt-sources": "compass", "mkt-phone": "phone",
   "log-foreman": "tool", "log-packing": "box",
   "fin-revenue": "trend", "fin-rr": "trend", "rev-production": "star",
@@ -604,11 +603,9 @@ const PAGE_DATASETS = {
   "packing-per-100cf": ["scorecard"],
   "claims": ["claims", "closing", "scorecard", "rollup"],
   "reviews": ["reviews_breakdown", "review_counts", "review_goals"],
-  "executive-scorecard": ["closing", "card_expenses", "claims", "storage", "refunds"],
   "branch-owner": ["closing"],
   "customer-experience": ["closing", "claims", "refunds", "negative_reviews", "rollup"],
   "labor-analysis": ["closing", "helper_salaries"],
-  "financial-analysis": ["closing", "moveboard", "sales_salaries", "helper_salaries", "refunds"],
   "post-card-analysis": ["card_expenses", "moveboard", "closing", "helper_salaries", "sales_salaries", "refunds"],
   "source-analysis": ["closing", "moveboard", "card_expenses"],
   "movers-analysis": ["closing", "moveboard", "card_expenses"],
@@ -624,8 +621,6 @@ const PAGE_DATASETS = {
   "request-consistency": [],
   "review-performance": [],
   "response-analysis": [], "review-settings": [],
-  "sales-speed": [],
-  "leads-inflow": [],
   "demand-analysis": [],   // its own year + company pickers own the window
   "sales-command": ["lead_journey"],
   "money-flow": [],          // loads fct_money_flow itself + the /api/_mf live overlay
@@ -819,7 +814,7 @@ function navigate(id, push) {
 /* Pages that bring their OWN toolbar and ignore the global filter bar (PAGE_DATASETS=[])
    render "bare" — the global date/slicer bar + company chip are hidden so the page's board
    starts right under the header instead of below two rows of greyed-out, unusable filters. */
-const BARE_CHROME = new Set(["review-performance", "sales-speed", "leads-inflow", "demand-analysis", "reviews-reminders", "response-analysis", "review-settings", "monthly-report", "money-flow", "ld-planning", "cleanup", "packing-control", "storage-control", "foreman-assessment", "fuel-control", "foreman-closings", "refresh-log", "general-tables"]);
+const BARE_CHROME = new Set(["review-performance", "demand-analysis", "reviews-reminders", "response-analysis", "review-settings", "monthly-report", "money-flow", "ld-planning", "cleanup", "packing-control", "storage-control", "foreman-assessment", "fuel-control", "foreman-closings", "refresh-log", "general-tables"]);
 /* Monthly-Report-family pages OWN their time: they have a Month/Year picker on the cover
    and neutralize the global Year/Month slicers in every computation (withMonth), so those
    two slicers are hidden there — two competing time controls confused everyone (Tornike
@@ -868,8 +863,6 @@ async function renderPage() {
 const NAV_TITLES = {
   "analysis-by-category": "Custom Breakdown",
   "insights": "Recommendations",
-  "financial-analysis": "Job P&L",
-  "executive-scorecard": "Executive Scorecard",
   "branch-owner": "Branch Owner",
   "money-flow": "Money Flow",
   "ld-planning": "Long Distance Planning",
@@ -905,8 +898,6 @@ const SEARCH_ALIASES = {
   "sales-funnel": "leads analysis lead funnel conversion booking demand segmentation leads",
   "sales-perf": "sales person analysis salesperson salespeople rep reps commission commissions sales team performance",
   "sales-geo": "leads by state geography states region map",
-  "sales-speed": "speed to lead response time first call ringcentral calls per lead not called never called crm entry lag booking by speed",
-  "leads-inflow": "leads inflow analysis when leads come in 15 minute window staffing schedule heatmap hour day peak time create datetime",
   // Marketing
   "mkt-roi": "marketing roi return on investment ads analysis ad spend advertising google returns callrail call rail call tracking calls",
   "mkt-sources": "source analysis sources source overview lead source identification attribution angi movers movers.com home advisor homeadvisor post card postcard post cards channels",
@@ -917,8 +908,6 @@ const SEARCH_ALIASES = {
   
   // Financial
   "fin-revenue": "revenue profit growth executive summary composition segments per job profitability p&l pnl profit and loss gross profit gross margin operational",
-  "financial-analysis": "p&l pnl profit and loss financial analysis job gross profit gross margin operational",
-  "executive-scorecard": "executive scorecard kpi kpis trends",
   "branch-owner": "branch owner giorgi kolbaia cut payout sales person financial ct",
   "fin-rr": "repeat referral repeat business referral business returning customers financial revenue reviews",
   // Reviews
@@ -1293,8 +1282,6 @@ const REPORT_LABELS = {
   "sales-funnel": "Lead Funnel & Conversion",
   "sales-perf": "Sales Team Performance",
   "sales-geo": "Geography (by state)",
-  "sales-speed": "Speed to Lead",
-  "leads-inflow": "Leads Inflow Analysis",
   "demand-analysis": "Demand by Move Date",
   // Marketing
   "mkt-roi": "Marketing — Return on Investment",
@@ -1306,8 +1293,6 @@ const REPORT_LABELS = {
   
   // Financial
   "fin-revenue": "Revenue & Profit",
-  "financial-analysis": "Job P&L (profit & loss)",
-  "executive-scorecard": "Executive Scorecard",
   "branch-owner": "Branch Owner (Giorgi)",
   "fin-rr": "Repeat & Referral",
   // Reviews
@@ -1347,11 +1332,11 @@ const aclIconFor = id => (MERGED.find(m => m.id === id) || {}).icon ||
    these lists and kept granting the full Monthly Report table set. */
 const ACL_DEPTS = [
   { id: "company",   label: "Company Overview", icon: "spark",     reports: ["monthly-report", "analysis-by-category"] },
-  { id: "sales",     label: "Sales",            icon: "funnel",    reports: ["sales-command", "sales-speed", "leads-inflow", "demand-analysis"] },
+  { id: "sales",     label: "Sales",            icon: "funnel",    reports: ["sales-command", "demand-analysis"] },
   { id: "marketing", label: "Marketing",        icon: "megaphone", reports: ["source-trace", "multi-source-leads"] },
   { id: "logistics", label: "Logistics",        icon: "tool",      reports: ["money-flow", "ld-planning", "foreman-closings", "packing-control", "storage-control", "foreman-assessment", "fuel-control"] },
   { id: "customer-service", label: "Customer Service", icon: "calendar", reports: ["cleanup"] },
-  { id: "financial", label: "Financial",        icon: "trend",     reports: ["financial-analysis", "executive-scorecard", "branch-owner"] },
+  { id: "financial", label: "Financial",        icon: "trend",     reports: ["branch-owner"] },
   { id: "reviews",   label: "Reviews",          icon: "star",      reports: ["review-performance", "reviews-reminders", "response-analysis", "review-settings"] },
   { id: "explorer",  label: "Data Explorer — the separate Data Management app", icon: "archive", reports: ["explorer"] },
 ];
@@ -1526,10 +1511,8 @@ registerPage({
 <script src="pages/packing-analysis.js?v=7"></script>
 <script src="pages/forman-analysis.js?v=6"></script>
 <script src="pages/packing-per-100cf.js?v=6"></script>
-<script src="pages/executive-scorecard.js?v=3"></script>
 <script src="pages/customer-experience.js?v=3"></script>
 <script src="pages/labor-analysis.js?v=3"></script>
-<script src="pages/financial-analysis.js?v=7"></script>
 <script src="pages/post-card-analysis.js?v=4"></script>
 <script src="pages/monthly-report.js?v=96"></script>
 <script src="pages/leads-vs-moveboard.js?v=7"></script>
@@ -1555,8 +1538,6 @@ registerPage({
 <script src="pages/foreman-closings.js?v=12"></script>
 <script src="pages/general-settings.js?v=3"></script>
 <script src="pages/review-performance.js?v=20"></script>
-<script src="pages/leads-inflow.js?v=2"></script>
-<script src="pages/speed-to-lead.js?v=7"></script>
 <script src="pages/reminders.js?v=39"></script>
 </body>
 </html>
