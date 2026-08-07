@@ -111,7 +111,7 @@ registerPage({
       month: "", sc: null, ratings: null, locked: false, subBy: null, subAt: null,
       canReopen: false, q: "", tab: "all", open: null, msg: "", msgErr: false, notOpen: null,
       rubric: [], manualTotal: 40, canEditRubric: false, rubricMonths: [],
-      editRubric: false, draft: null,
+      editRubric: false, draft: null, view: "rate", rubMonth: "",
     });
 
     // The yard's calendar, not the viewer's: Tbilisi reaches the 20th eight hours before
@@ -141,55 +141,108 @@ registerPage({
     }
 
     host.innerHTML = '<style id="fa2Css">'
-      + ".fa2{font-variant-numeric:tabular-nums}"
+      // THE STICKY SUBMIT BAR FLOATS OVER THE LIST, so the list needs room underneath it or
+      // it covers the last question — which is exactly what it was doing: a description cut
+      // mid-sentence with the bar drawn on top of it, looking like a text overflow bug.
+      + ".fa2{font-variant-numeric:tabular-nums;padding-bottom:96px}"
+      // ---- the two views: rating, and the questionnaire behind it ----------------------
+      + ".fa2-views{display:flex;gap:8px;margin:0 0 16px}"
+      + ".fa2-view{font-family:inherit;font-size:14.5px;font-weight:750;padding:11px 20px;"
+      + "border-radius:12px;border:1px solid var(--line);background:var(--panel);"
+      + "color:var(--muted);cursor:pointer;display:inline-flex;align-items:center;gap:9px}"
+      + ".fa2-view:hover{border-color:var(--line-2);color:var(--ink)}"
+      + ".fa2-view.on{background:var(--ink);border-color:var(--ink);color:var(--panel)}"
+      + ".fa2-view i{font-style:normal;font-size:10px;font-weight:800;letter-spacing:.09em;"
+      + "text-transform:uppercase;opacity:.7}"
+      // ---- the questionnaire admin screen ---------------------------------------------
+      + ".fa2-qn{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:24px 26px 26px}"
+      + ".fa2-qnhead{display:flex;gap:32px;align-items:flex-start;flex-wrap:wrap;margin-bottom:20px}"
+      + ".fa2-qnhead h2{margin:0 0 6px;font-size:23px;font-weight:800;letter-spacing:-.4px}"
+      + ".fa2-qnhead p{margin:0;font-size:13.5px;color:var(--muted);line-height:1.65;max-width:88ch}"
+      + ".fa2-qnmon{margin-left:auto;display:flex;flex-direction:column;gap:5px;min-width:230px}"
+      + ".fa2-qnmon label{font-size:10.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--faint)}"
+      + ".fa2-qnmon select{font:inherit;font-size:15px;font-weight:700;background:var(--panel-2);"
+      + "color:var(--ink);border:1px solid var(--line-2);border-radius:11px;padding:10px 13px}"
+      + ".fa2-qnmon .hint{font-size:11.5px;color:var(--faint);line-height:1.5}"
+      // the running total, big enough to be the thing you watch while typing
+      + ".fa2-qntot{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;background:var(--panel-2);"
+      + "border:1px solid var(--line);border-radius:13px;padding:16px 20px;margin-bottom:16px;position:relative;overflow:hidden}"
+      + ".fa2-qntot b{font-size:32px;font-weight:800;letter-spacing:-.9px;line-height:1}"
+      + ".fa2-qntot span{font-size:13.5px;color:var(--muted)}"
+      + ".fa2-qntot i{margin-left:auto;font-style:normal;font-size:13px;font-weight:750}"
+      + ".fa2-qntot.ok i{color:var(--pos)} .fa2-qntot.bad i{color:var(--warn)}"
+      + ".fa2-qntot.ok b{color:var(--pos)} .fa2-qntot.bad b{color:var(--warn)}"
+      + ".fa2-qnbar{position:absolute;left:0;right:0;bottom:0;height:4px;background:var(--line)}"
+      + ".fa2-qnbar u{display:block;height:100%;background:var(--brand)}"
+      + ".fa2-qnlist{display:flex;flex-direction:column;gap:11px}"
+      + ".fa2-qnrow{display:grid;grid-template-columns:38px minmax(0,1fr) 118px 210px auto;gap:14px;"
+      + "align-items:start;background:var(--panel-2);border:1px solid var(--line);border-radius:13px;padding:14px 16px}"
+      + ".fa2-qnrow .n{width:30px;height:30px;border-radius:9px;background:var(--panel);border:1px solid var(--line-2);"
+      + "display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;color:var(--faint)}"
+      + ".fa2-qnrow .f{display:flex;flex-direction:column;gap:7px;min-width:0}"
+      + ".fa2-qnrow .p,.fa2-qnrow .s{display:flex;flex-direction:column;gap:5px}"
+      + ".fa2-qnrow label{font-size:10px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--faint)}"
+      + ".fa2-qnrow input,.fa2-qnrow select{font:inherit;font-size:14px;background:var(--panel);"
+      + "color:var(--ink);border:1px solid var(--line-2);border-radius:10px;padding:10px 13px;min-width:0}"
+      + ".fa2-qnrow .rbq{font-size:15.5px;font-weight:700}"
+      + ".fa2-qnrow .rbd{font-size:13px;color:var(--muted)}"
+      + ".fa2-qnrow input:focus,.fa2-qnrow select:focus{outline:none;border-color:var(--brand)}"
+      + ".fa2-qnrow select:disabled{opacity:.55;cursor:not-allowed}"
+      + ".fa2-qnrow .rbx{align-self:center;font:inherit;font-size:12.5px;font-weight:700;background:transparent;"
+      + "color:var(--faint);border:1px solid var(--line-2);border-radius:10px;padding:9px 14px;cursor:pointer;white-space:nowrap}"
+      + ".fa2-qnrow .rbx:hover{color:var(--neg);border-color:var(--neg)}"
+      + ".fa2-qnrow.rated{border-left:3px solid var(--blue)}"
+      + ".fa2-qnfoot{display:flex;gap:13px;align-items:center;flex-wrap:wrap;margin-top:18px}"
+      + ".fa2-qnfoot .hint{font-size:12px;color:var(--faint);line-height:1.55;max-width:66ch;margin-right:auto}"
+      + "@media(max-width:1150px){.fa2-qnrow{grid-template-columns:1fr;gap:10px}.fa2-qnrow .n{display:none}}"
       // ---- hero ------------------------------------------------------------------------
       // NOT overflow:hidden — the month list hangs out of the hero, and clipping it left
       // the dropdown showing exactly one row. The progress bar rounds its own corners.
       + ".fa2-hero{background:var(--panel);border:1px solid var(--line);border-radius:16px;margin-bottom:14px;box-shadow:var(--shadow);position:relative}"
       + ".fa2-hrow{display:flex;flex-wrap:wrap;gap:14px 30px;align-items:center;padding:18px 22px}"
-      + ".fa2-eyebrow{font-size:9.5px;font-weight:800;letter-spacing:.13em;text-transform:uppercase;color:var(--faint);margin-bottom:2px}"
+      + ".fa2-eyebrow{font-size:11px;font-weight:800;letter-spacing:.13em;text-transform:uppercase;color:var(--faint);margin-bottom:2px}"
       // the month picker: a native <select> popup cannot be styled, so the trigger is the
       // month title itself and the list is ours — each month carrying its open/submitted state
       + ".fa2-mon{position:relative;display:inline-block}"
-      + ".fa2-monbtn{display:flex;align-items:center;gap:10px;background:transparent;border:0;color:var(--ink);font-family:inherit;font-size:25px;font-weight:800;letter-spacing:-.6px;padding:0;cursor:pointer;font-variant-numeric:tabular-nums}"
-      + ".fa2-monbtn .car{font-size:11px;color:var(--faint);transition:transform .16s ease;margin-top:5px}"
+      + ".fa2-monbtn{display:flex;align-items:center;gap:10px;background:transparent;border:0;color:var(--ink);font-family:inherit;font-size:31px;font-weight:800;letter-spacing:-.6px;padding:0;cursor:pointer;font-variant-numeric:tabular-nums}"
+      + ".fa2-monbtn .car{font-size:13px;color:var(--faint);transition:transform .16s ease;margin-top:5px}"
       + ".fa2-monbtn:hover .car{color:var(--muted)}"
       + ".fa2-monbtn.open .car{transform:rotate(180deg)}"
       + ".fa2-mlist{position:absolute;top:calc(100% + 10px);left:-10px;min-width:252px;background:var(--panel);border:1px solid var(--line-2);border-radius:14px;box-shadow:0 20px 44px rgba(0,0,0,.22),var(--shadow);padding:6px;z-index:44;display:none}"
       + ".fa2-mlist.open{display:block;animation:fa2in .14s ease}"
-      + ".fa2-mopt{display:flex;align-items:center;gap:10px;width:100%;text-align:left;font-family:inherit;font-size:14px;font-weight:650;color:var(--ink);background:none;border:0;border-radius:9px;padding:9px 12px;cursor:pointer;font-variant-numeric:tabular-nums}"
+      + ".fa2-mopt{display:flex;align-items:center;gap:10px;width:100%;text-align:left;font-family:inherit;font-size:15px;font-weight:650;color:var(--ink);background:none;border:0;border-radius:9px;padding:9px 12px;cursor:pointer;font-variant-numeric:tabular-nums}"
       + ".fa2-mopt:hover{background:var(--panel-2)}"
       + ".fa2-mopt.cur{background:var(--brand-glow);color:var(--brand-d);font-weight:800}"
       + "body.rs-app:not(.light) .fa2-mopt.cur{color:var(--brand)}"
-      + ".fa2-mopt .tag{margin-left:auto;font-size:9px;font-weight:800;letter-spacing:.07em;text-transform:uppercase}"
+      + ".fa2-mopt .tag{margin-left:auto;font-size:10.5px;font-weight:800;letter-spacing:.07em;text-transform:uppercase}"
       + ".fa2-mopt .tag.sub{color:var(--blue)} .fa2-mopt .tag.op{color:var(--pos)}"
-      + ".fa2-pill{display:inline-flex;align-items:center;gap:7px;font-size:11px;font-weight:800;padding:5px 11px;border-radius:999px;margin-top:5px}"
+      + ".fa2-pill{display:inline-flex;align-items:center;gap:7px;font-size:12.5px;font-weight:800;padding:7px 14px;border-radius:999px;margin-top:5px}"
       + ".fa2-pill.open{background:var(--pos-bg);color:var(--pos)}"
       + ".fa2-pill.sub{background:var(--blue-bg);color:var(--blue)}"
       + ".fa2-stats{display:flex;flex-wrap:wrap;margin-left:auto}"
-      + ".fa2-st{padding:2px 24px;border-left:1px solid var(--line)}"
-      + ".fa2-st b{display:block;font-size:21px;font-weight:750;letter-spacing:-.4px;line-height:1.15;white-space:nowrap}"
-      + ".fa2-st span{font-size:9px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--faint)}"
-      + ".fa2-st small{display:block;font-size:10.5px;color:var(--muted);margin-top:1px;white-space:nowrap}"
+      + ".fa2-st{padding:4px 28px;border-left:1px solid var(--line)}"
+      + ".fa2-st b{display:block;font-size:26px;font-weight:750;letter-spacing:-.4px;line-height:1.15;white-space:nowrap}"
+      + ".fa2-st span{font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--faint)}"
+      + ".fa2-st small{display:block;font-size:12px;color:var(--muted);margin-top:1px;white-space:nowrap}"
       + ".fa2-prog{height:5px;background:var(--panel-2);border-radius:0 0 15px 15px;overflow:hidden}"
       + ".fa2-prog i{display:block;height:100%;background:var(--blue);transition:width .4s ease}"
       // ---- toolbar ---------------------------------------------------------------------
       + ".fa2-bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:12px}"
-      + ".fa2-chip{font-family:inherit;font-size:12px;font-weight:700;padding:7px 13px;border-radius:999px;border:1px solid var(--line);background:var(--panel);color:var(--muted);cursor:pointer}"
+      + ".fa2-chip{font-family:inherit;font-size:13.5px;font-weight:700;padding:9px 16px;border-radius:999px;border:1px solid var(--line);background:var(--panel);color:var(--muted);cursor:pointer}"
       + ".fa2-chip:hover{border-color:var(--line-2)}"
       + ".fa2-chip.on{background:var(--brand-glow);border-color:transparent;color:var(--brand-d)}"
       + "body.rs-app:not(.light) .fa2-chip.on{color:var(--brand)}"
       + ".fa2-bar input{margin-left:auto;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:8px 12px;color:var(--ink);font-family:inherit;font-size:12.5px;min-width:220px}"
-      + ".fa2-how{font-size:11.5px;color:var(--faint);line-height:1.65;max-width:112ch;margin:0 0 14px}"
-      + ".fa2-how summary{cursor:pointer;font-weight:700;color:var(--muted);font-size:12px;user-select:none}"
+      + ".fa2-how{font-size:13px;color:var(--faint);line-height:1.65;max-width:112ch;margin:0 0 14px}"
+      + ".fa2-how summary{cursor:pointer;font-weight:700;color:var(--muted);font-size:13.5px;user-select:none}"
       + ".fa2-how[open] summary{margin-bottom:5px}"
-      + ".fa2-msg{font-size:12.5px;padding:9px 13px;border-radius:10px;margin-bottom:12px;display:none}"
+      + ".fa2-msg{font-size:13.5px;padding:11px 15px;border-radius:10px;margin-bottom:12px;display:none}"
       + ".fa2-msg.on{display:block;background:var(--pos-bg);color:var(--pos)}"
       + ".fa2-msg.err{display:block;background:var(--neg-bg);color:var(--neg)}"
       // ---- submitted banner ------------------------------------------------------------
       + ".fa2-done{background:var(--blue-bg);border-radius:14px;padding:13px 18px;margin-bottom:12px;display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;color:var(--blue);font-size:13px;font-weight:750}"
-      + ".fa2-done small{color:var(--muted);font-weight:500;font-size:12px}"
-      + ".fa2-ghost{font-family:inherit;font-size:12px;font-weight:700;padding:8px 14px;border-radius:10px;border:1px solid var(--line-2);background:var(--panel);color:var(--muted);cursor:pointer;margin-left:auto}"
+      + ".fa2-done small{color:var(--muted);font-weight:500;font-size:13px}"
+      + ".fa2-ghost{font-family:inherit;font-size:13px;font-weight:700;padding:9px 16px;border-radius:10px;border:1px solid var(--line-2);background:var(--panel);color:var(--muted);cursor:pointer;margin-left:auto}"
       + ".fa2-ghost:hover{border-color:var(--faint);color:var(--ink)}"
       // ---- cards -----------------------------------------------------------------------
       + ".fa2-card{background:var(--panel);border:1px solid var(--line);border-radius:14px;margin-bottom:9px;overflow:hidden;transition:border-color .15s,box-shadow .15s}"
@@ -197,72 +250,72 @@ registerPage({
       // The 1fr was on the NAME, so the name column swallowed ~1050px and the six question
       // chips clumped against the score block with dead space before them. Flexible track
       // moves onto the chip strip (see .fa2-dots below, which now spreads across it).
-      + ".fa2-head{display:grid;grid-template-columns:34px auto minmax(0,1fr) auto;gap:14px;align-items:center;padding:12px 18px;cursor:pointer}"
+      + ".fa2-head{display:grid;grid-template-columns:40px auto minmax(0,1fr) auto;gap:18px;align-items:center;padding:16px 20px;cursor:pointer}"
       + ".fa2-head:hover{background:var(--panel-2)}"
-      + ".fa2-rk{width:30px;height:30px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:12.5px;font-weight:800;background:var(--panel-2);color:var(--muted);border:1px solid var(--line)}"
+      + ".fa2-rk{width:36px;height:36px;border-radius:11px;display:flex;align-items:center;justify-content:center;font-size:14.5px;font-weight:800;background:var(--panel-2);color:var(--muted);border:1px solid var(--line)}"
       + ".fa2-rk.top{background:var(--brand);color:var(--brand-ink);border-color:transparent}"
       + ".fa2-rk.oor{background:transparent;color:var(--faint);border-style:dashed}"
-      + ".fa2-nm{font-size:15.5px;font-weight:750;letter-spacing:-.2px}"
-      + ".fa2-si{font-size:11px;color:var(--faint);margin-top:1px}"
+      + ".fa2-nm{font-size:18px;font-weight:750;letter-spacing:-.2px}"
+      + ".fa2-si{font-size:12.5px;color:var(--faint);margin-top:1px}"
       + ".fa2-si .oor{color:var(--warn);font-weight:650}"
-      + ".fa2-dots{display:flex;gap:6px;flex-wrap:wrap;justify-content:space-between}"
+      + ".fa2-dots{display:flex;gap:8px;flex-wrap:wrap;align-items:center}"
       // One chip per question -- its short name and the stars given, or a dash where
       // nobody has rated yet. Six of these fill the middle of the row with real detail
       // instead of the canyon that sat between a name and its score.
-      + ".fa2-qc{display:flex;align-items:center;gap:6px;padding:3px 9px;border-radius:999px;border:1px solid var(--line);background:var(--panel-2);font-size:10.5px;white-space:nowrap}"
-      + ".fa2-qc b{font-weight:700;color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.04em}"
+      + ".fa2-qc{display:flex;align-items:center;gap:8px;padding:7px 13px;border-radius:999px;border:1px solid var(--line);background:var(--panel-2);font-size:10.5px;white-space:nowrap}"
+      + ".fa2-qc b{font-weight:750;color:var(--muted);font-size:12.5px;letter-spacing:0;white-space:nowrap}"
       + ".fa2-qc u{text-decoration:none;font-weight:800;color:var(--blue);font-variant-numeric:tabular-nums}"
       + ".fa2-qc.no{border-style:dashed;background:transparent}"
       + ".fa2-qc.no u{color:var(--faint)}"
-      + "@media(max-width:1250px){.fa2-qc b{display:none}}"
+      + "@media(max-width:1500px){.fa2-qc b{font-size:11.5px}}@media(max-width:1150px){.fa2-qc b{display:none}}"
       + ".fa2-sc{display:flex;align-items:center;gap:13px}"
-      + ".fa2-sb{width:132px;height:7px;border-radius:5px;background:var(--panel-2);overflow:hidden;display:flex}"
+      + ".fa2-sb{width:160px;height:9px;border-radius:5px;background:var(--panel-2);overflow:hidden;display:flex}"
       + ".fa2-sb u{display:block;height:100%}"
       + ".fa2-sb u.a{background:var(--brand)} .fa2-sb u.m{background:var(--blue)}"
-      + ".fa2-tot{text-align:right;min-width:62px}"
-      + ".fa2-tot b{font-size:19px;font-weight:800;letter-spacing:-.4px}"
-      + ".fa2-tot i{display:block;font-style:normal;font-size:8.5px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--faint);margin-top:1px}"
-      + ".fa2-body{display:none;border-top:1px solid var(--line);padding:14px 18px 16px}"
+      + ".fa2-tot{text-align:right;min-width:74px}"
+      + ".fa2-tot b{font-size:24px;font-weight:800;letter-spacing:-.4px}"
+      + ".fa2-tot i{display:block;font-style:normal;font-size:10px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--faint);margin-top:1px}"
+      + ".fa2-body{display:none;border-top:1px solid var(--line);padding:20px 22px 24px}"
       + ".fa2-card.on .fa2-body{display:block;animation:fa2in .16s ease}"
       + "@keyframes fa2in{from{opacity:0;transform:translateY(-3px)}to{opacity:1;transform:none}}"
-      + ".fa2-sec{font-size:9.5px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;color:var(--faint);margin:4px 0 9px}"
-      + ".fa2-sec b{color:var(--ink);font-size:12px;letter-spacing:0}"
+      + ".fa2-sec{font-size:11.5px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;color:var(--faint);margin:4px 0 9px}"
+      + ".fa2-sec b{color:var(--ink);font-size:15px;letter-spacing:0}"
       + ".fa2-sec .rescale{text-transform:none;letter-spacing:0;font-weight:500;color:var(--muted)}"
-      + ".fa2-tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(205px,1fr));gap:9px;margin-bottom:15px}"
-      + ".fa2-tile{background:var(--panel-2);border:1px solid var(--line);border-radius:11px;padding:10px 13px}"
-      + ".fa2-tile .l{font-size:9px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--faint)}"
-      + ".fa2-tile .v{font-size:16px;font-weight:750;margin-top:3px}"
-      + ".fa2-tile .v small{font-size:11px;color:var(--faint);font-weight:600}"
-      + ".fa2-tile .r{font-size:11px;color:var(--muted);margin-top:1px}"
-      + ".fa2-tile .tb{height:4px;border-radius:3px;background:var(--line);overflow:hidden;margin-top:8px}"
+      + ".fa2-tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px;margin-bottom:22px}"
+      + ".fa2-tile{background:var(--panel-2);border:1px solid var(--line);border-radius:13px;padding:14px 17px}"
+      + ".fa2-tile .l{font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--faint)}"
+      + ".fa2-tile .v{font-size:23px;font-weight:750;margin-top:5px;letter-spacing:-.4px}"
+      + ".fa2-tile .v small{font-size:13px;color:var(--faint);font-weight:600}"
+      + ".fa2-tile .r{font-size:12.5px;color:var(--muted);margin-top:3px}"
+      + ".fa2-tile .tb{height:6px;border-radius:4px;background:var(--line);overflow:hidden;margin-top:11px}"
       + ".fa2-tile .tb i{display:block;height:100%;background:var(--brand)}"
-      + ".fa2-tile.na{border-style:dashed} .fa2-tile.na .v{color:var(--faint);font-size:13px;font-weight:600}"
+      + ".fa2-tile.na{border-style:dashed} .fa2-tile.na .v{color:var(--faint);font-size:16px;font-weight:600}"
       // ---- questions -------------------------------------------------------------------
       + /* Cap the TEXT, not the row. max-width on the row put the stars 1100px from the left
    edge of a much wider card -- floating in the middle of nothing, a long way from the
    question they rate. Capping the first column keeps the prose readable AND keeps the
    stars right beside it. */
-      + ".fa2-q{display:grid;grid-template-columns:minmax(0,var(--rs-prose,104ch)) auto 50px;gap:22px;align-items:center;padding:10px 0;border-bottom:1px solid var(--line);justify-content:start}"
+      + ".fa2-q{display:grid;grid-template-columns:minmax(0,var(--rs-prose,104ch)) auto 74px;gap:28px;align-items:center;padding:16px 0;border-bottom:1px solid var(--line);justify-content:start}"
       + ".fa2-q:last-of-type{border-bottom:0}"
-      + ".fa2-q .qt b{font-size:13.5px;font-weight:700;display:block}"
-      + ".fa2-q .qt span{font-size:11px;color:var(--faint);line-height:1.55;display:block;margin-top:2px;max-width:80ch}"
-      + ".fa2-q .qt em{font-style:normal;font-size:9.5px;color:var(--muted);display:block;margin-top:3px}"
+      + ".fa2-q .qt b{font-size:16.5px;font-weight:750;display:block;letter-spacing:-.2px}"
+      + ".fa2-q .qt span{font-size:13px;color:var(--muted);line-height:1.6;display:block;margin-top:5px;max-width:88ch}"
+      + ".fa2-q .qt em{font-style:normal;font-size:11.5px;color:var(--muted);display:block;margin-top:3px}"
       // ---- the rubric panel: what is being scored, and Ramaz's editor ------------------
-      + ".fa2-rub{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:13px 16px;margin-bottom:12px}"
+      + ".fa2-rub{background:var(--panel);border:1px solid var(--line);border-radius:15px;padding:18px 20px;margin-bottom:14px}"
       + ".fa2-rub.edit{border-color:var(--brand)}"
       + ".fa2-rubh{display:flex;align-items:center;gap:12px;flex-wrap:wrap}"
-      + ".fa2-rubh b{font-size:13px;font-weight:800}"
-      + ".fa2-rubt{font-size:11.5px;font-weight:700;color:var(--muted);margin-right:auto}"
+      + ".fa2-rubh b{font-size:16px;font-weight:800}"
+      + ".fa2-rubt{font-size:13px;font-weight:700;color:var(--muted);margin-right:auto}"
       + ".fa2-rubt.bad{color:var(--neg)}"
-      + ".fa2-rubnote,.fa2-rubwarn{font-size:11.5px;color:var(--faint)}"
+      + ".fa2-rubnote,.fa2-rubwarn{font-size:12.5px;color:var(--faint)}"
       + ".fa2-rubwarn{color:var(--warn)}"
-      + ".fa2-rublist{display:flex;flex-wrap:wrap;gap:7px;margin-top:10px}"
-      + ".fa2-rubchip{display:inline-flex;align-items:center;gap:7px;background:var(--panel-2);"
-      + "border:1px solid var(--line-2);border-radius:999px;padding:4px 6px 4px 11px;font-size:12px}"
+      + ".fa2-rublist{display:flex;flex-wrap:wrap;gap:9px;margin-top:13px}"
+      + ".fa2-rubchip{display:inline-flex;align-items:center;gap:10px;background:var(--panel-2);"
+      + "border:1px solid var(--line-2);border-radius:999px;padding:7px 8px 7px 15px;font-size:14px}"
       + ".fa2-rubchip u{text-decoration:none;font-weight:800;background:var(--brand-glow);"
-      + "color:var(--brand-d);border-radius:999px;padding:1px 8px;font-variant-numeric:tabular-nums}"
+      + "color:var(--brand-d);border-radius:999px;padding:3px 11px;font-variant-numeric:tabular-nums;font-size:13.5px}"
       + "body.rs-app:not(.light) .fa2-rubchip u{color:var(--brand)}"
-      + ".fa2-rubchip i.tri{font-style:normal;font-size:9px;font-weight:800;letter-spacing:.05em;"
+      + ".fa2-rubchip i.tri{font-style:normal;font-size:10.5px;font-weight:800;letter-spacing:.05em;"
       + "text-transform:uppercase;color:var(--faint)}"
       + ".fa2-rubed{margin-top:12px;display:flex;flex-direction:column;gap:9px}"
       + ".fa2-rubrow{display:grid;grid-template-columns:minmax(0,1fr) 92px 168px 34px;gap:8px}"
@@ -282,31 +335,31 @@ registerPage({
       // ---- the three-way control -------------------------------------------------------
       + ".fa2-ctl{display:flex;gap:9px;align-items:center;flex-wrap:wrap}"
       + ".fa2-tri{display:inline-flex;gap:5px;flex-wrap:wrap}"
-      + ".fa2-trib{font:inherit;font-size:12px;font-weight:700;background:var(--panel-2);"
-      + "color:var(--muted);border:1px solid var(--line-2);border-radius:10px;padding:7px 12px;"
+      + ".fa2-trib{font:inherit;font-size:14px;font-weight:700;background:var(--panel-2);"
+      + "color:var(--muted);border:1px solid var(--line-2);border-radius:11px;padding:10px 16px;"
       + "cursor:pointer;display:inline-flex;align-items:center;gap:7px;white-space:nowrap}"
       + ".fa2-trib:hover:not(:disabled){border-color:var(--brand)}"
       + ".fa2-trib.on{background:var(--brand);border-color:var(--brand);color:var(--brand-ink)}"
-      + ".fa2-trib u{text-decoration:none;font-size:10.5px;font-weight:800;opacity:.75;"
+      + ".fa2-trib u{text-decoration:none;font-size:12.5px;font-weight:800;opacity:.75;"
       + "font-variant-numeric:tabular-nums}"
       + ".fa2-trib:disabled{cursor:default;opacity:.7}"
-      + ".fa2-q .qw{font-size:10.5px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--faint)}"
+      + ".fa2-q .qw{font-size:11.5px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--faint)}"
       + ".fa2-stars{display:flex;gap:1px;align-items:center}"
-      + ".fa2-star{font-size:23px;line-height:1;cursor:pointer;background:none;border:0;padding:0 2px;color:var(--line-2);transition:transform .07s}"
+      + ".fa2-star{font-size:30px;line-height:1;cursor:pointer;background:none;border:0;padding:0 2px;color:var(--line-2);transition:transform .07s}"
       + ".fa2-star.on,.fa2-star.pv{color:var(--warn)}"
       + ".fa2-star:disabled{cursor:default;opacity:.7}"
       + ".fa2-star:hover:not(:disabled){transform:scale(1.2)}"
-      + ".fa2-clr{font-size:9.5px;color:var(--faint);background:none;border:0;cursor:pointer;margin-left:7px;text-decoration:underline;font-family:inherit}"
-      + ".fa2-pts{text-align:right;font-size:13px;font-weight:800}"
-      + ".fa2-pts.un{color:var(--faint);font-weight:500;font-size:10.5px}"
+      + ".fa2-clr{font-size:11.5px;color:var(--faint);background:none;border:0;cursor:pointer;margin-left:7px;text-decoration:underline;font-family:inherit}"
+      + ".fa2-pts{text-align:right;font-size:19px;font-weight:800;letter-spacing:-.3px}"
+      + ".fa2-pts.un{color:var(--faint);font-weight:500;font-size:12px}"
       // ---- submit bar ------------------------------------------------------------------
       + ".fa2-sub{position:sticky;bottom:14px;margin-top:18px;background:var(--panel);border:1px solid var(--line-2);border-radius:14px;box-shadow:var(--shadow);padding:13px 18px;display:flex;flex-wrap:wrap;gap:12px 18px;align-items:center;z-index:6}"
-      + ".fa2-sub .t{font-size:12.5px;color:var(--muted)} .fa2-sub .t b{color:var(--ink);font-size:13.5px}"
+      + ".fa2-sub .t{font-size:14px;color:var(--muted)} .fa2-sub .t b{color:var(--ink);font-size:15.5px}"
       + ".fa2-spb{flex:1;min-width:150px;height:6px;border-radius:4px;background:var(--panel-2);overflow:hidden}"
       + ".fa2-spb i{display:block;height:100%;background:var(--blue);transition:width .3s}"
-      + ".fa2-go{font-family:inherit;font-size:13px;font-weight:800;padding:10px 20px;border-radius:11px;border:0;background:var(--brand);color:var(--brand-ink);cursor:pointer}"
+      + ".fa2-go{font-family:inherit;font-size:14px;font-weight:800;padding:12px 24px;border-radius:11px;border:0;background:var(--brand);color:var(--brand-ink);cursor:pointer}"
       + ".fa2-go:hover{background:var(--brand-d)} .fa2-go:disabled{opacity:.6;cursor:default}"
-      + ".fa2-empty{padding:38px;text-align:center;color:var(--faint);font-size:13.5px;background:var(--panel);border:1px dashed var(--line-2);border-radius:14px}"
+      + ".fa2-empty{padding:52px;text-align:center;color:var(--faint);font-size:15px;background:var(--panel);border:1px dashed var(--line-2);border-radius:14px}"
       + "@media(max-width:820px){.fa2-q{grid-template-columns:1fr;gap:8px}.fa2-pts{text-align:left}.fa2-stats{margin-left:0}.fa2-st{padding-left:0;padding-right:24px;border-left:0}.fa2-sc{gap:9px}.fa2-sb{width:80px}}"
       + '</style><div class="fa2"><div id="fa2Main"></div></div>';
 
@@ -398,17 +451,32 @@ registerPage({
       return out;
     }
 
+    // build the editable draft from whatever rubric is currently loaded
+    function draftFromRubric() {
+      const rated = ratedKeys();
+      return QS().map(q => ({ question: q.Question, label: q.Label || "",
+        description: q.Description || "", points: +q.Points || 0,
+        scale: q.Scale || "stars5", rated: !!rated[q.Question] }));
+    }
+
     function wireRubric() {
       const ed = main.querySelector("#fa2RubEdit");
       if (ed) ed.onclick = () => {
-        const rated = ratedKeys();
-        S.draft = QS().map(q => ({ question: q.Question, label: q.Label || "",
-          description: q.Description || "", points: +q.Points || 0,
-          scale: q.Scale || "stars5", rated: !!rated[q.Question] }));
+        S.draft = draftFromRubric();
         S.editRubric = true; S.msg = ""; paint();
       };
       const cancel = main.querySelector("#fa2RubCancel");
-      if (cancel) cancel.onclick = () => { S.editRubric = false; S.draft = null; paint(); };
+      if (cancel) cancel.onclick = () => {
+        // in the Questionnaire view "Undo changes" means reload the saved set, not leave
+        if (S.view === "rubric") { S.draft = draftFromRubric(); S.msg = ""; paint(); return; }
+        S.editRubric = false; S.draft = null; paint();
+      };
+      // the Questionnaire view shapes a month of its own, which may not be the one being rated
+      const qm = main.querySelector("#fa2QnMonth");
+      if (qm) qm.onchange = () => {
+        S.rubMonth = qm.value; S.msg = "";
+        loadRubricFor(qm.value);
+      };
 
       main.querySelectorAll(".fa2-rubed input, .fa2-rubed select").forEach(el => {
         const commit = () => {
@@ -456,6 +524,23 @@ registerPage({
       return k;
     }
 
+    /* Load one month's questions into the editor without disturbing the month being rated.
+     * `ratedKeys()` deliberately still reads the RATED month's answers only when the two
+     * months coincide — a question is scale-locked by ITS OWN month's ratings, and the
+     * server enforces that regardless of what the page believes. */
+    function loadRubricFor(m) {
+      main.innerHTML = '<div class="fa2-empty">Loading ' + esc(monLab(m)) + "…</div>";
+      api("/api/_farubric?month=" + encodeURIComponent(m))
+        .then(j => {
+          S.rubric = j.rubric || [];
+          S.manualTotal = j.manual_total || 40;
+          S.rubricMonths = j.editable_months || S.rubricMonths;
+          S.draft = draftFromRubric();
+          paint();
+        })
+        .catch(e => { S.msg = e.message; S.msgErr = true; paint(); });
+    }
+
     function saveRubric() {
       const taken = {};
       QS().forEach(q => { taken[q.Question] = 1; });
@@ -470,16 +555,95 @@ registerPage({
       const bad = items.filter(i => !i.label);
       if (bad.length) { S.msg = "Every question needs a name."; S.msgErr = true; paint(); return; }
       S.msg = "Saving…"; S.msgErr = false; paint();
+      // the Questionnaire view may be shaping a month other than the one being rated
+      const target = S.view === "rubric" ? (S.rubMonth || S.month) : S.month;
       api("/api/_farubric", { method: "POST",
-          body: JSON.stringify({ month: S.month, questions: items }) })
+          body: JSON.stringify({ month: target, questions: items }) })
         .then(j => {
           S.editRubric = false; S.draft = null;
           S.msg = "Saved — " + j.questions + " questions, " + fmt1(j.points) + " points"
             + (j.retired && j.retired.length ? " · retired " + j.retired.join(", ") : "");
           S.msgErr = false;
+          if (S.view === "rubric") { loadRubricFor(target); return null; }
           return load();
         })
         .catch(e => { S.msg = e.message; S.msgErr = true; paint(); });
+    }
+
+    /* THE QUESTIONNAIRE — Ramaz's own screen. He picks the month he is shaping, then adds,
+     * removes, renames and re-points questions until they share the 40. A month is editable
+     * while it is UNSUBMITTED: submitting freezes the questions along with the ratings, and
+     * an admin reopening it unfreezes both. */
+    function questionnaireView() {
+      const months = (S.rubricMonths || []);
+      if (!S.canEditRubric) {
+        return '<div class="fa2-empty">The questionnaire is set by logistics management.</div>';
+      }
+      const m = S.rubMonth || (months.indexOf(S.month) >= 0 ? S.month : months[months.length - 1]);
+      const d = S.draft || [];
+      const dt = d.reduce((s2, q) => s2 + (+q.points || 0), 0);
+      const left = Math.round((MANUAL_TOTAL() - dt) * 10) / 10;
+      const balanced = Math.abs(dt - MANUAL_TOTAL()) < 0.05;
+
+      let h = '<div class="fa2-qn">'
+        + '<div class="fa2-qnhead">'
+        + "<div><h2>The questionnaire</h2>"
+        + "<p>These are the questions logistics answers for every foreman, and what each one "
+        + "is worth. They always share <b>" + fmt1(MANUAL_TOTAL()) + " points</b> — the other "
+        + "60 the warehouse counts on its own. Change them for a month and that month is "
+        + "scored the new way; months already submitted keep the questions they were scored "
+        + "under.</p></div>"
+        + '<div class="fa2-qnmon"><label>Month being shaped</label>'
+        + '<select id="fa2QnMonth">'
+        + (months.length ? months.slice().reverse().map(x =>
+            '<option value="' + x + '"' + (x === m ? " selected" : "") + ">" + monLab(x) + "</option>").join("")
+           : '<option value="">nothing open</option>')
+        + "</select>"
+        + '<span class="hint">' + (months.length
+            ? "submitted months are not listed — reopen one to change it"
+            : "every month is submitted; reopen one to change its questions") + "</span>"
+        + "</div></div>";
+
+      if (!months.length) return h + "</div>";
+
+      h += '<div class="fa2-qntot' + (balanced ? " ok" : " bad") + '">'
+        + "<b>" + fmt1(dt) + "</b><span>of " + fmt1(MANUAL_TOTAL()) + " points given out</span>"
+        + '<i>' + (balanced ? "balanced — ready to save"
+             : left > 0 ? fmt1(left) + " still to give out"
+                        : fmt1(-left) + " too many") + "</i>"
+        + '<div class="fa2-qnbar"><u style="width:' + Math.min(100, dt / MANUAL_TOTAL() * 100).toFixed(0) + '%"></u></div>'
+        + "</div>";
+
+      h += '<div class="fa2-qnlist">' + d.map((q, i) =>
+          '<div class="fa2-qnrow' + (q.rated ? " rated" : "") + '">'
+          + '<div class="n">' + (i + 1) + "</div>"
+          + '<div class="f">'
+          + '<input class="rbq" data-i="' + i + '" data-k="label" value="' + esc(q.label)
+          + '" placeholder="What is being judged, in the rater\'s words">'
+          + '<input class="rbd" data-i="' + i + '" data-k="description" value="'
+          + esc(q.description || "") + '" placeholder="How to judge it — the rater reads this under the question">'
+          + "</div>"
+          + '<div class="p"><label>Points</label>'
+          + '<input class="rbp" type="number" step="0.5" min="0.5" max="40" data-i="' + i
+          + '" data-k="points" value="' + q.points + '"></div>'
+          + '<div class="s"><label>Answered by</label>'
+          + '<select class="rbs" data-i="' + i + '" data-k="scale"'
+          + (q.rated ? ' disabled title="already rated this month — how it is answered cannot change"' : "") + ">"
+          + '<option value="stars5"' + (q.scale === "stars5" ? " selected" : "") + ">1–5 stars</option>"
+          + '<option value="tri"' + (q.scale === "tri" ? " selected" : "") + ">None / half / full</option>"
+          + "</select></div>"
+          + '<button class="rbx" data-i="' + i + '" title="Remove this question">Remove</button>'
+          + "</div>").join("") + "</div>";
+
+      h += '<div class="fa2-qnfoot">'
+        + '<button class="fa2-ghost" id="fa2RubAdd">+ Add a question</button>'
+        + '<span class="hint">Removing one stops it counting from this month on — nothing '
+        + "already scored is lost. A question that has already been rated this month cannot "
+        + "change how it is answered; add a new one instead.</span>"
+        + '<button class="fa2-ghost" id="fa2RubCancel">Undo changes</button>'
+        + '<button class="fa2-go" id="fa2RubSave"' + (balanced ? "" : " disabled") + ">Save the questionnaire</button>"
+        + "</div></div>";
+      return h;
     }
 
     function rubricPanel() {
@@ -614,8 +778,17 @@ registerPage({
         + "worth rating; they are simply out of the running. A month opens for rating on its "
         + "own " + OPEN_DAY + "th and closes when you submit it below.</details>";
 
-      h += rubricPanel();
+      // TWO VIEWS, and the second one is the point of the whole rework: Ramaz builds
+      // the questionnaire himself. It used to be a small Edit button on a panel that
+      // said "cannot be changed" for the month you actually land on, which read as
+      // "the questions are hardcoded" — because in practice they were.
+      h += '<div class="fa2-views">'
+        + '<button class="fa2-view' + (S.view === "rate" ? " on" : "") + '" data-view="rate">Rate foremen</button>'
+        + (S.canEditRubric ? '<button class="fa2-view' + (S.view === "rubric" ? " on" : "") + '" data-view="rubric">Questionnaire <i>admin</i></button>' : "")
+        + "</div>";
       h += '<div class="fa2-msg' + (S.msg ? (S.msgErr ? " err" : " on") : "") + '">' + esc(S.msg || "") + "</div>";
+      if (S.view === "rubric") { main.innerHTML = h + questionnaireView(); wire(); return; }
+      h += rubricPanel();
 
       if (S.locked) {
         h += '<div class="fa2-done">✓ ' + esc(monLab(S.month)) + " is submitted — ratings are final"
@@ -780,6 +953,19 @@ registerPage({
           };
         });
       }
+      main.querySelectorAll(".fa2-view").forEach(b => {
+        b.onclick = () => {
+          S.view = b.dataset.view; S.msg = "";
+          if (S.view === "rubric") {
+            const ms = S.rubricMonths || [];
+            const m = S.rubMonth || (ms.indexOf(S.month) >= 0 ? S.month : ms[ms.length - 1]);
+            S.rubMonth = m || "";
+            if (m && m !== S.month) { loadRubricFor(m); return; }
+            S.draft = draftFromRubric();
+          }
+          paint();
+        };
+      });
       main.querySelectorAll(".fa2-chip").forEach(c => {
         c.onclick = () => { S.tab = c.dataset.tab; paint(); };
       });
