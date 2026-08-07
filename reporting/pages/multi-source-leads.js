@@ -64,7 +64,6 @@ registerPage({
         .msl-combo .n{opacity:.7;font-weight:800;margin-left:5px}
         .msl-tbl{width:100%;border-collapse:collapse}
   .msl-row{cursor:pointer}
-  .msl-row:hover td{background:var(--brand-glow)}
   .msl-pager{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:11px 13px;border-top:1px solid var(--line);font-size:12.5px;color:var(--muted)}
   .msl-pager b{color:var(--ink);font-variant-numeric:tabular-nums}
   .msl-pgnav{display:flex;gap:8px}
@@ -74,6 +73,9 @@ registerPage({
         .msl-tbl th,.msl-tbl td{padding:8px 12px;font-size:12.5px;text-align:left;border-bottom:1px solid var(--line)}
         .msl-tbl th{color:var(--faint);font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.04em}
         .msl-tbl tr:hover td{background:var(--panel-2)}
+        /* the clickable rows must win, so they come LAST and carry more specificity --
+           as a bare .msl-row:hover they tied with the generic rule above and lost. */
+        .msl-tbl .msl-row:hover td{background:var(--brand-glow)}
         .msl-tbl td.r,.msl-tbl th.r{text-align:right}
         .src-chip{display:inline-block;font-size:11px;font-weight:800;padding:2px 8px;border-radius:999px;margin:1px 3px 1px 0;white-space:nowrap}
         .src-chip.CallRail{background:rgba(132,204,22,.16);color:var(--brand-d)}

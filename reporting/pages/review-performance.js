@@ -344,8 +344,12 @@ registerPage({
         if (pendPage >= pages) pendPage = pages - 1;
         if (pendPage < 0) pendPage = 0;
         var from = pendPage * PEND_PAGE, shown = pendSorted.slice(from, from + PEND_PAGE);
-        box.innerHTML = '<table class="rp-tbl2" style="margin-top:10px"><thead><tr><th>Job Date</th><th>Job No</th>'
-          + '<th>Customer</th><th>Foreman</th><th class="r">Days old</th></tr></thead><tbody>'
+        // widths, or five short columns stretch 5x across the full 2082px content box
+        box.innerHTML = '<table class="rp-tbl2" style="margin-top:10px">'
+          + '<colgroup><col style="width:110px"><col style="width:110px"><col style="width:260px">'
+          + '<col style="width:200px"><col style="width:90px"><col></colgroup>'
+          + '<thead><tr><th>Job Date</th><th>Job No</th>'
+          + '<th>Customer</th><th>Foreman</th><th class="r">Days old</th><th></th></tr></thead><tbody>'
           + shown.map(function (r) {
               return "<tr><td>" + esc(String(r["Job Date"]).slice(0, 10)) + "</td><td>" + esc(r["Job No"] || "—")
                 + "</td><td>" + esc(r.Customer || "—") + "</td><td>" + esc(r.Foreman || "—")

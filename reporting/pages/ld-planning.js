@@ -340,7 +340,7 @@ registerPage({
         .ldp-tllabtx{min-width:0;flex:1}
         .ldp-tllabtx b{display:block;font-size:13.5px;font-weight:800;letter-spacing:-.2px;line-height:1.25;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
         .ldp-tllabtx span{display:block;font-size:11.5px;color:var(--faint);font-weight:600;line-height:1.2;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
-        .ldp-tlcal{position:relative;flex:1;min-width:0;overflow:hidden;background-image:repeating-linear-gradient(to right,var(--line) 0 1px,transparent 1px calc(100%/6))}
+        .ldp-tlcal{position:relative;flex:1;min-width:0;overflow:hidden;background-image:repeating-linear-gradient(to right,var(--line) 0 1px,transparent 1px var(--tl-step,calc(100%/6)))}
         .ldp-tlcal.grabbing{cursor:grabbing}
         .ldp-tlband{position:absolute;top:0;bottom:0;background:rgba(176,42,55,.055);z-index:0}
         .ldp-tltoday{position:absolute;top:0;bottom:0;width:2px;background:${NEG};opacity:.5;z-index:1}
@@ -370,6 +370,9 @@ registerPage({
         .ldp-tlcust.tp{background:rgba(160,106,0,.15);color:${WARN}}
         .ldp-tlcust.unk{background:rgba(176,42,55,.11);color:${NEG}}
         .ldp-tlcust.no{background:var(--panel-2);color:var(--muted)}
+        /* cnr is a sixth live bucket ("Contracts Not Received") and a filter option, but
+           had no variant here -- the chip rendered with no pill and the bar invisible. */
+        .ldp-tlcust.cnr{background:rgba(47,111,208,.12);color:${BLUE}}
         .ldp-tlhold.no{background:var(--line-2)}
         .ldp-tltype{font-size:9.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--faint);margin-left:6px}
         /* how long the goods have been in our hands: pickup -> today */
@@ -378,6 +381,7 @@ registerPage({
         .ldp-tlhold.car{background:rgba(47,111,208,.5)}
         .ldp-tlhold.tp{background:rgba(160,106,0,.5)}
         .ldp-tlhold.unk{background:rgba(176,42,55,.42)}
+        .ldp-tlhold.cnr{background:rgba(47,111,208,.5)}
         .ldp-tlheld{position:absolute;top:72%;transform:translate(6px,-45%);font-size:10px;font-weight:800;color:var(--faint);white-space:nowrap;z-index:2}
         /* quick segmentation chips */
         .ldp-tlf{display:flex;gap:9px;flex-wrap:wrap;margin:0;align-items:center}
@@ -1250,10 +1254,15 @@ registerPage({
                 + '<button class="ldp-bhbtn" data-bh="1" style="margin-top:0">Copy</button></div>'
               : "")
           + custodySec(r)
-          + '<div class="ldp-sec">Job</div>'
-          + kv([r["Balance Due"] != null ? ["Balance due", money(r["Balance Due"])] : null,
-                r["CF"] != null ? ["CF", Number(r["CF"]).toLocaleString()] : null,
-])
+          + (function () {
+              // kv() filters out the nulls, so with neither figure present this printed a
+              // heading over an empty bordered card. Say there is nothing yet instead.
+              var jobPairs = [r["Balance Due"] != null ? ["Balance due", money(r["Balance Due"])] : null,
+                              r["CF"] != null ? ["CF", Number(r["CF"]).toLocaleString()] : null];
+              return '<div class="ldp-sec">Job</div>'
+                + (jobPairs.filter(Boolean).length ? kv(jobPairs)
+                   : '<div class="ldp-sub">no closing figures on this job yet</div>');
+            })()
           // The drawer is READ-ONLY (Tornike 2026-07-28: "i dont need user to input anything
           // here"). The Plan / Where-it-is form lived here; corrections belong in the long-distance
           // sheet, the system of record. overlaid() still APPLIES entries saved before this change.
@@ -1290,6 +1299,10 @@ registerPage({
             + fmtD(latest.Posted) + ') says “' + esc(CUST_WORD[slackKind] || slackKind)
             + '” — worth a look; the sheet stays the record.</div>';
         }
+        // the heading counts the whole trail; only four render. Say so rather than
+        // let the two numbers quietly disagree.
+        if (trail.length > 4) h += '<div class="ldp-sub">showing the newest 4 of '
+          + trail.length + " posts</div>";
         h += trail.slice(0, 4).map(function (c) {
           var photos = [];
           try { photos = JSON.parse(c.Photos || "[]"); } catch (e2) {}
@@ -1760,7 +1773,12 @@ registerPage({
           +   '<span><i class="lg-s"></i>straight \u2014 committed date</span>'
           +   '<span><i class="lg-r"></i>regular \u2014 delivery window</span></div>'
           + "</div>"
-          + '<div class="ldp-tlgrid"><div class="ldp-tlhead"><div class="ldp-tlhlab"></div>'
+          // one gridline per week, wherever the window happens to land. The rule used to be
+          // hardcoded to sixths, which equalled a week only back when the window was a fixed
+          // 42 days -- it is now sized to the data (21-180), so the rules stopped agreeing
+          // with the day numbers printed above them.
+          + '<div class="ldp-tlgrid" style="--tl-step:' + (7 * dp).toFixed(4) + '%">'
+          +   '<div class="ldp-tlhead"><div class="ldp-tlhlab"></div>'
           +   '<div class="ldp-tlhcal">' + cal + "</div></div>"
           +   '<div class="ldp-tlbody">' + body + "</div></div>";
       }

@@ -16,7 +16,9 @@ registerPage({
       st.textContent = `
         .gs-head h1{margin:0;font-size:22px;font-weight:800;letter-spacing:-.4px}
         .gs-head p{margin:4px 0 16px;font-size:12.5px;color:var(--muted);max-width:640px}
-        #gsBody{column-width:min(560px,100%);column-gap:16px}
+        /* plain length: min() is not valid in column-width, so the whole declaration was
+           dropped and the page rendered as ONE 2090px column of label/value pairs. */
+        #gsBody{column-width:560px;column-gap:16px}
         /* break-inside so a card is never split across two columns mid-form */
         .gs-card{break-inside:avoid;-webkit-column-break-inside:avoid;page-break-inside:avoid;
           display:inline-block;width:100%;background:var(--panel);border:1px solid var(--line-2);

@@ -389,7 +389,7 @@
     } else if (mv) stateHtml = `<span class="st-bad">Move date passed — no closing filed</span>`;
     else stateHtml = `<span class="st-dim">no move date</span>`;
     const cal = (d.calendar || []).map(c =>
-      `<a class="st-callink" href="${esc(c.url || "#")}" target="_blank" rel="noopener">📅 ${esc((c.event_date || "").slice(0, 10))} ${esc(c.event_title || "calendar event").slice(0, 44)}</a>`).join("");
+      `<a class="st-callink" href="${esc(c.url || "#")}" target="_blank" rel="noopener">📅 ${esc((c.event_date || "").slice(0, 10))} ${esc(String(c.event_title || "calendar event").slice(0, 70))}</a>`).join("");
     // transfer-accuracy: did the salesperson copy Moveboard -> Calendar correctly?
     let xfer = "";
     const ce = (d.calendar || [])[0];
@@ -724,7 +724,11 @@
             </div></div>
         </div>
         <div style="overflow-x:auto"><table class="st-tbl"><thead><tr>${dense === "compact" ? COMPACT_COLS : DETAIL_COLS}</tr></thead>
-        <tbody>${people.map(dense === "compact" ? crow : drow).join("")}</tbody></table></div>
+        <tbody>${people.length
+            ? people.map(dense === "compact" ? crow : drow).join("")
+            : `<tr><td colspan="${dense === "compact" ? 9 : 16}" class="st-dim" style="padding:26px 13px">`
+              + `No salesperson clears the ${th.minLeads}-lead floor in this filter — widen the date range, `
+              + `or lower "Min leads to rank" in Thresholds.</td></tr>`}</tbody></table></div>
         <div class="st-note">Click a person to open their Rep Profile (and pin the Sales Person filter to them). Booking % = <b>Confirms in period ÷ Qualified</b> — the portal's canonical formula, the same one behind the Booking rate card above (confirmations count on their confirmed date, qualified leads on their created date). "Confirmed (cohort)" is the different question: how many of <i>this period's</i> leads have confirmed so far — always lower for recent months, because bookings lag creation. Every other column follows the lead's created date. Branch owner excluded. Call data currently ends at the newest RingCentral export.</div>
       </div>`;
 

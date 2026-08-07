@@ -670,8 +670,11 @@ registerPage({
       var trail = (S.custody || []).filter(function (c) { return slugName(c.Customer) === k; })
         .sort(function (a, b) { return String(b.TS || "").localeCompare(String(a.TS || "")); });
       if (!trail.length) return "";
-      var h = '<div class="stc-sec"><h5>Slack custody trail \u00b7 ' + trail.length
-        + " post" + (trail.length === 1 ? "" : "s") + "</h5>";
+      var h = '<div class="stc-sec"><h5>Slack custody trail \u00b7 '
+        // the block below renders four; the heading used to count them all, so the two
+        // numbers on screen disagreed with nothing to explain the gap
+        + (trail.length > 4 ? "newest 4 of " + trail.length + " posts"
+           : trail.length + " post" + (trail.length === 1 ? "" : "s")) + "</h5>";
       trail.slice(0, 4).forEach(function (c) {
         var what = CUSTODY_LAB[c.Custody] || c.Custody || "";
         var detail = [

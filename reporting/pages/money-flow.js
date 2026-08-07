@@ -83,7 +83,7 @@ registerPage({
         .mf-card{background:var(--panel);border:1px solid var(--line-2);border-radius:14px;overflow:hidden;position:relative}
         .mf-tbl{width:100%;border-collapse:collapse;font-size:14px}
         .mf-tbl th{position:sticky;top:0;background:var(--panel);text-align:left;font-size:11.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--faint);font-weight:800;padding:11px 12px;border-bottom:1px solid var(--line);white-space:nowrap;cursor:pointer;user-select:none;z-index:2}
-        .mf-tbl th.r,.mf-tbl td.r{text-align:right;font-variant-numeric:tabular-nums}
+        .mf-tbl th.r,.mf-tbl td.r,.mf-htbl th.r,.mf-htbl td.r{text-align:right;font-variant-numeric:tabular-nums}
         .mf-tbl td{padding:10px 12px;border-top:1px solid var(--line);vertical-align:middle;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:240px}
         .mf-tbl tbody tr.mf-row{cursor:pointer}
         .mf-tbl tbody tr.mf-row:hover{background:var(--panel-2)}
@@ -129,7 +129,7 @@ registerPage({
         .mf-dtpop input[type=date]{font:inherit;font-size:12px;padding:6px 7px;border:1px solid var(--line-2);border-radius:8px;background:var(--panel);color:var(--ink);flex:1;min-width:0}
         .mf-dtpop .clr{display:block;width:100%;font:inherit;font-size:11.5px;font-weight:700;color:${BLUE};background:transparent;border:1px solid var(--line-2);border-radius:8px;padding:7px;cursor:pointer}
         .mf-fmrow{cursor:pointer}
-        .mf-fmrow:hover{background:var(--panel-2)}
+        .mf-tbl .mf-fmrow:hover td{background:var(--line)}
         .mf-fmrow td{font-weight:700}
         .mf-caret{color:var(--faint);font-size:11px;display:inline-block;width:14px}
         .mf-fmsub>td{padding:0 0 16px 24px;background:var(--panel-2)}

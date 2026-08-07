@@ -162,8 +162,10 @@ function rlInjectStyle() {
   .rl-htot{margin-left:auto;font-size:12.5px;color:var(--muted)}.rl-htot b{color:var(--ink);font-size:17px;font-weight:820}
   .rl-legend{display:flex;gap:22px;flex-wrap:wrap;margin-bottom:9px}
   .rl-leg{display:flex;align-items:center;gap:8px}
-  .rl-dot{width:11px;height:11px;border-radius:3px;flex:none}
-  .rl-dot.raw{background:var(--blue)} .rl-dot.cur{background:var(--purple)}
+  /* scoped to .rl-leg: unscoped, this second .rl-dot won on source order and turned
+     every 8px round status dot on the page into an 11px rounded square. */
+  .rl-leg .rl-dot{width:11px;height:11px;border-radius:3px;flex:none}
+  .rl-leg .rl-dot.raw{background:var(--blue)} .rl-leg .rl-dot.cur{background:var(--purple)}
   .rl-leg .lk{font-size:10.5px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)}
   .rl-leg .lv{font-size:15px;font-weight:820;color:var(--ink);margin-left:2px;font-variant-numeric:tabular-nums}
   .rl-leg .ls{font-size:11.5px;color:var(--faint);margin-left:4px}

@@ -114,7 +114,13 @@ window.RSC = (function () {
      a custom from→to with Apply, and the day-of-month pacing inputs. Same visual pattern
      as money-flow.js's mfDtBtn/mf-dtpop (rs-datebtn/rs-datepop in rs.css). */
   function dateBar(host, onChange) {
-    const wrap = el("div", "rs-daterange rs-dtwrap");
+    // rs-dtwrap ONLY. This wrapper used to carry both classes: .rs-daterange styles the old
+    // inline from/to field (border, background, 34px height, display:inline-flex) and
+    // .rs-dtwrap, declared later in rs.css, overrode that display with inline-block -- so the
+    // flex centering never applied and the legacy field chrome drew a second box around the
+    // one compact date button that replaced it. The wrapper needs position:relative for the
+    // popover and nothing else.
+    const wrap = el("div", "rs-dtwrap");
     const iso = d => d.toLocaleDateString("en-CA");
     const now = new Date();
     const today = iso(now);

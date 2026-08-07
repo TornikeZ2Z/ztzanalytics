@@ -1067,7 +1067,11 @@ registerPage({ id: "review-settings", group: "reviews", title: "Review URLs and 
         var ok = day.filter(function (j) { return j.exp || j.rev; }).length;
         return "<tr><td>" + esc(etDay(dk + "T12:00:00") || dk) + '</td><td class="r">' + day.length + '</td><td class="r">' + rv + '</td><td class="r">' + e + '</td><td class="r">' + (day.length ? Math.round(ok / day.length * 100) + "%" : "—") + "</td></tr>";
       }).join("");
-      var dayTbl = '<div class="rrp-card" style="padding:0"><table class="rrp-reasontbl"><thead><tr><th>Day</th><th class="r">Jobs</th><th class="r">Reviewed</th><th class="r">Explained</th><th class="r">Rate</th></tr></thead><tbody>' + (dayRows || '<tr><td colspan="5" style="color:var(--faint);padding:14px">No recent jobs.</td></tr>') + "</tbody></table></div>";
+      // widths, or five short columns stretch 7x across the full 2082px content box
+      var dayTbl = '<div class="rrp-card" style="padding:0"><table class="rrp-reasontbl">'
+        + '<colgroup><col style="width:190px"><col style="width:90px"><col style="width:110px">'
+        + '<col style="width:110px"><col style="width:90px"><col></colgroup>'
+        + '<thead><tr><th>Day</th><th class="r">Jobs</th><th class="r">Reviewed</th><th class="r">Explained</th><th class="r">Rate</th></tr></thead><tbody>' + (dayRows || '<tr><td colspan="5" style="color:var(--faint);padding:14px">No recent jobs.</td></tr>') + "</tbody></table></div>";
       // worklist with inline explain (waiting first)
       var reasons = (RRP.data && RRP.data.config && RRP.data.config.reasons) || RRP_SEED.reasons;
       // Paginated 25/page (audit 2026-07-25) — this rendered every recent job at once. data-exi

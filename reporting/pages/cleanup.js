@@ -975,6 +975,7 @@ registerPage({
         + "<span>Chains already counted</span><small>jobs the board put on one crew</small></div>"
         + "</div>";
 
+      // an empty filtered strip took the arrows with it and said nothing -- see below
       var strip = "<div class='cu-strip'>" + dayList.map(function (d) {
         var iso = String(d.Day).slice(0, 10);
         var av = +d["Crews Available"] || 0, rt = +d.Routes || 0;
@@ -1226,7 +1227,13 @@ registerPage({
         + (S.probOnly ? "Showing days that need attention" : "Show only days that need attention")
         + "</button></div>";
 
-      body.innerHTML = kpis + toggle + strip + detail;
+      // "Show only days that need attention" with nothing to show emptied the strip AND took
+      // both arrows with it, leaving a toggle above a void. Say the good news out loud.
+      body.innerHTML = kpis + toggle
+        + (dayList.length ? strip
+           : "<div class='cu-empty'>Every day in the horizon is staffed with a buffer — "
+             + "nothing needs attention. Switch the toggle off to see them all.</div>")
+        + detail;
 
       Array.prototype.forEach.call(body.querySelectorAll("[data-day]"), function (b) {
         b.onclick = function () {

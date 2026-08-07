@@ -360,6 +360,11 @@ registerPage({
       + ".pk-card::before{content:'';position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--line-2)}"
       + ".pk-card.v-review::before{background:var(--neg)} .pk-card.v-look::before{background:var(--warn)}"
       + ".pk-card.v-ok::before{background:var(--pos)} .pk-card.v-thin::before{background:var(--line-2)}"
+      // the drawer Reading panel is handed the same v-* verdict class, which had no rule
+      // at all -- severity never reached the one panel that states the accusation
+      + ".pk-read{border:1px solid var(--line-2);border-left-width:4px;border-radius:10px;padding:10px 13px}"
+      + ".pk-read.v-review{border-left-color:var(--neg)} .pk-read.v-look{border-left-color:var(--warn)}"
+      + ".pk-read.v-ok{border-left-color:var(--pos)} .pk-read.v-thin{border-left-color:var(--line-2)}"
       + ".pk-head{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}"
       + ".pk-name{font-size:var(--t2);font-weight:750;letter-spacing:-.2px}"
       + ".pk-sub{font-size:var(--t5);color:var(--faint);margin-left:auto;text-align:right;white-space:nowrap}"

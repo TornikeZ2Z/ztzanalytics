@@ -213,6 +213,13 @@ registerPage({
         return;
       }
       const rs = scope();
+      // the guard above tests the whole feed; this one tests what the month and the search
+      // actually left, which is what the tables below are built from
+      if (!rs.length) {
+        host.querySelector("#fuBody").innerHTML = '<div class="fu-empty">'
+          + "No card swipes match this month or search.</div>";
+        return;
+      }
       const openQ = rs.filter(r => +r["Needs Review"] === 1 && +r.Resolved !== 1);
       const resolved = rs.filter(r => +r.Resolved === 1);
       const unplaced = rs.filter(r => !PLACED[r["Match Status"]]);

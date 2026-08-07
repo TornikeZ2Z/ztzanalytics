@@ -155,6 +155,7 @@ registerPage({
         .strc-sechead{font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;
           color:var(--muted);margin:2px 0 11px}
         .strc-sechead span{color:var(--faint);font-weight:700;text-transform:none;letter-spacing:0}
+        .strc-cap{font-size:12px;font-weight:600;color:var(--faint);margin-left:8px}
         .strc-ladder{display:flex;flex-direction:column;gap:8px;margin-bottom:18px}
         .strc-rule{display:grid;grid-template-columns:auto 1fr;gap:12px;align-items:start;
           padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:var(--panel-2)}
@@ -262,7 +263,7 @@ registerPage({
     document.getElementById("stIdle").innerHTML = `
       <div class="panel">
         <div class="panel-head"><h3 style="margin:0">How a source is decided</h3>
-          <span class="freshness">the ladder every trace walks, in order — the first rung that matches wins</span></div>
+          <span class="strc-cap">the ladder every trace walks, in order — the first rung that matches wins</span></div>
         <div class="strc-howgrid">${LADDER.map(r => `
           <div class="strc-howrung">
             <div class="strc-hown">${r.n}</div>

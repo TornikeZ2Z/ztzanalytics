@@ -617,7 +617,9 @@ registerPage({
         + '<span class="tag">by move date</span><span class="rt">top 15</span></div>'
         + '<p class="dm-note">Ranked on <b>leads asked</b>, not on what we booked — a date we '
         + "turned away is still a date the market wanted.</p>"
-        + '<div class="dm-scroll"><table class="dm-t"><thead><tr><th>Move date</th><th>Leads</th>'
+        + (!list.length
+            ? '<div class="dm-empty">No move date in this window was asked for at all.</div>'
+            : '<div class="dm-scroll"><table class="dm-t"><thead><tr><th>Move date</th><th>Leads</th>'
         + "<th>Booked</th><th>Rate</th><th>Cu ft</th><th>Avg quote</th><th>Top market</th>"
         + "</tr></thead><tbody>"
         + list.map(d => {
@@ -628,7 +630,8 @@ registerPage({
               + dash(avgQuote(d), money0) + "</td><td>" + esc(st.length ? st[0].k : "—")
               + "</td></tr>";
           }).join("")
-        + "</tbody></table></div></div>";
+        + "</tbody></table></div>")
+        + "</div>";
     }
 
     function marketCard(a) {

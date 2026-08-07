@@ -283,7 +283,10 @@ registerPage({
       // bar may hide controls, never the state of the thing that pays the foremen
       var bar = '<div class="fnc-bar" id="fncBar"><div class="fnc-seg">'
         + segBtn("pending", "Pending", pend.length) + segBtn("history", "History", hist.length) + "</div>"
-        + '<div class="fnc-seg fnc-dseg">' + dBtn("details", "Details") + dBtn("overview", "Compact") + "</div>"
+        // History has no compact plan, so the toggle did nothing there but look broken
+        + (S.view === "pending"
+            ? '<div class="fnc-seg fnc-dseg">' + dBtn("details", "Details") + dBtn("overview", "Compact") + "</div>"
+            : "")
         + '<input class="fnc-q" id="fncQ" placeholder="Search foreman" value="' + esc(S.q) + '">'
         + (S.view === "pending" ? '<div class="fnc-auto rs-ckeep" id="fncAuto">' + autoStatusHtml() + "</div>"
              + (data.can_run ? '<button class="fnc-run rs-ckeep" id="fncRunAll">Run closings now</button>' : "") : "")
@@ -299,7 +302,11 @@ registerPage({
         }).join("");
         content = '<div class="fnc-card"><div class="fnc-wrap"><table class="fnc-tbl fx' + (det() ? " det" : "") + '">'
           + P.cols + "<thead><tr>" + P.head + "</tr></thead><tbody>"
-          + (body || '<tr><td colspan="' + P.n + '" style="color:var(--faint);padding:18px">Nothing pending — every confirmed job is closed. 🎉</td></tr>')
+          // the filter, not the world: with a search term this used to announce that every
+          // confirmed job was closed, when the truth was that no FOREMAN matched.
+          + (body || '<tr><td colspan="' + P.n + '" style="color:var(--faint);padding:18px">'
+              + (S.q ? 'No foreman matches "' + esc(S.q) + '".'
+                     : "Nothing pending — every confirmed job is closed. 🎉") + "</td></tr>")
           + "</tbody></table></div>"
           + '<div class="fnc-note">Click a foreman to see the jobs in his next batch. These close automatically on the next scheduled run, and the statement is emailed once closed.</div></div>';
       } else {
@@ -350,7 +357,8 @@ registerPage({
         content = '<div class="fnc-card"><div class="fnc-wrap"><table class="fnc-tbl fx" style="min-width:1160px">'
           + '<colgroup><col style="width:22%"><col style="width:7%"><col style="width:13%"><col style="width:13%"><col style="width:12%"><col style="width:10%"><col style="width:12%"><col style="width:11%"></colgroup>'
           + '<thead><tr><th>Foreman / Period</th><th class="r">Jobs</th><th class="r">Net Cash</th><th class="r">Confirmed</th><th class="r">Balance</th><th>Source</th><th>Delivery</th><th>Statement</th></tr></thead><tbody>'
-          + (hbody || '<tr><td colspan="8" style="color:var(--faint);padding:18px">No closings yet.</td></tr>')
+          + (hbody || '<tr><td colspan="8" style="color:var(--faint);padding:18px">'
+              + (S.q ? 'No foreman matches "' + esc(S.q) + '".' : "No closings yet.") + "</td></tr>")
           + "</tbody></table></div>"
           + '<div class="fnc-note">Every closing, grouped by foreman. Click a foreman to see his closings; click a closing to see its jobs, or open its PDF statement.</div></div>';
       }
