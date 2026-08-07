@@ -109,7 +109,7 @@ registerPage({
 
     const S = window.__FA2 || (window.__FA2 = {
       month: "", sc: null, ratings: null, locked: false, subBy: null, subAt: null,
-      canReopen: false, q: "", tab: "all", open: null, msg: "", msgErr: false,
+      canReopen: false, q: "", tab: "all", open: null, msg: "", msgErr: false, notOpen: null,
       rubric: [], manualTotal: 40, canEditRubric: false, rubricMonths: [],
       editRubric: false, draft: null,
     });
@@ -120,13 +120,24 @@ registerPage({
     const njToday = () => new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
     const monLab = m => m ? MONTHS[+m.slice(5, 7) - 1] + " " + m.slice(0, 4) : "—";
 
-    function openMonths() {
+    const isOpenForRating = m => {
       const nj = njToday(), curYm = nj.slice(0, 7), day = +nj.slice(8, 10);
+      return m >= MIN_MONTH && (m < curYm || (m === curYm && day >= OPEN_DAY));
+    };
+
+    /* The picker carries two kinds of month: those OPEN FOR RATING, and the current/next
+     * month whose RUBRIC can still be shaped. They are not the same set, and conflating
+     * them hid the feature: August's questions have to be settled before August opens on
+     * the 20th, but a rating-only picker would not show August until the 20th — by which
+     * point it is too late to decide what August asks. A month that is listed for its
+     * rubric alone renders the panel and says rating opens on the 20th. */
+    function openMonths() {
       const seen = {};
       (S.sc || []).forEach(r => { const m = String(r.Month || "").slice(0, 7); if (m) seen[m] = 1; });
-      return Object.keys(seen)
-        .filter(m => m >= MIN_MONTH && (m < curYm || (m === curYm && day >= OPEN_DAY)))
-        .sort().reverse();
+      const rating = Object.keys(seen).filter(isOpenForRating);
+      const shaping = (S.canEditRubric ? (S.rubricMonths || []) : [])
+        .filter(m => m >= MIN_MONTH && seen[m] && rating.indexOf(m) < 0);
+      return rating.concat(shaping).sort().reverse();
     }
 
     host.innerHTML = '<style id="fa2Css">'
@@ -323,6 +334,9 @@ registerPage({
         if (months.indexOf(S.month) < 0) S.month = months[0];
         return api("/api/_fassess?month=" + encodeURIComponent(S.month)).then(j => {
           S.locked = !!j.locked;
+          // a month listed only so its rubric can be shaped is not ratable yet; the same
+          // flag that disables the stars keeps the bridge from having to reject the writes
+          S.notOpen = j.not_open || null;
           S.subBy = j.submitted_by || null;
           S.subAt = j.submitted_at || null;
           S.canReopen = !!j.can_reopen;
@@ -571,11 +585,11 @@ registerPage({
         + '<div class="fa2-mlist" id="fa2MList">'
         + months.map(m => '<button class="fa2-mopt' + (m === S.month ? " cur" : "")
             + '" type="button" data-m="' + m + '">' + monLab(m)
-            + '<span class="tag ' + ((S.locks || {})[m] ? "sub" : "op") + '">'
-            + ((S.locks || {})[m] ? "✓ submitted" : "open") + "</span></button>").join("")
+            + '<span class="tag ' + ((S.locks || {})[m] ? "sub" : isOpenForRating(m) ? "op" : "sub") + '">'
+            + ((S.locks || {})[m] ? "✓ submitted" : isOpenForRating(m) ? "open" : "rubric only") + "</span></button>").join("")
         + "</div></div>"
-        + '<div><span class="fa2-pill ' + (S.locked ? "sub" : "open") + '">'
-        + (S.locked ? "✓ Submitted — ratings are final" : "● Open for rating") + "</span></div></div>"
+        + '<div><span class="fa2-pill ' + (S.locked ? "sub" : S.notOpen ? "sub" : "open") + '">'
+        + (S.locked ? "✓ Submitted — ratings are final" : S.notOpen ? "○ Rubric only — rating opens on the " + OPEN_DAY + "th" : "● Open for rating") + "</span></div></div>"
         + '<div class="fa2-stats">'
         + stat(fmtN(all.length), "Foremen", "with work in " + monLab(S.month))
         + stat(done + " / " + all.length, "Fully assessed",
@@ -705,14 +719,14 @@ registerPage({
               return '<button class="fa2-trib' + (on ? " on" : "") + '"'
                 + ' data-f="' + esc(f.Foreman) + '" data-q="' + esc(q.Question) + '"'
                 + ' data-s="' + st + '" data-m="' + S.month + '"'
-                + (S.locked ? " disabled" : "") + ">" + lab
+                + ((S.locked || S.notOpen) ? " disabled" : "") + ">" + lab
                 + '<u>' + fmt1(frac * pts) + "</u></button>";
             }).join("") + "</div>"
           : '<div class="fa2-stars">' + [1, 2, 3, 4, 5].map(n2 =>
               '<button class="fa2-star' + (stars != null && n2 <= stars ? " on" : "") + '"'
               + ' data-f="' + esc(f.Foreman) + '" data-q="' + esc(q.Question) + '" data-s="' + n2 + '"'
               + ' data-m="' + S.month + '"'
-              + (S.locked ? " disabled" : "") + ' title="' + n2 + " star" + (n2 === 1 ? "" : "s") + '">★</button>').join("")
+              + ((S.locked || S.notOpen) ? " disabled" : "") + ' title="' + n2 + " star" + (n2 === 1 ? "" : "s") + '">★</button>').join("")
             + "</div>";
         return '<div class="fa2-q"><div class="qt"><b>' + esc(q.Label) + "</b>"
           + '<span class="qw">worth ' + fmt1(pts) + " of " + fmt1(MANUAL_TOTAL()) + "</span>"
@@ -721,7 +735,7 @@ registerPage({
               + " · " + esc(String(cur["Entered At"] || "").slice(0, 10)) + "</em>" : "")
           + "</div>"
           + '<div class="fa2-ctl">' + control
-          + (stars != null && !S.locked ? '<button class="fa2-clr" data-f="' + esc(f.Foreman)
+          + (stars != null && !S.locked && !S.notOpen ? '<button class="fa2-clr" data-f="' + esc(f.Foreman)
               + '" data-q="' + esc(q.Question) + '" data-m="' + S.month + '">clear</button>' : "")
           + "</div>"
           + '<div class="fa2-pts' + (stars == null ? " un" : "") + '">'
