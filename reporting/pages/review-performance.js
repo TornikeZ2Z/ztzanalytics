@@ -180,7 +180,11 @@ registerPage({
            RSC.fitScroller sets --pg-chrome from the chrome actually on screen, so collapsing
            the bar above the matrix leaves no dead gap */
         .rp-wrap{overflow:auto;border:1px solid var(--line);border-radius:12px;max-height:calc(100vh - var(--pg-chrome, 232px))}
-        .rp-mx{border-collapse:separate;border-spacing:0;font-size:12px;min-width:560px}
+        /* width:100% so the matrix spends the width it is given. It sized to its content and
+           stopped at roughly 1600px, leaving a third of a 2560px screen blank beside it while
+           the cells themselves stayed cramped. min-width keeps it scrollable on a laptop; the
+           sticky foreman column and the cell padding are unchanged. */
+        .rp-mx{border-collapse:separate;border-spacing:0;font-size:12px;min-width:560px;width:100%}
         .rp-mx th,.rp-mx td{padding:0;text-align:center;white-space:nowrap;box-sizing:border-box}
         .rp-mx thead th{background:var(--panel-2);color:var(--faint);font-size:10.5px;font-weight:800;text-transform:uppercase;
           letter-spacing:.03em;padding:8px 6px;position:sticky;top:0;border-bottom:1px solid var(--line);cursor:pointer;z-index:1}

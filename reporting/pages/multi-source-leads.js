@@ -173,7 +173,17 @@ registerPage({
       // only the rendered slice is capped, so the page stays fast as the data grows.
       list = list.slice().sort((a, b) =>
         String(b.r["Move Date"] || "").localeCompare(String(a.r["Move Date"] || "")));
-      const PER = 10;
+      /* Rows to fit the screen, not a fixed ten. Ten was chosen when the portal was a 1400px
+         layout; on a 2560px monitor it left the bottom half of the page empty and turned 162
+         leads into SEVENTEEN pages of clicking. Measure the space actually below the table and
+         fill it: ~34px a row, floor of 10 so a laptop still behaves, ceiling of 60 so nobody
+         renders a thousand rows on a wall display. */
+      const PER = (() => {
+        const head = document.querySelector(".msl-tbl thead, .rs-content table thead");
+        const top = head ? head.getBoundingClientRect().bottom : 300;
+        const room = window.innerHeight - top - 90;          // 90 = pager + breathing room
+        return Math.max(10, Math.min(60, Math.floor(room / 34) || 10));
+      })();
       const pages = Math.max(1, Math.ceil(list.length / PER));
       if (MSL_STATE.page == null || MSL_STATE.page >= pages) MSL_STATE.page = 0;
       if (MSL_STATE.page < 0) MSL_STATE.page = 0;

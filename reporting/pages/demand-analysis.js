@@ -125,7 +125,13 @@ registerPage({
       + ".dm-note b{color:var(--muted)}"
       + ".dm-grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:14px}"
       // ---- calendar heatmap ---------------------------------------------------------------
-      + ".dm-cal{display:grid;grid-template-columns:repeat(auto-fit,minmax(196px,1fr));gap:14px}"
+      /* Twelve months want a factor of twelve, not "as many as fit". auto-fit at 196px gave
+         nine across on a 2560px screen, so Oct/Nov/Dec dropped to a third-width orphan row
+         under a full one -- a calendar that looks broken rather than annual. Six across (6x2)
+         above 1500px, four (4x3) on a laptop, three below that: every row full, always. */
+      + ".dm-cal{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}"
+      + "@media(min-width:1050px){.dm-cal{grid-template-columns:repeat(4,minmax(0,1fr))}}"
+      + "@media(min-width:1500px){.dm-cal{grid-template-columns:repeat(6,minmax(0,1fr))}}"
       + ".dm-mon .ml{font-size:11px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;"
       + "color:var(--muted);margin-bottom:6px}"
       + ".dm-wk{display:grid;grid-template-columns:repeat(7,1fr);gap:3px}"

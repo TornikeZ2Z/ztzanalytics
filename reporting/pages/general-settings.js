@@ -16,7 +16,11 @@ registerPage({
       st.textContent = `
         .gs-head h1{margin:0;font-size:22px;font-weight:800;letter-spacing:-.4px}
         .gs-head p{margin:4px 0 16px;font-size:12.5px;color:var(--muted);max-width:640px}
-        .gs-card{background:var(--panel);border:1px solid var(--line-2);border-radius:14px;padding:16px 18px;margin-bottom:14px;max-width:760px}
+        #gsBody{column-width:min(560px,100%);column-gap:16px}
+        /* break-inside so a card is never split across two columns mid-form */
+        .gs-card{break-inside:avoid;-webkit-column-break-inside:avoid;page-break-inside:avoid;
+          display:inline-block;width:100%;background:var(--panel);border:1px solid var(--line-2);
+          border-radius:14px;padding:16px 18px;margin:0 0 16px}
         .gs-card h3{margin:0 0 4px;font-size:14.5px;font-weight:800}
         .gs-card .sub{font-size:11.5px;color:var(--faint);margin-bottom:12px}
         .gs-chips{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px}
