@@ -166,6 +166,17 @@ registerPage({
       + ".stc-r .jrow .u{color:var(--faint);font-size:var(--t5)}"
       + ".stc-r .jrow .cf{margin-left:auto;color:var(--muted);font-size:var(--t5);white-space:nowrap}"
       + ".stc-r .jrow .owe{color:var(--neg);font-weight:700;font-size:var(--t5)}"
+      // The unplaced list is NOT a facility card -- it has no facility to sit in. Reusing
+      // .stc-rent/.stc-r parked a dozen rows in one 280px grid cell against the left edge
+      // with the rest of the row empty. Its own full-width card, rows flowing into columns.
+      + ".stc-unplaced{background:var(--panel);border:1px solid var(--line);border-radius:12px;"
+      + "padding:4px 16px 8px;display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));"
+      + "column-gap:28px}"
+      + ".stc-unplaced .jrow{display:flex;gap:8px;align-items:baseline;padding:7px 0;"
+      + "border-bottom:1px solid var(--line);font-size:var(--t4);cursor:pointer}"
+      + ".stc-unplaced .jrow:hover{color:var(--blue)}"
+      + ".stc-unplaced .jrow .u{color:var(--faint);font-size:var(--t5)}"
+      + ".stc-unplaced .jrow .cf{margin-left:auto;color:var(--muted);font-size:var(--t5);white-space:nowrap}"
       // register table
       + ".stc-tblwrap{overflow:auto;background:var(--panel);border:1px solid var(--line);border-radius:12px}"
       + ".stc-tbl{width:100%;border-collapse:collapse;font-size:var(--t4)}"
@@ -409,14 +420,14 @@ registerPage({
           html += '<div class="stc-h2" style="margin-top:14px">Rented items not yet placed on a facility \u00b7 <b>'
             + unplaced.length + "</b>"
             + ' <span style="text-transform:none;letter-spacing:0;font-weight:500">\u2014 the sheet names no unit the register recognises; worth fixing at the source</span></div>'
-            + '<div class="stc-rent"><div class="stc-r"><div class="in" style="border-top:0;margin-top:0">'
+            + '<div class="stc-unplaced">'
             + unplaced.map(function (r) {
                 return '<div class="jrow" data-job="' + esc(r["Job Code"] || "") + '" data-cust="' + esc(r.Customer) + '">'
                   + "<span>" + esc(r.Customer) + "</span>"
                   + '<span class="u">' + esc(r.Facility || "?") + (r.Unit ? " \u00b7 " + esc(r.Unit) : "") + "</span>"
                   + '<span class="cf">' + (r["Chargeable CF"] ? Math.round(r["Chargeable CF"]) + " CF" : "") + "</span></div>";
               }).join("")
-            + "</div></div></div>";
+            + "</div>";
         }
       }
 
