@@ -178,16 +178,16 @@
     .st-chip:hover{color:var(--ink);border-color:var(--faint)}
     .st-chip.on{color:var(--brand-ink);border-color:var(--brand);background:var(--brand);box-shadow:0 2px 8px var(--brand-glow)}
     /* ===== rep profile — futuristic ===== */
-    .rp-head{position:relative;display:flex;gap:24px;align-items:center;flex-wrap:wrap;justify-content:space-between;
+    .st-head{position:relative;display:flex;gap:24px;align-items:center;flex-wrap:wrap;justify-content:space-between;
       background:radial-gradient(130% 180% at 0% 0%,var(--brand-glow),transparent 52%),linear-gradient(180deg,var(--panel),var(--panel-2));
       border:1px solid var(--line);border-radius:20px;box-shadow:var(--shadow);padding:22px 26px;margin-bottom:16px;overflow:hidden}
-    .rp-head::after{content:"";position:absolute;right:-60px;top:-60px;width:220px;height:220px;border-radius:50%;background:radial-gradient(closest-side,var(--brand-glow),transparent);opacity:.6;pointer-events:none}
+    .st-head::after{content:"";position:absolute;right:-60px;top:-60px;width:220px;height:220px;border-radius:50%;background:radial-gradient(closest-side,var(--brand-glow),transparent);opacity:.6;pointer-events:none}
     .rp-id{display:flex;align-items:center;gap:17px;position:relative;z-index:1}
     .rp-avatar{width:58px;height:58px;border-radius:17px;display:grid;place-items:center;font-size:23px;font-weight:850;color:var(--brand-ink);background:linear-gradient(140deg,var(--brand),var(--brand-d));box-shadow:0 8px 22px var(--brand-glow);letter-spacing:-.5px;flex-shrink:0}
     .rp-name{font-size:29px;font-weight:860;color:var(--ink);letter-spacing:-.7px;line-height:1.08}
     .rp-sub{font-size:12.5px;color:var(--muted);margin-top:6px;font-weight:600;display:flex;gap:7px;align-items:center;flex-wrap:wrap}
-    .rp-pill{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:750;padding:3px 10px;border-radius:999px;border:1px solid var(--line-2);color:var(--muted)}
-    .rp-pill.on{color:var(--brand-d);border-color:color-mix(in srgb,var(--brand) 45%,transparent);background:var(--brand-glow)}
+    .st-pill{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:750;padding:3px 10px;border-radius:999px;border:1px solid var(--line-2);color:var(--muted)}
+    .st-pill.on{color:var(--brand-d);border-color:color-mix(in srgb,var(--brand) 45%,transparent);background:var(--brand-glow)}
     .rp-strengths{display:grid;gap:7px;min-width:290px;position:relative;z-index:1}
     .rp-watch{margin-top:12px}
     .rp-cap{font-size:10px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--faint);margin-bottom:3px}
@@ -1543,15 +1543,15 @@
     const initials = name.split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0]).join("").toUpperCase();
     const extNum = c.ext && /^\d+/.test(c.ext) ? c.ext.match(/^\d+/)[0] : null;
     host.innerHTML = `
-      <div class="rp-head">
+      <div class="st-head">
         <div class="rp-id">
           <div class="rp-avatar">${esc(initials)}</div>
           <div><div class="rp-name">${esc(name)}</div>
             <div class="rp-sub">
-              <span class="rp-pill">${esc(c.type || "Sales Rep")}</span>
-              ${c.status ? `<span class="rp-pill ${/not/i.test(c.status) ? "" : "on"}">${/not/i.test(c.status) ? "○" : "●"} ${esc(c.status)}</span>` : ""}
-              ${extNum ? `<span class="rp-pill">ext ${esc(extNum)}</span>` : ""}
-              <span class="rp-pill">${RS.fmtN(p.leads)} leads</span>
+              <span class="st-pill">${esc(c.type || "Sales Rep")}</span>
+              ${c.status ? `<span class="st-pill ${/not/i.test(c.status) ? "" : "on"}">${/not/i.test(c.status) ? "○" : "●"} ${esc(c.status)}</span>` : ""}
+              ${extNum ? `<span class="st-pill">ext ${esc(extNum)}</span>` : ""}
+              <span class="st-pill">${RS.fmtN(p.leads)} leads</span>
             </div></div>
         </div>
         ${strengths.length ? `<div class="rp-strengths"><div class="rp-cap">Strong sides · ranked vs team</div>${strengths.slice(0, 4).map(x => x.chip).join("")}</div>` : ""}

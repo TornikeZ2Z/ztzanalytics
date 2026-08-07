@@ -61,15 +61,15 @@ registerPage({
     const norm = s => String(s == null ? "" : s).trim().toLowerCase();
 
     /* start-to-finish value trail: [{label, value, note?, chg?, raw?, fin?}] — note may hold HTML */
-    const chainStrip = steps => `<div class="st-chain">` + steps.map(s => {
+    const chainStrip = steps => `<div class="strc-chain">` + steps.map(s => {
       const cls = s.raw ? "raw" : s.fin ? "fin" : s.chg ? "chg" : "";
       const badge = s.raw ? "0" : s.fin ? "★" : (s.badge || "");
-      return `<div class="st-step ${cls}">
-          <div class="st-dot">${badge}</div>
-          <div class="st-sbody">
-            <div class="st-slab">${RSC.esc(s.label)}</div>
-            <div class="st-sval">${RSC.esc(show(s.value))}</div>
-            ${s.note ? `<div class="st-snote">${s.note}</div>` : ""}
+      return `<div class="strc-step ${cls}">
+          <div class="strc-dot">${badge}</div>
+          <div class="strc-sbody">
+            <div class="strc-slab">${RSC.esc(s.label)}</div>
+            <div class="strc-sval">${RSC.esc(show(s.value))}</div>
+            ${s.note ? `<div class="strc-snote">${s.note}</div>` : ""}
           </div>
         </div>`;
     }).join("") + `</div>`;
@@ -96,112 +96,115 @@ registerPage({
     };
 
     // one-time style block: two input cards, the priority ladder, the final chip, the verdict
-    if (!document.getElementById("st-style")) {
+    if (!document.getElementById("strc-style")) {
       const st = document.createElement("style");
-      st.id = "st-style";
+      st.id = "strc-style";
       st.textContent = `
         #stSearch{width:100%;max-width:520px;padding:11px 14px;border-radius:11px;
           border:1px solid var(--line-2);background:var(--panel-2);color:var(--ink);
           font-size:14px;font-family:inherit;outline:none}
         #stSearch:focus{border-color:var(--brand)}
-        .st-modes{display:inline-flex;gap:2px;background:var(--panel);border:1px solid var(--line-2);
+        .strc-modes{display:inline-flex;gap:2px;background:var(--panel);border:1px solid var(--line-2);
           border-radius:11px;padding:3px;margin-bottom:13px}
-        .st-modes button{border:0;background:transparent;color:var(--muted);font-family:inherit;
+        .strc-modes button{border:0;background:transparent;color:var(--muted);font-family:inherit;
           font-size:13px;font-weight:700;padding:7px 15px;border-radius:8px;cursor:pointer}
-        .st-modes button.on{background:var(--brand);color:var(--brand-ink)}
-        .st-results{margin-top:12px}
+        .strc-modes button.on{background:var(--brand);color:var(--brand-ink)}
+        .strc-results{margin-top:12px}
         /* min(320px,100%) so it never overflows a narrow pane, and auto-fit so the six
            rungs spread across whatever width the screen actually gives them: 3x2 on a
            laptop, 6 across on a wide monitor, rather than a fixed column count. */
-        /* st-how* on purpose: .st-ladder/.st-rule already belong to the per-job trace below,
-           and a second .st-ladder here simply lost the cascade to it. A plain px floor, not
-           min()/clamp() inside repeat() -- keep this one boringly resolvable. */
-        .st-howgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));gap:12px}
-        .st-howrung{display:grid;grid-template-columns:auto 1fr;gap:12px;align-items:start;
+        /* strc-how* on purpose: .strc-ladder/.strc-rule already belong to the per-job trace
+           below, and a second .strc-ladder here simply lost the cascade to it. A plain px floor,
+           not min()/clamp() inside repeat() -- keep this one boringly resolvable.
+           The whole sheet is strc-* because sales-team.js owns the st-* namespace AND had
+           claimed the id "st-style": whichever page loaded first won, and the other rendered
+           with no CSS at all. Keep this prefix unique -- scripts/lint_page_css.py checks. */
+        .strc-howgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));gap:12px}
+        .strc-howrung{display:grid;grid-template-columns:auto 1fr;gap:12px;align-items:start;
           padding:13px 15px;border:1px solid var(--line);border-radius:12px;background:var(--panel-2)}
-        .st-hown{width:26px;height:26px;border-radius:8px;background:var(--brand);color:var(--brand-ink);
+        .strc-hown{width:26px;height:26px;border-radius:8px;background:var(--brand);color:var(--brand-ink);
           font-weight:800;font-size:13px;display:flex;align-items:center;justify-content:center}
-        .st-howt{font-size:13.5px;font-weight:700;color:var(--ink)}
-        .st-howd{font-size:12px;color:var(--muted);margin-top:3px;line-height:1.5}
-        .st-hit{display:grid;grid-template-columns:auto auto 1fr auto auto;gap:10px 16px;
+        .strc-howt{font-size:13.5px;font-weight:700;color:var(--ink)}
+        .strc-howd{font-size:12px;color:var(--muted);margin-top:3px;line-height:1.5}
+        .strc-hit{display:grid;grid-template-columns:auto auto 1fr auto auto;gap:10px 16px;
           align-items:center;padding:10px 14px;border:1px solid var(--line);border-radius:11px;
           margin-bottom:7px;cursor:pointer;background:var(--panel-2)}
-        .st-hit:hover{border-color:var(--brand);background:var(--panel)}
-        .st-hit b{color:var(--ink);font-size:13.5px}
-        .st-hit .st-mini{color:var(--muted);font-size:12.5px}
-        .st-tag{font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px;white-space:nowrap}
-        .st-tag.ok{background:var(--brand-glow);color:var(--brand-d)}
-        .st-tag.bad{background:rgba(248,113,113,.14);color:var(--red)}
-        .st-lab{font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--faint)}
-        .st-note{font-size:12.5px;color:var(--muted);line-height:1.55}
-        .st-note .st-em{color:var(--amber);font-weight:700}
-        .st-note b{color:var(--ink)}
+        .strc-hit:hover{border-color:var(--brand);background:var(--panel)}
+        .strc-hit b{color:var(--ink);font-size:13.5px}
+        .strc-hit .strc-mini{color:var(--muted);font-size:12.5px}
+        .strc-tag{font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px;white-space:nowrap}
+        .strc-tag.ok{background:var(--brand-glow);color:var(--brand-d)}
+        .strc-tag.bad{background:rgba(248,113,113,.14);color:var(--red)}
+        .strc-lab{font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--faint)}
+        .strc-note{font-size:12.5px;color:var(--muted);line-height:1.55}
+        .strc-note .strc-em{color:var(--amber);font-weight:700}
+        .strc-note b{color:var(--ink)}
         /* two raw-input cards */
-        .st-io{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:2px 0 20px}
-        @media(max-width:640px){.st-io{grid-template-columns:1fr}}
-        .st-cell{border:1px solid var(--line-2);border-radius:13px;padding:14px 16px;background:var(--panel-2)}
-        .st-cell .num{display:inline-flex;width:20px;height:20px;border-radius:6px;margin-right:7px;
+        .strc-io{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:2px 0 20px}
+        @media(max-width:640px){.strc-io{grid-template-columns:1fr}}
+        .strc-cell{border:1px solid var(--line-2);border-radius:13px;padding:14px 16px;background:var(--panel-2)}
+        .strc-cell .num{display:inline-flex;width:20px;height:20px;border-radius:6px;margin-right:7px;
           background:var(--panel);border:1px solid var(--line-2);color:var(--muted);
           font-size:11px;font-weight:800;align-items:center;justify-content:center;vertical-align:middle}
-        .st-cell .big{font-size:18px;font-weight:800;color:var(--ink);margin:6px 0 6px}
+        .strc-cell .big{font-size:18px;font-weight:800;color:var(--ink);margin:6px 0 6px}
         /* the priority ladder */
-        .st-sechead{font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;
+        .strc-sechead{font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;
           color:var(--muted);margin:2px 0 11px}
-        .st-sechead span{color:var(--faint);font-weight:700;text-transform:none;letter-spacing:0}
-        .st-ladder{display:flex;flex-direction:column;gap:8px;margin-bottom:18px}
-        .st-rule{display:grid;grid-template-columns:auto 1fr;gap:12px;align-items:start;
+        .strc-sechead span{color:var(--faint);font-weight:700;text-transform:none;letter-spacing:0}
+        .strc-ladder{display:flex;flex-direction:column;gap:8px;margin-bottom:18px}
+        .strc-rule{display:grid;grid-template-columns:auto 1fr;gap:12px;align-items:start;
           padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:var(--panel-2)}
-        .st-rule.won{border-color:var(--brand-d);background:var(--brand-glow)}
-        .st-rule.skip{opacity:.52}
-        .st-badge{width:26px;height:26px;border-radius:8px;background:var(--panel);
+        .strc-rule.won{border-color:var(--brand-d);background:var(--brand-glow)}
+        .strc-rule.skip{opacity:.52}
+        .strc-badge{width:26px;height:26px;border-radius:8px;background:var(--panel);
           border:1px solid var(--line-2);color:var(--muted);font-size:12px;font-weight:800;
           display:flex;align-items:center;justify-content:center}
-        .st-rule.won .st-badge{background:var(--brand);border-color:var(--brand);color:var(--brand-ink)}
-        .st-rule .rt{font-size:14px;font-weight:700;color:var(--ink)}
-        .st-rule.skip .rt{font-weight:600}
-        .st-rule .rd{font-size:12.5px;color:var(--muted);margin-top:2px;line-height:1.5}
-        .st-rule .rs{font-size:12.5px;font-weight:800;margin-top:6px;display:flex;align-items:center;gap:6px}
-        .st-rule.won .rs{color:var(--brand-d)}
-        .st-rule .rs.na{color:var(--faint);font-weight:700}
+        .strc-rule.won .strc-badge{background:var(--brand);border-color:var(--brand);color:var(--brand-ink)}
+        .strc-rule .rt{font-size:14px;font-weight:700;color:var(--ink)}
+        .strc-rule.skip .rt{font-weight:600}
+        .strc-rule .rd{font-size:12.5px;color:var(--muted);margin-top:2px;line-height:1.5}
+        .strc-rule .rs{font-size:12.5px;font-weight:800;margin-top:6px;display:flex;align-items:center;gap:6px}
+        .strc-rule.won .rs{color:var(--brand-d)}
+        .strc-rule .rs.na{color:var(--faint);font-weight:700}
         /* final source chip */
-        .st-final{display:flex;align-items:center;justify-content:space-between;gap:12px;
+        .strc-final{display:flex;align-items:center;justify-content:space-between;gap:12px;
           padding:15px 18px;border-radius:14px;background:var(--brand);color:var(--brand-ink);margin-bottom:16px}
-        .st-final .fl{font-size:11.5px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;opacity:.9}
-        .st-final .fv{font-size:22px;font-weight:800}
+        .strc-final .fl{font-size:11.5px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;opacity:.9}
+        .strc-final .fv{font-size:22px;font-weight:800}
         /* faithful vs current + verdict */
-        .st-cmp{display:grid;grid-template-columns:1fr 1fr;gap:14px}
-        @media(max-width:640px){.st-cmp{grid-template-columns:1fr}.st-hit{grid-template-columns:1fr 1fr}}
-        .st-cmp .st-cell .big{font-size:17px;margin:4px 0 0}
-        .st-verdict{margin-top:14px;border-radius:13px;padding:14px 16px;font-size:14px;line-height:1.55}
-        .st-verdict.ok{background:var(--brand-glow);border:1px solid var(--brand-d)}
-        .st-verdict.bad{background:rgba(248,113,113,.12);border:1px solid var(--red)}
-        .st-verdict.warn{background:rgba(245,158,11,.12);border:1px solid var(--amber)}
-        .st-verdict .vt{font-weight:800;font-size:15px;display:block;margin-bottom:3px}
-        .st-verdict.ok .vt{color:var(--brand-d)}
-        .st-verdict.bad .vt{color:var(--red)}
-        .st-verdict.warn .vt{color:var(--amber)}
-        .st-path{margin-top:8px;font-size:13px;color:var(--muted)}
-        .st-path code{background:var(--panel);border:1px solid var(--line);border-radius:7px;
+        .strc-cmp{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+        @media(max-width:640px){.strc-cmp{grid-template-columns:1fr}.strc-hit{grid-template-columns:1fr 1fr}}
+        .strc-cmp .strc-cell .big{font-size:17px;margin:4px 0 0}
+        .strc-verdict{margin-top:14px;border-radius:13px;padding:14px 16px;font-size:14px;line-height:1.55}
+        .strc-verdict.ok{background:var(--brand-glow);border:1px solid var(--brand-d)}
+        .strc-verdict.bad{background:rgba(248,113,113,.12);border:1px solid var(--red)}
+        .strc-verdict.warn{background:rgba(245,158,11,.12);border:1px solid var(--amber)}
+        .strc-verdict .vt{font-weight:800;font-size:15px;display:block;margin-bottom:3px}
+        .strc-verdict.ok .vt{color:var(--brand-d)}
+        .strc-verdict.bad .vt{color:var(--red)}
+        .strc-verdict.warn .vt{color:var(--amber)}
+        .strc-path{margin-top:8px;font-size:13px;color:var(--muted)}
+        .strc-path code{background:var(--panel);border:1px solid var(--line);border-radius:7px;
           padding:2px 8px;color:var(--ink);font-size:12.5px}
         /* start-to-finish transformation chain */
-        .st-chain{display:flex;flex-direction:column;margin:4px 0 20px}
-        .st-step{position:relative;display:grid;grid-template-columns:26px 1fr;gap:13px;padding:0 0 16px}
-        .st-step:last-child{padding-bottom:0}
-        .st-step:not(:last-child)::before{content:"";position:absolute;left:12px;top:26px;bottom:0;
+        .strc-chain{display:flex;flex-direction:column;margin:4px 0 20px}
+        .strc-step{position:relative;display:grid;grid-template-columns:26px 1fr;gap:13px;padding:0 0 16px}
+        .strc-step:last-child{padding-bottom:0}
+        .strc-step:not(:last-child)::before{content:"";position:absolute;left:12px;top:26px;bottom:0;
           width:2px;background:var(--line-2)}
-        .st-dot{width:26px;height:26px;border-radius:50%;background:var(--panel);border:2px solid var(--line-2);
+        .strc-dot{width:26px;height:26px;border-radius:50%;background:var(--panel);border:2px solid var(--line-2);
           display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;
           color:var(--muted);z-index:1}
-        .st-step.chg .st-dot{background:var(--brand);border-color:var(--brand);color:var(--brand-ink)}
-        .st-step.raw .st-dot{background:var(--ink);border-color:var(--ink);color:var(--panel)}
-        .st-step.fin .st-dot{background:var(--brand);border-color:var(--brand);color:var(--brand-ink)}
-        .st-sbody{padding-top:0}
-        .st-slab{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--faint)}
-        .st-sval{font-size:15.5px;font-weight:800;color:var(--ink);margin:1px 0 1px}
-        .st-step.chg .st-sval,.st-step.fin .st-sval{color:var(--brand-d)}
-        .st-step.raw .st-sval{font-size:17px}
-        .st-snote{font-size:12px;color:var(--muted);line-height:1.45}
-        .st-snote b{color:var(--ink)}`;
+        .strc-step.chg .strc-dot{background:var(--brand);border-color:var(--brand);color:var(--brand-ink)}
+        .strc-step.raw .strc-dot{background:var(--ink);border-color:var(--ink);color:var(--panel)}
+        .strc-step.fin .strc-dot{background:var(--brand);border-color:var(--brand);color:var(--brand-ink)}
+        .strc-sbody{padding-top:0}
+        .strc-slab{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--faint)}
+        .strc-sval{font-size:15.5px;font-weight:800;color:var(--ink);margin:1px 0 1px}
+        .strc-step.chg .strc-sval,.strc-step.fin .strc-sval{color:var(--brand-d)}
+        .strc-step.raw .strc-sval{font-size:17px}
+        .strc-snote{font-size:12px;color:var(--muted);line-height:1.45}
+        .strc-snote b{color:var(--ink)}`;
       document.head.appendChild(st);
     }
 
@@ -217,15 +220,15 @@ registerPage({
       </div>
       <div class="panel">
         <div style="padding:14px 16px">
-          <div class="st-modes" id="stModes">
+          <div class="strc-modes" id="stModes">
             <button data-mode="closing" class="on">Closing jobs</button>
             <button data-mode="moveboard">Moveboard leads</button>
           </div>
           <input id="stSearch" type="text" autocomplete="off" spellcheck="false"
             placeholder="Search by Request #, Job Code, or customer name…">
-          <div class="st-note" style="margin-top:8px" id="stCount">Loading…</div>
+          <div class="strc-note" style="margin-top:8px" id="stCount">Loading…</div>
         </div>
-        <div id="stResults" class="st-results" style="padding:0 16px 8px"></div>
+        <div id="stResults" class="strc-results" style="padding:0 16px 8px"></div>
       </div>
       <div id="stIdle"></div>
       <div id="stTrace"></div>`;
@@ -253,11 +256,11 @@ registerPage({
       <div class="panel">
         <div class="panel-head"><h3 style="margin:0">How a source is decided</h3>
           <span class="freshness">the ladder every trace walks, in order — the first rung that matches wins</span></div>
-        <div class="st-howgrid">${LADDER.map(r => `
-          <div class="st-howrung">
-            <div class="st-hown">${r.n}</div>
-            <div><div class="st-howt">${RSC.esc(r.t)}</div>
-                 <div class="st-howd">${RSC.esc(r.d)}</div></div>
+        <div class="strc-howgrid">${LADDER.map(r => `
+          <div class="strc-howrung">
+            <div class="strc-hown">${r.n}</div>
+            <div><div class="strc-howt">${RSC.esc(r.t)}</div>
+                 <div class="strc-howd">${RSC.esc(r.d)}</div></div>
           </div>`).join("")}</div>
       </div>`;
 
@@ -281,10 +284,10 @@ registerPage({
         hit: r => {
           const ch = norm(r["Final Source (with leads)"]) !== norm(r["Final Source (current)"]);
           return `<b>#${RSC.esc(show(r["Request #"]))}</b>
-            <span class="st-mini">${RSC.esc(show(r["Job Code"]))}</span>
-            <span class="st-mini">${RSC.esc(show(r["Customer"]))}</span>
-            <span class="st-mini">${RSC.esc(show(r["Final Source (with leads)"]))}</span>
-            <span class="st-tag ${ch ? "bad" : "ok"}">${ch ? "Lead-flip" : "Stable"}</span>`;
+            <span class="strc-mini">${RSC.esc(show(r["Job Code"]))}</span>
+            <span class="strc-mini">${RSC.esc(show(r["Customer"]))}</span>
+            <span class="strc-mini">${RSC.esc(show(r["Final Source (with leads)"]))}</span>
+            <span class="strc-tag ${ch ? "bad" : "ok"}">${ch ? "Lead-flip" : "Stable"}</span>`;
         },
         render: renderClosing,
       },
@@ -301,10 +304,10 @@ registerPage({
         hit: r => {
           const ch = norm(r["Source Connector (with leads)"]) !== norm(r["Source Connector"]);
           return `<b>#${RSC.esc(show(r["Job No"]))}</b>
-            <span class="st-mini">${RSC.esc(show(r["Company"]))}</span>
-            <span class="st-mini">${RSC.esc(show(r["Customer"]))}</span>
-            <span class="st-mini">${RSC.esc(show(r["Source Connector (with leads)"]))}</span>
-            <span class="st-tag ${ch ? "bad" : "ok"}">${ch ? "Lead-flip" : "Stable"}</span>`;
+            <span class="strc-mini">${RSC.esc(show(r["Company"]))}</span>
+            <span class="strc-mini">${RSC.esc(show(r["Customer"]))}</span>
+            <span class="strc-mini">${RSC.esc(show(r["Source Connector (with leads)"]))}</span>
+            <span class="strc-tag ${ch ? "bad" : "ok"}">${ch ? "Lead-flip" : "Stable"}</span>`;
         },
         render: renderMoveboard,
       },
@@ -342,8 +345,8 @@ registerPage({
         ? RS.fmtN(hits.length) + " match" + (hits.length === 1 ? "" : "es") + (hits.length > CAP ? " · showing first " + CAP : "")
         : "No " + m.unit + "s match “" + q + "”.";
       resultsEl.innerHTML = hits.slice(0, CAP).map(r =>
-        `<div class="st-hit" data-k="${RSC.esc(m.key(r))}">${m.hit(r)}</div>`).join("");
-      resultsEl.querySelectorAll(".st-hit").forEach(el => el.onclick = () => openTrace(el.dataset.k));
+        `<div class="strc-hit" data-k="${RSC.esc(m.key(r))}">${m.hit(r)}</div>`).join("");
+      resultsEl.querySelectorAll(".strc-hit").forEach(el => el.onclick = () => openTrace(el.dataset.k));
     }
 
     /* dispatch a trace to the current mode's renderer */
@@ -382,7 +385,7 @@ registerPage({
       if (has(crnn)) {
         phone = `phone matched CallRail <b>${RSC.esc(crnn)}</b>`
               + (has(crtr) ? ` (reads as <b>${RSC.esc(crtr)}</b>)` : "")
-              + (gl ? ` — <span class="st-em">CallRail beats Google Local</span>` : "");
+              + (gl ? ` — <span class="strc-em">CallRail beats Google Local</span>` : "");
       } else if (gl) {
         phone = `phone matched a <b>Google Local</b> lead`;
       } else {
@@ -436,8 +439,8 @@ registerPage({
         const won = rule.n === win;
         const body = rule.status ? rule.status() : (won ? rule.got() : "Not this job");
         const cls = won ? "won" : (rule.matched ? "" : "skip");   // matched-but-outranked stays visible
-        return `<div class="st-rule ${cls}">
-            <span class="st-badge">${won ? "✓" : "#" + rule.n}</span>
+        return `<div class="strc-rule ${cls}">
+            <span class="strc-badge">${won ? "✓" : "#" + rule.n}</span>
             <div>
               <div class="rt">Priority #${rule.n} — ${rule.t}</div>
               <div class="rd">${rule.d}</div>
@@ -477,42 +480,42 @@ registerPage({
           </div>
           <div style="padding:16px 18px 8px">
 
-            <div class="st-io">
-              <div class="st-cell">
-                <div class="st-lab"><span class="num">1</span>Raw moveboard source</div>
+            <div class="strc-io">
+              <div class="strc-cell">
+                <div class="strc-lab"><span class="num">1</span>Raw moveboard source</div>
                 <div class="big">${RSC.esc(show(mbraw))}</div>
-                <div class="st-note">${mbNote}</div>
+                <div class="strc-note">${mbNote}</div>
               </div>
-              <div class="st-cell">
-                <div class="st-lab"><span class="num">2</span>Raw closing source</div>
+              <div class="strc-cell">
+                <div class="strc-lab"><span class="num">2</span>Raw closing source</div>
                 <div class="big">${RSC.esc(show(bf))}</div>
-                <div class="st-note">The source as booked on the closing sheet ("Booked from") — the fallback if the moveboard source is blank.</div>
+                <div class="strc-note">The source as booked on the closing sheet ("Booked from") — the fallback if the moveboard source is blank.</div>
               </div>
             </div>
 
-            <div class="st-sechead">Source, start to finish <span>· raw → final, each transformation in order</span></div>
+            <div class="strc-sechead">Source, start to finish <span>· raw → final, each transformation in order</span></div>
             ${chain}
 
-            <div class="st-sechead">Which priority decided it <span>· first match wins</span></div>
-            <div class="st-ladder">${ladder}</div>
+            <div class="strc-sechead">Which priority decided it <span>· first match wins</span></div>
+            <div class="strc-ladder">${ladder}</div>
 
-            <div class="st-final">
+            <div class="strc-final">
               <span class="fl">Final source</span>
               <span class="fv">${RSC.esc(show(finalL))}</span>
             </div>
 
-            <div class="st-cmp">
-              <div class="st-cell">
-                <div class="st-lab">Current pipeline (live)</div>
+            <div class="strc-cmp">
+              <div class="strc-cell">
+                <div class="strc-lab">Current pipeline (live)</div>
                 <div class="big">${RSC.esc(show(finalC))}</div>
               </div>
-              <div class="st-cell">
-                <div class="st-lab">With Angi / Thumbtack matching</div>
+              <div class="strc-cell">
+                <div class="strc-lab">With Angi / Thumbtack matching</div>
                 <div class="big">${RSC.esc(show(finalL))}</div>
               </div>
             </div>
 
-            <div class="st-verdict ${changed ? "warn" : "ok"}">
+            <div class="strc-verdict ${changed ? "warn" : "ok"}">
               <span class="vt">${changed
                 ? "⤳ Lead matching would reassign this job"
                 : "✓ No change — lead matching agrees with the live source"}</span>
@@ -521,7 +524,7 @@ registerPage({
                   + (win === 4 ? "an <b>Angi</b>" : "a <b>Thumbtack</b>") + " lead — so lead-matching would set it to <b>"
                   + RSC.esc(show(finalL)) + "</b>. <span style='color:var(--faint)'>Diagnostic only — not yet applied to live reports.</span>"
                 : "The lead-matched source equals what the pipeline already stores."}
-              ${has(path) ? `<div class="st-path">Base decision path: <code>${RSC.esc(path)}</code></div>` : ""}
+              ${has(path) ? `<div class="strc-path">Base decision path: <code>${RSC.esc(path)}</code></div>` : ""}
             </div>
           </div>
         </div>`;
@@ -581,8 +584,8 @@ registerPage({
         const won = rule.n === win;
         const body = rule.status ? rule.status() : (won ? rule.got() : "Not this job");
         const cls = won ? "won" : (rule.matched ? "" : "skip");
-        return `<div class="st-rule ${cls}">
-            <span class="st-badge">${won ? "✓" : "#" + rule.n}</span>
+        return `<div class="strc-rule ${cls}">
+            <span class="strc-badge">${won ? "✓" : "#" + rule.n}</span>
             <div><div class="rt">Priority #${rule.n} — ${rule.t}</div>
               <div class="rd">${rule.d}</div>
               <div class="rs ${won ? "" : "na"}">${body}</div></div>
@@ -590,7 +593,7 @@ registerPage({
       }).join("");
 
       let phn;
-      if (has(crnn)) phn = `matched CallRail <b>${RSC.esc(crnn)}</b>` + (has(crtr) && norm(crtr) !== norm(crnn) ? ` (reads as <b>${RSC.esc(crtr)}</b>)` : "") + (gl ? ` — <span class="st-em">CallRail beats Google Local</span>` : "");
+      if (has(crnn)) phn = `matched CallRail <b>${RSC.esc(crnn)}</b>` + (has(crtr) && norm(crtr) !== norm(crnn) ? ` (reads as <b>${RSC.esc(crtr)}</b>)` : "") + (gl ? ` — <span class="strc-em">CallRail beats Google Local</span>` : "");
       else if (gl) phn = `matched a <b>Google Local</b> lead`;
       else phn = `no CallRail / Google Local match`;
       let note = `Customer phone <b>${RSC.esc(show(r["Customer Phone"]))}</b> ${phn}.`;
@@ -624,33 +627,33 @@ registerPage({
               · ${RSC.esc(show(r["Company"]))} · move ${RSC.esc(show(r["Move Date"]))}</span></span>
           </div>
           <div style="padding:16px 18px 8px">
-            <div class="st-io" style="grid-template-columns:1fr">
-              <div class="st-cell">
-                <div class="st-lab"><span class="num">0</span>Raw moveboard source</div>
+            <div class="strc-io" style="grid-template-columns:1fr">
+              <div class="strc-cell">
+                <div class="strc-lab"><span class="num">0</span>Raw moveboard source</div>
                 <div class="big">${RSC.esc(show(rawS))}</div>
-                <div class="st-note">${note}</div>
+                <div class="strc-note">${note}</div>
               </div>
             </div>
-            <div class="st-sechead">Source, start to finish <span>· raw → final, each transformation in order</span></div>
+            <div class="strc-sechead">Source, start to finish <span>· raw → final, each transformation in order</span></div>
             ${chain}
-            <div class="st-sechead">Which priority decided it <span>· first match wins</span></div>
-            <div class="st-ladder">${ladder}</div>
-            <div class="st-final">
+            <div class="strc-sechead">Which priority decided it <span>· first match wins</span></div>
+            <div class="strc-ladder">${ladder}</div>
+            <div class="strc-final">
               <span class="fl">Moveboard source</span>
               <span class="fv">${RSC.esc(show(connL))}</span>
             </div>
-            <div class="st-cmp">
-              <div class="st-cell"><div class="st-lab">Current (live)</div><div class="big">${RSC.esc(show(conn))}</div></div>
-              <div class="st-cell"><div class="st-lab">With Angi / Thumbtack matching</div><div class="big">${RSC.esc(show(connL))}</div></div>
+            <div class="strc-cmp">
+              <div class="strc-cell"><div class="strc-lab">Current (live)</div><div class="big">${RSC.esc(show(conn))}</div></div>
+              <div class="strc-cell"><div class="strc-lab">With Angi / Thumbtack matching</div><div class="big">${RSC.esc(show(connL))}</div></div>
             </div>
-            <div class="st-verdict ${changed ? "warn" : "ok"}">
+            <div class="strc-verdict ${changed ? "warn" : "ok"}">
               <span class="vt">${changed ? "⤳ Lead matching would reassign this lead" : "✓ No change — lead matching agrees with the live source"}</span>
               ${changed
                 ? "The moveboard stores <b>" + RSC.esc(show(conn)) + "</b>, but the customer matches "
                   + (win === 4 ? "an <b>Angi</b>" : "a <b>Thumbtack</b>") + " lead — so lead-matching would set it to <b>"
                   + RSC.esc(show(connL)) + "</b>. <span style='color:var(--faint)'>Diagnostic only — not yet applied to live reports.</span>"
                 : "The lead-matched source equals what the moveboard already stores."}
-              ${has(path) ? `<div class="st-path">Decision path: <code>${RSC.esc(path)}</code></div>` : ""}
+              ${has(path) ? `<div class="strc-path">Decision path: <code>${RSC.esc(path)}</code></div>` : ""}
             </div>
           </div>
         </div>`;
