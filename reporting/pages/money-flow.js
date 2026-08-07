@@ -989,11 +989,12 @@ registerPage({
       bal.forEach(function (b) { if (b.owes > 0) owed += b.owes; unsettled += b.unsettled; });
 
       var head = '<div class="mf-fnhead">'
-        + '<div class="mf-fntot"><span>Outstanding</span><b>' + money(owed) + "</b>"
-        + "<i>" + bal.filter(function (b) { return b.owes > 0.005; }).length
-        + " foreman" + (bal.filter(function (b) { return b.owes > 0.005; }).length === 1 ? "" : "en")
-        + " owing</i></div>"
-        + '<div class="mf-fntot"><span>Rides into the next statement</span><b>' + money(unsettled) + "</b>"
+        + '<div class="mf-fntot"><span>Outstanding</span><b>' + money2(owed) + "</b>"
+        + "<i>" + (function () {
+            var n2 = bal.filter(function (b) { return b.owes > 0.005; }).length;
+            return n2 + (n2 === 1 ? " foreman owing" : " foremen owing");
+          }()) + "</i></div>"
+        + '<div class="mf-fntot"><span>Rides into the next statement</span><b>' + money2(unsettled) + "</b>"
         + "<i>charged, not yet settled</i></div>"
         + '<button class="mf-fnbtn go" id="mfFnAdd">+ Record a fine, repayment or opening balance</button>'
         + "</div>";
@@ -1006,13 +1007,13 @@ registerPage({
           + '<td colspan="3"><span class="mf-caret">' + (open ? "\u25be" : "\u25b8") + "</span>"
           + esc(b.foreman) + '<span class="mf-fmmeta">' + b.entries
           + " entr" + (b.entries === 1 ? "y" : "ies")
-          + (b.unsettled > 0.005 ? " \u00b7 " + money(b.unsettled) + " not yet on a statement" : "")
+          + (b.unsettled > 0.005 ? " \u00b7 " + money2(b.unsettled) + " not yet on a statement" : "")
           + "</span></td>"
-          + '<td class="r">' + (b.fined ? money(b.fined) : "\u2014") + "</td>"
-          + '<td class="r">' + (b.opening ? money(b.opening) : "\u2014") + "</td>"
-          + '<td class="r">' + (b.repaid ? money(b.repaid) : "\u2014") + "</td>"
+          + '<td class="r">' + (b.fined ? money2(b.fined) : "\u2014") + "</td>"
+          + '<td class="r">' + (b.opening ? money2(b.opening) : "\u2014") + "</td>"
+          + '<td class="r">' + (b.repaid ? money2(b.repaid) : "\u2014") + "</td>"
           + '<td class="r"><b class="' + (b.owes > 0.005 ? "mf-fnowe" : "") + '">'
-          + money(b.owes) + "</b></td></tr>";
+          + money2(b.owes) + "</b></td></tr>";
         if (!open) return head2;
         return head2 + ent.filter(function (e) { return e["Is Current"]; })
           .map(function (e) {
@@ -1024,9 +1025,9 @@ registerPage({
               + '<td class="mf-fnwhy" title="' + esc(e.Reason || "") + '">' + esc(e.Reason || "\u2014")
               + (e["Job Code"] ? ' <span class="mf-fnjob">' + esc(e["Job Code"]) + "</span>" : "")
               + "</td>"
-              + '<td class="r">' + (e["Entry Type"] === "fine" ? money(e.Amount) : "") + "</td>"
-              + '<td class="r">' + (e["Entry Type"] === "opening" ? money(e.Amount) : "") + "</td>"
-              + '<td class="r">' + (e["Entry Type"] === "repayment" ? money(e.Amount) : "") + "</td>"
+              + '<td class="r">' + (e["Entry Type"] === "fine" ? money2(e.Amount) : "") + "</td>"
+              + '<td class="r">' + (e["Entry Type"] === "opening" ? money2(e.Amount) : "") + "</td>"
+              + '<td class="r">' + (e["Entry Type"] === "repayment" ? money2(e.Amount) : "") + "</td>"
               + '<td class="r">'
               + (settled
                   ? '<span class="mf-fnsettled" title="already carried on a closing statement '
