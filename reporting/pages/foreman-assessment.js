@@ -77,9 +77,14 @@ registerPage({
     const MANUAL_TOTAL = () => S.manualTotal || 40;
     const shortOf = q => {
       const t = String(q.Label || q.Question || "");
-      const first = t.split(/\s*[—\-–·(]\s*/)[0].trim();     // drop any qualifier clause
-      const w = first.split(/\s+/).filter(x => !/^(and|the|of|for|with|to|a)$/i.test(x));
-      return (w.slice(0, 2).join(" ") || t).slice(0, 18);
+      // Split on the DASHES THAT SEPARATE CLAUSES (em, en, bullet, bracket) but NOT on a
+      // plain hyphen — that one lives inside words, and splitting on it turned
+      // "Long-Distance Capability" into a chip that just said "LONG".
+      const first = t.split(/\s+[—–·]\s+|\s*[([]/)[0].trim();
+      const w = first.split(/\s+/).filter(x => !/^(and|the|of|for|with|to|a|vs)$/i.test(x));
+      // one word is enough when it is distinctive; two when the first is short
+      const lab = !w.length ? t : (w[0].length >= 7 ? w[0] : w.slice(0, 2).join(" "));
+      return lab.slice(0, 20);
     };
 
     // the four counted topics, for the "already counted" strip inside each card. Reviews
