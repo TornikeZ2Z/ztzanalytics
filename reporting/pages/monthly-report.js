@@ -2372,7 +2372,7 @@ async function renderMonthly(host, MRCFG) {
                  </div>
                  <div><div class="mrx-scroll" style="max-height:420px;overflow-y:auto">
                    <table class="mrx-tbl"><thead><tr><th>Foreman</th>
-                   <th>Jobs</th><th>Counted /70</th><th>Assessed /30</th><th>Total</th></tr></thead>
+                   <th>Jobs</th><th>Counted /${win.cTot}</th><th>Assessed /${fmt1(win.mTot)}</th><th>Total</th></tr></thead>
                    <tbody>${runners}</tbody></table></div>
                    ${M.length > Q.length ? `<div style="font-size:11px;color:var(--faint);margin-top:7px">`
                      + `${M.length - Q.length} more ${M.length - Q.length === 1 ? "foreman" : "foremen"} `
