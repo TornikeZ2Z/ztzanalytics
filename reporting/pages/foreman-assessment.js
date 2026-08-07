@@ -41,7 +41,8 @@
              // counted side is worth in that month (70 before it, 60 from it), how many
              // questions its rubric asked and for how many points, and whether the man
              // was rated on all of them.
-             "Counted Total", "Questions In Rubric", "Manual Total", "Fully Assessed"],
+             "Counted Total", "Questions In Rubric", "Manual Total", "Fully Assessed",
+             "Claims Charged"],
     };
   }
 })();
@@ -98,7 +99,8 @@ registerPage({
       { k: "Packing Vs Estimate Score", w: 10, lab: "Packing vs estimate",
         raw: "Packing Difference %", fmt: "x" },
       { k: "Claim Score", w: 10, lab: "Complaints upheld",
-        raw: "Forman Fault Claims", fmt: "int" },
+        // the count the score was CHARGED on, not the per-job rollup -- see curated.py
+        raw: "Claims Charged", fmt: "int" },
     ];
     const AUTO_V1 = AUTO_V2.map(a => a.k === "Review Score" ? Object.assign({}, a, { w: 20 }) : a);
     const autoFor = f => (num(f["Counted Total"]) === 70 ? AUTO_V1 : AUTO_V2);
@@ -111,7 +113,7 @@ registerPage({
       month: "", sc: null, ratings: null, locked: false, subBy: null, subAt: null,
       canReopen: false, q: "", tab: "all", open: null, msg: "", msgErr: false, notOpen: null,
       rubric: [], manualTotal: 40, canEditRubric: false, rubricMonths: [],
-      editRubric: false, draft: null, view: "rate", rubMonth: "",
+      draft: null, view: "rate", rubMonth: "", qRubric: [], qRated: [], qLocked: false,
     });
 
     // The yard's calendar, not the viewer's: Tbilisi reaches the 20th eight hours before
@@ -152,7 +154,7 @@ registerPage({
       + "color:var(--muted);cursor:pointer;display:inline-flex;align-items:center;gap:9px}"
       + ".fa2-view:hover{border-color:var(--line-2);color:var(--ink)}"
       + ".fa2-view.on{background:var(--ink);border-color:var(--ink);color:var(--panel)}"
-      + ".fa2-view i{font-style:normal;font-size:10px;font-weight:800;letter-spacing:.09em;"
+      + ".fa2-view i{font-style:normal;font-size:11px;font-weight:800;letter-spacing:.09em;"
       + "text-transform:uppercase;opacity:.7}"
       // ---- the questionnaire admin screen ---------------------------------------------
       + ".fa2-qn{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:24px 26px 26px}"
@@ -160,7 +162,7 @@ registerPage({
       + ".fa2-qnhead h2{margin:0 0 6px;font-size:23px;font-weight:800;letter-spacing:-.4px}"
       + ".fa2-qnhead p{margin:0;font-size:13.5px;color:var(--muted);line-height:1.65;max-width:88ch}"
       + ".fa2-qnmon{margin-left:auto;display:flex;flex-direction:column;gap:5px;min-width:230px}"
-      + ".fa2-qnmon label{font-size:10.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--faint)}"
+      + ".fa2-qnmon label{font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--faint)}"
       + ".fa2-qnmon select{font:inherit;font-size:15px;font-weight:700;background:var(--panel-2);"
       + "color:var(--ink);border:1px solid var(--line-2);border-radius:11px;padding:10px 13px}"
       + ".fa2-qnmon .hint{font-size:11.5px;color:var(--faint);line-height:1.5}"
@@ -181,7 +183,7 @@ registerPage({
       + "display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;color:var(--faint)}"
       + ".fa2-qnrow .f{display:flex;flex-direction:column;gap:7px;min-width:0}"
       + ".fa2-qnrow .p,.fa2-qnrow .s{display:flex;flex-direction:column;gap:5px}"
-      + ".fa2-qnrow label{font-size:10px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--faint)}"
+      + ".fa2-qnrow label{font-size:11px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--faint)}"
       + ".fa2-qnrow input,.fa2-qnrow select{font:inherit;font-size:14px;background:var(--panel);"
       + "color:var(--ink);border:1px solid var(--line-2);border-radius:10px;padding:10px 13px;min-width:0}"
       + ".fa2-qnrow .rbq{font-size:15.5px;font-weight:700}"
@@ -214,7 +216,7 @@ registerPage({
       + ".fa2-mopt:hover{background:var(--panel-2)}"
       + ".fa2-mopt.cur{background:var(--brand-glow);color:var(--brand-d);font-weight:800}"
       + "body.rs-app:not(.light) .fa2-mopt.cur{color:var(--brand)}"
-      + ".fa2-mopt .tag{margin-left:auto;font-size:10.5px;font-weight:800;letter-spacing:.07em;text-transform:uppercase}"
+      + ".fa2-mopt .tag{margin-left:auto;font-size:11px;font-weight:800;letter-spacing:.07em;text-transform:uppercase}"
       + ".fa2-mopt .tag.sub{color:var(--blue)} .fa2-mopt .tag.op{color:var(--pos)}"
       + ".fa2-pill{display:inline-flex;align-items:center;gap:7px;font-size:12.5px;font-weight:800;padding:7px 14px;border-radius:999px;margin-top:5px}"
       + ".fa2-pill.open{background:var(--pos-bg);color:var(--pos)}"
@@ -274,7 +276,7 @@ registerPage({
       + ".fa2-sb u.a{background:var(--brand)} .fa2-sb u.m{background:var(--blue)}"
       + ".fa2-tot{text-align:right;min-width:74px}"
       + ".fa2-tot b{font-size:24px;font-weight:800;letter-spacing:-.4px}"
-      + ".fa2-tot i{display:block;font-style:normal;font-size:10px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--faint);margin-top:1px}"
+      + ".fa2-tot i{display:block;font-style:normal;font-size:11px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--faint);margin-top:1px}"
       + ".fa2-body{display:none;border-top:1px solid var(--line);padding:20px 22px 24px}"
       + ".fa2-card.on .fa2-body{display:block;animation:fa2in .16s ease}"
       + "@keyframes fa2in{from{opacity:0;transform:translateY(-3px)}to{opacity:1;transform:none}}"
@@ -283,7 +285,7 @@ registerPage({
       + ".fa2-sec .rescale{text-transform:none;letter-spacing:0;font-weight:500;color:var(--muted)}"
       + ".fa2-tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px;margin-bottom:22px}"
       + ".fa2-tile{background:var(--panel-2);border:1px solid var(--line);border-radius:13px;padding:14px 17px}"
-      + ".fa2-tile .l{font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--faint)}"
+      + ".fa2-tile .l{font-size:11.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--faint)}"
       + ".fa2-tile .v{font-size:23px;font-weight:750;margin-top:5px;letter-spacing:-.4px}"
       + ".fa2-tile .v small{font-size:13px;color:var(--faint);font-weight:600}"
       + ".fa2-tile .r{font-size:12.5px;color:var(--muted);margin-top:3px}"
@@ -315,7 +317,7 @@ registerPage({
       + ".fa2-rubchip u{text-decoration:none;font-weight:800;background:var(--brand-glow);"
       + "color:var(--brand-d);border-radius:999px;padding:3px 11px;font-variant-numeric:tabular-nums;font-size:13.5px}"
       + "body.rs-app:not(.light) .fa2-rubchip u{color:var(--brand)}"
-      + ".fa2-rubchip i.tri{font-style:normal;font-size:10.5px;font-weight:800;letter-spacing:.05em;"
+      + ".fa2-rubchip i.tri{font-style:normal;font-size:11px;font-weight:800;letter-spacing:.05em;"
       + "text-transform:uppercase;color:var(--faint)}"
       + ".fa2-rubed{margin-top:12px;display:flex;flex-direction:column;gap:9px}"
       + ".fa2-rubrow{display:grid;grid-template-columns:minmax(0,1fr) 92px 168px 34px;gap:8px}"
@@ -451,25 +453,34 @@ registerPage({
       return out;
     }
 
-    // build the editable draft from whatever rubric is currently loaded
+    // The draft is built from the SHAPED month's rubric and the SHAPED month's ratings —
+    // never from whatever month happens to be on the rating screen.
     function draftFromRubric() {
-      const rated = ratedKeys();
-      return QS().map(q => ({ question: q.Question, label: q.Label || "",
+      const rated = {};
+      (S.qRated || []).forEach(k => { rated[k] = 1; });
+      return (S.qRubric || []).map(q => ({ question: q.Question, label: q.Label || "",
         description: q.Description || "", points: +q.Points || 0,
         scale: q.Scale || "stars5", rated: !!rated[q.Question] }));
     }
 
+    /* One way in, so the shaped month is always chosen the same way: the month being
+     * rated when it is still editable, otherwise the newest editable month. */
+    function openQuestionnaire() {
+      const ms = S.rubricMonths || [];
+      const m = (ms.indexOf(S.month) >= 0) ? S.month : ms[ms.length - 1];
+      S.view = "rubric"; S.msg = "";
+      if (!m) { S.rubMonth = ""; S.qRubric = []; S.draft = []; paint(); return; }
+      S.rubMonth = m;
+      loadRubricFor(m);
+    }
+
     function wireRubric() {
       const ed = main.querySelector("#fa2RubEdit");
-      if (ed) ed.onclick = () => {
-        S.draft = draftFromRubric();
-        S.editRubric = true; S.msg = ""; paint();
-      };
+      if (ed) ed.onclick = () => { openQuestionnaire(); };
       const cancel = main.querySelector("#fa2RubCancel");
       if (cancel) cancel.onclick = () => {
         // in the Questionnaire view "Undo changes" means reload the saved set, not leave
-        if (S.view === "rubric") { S.draft = draftFromRubric(); S.msg = ""; paint(); return; }
-        S.editRubric = false; S.draft = null; paint();
+        S.draft = draftFromRubric(); S.msg = ""; paint();
       };
       // the Questionnaire view shapes a month of its own, which may not be the one being rated
       const qm = main.querySelector("#fa2QnMonth");
@@ -485,8 +496,11 @@ registerPage({
         };
         // repaint on points/scale (the running total and the Save gate move); leave text
         // alone until blur so the caret is not thrown to the end on every keystroke
-        el.oninput = () => { commit(); if (el.dataset.k === "points") paintKeepFocus(el); };
-        el.onchange = () => { commit(); paintKeepFocus(el); };
+        // NO REPAINT WHILE TYPING. Re-rendering on each keystroke removed the very
+        // button the user was reaching for, so the first click after typing did nothing.
+        // The only thing that has to move live is the running total, so move just that.
+        el.oninput = () => { commit(); refreshTotal(); };
+        el.onchange = () => { commit(); refreshTotal(); };
         el.onblur = commit;
       });
       main.querySelectorAll(".fa2-rubed .rbx, .fa2-qnrow .rbx").forEach(b => {
@@ -502,8 +516,32 @@ registerPage({
       if (save) save.onclick = saveRubric;
     }
 
-    // a repaint that puts the caret back where it was — the running total has to update as
-    // points are typed, and a naive repaint would eject the user from the field
+    /* Update the running total in place. Everything else on the screen is already
+     * correct while typing, and a full repaint would cost the user their caret and their
+     * next click. */
+    function refreshTotal() {
+      const d = S.draft || [];
+      const dt = d.reduce((s2, q) => s2 + (+q.points || 0), 0);
+      const total = MANUAL_TOTAL();
+      const left = Math.round((total - dt) * 10) / 10;
+      const ok = Math.abs(dt - total) < 0.05;
+      const box = main.querySelector(".fa2-qntot");
+      if (box) {
+        box.classList.toggle("ok", ok);
+        box.classList.toggle("bad", !ok);
+        const b = box.querySelector("b"), i = box.querySelector("i"),
+              bar = box.querySelector(".fa2-qnbar u");
+        if (b) b.textContent = fmt1(dt);
+        if (i) i.textContent = ok ? "balanced — ready to save"
+          : left > 0 ? fmt1(left) + " still to give out" : fmt1(-left) + " too many";
+        if (bar) bar.style.width = Math.min(100, dt / total * 100).toFixed(0) + "%";
+      }
+      const save = main.querySelector("#fa2RubSave");
+      if (save) save.disabled = !ok;
+      const rt = main.querySelector(".fa2-rubt");
+      if (rt) { rt.classList.toggle("bad", !ok); }
+    }
+
     function paintKeepFocus(el) {
       const sel = "." + el.className.split(" ")[0] + '[data-i="' + el.dataset.i + '"]';
       const at = el.selectionStart;
@@ -515,12 +553,16 @@ registerPage({
       }
     }
 
+    /* The bridge requires ^[a-z][a-z0-9_]{2,39}$ and rejects anything else with a 400.
+     * A short label ("QA") used to make a key too short, and the uniqueness counter could
+     * push a long one past 40 — both only discoverable by saving and being refused. */
     function slugify(label, taken) {
       let base = String(label || "").toLowerCase().replace(/[^a-z0-9]+/g, "_")
-        .replace(/^_+|_+$/g, "").slice(0, 36) || "question";
+        .replace(/^_+|_+$/g, "").slice(0, 34);
       if (!/^[a-z]/.test(base)) base = "q_" + base;
+      while (base.length < 3) base += "_q";
       let k = base, n = 2;
-      while (taken[k]) { k = base.slice(0, 34) + "_" + n; n++; }
+      while (taken[k]) { k = (base.slice(0, 34) + "_" + n).slice(0, 40); n++; }
       return k;
     }
 
@@ -532,7 +574,11 @@ registerPage({
       main.innerHTML = '<div class="fa2-empty">Loading ' + esc(monLab(m)) + "…</div>";
       api("/api/_farubric?month=" + encodeURIComponent(m))
         .then(j => {
-          S.rubric = j.rubric || [];
+          // NOT S.rubric — that belongs to the month being rated, and overwriting it here
+          // is what made the rating screen render another month's questions.
+          S.qRubric = j.rubric || [];
+          S.qRated = j.rated || [];
+          S.qLocked = !!j.locked;
           S.manualTotal = j.manual_total || 40;
           S.rubricMonths = j.editable_months || S.rubricMonths;
           S.draft = draftFromRubric();
@@ -560,7 +606,6 @@ registerPage({
       api("/api/_farubric", { method: "POST",
           body: JSON.stringify({ month: target, questions: items }) })
         .then(j => {
-          S.editRubric = false; S.draft = null;
           S.msg = "Saved — " + j.questions + " questions, " + fmt1(j.points) + " points"
             + (j.retired && j.retired.length ? " · retired " + j.retired.join(", ") : "");
           S.msgErr = false;
@@ -657,17 +702,20 @@ registerPage({
           + "The nightly pipeline seeds it; if this persists, say so.</span></div></div>";
       }
 
-      if (!S.editRubric) {
+      {
         return '<div class="fa2-rub"><div class="fa2-rubh">'
           + "<b>What is being scored · " + esc(monLab(S.month)) + "</b>"
           + '<span class="fa2-rubt' + (Math.abs(total - MANUAL_TOTAL()) > 0.05 ? " bad" : "") + '">'
           + fmt1(total) + " of " + fmt1(MANUAL_TOTAL()) + " points across "
           + qs.length + " question" + (qs.length === 1 ? "" : "s") + "</span>"
-          + (editable ? '<button class="fa2-ghost" id="fa2RubEdit">Edit the questions</button>'
-             : S.canEditRubric ? '<span class="fa2-rubnote">'
-                + (S.locked ? "submitted — reopen the month to change it"
-                            : "only " + (S.rubricMonths || []).map(monLab).join(" and ")
-                              + " can still be changed") + "</span>" : "")
+          + (S.canEditRubric
+             ? '<button class="fa2-ghost" id="fa2RubEdit">'
+               + (editable ? "Edit the questions" : "Open the questionnaire") + "</button>"
+             : "")
+          + (S.canEditRubric && !editable
+             ? '<span class="fa2-rubnote">' + (S.locked
+                 ? "submitted — reopen this month to change its questions"
+                 : "this month's questions are fixed") + "</span>" : "")
           + "</div><div class=\"fa2-rublist\">"
           + qs.map(q => '<span class="fa2-rubchip" title="' + esc(q.Description || "") + '">'
               + esc(q.Label) + "<u>" + fmt1(q.Points) + "</u>"
@@ -713,7 +761,7 @@ registerPage({
     function paint() {
       const months = openMonths();
       if (!months.length) {
-        main.innerHTML = '<div class="fa2-empty">The assessment starts with January 2026 — '
+        main.innerHTML = '<div class="fa2-empty">The assessment starts with July 2026 — '
           + "a month opens for rating on its own " + OPEN_DAY + "th.</div>";
         return;
       }
@@ -807,7 +855,7 @@ registerPage({
       h += rows.length ? rows.map(card).join("")
         : '<div class="fa2-empty">No foreman matches here.</div>';
 
-      if (!S.locked && all.length) {
+      if (!S.locked && !S.notOpen && all.length) {
         h += '<div class="fa2-sub"><span class="t"><b>' + done + " of " + all.length
           + "</b> fully assessed" + (done < all.length ? "" : " — ready to sign off") + "</span>"
           + '<span class="fa2-spb"><i style="width:' + (done / all.length * 100).toFixed(0) + '%"></i></span>'
@@ -888,7 +936,9 @@ registerPage({
         const control = tri
           ? '<div class="fa2-tri">' + [0, 0.5, 1].map(frac => {
               const st = frac * 5, on = stars != null && Math.abs(stars - st) < 0.01;
-              const lab = frac === 0 ? "None" : frac === 0.5 ? "Regular only" : "Regular + Straight";
+              // generic on purpose: the rubric is Ramaz's now, and only HE knows what a
+              // three-way question he invented is asking. The question's own text says it.
+              const lab = frac === 0 ? "No" : frac === 0.5 ? "Partly" : "Fully";
               return '<button class="fa2-trib' + (on ? " on" : "") + '"'
                 + ' data-f="' + esc(f.Foreman) + '" data-q="' + esc(q.Question) + '"'
                 + ' data-s="' + st + '" data-m="' + S.month + '"'
@@ -955,14 +1005,8 @@ registerPage({
       }
       main.querySelectorAll(".fa2-view").forEach(b => {
         b.onclick = () => {
+          if (b.dataset.view === "rubric") { openQuestionnaire(); return; }
           S.view = b.dataset.view; S.msg = "";
-          if (S.view === "rubric") {
-            const ms = S.rubricMonths || [];
-            const m = S.rubMonth || (ms.indexOf(S.month) >= 0 ? S.month : ms[ms.length - 1]);
-            S.rubMonth = m || "";
-            if (m && m !== S.month) { loadRubricFor(m); return; }
-            S.draft = draftFromRubric();
-          }
           paint();
         };
       });

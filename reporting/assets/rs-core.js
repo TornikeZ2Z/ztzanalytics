@@ -165,7 +165,8 @@ window.RS = (function () {
         "Auto Score", "Auto Weight Measured", "Manual Points", "Questions Answered",
         "Assessed By", "Assessed At", "Total Score", "Total Score Rank", "Qualified",
         "Not Qualified Because",
-        "Counted Total", "Questions In Rubric", "Manual Total", "Fully Assessed"],
+        "Counted Total", "Questions In Rubric", "Manual Total", "Fully Assessed",
+        "Claims Charged"],
       dateCols: { "Month": "Month" }, defaultDate: "Month",
     },
     headcount: {

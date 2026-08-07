@@ -2407,6 +2407,10 @@ async function renderMonthly(host, MRCFG) {
         // previous period. Reviews are the heaviest counted topic (20 of 70), so each row
         // shows the rate, the movement, and what the rate contributed to the man's score.
         (function () {
+          // Reviews are worth 10 from 2026-07 and were worth 20 before it, so the card
+          // has to draw the month it is SHOWING rather than the model that shipped last.
+          const cTotM = num(scRows.length ? scRows[0]["Counted Total"] : 0) || 70;
+          const revW = cTotM === 60 ? 10 : 20;
           const cur = scRows.map(r => ({
             f: r.Foreman, jobs: num(r["Total Jobs"]), rev: num(r["Total Reviews Written"]),
             pts: nn(r["Review Score"]), ok: +r["Qualified"] === 1,
@@ -2433,13 +2437,13 @@ async function renderMonthly(host, MRCFG) {
             ${td(fmtN(r.jobs))}${td(fmtN(r.rev), r.rev ? "" : `color:${NEG};font-weight:800`)}
             <td class="bar"><i style="width:${((r.rpj || 0) / mx * 100).toFixed(0)}%;background:${LIME_BG}"></i><span>${pct(r.rpj || 0)}</span></td>
             ${td(r.prev == null ? "—" : pct(r.prev), r.prev == null ? "color:var(--faint)" : "")}${dcell(r.d)}
-            ${td(r.pts == null ? "—" : fmt1(r.pts / 100 * 20) + " / 20", r.pts == null ? "color:var(--faint)" : "font-weight:800")}</tr>`).join("");
+            ${td(r.pts == null ? "—" : fmt1(r.pts / 100 * revW) + " / " + revW, r.pts == null ? "color:var(--faint)" : "font-weight:800")}</tr>`).join("");
           tableCard(g, "Review assessment — reviews earned per job", monLbl + " vs " + MS[PM],
-            `<div class="mrx-scroll"><table class="mrx-tbl"><thead><tr><th>Foreman</th><th>Jobs</th><th>Reviews</th><th>Per job</th><th>${MS[PM]}</th><th>Change</th><th>Score /20</th></tr></thead>
+            `<div class="mrx-scroll"><table class="mrx-tbl"><thead><tr><th>Foreman</th><th>Jobs</th><th>Reviews</th><th>Per job</th><th>${MS[PM]}</th><th>Change</th><th>Score /${revW}</th></tr></thead>
              <tbody>${rowsH}<tr class="tot"><td>Whole crew</td>${td(fmtN(tj))}${td(fmtN(tr))}${td(pct(tNow))}${td(tPrev == null ? "—" : pct(tPrev))}${dcell(tPrev == null ? null : (tNow - tPrev) * 100)}${td("")}</tr></tbody></table></div>`,
             { span2: true, icon: KIC.grid, headVal: pct(tNow) + " of jobs",
               noteKind: "how",
-              note: `Reviews are matched to the foreman's closed jobs, so <b>Per job</b> = reviews earned ÷ jobs run that month — the rate the 20 review points are scored on, through the office's range table. <b>Change</b> is against ${MS[PM]}, in percentage points. A red 0 in Reviews is a month where a foreman ran jobs and earned none — that scores zero, it is never skipped. <b>Score /20</b> is what the rate contributed to his counted 70.` });
+              note: `Reviews are matched to the foreman's closed jobs, so <b>Per job</b> = reviews earned ÷ jobs run that month — the rate the ${revW} review points are scored on, through the office's range table. <b>Change</b> is against ${MS[PM]}, in percentage points. A red 0 in Reviews is a month where a foreman ran jobs and earned none — that scores zero, it is never skipped. <b>Score /20</b> is what the rate contributed to his counted ${cTotM}.` });
         })();
 
         tableCard(g, "Foreman scorecard — ranked", monLbl, `<table class="mrx-tbl"><thead><tr><th>Foreman</th><th>Jobs</th><th>CF</th><th>Pay</th><th>Tips</th><th>Packing</th><th>vs Est</th><th>Reviews</th><th>Claims</th><th>Refunds</th><th>Score</th></tr></thead><tbody>${rowsH}</tbody></table>`, { icon: KIC.grid, headVal: fmtN(sc.length) + " crews", noteKind: "how", note: `Pay/Tips from closings; ▲▼ arrows on Jobs/Pay/Tips compare vs ${MS[PM]}. 'vs Est' = packing written ÷ quoted estimate (green at 1× or above, red below). Score combines jobs, packing, reviews and fault claims — higher is better; the ▲▼ beside it compares vs ${MS[PM]}. The crown lives on the Foreman of the Month card above, which is the one that applies the eligibility rule.${CO === MR_CO_DEFAULT ? "" : ` <b>Not split by company:</b> the foreman scorecard mart carries no Company column, so these crews are ranked across every book, not just ${esc(CO)}.`}` });
