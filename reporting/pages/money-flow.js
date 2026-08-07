@@ -145,6 +145,9 @@ registerPage({
         .mf-fnbtn.go{margin-left:auto;border-color:${BLUE};color:${BLUE};background:transparent}
         .mf-fnbtn.go:hover{background:${BLUE};color:#fff}
         .mf-fnowe{color:${NEG}}
+        .mf-debtchip{margin-left:10px;font-size:11.5px;font-weight:800;color:${NEG};cursor:pointer;
+                     border:1px solid ${NEG};border-radius:999px;padding:2px 9px;white-space:nowrap}
+        .mf-debtchip:hover{background:${NEG};color:#fff}
         .mf-fnrow.settled td{opacity:.62}
         .mf-fnwhy{white-space:normal;line-height:1.45}
         .mf-fnjob{font-size:11px;font-weight:700;color:var(--faint);border:1px solid var(--line-2);
@@ -696,9 +699,16 @@ registerPage({
           // ONE table for foremen AND their jobs: the foreman row spans the columns before
           // the balance, so his total lands exactly under the job rows' Net Cash Balance
           // (his ask 2026-07-22); the counts ride along the name as quiet grey text.
+          var owes = debtOf(f);
           var nameCell = '<td colspan="' + (det ? 5 : PLAN.before) + '"><span class="mf-caret">' + (open ? "▾" : "▸") + "</span>"
             + esc(f) + '<span class="mf-fmmeta">' + g.jobs.length + " job" + (g.jobs.length === 1 ? "" : "s")
-            + (g.noCon ? " · " + g.noCon + " no contract" : "") + "</span></td>";
+            + (g.noCon ? " · " + g.noCon + " no contract" : "") + "</span>"
+            + (owes > 0.005
+                ? '<span class="mf-debtchip" data-mfdebt="' + esc(f)
+                  + '" title="Owed on top of the cash — fines and opening balances. '
+                  + 'Click to open his ledger.">owes ' + money2(owes) + "</span>"
+                : "")
+            + "</td>";
           var balCls2 = Math.abs(g.total) > MF_TOL ? "mf-neg" : "";
           // DETAIL: a subtotal under every numeric column (his ask 2026-07-22); COMPACT: just the balance
           var head = det
@@ -1154,6 +1164,17 @@ registerPage({
       };
     }
 
+    /* What this man still owes outside the cash: fines and opening balances, less what he
+     * has repaid. Zero unless the ledger has been loaded -- Balance by Foreman must never
+     * wait on a second request to paint, so the chip appears when the ledger arrives. */
+    function debtOf(name) {
+      var b = ((S.fines || {}).balances || []);
+      for (var i = 0; i < b.length; i++) {
+        if (b[i].foreman === name) return b[i].owes || 0;
+      }
+      return 0;
+    }
+
     /* Every foreman the page knows about, for the name field. Drawn from the jobs on screen
      * plus anyone already in the ledger, so a man with no open job this week is still
      * fineable -- which is exactly when a fine tends to be recorded. */
@@ -1345,6 +1366,13 @@ registerPage({
           openFineModal(b.getAttribute("data-mffe"));
         };
       });
+      Array.prototype.forEach.call(root.querySelectorAll("[data-mfdebt]"), function (c) {
+        c.onclick = function (ev2) {
+          ev2.stopPropagation();          // the row toggles his jobs; the chip goes elsewhere
+          var f = c.getAttribute("data-mfdebt");
+          S.view = "fines"; S.fnx[f] = true; paint();
+        };
+      });
       var fnAdd = root.querySelector("#mfFnAdd");
       if (fnAdd) fnAdd.onclick = function () { openFineModal(null); };
       var fnRetry = root.querySelector("#mfFnRetry");
@@ -1456,7 +1484,9 @@ registerPage({
     }
     // the view is remembered across visits, so landing straight back on Fines has to fetch
     // it too -- otherwise the segment reads 0 over a ledger nobody ever read
-    if (S.view === "fines" && !S.fines && !S.finesErr) {
+    // the ledger is small and every view can show a debt chip, so fetch it once per visit
+    // in the background -- it must never hold up the cash tables, which are the point
+    if (!S.fines && !S.finesErr) {
       loadFines().then(function () { if (myGen === window.__MFGEN) paint(); });
     }
   },
