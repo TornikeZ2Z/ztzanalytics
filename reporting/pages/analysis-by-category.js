@@ -136,6 +136,11 @@ async function cbRender(host) {
       "Big Job":       { fn: r => { const b = mbOf(r); return b && b["Big Job Status"]; }, kind: "lead" },
       "City":          { fn: r => { const b = mbOf(r); return b && b["City Name"]; }, kind: "lead" },
       "County":        { fn: r => { const b = mbOf(r); return b && b["County Name"]; }, kind: "lead" },
+      // Via QR (N2): the postcards carry a QR code that dials its own CallRail number, and
+      // until now that fact was erased — the ladder folds those calls into "Post Card" and
+      // the scan became indistinguishable from someone typing the number off the card.
+      "Via QR":        { fn: r => { const b = mbOf(r); return b ? (+b["Via QR"] ? "Scanned the QR code" : "Not via QR") : null; },
+                         kind: "lead", sort: (a, b2) => String(b2).localeCompare(String(a)) },
     };
     const LEAD_DIMS = {
       "Source":         { fn: r => r.Source },
@@ -150,6 +155,8 @@ async function cbRender(host) {
       "CF Range":       { fn: r => r["CF Range"], sort: byBand },
       "Quote Range":    { fn: r => r["Bill Range"], sort: byBand },
       "Big Job":        { fn: r => r["Big Job Status"] },
+      "Via QR":         { fn: r => (+r["Via QR"] ? "Scanned the QR code" : "Not via QR"),
+                          sort: (a, b) => String(b).localeCompare(String(a)) },
       "Company":        { fn: r => r.Company },
       "Year":           { fn: r => r._y, sort: (a, b) => String(a).localeCompare(String(b)) },
       "Quarter":        { fn: r => r._y + " Q" + Math.ceil(r._m / 3), sort: (a, b) => String(a).localeCompare(String(b)) },

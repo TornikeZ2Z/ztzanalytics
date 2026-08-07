@@ -33,11 +33,29 @@ window.RSC = (function () {
       btn.innerHTML = `<span class="lbl">${esc(label)}</span><span class="val">${esc(txt)}</span><span class="chev">▾</span>`;
       btn.classList.toggle("on", n > 0);
     };
+    // RETIRED VALUES. This list is built from every loaded row, never from the date window,
+    // so one lead from 2023 keeps its source in the dropdown for good — which is exactly what
+    // Tornike hit: "this is no longer relevant, why does it still show?" (2026-08-07). The
+    // audit found 20 such labels, not one, and the same is true of foremen who left and reps
+    // who moved on. Deleting them would be worse: history has to stay selectable. So say it
+    // instead — live values first, then a divider, then the retired ones with the year they
+    // were last seen. The dropdown answers the question rather than posing it.
+    const opt = i => `<label class="opt${i.retired ? " retired" : ""}">`
+      + `<input type="checkbox" value="${esc(i.v)}" ${set.has(i.v) ? "checked" : ""}>`
+      + ` <span class="ol">${esc(i.l)}</span>`
+      + (i.retired && i.last ? `<span class="last">last ${esc(String(i.last))}</span>` : "")
+      + (i.n != null ? `<span class="on">${Number(i.n).toLocaleString()}</span>` : "")
+      + `</label>`;
+    const live = items.filter(i => !i.retired), gone = items.filter(i => i.retired);
     const rowsHtml = () => `
       <div class="tools"><input type="text" class="q" placeholder="Search…">
         <button class="mini" data-a="all">All</button><button class="mini" data-a="none">Clear</button></div>
       <div class="opts">` +
-      items.map(i => `<label class="opt"><input type="checkbox" value="${esc(i.v)}" ${set.has(i.v) ? "checked" : ""}> <span class="ol">${esc(i.l)}</span>${i.n != null ? `<span class="on">${Number(i.n).toLocaleString()}</span>` : ""}</label>`).join("") +
+      live.map(opt).join("") +
+      (gone.length
+        ? `<div class="opt-div">No longer in use — kept so history stays selectable</div>`
+          + gone.map(opt).join("")
+        : "") +
       `</div>` +
       // the numbers are raw data records (closing + moveboard rows) — say so, or people
       // will quote them as jobs or leads
@@ -52,6 +70,12 @@ window.RSC = (function () {
     pop.querySelector(".q").addEventListener("input", e => {
       const q = e.target.value.toLowerCase();
       pop.querySelectorAll(".opt").forEach(o => o.classList.toggle("hidden", !o.textContent.toLowerCase().includes(q)));
+      // a divider with nothing under it is a heading for an empty section
+      const div = pop.querySelector(".opt-div");
+      if (div) {
+        const anyLeft = [...pop.querySelectorAll(".opt.retired")].some(o => !o.classList.contains("hidden"));
+        div.classList.toggle("hidden", !anyLeft);
+      }
     });
     pop.querySelectorAll(".mini").forEach(b => b.onclick = () => {
       const on = b.dataset.a === "all";

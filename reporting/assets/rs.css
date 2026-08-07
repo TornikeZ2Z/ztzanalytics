@@ -110,6 +110,12 @@ body.rs-app .gate p{color:var(--muted)}
 .rs-slicer-pop .opt .ol{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .rs-slicer-pop .opt .on{font-size:10.5px;color:var(--faint);font-variant-numeric:tabular-nums}
 .rs-slicer-pop .opt.sel{background:var(--brand-glow);color:var(--brand)}
+/* retired values: still selectable, visibly not current */
+.rs-slicer-pop .opt-div{margin:9px 2px 4px;padding-top:9px;border-top:1px solid var(--line);font-size:10px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--faint)}
+.rs-slicer-pop .opt-div.hidden{display:none}
+.rs-slicer-pop .opt.retired .ol{color:var(--faint)}
+.rs-slicer-pop .opt.retired:hover .ol{color:var(--muted)}
+.rs-slicer-pop .opt .last{font-size:10px;color:var(--faint);font-variant-numeric:tabular-nums;border:1px solid var(--line);border-radius:6px;padding:1px 5px;white-space:nowrap}
 .rs-slicer-pop .opt.sel .ol{font-weight:750}
 
 /* ---------- date bar ---------- */

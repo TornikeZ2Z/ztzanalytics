@@ -77,12 +77,20 @@ registerPage({
     /* the phone-match value + human note, shared by both traces */
     const phoneMatch = (crnn, crtr, gl) => ({
       value: has(crnn) ? (has(crtr) ? crtr : crnn) : (gl ? "Google Local" : "—"),
+      qr: viaQR(crnn),
       note: has(crnn)
-        ? `Customer phone matched CallRail <b>${RSC.esc(crnn)}</b>${has(crtr) && norm(crtr) !== norm(crnn) ? ` (reads as <b>${RSC.esc(crtr)}</b>)` : ""}${gl ? " — <b>CallRail beats Google Local</b>" : ""}.`
+        ? `Customer phone matched CallRail <b>${RSC.esc(crnn)}</b>${has(crtr) && norm(crtr) !== norm(crnn) ? ` (reads as <b>${RSC.esc(crtr)}</b>)` : ""}${gl ? " — <b>CallRail beats Google Local</b>" : ""}${viaQR(crnn) ? " They <b>scanned the QR code</b> on the postcard." : ""}.`
         : gl ? `Customer phone matched a <b>Google Local</b> lead.`
              : `No phone match — the raw booked source carries through.`,
       chg: has(crnn) || gl,
     });
+
+    /* VIA QR. The trace already prints the Number Name, so the fact was technically on the
+       page — three characters inside a longer string, in a row nobody reads unless they are
+       already suspicious. Tornike asked to SEE that a customer found us via a QR code (N2,
+       2026-08-07), and the postcards carry one. Of the 37 Number Names CallRail has ever
+       used, exactly three contain QR, so the test needs nothing cleverer than a substring. */
+    const viaQR = crnn => /qr/i.test(String(crnn || ""));
 
     /* Post-Card region note: did the region come from the pickup state, or was it baked into the
        tracking number's label (e.g. CallRail "Postcard NY - QR" → NY, regardless of pickup state)? */
@@ -605,6 +613,8 @@ registerPage({
       else if (gl) phn = `matched a <b>Google Local</b> lead`;
       else phn = `no CallRail / Google Local match`;
       let note = `Customer phone <b>${RSC.esc(show(r["Customer Phone"]))}</b> ${phn}.`;
+      if (viaQR(crnn)) note += ` They <b>scanned the QR code</b> on the postcard — a fact the`
+        + ` source ladder folds away when it resolves this to Post Card.`;
       if (has(merged) && norm(merged) !== norm(rawS))
         note += ` Merged source <b>${RSC.esc(merged)}</b>` + (has(tran) && norm(tran) !== norm(merged) ? ` → <b>${RSC.esc(tran)}</b>` : "") + ".";
       note += pcRegionNote(conn, pstate);
