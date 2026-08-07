@@ -169,9 +169,16 @@ registerPage({
       + ".fa2-nm{font-size:15.5px;font-weight:750;letter-spacing:-.2px}"
       + ".fa2-si{font-size:11px;color:var(--faint);margin-top:1px}"
       + ".fa2-si .oor{color:var(--warn);font-weight:650}"
-      + ".fa2-dots{display:flex;gap:4px}"
-      + ".fa2-dots i{width:7px;height:7px;border-radius:50%;background:var(--panel-2);border:1px solid var(--line-2)}"
-      + ".fa2-dots i.on{background:var(--blue);border-color:transparent}"
+      + ".fa2-dots{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-start}"
+      // One chip per question -- its short name and the stars given, or a dash where
+      // nobody has rated yet. Six of these fill the middle of the row with real detail
+      // instead of the canyon that sat between a name and its score.
+      + ".fa2-qc{display:flex;align-items:center;gap:6px;padding:3px 9px;border-radius:999px;border:1px solid var(--line);background:var(--panel-2);font-size:10.5px;white-space:nowrap}"
+      + ".fa2-qc b{font-weight:700;color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.04em}"
+      + ".fa2-qc u{text-decoration:none;font-weight:800;color:var(--blue);font-variant-numeric:tabular-nums}"
+      + ".fa2-qc.no{border-style:dashed;background:transparent}"
+      + ".fa2-qc.no u{color:var(--faint)}"
+      + "@media(max-width:1250px){.fa2-qc b{display:none}}"
       + ".fa2-sc{display:flex;align-items:center;gap:13px}"
       + ".fa2-sb{width:132px;height:7px;border-radius:5px;background:var(--panel-2);overflow:hidden;display:flex}"
       + ".fa2-sb u{display:block;height:100%}"
@@ -195,7 +202,11 @@ registerPage({
       + ".fa2-tile .tb i{display:block;height:100%;background:var(--brand)}"
       + ".fa2-tile.na{border-style:dashed} .fa2-tile.na .v{color:var(--faint);font-size:13px;font-weight:600}"
       // ---- questions -------------------------------------------------------------------
-      + ".fa2-q{display:grid;grid-template-columns:minmax(0,1fr) auto 50px;gap:22px;align-items:center;padding:10px 0;border-bottom:1px solid var(--line);max-width:1100px}"
+      + /* Cap the TEXT, not the row. max-width on the row put the stars 1100px from the left
+   edge of a much wider card -- floating in the middle of nothing, a long way from the
+   question they rate. Capping the first column keeps the prose readable AND keeps the
+   stars right beside it. */
+      + ".fa2-q{display:grid;grid-template-columns:minmax(0,var(--rs-prose,104ch)) auto 50px;gap:22px;align-items:center;padding:10px 0;border-bottom:1px solid var(--line);justify-content:start}"
       + ".fa2-q:last-of-type{border-bottom:0}"
       + ".fa2-q .qt b{font-size:13.5px;font-weight:700;display:block}"
       + ".fa2-q .qt span{font-size:11px;color:var(--faint);line-height:1.55;display:block;margin-top:2px;max-width:80ch}"
@@ -394,8 +405,12 @@ registerPage({
             : x.answered ? x.answered + " of " + NQ + " rated" : "not rated yet")
         + (x.ok ? "" : ' · <span class="oor">' + esc(x.why) + "</span>")
         + "</div></div>"
-        + '<div class="fa2-dots">' + QUESTIONS.map(q =>
-            "<i" + ((x.r[q.k] && x.r[q.k].Stars != null) ? ' class="on"' : "") + "></i>").join("") + "</div>"
+        + '<div class="fa2-dots">' + QUESTIONS.map(q => {
+            const rq = x.r[q.k], st = (rq && rq.Stars != null) ? rq.Stars : null;
+            const short = q.t.split(/\s+/).slice(0, 2).join(' ');   // chip label only; q.t stays the question of record
+            return '<span class="fa2-qc' + (st == null ? ' no' : '') + '" title="' + esc(q.t) + '">'
+              + '<b>' + esc(short) + '</b><u>' + (st == null ? '–' : st) + '</u></span>';
+          }).join("") + "</div>"
         + '<div class="fa2-sc"><span class="fa2-sb">'
         + '<u class="a" style="width:' + (x.auto == null ? 0 : x.auto.toFixed(0)) + '%"></u>'
         + '<u class="m" style="width:' + x.manual.toFixed(0) + '%"></u></span>'

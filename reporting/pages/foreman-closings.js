@@ -262,6 +262,11 @@ registerPage({
       if (!fncBody) { if (window.__FNC_TICK) clearInterval(window.__FNC_TICK); return; }
       setLast();
       var pend = data.pending || [], hist = data.history || [];
+      /* Land on History when there is nothing pending. "Nothing pending 🎉" is good news, but
+         as a whole screen it is one line of text above an empty page — and the 283 settled
+         closings, which are the thing anyone actually wants to look at on a quiet day, sit one
+         unprompted click away. Only auto-switches while the user has not chosen a tab himself. */
+      if (!S._userPicked && !pend.length && hist.length) S.view = "history";
       var q = S.q.trim().toLowerCase();
       var pendJobs = pend.reduce(function (a, p) { return a + p.n_jobs; }, 0);
       var pendCash = pend.reduce(function (a, p) { return a + (p.total_net_cash || 0); }, 0);
@@ -425,7 +430,7 @@ registerPage({
     }
 
     function wire() {
-      Array.prototype.forEach.call(host.querySelectorAll("[data-fncv]"), function (b) { b.onclick = function () { S.view = b.getAttribute("data-fncv"); paint(); }; });
+      Array.prototype.forEach.call(host.querySelectorAll("[data-fncv]"), function (b) { b.onclick = function () { S.view = b.getAttribute("data-fncv"); S._userPicked = true; paint(); }; });
       Array.prototype.forEach.call(host.querySelectorAll("[data-fncd]"), function (b) { b.onclick = function () { S.dense = b.getAttribute("data-fncd"); paint(); }; });
       var q = host.querySelector("#fncQ");
       if (q) q.oninput = function () { S.q = q.value; var pos = q.selectionStart; paint(); var n2 = host.querySelector("#fncQ"); if (n2) { n2.focus(); try { n2.setSelectionRange(pos, pos); } catch (e) {} } };
