@@ -134,6 +134,35 @@ registerPage({
         .mf-caret{color:var(--faint);font-size:11px;display:inline-block;width:14px}
         .mf-fmsub>td{padding:0 0 16px 24px;background:var(--panel-2)}
         .mf-fmsub .mf-tbl{background:var(--panel);border:1px solid var(--line-2);border-radius:10px}
+        /* ---- Fines & Debt (N5) ---- */
+        .mf-fnhead{display:flex;align-items:center;gap:22px;flex-wrap:wrap;padding:16px 18px;border-bottom:1px solid var(--line)}
+        .mf-fntot{display:flex;flex-direction:column;gap:2px;min-width:150px}
+        .mf-fntot span{font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--faint)}
+        .mf-fntot b{font-size:24px;font-weight:800;letter-spacing:-.4px;font-variant-numeric:tabular-nums}
+        .mf-fntot i{font-style:normal;font-size:11.5px;color:var(--muted)}
+        .mf-fnbtn{font:inherit;font-size:13px;font-weight:700;padding:9px 15px;border-radius:10px;cursor:pointer;
+                  border:1px solid var(--line-2);background:var(--panel-2);color:var(--ink)}
+        .mf-fnbtn.go{margin-left:auto;border-color:${BLUE};color:${BLUE};background:transparent}
+        .mf-fnbtn.go:hover{background:${BLUE};color:#fff}
+        .mf-fnowe{color:${NEG}}
+        .mf-fnrow.settled td{opacity:.62}
+        .mf-fnwhy{white-space:normal;line-height:1.45}
+        .mf-fnjob{font-size:11px;font-weight:700;color:var(--faint);border:1px solid var(--line-2);
+                  border-radius:6px;padding:1px 6px;margin-left:6px;white-space:nowrap}
+        .mf-fnpill{font-size:11px;font-weight:800;letter-spacing:.03em;padding:3px 9px;border-radius:999px;
+                   border:1px solid var(--line-2);color:var(--muted);white-space:nowrap}
+        .mf-fnpill.fine{color:${NEG};border-color:${NEG}}
+        .mf-fnpill.repayment{color:${POS};border-color:${POS}}
+        .mf-fnpill.opening{color:${BLUE};border-color:${BLUE}}
+        .mf-fnedit{font:inherit;font-size:12px;font-weight:700;color:${BLUE};background:transparent;
+                   border:1px solid var(--line-2);border-radius:8px;padding:4px 10px;cursor:pointer}
+        .mf-fnedit:hover{border-color:${BLUE}}
+        .mf-fnsettled{font-size:11.5px;color:var(--faint);border-bottom:1px dotted var(--line-2);cursor:help}
+        .mf-fnhint{font-size:12px;color:var(--faint);line-height:1.55;margin:2px 0 4px}
+        .mf-fnerr{display:flex;flex-direction:column;gap:8px;align-items:flex-start;padding:22px}
+        .mf-fnerr b{font-size:15px}
+        .mf-fnerr span{font-size:12.5px;color:var(--muted)}
+        .mf-fld label i{font-style:normal;font-weight:600;color:var(--faint);text-transform:none;letter-spacing:0}
         .mf-neg{color:${NEG};font-weight:700} .mf-pos{color:${POS};font-weight:700}
         .mf-age{font-size:10.5px;color:var(--faint)}
         .mf-doc{font-size:13px;font-weight:800;color:${BLUE};text-decoration:none;white-space:nowrap}
@@ -190,6 +219,10 @@ registerPage({
       sort: { k: "Job Date", d: -1 }, months: 0, fmOpen: false, busy: false, modalEv: null,
       dense: "details",    // 'details' = every column (default); 'overview' = the compact table
       fmx: {},             // Balance-by-Foreman view: which foremen are expanded
+      fines: null,         // the fines/debt ledger from /api/_ffines (null until loaded)
+      finesErr: "",        // why it could not be loaded, if it could not
+      fnx: {},             // Fines view: which foremen are expanded
+      fineEdit: null,      // the entry being corrected, or null for a new one
     });
     if (!S.dense) S.dense = "details";        // Details is the landing density (his pick)
     if (!S.fmx) S.fmx = {};
@@ -354,6 +387,20 @@ registerPage({
       } catch (e) { S.liveOk = false; S.liveErr = String(e && e.message || e); }
     }
 
+    /* THE FINES LEDGER. Kept separate from loadLive() on purpose: the money-flow overlay
+     * is a 6-hour-cached recomputation of every job, and a fine has nothing to do with any
+     * of that. Failing to load it must leave the rest of the page working, so the error is
+     * remembered and shown in its own view rather than thrown. */
+    async function loadFines() {
+      try {
+        var r = await fetch(ZTZ.API + "/api/_ffines",
+          { headers: { "Authorization": "Bearer " + ZTZ.getToken() } });
+        var j = await r.json();
+        if (!r.ok) throw new Error(j && j.error || ("HTTP " + r.status));
+        S.fines = j; S.finesErr = "";
+      } catch (e) { S.finesErr = String(e && e.message || e); }
+    }
+
     // the settle preset: Type + Amount such that the balance becomes exactly $0
     // (a new record REPLACES the old one — last-record-wins — so this is the full figure)
     function settle(r) {
@@ -482,6 +529,13 @@ registerPage({
         return Math.abs(r.adv || 0) > 0.005 || Math.abs(r.ded || 0) > 0.005;
       });
 
+      // the ledger, one row per foreman. Computed by the BRIDGE, not here: the statement,
+      // this page and the closing email all have to answer "what does he owe" with the same
+      // number, and three implementations is three answers.
+      var fineBal = (S.fines && S.fines.balances || []).filter(function (b) {
+        return b.entries > 0;
+      });
+
       var segBtn = function (id, label, n) {
         return '<button class="' + (S.view === id ? "on" : "") + '" data-mfv="' + id + '">' + label + "<i>" + n + "</i></button>";
       };
@@ -513,7 +567,8 @@ registerPage({
         + '<div class="mf-bar" id="mfVBar"><div class="mf-seg">' + segBtn("foreman", "Balance by Foreman", main.length)
         + segBtn("nib", "Not in Balance Jobs", nib.length)
         + segBtn("history", "History", done.length)
-        + segBtn("advded", "Advances & Deductions", advDed.length) + "</div></div>"
+        + segBtn("advded", "Advances & Deductions", advDed.length)
+        + segBtn("fines", "Fines & Debt", fineBal.length) + "</div></div>"
         // id="mfFBar" is load-bearing on main: the collapsible-filters bar finds this
         // element to hide it. The branch added the Advances & Deductions segment. Both sides
         // are real, and they are independent -- keeping only one would either lose the new
@@ -581,8 +636,8 @@ registerPage({
             + '<col style="width:8%"><col style="width:8%"><col style="width:5%"><col style="width:5%">'
             + '<col style="width:7.5%"><col style="width:10.5%">',
         head: "<th></th><th>Job date</th><th>Job Code</th><th>Job #</th><th>Customer</th>"
-            + '<th class="r">Net Cash</th><th class="r">Advance Payment</th>'
-            + '<th class="r">Forman Deduction</th><th class="r">Net Cash Flow</th>'
+            + '<th class="r">Net Cash</th><th class="r" title="Money already handed to him — it comes OFF what he still owes">Advance Payment ↓</th>'
+            + '<th class="r" title="Charged to him on this job — it goes ON TOP of what he owes">Forman Deduction ↑</th><th class="r">Net Cash Flow</th>'
             + '<th class="r">Net Cash Balance</th><th>Submission Time</th>'
             + "<th>Contract</th><th>Calendar</th><th>Status</th><th>Action</th>",
         before: 9, after: 5, n: 15,
@@ -708,7 +763,7 @@ registerPage({
           + '<colgroup><col style="width:11%"><col style="width:14%"><col style="width:29%">'
           + '<col style="width:15%"><col style="width:15%"><col style="width:16%"></colgroup>'
           + '<thead><tr><th>Job date</th><th>Job #</th><th>Customer</th>'
-          + '<th class="r">Advance Payment</th><th class="r">Forman Deduction</th>'
+          + '<th class="r" title="Money already handed to him — it comes OFF what he still owes">Advance Payment ↓</th><th class="r" title="Charged to him on this job — it goes ON TOP of what he owes">Forman Deduction ↑</th>'
           + '<th class="r">Net moved</th></tr></thead><tbody>'
           + (adBody || '<tr><td colspan="6" style="color:var(--faint);padding:18px">'
               + "No advances or deductions recorded" + (q ? " for that search" : "") + ".</td></tr>")
@@ -718,6 +773,8 @@ registerPage({
               + '<td class="r"><b>' + money(tDedAll) + "</b></td>"
               + '<td class="r"><b>' + money(tAdvAll + tDedAll) + "</b></td></tr>" : "")
           + "</tbody></table></div></div>";
+      } else if (S.view === "fines") {
+        content = finesView();
       } else if (S.view === "foreman") {
         content = renderGrouped(main, "No outstanding balances.");
       } else if (S.view === "nib") {
@@ -732,7 +789,7 @@ registerPage({
               + '<col style="width:7.5%">',
           head: '<th data-mfs="Job Date">Job date' + arrow("Job Date") + "</th><th>Job #</th><th>Customer</th><th>Foreman</th>"
               + '<th class="r" data-mfs="Expected">Net Cash' + arrow("Expected") + "</th>"
-              + '<th class="r">Advance Payment</th><th class="r">Forman Deduction</th>'
+              + '<th class="r" title="Money already handed to him — it comes OFF what he still owes">Advance Payment ↓</th><th class="r" title="Charged to him on this job — it goes ON TOP of what he owes">Forman Deduction ↑</th>'
               + '<th class="r">Net Cash Flow</th>'
               + '<th class="r" data-mfs="Balance">Net Cash Balance' + arrow("Balance") + "</th>"
               + "<th>Submission Time</th><th>Contract</th><th>Calendar</th><th>Status</th>",
@@ -887,6 +944,221 @@ registerPage({
       };
     }
 
+
+    /* FINES & DEBT (N5). Tornike: "we fined a foreman -- Money Flow should let us pick him
+     * and take the money off, and his additional DEBT should be visible."
+     *
+     * Deliberately NOT a job view. A fine belongs to the man: money_flow_entries drops
+     * anything it cannot tie to a calendar event, and closings settle per job, so a fine for
+     * something that happened at the base would be stored and never seen again. The ledger
+     * is foreman-keyed and the job link is optional -- see src/foreman_fines.py.
+     *
+     * The ledger starts at ZERO (his rule): anyone who genuinely owes gets a typed opening
+     * balance. Nothing is inferred from history, because a number nobody entered is a number
+     * nobody will defend when the foreman argues about it. */
+    function finesView() {
+      if (S.finesErr) {
+        return '<div class="mf-card"><div class="mf-fnerr"><b>The fines ledger did not load.</b>'
+          + "<span>" + esc(S.finesErr) + "</span>"
+          + '<button class="mf-fnbtn go" id="mfFnRetry">Try again</button></div></div>';
+      }
+      if (!S.fines) {
+        return '<div class="mf-card"><div class="mf-load"><div class="mf-spin" '
+          + 'style="margin:0 auto 12px"></div>Loading the fines ledger…</div></div>';
+      }
+      var bal = (S.fines.balances || []).filter(function (b) { return b.entries > 0; });
+      if (S.formen.length) {
+        bal = bal.filter(function (b) { return S.formen.indexOf(b.foreman) >= 0; });
+      }
+      var q = S.q.trim().toLowerCase();
+      var entriesOf = {};
+      (S.fines.entries || []).forEach(function (e) {
+        (entriesOf[String(e.Foreman || "").trim()] = entriesOf[String(e.Foreman || "").trim()] || []).push(e);
+      });
+      if (q) {
+        bal = bal.filter(function (b) {
+          if (b.foreman.toLowerCase().indexOf(q) >= 0) return true;
+          return (entriesOf[b.foreman] || []).some(function (e) {
+            return String(e.Reason || "").toLowerCase().indexOf(q) >= 0
+              || String(e["Job Code"] || "").toLowerCase().indexOf(q) >= 0;
+          });
+        });
+      }
+
+      var owed = 0, unsettled = 0;
+      bal.forEach(function (b) { if (b.owes > 0) owed += b.owes; unsettled += b.unsettled; });
+
+      var head = '<div class="mf-fnhead">'
+        + '<div class="mf-fntot"><span>Outstanding</span><b>' + money(owed) + "</b>"
+        + "<i>" + bal.filter(function (b) { return b.owes > 0.005; }).length
+        + " foreman" + (bal.filter(function (b) { return b.owes > 0.005; }).length === 1 ? "" : "en")
+        + " owing</i></div>"
+        + '<div class="mf-fntot"><span>Rides into the next statement</span><b>' + money(unsettled) + "</b>"
+        + "<i>charged, not yet settled</i></div>"
+        + '<button class="mf-fnbtn go" id="mfFnAdd">+ Record a fine, repayment or opening balance</button>'
+        + "</div>";
+
+      var TYPE_LABEL = { fine: "Fine", repayment: "Repayment", opening: "Opening balance" };
+      var body = bal.map(function (b) {
+        var open = !!S.fnx[b.foreman] || !!q;
+        var ent = (entriesOf[b.foreman] || []);
+        var head2 = '<tr class="mf-fmrow" data-mffn="' + esc(b.foreman) + '">'
+          + '<td colspan="3"><span class="mf-caret">' + (open ? "\u25be" : "\u25b8") + "</span>"
+          + esc(b.foreman) + '<span class="mf-fmmeta">' + b.entries
+          + " entr" + (b.entries === 1 ? "y" : "ies")
+          + (b.unsettled > 0.005 ? " \u00b7 " + money(b.unsettled) + " not yet on a statement" : "")
+          + "</span></td>"
+          + '<td class="r">' + (b.fined ? money(b.fined) : "\u2014") + "</td>"
+          + '<td class="r">' + (b.opening ? money(b.opening) : "\u2014") + "</td>"
+          + '<td class="r">' + (b.repaid ? money(b.repaid) : "\u2014") + "</td>"
+          + '<td class="r"><b class="' + (b.owes > 0.005 ? "mf-fnowe" : "") + '">'
+          + money(b.owes) + "</b></td></tr>";
+        if (!open) return head2;
+        return head2 + ent.filter(function (e) { return e["Is Current"]; })
+          .map(function (e) {
+            var settled = e["Settled Report Id"] != null;
+            return '<tr class="mf-row mf-fnrow' + (settled ? " settled" : "") + '">'
+              + "<td>" + esc(String(e["Fine Date"] || "").slice(0, 10)) + "</td>"
+              + '<td><span class="mf-fnpill ' + esc(e["Entry Type"]) + '">'
+              + esc(TYPE_LABEL[e["Entry Type"]] || e["Entry Type"]) + "</span></td>"
+              + '<td class="mf-fnwhy" title="' + esc(e.Reason || "") + '">' + esc(e.Reason || "\u2014")
+              + (e["Job Code"] ? ' <span class="mf-fnjob">' + esc(e["Job Code"]) + "</span>" : "")
+              + "</td>"
+              + '<td class="r">' + (e["Entry Type"] === "fine" ? money(e.Amount) : "") + "</td>"
+              + '<td class="r">' + (e["Entry Type"] === "opening" ? money(e.Amount) : "") + "</td>"
+              + '<td class="r">' + (e["Entry Type"] === "repayment" ? money(e.Amount) : "") + "</td>"
+              + '<td class="r">'
+              + (settled
+                  ? '<span class="mf-fnsettled" title="already carried on a closing statement '
+                    + '\u2014 record a repayment instead of rewriting it">on a statement</span>'
+                  : '<button class="mf-fnedit" data-mffe="' + e.id + '">Correct</button>')
+              + "</td></tr>";
+          }).join("");
+      }).join("");
+
+      return '<div class="mf-card">' + head + '<div class="mf-wrap"><table class="mf-tbl fx">'
+        + '<colgroup><col style="width:13%"><col style="width:12%"><col style="width:31%">'
+        + '<col style="width:11%"><col style="width:11%"><col style="width:11%">'
+        + '<col style="width:11%"></colgroup>'
+        + '<thead><tr><th>Date</th><th>Type</th><th>What for</th>'
+        + '<th class="r">Fined</th><th class="r">Opening</th><th class="r">Repaid</th>'
+        + '<th class="r">Owes</th></tr></thead><tbody>'
+        + (body || '<tr><td colspan="7" style="color:var(--faint);padding:18px">'
+            + (q ? "Nothing matches that search."
+                 : "Nobody has been fined and nobody carries an opening balance. "
+                   + "The ledger starts at zero \u2014 record the first entry above.")
+            + "</td></tr>")
+        + "</tbody></table></div></div>";
+    }
+
+    /* The entry form. One dialog for all three movements, because they are one ledger:
+     * choosing the type is choosing the direction, exactly like the money entries above. */
+    function openFineModal(editId) {
+      var e = editId
+        ? (S.fines.entries || []).filter(function (x) { return String(x.id) === String(editId); })[0]
+        : null;
+      var names = mfForemen();
+      var hostEl = document.getElementById("mfModalHost");
+      var t = e ? e["Entry Type"] : "fine";
+      hostEl.innerHTML = '<div class="mf-back" id="mfBack"><div class="mf-modal">'
+        + '<button class="mf-mx" id="mfMx">\u2715</button>'
+        + '<div class="mf-mhead"><b>' + (e ? "Correct this entry" : "Record a fine, repayment or opening balance")
+        + "</b><div>"
+        + (e ? "A correction writes a new row and retires the old one \u2014 nothing is deleted."
+             : "The direction comes from the type. Amounts are always positive.")
+        + "</div></div>"
+        + '<div class="mf-mbody">'
+        + '<div class="mf-fld"><label>Foreman</label>'
+        + (e ? '<input id="mfFnWho" value="' + esc(e.Foreman) + '" disabled>'
+             : '<input id="mfFnWho" list="mfFnList" placeholder="Start typing a name" autocomplete="off">'
+               + '<datalist id="mfFnList">'
+               + names.map(function (n) { return '<option value="' + esc(n) + '">'; }).join("")
+               + "</datalist>")
+        + "</div>"
+        + '<div class="mf-fld"><label>What kind of movement</label><select id="mfFnType">'
+        + [["fine", "Fine \u2014 we charged him (debt goes up)"],
+           ["repayment", "Repayment \u2014 he paid it back (debt goes down)"],
+           ["opening", "Opening balance \u2014 what he already owed (debt goes up)"]]
+            .map(function (o) {
+              return '<option value="' + o[0] + '"' + (o[0] === t ? " selected" : "") + ">"
+                + o[1] + "</option>"; }).join("")
+        + "</select></div>"
+        + '<div class="mf-mrow">'
+        + '<div class="mf-fld"><label>Amount ($)</label><input id="mfFnAmt" type="number" step="0.01" '
+        + 'min="0" value="' + esc(e ? String(e.Amount) : "") + '" placeholder="0.00"></div>'
+        + '<div class="mf-fld"><label>Date</label><input id="mfFnDate" type="date" value="'
+        + esc(e ? String(e["Fine Date"] || "").slice(0, 10) : todayIso) + '"></div>'
+        + "</div>"
+        + '<div class="mf-fld"><label>What for</label>'
+        + '<input id="mfFnWhy" class="note" maxlength="500" value="' + esc(e ? (e.Reason || "") : "")
+        + '" placeholder="Damaged a customer\u2019s door \u2014 he agreed to cover it"></div>'
+        + '<div class="mf-fld"><label>Job code <i>optional</i></label>'
+        + '<input id="mfFnJob" value="' + esc(e ? (e["Job Code"] || "") : "") + '" placeholder="if it was about one job"></div>'
+        + '<div class="mf-fnhint">Waiving a fine is a correction to <b>$0</b> with the reason \u2014 '
+        + "the original stays readable in the history.</div>"
+        + '<div class="mf-mfoot"><button class="mf-cancel" id="mfFnCancel">Cancel</button>'
+        + '<button class="mf-save" id="mfFnSave">Save</button></div>'
+        + '<div id="mfFnErr"></div>'
+        + "</div></div></div>";
+
+      function close() { S.fineEdit = null; hostEl.innerHTML = ""; }
+      document.getElementById("mfMx").onclick = close;
+      document.getElementById("mfFnCancel").onclick = close;
+      document.getElementById("mfBack").onclick = function (ev2) {
+        if (ev2.target && ev2.target.id === "mfBack") close();
+      };
+      var who = document.getElementById("mfFnWho");
+      if (who && !e) who.focus();
+
+      document.getElementById("mfFnSave").onclick = async function () {
+        var btn = this, err = document.getElementById("mfFnErr");
+        var body = {
+          foreman: e ? e.Foreman : (document.getElementById("mfFnWho").value || "").trim(),
+          entry_type: document.getElementById("mfFnType").value,
+          amount: num(document.getElementById("mfFnAmt").value),
+          date: document.getElementById("mfFnDate").value || "",
+          reason: (document.getElementById("mfFnWhy").value || "").trim(),
+          job_code: (document.getElementById("mfFnJob").value || "").trim(),
+        };
+        if (e) body.replaces_id = e.id;
+        // say it here rather than making the server say it: the field is on screen
+        if (!body.foreman) { err.textContent = "Pick a foreman."; return; }
+        if (body.amount == null) { err.textContent = "Enter an amount."; return; }
+        if (body.entry_type === "fine" && !body.reason && body.amount > 0) {
+          err.textContent = "Say what the fine is for \u2014 a fine with no reason cannot be defended.";
+          return;
+        }
+        btn.disabled = true; btn.textContent = "Saving\u2026"; err.textContent = "";
+        try {
+          var res = await fetch(ZTZ.API + "/api/_ffines", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "Authorization": "Bearer " + ZTZ.getToken() },
+            body: JSON.stringify(body),
+          });
+          var j = await res.json();
+          if (!res.ok) throw new Error(j && j.error || ("HTTP " + res.status));
+          S.fines = j;                       // the server returns the whole ledger back
+          S.fnx[body.foreman] = true;        // open him up so the new row is visible
+          close(); paint();
+        } catch (ex) {
+          err.textContent = String(ex && ex.message || ex);
+          btn.disabled = false; btn.textContent = "Save";
+        }
+      };
+    }
+
+    /* Every foreman the page knows about, for the name field. Drawn from the jobs on screen
+     * plus anyone already in the ledger, so a man with no open job this week is still
+     * fineable -- which is exactly when a fine tends to be recorded. */
+    function mfForemen() {
+      var set = {};
+      (overlaid() || []).forEach(function (r) {
+        if (r.forman && r.forman !== MF_NO_FOREMAN) set[r.forman] = 1;
+      });
+      ((S.fines || {}).balances || []).forEach(function (b) { if (b.foreman) set[b.foreman] = 1; });
+      return Object.keys(set).sort();
+    }
+
     // ---------- THE POPUP ----------
     function openModal(ev) {
       var r = overlaid().filter(function (x) { return x.ev === ev; })[0];
@@ -912,11 +1184,11 @@ registerPage({
             return "<option" + (t === pre.type ? " selected" : "") + ">" + t + "</option>"; }).join("") + "</select></div>"
         + '<div class="mf-fld"><label>Amount ($)</label><input id="mfMAmt" type="number" step="0.01" min="0" value="' + esc(String(pre.amount)) + '"></div>'
         + '<div class="mf-mrow">'
-        + '<div class="mf-fld"><label>Forman Deduction ($)</label><input id="mfMDed" type="number" step="0.01" min="0" value="' + esc(String(r.ded != null ? Math.abs(r.ded) : "")) + '" placeholder="0"></div>'
+        + '<div class="mf-fld"><label>Forman Deduction ($) <i>on top of what he owes</i></label><input id="mfMDed" type="number" step="0.01" min="0" value="' + esc(String(r.ded != null ? Math.abs(r.ded) : "")) + '" placeholder="0"></div>'
         // a NEGATIVE advance is a legacy office refund ('Cash Taken Away from Base' in the
         // old advance form) — the portal write path is positive-only (bridge rejects
         // negatives; direction lives in the entry TYPE), so show it locked, not editable
-        + '<div class="mf-fld"><label>Advance Payment ($)</label><input id="mfMAdv" type="number" step="0.01"'
+        + '<div class="mf-fld"><label>Advance Payment ($) <i>already handed to him</i></label><input id="mfMAdv" type="number" step="0.01"'
         + (r.adv != null && r.adv < 0
             ? ' disabled title="Recorded by the office as a refund (taken away from base) — edited only in the office ledger"'
             : ' min="0"')
@@ -1028,7 +1300,14 @@ registerPage({
     function wire() {
       var root = host;
       Array.prototype.forEach.call(root.querySelectorAll("[data-mfv]"), function (b) {
-        b.onclick = function () { S.view = b.getAttribute("data-mfv"); S.hpage = 0; paint(); };
+        b.onclick = function () {
+          S.view = b.getAttribute("data-mfv"); S.hpage = 0; paint();
+          // the ledger is fetched the first time it is asked for, not on every page open:
+          // most visits never open this view, and the bridge should not pay for them
+          if (S.view === "fines" && !S.fines && !S.finesErr) {
+            loadFines().then(function () { if (myGen === window.__MFGEN) paint(); });
+          }
+        };
       });
       // History pager
       var hp = root.querySelector("#mfHPrev");
@@ -1046,6 +1325,28 @@ registerPage({
           S.fmx[f] = !S.fmx[f]; paint();
         };
       });
+      // Fines: expand a foreman, open the form, correct an entry, retry a failed load
+      Array.prototype.forEach.call(root.querySelectorAll("tr[data-mffn]"), function (tr) {
+        tr.onclick = function () {
+          var f = tr.getAttribute("data-mffn");
+          S.fnx[f] = !S.fnx[f]; paint();
+        };
+      });
+      Array.prototype.forEach.call(root.querySelectorAll("[data-mffe]"), function (b) {
+        b.onclick = function (ev2) {
+          ev2.stopPropagation();          // the row itself toggles; the button must not
+          openFineModal(b.getAttribute("data-mffe"));
+        };
+      });
+      var fnAdd = root.querySelector("#mfFnAdd");
+      if (fnAdd) fnAdd.onclick = function () { openFineModal(null); };
+      var fnRetry = root.querySelector("#mfFnRetry");
+      if (fnRetry) fnRetry.onclick = async function () {
+        this.textContent = "Loading…"; this.disabled = true;
+        S.finesErr = ""; S.fines = null; paint();
+        await loadFines(); paint();
+      };
+
       Array.prototype.forEach.call(root.querySelectorAll("th[data-mfs]"), function (th) {
         th.onclick = function () {
           var kk = th.getAttribute("data-mfs");
@@ -1145,6 +1446,11 @@ registerPage({
     } else {
       S.busy = true; paint();
       loadLive(false).then(function () { if (myGen === window.__MFGEN) { S.busy = false; setLiveBadge(); paint(); } });
+    }
+    // the view is remembered across visits, so landing straight back on Fines has to fetch
+    // it too -- otherwise the segment reads 0 over a ledger nobody ever read
+    if (S.view === "fines" && !S.fines && !S.finesErr) {
+      loadFines().then(function () { if (myGen === window.__MFGEN) paint(); });
     }
   },
 });

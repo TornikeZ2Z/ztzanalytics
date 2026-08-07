@@ -424,10 +424,25 @@ registerPage({
         + '<tr><td class="l">Total Advance</td><td class="v' + vneg(p.total_advance) + '">' + money2(p.total_advance) + "</td></tr>"
         + '<tr><td class="l">Total Deduction</td><td class="v">' + money2(p.total_deduction) + "</td></tr>"
         + '<tr><td class="l">Total Confirmed</td><td class="v' + vneg(p.total_confirmed) + '">' + money2(p.total_confirmed) + "</td></tr>"
+        // fines only when there are any: a standing "Fines $0.00" on every preview reads as
+        // an accusation waiting for a name (same rule as the PDF and the email)
+        + (p.total_fines ? '<tr><td class="l">Fines</td><td class="v neg">' + money2(p.total_fines) + "</td></tr>" : "")
         + '<tr><td class="l">Final Balance</td><td class="v' + vneg(p.balance) + '">' + money2(p.balance) + "</td></tr></table></div>"
         + '<div class="fnc-dbanner">DETAILED BREAKDOWN</div>'
         + '<table class="fnc-dt"><thead><tr><th>Job Code</th><th>Job Date</th><th>Customer</th><th>Submit Time</th><th class="r">Net Cash</th><th class="r">Advance</th><th class="r">Deduction</th><th class="r">Confirmed</th><th class="r">Balance</th></tr></thead><tbody>'
         + jobsHtml + "</tbody></table>"
+        // A FINE HAS TO SAY WHAT IT IS FOR. "Fines $200" with nothing behind it is exactly
+        // the statement that starts the argument the ledger exists to settle.
+        + ((p.fines || []).length
+            ? '<div class="fnc-dbanner">FINES CHARGED ON THIS CLOSING</div>'
+              + '<table class="fnc-dt"><thead><tr><th>Date</th><th>What for</th><th>Job</th>'
+              + '<th class="r">Amount</th></tr></thead><tbody>'
+              + p.fines.map(function (f) {
+                  return "<tr><td>" + fmtD(f.date) + "</td><td>" + esc(f.reason || "-")
+                    + "</td><td>" + esc(f.job_code || "-")
+                    + '</td><td class="r neg">' + money2(f.amount) + "</td></tr>";
+                }).join("") + "</tbody></table>"
+            : "")
         + '<div style="margin-top:12px;font-size:11px;color:#9aa0a6">Preview — this is how the archived PDF statement will look. Amounts in USD.</div>'
         + "</div></div>";
       document.body.appendChild(m);
