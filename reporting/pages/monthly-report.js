@@ -2290,11 +2290,13 @@ async function renderMonthly(host, MRCFG) {
         const rowsH = sc.map((r, i) => { const arrow = r.prev ? (r.score > r.prev ? `<span style="color:${POS}">▲</span>` : r.score < r.prev ? `<span style="color:${NEG}">▼</span>` : "–") : ""; const up = r.est > 0 ? r.written / r.est : null; return `<tr><td>${esc(r.f)}${r.ok ? "" : ' <span style="color:var(--faint);font-size:10px">not ranked</span>'}</td>
           ${td(fmtN(r.jobs) + mArrow(r.jobs, jobsFmPM[r.f]))}${td(fmtN(r.cf))}${td(money(payM[r.f] || 0) + mArrow(payM[r.f] || 0, payPM[r.f]))}${td(money(tipsM[r.f] || 0) + mArrow(tipsM[r.f] || 0, tipsPM[r.f]))}${td(money(r.written))}${td(up == null ? "—" : up.toFixed(1) + "×", up == null ? "" : `color:${up >= 1 ? POS : NEG};font-weight:800`)}${td(r.rev ? fmtN(r.rev) : "0", r.rev ? "" : `color:${NEG};font-weight:800`)}${td(fmtN(r.claims), r.claims > 0 ? `color:${NEG};font-weight:800` : "")}${td(refM[r.f] ? money(refM[r.f]) : "—", refM[r.f] ? `color:${NEG};font-weight:800` : "")}
           <td class="bar"><i style="width:${(r.score / smax * 100).toFixed(0)}%;background:${LIME_BG}"></i><span>${fmt1(r.score)} ${arrow}</span></td></tr>`; }).join("");
-        // ---- FOREMAN OF THE MONTH, on the 2026-08 model ----------------------------
-        // 70 points the warehouse counts (packing per 100 CF 30, reviews 20, packing vs
-        // estimate 10, complaints 10) + 30 the logistics department assesses. A month
-        // nobody has assessed yet shows the automatic 70 and says so, rather than ranking
-        // people on a total that is missing a third of itself.
+        // ---- FOREMAN OF THE MONTH, on the 2026-07 model ----------------------------
+        // 60 points the warehouse counts (packing per 100 CF 30, reviews 10, packing vs
+        // estimate 10, complaints 10 less 2.5 a claim) + 40 the logistics department
+        // assesses across the questions ITS RUBRIC asks that month. Months before 2026-07
+        // were scored 70/30 and still draw that way -- the card reads 
+        // rather than assuming, because restating a month nobody touched is the one thing
+        // this whole model is built to avoid.
         (function () {
           const M = scRows.map(r => ({
             f: r.Foreman, jobs: num(r["Total Jobs"]),
@@ -2308,6 +2310,12 @@ async function renderMonthly(host, MRCFG) {
             // the measurable weight is right, but on its own it hands July to a foreman who
             // ran one job. The mart decides eligibility; the card just respects it.
             ok: +r["Qualified"] === 1, why: r["Not Qualified Because"] || "",
+            // which model this month was scored under, and what its rubric asked. Before
+            // 2026-07 there was no rubric: six questions worth five each was implicit.
+            cTot: num(r["Counted Total"]) || 70,
+            mTot: nn(r["Manual Total"]) != null ? nn(r["Manual Total"]) : 30,
+            inRub: num(r["Questions In Rubric"]),
+            fullAss: r["Fully Assessed"] == null ? null : +r["Fully Assessed"] === 1,
           })).filter(r => r.auto != null);
           const val = r => r.total != null ? r.total : r.auto;
           M.sort((a, b) => (a.ok === b.ok ? 0 : a.ok ? -1 : 1)
@@ -2317,7 +2325,10 @@ async function renderMonthly(host, MRCFG) {
           // answer — the card waits rather than crowning whoever is ahead on two jobs.
           if (Q.length) {
             const win = Q[0];
-            const assessed = Q.filter(r => r.answered === 6).length;
+            // "fully assessed" is whatever THAT month's rubric asked, not a literal 6 —
+            // Ramaz can add or drop a question, and the count moved to 9 in July 2026
+            const assessed = Q.filter(r => r.fullAss != null ? r.fullAss
+                                           : r.answered === 6).length;
             const pv = scPrev.map(r => ({ f: r.Foreman, t: nn(r["Total Score"]),
                                           a: nn(r["Auto Score"]), ok: +r["Qualified"] === 1 }))
               .filter(r => r.a != null && r.ok)
@@ -2331,11 +2342,15 @@ async function renderMonthly(host, MRCFG) {
                     pts == null ? sub : fmt1(pts) + " <span style=\'color:var(--faint);font-weight:500\'>/ " + cap + "</span>"}</span></div>
                 <div style="height:7px;border-radius:5px;background:var(--panel-2);overflow:hidden;margin-top:3px">
                   <i style="display:block;height:100%;width:${pts == null ? 0 : (pts / cap * 100).toFixed(0)}%;background:${col}"></i></div></div>`;
-            const bars = [["Packing per 100 CF", win.p100, 30], ["Reviews", win.rev, 20],
+            // Reviews went 20 -> 10 when the manual side went 30 -> 40 (Tornike, 2026-08-07).
+            // A month scored under the older model still draws its own weights, because the
+            // mart keeps scoring it that way — the card must not restate history either.
+            const v2 = win.cTot === 60;
+            const bars = [["Packing per 100 CF", win.p100, 30], ["Reviews", win.rev, v2 ? 10 : 20],
                           ["Packing vs sales estimate", win.pve, 10], ["Complaints upheld", win.clm, 10]]
               .map(t => bar(t[0], t[1] == null ? null : t[1] / 100 * t[2], t[2], LIME_BG, "not measured")).join("")
-              + bar("Logistics assessment · 6 questions", win.answered ? win.manual : null, 30, BLUE_BG,
-                    "not assessed yet");
+              + bar("Logistics assessment · " + (win.inRub || 6) + " questions",
+                    win.answered ? win.manual : null, win.mTot, BLUE_BG, "not assessed yet");
 
             const runners = Q.map((r, i) => `<tr${i ? "" : ' style="font-weight:800"'}>
               <td><span style="color:var(--faint);font-weight:600;margin-right:7px">${i + 1}</span>${esc(r.f)}</td>
@@ -2366,14 +2381,17 @@ async function renderMonthly(host, MRCFG) {
                </div>`,
               { span2: true, icon: KIC.grid, headVal: fmt1(val(win)) + " / 100",
                 noteKind: "how",
-                note: `<b>70 points are counted, 30 are assessed.</b> Counted from the warehouse: `
-                  + `packing sold per 100 CF (30), reviews earned (20), packing against the sales `
-                  + `estimate (10), complaints upheld against him (10) — each converted to points by `
-                  + `the range tables the office maintains. Assessed by the logistics team on the `
-                  + `Foreman Assessment page: six questions scored 0–5 stars, 5 points each. `
+                note: `<b>${win.cTot} points are counted, ${fmt1(win.mTot)} are assessed.</b> Counted from the warehouse: `
+                  + `packing sold per 100 CF (30), reviews earned (${v2 ? 10 : 20}), packing against the sales `
+                  + `estimate (10), complaints upheld against him (10${v2 ? ", −2.5 a claim" : ""}) — `
+                  + `${v2 ? "the packing and review topics are converted by the range tables the office "
+                          + "maintains; complaints are a straight deduction from full marks"
+                        : "each converted to points by the range tables the office maintains"}. `
+                  + `Assessed by the logistics team on the Foreman Assessment page: `
+                  + `${win.inRub || 6} questions, sharing ${fmt1(win.mTot)} points as the rubric divides them. `
                   + `<b>A topic that could not be measured is excluded and the rest rescaled</b>, never `
-                  + `scored zero — ${win.measured != null && win.measured < 70
-                      ? esc(win.f.split(" ")[0]) + " had " + fmtN(win.measured) + " of the 70 points measurable this month. "
+                  + `scored zero — ${win.measured != null && win.measured < win.cTot
+                      ? esc(win.f.split(" ")[0]) + " had " + fmtN(win.measured) + " of the " + win.cTot + " points measurable this month. "
                       : "every topic was measurable for the leader this month. "}`
                   + `<b>Only foremen the month says enough about are ranked</b> — at least five `
                   + `jobs run and at least half the counted score measurable. `

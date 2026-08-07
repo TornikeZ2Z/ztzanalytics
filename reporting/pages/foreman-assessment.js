@@ -1,20 +1,25 @@
-/* FOREMAN ASSESSMENT — the 30% a machine cannot see.
+/* FOREMAN ASSESSMENT — the 40% a machine cannot see.
  *
  * Four things about a foreman can be counted: what packing he sold per 100 CF, how that
  * compared with the sales estimate, the reviews he earned, the complaints upheld against
- * him. They are 70% of Foreman of the Month and they arrive from the warehouse already
+ * him. They are 60% of Foreman of the Month and they arrive from the warehouse already
  * scored, through the range tables the office maintains.
  *
- * The other six cannot be counted — whether he loads a truck well, prepares properly for a
- * long-distance move, can run a two-truck job, takes assignments without argument, keeps a
- * crew together, follows the rules. Logistics scores those out of five stars, and this page
- * is where that happens. Six questions × 5 points = the remaining 30%.
+ * The rest cannot be counted — whether he loads a truck well, can take straight long-distance
+ * work, runs a two-truck job, takes assignments without argument, brings his own crew and
+ * leads it, follows the rules. Logistics scores those, and this page is where that happens.
+ *
+ * THE QUESTIONS ARE DATA, NOT CODE (Tornike, 2026-08-07). `forman_assessment_rubric` holds
+ * one row per (month, question) with its label, its points and how it is answered, and
+ * Ramaz edits it in the panel at the top of this page — add, remove, re-point, always
+ * sharing 40 points. It is versioned by MONTH, so a month already scored still renders and
+ * still totals the questions it was actually scored under.
  *
  * THE RULES THE PAGE ENFORCES IN ITS DESIGN (Tornike, 2026-08-05).
  * A month OPENS on its own 20th — before the 20th of August, August is not in the picker.
  * Nothing date-based ever closes it: the logistics team closes a month themselves with
  * SUBMIT, which stamps who signed it off. Only an admin can reopen a submitted month,
- * because reopening rewrites a published score. The model starts at January 2026.
+ * because reopening rewrites a published score. The model starts at July 2026.
  * Unanswered is not zero: a question nobody rated is left out of the total and shown as
  * unrated, because a zero would say "we assessed him and he failed".
  * The month's calendar is New Jersey's — the yard's clock, not the viewer's.
@@ -30,7 +35,13 @@
              "Review Score", "Claim Score", "Auto Score", "Auto Weight Measured",
              "Manual Points", "Questions Answered", "Assessed By", "Assessed At",
              "Total Score", "Total Score Rank", "Qualified",
-             "Not Qualified Because", "Forman Score"],
+             "Not Qualified Because", "Forman Score",
+             // PAYLOAD CONTRACT: a column missing from this list never arrives, however
+             // well the page is written. These four carry the 2026-07 model — what the
+             // counted side is worth in that month (70 before it, 60 from it), how many
+             // questions its rubric asked and for how many points, and whether the man
+             // was rated on all of them.
+             "Counted Total", "Questions In Rubric", "Manual Total", "Fully Assessed"],
     };
   }
 })();
@@ -38,7 +49,7 @@
 registerPage({
   id: "foreman-assessment",
   title: "Foreman Assessment",
-  subtitle: "The six things only a person can judge — scored monthly, on top of what the warehouse already counts.",
+  subtitle: "What only a person can judge — scored monthly on the rubric logistics sets, on top of what the warehouse already counts.",
   datasets: [],
 
   render: function (host) {
@@ -54,42 +65,48 @@ registerPage({
     const fmtN = v => (+v || 0).toLocaleString();
     const fmt1 = v => (Math.round(+v * 10) / 10).toFixed(1);
 
-    /* The six questions, verbatim from the logistics department's sheet. `k` is what the
-     * database stores — renaming one orphans every rating that references it. */
-    const QUESTIONS = [
-      { k: "packing_loading", s: "Packing", t: "Efficient Packing and Truck Loading",
-        d: "Knows how to properly pack and load items into the truck, using less space without compromising the safety of the customer's belongings." },
-      { k: "ld_preparation", s: "Long distance", t: "Preparation for Long-Distance Moves",
-        d: "Understands the difference between local and long-distance moves. For long-distance moves, allows additional space in the truck when necessary to protect the items and ensure safe transportation." },
-      { k: "big_jobs", s: "Big jobs", t: "Large Jobs Requiring Two or More Trucks",
-        d: "Can organize, manage, and supervise large jobs involving two or more trucks." },
-      { k: "discipline", s: "Discipline", t: "Work Discipline and Attitude Toward Assignments",
-        d: "Does not create problems simply because they do not like a particular job. Does not allow personal emotions to affect how they respond to information received from the sales representative, the customer, or the office." },
-      { k: "team_management", s: "Team", t: "Team Management",
-        d: "Has and consistently maintains a team of two or more crew members. Knows how to assign responsibilities, manage the crew, and maintain a professional working environment." },
-      { k: "compliance", s: "Compliance", t: "Compliance with Company Rules",
-        d: "Follows company policies, work standards, safety requirements, and internal procedures." },
-    ];
-    const NQ = QUESTIONS.length, MANUAL_TOTAL = 30;
+    /* THE QUESTIONS COME FROM THE SERVER, PER MONTH. They used to be a hardcoded list here
+     * — a third copy of the same six, alongside the loader's and the bridge's, which had to
+     * be edited in step. Ramaz owns the rubric now (Tornike, 2026-08-07) and it is versioned
+     * by month, so a month scored under a different set of questions still renders the set
+     * it was actually scored under. `k` is what the database stores; a short label for the
+     * chip strip is derived rather than authored, since nobody is going to type one when
+     * they add a question. */
+    const QS = () => S.rubric || [];
+    const NQ = () => QS().length;
+    const MANUAL_TOTAL = () => S.manualTotal || 40;
+    const shortOf = q => {
+      const t = String(q.Label || q.Question || "");
+      const first = t.split(/\s*[—\-–·(]\s*/)[0].trim();     // drop any qualifier clause
+      const w = first.split(/\s+/).filter(x => !/^(and|the|of|for|with|to|a)$/i.test(x));
+      return (w.slice(0, 2).join(" ") || t).slice(0, 18);
+    };
 
-    // the four counted topics, for the "already counted" strip inside each card
-    const AUTO = [
+    // the four counted topics, for the "already counted" strip inside each card. Reviews
+    // went 20 -> 10 when the manual side went 30 -> 40 (Tornike, 2026-08-07); months before
+    // 2026-07 were scored on the old weights and say so via `Counted Total`.
+    const AUTO_V2 = [
       { k: "Packing per 100 CF Score", w: 30, lab: "Packing per 100 CF",
         raw: "Packing per 100 CF", fmt: "usd" },
-      { k: "Review Score", w: 20, lab: "Reviews earned",
+      { k: "Review Score", w: 10, lab: "Reviews earned",
         raw: "Reviews to Jobs Ratio", fmt: "ratio" },
       { k: "Packing Vs Estimate Score", w: 10, lab: "Packing vs estimate",
         raw: "Packing Difference %", fmt: "x" },
       { k: "Claim Score", w: 10, lab: "Complaints upheld",
         raw: "Forman Fault Claims", fmt: "int" },
     ];
-    const MIN_MONTH = "2026-01", OPEN_DAY = 20;
+    const AUTO_V1 = AUTO_V2.map(a => a.k === "Review Score" ? Object.assign({}, a, { w: 20 }) : a);
+    const autoFor = f => (num(f["Counted Total"]) === 70 ? AUTO_V1 : AUTO_V2);
+    const countedTotal = f => num(f["Counted Total"]) || 60;
+    const MIN_MONTH = "2026-07", OPEN_DAY = 20;
     const MONTHS = ["January", "February", "March", "April", "May", "June", "July",
                     "August", "September", "October", "November", "December"];
 
     const S = window.__FA2 || (window.__FA2 = {
       month: "", sc: null, ratings: null, locked: false, subBy: null, subAt: null,
       canReopen: false, q: "", tab: "all", open: null, msg: "", msgErr: false,
+      rubric: [], manualTotal: 40, canEditRubric: false, rubricMonths: [],
+      editRubric: false, draft: null,
     });
 
     // The yard's calendar, not the viewer's: Tbilisi reaches the 20th eight hours before
@@ -214,6 +231,50 @@ registerPage({
       + ".fa2-q .qt b{font-size:13.5px;font-weight:700;display:block}"
       + ".fa2-q .qt span{font-size:11px;color:var(--faint);line-height:1.55;display:block;margin-top:2px;max-width:80ch}"
       + ".fa2-q .qt em{font-style:normal;font-size:9.5px;color:var(--muted);display:block;margin-top:3px}"
+      // ---- the rubric panel: what is being scored, and Ramaz's editor ------------------
+      + ".fa2-rub{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:13px 16px;margin-bottom:12px}"
+      + ".fa2-rub.edit{border-color:var(--brand)}"
+      + ".fa2-rubh{display:flex;align-items:center;gap:12px;flex-wrap:wrap}"
+      + ".fa2-rubh b{font-size:13px;font-weight:800}"
+      + ".fa2-rubt{font-size:11.5px;font-weight:700;color:var(--muted);margin-right:auto}"
+      + ".fa2-rubt.bad{color:var(--neg)}"
+      + ".fa2-rubnote,.fa2-rubwarn{font-size:11.5px;color:var(--faint)}"
+      + ".fa2-rubwarn{color:var(--warn)}"
+      + ".fa2-rublist{display:flex;flex-wrap:wrap;gap:7px;margin-top:10px}"
+      + ".fa2-rubchip{display:inline-flex;align-items:center;gap:7px;background:var(--panel-2);"
+      + "border:1px solid var(--line-2);border-radius:999px;padding:4px 6px 4px 11px;font-size:12px}"
+      + ".fa2-rubchip u{text-decoration:none;font-weight:800;background:var(--brand-glow);"
+      + "color:var(--brand-d);border-radius:999px;padding:1px 8px;font-variant-numeric:tabular-nums}"
+      + "body.rs-app:not(.light) .fa2-rubchip u{color:var(--brand)}"
+      + ".fa2-rubchip i.tri{font-style:normal;font-size:9px;font-weight:800;letter-spacing:.05em;"
+      + "text-transform:uppercase;color:var(--faint)}"
+      + ".fa2-rubed{margin-top:12px;display:flex;flex-direction:column;gap:9px}"
+      + ".fa2-rubrow{display:grid;grid-template-columns:minmax(0,1fr) 92px 168px 34px;gap:8px}"
+      + ".fa2-rubrow .rbd{grid-column:1/-1}"
+      + ".fa2-rubed input,.fa2-rubed select{font:inherit;font-size:12.5px;background:var(--panel-2);"
+      + "color:var(--ink);border:1px solid var(--line-2);border-radius:9px;padding:7px 10px;min-width:0}"
+      + ".fa2-rubed .rbd{font-size:11.5px;color:var(--muted)}"
+      + ".fa2-rubed input:focus,.fa2-rubed select:focus{outline:none;border-color:var(--brand)}"
+      + ".fa2-rubed select:disabled{opacity:.55;cursor:not-allowed}"
+      + ".fa2-rubed .rbx{font:inherit;font-size:13px;font-weight:800;background:var(--panel-2);"
+      + "color:var(--faint);border:1px solid var(--line-2);border-radius:9px;cursor:pointer}"
+      + ".fa2-rubed .rbx:hover{color:var(--neg);border-color:var(--neg)}"
+      + ".fa2-rubhint{font-size:11px;color:var(--faint);line-height:1.55;max-width:96ch}"
+      + ".fa2-go{font:inherit;font-size:12.5px;font-weight:800;background:var(--brand);"
+      + "color:var(--brand-ink);border:0;border-radius:9px;padding:8px 16px;cursor:pointer}"
+      + ".fa2-go:disabled{opacity:.45;cursor:default}"
+      // ---- the three-way control -------------------------------------------------------
+      + ".fa2-ctl{display:flex;gap:9px;align-items:center;flex-wrap:wrap}"
+      + ".fa2-tri{display:inline-flex;gap:5px;flex-wrap:wrap}"
+      + ".fa2-trib{font:inherit;font-size:12px;font-weight:700;background:var(--panel-2);"
+      + "color:var(--muted);border:1px solid var(--line-2);border-radius:10px;padding:7px 12px;"
+      + "cursor:pointer;display:inline-flex;align-items:center;gap:7px;white-space:nowrap}"
+      + ".fa2-trib:hover:not(:disabled){border-color:var(--brand)}"
+      + ".fa2-trib.on{background:var(--brand);border-color:var(--brand);color:var(--brand-ink)}"
+      + ".fa2-trib u{text-decoration:none;font-size:10.5px;font-weight:800;opacity:.75;"
+      + "font-variant-numeric:tabular-nums}"
+      + ".fa2-trib:disabled{cursor:default;opacity:.7}"
+      + ".fa2-q .qw{font-size:10.5px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--faint)}"
       + ".fa2-stars{display:flex;gap:1px;align-items:center}"
       + ".fa2-star{font-size:23px;line-height:1;cursor:pointer;background:none;border:0;padding:0 2px;color:var(--line-2);transition:transform .07s}"
       + ".fa2-star.on,.fa2-star.pv{color:var(--warn)}"
@@ -260,6 +321,10 @@ registerPage({
           S.subBy = j.submitted_by || null;
           S.subAt = j.submitted_at || null;
           S.canReopen = !!j.can_reopen;
+          S.rubric = j.rubric || [];
+          S.manualTotal = j.manual_total || 40;
+          S.canEditRubric = !!j.can_edit_rubric;
+          S.rubricMonths = j.rubric_months || [];
           // the whole lock table rides along on every GET — the month list uses it to tag
           // each month open / submitted without a request per month
           S.locks = {};
@@ -281,13 +346,17 @@ registerPage({
     function rowFor(f) {
       const r = (S.ratings || {})[f.Foreman] || {};
       let answered = 0, manual = 0;
-      QUESTIONS.forEach(q => {
-        const v = r[q.k];
-        if (v && v.Stars != null) { answered++; manual += +v.Stars; }
+      // a rating is worth Stars/5 of what THIS month's rubric pays for that question, and a
+      // rating whose question the month does not ask is worth nothing — which is what lets
+      // the rubric change without restating a month somebody already scored
+      QS().forEach(q => {
+        const v = r[q.Question];
+        if (v && v.Stars != null) { answered++; manual += +v.Stars / 5 * (+q.Points || 0); }
       });
       const auto = num(f["Auto Score"]);
       return { f, r, answered, manual, auto,
                total: auto == null ? null : auto + manual,
+               full: NQ() > 0 && answered >= NQ(),
                ok: +f["Qualified"] === 1, why: f["Not Qualified Because"] || "" };
     }
 
@@ -295,6 +364,168 @@ registerPage({
       + "</b><small>" + esc(sub) + "</small></div>";
     const chip = (id, lab) => '<button class="fa2-chip' + (S.tab === id ? " on" : "")
       + '" data-tab="' + id + '">' + lab + "</button>";
+
+    /* THE RUBRIC, ON TOP OF THE VIEW — "imagine having list of assestments and points it
+     * holds in the view on top ... he can easily add / remove question and assign points.
+     * he should distribute 40 points in total" (Tornike, 2026-08-07).
+     *
+     * Read-only for everyone who can rate; editable only by an admin or the holder of the
+     * rubric grant, and only for a month that is still being shaped — re-pointing a month
+     * that already carries ratings would restate scores nobody touched. */
+    function ratedKeys() {
+      const out = {};
+      Object.keys(S.ratings || {}).forEach(f => Object.keys(S.ratings[f] || {})
+        .forEach(k => { if (S.ratings[f][k] && S.ratings[f][k].Stars != null) out[k] = 1; }));
+      return out;
+    }
+
+    function wireRubric() {
+      const ed = main.querySelector("#fa2RubEdit");
+      if (ed) ed.onclick = () => {
+        const rated = ratedKeys();
+        S.draft = QS().map(q => ({ question: q.Question, label: q.Label || "",
+          description: q.Description || "", points: +q.Points || 0,
+          scale: q.Scale || "stars5", rated: !!rated[q.Question] }));
+        S.editRubric = true; S.msg = ""; paint();
+      };
+      const cancel = main.querySelector("#fa2RubCancel");
+      if (cancel) cancel.onclick = () => { S.editRubric = false; S.draft = null; paint(); };
+
+      main.querySelectorAll(".fa2-rubed input, .fa2-rubed select").forEach(el => {
+        const commit = () => {
+          const row = S.draft[+el.dataset.i]; if (!row) return;
+          row[el.dataset.k] = el.dataset.k === "points" ? (+el.value || 0) : el.value;
+        };
+        // repaint on points/scale (the running total and the Save gate move); leave text
+        // alone until blur so the caret is not thrown to the end on every keystroke
+        el.oninput = () => { commit(); if (el.dataset.k === "points") paintKeepFocus(el); };
+        el.onchange = () => { commit(); paintKeepFocus(el); };
+        el.onblur = commit;
+      });
+      main.querySelectorAll(".fa2-rubed .rbx").forEach(b => {
+        b.onclick = () => { S.draft.splice(+b.dataset.i, 1); paint(); };
+      });
+      const add = main.querySelector("#fa2RubAdd");
+      if (add) add.onclick = () => {
+        S.draft.push({ question: "", label: "", description: "", points: 0,
+                       scale: "stars5", rated: false, isNew: true });
+        paint();
+      };
+      const save = main.querySelector("#fa2RubSave");
+      if (save) save.onclick = saveRubric;
+    }
+
+    // a repaint that puts the caret back where it was — the running total has to update as
+    // points are typed, and a naive repaint would eject the user from the field
+    function paintKeepFocus(el) {
+      const sel = "." + el.className.split(" ")[0] + '[data-i="' + el.dataset.i + '"]';
+      const at = el.selectionStart;
+      paint();
+      const again = main.querySelector(".fa2-rubed " + sel);
+      if (again) {
+        again.focus();
+        try { again.setSelectionRange(at, at); } catch (e) { /* number inputs refuse */ }
+      }
+    }
+
+    function slugify(label, taken) {
+      let base = String(label || "").toLowerCase().replace(/[^a-z0-9]+/g, "_")
+        .replace(/^_+|_+$/g, "").slice(0, 36) || "question";
+      if (!/^[a-z]/.test(base)) base = "q_" + base;
+      let k = base, n = 2;
+      while (taken[k]) { k = base.slice(0, 34) + "_" + n; n++; }
+      return k;
+    }
+
+    function saveRubric() {
+      const taken = {};
+      QS().forEach(q => { taken[q.Question] = 1; });
+      const items = (S.draft || []).map(r => {
+        // a NEW question needs a key; existing ones keep theirs, because the key is what
+        // every saved rating points at
+        const key = r.question || slugify(r.label, taken);
+        taken[key] = 1;
+        return { question: key, label: (r.label || "").trim(), points: +r.points || 0,
+                 scale: r.scale || "stars5", description: (r.description || "").trim() };
+      });
+      const bad = items.filter(i => !i.label);
+      if (bad.length) { S.msg = "Every question needs a name."; S.msgErr = true; paint(); return; }
+      S.msg = "Saving…"; S.msgErr = false; paint();
+      api("/api/_farubric", { method: "POST",
+          body: JSON.stringify({ month: S.month, questions: items }) })
+        .then(j => {
+          S.editRubric = false; S.draft = null;
+          S.msg = "Saved — " + j.questions + " questions, " + fmt1(j.points) + " points"
+            + (j.retired && j.retired.length ? " · retired " + j.retired.join(", ") : "");
+          S.msgErr = false;
+          return load();
+        })
+        .catch(e => { S.msg = e.message; S.msgErr = true; paint(); });
+    }
+
+    function rubricPanel() {
+      const qs = QS(), total = qs.reduce((s2, q) => s2 + (+q.Points || 0), 0);
+      const editable = S.canEditRubric && (S.rubricMonths || []).indexOf(S.month) >= 0 && !S.locked;
+
+      if (!qs.length) {
+        return '<div class="fa2-rub"><div class="fa2-rubh"><b>No rubric for '
+          + esc(monLab(S.month)) + "</b>"
+          + '<span class="fa2-rubwarn">Nothing can be scored until this month has questions. '
+          + "The nightly pipeline seeds it; if this persists, say so.</span></div></div>";
+      }
+
+      if (!S.editRubric) {
+        return '<div class="fa2-rub"><div class="fa2-rubh">'
+          + "<b>What is being scored · " + esc(monLab(S.month)) + "</b>"
+          + '<span class="fa2-rubt' + (Math.abs(total - MANUAL_TOTAL()) > 0.05 ? " bad" : "") + '">'
+          + fmt1(total) + " of " + fmt1(MANUAL_TOTAL()) + " points across "
+          + qs.length + " question" + (qs.length === 1 ? "" : "s") + "</span>"
+          + (editable ? '<button class="fa2-ghost" id="fa2RubEdit">Edit the questions</button>'
+             : S.canEditRubric ? '<span class="fa2-rubnote">'
+                + (S.locked ? "submitted — reopen the month to change it"
+                            : "only " + (S.rubricMonths || []).map(monLab).join(" and ")
+                              + " can still be changed") + "</span>" : "")
+          + "</div><div class=\"fa2-rublist\">"
+          + qs.map(q => '<span class="fa2-rubchip" title="' + esc(q.Description || "") + '">'
+              + esc(q.Label) + "<u>" + fmt1(q.Points) + "</u>"
+              + (q.Scale === "tri" ? '<i class="tri">3-way</i>' : "") + "</span>").join("")
+          + "</div></div>";
+      }
+
+      const d = S.draft || [];
+      const dt = d.reduce((s2, q) => s2 + (+q.points || 0), 0);
+      const left = Math.round((MANUAL_TOTAL() - dt) * 10) / 10;
+      return '<div class="fa2-rub edit"><div class="fa2-rubh">'
+        + "<b>Editing the questions · " + esc(monLab(S.month)) + "</b>"
+        + '<span class="fa2-rubt' + (Math.abs(dt - MANUAL_TOTAL()) > 0.05 ? " bad" : "") + '">'
+        + fmt1(dt) + " of " + fmt1(MANUAL_TOTAL())
+        + (Math.abs(left) < 0.05 ? " — balanced"
+           : left > 0 ? " — " + fmt1(left) + " still to give out"
+                      : " — " + fmt1(-left) + " over") + "</span>"
+        + '<button class="fa2-ghost" id="fa2RubCancel">Cancel</button>'
+        + '<button class="fa2-go" id="fa2RubSave"' + (Math.abs(dt - MANUAL_TOTAL()) > 0.05 ? " disabled" : "") + ">Save</button>"
+        + "</div>"
+        + '<div class="fa2-rubed">' + d.map((q, i) =>
+            '<div class="fa2-rubrow">'
+            + '<input class="rbq" data-i="' + i + '" data-k="label" value="' + esc(q.label)
+            + '" placeholder="What is being judged">'
+            + '<input class="rbp" type="number" step="0.5" min="0.5" max="40" data-i="' + i
+            + '" data-k="points" value="' + q.points + '">'
+            + '<select class="rbs" data-i="' + i + '" data-k="scale"'
+            + (q.rated ? " disabled title=\"already rated this month — how it is answered cannot change\"" : "") + ">"
+            + '<option value="stars5"' + (q.scale === "stars5" ? " selected" : "") + ">1–5 stars</option>"
+            + '<option value="tri"' + (q.scale === "tri" ? " selected" : "") + ">None / half / full</option>"
+            + "</select>"
+            + '<button class="rbx" data-i="' + i + '" title="Remove this question">✕</button>'
+            + '<input class="rbd" data-i="' + i + '" data-k="description" value="'
+            + esc(q.description || "") + '" placeholder="How to judge it — the rater reads this">'
+            + "</div>").join("")
+        + '<button class="fa2-ghost" id="fa2RubAdd">+ Add a question</button>'
+        + '<div class="fa2-rubhint">Removing a question stops it counting from this month on; '
+        + "months already scored keep the questions they were scored under. A question that is "
+        + "already rated this month cannot change how it is answered — add a new one instead.</div>"
+        + "</div></div>";
+    }
 
     function paint() {
       const months = openMonths();
@@ -313,16 +544,16 @@ registerPage({
       let rk = 0;
       all.forEach(x => { x.rank = x.ok ? ++rk : null; });
 
-      const done = all.filter(x => x.answered === NQ).length;
-      const part = all.filter(x => x.answered > 0 && x.answered < NQ).length;
+      const done = all.filter(x => x.full).length;
+      const part = all.filter(x => x.answered > 0 && !x.full).length;
       const todo = all.length - done - part;
       const leader = all.filter(x => x.ok && x.total != null)[0];
       const nQual = all.filter(x => x.ok).length;
 
       let rows = all;
       if (S.tab === "todo") rows = rows.filter(x => x.answered === 0);
-      else if (S.tab === "part") rows = rows.filter(x => x.answered > 0 && x.answered < NQ);
-      else if (S.tab === "done") rows = rows.filter(x => x.answered === NQ);
+      else if (S.tab === "part") rows = rows.filter(x => x.answered > 0 && !x.full);
+      else if (S.tab === "done") rows = rows.filter(x => x.full);
       if (S.q) {
         const qq = S.q.toLowerCase();
         rows = rows.filter(x => x.f.Foreman.toLowerCase().indexOf(qq) >= 0);
@@ -351,10 +582,12 @@ registerPage({
         + '<div class="fa2-prog"><i style="width:' + (all.length ? (done / all.length * 100).toFixed(0) : 0) + '%"></i></div></div>';
 
       h += '<details class="fa2-how"><summary>How the scoring works · who can win</summary>'
-        + "The warehouse already scores four topics — packing per 100 CF (30), reviews (20), "
-        + "packing against the sales estimate (10) and complaints upheld (10) — through the "
-        + "range tables the office maintains: <b>70 points</b>. The six questions below are "
-        + "yours, five points each: <b>30 points</b>. A question you have not answered is left "
+        + "The warehouse already scores four topics — packing per 100 CF (30), reviews (10), "
+        + "packing against the sales estimate (10) and complaints upheld (10, less 2.5 for each "
+        + "claim upheld against him): <b>60 points</b>. The questions below are yours, sharing "
+        + "<b>" + fmt1(MANUAL_TOTAL()) + " points</b> as the rubric above divides them — change "
+        + "that and this month changes with it, while months already scored keep theirs. "
+        + "A question you have not answered is left "
         + "out of the total and shown as unrated — it is never counted as zero, because a zero "
         + "would say the man was assessed and failed. <b>Who can win:</b> a foreman is ranked "
         + "only once the month has said enough about him — at least five jobs run, and at least "
@@ -362,6 +595,7 @@ registerPage({
         + "worth rating; they are simply out of the running. A month opens for rating on its "
         + "own " + OPEN_DAY + "th and closes when you submit it below.</details>";
 
+      h += rubricPanel();
       h += '<div class="fa2-msg' + (S.msg ? (S.msgErr ? " err" : " on") : "") + '">' + esc(S.msg || "") + "</div>";
 
       if (S.locked) {
@@ -404,15 +638,15 @@ registerPage({
         + '<div><div class="fa2-nm">' + esc(f.Foreman) + "</div>"
         + '<div class="fa2-si">' + fmtN(jobs) + " job" + (jobs === 1 ? "" : "s")
         + (cf ? " · " + fmtN(Math.round(cf)) + " CF" : "")
-        + " · " + (x.answered === NQ ? "assessed ✓"
-            : x.answered ? x.answered + " of " + NQ + " rated" : "not rated yet")
+        + " · " + (x.full ? "assessed ✓"
+            : x.answered ? x.answered + " of " + NQ() + " rated" : "not rated yet")
         + (x.ok ? "" : ' · <span class="oor">' + esc(x.why) + "</span>")
         + "</div></div>"
-        + '<div class="fa2-dots">' + QUESTIONS.map(q => {
-            const rq = x.r[q.k], st = (rq && rq.Stars != null) ? rq.Stars : null;
-            const short = q.s || q.t;                       // chip label only; q.t stays the question of record
-            return '<span class="fa2-qc' + (st == null ? ' no' : '') + '" title="' + esc(q.t) + '">'
-              + '<b>' + esc(short) + '</b><u>' + (st == null ? '–' : st) + '</u></span>';
+        + '<div class="fa2-dots">' + QS().map(q => {
+            const rq = x.r[q.Question], st = (rq && rq.Stars != null) ? +rq.Stars : null;
+            return '<span class="fa2-qc' + (st == null ? ' no' : '') + '" title="'
+              + esc(q.Label) + ' · worth ' + fmt1(q.Points) + ' points">'
+              + '<b>' + esc(shortOf(q)) + '</b><u>' + (st == null ? '–' : fmt1(st)) + '</u></span>';
           }).join("") + "</div>"
         + '<div class="fa2-sc"><span class="fa2-sb">'
         + '<u class="a" style="width:' + (x.auto == null ? 0 : x.auto.toFixed(0)) + '%"></u>'
@@ -422,11 +656,13 @@ registerPage({
         + "</div>";
 
       h += '<div class="fa2-body">';
+      const cTot = countedTotal(f);
       h += '<div class="fa2-sec">Already counted · <b>' + (x.auto == null ? "—" : fmt1(x.auto))
-        + " / 70</b>" + (measured != null && measured < 70
-            ? ' <span class="rescale">— only ' + measured + " of the 70 points could be measured, so his score is rescaled to what was measurable</span>" : "")
+        + " / " + cTot + "</b>" + (measured != null && measured < cTot
+            ? ' <span class="rescale">— only ' + measured + " of the " + cTot
+              + " points could be measured, so his score is rescaled to what was measurable</span>" : "")
         + "</div>";
-      h += '<div class="fa2-tiles">' + AUTO.map(a => {
+      h += '<div class="fa2-tiles">' + autoFor(f).map(a => {
           const sc = num(f[a.k]), rawv = num(f[a.raw]);
           const rawTxt = rawv == null ? "" :
             a.fmt === "usd" ? "$" + rawv.toFixed(2) + " per 100 CF"
@@ -440,26 +676,51 @@ registerPage({
             + '<div class="tb"><i style="width:' + (sc == null ? 0 : sc.toFixed(0)) + '%"></i></div></div>';
         }).join("") + "</div>";
 
-      h += '<div class="fa2-sec">Your assessment · <b>' + fmt1(x.manual) + " / " + MANUAL_TOTAL + "</b>"
-        + (S.locked ? ' <span class="rescale">— submitted, final</span>' : "") + "</div>";
-      h += QUESTIONS.map(q => {
-        const cur = x.r[q.k];
+      h += '<div class="fa2-sec">Your assessment · <b>' + fmt1(x.manual) + " / "
+        + fmt1(MANUAL_TOTAL()) + "</b>"
+        + (S.locked ? ' <span class="rescale">— submitted, final</span>'
+           : x.answered && !x.full
+             ? ' <span class="rescale">— ' + (NQ() - x.answered) + " still unrated; an "
+               + "unanswered question is left out rather than counted as zero, so a part-rated "
+               + "man scores below a fully-rated one</span>" : "")
+        + "</div>";
+      h += QS().map(q => {
+        const cur = x.r[q.Question];
         const stars = cur && cur.Stars != null ? +cur.Stars : null;
-        return '<div class="fa2-q"><div class="qt"><b>' + esc(q.t) + "</b>"
-          + "<span>" + esc(q.d) + "</span>"
+        const pts = +q.Points || 0;
+        const tri = (q.Scale || "stars5") === "tri";
+        // THE THREE-WAY CONTROL. Its 0 is an ANSWER ("he runs no long distance"), worth no
+        // points — not the absence of one, which is what `clear` writes. Buttons are
+        // labelled with what they actually pay, so re-pointing the question re-labels them
+        // instead of leaving a stale 0 / 2.5 / 5 on screen.
+        const control = tri
+          ? '<div class="fa2-tri">' + [0, 0.5, 1].map(frac => {
+              const st = frac * 5, on = stars != null && Math.abs(stars - st) < 0.01;
+              const lab = frac === 0 ? "None" : frac === 0.5 ? "Regular only" : "Regular + Straight";
+              return '<button class="fa2-trib' + (on ? " on" : "") + '"'
+                + ' data-f="' + esc(f.Foreman) + '" data-q="' + esc(q.Question) + '"'
+                + ' data-s="' + st + '" data-m="' + S.month + '"'
+                + (S.locked ? " disabled" : "") + ">" + lab
+                + '<u>' + fmt1(frac * pts) + "</u></button>";
+            }).join("") + "</div>"
+          : '<div class="fa2-stars">' + [1, 2, 3, 4, 5].map(n2 =>
+              '<button class="fa2-star' + (stars != null && n2 <= stars ? " on" : "") + '"'
+              + ' data-f="' + esc(f.Foreman) + '" data-q="' + esc(q.Question) + '" data-s="' + n2 + '"'
+              + ' data-m="' + S.month + '"'
+              + (S.locked ? " disabled" : "") + ' title="' + n2 + " star" + (n2 === 1 ? "" : "s") + '">★</button>').join("")
+            + "</div>";
+        return '<div class="fa2-q"><div class="qt"><b>' + esc(q.Label) + "</b>"
+          + '<span class="qw">worth ' + fmt1(pts) + " of " + fmt1(MANUAL_TOTAL()) + "</span>"
+          + "<span>" + esc(q.Description || "") + "</span>"
           + (cur && cur["Entered By"] ? "<em>" + esc(String(cur["Entered By"]).split("@")[0])
               + " · " + esc(String(cur["Entered At"] || "").slice(0, 10)) + "</em>" : "")
           + "</div>"
-          + '<div class="fa2-stars">' + [1, 2, 3, 4, 5].map(n2 =>
-              '<button class="fa2-star' + (stars != null && n2 <= stars ? " on" : "") + '"'
-              + ' data-f="' + esc(f.Foreman) + '" data-q="' + q.k + '" data-s="' + n2 + '"'
-              + ' data-m="' + S.month + '"'
-              + (S.locked ? " disabled" : "") + ' title="' + n2 + " star" + (n2 === 1 ? "" : "s") + '">★</button>').join("")
+          + '<div class="fa2-ctl">' + control
           + (stars != null && !S.locked ? '<button class="fa2-clr" data-f="' + esc(f.Foreman)
-              + '" data-q="' + q.k + '" data-m="' + S.month + '">clear</button>' : "")
+              + '" data-q="' + esc(q.Question) + '" data-m="' + S.month + '">clear</button>' : "")
           + "</div>"
           + '<div class="fa2-pts' + (stars == null ? " un" : "") + '">'
-          + (stars == null ? "unrated" : fmt1(stars)) + "</div></div>";
+          + (stars == null ? "unrated" : fmt1(stars / 5 * pts)) + "</div></div>";
       }).join("");
       h += "</div></div>";
       return h;
@@ -517,6 +778,13 @@ registerPage({
           S.open = S.open === f ? null : f;
           paint();
         };
+      });
+      wireRubric();
+      // The three-way control POSTS ITS ZERO. "He runs no long distance" is an answer worth
+      // no points, not the absence of one — routing it through the clear path would leave
+      // the man showing "8 of 9 rated" for ever and never counting as fully assessed.
+      main.querySelectorAll(".fa2-trib:not(:disabled)").forEach(b => {
+        b.onclick = e => { e.stopPropagation(); rate(b.dataset.f, b.dataset.q, +b.dataset.s, b.dataset.m); };
       });
       main.querySelectorAll(".fa2-star:not(:disabled)").forEach(b => {
         b.onclick = e => { e.stopPropagation(); rate(b.dataset.f, b.dataset.q, +b.dataset.s, b.dataset.m); };
@@ -576,7 +844,7 @@ registerPage({
 
     function submitMonth() {
       const all = (S.sc || []).filter(r => String(r.Month || "").slice(0, 7) === S.month).map(rowFor);
-      const done = all.filter(x => x.answered === NQ).length;
+      const done = all.filter(x => x.full).length;
       const lbl = monLab(S.month);
       const ask = done < all.length
         ? "Only " + done + " of " + all.length + " foremen are fully assessed.\n\nSubmit " + lbl
