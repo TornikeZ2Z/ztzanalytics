@@ -113,13 +113,16 @@ registerPage({
         /* min(320px,100%) so it never overflows a narrow pane, and auto-fit so the six
            rungs spread across whatever width the screen actually gives them: 3x2 on a
            laptop, 6 across on a wide monitor, rather than a fixed column count. */
-        .st-ladder{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(320px,100%),1fr));gap:12px}
-        .st-rung{display:grid;grid-template-columns:auto 1fr;gap:12px;align-items:start;
+        /* st-how* on purpose: .st-ladder/.st-rule already belong to the per-job trace below,
+           and a second .st-ladder here simply lost the cascade to it. A plain px floor, not
+           min()/clamp() inside repeat() -- keep this one boringly resolvable. */
+        .st-howgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));gap:12px}
+        .st-howrung{display:grid;grid-template-columns:auto 1fr;gap:12px;align-items:start;
           padding:13px 15px;border:1px solid var(--line);border-radius:12px;background:var(--panel-2)}
-        .st-rn{width:26px;height:26px;border-radius:8px;background:var(--brand);color:var(--brand-ink);
+        .st-hown{width:26px;height:26px;border-radius:8px;background:var(--brand);color:var(--brand-ink);
           font-weight:800;font-size:13px;display:flex;align-items:center;justify-content:center}
-        .st-rt{font-size:13.5px;font-weight:700;color:var(--ink)}
-        .st-rd{font-size:12px;color:var(--muted);margin-top:3px;line-height:1.5}
+        .st-howt{font-size:13.5px;font-weight:700;color:var(--ink)}
+        .st-howd{font-size:12px;color:var(--muted);margin-top:3px;line-height:1.5}
         .st-hit{display:grid;grid-template-columns:auto auto 1fr auto auto;gap:10px 16px;
           align-items:center;padding:10px 14px;border:1px solid var(--line);border-radius:11px;
           margin-bottom:7px;cursor:pointer;background:var(--panel-2)}
@@ -250,11 +253,11 @@ registerPage({
       <div class="panel">
         <div class="panel-head"><h3 style="margin:0">How a source is decided</h3>
           <span class="freshness">the ladder every trace walks, in order — the first rung that matches wins</span></div>
-        <div class="st-ladder">${LADDER.map(r => `
-          <div class="st-rung">
-            <div class="st-rn">${r.n}</div>
-            <div><div class="st-rt">${RSC.esc(r.t)}</div>
-                 <div class="st-rd">${RSC.esc(r.d)}</div></div>
+        <div class="st-howgrid">${LADDER.map(r => `
+          <div class="st-howrung">
+            <div class="st-hown">${r.n}</div>
+            <div><div class="st-howt">${RSC.esc(r.t)}</div>
+                 <div class="st-howd">${RSC.esc(r.d)}</div></div>
           </div>`).join("")}</div>
       </div>`;
 

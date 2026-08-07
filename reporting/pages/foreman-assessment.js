@@ -57,17 +57,17 @@ registerPage({
     /* The six questions, verbatim from the logistics department's sheet. `k` is what the
      * database stores — renaming one orphans every rating that references it. */
     const QUESTIONS = [
-      { k: "packing_loading", t: "Efficient Packing and Truck Loading",
+      { k: "packing_loading", s: "Packing", t: "Efficient Packing and Truck Loading",
         d: "Knows how to properly pack and load items into the truck, using less space without compromising the safety of the customer's belongings." },
-      { k: "ld_preparation", t: "Preparation for Long-Distance Moves",
+      { k: "ld_preparation", s: "Long distance", t: "Preparation for Long-Distance Moves",
         d: "Understands the difference between local and long-distance moves. For long-distance moves, allows additional space in the truck when necessary to protect the items and ensure safe transportation." },
-      { k: "big_jobs", t: "Large Jobs Requiring Two or More Trucks",
+      { k: "big_jobs", s: "Big jobs", t: "Large Jobs Requiring Two or More Trucks",
         d: "Can organize, manage, and supervise large jobs involving two or more trucks." },
-      { k: "discipline", t: "Work Discipline and Attitude Toward Assignments",
+      { k: "discipline", s: "Discipline", t: "Work Discipline and Attitude Toward Assignments",
         d: "Does not create problems simply because they do not like a particular job. Does not allow personal emotions to affect how they respond to information received from the sales representative, the customer, or the office." },
-      { k: "team_management", t: "Team Management",
+      { k: "team_management", s: "Team", t: "Team Management",
         d: "Has and consistently maintains a team of two or more crew members. Knows how to assign responsibilities, manage the crew, and maintain a professional working environment." },
-      { k: "compliance", t: "Compliance with Company Rules",
+      { k: "compliance", s: "Compliance", t: "Compliance with Company Rules",
         d: "Follows company policies, work standards, safety requirements, and internal procedures." },
     ];
     const NQ = QUESTIONS.length, MANUAL_TOTAL = 30;
@@ -407,7 +407,7 @@ registerPage({
         + "</div></div>"
         + '<div class="fa2-dots">' + QUESTIONS.map(q => {
             const rq = x.r[q.k], st = (rq && rq.Stars != null) ? rq.Stars : null;
-            const short = q.t.split(/\s+/).slice(0, 2).join(' ');   // chip label only; q.t stays the question of record
+            const short = q.s || q.t;                       // chip label only; q.t stays the question of record
             return '<span class="fa2-qc' + (st == null ? ' no' : '') + '" title="' + esc(q.t) + '">'
               + '<b>' + esc(short) + '</b><u>' + (st == null ? '–' : st) + '</u></span>';
           }).join("") + "</div>"
