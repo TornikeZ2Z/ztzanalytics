@@ -319,18 +319,6 @@ registerPage({
       + "body.rs-app:not(.light) .fa2-rubchip u{color:var(--brand)}"
       + ".fa2-rubchip i.tri{font-style:normal;font-size:11px;font-weight:800;letter-spacing:.05em;"
       + "text-transform:uppercase;color:var(--faint)}"
-      + ".fa2-rubed{margin-top:12px;display:flex;flex-direction:column;gap:9px}"
-      + ".fa2-rubrow{display:grid;grid-template-columns:minmax(0,1fr) 92px 168px 34px;gap:8px}"
-      + ".fa2-rubrow .rbd{grid-column:1/-1}"
-      + ".fa2-rubed input,.fa2-rubed select{font:inherit;font-size:12.5px;background:var(--panel-2);"
-      + "color:var(--ink);border:1px solid var(--line-2);border-radius:9px;padding:7px 10px;min-width:0}"
-      + ".fa2-rubed .rbd{font-size:11.5px;color:var(--muted)}"
-      + ".fa2-rubed input:focus,.fa2-rubed select:focus{outline:none;border-color:var(--brand)}"
-      + ".fa2-rubed select:disabled{opacity:.55;cursor:not-allowed}"
-      + ".fa2-rubed .rbx{font:inherit;font-size:13px;font-weight:800;background:var(--panel-2);"
-      + "color:var(--faint);border:1px solid var(--line-2);border-radius:9px;cursor:pointer}"
-      + ".fa2-rubed .rbx:hover{color:var(--neg);border-color:var(--neg)}"
-      + ".fa2-rubhint{font-size:11px;color:var(--faint);line-height:1.55;max-width:96ch}"
       + ".fa2-go{font:inherit;font-size:12.5px;font-weight:800;background:var(--brand);"
       + "color:var(--brand-ink);border:0;border-radius:9px;padding:8px 16px;cursor:pointer}"
       + ".fa2-go:disabled{opacity:.45;cursor:default}"
@@ -489,7 +477,7 @@ registerPage({
         loadRubricFor(qm.value);
       };
 
-      main.querySelectorAll(".fa2-rubed input, .fa2-rubed select, .fa2-qnrow input, .fa2-qnrow select").forEach(el => {
+      main.querySelectorAll(".fa2-qnrow input, .fa2-qnrow select").forEach(el => {
         const commit = () => {
           const row = S.draft[+el.dataset.i]; if (!row) return;
           row[el.dataset.k] = el.dataset.k === "points" ? (+el.value || 0) : el.value;
@@ -503,7 +491,7 @@ registerPage({
         el.onchange = () => { commit(); refreshTotal(); };
         el.onblur = commit;
       });
-      main.querySelectorAll(".fa2-rubed .rbx, .fa2-qnrow .rbx").forEach(b => {
+      main.querySelectorAll(".fa2-qnrow .rbx").forEach(b => {
         b.onclick = () => { S.draft.splice(+b.dataset.i, 1); paint(); };
       });
       const add = main.querySelector("#fa2RubAdd");
@@ -546,7 +534,7 @@ registerPage({
       const sel = "." + el.className.split(" ")[0] + '[data-i="' + el.dataset.i + '"]';
       const at = el.selectionStart;
       paint();
-      const again = main.querySelector(".fa2-rubed " + sel) || main.querySelector(".fa2-qnrow " + sel);
+      const again = main.querySelector(".fa2-qnrow " + sel);
       if (again) {
         again.focus();
         try { again.setSelectionRange(at, at); } catch (e) { /* number inputs refuse */ }
@@ -702,59 +690,23 @@ registerPage({
           + "The nightly pipeline seeds it; if this persists, say so.</span></div></div>";
       }
 
-      {
-        return '<div class="fa2-rub"><div class="fa2-rubh">'
-          + "<b>What is being scored · " + esc(monLab(S.month)) + "</b>"
-          + '<span class="fa2-rubt' + (Math.abs(total - MANUAL_TOTAL()) > 0.05 ? " bad" : "") + '">'
-          + fmt1(total) + " of " + fmt1(MANUAL_TOTAL()) + " points across "
-          + qs.length + " question" + (qs.length === 1 ? "" : "s") + "</span>"
-          + (S.canEditRubric
-             ? '<button class="fa2-ghost" id="fa2RubEdit">'
-               + (editable ? "Edit the questions" : "Open the questionnaire") + "</button>"
-             : "")
-          + (S.canEditRubric && !editable
-             ? '<span class="fa2-rubnote">' + (S.locked
-                 ? "submitted — reopen this month to change its questions"
-                 : "this month's questions are fixed") + "</span>" : "")
-          + "</div><div class=\"fa2-rublist\">"
-          + qs.map(q => '<span class="fa2-rubchip" title="' + esc(q.Description || "") + '">'
-              + esc(q.Label) + "<u>" + fmt1(q.Points) + "</u>"
-              + (q.Scale === "tri" ? '<i class="tri">3-way</i>' : "") + "</span>").join("")
-          + "</div></div>";
-      }
-
-      const d = S.draft || [];
-      const dt = d.reduce((s2, q) => s2 + (+q.points || 0), 0);
-      const left = Math.round((MANUAL_TOTAL() - dt) * 10) / 10;
-      return '<div class="fa2-rub edit"><div class="fa2-rubh">'
-        + "<b>Editing the questions · " + esc(monLab(S.month)) + "</b>"
-        + '<span class="fa2-rubt' + (Math.abs(dt - MANUAL_TOTAL()) > 0.05 ? " bad" : "") + '">'
-        + fmt1(dt) + " of " + fmt1(MANUAL_TOTAL())
-        + (Math.abs(left) < 0.05 ? " — balanced"
-           : left > 0 ? " — " + fmt1(left) + " still to give out"
-                      : " — " + fmt1(-left) + " over") + "</span>"
-        + '<button class="fa2-ghost" id="fa2RubCancel">Cancel</button>'
-        + '<button class="fa2-go" id="fa2RubSave"' + (Math.abs(dt - MANUAL_TOTAL()) > 0.05 ? " disabled" : "") + ">Save</button>"
-        + "</div>"
-        + '<div class="fa2-rubed">' + d.map((q, i) =>
-            '<div class="fa2-rubrow">'
-            + '<input class="rbq" data-i="' + i + '" data-k="label" value="' + esc(q.label)
-            + '" placeholder="What is being judged">'
-            + '<input class="rbp" type="number" step="0.5" min="0.5" max="40" data-i="' + i
-            + '" data-k="points" value="' + q.points + '">'
-            + '<select class="rbs" data-i="' + i + '" data-k="scale"'
-            + (q.rated ? " disabled title=\"already rated this month — how it is answered cannot change\"" : "") + ">"
-            + '<option value="stars5"' + (q.scale === "stars5" ? " selected" : "") + ">1–5 stars</option>"
-            + '<option value="tri"' + (q.scale === "tri" ? " selected" : "") + ">None / half / full</option>"
-            + "</select>"
-            + '<button class="rbx" data-i="' + i + '" title="Remove this question">✕</button>'
-            + '<input class="rbd" data-i="' + i + '" data-k="description" value="'
-            + esc(q.description || "") + '" placeholder="How to judge it — the rater reads this">'
-            + "</div>").join("")
-        + '<button class="fa2-ghost" id="fa2RubAdd">+ Add a question</button>'
-        + '<div class="fa2-rubhint">Removing a question stops it counting from this month on; '
-        + "months already scored keep the questions they were scored under. A question that is "
-        + "already rated this month cannot change how it is answered — add a new one instead.</div>"
+      return '<div class="fa2-rub"><div class="fa2-rubh">'
+        + "<b>What is being scored · " + esc(monLab(S.month)) + "</b>"
+        + '<span class="fa2-rubt' + (Math.abs(total - MANUAL_TOTAL()) > 0.05 ? " bad" : "") + '">'
+        + fmt1(total) + " of " + fmt1(MANUAL_TOTAL()) + " points across "
+        + qs.length + " question" + (qs.length === 1 ? "" : "s") + "</span>"
+        + (S.canEditRubric
+           ? '<button class="fa2-ghost" id="fa2RubEdit">'
+             + (editable ? "Edit the questions" : "Open the questionnaire") + "</button>"
+           : "")
+        + (S.canEditRubric && !editable
+           ? '<span class="fa2-rubnote">' + (S.locked
+               ? "submitted — reopen this month to change its questions"
+               : "this month's questions are fixed") + "</span>" : "")
+        + "</div><div class=\"fa2-rublist\">"
+        + qs.map(q => '<span class="fa2-rubchip" title="' + esc(q.Description || "") + '">'
+            + esc(q.Label) + "<u>" + fmt1(q.Points) + "</u>"
+            + (q.Scale === "tri" ? '<i class="tri">3-way</i>' : "") + "</span>").join("")
         + "</div></div>";
     }
 

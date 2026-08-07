@@ -173,6 +173,7 @@ function rlInjectStyle() {
   .rl-split .seg{height:100%}
   .rl-split .seg.raw{background:var(--blue)}
   .rl-split .seg.cur{background:var(--purple)}
+  .rl-gantt{display:flex;flex-direction:column;margin-top:2px}
   .rl-grow{display:grid;grid-template-columns:158px 1fr 66px;align-items:center;gap:12px;padding:4px 0}
   .rl-glabel{font-size:12.5px;color:var(--ink);font-weight:600;text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .rl-glabel .ph{display:inline-block;width:7px;height:7px;border-radius:2px;margin-right:6px;vertical-align:middle}

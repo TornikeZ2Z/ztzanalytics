@@ -24,7 +24,8 @@
              "Gross Cost", "Net Cost", "Merchant", "Merchant Name", "Merchant City",
              "Merchant State", "Vehicle Raw", "Truck", "Truck Fuel", "Unique Key",
              "Job Request", "Job Customer", "Job Company", "Job Truck", "Job Start",
-             "Job Moving Type", "Job State", "Jobs That Day", "Match Status", "Match Note",
+             "Job Moving Type", "Job State", "Jobs That Day", "Trip Share", "Trip Cost Share",
+             "Match Status", "Match Note",
              "Flags", "Notes", "Flag Count", "Needs Review", "Resolved", "Resolution",
              "Resolved By", "Resolved At"],
       dateCols: { Date: "Date" }, defaultDate: "Date",
@@ -62,11 +63,12 @@ registerPage({
       unknown_foreman: "the card names somebody who is not on the crew list",
       no_job_that_day: "he ran no job on this date",
       ambiguous_no_time: "several jobs that day and no way to tell which came first",
+      known_non_crew: "a known card holder who is not on the crew list",
     };
     const STATUS_LABEL = {
       assigned: "Assigned", assigned_trip: "On a trip", unknown_foreman: "Unknown driver",
       no_job_that_day: "No job that day", ambiguous_no_time: "Which job?",
-      ambiguous_trip: "Which trip?",
+      ambiguous_trip: "Which trip?", known_non_crew: "Known card holder",
     };
     // Two ways a swipe lands on real work: a local job that day, or a long-distance trip
     // whose span covers the date — a man away for six days has the truck for all six.
@@ -346,6 +348,11 @@ registerPage({
         + fact("Cost", money(r["Net Cost"]),
                [r["Unit Cost"] ? "$" + (+r["Unit Cost"]).toFixed(3) + "/gal" : "",
                 num(r.Fees) ? "fees " + money(r.Fees) : ""].filter(Boolean).join(" · ") || "net")
+        + (nn(r["Trip Share"]) != null && +r["Trip Share"] < 1
+             ? fact("This job's share", money(r["Trip Cost Share"]),
+                    "a consolidated run — " + Math.round(+r["Trip Share"] * 100)
+                    + "% of the swipe by cubic feet")
+             : "")
         + fact("Ticket", r["Trans ID"] || "—", r.Ticket ? "ticket " + r.Ticket : "")
         + "</div>";
 

@@ -326,6 +326,7 @@ registerPage({ id: "review-settings", group: "reviews", title: "Review URLs and 
         ".ra-close:hover{color:var(--ink)}",
         ".ra-note{color:var(--muted);font-size:12px;max-width:340px}",
         ".ra-dot{color:var(--faint);margin:0 6px}",
+        ".gp{color:var(--faint);font-weight:700;font-variant-numeric:tabular-nums;margin-left:4px}",
         ".ra-done td{opacity:.6}",
         ".s-wait{background:rgba(224,145,42,.18);color:#e0912a}",
         ".rrp-exbtn{font:inherit;font-size:11.5px;font-weight:700;color:var(--brand-ink);background:var(--brand);border:0;border-radius:8px;padding:5px 11px;cursor:pointer}",
