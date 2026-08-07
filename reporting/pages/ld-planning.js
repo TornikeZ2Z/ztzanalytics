@@ -2475,6 +2475,15 @@ registerPage({
         b.onclick = function () { S.view = b.getAttribute("data-ldview"); paint(); };
       });
       var tlb = host.querySelector(".ldp-tlbody");
+      // The header is OUTSIDE the scrolling body, so the body's scrollbar made its calendar
+      // track narrower than the ruler above it -- ~10px over 1827px, half a day's drift at
+      // the right edge. Reserve the same gutter on the header; measured, because the width
+      // is 10px here, 15 on some machines and 0 with overlay scrollbars.
+      if (tlb) {
+        var head0 = host.querySelector(".ldp-tlhead");
+        var sbw = tlb.offsetWidth - tlb.clientWidth;
+        if (head0) head0.style.paddingRight = (sbw > 0 ? sbw : 0) + "px";
+      }
       if (tlb) tlb.onmousedown = function (e) {
         if (e.button !== 0) return;
         var calEl = tlb.querySelector(".ldp-tlcal");
