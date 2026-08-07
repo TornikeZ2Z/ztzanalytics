@@ -32,7 +32,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/portal.css?v=2">
-<link rel="stylesheet" href="assets/rs.css?v=19">
+<link rel="stylesheet" href="assets/rs.css?v=20">
 <style>
 /* collapsible sidebar groups + nested hub sub-items */
 #nav .g-title{cursor:pointer;user-select:none;display:flex;align-items:center;justify-content:space-between}
@@ -1368,6 +1368,13 @@ registerPage({
     const avail = new Set(data.report_ids);
     const depts = ACL_DEPTS.map(d => ({ ...d, reports: d.reports.filter(r => avail.has(r)) }))
       .filter(d => d.reports.length);
+    /* STANDALONE PERMISSIONS — granted by name, never bundled into a department.
+       Changing the assessment questionnaire re-points what every foreman is scored out of,
+       which is a different right from rating one, so it must not ride in on "Logistics". */
+    const EXTRA_GRANTS = [
+      { id: "foreman-assessment-rubric", label: "Assessment questionnaire",
+        note: "Set the questions logistics scores foremen on, and how the 40 points are split." },
+    ].filter(x => avail.has(x.id));
     host.innerHTML = `
       <div class="rs-page-head"><h1>Users & Access</h1>
         <p>Deny-by-default access, granted by department. Every grant is enforced by the data bridge itself — reports a user can't see are also reports they can't query.</p></div>
@@ -1387,7 +1394,12 @@ registerPage({
             <div class="acl-tilegrid">` +
       depts.map(d => `<div class="acl-tile" data-d="${d.id}" title="${RSC.esc(d.reports.map(r => REPORT_LABELS[r] || r).join(" · "))}">${icon(d.icon)}<span>${RSC.esc(d.label)}</span></div>`).join("") +
       `<div class="acl-tile adm" data-d="${ACL_ADMIN_TILE.id}" title="Every report, the data portal, and user management. ${RSC.esc(ACL_ADMIN_TILE.reports.map(r => REPORT_LABELS[r] || r).join(" · "))}">${icon(ACL_ADMIN_TILE.icon)}<span>${RSC.esc(ACL_ADMIN_TILE.label)}</span></div>` +
-      `</div>
+      `</div>` +
+      (EXTRA_GRANTS.length ? `
+            <div class="insight-note" style="margin:12px 0 0">Extra permissions, granted on their own — these are not part of any menu group:</div>
+            <div class="acl-tilegrid">` +
+        EXTRA_GRANTS.map(g => `<div class="acl-tile xtra" data-x="${g.id}" title="${RSC.esc(g.note)}"><span>${RSC.esc(g.label)}</span></div>`).join("") +
+      `</div>` : "") + `
             <div class="insight-note" id="uAdmNote" style="margin:9px 0 0;display:none">
               <b>Administration</b> grants everything — every report plus the pages that hand out access. The other groups are implied, so they are switched off above.</div>
           </div>
@@ -1416,6 +1428,9 @@ registerPage({
     const setAdmin = on => { admTile.classList.toggle("on", !!on); syncAdmin(); };
     host.querySelectorAll(".acl-tile").forEach(t =>
       t.onclick = () => { t.classList.toggle("on"); if (t === admTile) syncAdmin(); });
+    host.querySelectorAll(".acl-tile.xtra").forEach(t => {
+      t.onclick = () => t.classList.toggle("on");
+    });
 
     const dmap = Object.fromEntries(depts.map(d => [d.id, d]));
     const openEditor = (u) => {
@@ -1427,6 +1442,9 @@ registerPage({
       host.querySelectorAll(".acl-tile:not(.adm)").forEach(t => {
         const d = dmap[t.dataset.d];
         t.classList.toggle("on", !!(u && d && (u.reports.includes(d.id) || d.reports.every(r => u.reports.includes(r)))));
+      });
+      host.querySelectorAll(".acl-tile.xtra").forEach(t => {
+        t.classList.toggle("on", !!(u && u.reports.includes(t.dataset.x)));
       });
       setAdmin(!!(u && u.admin));   // last: it dims the others when on
       host.querySelector("#uMsg").textContent = "";
@@ -1486,8 +1504,10 @@ registerPage({
           admin: isAdminOn(),
           // store DEPARTMENT ids — a granted department auto-includes reports added to it later
           // (the bridge + canSee expand dept id → its current reports). Deny-by-default is kept.
+          // department ids AND any standalone permission tiles; an admin needs neither
           reports: isAdminOn() ? []
-            : [...host.querySelectorAll(".acl-tile.on:not(.adm)")].map(t => t.dataset.d),
+            : [...host.querySelectorAll(".acl-tile.on:not(.adm)")]
+                .map(t => t.dataset.d || t.dataset.x).filter(Boolean),
         });
         ZTZ.toast("User saved");
         self.render(host);

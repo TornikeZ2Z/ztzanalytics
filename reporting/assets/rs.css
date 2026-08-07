@@ -332,6 +332,11 @@ body.rs-app.light ::-webkit-scrollbar-thumb{background:#c6d0dc;border-color:var(
 /* Administration is a tile like the rest, but it grants EVERYTHING — it must not look
    like just another department, or it gets ticked by muscle memory. Violet, matching the
    view-as banner, which is the other "you have more power than usual" signal in the app. */
+/* a standalone permission, not a menu group: no icon, so it needs its own indent and a
+   marker that says it is a single right rather than a bundle of reports */
+.acl-tile.xtra{border-style:dashed;padding-left:14px}
+.acl-tile.xtra::before{content:"+";font-weight:800;opacity:.5;margin-right:2px}
+.acl-tile.xtra.on{border-style:solid}
 .acl-tile.adm{border-style:dashed}
 .acl-tile.adm.on{border-style:solid;border-color:#7c3aed;background:color-mix(in srgb,#7c3aed 13%,transparent);color:#7c3aed}
 body.rs-app:not(.light) .acl-tile.adm.on{color:#a78bfa;border-color:#a78bfa}
