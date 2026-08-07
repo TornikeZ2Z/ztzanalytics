@@ -353,7 +353,7 @@ registerPage({
       + ".fa2-pts{text-align:right;font-size:19px;font-weight:800;letter-spacing:-.3px}"
       + ".fa2-pts.un{color:var(--faint);font-weight:500;font-size:12px}"
       // ---- submit bar ------------------------------------------------------------------
-      + ".fa2-sub{position:sticky;bottom:14px;margin-top:18px;background:var(--panel);border:1px solid var(--line-2);border-radius:14px;box-shadow:var(--shadow);padding:13px 18px;display:flex;flex-wrap:wrap;gap:12px 18px;align-items:center;z-index:6}"
+      + ".fa2-sub{position:sticky;bottom:18px;margin:18px 26px 0;background:var(--panel);border:1px solid var(--line-2);border-radius:14px;box-shadow:0 14px 38px rgba(0,0,0,.26),var(--shadow);padding:15px 22px;display:flex;flex-wrap:wrap;gap:12px 18px;align-items:center;z-index:6}"
       + ".fa2-sub .t{font-size:14px;color:var(--muted)} .fa2-sub .t b{color:var(--ink);font-size:15.5px}"
       + ".fa2-spb{flex:1;min-width:150px;height:6px;border-radius:4px;background:var(--panel-2);overflow:hidden}"
       + ".fa2-spb i{display:block;height:100%;background:var(--blue);transition:width .3s}"
