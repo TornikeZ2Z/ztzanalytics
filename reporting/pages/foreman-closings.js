@@ -318,11 +318,23 @@ registerPage({
         var hbody = names.map(function (f) {
           var closings = byFm[f], open = !!S.hopen[f];
           var jobs = closings.reduce(function (a, c) { return a + c.n_jobs; }, 0);
+          // A FOREMAN ROW TOTALS HIS CLOSINGS (Tornike, 2026-08-07: "sum the job values").
+          // It used to print Net Cash and leave Jobs, Confirmed and Balance blank, so five
+          // of the eight columns were empty on every collapsed row and the headline numbers
+          // were only visible by expanding. Source / Delivery / Statement stay blank on
+          // purpose: they are per-closing facts, not quantities, and a summary of them would
+          // be an invention rather than a total.
+          var tNet = closings.reduce(function (a, c) { return a + c.total_net_cash; }, 0);
+          var tConf = closings.reduce(function (a, c) { return a + (+c.total_confirmed || 0); }, 0);
+          var tBal = closings.reduce(function (a, c) { return a + (+c.balance || 0); }, 0);
           var head = '<tr class="fnc-fmrow" data-hk="' + esc(f) + '">'
-            + '<td colspan="2"><span class="fnc-caret">' + (open ? "▾" : "▸") + "</span>" + esc(f)
-            + '<span class="fnc-meta">' + closings.length + " closing" + (closings.length === 1 ? "" : "s") + " · " + jobs + " jobs</span></td>"
-            + '<td class="r">' + money(closings.reduce(function (a, c) { return a + c.total_net_cash; }, 0)) + "</td>"
-            + '<td colspan="5"></td></tr>';
+            + '<td><span class="fnc-caret">' + (open ? "▾" : "▸") + "</span>" + esc(f)
+            + '<span class="fnc-meta">' + closings.length + " closing" + (closings.length === 1 ? "" : "s") + "</span></td>"
+            + '<td class="r">' + jobs + "</td>"
+            + '<td class="r">' + money(tNet) + "</td>"
+            + '<td class="r">' + money(tConf) + "</td>"
+            + '<td class="r ' + balCls(tBal) + '">' + money(tBal) + "</td>"
+            + '<td colspan="3"></td></tr>';
           var sub = "";
           if (open) {
             sub = closings.map(function (c) {
