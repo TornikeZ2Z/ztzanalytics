@@ -248,7 +248,13 @@ registerPage({
     }
     function money2(v) {
       if (v == null) return "—";
-      return (v < 0 ? "-$" : "$") + Math.abs(Math.round(v * 100) / 100).toLocaleString("en-US");
+      // toLocaleString drops a trailing zero, so $125.50 printed as "$125.5" -- which reads
+      // as a typo on a number somebody is about to dispute. Pad the cents when there ARE
+      // cents; whole amounts stay whole, the way every other figure on this page shows them.
+      var a = Math.abs(Math.round(v * 100) / 100);
+      var frac = Math.round(a * 100) % 100 !== 0;
+      return (v < 0 ? "-$" : "$") + a.toLocaleString("en-US",
+        frac ? { minimumFractionDigits: 2, maximumFractionDigits: 2 } : undefined);
     }
     function fmtD(v) {
       if (!v) return "—";
