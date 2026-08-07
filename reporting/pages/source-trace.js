@@ -126,7 +126,11 @@ registerPage({
           font-weight:800;font-size:13px;display:flex;align-items:center;justify-content:center}
         .strc-howt{font-size:13.5px;font-weight:700;color:var(--ink)}
         .strc-howd{font-size:12px;color:var(--muted);margin-top:3px;line-height:1.5}
-        .strc-hit{display:grid;grid-template-columns:auto auto 1fr auto auto;gap:10px 16px;
+        /* the 1fr was the customer NAME, so on a wide screen a search hit read as
+           "#110292  Jane Doe .................................. Google  chip" with 1600px
+           of nothing in the middle. Flexible track LAST: the five cells sit together and
+           the slack goes to the empty end of the row. */
+        .strc-hit{display:grid;grid-template-columns:auto auto auto auto minmax(0,1fr);gap:10px 16px;
           align-items:center;padding:10px 14px;border:1px solid var(--line);border-radius:11px;
           margin-bottom:7px;cursor:pointer;background:var(--panel-2)}
         .strc-hit:hover{border-color:var(--brand);background:var(--panel)}
@@ -167,7 +171,10 @@ registerPage({
         .strc-rule.won .rs{color:var(--brand-d)}
         .strc-rule .rs.na{color:var(--faint);font-weight:700}
         /* final source chip */
-        .strc-final{display:flex;align-items:center;justify-content:space-between;gap:12px;
+        /* space-between on a full-width bar threw "FINAL SOURCE" and its value to opposite
+           ends of a solid lime slab ~1740px apart. The chip now shrinks to its content, so
+           the label sits next to the answer and the bar stops pretending to be a table. */
+        .strc-final{display:inline-flex;align-items:baseline;gap:14px;width:max-content;max-width:100%;
           padding:15px 18px;border-radius:14px;background:var(--brand);color:var(--brand-ink);margin-bottom:16px}
         .strc-final .fl{font-size:11.5px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;opacity:.9}
         .strc-final .fv{font-size:22px;font-weight:800}

@@ -131,11 +131,14 @@ registerPage({ id: "review-settings", group: "reviews", title: "Review URLs and 
         ".rrp-fname{font-weight:800;font-size:14.5px}",
         ".rrp-fmeta{font-size:11.5px;color:var(--faint);font-weight:700;white-space:nowrap;justify-self:end;text-align:right}",
         ".rrp-morning{border-top:1px solid var(--line)}",
-        ".rrp-jrhead{display:grid;grid-template-columns:16px 1fr auto;gap:11px;align-items:center;padding:10px 15px;cursor:pointer;border-top:1px solid var(--line)}",
+        // The 1fr sat on the customer name, throwing the Mid/Final pills ~1800px away from
+        // the job they belong to. jobRow emits three children (L778-781), so a fourth empty
+        // track can hold the slack and the pills stay beside the customer.
+        ".rrp-jrhead{display:grid;grid-template-columns:16px minmax(0,440px) auto minmax(0,1fr);gap:11px;align-items:center;padding:10px 15px;cursor:pointer;border-top:1px solid var(--line)}",
         ".rrp-jrhead:hover{background:var(--panel-2)}",
         ".rrp-jrchev{color:var(--faint);font-size:12px;text-align:center}",
         ".rrp-jrc{font-size:13px}.rrp-jrc small{display:block;color:var(--faint);font-size:11px;margin-top:1px}",
-        ".rrp-jrstages{display:flex;gap:5px;justify-self:end;flex-wrap:wrap;justify-content:flex-end}",
+        ".rrp-jrstages{display:flex;gap:5px;justify-self:start;flex-wrap:wrap;justify-content:flex-start}",
         ".rrp-evrow{display:flex;align-items:center;gap:12px;padding:9px 15px 9px 20px;border-top:1px solid var(--line);font-size:12.5px}",
         ".rrp-evrow:first-child{border-top:0}",
         ".rrp-evrow .tm{font-variant-numeric:tabular-nums;color:var(--muted);min-width:60px}",
@@ -1274,9 +1277,18 @@ registerPage({ id: "review-settings", group: "reviews", title: "Review URLs and 
           + (activeLoc ? goalMeter(activeLoc.name, s2) : "") + "</div>" + rows
           + '<button class="rrp-addloc" data-addstate="' + esc(s2) + '">+ Add a listing for ' + esc(s2) + "</button></div>";
       }).join("");
+      // Every "+ Add a listing" button lives INSIDE the per-state map, so deleting the last
+      // listing emptied `states`, emptied stateHtml, and left section 1 blank with no control
+      // to add one back -- a one-way door out of the only screen that can reopen it.
+      var noGoogle = '<div class="rrp-empty" style="padding:18px;margin:0">'
+        + "There are no Google listings left. The bot cannot send a Google link until one exists."
+        + '<div style="margin-top:12px;display:inline-flex;gap:8px;align-items:center">'
+        + '<input type="text" id="rrpNewState" placeholder="State (e.g. NJ)" style="width:150px" maxlength="24">'
+        + '<button class="rrp-addloc" id="rrpAddFirst" style="margin:0">+ Add the first listing</button>'
+        + "</div></div>";
       var sec1 = '<div class="rrp-sec"><div class="rrp-sech"><span class="rrp-secn">1</span><div class="rrp-sect">'
         + "<h4>Google link by state</h4><p>Each delivery state sends one Google listing — the highlighted row. The bar shows that listing’s reviews against its goal.</p>"
-        + '</div></div><div class="rrp-secb">' + stateHtml + "</div></div>";
+        + '</div></div><div class="rrp-secb">' + (stateHtml || noGoogle) + "</div></div>";
       var sec2 = '<div class="rrp-sec"><div class="rrp-sech"><span class="rrp-secn">2</span><div class="rrp-sect">'
         + "<h4>Extra platforms</h4><p>These ride along in every message, under the Google link. Toggle one off to drop it.</p>"
         + '</div></div><div class="rrp-secb"><div class="rrp-plats">'
@@ -1443,6 +1455,15 @@ registerPage({ id: "review-settings", group: "reviews", title: "Review URLs and 
       Array.prototype.forEach.call(root.querySelectorAll("[data-purl]"), function (el) { el.oninput = function () { d.platforms[+el.getAttribute("data-purl")].url = el.value; RRP.saved = 0; }; });
       Array.prototype.forEach.call(root.querySelectorAll("[data-pdel]"), function (el) { el.onclick = function () { d.platforms.splice(+el.getAttribute("data-pdel"), 1); RRP.saved = 0; paint(); }; });
       var addP = root.querySelector("[data-addplat]"); if (addP) addP.onclick = function () { d.platforms.push({ name: "", url: "", active: true }); RRP.saved = 0; paint(); };
+      // the way back when every Google listing has been deleted (see noGoogle above)
+      var addF = root.querySelector("#rrpAddFirst");
+      if (addF) addF.onclick = function () {
+        var el = root.querySelector("#rrpNewState");
+        var st2 = String((el && el.value) || "").trim().toUpperCase();
+        if (!st2) { if (el) el.focus(); return; }
+        d.google.push({ state: st2, name: "", url: "", active: true });
+        RRP.saved = 0; paint();
+      };
       // reason list editor
       Array.prototype.forEach.call(root.querySelectorAll("[data-rzn]"), function (el) { el.oninput = function () { d.reasons[+el.getAttribute("data-rzn")] = el.value; RRP.saved = 0; }; });
       Array.prototype.forEach.call(root.querySelectorAll("[data-rzdel]"), function (el) { el.onclick = function () { d.reasons.splice(+el.getAttribute("data-rzdel"), 1); RRP.saved = 0; paint(); }; });

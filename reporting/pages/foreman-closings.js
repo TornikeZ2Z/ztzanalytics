@@ -330,11 +330,16 @@ registerPage({
                 + "<td>" + deliveryPill(c) + "</td>"
                 + "<td>" + (c.statement_url ? '<a class="fnc-doc" href="' + esc(c.statement_url) + '" target="_blank" rel="noopener">PDF ↗</a>' : '<span style="color:var(--faint)">—</span>') + "</td></tr>";
               var jr = "";
+              // truthiness, not length: an empty jobs array is truthy, so a closing whose response
+              // carried no rows drew six headers over an empty body and said nothing. A
+              // failed fetch left "Loading..." up forever -- the catch below now records [].
+              var MSG_NO_JOBS = '<tr><td colspan="6" style="color:var(--faint);padding:10px">'
+                + "No job rows came back for this closing.</td></tr>";
               if (S.copen[c.id]) {
                 var jobsData = S._jobs[c.id];
                 jr = '<tr><td colspan="8" style="padding:0 0 8px 20px;background:var(--panel-2)"><table class="fnc-tbl" style="min-width:0;table-layout:auto;background:var(--panel);border:1px solid var(--line-2);border-radius:10px">'
                   + '<thead><tr><th>Job date</th><th>Job code</th><th>Customer</th><th class="r">Net Cash</th><th class="r">Confirmed</th><th class="r">Balance</th></tr></thead><tbody>'
-                  + (jobsData ? jobsData.map(function (j) { return "<tr><td>" + fmtD(j.job_date) + "</td><td>" + esc(j.job_code) + '</td><td title="' + esc(j.customer || "") + '">' + esc(j.customer || "—") + '</td><td class="r">' + money2(j.net_cash) + '</td><td class="r">' + money2(j.confirmed) + '</td><td class="r ' + balCls(j.balance) + '">' + money2(j.balance) + "</td></tr>"; }).join("") : '<tr><td colspan="6" style="color:var(--faint);padding:10px">Loading…</td></tr>')
+                  + (jobsData && !jobsData.length ? MSG_NO_JOBS : jobsData ? jobsData.map(function (j) { return "<tr><td>" + fmtD(j.job_date) + "</td><td>" + esc(j.job_code) + '</td><td title="' + esc(j.customer || "") + '">' + esc(j.customer || "—") + '</td><td class="r">' + money2(j.net_cash) + '</td><td class="r">' + money2(j.confirmed) + '</td><td class="r ' + balCls(j.balance) + '">' + money2(j.balance) + "</td></tr>"; }).join("") : '<tr><td colspan="6" style="color:var(--faint);padding:10px">Loading…</td></tr>')
                   + "</tbody></table></td></tr>";
               }
               return crow + jr;
@@ -433,7 +438,7 @@ registerPage({
       Array.prototype.forEach.call(host.querySelectorAll("[data-fncv]"), function (b) { b.onclick = function () { S.view = b.getAttribute("data-fncv"); S._userPicked = true; paint(); }; });
       Array.prototype.forEach.call(host.querySelectorAll("[data-fncd]"), function (b) { b.onclick = function () { S.dense = b.getAttribute("data-fncd"); paint(); }; });
       var q = host.querySelector("#fncQ");
-      if (q) q.oninput = function () { S.q = q.value; var pos = q.selectionStart; paint(); var n2 = host.querySelector("#fncQ"); if (n2) { n2.focus(); try { n2.setSelectionRange(pos, pos); } catch (e) {} } };
+      if (q) q.oninput = function () { S.q = q.value; var pos = q.selectionStart; paint(); var n2 = host.querySelector("#fncQ"); if (n2) { n2.focus(); try { n2.setSelectionRange(pos, pos); } catch (e) { S._jobs[id] = []; if (S.copen[id]) paint(); } } };
       Array.prototype.forEach.call(host.querySelectorAll("a.fnc-doc"), function (a) { a.onclick = function (e) { e.stopPropagation(); }; });
       // manual-run controls
       var runAll = host.querySelector("#fncRunAll");
@@ -465,7 +470,12 @@ registerPage({
               var j = await fetch(ZTZ.API + "/api/_fnc?report=" + encodeURIComponent(id), { headers: { "Authorization": "Bearer " + ZTZ.getToken() } }).then(function (r) { return r.json(); });
               S._jobs[id] = j.jobs || [];
               if (S.copen[id]) paint();
-            } catch (e) {}
+            } catch (e) {
+              // swallowing this left "Loading…" on screen forever. Record the empty result
+              // so the row says something instead of pretending it is still working.
+              S._jobs[id] = [];
+              if (S.copen[id]) paint();
+            }
           }
         };
       });

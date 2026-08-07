@@ -176,9 +176,12 @@ registerPage({
       + ".dm-b .vv{font-weight:700;white-space:nowrap}"
       + ".dm-b .vv small{color:var(--faint);font-weight:500;margin-left:5px}"
       // ---- weekday x month matrix ---------------------------------------------------------
-      + ".dm-mx{border-collapse:separate;border-spacing:3px;font-size:11.5px}"
+      // no width, so the table sized to its content -- a ~655px matrix floating in a 2054px
+      // card with 1400px of the card left blank. Full width, and a bigger cell floor so the
+      // extra goes to every column evenly instead of the last one taking it all.
+      + ".dm-mx{border-collapse:separate;border-spacing:3px;font-size:11.5px;width:100%}"
       + ".dm-mx th{font-size:9px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--faint);padding:2px 4px}"
-      + ".dm-mx td{position:relative;text-align:center;padding:7px 4px;border-radius:6px;min-width:44px;"
+      + ".dm-mx td{position:relative;text-align:center;padding:7px 4px;border-radius:6px;min-width:90px;"
       + "font-weight:700;color:var(--ink);background:var(--panel-2)}"
       + ".dm-mx td .lv{position:absolute;inset:0;border-radius:6px;background:var(--brand)}"
       + ".dm-mx td span{position:relative}"

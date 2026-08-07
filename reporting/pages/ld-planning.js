@@ -315,12 +315,18 @@ registerPage({
         .lg-r{width:24px;height:14px;border-radius:4px;background:rgba(47,111,208,.13);border:1px solid rgba(47,111,208,.35);border-left:3px solid ${BLUE};flex:0 0 auto}
         .ldp-tlgrid{position:relative;border:1px solid var(--line-2);border-radius:14px;overflow:hidden;background:var(--panel)}
         .ldp-tlhead{display:flex;height:50px;background:var(--panel-2);border-bottom:1px solid var(--line-2)}
-        .ldp-tlhlab{width:236px;flex:0 0 236px;border-right:1px solid var(--line)}
+        /* 262px, matching .ldp-tllab below. At 236 the header's calendar track started 26px
+           left of the rows', and every marker in BOTH is positioned as a percentage of its
+           own track -- so the date ruler labelled the bars while sitting out of register
+           with them, and the "today" line landed on the wrong day near the edges. */
+        .ldp-tlhlab{width:262px;flex:0 0 262px;border-right:1px solid var(--line)}
         .ldp-tlhcal{position:relative;flex:1;min-width:0}
         .ldp-tlmon{position:absolute;top:7px;font-size:12px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);padding-left:6px}
         .ldp-tlday{position:absolute;bottom:6px;font-size:11.5px;color:var(--faint);font-weight:700;transform:translateX(-50%)}
         .ldp-tltodaylab{position:absolute;top:0;transform:translateX(-50%);font-size:9.5px;font-weight:800;letter-spacing:.08em;color:#fff;background:${NEG};padding:3px 7px 2px;border-radius:0 0 7px 7px;z-index:3}
-        .ldp-tlbody{max-height:calc(100vh - var(--pg-chrome, 360px));overflow-y:auto}
+        /* stable gutter so the rows keep the header's width whether or not they scroll --
+           otherwise the scrollbar re-introduces the same misregistration it just lost. */
+        .ldp-tlbody{max-height:calc(100vh - var(--pg-chrome, 360px));overflow-y:auto;scrollbar-gutter:stable}
         .ldp-tlrow{display:flex;min-height:46px;border-bottom:1px solid var(--line);cursor:pointer}
         .ldp-tlrow:last-child{border-bottom:0}
         .ldp-tlrow:hover{background:var(--panel-2)}
@@ -504,6 +510,7 @@ registerPage({
         .ldp-cst:last-child{border-bottom:0}
         .ldp-cst-d{color:var(--faint);white-space:nowrap;flex:none;min-width:64px}
         .ldp-cst-l{margin-left:auto;white-space:nowrap}
+        .ldp-dec-l{margin-left:14px;white-space:nowrap}
         .ldp-cst-l a{color:var(--blue);text-decoration:none;margin-left:7px}
         .ldp-cst-l a:last-child{color:var(--faint)}
       </style>
@@ -1616,7 +1623,9 @@ registerPage({
                 + (x.decline_reason ? '<span class="ldp-sub"> \u2014 ' + esc(x.decline_reason) + "</span>" : "")
                 + (x.accepted_by ? '<span class="ldp-sub"> \u00b7 ' + esc(String(x.accepted_by).split("@")[0]) + "</span>" : "")
                 + "</span>"
-                + '<span class="ldp-cst-l"><button class="ldp-bhbtn" data-undecline="' + esc(String(x.id))
+                // ldp-dec-l, not ldp-cst-l: that class carries margin-left:auto, which is right
+                // in the narrow drawer it was written for and a canyon in this full-width card.
+                + '<span class="ldp-dec-l"><button class="ldp-bhbtn" data-undecline="' + esc(String(x.id))
                 + '" style="margin-top:0">Put back</button></span></div>';
             }).join("")
           + "</div>";
@@ -1648,10 +1657,11 @@ registerPage({
                 + (x.miles ? " \u00b7 ~" + (+x.miles).toLocaleString() + " mi" : "")
                 + " \u00b7 accepted " + esc(String(x.accepted_at || "").slice(0, 16))
                 + " by " + esc(String(x.accepted_by || "").split("@")[0]) + "</span>"
+                // margin-left:auto pushed these to the far right of a full-page-width card,
+                // ~1,400px from the job codes they act on. Packed left with the row instead.
                 + (mappable ? '<button class="ldp-bhbtn ldp-jmapbtn" data-mapfor="' + mk + '" data-legzips="'
-                    + [LD_BASE_ZIP].concat(zs).concat([LD_BASE_ZIP]).join(",") + '" style="margin:0 0 0 auto">Visualize route</button>' : "")
-                + '<button class="ldp-bhbtn ldp-unacc" data-unacc="' + x.id + '" style="margin:0 0 0 '
-                + (mappable ? "8px" : "auto") + '">Un-accept</button></div>';
+                    + [LD_BASE_ZIP].concat(zs).concat([LD_BASE_ZIP]).join(",") + '" style="margin:0 0 0 6px">Visualize route</button>' : "")
+                + '<button class="ldp-bhbtn ldp-unacc" data-unacc="' + x.id + '" style="margin:0 0 0 8px">Un-accept</button></div>';
             }).join("")
           + "</div>";
       }

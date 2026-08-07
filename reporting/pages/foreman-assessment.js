@@ -161,7 +161,10 @@ registerPage({
       // ---- cards -----------------------------------------------------------------------
       + ".fa2-card{background:var(--panel);border:1px solid var(--line);border-radius:14px;margin-bottom:9px;overflow:hidden;transition:border-color .15s,box-shadow .15s}"
       + ".fa2-card.on{border-color:var(--line-2);box-shadow:var(--shadow)}"
-      + ".fa2-head{display:grid;grid-template-columns:34px minmax(0,1fr) auto auto;gap:14px;align-items:center;padding:12px 18px;cursor:pointer}"
+      // The 1fr was on the NAME, so the name column swallowed ~1050px and the six question
+      // chips clumped against the score block with dead space before them. Flexible track
+      // moves onto the chip strip (see .fa2-dots below, which now spreads across it).
+      + ".fa2-head{display:grid;grid-template-columns:34px auto minmax(0,1fr) auto;gap:14px;align-items:center;padding:12px 18px;cursor:pointer}"
       + ".fa2-head:hover{background:var(--panel-2)}"
       + ".fa2-rk{width:30px;height:30px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:12.5px;font-weight:800;background:var(--panel-2);color:var(--muted);border:1px solid var(--line)}"
       + ".fa2-rk.top{background:var(--brand);color:var(--brand-ink);border-color:transparent}"
@@ -169,7 +172,7 @@ registerPage({
       + ".fa2-nm{font-size:15.5px;font-weight:750;letter-spacing:-.2px}"
       + ".fa2-si{font-size:11px;color:var(--faint);margin-top:1px}"
       + ".fa2-si .oor{color:var(--warn);font-weight:650}"
-      + ".fa2-dots{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-start}"
+      + ".fa2-dots{display:flex;gap:6px;flex-wrap:wrap;justify-content:space-between}"
       // One chip per question -- its short name and the stars given, or a dash where
       // nobody has rated yet. Six of these fill the middle of the row with real detail
       // instead of the canyon that sat between a name and its score.

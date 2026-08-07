@@ -203,7 +203,10 @@
     .rp-stack{display:flex;height:14px;border-radius:7px;overflow:hidden;background:var(--panel-2);gap:1px}
     .rp-stack>div{min-width:2px}
     .rp-trend{display:flex;gap:12px;align-items:flex-end;padding:10px 2px 2px;overflow-x:auto;width:100%}
-    .rp-mo{flex:1 1 0;min-width:0;display:flex;flex-direction:column;gap:6px;cursor:default}
+    /* flex:1 1 0 with min-width:0 let ~44 months squeeze to ~11px each, so .rp-trend's
+       overflow-x:auto could never engage -- the scroller was declared and unreachable, and
+       every bar became an unreadable sliver. A fixed floor that is allowed to overflow. */
+    .rp-mo{flex:0 0 auto;min-width:34px;display:flex;flex-direction:column;gap:6px;cursor:default}
     .rp-mo-val{font-size:11px;font-weight:750;color:var(--muted);font-variant-numeric:tabular-nums;text-align:center}
     /* fixed-height slot so every month shares one baseline; the bar sits at its bottom */
     .rp-mo-slot{display:flex;align-items:flex-end;justify-content:center}

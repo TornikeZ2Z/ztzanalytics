@@ -178,11 +178,20 @@ registerPage({
          leads into SEVENTEEN pages of clicking. Measure the space actually below the table and
          fill it: ~34px a row, floor of 10 so a laptop still behaves, ceiling of 60 so nobody
          renders a thousand rows on a wall display. */
+      /* getBoundingClientRect() is VIEWPORT-relative, so once the user had scrolled the
+         table head upward `top` shrank, `room` grew, and the page size changed underneath
+         them -- click page 2 and the rows per page were no longer the rows per page that
+         built the pager. Add back the scroller's scrollTop the way rs-components.js:281
+         does, then cache the answer: the layout only changes when the window does. */
       const PER = (() => {
+        if (MSL_STATE.per && MSL_STATE.perAt === window.innerHeight) return MSL_STATE.per;
         const head = document.querySelector(".msl-tbl thead, .rs-content table thead");
-        const top = head ? head.getBoundingClientRect().bottom : 300;
+        const sc = document.querySelector(".rs-content");
+        const top = head ? head.getBoundingClientRect().bottom + (sc ? sc.scrollTop : 0) : 300;
         const room = window.innerHeight - top - 90;          // 90 = pager + breathing room
-        return Math.max(10, Math.min(60, Math.floor(room / 34) || 10));
+        const per = Math.max(10, Math.min(60, Math.floor(room / 34) || 10));
+        if (head) { MSL_STATE.per = per; MSL_STATE.perAt = window.innerHeight; }
+        return per;
       })();
       const pages = Math.max(1, Math.ceil(list.length / PER));
       if (MSL_STATE.page == null || MSL_STATE.page >= pages) MSL_STATE.page = 0;

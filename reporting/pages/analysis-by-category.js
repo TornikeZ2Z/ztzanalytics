@@ -310,18 +310,28 @@ async function cbRender(host) {
         .cb-piv th[data-s]{cursor:pointer;user-select:none}
         .cb-piv th[data-s]:hover{color:var(--brand)}
         .cb-piv td.num,.cb-piv th.num{text-align:right;font-variant-numeric:tabular-nums}
-        .cb-piv td.b{font-size:10.5px;color:var(--muted)}
+        /* descendant, not a qualifier: the 2nd measure is a <div class="b"> INSIDE the cell,
+           and the cell itself carries class "num" -- td.b matched nothing, so both numbers
+           in a stacked cell rendered at the same size and colour. */
+        .cb-piv td .b{font-size:10.5px;color:var(--muted)}
         /* The total row shipped as class="tot" and this sheet never defined it. .tot IS defined
            -- by monthly-report.js, refresh-log.js and review-performance.js -- so the row was
            styled only once you had visited one of those in the same session, and differently
            depending on WHICH. Its own name, defined here. */
         .cb-piv tr.cb-tot td{border-top:2px solid var(--line-2);font-weight:800;
           background:var(--panel-2);position:sticky;bottom:0}
-        .cb-drill{margin-top:10px}`;
+        .cb-drill{margin-top:10px}
+        .cb-emptychart{display:flex;align-items:center;justify-content:center;height:100%;
+          text-align:center;color:var(--muted);font-size:13px;padding:0 24px}`;
       document.head.appendChild(st);
     }
 
-    if (!rows.length) {
+    // Writing the empty state and carrying on appended two chartCards BELOW it -- 750px of
+    // blank Chart.js grid under headings promising data. Skip the CARDS when there is nothing
+    // to draw, but never skip the wiring at the bottom of this function: the spec bar is the
+    // only way back from a filter that matched nothing.
+    const noRows = !rows.length;
+    if (noRows) {
       document.getElementById("main").innerHTML =
         `<div class="panel" style="padding:20px;color:var(--muted)">No ${isLeads ? "leads" : "jobs"} for the current filters.</div>`;
     }
@@ -471,12 +481,21 @@ async function cbRender(host) {
       const donut = CB.chart === "donut";
       let datasets;
       if (CB.colDim && (stacked || CB.chart === "bar" || CB.chart === "line")) {
-        datasets = G.colKeys.slice(0, 8).map((c, i) => ({
-          label: c === "" ? "—" : c,
+        // Columns = Month gives 12 keys, Year-Month gives 40+. The old slice(0, 8) DISCARDED
+        // the rest, so a stacked bar stopped short of the row total printed in the Tabular
+        // view of the same card, with nothing on the page admitting it. Keep 7 and roll the
+        // tail into a named 8th so the stack still sums to the row.
+        const MAXC = 8;
+        const shown = G.colKeys.length > MAXC ? G.colKeys.slice(0, MAXC - 1) : G.colKeys;
+        const rest = new Set(G.colKeys.slice(shown.length));
+        const series = shown.map(c => ({ label: c === "" ? "—" : c, hit: r => keyOf(CB.colDim, r) === c }));
+        if (rest.size) series.push({ label: `Other (${rest.size})`, hit: r => rest.has(keyOf(CB.colDim, r)) });
+        datasets = series.map((s, i) => ({
+          label: s.label,
           type: CB.chart === "line" ? "line" : "bar",
           data: labels.map(k => {
-            const rs = (rowsFor(k) || []).filter(r => keyOf(CB.colDim, r) === c);
-            const bs = (bookFor(k) || []).filter(r => keyOf(CB.colDim, r) === c);
+            const rs = (rowsFor(k) || []).filter(s.hit);
+            const bs = (bookFor(k) || []).filter(s.hit);
             const v = mA.seg(rs, bs); return v == null ? null : +(+v).toFixed(2);
           }),
           backgroundColor: PAL[i % PAL.length], borderColor: PAL[i % PAL.length],
@@ -488,7 +507,15 @@ async function cbRender(host) {
           label: disp(CB.mA),
           type: CB.chart === "line" ? "line" : (donut ? "doughnut" : "bar"),
           data: labels.map(k => { const v = mA.seg(rowsFor(k), bookFor(k)); return v == null ? null : +(+v).toFixed(2); }),
-          backgroundColor: donut ? labels.map((_, i) => PAL[i % PAL.length]) : "#b7e23b",
+          // A donut at the default Top 20 is 21 slices. `i % PAL.length` made slices 1, 9 and
+          // 17 the same lime, and the donut is the one chart type that SHOWS a legend -- three
+          // different sources beside three identical swatches. Past 8 slices, walk the hue
+          // circle instead so every arc is its own colour.
+          backgroundColor: donut
+            ? labels.map((_, i) => labels.length <= PAL.length
+                ? PAL[i]
+                : `hsl(${Math.round((i * 360) / labels.length)} 68% 56%)`)
+            : "#b7e23b",
           borderColor: "#b7e23b", borderWidth: CB.chart === "line" ? 2 : 0,
           borderRadius: 5, pointRadius: 2, tension: .3,
         }];
@@ -513,7 +540,7 @@ async function cbRender(host) {
       });
     }
 
-    const mainCard = RSC.chartCard(document.getElementById("main"), {
+    const mainCard = noRows ? { rerender() {} } : RSC.chartCard(document.getElementById("main"), {
       // explicit key: chartCard remembers graph-vs-table under cfg.key || cfg.title, and that
       // memory is GLOBAL across every page — a generic "Breakdown" would collide
       key: "cb:breakdown",
@@ -523,23 +550,52 @@ async function cbRender(host) {
     });
 
     /* ---- trend ------------------------------------------------------------------- */
-    RSC.chartCard(document.getElementById("trend"), {
+    // Chart and table are two views of ONE card, so they have to be two views of one dataset.
+    // The trend card used to hand chartCard `buildTable: pivotHtml` -- the identical function
+    // the main card gets -- so clicking Tabular under a heading promising months produced a
+    // byte-identical copy of the breakdown table directly above it. Both views read this.
+    const monthKey = r => r._y + "-" + String(r._m).padStart(2, "0");
+    function trendSpec() {
+      const G = group();
+      const top = G.rowKeys.filter(k => k !== "—").slice(0, 5);
+      const months = [...new Set(rows.map(monthKey))].sort().slice(-18);
+      const series = top.map(k => {
+        const byM = {}, byMB = {};
+        (G.rk.get(k) || []).forEach(r => { const mk2 = monthKey(r); (byM[mk2] = byM[mk2] || []).push(r); });
+        (G.rkB.get(k) || []).forEach(r => { const mk2 = monthKey(r); (byMB[mk2] = byMB[mk2] || []).push(r); });
+        return { key: k, at: mm => (byM[mm] ? mA.seg(byM[mm], byMB[mm] || []) : null) };
+      });
+      return { top, months, series };
+    }
+    const monthLabel = k => RS.monthName(+k.slice(5)) + " " + k.slice(2, 4);
+
+    if (!noRows) RSC.chartCard(document.getElementById("trend"), {
       key: "cb:trend",
       title: `Monthly trend — top 5 ${CB.rowDim}`,
       buildChart(canvas) {
-        const G = group();
-        const top = G.rowKeys.filter(k => k !== "—").slice(0, 5);
-        const months = [...new Set(rows.map(r => r._y + "-" + String(r._m).padStart(2, "0")))].sort().slice(-18);
-        const datasets = top.map((k, i) => {
-          const byM = {}, byMB = {};
-          (G.rk.get(k) || []).forEach(r => { const mk2 = r._y + "-" + String(r._m).padStart(2, "0"); (byM[mk2] = byM[mk2] || []).push(r); });
-          (G.rkB.get(k) || []).forEach(r => { const mk2 = r._y + "-" + String(r._m).padStart(2, "0"); (byMB[mk2] = byMB[mk2] || []).push(r); });
-          return { type: "line", label: k,
-            data: months.map(mm => byM[mm] ? (() => { const v = mA.seg(byM[mm], byMB[mm] || []); return v == null ? null : +(+v).toFixed(2); })() : null),
-            borderColor: PAL[i], backgroundColor: PAL[i], borderWidth: 2, pointRadius: 2, tension: .3 };
-        });
+        const { months, series } = trendSpec();
+        // chartCard guards `if (chart) chart.destroy()`, so returning null is safe -- an
+        // empty Chart.js grid under "Monthly trend" says nothing; a sentence says why.
+        const box = canvas.parentNode;
+        const prev = box.querySelector(".cb-emptychart");
+        if (prev) prev.remove();
+        if (!series.length) {
+          canvas.style.display = "none";
+          const note = document.createElement("div");
+          note.className = "cb-emptychart";
+          note.textContent = `Nothing to trend — every row falls in the “—” bucket for ${CB.rowDim}, `
+            + "so there is no named category to follow month by month.";
+          box.appendChild(note);
+          return null;
+        }
+        canvas.style.display = "";
+        const datasets = series.map((s, i) => ({
+          type: "line", label: s.key,
+          data: months.map(mm => { const v = s.at(mm); return v == null ? null : +(+v).toFixed(2); }),
+          borderColor: PAL[i], backgroundColor: PAL[i], borderWidth: 2, pointRadius: 2, tension: .3,
+        }));
         return new Chart(canvas, {
-          data: { labels: months.map(k => RS.monthName(+k.slice(5)) + " " + k.slice(2, 4)), datasets },
+          data: { labels: months.map(monthLabel), datasets },
           options: { responsive: true, maintainAspectRatio: false,
             interaction: { mode: "index", intersect: false },
             plugins: { legend: { position: "top", labels: { boxWidth: 12 } },
@@ -547,7 +603,20 @@ async function cbRender(host) {
             scales: { x: { ticks: { maxRotation: 45, autoSkip: true, maxTicksLimit: 14 } } } },
         });
       },
-      buildTable: pivotHtml,
+      buildTable() {
+        const { months, series } = trendSpec();
+        if (!series.length) {
+          return `<div class="cb-note">Nothing to trend: every row lands in the “—” bucket for `
+            + `<b>${esc(CB.rowDim)}</b>, so there is no named category to follow month by month.</div>`;
+        }
+        const head = `<tr><th>${esc(CB.rowDim)}</th>`
+          + months.map(mm => `<th class="num">${esc(monthLabel(mm))}</th>`).join("") + "</tr>";
+        const body = series.map(s => `<tr><td>${esc(s.key === "" ? "—" : s.key)}</td>`
+          + months.map(mm => { const v = s.at(mm);
+              return `<td class="num">${v == null ? "—" : esc(mA.fmt(v))}</td>`; }).join("")
+          + "</tr>").join("");
+        return `<table class="tab cb-piv"><thead>${head}</thead><tbody>${body}</tbody></table>`;
+      },
     });
 
     /* ---- wiring ------------------------------------------------------------------ */

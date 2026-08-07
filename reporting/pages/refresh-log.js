@@ -615,11 +615,13 @@ function rlRender(host, runs, cov, fresh) {
     if (String(st.status).toLowerCase() === "error")
       failing.push({ run: p.run.started_at, step: st.step, detail: st.detail });
   }));
-  let alert = "";
+  // NOT `alert`: this is function-scoped and the pause/resume handler below calls the
+  // GLOBAL alert() on its only error path -- shadowed, that call threw instead of reporting.
+  let alertHtml = "";
   if (failing.length) {
     const byStep = {};
     failing.forEach(f => { (byStep[f.step] = byStep[f.step] || []).push(f); });
-    alert = `<div class="rl-alert">
+    alertHtml = `<div class="rl-alert">
       <div class="rl-alert-h">⚠ ${failing.length} failed step${failing.length === 1 ? "" : "s"} in the last ${procs.length} runs</div>
       ${Object.entries(byStep).map(([step, list]) => `<div class="rl-alert-r">
         <b>${RSC.esc(RL.srcLabel({ step }))}</b> — failed ${list.length}× ·
@@ -628,7 +630,7 @@ function rlRender(host, runs, cov, fresh) {
       </div>`).join("")}
     </div>`;
   }
-  host.innerHTML = kpis + alert + freshBoard + rlCoverage(cov) + hero + history;
+  host.innerHTML = kpis + alertHtml + freshBoard + rlCoverage(cov) + hero + history;
   host.querySelectorAll(".rl-run .rl-rhead").forEach(h => h.onclick = () => h.parentNode.classList.toggle("open"));
   host.querySelectorAll(".rl-sw").forEach(b => {
     b.onclick = async () => {
