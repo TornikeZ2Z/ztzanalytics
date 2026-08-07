@@ -127,9 +127,17 @@ async function renderChecks(host) {
     if (!document.getElementById("dq-look")) {
       const st = document.createElement("style"); st.id = "dq-look";
       st.textContent = [
-        // a worklist reads badly at full monitor width: the count ends up a screen away
-        // from the check it belongs to. Cap it and the number sits beside its title.
-        ".dq-head,.dq-card{max-width:var(--rs-row-max);margin-left:auto;margin-right:auto}",
+        // A worklist reads badly at full monitor width: the count ends up a screen away from
+        // the check it belongs to. So each CARD stays capped -- but the cards now sit in a
+        // grid that uses the whole box, instead of one capped column with 700px of nothing
+        // either side. An open card takes the full width, because its table needs it.
+        // (The old rule capped .dq-head too and centred it with margin-left/right:auto --
+        // then the very next rule's `margin:` shorthand reset both to 2px, so the header sat
+        // LEFT while the cards it belongs to sat CENTRED, 350px out of line with each other.)
+        ".dq-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(620px,1fr));"
+        + "gap:0 26px;align-items:start}",
+        ".dq-card{max-width:var(--rs-row-max)}",
+        ".dq-card.open{grid-column:1/-1;max-width:none}",
         ".dq-head{display:flex;align-items:flex-start;gap:16px;flex-wrap:wrap;margin:2px 2px 18px}",
         ".dq-head h1{margin:0 0 5px;font-size:23px;letter-spacing:-.4px}",
         ".dq-head p{margin:0;max-width:640px;color:var(--muted);font-size:13px;line-height:1.55}",
@@ -169,7 +177,7 @@ async function renderChecks(host) {
         </div>
         <div class="dq-score" id="dqScore"><b>…</b><span>rows to fix</span></div>
       </div>
-      <div id="dqChecks"></div>`;
+      <div id="dqChecks" class="dq-list"></div>`;
 
     const cont = document.getElementById("dqChecks");
     const panelById = {};

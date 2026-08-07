@@ -98,7 +98,7 @@ registerPage({
           <div style="display:flex;align-items:center;gap:12px;margin-top:8px;flex-wrap:wrap">
             <input id="mslSearch" type="text" autocomplete="off" spellcheck="false"
               placeholder="Search by moveboard #, customer, or phone…">
-            <span id="mslCount" class="st-note" style="color:var(--muted);font-size:12.5px"></span>
+            <span id="mslCount" style="color:var(--muted);font-size:12.5px"></span>
           </div>
         </div>
         <div id="mslTable" style="padding:2px 6px 10px;overflow-x:auto"></div>

@@ -311,6 +311,12 @@ async function cbRender(host) {
         .cb-piv th[data-s]:hover{color:var(--brand)}
         .cb-piv td.num,.cb-piv th.num{text-align:right;font-variant-numeric:tabular-nums}
         .cb-piv td.b{font-size:10.5px;color:var(--muted)}
+        /* The total row shipped as class="tot" and this sheet never defined it. .tot IS defined
+           -- by monthly-report.js, refresh-log.js and review-performance.js -- so the row was
+           styled only once you had visited one of those in the same session, and differently
+           depending on WHICH. Its own name, defined here. */
+        .cb-piv tr.cb-tot td{border-top:2px solid var(--line-2);font-weight:800;
+          background:var(--panel-2);position:sticky;bottom:0}
         .cb-drill{margin-top:10px}`;
       document.head.appendChild(st);
     }
@@ -438,7 +444,7 @@ async function cbRender(host) {
       if (G.other) body += mk(G.other.key, G.other.rows, G.other.booked, null);
       // the total is over EVERY row in scope, not the visible ones -- so it always ties to
       // the KPI strip above, and Top N never quietly changes what "total" means
-      const tot = `<tr class="tot"><td>Total</td>`
+      const tot = `<tr class="cb-tot"><td>Total</td>`
         + cols.map(c => {
             const rs = rows.filter(r => keyOf(CB.colDim, r) === c);
             const bs = isLeads ? bookedRows.filter(r => keyOf(CB.colDim, r) === c) : [];
