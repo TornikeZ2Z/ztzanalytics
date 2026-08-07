@@ -478,7 +478,7 @@ registerPage({
         loadRubricFor(qm.value);
       };
 
-      main.querySelectorAll(".fa2-rubed input, .fa2-rubed select").forEach(el => {
+      main.querySelectorAll(".fa2-rubed input, .fa2-rubed select, .fa2-qnrow input, .fa2-qnrow select").forEach(el => {
         const commit = () => {
           const row = S.draft[+el.dataset.i]; if (!row) return;
           row[el.dataset.k] = el.dataset.k === "points" ? (+el.value || 0) : el.value;
@@ -489,7 +489,7 @@ registerPage({
         el.onchange = () => { commit(); paintKeepFocus(el); };
         el.onblur = commit;
       });
-      main.querySelectorAll(".fa2-rubed .rbx").forEach(b => {
+      main.querySelectorAll(".fa2-rubed .rbx, .fa2-qnrow .rbx").forEach(b => {
         b.onclick = () => { S.draft.splice(+b.dataset.i, 1); paint(); };
       });
       const add = main.querySelector("#fa2RubAdd");
@@ -508,7 +508,7 @@ registerPage({
       const sel = "." + el.className.split(" ")[0] + '[data-i="' + el.dataset.i + '"]';
       const at = el.selectionStart;
       paint();
-      const again = main.querySelector(".fa2-rubed " + sel);
+      const again = main.querySelector(".fa2-rubed " + sel) || main.querySelector(".fa2-qnrow " + sel);
       if (again) {
         again.focus();
         try { again.setSelectionRange(at, at); } catch (e) { /* number inputs refuse */ }
