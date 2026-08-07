@@ -104,7 +104,13 @@ registerPage({
       + ".fu-card{background:var(--panel);border:1px solid var(--line);border-left:4px solid var(--warn);border-radius:13px;margin-bottom:9px;overflow:hidden}"
       + ".fu-card.ok{border-left-color:var(--line-2)}"
       + ".fu-card.done{border-left-color:var(--pos);opacity:.78}"
-      + ".fu-head{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr) auto;gap:16px;align-items:center;padding:12px 16px;cursor:pointer}"
+      // Four columns, not three. The old 1.35fr first column was ~1160px on a wide screen for
+      // a name and a date that need ~400, so every row read as "foreman ... [canyon] ... verdict".
+      // The station moved out of the sub-line into a column of its own and fills the gap.
+      + ".fu-head{display:grid;grid-template-columns:minmax(0,.9fr) minmax(0,.85fr) minmax(0,1.25fr) auto;"
+      + "gap:16px;align-items:center;padding:12px 16px;cursor:pointer}"
+      + ".fu-where{font-size:12.5px;font-weight:650;color:var(--muted);min-width:0}"
+      + ".fu-where span{display:block;font-size:11px;font-weight:500;color:var(--faint);margin-top:1px}"
       + ".fu-head:hover{background:var(--panel-2)}"
       + ".fu-who{font-size:14.5px;font-weight:750;letter-spacing:-.15px}"
       + ".fu-when{font-size:11px;color:var(--faint);margin-top:1px}"
@@ -300,10 +306,11 @@ registerPage({
               + esc(r.Truck || r["Vehicle Raw"]) + "</span>" : "")
         + "</div>"
         + '<div class="fu-when">' + esc(String(r.Date || "").slice(0, 10))
-        + (r.Time ? " at " + esc(String(r.Time).slice(0, 5)) : "")
-        + " · " + esc(r.Merchant || r["Merchant Name"] || "—")
-        + (r["Merchant City"] ? ", " + esc(r["Merchant City"]) : "")
-        + (r["Merchant State"] ? " " + esc(r["Merchant State"]) : "") + "</div></div>"
+        + (r.Time ? " at " + esc(String(r.Time).slice(0, 5)) : "") + "</div></div>"
+        + '<div class="fu-where">' + esc(r.Merchant || r["Merchant Name"] || "—")
+        + "<span>"
+        + esc([r["Merchant City"], r["Merchant State"]].filter(Boolean).join(" ") || "location not on the card feed")
+        + "</span></div>"
         + "<div>"
         + '<div class="fu-why' + (placed ? " ok" : "") + '">'
         + esc(placed ? (st === "assigned_trip" ? "Trip · " : "On ")

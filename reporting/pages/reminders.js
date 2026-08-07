@@ -616,6 +616,16 @@ registerPage({ id: "review-settings", group: "reviews", title: "Review URLs and 
     function viewLog() {
       var sched = RRP.data && RRP.data.schedule;
       if (!sched) return logFilters() + '<div class="rrp-empty">Waiting for the schedule feed — it appears once the Apps Script is redeployed with the new version. Jobs already sent still show under Refresh.</div>';
+      // An EMPTY array is not the same as a missing feed, and the old guard only caught null:
+      // sched.map([]) returned "", so the page rendered five zeroes, a search box, and a void
+      // with nothing saying why. Say what came back and what still exists.
+      if (!sched.length) {
+        var logged = ((RRP.data && RRP.data.log) || []).length;
+        return logFilters() + '<div class="rrp-empty">The schedule feed came back with <b>no days</b>, so there is nothing to lay out here.'
+          + (logged ? "<br><br>" + N(logged) + " reminder" + (logged === 1 ? " is" : "s are")
+                      + " still recorded in the log — the Reasons tab and Response Analysis read them." : "")
+          + "<br><br>If today's jobs should be listed, press Refresh: the feed is rebuilt by the Apps Script relay.</div>";
+      }
       return logFilters() + viewSchedule(sched);
     }
 
