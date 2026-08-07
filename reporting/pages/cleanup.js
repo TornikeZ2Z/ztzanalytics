@@ -117,10 +117,10 @@ registerPage({
          screen, a long way from the sentence it answers. Text-bearing blocks keep a
          comfortable measure; only the diagrams stretch. */
       + ".cu-opt{display:flex;gap:12px;align-items:flex-start;padding:11px 0;"
-      + "border-top:1px solid var(--line-2);max-width:1180px}"
-      + ".cu-ghd,.cu-msg{max-width:1180px}"
+      + "border-top:1px solid var(--line-2);max-width:var(--rs-row-max)}"
+      + ".cu-ghd,.cu-msg{max-width:var(--rs-row-max)}"
       + ".cu-verdict,.cu-note,.cu-off,.cu-ledhd span,.cu-lwarn,.cu-lnote{max-width:104ch}"
-      + ".cu-led{max-width:1180px}"
+      + ".cu-led{max-width:var(--rs-row-max)}"
       + ".cu-opt:first-child{border-top:0}"
       + ".cu-opt.done{opacity:.5}"
       + ".cu-obody{flex:1;min-width:0}"

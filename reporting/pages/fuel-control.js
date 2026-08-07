@@ -78,7 +78,7 @@ registerPage({
     });
 
     host.innerHTML = '<style id="fuCss">'
-      + ".fu{max-width:1320px;font-variant-numeric:tabular-nums}"
+      + ".fu{font-variant-numeric:tabular-nums}"
       + ".fu-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(168px,1fr));gap:11px;margin-bottom:14px}"
       + ".fu-k{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:13px 16px}"
       + ".fu-k b{display:block;font-size:24px;font-weight:750;letter-spacing:-.5px;line-height:1.15}"

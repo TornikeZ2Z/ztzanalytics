@@ -141,7 +141,11 @@ function rlInjectStyle() {
   .rl-pgnav button{font:inherit;font-size:12.5px;font-weight:700;background:var(--panel);color:var(--ink);border:1px solid var(--line-2);border-radius:9px;padding:7px 14px;cursor:pointer}
   .rl-pgnav button:hover:not(:disabled){border-color:var(--brand)}
   .rl-pgnav button:disabled{opacity:.35;cursor:default}
-  .rl-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px}
+  /* auto-fit, not a hard 4. The fifth tile (oldest feed) only renders when a feed is actually
+     ageing, so a fixed four-column grid left it orphaned across a whole row on its own —
+     a lone card the width of the screen, which reads as an error rather than a stat.
+     auto-fit collapses the empty tracks, so four cards sit four-up and five sit five-up. */
+  .rl-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px;margin-bottom:16px}
   @media(max-width:820px){.rl-kpis{grid-template-columns:repeat(2,1fr)}}
   .rl-kpi{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 16px;box-shadow:var(--shadow);position:relative;overflow:hidden}
   .rl-kpi::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--line-2)}

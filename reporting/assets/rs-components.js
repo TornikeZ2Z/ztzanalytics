@@ -188,9 +188,21 @@ window.RSC = (function () {
   }
 
   /* ---------------- KPI strip ---------------- */
+  /* KPI strip. items: [{label, value, sub?, tone?}] — `value` may carry markup, the rest is escaped.
+     BALANCED ROWS, not auto-fit. `repeat(auto-fit,minmax(150px,1fr))` looks fine at 1400px and
+     falls apart on a 2560px screen: five cards land 4 + 1, and the orphan stretches the full
+     width on its own row. So the column count is computed to divide evenly — five cards are
+     5 across, seven become 4 + 3, never 6 + 1. Below 1400px a media query hands it back to
+     auto-fit, where wrapping is the right answer. */
   function kpis(host, items) {
+    const n = items.length;
+    const MAX = 6;                                  // beyond six the label stops being readable
+    const rows = Math.ceil(n / MAX) || 1;
+    host.style.setProperty("--kpi-cols", Math.ceil(n / rows));
     host.innerHTML = items.map(x =>
-      `<div class="kpi"><div class="l">${esc(x.label)}</div><div class="v">${x.value}</div><div class="s">${esc(x.sub || "")}</div></div>`
+      `<div class="kpi${x.tone ? " " + x.tone : ""}"><div class="l">${esc(x.label)}</div>`
+      + `<div class="v">${x.value}</div>`
+      + `<div class="s">${esc(x.sub || "")}</div></div>`
     ).join("");
   }
 

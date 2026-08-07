@@ -110,6 +110,16 @@ registerPage({
           font-size:13px;font-weight:700;padding:7px 15px;border-radius:8px;cursor:pointer}
         .st-modes button.on{background:var(--brand);color:var(--brand-ink)}
         .st-results{margin-top:12px}
+        /* min(320px,100%) so it never overflows a narrow pane, and auto-fit so the six
+           rungs spread across whatever width the screen actually gives them: 3x2 on a
+           laptop, 6 across on a wide monitor, rather than a fixed column count. */
+        .st-ladder{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(320px,100%),1fr));gap:12px}
+        .st-rung{display:grid;grid-template-columns:auto 1fr;gap:12px;align-items:start;
+          padding:13px 15px;border:1px solid var(--line);border-radius:12px;background:var(--panel-2)}
+        .st-rn{width:26px;height:26px;border-radius:8px;background:var(--brand);color:var(--brand-ink);
+          font-weight:800;font-size:13px;display:flex;align-items:center;justify-content:center}
+        .st-rt{font-size:13.5px;font-weight:700;color:var(--ink)}
+        .st-rd{font-size:12px;color:var(--muted);margin-top:3px;line-height:1.5}
         .st-hit{display:grid;grid-template-columns:auto auto 1fr auto auto;gap:10px 16px;
           align-items:center;padding:10px 14px;border:1px solid var(--line);border-radius:11px;
           margin-bottom:7px;cursor:pointer;background:var(--panel-2)}
@@ -214,7 +224,39 @@ registerPage({
         </div>
         <div id="stResults" class="st-results" style="padding:0 16px 8px"></div>
       </div>
+      <div id="stIdle"></div>
       <div id="stTrace"></div>`;
+
+    /* The page spends most of its life waiting for someone to type, and it used to spend that
+       time as a small box in the corner of an empty screen. The ladder below is the whole
+       point of the report — the order the rungs are tried in is exactly what a trace walks —
+       so showing it while idle answers "how is source decided?" without anyone searching, and
+       gives the screen something to hold. It clears the moment a job is opened. */
+    const LADDER = [
+      { n: 1, t: "Returned / Recommended customer",
+        d: "Booked as a returning or recommended customer. Wins outright — ahead of any phone, lead or postcard match." },
+      { n: 2, t: "Google Local phone match",
+        d: "The customer's phone matched a Google Local lead, and no CallRail postcard overrides it." },
+      { n: 3, t: "Post Card — region from pickup state",
+        d: "Resolves to a Post Card, and the region comes from the pickup state rather than the tracking number's label." },
+      { n: 4, t: "Angi — lead-data match",
+        d: "Matched an Angi lead on its own data. Only ever intercepts the fallback — it never outranks rungs 1–3." },
+      { n: 5, t: "Thumbtack — lead-data match",
+        d: "Same as Angi, one rung lower: it takes the fallback but never beats a higher rung." },
+      { n: 6, t: "Whatever the sheet says",
+        d: "Nothing above matched, so the source stands as recorded — the Closing sheet's own value, or what it was booked from." },
+    ];
+    document.getElementById("stIdle").innerHTML = `
+      <div class="panel">
+        <div class="panel-head"><h3 style="margin:0">How a source is decided</h3>
+          <span class="freshness">the ladder every trace walks, in order — the first rung that matches wins</span></div>
+        <div class="st-ladder">${LADDER.map(r => `
+          <div class="st-rung">
+            <div class="st-rn">${r.n}</div>
+            <div><div class="st-rt">${RSC.esc(r.t)}</div>
+                 <div class="st-rd">${RSC.esc(r.d)}</div></div>
+          </div>`).join("")}</div>
+      </div>`;
 
     const inp = document.getElementById("stSearch");
     const countEl = document.getElementById("stCount");
@@ -306,7 +348,9 @@ registerPage({
       const m = MODES[ST_STATE.mode];
       ST_STATE.sel = key;
       const r = rows.find(x => String(m.key(x)) === String(key));
-      if (!r) { traceEl.innerHTML = ""; return; }
+      const idleEl = document.getElementById("stIdle");
+      if (!r) { traceEl.innerHTML = ""; if (idleEl) idleEl.style.display = ""; return; }
+      if (idleEl) idleEl.style.display = "none";
       m.render(r);
     }
 
@@ -618,6 +662,7 @@ registerPage({
       modesEl.querySelectorAll("button").forEach(b => b.classList.toggle("on", b === btn));
       ST_STATE.mode = btn.dataset.mode; ST_STATE.q = ""; ST_STATE.sel = null;
       inp.value = ""; resultsEl.innerHTML = ""; traceEl.innerHTML = "";
+      { const e = document.getElementById("stIdle"); if (e) e.style.display = ""; }
       if (await loadMode(ST_STATE.mode)) idleCount();
     });
     modesEl.querySelectorAll("button").forEach(b => b.classList.toggle("on", b.dataset.mode === ST_STATE.mode));

@@ -26,7 +26,7 @@ registerPage({
     var S = window.__GT || (window.__GT = { bases: null, loading: false, msg: "" });
 
     host.innerHTML = '<style id="gtCss">'
-      + ".gt-wrap{max-width:1100px}"
+      + ".gt-wrap{max-width:var(--rs-row-max);margin:0 auto}"
       + ".gt-card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:18px 20px;margin-bottom:16px}"
       + ".gt-hd{display:flex;align-items:baseline;gap:10px;margin-bottom:3px}"
       + ".gt-hd b{font-size:15.5px;letter-spacing:-.2px}"
