@@ -708,6 +708,14 @@ registerPage({
           // the balance, so his total lands exactly under the job rows' Net Cash Balance
           // (his ask 2026-07-22); the counts ride along the name as quiet grey text.
           var owes = debtOf(f);
+          /* THE ACTION BELONGS ON THE FOREMAN'S OWN ROW (his ask 2026-08-08). A charge that is
+           * not about any one job had no home on this page -- the Action column exists only on
+           * job rows -- so the only way in was a separate tab: leave the view you are working
+           * in, find the man again, and type his name. His row is where he already is, and the
+           * row already knows who he is. */
+          var fmAction = '<button class="mf-charge" data-mfcharge="' + esc(f) + '"'
+            + ' title="Money he owes that belongs to him and not to a job — a fine, a '
+            + 'repayment, or what he already owed when this started">+ Charge</button>';
           var nameCell = '<td colspan="' + (det ? 5 : PLAN.before) + '"><span class="mf-caret">' + (open ? "▾" : "▸") + "</span>"
             + esc(f) + '<span class="mf-fmmeta">' + g.jobs.length + " job" + (g.jobs.length === 1 ? "" : "s")
             + (g.noCon ? " · " + g.noCon + " no contract" : "") + "</span>"
@@ -723,9 +731,11 @@ registerPage({
             ? '<tr class="mf-fmrow" data-mfx="' + esc(f) + '">' + nameCell
               + '<td class="r">' + money(g.tNet) + "</td><td class=\"r\">" + money(g.tAdv) + "</td>"
               + '<td class="r">' + money(g.tDed) + "</td><td class=\"r\">" + money(g.tFlow) + "</td>"
-              + '<td class="r ' + balCls2 + '">' + money(g.total) + '</td><td colspan="5"></td></tr>'
+              + '<td class="r ' + balCls2 + '">' + money(g.total) + '</td>'
+              + '<td colspan="4"></td><td>' + fmAction + "</td></tr>"
             : '<tr class="mf-fmrow" data-mfx="' + esc(f) + '">' + nameCell
-              + '<td class="r ' + balCls2 + '">' + money(g.total) + '</td><td colspan="' + PLAN.after + '"></td></tr>';
+              + '<td class="r ' + balCls2 + '">' + money(g.total) + '</td>'
+              + '<td colspan="' + (PLAN.after - 1) + '"></td><td>' + fmAction + "</td></tr>";
           if (!open) return head;
           var jobs = g.jobs.slice().sort(function (a, b) { return a.date < b.date ? 1 : -1; });
           return head + jobs.map(jobRow).join("");
@@ -1078,11 +1088,15 @@ registerPage({
 
     /* The entry form. One dialog for all three movements, because they are one ledger:
      * choosing the type is choosing the direction, exactly like the money entries above. */
-    function openFineModal(editId) {
+    function openFineModal(editId, prefill) {
       var e = editId
-        ? (S.fines.entries || []).filter(function (x) { return String(x.id) === String(editId); })[0]
+        ? ((S.fines || {}).entries || []).filter(function (x) { return String(x.id) === String(editId); })[0]
         : null;
       var names = mfForemen();
+      // opened from a foreman's row: he is already chosen, and the dialog says what he owes
+      // today so the number being typed has its context on screen
+      var who = e ? e.Foreman : (prefill || "");
+      var owesNow = who ? debtOf(who) : 0;
       var hostEl = document.getElementById("mfModalHost");
       var t = e ? e["Entry Type"] : "fine";
       hostEl.innerHTML = '<div class="mf-back" id="mfBack"><div class="mf-modal">'
@@ -1403,6 +1417,22 @@ registerPage({
         b.onclick = function (ev2) {
           ev2.stopPropagation();          // the row itself toggles; the button must not
           openFineModal(b.getAttribute("data-mffe"));
+        };
+      });
+      // charge this man from his own row: the dialog opens knowing who, so nothing is typed
+      // twice and nobody charges the wrong person by mistyping a name
+      Array.prototype.forEach.call(root.querySelectorAll("[data-mfcharge]"), function (b) {
+        b.onclick = function (ev2) {
+          ev2.stopPropagation();          // the row toggles his jobs; the button must not
+          var w = b.getAttribute("data-mfcharge");
+          if (!S.fines && !S.finesErr) {
+            // the ledger has not arrived yet -- fetch it first, so the dialog can show what he
+            // already owes rather than opening on a blank it contradicts a second later
+            b.disabled = true; b.textContent = "…";
+            loadFines().then(function () { paint(); openFineModal(null, w); });
+            return;
+          }
+          openFineModal(null, w);
         };
       });
       Array.prototype.forEach.call(root.querySelectorAll("[data-mfdebt]"), function (c) {
