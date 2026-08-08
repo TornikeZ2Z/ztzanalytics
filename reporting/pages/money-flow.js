@@ -145,6 +145,14 @@ registerPage({
         .mf-fnbtn.go{margin-left:auto;border-color:${BLUE};color:${BLUE};background:transparent}
         .mf-fnbtn.go:hover{background:${BLUE};color:#fff}
         .mf-fnowe{color:${NEG}}
+        /* the Action on a foreman's own row: quiet until you look for it, because most rows
+           on most days do not need one */
+        .mf-charge{font:inherit;font-size:12.5px;font-weight:700;color:var(--muted);
+                   background:var(--panel);border:1px solid var(--line-2);border-radius:9px;
+                   padding:7px 13px;cursor:pointer;white-space:nowrap}
+        .mf-charge:hover{color:${NEG};border-color:${NEG}}
+        .mf-tbl .mf-fmrow:hover .mf-charge{border-color:var(--faint)}
+        .mf-tbl .mf-fmrow:hover .mf-charge:hover{border-color:${NEG}}
         .mf-debtchip{margin-left:10px;font-size:11.5px;font-weight:800;color:${NEG};cursor:pointer;
                      border:1px solid ${NEG};border-radius:999px;padding:2px 9px;white-space:nowrap}
         .mf-debtchip:hover{background:${NEG};color:#fff}
@@ -1079,19 +1087,28 @@ registerPage({
       var t = e ? e["Entry Type"] : "fine";
       hostEl.innerHTML = '<div class="mf-back" id="mfBack"><div class="mf-modal">'
         + '<button class="mf-mx" id="mfMx">\u2715</button>'
-        + '<div class="mf-mhead"><b>' + (e ? "Correct this entry" : "Record a fine, repayment or opening balance")
+        + '<div class="mf-mhead"><b>'
+        + (e ? "Correct this entry"
+             : who ? esc(who) : "Record a fine, repayment or opening balance")
         + "</b><div>"
         + (e ? "A correction writes a new row and retires the old one \u2014 nothing is deleted."
-             : "The direction comes from the type. Amounts are always positive.")
+             : (who
+                 ? "Money that belongs to him and not to any one job."
+                   + (owesNow > 0.005 ? " He owes " + money2(owesNow) + " today." : "")
+                   + " The direction comes from the type."
+                 : "The direction comes from the type. Amounts are always positive."))
         + "</div></div>"
         + '<div class="mf-mbody">'
-        + '<div class="mf-fld"><label>Foreman</label>'
-        + (e ? '<input id="mfFnWho" value="' + esc(e.Foreman) + '" disabled>'
-             : '<input id="mfFnWho" list="mfFnList" placeholder="Start typing a name" autocomplete="off">'
-               + '<datalist id="mfFnList">'
-               + names.map(function (n) { return '<option value="' + esc(n) + '">'; }).join("")
-               + "</datalist>")
-        + "</div>"
+        // CHOSEN FROM A ROW -> LOCKED, because the row IS the choice: nothing is typed
+        // twice and nobody charges the wrong man by mistyping a name. Opened from the ledger
+        // with nobody picked -> a name field with the crew behind it.
+        + (who
+            ? '<input type="hidden" id="mfFnWho" value="' + esc(who) + '">'
+            : '<div class="mf-fld"><label>Foreman</label>'
+              + '<input id="mfFnWho" list="mfFnList" placeholder="Start typing a name" autocomplete="off">'
+              + '<datalist id="mfFnList">'
+              + names.map(function (n) { return '<option value="' + esc(n) + '">'; }).join("")
+              + "</datalist></div>")
         + '<div class="mf-fld"><label>What kind of movement</label><select id="mfFnType">'
         + [["fine", "Fine \u2014 we charged him (debt goes up)"],
            ["repayment", "Repayment \u2014 he paid it back (debt goes down)"],
@@ -1124,13 +1141,15 @@ registerPage({
       document.getElementById("mfBack").onclick = function (ev2) {
         if (ev2.target && ev2.target.id === "mfBack") close();
       };
-      var who = document.getElementById("mfFnWho");
-      if (who && !e) who.focus();
+      // land the cursor where the typing actually starts: the name when it is unknown, the
+      // amount when the row has already answered that
+      var firstEl = document.getElementById(who ? "mfFnAmt" : "mfFnWho");
+      if (firstEl && !e) firstEl.focus();
 
       document.getElementById("mfFnSave").onclick = async function () {
         var btn = this, err = document.getElementById("mfFnErr");
         var body = {
-          foreman: e ? e.Foreman : (document.getElementById("mfFnWho").value || "").trim(),
+          foreman: (document.getElementById("mfFnWho").value || "").trim(),
           entry_type: document.getElementById("mfFnType").value,
           amount: num(document.getElementById("mfFnAmt").value),
           date: document.getElementById("mfFnDate").value || "",
