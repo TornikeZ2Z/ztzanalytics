@@ -70,23 +70,13 @@ registerPage({
      * — a third copy of the same six, alongside the loader's and the bridge's, which had to
      * be edited in step. Ramaz owns the rubric now (Tornike, 2026-08-07) and it is versioned
      * by month, so a month scored under a different set of questions still renders the set
-     * it was actually scored under. `k` is what the database stores; a short label for the
-     * chip strip is derived rather than authored, since nobody is going to type one when
-     * they add a question. */
+     * it was actually scored under. `k` is what the database stores. */
     const QS = () => S.rubric || [];
     const NQ = () => QS().length;
     const MANUAL_TOTAL = () => S.manualTotal || 40;
-    const shortOf = q => {
-      const t = String(q.Label || q.Question || "");
-      // Split on the DASHES THAT SEPARATE CLAUSES (em, en, bullet, bracket) but NOT on a
-      // plain hyphen — that one lives inside words, and splitting on it turned
-      // "Long-Distance Capability" into a chip that just said "LONG".
-      const first = t.split(/\s+[—–·]\s+|\s*[([]/)[0].trim();
-      const w = first.split(/\s+/).filter(x => !/^(and|the|of|for|with|to|a|vs)$/i.test(x));
-      // one word is enough when it is distinctive; two when the first is short
-      const lab = !w.length ? t : (w[0].length >= 7 ? w[0] : w.slice(0, 2).join(" "));
-      return lab.slice(0, 20);
-    };
+    // his rule (2026-08-08): with 40 points to share, one question at 20 would quietly BE
+    // the assessment. Mirrors bridge/app.py FA_MAX_QUESTION_POINTS, which is the real gate.
+    const MAX_Q_POINTS = 10;
 
     // the four counted topics, for the "already counted" strip inside each card. Reviews
     // went 20 -> 10 when the manual side went 30 -> 40 (Tornike, 2026-08-07); months before
@@ -157,8 +147,23 @@ registerPage({
       + ".fa2-view i{font-style:normal;font-size:11px;font-weight:800;letter-spacing:.09em;"
       + "text-transform:uppercase;opacity:.7}"
       // ---- the questionnaire admin screen ---------------------------------------------
-      + ".fa2-qn{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:24px 26px 26px}"
-      + ".fa2-qnhead{display:flex;gap:32px;align-items:flex-start;flex-wrap:wrap;margin-bottom:20px}"
+      + ".fa2-qn{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:0 0 26px}"
+      /* THE ACTION BAR STICKS TO THE TOP AND THE BUTTONS SIT TOP-RIGHT -- his ask
+         (2026-08-08). They used to live at the very bottom of a nine-row form, so after
+         editing the fourth question you had to scroll past five more to find out whether
+         you could save. Now the running total and the two buttons follow you down. */
+      + ".fa2-qnact{position:sticky;top:0;z-index:12;display:flex;align-items:center;gap:16px;"
+      + "flex-wrap:wrap;padding:15px 26px;background:var(--panel);border-bottom:1px solid var(--line);"
+      + "border-radius:16px 16px 0 0}"
+      + ".fa2-qnact .run{display:flex;align-items:baseline;gap:9px;margin-right:auto}"
+      + ".fa2-qnact .run b{font-size:27px;font-weight:800;letter-spacing:-.7px;line-height:1;"
+      + "font-variant-numeric:tabular-nums}"
+      + ".fa2-qnact .run span{font-size:13.5px;color:var(--muted)}"
+      + ".fa2-qnact.ok .run b{color:var(--pos)} .fa2-qnact.bad .run b{color:var(--warn)}"
+      + ".fa2-qnact .state{font-size:13.5px;font-weight:750}"
+      + ".fa2-qnact.ok .state{color:var(--pos)} .fa2-qnact.bad .state{color:var(--warn)}"
+      + ".fa2-qnbody{padding:22px 26px 0}"
+      + ".fa2-qnhead{display:flex;gap:32px;align-items:flex-start;flex-wrap:wrap;margin-bottom:22px}"
       + ".fa2-qnhead h2{margin:0 0 6px;font-size:23px;font-weight:800;letter-spacing:-.4px}"
       + ".fa2-qnhead p{margin:0;font-size:13.5px;color:var(--muted);line-height:1.65;max-width:88ch}"
       + ".fa2-qnmon{margin-left:auto;display:flex;flex-direction:column;gap:5px;min-width:230px}"
@@ -166,36 +171,55 @@ registerPage({
       + ".fa2-qnmon select{font:inherit;font-size:15px;font-weight:700;background:var(--panel-2);"
       + "color:var(--ink);border:1px solid var(--line-2);border-radius:11px;padding:10px 13px}"
       + ".fa2-qnmon .hint{font-size:11.5px;color:var(--faint);line-height:1.5}"
-      // the running total, big enough to be the thing you watch while typing
-      + ".fa2-qntot{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;background:var(--panel-2);"
-      + "border:1px solid var(--line);border-radius:13px;padding:16px 20px;margin-bottom:16px;position:relative;overflow:hidden}"
-      + ".fa2-qntot b{font-size:32px;font-weight:800;letter-spacing:-.9px;line-height:1}"
-      + ".fa2-qntot span{font-size:13.5px;color:var(--muted)}"
-      + ".fa2-qntot i{margin-left:auto;font-style:normal;font-size:13px;font-weight:750}"
-      + ".fa2-qntot.ok i{color:var(--pos)} .fa2-qntot.bad i{color:var(--warn)}"
-      + ".fa2-qntot.ok b{color:var(--pos)} .fa2-qntot.bad b{color:var(--warn)}"
-      + ".fa2-qnbar{position:absolute;left:0;right:0;bottom:0;height:4px;background:var(--line)}"
-      + ".fa2-qnbar u{display:block;height:100%;background:var(--brand)}"
-      + ".fa2-qnlist{display:flex;flex-direction:column;gap:11px}"
-      + ".fa2-qnrow{display:grid;grid-template-columns:38px minmax(0,1fr) 118px 210px auto;gap:14px;"
-      + "align-items:start;background:var(--panel-2);border:1px solid var(--line);border-radius:13px;padding:14px 16px}"
-      + ".fa2-qnrow .n{width:30px;height:30px;border-radius:9px;background:var(--panel);border:1px solid var(--line-2);"
-      + "display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;color:var(--faint)}"
+      + ".fa2-qnbar{height:5px;border-radius:3px;background:var(--line);overflow:hidden;"
+      + "width:190px;flex:0 0 auto}"
+      + ".fa2-qnbar u{display:block;height:100%;background:var(--brand);transition:width .2s}"
+      + ".fa2-qnlist{display:flex;flex-direction:column;gap:12px}"
+      + ".fa2-qnrow{display:grid;grid-template-columns:52px minmax(0,1fr) 128px 232px auto;gap:18px;"
+      + "align-items:start;background:var(--panel-2);border:1px solid var(--line);border-radius:14px;"
+      + "padding:17px 19px;transition:border-color .12s,box-shadow .12s}"
+      + ".fa2-qnrow:hover{border-color:var(--line-2)}"
+      /* REORDERING -- his ask (2026-08-08). Drag by the handle (dragging the whole row would
+         fight the text inputs inside it), or use the arrows, which also work from a keyboard
+         and on a touchpad where drag is fiddly. */
+      + ".fa2-qnrow.drag{opacity:.4}"
+      + ".fa2-qnrow.over{border-color:var(--brand);box-shadow:0 -3px 0 -1px var(--brand) inset}"
+      + ".fa2-qnord{display:flex;flex-direction:column;align-items:center;gap:2px}"
+      + ".fa2-qngrip{cursor:grab;font-size:16px;line-height:1;color:var(--faint);padding:2px 6px;"
+      + "border-radius:7px;user-select:none}"
+      + ".fa2-qngrip:hover{color:var(--ink);background:var(--panel)}"
+      + ".fa2-qngrip:active{cursor:grabbing}"
+      + ".fa2-qnmv{font:inherit;font-size:12px;line-height:1;color:var(--faint);background:transparent;"
+      + "border:1px solid transparent;border-radius:6px;padding:2px 7px;cursor:pointer}"
+      + ".fa2-qnmv:hover:not(:disabled){color:var(--brand);border-color:var(--line-2)}"
+      + ".fa2-qnmv:disabled{opacity:.25;cursor:default}"
+      + ".fa2-qnrow .n{width:34px;height:34px;border-radius:10px;background:var(--panel);border:1px solid var(--line-2);"
+      + "display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;color:var(--faint)}"
       + ".fa2-qnrow .f{display:flex;flex-direction:column;gap:7px;min-width:0}"
       + ".fa2-qnrow .p,.fa2-qnrow .s{display:flex;flex-direction:column;gap:5px}"
       + ".fa2-qnrow label{font-size:11px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--faint)}"
-      + ".fa2-qnrow input,.fa2-qnrow select{font:inherit;font-size:14px;background:var(--panel);"
-      + "color:var(--ink);border:1px solid var(--line-2);border-radius:10px;padding:10px 13px;min-width:0}"
-      + ".fa2-qnrow .rbq{font-size:15.5px;font-weight:700}"
-      + ".fa2-qnrow .rbd{font-size:13px;color:var(--muted)}"
+      + ".fa2-qnrow input,.fa2-qnrow select{font:inherit;font-size:15px;background:var(--panel);"
+      + "color:var(--ink);border:1px solid var(--line-2);border-radius:10px;padding:11px 14px;min-width:0}"
+      + ".fa2-qnrow .rbq{font-size:17px;font-weight:700}"
+      + ".fa2-qnrow .rbd{font-size:14px;color:var(--muted)}"
+      + ".fa2-qnrow .p input{font-size:17px;font-weight:800;text-align:center;"
+      + "font-variant-numeric:tabular-nums}"
+      + ".fa2-qnrow .p input.over{border-color:var(--neg);color:var(--neg)}"
+      + ".fa2-qnrow label{display:flex;align-items:baseline;gap:6px}"
+      + ".fa2-qnrow label i{font-style:normal;font-weight:600;letter-spacing:0;text-transform:none;"
+      + "color:var(--faint);font-size:10.5px}"
       + ".fa2-qnrow input:focus,.fa2-qnrow select:focus{outline:none;border-color:var(--brand)}"
       + ".fa2-qnrow select:disabled{opacity:.55;cursor:not-allowed}"
       + ".fa2-qnrow .rbx{align-self:center;font:inherit;font-size:12.5px;font-weight:700;background:transparent;"
       + "color:var(--faint);border:1px solid var(--line-2);border-radius:10px;padding:9px 14px;cursor:pointer;white-space:nowrap}"
       + ".fa2-qnrow .rbx:hover{color:var(--neg);border-color:var(--neg)}"
       + ".fa2-qnrow.rated{border-left:3px solid var(--blue)}"
-      + ".fa2-qnfoot{display:flex;gap:13px;align-items:center;flex-wrap:wrap;margin-top:18px}"
-      + ".fa2-qnfoot .hint{font-size:12px;color:var(--faint);line-height:1.55;max-width:66ch;margin-right:auto}"
+      + ".fa2-qnfoot{display:flex;gap:16px;align-items:center;flex-wrap:wrap;margin-top:20px}"
+      + ".fa2-qnfoot .hint{font-size:12.5px;color:var(--faint);line-height:1.6;max-width:78ch}"
+      + ".fa2-qnadd{font-family:inherit;font-size:14px;font-weight:750;padding:12px 20px;"
+      + "border-radius:12px;border:1px dashed var(--line-2);background:transparent;color:var(--muted);"
+      + "cursor:pointer}"
+      + ".fa2-qnadd:hover{border-color:var(--brand);color:var(--brand);border-style:solid}"
       + "@media(max-width:1150px){.fa2-qnrow{grid-template-columns:1fr;gap:10px}.fa2-qnrow .n{display:none}}"
       // ---- hero ------------------------------------------------------------------------
       // NOT overflow:hidden — the month list hangs out of the hero, and clipping it left
@@ -252,36 +276,34 @@ registerPage({
       // The 1fr was on the NAME, so the name column swallowed ~1050px and the six question
       // chips clumped against the score block with dead space before them. Flexible track
       // moves onto the chip strip (see .fa2-dots below, which now spreads across it).
-      + ".fa2-head{display:grid;grid-template-columns:40px auto minmax(0,1fr) auto;gap:18px;align-items:center;padding:16px 20px;cursor:pointer}"
+      + ".fa2-head{display:grid;grid-template-columns:46px minmax(0,1fr) 172px 172px auto;"
+      + "gap:24px;align-items:center;padding:19px 22px;cursor:pointer}"
       + ".fa2-head:hover{background:var(--panel-2)}"
-      + ".fa2-rk{width:36px;height:36px;border-radius:11px;display:flex;align-items:center;justify-content:center;font-size:14.5px;font-weight:800;background:var(--panel-2);color:var(--muted);border:1px solid var(--line)}"
+      + ".fa2-rk{width:42px;height:42px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:17px;font-weight:800;background:var(--panel-2);color:var(--muted);border:1px solid var(--line)}"
       + ".fa2-rk.top{background:var(--brand);color:var(--brand-ink);border-color:transparent}"
       + ".fa2-rk.oor{background:transparent;color:var(--faint);border-style:dashed}"
-      + ".fa2-nm{font-size:18px;font-weight:750;letter-spacing:-.2px}"
-      + ".fa2-si{font-size:12.5px;color:var(--faint);margin-top:1px}"
+      + ".fa2-nm{font-size:21px;font-weight:750;letter-spacing:-.3px}"
+      + ".fa2-si{font-size:14px;color:var(--faint);margin-top:3px}"
       + ".fa2-si .oor{color:var(--warn);font-weight:650}"
-      + ".fa2-dots{display:flex;gap:8px;flex-wrap:wrap;align-items:center}"
-      // One chip per question -- its short name and the stars given, or a dash where
-      // nobody has rated yet. Six of these fill the middle of the row with real detail
-      // instead of the canyon that sat between a name and its score.
-      + ".fa2-qc{display:flex;align-items:center;gap:8px;padding:7px 13px;border-radius:999px;border:1px solid var(--line);background:var(--panel-2);font-size:10.5px;white-space:nowrap}"
-      + ".fa2-qc b{font-weight:750;color:var(--muted);font-size:12.5px;letter-spacing:0;white-space:nowrap}"
-      + ".fa2-qc u{text-decoration:none;font-weight:800;color:var(--blue);font-variant-numeric:tabular-nums}"
-      + ".fa2-qc.no{border-style:dashed;background:transparent}"
-      + ".fa2-qc.no u{color:var(--faint)}"
-      + "@media(max-width:1500px){.fa2-qc b{font-size:11.5px}}@media(max-width:1150px){.fa2-qc b{display:none}}"
+      + ".fa2-half{display:flex;flex-direction:column;gap:3px;text-align:right}"
+      + ".fa2-half b{font-size:22px;font-weight:750;letter-spacing:-.4px;line-height:1;"
+      + "font-variant-numeric:tabular-nums}"
+      + ".fa2-half b u{text-decoration:none;font-size:14px;font-weight:600;color:var(--faint);margin-left:2px}"
+      + ".fa2-half span{font-size:12px;color:var(--faint);white-space:nowrap}"
+      + "@media(max-width:1250px){.fa2-half{display:none}}"
+
       + ".fa2-sc{display:flex;align-items:center;gap:13px}"
-      + ".fa2-sb{width:160px;height:9px;border-radius:5px;background:var(--panel-2);overflow:hidden;display:flex}"
+      + ".fa2-sb{width:180px;height:11px;border-radius:6px;background:var(--panel-2);overflow:hidden;display:flex}"
       + ".fa2-sb u{display:block;height:100%}"
       + ".fa2-sb u.a{background:var(--brand)} .fa2-sb u.m{background:var(--blue)}"
-      + ".fa2-tot{text-align:right;min-width:74px}"
-      + ".fa2-tot b{font-size:24px;font-weight:800;letter-spacing:-.4px}"
+      + ".fa2-tot{text-align:right;min-width:92px}"
+      + ".fa2-tot b{font-size:31px;font-weight:800;letter-spacing:-.7px}"
       + ".fa2-tot i{display:block;font-style:normal;font-size:11px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--faint);margin-top:1px}"
       + ".fa2-body{display:none;border-top:1px solid var(--line);padding:20px 22px 24px}"
       + ".fa2-card.on .fa2-body{display:block;animation:fa2in .16s ease}"
       + "@keyframes fa2in{from{opacity:0;transform:translateY(-3px)}to{opacity:1;transform:none}}"
-      + ".fa2-sec{font-size:11.5px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;color:var(--faint);margin:4px 0 9px}"
-      + ".fa2-sec b{color:var(--ink);font-size:15px;letter-spacing:0}"
+      + ".fa2-sec{font-size:12px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;color:var(--faint);margin:6px 0 12px}"
+      + ".fa2-sec b{color:var(--ink);font-size:17px;letter-spacing:-.2px}"
       + ".fa2-sec .rescale{text-transform:none;letter-spacing:0;font-weight:500;color:var(--muted)}"
       + ".fa2-tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px;margin-bottom:22px}"
       + ".fa2-tile{background:var(--panel-2);border:1px solid var(--line);border-radius:13px;padding:14px 17px}"
@@ -293,15 +315,22 @@ registerPage({
       + ".fa2-tile .tb i{display:block;height:100%;background:var(--brand)}"
       + ".fa2-tile.na{border-style:dashed} .fa2-tile.na .v{color:var(--faint);font-size:16px;font-weight:600}"
       // ---- questions -------------------------------------------------------------------
-      + /* Cap the TEXT, not the row. max-width on the row put the stars 1100px from the left
-   edge of a much wider card -- floating in the middle of nothing, a long way from the
-   question they rate. Capping the first column keeps the prose readable AND keeps the
-   stars right beside it. */
-      + ".fa2-q{display:grid;grid-template-columns:minmax(0,var(--rs-prose,104ch)) auto 74px;gap:28px;align-items:center;padding:16px 0;border-bottom:1px solid var(--line);justify-content:start}"
-      + ".fa2-q:last-of-type{border-bottom:0}"
-      + ".fa2-q .qt b{font-size:16.5px;font-weight:750;display:block;letter-spacing:-.2px}"
-      + ".fa2-q .qt span{font-size:13px;color:var(--muted);line-height:1.6;display:block;margin-top:5px;max-width:88ch}"
-      + ".fa2-q .qt em{font-style:normal;font-size:11.5px;color:var(--muted);display:block;margin-top:3px}"
+      /* ONE CARD PER QUESTION, ACROSS THE WHOLE WIDTH. The old layout capped the prose at
+         104ch inside a 1700px card, so the text wrapped into a ribbon down the left third
+         and the stars floated in the middle of nothing with the score marooned at the far
+         right -- Tornike's words, "very tiny and stupid text breaks in the 33% of the
+         screen" (2026-08-08). A question is one thing: its wording, how it is answered and
+         what that earned belong in one box, and the boxes tile across the width. */
+      + ".fa2-qgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(430px,1fr));gap:14px}"
+      + ".fa2-q{display:flex;flex-direction:column;gap:0;background:var(--panel-2);"
+      + "border:1px solid var(--line);border-left:4px solid var(--line-2);border-radius:14px;"
+      + "padding:17px 19px 15px;transition:border-color .15s}"
+      + ".fa2-q.rated{border-left-color:var(--pos);background:var(--panel)}"
+      + ".fa2-q .qt b{font-size:17px;font-weight:750;display:block;letter-spacing:-.2px;line-height:1.3}"
+      + ".fa2-q .qt span{font-size:14px;color:var(--muted);line-height:1.6;display:block;margin-top:7px}"
+      + ".fa2-q .qt em{font-style:normal;font-size:12px;color:var(--faint);display:block;margin-top:8px}"
+      + ".fa2-qfoot{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;"
+      + "margin-top:15px;padding-top:14px;border-top:1px solid var(--line)}"
       // ---- the rubric panel: what is being scored, and Ramaz's editor ------------------
       + ".fa2-rub{background:var(--panel);border:1px solid var(--line);border-radius:15px;padding:18px 20px;margin-bottom:14px}"
       + ".fa2-rub.edit{border-color:var(--brand)}"
@@ -333,15 +362,32 @@ registerPage({
       + ".fa2-trib u{text-decoration:none;font-size:12.5px;font-weight:800;opacity:.75;"
       + "font-variant-numeric:tabular-nums}"
       + ".fa2-trib:disabled{cursor:default;opacity:.7}"
-      + ".fa2-q .qw{font-size:11.5px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--faint)}"
+      /* YES / NO -- his ask (2026-08-08). Stored in the same Stars column as everything
+         else (5 or 0), so the mart needs no idea that this control exists. */
+      + ".fa2-bool{display:inline-flex;gap:8px}"
+      + ".fa2-boolb{font:inherit;font-size:15px;font-weight:750;background:var(--panel);"
+      + "color:var(--muted);border:1px solid var(--line-2);border-radius:12px;padding:11px 24px;"
+      + "cursor:pointer;min-width:96px}"
+      + ".fa2-boolb:hover:not(:disabled){border-color:var(--brand)}"
+      + ".fa2-boolb.on.y{background:var(--pos);border-color:var(--pos);color:#fff}"
+      + ".fa2-boolb.on.n{background:var(--neg);border-color:var(--neg);color:#fff}"
+      + ".fa2-boolb:disabled{cursor:default;opacity:.7}"
+      + ".fa2-q .qw{display:inline-block;font-size:12px;font-weight:800;letter-spacing:.03em;"
+      + "color:var(--faint);background:var(--panel);border:1px solid var(--line);"
+      + "border-radius:999px;padding:3px 11px;margin-bottom:9px;font-variant-numeric:tabular-nums}"
+      + ".fa2-q.rated .qw{background:var(--panel-2)}"
       + ".fa2-stars{display:flex;gap:1px;align-items:center}"
-      + ".fa2-star{font-size:30px;line-height:1;cursor:pointer;background:none;border:0;padding:0 2px;color:var(--line-2);transition:transform .07s}"
+      + ".fa2-star{font-size:34px;line-height:1;cursor:pointer;background:none;border:0;padding:0 3px;color:var(--line-2);transition:transform .07s}"
       + ".fa2-star.on,.fa2-star.pv{color:var(--warn)}"
       + ".fa2-star:disabled{cursor:default;opacity:.7}"
       + ".fa2-star:hover:not(:disabled){transform:scale(1.2)}"
       + ".fa2-clr{font-size:11.5px;color:var(--faint);background:none;border:0;cursor:pointer;margin-left:7px;text-decoration:underline;font-family:inherit}"
-      + ".fa2-pts{text-align:right;font-size:19px;font-weight:800;letter-spacing:-.3px}"
-      + ".fa2-pts.un{color:var(--faint);font-weight:500;font-size:12px}"
+      + ".fa2-pts{text-align:right;font-size:27px;font-weight:800;letter-spacing:-.6px;"
+      + "line-height:1;white-space:nowrap;font-variant-numeric:tabular-nums}"
+      + ".fa2-pts small{display:block;font-size:11px;font-weight:800;letter-spacing:.07em;"
+      + "text-transform:uppercase;color:var(--faint);margin-top:5px}"
+      + ".fa2-pts.un{color:var(--faint);font-weight:600;font-size:14px;letter-spacing:0}"
+      + ".fa2-pts.un small{margin-top:4px}"
       // ---- submit bar ------------------------------------------------------------------
       + ".fa2-sub{position:sticky;bottom:18px;margin:18px 26px 0;background:var(--panel);border:1px solid var(--line-2);border-radius:14px;box-shadow:0 14px 38px rgba(0,0,0,.26),var(--shadow);padding:15px 22px;display:flex;flex-wrap:wrap;gap:12px 18px;align-items:center;z-index:6}"
       + ".fa2-sub .t{font-size:14px;color:var(--muted)} .fa2-sub .t b{color:var(--ink);font-size:15.5px}"
@@ -350,7 +396,7 @@ registerPage({
       + ".fa2-go{font-family:inherit;font-size:14px;font-weight:800;padding:12px 24px;border-radius:11px;border:0;background:var(--brand);color:var(--brand-ink);cursor:pointer}"
       + ".fa2-go:hover{background:var(--brand-d)} .fa2-go:disabled{opacity:.6;cursor:default}"
       + ".fa2-empty{padding:52px;text-align:center;color:var(--faint);font-size:15px;background:var(--panel);border:1px dashed var(--line-2);border-radius:14px}"
-      + "@media(max-width:820px){.fa2-q{grid-template-columns:1fr;gap:8px}.fa2-pts{text-align:left}.fa2-stats{margin-left:0}.fa2-st{padding-left:0;padding-right:24px;border-left:0}.fa2-sc{gap:9px}.fa2-sb{width:80px}}"
+      + "@media(max-width:820px){.fa2-qgrid{grid-template-columns:1fr}.fa2-head{grid-template-columns:42px 1fr auto;gap:12px}.fa2-stats{margin-left:0}.fa2-st{padding-left:0;padding-right:24px;border-left:0}.fa2-sc{gap:9px}.fa2-sb{width:80px}}"
       + '</style><div class="fa2"><div id="fa2Main"></div></div>';
 
     const main = host.querySelector("#fa2Main");
@@ -480,7 +526,16 @@ registerPage({
       main.querySelectorAll(".fa2-qnrow input, .fa2-qnrow select").forEach(el => {
         const commit = () => {
           const row = S.draft[+el.dataset.i]; if (!row) return;
-          row[el.dataset.k] = el.dataset.k === "points" ? (+el.value || 0) : el.value;
+          if (el.dataset.k === "points") {
+            // CLAMP HERE, not only on save. The bridge refuses anything over the ceiling,
+            // and finding that out after typing nine questions and pressing Save is the
+            // worst moment to learn it. `over` paints the field red as it happens.
+            const v = +el.value || 0;
+            row.points = v;
+            el.classList.toggle("over", v > MAX_Q_POINTS);
+          } else {
+            row[el.dataset.k] = el.value;
+          }
         };
         // repaint on points/scale (the running total and the Save gate move); leave text
         // alone until blur so the caret is not thrown to the end on every keystroke
@@ -493,6 +548,57 @@ registerPage({
       });
       main.querySelectorAll(".fa2-qnrow .rbx").forEach(b => {
         b.onclick = () => { S.draft.splice(+b.dataset.i, 1); paint(); };
+      });
+
+      /* REORDERING (his ask, 2026-08-08). The order the questions sit in here is the order
+       * the raters see, and it is saved as `Sort Order` — the array index IS the order, so
+       * moving a row is a splice and nothing else has to know. */
+      const move = (from, to) => {
+        const d = S.draft || [];
+        if (from === to || from < 0 || to < 0 || from >= d.length || to >= d.length) return;
+        d.splice(to, 0, d.splice(from, 1)[0]);
+        paint();
+      };
+      main.querySelectorAll(".fa2-qnmv").forEach(b => {
+        b.onclick = () => {
+          const i = +b.dataset.i;
+          move(i, b.dataset.mv === "up" ? i - 1 : i + 1);
+        };
+      });
+      // DRAG BY THE GRIP, NOT THE ROW. A draggable row swallows click-and-drag inside its
+      // own text inputs, which is how a person selects a word to retype it.
+      let dragFrom = null;
+      main.querySelectorAll(".fa2-qngrip").forEach(g => {
+        g.ondragstart = ev => {
+          dragFrom = +g.dataset.grip;
+          ev.dataTransfer.effectAllowed = "move";
+          // Firefox refuses to start a drag with no payload
+          try { ev.dataTransfer.setData("text/plain", String(dragFrom)); } catch (e) { /* ok */ }
+          const row = g.closest(".fa2-qnrow");
+          if (row) row.classList.add("drag");
+        };
+        g.ondragend = () => {
+          dragFrom = null;
+          main.querySelectorAll(".fa2-qnrow").forEach(r => r.classList.remove("drag", "over"));
+        };
+      });
+      main.querySelectorAll(".fa2-qnrow").forEach(row => {
+        row.ondragover = ev => {
+          if (dragFrom == null) return;
+          ev.preventDefault();
+          ev.dataTransfer.dropEffect = "move";
+          row.classList.add("over");
+        };
+        row.ondragleave = () => row.classList.remove("over");
+        row.ondrop = ev => {
+          ev.preventDefault();
+          row.classList.remove("over");
+          if (dragFrom == null) return;
+          const to = +row.dataset.row;
+          const from = dragFrom;
+          dragFrom = null;
+          move(from, to);
+        };
       });
       const add = main.querySelector("#fa2RubAdd");
       if (add) add.onclick = () => {
@@ -513,14 +619,15 @@ registerPage({
       const total = MANUAL_TOTAL();
       const left = Math.round((total - dt) * 10) / 10;
       const ok = Math.abs(dt - total) < 0.05;
-      const box = main.querySelector(".fa2-qntot");
+      // the total lives in the sticky action bar now, so it stays on screen while typing
+      const box = main.querySelector(".fa2-qnact");
       if (box) {
         box.classList.toggle("ok", ok);
         box.classList.toggle("bad", !ok);
-        const b = box.querySelector("b"), i = box.querySelector("i"),
+        const b = box.querySelector(".run b"), st = box.querySelector(".state"),
               bar = box.querySelector(".fa2-qnbar u");
         if (b) b.textContent = fmt1(dt);
-        if (i) i.textContent = ok ? "balanced — ready to save"
+        if (st) st.textContent = ok ? "balanced"
           : left > 0 ? fmt1(left) + " still to give out" : fmt1(-left) + " too many";
         if (bar) bar.style.width = Math.min(100, dt / total * 100).toFixed(0) + "%";
       }
@@ -618,7 +725,23 @@ registerPage({
       const left = Math.round((MANUAL_TOTAL() - dt) * 10) / 10;
       const balanced = Math.abs(dt - MANUAL_TOTAL()) < 0.05;
 
+      // THE ACTION BAR, STICKY AT THE TOP. His ask (2026-08-08): Undo and Save belong
+      // top-right, not at the bottom of a nine-row form where you cannot see whether the
+      // points balance without scrolling past everything you just typed.
       let h = '<div class="fa2-qn">'
+        + '<div class="fa2-qnact' + (balanced ? " ok" : " bad") + '">'
+        + '<div class="run"><b>' + fmt1(dt) + "</b><span>of " + fmt1(MANUAL_TOTAL())
+        + " points given out</span></div>"
+        + '<div class="fa2-qnbar"><u style="width:'
+        + Math.min(100, dt / MANUAL_TOTAL() * 100).toFixed(0) + '%"></u></div>'
+        + '<span class="state">' + (balanced ? "balanced"
+             : left > 0 ? fmt1(left) + " still to give out"
+                        : fmt1(-left) + " too many") + "</span>"
+        + '<button class="fa2-ghost" id="fa2RubCancel" style="margin-left:0">Undo changes</button>'
+        + '<button class="fa2-go" id="fa2RubSave"' + (balanced ? "" : " disabled")
+        + ">Save the questionnaire</button>"
+        + "</div>"
+        + '<div class="fa2-qnbody">'
         + '<div class="fa2-qnhead">'
         + "<div><h2>The questionnaire</h2>"
         + "<p>These are the questions logistics answers for every foreman, and what each one "
@@ -637,45 +760,51 @@ registerPage({
             : "every month is submitted; reopen one to change its questions") + "</span>"
         + "</div></div>";
 
-      if (!months.length) return h + "</div>";
+      if (!months.length) return h + "</div></div>";
 
-      h += '<div class="fa2-qntot' + (balanced ? " ok" : " bad") + '">'
-        + "<b>" + fmt1(dt) + "</b><span>of " + fmt1(MANUAL_TOTAL()) + " points given out</span>"
-        + '<i>' + (balanced ? "balanced — ready to save"
-             : left > 0 ? fmt1(left) + " still to give out"
-                        : fmt1(-left) + " too many") + "</i>"
-        + '<div class="fa2-qnbar"><u style="width:' + Math.min(100, dt / MANUAL_TOTAL() * 100).toFixed(0) + '%"></u></div>'
-        + "</div>";
-
-      h += '<div class="fa2-qnlist">' + d.map((q, i) =>
-          '<div class="fa2-qnrow' + (q.rated ? " rated" : "") + '">'
+      h += '<div class="fa2-qnlist" id="fa2QnList">' + d.map((q, i) =>
+          '<div class="fa2-qnrow' + (q.rated ? " rated" : "") + '" data-row="' + i + '">'
+          // ORDER. The grip is what is draggable, not the row: a draggable row swallows
+          // click-and-drag inside the text inputs, which is how you select a word. The
+          // arrows do the same job from a keyboard and on a touchpad.
+          + '<div class="fa2-qnord">'
+          + '<span class="fa2-qngrip" draggable="true" data-grip="' + i + '" title="Drag to reorder">⠿</span>'
           + '<div class="n">' + (i + 1) + "</div>"
+          + '<button class="fa2-qnmv" data-mv="up" data-i="' + i + '"'
+          + (i === 0 ? " disabled" : "") + ' title="Move up">▲</button>'
+          + '<button class="fa2-qnmv" data-mv="down" data-i="' + i + '"'
+          + (i === d.length - 1 ? " disabled" : "") + ' title="Move down">▼</button>'
+          + "</div>"
           + '<div class="f">'
           + '<input class="rbq" data-i="' + i + '" data-k="label" value="' + esc(q.label)
           + '" placeholder="What is being judged, in the rater\'s words">'
           + '<input class="rbd" data-i="' + i + '" data-k="description" value="'
           + esc(q.description || "") + '" placeholder="How to judge it — the rater reads this under the question">'
           + "</div>"
-          + '<div class="p"><label>Points</label>'
-          + '<input class="rbp" type="number" step="0.5" min="0.5" max="40" data-i="' + i
+          + '<div class="p"><label>Points <i>max ' + fmt1(MAX_Q_POINTS) + "</i></label>"
+          + '<input class="rbp' + ((+q.points || 0) > MAX_Q_POINTS ? " over" : "") + '"'
+          + ' type="number" step="0.5" min="0.5" max="' + MAX_Q_POINTS + '" data-i="' + i
           + '" data-k="points" value="' + q.points + '"></div>'
           + '<div class="s"><label>Answered by</label>'
           + '<select class="rbs" data-i="' + i + '" data-k="scale"'
           + (q.rated ? ' disabled title="already rated this month — how it is answered cannot change"' : "") + ">"
-          + '<option value="stars5"' + (q.scale === "stars5" ? " selected" : "") + ">1–5 stars</option>"
-          + '<option value="tri"' + (q.scale === "tri" ? " selected" : "") + ">None / half / full</option>"
+          + '<option value="stars5"' + (q.scale === "stars5" ? " selected" : "") + ">★ Stars, 1 to 5</option>"
+          + '<option value="bool"' + (q.scale === "bool" ? " selected" : "") + ">Yes or No</option>"
+          // KEPT, NOT OFFERED FIRST. His own Long-Distance question is answered this way
+          // (N7: no long distance scores nothing, regular scores half, regular and straight
+          // scores full). Removing the option would break that question.
+          + '<option value="tri"' + (q.scale === "tri" ? " selected" : "") + ">No / Partly / Fully</option>"
           + "</select></div>"
           + '<button class="rbx" data-i="' + i + '" title="Remove this question">Remove</button>'
           + "</div>").join("") + "</div>";
 
       h += '<div class="fa2-qnfoot">'
-        + '<button class="fa2-ghost" id="fa2RubAdd">+ Add a question</button>'
-        + '<span class="hint">Removing one stops it counting from this month on — nothing '
-        + "already scored is lost. A question that has already been rated this month cannot "
-        + "change how it is answered; add a new one instead.</span>"
-        + '<button class="fa2-ghost" id="fa2RubCancel">Undo changes</button>'
-        + '<button class="fa2-go" id="fa2RubSave"' + (balanced ? "" : " disabled") + ">Save the questionnaire</button>"
-        + "</div></div>";
+        + '<button class="fa2-qnadd" id="fa2RubAdd">+ Add a question</button>'
+        + '<span class="hint">Drag the ⠿ handle or use ▲▼ to change the order — that is the '
+        + "order the raters see. Removing a question stops it counting from this month on; "
+        + "nothing already scored is lost. A question that has already been rated this month "
+        + "cannot change how it is answered — add a new one instead.</span>"
+        + "</div></div></div>";
       return h;
     }
 
@@ -830,16 +959,19 @@ registerPage({
         + '<div><div class="fa2-nm">' + esc(f.Foreman) + "</div>"
         + '<div class="fa2-si">' + fmtN(jobs) + " job" + (jobs === 1 ? "" : "s")
         + (cf ? " · " + fmtN(Math.round(cf)) + " CF" : "")
-        + " · " + (x.full ? "assessed ✓"
-            : x.answered ? x.answered + " of " + NQ() + " rated" : "not rated yet")
         + (x.ok ? "" : ' · <span class="oor">' + esc(x.why) + "</span>")
         + "</div></div>"
-        + '<div class="fa2-dots">' + QS().map(q => {
-            const rq = x.r[q.Question], st = (rq && rq.Stars != null) ? +rq.Stars : null;
-            return '<span class="fa2-qc' + (st == null ? ' no' : '') + '" title="'
-              + esc(q.Label) + ' · worth ' + fmt1(q.Points) + ' points">'
-              + '<b>' + esc(shortOf(q)) + '</b><u>' + (st == null ? '–' : fmt1(st)) + '</u></span>';
-          }).join("") + "</div>"
+        // TWO HALVES AND A TOTAL. The strip of nine per-question chips is gone: at nine
+        // questions it was nine 10px labels nobody read, and he asked for the points and the
+        // count instead. What survives is the shape of the score -- what the warehouse
+        // measured, what a person judged, and whether that judging is finished.
+        + '<div class="fa2-half"><b>' + (x.auto == null ? "—" : fmt1(x.auto))
+        + '<u>/' + countedTotal(f) + "</u></b><span>counted by the system</span></div>"
+        + '<div class="fa2-half"><b>' + fmt1(x.manual)
+        + '<u>/' + fmt1(MANUAL_TOTAL()) + "</u></b><span>"
+        + (x.full ? "all " + NQ() + " rated"
+           : x.answered ? x.answered + " of " + NQ() + " rated"
+           : "nothing rated yet") + "</span></div>"
         + '<div class="fa2-sc"><span class="fa2-sb">'
         + '<u class="a" style="width:' + (x.auto == null ? 0 : x.auto.toFixed(0)) + '%"></u>'
         + '<u class="m" style="width:' + x.manual.toFixed(0) + '%"></u></span>'
@@ -876,16 +1008,27 @@ registerPage({
                + "unanswered question is left out rather than counted as zero, so a part-rated "
                + "man scores below a fully-rated one</span>" : "")
         + "</div>";
-      h += QS().map(q => {
+      h += '<div class="fa2-qgrid">' + QS().map(q => {
         const cur = x.r[q.Question];
         const stars = cur && cur.Stars != null ? +cur.Stars : null;
         const pts = +q.Points || 0;
-        const tri = (q.Scale || "stars5") === "tri";
+        const scale = q.Scale || "stars5";
+        const tri = scale === "tri";
         // THE THREE-WAY CONTROL. Its 0 is an ANSWER ("he runs no long distance"), worth no
         // points — not the absence of one, which is what `clear` writes. Buttons are
         // labelled with what they actually pay, so re-pointing the question re-labels them
         // instead of leaving a stale 0 / 2.5 / 5 on screen.
-        const control = tri
+        const control = scale === "bool"
+          // YES / NO. Stored as 5 or 0 in the same Stars column as everything else, so the
+          // question is worth all of its points or none of them and the mart is none the wiser.
+          ? '<div class="fa2-bool">' + [[5, "Yes", "y"], [0, "No", "n"]].map(o => {
+              const on = stars != null && Math.abs(stars - o[0]) < 0.01;
+              return '<button class="fa2-boolb ' + o[2] + (on ? " on" : "") + '"'
+                + ' data-f="' + esc(f.Foreman) + '" data-q="' + esc(q.Question) + '"'
+                + ' data-s="' + o[0] + '" data-m="' + S.month + '"'
+                + ((S.locked || S.notOpen) ? " disabled" : "") + ">" + o[1] + "</button>";
+            }).join("") + "</div>"
+          : tri
           ? '<div class="fa2-tri">' + [0, 0.5, 1].map(frac => {
               const st = frac * 5, on = stars != null && Math.abs(stars - st) < 0.01;
               // generic on purpose: the rubric is Ramaz's now, and only HE knows what a
@@ -903,19 +1046,23 @@ registerPage({
               + ' data-m="' + S.month + '"'
               + ((S.locked || S.notOpen) ? " disabled" : "") + ' title="' + n2 + " star" + (n2 === 1 ? "" : "s") + '">★</button>').join("")
             + "</div>";
-        return '<div class="fa2-q"><div class="qt"><b>' + esc(q.Label) + "</b>"
-          + '<span class="qw">worth ' + fmt1(pts) + " of " + fmt1(MANUAL_TOTAL()) + "</span>"
+        return '<div class="fa2-q' + (stars != null ? " rated" : "") + '"><div class="qt">'
+          + '<span class="qw">worth ' + fmt1(pts) + "</span>"
+          + "<b>" + esc(q.Label) + "</b>"
           + "<span>" + esc(q.Description || "") + "</span>"
           + (cur && cur["Entered By"] ? "<em>" + esc(String(cur["Entered By"]).split("@")[0])
               + " · " + esc(String(cur["Entered At"] || "").slice(0, 10)) + "</em>" : "")
           + "</div>"
+          + '<div class="fa2-qfoot">'
           + '<div class="fa2-ctl">' + control
           + (stars != null && !S.locked && !S.notOpen ? '<button class="fa2-clr" data-f="' + esc(f.Foreman)
               + '" data-q="' + esc(q.Question) + '" data-m="' + S.month + '">clear</button>' : "")
           + "</div>"
           + '<div class="fa2-pts' + (stars == null ? " un" : "") + '">'
-          + (stars == null ? "unrated" : fmt1(stars / 5 * pts)) + "</div></div>";
-      }).join("");
+          + (stars == null ? "not rated" : fmt1(stars / 5 * pts))
+          + "<small>" + (stars == null ? "of " + fmt1(pts) : "of " + fmt1(pts) + " earned") + "</small>"
+          + "</div></div></div>";
+      }).join("") + "</div>";
       h += "</div></div>";
       return h;
     }
@@ -984,7 +1131,8 @@ registerPage({
       // The three-way control POSTS ITS ZERO. "He runs no long distance" is an answer worth
       // no points, not the absence of one — routing it through the clear path would leave
       // the man showing "8 of 9 rated" for ever and never counting as fully assessed.
-      main.querySelectorAll(".fa2-trib:not(:disabled)").forEach(b => {
+      // ...and so does Yes/No: "No" is an answer worth nothing, not a blank.
+      main.querySelectorAll(".fa2-trib:not(:disabled), .fa2-boolb:not(:disabled)").forEach(b => {
         b.onclick = e => { e.stopPropagation(); rate(b.dataset.f, b.dataset.q, +b.dataset.s, b.dataset.m); };
       });
       main.querySelectorAll(".fa2-star:not(:disabled)").forEach(b => {
