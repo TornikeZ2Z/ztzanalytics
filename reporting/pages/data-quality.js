@@ -93,6 +93,31 @@ async function renderChecks(host) {
             date: r._d || "—", customer: r["Customer"] || "—",
             why: "still open · " + (r["Status"] || "?") })) ] },
 
+      /* N4, his words: "Support may record salary reductions late, so a reduction lands in
+         the wrong month's report." Nobody was keeping the fact that answers it -- when we
+         FIRST saw a row -- so meta_row_first_seen started recording it on 2026-08-07 and
+         mart_recording_lag turns it into days.
+
+         IT SAYS SO WHEN IT KNOWS NOTHING. Every row that already existed on the day the
+         snapshot was first taken carries that moment as its first sighting, which measures
+         when we started looking and not when Support typed anything; those are excluded at
+         source and reported as unmeasurable rather than as very late. Until real arrivals
+         accrue this check is honestly empty, and it fills itself. */
+      { id: "lateness", title: "Recorded late — the month it lands in is not the month it belongs to",
+        desc: "A refund or claim whose amount reached us in a LATER month than the row's own "
+            + "date. Both monthly reports are then right and they disagree. Rows that "
+            + "predate the measurement are excluded, not guessed at.",
+        cols: [{ key: "table", label: "Where" }, { key: "date", label: "Row date" },
+               { key: "seen", label: "Amount arrived" }, { key: "days", label: "Days late" }],
+        compute: x => (x.lag || [])
+          .filter(r => +r["Landed In A Later Month"] === 1)
+          .sort((a, b) => (+b["Days To Record"] || 0) - (+a["Days To Record"] || 0))
+          .map(r => ({
+            table: r["Source"] || "—",
+            date: String(r["Row Date"] || "—").slice(0, 10),
+            seen: String(r["Valued At"] || r["First Seen"] || "—").slice(0, 10),
+            days: r["Days To Record"] == null ? "—" : String(r["Days To Record"]) })) },
+
       { id: "dates", title: "Bad dates",
         desc: "Refunds dated in the future or before their move, and move / refund dates whose year looks wrong (before 2019 or after next year). Blank move dates only show when the Date filter is cleared or wide.",
         cols: [{ key: "problem", label: "Problem" }, { key: "table", label: "Where" },
@@ -238,9 +263,12 @@ async function renderChecks(host) {
 
     /* ---------------- 3) compute in the background, painting progressively ---------------- */
     await _tick();   // let the shell paint before we start the heavy work
-    const [closingAll, moveboardAll, refundsAll, leadsAll, claimsAll] = await Promise.all([
+    const [closingAll, moveboardAll, refundsAll, leadsAll, claimsAll, lagAll] = await Promise.all([
       RS.load("closing"), RS.load("moveboard"), RS.load("refunds"),
-      RS.load("leads"), RS.load("claims")]);
+      RS.load("leads"), RS.load("claims"),
+      // young table, and it may not exist at all on an instance that has not rebuilt yet --
+      // a failure here must not take the whole page down with it
+      RS.load("recording_lag").catch(() => [])]);
     await _tick();
 
     // filter each dataset with a yield between them (keeps the longest block short)
@@ -253,6 +281,9 @@ async function renderChecks(host) {
     ctx.refunds = since(RS.filtered("refunds", refundsAll)); await _tick();
     ctx.leads = since(RS.filtered("leads", leadsAll)); await _tick();
     ctx.claims = since(RS.filtered("claims", claimsAll)); await _tick();
+    // NOT date-scoped by `since`: the whole point is a row whose own date is old and whose
+    // money arrived late, so cutting on the row date would hide exactly the cases wanted
+    ctx.lag = lagAll || []; await _tick();
 
     // shared predicates / helpers passed to each check's compute()
     const isTrip = r => String(r["Record Source"] || "").trim().toLowerCase() === "trip";

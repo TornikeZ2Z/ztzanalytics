@@ -90,10 +90,18 @@ window.RS = (function () {
         "Total To Carrier", "Total Bill", "Card Payment", "Balance Due", "Sales Person"],
       dateCols: { "Date": "Date" }, defaultDate: "Date",
     },
+    // HOW LATE A ROW WAS RECORDED (N4). Built from meta_row_first_seen, which has only been
+    // collecting since 2026-08-07 -- so it answers nothing yet and everything in a month.
+    recording_lag: {
+      table: "mart_recording_lag",
+      cols: ["Source", "Row Date", "Row Month", "First Seen", "Valued At",
+        "Predates Measurement", "Days To Record", "Landed In A Later Month"],
+      dateCols: { "Row Date": "Row Date" }, defaultDate: "Row Date",
+    },
     claims: {
       table: "fct_claims",
       cols: ["Created Date", "Customer", "Request No", "Group", "Status", "Reason",
-        "Responsibility", "Request Joinkey"],
+        "Responsibility", "Request Joinkey", "Foreman"],
       dateCols: { "Created Date": "Created Date" }, defaultDate: "Created Date",
     },
     negative_reviews: {
@@ -322,7 +330,10 @@ window.RS = (function () {
     company:     { label: "Company",      closing: "Company",       moveboard: "Company",        storage: "Company", refunds: "Company", long_distance: "Company", negative_reviews: "Company", reviews_breakdown: "Company", card_expenses: "Company", callrail: "Company", leads: "Company", review_counts: "Company", review_goals: "Company", lead_journey: "Company" },
     source:      { label: "Source",       closing: "Source",        moveboard: "Source",         refunds: "Source", long_distance: "Source", negative_reviews: "Source", reviews_breakdown: "Source", card_expenses: "Source", callrail: "Source", leads: "Source", lead_journey: "Source" },
     state:       { label: "State",        closing: "State",         moveboard: "State",          leads: "State", lead_journey: "State" },
-    foreman:     { label: "Foreman",      closing: "Foreman",       refunds: "Foreman",          scorecard: "Foreman" },
+    // claims joined 2026-08-08: the slicer used to skip this dataset entirely, so filtering
+    // to one foreman left every other foreman's claims on screen -- a silent no-op, which is
+    // worse than the greyed-out state the shell shows for a field a page genuinely lacks
+    foreman:     { label: "Foreman",      closing: "Foreman",       refunds: "Foreman",          scorecard: "Foreman", claims: "Foreman" },
     // Reviews have NO relationship to Sales Person in PBI — omit reviews_breakdown so the
     // sales slicer skips reviews (it used to zero them). moveboard `Assigned` now carries the
     // Full Name (curated fct_moveboard) so it matches the Full-Name slicer options like closing.

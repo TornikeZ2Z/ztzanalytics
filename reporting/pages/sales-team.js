@@ -30,6 +30,11 @@
   // lead) drop off the Rep Profile instead of showing "Not enough data".
   const ASSESS_MIN = 20;
   let ST_LAST_TAB = "team";   // remembers the active tab across a global page re-render
+  // WHO IS BEING COMPARED, module-level for the same reason as the tab above: `ctx` is a
+  // fresh object literal on every render, so anything kept there is wiped the moment the
+  // global filter bar fires window.renderPage() -- change the date range and your two reps
+  // would silently snap back to the two biggest books.
+  let ST_CMP_A = null, ST_CMP_B = null;
   const TH_KEY = "st_thresholds_v1";
   const thDefaults = { slowMin: 30, neverPct: 10, convFrac: 0.5, minLeads: 5 };
   const thGet = () => { try { return { ...thDefaults, ...(JSON.parse(localStorage.getItem(TH_KEY)) || {}) }; } catch (e) { return { ...thDefaults }; } };
@@ -172,6 +177,37 @@
     .st-toolbar select{background:var(--panel-2);border:1px solid var(--line);border-radius:10px;color:var(--ink);font:inherit;font-size:13px;font-weight:600;padding:9px 11px;outline:0;cursor:pointer;transition:border-color .15s}
     .st-toolbar select:hover{border-color:var(--line-2)} .st-toolbar select:focus{border-color:var(--brand)}
     .st-bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
+    /* ---- Compare (N1) ---- */
+    .cmp-wrap{background:var(--panel);border:1px solid var(--line);border-radius:15px;overflow:hidden}
+    .cmp-head{display:grid;grid-template-columns:1fr 56px 1fr;gap:14px;align-items:end;
+              padding:20px 24px;border-bottom:1px solid var(--line);background:var(--panel-2)}
+    .cmp-pick{display:flex;flex-direction:column;gap:6px;min-width:0}
+    .cmp-pick label{font-size:11px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;color:var(--faint)}
+    .cmp-pick select{font:inherit;font-size:16px;font-weight:700;background:var(--panel);
+                     color:var(--ink);border:1px solid var(--line-2);border-radius:11px;padding:11px 14px;
+                     max-width:100%}
+    .cmp-pick select:focus{outline:none;border-color:var(--brand)}
+    .cmp-vs{text-align:center;font-size:13px;font-weight:800;letter-spacing:.1em;
+            text-transform:uppercase;color:var(--faint);padding-bottom:14px}
+    .cmp-score{padding:16px 24px;font-size:15.5px;border-bottom:1px solid var(--line)}
+    .cmp-score b{font-weight:800}
+    .cmp-tbl{width:100%;border-collapse:collapse;font-size:14.5px}
+    .cmp-tbl th{font-size:11.5px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;
+                color:var(--faint);text-align:right;padding:13px 24px;border-bottom:1px solid var(--line)}
+    .cmp-tbl th:first-child{text-align:left}
+    .cmp-tbl td{padding:13px 24px;border-bottom:1px solid var(--line);text-align:right;
+                vertical-align:top;font-variant-numeric:tabular-nums}
+    .cmp-tbl tr:last-child td{border-bottom:0}
+    .cmp-l{text-align:left !important;font-weight:650;font-size:15px}
+    .cmp-l .st-dim{display:block;font-size:11.5px;font-weight:600;margin-top:2px}
+    .cmp-a,.cmp-b{font-size:17px;font-weight:750;width:20%}
+    .cmp-a i,.cmp-b i{display:block;font-style:normal;font-size:11px;color:var(--faint);font-weight:600;margin-top:2px}
+    .cmp-a u,.cmp-b u{display:block;text-decoration:none;font-size:11px;color:var(--faint);font-weight:700;margin-top:1px}
+    .cmp-d{width:20%;font-size:17px;font-weight:800;color:var(--faint)}
+    .cmp-d.up{color:var(--pos)} .cmp-d.down{color:var(--neg)}
+    .cmp-sec td{background:var(--panel-2);font-size:11.5px;font-weight:800;letter-spacing:.09em;
+                text-transform:uppercase;color:var(--faint);text-align:left !important;padding:11px 24px}
+    @media(max-width:820px){.cmp-head{grid-template-columns:1fr}.cmp-vs{padding:0}}
     .st-bar select{background:var(--panel);border:1px solid var(--line);border-radius:10px;color:var(--ink);font:inherit;font-size:13px;padding:9px 11px;outline:0;cursor:pointer}
     .st-chips{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:13px}
     .st-chip{appearance:none;border:1px solid var(--line-2);background:var(--panel);border-radius:999px;color:var(--muted);font:inherit;font-size:12.5px;font-weight:700;padding:7px 15px;cursor:pointer;transition:.13s}
@@ -1167,6 +1203,155 @@
       : `color-mix(in srgb, var(--red) ${Math.round(-x * 62)}%, transparent)`;
   }
 
+
+  /* COMPARE — his N1, "Sales Dashboard-ში გვჭირდება COMPARE SALES ფუნქცია". Rep vs rep
+   * first, period vs period second (his order).
+   *
+   * It reuses repBook() untouched, which already computes EVERY rep in one pass: the whole
+   * feature is call once, paint two, subtract. That also means the two columns cannot drift
+   * apart — they are the same numbers the Team table and the Rep Profile show, on the same
+   * date filter, computed by the same code. A second implementation would have been a second
+   * set of answers.
+   *
+   * The DIFFERENCE is the point, so it is the widest column and the one that is coloured;
+   * better/worse follows each metric's own direction, because a low first-call time and a
+   * high margin are both good and nobody should have to remember which is which. */
+  function renderCompare(host, ctx) {
+    const book = repBook(ctx);
+    const th = thGet();
+    const reps = Object.values(book).filter(p =>
+      p.name && p.name !== "Unassigned" && !excluded(p.name) && !inactive(p) &&
+      p.leads >= ASSESS_MIN);
+    reps.sort((a, b) => b.leads - a.leads);
+    if (reps.length < 2) {
+      host.innerHTML = `<div class="st-card">Two reps are needed to compare — the current
+        filter leaves ${reps.length}.</div>`;
+      return;
+    }
+
+    // remembered across renders; default to the two biggest books so the tab is never empty
+    // a remembered rep who has dropped out of the current filter falls back rather than
+    // rendering an empty column
+    if (!ST_CMP_A || !reps.some(p => p.name === ST_CMP_A)) ST_CMP_A = reps[0].name;
+    if (!ST_CMP_B || ST_CMP_B === ST_CMP_A || !reps.some(p => p.name === ST_CMP_B)) {
+      ST_CMP_B = (reps.find(p => p.name !== ST_CMP_A) || reps[0]).name;
+    }
+
+    const opts = (sel) => reps.map(p =>
+      `<option value="${esc(p.name)}"${p.name === sel ? " selected" : ""}>${esc(p.name)}
+       — ${RS.fmtN(p.leads)} leads</option>`).join("");
+
+    host.innerHTML = `
+      <div class="st-bar">
+        <span class="st-dim" style="font-size:12.5px">Both columns are the same numbers the
+          Team table shows, on the same date filter.</span>
+        <span style="flex:1"></span>
+        <button class="st-chip" id="cmpSwap">⇄ Swap</button></div>
+      <div class="cmp-wrap">
+        <div class="cmp-head">
+          <div class="cmp-pick"><label>Rep A</label>
+            <select id="cmpA">${opts(ST_CMP_A)}</select></div>
+          <div class="cmp-vs">vs</div>
+          <div class="cmp-pick"><label>Rep B</label>
+            <select id="cmpB">${opts(ST_CMP_B)}</select></div>
+        </div>
+        <div id="cmpBody"></div>
+      </div>`;
+
+    const reRender = () => renderCompare(host, ctx);
+    host.querySelector("#cmpA").onchange = e => {
+      ST_CMP_A = e.target.value;
+      if (ST_CMP_A === ST_CMP_B) ST_CMP_B = null;   // re-picked above
+      reRender();
+    };
+    host.querySelector("#cmpB").onchange = e => {
+      ST_CMP_B = e.target.value;
+      if (ST_CMP_A === ST_CMP_B) ST_CMP_A = null;
+      reRender();
+    };
+    host.querySelector("#cmpSwap").onclick = () => {
+      const t = ST_CMP_A; ST_CMP_A = ST_CMP_B; ST_CMP_B = t; reRender();
+    };
+
+    paintCompare(host.querySelector("#cmpBody"), book, ST_CMP_A, ST_CMP_B, th);
+  }
+
+  function paintCompare(host, book, nameA, nameB, th) {
+    const A = book[nameA], B = book[nameB];
+    if (!A || !B) { host.innerHTML = ""; return; }
+    const elig = q => q.leads >= ASSESS_MIN && q.name !== "Unassigned" && !excluded(q.name) && !inactive(q);
+    const eligCall = q => elig(q) && (q.call.outDials + q.call.inTotal) >= 200;
+
+    // THE SIZE OF THE BOOK comes first: every rate below is read differently at 40 leads
+    // than at 400, and putting it in the metric list would bury it.
+    const vol = [
+      ["Leads", A.leads, B.leads, "hi", RS.fmtN],
+      ["Qualified", A.qual, B.qual, "hi", RS.fmtN],
+      ["Confirmed", A.conf, B.conf, "hi", RS.fmtN],
+      ["Revenue", A.rev, B.rev, "hi", money0],
+    ];
+    const volHtml = vol.map(([l, a, b, dir, f]) => {
+      const d = (a || 0) - (b || 0);
+      return `<tr><td class="cmp-l">${l}</td>
+        <td class="cmp-a">${f(a)}</td><td class="cmp-b">${f(b)}</td>
+        <td class="cmp-d ${d === 0 ? "" : ((d > 0) === (dir === "hi") ? "up" : "down")}">
+          ${d === 0 ? "—" : (d > 0 ? "+" : "−") + f(Math.abs(d))}</td></tr>`;
+    }).join("");
+
+    const rows = METRICS.map(m => {
+      const isCall = m.key.indexOf("call.") === 0;
+      const el = isCall ? eligCall : elig;
+      const va = keyVal(A, m.key), vb = keyVal(B, m.key);
+      const ra = rankOn(book, nameA, m.key, m.dir, el);
+      const rb = rankOn(book, nameB, m.key, m.dir, el);
+      // NOT MEASURABLE IS NOT A DRAW. A rep with too few closed jobs to have a margin must
+      // not read as "level with" someone who has one — say so and colour nothing.
+      const both = va != null && vb != null;
+      const d = both ? va - vb : null;
+      const better = d == null || Math.abs(d) < 1e-9 ? "" : ((d > 0) === (m.dir === "hi") ? "up" : "down");
+      const nA = METRIC_N[m.key] ? (METRIC_N[m.key](A) || 0) : null;
+      const nB = METRIC_N[m.key] ? (METRIC_N[m.key](B) || 0) : null;
+      return `<tr>
+        <td class="cmp-l">${m.label}
+          <span class="st-dim">${m.dir === "hi" ? "higher is better" : "lower is better"}${
+            isCall ? " · all-time" : ""}</span></td>
+        <td class="cmp-a">${m.fmt(va)}${nA != null ? `<i>n=${nA}</i>` : ""}${
+          ra ? `<u>#${ra.rank} of ${ra.of}</u>` : ""}</td>
+        <td class="cmp-b">${m.fmt(vb)}${nB != null ? `<i>n=${nB}</i>` : ""}${
+          rb ? `<u>#${rb.rank} of ${rb.of}</u>` : ""}</td>
+        <td class="cmp-d ${better}">${
+          !both ? `<span class="st-dim">not comparable</span>`
+                : Math.abs(d) < 1e-9 ? "—"
+                : (d > 0 ? "+" : "−") + m.fmt(Math.abs(d))}</td></tr>`;
+    }).join("");
+
+    const wins = METRICS.filter(m => {
+      const va = keyVal(A, m.key), vb = keyVal(B, m.key);
+      if (va == null || vb == null || va === vb) return false;
+      return (va > vb) === (m.dir === "hi");
+    }).length;
+    const comparable = METRICS.filter(m =>
+      keyVal(A, m.key) != null && keyVal(B, m.key) != null).length;
+
+    host.innerHTML = `
+      <div class="cmp-score">
+        <b>${esc(nameA)}</b> leads on <b>${wins}</b> of the <b>${comparable}</b> measures
+        both can be scored on${comparable < METRICS.length
+          ? ` <span class="st-dim">· ${METRICS.length - comparable} not comparable</span>` : ""}
+      </div>
+      <table class="cmp-tbl">
+        <thead><tr><th></th>
+          <th class="cmp-a">${esc(nameA)}</th>
+          <th class="cmp-b">${esc(nameB)}</th>
+          <th class="cmp-d">Difference</th></tr></thead>
+        <tbody>
+          <tr class="cmp-sec"><td colspan="4">The size of the book</td></tr>
+          ${volHtml}
+          <tr class="cmp-sec"><td colspan="4">How well it was worked</td></tr>
+          ${rows}
+        </tbody></table>`;
+  }
+
   function renderRep(host, ctx) {
     const book = repBook(ctx);
     const th = thGet();
@@ -1634,7 +1819,8 @@
           <p>Every lead's full story — calls, texts, routing, and the money it became.
           <span class="freshness">· leads count by created date · confirmations by confirmed date</span></p></div>
         <div class="st-tabbar" id="stTabs"></div><div id="stHost"></div></div>`;
-      const TABS = [["team", "Team"], ["rep", "Rep Profile"], ["explorer", "Lead Explorer"]];
+      const TABS = [["team", "Team"], ["rep", "Rep Profile"], ["compare", "Compare"],
+                    ["explorer", "Lead Explorer"]];
       const tabsEl = host.querySelector("#stTabs");
       const hostEl = host.querySelector("#stHost");
       let active = ST_LAST_TAB;   // survive a global re-render (e.g. the rep→Explorer jump)
@@ -1734,6 +1920,7 @@
         }
         if (k === "team") return renderTeam(hostEl, ctx);
         if (k === "rep") return renderRep(hostEl, ctx);
+        if (k === "compare") return renderCompare(hostEl, ctx);
         return renderExplorer(hostEl, ctx);
       };
       paintTabs();

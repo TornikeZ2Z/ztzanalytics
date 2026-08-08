@@ -1273,7 +1273,15 @@ registerPage({
         var advEl = document.getElementById("mfMAdv");
         var adv = advEl.disabled ? null : num(advEl.value);
         var note = document.getElementById("mfMNote").value.trim();
-        if (amt == null || amt < 0) { errEl.innerHTML = '<div class="mf-merr">Enter the amount (a positive number).</div>'; return; }
+        // A BLANK AMOUNT IS AN ANSWER: "nothing was handed over, but he owes a deduction."
+        // Demanding a number here made the deduction-only case unsaveable (Ryan Lester), and
+        // the only way through was to invent a cash entry that never happened. Blank now
+        // means no cash entry is recorded at all; the deduction and advance save on their own.
+        if (amt != null && amt < 0) {
+          errEl.innerHTML = '<div class="mf-merr">The amount must be a positive number — '
+            + "which way the money went is set by the Type.</div>";
+          return;
+        }
         // the write path is positive-only: direction comes from the TYPE, and the bridge
         // rejects negatives — catch a typed minus here with words, not an HTTP 400
         if (ded != null && ded < 0) { errEl.innerHTML = '<div class="mf-merr">Forman Deduction must be a positive number.</div>'; return; }
@@ -1285,14 +1293,26 @@ registerPage({
         // only what CHANGED gets recorded — an untouched deduction/advance writes nothing
         var posts = [];
         var curFlow = r.flow == null ? null : r.flow;
-        var newFlow = type === "Cash Taken Away from Base" ? -amt : amt;
-        if (curFlow == null || Math.abs(newFlow - curFlow) > 0.009)
-          posts.push({ entry_type: type, amount: amt, note: note || "confirmed" });
+        // no amount typed -> no cash entry. Without this guard a blank field posted `null`
+        // as an amount and the bridge answered 400.
+        if (amt != null) {
+          var newFlow = type === "Cash Taken Away from Base" ? -amt : amt;
+          if (curFlow == null || Math.abs(newFlow - curFlow) > 0.009)
+            posts.push({ entry_type: type, amount: amt, note: note || "confirmed" });
+        }
         if (ded != null && Math.abs(ded - Math.abs(r.ded || 0)) > 0.009)
           posts.push({ entry_type: "Forman Deduction", amount: ded, note: note });
         if (adv != null && Math.abs(adv - (r.adv || 0)) > 0.009)
           posts.push({ entry_type: "Advance Payment", amount: adv, note: note });
-        if (!posts.length) { close(); return; }
+        if (!posts.length) {
+          // nothing typed anywhere is a mistake, not a no-op: the person pressed Save
+          if (amt == null && ded == null && adv == null) {
+            errEl.innerHTML = '<div class="mf-merr">Nothing to save — enter an amount, a '
+              + "deduction or an advance.</div>";
+            return;
+          }
+          close(); return;
+        }
         var sv = document.getElementById("mfMSave");
         sv.disabled = true; sv.textContent = "Saving…";
         var saved = 0;
