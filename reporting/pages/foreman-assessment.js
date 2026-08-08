@@ -330,7 +330,7 @@ registerPage({
       + ".fa2-q .qt b{font-size:17px;font-weight:750;display:block;letter-spacing:-.2px;line-height:1.3}"
       + ".fa2-q .qt span{font-size:14px;color:var(--muted);line-height:1.6;display:block;margin-top:7px}"
       + ".fa2-q .qt em{font-style:normal;font-size:12px;color:var(--faint);display:block;margin-top:8px}"
-      + ".fa2-q .qt span{width:100%}"
+      + ".fa2-q .qt span:not(.qw){width:100%}"
       + ".fa2-qfoot{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;"
       + "margin-top:15px;padding-top:14px;border-top:1px solid var(--line)}"
       // ---- the rubric panel: what is being scored, and Ramaz's editor ------------------
