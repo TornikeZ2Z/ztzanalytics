@@ -147,6 +147,8 @@ registerPage({
         .mf-fnowe{color:${NEG}}
         /* the Action on a foreman's own row: quiet until you look for it, because most rows
            on most days do not need one */
+        .mf-modal-sm{max-width:440px}
+        .mf-tbl td.ck input.mf-paidck{accent-color:var(--pos)}
         .mf-debtrow td{background:var(--panel-2)}
         .mf-debtrow b{font-weight:750}
         .mf-tbl .mf-debtrow:hover td{background:var(--line)}
@@ -689,7 +691,12 @@ registerPage({
           + "fines and opening balances \u00b7 not tied to any one job</span>";
         var act = '<button class="mf-confirm" data-mfpaid="' + esc(name) + '">Mark paid '
           + money2(owes) + "</button>";
-        var ck = '<td class="ck"><input type="checkbox" class="mf-ck" data-mfpaidck="'
+        // NOT class `mf-ck`. That class is the bulk-confirm hook, and its wiring runs AFTER
+        // this row's and assigns (not adds) onchange -- so it silently replaced this handler
+        // with the job-selection one. Ticking ran `S.sel[null] = true`, repainted, and the
+        // box came back empty: a checkbox that did nothing at all, which is what Tornike hit
+        // (2026-08-10). It is dressed by `td.ck input`, so the class was never load-bearing.
+        var ck = '<td class="ck"><input type="checkbox" class="mf-paidck" data-mfpaidck="'
           + esc(name) + '" title="Tick when he has paid what he owes"></td>';
         return '<tr class="mf-row mf-debtrow">' + ck
           + (det
@@ -1459,14 +1466,43 @@ registerPage({
        * writes money, and a checkbox that settles a debt on a mis-click is not a feature.
        * Unticking is not "unpay" -- the repayment is a ledger entry, and taking it back is a
        * correction in the ledger, where it leaves a trace. */
+      /* ASKED IN THE PAGE'S OWN WORDS. window.confirm() is the browser's dialog: it cannot
+       * be styled, it says the page's hostname above the question, and it looks like the
+       * thing a scam site shows you -- a poor frame for "did this man hand over $340". This
+       * is the same modal shell every other confirmation here uses. */
+      var askPaid = function (name, owed, onYes) {
+        var hostEl = document.getElementById("mfModalHost");
+        hostEl.innerHTML = '<div class="mf-back" id="mfBack"><div class="mf-modal mf-modal-sm">'
+          + '<button class="mf-mx" id="mfMx">\u2715</button>'
+          + '<div class="mf-mhead"><b>' + esc(name) + " has paid " + money2(owed) + "?</b>"
+          + "<div>This records a repayment against what he owes. It does not touch any job, "
+          + "and it stays in his ledger where it can be corrected.</div></div>"
+          + '<div class="mf-mbody"><div id="mfPayErr"></div><div class="mf-mfoot">'
+          + '<button class="mf-cancel" id="mfPayNo">Not yet</button>'
+          + '<button class="mf-save" id="mfPayYes">Yes, he paid ' + money2(owed) + "</button>"
+          + "</div></div></div></div>";
+        var close = function () { hostEl.innerHTML = ""; paint(); };   // paint clears the tick
+        document.getElementById("mfMx").onclick = close;
+        document.getElementById("mfPayNo").onclick = close;
+        document.getElementById("mfBack").onclick = function (e) {
+          if (e.target && e.target.id === "mfBack") close();
+        };
+        document.getElementById("mfPayYes").onclick = function () {
+          var b = this; b.disabled = true; b.textContent = "Recording\u2026";
+          // ok() closes; fail() keeps the dialog open with the reason ON it, because a
+          // failure that only exists in the console is a failure nobody acts on
+          onYes(function () { hostEl.innerHTML = ""; }, function (msg) {
+            var er = document.getElementById("mfPayErr");
+            if (er) er.innerHTML = '<div class="mf-merr">' + esc(msg) + "</div>";
+            b.disabled = false; b.textContent = "Try again";
+          });
+        };
+      };
+
       var markPaid = function (name) {
         var owed = debtOf(name);
         if (!(owed > 0.005)) return;
-        if (!window.confirm(name + " has paid " + money2(owed) + "?\n\n"
-              + "This records a repayment against what he owes. It does not touch any job.")) {
-          paint();                       // put the tick back
-          return;
-        }
+        askPaid(name, owed, function (done, fail) {
         fetch(ZTZ.API + "/api/_ffines", {
           method: "POST",
           headers: { "Content-Type": "application/json", "Authorization": "Bearer " + ZTZ.getToken() },
@@ -1476,9 +1512,13 @@ registerPage({
           .then(function (res) {
             if (!res.ok) throw new Error(res.j && res.j.error || "could not record it");
             S.fines = res.j;             // the server hands back the whole ledger
+            done();
+            // the row vanishing IS the confirmation: he owes nothing, so there is
+            // nothing left to show under his jobs
             paint();
           })
-          .catch(function (e) { window.alert("Not recorded: " + (e.message || e)); paint(); });
+          .catch(function (e) { fail(String(e && e.message || e)); });
+        });
       };
       Array.prototype.forEach.call(root.querySelectorAll("[data-mfpaid]"), function (b) {
         b.onclick = function (ev2) { ev2.stopPropagation(); markPaid(b.getAttribute("data-mfpaid")); };
@@ -1581,7 +1621,9 @@ registerPage({
         a.onclick = function (e) { e.stopPropagation(); };
       });
       // bulk-select checkboxes: tick without opening the popup, repaint the bulk button
-      Array.prototype.forEach.call(root.querySelectorAll("input.mf-ck"), function (ck) {
+      // SCOPED TO ROWS THAT CARRY A JOB. Without `[data-mfsel]` this grabbed every checkbox
+      // on the page, including ones belonging to other features, and overwrote their handlers.
+      Array.prototype.forEach.call(root.querySelectorAll("input.mf-ck[data-mfsel]"), function (ck) {
         ck.onclick = function (e) { e.stopPropagation(); };
         ck.onchange = function () {
           var ev2 = ck.getAttribute("data-mfsel");
