@@ -1248,7 +1248,11 @@
 
     // MONTHS THE DATA ACTUALLY HAS, newest first — offering a month with nothing in it is
     // offering an empty column.
-    const monthsSeen = [...new Set((ctx.trendRows || ctx.rows || [])
+    // ctx.trendRows is deliberately date- and sales-UNFILTERED (see where it is built), which
+    // is exactly what period-vs-period needs: the months on offer must not be limited to the
+    // month the global filter happens to be showing.
+    const histRows = ctx.trendRows || ctx.rows || [];
+    const monthsSeen = [...new Set(histRows
       .map(r => String(r["Create Date"] || "").slice(0, 7)).filter(Boolean))].sort().reverse();
     if (ST_CMP_MODE === "period" && monthsSeen.length >= 2) {
       if (!ST_CMP_P1 || monthsSeen.indexOf(ST_CMP_P1) < 0) ST_CMP_P1 = monthsSeen[0];
@@ -1322,10 +1326,14 @@
       // ONE BOOK PER PERIOD, built by the same repBook over a month-sliced ctx. Nothing is
       // recomputed by hand, so a period column and a rep column mean the same thing.
       const forMonth = m => {
+        // EVERY input is sliced from the UNFILTERED history, not from ctx.rows. Slicing the
+        // filtered set meant the global range had already removed the other month, so it read
+        // as zero leads under a caption saying the filter was ignored -- the caption was
+        // right about the intent and wrong about the code (caught on screen, 2026-08-10).
         const keep = rs => (rs || []).filter(r => String(r["Create Date"] || "").slice(0, 7) === m);
-        return repBook({ ...ctx, rows: keep(ctx.rows), repRows: keep(ctx.repRows || ctx.rows),
-                         trendRows: keep(ctx.trendRows || ctx.rows),
-                         repConfRows: keep(ctx.repConfRows) });
+        const slice = keep(histRows);
+        return repBook({ ...ctx, rows: slice, repRows: slice, trendRows: slice,
+                         repConfRows: keep(histRows) });
       };
       paintCompare(host.querySelector("#cmpBody"), null, null, null,
                    { a: forMonth(ST_CMP_P1)[ST_CMP_WHO], b: forMonth(ST_CMP_P2)[ST_CMP_WHO],
