@@ -1218,7 +1218,6 @@
    * high margin are both good and nobody should have to remember which is which. */
   function renderCompare(host, ctx) {
     const book = repBook(ctx);
-    const th = thGet();
     const reps = Object.values(book).filter(p =>
       p.name && p.name !== "Unassigned" && !excluded(p.name) && !inactive(p) &&
       p.leads >= ASSESS_MIN);
@@ -1273,10 +1272,10 @@
       const t = ST_CMP_A; ST_CMP_A = ST_CMP_B; ST_CMP_B = t; reRender();
     };
 
-    paintCompare(host.querySelector("#cmpBody"), book, ST_CMP_A, ST_CMP_B, th);
+    paintCompare(host.querySelector("#cmpBody"), book, ST_CMP_A, ST_CMP_B);
   }
 
-  function paintCompare(host, book, nameA, nameB, th) {
+  function paintCompare(host, book, nameA, nameB) {
     const A = book[nameA], B = book[nameB];
     if (!A || !B) { host.innerHTML = ""; return; }
     const elig = q => q.leads >= ASSESS_MIN && q.name !== "Unassigned" && !excluded(q.name) && !inactive(q);
