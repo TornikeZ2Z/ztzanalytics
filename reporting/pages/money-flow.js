@@ -147,6 +147,9 @@ registerPage({
         .mf-fnowe{color:${NEG}}
         /* the Action on a foreman's own row: quiet until you look for it, because most rows
            on most days do not need one */
+        .mf-debtrow td{background:var(--panel-2)}
+        .mf-debtrow b{font-weight:750}
+        .mf-tbl .mf-debtrow:hover td{background:var(--line)}
         .mf-charge{font:inherit;font-size:12.5px;font-weight:700;color:var(--muted);
                    background:var(--panel);border:1px solid var(--line-2);border-radius:9px;
                    padding:7px 13px;cursor:pointer;white-space:nowrap}
@@ -668,6 +671,37 @@ registerPage({
 
       // Submission Time = when the DIGITAL CONTRACT was submitted (the source of the net
       // cash figure), NOT when the money-flow entry was recorded — his call 2026-07-22.
+      /* WHAT HE OWES OUTSIDE THE JOBS, as one more line under them (his ask 2026-08-10).
+       *
+       * The cash rows answer "what did this job collect"; a fine answers "what does this man
+       * owe on top", and until now those lived on two different screens. Settling them in one
+       * place is the whole point: tick it and he has paid, exactly like ticking a job.
+       *
+       * IT IS NOT A JOB, and it deliberately does not pretend to be one. The bulk-confirm
+       * selection filters over real job rows (`S.sel[r.ev] && settle(r)`), so a debt tick
+       * routed through that path would have been silently dropped -- the checkbox would look
+       * like it worked and nothing would happen. It gets its own attribute and its own
+       * confirm, and it writes a `repayment` to the fines ledger rather than a cash entry.
+       */
+      var debtRow = function (name, owes) {
+        if (!(owes > 0.005)) return "";
+        var lbl = '<b>Owed outside the jobs</b><span class="mf-fmmeta">'
+          + "fines and opening balances \u00b7 not tied to any one job</span>";
+        var act = '<button class="mf-confirm" data-mfpaid="' + esc(name) + '">Mark paid '
+          + money2(owes) + "</button>";
+        var ck = '<td class="ck"><input type="checkbox" class="mf-ck" data-mfpaidck="'
+          + esc(name) + '" title="Tick when he has paid what he owes"></td>';
+        return '<tr class="mf-row mf-debtrow">' + ck
+          + (det
+              ? '<td colspan="8">' + lbl + "</td>"
+                + '<td class="r mf-neg">' + money2(owes) + "</td>"
+                + '<td colspan="4"></td><td>' + act + "</td>"
+              : '<td colspan="3">' + lbl + "</td>"
+                + '<td class="r mf-neg">' + money2(owes) + "</td>"
+                + '<td colspan="3"></td><td>' + act + "</td>")
+          + "</tr>";
+      };
+
       var jobRow = function (r) {
         var cust = '<td title="' + esc(r.customer || "") + '">' + esc(r.customer || "—") + "</td>";
         if (det) {
@@ -738,7 +772,7 @@ registerPage({
               + '<td colspan="' + (PLAN.after - 1) + '"></td><td>' + fmAction + "</td></tr>";
           if (!open) return head;
           var jobs = g.jobs.slice().sort(function (a, b) { return a.date < b.date ? 1 : -1; });
-          return head + jobs.map(jobRow).join("");
+          return head + jobs.map(jobRow).join("") + debtRow(f, owes);
         }).join("");
         return '<div class="mf-card">' + veil + '<div class="mf-wrap"><table class="mf-tbl fx' + (det ? " det" : "") + '">'
           + "<colgroup>" + PLAN.cols + "</colgroup><thead><tr>" + PLAN.head + "</tr></thead><tbody>"
@@ -1421,6 +1455,41 @@ registerPage({
       });
       // charge this man from his own row: the dialog opens knowing who, so nothing is typed
       // twice and nobody charges the wrong person by mistyping a name
+      /* PAID IN FULL. The tick and the button do the same thing and both ask first: this
+       * writes money, and a checkbox that settles a debt on a mis-click is not a feature.
+       * Unticking is not "unpay" -- the repayment is a ledger entry, and taking it back is a
+       * correction in the ledger, where it leaves a trace. */
+      var markPaid = function (name) {
+        var owed = debtOf(name);
+        if (!(owed > 0.005)) return;
+        if (!window.confirm(name + " has paid " + money2(owed) + "?\n\n"
+              + "This records a repayment against what he owes. It does not touch any job.")) {
+          paint();                       // put the tick back
+          return;
+        }
+        fetch(ZTZ.API + "/api/_ffines", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "Authorization": "Bearer " + ZTZ.getToken() },
+          body: JSON.stringify({ foreman: name, entry_type: "repayment", amount: owed,
+                                 reason: "Paid in full from Balance by Foreman" }),
+        }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+          .then(function (res) {
+            if (!res.ok) throw new Error(res.j && res.j.error || "could not record it");
+            S.fines = res.j;             // the server hands back the whole ledger
+            paint();
+          })
+          .catch(function (e) { window.alert("Not recorded: " + (e.message || e)); paint(); });
+      };
+      Array.prototype.forEach.call(root.querySelectorAll("[data-mfpaid]"), function (b) {
+        b.onclick = function (ev2) { ev2.stopPropagation(); markPaid(b.getAttribute("data-mfpaid")); };
+      });
+      Array.prototype.forEach.call(root.querySelectorAll("[data-mfpaidck]"), function (c) {
+        c.onclick = function (ev2) { ev2.stopPropagation(); };
+        c.onchange = function () {
+          if (c.checked) markPaid(c.getAttribute("data-mfpaidck"));
+        };
+      });
+
       Array.prototype.forEach.call(root.querySelectorAll("[data-mfcharge]"), function (b) {
         b.onclick = function (ev2) {
           ev2.stopPropagation();          // the row toggles his jobs; the button must not
@@ -1526,7 +1595,8 @@ registerPage({
       Array.prototype.forEach.call(root.querySelectorAll("[data-mfc]"), function (b) {
         b.onclick = function (e) { e.stopPropagation(); openModal(b.getAttribute("data-mfc")); };
       });
-      Array.prototype.forEach.call(root.querySelectorAll("tr.mf-row"), function (tr) {
+      // ...but NOT the debt row: it carries no event id, and openModal(null) finds no job
+      Array.prototype.forEach.call(root.querySelectorAll("tr.mf-row:not(.mf-debtrow)"), function (tr) {
         tr.onclick = function () { openModal(tr.getAttribute("data-ev")); };
       });
     }

@@ -214,6 +214,19 @@ window.RSC = (function () {
     paintBtn();
     return {
       clear() { from.value = to.value = dayf.value = dayt.value = ""; sync(); },
+      /* Set the range from OUTSIDE the bar and keep the button honest. The shell uses this to
+         open a page on a sensible default; without a repaint the button would still read
+         "All time" over data that had already been filtered, which is the worst of both. */
+      set(f, t, opts) {
+        from.value = f || ""; to.value = t || "";
+        RS.state.dateFrom = f || null;
+        RS.state.dateTo = t || null;
+        paintBtn();
+        if (!opts || opts.silent !== true) onChange();
+      },
+      /* the preset list, so a caller can name a range instead of recomputing its dates and
+         drifting out of step with the button's own labels */
+      preset(name) { return PRESETS.find(p => p[0] === name) || null; },
     };
   }
 

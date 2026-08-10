@@ -35,6 +35,10 @@
   // global filter bar fires window.renderPage() -- change the date range and your two reps
   // would silently snap back to the two biggest books.
   let ST_CMP_A = null, ST_CMP_B = null;
+  // "Rep vs rep" or "the same rep, two periods" — his N1 asked for both, reps first.
+  let ST_CMP_MODE = "rep";
+  let ST_CMP_WHO = null;          // the rep being compared against himself
+  let ST_CMP_P1 = null, ST_CMP_P2 = null;   // period keys, e.g. "2026-07"
   const TH_KEY = "st_thresholds_v1";
   const thDefaults = { slowMin: 30, neverPct: 10, convFrac: 0.5, minLeads: 5 };
   const thGet = () => { try { return { ...thDefaults, ...(JSON.parse(localStorage.getItem(TH_KEY)) || {}) }; } catch (e) { return { ...thDefaults }; } };
@@ -179,6 +183,8 @@
     .st-bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
     /* ---- Compare (N1) ---- */
     .cmp-wrap{background:var(--panel);border:1px solid var(--line);border-radius:15px;overflow:hidden}
+    .cmp-head3{grid-template-columns:1fr 1fr 56px 1fr !important}
+    .st-seg{display:inline-flex;gap:6px}
     .cmp-head{display:grid;grid-template-columns:1fr 56px 1fr;gap:14px;align-items:end;
               padding:20px 24px;border-bottom:1px solid var(--line);background:var(--panel-2)}
     .cmp-pick{display:flex;flex-direction:column;gap:6px;min-width:0}
@@ -1240,24 +1246,93 @@
       `<option value="${esc(p.name)}"${p.name === sel ? " selected" : ""}>${esc(p.name)}
        — ${RS.fmtN(p.leads)} leads</option>`).join("");
 
+    // MONTHS THE DATA ACTUALLY HAS, newest first — offering a month with nothing in it is
+    // offering an empty column.
+    const monthsSeen = [...new Set((ctx.trendRows || ctx.rows || [])
+      .map(r => String(r["Create Date"] || "").slice(0, 7)).filter(Boolean))].sort().reverse();
+    if (ST_CMP_MODE === "period" && monthsSeen.length >= 2) {
+      if (!ST_CMP_P1 || monthsSeen.indexOf(ST_CMP_P1) < 0) ST_CMP_P1 = monthsSeen[0];
+      if (!ST_CMP_P2 || ST_CMP_P2 === ST_CMP_P1 || monthsSeen.indexOf(ST_CMP_P2) < 0) {
+        ST_CMP_P2 = monthsSeen.find(m => m !== ST_CMP_P1) || monthsSeen[0];
+      }
+    }
+    const monLabel = m => {
+      const d = new Date(m + "-01T12:00:00");
+      return d.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+    };
+
     host.innerHTML = `
       <div class="st-bar">
-        <span class="st-dim" style="font-size:12.5px">Both columns are the same numbers the
-          Team table shows, on the same date filter.</span>
+        <div class="st-seg">
+          <button class="st-chip ${ST_CMP_MODE === "rep" ? "on" : ""}" data-cmpmode="rep">Rep vs rep</button>
+          <button class="st-chip ${ST_CMP_MODE === "period" ? "on" : ""}" data-cmpmode="period">Period vs period</button>
+        </div>
+        <span class="st-dim" style="font-size:12.5px">${ST_CMP_MODE === "rep"
+          ? "Both columns are the same numbers the Team table shows, on the same date filter."
+          : "One rep, two months. The global date filter is ignored here — the months below are the periods."}</span>
         <span style="flex:1"></span>
         <button class="st-chip" id="cmpSwap">⇄ Swap</button></div>
       <div class="cmp-wrap">
+        ${ST_CMP_MODE === "rep" ? `
         <div class="cmp-head">
           <div class="cmp-pick"><label>Rep A</label>
             <select id="cmpA">${opts(ST_CMP_A)}</select></div>
           <div class="cmp-vs">vs</div>
           <div class="cmp-pick"><label>Rep B</label>
             <select id="cmpB">${opts(ST_CMP_B)}</select></div>
-        </div>
+        </div>` : `
+        <div class="cmp-head cmp-head3">
+          <div class="cmp-pick"><label>Rep</label>
+            <select id="cmpWho">${reps.map(p =>
+              `<option value="${esc(p.name)}"${p.name === ST_CMP_WHO ? " selected" : ""}>${esc(p.name)}</option>`).join("")}</select></div>
+          <div class="cmp-pick"><label>Period A</label>
+            <select id="cmpP1">${monthsSeen.map(m =>
+              `<option value="${m}"${m === ST_CMP_P1 ? " selected" : ""}>${esc(monLabel(m))}</option>`).join("")}</select></div>
+          <div class="cmp-vs">vs</div>
+          <div class="cmp-pick"><label>Period B</label>
+            <select id="cmpP2">${monthsSeen.map(m =>
+              `<option value="${m}"${m === ST_CMP_P2 ? " selected" : ""}>${esc(monLabel(m))}</option>`).join("")}</select></div>
+        </div>`}
         <div id="cmpBody"></div>
       </div>`;
 
     const reRender = () => renderCompare(host, ctx);
+    host.querySelectorAll("[data-cmpmode]").forEach(b => {
+      b.onclick = () => { ST_CMP_MODE = b.dataset.cmpmode; reRender(); };
+    });
+
+    if (ST_CMP_MODE === "period") {
+      if (monthsSeen.length < 2) {
+        host.querySelector("#cmpBody").innerHTML =
+          `<div class="st-card">Only one month of leads is in scope — there is nothing to
+           compare it against.</div>`;
+        return;
+      }
+      if (!ST_CMP_WHO || !reps.some(p => p.name === ST_CMP_WHO)) ST_CMP_WHO = reps[0].name;
+      host.querySelector("#cmpWho").onchange = e => { ST_CMP_WHO = e.target.value; reRender(); };
+      host.querySelector("#cmpP1").onchange = e => {
+        ST_CMP_P1 = e.target.value; if (ST_CMP_P1 === ST_CMP_P2) ST_CMP_P2 = null; reRender();
+      };
+      host.querySelector("#cmpP2").onchange = e => {
+        ST_CMP_P2 = e.target.value; if (ST_CMP_P1 === ST_CMP_P2) ST_CMP_P1 = null; reRender();
+      };
+      host.querySelector("#cmpSwap").onclick = () => {
+        const t = ST_CMP_P1; ST_CMP_P1 = ST_CMP_P2; ST_CMP_P2 = t; reRender();
+      };
+      // ONE BOOK PER PERIOD, built by the same repBook over a month-sliced ctx. Nothing is
+      // recomputed by hand, so a period column and a rep column mean the same thing.
+      const forMonth = m => {
+        const keep = rs => (rs || []).filter(r => String(r["Create Date"] || "").slice(0, 7) === m);
+        return repBook({ ...ctx, rows: keep(ctx.rows), repRows: keep(ctx.repRows || ctx.rows),
+                         trendRows: keep(ctx.trendRows || ctx.rows),
+                         repConfRows: keep(ctx.repConfRows) });
+      };
+      paintCompare(host.querySelector("#cmpBody"), null, null, null,
+                   { a: forMonth(ST_CMP_P1)[ST_CMP_WHO], b: forMonth(ST_CMP_P2)[ST_CMP_WHO],
+                     la: monLabel(ST_CMP_P1), lb: monLabel(ST_CMP_P2), noRank: true });
+      return;
+    }
+
     host.querySelector("#cmpA").onchange = e => {
       ST_CMP_A = e.target.value;
       if (ST_CMP_A === ST_CMP_B) ST_CMP_B = null;   // re-picked above
@@ -1275,9 +1350,17 @@
     paintCompare(host.querySelector("#cmpBody"), book, ST_CMP_A, ST_CMP_B);
   }
 
-  function paintCompare(host, book, nameA, nameB) {
-    const A = book[nameA], B = book[nameB];
-    if (!A || !B) { host.innerHTML = ""; return; }
+  /* `pair` is the period mode: two already-built rep objects and their labels, with no
+     * ranking, because "#3 of 12" against a single month's book would compare him to a
+     * different set of peers in each column and read as movement he never made. */
+  function paintCompare(host, book, nameA, nameB, pair) {
+    const A = pair ? pair.a : book[nameA], B = pair ? pair.b : book[nameB];
+    const labA = pair ? pair.la : nameA, labB = pair ? pair.lb : nameB;
+    if (!A || !B) {
+      host.innerHTML = `<div class="st-card">${esc(pair ? "One of those months has no leads for "
+        + (ST_CMP_WHO || "this rep") + "." : "Nothing to compare.")}</div>`;
+      return;
+    }
     const elig = q => q.leads >= ASSESS_MIN && q.name !== "Unassigned" && !excluded(q.name) && !inactive(q);
     const eligCall = q => elig(q) && (q.call.outDials + q.call.inTotal) >= 200;
 
@@ -1301,8 +1384,8 @@
       const isCall = m.key.indexOf("call.") === 0;
       const el = isCall ? eligCall : elig;
       const va = keyVal(A, m.key), vb = keyVal(B, m.key);
-      const ra = rankOn(book, nameA, m.key, m.dir, el);
-      const rb = rankOn(book, nameB, m.key, m.dir, el);
+      const ra = pair ? null : rankOn(book, nameA, m.key, m.dir, el);
+      const rb = pair ? null : rankOn(book, nameB, m.key, m.dir, el);
       // NOT MEASURABLE IS NOT A DRAW. A rep with too few closed jobs to have a margin must
       // not read as "level with" someone who has one — say so and colour nothing.
       const both = va != null && vb != null;
@@ -1334,14 +1417,14 @@
 
     host.innerHTML = `
       <div class="cmp-score">
-        <b>${esc(nameA)}</b> leads on <b>${wins}</b> of the <b>${comparable}</b> measures
+        <b>${esc(labA)}</b> ${pair ? "is ahead on" : "leads on"} <b>${wins}</b> of the <b>${comparable}</b> measures
         both can be scored on${comparable < METRICS.length
           ? ` <span class="st-dim">· ${METRICS.length - comparable} not comparable</span>` : ""}
       </div>
       <table class="cmp-tbl">
         <thead><tr><th></th>
-          <th class="cmp-a">${esc(nameA)}</th>
-          <th class="cmp-b">${esc(nameB)}</th>
+          <th class="cmp-a">${esc(labA)}</th>
+          <th class="cmp-b">${esc(labB)}</th>
           <th class="cmp-d">Difference</th></tr></thead>
         <tbody>
           <tr class="cmp-sec"><td colspan="4">The size of the book</td></tr>

@@ -210,6 +210,8 @@ registerPage({
       + "color:var(--faint);font-size:10.5px}"
       + ".fa2-qnrow input:focus,.fa2-qnrow select:focus{outline:none;border-color:var(--brand)}"
       + ".fa2-qnrow select:disabled{opacity:.55;cursor:not-allowed}"
+      + ".fa2-qnstars,.fa2-qnold{font-size:15px;font-weight:700;color:var(--muted);padding:11px 2px}"
+      + ".fa2-qnold{color:var(--warn);cursor:help}"
       + ".fa2-qnrow .rbx{align-self:center;font:inherit;font-size:12.5px;font-weight:700;background:transparent;"
       + "color:var(--faint);border:1px solid var(--line-2);border-radius:10px;padding:9px 14px;cursor:pointer;white-space:nowrap}"
       + ".fa2-qnrow .rbx:hover{color:var(--neg);border-color:var(--neg)}"
@@ -393,6 +395,15 @@ registerPage({
       // ---- submit bar ------------------------------------------------------------------
       + ".fa2-sub{position:sticky;bottom:18px;margin:18px 26px 0;background:var(--panel);border:1px solid var(--line-2);border-radius:14px;box-shadow:0 14px 38px rgba(0,0,0,.26),var(--shadow);padding:15px 22px;display:flex;flex-wrap:wrap;gap:12px 18px;align-items:center;z-index:6}"
       + ".fa2-sub .t{font-size:14px;color:var(--muted)} .fa2-sub .t b{color:var(--ink);font-size:15.5px}"
+      + ".fa2-auto{font-size:13px;color:var(--faint);white-space:nowrap}"
+      /* Submit is deliberately NOT the brand colour: it is rare, it is one-way, and it should
+         not look like the primary thing to press on a page you spend an hour in. */
+      + ".fa2-submit{font-family:inherit;font-size:13.5px;font-weight:750;padding:9px 17px;"
+      + "border-radius:10px;border:1px solid var(--line-2);background:var(--panel);"
+      + "color:var(--muted);cursor:pointer;margin-left:10px;display:inline-flex;align-items:center;gap:8px}"
+      + ".fa2-submit:hover{border-color:var(--blue);color:var(--blue)}"
+      + ".fa2-submit i{font-style:normal;font-size:11.5px;font-weight:800;color:var(--faint);"
+      + "font-variant-numeric:tabular-nums}"
       + ".fa2-spb{flex:1;min-width:150px;height:6px;border-radius:4px;background:var(--panel-2);overflow:hidden}"
       + ".fa2-spb i{display:block;height:100%;background:var(--blue);transition:width .3s}"
       + ".fa2-go{font-family:inherit;font-size:14px;font-weight:800;padding:12px 24px;border-radius:11px;border:0;background:var(--brand);color:var(--brand-ink);cursor:pointer}"
@@ -692,6 +703,8 @@ registerPage({
         // every saved rating points at
         const key = r.question || slugify(r.label, taken);
         taken[key] = 1;
+        // an existing question keeps whatever it was scored under; anything new is stars,
+        // because that is the only control the editor offers now
         return { question: key, label: (r.label || "").trim(), points: +r.points || 0,
                  scale: r.scale || "stars5", description: (r.description || "").trim() };
       });
@@ -787,16 +800,19 @@ registerPage({
           + '<input class="rbp' + ((+q.points || 0) > MAX_Q_POINTS ? " over" : "") + '"'
           + ' type="number" step="0.5" min="0.5" max="' + MAX_Q_POINTS + '" data-i="' + i
           + '" data-k="points" value="' + q.points + '"></div>'
-          + '<div class="s"><label>Answered by</label>'
-          + '<select class="rbs" data-i="' + i + '" data-k="scale"'
-          + (q.rated ? ' disabled title="already rated this month — how it is answered cannot change"' : "") + ">"
-          + '<option value="stars5"' + (q.scale === "stars5" ? " selected" : "") + ">★ Stars, 1 to 5</option>"
-          + '<option value="bool"' + (q.scale === "bool" ? " selected" : "") + ">Yes or No</option>"
-          // KEPT, NOT OFFERED FIRST. His own Long-Distance question is answered this way
-          // (N7: no long distance scores nothing, regular scores half, regular and straight
-          // scores full). Removing the option would break that question.
-          + '<option value="tri"' + (q.scale === "tri" ? " selected" : "") + ">No / Partly / Fully</option>"
-          + "</select></div>"
+          /* NO "ANSWERED BY" ANY MORE (Tornike, 2026-08-10): every question is five stars.
+           * Picking a control before writing a question was one decision too many, and the
+           * only question that wanted a three-way was better as two questions. A row whose
+           * scale is still bool or tri from before shows it as read-only rather than
+           * pretending it is stars -- it is history, and history should not be edited by
+           * being ignored. */
+          + (q.scale && q.scale !== "stars5"
+              ? '<div class="s"><label>Answered by</label>'
+                + '<div class="fa2-qnold" title="A control this rubric no longer offers. '
+                + 'Remove the question and add it again to move it to stars.">'
+                + (q.scale === "bool" ? "Yes or No" : "No / Partly / Fully") + "</div></div>"
+              : '<div class="s"><label>Answered by</label>'
+                + '<div class="fa2-qnstars">\u2605 Stars, 1 to 5</div></div>')
           + '<button class="rbx" data-i="' + i + '" title="Remove this question">Remove</button>'
           + "</div>").join("") + "</div>";
 
@@ -933,16 +949,29 @@ registerPage({
         + chip("all", "All " + all.length) + chip("todo", "Not started " + todo)
         + chip("part", "In progress " + part) + chip("done", "Done " + done)
         + '<input id="fa2Q" placeholder="Find a foreman…" value="' + esc(S.q) + '">'
+        // SUBMIT LIVES UP HERE NOW, away from the hand that is reaching for Save, and it says
+        // what it costs. It is the last thing you do to a month, not the thing you do to keep
+        // your work -- that happens by itself on every click.
+        + (!S.locked && !S.notOpen && all.length
+            ? '<button class="fa2-submit" id="fa2Submit" title="Ratings become final and only '
+              + 'an admin can reopen the month">Submit ' + esc(monLab(S.month))
+              + " <i>" + done + "/" + all.length + "</i></button>"
+            : "")
         + "</div>";
 
       h += rows.length ? rows.map(card).join("")
         : '<div class="fa2-empty">No foreman matches here.</div>';
 
+      /* THE BAR AT THE BOTTOM NO LONGER SUBMITS. Every star click already saves on its own
+       * — it POSTs the moment it is pressed — so the only thing this button ever did was LOCK
+       * THE MONTH, and it sat exactly where a person reaches for Save. Ramaz was pressing it
+       * meaning "save my work" (Tornike, 2026-08-10). Now it reports progress and says that
+       * saving is automatic; submitting is a deliberate act at the top of the page. */
       if (!S.locked && !S.notOpen && all.length) {
         h += '<div class="fa2-sub"><span class="t"><b>' + done + " of " + all.length
           + "</b> fully assessed" + (done < all.length ? "" : " — ready to sign off") + "</span>"
           + '<span class="fa2-spb"><i style="width:' + (done / all.length * 100).toFixed(0) + '%"></i></span>'
-          + '<button class="fa2-go" id="fa2Submit">Submit ' + esc(monLab(S.month)) + "</button></div>";
+          + '<span class="fa2-auto">Every rating saves the moment you click it</span></div>';
       }
 
       main.innerHTML = h;
@@ -1048,8 +1077,10 @@ registerPage({
               + ' data-m="' + S.month + '"'
               + ((S.locked || S.notOpen) ? " disabled" : "") + ' title="' + n2 + " star" + (n2 === 1 ? "" : "s") + '">★</button>').join("")
             + "</div>";
+        // NO "worth 5.0" PILL AT THE TOP. The card already ends with "4.0 of 5.0 earned",
+        // which says the same thing while it is actually useful -- next to the number it
+        // qualifies (his catch, 2026-08-10).
         return '<div class="fa2-q' + (stars != null ? " rated" : "") + '"><div class="qt">'
-          + '<span class="qw">worth ' + fmt1(pts) + "</span>"
           + "<b>" + esc(q.Label) + "</b>"
           + "<span>" + esc(q.Description || "") + "</span>"
           + (cur && cur["Entered By"] ? "<em>" + esc(String(cur["Entered By"]).split("@")[0])

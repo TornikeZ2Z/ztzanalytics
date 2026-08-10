@@ -119,7 +119,7 @@ body.rs-viewas .rs-layout{box-shadow:inset 0 0 0 2px #7c3aed}
 
 <script src="assets/portal.js?v=11"></script>
 <script src="assets/rs-core.js?v=42"></script>
-<script src="assets/rs-components.js?v=15"></script>
+<script src="assets/rs-components.js?v=16"></script>
 <script>
 /* ---------------- page registry ---------------- */
 window.PAGES = [];
@@ -823,8 +823,32 @@ const MR_OWN_TIME = new Set(["monthly-report",
   "sales-funnel", "sales-perf", "sales-geo", "mkt-roi", "mkt-sources", "mkt-phone",
   "log-foreman", "log-packing", "fin-revenue", "fin-rr",
   "rev-production", "sup-claims", "sup-refunds", "sup-phone"]);
+/* PAGES THAT OPEN ON A SENSIBLE WINDOW RATHER THAN ON ALL TIME.
+   Sales Person Analysis was showing an all-time analysis every single time it was opened,
+   which is almost never the question anyone has (Tornike, 2026-08-10). The name must match a
+   preset in RSC.dateBar so the button reads "Past month" and not a raw pair of dates.
+
+   Three things it deliberately does NOT do: it never overrides a range the user picked, it
+   applies AT MOST ONCE per page per session (so clearing to All time and coming back leaves
+   you on All time), and because the range is global it stays put when you navigate away --
+   silently reverting it would be a second surprise. */
+let DBAR = null;
+const PAGE_DEFAULT_RANGE = { "sales-command": "Past month" };
+const _rangeDefaulted = new Set();
+
+function applyDefaultRange() {
+  const leaf = currentLeafId();
+  const want = PAGE_DEFAULT_RANGE[leaf];
+  if (!want || !DBAR || _rangeDefaulted.has(leaf)) return;
+  _rangeDefaulted.add(leaf);
+  if (RS.state.dateFrom || RS.state.dateTo) return;   // the user already chose
+  const p = DBAR.preset(want);
+  if (p) DBAR.set(p[1], p[2], { silent: true });      // renderPage is already running
+}
+
 async function renderPage() {
   const host = document.getElementById("content");
+  applyDefaultRange();
   updateFilterContext();
   const bare = BARE_CHROME.has(currentLeafId());
   document.body.classList.toggle("mr-own-time", MR_OWN_TIME.has(currentLeafId()));
@@ -1099,7 +1123,7 @@ async function buildFilters() {
   // before anyone could see it. Keep the chevron, replace everything else.
   [...rowDates.children].forEach(n => { if (!n.classList.contains("rs-cbar")) n.remove(); });
   rowSlicers.innerHTML = "";
-  RSC.dateBar(rowDates, onFilterChange);
+  DBAR = RSC.dateBar(rowDates, onFilterChange);
   const [closing, moveboard] = await Promise.all([RS.load("closing"), RS.load("moveboard")]);
   // Frequency-counted value lists ({v,l,n}) — most common values first, counts shown.
   //
@@ -1561,18 +1585,18 @@ registerPage({
 <script src="pages/source-analysis.js?v=4"></script>
 <script src="pages/data-quality.js?v=12"></script>
 <script src="pages/refresh-log.js?v=17"></script>
-<script src="pages/sales-team.js?v=38"></script>
+<script src="pages/sales-team.js?v=39"></script>
 <script src="pages/source-trace.js?v=12"></script>
 <script src="pages/multi-source-leads.js?v=7"></script>
 <script src="pages/calendar-coverage.js?v=8"></script>
 <script src="pages/request-consistency.js?v=4"></script>
 <script src="pages/branch-owner.js?v=6"></script>
-<script src="pages/money-flow.js?v=51"></script>
+<script src="pages/money-flow.js?v=52"></script>
 <script src="pages/ld-planning.js?v=78"></script>
 <script src="pages/cleanup.js?v=24"></script>
 <script src="pages/packing-control.js?v=11"></script>
 <script src="pages/storage-control.js?v=9"></script>
-<script src="pages/foreman-assessment.js?v=23"></script>
+<script src="pages/foreman-assessment.js?v=24"></script>
 <script src="pages/fuel-control.js?v=9"></script>
 <script src="pages/demand-analysis.js?v=6"></script>
 <script src="pages/general-tables.js?v=3"></script>
