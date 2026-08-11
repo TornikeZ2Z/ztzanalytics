@@ -1141,14 +1141,16 @@ registerPage({
       const note = cur && cur.Note ? String(cur.Note) : "";
       const shut = S.locked || S.notOpen;
       if (!note && (stars == null || shut)) return "";
-      const key = esc(fm) + '" data-q="' + esc(q.Question);
+      // written out rather than spliced: three attributes are three attributes, and a helper
+      // that smuggles a closing quote into the middle of one reads as a bug forever after
+      const at = ' data-nf="' + esc(fm) + '" data-q="' + esc(q.Question)
+        + '" data-m="' + esc(S.month) + '"';
       if (!note) {
-        return '<div class="fa2-note"><button class="fa2-noteadd" data-nf="' + key
-          + '" data-m="' + S.month + '">+ why this score</button></div>';
+        return '<div class="fa2-note"><button class="fa2-noteadd"' + at
+          + ">+ why this score</button></div>";
       }
       return '<div class="fa2-note has"><span class="fa2-notetx">' + esc(note) + "</span>"
-        + (shut ? "" : '<button class="fa2-noteedit" data-nf="' + key
-            + '" data-m="' + S.month + '" title="Edit this reason">edit</button>')
+        + (shut ? "" : '<button class="fa2-noteedit"' + at + ' title="Edit this reason">edit</button>')
         + "</div>";
     }
 
@@ -1188,7 +1190,10 @@ registerPage({
       const cur = (S.ratings[fm] = S.ratings[fm] || {});
       const before = cur[question];
       if (!before) return;                       // nothing rated: the bridge would refuse it
-      cur[question] = Object.assign({}, before, { Note: text || null, "Entered By": "you" });
+      // the byline moves too: this write is a new row in the chain, entered by whoever is
+      // typing now, exactly as re-scoring is (rate() stamps the same two fields)
+      cur[question] = Object.assign({}, before, { Note: text || null, "Entered By": "you",
+        "Entered At": new Date().toISOString().slice(0, 10) });
       S.msg = ""; S.msgErr = false;
       paint();
       const key = fm + "|" + question;
