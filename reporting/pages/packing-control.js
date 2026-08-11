@@ -624,15 +624,24 @@ registerPage({
                   return '<option value="' + esc(c) + '"' + (S.co === c ? " selected" : "") + ">" + esc(c) + "</option>";
                 }).join("") + "</select>"
             : "")
-        + '<div class="pk-seg">'
-        + seg("score", "By concern") + seg("sold", "By packing sold") + seg("jobs", "By jobs") + seg("name", "A–Z")
-        + "</div>"
-        + '<div class="pk-tog' + (S.flagOnly ? " on" : "") + '" id="pkFlag"><i></i>Only above the line</div>'
-        + '<input id="pkQ" placeholder="Find a foreman…" value="' + esc(S.q) + '">'
+        // THE WINDOW CONTROLS BELONG TO BOTH VIEWS; THE BOARD'S DO NOT. Month and company decide
+        // which jobs the whole comparison is built from, so the file needs them as much as the
+        // board does. Sorting, "only above the line" and the name search only arrange a list of
+        // twenty cards — on a page showing one man they are furniture.
+        + (S.view === "profile" ? "" :
+            '<div class="pk-seg">'
+            + seg("score", "By concern") + seg("sold", "By packing sold") + seg("jobs", "By jobs") + seg("name", "A–Z")
+            + "</div>"
+            + '<div class="pk-tog' + (S.flagOnly ? " on" : "") + '" id="pkFlag"><i></i>Only above the line</div>'
+            + '<input id="pkQ" placeholder="Find a foreman…" value="' + esc(S.q) + '">')
         + "</div>";
 
       var tests = 0;
       profiles.forEach(function (p) { tests += p.tested; });
+      // the board's own reading instructions. The file states its method inside each section,
+      // beside the number it governs, so repeating this paragraph there would just push the man
+      // himself below the fold — which on a page about one man is the wrong thing at the top.
+      if (S.view !== "profile")
       html += '<p class="pk-note"><b>How to read this.</b> Every measure on a card is a comparison with '
         + "the other foremen on the same measure, over the window selected above \u2014 nothing here is scored "
         + "against a fixed target, so the fleet getting better or worse together moves nobody onto this board. "
