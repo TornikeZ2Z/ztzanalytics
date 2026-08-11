@@ -73,6 +73,8 @@ registerPage({
     var S = window.__PK || (window.__PK = {
       rows: null, month: "", co: "", open: null, q: "", sort: "score", flagOnly: false,
       memo: null, memoKey: "",
+      // "board" | "profile", and which man the profile is open on
+      view: "board", fm: "",
     });
 
     /* ================================================================ THE ENGINE
@@ -334,6 +336,70 @@ registerPage({
       + "text-transform:uppercase;color:var(--faint);margin-top:5px}"
       + ".pk-kpi small{display:block;font-size:var(--t5);color:var(--muted);margin-top:3px}"
       + ".pk-kpi.neg b{color:var(--neg)} .pk-kpi.warn b{color:var(--warn)} .pk-kpi.pos b{color:var(--pos)}"
+      // ---- tabs + the foreman file ----
+      + ".pk-tabs{display:flex;gap:4px;margin:2px 0 16px}"
+      + ".pk-tabs button{font:inherit;font-size:13.5px;font-weight:750;color:var(--muted);background:transparent;"
+      + "border:0;border-radius:10px;padding:9px 16px;cursor:pointer}"
+      + ".pk-tabs button:hover{background:var(--panel-2);color:var(--ink)}"
+      + ".pk-tabs button.on{background:var(--brand);color:var(--brand-ink)}"
+      + ".pk-pbar{display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin:0 0 16px}"
+      + ".pk-pick{display:inline-flex;align-items:center;gap:9px}"
+      + ".pk-pick span{font-size:var(--t6);font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--faint)}"
+      + ".pk-pick select{font:inherit;font-size:15px;font-weight:800;color:var(--ink);background:var(--panel);"
+      + "border:1px solid var(--line-2);border-radius:10px;padding:8px 12px;cursor:pointer;max-width:320px}"
+      + ".pk-pick select:hover{border-color:var(--brand)}"
+      + ".pk-btn{font:inherit;font-size:12.5px;font-weight:700;color:var(--muted);background:var(--panel);"
+      + "border:1px solid var(--line-2);border-radius:9px;padding:7px 12px;cursor:pointer;white-space:nowrap}"
+      + ".pk-btn:hover{border-color:var(--brand);color:var(--brand)}"
+      + ".pk-dim{font-size:var(--t4);color:var(--faint)}"
+      + ".pk-dim2{font-size:var(--t5);color:var(--faint);line-height:1.55;margin:0 0 10px;display:block}"
+      + ".pk-pcard{display:flex;flex-wrap:wrap;gap:18px;align-items:center;justify-content:space-between;"
+      + "background:var(--panel);border:1px solid var(--line);border-left:5px solid var(--line-2);"
+      + "border-radius:16px;padding:18px 22px;margin-bottom:14px}"
+      + ".pk-pcard.v-review{border-left-color:var(--neg)} .pk-pcard.v-look{border-left-color:var(--warn)}"
+      + ".pk-pcard.v-ok{border-left-color:var(--pos)} .pk-pcard.v-thin{border-left-color:var(--line-2)}"
+      + ".pk-pid{display:flex;align-items:center;gap:15px;min-width:0}"
+      + ".pk-av{flex:0 0 auto;width:54px;height:54px;border-radius:50%;background:var(--brand);color:var(--brand-ink);"
+      + "display:flex;align-items:center;justify-content:center;font-size:19px;font-weight:800;letter-spacing:.5px}"
+      + ".pk-pid h2{margin:0 0 6px;font-size:25px;font-weight:800;letter-spacing:-.5px;line-height:1.15}"
+      + ".pk-chips{display:flex;flex-wrap:wrap;gap:6px}"
+      + ".pk-chip{font-size:var(--t5);font-weight:700;color:var(--muted);background:var(--panel-2);"
+      + "border:1px solid var(--line-2);border-radius:999px;padding:3px 10px}"
+      + ".pk-pscore{text-align:right;flex:0 0 auto}"
+      + ".pk-pscore b{display:block;font-size:42px;font-weight:800;letter-spacing:-1.5px;line-height:1}"
+      + ".pk-pscore b.na{color:var(--faint)}"
+      + ".pk-pscore span{display:block;font-size:var(--t3);font-weight:800;margin-top:4px}"
+      + ".pk-pscore small{display:block;font-size:var(--t6);font-weight:800;letter-spacing:.06em;color:var(--faint);margin-top:3px}"
+      + ".pk-sec{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px 18px;margin-bottom:14px}"
+      + ".pk-sec h4{margin:0 0 4px;font-size:var(--t2);font-weight:800}"
+      + ".pk-sec h4 .pk-dim{font-weight:600;margin-left:6px}"
+      + ".pk-ptbl{width:100%;border-collapse:collapse;font-size:var(--t4)}"
+      + ".pk-ptbl th{text-align:left;font-size:var(--t6);font-weight:800;letter-spacing:.05em;text-transform:uppercase;"
+      + "color:var(--faint);padding:0 10px 8px;border-bottom:1px solid var(--line);white-space:nowrap}"
+      + ".pk-ptbl td{padding:10px;border-bottom:1px solid var(--line);vertical-align:top}"
+      + ".pk-ptbl tr:last-child td{border-bottom:0}"
+      + ".pk-ptbl td.r,.pk-ptbl th.r{text-align:right}"
+      + ".pk-ptbl td.neg{color:var(--neg);font-weight:700} .pk-ptbl td.pos{color:var(--pos);font-weight:700}"
+      + ".pk-ptbl tr.sig td{background:rgba(220,38,38,.05)}"
+      + ".pk-ptbl td small{display:block;font-weight:500;margin-top:2px;max-width:400px}"
+      + ".pk-tag{display:inline-block;font-size:var(--t5);font-weight:700;padding:2px 9px;border-radius:999px;"
+      + "background:var(--panel-2);color:var(--faint);border:1px solid var(--line-2);white-space:nowrap}"
+      + ".pk-tag.sig{background:rgba(220,38,38,.12);color:var(--neg);border-color:transparent}"
+      + ".pk-tag.ok{background:rgba(22,163,74,.10);color:var(--pos);border-color:transparent}"
+      + ".pk-mrow{display:grid;grid-template-columns:120px 60px 90px 92px 92px 1fr;gap:10px;align-items:center;"
+      + "padding:7px 2px;border-bottom:1px solid var(--line);font-size:var(--t4)}"
+      + ".pk-mrow:last-child{border-bottom:0}"
+      + ".pk-mhead{font-size:var(--t6);font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--faint);border-bottom:1px solid var(--line)}"
+      + ".pk-mrow .r{text-align:right}.pk-mrow .neg b{color:var(--neg)}"
+      + ".pk-mbar{position:relative;height:9px;border-radius:5px;background:var(--panel-2);overflow:visible;min-width:80px}"
+      + ".pk-mbar i{display:block;height:100%;border-radius:5px}"
+      + ".pk-mbar i.lo{background:var(--neg)} .pk-mbar i.hi{background:var(--pos)}"
+      // the others' rate as a marker on his own bar: one glance says over or under
+      + ".pk-mbar u{position:absolute;top:-3px;width:2px;height:15px;background:var(--ink);opacity:.55}"
+      + ".pk-jwrap{max-height:520px;overflow:auto;border:1px solid var(--line);border-radius:11px}"
+      + ".pk-jtbl th{position:sticky;top:0;background:var(--panel);z-index:1;padding:9px 10px}"
+      + ".pk-jtbl tr.aside td{color:var(--faint)}"
+      + ".pk-dhact{display:flex;align-items:center;gap:8px;flex:0 0 auto}"
       // control bar
       + ".pk-bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:16px 0 6px}"
       + ".pk-bar select,.pk-bar input{background:var(--panel);color:var(--ink);border:1px solid var(--line);"
@@ -520,7 +586,20 @@ registerPage({
       S.rows.forEach(function (r) { if (r.Day) months[monthOf(r.Day)] = 1; cos[r.Company || "—"] = 1; });
       var mList = Object.keys(months).sort();
 
-      var html = '<div class="pk-kpis">'
+      /* THE PAGE SAYS WHAT IT IS. It opened straight onto five bare numbers with no title and
+       * no sentence — every other report in the portal introduces itself, and in a room full of
+       * people this one arrived mid-thought (Tornike, before presenting it, 2026-08-12). */
+      var html = '<div class="rs-page-head"><h1>Packing Control</h1>'
+        + "<p>The packing each load actually needed, against what the crew booked — and who is "
+        + "out of line with everyone else."
+        + '<span class="freshness"> · every measure is a comparison with the other foremen, '
+        + "never against a fixed target</span></p></div>"
+        + '<div class="pk-tabs">'
+        + '<button data-v="board" class="' + (S.view !== "profile" ? "on" : "") + '">The board</button>'
+        + '<button data-v="profile" class="' + (S.view === "profile" ? "on" : "") + '">Foreman profile</button>'
+        + "</div>";
+
+      html += '<div class="pk-kpis">'
         + kpi(usd(sold), "Packing booked", rows.length.toLocaleString() + " jobs · " + usd(quoted) + " quoted by sales", "")
         + kpi(String(profiles.filter(function (p) { return p.score != null; }).length), "Foremen scored",
               "of " + profiles.length + " on the board · "
@@ -580,10 +659,14 @@ registerPage({
         return (b.score || 0) - (a.score || 0) || b.n - a.n;
       });
 
-      html += '<div class="pk-grid"><div>'
-        + (shown.length ? shown.map(card).join("")
-            : '<div class="pk-empty">No foreman matches that filter.</div>')
-        + "</div>" + rail(rows, profiles, fleet) + "</div>";
+      if (S.view === "profile") {
+        html += paintProfile(rows, profiles);
+      } else {
+        html += '<div class="pk-grid"><div>'
+          + (shown.length ? shown.map(card).join("")
+              : '<div class="pk-empty">No foreman matches that filter.</div>')
+          + "</div>" + rail(rows, profiles, fleet) + "</div>";
+      }
 
       main.innerHTML = html;
       wire(rows, profiles);
@@ -611,6 +694,218 @@ registerPage({
     function kpi(v, lab, sub, cls) {
       return '<div class="pk-kpi ' + (cls || "") + '"><b>' + esc(v) + "</b><span>" + esc(lab)
         + "</span><small>" + esc(sub) + "</small></div>";
+    }
+
+    /* ================================================================ the foreman's file
+     * A BOARD ANSWERS "WHO", A PROFILE ANSWERS "WHY HIM". The board ranks twenty men on one
+     * screen, which is the right shape for a sweep and the wrong shape for the conversation
+     * that follows it — you sit down with one foreman and the board can only tell you his
+     * score. Everything below was already being computed by rollup() for every man on every
+     * paint; almost none of it had anywhere to appear (Tornike, 2026-08-12).
+     *
+     * It stays a PACKING file. The warehouse knows a great deal more about a foreman — claims,
+     * fuel, cash, reviews — and pulling all of it here would need six more fetches and make
+     * this page about everything, which is the fastest way to make it about nothing. The one
+     * outside number worth the join is his monthly grade, because it is the company's own
+     * verdict on the same man over the same months.
+     */
+    function profileOf(name, profiles) {
+      for (var i = 0; i < profiles.length; i++) if (profiles[i].name === name) return profiles[i];
+      return null;
+    }
+
+    // his rate against the fleet's, month by month. The board is one window flattened; a man
+    // who was fine until March and has drifted since reads as merely "below" there, and the
+    // difference between a drift and a habit is the first thing anyone asks.
+    function monthly(p, rows) {
+      var mine = {}, all = {};
+      function push(o, k, r) {
+        var b = o[k] || (o[k] = { sold: 0, cf: 0, units: 0, n: 0, booked: 0 });
+        b.sold += (+r["Sold USD"] || 0);
+        b.cf += (+r["Real CF"] || 0);
+        b.units += (+r["Packing Units"] || 0);
+        b.n++; if (!r["Zero Pack"]) b.booked++;
+      }
+      rows.forEach(function (r) {
+        if (r["Packed By Owner"] || !r["Recorded"] || !r.Day) return;
+        push(all, monthOf(r.Day), r);
+        if (r.Foreman === p.name) push(mine, monthOf(r.Day), r);
+      });
+      return Object.keys(mine).sort().map(function (m) {
+        var a = mine[m], f = all[m];
+        var rate = a.cf > 0 ? a.sold / a.cf * 100 : null;
+        // the fleet line EXCLUDES him, or a man with many jobs is largely compared with himself
+        var fSold = f.sold - a.sold, fCf = f.cf - a.cf;
+        var fRate = fCf > 0 ? fSold / fCf * 100 : null;
+        return { m: m, rate: rate, fleet: fRate, n: a.n, sold: a.sold,
+                 bookedPct: a.n ? a.booked / a.n : null };
+      });
+    }
+
+    function paintProfile(rows, profiles) {
+      var names = profiles.map(function (p) { return p.name; }).sort();
+      if (!S.fm || names.indexOf(S.fm) < 0) {
+        // open on the man the board is most concerned about — the reason you came here
+        var top = profiles.filter(function (p) { return p.score != null; })
+          .sort(function (a, b) { return b.score - a.score; })[0];
+        S.fm = top ? top.name : names[0];
+      }
+      var p = profileOf(S.fm, profiles);
+      if (!p) return '<div class="pk-empty">No foreman in this window.</div>';
+      var v = VERDICT[p.verdict];
+
+      var typed = {};
+      p.all.forEach(function (r) { if (r["Foreman Typed"]) typed[r["Foreman Typed"]] = 1; });
+      typed = Object.keys(typed).filter(function (t) { return t !== p.name; });
+
+      var h = '<div class="pk-pbar"><label class="pk-pick"><span>Foreman</span>'
+        + '<select id="pkWho">'
+        + names.map(function (n) {
+            var q = profileOf(n, profiles);
+            return '<option value="' + esc(n) + '"' + (n === S.fm ? " selected" : "") + ">"
+              + esc(n) + (q && q.score != null ? "  ·  " + q.score : "") + "</option>";
+          }).join("")
+        + "</select></label>"
+        + '<span class="pk-dim">' + names.length + " on the board · "
+        + (S.month ? monLab(S.month) : "all months")
+        + (S.co ? " · " + esc(S.co) : "") + "</span>"
+        + '<span style="flex:1"></span>'
+        + '<button class="pk-btn" id="pkToBoard">← Back to the board</button></div>';
+
+      // ---- identity + verdict ------------------------------------------------------------
+      h += '<div class="pk-pcard ' + v.cls + '">'
+        + '<div class="pk-pid"><div class="pk-av">'
+        + esc(p.name.split(/\s+/).map(function (w) { return w[0] || ""; }).join("").slice(0, 2).toUpperCase())
+        + "</div><div><h2>" + esc(p.name) + "</h2>"
+        + '<div class="pk-chips"><span class="pk-chip">' + p.n + " comparable job" + (p.n === 1 ? "" : "s") + "</span>"
+        + '<span class="pk-chip">' + usd(p.sold) + " booked</span>"
+        + '<span class="pk-chip">' + usd(p.quoted) + " quoted</span>"
+        + (p.selfPacked ? '<span class="pk-chip">' + p.selfPacked + " self-packed, set aside</span>" : "")
+        + (typed.length ? '<span class="pk-chip" title="the office typed these on the sheet; counted as one man">'
+            + typed.map(esc).join(", ") + "</span>" : "")
+        + "</div></div></div>"
+        + '<div class="pk-pscore">' + (p.score == null ? '<b class="na">—</b>' : "<b>" + p.score + "</b>")
+        + "<span>" + v.lab + "</span><small>" + esc(confLab(p)) + "</small></div>"
+        + "</div>";
+
+      h += '<div class="pk-read ' + v.cls + '" style="margin:0 0 16px"><h5>Reading</h5><p>'
+        + verdictText(p) + "</p></div>";
+
+      // ---- the numbers -------------------------------------------------------------------
+      var perJob = p.n ? p.sold / p.n : null;
+      var quoteGap = p.quoted > 0 ? (p.sold - p.quoted) / p.quoted : null;
+      h += '<div class="pk-kpis" style="margin-bottom:16px">'
+        + kpi(usd(p.med["USD per 100 CF"], 2), "$ per 100 CF",
+              "fleet " + usd(p.fleet["USD per 100 CF"], 2), rel(p, "USD per 100 CF"))
+        + kpi(usd(p.med["USD per Unit"], 2), "$ per packing unit",
+              "fleet " + usd(p.fleet["USD per Unit"], 2), rel(p, "USD per Unit"))
+        + kpi(pct(p.med["Booked Anything"]), "Jobs that booked",
+              "fleet " + pct(p.fleet["Booked Anything"]), rel(p, "Booked Anything"))
+        + kpi(usd(perJob), "Booked per job", p.n + " jobs · " + usd(p.units) .replace("$", "") + " units", "")
+        + kpi(pct(p.zeroRate), "Booked nothing at all",
+              (function () {
+                var z = p.jobs.filter(function (r) { return r["Zero Pack"]; }).length;
+                var nq = p.jobs.filter(function (r) { return r["Zero Pack"] && r["No Quote"]; }).length;
+                return z ? nq + " of those " + z + " were never quoted by sales" : "every job booked something";
+              })(), p.zeroRate > 0.5 ? "warn" : "")
+        + kpi(quoteGap == null ? "—" : (quoteGap > 0 ? "+" : "") + Math.round(quoteGap * 100) + "%",
+              "Booked vs quoted", usd(p.sold) + " on " + usd(p.quoted) + " quoted",
+              quoteGap == null ? "" : quoteGap < -0.2 ? "warn" : quoteGap > 0 ? "pos" : "")
+        + "</div>";
+
+      // ---- against his peers -------------------------------------------------------------
+      h += '<div class="pk-sec"><h4>Against his peers</h4>'
+        + '<p class="pk-dim2">Each measure is his median against the median of every OTHER foreman '
+        + "in this window — he is never compared with himself. <b>p</b> is the chance a gap this "
+        + "large would appear if he were drawing from the same pool as everyone else; it is shown "
+        + "only where the test could run at all, and a signal is counted only below the "
+        + "board-wide corrected cutoff of " + (p.cut ? p.cut.toFixed(3) : "—") + ".</p>"
+        + '<table class="pk-ptbl"><thead><tr><th>Measure</th><th class="r">His median</th>'
+        + '<th class="r">The others</th><th class="r">Gap</th><th class="r">Jobs tested</th>'
+        + "<th>Reading</th></tr></thead><tbody>"
+        + MEASURES.map(function (m) {
+            var val = p.med[m.k], f = p.fleet[m.k], pv = p.ps[m.k];
+            var d = (val != null && f) ? (val - f) / f : null;
+            var sig = pv != null && p.cut != null && pv <= p.cut && val != null && f != null && val < f;
+            var cnt = p.jobs.filter(function (r) { return r[m.k] != null; }).length;
+            return "<tr" + (sig ? ' class="sig"' : "") + "><td><b>" + esc(m.lab) + "</b>"
+              + '<small class="pk-dim2">' + esc(m.help) + "</small></td>"
+              + '<td class="r"><b>' + fmtM(m, val) + "</b></td>"
+              + '<td class="r">' + fmtM(m, f) + "</td>"
+              + '<td class="r ' + (d == null ? "" : d < 0 ? "neg" : "pos") + '">'
+              + (d == null ? "—" : (d > 0 ? "+" : "") + Math.round(d * 100) + "%") + "</td>"
+              + '<td class="r">' + cnt + "</td>"
+              + "<td>" + (pv == null
+                  ? '<span class="pk-tag">too few to test</span>'
+                  : sig ? '<span class="pk-tag sig">below peers · p=' + pv.toFixed(3) + "</span>"
+                  : '<span class="pk-tag ok">ordinary · p=' + pv.toFixed(3) + "</span>")
+              + "</td></tr>";
+          }).join("")
+        + "</tbody></table></div>";
+
+      // ---- month by month ----------------------------------------------------------------
+      var mo = monthly(p, rows);
+      if (mo.length > 1) {
+        var maxR = mo.reduce(function (a, x) {
+          return Math.max(a, x.rate || 0, x.fleet || 0);
+        }, 0) || 1;
+        h += '<div class="pk-sec"><h4>Month by month</h4>'
+          + '<p class="pk-dim2">His $ per 100 CF against everyone else’s in the same month. '
+          + "One window flattened into a single number cannot tell a drift from a habit, and that "
+          + "is the first thing worth knowing about a man who is below the line.</p>"
+          + '<div class="pk-mrow pk-mhead"><span>Month</span><span class="r">Jobs</span>'
+          + '<span class="r">Booked</span><span class="r">His rate</span><span class="r">The others</span><span> </span></div>'
+          + mo.map(function (x) {
+              var w = x.rate == null ? 0 : Math.round(x.rate / maxR * 100);
+              var fw = x.fleet == null ? 0 : Math.round(x.fleet / maxR * 100);
+              var lo = x.rate != null && x.fleet != null && x.rate < x.fleet;
+              return '<div class="pk-mrow"><span>' + esc(monLab(x.m)) + "</span>"
+                + '<span class="r">' + x.n + "</span>"
+                + '<span class="r">' + usd(x.sold) + "</span>"
+                + '<span class="r ' + (lo ? "neg" : "") + '"><b>' + usd(x.rate, 2) + "</b></span>"
+                + '<span class="r pk-dim">' + usd(x.fleet, 2) + "</span>"
+                + '<span class="pk-mbar"><i style="width:' + w + '%" class="' + (lo ? "lo" : "hi") + '"></i>'
+                + '<u style="left:' + fw + '%" title="the others’ rate this month"></u></span></div>';
+            }).join("")
+          + "</div>";
+      }
+
+      // ---- his jobs ----------------------------------------------------------------------
+      var jl = p.all.slice().sort(function (a, b) { return String(b.Day).localeCompare(String(a.Day)); });
+      h += '<div class="pk-sec"><h4>Every job in this window <span class="pk-dim">' + jl.length + "</span></h4>"
+        + '<p class="pk-dim2">The evidence under every number above. Rows the comparison SET ASIDE are '
+        + "marked: a customer who packed their own things, and a job whose sheet is not filed yet, "
+        + "are not evidence of anything either way.</p>"
+        + '<div class="pk-jwrap"><table class="pk-ptbl pk-jtbl"><thead><tr><th>Day</th><th>Job</th>'
+        + '<th>Customer</th><th class="r">CF</th><th class="r">Units</th><th class="r">Quoted</th>'
+        + '<th class="r">Booked</th><th class="r">$/100 CF</th><th class="r">$/unit</th>'
+        + "<th>Note</th></tr></thead><tbody>"
+        + jl.map(function (r) {
+            var aside = r["Packed By Owner"] || !r["Recorded"];
+            return "<tr" + (aside ? ' class="aside"' : "") + "><td>" + esc(dayLab(r.Day)) + "</td>"
+              + "<td>" + esc(r["Job Code"] || "—") + "</td>"
+              + "<td>" + esc(r.Customer || "—") + "</td>"
+              + '<td class="r">' + (r["Real CF"] == null ? "—" : Math.round(r["Real CF"])) + "</td>"
+              + '<td class="r">' + (r["Packing Units"] == null ? "—" : r["Packing Units"]) + "</td>"
+              + '<td class="r">' + usd(r["Quoted USD"]) + "</td>"
+              + '<td class="r"><b>' + usd(r["Sold USD"]) + "</b></td>"
+              + '<td class="r">' + usd(r["USD per 100 CF"], 2) + "</td>"
+              + '<td class="r">' + usd(r["USD per Unit"], 2) + "</td>"
+              + "<td>" + (r["Packed By Owner"] ? '<span class="pk-tag">customer packed</span>'
+                  : !r["Recorded"] ? '<span class="pk-tag">not filed yet</span>'
+                  : r["Zero Pack"] ? '<span class="pk-tag' + (r["No Quote"] ? "" : " sig") + '">booked nothing'
+                      + (r["No Quote"] ? " · none quoted" : "") + "</span>"
+                  : "") + "</td></tr>";
+          }).join("")
+        + "</tbody></table></div></div>";
+      return h;
+    }
+
+    // colour a KPI by which side of the fleet he sits, but only where the comparison exists
+    function rel(p, k) {
+      var v = p.med[k], f = p.fleet[k];
+      if (v == null || f == null || !f) return "";
+      return v < f * 0.9 ? "warn" : v > f * 1.05 ? "pos" : "";
     }
     function seg(k, lab) {
       return '<button data-sort="' + k + '" class="' + (S.sort === k ? "on" : "") + '">' + lab + "</button>";
@@ -709,6 +1004,14 @@ registerPage({
       var byName = {};
       profiles.forEach(function (p) { byName[p.name] = p; });
 
+      main.querySelectorAll(".pk-tabs button").forEach(function (b) {
+        b.onclick = function () { S.view = b.dataset.v; close(); paint(); };
+      });
+      var who = main.querySelector("#pkWho");
+      if (who) who.onchange = function () { S.fm = this.value; paint(); };
+      var tb = main.querySelector("#pkToBoard");
+      if (tb) tb.onclick = function () { S.view = "board"; paint(); };
+
       var mm = main.querySelector("#pkMonth");
       if (mm) mm.onchange = function () { S.month = this.value; invalidate(); paint(); };
       var cc = main.querySelector("#pkCo");
@@ -755,7 +1058,8 @@ registerPage({
         + "<p>" + p.n + " comparable job" + (p.n === 1 ? "" : "s")
         + (p.selfPacked ? " · " + p.selfPacked + " excluded (customer packed their own)" : "")
         + " · " + usd(p.sold) + " booked</p></div>"
-        + '<button class="pk-x" id="pkX">&times;</button></div><div class="pk-db">';
+        + '<div class="pk-dhact"><button class="pk-btn" id="pkFull">Open his full file →</button>'
+        + '<button class="pk-x" id="pkX">&times;</button></div></div><div class="pk-db">';
 
       h += '<div class="pk-read ' + v.cls + '"><h5>Reading</h5><p>' + verdictText(p) + "</p>";
       if (p.verdict === "review" || p.verdict === "look") {
@@ -873,6 +1177,11 @@ registerPage({
       draw.classList.add("on");
       scrim.classList.add("on");
       draw.querySelector("#pkX").onclick = close;
+      // the drawer is the quick read; the file is the sit-down. One click between them.
+      draw.querySelector("#pkFull").onclick = function () {
+        S.view = "profile"; S.fm = p.name; close(); paint();
+        try { main.scrollIntoView({ block: "start" }); } catch (e) {}
+      };
       if (jobCode) {
         var hit = draw.querySelector('tr[style*="outline"]');
         if (hit) hit.scrollIntoView({ block: "center" });
