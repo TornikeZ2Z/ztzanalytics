@@ -844,8 +844,90 @@ window.RS = (function () {
     _markerP = null;
   }
 
+  /* ---------------- reporting timezone (task 5, phase D) ----------------------
+     Tornike's rule (2026-08-06): New Jersey, Tbilisi and UTC all available, DEFAULTING TO THE
+     VIEWER'S OWN COMPUTER ZONE -- a Tbilisi machine opens on Tbilisi, his NJ teammates on NY.
+
+     WHAT THIS MAY AND MAY NOT BE POINTED AT. Converting only makes sense for a real INSTANT --
+     a Date, or an ISO string carrying an offset. Most warehouse timestamps are naive wall time
+     in a zone the registry names (docs/timezones.md), and re-zoning one of those as if it were
+     UTC moves it by hours and nobody notices for weeks. Date-only values are never touched.
+     Today that means the live times: when a page last loaded, and the reminder bot's feed.
+
+     AND IT IS A DISPLAY CHOICE, NOT A BUSINESS RULE. Anything that BUCKETS by day -- the
+     reminder worklist's 7-day window, a month filter -- keeps its own fixed basis. Otherwise
+     switching zone would silently change which rows are in the report, not just how their
+     times read. */
+  const TZ_CHOICES = [
+    { id: "nj",  label: "New Jersey", short: "NJ",  tz: "America/New_York" },
+    { id: "tbi", label: "Tbilisi",    short: "TBI", tz: "Asia/Tbilisi" },
+    { id: "utc", label: "UTC",        short: "UTC", tz: "UTC" },
+  ];
+  const TZ_KEY = "rs_tz";
+  function tzOffsetMin(tz, at) {
+    // the zone's offset right now, read back out of a formatted rendering -- no table needed,
+    // and DST comes free because the browser applies it for the instant given
+    const d = at || new Date();
+    try {
+      const s = d.toLocaleString("en-US", { timeZone: tz, hour12: false, year: "numeric",
+        month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" });
+      const m = s.match(/(\d+)\/(\d+)\/(\d+),?\s+(\d+):(\d+):(\d+)/);
+      if (!m) return 0;
+      return Math.round((Date.UTC(+m[3], +m[1] - 1, +m[2], +m[4] % 24, +m[5], +m[6]) - d.getTime()) / 60000);
+    } catch (e) { return 0; }
+  }
+  function tzDefault() {
+    let z = "";
+    try { z = (Intl.DateTimeFormat().resolvedOptions().timeZone || ""); } catch (e) { z = ""; }
+    const hit = TZ_CHOICES.filter(c => c.tz === z)[0];
+    if (hit) return hit.id;
+    // not one of the three by name -- pick whichever it currently agrees with, so a machine in
+    // Yerevan lands on Tbilisi and one in Chicago on New Jersey rather than defaulting to UTC
+    const mine = -new Date().getTimezoneOffset();
+    let best = "utc", bestD = Infinity;
+    TZ_CHOICES.forEach(c => {
+      const d = Math.abs(mine - tzOffsetMin(c.tz));
+      if (d < bestD) { bestD = d; best = c.id; }
+    });
+    return best;
+  }
+  let _tzId = null;
+  function tzId() {
+    if (_tzId) return _tzId;
+    let saved = null;
+    try { saved = localStorage.getItem(TZ_KEY); } catch (e) { saved = null; }
+    _tzId = (saved && TZ_CHOICES.some(c => c.id === saved)) ? saved : tzDefault();
+    return _tzId;
+  }
+  function tzChoice() { return TZ_CHOICES.filter(c => c.id === tzId())[0] || TZ_CHOICES[0]; }
+  function setTz(id) {
+    if (!TZ_CHOICES.some(c => c.id === id) || id === tzId()) return;
+    _tzId = id;
+    try { localStorage.setItem(TZ_KEY, id); } catch (e) { /* private mode: this session only */ }
+    // every page repaints off one event rather than each one polling
+    try { window.dispatchEvent(new CustomEvent("ztz:tz", { detail: tzChoice() })); } catch (e) {}
+  }
+  /* Render an INSTANT in the chosen zone. Pass a Date or an ISO string with an offset.
+     Returns "" for anything unparseable rather than "Invalid Date" on a dashboard. */
+  function fmtTz(v, opts) {
+    const d = (v instanceof Date) ? v : new Date(v);
+    if (v == null || v === "" || isNaN(d)) return "";
+    const o = Object.assign({ hour: "numeric", minute: "2-digit" }, opts || {},
+                            { timeZone: tzChoice().tz });
+    return d.toLocaleTimeString("en-US", o);
+  }
+  function fmtTzDay(v, opts) {
+    const d = (v instanceof Date) ? v : new Date(v);
+    if (v == null || v === "" || isNaN(d)) return "";
+    const o = Object.assign({ month: "short", day: "numeric" }, opts || {},
+                            { timeZone: tzChoice().tz });
+    return d.toLocaleDateString("en-US", o);
+  }
+  const tzShort = () => tzChoice().short;
+
   return { DATASETS, FIELDS, state, load, filtered, monthName, M, value, yoy, groupBy, moneyC,
            fmtN, money, fmtPct, fmt1, num,
            MIN_MONTH_DAYS, displayMonth, coverage,
+           TZ_CHOICES, tzId, tzChoice, setTz, tzShort, fmtTz, fmtTzDay,
            bookingRate, dateBasis, fieldsFor, displayName, refresh };
 })();

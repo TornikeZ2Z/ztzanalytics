@@ -115,7 +115,10 @@ registerPage({
     function setLast() {
       var el = document.getElementById("fncLast");
       if (el) el.textContent = window.__FNC_AT
-        ? ("Updated " + new Date(window.__FNC_AT).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }))
+        // was the BROWSER's zone with no label at all -- now the chosen one, and it says which
+        ? ("Updated " + ((window.RS && RS.fmtTz)
+            ? RS.fmtTz(window.__FNC_AT) + " " + RS.tzShort()
+            : new Date(window.__FNC_AT).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })))
         : "";
     }
     try { await loadData(false); }

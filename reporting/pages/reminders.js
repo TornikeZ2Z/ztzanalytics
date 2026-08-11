@@ -561,7 +561,20 @@ registerPage({ id: "review-settings", group: "reviews", title: "Review URLs and 
     // ---------- ET time helpers ----------
     function etDay(iso) { var d = new Date(iso); return isNaN(d) ? "" : d.toLocaleDateString("en-US", { timeZone: RRP_TZ, weekday: "short", month: "short", day: "numeric", year: "numeric" }); }
     function etDayKey(iso) { var d = new Date(iso); return isNaN(d) ? "" : d.toLocaleDateString("en-CA", { timeZone: RRP_TZ }); }
-    function etTime(iso) { var d = new Date(iso); return isNaN(d) ? "" : d.toLocaleTimeString("en-US", { timeZone: RRP_TZ, hour: "numeric", minute: "2-digit" }); }
+    /* TIME OF DAY FOLLOWS THE READER; THE DAY DOES NOT (2026-08-11).
+     * etTime/fmtT show an instant, so they render in whichever zone the header picker is set
+     * to -- a Tbilisi reader was being shown New Jersey clock times with nothing on screen
+     * saying so, and 4 PM there is 4 PM here only by coincidence.
+     *
+     * etDay and etDayKey below DELIBERATELY stay on RRP_TZ. They are not display: etDayKey
+     * builds the worklist's 7-day window and groups jobs into days, so letting the picker
+     * reach them would change WHICH JOBS ARE IN THE REPORT when somebody changes zone. The
+     * bot runs on New Jersey days; that is a fact about the bot, not a preference. */
+    function etTime(iso) {
+      if (window.RS && RS.fmtTz) return RS.fmtTz(iso);
+      var d = new Date(iso);
+      return isNaN(d) ? "" : d.toLocaleTimeString("en-US", { timeZone: RRP_TZ, hour: "numeric", minute: "2-digit" });
+    }
 
     function statusPill(s) {
       s = String(s || "");
@@ -615,8 +628,16 @@ registerPage({ id: "review-settings", group: "reviews", title: "Review URLs and 
     function logFilters() {
       return '<div class="rrp-filters"><input id="rrpQ" type="text" placeholder="Search foreman / customer / job…" value="' + esc(RRP.fq) + '"></div>';
     }
-    function fmtT(iso) { var d = new Date(iso); return isNaN(d) ? "" : d.toLocaleTimeString("en-US", { timeZone: RRP_TZ, hour: "numeric", minute: "2-digit" }); }
-    function nowLabel() { return "🕒 Now " + new Date().toLocaleTimeString("en-US", { timeZone: RRP_TZ, hour: "numeric", minute: "2-digit" }) + " · New Jersey"; }
+    function fmtT(iso) {
+      if (window.RS && RS.fmtTz) return RS.fmtTz(iso);
+      var d = new Date(iso);
+      return isNaN(d) ? "" : d.toLocaleTimeString("en-US", { timeZone: RRP_TZ, hour: "numeric", minute: "2-digit" });
+    }
+    // the label NAMES the zone it is showing, instead of asserting New Jersey regardless
+    function nowLabel() {
+      if (window.RS && RS.fmtTz) return "🕒 Now " + RS.fmtTz(new Date()) + " · " + RS.tzChoice().label;
+      return "🕒 Now " + new Date().toLocaleTimeString("en-US", { timeZone: RRP_TZ, hour: "numeric", minute: "2-digit" }) + " · New Jersey";
+    }
     // shift a YYYY-MM-DD key by n calendar days (UTC math on the date parts → no tz drift)
     function shiftKey(key, n) { var p = String(key).split("-"); var d = new Date(Date.UTC(+p[0], +p[1] - 1, +p[2])); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); }
     function dayHeadLabel(iso, isToday, isTomorrow, isYesterday) {

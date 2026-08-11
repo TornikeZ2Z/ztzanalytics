@@ -1260,7 +1260,7 @@ registerPage({
       ((S.fines || {}).balances || []).forEach(function (b) { if (b.foreman) set[b.foreman] = 1; });
       return Object.keys(set).sort();
     }
-
+
     // ---------- THE POPUP ----------
     function openModal(ev) {
       var r = overlaid().filter(function (x) { return x.ev === ev; })[0];
@@ -1646,7 +1646,11 @@ registerPage({
     function setLiveBadge() {
       var last = document.getElementById("mfLast");
       if (last) last.textContent = S.liveAt
-        ? ("Updated " + new Date(S.liveAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }))
+        // Money Flow ENTRY times are Tbilisi by record and stay that way; this is only the
+        // clock reading of when the page last fetched, which belongs to the reader
+        ? ("Updated " + ((window.RS && RS.fmtTz)
+            ? RS.fmtTz(S.liveAt) + " " + RS.tzShort()
+            : new Date(S.liveAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })))
         : "";
       var el = document.getElementById("mfLive"); if (!el) return;
       if (S.liveOk) { el.className = "mf-live"; el.textContent = "● live"; el.title = "Figures are current to about a minute — digital contracts and portal entries included."; }

@@ -402,7 +402,10 @@ registerPage({
       var el = document.getElementById("rpLive"); if (!el) return;
       if (!RP_LIVE.on) return;
       el.classList.remove("pending");
-      var tm = RP_LIVE.at ? RP_LIVE.at.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) : "";
+      var tm = RP_LIVE.at
+        ? ((window.RS && RS.fmtTz) ? RS.fmtTz(RP_LIVE.at) + " " + RS.tzShort()
+                                   : RP_LIVE.at.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }))
+        : "";
       el.textContent = "● Live · " + RP_LIVE.added + " fresh review" + (RP_LIVE.added === 1 ? "" : "s") + " added" + (tm ? " · " + tm : "");
       el.title = "These reviews were read live from the Data for Reviews sheet and matched by Event ID — ahead of the ~6-hour warehouse refresh.";
     }

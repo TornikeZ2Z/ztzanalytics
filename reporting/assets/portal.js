@@ -141,11 +141,24 @@ window.ZTZ = (function () {
     // Only worth the pixels when the two offices are on DIFFERENT calendar days — which for
     // most of the working day they are, and that is exactly when a time alone misleads.
     const diff = z[0].d !== z[1].d;
-    return z.map(function (p, i) {
+    // THE CHOSEN ZONE IS MARKED ON THE CLOCK ITSELF rather than in a separate control. The
+    // clock already answers "what time is it there"; this makes it also answer "and which one
+    // am I reading times in". UTC is not an office, so it only appears once chosen.
+    const cur = (window.RS && RS.tzId) ? RS.tzId() : null;
+    const CUR_MAP = { "America/New_York": "nj", "Asia/Tbilisi": "tbi" };
+    const body = z.map(function (p, i) {
       const mark = (diff && i === 1) ? '<em>' + (p.d < z[0].d ? "prev day" : "next day") + '</em>' : "";
-      return '<span class="ztzcz"><i><span class="lg">' + p.label + '</span>'
+      const on = cur && CUR_MAP[CLOCK_ZONES[i].tz] === cur;
+      return '<span class="ztzcz' + (on ? " on" : "") + '"><i><span class="lg">' + p.label + '</span>'
         + '<span class="sm">' + p.short + '</span></i><b>' + p.t + '</b>' + mark + '</span>';
     }).join('<span class="ztzcsep">·</span>');
+    const utc = cur === "utc"
+      ? '<span class="ztzcsep">·</span><span class="ztzcz on"><i><span class="lg">UTC</span>'
+        + '<span class="sm">UTC</span></i><b>'
+        + new Date().toLocaleTimeString("en-GB", { timeZone: "UTC", hour: "2-digit", minute: "2-digit" })
+        + "</b></span>"
+      : "";
+    return body + utc + '<span class="ztzcar">\u25be</span>';
   }
   function mountClock() {
     if (!document.getElementById("ztz-clock-style")) {
@@ -160,6 +173,25 @@ window.ZTZ = (function () {
         ".ztzcz em{font-style:normal;font-size:9.5px;font-weight:700;color:var(--faint,#8a97a6);" +
         "opacity:.85}" +
         ".ztzcsep{color:var(--faint,#8a97a6);opacity:.5}" +
+        ".ztzclock{cursor:pointer;border-radius:9px;padding:3px 7px;margin-right:7px}" +
+        ".ztzclock:hover{background:var(--panel-2,#f1f4f8)}" +
+        // the zone whose times you are reading is the one in full colour; the other dims
+        ".ztzcz{opacity:.5}.ztzcz.on{opacity:1}" +
+        ".ztzcz.on b{color:var(--brand,#16202c)}" +
+        ".ztzcar{font-size:9px;opacity:.5;margin-left:1px}" +
+        ".ztztzm{position:fixed;z-index:230;min-width:216px;padding:7px;background:var(--panel,#fff);" +
+        "border:1px solid var(--line,#d7dee8);border-radius:13px;box-shadow:0 14px 40px rgba(0,0,0,.3)}" +
+        ".ztztzm h6{margin:2px 8px 7px;font-size:10px;font-weight:800;letter-spacing:.05em;" +
+        "text-transform:uppercase;color:var(--faint,#8a97a6)}" +
+        ".ztztzb{display:flex;width:100%;align-items:baseline;gap:8px;cursor:pointer;text-align:left;" +
+        "border:0;background:transparent;border-radius:9px;padding:7px 9px;font:inherit;font-size:13px;" +
+        "font-weight:650;color:var(--ink,#16202c)}" +
+        ".ztztzb:hover{background:var(--panel-2,#f1f4f8)}" +
+        ".ztztzb.on{background:var(--panel-2,#f1f4f8)}" +
+        ".ztztzb u{text-decoration:none;margin-left:auto;font-size:12px;font-weight:700;" +
+        "font-variant-numeric:tabular-nums;color:var(--muted,#5b6b7c)}" +
+        ".ztztzb i{font-style:normal;font-size:10.5px;font-weight:700;color:var(--brand,#2ea05a)}" +
+        ".ztztzn{margin:6px 9px 3px;font-size:10.5px;line-height:1.5;color:var(--faint,#8a97a6)}" +
         ".ztzcz i .sm{display:none}" +
         // Never hidden, only abbreviated. "What time is it over there" is the whole point,
         // and it is MORE useful on a phone, not less.
@@ -176,6 +208,46 @@ window.ZTZ = (function () {
     }, 15000);
   }
 
+  /* WHICH ZONE THE PAGE'S TIMES ARE IN, and how to change it. Every live time on the portal
+     used to render in whatever zone its page happened to hardcode -- the reminder feed was
+     pinned to New Jersey, the "Updated 14:32" footers took the browser's -- and NOTHING on
+     screen said which. A Tbilisi reader had no way to know the bot's 4 PM was not their 4 PM.
+
+     The menu says what it will and will not change, because the honest limit matters: it moves
+     LIVE times, not the historical timestamps in the warehouse, which are stored as naive wall
+     time in the zone each source records in (docs/timezones.md). */
+  function openTzMenu(anchor) {
+    const old = document.getElementById("ztzTzMenu");
+    if (old) { old.remove(); return; }
+    if (!(window.RS && RS.TZ_CHOICES)) return;
+    const m = document.createElement("div");
+    m.id = "ztzTzMenu"; m.className = "ztztzm";
+    const r = anchor.getBoundingClientRect();
+    m.style.top = Math.round(r.bottom + 8) + "px";
+    m.style.right = Math.max(8, Math.round(window.innerWidth - r.right)) + "px";
+    const now = new Date();
+    m.innerHTML = "<h6>Show times in</h6>" + RS.TZ_CHOICES.map(function (c) {
+      const on = c.id === RS.tzId();
+      return '<button class="ztztzb' + (on ? " on" : "") + '" data-tz="' + c.id + '">'
+        + c.label + (on ? ' <i>\u2713</i>' : "")
+        + "<u>" + now.toLocaleTimeString("en-GB", { timeZone: c.tz, hour: "2-digit", minute: "2-digit" })
+        + "</u></button>";
+    }).join("")
+      + '<div class="ztztzn">Applies to live times \u2014 when a page loaded, and the reminder '
+      + "bot's feed. Dates and historical report timestamps keep the basis each report states.</div>";
+    document.body.appendChild(m);
+    m.addEventListener("click", function (ev) { ev.stopPropagation(); });
+    m.querySelectorAll("[data-tz]").forEach(function (b) {
+      b.onclick = function () { RS.setTz(b.getAttribute("data-tz")); m.remove(); refreshClock(); };
+    });
+    const close = function () { m.remove(); document.removeEventListener("click", close); };
+    setTimeout(function () { document.addEventListener("click", close); }, 0);
+  }
+  function refreshClock() {
+    const el = document.getElementById("ztzClock");
+    if (el) el.innerHTML = clockHtml();
+  }
+
   function header(active, subtitle) {
     const host = document.getElementById("ztzHeader");
     if (!host) return;
@@ -190,6 +262,12 @@ window.ZTZ = (function () {
       `<div class="who" id="ztzWho">${who}</div>` +
       `<span id="ztzHeadSign"></span>`;
     mountClock();
+    const clkEl = document.getElementById("ztzClock");
+    if (clkEl && window.RS && RS.TZ_CHOICES) {
+      clkEl.onclick = function (e) { e.stopPropagation(); openTzMenu(clkEl); };
+      clkEl.title = "Local time in both offices \u2014 click to choose which zone the portal "
+        + "shows live times in.";
+    }
     if (!em) { mountSignin(document.getElementById("ztzHeadSign"), { button: { size: "medium" } }); return; }
     const whoEl = document.getElementById("ztzWho");
     whoEl.style.cursor = "pointer";
