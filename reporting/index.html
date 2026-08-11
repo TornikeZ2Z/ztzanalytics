@@ -1227,10 +1227,7 @@ if (!ZTZ.getToken()) {
      the page reading the old zone until the next navigation — which looks exactly like the
      setting not working. Re-rendering the current page is enough: RS.load is cached by epoch,
      so nothing is re-fetched (2026-08-11). */
-  window.addEventListener("ztz:tz", () => {
-    if (CURRENT) renderPage();
-    if (typeof updateFooterFresh === "function") updateFooterFresh();
-  });
+  window.addEventListener("ztz:tz", () => { if (CURRENT) renderPage(); });
 
   // Pages register themselves as their scripts load (see below); boot after load.
   window.addEventListener("load", async () => {
@@ -1262,6 +1259,10 @@ if (!ZTZ.getToken()) {
       } catch (e) {}
     }
     updateFooterFresh();
+    // re-stamp the footer when the reporting zone changes. Registered HERE, not beside the
+    // page-repaint listener above: this function is scoped to the load handler, so a listener
+    // declared outside it cannot see the name at all — it silently did nothing (caught live).
+    window.addEventListener("ztz:tz", () => { updateFooterFresh(); });
     // GLOBAL FOOTER REFRESH (his ask 2026-07-22 — every report gets a manual refresh, matching
     // the live Money Flow / Foreman Closings pages). Datasets are cached in-memory + IndexedDB
     // (RS.load), so switching reports never re-syncs; this button drops that cache so the next
