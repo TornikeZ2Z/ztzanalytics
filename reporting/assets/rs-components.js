@@ -443,6 +443,18 @@ window.RSC = (function () {
          early on an unchanged key, so when two bars shared a storage cell, un-hiding one left
          the other showing collapsed until something else happened to move the key. */
       rekey(k) { if (k) key = k; set(read(), false); },
+      /* Offer the control, or don't. A page whose content is SELECTED by one of these filters
+         must not be able to hide them — see NO_BAR_COLLAPSE in index.html. Turning it off does
+         two things, and the second is the one that matters: it hides the toggle, AND it forces
+         the bar OPEN without persisting. This is ONE bar shared by every page, so a state
+         collapsed on Custom Breakdown would otherwise follow you to a page that has no button
+         left to undo it — filters gone, no way back. `persist:false` also means the other
+         page's preference survives being visited here. */
+      setEnabled(on, k) {
+        if (k) key = k;
+        row.style.display = on ? "" : "none";
+        set(on ? read() : false, false);
+      },
       /* re-read the stored state without changing key -- for a caller that knows something
          else may have written the same cell */
       sync() { set(read(), false); },

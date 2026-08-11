@@ -119,7 +119,7 @@ body.rs-viewas .rs-layout{box-shadow:inset 0 0 0 2px #7c3aed}
 
 <script src="assets/portal.js?v=12"></script>
 <script src="assets/rs-core.js?v=44"></script>
-<script src="assets/rs-components.js?v=16"></script>
+<script src="assets/rs-components.js?v=17"></script>
 <script>
 /* ---------------- page registry ---------------- */
 window.PAGES = [];
@@ -815,6 +815,13 @@ function navigate(id, push) {
    render "bare" — the global date/slicer bar + company chip are hidden so the page's board
    starts right under the header instead of below two rows of greyed-out, unusable filters. */
 const BARE_CHROME = new Set(["review-performance", "demand-analysis", "reviews-reminders", "response-analysis", "review-settings", "monthly-report", "money-flow", "ld-planning", "cleanup", "packing-control", "storage-control", "foreman-assessment", "fuel-control", "foreman-closings", "refresh-log", "general-tables"]);
+/* Pages where the global filter bar MUST STAY VISIBLE, so Hide filters is not offered at all.
+   The control exists for pages carrying a wall of slicers you want out of the way to read the
+   board full-screen — Custom Breakdown is the case it was built for. It is wrong wherever the
+   page's own content is SELECTED by one of those slicers: Sales Person Analysis picks its
+   subject through the Sales Person filter, so hiding the bar takes the page's steering wheel
+   away (Tornike, 2026-08-12). Add an id here rather than deleting the feature. */
+const NO_BAR_COLLAPSE = new Set(["sales-command"]);
 /* Monthly-Report-family pages OWN their time: they have a Month/Year picker on the cover
    and neutralize the global Year/Month slicers in every computation (withMonth), so those
    two slicers are hidden there — two competing time controls confused everyone (Tornike
@@ -853,7 +860,14 @@ async function renderPage() {
   const bare = BARE_CHROME.has(currentLeafId());
   document.body.classList.toggle("mr-own-time", MR_OWN_TIME.has(currentLeafId()));
   const fEl = document.getElementById("filters"); if (fEl) fEl.classList.toggle("hidden", bare);
-  if (GBAR) GBAR.rekey("rsBarCollapsed:" + currentLeafId());
+  // HIDE FILTERS IS FOR PAGES DROWNING IN SLICERS, not for pages whose own content is DRIVEN
+  // by one. Sales Person Analysis picks the person through the global Sales Person filter, so
+  // collapsing the bar left the Rep Profile telling you to "pick anyone with the Sales Person
+  // filter at the top" while that filter was not on screen at all — a dead end (Tornike,
+  // 2026-08-12). The control goes on those pages, and the bar is forced open so a state
+  // collapsed on some other page cannot follow you here: it is ONE bar shared by every page.
+  if (GBAR) GBAR.setEnabled(!NO_BAR_COLLAPSE.has(currentLeafId()),
+                            "rsBarCollapsed:" + currentLeafId());
   { const cEl = document.getElementById("chips"); if (cEl) { if (bare) cEl.classList.add("hidden"); else paintChips(); } }
   // destroy the outgoing page's Chart instances BEFORE wiping the DOM — otherwise they leak on
   // every navigation / theme change / re-render (worst on chart-heavy pages)
@@ -1602,7 +1616,7 @@ registerPage({
 <script src="pages/source-analysis.js?v=4"></script>
 <script src="pages/data-quality.js?v=12"></script>
 <script src="pages/refresh-log.js?v=17"></script>
-<script src="pages/sales-team.js?v=40"></script>
+<script src="pages/sales-team.js?v=41"></script>
 <script src="pages/source-trace.js?v=12"></script>
 <script src="pages/multi-source-leads.js?v=7"></script>
 <script src="pages/calendar-coverage.js?v=8"></script>

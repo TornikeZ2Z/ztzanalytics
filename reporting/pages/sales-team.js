@@ -327,6 +327,11 @@
     .rp-calc summary{font-size:12px;font-weight:750;color:var(--brand-d);cursor:pointer;list-style:none}
     .rp-calc summary::-webkit-details-marker{display:none}
     .rp-dist-tot td{border-top:2px solid var(--line-2)!important;font-weight:800;background:var(--panel-2)}
+    .rp-pick{display:inline-flex;align-items:center;gap:8px}
+    .rp-pick span{font-size:10.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--faint)}
+    .rp-pick select{font:inherit;font-size:14px;font-weight:800;color:var(--ink);background:var(--panel);
+      border:1px solid var(--line-2);border-radius:10px;padding:7px 11px;cursor:pointer;max-width:260px}
+    .rp-pick select:hover{border-color:var(--brand)}
     .st-seg{display:inline-flex;border:1px solid var(--line-2);border-radius:10px;overflow:hidden}
     .st-seg button{appearance:none;border:0;background:var(--panel);color:var(--muted);font:inherit;font-size:12.5px;font-weight:700;padding:8px 14px;cursor:pointer}
     .st-seg button.on{background:var(--brand);color:var(--brand-ink)}
@@ -1441,7 +1446,7 @@
           ${rows}
         </tbody></table>`;
   }
-
+
   function renderRep(host, ctx) {
     const book = repBook(ctx);
     const th = thGet();
@@ -1469,13 +1474,24 @@
       }
     } else if (!ctx.repSel || !reps.some(p => p.name === ctx.repSel)) ctx.repSel = reps[0].name;
 
+    /* THE PROFILE CARRIES ITS OWN PICKER (2026-08-12). It used to say "pick anyone with the
+     * Sales Person filter at the top" and nothing else — so the one control that chooses the
+     * subject of this whole view lived on a bar that Hide filters could take away, leaving an
+     * instruction pointing at something not on screen. A view about one person should let you
+     * change which person from inside it. It still writes through the GLOBAL filter, so there
+     * is exactly one source of truth and the Explorer tab stays in step. */
     host.innerHTML = `
       <div class="st-bar">
-        <span class="rp-who">Showing <b>${esc(ctx.repSel)}</b></span>
-        <span class="st-dim" style="font-size:12.5px">— pick anyone with the <b>Sales Person</b> filter at the top</span>
+        <label class="rp-pick"><span>Rep</span>
+          <select id="rpWho">${reps.map(p => `<option${p.name === ctx.repSel ? " selected" : ""}>${esc(p.name)}</option>`).join("")}</select>
+        </label>
+        <span class="st-dim" style="font-size:12.5px">${reps.length} active on the team · the Sales Person filter follows this</span>
         <span style="flex:1"></span>
         <button class="st-chip" id="rpJump">Open their leads in Explorer →</button></div>
       <div id="rpBody"></div>`;
+    // "rep", not "profile" — TABS keys this tab "rep", and a key that matches nothing falls
+    // through to the Explorer, which would have thrown you off the page you were reading
+    host.querySelector("#rpWho").onchange = e => jumpToRepLeads(ctx, e.target.value, "rep");
     host.querySelector("#rpJump").onclick = () => { ST_LAST_TAB = "explorer"; ctx.go("explorer"); };
     paintRep(host.querySelector("#rpBody"), book, ctx.repSel, th, teamIndex(ctx.repRows || ctx.rows));
   }
