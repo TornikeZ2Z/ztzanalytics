@@ -17,7 +17,10 @@
       // (audit + Tornike 2026-07-13). Kept as-is after the CSV export was removed: this list
       // is a payload contract. Add columns here only together with a real consumer.
       cols: [
-        "Week Ending", "Job Date", "Job No", "Customer", "Foreman", "Job Source", "Job Type",
+        // "Job Code" ADDED 2026-08-11. `Job No` is the calendar's CONNECTOR -- the Moveboard
+        // request # when there is one, else the job code -- so this row could not tell you the
+        // code, and the explain button below had nothing else to file a reason under.
+        "Week Ending", "Job Date", "Job No", "Job Code", "Customer", "Foreman", "Job Source", "Job Type",
         "Estimate Bill", "Actual Bill", "Bill Increase Amount", "Bill Increase %",
         "Bill Increase Category", "Review Received", "Number of Reviews", "Review Source",
         "Review Breakdown", "Eligible", "Support Intervention", "Support Intervention Reason",
@@ -287,6 +290,8 @@ registerPage({
         .rp-pager{display:flex;align-items:center;justify-content:flex-end;gap:10px;padding:9px 2px 0;font-size:12px;color:var(--muted);font-weight:600}
         .rp-pager b{color:var(--ink);font-variant-numeric:tabular-nums}
         .rp-pager .sp{margin-right:auto;font-weight:600}
+        .rp-aka{font-size:10.5px;font-weight:700;color:var(--faint);background:var(--panel-2);
+          border:1px solid var(--line-2);border-radius:999px;padding:1px 7px;white-space:nowrap}
         /* ---- Standings ---- */
         .rp-bdbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px}
         .rp-bdwk{display:inline-flex;align-items:center;gap:1px;background:var(--panel-2);border:1px solid var(--line-2);border-radius:10px;padding:2px}
@@ -551,10 +556,25 @@ registerPage({
     // exactly the one that is broken for some users' browsers (see reminders.js relayRead).
     // Now: POST through the bridge proxy (same origin as every other portal call, real status
     // codes), await it, and only claim success when the bridge says so.
+    // ONE NAME PER JOB, AND IT IS THE CODE (2026-08-11). This used to post `Job No`, which is
+    // the calendar connector: the Moveboard request # when there is one, the job code only when
+    // there is not. The Slack bot and Response Analysis file under the CODE. So the same
+    // sheet, the same column, two key spaces -- and ten jobs the office had already explained
+    // sat under an "Add reason" button because the worklist looked for one name and found the
+    // other. Readers on both sides now resolve either name, but agreeing on one at the point of
+    // WRITING is what stops the split growing, and the code is the name a human recognises.
+    //
+    // Falls back to `Job No` when the calendar carried no job code, which is exactly the rule
+    // the bot uses -- see reminders.js jobIdent(), which must stay identical to this.
+    // Historical rows keep whatever name they were written under: review_responses is a mirror
+    // of the sheet, so nothing rewrites them, and the double join in job_overview.py stays.
+    var jobIdent = function (r) {
+      return String(r["Job Code"] || "").trim() || String(r["Job No"] || "").trim();
+    };
     async function submitExplain(r, reason, note) {
       var who = "portal";
       try { who = (window.ZTZ && ZTZ.email && ZTZ.email()) || "portal"; } catch (e) {}
-      var body = JSON.stringify({ kind: "reviewReason", jobCode: String(r["Job No"] || ""),
+      var body = JSON.stringify({ kind: "reviewReason", jobCode: jobIdent(r),
         foreman: String(r["Foreman"] || ""), date: String(r["Job Date"] || "").slice(0, 10),
         reason: reason, note: (note ? note + " — " : "") + "via portal (" + who + ")" });
       var res = await fetch(ZTZ.API + "/api/_rrp", { method: "POST",
@@ -650,6 +670,14 @@ registerPage({
           <span class="vn">${x.n}</span></div>`).join("") + `</div>`
         : `<div class="rp-sec">Where the reviews came from</div><div class="rp-none" style="margin:0 2px 14px">No reviews written for these jobs yet</div>`;
 
+      // BOTH OF THE JOB'S NAMES, because the office searches by whichever one they were given:
+      // dispatch quotes the job code, Moveboard quotes the request #, and a card showing one of
+      // them sends whoever holds the other away empty-handed. Only shown when they differ.
+      var alsoKnownAs = function (r) {
+        var a = String(r["Job Code"] || "").trim(), b = String(r["Job No"] || "").trim();
+        return (a && b && a.toUpperCase() !== b.toUpperCase())
+          ? `<span class="rp-aka" title="the same job's other identifier">${esc(b)}</span>` : "";
+      };
       var billPill = c => c === "High Increase" ? `<span class="rp-pill p-high">High +bill</span>`
         : c === "Attention" ? `<span class="rp-pill p-att">+bill</span>` : "";
 
@@ -664,7 +692,7 @@ registerPage({
         var fexpl = (r["Foreman Explanation"] && String(r["Foreman Explanation"]).trim()) ? `<div class="rp-expl"><b>Explanation:</b> ${esc(r["Foreman Explanation"])}</div>` : "";
         var canExplain = elig && num(r["Number of Reviews"]) === 0 && !(r["Foreman Explanation"] && String(r["Foreman Explanation"]).trim());
         return `<div class="rp-jc${elig ? "" : " excl"}">
-          <div class="top"><span class="jn">#${esc(r["Job No"] || "")}</span><span class="cust">${esc(r["Customer"] || "—")}</span>
+          <div class="top"><span class="jn">#${esc(jobIdent(r))}</span>${alsoKnownAs(r)}<span class="cust">${esc(r["Customer"] || "—")}</span>
             <span style="flex:1"></span>${stPill(r["Final Status"])}</div>
           <div class="meta"><span>${esc(shortD(String(r["Job Date"] || "").slice(0, 10)))}</span>
             <span>${esc(r["Job Source"] || "—")}</span>

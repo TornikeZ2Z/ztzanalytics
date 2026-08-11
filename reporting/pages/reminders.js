@@ -329,6 +329,8 @@ registerPage({ id: "review-settings", group: "reviews", title: "Review URLs and 
         ".gp{color:var(--faint);font-weight:700;font-variant-numeric:tabular-nums;margin-left:4px}",
         ".ra-done td{opacity:.6}",
         ".s-wait{background:rgba(224,145,42,.18);color:#e0912a}",
+        ".rrp-aka{font-size:10.5px;font-weight:700;color:var(--faint);background:var(--panel-2);" +
+          "border:1px solid var(--line-2);border-radius:999px;padding:1px 7px;white-space:nowrap}",
         ".rrp-exbtn{font:inherit;font-size:11.5px;font-weight:700;color:var(--brand-ink);background:var(--brand);border:0;border-radius:8px;padding:5px 11px;cursor:pointer}",
         ".rrp-exbtn:hover{background:var(--brand-d)}",
         ".rrp-exform{display:inline-flex;gap:6px;align-items:center;flex-wrap:wrap}",
@@ -864,7 +866,26 @@ registerPage({ id: "review-settings", group: "reviews", title: "Review URLs and 
       var explFor = function (k) {
         return expl[k] || (al.c2n[k] ? expl[al.c2n[k]] : null) || (al.n2c[k] ? expl[al.n2c[k]] : null) || null;
       };
-      var jobs = Object.keys(byJob).map(function (k) { var o = byJob[k]; o.exp = explFor(k); o.rev = reviewFor(k); return o; })
+      /* ONE NAME TO WRITE UNDER, BOTH NAMES TO READ BY (2026-08-11). Reading either name is
+       * what un-hid the ten answered jobs above, but it does not stop the split growing: every
+       * new reason still gets filed under whichever name the page happened to be holding. So
+       * both portal writers now agree on the CODE, and fall back to the number only when the
+       * calendar never carried a code -- the rule review-performance.js jobIdent() uses, which
+       * must stay identical to this one.
+       *
+       * `alt` is the job's other name. It goes on screen because the office searches by
+       * whichever one they were handed: dispatch quotes the code, Moveboard quotes the number,
+       * and a row showing one of them sends whoever holds the other away empty-handed. */
+      var identFor = function (k, raw) {
+        if (al.n2c[k]) return { ident: al.n2c[k], alt: raw };        // k is the number; the code is known
+        if (al.c2n[k]) return { ident: raw, alt: al.c2n[k] };        // k is already the code
+        return { ident: raw, alt: "" };                              // only one name exists for this job
+      };
+      var jobs = Object.keys(byJob).map(function (k) {
+        var o = byJob[k]; o.exp = explFor(k); o.rev = reviewFor(k);
+        var nm = identFor(k, o.job); o.ident = nm.ident; o.alt = nm.alt;
+        return o;
+      })
         .sort(function (a, b) { return ((a.exp || a.rev) ? 1 : 0) - ((b.exp || b.rev) ? 1 : 0) || String(b.day).localeCompare(a.day); });
       return { jobs: jobs, resp: resp, winDays: Object.keys(win).sort().reverse() };
     }
@@ -1114,7 +1135,8 @@ registerPage({ id: "review-settings", group: "reviews", title: "Review URLs and 
         } else {
           right = '<button class="rrp-exbtn" data-exi="' + i + '">Add reason</button>';
         }
-        return "<tr><td>" + esc(etDay(j.day + "T12:00:00") || j.day) + '</td><td>' + esc(j.job || "—")
+        var aka = j.alt ? ' <span class="rrp-aka" title="the same job\'s other identifier">' + esc(j.alt) + "</span>" : "";
+        return "<tr><td>" + esc(etDay(j.day + "T12:00:00") || j.day) + '</td><td>' + esc(j.ident || j.job || "—") + aka
           + '</td><td>' + esc(j.customer || "—") + '</td><td>' + esc(j.foreman || "—") + '</td><td>' + right + "</td></tr>";
       }).join("");
       var revNote = '<div class="rrp-msgnote" style="margin:8px 2px 0">Reviews are matched from the warehouse review register (every review event, counting or not), joined to the job by its Request # via the calendar link. The register refreshes with the data pipeline — a review written since the last refresh isn’t matched yet, so a freshly-reviewed job can briefly show as waiting.'
@@ -1170,7 +1192,8 @@ registerPage({ id: "review-settings", group: "reviews", title: "Review URLs and 
           f.querySelector(".rrp-exgo").onclick = function () {
             var go = f.querySelector(".rrp-exgo"); go.disabled = true; go.textContent = "Saving…";
             var who = ""; try { who = (window.ZTZ && ZTZ.email && ZTZ.email()) || ""; } catch (e) {}
-            var body = JSON.stringify({ kind: "reviewReason", jobCode: String(j.job || ""), foreman: String(j.foreman || ""),
+            // the CODE when the job has one -- see identFor() above and review-performance.js
+            var body = JSON.stringify({ kind: "reviewReason", jobCode: String(j.ident || j.job || ""), foreman: String(j.foreman || ""),
               date: String(j.day || ""), reason: f.querySelector(".rrp-exr").value,
               note: (f.querySelector(".rrp-exn").value.trim() ? f.querySelector(".rrp-exn").value.trim() + " — " : "") + "via portal" + (who ? " (" + who + ")" : "") });
             fetch(ZTZ.API + "/api/_rrp", { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8", "Authorization": "Bearer " + ZTZ.getToken() }, body: body })
