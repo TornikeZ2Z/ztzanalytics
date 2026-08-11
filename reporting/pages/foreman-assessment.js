@@ -34,6 +34,7 @@
              "Packing Difference %", "Packing Vs Estimate Score", "Reviews to Jobs Ratio",
              "Review Score", "Claim Score", "Auto Score", "Auto Weight Measured",
              "Manual Points", "Questions Answered", "Assessed By", "Assessed At",
+             "Assessment Notes",
              "Total Score", "Total Score Rank", "Qualified",
              "Not Qualified Because", "Forman Score",
              // PAYLOAD CONTRACT: a column missing from this list never arrives, however
@@ -380,6 +381,26 @@ registerPage({
       + "color:var(--faint);background:var(--panel);border:1px solid var(--line);"
       + "border-radius:999px;padding:3px 11px;margin-bottom:9px;font-variant-numeric:tabular-nums}"
       + ".fa2-q.rated .qw{background:var(--panel-2)}"
+      + ".fa2-note{grid-column:1/-1;margin-top:9px;padding-top:9px;border-top:1px dashed var(--line);"
+      + "display:flex;align-items:flex-start;gap:8px}"
+      + ".fa2-note.edit{flex-direction:column;gap:6px}"
+      + ".fa2-notetx{flex:1;font-size:12.5px;line-height:1.5;color:var(--muted);white-space:pre-wrap}"
+      + ".fa2-noteadd{font:inherit;font-size:11.5px;font-weight:700;color:var(--faint);background:none;"
+      + "border:1px dashed var(--line-2);border-radius:8px;padding:4px 10px;cursor:pointer}"
+      + ".fa2-noteadd:hover{color:var(--brand);border-color:var(--brand);border-style:solid}"
+      + ".fa2-noteedit{font:inherit;font-size:11px;font-weight:700;color:var(--faint);background:none;"
+      + "border:0;padding:2px 4px;cursor:pointer;flex:0 0 auto}"
+      + ".fa2-noteedit:hover{color:var(--brand);text-decoration:underline}"
+      + ".fa2-notein{width:100%;box-sizing:border-box;font:inherit;font-size:12.5px;line-height:1.5;"
+      + "min-height:64px;resize:vertical;color:var(--ink);background:var(--panel);"
+      + "border:1px solid var(--line-2);border-radius:9px;padding:8px 10px}"
+      + ".fa2-notein:focus{outline:none;border-color:var(--brand)}"
+      + ".fa2-noterow{display:flex;align-items:center;gap:8px;width:100%}"
+      + ".fa2-notect{flex:1;font-size:11px;color:var(--faint);font-variant-numeric:tabular-nums}"
+      + ".fa2-noteok{font:inherit;font-size:11.5px;font-weight:700;color:var(--brand-ink);"
+      + "background:var(--brand);border:0;border-radius:8px;padding:5px 12px;cursor:pointer}"
+      + ".fa2-notecx{font:inherit;font-size:11.5px;font-weight:700;color:var(--muted);background:none;"
+      + "border:1px solid var(--line-2);border-radius:8px;padding:5px 11px;cursor:pointer}"
       + ".fa2-stars{display:flex;gap:1px;align-items:center}"
       + ".fa2-star{font-size:34px;line-height:1;cursor:pointer;background:none;border:0;padding:0 3px;color:var(--line-2);transition:transform .07s}"
       + ".fa2-star.on,.fa2-star.pv{color:var(--warn)}"
@@ -444,6 +465,9 @@ registerPage({
           S.canReopen = !!j.can_reopen;
           S.rubric = j.rubric || [];
           S.manualTotal = j.manual_total || 40;
+          // the SERVER owns the cap -- a counter that disagrees with VARCHAR(300) would let
+          // him type past the end and then silently cut the last thing he wrote
+          S.noteMax = +j.note_max || 300;
           S.canEditRubric = !!j.can_edit_rubric;
           S.rubricMonths = j.rubric_months || [];
           // the whole lock table rides along on every GET — the month list uses it to tag
@@ -1094,10 +1118,90 @@ registerPage({
           + '<div class="fa2-pts' + (stars == null ? " un" : "") + '">'
           + (stars == null ? "not rated" : fmt1(stars / 5 * pts))
           + "<small>" + (stars == null ? "of " + fmt1(pts) : "of " + fmt1(pts) + " earned") + "</small>"
-          + "</div></div></div>";
+          + "</div></div>"
+          + noteRow(f.Foreman, q, cur, stars)
+          + "</div>";
       }).join("") + "</div>";
       h += "</div></div>";
       return h;
+    }
+
+    /* WHY A SCORE IS THE SCORE IT IS. Until now the assessment could only say "2 stars",
+     * and two stars with no sentence behind it is unarguable in both directions -- the
+     * foreman cannot answer it and Ramaz cannot remember, four months later, what he saw.
+     * The column has been on the table since the table was built and the bridge has always
+     * accepted it; nothing has ever had anywhere to type one (Tornike, 2026-08-11).
+     *
+     * ONLY ON A RATED QUESTION. A reason with no score is not a reason for anything, the
+     * `Stars` column is NOT NULL so it could not be stored anyway, and the bridge refuses it.
+     * A SUBMITTED MONTH STILL SHOWS its notes -- reading them back later is the entire point;
+     * it is only writing that closes.
+     */
+    function noteRow(fm, q, cur, stars) {
+      const note = cur && cur.Note ? String(cur.Note) : "";
+      const shut = S.locked || S.notOpen;
+      if (!note && (stars == null || shut)) return "";
+      const key = esc(fm) + '" data-q="' + esc(q.Question);
+      if (!note) {
+        return '<div class="fa2-note"><button class="fa2-noteadd" data-nf="' + key
+          + '" data-m="' + S.month + '">+ why this score</button></div>';
+      }
+      return '<div class="fa2-note has"><span class="fa2-notetx">' + esc(note) + "</span>"
+        + (shut ? "" : '<button class="fa2-noteedit" data-nf="' + key
+            + '" data-m="' + S.month + '" title="Edit this reason">edit</button>')
+        + "</div>";
+    }
+
+    // The editor replaces the row in place rather than opening a dialog: he is going down a
+    // list of ten questions for one man, and a modal per reason would be ten dismissals.
+    function openNote(host, fm, question) {
+      if (S.locked || S.notOpen) return;
+      const cur = (S.ratings[fm] || {})[question];
+      const note = cur && cur.Note ? String(cur.Note) : "";
+      const max = S.noteMax || 300;
+      host.classList.add("edit");
+      host.innerHTML = '<textarea class="fa2-notein" maxlength="' + max
+        + '" placeholder="What did he actually do? A sentence is enough."></textarea>'
+        + '<div class="fa2-noterow"><span class="fa2-notect"></span>'
+        + '<button class="fa2-notecx">Cancel</button>'
+        + '<button class="fa2-noteok">Save reason</button></div>';
+      const ta = host.querySelector(".fa2-notein");
+      const ct = host.querySelector(".fa2-notect");
+      const tick = () => { ct.textContent = ta.value.length + " / " + max; };
+      ta.value = note; tick();
+      ta.oninput = tick;
+      ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length);
+      // Esc gets out, Ctrl/Cmd+Enter saves -- he is typing, not mousing
+      ta.onkeydown = e => {
+        if (e.key === "Escape") { e.preventDefault(); paint(); }
+        else if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); done(); }
+      };
+      const done = () => saveNote(fm, question, ta.value.trim());
+      host.querySelector(".fa2-notecx").onclick = e => { e.stopPropagation(); paint(); };
+      host.querySelector(".fa2-noteok").onclick = e => { e.stopPropagation(); done(); };
+    }
+
+    /* Sends NO `stars` key at all, which is what tells the bridge this is a reason edit and
+     * not a re-score. Clearing the box sends "" -- an explicit erase, distinct from absence. */
+    function saveNote(fm, question, text) {
+      const month = S.month;
+      const cur = (S.ratings[fm] = S.ratings[fm] || {});
+      const before = cur[question];
+      if (!before) return;                       // nothing rated: the bridge would refuse it
+      cur[question] = Object.assign({}, before, { Note: text || null, "Entered By": "you" });
+      S.msg = ""; S.msgErr = false;
+      paint();
+      const key = fm + "|" + question;
+      const chain = S._chain || (S._chain = {});
+      chain[key] = (chain[key] || Promise.resolve()).then(() =>
+        api("/api/_fassess", { method: "POST", body: JSON.stringify({
+              month: month, foreman: fm, question: question, note: text }) })
+      ).then(() => {}, e => {
+        cur[question] = before;                  // a reason that silently failed is worse than none
+        S.msg = "Reason not saved — " + e.message;
+        S.msgErr = true;
+        paint();
+      });
     }
 
     function wire() {
@@ -1174,6 +1278,13 @@ registerPage({
         b.onmouseenter = () => {
           b.parentElement.querySelectorAll(".fa2-star").forEach(s2 =>
             s2.classList.toggle("pv", +s2.dataset.s <= +b.dataset.s));
+        };
+      });
+      main.querySelectorAll("[data-nf]").forEach(b => {
+        b.onclick = e => {
+          e.stopPropagation();
+          if (b.dataset.m && b.dataset.m !== S.month) return;   // a click that raced the picker
+          openNote(b.closest(".fa2-note"), b.dataset.nf, b.dataset.q);
         };
       });
       main.querySelectorAll(".fa2-stars").forEach(w => {

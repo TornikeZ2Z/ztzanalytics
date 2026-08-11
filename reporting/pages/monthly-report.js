@@ -2316,6 +2316,7 @@ async function renderMonthly(host, MRCFG) {
             mTot: nn(r["Manual Total"]) != null ? nn(r["Manual Total"]) : 30,
             inRub: num(r["Questions In Rubric"]),
             fullAss: r["Fully Assessed"] == null ? null : +r["Fully Assessed"] === 1,
+            notes: r["Assessment Notes"] || "",
           })).filter(r => r.auto != null);
           const val = r => r.total != null ? r.total : r.auto;
           M.sort((a, b) => (a.ok === b.ok ? 0 : a.ok ? -1 : 1)
@@ -2333,6 +2334,31 @@ async function renderMonthly(host, MRCFG) {
                                           a: nn(r["Auto Score"]), ok: +r["Qualified"] === 1 }))
               .filter(r => r.a != null && r.ok)
               .sort((a, b) => (b.t != null ? b.t : b.a) - (a.t != null ? a.t : a.a))[0];
+
+            /* WHAT THE ASSESSMENT ACTUALLY SAID. The assessed side is 40 of the 100 points
+             * and until now the report rendered it as a single anonymous bar -- the reader
+             * could see that Ramaz gave him 34 but never what he saw to give it. These are
+             * the reasons he wrote beside the individual scores, which have sat unread in
+             * `forman_assessment`.`Note` since the table was built (Tornike, 2026-08-11).
+             *
+             * Only the leader's, and only when he wrote any: a wall of ten reasons for every
+             * man would bury the numbers the section exists for. \u00a7 pairs a question with
+             * its reason, \u00a6 separates the pairs -- the same encoding the reviews
+             * breakdown uses, and neither character is typeable by accident. */
+            const assessNotes = w => {
+              const parts = String(w.notes || "").split("\u00a6").map(s => {
+                const i = s.indexOf("\u00a7");
+                return i < 0 ? null : { q: s.slice(0, i).trim(), n: s.slice(i + 1).trim() };
+              }).filter(x => x && x.n);
+              if (!parts.length) return "";
+              return `<div style="margin-top:15px;padding-top:13px;border-top:1px dashed var(--line)">
+                  <div style="font-size:11px;letter-spacing:.09em;text-transform:uppercase;color:var(--faint);font-weight:800;margin-bottom:8px">
+                    What the assessment said</div>`
+                + parts.map(x => `<div style="margin-bottom:9px">
+                    <div style="font-size:11.5px;font-weight:700;color:var(--muted)">${esc(x.q)}</div>
+                    <div style="font-size:12.5px;line-height:1.5">${esc(x.n)}</div></div>`).join("")
+                + `</div>`;
+            };
 
             // the four counted topics as bars, then the six assessed ones as one bar
             const bar = (lab, pts, cap, col, sub) => `<div style="margin-bottom:8px">
@@ -2369,6 +2395,7 @@ async function renderMonthly(host, MRCFG) {
                        pv ? (pv.f === win.f ? " · led " + MS[PM] + " too" : " · " + esc(pv.f) + " led " + MS[PM]) : ""}
                    </div>
                    ${bars}
+                   ${assessNotes(win)}
                  </div>
                  <div><div class="mrx-scroll" style="max-height:420px;overflow-y:auto">
                    <table class="mrx-tbl"><thead><tr><th>Foreman</th>

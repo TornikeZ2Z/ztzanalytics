@@ -172,7 +172,8 @@ window.RS = (function () {
         // questions and points are per month (`forman_assessment_rubric`). `Counted Total`
         // says which model a month was scored under -- 70 before 2026-07, 60 from it.
         "Auto Score", "Auto Weight Measured", "Manual Points", "Questions Answered",
-        "Assessed By", "Assessed At", "Total Score", "Total Score Rank", "Qualified",
+        "Assessed By", "Assessed At", "Assessment Notes",
+        "Total Score", "Total Score Rank", "Qualified",
         "Not Qualified Because",
         "Counted Total", "Questions In Rubric", "Manual Total", "Fully Assessed",
         "Claims Charged"],
