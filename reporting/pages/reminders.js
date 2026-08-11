@@ -822,7 +822,13 @@ registerPage({ id: "review-settings", group: "reviews", title: "Review URLs and 
     // writes the sheet immediately, but the relay caches its read ~30s at the bridge proxy).
     function freshBar() {
       var when = RRP.fetchedAt ? new Date(RRP.fetchedAt) : null;
-      var t = when ? when.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : "—";
+      // "read at" is an instant, so it follows the picker like every other live time. It used
+      // to take the BROWSER's zone with no label, which is how a UTC-set page could still say
+      // 4:47 PM — caught on screen 2026-08-11, and exactly the confusion the picker exists for.
+      var t = when
+        ? ((window.RS && RS.fmtTz) ? RS.fmtTz(when) + " " + RS.tzShort()
+                                   : when.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }))
+        : "—";
       var age = when ? Math.round((Date.now() - RRP.fetchedAt) / 60000) : null;
       var agoTx = age == null ? "" : age < 1 ? " · just now" : " · " + age + " min ago";
       var failed = !!(RRP.err && RRP.data);

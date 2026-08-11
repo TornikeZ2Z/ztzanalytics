@@ -1227,7 +1227,10 @@ if (!ZTZ.getToken()) {
      the page reading the old zone until the next navigation — which looks exactly like the
      setting not working. Re-rendering the current page is enough: RS.load is cached by epoch,
      so nothing is re-fetched (2026-08-11). */
-  window.addEventListener("ztz:tz", () => { if (CURRENT) renderPage(); });
+  window.addEventListener("ztz:tz", () => {
+    if (CURRENT) renderPage();
+    if (typeof updateFooterFresh === "function") updateFooterFresh();
+  });
 
   // Pages register themselves as their scripts load (see below); boot after load.
   window.addEventListener("load", async () => {
@@ -1248,8 +1251,14 @@ if (!ZTZ.getToken()) {
         const ts = (st.tables || []).map(t => t.last_update).filter(Boolean).sort().pop();
         const d = ts && new Date(String(ts).replace(" ", "T"));
         const el = document.getElementById("footFresh");
-        if (el && d && !isNaN(d)) el.textContent = "Data updated: " + d.toLocaleString(undefined,
-          { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+        // the freshness stamp is a real instant, so it follows the reporting zone and SAYS
+        // which one — an unlabelled "Data updated: 12:07 PM" is unreadable across two offices
+        if (el && d && !isNaN(d)) {
+          el.textContent = (window.RS && RS.fmtTz)
+            ? "Data updated: " + RS.fmtTzDay(d) + ", " + RS.fmtTz(d) + " " + RS.tzShort()
+            : "Data updated: " + d.toLocaleString(undefined,
+                { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+        }
       } catch (e) {}
     }
     updateFooterFresh();
@@ -1611,6 +1620,6 @@ registerPage({
 <script src="pages/foreman-closings.js?v=18"></script>
 <script src="pages/general-settings.js?v=5"></script>
 <script src="pages/review-performance.js?v=28"></script>
-<script src="pages/reminders.js?v=45"></script>
+<script src="pages/reminders.js?v=46"></script>
 </body>
 </html>
