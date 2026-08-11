@@ -381,6 +381,7 @@ registerPage({
       + "color:var(--faint);background:var(--panel);border:1px solid var(--line);"
       + "border-radius:999px;padding:3px 11px;margin-bottom:9px;font-variant-numeric:tabular-nums}"
       + ".fa2-q.rated .qw{background:var(--panel-2)}"
+      + ".fa2-clr.arm{color:#b91c1c;font-weight:800}"
       + ".fa2-note{grid-column:1/-1;margin-top:9px;padding-top:9px;border-top:1px dashed var(--line);"
       + "display:flex;align-items:flex-start;gap:8px}"
       + ".fa2-note.edit{flex-direction:column;gap:6px}"
@@ -1170,16 +1171,23 @@ registerPage({
       const ta = host.querySelector(".fa2-notein");
       const ct = host.querySelector(".fa2-notect");
       const tick = () => { ct.textContent = ta.value.length + " / " + max; };
+      // A HALF-TYPED REASON SURVIVES A REPAINT. The editor is DOM only, and paint() replaces
+      // main.innerHTML wholesale -- so rating the NEXT question on the same card, or typing
+      // one letter in the foreman search, threw away up to 300 characters with no warning.
+      // Rating the next question is the ordinary next action, not an edge case.
+      S.noteDraft = { key: fm + "|" + question, text: note };
       ta.value = note; tick();
-      ta.oninput = tick;
+      ta.oninput = () => { tick(); S.noteDraft = { key: fm + "|" + question, text: ta.value }; };
       ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length);
       // Esc gets out, Ctrl/Cmd+Enter saves -- he is typing, not mousing
       ta.onkeydown = e => {
-        if (e.key === "Escape") { e.preventDefault(); paint(); }
+        if (e.key === "Escape") { e.preventDefault(); S.noteDraft = null; paint(); }
         else if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); done(); }
       };
       const done = () => saveNote(fm, question, ta.value.trim());
-      host.querySelector(".fa2-notecx").onclick = e => { e.stopPropagation(); paint(); };
+      host.querySelector(".fa2-notecx").onclick = e => {
+        e.stopPropagation(); S.noteDraft = null; paint();
+      };
       host.querySelector(".fa2-noteok").onclick = e => { e.stopPropagation(); done(); };
     }
 
@@ -1190,6 +1198,13 @@ registerPage({
       const cur = (S.ratings[fm] = S.ratings[fm] || {});
       const before = cur[question];
       if (!before) return;                       // nothing rated: the bridge would refuse it
+      // SAME SEQUENCE GUARD THE STARS USE. Without it a star write that fails AFTER this note
+      // was typed rolls the question back to a snapshot taken before the note existed, wiping
+      // a reason the server had already stored.
+      const seq = S._seq || (S._seq = {});
+      const skey = fm + "|" + question;
+      const my = seq[skey] = (seq[skey] || 0) + 1;
+      S.noteDraft = null;
       // the byline moves too: this write is a new row in the chain, entered by whoever is
       // typing now, exactly as re-scoring is (rate() stamps the same two fields)
       cur[question] = Object.assign({}, before, { Note: text || null, "Entered By": "you",
@@ -1201,7 +1216,11 @@ registerPage({
       chain[key] = (chain[key] || Promise.resolve()).then(() =>
         api("/api/_fassess", { method: "POST", body: JSON.stringify({
               month: month, foreman: fm, question: question, note: text }) })
-      ).then(() => {}, e => {
+      ).then(j => {
+        if (seq[skey] !== my || month !== S.month) return;
+        if (j && j.id && cur[question]) { cur[question].Note = j.note == null ? null : j.note; paint(); }
+      }, e => {
+        if (seq[skey] !== my) return;            // a newer write owns this question now
         cur[question] = before;                  // a reason that silently failed is worse than none
         S.msg = "Reason not saved — " + e.message;
         S.msgErr = true;
@@ -1296,9 +1315,43 @@ registerPage({
         w.onmouseleave = () => w.querySelectorAll(".fa2-star.pv")
           .forEach(s2 => s2.classList.remove("pv"));
       });
+      /* CLEARING A SCORE ALSO DESTROYS ITS REASON, and it is the one path that does. A clear
+       * writes no replacement row, so the note is orphaned on a closed link of the chain and
+       * re-rating cannot bring it back -- while every other path here goes out of its way to
+       * preserve it. One quiet click beside the stars should not be able to do that silently.
+       * Asked in the row itself rather than through window.confirm(): he is going down a list
+       * and a browser dialog for each one is its own kind of hostile. */
       main.querySelectorAll(".fa2-clr").forEach(b => {
-        b.onclick = e => { e.stopPropagation(); rate(b.dataset.f, b.dataset.q, null, b.dataset.m); };
+        b.onclick = e => {
+          e.stopPropagation();
+          const cur = (S.ratings[b.dataset.f] || {})[b.dataset.q];
+          if (cur && cur.Note && b.dataset.armed !== "1") {
+            b.dataset.armed = "1";
+            b.textContent = "delete score + reason?";
+            b.classList.add("arm");
+            setTimeout(() => {
+              if (!b.isConnected) return;
+              b.dataset.armed = ""; b.textContent = "clear"; b.classList.remove("arm");
+            }, 4000);
+            return;
+          }
+          rate(b.dataset.f, b.dataset.q, null, b.dataset.m);
+        };
       });
+      // whatever he was typing comes back, caret and all
+      if (S.noteDraft) {
+        const d = S.noteDraft, i = d.key.indexOf("|");
+        const host = main.querySelector('.fa2-note [data-nf="' + CSS.escape(d.key.slice(0, i))
+          + '"][data-q="' + CSS.escape(d.key.slice(i + 1)) + '"]');
+        if (host && host.closest(".fa2-note")) {
+          openNote(host.closest(".fa2-note"), d.key.slice(0, i), d.key.slice(i + 1));
+          const ta = main.querySelector(".fa2-notein");
+          if (ta) { ta.value = d.text; ta.dispatchEvent(new Event("input")); ta.focus();
+                    ta.setSelectionRange(d.text.length, d.text.length); }
+        } else {
+          S.noteDraft = null;   // the row is gone (month switch, filter) -- do not hold it
+        }
+      }
       const sub = main.querySelector("#fa2Submit");
       if (sub) sub.onclick = submitMonth;
       const ro = main.querySelector("#fa2Reopen");
@@ -1318,9 +1371,15 @@ registerPage({
       // feels broken when you are rating a hundred and thirty of them
       const cur = (S.ratings[foreman] = S.ratings[foreman] || {});
       const before = cur[question];
+      // MERGED, NOT REBUILT. A fresh object literal here dropped `Note`, so re-scoring 3 -> 4
+      // made the reason vanish from the screen while the server was carefully carrying it
+      // forward. The card then offered "+ why this score" over a reason that still existed,
+      // and saving that empty box destroyed it for real. The client has to mirror the
+      // server's carry-forward exactly, or the two disagree about the same row.
       if (stars == null) delete cur[question];
-      else cur[question] = { Foreman: foreman, Question: question, Stars: stars,
-                             "Entered By": "you", "Entered At": new Date().toISOString().slice(0, 10) };
+      else cur[question] = Object.assign({}, before || {},
+        { Foreman: foreman, Question: question, Stars: stars,
+          "Entered By": "you", "Entered At": new Date().toISOString().slice(0, 10) });
       S.msg = "";
       paint();
       // SERIALIZED per question: two fast clicks otherwise race to the server and the last
@@ -1330,7 +1389,17 @@ registerPage({
       chain[key] = (chain[key] || Promise.resolve()).then(() =>
         api("/api/_fassess", { method: "POST", body: JSON.stringify({
               month: month, foreman: foreman, question: question, stars: stars }) })
-      ).then(() => {}, e => {
+      ).then(j => {
+        // ADOPT WHAT THE SERVER ACTUALLY STORED. It decides the carry-forward, so anything
+        // the optimistic guess got wrong is corrected here rather than surviving until the
+        // next full reload -- which is how a stale screen talks somebody into overwriting a
+        // note that was never really gone.
+        if (seq[key] !== my || month !== S.month) return;
+        if (j && !j.cleared && j.id) {
+          const c2 = (S.ratings[foreman] = S.ratings[foreman] || {});
+          if (c2[question]) { c2[question].Note = j.note == null ? null : j.note; paint(); }
+        }
+      }, e => {
         if (seq[key] !== my) return;   // a newer click owns this question now
         // put it back exactly as it was: a rating that silently failed is worse than none
         if (before) cur[question] = before; else delete cur[question];
