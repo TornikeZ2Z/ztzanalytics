@@ -804,7 +804,13 @@ registerPage({
         el.innerHTML = `<div class="rs-loading" style="padding:22px">No weeks in this report yet.</div>`;
         paintKpis([]); return;
       }
-      if (!RP.bdWeek || ws.indexOf(RP.bdWeek) < 0) RP.bdWeek = ws[0];
+      // OPENS ON THE LAST WEEK THAT FINISHED, not on the one running now -- "so that I can see
+      // it at the end of every week" is the ask, and on a Tuesday the live week is one day of
+      // jobs with everybody tied on nothing. The running week is still one click away on ›.
+      if (!RP.bdWeek || ws.indexOf(RP.bdWeek) < 0) {
+        var t = bdToday();
+        RP.bdWeek = ws.filter(function (w) { return w < t; })[0] || ws[0];
+      }
       var wk = RP.bdWeek, wi = ws.indexOf(wk);
       var st = bdStand(wk), prev = bdPrevPlaces(wk), open = wk >= bdToday();
       paintKpis(filtered().filter(r => String(r["Week Ending"] || "").slice(0, 10) === wk));
@@ -817,12 +823,17 @@ registerPage({
       };
       var byPlace = {};
       st.ranked.forEach(function (o) { (byPlace[o.place] || (byPlace[o.place] = [])).push(o); });
-      var pod = [1, 2, 3].filter(function (p) { return byPlace[p]; }).map(function (p) {
+      // No podium when the leader wrote nothing: three cards celebrating zero is worse than
+      // no cards at all. And a place shared by half the yard gets a COUNT, not a paragraph of
+      // names -- twelve men tied on nothing is a fact for the table, not a trophy.
+      var lead = st.ranked.length ? bdKeyOf(st.ranked[0]) : 0;
+      var pod = (lead <= 0 ? [] : [1, 2, 3].filter(function (p) { return byPlace[p]; })).map(function (p) {
         var men = byPlace[p], ORD = { 1: "1st place", 2: "2nd place", 3: "3rd place" };
-        var o = men[0];
+        var o = men[0], shown = men.slice(0, 3);
         return `<div class="rp-bdcard p${p}">
-            <span class="rp-bdpl">${ORD[p]}${men.length > 1 ? " \u2014 tied" : ""}</span>
-            <span class="rp-bdnm">${men.map(m => esc(m.fm)).join(", ")}</span>
+            <span class="rp-bdpl">${ORD[p]}${men.length > 1 ? " \u2014 " + N(men.length) + " tied" : ""}</span>
+            <span class="rp-bdnm">${shown.map(m => esc(m.fm)).join(", ")}${men.length > shown.length
+              ? ` <span class="rp-bdmt">+${N(men.length - shown.length)} more</span>` : ""}</span>
             <span class="rp-bdrv">${scoreOf(o)}<small>${RP.bdKey === "rate" ? "review rate" : (o.rev === 1 ? "review" : "reviews")}</small></span>
             <span class="rp-bdmt">${RP.bdKey === "rate"
               ? N(o.rev) + " from " + N(o.jobs) + (o.jobs === 1 ? " job" : " jobs")
