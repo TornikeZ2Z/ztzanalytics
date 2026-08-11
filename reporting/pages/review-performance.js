@@ -86,7 +86,8 @@ function rpLoadReasons() {
 }
 var RP = { sources: new Set(), statuses: new Set(), billcats: new Set(), foremen: new Set(),
   grain: "week", winD: 14, winW: 12, winM: 6, offset: 0, sortCol: null, sortDir: "desc", cell: null, view: "perf",
-  wlPage: 0, supPage: 0, supQ: "", supType: "" };
+  wlPage: 0, supPage: 0, supQ: "", supType: "",
+  bdWeek: null, bdKey: "rev" };
 
 registerPage({
   id: "review-performance",
@@ -286,6 +287,43 @@ registerPage({
         .rp-pager{display:flex;align-items:center;justify-content:flex-end;gap:10px;padding:9px 2px 0;font-size:12px;color:var(--muted);font-weight:600}
         .rp-pager b{color:var(--ink);font-variant-numeric:tabular-nums}
         .rp-pager .sp{margin-right:auto;font-weight:600}
+        /* ---- Standings ---- */
+        .rp-bdbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+        .rp-bdwk{display:inline-flex;align-items:center;gap:1px;background:var(--panel-2);border:1px solid var(--line-2);border-radius:10px;padding:2px}
+        .rp-bdwk button{font:inherit;font-size:13px;font-weight:800;color:var(--muted);background:transparent;border:0;border-radius:8px;padding:6px 10px;cursor:pointer}
+        .rp-bdwk button:hover:not(:disabled){background:var(--panel);color:var(--ink)}
+        .rp-bdwk button:disabled{opacity:.32;cursor:default}
+        .rp-bdwk b{font-size:13px;font-weight:800;color:var(--ink);padding:0 10px;white-space:nowrap;font-variant-numeric:tabular-nums}
+        .rp-bdlive{font-size:10.5px;font-weight:800;padding:3px 9px;border-radius:999px;background:rgba(234,88,12,.14);color:#c2410c;letter-spacing:.02em}
+        .rp-bdsub{font-size:11.5px;color:var(--faint);line-height:1.5;margin:-4px 0 14px}
+        .rp-bdpod{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:16px}
+        @media (max-width:760px){.rp-bdpod{grid-template-columns:1fr}}
+        .rp-bdcard{border:1px solid var(--line);border-radius:14px;background:var(--panel);padding:13px 15px;
+          display:flex;flex-direction:column;gap:3px;position:relative;overflow:hidden}
+        .rp-bdcard:before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--mdl)}
+        .rp-bdcard.p1{--mdl:#d4a017} .rp-bdcard.p2{--mdl:#9aa3ad} .rp-bdcard.p3{--mdl:#b0703a}
+        @media (min-width:761px){.rp-bdcard.p1{order:2} .rp-bdcard.p2{order:1} .rp-bdcard.p3{order:3}
+          .rp-bdcard.p1{transform:translateY(-6px)}}
+        .rp-bdpl{font-size:10.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--mdl)}
+        .rp-bdnm{font-size:15px;font-weight:800;color:var(--ink);line-height:1.25}
+        .rp-bdrv{font-size:24px;font-weight:800;color:var(--ink);font-variant-numeric:tabular-nums;line-height:1.1;margin-top:3px}
+        .rp-bdrv small{font-size:11.5px;font-weight:700;color:var(--muted);margin-left:5px}
+        .rp-bdmt{font-size:11.5px;color:var(--muted);font-weight:600}
+        .rp-bdtbl{width:100%;border-collapse:collapse;font-size:13px}
+        .rp-bdtbl th{text-align:left;font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;
+          color:var(--faint);padding:0 10px 7px;border-bottom:1px solid var(--line)}
+        .rp-bdtbl td{padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:middle}
+        .rp-bdtbl tr:last-child td{border-bottom:0}
+        .rp-bdtbl td.r,.rp-bdtbl th.r{text-align:right;font-variant-numeric:tabular-nums}
+        .rp-bdtbl tr.top td{background:var(--panel-2)}
+        .rp-bdpz{font-weight:800;color:var(--ink);font-variant-numeric:tabular-nums;width:44px}
+        .rp-bdpz i{font-style:normal;font-size:11px;color:var(--faint);font-weight:700}
+        .rp-bdfm{font-weight:700;color:var(--ink)}
+        .rp-bdmv{font-size:11px;font-weight:800;padding:2px 7px;border-radius:999px;white-space:nowrap}
+        .rp-bdmv.up{background:rgba(22,163,74,.13);color:#15803d}
+        .rp-bdmv.dn{background:rgba(220,38,38,.11);color:#b91c1b}
+        .rp-bdmv.flat{color:var(--faint)}
+        .rp-bdidle{font-size:11.5px;color:var(--faint);margin-top:12px;padding-top:11px;border-top:1px dashed var(--line);line-height:1.6}
         @media (max-width:640px){.rp-wrap{max-height:calc(100vh - var(--pg-chrome, 300px))}}`;
       document.head.appendChild(st);
     }
@@ -299,6 +337,7 @@ registerPage({
       <div class="rp-bar" id="rpBar"></div>
       <div id="rpLegend" class="rp-legend"></div>
       <div class="rp-wrap" id="rpWrapEl"><div id="rpMatrix"></div></div>
+      <div id="rpBoard" style="display:none"></div>
       <div id="rpReasons" style="display:none"></div>
       <div id="rpSupport" style="display:none"></div>`;
 
@@ -449,7 +488,8 @@ registerPage({
     }
     // Reasons tab removed 2026-07-16 — it became the Response Analysis page (reminder-feed driven).
     bar.appendChild(mkSeg(
-      [{ v: "perf", label: "Performance" }, { v: "support", label: "Support" }],
+      [{ v: "perf", label: "Performance" }, { v: "board", label: "Standings" },
+       { v: "support", label: "Support" }],
       () => RP.view,
       v => { RP.view = v; closeDrawer(); repaint(); }));
     bar.appendChild(mkSeg(
@@ -659,7 +699,9 @@ registerPage({
     // by design) left the arrows live and the range label stale: clicking ‹ there silently moved
     // the matrix behind your back (audit 2026-07-25). Now Support dims and disables them.
     function paintTimeBar() {
-      var timeOn = RP.view !== "support";
+      // Standings owns its own week picker, so the shared window control would move a matrix
+      // nobody is looking at -- the same trap the Support tab hit (audit 2026-07-25).
+      var timeOn = RP.view === "perf";
       var cols = windowCols(), ac = allCols(), maxOff = Math.max(0, ac.length - win());
       var rl = document.getElementById("rpRange"), ob = document.getElementById("rpOlder"), nb = document.getElementById("rpNewer"), ws = document.getElementById("rpWin");
       if (rl) rl.textContent = !timeOn ? "all time" : (cols.length ? colLabel(cols[cols.length - 1]) + " – " + colLabel(cols[0]) : "—");
@@ -692,6 +734,180 @@ registerPage({
       document.getElementById("rpKpis").innerHTML = K.map(k =>
         `<div class="rp-kpi${k.a ? " accent" : ""}"><b>${k.v}</b><span>${k.l}</span><small>${k.s}</small></div>`).join("");
       return tot;
+    }
+
+    // ---- Standings view (weekly, by reviews written) ----
+    // QUALITY TEAM, RELAYED BY TORNIKE (2026-08-11): "a ranking of the foremen by reviews
+    // written -- who is in which place. So that I can see it at the end of every week. Put it
+    // somewhere separate."
+    //
+    // The matrix does order foremen, but it prints no PLACE and it orders by PERCENTAGE, so
+    // the man who wrote the most reviews is nowhere near the top of it and no number on screen
+    // says he is first. Neither half of the ask was answerable here, which is why he could not
+    // find it. This is its own tab because a league table read once a week has nothing to do
+    // with a 12-column matrix read every day.
+    function bdWeeks() {
+      return [...new Set(rows.map(r => String(r["Week Ending"] || "").slice(0, 10)).filter(Boolean))]
+        .sort().reverse();
+    }
+    function bdKeyOf(o) { return RP.bdKey === "rate" ? o.rate : o.rev; }
+    function bdStand(wk) {
+      var by = {};
+      filtered().forEach(function (r) {
+        if (String(r["Week Ending"] || "").slice(0, 10) !== wk) return;
+        var fm = r["Foreman"] || "\u2014";
+        var o = by[fm] || (by[fm] = { fm: fm, rev: 0, jobs: 0, done: 0, rate: 0 });
+        o.done++;
+        if (num(r["Eligible"]) === 1) { o.jobs++; o.rev += num(r["Number of Reviews"]); }
+      });
+      var list = Object.keys(by).map(function (k) { return by[k]; });
+      list.forEach(function (o) { o.rate = o.jobs ? o.rev / o.jobs : 0; });
+      // A man with no ELIGIBLE job that week never had a shot at a review. Ranking him last
+      // would read as a bad week when it was an empty one, so he is named below the table
+      // instead -- last place has to mean something or the board is worth nothing.
+      var ranked = list.filter(function (o) { return o.jobs > 0; });
+      var idle = list.filter(function (o) { return o.jobs === 0; });
+      ranked.sort(function (a, b) {
+        var d = bdKeyOf(b) - bdKeyOf(a);
+        if (!d) d = RP.bdKey === "rate" ? b.rev - a.rev : b.rate - a.rate;   // the other measure breaks it
+        return d || a.fm.localeCompare(b.fm);
+      });
+      // COMPETITION RANKING: equal scores share a place and the next one skips it (1, 2, 2, 4).
+      // Two men on four reviews each are both second; neither of them is third.
+      var place = 0, seen = 0, last = null;
+      ranked.forEach(function (o) {
+        seen++;
+        var k = bdKeyOf(o);
+        if (last === null || k !== last) { place = seen; last = k; }
+        o.place = place;
+      });
+      return { ranked: ranked, idle: idle };
+    }
+    function bdPrevPlaces(wk) {
+      var ws = bdWeeks(), i = ws.indexOf(wk), m = {};
+      if (i < 0 || i + 1 >= ws.length) return m;
+      bdStand(ws[i + 1]).ranked.forEach(function (o) { m[o.fm] = o.place; });
+      return m;
+    }
+    var bdToday = function () {
+      var d = new Date(), p = function (n) { return (n < 10 ? "0" : "") + n; };
+      return d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate());
+    };
+    var bdWkLabel = function (c) {
+      return MON[+c.slice(5, 7)] + " " + (+c.slice(8, 10)) + ", " + c.slice(0, 4);
+    };
+
+    function paintBoard() {
+      var el = document.getElementById("rpBoard"), ws = bdWeeks();
+      paintTimeBar();
+      if (!ws.length) {
+        el.innerHTML = `<div class="rs-loading" style="padding:22px">No weeks in this report yet.</div>`;
+        paintKpis([]); return;
+      }
+      if (!RP.bdWeek || ws.indexOf(RP.bdWeek) < 0) RP.bdWeek = ws[0];
+      var wk = RP.bdWeek, wi = ws.indexOf(wk);
+      var st = bdStand(wk), prev = bdPrevPlaces(wk), open = wk >= bdToday();
+      paintKpis(filtered().filter(r => String(r["Week Ending"] || "").slice(0, 10) === wk));
+
+      var totR = st.ranked.reduce((a, o) => a + o.rev, 0);
+      var totJ = st.ranked.reduce((a, o) => a + o.jobs, 0);
+      var unit = RP.bdKey === "rate" ? "review rate" : "reviews written";
+      var scoreOf = function (o) {
+        return RP.bdKey === "rate" ? Math.round(o.rate * 100) + "%" : N(o.rev);
+      };
+      var byPlace = {};
+      st.ranked.forEach(function (o) { (byPlace[o.place] || (byPlace[o.place] = [])).push(o); });
+      var pod = [1, 2, 3].filter(function (p) { return byPlace[p]; }).map(function (p) {
+        var men = byPlace[p], ORD = { 1: "1st place", 2: "2nd place", 3: "3rd place" };
+        var o = men[0];
+        return `<div class="rp-bdcard p${p}">
+            <span class="rp-bdpl">${ORD[p]}${men.length > 1 ? " \u2014 tied" : ""}</span>
+            <span class="rp-bdnm">${men.map(m => esc(m.fm)).join(", ")}</span>
+            <span class="rp-bdrv">${scoreOf(o)}<small>${RP.bdKey === "rate" ? "review rate" : (o.rev === 1 ? "review" : "reviews")}</small></span>
+            <span class="rp-bdmt">${RP.bdKey === "rate"
+              ? N(o.rev) + " from " + N(o.jobs) + (o.jobs === 1 ? " job" : " jobs")
+              : "from " + N(o.jobs) + (o.jobs === 1 ? " job" : " jobs") + " \u00b7 " + Math.round(o.rate * 100) + "%"}</span>
+          </div>`;
+      }).join("");
+
+      var mv = function (o) {
+        var p = prev[o.fm];
+        if (p == null) return `<span class="rp-bdmv flat" title="not in last week's standings">\u00b7</span>`;
+        if (p === o.place) return `<span class="rp-bdmv flat" title="same place as last week">\u2014</span>`;
+        return p > o.place
+          ? `<span class="rp-bdmv up" title="was ${p} last week">\u25b2 ${p - o.place}</span>`
+          : `<span class="rp-bdmv dn" title="was ${p} last week">\u25bc ${o.place - p}</span>`;
+      };
+      var body = st.ranked.map(function (o) {
+        var b = band(Math.round(o.rate * 100));
+        return `<tr${o.place <= 3 ? ' class="top"' : ""}>
+          <td class="rp-bdpz">${o.place}${byPlace[o.place].length > 1 ? "<i>=</i>" : ""}</td>
+          <td class="rp-bdfm">${esc(o.fm)}</td>
+          <td class="r"><b>${N(o.rev)}</b></td>
+          <td class="r">${N(o.jobs)}</td>
+          <td class="r"><span class="rp-pill" style="background:${b.bg};color:${b.fg}">${Math.round(o.rate * 100)}%</span></td>
+          <td class="r">${mv(o)}</td></tr>`;
+      }).join("");
+
+      el.innerHTML = `<div class="rp-bdbar">
+          <span class="rp-bdwk">
+            <button type="button" id="rpBdOlder" title="Earlier week" ${wi >= ws.length - 1 ? "disabled" : ""}>\u2039</button>
+            <b>Week ending ${bdWkLabel(wk)}</b>
+            <button type="button" id="rpBdNewer" title="Later week" ${wi <= 0 ? "disabled" : ""}>\u203a</button>
+          </span>
+          ${open ? `<span class="rp-bdlive">still running</span>` : ""}
+          <span class="rp-spring"></span>
+          <span class="rp-seg" id="rpBdKey">
+            <button type="button" data-bdkey="rev" class="${RP.bdKey === "rev" ? "on" : ""}">By reviews</button>
+            <button type="button" data-bdkey="rate" class="${RP.bdKey === "rate" ? "on" : ""}">By rate</button>
+          </span>
+          <button type="button" class="rp-btn" id="rpBdCopy">Copy standings</button>
+        </div>
+        <div class="rp-bdsub">Ranked by ${unit} on jobs that ended this week. ${N(totR)} ${totR === 1 ? "review" : "reviews"} from
+          ${N(totJ)} eligible ${totJ === 1 ? "job" : "jobs"} across ${N(st.ranked.length)} ${st.ranked.length === 1 ? "foreman" : "foremen"}.
+          ${open ? "This week is not over \u2014 the places can still change." : "Movement is against the week before."}</div>
+        ${pod ? `<div class="rp-bdpod">${pod}</div>` : ""}
+        ${st.ranked.length
+          ? `<div class="rp-panel"><table class="rp-bdtbl"><thead><tr>
+               <th>Place</th><th>Foreman</th><th class="r">Reviews</th><th class="r">Jobs</th>
+               <th class="r">Rate</th><th class="r">vs last week</th></tr></thead><tbody>${body}</tbody></table>
+             ${st.idle.length ? `<div class="rp-bdidle"><b>Not ranked this week</b> \u2014 no eligible job, so no chance at a review:
+               ${st.idle.map(o => esc(o.fm) + " (" + N(o.done) + ")").join(", ")}</div>` : ""}</div>`
+          : `<div class="rs-loading" style="padding:22px">No eligible jobs in this week.</div>`}`;
+
+      document.getElementById("rpBdOlder").onclick = function () {
+        RP.bdWeek = ws[Math.min(ws.length - 1, wi + 1)]; paintBoard();
+      };
+      document.getElementById("rpBdNewer").onclick = function () {
+        RP.bdWeek = ws[Math.max(0, wi - 1)]; paintBoard();
+      };
+      el.querySelectorAll("[data-bdkey]").forEach(function (b) {
+        b.onclick = function () { RP.bdKey = b.getAttribute("data-bdkey"); paintBoard(); };
+      });
+      // Pasted into Slack on a Friday -- which is the whole point of the ask, and a screenshot
+      // of a table is not something anyone can read on a phone.
+      document.getElementById("rpBdCopy").onclick = function () {
+        var btn = this;
+        var txt = "Foreman standings \u2014 week ending " + bdWkLabel(wk)
+          + (open ? " (still running)" : "") + "\n"
+          + st.ranked.map(function (o) {
+              return o.place + ". " + o.fm + " \u2014 " + N(o.rev) + (o.rev === 1 ? " review" : " reviews")
+                + " from " + N(o.jobs) + (o.jobs === 1 ? " job" : " jobs") + " (" + Math.round(o.rate * 100) + "%)";
+            }).join("\n");
+        var done = function (ok) {
+          btn.textContent = ok ? "Copied" : "Press Ctrl+C";
+          setTimeout(function () { btn.textContent = "Copy standings"; }, 1800);
+        };
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(txt).then(function () { done(true); }, function () { done(false); });
+        } else {
+          var ta = document.createElement("textarea");
+          ta.value = txt; ta.style.position = "fixed"; ta.style.opacity = "0";
+          document.body.appendChild(ta); ta.select();
+          var ok = false; try { ok = document.execCommand("copy"); } catch (e) { ok = false; }
+          ta.remove(); done(ok);
+        }
+      };
     }
 
     // ---- Performance view (matrix) ----
@@ -1013,9 +1229,11 @@ registerPage({
       var v = RP.view;
       document.getElementById("rpWrapEl").style.display = v === "perf" ? "" : "none";
       document.getElementById("rpLegend").style.display = v === "perf" ? "" : "none";
+      document.getElementById("rpBoard").style.display = v === "board" ? "" : "none";
       document.getElementById("rpReasons").style.display = v === "reasons" ? "" : "none";
       document.getElementById("rpSupport").style.display = v === "support" ? "" : "none";
       if (v === "perf") paintMatrix();
+      else if (v === "board") paintBoard();
       else if (v === "reasons") paintReasons();
       else paintSupport();
       if (barC) barC.refresh();
