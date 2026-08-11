@@ -835,9 +835,13 @@ registerPage({
             <span class="rp-bdnm">${shown.map(m => esc(m.fm)).join(", ")}${men.length > shown.length
               ? ` <span class="rp-bdmt">+${N(men.length - shown.length)} more</span>` : ""}</span>
             <span class="rp-bdrv">${scoreOf(o)}<small>${RP.bdKey === "rate" ? "review rate" : (o.rev === 1 ? "review" : "reviews")}</small></span>
-            <span class="rp-bdmt">${RP.bdKey === "rate"
-              ? N(o.rev) + " from " + N(o.jobs) + (o.jobs === 1 ? " job" : " jobs")
-              : "from " + N(o.jobs) + (o.jobs === 1 ? " job" : " jobs") + " \u00b7 " + Math.round(o.rate * 100) + "%"}</span>
+            <span class="rp-bdmt">${men.length > 1
+              ? "each"    // TIED MEN SHARE THE SCORE AND NOTHING ELSE. Printing the first man's
+                          // job count under both their names read as a fact about both of them:
+                          // Sheklashvili's four came off five jobs, Kolbaia's off ten.
+              : (RP.bdKey === "rate"
+                ? N(o.rev) + " from " + N(o.jobs) + (o.jobs === 1 ? " job" : " jobs")
+                : "from " + N(o.jobs) + (o.jobs === 1 ? " job" : " jobs") + " \u00b7 " + Math.round(o.rate * 100) + "%")}</span>
           </div>`;
       }).join("");
 
