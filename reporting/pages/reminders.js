@@ -516,16 +516,21 @@ registerPage({ id: "review-settings", group: "reviews", title: "Review URLs and 
       if (RRP.contactIdx) return RRP.contactIdx;
       try {
         var rows = await RS.load("recent_job_contact");
-        var ix = {};
+        var ix = {}, al = { c2n: {}, n2c: {} };
         (rows || []).forEach(function (r) {
           var rec = { name: r["Customer"] || "", mobile: r["Customer Mobile"] || "", email: r["Customer Email"] || "" };
           if (!rec.mobile && !rec.email && !rec.name) return;
           var a = jobKey(r["Job Code"]), b = jobKey(r["Job No"]);
           if (a && !ix[a]) ix[a] = rec;
           if (b && !ix[b]) ix[b] = rec;
+          // THE SAME ROW PAIRS THE TWO NAMES A JOB ANSWERS TO. Keep the pairing: the bot
+          // records an answer under whichever the calendar carried, so matching on one name
+          // alone loses every answer filed under the other (see responseModel).
+          if (a && b) { al.c2n[a] = b; al.n2c[b] = a; }
         });
         RRP.contactIdx = ix;
-      } catch (e) { RRP.contactIdx = {}; }
+        RRP.aliasIdx = al;
+      } catch (e) { RRP.contactIdx = {}; RRP.aliasIdx = { c2n: {}, n2c: {} }; }
       return RRP.contactIdx;
     }
     // review lookup for one bot job key — tries the job code directly (closings sometimes record
@@ -844,7 +849,22 @@ registerPage({ id: "review-settings", group: "reviews", title: "Review URLs and 
         if (!o.customer && r.customer) o.customer = r.customer;
       });
       var expl = {}; resp.forEach(function (r) { var k = jobKey(r.job); if (k && (!expl[k] || String(r.ts) > String(expl[k].ts))) expl[k] = r; });
-      var jobs = Object.keys(byJob).map(function (k) { var o = byJob[k]; o.exp = expl[k] || null; o.rev = reviewFor(k); return o; })
+      /* A JOB ANSWERS TO TWO NAMES. The bot records the reason under whichever identifier the
+       * calendar carried — the job CODE (LM20-0952) or the numeric request # (109850) — and
+       * measured on live data, 109 of 250 answers were filed under the number while every
+       * nudged job was keyed by its code. Matching on one name alone showed answered jobs as
+       * still waiting, with an "Add reason" button over work somebody had already done
+       * (Tornike, relaying the quality team, 2026-08-11). Ten of the 54 then-waiting jobs had
+       * an answer sitting under the other name.
+       *
+       * The warehouse already joins on either (src/job_overview.py, its r1/r2 pair); this is
+       * the same rule on the page. recent_job_contact carries both names on one row, which is
+       * what makes the pairing possible without a second fetch. */
+      var al = RRP.aliasIdx || { c2n: {}, n2c: {} };
+      var explFor = function (k) {
+        return expl[k] || (al.c2n[k] ? expl[al.c2n[k]] : null) || (al.n2c[k] ? expl[al.n2c[k]] : null) || null;
+      };
+      var jobs = Object.keys(byJob).map(function (k) { var o = byJob[k]; o.exp = explFor(k); o.rev = reviewFor(k); return o; })
         .sort(function (a, b) { return ((a.exp || a.rev) ? 1 : 0) - ((b.exp || b.rev) ? 1 : 0) || String(b.day).localeCompare(a.day); });
       return { jobs: jobs, resp: resp, winDays: Object.keys(win).sort().reverse() };
     }
