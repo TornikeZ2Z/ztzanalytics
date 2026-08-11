@@ -31,10 +31,12 @@
       ],
     };
   }
-  // Jobs the calendar has but no closing sheet does — so they are in NO report. Without
-  // this, looking at the matrix on a Monday shows last week with 6 days and says nothing
-  // about the 7th (quality team via Tornike 2026-07-20). Registered independently of the
-  // block above: that one is skipped once fct_job_overview exists.
+  // Jobs the calendar has but no closing sheet does. NOTHING ON THIS PAGE READS THIS ANY
+  // MORE: the banner it fed was removed on Tornike's word (2026-08-11), because unfiled
+  // recent moves have been IN the report since 2026-07-21 — the foreman comes from the
+  // calendar and only the money columns wait on the paperwork. The registration is left
+  // standing because the table and its grant are still there and the column contract is the
+  // hard part to rebuild; declaring a dataset costs nothing until something calls RS.load.
   if (window.RS && RS.DATASETS && !RS.DATASETS.jobs_pending_closing) {
     RS.DATASETS.jobs_pending_closing = {
       table: "fct_jobs_pending_closing",
@@ -284,10 +286,6 @@ registerPage({
         .rp-pager{display:flex;align-items:center;justify-content:flex-end;gap:10px;padding:9px 2px 0;font-size:12px;color:var(--muted);font-weight:600}
         .rp-pager b{color:var(--ink);font-variant-numeric:tabular-nums}
         .rp-pager .sp{margin-right:auto;font-weight:600}
-        .rp-pending{display:flex;gap:11px;align-items:flex-start;background:rgba(224,145,42,.10);border:1px solid rgba(224,145,42,.34);border-radius:12px;padding:12px 15px;margin:0 0 14px}
-        .rp-pending .rp-pico{color:#e0912a;font-size:15px;line-height:1.35;flex:0 0 auto}
-        .rp-ptxt{font-size:12.5px;line-height:1.5;color:var(--ink)}
-        .rp-plink{margin-top:7px;font:inherit;font-size:11.5px;font-weight:700;color:#e0912a;background:transparent;border:0;padding:0;cursor:pointer;text-decoration:underline}
         @media (max-width:640px){.rp-wrap{max-height:calc(100vh - var(--pg-chrome, 300px))}}`;
       document.head.appendChild(st);
     }
@@ -298,7 +296,6 @@ registerPage({
         <p>Reviews generated per foreman · <b>reviews ÷ eligible jobs</b> · target 100% · click a cell for the jobs and where each review came from. The <b>Support</b> tab lists every job Support stepped in on.</p>
       </div>
       <div class="rp-kpis" id="rpKpis"><div class="rs-loading">Loading jobs…</div></div>
-      <div id="rpPending"></div>
       <div class="rp-bar" id="rpBar"></div>
       <div id="rpLegend" class="rp-legend"></div>
       <div class="rp-wrap" id="rpWrapEl"><div id="rpMatrix"></div></div>
@@ -311,68 +308,11 @@ registerPage({
     catch (e) { document.getElementById("rpKpis").innerHTML = `<div class="rs-loading">Couldn't load — ${esc(e.message)}</div>`; return; }
     if (!document.getElementById("rpMatrix")) return;
 
-    // ---- what ISN'T in this report (N1) ----
-    // Loaded in the background so a slow/denied fetch never delays the matrix. Splits the
-    // two very different cases: yesterday's paperwork (resolves itself) vs jobs that were
-    // never filed at all (someone has to chase them).
-    (async function () {
-      var el = document.getElementById("rpPending"); if (!el) return;
-      var pend;
-      try { pend = await RS.load("jobs_pending_closing"); } catch (e) { return; }
-      el = document.getElementById("rpPending"); if (!el || !pend || !pend.length) return;
-      // Since 2026-07-21 unfiled recent moves ARE in the report (foreman comes from the
-      // calendar; money columns wait for the closing) — so no more "not in this report yet"
-      // for fresh paperwork. The banner now only chases genuinely NEVER-filed jobs.
-      var never = pend.filter(function (r) { return String(r.Status) === "Never filed"; });
-      var recentNever = never.filter(function (r) { return (+r["Days Old"] || 0) <= 90; });
-      if (!recentNever.length) return;
-      var parts = [];
-      parts.push("<b>" + recentNever.length + "</b> job"
-        + (recentNever.length === 1 ? "" : "s") + " from the last 90 days still "
-        + (recentNever.length === 1 ? "has" : "have") + " <b>no closing sheet</b> — "
-        + "the jobs are counted in the report (foreman from the calendar), but their bills stay empty until the paperwork is filed.");
-      el.innerHTML = '<div class="rp-pending">'
-        + '<span class="rp-pico">◷</span><div><div class="rp-ptxt">' + parts.join(" ") + "</div>"
-        + (recentNever.length ? '<button class="rp-plink" id="rpPendMore">Show the unfiled jobs</button>' : "")
-        + '<div id="rpPendList" style="display:none"></div></div></div>';
-      // Paginated 25/page — this list grows with every unfiled job and used to render whole.
-      var PEND_PAGE = 25, pendPage = 0;
-      var pendSorted = recentNever.slice().sort(function (a, b) { return String(b["Job Date"]).localeCompare(String(a["Job Date"])); });
-      function paintPend() {
-        var box = document.getElementById("rpPendList"); if (!box) return;
-        var pages = Math.max(1, Math.ceil(pendSorted.length / PEND_PAGE));
-        if (pendPage >= pages) pendPage = pages - 1;
-        if (pendPage < 0) pendPage = 0;
-        var from = pendPage * PEND_PAGE, shown = pendSorted.slice(from, from + PEND_PAGE);
-        // widths, or five short columns stretch 5x across the full 2082px content box
-        box.innerHTML = '<table class="rp-tbl2" style="margin-top:10px">'
-          + '<colgroup><col style="width:110px"><col style="width:110px"><col style="width:260px">'
-          + '<col style="width:200px"><col style="width:90px"><col></colgroup>'
-          + '<thead><tr><th>Job Date</th><th>Job No</th>'
-          + '<th>Customer</th><th>Foreman</th><th class="r">Days old</th><th></th></tr></thead><tbody>'
-          + shown.map(function (r) {
-              return "<tr><td>" + esc(String(r["Job Date"]).slice(0, 10)) + "</td><td>" + esc(r["Job No"] || "—")
-                + "</td><td>" + esc(r.Customer || "—") + "</td><td>" + esc(r.Foreman || "—")
-                + '</td><td class="r">' + esc(r["Days Old"]) + "</td></tr>";
-            }).join("") + "</tbody></table>"
-          + (pages > 1 ? '<div class="rp-pager"><span class="sp">' + (from + 1) + "–" + (from + shown.length)
-              + " of " + pendSorted.length + "</span>"
-              + '<button type="button" class="rp-btn" data-pendprev' + (pendPage === 0 ? " disabled" : "") + ">‹ Prev</button>"
-              + "<b>" + (pendPage + 1) + " / " + pages + "</b>"
-              + '<button type="button" class="rp-btn" data-pendnext' + (pendPage >= pages - 1 ? " disabled" : "") + ">Next ›</button></div>" : "");
-        var pp = box.querySelector("[data-pendprev]"), pn = box.querySelector("[data-pendnext]");
-        if (pp) pp.onclick = function () { pendPage--; paintPend(); };
-        if (pn) pn.onclick = function () { pendPage++; paintPend(); };
-      }
-      var btn = document.getElementById("rpPendMore");
-      if (btn) btn.onclick = function () {
-        var box = document.getElementById("rpPendList");
-        if (box.style.display === "none") {
-          paintPend();
-          box.style.display = ""; btn.textContent = "Hide the unfiled jobs";
-        } else { box.style.display = "none"; btn.textContent = "Show the unfiled jobs"; }
-      };
-    })();
+    // The "what ISN'T in this report" banner is GONE (Tornike, 2026-08-11). Unfiled
+    // recent moves have been counted in this report since 2026-07-21 — the foreman comes
+    // from the calendar and only the money columns wait on the paperwork — so the banner
+    // was chasing something the page already handles, in front of the numbers people came
+    // for. fct_jobs_pending_closing still exists and is still granted; nothing reads it here.
 
     // ---- LIVE reviews overlay (no 6h wait) ----
     // The warehouse's Review Received refreshes every ~6h and matches reviews to jobs by request #
