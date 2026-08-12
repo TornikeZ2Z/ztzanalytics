@@ -686,8 +686,14 @@ registerPage({
           var labels = [];
           if (S.month) labels.push(monLab(S.month));
           if (S.co) labels.push(S.co);
-          if (S.flagOnly) labels.push("Only above the line");
-          if (S.q) labels.push("Search");
+          // ONLY NAME FILTERS THIS VIEW ACTUALLY APPLIES. The profile reads the whole
+          // `profiles` list, so the board's flag toggle and name search do nothing there —
+          // and neither control is on screen to inspect or clear. The pill claiming them
+          // active was telling the reader the numbers were narrowed when they were not.
+          if (S.view !== "profile") {
+            if (S.flagOnly) labels.push("Only above the line");
+            if (S.q) labels.push("Search");
+          }
           return { n: labels.length, labels: labels };
         },
       });
@@ -727,27 +733,35 @@ registerPage({
     // who was fine until March and has drifted since reads as merely "below" there, and the
     // difference between a drift and a habit is the first thing anyone asks.
     function monthly(p, rows) {
-      var mine = {}, all = {};
-      function push(o, k, r) {
-        var b = o[k] || (o[k] = { sold: 0, cf: 0, units: 0, n: 0, booked: 0 });
-        b.sold += (+r["Sold USD"] || 0);
-        b.cf += (+r["Real CF"] || 0);
-        b.units += (+r["Packing Units"] || 0);
-        b.n++; if (!r["Zero Pack"]) b.booked++;
-      }
+      /* THE SAME STATISTIC THE REST OF THE PAGE USES, or this panel quietly scores a different
+       * measure under the same name. The first version totalled his money and his cubic feet
+       * and divided — a ratio of sums — while the KPI above it, the peer table, the board bars
+       * and the drawer all take the MEDIAN of the per-job `USD per 100 CF` column, which
+       * deliberately excludes jobs that booked nothing and jobs with no CF. The same
+       * foreman-month therefore printed two different numbers under one label, and the drawer
+       * contradicted the profile (full scan, 2026-08-12).
+       *
+       * Median of the per-job column now, on both sides, with the fleet line still excluding
+       * him — a man with many jobs would otherwise be largely compared with himself. */
+      var K = "USD per 100 CF";
+      var mine = {}, others = {}, count = {};
       rows.forEach(function (r) {
         if (r["Packed By Owner"] || !r["Recorded"] || !r.Day) return;
-        push(all, monthOf(r.Day), r);
-        if (r.Foreman === p.name) push(mine, monthOf(r.Day), r);
+        var m = monthOf(r.Day), his = r.Foreman === p.name;
+        if (his) {
+          count[m] = (count[m] || { n: 0, sold: 0, booked: 0 });
+          count[m].n++;
+          count[m].sold += (+r["Sold USD"] || 0);
+          if (!r["Zero Pack"]) count[m].booked++;
+        }
+        var v = r[K];
+        if (v == null || !isFinite(v)) return;      // no rate: excluded, exactly as rollup does
+        (his ? (mine[m] = mine[m] || []) : (others[m] = others[m] || [])).push(v);
       });
-      return Object.keys(mine).sort().map(function (m) {
-        var a = mine[m], f = all[m];
-        var rate = a.cf > 0 ? a.sold / a.cf * 100 : null;
-        // the fleet line EXCLUDES him, or a man with many jobs is largely compared with himself
-        var fSold = f.sold - a.sold, fCf = f.cf - a.cf;
-        var fRate = fCf > 0 ? fSold / fCf * 100 : null;
-        return { m: m, rate: rate, fleet: fRate, n: a.n, sold: a.sold,
-                 bookedPct: a.n ? a.booked / a.n : null };
+      return Object.keys(count).sort().map(function (m) {
+        var c = count[m];
+        return { m: m, rate: median(mine[m] || []), fleet: median(others[m] || []),
+                 n: c.n, sold: c.sold, bookedPct: c.n ? c.booked / c.n : null };
       });
     }
 

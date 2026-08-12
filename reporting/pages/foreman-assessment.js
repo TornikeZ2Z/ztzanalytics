@@ -1222,6 +1222,11 @@ registerPage({
       }, e => {
         if (seq[skey] !== my) return;            // a newer write owns this question now
         cur[question] = before;                  // a reason that silently failed is worse than none
+        // AND GIVE HIM BACK WHAT HE TYPED. The draft was cleared when the request went out, so
+        // a rejected save (offline, 5xx, or a 409 because the month was submitted elsewhere)
+        // left the editor closed and up to 300 characters gone — the one case where losing the
+        // text is least excusable, because nothing reached the server either.
+        S.noteDraft = { key: skey, text: text };
         S.msg = "Reason not saved — " + e.message;
         S.msgErr = true;
         paint();

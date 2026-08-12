@@ -119,7 +119,7 @@ body.rs-viewas .rs-layout{box-shadow:inset 0 0 0 2px #7c3aed}
 
 <script src="assets/portal.js?v=12"></script>
 <script src="assets/rs-core.js?v=44"></script>
-<script src="assets/rs-components.js?v=17"></script>
+<script src="assets/rs-components.js?v=18"></script>
 <script>
 /* ---------------- page registry ---------------- */
 window.PAGES = [];
@@ -1260,7 +1260,11 @@ if (!ZTZ.getToken()) {
       try {
         const st = await ZTZ.api("/api/_stats");
         const ts = (st.tables || []).map(t => t.last_update).filter(Boolean).sort().pop();
-        const d = ts && new Date(String(ts).replace(" ", "T"));
+        // THE "Z" IS LOad-BEARING. `last_update` is the lineage Update Date: naive UTC by
+        // construction. Without the marker the browser parses it as LOCAL time, so the instant
+        // is already shifted by the reader's own offset before the timezone picker relabels it
+        // — the stamp then claims a zone it was never converted into (full scan, 2026-08-12).
+        const d = ts && new Date(String(ts).replace(" ", "T") + "Z");
         const el = document.getElementById("footFresh");
         // the freshness stamp is a real instant, so it follows the reporting zone and SAYS
         // which one — an unlabelled "Data updated: 12:07 PM" is unreadable across two offices
@@ -1615,19 +1619,19 @@ registerPage({
 <script src="pages/leads-vs-moveboard.js?v=7"></script>
 <script src="pages/source-analysis.js?v=4"></script>
 <script src="pages/data-quality.js?v=12"></script>
-<script src="pages/refresh-log.js?v=17"></script>
-<script src="pages/sales-team.js?v=41"></script>
-<script src="pages/source-trace.js?v=12"></script>
+<script src="pages/refresh-log.js?v=18"></script>
+<script src="pages/sales-team.js?v=42"></script>
+<script src="pages/source-trace.js?v=13"></script>
 <script src="pages/multi-source-leads.js?v=7"></script>
 <script src="pages/calendar-coverage.js?v=8"></script>
 <script src="pages/request-consistency.js?v=4"></script>
 <script src="pages/branch-owner.js?v=6"></script>
 <script src="pages/money-flow.js?v=54"></script>
 <script src="pages/ld-planning.js?v=78"></script>
-<script src="pages/cleanup.js?v=24"></script>
-<script src="pages/packing-control.js?v=13"></script>
+<script src="pages/cleanup.js?v=25"></script>
+<script src="pages/packing-control.js?v=14"></script>
 <script src="pages/storage-control.js?v=9"></script>
-<script src="pages/foreman-assessment.js?v=27"></script>
+<script src="pages/foreman-assessment.js?v=28"></script>
 <script src="pages/fuel-control.js?v=9"></script>
 <script src="pages/demand-analysis.js?v=6"></script>
 <script src="pages/general-tables.js?v=3"></script>

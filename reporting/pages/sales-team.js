@@ -1503,7 +1503,13 @@
     const cmap = ctx.repCanon || {};
     const aliases = Object.keys(cmap).filter(k => cmap[k].toLowerCase() === canon.toLowerCase());
     const names = new Set();
-    ctx.rows.forEach(r => { const a = (r["Assigned"] || "").trim(); if (a && aliases.indexOf(a.toLowerCase()) !== -1) names.add(a); });
+    // SCAN THE SLICER-FREE SET. `ctx.rows` is already filtered BY the Sales Person slicer, so
+    // once one rep is selected it contains only their rows — and every alias spelling of the
+    // NEXT rep is invisible. The filter then collapsed to a single canonical name and the
+    // Explorer silently dropped leads whose raw `Assigned` is an alias, down to zero when the
+    // canon is a roster spelling that never appears in `Assigned`. renderRep already reads
+    // `repRows` for exactly this reason (full scan, 2026-08-12).
+    (ctx.repRows || ctx.rows).forEach(r => { const a = (r["Assigned"] || "").trim(); if (a && aliases.indexOf(a.toLowerCase()) !== -1) names.add(a); });
     if (!names.size) names.add(canon);
     RS.state.multi.sales = names;
     ST_LAST_TAB = tab || "explorer";
@@ -1920,6 +1926,16 @@
     title: "Sales Person Analysis",
     async render(host) {
       injectStyle();
+      // THE DRAWER LIVES ON document.body, SO IT OUTLIVES THIS PAGE. Left open, its scrim
+      // stayed in the document after navigating away and swallowed clicks on whatever page
+      // came next — an invisible sheet of glass over an unrelated report. Shut it on every
+      // render rather than moving it: it is deliberately outside `host` so the page can
+      // re-render underneath an open file (full scan, 2026-08-12).
+      if (drawerEl) {
+        const sc = drawerEl.querySelector(".st-scrim"), dw = drawerEl.querySelector(".st-drawer");
+        if (sc) sc.classList.remove("on");
+        if (dw) dw.classList.remove("on");
+      }
       host.innerHTML = `<div class="st-page">
         <div class="rs-page-head"><h1>Sales Person Analysis</h1>
           <p>Every lead's full story — calls, texts, routing, and the money it became.

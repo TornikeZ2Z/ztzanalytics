@@ -7,7 +7,15 @@ window.RSC = (function () {
     if (html != null) e.innerHTML = html;
     return e;
   };
-  const esc = s => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  /* THE APOSTROPHE MATTERS. This escaped `"` but not `'`, and Calendar Cleanup builds its
+     buttons with SINGLE-quoted attributes — so "Mike O'Brien" closed data-cust early, shifted
+     every attribute after it, and the permanent "decline" the button files could be written
+     against a different job than the one on screen. Escaping both quote characters is the fix
+     for the whole kit rather than for one page, and it is safe everywhere: `&#39;` renders as
+     an apostrophe in HTML, and the DOM decodes it back before any dataset read (full scan,
+     2026-08-12). Nothing assigns esc() output to textContent, where the entity would show. */
+  const esc = s => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 
   /* Graph⇄Tabular choice persists across re-renders (a filter change re-renders the whole
      page). Keyed by a stable card key (cfg.key or, by default, the card title) so a card

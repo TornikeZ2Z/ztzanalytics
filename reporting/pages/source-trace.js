@@ -294,7 +294,12 @@ registerPage({
       closing: {
         dataset: "source_trace", unit: "closing job",
         placeholder: "Search by Request #, Job Code, or customer name…",
-        key: r => r["Request Joinkey"] || r["Request #"] || r["Job Code"],
+        // JOB CODE FIRST, because it is the only value here that is unique per ROW. `Request
+        // Joinkey` is not in this payload at all, so the key fell through to `Request #` —
+        // which repeats across the legs of one move and across the two Moveboard accounts, so
+        // clicking a search hit could open a DIFFERENT job's trace than the one clicked
+        // (full scan, 2026-08-12). Job Code is the closing Unique Key.
+        key: r => r["Job Code"] || r["Request Joinkey"] || r["Request #"],
         match: (r, nq) => norm(r["Request #"]).includes(nq) || norm(r["Job Code"]).includes(nq) || norm(r["Customer"]).includes(nq),
         exact: (r, nq) => norm(r["Request #"]) === nq,
         hit: r => {
