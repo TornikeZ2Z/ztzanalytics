@@ -66,7 +66,9 @@ registerPage({
         ".hm-ta{width:100%;box-sizing:border-box;font:inherit;font-size:13px;line-height:1.5;color:var(--ink);background:var(--panel);border:1px solid var(--line-2);border-radius:9px;padding:9px 11px;resize:vertical}",
         ".hm-ta:focus{outline:none;border-color:var(--brand)}",
         ".hm-ct{font-size:10.5px;color:var(--faint);text-align:right;margin-top:3px}",
-        ".hm-saved{font-size:11px;color:var(--pos);font-weight:700}",
+        // min-height RESERVES the line: without it the first "saved" label grows the card
+        // and every question below jumps mid-click
+        ".hm-saved{font-size:11px;color:var(--pos);font-weight:700;min-height:15px}",
         ".hm-err{font-size:12px;color:var(--neg);font-weight:700;margin-top:6px}",
         ".hm-submitbar{position:sticky;bottom:14px;background:var(--panel);border:1px solid var(--line-2);border-radius:13px;box-shadow:0 12px 34px rgba(0,0,0,.28);padding:13px 18px;display:flex;gap:14px;align-items:center;z-index:5}",
         ".hm-go{font:inherit;font-size:14px;font-weight:800;padding:11px 22px;border-radius:11px;border:0;background:var(--brand);color:var(--brand-ink);cursor:pointer}",
@@ -144,7 +146,7 @@ registerPage({
         + (q.instructions ? '<div style="font-size:13px;margin-top:8px;line-height:1.55">' + esc(q.instructions) + "</div>" : "")
         + '<div class="hm-conf">' + esc(q.confidentiality) + "</div>"
         + (q.my_status === "submitted" || q.my_status === "resubmitted"
-            ? '<div class="hm-dim">Submitted ' + esc(q.submitted_at || "") + " — this is a read-only copy of "
+            ? '<div class="hm-dim">Submitted ' + esc(fmtWhen(q.submitted_at)) + " — this is a read-only copy of "
               + "your answers. If something needs correcting, ask HR to reopen it.</div>"
             : q.my_status === "reopened"
             ? '<div class="hm-dim">HR reopened this response for you — edit what needs fixing and submit again.</div>'
@@ -212,6 +214,17 @@ registerPage({
       if (v == null || v === "") return [];
       try { var a = JSON.parse(v); return Array.isArray(a) ? a : []; }
       catch (e) { return []; }
+    }
+
+    // Bridge timestamps are naive UTC ("YYYY-MM-DD HH:MM:SS"). The Z is load-bearing:
+    // without it the browser reads LOCAL time and the instant shifts by the reader's
+    // offset. Rendered in the picker's zone like every live time on the portal.
+    function fmtWhen(s) {
+      if (!s) return "";
+      var d = new Date(String(s).replace(" ", "T") + "Z");
+      if (isNaN(d)) return String(s);
+      if (window.RS && RS.fmtTz) return RS.fmtTzDay(d) + ", " + RS.fmtTz(d) + " " + RS.tzShort();
+      return d.toLocaleString();
     }
 
     /* Save one answer — the assessment's race rules verbatim: optimistic local update,

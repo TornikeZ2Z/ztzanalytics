@@ -127,6 +127,14 @@ registerPage({
     // one corrupt stored value must not blank the whole Results tab
     var safeArr = function (v) { try { var a = JSON.parse(v); return Array.isArray(a) ? a : []; } catch (e) { return []; } };
     var clampStar = function (v) { var n = Math.round(+v); return n >= 1 && n <= 5 ? n : 0; };
+    // naive-UTC bridge stamp -> the picker's zone (the Z is load-bearing; see rs-core)
+    var fmtWhen = function (s, dayOnly) {
+      if (!s) return "";
+      var d = new Date(String(s).replace(" ", "T") + "Z");
+      if (isNaN(d)) return String(s);
+      if (!(window.RS && RS.fmtTz)) return dayOnly ? d.toLocaleDateString() : d.toLocaleString();
+      return dayOnly ? RS.fmtTzDay(d) : RS.fmtTzDay(d) + ", " + RS.fmtTz(d) + " " + RS.tzShort();
+    };
 
     /* ================================================================ data loads */
     async function loadHome() { S.home = await api("/api/_hrqadmin?view=home"); }
@@ -187,7 +195,7 @@ registerPage({
           + '<div class="meta">' + q.question_count + " questions · audience "
           + q.audience_size
           + (q.deadline ? " · deadline " + esc(q.deadline) : "")
-          + (q.published_at ? " · published " + esc(q.published_at.slice(0, 10)) : "")
+          + (q.published_at ? " · published " + esc(fmtWhen(q.published_at, true)) : "")
           + "</div></div>"
           + '<div class="nums"><b style="font-size:17px">' + done + " / " + q.audience_size + "</b>"
           + "<br>submitted · " + fmtPct(done, q.audience_size) + "</div></div>";
@@ -514,7 +522,7 @@ registerPage({
               + "<td>" + esc(r.department || "—") + "</td>"
               + "<td>" + pill(r.status)
               + (r.reopened_by ? ' <span class="hq-dim">by ' + esc(String(r.reopened_by).split("@")[0]) + "</span>" : "") + "</td>"
-              + "<td>" + esc(r.submitted_at ? r.submitted_at.slice(0, 16) : "—") + "</td>"
+              + "<td>" + (r.submitted_at ? esc(fmtWhen(r.submitted_at)) : "—") + "</td>"
               + "<td class=\"r\">" + ((canR && (r.status === "submitted" || r.status === "resubmitted"))
                   ? '<button class="hq-btn" data-ro="' + esc(r.email) + '">Reopen</button>' : "") + "</td></tr>";
           }).join("") || '<tr><td colspan="5" class="hq-dim" style="padding:14px">Nobody matches.</td></tr>')
@@ -563,7 +571,7 @@ registerPage({
         if (!person) { S.resPerson = ""; return paintResults(body); }
         html += '<div class="hq-card"><h4>' + esc(person.name || person.email)
           + ' <span class="hq-dim">' + esc(person.department || "") + " · submitted "
-          + esc(person.submitted_at || "") + "</span></h4>"
+          + esc(fmtWhen(person.submitted_at)) + "</span></h4>"
           + questions.map(function (qq) {
               var v = person.answers[qq.id];
               var shown = v == null || v === "" ? '<span class="hq-dim">— not answered</span>'
