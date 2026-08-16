@@ -243,6 +243,16 @@ body.rs-app .err{color:var(--red)}
   .rs-burger{display:inline-flex}
 }
 @media(min-width:901px){.rs-backdrop{display:none}}
+/* Phones: the header's clocks + full email need ~840px and forced the whole portal to
+   scroll sideways (found when the HR questionnaire made phone use real, 2026-08-17).
+   Keep the avatar circle — the account menu stays one tap away — and drop the rest. */
+@media(max-width:640px){
+  body.rs-app .ztzclock{display:none}
+  body.rs-app .who{font-size:0;gap:0}
+  body.rs-app .who .av{font-size:12px}
+  body.rs-app .who .who-car{display:none}
+  body.rs-app .top .brandsub{display:none}
+}
 
 /* ================= LIGHT THEME (body.rs-app.light) ================= */
 body.rs-app.light{
