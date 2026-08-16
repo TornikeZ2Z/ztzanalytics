@@ -124,6 +124,9 @@ registerPage({
 
     var DIRECT_LINK = location.origin + location.pathname + "#page=hr-my-questionnaire";
     var fmtPct = function (n, d) { return d ? Math.round(n / d * 100) + "%" : "—"; };
+    // one corrupt stored value must not blank the whole Results tab
+    var safeArr = function (v) { try { var a = JSON.parse(v); return Array.isArray(a) ? a : []; } catch (e) { return []; } };
+    var clampStar = function (v) { var n = Math.round(+v); return n >= 1 && n <= 5 ? n : 0; };
 
     /* ================================================================ data loads */
     async function loadHome() { S.home = await api("/api/_hrqadmin?view=home"); }
@@ -137,6 +140,9 @@ registerPage({
       var el = main.querySelector("#hqMsg");
       if (el) { el.textContent = t; el.className = "hq-msg " + (err ? "err" : "ok"); }
     }
+    // Abandoning edits must clear the draft TOO, not just the flag — a kept draft
+    // resurrects the "lost" edits on the next visit, labeled "saved".
+    function discardDraft() { S.dirty = false; S.draft = null; S.draftFor = null; }
 
     /* ================================================================ tab bar */
     function paintTabs() {
@@ -145,7 +151,10 @@ registerPage({
         return '<button data-t="' + t[0] + '" class="' + ((S.view === t[0] || (S.view === "q" && t[0] === "home")) ? "on" : "") + '">' + t[1] + "</button>";
       }).join("");
       tabsEl.querySelectorAll("button").forEach(function (b) {
-        b.onclick = function () { S.view = b.dataset.t; S.qid = null; S.dirty = false; go(); };
+        b.onclick = function () {
+          if (S.dirty && !confirm("Unsaved question changes will be lost. Leave anyway?")) return;
+          S.view = b.dataset.t; S.qid = null; discardDraft(); go();
+        };
       });
     }
 
@@ -183,6 +192,7 @@ registerPage({
           + '<div class="nums"><b style="font-size:17px">' + done + " / " + q.audience_size + "</b>"
           + "<br>submitted · " + fmtPct(done, q.audience_size) + "</div></div>";
       }).join("");
+      html += '<div class="hq-msg" id="hqMsg" style="margin-top:8px"></div>';
       main.innerHTML = html;
       var nb = main.querySelector("#hqNew");
       if (nb) {
@@ -212,7 +222,8 @@ registerPage({
       var q = S.q, canM = S.home && S.home.can_manage, canR = S.home && S.home.can_results;
       var lifecycle = "";
       if (canM) {
-        if (q.status === "draft") lifecycle = '<button class="hq-btn go" data-lc="publish">Publish</button>';
+        if (q.status === "draft") lifecycle = '<button class="hq-btn go" data-lc="publish">Publish</button>'
+          + '<button class="hq-btn warn" data-lc="archive">Archive draft</button>';
         else if (q.status === "published") lifecycle = '<button class="hq-btn warn" data-lc="close">Close</button>'
           + '<button class="hq-btn" data-lc="new_version">New version</button>';
         else if (q.status === "closed") lifecycle = '<button class="hq-btn" data-lc="new_version">New version</button>'
@@ -235,7 +246,7 @@ registerPage({
         + '<div class="hq-msg" id="hqMsg" style="margin-top:8px"></div>';
       main.querySelector("#hqBack").onclick = function () {
         if (S.dirty && !confirm("Unsaved question changes will be lost. Leave anyway?")) return;
-        S.view = "home"; S.qid = null; S.dirty = false; go();
+        S.view = "home"; S.qid = null; discardDraft(); go();
       };
       main.querySelector("#hqCopy2").onclick = function () {
         navigator.clipboard.writeText(DIRECT_LINK).then(function () { toast("Link copied"); });
@@ -243,22 +254,30 @@ registerPage({
       main.querySelectorAll("[data-lc]").forEach(function (b) {
         b.onclick = async function () {
           var a = b.dataset.lc;
+          if (S.dirty) {           // publishing over unsaved edits would lock the OLD questions
+            toast("You have unsaved question edits — save them (or leave and come back) first", true);
+            return;
+          }
           var warn = { publish: "Publish? Questions lock and the questionnaire goes live to its audience.",
                        close: "Close? Nobody will be able to submit any more.",
-                       archive: "Archive? It disappears from the employee page entirely.",
+                       archive: q.status === "draft"
+                         ? "Archive this draft? It leaves the list and can never be published."
+                         : "Archive? It disappears from the employee page entirely.",
                        new_version: "Create a new draft version with the same questions?" }[a];
           if (!confirm(warn)) return;
           try {
             var r = await post({ action: a, id: q.id });
+            discardDraft();
             if (a === "new_version") { S.qid = r.id; S.qtab = "questions"; }
-            S.dirty = false; go();
+            if (a === "archive" && q.status === "draft") { S.view = "home"; S.qid = null; }
+            go();
           } catch (e) { toast(e.message, true); }
         };
       });
       main.querySelectorAll("[data-st]").forEach(function (b) {
         b.onclick = function () {
           if (S.dirty && !confirm("Unsaved question changes will be lost. Leave anyway?")) return;
-          S.qtab = b.dataset.st; S.dirty = false; go();
+          S.qtab = b.dataset.st; discardDraft(); go();
         };
       });
       var body = main.querySelector("#hqQBody");
@@ -275,6 +294,7 @@ registerPage({
       var base = String(label).toLowerCase().replace(/[^a-z0-9]+/g, "_")
         .replace(/^_+|_+$/g, "").slice(0, 32) || "q";
       if (!/^[a-z]/.test(base)) base = "q_" + base;
+      while (base.length < 3) base += "_q";      // the server requires 3-40 chars
       var k = base, i = 2;
       while (taken.has(k)) k = (base.slice(0, 29) + "_" + i++);
       return k;
@@ -352,12 +372,22 @@ registerPage({
         var rows = body.querySelectorAll(".hq-ed .lbl"); rows[rows.length - 1].focus();
       };
       body.querySelector("#hqSaveQ").onclick = async function () {
+        // `taken` must include RETIRED server-side keys too (q.questions has them all):
+        // reusing a retired key would resurrect that question's history under a new label
         var taken = new Set(d.filter(function (x) { return x.qkey; }).map(function (x) { return x.qkey; }));
+        (q.questions || []).forEach(function (x) { taken.add(x.qkey); });
         var payload = d.map(function (x) {
           if (!x.qkey) { x.qkey = slugify(x.label, taken); taken.add(x.qkey); }
           return { qkey: x.qkey, label: x.label, description: x.description,
                    qtype: x.qtype, options: x.options, required: x.required };
         });
+        for (var pi = 0; pi < payload.length; pi++) {
+          if (!payload[pi].label.trim()) { toast("Question " + (pi + 1) + " needs a label", true); return; }
+          if ((payload[pi].qtype === "single" || payload[pi].qtype === "multi")
+              && (payload[pi].options || []).filter(Boolean).length < 2) {
+            toast("'" + (payload[pi].label.slice(0, 40)) + "' needs at least 2 choices", true); return;
+          }
+        }
         try {
           await post({ action: "save_questions", id: q.id, questions: payload });
           S.dirty = false; toast("Saved — " + payload.length + " questions");
@@ -460,7 +490,7 @@ registerPage({
         var map = { not_started: ["hq-pill", "not started"], in_progress: ["hq-pill closed", "in progress"],
                     submitted: ["hq-pill published", "submitted"], resubmitted: ["hq-pill published", "resubmitted"],
                     reopened: ["hq-pill draft", "reopened"] };
-        var m = map[s] || ["hq-pill", s];
+        var m = map[s] || ["hq-pill", esc(s)];
         return '<span class="' + m[0] + '">' + m[1] + "</span>";
       };
       body.innerHTML =
@@ -537,8 +567,8 @@ registerPage({
           + questions.map(function (qq) {
               var v = person.answers[qq.id];
               var shown = v == null || v === "" ? '<span class="hq-dim">— not answered</span>'
-                : qq.qtype === "multi" ? esc((JSON.parse(v) || []).join(", "))
-                : qq.qtype === "stars5" ? "★".repeat(+v) + '<span class="hq-dim"> (' + esc(v) + "/5)</span>"
+                : qq.qtype === "multi" ? esc(safeArr(v).join(", "))
+                : qq.qtype === "stars5" ? "★".repeat(clampStar(v)) + '<span class="hq-dim"> (' + esc(v) + "/5)</span>"
                 : esc(v);
               return '<div class="hq-txt"><b>' + esc(qq.label) + "</b><br>" + shown + "</div>";
             }).join("") + "</div>";
@@ -563,7 +593,7 @@ registerPage({
             var counts2 = {};
             (qq.options || []).forEach(function (o) { counts2[o] = 0; });
             vals.forEach(function (v) {
-              (qq.qtype === "multi" ? (JSON.parse(v) || []) : [v]).forEach(function (o) {
+              (qq.qtype === "multi" ? safeArr(v) : [v]).forEach(function (o) {
                 if (o in counts2) counts2[o]++;
               });
             });
@@ -591,15 +621,20 @@ registerPage({
       body.querySelector("#hrDept").onchange = function () { S.resDept = this.value; S.resPerson = ""; paintResults(body); };
       body.querySelector("#hrWho").onchange = function () { S.resPerson = this.value; paintResults(body); };
       body.querySelector("#hrCsv").onclick = function () {
-        // the ld-planning CSV pattern: exactly the rows on screen, one line per person
-        var escC = function (v) { v = v == null ? "" : String(v); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
+        // the ld-planning CSV pattern — plus a formula guard: a leading = + - @ or tab
+        // would execute in Excel on HR's machine, and answer text is employee-controlled
+        var escC = function (v) {
+          v = v == null ? "" : String(v);
+          if (/^[=+\-@\t\r]/.test(v)) v = "'" + v;
+          return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v;
+        };
         var head = ["Email", "Name", "Department", "Status", "Submitted"].concat(questions.map(function (qq) { return qq.label; }));
         var lines = [head.map(escC).join(",")];
         view.forEach(function (r) {
           lines.push([r.email, r.name || "", r.department || "", r.status, r.submitted_at || ""]
             .concat(questions.map(function (qq) {
               var v = r.answers[qq.id];
-              return v == null ? "" : qq.qtype === "multi" ? (JSON.parse(v) || []).join("; ") : v;
+              return v == null ? "" : qq.qtype === "multi" ? safeArr(v).join("; ") : v;
             })).map(escC).join(","));
         });
         var blob = new Blob(["﻿" + lines.join("\r\n")], { type: "text/csv;charset=utf-8" });

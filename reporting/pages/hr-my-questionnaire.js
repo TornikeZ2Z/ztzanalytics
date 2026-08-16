@@ -100,7 +100,7 @@ registerPage({
       var m = { not_started: ["", "not started"], in_progress: ["warn", "in progress"],
                 submitted: ["ok", "submitted"], resubmitted: ["ok", "resubmitted"],
                 reopened: ["warn", "reopened for correction"] };
-      var x = m[q.my_status] || ["", q.my_status];
+      var x = m[q.my_status] || ["", esc(q.my_status)];
       return '<span class="hm-pill ' + x[0] + '">' + x[1] + "</span>";
     }
 
@@ -126,7 +126,7 @@ registerPage({
           + qs.map(function (q) {
               return '<button class="hm-btn" data-open="' + q.id + '" style="margin:2px 6px 2px 0'
                 + (q.id === S.open ? ";border-color:var(--brand);color:var(--brand)" : "") + '">'
-                + esc(q.title) + " · " + (q.my_status === "not_started" ? "new" : q.my_status.replace("_", " ")) + "</button>";
+                + esc(q.title) + " · " + esc(q.my_status === "not_started" ? "new" : String(q.my_status).replace("_", " ")) + "</button>";
             }).join("") + "</div>";
       }
       html += paintOne(cur);
@@ -218,9 +218,11 @@ registerPage({
      * per-question monotonic seq + serialized chain, rollback with a message on failure. */
     function save(q, questionId, value, el) {
       var key = q.id + "|" + questionId;
+      S._ok = S._ok || {};                       // last value the SERVER confirmed, per question
       var my = S._seq[key] = (S._seq[key] || 0) + 1;
-      var before = q.answers[questionId];
-      q.answers[questionId] = (value != null && Array.isArray(value)) ? JSON.stringify(value) : value;
+      var stored = (value != null && Array.isArray(value)) ? JSON.stringify(value) : value;
+      if (!(key in S._ok)) S._ok[key] = q.answers[questionId];
+      q.answers[questionId] = stored;
       if (q.my_status === "not_started") q.my_status = "in_progress";
       var sv = main.querySelector('[data-sv="' + questionId + '"]');
       if (sv) { sv.textContent = "saving…"; sv.style.color = "var(--faint)"; }
@@ -228,13 +230,23 @@ registerPage({
         return api("/api/_hrq", { method: "POST", body: JSON.stringify({
           questionnaire_id: q.id, question_id: questionId, value: value }) });
       }).then(function () {
+        S._ok[key] = stored;
         if (S._seq[key] !== my) return;
         if (sv) { sv.textContent = "saved"; sv.style.color = "var(--pos)"; }
       }, function (e) {
         if (S._seq[key] !== my) return;
-        q.answers[questionId] = before;
-        if (sv) { sv.textContent = "NOT saved — " + (e.message || e); sv.style.color = "var(--neg)"; }
-        paint();
+        // Roll back to the last CONFIRMED value — not to "the value when this call
+        // started", which after two queued failures would be a phantom never stored.
+        q.answers[questionId] = S._ok[key];
+        // Keep what is typed in OTHER questions on screen: paint() re-renders every
+        // textarea from q.answers, and text inside the debounce window isn't there yet.
+        main.querySelectorAll("textarea[data-t]").forEach(function (t2) {
+          var k2 = +t2.dataset.t;
+          if (k2 !== questionId) q.answers[k2] = t2.value;
+        });
+        paint();                                  // rebuild FIRST, then write the message
+        var sv2 = main.querySelector('[data-sv="' + questionId + '"]');
+        if (sv2) { sv2.textContent = "NOT saved — " + (e.message || e); sv2.style.color = "var(--neg)"; }
       });
     }
 

@@ -1278,8 +1278,8 @@ if (!ZTZ.getToken()) {
          them (or they are rostered at all), they get the questionnaire page ALONE: no
          sidebar, no filters, no other pages — those all require grants server-side anyway,
          so this chrome is honesty, not the protection. */
-      let hrq = null;
-      try { hrq = await ZTZ.api("/api/_hrq"); } catch (e) { hrq = null; }
+      let hrq = null, hrqFailed = false;
+      try { hrq = await ZTZ.api("/api/_hrq"); } catch (e) { hrq = null; hrqFailed = true; }
       if (hrq && (hrq.rostered || (hrq.questionnaires || []).length)) {
         document.body.classList.add("hrq-only");
         const page = pageFor("hr-my-questionnaire");
@@ -1289,6 +1289,12 @@ if (!ZTZ.getToken()) {
         try { await page.render(host); }
         catch (e) { host.innerHTML = '<div class="rs-loading">Could not load — ' + RSC.esc(e.message || e) + "</div>"; }
         return;
+      }
+      if (hrqFailed) {
+        // The probe ERRORED — we do not know whether this person is rostered, and telling
+        // a rostered employee "no access has been granted" on a network blip is a lie.
+        // The errMsg branch of the access screen is exactly this case: hiccup + Try again.
+        requestAccessScreen(ME.email, "the questionnaire check did not answer"); return;
       }
       requestAccessScreen(ME.email, ME.error); return;
     }
@@ -1682,8 +1688,8 @@ registerPage({
 <script src="pages/packing-control.js?v=14"></script>
 <script src="pages/storage-control.js?v=9"></script>
 <script src="pages/foreman-assessment.js?v=28"></script>
-<script src="pages/hr-questionnaire.js?v=2"></script>
-<script src="pages/hr-my-questionnaire.js?v=1"></script>
+<script src="pages/hr-questionnaire.js?v=3"></script>
+<script src="pages/hr-my-questionnaire.js?v=2"></script>
 <script src="pages/fuel-control.js?v=9"></script>
 <script src="pages/demand-analysis.js?v=6"></script>
 <script src="pages/general-tables.js?v=3"></script>
