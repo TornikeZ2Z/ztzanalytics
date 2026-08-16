@@ -157,7 +157,12 @@ registerPage({
         + (canM ? '<button class="hq-btn go" id="hqNew">+ New questionnaire</button>' : "")
         + '<button class="hq-btn" id="hqCopy">Copy the employee link</button>'
         + '<span class="hq-dim">' + h.roster_active + " people on the list · the link is the "
-        + "same for everyone — each person sees what is assigned to them</span></div>";
+        + "same for everyone — each person sees what is assigned to them</span></div>"
+        + (canM ? '<div class="hq-row hq-newrow" id="hqNewRow" style="display:none;margin-bottom:14px">'
+          + '<input id="hqNewTitle" class="hq-in" style="min-width:320px" maxlength="200" '
+          + 'placeholder="Title of the new questionnaire…">'
+          + '<button class="hq-btn go" id="hqNewGo">Create draft</button>'
+          + '<button class="hq-btn" id="hqNewNo">Cancel</button></div>' : "");
       if (!h.questionnaires.length) {
         html += '<div class="hq-card"><h4>Nothing here yet</h4><div class="hq-dim">'
           + (canM ? "Create the first questionnaire, add questions, add people under the "
@@ -180,12 +185,19 @@ registerPage({
       }).join("");
       main.innerHTML = html;
       var nb = main.querySelector("#hqNew");
-      if (nb) nb.onclick = async function () {
-        var t = prompt("Title of the new questionnaire:");
-        if (!t || !t.trim()) return;
-        try { var r = await post({ action: "create", title: t.trim() }); S.view = "q"; S.qid = r.id; S.qtab = "questions"; go(); }
-        catch (e) { toast(e.message, true); }
-      };
+      if (nb) {
+        var row = main.querySelector("#hqNewRow"), tIn = main.querySelector("#hqNewTitle");
+        var create = async function () {
+          var t = tIn.value.trim();
+          if (!t) { tIn.focus(); return; }
+          try { var r = await post({ action: "create", title: t }); S.view = "q"; S.qid = r.id; S.qtab = "questions"; go(); }
+          catch (e) { toast(e.message, true); }
+        };
+        nb.onclick = function () { row.style.display = ""; tIn.focus(); };
+        main.querySelector("#hqNewGo").onclick = create;
+        tIn.onkeydown = function (ev) { if (ev.key === "Enter") create(); };
+        main.querySelector("#hqNewNo").onclick = function () { row.style.display = "none"; tIn.value = ""; };
+      }
       main.querySelector("#hqCopy").onclick = function () {
         navigator.clipboard.writeText(DIRECT_LINK).then(function () { toast("Link copied — share it anywhere"); });
       };
