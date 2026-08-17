@@ -1525,7 +1525,8 @@ registerPage({
     ].filter(x => avail.has(x.id));
     host.innerHTML = `
       <div class="rs-page-head"><h1>Users & Access</h1>
-        <p>Deny-by-default access, granted by department. Every grant is enforced by the data bridge itself — reports a user can't see are also reports they can't query.</p></div>
+        <p>Deny-by-default access, granted by department. Every grant is enforced by the data bridge itself — reports a user can't see are also reports they can't query.
+        <br><span style="color:var(--faint)">People who only fill questionnaires do <b>not</b> belong here: being active on the Team Directory with an email is their whole access — they sign in and see just My Questionnaire, nothing else.</span></p></div>
       <div class="panel">
         <div class="panel-head">
           <span class="panel-title">Users <span style="color:var(--faint);font-weight:600">· ${data.users.length}</span></span>
@@ -1705,7 +1706,7 @@ registerPage({
 <script src="pages/packing-control.js?v=14"></script>
 <script src="pages/storage-control.js?v=9"></script>
 <script src="pages/foreman-assessment.js?v=28"></script>
-<script src="pages/hr-questionnaire.js?v=15"></script>
+<script src="pages/hr-questionnaire.js?v=16"></script>
 <script src="pages/hr-my-questionnaire.js?v=6"></script>
 <script src="pages/hr-directory.js?v=6"></script>
 <script src="pages/fuel-control.js?v=9"></script>

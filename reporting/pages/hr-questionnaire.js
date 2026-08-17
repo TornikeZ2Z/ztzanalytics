@@ -253,6 +253,9 @@ registerPage({
     // without this reset an abandoned edit came BACK on the next visit labeled "saved" —
     // on a published questionnaire it rendered questions that are not the real ones.
     S.dirty = false; S.draft = null; S.draftFor = null; S.msg = "";
+    // every visit starts on the questionnaire LIST (his call, 2026-08-17) — a page
+    // reopened hours later must not resurrect whatever was open last time
+    S.view = "home"; S.qid = null; S.qtab = "setup"; S.subOpen = null;
 
     var DEPT_COLOR = { Executive: "#4f46e5", Sales: "#2563eb", Marketing: "#9333ea",
                        "Customer Service": "#0d9488", "Data & Control": "#16a34a",
