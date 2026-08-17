@@ -227,6 +227,24 @@
             + '</label><input class="hd-in" data-f="' + k + '" value="'
             + esc(v == null ? "" : v) + '"></div>';
         };
+        // reports-to picks from the active people — a typed name with a typo silently
+        // drops someone off the Organization chart, a dropdown cannot miss
+        var bosses = S.roster
+          .filter(function (x) { return x.status === "active" && x.name && x.id !== p.id; })
+          .map(function (x) { return x.name; })
+          .sort(function (a, b) { return a.localeCompare(b); });
+        var sel = function (k, lab, v) {
+          return "<div><label>" + lab + '</label><select class="hd-in" data-f="' + k + '">'
+            + '<option value="">— nobody —</option>'
+            + bosses.map(function (n) {
+                return '<option value="' + esc(n) + '"' + (n === (v || "") ? " selected" : "") + ">"
+                  + esc(n) + "</option>";
+              }).join("")
+            // a stored name that no longer matches anyone stays selectable, visibly broken
+            + (v && bosses.indexOf(v) < 0
+                ? '<option value="' + esc(v) + '" selected>' + esc(v) + " (not on the list)</option>" : "")
+            + "</select></div>";
+        };
         var ovl = document.createElement("div");
         ovl.id = "hdOvl"; ovl.className = "hd-ovl";
         ovl.innerHTML = '<div class="hd-pane">'
@@ -239,8 +257,8 @@
           + f("alias", "Alias (sales name)", p.alias)
           + f("title", "Title", p.title)
           + f("department", "Department", p.department)
-          + f("reports_to", "Reports to", p.reports_to)
-          + f("also_reports_to", "Also reports to (dotted)", p.also_reports_to)
+          + sel("reports_to", "Reports to", p.reports_to)
+          + sel("also_reports_to", "Also reports to (dotted)", p.also_reports_to)
           + f("email", "Sign-in email (Google) — lets them receive and answer questionnaires", p.email, true)
           + "</div>"
           + '<div class="foot">'

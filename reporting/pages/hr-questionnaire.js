@@ -23,7 +23,7 @@ registerPage({
       });
     };
     var S = window.__HQ || (window.__HQ = {
-      view: "home", qid: null, qtab: "questions",
+      view: "home", qid: null, qtab: "setup",
       home: null, q: null, roster: null, sub: null, res: null,
       draft: null, dirty: false, msg: "", msgErr: false,
       subFilter: "", subQ: "", resDept: "", resPerson: "", rosterQ: "",
@@ -168,19 +168,9 @@ registerPage({
     // resurrects the "lost" edits on the next visit, labeled "saved".
     function discardDraft() { S.dirty = false; S.draft = null; S.draftFor = null; }
 
-    /* ================================================================ tab bar */
-    function paintTabs() {
-      var T = [["home", "Questionnaires"], ["people", "People"], ["guide", "Guide"]];
-      tabsEl.innerHTML = T.map(function (t) {
-        return '<button data-t="' + t[0] + '" class="' + ((S.view === t[0] || (S.view === "q" && t[0] === "home")) ? "on" : "") + '">' + t[1] + "</button>";
-      }).join("");
-      tabsEl.querySelectorAll("button").forEach(function (b) {
-        b.onclick = function () {
-          if (S.dirty && !confirm("Unsaved question changes will be lost. Leave anyway?")) return;
-          S.view = b.dataset.t; S.qid = null; discardDraft(); go();
-        };
-      });
-    }
+    /* No page-level tab bar (his call, 2026-08-18): people live on the Team Directory,
+       the guide is retired, so this page IS the questionnaire list. */
+    function paintTabs() { tabsEl.innerHTML = ""; }
 
     /* ================================================================ home */
     async function paintHome() {
@@ -196,13 +186,7 @@ registerPage({
           + 'placeholder="Title of the new questionnaire…">'
           + '<button class="hq-btn go" id="hqNewGo">Create draft</button>'
           + '<button class="hq-btn" id="hqNewNo">Cancel</button></div>' : "");
-      if (!h.questionnaires.length) {
-        html += '<div class="hq-card"><h4>Nothing here yet</h4><div class="hq-dim">'
-          + (canM ? "Create the first questionnaire, add questions, add people under the "
-                    + "People tab, then publish and share the link."
-                  : "No questionnaires have been created yet.") + "</div></div>";
-      }
-      html += h.questionnaires.map(function (q) {
+      var item = function (q) {
         var done = (q.responses.submitted || 0) + (q.responses.resubmitted || 0);
         return '<div class="hq-qitem" data-q="' + q.id + '"><div>'
           + "<b>" + esc(q.title) + "</b> "
@@ -215,7 +199,22 @@ registerPage({
           + "</div></div>"
           + '<div class="nums"><b style="font-size:17px">' + done + " / " + q.audience_size + "</b>"
           + "<br>submitted · " + fmtPct(done, q.audience_size) + "</div></div>";
-      }).join("");
+      };
+      // archived history stays reachable but out of the way — the list shows the living
+      var live = h.questionnaires.filter(function (q) { return q.status !== "archived"; });
+      var arch = h.questionnaires.filter(function (q) { return q.status === "archived"; });
+      if (!live.length) {
+        html += '<div class="hq-card"><h4>Nothing here yet</h4><div class="hq-dim">'
+          + (canM ? "Create a questionnaire, set it up, then finalize — everyone on the "
+                    + "Team Directory receives the invite."
+                  : "No questionnaires have been created yet.") + "</div></div>";
+      }
+      html += live.map(item).join("");
+      if (arch.length) {
+        html += '<div class="hq-dim" style="margin:12px 2px 6px;cursor:pointer" id="hqArchT">'
+          + (S.showArch ? "▾ " : "▸ ") + arch.length + " archived</div>"
+          + (S.showArch ? arch.map(item).join("") : "");
+      }
       html += '<div class="hq-msg" id="hqMsg" style="margin-top:8px"></div>';
       main.innerHTML = html;
       var nb = main.querySelector("#hqNew");
@@ -227,7 +226,7 @@ registerPage({
           if (!t) { tIn.focus(); return; }
           if (creating) return;                  // a double-click must not mint two drafts
           creating = true;
-          try { var r = await post({ action: "create", title: t }); S.view = "q"; S.qid = r.id; S.qtab = "questions"; go(); }
+          try { var r = await post({ action: "create", title: t }); S.view = "q"; S.qid = r.id; S.qtab = "setup"; go(); }
           catch (e) { creating = false; toast(e.message, true); }
         };
         nb.onclick = function () { row.style.display = ""; tIn.focus(); };
@@ -240,8 +239,10 @@ registerPage({
           function () { toast("Link copied — share it anywhere"); },
           function () { toast("Could not copy — the link is " + DIRECT_LINK, true); });
       };
+      var at = main.querySelector("#hqArchT");
+      if (at) at.onclick = function () { S.showArch = !S.showArch; paintHome(); };
       main.querySelectorAll(".hq-qitem").forEach(function (el) {
-        el.onclick = function () { S.view = "q"; S.qid = +el.dataset.q; S.qtab = "questions"; S.dirty = false; go(); };
+        el.onclick = function () { S.view = "q"; S.qid = +el.dataset.q; S.qtab = "setup"; S.dirty = false; go(); };
       });
     }
 
@@ -261,7 +262,8 @@ registerPage({
         else if (q.status === "closed") lifecycle = '<button class="hq-btn" data-lc="new_version">New version</button>'
           + '<button class="hq-btn warn" data-lc="archive">Archive</button>';
       }
-      var subtabs = [["questions", "Questions"], ["settings", "Settings"], ["submissions", "Responses"]]
+      if (["setup", "submissions", "results"].indexOf(S.qtab) < 0) S.qtab = "setup";
+      var subtabs = [["setup", "Set up"], ["submissions", "Responses"]]
         .concat(canR ? [["results", "Statistics"]] : []);
       main.innerHTML =
         '<div class="hq-row" style="margin-bottom:12px">'
@@ -307,7 +309,7 @@ registerPage({
           try {
             var r = await post({ action: a, id: q.id });
             discardDraft();
-            if (a === "new_version") { S.qid = r.id; S.qtab = "questions"; }
+            if (a === "new_version") { S.qid = r.id; S.qtab = "setup"; }
             if ((a === "archive" || a === "delete") && q.status === "draft") { S.view = "home"; S.qid = null; }
             if (a === "publish") { S.qtab = "submissions"; }
             go();
@@ -323,8 +325,14 @@ registerPage({
         };
       });
       var body = main.querySelector("#hqQBody");
-      if (S.qtab === "questions") paintQuestions(body, q, canM);
-      else if (S.qtab === "settings") paintSettings(body, q, canM);
+      if (S.qtab === "setup") {
+        // ONE editing surface (his call): settings on top, the questions right under
+        body.innerHTML = '<div id="hqSet"></div>'
+          + '<div class="hq-dim" style="margin:20px 2px 10px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;font-size:11px">The questions</div>'
+          + '<div id="hqQs"></div>';
+        paintSettings(body.querySelector("#hqSet"), q, canM);
+        paintQuestions(body.querySelector("#hqQs"), q, canM);
+      }
       else if (S.qtab === "submissions") await paintSubmissions(body, canR);
       else if (S.qtab === "results") await paintResults(body);
     }
@@ -838,74 +846,13 @@ registerPage({
       };
     }
 
-    /* ================================================================ people */
-    async function paintPeople() {
-      // People management MOVED to the Team Directory (2026-08-18): one people list, one
-      // editor. Keeping a second editor here would clobber the directory's org fields —
-      // the server's roster_upsert now runs a whole-row contract.
-      if (!(S.home && S.home.can_manage)) { main.innerHTML = '<div class="hq-dim">People management needs HR manage access.</div>'; return; }
-      await loadRoster();
-      var act = S.roster.filter(function (p) { return p.status === "active"; });
-      var noEmail = act.filter(function (p) { return !p.email; });
-      main.innerHTML =
-        '<div class="hq-card"><h4>The People list lives in the Team Directory now</h4>'
-        + '<div class="hq-dim" style="margin-bottom:12px">One list for the whole company: names, titles, '
-        + "departments, reporting lines — and the sign-in emails that let people answer questionnaires. "
-        + "Everyone active on it is this questionnaire system's audience.</div>"
-        + '<div class="hq-row">'
-        + '<button class="hq-btn go" id="hpGo">Open the Team Directory</button>'
-        + '<span class="hq-dim">' + act.length + " active people · "
-        + (noEmail.length ? noEmail.length + " still have no email and cannot answer yet"
-                          : "everyone has an email") + "</span></div></div>";
-      main.querySelector("#hpGo").onclick = function () { location.hash = "#page=hr-directory"; };
-    }
-
-    /* ================================================================ guide */
-    function paintGuide() {
-      main.innerHTML = '<div class="hq-card hq-guide">'
-        + "<h3>1 · Put people on the list</h3>"
-        + "<p>People live in the <b>Team Directory</b> — everyone active there is this system's "
-        + "audience. The sign-in email on a person's directory row is how they sign in with "
-        + "Google, so it must be exactly theirs; people outside the company (a personal gmail) "
-        + "work too. Being on the list opens the questionnaire only — never any report.</p>"
-        + "<h3>2 · Build the questionnaire</h3>"
-        + "<p>Create it under <b>Questionnaires</b>, add questions (ratings, choices, or text), "
-        + "mark the must-answer ones <i>required</i>, and set the wording, window and audience under "
-        + "<b>Settings</b>. Everything stays an editable draft until you publish.</p>"
-        + "<h3>3 · Publish — the invites go out by themselves</h3>"
-        + "<p>Publishing locks the questions, opens the questionnaire to its audience, and emails "
-        + "every person on it a <i>fill this in</i> invite with the link and the exact email "
-        + "address to sign in with. People without an email on their directory row are counted "
-        + "and flagged, and get their invite the moment the email is filled in (press "
-        + "<b>Send invites</b> under Submissions). Answers save as they type; <b>Submit</b> makes "
-        + "the response final and read-only for them.</p>"
-        + "<h3>4 · Track and read</h3>"
-        + "<p><b>Submissions</b> shows who has answered and who has not. <b>Results</b> shows "
-        + "averages, distributions and every written answer, filterable by department, with a CSV "
-        + "download. Responses are <b>not anonymous</b> and the employee page says so — the "
-        + "wording is yours to edit in Settings.</p>"
-        + "<h3>5 · Corrections</h3>"
-        + "<p>If someone needs to fix a submitted answer, find them under Submissions and press "
-        + "<b>Reopen</b> — they can then edit and resubmit, and the reopen is recorded with "
-        + "your name. To change the questions after publishing, use <b>New version</b>: the old "
-        + "version keeps its answers exactly as given, the new draft starts fresh.</p>"
-        + "<h3>Who can do what</h3>"
-        + "<ul><li><b>People on the list</b> — answer and see their own submissions. Nothing else.</li>"
-        + "<li><b>HR (manage)</b> — this page: the list, the questions, publish/close, who has submitted.</li>"
-        + "<li><b>HR (results)</b> — individual answers, statistics, reopen.</li>"
-        + "<li><b>Admin</b> — everything, granted in Users &amp; Access as the “Human Resources” tile.</li></ul>"
-        + "</div>";
-    }
-
     /* ================================================================ router */
     async function go() {
       paintTabs();
       main.innerHTML = '<div class="rs-loading" style="padding:22px">Loading…</div>';
       try {
         if (!S.home) await loadHome();
-        if (S.view === "people") { await loadRoster(); await paintPeople(); }
-        else if (S.view === "guide") paintGuide();
-        else if (S.view === "q" && S.qid) { if (!S.roster) try { await loadRoster(); } catch (e) {} await paintQ(); }
+        if (S.view === "q" && S.qid) { if (!S.roster) try { await loadRoster(); } catch (e) {} await paintQ(); }
         else { S.view = "home"; await paintHome(); }
       } catch (e) {
         main.innerHTML = '<div class="hq-card"><b>Could not load</b><div class="hq-dim">' + esc(e.message || e) + "</div></div>";
