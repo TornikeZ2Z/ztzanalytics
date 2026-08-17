@@ -140,7 +140,6 @@ registerPage({
       var ro = !q.editable;
       var head = '<div class="hm-card"><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">'
         + '<b style="font-size:17px">' + esc(q.title) + "</b>" + statusPill(q)
-        + (q.deadline ? '<span class="hm-dim">deadline ' + esc(q.deadline) + "</span>" : "")
         + "</div>"
         + (q.description ? '<div class="hm-dim" style="margin-top:6px;font-size:13px">' + esc(q.description) + "</div>" : "")
         + (q.instructions ? '<div style="font-size:13px;margin-top:8px;line-height:1.55">' + esc(q.instructions) + "</div>" : "")
@@ -153,7 +152,7 @@ registerPage({
             : !q.editable && q.questionnaire_status !== "published"
             ? '<div class="hm-dim">This questionnaire is closed.</div>'
             : !q.editable
-            ? '<div class="hm-dim">The deadline has passed.</div>' : "")
+            ? '<div class="hm-dim">This questionnaire is no longer assigned to you.</div>' : "")
         + "</div>";
 
       var body = q.questions.map(function (qq, i) {

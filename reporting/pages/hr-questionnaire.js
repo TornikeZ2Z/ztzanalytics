@@ -141,6 +141,9 @@ registerPage({
         ".hq-reqt input:checked~.hq-tgl{background:var(--brand)}",
         ".hq-reqt input:checked~.hq-tgl::after{left:16px}",
         ".hq-reqt .rt{font-size:12px;font-weight:700;color:var(--faint)}",
+        ".hq-tgl.big{width:46px;height:25px}",
+        ".hq-tgl.big::after{width:21px;height:21px}",
+        ".hq-reqt input:checked~.hq-tgl.big::after{left:23px}",
         ".hq-reqt input:checked~.rt{color:var(--brand)}",
         // hand-picked people: tags above, picker below (added people leave the list)
         ".hq-tags{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px;min-height:8px}",
@@ -300,7 +303,6 @@ registerPage({
           + (q.version > 1 ? ' <span class="hq-dim">v' + q.version + "</span>" : "")
           + '<div class="meta">' + q.question_count + " questions · audience "
           + q.audience_size
-          + (q.deadline ? " · deadline " + esc(q.deadline) : "")
           + (q.published_at ? " · published " + esc(fmtWhen(q.published_at, true)) : "")
           + "</div></div>"
           + '<div class="nums"><b style="font-size:17px">' + done + " / " + q.audience_size + "</b>"
@@ -358,8 +360,7 @@ registerPage({
           + (q.deletable
               ? '<button class="hq-btn warn" data-lc="delete">Delete draft</button>'
               : '<button class="hq-btn warn" data-lc="archive">Archive draft</button>');
-        else if (q.status === "published") lifecycle = '<button class="hq-btn warn" data-lc="close">Close</button>'
-          + '<button class="hq-btn" data-lc="new_version">New version</button>';
+        else if (q.status === "published") lifecycle = '<button class="hq-btn" data-lc="new_version">New version</button>';
         else if (q.status === "closed") lifecycle = '<button class="hq-btn" data-lc="new_version">New version</button>'
           + '<button class="hq-btn warn" data-lc="archive">Archive</button>';
       }
@@ -549,9 +550,9 @@ registerPage({
       var draft = q.status === "draft";
       var lockNote = !canM ? "You can look, but changing settings needs manage access."
         : draft ? ""
-        : q.status === "published" ? "Published: only the deadline and the audience can change — the words people answer under are locked."
+        : q.status === "published" ? "Published: only the Active switch and the audience can change — the words people answer under are locked."
         : "A " + q.status + " questionnaire is read-only.";
-      // draft: everything editable; published: only the `also` fields (deadline, audience);
+      // draft: everything editable; published: only the `also` field (the audience);
       // closed/archived: NOTHING — the old test left those controls live and the server
       // 409'd only after the user had already edited (post-merge audit, 2026-08-17)
       var dis = function (also) { return (!canM || !(draft || (q.status === "published" && also))) ? " disabled" : ""; };
@@ -568,11 +569,18 @@ registerPage({
         + '<div class="hq-field"><label class="hq-lab">Instructions (shown above the questions)</label><textarea class="hq-flda bx" id="hsInstr"' + dis() + ">" + esc(q.instructions || "") + "</textarea></div>"
         + '<div class="hq-field full"><label class="hq-lab">Confidentiality note (always visible to the employee)</label><textarea class="hq-flda bx" id="hsConf"' + dis() + ">" + esc(q.confidentiality || "") + "</textarea></div>"
         + "</div></div>"
-        + '<div class="hq-card" style="padding:20px 24px"><h4 class="eyebrow">Window</h4><div class="hq-row" style="gap:16px">'
-        + '<span><label class="hq-lab">Opens</label><input type="date" class="hq-in bx" id="hsOpen" value="' + esc(q.opens_at || "") + '"' + dis() + "></span>"
-        + '<span><label class="hq-lab">Deadline (inclusive)</label><input type="date" class="hq-in bx" id="hsDead" value="' + esc(q.deadline || "") + '"' + dis(true) + "></span>"
-        + '<span class="hq-dim">Empty opens = live the moment it is published. Empty deadline = open until closed by hand.</span>'
-        + "</div></div>"
+        + '<div class="hq-card" style="padding:20px 24px"><h4 class="eyebrow">Status</h4>'
+        + (q.status === "draft"
+            ? '<div class="hq-dim">Not active yet — it goes live for everyone the moment you press <b>Finalize &amp; send</b>.</div>'
+          : q.status === "published" || q.status === "closed"
+            ? '<label class="hq-reqt" style="gap:11px"><input type="checkbox" id="hsActive"'
+              + (q.status === "published" ? " checked" : "") + (canM ? "" : " disabled") + ">"
+              + '<span class="hq-tgl big"></span><span class="rt" style="font-size:13.5px">'
+              + (q.status === "published"
+                  ? "Active — people can open it and submit"
+                  : "Not active — nobody can submit; every answer is kept") + "</span></label>"
+            : '<div class="hq-dim">Archived — hidden from everyone.</div>')
+        + "</div>"
         + '<div class="hq-card" style="padding:20px 24px"><h4 class="eyebrow">Who receives it</h4>'
         + '<div class="hq-dim" style="margin-bottom:10px">People and departments come from the '
         + '<a href="#page=hr-directory" style="color:var(--brand);font-weight:700">Team Directory</a> — '
@@ -697,13 +705,24 @@ registerPage({
           paintAudVals();
         };
       });
+      var act = body.querySelector("#hsActive");
+      if (act) act.onchange = async function () {
+        var on = act.checked;
+        if (!confirm(on ? "Switch it back on? People will be able to open it and submit again."
+                        : "Deactivate? Nobody will be able to submit until you switch it back on. "
+                          + "Every answer already given is kept.")) { act.checked = !on; return; }
+        try {
+          await post({ action: on ? "activate" : "close", id: q.id });
+          toast(on ? "Active — open for answers" : "Deactivated");
+          go();
+        } catch (e) { act.checked = !on; toast(e.message, true); }
+      };
       var sv = body.querySelector("#hsSave");
       if (sv) sv.onclick = async function () {
         var kind = (body.querySelector('input[name="hsAud"]:checked') || {}).value || q.audience_kind;
         var vals = [].map.call(body.querySelectorAll("[data-aud]:checked"), function (c) { return c.dataset.aud; });
-        var payload = { action: "update_meta", id: q.id,
-                        deadline: body.querySelector("#hsDead").value };
-        // audience travels ONLY when it actually changed — a deadline-only save must
+        var payload = { action: "update_meta", id: q.id };
+        // audience travels ONLY when it actually changed — a wording-only save must
         // never re-state (and thereby reshape) the audience as a side effect
         if (audSig(kind, vals.map(function (v) { return String(v).toLowerCase(); })) !== aud0) {
           payload.audience_kind = kind; payload.audience_values = vals;
@@ -713,7 +732,6 @@ registerPage({
           description: body.querySelector("#hsDesc").value,
           instructions: body.querySelector("#hsInstr").value,
           confidentiality: body.querySelector("#hsConf").value,
-          opens_at: body.querySelector("#hsOpen").value,
         });
         try { await post(payload); toast("Settings saved"); go(); }
         catch (e) { toast(e.message, true); }
