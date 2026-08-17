@@ -93,23 +93,27 @@
           ".hd-dept em{font-style:normal;font-size:11px;color:var(--faint);font-weight:700}",
           ".hd-dept .dot{width:9px;height:9px;border-radius:50%}",
           ".hd-card{background:var(--panel);border:1px solid var(--line);border-radius:14px;overflow:hidden}",
-          ".hd-p{display:flex;align-items:center;gap:12px;padding:10px 14px;border-bottom:1px solid var(--line);cursor:pointer}",
-          ".hd-p:last-child{border-bottom:0}",
-          ".hd-p:hover{background:var(--panel-2)}",
-          ".hd-p .hd-av{font-size:12px}",
-          ".hd-p .who{flex:1;min-width:0}",
-          ".hd-p .who b{display:block;font-size:13.5px}",
-          ".hd-p .who b small{font-weight:600;color:var(--faint);font-size:11.5px;margin-left:6px}",
-          ".hd-p .who span{display:block;font-size:11.5px;color:var(--faint);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}",
-          ".hd-p .mail{font-size:12px;color:var(--muted);white-space:nowrap}",
+          ".hd-p{cursor:pointer}",
+          ".hd-p:hover td{background:var(--panel-2)}",
           ".hd-p.off{opacity:.55}",
+          ".hd-p .pcell{display:flex;align-items:center;gap:10px}",
+          ".hd-p .pcell .hd-av{font-size:12px}",
+          ".hd-p .pcell b{font-size:13px;white-space:nowrap}",
+          ".hd-tbl td.r{text-align:right;white-space:nowrap}",
           ".hd-noem{display:inline-block;font-size:10px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;border:1px dashed var(--warn);color:var(--warn);border-radius:999px;padding:2px 9px}",
-          // -------- editor --------
-          ".hd-edit{background:var(--panel-2);border-bottom:1px solid var(--line);cursor:default}",
-          ".hd-edit .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px;padding:14px}",
-          ".hd-edit label{display:block;font-size:10.5px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--faint);margin-bottom:4px}",
-          ".hd-edit .hd-in{width:100%;box-sizing:border-box}",
-          ".hd-edit .foot{display:flex;gap:8px;align-items:center;padding:0 14px 14px}",
+          // -------- editor popup --------
+          ".hd-ovl{position:fixed;inset:0;background:rgba(10,14,20,.55);z-index:130;display:flex;align-items:flex-start;justify-content:center;padding:60px 16px;overflow:auto}",
+          ".hd-pane{background:var(--panel);border:1px solid var(--line);border-radius:16px;max-width:560px;width:100%;box-shadow:0 18px 60px rgba(0,0,0,.35);overflow:hidden}",
+          ".hd-pane .head{display:flex;align-items:center;gap:12px;padding:16px 18px;border-bottom:1px solid var(--line)}",
+          ".hd-pane .head .hd-av{font-size:14px}",
+          ".hd-pane .head b{font-size:15px;display:block}",
+          ".hd-pane .head span{font-size:12px;color:var(--faint)}",
+          ".hd-pane .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:16px 18px}",
+          ".hd-pane .grid .wide{grid-column:1 / -1}",
+          ".hd-pane label{display:block;font-size:10.5px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--faint);margin-bottom:5px}",
+          ".hd-pane .hd-in{width:100%;box-sizing:border-box}",
+          ".hd-pane .foot{display:flex;gap:8px;align-items:center;padding:14px 18px;border-top:1px solid var(--line);background:var(--panel-2)}",
+          "@media(max-width:560px){.hd-pane .grid{grid-template-columns:1fr}}",
           ".hd-msg{font-size:12px;font-weight:700;min-height:16px}",
           ".hd-msg.ok{color:var(--pos)}.hd-msg.err{color:var(--neg)}",
           // -------- organization view: the reporting tree --------
@@ -191,70 +195,98 @@
         });
       }
 
-      /* ---------------- editor (shared by People rows and + Add) ---------------- */
-      function editorHtml(p) {
-        var f = function (k, lab, v) {
-          return "<div><label>" + lab + '</label><input class="hd-in" data-f="' + k + '" value="'
+      /* ------------- editor POPUP (person click and + Add alike) ------------- */
+      function closeModal() {
+        var m = document.getElementById("hdOvl");
+        if (m) m.remove();
+        S.editing = null; S.adding = false;
+      }
+
+      function openEditorModal(p) {
+        closeModal();
+        S.editing = p.id || null; S.adding = !p.id;
+        var f = function (k, lab, v, wide) {
+          return '<div class="' + (wide ? "wide" : "") + '"><label>' + lab
+            + '</label><input class="hd-in" data-f="' + k + '" value="'
             + esc(v == null ? "" : v) + '"></div>';
         };
-        return '<div class="hd-edit"><div class="grid">'
+        var ovl = document.createElement("div");
+        ovl.id = "hdOvl"; ovl.className = "hd-ovl";
+        ovl.innerHTML = '<div class="hd-pane">'
+          + '<div class="head">' + avatar(p.name ? p : { name: "+", department: p.department }, 40)
+          + "<span style=\"flex:1\"><b>" + (p.id ? esc(p.name || "—") : "New person") + "</b>"
+          + "<span>" + (p.id ? esc(p.title || p.department || "") : "joins the office list and every questionnaire audience") + "</span></span>"
+          + '<button class="hd-btn" data-cx>✕</button></div>'
+          + '<div class="grid">'
           + f("name", "Name", p.name)
           + f("alias", "Alias (sales name)", p.alias)
           + f("title", "Title", p.title)
           + f("department", "Department", p.department)
           + f("reports_to", "Reports to", p.reports_to)
           + f("also_reports_to", "Also reports to (dotted)", p.also_reports_to)
-          + f("email", "Sign-in email (Google)", p.email)
+          + f("email", "Sign-in email (Google) — lets them receive and answer questionnaires", p.email, true)
           + "</div>"
           + '<div class="foot">'
           + '<button class="hd-btn go" data-sv>Save</button>'
-          + '<button class="hd-btn" data-cx>Cancel</button>'
+          + '<button class="hd-btn" data-cx2>Cancel</button>'
           + '<span style="flex:1"></span>'
           + (p.id ? '<button class="hd-btn warn" data-tg>'
               + (p.status === "active" ? "Deactivate" : "Reactivate") + "</button>" : "")
           + "</div></div>";
-      }
-
-      function wireEditor(box, p) {
-        box.onclick = function (e) { e.stopPropagation(); };
+        document.body.appendChild(ovl);
+        ovl.onclick = function (e) { if (e.target === ovl) closeModal(); };
         var read = function () {
           var out = { action: "roster_upsert", status: p.status || "active" };
           if (p.id) out.id = p.id;
-          box.querySelectorAll("[data-f]").forEach(function (inp) { out[inp.dataset.f] = inp.value; });
+          ovl.querySelectorAll("[data-f]").forEach(function (inp) { out[inp.dataset.f] = inp.value; });
           return out;
         };
-        box.querySelector("[data-sv]").onclick = async function () {
+        ovl.querySelector("[data-sv]").onclick = async function () {
           try {
-            await post(read());
-            toast("Saved — " + (box.querySelector('[data-f="name"]').value || "person"));
-            S.editing = null; S.adding = false; await refresh();
+            var nm = read();
+            await post(nm);
+            toast("Saved — " + (nm.name || "person"));
+            closeModal(); await refresh();
           } catch (e) { toast(e.message, true); }
         };
-        box.querySelector("[data-cx]").onclick = function () { S.editing = null; S.adding = false; paint(); };
-        var tg = box.querySelector("[data-tg]");
+        ovl.querySelector("[data-cx]").onclick = closeModal;
+        ovl.querySelector("[data-cx2]").onclick = closeModal;
+        var tg = ovl.querySelector("[data-tg]");
         if (tg) tg.onclick = async function () {
           var to = p.status === "active" ? "inactive" : "active";
           if (to === "inactive" && !confirm("Deactivate " + (p.name || "this person")
-              + "? They leave every questionnaire denominator; past answers stay.")) return;
+              + "? They leave every questionnaire denominator; past answers stay. "
+              + "You can bring them back by searching their name.")) return;
           try {
             var payload = read(); payload.status = to;
             await post(payload);
             toast((to === "inactive" ? "Deactivated " : "Reactivated ") + (p.name || ""));
-            S.editing = null; await refresh();
+            closeModal(); await refresh();
           } catch (e) { toast(e.message, true); }
         };
+        var first = ovl.querySelector(p.id ? '[data-f="email"]' : '[data-f="name"]');
+        if (first) first.focus();
       }
 
       /* ---------------- People ---------------- */
       function personRow(p) {
-        return '<div class="hd-p' + (p.status === "active" ? "" : " off") + '" data-id="' + p.id + '">'
-          + avatar(p, 34)
-          + '<span class="who"><b>' + esc(p.name || "—")
-          + (p.alias ? "<small>· " + esc(p.alias) + "</small>" : "") + "</b>"
-          + "<span>" + esc(p.title || "—") + "</span></span>"
-          + (p.email ? '<span class="mail">' + esc(p.email) + "</span>"
-                     : '<span class="hd-noem">no email yet</span>')
-          + "</div>";
+        return '<tr class="hd-p' + (p.status === "active" ? "" : " off") + '" data-id="' + p.id + '">'
+          + '<td class="pcell">' + avatar(p, 32)
+          + "<span><b>" + esc(p.name || "—")
+          + (p.alias ? '<small class="hd-dim"> · ' + esc(p.alias) + "</small>" : "") + "</b></span></td>"
+          + "<td>" + esc(p.title || "—") + "</td>"
+          + '<td class="hd-dim">' + esc(p.reports_to || "—")
+          + (p.also_reports_to ? ' <span title="dotted line">+ ' + esc(p.also_reports_to) + "</span>" : "")
+          + "</td>"
+          + "<td>" + (p.email ? '<span class="hd-dim">' + esc(p.email) + "</span>"
+                              : '<span class="hd-noem">no email yet</span>') + "</td>"
+          + '<td class="r hd-dim">' + (p.status === "active" ? "edit ›" : "inactive · edit ›") + "</td></tr>";
+      }
+
+      function deptTable(rowsHtml) {
+        return '<div class="hd-card hd-wrap"><table class="hd-tbl"><thead><tr>'
+          + "<th>Person</th><th>Title</th><th>Reports to</th><th>Email</th><th></th>"
+          + "</tr></thead><tbody>" + rowsHtml + "</tbody></table></div>";
       }
 
       function paintPeople() {
@@ -274,36 +306,29 @@
         var html = '<div class="hd-row" style="margin-bottom:4px">'
           + '<button class="hd-btn go" id="hdAdd">+ Add a person</button>'
           + '<input class="hd-in" id="hdQ" placeholder="Find a person…" value="' + esc(S.q) + '" style="min-width:220px">'
-          + '<span class="hd-dim">The email is what lets someone sign in and answer questionnaires.</span></div>';
-        if (S.adding) html += '<div class="hd-card" style="margin:12px 0">' + editorHtml({ status: "active" }) + "</div>";
-        var dept = null, open = false;
+          + '<span class="hd-dim">Click a person to edit — the email is what lets them sign in and answer questionnaires.</span></div>';
+        var dept = null, buf = "";
         act.forEach(function (p) {
           if ((p.department || "—") !== dept) {
-            if (open) html += "</div>";
+            if (buf) { html += deptTable(buf); buf = ""; }
             dept = p.department || "—";
             var n = act.filter(function (x) { return (x.department || "—") === dept; }).length;
             html += '<div class="hd-dept"><span class="dot" style="background:' + deptColor(dept) + '"></span>'
-              + "<i>" + esc(dept) + "</i><em>" + n + "</em></div>"
-              + '<div class="hd-card">';
-            open = true;
+              + "<i>" + esc(dept) + "</i><em>" + n + "</em></div>";
           }
-          html += personRow(p);
-          if (S.editing === p.id) html += editorHtml(p);
+          buf += personRow(p);
         });
-        if (open) html += "</div>";
-        if (inact.length) {
-          html += '<div class="hd-dept"><span class="dot" style="background:#94a3b8"></span><i>Inactive</i><em>'
-            + inact.length + "</em></div>" + '<div class="hd-card">';
-          inact.forEach(function (p) {
-            html += personRow(p);
-            if (S.editing === p.id) html += editorHtml(p);
-          });
-          html += "</div>";
+        if (buf) html += deptTable(buf);
+        // NO standing Inactive section (his call) — deactivated people surface only when a
+        // search matches them, so reactivation stays one search away
+        if (q2 && inact.length) {
+          html += '<div class="hd-dept"><span class="dot" style="background:#94a3b8"></span><i>Inactive — match your search</i><em>'
+            + inact.length + "</em></div>" + deptTable(inact.map(personRow).join(""));
         }
-        if (!act.length && !inact.length) html += '<div class="hd-dim" style="padding:14px">Nobody matches.</div>';
+        if (!act.length && !(q2 && inact.length)) html += '<div class="hd-dim" style="padding:14px">Nobody matches.</div>';
         main.innerHTML = html;
 
-        main.querySelector("#hdAdd").onclick = function () { S.adding = true; S.editing = null; paint(); };
+        main.querySelector("#hdAdd").onclick = function () { openEditorModal({ status: "active" }); };
         var qi = main.querySelector("#hdQ");
         qi.oninput = function () {
           S.q = this.value; var at = this.selectionStart;
@@ -312,14 +337,9 @@
         };
         main.querySelectorAll(".hd-p").forEach(function (row) {
           row.onclick = function () {
-            var id = +row.dataset.id;
-            S.editing = S.editing === id ? null : id; S.adding = false; paint();
+            var p = S.roster.filter(function (x) { return x.id === +row.dataset.id; })[0];
+            if (p) openEditorModal(p);
           };
-        });
-        main.querySelectorAll(".hd-edit").forEach(function (box) {
-          var p = S.adding ? { status: "active" }
-            : S.roster.filter(function (x) { return x.id === S.editing; })[0];
-          if (p) wireEditor(box, p);
         });
       }
 
@@ -376,7 +396,10 @@
         main.innerHTML = html;
         main.querySelectorAll(".hd-ocard").forEach(function (c) {
           c.style.cursor = "pointer";
-          c.onclick = function () { S.tab = "people"; S.editing = +c.dataset.id; paint(); };
+          c.onclick = function () {
+            var p = S.roster.filter(function (x) { return x.id === +c.dataset.id; })[0];
+            if (p) openEditorModal(p);      // edit right here — no view switch
+          };
         });
       }
 
