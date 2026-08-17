@@ -471,7 +471,8 @@ registerPage({
           + (q.deletable
               ? '<button class="hq-btn warn" data-lc="delete">Delete draft</button>'
               : '<button class="hq-btn warn" data-lc="archive">Archive draft</button>');
-        else if (q.status === "published") lifecycle = '<button class="hq-btn" data-lc="new_version">New version</button>';
+        else if (q.status === "published") lifecycle = '<button class="hq-btn" data-lc="preview">Preview</button>'
+          + '<button class="hq-btn" data-lc="new_version">New version</button>';
         else if (q.status === "closed") lifecycle = '<button class="hq-btn" data-lc="new_version">New version</button>'
           + '<button class="hq-btn warn" data-lc="archive">Archive</button>';
       }
@@ -1269,65 +1270,38 @@ registerPage({
     // for the admin's own name and address) plus the form drawn the way the employee page
     // draws it — disabled controls, real labels, real options.
     async function openPreview(q) {
+      // the SHAREABLE preview (his call 2026-08-17): one live URL for test users — the
+      // exact respondent experience, drafts included, and nothing they enter is saved.
+      // (The old in-admin mock + invite-email overlay lived here; he asked for this.)
+      var pv;
+      try { pv = await api("/api/_hrqadmin?view=previewlink&id=" + q.id); }
+      catch (e) { toast(e.message, true); return; }
       var old = document.getElementById("hqOvl");
       if (old) old.remove();
-      var pv;
-      try { pv = await api("/api/_hrqadmin?view=invite_preview&id=" + q.id); }
-      catch (e) { toast(e.message, true); return; }
-      var qs = (q.questions || []).filter(function (x) { return x.active; });
-      var pvn = 0;
-      var mock = qs.map(function (item) {
-        if (item.qtype === "section")
-          return '<div style="margin:16px 0 6px;padding:10px 14px;border-left:4px solid var(--brand);background:var(--panel-2);border-radius:0 10px 10px 0"><b style="font-size:14px">'
-            + esc(item.label) + "</b>"
-            + (item.description ? '<div class="hq-dim">' + esc(item.description) + "</div>" : "") + "</div>";
-        pvn += 1;
-        var ctl = item.qtype === "stars5"
-          ? '<div class="pv-stars">★★★★★</div>'
-          : item.qtype === "scale"
-          ? (function () {
-              var lo2 = parseInt((item.options || [])[0], 10) || 1;
-              var hi2 = parseInt((item.options || [])[1], 10) || 5;
-              var bs = [];
-              for (var n3 = lo2; n3 <= hi2; n3++)
-                bs.push('<span style="display:inline-flex;width:30px;height:30px;border:1px solid var(--line-2);border-radius:8px;align-items:center;justify-content:center;font-size:12px;color:var(--muted)">' + n3 + "</span>");
-              var l1 = (item.options || [])[2], l2 = (item.options || [])[3];
-              return '<div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:6px">' + bs.join("") + "</div>"
-                + (l1 || l2 ? '<div class="hq-dim" style="display:flex;justify-content:space-between;max-width:330px">'
-                  + "<span>" + esc(l1 || "") + "</span><span>" + esc(l2 || "") + "</span></div>" : "");
-            })()
-          : item.qtype === "dropdown"
-          ? '<div style="border:1px solid var(--line-2);border-radius:8px;padding:8px 12px;font-size:12.5px;color:var(--faint);max-width:280px;margin-top:6px">Choose… ▾</div>'
-            + ((item.options || []).length ? '<div class="hq-dim" style="margin-top:4px">' + (item.options || []).map(esc).join(" · ") + "</div>" : "")
-          : item.qtype === "single" || item.qtype === "multi"
-          ? (item.options || []).map(function (o) {
-              return '<label class="pv-ch"><input type="' + (item.qtype === "single" ? "radio" : "checkbox") + '" disabled> '
-                + (o === OTH ? "Other: ____________" : esc(o)) + "</label>";
-            }).join("")
-          : '<div class="pv-ta">' + (item.qtype === "short_text" ? "Short answer…" : "Your answer…") + "</div>";
-        return '<div class="pv-q"><b>' + pvn + " · " + esc(item.label)
-          + (item.required ? ' <span style="color:var(--neg)">*</span>' : "") + "</b>"
-          + (item.description ? '<div class="hq-dim">' + esc(item.description) + "</div>" : "")
-          + ctl + "</div>";
-      }).join("") || '<div class="hq-dim">No questions yet — add some first.</div>';
       var ovl = document.createElement("div");
       ovl.id = "hqOvl"; ovl.className = "hq-ovl";
-      ovl.innerHTML = '<div class="pane">'
-        + '<div class="hq-row" style="margin-bottom:14px"><b style="font-size:15px">Preview</b>'
+      ovl.innerHTML = '<div class="pane" style="max-width:600px">'
+        + '<div class="hq-row" style="margin-bottom:10px"><b style="font-size:15px">Preview link</b>'
         + '<span style="flex:1"></span><button class="hq-btn" id="pvX">Close</button></div>'
-        + '<div class="pv-grid"><div class="pv-left">'
-        + '<div class="pv-sec">The email each person receives</div>'
-        + '<div class="hq-dim" style="margin:2px 0 8px">Subject: <b>' + esc(pv.subject) + "</b>"
-        + (pv.mode !== "live" ? " · TEST mode is on — every mail currently lands at " + esc(pv.test_to) : "")
-        + "</div>"
-        + '<iframe class="pv-mail" sandbox=""></iframe></div>'
-        + '<div><div class="pv-sec">The form as they will see it</div>'
-        + mock + "</div></div></div>";
+        + '<div class="hq-dim" style="margin-bottom:12px;line-height:1.6">Send this to anyone whose feedback you want. '
+        + "They walk through the form exactly as the team will — even while it is still a draft — "
+        + "and <b>nothing they enter is saved</b>. The link stays the same for this questionnaire.</div>"
+        + '<div class="hq-anlk"><code style="font-size:12px">' + esc(pv.url) + "</code>"
+        + '<button class="hq-btn" id="pvCp">Copy</button>'
+        + '<a class="hq-btn" href="' + esc(pv.url) + '" target="_blank" rel="noopener" style="text-decoration:none">Open</a></div>'
+        + "</div>";
       document.body.appendChild(ovl);
-      ovl.querySelector(".pv-mail").srcdoc =
-        '<body style="margin:0;background:#ffffff">' + pv.html + "</body>";
       ovl.querySelector("#pvX").onclick = function () { ovl.remove(); };
       ovl.onclick = function (e) { if (e.target === ovl) ovl.remove(); };
+      ovl.querySelector("#pvCp").onclick = function () {
+        navigator.clipboard.writeText(pv.url).then(function () {
+          ovl.querySelector("#pvCp").textContent = "Copied";
+          setTimeout(function () {
+            var b2 = ovl.querySelector("#pvCp");
+            if (b2) b2.textContent = "Copy";
+          }, 1400);
+        });
+      };
     }
 
     /* ================================================================ invites */
