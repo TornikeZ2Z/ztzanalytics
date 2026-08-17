@@ -117,6 +117,50 @@ registerPage({
         ".hq-chip.dis{opacity:.55;pointer-events:none}",
         ".hq-ed{transition:border-color .12s}",
         ".hq-ed .num{width:27px;height:27px;border-radius:9px;background:var(--panel-2);color:var(--muted);font-weight:800;font-size:12.5px;display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto}",
+        // quiet fields: invisible until touched — the form-builder look
+        ".hq-fld,.hq-flda{font:inherit;font-size:14px;color:var(--ink);background:transparent;border:1px solid transparent;border-radius:9px;padding:8px 11px;transition:background .12s,border-color .12s;box-sizing:border-box}",
+        ".hq-fld:hover:not(:disabled):not(:focus),.hq-flda:hover:not(:disabled):not(:focus){background:var(--panel-2)}",
+        ".hq-fld:focus,.hq-flda:focus{outline:none;background:var(--panel);border-color:var(--brand)}",
+        ".hq-fld::placeholder,.hq-flda::placeholder{color:var(--faint)}",
+        ".hq-flda{width:100%;resize:vertical;min-height:54px;line-height:1.55}",
+        ".hq-ed{padding:13px 16px 11px;border-radius:14px}",
+        ".hq-ed .lbl{flex:1;font-weight:750;font-size:15px}",
+        ".hq-ed .dsc{display:block;font-size:13px;color:var(--muted);margin-left:37px;width:calc(100% - 37px)}",
+        ".hq-ed .mv button{border:0;background:transparent;color:var(--faint);font-size:10px;padding:2px 6px;border-radius:6px;cursor:pointer}",
+        ".hq-ed .mv button:hover:not(:disabled){background:var(--panel-2);color:var(--ink)}",
+        ".hq-ed .mv button:disabled{opacity:.3;cursor:default}",
+        ".hq-x{width:30px;height:30px;border-radius:9px;border:0;background:transparent;color:var(--faint);cursor:pointer;font-size:14px;flex:0 0 auto}",
+        ".hq-x:hover{background:rgba(226,73,73,.12);color:var(--neg)}",
+        ".hq-sel{background:var(--panel-2);border-color:transparent;border-radius:9px;font-weight:700;color:var(--muted);cursor:pointer}",
+        ".hq-sel:hover{border-color:var(--line-2)}",
+        // required: a real toggle switch
+        ".hq-reqt{display:inline-flex;align-items:center;gap:7px;cursor:pointer;white-space:nowrap;flex:0 0 auto}",
+        ".hq-reqt input{display:none}",
+        ".hq-tgl{position:relative;width:34px;height:20px;background:var(--line-2);border-radius:999px;transition:background .15s;flex:0 0 auto}",
+        ".hq-tgl::after{content:'';position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#fff;transition:left .15s;box-shadow:0 1px 3px rgba(0,0,0,.3)}",
+        ".hq-reqt input:checked~.hq-tgl{background:var(--brand)}",
+        ".hq-reqt input:checked~.hq-tgl::after{left:16px}",
+        ".hq-reqt .rt{font-size:12px;font-weight:700;color:var(--faint)}",
+        ".hq-reqt input:checked~.rt{color:var(--brand)}",
+        // hand-picked people: tags above, picker below (added people leave the list)
+        ".hq-tags{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px;min-height:8px}",
+        ".hq-tag{display:inline-flex;align-items:center;gap:8px;background:var(--brand-glow);border:1px solid var(--brand);border-radius:999px;padding:5px 6px 5px 13px;font-size:13px;font-weight:700}",
+        ".hq-tag em{font-style:normal;color:var(--faint);font-weight:600;font-size:11.5px}",
+        ".hq-tag button{width:20px;height:20px;border-radius:50%;border:0;background:transparent;color:var(--muted);cursor:pointer;font-size:12px;line-height:1}",
+        ".hq-tag button:hover{background:rgba(226,73,73,.15);color:var(--neg)}",
+        ".hq-ppl{border:1px solid var(--line);border-radius:12px;overflow:hidden;max-width:560px}",
+        ".hq-ppl input{width:100%;box-sizing:border-box;border:0;border-bottom:1px solid var(--line);background:var(--panel);font:inherit;font-size:13.5px;padding:11px 14px;color:var(--ink)}",
+        ".hq-ppl input:focus{outline:none}",
+        ".hq-ppl .ls{max-height:250px;overflow:auto}",
+        ".hq-ppl .pp{display:flex;align-items:center;gap:10px;padding:9px 14px;cursor:pointer;font-size:13.5px}",
+        ".hq-ppl .pp:hover{background:var(--panel-2)}",
+        ".hq-ppl .pp .dot{width:9px;height:9px;border-radius:50%;flex:0 0 auto}",
+        ".hq-ppl .pp b{font-weight:700}",
+        ".hq-ppl .pp em{font-style:normal;color:var(--faint);font-size:12px;margin-left:auto}",
+        // settings: roomier cards, two-column wording on wide screens
+        ".hq-wgrid{display:grid;grid-template-columns:1fr 1fr;gap:4px 22px}",
+        ".hq-wgrid .full{grid-column:1 / -1}",
+        "@media(max-width:1000px){.hq-wgrid{grid-template-columns:1fr}}",
         ".hq-msg.err{color:var(--neg)}",
         ".hq-msg.ok{color:var(--pos)}",
         // results
@@ -166,7 +210,7 @@ registerPage({
                        "Customer Service": "#0d9488", "Data & Control": "#16a34a",
                        Finance: "#d97706", Systems: "#0891b2", HR: "#e11d48",
                        Operations: "#059669", Foremen: "#b45309",
-                       "Helpers & Drivers": "#64748b" };
+                       Drivers: "#0e7490", Helpers: "#64748b" };
     var deptColor = function (d) { return DEPT_COLOR[d] || "#7c3aed"; };
     var DIRECT_LINK = location.origin + location.pathname + "#page=hr-my-questionnaire";
     var fmtPct = function (n, d) { return d ? Math.round(n / d * 100) + "%" : "—"; };
@@ -399,19 +443,21 @@ registerPage({
         var dis = locked ? " disabled" : "";
         return '<div class="hq-ed" data-i="' + i + '"><div class="top">'
           + '<span class="num">' + (i + 1) + "</span>"
-          + '<div class="mv"><button data-mv="up" title="Move up"' + (i === 0 ? " disabled" : "") + '>▲</button>'
-          + '<button data-mv="dn" title="Move down"' + (i === d.length - 1 ? " disabled" : "") + '>▼</button></div>'
-          + '<input class="hq-in lbl" data-f="label" value="' + esc(item.label) + '" placeholder="The question, as the employee reads it"' + dis + ">"
+          + '<input class="hq-fld lbl" data-f="label" value="' + esc(item.label) + '" placeholder="Write the question, as the employee reads it…"' + dis + ">"
           + '<select class="hq-sel" data-f="qtype"' + (locked ? " disabled" : "") + ">"
           + Object.keys(TYPE_LABEL).map(function (t) {
               return '<option value="' + t + '"' + (item.qtype === t ? " selected" : "") + ">" + TYPE_LABEL[t] + "</option>";
             }).join("") + "</select>"
-          + '<label class="hq-req"><input type="checkbox" data-f="required"' + (item.required ? " checked" : "") + dis + ">required</label>"
-          + (locked ? "" : '<button class="hq-btn warn" data-rm title="Remove">✕</button>')
+          + '<label class="hq-reqt" title="Must be answered before submitting">'
+          + '<input type="checkbox" data-f="required"' + (item.required ? " checked" : "") + dis + ">"
+          + '<span class="hq-tgl"></span><span class="rt">required</span></label>'
+          + '<div class="mv"><button data-mv="up" title="Move up"' + (i === 0 ? " disabled" : "") + '>▲</button>'
+          + '<button data-mv="dn" title="Move down"' + (i === d.length - 1 ? " disabled" : "") + '>▼</button></div>'
+          + (locked ? "" : '<button class="hq-x" data-rm title="Remove this question">✕</button>')
           + "</div>"
-          + '<input class="hq-in" style="width:100%;box-sizing:border-box" data-f="description" value="' + esc(item.description) + '" placeholder="Optional help text under the question"' + dis + ">"
+          + '<input class="hq-fld dsc" data-f="description" value="' + esc(item.description) + '" placeholder="Add help text under the question (optional)…"' + dis + ">"
           + (item.qtype === "single" || item.qtype === "multi"
-              ? '<textarea class="hq-ta hq-opts" data-f="options" placeholder="One choice per line (at least 2)"' + dis + ">"
+              ? '<textarea class="hq-flda hq-opts" data-f="options" style="margin-left:37px;width:calc(100% - 37px)" placeholder="One choice per line — at least 2"' + dis + ">"
                 + esc((item.options || []).join("\n")) + "</textarea>"
               : "")
           + "</div>";
@@ -494,12 +540,13 @@ registerPage({
       var aud0 = audSig(q.audience_kind, (q.audience_values || []).map(function (v) { return String(v).toLowerCase(); }));
       body.innerHTML =
         (lockNote ? '<div class="hq-dim" style="margin-bottom:12px">' + esc(lockNote) + "</div>" : "")
-        + '<div class="hq-card"><h4 class="eyebrow">Wording</h4>'
-        + '<div class="hq-field"><label class="hq-lab">Title</label><input class="hq-in" style="width:100%;box-sizing:border-box" id="hsTitle" value="' + esc(q.title) + '"' + dis() + "></div>"
-        + '<div class="hq-field"><label class="hq-lab">Description (shown on the card)</label><textarea class="hq-ta" id="hsDesc"' + dis() + ">" + esc(q.description || "") + "</textarea></div>"
-        + '<div class="hq-field"><label class="hq-lab">Instructions (shown above the questions)</label><textarea class="hq-ta" id="hsInstr"' + dis() + ">" + esc(q.instructions || "") + "</textarea></div>"
-        + '<div class="hq-field"><label class="hq-lab">Confidentiality note (always visible to the employee)</label><textarea class="hq-ta" id="hsConf"' + dis() + ">" + esc(q.confidentiality || "") + "</textarea></div>"
-        + "</div>"
+        + '<div class="hq-card" style="padding:20px 24px"><h4 class="eyebrow">Wording</h4>'
+        + '<div class="hq-wgrid">'
+        + '<div class="hq-field full"><label class="hq-lab">Title</label><input class="hq-fld" style="width:100%;font-size:17px;font-weight:750" id="hsTitle" value="' + esc(q.title) + '"' + dis() + "></div>"
+        + '<div class="hq-field"><label class="hq-lab">Description (shown on the card)</label><textarea class="hq-flda" id="hsDesc"' + dis() + ">" + esc(q.description || "") + "</textarea></div>"
+        + '<div class="hq-field"><label class="hq-lab">Instructions (shown above the questions)</label><textarea class="hq-flda" id="hsInstr"' + dis() + ">" + esc(q.instructions || "") + "</textarea></div>"
+        + '<div class="hq-field full"><label class="hq-lab">Confidentiality note (always visible to the employee)</label><textarea class="hq-flda" id="hsConf"' + dis() + ">" + esc(q.confidentiality || "") + "</textarea></div>"
+        + "</div></div>"
         + '<div class="hq-card"><h4 class="eyebrow">Window</h4><div class="hq-row">'
         + '<span><label class="hq-lab">Opens</label><input type="date" class="hq-in" id="hsOpen" value="' + esc(q.opens_at || "") + '"' + dis() + "></span>"
         + '<span><label class="hq-lab">Deadline (inclusive)</label><input type="date" class="hq-in" id="hsDead" value="' + esc(q.deadline || "") + '"' + dis(true) + "></span>"
@@ -510,18 +557,16 @@ registerPage({
         + '<a href="#page=hr-directory" style="color:var(--brand);font-weight:700">Team Directory</a> — '
         + "add or move someone there and this list follows.</div>"
         + '<div class="hq-audsel">'
-        // "Chosen people" retired from the UI (his call, 2026-08-18) — the two options that
-        // map to how the company actually thinks; a legacy emails-audience still shows itself
-        + ["all", "departments"].concat(q.audience_kind === "emails" ? ["emails"] : []).map(function (k) {
+        + ["all", "departments", "emails"].map(function (k) {
             var nAll = (S.roster || []).filter(function (p2) { return p2.status === "active"; }).length;
             var sub = { all: "All " + nAll + " people — office and crew alike",
-                        departments: "Pick exactly who below",
-                        emails: "A hand-picked list from an earlier round" }[k];
+                        departments: "Whole teams at once",
+                        emails: "Hand-pick specific people, one by one" }[k];
             return '<label class="hq-audopt' + (q.audience_kind === k ? " on" : "") + '">'
               + '<input type="radio" name="hsAud" value="' + k + '"'
               + (q.audience_kind === k ? " checked" : "") + dis(true) + ">"
               + "<b>" + { all: "Everyone on the People list", departments: "Chosen departments",
-                          emails: "Chosen people (legacy)" }[k] + "</b>"
+                          emails: "Chosen people" }[k] + "</b>"
               + "<span>" + sub + '</span><span class="tick">✓</span></label>';
           }).join("")
         + "</div>"
@@ -536,19 +581,74 @@ registerPage({
         (S.roster || []).forEach(function (p) {
           if (p.status === "active" && p.department) nByDept[p.department] = (nByDept[p.department] || 0) + 1;
         });
-        var items = kind === "departments"
-          ? Object.keys(depts).sort().map(function (dpt) {
-              return { v: dpt.toLowerCase(), lab: dpt + " · " + (nByDept[dpt] || 0) + " people" };
-            })
-          : (S.roster || []).filter(function (p) { return p.status === "active" && p.email; })
-              .map(function (p) { return { v: p.email, lab: (p.name ? p.name + " — " : "") + p.email }; });
+        var locked2 = !!dis(true);
+
+        if (kind === "emails") {
+          // HAND-PICKED PEOPLE (his design, 2026-08-18): chosen ones sit above as tags,
+          // the picker below shows ONLY who is not yet added — pick someone and they
+          // leave the list. State survives repaints per questionnaire.
+          if (S.audSelFor !== q.id) {
+            S.audSel = new Set((q.audience_values || []).map(function (v) { return String(v).toLowerCase(); }));
+            S.audSelFor = q.id; S.pplQ = "";
+          }
+          var byEmail = {};
+          (S.roster || []).forEach(function (p) { if (p.email) byEmail[p.email] = p; });
+          var tags = Array.from(S.audSel).sort().map(function (em3) {
+            var per = byEmail[em3];
+            return '<span class="hq-tag"><span>' + esc(per ? per.name || em3 : em3)
+              + (per && per.department ? " <em>· " + esc(per.department) + "</em>"
+                 : (per ? "" : " <em>· no longer on the list</em>")) + "</span>"
+              + '<input type="checkbox" data-aud="' + esc(em3) + '" checked hidden>'
+              + (locked2 ? "" : '<button data-rme="' + esc(em3) + '" title="Remove">✕</button>')
+              + "</span>";
+          }).join("");
+          var q3 = (S.pplQ || "").toLowerCase();
+          var pool = (S.roster || []).filter(function (p) {
+            if (p.status !== "active" || !p.email || S.audSel.has(p.email)) return false;
+            if (!q3) return true;
+            return [p.name, p.email, p.department, p.alias].some(function (v) {
+              return String(v || "").toLowerCase().indexOf(q3) >= 0;
+            });
+          }).slice(0, 30);
+          el.innerHTML =
+            '<div class="hq-tags">' + (tags || '<span class="hq-dim">Nobody picked yet — find people below and click to add them.</span>') + "</div>"
+            + (locked2 ? "" :
+              '<div class="hq-ppl"><input id="hqPplQ" placeholder="Find a person to add — name, team or email…" value="' + esc(S.pplQ || "") + '">'
+              + '<div class="ls">' + (pool.map(function (p) {
+                  return '<div class="pp" data-add="' + esc(p.email) + '">'
+                    + '<span class="dot" style="background:' + deptColor(p.department) + '"></span>'
+                    + "<b>" + esc(p.name || p.email) + "</b>"
+                    + '<span class="hq-dim">' + esc(p.title || "") + "</span>"
+                    + "<em>" + esc(p.department || "") + "</em></div>";
+                }).join("") || '<div class="hq-dim" style="padding:11px 14px">'
+                  + (q3 ? "Nobody matches — or they are already added." : "Everyone with an email is already added.") + "</div>")
+              + "</div></div>");
+          if (!locked2) {
+            var pq = el.querySelector("#hqPplQ");
+            pq.oninput = function () {
+              S.pplQ = this.value; var at = this.selectionStart;
+              paintAudVals();
+              var n = el.querySelector("#hqPplQ"); if (n) { n.focus(); n.setSelectionRange(at, at); }
+            };
+            el.querySelectorAll("[data-add]").forEach(function (row) {
+              row.onclick = function () { S.audSel.add(row.dataset.add); paintAudVals(); };
+            });
+            el.querySelectorAll("[data-rme]").forEach(function (b) {
+              b.onclick = function () { S.audSel.delete(b.dataset.rme); paintAudVals(); };
+            });
+          }
+          return;
+        }
+
+        var items = Object.keys(depts).sort().map(function (dpt) {
+          return { v: dpt.toLowerCase(), lab: dpt + " · " + (nByDept[dpt] || 0) + " people" };
+        });
         // stored audience members who are no longer active must stay VISIBLE and KEPT —
         // rendering only active rows made any settings save silently shrink the audience
         var known = new Set(items.map(function (it) { return it.v; }));
         picked.forEach(function (v) {
           if (!known.has(v)) items.push({ v: v, lab: v + " · no longer active on the People list" });
         });
-        var locked2 = !!dis(true);
         el.innerHTML = items.length
           ? '<div class="hq-chipgrid">' + items.map(function (it) {
               var parts = it.lab.split(" · ");
