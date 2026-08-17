@@ -438,6 +438,13 @@ registerPage({
         .ldp-msopt:hover{background:var(--panel-2)}
         .ldp-msopt input{margin:0;cursor:pointer}
         .ldp-msopt .n{margin-left:auto;color:var(--faint);font-variant-numeric:tabular-nums;font-size:11.5px}
+        .ldp-usub{font-size:11.5px;color:var(--faint);margin:2px 0 8px;line-height:1.5}
+        .ldp-ugrid{display:grid;grid-template-columns:1fr 1fr;gap:8px 12px}
+        .ldp-ul{display:flex;flex-direction:column;gap:4px;font-size:10.5px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}
+        .ldp-ul .ldp-cinp{width:100%;box-sizing:border-box;font-size:12.5px}
+        .ldp-udlv{margin-top:12px;padding-top:11px;border-top:1px dashed var(--line);display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+        .ldp-dlvb{background:var(--pos,#2ea05a);border-color:var(--pos,#2ea05a);color:#fff}
+        .ldp-dlvon{font-size:12.5px;font-weight:800;color:var(--pos,#2ea05a)}
         .ldp-msact{display:flex;gap:8px;border-top:1px solid var(--line);margin-top:6px;padding-top:7px}
         .ldp-msact button{font:inherit;font-size:11.5px;font-weight:650;color:var(--blue);background:none;border:0;cursor:pointer;padding:2px 5px}
         .ldp-tlchip{font:inherit;font-size:11.5px;font-weight:700;color:var(--muted);background:var(--panel);border:1px solid var(--line-2);border-radius:999px;padding:5px 12px;cursor:pointer;white-space:nowrap}
@@ -937,6 +944,13 @@ registerPage({
       return !isStraight(r) && String(r["Carrier Driver"] || "").trim()
              && !String(r["Carrier Location"] || "").trim();
     }
+    // DELIVERED (his ask 2026-08-17): the portal tick parks a job behind the
+    // Delivered KPI card — visible, undoable, off the working board
+    var DLV_PORTAL = "Delivered — confirmed on the portal";
+    function isDelivered(r) { return String(r["Delivery Status"] || "") === DLV_PORTAL; }
+    // mirror of the bridge's LDP_LOCATIONS — the buckets the mart understands
+    var LDP_LOCATIONS = ["Our Storage", "Rented Storage", "Other Storage", "On Our Truck",
+                         "At Carrier", "In Transit", "Delivered Area", "Unknown"];
     function custKey(r) {
       var p = String(r["Possession"] || "");
       return p === "With us" ? "us" : p === "With carrier" ? "car"
@@ -976,13 +990,17 @@ registerPage({
       // be handled by the main page"). Flagged rows used to be exiled to a second tab, which
       // is how a loaded truck went unnoticed: a data problem is a reason to look HARDER at a
       // shipment, not to hide it. The flag now rides along on the row itself.
-      var allBase = overlaid();
-      var all = allBase;
-      var flagged = all.filter(function (r) { return !!r["Data Issue"]; });
-      var actNow = all.filter(function (r) { return r["Urgency"] === "Act now"; }).length;
-      var actSoon = all.filter(function (r) { return r["Urgency"] === "Act soon"; }).length;
-      var noWin = all.filter(function (r) { return r["Urgency"] === "Missing data"; }).length;
-      var held = all.filter(function (r) { return custKey(r) === "unk"; }).length;
+      var allBase0 = overlaid();
+      // delivered rows leave the working board but stay one card away — the Delivered
+      // KPI shows the archive, where the tick can be undone (his ask 2026-08-17)
+      var dlvRows = allBase0.filter(isDelivered);
+      var allBase = allBase0.filter(function (r) { return !isDelivered(r); });
+      var all = S.kpi === "dlv" ? dlvRows : allBase;
+      var flagged = allBase.filter(function (r) { return !!r["Data Issue"]; });
+      var actNow = allBase.filter(function (r) { return r["Urgency"] === "Act now"; }).length;
+      var actSoon = allBase.filter(function (r) { return r["Urgency"] === "Act soon"; }).length;
+      var noWin = allBase.filter(function (r) { return r["Urgency"] === "Missing data"; }).length;
+      var held = allBase.filter(function (r) { return custKey(r) === "unk"; }).length;
 
       // KPI cards are FILTERS, not decoration — click one to see exactly those rows;
       // click again to release. The counts always describe the whole board.
@@ -992,8 +1010,9 @@ registerPage({
         ["miss", "",     noWin,          "Missing data",     "FAD / timeframe not set"],
         ["unk",  "",     held,           "Missing Closing",  "picked up, but no closing sheet records where it is"],
         ["flag", "",     flagged.length, "Flagged",          "needs a sheet correction"],
-        ["carw", "",     all.filter(function (r) { return custKey(r) === "car"; }).length,
+        ["carw", "",     allBase.filter(function (r) { return custKey(r) === "car"; }).length,
                          "Carrier Watch",    "with carriers \u2014 confirm deliveries"],
+        ["dlv",  "",     dlvRows.length, "Delivered", "confirmed done \u2014 tap to review or undo"],
       ];
       var kp = '<div class="ldp-kpis">' + kpiDefs.map(function (k) {
         return '<div class="ldp-kpi ' + k[1] + (S.kpi === k[0] ? " sel" : "") + '" data-kpi="' + k[0] + '" role="button" tabindex="0">'
@@ -1006,6 +1025,7 @@ registerPage({
         if (S.kpi === "miss") return r["Urgency"] === "Missing data";
         if (S.kpi === "unk") return custKey(r) === "unk";
         if (S.kpi === "carw") return custKey(r) === "car";
+        if (S.kpi === "dlv") return true;   // `all` IS the delivered set in that view
         return !!r["Data Issue"];
       };
       var segPass = function (r) {
@@ -1246,6 +1266,7 @@ registerPage({
                 (+r["Storage Sold"]) ? ["Storage", "Sales person sold storage on this job"] : null,
                 ["Sticker", esc(r["Sticker"] || "—")],
                 ["Route status", esc(r["Route Status"] || "—")]]); })()
+          + updateSec(r)
           + (isBackhaul(r)
               ? '<div class="ldp-sec">Backhaul</div>'
                 + '<div class="ldp-sub" style="margin-bottom:6px">This truck comes back empty. Edit the message and send it to your carrier contacts.</div>'
@@ -1263,9 +1284,10 @@ registerPage({
                 + (jobPairs.filter(Boolean).length ? kv(jobPairs)
                    : '<div class="ldp-sub">no closing figures on this job yet</div>');
             })()
-          // The drawer is READ-ONLY (Tornike 2026-07-28: "i dont need user to input anything
-          // here"). The Plan / Where-it-is form lived here; corrections belong in the long-distance
-          // sheet, the system of record. overlaid() still APPLIES entries saved before this change.
+          // 2026-08-17 (his ask): the drawer regained ONE input surface — the "Update this
+          // job" section (delivered tick + location / FAD / timeframe overrides). Everything
+          // else stays read-only; overlaid() still applies nothing — the mart plus the
+          // optimistic mutations in the update wiring are the whole truth.
         ;
       }
 
@@ -1348,6 +1370,38 @@ registerPage({
           } else { window.prompt("Copy the outreach message:", msg); }
         };
       }
+      // ---- "Update this job" (his ask 2026-08-17): the delivered tick plus the three
+      // fields whose sheet values the office corrects from the site. A value here BEATS
+      // the sheets on the next mart build; the drawer applies it optimistically right
+      // away (carrier-location precedent). Inputs prefill with the saved OVERRIDES, not
+      // the computed values — blank = still following the sheets.
+      function updateSec(r) {
+        var _e = entFor(String(r["Company"]), String(r["Request #"]), String(r["Sheet Row"] || ""));
+        var ev = function (f) { return _e[f] && _e[f].value != null ? String(_e[f].value) : ""; };
+        return '<div class="ldp-sec">Update this job</div>'
+          + '<div class="ldp-usub">A value set here beats the sheet. The board applies it now; begin/urgency fully recompute on the next data refresh.</div>'
+          + '<div class="ldp-ugrid">'
+          +   '<label class="ldp-ul">Current location<select class="ldp-cinp" id="ldpULoc">'
+          +     '<option value="">as computed — ' + esc(r["Location"] || "unknown") + "</option>"
+          +     LDP_LOCATIONS.map(function (l) {
+                  return '<option' + (ev("location") === l ? " selected" : "") + ">" + esc(l) + "</option>";
+                }).join("") + "</select></label>"
+          +   '<label class="ldp-ul">Location note<input class="ldp-cinp" id="ldpULocN" maxlength="200" placeholder="address / unit (optional)" value="' + esc(ev("location_note")) + '"></label>'
+          +   '<label class="ldp-ul">' + (isStraight(r) ? "Delivery date" : "FAD") + '<input class="ldp-cinp" type="date" id="ldpUFad" value="' + esc(ev("fad_override")) + '"></label>'
+          +   '<label class="ldp-ul">Timeframe<input class="ldp-cinp" id="ldpUTf" maxlength="120" placeholder="e.g. 5-7 days" value="' + esc(ev("timeframe_override")) + '"></label>'
+          + "</div>"
+          + '<div style="margin-top:9px"><button class="ldp-bhbtn" id="ldpUSave" style="margin-top:0">Save updates</button>'
+          + '<span class="ldp-sub" id="ldpUMsg" style="margin-left:8px"></span></div>'
+          + '<div class="ldp-udlv">'
+          + (isDelivered(r)
+              ? '<span class="ldp-dlvon">✓ Delivered — confirmed on the portal</span>'
+                + '<button class="ldp-bhbtn" id="ldpUnDlv" style="margin-top:0">Undo — back on the board</button>'
+              : '<button class="ldp-bhbtn ldp-dlvb" id="ldpDlvBtn" style="margin-top:0">✓ This job is delivered</button>'
+                + '<span id="ldpDlvC" style="display:none;font-size:12.5px">Take it off the working board? '
+                + '<button class="ldp-bhbtn" id="ldpDlvYes" style="margin-top:0">Yes, delivered</button> '
+                + '<button class="ldp-bhbtn" id="ldpDlvNo" style="margin-top:0">Cancel</button></span>')
+          + "</div>";
+      }
       function openDrawer(key) {
         var dr = document.getElementById("ldpDrawer"), sc = document.getElementById("ldpScrim");
         if (!dr || !sc) return;
@@ -1403,6 +1457,72 @@ registerPage({
               .catch(function (e) { btn.disabled = false; msg.textContent = String(e); });
           };
           inp.onkeydown = function (e) { if (e.key === "Enter") btn.click(); };
+        })();
+        (function () {
+          var sv = dr.querySelector("#ldpUSave");
+          if (!sv) return;
+          var msg = dr.querySelector("#ldpUMsg");
+          var key2 = String(r["Company"]) + "|" + String(r["Request #"]) + "|" + String(r["Sheet Row"] || "");
+          var post = function (field, value) {
+            return fetch(ZTZ.API + "/api/_ldp", { method: "POST",
+              headers: { Authorization: "Bearer " + ZTZ.getToken(), "Content-Type": "application/json" },
+              body: JSON.stringify({ company: r["Company"], request_no: r["Request #"],
+                                     sheet_row: r["Sheet Row"], field: field, value: value }) })
+              .then(function (res) { return res.json().then(function (j) {
+                if (!res.ok || (j && j.error)) throw new Error((j && j.error) || "save failed");
+                (LDP_ENT[key2] = LDP_ENT[key2] || {})[field] = { field: field, value: value };
+              }); });
+          };
+          var ev2 = function (f) {
+            var e3 = entFor(String(r["Company"]), String(r["Request #"]), String(r["Sheet Row"] || ""))[f];
+            return e3 && e3.value != null ? String(e3.value) : "";
+          };
+          sv.onclick = function () {
+            var want = { location: dr.querySelector("#ldpULoc").value,
+                         location_note: dr.querySelector("#ldpULocN").value.trim(),
+                         fad_override: dr.querySelector("#ldpUFad").value,
+                         timeframe_override: dr.querySelector("#ldpUTf").value.trim() };
+            var todo = Object.keys(want).filter(function (f) { return want[f] !== ev2(f); });
+            if (!todo.length) { msg.textContent = "Nothing changed"; return; }
+            sv.disabled = true; msg.textContent = "Saving…";
+            Promise.all(todo.map(function (f) { return post(f, want[f] || null); }))
+              .then(function () {
+                // DIRECT (carrier-location precedent): the row shows the change now,
+                // the pipeline recomputes windows/urgency on its next run
+                if (want.location) { r["Location"] = want.location; r["Location Source"] = "portal"; }
+                if (todo.indexOf("location_note") >= 0 && want.location) r["Location Detail"] = want.location_note || null;
+                if (want.fad_override) { r["FAD"] = want.fad_override; r["FAD Source"] = "portal"; }
+                if (want.timeframe_override) r["Timeframe"] = want.timeframe_override;
+                sv.disabled = false; msg.textContent = "Saved ✓";
+                paint(); if (host.__ldpOpen) host.__ldpOpen(S.sel);
+              })
+              .catch(function (eS) { sv.disabled = false; msg.textContent = String(eS.message || eS); });
+          };
+          var db = dr.querySelector("#ldpDlvBtn"), dc = dr.querySelector("#ldpDlvC");
+          if (db) db.onclick = function () { db.style.display = "none"; dc.style.display = "inline"; };
+          var dn = dr.querySelector("#ldpDlvNo");
+          if (dn) dn.onclick = function () { dc.style.display = "none"; db.style.display = "inline-block"; };
+          var dy = dr.querySelector("#ldpDlvYes");
+          if (dy) dy.onclick = function () {
+            dy.disabled = true;
+            post("delivered", "1").then(function () {
+              r["Delivery Status"] = DLV_PORTAL;
+              r["Urgency"] = null; r["Do"] = "";
+              openDrawer(null);
+              ZTZ.toast("Delivered — moved to the Delivered card");
+              paint();
+            }).catch(function (eS) { dy.disabled = false; ZTZ.toast(String(eS.message || eS)); });
+          };
+          var ud = dr.querySelector("#ldpUnDlv");
+          if (ud) ud.onclick = function () {
+            ud.disabled = true;
+            post("delivered", "0").then(function () {
+              r["Delivery Status"] = "";
+              openDrawer(null);
+              ZTZ.toast("Back on the board — everything recomputes on the next refresh");
+              paint();
+            }).catch(function (eS) { ud.disabled = false; ZTZ.toast(String(eS.message || eS)); });
+          };
         })();
         drawFocused(document.getElementById("ldpDMap"), r);
         var x = document.getElementById("ldpDx");
