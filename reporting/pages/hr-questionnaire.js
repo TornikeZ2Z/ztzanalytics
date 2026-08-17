@@ -117,6 +117,22 @@ registerPage({
         ".hq-chip.dis{opacity:.55;pointer-events:none}",
         ".hq-ed{transition:border-color .12s}",
         ".hq-ed.sect{border-left:4px solid var(--brand)}",
+        // the type picker: a pill that opens a DESIGNED menu (the native select popup can't be styled)
+        ".hq-dd{position:relative;flex:0 0 auto}",
+        ".hq-ddb{font:inherit;font-size:13px;font-weight:700;color:var(--muted);background:var(--panel-2);border:1px solid transparent;border-radius:9px;padding:7px 12px;cursor:pointer;display:inline-flex;align-items:center;gap:8px;white-space:nowrap}",
+        ".hq-ddb:hover{border-color:var(--line-2);color:var(--ink)}",
+        ".hq-ddb .ic{color:var(--brand);font-size:12px;line-height:1}",
+        ".hq-ddb .car{color:var(--faint);font-size:9px}",
+        ".hq-ddm{position:absolute;top:calc(100% + 7px);right:0;z-index:80;background:var(--panel);border:1px solid var(--line);border-radius:14px;box-shadow:0 18px 50px rgba(0,0,0,.3);padding:6px;min-width:248px}",
+        ".hq-ddi{display:flex;gap:11px;align-items:center;padding:8px 11px;border-radius:10px;cursor:pointer}",
+        ".hq-ddi:hover{background:var(--panel-2)}",
+        ".hq-ddi.on{background:var(--brand-glow)}",
+        ".hq-ddi .ic{width:27px;height:27px;border-radius:8px;background:var(--panel-2);display:inline-flex;align-items:center;justify-content:center;font-size:13px;color:var(--muted);flex:0 0 auto}",
+        ".hq-ddi:hover .ic{color:var(--brand)}",
+        ".hq-ddi.on .ic{background:var(--brand);color:var(--brand-ink)}",
+        ".hq-ddi b{display:block;font-size:13.5px;line-height:1.25}",
+        ".hq-ddi em{display:block;font-style:normal;font-size:11.5px;color:var(--faint);margin-top:1px}",
+        ".hq-ddsep{height:1px;background:var(--line);margin:5px 9px}",
         ".hq-ed.sect .lbl{font-size:16px}",
         ".hq-ed .num{width:27px;height:27px;border-radius:9px;background:var(--panel-2);color:var(--muted);font-weight:800;font-size:12.5px;display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto}",
         // quiet fields: invisible until touched — the form-builder look
@@ -518,10 +534,18 @@ registerPage({
     }
 
     /* ================================================================ questions editor */
-    var TYPE_LABEL = { stars5: "★ Rating 1–5", scale: "Linear scale",
+    var TYPE_LABEL = { stars5: "Rating 1–5", scale: "Linear scale",
                        single: "Single choice", multi: "Multiple choice",
                        dropdown: "Dropdown", short_text: "Short text",
-                       long_text: "Long text", section: "§ Section header" };
+                       long_text: "Long text", section: "Section header" };
+    var TYPE_META = { stars5: { ic: "★", hint: "Five stars" },
+                      scale: { ic: "⟷", hint: "Numbers with end labels" },
+                      single: { ic: "◉", hint: "Pick one" },
+                      multi: { ic: "☑", hint: "Pick several" },
+                      dropdown: { ic: "▾", hint: "Pick one from a list" },
+                      short_text: { ic: "–", hint: "One line" },
+                      long_text: { ic: "≡", hint: "Free writing" },
+                      section: { ic: "§", hint: "A heading that groups the questions under it" } };
     var OTH = "Other…";
     var CHOICE_T = { single: 1, multi: 1, dropdown: 1 };
     function slugify(label, taken) {
@@ -584,10 +608,12 @@ registerPage({
                   : '<span class="num">' + qn + "</span>")
           + '<input class="hq-fld lbl" data-f="label" value="' + esc(item.label) + '" placeholder="'
           + (sect ? "Name this section…" : "Write the question, as the employee reads it…") + '"' + dis + ">"
-          + '<select class="hq-sel" data-f="qtype"' + (locked ? " disabled" : "") + ">"
-          + Object.keys(TYPE_LABEL).map(function (t) {
-              return '<option value="' + t + '"' + (item.qtype === t ? " selected" : "") + ">" + TYPE_LABEL[t] + "</option>";
-            }).join("") + "</select>"
+          + (locked
+              ? '<span class="hq-ddb" style="cursor:default;opacity:.75"><span class="ic">'
+                + TYPE_META[item.qtype].ic + "</span>" + TYPE_LABEL[item.qtype] + "</span>"
+              : '<div class="hq-dd" data-dd="' + i + '"><button type="button" class="hq-ddb">'
+                + '<span class="ic">' + TYPE_META[item.qtype].ic + "</span>" + TYPE_LABEL[item.qtype]
+                + '<span class="car">▼</span></button></div>')
           + (sect ? "" : '<label class="hq-reqt" title="Must be answered before submitting">'
               + '<input type="checkbox" data-f="required"' + (item.required ? " checked" : "") + dis + ">"
               + '<span class="hq-tgl"></span><span class="rt">required</span></label>')
@@ -644,13 +670,7 @@ registerPage({
               if (f === "oth") syncOpts(); else syncScale();
               mark();
             };
-          if (f === "qtype") inp.onchange = function () {
-            d[i].qtype = inp.value;
-            if (inp.value === "scale") d[i].options = ["1", "5", "", ""];
-            else if (inp.value === "section") { d[i].options = []; d[i].required = false; }
-            else if (!CHOICE_T[inp.value]) d[i].options = [];
-            mark(); paintQuestions(body, q, canM);
-          };
+
         });
         row.querySelectorAll("[data-mv]").forEach(function (b) {
           b.onclick = function () {
@@ -661,6 +681,43 @@ registerPage({
         var rm = row.querySelector("[data-rm]");
         if (rm) rm.onclick = function () { d.splice(i, 1); mark(); paintQuestions(body, q, canM); };
       });
+      body.querySelectorAll(".hq-dd").forEach(function (dd) {
+        var i2 = +dd.dataset.dd;
+        dd.querySelector(".hq-ddb").onclick = function (e) {
+          e.stopPropagation();
+          var already = dd.querySelector(".hq-ddm");
+          document.querySelectorAll(".hq-ddm").forEach(function (m) { m.remove(); });
+          if (already) return;
+          var m = document.createElement("div");
+          m.className = "hq-ddm";
+          m.innerHTML = Object.keys(TYPE_LABEL).map(function (t) {
+            return (t === "section" ? '<div class="hq-ddsep"></div>' : "")
+              + '<div class="hq-ddi' + (d[i2].qtype === t ? " on" : "") + '" data-t="' + t + '">'
+              + '<span class="ic">' + TYPE_META[t].ic + "</span><div><b>" + TYPE_LABEL[t]
+              + "</b><em>" + TYPE_META[t].hint + "</em></div></div>";
+          }).join("");
+          dd.appendChild(m);
+          m.querySelectorAll(".hq-ddi").forEach(function (it) {
+            it.onclick = function (ev) {
+              ev.stopPropagation();
+              var t = it.dataset.t;
+              m.remove();
+              if (t === d[i2].qtype) return;
+              d[i2].qtype = t;
+              if (t === "scale") d[i2].options = ["1", "5", "", ""];
+              else if (t === "section") { d[i2].options = []; d[i2].required = false; }
+              else if (!CHOICE_T[t]) d[i2].options = [];
+              mark(); paintQuestions(body, q, canM);
+            };
+          });
+        };
+      });
+      if (!document.__hqDdCloser) {
+        document.__hqDdCloser = true;
+        document.addEventListener("click", function () {
+          document.querySelectorAll(".hq-ddm").forEach(function (m) { m.remove(); });
+        });
+      }
       body.querySelector("#hqAdd").onclick = function () {
         d.push({ qkey: null, label: "", description: "", qtype: "stars5", options: [], required: false });
         mark(); paintQuestions(body, q, canM);
