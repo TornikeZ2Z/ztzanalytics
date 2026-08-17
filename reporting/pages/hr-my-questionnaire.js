@@ -27,6 +27,7 @@ registerPage({
       data: null, open: null, msg: "", msgErr: false, _seq: {}, _chain: {},
     });
     S.open = null;                      // every visit starts on the list of forms
+    S.step = null;                      // and outside any part of the stepper
 
     function api(path, opts) {
       return fetch(ZTZ.API + path, Object.assign({
@@ -99,6 +100,21 @@ registerPage({
         ".hm-sel:focus{outline:none;border-color:var(--brand)}",
         ".hm-oth{font:inherit;font-size:13px;border:0;border-bottom:1px solid var(--line-2);background:transparent;color:var(--ink);padding:2px 4px;flex:1;min-width:140px}",
         ".hm-oth:focus{outline:none;border-bottom-color:var(--brand)}",
+        // the guided flow: progress, part headers, nav, review
+        ".hm-pb{height:6px;border-radius:4px;background:var(--panel-2);overflow:hidden;margin:2px 0 6px}",
+        ".hm-pb i{display:block;height:100%;background:var(--brand);border-radius:4px;transition:width .3s}",
+        ".hm-top{display:flex;gap:10px;align-items:center;margin-bottom:10px}",
+        ".hm-part{margin:20px 0 16px}",
+        ".hm-part .pn{display:block;font-size:10.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--brand);margin-bottom:5px}",
+        ".hm-part b{font-size:21px;letter-spacing:-.3px}",
+        ".hm-part .pd{font-size:13px;color:var(--muted);margin-top:7px;line-height:1.6;max-width:680px}",
+        ".hm-navbar{position:sticky;bottom:14px;background:var(--panel);border:1px solid var(--line-2);border-radius:13px;box-shadow:0 12px 34px rgba(0,0,0,.28);padding:12px 16px;display:flex;gap:12px;align-items:center;z-index:5;margin-top:16px}",
+        ".hm-meta{font-size:12.5px;color:var(--brand);font-weight:700;margin-top:10px}",
+        ".hm-rrow{display:flex;gap:11px;align-items:center;padding:11px 12px;border-radius:10px;cursor:pointer;font-size:13.5px}",
+        ".hm-rrow:hover{background:var(--panel-2)}",
+        ".hm-rrow .tick{width:22px;height:22px;border-radius:50%;background:rgba(46,160,90,.15);color:var(--pos);display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:900;flex:0 0 auto}",
+        ".hm-rrow.miss .tick{background:rgba(226,73,73,.13);color:var(--neg)}",
+        ".hm-missb{border-color:var(--neg) !important}",
         // the confirmation modal (no native confirm here either)
         ".hm-cfm{position:fixed;inset:0;background:rgba(10,14,20,.5);z-index:150;display:flex;align-items:center;justify-content:center;padding:20px}",
         ".hm-cfm .box{background:var(--panel);border:1px solid var(--line);border-radius:16px;max-width:440px;width:100%;padding:24px 26px;box-shadow:0 18px 60px rgba(0,0,0,.4)}",
@@ -163,15 +179,22 @@ registerPage({
       if (S.open != null && !qs.some(function (q) { return q.id === S.open; })) S.open = null;
       if (S.open == null) { paintList(qs); return; }
       var cur = qs.filter(function (q) { return q.id === S.open; })[0];
-      main.innerHTML =
-        '<div style="margin-bottom:12px"><button class="hm-btn" id="hmBack">← All questionnaires</button></div>'
-        + paintOne(cur);
-      main.querySelector("#hmBack").onclick = function () { S.open = null; paint(); };
-      wire(cur);
+      if (!cur.editable) {
+        // a submitted/closed copy reads best as one quiet page
+        main.innerHTML =
+          '<div style="margin-bottom:12px"><button class="hm-btn" id="hmBack">← All questionnaires</button></div>'
+          + paintOne(cur);
+        main.querySelector("#hmBack").onclick = function () { S.open = null; S.step = null; paint(); };
+        return;
+      }
+      var steps = buildSteps(cur);
+      if (S.step == null || S.step < -1 || S.step > steps.length) S.step = -1;
+      if (S.step === -1) paintIntro(cur, steps);
+      else if (S.step === steps.length) paintReview(cur, steps);
+      else paintStep(cur, steps, S.step);
     }
 
-    // HIS CALL (2026-08-17): "we are gonna have a lot of questionnaires" — the page
-    // opens on the LIST of everything sent to this person; filling is a click away.
+    // HIS CALL (2026-08-17): the page opens on the LIST of everything sent to this person.
     function paintList(qs) {
       var todo = qs.filter(function (q) { return q.editable; });
       var rest = qs.filter(function (q) { return !q.editable; });
@@ -193,133 +216,235 @@ registerPage({
         + (rest.length ? '<div class="hm-sec">' + (todo.length ? "Earlier" : "Your questionnaires")
           + "</div>" + rest.map(item).join("") : "");
       main.querySelectorAll("[data-open]").forEach(function (el) {
-        el.onclick = function () { S.open = +el.dataset.open; paint(); };
+        el.onclick = function () { S.open = +el.dataset.open; S.step = -1; paint(); window.scrollTo(0, 0); };
       });
     }
 
+    /* ---- the guided flow: sections become PARTS, one per screen ---- */
+    function buildSteps(q) {
+      var steps = [], cur = null, num = 0;
+      q.questions.forEach(function (qq) {
+        if (qq.qtype === "section") {
+          cur = { title: qq.label, desc: qq.description || "", items: [] };
+          steps.push(cur);
+        } else {
+          num += 1;
+          if (!cur) { cur = { title: "", desc: "", items: [] }; steps.push(cur); }
+          cur.items.push(Object.assign({ _num: num }, qq));
+        }
+      });
+      return steps.filter(function (s) { return s.items.length; });
+    }
+    function answered(q, qq) {
+      var v = q.answers[qq.id];
+      return v != null && v !== "";
+    }
+    function progCounts(q, steps) {
+      var t = 0, a = 0;
+      steps.forEach(function (s) { s.items.forEach(function (it) { t++; if (answered(q, it)) a++; }); });
+      return { t: t, a: a };
+    }
+    function progBar(a, t) {
+      return '<div class="hm-pb"><i id="hmPbi" style="width:' + (t ? Math.round(a / t * 100) : 0)
+        + '%"></i></div>';
+    }
+
+    function paintIntro(cur, steps) {
+      var p = progCounts(cur, steps);
+      main.innerHTML =
+        '<div style="margin-bottom:12px"><button class="hm-btn" id="hmBack">← All questionnaires</button></div>'
+        + '<div class="hm-card" style="padding:26px 28px">'
+        + '<b style="font-size:21px;letter-spacing:-.3px">' + esc(cur.title) + "</b> " + statusPill(cur)
+        + (cur.description ? '<div style="font-size:13.5px;color:var(--muted);margin-top:9px;line-height:1.6">' + esc(cur.description) + "</div>" : "")
+        + '<div class="hm-meta">' + steps.length + " part" + (steps.length === 1 ? "" : "s") + " · "
+        + p.t + " questions · your answers save as you go — leave and come back any time</div>"
+        + (cur.instructions ? '<div style="font-size:13px;margin-top:13px;line-height:1.65">' + esc(cur.instructions) + "</div>" : "")
+        + '<div class="hm-conf">' + esc(cur.confidentiality) + "</div>"
+        + (cur.my_status === "reopened"
+            ? '<div class="hm-dim" style="margin-top:8px">HR reopened this response for you — fix what needs fixing and submit again.</div>' : "")
+        + (p.a ? '<div style="margin-top:16px">' + progBar(p.a, p.t)
+            + '<span class="hm-dim" id="hmCnt">' + p.a + " of " + p.t + " answered</span></div>" : "")
+        + '<div style="margin-top:20px"><button class="hm-go" id="hmStart">'
+        + (p.a >= p.t ? "Review & submit" : p.a ? "Continue where you left off" : "Start") + "</button></div>"
+        + "</div>";
+      main.querySelector("#hmBack").onclick = function () { S.open = null; S.step = null; paint(); };
+      main.querySelector("#hmStart").onclick = function () {
+        var at = steps.length;                          // everything answered → review
+        for (var i = 0; i < steps.length; i++)
+          if (steps[i].items.some(function (it) { return !answered(cur, it); })) { at = i; break; }
+        S.step = at; paint(); window.scrollTo(0, 0);
+      };
+    }
+
+    function paintStep(cur, steps, si) {
+      var s = steps[si], p = progCounts(cur, steps);
+      main.innerHTML =
+        '<div class="hm-top"><button class="hm-btn" id="hmBack">← All questionnaires</button>'
+        + '<span style="flex:1"></span><span class="hm-dim" id="hmCnt">' + p.a + " of " + p.t + " answered</span></div>"
+        + progBar(p.a, p.t)
+        + '<div class="hm-part"><span class="pn">Part ' + (si + 1) + " of " + steps.length + "</span>"
+        + "<b>" + esc(s.title || cur.title) + "</b>"
+        + (s.desc ? '<div class="pd">' + esc(s.desc) + "</div>" : "")
+        + "</div>"
+        + s.items.map(function (qq) { return qCard(cur, qq, qq._num, false); }).join("")
+        + '<div class="hm-navbar">'
+        + '<button class="hm-btn" id="hmPrev">' + (si === 0 ? "← Intro" : "← Back") + "</button>"
+        + '<span style="flex:1"></span>'
+        + '<button class="hm-go" id="hmNext" style="padding:10px 24px">'
+        + (si === steps.length - 1 ? "Review & submit →" : "Next →") + "</button></div>";
+      main.querySelector("#hmBack").onclick = function () { S.open = null; S.step = null; paint(); };
+      main.querySelector("#hmPrev").onclick = function () { S.step = si - 1; paint(); window.scrollTo(0, 0); };
+      main.querySelector("#hmNext").onclick = function () { S.step = si + 1; paint(); window.scrollTo(0, 0); };
+      wire(cur);
+    }
+
+    function paintReview(cur, steps) {
+      var p = progCounts(cur, steps);
+      var rows = steps.map(function (s, i) {
+        var t = s.items.length, a = 0, reqMiss = 0;
+        s.items.forEach(function (it) {
+          if (answered(cur, it)) a++; else if (it.required) reqMiss++;
+        });
+        return '<div class="hm-rrow' + (reqMiss ? " miss" : "") + '" data-go="' + i + '">'
+          + '<span class="tick">' + (reqMiss ? "!" : (a === t ? "✓" : "…")) + "</span>"
+          + "<b>" + esc(s.title || cur.title) + "</b>"
+          + '<span class="hm-dim">' + a + " of " + t + " answered"
+          + (reqMiss ? " · " + reqMiss + " required still missing" : "") + "</span>"
+          + '<span style="flex:1"></span><span class="hm-dim">open ›</span></div>';
+      });
+      main.innerHTML =
+        '<div class="hm-top"><button class="hm-btn" id="hmBack">← All questionnaires</button>'
+        + '<span style="flex:1"></span><span class="hm-dim" id="hmCnt">' + p.a + " of " + p.t + " answered</span></div>"
+        + progBar(p.a, p.t)
+        + '<div class="hm-part"><span class="pn">Review</span><b>Ready to submit?</b>'
+        + '<div class="pd">Open any part below to change an answer. Submitting makes your answers '
+        + "final — only HR can reopen them afterwards.</div></div>"
+        + '<div class="hm-card" style="padding:8px 10px">' + rows.join("") + "</div>"
+        + '<div class="hm-conf">' + esc(cur.confidentiality) + "</div>"
+        + '<div class="hm-navbar"><button class="hm-btn" id="hmPrev">← Back</button>'
+        + '<span class="hm-err" id="hmErr" style="margin:0"></span><span style="flex:1"></span>'
+        + '<button class="hm-go" id="hmSubmit">'
+        + (cur.my_status === "reopened" ? "Submit the correction" : "Submit") + "</button></div>";
+      main.querySelector("#hmBack").onclick = function () { S.open = null; S.step = null; paint(); };
+      main.querySelector("#hmPrev").onclick = function () { S.step = steps.length - 1; paint(); window.scrollTo(0, 0); };
+      main.querySelectorAll("[data-go]").forEach(function (r) {
+        r.onclick = function () { S.step = +r.dataset.go; paint(); window.scrollTo(0, 0); };
+      });
+      wire(cur);
+    }
+
+    /* ---- one question card, every type, editable or read-only ---- */
+    function qCard(q, qq, num, ro) {
+      var OTH = "Other\u2026";
+      var v = q.answers[qq.id];
+      var inner;
+      if (ro) {
+        // clamp before repeat(): a malformed stored value must not throw RangeError
+        var starN = Math.min(5, Math.max(0, Math.round(+v) || 0));
+        var shown = v == null || v === "" ? '<span class="hm-dim">— not answered</span>'
+          : qq.qtype === "multi" ? esc(safeArr(v).join(", "))
+          : qq.qtype === "stars5" ? '<span style="color:var(--warn)">' + "★".repeat(starN) + "</span>"
+            + '<span class="hm-dim"> ' + esc(v) + "/5</span>"
+          : qq.qtype === "scale" ? esc(v) + '<span class="hm-dim"> of ' + esc((qq.options || [])[1] || "") + "</span>"
+          : esc(v);
+        inner = '<div class="hm-ro"><span class="a">' + shown + "</span></div>";
+      } else if (qq.qtype === "stars5") {
+        inner = '<div class="hm-stars" data-q="' + qq.id + '">'
+          + [1, 2, 3, 4, 5].map(function (n) {
+              return '<button class="hm-star' + (v != null && v !== "" && n <= +v ? " on" : "")
+                + '" data-s="' + n + '" title="' + n + " star" + (n === 1 ? "" : "s") + '">★</button>';
+            }).join("") + "</div>";
+      } else if (qq.qtype === "single") {
+        var isOthS = v != null && String(v).indexOf("Other: ") === 0;
+        inner = (qq.options || []).map(function (o) {
+          var isO = o === OTH;
+          var on = isO ? isOthS : v === o;
+          return '<label class="hm-choice' + (on ? " on" : "") + '"><input type="radio" name="hmq' + qq.id + '"'
+            + (on ? " checked" : "") + ' data-q="' + qq.id + '" data-o="' + esc(o) + '"'
+            + (isO ? ' data-oth="1"' : "") + ">"
+            + (isO ? '<span style="display:flex;gap:8px;flex:1;align-items:center">Other:'
+                     + '<input class="hm-oth" data-so="' + qq.id + '" value="'
+                     + (isOthS ? esc(String(v).slice(7)) : "") + '"></span>'
+                   : "<span>" + esc(o) + "</span>")
+            + "</label>";
+        }).join("");
+      } else if (qq.qtype === "multi") {
+        var picked = new Set(safeArr(v));
+        var othVal = "";
+        picked.forEach(function (x) { if (String(x).indexOf("Other: ") === 0) othVal = String(x).slice(7); });
+        inner = (qq.options || []).map(function (o) {
+          var isO = o === OTH;
+          var on = isO ? !!othVal : picked.has(o);
+          return '<label class="hm-choice' + (on ? " on" : "") + '"><input type="checkbox"'
+            + (on ? " checked" : "") + ' data-mq="' + qq.id + '" data-o="' + esc(o) + '"'
+            + (isO ? ' data-oth="1"' : "") + ">"
+            + (isO ? '<span style="display:flex;gap:8px;flex:1;align-items:center">Other:'
+                     + '<input class="hm-oth" data-mo="' + qq.id + '" value="' + esc(othVal) + '"></span>'
+                   : "<span>" + esc(o) + "</span>")
+            + "</label>";
+        }).join("");
+      } else if (qq.qtype === "dropdown") {
+        var isOthD = v != null && String(v).indexOf("Other: ") === 0;
+        inner = '<select class="hm-sel" data-dd="' + qq.id + '">'
+          + '<option value=""' + (v == null || v === "" ? " selected" : "") + ">Choose\u2026</option>"
+          + (qq.options || []).map(function (o) {
+              var on = o === OTH ? isOthD : v === o;
+              return '<option value="' + esc(o) + '"' + (on ? " selected" : "") + ">" + esc(o) + "</option>";
+            }).join("") + "</select>"
+          + '<div style="margin-top:8px;display:' + (isOthD ? "flex" : "none") + ';gap:8px;align-items:center" data-ddrow="' + qq.id + '">'
+          + '<span style="font-size:13px">Other:</span>'
+          + '<input class="hm-oth" style="max-width:340px" data-ddo="' + qq.id + '" value="'
+          + (isOthD ? esc(String(v).slice(7)) : "") + '"></div>';
+      } else if (qq.qtype === "scale") {
+        var lo = parseInt((qq.options || [])[0], 10); if (isNaN(lo)) lo = 1;
+        var hi = parseInt((qq.options || [])[1], 10); if (isNaN(hi)) hi = 5;
+        var labLo = (qq.options || [])[2], labHi = (qq.options || [])[3];
+        var btns = [];
+        for (var sc = lo; sc <= hi; sc++)
+          btns.push('<button class="hm-num' + (v != null && v !== "" && +v === sc ? " on" : "")
+            + '" data-sc="' + qq.id + '" data-v="' + sc + '">' + sc + "</button>");
+        inner = '<div class="hm-scale">' + btns.join("") + "</div>"
+          + (labLo || labHi ? '<div class="hm-scalelab"><span>' + esc(labLo || "")
+            + "</span><span>" + esc(labHi || "") + "</span></div>" : "");
+      } else {
+        var max = qq.qtype === "short_text" ? 300 : 5000;
+        inner = '<textarea class="hm-ta" data-t="' + qq.id + '" maxlength="' + max + '" rows="'
+          + (qq.qtype === "short_text" ? 2 : 5) + '" placeholder="Your answer\u2026">' + esc(v || "") + "</textarea>"
+          + '<div class="hm-ct" data-ct="' + qq.id + '">' + String(v || "").length + " / " + max + "</div>"
+          + (ro || qq.qtype === "short_text" ? "" : "");
+      }
+      return '<div class="hm-q" data-qq="' + qq.id + '"><div class="lab">' + num + ". " + esc(qq.label)
+        + (qq.required ? "<u title=\"required\">*</u>"
+                       : (ro ? "" : ' <span class="hm-dim" style="font-weight:600;font-size:11.5px">optional</span>')) + "</div>"
+        + (qq.description ? '<div class="desc">' + esc(qq.description) + "</div>" : "")
+        + (!ro && (qq.qtype === "long_text") ? '<div class="desc" style="color:var(--faint)">A few sentences is plenty.</div>' : "")
+        + '<div class="body">' + inner + '</div><div class="hm-saved" data-sv="' + qq.id + '"></div></div>';
+    }
+
+    /* ---- the single-page READ-ONLY copy (submitted / closed) ---- */
     function paintOne(q) {
-      var ro = !q.editable;
       var head = '<div class="hm-card"><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">'
         + '<b style="font-size:17px">' + esc(q.title) + "</b>" + statusPill(q)
         + "</div>"
         + (q.description ? '<div class="hm-dim" style="margin-top:6px;font-size:13px">' + esc(q.description) + "</div>" : "")
-        + (q.instructions ? '<div style="font-size:13px;margin-top:8px;line-height:1.55">' + esc(q.instructions) + "</div>" : "")
         + '<div class="hm-conf">' + esc(q.confidentiality) + "</div>"
         + (q.my_status === "submitted" || q.my_status === "resubmitted"
             ? '<div class="hm-dim">Submitted ' + esc(fmtWhen(q.submitted_at)) + " — this is a read-only copy of "
               + "your answers. If something needs correcting, ask HR to reopen it.</div>"
-            : q.my_status === "reopened"
-            ? '<div class="hm-dim">HR reopened this response for you — edit what needs fixing and submit again.</div>'
-            : !q.editable && q.questionnaire_status !== "published"
+            : q.questionnaire_status !== "published"
             ? '<div class="hm-dim">This questionnaire is closed.</div>'
-            : !q.editable
-            ? '<div class="hm-dim">This questionnaire is no longer assigned to you.</div>' : "")
+            : '<div class="hm-dim">This questionnaire is no longer assigned to you.</div>')
         + "</div>";
-
-      var OTH = "Other\u2026";
-      var qnum = 0;
+      var n = 0;
       var body = q.questions.map(function (qq) {
-        // a section is a heading, not a question — no card, no number, no answer
         if (qq.qtype === "section") {
           return '<div class="hm-sect"><b>' + esc(qq.label) + "</b>"
             + (qq.description ? '<div class="d">' + esc(qq.description) + "</div>" : "") + "</div>";
         }
-        qnum += 1;
-        var i = qnum - 1;
-        var v = q.answers[qq.id];
-        var inner;
-        if (ro) {
-          // clamp before repeat(): a malformed stored value must not throw RangeError
-          // and blank the whole shell for a respondent-only user
-          var starN = Math.min(5, Math.max(0, Math.round(+v) || 0));
-          var shown = v == null || v === "" ? '<span class="hm-dim">— not answered</span>'
-            : qq.qtype === "multi" ? esc(safeArr(v).join(", "))
-            : qq.qtype === "stars5" ? '<span style="color:var(--warn)">' + "★".repeat(starN) + "</span>"
-              + '<span class="hm-dim"> ' + esc(v) + "/5</span>"
-            : qq.qtype === "scale" ? esc(v) + '<span class="hm-dim"> of ' + esc((qq.options || [])[1] || "") + "</span>"
-            : esc(v);
-          inner = '<div class="hm-ro"><span class="a">' + shown + "</span></div>";
-        } else if (qq.qtype === "stars5") {
-          inner = '<div class="hm-stars" data-q="' + qq.id + '">'
-            + [1, 2, 3, 4, 5].map(function (n) {
-                return '<button class="hm-star' + (v != null && v !== "" && n <= +v ? " on" : "")
-                  + '" data-s="' + n + '" title="' + n + " star" + (n === 1 ? "" : "s") + '">★</button>';
-              }).join("") + "</div>";
-        } else if (qq.qtype === "single") {
-          var isOthS = v != null && String(v).indexOf("Other: ") === 0;
-          inner = (qq.options || []).map(function (o) {
-            var isO = o === OTH;
-            var on = isO ? isOthS : v === o;
-            return '<label class="hm-choice' + (on ? " on" : "") + '"><input type="radio" name="hmq' + qq.id + '"'
-              + (on ? " checked" : "") + ' data-q="' + qq.id + '" data-o="' + esc(o) + '"'
-              + (isO ? ' data-oth="1"' : "") + ">"
-              + (isO ? '<span style="display:flex;gap:8px;flex:1;align-items:center">Other:'
-                       + '<input class="hm-oth" data-so="' + qq.id + '" value="'
-                       + (isOthS ? esc(String(v).slice(7)) : "") + '"></span>'
-                     : "<span>" + esc(o) + "</span>")
-              + "</label>";
-          }).join("");
-        } else if (qq.qtype === "multi") {
-          var picked = new Set(safeArr(v));
-          var othVal = "";
-          picked.forEach(function (x) { if (String(x).indexOf("Other: ") === 0) othVal = String(x).slice(7); });
-          inner = (qq.options || []).map(function (o) {
-            var isO = o === OTH;
-            var on = isO ? !!othVal : picked.has(o);
-            return '<label class="hm-choice' + (on ? " on" : "") + '"><input type="checkbox"'
-              + (on ? " checked" : "") + ' data-mq="' + qq.id + '" data-o="' + esc(o) + '"'
-              + (isO ? ' data-oth="1"' : "") + ">"
-              + (isO ? '<span style="display:flex;gap:8px;flex:1;align-items:center">Other:'
-                       + '<input class="hm-oth" data-mo="' + qq.id + '" value="' + esc(othVal) + '"></span>'
-                     : "<span>" + esc(o) + "</span>")
-              + "</label>";
-          }).join("");
-        } else if (qq.qtype === "dropdown") {
-          var isOthD = v != null && String(v).indexOf("Other: ") === 0;
-          inner = '<select class="hm-sel" data-dd="' + qq.id + '">'
-            + '<option value=""' + (v == null || v === "" ? " selected" : "") + ">Choose\u2026</option>"
-            + (qq.options || []).map(function (o) {
-                var on = o === OTH ? isOthD : v === o;
-                return '<option value="' + esc(o) + '"' + (on ? " selected" : "") + ">" + esc(o) + "</option>";
-              }).join("") + "</select>"
-            + '<div style="margin-top:8px;display:' + (isOthD ? "flex" : "none") + ';gap:8px;align-items:center" data-ddrow="' + qq.id + '">'
-            + '<span style="font-size:13px">Other:</span>'
-            + '<input class="hm-oth" style="max-width:340px" data-ddo="' + qq.id + '" value="'
-            + (isOthD ? esc(String(v).slice(7)) : "") + '"></div>';
-        } else if (qq.qtype === "scale") {
-          var lo = parseInt((qq.options || [])[0], 10); if (isNaN(lo)) lo = 1;
-          var hi = parseInt((qq.options || [])[1], 10); if (isNaN(hi)) hi = 5;
-          var labLo = (qq.options || [])[2], labHi = (qq.options || [])[3];
-          var btns = [];
-          for (var sc = lo; sc <= hi; sc++)
-            btns.push('<button class="hm-num' + (v != null && v !== "" && +v === sc ? " on" : "")
-              + '" data-sc="' + qq.id + '" data-v="' + sc + '">' + sc + "</button>");
-          inner = '<div class="hm-scale">' + btns.join("") + "</div>"
-            + (labLo || labHi ? '<div class="hm-scalelab"><span>' + esc(labLo || "")
-              + "</span><span>" + esc(labHi || "") + "</span></div>" : "");
-        } else {
-          var max = qq.qtype === "short_text" ? 300 : 5000;
-          inner = '<textarea class="hm-ta" data-t="' + qq.id + '" maxlength="' + max + '" rows="'
-            + (qq.qtype === "short_text" ? 2 : 5) + '" placeholder="Your answer…">' + esc(v || "") + "</textarea>"
-            + '<div class="hm-ct" data-ct="' + qq.id + '">' + String(v || "").length + " / " + max + "</div>";
-        }
-        return '<div class="hm-q" data-qq="' + qq.id + '"><div class="lab">' + (i + 1) + ". " + esc(qq.label)
-          + (qq.required ? "<u title=\"required\">*</u>" : "") + "</div>"
-          + (qq.description ? '<div class="desc">' + esc(qq.description) + "</div>" : "")
-          + '<div class="body">' + inner + '</div><div class="hm-saved" data-sv="' + qq.id + '"></div></div>';
+        n += 1;
+        return qCard(q, qq, n, true);
       }).join("");
-
-      var bar = "";
-      if (!ro) {
-        var req = q.questions.filter(function (x) { return x.required; }).length;
-        bar = '<div class="hm-submitbar"><span class="hm-dim">Answers save the moment you give them'
-          + (req ? " · * marks the " + req + " required question" + (req === 1 ? "" : "s") : "") + "</span>"
-          + '<span style="flex:1"></span>'
-          + '<span class="hm-err" id="hmErr" style="margin:0"></span>'
-          + '<button class="hm-go" id="hmSubmit">'
-          + (q.my_status === "reopened" ? "Submit the correction" : "Submit") + "</button></div>";
-      }
-      return head + body + bar;
+      return head + body;
     }
 
     function safeArr(v) {
@@ -360,6 +485,13 @@ registerPage({
         // re-query: a failure repaint elsewhere may have replaced the captured node
         var svNow = main.querySelector('[data-sv="' + questionId + '"]') || sv;
         if (svNow) { svNow.textContent = "saved"; svNow.style.color = "var(--pos)"; }
+        // the header progress ticks live as answers land
+        var pb = main.querySelector("#hmPbi"), ct3 = main.querySelector("#hmCnt");
+        if (pb || ct3) {
+          var st3 = buildSteps(q), pc = progCounts(q, st3);
+          if (pb) pb.style.width = (pc.t ? Math.round(pc.a / pc.t * 100) : 0) + "%";
+          if (ct3) ct3.textContent = pc.a + " of " + pc.t + " answered";
+        }
       }, function (e) {
         if (S._seq[key] !== my) return;
         // Roll back to the last CONFIRMED value — not to "the value when this call
@@ -515,10 +647,17 @@ registerPage({
         });
         var errEl = main.querySelector("#hmErr");
         if (missing.length) {
-          errEl.textContent = "Still needed: " + missing.map(function (m) { return m.label; }).slice(0, 3).join(" · ")
-            + (missing.length > 3 ? " (+" + (missing.length - 3) + ")" : "");
+          var steps2 = buildSteps(q);
+          for (var si2 = 0; si2 < steps2.length; si2++)
+            if (steps2[si2].items.some(function (x) { return x.id === missing[0].id; })) {
+              S.step = si2; break;
+            }
+          paint();
           var first = main.querySelector('[data-qq="' + missing[0].id + '"]');
-          if (first) first.scrollIntoView({ block: "center", behavior: "smooth" });
+          if (first) {
+            first.classList.add("hm-missb");
+            first.scrollIntoView({ block: "center" });
+          }
           return;
         }
         if (!(await hmConfirm({ t: "Submit your answers?",
