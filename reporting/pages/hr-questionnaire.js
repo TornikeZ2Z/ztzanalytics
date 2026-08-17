@@ -461,7 +461,7 @@ registerPage({
         var picked = new Set((q.audience_values || []).map(function (v) { return v.toLowerCase(); }));
         var items = kind === "departments"
           ? Object.keys(depts).sort().map(function (dpt) { return { v: dpt.toLowerCase(), lab: dpt }; })
-          : (S.roster || []).filter(function (p) { return p.status === "active"; })
+          : (S.roster || []).filter(function (p) { return p.status === "active" && p.email; })
               .map(function (p) { return { v: p.email, lab: (p.name ? p.name + " — " : "") + p.email }; });
         // stored audience members who are no longer active must stay VISIBLE and KEPT —
         // rendering only active rows made any settings save silently shrink the audience
@@ -684,77 +684,24 @@ registerPage({
 
     /* ================================================================ people */
     async function paintPeople() {
+      // People management MOVED to the Team Directory (2026-08-18): one people list, one
+      // editor. Keeping a second editor here would clobber the directory's org fields —
+      // the server's roster_upsert now runs a whole-row contract.
       if (!(S.home && S.home.can_manage)) { main.innerHTML = '<div class="hq-dim">People management needs HR manage access.</div>'; return; }
       await loadRoster();
-      var rows = S.roster.filter(function (p) {
-        if (!S.rosterQ) return true;
-        var q2 = S.rosterQ.toLowerCase();
-        return p.email.indexOf(q2) >= 0 || (p.name || "").toLowerCase().indexOf(q2) >= 0
-          || (p.department || "").toLowerCase().indexOf(q2) >= 0;
-      });
+      var act = S.roster.filter(function (p) { return p.status === "active"; });
+      var noEmail = act.filter(function (p) { return !p.email; });
       main.innerHTML =
-        '<div class="hq-card"><h4>Add a person</h4>'
-        + '<div class="hq-dim" style="margin-bottom:10px">Anyone here can open the questionnaire link and answer — '
-        + "including people OUTSIDE the company domain (a personal gmail works). Being on this "
-        + "list gives access to the questionnaire ONLY, never to any report.</div>"
+        '<div class="hq-card"><h4>The People list lives in the Team Directory now</h4>'
+        + '<div class="hq-dim" style="margin-bottom:12px">One list for the whole company: names, titles, '
+        + "departments, reporting lines — and the sign-in emails that let people answer questionnaires. "
+        + "Everyone active on it is this questionnaire system's audience.</div>"
         + '<div class="hq-row">'
-        + '<input class="hq-in" id="hpEmail" placeholder="email@anywhere.com" style="min-width:230px">'
-        + '<input class="hq-in" id="hpName" placeholder="Full name">'
-        + '<input class="hq-in" id="hpDept" placeholder="Department" list="hpDeptList">'
-        + '<datalist id="hpDeptList">' + [...new Set(S.roster.map(function (p) { return p.department; }).filter(Boolean))].sort()
-            .map(function (dpt) { return "<option>" + esc(dpt) + "</option>"; }).join("") + "</datalist>"
-        + '<button class="hq-btn go" id="hpAdd">Add</button></div>'
-        + '<div class="hq-msg" id="hqMsg" style="margin-top:8px"></div></div>'
-        + '<div class="hq-row" style="margin-bottom:10px"><input class="hq-in" id="hpQ" placeholder="Find…" value="' + esc(S.rosterQ) + '">'
-        + '<span class="hq-dim">' + S.roster.filter(function (p) { return p.status === "active"; }).length
-        + " active · " + S.roster.length + " total — people are deactivated, never deleted</span></div>"
-        + '<div class="hq-card" style="padding:0"><table class="hq-tbl"><thead><tr>'
-        + "<th>Email</th><th>Name</th><th>Department</th><th>Status</th><th></th></tr></thead><tbody>"
-        + (rows.map(function (p) {
-            return '<tr data-em="' + esc(p.email) + '"><td>' + esc(p.email) + "</td>"
-              + '<td><input class="hq-in" data-pf="name" value="' + esc(p.name || "") + '" style="width:150px"></td>'
-              + '<td><input class="hq-in" data-pf="department" value="' + esc(p.department || "") + '" list="hpDeptList" style="width:130px"></td>'
-              + "<td>" + (p.status === "active" ? '<span class="hq-pill published">active</span>' : '<span class="hq-pill archived">inactive</span>') + "</td>"
-              + '<td class="r"><button class="hq-btn" data-psave>Save</button> '
-              + '<button class="hq-btn' + (p.status === "active" ? " warn" : "") + '" data-ptoggle>'
-              + (p.status === "active" ? "Deactivate" : "Reactivate") + "</button></td></tr>";
-          }).join("") || '<tr><td colspan="5" class="hq-dim" style="padding:14px">Nobody yet.</td></tr>')
-        + "</tbody></table></div>";
-      var qi = main.querySelector("#hpQ");
-      qi.oninput = function () {
-        S.rosterQ = this.value; var at = this.selectionStart;
-        paintPeople().then(function () { var n = main.querySelector("#hpQ"); if (n) { n.focus(); n.setSelectionRange(at, at); } });
-      };
-      main.querySelector("#hpAdd").onclick = async function () {
-        var em2 = main.querySelector("#hpEmail").value.trim().toLowerCase();
-        if (!em2 || em2.indexOf("@") < 0) { toast("A real email is required", true); return; }
-        try {
-          await post({ action: "roster_upsert", email: em2, name: main.querySelector("#hpName").value.trim(),
-                       department: main.querySelector("#hpDept").value.trim(), status: "active" });
-          toast(em2 + " added"); paintPeople();
-        } catch (e) { toast(e.message, true); }
-      };
-      main.querySelectorAll("tr[data-em]").forEach(function (tr) {
-        var em2 = tr.dataset.em;
-        var read = function () {
-          var p = S.roster.filter(function (x) { return x.email === em2; })[0] || {};
-          return { name: tr.querySelector('[data-pf="name"]').value.trim(),
-                   department: tr.querySelector('[data-pf="department"]').value.trim(),
-                   status: p.status };
-        };
-        tr.querySelector("[data-psave]").onclick = async function () {
-          var v = read();
-          try { await post({ action: "roster_upsert", email: em2, name: v.name, department: v.department, status: v.status }); toast(em2 + " saved"); paintPeople(); }
-          catch (e) { toast(e.message, true); }
-        };
-        tr.querySelector("[data-ptoggle]").onclick = async function () {
-          var v = read();
-          var next = v.status === "active" ? "inactive" : "active";
-          if (next === "inactive" && !confirm("Deactivate " + em2 + "? They lose questionnaire access; their past answers stay.")) return;
-          try { await post({ action: "roster_upsert", email: em2, name: v.name, department: v.department, status: next }); paintPeople(); }
-          catch (e) { toast(e.message, true); }
-        };
-      });
+        + '<button class="hq-btn go" id="hpGo">Open the Team Directory</button>'
+        + '<span class="hq-dim">' + act.length + " active people · "
+        + (noEmail.length ? noEmail.length + " still have no email and cannot answer yet"
+                          : "everyone has an email") + "</span></div></div>";
+      main.querySelector("#hpGo").onclick = function () { location.hash = "#page=hr-directory"; };
     }
 
     /* ================================================================ guide */

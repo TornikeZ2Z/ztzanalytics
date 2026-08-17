@@ -174,7 +174,7 @@ const GROUP_OVERRIDE = {
   "fin-revenue": "financial", "fin-rr": "financial", "branch-owner": "financial", "money-flow": "logistics", "ld-planning": "logistics", "foreman-closings": "logistics",
   "packing-control": "logistics", "storage-control": "logistics", "fuel-control": "logistics",
   "foreman-assessment": "logistics",
-  "hr-questionnaire": "hr", "hr-my-questionnaire": "hr",
+  "hr-questionnaire": "hr", "hr-my-questionnaire": "hr", "hr-directory": "hr",
   // Customer Service
   "cleanup": "customer-service",
   // Reviews
@@ -190,7 +190,7 @@ const NAV_ORDER = {
   "sales-command": 0.5, "sales-funnel": 1, "sales-perf": 2, "demand-analysis": 5,
   "mkt-roi": 1, "mkt-sources": 2, "mkt-phone": 3,
   "money-flow": 1, "foreman-closings": 2, "ld-planning": 3, "packing-control": 4, "storage-control": 5, "foreman-assessment": 6, "fuel-control": 7, "log-foreman": 8, "log-packing": 9,
-  "hr-my-questionnaire": 1, "hr-questionnaire": 2,
+  "hr-my-questionnaire": 1, "hr-questionnaire": 2, "hr-directory": 3,
   "cleanup": 1,
   "fin-revenue": 1, "fin-rr": 2, "sales-geo": 3, "branch-owner": 6,
   "rev-production": 1, "review-performance": 2, "response-analysis": 3, "reviews-reminders": 4, "review-settings": 5,
@@ -248,7 +248,7 @@ const PAGE_ICONS = {
   "storage-control": "archive",
   "fuel-control": "truck",
   "foreman-assessment": "star",
-  "hr-my-questionnaire": "clipboard", "hr-questionnaire": "user",
+  "hr-my-questionnaire": "clipboard", "hr-questionnaire": "user", "hr-directory": "users",
   "cleanup": "calendar",
   "foreman-closings": "receipt",
   "labor-analysis": "activity",
@@ -389,6 +389,8 @@ function canSee(id) {
   // this rule a results-only grant was dead client-side: the server admitted it but no
   // nav rule opened the page (post-merge audit, 2026-08-17).
   if (id === "hr-questionnaire" && reports.includes("hr-responses")) return true;
+  // the Team Directory is the roster editor — the manage grant IS its grant
+  if (id === "hr-directory" && reports.includes("hr-questionnaire")) return true;
   // department grant: holding a department id opens ALL of its reports, incl. ones added later
   for (const d of ACL_DEPTS) { if (reports.includes(d.id) && d.reports.includes(id)) return true; }
   // A lingering grant to a RETIRED PAGE opens its replacement, so nobody loses access.
@@ -653,6 +655,7 @@ const PAGE_DATASETS = {
   "foreman-assessment": [],  // its own month picker owns the window
   "hr-questionnaire": [],     // /api/_hrqadmin only
   "hr-my-questionnaire": [],  // /api/_hrq only
+  "hr-directory": [],         // rides /api/_hrqadmin
   "foreman-closings": [],    // loads via /api/_fnc; no global slicers apply
   "reviews-reminders": [],   // talks to the Apps Script relay (JSONP) + loads its own goal data
 };
@@ -837,7 +840,7 @@ function navigate(id, push) {
 /* Pages that bring their OWN toolbar and ignore the global filter bar (PAGE_DATASETS=[])
    render "bare" — the global date/slicer bar + company chip are hidden so the page's board
    starts right under the header instead of below two rows of greyed-out, unusable filters. */
-const BARE_CHROME = new Set(["review-performance", "demand-analysis", "reviews-reminders", "response-analysis", "review-settings", "monthly-report", "money-flow", "ld-planning", "cleanup", "packing-control", "storage-control", "foreman-assessment", "fuel-control", "foreman-closings", "refresh-log", "general-tables", "hr-questionnaire", "hr-my-questionnaire"]);
+const BARE_CHROME = new Set(["review-performance", "demand-analysis", "reviews-reminders", "response-analysis", "review-settings", "monthly-report", "money-flow", "ld-planning", "cleanup", "packing-control", "storage-control", "foreman-assessment", "fuel-control", "foreman-closings", "refresh-log", "general-tables", "hr-questionnaire", "hr-my-questionnaire", "hr-directory"]);
 /* Pages where the global filter bar MUST STAY VISIBLE, so Hide filters is not offered at all.
    The control exists for pages carrying a wall of slicers you want out of the way to read the
    board full-screen — Custom Breakdown is the case it was built for. It is wrong wherever the
@@ -934,6 +937,7 @@ const NAV_TITLES = {
   "foreman-assessment": "Foreman Assessment",
   "hr-questionnaire": "Company-Wide Questionnaire",
   "hr-my-questionnaire": "My Questionnaire",
+  "hr-directory": "Team Directory",
   "cleanup": "Calendar Cleanup",
   "foreman-closings": "Foreman Closings",
   "data-quality": "Data Quality",
@@ -956,6 +960,7 @@ const SEARCH_ALIASES = {
   // Human Resources
   "hr-questionnaire": "hr human resources questionnaire survey company wide feedback poll questions results",
   "hr-my-questionnaire": "my questionnaire survey answer feedback hr",
+  "hr-directory": "team directory people staff back office crew org employees roster emails",
   // Company Overview
   "monthly-report": "monthly report month review presentation ppt slides jobs done vs hours worked jobs vs hours job hour efficiency all in one",
   "analysis-by-category": "analysis by category custom breakdown categories explorer yoy diff year over year comparison annual vs last year",
@@ -1413,6 +1418,7 @@ const REPORT_LABELS = {
   // Human Resources
   "hr-questionnaire": "Questionnaire management",
   "hr-responses": "Responses & statistics",
+  "hr-directory": "Team Directory",
   // Customer Service
   "cleanup": "Calendar Cleanup",
   // Logistics
@@ -1482,7 +1488,7 @@ const ACL_DEPTS = [
   { id: "logistics", label: "Logistics",        icon: "tool",      reports: ["money-flow", "ld-planning", "foreman-closings", "packing-control", "storage-control", "foreman-assessment", "fuel-control"] },
   // MUST mirror DEPT_REPORTS["hr"] in bridge/app.py. Employees answering the questionnaire
   // need NO grant at all — this tile is for HR: managing it and reading the results.
-  { id: "hr",        label: "Human Resources", icon: "user",      reports: ["hr-questionnaire", "hr-responses"] },
+  { id: "hr",        label: "Human Resources", icon: "user",      reports: ["hr-questionnaire", "hr-responses", "hr-directory"] },
   { id: "customer-service", label: "Customer Service", icon: "calendar", reports: ["cleanup"] },
   { id: "financial", label: "Financial",        icon: "trend",     reports: ["branch-owner"] },
   { id: "reviews",   label: "Reviews",          icon: "star",      reports: ["review-performance", "reviews-reminders", "response-analysis", "review-settings"] },
@@ -1701,6 +1707,7 @@ registerPage({
 <script src="pages/foreman-assessment.js?v=28"></script>
 <script src="pages/hr-questionnaire.js?v=5"></script>
 <script src="pages/hr-my-questionnaire.js?v=4"></script>
+<script src="pages/hr-directory.js?v=1"></script>
 <script src="pages/fuel-control.js?v=9"></script>
 <script src="pages/demand-analysis.js?v=6"></script>
 <script src="pages/general-tables.js?v=3"></script>
