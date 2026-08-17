@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<!-- The ANONYMOUS questionnaire fill page (2026-08-18, his call: "no one knows who is
+     filling the form"). Standalone on purpose: no sign-in, no portal shell, no token —
+     the ?t= link names a (questionnaire, team) pair and nothing else. A random id in
+     THIS browser's localStorage lets answers autosave and resume; it is never tied to
+     any account. Served from the same Pages repo as the portal; talks only to
+     /api/_hrqanon, which sits in front of the bridge's auth on purpose. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Zip to Zip — Questionnaire</title>
+<style>
+  :root{--bg:#f4f6f8;--panel:#ffffff;--panel-2:#eef1f4;--line:#e3e8ed;--line-2:#cfd7de;
+        --ink:#16202c;--muted:#5b6b7c;--faint:#8a97a5;--brand:#7fa32b;--brand-ink:#ffffff;
+        --brand-glow:#f0f5e3;--pos:#2ea05a;--warn:#e2a82b;--neg:#e24949}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+       font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif}
+  .wrap{max-width:760px;margin:0 auto;padding:18px 14px 60px}
+  .brand{display:flex;align-items:center;gap:10px;margin:6px 2px 18px;font-weight:800;
+         font-size:15px;letter-spacing:-.2px}
+  .brand .dot{width:10px;height:10px;border-radius:3px;background:var(--brand)}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:16px;
+        padding:22px 22px;margin-bottom:14px}
+  .dim{font-size:12.5px;color:var(--faint);line-height:1.55}
+  .conf{border-left:3px solid var(--warn);background:rgba(226,168,43,.07);
+        border-radius:0 10px 10px 0;padding:10px 14px;font-size:12.5px;line-height:1.55;
+        color:var(--muted);margin:14px 0 0}
+  .anon{border-left:3px solid var(--brand);background:var(--brand-glow);
+        border-radius:0 10px 10px 0;padding:10px 14px;font-size:12.5px;line-height:1.55;
+        color:var(--muted);margin:14px 0 0;font-weight:600}
+  .meta{font-size:12.5px;color:var(--brand);font-weight:700;margin-top:10px}
+  .go{font:inherit;font-size:14.5px;font-weight:800;padding:12px 26px;border-radius:11px;
+      border:0;background:var(--brand);color:var(--brand-ink);cursor:pointer}
+  .go:disabled{opacity:.55}
+  .btn{font:inherit;font-size:13px;font-weight:700;color:var(--muted);background:var(--panel);
+       border:1px solid var(--line-2);border-radius:9px;padding:8px 14px;cursor:pointer}
+  .pb{height:6px;border-radius:4px;background:var(--panel-2);overflow:hidden;margin:2px 0 6px}
+  .pb i{display:block;height:100%;background:var(--brand);border-radius:4px;transition:width .3s}
+  .top{display:flex;gap:10px;align-items:center;margin-bottom:10px;font-size:12.5px;color:var(--faint)}
+  .part{margin:18px 0 14px}
+  .part .pn{display:block;font-size:10.5px;font-weight:800;letter-spacing:.08em;
+            text-transform:uppercase;color:var(--brand);margin-bottom:5px}
+  .part b{font-size:20px;letter-spacing:-.3px}
+  .part .pd{font-size:13px;color:var(--muted);margin-top:7px;line-height:1.6}
+  .q{background:var(--panel);border:1px solid var(--line);border-radius:14px;
+     padding:15px 17px;margin-bottom:11px}
+  .q .lab{font-size:14.5px;font-weight:750;line-height:1.35}
+  .q .lab u{text-decoration:none;color:var(--neg);margin-left:4px}
+  .q .opt{font-weight:600;font-size:11.5px;color:var(--faint);margin-left:6px}
+  .q .desc{font-size:12px;color:var(--muted);margin-top:3px;line-height:1.5}
+  .q .body{margin-top:11px}
+  .saved{font-size:11px;color:var(--pos);font-weight:700;min-height:15px}
+  .stars{display:flex;gap:2px}
+  .star{font-size:33px;line-height:1;cursor:pointer;background:none;border:0;padding:0 4px;
+        color:var(--line-2)}
+  .star.on{color:var(--warn)}
+  .scale{display:flex;gap:6px;flex-wrap:wrap}
+  .num{min-width:40px;height:40px;border-radius:10px;border:1px solid var(--line-2);
+       background:var(--panel);font:inherit;font-size:14px;font-weight:700;
+       color:var(--muted);cursor:pointer}
+  .num.on{background:var(--brand);border-color:var(--brand);color:var(--brand-ink)}
+  .scalelab{display:flex;justify-content:space-between;font-size:11.5px;color:var(--faint);
+            margin-top:5px;max-width:460px}
+  .choice{display:flex;gap:9px;align-items:flex-start;padding:9px 11px;
+          border:1px solid var(--line-2);border-radius:9px;margin-bottom:6px;cursor:pointer;
+          font-size:13.5px;line-height:1.4}
+  .choice.on{border-color:var(--brand);background:var(--brand-glow)}
+  .choice input{margin-top:2px}
+  .oth{font:inherit;font-size:13px;border:0;border-bottom:1px solid var(--line-2);
+       background:transparent;color:var(--ink);padding:2px 4px;flex:1;min-width:120px}
+  .oth:focus{outline:none;border-bottom-color:var(--brand)}
+  select.sel{font:inherit;font-size:13.5px;color:var(--ink);background:var(--panel);
+             border:1px solid var(--line-2);border-radius:9px;padding:10px 12px;min-width:240px}
+  textarea.ta{width:100%;font:inherit;font-size:13px;line-height:1.5;color:var(--ink);
+              background:var(--panel);border:1px solid var(--line-2);border-radius:9px;
+              padding:10px 12px;resize:vertical}
+  textarea.ta:focus{outline:none;border-color:var(--brand)}
+  .ct{font-size:10.5px;color:var(--faint);text-align:right;margin-top:3px}
+  .navbar{position:sticky;bottom:12px;background:var(--panel);border:1px solid var(--line-2);
+          border-radius:13px;box-shadow:0 12px 34px rgba(0,0,0,.18);padding:12px 15px;
+          display:flex;gap:12px;align-items:center;margin-top:16px}
+  .err{font-size:12.5px;color:var(--neg);font-weight:700}
+  .rrow{display:flex;gap:11px;align-items:center;padding:11px 12px;border-radius:10px;
+        cursor:pointer;font-size:13.5px}
+  .rrow:hover{background:var(--panel-2)}
+  .rrow .tick{width:22px;height:22px;border-radius:50%;background:rgba(46,160,90,.15);
+              color:var(--pos);display:inline-flex;align-items:center;justify-content:center;
+              font-size:11px;font-weight:900;flex:0 0 auto}
+  .rrow.miss .tick{background:rgba(226,73,73,.13);color:var(--neg)}
+  .missb{border-color:var(--neg) !important}
+  .sect-done{text-align:center;padding:60px 20px}
+  .sect-done .big{font-size:44px}
+  .sect-done b{display:block;font-size:20px;margin-top:12px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="brand"><span class="dot"></span>Zip to Zip Moving</div>
+  <div id="main"><div class="card dim">Loading…</div></div>
+</div>
+<script>
+(function () {
+  "use strict";
+  var API = "https://ztz-bridge-32168089642.us-east4.run.app";
+  var OTH = "Other…";
+  var t = (new URLSearchParams(location.search).get("t") || "").toLowerCase();
+  var main = document.getElementById("main");
+  var esc = function (v) {
+    return String(v == null ? "" : v).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  };
+  if (!/^[a-f0-9]{32}$/.test(t)) {
+    main.innerHTML = '<div class="card"><b>This link is not valid.</b>' +
+      '<div class="dim" style="margin-top:6px">Ask for a fresh questionnaire link.</div></div>';
+    return;
+  }
+  // the browser's own random id — resume/autosave continuity, never an identity
+  var cidKey = "hrq_anon_" + t;
+  var cid = localStorage.getItem(cidKey) || "";
+  if (!/^[a-f0-9]{32}$/.test(cid)) {
+    var b = new Uint8Array(16); crypto.getRandomValues(b);
+    cid = Array.prototype.map.call(b, function (x) {
+      return ("0" + x.toString(16)).slice(-2); }).join("");
+    localStorage.setItem(cidKey, cid);
+  }
+
+  var Q = null, step = -1, seq = {}, chain = {}, okv = {};
+
+  function api(opts) {
+    return fetch(API + "/api/_hrqanon" + (opts && opts.body ? "" :
+      "?t=" + t + "&cid=" + cid), Object.assign({
+      headers: (opts && opts.body) ? { "Content-Type": "application/json" } : {},
+    }, opts || {})).then(function (r) {
+      return r.json().then(function (j) {
+        if (!r.ok || j.error) { var e = new Error(j.error || ("HTTP " + r.status)); e.deep = j; throw e; }
+        return j;
+      });
+    });
+  }
+  function savePost(body) {
+    body.t = t; body.cid = cid;
+    return fetch(API + "/api/_hrqanon", { method: "POST",
+      headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
+      .then(function (r) { return r.json().then(function (j) {
+        if (!r.ok || j.error) throw new Error(j.error || ("HTTP " + r.status));
+        return j; }); });
+  }
+
+  function buildSteps() {
+    var steps = [], cur = null, num = 0;
+    Q.questions.forEach(function (qq) {
+      if (qq.qtype === "section") {
+        cur = { title: qq.label, desc: qq.description || "", items: [] };
+        steps.push(cur);
+      } else {
+        num += 1;
+        if (!cur) { cur = { title: "", desc: "", items: [] }; steps.push(cur); }
+        qq._num = num;
+        cur.items.push(qq);
+      }
+    });
+    return steps.filter(function (s) { return s.items.length; });
+  }
+  function answered(qq) { var v = Q.answers[qq.id]; return v != null && v !== ""; }
+  function counts(steps) {
+    var a = 0, tt = 0;
+    steps.forEach(function (s) { s.items.forEach(function (it) { tt++; if (answered(it)) a++; }); });
+    return { a: a, t: tt };
+  }
+  function progBar(a, tt) {
+    return '<div class="pb"><i id="pbi" style="width:' + (tt ? Math.round(a / tt * 100) : 0) + '%"></i></div>';
+  }
+  function safeArr(v) {
+    if (v == null || v === "") return [];
+    try { var a = JSON.parse(v); return Array.isArray(a) ? a : []; } catch (e) { return []; }
+  }
+
+  function paint() {
+    var steps = buildSteps();
+    if (Q.my_status === "submitted" || Q.my_status === "resubmitted") return paintDone();
+    if (step === -1) return paintIntro(steps);
+    if (step >= steps.length) return paintReview(steps);
+    paintStep(steps, step);
+  }
+
+  function paintDone() {
+    main.innerHTML = '<div class="card sect-done"><span class="big">✓</span>' +
+      "<b>Thank you — your answers are in.</b>" +
+      '<div class="dim" style="margin-top:8px">This form was anonymous: only your team (' +
+      esc(Q.category) + ") is recorded, never your name.</div></div>";
+  }
+
+  function paintIntro(steps) {
+    var p = counts(steps);
+    main.innerHTML =
+      '<div class="card" style="padding:26px 26px">' +
+      '<b style="font-size:21px;letter-spacing:-.3px">' + esc(Q.title) + "</b>" +
+      (Q.description ? '<div style="font-size:13.5px;color:var(--muted);margin-top:9px;line-height:1.6">' + esc(Q.description) + "</div>" : "") +
+      '<div class="meta">' + steps.length + " part" + (steps.length === 1 ? "" : "s") + " · " +
+      p.t + " questions · your answers save as you go — you can come back any time</div>" +
+      (Q.instructions ? '<div style="font-size:13px;margin-top:13px;line-height:1.65">' + esc(Q.instructions) + "</div>" : "") +
+      '<div class="anon">This form is anonymous. It records your team — ' + esc(Q.category) +
+      " — and never your name, email or account. Nobody can see who wrote what.</div>" +
+      (p.a ? '<div style="margin-top:16px">' + progBar(p.a, p.t) +
+        '<span class="dim" id="cnt">' + p.a + " of " + p.t + " answered</span></div>" : "") +
+      '<div style="margin-top:20px"><button class="go" id="start">' +
+      (p.a >= p.t && p.t ? "Review & submit" : p.a ? "Continue where you left off" : "Start") +
+      "</button></div></div>";
+    document.getElementById("start").onclick = function () {
+      var at = steps.length;
+      for (var i = 0; i < steps.length; i++)
+        if (steps[i].items.some(function (it) { return !answered(it); })) { at = i; break; }
+      step = at; paint(); window.scrollTo(0, 0);
+    };
+  }
+
+  function qCard(qq) {
+    var v = Q.answers[qq.id];
+    var inner;
+    if (qq.qtype === "stars5") {
+      inner = '<div class="stars" data-q="' + qq.id + '">' +
+        [1, 2, 3, 4, 5].map(function (n) {
+          return '<button class="star' + (v != null && v !== "" && n <= +v ? " on" : "") +
+            '" data-s="' + n + '">★</button>';
+        }).join("") + "</div>";
+    } else if (qq.qtype === "scale") {
+      var lo = parseInt((qq.options || [])[0], 10); if (isNaN(lo)) lo = 1;
+      var hi = parseInt((qq.options || [])[1], 10); if (isNaN(hi)) hi = 5;
+      var btns = [];
+      for (var sc = lo; sc <= hi; sc++)
+        btns.push('<button class="num' + (v != null && v !== "" && +v === sc ? " on" : "") +
+          '" data-sc="' + qq.id + '" data-v="' + sc + '">' + sc + "</button>");
+      var l1 = (qq.options || [])[2], l2 = (qq.options || [])[3];
+      inner = '<div class="scale">' + btns.join("") + "</div>" +
+        (l1 || l2 ? '<div class="scalelab"><span>' + esc(l1 || "") + "</span><span>" +
+          esc(l2 || "") + "</span></div>" : "");
+    } else if (qq.qtype === "single") {
+      var isOthS = v != null && String(v).indexOf("Other: ") === 0;
+      inner = (qq.options || []).map(function (o) {
+        var isO = o === OTH;
+        var on = isO ? isOthS : v === o;
+        return '<label class="choice' + (on ? " on" : "") + '"><input type="radio" name="q' + qq.id + '"' +
+          (on ? " checked" : "") + ' data-q="' + qq.id + '" data-o="' + esc(o) + '"' +
+          (isO ? ' data-oth="1"' : "") + ">" +
+          (isO ? '<span style="display:flex;gap:8px;flex:1;align-items:center">Other:' +
+                 '<input class="oth" data-so="' + qq.id + '" value="' +
+                 (isOthS ? esc(String(v).slice(7)) : "") + '"></span>'
+               : "<span>" + esc(o) + "</span>") + "</label>";
+      }).join("");
+    } else if (qq.qtype === "multi") {
+      var picked = new Set(safeArr(v));
+      var othVal = "";
+      picked.forEach(function (x) { if (String(x).indexOf("Other: ") === 0) othVal = String(x).slice(7); });
+      inner = (qq.options || []).map(function (o) {
+        var isO = o === OTH;
+        var on = isO ? !!othVal : picked.has(o);
+        return '<label class="choice' + (on ? " on" : "") + '"><input type="checkbox"' +
+          (on ? " checked" : "") + ' data-mq="' + qq.id + '" data-o="' + esc(o) + '"' +
+          (isO ? ' data-oth="1"' : "") + ">" +
+          (isO ? '<span style="display:flex;gap:8px;flex:1;align-items:center">Other:' +
+                 '<input class="oth" data-mo="' + qq.id + '" value="' + esc(othVal) + '"></span>'
+               : "<span>" + esc(o) + "</span>") + "</label>";
+      }).join("");
+    } else if (qq.qtype === "dropdown") {
+      var isOthD = v != null && String(v).indexOf("Other: ") === 0;
+      inner = '<select class="sel" data-dd="' + qq.id + '">' +
+        '<option value=""' + (v == null || v === "" ? " selected" : "") + ">Choose…</option>" +
+        (qq.options || []).map(function (o) {
+          var on = o === OTH ? isOthD : v === o;
+          return '<option value="' + esc(o) + '"' + (on ? " selected" : "") + ">" + esc(o) + "</option>";
+        }).join("") + "</select>" +
+        '<div style="margin-top:8px;display:' + (isOthD ? "flex" : "none") +
+        ';gap:8px;align-items:center" data-ddrow="' + qq.id + '">' +
+        '<span style="font-size:13px">Other:</span>' +
+        '<input class="oth" style="max-width:320px" data-ddo="' + qq.id + '" value="' +
+        (isOthD ? esc(String(v).slice(7)) : "") + '"></div>';
+    } else {
+      var max = qq.qtype === "short_text" ? 300 : 5000;
+      inner = '<textarea class="ta" data-t="' + qq.id + '" maxlength="' + max + '" rows="' +
+        (qq.qtype === "short_text" ? 2 : 5) + '" placeholder="Your answer…">' + esc(v || "") + "</textarea>" +
+        '<div class="ct" data-ct="' + qq.id + '">' + String(v || "").length + " / " + max + "</div>";
+    }
+    return '<div class="q" data-qq="' + qq.id + '"><div class="lab">' + qq._num + ". " + esc(qq.label) +
+      (qq.required ? '<u title="required">*</u>' : ' <span class="opt">optional</span>') + "</div>" +
+      (qq.description ? '<div class="desc">' + esc(qq.description) + "</div>" : "") +
+      (qq.qtype === "long_text" ? '<div class="desc" style="color:var(--faint)">A few sentences is plenty.</div>' : "") +
+      '<div class="body">' + inner + '</div><div class="saved" data-sv="' + qq.id + '"></div></div>';
+  }
+
+  function paintStep(steps, si) {
+    var s = steps[si], p = counts(steps);
+    main.innerHTML =
+      '<div class="top"><span>Anonymous · team: ' + esc(Q.category) + "</span>" +
+      '<span style="flex:1"></span><span id="cnt">' + p.a + " of " + p.t + " answered</span></div>" +
+      progBar(p.a, p.t) +
+      '<div class="part"><span class="pn">Part ' + (si + 1) + " of " + steps.length + "</span>" +
+      "<b>" + esc(s.title || Q.title) + "</b>" +
+      (s.desc ? '<div class="pd">' + esc(s.desc) + "</div>" : "") + "</div>" +
+      s.items.map(qCard).join("") +
+      '<div class="navbar"><button class="btn" id="prev">' + (si === 0 ? "← Intro" : "← Back") + "</button>" +
+      '<span style="flex:1"></span>' +
+      '<button class="go" id="next" style="padding:11px 24px">' +
+      (si === steps.length - 1 ? "Review & submit →" : "Next →") + "</button></div>";
+    document.getElementById("prev").onclick = function () { step = si - 1; paint(); window.scrollTo(0, 0); };
+    document.getElementById("next").onclick = function () { step = si + 1; paint(); window.scrollTo(0, 0); };
+    wire();
+  }
+
+  function paintReview(steps) {
+    var p = counts(steps);
+    var rows = steps.map(function (s, i) {
+      var tt = s.items.length, a = 0, reqMiss = 0;
+      s.items.forEach(function (it) { if (answered(it)) a++; else if (it.required) reqMiss++; });
+      return '<div class="rrow' + (reqMiss ? " miss" : "") + '" data-go="' + i + '">' +
+        '<span class="tick">' + (reqMiss ? "!" : (a === tt ? "✓" : "…")) + "</span>" +
+        "<b>" + esc(s.title || Q.title) + "</b>" +
+        '<span class="dim">' + a + " of " + tt + " answered" +
+        (reqMiss ? " · " + reqMiss + " required still missing" : "") + "</span>" +
+        '<span style="flex:1"></span><span class="dim">open ›</span></div>';
+    });
+    main.innerHTML =
+      '<div class="top"><span>Anonymous · team: ' + esc(Q.category) + "</span>" +
+      '<span style="flex:1"></span><span id="cnt">' + p.a + " of " + p.t + " answered</span></div>" +
+      progBar(p.a, p.t) +
+      '<div class="part"><span class="pn">Review</span><b>Ready to submit?</b>' +
+      '<div class="pd">Open any part to change an answer. Submitting is final — and anonymous.</div></div>' +
+      '<div class="card" style="padding:8px 10px">' + rows.join("") + "</div>" +
+      '<div class="navbar"><button class="btn" id="prev">← Back</button>' +
+      '<span class="err" id="err"></span><span style="flex:1"></span>' +
+      '<button class="go" id="submit">Submit</button></div>';
+    document.getElementById("prev").onclick = function () { step -= 1; paint(); window.scrollTo(0, 0); };
+    Array.prototype.forEach.call(main.querySelectorAll("[data-go]"), function (r) {
+      r.onclick = function () { step = +r.dataset.go; paint(); window.scrollTo(0, 0); };
+    });
+    document.getElementById("submit").onclick = function () {
+      var missing = [];
+      Q.questions.forEach(function (qq) {
+        if (qq.qtype === "section" || !qq.required) return;
+        var v = Q.answers[qq.id];
+        if (v == null || v === "" || (qq.qtype === "multi" && !safeArr(v).length)) missing.push(qq);
+      });
+      if (missing.length) {
+        var steps2 = buildSteps();
+        for (var i = 0; i < steps2.length; i++)
+          if (steps2[i].items.some(function (x) { return x.id === missing[0].id; })) { step = i; break; }
+        paint();
+        var first = main.querySelector('[data-qq="' + missing[0].id + '"]');
+        if (first) { first.classList.add("missb"); first.scrollIntoView({ block: "center" }); }
+        return;
+      }
+      var btn = document.getElementById("submit");
+      btn.disabled = true; btn.textContent = "Submitting…";
+      savePost({ submit: true }).then(function () {
+        Q.my_status = "submitted"; paint(); window.scrollTo(0, 0);
+      }, function (e) {
+        btn.disabled = false; btn.textContent = "Submit";
+        document.getElementById("err").textContent = e.message;
+      });
+    };
+  }
+
+  function save(qid, value) {
+    var key = String(qid);
+    var my = seq[key] = (seq[key] || 0) + 1;
+    var stored = Array.isArray(value) ? JSON.stringify(value) : value;
+    if (!(key in okv)) okv[key] = Q.answers[qid];
+    Q.answers[qid] = stored;
+    var sv = main.querySelector('[data-sv="' + qid + '"]');
+    if (sv) { sv.textContent = "saving…"; sv.style.color = "var(--faint)"; }
+    chain[key] = (chain[key] || Promise.resolve()).then(function () {
+      return savePost({ question_id: qid, value: value });
+    }).then(function () {
+      okv[key] = stored;
+      if (seq[key] !== my) return;
+      var sv2 = main.querySelector('[data-sv="' + qid + '"]');
+      if (sv2) { sv2.textContent = "saved"; sv2.style.color = "var(--pos)"; }
+      var steps = buildSteps(), p = counts(steps);
+      var pbi = document.getElementById("pbi"), cnt = document.getElementById("cnt");
+      if (pbi) pbi.style.width = (p.t ? Math.round(p.a / p.t * 100) : 0) + "%";
+      if (cnt) cnt.textContent = p.a + " of " + p.t + " answered";
+    }, function (e) {
+      if (seq[key] !== my) return;
+      Q.answers[qid] = okv[key];
+      var sv2 = main.querySelector('[data-sv="' + qid + '"]');
+      if (sv2) { sv2.textContent = "NOT saved — " + (e.message || e); sv2.style.color = "var(--neg)"; }
+    });
+  }
+
+  function wire() {
+    Array.prototype.forEach.call(main.querySelectorAll(".stars"), function (w) {
+      var qid = +w.dataset.q;
+      Array.prototype.forEach.call(w.querySelectorAll(".star"), function (b) {
+        b.onclick = function () {
+          save(qid, +b.dataset.s);
+          Array.prototype.forEach.call(w.querySelectorAll(".star"), function (s2) {
+            s2.classList.toggle("on", +s2.dataset.s <= +b.dataset.s);
+          });
+        };
+      });
+    });
+    Array.prototype.forEach.call(main.querySelectorAll("button[data-sc]"), function (b) {
+      b.onclick = function () {
+        save(+b.dataset.sc, +b.dataset.v);
+        var wrap = b.closest(".scale");
+        Array.prototype.forEach.call(wrap.querySelectorAll(".num"), function (x) {
+          x.classList.toggle("on", x === b);
+        });
+      };
+    });
+    Array.prototype.forEach.call(main.querySelectorAll('input[type="radio"][data-q]'), function (r) {
+      r.onchange = function () {
+        var card = r.closest(".q");
+        if (r.dataset.oth) {
+          var oi = card.querySelector("input[data-so]");
+          if (oi && oi.value.trim()) save(+r.dataset.q, "Other: " + oi.value.trim());
+          else if (oi) oi.focus();
+        } else save(+r.dataset.q, r.dataset.o);
+        Array.prototype.forEach.call(card.querySelectorAll(".choice"), function (c) {
+          c.classList.toggle("on", c.querySelector("input").checked);
+        });
+      };
+    });
+    Array.prototype.forEach.call(main.querySelectorAll("input[data-so]"), function (oi) {
+      var qid = +oi.dataset.so, tm = null;
+      var push = function () { if (oi.value.trim()) save(qid, "Other: " + oi.value.trim()); };
+      oi.oninput = function () {
+        var radio = oi.closest(".choice").querySelector("input[data-oth]");
+        if (radio && !radio.checked) { radio.checked = true; oi.closest(".choice").classList.add("on"); }
+        clearTimeout(tm); tm = setTimeout(push, 900);
+      };
+      oi.onblur = function () { clearTimeout(tm); push(); };
+    });
+    function multiVals(card) {
+      var vals = [];
+      Array.prototype.forEach.call(card.querySelectorAll("input[data-mq]:checked"), function (x) {
+        if (x.dataset.oth) {
+          var oi = card.querySelector("input[data-mo]");
+          if (oi && oi.value.trim()) vals.push("Other: " + oi.value.trim());
+        } else vals.push(x.dataset.o);
+      });
+      return vals;
+    }
+    Array.prototype.forEach.call(main.querySelectorAll("input[data-mq]"), function (c) {
+      c.onchange = function () {
+        var qid = +c.dataset.mq, card = c.closest(".q");
+        if (c.dataset.oth && c.checked) {
+          var oi = card.querySelector("input[data-mo]");
+          if (oi && !oi.value.trim()) { oi.focus(); return; }
+        }
+        save(qid, multiVals(card));
+        Array.prototype.forEach.call(card.querySelectorAll(".choice"), function (ch) {
+          ch.classList.toggle("on", ch.querySelector("input").checked);
+        });
+      };
+    });
+    Array.prototype.forEach.call(main.querySelectorAll("input[data-mo]"), function (oi) {
+      var qid = +oi.dataset.mo, tm = null, card = oi.closest(".q");
+      var push = function () {
+        var cb = oi.closest(".choice").querySelector("input[data-oth]");
+        if (cb && !cb.checked && oi.value.trim()) { cb.checked = true; oi.closest(".choice").classList.add("on"); }
+        if (oi.value.trim()) save(qid, multiVals(card));
+      };
+      oi.oninput = function () { clearTimeout(tm); tm = setTimeout(push, 900); };
+      oi.onblur = function () { clearTimeout(tm); push(); };
+    });
+    Array.prototype.forEach.call(main.querySelectorAll("select[data-dd]"), function (dd) {
+      var qid = +dd.dataset.dd;
+      var row = main.querySelector('[data-ddrow="' + qid + '"]');
+      dd.onchange = function () {
+        var v = dd.value;
+        if (v === OTH) {
+          if (row) { row.style.display = "flex"; row.querySelector("input").focus(); }
+          var oi = row && row.querySelector("input");
+          if (oi && oi.value.trim()) save(qid, "Other: " + oi.value.trim());
+        } else {
+          if (row) row.style.display = "none";
+          save(qid, v);
+        }
+      };
+    });
+    Array.prototype.forEach.call(main.querySelectorAll("input[data-ddo]"), function (oi) {
+      var qid = +oi.dataset.ddo, tm = null;
+      var push = function () { if (oi.value.trim()) save(qid, "Other: " + oi.value.trim()); };
+      oi.oninput = function () { clearTimeout(tm); tm = setTimeout(push, 900); };
+      oi.onblur = function () { clearTimeout(tm); push(); };
+    });
+    Array.prototype.forEach.call(main.querySelectorAll("textarea[data-t]"), function (ta) {
+      var qid = +ta.dataset.t, tm = null;
+      var ct = main.querySelector('[data-ct="' + qid + '"]');
+      var max = +ta.maxLength;
+      ta.oninput = function () {
+        if (ct) ct.textContent = ta.value.length + " / " + max;
+        clearTimeout(tm);
+        tm = setTimeout(function () { save(qid, ta.value); }, 900);
+      };
+      ta.onblur = function () { clearTimeout(tm); save(qid, ta.value); };
+    });
+  }
+
+  api().then(function (j) { Q = j; paint(); }, function (e) {
+    main.innerHTML = '<div class="card"><b>' + esc(e.message) + "</b>" +
+      '<div class="dim" style="margin-top:6px">If this keeps happening, ask for a fresh link.</div></div>';
+  });
+})();
+</script>
+</body>
+</html>

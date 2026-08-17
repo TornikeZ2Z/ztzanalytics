@@ -151,17 +151,30 @@ registerPage({
         ".hq-ins span{font-size:10.5px;font-weight:800;color:var(--brand);background:var(--brand-glow);border:1px solid var(--brand);border-radius:999px;padding:1px 11px;margin:0 9px;white-space:nowrap}",
         ".hq-ed.on{border-color:var(--brand);box-shadow:0 6px 22px rgba(0,0,0,.08)}",
         ".hq-drop-a{box-shadow:0 -3px 0 var(--brand)}",
-        // the anonymous-audience board: category columns, people drag between them
-        ".hq-anbrd{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin-top:12px}",
-        ".hq-ancol{background:var(--panel-2);border:1px solid var(--line);border-radius:13px;padding:9px 9px 12px;min-height:130px}",
-        ".hq-ancol.out{background:transparent;border-style:dashed}",
-        ".hq-ancol.over{border-color:var(--brand);background:var(--brand-glow)}",
-        ".hq-ancol h5{margin:2px 4px 8px;font-size:11px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);display:flex;gap:6px;align-items:center}",
-        ".hq-ancol h5 em{font-style:normal;color:var(--faint);font-weight:700}",
-        ".hq-anp{display:flex;gap:7px;align-items:center;background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:6px 9px;margin-bottom:5px;font-size:12.5px;font-weight:650;cursor:grab;user-select:none}",
-        ".hq-anp:active{cursor:grabbing}",
-        ".hq-anp .dt{width:7px;height:7px;border-radius:50%;flex:0 0 auto}",
-        ".hq-anp em{font-style:normal;color:var(--faint);font-size:10.5px;margin-left:auto;white-space:nowrap}",
+        // the anonymous-audience accordion: one team open at a time, X leaves someone out
+        ".hq-anr{border:1px solid var(--line);border-radius:13px;background:var(--panel);margin-top:8px;overflow:hidden}",
+        ".hq-anr .hd{display:flex;width:100%;box-sizing:border-box;align-items:center;gap:9px;padding:12px 15px;cursor:pointer;font:inherit;background:none;border:none;text-align:left;color:var(--ink)}",
+        ".hq-anr .hd b{font-size:13px;font-weight:800}",
+        ".hq-anr .hd .n{margin-left:auto;font-size:11px;font-weight:700;color:var(--muted);background:var(--panel-2);border:1px solid var(--line);border-radius:999px;padding:3px 10px;white-space:nowrap}",
+        ".hq-anr .hd .ch{color:var(--faint);font-size:11px;transition:transform .15s}",
+        ".hq-anr.on{border-color:var(--brand)}",
+        ".hq-anr.on .hd .ch{transform:rotate(180deg)}",
+        ".hq-anr .bd{border-top:1px solid var(--line);padding:8px 10px 10px;background:var(--panel-2)}",
+        ".hq-anr .gr{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:2px 12px}",
+        ".hq-anp2{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:9px;font-size:12.5px;font-weight:650;min-width:0}",
+        ".hq-anp2:hover{background:var(--panel)}",
+        ".hq-anp2 .dt{width:7px;height:7px;border-radius:50%;flex:0 0 auto}",
+        ".hq-anp2 .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-right:auto}",
+        ".hq-anp2 em{font-style:normal;color:var(--faint);font-size:10.5px;white-space:nowrap}",
+        ".hq-anp2 .x{flex:0 0 auto;width:22px;height:22px;border-radius:7px;border:1px solid var(--line);background:var(--panel);color:var(--muted);font-size:11px;font-weight:800;cursor:pointer;line-height:1;padding:0}",
+        ".hq-anp2 .x:hover{border-color:#c0392b;color:#c0392b}",
+        ".hq-anp2.off{opacity:.5}",
+        ".hq-anp2.off .x:hover{border-color:var(--brand);color:var(--brand)}",
+        ".hq-anadd{margin-top:8px;background:none;border:none;color:var(--brand);font-weight:700;font-size:12px;cursor:pointer;padding:4px 6px}",
+        ".hq-anpick{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:4px;margin-top:6px;max-height:190px;overflow:auto;padding:2px}",
+        ".hq-anpick .pk{display:flex;gap:8px;align-items:center;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:6px 9px;font-size:12px;font-weight:650;cursor:pointer;text-align:left;color:var(--ink)}",
+        ".hq-anpick .pk:hover{border-color:var(--brand)}",
+        ".hq-anpick .pk em{font-style:normal;color:var(--faint);font-size:10px;margin-left:auto;white-space:nowrap}",
         ".hq-anlk{display:flex;gap:10px;align-items:center;padding:9px 12px;border:1px solid var(--line);border-radius:10px;margin-bottom:7px;font-size:12.5px;background:var(--panel)}",
         ".hq-anlk b{white-space:nowrap}",
         ".hq-anlk code{flex:1;font-size:11px;color:var(--faint);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}",
@@ -969,10 +982,10 @@ registerPage({
         var locked2 = !!dis(true);
 
         if (kind === "anon_depts") {
-          // ANONYMOUS BY DEPARTMENT (his call 2026-08-18): every active person with an
-          // email starts in their team's column; drag anyone between teams or into
-          // "Not receiving". Each team gets its own anonymous link — the link carries
-          // the TEAM, submissions never carry the person.
+          // ANONYMOUS BY DEPARTMENT (his calls 2026-08-17): every active person with an
+          // email starts in their team; one team expands at a time, ✕ leaves a person
+          // out, "Move someone into this team" pulls them across. Each team gets its
+          // own anonymous link — the link carries the TEAM, never the person.
           var CATS = ["Helpers", "Drivers", "Foremen", "Sales Representatives",
                       "Support Team", "Other"];
           var defCat = function (p2) {
@@ -1001,49 +1014,82 @@ registerPage({
               people2.forEach(function (p2) { S.anonMap[p2.email] = defCat(p2); });
             }
             S.anonFor = q.id;
+            S.anonOpen = null;
+            S.anonAdd = null;
           }
-          var byEmail2 = {};
-          people2.forEach(function (p2) { byEmail2[p2.email] = p2; });
-          var cols = CATS.concat(["__out__"]);
-          el.innerHTML = '<div class="hq-dim" style="margin-bottom:2px">Drag people between '
-            + "teams — each team receives its own anonymous link. Drop someone on "
-            + "<b>Not receiving</b> to leave them out.</div>"
-            + '<div class="hq-anbrd">' + cols.map(function (cat2) {
-                var members = people2.filter(function (p2) { return S.anonMap[p2.email] === cat2; });
-                return '<div class="hq-ancol' + (cat2 === "__out__" ? " out" : "")
-                  + '" data-cat="' + esc(cat2) + '"><h5>'
-                  + (cat2 === "__out__" ? "Not receiving" : esc(cat2))
-                  + " <em>· " + members.length + "</em></h5>"
-                  + members.map(function (p2) {
-                      return '<div class="hq-anp" draggable="true" data-pe="' + esc(p2.email) + '">'
-                        + '<span class="dt" style="background:' + deptColor(p2.department) + '"></span>'
-                        + esc(p2.name || p2.email)
-                        + "<em>" + esc(p2.department || "") + "</em></div>";
-                    }).join("")
+          // an excluded person stays visible (muted) under their home team, one click away
+          var homeCat = function (p2) {
+            return S.anonMap[p2.email] === "__out__" ? defCat(p2) : S.anonMap[p2.email];
+          };
+          var recv = people2.filter(function (p2) {
+            return S.anonMap[p2.email] !== "__out__";
+          }).length;
+          var byName = function (a2, b2) {
+            return (a2.name || a2.email).localeCompare(b2.name || b2.email);
+          };
+          el.innerHTML = '<div class="hq-dim" style="margin-bottom:4px"><b>' + recv + " of "
+            + people2.length + "</b> people will receive their team's anonymous link."
+            + (locked2 ? "" : " Open a team to see the names — ✕ leaves someone out, + brings them back.")
+            + "</div>"
+            + CATS.map(function (cat2) {
+                var mine = people2.filter(function (p2) { return homeCat(p2) === cat2; }).sort(byName);
+                var nIn = mine.filter(function (p2) { return S.anonMap[p2.email] !== "__out__"; }).length;
+                var nOut = mine.length - nIn;
+                var open = S.anonOpen === cat2;
+                return '<div class="hq-anr' + (open ? " on" : "") + '" data-cat="' + esc(cat2) + '">'
+                  + '<button type="button" class="hd"><b>' + esc(cat2) + "</b>"
+                  + '<span class="n">' + nIn + " receiving" + (nOut ? " · " + nOut + " out" : "") + "</span>"
+                  + '<span class="ch">▾</span></button>'
+                  + (!open ? "" : '<div class="bd"><div class="gr">'
+                      + mine.map(function (p2) {
+                          var outNow = S.anonMap[p2.email] === "__out__";
+                          return '<div class="hq-anp2' + (outNow ? " off" : "") + '" data-pe="' + esc(p2.email) + '">'
+                            + '<span class="dt" style="background:' + deptColor(p2.department) + '"></span>'
+                            + '<span class="nm">' + esc(p2.name || p2.email) + "</span>"
+                            + (p2.department && p2.department !== cat2 ? "<em>" + esc(p2.department) + "</em>" : "")
+                            + (locked2 ? "" : '<button type="button" class="x" title="'
+                               + (outNow ? "Include again" : "Leave out") + '">' + (outNow ? "+" : "✕") + "</button>")
+                            + "</div>";
+                        }).join("") + "</div>"
+                      + (locked2 ? "" : '<button type="button" class="hq-anadd" data-add="' + esc(cat2)
+                          + '">+ Move someone into this team…</button>'
+                          + (S.anonAdd !== cat2 ? "" : '<div class="hq-anpick">'
+                              + people2.filter(function (p2) { return homeCat(p2) !== cat2; }).sort(byName)
+                                  .map(function (p2) {
+                                    return '<button type="button" class="pk" data-pk="' + esc(p2.email) + '">'
+                                      + esc(p2.name || p2.email) + "<em>" + esc(homeCat(p2)) + "</em></button>";
+                                  }).join("") + "</div>"))
+                      + "</div>")
                   + "</div>";
-              }).join("") + "</div>"
+              }).join("")
             + '<div id="hqAnLinks" style="margin-top:14px"></div>';
+          el.querySelectorAll(".hq-anr > .hd").forEach(function (hd2) {
+            hd2.onclick = function () {
+              var c3 = hd2.parentElement.dataset.cat;
+              S.anonOpen = S.anonOpen === c3 ? null : c3;
+              S.anonAdd = null;
+              paintAudVals();
+            };
+          });
           if (!locked2) {
-            var dragEmail = [null];
-            el.querySelectorAll(".hq-anp").forEach(function (chip) {
-              chip.ondragstart = function (e2) {
-                dragEmail[0] = chip.dataset.pe;
-                e2.dataTransfer.effectAllowed = "move";
-                chip.style.opacity = ".45";
+            el.querySelectorAll(".hq-anp2 .x").forEach(function (bx) {
+              bx.onclick = function () {
+                var row2 = bx.closest(".hq-anp2");
+                var cat3 = row2.closest(".hq-anr").dataset.cat;
+                var em3 = row2.dataset.pe;
+                S.anonMap[em3] = S.anonMap[em3] === "__out__" ? cat3 : "__out__";
+                markDirty(); paintAudVals();
               };
-              chip.ondragend = function () { chip.style.opacity = ""; };
             });
-            el.querySelectorAll(".hq-ancol").forEach(function (col) {
-              col.ondragover = function (e2) {
-                if (dragEmail[0] == null) return;
-                e2.preventDefault(); col.classList.add("over");
+            el.querySelectorAll(".hq-anadd").forEach(function (ba) {
+              ba.onclick = function () {
+                S.anonAdd = S.anonAdd === ba.dataset.add ? null : ba.dataset.add;
+                paintAudVals();
               };
-              col.ondragleave = function () { col.classList.remove("over"); };
-              col.ondrop = function (e2) {
-                e2.preventDefault(); col.classList.remove("over");
-                if (dragEmail[0] == null) return;
-                S.anonMap[dragEmail[0]] = col.dataset.cat;
-                dragEmail[0] = null;
+            });
+            el.querySelectorAll(".hq-anpick .pk").forEach(function (pk) {
+              pk.onclick = function () {
+                S.anonMap[pk.dataset.pk] = S.anonAdd;
                 markDirty(); paintAudVals();
               };
             });
