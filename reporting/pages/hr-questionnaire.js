@@ -133,6 +133,25 @@ registerPage({
         ".hq-ddi b{display:block;font-size:13.5px;line-height:1.25}",
         ".hq-ddi em{display:block;font-style:normal;font-size:11.5px;color:var(--faint);margin-top:1px}",
         ".hq-ddsep{height:1px;background:var(--line);margin:5px 9px}",
+        // the modern flow: compact rows, insert zones, drag indicators
+        ".hq-qr{display:flex;gap:12px;align-items:center;padding:12px 16px;border:1px solid var(--line);border-radius:14px;background:var(--panel);cursor:pointer;transition:border-color .12s;margin-bottom:9px}",
+        ".hq-qr:hover{border-color:var(--brand)}",
+        ".hq-qr.sect2{border-left:4px solid var(--brand)}",
+        ".hq-qr.sect2 .lb{font-size:15.5px}",
+        ".hq-qr .lb{flex:1;font-weight:750;font-size:14.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}",
+        ".hq-qr .lb.em{color:var(--faint);font-weight:600}",
+        ".hq-qr .ty{display:inline-flex;gap:7px;align-items:center;font-size:11.5px;font-weight:700;color:var(--faint);white-space:nowrap}",
+        ".hq-qr .ty .ic{color:var(--brand);font-size:11px}",
+        ".hq-qr .rq{width:7px;height:7px;border-radius:50%;background:var(--brand);flex:0 0 auto}",
+        ".hq-grip{color:var(--line-2);cursor:grab;font-size:15px;flex:0 0 auto;user-select:none}",
+        ".hq-grip:hover{color:var(--muted)}",
+        ".hq-ins{height:15px;margin:-7px 0 -2px;display:flex;align-items:center;opacity:0;transition:opacity .12s;cursor:pointer}",
+        ".hq-ins:hover{opacity:1}",
+        ".hq-ins i{flex:1;height:1px;background:var(--brand)}",
+        ".hq-ins span{font-size:10.5px;font-weight:800;color:var(--brand);background:var(--brand-glow);border:1px solid var(--brand);border-radius:999px;padding:1px 11px;margin:0 9px;white-space:nowrap}",
+        ".hq-ed.on{border-color:var(--brand);box-shadow:0 6px 22px rgba(0,0,0,.08)}",
+        ".hq-drop-a{box-shadow:0 -3px 0 var(--brand)}",
+        ".hq-drop-b{box-shadow:0 3px 0 var(--brand)}",
         ".hq-ed.sect .lbl{font-size:16px}",
         ".hq-ed .num{width:27px;height:27px;border-radius:9px;background:var(--panel-2);color:var(--muted);font-weight:800;font-size:12.5px;display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto}",
         // quiet fields: invisible until touched — the form-builder look
@@ -308,7 +327,7 @@ registerPage({
     }
     // Abandoning edits must clear the draft TOO, not just the flag — a kept draft
     // resurrects the "lost" edits on the next visit, labeled "saved".
-    function discardDraft() { S.dirty = false; S.draft = null; S.draftFor = null; }
+    function discardDraft() { S.dirty = false; S.draft = null; S.draftFor = null; S.qFocus = null; }
 
     // ONE promise-shaped confirmation surface for the whole page. opts: t (title),
     // b (body, trusted page-authored HTML), yes/no labels, danger (red confirm).
@@ -564,97 +583,159 @@ registerPage({
           return { qkey: x.qkey, label: x.label, description: x.description || "",
                    qtype: x.qtype, options: (x.options || []).slice(), required: x.required };
         });
-        S.draftFor = q.id; S.dirty = false;
+        S.draftFor = q.id; S.dirty = false; S.qFocus = null;
       }
       var d = S.draft;
+      var sy = window.scrollY;      // a repaint must not teleport the page
+
       var html = locked
         ? '<div class="hq-dim" style="margin-bottom:12px">Questions are locked on a '
           + esc(q.status) + " questionnaire — answers already point at these exact words. "
-          + (canM ? "Use <b>New version</b> to change them going forward." : "") + "</div>"
-        : '<div class="hq-dim" style="margin-bottom:12px">Everything saves as ONE form — '
-          + "edit freely, then press Save. A question removed here is retired, never deleted.</div>";
+          + (canM ? "Use <b>New version</b> to change them going forward. " : "")
+          + "Click a question to read all of it.</div>"
+        : '<div class="hq-dim" style="margin-bottom:12px">Click a question to edit it, drag '
+          + "the ⠿ handle to move it, hover between questions to insert one right there. "
+          + "Everything saves with the one <b>Save</b> button on top.</div>";
+
+      var ins = function (at) {
+        return locked ? "" : '<div class="hq-ins" data-ins="' + at
+          + '"><i></i><span>+ insert here</span><i></i></div>';
+      };
+
       var qn = 0;
       html += d.map(function (item, i) {
-        var dis = locked ? " disabled" : "";
         var sect = item.qtype === "section";
         if (!sect) qn += 1;
-        var extra = "";
-        if (CHOICE_T[item.qtype]) {
-          var lines = (item.options || []).filter(function (o) { return o !== OTH; });
-          var hasOth = (item.options || []).indexOf(OTH) >= 0;
-          extra = '<textarea class="hq-flda hq-opts" data-f="options" style="margin-left:37px;width:calc(100% - 37px)" placeholder="One choice per line — at least 2"' + dis + ">"
-            + esc(lines.join("\n")) + "</textarea>"
-            + '<label class="hq-reqt" style="margin:6px 0 0 37px" title="Adds an Other… choice where people type their own answer">'
-            + '<input type="checkbox" data-f="oth"' + (hasOth ? " checked" : "") + dis + ">"
-            + '<span class="hq-tgl"></span><span class="rt">allow “Other…”</span></label>';
-        } else if (item.qtype === "scale") {
-          var so = item.options || [];
-          var lo = parseInt(so[0], 10); if (isNaN(lo)) lo = 1;
-          var hi = parseInt(so[1], 10); if (isNaN(hi)) hi = 5;
-          var selN = function (f, val, from, to) {
-            var s = '<select class="hq-sel" data-f="' + f + '"' + dis + ">";
-            for (var n2 = from; n2 <= to; n2++)
-              s += '<option value="' + n2 + '"' + (n2 === val ? " selected" : "") + ">" + n2 + "</option>";
-            return s + "</select>";
-          };
-          extra = '<div class="hq-row" style="margin:8px 0 2px 37px;gap:9px;font-size:13px;color:var(--muted)">'
-            + "From " + selN("sc_lo", lo, 0, 1) + " to " + selN("sc_hi", hi, 2, 10)
-            + '<input class="hq-fld bx" style="max-width:200px" data-f="sc_l1" value="' + esc(so[2] || "") + '" placeholder="Label for the low end…"' + dis + ">"
-            + '<input class="hq-fld bx" style="max-width:200px" data-f="sc_l2" value="' + esc(so[3] || "") + '" placeholder="Label for the high end…"' + dis + ">"
+        var myn = qn;
+        var row;
+        if (i === S.qFocus) {
+          // ---------- the ONE expanded, editable card ----------
+          var dis = locked ? " disabled" : "";
+          var extra = "";
+          if (CHOICE_T[item.qtype]) {
+            var lines = (item.options || []).filter(function (o) { return o !== OTH; });
+            var hasOth = (item.options || []).indexOf(OTH) >= 0;
+            extra = '<textarea class="hq-flda hq-opts" data-f="options" style="margin-left:37px;width:calc(100% - 37px)" placeholder="One choice per line — at least 2"' + dis + ">"
+              + esc(lines.join("\n")) + "</textarea>"
+              + '<label class="hq-reqt" style="margin:6px 0 0 37px" title="Adds an Other… choice where people type their own answer">'
+              + '<input type="checkbox" data-f="oth"' + (hasOth ? " checked" : "") + dis + ">"
+              + '<span class="hq-tgl"></span><span class="rt">allow “Other…”</span></label>';
+          } else if (item.qtype === "scale") {
+            var so = item.options || [];
+            var lo = parseInt(so[0], 10); if (isNaN(lo)) lo = 1;
+            var hi = parseInt(so[1], 10); if (isNaN(hi)) hi = 5;
+            var selN = function (f, val, from, to) {
+              var s = '<select class="hq-sel" data-f="' + f + '"' + dis + ">";
+              for (var n2 = from; n2 <= to; n2++)
+                s += '<option value="' + n2 + '"' + (n2 === val ? " selected" : "") + ">" + n2 + "</option>";
+              return s + "</select>";
+            };
+            extra = '<div class="hq-row" style="margin:8px 0 2px 37px;gap:9px;font-size:13px;color:var(--muted)">'
+              + "From " + selN("sc_lo", lo, 0, 1) + " to " + selN("sc_hi", hi, 2, 10)
+              + '<input class="hq-fld bx" style="max-width:200px" data-f="sc_l1" value="' + esc(so[2] || "") + '" placeholder="Label for the low end…"' + dis + ">"
+              + '<input class="hq-fld bx" style="max-width:200px" data-f="sc_l2" value="' + esc(so[3] || "") + '" placeholder="Label for the high end…"' + dis + ">"
+              + "</div>";
+          }
+          row = '<div class="hq-ed on' + (sect ? " sect" : "") + '" data-i="' + i + '"><div class="top">'
+            + (sect ? '<span class="num" style="background:var(--brand-glow);color:var(--brand)">§</span>'
+                    : '<span class="num">' + myn + "</span>")
+            + '<input class="hq-fld lbl" data-f="label" value="' + esc(item.label) + '" placeholder="'
+            + (sect ? "Name this section…" : "Write the question, as the employee reads it…") + '"' + dis + ">"
+            + (locked
+                ? '<span class="hq-ddb" style="cursor:default;opacity:.75"><span class="ic">'
+                  + TYPE_META[item.qtype].ic + "</span>" + TYPE_LABEL[item.qtype] + "</span>"
+                : '<div class="hq-dd" data-dd="' + i + '"><button type="button" class="hq-ddb">'
+                  + '<span class="ic">' + TYPE_META[item.qtype].ic + "</span>" + TYPE_LABEL[item.qtype]
+                  + '<span class="car">▼</span></button></div>')
+            + (sect ? "" : '<label class="hq-reqt" title="Must be answered before submitting">'
+                + '<input type="checkbox" data-f="required"' + (item.required ? " checked" : "") + dis + ">"
+                + '<span class="hq-tgl"></span><span class="rt">required</span></label>')
+            + (locked ? "" : '<button class="hq-x" data-dup title="Duplicate" style="font-size:13px">⧉</button>'
+                + '<button class="hq-x" data-rm title="Remove">✕</button>')
+            + "</div>"
+            + '<input class="hq-fld dsc" data-f="description" value="' + esc(item.description) + '" placeholder="'
+            + (sect ? "Add a short intro under the section title (optional)…"
+                    : "Add help text under the question (optional)…") + '"' + dis + ">"
+            + extra
+            + "</div>";
+        } else {
+          // ---------- a compact, scannable row ----------
+          var lbl = item.label ? esc(item.label) : (sect ? "Untitled section" : "Untitled question");
+          row = '<div class="hq-qr' + (sect ? " sect2" : "") + '" data-row="' + i + '">'
+            + (locked ? "" : '<span class="hq-grip" title="Drag to reorder">⠿</span>')
+            + (sect ? '<span class="num" style="background:var(--brand-glow);color:var(--brand)">§</span>'
+                    : '<span class="num">' + myn + "</span>")
+            + '<span class="lb' + (item.label ? "" : " em") + '">' + lbl + "</span>"
+            + (sect ? "" : '<span class="ty"><span class="ic">' + TYPE_META[item.qtype].ic + "</span>"
+                + TYPE_LABEL[item.qtype] + "</span>")
+            + (!sect && item.required ? '<span class="rq" title="Required"></span>' : "")
             + "</div>";
         }
-        return '<div class="hq-ed' + (sect ? " sect" : "") + '" data-i="' + i + '"><div class="top">'
-          + (sect ? '<span class="num" style="background:var(--brand-glow);color:var(--brand)">§</span>'
-                  : '<span class="num">' + qn + "</span>")
-          + '<input class="hq-fld lbl" data-f="label" value="' + esc(item.label) + '" placeholder="'
-          + (sect ? "Name this section…" : "Write the question, as the employee reads it…") + '"' + dis + ">"
-          + (locked
-              ? '<span class="hq-ddb" style="cursor:default;opacity:.75"><span class="ic">'
-                + TYPE_META[item.qtype].ic + "</span>" + TYPE_LABEL[item.qtype] + "</span>"
-              : '<div class="hq-dd" data-dd="' + i + '"><button type="button" class="hq-ddb">'
-                + '<span class="ic">' + TYPE_META[item.qtype].ic + "</span>" + TYPE_LABEL[item.qtype]
-                + '<span class="car">▼</span></button></div>')
-          + (sect ? "" : '<label class="hq-reqt" title="Must be answered before submitting">'
-              + '<input type="checkbox" data-f="required"' + (item.required ? " checked" : "") + dis + ">"
-              + '<span class="hq-tgl"></span><span class="rt">required</span></label>')
-          + '<div class="mv"><button data-mv="up" title="Move up"' + (i === 0 ? " disabled" : "") + '>▲</button>'
-          + '<button data-mv="dn" title="Move down"' + (i === d.length - 1 ? " disabled" : "") + '>▼</button></div>'
-          + (locked ? "" : '<button class="hq-x" data-rm title="Remove this question">✕</button>')
-          + "</div>"
-          + '<input class="hq-fld dsc" data-f="description" value="' + esc(item.description) + '" placeholder="'
-          + (sect ? "Add a short intro under the section title (optional)…"
-                  : "Add help text under the question (optional)…") + '"' + dis + ">"
-          + extra
-          + "</div>";
-      }).join("");
+        return ins(i) + row;
+      }).join("") + ins(d.length);
+
       if (!locked) {
         var nQ = d.filter(function (x) { return x.qtype !== "section"; }).length;
         html += '<div class="hq-stickybar"><button class="hq-btn" id="hqAdd">+ Add a question</button>'
+          + '<button class="hq-btn" id="hqAddSec">+ Add a section</button>'
           + '<span class="hq-dim">' + nQ + " question" + (nQ === 1 ? "" : "s")
           + ' · <span id="hqDirty">' + (S.dirty ? "unsaved changes" : "saved") + "</span></span>"
           + '<span style="flex:1"></span>'
           + '<span class="hq-dim">the Save button on top saves everything at once</span></div>';
       }
       body.innerHTML = html;
-      if (locked) return;
+      window.scrollTo(0, sy);
+
+      var focusLbl = function () {
+        var el = body.querySelector('.hq-ed[data-i="' + S.qFocus + '"] .lbl');
+        if (el) {
+          el.focus({ preventScroll: true });
+          el.closest(".hq-ed").scrollIntoView({ block: "nearest" });
+        }
+      };
+
+      // compact rows expand on click
+      body.querySelectorAll(".hq-qr").forEach(function (row) {
+        row.onclick = function (e) {
+          if (e.target.classList.contains("hq-grip")) return;
+          S.qFocus = +row.dataset.row;
+          paintQuestions(body, q, canM);
+          focusLbl();
+        };
+      });
+
+      if (locked) {
+        var mark0 = null; // nothing below applies
+        return;
+      }
       var mark = function () { S.dirty = true; var el = body.querySelector("#hqDirty"); if (el) el.textContent = "unsaved changes"; };
+
+      var insertAt = function (at, item) {
+        d.splice(at, 0, item);
+        S.qFocus = at; mark(); paintQuestions(body, q, canM); focusLbl();
+      };
+      body.querySelectorAll("[data-ins]").forEach(function (z) {
+        z.onclick = function () {
+          insertAt(+z.dataset.ins,
+            { qkey: null, label: "", description: "", qtype: "stars5", options: [], required: false });
+        };
+      });
+
+      // ---- the expanded card's inputs ----
       body.querySelectorAll(".hq-ed").forEach(function (row) {
         var i = +row.dataset.i;
         row.querySelectorAll("[data-f]").forEach(function (inp) {
           var f = inp.dataset.f;
           var syncOpts = function () {
-            // choice lists: the textarea lines + the Other toggle build item.options
-            var row2 = body.querySelector('.hq-ed[data-i="' + i + '"]');
-            var ta = row2 && row2.querySelector('[data-f="options"]');
-            var ot = row2 && row2.querySelector('[data-f="oth"]');
+            var ta = row.querySelector('[data-f="options"]');
+            var ot = row.querySelector('[data-f="oth"]');
             var lines2 = ta ? ta.value.split("\n").map(function (s) { return s.trim(); }).filter(Boolean) : [];
             lines2 = lines2.filter(function (o) { return o !== OTH; });
             if (ot && ot.checked) lines2.push(OTH);
             d[i].options = lines2;
           };
           var syncScale = function () {
-            var row2 = body.querySelector('.hq-ed[data-i="' + i + '"]');
-            var gv = function (f2) { var el2 = row2 && row2.querySelector('[data-f="' + f2 + '"]'); return el2 ? el2.value : ""; };
+            var gv = function (f2) { var el2 = row.querySelector('[data-f="' + f2 + '"]'); return el2 ? el2.value : ""; };
             d[i].options = [gv("sc_lo") || "1", gv("sc_hi") || "5",
                             gv("sc_l1").trim(), gv("sc_l2").trim()];
           };
@@ -670,17 +751,20 @@ registerPage({
               if (f === "oth") syncOpts(); else syncScale();
               mark();
             };
-
-        });
-        row.querySelectorAll("[data-mv]").forEach(function (b) {
-          b.onclick = function () {
-            var j = b.dataset.mv === "up" ? i - 1 : i + 1;
-            var t = d[i]; d[i] = d[j]; d[j] = t; mark(); paintQuestions(body, q, canM);
-          };
         });
         var rm = row.querySelector("[data-rm]");
-        if (rm) rm.onclick = function () { d.splice(i, 1); mark(); paintQuestions(body, q, canM); };
+        if (rm) rm.onclick = function () {
+          d.splice(i, 1); S.qFocus = null; mark(); paintQuestions(body, q, canM);
+        };
+        var dup = row.querySelector("[data-dup]");
+        if (dup) dup.onclick = function () {
+          insertAt(i + 1, { qkey: null, label: d[i].label, description: d[i].description,
+                            qtype: d[i].qtype, options: (d[i].options || []).slice(),
+                            required: d[i].required });
+        };
       });
+
+      // ---- the type picker menu ----
       body.querySelectorAll(".hq-dd").forEach(function (dd) {
         var i2 = +dd.dataset.dd;
         dd.querySelector(".hq-ddb").onclick = function (e) {
@@ -707,7 +791,7 @@ registerPage({
               if (t === "scale") d[i2].options = ["1", "5", "", ""];
               else if (t === "section") { d[i2].options = []; d[i2].required = false; }
               else if (!CHOICE_T[t]) d[i2].options = [];
-              mark(); paintQuestions(body, q, canM);
+              mark(); paintQuestions(body, q, canM); focusLbl();
             };
           });
         };
@@ -718,11 +802,58 @@ registerPage({
           document.querySelectorAll(".hq-ddm").forEach(function (m) { m.remove(); });
         });
       }
-      body.querySelector("#hqAdd").onclick = function () {
-        d.push({ qkey: null, label: "", description: "", qtype: "stars5", options: [], required: false });
-        mark(); paintQuestions(body, q, canM);
-        var rows = body.querySelectorAll(".hq-ed .lbl"); rows[rows.length - 1].focus();
+
+      // ---- drag to reorder (grab the ⠿, drop above/below any row) ----
+      var dragI = null, dropAt = null;
+      var clearMarks = function () {
+        body.querySelectorAll(".hq-drop-a,.hq-drop-b").forEach(function (r) {
+          r.classList.remove("hq-drop-a", "hq-drop-b");
+        });
       };
+      body.querySelectorAll(".hq-qr").forEach(function (row) {
+        var grip = row.querySelector(".hq-grip");
+        if (!grip) return;
+        grip.onmousedown = function () { row.draggable = true; };
+        row.ondragstart = function (e) {
+          dragI = +row.dataset.row; e.dataTransfer.effectAllowed = "move";
+          row.style.opacity = ".45";
+        };
+        row.ondragend = function () {
+          row.draggable = false; row.style.opacity = ""; clearMarks(); dragI = null;
+        };
+      });
+      body.querySelectorAll(".hq-qr,.hq-ed").forEach(function (row) {
+        row.ondragover = function (e) {
+          if (dragI == null) return;
+          e.preventDefault();
+          var r = row.getBoundingClientRect();
+          var before = e.clientY < r.top + r.height / 2;
+          clearMarks();
+          row.classList.add(before ? "hq-drop-a" : "hq-drop-b");
+          dropAt = { i: +(row.dataset.row != null ? row.dataset.row : row.dataset.i), before: before };
+        };
+        row.ondrop = function (e) {
+          e.preventDefault();
+          if (dragI == null || !dropAt) return;
+          var to = dropAt.i + (dropAt.before ? 0 : 1);
+          if (dragI < to) to--;
+          if (to !== dragI) {
+            var it = d.splice(dragI, 1)[0];
+            d.splice(to, 0, it);
+            S.qFocus = null; mark();
+          }
+          dragI = null; dropAt = null;
+          paintQuestions(body, q, canM);
+        };
+      });
+
+      body.querySelector("#hqAdd").onclick = function () {
+        insertAt(d.length, { qkey: null, label: "", description: "", qtype: "stars5", options: [], required: false });
+      };
+      body.querySelector("#hqAddSec").onclick = function () {
+        insertAt(d.length, { qkey: null, label: "", description: "", qtype: "section", options: [], required: false });
+      };
+
       HOOKS.questions = function () {
         if (!d.length) return null;                    // a fresh draft: nothing to save yet
         // `taken` must include RETIRED server-side keys too (q.questions has them all):
