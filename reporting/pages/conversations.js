@@ -104,7 +104,16 @@ const CONV = (() => {
     try {
       const r = await ZTZ.api("/api/_convsearch?q=" + encodeURIComponent(S.q));
       S.leads = (r && r.leads) || [];
-    } catch (e) { S.err = String(e && e.message || e); S.leads = []; }
+    } catch (e) {
+      const raw = String(e && e.message || e);
+      // The mart is rebuilt by the nightly run; between a fresh deploy and that run the
+      // table can legitimately not exist yet. Say so in English instead of showing a
+      // MySQL 1146 to a salesperson.
+      S.err = /doesn't exist|1146/i.test(raw)
+        ? "Conversations are still being assembled — this fills in after the next data refresh."
+        : raw;
+      S.leads = [];
+    }
     S.busy = false; paintSide(host);
   }
 

@@ -180,13 +180,6 @@ registerPage({
         ".hq-anlk code{flex:1;font-size:11px;color:var(--faint);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}",
         ".hq-drop-b{box-shadow:0 3px 0 var(--brand)}",
         ".hq-ed.sect .lbl{font-size:16px}",
-        // the Georgian twin of whatever sits above it
-        ".hq-ka{margin:9px 0 0 37px;border-left:3px solid var(--brand);background:var(--brand-glow);border-radius:0 10px 10px 0;padding:9px 12px}",
-        ".hq-ka .kah{font-size:10.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--brand);margin-bottom:6px}",
-        ".hq-ka .kah em{font-style:normal;color:var(--faint);font-weight:700;text-transform:none;letter-spacing:0;margin-left:7px}",
-        ".hq-ka input,.hq-ka textarea{width:100%;box-sizing:border-box;background:var(--panel)}",
-        ".hq-ka .two{display:flex;gap:8px;margin-top:6px}",
-        ".hq-kaw{margin-top:12px;border-left:3px solid var(--brand);background:var(--brand-glow);border-radius:0 12px 12px 0;padding:12px 15px}",
         ".hq-ed .num{width:27px;height:27px;border-radius:9px;background:var(--panel-2);color:var(--muted);font-weight:800;font-size:12.5px;display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto}",
         // quiet fields: invisible until touched — the form-builder look
         ".hq-fld,.hq-flda{font:inherit;font-size:14px;color:var(--ink);background:transparent;border:1px solid transparent;border-radius:9px;padding:8px 11px;transition:background .12s,border-color .12s;box-sizing:border-box}",
@@ -621,8 +614,7 @@ registerPage({
       if (!S.draft || S.draftFor !== q.id) {
         S.draft = q.questions.filter(function (x) { return x.active; }).map(function (x) {
           return { qkey: x.qkey, label: x.label, description: x.description || "",
-                   qtype: x.qtype, options: (x.options || []).slice(), required: x.required,
-                   i18n: x.i18n ? JSON.parse(JSON.stringify(x.i18n)) : null };
+                   qtype: x.qtype, options: (x.options || []).slice(), required: x.required };
         });
         S.draftFor = q.id; S.dirty = false; S.qFocus = null;
       }
@@ -698,36 +690,6 @@ registerPage({
             + (sect ? "Add a short intro under the section title (optional)…"
                     : "Add help text under the question (optional)…") + '"' + dis + ">"
             + extra
-            + (function () {
-                // GEORGIAN (his ask 2026-08-17): the twin of every word above. Choices are
-                // typed line-for-line against the English list and stored keyed by the
-                // ENGLISH text, so reordering can never re-point a translation.
-                var ka = (item.i18n && item.i18n.ka) || {};
-                var engLines = (item.options || []).filter(function (o) { return o !== OTH; });
-                var kaLines = engLines.map(function (o) { return (ka.opt && ka.opt[o]) || ""; });
-                var box = '<div class="hq-ka"><div class="kah">ქართული'
-                  + "<em>" + (sect ? "the section title as the team reads it"
-                                   : "what the team actually reads") + "</em></div>"
-                  + '<input class="hq-fld bx" data-f="ka_label" value="' + esc(ka.label || "")
-                  + '" placeholder="' + (sect ? "სექციის სათაური…" : "კითხვა ქართულად…") + '"' + dis + ">"
-                  + '<input class="hq-fld bx" style="margin-top:6px" data-f="ka_description" value="'
-                  + esc(ka.description || "") + '" placeholder="დამატებითი ტექსტი (არასავალდებულო)…"' + dis + ">";
-                if (CHOICE_T[item.qtype]) {
-                  box += '<textarea class="hq-flda" style="margin-top:6px" data-f="ka_options" '
-                    + 'placeholder="თითო პასუხი თითო ხაზზე — ზუსტად იმავე რიგით, რაც ზემოთ"' + dis + ">"
-                    + esc(kaLines.join("\n")) + "</textarea>"
-                    + ((item.options || []).indexOf(OTH) >= 0
-                        ? '<input class="hq-fld bx" style="margin-top:6px" data-f="ka_other" value="'
-                          + esc(ka.other || "") + '" placeholder="„სხვა…“ ქართულად"' + dis + ">"
-                        : "");
-                } else if (item.qtype === "scale") {
-                  box += '<div class="two"><input class="hq-fld bx" data-f="ka_lo" value="'
-                    + esc(ka.lo || "") + '" placeholder="დაბალი ბოლოს წარწერა…"' + dis + ">"
-                    + '<input class="hq-fld bx" data-f="ka_hi" value="' + esc(ka.hi || "")
-                    + '" placeholder="მაღალი ბოლოს წარწერა…"' + dis + "></div>";
-                }
-                return box + "</div>";
-              })()
             + "</div>";
         } else {
           // ---------- a compact, scannable row ----------
@@ -810,33 +772,8 @@ registerPage({
             d[i].options = [gv("sc_lo") || "1", gv("sc_hi") || "5",
                             gv("sc_l1").trim(), gv("sc_l2").trim()];
           };
-          // the Georgian side writes into item.i18n.ka; an emptied field removes its key,
-          // and an emptied block removes the language, so "no translation" stays truly absent
-          var syncKa = function () {
-            var ka = {};
-            var gv = function (f2) {
-              var el2 = row.querySelector('[data-f="' + f2 + '"]');
-              return el2 ? el2.value.trim() : "";
-            };
-            if (gv("ka_label")) ka.label = gv("ka_label");
-            if (gv("ka_description")) ka.description = gv("ka_description");
-            if (gv("ka_lo")) ka.lo = gv("ka_lo");
-            if (gv("ka_hi")) ka.hi = gv("ka_hi");
-            if (gv("ka_other")) ka.other = gv("ka_other");
-            var kt = row.querySelector('[data-f="ka_options"]');
-            if (kt) {
-              // zip the Georgian lines onto the ENGLISH choices, in order
-              var eng = (d[i].options || []).filter(function (o) { return o !== OTH; });
-              var kal = kt.value.split("\n").map(function (x2) { return x2.trim(); });
-              var opt = {};
-              eng.forEach(function (o, oi) { if (kal[oi]) opt[o] = kal[oi]; });
-              if (Object.keys(opt).length) ka.opt = opt;
-            }
-            d[i].i18n = Object.keys(ka).length ? { ka: ka } : null;
-          };
           inp.oninput = function () {
-            if (f.indexOf("ka_") === 0) syncKa();
-            else if (f === "options" || f === "oth") { syncOpts(); syncKa(); }
+            if (f === "options" || f === "oth") syncOpts();
             else if (f.indexOf("sc_") === 0) syncScale();
             else if (f === "required") d[i].required = inp.checked;
             else d[i][f] = inp.value;
@@ -856,8 +793,7 @@ registerPage({
         if (dup) dup.onclick = function () {
           insertAt(i + 1, { qkey: null, label: d[i].label, description: d[i].description,
                             qtype: d[i].qtype, options: (d[i].options || []).slice(),
-                            required: d[i].required,
-                            i18n: d[i].i18n ? JSON.parse(JSON.stringify(d[i].i18n)) : null });
+                            required: d[i].required });
         };
       });
 
@@ -960,8 +896,7 @@ registerPage({
         var payload = d.map(function (x) {
           if (!x.qkey) { x.qkey = slugify(x.label, taken); taken.add(x.qkey); }
           return { qkey: x.qkey, label: x.label, description: x.description,
-                   qtype: x.qtype, options: x.options, required: x.required,
-                   i18n: x.i18n || null };
+                   qtype: x.qtype, options: x.options, required: x.required };
         });
         for (var pi = 0; pi < payload.length; pi++) {
           if (!payload[pi].label.trim()) throw new Error("Question " + (pi + 1) + " needs a label");
@@ -992,7 +927,6 @@ registerPage({
       var dis = function (also) { return (!canM || !(draft || (q.status === "published" && also))) ? " disabled" : ""; };
       var depts = {};
       (S.roster || []).forEach(function (p) { if (p.department && p.status === "active") depts[p.department] = 1; });
-      var kaW = (q.i18n && q.i18n.ka) || {};
       var audSig = function (k, arr) { return k + "|" + arr.slice().sort().join(","); };
       var aud0 = audSig(q.audience_kind, (q.audience_values || []).map(function (v) { return String(v).toLowerCase(); }));
       body.innerHTML =
@@ -1003,12 +937,6 @@ registerPage({
         + '<div class="hq-field"><label class="hq-lab">Description (shown on the card)</label><textarea class="hq-flda bx" id="hsDesc"' + dis() + ">" + esc(q.description || "") + "</textarea></div>"
         + '<div class="hq-field"><label class="hq-lab">Instructions (shown above the questions)</label><textarea class="hq-flda bx" id="hsInstr"' + dis() + ">" + esc(q.instructions || "") + "</textarea></div>"
         + '<div class="hq-field full"><label class="hq-lab">Confidentiality note (always visible to the employee)</label><textarea class="hq-flda bx" id="hsConf"' + dis() + ">" + esc(q.confidentiality || "") + "</textarea></div>"
-        + '<div class="hq-field full"><div class="hq-kaw"><div class="hq-lab" style="color:var(--brand)">ქართული — the wording the team reads by default</div>'
-        + '<input class="hq-fld bx" style="width:100%;font-size:16px;font-weight:750;margin-top:6px" id="hsKaTitle" value="' + esc(kaW.title || "") + '" placeholder="სათაური ქართულად…"' + dis() + ">"
-        + '<textarea class="hq-flda bx" style="margin-top:7px" id="hsKaDesc" placeholder="აღწერა (ბარათზე ჩანს)…"' + dis() + ">" + esc(kaW.description || "") + "</textarea>"
-        + '<textarea class="hq-flda bx" style="margin-top:7px" id="hsKaInstr" placeholder="ინსტრუქცია (კითხვების ზემოთ)…"' + dis() + ">" + esc(kaW.instructions || "") + "</textarea>"
-        + '<textarea class="hq-flda bx" style="margin-top:7px" id="hsKaConf" placeholder="კონფიდენციალურობის შენიშვნა…"' + dis() + ">" + esc(kaW.confidentiality || "") + "</textarea>"
-        + "</div></div>"
         + "</div></div>"
         + '<div class="hq-card" style="padding:20px 24px"><h4 class="eyebrow">Status</h4>'
         + (q.status === "draft"
@@ -1327,22 +1255,12 @@ registerPage({
         if (audSig(kind, vals.map(function (v) { return String(v).toLowerCase(); })) !== aud0) {
           payload.audience_kind = kind; payload.audience_values = vals;
         }
-        if (q.status === "draft") {
-          var kaV = {};
-          [["title", "#hsKaTitle"], ["description", "#hsKaDesc"],
-           ["instructions", "#hsKaInstr"], ["confidentiality", "#hsKaConf"]].forEach(function (pr) {
-            var el3 = body.querySelector(pr[1]);
-            var v3 = el3 ? el3.value.trim() : "";
-            if (v3) kaV[pr[0]] = v3;
-          });
-          Object.assign(payload, {
-            title: body.querySelector("#hsTitle").value,
-            description: body.querySelector("#hsDesc").value,
-            instructions: body.querySelector("#hsInstr").value,
-            confidentiality: body.querySelector("#hsConf").value,
-            i18n: Object.keys(kaV).length ? { ka: kaV } : {},
-          });
-        }
+        if (q.status === "draft") Object.assign(payload, {
+          title: body.querySelector("#hsTitle").value,
+          description: body.querySelector("#hsDesc").value,
+          instructions: body.querySelector("#hsInstr").value,
+          confidentiality: body.querySelector("#hsConf").value,
+        });
         return payload;
       };
     }
