@@ -158,9 +158,16 @@ registerPage({
         ".hq-ppl .pp b{font-weight:700}",
         ".hq-ppl .pp em{font-style:normal;color:var(--faint);font-size:12px;margin-left:auto}",
         // settings: roomier cards, two-column wording on wide screens
-        ".hq-wgrid{display:grid;grid-template-columns:1fr 1fr;gap:4px 22px}",
+        ".hq-wgrid{display:grid;grid-template-columns:1fr 1fr;gap:14px 26px}",
         ".hq-wgrid .full{grid-column:1 / -1}",
         "@media(max-width:1000px){.hq-wgrid{grid-template-columns:1fr}}",
+        // boxed fields: settings inputs stay visibly a container, brand on focus
+        ".hq-fld.bx,.hq-flda.bx,.hq-in.bx{background:var(--panel-2);border-color:transparent}",
+        ".hq-fld.bx:hover:not(:focus):not(:disabled),.hq-flda.bx:hover:not(:focus):not(:disabled),.hq-in.bx:hover:not(:focus):not(:disabled){border-color:var(--line-2)}",
+        ".hq-fld.bx:focus,.hq-flda.bx:focus,.hq-in.bx:focus{background:var(--panel);border-color:var(--brand)}",
+        ".hq-flda.bx{min-height:66px}",
+        ".hq-secdiv{display:flex;align-items:center;gap:14px;margin:28px 2px 14px;font-size:11px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)}",
+        ".hq-secdiv::after{content:'';flex:1;height:1px;background:var(--line)}",
         ".hq-msg.err{color:var(--neg)}",
         ".hq-msg.ok{color:var(--pos)}",
         // results
@@ -179,7 +186,7 @@ registerPage({
         ".hq-guide li{margin:5px 0}",
         ".hq-guide code{background:var(--panel-2);border-radius:5px;padding:1px 6px;font-size:12px}",
         ".hq-ovl{position:fixed;inset:0;background:rgba(10,14,20,.55);z-index:130;display:flex;align-items:flex-start;justify-content:center;padding:34px 16px;overflow:auto}",
-        ".hq-ovl .pane{background:var(--panel);border:1px solid var(--line);border-radius:16px;max-width:640px;width:100%;padding:18px 20px;box-shadow:0 18px 60px rgba(0,0,0,.35)}",
+        ".hq-ovl .pane{background:var(--panel);border:1px solid var(--line);border-radius:16px;max-width:1020px;width:100%;padding:20px 24px;box-shadow:0 18px 60px rgba(0,0,0,.35)}",
         ".pv-sec{font-size:11px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);margin-bottom:6px}",
         ".pv-mail{width:100%;height:290px;border:1px solid var(--line);border-radius:10px;background:#fff}",
         ".pv-q{border:1px solid var(--line);border-radius:11px;padding:11px 14px;margin:8px 0;background:var(--panel-2)}",
@@ -189,6 +196,33 @@ registerPage({
         ".pv-ta{border:1px dashed var(--line-2);border-radius:8px;padding:9px 11px;font-size:12px;color:var(--faint);margin-top:6px}",
         ".hq-tbl tr.rowlink{cursor:pointer}",
         ".hq-tbl tr.rowlink:hover td{background:var(--panel-2)}",
+        // the responses board
+        ".hq-tbl.board th{padding:13px 12px 10px}",
+        ".hq-tbl.board td{padding:10px 12px}",
+        ".hq-av{width:32px;height:32px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:11.5px;font-weight:800;letter-spacing:.02em;flex:0 0 auto}",
+        ".hq-pcell{display:flex;align-items:center;gap:11px}",
+        ".hq-pcell .nm{font-weight:750;font-size:13.5px}",
+        ".hq-pcell .em{font-size:11.5px;color:var(--faint);margin-top:1px}",
+        ".hq-dept{display:inline-flex;align-items:center;gap:7px;font-size:12.5px;font-weight:650;color:var(--muted);white-space:nowrap}",
+        ".hq-dept i{width:8px;height:8px;border-radius:50%;flex:0 0 auto}",
+        ".hq-st{display:inline-flex;align-items:center;gap:7px;font-size:10.5px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;padding:4px 11px;border-radius:999px;white-space:nowrap}",
+        ".hq-st i{width:6px;height:6px;border-radius:50%;background:currentColor}",
+        ".hq-st.g{background:rgba(46,160,90,.13);color:var(--pos)}",
+        ".hq-st.a{background:rgba(226,168,43,.15);color:var(--warn)}",
+        ".hq-st.n{background:var(--panel-2);color:var(--muted)}",
+        ".hq-st.b{background:rgba(79,102,208,.13);color:#5b6fd6}",
+        ".hq-st.r{background:rgba(226,73,73,.13);color:var(--neg)}",
+        ".hq-ok{color:var(--pos);font-weight:700;font-size:12.5px;white-space:nowrap}",
+        ".hq-kpi .pb{height:5px;border-radius:3px;background:var(--panel-2);margin-top:9px;overflow:hidden}",
+        ".hq-kpi .pb i{display:block;height:100%;background:var(--brand);border-radius:3px}",
+        // statistics: two questions share a row on wide screens
+        ".hq-resgrid{display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:start}",
+        ".hq-resgrid .hq-card{margin-bottom:0}",
+        "@media(max-width:1150px){.hq-resgrid{grid-template-columns:1fr}}",
+        // preview: email on the left, the form on the right
+        ".pv-grid{display:grid;grid-template-columns:390px minmax(0,1fr);gap:26px;align-items:start}",
+        ".pv-left{position:sticky;top:12px}",
+        "@media(max-width:900px){.pv-grid{grid-template-columns:1fr}.pv-left{position:static}}",
       ].join("\n");
       document.head.appendChild(st);
     }
@@ -212,7 +246,6 @@ registerPage({
                        Operations: "#059669", Foremen: "#b45309",
                        Drivers: "#0e7490", Helpers: "#64748b" };
     var deptColor = function (d) { return DEPT_COLOR[d] || "#7c3aed"; };
-    var DIRECT_LINK = location.origin + location.pathname + "#page=hr-my-questionnaire";
     var fmtPct = function (n, d) { return d ? Math.round(n / d * 100) + "%" : "—"; };
     // one corrupt stored value must not blank the whole Results tab
     var safeArr = function (v) { try { var a = JSON.parse(v); return Array.isArray(a) ? a : []; } catch (e) { return []; } };
@@ -252,9 +285,8 @@ registerPage({
       var h = S.home, canM = h.can_manage;
       var html = '<div class="hq-row" style="margin-bottom:14px">'
         + (canM ? '<button class="hq-btn go" id="hqNew">+ New questionnaire</button>' : "")
-        + '<button class="hq-btn" id="hqCopy">Copy the employee link</button>'
-        + '<span class="hq-dim">' + h.roster_active + " people on the list · the link is the "
-        + "same for everyone — each person sees what is assigned to them</span></div>"
+        + '<span class="hq-dim">' + h.roster_active + " people on the Team Directory — "
+        + "finalizing a questionnaire emails each of them a personal invite</span></div>"
         + (canM ? '<div class="hq-row hq-newrow" id="hqNewRow" style="display:none;margin-bottom:14px">'
           + '<input id="hqNewTitle" class="hq-in" style="min-width:320px" maxlength="200" '
           + 'placeholder="Title of the new questionnaire…">'
@@ -308,11 +340,6 @@ registerPage({
         tIn.onkeydown = function (ev) { if (ev.key === "Enter") create(); };
         main.querySelector("#hqNewNo").onclick = function () { row.style.display = "none"; tIn.value = ""; };
       }
-      main.querySelector("#hqCopy").onclick = function () {
-        navigator.clipboard.writeText(DIRECT_LINK).then(
-          function () { toast("Link copied — share it anywhere"); },
-          function () { toast("Could not copy — the link is " + DIRECT_LINK, true); });
-      };
       var at = main.querySelector("#hqArchT");
       if (at) at.onclick = function () { S.showArch = !S.showArch; paintHome(); };
       main.querySelectorAll(".hq-qitem").forEach(function (el) {
@@ -345,8 +372,7 @@ registerPage({
         + "<b style=\"font-size:17px\">" + esc(q.title) + "</b>"
         + '<span class="hq-pill ' + esc(q.status) + '">' + esc(q.status) + "</span>"
         + (q.version > 1 ? '<span class="hq-dim">version ' + q.version + "</span>" : "")
-        + '<span style="flex:1"></span>' + lifecycle
-        + '<button class="hq-btn" id="hqCopy2">Copy the employee link</button></div>'
+        + '<span style="flex:1"></span>' + lifecycle + "</div>"
         + '<div class="hq-tabs" style="margin-bottom:12px">' + subtabs.map(function (t) {
             return '<button data-st="' + t[0] + '" class="' + (S.qtab === t[0] ? "on" : "") + '">' + t[1] + "</button>";
           }).join("") + "</div>"
@@ -355,11 +381,6 @@ registerPage({
       main.querySelector("#hqBack").onclick = function () {
         if (S.dirty && !confirm("Unsaved question changes will be lost. Leave anyway?")) return;
         S.view = "home"; S.qid = null; discardDraft(); go();
-      };
-      main.querySelector("#hqCopy2").onclick = function () {
-        navigator.clipboard.writeText(DIRECT_LINK).then(
-          function () { toast("Link copied"); },
-          function () { toast("Could not copy — the link is " + DIRECT_LINK, true); });
       };
       main.querySelectorAll("[data-lc]").forEach(function (b) {
         b.onclick = async function () {
@@ -402,7 +423,7 @@ registerPage({
       if (S.qtab === "setup") {
         // ONE editing surface (his call): settings on top, the questions right under
         body.innerHTML = '<div id="hqSet"></div>'
-          + '<div class="hq-dim" style="margin:20px 2px 10px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;font-size:11px">The questions</div>'
+          + '<div class="hq-secdiv">The questions</div>'
           + '<div id="hqQs"></div>';
         paintSettings(body.querySelector("#hqSet"), q, canM);
         paintQuestions(body.querySelector("#hqQs"), q, canM);
@@ -542,17 +563,17 @@ registerPage({
         (lockNote ? '<div class="hq-dim" style="margin-bottom:12px">' + esc(lockNote) + "</div>" : "")
         + '<div class="hq-card" style="padding:20px 24px"><h4 class="eyebrow">Wording</h4>'
         + '<div class="hq-wgrid">'
-        + '<div class="hq-field full"><label class="hq-lab">Title</label><input class="hq-fld" style="width:100%;font-size:17px;font-weight:750" id="hsTitle" value="' + esc(q.title) + '"' + dis() + "></div>"
-        + '<div class="hq-field"><label class="hq-lab">Description (shown on the card)</label><textarea class="hq-flda" id="hsDesc"' + dis() + ">" + esc(q.description || "") + "</textarea></div>"
-        + '<div class="hq-field"><label class="hq-lab">Instructions (shown above the questions)</label><textarea class="hq-flda" id="hsInstr"' + dis() + ">" + esc(q.instructions || "") + "</textarea></div>"
-        + '<div class="hq-field full"><label class="hq-lab">Confidentiality note (always visible to the employee)</label><textarea class="hq-flda" id="hsConf"' + dis() + ">" + esc(q.confidentiality || "") + "</textarea></div>"
+        + '<div class="hq-field full"><label class="hq-lab">Title</label><input class="hq-fld bx" style="width:100%;font-size:17.5px;font-weight:750" id="hsTitle" value="' + esc(q.title) + '"' + dis() + "></div>"
+        + '<div class="hq-field"><label class="hq-lab">Description (shown on the card)</label><textarea class="hq-flda bx" id="hsDesc"' + dis() + ">" + esc(q.description || "") + "</textarea></div>"
+        + '<div class="hq-field"><label class="hq-lab">Instructions (shown above the questions)</label><textarea class="hq-flda bx" id="hsInstr"' + dis() + ">" + esc(q.instructions || "") + "</textarea></div>"
+        + '<div class="hq-field full"><label class="hq-lab">Confidentiality note (always visible to the employee)</label><textarea class="hq-flda bx" id="hsConf"' + dis() + ">" + esc(q.confidentiality || "") + "</textarea></div>"
         + "</div></div>"
-        + '<div class="hq-card"><h4 class="eyebrow">Window</h4><div class="hq-row">'
-        + '<span><label class="hq-lab">Opens</label><input type="date" class="hq-in" id="hsOpen" value="' + esc(q.opens_at || "") + '"' + dis() + "></span>"
-        + '<span><label class="hq-lab">Deadline (inclusive)</label><input type="date" class="hq-in" id="hsDead" value="' + esc(q.deadline || "") + '"' + dis(true) + "></span>"
+        + '<div class="hq-card" style="padding:20px 24px"><h4 class="eyebrow">Window</h4><div class="hq-row" style="gap:16px">'
+        + '<span><label class="hq-lab">Opens</label><input type="date" class="hq-in bx" id="hsOpen" value="' + esc(q.opens_at || "") + '"' + dis() + "></span>"
+        + '<span><label class="hq-lab">Deadline (inclusive)</label><input type="date" class="hq-in bx" id="hsDead" value="' + esc(q.deadline || "") + '"' + dis(true) + "></span>"
         + '<span class="hq-dim">Empty opens = live the moment it is published. Empty deadline = open until closed by hand.</span>'
         + "</div></div>"
-        + '<div class="hq-card"><h4 class="eyebrow">Who receives it</h4>'
+        + '<div class="hq-card" style="padding:20px 24px"><h4 class="eyebrow">Who receives it</h4>'
         + '<div class="hq-dim" style="margin-bottom:10px">People and departments come from the '
         + '<a href="#page=hr-directory" style="color:var(--brand);font-weight:700">Team Directory</a> — '
         + "add or move someone there and this list follows.</div>"
@@ -727,15 +748,16 @@ registerPage({
       var ovl = document.createElement("div");
       ovl.id = "hqOvl"; ovl.className = "hq-ovl";
       ovl.innerHTML = '<div class="pane">'
-        + '<div class="hq-row" style="margin-bottom:12px"><b style="font-size:15px">Preview</b>'
+        + '<div class="hq-row" style="margin-bottom:14px"><b style="font-size:15px">Preview</b>'
         + '<span style="flex:1"></span><button class="hq-btn" id="pvX">Close</button></div>'
+        + '<div class="pv-grid"><div class="pv-left">'
         + '<div class="pv-sec">The email each person receives</div>'
         + '<div class="hq-dim" style="margin:2px 0 8px">Subject: <b>' + esc(pv.subject) + "</b>"
         + (pv.mode !== "live" ? " · TEST mode is on — every mail currently lands at " + esc(pv.test_to) : "")
         + "</div>"
-        + '<iframe class="pv-mail" sandbox=""></iframe>'
-        + '<div class="pv-sec" style="margin-top:16px">The form as they will see it</div>'
-        + mock + "</div>";
+        + '<iframe class="pv-mail" sandbox=""></iframe></div>'
+        + '<div><div class="pv-sec">The form as they will see it</div>'
+        + mock + "</div></div></div>";
       document.body.appendChild(ovl);
       ovl.querySelector(".pv-mail").srcdoc =
         '<body style="margin:0;background:#ffffff">' + pv.html + "</body>";
@@ -832,11 +854,15 @@ registerPage({
         return true;
       });
       var pill = function (s) {
-        var map = { not_started: ["hq-pill", "not started"], in_progress: ["hq-pill closed", "in progress"],
-                    submitted: ["hq-pill published", "submitted"], resubmitted: ["hq-pill published", "resubmitted"],
-                    reopened: ["hq-pill draft", "reopened"] };
-        var m = map[s] || ["hq-pill", esc(s)];
-        return '<span class="' + m[0] + '">' + m[1] + "</span>";
+        var map = { not_started: ["n", "not started"], in_progress: ["a", "in progress"],
+                    submitted: ["g", "submitted"], resubmitted: ["g", "resubmitted"],
+                    reopened: ["b", "reopened"] };
+        var m = map[s] || ["n", esc(s)];
+        return '<span class="hq-st ' + m[0] + '"><i></i>' + m[1] + "</span>";
+      };
+      var initials = function (nm, em) {
+        var p = String(nm || em || "?").trim().split(/\s+/);
+        return ((((p[0] || "")[0] || "") + ((p[1] || "")[0] || "")).toUpperCase()) || "?";
       };
       body.innerHTML =
         '<div class="hq-kpis">'
@@ -844,34 +870,41 @@ registerPage({
         + '<div class="hq-kpi"><b>' + done + "</b><span>submitted</span></div>"
         + '<div class="hq-kpi"><b>' + (counts.in_progress || 0) + "</b><span>in progress</span></div>"
         + '<div class="hq-kpi"><b>' + (counts.not_started || 0) + "</b><span>not started</span></div>"
-        + '<div class="hq-kpi"><b>' + fmtPct(done, board.length) + "</b><span>completion</span></div></div>"
+        + '<div class="hq-kpi"><b>' + fmtPct(done, board.length) + "</b><span>completion</span>"
+        + '<div class="pb"><i style="width:' + (board.length ? Math.round(done / board.length * 100) : 0) + '%"></i></div></div></div>'
         + '<div class="hq-row" style="margin-bottom:10px">'
         + '<select class="hq-sel" id="hbF"><option value="">Every status</option>'
         + ["not_started", "in_progress", "submitted", "resubmitted", "reopened"].map(function (s) {
             return '<option value="' + s + '"' + (S.subFilter === s ? " selected" : "") + ">" + s.replace("_", " ") + "</option>";
           }).join("") + "</select>"
         + '<input class="hq-in" id="hbQ" placeholder="Find a person…" value="' + esc(S.subQ) + '">'
+        + '<span class="hq-dim">' + rows.length + " shown</span>"
         + (S.q && S.q.status === "published" && S.home && S.home.can_manage
             ? '<span style="flex:1"></span><button class="hq-btn" id="hbInv">Send invites</button>' : "")
         + "</div>"
-        + '<div class="hq-card" style="padding:0"><table class="hq-tbl"><thead><tr>'
+        + '<div class="hq-card" style="padding:0;overflow:hidden"><table class="hq-tbl board"><thead><tr>'
         + "<th>Person</th><th>Department</th><th>Status</th><th>Invited</th><th>Submitted</th><th></th></tr></thead><tbody>"
         + (rows.map(function (r) {
-            var invited = r.no_email ? '<span class="hq-pill draft">no email yet</span>'
+            var invited = r.no_email ? '<span class="hq-st a"><i></i>no email yet</span>'
               : !r.invite ? '<span class="hq-dim">—</span>'
-              : r.invite.status === "sent" ? esc(fmtWhen(r.invite.sent_at, true))
-              : r.invite.status === "failed" ? '<span class="hq-pill archived">failed</span>'
+              : r.invite.status === "sent" ? '<span class="hq-ok">✓ ' + esc(fmtWhen(r.invite.sent_at, true)) + "</span>"
+              : r.invite.status === "failed" ? '<span class="hq-st r"><i></i>failed</span>'
               : '<span class="hq-dim">sending…</span>';
             var clickable = canR && r.email;
+            var dc = deptColor(r.department);
             return "<tr" + (clickable ? ' class="rowlink" data-open="' + esc(r.email)
-                + '" title="Open this response"' : "") + "><td><b>"
-              + esc(r.name || r.email || "—") + "</b>"
-              + (r.name && r.email ? '<div class="hq-dim">' + esc(r.email) + "</div>" : "") + "</td>"
-              + "<td>" + esc(r.department || "—") + "</td>"
+                + '" title="Open this response"' : "") + ">"
+              + '<td><div class="hq-pcell"><span class="hq-av" style="background:' + dc + '22;color:' + dc + '">'
+              + esc(initials(r.name, r.email)) + "</span><span>"
+              + '<span class="nm">' + esc(r.name || r.email || "—") + "</span>"
+              + (r.name && r.email ? '<div class="em">' + esc(r.email) + "</div>" : "")
+              + "</span></div></td>"
+              + "<td>" + (r.department ? '<span class="hq-dept"><i style="background:' + dc + '"></i>'
+                  + esc(r.department) + "</span>" : '<span class="hq-dim">—</span>') + "</td>"
               + "<td>" + pill(r.status)
               + (r.reopened_by ? ' <span class="hq-dim">by ' + esc(String(r.reopened_by).split("@")[0]) + "</span>" : "") + "</td>"
               + "<td>" + invited + "</td>"
-              + "<td>" + (r.submitted_at ? esc(fmtWhen(r.submitted_at)) : "—") + "</td>"
+              + '<td class="hq-dim">' + (r.submitted_at ? esc(fmtWhen(r.submitted_at)) : "—") + "</td>"
               + '<td class="r hq-dim">' + (clickable ? "open ›" : "") + "</td></tr>";
           }).join("") || '<tr><td colspan="6" class="hq-dim" style="padding:14px">Nobody matches.</td></tr>')
         + "</tbody></table></div>";
@@ -927,7 +960,7 @@ registerPage({
               return '<div class="hq-txt"><b>' + esc(qq.label) + "</b><br>" + shown + "</div>";
             }).join("") + "</div>";
       } else {
-        html += questions.map(function (qq) {
+        html += '<div class="hq-resgrid">' + questions.map(function (qq) {
           var vals = view.map(function (r) { return r.answers[qq.id]; })
             .filter(function (v) { return v != null && v !== ""; });
           var inner;
@@ -969,7 +1002,7 @@ registerPage({
           }
           return '<div class="hq-card"><h4>' + esc(qq.label)
             + ' <span class="hq-dim" style="font-weight:600">' + TYPE_LABEL[qq.qtype] + "</span></h4>" + inner + "</div>";
-        }).join("");
+        }).join("") + "</div>";
       }
       body.innerHTML = html;
       body.querySelector("#hrDept").onchange = function () { S.resDept = this.value; S.resPerson = ""; paintResults(body); };
