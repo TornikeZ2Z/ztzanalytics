@@ -121,6 +121,11 @@ registerPage({
       + '<div class="hq-tabs" id="hqTabs"></div><div id="hqMain"></div></div>';
     var main = host.querySelector("#hqMain");
     var tabsEl = host.querySelector("#hqTabs");
+    // Fresh mount = fresh state. The portal sidebar navigates by hashchange with no
+    // page-leave hook, so the in-page confirm+discard guards can be bypassed entirely;
+    // without this reset an abandoned edit came BACK on the next visit labeled "saved" —
+    // on a published questionnaire it rendered questions that are not the real ones.
+    S.dirty = false; S.draft = null; S.draftFor = null; S.msg = "";
 
     var DIRECT_LINK = location.origin + location.pathname + "#page=hr-my-questionnaire";
     var fmtPct = function (n, d) { return d ? Math.round(n / d * 100) + "%" : "—"; };
@@ -205,11 +210,14 @@ registerPage({
       var nb = main.querySelector("#hqNew");
       if (nb) {
         var row = main.querySelector("#hqNewRow"), tIn = main.querySelector("#hqNewTitle");
+        var creating = false;
         var create = async function () {
           var t = tIn.value.trim();
           if (!t) { tIn.focus(); return; }
+          if (creating) return;                  // a double-click must not mint two drafts
+          creating = true;
           try { var r = await post({ action: "create", title: t }); S.view = "q"; S.qid = r.id; S.qtab = "questions"; go(); }
-          catch (e) { toast(e.message, true); }
+          catch (e) { creating = false; toast(e.message, true); }
         };
         nb.onclick = function () { row.style.display = ""; tIn.focus(); };
         main.querySelector("#hqNewGo").onclick = create;
@@ -217,7 +225,9 @@ registerPage({
         main.querySelector("#hqNewNo").onclick = function () { row.style.display = "none"; tIn.value = ""; };
       }
       main.querySelector("#hqCopy").onclick = function () {
-        navigator.clipboard.writeText(DIRECT_LINK).then(function () { toast("Link copied — share it anywhere"); });
+        navigator.clipboard.writeText(DIRECT_LINK).then(
+          function () { toast("Link copied — share it anywhere"); },
+          function () { toast("Could not copy — the link is " + DIRECT_LINK, true); });
       };
       main.querySelectorAll(".hq-qitem").forEach(function (el) {
         el.onclick = function () { S.view = "q"; S.qid = +el.dataset.q; S.qtab = "questions"; S.dirty = false; go(); };
@@ -257,7 +267,9 @@ registerPage({
         S.view = "home"; S.qid = null; discardDraft(); go();
       };
       main.querySelector("#hqCopy2").onclick = function () {
-        navigator.clipboard.writeText(DIRECT_LINK).then(function () { toast("Link copied"); });
+        navigator.clipboard.writeText(DIRECT_LINK).then(
+          function () { toast("Link copied"); },
+          function () { toast("Could not copy — the link is " + DIRECT_LINK, true); });
       };
       main.querySelectorAll("[data-lc]").forEach(function (b) {
         b.onclick = async function () {
@@ -411,9 +423,14 @@ registerPage({
         : draft ? ""
         : q.status === "published" ? "Published: only the deadline and the audience can change — the words people answer under are locked."
         : "A " + q.status + " questionnaire is read-only.";
-      var dis = function (also) { return (!canM || (!draft && !also)) ? " disabled" : ""; };
+      // draft: everything editable; published: only the `also` fields (deadline, audience);
+      // closed/archived: NOTHING — the old test left those controls live and the server
+      // 409'd only after the user had already edited (post-merge audit, 2026-08-17)
+      var dis = function (also) { return (!canM || !(draft || (q.status === "published" && also))) ? " disabled" : ""; };
       var depts = {};
       (S.roster || []).forEach(function (p) { if (p.department && p.status === "active") depts[p.department] = 1; });
+      var audSig = function (k, arr) { return k + "|" + arr.slice().sort().join(","); };
+      var aud0 = audSig(q.audience_kind, (q.audience_values || []).map(function (v) { return String(v).toLowerCase(); }));
       body.innerHTML =
         (lockNote ? '<div class="hq-dim" style="margin-bottom:12px">' + esc(lockNote) + "</div>" : "")
         + '<div class="hq-card"><h4>Wording</h4>'
@@ -446,6 +463,12 @@ registerPage({
           ? Object.keys(depts).sort().map(function (dpt) { return { v: dpt.toLowerCase(), lab: dpt }; })
           : (S.roster || []).filter(function (p) { return p.status === "active"; })
               .map(function (p) { return { v: p.email, lab: (p.name ? p.name + " — " : "") + p.email }; });
+        // stored audience members who are no longer active must stay VISIBLE and KEPT —
+        // rendering only active rows made any settings save silently shrink the audience
+        var known = new Set(items.map(function (it) { return it.v; }));
+        picked.forEach(function (v) {
+          if (!known.has(v)) items.push({ v: v, lab: v + " · no longer active on the People list" });
+        });
         el.innerHTML = items.length
           ? items.map(function (it) {
               return '<label class="hq-req" style="display:block;padding:2px 0"><input type="checkbox" data-aud="'
@@ -461,8 +484,13 @@ registerPage({
       if (sv) sv.onclick = async function () {
         var kind = (body.querySelector('input[name="hsAud"]:checked') || {}).value || q.audience_kind;
         var vals = [].map.call(body.querySelectorAll("[data-aud]:checked"), function (c) { return c.dataset.aud; });
-        var payload = { action: "update_meta", id: q.id, audience_kind: kind, audience_values: vals,
+        var payload = { action: "update_meta", id: q.id,
                         deadline: body.querySelector("#hsDead").value };
+        // audience travels ONLY when it actually changed — a deadline-only save must
+        // never re-state (and thereby reshape) the audience as a side effect
+        if (audSig(kind, vals.map(function (v) { return String(v).toLowerCase(); })) !== aud0) {
+          payload.audience_kind = kind; payload.audience_values = vals;
+        }
         if (q.status === "draft") Object.assign(payload, {
           title: body.querySelector("#hsTitle").value,
           description: body.querySelector("#hsDesc").value,
@@ -634,7 +662,7 @@ registerPage({
         var escC = function (v) {
           v = v == null ? "" : String(v);
           if (/^[=+\-@\t\r]/.test(v)) v = "'" + v;
-          return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v;
+          return /[",\n\r]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v;
         };
         var head = ["Email", "Name", "Department", "Status", "Submitted"].concat(questions.map(function (qq) { return qq.label; }));
         var lines = [head.map(escC).join(",")];

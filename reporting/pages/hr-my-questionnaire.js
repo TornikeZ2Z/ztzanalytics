@@ -160,9 +160,12 @@ registerPage({
         var v = q.answers[qq.id];
         var inner;
         if (ro) {
+          // clamp before repeat(): a malformed stored value must not throw RangeError
+          // and blank the whole shell for a respondent-only user
+          var starN = Math.min(5, Math.max(0, Math.round(+v) || 0));
           var shown = v == null || v === "" ? '<span class="hm-dim">— not answered</span>'
             : qq.qtype === "multi" ? esc(safeArr(v).join(", "))
-            : qq.qtype === "stars5" ? '<span style="color:var(--warn)">' + "★".repeat(+v) + "</span>"
+            : qq.qtype === "stars5" ? '<span style="color:var(--warn)">' + "★".repeat(starN) + "</span>"
               + '<span class="hm-dim"> ' + esc(v) + "/5</span>"
             : esc(v);
           inner = '<div class="hm-ro"><span class="a">' + shown + "</span></div>";
@@ -245,7 +248,9 @@ registerPage({
       }).then(function () {
         S._ok[key] = stored;
         if (S._seq[key] !== my) return;
-        if (sv) { sv.textContent = "saved"; sv.style.color = "var(--pos)"; }
+        // re-query: a failure repaint elsewhere may have replaced the captured node
+        var svNow = main.querySelector('[data-sv="' + questionId + '"]') || sv;
+        if (svNow) { svNow.textContent = "saved"; svNow.style.color = "var(--pos)"; }
       }, function (e) {
         if (S._seq[key] !== my) return;
         // Roll back to the last CONFIRMED value — not to "the value when this call
