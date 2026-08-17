@@ -73,16 +73,16 @@
           ".hd-kpis{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px}",
           ".hd-kpi{flex:1 1 150px;background:var(--panel);border:1px solid var(--line);border-radius:13px;padding:12px 16px}",
           ".hd-kpi b{display:block;font-size:20px;font-weight:800}",
-          ".hd-kpi span{font-size:11px;color:var(--faint);text-transform:uppercase;letter-spacing:.04em;font-weight:700}",
+          ".hd-kpi span{font-size:11.5px;color:var(--faint);text-transform:uppercase;letter-spacing:.04em;font-weight:700}",
           ".hd-kpi.warn b{color:var(--warn)}",
           ".hd-tabs{display:flex;gap:4px;margin:2px 0 16px}",
-          ".hd-tabs button{font:inherit;font-size:13.5px;font-weight:750;color:var(--muted);background:transparent;border:0;border-radius:10px;padding:9px 16px;cursor:pointer}",
+          ".hd-tabs button{font:inherit;font-size:14.5px;font-weight:750;color:var(--muted);background:transparent;border:0;border-radius:10px;padding:9px 16px;cursor:pointer}",
           ".hd-tabs button:hover{background:var(--panel-2);color:var(--ink)}",
           ".hd-tabs button.on{background:var(--brand);color:var(--brand-ink)}",
           ".hd-row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}",
-          ".hd-in{font:inherit;font-size:12.5px;color:var(--ink);background:var(--panel);border:1px solid var(--line-2);border-radius:8px;padding:7px 10px}",
+          ".hd-in{font:inherit;font-size:13.5px;color:var(--ink);background:var(--panel);border:1px solid var(--line-2);border-radius:8px;padding:7px 10px}",
           ".hd-in:focus{outline:none;border-color:var(--brand)}",
-          ".hd-btn{font:inherit;font-size:12.5px;font-weight:700;color:var(--ink);background:var(--panel);border:1px solid var(--line-2);border-radius:9px;padding:7px 13px;cursor:pointer}",
+          ".hd-btn{font:inherit;font-size:13.5px;font-weight:700;color:var(--ink);background:var(--panel);border:1px solid var(--line-2);border-radius:9px;padding:7px 13px;cursor:pointer}",
           ".hd-btn:hover{border-color:var(--brand);color:var(--brand)}",
           ".hd-btn.go{background:var(--brand);border-color:var(--brand);color:var(--brand-ink)}",
           ".hd-btn.warn:hover{border-color:var(--neg);color:var(--neg)}",
@@ -98,7 +98,7 @@
           ".hd-p.off{opacity:.55}",
           ".hd-p .pcell{display:flex;align-items:center;gap:10px}",
           ".hd-p .pcell .hd-av{font-size:12px}",
-          ".hd-p .pcell b{font-size:13px;white-space:nowrap}",
+          ".hd-p .pcell b{font-size:14px;white-space:nowrap}",
           ".hd-tbl td.r{text-align:right;white-space:nowrap}",
           ".hd-tbl.fixed{table-layout:fixed;min-width:860px}",
           ".hd-tbl.fixed td{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}",
@@ -112,7 +112,7 @@
           ".hd-pane .head span{font-size:12px;color:var(--faint)}",
           ".hd-pane .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:16px 18px}",
           ".hd-pane .grid .wide{grid-column:1 / -1}",
-          ".hd-pane label{display:block;font-size:10.5px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--faint);margin-bottom:5px}",
+          ".hd-pane label{display:block;font-size:11px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--faint);margin-bottom:5px}",
           ".hd-pane .hd-in{width:100%;box-sizing:border-box}",
           ".hd-pane .foot{display:flex;gap:8px;align-items:center;padding:14px 18px;border-top:1px solid var(--line);background:var(--panel-2)}",
           "@media(max-width:560px){.hd-pane .grid{grid-template-columns:1fr}}",
@@ -132,9 +132,9 @@
           ".hd-col:only-child::before,.hd-col:only-child::after{border:0 none}",
           ".hd-tc{position:relative;width:204px;background:var(--panel);border:1px solid var(--line);border-radius:13px;padding:10px 13px 9px;margin:6px 0;text-align:left;cursor:pointer;box-shadow:0 1px 2px rgba(0,0,0,.08),0 6px 18px rgba(0,0,0,.05)}",
           ".hd-tc:hover{border-color:var(--brand)}",
-          ".hd-tc b{font-size:13px;display:block;line-height:1.3}",
+          ".hd-tc b{font-size:14px;display:block;line-height:1.3}",
           ".hd-tc b small{font-weight:600;color:var(--faint);font-size:10.5px;margin-left:4px}",
-          ".hd-tc span{display:block;font-size:11px;color:var(--faint);margin-top:1px}",
+          ".hd-tc span{display:block;font-size:12px;color:var(--faint);margin-top:1px}",
           ".hd-tc span.also{color:var(--muted);font-style:italic}",
           ".hd-tc.lead{border-width:2px;padding-top:13px}",
           ".hd-crown{position:absolute;top:-8px;left:11px;background:var(--c,#4f46e5);color:#fff;font-size:8.5px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;padding:2px 8px;border-radius:999px;white-space:nowrap}",
@@ -146,13 +146,13 @@
           // -------- crew --------
           ".hd-note{background:var(--panel-2);border:1px solid var(--line);border-left:3px solid var(--brand);border-radius:10px;padding:10px 14px;font-size:12.5px;color:var(--muted);margin-bottom:12px;line-height:1.5}",
           ".hd-wrap{overflow-x:auto}",
-          ".hd-tbl{width:100%;border-collapse:collapse;font-size:12.5px}",
-          ".hd-tbl th{text-align:left;font-size:10.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--faint);font-weight:800;padding:9px 12px;border-bottom:1px solid var(--line)}",
+          ".hd-tbl{width:100%;border-collapse:collapse;font-size:13.5px}",
+          ".hd-tbl th{text-align:left;font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:var(--faint);font-weight:800;padding:9px 12px;border-bottom:1px solid var(--line)}",
           ".hd-tbl td{padding:8px 12px;border-bottom:1px solid var(--line);vertical-align:middle}",
           ".hd-tbl tr:last-child td{border-bottom:0}",
           ".hd-pill{display:inline-block;font-size:10px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;border-radius:999px;padding:2px 9px;background:var(--panel-2);color:var(--muted)}",
           ".hd-pill.on{background:var(--brand);color:var(--brand-ink)}",
-          ".hd-dim{font-size:11.5px;color:var(--faint)}",
+          ".hd-dim{font-size:12.5px;color:var(--faint)}",
         ].join("\n");
         document.head.appendChild(st);
       }
@@ -185,8 +185,11 @@
         S.home = r[2];
       }
 
+      var officeOnly = function () {
+        return S.roster.filter(function (p) { return p.section !== "crew"; });
+      };
       function paintKpis() {
-        var office = S.roster.filter(function (p) { return p.status === "active"; });
+        var office = officeOnly().filter(function (p) { return p.status === "active"; });
         var noEmail = office.filter(function (p) { return !p.email; });
         var crewAct = S.crew.filter(function (c) { return String(c.status).toLowerCase() === "active"; });
         var pub = (S.home.questionnaires || []).filter(function (q) { return q.status === "published"; });
@@ -229,7 +232,7 @@
         };
         // reports-to picks from the active people — a typed name with a typo silently
         // drops someone off the Organization chart, a dropdown cannot miss
-        var bosses = S.roster
+        var bosses = officeOnly()
           .filter(function (x) { return x.status === "active" && x.name && x.id !== p.id; })
           .map(function (x) { return x.name; })
           .sort(function (a, b) { return a.localeCompare(b); });
@@ -330,7 +333,7 @@
 
       function paintPeople() {
         var q2 = S.q.toLowerCase();
-        var rows = S.roster.filter(function (p) {
+        var rows = officeOnly().filter(function (p) {
           if (!q2) return true;
           return [p.name, p.alias, p.title, p.department, p.email].some(function (v) {
             return String(v || "").toLowerCase().indexOf(q2) >= 0;
@@ -387,7 +390,7 @@
        * each column a vertical run of cards; a sub-manager's people hang off a dashed
        * indent under them. Leaders wear their department as a colored crown. */
       function paintOrg() {
-        var act = S.roster.filter(function (p) { return p.status === "active"; });
+        var act = officeOnly().filter(function (p) { return p.status === "active"; });
         var byName = {};
         act.forEach(function (p) { if (p.name) byName[p.name.toLowerCase()] = p; });
         var kids = {};

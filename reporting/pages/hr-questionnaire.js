@@ -46,16 +46,16 @@ registerPage({
     if (!document.getElementById("hqCss")) {
       var st = document.createElement("style"); st.id = "hqCss";
       st.textContent = [
-        ".hq{max-width:1180px;font-variant-numeric:tabular-nums}",
+        ".hq{font-variant-numeric:tabular-nums}",
         ".hq-tabs{display:flex;gap:4px;margin:2px 0 16px}",
-        ".hq-tabs button{font:inherit;font-size:13.5px;font-weight:750;color:var(--muted);background:transparent;border:0;border-radius:10px;padding:9px 16px;cursor:pointer}",
+        ".hq-tabs button{font:inherit;font-size:14.5px;font-weight:750;color:var(--muted);background:transparent;border:0;border-radius:10px;padding:9px 16px;cursor:pointer}",
         ".hq-tabs button:hover{background:var(--panel-2);color:var(--ink)}",
         ".hq-tabs button.on{background:var(--brand);color:var(--brand-ink)}",
         ".hq-card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px 18px;margin-bottom:14px}",
         ".hq-card h4{margin:0 0 10px;font-size:15px;font-weight:800}",
-        ".hq-dim{font-size:11.5px;color:var(--faint);line-height:1.55}",
+        ".hq-dim{font-size:12.5px;color:var(--faint);line-height:1.55}",
         ".hq-row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}",
-        ".hq-btn{font:inherit;font-size:12.5px;font-weight:700;color:var(--muted);background:var(--panel);border:1px solid var(--line-2);border-radius:9px;padding:7px 13px;cursor:pointer;white-space:nowrap}",
+        ".hq-btn{font:inherit;font-size:13.5px;font-weight:700;color:var(--muted);background:var(--panel);border:1px solid var(--line-2);border-radius:9px;padding:7px 13px;cursor:pointer;white-space:nowrap}",
         ".hq-btn:hover{border-color:var(--brand);color:var(--brand)}",
         ".hq-btn.go{background:var(--brand);color:var(--brand-ink);border-color:var(--brand)}",
         ".hq-btn.go:hover{color:var(--brand-ink);filter:brightness(1.06)}",
@@ -68,18 +68,18 @@ registerPage({
         ".hq-pill.archived{opacity:.6}",
         ".hq-qitem{display:flex;gap:14px;align-items:flex-start;justify-content:space-between;padding:13px 16px;border:1px solid var(--line);border-radius:12px;margin-bottom:9px;background:var(--panel);cursor:pointer}",
         ".hq-qitem:hover{border-color:var(--brand)}",
-        ".hq-qitem b{font-size:14.5px}",
-        ".hq-qitem .meta{font-size:11.5px;color:var(--faint);margin-top:3px}",
+        ".hq-qitem b{font-size:15.5px}",
+        ".hq-qitem .meta{font-size:12.5px;color:var(--faint);margin-top:3px}",
         ".hq-qitem .nums{text-align:right;font-size:12px;color:var(--muted);white-space:nowrap}",
-        ".hq-tbl{width:100%;border-collapse:collapse;font-size:12.5px}",
-        ".hq-tbl th{text-align:left;font-size:10.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--faint);padding:0 10px 7px;border-bottom:1px solid var(--line);white-space:nowrap}",
+        ".hq-tbl{width:100%;border-collapse:collapse;font-size:13.5px}",
+        ".hq-tbl th{text-align:left;font-size:11px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--faint);padding:0 10px 7px;border-bottom:1px solid var(--line);white-space:nowrap}",
         ".hq-tbl td{padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:middle}",
         ".hq-tbl tr:last-child td{border-bottom:0}",
         ".hq-tbl td.r,.hq-tbl th.r{text-align:right}",
-        ".hq-in,.hq-sel,.hq-ta{font:inherit;font-size:12.5px;color:var(--ink);background:var(--panel);border:1px solid var(--line-2);border-radius:8px;padding:7px 10px}",
+        ".hq-in,.hq-sel,.hq-ta{font:inherit;font-size:13.5px;color:var(--ink);background:var(--panel);border:1px solid var(--line-2);border-radius:8px;padding:7px 10px}",
         ".hq-in:focus,.hq-ta:focus{outline:none;border-color:var(--brand)}",
         ".hq-ta{width:100%;box-sizing:border-box;resize:vertical;min-height:56px}",
-        ".hq-lab{display:block;font-size:10.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--faint);margin:0 0 4px}",
+        ".hq-lab{display:block;font-size:11px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--faint);margin:0 0 4px}",
         ".hq-field{margin-bottom:12px}",
         // question editor rows
         ".hq-ed{border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-bottom:9px;background:var(--panel)}",
@@ -89,7 +89,7 @@ registerPage({
         ".hq-ed .mv button{font-size:9px;line-height:1;padding:3px 6px;border:1px solid var(--line-2);background:var(--panel-2);color:var(--muted);border-radius:5px;cursor:pointer}",
         ".hq-ed .mv button:hover{color:var(--ink)}",
         ".hq-ed .sub{display:flex;flex-wrap:wrap;gap:8px;align-items:center}",
-        ".hq-req{display:inline-flex;gap:6px;align-items:center;font-size:12px;color:var(--muted);cursor:pointer;white-space:nowrap}",
+        ".hq-req{display:inline-flex;gap:6px;align-items:center;font-size:13px;color:var(--muted);cursor:pointer;white-space:nowrap}",
         ".hq-opts{width:100%;box-sizing:border-box;margin-top:8px}",
         ".hq-stickybar{position:sticky;bottom:14px;background:var(--panel);border:1px solid var(--line-2);border-radius:13px;box-shadow:0 12px 34px rgba(0,0,0,.25);padding:12px 18px;display:flex;gap:14px;align-items:center;z-index:5}",
         ".hq-msg{font-size:12.5px;font-weight:700}",
@@ -104,7 +104,7 @@ registerPage({
         ".hq-bar .tr{height:10px;border-radius:6px;background:var(--panel-2);overflow:hidden}",
         ".hq-bar .tr i{display:block;height:100%;background:var(--brand);border-radius:6px}",
         ".hq-bar .n{text-align:right;color:var(--muted)}",
-        ".hq-txt{border-left:3px solid var(--line-2);padding:6px 12px;margin:7px 0;font-size:12.5px;line-height:1.5}",
+        ".hq-txt{border-left:3px solid var(--line-2);padding:6px 12px;margin:7px 0;font-size:13.5px;line-height:1.5}",
         ".hq-txt .who{font-size:11px;color:var(--faint);margin-top:3px}",
         ".hq-guide{max-width:760px;line-height:1.65;font-size:13.5px}",
         ".hq-guide h3{margin:22px 0 6px;font-size:15px}",
@@ -386,8 +386,8 @@ registerPage({
           + "</div>";
       }).join("");
       if (!locked) {
-        html += '<div class="hq-row"><button class="hq-btn" id="hqAdd">+ Add a question</button></div>'
-          + '<div class="hq-stickybar"><span class="hq-dim">' + d.length + " question" + (d.length === 1 ? "" : "s")
+        html += '<div class="hq-stickybar"><button class="hq-btn" id="hqAdd">+ Add a question</button>'
+          + '<span class="hq-dim">' + d.length + " question" + (d.length === 1 ? "" : "s")
           + ' · <span id="hqDirty">' + (S.dirty ? "unsaved changes" : "saved") + "</span></span>"
           + '<span style="flex:1"></span>'
           + '<button class="hq-btn go" id="hqSaveQ"' + (d.length ? "" : " disabled") + ">Save questions</button></div>";
