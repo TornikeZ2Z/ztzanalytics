@@ -113,7 +113,8 @@
       return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
     });
   };
-  if (!/^[a-f0-9]{32}$/.test(t)) {
+  // team tokens read "<team-slug>-<8hex>" (legacy 32-hex links pass the same shape)
+  if (!/^[a-z0-9][a-z0-9-]{7,95}$/.test(t)) {
     main.innerHTML = '<div class="card"><b>This link is not valid.</b>' +
       '<div class="dim" style="margin-top:6px">Ask for a fresh questionnaire link.</div></div>';
     return;
