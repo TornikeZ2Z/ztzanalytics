@@ -278,7 +278,8 @@ registerPage({
             toast("You have unsaved question edits — save them (or leave and come back) first", true);
             return;
           }
-          var warn = { publish: "Publish? Questions lock and the questionnaire goes live to its audience.",
+          var warn = { publish: "Publish? Questions lock, the questionnaire goes live, and everyone "
+                         + "in the audience receives a fill-this-in email.",
                        close: "Close? Nobody will be able to submit any more.",
                        archive: q.status === "draft"
                          ? "Archive this draft? It leaves the list and can never be published."
@@ -290,7 +291,9 @@ registerPage({
             discardDraft();
             if (a === "new_version") { S.qid = r.id; S.qtab = "questions"; }
             if (a === "archive" && q.status === "draft") { S.view = "home"; S.qid = null; }
+            if (a === "publish") { S.qtab = "submissions"; }
             go();
+            if (a === "publish") sendInvites(q.id);
           } catch (e) { toast(e.message, true); }
         };
       });
@@ -445,11 +448,17 @@ registerPage({
         + '<span class="hq-dim">Empty opens = live the moment it is published. Empty deadline = open until closed by hand.</span>'
         + "</div></div>"
         + '<div class="hq-card"><h4>Who receives it</h4>'
+        + '<div class="hq-dim" style="margin-bottom:10px">People and departments come from the '
+        + '<a href="#page=hr-directory" style="color:var(--brand);font-weight:700">Team Directory</a> — '
+        + "add or move someone there and this list follows.</div>"
         + '<div class="hq-row" style="margin-bottom:10px">'
-        + ["all", "departments", "emails"].map(function (k) {
+        // "Chosen people" retired from the UI (his call, 2026-08-18) — the two options that
+        // map to how the company actually thinks; a legacy emails-audience still shows itself
+        + ["all", "departments"].concat(q.audience_kind === "emails" ? ["emails"] : []).map(function (k) {
             return '<label class="hq-req"><input type="radio" name="hsAud" value="' + k + '"'
               + (q.audience_kind === k ? " checked" : "") + dis(true) + ">"
-              + { all: "Everyone on the People list", departments: "Chosen departments", emails: "Chosen people" }[k] + "</label>";
+              + { all: "Everyone on the People list", departments: "Chosen departments",
+                  emails: "Chosen people (legacy)" }[k] + "</label>";
           }).join("")
         + "</div>"
         + '<div id="hsAudVals"></div></div>'
@@ -459,8 +468,14 @@ registerPage({
         var el = body.querySelector("#hsAudVals");
         if (kind === "all") { el.innerHTML = ""; return; }
         var picked = new Set((q.audience_values || []).map(function (v) { return v.toLowerCase(); }));
+        var nByDept = {};
+        (S.roster || []).forEach(function (p) {
+          if (p.status === "active" && p.department) nByDept[p.department] = (nByDept[p.department] || 0) + 1;
+        });
         var items = kind === "departments"
-          ? Object.keys(depts).sort().map(function (dpt) { return { v: dpt.toLowerCase(), lab: dpt }; })
+          ? Object.keys(depts).sort().map(function (dpt) {
+              return { v: dpt.toLowerCase(), lab: dpt + " · " + (nByDept[dpt] || 0) + " people" };
+            })
           : (S.roster || []).filter(function (p) { return p.status === "active" && p.email; })
               .map(function (p) { return { v: p.email, lab: (p.name ? p.name + " — " : "") + p.email }; });
         // stored audience members who are no longer active must stay VISIBLE and KEPT —
@@ -503,6 +518,31 @@ registerPage({
       };
     }
 
+    /* ================================================================ invites */
+    // The page LOOPS the batched send until the server says nothing remains — each request
+    // claims-then-mails a few people, so a tab closed mid-way loses nothing (the next
+    // "Send invites" click, or the next publish, picks up exactly where it stopped).
+    async function sendInvites(qid) {
+      var total = 0, guard = 0;
+      toast("Sending invites…");
+      while (guard++ < 40) {
+        var r;
+        try { r = await post({ action: "send_invites", id: qid }); }
+        catch (e) { toast("Invites: " + e.message, true); return; }
+        total += r.sent;
+        var extra = r.mode !== "live" ? " · TEST mode — everything lands at " + r.test_to : "";
+        if (!r.remaining || (!r.sent && !r.failed)) {
+          toast("Invites done — " + total + " sent"
+            + (r.failed ? " · " + r.failed + " failed (retry with Send invites)" : "")
+            + (r.no_email ? " · " + r.no_email + " people have no email yet" : "") + extra,
+            !!r.failed);
+          if (S.view === "q" && S.qtab === "submissions") go();
+          return;
+        }
+        toast("Sending invites… " + total + " sent · " + r.remaining + " to go" + extra);
+      }
+    }
+
     /* ================================================================ submissions */
     async function paintSubmissions(body, canR) {
       await loadSub();
@@ -541,20 +581,31 @@ registerPage({
         + ["not_started", "in_progress", "submitted", "resubmitted", "reopened"].map(function (s) {
             return '<option value="' + s + '"' + (S.subFilter === s ? " selected" : "") + ">" + s.replace("_", " ") + "</option>";
           }).join("") + "</select>"
-        + '<input class="hq-in" id="hbQ" placeholder="Find a person…" value="' + esc(S.subQ) + '"></div>'
+        + '<input class="hq-in" id="hbQ" placeholder="Find a person…" value="' + esc(S.subQ) + '">'
+        + (S.q && S.q.status === "published" && S.home && S.home.can_manage
+            ? '<span style="flex:1"></span><button class="hq-btn" id="hbInv">Send invites</button>' : "")
+        + "</div>"
         + '<div class="hq-card" style="padding:0"><table class="hq-tbl"><thead><tr>'
-        + "<th>Person</th><th>Department</th><th>Status</th><th>Submitted</th><th></th></tr></thead><tbody>"
+        + "<th>Person</th><th>Department</th><th>Status</th><th>Invited</th><th>Submitted</th><th></th></tr></thead><tbody>"
         + (rows.map(function (r) {
-            return "<tr><td><b>" + esc(r.name || r.email) + "</b>"
-              + (r.name ? '<div class="hq-dim">' + esc(r.email) + "</div>" : "") + "</td>"
+            var invited = r.no_email ? '<span class="hq-pill draft">no email yet</span>'
+              : !r.invite ? '<span class="hq-dim">—</span>'
+              : r.invite.status === "sent" ? esc(fmtWhen(r.invite.sent_at, true))
+              : r.invite.status === "failed" ? '<span class="hq-pill archived">failed</span>'
+              : '<span class="hq-dim">sending…</span>';
+            return "<tr><td><b>" + esc(r.name || r.email || "—") + "</b>"
+              + (r.name && r.email ? '<div class="hq-dim">' + esc(r.email) + "</div>" : "") + "</td>"
               + "<td>" + esc(r.department || "—") + "</td>"
               + "<td>" + pill(r.status)
               + (r.reopened_by ? ' <span class="hq-dim">by ' + esc(String(r.reopened_by).split("@")[0]) + "</span>" : "") + "</td>"
+              + "<td>" + invited + "</td>"
               + "<td>" + (r.submitted_at ? esc(fmtWhen(r.submitted_at)) : "—") + "</td>"
               + "<td class=\"r\">" + ((canR && (r.status === "submitted" || r.status === "resubmitted"))
                   ? '<button class="hq-btn" data-ro="' + esc(r.email) + '">Reopen</button>' : "") + "</td></tr>";
-          }).join("") || '<tr><td colspan="5" class="hq-dim" style="padding:14px">Nobody matches.</td></tr>')
+          }).join("") || '<tr><td colspan="6" class="hq-dim" style="padding:14px">Nobody matches.</td></tr>')
         + "</tbody></table></div>";
+      var ib = body.querySelector("#hbInv");
+      if (ib) ib.onclick = function () { sendInvites(S.qid); };
       body.querySelector("#hbF").onchange = function () { S.subFilter = this.value; paintSubmissions(body, canR); };
       var qi = body.querySelector("#hbQ");
       qi.oninput = function () {
