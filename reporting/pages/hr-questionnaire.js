@@ -93,6 +93,30 @@ registerPage({
         ".hq-opts{width:100%;box-sizing:border-box;margin-top:8px}",
         ".hq-stickybar{position:sticky;bottom:14px;background:var(--panel);border:1px solid var(--line-2);border-radius:13px;box-shadow:0 12px 34px rgba(0,0,0,.25);padding:12px 18px;display:flex;gap:14px;align-items:center;z-index:5}",
         ".hq-msg{font-size:12.5px;font-weight:700}",
+        ".hq input[type=checkbox],.hq input[type=radio]{accent-color:var(--brand)}",
+        ".hq-card h4.eyebrow{font-size:11.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);margin-bottom:14px}",
+        ".hq-audsel{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:10px;margin-bottom:12px}",
+        ".hq-audopt{position:relative;border:1.5px solid var(--line-2);border-radius:13px;padding:13px 44px 12px 16px;cursor:pointer;transition:border-color .12s}",
+        ".hq-audopt:hover{border-color:var(--brand)}",
+        ".hq-audopt.on{border-color:var(--brand);background:var(--brand-glow)}",
+        ".hq-audopt b{display:block;font-size:14.5px}",
+        ".hq-audopt span{display:block;font-size:12px;color:var(--faint);margin-top:3px}",
+        ".hq-audopt .tick{position:absolute;top:12px;right:13px;width:20px;height:20px;border-radius:50%;background:var(--brand);color:var(--brand-ink);display:none;align-items:center;justify-content:center;font-size:11px;font-weight:900}",
+        ".hq-audopt.on .tick{display:inline-flex}",
+        ".hq-audopt input{display:none}",
+        ".hq-chipgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:9px}",
+        ".hq-chip{display:flex;align-items:center;gap:10px;border:1.5px solid var(--line-2);border-radius:12px;padding:11px 14px;cursor:pointer;transition:border-color .12s}",
+        ".hq-chip:hover{border-color:var(--brand)}",
+        ".hq-chip.on{border-color:var(--brand);background:var(--brand-glow)}",
+        ".hq-chip input{display:none}",
+        ".hq-chip .dot{width:10px;height:10px;border-radius:50%;flex:0 0 auto}",
+        ".hq-chip b{font-size:13.5px;flex:1;font-weight:700}",
+        ".hq-chip em{font-style:normal;font-size:12px;color:var(--faint);font-variant-numeric:tabular-nums}",
+        ".hq-chip .tick{width:18px;height:18px;border-radius:50%;background:var(--brand);color:var(--brand-ink);display:none;align-items:center;justify-content:center;font-size:10px;font-weight:900;flex:0 0 auto}",
+        ".hq-chip.on .tick{display:inline-flex}",
+        ".hq-chip.dis{opacity:.55;pointer-events:none}",
+        ".hq-ed{transition:border-color .12s}",
+        ".hq-ed .num{width:27px;height:27px;border-radius:9px;background:var(--panel-2);color:var(--muted);font-weight:800;font-size:12.5px;display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto}",
         ".hq-msg.err{color:var(--neg)}",
         ".hq-msg.ok{color:var(--pos)}",
         // results
@@ -138,6 +162,12 @@ registerPage({
     // on a published questionnaire it rendered questions that are not the real ones.
     S.dirty = false; S.draft = null; S.draftFor = null; S.msg = "";
 
+    var DEPT_COLOR = { Executive: "#4f46e5", Sales: "#2563eb", Marketing: "#9333ea",
+                       "Customer Service": "#0d9488", "Data & Control": "#16a34a",
+                       Finance: "#d97706", Systems: "#0891b2", HR: "#e11d48",
+                       Operations: "#059669", Foremen: "#b45309",
+                       "Helpers & Drivers": "#64748b" };
+    var deptColor = function (d) { return DEPT_COLOR[d] || "#7c3aed"; };
     var DIRECT_LINK = location.origin + location.pathname + "#page=hr-my-questionnaire";
     var fmtPct = function (n, d) { return d ? Math.round(n / d * 100) + "%" : "—"; };
     // one corrupt stored value must not blank the whole Results tab
@@ -368,6 +398,7 @@ registerPage({
       html += d.map(function (item, i) {
         var dis = locked ? " disabled" : "";
         return '<div class="hq-ed" data-i="' + i + '"><div class="top">'
+          + '<span class="num">' + (i + 1) + "</span>"
           + '<div class="mv"><button data-mv="up" title="Move up"' + (i === 0 ? " disabled" : "") + '>▲</button>'
           + '<button data-mv="dn" title="Move down"' + (i === d.length - 1 ? " disabled" : "") + '>▼</button></div>'
           + '<input class="hq-in lbl" data-f="label" value="' + esc(item.label) + '" placeholder="The question, as the employee reads it"' + dis + ">"
@@ -463,29 +494,35 @@ registerPage({
       var aud0 = audSig(q.audience_kind, (q.audience_values || []).map(function (v) { return String(v).toLowerCase(); }));
       body.innerHTML =
         (lockNote ? '<div class="hq-dim" style="margin-bottom:12px">' + esc(lockNote) + "</div>" : "")
-        + '<div class="hq-card"><h4>Wording</h4>'
+        + '<div class="hq-card"><h4 class="eyebrow">Wording</h4>'
         + '<div class="hq-field"><label class="hq-lab">Title</label><input class="hq-in" style="width:100%;box-sizing:border-box" id="hsTitle" value="' + esc(q.title) + '"' + dis() + "></div>"
         + '<div class="hq-field"><label class="hq-lab">Description (shown on the card)</label><textarea class="hq-ta" id="hsDesc"' + dis() + ">" + esc(q.description || "") + "</textarea></div>"
         + '<div class="hq-field"><label class="hq-lab">Instructions (shown above the questions)</label><textarea class="hq-ta" id="hsInstr"' + dis() + ">" + esc(q.instructions || "") + "</textarea></div>"
         + '<div class="hq-field"><label class="hq-lab">Confidentiality note (always visible to the employee)</label><textarea class="hq-ta" id="hsConf"' + dis() + ">" + esc(q.confidentiality || "") + "</textarea></div>"
         + "</div>"
-        + '<div class="hq-card"><h4>Window</h4><div class="hq-row">'
+        + '<div class="hq-card"><h4 class="eyebrow">Window</h4><div class="hq-row">'
         + '<span><label class="hq-lab">Opens</label><input type="date" class="hq-in" id="hsOpen" value="' + esc(q.opens_at || "") + '"' + dis() + "></span>"
         + '<span><label class="hq-lab">Deadline (inclusive)</label><input type="date" class="hq-in" id="hsDead" value="' + esc(q.deadline || "") + '"' + dis(true) + "></span>"
         + '<span class="hq-dim">Empty opens = live the moment it is published. Empty deadline = open until closed by hand.</span>'
         + "</div></div>"
-        + '<div class="hq-card"><h4>Who receives it</h4>'
+        + '<div class="hq-card"><h4 class="eyebrow">Who receives it</h4>'
         + '<div class="hq-dim" style="margin-bottom:10px">People and departments come from the '
         + '<a href="#page=hr-directory" style="color:var(--brand);font-weight:700">Team Directory</a> — '
         + "add or move someone there and this list follows.</div>"
-        + '<div class="hq-row" style="margin-bottom:10px">'
+        + '<div class="hq-audsel">'
         // "Chosen people" retired from the UI (his call, 2026-08-18) — the two options that
         // map to how the company actually thinks; a legacy emails-audience still shows itself
         + ["all", "departments"].concat(q.audience_kind === "emails" ? ["emails"] : []).map(function (k) {
-            return '<label class="hq-req"><input type="radio" name="hsAud" value="' + k + '"'
+            var nAll = (S.roster || []).filter(function (p2) { return p2.status === "active"; }).length;
+            var sub = { all: "All " + nAll + " people — office and crew alike",
+                        departments: "Pick exactly who below",
+                        emails: "A hand-picked list from an earlier round" }[k];
+            return '<label class="hq-audopt' + (q.audience_kind === k ? " on" : "") + '">'
+              + '<input type="radio" name="hsAud" value="' + k + '"'
               + (q.audience_kind === k ? " checked" : "") + dis(true) + ">"
-              + { all: "Everyone on the People list", departments: "Chosen departments",
-                  emails: "Chosen people (legacy)" }[k] + "</label>";
+              + "<b>" + { all: "Everyone on the People list", departments: "Chosen departments",
+                          emails: "Chosen people (legacy)" }[k] + "</b>"
+              + "<span>" + sub + '</span><span class="tick">✓</span></label>';
           }).join("")
         + "</div>"
         + '<div id="hsAudVals"></div></div>'
@@ -511,17 +548,34 @@ registerPage({
         picked.forEach(function (v) {
           if (!known.has(v)) items.push({ v: v, lab: v + " · no longer active on the People list" });
         });
+        var locked2 = !!dis(true);
         el.innerHTML = items.length
-          ? items.map(function (it) {
-              return '<label class="hq-req" style="display:block;padding:2px 0"><input type="checkbox" data-aud="'
-                + esc(it.v) + '"' + (picked.has(it.v) ? " checked" : "") + dis(true) + "> " + esc(it.lab) + "</label>";
-            }).join("")
+          ? '<div class="hq-chipgrid">' + items.map(function (it) {
+              var parts = it.lab.split(" · ");
+              return '<label class="hq-chip' + (picked.has(it.v) ? " on" : "") + (locked2 ? " dis" : "") + '">'
+                + '<input type="checkbox" data-aud="' + esc(it.v) + '"'
+                + (picked.has(it.v) ? " checked" : "") + dis(true) + ">"
+                + '<span class="dot" style="background:' + deptColor(parts[0]) + '"></span>'
+                + "<b>" + esc(parts[0]) + "</b>"
+                + (parts[1] ? "<em>" + esc(parts[1]) + "</em>" : "")
+                + '<span class="tick">✓</span></label>';
+            }).join("") + "</div>"
           : '<div class="hq-dim">' + (kind === "departments"
-              ? "No departments yet — set them on the People tab first."
+              ? "No departments yet — add people on the Team Directory first."
               : "The People list is empty.") + "</div>";
+        el.querySelectorAll(".hq-chip input").forEach(function (cb) {
+          cb.onchange = function () { cb.closest(".hq-chip").classList.toggle("on", cb.checked); };
+        });
       }
       paintAudVals();
-      body.querySelectorAll('input[name="hsAud"]').forEach(function (r) { r.onchange = paintAudVals; });
+      body.querySelectorAll('input[name="hsAud"]').forEach(function (r) {
+        r.onchange = function () {
+          body.querySelectorAll(".hq-audopt").forEach(function (c) {
+            c.classList.toggle("on", c.querySelector("input").checked);
+          });
+          paintAudVals();
+        };
+      });
       var sv = body.querySelector("#hsSave");
       if (sv) sv.onclick = async function () {
         var kind = (body.querySelector('input[name="hsAud"]:checked') || {}).value || q.audience_kind;
