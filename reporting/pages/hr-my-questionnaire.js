@@ -86,6 +86,19 @@ registerPage({
         ".hm-item b{font-size:15px}",
         ".hm-fill{font-size:13px;font-weight:800;color:var(--brand);white-space:nowrap}",
         ".hm-sec{font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:16px 2px 9px}",
+        // Forms-parity controls: section headers, linear scale, dropdown, Other…
+        ".hm-sect{margin:24px 0 12px;padding:14px 18px;background:var(--panel);border-left:4px solid var(--brand);border-radius:0 12px 12px 0}",
+        ".hm-sect b{font-size:15.5px}",
+        ".hm-sect .d{font-size:12.5px;color:var(--muted);margin-top:4px;line-height:1.55}",
+        ".hm-scale{display:flex;gap:6px;flex-wrap:wrap;align-items:center}",
+        ".hm-num{min-width:38px;height:38px;border-radius:10px;border:1px solid var(--line-2);background:var(--panel);font:inherit;font-size:14px;font-weight:700;color:var(--muted);cursor:pointer}",
+        ".hm-num:hover:not(:disabled){border-color:var(--brand);color:var(--brand)}",
+        ".hm-num.on{background:var(--brand);border-color:var(--brand);color:var(--brand-ink)}",
+        ".hm-scalelab{display:flex;justify-content:space-between;font-size:11.5px;color:var(--faint);margin-top:5px;max-width:460px}",
+        ".hm-sel{font:inherit;font-size:13.5px;color:var(--ink);background:var(--panel);border:1px solid var(--line-2);border-radius:9px;padding:9px 12px;min-width:260px}",
+        ".hm-sel:focus{outline:none;border-color:var(--brand)}",
+        ".hm-oth{font:inherit;font-size:13px;border:0;border-bottom:1px solid var(--line-2);background:transparent;color:var(--ink);padding:2px 4px;flex:1;min-width:140px}",
+        ".hm-oth:focus{outline:none;border-bottom-color:var(--brand)}",
         // the confirmation modal (no native confirm here either)
         ".hm-cfm{position:fixed;inset:0;background:rgba(10,14,20,.5);z-index:150;display:flex;align-items:center;justify-content:center;padding:20px}",
         ".hm-cfm .box{background:var(--panel);border:1px solid var(--line);border-radius:16px;max-width:440px;width:100%;padding:24px 26px;box-shadow:0 18px 60px rgba(0,0,0,.4)}",
@@ -163,7 +176,8 @@ registerPage({
       var todo = qs.filter(function (q) { return q.editable; });
       var rest = qs.filter(function (q) { return !q.editable; });
       var item = function (q) {
-        var meta = q.questions.length + " question" + (q.questions.length === 1 ? "" : "s")
+        var nq = q.questions.filter(function (x) { return x.qtype !== "section"; }).length;
+        var meta = nq + " question" + (nq === 1 ? "" : "s")
           + (q.submitted_at ? " · submitted " + esc(fmtWhen(q.submitted_at)) : "");
         return '<div class="hm-item" data-open="' + q.id + '"><div>'
           + "<b>" + esc(q.title) + "</b> " + statusPill(q)
@@ -202,7 +216,16 @@ registerPage({
             ? '<div class="hm-dim">This questionnaire is no longer assigned to you.</div>' : "")
         + "</div>";
 
-      var body = q.questions.map(function (qq, i) {
+      var OTH = "Other\u2026";
+      var qnum = 0;
+      var body = q.questions.map(function (qq) {
+        // a section is a heading, not a question — no card, no number, no answer
+        if (qq.qtype === "section") {
+          return '<div class="hm-sect"><b>' + esc(qq.label) + "</b>"
+            + (qq.description ? '<div class="d">' + esc(qq.description) + "</div>" : "") + "</div>";
+        }
+        qnum += 1;
+        var i = qnum - 1;
         var v = q.answers[qq.id];
         var inner;
         if (ro) {
@@ -213,6 +236,7 @@ registerPage({
             : qq.qtype === "multi" ? esc(safeArr(v).join(", "))
             : qq.qtype === "stars5" ? '<span style="color:var(--warn)">' + "★".repeat(starN) + "</span>"
               + '<span class="hm-dim"> ' + esc(v) + "/5</span>"
+            : qq.qtype === "scale" ? esc(v) + '<span class="hm-dim"> of ' + esc((qq.options || [])[1] || "") + "</span>"
             : esc(v);
           inner = '<div class="hm-ro"><span class="a">' + shown + "</span></div>";
         } else if (qq.qtype === "stars5") {
@@ -222,18 +246,57 @@ registerPage({
                   + '" data-s="' + n + '" title="' + n + " star" + (n === 1 ? "" : "s") + '">★</button>';
               }).join("") + "</div>";
         } else if (qq.qtype === "single") {
+          var isOthS = v != null && String(v).indexOf("Other: ") === 0;
           inner = (qq.options || []).map(function (o) {
-            var on = v === o;
+            var isO = o === OTH;
+            var on = isO ? isOthS : v === o;
             return '<label class="hm-choice' + (on ? " on" : "") + '"><input type="radio" name="hmq' + qq.id + '"'
-              + (on ? " checked" : "") + ' data-q="' + qq.id + '" data-o="' + esc(o) + '"><span>' + esc(o) + "</span></label>";
+              + (on ? " checked" : "") + ' data-q="' + qq.id + '" data-o="' + esc(o) + '"'
+              + (isO ? ' data-oth="1"' : "") + ">"
+              + (isO ? '<span style="display:flex;gap:8px;flex:1;align-items:center">Other:'
+                       + '<input class="hm-oth" data-so="' + qq.id + '" value="'
+                       + (isOthS ? esc(String(v).slice(7)) : "") + '"></span>'
+                     : "<span>" + esc(o) + "</span>")
+              + "</label>";
           }).join("");
         } else if (qq.qtype === "multi") {
           var picked = new Set(safeArr(v));
+          var othVal = "";
+          picked.forEach(function (x) { if (String(x).indexOf("Other: ") === 0) othVal = String(x).slice(7); });
           inner = (qq.options || []).map(function (o) {
-            var on = picked.has(o);
+            var isO = o === OTH;
+            var on = isO ? !!othVal : picked.has(o);
             return '<label class="hm-choice' + (on ? " on" : "") + '"><input type="checkbox"'
-              + (on ? " checked" : "") + ' data-mq="' + qq.id + '" data-o="' + esc(o) + '"><span>' + esc(o) + "</span></label>";
+              + (on ? " checked" : "") + ' data-mq="' + qq.id + '" data-o="' + esc(o) + '"'
+              + (isO ? ' data-oth="1"' : "") + ">"
+              + (isO ? '<span style="display:flex;gap:8px;flex:1;align-items:center">Other:'
+                       + '<input class="hm-oth" data-mo="' + qq.id + '" value="' + esc(othVal) + '"></span>'
+                     : "<span>" + esc(o) + "</span>")
+              + "</label>";
           }).join("");
+        } else if (qq.qtype === "dropdown") {
+          var isOthD = v != null && String(v).indexOf("Other: ") === 0;
+          inner = '<select class="hm-sel" data-dd="' + qq.id + '">'
+            + '<option value=""' + (v == null || v === "" ? " selected" : "") + ">Choose\u2026</option>"
+            + (qq.options || []).map(function (o) {
+                var on = o === OTH ? isOthD : v === o;
+                return '<option value="' + esc(o) + '"' + (on ? " selected" : "") + ">" + esc(o) + "</option>";
+              }).join("") + "</select>"
+            + '<div style="margin-top:8px;display:' + (isOthD ? "flex" : "none") + ';gap:8px;align-items:center" data-ddrow="' + qq.id + '">'
+            + '<span style="font-size:13px">Other:</span>'
+            + '<input class="hm-oth" style="max-width:340px" data-ddo="' + qq.id + '" value="'
+            + (isOthD ? esc(String(v).slice(7)) : "") + '"></div>';
+        } else if (qq.qtype === "scale") {
+          var lo = parseInt((qq.options || [])[0], 10); if (isNaN(lo)) lo = 1;
+          var hi = parseInt((qq.options || [])[1], 10); if (isNaN(hi)) hi = 5;
+          var labLo = (qq.options || [])[2], labHi = (qq.options || [])[3];
+          var btns = [];
+          for (var sc = lo; sc <= hi; sc++)
+            btns.push('<button class="hm-num' + (v != null && v !== "" && +v === sc ? " on" : "")
+              + '" data-sc="' + qq.id + '" data-v="' + sc + '">' + sc + "</button>");
+          inner = '<div class="hm-scale">' + btns.join("") + "</div>"
+            + (labLo || labHi ? '<div class="hm-scalelab"><span>' + esc(labLo || "")
+              + "</span><span>" + esc(labHi || "") + "</span></div>" : "");
         } else {
           var max = qq.qtype === "short_text" ? 300 : 5000;
           inner = '<textarea class="hm-ta" data-t="' + qq.id + '" maxlength="' + max + '" rows="'
@@ -337,21 +400,96 @@ registerPage({
       });
       main.querySelectorAll('input[type="radio"][data-q]').forEach(function (r) {
         r.onchange = function () {
-          save(q, +r.dataset.q, r.dataset.o);
           var card = r.closest(".hm-q");
+          if (r.dataset.oth) {
+            var oi = card.querySelector('input[data-so]');
+            if (oi && oi.value.trim()) save(q, +r.dataset.q, "Other: " + oi.value.trim());
+            else if (oi) oi.focus();               // saves once they type
+          } else {
+            save(q, +r.dataset.q, r.dataset.o);
+          }
           card.querySelectorAll(".hm-choice").forEach(function (c) {
             c.classList.toggle("on", c.querySelector("input").checked);
           });
         };
       });
+      main.querySelectorAll("input[data-so]").forEach(function (oi) {
+        var qid = +oi.dataset.so, t = null;
+        oi.oninput = function () {
+          var radio = oi.closest(".hm-choice").querySelector("input[data-oth]");
+          if (radio && !radio.checked) { radio.checked = true; radio.dispatchEvent(new Event("change")); }
+          clearTimeout(t);
+          t = setTimeout(function () {
+            if (oi.value.trim()) save(q, qid, "Other: " + oi.value.trim());
+          }, 900);
+        };
+        oi.onblur = function () {
+          clearTimeout(t);
+          if (oi.value.trim()) save(q, qid, "Other: " + oi.value.trim());
+        };
+      });
+      function multiVals(card) {
+        var vals = [];
+        card.querySelectorAll("input[data-mq]:checked").forEach(function (x) {
+          if (x.dataset.oth) {
+            var oi = card.querySelector("input[data-mo]");
+            if (oi && oi.value.trim()) vals.push("Other: " + oi.value.trim());
+          } else vals.push(x.dataset.o);
+        });
+        return vals;
+      }
       main.querySelectorAll("input[data-mq]").forEach(function (c) {
         c.onchange = function () {
           var qid = +c.dataset.mq, card = c.closest(".hm-q");
-          var vals = [].map.call(card.querySelectorAll("input[data-mq]:checked"),
-                                 function (x) { return x.dataset.o; });
-          save(q, qid, vals);
+          if (c.dataset.oth && c.checked) {
+            var oi = card.querySelector("input[data-mo]");
+            if (oi && !oi.value.trim()) { oi.focus(); return; }   // saves once they type
+          }
+          save(q, qid, multiVals(card));
           card.querySelectorAll(".hm-choice").forEach(function (ch) {
             ch.classList.toggle("on", ch.querySelector("input").checked);
+          });
+        };
+      });
+      main.querySelectorAll("input[data-mo]").forEach(function (oi) {
+        var qid = +oi.dataset.mo, t = null;
+        var card = oi.closest(".hm-q");
+        var push = function () {
+          var cb = oi.closest(".hm-choice").querySelector("input[data-oth]");
+          if (cb && !cb.checked && oi.value.trim()) { cb.checked = true; cb.closest(".hm-choice").classList.add("on"); }
+          if (oi.value.trim()) save(q, qid, multiVals(card));
+        };
+        oi.oninput = function () { clearTimeout(t); t = setTimeout(push, 900); };
+        oi.onblur = function () { clearTimeout(t); push(); };
+      });
+      main.querySelectorAll("select[data-dd]").forEach(function (dd) {
+        var qid = +dd.dataset.dd;
+        var row = main.querySelector('[data-ddrow="' + qid + '"]');
+        dd.onchange = function () {
+          var v = dd.value;
+          if (v === "Other\u2026") {
+            if (row) { row.style.display = "flex"; row.querySelector("input").focus(); }
+            var oi = row && row.querySelector("input");
+            if (oi && oi.value.trim()) save(q, qid, "Other: " + oi.value.trim());
+          } else {
+            if (row) row.style.display = "none";
+            save(q, qid, v);                       // "" = an explicit clear
+          }
+        };
+      });
+      main.querySelectorAll("input[data-ddo]").forEach(function (oi) {
+        var qid = +oi.dataset.ddo, t = null;
+        var push = function () { if (oi.value.trim()) save(q, qid, "Other: " + oi.value.trim()); };
+        oi.oninput = function () { clearTimeout(t); t = setTimeout(push, 900); };
+        oi.onblur = function () { clearTimeout(t); push(); };
+      });
+      main.querySelectorAll("button[data-sc]").forEach(function (b) {
+        b.onclick = function () {
+          var qid = +b.dataset.sc;
+          save(q, qid, +b.dataset.v);
+          var wrap = b.closest(".hm-scale");
+          wrap.querySelectorAll(".hm-num").forEach(function (x) {
+            x.classList.toggle("on", x === b);
           });
         };
       });

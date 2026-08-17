@@ -116,6 +116,8 @@ registerPage({
         ".hq-chip.on .tick{display:inline-flex}",
         ".hq-chip.dis{opacity:.55;pointer-events:none}",
         ".hq-ed{transition:border-color .12s}",
+        ".hq-ed.sect{border-left:4px solid var(--brand)}",
+        ".hq-ed.sect .lbl{font-size:16px}",
         ".hq-ed .num{width:27px;height:27px;border-radius:9px;background:var(--panel-2);color:var(--muted);font-weight:800;font-size:12.5px;display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto}",
         // quiet fields: invisible until touched — the form-builder look
         ".hq-fld,.hq-flda{font:inherit;font-size:14px;color:var(--ink);background:transparent;border:1px solid transparent;border-radius:9px;padding:8px 11px;transition:background .12s,border-color .12s;box-sizing:border-box}",
@@ -516,8 +518,12 @@ registerPage({
     }
 
     /* ================================================================ questions editor */
-    var TYPE_LABEL = { stars5: "★ Rating 1–5", single: "Single choice",
-                       multi: "Multiple choice", short_text: "Short text", long_text: "Long text" };
+    var TYPE_LABEL = { stars5: "★ Rating 1–5", scale: "Linear scale",
+                       single: "Single choice", multi: "Multiple choice",
+                       dropdown: "Dropdown", short_text: "Short text",
+                       long_text: "Long text", section: "§ Section header" };
+    var OTH = "Other…";
+    var CHOICE_T = { single: 1, multi: 1, dropdown: 1 };
     function slugify(label, taken) {
       var base = String(label).toLowerCase().replace(/[^a-z0-9]+/g, "_")
         .replace(/^_+|_+$/g, "").slice(0, 32) || "q";
@@ -543,27 +549,56 @@ registerPage({
           + (canM ? "Use <b>New version</b> to change them going forward." : "") + "</div>"
         : '<div class="hq-dim" style="margin-bottom:12px">Everything saves as ONE form — '
           + "edit freely, then press Save. A question removed here is retired, never deleted.</div>";
+      var qn = 0;
       html += d.map(function (item, i) {
         var dis = locked ? " disabled" : "";
-        return '<div class="hq-ed" data-i="' + i + '"><div class="top">'
-          + '<span class="num">' + (i + 1) + "</span>"
-          + '<input class="hq-fld lbl" data-f="label" value="' + esc(item.label) + '" placeholder="Write the question, as the employee reads it…"' + dis + ">"
+        var sect = item.qtype === "section";
+        if (!sect) qn += 1;
+        var extra = "";
+        if (CHOICE_T[item.qtype]) {
+          var lines = (item.options || []).filter(function (o) { return o !== OTH; });
+          var hasOth = (item.options || []).indexOf(OTH) >= 0;
+          extra = '<textarea class="hq-flda hq-opts" data-f="options" style="margin-left:37px;width:calc(100% - 37px)" placeholder="One choice per line — at least 2"' + dis + ">"
+            + esc(lines.join("\n")) + "</textarea>"
+            + '<label class="hq-reqt" style="margin:6px 0 0 37px" title="Adds an Other… choice where people type their own answer">'
+            + '<input type="checkbox" data-f="oth"' + (hasOth ? " checked" : "") + dis + ">"
+            + '<span class="hq-tgl"></span><span class="rt">allow “Other…”</span></label>';
+        } else if (item.qtype === "scale") {
+          var so = item.options || [];
+          var lo = parseInt(so[0], 10); if (isNaN(lo)) lo = 1;
+          var hi = parseInt(so[1], 10); if (isNaN(hi)) hi = 5;
+          var selN = function (f, val, from, to) {
+            var s = '<select class="hq-sel" data-f="' + f + '"' + dis + ">";
+            for (var n2 = from; n2 <= to; n2++)
+              s += '<option value="' + n2 + '"' + (n2 === val ? " selected" : "") + ">" + n2 + "</option>";
+            return s + "</select>";
+          };
+          extra = '<div class="hq-row" style="margin:8px 0 2px 37px;gap:9px;font-size:13px;color:var(--muted)">'
+            + "From " + selN("sc_lo", lo, 0, 1) + " to " + selN("sc_hi", hi, 2, 10)
+            + '<input class="hq-fld bx" style="max-width:200px" data-f="sc_l1" value="' + esc(so[2] || "") + '" placeholder="Label for the low end…"' + dis + ">"
+            + '<input class="hq-fld bx" style="max-width:200px" data-f="sc_l2" value="' + esc(so[3] || "") + '" placeholder="Label for the high end…"' + dis + ">"
+            + "</div>";
+        }
+        return '<div class="hq-ed' + (sect ? " sect" : "") + '" data-i="' + i + '"><div class="top">'
+          + (sect ? '<span class="num" style="background:var(--brand-glow);color:var(--brand)">§</span>'
+                  : '<span class="num">' + qn + "</span>")
+          + '<input class="hq-fld lbl" data-f="label" value="' + esc(item.label) + '" placeholder="'
+          + (sect ? "Name this section…" : "Write the question, as the employee reads it…") + '"' + dis + ">"
           + '<select class="hq-sel" data-f="qtype"' + (locked ? " disabled" : "") + ">"
           + Object.keys(TYPE_LABEL).map(function (t) {
               return '<option value="' + t + '"' + (item.qtype === t ? " selected" : "") + ">" + TYPE_LABEL[t] + "</option>";
             }).join("") + "</select>"
-          + '<label class="hq-reqt" title="Must be answered before submitting">'
-          + '<input type="checkbox" data-f="required"' + (item.required ? " checked" : "") + dis + ">"
-          + '<span class="hq-tgl"></span><span class="rt">required</span></label>'
+          + (sect ? "" : '<label class="hq-reqt" title="Must be answered before submitting">'
+              + '<input type="checkbox" data-f="required"' + (item.required ? " checked" : "") + dis + ">"
+              + '<span class="hq-tgl"></span><span class="rt">required</span></label>')
           + '<div class="mv"><button data-mv="up" title="Move up"' + (i === 0 ? " disabled" : "") + '>▲</button>'
           + '<button data-mv="dn" title="Move down"' + (i === d.length - 1 ? " disabled" : "") + '>▼</button></div>'
           + (locked ? "" : '<button class="hq-x" data-rm title="Remove this question">✕</button>')
           + "</div>"
-          + '<input class="hq-fld dsc" data-f="description" value="' + esc(item.description) + '" placeholder="Add help text under the question (optional)…"' + dis + ">"
-          + (item.qtype === "single" || item.qtype === "multi"
-              ? '<textarea class="hq-flda hq-opts" data-f="options" style="margin-left:37px;width:calc(100% - 37px)" placeholder="One choice per line — at least 2"' + dis + ">"
-                + esc((item.options || []).join("\n")) + "</textarea>"
-              : "")
+          + '<input class="hq-fld dsc" data-f="description" value="' + esc(item.description) + '" placeholder="'
+          + (sect ? "Add a short intro under the section title (optional)…"
+                  : "Add help text under the question (optional)…") + '"' + dis + ">"
+          + extra
           + "</div>";
       }).join("");
       if (!locked) {
@@ -580,13 +615,41 @@ registerPage({
         var i = +row.dataset.i;
         row.querySelectorAll("[data-f]").forEach(function (inp) {
           var f = inp.dataset.f;
+          var syncOpts = function () {
+            // choice lists: the textarea lines + the Other toggle build item.options
+            var row2 = body.querySelector('.hq-ed[data-i="' + i + '"]');
+            var ta = row2 && row2.querySelector('[data-f="options"]');
+            var ot = row2 && row2.querySelector('[data-f="oth"]');
+            var lines2 = ta ? ta.value.split("\n").map(function (s) { return s.trim(); }).filter(Boolean) : [];
+            lines2 = lines2.filter(function (o) { return o !== OTH; });
+            if (ot && ot.checked) lines2.push(OTH);
+            d[i].options = lines2;
+          };
+          var syncScale = function () {
+            var row2 = body.querySelector('.hq-ed[data-i="' + i + '"]');
+            var gv = function (f2) { var el2 = row2 && row2.querySelector('[data-f="' + f2 + '"]'); return el2 ? el2.value : ""; };
+            d[i].options = [gv("sc_lo") || "1", gv("sc_hi") || "5",
+                            gv("sc_l1").trim(), gv("sc_l2").trim()];
+          };
           inp.oninput = function () {
-            if (f === "options") d[i].options = inp.value.split("\n").map(function (s) { return s.trim(); }).filter(Boolean);
+            if (f === "options" || f === "oth") syncOpts();
+            else if (f.indexOf("sc_") === 0) syncScale();
             else if (f === "required") d[i].required = inp.checked;
             else d[i][f] = inp.value;
             mark();
           };
-          if (f === "qtype") inp.onchange = function () { d[i].qtype = inp.value; mark(); paintQuestions(body, q, canM); };
+          if (f === "oth" || f === "sc_lo" || f === "sc_hi")
+            inp.onchange = function () {
+              if (f === "oth") syncOpts(); else syncScale();
+              mark();
+            };
+          if (f === "qtype") inp.onchange = function () {
+            d[i].qtype = inp.value;
+            if (inp.value === "scale") d[i].options = ["1", "5", "", ""];
+            else if (inp.value === "section") { d[i].options = []; d[i].required = false; }
+            else if (!CHOICE_T[inp.value]) d[i].options = [];
+            mark(); paintQuestions(body, q, canM);
+          };
         });
         row.querySelectorAll("[data-mv]").forEach(function (b) {
           b.onclick = function () {
@@ -615,9 +678,15 @@ registerPage({
         });
         for (var pi = 0; pi < payload.length; pi++) {
           if (!payload[pi].label.trim()) throw new Error("Question " + (pi + 1) + " needs a label");
-          if ((payload[pi].qtype === "single" || payload[pi].qtype === "multi")
+          if (CHOICE_T[payload[pi].qtype]
               && (payload[pi].options || []).filter(Boolean).length < 2)
             throw new Error("'" + payload[pi].label.slice(0, 40) + "' needs at least 2 choices");
+          if (payload[pi].qtype === "scale") {
+            var slo = parseInt((payload[pi].options || [])[0], 10);
+            var shi = parseInt((payload[pi].options || [])[1], 10);
+            if (isNaN(slo) || isNaN(shi) || slo >= shi)
+              throw new Error("'" + payload[pi].label.slice(0, 40) + "': the scale must run low to high");
+          }
         }
         return payload;
       };
@@ -834,16 +903,37 @@ registerPage({
       try { pv = await api("/api/_hrqadmin?view=invite_preview&id=" + q.id); }
       catch (e) { toast(e.message, true); return; }
       var qs = (q.questions || []).filter(function (x) { return x.active; });
-      var mock = qs.map(function (item, i) {
+      var pvn = 0;
+      var mock = qs.map(function (item) {
+        if (item.qtype === "section")
+          return '<div style="margin:16px 0 6px;padding:10px 14px;border-left:4px solid var(--brand);background:var(--panel-2);border-radius:0 10px 10px 0"><b style="font-size:14px">'
+            + esc(item.label) + "</b>"
+            + (item.description ? '<div class="hq-dim">' + esc(item.description) + "</div>" : "") + "</div>";
+        pvn += 1;
         var ctl = item.qtype === "stars5"
           ? '<div class="pv-stars">★★★★★</div>'
+          : item.qtype === "scale"
+          ? (function () {
+              var lo2 = parseInt((item.options || [])[0], 10) || 1;
+              var hi2 = parseInt((item.options || [])[1], 10) || 5;
+              var bs = [];
+              for (var n3 = lo2; n3 <= hi2; n3++)
+                bs.push('<span style="display:inline-flex;width:30px;height:30px;border:1px solid var(--line-2);border-radius:8px;align-items:center;justify-content:center;font-size:12px;color:var(--muted)">' + n3 + "</span>");
+              var l1 = (item.options || [])[2], l2 = (item.options || [])[3];
+              return '<div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:6px">' + bs.join("") + "</div>"
+                + (l1 || l2 ? '<div class="hq-dim" style="display:flex;justify-content:space-between;max-width:330px">'
+                  + "<span>" + esc(l1 || "") + "</span><span>" + esc(l2 || "") + "</span></div>" : "");
+            })()
+          : item.qtype === "dropdown"
+          ? '<div style="border:1px solid var(--line-2);border-radius:8px;padding:8px 12px;font-size:12.5px;color:var(--faint);max-width:280px;margin-top:6px">Choose… ▾</div>'
+            + ((item.options || []).length ? '<div class="hq-dim" style="margin-top:4px">' + (item.options || []).map(esc).join(" · ") + "</div>" : "")
           : item.qtype === "single" || item.qtype === "multi"
           ? (item.options || []).map(function (o) {
               return '<label class="pv-ch"><input type="' + (item.qtype === "single" ? "radio" : "checkbox") + '" disabled> '
-                + esc(o) + "</label>";
+                + (o === OTH ? "Other: ____________" : esc(o)) + "</label>";
             }).join("")
           : '<div class="pv-ta">' + (item.qtype === "short_text" ? "Short answer…" : "Your answer…") + "</div>";
-        return '<div class="pv-q"><b>' + (i + 1) + " · " + esc(item.label)
+        return '<div class="pv-q"><b>' + pvn + " · " + esc(item.label)
           + (item.required ? ' <span style="color:var(--neg)">*</span>' : "") + "</b>"
           + (item.description ? '<div class="hq-dim">' + esc(item.description) + "</div>" : "")
           + ctl + "</div>";
@@ -900,9 +990,11 @@ registerPage({
       catch (e) { S.subOpen = null; toast(e.message, true); return paintSubmissions(body, canR); }
       var r = d.response;
       var answerHtml = function (qq, v) {
+        if (qq.qtype === "section") return "";
         if (v == null || v === "") return '<span class="hq-dim">— not answered</span>';
         if (qq.qtype === "stars5") return '<span style="color:var(--warn)">' + "★".repeat(clampStar(v))
           + '</span> <span class="hq-dim">' + esc(v) + "/5</span>";
+        if (qq.qtype === "scale") return esc(v) + '<span class="hq-dim"> of ' + esc((qq.options || [])[1] || "") + "</span>";
         if (qq.qtype === "multi") return esc(safeArr(v).join(", "));
         return esc(v);
       };
@@ -924,6 +1016,9 @@ registerPage({
           : " · has not started") + "</div>"
         + '<div class="hq-card">'
         + (d.questions || []).map(function (qq) {
+            if (qq.qtype === "section")
+              return '<div style="margin:14px 0 4px;padding:7px 12px;border-left:3px solid var(--brand);background:var(--panel-2);border-radius:0 8px 8px 0;font-weight:800;font-size:13px">'
+                + esc(qq.label) + "</div>";
             return '<div class="hq-txt"><b>' + esc(qq.label) + "</b><br>" + answerHtml(qq, d.answers[qq.id]) + "</div>";
           }).join("")
         + "</div>";
@@ -1031,7 +1126,8 @@ registerPage({
     /* ================================================================ results */
     async function paintResults(body) {
       await loadRes();
-      var R = S.res, questions = R.questions.filter(function (x) { return x.active; });
+      // sections are layout, not data — they hold no answers and get no chart
+      var R = S.res, questions = R.questions.filter(function (x) { return x.active && x.qtype !== "section"; });
       var subs = R.individuals.filter(function (r) { return r.status === "submitted" || r.status === "resubmitted"; });
       var depts = [...new Set(subs.map(function (r) { return r.department || "—"; }))].sort();
       var view = S.resDept ? subs.filter(function (r) { return (r.department || "—") === S.resDept; }) : subs;
@@ -1061,6 +1157,7 @@ registerPage({
               var shown = v == null || v === "" ? '<span class="hq-dim">— not answered</span>'
                 : qq.qtype === "multi" ? esc(safeArr(v).join(", "))
                 : qq.qtype === "stars5" ? "★".repeat(clampStar(v)) + '<span class="hq-dim"> (' + esc(v) + "/5)</span>"
+                : qq.qtype === "scale" ? esc(v) + '<span class="hq-dim"> of ' + esc((qq.options || [])[1] || "") + "</span>"
                 : esc(v);
               return '<div class="hq-txt"><b>' + esc(qq.label) + "</b><br>" + shown + "</div>";
             }).join("") + "</div>";
@@ -1069,24 +1166,32 @@ registerPage({
           var vals = view.map(function (r) { return r.answers[qq.id]; })
             .filter(function (v) { return v != null && v !== ""; });
           var inner;
-          if (qq.qtype === "stars5") {
-            var nums = vals.map(Number).filter(function (n) { return n >= 1 && n <= 5; });
+          if (qq.qtype === "stars5" || qq.qtype === "scale") {
+            var lo3 = qq.qtype === "scale" ? (parseInt((qq.options || [])[0], 10) || 1) : 1;
+            var hi3 = qq.qtype === "scale" ? (parseInt((qq.options || [])[1], 10) || 5) : 5;
+            var nums = vals.map(Number).filter(function (n) { return n >= lo3 && n <= hi3; });
             var avg = nums.length ? (nums.reduce(function (a, b) { return a + b; }, 0) / nums.length) : null;
-            var dist = [1, 2, 3, 4, 5].map(function (s) { return nums.filter(function (n) { return n === s; }).length; });
-            var mx = Math.max.apply(null, dist.concat([1]));
+            var steps = [];
+            for (var st2 = hi3; st2 >= lo3; st2--) steps.push(st2);
+            var mx = Math.max.apply(null, steps.map(function (s3) {
+              return nums.filter(function (n) { return n === s3; }).length; }).concat([1]));
             inner = '<div class="hq-dim" style="margin-bottom:6px">average <b style="color:var(--ink)">'
-              + (avg == null ? "—" : avg.toFixed(2)) + "</b> of 5 · " + nums.length + " answers</div>"
-              + [5, 4, 3, 2, 1].map(function (s2) {
-                  var n = dist[s2 - 1];
-                  return '<div class="hq-bar"><span>' + "★".repeat(s2) + '</span><span class="tr"><i style="width:'
+              + (avg == null ? "—" : avg.toFixed(2)) + "</b> of " + hi3 + " · " + nums.length + " answers</div>"
+              + steps.map(function (s2) {
+                  var n = nums.filter(function (x2) { return x2 === s2; }).length;
+                  return '<div class="hq-bar"><span>' + (qq.qtype === "stars5" ? "★".repeat(s2) : s2)
+                    + '</span><span class="tr"><i style="width:'
                     + Math.round(n / mx * 100) + '%"></i></span><span class="n">' + n + "</span></div>";
                 }).join("");
-          } else if (qq.qtype === "single" || qq.qtype === "multi") {
-            var counts2 = {};
+          } else if (qq.qtype === "single" || qq.qtype === "multi" || qq.qtype === "dropdown") {
+            var counts2 = {}, otherTexts = [];
             (qq.options || []).forEach(function (o) { counts2[o] = 0; });
             vals.forEach(function (v) {
               (qq.qtype === "multi" ? safeArr(v) : [v]).forEach(function (o) {
                 if (o in counts2) counts2[o]++;
+                else if (String(o).indexOf("Other: ") === 0 && OTH in counts2) {
+                  counts2[OTH]++; otherTexts.push(String(o).slice(7));
+                }
               });
             });
             var mx2 = Math.max.apply(null, Object.keys(counts2).map(function (k) { return counts2[k]; }).concat([1]));
@@ -1096,7 +1201,11 @@ registerPage({
                   return '<div class="hq-bar"><span>' + esc(o) + '</span><span class="tr"><i style="width:'
                     + Math.round(counts2[o] / mx2 * 100) + '%"></i></span><span class="n">' + counts2[o]
                     + (vals.length ? " · " + Math.round(counts2[o] / vals.length * 100) + "%" : "") + "</span></div>";
-                }).join("");
+                }).join("")
+              + (otherTexts.length
+                  ? '<div class="hq-dim" style="margin-top:7px">Other, in their words: '
+                    + otherTexts.slice(0, 12).map(esc).join(" · ")
+                    + (otherTexts.length > 12 ? " …" : "") + "</div>" : "");
           } else {
             inner = vals.length
               ? view.filter(function (r) { return r.answers[qq.id]; }).map(function (r) {
