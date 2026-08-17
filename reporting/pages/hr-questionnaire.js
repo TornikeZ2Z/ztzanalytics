@@ -151,6 +151,20 @@ registerPage({
         ".hq-ins span{font-size:10.5px;font-weight:800;color:var(--brand);background:var(--brand-glow);border:1px solid var(--brand);border-radius:999px;padding:1px 11px;margin:0 9px;white-space:nowrap}",
         ".hq-ed.on{border-color:var(--brand);box-shadow:0 6px 22px rgba(0,0,0,.08)}",
         ".hq-drop-a{box-shadow:0 -3px 0 var(--brand)}",
+        // the anonymous-audience board: category columns, people drag between them
+        ".hq-anbrd{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin-top:12px}",
+        ".hq-ancol{background:var(--panel-2);border:1px solid var(--line);border-radius:13px;padding:9px 9px 12px;min-height:130px}",
+        ".hq-ancol.out{background:transparent;border-style:dashed}",
+        ".hq-ancol.over{border-color:var(--brand);background:var(--brand-glow)}",
+        ".hq-ancol h5{margin:2px 4px 8px;font-size:11px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);display:flex;gap:6px;align-items:center}",
+        ".hq-ancol h5 em{font-style:normal;color:var(--faint);font-weight:700}",
+        ".hq-anp{display:flex;gap:7px;align-items:center;background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:6px 9px;margin-bottom:5px;font-size:12.5px;font-weight:650;cursor:grab;user-select:none}",
+        ".hq-anp:active{cursor:grabbing}",
+        ".hq-anp .dt{width:7px;height:7px;border-radius:50%;flex:0 0 auto}",
+        ".hq-anp em{font-style:normal;color:var(--faint);font-size:10.5px;margin-left:auto;white-space:nowrap}",
+        ".hq-anlk{display:flex;gap:10px;align-items:center;padding:9px 12px;border:1px solid var(--line);border-radius:10px;margin-bottom:7px;font-size:12.5px;background:var(--panel)}",
+        ".hq-anlk b{white-space:nowrap}",
+        ".hq-anlk code{flex:1;font-size:11px;color:var(--faint);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}",
         ".hq-drop-b{box-shadow:0 3px 0 var(--brand)}",
         ".hq-ed.sect .lbl{font-size:16px}",
         ".hq-ed .num{width:27px;height:27px;border-radius:9px;background:var(--panel-2);color:var(--muted);font-weight:800;font-size:12.5px;display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto}",
@@ -483,6 +497,7 @@ registerPage({
           var audN = (function () {
             var act2 = (S.roster || []).filter(function (p) { return p.status === "active"; });
             if (q.audience_kind === "all") return act2.length;
+            if (q.audience_kind === "anon_depts") return (q.audience_values || []).length;
             var vals2 = (q.audience_values || []).map(function (v) { return String(v).toLowerCase(); });
             if (q.audience_kind === "departments")
               return act2.filter(function (p) {
@@ -491,7 +506,11 @@ registerPage({
             return vals2.length;
           })();
           var W = { publish: { t: "Finalize &amp; send?",
-                      b: "The questionnaire goes live and <b>" + audN + (audN === 1 ? " person" : " people")
+                      b: q.audience_kind === "anon_depts"
+                        ? "The questionnaire goes live and <b>" + audN + " people</b> receive their "
+                          + "team's <b>anonymous</b> link by email. Nobody's name is ever recorded. "
+                          + "Questions lock, and it can never be deleted — only deactivated."
+                        : "The questionnaire goes live and <b>" + audN + (audN === 1 ? " person" : " people")
                         + "</b> receive the invite email right away. Questions lock, and it can "
                         + "never be deleted — only deactivated.",
                       yes: "Finalize &amp; send" },
@@ -922,16 +941,18 @@ registerPage({
         + '<a href="#page=hr-directory" style="color:var(--brand);font-weight:700">Team Directory</a> — '
         + "add or move someone there and this list follows.</div>"
         + '<div class="hq-audsel">'
-        + ["all", "departments", "emails"].map(function (k) {
+        + ["all", "departments", "emails", "anon_depts"].map(function (k) {
             var nAll = (S.roster || []).filter(function (p2) { return p2.status === "active"; }).length;
             var sub = { all: "All " + nAll + " people — office and crew alike",
                         departments: "Whole teams at once",
-                        emails: "Hand-pick specific people, one by one" }[k];
+                        emails: "Hand-pick specific people, one by one",
+                        anon_depts: "Nobody's name is recorded — every team gets its own link" }[k];
             return '<label class="hq-audopt' + (q.audience_kind === k ? " on" : "") + '">'
               + '<input type="radio" name="hsAud" value="' + k + '"'
               + (q.audience_kind === k ? " checked" : "") + dis(true) + ">"
               + "<b>" + { all: "Everyone on the People list", departments: "Chosen departments",
-                          emails: "Chosen people" }[k] + "</b>"
+                          emails: "Chosen people",
+                          anon_depts: "Anonymous by department" }[k] + "</b>"
               + "<span>" + sub + '</span><span class="tick">✓</span></label>';
           }).join("")
         + "</div>"
@@ -946,6 +967,113 @@ registerPage({
           if (p.status === "active" && p.department) nByDept[p.department] = (nByDept[p.department] || 0) + 1;
         });
         var locked2 = !!dis(true);
+
+        if (kind === "anon_depts") {
+          // ANONYMOUS BY DEPARTMENT (his call 2026-08-18): every active person with an
+          // email starts in their team's column; drag anyone between teams or into
+          // "Not receiving". Each team gets its own anonymous link — the link carries
+          // the TEAM, submissions never carry the person.
+          var CATS = ["Helpers", "Drivers", "Foremen", "Sales Representatives",
+                      "Support Team", "Other"];
+          var defCat = function (p2) {
+            var d2 = p2.department || "";
+            if (d2 === "Helpers" || d2 === "Drivers" || d2 === "Foremen") return d2;
+            if (d2 === "Sales") return "Sales Representatives";
+            if (d2 === "Customer Service") return "Support Team";
+            return "Other";
+          };
+          var people2 = (S.roster || []).filter(function (p2) {
+            return p2.status === "active" && p2.email;
+          });
+          if (S.anonFor !== q.id) {
+            S.anonMap = {};
+            var stored2 = q.audience_kind === "anon_depts" ? (q.audience_values || []) : [];
+            if (stored2.length) {
+              var inMap = {};
+              stored2.forEach(function (v2) {
+                var pp = String(v2).split("|");
+                if (pp.length === 2) inMap[pp[1].toLowerCase()] = pp[0];
+              });
+              people2.forEach(function (p2) {
+                S.anonMap[p2.email] = inMap[p2.email] || "__out__";
+              });
+            } else {
+              people2.forEach(function (p2) { S.anonMap[p2.email] = defCat(p2); });
+            }
+            S.anonFor = q.id;
+          }
+          var byEmail2 = {};
+          people2.forEach(function (p2) { byEmail2[p2.email] = p2; });
+          var cols = CATS.concat(["__out__"]);
+          el.innerHTML = '<div class="hq-dim" style="margin-bottom:2px">Drag people between '
+            + "teams — each team receives its own anonymous link. Drop someone on "
+            + "<b>Not receiving</b> to leave them out.</div>"
+            + '<div class="hq-anbrd">' + cols.map(function (cat2) {
+                var members = people2.filter(function (p2) { return S.anonMap[p2.email] === cat2; });
+                return '<div class="hq-ancol' + (cat2 === "__out__" ? " out" : "")
+                  + '" data-cat="' + esc(cat2) + '"><h5>'
+                  + (cat2 === "__out__" ? "Not receiving" : esc(cat2))
+                  + " <em>· " + members.length + "</em></h5>"
+                  + members.map(function (p2) {
+                      return '<div class="hq-anp" draggable="true" data-pe="' + esc(p2.email) + '">'
+                        + '<span class="dt" style="background:' + deptColor(p2.department) + '"></span>'
+                        + esc(p2.name || p2.email)
+                        + "<em>" + esc(p2.department || "") + "</em></div>";
+                    }).join("")
+                  + "</div>";
+              }).join("") + "</div>"
+            + '<div id="hqAnLinks" style="margin-top:14px"></div>';
+          if (!locked2) {
+            var dragEmail = [null];
+            el.querySelectorAll(".hq-anp").forEach(function (chip) {
+              chip.ondragstart = function (e2) {
+                dragEmail[0] = chip.dataset.pe;
+                e2.dataTransfer.effectAllowed = "move";
+                chip.style.opacity = ".45";
+              };
+              chip.ondragend = function () { chip.style.opacity = ""; };
+            });
+            el.querySelectorAll(".hq-ancol").forEach(function (col) {
+              col.ondragover = function (e2) {
+                if (dragEmail[0] == null) return;
+                e2.preventDefault(); col.classList.add("over");
+              };
+              col.ondragleave = function () { col.classList.remove("over"); };
+              col.ondrop = function (e2) {
+                e2.preventDefault(); col.classList.remove("over");
+                if (dragEmail[0] == null) return;
+                S.anonMap[dragEmail[0]] = col.dataset.cat;
+                dragEmail[0] = null;
+                markDirty(); paintAudVals();
+              };
+            });
+          }
+          // the team links, live from the bridge (minted on demand; the public page
+          // refuses drafts, so showing them early is safe)
+          if (canM) {
+            api("/api/_hrqadmin?view=anonlinks&id=" + q.id).then(function (lk) {
+              var host2 = el.querySelector("#hqAnLinks");
+              if (!host2 || !lk.links || !lk.links.length) return;
+              host2.innerHTML = '<div class="hq-dim" style="margin-bottom:7px;font-weight:800;'
+                + 'letter-spacing:.05em;text-transform:uppercase;font-size:10.5px">The team links'
+                + (q.status !== "published" ? " · live once you finalize" : "") + "</div>"
+                + lk.links.map(function (l2) {
+                    return '<div class="hq-anlk"><b>' + esc(l2.category) + "</b>"
+                      + "<code>" + esc(l2.url) + "</code>"
+                      + '<span class="hq-dim">' + l2.people + "</span>"
+                      + '<button class="hq-btn" data-cp="' + esc(l2.url) + '">Copy</button></div>';
+                  }).join("");
+              host2.querySelectorAll("[data-cp]").forEach(function (b2) {
+                b2.onclick = function () {
+                  navigator.clipboard.writeText(b2.dataset.cp).then(function () {
+                    b2.textContent = "Copied"; setTimeout(function () { b2.textContent = "Copy"; }, 1400);
+                  });
+                };
+              });
+            }).catch(function () {});
+          }
+          return;
+        }
 
         if (kind === "emails") {
           // HAND-PICKED PEOPLE (his design, 2026-08-18): chosen ones sit above as tags,
@@ -1064,7 +1192,16 @@ registerPage({
       });
       HOOKS.settings = !canM ? null : function () {
         var kind = (body.querySelector('input[name="hsAud"]:checked') || {}).value || q.audience_kind;
-        var vals = [].map.call(body.querySelectorAll("[data-aud]:checked"), function (c) { return c.dataset.aud; });
+        var vals;
+        if (kind === "anon_depts") {
+          vals = [];
+          Object.keys(S.anonMap || {}).forEach(function (em4) {
+            if (S.anonMap[em4] && S.anonMap[em4] !== "__out__")
+              vals.push(S.anonMap[em4] + "|" + em4);
+          });
+        } else {
+          vals = [].map.call(body.querySelectorAll("[data-aud]:checked"), function (c) { return c.dataset.aud; });
+        }
         var payload = { action: "update_meta", id: q.id };
         // audience travels ONLY when it actually changed — a wording-only save must
         // never re-state (and thereby reshape) the audience as a side effect
@@ -1226,6 +1363,44 @@ registerPage({
     async function paintSubmissions(body, canR) {
       if (S.subOpen) return paintOneResponse(body, canR);
       await loadSub();
+      if (S.sub.anon) {
+        // ANONYMOUS: a category rollup — no names exist, which is the point
+        var cats = S.sub.cats || [];
+        var tot = { people: 0, invited: 0, started: 0, submitted: 0 };
+        cats.forEach(function (c2) {
+          tot.people += c2.people; tot.invited += c2.invited;
+          tot.started += c2.started; tot.submitted += c2.submitted;
+        });
+        body.innerHTML =
+          '<div class="hq-kpis">'
+          + '<div class="hq-kpi"><b>' + tot.people + "</b><span>people invited to answer</span></div>"
+          + '<div class="hq-kpi"><b>' + tot.invited + "</b><span>invite emails sent</span></div>"
+          + '<div class="hq-kpi"><b>' + tot.started + "</b><span>in progress</span></div>"
+          + '<div class="hq-kpi"><b>' + tot.submitted + "</b><span>submitted</span>"
+          + '<div class="pb"><i style="width:' + (tot.people ? Math.round(tot.submitted / tot.people * 100) : 0)
+          + '%"></i></div></div></div>'
+          + '<div class="hq-dim" style="margin-bottom:10px">Anonymous questionnaire — answers '
+          + "carry the team, never the person. Submission counts can pass the team's size if "
+          + "someone opens the link on two devices.</div>"
+          + '<div class="hq-row" style="margin-bottom:10px">'
+          + (S.q && S.q.status === "published" && S.home && S.home.can_manage
+              ? '<span style="flex:1"></span><button class="hq-btn" id="hbInv">Send invites</button>' : "")
+          + "</div>"
+          + '<div class="hq-card" style="padding:0;overflow:hidden"><table class="hq-tbl board"><thead><tr>'
+          + "<th>Team</th><th class=\"r\">People</th><th class=\"r\">Invited</th>"
+          + "<th class=\"r\">In progress</th><th class=\"r\">Submitted</th></tr></thead><tbody>"
+          + cats.map(function (c2) {
+              return "<tr><td><b>" + esc(c2.category) + "</b></td>"
+                + '<td class="r">' + c2.people + "</td>"
+                + '<td class="r">' + c2.invited + "</td>"
+                + '<td class="r">' + c2.started + "</td>"
+                + '<td class="r hq-new" style="color:var(--pos);font-weight:800">' + c2.submitted + "</td></tr>";
+            }).join("")
+          + "</tbody></table></div>";
+        var ib2 = body.querySelector("#hbInv");
+        if (ib2) ib2.onclick = function () { sendInvites(S.qid); };
+        return;
+      }
       var board = S.sub.board, counts = {};
       board.forEach(function (r) { counts[r.status] = (counts[r.status] || 0) + 1; });
       var done = (counts.submitted || 0) + (counts.resubmitted || 0);
@@ -1330,9 +1505,10 @@ registerPage({
         + '<select class="hq-sel" id="hrDept"><option value="">All departments</option>'
         + depts.map(function (dpt) { return '<option' + (S.resDept === dpt ? " selected" : "") + ">" + esc(dpt) + "</option>"; }).join("")
         + "</select>"
-        + '<select class="hq-sel" id="hrWho"><option value="">Aggregate — everyone</option>'
-        + view.map(function (r) { return '<option value="' + esc(r.email) + '"' + (S.resPerson === r.email ? " selected" : "") + ">" + esc(r.name || r.email) + "</option>"; }).join("")
-        + "</select>"
+        + (S.q && S.q.audience_kind === "anon_depts" ? ""    // anonymous: there IS no person
+          : '<select class="hq-sel" id="hrWho"><option value="">Aggregate — everyone</option>'
+          + view.map(function (r) { return '<option value="' + esc(r.email) + '"' + (S.resPerson === r.email ? " selected" : "") + ">" + esc(r.name || r.email) + "</option>"; }).join("")
+          + "</select>")
         + '<span style="flex:1"></span><button class="hq-btn" id="hrCsv">Download CSV</button></div>';
 
       if (S.resPerson) {
@@ -1409,7 +1585,8 @@ registerPage({
       }
       body.innerHTML = html;
       body.querySelector("#hrDept").onchange = function () { S.resDept = this.value; S.resPerson = ""; paintResults(body); };
-      body.querySelector("#hrWho").onchange = function () { S.resPerson = this.value; paintResults(body); };
+      var whoSel = body.querySelector("#hrWho");
+      if (whoSel) whoSel.onchange = function () { S.resPerson = this.value; paintResults(body); };
       body.querySelector("#hrCsv").onclick = function () {
         // the ld-planning CSV pattern — plus a formula guard: a leading = + - @ or tab
         // would execute in Excel on HR's machine, and answer text is employee-controlled
