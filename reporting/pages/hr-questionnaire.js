@@ -110,6 +110,17 @@ registerPage({
         ".hq-guide h3{margin:22px 0 6px;font-size:15px}",
         ".hq-guide li{margin:5px 0}",
         ".hq-guide code{background:var(--panel-2);border-radius:5px;padding:1px 6px;font-size:12px}",
+        ".hq-ovl{position:fixed;inset:0;background:rgba(10,14,20,.55);z-index:130;display:flex;align-items:flex-start;justify-content:center;padding:34px 16px;overflow:auto}",
+        ".hq-ovl .pane{background:var(--panel);border:1px solid var(--line);border-radius:16px;max-width:640px;width:100%;padding:18px 20px;box-shadow:0 18px 60px rgba(0,0,0,.35)}",
+        ".pv-sec{font-size:11px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);margin-bottom:6px}",
+        ".pv-mail{width:100%;height:290px;border:1px solid var(--line);border-radius:10px;background:#fff}",
+        ".pv-q{border:1px solid var(--line);border-radius:11px;padding:11px 14px;margin:8px 0;background:var(--panel-2)}",
+        ".pv-q b{font-size:13px}",
+        ".pv-stars{font-size:22px;color:var(--line-2);letter-spacing:3px;margin-top:6px}",
+        ".pv-ch{display:block;font-size:12.5px;color:var(--muted);padding:3px 0}",
+        ".pv-ta{border:1px dashed var(--line-2);border-radius:8px;padding:9px 11px;font-size:12px;color:var(--faint);margin-top:6px}",
+        ".hq-tbl tr.rowlink{cursor:pointer}",
+        ".hq-tbl tr.rowlink:hover td{background:var(--panel-2)}",
       ].join("\n");
       document.head.appendChild(st);
     }
@@ -240,15 +251,18 @@ registerPage({
       var q = S.q, canM = S.home && S.home.can_manage, canR = S.home && S.home.can_results;
       var lifecycle = "";
       if (canM) {
-        if (q.status === "draft") lifecycle = '<button class="hq-btn go" data-lc="publish">Publish</button>'
-          + '<button class="hq-btn warn" data-lc="archive">Archive draft</button>';
+        if (q.status === "draft") lifecycle = '<button class="hq-btn" data-lc="preview">Preview</button>'
+          + '<button class="hq-btn go" data-lc="publish">Finalize &amp; send</button>'
+          + (q.deletable
+              ? '<button class="hq-btn warn" data-lc="delete">Delete draft</button>'
+              : '<button class="hq-btn warn" data-lc="archive">Archive draft</button>');
         else if (q.status === "published") lifecycle = '<button class="hq-btn warn" data-lc="close">Close</button>'
           + '<button class="hq-btn" data-lc="new_version">New version</button>';
         else if (q.status === "closed") lifecycle = '<button class="hq-btn" data-lc="new_version">New version</button>'
           + '<button class="hq-btn warn" data-lc="archive">Archive</button>';
       }
-      var subtabs = [["questions", "Questions"], ["settings", "Settings"], ["submissions", "Submissions"]]
-        .concat(canR ? [["results", "Results"]] : []);
+      var subtabs = [["questions", "Questions"], ["settings", "Settings"], ["submissions", "Responses"]]
+        .concat(canR ? [["results", "Statistics"]] : []);
       main.innerHTML =
         '<div class="hq-row" style="margin-bottom:12px">'
         + '<button class="hq-btn" id="hqBack">← All questionnaires</button>'
@@ -274,33 +288,38 @@ registerPage({
       main.querySelectorAll("[data-lc]").forEach(function (b) {
         b.onclick = async function () {
           var a = b.dataset.lc;
-          if (S.dirty) {           // publishing over unsaved edits would lock the OLD questions
+          if (a === "preview") { openPreview(q); return; }
+          if (S.dirty) {           // finalizing over unsaved edits would lock the OLD questions
             toast("You have unsaved question edits — save them (or leave and come back) first", true);
             return;
           }
-          var warn = { publish: "Publish? Questions lock, the questionnaire goes live, and everyone "
-                         + "in the audience receives a fill-this-in email.",
+          var warn = { publish: "Finalize and send? Questions lock, the questionnaire goes live, "
+                         + "and every person in the audience receives the invite email. After "
+                         + "this it can never be deleted.",
                        close: "Close? Nobody will be able to submit any more.",
                        archive: q.status === "draft"
                          ? "Archive this draft? It leaves the list and can never be published."
                          : "Archive? It disappears from the employee page entirely.",
+                       "delete": "Delete this draft for good? Its questions and settings are "
+                         + "gone permanently. Nobody was sent anything, so nothing else is lost.",
                        new_version: "Create a new draft version with the same questions?" }[a];
           if (!confirm(warn)) return;
           try {
             var r = await post({ action: a, id: q.id });
             discardDraft();
             if (a === "new_version") { S.qid = r.id; S.qtab = "questions"; }
-            if (a === "archive" && q.status === "draft") { S.view = "home"; S.qid = null; }
+            if ((a === "archive" || a === "delete") && q.status === "draft") { S.view = "home"; S.qid = null; }
             if (a === "publish") { S.qtab = "submissions"; }
             go();
             if (a === "publish") sendInvites(q.id);
+            if (a === "delete") toast("Draft deleted");
           } catch (e) { toast(e.message, true); }
         };
       });
       main.querySelectorAll("[data-st]").forEach(function (b) {
         b.onclick = function () {
           if (S.dirty && !confirm("Unsaved question changes will be lost. Leave anyway?")) return;
-          S.qtab = b.dataset.st; discardDraft(); go();
+          S.qtab = b.dataset.st; S.subOpen = null; discardDraft(); go();
         };
       });
       var body = main.querySelector("#hqQBody");
@@ -518,6 +537,50 @@ registerPage({
       };
     }
 
+    /* ================================================================ preview */
+    // "What they will receive", literally: the exact email finalize sends (server-rendered
+    // for the admin's own name and address) plus the form drawn the way the employee page
+    // draws it — disabled controls, real labels, real options.
+    async function openPreview(q) {
+      var old = document.getElementById("hqOvl");
+      if (old) old.remove();
+      var pv;
+      try { pv = await api("/api/_hrqadmin?view=invite_preview&id=" + q.id); }
+      catch (e) { toast(e.message, true); return; }
+      var qs = (q.questions || []).filter(function (x) { return x.active; });
+      var mock = qs.map(function (item, i) {
+        var ctl = item.qtype === "stars5"
+          ? '<div class="pv-stars">★★★★★</div>'
+          : item.qtype === "single" || item.qtype === "multi"
+          ? (item.options || []).map(function (o) {
+              return '<label class="pv-ch"><input type="' + (item.qtype === "single" ? "radio" : "checkbox") + '" disabled> '
+                + esc(o) + "</label>";
+            }).join("")
+          : '<div class="pv-ta">' + (item.qtype === "short_text" ? "Short answer…" : "Your answer…") + "</div>";
+        return '<div class="pv-q"><b>' + (i + 1) + " · " + esc(item.label)
+          + (item.required ? ' <span style="color:var(--neg)">*</span>' : "") + "</b>"
+          + (item.description ? '<div class="hq-dim">' + esc(item.description) + "</div>" : "")
+          + ctl + "</div>";
+      }).join("") || '<div class="hq-dim">No questions yet — add some first.</div>';
+      var ovl = document.createElement("div");
+      ovl.id = "hqOvl"; ovl.className = "hq-ovl";
+      ovl.innerHTML = '<div class="pane">'
+        + '<div class="hq-row" style="margin-bottom:12px"><b style="font-size:15px">Preview</b>'
+        + '<span style="flex:1"></span><button class="hq-btn" id="pvX">Close</button></div>'
+        + '<div class="pv-sec">The email each person receives</div>'
+        + '<div class="hq-dim" style="margin:2px 0 8px">Subject: <b>' + esc(pv.subject) + "</b>"
+        + (pv.mode !== "live" ? " · TEST mode is on — every mail currently lands at " + esc(pv.test_to) : "")
+        + "</div>"
+        + '<iframe class="pv-mail" sandbox=""></iframe>'
+        + '<div class="pv-sec" style="margin-top:16px">The form as they will see it</div>'
+        + mock + "</div>";
+      document.body.appendChild(ovl);
+      ovl.querySelector(".pv-mail").srcdoc =
+        '<body style="margin:0;background:#ffffff">' + pv.html + "</body>";
+      ovl.querySelector("#pvX").onclick = function () { ovl.remove(); };
+      ovl.onclick = function (e) { if (e.target === ovl) ovl.remove(); };
+    }
+
     /* ================================================================ invites */
     // The page LOOPS the batched send until the server says nothing remains — each request
     // claims-then-mails a few people, so a tab closed mid-way loses nothing (the next
@@ -543,8 +606,52 @@ registerPage({
       }
     }
 
+    /* ============================================================ one response */
+    async function paintOneResponse(body, canR) {
+      var d;
+      try { d = await api("/api/_hrqadmin?view=response&id=" + S.qid + "&email=" + encodeURIComponent(S.subOpen)); }
+      catch (e) { S.subOpen = null; toast(e.message, true); return paintSubmissions(body, canR); }
+      var r = d.response;
+      var answerHtml = function (qq, v) {
+        if (v == null || v === "") return '<span class="hq-dim">— not answered</span>';
+        if (qq.qtype === "stars5") return '<span style="color:var(--warn)">' + "★".repeat(clampStar(v))
+          + '</span> <span class="hq-dim">' + esc(v) + "/5</span>";
+        if (qq.qtype === "multi") return esc(safeArr(v).join(", "));
+        return esc(v);
+      };
+      body.innerHTML =
+        '<div class="hq-row" style="margin-bottom:12px">'
+        + '<button class="hq-btn" id="hrBack">← Everyone</button>'
+        + "<b style=\"font-size:15px\">" + esc(d.name || d.email) + "</b>"
+        + '<span class="hq-dim">' + esc(d.email)
+        + (r && r.department ? " · " + esc(r.department) : "") + "</span>"
+        + '<span style="flex:1"></span>'
+        + (r && (r.status === "submitted" || r.status === "resubmitted") && canR
+            ? '<button class="hq-btn" id="hrReop">Reopen</button>' : "")
+        + "</div>"
+        + '<div class="hq-dim" style="margin-bottom:12px">'
+        + (d.invite ? (d.invite.status === "sent" ? "Invited " + esc(fmtWhen(d.invite.sent_at)) : "Invite " + esc(d.invite.status)) : "Not invited yet")
+        + (r ? " · " + esc(r.status.replace("_", " "))
+             + (r.submitted_at ? " " + esc(fmtWhen(r.submitted_at)) : "")
+             + (r.reopened_by ? " · reopened by " + esc(String(r.reopened_by).split("@")[0]) : "")
+          : " · has not started") + "</div>"
+        + '<div class="hq-card">'
+        + (d.questions || []).map(function (qq) {
+            return '<div class="hq-txt"><b>' + esc(qq.label) + "</b><br>" + answerHtml(qq, d.answers[qq.id]) + "</div>";
+          }).join("")
+        + "</div>";
+      body.querySelector("#hrBack").onclick = function () { S.subOpen = null; paintSubmissions(body, canR); };
+      var rb = body.querySelector("#hrReop");
+      if (rb) rb.onclick = async function () {
+        if (!confirm("Reopen for " + d.email + "? They will be able to change and resubmit their answers. This is recorded.")) return;
+        try { await post({ action: "reopen", id: S.qid, email: d.email }); paintOneResponse(body, canR); }
+        catch (e) { toast(e.message, true); }
+      };
+    }
+
     /* ================================================================ submissions */
     async function paintSubmissions(body, canR) {
+      if (S.subOpen) return paintOneResponse(body, canR);
       await loadSub();
       var board = S.sub.board, counts = {};
       board.forEach(function (r) { counts[r.status] = (counts[r.status] || 0) + 1; });
@@ -593,15 +700,17 @@ registerPage({
               : r.invite.status === "sent" ? esc(fmtWhen(r.invite.sent_at, true))
               : r.invite.status === "failed" ? '<span class="hq-pill archived">failed</span>'
               : '<span class="hq-dim">sending…</span>';
-            return "<tr><td><b>" + esc(r.name || r.email || "—") + "</b>"
+            var clickable = canR && r.email;
+            return "<tr" + (clickable ? ' class="rowlink" data-open="' + esc(r.email)
+                + '" title="Open this response"' : "") + "><td><b>"
+              + esc(r.name || r.email || "—") + "</b>"
               + (r.name && r.email ? '<div class="hq-dim">' + esc(r.email) + "</div>" : "") + "</td>"
               + "<td>" + esc(r.department || "—") + "</td>"
               + "<td>" + pill(r.status)
               + (r.reopened_by ? ' <span class="hq-dim">by ' + esc(String(r.reopened_by).split("@")[0]) + "</span>" : "") + "</td>"
               + "<td>" + invited + "</td>"
               + "<td>" + (r.submitted_at ? esc(fmtWhen(r.submitted_at)) : "—") + "</td>"
-              + "<td class=\"r\">" + ((canR && (r.status === "submitted" || r.status === "resubmitted"))
-                  ? '<button class="hq-btn" data-ro="' + esc(r.email) + '">Reopen</button>' : "") + "</td></tr>";
+              + '<td class="r hq-dim">' + (clickable ? "open ›" : "") + "</td></tr>";
           }).join("") || '<tr><td colspan="6" class="hq-dim" style="padding:14px">Nobody matches.</td></tr>')
         + "</tbody></table></div>";
       var ib = body.querySelector("#hbInv");
@@ -614,12 +723,8 @@ registerPage({
           var n = body.querySelector("#hbQ"); if (n) { n.focus(); n.setSelectionRange(at, at); }
         });
       };
-      body.querySelectorAll("[data-ro]").forEach(function (b) {
-        b.onclick = async function () {
-          if (!confirm("Reopen for " + b.dataset.ro + "? They will be able to change and resubmit their answers. This is recorded.")) return;
-          try { await post({ action: "reopen", id: S.qid, email: b.dataset.ro }); paintSubmissions(body, canR); }
-          catch (e) { toast(e.message, true); }
-        };
+      body.querySelectorAll("[data-open]").forEach(function (tr) {
+        tr.onclick = function () { S.subOpen = tr.dataset.open; paintSubmissions(body, canR); };
       });
     }
 
