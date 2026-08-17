@@ -45,7 +45,7 @@ window.RS = (function () {
       cols: ["Company", "Job No", "Status", "Status Category", "Create Date", "Booked Date",
         "Move Date", "Service Type", "Size of Move", "Customer", "State", "State Name",
         "County Name", "City Name", "Source", "Source Before Adjustment", "Source Connector",
-        "Via QR", "Min Quote", "Max Quote",
+        "Via QR", "Meta Referral", "Min Quote", "Max Quote",
         "Average Quote", "Total CF", "Total Lbs", "Big Job Status", "CF Range", "Bill Range",
         "Assigned", "Request Joinkey", "Closing Sheet Connector"],
       dateCols: { "Create Date": "Create Date", "Booked Date": "Booked Date", "Move Date": "Move Date" },
