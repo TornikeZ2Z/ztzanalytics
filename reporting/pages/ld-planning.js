@@ -438,10 +438,8 @@ registerPage({
         .ldp-msopt:hover{background:var(--panel-2)}
         .ldp-msopt input{margin:0;cursor:pointer}
         .ldp-msopt .n{margin-left:auto;color:var(--faint);font-variant-numeric:tabular-nums;font-size:11.5px}
-        .ldp-usub{font-size:11.5px;color:var(--faint);margin:2px 0 8px;line-height:1.5}
-        .ldp-ugrid{display:grid;grid-template-columns:1fr 1fr;gap:8px 12px}
-        .ldp-ul{display:flex;flex-direction:column;gap:4px;font-size:10.5px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}
-        .ldp-ul .ldp-cinp{width:100%;box-sizing:border-box;font-size:12.5px}
+        .ldp-rst{font-size:11px;font-weight:700;color:var(--brand);cursor:pointer;white-space:nowrap;margin-left:7px}
+        .ldp-rst:hover{text-decoration:underline}
         .ldp-udlv{margin-top:12px;padding-top:11px;border-top:1px dashed var(--line);display:flex;gap:10px;align-items:center;flex-wrap:wrap}
         .ldp-dlvb{background:var(--pos,#2ea05a);border-color:var(--pos,#2ea05a);color:#fff}
         .ldp-dlvon{font-size:12.5px;font-weight:800;color:var(--pos,#2ea05a)}
@@ -1201,16 +1199,37 @@ registerPage({
           }).join("") + "</dl>";
         };
         var money = function (v) { return v == null ? null : "$" + Number(v).toLocaleString(); };
+        // EDIT IN PLACE (his call 2026-08-17: "whatever was calculated by sheet — user
+        // should be able to write over it"): the FAD and Timeframe rows ARE the inputs,
+        // prefilled with the computed value; a change saves an override that beats the
+        // sheet, ↺ removes it. Calendar-only rows (no sheet row yet) stay read-only —
+        // the mart cannot re-key their entries after pickup, so offering the editor
+        // there would silently discard saves (adversarial review, 2026-08-17).
+        var canEd = String(r["Sheet Row"] || "").indexOf("calendar:") !== 0;
+        var entHere = entFor(String(r["Company"]), String(r["Request #"]), String(r["Sheet Row"] || ""));
+        var hasOv = function (f) { return !!(entHere[f] && entHere[f].value != null); };
+        var srcTag = function (s) { return s ? ' <span class="ldp-sub">(' + esc(s) + ")</span>" : ""; };
+        var rstLink = function (id) {
+          return '<a class="ldp-rst" id="' + id + '" title="Remove the override — the sheet value returns on the next data refresh">↺ back to sheet</a>';
+        };
+        var fadIso = r["FAD"] ? String(r["FAD"]).slice(0, 10) : "";
+        var tfCur = (r["Timeframe"] && String(r["Timeframe"]).trim() !== "0") ? String(r["Timeframe"]) : "";
         // Type-aware, exactly as in the table: a Straight job has no FAD — the office keeps
         // the committed DELIVERY DATE in that field, so labelling it "FAD" here would lie.
+        var fadCell = canEd
+          ? '<input class="ldp-cinp" type="date" id="ldpEdFad" data-init="' + esc(fadIso) + '" value="' + esc(fadIso) + '">'
+            + srcTag(r["FAD Source"]) + (hasOv("fad_override") ? rstLink("ldpRstFad") : "")
+          : fmtD(r["FAD"]) + srcTag(r["FAD Source"]);
+        var tfCell = canEd
+          ? '<input class="ldp-cinp" id="ldpEdTf" maxlength="120" data-init="' + esc(tfCur) + '" value="' + esc(tfCur)
+            + '" placeholder="none — deliver on the FAD">'
+            + (hasOv("timeframe_override") ? rstLink("ldpRstTf") : "")
+          : (tfCur ? esc(tfCur) : '<span class="ldp-sub">none — deliver on the FAD</span>');
         var delivery = isStraight(r)
-          ? [["Delivery date", fmtD(r["FAD"]) + (r["FAD Source"] ? ' <span class="ldp-sub">(' + esc(r["FAD Source"]) + ")</span>" : "")],
-             ["Timeframe", (r["Timeframe"] && String(r["Timeframe"]).trim() !== "0")
-               ? esc(r["Timeframe"]) : '<span class="ldp-sub">none — deliver on the FAD</span>']]
-          : [["FAD", fmtD(r["FAD"]) + (r["FAD Source"] ? ' <span class="ldp-sub">(' + esc(r["FAD Source"]) + ")</span>" : "")],
+          ? [["Delivery date", fadCell], ["Timeframe", tfCell]]
+          : [["FAD", fadCell],
              ["Window", windowTxt(r) + (r["Window Note"] ? ' <span class="ldp-sub">' + esc(r["Window Note"]) + "</span>" : "")],
-             ["Timeframe", (r["Timeframe"] && String(r["Timeframe"]).trim() !== "0")
-               ? esc(r["Timeframe"]) : '<span class="ldp-sub">none — deliver on the FAD</span>']];
+             ["Timeframe", tfCell]];
 
         return ''
           + (r["Do"] ? '<div class="ldp-dnote"><b>Do:</b> ' + esc(r["Do"]) + "</div>" : "")
@@ -1236,13 +1255,37 @@ registerPage({
           + '<div class="ldp-sec">Delivery</div>'
           + kv(delivery.concat([
                 ["Depart by", fmtD(r["Depart By"]) + (tripTxt(r) ? ' <span class="ldp-sub">' + tripTxt(r) + "</span>" : "")]]))
+          + (canEd
+              ? '<div class="ldp-udlv">'
+                + (isDelivered(r)
+                    ? '<span class="ldp-dlvon">✓ Delivered — confirmed on the portal</span>'
+                      + '<button class="ldp-bhbtn" id="ldpUnDlv" style="margin-top:0">Undo — back on the board</button>'
+                    : '<button class="ldp-bhbtn ldp-dlvb" id="ldpDlvBtn" style="margin-top:0">✓ This job is delivered</button>'
+                      + '<span id="ldpDlvC" style="display:none;font-size:12.5px">Take it off the working board? '
+                      + '<button class="ldp-bhbtn" id="ldpDlvYes" style="margin-top:0">Yes, delivered</button> '
+                      + '<button class="ldp-bhbtn" id="ldpDlvNo" style="margin-top:0">Cancel</button></span>')
+                + "</div>"
+              : "")
           + '<div class="ldp-sec">Where it is</div>'
           + (function () { var dfrom = departFrom(r); return kv([
                 ["Status", esc(r["Possession"] || "—")],
                 // ROUTE above already carries the full address -- printing it again here was
                 // the "extra stuff" (Tornike 2026-07-28); this row names the bucket only
-                ["Location", '<b class="ldp-big">' + esc(r["Location"] || "—") + "</b>"
-                  + ((dfrom.addr || det) ? '<div class="ldp-addr">' + esc(dfrom.addr || det) + "</div>" : "")],
+                ["Location", (canEd
+                    ? (function () {
+                        var inL = LDP_LOCATIONS.indexOf(String(r["Location"] || "")) >= 0;
+                        return '<select class="ldp-cinp" id="ldpEdLoc" data-init="' + esc(inL ? r["Location"] : "") + '">'
+                          + (inL ? "" : '<option selected disabled>' + esc(r["Location"] || "—") + "</option>")
+                          + LDP_LOCATIONS.map(function (l) {
+                              return '<option' + (String(r["Location"]) === l ? " selected" : "") + ">" + esc(l) + "</option>";
+                            }).join("")
+                          + "</select>" + (String(r["Location Source"]) === "portal" ? rstLink("ldpRstLoc") : "")
+                          + '<input class="ldp-cinp" id="ldpEdLocN" maxlength="200" style="margin-top:6px" data-init="' + esc(det)
+                          + '" placeholder="address / unit / note (optional)" value="' + esc(det) + '">'
+                          + (dfrom.addr ? '<div class="ldp-addr">' + esc(dfrom.addr) + "</div>" : "");
+                      })()
+                    : '<b class="ldp-big">' + esc(r["Location"] || "—") + "</b>"
+                      + ((dfrom.addr || det) ? '<div class="ldp-addr">' + esc(dfrom.addr || det) + "</div>" : ""))],
                 // Carrier only exists on REGULAR moving -- a Straight job is driven by our own
                 // crew, so showing carrier fields there invites a wrong reading (Tornike 2026-07-28).
                 // Regular jobs ride with a carrier -- name them, and call the money what it is
@@ -1266,7 +1309,6 @@ registerPage({
                 (+r["Storage Sold"]) ? ["Storage", "Sales person sold storage on this job"] : null,
                 ["Sticker", esc(r["Sticker"] || "—")],
                 ["Route status", esc(r["Route Status"] || "—")]]); })()
-          + updateSec(r)
           + (isBackhaul(r)
               ? '<div class="ldp-sec">Backhaul</div>'
                 + '<div class="ldp-sub" style="margin-bottom:6px">This truck comes back empty. Edit the message and send it to your carrier contacts.</div>'
@@ -1284,10 +1326,10 @@ registerPage({
                 + (jobPairs.filter(Boolean).length ? kv(jobPairs)
                    : '<div class="ldp-sub">no closing figures on this job yet</div>');
             })()
-          // 2026-08-17 (his ask): the drawer regained ONE input surface — the "Update this
-          // job" section (delivered tick + location / FAD / timeframe overrides). Everything
-          // else stays read-only; overlaid() still applies nothing — the mart plus the
-          // optimistic mutations in the update wiring are the whole truth.
+          // 2026-08-17 (his ask, round 2): FAD / Timeframe / Location edit IN PLACE —
+          // the rows are the inputs, prefilled with computed values, auto-saving on
+          // change. overlaid() still applies nothing — the mart plus the optimistic
+          // mutations in the editors' wiring are the whole truth.
         ;
       }
 
@@ -1370,38 +1412,6 @@ registerPage({
           } else { window.prompt("Copy the outreach message:", msg); }
         };
       }
-      // ---- "Update this job" (his ask 2026-08-17): the delivered tick plus the three
-      // fields whose sheet values the office corrects from the site. A value here BEATS
-      // the sheets on the next mart build; the drawer applies it optimistically right
-      // away (carrier-location precedent). Inputs prefill with the saved OVERRIDES, not
-      // the computed values — blank = still following the sheets.
-      function updateSec(r) {
-        var _e = entFor(String(r["Company"]), String(r["Request #"]), String(r["Sheet Row"] || ""));
-        var ev = function (f) { return _e[f] && _e[f].value != null ? String(_e[f].value) : ""; };
-        return '<div class="ldp-sec">Update this job</div>'
-          + '<div class="ldp-usub">A value set here beats the sheet. The board applies it now; begin/urgency fully recompute on the next data refresh.</div>'
-          + '<div class="ldp-ugrid">'
-          +   '<label class="ldp-ul">Current location<select class="ldp-cinp" id="ldpULoc">'
-          +     '<option value="">as computed — ' + esc(r["Location"] || "unknown") + "</option>"
-          +     LDP_LOCATIONS.map(function (l) {
-                  return '<option' + (ev("location") === l ? " selected" : "") + ">" + esc(l) + "</option>";
-                }).join("") + "</select></label>"
-          +   '<label class="ldp-ul">Location note<input class="ldp-cinp" id="ldpULocN" maxlength="200" placeholder="address / unit (optional)" value="' + esc(ev("location_note")) + '"></label>'
-          +   '<label class="ldp-ul">' + (isStraight(r) ? "Delivery date" : "FAD") + '<input class="ldp-cinp" type="date" id="ldpUFad" value="' + esc(ev("fad_override")) + '"></label>'
-          +   '<label class="ldp-ul">Timeframe<input class="ldp-cinp" id="ldpUTf" maxlength="120" placeholder="e.g. 5-7 days" value="' + esc(ev("timeframe_override")) + '"></label>'
-          + "</div>"
-          + '<div style="margin-top:9px"><button class="ldp-bhbtn" id="ldpUSave" style="margin-top:0">Save updates</button>'
-          + '<span class="ldp-sub" id="ldpUMsg" style="margin-left:8px"></span></div>'
-          + '<div class="ldp-udlv">'
-          + (isDelivered(r)
-              ? '<span class="ldp-dlvon">✓ Delivered — confirmed on the portal</span>'
-                + '<button class="ldp-bhbtn" id="ldpUnDlv" style="margin-top:0">Undo — back on the board</button>'
-              : '<button class="ldp-bhbtn ldp-dlvb" id="ldpDlvBtn" style="margin-top:0">✓ This job is delivered</button>'
-                + '<span id="ldpDlvC" style="display:none;font-size:12.5px">Take it off the working board? '
-                + '<button class="ldp-bhbtn" id="ldpDlvYes" style="margin-top:0">Yes, delivered</button> '
-                + '<button class="ldp-bhbtn" id="ldpDlvNo" style="margin-top:0">Cancel</button></span>')
-          + "</div>";
-      }
       function openDrawer(key) {
         var dr = document.getElementById("ldpDrawer"), sc = document.getElementById("ldpScrim");
         if (!dr || !sc) return;
@@ -1459,10 +1469,9 @@ registerPage({
           inp.onkeydown = function (e) { if (e.key === "Enter") btn.click(); };
         })();
         (function () {
-          var sv = dr.querySelector("#ldpUSave");
-          if (!sv) return;
-          var msg = dr.querySelector("#ldpUMsg");
-          var key2 = String(r["Company"]) + "|" + String(r["Request #"]) + "|" + String(r["Sheet Row"] || "");
+          // in-place editors (his call 2026-08-17): each field saves the moment it
+          // changes — type over the computed value, done. ↺ removes the override.
+          if (String(r["Sheet Row"] || "").indexOf("calendar:") === 0) return;
           var post = function (field, value) {
             return fetch(ZTZ.API + "/api/_ldp", { method: "POST",
               headers: { Authorization: "Bearer " + ZTZ.getToken(), "Content-Type": "application/json" },
@@ -1470,34 +1479,65 @@ registerPage({
                                      sheet_row: r["Sheet Row"], field: field, value: value }) })
               .then(function (res) { return res.json().then(function (j) {
                 if (!res.ok || (j && j.error)) throw new Error((j && j.error) || "save failed");
-                (LDP_ENT[key2] = LDP_ENT[key2] || {})[field] = { field: field, value: value };
+                var k2 = String(r["Company"]) + "|" + String(r["Request #"]) + "|" + String(r["Sheet Row"] || "");
+                (LDP_ENT[k2] = LDP_ENT[k2] || {})[field] = { field: field, value: value };
               }); });
           };
-          var ev2 = function (f) {
+          var entV = function (f) {
             var e3 = entFor(String(r["Company"]), String(r["Request #"]), String(r["Sheet Row"] || ""))[f];
             return e3 && e3.value != null ? String(e3.value) : "";
           };
-          sv.onclick = function () {
-            var want = { location: dr.querySelector("#ldpULoc").value,
-                         location_note: dr.querySelector("#ldpULocN").value.trim(),
-                         fad_override: dr.querySelector("#ldpUFad").value,
-                         timeframe_override: dr.querySelector("#ldpUTf").value.trim() };
-            var todo = Object.keys(want).filter(function (f) { return want[f] !== ev2(f); });
-            if (!todo.length) { msg.textContent = "Nothing changed"; return; }
-            sv.disabled = true; msg.textContent = "Saving…";
-            Promise.all(todo.map(function (f) { return post(f, want[f] || null); }))
-              .then(function () {
-                // DIRECT (carrier-location precedent): the row shows the change now,
-                // the pipeline recomputes windows/urgency on its next run
-                if (want.location) { r["Location"] = want.location; r["Location Source"] = "portal"; }
-                if (todo.indexOf("location_note") >= 0 && want.location) r["Location Detail"] = want.location_note || null;
-                if (want.fad_override) { r["FAD"] = want.fad_override; r["FAD Source"] = "portal"; }
-                if (want.timeframe_override) r["Timeframe"] = want.timeframe_override;
-                sv.disabled = false; msg.textContent = "Saved ✓";
-                paint(); if (host.__ldpOpen) host.__ldpOpen(S.sel);
-              })
-              .catch(function (eS) { sv.disabled = false; msg.textContent = String(eS.message || eS); });
+          var refresh = function () { paint(); if (host.__ldpOpen) host.__ldpOpen(S.sel); };
+          var SAVED = "Saved — recomputes fully on the next data refresh";
+          var CLEARED = "Override removed — the sheet value returns on the next data refresh";
+          var wire = function (el, apply, clear) {
+            if (!el) return;
+            el.onchange = function () {
+              var v = String(el.tagName === "SELECT" ? el.value : el.value).trim();
+              var init = el.getAttribute("data-init") || "";
+              if (v === init) return;
+              if (!v) {
+                if (!clear || !clear.hadOv()) { el.value = init; return; }
+                post(clear.field, null)
+                  .then(function () { clear.local(); ZTZ.toast(CLEARED); refresh(); })
+                  .catch(function (eS) { el.value = init; ZTZ.toast(String(eS.message || eS)); });
+                return;
+              }
+              apply.check && !apply.check(v)
+                ? (el.value = init)
+                : post(apply.field, v)
+                    .then(function () { apply.local(v); ZTZ.toast(SAVED); refresh(); })
+                    .catch(function (eS) { el.value = init; ZTZ.toast(String(eS.message || eS)); });
+            };
+            if (el.tagName === "INPUT") el.onkeydown = function (e2) { if (e2.key === "Enter") el.blur(); };
           };
+          wire(dr.querySelector("#ldpEdFad"),
+            { field: "fad_override", local: function (v) { r["FAD"] = v; r["FAD Source"] = "portal"; } },
+            { field: "fad_override", hadOv: function () { return !!entV("fad_override"); },
+              local: function () { r["FAD Source"] = null; } });
+          wire(dr.querySelector("#ldpEdTf"),
+            { field: "timeframe_override", local: function (v) { r["Timeframe"] = v; } },
+            { field: "timeframe_override", hadOv: function () { return !!entV("timeframe_override"); },
+              local: function () {} });
+          wire(dr.querySelector("#ldpEdLoc"),
+            { field: "location", check: function (v) { return LDP_LOCATIONS.indexOf(v) >= 0; },
+              local: function (v) { r["Location"] = v; r["Location Source"] = "portal"; } },
+            null);
+          wire(dr.querySelector("#ldpEdLocN"),
+            { field: "location_note", local: function (v) { r["Location Detail"] = v; } },
+            { field: "location_note", hadOv: function () { return !!entV("location_note"); },
+              local: function () { r["Location Detail"] = null; } });
+          var rst = function (id, field, local) {
+            var a = dr.querySelector("#" + id);
+            if (a) a.onclick = function () {
+              post(field, null)
+                .then(function () { local(); ZTZ.toast(CLEARED); refresh(); })
+                .catch(function (eS) { ZTZ.toast(String(eS.message || eS)); });
+            };
+          };
+          rst("ldpRstFad", "fad_override", function () { r["FAD Source"] = null; });
+          rst("ldpRstTf", "timeframe_override", function () {});
+          rst("ldpRstLoc", "location", function () { r["Location Source"] = "system"; });
           var db = dr.querySelector("#ldpDlvBtn"), dc = dr.querySelector("#ldpDlvC");
           if (db) db.onclick = function () { db.style.display = "none"; dc.style.display = "inline"; };
           var dn = dr.querySelector("#ldpDlvNo");
