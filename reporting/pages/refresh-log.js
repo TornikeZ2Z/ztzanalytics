@@ -10,6 +10,7 @@ const RL = (() => {
   const STAGE_LABEL = {
     sharepoint: "SharePoint exports", closing: "Closing sheets", card_expenses: "Card expenses",
     sheets: "Google Sheets", calendar: "Google Calendar", excel: "Reference workbooks",
+    ringcentral_api: "RingCentral API",
     curated: "Curation · silver layer", calendar_curated: "Calendar model", money_flow: "Money flow",
     job_overview: "Job overview", lead_call: "Lead calls", ld_planning: "LD planning",
     foreman_closings: "Foreman closings", health: "Health checks",
