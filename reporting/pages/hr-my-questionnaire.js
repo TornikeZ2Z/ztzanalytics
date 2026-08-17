@@ -87,8 +87,8 @@ registerPage({
         ".hm-fill{font-size:13px;font-weight:800;color:var(--brand);white-space:nowrap}",
         ".hm-sec{font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:16px 2px 9px}",
         // Forms-parity controls: section headers, linear scale, dropdown, Other…
-        ".hm-sect{margin:24px 0 12px;padding:14px 18px;background:var(--panel);border-left:4px solid var(--brand);border-radius:0 12px 12px 0}",
-        ".hm-sect b{font-size:15.5px}",
+        ".hm-sect{margin:30px 0 12px;padding:16px 20px;background:var(--panel);border-left:4px solid var(--brand);border-radius:0 12px 12px 0}",
+        ".hm-sect b{font-size:17px;letter-spacing:-.2px}",
         ".hm-sect .d{font-size:12.5px;color:var(--muted);margin-top:4px;line-height:1.55}",
         ".hm-scale{display:flex;gap:6px;flex-wrap:wrap;align-items:center}",
         ".hm-num{min-width:38px;height:38px;border-radius:10px;border:1px solid var(--line-2);background:var(--panel);font:inherit;font-size:14px;font-weight:700;color:var(--muted);cursor:pointer}",

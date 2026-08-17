@@ -602,8 +602,9 @@ registerPage({
           + "</div>";
       }).join("");
       if (!locked) {
+        var nQ = d.filter(function (x) { return x.qtype !== "section"; }).length;
         html += '<div class="hq-stickybar"><button class="hq-btn" id="hqAdd">+ Add a question</button>'
-          + '<span class="hq-dim">' + d.length + " question" + (d.length === 1 ? "" : "s")
+          + '<span class="hq-dim">' + nQ + " question" + (nQ === 1 ? "" : "s")
           + ' · <span id="hqDirty">' + (S.dirty ? "unsaved changes" : "saved") + "</span></span>"
           + '<span style="flex:1"></span>'
           + '<span class="hq-dim">the Save button on top saves everything at once</span></div>';
