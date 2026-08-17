@@ -69,7 +69,7 @@
       if (!document.getElementById("hdCss")) {
         var st = document.createElement("style"); st.id = "hdCss";
         st.textContent = [
-          ".hd{max-width:1180px;font-variant-numeric:tabular-nums}",
+          ".hd{font-variant-numeric:tabular-nums}",   // full width — a bigger screen means more room, not more margin
           ".hd-kpis{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px}",
           ".hd-kpi{flex:1 1 150px;background:var(--panel);border:1px solid var(--line);border-radius:13px;padding:12px 16px}",
           ".hd-kpi b{display:block;font-size:20px;font-weight:800}",
@@ -100,6 +100,8 @@
           ".hd-p .pcell .hd-av{font-size:12px}",
           ".hd-p .pcell b{font-size:13px;white-space:nowrap}",
           ".hd-tbl td.r{text-align:right;white-space:nowrap}",
+          ".hd-tbl.fixed{table-layout:fixed;min-width:860px}",
+          ".hd-tbl.fixed td{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}",
           ".hd-noem{display:inline-block;font-size:10px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;border:1px dashed var(--warn);color:var(--warn);border-radius:999px;padding:2px 9px}",
           // -------- editor popup --------
           ".hd-ovl{position:fixed;inset:0;background:rgba(10,14,20,.55);z-index:130;display:flex;align-items:flex-start;justify-content:center;padding:60px 16px;overflow:auto}",
@@ -116,17 +118,31 @@
           "@media(max-width:560px){.hd-pane .grid{grid-template-columns:1fr}}",
           ".hd-msg{font-size:12px;font-weight:700;min-height:16px}",
           ".hd-msg.ok{color:var(--pos)}.hd-msg.err{color:var(--neg)}",
-          // -------- organization view: the reporting tree --------
-          ".hd-org{padding:6px 2px}",
-          ".hd-node{position:relative}",
-          ".hd-ocard{display:inline-flex;align-items:center;gap:10px;background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--c,#94a3b8);border-radius:11px;padding:8px 14px 8px 10px;margin:4px 0;max-width:100%}",
-          ".hd-ocard .hd-av{font-size:11px}",
-          ".hd-ocard b{font-size:13px;display:block}",
-          ".hd-ocard b small{font-weight:600;color:var(--faint);font-size:11px;margin-left:5px}",
-          ".hd-ocard span{display:block;font-size:11px;color:var(--faint)}",
-          ".hd-ocard span.also{color:var(--muted);font-style:italic}",
-          ".hd-kids{margin-left:17px;border-left:2px solid var(--line-2);padding-left:20px}",
-          ".hd-kids>.hd-node::before{content:'';position:absolute;left:-20px;top:26px;width:16px;height:2px;background:var(--line-2)}",
+          // -------- organization: the zipdispatch org.html chart, portal-skinned --------
+          ".hd-org{overflow-x:auto;padding:8px 0 46px}",
+          ".hd-tree{display:flex;flex-direction:column;align-items:center;min-width:max-content;margin:0 auto}",
+          ".hd-leaders{display:flex;justify-content:center;padding-top:30px;position:relative}",
+          ".hd-leaders::before{content:'';position:absolute;top:0;left:50%;border-left:2px solid var(--line-2);height:30px}",
+          ".hd-col{position:relative;padding:30px 13px 0;display:flex;flex-direction:column;align-items:center}",
+          ".hd-col::before,.hd-col::after{content:'';position:absolute;top:0;right:50%;border-top:2px solid var(--line-2);width:50%;height:30px}",
+          ".hd-col::after{right:auto;left:50%;border-left:2px solid var(--line-2)}",
+          ".hd-col:first-child::before,.hd-col:last-child::after{border:0 none}",
+          ".hd-col:last-child::before{border-right:2px solid var(--line-2);border-radius:0 8px 0 0}",
+          ".hd-col:first-child::after{border-radius:8px 0 0 0}",
+          ".hd-col:only-child::before,.hd-col:only-child::after{border:0 none}",
+          ".hd-tc{position:relative;width:204px;background:var(--panel);border:1px solid var(--line);border-radius:13px;padding:10px 13px 9px;margin:6px 0;text-align:left;cursor:pointer;box-shadow:0 1px 2px rgba(0,0,0,.08),0 6px 18px rgba(0,0,0,.05)}",
+          ".hd-tc:hover{border-color:var(--brand)}",
+          ".hd-tc b{font-size:13px;display:block;line-height:1.3}",
+          ".hd-tc b small{font-weight:600;color:var(--faint);font-size:10.5px;margin-left:4px}",
+          ".hd-tc span{display:block;font-size:11px;color:var(--faint);margin-top:1px}",
+          ".hd-tc span.also{color:var(--muted);font-style:italic}",
+          ".hd-tc.lead{border-width:2px;padding-top:13px}",
+          ".hd-crown{position:absolute;top:-8px;left:11px;background:var(--c,#4f46e5);color:#fff;font-size:8.5px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;padding:2px 8px;border-radius:999px;white-space:nowrap}",
+          ".hd-tc:not(.lead){border-left:3px solid var(--c,#94a3b8)}",
+          ".hd-tc:not(.top)::before{content:'';position:absolute;top:-9px;left:50%;height:8px;border-left:2px solid var(--line-2)}",
+          ".hd-sub{margin-left:26px;display:flex;flex-direction:column;align-items:flex-start;position:relative}",
+          ".hd-sub .hd-tc{width:186px}",
+          ".hd-sub::before{content:'';position:absolute;left:-13px;top:-4px;bottom:24px;border-left:2px dashed var(--line-2)}",
           // -------- crew --------
           ".hd-note{background:var(--panel-2);border:1px solid var(--line);border-left:3px solid var(--brand);border-radius:10px;padding:10px 14px;font-size:12.5px;color:var(--muted);margin-bottom:12px;line-height:1.5}",
           ".hd-wrap{overflow-x:auto}",
@@ -165,6 +181,7 @@
         ]);
         S.roster = r[0].roster || [];
         S.crew = r[1].crew || [];
+        S.crewSheet = r[1].sheet_url || "";
         S.home = r[2];
       }
 
@@ -283,9 +300,13 @@
           + '<td class="r hd-dim">' + (p.status === "active" ? "edit ›" : "inactive · edit ›") + "</td></tr>";
       }
 
+      // ONE colgroup for every department table (fixed layout) — so Title, Reports to and
+      // Email sit at identical x positions all the way down the page
+      var PEOPLE_COLS = '<colgroup><col style="width:28%"><col style="width:22%">'
+        + '<col style="width:20%"><col style="width:24%"><col style="width:6%"></colgroup>';
       function deptTable(rowsHtml) {
-        return '<div class="hd-card hd-wrap"><table class="hd-tbl"><thead><tr>'
-          + "<th>Person</th><th>Title</th><th>Reports to</th><th>Email</th><th></th>"
+        return '<div class="hd-card hd-wrap"><table class="hd-tbl fixed">' + PEOPLE_COLS
+          + "<thead><tr><th>Person</th><th>Title</th><th>Reports to</th><th>Email</th><th></th>"
           + "</tr></thead><tbody>" + rowsHtml + "</tbody></table></div>";
       }
 
@@ -343,7 +364,10 @@
         });
       }
 
-      /* ---------------- Organization: the reporting tree ---------------- */
+      /* -------- Organization: the zipdispatch org.html chart, drawn from live data --------
+       * CEO on top, one connector down, the classic T-branch row of leader columns, and
+       * each column a vertical run of cards; a sub-manager's people hang off a dashed
+       * indent under them. Leaders wear their department as a colored crown. */
       function paintOrg() {
         var act = S.roster.filter(function (p) { return p.status === "active"; });
         var byName = {};
@@ -363,42 +387,61 @@
           });
         });
         var seen = {};
-        function card(p) {
-          return '<div class="hd-ocard" style="--c:' + deptColor(p.department) + '" data-id="' + p.id + '">'
-            + avatar(p, 30)
-            + "<span><b>" + esc(p.name)
+        function card(p, cls) {
+          var c = deptColor(p.department);
+          return '<div class="hd-tc ' + (cls || "") + '" style="--c:' + c + '" data-id="' + p.id + '">'
+            + (cls && cls.indexOf("lead") >= 0
+                ? '<span class="hd-crown" style="--c:' + c + '">' + esc(p.department || "") + "</span>" : "")
+            + "<b>" + esc(p.name)
             + (p.alias ? "<small>· " + esc(p.alias) + "</small>" : "") + "</b>"
-            + "<span>" + esc(p.title || p.department || "") + "</span>"
+            + "<span>" + esc(p.title || "") + "</span>"
             + (p.also_reports_to ? '<span class="also">also → ' + esc(p.also_reports_to) + "</span>" : "")
-            + "</span></div>";
-        }
-        function node(p, depth) {
-          var key = p.name.toLowerCase();
-          if (seen[key] || depth > 10) return "";   // typo cycles must not hang the page
-          seen[key] = 1;
-          var ks = kids[key] || [];
-          return '<div class="hd-node">' + card(p)
-            + (ks.length ? '<div class="hd-kids">' + ks.map(function (c) { return node(c, depth + 1); }).join("") + "</div>" : "")
             + "</div>";
         }
-        var html = '<div class="hd-org">';
-        if (!roots.length && act.length) roots = act.slice(0, 1);   // data has no CEO row: still draw
-        html += roots.map(function (r) { return node(r, 0); }).join("");
-        var missed = orphans.filter(function (p) { return !seen[p.name.toLowerCase()]; });
+        // the cards for p's REPORTS (p itself is already drawn); anyone who manages
+        // people gets their own dashed sub-indent. Depth cap + seen-set: a typo cycle
+        // must never hang the page.
+        function run(p, depth) {
+          if (depth > 10) return "";
+          var ks = kids[p.name.toLowerCase()] || [];
+          return ks.map(function (c2) {
+            var k2 = c2.name.toLowerCase();
+            if (seen[k2]) return "";
+            seen[k2] = 1;
+            var sub = run(c2, depth + 1);
+            return card(c2, "") + (sub ? '<div class="hd-sub">' + sub + "</div>" : "");
+          }).join("");
+        }
+        var ceo = roots[0] || act[0];
+        var html = '<div class="hd-org"><div class="hd-tree">';
+        if (ceo) {
+          seen[ceo.name.toLowerCase()] = 1;
+          html += card(ceo, "lead top");
+          var leaders = kids[ceo.name.toLowerCase()] || [];
+          if (leaders.length) {
+            html += '<div class="hd-leaders">' + leaders.map(function (L) {
+              seen[L.name.toLowerCase()] = 1;
+              var body = run(L, 1);
+              return '<div class="hd-col">' + card(L, "lead top") + body + "</div>";
+            }).join("") + "</div>";
+          }
+        }
+        html += "</div>";
+        var missed = act.filter(function (p) { return !seen[p.name.toLowerCase()]; });
         if (missed.length) {
-          html += '<div class="hd-dept" style="margin-top:22px"><span class="dot" style="background:#94a3b8"></span>'
+          html += '<div class="hd-dept" style="margin-top:10px"><span class="dot" style="background:#94a3b8"></span>'
             + "<i>Not placed</i><em>" + missed.length + "</em></div>"
             + '<div class="hd-dim" style="margin:0 0 8px">Their “reports to” does not match anyone active — '
-            + "fix the name on the People view and they join the tree.</div>"
-            + missed.map(function (p) { return '<div class="hd-node">' + card(p) + "</div>"; }).join("");
+            + "fix the name and they join the chart.</div>"
+            + '<div style="display:flex;gap:10px;flex-wrap:wrap">'
+            + missed.map(function (p) { return card(p, "top"); }).join("") + "</div>";
         }
         html += "</div>";
         main.innerHTML = html;
-        main.querySelectorAll(".hd-ocard").forEach(function (c) {
-          c.style.cursor = "pointer";
+        main.querySelectorAll(".hd-tc").forEach(function (c) {
           c.onclick = function () {
             var p = S.roster.filter(function (x) { return x.id === +c.dataset.id; })[0];
-            if (p) openEditorModal(p);      // edit right here — no view switch
+            if (p) openEditorModal(p);
           };
         });
       }
@@ -416,9 +459,13 @@
           + "This list follows the sheet through the nightly pipeline — change someone there and "
           + "this page catches up on the next refresh.</div>"
           + '<div class="hd-row" style="margin-bottom:12px">'
+          + (S.crewSheet ? '<a class="hd-btn go" href="' + esc(S.crewSheet)
+              + '" target="_blank" rel="noopener" style="text-decoration:none">Open the Google Sheet ↗</a>' : "")
           + '<input class="hd-in" id="hdQ" placeholder="Find a crew member…" value="' + esc(S.q) + '" style="min-width:220px">'
           + '<span class="hd-dim">' + rows.length + " people shown</span></div>"
-          + '<div class="hd-card hd-wrap"><table class="hd-tbl">'
+          + '<div class="hd-card hd-wrap"><table class="hd-tbl fixed">'
+          + '<colgroup><col style="width:19%"><col style="width:12%"><col style="width:15%">'
+          + '<col style="width:10%"><col style="width:8%"><col style="width:22%"><col style="width:14%"></colgroup>'
           + "<thead><tr><th>Name</th><th>Nickname</th><th>Role</th><th>Status</th>"
           + "<th>Base</th><th>Email</th><th>Phone</th></tr></thead><tbody>"
           + (rows.map(function (c) {
