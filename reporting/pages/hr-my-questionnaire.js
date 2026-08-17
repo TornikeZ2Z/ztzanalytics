@@ -26,6 +26,7 @@ registerPage({
     var S = window.__HRME || (window.__HRME = {
       data: null, open: null, msg: "", msgErr: false, _seq: {}, _chain: {},
     });
+    S.open = null;                      // every visit starts on the list of forms
 
     function api(path, opts) {
       return fetch(ZTZ.API + path, Object.assign({
@@ -79,6 +80,18 @@ registerPage({
         ".hm-ro{border-left:3px solid var(--line-2);padding:4px 12px;margin-top:10px;font-size:13.5px;line-height:1.5}",
         ".hm-ro .a{color:var(--ink)}",
         ".hm-empty{text-align:center;padding:48px 20px;color:var(--muted);font-size:14px;line-height:1.6}",
+        // the list of sent-out forms: one card per questionnaire, click to open
+        ".hm-item{display:flex;gap:14px;align-items:center;justify-content:space-between;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:15px 18px;margin-bottom:10px;cursor:pointer;transition:border-color .12s}",
+        ".hm-item:hover{border-color:var(--brand)}",
+        ".hm-item b{font-size:15px}",
+        ".hm-fill{font-size:13px;font-weight:800;color:var(--brand);white-space:nowrap}",
+        ".hm-sec{font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:16px 2px 9px}",
+        // the confirmation modal (no native confirm here either)
+        ".hm-cfm{position:fixed;inset:0;background:rgba(10,14,20,.5);z-index:150;display:flex;align-items:center;justify-content:center;padding:20px}",
+        ".hm-cfm .box{background:var(--panel);border:1px solid var(--line);border-radius:16px;max-width:440px;width:100%;padding:24px 26px;box-shadow:0 18px 60px rgba(0,0,0,.4)}",
+        ".hm-cfm h3{margin:0 0 9px;font-size:16.5px}",
+        ".hm-cfm p{margin:0 0 20px;font-size:13.5px;color:var(--muted);line-height:1.65}",
+        ".hm-cfm .btns{display:flex;gap:10px;justify-content:flex-end}",
       ].join("\n");
       document.head.appendChild(st);
     }
@@ -96,6 +109,24 @@ registerPage({
         return;
       }
       paint();
+    }
+
+    function hmConfirm(opts) {
+      return new Promise(function (res) {
+        var o = document.createElement("div");
+        o.className = "hm-cfm";
+        o.innerHTML = '<div class="box"><h3>' + opts.t + "</h3><p>" + opts.b + "</p>"
+          + '<div class="btns"><button class="hm-btn" data-no>' + (opts.no || "Cancel") + "</button>"
+          + '<button class="hm-go" data-yes>' + (opts.yes || "Confirm") + "</button></div></div>";
+        document.body.appendChild(o);
+        var done = function (v) { o.remove(); document.removeEventListener("keydown", onk); res(v); };
+        var onk = function (e) { if (e.key === "Escape") done(false); };
+        document.addEventListener("keydown", onk);
+        o.querySelector("[data-yes]").onclick = function () { done(true); };
+        o.querySelector("[data-no]").onclick = function () { done(false); };
+        o.onclick = function (e) { if (e.target === o) done(false); };
+        o.querySelector("[data-yes]").focus();
+      });
     }
 
     function statusPill(q) {
@@ -116,24 +147,40 @@ registerPage({
                 + " to the list — this page unlocks the moment they do.") + "</div>";
         return;
       }
-      if (S.open == null || !qs.some(function (q) { return q.id === S.open; })) {
-        // open the first thing that still needs the person; otherwise the newest
-        var todo = qs.filter(function (q) { return q.editable; });
-        S.open = (todo[0] || qs[0]).id;
-      }
+      if (S.open != null && !qs.some(function (q) { return q.id === S.open; })) S.open = null;
+      if (S.open == null) { paintList(qs); return; }
       var cur = qs.filter(function (q) { return q.id === S.open; })[0];
-      var html = "";
-      if (qs.length > 1) {
-        html += '<div class="hm-card" style="padding:10px 14px"><div class="hm-dim" style="margin-bottom:6px">Your questionnaires</div>'
-          + qs.map(function (q) {
-              return '<button class="hm-btn" data-open="' + q.id + '" style="margin:2px 6px 2px 0'
-                + (q.id === S.open ? ";border-color:var(--brand);color:var(--brand)" : "") + '">'
-                + esc(q.title) + " · " + esc(q.my_status === "not_started" ? "new" : String(q.my_status).replace("_", " ")) + "</button>";
-            }).join("") + "</div>";
-      }
-      html += paintOne(cur);
-      main.innerHTML = html;
+      main.innerHTML =
+        '<div style="margin-bottom:12px"><button class="hm-btn" id="hmBack">← All questionnaires</button></div>'
+        + paintOne(cur);
+      main.querySelector("#hmBack").onclick = function () { S.open = null; paint(); };
       wire(cur);
+    }
+
+    // HIS CALL (2026-08-17): "we are gonna have a lot of questionnaires" — the page
+    // opens on the LIST of everything sent to this person; filling is a click away.
+    function paintList(qs) {
+      var todo = qs.filter(function (q) { return q.editable; });
+      var rest = qs.filter(function (q) { return !q.editable; });
+      var item = function (q) {
+        var meta = q.questions.length + " question" + (q.questions.length === 1 ? "" : "s")
+          + (q.submitted_at ? " · submitted " + esc(fmtWhen(q.submitted_at)) : "");
+        return '<div class="hm-item" data-open="' + q.id + '"><div>'
+          + "<b>" + esc(q.title) + "</b> " + statusPill(q)
+          + (q.description ? '<div class="hm-dim" style="margin-top:4px">' + esc(q.description) + "</div>" : "")
+          + '<div class="hm-dim" style="margin-top:4px">' + meta + "</div></div>"
+          + (q.editable ? '<span class="hm-fill">Fill it in ›</span>'
+                        : '<span class="hm-dim" style="white-space:nowrap">open ›</span>')
+          + "</div>";
+      };
+      main.innerHTML =
+        (todo.length ? '<div class="hm-sec">Waiting for you · ' + todo.length + "</div>"
+          + todo.map(item).join("") : "")
+        + (rest.length ? '<div class="hm-sec">' + (todo.length ? "Earlier" : "Your questionnaires")
+          + "</div>" + rest.map(item).join("") : "");
+      main.querySelectorAll("[data-open]").forEach(function (el) {
+        el.onclick = function () { S.open = +el.dataset.open; paint(); };
+      });
     }
 
     function paintOne(q) {
@@ -268,9 +315,6 @@ registerPage({
     }
 
     function wire(q) {
-      main.querySelectorAll("[data-open]").forEach(function (b) {
-        b.onclick = function () { S.open = +b.dataset.open; paint(); };
-      });
       if (!q || !q.editable) return;
       main.querySelectorAll(".hm-stars").forEach(function (w) {
         var qid = +w.dataset.q;
@@ -324,7 +368,7 @@ registerPage({
         ta.onblur = function () { clearTimeout(timer); save(q, qid, ta.value); };
       });
       var sb = main.querySelector("#hmSubmit");
-      if (sb) sb.onclick = function () {
+      if (sb) sb.onclick = async function () {
         // client-side required check for a friendly message; the server re-checks anyway
         var missing = q.questions.filter(function (qq) {
           if (!qq.required) return false;
@@ -339,7 +383,9 @@ registerPage({
           if (first) first.scrollIntoView({ block: "center", behavior: "smooth" });
           return;
         }
-        if (!confirm("Submit your answers? After this they become read-only — only HR can reopen them.")) return;
+        if (!(await hmConfirm({ t: "Submit your answers?",
+            b: "After this they become read-only — only HR can reopen them for a correction.",
+            yes: q.my_status === "reopened" ? "Submit the correction" : "Submit" }))) return;
         sb.disabled = true; sb.textContent = "Submitting…";
         api("/api/_hrq", { method: "POST", body: JSON.stringify({ questionnaire_id: q.id, submit: true }) })
           .then(function () { return load(); },

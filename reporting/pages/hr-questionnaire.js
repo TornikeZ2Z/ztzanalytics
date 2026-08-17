@@ -190,6 +190,17 @@ registerPage({
         ".hq-guide code{background:var(--panel-2);border-radius:5px;padding:1px 6px;font-size:12px}",
         ".hq-ovl{position:fixed;inset:0;background:rgba(10,14,20,.55);z-index:130;display:flex;align-items:flex-start;justify-content:center;padding:34px 16px;overflow:auto}",
         ".hq-ovl .pane{background:var(--panel);border:1px solid var(--line);border-radius:16px;max-width:1020px;width:100%;padding:20px 24px;box-shadow:0 18px 60px rgba(0,0,0,.35)}",
+        // the confirmation modal (native confirm() is banned from here on)
+        ".hq-cfm{position:fixed;inset:0;background:rgba(10,14,20,.5);z-index:150;display:flex;align-items:center;justify-content:center;padding:20px}",
+        ".hq-cfm .box{background:var(--panel);border:1px solid var(--line);border-radius:16px;max-width:460px;width:100%;padding:24px 26px;box-shadow:0 18px 60px rgba(0,0,0,.4)}",
+        ".hq-cfm h3{margin:0 0 9px;font-size:16.5px}",
+        ".hq-cfm p{margin:0 0 20px;font-size:13.5px;color:var(--muted);line-height:1.65}",
+        ".hq-cfm .btns{display:flex;gap:10px;justify-content:flex-end}",
+        ".hq-cfm .btns .hq-btn{padding:9px 18px;font-size:13.5px}",
+        ".hq-btn.danger{background:var(--neg);border-color:var(--neg);color:#fff}",
+        ".hq-btn.danger:hover{border-color:var(--neg);color:#fff;filter:brightness(1.08)}",
+        ".hq-btn.send{background:var(--ink);border-color:var(--ink);color:var(--panel)}",
+        ".hq-btn.send:hover{border-color:var(--ink);color:var(--panel);filter:brightness(1.18)}",
         ".pv-sec{font-size:11px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);margin-bottom:6px}",
         ".pv-mail{width:100%;height:290px;border:1px solid var(--line);border-radius:10px;background:#fff}",
         ".pv-q{border:1px solid var(--line);border-radius:11px;padding:11px 14px;margin:8px 0;background:var(--panel-2)}",
@@ -278,6 +289,38 @@ registerPage({
     // resurrects the "lost" edits on the next visit, labeled "saved".
     function discardDraft() { S.dirty = false; S.draft = null; S.draftFor = null; }
 
+    // ONE promise-shaped confirmation surface for the whole page. opts: t (title),
+    // b (body, trusted page-authored HTML), yes/no labels, danger (red confirm).
+    function hqConfirm(opts) {
+      return new Promise(function (res) {
+        var o = document.createElement("div");
+        o.className = "hq-cfm";
+        o.innerHTML = '<div class="box"><h3>' + opts.t + "</h3><p>" + opts.b + "</p>"
+          + '<div class="btns"><button class="hq-btn" data-no>' + (opts.no || "Cancel") + "</button>"
+          + '<button class="hq-btn ' + (opts.danger ? "danger" : "go") + '" data-yes>'
+          + (opts.yes || "Confirm") + "</button></div></div>";
+        document.body.appendChild(o);
+        var done = function (v) { o.remove(); document.removeEventListener("keydown", onk); res(v); };
+        var onk = function (e) { if (e.key === "Escape") done(false); };
+        document.addEventListener("keydown", onk);
+        o.querySelector("[data-yes]").onclick = function () { done(true); };
+        o.querySelector("[data-no]").onclick = function () { done(false); };
+        o.onclick = function (e) { if (e.target === o) done(false); };
+        o.querySelector("[data-yes]").focus();
+      });
+    }
+
+    // The one Save button collects from both editors through these; painters
+    // re-register on every paint, and paintQ clears them first so a hook can
+    // never carry another questionnaire's closure.
+    var HOOKS = { settings: null, questions: null };
+
+    function markDirty() {
+      S.dirty = true;
+      var el = main.querySelector("#hqDirty");
+      if (el) el.textContent = "unsaved changes";
+    }
+
     /* No page-level tab bar (his call, 2026-08-18): people live on the Team Directory,
        the guide is retired, so this page IS the questionnaire list. */
     function paintTabs() { tabsEl.innerHTML = ""; }
@@ -352,11 +395,12 @@ registerPage({
     /* ================================================================ one questionnaire */
     async function paintQ() {
       await loadQ();
+      HOOKS.settings = HOOKS.questions = null;
       var q = S.q, canM = S.home && S.home.can_manage, canR = S.home && S.home.can_results;
       var lifecycle = "";
       if (canM) {
         if (q.status === "draft") lifecycle = '<button class="hq-btn" data-lc="preview">Preview</button>'
-          + '<button class="hq-btn go" data-lc="publish">Finalize &amp; send</button>'
+          + '<button class="hq-btn send" data-lc="publish">Finalize &amp; send</button>'
           + (q.deletable
               ? '<button class="hq-btn warn" data-lc="delete">Delete draft</button>'
               : '<button class="hq-btn warn" data-lc="archive">Archive draft</button>');
@@ -365,6 +409,8 @@ registerPage({
           + '<button class="hq-btn warn" data-lc="archive">Archive</button>';
       }
       if (["setup", "submissions", "results"].indexOf(S.qtab) < 0) S.qtab = "setup";
+      var saveBtn = canM && S.qtab === "setup" && (q.status === "draft" || q.status === "published")
+        ? '<button class="hq-btn go" id="hqSaveAll" style="padding:8px 26px;font-size:14px">Save</button>' : "";
       var subtabs = [["setup", "Set up"], ["submissions", "Responses"]]
         .concat(canR ? [["results", "Statistics"]] : []);
       main.innerHTML =
@@ -373,35 +419,56 @@ registerPage({
         + "<b style=\"font-size:17px\">" + esc(q.title) + "</b>"
         + '<span class="hq-pill ' + esc(q.status) + '">' + esc(q.status) + "</span>"
         + (q.version > 1 ? '<span class="hq-dim">version ' + q.version + "</span>" : "")
-        + '<span style="flex:1"></span>' + lifecycle + "</div>"
+        + '<span style="flex:1"></span>' + saveBtn + lifecycle + "</div>"
         + '<div class="hq-tabs" style="margin-bottom:12px">' + subtabs.map(function (t) {
             return '<button data-st="' + t[0] + '" class="' + (S.qtab === t[0] ? "on" : "") + '">' + t[1] + "</button>";
           }).join("") + "</div>"
         + '<div id="hqQBody"></div>'
         + '<div class="hq-msg" id="hqMsg" style="margin-top:8px"></div>';
-      main.querySelector("#hqBack").onclick = function () {
-        if (S.dirty && !confirm("Unsaved question changes will be lost. Leave anyway?")) return;
+      main.querySelector("#hqBack").onclick = async function () {
+        if (S.dirty && !(await hqConfirm({ t: "Leave without saving?",
+            b: "The changes you made on this questionnaire will be lost.",
+            yes: "Leave", danger: true }))) return;
         S.view = "home"; S.qid = null; discardDraft(); go();
       };
       main.querySelectorAll("[data-lc]").forEach(function (b) {
         b.onclick = async function () {
           var a = b.dataset.lc;
           if (a === "preview") { openPreview(q); return; }
-          if (S.dirty) {           // finalizing over unsaved edits would lock the OLD questions
-            toast("You have unsaved question edits — save them (or leave and come back) first", true);
+          if (S.dirty) {           // finalizing over unsaved edits would lock the OLD words
+            toast("You have unsaved edits — press Save first", true);
             return;
           }
-          var warn = { publish: "Finalize and send? Questions lock, the questionnaire goes live, "
-                         + "and every person in the audience receives the invite email. After "
-                         + "this it can never be deleted.",
-                       close: "Close? Nobody will be able to submit any more.",
-                       archive: q.status === "draft"
-                         ? "Archive this draft? It leaves the list and can never be published."
-                         : "Archive? It disappears from the employee page entirely.",
-                       "delete": "Delete this draft for good? Its questions and settings are "
-                         + "gone permanently. Nobody was sent anything, so nothing else is lost.",
-                       new_version: "Create a new draft version with the same questions?" }[a];
-          if (!confirm(warn)) return;
+          // how many people the invite actually reaches, from the live roster
+          var audN = (function () {
+            var act2 = (S.roster || []).filter(function (p) { return p.status === "active"; });
+            if (q.audience_kind === "all") return act2.length;
+            var vals2 = (q.audience_values || []).map(function (v) { return String(v).toLowerCase(); });
+            if (q.audience_kind === "departments")
+              return act2.filter(function (p) {
+                return vals2.indexOf(String(p.department || "").toLowerCase()) >= 0;
+              }).length;
+            return vals2.length;
+          })();
+          var W = { publish: { t: "Finalize &amp; send?",
+                      b: "The questionnaire goes live and <b>" + audN + (audN === 1 ? " person" : " people")
+                        + "</b> receive the invite email right away. Questions lock, and it can "
+                        + "never be deleted — only deactivated.",
+                      yes: "Finalize &amp; send" },
+                    close: { t: "Deactivate?", b: "Nobody will be able to submit any more.",
+                      yes: "Deactivate", danger: true },
+                    archive: q.status === "draft"
+                      ? { t: "Archive this draft?",
+                          b: "It leaves the list and can never be published.", yes: "Archive", danger: true }
+                      : { t: "Archive?", b: "It disappears from the employee page entirely. This is final.",
+                          yes: "Archive", danger: true },
+                    "delete": { t: "Delete this draft?",
+                      b: "Its questions and settings are gone for good. Nobody was sent anything, "
+                        + "so nothing else is lost.", yes: "Delete it", danger: true },
+                    new_version: { t: "New version?",
+                      b: "Creates a fresh draft with the same questions. The current one keeps "
+                        + "everything already answered.", yes: "Create the draft" } }[a];
+          if (!(await hqConfirm(W))) return;
           try {
             var r = await post({ action: a, id: q.id });
             discardDraft();
@@ -415,8 +482,10 @@ registerPage({
         };
       });
       main.querySelectorAll("[data-st]").forEach(function (b) {
-        b.onclick = function () {
-          if (S.dirty && !confirm("Unsaved question changes will be lost. Leave anyway?")) return;
+        b.onclick = async function () {
+          if (S.dirty && !(await hqConfirm({ t: "Leave without saving?",
+              b: "The changes you made on this questionnaire will be lost.",
+              yes: "Leave", danger: true }))) return;
           S.qtab = b.dataset.st; S.subOpen = null; discardDraft(); go();
         };
       });
@@ -428,6 +497,16 @@ registerPage({
           + '<div id="hqQs"></div>';
         paintSettings(body.querySelector("#hqSet"), q, canM);
         paintQuestions(body.querySelector("#hqQs"), q, canM);
+        var sb = main.querySelector("#hqSaveAll");
+        if (sb) sb.onclick = async function () {
+          try {
+            var qp = HOOKS.questions ? HOOKS.questions() : null;   // throws on a bad form
+            var sp = HOOKS.settings ? HOOKS.settings() : null;
+            if (sp) await post(sp);
+            if (qp) await post({ action: "save_questions", id: q.id, questions: qp });
+            S.dirty = false; toast("Saved"); go();
+          } catch (e) { toast(e.message, true); }
+        };
       }
       else if (S.qtab === "submissions") await paintSubmissions(body, canR);
       else if (S.qtab === "results") await paintResults(body);
@@ -489,7 +568,7 @@ registerPage({
           + '<span class="hq-dim">' + d.length + " question" + (d.length === 1 ? "" : "s")
           + ' · <span id="hqDirty">' + (S.dirty ? "unsaved changes" : "saved") + "</span></span>"
           + '<span style="flex:1"></span>'
-          + '<button class="hq-btn go" id="hqSaveQ"' + (d.length ? "" : " disabled") + ">Save questions</button></div>";
+          + '<span class="hq-dim">the Save button on top saves everything at once</span></div>';
       }
       body.innerHTML = html;
       if (locked) return;
@@ -520,7 +599,8 @@ registerPage({
         mark(); paintQuestions(body, q, canM);
         var rows = body.querySelectorAll(".hq-ed .lbl"); rows[rows.length - 1].focus();
       };
-      body.querySelector("#hqSaveQ").onclick = async function () {
+      HOOKS.questions = function () {
+        if (!d.length) return null;                    // a fresh draft: nothing to save yet
         // `taken` must include RETIRED server-side keys too (q.questions has them all):
         // reusing a retired key would resurrect that question's history under a new label
         var taken = new Set(d.filter(function (x) { return x.qkey; }).map(function (x) { return x.qkey; }));
@@ -531,17 +611,12 @@ registerPage({
                    qtype: x.qtype, options: x.options, required: x.required };
         });
         for (var pi = 0; pi < payload.length; pi++) {
-          if (!payload[pi].label.trim()) { toast("Question " + (pi + 1) + " needs a label", true); return; }
+          if (!payload[pi].label.trim()) throw new Error("Question " + (pi + 1) + " needs a label");
           if ((payload[pi].qtype === "single" || payload[pi].qtype === "multi")
-              && (payload[pi].options || []).filter(Boolean).length < 2) {
-            toast("'" + (payload[pi].label.slice(0, 40)) + "' needs at least 2 choices", true); return;
-          }
+              && (payload[pi].options || []).filter(Boolean).length < 2)
+            throw new Error("'" + payload[pi].label.slice(0, 40) + "' needs at least 2 choices");
         }
-        try {
-          await post({ action: "save_questions", id: q.id, questions: payload });
-          S.dirty = false; toast("Saved — " + payload.length + " questions");
-          var el = body.querySelector("#hqDirty"); if (el) el.textContent = "saved";
-        } catch (e) { toast(e.message, true); }
+        return payload;
       };
     }
 
@@ -599,8 +674,7 @@ registerPage({
               + "<span>" + sub + '</span><span class="tick">✓</span></label>';
           }).join("")
         + "</div>"
-        + '<div id="hsAudVals"></div></div>'
-        + (canM ? '<div class="hq-row"><button class="hq-btn go" id="hsSave">Save settings</button></div>' : "");
+        + '<div id="hsAudVals"></div></div>';
       function paintAudVals() {
         var kind = (body.querySelector('input[name="hsAud"]:checked') || {}).value || q.audience_kind;
         var el = body.querySelector("#hsAudVals");
@@ -660,10 +734,10 @@ registerPage({
               var n = el.querySelector("#hqPplQ"); if (n) { n.focus(); n.setSelectionRange(at, at); }
             };
             el.querySelectorAll("[data-add]").forEach(function (row) {
-              row.onclick = function () { S.audSel.add(row.dataset.add); paintAudVals(); };
+              row.onclick = function () { S.audSel.add(row.dataset.add); markDirty(); paintAudVals(); };
             });
             el.querySelectorAll("[data-rme]").forEach(function (b) {
-              b.onclick = function () { S.audSel.delete(b.dataset.rme); paintAudVals(); };
+              b.onclick = function () { S.audSel.delete(b.dataset.rme); markDirty(); paintAudVals(); };
             });
           }
           return;
@@ -693,7 +767,7 @@ registerPage({
               ? "No departments yet — add people on the Team Directory first."
               : "The People list is empty.") + "</div>";
         el.querySelectorAll(".hq-chip input").forEach(function (cb) {
-          cb.onchange = function () { cb.closest(".hq-chip").classList.toggle("on", cb.checked); };
+          cb.onchange = function () { cb.closest(".hq-chip").classList.toggle("on", cb.checked); markDirty(); };
         });
       }
       paintAudVals();
@@ -702,23 +776,32 @@ registerPage({
           body.querySelectorAll(".hq-audopt").forEach(function (c) {
             c.classList.toggle("on", c.querySelector("input").checked);
           });
+          markDirty();
           paintAudVals();
         };
       });
       var act = body.querySelector("#hsActive");
       if (act) act.onchange = async function () {
         var on = act.checked;
-        if (!confirm(on ? "Switch it back on? People will be able to open it and submit again."
-                        : "Deactivate? Nobody will be able to submit until you switch it back on. "
-                          + "Every answer already given is kept.")) { act.checked = !on; return; }
+        if (!(await hqConfirm(on
+            ? { t: "Switch it back on?", b: "People will be able to open it and submit again.",
+                yes: "Make it active" }
+            : { t: "Deactivate?", b: "Nobody will be able to submit until you switch it back on. "
+                + "Every answer already given is kept.", yes: "Deactivate", danger: true }))) {
+          act.checked = !on; return;
+        }
         try {
           await post({ action: on ? "activate" : "close", id: q.id });
           toast(on ? "Active — open for answers" : "Deactivated");
           go();
         } catch (e) { act.checked = !on; toast(e.message, true); }
       };
-      var sv = body.querySelector("#hsSave");
-      if (sv) sv.onclick = async function () {
+      // settings edits feed the ONE Save button on top; typing marks the page dirty
+      ["hsTitle", "hsDesc", "hsInstr", "hsConf"].forEach(function (id2) {
+        var el2 = body.querySelector("#" + id2);
+        if (el2 && !el2.disabled) el2.addEventListener("input", markDirty);
+      });
+      HOOKS.settings = !canM ? null : function () {
         var kind = (body.querySelector('input[name="hsAud"]:checked') || {}).value || q.audience_kind;
         var vals = [].map.call(body.querySelectorAll("[data-aud]:checked"), function (c) { return c.dataset.aud; });
         var payload = { action: "update_meta", id: q.id };
@@ -733,8 +816,7 @@ registerPage({
           instructions: body.querySelector("#hsInstr").value,
           confidentiality: body.querySelector("#hsConf").value,
         });
-        try { await post(payload); toast("Settings saved"); go(); }
-        catch (e) { toast(e.message, true); }
+        return payload;
       };
     }
 
@@ -845,7 +927,9 @@ registerPage({
       body.querySelector("#hrBack").onclick = function () { S.subOpen = null; paintSubmissions(body, canR); };
       var rb = body.querySelector("#hrReop");
       if (rb) rb.onclick = async function () {
-        if (!confirm("Reopen for " + d.email + "? They will be able to change and resubmit their answers. This is recorded.")) return;
+        if (!(await hqConfirm({ t: "Reopen this response?",
+            b: "<b>" + esc(d.email) + "</b> will be able to change and resubmit their answers. "
+              + "This is recorded.", yes: "Reopen" }))) return;
         try { await post({ action: "reopen", id: S.qid, email: d.email }); paintOneResponse(body, canR); }
         catch (e) { toast(e.message, true); }
       };
