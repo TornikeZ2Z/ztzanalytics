@@ -206,8 +206,11 @@
     }
   };
   var LKEY = "hrq_lang";
+  // GEORGIAN IS THE DEFAULT (his call 2026-08-17): the crew reads Georgian first, and a
+  // form that opens in the wrong language is a form half the team skims. English stays one
+  // click away, and a chosen language sticks in this browser.
   var lang = localStorage.getItem(LKEY);
-  if (lang !== "ka" && lang !== "en") lang = (navigator.language || "").indexOf("ka") === 0 ? "ka" : "en";
+  if (lang !== "ka" && lang !== "en") lang = "ka";
   var L = function () { return STR[lang]; };
   // the questionnaire's own words: translated when present, English when not
   function tx(obj, field) {
