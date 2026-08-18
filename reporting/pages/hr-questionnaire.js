@@ -194,20 +194,20 @@ registerPage({
         ".hq-scrow select{width:auto;min-width:68px}",
         ".hq-opt .n.end{width:22px;height:22px;border-radius:50%;background:var(--brand-glow);color:var(--brand);font-weight:800;font-size:11px;display:grid;place-items:center;text-align:center}",
         ".hq-grid>div:nth-child(even){border-left:1px solid var(--line);padding-left:14px}",
-        ".hq-grid .lbl{font-size:15px;font-weight:700}",
+        ".hq-grid .lbl{font-size:17px;font-weight:700}",
         ".hq-grid .h{padding-bottom:1px}",
-        ".hq-grid textarea{min-height:64px;align-self:stretch}",
+        ".hq-grid textarea{min-height:72px;align-self:stretch;font-size:15px}",
         ".hq-grid>div{align-self:center}",
-        ".hq-grid .h{font-size:10px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--faint)}",
+        ".hq-grid .h{font-size:11.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--faint)}",
         ".hq-grid .h.ka{color:var(--brand)}",
         ".hq-grid .sp{grid-column:1 / -1;height:1px;background:var(--line);margin:3px 0}",
         ".hq-grid .full{grid-column:1 / -1}",
         ".hq-opt{display:flex;gap:7px;align-items:center}",
-        ".hq-opt .n{font-size:11px;color:var(--faint);width:14px;text-align:right;flex:none}",
+        ".hq-opt .n{font-size:12.5px;color:var(--faint);width:16px;text-align:right;flex:none}",
         ".hq-opt input{flex:1;min-width:0}",
         ".hq-ox{font:inherit;font-size:12px;line-height:1;color:var(--faint);background:none;border:0;cursor:pointer;padding:3px 5px;flex:none}",
         ".hq-ox:hover{color:var(--red)}",
-        ".hq-add{font:inherit;font-size:12px;font-weight:700;color:var(--brand);background:none;border:1px dashed var(--line-2);border-radius:9px;padding:5px 11px;cursor:pointer}",
+        ".hq-add{font:inherit;font-size:13px;font-weight:700;color:var(--brand);background:none;border:1px dashed var(--line-2);border-radius:9px;padding:5px 11px;cursor:pointer}",
         ".hq-add:hover{border-color:var(--brand)}",
         ".hq-ka .kah{font-size:10.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--brand);margin-bottom:6px}",
         ".hq-ka .kah em{font-style:normal;color:var(--faint);font-weight:700;text-transform:none;letter-spacing:0;margin-left:7px}",
@@ -216,7 +216,7 @@ registerPage({
         ".hq-kaw{margin-top:12px;border-left:3px solid var(--brand);background:var(--brand-glow);border-radius:0 12px 12px 0;padding:12px 15px}",
         ".hq-ed .num{width:27px;height:27px;border-radius:9px;background:var(--panel-2);color:var(--muted);font-weight:800;font-size:12.5px;display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto}",
         // quiet fields: invisible until touched — the form-builder look
-        ".hq-fld,.hq-flda{font:inherit;font-size:14px;color:var(--ink);background:transparent;border:1px solid transparent;border-radius:9px;padding:8px 11px;transition:background .12s,border-color .12s;box-sizing:border-box}",
+        ".hq-fld,.hq-flda{font:inherit;font-size:15.5px;color:var(--ink);background:transparent;border:1px solid transparent;border-radius:9px;padding:8px 11px;transition:background .12s,border-color .12s;box-sizing:border-box}",
         ".hq-fld:hover:not(:disabled):not(:focus),.hq-flda:hover:not(:disabled):not(:focus){background:var(--panel-2)}",
         ".hq-fld:focus,.hq-flda:focus{outline:none;background:var(--panel);border-color:var(--brand)}",
         ".hq-fld::placeholder,.hq-flda::placeholder{color:var(--faint)}",
@@ -684,11 +684,11 @@ registerPage({
             return '<div>' + enHtml + "</div><div>" + kaHtml + "</div>";
           };
           var grid = '<div class="hq-grid"><div class="h">English</div><div class="h ka">ქართული</div>'
-            + pair('<input class="hq-fld lbl" data-f="label" value="' + esc(item.label) + '" placeholder="'
+            + pair('<input class="hq-fld lbl bx" data-f="label" value="' + esc(item.label) + '" placeholder="'
                      + (sect ? "Name this section…" : "Write the question…") + '"' + dis + ">",
                    '<input class="hq-fld bx" data-f="ka_label" value="' + esc(kaAll.label || "")
                      + '" placeholder="' + (sect ? "სექციის სათაური…" : "კითხვა ქართულად…") + '"' + dis + ">")
-            + pair('<input class="hq-fld dsc" data-f="description" value="' + esc(item.description)
+            + pair('<input class="hq-fld dsc bx" data-f="description" value="' + esc(item.description)
                      + '" placeholder="Help text (optional)…"' + dis + ">",
                    '<input class="hq-fld bx" data-f="ka_description" value="' + esc(kaAll.description || "")
                      + '" placeholder="დამატებითი ტექსტი (არასავალდებულო)…"' + dis + ">");
@@ -1106,7 +1106,14 @@ registerPage({
               + "<span>" + sub + '</span><span class="tick">✓</span></label>';
           }).join("")
         + "</div>"
-        + '<div id="hsAudVals"></div></div>';
+        + '<div id="hsAudVals"></div></div>'
+        // The team links are their own card (2026-08-18): they are an OUTPUT — six URLs to
+        // copy and send — not part of choosing an audience, and burying them under the
+        // team list meant scrolling past the picker every time you wanted one.
+        + '<div class="hq-card" id="hqLinksCard" style="padding:20px 24px;display:none">'
+        + '<h4 class="eyebrow">The team links</h4>'
+        + '<div class="hq-dim" style="margin-bottom:10px" id="hqLinksSub"></div>'
+        + '<div id="hqAnLinks"></div></div>';
       function paintAudVals() {
         var kind = (body.querySelector('input[name="hsAud"]:checked') || {}).value || q.audience_kind;
         var el = body.querySelector("#hsAudVals");
@@ -1199,7 +1206,7 @@ registerPage({
                       + "</div>")
                   + "</div>";
               }).join("")
-            + '<div id="hqAnLinks" style="margin-top:14px"></div>';
+            ;
           el.querySelectorAll(".hq-anr > .hd").forEach(function (hd2) {
             hd2.onclick = function () {
               var c3 = hd2.parentElement.dataset.cat;
@@ -1235,12 +1242,15 @@ registerPage({
           // refuses drafts, so showing them early is safe)
           if (canM) {
             api("/api/_hrqadmin?view=anonlinks&id=" + q.id).then(function (lk) {
-              var host2 = el.querySelector("#hqAnLinks");
+              var host2 = body.querySelector("#hqAnLinks");
+              var card2 = body.querySelector("#hqLinksCard");
               if (!host2 || !lk.links || !lk.links.length) return;
-              host2.innerHTML = '<div class="hq-dim" style="margin-bottom:7px;font-weight:800;'
-                + 'letter-spacing:.05em;text-transform:uppercase;font-size:10.5px">The team links'
-                + (q.status !== "published" ? " · live once you finalize" : "") + "</div>"
-                + lk.links.map(function (l2) {
+              if (card2) card2.style.display = "";
+              var sub2 = body.querySelector("#hqLinksSub");
+              if (sub2) sub2.textContent = q.status !== "published"
+                ? "One link per team — nobody's name is recorded. They go live once you finalize."
+                : "One link per team — nobody's name is recorded.";
+              host2.innerHTML = lk.links.map(function (l2) {
                     return '<div class="hq-anlk"><b>' + esc(l2.category) + "</b>"
                       + "<code>" + esc(l2.url) + "</code>"
                       + '<span class="hq-dim">' + l2.people + "</span>"
