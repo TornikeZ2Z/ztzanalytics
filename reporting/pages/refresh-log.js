@@ -115,6 +115,7 @@ function rlInjectStyle() {
   .rl-org.gs{color:var(--brand);border-color:color-mix(in srgb,var(--brand) 45%,transparent)}
   .rl-org.api{color:var(--purple);border-color:color-mix(in srgb,var(--purple) 45%,transparent)}
   .rl-org.xl{color:var(--amber);border-color:color-mix(in srgb,var(--amber) 45%,transparent)}
+  .rl-org.portal{color:var(--brand);border-color:color-mix(in srgb,var(--brand) 45%,transparent)}
   .rl-org.cal{color:var(--muted)} .rl-org.oth{color:var(--faint)}
   .rl-mode{font-size:10.5px;font-weight:800;letter-spacing:.04em;text-transform:uppercase}
   .rl-mode.live{color:var(--brand)} .rl-mode.ref{color:var(--faint)}
@@ -544,6 +545,27 @@ function rlFreshness(fresh) {
     <th class="n">Reload</th><th class="n">Last updated</th>
     <th class="n">File date</th><th class="n">Newest row</th><th class="n">Rows</th></tr></thead>`;
 
+  /* LIVE tables have no freshness row and never could: nobody "reloads" them, people
+     WRITE them through the portal, so they are current the second someone saves. They
+     were invisible on this page, which made the warehouse look entirely file-fed. */
+  const liveRows = Object.keys(RL.LIVE || {}).sort().map(t => {
+    const users = (RL.USED && RL.USED[t]) || [];
+    return `<tr class="rl-fr fresh">
+      <td><b>${RSC.esc(RL.LIVE[t])}</b><span class="rl-fkind">${RSC.esc(t)}</span></td>
+      <td><span class="rl-org portal">Portal</span></td>
+      <td><span class="rl-mode live">live</span></td>
+      <td class="rl-used">${RSC.esc(users.map(r => RL.reportLabel(r)).join(", ") || "written in the portal")}</td>
+    </tr>`;
+  }).join("");
+  const liveCard = liveRows ? `<details class="rl-fdet">
+      <summary>${Object.keys(RL.LIVE).length} live table${Object.keys(RL.LIVE).length === 1 ? "" : "s"} — written in the portal, never reloaded</summary>
+      <table class="rl-ftab"><thead><tr><th>What it is</th><th>Comes from</th><th>How</th><th>Used by</th></tr></thead>
+      <tbody>${liveRows}</tbody></table>
+      <div class="rl-fhelp">These are not exports. Somebody typing in the portal — a money-flow
+        confirmation, a cleanup decision, a questionnaire answer — writes straight to the
+        warehouse, so there is nothing to go stale and nothing to pause.</div>
+    </details>` : "";
+
   return `<div class="rl-card">
     <div class="rl-hhead">
       <span class="rl-htitle">Is anything going stale?</span>
@@ -561,6 +583,7 @@ function rlFreshness(fresh) {
       <summary>${fine.length} feed${fine.length === 1 ? "" : "s"} updated in the last ${WATCH} days</summary>
       <table class="rl-ftab">${head}<tbody>${fine.map(row).join("")}</tbody></table>
     </details>
+    ${liveCard}
     <div class="rl-fhelp">A feed goes amber after ${WATCH} days and red after three weeks.
       Some are meant to sit still — reference tables like zip codes barely change — so this is a
       prompt to look, not a fault. <b>Last updated</b> is the export file's own modified date;
