@@ -185,20 +185,11 @@ const CONV = (() => {
     return `<div class="cnv-tr">${extra}${rows || `<div class="cnv-empty" style="padding:14px">No speech captured.</div>`}</div>`;
   }
 
-  function paintMain(host) {
-    const box = host.querySelector("#cnvMain");
-    if (!box) return;
-    if (!S.job) {
-      box.innerHTML = `<div class="cnv-empty">Pick a lead on the left to read the whole conversation —
-        every call and text, with the transcript of anything RingSense recorded.</div>`;
-      return;
-    }
-    if (!S.thread) { box.innerHTML = `<div class="rs-loading" style="padding:40px">Loading the conversation…</div>`; return; }
-    if (S.thread.error) { box.innerHTML = `<div class="cnv-empty">${esc(S.thread.error)}</div>`; return; }
-    const ev = S.thread.events || [];
-    if (!ev.length) { box.innerHTML = `<div class="cnv-empty">No calls or texts recorded for this lead.</div>`; return; }
-    const h = ev[0];
-    const tr = S.thread.transcripts || {};
+  /* The thread renderer, shared. The Sales Person Analysis drawer mounts the SAME
+     markup (CONV.mountThread) so a conversation looks and behaves identically
+     wherever it is read — one renderer, not two that drift apart. */
+  function threadHtml(ev, tr, open, customerName) {
+    const h = { Customer: customerName || (ev[0] && ev[0]["Customer"]) || "Customer" };
     let lastDay = "";
     const body = ev.map((e, i) => {
       const out = isOut(e["Direction"]);
@@ -215,7 +206,7 @@ const CONV = (() => {
       }
       const missed = !out && /missed|voicemail/i.test(String(e["Result"] || ""));
       const t = e["Telephony Session Id"] ? tr[e["Telephony Session Id"]] : null;
-      const opened = !!S.open[i];
+      const opened = !!open[i];
       return sep + `<div class="cnv-ev ${out ? "out" : "in"}${missed ? " cnv-miss" : ""}">
         <div class="cnv-head">${head}</div>
         <div class="cnv-body">
@@ -230,6 +221,36 @@ const CONV = (() => {
         </div>
       </div>`;
     }).join("");
+    return `<div class="cnv-thread">${body}</div>`;
+  }
+
+  /* Render a thread into any element and keep its own expand state. Used by this
+     page AND by the Sales Person Analysis lead drawer. */
+  function mountThread(el, ev, tr, customerName) {
+    const open = {};
+    const draw = () => {
+      el.innerHTML = threadHtml(ev, tr, open, customerName);
+      el.querySelectorAll(".cnv-tbtn").forEach(b => b.onclick = () => {
+        open[b.dataset.i] = !open[b.dataset.i];
+        draw();
+      });
+    };
+    draw();
+  }
+
+  function paintMain(host) {
+    const box = host.querySelector("#cnvMain");
+    if (!box) return;
+    if (!S.job) {
+      box.innerHTML = `<div class="cnv-empty">Pick a lead on the left to read the whole conversation —
+        every call and text, with the transcript of anything RingSense recorded.</div>`;
+      return;
+    }
+    if (!S.thread) { box.innerHTML = `<div class="rs-loading" style="padding:40px">Loading the conversation…</div>`; return; }
+    if (S.thread.error) { box.innerHTML = `<div class="cnv-empty">${esc(S.thread.error)}</div>`; return; }
+    const ev = S.thread.events || [];
+    if (!ev.length) { box.innerHTML = `<div class="cnv-empty">No calls or texts recorded for this lead.</div>`; return; }
+    const h = ev[0];
     const nTr = ev.filter(e => e["Has Transcript"]).length;
     box.innerHTML = `
       <div class="cnv-lead">
@@ -239,14 +260,11 @@ const CONV = (() => {
           h["Source"] ? " · " + esc(h["Source"]) : ""}</div>
         <div class="meta" style="margin-left:auto">${ev.length} events · ${nTr} transcribed</div>
       </div>
-      <div class="cnv-thread">${body}</div>`;
-    box.querySelectorAll(".cnv-tbtn").forEach(b => b.onclick = () => {
-      S.open[b.dataset.i] = !S.open[b.dataset.i];
-      paintMain(host);
-    });
+      <div id="cnvThread"></div>`;
+    mountThread(box.querySelector("#cnvThread"), ev, S.thread.transcripts || {}, h["Customer"]);
   }
 
-  return { injectStyle, search, openLead, paintSide, paintMain, S };
+  return { injectStyle, search, openLead, paintSide, paintMain, mountThread, threadHtml, S };
 })();
 
 registerPage({

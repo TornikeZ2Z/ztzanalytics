@@ -91,6 +91,11 @@
               font-size:11px;font-weight:900;flex:0 0 auto}
   .rrow.miss .tick{background:rgba(226,73,73,.13);color:var(--neg)}
   .missb{border-color:var(--neg) !important}
+  .lang{margin-left:auto;display:flex;gap:0;border:1px solid var(--line-2);border-radius:9px;
+        overflow:hidden;background:var(--panel)}
+  .lang button{font:inherit;font-size:12px;font-weight:800;padding:5px 11px;border:0;
+        background:transparent;color:var(--muted);cursor:pointer}
+  .lang button.on{background:var(--brand);color:var(--brand-ink)}
   .sect-done{text-align:center;padding:60px 20px}
   .sect-done .big{font-size:44px}
   .sect-done b{display:block;font-size:20px;margin-top:12px}
@@ -98,7 +103,9 @@
 </head>
 <body>
 <div class="wrap">
-  <div class="brand"><span class="dot"></span>Zip to Zip Moving</div>
+  <div class="brand"><span class="dot"></span>Zip to Zip Moving
+    <span class="lang" id="lang"><button data-l="en">EN</button><button data-l="ka">ქარ</button></span>
+  </div>
   <div id="main"><div class="card dim">Loading…</div></div>
 </div>
 <script>
@@ -115,8 +122,8 @@
   };
   // team tokens read "<team-slug>-<8hex>" (legacy 32-hex links pass the same shape)
   if (!/^[a-z0-9][a-z0-9-]{7,95}$/.test(t)) {
-    main.innerHTML = '<div class="card"><b>This link is not valid.</b>' +
-      '<div class="dim" style="margin-top:6px">Ask for a fresh questionnaire link.</div></div>';
+    main.innerHTML = '<div class="card"><b>' + L().bad + "</b>" +
+      '<div class="dim" style="margin-top:6px">' + L().badSub + "</div></div>";
     return;
   }
   // the browser's own random id — resume/autosave continuity, never an identity
@@ -128,6 +135,113 @@
       return ("0" + x.toString(16)).slice(-2); }).join("");
     localStorage.setItem(cidKey, cid);
   }
+
+  // ---- LANGUAGE (his ask 2026-08-17). The page's own words live here; the
+  // questionnaire's words come from its `i18n` blob. THE STORED ANSWER IS ALWAYS THE
+  // ENGLISH VALUE — only the label on screen changes — so results stay comparable
+  // however each person read the form.
+  var STR = {
+    en: {
+      loading: "Loading…", bad: "This link is not valid.",
+      badSub: "Ask for a fresh questionnaire link.",
+      parts: function (n) { return n + " part" + (n === 1 ? "" : "s"); },
+      qs: function (n) { return n + " questions"; },
+      saveNote: "your answers save as you go — you can come back any time",
+      anon: function (team) { return "This form is anonymous. It records your team — " + team
+        + " — and never your name, email or account. Nobody can see who wrote what."; },
+      prevNote: "This is a PREVIEW — answers are not recorded anywhere. Walk through the form "
+        + "exactly as the team will see it, then send your feedback.",
+      answered: function (a, t) { return a + " of " + t + " answered"; },
+      start: "Start", resume: "Continue where you left off", reviewGo: "Review & submit",
+      partOf: function (i, n) { return "Part " + i + " of " + n; },
+      intro: "← Intro", back: "← Back", next: "Next →", reviewNext: "Review & submit →",
+      review: "Review", ready: "Ready to submit?",
+      reviewNote: "Open any part to change an answer. Submitting is final — and anonymous.",
+      reviewNotePv: "Open any part to change an answer. This is a preview — nothing is recorded.",
+      submit: "Submit", submitting: "Submitting…", open: "open ›",
+      missReq: function (n) { return " · " + n + " required still missing"; },
+      optional: "optional", required: "required", other: "Other:", choose: "Choose…",
+      yourAnswer: "Your answer…", fewSentences: "A few sentences is plenty.",
+      saving: "saving…", saved: "saved", notSaved: "NOT saved — ",
+      topAnon: function (team) { return "Anonymous · team: " + team; },
+      topPrev: "Preview · nothing is recorded",
+      doneT: "Thank you — your answers are in.",
+      doneS: function (team) { return "This form was anonymous: only your team (" + team
+        + ") is recorded, never your name."; },
+      donePvT: "That was the whole form — nothing was recorded.",
+      donePvS: "This was a preview. Please send your feedback — what felt confusing, too long, "
+        + "or missing — to whoever shared this link."
+    },
+    ka: {
+      loading: "იტვირთება…", bad: "ბმული არასწორია.",
+      badSub: "მოითხოვეთ ახალი ბმული.",
+      parts: function (n) { return n + " ნაწილი"; },
+      qs: function (n) { return n + " კითხვა"; },
+      saveNote: "პასუხები ავტომატურად ინახება — შეგიძლიათ მოგვიანებით დაასრულოთ",
+      anon: function (team) { return "ეს ფორმა ანონიმურია. ინახება მხოლოდ თქვენი გუნდი — "
+        + team + " — და არასოდეს თქვენი სახელი, ელფოსტა ან ანგარიში. ვერავინ ნახავს ვინ რა დაწერა."; },
+      prevNote: "ეს არის წინასწარი ნახვა — პასუხები არსად არ ინახება. გაიარეთ ფორმა ისე, "
+        + "როგორც გუნდი ნახავს, და გამოგვიგზავნეთ თქვენი შენიშვნები.",
+      answered: function (a, t) { return t + "-დან " + a + " შევსებულია"; },
+      start: "დაწყება", resume: "გაგრძელება", reviewGo: "გადახედვა და გაგზავნა",
+      partOf: function (i, n) { return "ნაწილი " + i + " / " + n; },
+      intro: "← დასაწყისი", back: "← უკან", next: "შემდეგი →",
+      reviewNext: "გადახედვა და გაგზავნა →",
+      review: "გადახედვა", ready: "მზად ხართ გასაგზავნად?",
+      reviewNote: "ნებისმიერი ნაწილი გახსენით პასუხის შესაცვლელად. გაგზავნა საბოლოოა — და ანონიმური.",
+      reviewNotePv: "ნებისმიერი ნაწილი გახსენით პასუხის შესაცვლელად. ეს წინასწარი ნახვაა — არაფერი ინახება.",
+      submit: "გაგზავნა", submitting: "იგზავნება…", open: "გახსნა ›",
+      missReq: function (n) { return " · " + n + " სავალდებულო კითხვა დარჩა"; },
+      optional: "არასავალდებულო", required: "სავალდებულო", other: "სხვა:", choose: "აირჩიეთ…",
+      yourAnswer: "თქვენი პასუხი…", fewSentences: "რამდენიმე წინადადება საკმარისია.",
+      saving: "ინახება…", saved: "შენახულია", notSaved: "ვერ შეინახა — ",
+      topAnon: function (team) { return "ანონიმური · გუნდი: " + team; },
+      topPrev: "წინასწარი ნახვა · არაფერი ინახება",
+      doneT: "გმადლობთ — თქვენი პასუხები მიღებულია.",
+      doneS: function (team) { return "ფორმა ანონიმური იყო: ჩაიწერა მხოლოდ თქვენი გუნდი ("
+        + team + "), არასოდეს თქვენი სახელი."; },
+      donePvT: "ეს იყო მთელი ფორმა — არაფერი ჩაწერილა.",
+      donePvS: "ეს იყო წინასწარი ნახვა. გთხოვთ გამოგზავნოთ შენიშვნები — რა იყო გაუგებარი, "
+        + "გრძელი ან დაკლებული — იმ ადამიანთან, ვინც ბმული გამოგიგზავნათ."
+    }
+  };
+  var LKEY = "hrq_lang";
+  // GEORGIAN IS THE DEFAULT (his call 2026-08-17): the crew reads Georgian first, and a
+  // form that opens in the wrong language is a form half the team skims. English stays one
+  // click away, and a chosen language sticks in this browser.
+  var lang = localStorage.getItem(LKEY);
+  if (lang !== "ka" && lang !== "en") lang = "ka";
+  var L = function () { return STR[lang]; };
+  // the questionnaire's own words: translated when present, English when not
+  function tx(obj, field) {
+    var i = obj && obj.i18n && obj.i18n[lang];
+    return (i && i[field]) || obj[field] || "";
+  }
+  // a CHOICE label: translated for display, but the value we store never changes
+  function tOpt(qq, o) {
+    var i = qq && qq.i18n && qq.i18n[lang];
+    if (o === OTH) return (i && i.other) || (lang === "ka" ? "სხვა…" : OTH);
+    return (i && i.opt && i.opt[o]) || o;
+  }
+  function tScale(qq, which, fallback) {
+    var i = qq && qq.i18n && qq.i18n[lang];
+    return (i && i[which]) || fallback || "";
+  }
+  function paintLang() {
+    var box = document.getElementById("lang");
+    if (!box) return;
+    Array.prototype.forEach.call(box.querySelectorAll("button"), function (b) {
+      b.classList.toggle("on", b.dataset.l === lang);
+      b.onclick = function () {
+        if (lang === b.dataset.l) return;
+        lang = b.dataset.l; localStorage.setItem(LKEY, lang);
+        document.documentElement.lang = lang;
+        paintLang(); if (Q) paint();
+      };
+    });
+  }
+  paintLang();
+  document.documentElement.lang = lang;
 
   var Q = null, step = -1, seq = {}, chain = {}, okv = {};
 
@@ -155,7 +269,7 @@
     var steps = [], cur = null, num = 0;
     Q.questions.forEach(function (qq) {
       if (qq.qtype === "section") {
-        cur = { title: qq.label, desc: qq.description || "", items: [] };
+        cur = { title: tx(qq, "label"), desc: tx(qq, "description"), items: [] };
         steps.push(cur);
       } else {
         num += 1;
@@ -189,35 +303,26 @@
   }
 
   function paintDone() {
-    main.innerHTML = Q.preview
-      ? '<div class="card sect-done"><span class="big">✓</span>' +
-        "<b>That was the whole form — nothing was recorded.</b>" +
-        '<div class="dim" style="margin-top:8px">This was a preview. Please send your ' +
-        "feedback — what felt confusing, too long, or missing — to whoever shared this link.</div></div>"
-      : '<div class="card sect-done"><span class="big">✓</span>' +
-        "<b>Thank you — your answers are in.</b>" +
-        '<div class="dim" style="margin-top:8px">This form was anonymous: only your team (' +
-        esc(Q.category) + ") is recorded, never your name.</div></div>";
+    main.innerHTML = '<div class="card sect-done"><span class="big">✓</span>' +
+      "<b>" + (Q.preview ? L().donePvT : L().doneT) + "</b>" +
+      '<div class="dim" style="margin-top:8px">' +
+      (Q.preview ? L().donePvS : L().doneS(esc(Q.category))) + "</div></div>";
   }
 
   function paintIntro(steps) {
     var p = counts(steps);
     main.innerHTML =
       '<div class="card" style="padding:26px 26px">' +
-      '<b style="font-size:21px;letter-spacing:-.3px">' + esc(Q.title) + "</b>" +
-      (Q.description ? '<div style="font-size:13.5px;color:var(--muted);margin-top:9px;line-height:1.6">' + esc(Q.description) + "</div>" : "") +
-      '<div class="meta">' + steps.length + " part" + (steps.length === 1 ? "" : "s") + " · " +
-      p.t + " questions · your answers save as you go — you can come back any time</div>" +
-      (Q.instructions ? '<div style="font-size:13px;margin-top:13px;line-height:1.65">' + esc(Q.instructions) + "</div>" : "") +
-      (Q.preview
-        ? '<div class="anon">This is a PREVIEW — answers are not recorded anywhere. ' +
-          "Walk through the form exactly as the team will see it, then send your feedback.</div>"
-        : '<div class="anon">This form is anonymous. It records your team — ' + esc(Q.category) +
-          " — and never your name, email or account. Nobody can see who wrote what.</div>") +
+      '<b style="font-size:21px;letter-spacing:-.3px">' + esc(tx(Q, "title")) + "</b>" +
+      (tx(Q, "description") ? '<div style="font-size:13.5px;color:var(--muted);margin-top:9px;line-height:1.6">' + esc(tx(Q, "description")) + "</div>" : "") +
+      '<div class="meta">' + L().parts(steps.length) + " · " + L().qs(p.t) + " · " +
+      L().saveNote + "</div>" +
+      (tx(Q, "instructions") ? '<div style="font-size:13px;margin-top:13px;line-height:1.65">' + esc(tx(Q, "instructions")) + "</div>" : "") +
+      '<div class="anon">' + (Q.preview ? L().prevNote : L().anon(esc(Q.category))) + "</div>" +
       (p.a ? '<div style="margin-top:16px">' + progBar(p.a, p.t) +
-        '<span class="dim" id="cnt">' + p.a + " of " + p.t + " answered</span></div>" : "") +
+        '<span class="dim" id="cnt">' + L().answered(p.a, p.t) + "</span></div>" : "") +
       '<div style="margin-top:20px"><button class="go" id="start">' +
-      (p.a >= p.t && p.t ? "Review & submit" : p.a ? "Continue where you left off" : "Start") +
+      (p.a >= p.t && p.t ? L().reviewGo : p.a ? L().resume : L().start) +
       "</button></div></div>";
     document.getElementById("start").onclick = function () {
       var at = steps.length;
@@ -243,7 +348,8 @@
       for (var sc = lo; sc <= hi; sc++)
         btns.push('<button class="num' + (v != null && v !== "" && +v === sc ? " on" : "") +
           '" data-sc="' + qq.id + '" data-v="' + sc + '">' + sc + "</button>");
-      var l1 = (qq.options || [])[2], l2 = (qq.options || [])[3];
+      var l1 = tScale(qq, "lo", (qq.options || [])[2]);
+      var l2 = tScale(qq, "hi", (qq.options || [])[3]);
       inner = '<div class="scale">' + btns.join("") + "</div>" +
         (l1 || l2 ? '<div class="scalelab"><span>' + esc(l1 || "") + "</span><span>" +
           esc(l2 || "") + "</span></div>" : "");
@@ -255,10 +361,10 @@
         return '<label class="choice' + (on ? " on" : "") + '"><input type="radio" name="q' + qq.id + '"' +
           (on ? " checked" : "") + ' data-q="' + qq.id + '" data-o="' + esc(o) + '"' +
           (isO ? ' data-oth="1"' : "") + ">" +
-          (isO ? '<span style="display:flex;gap:8px;flex:1;align-items:center">Other:' +
+          (isO ? '<span style="display:flex;gap:8px;flex:1;align-items:center">' + L().other +
                  '<input class="oth" data-so="' + qq.id + '" value="' +
                  (isOthS ? esc(String(v).slice(7)) : "") + '"></span>'
-               : "<span>" + esc(o) + "</span>") + "</label>";
+               : "<span>" + esc(tOpt(qq, o)) + "</span>") + "</label>";
       }).join("");
     } else if (qq.qtype === "multi") {
       var picked = new Set(safeArr(v));
@@ -270,51 +376,51 @@
         return '<label class="choice' + (on ? " on" : "") + '"><input type="checkbox"' +
           (on ? " checked" : "") + ' data-mq="' + qq.id + '" data-o="' + esc(o) + '"' +
           (isO ? ' data-oth="1"' : "") + ">" +
-          (isO ? '<span style="display:flex;gap:8px;flex:1;align-items:center">Other:' +
+          (isO ? '<span style="display:flex;gap:8px;flex:1;align-items:center">' + L().other +
                  '<input class="oth" data-mo="' + qq.id + '" value="' + esc(othVal) + '"></span>'
-               : "<span>" + esc(o) + "</span>") + "</label>";
+               : "<span>" + esc(tOpt(qq, o)) + "</span>") + "</label>";
       }).join("");
     } else if (qq.qtype === "dropdown") {
       var isOthD = v != null && String(v).indexOf("Other: ") === 0;
       inner = '<select class="sel" data-dd="' + qq.id + '">' +
-        '<option value=""' + (v == null || v === "" ? " selected" : "") + ">Choose…</option>" +
+        '<option value=""' + (v == null || v === "" ? " selected" : "") + ">" + L().choose + "</option>" +
         (qq.options || []).map(function (o) {
           var on = o === OTH ? isOthD : v === o;
-          return '<option value="' + esc(o) + '"' + (on ? " selected" : "") + ">" + esc(o) + "</option>";
+          return '<option value="' + esc(o) + '"' + (on ? " selected" : "") + ">" +
+            esc(tOpt(qq, o)) + "</option>";
         }).join("") + "</select>" +
         '<div style="margin-top:8px;display:' + (isOthD ? "flex" : "none") +
         ';gap:8px;align-items:center" data-ddrow="' + qq.id + '">' +
-        '<span style="font-size:13px">Other:</span>' +
+        '<span style="font-size:13px">' + L().other + "</span>" +
         '<input class="oth" style="max-width:320px" data-ddo="' + qq.id + '" value="' +
         (isOthD ? esc(String(v).slice(7)) : "") + '"></div>';
     } else {
       var max = qq.qtype === "short_text" ? 300 : 5000;
       inner = '<textarea class="ta" data-t="' + qq.id + '" maxlength="' + max + '" rows="' +
-        (qq.qtype === "short_text" ? 2 : 5) + '" placeholder="Your answer…">' + esc(v || "") + "</textarea>" +
+        (qq.qtype === "short_text" ? 2 : 5) + '" placeholder="' + L().yourAnswer + '">' + esc(v || "") + "</textarea>" +
         '<div class="ct" data-ct="' + qq.id + '">' + String(v || "").length + " / " + max + "</div>";
     }
-    return '<div class="q" data-qq="' + qq.id + '"><div class="lab">' + qq._num + ". " + esc(qq.label) +
-      (qq.required ? '<u title="required">*</u>' : ' <span class="opt">optional</span>') + "</div>" +
-      (qq.description ? '<div class="desc">' + esc(qq.description) + "</div>" : "") +
-      (qq.qtype === "long_text" ? '<div class="desc" style="color:var(--faint)">A few sentences is plenty.</div>' : "") +
+    return '<div class="q" data-qq="' + qq.id + '"><div class="lab">' + qq._num + ". " + esc(tx(qq, "label")) +
+      (qq.required ? '<u title="' + L().required + '">*</u>' : ' <span class="opt">' + L().optional + "</span>") + "</div>" +
+      (tx(qq, "description") ? '<div class="desc">' + esc(tx(qq, "description")) + "</div>" : "") +
+      (qq.qtype === "long_text" ? '<div class="desc" style="color:var(--faint)">' + L().fewSentences + "</div>" : "") +
       '<div class="body">' + inner + '</div><div class="saved" data-sv="' + qq.id + '"></div></div>';
   }
 
   function paintStep(steps, si) {
     var s = steps[si], p = counts(steps);
     main.innerHTML =
-      '<div class="top"><span>' + (Q.preview ? "Preview · nothing is recorded"
-        : "Anonymous · team: " + esc(Q.category)) + "</span>" +
-      '<span style="flex:1"></span><span id="cnt">' + p.a + " of " + p.t + " answered</span></div>" +
+      '<div class="top"><span>' + (Q.preview ? L().topPrev : L().topAnon(esc(Q.category))) + "</span>" +
+      '<span style="flex:1"></span><span id="cnt">' + L().answered(p.a, p.t) + "</span></div>" +
       progBar(p.a, p.t) +
-      '<div class="part"><span class="pn">Part ' + (si + 1) + " of " + steps.length + "</span>" +
-      "<b>" + esc(s.title || Q.title) + "</b>" +
+      '<div class="part"><span class="pn">' + L().partOf(si + 1, steps.length) + "</span>" +
+      "<b>" + esc(s.title || tx(Q, "title")) + "</b>" +
       (s.desc ? '<div class="pd">' + esc(s.desc) + "</div>" : "") + "</div>" +
       s.items.map(qCard).join("") +
-      '<div class="navbar"><button class="btn" id="prev">' + (si === 0 ? "← Intro" : "← Back") + "</button>" +
+      '<div class="navbar"><button class="btn" id="prev">' + (si === 0 ? L().intro : L().back) + "</button>" +
       '<span style="flex:1"></span>' +
       '<button class="go" id="next" style="padding:11px 24px">' +
-      (si === steps.length - 1 ? "Review & submit →" : "Next →") + "</button></div>";
+      (si === steps.length - 1 ? L().reviewNext : L().next) + "</button></div>";
     document.getElementById("prev").onclick = function () { step = si - 1; paint(); window.scrollTo(0, 0); };
     document.getElementById("next").onclick = function () { step = si + 1; paint(); window.scrollTo(0, 0); };
     wire();
@@ -327,24 +433,21 @@
       s.items.forEach(function (it) { if (answered(it)) a++; else if (it.required) reqMiss++; });
       return '<div class="rrow' + (reqMiss ? " miss" : "") + '" data-go="' + i + '">' +
         '<span class="tick">' + (reqMiss ? "!" : (a === tt ? "✓" : "…")) + "</span>" +
-        "<b>" + esc(s.title || Q.title) + "</b>" +
-        '<span class="dim">' + a + " of " + tt + " answered" +
-        (reqMiss ? " · " + reqMiss + " required still missing" : "") + "</span>" +
-        '<span style="flex:1"></span><span class="dim">open ›</span></div>';
+        "<b>" + esc(s.title || tx(Q, "title")) + "</b>" +
+        '<span class="dim">' + L().answered(a, tt) +
+        (reqMiss ? L().missReq(reqMiss) : "") + "</span>" +
+        '<span style="flex:1"></span><span class="dim">' + L().open + "</span></div>";
     });
     main.innerHTML =
-      '<div class="top"><span>' + (Q.preview ? "Preview · nothing is recorded"
-        : "Anonymous · team: " + esc(Q.category)) + "</span>" +
-      '<span style="flex:1"></span><span id="cnt">' + p.a + " of " + p.t + " answered</span></div>" +
+      '<div class="top"><span>' + (Q.preview ? L().topPrev : L().topAnon(esc(Q.category))) + "</span>" +
+      '<span style="flex:1"></span><span id="cnt">' + L().answered(p.a, p.t) + "</span></div>" +
       progBar(p.a, p.t) +
-      '<div class="part"><span class="pn">Review</span><b>Ready to submit?</b>' +
-      '<div class="pd">' + (Q.preview
-        ? "Open any part to change an answer. This is a preview — nothing is recorded."
-        : "Open any part to change an answer. Submitting is final — and anonymous.") + "</div></div>" +
+      '<div class="part"><span class="pn">' + L().review + "</span><b>" + L().ready + "</b>" +
+      '<div class="pd">' + (Q.preview ? L().reviewNotePv : L().reviewNote) + "</div></div>" +
       '<div class="card" style="padding:8px 10px">' + rows.join("") + "</div>" +
-      '<div class="navbar"><button class="btn" id="prev">← Back</button>' +
+      '<div class="navbar"><button class="btn" id="prev">' + L().back + "</button>" +
       '<span class="err" id="err"></span><span style="flex:1"></span>' +
-      '<button class="go" id="submit">Submit</button></div>';
+      '<button class="go" id="submit">' + L().submit + "</button></div>";
     document.getElementById("prev").onclick = function () { step -= 1; paint(); window.scrollTo(0, 0); };
     Array.prototype.forEach.call(main.querySelectorAll("[data-go]"), function (r) {
       r.onclick = function () { step = +r.dataset.go; paint(); window.scrollTo(0, 0); };
@@ -366,11 +469,11 @@
         return;
       }
       var btn = document.getElementById("submit");
-      btn.disabled = true; btn.textContent = "Submitting…";
+      btn.disabled = true; btn.textContent = L().submitting;
       savePost({ submit: true }).then(function () {
         Q.my_status = "submitted"; paint(); window.scrollTo(0, 0);
       }, function (e) {
-        btn.disabled = false; btn.textContent = "Submit";
+        btn.disabled = false; btn.textContent = L().submit;
         document.getElementById("err").textContent = e.message;
       });
     };
@@ -383,23 +486,23 @@
     if (!(key in okv)) okv[key] = Q.answers[qid];
     Q.answers[qid] = stored;
     var sv = main.querySelector('[data-sv="' + qid + '"]');
-    if (sv) { sv.textContent = "saving…"; sv.style.color = "var(--faint)"; }
+    if (sv) { sv.textContent = L().saving; sv.style.color = "var(--faint)"; }
     chain[key] = (chain[key] || Promise.resolve()).then(function () {
       return savePost({ question_id: qid, value: value });
     }).then(function () {
       okv[key] = stored;
       if (seq[key] !== my) return;
       var sv2 = main.querySelector('[data-sv="' + qid + '"]');
-      if (sv2) { sv2.textContent = "saved"; sv2.style.color = "var(--pos)"; }
+      if (sv2) { sv2.textContent = L().saved; sv2.style.color = "var(--pos)"; }
       var steps = buildSteps(), p = counts(steps);
       var pbi = document.getElementById("pbi"), cnt = document.getElementById("cnt");
       if (pbi) pbi.style.width = (p.t ? Math.round(p.a / p.t * 100) : 0) + "%";
-      if (cnt) cnt.textContent = p.a + " of " + p.t + " answered";
+      if (cnt) cnt.textContent = L().answered(p.a, p.t);
     }, function (e) {
       if (seq[key] !== my) return;
       Q.answers[qid] = okv[key];
       var sv2 = main.querySelector('[data-sv="' + qid + '"]');
-      if (sv2) { sv2.textContent = "NOT saved — " + (e.message || e); sv2.style.color = "var(--neg)"; }
+      if (sv2) { sv2.textContent = L().notSaved + (e.message || e); sv2.style.color = "var(--neg)"; }
     });
   }
 

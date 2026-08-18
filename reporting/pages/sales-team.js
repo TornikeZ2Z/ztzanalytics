@@ -612,11 +612,30 @@
           ${e["Detail"] ? `<div class="m">${esc(e["Detail"])}</div>` : ""}</div>`;
       }).join("") + `</div>`;
 
+    // What was actually SAID — every call and text, transcripts expandable inline
+    // (Tornike 2026-08-18: "every little detail for each lead ... needs to be there").
+    // Rendered by the Conversations page's OWN renderer (CONV.mountThread) so the two
+    // places a conversation can be read never drift apart. CONV always exists: its
+    // module runs at load, whether or not that page has been opened.
+    const cv = d.conversation || {};
+    const cvEv = cv.events || [];
+    const cvTr = cv.transcripts || {};
+    const cvN = cvEv.filter(e => e["Has Transcript"]).length;
+    const conv = cvEv.length
+      ? `<div class="st-sec">Conversation · ${cvEv.length} calls & texts${
+          cvN ? " · " + cvN + " transcribed" : ""}</div><div id="stConv"></div>`
+      : "";
+
     if (d.closing) d.closing.__gapPct = j["Bill Vs Quote Pct"];
     drawerEl.querySelector("#stDB").innerHTML =
       `<div class="st-cols"><div>` + est + jobSection(j, d) + fin + resp
       + moveboardSection(d.moveboard, j) + closingSection(d.closing) + aftermath +
-      `</div><div>` + tl + `</div></div>`;
+      `</div><div>` + tl + conv + `</div></div>`;
+
+    if (cvEv.length && window.CONV) {
+      CONV.injectStyle();
+      CONV.mountThread(drawerEl.querySelector("#stConv"), cvEv, cvTr, j["Customer"]);
+    }
   }
 
   /* ---------------- per-person aggregation ---------------- */
