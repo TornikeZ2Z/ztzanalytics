@@ -13,7 +13,7 @@
 registerPage({
   id: "hr-questionnaire",
   group: "hr",
-  title: "Company-Wide Questionnaire",
+  title: "Team Surveys",
   datasets: [],
   async render(host) {
     var RSC = window.RSC || {};
@@ -190,9 +190,14 @@ registerPage({
         /* fill the column. Without this the inputs kept the browser default width and
            both languages sat truncated in the left third of a very wide card. */
         ".hq-grid input,.hq-grid textarea,.hq-grid select{width:100%;box-sizing:border-box}",
+        ".hq-scrow{display:flex;align-items:center;gap:9px;font-size:13px;color:var(--muted)}",
+        ".hq-scrow select{width:auto;min-width:68px}",
+        ".hq-opt .n.end{width:22px;height:22px;border-radius:50%;background:var(--brand-glow);color:var(--brand);font-weight:800;font-size:11px;display:grid;place-items:center;text-align:center}",
         ".hq-grid>div:nth-child(even){border-left:1px solid var(--line);padding-left:14px}",
         ".hq-grid .lbl{font-size:15px;font-weight:700}",
         ".hq-grid .h{padding-bottom:1px}",
+        ".hq-grid textarea{min-height:64px;align-self:stretch}",
+        ".hq-grid>div{align-self:center}",
         ".hq-grid .h{font-size:10px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--faint)}",
         ".hq-grid .h.ka{color:var(--brand)}",
         ".hq-grid .sp{grid-column:1 / -1;height:1px;background:var(--line);margin:3px 0}",
@@ -335,7 +340,7 @@ registerPage({
     }
 
     host.innerHTML = '<div class="hq">'
-      + '<div class="rs-page-head"><h1>Company-Wide Questionnaire</h1>'
+      + '<div class="rs-page-head"><h1>Team Surveys</h1>'
       + "<p>HR builds the questions here, publishes, shares one link, and reads the results."
       + '<span class="freshness"> · questions live in the database — never in code</span></p></div>'
       + '<div class="hq-tabs" id="hqTabs"></div><div id="hqMain"></div></div>';
@@ -720,13 +725,20 @@ registerPage({
                 s2 += '<option value="' + n2 + '"' + (n2 === val ? " selected" : "") + ">" + n2 + "</option>";
               return s2 + "</select>";
             };
+            // The two labels are the ENDS of the scale, so each row is stamped with the
+            // number it belongs to on BOTH sides — otherwise it is four look-alike boxes
+            // and no way to tell which caption lands on 1 and which on 10.
             grid += '<div class="sp"></div>'
-              + '<div class="full" style="font-size:13px;color:var(--muted)">From ' + selN("sc_lo", lo, 0, 1)
+              + '<div class="full hq-scrow">Scale runs from ' + selN("sc_lo", lo, 0, 1)
               + " to " + selN("sc_hi", hi, 2, 10) + "</div>"
-              + pair('<input class="hq-fld bx" data-f="sc_l1" value="' + esc(so[2] || "") + '" placeholder="Label for the low end…"' + dis + ">",
-                     '<input class="hq-fld bx" data-f="ka_lo" value="' + esc(kaAll.lo || "") + '" placeholder="დაბალი ბოლოს წარწერა…"' + dis + ">")
-              + pair('<input class="hq-fld bx" data-f="sc_l2" value="' + esc(so[3] || "") + '" placeholder="Label for the high end…"' + dis + ">",
-                     '<input class="hq-fld bx" data-f="ka_hi" value="' + esc(kaAll.hi || "") + '" placeholder="მაღალი ბოლოს წარწერა…"' + dis + ">");
+              + pair('<div class="hq-opt"><span class="n end">' + lo + '</span><input class="hq-fld bx" data-f="sc_l1" value="'
+                       + esc(so[2] || "") + '" placeholder="What ' + lo + ' means…"' + dis + "></div>",
+                     '<div class="hq-opt"><span class="n end">' + lo + '</span><input class="hq-fld bx" data-f="ka_lo" value="'
+                       + esc(kaAll.lo || "") + '" placeholder="რას ნიშნავს ' + lo + '…"' + dis + "></div>")
+              + pair('<div class="hq-opt"><span class="n end">' + hi + '</span><input class="hq-fld bx" data-f="sc_l2" value="'
+                       + esc(so[3] || "") + '" placeholder="What ' + hi + ' means…"' + dis + "></div>",
+                     '<div class="hq-opt"><span class="n end">' + hi + '</span><input class="hq-fld bx" data-f="ka_hi" value="'
+                       + esc(kaAll.hi || "") + '" placeholder="რას ნიშნავს ' + hi + '…"' + dis + "></div>");
           }
           grid += "</div>";
 
@@ -1049,17 +1061,18 @@ registerPage({
       body.innerHTML =
         (lockNote ? '<div class="hq-dim" style="margin-bottom:12px">' + esc(lockNote) + "</div>" : "")
         + '<div class="hq-card" style="padding:20px 24px"><h4 class="eyebrow">Wording</h4>'
-        + '<div class="hq-wgrid">'
-        + '<div class="hq-field full"><label class="hq-lab">Title</label><input class="hq-fld bx" style="width:100%;font-size:17.5px;font-weight:750" id="hsTitle" value="' + esc(q.title) + '"' + dis() + "></div>"
-        + '<div class="hq-field"><label class="hq-lab">Description (shown on the card)</label><textarea class="hq-flda bx" id="hsDesc"' + dis() + ">" + esc(q.description || "") + "</textarea></div>"
-        + '<div class="hq-field"><label class="hq-lab">Instructions (shown above the questions)</label><textarea class="hq-flda bx" id="hsInstr"' + dis() + ">" + esc(q.instructions || "") + "</textarea></div>"
-        + '<div class="hq-field full"><label class="hq-lab">Confidentiality note (always visible to the employee)</label><textarea class="hq-flda bx" id="hsConf"' + dis() + ">" + esc(q.confidentiality || "") + "</textarea></div>"
-        + '<div class="hq-field full"><div class="hq-kaw"><div class="hq-lab" style="color:var(--brand)">ქართული — the wording the team reads by default</div>'
-        + '<input class="hq-fld bx" style="width:100%;font-size:16px;font-weight:750;margin-top:6px" id="hsKaTitle" value="' + esc(kaW.title || "") + '" placeholder="სათაური ქართულად…"' + dis() + ">"
-        + '<textarea class="hq-flda bx" style="margin-top:7px" id="hsKaDesc" placeholder="აღწერა (ბარათზე ჩანს)…"' + dis() + ">" + esc(kaW.description || "") + "</textarea>"
-        + '<textarea class="hq-flda bx" style="margin-top:7px" id="hsKaInstr" placeholder="ინსტრუქცია (კითხვების ზემოთ)…"' + dis() + ">" + esc(kaW.instructions || "") + "</textarea>"
-        + '<textarea class="hq-flda bx" style="margin-top:7px" id="hsKaConf" placeholder="კონფიდენციალურობის შენიშვნა…"' + dis() + ">" + esc(kaW.confidentiality || "") + "</textarea>"
-        + "</div></div>"
+        // Same pairing as the questions: English against ქართული, line for line, so it
+        // is obvious which translation belongs to which text (2026-08-18).
+        + '<div class="hq-grid" style="margin-left:0">'
+        + '<div class="h">English</div><div class="h ka">ქართული — what the team reads by default</div>'
+        + '<div><label class="hq-lab">Title</label><input class="hq-fld bx" style="font-size:17.5px;font-weight:750" id="hsTitle" value="' + esc(q.title) + '"' + dis() + "></div>"
+        + '<div><label class="hq-lab">&nbsp;</label><input class="hq-fld bx" style="font-size:17.5px;font-weight:750" id="hsKaTitle" value="' + esc(kaW.title || "") + '" placeholder="სათაური ქართულად…"' + dis() + "></div>"
+        + '<div><label class="hq-lab">Description (shown on the card)</label><textarea class="hq-flda bx" id="hsDesc"' + dis() + ">" + esc(q.description || "") + "</textarea></div>"
+        + '<div><label class="hq-lab">&nbsp;</label><textarea class="hq-flda bx" id="hsKaDesc" placeholder="აღწერა (ბარათზე ჩანს)…"' + dis() + ">" + esc(kaW.description || "") + "</textarea></div>"
+        + '<div><label class="hq-lab">Instructions (shown above the questions)</label><textarea class="hq-flda bx" id="hsInstr"' + dis() + ">" + esc(q.instructions || "") + "</textarea></div>"
+        + '<div><label class="hq-lab">&nbsp;</label><textarea class="hq-flda bx" id="hsKaInstr" placeholder="ინსტრუქცია (კითხვების ზემოთ)…"' + dis() + ">" + esc(kaW.instructions || "") + "</textarea></div>"
+        + '<div><label class="hq-lab">Confidentiality note (always visible)</label><textarea class="hq-flda bx" id="hsConf"' + dis() + ">" + esc(q.confidentiality || "") + "</textarea></div>"
+        + '<div><label class="hq-lab">&nbsp;</label><textarea class="hq-flda bx" id="hsKaConf" placeholder="კონფიდენციალურობის შენიშვნა…"' + dis() + ">" + esc(kaW.confidentiality || "") + "</textarea></div>"
         + "</div></div>"
         + '<div class="hq-card" style="padding:20px 24px"><h4 class="eyebrow">Status</h4>'
         + (q.status === "draft"
