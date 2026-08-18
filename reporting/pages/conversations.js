@@ -199,7 +199,7 @@ const CONV = (() => {
       const who = out ? (e["Agent"] || "Us") : (h["Customer"] || "Customer");
       const head = `${esc(who)} · ${esc(tOf(e["Event At"]))}${e["Pre Create"] ? " · before the lead existed" : ""}`;
       if (e["Kind"] === "SMS") {
-        return sep + `<div class="cnv-ev ${out ? "out" : "in"}">
+        return sep + `<div class="cnv-ev ${out ? "out" : "in"}" data-at="${esc(e["Event At"] || "")}">
           <div class="cnv-head">${head}</div>
           <div class="cnv-body"><div class="cnv-txt">${esc(e["Message Text"] || "(no text captured)")}</div></div>
         </div>`;
@@ -207,7 +207,7 @@ const CONV = (() => {
       const missed = !out && /missed|voicemail/i.test(String(e["Result"] || ""));
       const t = e["Telephony Session Id"] ? tr[e["Telephony Session Id"]] : null;
       const opened = !!open[i];
-      return sep + `<div class="cnv-ev ${out ? "out" : "in"}${missed ? " cnv-miss" : ""}">
+      return sep + `<div class="cnv-ev ${out ? "out" : "in"}${missed ? " cnv-miss" : ""}" data-at="${esc(e["Event At"] || "")}">
         <div class="cnv-head">${head}</div>
         <div class="cnv-body">
           <div class="cnv-call">

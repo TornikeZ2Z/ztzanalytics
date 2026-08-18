@@ -345,7 +345,24 @@
     /* drawer — BIG (v3) */
     .st-scrim{position:fixed;inset:0;background:rgba(0,0,0,.42);z-index:70;opacity:0;pointer-events:none;transition:opacity .15s}
     .st-scrim.on{opacity:1;pointer-events:auto}
-    .st-drawer{position:fixed;top:0;right:-1160px;bottom:0;width:min(1120px,97vw);background:var(--bg);border-left:1px solid var(--line);z-index:71;transition:right .18s;display:flex;flex-direction:column;box-shadow:-14px 0 40px rgba(0,0,0,.4)}
+    /* FULL-SCREEN lead file (2026-08-18): the 1120px drawer could not show a lead's
+       whole story at once — he asked for "a dedicated page to each lead ... where every
+       data will be fully visible - and user can easily return back to where she was".
+       It stays an overlay on document.body so the list underneath keeps its scroll,
+       filters and tab, and ✕ / browser-Back both return to exactly that. */
+    .st-drawer{position:fixed;top:0;right:-100vw;bottom:0;width:100vw;background:var(--bg);z-index:71;transition:right .18s;display:flex;flex-direction:column;box-shadow:-14px 0 40px rgba(0,0,0,.4)}
+    .st-lfv{display:grid;grid-template-columns:repeat(auto-fit,minmax(148px,1fr));gap:10px;margin-bottom:6px}
+    .st-lfv .c{background:var(--panel);border:1px solid var(--line);border-radius:11px;padding:10px 12px}
+    .st-lfv .l{font-size:10px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)}
+    .st-lfv .v{font-size:19px;font-weight:700;margin-top:3px}
+    .st-lfv .v.sm{font-size:14px;font-weight:600}
+    .st-lfv .c.good{border-color:var(--pos)} .st-lfv .c.bad{border-color:var(--neg)}
+    .st-lfv .c.warn{border-color:var(--warn)}
+    .st-open{background:var(--panel);border:1px solid var(--warn);border-radius:11px;padding:11px 14px;margin:4px 0 14px}
+    .st-open h4{margin:0 0 6px;font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--warn)}
+    .st-open li{font-size:13px;margin:3px 0}
+    .st-lfcols{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:0 30px;align-items:start}
+    @media(max-width:1100px){.st-lfcols{grid-template-columns:1fr}}
     .st-drawer.on{right:0}
     .st-dh{padding:18px 24px 14px;border-bottom:1px solid var(--line);background:var(--panel)}
     .st-dh .t{font-size:19px;font-weight:800;color:var(--ink);display:flex;gap:10px;align-items:center;flex-wrap:wrap}
@@ -403,12 +420,23 @@
           <div class="st-dh"><div class="t" id="stDT">Lead</div><div class="s" id="stDS"></div></div>
           <div class="st-db" id="stDB"></div></div>`;
       document.body.appendChild(drawerEl);
-      const close = () => { drawerEl.querySelector(".st-scrim").classList.remove("on"); drawerEl.querySelector(".st-drawer").classList.remove("on"); };
+      const close = () => {
+        drawerEl.querySelector(".st-scrim").classList.remove("on");
+        drawerEl.querySelector(".st-drawer").classList.remove("on");
+        if (/[?&]lead=/.test(location.hash)) location.hash = "page=sales-command";
+      };
+      window.addEventListener("hashchange", () => {   // browser Back closes the lead file
+        if (!/[?&]lead=/.test(location.hash) && drawerEl) close();
+      });
       drawerEl.querySelector(".st-scrim").onclick = close;
       drawerEl.querySelector(".st-dx").onclick = close;
     }
     drawerEl.querySelector(".st-scrim").classList.add("on");
     drawerEl.querySelector(".st-drawer").classList.add("on");
+    // URL-addressable: a lead can be linked to, and Back closes it instead of
+    // leaving the report. The shell's hashchange only re-routes when the PAGE id
+    // changes, so the extra &lead= is inert to it.
+    if (!/[?&]lead=/.test(location.hash)) location.hash = "page=sales-command&lead=" + encodeURIComponent(jk);
     drawerEl.querySelector("#stDT").textContent = "Loading…";
     drawerEl.querySelector("#stDS").textContent = "";
     drawerEl.querySelector("#stDB").innerHTML = `<div class="rs-loading" style="padding:24px">Loading the lead file…</div>`;
@@ -601,40 +629,102 @@
         ${(d.reviews || []).map(r => `<div class="st-ev confirmed" style="margin-left:9px"><div class="h"><b>Review</b> ${r["Review Score"] != null ? esc(String(r["Review Score"])) + "★" : ""} · ${esc(r["Source"] || "")}</div></div>`).join("")}`
       : "";
 
-    const tl = `<div class="st-sec">Timeline · ${ev.length} events</div><div class="st-tl">` +
-      ev.map(e => {
-        const t = (e["Event At"] || "").slice(0, 16);
-        const kind = e["Event Type"];
-        const dur = e["Duration Sec"] != null ? ` · ${secH(e["Duration Sec"])}` : "";
-        const amt = e["Amount"] != null ? ` · ${money0(+e["Amount"])}` : "";
-        return `<div class="st-ev ${esc(kind)}">
-          <div class="h"><b>${esc(EV_LABEL[kind] || kind)}</b>${e["Actor"] ? " — " + esc(kind.indexOf("call") === 0 || kind.indexOf("sms") === 0 ? stripExt(e["Actor"]) : e["Actor"]) : ""}<span style="color:var(--faint)"> · ${esc(t)}${dur}${amt}</span></div>
-          ${e["Detail"] ? `<div class="m">${esc(e["Detail"])}</div>` : ""}</div>`;
-      }).join("") + `</div>`;
-
-    // What was actually SAID — every call and text, transcripts expandable inline
-    // (Tornike 2026-08-18: "every little detail for each lead ... needs to be there").
-    // Rendered by the Conversations page's OWN renderer (CONV.mountThread) so the two
-    // places a conversation can be read never drift apart. CONV always exists: its
-    // module runs at load, whether or not that page has been opened.
+    /* ---- THE STORY: journey milestones + the actual conversation, merged ----
+       The timeline and the conversation used to be two separate lists that both
+       contained the calls, so a lead's story had to be read twice and reconciled by
+       eye. They are ONE stream now: conversation rows carry the transcript, journey
+       rows carry the milestones (created / confirmed / closed / refunded) that the
+       phone system knows nothing about. */
     const cv = d.conversation || {};
-    const cvEv = cv.events || [];
+    const cvEv = (cv.events || []).slice();
     const cvTr = cv.transcripts || {};
     const cvN = cvEv.filter(e => e["Has Transcript"]).length;
-    const conv = cvEv.length
-      ? `<div class="st-sec">Conversation · ${cvEv.length} calls & texts${
-          cvN ? " · " + cvN + " transcribed" : ""}</div><div id="stConv"></div>`
+    const milestones = ev.filter(e => ["lead_created", "confirmed", "closing", "refund"].indexOf(e["Event Type"]) >= 0);
+    const msHtml = milestones.map(e => ({
+      at: String(e["Event At"] || ""),
+      html: `<div class="st-ev ${esc(e["Event Type"])}"><div class="h"><b>${esc(EV_LABEL[e["Event Type"]] || e["Event Type"])}</b>${
+        e["Actor"] ? " — " + esc(e["Actor"]) : ""}<span style="color:var(--faint)"> · ${esc(String(e["Event At"] || "").slice(0, 16))}${
+        e["Amount"] != null ? " · " + money0(+e["Amount"]) : ""}</span></div>${
+        e["Detail"] ? `<div class="m">${esc(e["Detail"])}</div>` : ""}</div>`,
+    }));
+
+    const story = cvEv.length || milestones.length
+      ? `<div class="st-sec">The story · ${cvEv.length} calls & texts${cvN ? " · " + cvN + " transcribed" : ""}${
+          milestones.length ? " · " + milestones.length + " milestones" : ""}</div>
+         <div id="stStory"></div>`
+      : `<div class="st-sec">The story</div><div class="st-note">No calls, texts or milestones recorded for this lead.</div>`;
+
+    /* ---- VERDICT: did we handle it well? ---- */
+    const spd = +j["TTO Biz Min"];
+    const spdTone = !+j["Called"] ? (isConf(j) ? "" : "bad") : (spd <= 5 ? "good" : spd <= 30 ? "" : "warn");
+    const gap = j["Bill Vs Quote Pct"];
+    const outcome = isConf(j)
+      ? (j["Total Bill"] != null ? `<span class="st-good">Closed</span>` : `<span class="st-good">Confirmed</span>`)
+      : (isDead(j) ? `<span class="st-bad">Lost</span>` : `Open`);
+    const vcard = (l, v, tone) => `<div class="c${tone ? " " + tone : ""}"><div class="l">${l}</div><div class="v${
+      String(v).length > 12 ? " sm" : ""}">${v}</div></div>`;
+    const verdict = `<div class="st-lfv">
+      ${vcard("Outcome", outcome)}
+      ${vcard("First contact", +j["Called"] ? (j["TTO Biz Min"] != null ? mins(spd) : "called")
+        : (isContacted(j) ? "answered incoming" : (isConf(j) ? "off-system" : "never")), spdTone)}
+      ${vcard("Attempts", (+j["Out Calls"] || 0) + " out / " + (+j["In Calls"] || 0) + " in")}
+      ${vcard("Answered", (+j["Answered In"] || 0) + " of " + (+j["In Calls"] || 0) + " in",
+        (+j["In Calls"] || 0) && !(+j["Answered In"] || 0) ? "bad" : "")}
+      ${vcard("Talk time", +j["Talk Sec Out"] ? secH(j["Talk Sec Out"]) : "—")}
+      ${vcard("Quote → bill", j["Total Bill"] != null ? estActual(j).replace(/<[^>]*>/g, "") : "—",
+        gap != null && Math.abs(+gap) > 25 ? "warn" : "")}
+      ${vcard("Last touch", j["Last Touch At"] ? String(j["Last Touch At"]).slice(0, 10) : "—")}
+    </div>`;
+
+    /* ---- WHAT IS OPEN: the to-do list this lead still carries ---- */
+    const opens = [];
+    if (+j["Flag Never Called"]) opens.push("Nobody ever called this lead.");
+    if (+j["Flag Slow First Call"]) opens.push("First call was slow — " + (j["TTO Biz Min"] != null ? mins(spd) : "late") + " after the lead came in.");
+    if ((+j["In Calls"] || 0) && !(+j["Answered In"] || 0)) opens.push("They called us " + (+j["In Calls"]) + "× and we never picked up.");
+    if (+j["Flag Confirmed No Closing"]) opens.push("Confirmed but no closing sheet has been filed.");
+    if (+j["Flag Big Quote Gap"]) opens.push("Final bill is far from the quote — worth a look.");
+    // RingSense's own "next steps", per call, are the rep's stated commitments
+    Object.keys(cvTr).forEach(k => {
+      let ns = null;
+      try { ns = JSON.parse(cvTr[k]["Next Steps Json"] || "null"); } catch (e) { ns = null; }
+      (Array.isArray(ns) ? ns : []).forEach(x => {
+        const t = typeof x === "string" ? x : (x && (x.value || x.text));
+        if (t) opens.push(t);
+      });
+    });
+    const openBlock = opens.length
+      ? `<div class="st-open"><h4>What's open</h4><ul style="margin:0;padding-left:17px">${
+          opens.map(o => `<li>${esc(o)}</li>`).join("")}</ul></div>`
       : "";
 
     if (d.closing) d.closing.__gapPct = j["Bill Vs Quote Pct"];
-    drawerEl.querySelector("#stDB").innerHTML =
-      `<div class="st-cols"><div>` + est + jobSection(j, d) + fin + resp
-      + moveboardSection(d.moveboard, j) + closingSection(d.closing) + aftermath +
-      `</div><div>` + tl + conv + `</div></div>`;
+    drawerEl.querySelector("#stDB").innerHTML = verdict + openBlock +
+      `<div class="st-lfcols"><div>` + story + `</div><div>` +
+      est + jobSection(j, d) + fin + resp + moveboardSection(d.moveboard, j) +
+      closingSection(d.closing) + aftermath + `</div></div>`;
 
-    if (cvEv.length && window.CONV) {
-      CONV.injectStyle();
-      CONV.mountThread(drawerEl.querySelector("#stConv"), cvEv, cvTr, j["Customer"]);
+    // one merged, time-ordered stream — conversation rows keep their expandable
+    // transcripts (CONV.mountThread owns that markup, so it matches the
+    // Conversations page exactly), milestones are woven in between.
+    const storyHost = drawerEl.querySelector("#stStory");
+    if (storyHost) {
+      if (window.CONV && cvEv.length) {
+        CONV.injectStyle();
+        CONV.mountThread(storyHost, cvEv, cvTr, j["Customer"]);
+        // weave milestones into the thread at the right moment
+        msHtml.forEach(m => {
+          const rows = Array.prototype.slice.call(storyHost.querySelectorAll(".cnv-ev"));
+          const node = document.createElement("div");
+          node.className = "st-tl";
+          node.style.margin = "10px 0";
+          node.innerHTML = m.html;
+          const after = rows.filter(r => (r.getAttribute("data-at") || "") <= m.at).pop();
+          if (after && after.nextSibling) storyHost.firstChild.insertBefore(node, after.nextSibling);
+          else storyHost.firstChild.appendChild(node);
+        });
+      } else if (msHtml.length) {
+        storyHost.innerHTML = `<div class="st-tl">` + msHtml.map(m => m.html).join("") + `</div>`;
+      }
     }
   }
 
