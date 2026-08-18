@@ -231,8 +231,8 @@ registerPage({
       <div class="rs-page-head">
         <h1>Source Trace</h1>
         <p>Look up any job and see how its lead <b>source</b> is decided, step by step — the
-           priority ladder (incl. CallRail, Google Local, <b>Angi</b> / <b>Thumbtack</b>
-           lead-data matching, Post Card region) that resolves it. Switch between the
+           priority ladder (incl. <b>Meta Referral</b> forms, CallRail, Google Local,
+           <b>Angi</b> / <b>Thumbtack</b> lead-data matching, Post Card region) that resolves it. Switch between the
            <b>Closing</b> sheet source and the upstream <b>Moveboard</b> source.
            <span class="freshness">· read-only</span></p>
       </div>
@@ -259,15 +259,17 @@ registerPage({
     const LADDER = [
       { n: 1, t: "Returned / Recommended customer",
         d: "Booked as a returning or recommended customer. Wins outright — ahead of any phone, lead or postcard match." },
-      { n: 2, t: "Google Local phone match",
+      { n: 2, t: "Meta Referral — referral form match",
+        d: "Phone or email matches a Meta referral form, and the lead came in on or after that form, within 90 days. Beats every phone and lead match below it." },
+      { n: 3, t: "Google Local phone match",
         d: "The customer's phone matched a Google Local lead, and no CallRail postcard overrides it." },
-      { n: 3, t: "Post Card — region from pickup state",
+      { n: 4, t: "Post Card — region from pickup state",
         d: "Resolves to a Post Card, and the region comes from the pickup state rather than the tracking number's label." },
-      { n: 4, t: "Angi — lead-data match",
-        d: "Matched an Angi lead on its own data. Only ever intercepts the fallback — it never outranks rungs 1–3." },
-      { n: 5, t: "Thumbtack — lead-data match",
+      { n: 5, t: "Angi — lead-data match",
+        d: "Matched an Angi lead on its own data. Only ever intercepts the fallback — it never outranks the rungs above." },
+      { n: 6, t: "Thumbtack — lead-data match",
         d: "Same as Angi, one rung lower: it takes the fallback but never beats a higher rung." },
-      { n: 6, t: "Whatever the sheet says",
+      { n: 7, t: "Whatever the sheet says",
         d: "Nothing above matched, so the source stands as recorded — the Closing sheet's own value, or what it was booked from." },
     ];
     document.getElementById("stIdle").innerHTML = `
@@ -549,7 +551,7 @@ registerPage({
                 <div class="big">${RSC.esc(show(finalC))}</div>
               </div>
               <div class="strc-cell">
-                <div class="strc-lab">With Angi / Thumbtack matching</div>
+                <div class="strc-lab">With Meta / Angi / Thumbtack matching</div>
                 <div class="big">${RSC.esc(show(finalL))}</div>
               </div>
             </div>
@@ -560,7 +562,7 @@ registerPage({
                 : "✓ No change — lead matching agrees with the live source"}</span>
               ${changed
                 ? "The live pipeline stores <b>" + RSC.esc(show(finalC)) + "</b>, but the customer matches "
-                  + (win === 4 ? "an <b>Angi</b>" : "a <b>Thumbtack</b>") + " lead — so lead-matching would set it to <b>"
+                  + (win === 5 ? "an <b>Angi</b>" : "a <b>Thumbtack</b>") + " lead — so lead-matching would set it to <b>"
                   + RSC.esc(show(finalL)) + "</b>. <span style='color:var(--faint)'>Diagnostic only — not yet applied to live reports.</span>"
                 : "The lead-matched source equals what the pipeline already stores."}
               ${has(path) ? `<div class="strc-path">Base decision path: <code>${RSC.esc(path)}</code></div>` : ""}
@@ -699,13 +701,13 @@ registerPage({
             </div>
             <div class="strc-cmp">
               <div class="strc-cell"><div class="strc-lab">Current (live)</div><div class="big">${RSC.esc(show(conn))}</div></div>
-              <div class="strc-cell"><div class="strc-lab">With Angi / Thumbtack matching</div><div class="big">${RSC.esc(show(connL))}</div></div>
+              <div class="strc-cell"><div class="strc-lab">With Meta / Angi / Thumbtack matching</div><div class="big">${RSC.esc(show(connL))}</div></div>
             </div>
             <div class="strc-verdict ${changed ? "warn" : "ok"}">
               <span class="vt">${changed ? "⤳ Lead matching would reassign this lead" : "✓ No change — lead matching agrees with the live source"}</span>
               ${changed
                 ? "The moveboard stores <b>" + RSC.esc(show(conn)) + "</b>, but the customer matches "
-                  + (win === 4 ? "an <b>Angi</b>" : "a <b>Thumbtack</b>") + " lead — so lead-matching would set it to <b>"
+                  + (win === 5 ? "an <b>Angi</b>" : "a <b>Thumbtack</b>") + " lead — so lead-matching would set it to <b>"
                   + RSC.esc(show(connL)) + "</b>. <span style='color:var(--faint)'>Diagnostic only — not yet applied to live reports.</span>"
                 : "The lead-matched source equals what the moveboard already stores."}
               ${has(path) ? `<div class="strc-path">Decision path: <code>${RSC.esc(path)}</code></div>` : ""}
