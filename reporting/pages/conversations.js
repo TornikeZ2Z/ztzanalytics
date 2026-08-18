@@ -267,6 +267,11 @@ const CONV = (() => {
   return { injectStyle, search, openLead, paintSide, paintMain, mountThread, threadHtml, S };
 })();
 
+/* EXPLICIT export. `const CONV` at the top level of a classic script lives in the
+   global LEXICAL scope, which is NOT window — so the lead file's `window.CONV`
+   check was always false and the conversation silently never mounted (2026-08-18). */
+window.CONV = CONV;
+
 registerPage({
   id: "conversations",
   group: "sales",
