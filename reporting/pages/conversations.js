@@ -277,7 +277,7 @@ const CONV = (() => {
     mountThread(box.querySelector("#cnvThread"), ev, S.thread.transcripts || {}, h["Customer"]);
   }
 
-  return { injectStyle, search, openLead, paintSide, paintMain, mountThread, threadHtml, S };
+  return { injectStyle, search, openLead, paintSide, paintMain, mountThread, threadHtml, transcriptHtml, S };
 })();
 
 /* EXPLICIT export. `const CONV` at the top level of a classic script lives in the

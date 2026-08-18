@@ -361,6 +361,27 @@
     .st-open{background:var(--panel);border:1px solid var(--warn);border-radius:11px;padding:11px 14px;margin:4px 0 14px}
     .st-open h4{margin:0 0 6px;font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--warn)}
     .st-open li{font-size:13px;margin:3px 0}
+    .st-story{margin-top:2px}
+    .st-srow{display:grid;grid-template-columns:44px 20px 1fr;gap:8px;align-items:start;padding:5px 0;border-bottom:1px solid color-mix(in srgb,var(--line) 55%,transparent)}
+    .st-srow .tm{font-size:11.5px;color:var(--faint);font-variant-numeric:tabular-nums;padding-top:2px}
+    .st-srow .ic{font-size:12px;color:var(--muted);text-align:center;padding-top:1px}
+    .st-srow .tx{font-size:13px;line-height:1.5}
+    .st-srow.out .ic{color:var(--blue)} .st-srow.in .ic{color:var(--brand)}
+    .st-srow.miss .ic{color:var(--red)} .st-srow.ms .ic{color:var(--purple)}
+    .st-srow.ms .tx{color:var(--muted)}
+    .st-sday{font-size:10.5px;font-weight:800;letter-spacing:.07em;color:var(--faint);margin:13px 0 4px}
+    .st-trb{font:inherit;font-size:11px;color:var(--purple);background:none;border:1px solid var(--line-2);border-radius:7px;padding:1px 8px;margin-left:6px;cursor:pointer}
+    .st-trb:hover,.st-trb.on{border-color:var(--purple)}
+    .st-trw:not(:empty){margin:8px 0 4px;border-left:2px solid var(--line);padding-left:11px}
+    .st-open{background:var(--panel);border:1px solid var(--line-2);border-radius:12px;padding:11px 14px;margin:2px 0 16px}
+    .st-open .f{font-size:13px;font-weight:600;color:var(--amber);margin:2px 0}
+    .st-open .s{font-size:13px;color:var(--ink);margin-top:6px;line-height:1.55}
+    .st-open .s>div{margin:2px 0}
+    .st-open .src{font-size:11px;color:var(--faint);margin-top:6px}
+    .st-open details summary{font-size:11.5px;color:var(--muted);cursor:pointer;margin-top:4px}
+    .st-fold{border-top:1px solid var(--line);margin-top:12px}
+    .st-fold>summary{font-size:10.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);padding:11px 0;cursor:pointer}
+    .st-fold[open]>summary{color:var(--ink)}
     .st-lfcols{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:0 30px;align-items:start}
     @media(max-width:1100px){.st-lfcols{grid-template-columns:1fr}}
     .st-drawer.on{right:0}
@@ -629,92 +650,130 @@
         ${(d.reviews || []).map(r => `<div class="st-ev confirmed" style="margin-left:9px"><div class="h"><b>Review</b> ${r["Review Score"] != null ? esc(String(r["Review Score"])) + "★" : ""} · ${esc(r["Source"] || "")}</div></div>`).join("")}`
       : "";
 
-    /* ---- THE STORY: journey milestones + the actual conversation, merged ----
-       The timeline and the conversation used to be two separate lists that both
-       contained the calls, so a lead's story had to be read twice and reconciled by
-       eye. They are ONE stream now: conversation rows carry the transcript, journey
-       rows carry the milestones (created / confirmed / closed / refunded) that the
-       phone system knows nothing about. */
+    /* ---- THE STORY ----------------------------------------------------------
+       COMPACT rows, not chat bubbles. The bubble layout is right on the
+       Conversations page, where reading one conversation IS the task; here it
+       zig-zagged down a mostly-empty column while the facts beside it were a wall
+       of tiles ("this is very chaotic", 2026-08-18). One line per event, aligned,
+       with the transcript expanding underneath it. */
     const cv = d.conversation || {};
     const cvEv = (cv.events || []).slice();
     const cvTr = cv.transcripts || {};
     const cvN = cvEv.filter(e => e["Has Transcript"]).length;
     const milestones = ev.filter(e => ["lead_created", "confirmed", "closing", "refund"].indexOf(e["Event Type"]) >= 0);
-    const msHtml = milestones.map(e => ({
-      at: String(e["Event At"] || ""),
-      html: `<div class="st-ev ${esc(e["Event Type"])}"><div class="h"><b>${esc(EV_LABEL[e["Event Type"]] || e["Event Type"])}</b>${
-        e["Actor"] ? " — " + esc(e["Actor"]) : ""}<span style="color:var(--faint)"> · ${esc(String(e["Event At"] || "").slice(0, 16))}${
-        e["Amount"] != null ? " · " + money0(+e["Amount"]) : ""}</span></div>${
-        e["Detail"] ? `<div class="m">${esc(e["Detail"])}</div>` : ""}</div>`,
-    }));
 
-    const story = cvEv.length || milestones.length
-      ? `<div class="st-sec">The story · ${cvEv.length} calls & texts${cvN ? " · " + cvN + " transcribed" : ""}${
-          milestones.length ? " · " + milestones.length + " milestones" : ""}</div>
-         <div id="stStory"></div>`
-      : `<div class="st-sec">The story</div><div class="st-note">No calls, texts or milestones recorded for this lead.</div>`;
+    const items = cvEv.map((e, i) => ({ at: String(e["Event At"] || ""), e: e, i: i }))
+      .concat(milestones.map(m => ({ at: String(m["Event At"] || ""), ms: m })))
+      .sort((a, b) => (a.at < b.at ? -1 : a.at > b.at ? 1 : 0));
 
-    /* ---- VERDICT: did we handle it well? ---- */
+    let lastDay = "";
+    const rows = items.map(it => {
+      const day = it.at.slice(0, 10), tm = it.at.slice(11, 16);
+      let sep = "";
+      if (day !== lastDay) { lastDay = day; sep = `<div class="st-sday">${esc(day)}</div>`; }
+      if (it.ms) {
+        const m = it.ms;
+        return sep + `<div class="st-srow ms">
+          <div class="tm">${esc(tm)}</div><div class="ic">&#9670;</div>
+          <div class="tx"><b>${esc(EV_LABEL[m["Event Type"]] || m["Event Type"])}</b>${
+            m["Amount"] != null ? " &middot; " + money0(+m["Amount"]) : ""}${
+            m["Detail"] ? `<span class="dim"> &mdash; ${esc(m["Detail"])}</span>` : ""}</div></div>`;
+      }
+      const e = it.e, i = it.i;
+      const out = e["Direction"] === "Outgoing" || e["Direction"] === "Outbound";
+      const missed = !out && /missed|voicemail/i.test(String(e["Result"] || ""));
+      const t = e["Telephony Session Id"] ? cvTr[e["Telephony Session Id"]] : null;
+      const who = out ? (stripExt(e["Agent"]) || "Us") : (j["Customer"] || "Customer");
+      const body = String(e["Message Text"] || "");
+      const what = e["Kind"] === "SMS"
+        ? `<span class="dim">text</span> ${esc(body.slice(0, 120))}${body.length > 120 ? "&hellip;" : ""}`
+        : `${out ? "called" : "called in"}${e["Duration Seconds"] ? " &middot; " + secH(e["Duration Seconds"]) : ""}${
+            missed ? ` <span class="st-bad">${esc(e["Result"])}</span>` : ""}`;
+      return sep + `<div class="st-srow ${out ? "out" : "in"}${missed ? " miss" : ""}">
+        <div class="tm">${esc(tm)}</div>
+        <div class="ic">${e["Kind"] === "SMS" ? "&#9993;" : (out ? "&#8599;" : (missed ? "&#10005;" : "&#8600;"))}</div>
+        <div class="tx"><b>${esc(who)}</b> ${what}
+          ${t ? `<button class="st-trb" data-i="${i}" data-s="${esc(e["Telephony Session Id"])}">transcript</button>` : ""}
+          <div class="st-trw" id="sttr${i}"></div>
+        </div></div>`;
+    }).join("");
+
+    const story = items.length
+      ? `<div class="st-sec">The story &middot; ${cvEv.length} calls &amp; texts${cvN ? " &middot; " + cvN + " transcribed" : ""}</div>
+         <div class="st-story">${rows}</div>`
+      : `<div class="st-sec">The story</div><div class="st-note">Nothing recorded for this lead.</div>`;
+
+    /* ---- VERDICT ---- */
     const spd = +j["TTO Biz Min"];
     const spdTone = !+j["Called"] ? (isConf(j) ? "" : "bad") : (spd <= 5 ? "good" : spd <= 30 ? "" : "warn");
     const gap = j["Bill Vs Quote Pct"];
     const outcome = isConf(j)
       ? (j["Total Bill"] != null ? `<span class="st-good">Closed</span>` : `<span class="st-good">Confirmed</span>`)
       : (isDead(j) ? `<span class="st-bad">Lost</span>` : `Open`);
-    const vcard = (l, v, tone) => `<div class="c${tone ? " " + tone : ""}"><div class="l">${l}</div><div class="v${
-      String(v).length > 12 ? " sm" : ""}">${v}</div></div>`;
+    const vcard = (l, v, tone) => `<div class="c${tone ? " " + tone : ""}"><div class="l">${l}</div><div class="v">${v}</div></div>`;
     const verdict = `<div class="st-lfv">
       ${vcard("Outcome", outcome)}
       ${vcard("First contact", +j["Called"] ? (j["TTO Biz Min"] != null ? mins(spd) : "called")
-        : (isContacted(j) ? "answered incoming" : (isConf(j) ? "off-system" : "never")), spdTone)}
-      ${vcard("Attempts", (+j["Out Calls"] || 0) + " out / " + (+j["In Calls"] || 0) + " in")}
-      ${vcard("Answered", (+j["Answered In"] || 0) + " of " + (+j["In Calls"] || 0) + " in",
+        : (isContacted(j) ? "answered in" : (isConf(j) ? "off-system" : "never")), spdTone)}
+      ${vcard("Calls", (+j["Out Calls"] || 0) + " out / " + (+j["In Calls"] || 0) + " in")}
+      ${vcard("Answered", (+j["Answered In"] || 0) + " of " + (+j["In Calls"] || 0),
         (+j["In Calls"] || 0) && !(+j["Answered In"] || 0) ? "bad" : "")}
-      ${vcard("Talk time", +j["Talk Sec Out"] ? secH(j["Talk Sec Out"]) : "—")}
-      ${vcard("Quote → bill", j["Total Bill"] != null ? estActual(j).replace(/<[^>]*>/g, "") : "—",
-        gap != null && Math.abs(+gap) > 25 ? "warn" : "")}
-      ${vcard("Last touch", j["Last Touch At"] ? String(j["Last Touch At"]).slice(0, 10) : "—")}
+      ${vcard("Talk", +j["Talk Sec Out"] ? secH(j["Talk Sec Out"]) : "&mdash;")}
+      ${vcard("Quote &rarr; bill", j["Total Bill"] != null
+        ? money0(num(j["Total Bill"])) + (gap != null ? ` <span class="st-dim">${(+gap > 0 ? "+" : "") + (+gap).toFixed(0)}%</span>` : "")
+        : "&mdash;", gap != null && Math.abs(+gap) > 25 ? "warn" : "")}
     </div>`;
 
-    /* ---- WHAT IS OPEN: the to-do list this lead still carries ---- */
-    const opens = [];
-    if (+j["Flag Never Called"]) opens.push("Nobody ever called this lead.");
-    if (+j["Flag Slow First Call"]) opens.push("First call was slow — " + (j["TTO Biz Min"] != null ? mins(spd) : "late") + " after the lead came in.");
-    if ((+j["In Calls"] || 0) && !(+j["Answered In"] || 0)) opens.push("They called us " + (+j["In Calls"]) + "× and we never picked up.");
-    if (+j["Flag Confirmed No Closing"]) opens.push("Confirmed but no closing sheet has been filed.");
-    if (+j["Flag Big Quote Gap"]) opens.push("Final bill is far from the quote — worth a look.");
-    // RingSense's own "next steps", per call, are the rep's stated commitments
+    /* ---- WHAT IS OPEN: capped and de-duplicated -----------------------------
+       RingSense emits next-steps per CALL, so a lead with six recorded calls threw
+       nine near-identical bullets at the top of the page and buried everything
+       else. Show the three that matter, keep the rest one click away, and say
+       where they came from: a machine's reading of a call, not a list somebody wrote. */
+    const flags = [];
+    if (+j["Flag Never Called"]) flags.push("Nobody ever called this lead.");
+    if (+j["Flag Slow First Call"]) flags.push("First call was slow — " + (j["TTO Biz Min"] != null ? mins(spd) : "late") + " after it came in.");
+    if ((+j["In Calls"] || 0) && !(+j["Answered In"] || 0)) flags.push("They called " + (+j["In Calls"]) + "× and nobody picked up.");
+    if (+j["Flag Confirmed No Closing"]) flags.push("Confirmed but no closing sheet filed.");
+    if (+j["Flag Big Quote Gap"]) flags.push("Final bill is far from the quote.");
+    const seen = {}, steps = [];
     Object.keys(cvTr).forEach(k => {
       let ns = null;
-      try { ns = JSON.parse(cvTr[k]["Next Steps Json"] || "null"); } catch (e) { ns = null; }
+      try { ns = JSON.parse(cvTr[k]["Next Steps Json"] || "null"); } catch (err) { ns = null; }
       (Array.isArray(ns) ? ns : []).forEach(x => {
-        const t = typeof x === "string" ? x : (x && (x.value || x.text));
-        if (t) opens.push(t);
+        const t = String(typeof x === "string" ? x : (x && (x.value || x.text)) || "").trim();
+        const key = t.toLowerCase().replace(/[^a-z0-9]+/g, " ").slice(0, 40);
+        if (t && !seen[key]) { seen[key] = 1; steps.push(t); }
       });
     });
-    const openBlock = opens.length
-      ? `<div class="st-open"><h4>What's open</h4><ul style="margin:0;padding-left:17px">${
-          opens.map(o => `<li>${esc(o)}</li>`).join("")}</ul></div>`
-      : "";
+    const openBlock = (flags.length || steps.length) ? `<div class="st-open">
+      ${flags.map(f => `<div class="f">${esc(f)}</div>`).join("")}
+      ${steps.length ? `<div class="s">
+        ${steps.slice(0, 3).map(t => `<div>${esc(t)}</div>`).join("")}
+        ${steps.length > 3 ? `<details><summary>${steps.length - 3} more from the calls</summary>${
+          steps.slice(3).map(t => `<div>${esc(t)}</div>`).join("")}</details>` : ""}
+        <div class="src">said on the calls &middot; picked up by RingSense</div></div>` : ""}
+    </div>` : "";
 
     if (d.closing) d.closing.__gapPct = j["Bill Vs Quote Pct"];
+    // Facts are grouped and folded. Everything is still here; a lead just opens on the
+    // money and the story instead of on seventy tiles.
     drawerEl.querySelector("#stDB").innerHTML = verdict + openBlock +
       `<div class="st-lfcols"><div>` + story + `</div><div>` +
-      est + jobSection(j, d) + fin + resp + moveboardSection(d.moveboard, j) +
-      closingSection(d.closing) + aftermath + `</div></div>`;
+      est + fin +
+      `<details class="st-fold" open><summary>Job &amp; Moveboard</summary>` + jobSection(j, d) + moveboardSection(d.moveboard, j) + `</details>` +
+      `<details class="st-fold"><summary>Response detail</summary>` + resp + `</details>` +
+      (d.closing ? `<details class="st-fold"><summary>Closing sheet</summary>` + closingSection(d.closing) + `</details>` : "") +
+      (aftermath ? `<details class="st-fold" open><summary>Aftermath</summary>` + aftermath + `</details>` : "") +
+      `</div></div>`;
 
-    // ONE merged, time-ordered stream. The milestones are handed to the thread
-    // renderer as extras so it can sort them in with the calls and texts — the
-    // renderer owns ordering, this file just supplies the rows.
-    const storyHost = drawerEl.querySelector("#stStory");
-    if (storyHost) {
-      if (window.CONV && cvEv.length) {
-        CONV.injectStyle();
-        CONV.mountThread(storyHost, cvEv, cvTr, j["Customer"], msHtml);
-      } else if (msHtml.length) {
-        storyHost.innerHTML = `<div class="st-tl">` + msHtml.map(m => m.html).join("") + `</div>`;
-      }
-    }
+    // transcripts expand in place, drawn by the Conversations page's renderer
+    drawerEl.querySelectorAll(".st-trb").forEach(b => b.onclick = () => {
+      const w = drawerEl.querySelector("#sttr" + b.dataset.i);
+      if (!w) return;
+      if (w.innerHTML) { w.innerHTML = ""; b.classList.remove("on"); return; }
+      const t = cvTr[b.dataset.s];
+      if (window.CONV && t) { CONV.injectStyle(); w.innerHTML = CONV.transcriptHtml(t, j["Customer"]); b.classList.add("on"); }
+    });
   }
 
   /* ---------------- per-person aggregation ---------------- */
