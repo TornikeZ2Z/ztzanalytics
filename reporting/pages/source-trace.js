@@ -23,11 +23,10 @@
         "CallRail Number Name", "CallRail Translated", "Google Local Match",
         "Phone-Matched Source", "Moveboard Source (merged)", "Translated Source",
         "Pickup State", "Source Connector", "Closing Source From Moveboard",
-        "Closing Corrected Source", "Final Source (faithful)", "Final Source (current)",
+        "Closing Corrected Source", "Final Source (current)",
         "Matches Current", "Match Path",
         "Meta Referral Match", "Meta Match Phone", "Meta Match Email", "Meta Form Date",
         "Angi Match", "Angi Match Key", "Thumbtack Match", "Thumbtack Match Key",
-        "Final Source (with leads)",
       ],
     };
   }
@@ -39,7 +38,7 @@
         "Moveboard Raw Source", "CallRail Number Name", "CallRail Translated",
         "Google Local Match", "Merged Source", "Translated Source", "Pickup State",
         "Source Connector", "Angi Match", "Angi Match Key", "Thumbtack Match",
-        "Thumbtack Match Key", "Source Connector (with leads)", "Match Path",
+        "Thumbtack Match Key", "Match Path",
         "Meta Referral Match", "Meta Match Phone", "Meta Match Email", "Meta Form Date",
       ],
     };
@@ -329,7 +328,7 @@ registerPage({
     };
     function winClosing(r) {
       const lc = String(r["Match Path"] || "").toLowerCase();
-      const isPost = /post card/.test(norm(r["Final Source (faithful)"])) || /post card/.test(norm(r["Source Connector"]));
+      const isPost = /post card/.test(norm(r["Final Source (current)"])) || /post card/.test(norm(r["Source Connector"]));
       if (/returned customer/.test(lc)) return 1;
       if (/recommended/.test(lc)) return 2;
       if (yes(r["Meta Referral Match"])) return 3;
@@ -376,19 +375,15 @@ registerPage({
         key: r => r["Job Code"] || r["Request Joinkey"] || r["Request #"],
         match: (r, nq) => norm(r["Request #"]).includes(nq) || norm(r["Job Code"]).includes(nq) || norm(r["Customer"]).includes(nq),
         exact: (r, nq) => norm(r["Request #"]) === nq,
-        hit: r => {
-          const ch = norm(r["Final Source (with leads)"]) !== norm(r["Final Source (current)"]);
-          return `<b>#${RSC.esc(show(r["Request #"]))}</b>
+        hit: r => `<b>#${RSC.esc(show(r["Request #"]))}</b>
             <span class="strc-mini">${RSC.esc(show(r["Job Code"]))}</span>
             <span class="strc-mini">${RSC.esc(show(r["Customer"]))}</span>
-            <span class="strc-mini">${RSC.esc(show(r["Final Source (with leads)"]))}</span>
-            <span class="strc-tag ${ch ? "bad" : "ok"}">${ch ? "Lead-flip" : "Stable"}</span>`;
-        },
+            <span class="strc-mini">${RSC.esc(show(r["Final Source (current)"]))}</span>`,
         render: renderClosing,
         win: winClosing,
         date: r => String(r["Move Date"] || "").slice(0, 10),
         cells: r => [`#${show(r["Request #"])}`, show(r["Customer"]),
-                     show(r["Final Source (with leads)"]),
+                     show(r["Final Source (current)"]),
                      show(r["Meta Match Phone"] || r["Meta Match Email"] || r["Angi Match Key"]
                           || r["Thumbtack Match Key"] || r["CallRail Number Name"] || "")],
       },
@@ -402,19 +397,15 @@ registerPage({
             || (dg.length >= 4 && String(r["Customer Phone"] || "").replace(/[^0-9]/g, "").includes(dg));
         },
         exact: (r, nq) => norm(r["Job No"]) === nq,
-        hit: r => {
-          const ch = norm(r["Source Connector (with leads)"]) !== norm(r["Source Connector"]);
-          return `<b>#${RSC.esc(show(r["Job No"]))}</b>
+        hit: r => `<b>#${RSC.esc(show(r["Job No"]))}</b>
             <span class="strc-mini">${RSC.esc(show(r["Company"]))}</span>
             <span class="strc-mini">${RSC.esc(show(r["Customer"]))}</span>
-            <span class="strc-mini">${RSC.esc(show(r["Source Connector (with leads)"]))}</span>
-            <span class="strc-tag ${ch ? "bad" : "ok"}">${ch ? "Lead-flip" : "Stable"}</span>`;
-        },
+            <span class="strc-mini">${RSC.esc(show(r["Source Connector"]))}</span>`,
         render: renderMoveboard,
         win: winMoveboard,
         date: r => String(r["Create Date"] || r["Move Date"] || "").slice(0, 10),
         cells: r => [`#${show(r["Job No"])}`, show(r["Customer"]),
-                     show(r["Source Connector (with leads)"]),
+                     show(r["Source Connector"]),
                      show(r["Meta Match Phone"] || r["Meta Match Email"] || r["Angi Match Key"]
                           || r["Thumbtack Match Key"] || r["CallRail Number Name"] || "")],
       },
@@ -545,9 +536,7 @@ registerPage({
       const tran   = r["Translated Source"];
       const pstate = r["Pickup State"];
       const mbSrc  = r["Source Connector"];              // moveboard's RESOLVED source
-      const finalF = r["Final Source (faithful)"];       // faithful, no lead matching
       const finalC = r["Final Source (current)"];        // live pipeline, no lead matching
-      const finalL = r["Final Source (with leads)"];     // proposed, WITH Angi/Thumbtack matching
       const angiMatch = yes(r["Angi Match"]),   angiKey = r["Angi Match Key"];
       const ttMatch   = yes(r["Thumbtack Match"]), ttKey = r["Thumbtack Match Key"];
       // Meta Referral: a live-pipeline step PBIX never had. It sits directly under
@@ -558,7 +547,7 @@ registerPage({
       const metaDate  = String(r["Meta Form Date"] || "").slice(0, 10);
       const path   = String(r["Match Path"] || "");
       const lc     = path.toLowerCase();
-      const isPost = /post card/.test(norm(finalF)) || /post card/.test(norm(mbSrc));
+      const isPost = /post card/.test(norm(finalC)) || /post card/.test(norm(mbSrc));
 
       /* how the Moveboard source was built (the phone-match story, shown under input ①) */
       let phone;
@@ -596,10 +585,10 @@ registerPage({
       const rules = [
         { n: 1, t: "Returned customer",
           d: "Booked as a returning customer — wins outright, ahead of any phone, lead, or postcard match.",
-          got: () => `Wins → <b>${RSC.esc(show(finalL))}</b>` },
+          got: () => `Wins → <b>${RSC.esc(show(finalC))}</b>` },
         { n: 2, t: "Recommended",
           d: "Somebody sent them — kept ahead of any phone or lead match.",
-          got: () => `Wins → <b>${RSC.esc(show(finalL))}</b>` },
+          got: () => `Wins → <b>${RSC.esc(show(finalC))}</b>` },
         { n: 3, t: "Meta Referral — referral form match",
           d: "The customer's phone or email matches a Meta referral form, and the lead was created on or after that form within 90 days. Added to the live pipeline in Aug 2026 — Power BI never had this step, so the faithful chain above will disagree here on purpose.",
           matched: metaMatch,
@@ -614,7 +603,7 @@ registerPage({
           got: () => `Wins → <b>Google Local</b>` },
         { n: 5, t: "Post Card — region from pickup state",
           d: "The source resolves to a Post Card → keep it, taking the region from the pickup state (not the number's label).",
-          got: () => `Wins → <b>${RSC.esc(show(finalL))}</b>` },
+          got: () => `Wins → <b>${RSC.esc(show(finalC))}</b>` },
         { n: 6, t: "Angi — lead-data match",
           d: "The customer matches an Angi lead by email or phone, or by name + zip / name + date.",
           matched: angiMatch, status: () => leadRow(6, angiMatch, angiKey, "Angi") },
@@ -624,8 +613,8 @@ registerPage({
         { n: 8, t: "Moveboard source, else Closing booked-from",
           d: "Otherwise use the Moveboard source — unless it's blank or “Other”, in which case the Closing's booked-from is used.",
           got: () => bookedWon
-            ? `Wins via <b>Closing booked-from</b> → <b>${RSC.esc(show(finalL))}</b>`
-            : `Wins via <b>Moveboard source</b> → <b>${RSC.esc(show(finalL))}</b>` },
+            ? `Wins via <b>Closing booked-from</b> → <b>${RSC.esc(show(finalC))}</b>`
+            : `Wins via <b>Moveboard source</b> → <b>${RSC.esc(show(finalC))}</b>` },
       ];
 
       const ladder = rules.map(rule => {
@@ -642,7 +631,6 @@ registerPage({
           </div>`;
       }).join("");
 
-      const changed = norm(finalL) !== norm(finalC);
 
       /* start-to-finish value trail: raw moveboard source → … → final */
       const pm = phoneMatch(crnn, crtr, gl);
@@ -693,32 +681,10 @@ registerPage({
             <div class="strc-ladder">${ladder}</div>
 
             <div class="strc-final">
-              <span class="fl">Final source</span>
-              <span class="fv">${RSC.esc(show(finalL))}</span>
+              <span class="fl">Source</span>
+              <span class="fv">${RSC.esc(show(finalC))}</span>
             </div>
-
-            <div class="strc-cmp">
-              <div class="strc-cell">
-                <div class="strc-lab">Current pipeline (live)</div>
-                <div class="big">${RSC.esc(show(finalC))}</div>
-              </div>
-              <div class="strc-cell">
-                <div class="strc-lab">With Meta / Angi / Thumbtack matching</div>
-                <div class="big">${RSC.esc(show(finalL))}</div>
-              </div>
-            </div>
-
-            <div class="strc-verdict ${changed ? "warn" : "ok"}">
-              <span class="vt">${changed
-                ? "⤳ Lead matching would reassign this job"
-                : "✓ No change — lead matching agrees with the live source"}</span>
-              ${changed
-                ? "The live pipeline stores <b>" + RSC.esc(show(finalC)) + "</b>, but the customer matches "
-                  + (win === 6 ? "an <b>Angi</b>" : "a <b>Thumbtack</b>") + " lead — so lead-matching would set it to <b>"
-                  + RSC.esc(show(finalL)) + "</b>. <span style='color:var(--faint)'>Diagnostic only — not yet applied to live reports.</span>"
-                : "The lead-matched source equals what the pipeline already stores."}
-              ${has(path) ? `<div class="strc-path">Base decision path: <code>${RSC.esc(path)}</code></div>` : ""}
-            </div>
+            ${has(path) ? `<div class="strc-path">Decision path: <code>${RSC.esc(path)}</code></div>` : ""}
           </div>
         </div>`;
       traceEl.scrollIntoView({ behavior: "smooth", block: "nearest" });
@@ -734,7 +700,6 @@ registerPage({
       const tran   = r["Translated Source"];
       const pstate = r["Pickup State"];
       const conn   = r["Source Connector"];               // current moveboard resolved source
-      const connL  = r["Source Connector (with leads)"];  // with Angi/Thumbtack matching
       const angiMatch = yes(r["Angi Match"]), angiKey = r["Angi Match Key"];
       const ttMatch   = yes(r["Thumbtack Match"]), ttKey = r["Thumbtack Match Key"];
       const metaMatch = yes(r["Meta Referral Match"]);
@@ -810,7 +775,6 @@ registerPage({
         note += ` Merged source <b>${RSC.esc(merged)}</b>` + (has(tran) && norm(tran) !== norm(merged) ? ` → <b>${RSC.esc(tran)}</b>` : "") + ".";
       note += pcRegionNote(conn, pstate);
 
-      const changed = norm(connL) !== norm(conn);
 
       /* start-to-finish value trail: raw moveboard source → … → Source Connector */
       const pm = phoneMatch(crnn, crtr, gl);
@@ -848,22 +812,10 @@ registerPage({
             <div class="strc-sechead">Which priority decided it <span>· first match wins</span></div>
             <div class="strc-ladder">${ladder}</div>
             <div class="strc-final">
-              <span class="fl">Moveboard source</span>
-              <span class="fv">${RSC.esc(show(connL))}</span>
+              <span class="fl">Source</span>
+              <span class="fv">${RSC.esc(show(conn))}</span>
             </div>
-            <div class="strc-cmp">
-              <div class="strc-cell"><div class="strc-lab">Current (live)</div><div class="big">${RSC.esc(show(conn))}</div></div>
-              <div class="strc-cell"><div class="strc-lab">With Meta / Angi / Thumbtack matching</div><div class="big">${RSC.esc(show(connL))}</div></div>
-            </div>
-            <div class="strc-verdict ${changed ? "warn" : "ok"}">
-              <span class="vt">${changed ? "⤳ Lead matching would reassign this lead" : "✓ No change — lead matching agrees with the live source"}</span>
-              ${changed
-                ? "The moveboard stores <b>" + RSC.esc(show(conn)) + "</b>, but the customer matches "
-                  + (win === 7 ? "an <b>Angi</b>" : "a <b>Thumbtack</b>") + " lead — so lead-matching would set it to <b>"
-                  + RSC.esc(show(connL)) + "</b>. <span style='color:var(--faint)'>Diagnostic only — not yet applied to live reports.</span>"
-                : "The lead-matched source equals what the moveboard already stores."}
-              ${has(path) ? `<div class="strc-path">Decision path: <code>${RSC.esc(path)}</code></div>` : ""}
-            </div>
+            ${has(path) ? `<div class="strc-path">Decision path: <code>${RSC.esc(path)}</code></div>` : ""}
           </div>
         </div>`;
       traceEl.scrollIntoView({ behavior: "smooth", block: "nearest" });
