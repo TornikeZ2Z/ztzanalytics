@@ -110,6 +110,24 @@ function rlInjectStyle() {
   if (document.getElementById("rl-style")) return;
   const st = document.createElement("style"); st.id = "rl-style";
   st.textContent = `
+  .rl-verdict{border-radius:16px;padding:18px 22px;margin-bottom:16px;border:1px solid var(--line)}
+  .rl-verdict .v{font-size:22px;font-weight:800;letter-spacing:-.3px}
+  .rl-verdict .s{font-size:13px;color:var(--muted);margin-top:5px}
+  .rl-verdict.ok{background:color-mix(in srgb,var(--brand) 8%,var(--panel));border-color:color-mix(in srgb,var(--brand) 40%,transparent)}
+  .rl-verdict.ok .v{color:var(--brand)}
+  .rl-verdict.warn{background:color-mix(in srgb,var(--amber) 8%,var(--panel));border-color:color-mix(in srgb,var(--amber) 40%,transparent)}
+  .rl-verdict.warn .v{color:var(--amber)}
+  .rl-verdict.bad{background:color-mix(in srgb,var(--red) 8%,var(--panel));border-color:color-mix(in srgb,var(--red) 45%,transparent)}
+  .rl-verdict.bad .v{color:var(--red)}
+  .rl-todogrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:11px}
+  .rl-todo{border:1px solid var(--line);border-left-width:3px;border-radius:12px;padding:11px 14px;background:var(--panel-2)}
+  .rl-todo.bad{border-left-color:var(--red)} .rl-todo.warn{border-left-color:var(--amber)}
+  .rl-todo .t{font-weight:750;font-size:14px}
+  .rl-todo .d{font-size:12px;color:var(--muted);margin-top:3px}
+  .rl-todo .a{font-size:12.5px;margin-top:7px}
+  .rl-engine{margin-top:18px;border-top:1px solid var(--line);padding-top:8px}
+  .rl-engine>summary{cursor:pointer;font-size:12.5px;font-weight:700;color:var(--muted);padding:8px 0}
+  .rl-engine>summary:hover{color:var(--ink)}
   .rl-org{font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:999px;border:1px solid var(--line-2);white-space:nowrap}
   .rl-org.sp{color:var(--blue);border-color:color-mix(in srgb,var(--blue) 45%,transparent)}
   .rl-org.gs{color:var(--brand);border-color:color-mix(in srgb,var(--brand) 45%,transparent)}
@@ -532,7 +550,7 @@ function rlFreshness(fresh) {
       <td><span class="rl-org ${org.cls}">${RSC.esc(org.label)}</span></td>
       <td><span class="rl-mode ${live ? "live" : "ref"}" title="${RSC.esc(live || "pulled by the hourly pipeline")}">${
         live ? "live" : "refreshed"}</span></td>
-      <td class="rl-used" title="${RSC.esc(usedTxt)}">${RSC.esc(usedTxt)}</td>
+      <td class="rl-used" title="${RSC.esc(usedTxt)}">${usedTxt === "—" ? "" : RSC.esc(usedTxt)}</td>
       <td class="n">${sw}</td>
       <td class="n"><span class="rl-age ${f.paused ? "none" : cls}">${age}</span></td>
       <td class="n">${RSC.esc(f.file_updated ? String(f.file_updated).slice(0, 10) : "—")}</td>
@@ -568,8 +586,8 @@ function rlFreshness(fresh) {
 
   return `<div class="rl-card">
     <div class="rl-hhead">
-      <span class="rl-htitle">Is anything going stale?</span>
-      <span class="rl-hsub">when each feed was last updated at the source — not when we last looked</span>
+      <span class="rl-htitle">Where every number comes from</span>
+      <span class="rl-hsub">each feed, who supplies it, and whether it is live or refreshed on a schedule</span>
       ${bad.length ? `<span class="rl-stale">${bad.length} over three weeks</span>`
                    : `<span class="rl-fresh-ok">everything current</span>`}
     </div>
@@ -698,7 +716,64 @@ function rlRender(host, runs, cov, fresh) {
       </div>`).join("")}
     </div>`;
   }
-  host.innerHTML = kpis + alertHtml + freshBoard + rlCoverage(cov) + hero + history;
+  /* WHAT A PERSON ACTUALLY ASKS THIS PAGE (rebuilt 2026-08-18 — "i still dont
+     understand shit here ... how would the CEO make sense of it").
+
+     The page used to open with a gantt chart of build steps and cards saying
+     "Curated:Fct Ringcentral · 581,721 rows · Skipped". That answers "how did the
+     machine run", which is a question only I have. The three questions a person has
+     are: is this current, does anything need me, and what have we actually got.
+     So: verdict first, then the jobs for a human, then the coverage — and every
+     engine detail folded away underneath. */
+  const stale = (fresh || []).filter(f => !f.paused && (f.days_since_file || 0) >= 21);
+  const watch = (fresh || []).filter(f => !f.paused && (f.days_since_file || 0) >= 10
+                                             && (f.days_since_file || 0) < 21);
+  const ranAt = RL.ago(L.run.ended_at || L.run.started_at);
+  const broke = L.run.status === "error";
+  const verdictTone = broke || stale.length ? "bad" : (watch.length ? "warn" : "ok");
+  const verdictLine = broke
+    ? "The last refresh hit an error"
+    : stale.length
+      ? `${stale.length} source${stale.length === 1 ? " has" : "s have"} gone quiet`
+      : watch.length
+        ? `Everything loaded — ${watch.length} source${watch.length === 1 ? "" : "s"} worth a glance`
+        : "Everything is current";
+  const verdictSub = broke
+    ? "The data on screen is as of the last good run — see the detail below."
+    : `Last refreshed ${RSC.esc(ranAt)}, and it refreshes every hour. Nothing here is typed by hand.`;
+
+  // one card per thing a HUMAN has to do, named in the words of the person who does it
+  const HOWTO = {
+    "SharePoint": "Drop the new export in its SharePoint folder",
+    "Google Sheet": "Update the sheet — the pipeline reads it on the next run",
+    "Excel table": "Refresh the reference workbook in SharePoint",
+    "RingCentral API": "Nothing to do by hand — this one pulls itself; if it is stale, tell me",
+  };
+  const todo = stale.concat(watch).slice(0, 6).map(f => `
+    <div class="rl-todo ${(f.days_since_file || 0) >= 21 ? "bad" : "warn"}">
+      <div class="t">${RSC.esc(f.feed || f.table)}</div>
+      <div class="d">Last new file <b>${RSC.esc(String(f.file_updated || "").slice(0, 10) || "unknown")}</b>
+        · ${f.days_since_file == null ? "unknown" : f.days_since_file + " days ago"}</div>
+      <div class="a">${RSC.esc(HOWTO[f.kind] || "Check this source")}</div>
+    </div>`).join("");
+
+  const verdict = `<div class="rl-verdict ${verdictTone}">
+      <div class="v">${RSC.esc(verdictLine)}</div>
+      <div class="s">${verdictSub}</div>
+    </div>
+    ${todo ? `<div class="rl-card"><div class="rl-hhead">
+        <span class="rl-htitle">What needs a person</span>
+        <span class="rl-hsub">everything else arrives on its own</span></div>
+      <div class="rl-todogrid">${todo}</div></div>` : ""}`;
+
+  // the engine room, folded: run timings, the gantt, per-build cards, history
+  const engine = `<details class="rl-engine">
+      <summary>How the last refresh ran · ${RSC.esc(RL.fmtDur(L.total))}, ${L.nLoaded} sources loaded${
+        broke ? " · had errors" : " · all OK"}</summary>
+      ${kpis}${hero}${history}
+    </details>`;
+
+  host.innerHTML = verdict + alertHtml + rlCoverage(cov) + freshBoard + engine;
   host.querySelectorAll(".rl-run .rl-rhead").forEach(h => h.onclick = () => h.parentNode.classList.toggle("open"));
   host.querySelectorAll(".rl-sw").forEach(b => {
     b.onclick = async () => {
