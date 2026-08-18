@@ -194,7 +194,7 @@ registerPage({
         ".hq-scrow select{width:auto;min-width:68px}",
         ".hq-opt .n.end{width:22px;height:22px;border-radius:50%;background:var(--brand-glow);color:var(--brand);font-weight:800;font-size:11px;display:grid;place-items:center;text-align:center}",
         ".hq-grid>div:nth-child(even){border-left:1px solid var(--line);padding-left:14px}",
-        ".hq-grid .lbl{font-size:17px;font-weight:700}",
+        ".hq-ed .hq-grid .lbl{font-size:17px;font-weight:750;line-height:1.4}",
         ".hq-grid .h{padding-bottom:1px}",
         ".hq-grid textarea{min-height:72px;align-self:stretch;font-size:15px}",
         ".hq-grid>div{align-self:center}",
@@ -686,7 +686,7 @@ registerPage({
           var grid = '<div class="hq-grid"><div class="h">English</div><div class="h ka">ქართული</div>'
             + pair('<input class="hq-fld lbl bx" data-f="label" value="' + esc(item.label) + '" placeholder="'
                      + (sect ? "Name this section…" : "Write the question…") + '"' + dis + ">",
-                   '<input class="hq-fld bx" data-f="ka_label" value="' + esc(kaAll.label || "")
+                   '<input class="hq-fld lbl bx" data-f="ka_label" value="' + esc(kaAll.label || "")
                      + '" placeholder="' + (sect ? "სექციის სათაური…" : "კითხვა ქართულად…") + '"' + dis + ">")
             + pair('<input class="hq-fld dsc bx" data-f="description" value="' + esc(item.description)
                      + '" placeholder="Help text (optional)…"' + dis + ">",
