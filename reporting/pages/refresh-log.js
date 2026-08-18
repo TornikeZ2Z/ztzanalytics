@@ -85,13 +85,40 @@ const RL = (() => {
       totalRows: sources.filter(s => s.status === "ok").reduce((a, s) => a + (s.rows || 0), 0),
     };
   }
-  return { stLabel, srcLabel, phase, ms, fmtDur, tOnly, dOnly, ago, pill, process, hpage, TZ };
+  /* WHERE A FEED COMES FROM. `Kind` is set by src/source_freshness._feeds(); this only
+     turns it into a badge, so a new kind shows up as itself rather than being dropped. */
+  const ORIGIN = {
+    "SharePoint": { label: "SharePoint", cls: "sp" },
+    "Google Sheet": { label: "Google Sheet", cls: "gs" },
+    "Excel table": { label: "Excel table", cls: "xl" },
+    "RingCentral API": { label: "RingCentral API", cls: "api" },
+    "Google Calendar": { label: "Google Calendar", cls: "cal" },
+  };
+  const origin = k => ORIGIN[k] || { label: k || "unknown", cls: "oth" };
+  // report id -> the label the Users & Access screen uses, so "used by" reads in the
+  // same words as the grant that controls it
+  // REPORT_LABELS is a top-level `const` in index.html: a global LEXICAL binding, which
+  // is NOT window.REPORT_LABELS (the same trap that silently disabled CONV). Read it bare,
+  // guarded by typeof — exactly how index.html:761 reads it.
+  const reportLabel = id => (typeof REPORT_LABELS !== "undefined" && REPORT_LABELS[id])
+    || String(id || "").replace(/-/g, " ").replace(/\w/g, c => c.toUpperCase());
+  return { stLabel, srcLabel, phase, ms, fmtDur, tOnly, dOnly, ago, pill, process, hpage, TZ,
+           origin, reportLabel, USED: {}, LIVE: {} };
 })();
 
 function rlInjectStyle() {
   if (document.getElementById("rl-style")) return;
   const st = document.createElement("style"); st.id = "rl-style";
   st.textContent = `
+  .rl-org{font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:999px;border:1px solid var(--line-2);white-space:nowrap}
+  .rl-org.sp{color:var(--blue);border-color:color-mix(in srgb,var(--blue) 45%,transparent)}
+  .rl-org.gs{color:var(--brand);border-color:color-mix(in srgb,var(--brand) 45%,transparent)}
+  .rl-org.api{color:var(--purple);border-color:color-mix(in srgb,var(--purple) 45%,transparent)}
+  .rl-org.xl{color:var(--amber);border-color:color-mix(in srgb,var(--amber) 45%,transparent)}
+  .rl-org.cal{color:var(--muted)} .rl-org.oth{color:var(--faint)}
+  .rl-mode{font-size:10.5px;font-weight:800;letter-spacing:.04em;text-transform:uppercase}
+  .rl-mode.live{color:var(--brand)} .rl-mode.ref{color:var(--faint)}
+  .rl-used{font-size:11.5px;color:var(--muted);max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .rl-bar{display:flex;gap:9px;align-items:center;flex-wrap:wrap;margin:2px 0 16px}
   .rl-btn{font:inherit;font-size:12.5px;font-weight:700;background:var(--panel);color:var(--ink);border:1px solid var(--line-2);border-radius:10px;padding:8px 14px;cursor:pointer}
   .rl-btn:hover:not(:disabled){border-color:var(--brand)}
@@ -489,9 +516,22 @@ function rlFreshness(fresh) {
       data-p="${f.paused ? 1 : 0}" title="${f.paused
         ? "Paused — click to start reloading it again"
         : "Reloading every run — click to pause"}">${f.paused ? "paused" : "on"}</button>`;
+    // WHERE IT COMES FROM, and whether a person writes it or the pipeline pulls it.
+    // `live` wins over the origin badge: a table people type into is current the moment
+    // they save, which is a different promise from "reloaded at 09:00".
+    const live = RL.LIVE && RL.LIVE[f.table];
+    const org = RL.origin(f.kind);
+    const users = (RL.USED && RL.USED[f.table]) || [];
+    const usedTxt = users.length
+      ? users.map(r => RL.reportLabel(r)).join(", ")
+      : (live ? "written in the portal" : "—");
     return `<tr class="rl-fr ${f.paused ? "paused" : cls}">
-      <td><b>${RSC.esc(f.feed || f.table)}</b><span class="rl-fkind">${RSC.esc(f.kind || "")}${
+      <td><b>${RSC.esc(f.feed || f.table)}</b><span class="rl-fkind">${RSC.esc(f.table)}${
         f.paused && f.pause_note ? " · " + RSC.esc(f.pause_note) : ""}</span></td>
+      <td><span class="rl-org ${org.cls}">${RSC.esc(org.label)}</span></td>
+      <td><span class="rl-mode ${live ? "live" : "ref"}" title="${RSC.esc(live || "pulled by the hourly pipeline")}">${
+        live ? "live" : "refreshed"}</span></td>
+      <td class="rl-used" title="${RSC.esc(usedTxt)}">${RSC.esc(usedTxt)}</td>
       <td class="n">${sw}</td>
       <td class="n"><span class="rl-age ${f.paused ? "none" : cls}">${age}</span></td>
       <td class="n">${RSC.esc(f.file_updated ? String(f.file_updated).slice(0, 10) : "—")}</td>
@@ -500,7 +540,8 @@ function rlFreshness(fresh) {
       <td class="n">${f.rows == null ? "—" : RS.fmtN(f.rows)}</td>
     </tr>`;
   };
-  const head = `<thead><tr><th>Feed</th><th class="n">Reload</th><th class="n">Last updated</th>
+  const head = `<thead><tr><th>Feed</th><th>Comes from</th><th>How</th><th>Used by</th>
+    <th class="n">Reload</th><th class="n">Last updated</th>
     <th class="n">File date</th><th class="n">Newest row</th><th class="n">Rows</th></tr></thead>`;
 
   return `<div class="rl-card">
@@ -658,6 +699,8 @@ function rlRender(host, runs, cov, fresh) {
         if (!resp.ok || j.error) throw new Error(j.error || ("HTTP " + resp.status));
         // the mart still holds the old flag until the next run, so repaint from the server
         const d = await ZTZ.api("/api/_refresh_log");
+        if (d && d.used_by) RL.USED = d.used_by;
+        if (d && d.live_tables) RL.LIVE = d.live_tables;
         rlRender(host, (d && d.runs) || runs, d && d.coverage, d && d.freshness);
       } catch (e) {
         b.disabled = false; b.textContent = on ? "paused" : "on";
@@ -704,6 +747,8 @@ registerPage({
         (every hour, or when a refresh is triggered).</div>`;
       return;
     }
+    if (data && data.used_by) RL.USED = data.used_by;
+    if (data && data.live_tables) RL.LIVE = data.live_tables;
     rlRender(body, runs, data && data.coverage, data && data.freshness);
 
     // ---- controls -------------------------------------------------------------
