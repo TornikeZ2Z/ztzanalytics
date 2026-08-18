@@ -182,6 +182,22 @@ registerPage({
         ".hq-ed.sect .lbl{font-size:16px}",
         // the Georgian twin of whatever sits above it
         ".hq-ka{margin:9px 0 0 37px;border-left:3px solid var(--brand);background:var(--brand-glow);border-radius:0 10px 10px 0;padding:9px 12px}",
+        /* EN | KA side by side (2026-08-18). The translation used to sit in a block
+           BELOW the question with the choices retyped line-for-line into a textarea,
+           so you edited a list in one box and its translation in another and hoped the
+           order still matched. Now every string faces its twin. */
+        ".hq-grid{display:grid;grid-template-columns:1fr 1fr;gap:7px 12px;margin:8px 0 0 37px;align-items:center}",
+        ".hq-grid .h{font-size:10px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--faint)}",
+        ".hq-grid .h.ka{color:var(--brand)}",
+        ".hq-grid .sp{grid-column:1 / -1;height:1px;background:var(--line);margin:3px 0}",
+        ".hq-grid .full{grid-column:1 / -1}",
+        ".hq-opt{display:flex;gap:7px;align-items:center}",
+        ".hq-opt .n{font-size:11px;color:var(--faint);width:14px;text-align:right;flex:none}",
+        ".hq-opt input{flex:1;min-width:0}",
+        ".hq-ox{font:inherit;font-size:12px;line-height:1;color:var(--faint);background:none;border:0;cursor:pointer;padding:3px 5px;flex:none}",
+        ".hq-ox:hover{color:var(--red)}",
+        ".hq-add{font:inherit;font-size:12px;font-weight:700;color:var(--brand);background:none;border:1px dashed var(--line-2);border-radius:9px;padding:5px 11px;cursor:pointer}",
+        ".hq-add:hover{border-color:var(--brand)}",
         ".hq-ka .kah{font-size:10.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--brand);margin-bottom:6px}",
         ".hq-ka .kah em{font-style:normal;color:var(--faint);font-weight:700;text-transform:none;letter-spacing:0;margin-left:7px}",
         ".hq-ka input,.hq-ka textarea{width:100%;box-sizing:border-box;background:var(--panel)}",
@@ -652,36 +668,66 @@ registerPage({
         if (i === S.qFocus) {
           // ---------- the ONE expanded, editable card ----------
           var dis = locked ? " disabled" : "";
-          var extra = "";
+          var kaAll = (item.i18n && item.i18n.ka) || {};
+          var pair = function (enHtml, kaHtml) {
+            return '<div>' + enHtml + "</div><div>" + kaHtml + "</div>";
+          };
+          var grid = '<div class="hq-grid"><div class="h">English</div><div class="h ka">ქართული</div>'
+            + pair('<input class="hq-fld lbl" data-f="label" value="' + esc(item.label) + '" placeholder="'
+                     + (sect ? "Name this section…" : "Write the question…") + '"' + dis + ">",
+                   '<input class="hq-fld bx" data-f="ka_label" value="' + esc(kaAll.label || "")
+                     + '" placeholder="' + (sect ? "სექციის სათაური…" : "კითხვა ქართულად…") + '"' + dis + ">")
+            + pair('<input class="hq-fld dsc" data-f="description" value="' + esc(item.description)
+                     + '" placeholder="Help text (optional)…"' + dis + ">",
+                   '<input class="hq-fld bx" data-f="ka_description" value="' + esc(kaAll.description || "")
+                     + '" placeholder="დამატებითი ტექსტი (არასავალდებულო)…"' + dis + ">");
+
           if (CHOICE_T[item.qtype]) {
+            // EVERY CHOICE IS ITS OWN FIELD, with its translation beside it — no more
+            // "one choice per line" textarea to keep in sync by counting rows.
             var lines = (item.options || []).filter(function (o) { return o !== OTH; });
             var hasOth = (item.options || []).indexOf(OTH) >= 0;
-            extra = '<textarea class="hq-flda hq-opts" data-f="options" style="margin-left:37px;width:calc(100% - 37px)" placeholder="One choice per line — at least 2"' + dis + ">"
-              + esc(lines.join("\n")) + "</textarea>"
-              + '<label class="hq-reqt" style="margin:6px 0 0 37px" title="Adds an Other… choice where people type their own answer">'
-              + '<input type="checkbox" data-f="oth"' + (hasOth ? " checked" : "") + dis + ">"
-              + '<span class="hq-tgl"></span><span class="rt">allow “Other…”</span></label>';
+            grid += '<div class="sp"></div>';
+            lines.forEach(function (o, oi) {
+              grid += pair('<div class="hq-opt"><span class="n">' + (oi + 1) + '</span>'
+                             + '<input class="hq-fld bx" data-f="opt" data-oi="' + oi + '" value="' + esc(o)
+                             + '" placeholder="Choice…"' + dis + ">"
+                             + (locked ? "" : '<button class="hq-ox" data-optrm="' + oi + '" title="Remove this choice">✕</button>')
+                             + "</div>",
+                           '<input class="hq-fld bx" data-f="kaopt" data-oi="' + oi + '" value="'
+                             + esc((kaAll.opt && kaAll.opt[o]) || "") + '" placeholder="პასუხი ქართულად…"' + dis + ">");
+            });
+            if (!locked)
+              grid += '<div class="full"><button class="hq-add" data-optadd>+ add choice</button></div>';
+            grid += pair('<label class="hq-reqt" title="Adds an Other… choice where people type their own answer">'
+                           + '<input type="checkbox" data-f="oth"' + (hasOth ? " checked" : "") + dis + ">"
+                           + '<span class="hq-tgl"></span><span class="rt">allow “Other…”</span></label>',
+                         hasOth ? '<input class="hq-fld bx" data-f="ka_other" value="' + esc(kaAll.other || "")
+                                    + '" placeholder="„სხვა…“ ქართულად"' + dis + ">" : "<span></span>");
           } else if (item.qtype === "scale") {
             var so = item.options || [];
             var lo = parseInt(so[0], 10); if (isNaN(lo)) lo = 1;
             var hi = parseInt(so[1], 10); if (isNaN(hi)) hi = 5;
-            var selN = function (f, val, from, to) {
-              var s = '<select class="hq-sel" data-f="' + f + '"' + dis + ">";
+            var selN = function (f2, val, from, to) {
+              var s2 = '<select class="hq-sel" data-f="' + f2 + '"' + dis + ">";
               for (var n2 = from; n2 <= to; n2++)
-                s += '<option value="' + n2 + '"' + (n2 === val ? " selected" : "") + ">" + n2 + "</option>";
-              return s + "</select>";
+                s2 += '<option value="' + n2 + '"' + (n2 === val ? " selected" : "") + ">" + n2 + "</option>";
+              return s2 + "</select>";
             };
-            extra = '<div class="hq-row" style="margin:8px 0 2px 37px;gap:9px;font-size:13px;color:var(--muted)">'
-              + "From " + selN("sc_lo", lo, 0, 1) + " to " + selN("sc_hi", hi, 2, 10)
-              + '<input class="hq-fld bx" style="max-width:200px" data-f="sc_l1" value="' + esc(so[2] || "") + '" placeholder="Label for the low end…"' + dis + ">"
-              + '<input class="hq-fld bx" style="max-width:200px" data-f="sc_l2" value="' + esc(so[3] || "") + '" placeholder="Label for the high end…"' + dis + ">"
-              + "</div>";
+            grid += '<div class="sp"></div>'
+              + '<div class="full" style="font-size:13px;color:var(--muted)">From ' + selN("sc_lo", lo, 0, 1)
+              + " to " + selN("sc_hi", hi, 2, 10) + "</div>"
+              + pair('<input class="hq-fld bx" data-f="sc_l1" value="' + esc(so[2] || "") + '" placeholder="Label for the low end…"' + dis + ">",
+                     '<input class="hq-fld bx" data-f="ka_lo" value="' + esc(kaAll.lo || "") + '" placeholder="დაბალი ბოლოს წარწერა…"' + dis + ">")
+              + pair('<input class="hq-fld bx" data-f="sc_l2" value="' + esc(so[3] || "") + '" placeholder="Label for the high end…"' + dis + ">",
+                     '<input class="hq-fld bx" data-f="ka_hi" value="' + esc(kaAll.hi || "") + '" placeholder="მაღალი ბოლოს წარწერა…"' + dis + ">");
           }
+          grid += "</div>";
+
           row = '<div class="hq-ed on' + (sect ? " sect" : "") + '" data-i="' + i + '"><div class="top">'
             + (sect ? '<span class="num" style="background:var(--brand-glow);color:var(--brand)">§</span>'
                     : '<span class="num">' + myn + "</span>")
-            + '<input class="hq-fld lbl" data-f="label" value="' + esc(item.label) + '" placeholder="'
-            + (sect ? "Name this section…" : "Write the question, as the employee reads it…") + '"' + dis + ">"
+            + '<span style="flex:1"></span>'
             + (locked
                 ? '<span class="hq-ddb" style="cursor:default;opacity:.75"><span class="ic">'
                   + TYPE_META[item.qtype].ic + "</span>" + TYPE_LABEL[item.qtype] + "</span>"
@@ -694,40 +740,7 @@ registerPage({
             + (locked ? "" : '<button class="hq-x" data-dup title="Duplicate" style="font-size:13px">⧉</button>'
                 + '<button class="hq-x" data-rm title="Remove">✕</button>')
             + "</div>"
-            + '<input class="hq-fld dsc" data-f="description" value="' + esc(item.description) + '" placeholder="'
-            + (sect ? "Add a short intro under the section title (optional)…"
-                    : "Add help text under the question (optional)…") + '"' + dis + ">"
-            + extra
-            + (function () {
-                // GEORGIAN (his ask 2026-08-17): the twin of every word above. Choices are
-                // typed line-for-line against the English list and stored keyed by the
-                // ENGLISH text, so reordering can never re-point a translation.
-                var ka = (item.i18n && item.i18n.ka) || {};
-                var engLines = (item.options || []).filter(function (o) { return o !== OTH; });
-                var kaLines = engLines.map(function (o) { return (ka.opt && ka.opt[o]) || ""; });
-                var box = '<div class="hq-ka"><div class="kah">ქართული'
-                  + "<em>" + (sect ? "the section title as the team reads it"
-                                   : "what the team actually reads") + "</em></div>"
-                  + '<input class="hq-fld bx" data-f="ka_label" value="' + esc(ka.label || "")
-                  + '" placeholder="' + (sect ? "სექციის სათაური…" : "კითხვა ქართულად…") + '"' + dis + ">"
-                  + '<input class="hq-fld bx" style="margin-top:6px" data-f="ka_description" value="'
-                  + esc(ka.description || "") + '" placeholder="დამატებითი ტექსტი (არასავალდებულო)…"' + dis + ">";
-                if (CHOICE_T[item.qtype]) {
-                  box += '<textarea class="hq-flda" style="margin-top:6px" data-f="ka_options" '
-                    + 'placeholder="თითო პასუხი თითო ხაზზე — ზუსტად იმავე რიგით, რაც ზემოთ"' + dis + ">"
-                    + esc(kaLines.join("\n")) + "</textarea>"
-                    + ((item.options || []).indexOf(OTH) >= 0
-                        ? '<input class="hq-fld bx" style="margin-top:6px" data-f="ka_other" value="'
-                          + esc(ka.other || "") + '" placeholder="„სხვა…“ ქართულად"' + dis + ">"
-                        : "");
-                } else if (item.qtype === "scale") {
-                  box += '<div class="two"><input class="hq-fld bx" data-f="ka_lo" value="'
-                    + esc(ka.lo || "") + '" placeholder="დაბალი ბოლოს წარწერა…"' + dis + ">"
-                    + '<input class="hq-fld bx" data-f="ka_hi" value="' + esc(ka.hi || "")
-                    + '" placeholder="მაღალი ბოლოს წარწერა…"' + dis + "></div>";
-                }
-                return box + "</div>";
-              })()
+            + grid
             + "</div>";
         } else {
           // ---------- a compact, scannable row ----------
@@ -798,10 +811,14 @@ registerPage({
         row.querySelectorAll("[data-f]").forEach(function (inp) {
           var f = inp.dataset.f;
           var syncOpts = function () {
-            var ta = row.querySelector('[data-f="options"]');
+            // one input per choice now; blanks are kept while typing so a half-typed
+            // choice does not vanish under the cursor, and dropped on save/repaint
             var ot = row.querySelector('[data-f="oth"]');
-            var lines2 = ta ? ta.value.split("\n").map(function (s) { return s.trim(); }).filter(Boolean) : [];
-            lines2 = lines2.filter(function (o) { return o !== OTH; });
+            var lines2 = [];
+            row.querySelectorAll('[data-f="opt"]').forEach(function (el2) {
+              lines2.push(el2.value.trim());
+            });
+            lines2 = lines2.filter(function (o) { return o && o !== OTH; });
             if (ot && ot.checked) lines2.push(OTH);
             d[i].options = lines2;
           };
@@ -823,20 +840,22 @@ registerPage({
             if (gv("ka_lo")) ka.lo = gv("ka_lo");
             if (gv("ka_hi")) ka.hi = gv("ka_hi");
             if (gv("ka_other")) ka.other = gv("ka_other");
-            var kt = row.querySelector('[data-f="ka_options"]');
-            if (kt) {
-              // zip the Georgian lines onto the ENGLISH choices, in order
-              var eng = (d[i].options || []).filter(function (o) { return o !== OTH; });
-              var kal = kt.value.split("\n").map(function (x2) { return x2.trim(); });
+            // each Georgian choice sits beside its English one, so they pair by POSITION
+            // in the DOM and are stored keyed by the English text (unchanged contract:
+            // reordering can never re-point a translation)
+            var eng = [], kal = [];
+            row.querySelectorAll('[data-f="opt"]').forEach(function (el2) { eng.push(el2.value.trim()); });
+            row.querySelectorAll('[data-f="kaopt"]').forEach(function (el2) { kal.push(el2.value.trim()); });
+            if (eng.length) {
               var opt = {};
-              eng.forEach(function (o, oi) { if (kal[oi]) opt[o] = kal[oi]; });
+              eng.forEach(function (o, oi) { if (o && kal[oi]) opt[o] = kal[oi]; });
               if (Object.keys(opt).length) ka.opt = opt;
             }
             d[i].i18n = Object.keys(ka).length ? { ka: ka } : null;
           };
           inp.oninput = function () {
             if (f.indexOf("ka_") === 0) syncKa();
-            else if (f === "options" || f === "oth") { syncOpts(); syncKa(); }
+            else if (f === "opt" || f === "kaopt" || f === "oth") { syncOpts(); syncKa(); }
             else if (f.indexOf("sc_") === 0) syncScale();
             else if (f === "required") d[i].required = inp.checked;
             else d[i][f] = inp.value;
@@ -847,6 +866,32 @@ registerPage({
               if (f === "oth") syncOpts(); else syncScale();
               mark();
             };
+        });
+        var addb = row.querySelector("[data-optadd]");
+        if (addb) addb.onclick = function () {
+          var opts = (d[i].options || []).slice();
+          var oth = opts.indexOf(OTH) >= 0;
+          opts = opts.filter(function (o) { return o !== OTH; });
+          opts.push("");
+          if (oth) opts.push(OTH);
+          d[i].options = opts;
+          mark(); paintQuestions(body, q, canM);
+          var ins = document.querySelectorAll('.hq-ed.on [data-f="opt"]');
+          if (ins.length) ins[ins.length - 1].focus();
+        };
+        row.querySelectorAll("[data-optrm]").forEach(function (b2) {
+          b2.onclick = function () {
+            var oi = +b2.dataset.optrm;
+            var opts = (d[i].options || []).filter(function (o) { return o !== OTH; });
+            var gone = opts[oi];
+            var oth = (d[i].options || []).indexOf(OTH) >= 0;
+            opts.splice(oi, 1);
+            if (oth) opts.push(OTH);
+            d[i].options = opts;
+            // drop the orphaned translation with it
+            if (gone && d[i].i18n && d[i].i18n.ka && d[i].i18n.ka.opt) delete d[i].i18n.ka.opt[gone];
+            mark(); paintQuestions(body, q, canM);
+          };
         });
         var rm = row.querySelector("[data-rm]");
         if (rm) rm.onclick = function () {
