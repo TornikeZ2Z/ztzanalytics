@@ -729,12 +729,12 @@
        nine near-identical bullets at the top of the page and buried everything
        else. Show the three that matter, keep the rest one click away, and say
        where they came from: a machine's reading of a call, not a list somebody wrote. */
-    const flags = [];
-    if (+j["Flag Never Called"]) flags.push("Nobody ever called this lead.");
-    if (+j["Flag Slow First Call"]) flags.push("First call was slow — " + (j["TTO Biz Min"] != null ? mins(spd) : "late") + " after it came in.");
-    if ((+j["In Calls"] || 0) && !(+j["Answered In"] || 0)) flags.push("They called " + (+j["In Calls"]) + "× and nobody picked up.");
-    if (+j["Flag Confirmed No Closing"]) flags.push("Confirmed but no closing sheet filed.");
-    if (+j["Flag Big Quote Gap"]) flags.push("Final bill is far from the quote.");
+    const issues = [];
+    if (+j["Flag Never Called"]) issues.push("Nobody ever called this lead.");
+    if (+j["Flag Slow First Call"]) issues.push("First call was slow — " + (j["TTO Biz Min"] != null ? mins(spd) : "late") + " after it came in.");
+    if ((+j["In Calls"] || 0) && !(+j["Answered In"] || 0)) issues.push("They called " + (+j["In Calls"]) + "× and nobody picked up.");
+    if (+j["Flag Confirmed No Closing"]) issues.push("Confirmed but no closing sheet filed.");
+    if (+j["Flag Big Quote Gap"]) issues.push("Final bill is far from the quote.");
     const seen = {}, steps = [];
     Object.keys(cvTr).forEach(k => {
       let ns = null;
@@ -745,8 +745,8 @@
         if (t && !seen[key]) { seen[key] = 1; steps.push(t); }
       });
     });
-    const openBlock = (flags.length || steps.length) ? `<div class="st-open">
-      ${flags.map(f => `<div class="f">${esc(f)}</div>`).join("")}
+    const openBlock = (issues.length || steps.length) ? `<div class="st-open">
+      ${issues.map(f => `<div class="f">${esc(f)}</div>`).join("")}
       ${steps.length ? `<div class="s">
         ${steps.slice(0, 3).map(t => `<div>${esc(t)}</div>`).join("")}
         ${steps.length > 3 ? `<details><summary>${steps.length - 3} more from the calls</summary>${
