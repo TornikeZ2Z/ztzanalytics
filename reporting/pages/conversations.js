@@ -154,21 +154,34 @@ const CONV = (() => {
     let extra = "";
     const parse = j => { try { return JSON.parse(j || "null"); } catch (e) { return null; } };
     const hi = parse(tr["Highlights Json"]), ns = parse(tr["Next Steps Json"]);
+    // RingSense returns these as [{start,end,value}] — NOT plain strings. Rendered raw,
+    // the summary box showed a wall of JSON to the reader (caught in review 2026-08-18).
     const listOf = v => Array.isArray(v) ? v.map(x =>
-      typeof x === "string" ? x : (x && (x.text || x.title || x.name)) || "").filter(Boolean) : [];
-    if (tr["Summary"]) extra += `<div class="cnv-sum"><h5>Summary</h5>${esc(tr["Summary"])}</div>`;
+      typeof x === "string" ? x
+        : (x && (x.value || x.text || x.title || x.name)) || "").filter(Boolean) : [];
+    const sumRaw = tr["Summary"];
+    const sumParsed = typeof sumRaw === "string" && sumRaw.trim().startsWith("[")
+      ? listOf(parse(sumRaw)) : null;
+    const summary = sumParsed && sumParsed.length ? sumParsed.join(" ") : (sumRaw || "");
+    if (summary) extra += `<div class="cnv-sum"><h5>Summary</h5>${esc(summary)}</div>`;
     const hl = listOf(hi), st = listOf(ns);
     if (hl.length) extra += `<div class="cnv-sum"><h5>Highlights</h5>${hl.map(esc).join("<br>")}</div>`;
     if (st.length) extra += `<div class="cnv-sum"><h5>Next steps</h5>${st.map(esc).join("<br>")}</div>`;
     const us = tr.utterances || [];
-    // Speaker colouring keys on the OWNER extension being the speaker's own line: our
-    // people are the ones RingSense names; an unnamed speaker is the customer.
-    const rows = us.map(u => `
-      <div class="cnv-utt${u["Speaker Name"] ? "" : " them"}">
+    // Who is US and who is THEM: RingSense names BOTH sides (the customer too), so
+    // "has a name" cannot tell them apart. The speaker carrying an extensionId is on
+    // our phone system; everyone else is the customer.
+    const spk = parse(tr["Speakers Json"]) || [];
+    const ours = new Set(spk.filter(s => s && s.extensionId).map(s => s.speakerId));
+    const rows = us.map(u => {
+      const isUs = ours.has(u["Speaker Id"]);
+      return `
+      <div class="cnv-utt${isUs ? "" : " them"}">
         <div class="t">${clock(u["Start"])}</div>
-        <div class="s">${esc(u["Speaker Name"] || "Customer")}</div>
+        <div class="s">${esc(u["Speaker Name"] || (isUs ? "Us" : "Customer"))}</div>
         <div>${esc(u["Text"])}</div>
-      </div>`).join("");
+      </div>`;
+    }).join("");
     return `<div class="cnv-tr">${extra}${rows || `<div class="cnv-empty" style="padding:14px">No speech captured.</div>`}</div>`;
   }
 
