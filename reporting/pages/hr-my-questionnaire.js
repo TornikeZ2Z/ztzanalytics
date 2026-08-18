@@ -14,7 +14,7 @@
 registerPage({
   id: "hr-my-questionnaire",
   group: "hr",
-  title: "My Questionnaire",
+  title: "My Survey",
   datasets: [],
   async render(host) {
     var RSC = window.RSC || {};
@@ -125,7 +125,7 @@ registerPage({
       document.head.appendChild(st);
     }
 
-    host.innerHTML = '<div class="hm"><div class="rs-page-head"><h1>My Questionnaire</h1>'
+    host.innerHTML = '<div class="hm"><div class="rs-page-head"><h1>My Survey</h1>'
       + "<p>Questionnaires assigned to you. Answers save as you go; Submit makes them final."
       + '</p></div><div id="hmMain"></div></div>';
     var main = host.querySelector("#hmMain");
