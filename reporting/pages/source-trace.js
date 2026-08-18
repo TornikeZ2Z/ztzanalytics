@@ -25,6 +25,7 @@
         "Pickup State", "Source Connector", "Closing Source From Moveboard",
         "Closing Corrected Source", "Final Source (faithful)", "Final Source (current)",
         "Matches Current", "Match Path",
+        "Meta Referral Match", "Meta Match Phone", "Meta Match Email", "Meta Form Date",
         "Angi Match", "Angi Match Key", "Thumbtack Match", "Thumbtack Match Key",
         "Final Source (with leads)",
       ],
@@ -39,6 +40,7 @@
         "Google Local Match", "Merged Source", "Translated Source", "Pickup State",
         "Source Connector", "Angi Match", "Angi Match Key", "Thumbtack Match",
         "Thumbtack Match Key", "Source Connector (with leads)", "Match Path",
+        "Meta Referral Match", "Meta Match Phone", "Meta Match Email", "Meta Form Date",
       ],
     };
   }
@@ -397,6 +399,12 @@ registerPage({
       const finalL = r["Final Source (with leads)"];     // proposed, WITH Angi/Thumbtack matching
       const angiMatch = yes(r["Angi Match"]),   angiKey = r["Angi Match Key"];
       const ttMatch   = yes(r["Thumbtack Match"]), ttKey = r["Thumbtack Match Key"];
+      // Meta Referral: a live-pipeline step PBIX never had. It sits directly under
+      // Returned Customer and above the phone match.
+      const metaMatch = yes(r["Meta Referral Match"]);
+      const metaKey   = r["Meta Match Phone"] || r["Meta Match Email"];
+      const metaVia   = r["Meta Match Phone"] ? "phone" : (r["Meta Match Email"] ? "email" : "");
+      const metaDate  = String(r["Meta Form Date"] || "").slice(0, 10);
       const path   = String(r["Match Path"] || "");
       const lc     = path.toLowerCase();
       const isPost = /post card/.test(norm(finalF)) || /post card/.test(norm(mbSrc));
@@ -419,13 +427,14 @@ registerPage({
 
       /* which priority wins (6-rung ladder). Angi/Thumbtack lead matches only
          intercept the #6 fallback — never override #1–#3. */
-      let win = 6;
+      let win = 7;
       if (/returned customer|recommended/.test(lc)) win = 1;
-      else if (/google local/.test(lc)) win = 2;
-      else if (isPost) win = 3;
-      else if (angiMatch) win = 4;
-      else if (ttMatch) win = 5;
-      const bookedWon = win === 6 && lc.includes("booked from") && !lc.includes("inherited");
+      else if (metaMatch) win = 2;
+      else if (/google local/.test(lc)) win = 3;
+      else if (isPost) win = 4;
+      else if (angiMatch) win = 5;
+      else if (ttMatch) win = 6;
+      const bookedWon = win === 7 && lc.includes("booked from") && !lc.includes("inherited");
 
       // #4/#5 rows: show the match even when a higher priority outranks it
       const leadRow = (n, matched, key, name) =>
@@ -437,19 +446,28 @@ registerPage({
         { n: 1, t: "Returned / Recommended customer",
           d: "Booked as a returning or recommended customer — wins outright, ahead of any phone, lead, or postcard match.",
           got: () => `Wins → <b>${RSC.esc(show(finalL))}</b>` },
-        { n: 2, t: "Google Local phone match",
+        { n: 2, t: "Meta Referral — referral form match",
+          d: "The customer's phone or email matches a Meta referral form, and the lead was created on or after that form within 90 days. Added to the live pipeline in Aug 2026 — Power BI never had this step, so the faithful chain above will disagree here on purpose.",
+          matched: metaMatch,
+          status: () => metaMatch
+            ? (win === 2
+                ? `Wins → <b>Meta Referral</b> (matched by <b>${RSC.esc(show(metaVia))}</b>${
+                    metaKey ? " " + RSC.esc(show(metaKey)) : ""}${metaDate ? `, form filled ${RSC.esc(metaDate)}` : ""})`
+                : `<span style="color:var(--amber);font-weight:700">Matched a Meta referral form</span> — outranked by Priority #${win}`)
+            : "No referral-form match" },
+        { n: 3, t: "Google Local phone match",
           d: "The customer's phone matched a Google Local lead (and no CallRail postcard overrides it).",
           got: () => `Wins → <b>Google Local</b>` },
-        { n: 3, t: "Post Card — region from pickup state",
+        { n: 4, t: "Post Card — region from pickup state",
           d: "The source resolves to a Post Card → keep it, taking the region from the pickup state (not the number's label).",
           got: () => `Wins → <b>${RSC.esc(show(finalL))}</b>` },
-        { n: 4, t: "Angi — lead-data match",
+        { n: 5, t: "Angi — lead-data match",
           d: "The customer matches an Angi lead by email or phone, or by name + zip / name + date.",
-          matched: angiMatch, status: () => leadRow(4, angiMatch, angiKey, "Angi") },
-        { n: 5, t: "Thumbtack — lead-data match",
+          matched: angiMatch, status: () => leadRow(5, angiMatch, angiKey, "Angi") },
+        { n: 6, t: "Thumbtack — lead-data match",
           d: "The customer matches a Thumbtack lead by phone, or by name + zip / name + date.",
-          matched: ttMatch, status: () => leadRow(5, ttMatch, ttKey, "Thumbtack") },
-        { n: 6, t: "Moveboard source, else Closing booked-from",
+          matched: ttMatch, status: () => leadRow(6, ttMatch, ttKey, "Thumbtack") },
+        { n: 7, t: "Moveboard source, else Closing booked-from",
           d: "Otherwise use the Moveboard source — unless it's blank or “Other”, in which case the Closing's booked-from is used.",
           got: () => bookedWon
             ? `Wins via <b>Closing booked-from</b> → <b>${RSC.esc(show(finalL))}</b>`
@@ -565,16 +583,21 @@ registerPage({
       const connL  = r["Source Connector (with leads)"];  // with Angi/Thumbtack matching
       const angiMatch = yes(r["Angi Match"]), angiKey = r["Angi Match Key"];
       const ttMatch   = yes(r["Thumbtack Match"]), ttKey = r["Thumbtack Match Key"];
+      const metaMatch = yes(r["Meta Referral Match"]);
+      const metaKey   = r["Meta Match Phone"] || r["Meta Match Email"];
+      const metaVia   = r["Meta Match Phone"] ? "phone" : (r["Meta Match Email"] ? "email" : "");
+      const metaDate  = String(r["Meta Form Date"] || "").slice(0, 10);
       const path   = String(r["Match Path"] || "");
       const lc     = path.toLowerCase();
       const isPost = /post card/.test(norm(conn));
 
-      let win = 6;
+      let win = 7;
       if (lc.includes("returned customer")) win = 1;
-      else if (lc.indexOf("callrail") === 0) win = 2;
-      else if (lc.includes("google local")) win = 3;
-      else if (norm(connL) === "angi" && norm(conn) !== "angi") win = 4;
-      else if (norm(connL) === "thumbtack" && norm(conn) !== "thumbtack") win = 5;
+      else if (metaMatch) win = 2;
+      else if (lc.indexOf("callrail") === 0) win = 3;
+      else if (lc.includes("google local")) win = 4;
+      else if (norm(connL) === "angi" && norm(conn) !== "angi") win = 5;
+      else if (norm(connL) === "thumbtack" && norm(conn) !== "thumbtack") win = 6;
 
       const mbLead = (n, matched, key, name) =>
         win === n ? `Wins → <b>${name}</b> (matched by <b>${RSC.esc(show(key))}</b>)`
@@ -585,19 +608,28 @@ registerPage({
         { n: 1, t: "Returned Customer",
           d: "Booked on the moveboard as a returning customer — kept as Returned Customer.",
           got: () => `Wins → <b>Returned Customer</b>` },
-        { n: 2, t: "CallRail phone match",
+        { n: 2, t: "Meta Referral — referral form match",
+          d: "The customer's phone or email matches a Meta referral form, and this lead was created on or after that form within 90 days. Both windows are deliberate: without them an existing customer filling the form would re-source their own older lead, and a move a year later would still be credited to the referral.",
+          matched: metaMatch,
+          status: () => metaMatch
+            ? (win === 2
+                ? `Wins → <b>Meta Referral</b> (matched by <b>${RSC.esc(show(metaVia))}</b>${
+                    metaKey ? " " + RSC.esc(show(metaKey)) : ""}${metaDate ? `, form filled ${RSC.esc(metaDate)}` : ""})`
+                : `<span style="color:var(--amber);font-weight:700">Matched a Meta referral form</span> — outranked by Priority #${win}`)
+            : "No referral-form match" },
+        { n: 3, t: "CallRail phone match",
           d: "The customer's phone matched a CallRail tracking number — its Number Name becomes the source (CallRail beats Google Local).",
           got: () => `Wins → <b>${RSC.esc(show(crnn))}</b>${has(crtr) && norm(crtr) !== norm(crnn) ? ` → <b>${RSC.esc(crtr)}</b>` : ""}` },
-        { n: 3, t: "Google Local phone match",
+        { n: 4, t: "Google Local phone match",
           d: "The customer's phone matched a Google Local lead.",
           got: () => `Wins → <b>Google Local</b>` },
-        { n: 4, t: "Angi — lead-data match",
+        { n: 5, t: "Angi — lead-data match",
           d: "The customer matches an Angi lead by email/phone, or name + zip / name + date.",
-          matched: angiMatch, status: () => mbLead(4, angiMatch, angiKey, "Angi") },
-        { n: 5, t: "Thumbtack — lead-data match",
+          matched: angiMatch, status: () => mbLead(5, angiMatch, angiKey, "Angi") },
+        { n: 6, t: "Thumbtack — lead-data match",
           d: "The customer matches a Thumbtack lead by phone, or name + zip / name + date.",
-          matched: ttMatch, status: () => mbLead(5, ttMatch, ttKey, "Thumbtack") },
-        { n: 6, t: "Raw booked source",
+          matched: ttMatch, status: () => mbLead(6, ttMatch, ttKey, "Thumbtack") },
+        { n: 7, t: "Raw booked source",
           d: "Otherwise the moveboard's booked source, translated to its canonical name (Post Card split by pickup state).",
           got: () => `Wins → <b>${RSC.esc(show(conn))}</b>` },
       ];
