@@ -318,8 +318,8 @@ registerPage({
     const RUNGS = {
       closing: ["Returned / Recommended", "Meta Referral", "Google Local", "Post Card",
                 "Angi", "Thumbtack", "Whatever the sheet says"],
-      moveboard: ["Returned Customer", "Meta Referral", "CallRail", "Google Local",
-                  "Angi", "Thumbtack", "Raw booked source"],
+      moveboard: ["Returned Customer", "Meta Referral", "CallRail", "Post Card",
+                  "Google Local", "Angi", "Thumbtack", "Raw booked source"],
     };
     function winClosing(r) {
       const lc = String(r["Match Path"] || "").toLowerCase();
@@ -333,15 +333,23 @@ registerPage({
       return 7;
     }
     function winMoveboard(r) {
+      // Follows the Match Path the BUILD wrote, in the build's own order
+      // (curated.py: Returned > Meta > CallRail > Post Card > Google Local > raw).
+      //
+      // Angi/Thumbtack used to be decided by comparing `Source Connector (with leads)`
+      // against `Source Connector` — but those two columns are identical in all 77,770
+      // rows, so both rungs could never win and the tab showed 0 for each while 10,120
+      // leads matched Angi and 2,648 matched Thumbtack (measured 2026-08-18). They are
+      // read from the match flags now, exactly like the Closing tab does.
       const lc = String(r["Match Path"] || "").toLowerCase();
-      const conn = r["Source Connector"], connL = r["Source Connector (with leads)"];
       if (lc.includes("returned customer")) return 1;
       if (yes(r["Meta Referral Match"])) return 2;
       if (lc.indexOf("callrail") === 0) return 3;
-      if (lc.includes("google local")) return 4;
-      if (norm(connL) === "angi" && norm(conn) !== "angi") return 5;
-      if (norm(connL) === "thumbtack" && norm(conn) !== "thumbtack") return 6;
-      return 7;
+      if (lc.includes("post card")) return 4;
+      if (lc.includes("google local")) return 5;
+      if (yes(r["Angi Match"])) return 6;
+      if (yes(r["Thumbtack Match"])) return 7;
+      return 8;
     }
 
     /* ---------------- mode config (closing jobs / moveboard leads) ---------------- */
@@ -726,13 +734,7 @@ registerPage({
       const lc     = path.toLowerCase();
       const isPost = /post card/.test(norm(conn));
 
-      let win = 7;
-      if (lc.includes("returned customer")) win = 1;
-      else if (metaMatch) win = 2;
-      else if (lc.indexOf("callrail") === 0) win = 3;
-      else if (lc.includes("google local")) win = 4;
-      else if (norm(connL) === "angi" && norm(conn) !== "angi") win = 5;
-      else if (norm(connL) === "thumbtack" && norm(conn) !== "thumbtack") win = 6;
+      const win = winMoveboard(r);   // one definition, shared with the browse list
 
       const mbLead = (n, matched, key, name) =>
         win === n ? `Wins → <b>${name}</b> (matched by <b>${RSC.esc(show(key))}</b>)`
@@ -755,16 +757,19 @@ registerPage({
         { n: 3, t: "CallRail phone match",
           d: "The customer's phone matched a CallRail tracking number — its Number Name becomes the source (CallRail beats Google Local).",
           got: () => `Wins → <b>${RSC.esc(show(crnn))}</b>${has(crtr) && norm(crtr) !== norm(crnn) ? ` → <b>${RSC.esc(crtr)}</b>` : ""}` },
-        { n: 4, t: "Google Local phone match",
+        { n: 4, t: "Post Card — region from pickup state",
+          d: "Booked as a Post Card, so the region comes from the pickup state rather than the tracking number's label.",
+          got: () => `Wins → <b>${RSC.esc(show(conn))}</b>` },
+        { n: 5, t: "Google Local phone match",
           d: "The customer's phone matched a Google Local lead.",
           got: () => `Wins → <b>Google Local</b>` },
-        { n: 5, t: "Angi — lead-data match",
+        { n: 6, t: "Angi — lead-data match",
           d: "The customer matches an Angi lead by email/phone, or name + zip / name + date.",
-          matched: angiMatch, status: () => mbLead(5, angiMatch, angiKey, "Angi") },
-        { n: 6, t: "Thumbtack — lead-data match",
+          matched: angiMatch, status: () => mbLead(6, angiMatch, angiKey, "Angi") },
+        { n: 7, t: "Thumbtack — lead-data match",
           d: "The customer matches a Thumbtack lead by phone, or name + zip / name + date.",
-          matched: ttMatch, status: () => mbLead(6, ttMatch, ttKey, "Thumbtack") },
-        { n: 7, t: "Raw booked source",
+          matched: ttMatch, status: () => mbLead(7, ttMatch, ttKey, "Thumbtack") },
+        { n: 8, t: "Raw booked source",
           d: "Otherwise the moveboard's booked source, translated to its canonical name (Post Card split by pickup state).",
           got: () => `Wins → <b>${RSC.esc(show(conn))}</b>` },
       ];
@@ -840,7 +845,7 @@ registerPage({
               <span class="vt">${changed ? "⤳ Lead matching would reassign this lead" : "✓ No change — lead matching agrees with the live source"}</span>
               ${changed
                 ? "The moveboard stores <b>" + RSC.esc(show(conn)) + "</b>, but the customer matches "
-                  + (win === 5 ? "an <b>Angi</b>" : "a <b>Thumbtack</b>") + " lead — so lead-matching would set it to <b>"
+                  + (win === 6 ? "an <b>Angi</b>" : "a <b>Thumbtack</b>") + " lead — so lead-matching would set it to <b>"
                   + RSC.esc(show(connL)) + "</b>. <span style='color:var(--faint)'>Diagnostic only — not yet applied to live reports.</span>"
                 : "The lead-matched source equals what the moveboard already stores."}
               ${has(path) ? `<div class="strc-path">Decision path: <code>${RSC.esc(path)}</code></div>` : ""}
