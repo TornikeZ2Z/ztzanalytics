@@ -703,25 +703,14 @@
       est + jobSection(j, d) + fin + resp + moveboardSection(d.moveboard, j) +
       closingSection(d.closing) + aftermath + `</div></div>`;
 
-    // one merged, time-ordered stream — conversation rows keep their expandable
-    // transcripts (CONV.mountThread owns that markup, so it matches the
-    // Conversations page exactly), milestones are woven in between.
+    // ONE merged, time-ordered stream. The milestones are handed to the thread
+    // renderer as extras so it can sort them in with the calls and texts — the
+    // renderer owns ordering, this file just supplies the rows.
     const storyHost = drawerEl.querySelector("#stStory");
     if (storyHost) {
       if (window.CONV && cvEv.length) {
         CONV.injectStyle();
-        CONV.mountThread(storyHost, cvEv, cvTr, j["Customer"]);
-        // weave milestones into the thread at the right moment
-        msHtml.forEach(m => {
-          const rows = Array.prototype.slice.call(storyHost.querySelectorAll(".cnv-ev"));
-          const node = document.createElement("div");
-          node.className = "st-tl";
-          node.style.margin = "10px 0";
-          node.innerHTML = m.html;
-          const after = rows.filter(r => (r.getAttribute("data-at") || "") <= m.at).pop();
-          if (after && after.nextSibling) storyHost.firstChild.insertBefore(node, after.nextSibling);
-          else storyHost.firstChild.appendChild(node);
-        });
+        CONV.mountThread(storyHost, cvEv, cvTr, j["Customer"], msHtml);
       } else if (msHtml.length) {
         storyHost.innerHTML = `<div class="st-tl">` + msHtml.map(m => m.html).join("") + `</div>`;
       }

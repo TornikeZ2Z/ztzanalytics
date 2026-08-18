@@ -76,6 +76,7 @@ const CONV = (() => {
     .cnv-utt .s{color:var(--blue);font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
     .cnv-utt.them .s{color:var(--warn)}
     .cnv-empty{color:var(--muted);text-align:center;padding:70px 20px;font-size:14px}
+    .cnv-x{align-self:center;width:min(760px,86%);opacity:.95}
     .cnv-day{align-self:center;font-size:11px;color:var(--muted);background:var(--bg);
       border:1px solid var(--line);border-radius:999px;padding:2px 12px}
     `;
@@ -149,7 +150,7 @@ const CONV = (() => {
       el.onclick = () => openLead(host, el.dataset.job));
   }
 
-  function transcriptHtml(tr) {
+  function transcriptHtml(tr, custName) {
     if (!tr) return "";
     let extra = "";
     const parse = j => { try { return JSON.parse(j || "null"); } catch (e) { return null; } };
@@ -175,10 +176,14 @@ const CONV = (() => {
     const ours = new Set(spk.filter(s => s && s.extensionId).map(s => s.speakerId));
     const rows = us.map(u => {
       const isUs = ours.has(u["Speaker Id"]);
+      // RingSense identifies OUR people by extension but leaves the customer as a raw
+      // phone number. The lead already knows who they are, so use that name.
+      const label = isUs ? (u["Speaker Name"] || "Us")
+        : (custName || (/^[+\d][\d\s()+-]*$/.test(String(u["Speaker Name"] || "")) ? "Customer" : u["Speaker Name"]) || "Customer");
       return `
       <div class="cnv-utt${isUs ? "" : " them"}">
         <div class="t">${clock(u["Start"])}</div>
-        <div class="s">${esc(u["Speaker Name"] || (isUs ? "Us" : "Customer"))}</div>
+        <div class="s">${esc(label)}</div>
         <div>${esc(u["Text"])}</div>
       </div>`;
     }).join("");
@@ -188,14 +193,22 @@ const CONV = (() => {
   /* The thread renderer, shared. The Sales Person Analysis drawer mounts the SAME
      markup (CONV.mountThread) so a conversation looks and behaves identically
      wherever it is read — one renderer, not two that drift apart. */
-  function threadHtml(ev, tr, open, customerName) {
+  function threadHtml(ev, tr, open, customerName, extras) {
     const h = { Customer: customerName || (ev[0] && ev[0]["Customer"]) || "Customer" };
     let lastDay = "";
-    const body = ev.map((e, i) => {
-      const out = isOut(e["Direction"]);
-      const day = dOf(e["Event At"]);
+    // `extras` are foreign rows (the lead file's milestones) that belong in the SAME
+    // stream. They are merged and sorted HERE, before render — an earlier version
+    // inserted them into the DOM afterwards and they all piled up out of order.
+    const items = ev.map((e, i) => ({ at: String(e["Event At"] || ""), e: e, i: i }))
+      .concat((extras || []).map(x => ({ at: String(x.at || ""), html: x.html })))
+      .sort((a, b) => (a.at < b.at ? -1 : a.at > b.at ? 1 : 0));
+    const body = items.map((it) => {
+      const day = it.at.slice(0, 10);
       let sep = "";
       if (day !== lastDay) { lastDay = day; sep = `<div class="cnv-day">${esc(day)}</div>`; }
+      if (it.html) return sep + `<div class="cnv-x">${it.html}</div>`;
+      const e = it.e, i = it.i;
+      const out = isOut(e["Direction"]);
       const who = out ? (e["Agent"] || "Us") : (h["Customer"] || "Customer");
       const head = `${esc(who)} · ${esc(tOf(e["Event At"]))}${e["Pre Create"] ? " · before the lead existed" : ""}`;
       if (e["Kind"] === "SMS") {
@@ -217,7 +230,7 @@ const CONV = (() => {
             ${t ? `<button class="cnv-tbtn" data-i="${i}">${opened ? "Hide" : "Read"} transcript${
               e["Utterance Count"] ? " (" + e["Utterance Count"] + ")" : ""}</button>` : ""}
           </div>
-          ${opened && t ? transcriptHtml(t) : ""}
+          ${opened && t ? transcriptHtml(t, h["Customer"]) : ""}
         </div>
       </div>`;
     }).join("");
@@ -226,10 +239,10 @@ const CONV = (() => {
 
   /* Render a thread into any element and keep its own expand state. Used by this
      page AND by the Sales Person Analysis lead drawer. */
-  function mountThread(el, ev, tr, customerName) {
+  function mountThread(el, ev, tr, customerName, extras) {
     const open = {};
     const draw = () => {
-      el.innerHTML = threadHtml(ev, tr, open, customerName);
+      el.innerHTML = threadHtml(ev, tr, open, customerName, extras);
       el.querySelectorAll(".cnv-tbtn").forEach(b => b.onclick = () => {
         open[b.dataset.i] = !open[b.dataset.i];
         draw();
