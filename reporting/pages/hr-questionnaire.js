@@ -186,7 +186,13 @@ registerPage({
            BELOW the question with the choices retyped line-for-line into a textarea,
            so you edited a list in one box and its translation in another and hoped the
            order still matched. Now every string faces its twin. */
-        ".hq-grid{display:grid;grid-template-columns:1fr 1fr;gap:7px 12px;margin:8px 0 0 37px;align-items:center}",
+        ".hq-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px 26px;margin:10px 0 2px 37px;align-items:center}",
+        /* fill the column. Without this the inputs kept the browser default width and
+           both languages sat truncated in the left third of a very wide card. */
+        ".hq-grid input,.hq-grid textarea,.hq-grid select{width:100%;box-sizing:border-box}",
+        ".hq-grid>div:nth-child(even){border-left:1px solid var(--line);padding-left:14px}",
+        ".hq-grid .lbl{font-size:15px;font-weight:700}",
+        ".hq-grid .h{padding-bottom:1px}",
         ".hq-grid .h{font-size:10px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--faint)}",
         ".hq-grid .h.ka{color:var(--brand)}",
         ".hq-grid .sp{grid-column:1 / -1;height:1px;background:var(--line);margin:3px 0}",
