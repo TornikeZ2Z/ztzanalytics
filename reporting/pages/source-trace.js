@@ -48,7 +48,7 @@
 
 /* persists the admin's lookup across incidental re-renders (a global filter change still
    re-runs render() even though this page ignores those filters) */
-const ST_STATE = { q: "", sel: null, mode: "closing" };
+const ST_STATE = { q: "", sel: null, mode: "closing", rung: null, page: 0 };
 
 registerPage({
   id: "source-trace",
@@ -140,7 +140,27 @@ registerPage({
            "#110292  Jane Doe .................................. Google  chip" with 1600px
            of nothing in the middle. Flexible track LAST: the five cells sit together and
            the slack goes to the empty end of the row. */
-        .strc-hit{display:grid;grid-template-columns:auto auto auto auto minmax(0,1fr);gap:10px 16px;
+        .strc-chips{display:flex;flex-wrap:wrap;gap:7px;align-items:center;margin:12px 0 4px}
+  .strc-chip{font:inherit;font-size:12.5px;font-weight:650;color:var(--ink);background:var(--panel);
+    border:1px solid var(--line-2);border-radius:999px;padding:5px 12px;cursor:pointer;display:inline-flex;gap:7px;align-items:center}
+  .strc-chip:hover{border-color:var(--brand)}
+  .strc-chip.on{background:var(--brand);border-color:var(--brand);color:var(--brand-ink)}
+  .strc-chip .c{font-size:11px;opacity:.75;font-variant-numeric:tabular-nums}
+  .strc-chip.clear{color:var(--faint);border-style:dashed}
+  .strc-btab{width:100%;border-collapse:collapse;font-size:13px}
+  .strc-btab th{text-align:left;font-size:10px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;
+    color:var(--faint);padding:0 12px 7px 0;border-bottom:1px solid var(--line)}
+  .strc-btab td{padding:7px 12px 7px 0;border-bottom:1px solid color-mix(in srgb,var(--line) 55%,transparent)}
+  .strc-btab tbody tr{cursor:pointer}
+  .strc-btab tbody tr:hover td{background:var(--panel-2)}
+  .strc-btab td.d{color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap}
+  .strc-btab td.k{color:var(--muted);font-family:ui-monospace,monospace;font-size:11.5px}
+  .strc-pager{display:flex;align-items:center;justify-content:center;gap:14px;padding:12px 0 2px;font-size:12.5px;color:var(--muted)}
+  .strc-pg{font:inherit;font-size:12.5px;font-weight:700;background:var(--panel);color:var(--ink);
+    border:1px solid var(--line-2);border-radius:9px;padding:6px 13px;cursor:pointer}
+  .strc-pg:hover:not(:disabled){border-color:var(--brand)}
+  .strc-pg:disabled{opacity:.4;cursor:default}
+  .strc-hit{display:grid;grid-template-columns:auto auto auto auto minmax(0,1fr);gap:10px 16px;
           align-items:center;padding:10px 14px;border:1px solid var(--line);border-radius:11px;
           margin-bottom:7px;cursor:pointer;background:var(--panel-2)}
         .strc-hit:hover{border-color:var(--brand);background:var(--panel)}
@@ -248,6 +268,8 @@ registerPage({
         </div>
         <div id="stResults" class="strc-results" style="padding:0 16px 8px"></div>
       </div>
+      <div id="stChips" class="strc-chips"></div>
+      <div id="stBrowse"></div>
       <div id="stIdle"></div>
       <div id="stTrace"></div>`;
 
@@ -290,6 +312,38 @@ registerPage({
     const traceEl = document.getElementById("stTrace");
     const modesEl = document.getElementById("stModes");
 
+    /* WHICH RUNG WON — the single definition, used by the browse list AND by each
+       trace's ladder. Kept here rather than inside the renderers so a job cannot be
+       listed under one rung and then shown winning a different one. */
+    const RUNGS = {
+      closing: ["Returned / Recommended", "Meta Referral", "Google Local", "Post Card",
+                "Angi", "Thumbtack", "Whatever the sheet says"],
+      moveboard: ["Returned Customer", "Meta Referral", "CallRail", "Google Local",
+                  "Angi", "Thumbtack", "Raw booked source"],
+    };
+    function winClosing(r) {
+      const lc = String(r["Match Path"] || "").toLowerCase();
+      const isPost = /post card/.test(norm(r["Final Source (faithful)"])) || /post card/.test(norm(r["Source Connector"]));
+      if (/returned customer|recommended/.test(lc)) return 1;
+      if (yes(r["Meta Referral Match"])) return 2;
+      if (/google local/.test(lc)) return 3;
+      if (isPost) return 4;
+      if (yes(r["Angi Match"])) return 5;
+      if (yes(r["Thumbtack Match"])) return 6;
+      return 7;
+    }
+    function winMoveboard(r) {
+      const lc = String(r["Match Path"] || "").toLowerCase();
+      const conn = r["Source Connector"], connL = r["Source Connector (with leads)"];
+      if (lc.includes("returned customer")) return 1;
+      if (yes(r["Meta Referral Match"])) return 2;
+      if (lc.indexOf("callrail") === 0) return 3;
+      if (lc.includes("google local")) return 4;
+      if (norm(connL) === "angi" && norm(conn) !== "angi") return 5;
+      if (norm(connL) === "thumbtack" && norm(conn) !== "thumbtack") return 6;
+      return 7;
+    }
+
     /* ---------------- mode config (closing jobs / moveboard leads) ---------------- */
     let rows = [];             // current mode's dataset
     const loaded = {};         // dataset name -> rows (loaded lazily, once)
@@ -315,6 +369,12 @@ registerPage({
             <span class="strc-tag ${ch ? "bad" : "ok"}">${ch ? "Lead-flip" : "Stable"}</span>`;
         },
         render: renderClosing,
+        win: winClosing,
+        date: r => String(r["Move Date"] || "").slice(0, 10),
+        cells: r => [`#${show(r["Request #"])}`, show(r["Customer"]),
+                     show(r["Final Source (with leads)"]),
+                     show(r["Meta Match Phone"] || r["Meta Match Email"] || r["Angi Match Key"]
+                          || r["Thumbtack Match Key"] || r["CallRail Number Name"] || "")],
       },
       moveboard: {
         dataset: "source_trace_moveboard", unit: "moveboard lead",
@@ -335,6 +395,12 @@ registerPage({
             <span class="strc-tag ${ch ? "bad" : "ok"}">${ch ? "Lead-flip" : "Stable"}</span>`;
         },
         render: renderMoveboard,
+        win: winMoveboard,
+        date: r => String(r["Create Date"] || r["Move Date"] || "").slice(0, 10),
+        cells: r => [`#${show(r["Job No"])}`, show(r["Customer"]),
+                     show(r["Source Connector (with leads)"]),
+                     show(r["Meta Match Phone"] || r["Meta Match Email"] || r["Angi Match Key"]
+                          || r["Thumbtack Match Key"] || r["CallRail Number Name"] || "")],
       },
     };
 
@@ -359,6 +425,8 @@ registerPage({
     };
     function runSearch(q) {
       ST_STATE.q = q;
+      if (q) { ST_STATE.rung = null; const b = document.getElementById("stBrowse");
+               if (b) b.innerHTML = ""; paintChips(); }
       const m = MODES[ST_STATE.mode];
       const nq = norm(q);
       resultsEl.innerHTML = "";
@@ -372,6 +440,71 @@ registerPage({
       resultsEl.innerHTML = hits.slice(0, CAP).map(r =>
         `<div class="strc-hit" data-k="${RSC.esc(m.key(r))}">${m.hit(r)}</div>`).join("");
       resultsEl.querySelectorAll(".strc-hit").forEach(el => el.onclick = () => openTrace(el.dataset.k));
+    }
+
+    /* ---------------- BROWSE BY RUNG ----------------------------------------
+       "show me every lead matched by Meta Referral" — the report could only answer
+       one job at a time before. 100 rows a page, newest first, click through to the
+       full trace. All client-side: the dataset is already loaded for the search. */
+    const PAGE = 100;
+    function paintChips() {
+      const el = document.getElementById("stChips");
+      if (!el) return;
+      const m = MODES[ST_STATE.mode];
+      const counts = {};
+      rows.forEach(r => { const w = m.win(r); counts[w] = (counts[w] || 0) + 1; });
+      el.innerHTML = `<span class="strc-cap" style="margin-right:4px">Matched by</span>`
+        + RUNGS[ST_STATE.mode].map((lab, i) => {
+            const n = i + 1, on = ST_STATE.rung === n;
+            return `<button class="strc-chip${on ? " on" : ""}" data-rung="${n}">${RSC.esc(lab)}
+              <span class="c">${RS.fmtN(counts[n] || 0)}</span></button>`;
+          }).join("")
+        + (ST_STATE.rung ? `<button class="strc-chip clear" data-rung="0">clear</button>` : "");
+      el.querySelectorAll("[data-rung]").forEach(b => b.onclick = () => {
+        const n = +b.dataset.rung;
+        ST_STATE.rung = (n === 0 || ST_STATE.rung === n) ? null : n;
+        ST_STATE.page = 0;
+        paintChips(); paintBrowse();
+      });
+    }
+    function paintBrowse() {
+      const el = document.getElementById("stBrowse");
+      const idleEl = document.getElementById("stIdle");
+      if (!el) return;
+      if (!ST_STATE.rung) { el.innerHTML = ""; if (idleEl) idleEl.style.display = ""; return; }
+      const m = MODES[ST_STATE.mode];
+      if (idleEl) idleEl.style.display = "none";
+      traceEl.innerHTML = "";
+      const hits = rows.filter(r => m.win(r) === ST_STATE.rung)
+        .sort((a, b) => String(m.date(b)).localeCompare(String(m.date(a))));
+      const pages = Math.max(1, Math.ceil(hits.length / PAGE));
+      if (ST_STATE.page >= pages) ST_STATE.page = 0;
+      const slice = hits.slice(ST_STATE.page * PAGE, ST_STATE.page * PAGE + PAGE);
+      const label = RUNGS[ST_STATE.mode][ST_STATE.rung - 1];
+      el.innerHTML = `<div class="panel">
+        <div class="panel-head"><h3 style="margin:0">Matched by ${RSC.esc(label)}</h3>
+          <span class="strc-cap">${RS.fmtN(hits.length)} ${m.unit}${hits.length === 1 ? "" : "s"}
+            · newest first · page ${ST_STATE.page + 1} of ${pages}</span></div>
+        <table class="strc-btab"><thead><tr><th>Date</th><th>${
+          ST_STATE.mode === "closing" ? "Request #" : "Moveboard #"}</th><th>Customer</th>
+          <th>Source</th><th>Matched on</th></tr></thead><tbody>
+          ${slice.map(r => `<tr data-k="${RSC.esc(m.key(r))}">
+            <td class="d">${RSC.esc(m.date(r))}</td>
+            ${m.cells(r).map((c, i) => `<td${i === 3 ? ' class="k"' : ""}>${RSC.esc(c)}</td>`).join("")}
+          </tr>`).join("")}
+        </tbody></table>
+        ${pages > 1 ? `<div class="strc-pager">
+          <button class="strc-pg" data-pg="prev"${ST_STATE.page === 0 ? " disabled" : ""}>‹ Newer</button>
+          <span>${RS.fmtN(ST_STATE.page * PAGE + 1)}–${RS.fmtN(Math.min(hits.length, (ST_STATE.page + 1) * PAGE))} of ${RS.fmtN(hits.length)}</span>
+          <button class="strc-pg" data-pg="next"${ST_STATE.page >= pages - 1 ? " disabled" : ""}>Older ›</button>
+        </div>` : ""}
+      </div>`;
+      el.querySelectorAll("tbody tr").forEach(tr => tr.onclick = () => openTrace(tr.dataset.k));
+      el.querySelectorAll("[data-pg]").forEach(b => b.onclick = () => {
+        ST_STATE.page += b.dataset.pg === "next" ? 1 : -1;
+        paintBrowse();
+        el.scrollIntoView({ block: "start", behavior: "smooth" });
+      });
     }
 
     /* dispatch a trace to the current mode's renderer */
@@ -724,13 +857,17 @@ registerPage({
       if (ST_STATE.mode === btn.dataset.mode) return;
       modesEl.querySelectorAll("button").forEach(b => b.classList.toggle("on", b === btn));
       ST_STATE.mode = btn.dataset.mode; ST_STATE.q = ""; ST_STATE.sel = null;
+      ST_STATE.rung = null; ST_STATE.page = 0;   // rung numbers differ per mode
       inp.value = ""; resultsEl.innerHTML = ""; traceEl.innerHTML = "";
+      { const e = document.getElementById("stBrowse"); if (e) e.innerHTML = ""; }
       { const e = document.getElementById("stIdle"); if (e) e.style.display = ""; }
-      if (await loadMode(ST_STATE.mode)) idleCount();
+      if (await loadMode(ST_STATE.mode)) { idleCount(); paintChips(); }
     });
     modesEl.querySelectorAll("button").forEach(b => b.classList.toggle("on", b.dataset.mode === ST_STATE.mode));
     if (await loadMode(ST_STATE.mode)) {
       idleCount();
+      paintChips();
+      if (ST_STATE.rung) paintBrowse();
       if (ST_STATE.q) { inp.value = ST_STATE.q; runSearch(ST_STATE.q); }
       if (ST_STATE.sel) openTrace(ST_STATE.sel);
     }
