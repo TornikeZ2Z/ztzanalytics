@@ -28,7 +28,7 @@
     const st = document.createElement("style");
     st.id = "ap-style";
     st.textContent = `
-    .ap-wrap{max-width:1280px}
+    .ap-wrap{max-width:1280px;margin:0 auto}
     .ap-card{background:var(--panel);border:1px solid var(--line);border-radius:16px;
       box-shadow:var(--shadow);padding:20px 22px;margin-bottom:18px}
     .ap-eyebrow{font-size:10.5px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;
@@ -193,8 +193,13 @@ registerPage({
             "at " + fmtN(num(inputs.leadsPerRep)) + " leads/rep") +
           t("Marketing / mo", money(c.marketing),
             "at " + money(num(inputs.dollarsPerLead)) + "/lead") +
-          t("Trucks", (c.truckGap > 0 ? "+" + fmtN(c.truckGap) + " needed" : "covered"),
-            "peak-day fleet vs " + fmtN((model.fleet || {}).owned_trucks) + " owned",
+          // NOT "+N trucks needed": the daily ceiling assumes every base peaks at once,
+          // which even today's numbers never do -- the current 30/day ceiling runs on 19
+          // owned trucks because rentals bridge the peaks. The honest tile is the ceiling
+          // vs the fleet, with the priced +2 buy case living in the Trucks card below.
+          t("Truck ceiling", c.totDaily + " vs " +
+            fmtN((model.fleet || {}).owned_trucks) + " owned",
+            "rentals bridge peaks today — the +2 buy case is below",
             c.truckGap > 0 ? "ap-warn" : "ap-good");
       }
 
