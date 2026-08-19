@@ -276,9 +276,24 @@ registerPage({
         '<div style="font-size:12px;color:var(--muted);margin-top:8px">Owned fleet: <b>' +
         fmtN((model.fleet || {}).owned_trucks) + '</b> trucks · insurance <b>' +
         money((model.fleet || {}).insurance_yearly_total) + '/yr</b> · parking <b>' +
-        money((model.fleet || {}).parking_monthly_total) + '/mo</b>. ' +
-        'Pricing the +2 NEW trucks still needs dealer + insurer quotes (Sopo) — nothing ' +
-        'internal records what a new truck costs to buy.</div></div>';
+        money((model.fleet || {}).parking_monthly_total) + '/mo</b>.</div>' +
+        (function (t) {
+          if (!t) return "";
+          return '<div style="margin-top:10px;padding-top:10px;border-top:1px solid ' +
+            'var(--line);font-size:12.5px;line-height:1.6">' +
+            '<b>The +2 answer, priced from live market research:</b> a used 26-ft box truck ' +
+            'runs <b>' + money(t.used_low) + '–' + money(t.used_high) + '</b> (typical ' +
+            money(t.used_typical) + '; Penske/Ryder fleet sell-offs ~' +
+            money(t.selloff_typical) + '; new ~' + money(t.new_typical) + '). All-in, one ' +
+            'more owned truck costs about <b>$' + t.owned_truck_year_allin + '/year</b> ' +
+            '(financing ~' + money(t.financing_mo_typical) + '/mo, insurance ~' +
+            money(t.insurance_actual_yr) + '/yr at your actual blended rate, parking ~' +
+            money(t.parking_nj_mo) + '/mo, repairs from your own history). Against a rental ' +
+            'run-rate of ~$140k/yr, <b>two owned trucks (~$62k/yr) displace renting at ' +
+            'better than 2:1</b> — if the rental usage is steady capacity, not seasonal ' +
+            'spikes.<br><b>Spec warning:</b> ' + esc(t.gvwr_note) +
+            '<br><b>Live candidate:</b> ' + esc(t.local_candidate) + '.</div>';
+        })((model.research || {}).trucks) + '</div>';
 
       /* ---------------- honesty ---------------- */
       const argues = [];
@@ -309,7 +324,40 @@ registerPage({
         'and Post Card, so state budgets are allocations, not measurements. Salespeople are ' +
         'sized by lead volume alone. MD counts Tuji and Zip together.</div></div>';
 
-      host.innerHTML = picture +
+      /* ---------------- the outside picture: the research, joined to our demand ------------ */
+      const R = model.research || {};
+      const researchCard = R.states ?
+        '<div class="ap-card"><div style="font-size:13px;font-weight:700">The outside ' +
+        'picture — big houses and good areas, joined to our own demand</div>' +
+        '<div style="font-size:12px;color:var(--muted);margin:4px 0 8px">' + esc(R.vintage) +
+        '. "Sep-25 qualified" is OUR measured demand; everything else is what the market ' +
+        'looks like from outside — the gap between the two is the expansion argument.</div>' +
+        '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse">' +
+        '<thead><tr>' +
+        ['State', 'Sep-25 qualified', 'The outside case', 'Marketing target towns',
+         'Yard $/mo', '3BR move · crew/hr']
+          .map((h, i) => '<th class="ap-th" style="text-align:' +
+            (i === 1 || i > 3 ? 'right' : 'left') + '">' + h + '</th>').join("") +
+        '</tr></thead><tbody>' +
+        Object.entries(R.states).map(([st, v]) => {
+          const q = (S25[st] || {}).qualified || 0;
+          const dep = (R.depots || {})[st];
+          const comp = (R.competitors || {})[st];
+          return '<tr><td class="ap-td"><b>' + esc(st) + '</b></td>' +
+            '<td class="ap-td" style="text-align:right">' + fmtN(q) + '</td>' +
+            '<td class="ap-td" style="font-size:12px">' + esc(v.case) + '</td>' +
+            '<td class="ap-td" style="font-size:11.5px;color:var(--muted)">' + esc(v.towns) +
+            '</td>' +
+            '<td class="ap-td" style="text-align:right">' + (dep ? money(dep) : "—") + '</td>' +
+            '<td class="ap-td" style="text-align:right">' +
+            (comp ? money(comp[0]) + ' · ' + money(comp[1]) : "—") + '</td></tr>';
+        }).join("") +
+        '</tbody></table></div>' +
+        '<div style="font-size:11.5px;color:var(--muted);margin-top:8px">Licensing per state ' +
+        '(each needs its own intrastate mover authority — a real gate on MD/VA/CT/MA) is in ' +
+        'the memo, with the regulator named.</div></div>' : "";
+
+      host.innerHTML = researchCard + picture +
         '<div class="ap-card"><div style="font-size:13px;font-weight:700">The plan — adjust ' +
         'and watch</div><div style="font-size:12px;color:var(--muted);margin:4px 0 10px">' +
         'Crew counts start at the aim (28 across 6 states). Change anything; sales, ' +
