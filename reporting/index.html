@@ -850,7 +850,7 @@ function navigate(id, push) {
 /* Pages that bring their OWN toolbar and ignore the global filter bar (PAGE_DATASETS=[])
    render "bare" — the global date/slicer bar + company chip are hidden so the page's board
    starts right under the header instead of below two rows of greyed-out, unusable filters. */
-const BARE_CHROME = new Set(["review-performance", "demand-analysis", "reviews-reminders", "response-analysis", "review-settings", "monthly-report", "money-flow", "ld-planning", "cleanup", "packing-control", "storage-control", "foreman-assessment", "fuel-control", "foreman-closings", "refresh-log", "general-tables", "hr-questionnaire", "hr-my-questionnaire", "hr-directory", "conversations", "referral-candidates",
+const BARE_CHROME = new Set(["review-performance", "demand-analysis", "reviews-reminders", "response-analysis", "review-settings", "monthly-report", "money-flow", "ld-planning", "cleanup", "packing-control", "storage-control", "foreman-assessment", "fuel-control", "foreman-closings", "refresh-log", "general-tables", "hr-questionnaire", "hr-my-questionnaire", "hr-directory", "conversations", "referral-candidates", "meta-referrals",
   // Straight vs Local reads its whole history on purpose (Tornike 2026-08-19: "i dont need
   // any filters here, its just kinda analysis and directions"). A date filter left over from
   // another page emptied it completely, which is worse than useless -- it looked like there
