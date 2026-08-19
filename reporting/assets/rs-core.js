@@ -328,7 +328,12 @@ window.RS = (function () {
   const FIELDS = {
     year:        { label: "Year",         closing: "_y",            moveboard: "_y",             storage: "_y", refunds: "_y", long_distance: "_y", claims: "_y", negative_reviews: "_y", reviews_breakdown: "_y", card_expenses: "_y", callrail: "_y", leads: "_y", scorecard: "_y", review_counts: "_y", review_goals: "_y", lead_journey: "_y" },
     month:       { label: "Month",        closing: "_m",            moveboard: "_m",             storage: "_m", refunds: "_m", long_distance: "_m", claims: "_m", negative_reviews: "_m", reviews_breakdown: "_m", card_expenses: "_m", callrail: "_m", leads: "_m", scorecard: "_m", review_counts: "_m", review_goals: "_m", lead_journey: "_m" },
-    company:     { label: "Company",      closing: "Company",       moveboard: "Company",        storage: "Company", refunds: "Company", long_distance: "Company", negative_reviews: "Company", reviews_breakdown: "Company", card_expenses: "Company", callrail: "Company", leads: "Company", review_counts: "Company", review_goals: "Company", lead_journey: "Company" },
+    company:     { label: "Company",      closing: "Company",       moveboard: "Company",        storage: "Company", refunds: "Company", long_distance: "Company", negative_reviews: "Company", reviews_breakdown: "Company", card_expenses: "Company", callrail: "Company", leads: "Company", review_counts: "Company", review_goals: "Company", lead_journey: "Company",
+                   // The mart names it lowercase. Without this the permanent Company chip
+                   // renders over a page it does not actually filter -- claiming a scope it
+                   // is not applying, which is exactly how the rep-profile mail and page came
+                   // to disagree.
+                   straight_tradeoff: "company" },
     source:      { label: "Source",       closing: "Source",        moveboard: "Source",         refunds: "Source", long_distance: "Source", negative_reviews: "Source", reviews_breakdown: "Source", card_expenses: "Source", callrail: "Source", leads: "Source", lead_journey: "Source" },
     state:       { label: "State",        closing: "State",         moveboard: "State",          leads: "State", lead_journey: "State" },
     // claims joined 2026-08-08: the slicer used to skip this dataset entirely, so filtering
