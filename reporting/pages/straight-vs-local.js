@@ -71,6 +71,7 @@ registerPage({
     const signed = v => (v == null || isNaN(v)) ? "—"
       : (+v >= 0 ? "+" : "−") + RS.money(Math.abs(+v)).replace("-", "");
     const n1 = v => (v == null || isNaN(v)) ? "—" : (Math.round(+v * 10) / 10);
+    const pct = v => (v == null || isNaN(v)) ? "—" : (Math.round(+v * 1000) / 10) + "%";
     const WINDOWS = ["peak month-end", "peak", "month-end", "ordinary"];
     const LONG_HAUL_DAYS = 5;
     const MIN_JOBS = 5;
@@ -78,7 +79,7 @@ registerPage({
     injectStyle();
     host.innerHTML = '<div class="svl-card">Loading…</div>';
 
-    return RS.load("straight_tradeoff").then(all => {
+    return RS.load("straight_tradeoff").then(async all => {
       // NO FILTERING, DELIBERATELY. This page is a conclusion, not a dashboard: it reads every
       // Straight job on the books and tells you what to do about them. It used to run through
       // RS.filtered, and a date range left behind by another page emptied it completely --
@@ -170,7 +171,7 @@ registerPage({
         '</div>' +
         '<div style="font-size:11.5px;margin-top:10px;color:var(--muted);' +
         'border-top:1px solid var(--line);padding-top:8px">Covers <b>' + rows.length +
-        '</b> Straight jobs — every one on the books, all companies, all years. This ' +
+        '</b> Straight jobs — every one on the books, all companies, 2024 onward. This ' +
         'page is not filtered: it is a standing conclusion, not a slice.</div>' +
         '</div>';
 
@@ -287,9 +288,62 @@ registerPage({
         'baseline too and cannot tilt the verdict.' +
         '</div></div>';
 
-      host.innerHTML = headline +
+      /* ---------- the peak question, answered with the capacity model ---------- */
+      // Built server-side beside the mart: booking rate vs load (demand per available
+      // foreman, 2024+), the system cost of one absent foreman-day, and whether any demand
+      // level forces a stop. Recomputing here would need fct_closing whole.
+      let capCard = "";
+      try {
+        const cj = await ZTZ.api("/api/mart_straight_capacity?limit=1");
+        const cap = JSON.parse(((cj.rows || [])[0] || {}).payload || "null");
+        if (cap && cap.curve && cap.curve.length) {
+          const first = cap.curve[0], last = cap.curve[cap.curve.length - 1];
+          const maxSys = Math.max(0, ...((cap.floor_by_demand || [])
+            .map(f => f.system_cost_day || 0)));
+          const stop = cap.stop || {};
+          const stopLine = stop.found
+            ? 'Above <b>' + stop.qualified_leads_per_day + ' qualified leads/day</b> (about ' +
+              stop.leads_per_foreman + ' per available foreman), a 5-day Straight cannot ' +
+              'bill enough to pay for itself — <b>block or quote above ' +
+              money(stop.floor_at_threshold) + '</b>.'
+            : '<b>There is no demand level at which Straights must be blocked.</b> Even one ' +
+              'foreman down at extreme demand costs the board at most ' + money(maxSys) +
+              '/day in lost bookings — well under the ' +
+              money(cap.median_local_day_rate) + '/day he earns locally, which the floor ' +
+              'already charges. The lever is the price floor, not the calendar.';
+          capCard =
+            '<div class="svl-card" style="border-left:4px solid var(--brand-d)">' +
+            '<div style="font-size:11px;font-weight:800;letter-spacing:.08em;' +
+            'text-transform:uppercase;color:var(--muted)">Should we stop Straights at peak?' +
+            '</div>' +
+            '<div style="font-size:14px;margin-top:8px;line-height:1.6">' + stopLine +
+            '</div>' +
+            '<div style="font-size:12.5px;color:var(--muted);margin-top:10px;line-height:1.6">' +
+            'Why: your availability-margin pricing shows up in the data, but it is mild — ' +
+            'booking rate runs <b>' + pct(first.rate) + '</b> on quiet days and only falls to ' +
+            '<b>' + pct(last.rate) + '</b> on the heaviest (' +
+            n1(last.l_lo) + '–' + n1(last.l_hi) + ' qualified leads per available foreman, ' +
+            'measured over ' + cap.curve.reduce((a, c) => a + c.days, 0) + ' days, 2024+). ' +
+            'With ~' + Math.round(cap.availability_now) + ' foremen on the books, losing one ' +
+            'for a few days moves the whole board less than his own hands do. And the typical ' +
+            'Straight barely touches the board anyway: median 2 days away, and in half of ' +
+            'matched trips somebody else drove the delivery.</div>' +
+            '<div style="font-size:12.5px;margin-top:10px;padding-top:8px;' +
+            'border-top:1px solid var(--line)"><b>The rule for sales:</b> a Straight expected ' +
+            'to keep a foreman out 5+ days must bill at least <b>its own costs + ' +
+            money(cap.median_local_day_rate) + ' per excess day</b> (typically ' +
+            money(cap.straight_cost_typical + 5 * cap.median_local_day_rate) + ' for a 5-day ' +
+            'haul). Short Straights need no gate. <span style="color:var(--muted)">Method ' +
+            'honesty: the curve is observational — busy days differ from quiet ones in more ' +
+            'than load — and capacity is tenure-based (employed = available). Both choices ' +
+            'were picked to avoid overstating the case for blocking.</span></div></div>';
+        }
+      } catch (e) { /* the card is additive; the page must not die on it */ }
+
+      host.innerHTML = headline + capCard +
         table(longStats, "Long hauls — " + LONG_HAUL_DAYS + "+ days away",
-              "The cohort the question was really about. This is where the margin collapses.") +
+              "The cohort the question was really about. This is where the margin collapses. " +
+              "Absences past 10 days are set aside as likely departures, not trips.") +
         table(allStats, "Every Straight job",
               "Shown for contrast: the typical job is short and clearly profitable.") +
         setAside + evidence + method;

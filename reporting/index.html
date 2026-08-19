@@ -1174,7 +1174,19 @@ function paintChips() {
   };
 }
 
+let _fbGen = 0;   // see the guard inside buildFilters
 async function buildFilters() {
+  // THE BAR MUST NEVER BE BUILT TWICE INTO THE SAME ROWS. This function clears and then
+  // AWAITS two dataset loads before mounting -- so two overlapping calls (a chip cleared
+  // twice while closing/moveboard are still downloading, boot racing a click) each ran the
+  // clear FIRST and both appended a full set of controls AFTER: the bar came out duplicated
+  // once per extra call. Tornike's screenshot (2026-08-19) showed SEVEN copies of every
+  // slicer. The generation counter makes late finishers stand down: only the newest call may
+  // mount, and the clear happens after the await, immediately before mounting, inside the
+  // same synchronous block.
+  const gen = ++_fbGen;
+  const [closing, moveboard] = await Promise.all([RS.load("closing"), RS.load("moveboard")]);
+  if (gen !== _fbGen) return;    // a newer build started while we were loading -- stand down
   // Line 1 = date controls; line 2 = every other filter (user-specified layout).
   const rowDates = document.getElementById("frowDates");
   const rowSlicers = document.getElementById("frowSlicers");
@@ -1186,7 +1198,6 @@ async function buildFilters() {
   [...rowDates.children].forEach(n => { if (!n.classList.contains("rs-cbar")) n.remove(); });
   rowSlicers.innerHTML = "";
   DBAR = RSC.dateBar(rowDates, onFilterChange);
-  const [closing, moveboard] = await Promise.all([RS.load("closing"), RS.load("moveboard")]);
   // Frequency-counted value lists ({v,l,n}) — most common values first, counts shown.
   //
   // Also DATED. These lists are built from every loaded row and never from the date window,
@@ -1732,7 +1743,7 @@ registerPage({
 <script src="pages/hr-directory.js?v=6"></script>
 <script src="pages/fuel-control.js?v=9"></script>
 <script src="pages/demand-analysis.js?v=6"></script>
-<script src="pages/straight-vs-local.js?v=2"></script>
+<script src="pages/straight-vs-local.js?v=3"></script>
 <script src="pages/general-tables.js?v=3"></script>
 <script src="pages/money-flow-issues.js?v=2"></script>
 <script src="pages/foreman-closings.js?v=18"></script>
