@@ -31,7 +31,7 @@
              "Quoted Units", "Packed By Owner", "No Quote", "Has Inventory",
              "Packing Units", "USD per Unit", "USD per 100 CF", "Tape per Box",
              "Cover Cover Pct", "Wrap Cover Pct", "CF Ratio", "Zero Pack", "Quote Leak",
-             "Flags"],
+             "Flags", "Event Id", "Calendar Id", "Contract URL", "Calendar Only"],
     };
   }
 })();
@@ -87,6 +87,12 @@ registerPage({
       if (!v.length) return null;
       var n = v.length;
       return n % 2 ? v[(n - 1) / 2] : (v[n / 2 - 1] + v[n / 2]) / 2;
+    }
+
+    function mean(xs) {
+      var v = xs.filter(function (x) { return x != null && isFinite(x); });
+      if (!v.length) return null;
+      return v.reduce(function (a, x) { return a + x; }, 0) / v.length;
     }
 
     function erfc(x) {
@@ -145,7 +151,11 @@ registerPage({
         help: "Packing booked per 100 cubic feet moved, over the jobs where he booked something." },
       { k: "USD per Unit", lab: "$ per packing unit", w: 30, fmt: "usd", group: "rate",
         help: "Packing booked per box and wrappable piece on the truck. Corrects for load size." },
-      { k: "Booked Anything", lab: "Jobs that booked", w: 15, fmt: "pct", group: "booked",
+      // stat:"mean": a median of a 0/1 column can only ever print 0% or 100%, which put
+      // "100% jobs that booked · fleet 100%" beside "26% booked nothing at all" on one
+      // screen. The SHARE is the honest number, it makes this term of the score smooth
+      // instead of a step, and the rank-sum test is untouched (it reads the raw 0/1 jobs).
+      { k: "Booked Anything", lab: "Jobs that booked", w: 15, fmt: "pct", group: "booked", stat: "mean",
         help: "Share of his jobs where any packing at all was booked." },
       { k: "CF Ratio", lab: "CF vs the calendar", w: 15, fmt: "num", group: "cf",
         help: "Cubic feet the crew reported against what the calendar recorded." },
@@ -202,10 +212,11 @@ registerPage({
       // answering two different questions -- and on a heavily tied measure the card could
       // report a shortfall the test had just declined to confirm.
       var fleetEx = {}, fleetAll = {};
+      var statOf = function (m, xs) { return m.stat === "mean" ? mean(xs) : median(xs); };
       MEASURES.forEach(function (m) {
-        fleetAll[m.k] = median(col(live, m.k));
+        fleetAll[m.k] = statOf(m, col(live, m.k));
         fleetEx[m.k] = {};
-        names.forEach(function (name) { fleetEx[m.k][name] = median(col(others[name], m.k)); });
+        names.forEach(function (name) { fleetEx[m.k][name] = statOf(m, col(others[name], m.k)); });
       });
 
       // pass one: every p-value on screen, so the correction can see them all at once
@@ -213,7 +224,7 @@ registerPage({
         var rs = by[name], ps = {}, med = {}, cnt = {}, tested = 0;
         MEASURES.forEach(function (m) {
           var mine = col(rs, m.k);
-          med[m.k] = median(mine);
+          med[m.k] = statOf(m, mine);
           cnt[m.k] = mine.filter(function (x) { return x != null; }).length;
           ps[m.k] = mwu(mine, col(others[name], m.k));
           if (ps[m.k] != null) tested++;
@@ -296,9 +307,35 @@ registerPage({
         };
       });
     }
-    window.PKENG = { median: median, mwu: mwu, rollup: rollup, MEASURES: MEASURES, DIAL: DIAL };
+    window.PKENG = { median: median, mean: mean, mwu: mwu, rollup: rollup, MEASURES: MEASURES, DIAL: DIAL };
 
     /* ================================================================ formatting */
+    // the NJ calendar day, not the browser's UTC one -- an evening reader must not see
+    // today's jobs stamped "upcoming"
+    var TODAY = new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+    /* THE CLICK-THROUGHS. Every job row can open the calendar event behind it (the eid is
+     * base64 of "eventId calendarId" -- Google's own deep-link format), and the digital
+     * contract where one exists, shown by its FILE ID (the full id is on the tooltip). */
+    function calHref(r) {
+      if (!r["Event Id"] || !r["Calendar Id"]) return null;
+      try {
+        return "https://calendar.google.com/calendar/event?eid="
+          + btoa(r["Event Id"] + " " + r["Calendar Id"])
+            .replace(/=+$/, "").replace(/\+/g, "-").replace(/\//g, "_");
+      } catch (e) { return null; }
+    }
+    function dcFileId(r) {
+      var m = String(r["Contract URL"] || "").match(/\/d\/([A-Za-z0-9_-]{10,})/);
+      return m ? m[1] : null;
+    }
+    function jobLinks(r) {
+      var h = "", c = calHref(r), fid = dcFileId(r);
+      if (c) h += '<a class="pk-lnk" target="_blank" rel="noopener" href="' + c + '">event ↗</a>';
+      if (fid) h += (h ? " · " : "")
+        + '<a class="pk-lnk pk-fid" target="_blank" rel="noopener" href="' + esc(r["Contract URL"])
+        + '" title="digital contract · file id ' + esc(fid) + '">' + esc(fid.slice(0, 10)) + '…</a>';
+      return h || '<span style="color:var(--faint)">—</span>';
+    }
     var usd = function (v, d) {
       return v == null || !isFinite(v) ? "—" :
         "$" + (+v).toLocaleString("en-US", { minimumFractionDigits: d == null ? 0 : d, maximumFractionDigits: d == null ? 0 : d });
@@ -327,7 +364,7 @@ registerPage({
      * can never borrow the visual weight of a strong one.
      */
     host.innerHTML = '<style id="pkCss">'
-      + ".pk{--t1:27px;--t2:15px;--t3:13.5px;--t4:12px;--t5:11px;--t6:9.5px;max-width:none;"
+      + ".pk{--t1:27px;--t2:15px;--t3:13.5px;--t4:12.5px;--t5:12px;--t6:10.5px;max-width:none;"
       + "font-variant-numeric:tabular-nums}"
       + ".pk-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(168px,1fr));gap:12px}"
       + ".pk-kpi{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:13px 16px}"
@@ -401,19 +438,27 @@ registerPage({
       + ".pk-jtbl tr.aside td{color:var(--faint)}"
       + ".pk-dhact{display:flex;align-items:center;gap:8px;flex:0 0 auto}"
       // control bar
-      + ".pk-bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:16px 0 6px}"
-      + ".pk-bar select,.pk-bar input{background:var(--panel);color:var(--ink);border:1px solid var(--line);"
-      + "border-radius:9px;padding:7px 10px;font-size:var(--t4);font-family:inherit}"
-      + ".pk-bar input{min-width:190px}"
-      + ".pk-tog{display:inline-flex;align-items:center;gap:7px;background:var(--panel);border:1px solid var(--line);"
-      + "border-radius:9px;padding:7px 11px;font-size:var(--t4);color:var(--muted);cursor:pointer;user-select:none}"
-      + ".pk-tog.on{border-color:var(--blue);color:var(--ink)}"
-      + ".pk-tog i{width:9px;height:9px;border-radius:3px;background:var(--line-2);display:block}"
-      + ".pk-tog.on i{background:var(--blue)}"
-      + ".pk-seg{display:inline-flex;background:var(--panel);border:1px solid var(--line);border-radius:9px;overflow:hidden}"
-      + ".pk-seg button{background:none;border:0;color:var(--muted);font:inherit;font-size:var(--t4);"
-      + "padding:7px 13px;cursor:pointer}"
-      + ".pk-seg button.on{background:var(--line);color:var(--ink);font-weight:700}"
+      // the control bar, in the house style every other operations page uses: labelled
+      // fields, panel selects on --line-2 borders, brand-filled segment buttons
+      + ".pk-bar{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;margin:16px 0 10px}"
+      + ".pk-fld{display:flex;flex-direction:column;gap:4px}"
+      + ".pk-fld>span{font-size:var(--t6);font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--faint)}"
+      + ".pk-bar select,.pk-bar input{background:var(--panel);color:var(--ink);border:1px solid var(--line-2);"
+      + "border-radius:10px;padding:8px 12px;font-size:13px;font-weight:700;font-family:inherit;cursor:pointer}"
+      + ".pk-bar select:hover{border-color:var(--brand)}"
+      + ".pk-bar input{min-width:210px;cursor:text;font-weight:500}"
+      + ".pk-tog{display:inline-flex;align-items:center;gap:8px;background:var(--panel);border:1px solid var(--line-2);"
+      + "border-radius:10px;padding:9px 13px;font-size:13px;font-weight:700;color:var(--muted);cursor:pointer;user-select:none}"
+      + ".pk-tog.on{border-color:var(--brand);color:var(--ink)}"
+      + ".pk-tog i{width:10px;height:10px;border-radius:3px;background:var(--line-2);display:block}"
+      + ".pk-tog.on i{background:var(--brand)}"
+      + ".pk-seg{display:inline-flex;background:var(--panel-2);border:1px solid var(--line-2);border-radius:11px;padding:3px}"
+      + ".pk-seg button{background:transparent;border:0;color:var(--muted);font:inherit;font-size:13px;font-weight:700;"
+      + "padding:8px 15px;cursor:pointer;border-radius:8px}"
+      + ".pk-seg button.on{background:var(--brand);color:var(--brand-ink);font-weight:800}"
+      + ".pk-lnk{color:var(--blue);text-decoration:none;font-weight:700;font-size:var(--t5);white-space:nowrap}"
+      + ".pk-lnk:hover{text-decoration:underline}"
+      + ".pk-fid{font-family:ui-monospace,Consolas,monospace;font-size:10.5px}"
       + ".pk-note{font-size:var(--t5);color:var(--faint);margin:0 0 14px;line-height:1.55;max-width:96ch}"
       // the board
       + ".pk-grid{display:grid;grid-template-columns:minmax(0,1fr) 330px;gap:16px;align-items:start}"
@@ -486,7 +531,11 @@ registerPage({
       + ".pk-x{margin-left:auto;background:none;border:1px solid var(--line);color:var(--muted);border-radius:9px;"
       + "width:30px;height:30px;font-size:16px;cursor:pointer;line-height:1;flex:none}"
       + ".pk-x:hover{color:var(--ink);border-color:var(--line-2)}"
-      + ".pk-db{padding:16px 20px 40px;overflow:auto;flex:1}"
+      + ".pk-db{padding:16px 20px 40px;overflow:auto;flex:1;min-height:0}"
+      // the drawer body could never scroll: .pk-draw is the flex column, but the content is
+      // injected into #pkDrawIn -- a plain div between them with no height of its own -- so
+      // flex:1 / overflow:auto on .pk-db had no box to work against
+      + "#pkDrawIn{display:flex;flex-direction:column;height:100%;min-height:0}"
       + ".pk-read{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-bottom:14px}"
       + ".pk-read h5{margin:0 0 8px;font-size:var(--t6);letter-spacing:.08em;text-transform:uppercase;color:var(--faint)}"
       + ".pk-read p{margin:0 0 9px;font-size:var(--t3);line-height:1.6;color:var(--ink)}"
@@ -534,7 +583,7 @@ registerPage({
         ["Boxes Sold", "Tape Sold", "Wrap Sold", "Covers Sold", "Item Lines", "Inv Boxes",
          "Inv Furniture", "Inv Wrappable", "Inv Mattresses", "Quoted Units", "Packing Units",
          "Packed By Owner", "No Quote", "Has Inventory", "Zero Pack", "Quote Leak",
-         "Recorded", "Itemised"].forEach(function (k) {
+         "Recorded", "Itemised", "Calendar Only"].forEach(function (k) {
           r[k] = r[k] == null || r[k] === "" ? null : +r[k];
         });
         r.Day = String(r.Day || "").slice(0, 10);
@@ -565,7 +614,11 @@ registerPage({
     /* ================================================================ paint */
     function paint() {
       if (!S.rows) return;
+      if (["board", "profile", "future"].indexOf(S.view) < 0) S.view = "board";
       var rows = view();
+      // calendar-only rows are the FUTURE (an event with no office-sheet row yet): they feed
+      // the Upcoming view and each man's own job list, never a count or a comparison
+      var here = rows.filter(function (r) { return !r["Calendar Only"]; });
       // The engine is ~140 rank-sum tests over every job in the window. The name box and the
       // sort buttons change WHICH profiles are shown, never what they contain -- so the result
       // is cached against the only two inputs that can change it.
@@ -574,13 +627,11 @@ registerPage({
       var profiles = S.memo;
       var fleet = profiles.length ? profiles[0].fleetAll : {};
 
-      var live = rows.filter(function (r) { return !r["Packed By Owner"]; });
-      var sold = rows.reduce(function (a, r) { return a + (+r["Sold USD"] || 0); }, 0);
-      var quoted = rows.reduce(function (a, r) { return a + (+r["Quoted USD"] || 0); }, 0);
+      var sold = here.reduce(function (a, r) { return a + (+r["Sold USD"] || 0); }, 0);
       var flagged = profiles.filter(function (p) { return p.score != null && p.score >= DIAL.flag; });
       var strong = flagged.filter(function (p) { return p.conf === "STRONG"; });
       var opp = flagged.reduce(function (a, p) { return a + p.opp; }, 0);
-      var invPct = rows.length ? rows.filter(function (r) { return r["Has Inventory"]; }).length / rows.length : 0;
+      var invPct = here.length ? here.filter(function (r) { return r["Has Inventory"]; }).length / here.length : 0;
 
       var months = {}, cos = {};
       S.rows.forEach(function (r) { if (r.Day) months[monthOf(r.Day)] = 1; cos[r.Company || "—"] = 1; });
@@ -595,12 +646,17 @@ registerPage({
         + '<span class="freshness"> · every measure is a comparison with the other foremen, '
         + "never against a fixed target</span></p></div>"
         + '<div class="pk-tabs">'
-        + '<button data-v="board" class="' + (S.view !== "profile" ? "on" : "") + '">The board</button>'
+        + '<button data-v="board" class="' + (S.view === "board" ? "on" : "") + '">The board</button>'
         + '<button data-v="profile" class="' + (S.view === "profile" ? "on" : "") + '">Foreman profile</button>'
+        + '<button data-v="future" class="' + (S.view === "future" ? "on" : "") + '">Upcoming jobs · '
+        + rows.filter(function (r) { return r.Day && r.Day >= TODAY; }).length + "</button>"
         + "</div>";
 
+      // a page about what has not happened yet has no use for last month's totals
+      if (S.view !== "future")
       html += '<div class="pk-kpis">'
-        + kpi(usd(sold), "Packing booked", rows.length.toLocaleString() + " jobs · " + usd(quoted) + " quoted by sales", "")
+        + kpi(usd(sold), "Packing booked", here.length.toLocaleString() + " jobs · "
+              + profiles.length + " foremen", "")
         + kpi(String(profiles.filter(function (p) { return p.score != null; }).length), "Foremen scored",
               "of " + profiles.length + " on the board · "
               + profiles.reduce(function (a, p) { return a + p.n; }, 0).toLocaleString() + " jobs in the comparison", "")
@@ -613,27 +669,32 @@ registerPage({
         + kpi(pct(invPct), "Loads itemised", "jobs whose calendar lists the goods", invPct > 0.8 ? "pos" : "warn")
         + "</div>";
 
+      var curYm = TODAY.slice(0, 7);
       html += '<div class="pk-bar">'
-        + '<select id="pkMonth"><option value="">All months</option>'
+        + '<label class="pk-fld"><span>Month</span><select id="pkMonth"><option value="">All months</option>'
         + mList.map(function (m) {
-            return '<option value="' + m + '"' + (S.month === m ? " selected" : "") + ">" + monLab(m) + "</option>";
-          }).join("") + "</select>"
+            return '<option value="' + m + '"' + (S.month === m ? " selected" : "") + ">" + monLab(m)
+              + (m > curYm ? " · upcoming" : "") + "</option>";
+          }).join("") + "</select></label>"
         + (Object.keys(cos).length > 1
-            ? '<select id="pkCo"><option value="">Both books</option>'
+            ? '<label class="pk-fld"><span>Company</span><select id="pkCo"><option value="">Both books</option>'
               + Object.keys(cos).sort().map(function (c) {
                   return '<option value="' + esc(c) + '"' + (S.co === c ? " selected" : "") + ">" + esc(c) + "</option>";
-                }).join("") + "</select>"
+                }).join("") + "</select></label>"
             : "")
         // THE WINDOW CONTROLS BELONG TO BOTH VIEWS; THE BOARD'S DO NOT. Month and company decide
         // which jobs the whole comparison is built from, so the file needs them as much as the
         // board does. Sorting, "only above the line" and the name search only arrange a list of
         // twenty cards — on a page showing one man they are furniture.
-        + (S.view === "profile" ? "" :
-            '<div class="pk-seg">'
+        + (S.view === "board" ?
+            '<div class="pk-fld"><span>Sort</span><div class="pk-seg">'
             + seg("score", "By concern") + seg("sold", "By packing sold") + seg("jobs", "By jobs") + seg("name", "A–Z")
-            + "</div>"
-            + '<div class="pk-tog' + (S.flagOnly ? " on" : "") + '" id="pkFlag"><i></i>Only above the line</div>'
-            + '<input id="pkQ" placeholder="Find a foreman…" value="' + esc(S.q) + '">')
+            + "</div></div>"
+            + '<div class="pk-tog' + (S.flagOnly ? " on" : "") + '" id="pkFlag"><i></i>Only above the line</div>' : "")
+        + (S.view !== "profile"
+            ? '<label class="pk-fld"><span>Find</span><input id="pkQ" placeholder="'
+              + (S.view === "future" ? "Foreman or customer…" : "Find a foreman…")
+              + '" value="' + esc(S.q) + '"></label>' : "")
         + "</div>";
 
       var tests = 0;
@@ -641,7 +702,7 @@ registerPage({
       // the board's own reading instructions. The file states its method inside each section,
       // beside the number it governs, so repeating this paragraph there would just push the man
       // himself below the fold — which on a page about one man is the wrong thing at the top.
-      if (S.view !== "profile")
+      if (S.view === "board")
       html += '<p class="pk-note"><b>How to read this.</b> Every measure on a card is a comparison with '
         + "the other foremen on the same measure, over the window selected above \u2014 nothing here is scored "
         + "against a fixed target, so the fleet getting better or worse together moves nobody onto this board. "
@@ -670,11 +731,13 @@ registerPage({
 
       if (S.view === "profile") {
         html += paintProfile(rows, profiles);
+      } else if (S.view === "future") {
+        html += paintFuture(rows);
       } else {
         html += '<div class="pk-grid"><div>'
           + (shown.length ? shown.map(card).join("")
               : '<div class="pk-empty">No foreman matches that filter.</div>')
-          + "</div>" + rail(rows, profiles, fleet) + "</div>";
+          + "</div>" + rail(here, profiles, fleet) + "</div>";
       }
 
       main.innerHTML = html;
@@ -690,10 +753,10 @@ registerPage({
           // `profiles` list, so the board's flag toggle and name search do nothing there —
           // and neither control is on screen to inspect or clear. The pill claiming them
           // active was telling the reader the numbers were narrowed when they were not.
-          if (S.view !== "profile") {
+          if (S.view === "board") {
             if (S.flagOnly) labels.push("Only above the line");
-            if (S.q) labels.push("Search");
           }
+          if (S.view !== "profile" && S.q) labels.push("Search");
           return { n: labels.length, labels: labels };
         },
       });
@@ -802,7 +865,6 @@ registerPage({
         + "</div><div><h2>" + esc(p.name) + "</h2>"
         + '<div class="pk-chips"><span class="pk-chip">' + p.n + " comparable job" + (p.n === 1 ? "" : "s") + "</span>"
         + '<span class="pk-chip">' + usd(p.sold) + " booked</span>"
-        + '<span class="pk-chip">' + usd(p.quoted) + " quoted</span>"
         + (p.selfPacked ? '<span class="pk-chip">' + p.selfPacked + " self-packed, set aside</span>" : "")
         + (typed.length ? '<span class="pk-chip" title="the office typed these on the sheet; counted as one man">'
             + typed.map(esc).join(", ") + "</span>" : "")
@@ -816,24 +878,23 @@ registerPage({
 
       // ---- the numbers -------------------------------------------------------------------
       var perJob = p.n ? p.sold / p.n : null;
-      var quoteGap = p.quoted > 0 ? (p.sold - p.quoted) / p.quoted : null;
+      // this row is HIS numbers against HIS peers, and nothing else -- the sales side of a
+      // job (what the quote carried) appears only where it explains a number away, never as
+      // a measure of the man (Tornike, 2026-08-19: the page is about foremen)
       h += '<div class="pk-kpis" style="margin-bottom:16px">'
         + kpi(usd(p.med["USD per 100 CF"], 2), "$ per 100 CF",
               "fleet " + usd(p.fleet["USD per 100 CF"], 2), rel(p, "USD per 100 CF"))
         + kpi(usd(p.med["USD per Unit"], 2), "$ per packing unit",
               "fleet " + usd(p.fleet["USD per Unit"], 2), rel(p, "USD per Unit"))
-        + kpi(pct(p.med["Booked Anything"]), "Jobs that booked",
+        + kpi(pct(p.med["Booked Anything"]), "Jobs that booked something",
               "fleet " + pct(p.fleet["Booked Anything"]), rel(p, "Booked Anything"))
         + kpi(usd(perJob), "Booked per job", p.n + " jobs · " + usd(p.units) .replace("$", "") + " units", "")
         + kpi(pct(p.zeroRate), "Booked nothing at all",
               (function () {
                 var z = p.jobs.filter(function (r) { return r["Zero Pack"]; }).length;
                 var nq = p.jobs.filter(function (r) { return r["Zero Pack"] && r["No Quote"]; }).length;
-                return z ? nq + " of those " + z + " were never quoted by sales" : "every job booked something";
+                return z ? nq + " of those " + z + " arrived with no packing on the quote" : "every job booked something";
               })(), p.zeroRate > 0.5 ? "warn" : "")
-        + kpi(quoteGap == null ? "—" : (quoteGap > 0 ? "+" : "") + Math.round(quoteGap * 100) + "%",
-              "Booked vs quoted", usd(p.sold) + " on " + usd(p.quoted) + " quoted",
-              quoteGap == null ? "" : quoteGap < -0.2 ? "warn" : quoteGap > 0 ? "pos" : "")
         + "</div>";
 
       // ---- against his peers -------------------------------------------------------------
@@ -902,7 +963,7 @@ registerPage({
         + '<div class="pk-jwrap"><table class="pk-ptbl pk-jtbl"><thead><tr><th>Day</th><th>Job</th>'
         + '<th>Customer</th><th class="r">CF</th><th class="r">Units</th><th class="r">Quoted</th>'
         + '<th class="r">Booked</th><th class="r">$/100 CF</th><th class="r">$/unit</th>'
-        + "<th>Note</th></tr></thead><tbody>"
+        + "<th>Note</th><th>Links</th></tr></thead><tbody>"
         + jl.map(function (r) {
             var aside = r["Packed By Owner"] || !r["Recorded"];
             return "<tr" + (aside ? ' class="aside"' : "") + "><td>" + esc(dayLab(r.Day)) + "</td>"
@@ -915,10 +976,67 @@ registerPage({
               + '<td class="r">' + usd(r["USD per 100 CF"], 2) + "</td>"
               + '<td class="r">' + usd(r["USD per Unit"], 2) + "</td>"
               + "<td>" + (r["Packed By Owner"] ? '<span class="pk-tag">customer packed</span>'
-                  : !r["Recorded"] ? '<span class="pk-tag">not filed yet</span>'
+                  : !r["Recorded"] ? (r.Day > TODAY ? '<span class="pk-tag ok">upcoming</span>'
+                      : '<span class="pk-tag">not filed yet</span>')
                   : r["Zero Pack"] ? '<span class="pk-tag' + (r["No Quote"] ? "" : " sig") + '">booked nothing'
                       + (r["No Quote"] ? " · none quoted" : "") + "</span>"
-                  : "") + "</td></tr>";
+                  : "") + "</td><td>" + jobLinks(r) + "</td></tr>";
+          }).join("")
+        + "</tbody></table></div></div>";
+      return h;
+    }
+
+    /* ================================================================ the future
+     * "How do I see the future?" -- here. Every booked job from today forward, soonest
+     * first: what the calendar says is on the truck, the packing already on the quote, and
+     * the two click-throughs (the event itself, and the digital contract where one exists).
+     * A job checked BEFORE the truck leaves beats one chased a week after it came back --
+     * which is also why the spot-check queue on the board only keeps the last 7 days.
+     */
+    function paintFuture(rows) {
+      var fut = rows.filter(function (r) { return r.Day && r.Day >= TODAY; });
+      if (S.q) {
+        var q = S.q.toLowerCase();
+        fut = fut.filter(function (r) {
+          return String(r.Foreman || "").toLowerCase().indexOf(q) >= 0
+            || String(r.Customer || "").toLowerCase().indexOf(q) >= 0;
+        });
+      }
+      fut.sort(function (a, b) {
+        return String(a.Day).localeCompare(String(b.Day))
+          || String(a["Job Code"]).localeCompare(String(b["Job Code"]));
+      });
+      var noFore = 0;
+      fut.forEach(function (r) { if (!r.Foreman) noFore++; });
+      var h = '<div class="pk-sec"><h4>Every booked job from today forward '
+        + '<span class="pk-dim">' + fut.length + "</span></h4>"
+        + '<p class="pk-dim2">Soonest first. This is the pre-job check: the goods the calendar '
+        + "lists, and the packing already on the quote. Open the event, look at the load, and "
+        + "check what the crew books against it — before the truck leaves, not a week after."
+        + (noFore ? " <b>" + noFore + " job" + (noFore === 1 ? " has" : "s have")
+            + " no foreman assigned yet.</b>" : "")
+        + "</p>";
+      if (!fut.length) {
+        return h + '<p class="pk-dim2">Nothing upcoming in this window — clear the month '
+          + "filter to see every future job.</p></div>";
+      }
+      h += '<div class="pk-jwrap"><table class="pk-ptbl pk-jtbl"><thead><tr><th>Day</th><th>Job</th>'
+        + '<th>Customer</th><th>Foreman</th><th class="r">Calendar CF</th><th class="r">Boxes</th>'
+        + '<th class="r">Wrappable</th><th class="r">Mattresses</th><th class="r">Quoted units</th>'
+        + '<th class="r">Quoted $</th><th>Links</th></tr></thead><tbody>'
+        + fut.map(function (r) {
+            return "<tr><td>" + esc(dayLab(r.Day)) + "</td>"
+              + "<td>" + esc(r["Job Code"] || "—") + "</td>"
+              + "<td>" + esc(r.Customer || "—") + "</td>"
+              + "<td>" + (r.Foreman ? esc(r.Foreman)
+                  : '<span class="pk-tag">not assigned yet</span>') + "</td>"
+              + '<td class="r">' + (r["Calendar CF"] == null ? "—" : Math.round(r["Calendar CF"])) + "</td>"
+              + '<td class="r">' + (r["Inv Boxes"] == null ? "—" : r["Inv Boxes"]) + "</td>"
+              + '<td class="r">' + (r["Inv Wrappable"] == null ? "—" : r["Inv Wrappable"]) + "</td>"
+              + '<td class="r">' + (r["Inv Mattresses"] == null ? "—" : r["Inv Mattresses"]) + "</td>"
+              + '<td class="r">' + (r["Quoted Units"] == null ? "—" : r["Quoted Units"]) + "</td>"
+              + '<td class="r">' + usd(r["Quoted USD"]) + "</td>"
+              + "<td>" + jobLinks(r) + "</td></tr>";
           }).join("")
         + "</tbody></table></div></div>";
       return h;
@@ -992,7 +1110,7 @@ registerPage({
         + rows.filter(function (r) { return r["Zero Pack"] && !r["Packed By Owner"]; }).length + "</b></div>"
         + '<div class="pk-row"><span>Customer packed their own</span><b>'
         + rows.filter(function (r) { return r["Packed By Owner"]; }).length + "</b></div>"
-        + '<div class="pk-row"><span>Sales quoted no packing</span><b>'
+        + '<div class="pk-row"><span>No packing on the quote</span><b>'
         + rows.filter(function (r) { return r["No Quote"]; }).length + "</b></div>"
         + (function () {
             var nr = rows.filter(function (r) { return !r["Recorded"]; }).length;
@@ -1002,23 +1120,36 @@ registerPage({
           })()
         + "</div>";
 
-      // spot-check queue — worst first, and deliberately capped with the remainder stated
-      var q = rows.filter(function (r) { return r.Flags && !r["Packed By Owner"]; })
+      // spot-check queue -- LATEST FIRST, and only the last 7 days: a job checked a week
+      // after the truck came back is already too late to check (Tornike, 2026-08-19).
+      // Older flagged jobs still count in every foreman's numbers; they are just past the
+      // point where a phone call can settle anything.
+      var weekAgo = new Date(Date.now() - 7 * 864e5)
+        .toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+      var allFlagged = rows.filter(function (r) {
+        return r.Flags && !r["Packed By Owner"] && r.Day && r.Day <= TODAY;
+      });
+      var q = allFlagged.filter(function (r) { return r.Day >= weekAgo; })
         .sort(function (a, b) {
-          return (b["Quote Leak"] - a["Quote Leak"]) || ((b["Calendar CF"] || 0) - (a["Calendar CF"] || 0));
+          return String(b.Day).localeCompare(String(a.Day)) || (b["Quote Leak"] - a["Quote Leak"]);
         });
-      h += '<div class="pk-rail"><h4>Spot-check queue · ' + q.length + "</h4>";
-      if (!q.length) h += '<div class="pk-row"><span>Nothing flagged in this window.</span></div>';
+      var older = allFlagged.length - q.length;
+      h += '<div class="pk-rail"><h4>Spot-check queue · last 7 days · ' + q.length + "</h4>";
+      if (!q.length) h += '<div class="pk-row"><span>Nothing flagged in the last 7 days.</span></div>';
       else {
         h += q.slice(0, 12).map(function (r) {
-          return '<button class="pk-q" data-job="' + esc(r["Job Code"]) + '" data-f="' + esc(r.Foreman || "") + '">'
+          return '<div class="pk-q" role="button" data-job="' + esc(r["Job Code"]) + '" data-f="' + esc(r.Foreman || "") + '">'
             + "<b>" + esc(r.Customer || r["Job Code"]) + "</b> "
             + '<span>· ' + dayLab(r.Day) + " · " + esc(r.Foreman || "no foreman") + "</span>"
-            + "<em>" + esc(r.Flags) + "</em></button>";
+            + "<em>" + esc(r.Flags) + "</em>"
+            + '<span style="display:block;margin-top:3px">' + jobLinks(r) + "</span></div>";
         }).join("");
         if (q.length > 12) h += '<div class="pk-row" style="color:var(--faint)"><span>'
-          + (q.length - 12) + " more — open a foreman to see his own.</span></div>";
+          + (q.length - 12) + " more this week — open a foreman to see his own.</span></div>";
       }
+      if (older > 0) h += '<div class="pk-row" style="color:var(--faint)"><span>'
+        + older + " older flagged job" + (older === 1 ? "" : "s") + " not listed — past the point of "
+        + "checking. They still count in the foremen's numbers above.</span></div>";
       h += "</div></div>";
       return h;
     }
@@ -1056,7 +1187,11 @@ registerPage({
         c.onclick = function () { openF(byName[c.dataset.f], null); };
       });
       main.querySelectorAll(".pk-q").forEach(function (b) {
-        b.onclick = function () { openF(byName[b.dataset.f], b.dataset.job); };
+        b.onclick = function (e) {
+          // the event / contract links inside the row are their own click
+          if (e.target && e.target.closest && e.target.closest("a")) return;
+          openF(byName[b.dataset.f], b.dataset.job);
+        };
       });
     }
 
@@ -1091,8 +1226,8 @@ registerPage({
         h += '<div class="pk-cause"><b>' + (++i) + '</b><span><i>The customer packed their own things.</i> '
           + "Legitimate, common, and the first thing to rule out. It happens at random, so it does not "
           + "normally follow one foreman across months — which is what the certainty badge measures.</span></div>"
-          + (nq ? '<div class="pk-cause"><b>' + (++i) + "</b><span><i>Sales never quoted packing.</i> On " + nq
-              + " of his " + p.n + " jobs the customer arrived with no packing quoted at all and none was booked. "
+          + (nq ? '<div class="pk-cause"><b>' + (++i) + "</b><span><i>No packing was on the quote.</i> On " + nq
+              + " of his " + p.n + " jobs the customer arrived with no packing on the quote and none was booked. "
               + "That is a job mix he did not choose, and it counts against him on the under-$" + DIAL.zeroUsd
               + " measure.</span></div>" : "")
           // The off-book reading is the one that accuses. It appears ONLY where the page's own
@@ -1131,8 +1266,8 @@ registerPage({
             var z = p.jobs.filter(function (r) { return r["Zero Pack"]; }).length;
             var nq = p.jobs.filter(function (r) { return r["Zero Pack"] && r["No Quote"]; }).length;
             // the confound, stated on the same screen as the number it explains
-            return z ? '<div class="pk-row"><span style="color:var(--faint)">  of which sales quoted '
-              + "no packing</span><b>" + nq + " of " + z + "</b></div>" : "";
+            return z ? '<div class="pk-row"><span style="color:var(--faint)">  of which had no packing '
+              + "on the quote</span><b>" + nq + " of " + z + "</b></div>" : "";
           })()
 
         + (p.opp > 0 && (p.verdict === "review" || p.verdict === "look")
@@ -1173,7 +1308,7 @@ registerPage({
       h += '<div class="pk-rail"><h4>Every job · newest first · ' + p.all.length + "</h4>"
         + '<div style="overflow:auto;max-height:52vh"><table class="pk-tbl"><thead><tr>'
         + "<th>Job</th><th>Day</th><th>CF</th><th>Boxes</th><th>Wrappable</th><th>Booked</th>"
-        + "<th>$/100CF</th><th>Tape</th><th>Covers</th></tr></thead><tbody>"
+        + "<th>$/100CF</th><th>Tape</th><th>Covers</th><th>Links</th></tr></thead><tbody>"
         + js.map(function (r) {
             var cls = (r["Packed By Owner"] || !r["Recorded"]) ? "sp" : r.Flags ? "f" : "";
             return "<tr" + (cls ? ' class="' + cls + '"' : "")
@@ -1182,7 +1317,8 @@ registerPage({
               + (r["Packed By Owner"] ? '<br><span style="font-size:var(--t5);color:var(--faint)">'
                   + "customer packed their own — excluded</span>"
                   : !r["Recorded"] ? '<br><span style="font-size:var(--t5);color:var(--faint)">'
-                    + "packing not written up yet — not counted either way</span>"
+                    + (r.Day > TODAY ? "upcoming — nothing to count yet"
+                       : "packing not written up yet — not counted either way") + "</span>"
                   : r.Flags ? "<br><em>" + esc(r.Flags) + "</em>" : "") + "</td>"
               + "<td>" + dayLab(r.Day) + "</td>"
               + "<td>" + (r["Real CF"] == null ? "—" : Math.round(r["Real CF"])) + "</td>"
@@ -1192,7 +1328,7 @@ registerPage({
               + "<td>" + usd(r["USD per 100 CF"], 2) + "</td>"
               + "<td>" + (r["Tape Sold"] || 0) + "</td>"
               + "<td>" + (r["Covers Sold"] || 0) + (r["Inv Mattresses"] ? "/" + r["Inv Mattresses"] : "") + "</td>"
-              + "</tr>";
+              + "<td>" + jobLinks(r) + "</td></tr>";
           }).join("")
         + "</tbody></table></div></div></div>";
 

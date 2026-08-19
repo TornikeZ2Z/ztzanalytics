@@ -1,22 +1,18 @@
-/* The Area Plan — the September planning tool, v2.
+/* The Area Plan — the planning tool, v3.
  *
- * Tornike 2026-08-19, second pass: (1) "the visual part sucks" — redesigned: hero tiles, real
- * table styling, pills, breathing room. (2) The planning model is now BASES WITH COVERAGE,
- * not crews-per-state: a crew based in NJ can drive to NY, so the rows are service areas with
- * "max job capacity today" and "additional quantity" — HIS real current numbers as the seed
- * (NJ 11+2, PA 8+2, NY 3+3 served from the NJ base, DE 3+3, CT 5+2, MA 0+0). Both columns are
- * editable; sales, marketing and trucks recompute live; edits persist in this browser.
- *
- * The monthly bridge is an explicit, editable UTILIZATION: his numbers are per-DAY maximums,
- * and September's measured reality ran at ~34% of that ceiling — so planned September jobs =
- * daily capacity × 30 × utilization, with the measured seed shown beside the input. Hiding
- * that assumption inside a formula is how planning tools lie.
+ * Tornike's third pass (2026-08-19): (1) the capacity column is FOREMAN QUANTITY — the rows
+ * are how many foremen each base has and gains, not abstract jobs/day; (2) full-width layout,
+ * no tiny fonts — hints must be readable; (3) a PERIOD PICKER — any month or span, not
+ * hard-wired September. The mart now carries every month since 2024-01, so the page
+ * aggregates whatever period is chosen and compares it against the same months one year
+ * earlier. Everything else holds: his base numbers as the seed (NY served FROM the NJ base),
+ * live recompute, edits persisted in this browser.
  */
 (function () {
   if (window.RS && RS.DATASETS && !RS.DATASETS.area_plan) {
     RS.DATASETS.area_plan = {
       table: "mart_area_plan",
-      cols: ["september", "company", "state", "county",
+      cols: ["ym", "company", "state", "county",
              "leads", "qualified", "lost", "booked", "total_cf"],
     };
   }
@@ -24,32 +20,32 @@
 
 (() => {
   function injectStyle() {
-    if (document.getElementById("ap-style")) return;
+    const old = document.getElementById("ap-style");
+    if (old) old.remove();
     const st = document.createElement("style");
     st.id = "ap-style";
     st.textContent = `
-    .ap-wrap{max-width:1280px;margin:0 auto}
     .ap-card{background:var(--panel);border:1px solid var(--line);border-radius:16px;
-      box-shadow:var(--shadow);padding:20px 22px;margin-bottom:18px}
-    .ap-eyebrow{font-size:10.5px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;
-      color:var(--muted);margin-bottom:2px}
-    .ap-h{font-size:15px;font-weight:800;color:var(--ink);margin-bottom:4px}
-    .ap-sub{font-size:12px;color:var(--muted);line-height:1.5;margin-bottom:12px}
-    .ap-tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
+      box-shadow:var(--shadow);padding:22px 24px;margin-bottom:18px}
+    .ap-eyebrow{font-size:11.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;
+      color:var(--muted);margin-bottom:3px}
+    .ap-h{font-size:16px;font-weight:800;color:var(--ink);margin-bottom:5px}
+    .ap-sub{font-size:13px;color:var(--muted);line-height:1.55;margin-bottom:14px}
+    .ap-tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(165px,1fr));gap:12px}
     .ap-tile{background:var(--panel);border:1px solid var(--line);border-radius:14px;
-      padding:14px 16px;box-shadow:var(--shadow)}
-    .ap-tile .l{font-size:10px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;
+      padding:15px 17px;box-shadow:var(--shadow)}
+    .ap-tile .l{font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;
       color:var(--muted)}
-    .ap-tile .v{font-size:24px;font-weight:850;color:var(--ink);margin-top:4px;
+    .ap-tile .v{font-size:25px;font-weight:850;color:var(--ink);margin-top:4px;
       letter-spacing:-.5px;font-variant-numeric:tabular-nums;line-height:1.05}
-    .ap-tile .s{font-size:10.5px;color:var(--muted);margin-top:3px}
-    .ap-tbl{width:100%;border-collapse:collapse;font-size:13px;
+    .ap-tile .s{font-size:12px;color:var(--muted);margin-top:4px;line-height:1.4}
+    .ap-tbl{width:100%;border-collapse:collapse;font-size:13.5px;
       font-variant-numeric:tabular-nums}
-    .ap-tbl th{padding:8px 10px;font-size:10px;font-weight:800;text-transform:uppercase;
-      letter-spacing:.06em;color:var(--muted);border-bottom:2px solid var(--line);
+    .ap-tbl th{padding:9px 11px;font-size:11.5px;font-weight:800;text-transform:uppercase;
+      letter-spacing:.05em;color:var(--muted);border-bottom:2px solid var(--line);
       text-align:right;white-space:nowrap}
     .ap-tbl th:first-child{text-align:left}
-    .ap-tbl td{padding:9px 10px;border-top:1px solid var(--line);text-align:right;
+    .ap-tbl td{padding:10px 11px;border-top:1px solid var(--line);text-align:right;
       vertical-align:middle}
     .ap-tbl td:first-child{text-align:left;font-weight:700}
     .ap-tbl tbody tr:nth-child(even){background:color-mix(in srgb,var(--line) 16%,transparent)}
@@ -57,53 +53,58 @@
     .ap-left{text-align:left !important;font-weight:400 !important}
     .ap-good{color:var(--brand-d)} .ap-bad{color:var(--red)}
     .ap-warn{color:var(--warn,#a15c00)} .ap-dim{color:var(--muted)}
-    .ap-num{width:66px;padding:6px 8px;border:1.5px solid var(--line);border-radius:9px;
-      background:var(--panel);color:var(--ink);font-size:13.5px;font-weight:700;
+    .ap-num{width:70px;padding:7px 9px;border:1.5px solid var(--line);border-radius:9px;
+      background:var(--panel);color:var(--ink);font-size:14px;font-weight:700;
       text-align:right;transition:border-color .12s}
     .ap-num:hover{border-color:var(--brand-d)}
     .ap-num:focus{outline:none;border-color:var(--brand-d);
       box-shadow:0 0 0 3px color-mix(in srgb,var(--brand-d) 18%,transparent)}
-    .ap-pill{display:inline-block;border-radius:20px;padding:3px 10px;font-size:11px;
+    .ap-sel{padding:7px 10px;border:1.5px solid var(--line);border-radius:9px;
+      background:var(--panel);color:var(--ink);font-size:13.5px;font-weight:700}
+    .ap-chip{border:1.5px solid var(--line);border-radius:20px;background:var(--panel);
+      color:var(--ink);padding:6px 14px;font-size:13px;font-weight:700;cursor:pointer}
+    .ap-chip:hover{border-color:var(--brand-d)}
+    .ap-chip.on{background:var(--brand-d);border-color:var(--brand-d);color:#fff}
+    .ap-pill{display:inline-block;border-radius:20px;padding:4px 11px;font-size:12px;
       font-weight:700;white-space:nowrap}
     .ap-pill.ok{background:color-mix(in srgb,var(--brand-d) 14%,transparent);
       color:var(--brand-d)}
     .ap-pill.warn{background:color-mix(in srgb,#a15c00 13%,transparent);
       color:var(--warn,#a15c00)}
     .ap-pill.bad{background:color-mix(in srgb,var(--red) 12%,transparent);color:var(--red)}
-    .ap-pill.dim{background:color-mix(in srgb,var(--line) 45%,transparent);color:var(--muted)}
-    .ap-note{font-size:11px;color:var(--muted)}
-    .ap-assume{display:flex;gap:26px;flex-wrap:wrap;margin:2px 0 14px}
-    .ap-assume .l{font-size:10.5px;font-weight:800;letter-spacing:.05em;
-      text-transform:uppercase;color:var(--muted);margin-bottom:4px}
-    .ap-assume .m{font-size:10.5px;color:var(--muted);margin-top:3px}
+    .ap-note{font-size:12.5px;color:var(--muted);line-height:1.55}
+    .ap-assume{display:flex;gap:30px;flex-wrap:wrap;margin:2px 0 16px}
+    .ap-assume .l{font-size:11.5px;font-weight:800;letter-spacing:.04em;
+      text-transform:uppercase;color:var(--muted);margin-bottom:5px}
+    .ap-assume .m{font-size:12px;color:var(--muted);margin-top:4px;max-width:260px;
+      line-height:1.45}
     .ap-callout{background:color-mix(in srgb,var(--brand-d) 7%,transparent);
       border:1px solid color-mix(in srgb,var(--brand-d) 30%,transparent);border-radius:12px;
-      padding:12px 14px;font-size:12.5px;line-height:1.6;margin-top:12px}
-    .ap-towns{font-size:11px;color:var(--muted);line-height:1.45}
+      padding:14px 16px;font-size:13px;line-height:1.65;margin-top:12px}
+    .ap-towns{font-size:12.5px;color:var(--muted);line-height:1.5}
     `;
     document.head.appendChild(st);
   }
 
-  const LS_KEY = "ztzAreaPlan.v2";
-  // HIS TABLE, verbatim (2026-08-19): service areas with today's real max jobs/day and the
-  // addition being considered. NY is served FROM the NJ base — coverage, not relocation.
+  const LS_KEY = "ztzAreaPlan.v3";
+  // HIS TABLE (2026-08-19), first column renamed at his ask: FOREMAN QUANTITY per base, plus
+  // the additional foremen being considered. NY is served FROM the NJ base — coverage.
   const BASES = [
-    { st: "NJ", cur: 11, add: 2, note: "9 foremen today; the base that also covers NY" },
+    { st: "NJ", cur: 11, add: 2, note: "the base that also covers NY" },
     { st: "PA", cur: 8,  add: 2, note: "" },
-    { st: "NY", cur: 3,  add: 3, note: "0 foremen based here — served from NJ" },
+    { st: "NY", cur: 3,  add: 3, note: "0 based here — served from NJ" },
     { st: "DE", cur: 3,  add: 3, note: "" },
     { st: "CT", cur: 5,  add: 2, note: "" },
     { st: "MA", cur: 0,  add: 0, note: "" },
   ];
-  const SEPT_DAYS = 30;
+  const DAYS_PER_MONTH = 30;
 
 registerPage({
   id: "area-plan",
   group: "different",
   title: "Area Plan",
-  subtitle: "September planning by base: today's real capacity, the additions being " +
-            "considered, and what they imply for sales, marketing and trucks. Adjust " +
-            "anything; everything follows.",
+  subtitle: "Planning by base: today's foremen, the additions being considered, and what " +
+            "they imply for sales, marketing and trucks — for any month or period you pick.",
   datasets: [],
 
   render: function (host) {
@@ -113,6 +114,9 @@ registerPage({
     const fmtN = v => (v == null || isNaN(v)) ? "—" : Math.round(+v).toLocaleString();
     const pct = v => (v == null || isNaN(v)) ? "—" : (Math.round(+v * 1000) / 10) + "%";
     const n1 = v => (v == null || isNaN(v)) ? "—" : (Math.round(+v * 10) / 10);
+    const MONTH_NAMES = ["", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep",
+                         "Oct", "Nov", "Dec"];
+    const ymLabel = ym => MONTH_NAMES[+ym.slice(5, 7)] + " " + ym.slice(0, 4);
 
     injectStyle();
     host.innerHTML = '<div class="ap-card">Loading…</div>';
@@ -129,86 +133,179 @@ registerPage({
       }
 
       const num = v => { const x = parseFloat(v); return isNaN(x) ? 0 : x; };
-      const S24 = model.september_states["2024-09"] || {};
-      const S25 = model.september_states["2025-09"] || {};
-      const cap25 = (model.capacity || {})["2025-09"] || {};
-      const sales25 = (model.sales || {})["2025-09"] || {};
-      const mkt25 = (model.marketing || {})["2025-09"] || {};
-      const natQual = Object.values(S25).reduce((a, s) => a + s.qualified, 0);
-      const natBooked = Object.values(S25).reduce((a, s) => a + s.booked, 0);
-      const natConv = natQual ? natBooked / natQual : 0.2;
-      const natJobs25 = (cap25._national || {}).jobs || 0;
-
-      // measured utilization: what September actually ran at, against HIS current ceiling
-      const curDaily = BASES.reduce((a, b) => a + b.cur, 0);
-      const measuredUtil = curDaily ? natJobs25 / (curDaily * SEPT_DAYS) : 0.34;
+      const MS = model.monthly_states || {};
+      const CAPM = model.capacity || {};
+      const SALES = model.sales || {};
+      const MKT = model.marketing || {};
+      const allYms = Object.keys(MS).sort();
+      const lastSettled = allYms[allYms.length - 1];
 
       const saved = (() => {
         try { return JSON.parse(localStorage.getItem(LS_KEY) || "{}"); }
         catch (e) { return {}; }
       })();
       const inputs = Object.assign({
+        from: "2025-09", to: "2025-09",
         bases: Object.fromEntries(BASES.map(b => [b.st, { cur: b.cur, add: b.add }])),
-        utilization: Math.round(measuredUtil * 1000) / 10,   // %
-        leadsPerRep: sales25.leads_per_rep_median || 140,
-        dollarsPerLead: mkt25.dollars_per_lead || 42,
+        utilization: null,           // seeded from the selected period below
+        leadsPerRep: null,
+        dollarsPerLead: null,
       }, saved);
       BASES.forEach(b => {
         if (!inputs.bases[b.st]) inputs.bases[b.st] = { cur: b.cur, add: b.add };
       });
 
-      function calc() {
-        const util = num(inputs.utilization) / 100;
-        const perBase = BASES.map(b => {
-          const s = inputs.bases[b.st];
-          const daily = num(s.cur) + num(s.add);
-          const jobs = daily * SEPT_DAYS * util;
-          const conv = (S25[b.st] || {}).conversion || natConv;
-          const leadsNeeded = conv ? jobs / conv : 0;
-          const had = (S25[b.st] || {}).qualified || 0;
-          const done25 = (cap25[b.st] || {}).jobs || 0;
-          return { ...b, cur: num(s.cur), add: num(s.add), daily, jobs, conv, leadsNeeded,
-                   had, done25, gap: had ? leadsNeeded / had - 1 : null };
+      /* ------- period machinery: the chosen months, and the same months a year before ---- */
+      const monthsIn = (from, to) => allYms.filter(m => m >= from && m <= to);
+      const yearBack = ym => (String(+ym.slice(0, 4) - 1)) + ym.slice(4);
+
+      function aggStates(yms) {
+        const out = {};
+        yms.forEach(m => {
+          Object.entries(MS[m] || {}).forEach(([st, a]) => {
+            const o = out[st] = out[st] || { leads: 0, qualified: 0, booked: 0, lost: 0 };
+            o.leads += a.leads; o.qualified += a.qualified;
+            o.booked += a.booked; o.lost += a.lost;
+          });
         });
-        const totDaily = perBase.reduce((a, r) => a + r.daily, 0);
-        const totCur = perBase.reduce((a, r) => a + r.cur, 0);
-        const totJobs = perBase.reduce((a, r) => a + r.jobs, 0);
-        const totLeads = perBase.reduce((a, r) => a + r.leadsNeeded, 0);
-        return { perBase, totDaily, totCur, totJobs, totLeads, util,
-                 salesNeeded: totLeads / Math.max(1, num(inputs.leadsPerRep)),
-                 marketing: totLeads * num(inputs.dollarsPerLead),
-                 truckGap: totDaily - ((model.fleet || {}).owned_trucks || 0) };
+        Object.values(out).forEach(o => {
+          o.conversion = o.qualified ? o.booked / o.qualified : null;
+        });
+        return out;
+      }
+      function aggMeasured(yms) {
+        let jobs = 0, spend = 0, leads = 0;
+        const repMed = [], jpf = [];
+        yms.forEach(m => {
+          jobs += ((CAPM[m] || {})._national || {}).jobs || 0;
+          spend += (MKT[m] || {}).ad_spend || 0;
+          leads += (MKT[m] || {}).leads || 0;
+          const s = SALES[m] || {};
+          if (s.leads_per_rep_median) repMed.push(s.leads_per_rep_median);
+          const j = ((CAPM[m] || {})._national || {}).jobs_per_foreman;
+          if (j) jpf.push(j);
+        });
+        const med = a => { const v = a.slice().sort((x, y) => x - y);
+          return v.length ? v[Math.floor(v.length / 2)] : null; };
+        return { jobs, spend, leads,
+                 dollarsPerLead: leads ? spend / leads : null,
+                 leadsPerRep: med(repMed), jobsPerForeman: med(jpf),
+                 doneByState: (st) => yms.reduce((a, m) =>
+                   a + (((CAPM[m] || {})[st] || {}).jobs || 0), 0) };
       }
 
-      /* ---------------- hero tiles ---------------- */
+      let P = {};   // everything derived from the current period — filled by recalcPeriod()
+      function recalcPeriod() {
+        const yms = monthsIn(inputs.from, inputs.to);
+        const prevYms = yms.map(yearBack).filter(m => allYms.includes(m));
+        P = {
+          yms, prevYms,
+          label: yms.length === 1 ? ymLabel(yms[0])
+            : ymLabel(yms[0]) + " – " + ymLabel(yms[yms.length - 1]),
+          prevLabel: prevYms.length
+            ? (prevYms.length === 1 ? ymLabel(prevYms[0])
+               : ymLabel(prevYms[0]) + " – " + ymLabel(prevYms[prevYms.length - 1]))
+            : "no prior-year data",
+          S: aggStates(yms), Sprev: aggStates(prevYms),
+          M: aggMeasured(yms),
+          provisional: yms.some(m => {
+            const d = new Date();
+            const cur = d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0");
+            const back2 = new Date(d.getFullYear(), d.getMonth() - 2, 1);
+            const b2 = back2.getFullYear() + "-" + String(back2.getMonth() + 1).padStart(2, "0");
+            return m >= b2 && m <= cur;
+          }),
+        };
+        const natQ = Object.values(P.S).reduce((a, s) => a + s.qualified, 0);
+        const natB = Object.values(P.S).reduce((a, s) => a + s.booked, 0);
+        P.natConv = natQ ? natB / natQ : 0.2;
+        const curForemen = BASES.reduce((a, b) => a + num(inputs.bases[b.st].cur), 0);
+        P.measuredUtil = (curForemen && P.yms.length)
+          ? P.M.jobs / (curForemen * DAYS_PER_MONTH * P.yms.length) : 0.34;
+        // seeds follow the period unless the user has typed their own
+        if (inputs.utilization == null)
+          inputs.utilization = Math.round(P.measuredUtil * 1000) / 10;
+        if (inputs.leadsPerRep == null) inputs.leadsPerRep = P.M.leadsPerRep || 140;
+        if (inputs.dollarsPerLead == null)
+          inputs.dollarsPerLead = Math.round((P.M.dollarsPerLead || 42) * 100) / 100;
+      }
+
+      function calc() {
+        const util = num(inputs.utilization) / 100;
+        const months = Math.max(1, P.yms.length);
+        const perBase = BASES.map(b => {
+          const s = inputs.bases[b.st];
+          const foremen = num(s.cur) + num(s.add);
+          const jobs = foremen * DAYS_PER_MONTH * months * util;
+          const conv = (P.S[b.st] || {}).conversion || P.natConv;
+          const leadsNeeded = conv ? jobs / conv : 0;
+          const had = (P.S[b.st] || {}).qualified || 0;
+          return { ...b, cur: num(s.cur), add: num(s.add), foremen, jobs, conv, leadsNeeded,
+                   had, done: P.M.doneByState(b.st),
+                   gap: had ? leadsNeeded / had - 1 : null };
+        });
+        const totCur = perBase.reduce((a, r) => a + r.cur, 0);
+        const totForemen = perBase.reduce((a, r) => a + r.foremen, 0);
+        const totJobs = perBase.reduce((a, r) => a + r.jobs, 0);
+        const totLeads = perBase.reduce((a, r) => a + r.leadsNeeded, 0);
+        return { perBase, totCur, totForemen, totJobs, totLeads, util, months,
+                 salesNeeded: totLeads / months / Math.max(1, num(inputs.leadsPerRep)),
+                 marketing: totLeads / months * num(inputs.dollarsPerLead) };
+      }
+
+      /* ---------------- pieces ---------------- */
+      function periodBar() {
+        const opts = allYms.map(m =>
+          '<option value="' + m + '">' + ymLabel(m) + '</option>').join("");
+        const chip = (label, from, to) =>
+          '<button class="ap-chip' +
+          (inputs.from === from && inputs.to === to ? " on" : "") +
+          '" data-from="' + from + '" data-to="' + to + '">' + label + '</button>';
+        const last = lastSettled;
+        const l3from = allYms[Math.max(0, allYms.indexOf(last) - 2)] || last;
+        return '<div class="ap-card" style="display:flex;gap:12px;align-items:center;' +
+          'flex-wrap:wrap;padding:16px 24px">' +
+          '<span class="ap-eyebrow" style="margin:0">Period</span>' +
+          chip("Sep 2025", "2025-09", "2025-09") +
+          chip("Sep 2024", "2024-09", "2024-09") +
+          chip("Last month", last, last) +
+          chip("Last 3 months", l3from, last) +
+          chip("2025", "2025-01", "2025-12") +
+          '<span style="margin-left:8px" class="ap-note">or pick:</span>' +
+          '<select class="ap-sel" id="apFrom">' + opts + '</select>' +
+          '<span class="ap-note">to</span>' +
+          '<select class="ap-sel" id="apTo">' + opts + '</select>' +
+          '<span class="ap-note" style="margin-left:auto">comparing against <b>' +
+          esc(P.prevLabel) + '</b>' +
+          (P.provisional ? ' · <span class="ap-warn"><b>recent months are still ' +
+            'settling — lost counts there are provisional</b></span>' : '') + '</span></div>';
+      }
+
       function heroHtml(c) {
         const t = (l, v, s, cls) =>
           '<div class="ap-tile"><div class="l">' + l + '</div><div class="v' +
           (cls ? " " + cls : "") + '">' + v + '</div><div class="s">' + s + '</div></div>';
-        return t("Capacity today", c.totCur + "/day", "his real current numbers") +
-          t("Planned", c.totDaily + "/day", "+" + (c.totDaily - c.totCur) + " additional") +
-          t("September jobs", fmtN(c.totJobs), "at " + n1(c.util * 100) + "% utilization") +
-          t("Leads needed", fmtN(c.totLeads), "via each area's conversion") +
+        return t("Foremen today", c.totCur, "his real current numbers") +
+          t("Planned foremen", c.totForemen, "+" + (c.totForemen - c.totCur) + " additional") +
+          t("Jobs in " + esc(P.label), fmtN(c.totJobs),
+            "at " + n1(c.util * 100) + "% utilization") +
+          t("Leads needed", fmtN(c.totLeads), "via each area's own conversion") +
           t("Salespeople", (Math.round(c.salesNeeded * 10) / 10),
-            "at " + fmtN(num(inputs.leadsPerRep)) + " leads/rep") +
-          t("Marketing / mo", money(c.marketing),
-            "at " + money(num(inputs.dollarsPerLead)) + "/lead") +
-          // NOT "+N trucks needed": the daily ceiling assumes every base peaks at once,
-          // which even today's numbers never do -- the current 30/day ceiling runs on 19
-          // owned trucks because rentals bridge the peaks. The honest tile is the ceiling
-          // vs the fleet, with the priced +2 buy case living in the Trucks card below.
-          t("Truck ceiling", c.totDaily + " vs " +
-            fmtN((model.fleet || {}).owned_trucks) + " owned",
-            "rentals bridge peaks today — the +2 buy case is below",
-            c.truckGap > 0 ? "ap-warn" : "ap-good");
+            "at " + fmtN(num(inputs.leadsPerRep)) + " leads/rep/month") +
+          t("Marketing / month", money(c.marketing),
+            "at " + money(num(inputs.dollarsPerLead)) + " per lead") +
+          t("Trucks", c.totForemen + " vs " + fmtN((model.fleet || {}).owned_trucks) +
+            " owned", "a foreman needs a truck — rentals bridge peaks today; the +2 buy " +
+            "case is below",
+            c.totForemen > ((model.fleet || {}).owned_trucks || 0) ? "ap-warn" : "ap-good");
       }
 
-      /* ---------------- the base plan (his table, editable) ---------------- */
       function baseHtml(c) {
         return '<table class="ap-tbl"><thead><tr>' +
-          '<th>Base / area</th><th>Max jobs/day today</th><th>Additional</th>' +
-          '<th>Planned/day</th><th>Sep-25 done/day</th><th>Sept jobs @ util</th>' +
-          '<th>Conv.</th><th>Leads needed</th><th>Sep-25 qualified</th><th>Demand check</th>' +
+          '<th>Base / area</th><th>Foreman quantity</th><th>Additional foremen</th>' +
+          '<th>Planned</th><th>Jobs done (' + esc(P.label) + ')</th>' +
+          '<th>Jobs @ plan</th><th>Conversion</th><th>Leads needed</th>' +
+          '<th>Qualified (' + esc(P.label) + ')</th><th>Demand check</th>' +
           '</tr></thead><tbody>' +
           c.perBase.map(r =>
             '<tr><td>' + esc(r.st) +
@@ -217,102 +314,102 @@ registerPage({
               'min="0" step="1" value="' + r.cur + '"></td>' +
             '<td><input class="ap-num" data-st="' + r.st + '" data-f="add" type="number" ' +
               'min="0" step="1" value="' + r.add + '"></td>' +
-            '<td><b>' + r.daily + '</b></td>' +
-            '<td class="ap-dim">' + n1(r.done25 / SEPT_DAYS) + '</td>' +
+            '<td><b>' + r.foremen + '</b></td>' +
+            '<td class="ap-dim">' + fmtN(r.done) + '</td>' +
             '<td>' + fmtN(r.jobs) + '</td>' +
-            '<td>' + pct(r.conv) + ((S25[r.st] || {}).conversion == null ?
-              '<span class="ap-note"> (nat.)</span>' : '') + '</td>' +
+            '<td>' + pct(r.conv) + ((P.S[r.st] || {}).conversion == null ?
+              '<span class="ap-note"> (national)</span>' : '') + '</td>' +
             '<td>' + fmtN(r.leadsNeeded) + '</td>' +
             '<td>' + fmtN(r.had) + '</td>' +
             '<td>' + (r.gap == null
               ? '<span class="ap-pill bad">no measured demand</span>'
               : r.gap > 0.1
                 ? '<span class="ap-pill warn">+' + Math.round(r.gap * 100) +
-                  '% vs Sep-25</span>'
-                : '<span class="ap-pill ok">covered by Sep-25</span>') + '</td></tr>'
+                  '% vs ' + esc(P.label) + '</span>'
+                : '<span class="ap-pill ok">covered</span>') + '</td></tr>'
           ).join("") + '</tbody></table>';
       }
 
-      const assumptions =
-        '<div class="ap-assume">' +
-        [["utilization", "Utilization of max capacity, %",
-          "measured Sep-25: " + n1(measuredUtil * 100) + "% (" + natJobs25 +
-          " jobs vs a " + curDaily + "/day ceiling)"],
-         ["leadsPerRep", "Leads one salesperson handles / month",
-          "measured: " + (sales25.leads_per_rep_median || "—") + " median, Sep-25"],
-         ["dollarsPerLead", "Marketing $ per lead",
-          "measured: $" + (mkt25.dollars_per_lead || "—") + " Sep-25, $" +
-          (((model.marketing || {})["2024-09"] || {}).dollars_per_lead || "—") + " Sep-24"]]
-        .map(([k, label, note]) =>
-          '<div><div class="l">' + label + '</div>' +
-          '<input class="ap-num" style="width:88px" data-k="' + k + '" type="number" ' +
-          'min="0" step="0.1" value="' + inputs[k] + '">' +
-          '<div class="m">' + note + '</div></div>').join("") + '</div>';
+      function assumptionsHtml() {
+        return '<div class="ap-assume">' +
+          [["utilization", "Utilization of the ceiling, %",
+            "measured " + esc(P.label) + ": " + n1(P.measuredUtil * 100) + "% (" +
+            fmtN(P.M.jobs) + " jobs done vs foremen × " + DAYS_PER_MONTH + " days)"],
+           ["leadsPerRep", "Leads one salesperson handles / month",
+            "measured " + esc(P.label) + ": " + (P.M.leadsPerRep || "—") + " median"],
+           ["dollarsPerLead", "Marketing $ per lead",
+            "measured " + esc(P.label) + ": " +
+            (P.M.dollarsPerLead ? "$" + n1(P.M.dollarsPerLead) : "—")]]
+          .map(([k, label, note]) =>
+            '<div><div class="l">' + label + '</div>' +
+            '<input class="ap-num" style="width:92px" data-k="' + k + '" type="number" ' +
+            'min="0" step="0.1" value="' + inputs[k] + '">' +
+            '<div class="m">' + note + '</div></div>').join("") + '</div>';
+      }
 
-      /* ---------------- September YoY ---------------- */
-      const states = [...new Set([...Object.keys(S25), ...Object.keys(S24)])]
-        .sort((a, b) => ((S25[b] || {}).leads || 0) - ((S25[a] || {}).leads || 0))
-        .filter(st => ((S25[st] || {}).leads || 0) + ((S24[st] || {}).leads || 0) >= 20);
-      const byCounty = {};
-      rows.forEach(r => {
-        if (r.september !== "2025-09") return;
-        const c = (byCounty[r.state] = byCounty[r.state] || {});
-        const v = c[r.county] = c[r.county] || { leads: 0, lost: 0 };
-        v.leads += num(r.leads); v.lost += num(r.lost);
-      });
-      const picture =
-        '<table class="ap-tbl"><thead><tr><th>State</th>' +
-        '<th>Sep-24 leads → booked</th><th>Sep-25 leads → booked</th><th>Conv. 24→25</th>' +
-        '<th>Lost (Sep-25)</th><th class="ap-left" style="text-align:left">Top counties ' +
-        '(leads · lost)</th></tr></thead><tbody>' +
-        states.map(st => {
-          const a = S24[st] || {}, b = S25[st] || {};
-          const dl = (a.leads && b.leads) ? (b.leads - a.leads) / a.leads : null;
-          const convDown = (b.conversion || 0) < (a.conversion || 0);
-          const counties = Object.entries(byCounty[st] || {})
-            .sort((x, y) => y[1].leads - x[1].leads).slice(0, 4)
-            .map(([c, v]) => esc(c) + " " + v.leads + " · " + v.lost).join("  ·  ");
-          return '<tr><td>' + esc(st) + '</td>' +
-            '<td>' + fmtN(a.leads) + ' → ' + fmtN(a.booked) + '</td>' +
-            '<td><b>' + fmtN(b.leads) + '</b>' +
-              (dl == null ? '' : ' <span class="' + (dl >= 0 ? 'ap-good' : 'ap-bad') +
-               '" style="font-size:11px">' + (dl >= 0 ? '+' : '') + Math.round(dl * 100) +
-               '%</span>') + ' → ' + fmtN(b.booked) + '</td>' +
-            '<td class="' + (convDown ? 'ap-bad' : 'ap-good') + '">' + pct(a.conversion) +
-              ' → ' + pct(b.conversion) + '</td>' +
-            '<td class="ap-bad"><b>' + fmtN(b.lost) + '</b></td>' +
-            '<td class="ap-left ap-towns">' + counties + '</td></tr>';
-        }).join("") + '</tbody></table>';
+      function demandHtml() {
+        const states = Object.keys(P.S)
+          .sort((a, b) => (P.S[b].leads || 0) - (P.S[a].leads || 0))
+          .filter(st => (P.S[st].leads || 0) + ((P.Sprev[st] || {}).leads || 0) >= 20);
+        const byCounty = {};
+        rows.forEach(r => {
+          if (!P.yms.includes(r.ym)) return;
+          const c = (byCounty[r.state] = byCounty[r.state] || {});
+          const v = c[r.county] = c[r.county] || { leads: 0, lost: 0 };
+          v.leads += num(r.leads); v.lost += num(r.lost);
+        });
+        return '<table class="ap-tbl"><thead><tr><th>State</th>' +
+          '<th>' + esc(P.prevLabel) + '</th><th>' + esc(P.label) + '</th>' +
+          '<th>Conversion, then → now</th><th>Lost</th>' +
+          '<th class="ap-left" style="text-align:left">Top counties (leads · lost)</th>' +
+          '</tr></thead><tbody>' +
+          states.map(st => {
+            const a = P.Sprev[st] || {}, b = P.S[st] || {};
+            const dl = (a.leads && b.leads) ? (b.leads - a.leads) / a.leads : null;
+            const convDown = (b.conversion || 0) < (a.conversion || 0);
+            const counties = Object.entries(byCounty[st] || {})
+              .sort((x, y) => y[1].leads - x[1].leads).slice(0, 4)
+              .map(([c, v]) => esc(c) + " " + v.leads + " · " + v.lost).join("   ");
+            return '<tr><td>' + esc(st) + '</td>' +
+              '<td class="ap-dim">' + fmtN(a.leads) + ' → ' + fmtN(a.booked) + '</td>' +
+              '<td><b>' + fmtN(b.leads) + '</b>' +
+                (dl == null ? '' : ' <span class="' + (dl >= 0 ? 'ap-good' : 'ap-bad') +
+                 '" style="font-size:12px">' + (dl >= 0 ? '+' : '') + Math.round(dl * 100) +
+                 '%</span>') + ' → ' + fmtN(b.booked) + '</td>' +
+              '<td class="' + (convDown ? 'ap-bad' : 'ap-good') + '">' + pct(a.conversion) +
+                ' → ' + pct(b.conversion) + '</td>' +
+              '<td class="ap-bad"><b>' + fmtN(b.lost) + '</b></td>' +
+              '<td class="ap-left ap-towns">' + counties + '</td></tr>';
+          }).join("") + '</tbody></table>';
+      }
 
-      /* ---------------- the outside picture ---------------- */
       const R = model.research || {};
-      const research = R.states ?
-        '<table class="ap-tbl"><thead><tr><th>Area</th><th>Sep-25 qualified</th>' +
+      const researchHtml = R.states ?
+        '<table class="ap-tbl"><thead><tr><th>Area</th><th>Qualified (period)</th>' +
         '<th class="ap-left" style="text-align:left">The outside case</th>' +
         '<th class="ap-left" style="text-align:left">Marketing target towns</th>' +
         '<th>Yard $/mo</th><th>3BR move · crew/hr</th></tr></thead><tbody>' +
         Object.entries(R.states).map(([st, v]) => {
           const comp = (R.competitors || {})[st];
           return '<tr><td>' + esc(st) + '</td>' +
-            '<td>' + fmtN((S25[st] || {}).qualified || 0) + '</td>' +
-            '<td class="ap-left" style="font-size:12px">' + esc(v.case) + '</td>' +
+            '<td id="apRq-' + st + '">…</td>' +
+            '<td class="ap-left" style="font-size:13px">' + esc(v.case) + '</td>' +
             '<td class="ap-left ap-towns">' + esc(v.towns) + '</td>' +
             '<td>' + (((R.depots || {})[st]) ? money(R.depots[st]) : '—') + '</td>' +
             '<td>' + (comp ? money(comp[0]) + ' · ' + money(comp[1]) : '—') + '</td></tr>';
         }).join("") + '</tbody></table>' +
-        '<div class="ap-note" style="margin-top:8px">' + esc(R.vintage || "") +
+        '<div class="ap-note" style="margin-top:10px">' + esc(R.vintage || "") +
         '. Licensing per state (a real gate on DE/CT/MA expansion) is in the memo.</div>' : "";
 
-      /* ---------------- trucks ---------------- */
       const tc = model.truck_costs_by_year || {};
-      const trucks =
-        '<table class="ap-tbl" style="max-width:520px"><thead><tr><th>Year</th>' +
+      const trucksHtml =
+        '<table class="ap-tbl" style="max-width:560px"><thead><tr><th>Year</th>' +
         '<th>Rental</th><th>Financing</th><th>Repair</th></tr></thead><tbody>' +
         Object.entries(tc).map(([y, b]) =>
-          '<tr><td>' + y + (y === "2026" ? " (Aug)" : "") + '</td><td>' + money(b.rental) +
+          '<tr><td>' + y + (y === "2026" ? " (to Aug)" : "") + '</td><td>' + money(b.rental) +
           '</td><td>' + money(b.financing) + '</td><td>' + money(b.repair) + '</td></tr>'
         ).join("") + '</tbody></table>' +
-        '<div class="ap-note" style="margin-top:8px">Owned fleet <b>' +
+        '<div class="ap-note" style="margin-top:10px">Owned fleet <b>' +
         fmtN((model.fleet || {}).owned_trucks) + '</b> · insurance <b>' +
         money((model.fleet || {}).insurance_yearly_total) + '/yr</b> · parking <b>' +
         money((model.fleet || {}).parking_monthly_total) + '/mo</b></div>' +
@@ -326,18 +423,7 @@ registerPage({
             'run-rate, <b>two owned trucks displace renting at better than 2:1</b>.<br>' +
             '<b>Spec:</b> ' + esc(t.gvwr_note) + '<br><b>Live candidate:</b> ' +
             esc(t.local_candidate) + '.</div>';
-        })((model.research || {}).trucks);
-
-      /* ---------------- honesty ---------------- */
-      const honesty =
-        '<div class="ap-note" style="line-height:1.7">Measured: everything except the ' +
-        'capacity numbers and what you type. His base table is the seed (2026-08-19): NY is ' +
-        'served from the NJ base — rows are SERVICE AREAS, so capacity there is coverage, ' +
-        'not relocation. Utilization bridges per-day maximums to a month: Sep-25 ran at ' +
-        n1(measuredUtil * 100) + '% of today’s ceiling. Lost = qualified, never booked, ' +
-        'settled Septembers only. Geography is where the move starts. Marketing $/lead is ' +
-        'company-wide. MD counts Tuji and Zip together; MD/VA are not bases in this plan ' +
-        'but their September history stays visible above.</div>';
+        })(R.trucks);
 
       const card = (eyebrow, h, sub, body) =>
         '<div class="ap-card"><div class="ap-eyebrow">' + eyebrow + '</div>' +
@@ -345,37 +431,72 @@ registerPage({
         (sub ? '<div class="ap-sub">' + sub + '</div>' : '') + body + '</div>';
 
       function paint() {
+        recalcPeriod();
         const c = calc();
         host.innerHTML =
-          '<div class="ap-wrap">' +
+          periodBar() +
           '<div class="ap-tiles" id="apHero" style="margin-bottom:18px">' + heroHtml(c) +
           '</div>' +
-          card("The plan", "Base capacity — today, plus the additions being considered",
+          card("The plan", "Base capacity — foremen today, plus the additions being " +
+               "considered",
                "Your real numbers. NY is covered from the NJ base. Change any cell; the " +
                "tiles above follow. Edits stay in this browser.",
-               assumptions + '<div id="apBase" style="overflow-x:auto">' + baseHtml(c) +
+               assumptionsHtml() + '<div id="apBase" style="overflow-x:auto">' + baseHtml(c) +
                '</div>') +
-          card("The demand", "September, year over year",
+          card("The demand", esc(P.label) + " vs " + esc(P.prevLabel),
                "Leads counted where the move starts, on create date. Lost = qualified and " +
-               "never booked — settled Septembers only.",
-               '<div style="overflow-x:auto">' + picture + '</div>') +
-          (research ? card("The outside picture", "Big houses and good areas, joined to " +
-               "our own demand",
+               "never booked.",
+               '<div style="overflow-x:auto">' + demandHtml() + '</div>') +
+          (researchHtml ? card("The outside picture",
+               "Big houses and good areas, joined to our own demand",
                "Research compiled by us — the gap between the outside case and our own " +
                "leads is the expansion argument.",
-               '<div style="overflow-x:auto">' + research + '</div>') : "") +
+               '<div style="overflow-x:auto">' + researchHtml + '</div>') : "") +
           card("Trucks", "Rent vs buy — as the company already lives it",
                "Both sides are real card history: the company rents AND finances purchases " +
                "today. Renting is climbing again in 2026 — that is the “+2” question.",
-               trucks) +
-          card("Method", "What is measured and what is assumed", "", honesty) +
-          '</div>';
+               trucksHtml) +
+          card("Method", "What is measured and what is assumed", "",
+               '<div class="ap-note" style="line-height:1.75">Measured: everything except ' +
+               'the foreman counts and any number you type. His base table is the seed; NY ' +
+               'is served from the NJ base, so rows are SERVICE AREAS. Utilization bridges ' +
+               'foremen to a month of jobs and re-seeds when you change the period — typing ' +
+               'your own value overrides it. Lost = qualified, never booked. Geography is ' +
+               'where the move starts. Marketing $/lead is company-wide. MD counts Tuji and ' +
+               'Zip together; MD/VA are not bases in this plan but their history stays ' +
+               'visible above.</div>');
+        // the research table's qualified column follows the period
+        Object.keys(R.states || {}).forEach(st => {
+          const el = document.getElementById("apRq-" + st);
+          if (el) el.textContent = fmtN((P.S[st] || {}).qualified || 0);
+        });
+        // wire the period selects
+        const f = document.getElementById("apFrom"), t = document.getElementById("apTo");
+        if (f && t) {
+          f.value = inputs.from; t.value = inputs.to;
+          const onSel = () => {
+            inputs.from = f.value <= t.value ? f.value : t.value;
+            inputs.to = f.value <= t.value ? t.value : f.value;
+            inputs.utilization = null; inputs.leadsPerRep = null;
+            inputs.dollarsPerLead = null;      // re-seed from the new period
+            save(); paint();
+          };
+          f.onchange = onSel; t.onchange = onSel;
+        }
+        host.querySelectorAll(".ap-chip").forEach(b => b.onclick = () => {
+          inputs.from = b.dataset.from; inputs.to = b.dataset.to;
+          inputs.utilization = null; inputs.leadsPerRep = null;
+          inputs.dollarsPerLead = null;
+          save(); paint();
+        });
       }
-      paint();
 
       function save() {
         try { localStorage.setItem(LS_KEY, JSON.stringify(inputs)); } catch (e) {}
       }
+
+      paint();
+
       host.addEventListener("input", e => {
         const t = e.target;
         if (!t.classList || !t.classList.contains("ap-num")) return;
@@ -383,22 +504,21 @@ registerPage({
         else if (t.dataset.k) inputs[t.dataset.k] = parseFloat(t.value) || 0;
         save();
         const c = calc();
-        // repaint only the derived parts, never the input being typed into
         document.getElementById("apHero").innerHTML = heroHtml(c);
         const tbl = document.getElementById("apBase");
-        // update the computed cells in place so focus and caret survive
         c.perBase.forEach((r, i) => {
           const row = tbl.querySelectorAll("tbody tr")[i];
           if (!row) return;
           const cells = row.querySelectorAll("td");
-          cells[3].innerHTML = "<b>" + r.daily + "</b>";
+          cells[3].innerHTML = "<b>" + r.foremen + "</b>";
           cells[5].textContent = fmtN(r.jobs);
           cells[7].textContent = fmtN(r.leadsNeeded);
           cells[9].innerHTML = r.gap == null
             ? '<span class="ap-pill bad">no measured demand</span>'
             : r.gap > 0.1
-              ? '<span class="ap-pill warn">+' + Math.round(r.gap * 100) + '% vs Sep-25</span>'
-              : '<span class="ap-pill ok">covered by Sep-25</span>';
+              ? '<span class="ap-pill warn">+' + Math.round(r.gap * 100) + '% vs ' +
+                esc(P.label) + '</span>'
+              : '<span class="ap-pill ok">covered</span>';
         });
       });
     });
