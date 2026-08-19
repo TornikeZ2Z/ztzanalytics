@@ -208,6 +208,175 @@ registerPage({
               '')) +
         '</div></div>';
 
+      /* ---------- THE WORKING: every number the verdict rests on, with its n ---------- */
+      // Tornike 2026-08-19: "be more analytical... show literally how we calculated why we
+      // should not turn off straight." These four sections ARE the calculation, run in the
+      // open on the same rows the verdict uses — nothing here is asserted, only computed.
+      const use = rows.filter(usable);
+
+      const working = cap ?
+        '<div class="svl-card"><div style="font-size:13px;font-weight:700">The inputs, ' +
+        'measured</div><div style="font-size:12px;color:var(--muted);margin:4px 0 8px">' +
+        'Every figure carries its sample size. 2024 onward.</div>' +
+        '<table style="border-collapse:collapse;font-size:13px"><tbody>' +
+        [['One local foreman-day of operational profit (median)', money(dayRate),
+          'from ' + (cap.local_days_measured || 0).toLocaleString() + ' foreman-days / ' +
+          (cap.local_jobs_measured || 0).toLocaleString() + ' local jobs; matched to days ' +
+          'LIKE the trip’s window (peak vs peak)'],
+         ['One booked job of operational profit (median)', money(cap.profit_per_booking),
+          'the value of a booking a thinner board loses'],
+         ['Straight jobs measured', use.length + ' of ' + rows.length,
+          'the rest set aside with stated reasons below'],
+         ['Foremen on the books now', Math.round(cap.availability_now || 0),
+          'tenure-based: employed counts as available, idle or not'],
+         ['Booking-rate curve', (curve ? curve.reduce((a, c) => a + c.days, 0) : 0) + ' days',
+          'booking rate vs demand-per-foreman, 2024+, last 30 days excluded (still accruing)']]
+        .map(r => '<tr><td style="padding:5px 14px 5px 0;border-top:1px solid var(--line)">' +
+          r[0] + '</td><td style="padding:5px 14px 5px 0;border-top:1px solid var(--line);' +
+          'text-align:right;font-weight:700;white-space:nowrap">' + r[1] +
+          '</td><td style="padding:5px 0;border-top:1px solid var(--line);font-size:11.5px;' +
+          'color:var(--muted)">' + r[2] + '</td></tr>').join("") +
+        '</tbody></table></div>' : "";
+
+      /* what turning Straight OFF would actually have cost — computed per job, then summed */
+      function ledger(pool, label) {
+        const kept = pool.filter(usable);
+        const gain = kept.filter(r => num(r.net) > 0).reduce((a, r) => a + num(r.net), 0);
+        const loss = kept.filter(r => num(r.net) < 0).reduce((a, r) => a + num(r.net), 0);
+        return { label, n: kept.length, gain, loss, net: gain + loss };
+      }
+      const policies = [
+        ledger(rows, "Turn off ALL Straight moving"),
+        ledger(longs, "Turn off only the long hauls (5–10 days)"),
+        ledger(rows.filter(r => r.window === "peak month-end" || r.window === "peak"),
+               "Turn off Straight at peak only"),
+      ];
+      const policyCard =
+        '<div class="svl-card"><div style="font-size:13px;font-weight:700">What turning it ' +
+        'off would have cost — computed job by job, 2024 → today</div>' +
+        '<div style="font-size:12px;color:var(--muted);margin:4px 0 8px">For every measured ' +
+        'job: net = its operational profit − the local profit its foreman would have made ' +
+        'instead. A policy’s cost = the winners it forfeits minus the losers it avoids. ' +
+        'This is the literal arithmetic of “should we turn it off”.</div>' +
+        '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;' +
+        'font-size:13px"><thead><tr>' +
+        ['Policy', 'Jobs', 'Winners forfeited', 'Losers avoided', 'Net effect of the policy']
+          .map((h, i) => '<th style="padding:6px;font-size:10px;text-transform:uppercase;' +
+            'letter-spacing:.05em;color:var(--muted);border-bottom:1px solid var(--line);' +
+            'text-align:' + (i ? 'right' : 'left') + '">' + h + '</th>').join("") +
+        '</tr></thead><tbody>' +
+        policies.map(p => {
+          const bad = p.net > 0;   // turning off loses money when the pool nets positive
+          return '<tr><td style="padding:7px 6px;border-top:1px solid var(--line)">' +
+            esc(p.label) + '</td>' +
+            '<td style="padding:7px 6px;border-top:1px solid var(--line);text-align:right">' +
+              p.n + '</td>' +
+            '<td style="padding:7px 6px;border-top:1px solid var(--line);text-align:right">' +
+              '−' + money(p.gain) + '</td>' +
+            '<td style="padding:7px 6px;border-top:1px solid var(--line);text-align:right">' +
+              '+' + money(-p.loss) + '</td>' +
+            '<td style="padding:7px 6px;border-top:1px solid var(--line);text-align:right" ' +
+              'class="' + (bad ? "svl-bad" : "svl-good") + '"><b>' +
+              (bad ? "costs " : "saves ") + money(Math.abs(p.net)) + '</b></td></tr>';
+        }).join("") +
+        '</tbody></table></div>' +
+        '<div style="font-size:12px;margin-top:8px;color:var(--muted)">The fourth option — ' +
+        'keep everything and hold long hauls to the ' + money(dayRate) + '/excess-day floor — ' +
+        'forfeits nothing and, if the repriced jobs still book, recovers the ' +
+        money(Math.abs(policies[1].loss)) + ' the losing long hauls cost. That is why the ' +
+        'recommendation is a floor, not a switch.</div></div>';
+
+      /* the peak stress-test, with the curve arithmetic in the open */
+      let stress = "";
+      if (curve && cap.availability_now > 1) {
+        const A = cap.availability_now;
+        const pts = curve.map(c => [c.l_mid, c.rate]);
+        const rateAt = L => {
+          if (L <= pts[0][0]) return pts[0][1];
+          if (L >= pts[pts.length - 1][0]) return pts[pts.length - 1][1];
+          for (let i = 1; i < pts.length; i++) {
+            if (L <= pts[i][0]) {
+              const [x0, y0] = pts[i - 1], [x1, y1] = pts[i];
+              return x1 > x0 ? y0 + (y1 - y0) * (L - x0) / (x1 - x0) : y0;
+            }
+          }
+          return pts[pts.length - 1][1];
+        };
+        const demands = [1, 2, 3, 4, 6, 8].map(m => Math.round(A * m));
+        stress =
+          '<div class="svl-card"><div style="font-size:13px;font-weight:700">The peak ' +
+          'stress-test, computed in the open</div>' +
+          '<div style="font-size:12px;color:var(--muted);margin:4px 0 8px">One foreman ' +
+          'leaves (' + Math.round(A) + ' → ' + Math.round(A - 1) + '), so every remaining ' +
+          'crew carries more demand, quotes rise (your availability-margin rule), and the ' +
+          'measured booking curve says how many bookings that costs. Each row is that ' +
+          'calculation at one demand level.</div>' +
+          '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;' +
+          'font-size:12.5px"><thead><tr>' +
+          ['Qualified leads/day', 'Leads per foreman', 'Booking rate', 'Bookings lost/day',
+           '$ lost/day', 'vs his own ' + money(dayRate) + '/day', 'The day charge']
+            .map((h, i) => '<th style="padding:6px;font-size:10px;text-transform:uppercase;' +
+              'letter-spacing:.05em;color:var(--muted);border-bottom:1px solid var(--line);' +
+              'text-align:' + (i ? 'right' : 'left') + '">' + h + '</th>').join("") +
+          '</tr></thead><tbody>' +
+          demands.map(Q => {
+            const L1 = Q / A, L2 = Q / (A - 1);
+            const r1 = rateAt(L1), r2 = rateAt(L2);
+            const lost = Math.max(0, Q * (r1 - r2));
+            const sys = lost * (cap.profit_per_booking || 0);
+            return '<tr>' +
+              '<td style="padding:6px;border-top:1px solid var(--line)">' + Q + '</td>' +
+              '<td style="padding:6px;border-top:1px solid var(--line);text-align:right">' +
+                (Math.round(L1 * 100) / 100) + ' → ' + (Math.round(L2 * 100) / 100) + '</td>' +
+              '<td style="padding:6px;border-top:1px solid var(--line);text-align:right">' +
+                pct(r1) + ' → ' + pct(r2) + '</td>' +
+              '<td style="padding:6px;border-top:1px solid var(--line);text-align:right">' +
+                (Math.round(lost * 100) / 100) + '</td>' +
+              '<td style="padding:6px;border-top:1px solid var(--line);text-align:right">' +
+                money(sys) + '</td>' +
+              '<td style="padding:6px;border-top:1px solid var(--line);text-align:right" ' +
+                'class="' + (sys < dayRate ? "svl-good" : "svl-bad") + '">' +
+                (sys < dayRate ? "smaller" : "LARGER") + '</td>' +
+              '<td style="padding:6px;border-top:1px solid var(--line);text-align:right">' +
+                '<b>' + money(Math.max(dayRate, sys)) + '</b></td></tr>';
+          }).join("") +
+          '</tbody></table></div>' +
+          '<div style="font-size:12px;margin-top:8px;color:var(--muted)">At every demand ' +
+          'level the board-wide effect stays below what the foreman himself earns, so the ' +
+          'day charge never exceeds ' + money(dayRate) + ' — the same lost jobs must not be ' +
+          'charged twice. That is the literal calculation behind “no demand level ' +
+          'forces a stop”.</div></div>';
+      }
+
+      /* profit by days away — where the margin actually dies */
+      const buckets = [[1, "1d"], [2, "2d"], [3, "3d"], [4, "4d"], [6, "5–6d"], [8, "7–8d"],
+                       [10, "9–10d"]];
+      const byDays = buckets.map(([hi, label], i) => {
+        const lo = i === 0 ? 0 : buckets[i - 1][0];
+        const mine = use.filter(r => num(r.gone_days) > lo && num(r.gone_days) <= hi);
+        return { label, n: mine.length, med: median(mine.map(r => num(r.net))) };
+      }).filter(b => b.n);
+      const daysCard =
+        '<div class="svl-card"><div style="font-size:13px;font-weight:700">Net profit by ' +
+        'days away — where the margin dies</div>' +
+        '<div style="font-size:12px;color:var(--muted);margin:4px 0 8px">Same jobs, grouped ' +
+        'by measured absence. The trend IS the argument: each extra day costs ' +
+        money(dayRate) + ' of displaced local profit, and the trip’s own profit does ' +
+        'not grow fast enough to keep up.</div>' +
+        '<table style="border-collapse:collapse;font-size:13px"><thead><tr>' +
+        ['Days away', 'Jobs', 'Median net'].map((h, i) =>
+          '<th style="padding:6px;font-size:10px;text-transform:uppercase;' +
+          'letter-spacing:.05em;color:var(--muted);border-bottom:1px solid var(--line);' +
+          'text-align:' + (i ? 'right' : 'left') + '">' + h + '</th>').join("") +
+        '</tr></thead><tbody>' +
+        byDays.map(b => '<tr><td style="padding:6px;border-top:1px solid var(--line)">' +
+          b.label + '</td><td style="padding:6px;border-top:1px solid var(--line);' +
+          'text-align:right">' + b.n + '</td>' +
+          '<td style="padding:6px;border-top:1px solid var(--line);text-align:right" class="' +
+          (b.med != null && b.med < 0 ? "svl-bad" : "svl-good") + '"><b>' +
+          (b.med == null ? "—" : signed(b.med)) + '</b></td></tr>').join("") +
+        '</tbody></table></div>';
+
       /* ---------- verdicts, profit-only ---------- */
       function table(stats, caption, note) {
         const rowsH = stats.map(s => {
@@ -304,7 +473,7 @@ registerPage({
         'exist). Sales commission is excluded on both sides, so it cannot tilt the ' +
         'comparison.</div></div>';
 
-      host.innerHTML = chain +
+      host.innerHTML = chain + working + policyCard + stress + daysCard +
         table(longStats, "Long hauls — " + LONG_HAUL_DAYS + "+ days away",
               "Where the question actually bites. All figures are operational profit.") +
         table(allStats, "Every Straight job",
