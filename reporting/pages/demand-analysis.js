@@ -39,6 +39,18 @@
       dateCols: { "Move Date": "Move Date" }, defaultDate: "Move Date",
     };
   }
+  // THE PER-LEAD COMPANION (2026-08-20): status/source/size filters, the leads behind a
+  // clicked day, and the after-the-day-was-full count all need individual leads. Loaded
+  // lazily in the background — the default view stays on the cheap aggregate.
+  if (window.RS && RS.DATASETS && !RS.DATASETS.demand_leads) {
+    RS.DATASETS.demand_leads = {
+      table: "mart_demand_leads",
+      cols: ["Move Date", "Company", "Job No", "Customer", "Create Date", "Created NY",
+             "Status", "Source", "Size", "Service", "Moving Type", "CF Range", "State",
+             "CF", "Quote", "Closing Total", "Crew", "Trucks"],
+      dateCols: { "Move Date": "Move Date" }, defaultDate: "Move Date",
+    };
+  }
 })();
 
 registerPage({
@@ -86,6 +98,9 @@ registerPage({
 
     const S = window.__DEM || (window.__DEM = {
       rows: null, year: null, co: "", metric: "leads", day: null, err: "",
+      // the per-lead layer: filters, the lazy rows, and the capacity input (his #5)
+      status: "", src: "", size: "", leads: null, leadsLoading: false, leadsErr: "",
+      cap: +(localStorage.getItem("ztzDemandCap") || 10) || 10,
     });
 
     host.innerHTML = '<style id="dmCss">'
@@ -106,6 +121,16 @@ registerPage({
       + "background:none;color:var(--muted);cursor:pointer}"
       + ".dm-seg button.on{background:var(--brand);color:var(--brand-ink)}"
       + ".dm-bar .sp{margin-left:auto;font-size:11.5px;color:var(--faint)}"
+      + ".dm-fld{display:flex;flex-direction:column;gap:3px}"
+      + ".dm-fld>span{font-size:9.5px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--faint)}"
+      + ".dm-fld select{background:var(--panel);color:var(--ink);border:1px solid var(--line-2);"
+      + "border-radius:9px;padding:6px 10px;font-size:12.5px;font-weight:700;font-family:inherit;"
+      + "cursor:pointer;max-width:210px}"
+      + ".dm-fld select:hover:not(:disabled){border-color:var(--brand)}"
+      + ".dm-cap{width:64px;background:var(--panel);color:var(--ink);border:1.5px solid var(--line-2);"
+      + "border-radius:9px;padding:6px 9px;font-size:13px;font-weight:800;font-family:inherit;text-align:right}"
+      + ".dm-cap:focus{outline:none;border-color:var(--brand)}"
+      + ".dm-lead-tbl td{white-space:nowrap}"
       // ---- kpis --------------------------------------------------------------------------
       + ".dm-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(172px,1fr));gap:11px;margin-bottom:16px}"
       + ".dm-k{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:13px 16px}"
@@ -285,6 +310,82 @@ registerPage({
       if (S.year) rs = rs.filter(r => String(r["Move Date"]).slice(0, 4) === S.year);
       return rs;
     }
+
+    /* ---------------- the per-lead layer (2026-08-20) --------------------------------- */
+    const leadFilterOn = () => !!(S.status || S.src || S.size);
+    function loadLeads() {
+      if (S.leads || S.leadsLoading) return;
+      S.leadsLoading = true;
+      RS.load("demand_leads").then(rs => {
+        S.leads = (rs || []).map(r => {
+          r.d = String(r["Move Date"]).slice(0, 10);
+          r.cd = String(r["Created NY"] || r["Create Date"] || "");
+          return r;
+        });
+        S.leadsLoading = false;
+        paint();                      // filters + day lists + the overflow card wake up
+      }).catch(e => { S.leadsErr = e.message; S.leadsLoading = false; paint(); });
+    }
+    function scopeLeads() {
+      let ls = S.leads || [];
+      if (S.co) ls = ls.filter(l => l.Company === S.co);
+      if (S.year) ls = ls.filter(l => l.d.slice(0, 4) === S.year);
+      if (S.status) ls = ls.filter(l => (l.Status || "") === S.status);
+      if (S.src) ls = ls.filter(l => (l.Source || "") === S.src);
+      if (S.size) ls = ls.filter(l => (l.Size || "") === S.size);
+      return ls;
+    }
+    // the same size buckets the mart computes, read off the label the same way
+    function sizeBucketOf(label) {
+      const t = String(label || "").toLowerCase();
+      if (/single item|studio/.test(t)) return "small";
+      const m = t.match(/(\d+)\s*(?:bed|br\b)/);
+      if (m) return +m[1] <= 2 ? "mid" : "big";
+      return "other";
+    }
+    /* one lead into the SAME accumulator shape fold() fills from mart rows, so every card
+       renders identically whichever layer computed it */
+    function foldLead(a, l) {
+      a.leads++;
+      const sc = l.Status || "";
+      if (sc !== "Bad Lead") a.qual++;
+      const bk = sc === "Confirmed";
+      if (bk) a.booked++;
+      const cf = nn(l.CF);
+      if (cf != null && cf > 0) { a.cf += cf; a.cfN++; if (bk) a.bookedCf += cf; }
+      const q = nn(l.Quote);
+      if (q != null && q > 0) {
+        a.qSum += q; a.qN++;
+        if (cf != null && cf > 0) { a.pq += q; a.pcf += cf; a.pn++; }
+      }
+      if (bk) a.ct += num(l["Closing Total"]);
+      const crew = nn(l.Crew);
+      if (crew != null && crew > 0) { a.crewSum += crew; a.crewN++; }
+      const tr = nn(l.Trucks);
+      if (tr != null && tr > 0) { a.truckSum += tr; a.truckN++; }
+      const cd = String(l["Create Date"] || "").slice(0, 10);
+      if (cd) {
+        a.ldSum += (new Date(l.d + "T00:00:00Z") - new Date(cd + "T00:00:00Z")) / 864e5;
+        a.ldN++;
+      }
+      const mt = l["Moving Type"] || "";
+      if (mt === "Long Distance") a.ld++;
+      else if (mt === "Local Moving") a.local++;
+      else a.svcUnknown++;
+      a[({ small: "small", mid: "mid", big: "big", other: "other" })[sizeBucketOf(l.Size)]]++;
+      const bump = (o, k) => { const kk = k || "(not stated)"; o[kk] = (o[kk] || 0) + 1; };
+      bump(a.svc, l.Service); bump(a.size, l.Size); bump(a.cfr, l["CF Range"]);
+      bump(a.st, l.State); bump(a.src, l.Source);
+      return a;
+    }
+    function byDayLeads(ls) {
+      const m = new Map();
+      ls.forEach(l => {
+        if (!m.has(l.d)) m.set(l.d, blank(l.d));
+        foldLead(m.get(l.d), l);
+      });
+      return m;
+    }
     // date -> folded day, companies merged (the calendar is one square per date, not per book)
     function byDay(rs) {
       const m = new Map();
@@ -306,6 +407,7 @@ registerPage({
           S.year = ys.indexOf(now) >= 0 ? now : (ys[ys.length - 1] || now);
         }
         paint();
+        loadLeads();     // the per-lead layer streams in behind the first paint
       }).catch(e => {
         main.innerHTML = '<div class="dm-empty">Could not load the demand mart — ' + esc(e.message)
           + "</div>";
@@ -318,16 +420,33 @@ registerPage({
           + "is built by the nightly refresh from the Moveboard leads.</div>";
         return;
       }
-      const rs = scope();
-      const days = byDay(rs);
-      const all = blank("");
-      rs.forEach(r => fold(all, r));
+      // a lead filter switches the WHOLE page onto the per-lead layer, computed into the
+      // same accumulators — every card renders from one shape whichever layer filled it
+      let days, all;
+      if (leadFilterOn() && S.leads) {
+        const ls = scopeLeads();
+        days = byDayLeads(ls);
+        all = blank("");
+        ls.forEach(l => foldLead(all, l));
+      } else {
+        const rs = scope();
+        days = byDay(rs);
+        all = blank("");
+        rs.forEach(r => fold(all, r));
+      }
 
       let h = basisBanner() + toolbar() + kpis(all, days);
+      if (leadFilterOn() && !S.leads) {
+        h += '<div class="dm-empty">' + (S.leadsErr
+          ? "Could not load the per-lead detail — " + esc(S.leadsErr)
+          : "Loading the per-lead detail for these filters…")
+          + "</div>";
+      }
       h += calendarCard(days);
       h += matrixCard(days);
       h += '<div class="dm-grid2">' + cfCard(all) + sizeCard(all) + "</div>";
       h += '<div class="dm-grid2">' + peakCard(days) + marketCard(all) + "</div>";
+      h += overflowCard();
       h += quoteCard(days);
       main.innerHTML = h;
       wire(days);
@@ -357,7 +476,27 @@ registerPage({
         + Object.keys(METRIC).map(k => '<button data-m="' + k + '"'
             + (k === S.metric ? ' class="on"' : "") + ">" + esc(METRIC[k].lab) + "</button>").join("")
         + "</div>";
-      h += '<span class="sp">Shading follows the metric; the blue foot is always the booked share.</span>';
+      // the per-lead filters (his ask, 2026-08-19): status / source / size. Options come
+      // from the lead layer, so they show real values, not guesses; until it streams in
+      // they render disabled rather than empty-but-clickable.
+      const ldSel = (id, label, cur, key) => {
+        if (!S.leads) {
+          return '<label class="dm-fld"><span>' + label + '</span><select disabled><option>'
+            + (S.leadsErr ? "unavailable" : "loading…") + "</option></select></label>";
+        }
+        const vals = [...new Set(S.leads.map(l => l[key] || ""))].filter(Boolean).sort();
+        return '<label class="dm-fld"><span>' + label + '</span><select data-lf="' + id + '">'
+          + '<option value="">All</option>'
+          + vals.map(v => '<option value="' + esc(v) + '"' + (cur === v ? " selected" : "") + ">"
+              + esc(v) + "</option>").join("")
+          + "</select></label>";
+      };
+      h += ldSel("status", "Status", S.status, "Status")
+        + ldSel("src", "Source", S.src, "Source")
+        + ldSel("size", "Size", S.size, "Size");
+      h += '<span class="sp">Shading follows the metric; the blue foot is always the booked share.'
+        + (leadFilterOn() ? " <b>Filters on — every card is recomputed from the individual leads.</b>" : "")
+        + "</span>";
       return h + "</div>";
     }
 
@@ -458,7 +597,8 @@ registerPage({
       const d = days.get(S.day);
       if (!d) {
         return '<div class="dm-day"><div class="dh"><b>' + esc(longDate(S.day)) + "</b>"
-          + "<span>" + (S.day > TODAY ? "nobody has asked for this date yet"
+          + "<span>" + (leadFilterOn() ? "no leads match the current filters on this date"
+              : S.day > TODAY ? "nobody has asked for this date yet"
               : "no lead ever asked for this date") + "</span>"
           + '<button data-close="1">Close</button></div></div>';
       }
@@ -482,7 +622,115 @@ registerPage({
         + f("Biggest market", topOf(d.st), "pickup state")
         + f("Top service", topOf(d.svc), "")
         + f("Top size", topOf(d.size), "")
-        + "</div></div>";
+        + "</div>" + dayLeadsTable() + "</div>";
+    }
+
+    /* the leads behind the pinned day — his ask: "ლიდების სია დაჭერაზე" */
+    function dayLeadsTable() {
+      if (!S.leads) {
+        return '<p class="dm-note" style="margin-top:10px">'
+          + (S.leadsErr ? "Per-lead detail unavailable — " + esc(S.leadsErr)
+             : "The lead list for this day is still loading…") + "</p>";
+      }
+      const CAPN = 300;
+      const ls = scopeLeads().filter(l => l.d === S.day)
+        .sort((a, b) => String(a.cd).localeCompare(String(b.cd)));
+      if (!ls.length) return '<p class="dm-note" style="margin-top:10px">No leads match the '
+        + "current filters on this day.</p>";
+      return '<div class="dm-scroll" style="margin-top:12px;max-height:46vh;overflow:auto">'
+        + '<table class="dm-t dm-lead-tbl"><thead><tr><th>Came in</th><th>Moveboard #</th>'
+        + "<th>Customer</th><th>Status</th><th>Source</th><th>Size</th><th>Cu ft</th>"
+        + "<th>Quote</th></tr></thead><tbody>"
+        + ls.slice(0, CAPN).map(l =>
+            '<tr><td class="nm">' + esc(String(l.cd).slice(0, 16) || "—") + "</td>"
+            + "<td>#" + esc(String(l["Job No"] || "—")) + "</td>"
+            + '<td style="text-align:left">' + esc(l.Customer || "—") + "</td>"
+            + "<td" + (l.Status === "Confirmed" ? ' style="color:var(--blue);font-weight:700"' : "")
+            + ">" + esc(l.Status || "—") + "</td>"
+            + "<td>" + esc(l.Source || "—") + "</td>"
+            + "<td>" + esc(l.Size || "—") + "</td>"
+            + "<td>" + (nn(l.CF) != null ? fmtN(l.CF) : "—") + "</td>"
+            + "<td>" + (nn(l.Quote) != null ? money0(l.Quote) : "—") + "</td></tr>").join("")
+        + "</tbody></table>"
+        + (ls.length > CAPN ? '<p class="dm-note">' + fmtN(ls.length - CAPN) + " more on this day.</p>" : "")
+        + "</div>";
+    }
+
+    /* ---- his #5: once a day passed X jobs, how many leads still came in ------------------
+       There is no timestamp for the moment a booking was CONFIRMED (`Booked Date` is
+       written date-like on every lead and is not a booking signal — the warehouse's own
+       rule), so the moment a day "reached X jobs" is approximated by the CREATION time of
+       its Xth eventually-confirmed lead. Bookings usually follow their lead quickly, so
+       the approximation is honest — and it is stated on the card, not hidden. */
+    function ordinal(n) {
+      const t = n % 100;
+      if (t >= 11 && t <= 13) return n + "th";
+      return n + ({ 1: "st", 2: "nd", 3: "rd" }[n % 10] || "th");
+    }
+    function overflowCard() {
+      if (!S.leads) {
+        return '<div class="dm-card"><div class="dm-h"><h3>Demand after a day was already full</h3>'
+          + '<span class="tag">capacity</span></div><div class="dm-empty">'
+          + (S.leadsErr ? "Per-lead detail unavailable — " + esc(S.leadsErr)
+             : "Loading the per-lead detail…") + "</div></div>";
+      }
+      const X = Math.max(1, Math.round(S.cap || 10));
+      const byD = new Map();
+      scopeLeads().forEach(l => {
+        if (!byD.has(l.d)) byD.set(l.d, []);
+        byD.get(l.d).push(l);
+      });
+      const hit = [];
+      let afterAll = 0, afterBooked = 0, afterLost = 0;
+      byD.forEach((ls, d) => {
+        // THE FUTURE IS NOT EVIDENCE (the page's own rule, and the portal's): a date still
+        // ahead of us is still filling — its open leads are pipeline, not lost demand
+        if (d > TODAY) return;
+        // creation-time order, tie-broken by lead # so bulk imports with one timestamp
+        // cannot flip which side of the cut a lead lands on between rebuilds
+        const keyOf = l => String(l.cd) + "|" + String(l["Job No"] || "");
+        ls.sort((a, b) => keyOf(a).localeCompare(keyOf(b)));
+        const bookedKeys = ls.filter(l => l.Status === "Confirmed" && l.cd).map(keyOf);
+        if (bookedKeys.length < X) return;
+        const cut = bookedKeys[X - 1];
+        const after = ls.filter(l => l.cd && keyOf(l) > cut);
+        const ab = after.filter(l => l.Status === "Confirmed").length;
+        const al = after.filter(l => l.Status !== "Confirmed" && l.Status !== "Bad Lead").length;
+        afterAll += after.length; afterBooked += ab; afterLost += al;
+        hit.push({ d, booked: bookedKeys.length, after: after.length, ab, al });
+      });
+      hit.sort((a, b) => b.after - a.after);
+      const k = (b, lab, sub, cls) => '<div class="dm-k ' + (cls || "") + '"><b>' + esc(b)
+        + "</b><span>" + esc(lab) + "</span><small>" + esc(sub) + "</small></div>";
+      return '<div class="dm-card"><div class="dm-h"><h3>Demand after a day was already full</h3>'
+        + '<span class="tag">capacity</span>'
+        + '<span class="rt">a full day = <input type="number" class="dm-cap" id="dmCap" min="1" '
+        + 'step="1" value="' + X + '"> booked jobs</span></div>'
+        + '<p class="dm-note">For every move date that reached <b>' + X + " booked jobs</b>, this "
+        + "counts the leads that arrived <b>after</b> that point — demand we could only have "
+        + "taken with more capacity. Dates still ahead of us are excluded: their leads are "
+        + "pipeline, not lost demand. The moment a day filled is approximated by when its "
+        + ordinal(X) + " eventually-booked lead was created (the warehouse has no "
+        + "timestamp for the confirmation itself; `Booked Date` is not usable). Change the "
+        + "number to your real daily capacity — it recalculates instantly and respects the "
+        + "filters above.</p>"
+        + '<div class="dm-kpis">'
+        + k(fmtN(hit.length), "Days that reached " + X + " bookings", "in this window")
+        + k(fmtN(afterAll), "Leads after the day was full", "arrived once " + X + " jobs already stood", afterAll ? "blue" : "")
+        + k(fmtN(afterBooked), "…of which we STILL booked", "the day went past " + X + " — capacity was found")
+        + k(fmtN(afterLost), "…qualified but never booked", "the demand a bigger fleet could have taken", afterLost ? "blue" : "")
+        + "</div>"
+        + (hit.length
+          ? '<div class="dm-scroll"><table class="dm-t"><thead><tr><th>Move date</th>'
+            + "<th>Booked that day</th><th>Leads after #" + X + "</th><th>…booked anyway</th>"
+            + "<th>…qualified, never booked</th></tr></thead><tbody>"
+            + hit.slice(0, 15).map(x => '<tr data-jump="' + esc(x.d) + '"><td class="nm">'
+                + esc(shortDate(x.d)) + "</td><td>" + fmtN(x.booked) + "</td><td>"
+                + fmtN(x.after) + "</td><td>" + fmtN(x.ab) + "</td><td>" + fmtN(x.al)
+                + "</td></tr>").join("")
+            + "</tbody></table></div>"
+          : '<div class="dm-empty">No day in this window reached ' + X + " bookings.</div>")
+        + "</div>";
     }
 
     /* ---- weekday x month ---------------------------------------------------------------- */
@@ -726,6 +974,19 @@ registerPage({
       main.querySelectorAll("[data-m]").forEach(b => {
         b.onclick = () => { S.metric = b.dataset.m; paint(); };
       });
+      main.querySelectorAll("[data-lf]").forEach(el => {
+        el.onchange = () => { S[el.dataset.lf] = el.value; paint(); };
+      });
+      const cap = main.querySelector("#dmCap");
+      if (cap) cap.onchange = () => {
+        S.cap = Math.max(1, Math.round(+cap.value) || S.cap);   // a cleared box keeps the prior X
+        try { localStorage.setItem("ztzDemandCap", String(S.cap)); } catch (e) {}
+        paint();
+        // the repaint destroyed the input mid-interaction; hand focus back so the spinner
+        // arrows keep working stroke after stroke
+        const c2 = main.querySelector("#dmCap");
+        if (c2) c2.focus();
+      };
       const close = main.querySelector("[data-close]");
       if (close) close.onclick = () => { S.day = null; paint(); };
       main.querySelectorAll("[data-jump]").forEach(tr => {

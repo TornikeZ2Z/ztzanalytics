@@ -18,7 +18,8 @@
       cols: ["Row Id", "Company", "Event Date", "Customer", "Request No", "Platforms",
              "Five Star Reviews", "Counted", "Email", "Phone",
              "Move Type", "Size of Move", "Lead Source",
-             "Pickup State", "Delivery State", "Sales Person", "Lead Matched"],
+             "Pickup State", "Delivery State", "Sales Person",
+             "Satisfaction Score", "Bill Total", "Quote High", "Lead Matched"],
     };
   }
 })();
@@ -76,6 +77,8 @@
       + ".rf-pill{display:inline-block;border-radius:999px;padding:3px 10px;font-size:11.5px;"
       + "font-weight:700;background:color-mix(in srgb,var(--pos) 12%,transparent);color:var(--pos);white-space:nowrap}"
       + ".rf-pill.q{background:color-mix(in srgb,var(--warn) 12%,transparent);color:var(--warn)}"
+      + ".rf-pill.bad{background:color-mix(in srgb,var(--neg,#dc2626) 12%,transparent);color:var(--neg,#dc2626)}"
+      + ".rf-why{font-size:11.5px;color:var(--muted);margin-top:3px;max-width:230px;white-space:normal;line-height:1.4}"
       + ".rf-plat{font-size:12.5px;color:var(--muted);white-space:nowrap}"
       + ".rf-wrap{overflow:auto;max-height:70vh;border:1px solid var(--line);border-radius:12px}"
       + ".rf-note{font-size:12.5px;color:var(--faint);margin-top:10px;line-height:1.55}";
@@ -97,7 +100,29 @@ registerPage({
       });
     };
     var S = window.__RF || (window.__RF = { q: "", co: "", plat: "", contact: false,
-                                            src: "", mt: "", size: "", sp: "" });
+                                            src: "", mt: "", size: "", sp: "", verdict: "" });
+    /* THE GATES (Tornike 2026-08-19, confirmed 2026-08-20): a five-star review alone is not
+     * enough to ask for a referral. GOOD TO ASK = the customer rated the move 10/10 on the
+     * closing AND the bill stayed within 25% (and $300) of the quote's top end. Anything
+     * rated below 10, or a bill that ran away, is RULED OUT — shown and flagged, never
+     * hidden, so the list stays checkable. A missing score is its own bucket: absence of
+     * evidence, not a verdict. */
+    function gate(r) {
+      var sat = r["Satisfaction Score"] == null || r["Satisfaction Score"] === ""
+        ? null : +r["Satisfaction Score"];
+      var bill = +r["Bill Total"] || null;
+      // a $0 quote is NO quote (10,628 of the moveboard's quoted rows carry Max Quote=0);
+      // treating it as a real ceiling would rule out every bill on those jobs
+      var qh = (+r["Quote High"] > 0) ? +r["Quote High"] : null;
+      var over = bill != null && qh != null && bill > qh * 1.25 && (bill - qh) >= 300;
+      var why = [];
+      if (sat != null && sat < 10) why.push("rated the move " + sat + "/10");
+      if (over) why.push("bill $" + Math.round(bill).toLocaleString() + " ran "
+        + Math.round((bill / qh - 1) * 100) + "% over the $" + Math.round(qh).toLocaleString() + " quote");
+      if ((sat != null && sat < 10) || over) return { v: "bad", why: why };
+      if (sat == null) return { v: "nos", why: ["no satisfaction score on the closing"] };
+      return { v: "ok", why: [] };
+    }
     injectStyle();
     host.innerHTML = '<div class="rf-card">Loading five-star reviewers…</div>';
 
@@ -107,6 +132,7 @@ registerPage({
         r["Lead Matched"] = +r["Lead Matched"] || 0;
         r["Counted"] = +r["Counted"] || 0;
         r.Day = String(r["Event Date"] || "").slice(0, 10);
+        r._g = gate(r);
         return r;
       });
       if (!rows.length) {
@@ -143,6 +169,7 @@ registerPage({
           if (S.mt && r["Move Type"] !== S.mt) return false;
           if (S.size && r["Size of Move"] !== S.size) return false;
           if (S.sp && r["Sales Person"] !== S.sp) return false;
+          if (S.verdict && r._g.v !== S.verdict) return false;
           if (S.contact && !r.Email && !r.Phone) return false;
           if (S.q) {
             var q = S.q.toLowerCase();
@@ -171,6 +198,9 @@ registerPage({
         var withPhone = v.filter(function (r) { return r.Phone; }).length;
         var unmatched = v.filter(function (r) { return !r["Lead Matched"]; }).length;
         var fiveTotal = v.reduce(function (a, r) { return a + r["Five Star Reviews"]; }, 0);
+        var gOk = v.filter(function (r) { return r._g.v === "ok"; }).length;
+        var gBad = v.filter(function (r) { return r._g.v === "bad"; }).length;
+        var gNos = v.length - gOk - gBad;
         var pctOf = function (n) { return v.length ? Math.round(n / v.length * 100) + "%" : "—"; };
 
         var html = '<div class="rf">'
@@ -181,11 +211,14 @@ registerPage({
           + "lead the move was booked on</span></p></div>"
           + '<div class="rf-kpis">'
           + kpi(v.length.toLocaleString(), "Five-star customers", fiveTotal.toLocaleString() + " five-star reviews between them", "")
+          + kpi(gOk.toLocaleString(), "Good to ask",
+                "rated the move 10/10 and the bill stayed near the quote", "pos")
+          + kpi(gBad.toLocaleString(), "Ruled out — არ ვარგა",
+                "rated below 10, or the bill ran 25%+ over the quote", gBad ? "warn" : "pos")
+          + kpi(gNos.toLocaleString(), "No score on the closing",
+                "nothing to judge by — neither ruled in nor out", "")
           + kpi(withMail.toLocaleString(), "With an email", pctOf(withMail) + " of the list", "pos")
           + kpi(withPhone.toLocaleString(), "With a phone", pctOf(withPhone) + " of the list", "pos")
-          + kpi(String(unmatched), "No lead matched",
-                unmatched ? "name and request number only — no contact on file" : "every reviewer matched a lead",
-                unmatched ? "warn" : "pos")
           + "</div>"
           + '<div class="rf-bar">'
           + sel("rfCo", "Company", S.co, allCos)
@@ -194,6 +227,12 @@ registerPage({
           + sel("rfMt", "Move type", S.mt, allMt)
           + sel("rfSize", "Size", S.size, allSize)
           + sel("rfSp", "Sales person", S.sp, allSp)
+          + '<label class="rf-fld"><span>Verdict</span><select id="rfVerdict">'
+          + '<option value="">All</option>'
+          + '<option value="ok"' + (S.verdict === "ok" ? " selected" : "") + ">Good to ask</option>"
+          + '<option value="bad"' + (S.verdict === "bad" ? " selected" : "") + ">Ruled out</option>"
+          + '<option value="nos"' + (S.verdict === "nos" ? " selected" : "") + ">No score</option>"
+          + "</select></label>"
           + '<div class="rf-tog' + (S.contact ? " on" : "") + '" id="rfContact"><i></i>Only with contact details</div>'
           + '<label class="rf-fld"><span>Find</span><input id="rfQ" placeholder="Name, email, phone or request…" '
           + 'value="' + esc(S.q) + '"></label>'
@@ -217,13 +256,21 @@ registerPage({
         }
         var CAP = 1000;
         html += '<div class="rf-wrap"><table class="rf-tbl"><thead><tr>'
-          + "<th>Review</th><th>Customer</th><th>Email</th><th>Phone</th><th>Platform</th>"
-          + "<th>Reviews</th><th>Company</th><th>Request #</th><th>Move type</th><th>Size</th>"
+          + "<th>Verdict</th><th>Review</th><th>Customer</th><th>Email</th><th>Phone</th><th>Platform</th>"
+          + "<th>Reviews</th><th>Score</th><th>Company</th><th>Request #</th><th>Move type</th><th>Size</th>"
           + "<th>Route</th><th>Source</th><th>Sales person</th>"
           + "</tr></thead><tbody>"
           + v.slice(0, CAP).map(function (r) {
               var route = [r["Pickup State"], r["Delivery State"]].filter(Boolean).join(" → ");
-              return '<tr><td class="rf-nowrap">' + esc(dayLab(r.Day)) + "</td>"
+              var g = r._g;
+              var vcell = g.v === "ok"
+                ? '<span class="rf-pill">good to ask</span>'
+                : g.v === "bad"
+                  ? '<span class="rf-pill bad" title="' + esc(g.why.join("; ")) + '">არ ვარგა</span>'
+                    + '<div class="rf-why">' + esc(g.why.join(" · ")) + "</div>"
+                  : '<span class="rf-pill q">no score</span>';
+              return '<tr><td>' + vcell + "</td>"
+                + '<td class="rf-nowrap">' + esc(dayLab(r.Day)) + "</td>"
                 + '<td class="rf-name">' + esc(r.Customer || "—") + "</td>"
                 + '<td class="rf-mail">' + (r.Email
                     ? '<a href="mailto:' + esc(r.Email) + '">' + esc(r.Email) + "</a>"
@@ -234,6 +281,8 @@ registerPage({
                     ? '<span class="rf-pill">★ ' + r["Five Star Reviews"] + "</span>"
                     : '<span class="rf-pill q" title="the platform later filtered this review; the customer still wrote it">★ '
                       + r["Five Star Reviews"] + " · uncounted</span>") + "</td>"
+                + "<td>" + (r["Satisfaction Score"] == null || r["Satisfaction Score"] === ""
+                    ? '<span class="rf-dim">—</span>' : esc(String(r["Satisfaction Score"])) + "/10") + "</td>"
                 + "<td>" + esc(r.Company || "—") + "</td>"
                 + "<td>" + esc(r["Request No"] || "—") + "</td>"
                 + '<td class="rf-nowrap">' + esc(r["Move Type"] || "—") + "</td>"
@@ -271,7 +320,7 @@ registerPage({
 
       function wire(v) {
         [["rfCo", "co"], ["rfPlat", "plat"], ["rfSrc", "src"], ["rfMt", "mt"],
-         ["rfSize", "size"], ["rfSp", "sp"]].forEach(function (pair) {
+         ["rfSize", "size"], ["rfSp", "sp"], ["rfVerdict", "verdict"]].forEach(function (pair) {
           var el = host.querySelector("#" + pair[0]);
           if (el) el.onchange = function () { S[pair[1]] = this.value; paint(); };
         });
@@ -305,7 +354,8 @@ registerPage({
           var cols = ["Review Date", "Customer", "Email", "Phone", "Platforms",
                       "Five Star Reviews", "Counted", "Company", "Request No",
                       "Move Type", "Size of Move", "Lead Source",
-                      "Pickup State", "Delivery State", "Sales Person"];
+                      "Pickup State", "Delivery State", "Sales Person",
+                      "Satisfaction Score", "Bill Total", "Quote High", "Verdict"];
           var cell = function (x) {
             var s = String(x == null ? "" : x);
             // customer-typed values opening as live Excel formulas is a real attack
@@ -318,7 +368,11 @@ registerPage({
                     r["Five Star Reviews"], r.Counted ? "counted" : "uncounted",
                     r.Company, r["Request No"], r["Move Type"], r["Size of Move"],
                     r["Lead Source"], r["Pickup State"],
-                    r["Delivery State"], r["Sales Person"]].map(cell).join(",");
+                    r["Delivery State"], r["Sales Person"],
+                    r["Satisfaction Score"], r["Bill Total"], r["Quote High"],
+                    r._g.v === "ok" ? "good to ask"
+                      : r._g.v === "bad" ? "ruled out: " + r._g.why.join("; ")
+                      : "no score"].map(cell).join(",");
           }));
           // the BOM is for Excel: without it a Georgian or accented name opens as mojibake
           var blob = new Blob(["﻿" + lines.join("\r\n")], { type: "text/csv;charset=utf-8" });
