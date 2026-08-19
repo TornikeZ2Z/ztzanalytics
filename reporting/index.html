@@ -164,7 +164,7 @@ const GROUP_OVERRIDE = {
   "data-quality": "admin", "refresh-log": "admin", "general-settings": "admin", "admin-users": "admin",
   "general-tables": "admin",
   // Marketing — source attribution belongs with the marketing views
-  "source-trace": "marketing", "multi-source-leads": "marketing", "meta-referrals": "marketing",
+  "source-trace": "marketing", "meta-referrals": "marketing",
   "referral-candidates": "marketing",
   // Company Overview
   "monthly-report": "company", "analysis-by-category": "company",
@@ -201,7 +201,7 @@ const NAV_ORDER = {
   "rev-production": 1, "review-performance": 2, "response-analysis": 3, "reviews-reminders": 4, "review-settings": 5,
   "sup-claims": 1, "sup-refunds": 2, "sup-phone": 3,
   "data-quality": 2, "refresh-log": 1, "general-settings": 3, "general-tables": 4, "admin-users": 5,
-  "source-trace": 8, "multi-source-leads": 9, "meta-referrals": 10, "referral-candidates": 11,
+  "source-trace": 8, "meta-referrals": 10, "referral-candidates": 11,
 };
 
 /* Inline SVG icon set (Feather-style, stroke-based) — no emojis anywhere. */
@@ -267,7 +267,7 @@ const PAGE_ICONS = {
   "log-foreman": "tool", "log-packing": "box",
   "fin-revenue": "trend", "fin-rr": "trend", "rev-production": "star",
   "sup-claims": "shield", "sup-refunds": "clipboard", "sup-phone": "phone",
-  "general-settings": "sliders", "general-tables": "grid", "data-quality": "clipboard", "refresh-log": "activity", "source-trace": "activity", "multi-source-leads": "git-merge", "meta-referrals": "upload-cloud", "referral-candidates": "gift", "calendar-coverage": "calendar", "request-consistency": "alert-triangle", "review-performance": "star", "reviews-reminders": "megaphone", "response-analysis": "activity", "review-settings": "tool",
+  "general-settings": "sliders", "general-tables": "grid", "data-quality": "clipboard", "refresh-log": "activity", "source-trace": "activity", "meta-referrals": "upload-cloud", "referral-candidates": "gift", "calendar-coverage": "calendar", "request-consistency": "alert-triangle", "review-performance": "star", "reviews-reminders": "megaphone", "response-analysis": "activity", "review-settings": "tool",
 };
 
 /* Pages not yet built — shown greyed with a SOON tag so the full scope is visible. */
@@ -299,6 +299,11 @@ const RETIRED = new Set([
   "storage", "packing-analysis", "packing-per-100cf", "forman", "forman-analysis", "labor-analysis",
   // support / reviews
   "claims", "customer-experience", "reviews",
+  // 2026-08-19 (Tornike): Meta Referrals hidden outright — the form targeted existing
+  // customers asking WHOM they'd refer, so matching the filler back to Moveboard chased
+  // the wrong person ("it was meaningless what we did"). Data + ladder stay; page hidden.
+  // Multi-Source Leads folded INTO Source Trace as its third tab the same day.
+  "meta-referrals", "multi-source-leads",
   // old per-department Monthly Review pages (replaced by themed dashboards)
   "financial-team", "sales-team", "marketing-team", "logistics-team", "reviews-team", "support-team",
   // themed dashboards = redundant lite slices of the Monthly Report (which is manually shared with
@@ -310,6 +315,9 @@ const RETIRED = new Set([
   "sup-claims", "sup-refunds", "sup-phone",
 ]);
 const REDIRECTS = {
+  // 2026-08-19: multi-source browsing lives inside Source Trace now; the hidden Meta
+  // Referrals page forwards to the trace tool that still explains the Meta rung
+  "multi-source-leads": "source-trace", "meta-referrals": "source-trace",
   // pre-existing
   "jobs-vs-hours": "monthly-report",
   "yoy-diff": "analysis-by-category",
@@ -646,7 +654,6 @@ const PAGE_DATASETS = {
   "source-trace": [],
   "meta-referrals": [],
   "referral-candidates": [],   // loads fct_referral_candidates itself; filters live on the page
-  "multi-source-leads": [],
   "calendar-coverage": [],
   "request-consistency": [],
   "review-performance": [],
@@ -959,7 +966,6 @@ const NAV_TITLES = {
   "data-quality": "Data Quality",
   "source-trace": "Source Trace", "meta-referrals": "Meta Referrals",
   "referral-candidates": "List of Possible Referrals",
-  "multi-source-leads": "Multi-Source Leads",
   "calendar-coverage": "Calendar Coverage",
   "request-consistency": "Request # Consistency",
   "admin-users": "Users & Access",
@@ -1016,7 +1022,6 @@ const SEARCH_ALIASES = {
   "source-trace": "source trace lineage attribution callrail google local phone match booked from moveboard corrected final source faithful pbix diagnostic audit",
   "meta-referrals": "meta referral upload facebook instagram lead form fills csv export dedupe source",
   "referral-candidates": "referral candidates five star reviews customers email phone contact list marketing call sheet",
-  "multi-source-leads": "multi source multiple sources overlap conflict callrail google local angi thumbtack tracker match contested attribution leads",
   "calendar-coverage": "calendar coverage connection linked unconnected google calendar event closing job request match bridge scheduling gap missing",
   "request-consistency": "request consistency miskey mis-key wrong request number customer mismatch moveboard calendar data quality typo audit",
   "admin-users": "users access acl permissions grants admin administrator",
@@ -1517,7 +1522,7 @@ const aclIconFor = id => (MERGED.find(m => m.id === id) || {}).icon ||
 const ACL_DEPTS = [
   { id: "company",   label: "Company Overview", icon: "spark",     reports: ["monthly-report", "analysis-by-category"] },
   { id: "sales",     label: "Sales",            icon: "funnel",    reports: ["sales-command", "demand-analysis", "conversations"] },
-  { id: "marketing", label: "Marketing",        icon: "megaphone", reports: ["source-trace", "multi-source-leads", "meta-referrals"] },
+  { id: "marketing", label: "Marketing",        icon: "megaphone", reports: ["source-trace", "referral-candidates"] },
   { id: "logistics", label: "Logistics",        icon: "tool",      reports: ["money-flow", "ld-planning", "foreman-closings", "packing-control", "storage-control", "foreman-assessment", "fuel-control", "straight-vs-local", "area-plan"] },
   // MUST mirror DEPT_REPORTS["hr"] in bridge/app.py. Employees answering the questionnaire
   // need NO grant at all — this tile is for HR: managing it and reading the results.
@@ -1555,9 +1560,10 @@ registerPage({
     const EXTRA_GRANTS = [
       { id: "foreman-assessment-rubric", label: "Assessment questionnaire",
         note: "Set the questions logistics scores foremen on, and how the 40 points are split." },
-      { id: "meta-referrals", label: "Meta referral uploads",
-        note: "Upload the Meta referral lead exports and see how they match Moveboard leads — without the rest of Marketing." },
-    ].filter(x => avail.has(x.id) || x.id === "meta-referrals");
+      // the "meta-referrals" lone-grant tile left with its page (RETIRED 2026-08-19): the
+      // grant bought only the upload UI, and a grantee would now land on Source Trace
+      // holding no tables for it. Existing grants keep working at the API; none are offered.
+    ].filter(x => avail.has(x.id));
     host.innerHTML = `
       <div class="rs-page-head"><h1>Users & Access</h1>
         <p>Deny-by-default access, granted by department. Every grant is enforced by the data bridge itself — reports a user can't see are also reports they can't query.
@@ -1731,10 +1737,9 @@ registerPage({
 <script src="pages/refresh-log.js?v=23"></script>
 <script src="pages/sales-team.js?v=47"></script>
 <script src="pages/conversations.js?v=8"></script>
-<script src="pages/source-trace.js?v=19"></script>
+<script src="pages/source-trace.js?v=20"></script>
 <script src="pages/meta-referrals.js?v=2"></script>
-<script src="pages/referral-candidates.js?v=2"></script>
-<script src="pages/multi-source-leads.js?v=7"></script>
+<script src="pages/referral-candidates.js?v=3"></script>
 <script src="pages/calendar-coverage.js?v=8"></script>
 <script src="pages/request-consistency.js?v=4"></script>
 <script src="pages/branch-owner.js?v=6"></script>

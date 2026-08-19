@@ -17,7 +17,8 @@
       table: "fct_referral_candidates",
       cols: ["Row Id", "Company", "Event Date", "Customer", "Request No", "Platforms",
              "Five Star Reviews", "Counted", "Email", "Phone",
-             "Move Type", "Pickup State", "Delivery State", "Sales Person", "Lead Matched"],
+             "Move Type", "Size of Move", "Lead Source",
+             "Pickup State", "Delivery State", "Sales Person", "Lead Matched"],
     };
   }
 })();
@@ -57,13 +58,17 @@
       + ".rf-h{font-size:16px;font-weight:800;color:var(--ink);margin-bottom:4px}"
       + ".rf-h .n{font-weight:600;color:var(--faint);font-size:14px;margin-left:6px}"
       + ".rf-sub{font-size:13px;color:var(--muted);line-height:1.55;margin-bottom:14px;max-width:110ch}"
+      // the zebra used 14% of --line, a hairline tint that reads as NO styling at all on a
+      // white panel (his screenshot). Stripe on the ink instead, band the header, and give
+      // rows real separation.
       + ".rf-tbl{width:100%;border-collapse:collapse;font-size:13.5px}"
-      + ".rf-tbl th{padding:9px 11px;font-size:11px;font-weight:800;text-transform:uppercase;"
-      + "letter-spacing:.05em;color:var(--faint);border-bottom:2px solid var(--line);text-align:left;"
-      + "white-space:nowrap;position:sticky;top:0;background:var(--panel);z-index:1}"
-      + ".rf-tbl td{padding:9px 11px;border-top:1px solid var(--line);vertical-align:middle}"
-      + ".rf-tbl tbody tr:nth-child(even){background:color-mix(in srgb,var(--line) 14%,transparent)}"
-      + ".rf-tbl tbody tr:hover{background:color-mix(in srgb,var(--brand-d,var(--brand)) 7%,transparent)}"
+      + ".rf-tbl th{padding:10px 12px;font-size:11px;font-weight:800;text-transform:uppercase;"
+      + "letter-spacing:.05em;color:var(--muted);border-bottom:2px solid var(--line-2);text-align:left;"
+      + "white-space:nowrap;position:sticky;top:0;background:var(--panel-2);z-index:1}"
+      + ".rf-tbl td{padding:10px 12px;border-bottom:1px solid var(--line);vertical-align:middle}"
+      + ".rf-tbl tbody tr:nth-child(even) td{background:color-mix(in srgb,var(--ink) 3.5%,transparent)}"
+      + ".rf-tbl tbody tr:hover td{background:color-mix(in srgb,var(--brand) 12%,transparent)}"
+      + ".rf-nowrap{white-space:nowrap}"
       + ".rf-name{font-weight:750}"
       + ".rf-mail a{color:var(--blue);text-decoration:none;font-weight:600}"
       + ".rf-mail a:hover{text-decoration:underline}"
@@ -91,7 +96,8 @@ registerPage({
         return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
       });
     };
-    var S = window.__RF || (window.__RF = { q: "", co: "", plat: "", contact: false });
+    var S = window.__RF || (window.__RF = { q: "", co: "", plat: "", contact: false,
+                                            src: "", mt: "", size: "", sp: "" });
     injectStyle();
     host.innerHTML = '<div class="rf-card">Loading five-star reviewers…</div>';
 
@@ -119,17 +125,24 @@ registerPage({
           return p.replace(" (photo)", "");
         }).filter(Boolean);
       };
-      var allPlats = {};
-      var allCos = {};
+      var allPlats = {}, allCos = {}, allSrc = {}, allMt = {}, allSize = {}, allSp = {};
       rows.forEach(function (r) {
         platsOf(r).forEach(function (p) { allPlats[p] = 1; });
         if (r.Company) allCos[r.Company] = 1;
+        if (r["Lead Source"]) allSrc[r["Lead Source"]] = 1;
+        if (r["Move Type"]) allMt[r["Move Type"]] = 1;
+        if (r["Size of Move"]) allSize[r["Size of Move"]] = 1;
+        if (r["Sales Person"]) allSp[r["Sales Person"]] = 1;
       });
 
       function view() {
         return rows.filter(function (r) {
           if (S.co && r.Company !== S.co) return false;
           if (S.plat && platsOf(r).indexOf(S.plat) < 0) return false;
+          if (S.src && r["Lead Source"] !== S.src) return false;
+          if (S.mt && r["Move Type"] !== S.mt) return false;
+          if (S.size && r["Size of Move"] !== S.size) return false;
+          if (S.sp && r["Sales Person"] !== S.sp) return false;
           if (S.contact && !r.Email && !r.Phone) return false;
           if (S.q) {
             var q = S.q.toLowerCase();
@@ -140,6 +153,15 @@ registerPage({
           }
           return true;
         }).sort(function (a, b) { return String(b.Day).localeCompare(String(a.Day)); });
+      }
+
+      function sel(id, label, current, values) {
+        return '<label class="rf-fld"><span>' + label + '</span><select id="' + id + '">'
+          + '<option value="">All</option>'
+          + Object.keys(values).sort().map(function (v) {
+              return '<option value="' + esc(v) + '"' + (current === v ? " selected" : "")
+                + ">" + esc(v) + "</option>";
+            }).join("") + "</select></label>";
       }
 
       function paint() {
@@ -166,14 +188,12 @@ registerPage({
                 unmatched ? "warn" : "pos")
           + "</div>"
           + '<div class="rf-bar">'
-          + '<label class="rf-fld"><span>Company</span><select id="rfCo"><option value="">Both books</option>'
-          + Object.keys(allCos).sort().map(function (c) {
-              return '<option value="' + esc(c) + '"' + (S.co === c ? " selected" : "") + ">" + esc(c) + "</option>";
-            }).join("") + "</select></label>"
-          + '<label class="rf-fld"><span>Platform</span><select id="rfPlat"><option value="">All platforms</option>'
-          + Object.keys(allPlats).sort().map(function (p) {
-              return '<option value="' + esc(p) + '"' + (S.plat === p ? " selected" : "") + ">" + esc(p) + "</option>";
-            }).join("") + "</select></label>"
+          + sel("rfCo", "Company", S.co, allCos)
+          + sel("rfPlat", "Platform", S.plat, allPlats)
+          + sel("rfSrc", "Source", S.src, allSrc)
+          + sel("rfMt", "Move type", S.mt, allMt)
+          + sel("rfSize", "Size", S.size, allSize)
+          + sel("rfSp", "Sales person", S.sp, allSp)
           + '<div class="rf-tog' + (S.contact ? " on" : "") + '" id="rfContact"><i></i>Only with contact details</div>'
           + '<label class="rf-fld"><span>Find</span><input id="rfQ" placeholder="Name, email, phone or request…" '
           + 'value="' + esc(S.q) + '"></label>'
@@ -198,17 +218,17 @@ registerPage({
         var CAP = 1000;
         html += '<div class="rf-wrap"><table class="rf-tbl"><thead><tr>'
           + "<th>Review</th><th>Customer</th><th>Email</th><th>Phone</th><th>Platform</th>"
-          + "<th>Reviews</th><th>Company</th><th>Request #</th><th>Move</th><th>Sales person</th>"
+          + "<th>Reviews</th><th>Company</th><th>Request #</th><th>Move type</th><th>Size</th>"
+          + "<th>Route</th><th>Source</th><th>Sales person</th>"
           + "</tr></thead><tbody>"
           + v.slice(0, CAP).map(function (r) {
-              var move = [r["Move Type"], [r["Pickup State"], r["Delivery State"]]
-                .filter(Boolean).join(" → ")].filter(Boolean).join(" · ");
-              return "<tr><td>" + esc(dayLab(r.Day)) + "</td>"
+              var route = [r["Pickup State"], r["Delivery State"]].filter(Boolean).join(" → ");
+              return '<tr><td class="rf-nowrap">' + esc(dayLab(r.Day)) + "</td>"
                 + '<td class="rf-name">' + esc(r.Customer || "—") + "</td>"
                 + '<td class="rf-mail">' + (r.Email
                     ? '<a href="mailto:' + esc(r.Email) + '">' + esc(r.Email) + "</a>"
                     : '<span class="rf-dim">—</span>') + "</td>"
-                + "<td>" + (r.Phone ? esc(r.Phone) : '<span class="rf-dim">—</span>') + "</td>"
+                + '<td class="rf-nowrap">' + (r.Phone ? esc(r.Phone) : '<span class="rf-dim">—</span>') + "</td>"
                 + '<td class="rf-plat">' + esc(r.Platforms || "—") + "</td>"
                 + "<td>" + (r["Counted"]
                     ? '<span class="rf-pill">★ ' + r["Five Star Reviews"] + "</span>"
@@ -216,7 +236,10 @@ registerPage({
                       + r["Five Star Reviews"] + " · uncounted</span>") + "</td>"
                 + "<td>" + esc(r.Company || "—") + "</td>"
                 + "<td>" + esc(r["Request No"] || "—") + "</td>"
-                + '<td class="rf-plat">' + esc(move || "—") + "</td>"
+                + '<td class="rf-nowrap">' + esc(r["Move Type"] || "—") + "</td>"
+                + "<td>" + esc(r["Size of Move"] || "—") + "</td>"
+                + '<td class="rf-nowrap">' + esc(route || "—") + "</td>"
+                + "<td>" + esc(r["Lead Source"] || "—") + "</td>"
                 + "<td>" + esc(r["Sales Person"] || "—") + "</td></tr>";
             }).join("")
           + "</tbody></table></div>";
@@ -247,10 +270,11 @@ registerPage({
       }
 
       function wire(v) {
-        var co = host.querySelector("#rfCo");
-        if (co) co.onchange = function () { S.co = this.value; paint(); };
-        var pl = host.querySelector("#rfPlat");
-        if (pl) pl.onchange = function () { S.plat = this.value; paint(); };
+        [["rfCo", "co"], ["rfPlat", "plat"], ["rfSrc", "src"], ["rfMt", "mt"],
+         ["rfSize", "size"], ["rfSp", "sp"]].forEach(function (pair) {
+          var el = host.querySelector("#" + pair[0]);
+          if (el) el.onchange = function () { S[pair[1]] = this.value; paint(); };
+        });
         var tg = host.querySelector("#rfContact");
         if (tg) tg.onclick = function () { S.contact = !S.contact; paint(); };
         var q = host.querySelector("#rfQ");
@@ -280,7 +304,8 @@ registerPage({
         if (bc) bc.onclick = function () {
           var cols = ["Review Date", "Customer", "Email", "Phone", "Platforms",
                       "Five Star Reviews", "Counted", "Company", "Request No",
-                      "Move Type", "Pickup State", "Delivery State", "Sales Person"];
+                      "Move Type", "Size of Move", "Lead Source",
+                      "Pickup State", "Delivery State", "Sales Person"];
           var cell = function (x) {
             var s = String(x == null ? "" : x);
             // customer-typed values opening as live Excel formulas is a real attack
@@ -291,7 +316,8 @@ registerPage({
           var lines = [cols.map(cell).join(",")].concat((v || []).map(function (r) {
             return [r.Day, r.Customer, r.Email, r.Phone, r.Platforms,
                     r["Five Star Reviews"], r.Counted ? "counted" : "uncounted",
-                    r.Company, r["Request No"], r["Move Type"], r["Pickup State"],
+                    r.Company, r["Request No"], r["Move Type"], r["Size of Move"],
+                    r["Lead Source"], r["Pickup State"],
                     r["Delivery State"], r["Sales Person"]].map(cell).join(",");
           }));
           // the BOM is for Excel: without it a Georgian or accented name opens as mojibake

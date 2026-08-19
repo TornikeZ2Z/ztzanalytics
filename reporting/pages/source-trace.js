@@ -47,7 +47,8 @@
 
 /* persists the admin's lookup across incidental re-renders (a global filter change still
    re-runs render() even though this page ignores those filters) */
-const ST_STATE = { q: "", sel: null, mode: "closing", rung: null, page: 0 };
+const ST_STATE = { q: "", sel: null, mode: "closing", rung: null, page: 0,
+                   mq: "", combo: null, mpage: 0 };   // the Multi-source tab's own state
 
 registerPage({
   id: "source-trace",
@@ -241,7 +242,15 @@ registerPage({
         .strc-step.chg .strc-sval,.strc-step.fin .strc-sval{color:var(--brand-d)}
         .strc-step.raw .strc-sval{font-size:17px}
         .strc-snote{font-size:12px;color:var(--muted);line-height:1.45}
-        .strc-snote b{color:var(--ink)}`;
+        .strc-snote b{color:var(--ink)}
+        /* Multi-source tab: tracker chips (folded in from the retired page; fresh class
+           names because lint_page_css forbids sharing a class across pages) */
+        .strc-mchip{display:inline-block;font-size:11px;font-weight:800;padding:2px 8px;
+          border-radius:999px;margin:1px 3px 1px 0;white-space:nowrap}
+        .strc-mchip.CallRail{background:rgba(132,204,22,.16);color:var(--brand-d)}
+        .strc-mchip.GoogleLocal{background:rgba(91,140,255,.16);color:#3b6fe0}
+        .strc-mchip.Angi{background:rgba(245,158,11,.16);color:#b45309}
+        .strc-mchip.Thumbtack{background:rgba(168,85,247,.16);color:#7c3aed}`;
       document.head.appendChild(st);
     }
 
@@ -260,6 +269,7 @@ registerPage({
           <div class="strc-modes" id="stModes">
             <button data-mode="closing" class="on">Closing jobs</button>
             <button data-mode="moveboard">Moveboard leads</button>
+            <button data-mode="multi">Multi-source</button>
           </div>
           <input id="stSearch" type="text" autocomplete="off" spellcheck="false"
             placeholder="Search by Request #, Job Code, or customer name…">
@@ -409,15 +419,31 @@ registerPage({
                      show(r["Meta Match Phone"] || r["Meta Match Email"] || r["Angi Match Key"]
                           || r["Thumbtack Match Key"] || r["CallRail Number Name"] || "")],
       },
+      // the Multi-source tab reads the SAME moveboard rows; its own list/search rendering
+      // is in paintMulti() below — runSearch/paintChips hand off before touching these
+      multi: {
+        dataset: "source_trace_moveboard", unit: "moveboard lead",
+        placeholder: "Filter multi-source leads — moveboard #, customer, or phone…",
+        key: r => r["Request Joinkey"] || (String(r["Job No"]) + "|" + (r["Company"] || "")),
+        render: renderMoveboard,
+        win: winMoveboard,
+        date: r => String(r["Create Date"] || r["Move Date"] || "").slice(0, 10),
+        match: () => false, exact: () => false, hit: () => "", cells: () => [],
+      },
     };
 
     async function loadMode(mode) {
       const m = MODES[mode];
       inp.placeholder = m.placeholder;
       if (loaded[m.dataset]) { rows = loaded[m.dataset]; return true; }
-      countEl.textContent = "Loading " + m.unit + "s…" + (mode === "moveboard" ? " (108k — one moment)" : "");
+      countEl.textContent = "Loading " + m.unit + "s…"
+        + (m.dataset === "source_trace_moveboard" ? " (108k — one moment)" : "");
       try {
-        rows = loaded[m.dataset] = await RS.load(m.dataset);
+        const data = loaded[m.dataset] = await RS.load(m.dataset);
+        // the mode may have changed while 108k rows streamed in — a stale load must
+        // neither clobber the active mode's rows nor let its caller paint over it
+        if (ST_STATE.mode !== mode) return false;
+        rows = data;
       } catch (e) {
         countEl.innerHTML = `<span class="err">Couldn't load — ${RSC.esc(e.message)}</span>`;
         return false;
@@ -431,6 +457,8 @@ registerPage({
       countEl.textContent = RS.fmtN(rows.length) + " " + m.unit + "s loaded · start typing to find one";
     };
     function runSearch(q) {
+      // on the Multi-source tab the one search box filters the TABLE, not the trace lookup
+      if (ST_STATE.mode === "multi") { ST_STATE.mq = q; ST_STATE.mpage = 0; paintMulti(); return; }
       ST_STATE.q = q;
       if (q) { ST_STATE.rung = null; const b = document.getElementById("stBrowse");
                if (b) b.innerHTML = ""; paintChips(); }
@@ -455,6 +483,7 @@ registerPage({
        full trace. All client-side: the dataset is already loaded for the search. */
     const PAGE = 100;
     function paintChips() {
+      if (ST_STATE.mode === "multi") { paintMultiChips(); return; }
       const el = document.getElementById("stChips");
       if (!el) return;
       const m = MODES[ST_STATE.mode];
@@ -475,6 +504,7 @@ registerPage({
       });
     }
     function paintBrowse() {
+      if (ST_STATE.mode === "multi") return;   // the multi tab owns stBrowse via paintMulti
       const el = document.getElementById("stBrowse");
       const idleEl = document.getElementById("stIdle");
       if (!el) return;
@@ -514,13 +544,121 @@ registerPage({
       });
     }
 
+    /* ---------------- MULTI-SOURCE (third tab, 2026-08-19) --------------------------
+       Folded in from the retired Multi-Source Leads page: leads where 2+ EXTERNAL
+       trackers independently claim the same customer — CallRail, Google Local, Angi,
+       Thumbtack — regardless of what was booked. Clicking a lead opens its FULL
+       moveboard trace right here (his ask: "once user clicks that lead — i need to see
+       the trace of how its found"); the old standalone page could only hash-hop to this
+       one and the job parameter was silently dropped on arrival. */
+    const TRACKERS = [
+      { key: "CallRail", on: r => has(r["CallRail Number Name"]) },
+      { key: "Google Local", on: r => yes(r["Google Local Match"]) },
+      { key: "Angi", on: r => yes(r["Angi Match"]) },
+      { key: "Thumbtack", on: r => yes(r["Thumbtack Match"]) },
+    ];
+    let multiCache = null;      // {src: rows-ref, list} — recomputed only when the data reloads
+    function multiList() {
+      if (multiCache && multiCache.src === rows) return multiCache.list;
+      const list = [];
+      for (const r of rows) {
+        const t = TRACKERS.filter(x => x.on(r)).map(x => x.key);
+        if (t.length >= 2) list.push({ r, t, combo: t.join(" + ") });
+      }
+      list.sort((a, b) => String(b.r["Move Date"] || "").localeCompare(String(a.r["Move Date"] || "")));
+      multiCache = { src: rows, list };
+      return list;
+    }
+    function paintMultiChips() {
+      const el = document.getElementById("stChips");
+      if (!el) return;
+      const list = multiList();
+      const counts = {};
+      list.forEach(x => { counts[x.combo] = (counts[x.combo] || 0) + 1; });
+      const combos = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+      el.innerHTML = `<span class="strc-cap" style="margin-right:4px">Trackers</span>`
+        + `<button class="strc-chip${ST_STATE.combo == null ? " on" : ""}" data-c="">All
+             <span class="c">${RS.fmtN(list.length)}</span></button>`
+        + combos.map(([c, n]) =>
+            `<button class="strc-chip${ST_STATE.combo === c ? " on" : ""}" data-c="${RSC.esc(c)}">
+               ${RSC.esc(c)} <span class="c">${RS.fmtN(n)}</span></button>`).join("");
+      el.querySelectorAll("[data-c]").forEach(b => b.onclick = () => {
+        const c = b.dataset.c || null;
+        ST_STATE.combo = (c === ST_STATE.combo) ? null : c;
+        ST_STATE.mpage = 0;
+        paintMultiChips(); paintMulti();
+      });
+    }
+    function paintMulti() {
+      const el = document.getElementById("stBrowse");
+      if (!el) return;
+      const m = MODES.multi;
+      traceEl.innerHTML = "";
+      const all = multiList();
+      const three = all.filter(x => x.t.length >= 3).length;
+      const nq = norm(ST_STATE.mq), dq = String(ST_STATE.mq || "").replace(/[^0-9]/g, "");
+      let list = all;
+      if (ST_STATE.combo) list = list.filter(x => x.combo === ST_STATE.combo);
+      if (nq) list = list.filter(x =>
+        norm(x.r["Job No"]).includes(nq) || norm(x.r["Customer"]).includes(nq)
+        || (dq.length >= 4 && String(x.r["Customer Phone"] || "").replace(/[^0-9]/g, "").includes(dq)));
+      countEl.textContent = RS.fmtN(all.length) + " leads claimed by 2+ trackers (of "
+        + RS.fmtN(rows.length) + ") · " + RS.fmtN(three)
+        + " by 3+ · click a lead to see how its source was decided";
+      if (!list.length) {
+        el.innerHTML = `<div class="panel"><div style="padding:18px;color:var(--muted);font-size:13px">
+          No multi-source leads match.</div></div>`;
+        return;
+      }
+      const pages = Math.max(1, Math.ceil(list.length / PAGE));
+      if (ST_STATE.mpage >= pages) ST_STATE.mpage = 0;
+      const slice = list.slice(ST_STATE.mpage * PAGE, ST_STATE.mpage * PAGE + PAGE);
+      const chip = k => `<span class="strc-mchip ${k.replace(/\s/g, "")}">${RSC.esc(k)}</span>`;
+      el.innerHTML = `<div class="panel">
+        <div class="panel-head"><h3 style="margin:0">Multi-source leads${
+            ST_STATE.combo ? " — " + RSC.esc(ST_STATE.combo) : ""}</h3>
+          <span class="strc-cap">${RS.fmtN(list.length)} lead${list.length === 1 ? "" : "s"}
+            · newest first · page ${ST_STATE.mpage + 1} of ${pages}</span></div>
+        <table class="strc-btab"><thead><tr><th>Move date</th><th>Moveboard #</th><th>Customer</th>
+          <th>Phone</th><th>Company</th><th>Trackers that matched</th><th>Resolved source</th></tr></thead>
+        <tbody>
+          ${slice.map(x => `<tr data-k="${RSC.esc(m.key(x.r))}" title="Open this lead's trace">
+            <td class="d">${RSC.esc(String(x.r["Move Date"] || "").slice(0, 10) || "—")}</td>
+            <td><b>#${RSC.esc(show(x.r["Job No"]))}</b></td>
+            <td>${RSC.esc(show(x.r["Customer"]))}</td>
+            <td class="k">${RSC.esc(show(x.r["Customer Phone"]))}</td>
+            <td>${RSC.esc(show(x.r["Company"]))}</td>
+            <td>${x.t.map(chip).join("")}</td>
+            <td>${RSC.esc(show(x.r["Source Connector"]))}</td>
+          </tr>`).join("")}
+        </tbody></table>
+        ${pages > 1 ? `<div class="strc-pager">
+          <button class="strc-pg" data-pg="prev"${ST_STATE.mpage === 0 ? " disabled" : ""}>‹ Newer</button>
+          <span>${RS.fmtN(ST_STATE.mpage * PAGE + 1)}–${RS.fmtN(Math.min(list.length, (ST_STATE.mpage + 1) * PAGE))}
+            of ${RS.fmtN(list.length)}</span>
+          <button class="strc-pg" data-pg="next"${ST_STATE.mpage >= pages - 1 ? " disabled" : ""}>Older ›</button>
+        </div>` : ""}
+      </div>`;
+      el.querySelectorAll("tbody tr").forEach(tr => tr.onclick = () => openTrace(tr.dataset.k));
+      el.querySelectorAll("[data-pg]").forEach(b => b.onclick = () => {
+        ST_STATE.mpage += b.dataset.pg === "next" ? 1 : -1;
+        paintMulti();
+        el.scrollIntoView({ block: "start", behavior: "smooth" });
+      });
+    }
+
     /* dispatch a trace to the current mode's renderer */
     function openTrace(key) {
       const m = MODES[ST_STATE.mode];
       ST_STATE.sel = key;
       const r = rows.find(x => String(m.key(x)) === String(key));
       const idleEl = document.getElementById("stIdle");
-      if (!r) { traceEl.innerHTML = ""; if (idleEl) idleEl.style.display = ""; return; }
+      if (!r) {
+        traceEl.innerHTML = "";
+        // the idle ladder describes the closing/moveboard traces, never the multi table
+        if (idleEl && ST_STATE.mode !== "multi") idleEl.style.display = "";
+        return;
+      }
       if (idleEl) idleEl.style.display = "none";
       m.render(r);
     }
@@ -565,16 +703,13 @@ registerPage({
         mbNote += ` Merged source <b>${RSC.esc(merged)}</b>` + (has(tran) && norm(tran) !== norm(merged) ? ` → <b>${RSC.esc(tran)}</b>` : "") + `.`;
       mbNote += pcRegionNote(mbSrc, pstate);
 
-      /* which priority wins (6-rung ladder). Angi/Thumbtack lead matches only
-         intercept the #6 fallback — never override #1–#3. */
-      let win = 7;
-      if (/returned customer|recommended/.test(lc)) win = 1;
-      else if (metaMatch) win = 2;
-      else if (/google local/.test(lc)) win = 3;
-      else if (isPost) win = 4;
-      else if (angiMatch) win = 5;
-      else if (ttMatch) win = 6;
-      const bookedWon = win === 7 && lc.includes("booked from") && !lc.includes("inherited");
+      /* which priority wins — winClosing() is THE one definition, shared with the browse
+         chips. A local copy here kept the pre-split 7-slot numbering after the ladder
+         went to 8 rungs (2026-08-18), so every closing trace below Returned highlighted
+         the WRONG rung — fallback jobs literally printed "Wins → Thumbtack (matched by —)"
+         (review fleet, 2026-08-20). */
+      const win = winClosing(r);
+      const bookedWon = win === 8 && lc.includes("booked from") && !lc.includes("inherited");
 
       // #4/#5 rows: show the match even when a higher priority outranks it
       const leadRow = (n, matched, key, name) =>
@@ -593,7 +728,7 @@ registerPage({
           d: "The customer's phone or email matches a Meta referral form, and the lead was created on or after that form within 90 days. Added to the live pipeline in Aug 2026 — Power BI never had this step, so the faithful chain above will disagree here on purpose.",
           matched: metaMatch,
           status: () => metaMatch
-            ? (win === 2
+            ? (win === 3
                 ? `Wins → <b>Meta Referral</b> (matched by <b>${RSC.esc(show(metaVia))}</b>${
                     metaKey ? " " + RSC.esc(show(metaKey)) : ""}${metaDate ? `, form filled ${RSC.esc(metaDate)}` : ""})`
                 : `<span style="color:var(--amber);font-weight:700">Matched a Meta referral form</span> — outranked by Priority #${win}`)
@@ -829,18 +964,38 @@ registerPage({
       modesEl.querySelectorAll("button").forEach(b => b.classList.toggle("on", b === btn));
       ST_STATE.mode = btn.dataset.mode; ST_STATE.q = ""; ST_STATE.sel = null;
       ST_STATE.rung = null; ST_STATE.page = 0;   // rung numbers differ per mode
+      ST_STATE.mq = ""; ST_STATE.combo = null; ST_STATE.mpage = 0;
       inp.value = ""; resultsEl.innerHTML = ""; traceEl.innerHTML = "";
       { const e = document.getElementById("stBrowse"); if (e) e.innerHTML = ""; }
-      { const e = document.getElementById("stIdle"); if (e) e.style.display = ""; }
-      if (await loadMode(ST_STATE.mode)) { idleCount(); paintChips(); }
+      // the old mode's rung chips must not stay live through a multi-second load — their
+      // handlers would run paintBrowse against the wrong mode
+      { const e = document.getElementById("stChips"); if (e) e.innerHTML = ""; }
+      { const e = document.getElementById("stIdle");
+        if (e) e.style.display = ST_STATE.mode === "multi" ? "none" : ""; }
+      if (await loadMode(ST_STATE.mode)) {
+        if (ST_STATE.mode === "multi") { paintMultiChips(); paintMulti(); }
+        else { idleCount(); paintChips(); }
+      }
     });
     modesEl.querySelectorAll("button").forEach(b => b.classList.toggle("on", b.dataset.mode === ST_STATE.mode));
+    if (ST_STATE.mode === "multi") {
+      // hide the ladder BEFORE the 108k load, not after it — the explainer describes the
+      // other two tabs and should never flash over the multi view
+      const e = document.getElementById("stIdle");
+      if (e) e.style.display = "none";
+    }
     if (await loadMode(ST_STATE.mode)) {
-      idleCount();
-      paintChips();
-      if (ST_STATE.rung) paintBrowse();
-      if (ST_STATE.q) { inp.value = ST_STATE.q; runSearch(ST_STATE.q); }
-      if (ST_STATE.sel) openTrace(ST_STATE.sel);
+      if (ST_STATE.mode === "multi") {
+        paintMultiChips(); paintMulti();
+        if (ST_STATE.mq) inp.value = ST_STATE.mq;
+        if (ST_STATE.sel) openTrace(ST_STATE.sel);
+      } else {
+        idleCount();
+        paintChips();
+        if (ST_STATE.rung) paintBrowse();
+        if (ST_STATE.q) { inp.value = ST_STATE.q; runSearch(ST_STATE.q); }
+        if (ST_STATE.sel) openTrace(ST_STATE.sel);
+      }
     }
   },
 });
