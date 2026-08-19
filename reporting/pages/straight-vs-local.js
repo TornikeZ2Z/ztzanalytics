@@ -29,7 +29,9 @@
              "revenue", "pickup_cost", "delivery_cost", "second_contracts",
              "combined_move", "straight_profit", "local_rate_per_day", "rate_basis",
              "opportunity_cost", "net", "net_upper", "price_floor", "incomplete"],
-      dateCols: { "pickup_date": "pickup_date" }, defaultDate: "pickup_date",
+      // no dateCols/defaultDate: nothing filters this page, and declaring them would
+      // invite a future edit to wire the global date bar back in
+
     };
   }
 })();
@@ -77,9 +79,14 @@ registerPage({
     host.innerHTML = '<div class="svl-card">Loading…</div>';
 
     return RS.load("straight_tradeoff").then(all => {
-      const rows = RS.filtered("straight_tradeoff", all);
+      // NO FILTERING, DELIBERATELY. This page is a conclusion, not a dashboard: it reads every
+      // Straight job on the books and tells you what to do about them. It used to run through
+      // RS.filtered, and a date range left behind by another page emptied it completely --
+      // which reads as "we have never done a Straight move" rather than "you have a filter on".
+      // The global bar is hidden for this id (BARE_CHROME) so nothing can scope it by accident.
+      const rows = all;
       if (!rows.length) {
-        host.innerHTML = '<div class="svl-card">No Straight jobs in the current filter.</div>';
+        host.innerHTML = '<div class="svl-card">No Straight jobs on record.</div>';
         return;
       }
 
@@ -160,7 +167,12 @@ registerPage({
         'That makes the lever <b>price, not blocking</b>: blocking peak dates would forfeit ' +
         'the many profitable short Straights to prevent a few unprofitable long ones. The ' +
         'floor below is what a long haul must bill to be worth the days it costs.' +
-        '</div></div>';
+        '</div>' +
+        '<div style="font-size:11.5px;margin-top:10px;color:var(--muted);' +
+        'border-top:1px solid var(--line);padding-top:8px">Covers <b>' + rows.length +
+        '</b> Straight jobs — every one on the books, all companies, all years. This ' +
+        'page is not filtered: it is a standing conclusion, not a slice.</div>' +
+        '</div>';
 
       /* ---------- the deliverable: a floor per window ---------- */
       function table(stats, caption, note) {
