@@ -74,7 +74,7 @@ registerPage({
       rows: null, month: "", co: "", open: null, q: "", sort: "score", flagOnly: false,
       memo: null, memoKey: "",
       // "board" | "profile", and which man the profile is open on
-      view: "board", fm: "",
+      view: "board", fm: "", chkOnly: false,
     });
 
     /* ================================================================ THE ENGINE
@@ -340,7 +340,9 @@ registerPage({
       return m ? m[1] : null;
     }
     function jobLinks(r) {
-      var h = "", c = calHref(r), fid = dcFileId(r);
+      var h = "", c = calHref(r);
+      // the contract URL is our own Drive listing, but an href scheme is not a place for trust
+      var fid = /^https:\/\//i.test(String(r["Contract URL"] || "")) ? dcFileId(r) : null;
       if (c) h += '<a class="pk-lnk" target="_blank" rel="noopener" href="' + c + '">event ↗</a>';
       if (fid) h += (h ? " · " : "")
         + '<a class="pk-lnk pk-fid" target="_blank" rel="noopener" href="' + esc(r["Contract URL"])
@@ -461,6 +463,17 @@ registerPage({
       + ".pk-seg button{background:transparent;border:0;color:var(--muted);font:inherit;font-size:13px;font-weight:700;"
       + "padding:8px 15px;cursor:pointer;border-radius:8px}"
       + ".pk-seg button.on{background:var(--brand);color:var(--brand-ink);font-weight:800}"
+      // the job-check verdict pills + row affordances
+      + ".pk-pill2{display:inline-block;font-size:var(--t6);font-weight:800;letter-spacing:.05em;"
+      + "text-transform:uppercase;padding:3px 9px;border-radius:999px;border:1px solid var(--line-2);"
+      + "color:var(--faint);white-space:nowrap}"
+      + ".pk-pill2.ok{color:var(--pos);border-color:var(--pos);background:var(--pos-bg)}"
+      + ".pk-pill2.warn{color:var(--warn);border-color:var(--warn);background:var(--warn-bg)}"
+      + ".pk-pill2.bad{color:var(--neg);border-color:var(--neg);background:var(--neg-bg)}"
+      + ".pk-why{font-size:var(--t5);color:var(--muted);line-height:1.45;min-width:220px;max-width:380px;white-space:normal}"
+      + ".pk-load{white-space:nowrap;color:var(--muted)}"
+      + ".pk-jrow{cursor:pointer}"
+      + ".pk-jrow:hover td{background:var(--panel-2)}"
       + ".pk-lnk{color:var(--blue);text-decoration:none;font-weight:700;font-size:var(--t5);white-space:nowrap}"
       + ".pk-lnk:hover{text-decoration:underline}"
       + ".pk-fid{font-family:ui-monospace,Consolas,monospace;font-size:10.5px}"
@@ -622,7 +635,7 @@ registerPage({
     /* ================================================================ paint */
     function paint() {
       if (!S.rows) return;
-      if (["board", "profile", "future"].indexOf(S.view) < 0) S.view = "board";
+      if (["board", "jobs", "profile", "future"].indexOf(S.view) < 0) S.view = "board";
       var rows = view();
       // THE FUTURE IS NOT EVIDENCE. The office sheet carries pre-filled rows for jobs that
       // have not happened yet -- money on a job the crew has not driven to says nothing
@@ -660,13 +673,15 @@ registerPage({
         + "never against a fixed target</span></p></div>"
         + '<div class="pk-tabs">'
         + '<button data-v="board" class="' + (S.view === "board" ? "on" : "") + '">The board</button>'
+        + '<button data-v="jobs" class="' + (S.view === "jobs" ? "on" : "") + '">Job check</button>'
         + '<button data-v="profile" class="' + (S.view === "profile" ? "on" : "") + '">Foreman profile</button>'
         + '<button data-v="future" class="' + (S.view === "future" ? "on" : "") + '">Upcoming jobs · '
         + rows.filter(isUpcoming).length + "</button>"
         + "</div>";
 
-      // a page about what has not happened yet has no use for last month's totals
-      if (S.view !== "future")
+      // the future view has no use for last month's totals; the job-check view carries
+      // its own per-verdict counters instead
+      if (S.view === "board" || S.view === "profile")
       html += '<div class="pk-kpis">'
         + kpi(usd(sold), "Packing sold", here.length.toLocaleString() + " jobs · "
               + profiles.length + " foremen", "")
@@ -726,9 +741,11 @@ registerPage({
             + seg("score", "By concern") + seg("sold", "By packing sold") + seg("jobs", "By jobs") + seg("name", "A–Z")
             + "</div></div>"
             + '<div class="pk-tog' + (S.flagOnly ? " on" : "") + '" id="pkFlag"><i></i>Only above the line</div>' : "")
+        + (S.view === "jobs"
+            ? '<div class="pk-tog' + (S.chkOnly ? " on" : "") + '" id="pkOnly"><i></i>Only jobs to check</div>' : "")
         + (S.view !== "profile"
             ? '<label class="pk-fld"><span>Find</span><input id="pkQ" placeholder="'
-              + (S.view === "future" ? "Foreman or customer…" : "Find a foreman…")
+              + (S.view === "board" ? "Find a foreman…" : "Foreman or customer…")
               + '" value="' + esc(S.q) + '"></label>' : "")
         + "</div>";
 
@@ -766,6 +783,8 @@ registerPage({
 
       if (S.view === "profile") {
         html += paintProfile(here, profiles);
+      } else if (S.view === "jobs") {
+        html += paintJobs(here, profiles);
       } else if (S.view === "future") {
         html += paintFuture(rows);
       } else {
@@ -795,6 +814,7 @@ registerPage({
           }
           if (S.view !== "profile" && S.q) labels.push("Search");
           if (S.view === "profile" && S.fm) labels.push(S.fm);
+          if (S.view === "jobs" && S.chkOnly) labels.push("Only jobs to check");
           return { n: labels.length, labels: labels };
         },
       });
@@ -1004,6 +1024,160 @@ registerPage({
       return h;
     }
 
+    /* ================================================================ job check
+     * "I need a check for EACH JOB" (Tornike, 2026-08-19). The board's statistics go quiet
+     * on narrow windows by design -- ten jobs is too few to judge a MAN, but one job is
+     * enough to check a JOB. Every job gets its own row and its own verdict, no statistics
+     * required: the load, the quote, what was sold, and what this load would have sold at
+     * the fleet's median rate.
+     *
+     * CALIBRATED ON THE REAL BOOK before shipping (1,370 comparable jobs): "sold nothing on
+     * a real load" fires on 12%, "sold short" (under 35% of expected AND a $100+ gap) on
+     * 12%, boxes-with-no-tape on 2%. Soft misses -- a mattress without a cover (20% of
+     * jobs; the fleet only covers about half), missing wrap, crew CF under the calendar --
+     * are LISTED but never drive the verdict alone: a checklist where every fifth row
+     * screams is a checklist nobody reads.
+     */
+    function jobVerdict(r, medUnit, med100) {
+      if (r["Packed By Owner"])
+        return { v: "aside", why: ["the customer packed their own things — set aside"], exp: null };
+      if (!r["Recorded"])
+        return { v: "paper", why: ["packing not written up yet — nothing to check against"], exp: null };
+      // the CF the expectation is priced on is the LARGER of the crew's figure and the
+      // calendar's -- a crew that under-reports CF (flagged two lines down) must not be
+      // allowed to shrink its own expectation and dodge the verdict with the same pen
+      var units = r["Packing Units"];
+      var cf = Math.max(r["Real CF"] || 0, r["Calendar CF"] || 0) || null;
+      var exp = (units != null && units >= 3 && medUnit) ? units * medUnit
+              : (cf && med100) ? cf / 100 * med100 : null;
+      var sold = +r["Sold USD"] || 0, why = [], v = "ok";
+      if (r["Zero Pack"]) {
+        v = "nothing";
+        why.push(((units || 0) >= 10 || (cf || 0) >= 200)
+          ? "nothing sold on a real load" : "nothing sold — small load");
+        if (r["No Quote"]) why.push("none on the quote either");
+        else if ((+r["Quoted USD"] || 0) > 0) why.push("the quote carried " + usd(r["Quoted USD"]));
+      } else if (r["Quote Leak"]) {
+        v = "short";
+        why.push("quoted " + usd(r["Quoted USD"]) + ", sold " + usd(sold));
+      } else if (exp != null && sold < 0.35 * exp && exp - sold >= 100) {
+        v = "short";
+        why.push("sold " + usd(sold) + " where the fleet rate says about " + usd(exp));
+      }
+      // soft observations: worth an eyebrow, never a verdict on their own
+      if (r["Itemised"]) {
+        if ((r["Inv Mattresses"] || 0) >= 1 && (r["Covers Sold"] || 0) === 0)
+          why.push(r["Inv Mattresses"] + " mattress" + (r["Inv Mattresses"] === 1 ? "" : "es") + ", no cover");
+        if ((r["Inv Boxes"] || 0) >= 10 && (r["Tape Sold"] || 0) === 0)
+          why.push(r["Inv Boxes"] + " boxes, no tape");
+        if ((r["Inv Wrappable"] || 0) >= 5 && (r["Wrap Sold"] || 0) === 0)
+          why.push("no wrap on " + r["Inv Wrappable"] + " wrappable pieces");
+      }
+      if (r["CF Ratio"] != null && r["CF Ratio"] < DIAL.cfUnder)
+        why.push("crew CF " + Math.round((1 - r["CF Ratio"]) * 100) + "% under the calendar");
+      return { v: v, why: why, exp: exp };
+    }
+
+    function paintJobs(here, profiles) {
+      var live = here.filter(function (r) { return !r["Packed By Owner"] && r["Recorded"]; });
+      var rateN = function (rs) {
+        var n = 0;
+        rs.forEach(function (r) { if (r["USD per Unit"] != null) n++; });
+        return n;
+      };
+      // the rate the expectation is priced at: this window's own median -- gated on how
+      // many jobs actually CARRY a rate, not on the row count, because zero-pack rows have
+      // their rates nulled and a month of mostly-zeros would pass a row-count gate with a
+      // median resting on four values. Too thin -> the whole book, same company filter.
+      var widened = rateN(live) < 30;
+      var base = widened ? S.rows.filter(function (r) {
+        return !r["Calendar Only"] && r.Day && r.Day <= TODAY
+          && !r["Packed By Owner"] && r["Recorded"]
+          && (!S.co || (r.Company || "—") === S.co);
+      }) : live;
+      var medUnit = median(base.map(function (r) { return r["USD per Unit"]; }));
+      var med100 = median(base.map(function (r) { return r["USD per 100 CF"]; }));
+      var withProfile = {};
+      (profiles || []).forEach(function (p) { withProfile[p.name] = 1; });
+
+      // the KPIs are the WINDOW (board convention: the search box narrows the table, never
+      // the numbers); verdicts are computed on everything, the search filters what renders
+      var checked = here.slice()
+        .sort(function (a, b) { return String(b.Day).localeCompare(String(a.Day)); })
+        .map(function (r) { return { r: r, c: jobVerdict(r, medUnit, med100) }; });
+      var counts = { ok: 0, short: 0, nothing: 0, paper: 0, aside: 0 }, gap = 0;
+      checked.forEach(function (x) {
+        counts[x.c.v]++;
+        if ((x.c.v === "short" || x.c.v === "nothing") && x.c.exp != null)
+          gap += Math.max(0, x.c.exp - (+x.r["Sold USD"] || 0));
+      });
+      var shown = checked;
+      if (S.q) {
+        var q = S.q.toLowerCase();
+        shown = shown.filter(function (x) {
+          return String(x.r.Foreman || "").toLowerCase().indexOf(q) >= 0
+            || String(x.r.Customer || "").toLowerCase().indexOf(q) >= 0;
+        });
+      }
+      if (S.chkOnly) shown = shown.filter(function (x) { return x.c.v === "short" || x.c.v === "nothing"; });
+      var CAP = 500;
+
+      var h = '<div class="pk-kpis" style="margin-bottom:16px">'
+        + kpi(String(checked.length), "Jobs in this window",
+              counts.aside ? counts.aside + " set aside — customer packed" : "every one gets its own verdict", "")
+        + kpi(String(counts.ok), "In range", "sold in line with what the load called for", counts.ok ? "pos" : "")
+        + kpi(String(counts.nothing), "Sold nothing", "the first rows to check", counts.nothing ? "neg" : "pos")
+        + kpi(String(counts.short), "Sold short", "well under the fleet rate for that load", counts.short ? "warn" : "pos")
+        + kpi(String(counts.paper), "Not filed yet", "no packing record to check against", counts.paper ? "warn" : "")
+        + kpi(usd(gap), "Gap on the red rows", "expected at the fleet rate minus sold — a size, not missing money", gap > 0 ? "warn" : "")
+        + "</div>";
+
+      h += '<div class="pk-sec"><h4>Every job, checked one by one <span class="pk-dim">' + shown.length + "</span></h4>"
+        + '<p class="pk-dim2">Newest first. <b>Expected</b> is what this load would sell at the fleet’s median rate ('
+        + usd(medUnit, 2) + "/unit from " + rateN(base) + " priced jobs"
+        + (widened ? " — the whole book, since this window is too thin to price alone" : "")
+        + "; $" + (med100 == null ? "—" : Math.round(med100)) + "/100 CF when a load has no unit count). "
+        + "A job can sit below it and be fine, so the verdict only turns red when the shortfall is worth a phone "
+        + "call. Grey notes — a mattress without a cover, boxes without tape — are worth an eyebrow, not a verdict: "
+        + "the fleet itself only covers about half its mattresses. A row opens the foreman’s file at that job "
+        + "where he has one.</p>";
+      if (!shown.length) return h + '<p class="pk-dim2">Nothing to show in this window.</p></div>';
+      h += '<div class="pk-jwrap" style="max-height:64vh"><table class="pk-ptbl pk-jtbl"><thead><tr>'
+        + "<th>Day</th><th>Job</th><th>Customer</th><th>Foreman</th>"
+        + '<th class="r">Load</th><th class="r">Quoted</th><th class="r">Sold</th><th class="r">Expected</th>'
+        + "<th>Verdict</th><th>What to check</th><th>Links</th></tr></thead><tbody>"
+        + shown.slice(0, CAP).map(function (x) {
+            var r = x.r, c = x.c, load = [];
+            if (r["Real CF"] || r["Calendar CF"]) load.push(Math.round(r["Real CF"] || r["Calendar CF"]) + " CF");
+            if (r["Inv Boxes"] != null) load.push(r["Inv Boxes"] + " bx");
+            if (r["Inv Wrappable"]) load.push(r["Inv Wrappable"] + " wr");
+            if (r["Inv Mattresses"]) load.push(r["Inv Mattresses"] + " mat");
+            var pill = c.v === "ok" ? '<span class="pk-pill2 ok">in range</span>'
+              : c.v === "nothing" ? '<span class="pk-pill2 bad">sold nothing</span>'
+              : c.v === "short" ? '<span class="pk-pill2 warn">sold short</span>'
+              : c.v === "paper" ? '<span class="pk-pill2">not filed</span>'
+              : '<span class="pk-pill2">customer packed</span>';
+            var clickable = r.Foreman && withProfile[r.Foreman];
+            return "<tr" + (clickable ? ' class="pk-jrow" data-f="' + esc(r.Foreman)
+                + '" data-job="' + esc(r["Job Code"]) + '"' : "") + ">"
+              + "<td>" + esc(dayLab(r.Day)) + "</td>"
+              + "<td>" + esc(r["Job Code"] || "—") + "</td>"
+              + "<td>" + esc(r.Customer || "—") + "</td>"
+              + "<td>" + esc(r.Foreman || "—") + "</td>"
+              + '<td class="r pk-load">' + (load.length ? load.join(" · ") : "—") + "</td>"
+              + '<td class="r">' + usd(r["Quoted USD"]) + "</td>"
+              + '<td class="r"><b>' + (r["Recorded"] ? usd(r["Sold USD"]) : "—") + "</b></td>"
+              + '<td class="r">' + (c.exp == null ? "—" : usd(c.exp)) + "</td>"
+              + "<td>" + pill + "</td>"
+              + '<td class="pk-why">' + (c.why.length ? c.why.map(esc).join(" · ") : "") + "</td>"
+              + "<td>" + jobLinks(r) + "</td></tr>";
+          }).join("")
+        + "</tbody></table></div>";
+      if (shown.length > CAP) h += '<p class="pk-dim2" style="margin-top:10px">' + (shown.length - CAP)
+        + " more — pick a month above to narrow the list.</p>";
+      return h + "</div>";
+    }
+
     /* ================================================================ the future
      * "How do I see the future?" -- here. Every booked job from today forward, soonest
      * first: what the calendar says is on the truck, the packing already on the quote, and
@@ -1193,6 +1367,15 @@ registerPage({
       if (cc) cc.onchange = function () { S.co = this.value; invalidate(); paint(); };
       var fo = main.querySelector("#pkFlag");
       if (fo) fo.onclick = function () { S.flagOnly = !S.flagOnly; paint(); };
+      var ck = main.querySelector("#pkOnly");
+      if (ck) ck.onclick = function () { S.chkOnly = !S.chkOnly; paint(); };
+      main.querySelectorAll(".pk-jrow").forEach(function (tr) {
+        tr.onclick = function (e) {
+          if (e.target && e.target.closest && e.target.closest("a")) return;
+          var p = byName[tr.dataset.f];
+          if (p) openF(p, tr.dataset.job);
+        };
+      });
       var qq = main.querySelector("#pkQ");
       if (qq) qq.oninput = function () {
         S.q = this.value;
@@ -1390,6 +1573,10 @@ registerPage({
           var sc = document.getElementById("pkScrim");
           if (sc) sc.classList.remove("on");
           if (window.__PK) window.__PK.open = null;
+          // the card keeps its selected border otherwise -- close() clears it, Esc must too
+          document.querySelectorAll(".pk-card.sel").forEach(function (c) {
+            c.classList.remove("sel");
+          });
         }
       };
       document.addEventListener("keydown", window.__PK_ESC);
@@ -1400,16 +1587,19 @@ registerPage({
      * "stealing". The vocabulary is concern, review, off-book, worth checking. */
     function verdictText(p) {
       if (p.verdict === "thin") {
+        // "too few jobs" must never read as a dead end: the statistics refuse to judge a
+        // MAN on a thin window, but every one of his JOBS is still checkable, one by one
+        var goCheck = " His jobs can still be checked one by one — the Job check tab.";
         if (p.peers < DIAL.minPeers) {
           return "Only " + p.peers + " foreman" + (p.peers === 1 ? "" : "en") + " worked in this window, so "
-            + "there is no fleet to compare against. Widen the filter to score anyone.";
+            + "there is no fleet to compare against. Widen the filter to score anyone." + goCheck;
         }
         if (p.n < DIAL.minJobs) {
           return "Only " + p.n + " job" + (p.n === 1 ? "" : "s") + " in this window — below the "
-            + DIAL.minJobs + " needed to compare fairly. This is a profile, not a judgement.";
+            + DIAL.minJobs + " needed to compare fairly. This is a profile, not a judgement." + goCheck;
         }
         return "None of the " + MEASURES.length + " measures had enough comparable jobs to score. This is a "
-          + "profile, not a judgement.";
+          + "profile, not a judgement." + goCheck;
       }
       if (p.verdict === "review") {
         // The two money measures are one takings figure over two denominators, so they are
