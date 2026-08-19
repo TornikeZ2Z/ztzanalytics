@@ -180,6 +180,7 @@ registerPage({
           + '<span style="flex:1"></span>'
           + '<button class="rf-btn" id="rfMail">Copy emails · ' + withMail + "</button>"
           + '<button class="rf-btn" id="rfPhone">Copy phones · ' + withPhone + "</button>"
+          + '<button class="rf-btn" id="rfCsv">Download CSV · ' + v.length + "</button>"
           + "</div>"
           + '<div class="rf-card"><div class="rf-h">The list<span class="n">' + v.length + "</span></div>"
           + '<div class="rf-sub">Every five-star reviewer, matched back to the lead the move was booked on. '
@@ -233,13 +234,16 @@ registerPage({
 
       function copyList(items, btn, word) {
         if (!items.length) return;
-        var done = function () {
-          var t = btn.textContent;
-          btn.textContent = "Copied " + items.length + " " + word;
+        var t = btn.textContent;
+        var flash = function (text) {
+          btn.textContent = text;
           setTimeout(function () { btn.textContent = t; }, 1600);
         };
-        try { navigator.clipboard.writeText(items.join("\n")).then(done); }
-        catch (e) { /* clipboard unavailable: leave the button as it was */ }
+        try {
+          navigator.clipboard.writeText(items.join("\n"))
+            .then(function () { flash("Copied " + items.length + " " + word); })
+            .catch(function () { flash("Copy blocked by the browser"); });
+        } catch (e) { flash("Copy unavailable here"); }
       }
 
       function wire(v) {
@@ -269,6 +273,35 @@ registerPage({
         var bp = host.querySelector("#rfPhone");
         if (bp) bp.onclick = function () {
           copyList(uniq((v || []).map(function (r) { return r.Phone; }).filter(Boolean)), bp, "phones");
+        };
+        // the download is the CURRENT view -- whatever the filters left visible, all of it
+        // (the 1000-row render cap is a screen limit, not a data limit)
+        var bc = host.querySelector("#rfCsv");
+        if (bc) bc.onclick = function () {
+          var cols = ["Review Date", "Customer", "Email", "Phone", "Platforms",
+                      "Five Star Reviews", "Counted", "Company", "Request No",
+                      "Move Type", "Pickup State", "Delivery State", "Sales Person"];
+          var cell = function (x) {
+            var s = String(x == null ? "" : x);
+            // customer-typed values opening as live Excel formulas is a real attack
+            // surface; a leading space neutralises =, +, - and @ without mangling data
+            if (/^[=+\-@]/.test(s)) s = " " + s;
+            return '"' + s.replace(/"/g, '""') + '"';
+          };
+          var lines = [cols.map(cell).join(",")].concat((v || []).map(function (r) {
+            return [r.Day, r.Customer, r.Email, r.Phone, r.Platforms,
+                    r["Five Star Reviews"], r.Counted ? "counted" : "uncounted",
+                    r.Company, r["Request No"], r["Move Type"], r["Pickup State"],
+                    r["Delivery State"], r["Sales Person"]].map(cell).join(",");
+          }));
+          // the BOM is for Excel: without it a Georgian or accented name opens as mojibake
+          var blob = new Blob(["﻿" + lines.join("\r\n")], { type: "text/csv;charset=utf-8" });
+          var a = document.createElement("a");
+          a.href = URL.createObjectURL(blob);
+          a.download = "possible-referrals-" + new Date().toISOString().slice(0, 10) + ".csv";
+          document.body.appendChild(a);
+          a.click();
+          setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 500);
         };
       }
 
