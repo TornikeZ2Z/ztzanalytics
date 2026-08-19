@@ -143,6 +143,9 @@ const GROUPS = [
   // Human Resources (2026-08-17): the questionnaire pair. The group auto-hides for anyone
   // who can see neither page, like every other group.
   { key: "hr",        title: "Human Resources" },
+  // Different Analysis (2026-08-19): one-off questions the standing reports cannot answer --
+  // each page decides a specific operational trade-off rather than monitoring a metric.
+  { key: "different", title: "Different Analysis" },
   { key: "reviews",   title: "Reviews" },
   { key: "support",   title: "Support" },
   // Admin-only, and collapsed on first visit (see ADMIN_GROUPS / DEFAULT_COLLAPSED below).
@@ -1494,7 +1497,7 @@ const ACL_DEPTS = [
   { id: "company",   label: "Company Overview", icon: "spark",     reports: ["monthly-report", "analysis-by-category"] },
   { id: "sales",     label: "Sales",            icon: "funnel",    reports: ["sales-command", "demand-analysis", "conversations"] },
   { id: "marketing", label: "Marketing",        icon: "megaphone", reports: ["source-trace", "multi-source-leads", "meta-referrals"] },
-  { id: "logistics", label: "Logistics",        icon: "tool",      reports: ["money-flow", "ld-planning", "foreman-closings", "packing-control", "storage-control", "foreman-assessment", "fuel-control"] },
+  { id: "logistics", label: "Logistics",        icon: "tool",      reports: ["money-flow", "ld-planning", "foreman-closings", "packing-control", "storage-control", "foreman-assessment", "fuel-control", "straight-vs-local"] },
   // MUST mirror DEPT_REPORTS["hr"] in bridge/app.py. Employees answering the questionnaire
   // need NO grant at all — this tile is for HR: managing it and reading the results.
   { id: "hr",        label: "Human Resources", icon: "user",      reports: ["hr-questionnaire", "hr-responses", "hr-directory"] },
@@ -1704,7 +1707,7 @@ registerPage({
 <script src="pages/leads-vs-moveboard.js?v=7"></script>
 <script src="pages/source-analysis.js?v=4"></script>
 <script src="pages/data-quality.js?v=12"></script>
-<script src="pages/refresh-log.js?v=22"></script>
+<script src="pages/refresh-log.js?v=23"></script>
 <script src="pages/sales-team.js?v=47"></script>
 <script src="pages/conversations.js?v=8"></script>
 <script src="pages/source-trace.js?v=19"></script>
@@ -1724,6 +1727,7 @@ registerPage({
 <script src="pages/hr-directory.js?v=6"></script>
 <script src="pages/fuel-control.js?v=9"></script>
 <script src="pages/demand-analysis.js?v=6"></script>
+<script src="pages/straight-vs-local.js?v=1"></script>
 <script src="pages/general-tables.js?v=3"></script>
 <script src="pages/money-flow-issues.js?v=2"></script>
 <script src="pages/foreman-closings.js?v=18"></script>

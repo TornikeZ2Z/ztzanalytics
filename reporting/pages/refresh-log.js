@@ -701,13 +701,32 @@ function rlRender(host, runs, cov, fresh) {
     if (String(st.status).toLowerCase() === "error")
       failing.push({ run: p.run.started_at, step: st.step, detail: st.detail });
   }));
+  /* A DELIBERATE NON-SEND IS NEWS (2026-08-18). The weekly report suppresses itself when
+     no lead data reaches the reported week — the right behaviour, but it logged as a
+     "skipped" step among forty others and read as a stage that simply ran. Somebody has to
+     KNOW that Ruso did not get her Monday mail, and why. */
+  const skipped = [];
+  procs.slice(0, 3).forEach(p => (p.run.steps || []).forEach(st => {
+    if (String(st.status).toLowerCase() === "skipped" && st.detail
+        && /not sent|suppress/i.test(String(st.detail)))
+      skipped.push({ run: p.run.started_at, step: st.step, detail: st.detail });
+  }));
   // NOT `alert`: this is function-scoped and the pause/resume handler below calls the
   // GLOBAL alert() on its only error path -- shadowed, that call threw instead of reporting.
   let alertHtml = "";
+  if (skipped.length) {
+    alertHtml += `<div class="rl-alert" style="border-color:color-mix(in srgb,var(--amber) 45%,transparent);background:color-mix(in srgb,var(--amber) 8%,var(--panel))">
+      <div class="rl-alert-h" style="color:var(--amber)">✉ ${skipped.length} email${
+        skipped.length === 1 ? " was" : "s were"} held back on purpose</div>
+      ${skipped.map(f => `<div class="rl-alert-r"><b>${RSC.esc(RL.stLabel({ step: f.step }))}</b>
+        <span class="rl-alert-d">${RSC.esc(f.detail)}</span>
+        <div class="rl-alert-when">${RSC.esc(String(f.run).slice(0, 16))}</div></div>`).join("")}
+    </div>`;
+  }
   if (failing.length) {
     const byStep = {};
     failing.forEach(f => { (byStep[f.step] = byStep[f.step] || []).push(f); });
-    alertHtml = `<div class="rl-alert">
+    alertHtml += `<div class="rl-alert">
       <div class="rl-alert-h">⚠ ${failing.length} failed step${failing.length === 1 ? "" : "s"} in the last ${procs.length} runs</div>
       ${Object.entries(byStep).map(([step, list]) => `<div class="rl-alert-r">
         <b>${RSC.esc(RL.srcLabel({ step }))}</b> — failed ${list.length}× ·
