@@ -30,57 +30,28 @@
     if (old) old.remove();
     var st = document.createElement("style");
     st.id = "rf-style";
+    // The bar, the fields, the toggle, the buttons, the card, the table, the pills and the
+    // reason line now come from THE COMPONENT KIT in rs.css. What is left here is what the
+    // kit does not name -- plus a handful of one-line adjustments TO kit components.
     st.textContent = ""
       + ".rf{font-variant-numeric:tabular-nums}"
-      + ".rf-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(165px,1fr));gap:12px;margin-bottom:16px}"
-      + ".rf-kpi{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:13px 16px}"
-      + ".rf-kpi b{display:block;font-size:25px;font-weight:850;letter-spacing:-.5px;line-height:1.1}"
-      + ".rf-kpi span{display:block;font-size:10.5px;font-weight:800;letter-spacing:.06em;"
-      + "text-transform:uppercase;color:var(--faint);margin-top:4px}"
-      + ".rf-kpi small{display:block;font-size:12px;color:var(--muted);margin-top:3px;line-height:1.4}"
-      + ".rf-kpi.pos b{color:var(--pos)} .rf-kpi.warn b{color:var(--warn)}"
-      + ".rf-bar{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;margin:0 0 14px}"
-      + ".rf-fld{display:flex;flex-direction:column;gap:4px}"
-      + ".rf-fld>span{font-size:10.5px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--faint)}"
-      + ".rf-bar select,.rf-bar input{background:var(--panel);color:var(--ink);border:1px solid var(--line-2);"
-      + "border-radius:10px;padding:8px 12px;font-size:13px;font-weight:700;font-family:inherit;cursor:pointer}"
-      + ".rf-bar select:hover{border-color:var(--brand)}"
-      + ".rf-bar input{min-width:230px;cursor:text;font-weight:500}"
-      + ".rf-tog{display:inline-flex;align-items:center;gap:8px;background:var(--panel);border:1px solid var(--line-2);"
-      + "border-radius:10px;padding:9px 13px;font-size:13px;font-weight:700;color:var(--muted);cursor:pointer;user-select:none}"
-      + ".rf-tog.on{border-color:var(--brand);color:var(--ink)}"
-      + ".rf-tog i{width:10px;height:10px;border-radius:3px;background:var(--line-2);display:block}"
-      + ".rf-tog.on i{background:var(--brand)}"
-      + ".rf-btn{font:inherit;font-size:13px;font-weight:700;color:var(--muted);background:var(--panel);"
-      + "border:1px solid var(--line-2);border-radius:10px;padding:9px 14px;cursor:pointer;white-space:nowrap}"
-      + ".rf-btn:hover{border-color:var(--brand);color:var(--brand)}"
-      + ".rf-card{background:var(--panel);border:1px solid var(--line);border-radius:16px;"
-      + "box-shadow:var(--shadow);padding:20px 22px}"
-      + ".rf-h{font-size:16px;font-weight:800;color:var(--ink);margin-bottom:4px}"
-      + ".rf-h .n{font-weight:600;color:var(--faint);font-size:14px;margin-left:6px}"
-      + ".rf-sub{font-size:13px;color:var(--muted);line-height:1.55;margin-bottom:14px;max-width:110ch}"
-      // the zebra used 14% of --line, a hairline tint that reads as NO styling at all on a
-      // white panel (his screenshot). Stripe on the ink instead, band the header, and give
-      // rows real separation.
-      + ".rf-tbl{width:100%;border-collapse:collapse;font-size:13.5px}"
-      + ".rf-tbl th{padding:10px 12px;font-size:11px;font-weight:800;text-transform:uppercase;"
-      + "letter-spacing:.05em;color:var(--muted);border-bottom:2px solid var(--line-2);text-align:left;"
-      + "white-space:nowrap;position:sticky;top:0;background:var(--panel-2);z-index:1}"
-      + ".rf-tbl td{padding:10px 12px;border-bottom:1px solid var(--line);vertical-align:middle}"
-      + ".rf-tbl tbody tr:nth-child(even) td{background:color-mix(in srgb,var(--ink) 3.5%,transparent)}"
-      + ".rf-tbl tbody tr:hover td{background:color-mix(in srgb,var(--brand) 12%,transparent)}"
-      + ".rf-nowrap{white-space:nowrap}"
-      + ".rf-name{font-weight:750}"
-      + ".rf-mail a{color:var(--blue);text-decoration:none;font-weight:600}"
-      + ".rf-mail a:hover{text-decoration:underline}"
-      + ".rf-dim{color:var(--faint)}"
-      + ".rf-pill{display:inline-block;border-radius:999px;padding:3px 10px;font-size:11.5px;"
-      + "font-weight:700;background:color-mix(in srgb,var(--pos) 12%,transparent);color:var(--pos);white-space:nowrap}"
-      + ".rf-pill.q{background:color-mix(in srgb,var(--warn) 12%,transparent);color:var(--warn)}"
-      + ".rf-pill.bad{background:color-mix(in srgb,var(--neg,#dc2626) 12%,transparent);color:var(--neg,#dc2626)}"
-      + ".rf-why{font-size:11.5px;color:var(--muted);margin-top:3px;max-width:230px;white-space:normal;line-height:1.4}"
-      + ".rf-plat{font-size:12.5px;color:var(--muted);white-space:nowrap}"
-      + ".rf-wrap{overflow:auto;max-height:70vh;border:1px solid var(--line);border-radius:12px}"
+      // six tiles across one row -- the column count RSC.kpis would have computed for six
+      + ".rf .rs-kpis{--kpi-cols:6}"
+      // six tiles across means a narrow label box, and the kit ellipsizes -- which cut
+      // his own Georgian phrase to "არ ვა…". These labels wrap instead.
+      + ".rf .rs-kpis .kpi .l{white-space:normal;overflow:visible;text-overflow:clip}"
+      // the kit paints every tile value in --ink; a good / ruled-out count wants its own tone
+      + ".rf .rs-kpis .kpi.pos .v{color:var(--pos)}"
+      + ".rf .rs-kpis .kpi.warn .v{color:var(--warn)}"
+      // the find box carries a long placeholder, so it asks a little more than the kit's 210px
+      + ".rf .rs-inp{min-width:230px}"
+      // the list runs to a thousand rows: cap the scroller so the sticky header earns its keep
+      + ".rf .rs-tablewrap{max-height:70vh}"
+      // a reason line living inside a table cell has to wrap without widening the column
+      + ".rf .rs-why{max-width:230px;white-space:normal}"
+      // the row count beside the panel title
+      + ".rf .panel-head .n{font-weight:600;color:var(--faint);font-size:14px}"
+      // a footnote UNDER the table: quieter than .rs-hint, and it hangs below, not above
       + ".rf-note{font-size:12.5px;color:var(--faint);margin-top:10px;line-height:1.55}";
     document.head.appendChild(st);
   }
@@ -124,7 +95,7 @@ registerPage({
       return { v: "ok", why: [] };
     }
     injectStyle();
-    host.innerHTML = '<div class="rf-card">Loading five-star reviewers…</div>';
+    host.innerHTML = '<div class="panel">Loading five-star reviewers…</div>';
 
     RS.load("referral_candidates").then(function (rows) {
       rows = (rows || []).map(function (r) {
@@ -136,7 +107,7 @@ registerPage({
         return r;
       });
       if (!rows.length) {
-        host.innerHTML = '<div class="rf-card">No five-star reviews found — the table may ' +
+        host.innerHTML = '<div class="panel">No five-star reviews found — the table may ' +
           "not be built yet (sources=curated) or there is nothing to show.</div>";
         return;
       }
@@ -183,7 +154,7 @@ registerPage({
       }
 
       function sel(id, label, current, values) {
-        return '<label class="rf-fld"><span>' + label + '</span><select id="' + id + '">'
+        return '<label class="rs-fld"><span>' + label + '</span><select class="rs-sel" id="' + id + '">'
           + '<option value="">All</option>'
           + Object.keys(values).sort().map(function (v) {
               return '<option value="' + esc(v) + '"' + (current === v ? " selected" : "")
@@ -209,7 +180,7 @@ registerPage({
           + "their lead carried. Newest review first."
           + '<span class="freshness"> · reviews since 2025 · contact details come from the '
           + "lead the move was booked on</span></p></div>"
-          + '<div class="rf-kpis">'
+          + '<div class="rs-kpis">'
           + kpi(v.length.toLocaleString(), "Five-star customers", fiveTotal.toLocaleString() + " five-star reviews between them", "")
           + kpi(gOk.toLocaleString(), "Good to ask",
                 "rated the move 10/10 and the bill stayed near the quote", "pos")
@@ -220,29 +191,30 @@ registerPage({
           + kpi(withMail.toLocaleString(), "With an email", pctOf(withMail) + " of the list", "pos")
           + kpi(withPhone.toLocaleString(), "With a phone", pctOf(withPhone) + " of the list", "pos")
           + "</div>"
-          + '<div class="rf-bar">'
+          + '<div class="rs-bar">'
           + sel("rfCo", "Company", S.co, allCos)
           + sel("rfPlat", "Platform", S.plat, allPlats)
           + sel("rfSrc", "Source", S.src, allSrc)
           + sel("rfMt", "Move type", S.mt, allMt)
           + sel("rfSize", "Size", S.size, allSize)
           + sel("rfSp", "Sales person", S.sp, allSp)
-          + '<label class="rf-fld"><span>Verdict</span><select id="rfVerdict">'
+          + '<label class="rs-fld"><span>Verdict</span><select class="rs-sel" id="rfVerdict">'
           + '<option value="">All</option>'
           + '<option value="ok"' + (S.verdict === "ok" ? " selected" : "") + ">Good to ask</option>"
           + '<option value="bad"' + (S.verdict === "bad" ? " selected" : "") + ">Ruled out</option>"
           + '<option value="nos"' + (S.verdict === "nos" ? " selected" : "") + ">No score</option>"
           + "</select></label>"
-          + '<div class="rf-tog' + (S.contact ? " on" : "") + '" id="rfContact"><i></i>Only with contact details</div>'
-          + '<label class="rf-fld"><span>Find</span><input id="rfQ" placeholder="Name, email, phone or request…" '
+          + '<div class="rs-tog' + (S.contact ? " on" : "") + '" id="rfContact"><i></i>Only with contact details</div>'
+          + '<label class="rs-fld"><span>Find</span><input class="rs-inp" id="rfQ" placeholder="Name, email, phone or request…" '
           + 'value="' + esc(S.q) + '"></label>'
-          + '<span style="flex:1"></span>'
-          + '<button class="rf-btn" id="rfMail">Copy emails · ' + withMail + "</button>"
-          + '<button class="rf-btn" id="rfPhone">Copy phones · ' + withPhone + "</button>"
-          + '<button class="rf-btn" id="rfCsv">Download CSV · ' + v.length + "</button>"
+          + '<span class="rs-spacer"></span>'
+          + '<button class="rs-btn" id="rfMail">Copy emails · ' + withMail + "</button>"
+          + '<button class="rs-btn" id="rfPhone">Copy phones · ' + withPhone + "</button>"
+          + '<button class="rs-btn" id="rfCsv">Download CSV · ' + v.length + "</button>"
           + "</div>"
-          + '<div class="rf-card"><div class="rf-h">The list<span class="n">' + v.length + "</span></div>"
-          + '<div class="rf-sub">Every five-star reviewer, matched back to the lead the move was booked on. '
+          + '<div class="panel"><div class="panel-head"><div class="panel-title">The list</div>'
+          + '<span class="n">' + v.length + "</span></div>"
+          + '<div class="rs-hint">Every five-star reviewer, matched back to the lead the move was booked on. '
           + "A blank email or phone means the lead was created without one — "
           + (unmatched ? unmatched + " could not be matched to a lead at all and carry the name and request number only. " : "")
           + "Rows marked <i>uncounted</i> are reviews the platform later filtered; the customer still wrote them, "
@@ -255,7 +227,7 @@ registerPage({
           return;
         }
         var CAP = 1000;
-        html += '<div class="rf-wrap"><table class="rf-tbl"><thead><tr>'
+        html += '<div class="rs-tablewrap"><table class="rs-table"><thead><tr>'
           + "<th>Verdict</th><th>Review</th><th>Customer</th><th>Email</th><th>Phone</th><th>Platform</th>"
           + "<th>Reviews</th><th>Score</th><th>Company</th><th>Request #</th><th>Move type</th><th>Size</th>"
           + "<th>Route</th><th>Source</th><th>Sales person</th>"
@@ -264,30 +236,31 @@ registerPage({
               var route = [r["Pickup State"], r["Delivery State"]].filter(Boolean).join(" → ");
               var g = r._g;
               var vcell = g.v === "ok"
-                ? '<span class="rf-pill">good to ask</span>'
+                ? '<span class="rs-pill ok">good to ask</span>'
                 : g.v === "bad"
-                  ? '<span class="rf-pill bad" title="' + esc(g.why.join("; ")) + '">არ ვარგა</span>'
-                    + '<div class="rf-why">' + esc(g.why.join(" · ")) + "</div>"
-                  : '<span class="rf-pill q">no score</span>';
+                  ? '<span class="rs-pill bad" title="' + esc(g.why.join("; ")) + '">არ ვარგა</span>'
+                    + '<div class="rs-why">' + esc(g.why.join(" · ")) + "</div>"
+                  : '<span class="rs-pill mute">no score</span>';
               return '<tr><td>' + vcell + "</td>"
-                + '<td class="rf-nowrap">' + esc(dayLab(r.Day)) + "</td>"
-                + '<td class="rf-name">' + esc(r.Customer || "—") + "</td>"
-                + '<td class="rf-mail">' + (r.Email
-                    ? '<a href="mailto:' + esc(r.Email) + '">' + esc(r.Email) + "</a>"
-                    : '<span class="rf-dim">—</span>') + "</td>"
-                + '<td class="rf-nowrap">' + (r.Phone ? esc(r.Phone) : '<span class="rf-dim">—</span>') + "</td>"
-                + '<td class="rf-plat">' + esc(r.Platforms || "—") + "</td>"
+                + '<td class="nowrap">' + esc(dayLab(r.Day)) + "</td>"
+                + '<td class="strong">' + esc(r.Customer || "—") + "</td>"
+                + (r.Email
+                    ? '<td><a href="mailto:' + esc(r.Email) + '">' + esc(r.Email) + "</a></td>"
+                    : '<td class="dim">—</td>')
+                + (r.Phone ? '<td class="nowrap">' + esc(r.Phone) + "</td>"
+                           : '<td class="nowrap dim">—</td>')
+                + '<td class="nowrap muted">' + esc(r.Platforms || "—") + "</td>"
                 + "<td>" + (r["Counted"]
-                    ? '<span class="rf-pill">★ ' + r["Five Star Reviews"] + "</span>"
-                    : '<span class="rf-pill q" title="the platform later filtered this review; the customer still wrote it">★ '
+                    ? '<span class="rs-pill ok">★ ' + r["Five Star Reviews"] + "</span>"
+                    : '<span class="rs-pill warn" title="the platform later filtered this review; the customer still wrote it">★ '
                       + r["Five Star Reviews"] + " · uncounted</span>") + "</td>"
-                + "<td>" + (r["Satisfaction Score"] == null || r["Satisfaction Score"] === ""
-                    ? '<span class="rf-dim">—</span>' : esc(String(r["Satisfaction Score"])) + "/10") + "</td>"
+                + (r["Satisfaction Score"] == null || r["Satisfaction Score"] === ""
+                    ? '<td class="dim">—</td>' : "<td>" + esc(String(r["Satisfaction Score"])) + "/10</td>")
                 + "<td>" + esc(r.Company || "—") + "</td>"
                 + "<td>" + esc(r["Request No"] || "—") + "</td>"
-                + '<td class="rf-nowrap">' + esc(r["Move Type"] || "—") + "</td>"
+                + '<td class="nowrap">' + esc(r["Move Type"] || "—") + "</td>"
                 + "<td>" + esc(r["Size of Move"] || "—") + "</td>"
-                + '<td class="rf-nowrap">' + esc(route || "—") + "</td>"
+                + '<td class="nowrap">' + esc(route || "—") + "</td>"
                 + "<td>" + esc(r["Lead Source"] || "—") + "</td>"
                 + "<td>" + esc(r["Sales Person"] || "—") + "</td></tr>";
             }).join("")
@@ -300,8 +273,8 @@ registerPage({
       }
 
       function kpi(val, lab, sub, cls) {
-        return '<div class="rf-kpi ' + (cls || "") + '"><b>' + esc(val) + "</b><span>" + esc(lab)
-          + "</span><small>" + esc(sub) + "</small></div>";
+        return '<div class="kpi ' + (cls || "") + '"><div class="l">' + esc(lab)
+          + '</div><div class="v">' + esc(val) + '</div><div class="s">' + esc(sub) + "</div></div>";
       }
 
       function copyList(items, btn, word) {
@@ -387,7 +360,7 @@ registerPage({
 
       paint();
     }).catch(function (e) {
-      host.innerHTML = '<div class="rf-card">Could not load the referral list — '
+      host.innerHTML = '<div class="panel">Could not load the referral list — '
         + esc(e && e.message || e) + "</div>";
     });
   },

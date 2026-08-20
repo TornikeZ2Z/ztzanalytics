@@ -343,9 +343,9 @@ registerPage({
       var h = "", c = calHref(r);
       // the contract URL is our own Drive listing, but an href scheme is not a place for trust
       var fid = /^https:\/\//i.test(String(r["Contract URL"] || "")) ? dcFileId(r) : null;
-      if (c) h += '<a class="pk-lnk" target="_blank" rel="noopener" href="' + c + '">event ↗</a>';
+      if (c) h += '<a target="_blank" rel="noopener" href="' + c + '">event ↗</a>';
       if (fid) h += (h ? " · " : "")
-        + '<a class="pk-lnk pk-fid" target="_blank" rel="noopener" href="' + esc(r["Contract URL"])
+        + '<a class="pk-fid" target="_blank" rel="noopener" href="' + esc(r["Contract URL"])
         + '" title="digital contract · file id ' + esc(fid) + '">' + esc(fid.slice(0, 10)) + '…</a>';
       return h || '<span style="color:var(--faint)">—</span>';
     }
@@ -392,9 +392,6 @@ registerPage({
       + "border:0;border-radius:10px;padding:9px 16px;cursor:pointer}"
       + ".pk-tabs button:hover{background:var(--panel-2);color:var(--ink)}"
       + ".pk-tabs button.on{background:var(--brand);color:var(--brand-ink)}"
-      + ".pk-btn{font:inherit;font-size:12.5px;font-weight:700;color:var(--muted);background:var(--panel);"
-      + "border:1px solid var(--line-2);border-radius:9px;padding:7px 12px;cursor:pointer;white-space:nowrap}"
-      + ".pk-btn:hover{border-color:var(--brand);color:var(--brand)}"
       + ".pk-dim{font-size:var(--t4);color:var(--faint)}"
       + ".pk-dim2{font-size:var(--t5);color:var(--faint);line-height:1.55;margin:0 0 10px;display:block}"
       + ".pk-pcard{display:flex;flex-wrap:wrap;gap:18px;align-items:center;justify-content:space-between;"
@@ -417,19 +414,18 @@ registerPage({
       + ".pk-sec{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px 18px;margin-bottom:14px}"
       + ".pk-sec h4{margin:0 0 4px;font-size:var(--t2);font-weight:800}"
       + ".pk-sec h4 .pk-dim{font-weight:600;margin-left:6px}"
-      + ".pk-ptbl{width:100%;border-collapse:collapse;font-size:var(--t4)}"
-      + ".pk-ptbl th{text-align:left;font-size:var(--t6);font-weight:800;letter-spacing:.05em;text-transform:uppercase;"
-      + "color:var(--faint);padding:0 10px 8px;border-bottom:1px solid var(--line);white-space:nowrap}"
-      + ".pk-ptbl td{padding:10px;border-bottom:1px solid var(--line);vertical-align:top}"
-      + ".pk-ptbl tr:last-child td{border-bottom:0}"
-      + ".pk-ptbl td.r,.pk-ptbl th.r{text-align:right}"
-      + ".pk-ptbl td.neg{color:var(--neg);font-weight:700} .pk-ptbl td.pos{color:var(--pos);font-weight:700}"
-      + ".pk-ptbl tr.sig td{background:rgba(220,38,38,.05)}"
-      + ".pk-ptbl td small{display:block;font-weight:500;margin-top:2px;max-width:400px}"
-      + ".pk-tag{display:inline-block;font-size:var(--t5);font-weight:700;padding:2px 9px;border-radius:999px;"
-      + "background:var(--panel-2);color:var(--faint);border:1px solid var(--line-2);white-space:nowrap}"
-      + ".pk-tag.sig{background:rgba(220,38,38,.12);color:var(--neg);border-color:transparent}"
-      + ".pk-tag.ok{background:rgba(22,163,74,.10);color:var(--pos);border-color:transparent}"
+      // NARROW ADJUSTMENTS TO THE KIT TABLE, and nothing more. The table, its header, the
+      // zebra, the right-aligned .num column and the pills inside it all come from rs.css;
+      // what stays here is only what this page's evidence tables need on top of it — a cell
+      // that carries a second explanatory line reads top-aligned, and the gap / significance
+      // tints are this page's own reading of a row.
+      + ".pk .rs-table td{vertical-align:top}"
+      + ".pk .rs-table td small{display:block;font-weight:500;margin-top:2px;max-width:400px}"
+      + ".pk .rs-table td.pk-neg{color:var(--neg);font-weight:700}"
+      + ".pk .rs-table td.pk-pos{color:var(--pos);font-weight:700}"
+      + ".pk .rs-table tr.pk-sig td{background:color-mix(in srgb,var(--neg) 8%,transparent)}"
+      // a row the comparison set aside: present as evidence, faded because it is not counted
+      + ".pk .rs-table tr.pk-aside td{color:var(--faint)}"
       + ".pk-mrow{display:grid;grid-template-columns:120px 60px 90px 92px 92px 1fr;gap:10px;align-items:center;"
       + "padding:7px 2px;border-bottom:1px solid var(--line);font-size:var(--t4)}"
       + ".pk-mrow:last-child{border-bottom:0}"
@@ -440,44 +436,25 @@ registerPage({
       + ".pk-mbar i.lo{background:var(--neg)} .pk-mbar i.hi{background:var(--pos)}"
       // the others' rate as a marker on his own bar: one glance says over or under
       + ".pk-mbar u{position:absolute;top:-3px;width:2px;height:15px;background:var(--ink);opacity:.55}"
-      + ".pk-jwrap{max-height:520px;overflow:auto;border:1px solid var(--line);border-radius:11px}"
-      + ".pk-jtbl th{position:sticky;top:0;background:var(--panel);z-index:1;padding:9px 10px}"
-      + ".pk-jtbl tr.aside td{color:var(--faint)}"
+      // a cap on the kit scroller: the evidence tables are long by nature and must not push
+      // the section below them off the screen
+      + ".pk-jwrap{max-height:520px}"
       + ".pk-dhact{display:flex;align-items:center;gap:8px;flex:0 0 auto}"
-      // control bar
-      // the control bar, in the house style every other operations page uses: labelled
-      // fields, panel selects on --line-2 borders, brand-filled segment buttons
-      + ".pk-bar{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;margin:16px 0 10px}"
-      + ".pk-fld{display:flex;flex-direction:column;gap:4px}"
-      + ".pk-fld>span{font-size:var(--t6);font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--faint)}"
-      + ".pk-bar select,.pk-bar input{background:var(--panel);color:var(--ink);border:1px solid var(--line-2);"
-      + "border-radius:10px;padding:8px 12px;font-size:13px;font-weight:700;font-family:inherit;cursor:pointer}"
-      + ".pk-bar select:hover{border-color:var(--brand)}"
-      + ".pk-bar input{min-width:210px;cursor:text;font-weight:500}"
-      + ".pk-tog{display:inline-flex;align-items:center;gap:8px;background:var(--panel);border:1px solid var(--line-2);"
-      + "border-radius:10px;padding:9px 13px;font-size:13px;font-weight:700;color:var(--muted);cursor:pointer;user-select:none}"
-      + ".pk-tog.on{border-color:var(--brand);color:var(--ink)}"
-      + ".pk-tog i{width:10px;height:10px;border-radius:3px;background:var(--line-2);display:block}"
-      + ".pk-tog.on i{background:var(--brand)}"
-      + ".pk-seg{display:inline-flex;background:var(--panel-2);border:1px solid var(--line-2);border-radius:11px;padding:3px}"
-      + ".pk-seg button{background:transparent;border:0;color:var(--muted);font:inherit;font-size:13px;font-weight:700;"
-      + "padding:8px 15px;cursor:pointer;border-radius:8px}"
-      + ".pk-seg button.on{background:var(--brand);color:var(--brand-ink);font-weight:800}"
-      // the job-check verdict pills + row affordances
-      + ".pk-pill2{display:inline-block;font-size:var(--t6);font-weight:800;letter-spacing:.05em;"
-      + "text-transform:uppercase;padding:3px 9px;border-radius:999px;border:1px solid var(--line-2);"
-      + "color:var(--faint);white-space:nowrap}"
-      + ".pk-pill2.ok{color:var(--pos);border-color:var(--pos);background:var(--pos-bg)}"
-      + ".pk-pill2.warn{color:var(--warn);border-color:var(--warn);background:var(--warn-bg)}"
-      + ".pk-pill2.bad{color:var(--neg);border-color:var(--neg);background:var(--neg-bg)}"
+      // THE CONTROL BAR COMES FROM THE KIT. .rs-bar / .rs-fld / .rs-sel / .rs-inp / .rs-seg /
+      // .rs-tog / .rs-btn used to be copied out here under pk- names; they are one vocabulary
+      // now, and the only thing this page still says about the bar is where it sits — under
+      // the KPI strip, which carries no bottom margin of its own.
+      + ".pk .rs-bar{margin:16px 0 10px}"
+      // the job-check "what to check" column: a reason line that may wrap, beside numbers
+      // that may not
       + ".pk-why{font-size:var(--t5);color:var(--muted);line-height:1.45;min-width:220px;max-width:380px;white-space:normal}"
       + ".pk-load{white-space:nowrap;color:var(--muted)}"
-      + ".pk-jrow{cursor:pointer}"
-      + ".pk-jrow:hover td{background:var(--panel-2)}"
-      + ".pk-lnk{color:var(--blue);text-decoration:none;font-weight:700;font-size:var(--t5);white-space:nowrap}"
-      + ".pk-lnk:hover{text-decoration:underline}"
-      + ".pk-fid{font-family:ui-monospace,Consolas,monospace;font-size:10.5px}"
-      + ".pk-note{font-size:var(--t5);color:var(--faint);margin:0 0 14px;line-height:1.55;max-width:96ch}"
+      // the kit gives links inside .rs-table their look; the drawer table and the spot-check
+      // queue are this page's own components, so they carry it themselves
+      + ".pk-tbl a,.pk-q a{color:var(--blue);text-decoration:none;font-weight:700;"
+      + "font-size:var(--t5);white-space:nowrap}"
+      + ".pk-tbl a:hover,.pk-q a:hover{text-decoration:underline}"
+      + "a.pk-fid{font-family:ui-monospace,Consolas,monospace;font-size:10.5px}"
       // the board
       + ".pk-grid{display:grid;grid-template-columns:minmax(0,1fr) 330px;gap:16px;align-items:start}"
       + "@media(max-width:1100px){.pk-grid{grid-template-columns:minmax(0,1fr)}}"
@@ -708,20 +685,20 @@ registerPage({
         }
       }
       var curYm = TODAY.slice(0, 7);
-      html += '<div class="pk-bar">'
-        + '<label class="pk-fld"><span>Month</span><select id="pkMonth"><option value="">All months</option>'
+      html += '<div class="rs-bar">'
+        + '<label class="rs-fld"><span>Month</span><select class="rs-sel" id="pkMonth"><option value="">All months</option>'
         + mList.map(function (m) {
             return '<option value="' + m + '"' + (S.month === m ? " selected" : "") + ">" + monLab(m)
               + (m > curYm ? " · upcoming" : "") + "</option>";
           }).join("") + "</select></label>"
         + (Object.keys(cos).length > 1
-            ? '<label class="pk-fld"><span>Company</span><select id="pkCo"><option value="">Both books</option>'
+            ? '<label class="rs-fld"><span>Company</span><select class="rs-sel" id="pkCo"><option value="">Both books</option>'
               + Object.keys(cos).sort().map(function (c) {
                   return '<option value="' + esc(c) + '"' + (S.co === c ? " selected" : "") + ">" + esc(c) + "</option>";
                 }).join("") + "</select></label>"
             : "")
         + (S.view === "profile" && profiles.length ?
-            '<label class="pk-fld"><span>Foreman</span><select id="pkWho">'
+            '<label class="rs-fld"><span>Foreman</span><select class="rs-sel" id="pkWho">'
             + profiles.map(function (p) { return p.name; }).sort().map(function (n) {
                 var q = profileOf(n, profiles);
                 return '<option value="' + esc(n) + '"' + (n === S.fm ? " selected" : "") + ">"
@@ -731,20 +708,20 @@ registerPage({
         // the way back must survive an empty window -- the button, unlike the select,
         // renders on the profile view unconditionally
         + (S.view === "profile"
-            ? '<button class="pk-btn" id="pkToBoard" style="padding:10px 14px">← Back to the board</button>' : "")
+            ? '<button class="rs-btn" id="pkToBoard">← Back to the board</button>' : "")
         // THE WINDOW CONTROLS BELONG TO BOTH VIEWS; THE BOARD'S DO NOT. Month and company decide
         // which jobs the whole comparison is built from, so the file needs them as much as the
         // board does. Sorting, "only above the line" and the name search only arrange a list of
         // twenty cards — on a page showing one man they are furniture.
         + (S.view === "board" ?
-            '<div class="pk-fld"><span>Sort</span><div class="pk-seg">'
+            '<div class="rs-fld"><span>Sort</span><div class="rs-seg">'
             + seg("score", "By concern") + seg("sold", "By packing sold") + seg("jobs", "By jobs") + seg("name", "A–Z")
             + "</div></div>"
-            + '<div class="pk-tog' + (S.flagOnly ? " on" : "") + '" id="pkFlag"><i></i>Only above the line</div>' : "")
+            + '<div class="rs-tog' + (S.flagOnly ? " on" : "") + '" id="pkFlag"><i></i>Only above the line</div>' : "")
         + (S.view === "jobs"
-            ? '<div class="pk-tog' + (S.chkOnly ? " on" : "") + '" id="pkOnly"><i></i>Only jobs to check</div>' : "")
+            ? '<div class="rs-tog' + (S.chkOnly ? " on" : "") + '" id="pkOnly"><i></i>Only jobs to check</div>' : "")
         + (S.view !== "profile"
-            ? '<label class="pk-fld"><span>Find</span><input id="pkQ" placeholder="'
+            ? '<label class="rs-fld"><span>Find</span><input class="rs-inp" id="pkQ" placeholder="'
               + (S.view === "board" ? "Find a foreman…" : "Foreman or customer…")
               + '" value="' + esc(S.q) + '"></label>' : "")
         + "</div>";
@@ -755,7 +732,7 @@ registerPage({
       // beside the number it governs, so repeating this paragraph there would just push the man
       // himself below the fold — which on a page about one man is the wrong thing at the top.
       if (S.view === "board")
-      html += '<p class="pk-note"><b>How to read this.</b> Every measure on a card is a comparison with '
+      html += '<p class="rs-hint"><b>How to read this.</b> Every measure on a card is a comparison with '
         + "the other foremen on the same measure, over the window selected above \u2014 nothing here is scored "
         + "against a fixed target, so the fleet getting better or worse together moves nobody onto this board. "
         + "Customers packing their own things is normal and legitimate; it lands at random, so it cannot "
@@ -800,7 +777,7 @@ registerPage({
       wire(here, profiles);
       // the note under the bar says every card is read "over the window selected above" — so
       // the collapsed pill has to keep naming that window
-      RSC.collapsible(main.querySelector(".pk-bar"), "rsBarCollapsed:packing-control", {
+      RSC.collapsible(main.querySelector(".rs-bar"), "rsBarCollapsed:packing-control", {
         count: function () {
           var labels = [];
           if (S.month) labels.push(monLab(S.month));
@@ -942,28 +919,28 @@ registerPage({
         + "large would appear if he were drawing from the same pool as everyone else; it is shown "
         + "only where the test could run at all, and a signal is counted only below the "
         + "board-wide corrected cutoff of " + (p.cut ? p.cut.toFixed(3) : "—") + ".</p>"
-        + '<table class="pk-ptbl"><thead><tr><th>Measure</th><th class="r">His median</th>'
-        + '<th class="r">The others</th><th class="r">Gap</th><th class="r">Jobs tested</th>'
+        + '<div class="rs-tablewrap"><table class="rs-table"><thead><tr><th>Measure</th><th class="num">His median</th>'
+        + '<th class="num">The others</th><th class="num">Gap</th><th class="num">Jobs tested</th>'
         + "<th>Reading</th></tr></thead><tbody>"
         + MEASURES.map(function (m) {
             var val = p.med[m.k], f = p.fleet[m.k], pv = p.ps[m.k];
             var d = (val != null && f) ? (val - f) / f : null;
             var sig = pv != null && p.cut != null && pv <= p.cut && val != null && f != null && val < f;
             var cnt = p.jobs.filter(function (r) { return r[m.k] != null; }).length;
-            return "<tr" + (sig ? ' class="sig"' : "") + "><td><b>" + esc(m.lab) + "</b>"
+            return "<tr" + (sig ? ' class="pk-sig"' : "") + "><td><b>" + esc(m.lab) + "</b>"
               + '<small class="pk-dim2">' + esc(m.help) + "</small></td>"
-              + '<td class="r"><b>' + fmtM(m, val) + "</b></td>"
-              + '<td class="r">' + fmtM(m, f) + "</td>"
-              + '<td class="r ' + (d == null ? "" : d < 0 ? "neg" : "pos") + '">'
+              + '<td class="num"><b>' + fmtM(m, val) + "</b></td>"
+              + '<td class="num">' + fmtM(m, f) + "</td>"
+              + '<td class="num ' + (d == null ? "" : d < 0 ? "pk-neg" : "pk-pos") + '">'
               + (d == null ? "—" : (d > 0 ? "+" : "") + Math.round(d * 100) + "%") + "</td>"
-              + '<td class="r">' + cnt + "</td>"
+              + '<td class="num">' + cnt + "</td>"
               + "<td>" + (pv == null
-                  ? '<span class="pk-tag">too few to test</span>'
-                  : sig ? '<span class="pk-tag sig">below peers · p=' + pv.toFixed(3) + "</span>"
-                  : '<span class="pk-tag ok">ordinary · p=' + pv.toFixed(3) + "</span>")
+                  ? '<span class="rs-pill mute">too few to test</span>'
+                  : sig ? '<span class="rs-pill bad">below peers · p=' + pv.toFixed(3) + "</span>"
+                  : '<span class="rs-pill ok">ordinary · p=' + pv.toFixed(3) + "</span>")
               + "</td></tr>";
           }).join("")
-        + "</tbody></table></div>";
+        + "</tbody></table></div></div>";
 
       // ---- month by month ----------------------------------------------------------------
       var mo = monthly(p, rows);
@@ -998,27 +975,27 @@ registerPage({
         + '<p class="pk-dim2">The evidence under every number above. Rows the comparison SET ASIDE are '
         + "marked: a customer who packed their own things, and a job whose sheet is not filed yet, "
         + "are not evidence of anything either way.</p>"
-        + '<div class="pk-jwrap"><table class="pk-ptbl pk-jtbl"><thead><tr><th>Day</th><th>Job</th>'
-        + '<th>Customer</th><th class="r">CF</th><th class="r">Units</th><th class="r">Quoted</th>'
-        + '<th class="r">Sold</th><th class="r">$/100 CF</th><th class="r">$/unit</th>'
+        + '<div class="rs-tablewrap pk-jwrap"><table class="rs-table"><thead><tr><th>Day</th><th>Job</th>'
+        + '<th>Customer</th><th class="num">CF</th><th class="num">Units</th><th class="num">Quoted</th>'
+        + '<th class="num">Sold</th><th class="num">$/100 CF</th><th class="num">$/unit</th>'
         + "<th>Note</th><th>Links</th></tr></thead><tbody>"
         + jl.map(function (r) {
             var aside = r["Packed By Owner"] || !r["Recorded"];
-            return "<tr" + (aside ? ' class="aside"' : "") + "><td>" + esc(dayLab(r.Day)) + "</td>"
+            return "<tr" + (aside ? ' class="pk-aside"' : "") + "><td>" + esc(dayLab(r.Day)) + "</td>"
               + "<td>" + esc(r["Job Code"] || "—") + "</td>"
               + "<td>" + esc(r.Customer || "—") + "</td>"
-              + '<td class="r">' + (r["Real CF"] == null ? "—" : Math.round(r["Real CF"])) + "</td>"
-              + '<td class="r">' + (r["Packing Units"] == null ? "—" : r["Packing Units"]) + "</td>"
-              + '<td class="r">' + usd(r["Quoted USD"]) + "</td>"
-              + '<td class="r"><b>' + usd(r["Sold USD"]) + "</b></td>"
-              + '<td class="r">' + usd(r["USD per 100 CF"], 2) + "</td>"
-              + '<td class="r">' + usd(r["USD per Unit"], 2) + "</td>"
-              + "<td>" + (r["Packed By Owner"] ? '<span class="pk-tag">customer packed</span>'
-                  : !r["Recorded"] ? (r.Day > TODAY ? '<span class="pk-tag ok">upcoming</span>'
-                      : '<span class="pk-tag">not filed yet</span>')
-                  : r["Zero Pack"] ? '<span class="pk-tag' + (r["No Quote"] ? "" : " sig") + '">sold nothing'
+              + '<td class="num">' + (r["Real CF"] == null ? "—" : Math.round(r["Real CF"])) + "</td>"
+              + '<td class="num">' + (r["Packing Units"] == null ? "—" : r["Packing Units"]) + "</td>"
+              + '<td class="num">' + usd(r["Quoted USD"]) + "</td>"
+              + '<td class="num"><b>' + usd(r["Sold USD"]) + "</b></td>"
+              + '<td class="num">' + usd(r["USD per 100 CF"], 2) + "</td>"
+              + '<td class="num">' + usd(r["USD per Unit"], 2) + "</td>"
+              + "<td>" + (r["Packed By Owner"] ? '<span class="rs-pill mute">customer packed</span>'
+                  : !r["Recorded"] ? (r.Day > TODAY ? '<span class="rs-pill ok">upcoming</span>'
+                      : '<span class="rs-pill mute">not filed yet</span>')
+                  : r["Zero Pack"] ? '<span class="rs-pill ' + (r["No Quote"] ? "mute" : "bad") + '">sold nothing'
                       + (r["No Quote"] ? " · none quoted" : "") + "</span>"
-                  : "") + "</td><td>" + jobLinks(r) + "</td></tr>";
+                  : "") + '</td><td class="nowrap">' + jobLinks(r) + "</td></tr>";
           }).join("")
         + "</tbody></table></div></div>";
       return h;
@@ -1142,9 +1119,9 @@ registerPage({
         + "the fleet itself only covers about half its mattresses. A row opens the foreman’s file at that job "
         + "where he has one.</p>";
       if (!shown.length) return h + '<p class="pk-dim2">Nothing to show in this window.</p></div>';
-      h += '<div class="pk-jwrap" style="max-height:64vh"><table class="pk-ptbl pk-jtbl"><thead><tr>'
+      h += '<div class="rs-tablewrap pk-jwrap" style="max-height:64vh"><table class="rs-table"><thead><tr>'
         + "<th>Day</th><th>Job</th><th>Customer</th><th>Foreman</th>"
-        + '<th class="r">Load</th><th class="r">Quoted</th><th class="r">Sold</th><th class="r">Expected</th>'
+        + '<th class="num">Load</th><th class="num">Quoted</th><th class="num">Sold</th><th class="num">Expected</th>'
         + "<th>Verdict</th><th>What to check</th><th>Links</th></tr></thead><tbody>"
         + shown.slice(0, CAP).map(function (x) {
             var r = x.r, c = x.c, load = [];
@@ -1152,25 +1129,25 @@ registerPage({
             if (r["Inv Boxes"] != null) load.push(r["Inv Boxes"] + " bx");
             if (r["Inv Wrappable"]) load.push(r["Inv Wrappable"] + " wr");
             if (r["Inv Mattresses"]) load.push(r["Inv Mattresses"] + " mat");
-            var pill = c.v === "ok" ? '<span class="pk-pill2 ok">in range</span>'
-              : c.v === "nothing" ? '<span class="pk-pill2 bad">sold nothing</span>'
-              : c.v === "short" ? '<span class="pk-pill2 warn">sold short</span>'
-              : c.v === "paper" ? '<span class="pk-pill2">not filed</span>'
-              : '<span class="pk-pill2">customer packed</span>';
+            var pill = c.v === "ok" ? '<span class="rs-pill ok">in range</span>'
+              : c.v === "nothing" ? '<span class="rs-pill bad">sold nothing</span>'
+              : c.v === "short" ? '<span class="rs-pill warn">sold short</span>'
+              : c.v === "paper" ? '<span class="rs-pill mute">not filed</span>'
+              : '<span class="rs-pill mute">customer packed</span>';
             var clickable = r.Foreman && withProfile[r.Foreman];
-            return "<tr" + (clickable ? ' class="pk-jrow" data-f="' + esc(r.Foreman)
+            return "<tr" + (clickable ? ' class="click" data-f="' + esc(r.Foreman)
                 + '" data-job="' + esc(r["Job Code"]) + '"' : "") + ">"
               + "<td>" + esc(dayLab(r.Day)) + "</td>"
               + "<td>" + esc(r["Job Code"] || "—") + "</td>"
               + "<td>" + esc(r.Customer || "—") + "</td>"
               + "<td>" + esc(r.Foreman || "—") + "</td>"
-              + '<td class="r pk-load">' + (load.length ? load.join(" · ") : "—") + "</td>"
-              + '<td class="r">' + usd(r["Quoted USD"]) + "</td>"
-              + '<td class="r"><b>' + (r["Recorded"] ? usd(r["Sold USD"]) : "—") + "</b></td>"
-              + '<td class="r">' + (c.exp == null ? "—" : usd(c.exp)) + "</td>"
+              + '<td class="num pk-load">' + (load.length ? load.join(" · ") : "—") + "</td>"
+              + '<td class="num">' + usd(r["Quoted USD"]) + "</td>"
+              + '<td class="num"><b>' + (r["Recorded"] ? usd(r["Sold USD"]) : "—") + "</b></td>"
+              + '<td class="num">' + (c.exp == null ? "—" : usd(c.exp)) + "</td>"
               + "<td>" + pill + "</td>"
               + '<td class="pk-why">' + (c.why.length ? c.why.map(esc).join(" · ") : "") + "</td>"
-              + "<td>" + jobLinks(r) + "</td></tr>";
+              + '<td class="nowrap">' + jobLinks(r) + "</td></tr>";
           }).join("")
         + "</tbody></table></div>";
       if (shown.length > CAP) h += '<p class="pk-dim2" style="margin-top:10px">' + (shown.length - CAP)
@@ -1214,25 +1191,25 @@ registerPage({
         return h + '<p class="pk-dim2">Nothing upcoming in this window — clear the month '
           + "filter to see every future job.</p></div>";
       }
-      h += '<div class="pk-jwrap"><table class="pk-ptbl pk-jtbl"><thead><tr><th>Day</th><th>Job</th>'
-        + '<th>Customer</th><th>Foreman</th><th class="r">Calendar CF</th><th class="r">Boxes</th>'
-        + '<th class="r">Wrappable</th><th class="r">Mattresses</th><th class="r">Quoted units</th>'
-        + '<th class="r">Quoted $</th><th>Links</th></tr></thead><tbody>'
+      h += '<div class="rs-tablewrap pk-jwrap"><table class="rs-table"><thead><tr><th>Day</th><th>Job</th>'
+        + '<th>Customer</th><th>Foreman</th><th class="num">Calendar CF</th><th class="num">Boxes</th>'
+        + '<th class="num">Wrappable</th><th class="num">Mattresses</th><th class="num">Quoted units</th>'
+        + '<th class="num">Quoted $</th><th>Links</th></tr></thead><tbody>'
         + fut.map(function (r) {
             return "<tr><td>" + esc(dayLab(r.Day))
-              + (r.Day < TODAY ? ' <span class="pk-tag sig">done — not on the sheet</span>' : "")
+              + (r.Day < TODAY ? ' <span class="rs-pill bad">done — not on the sheet</span>' : "")
               + "</td>"
               + "<td>" + esc(r["Job Code"] || "—") + "</td>"
               + "<td>" + esc(r.Customer || "—") + "</td>"
               + "<td>" + (r.Foreman ? esc(r.Foreman)
-                  : '<span class="pk-tag">not assigned yet</span>') + "</td>"
-              + '<td class="r">' + (r["Calendar CF"] == null ? "—" : Math.round(r["Calendar CF"])) + "</td>"
-              + '<td class="r">' + (r["Inv Boxes"] == null ? "—" : r["Inv Boxes"]) + "</td>"
-              + '<td class="r">' + (r["Inv Wrappable"] == null ? "—" : r["Inv Wrappable"]) + "</td>"
-              + '<td class="r">' + (r["Inv Mattresses"] == null ? "—" : r["Inv Mattresses"]) + "</td>"
-              + '<td class="r">' + (r["Quoted Units"] == null ? "—" : r["Quoted Units"]) + "</td>"
-              + '<td class="r">' + usd(r["Quoted USD"]) + "</td>"
-              + "<td>" + jobLinks(r) + "</td></tr>";
+                  : '<span class="rs-pill mute">not assigned yet</span>') + "</td>"
+              + '<td class="num">' + (r["Calendar CF"] == null ? "—" : Math.round(r["Calendar CF"])) + "</td>"
+              + '<td class="num">' + (r["Inv Boxes"] == null ? "—" : r["Inv Boxes"]) + "</td>"
+              + '<td class="num">' + (r["Inv Wrappable"] == null ? "—" : r["Inv Wrappable"]) + "</td>"
+              + '<td class="num">' + (r["Inv Mattresses"] == null ? "—" : r["Inv Mattresses"]) + "</td>"
+              + '<td class="num">' + (r["Quoted Units"] == null ? "—" : r["Quoted Units"]) + "</td>"
+              + '<td class="num">' + usd(r["Quoted USD"]) + "</td>"
+              + '<td class="nowrap">' + jobLinks(r) + "</td></tr>";
           }).join("")
         + "</tbody></table></div></div>";
       return h;
@@ -1369,7 +1346,7 @@ registerPage({
       if (fo) fo.onclick = function () { S.flagOnly = !S.flagOnly; paint(); };
       var ck = main.querySelector("#pkOnly");
       if (ck) ck.onclick = function () { S.chkOnly = !S.chkOnly; paint(); };
-      main.querySelectorAll(".pk-jrow").forEach(function (tr) {
+      main.querySelectorAll("tr.click").forEach(function (tr) {
         tr.onclick = function (e) {
           if (e.target && e.target.closest && e.target.closest("a")) return;
           var p = byName[tr.dataset.f];
@@ -1384,7 +1361,7 @@ registerPage({
         var n = main.querySelector("#pkQ");
         if (n) { n.focus(); n.setSelectionRange(at, at); }
       };
-      main.querySelectorAll(".pk-seg button").forEach(function (b) {
+      main.querySelectorAll(".rs-seg button").forEach(function (b) {
         b.onclick = function () { S.sort = b.dataset.sort; paint(); };
       });
       main.querySelectorAll(".pk-card").forEach(function (c) {
@@ -1420,7 +1397,7 @@ registerPage({
         + "<p>" + p.n + " comparable job" + (p.n === 1 ? "" : "s")
         + (p.selfPacked ? " · " + p.selfPacked + " excluded (customer packed their own)" : "")
         + " · " + usd(p.sold) + " sold</p></div>"
-        + '<div class="pk-dhact"><button class="pk-btn" id="pkFull">Open his full file →</button>'
+        + '<div class="pk-dhact"><button class="rs-btn" id="pkFull">Open his full file →</button>'
         + '<button class="pk-x" id="pkX">&times;</button></div></div><div class="pk-db">';
 
       h += '<div class="pk-read ' + v.cls + '"><h5>Reading</h5><p>' + verdictText(p) + "</p>";

@@ -92,7 +92,7 @@
 
   host.innerHTML = ""
     + "<h1>Issues in Money Flow</h1>"
-    + '<p class="rs-sub" style="max-width:760px">One closing row can cover several calendar events — an '
+    + '<p class="rs-hint">One closing row can cover several calendar events — an '
     + 'long-distance departure and its arrival, or a job that ran over two days. Its net cash is owed '
     + '<b>once</b>. These closings have money recorded on <b>more than one</b> leg, so the same cash may '
     + 'have been submitted twice. Every leg balances on its own, which is why nothing looks wrong '

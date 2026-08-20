@@ -110,15 +110,11 @@ registerPage({
       const st = document.createElement("style");
       st.id = "strc-style";
       st.textContent = `
-        #stSearch{width:100%;max-width:520px;padding:11px 14px;border-radius:11px;
-          border:1px solid var(--line-2);background:var(--panel-2);color:var(--ink);
-          font-size:14px;font-family:inherit;outline:none}
-        #stSearch:focus{border-color:var(--brand)}
-        .strc-modes{display:inline-flex;gap:2px;background:var(--panel);border:1px solid var(--line-2);
-          border-radius:11px;padding:3px;margin-bottom:13px}
-        .strc-modes button{border:0;background:transparent;color:var(--muted);font-family:inherit;
-          font-size:13px;font-weight:700;padding:7px 15px;border-radius:8px;cursor:pointer}
-        .strc-modes button.on{background:var(--brand);color:var(--brand-ink)}
+        /* The bar controls come from the kit: .rs-inp for the search box, .rs-seg for the
+           mode pills. Only the two things the kit cannot know stay here -- the search box is
+           this page's whole subject so it runs wide, and the mode row wants air under it. */
+        #stSearch{width:100%;max-width:520px;background:var(--panel-2)}
+        #stModes{margin-bottom:13px}
         .strc-results{margin-top:12px}
         /* min(320px,100%) so it never overflows a narrow pane, and auto-fit so the six
            rungs spread across whatever width the screen actually gives them: 3x2 on a
@@ -147,32 +143,25 @@ registerPage({
   .strc-chip.on{background:var(--brand);border-color:var(--brand);color:var(--brand-ink)}
   .strc-chip .c{font-size:11px;opacity:.75;font-variant-numeric:tabular-nums}
   .strc-chip.clear{color:var(--faint);border-style:dashed}
-  .strc-btab{width:100%;border-collapse:collapse;font-size:13px}
-  .strc-btab th{text-align:left;font-size:10px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;
-    color:var(--faint);padding:0 12px 7px 0;border-bottom:1px solid var(--line)}
-  .strc-btab td{padding:7px 12px 7px 0;border-bottom:1px solid color-mix(in srgb,var(--line) 55%,transparent)}
-  .strc-btab tbody tr{cursor:pointer}
-  .strc-btab tbody tr:hover td{background:var(--panel-2)}
-  .strc-btab td.d{color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap}
-  .strc-btab td.k{color:var(--muted);font-family:ui-monospace,monospace;font-size:11.5px}
+  /* The browse and multi-source lists are kit tables (.rs-tablewrap + .rs-table) and the
+     pager buttons are .rs-btn. Two narrow adjustments only: the wrap sits INSIDE a panel, so
+     its own border would draw a second card edge around the first, and the match-key column
+     only reads as a key in a monospace face. */
+  .rs-tablewrap.strc-bwrap{border:0;border-radius:0}
+  .rs-table td.strc-key{color:var(--muted);font-family:ui-monospace,monospace;font-size:11.5px}
   .strc-pager{display:flex;align-items:center;justify-content:center;gap:14px;padding:12px 0 2px;font-size:12.5px;color:var(--muted)}
-  .strc-pg{font:inherit;font-size:12.5px;font-weight:700;background:var(--panel);color:var(--ink);
-    border:1px solid var(--line-2);border-radius:9px;padding:6px 13px;cursor:pointer}
-  .strc-pg:hover:not(:disabled){border-color:var(--brand)}
-  .strc-pg:disabled{opacity:.4;cursor:default}
   .strc-hit{display:grid;grid-template-columns:auto auto auto auto minmax(0,1fr);gap:10px 16px;
           align-items:center;padding:10px 14px;border:1px solid var(--line);border-radius:11px;
           margin-bottom:7px;cursor:pointer;background:var(--panel-2)}
         .strc-hit:hover{border-color:var(--brand);background:var(--panel)}
         .strc-hit b{color:var(--ink);font-size:13.5px}
         .strc-hit .strc-mini{color:var(--muted);font-size:12.5px}
-        .strc-tag{font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px;white-space:nowrap}
-        .strc-tag.ok{background:var(--brand-glow);color:var(--brand-d)}
-        .strc-tag.bad{background:rgba(248,113,113,.14);color:var(--red)}
         .strc-lab{font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--faint)}
-        .strc-note{font-size:12.5px;color:var(--muted);line-height:1.55}
-        .strc-note .strc-em{color:var(--amber);font-weight:700}
-        .strc-note b{color:var(--ink)}
+        /* .rs-hint is the kit's explanation line. It carries a bottom margin, which is right
+           under a bar and wrong as the last line inside a card, and this page's emphasis
+           means "watch out", not "look here" -- so it stays amber rather than brand. */
+        #stCount,.strc-cell .rs-hint{margin:0}
+        .rs-hint .strc-em{color:var(--warn);font-weight:700}
         /* two raw-input cards */
         .strc-io{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:2px 0 20px}
         @media(max-width:640px){.strc-io{grid-template-columns:1fr}}
@@ -210,17 +199,7 @@ registerPage({
         .strc-final .fl{font-size:11.5px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;opacity:.9}
         .strc-final .fv{font-size:22px;font-weight:800}
         /* faithful vs current + verdict */
-        .strc-cmp{display:grid;grid-template-columns:1fr 1fr;gap:14px}
-        @media(max-width:640px){.strc-cmp{grid-template-columns:1fr}.strc-hit{grid-template-columns:1fr 1fr}}
-        .strc-cmp .strc-cell .big{font-size:17px;margin:4px 0 0}
-        .strc-verdict{margin-top:14px;border-radius:13px;padding:14px 16px;font-size:14px;line-height:1.55}
-        .strc-verdict.ok{background:var(--brand-glow);border:1px solid var(--brand-d)}
-        .strc-verdict.bad{background:rgba(248,113,113,.12);border:1px solid var(--red)}
-        .strc-verdict.warn{background:rgba(245,158,11,.12);border:1px solid var(--amber)}
-        .strc-verdict .vt{font-weight:800;font-size:15px;display:block;margin-bottom:3px}
-        .strc-verdict.ok .vt{color:var(--brand-d)}
-        .strc-verdict.bad .vt{color:var(--red)}
-        .strc-verdict.warn .vt{color:var(--amber)}
+        @media(max-width:640px){.strc-hit{grid-template-columns:1fr 1fr}}
         .strc-path{margin-top:8px;font-size:13px;color:var(--muted)}
         .strc-path code{background:var(--panel);border:1px solid var(--line);border-radius:7px;
           padding:2px 8px;color:var(--ink);font-size:12.5px}
@@ -247,10 +226,10 @@ registerPage({
            names because lint_page_css forbids sharing a class across pages) */
         .strc-mchip{display:inline-block;font-size:11px;font-weight:800;padding:2px 8px;
           border-radius:999px;margin:1px 3px 1px 0;white-space:nowrap}
-        .strc-mchip.CallRail{background:rgba(132,204,22,.16);color:var(--brand-d)}
-        .strc-mchip.GoogleLocal{background:rgba(91,140,255,.16);color:#3b6fe0}
-        .strc-mchip.Angi{background:rgba(245,158,11,.16);color:#b45309}
-        .strc-mchip.Thumbtack{background:rgba(168,85,247,.16);color:#7c3aed}`;
+        .strc-mchip.CallRail{background:var(--brand-glow);color:var(--brand-d)}
+        .strc-mchip.GoogleLocal{background:var(--blue-bg);color:var(--blue)}
+        .strc-mchip.Angi{background:var(--warn-bg);color:var(--warn)}
+        .strc-mchip.Thumbtack{background:color-mix(in srgb,var(--purple) 16%,transparent);color:var(--purple)}`;
       document.head.appendChild(st);
     }
 
@@ -266,14 +245,14 @@ registerPage({
       </div>
       <div class="panel">
         <div style="padding:14px 16px">
-          <div class="strc-modes" id="stModes">
+          <div class="rs-seg" id="stModes">
             <button data-mode="closing" class="on">Closing jobs</button>
             <button data-mode="moveboard">Moveboard leads</button>
             <button data-mode="multi">Multi-source</button>
           </div>
-          <input id="stSearch" type="text" autocomplete="off" spellcheck="false"
+          <input id="stSearch" class="rs-inp" type="text" autocomplete="off" spellcheck="false"
             placeholder="Search by Request #, Job Code, or customer name…">
-          <div class="strc-note" style="margin-top:8px" id="stCount">Loading…</div>
+          <div class="rs-hint" style="margin-top:8px" id="stCount">Loading…</div>
         </div>
         <div id="stResults" class="strc-results" style="padding:0 16px 8px"></div>
       </div>
@@ -522,18 +501,18 @@ registerPage({
         <div class="panel-head"><h3 style="margin:0">Matched by ${RSC.esc(label)}</h3>
           <span class="strc-cap">${RS.fmtN(hits.length)} ${m.unit}${hits.length === 1 ? "" : "s"}
             · newest first · page ${ST_STATE.page + 1} of ${pages}</span></div>
-        <table class="strc-btab"><thead><tr><th>Date</th><th>${
+        <div class="rs-tablewrap strc-bwrap"><table class="rs-table"><thead><tr><th>Date</th><th>${
           ST_STATE.mode === "closing" ? "Request #" : "Moveboard #"}</th><th>Customer</th>
           <th>Source</th><th>Matched on</th></tr></thead><tbody>
-          ${slice.map(r => `<tr data-k="${RSC.esc(m.key(r))}">
-            <td class="d">${RSC.esc(m.date(r))}</td>
-            ${m.cells(r).map((c, i) => `<td${i === 3 ? ' class="k"' : ""}>${RSC.esc(c)}</td>`).join("")}
+          ${slice.map(r => `<tr class="click" data-k="${RSC.esc(m.key(r))}">
+            <td class="dim nowrap">${RSC.esc(m.date(r))}</td>
+            ${m.cells(r).map((c, i) => `<td${i === 3 ? ' class="strc-key"' : ""}>${RSC.esc(c)}</td>`).join("")}
           </tr>`).join("")}
-        </tbody></table>
+        </tbody></table></div>
         ${pages > 1 ? `<div class="strc-pager">
-          <button class="strc-pg" data-pg="prev"${ST_STATE.page === 0 ? " disabled" : ""}>‹ Newer</button>
+          <button class="rs-btn" data-pg="prev"${ST_STATE.page === 0 ? " disabled" : ""}>‹ Newer</button>
           <span>${RS.fmtN(ST_STATE.page * PAGE + 1)}–${RS.fmtN(Math.min(hits.length, (ST_STATE.page + 1) * PAGE))} of ${RS.fmtN(hits.length)}</span>
-          <button class="strc-pg" data-pg="next"${ST_STATE.page >= pages - 1 ? " disabled" : ""}>Older ›</button>
+          <button class="rs-btn" data-pg="next"${ST_STATE.page >= pages - 1 ? " disabled" : ""}>Older ›</button>
         </div>` : ""}
       </div>`;
       el.querySelectorAll("tbody tr").forEach(tr => tr.onclick = () => openTrace(tr.dataset.k));
@@ -619,24 +598,24 @@ registerPage({
             ST_STATE.combo ? " — " + RSC.esc(ST_STATE.combo) : ""}</h3>
           <span class="strc-cap">${RS.fmtN(list.length)} lead${list.length === 1 ? "" : "s"}
             · newest first · page ${ST_STATE.mpage + 1} of ${pages}</span></div>
-        <table class="strc-btab"><thead><tr><th>Move date</th><th>Moveboard #</th><th>Customer</th>
+        <div class="rs-tablewrap strc-bwrap"><table class="rs-table"><thead><tr><th>Move date</th><th>Moveboard #</th><th>Customer</th>
           <th>Phone</th><th>Company</th><th>Trackers that matched</th><th>Resolved source</th></tr></thead>
         <tbody>
-          ${slice.map(x => `<tr data-k="${RSC.esc(m.key(x.r))}" title="Open this lead's trace">
-            <td class="d">${RSC.esc(String(x.r["Move Date"] || "").slice(0, 10) || "—")}</td>
+          ${slice.map(x => `<tr class="click" data-k="${RSC.esc(m.key(x.r))}" title="Open this lead's trace">
+            <td class="dim nowrap">${RSC.esc(String(x.r["Move Date"] || "").slice(0, 10) || "—")}</td>
             <td><b>#${RSC.esc(show(x.r["Job No"]))}</b></td>
             <td>${RSC.esc(show(x.r["Customer"]))}</td>
-            <td class="k">${RSC.esc(show(x.r["Customer Phone"]))}</td>
+            <td class="strc-key">${RSC.esc(show(x.r["Customer Phone"]))}</td>
             <td>${RSC.esc(show(x.r["Company"]))}</td>
             <td>${x.t.map(chip).join("")}</td>
             <td>${RSC.esc(show(x.r["Source Connector"]))}</td>
           </tr>`).join("")}
-        </tbody></table>
+        </tbody></table></div>
         ${pages > 1 ? `<div class="strc-pager">
-          <button class="strc-pg" data-pg="prev"${ST_STATE.mpage === 0 ? " disabled" : ""}>‹ Newer</button>
+          <button class="rs-btn" data-pg="prev"${ST_STATE.mpage === 0 ? " disabled" : ""}>‹ Newer</button>
           <span>${RS.fmtN(ST_STATE.mpage * PAGE + 1)}–${RS.fmtN(Math.min(list.length, (ST_STATE.mpage + 1) * PAGE))}
             of ${RS.fmtN(list.length)}</span>
-          <button class="strc-pg" data-pg="next"${ST_STATE.mpage >= pages - 1 ? " disabled" : ""}>Older ›</button>
+          <button class="rs-btn" data-pg="next"${ST_STATE.mpage >= pages - 1 ? " disabled" : ""}>Older ›</button>
         </div>` : ""}
       </div>`;
       el.querySelectorAll("tbody tr").forEach(tr => tr.onclick = () => openTrace(tr.dataset.k));
@@ -714,7 +693,7 @@ registerPage({
       // #4/#5 rows: show the match even when a higher priority outranks it
       const leadRow = (n, matched, key, name) =>
         win === n ? `Wins → <b>${name}</b> (matched by <b>${RSC.esc(show(key))}</b>)`
-        : matched ? `<span style="color:var(--amber);font-weight:700">Matched a ${name} lead by ${RSC.esc(show(key))}</span> — outranked by Priority #${win}`
+        : matched ? `<span style="color:var(--warn);font-weight:700">Matched a ${name} lead by ${RSC.esc(show(key))}</span> — outranked by Priority #${win}`
         : `No ${name} lead match`;
 
       const rules = [
@@ -731,7 +710,7 @@ registerPage({
             ? (win === 3
                 ? `Wins → <b>Meta Referral</b> (matched by <b>${RSC.esc(show(metaVia))}</b>${
                     metaKey ? " " + RSC.esc(show(metaKey)) : ""}${metaDate ? `, form filled ${RSC.esc(metaDate)}` : ""})`
-                : `<span style="color:var(--amber);font-weight:700">Matched a Meta referral form</span> — outranked by Priority #${win}`)
+                : `<span style="color:var(--warn);font-weight:700">Matched a Meta referral form</span> — outranked by Priority #${win}`)
             : "No referral-form match" },
         { n: 4, t: "Google Local phone match",
           d: "The customer's phone matched a Google Local lead (and no CallRail postcard overrides it).",
@@ -800,12 +779,12 @@ registerPage({
               <div class="strc-cell">
                 <div class="strc-lab"><span class="num">1</span>Raw moveboard source</div>
                 <div class="big">${RSC.esc(show(mbraw))}</div>
-                <div class="strc-note">${mbNote}</div>
+                <div class="rs-hint">${mbNote}</div>
               </div>
               <div class="strc-cell">
                 <div class="strc-lab"><span class="num">2</span>Raw closing source</div>
                 <div class="big">${RSC.esc(show(bf))}</div>
-                <div class="strc-note">The source as booked on the closing sheet ("Booked from") — the fallback if the moveboard source is blank.</div>
+                <div class="rs-hint">The source as booked on the closing sheet ("Booked from") — the fallback if the moveboard source is blank.</div>
               </div>
             </div>
 
@@ -849,7 +828,7 @@ registerPage({
 
       const mbLead = (n, matched, key, name) =>
         win === n ? `Wins → <b>${name}</b> (matched by <b>${RSC.esc(show(key))}</b>)`
-        : matched ? `<span style="color:var(--amber);font-weight:700">Matched a ${name} lead by ${RSC.esc(show(key))}</span>`
+        : matched ? `<span style="color:var(--warn);font-weight:700">Matched a ${name} lead by ${RSC.esc(show(key))}</span>`
         : `No ${name} lead match`;
 
       const rules = [
@@ -866,7 +845,7 @@ registerPage({
             ? (win === 3
                 ? `Wins → <b>Meta Referral</b> (matched by <b>${RSC.esc(show(metaVia))}</b>${
                     metaKey ? " " + RSC.esc(show(metaKey)) : ""}${metaDate ? `, form filled ${RSC.esc(metaDate)}` : ""})`
-                : `<span style="color:var(--amber);font-weight:700">Matched a Meta referral form</span> — outranked by Priority #${win}`)
+                : `<span style="color:var(--warn);font-weight:700">Matched a Meta referral form</span> — outranked by Priority #${win}`)
             : "No referral-form match" },
         { n: 4, t: "CallRail phone match",
           d: "The customer's phone matched a CallRail tracking number — its Number Name becomes the source (CallRail beats Google Local).",
@@ -939,7 +918,7 @@ registerPage({
               <div class="strc-cell">
                 <div class="strc-lab"><span class="num">0</span>Raw moveboard source</div>
                 <div class="big">${RSC.esc(show(rawS))}</div>
-                <div class="strc-note">${note}</div>
+                <div class="rs-hint">${note}</div>
               </div>
             </div>
             <div class="strc-sechead">Source, start to finish <span>· raw → final, each transformation in order</span></div>

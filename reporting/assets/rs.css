@@ -474,3 +474,120 @@ body.rs-app.light .rs-cpill{border-color:rgba(127,163,43,.4);color:var(--brand-d
 .rs-datepop .dayrow input{width:52px;font:inherit;font-size:12px;background:var(--bg);border:1px solid var(--line-2);border-radius:8px;color:var(--ink);padding:5px 7px}
 .rs-datepop .apply{display:block;width:100%;font:inherit;font-size:11.5px;font-weight:700;color:var(--blue);background:transparent;border:1px solid var(--line-2);border-radius:8px;padding:7px;cursor:pointer}
 .rs-datepop .apply:hover{background:var(--panel-2)}
+
+/* ======================================================================
+   THE COMPONENT KIT — one vocabulary, every page (2026-08-20)
+   ----------------------------------------------------------------------
+   WHY THIS EXISTS. Every page had been growing its own copy of the same
+   four things: 23 pages defined their own card, 21 their own pill, 16 their
+   own filter bar, table and KPI tile. Nothing was wrong with any single one
+   of them -- they simply drifted, so the same control looked different
+   depending on which report you opened, and a filter bar built last month
+   no longer matched one built last week (Tornike, 2026-08-20: "can we set up
+   a design system, so this kind of things are similar across all pages").
+
+   THE CONTRACT.
+     * These classes are SHARED ON PURPOSE. scripts/lint_page_css.py exempts
+       the `rs-` prefix for exactly this reason -- every other class name is
+       page-scoped and must stay that way.
+     * A page's own <style> block is for what is genuinely page-specific: a
+       calendar, a ladder, a chain diagram. Bars, selects, segments, tables,
+       pills and hints come from here.
+     * Everything is built from the TOKENS above, so light and dark are
+       automatic. Never hard-code a colour in a page for something the kit
+       already names.
+     * Page sheets load after this file, so a page can still override a rule
+       deliberately -- but if it finds itself overriding the same thing
+       twice, the kit is the place to fix it.
+
+   ALREADY IN THE KIT, above: .panel / .panel-head / .panel-title (the card),
+   .rs-kpis .kpi (the tile row, via RSC.kpis), .rs-page-head, .rs-tabs.
+   ====================================================================== */
+
+/* ---------- the filter / control bar ---------- */
+.rs-bar{display:flex;flex-wrap:wrap;gap:12px 14px;align-items:flex-end;margin:0 0 12px}
+.rs-fld{display:flex;flex-direction:column;gap:5px;min-width:0}
+/* the label sits ABOVE its control and is readable, not a 9px grey whisper */
+.rs-fld>span{font-size:10.5px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;
+  color:var(--faint);line-height:1}
+.rs-spacer{flex:1 1 auto}
+
+.rs-sel,.rs-inp{background:var(--panel);color:var(--ink);border:1px solid var(--line-2);
+  border-radius:10px;padding:8px 12px;font-family:inherit;font-size:13px;font-weight:700;outline:0}
+.rs-sel{cursor:pointer;min-width:132px;max-width:260px}
+.rs-inp{font-weight:500;min-width:210px}
+.rs-sel:hover:not(:disabled),.rs-inp:hover{border-color:var(--brand)}
+.rs-sel:focus,.rs-inp:focus{border-color:var(--brand);box-shadow:0 0 0 3px var(--brand-glow)}
+.rs-sel:disabled{opacity:.55;cursor:default}
+.rs-sel option{background:var(--panel);color:var(--ink)}
+/* a number field: right-aligned because it is read as a quantity */
+.rs-num{background:var(--panel);color:var(--ink);border:1px solid var(--line-2);border-radius:10px;
+  padding:8px 10px;font-family:inherit;font-size:13px;font-weight:800;text-align:right;width:76px;outline:0}
+.rs-num:hover{border-color:var(--brand)}
+.rs-num:focus{border-color:var(--brand);box-shadow:0 0 0 3px var(--brand-glow)}
+
+.rs-seg{display:inline-flex;background:var(--panel-2);border:1px solid var(--line-2);
+  border-radius:11px;padding:3px}
+.rs-seg button{font-family:inherit;font-size:13px;font-weight:700;padding:7px 14px;border:0;
+  border-radius:8px;background:transparent;color:var(--muted);cursor:pointer}
+.rs-seg button:hover:not(.on){color:var(--ink)}
+.rs-seg button.on{background:var(--brand);color:var(--brand-ink);font-weight:800}
+
+.rs-tog{display:inline-flex;align-items:center;gap:8px;background:var(--panel);
+  border:1px solid var(--line-2);border-radius:10px;padding:9px 13px;font-size:13px;font-weight:700;
+  color:var(--muted);cursor:pointer;user-select:none}
+.rs-tog:hover{border-color:var(--brand)}
+.rs-tog.on{border-color:var(--brand);color:var(--ink)}
+.rs-tog i{width:10px;height:10px;border-radius:3px;background:var(--line-2);display:block}
+.rs-tog.on i{background:var(--brand)}
+
+.rs-btn{font-family:inherit;font-size:13px;font-weight:700;color:var(--muted);background:var(--panel);
+  border:1px solid var(--line-2);border-radius:10px;padding:9px 14px;cursor:pointer;white-space:nowrap}
+.rs-btn:hover:not(:disabled){border-color:var(--brand);color:var(--brand)}
+.rs-btn.pri{background:var(--brand);border-color:var(--brand);color:var(--brand-ink);font-weight:800}
+.rs-btn.pri:hover:not(:disabled){color:var(--brand-ink);filter:brightness(1.06)}
+.rs-btn:disabled{opacity:.5;cursor:default}
+
+/* ---------- the reading hint under a bar or heading ---------- */
+.rs-hint{font-size:12.5px;color:var(--muted);line-height:1.6;margin:0 0 14px;max-width:var(--rs-prose)}
+.rs-hint b{color:var(--ink)}
+.rs-hint .em{color:var(--brand);font-weight:700}
+
+/* ---------- the data table ---------- */
+.rs-tablewrap{overflow:auto;border:1px solid var(--line);border-radius:12px}
+.rs-table{width:100%;border-collapse:collapse;font-size:13.5px;font-variant-numeric:tabular-nums}
+.rs-table th{position:sticky;top:0;z-index:1;background:var(--panel-2);color:var(--muted);
+  text-align:left;font-size:11px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;
+  padding:10px 12px;border-bottom:2px solid var(--line-2);white-space:nowrap}
+.rs-table td{padding:10px 12px;border-bottom:1px solid var(--line);vertical-align:middle}
+.rs-table tbody tr:last-child td{border-bottom:0}
+/* zebra on the INK, not on --line: a 14%-of-hairline tint is invisible on a white panel
+   and the table reads as unstyled (his screenshot, 2026-08-19) */
+.rs-table tbody tr:nth-child(even) td{background:color-mix(in srgb,var(--ink) 3.5%,transparent)}
+/* HOVER MEANS TWO DIFFERENT THINGS, so it gets two different weights: a neutral
+   wash helps the eye track a row across a wide table, while the brand tint is an
+   AFFORDANCE and belongs only to rows that actually open something. Unconditional
+   brand-glow made inert rows look clickable on three tables at once (2026-08-20). */
+.rs-table tbody tr:hover td{background:color-mix(in srgb,var(--ink) 5%,transparent)}
+.rs-table tbody tr.click:hover td{background:var(--brand-glow)}
+.rs-table th.num,.rs-table td.num{text-align:right}
+.rs-table td.dim{color:var(--faint)}
+/* between default ink and .dim: a real value that is simply secondary. .dim is the tone
+   this kit uses for an ABSENT value, so it must not be borrowed for present ones. */
+.rs-table td.muted{color:var(--muted)}
+.rs-table td.nowrap,.rs-table th.nowrap{white-space:nowrap}
+.rs-table td.strong{font-weight:750;color:var(--ink)}
+.rs-table tbody tr.click{cursor:pointer}
+.rs-table a{color:var(--blue);text-decoration:none;font-weight:600}
+.rs-table a:hover{text-decoration:underline}
+
+/* ---------- verdict pills ---------- */
+.rs-pill{display:inline-block;border-radius:999px;padding:3px 10px;font-size:11.5px;font-weight:800;
+  letter-spacing:.03em;white-space:nowrap;border:1px solid transparent}
+.rs-pill.ok{background:var(--pos-bg);color:var(--pos)}
+.rs-pill.warn{background:var(--warn-bg);color:var(--warn)}
+.rs-pill.bad{background:var(--neg-bg);color:var(--neg)}
+.rs-pill.info{background:var(--blue-bg);color:var(--blue)}
+.rs-pill.mute{background:var(--panel-2);color:var(--faint);border-color:var(--line-2)}
+/* a second line under a pill, for the reason it says what it says */
+.rs-why{display:block;font-size:12px;color:var(--muted);margin-top:3px;line-height:1.4}

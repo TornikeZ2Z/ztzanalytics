@@ -114,22 +114,10 @@ registerPage({
       + "body.rs-app:not(.light) .dm-basis .bt{color:var(--brand)}"
       + ".dm-basis p{margin:0;font-size:12.5px;line-height:1.65;color:var(--muted);max-width:112ch}"
       + ".dm-basis b{color:var(--ink)}"
-      // ---- toolbar ----------------------------------------------------------------------
-      + ".dm-bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:14px}"
-      + ".dm-seg{display:flex;background:var(--panel-2);border:1px solid var(--line);border-radius:10px;overflow:hidden}"
-      + ".dm-seg button{font-family:inherit;font-size:12px;font-weight:700;padding:7px 13px;border:0;"
-      + "background:none;color:var(--muted);cursor:pointer}"
-      + ".dm-seg button.on{background:var(--brand);color:var(--brand-ink)}"
-      + ".dm-bar .sp{margin-left:auto;font-size:11.5px;color:var(--faint)}"
-      + ".dm-fld{display:flex;flex-direction:column;gap:3px}"
-      + ".dm-fld>span{font-size:9.5px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--faint)}"
-      + ".dm-fld select{background:var(--panel);color:var(--ink);border:1px solid var(--line-2);"
-      + "border-radius:9px;padding:6px 10px;font-size:12.5px;font-weight:700;font-family:inherit;"
-      + "cursor:pointer;max-width:210px}"
-      + ".dm-fld select:hover:not(:disabled){border-color:var(--brand)}"
-      + ".dm-cap{width:64px;background:var(--panel);color:var(--ink);border:1.5px solid var(--line-2);"
-      + "border-radius:9px;padding:6px 9px;font-size:13px;font-weight:800;font-family:inherit;text-align:right}"
-      + ".dm-cap:focus{outline:none;border-color:var(--brand)}"
+      // ---- toolbar: THE SHARED KIT (rs.css) -----------------------------------------
+      // .rs-bar / .rs-fld / .rs-seg / .rs-sel / .rs-num / .rs-hint used to live here as
+      // dm-* copies that had quietly drifted from every other page's version of the same
+      // control. They are defined once in assets/rs.css now; nothing page-specific left.
       + ".dm-lead-tbl td{white-space:nowrap}"
       // ---- kpis --------------------------------------------------------------------------
       + ".dm-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(172px,1fr));gap:11px;margin-bottom:16px}"
@@ -184,13 +172,15 @@ registerPage({
       + ".dm-tt .r b{color:var(--ink);font-weight:700}"
       + ".dm-tt .f{margin-top:6px;font-size:10.5px;color:var(--faint);border-top:1px solid var(--line);padding-top:5px}"
       // ---- tables ---------------------------------------------------------------------------
-      + ".dm-t{border-collapse:collapse;width:100%;font-size:12.5px}"
-      + ".dm-t th{text-align:right;font-size:9.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;"
+      // dm-t is now a NARROW ADJUSTMENT ON .rs-table, not a table of its own: these are
+      // numeric tables, so cells are right-aligned by default and the first column is the
+      // label. Everything else -- header, zebra, hover, borders -- comes from the kit.
+      + ".dm-t{font-size:12.5px}"
+      + ".dm-t th{text-align:right;font-size:9.5px;"
       + "color:var(--faint);padding:8px 10px;border-bottom:1px solid var(--line-2);white-space:nowrap}"
       + ".dm-t th:first-child,.dm-t td:first-child{text-align:left}"
-      + ".dm-t td{padding:8px 10px;text-align:right;border-bottom:1px solid var(--line);white-space:nowrap}"
-      + ".dm-t tbody tr:hover{background:var(--panel-2)}"
-      + ".dm-t td.nm{font-weight:700}"
+      + ".dm-t td{padding:8px 10px;text-align:right;white-space:nowrap}"
+      + ".dm-t td.nm{font-weight:700;color:var(--ink)}"
       + ".dm-scroll{overflow-x:auto}"
       // ---- distribution bars -----------------------------------------------------------------
       + ".dm-bars{display:flex;flex-direction:column;gap:7px}"
@@ -464,40 +454,56 @@ registerPage({
 
     function toolbar() {
       const ys = years(), cos = companies();
-      let h = '<div class="dm-bar"><div class="dm-seg">'
-        + ys.map(y => '<button data-y="' + esc(y) + '"' + (y === S.year ? ' class="on"' : "") + ">"
-            + esc(y) + "</button>").join("") + "</div>";
+      // every control is a LABELLED FIELD, so a segment and a select read as one bar
+      // <label> when it wraps a real control (clicking the caption focuses it), <div>
+      // for a segment -- a label wrapping buttons would swallow their clicks
+      const fld = (label, inner) => {
+        const t = /^<(select|input)/.test(inner.trim()) ? "label" : "div";
+        return "<" + t + ' class="rs-fld"><span>' + label + "</span>" + inner + "</" + t + ">";
+      };
+      let h = '<div class="rs-bar">'
+        + fld("Year", '<div class="rs-seg">'
+            + ys.map(y => '<button data-y="' + esc(y) + '"' + (y === S.year ? ' class="on"' : "") + ">"
+                + esc(y) + "</button>").join("") + "</div>");
       if (cos.length > 1) {
-        h += '<div class="dm-seg"><button data-co=""' + (S.co ? "" : ' class="on"') + ">Both books</button>"
+        h += fld("Book", '<div class="rs-seg"><button data-co=""' + (S.co ? "" : ' class="on"')
+          + ">Both books</button>"
           + cos.map(c => '<button data-co="' + esc(c) + '"' + (c === S.co ? ' class="on"' : "") + ">"
-              + esc(c) + "</button>").join("") + "</div>";
+              + esc(c) + "</button>").join("") + "</div>");
       }
-      h += '<div class="dm-seg">'
+      h += fld("Shading", '<div class="rs-seg">'
         + Object.keys(METRIC).map(k => '<button data-m="' + k + '"'
             + (k === S.metric ? ' class="on"' : "") + ">" + esc(METRIC[k].lab) + "</button>").join("")
-        + "</div>";
+        + "</div>");
       // the per-lead filters (his ask, 2026-08-19): status / source / size. Options come
       // from the lead layer, so they show real values, not guesses; until it streams in
       // they render disabled rather than empty-but-clickable.
       const ldSel = (id, label, cur, key) => {
         if (!S.leads) {
-          return '<label class="dm-fld"><span>' + label + '</span><select disabled><option>'
-            + (S.leadsErr ? "unavailable" : "loading…") + "</option></select></label>";
+          return fld(label, '<select class="rs-sel" disabled><option>'
+            + (S.leadsErr ? "unavailable" : "loading…") + "</option></select>");
         }
         const vals = [...new Set(S.leads.map(l => l[key] || ""))].filter(Boolean).sort();
-        return '<label class="dm-fld"><span>' + label + '</span><select data-lf="' + id + '">'
+        return fld(label, '<select class="rs-sel" data-lf="' + id + '">'
           + '<option value="">All</option>'
           + vals.map(v => '<option value="' + esc(v) + '"' + (cur === v ? " selected" : "") + ">"
               + esc(v) + "</option>").join("")
-          + "</select></label>";
+          + "</select>");
       };
       h += ldSel("status", "Status", S.status, "Status")
         + ldSel("src", "Source", S.src, "Source")
         + ldSel("size", "Size", S.size, "Size");
-      h += '<span class="sp">Shading follows the metric; the blue foot is always the booked share.'
-        + (leadFilterOn() ? " <b>Filters on — every card is recomputed from the individual leads.</b>" : "")
-        + "</span>";
-      return h + "</div>";
+      h += "</div>";
+      // the hint gets a line of its own instead of 11.5px grey squeezed against the right
+      // edge of the bar -- his standing rule: a hint nobody can read is not a hint
+      return h + '<p class="rs-hint">Each square is shaded by <b>'
+        + esc(METRIC[S.metric].lab.toLowerCase()) + "</b>; the blue foot is always the booked "
+        + "share of that day."
+        + (leadFilterOn()
+            ? ' <span class="em">Filters are on — every card, every square and every list '
+              + "below is recomputed from the individual leads.</span>"
+            : " Status, source and size filter the individual leads behind every number.")
+        + "</p>";
     }
 
     function kpis(a, days) {
@@ -638,7 +644,7 @@ registerPage({
       if (!ls.length) return '<p class="dm-note" style="margin-top:10px">No leads match the '
         + "current filters on this day.</p>";
       return '<div class="dm-scroll" style="margin-top:12px;max-height:46vh;overflow:auto">'
-        + '<table class="dm-t dm-lead-tbl"><thead><tr><th>Came in</th><th>Moveboard #</th>'
+        + '<table class="rs-table dm-t dm-lead-tbl"><thead><tr><th>Came in</th><th>Moveboard #</th>'
         + "<th>Customer</th><th>Status</th><th>Source</th><th>Size</th><th>Cu ft</th>"
         + "<th>Quote</th></tr></thead><tbody>"
         + ls.slice(0, CAPN).map(l =>
@@ -704,7 +710,7 @@ registerPage({
         + "</b><span>" + esc(lab) + "</span><small>" + esc(sub) + "</small></div>";
       return '<div class="dm-card"><div class="dm-h"><h3>Demand after a day was already full</h3>'
         + '<span class="tag">capacity</span>'
-        + '<span class="rt">a full day = <input type="number" class="dm-cap" id="dmCap" min="1" '
+        + '<span class="rt">a full day = <input type="number" class="rs-num" id="dmCap" min="1" '
         + 'step="1" value="' + X + '"> booked jobs</span></div>'
         + '<p class="dm-note">For every move date that reached <b>' + X + " booked jobs</b>, this "
         + "counts the leads that arrived <b>after</b> that point — demand we could only have "
@@ -721,7 +727,7 @@ registerPage({
         + k(fmtN(afterLost), "…qualified but never booked", "the demand a bigger fleet could have taken", afterLost ? "blue" : "")
         + "</div>"
         + (hit.length
-          ? '<div class="dm-scroll"><table class="dm-t"><thead><tr><th>Move date</th>'
+          ? '<div class="dm-scroll"><table class="rs-table dm-t"><thead><tr><th>Move date</th>'
             + "<th>Booked that day</th><th>Leads after #" + X + "</th><th>…booked anyway</th>"
             + "<th>…qualified, never booked</th></tr></thead><tbody>"
             + hit.slice(0, 15).map(x => '<tr data-jump="' + esc(x.d) + '"><td class="nm">'
@@ -867,7 +873,7 @@ registerPage({
         + "turned away is still a date the market wanted.</p>"
         + (!list.length
             ? '<div class="dm-empty">No move date in this window was asked for at all.</div>'
-            : '<div class="dm-scroll"><table class="dm-t"><thead><tr><th>Move date</th><th>Leads</th>'
+            : '<div class="dm-scroll"><table class="rs-table dm-t"><thead><tr><th>Move date</th><th>Leads</th>'
         + "<th>Booked</th><th>Rate</th><th>Cu ft</th><th>Avg quote</th><th>Top market</th>"
         + "</tr></thead><tbody>"
         + list.map(d => {
@@ -947,7 +953,7 @@ registerPage({
         + "dollar-weighted rate, so it can be compared between groups without a big move in a "
         + "quiet week distorting it. Whether these numbers mean the pricing is right is a "
         + "judgement about the business, and this page does not make it.</p>"
-        + '<div class="dm-scroll"><table class="dm-t"><thead><tr><th>Demand level</th><th>Dates</th>'
+        + '<div class="dm-scroll"><table class="rs-table dm-t"><thead><tr><th>Demand level</th><th>Dates</th>'
         + "<th>Leads</th><th>Leads / date</th><th>Cu ft asked</th><th>Avg quote</th>"
         + "<th>Quote / cu ft</th><th>Avg cu ft priced</th><th>Booking rate</th><th>Avg crew</th>"
         + "</tr></thead><tbody>" + bands.map(line).join("") + "</tbody></table></div></div>";

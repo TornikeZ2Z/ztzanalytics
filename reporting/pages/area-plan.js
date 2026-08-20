@@ -25,53 +25,23 @@
     const st = document.createElement("style");
     st.id = "ap-style";
     st.textContent = `
-    .ap-card{background:var(--panel);border:1px solid var(--line);border-radius:16px;
-      box-shadow:var(--shadow);padding:22px 24px;margin-bottom:18px}
+    /* THE SHARED KIT (assets/rs.css) carries this page's card, tiles, bar, segment,
+       selects, number fields, tables and pills. The ap-card / ap-h / ap-sub / ap-tiles /
+       ap-tile / ap-tbl / ap-left / ap-dim / ap-num / ap-sel / ap-chip / ap-pill copies
+       that used to live here were the same controls, drifted. What is left below is what
+       the kit has no answer for: the eyebrow above a card title, the inline value colours,
+       the assumptions strip, the truck callout and the town lists. */
     .ap-eyebrow{font-size:11.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;
       color:var(--muted);margin-bottom:3px}
-    .ap-h{font-size:16px;font-weight:800;color:var(--ink);margin-bottom:5px}
-    .ap-sub{font-size:13px;color:var(--muted);line-height:1.55;margin-bottom:14px}
-    .ap-tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(165px,1fr));gap:12px}
-    .ap-tile{background:var(--panel);border:1px solid var(--line);border-radius:14px;
-      padding:15px 17px;box-shadow:var(--shadow)}
-    .ap-tile .l{font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;
-      color:var(--muted)}
-    .ap-tile .v{font-size:25px;font-weight:850;color:var(--ink);margin-top:4px;
-      letter-spacing:-.5px;font-variant-numeric:tabular-nums;line-height:1.05}
-    .ap-tile .s{font-size:12px;color:var(--muted);margin-top:4px;line-height:1.4}
-    .ap-tbl{width:100%;border-collapse:collapse;font-size:13.5px;
-      font-variant-numeric:tabular-nums}
-    .ap-tbl th{padding:9px 11px;font-size:11.5px;font-weight:800;text-transform:uppercase;
-      letter-spacing:.05em;color:var(--muted);border-bottom:2px solid var(--line);
-      text-align:right;white-space:nowrap}
-    .ap-tbl th:first-child{text-align:left}
-    .ap-tbl td{padding:10px 11px;border-top:1px solid var(--line);text-align:right;
-      vertical-align:middle}
-    .ap-tbl td:first-child{text-align:left;font-weight:700}
-    .ap-tbl tbody tr:nth-child(even){background:color-mix(in srgb,var(--line) 16%,transparent)}
-    .ap-tbl tbody tr:hover{background:color-mix(in srgb,var(--brand-d) 6%,transparent)}
-    .ap-left{text-align:left !important;font-weight:400 !important}
-    .ap-good{color:var(--brand-d)} .ap-bad{color:var(--red)}
-    .ap-warn{color:var(--warn,#a15c00)} .ap-dim{color:var(--muted)}
-    .ap-num{width:70px;padding:7px 9px;border:1.5px solid var(--line);border-radius:9px;
-      background:var(--panel);color:var(--ink);font-size:14px;font-weight:700;
-      text-align:right;transition:border-color .12s}
-    .ap-num:hover{border-color:var(--brand-d)}
-    .ap-num:focus{outline:none;border-color:var(--brand-d);
-      box-shadow:0 0 0 3px color-mix(in srgb,var(--brand-d) 18%,transparent)}
-    .ap-sel{padding:7px 10px;border:1.5px solid var(--line);border-radius:9px;
-      background:var(--panel);color:var(--ink);font-size:13.5px;font-weight:700}
-    .ap-chip{border:1.5px solid var(--line);border-radius:20px;background:var(--panel);
-      color:var(--ink);padding:6px 14px;font-size:13px;font-weight:700;cursor:pointer}
-    .ap-chip:hover{border-color:var(--brand-d)}
-    .ap-chip.on{background:var(--brand-d);border-color:var(--brand-d);color:#fff}
-    .ap-pill{display:inline-block;border-radius:20px;padding:4px 11px;font-size:12px;
-      font-weight:700;white-space:nowrap}
-    .ap-pill.ok{background:color-mix(in srgb,var(--brand-d) 14%,transparent);
-      color:var(--brand-d)}
-    .ap-pill.warn{background:color-mix(in srgb,#a15c00 13%,transparent);
-      color:var(--warn,#a15c00)}
-    .ap-pill.bad{background:color-mix(in srgb,var(--red) 12%,transparent);color:var(--red)}
+    /* the kit's card title sits flush under the eyebrow; give it back its 5px.
+       Scoped to an eyebrow-led card so no other page's .panel-title is touched. */
+    .ap-eyebrow + .panel-title{margin-bottom:5px}
+    .ap-good{color:var(--pos)} .ap-bad{color:var(--neg)}
+    .ap-warn{color:var(--warn)}
+    /* on a KPI tile the kit paints .v in --ink at (0,3,0); these need to out-specify it
+       or the trucks warning renders as plain text and the tile carries no signal */
+    .rs-kpis .kpi .v.ap-warn{color:var(--warn)}
+    .rs-kpis .kpi .v.ap-good{color:var(--pos)}
     .ap-note{font-size:12.5px;color:var(--muted);line-height:1.55}
     .ap-assume{display:flex;gap:30px;flex-wrap:wrap;margin:2px 0 16px}
     .ap-assume .l{font-size:11.5px;font-weight:800;letter-spacing:.04em;
@@ -119,7 +89,7 @@ registerPage({
     const ymLabel = ym => MONTH_NAMES[+ym.slice(5, 7)] + " " + ym.slice(0, 4);
 
     injectStyle();
-    host.innerHTML = '<div class="ap-card">Loading…</div>';
+    host.innerHTML = '<div class="panel">Loading…</div>';
 
     return Promise.all([
       RS.load("area_plan"),
@@ -127,7 +97,7 @@ registerPage({
         j => JSON.parse(((j.rows || [])[0] || {}).payload || "null")).catch(() => null),
     ]).then(([rows, model]) => {
       if (!rows.length || !model) {
-        host.innerHTML = '<div class="ap-card">The Area Plan mart has not been built yet — ' +
+        host.innerHTML = '<div class="panel">The Area Plan mart has not been built yet — ' +
           'run sources=area-plan and reload.</div>';
         return;
       }
@@ -258,24 +228,25 @@ registerPage({
         const opts = allYms.map(m =>
           '<option value="' + m + '">' + ymLabel(m) + '</option>').join("");
         const chip = (label, from, to) =>
-          '<button class="ap-chip' +
-          (inputs.from === from && inputs.to === to ? " on" : "") +
-          '" data-from="' + from + '" data-to="' + to + '">' + label + '</button>';
+          '<button' +
+          (inputs.from === from && inputs.to === to ? ' class="on"' : "") +
+          ' data-from="' + from + '" data-to="' + to + '">' + label + '</button>';
         const last = lastSettled;
         const l3from = allYms[Math.max(0, allYms.indexOf(last) - 2)] || last;
-        return '<div class="ap-card" style="display:flex;gap:12px;align-items:center;' +
-          'flex-wrap:wrap;padding:16px 24px">' +
-          '<span class="ap-eyebrow" style="margin:0">Period</span>' +
+        return '<div class="rs-bar">' +
+          '<div class="rs-fld"><span>Period</span><div class="rs-seg" id="apPeriod">' +
           chip("Sep 2025", "2025-09", "2025-09") +
           chip("Sep 2024", "2024-09", "2024-09") +
           chip("Last month", last, last) +
           chip("Last 3 months", l3from, last) +
           chip("2025", "2025-01", "2025-12") +
-          '<span style="margin-left:8px" class="ap-note">or pick:</span>' +
-          '<select class="ap-sel" id="apFrom">' + opts + '</select>' +
-          '<span class="ap-note">to</span>' +
-          '<select class="ap-sel" id="apTo">' + opts + '</select>' +
-          '<span class="ap-note" style="margin-left:auto">comparing against <b>' +
+          '</div></div>' +
+          '<div class="rs-fld"><span>From</span>' +
+          '<select class="rs-sel" id="apFrom">' + opts + '</select></div>' +
+          '<div class="rs-fld"><span>To</span>' +
+          '<select class="rs-sel" id="apTo">' + opts + '</select></div>' +
+          '<div class="rs-spacer"></div>' +
+          '<span class="ap-note">comparing against <b>' +
           esc(P.prevLabel) + '</b>' +
           (P.provisional ? ' · <span class="ap-warn"><b>recent months are still ' +
             'settling — lost counts there are provisional</b></span>' : '') + '</span></div>';
@@ -283,7 +254,7 @@ registerPage({
 
       function heroHtml(c) {
         const t = (l, v, s, cls) =>
-          '<div class="ap-tile"><div class="l">' + l + '</div><div class="v' +
+          '<div class="kpi"><div class="l">' + l + '</div><div class="v' +
           (cls ? " " + cls : "") + '">' + v + '</div><div class="s">' + s + '</div></div>';
         return t("Foremen today", c.totCur, "his real current numbers") +
           t("Planned foremen", c.totForemen, "+" + (c.totForemen - c.totCur) + " additional") +
@@ -301,32 +272,35 @@ registerPage({
       }
 
       function baseHtml(c) {
-        return '<table class="ap-tbl"><thead><tr>' +
-          '<th>Base / area</th><th>Foreman quantity</th><th>Additional foremen</th>' +
-          '<th>Planned</th><th>Jobs done (' + esc(P.label) + ')</th>' +
-          '<th>Jobs @ plan</th><th>Conversion</th><th>Leads needed</th>' +
-          '<th>Qualified (' + esc(P.label) + ')</th><th>Demand check</th>' +
+        return '<table class="rs-table"><thead><tr>' +
+          '<th>Base / area</th><th class="num">Foreman quantity</th>' +
+          '<th class="num">Additional foremen</th>' +
+          '<th class="num">Planned</th><th class="num">Jobs done (' + esc(P.label) + ')</th>' +
+          '<th class="num">Jobs @ plan</th><th class="num">Conversion</th>' +
+          '<th class="num">Leads needed</th>' +
+          '<th class="num">Qualified (' + esc(P.label) + ')</th>' +
+          '<th class="num">Demand check</th>' +
           '</tr></thead><tbody>' +
           c.perBase.map(r =>
-            '<tr><td>' + esc(r.st) +
+            '<tr><td class="strong">' + esc(r.st) +
               (r.note ? '<div class="ap-note">' + esc(r.note) + '</div>' : '') + '</td>' +
-            '<td><input class="ap-num" data-st="' + r.st + '" data-f="cur" type="number" ' +
-              'min="0" step="1" value="' + r.cur + '"></td>' +
-            '<td><input class="ap-num" data-st="' + r.st + '" data-f="add" type="number" ' +
-              'min="0" step="1" value="' + r.add + '"></td>' +
-            '<td><b>' + r.foremen + '</b></td>' +
-            '<td class="ap-dim">' + fmtN(r.done) + '</td>' +
-            '<td>' + fmtN(r.jobs) + '</td>' +
-            '<td>' + pct(r.conv) + ((P.S[r.st] || {}).conversion == null ?
+            '<td class="num"><input class="rs-num" data-st="' + r.st + '" data-f="cur" ' +
+              'type="number" min="0" step="1" value="' + r.cur + '"></td>' +
+            '<td class="num"><input class="rs-num" data-st="' + r.st + '" data-f="add" ' +
+              'type="number" min="0" step="1" value="' + r.add + '"></td>' +
+            '<td class="num"><b>' + r.foremen + '</b></td>' +
+            '<td class="num dim">' + fmtN(r.done) + '</td>' +
+            '<td class="num">' + fmtN(r.jobs) + '</td>' +
+            '<td class="num">' + pct(r.conv) + ((P.S[r.st] || {}).conversion == null ?
               '<span class="ap-note"> (national)</span>' : '') + '</td>' +
-            '<td>' + fmtN(r.leadsNeeded) + '</td>' +
-            '<td>' + fmtN(r.had) + '</td>' +
-            '<td>' + (r.gap == null
-              ? '<span class="ap-pill bad">no measured demand</span>'
+            '<td class="num">' + fmtN(r.leadsNeeded) + '</td>' +
+            '<td class="num">' + fmtN(r.had) + '</td>' +
+            '<td class="num">' + (r.gap == null
+              ? '<span class="rs-pill bad">no measured demand</span>'
               : r.gap > 0.1
-                ? '<span class="ap-pill warn">+' + Math.round(r.gap * 100) +
+                ? '<span class="rs-pill warn">+' + Math.round(r.gap * 100) +
                   '% vs ' + esc(P.label) + '</span>'
-                : '<span class="ap-pill ok">covered</span>') + '</td></tr>'
+                : '<span class="rs-pill ok">covered</span>') + '</td></tr>'
           ).join("") + '</tbody></table>';
       }
 
@@ -342,7 +316,7 @@ registerPage({
             (P.M.dollarsPerLead ? "$" + n1(P.M.dollarsPerLead) : "—")]]
           .map(([k, label, note]) =>
             '<div><div class="l">' + label + '</div>' +
-            '<input class="ap-num" style="width:92px" data-k="' + k + '" type="number" ' +
+            '<input class="rs-num" style="width:92px" data-k="' + k + '" type="number" ' +
             'min="0" step="0.1" value="' + inputs[k] + '">' +
             '<div class="m">' + note + '</div></div>').join("") + '</div>';
       }
@@ -358,10 +332,11 @@ registerPage({
           const v = c[r.county] = c[r.county] || { leads: 0, lost: 0 };
           v.leads += num(r.leads); v.lost += num(r.lost);
         });
-        return '<table class="ap-tbl"><thead><tr><th>State</th>' +
-          '<th>' + esc(P.prevLabel) + '</th><th>' + esc(P.label) + '</th>' +
-          '<th>Conversion, then → now</th><th>Lost</th>' +
-          '<th class="ap-left" style="text-align:left">Top counties (leads · lost)</th>' +
+        return '<table class="rs-table"><thead><tr><th>State</th>' +
+          '<th class="num">' + esc(P.prevLabel) + '</th>' +
+          '<th class="num">' + esc(P.label) + '</th>' +
+          '<th class="num">Conversion, then → now</th><th class="num">Lost</th>' +
+          '<th>Top counties (leads · lost)</th>' +
           '</tr></thead><tbody>' +
           states.map(st => {
             const a = P.Sprev[st] || {}, b = P.S[st] || {};
@@ -370,44 +345,50 @@ registerPage({
             const counties = Object.entries(byCounty[st] || {})
               .sort((x, y) => y[1].leads - x[1].leads).slice(0, 4)
               .map(([c, v]) => esc(c) + " " + v.leads + " · " + v.lost).join("   ");
-            return '<tr><td>' + esc(st) + '</td>' +
-              '<td class="ap-dim">' + fmtN(a.leads) + ' → ' + fmtN(a.booked) + '</td>' +
-              '<td><b>' + fmtN(b.leads) + '</b>' +
+            return '<tr><td class="strong">' + esc(st) + '</td>' +
+              '<td class="num dim">' + fmtN(a.leads) + ' → ' + fmtN(a.booked) + '</td>' +
+              '<td class="num"><b>' + fmtN(b.leads) + '</b>' +
                 (dl == null ? '' : ' <span class="' + (dl >= 0 ? 'ap-good' : 'ap-bad') +
                  '" style="font-size:12px">' + (dl >= 0 ? '+' : '') + Math.round(dl * 100) +
                  '%</span>') + ' → ' + fmtN(b.booked) + '</td>' +
-              '<td class="' + (convDown ? 'ap-bad' : 'ap-good') + '">' + pct(a.conversion) +
+              '<td class="num ' + (convDown ? 'ap-bad' : 'ap-good') + '">' + pct(a.conversion) +
                 ' → ' + pct(b.conversion) + '</td>' +
-              '<td class="ap-bad"><b>' + fmtN(b.lost) + '</b></td>' +
-              '<td class="ap-left ap-towns">' + counties + '</td></tr>';
+              '<td class="num ap-bad"><b>' + fmtN(b.lost) + '</b></td>' +
+              '<td class="ap-towns">' + counties + '</td></tr>';
           }).join("") + '</tbody></table>';
       }
 
       const R = model.research || {};
       const researchHtml = R.states ?
-        '<table class="ap-tbl"><thead><tr><th>Area</th><th>Qualified (period)</th>' +
-        '<th class="ap-left" style="text-align:left">The outside case</th>' +
-        '<th class="ap-left" style="text-align:left">Marketing target towns</th>' +
-        '<th>Yard $/mo</th><th>3BR move · crew/hr</th></tr></thead><tbody>' +
+        '<table class="rs-table"><thead><tr><th>Area</th>' +
+        '<th class="num">Qualified (period)</th>' +
+        '<th>The outside case</th>' +
+        '<th>Marketing target towns</th>' +
+        '<th class="num">Yard $/mo</th><th class="num">3BR move · crew/hr</th>' +
+        '</tr></thead><tbody>' +
         Object.entries(R.states).map(([st, v]) => {
           const comp = (R.competitors || {})[st];
-          return '<tr><td>' + esc(st) + '</td>' +
-            '<td id="apRq-' + st + '">…</td>' +
-            '<td class="ap-left" style="font-size:13px">' + esc(v.case) + '</td>' +
-            '<td class="ap-left ap-towns">' + esc(v.towns) + '</td>' +
-            '<td>' + (((R.depots || {})[st]) ? money(R.depots[st]) : '—') + '</td>' +
-            '<td>' + (comp ? money(comp[0]) + ' · ' + money(comp[1]) : '—') + '</td></tr>';
+          return '<tr><td class="strong">' + esc(st) + '</td>' +
+            '<td class="num" id="apRq-' + st + '">…</td>' +
+            '<td style="font-size:13px">' + esc(v.case) + '</td>' +
+            '<td class="ap-towns">' + esc(v.towns) + '</td>' +
+            '<td class="num">' + (((R.depots || {})[st]) ? money(R.depots[st]) : '—') + '</td>' +
+            '<td class="num">' + (comp ? money(comp[0]) + ' · ' + money(comp[1]) : '—') +
+            '</td></tr>';
         }).join("") + '</tbody></table>' +
         '<div class="ap-note" style="margin-top:10px">' + esc(R.vintage || "") +
         '. Licensing per state (a real gate on DE/CT/MA expansion) is in the memo.</div>' : "";
 
       const tc = model.truck_costs_by_year || {};
       const trucksHtml =
-        '<table class="ap-tbl" style="max-width:560px"><thead><tr><th>Year</th>' +
-        '<th>Rental</th><th>Financing</th><th>Repair</th></tr></thead><tbody>' +
+        '<table class="rs-table" style="max-width:560px"><thead><tr><th>Year</th>' +
+        '<th class="num">Rental</th><th class="num">Financing</th>' +
+        '<th class="num">Repair</th></tr></thead><tbody>' +
         Object.entries(tc).map(([y, b]) =>
-          '<tr><td>' + y + (y === "2026" ? " (to Aug)" : "") + '</td><td>' + money(b.rental) +
-          '</td><td>' + money(b.financing) + '</td><td>' + money(b.repair) + '</td></tr>'
+          '<tr><td class="strong">' + y + (y === "2026" ? " (to Aug)" : "") + '</td>' +
+          '<td class="num">' + money(b.rental) +
+          '</td><td class="num">' + money(b.financing) +
+          '</td><td class="num">' + money(b.repair) + '</td></tr>'
         ).join("") + '</tbody></table>' +
         '<div class="ap-note" style="margin-top:10px">Owned fleet <b>' +
         fmtN((model.fleet || {}).owned_trucks) + '</b> · insurance <b>' +
@@ -426,17 +407,16 @@ registerPage({
         })(R.trucks);
 
       const card = (eyebrow, h, sub, body) =>
-        '<div class="ap-card"><div class="ap-eyebrow">' + eyebrow + '</div>' +
-        '<div class="ap-h">' + h + '</div>' +
-        (sub ? '<div class="ap-sub">' + sub + '</div>' : '') + body + '</div>';
+        '<div class="panel"><div class="ap-eyebrow">' + eyebrow + '</div>' +
+        '<div class="panel-title">' + h + '</div>' +
+        (sub ? '<div class="rs-hint">' + sub + '</div>' : '') + body + '</div>';
 
       function paint() {
         recalcPeriod();
         const c = calc();
         host.innerHTML =
           periodBar() +
-          '<div class="ap-tiles" id="apHero" style="margin-bottom:18px">' + heroHtml(c) +
-          '</div>' +
+          '<div class="rs-kpis" id="apHero">' + heroHtml(c) + '</div>' +
           card("The plan", "Base capacity — foremen today, plus the additions being " +
                "considered",
                "Your real numbers. NY is covered from the NJ base. Change any cell; the " +
@@ -483,7 +463,7 @@ registerPage({
           };
           f.onchange = onSel; t.onchange = onSel;
         }
-        host.querySelectorAll(".ap-chip").forEach(b => b.onclick = () => {
+        host.querySelectorAll("#apPeriod button").forEach(b => b.onclick = () => {
           inputs.from = b.dataset.from; inputs.to = b.dataset.to;
           inputs.utilization = null; inputs.leadsPerRep = null;
           inputs.dollarsPerLead = null;
@@ -499,7 +479,7 @@ registerPage({
 
       host.addEventListener("input", e => {
         const t = e.target;
-        if (!t.classList || !t.classList.contains("ap-num")) return;
+        if (!t.classList || !t.classList.contains("rs-num")) return;
         if (t.dataset.st) inputs.bases[t.dataset.st][t.dataset.f] = parseFloat(t.value) || 0;
         else if (t.dataset.k) inputs[t.dataset.k] = parseFloat(t.value) || 0;
         save();
@@ -514,11 +494,11 @@ registerPage({
           cells[5].textContent = fmtN(r.jobs);
           cells[7].textContent = fmtN(r.leadsNeeded);
           cells[9].innerHTML = r.gap == null
-            ? '<span class="ap-pill bad">no measured demand</span>'
+            ? '<span class="rs-pill bad">no measured demand</span>'
             : r.gap > 0.1
-              ? '<span class="ap-pill warn">+' + Math.round(r.gap * 100) + '% vs ' +
+              ? '<span class="rs-pill warn">+' + Math.round(r.gap * 100) + '% vs ' +
                 esc(P.label) + '</span>'
-              : '<span class="ap-pill ok">covered</span>';
+              : '<span class="rs-pill ok">covered</span>';
         });
       });
     });
