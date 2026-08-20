@@ -573,6 +573,10 @@ body.rs-app.light .rs-cpill{border-color:rgba(127,163,43,.4);color:var(--brand-d
    brand-glow made inert rows look clickable on three tables at once (2026-08-20). */
 .rs-table tbody tr:hover td{background:color-mix(in srgb,var(--ink) 5%,transparent)}
 .rs-table tbody tr.click:hover td{background:var(--brand-glow)}
+/* A PINNED COLUMN NEEDS `separate`. With border-collapse:collapse the borders belong to
+   the TABLE, not the cell, so they do not travel with a position:sticky cell and the pinned
+   column loses its rules as it scrolls. Any table pinning a row or column wears .rs-sticky. */
+.rs-table.rs-sticky{border-collapse:separate;border-spacing:0}
 .rs-table th.num,.rs-table td.num{text-align:right}
 .rs-table td.dim{color:var(--faint)}
 /* between default ink and .dim: a real value that is simply secondary. .dim is the tone

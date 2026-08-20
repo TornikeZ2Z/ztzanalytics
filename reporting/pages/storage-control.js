@@ -117,26 +117,36 @@ registerPage({
      * The board is the hero: the physical warehouse as tiles, money as colour only where
      * money is wrong. House tokens throughout; occupied vaults carry the ink, empty ones
      * are ghosts, and a red left-edge means the goods inside owe us money.
+     *
+     * THE KIT (rs.css, "THE COMPONENT KIT") now supplies the KPI strip, the control bar and
+     * its input / segments / toggle, the card, the register table and the status pills. What
+     * is left below is what the kit does not name -- the vault board, the facility tile's
+     * inner rows, the lapsed-account flags, the item drawer -- plus a few one-line
+     * adjustments layered ON kit components.
      */
     host.innerHTML = '<style id="stcCss">'
-      + ".stc{--t1:27px;--t2:15px;--t3:13.5px;--t4:12px;--t5:11px;--t6:9.5px;max-width:none;font-variant-numeric:tabular-nums}"
-      + ".stc-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px}"
-      + ".stc-kpi{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:13px 16px}"
-      + ".stc-kpi b{display:block;font-size:var(--t1);letter-spacing:-.6px;line-height:1.1}"
-      + ".stc-kpi span{display:block;font-size:var(--t6);font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--faint);margin-top:5px}"
-      + ".stc-kpi small{display:block;font-size:var(--t5);color:var(--muted);margin-top:3px}"
-      + ".stc-kpi.neg b{color:var(--neg)} .stc-kpi.pos b{color:var(--pos)}"
-      + ".stc-bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:16px 0 14px}"
-      + ".stc-bar input{background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:9px;padding:7px 10px;font-size:var(--t4);font-family:inherit;min-width:210px}"
-      + ".stc-seg{display:inline-flex;background:var(--panel);border:1px solid var(--line);border-radius:9px;overflow:hidden}"
-      + ".stc-seg button{background:none;border:0;color:var(--muted);font:inherit;font-size:var(--t4);padding:7px 13px;cursor:pointer}"
-      + ".stc-seg button.on{background:var(--line);color:var(--ink);font-weight:700}"
-      + ".stc-tog{display:inline-flex;align-items:center;gap:7px;background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:7px 11px;font-size:var(--t4);color:var(--muted);cursor:pointer;user-select:none}"
-      + ".stc-tog.on{border-color:var(--neg);color:var(--ink)}"
-      + ".stc-tog i{width:9px;height:9px;border-radius:3px;background:var(--line-2);display:block}"
-      + ".stc-tog.on i{background:var(--neg)}"
-      + ".stc-h2{font-size:var(--t6);font-weight:800;letter-spacing:.09em;text-transform:uppercase;color:var(--faint);margin:20px 0 10px}"
+      // the drawer and scrim are SIBLINGS of .stc, not children, so a scale declared only on
+      // .stc never reached them and every drawer heading fell back to body's 14px
+      + ".stc,.stc-draw{--t3:13.5px;--t4:12px;--t5:11px;--t6:9.5px}"
+      + ".stc{max-width:none;font-variant-numeric:tabular-nums}"
+      // FIVE tiles, one row -- the column count RSC.kpis would have computed for five. And no
+      // entrance animation: paint() rewrites this whole body on every keystroke in the find
+      // box, so the kit's fade would replay on each one and the strip would read as a flinch.
+      + ".rs-content .stc .rs-kpis{--kpi-cols:5;animation:none}"
+      // the kit paints every tile value in --ink; the money tile earns a tone of its own
+      + ".stc .rs-kpis .kpi.neg .v{color:var(--neg)}"
+      + ".stc .rs-kpis .kpi.pos .v{color:var(--pos)}"
+      // "Owing only" is a verdict filter, not a preference, so its lit state carries the owing
+      // colour instead of the brand -- the one thing this toggle means that the kit cannot say
+      + ".stc .rs-tog.on{border-color:var(--neg)}"
+      + ".stc .rs-tog.on i{background:var(--neg)}"
+      // a section caption between full-width blocks: not a .panel-head, because the board and
+      // the register are not cards. 10.5px is the kit's label scale, not the old 9.5px whisper.
+      + ".stc-h2{font-size:10.5px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;color:var(--faint);margin:20px 0 10px}"
       + ".stc-h2 b{color:var(--muted)}"
+      // the sentence that explains the section. It was an inline style attribute repeated three
+      // times, rendering at 9.5px --faint -- an explanation nobody could read.
+      + ".stc-h2 .note{font-size:12.5px;font-weight:500;letter-spacing:0;text-transform:none;color:var(--muted)}"
       // the vault board
       + ".stc-board{display:grid;grid-template-columns:repeat(auto-fill,minmax(108px,1fr));gap:8px}"
       + ".stc-v{background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:7px 9px;min-height:58px;position:relative;overflow:hidden;cursor:pointer;transition:transform .08s,border-color .12s}"
@@ -154,9 +164,13 @@ registerPage({
       + ".stc-flag.bad{background:var(--neg-bg);color:var(--neg);font-weight:600}"
       + ".stc-flag.warn{background:var(--warn-bg);color:var(--warn);font-weight:600}"
       + ".stc-fac{cursor:pointer}"
-      // rented cards
+      // rented cards -- the tile itself is a kit .panel; this is the grid it sits in and the
+      // row language inside it. A card in a GRID must not carry the kit's bottom margin: the
+      // gap already is the gap, and the margin leaves every tile short of its cell. The three
+      // .panel overrides below carry `body.rs-app` because the kit's own card rule does, and a
+      // plain .stc-r would lose the cascade to it.
       + ".stc-rent{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px}"
-      + ".stc-r{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 14px}"
+      + "body.rs-app .stc .stc-r{margin-bottom:0}"
       + ".stc-r .nm{font-size:var(--t3);font-weight:700;line-height:1.3}"
       + ".stc-r .meta{font-size:var(--t5);color:var(--faint);margin-top:2px}"
       + ".stc-r .in{margin-top:8px;border-top:1px solid var(--line)}"
@@ -169,28 +183,20 @@ registerPage({
       // The unplaced list is NOT a facility card -- it has no facility to sit in. Reusing
       // .stc-rent/.stc-r parked a dozen rows in one 280px grid cell against the left edge
       // with the rest of the row empty. Its own full-width card, rows flowing into columns.
-      + ".stc-unplaced{background:var(--panel);border:1px solid var(--line);border-radius:12px;"
-      + "padding:4px 16px 8px;display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));"
-      + "column-gap:28px}"
+      + "body.rs-app .stc .stc-unplaced{padding:4px 16px 8px;display:grid;"
+      + "grid-template-columns:repeat(auto-fill,minmax(330px,1fr));column-gap:28px}"
       + ".stc-unplaced .jrow{display:flex;gap:8px;align-items:baseline;padding:7px 0;"
       + "border-bottom:1px solid var(--line);font-size:var(--t4);cursor:pointer}"
       + ".stc-unplaced .jrow:hover{color:var(--blue)}"
       + ".stc-unplaced .jrow .u{color:var(--faint);font-size:var(--t5)}"
       + ".stc-unplaced .jrow .cf{margin-left:auto;color:var(--muted);font-size:var(--t5);white-space:nowrap}"
-      // register table
-      + ".stc-tblwrap{overflow:auto;background:var(--panel);border:1px solid var(--line);border-radius:12px}"
-      + ".stc-tbl{width:100%;border-collapse:collapse;font-size:var(--t4)}"
-      + ".stc-tbl th{text-align:right;font-size:var(--t6);letter-spacing:.05em;text-transform:uppercase;color:var(--faint);font-weight:800;padding:9px 10px;border-bottom:1px solid var(--line-2);position:sticky;top:0;background:var(--panel);white-space:nowrap}"
-      + ".stc-tbl th:nth-child(-n+3),.stc-tbl td:nth-child(-n+3){text-align:left}"
-      + ".stc-tbl td{padding:8px 10px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}"
-      + ".stc-tbl tr{cursor:pointer}"
-      + ".stc-tbl tr:hover td{background:var(--panel-2)}"
-      + ".stc-tbl tr.left td{opacity:.5}"
-      + ".stc-tbl td.who{font-weight:650}"
-      + ".stc-pill{display:inline-block;font-size:var(--t6);font-weight:800;letter-spacing:.04em;padding:2px 8px;border-radius:999px}"
-      + ".stc-pill.ok{background:var(--pos-bg);color:var(--pos)}"
-      + ".stc-pill.owe{background:var(--neg-bg);color:var(--neg)}"
-      + ".stc-pill.off{background:var(--line);color:var(--muted)}"
+      // register table -- a kit .rs-table, with the one thing the kit cannot assume: this
+      // register is NUMERIC BY CONVENTION. Everything past customer / job / where is a
+      // quantity, so the alignment is a rule on the table rather than forty hand-tagged cells.
+      + ".stc .stc-tbl th,.stc .stc-tbl td{text-align:right;white-space:nowrap}"
+      + ".stc .stc-tbl th:nth-child(-n+3),.stc .stc-tbl td:nth-child(-n+3){text-align:left}"
+      // goods that have already left are history: still readable, visibly past
+      + ".stc .stc-tbl tr.left td{opacity:.5}"
       // drawer
       + ".stc-scrim{position:fixed;inset:0;background:rgba(0,0,0,.42);z-index:60;opacity:0;pointer-events:none;transition:opacity .18s}"
       + ".stc-scrim.on{opacity:1;pointer-events:auto}"
@@ -209,7 +215,8 @@ registerPage({
       + ".stc-row b{font-weight:700}"
       + ".stc-row .sub{color:var(--faint);font-weight:400}"
       + ".stc-note{font-size:var(--t4);color:var(--muted);line-height:1.55;white-space:pre-wrap}"
-      + ".stc-empty{padding:30px;text-align:center;color:var(--faint);font-size:var(--t3);background:var(--panel);border:1px solid var(--line);border-radius:14px}"
+      // the empty / loading state is a kit .panel; only the roomy centred type is ours
+      + "body.rs-app .stc .stc-empty{padding:30px;text-align:center;color:var(--faint);font-size:var(--t3)}"
       + "</style>"
       + '<div class="stc"><div id="stcMain"></div></div>'
       + '<div class="stc-scrim" id="stcScrim"></div>'
@@ -220,7 +227,7 @@ registerPage({
     var draw = host.querySelector("#stcDraw");
 
     /* ================================================================ data */
-    main.innerHTML = '<div class="stc-empty">Loading the storage register…</div>';
+    main.innerHTML = '<div class="panel rs-noanim stc-empty">Loading the storage register…</div>';
     Promise.all([
       RS.load("fct_storage_register"),
       RS.load("fct_storage_vault"),
@@ -269,7 +276,7 @@ registerPage({
       });
       paint();
     }).catch(function (e) {
-      main.innerHTML = '<div class="stc-empty">Could not load the register — ' + esc(e && e.message || e) + "</div>";
+      main.innerHTML = '<div class="panel rs-noanim stc-empty">Could not load the register — ' + esc(e && e.message || e) + "</div>";
     });
 
     function matches(r, q) {
@@ -301,7 +308,7 @@ registerPage({
         (rentedLocs[r.Facility || "(unnamed location)"] = rentedLocs[r.Facility || "(unnamed location)"] || []).push(r);
       });
 
-      var html = '<div class="stc-kpis">'
+      var html = '<div class="rs-kpis">'
         + kpi(String(act.length), "Goods in storage", S.reg.length + " items ever recorded", "")
         + kpi(Math.round(cf).toLocaleString(), "Cubic feet held", "chargeable, on active items", "")
         + kpi(String(Object.keys(occ).length), "Vaults occupied", "our warehouse", "")
@@ -315,15 +322,15 @@ registerPage({
               owed > 0 ? "neg" : "pos")
         + "</div>";
 
-      html += '<div class="stc-bar">'
-        + '<input id="stcQ" placeholder="Find a customer, job code, vault, unit…" value="' + esc(S.q) + '">'
-        + '<div class="stc-seg">'
+      html += '<div class="rs-bar">'
+        + '<input class="rs-inp" id="stcQ" placeholder="Find a customer, job code, vault, unit…" value="' + esc(S.q) + '">'
+        + '<div class="rs-seg">'
         + seg("show", "active", "In storage now") + seg("show", "all", "Everything")
         + "</div>"
-        + '<div class="stc-seg">'
+        + '<div class="rs-seg">'
         + seg("kind", "", "All places") + seg("kind", "our", "Our warehouse") + seg("kind", "rented", "Rented")
         + "</div>"
-        + '<div class="stc-tog' + (S.owing ? " on" : "") + '" id="stcOwe"><i></i>Owing only</div>'
+        + '<div class="rs-tog' + (S.owing ? " on" : "") + '" id="stcOwe"><i></i>Owing only</div>'
         + "</div>";
 
       // ---- the vault board -------------------------------------------------------------
@@ -340,7 +347,7 @@ registerPage({
         var q = S.q.toLowerCase();
         html += '<div class="stc-h2">Our warehouse · vault board · <b>'
           + Object.keys(occ).length + " of " + nums.length + " vaults in use</b>"
-          + ' <span style="text-transform:none;letter-spacing:0;font-weight:500">— vaults the register has ever named; red edge = balance owing</span></div>';
+          + ' <span class="note">— vaults the register has ever named; red edge = balance owing</span></div>';
         html += '<div class="stc-board">'
           + nums.map(function (n) {
               var items = occ[n] || [];
@@ -379,7 +386,7 @@ registerPage({
           return pa - pb || (b["Monthly Run Rate"] || 0) - (a["Monthly Run Rate"] || 0);
         });
         html += '<div class="stc-h2">Rented storage \u00b7 <b>' + facs.length + " facilities</b>"
-          + ' <span style="text-transform:none;letter-spacing:0;font-weight:500">\u2014 geography from the register, money from the card feed'
+          + ' <span class="note">\u2014 geography from the register, money from the card feed'
           + (unplaced.length ? ". " + unplaced.length + " item" + (unplaced.length === 1 ? "" : "s")
               + " below are not yet placed on a facility, so “nothing recorded inside” can simply mean the register names no unit we recognise"
               : "") + "</span></div>";
@@ -395,9 +402,9 @@ registerPage({
                 flag = '<div class="stc-flag warn">Paying ' + usd(f["Monthly Run Rate"] || f["Last Amount"])
                   + "/mo with nothing recorded inside \u2014 either goods went unregistered, or this unit can be closed.</div>";
               }
-              return '<div class="stc-r stc-fac" data-fac="' + esc(f.Facility) + '">'
+              return '<div class="panel rs-noanim stc-r stc-fac" data-fac="' + esc(f.Facility) + '">'
                 + '<div class="nm">' + esc(f.Facility.split(",")[0]) + " "
-                + '<span class="stc-pill ' + (f.Status === "active" ? "ok" : f.Status === "closed" ? "off" : "owe") + '">'
+                + '<span class="rs-pill ' + (f.Status === "active" ? "ok" : f.Status === "closed" ? "mute" : "bad") + '">'
                 + esc(f.Status) + "</span></div>"
                 + '<div class="meta">' + esc(f.State || "") + " \u00b7 " + (f["Unit Count"] || 0) + " unit"
                 + ((f["Unit Count"] || 0) === 1 ? "" : "s")
@@ -415,12 +422,12 @@ registerPage({
                   }).join("") + "</div>" : "")
                 + "</div>";
             }).join("") + "</div>"
-          : '<div class="stc-empty">No rented facilities on file.</div>';
+          : '<div class="panel rs-noanim stc-empty">No rented facilities on file.</div>';
         if (unplaced.length) {
           html += '<div class="stc-h2" style="margin-top:14px">Rented items not yet placed on a facility \u00b7 <b>'
             + unplaced.length + "</b>"
-            + ' <span style="text-transform:none;letter-spacing:0;font-weight:500">\u2014 the sheet names no unit the register recognises; worth fixing at the source</span></div>'
-            + '<div class="stc-unplaced">'
+            + ' <span class="note">\u2014 the sheet names no unit the register recognises; worth fixing at the source</span></div>'
+            + '<div class="panel rs-noanim stc-unplaced">'
             + unplaced.map(function (r) {
                 return '<div class="jrow" data-job="' + esc(r["Job Code"] || "") + '" data-cust="' + esc(r.Customer) + '">'
                   + "<span>" + esc(r.Customer) + "</span>"
@@ -435,7 +442,7 @@ registerPage({
       rows.sort(function (a, b) { return String(b.Entered || "").localeCompare(String(a.Entered || "")); });
       html += '<div class="stc-h2">Register · <b>' + rows.length + " item" + (rows.length === 1 ? "" : "s") + "</b></div>";
       html += rows.length
-        ? '<div class="stc-tblwrap" style="max-height:60vh"><table class="stc-tbl"><thead><tr>'
+        ? '<div class="rs-tablewrap" style="max-height:60vh"><table class="rs-table stc-tbl"><thead><tr>'
           + "<th>Customer</th><th>Job</th><th>Where</th><th>CF</th><th>Entered</th><th>Days</th>"
           + "<th>$/CF</th><th>Monthly</th><th>Billed</th><th>Paid</th><th>Balance</th><th>Status</th>"
           + "</tr></thead><tbody>"
@@ -445,8 +452,8 @@ registerPage({
                 ? (r.Vaults ? "Vaults " + r.Vaults : "Our warehouse")
                 : r["Location Kind"] === "truck" ? "In our truck"
                 : ((r.Facility || r["Location Label"] || r.Location || "—") + (r.Unit ? " · " + r.Unit : ""));
-              return '<tr class="' + (r.Active === 1 ? "" : "left") + '" data-i="' + i + '">'
-                + '<td class="who">' + esc(r.Customer) + "</td>"
+              return '<tr class="click' + (r.Active === 1 ? "" : " left") + '" data-i="' + i + '">'
+                + '<td class="strong">' + esc(r.Customer) + "</td>"
                 + "<td>" + esc(r["Job Code"] || "—") + "</td>"
                 + "<td>" + esc(where.slice(0, 44)) + "</td>"
                 + "<td>" + (r["Chargeable CF"] ? Math.round(r["Chargeable CF"]).toLocaleString() : "—") + "</td>"
@@ -461,13 +468,13 @@ registerPage({
                 + "<td>" + pill(r) + "</td></tr>";
             }).join("")
           + "</tbody></table></div>"
-        : '<div class="stc-empty">Nothing matches this filter.</div>';
+        : '<div class="panel rs-noanim stc-empty">Nothing matches this filter.</div>';
 
       main.innerHTML = html;
       wire(rows);
       // "In storage now" vs "Everything" is the register's scope, not a filter you switch on —
       // it always applies, so it is always stated
-      RSC.collapsible(main.querySelector(".stc-bar"), "rsBarCollapsed:storage-control", {
+      RSC.collapsible(main.querySelector(".rs-bar"), "rsBarCollapsed:storage-control", {
         count: function () {
           var labels = [];
           if (S.q) labels.push("Search");
@@ -480,16 +487,17 @@ registerPage({
     }
 
     function kpi(v, lab, sub, cls) {
-      return '<div class="stc-kpi ' + cls + '"><b>' + esc(v) + "</b><span>" + esc(lab) + "</span><small>" + esc(sub) + "</small></div>";
+      return '<div class="kpi ' + cls + '"><div class="l">' + esc(lab) + '</div><div class="v">'
+        + esc(v) + '</div><div class="s">' + esc(sub) + "</div></div>";
     }
     function seg(key, val, lab) {
       return '<button data-k="' + key + '" data-v="' + val + '"'
         + (S[key] === val ? ' class="on"' : "") + ">" + lab + "</button>";
     }
     function pill(r) {
-      if (r.Active !== 1) return '<span class="stc-pill off">left' + (r.Left ? " " + esc(String(r.Left).slice(5)) : "") + "</span>";
-      if (owes(r)) return '<span class="stc-pill owe">' + esc(r["Payment Status"] || "owing") + "</span>";
-      return '<span class="stc-pill ok">' + esc(r["Payment Status"] || "current") + "</span>";
+      if (r.Active !== 1) return '<span class="rs-pill mute">left' + (r.Left ? " " + esc(String(r.Left).slice(5)) : "") + "</span>";
+      if (owes(r)) return '<span class="rs-pill bad">' + esc(r["Payment Status"] || "owing") + "</span>";
+      return '<span class="rs-pill ok">' + esc(r["Payment Status"] || "current") + "</span>";
     }
 
     function wire(rows) {
@@ -501,7 +509,7 @@ registerPage({
         var n = main.querySelector("#stcQ");
         if (n) { n.focus(); n.setSelectionRange(at, at); }
       };
-      main.querySelectorAll(".stc-seg button").forEach(function (b) {
+      main.querySelectorAll(".rs-seg button").forEach(function (b) {
         b.onclick = function () { S[b.dataset.k] = b.dataset.v; paint(); };
       });
       var ow = main.querySelector("#stcOwe");

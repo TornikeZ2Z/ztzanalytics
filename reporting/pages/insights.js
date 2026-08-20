@@ -15,6 +15,54 @@ registerPage({
   group: "pulse",
   title: "Insights & Recommendations",
   async render(host) {
+    /* ---------- page look ----------------------------------------------------
+       THE COMPONENT KIT in rs.css supplies the card, the tile row, the severity
+       pill, the reason line and the explanation hint. What is left here is what
+       the kit has no name for -- the quiet note beside a panel title, a finding
+       stacked over its expander, the footnotes under a list -- plus a handful of
+       one-line adjustments TO kit components. */
+    if (!document.getElementById("ins-style")) {
+      const st = document.createElement("style");
+      st.id = "ins-style";
+      st.textContent = ""
+        // the quiet note that sits beside a panel title ("dollars going missing right now")
+        + ".ins-sub{font-size:11px;color:var(--faint)}"
+        // a small heading that opens a second section INSIDE a panel
+        + ".ins-shead{font-size:10px;font-weight:800;text-transform:uppercase;"
+        + "letter-spacing:.09em;color:var(--faint);margin:12px 0 8px}"
+        // a finding stacks its headline over its expander, so the shared .rec row turns column
+        + ".rec.ins-f{flex-direction:column;gap:7px}"
+        + ".ins-fhead{display:flex;gap:10px;align-items:flex-start;width:100%}"
+        // the severity pill must not stretch in that row, and sits on the headline's first line
+        + ".ins-fhead .rs-pill{flex:none;margin-top:2px}"
+        // "Why am I seeing this" -- a details/summary the kit does not name
+        + ".ins-why{margin:0 0 2px 2px}"
+        + ".ins-why summary{cursor:pointer;font-size:11px;color:var(--faint)}"
+        // the kit's reason line, given room to breathe as a paragraph inside the expander
+        + ".ins-why .rs-why{padding:6px 2px 2px;line-height:1.55}"
+        // footnotes: "showing 8 of 14 findings" under a list, the legend under the ad table
+        + ".ins-more{color:var(--muted);font-size:11px;padding:4px 2px}"
+        + ".ins-cap{font-size:11px;color:var(--faint);padding:7px 2px 0}"
+        // empty states: a theme with nothing to report, and a table with no rows
+        + ".ins-empty{padding:4px 2px 8px;color:var(--muted);font-size:12px}"
+        + ".ins-none{padding:16px 14px;color:var(--muted)}"
+        // the month-over-month delta riding beside a KPI value
+        + ".ins-vdelta{font-size:12px;font-weight:700;margin-left:7px;vertical-align:2px}"
+        // a KPI sub that carries a whole sentence wraps instead of being ellipsised
+        + ".rs-kpis .kpi .s.ins-wrap{white-space:normal}"
+        /* HOUSEKEEPING TILES. The kit's tile row, deliberately turned down: these are
+           notes to tidy the closing sheet, not alerts. So no brand rule across the top,
+           a smaller muted count, labels that wrap rather than ellipsise, and the whole
+           hint instead of the kit's two-line clamp. They also sit inside a panel that
+           already fades in, so they do not fade a second time. */
+        + ".rs-kpis.ins-health{margin-bottom:0;animation:none}"
+        + ".rs-kpis.ins-health .kpi{min-height:0;padding:10px 12px}"
+        + ".rs-kpis.ins-health .kpi::before{display:none}"
+        + ".rs-kpis.ins-health .kpi .l{white-space:normal;overflow:visible;text-overflow:clip}"
+        + ".rs-kpis.ins-health .kpi .v{font-size:18px;color:var(--muted)}"
+        + ".rs-kpis.ins-health .kpi .s{display:block;overflow:visible;font-size:11px;line-height:1.45}";
+      document.head.appendChild(st);
+    }
     // Load each dataset ONCE (RS.load caches); every rule below reuses these arrays.
     const [closing, moveboard, scorecard, cardExp, claims, refunds,
            storage, callrail, leadsP, reviewCounts, reviewGoals, longDist,
@@ -30,7 +78,7 @@ registerPage({
     if (!closing.length || !closing.some(r => r._d)) {
       host.innerHTML = `
         <div class="rs-page-head"><h1>Insights &amp; Recommendations</h1></div>
-        <div class="insight-note">No data for the current filters — the closing dataset has no dated rows, so the monthly pulse cannot be computed.</div>`;
+        <div class="rs-hint">No data for the current filters — the closing dataset has no dated rows, so the monthly pulse cannot be computed.</div>`;
       return;
     }
 
@@ -109,23 +157,23 @@ registerPage({
         <h1>Insights & Recommendations</h1>
         <p>Auto-generated monthly findings · data through <b>${maxD}</b> (day ${dayOf} of ${daysInMonth})</p>
       </div>
-      <div class="insight-note">This page always shows the current-month view across the whole business — the global filter bar does not apply here.
+      <div class="rs-hint">This page always shows the current-month view across the whole business — the global filter bar does not apply here.
         Findings look at <b>${monthLabel(prevM)}</b> (the last full month) unless they say otherwise; open “Why am I seeing this” under any finding for the exact math.</div>
-      <div class="rs-kpis" id="kpis"></div>
+      <div class="rs-kpis" id="kpis" style="--kpi-cols:5"></div>
       <div class="panel"><div class="panel-head"><span class="panel-title">Money leaks</span>
-        <span style="font-size:11px;color:var(--faint)">dollars going missing right now</span></div><div id="th-money"></div></div>
+        <span class="ins-sub">dollars going missing right now</span></div><div id="th-money"></div></div>
       <div class="rs-grid2">
         <div class="panel"><div class="panel-head"><span class="panel-title">People</span>
-          <span style="font-size:11px;color:var(--faint)">reps, crews and follow-up</span></div><div id="th-people"></div></div>
+          <span class="ins-sub">reps, crews and follow-up</span></div><div id="th-people"></div></div>
         <div class="panel"><div class="panel-head"><span class="panel-title">Opportunities</span>
-          <span style="font-size:11px;color:var(--faint)">what's working — feed it</span></div><div id="th-opps"></div></div>
+          <span class="ins-sub">what's working — feed it</span></div><div id="th-opps"></div></div>
       </div>
       <div class="panel">
         <div class="panel-head"><span class="panel-title">Data health</span>
-          <span style="font-size:11px;color:var(--faint)">numbers you can't trust yet · data through ${maxD}</span></div>
+          <span class="ins-sub">numbers you can't trust yet · data through ${maxD}</span></div>
         <div id="th-data"></div>
-        <div style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.09em;color:var(--faint);margin:12px 0 8px">Closing-sheet housekeeping</div>
-        <div id="health" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px"></div>
+        <div class="ins-shead">Closing-sheet housekeeping</div>
+        <div class="rs-kpis ins-health" id="health"></div>
       </div>
       <div class="rs-grid2">
         <div class="panel"><div class="panel-head"><span class="panel-title">What moved last month (${monthLabel(prevM)} vs ${monthLabel(prev2M)})</span></div><div class="tabwrap" id="movers"></div></div>
@@ -147,7 +195,7 @@ registerPage({
          exactly that, with this-month-vs-that delta promoted next to the number. */
       { label: `Last month by day ${dayOf}`,
         value: RS.moneyC(prevMtdBill) +
-          `<span style="font-size:12px;font-weight:700;margin-left:7px;vertical-align:2px">${chip(pct(bill, prevMtdBill))}</span>`,
+          `<span class="ins-vdelta">${chip(pct(bill, prevMtdBill))}</span>`,
         sub: `${monthLabel(prevM)} had reached ${RS.money(prevMtdBill)} by day ${dayOf}; this month sits at ${RS.money(bill)} — the arrow compares the two`,
         wrap: true },
       { label: "Projected month-end", value: (!projGated && projBill != null) ? RS.moneyC(projBill) : "—",
@@ -158,7 +206,7 @@ registerPage({
       { label: monthLabel(lyM) + " (full)", value: RS.moneyC(lyFull),
         sub: RS.money(lyFull) + (!projGated && projBill && lyFull ? " · projection " + chip(pct(projBill, lyFull)) + " vs LY" : "") },
     ].map(x =>
-      `<div class="kpi"><div class="l">${RSC.esc(x.label)}</div><div class="v">${x.value}</div><div class="s"${x.wrap ? ' style="white-space:normal"' : ""}>${x.sub || ""}</div></div>`
+      `<div class="kpi"><div class="l">${RSC.esc(x.label)}</div><div class="v">${x.value}</div><div class="s${x.wrap ? " ins-wrap" : ""}">${x.sub || ""}</div></div>`
     ).join("");
 
     /* =================================================================
@@ -874,21 +922,24 @@ registerPage({
     /* =================================================================
        RENDER FINDINGS — by theme, severity words first, expander per finding
        ================================================================= */
+    /* Severity is a word chip; `k` is the kit pill variant that carries its colour
+       (bad = --neg, warn = --warn, ok = --pos, info = --blue) — the same four tones
+       the hand-rolled chip used, now spoken in the shared vocabulary. */
     const SEV = {
-      urgent: { w: "Urgent",    c: "var(--red)" },
-      watch:  { w: "Watch",     c: "var(--amber)" },
-      good:   { w: "Good news", c: "var(--brand)" },
-      fyi:    { w: "FYI",       c: "var(--blue)" },
+      urgent: { w: "Urgent",    k: "bad" },
+      watch:  { w: "Watch",     k: "warn" },
+      good:   { w: "Good news", k: "ok" },
+      fyi:    { w: "FYI",       k: "info" },
     };
     const SEV_ORD = { urgent: 0, watch: 1, good: 2, fyi: 3 };
     const recHtml = f => {
       const s = SEV[f.sev];
-      return `<div class="rec" style="flex-direction:column;gap:7px">
-        <div style="display:flex;gap:10px;align-items:flex-start;width:100%">
-          <span style="flex:none;margin-top:2px;font-size:10px;font-weight:800;letter-spacing:.02em;padding:2px 8px;border-radius:99px;border:1px solid ${s.c};color:${s.c};white-space:nowrap">${s.w}</span>
+      return `<div class="rec ins-f">
+        <div class="ins-fhead">
+          <span class="rs-pill ${s.k}">${s.w}</span>
           <div><div class="t">${RSC.esc(f.t)}</div>${f.d ? `<div class="d">${RSC.esc(f.d)}</div>` : ""}</div>
         </div>
-        ${f.why ? `<details style="margin:0 0 2px 2px"><summary style="cursor:pointer;font-size:11px;color:var(--faint)">Why am I seeing this</summary><div style="font-size:11.5px;color:var(--muted);line-height:1.55;padding:6px 2px 2px">${RSC.esc(f.why)}</div></details>` : ""}
+        ${f.why ? `<details class="ins-why"><summary>Why am I seeing this</summary><div class="rs-why">${RSC.esc(f.why)}</div></details>` : ""}
       </div>`;
     };
     const CAP = 8;   // per-theme cap so one bad month doesn't become a wall of text
@@ -896,8 +947,8 @@ registerPage({
       const list = findings.filter(f => f.th === th).sort((a, b) => SEV_ORD[a.sev] - SEV_ORD[b.sev]);
       document.getElementById(elId).innerHTML = list.length
         ? list.slice(0, CAP).map(recHtml).join("") +
-          (list.length > CAP ? `<div style="color:var(--muted);font-size:11px;padding:4px 2px">showing ${CAP} of ${list.length} findings</div>` : "")
-        : `<div style="padding:4px 2px 8px;color:var(--muted);font-size:12px">Nothing to report — every signal in this group looks normal this month.</div>`;
+          (list.length > CAP ? `<div class="ins-more">showing ${CAP} of ${list.length} findings</div>` : "")
+        : `<div class="ins-empty">Nothing to report — every signal in this group looks normal this month.</div>`;
     };
     renderTheme("money", "th-money");
     renderTheme("people", "th-people");
@@ -922,8 +973,8 @@ registerPage({
          { key: "sh", label: "% of total", fmt: v => v == null ? "—" : RS.fmtPct(v) },
          { key: "prev", label: monthLabel(prev2M), fmt: v => v == null ? "—" : RS.money(v) },
          { key: "g", label: "Change", fmt: g => g == null ? "—" : chip(g) }], rows) +
-        (all.length > rows.length ? `<div style="color:var(--muted);font-size:11px;padding:4px 2px">showing ${rows.length} of ${all.length} sources</div>` : "")
-        : `<div style="padding:16px 14px;color:var(--muted)">No sources cleared the $5k threshold in ${monthLabel(prevM)} or ${monthLabel(prev2M)}.</div>`;
+        (all.length > rows.length ? `<div class="ins-more">showing ${rows.length} of ${all.length} sources</div>` : "")
+        : `<div class="ins-none">No sources cleared the $5k threshold in ${monthLabel(prevM)} or ${monthLabel(prev2M)}.</div>`;
     }
     /* ---------- foreman pulse (last full month leaderboard + delta) ---------- */
     {
@@ -938,8 +989,8 @@ registerPage({
          { key: "sc", label: "Score", fmt: v => (v == null || isNaN(v)) ? "—" : v.toFixed(1) },
          { key: "d", label: "vs prior", fmt: v => (v == null || isNaN(v)) ? "—" :
            `<span class="${v >= 0 ? "up" : "down"}">${v >= 0 ? "▲" : "▼"} ${Math.abs(v).toFixed(1)} pts</span>` }], rows) +
-        (all.length > rows.length ? `<div style="color:var(--muted);font-size:11px;padding:4px 2px">showing ${rows.length} of ${all.length} foremen</div>` : "")
-        : `<div style="padding:16px 14px;color:var(--muted)">No foreman scorecards recorded for ${monthLabel(prevM)}.</div>`;
+        (all.length > rows.length ? `<div class="ins-more">showing ${rows.length} of ${all.length} foremen</div>` : "")
+        : `<div class="ins-none">No foreman scorecards recorded for ${monthLabel(prevM)}.</div>`;
     }
     /* ---------- ad efficiency table (normalized source join, N26 labels) ---------- */
     {
@@ -953,10 +1004,10 @@ registerPage({
          { key: "rev", label: "Attributed Revenue", fmt: v => v == null ? "—" : RS.money(v) },
          { key: "roi", label: "Revenue per $1 of ads", fmt: v => (v == null || isNaN(v)) ? "—" :
            `<span class="${v >= 3 ? "up" : v < 1 ? "down" : ""}">${v.toFixed(2)}×</span>` }], rows) +
-        (all.length > rows.length ? `<div style="color:var(--muted);font-size:11px;padding:4px 2px">showing ${rows.length} of ${all.length} providers</div>` : "")
-        : `<div style="padding:16px 14px;color:var(--muted)">No advertising spend recorded for ${monthLabel(prevM)}.</div>`;
+        (all.length > rows.length ? `<div class="ins-more">showing ${rows.length} of ${all.length} providers</div>` : "")
+        : `<div class="ins-none">No advertising spend recorded for ${monthLabel(prevM)}.</div>`;
       document.getElementById("adscap").innerHTML =
-        `<div style="font-size:11px;color:var(--faint);padding:7px 2px 0">green = $3+ back per $1 · red = losing money · spend and revenue are matched by source name (spelling tidied on both sides)</div>`;
+        `<div class="ins-cap">green = $3+ back per $1 · red = losing money · spend and revenue are matched by source name (spelling tidied on both sides)</div>`;
     }
     /* ---------- data health (audit F13) — closing-sheet hygiene counters ----------
        All computed live from the closing dataset already loaded above. Deliberately
@@ -982,10 +1033,10 @@ registerPage({
           h: "Rows with no Date fall out of every month view — add the move date in the sheet." },
       ];
       document.getElementById("health").innerHTML = counters.map(c =>
-        `<div style="border:1px solid var(--line);border-radius:11px;padding:10px 12px">
-          <div style="font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.09em;color:var(--faint)">${RSC.esc(c.l)}</div>
-          <div style="font-size:18px;font-weight:800;color:var(--muted);margin-top:4px;font-variant-numeric:tabular-nums">${RS.fmtN(c.n)}</div>
-          <div style="font-size:11px;color:var(--faint);margin-top:3px;line-height:1.45">${RSC.esc(c.h)}</div>
+        `<div class="kpi">
+          <div class="l">${RSC.esc(c.l)}</div>
+          <div class="v">${RS.fmtN(c.n)}</div>
+          <div class="s">${RSC.esc(c.h)}</div>
         </div>`).join("");
     }
   },

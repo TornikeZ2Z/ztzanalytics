@@ -131,35 +131,59 @@ registerPage({
     if (!document.getElementById("rp-style")) {
       var st = document.createElement("style"); st.id = "rp-style";
       st.textContent = `
-        .rp-head{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;padding:2px 2px 0}
-        .rp-head h1{margin:0;font-size:21px;font-weight:800;letter-spacing:-.01em}
-        .rp-head p{margin:0;color:var(--muted);font-size:13px}
-        .rp-live{font-size:11px;font-weight:800;vertical-align:3px;padding:3px 9px;border-radius:999px;background:rgba(46,160,90,.16);color:#2ea05a;letter-spacing:.02em;white-space:nowrap}
+        /* ================= WHAT IS LEFT HERE, AND WHY =================
+           The bar, buttons, segments, data tables, pills, panels, KPI tiles and reading
+           hints all come from the shared kit in rs.css now. Everything below is either a
+           ONE-LINE adjustment to a kit component, or something the kit has no word for:
+           the foreman x period matrix and its band cells, the drill-down drawer, the two
+           prev/next steppers, the multiselect popover, and the standings podium. */
+
+        /* ---- narrow adjustments layered on kit components ---- */
+        /* the live-sync badge IS a kit pill; a pill set inside an <h1> needs the lift, and
+           "not synced yet" is a state the pill vocabulary does not name */
+        .rp-live{vertical-align:3px}
         .rp-live.pending{background:var(--panel-2);color:var(--faint)}
-        .rp-bar{position:sticky;top:0;z-index:6;display:flex;flex-wrap:wrap;gap:8px;align-items:center;
-          padding:10px 0;margin-top:6px;background:var(--bg,var(--panel));border-bottom:1px solid var(--line)}
-        .rp-kpis{display:flex;gap:8px;overflow-x:auto;padding:2px 0 10px;scrollbar-width:thin}
-        .rp-kpi{flex:0 0 auto;min-width:124px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px 14px}
-        .rp-kpi b{display:block;font-size:22px;font-weight:800;letter-spacing:-.02em;line-height:1.1}
-        .rp-kpi span{display:block;font-size:10.5px;color:var(--faint);text-transform:uppercase;letter-spacing:.03em;font-weight:700;margin-top:4px}
-        .rp-kpi small{display:block;font-size:11px;color:var(--muted);margin-top:1px}
-        .rp-kpi.accent b{color:var(--brand)}
-        .rp-seg{display:inline-flex;background:var(--panel-2);border:1px solid var(--line-2);border-radius:10px;padding:2px}
-        .rp-seg button{border:0;background:transparent;color:var(--muted);cursor:pointer;font-size:12.5px;font-weight:700;
-          font-family:inherit;padding:6px 12px;border-radius:8px}
-        .rp-seg button.on{background:var(--brand);color:#fff}
+        /* the kit bar, PINNED: the matrix scrolls underneath it and its controls have to stay
+           reachable. Nothing on these three rows carries a label above it, so they centre. */
+        .rp-bar{position:sticky;top:0;z-index:6;padding:10px 0;margin:6px 0 0;
+          background:var(--bg,var(--panel));border-bottom:1px solid var(--line)}
+        .rp-bar,.rp-supbar,.rp-bdbar{align-items:center}
+        .rp-bdbar{margin-bottom:14px}
+        .rp-supbar .rs-inp{flex:1}
+        .rp-supchips{flex-wrap:wrap}
+        .rp-rgrid{margin-top:12px}
+        body.rs-app .rp-rgrid .panel{margin-bottom:0}
+        .rp-ok{margin-top:8px}
+        /* the panel headings stay <h3> — they ARE headings — so the only thing the kit's
+           .panel-title does not cover is the margin the browser gives an h3 by default */
+        .rp-h3{margin:0}
+        /* the reason IS the content of its cell, not a footnote about it — the mute pill's
+           faint ink is right for a tag and wrong for the thing you came to read */
+        .rs-pill.rp-tag{color:var(--ink)}
+        /* the two numbers this page exists for get the brand, so the eye lands there first */
+        .rs-kpis .kpi.accent .v{color:var(--brand)}
+        /* the top three carry the header tint, so the table agrees with the podium above it */
+        .rs-table tbody tr.rp-bdtop td{background:var(--panel-2)}
+        /* the drawer gives this select ~400px; the kit's 260px cap would waste a third of it */
+        .rp-exform .rs-sel{max-width:none}
+
+        /* ---- the window stepper: a prev/next pair wrapped AROUND a select. Not a segmented
+           control (its middle is a menu, not a pill) and not a button group. ---- */
         .rp-time{display:inline-flex;align-items:center;gap:1px;background:var(--panel-2);border:1px solid var(--line-2);border-radius:10px;padding:2px}
         .rp-time button{border:0;background:transparent;color:var(--ink);cursor:pointer;font-size:14px;line-height:1;padding:5px 9px;border-radius:8px}
         .rp-time button:hover:not(:disabled){background:var(--panel)}
         .rp-time button:disabled{opacity:.3;cursor:default}
         .rp-time select{border:0;background:transparent;color:var(--ink);font-family:inherit;font-size:12.5px;font-weight:700;cursor:pointer;outline:none;padding:0 2px}
         .rp-range{font-size:11px;color:var(--muted);white-space:nowrap}
+
+        /* ---- multiselect: a checkbox popover with search and select-all. The kit bar has
+           single selects and segments; a multi-value filter is the page's own control. ---- */
         .rp-ms-wrap{position:relative}
         .rp-ms{display:inline-flex;align-items:center;gap:7px;padding:7px 11px;border-radius:10px;border:1px solid var(--line-2);
           background:var(--panel-2);color:var(--ink);font-size:12.5px;font-family:inherit;cursor:pointer;outline:none}
         .rp-ms:hover,.rp-ms.on{border-color:var(--brand)}
         .rp-ms .lb{font-weight:600}
-        .rp-ms .ct{background:var(--brand);color:#fff;font-size:10.5px;font-weight:800;border-radius:999px;padding:1px 7px;min-width:18px;text-align:center}
+        .rp-ms .ct{background:var(--brand);color:var(--brand-ink);font-size:10.5px;font-weight:800;border-radius:999px;padding:1px 7px;min-width:18px;text-align:center}
         .rp-ms .all{color:var(--faint);font-size:11.5px}
         .rp-ms .cv{opacity:.5;font-size:10px;margin-left:-2px}
         .rp-pop{position:absolute;z-index:30;top:calc(100% + 5px);left:0;min-width:210px;max-width:280px;background:var(--panel);
@@ -177,15 +201,13 @@ registerPage({
         .rp-pop-i input{accent-color:var(--brand);width:15px;height:15px;flex:0 0 auto}
         .rp-pop-i span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
         .rp-pop-none{color:var(--faint);font-size:12px;padding:8px 7px}
-        .rp-spring{flex:1 1 auto}
-        .rp-btn{padding:7px 12px;border-radius:10px;border:1px solid var(--line-2);background:var(--panel-2);color:var(--ink);
-          font-size:12.5px;font-family:inherit;cursor:pointer}
-        .rp-btn:hover{border-color:var(--brand)}
-        .rp-btn[disabled]{opacity:.4;cursor:default;pointer-events:none}
+
+        /* ---- the matrix. A kit table reads left-aligned rows of text; this one is a heat
+           grid: every cell is a coloured band, two columns are frozen, the header sorts. ---- */
         /* 232px (and the 300px in the mobile block below) are pre-measurement fallbacks —
            RSC.fitScroller sets --pg-chrome from the chrome actually on screen, so collapsing
            the bar above the matrix leaves no dead gap */
-        .rp-wrap{overflow:auto;border:1px solid var(--line);border-radius:12px;max-height:calc(100vh - var(--pg-chrome, 232px))}
+        .rp-wrap{max-height:calc(100vh - var(--pg-chrome, 232px))}
         /* width:100% so the matrix spends the width it is given. It sized to its content and
            stopped at roughly 1600px, leaving a third of a 2560px screen blank beside it while
            the cells themselves stayed cramped. min-width keeps it scrollable on a laptop; the
@@ -208,6 +230,8 @@ registerPage({
         .rp-cell.sel{outline:2px solid var(--ink);outline-offset:-2px}
         .rp-legend{display:flex;flex-wrap:wrap;gap:9px;font-size:11px;color:var(--muted);padding:9px 2px 4px}
         .rp-legend span{display:inline-flex;align-items:center;gap:5px}.rp-legend i{width:12px;height:12px;border-radius:3px;display:inline-block}
+
+        /* ---- the drill-down drawer ---- */
         /* pointer-events MUST toggle with visibility — an opacity-0 fixed overlay still
            hit-tests, which made the whole page unclickable ("frozen") while it sat there */
         .rp-scrim{position:fixed;inset:0;background:rgba(15,23,42,.34);z-index:50;opacity:0;transition:opacity .2s;backdrop-filter:blur(1px);pointer-events:none;visibility:hidden}
@@ -227,6 +251,7 @@ registerPage({
         .rp-dhd .big em{font-style:normal;font-size:12.5px;color:var(--muted)}
         .rp-dbody{overflow-y:auto;padding:12px 16px 40px;flex:1}
         .rp-sec{font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--faint);margin:6px 2px 8px}
+        /* where the reviews came from: one bar per platform — a chart, not a table */
         .rp-roll{display:flex;flex-direction:column;gap:5px;margin-bottom:14px}
         .rp-roll .row{display:flex;align-items:center;gap:8px;font-size:12px}
         .rp-roll .nm{flex:0 0 128px;display:flex;align-items:center;gap:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -234,6 +259,7 @@ registerPage({
         .rp-roll .bar{flex:1;height:8px;border-radius:999px;background:var(--panel-2);overflow:hidden}
         .rp-roll .bar i{display:block;height:100%;border-radius:999px}
         .rp-roll .vn{flex:0 0 auto;font-weight:800;font-size:12px;min-width:18px;text-align:right}
+        /* a job card in the drawer: denser than a kit .panel, and it carries an inline form */
         .rp-jc{border:1px solid var(--line);border-radius:11px;padding:11px 12px;margin-bottom:9px;background:var(--panel)}
         .rp-jc.excl{opacity:.72;background:var(--panel-2)}
         .rp-jc .top{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:2px}
@@ -241,66 +267,36 @@ registerPage({
         .rp-jc .cust{color:var(--muted);font-size:12.5px;overflow:hidden;text-overflow:ellipsis}
         .rp-jc .meta{font-size:11.5px;color:var(--muted);margin:5px 0 7px;display:flex;gap:10px;flex-wrap:wrap}
         .rp-jc .meta b{color:var(--ink);font-weight:700}
+        /* platform chips keep #fff on purpose: the background is Google blue or Yelp red — a
+           fixed brand colour, not a token — so the text on it must not follow the theme */
         .rp-plats{display:flex;flex-wrap:wrap;gap:5px}
         .rp-plat{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;padding:3px 8px;border-radius:999px;
           color:#fff;line-height:1.3}
         .rp-plat b{font-weight:800}
-        .rp-none{font-size:11.5px;font-weight:700;color:#b91c1c;background:rgba(220,38,38,.1);padding:3px 9px;border-radius:999px;display:inline-block}
         .rp-expl{font-size:11.5px;color:var(--muted);margin-top:7px;padding-top:7px;border-top:1px dashed var(--line)}
         .rp-expl b{color:var(--ink)}
+        /* a dashed "fill in what is missing" affordance, not a kit action button */
         .rp-exbtn{margin-top:8px;border:1px dashed var(--line-2);background:transparent;color:var(--brand);font-size:11.5px;
           font-weight:700;border-radius:8px;padding:5px 10px;cursor:pointer;font-family:inherit}
         .rp-exbtn:hover{border-color:var(--brand)}
         .rp-exform{margin-top:8px;padding-top:8px;border-top:1px dashed var(--line);display:flex;flex-direction:column;gap:6px}
-        .rp-exform select,.rp-exform textarea{font:inherit;font-size:12px;border:1px solid var(--line-2);border-radius:8px;
-          background:var(--panel-2);color:var(--ink);padding:7px 9px;outline:none}
-        .rp-exform textarea{min-height:44px;resize:vertical}
+        .rp-exform textarea{font:inherit;font-size:12px;border:1px solid var(--line-2);border-radius:8px;
+          background:var(--panel-2);color:var(--ink);padding:7px 9px;outline:none;min-height:44px;resize:vertical}
         .rp-exform .row2{display:flex;gap:6px}
-        .rp-exform .go{background:var(--brand);color:#fff;border:0;border-radius:8px;font-weight:700;font-size:12px;padding:7px 13px;cursor:pointer;font-family:inherit}
-        .rp-exform .no{background:transparent;border:1px solid var(--line-2);color:var(--muted);border-radius:8px;font-size:12px;padding:7px 11px;cursor:pointer;font-family:inherit}
-        .rp-ok{font-size:11.5px;font-weight:700;color:#15803d;background:rgba(22,163,74,.12);padding:4px 9px;border-radius:999px;display:inline-block;margin-top:8px}
-        .rp-pill{display:inline-block;font-size:10px;font-weight:800;padding:2px 7px;border-radius:999px;white-space:nowrap}
-        .p-rev{background:rgba(22,163,74,.16);color:#15803d}.p-miss{background:rgba(220,38,38,.13);color:#b91c1c}
-        .p-excl{background:var(--panel-2);color:var(--muted)}.p-pend{background:rgba(217,119,6,.15);color:#b45309}
-        .p-high{background:rgba(220,38,38,.13);color:#b91c1c}.p-att{background:rgba(217,119,6,.15);color:#b45309}
-        /* reasons view */
-        .rp-rgrid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px}
-        @media (max-width:900px){.rp-rgrid{grid-template-columns:1fr}}
-        .rp-panel{border:1px solid var(--line);border-radius:12px;background:var(--panel);padding:12px 14px}
-        .rp-panel h3{margin:0 0 10px;font-size:13px;font-weight:800}
-        .rp-supsub{margin:-6px 0 12px;font-size:11.5px;color:var(--faint);line-height:1.5}
-        .rp-supbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
-        .rp-supbar input{flex:1;min-width:220px;font:inherit;font-size:12.5px;background:var(--panel-2);color:var(--ink);border:1px solid var(--line-2);border-radius:9px;padding:8px 11px}
-        .rp-supbar input:focus{outline:none;border-color:var(--brand)}
-        .rp-supchips{display:flex;gap:6px;flex-wrap:wrap}
-        .rp-supchip{font:inherit;font-size:11.5px;font-weight:700;color:var(--muted);background:var(--panel-2);border:1px solid var(--line-2);border-radius:999px;padding:5px 11px;cursor:pointer;white-space:nowrap}
-        .rp-supchip:hover{border-color:var(--brand)}
-        .rp-supchip.on{background:var(--brand);color:var(--brand-ink);border-color:var(--brand)}
+
+        /* ---- reasons + support lists ---- */
+        .rp-live-dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--brand);box-shadow:0 0 0 3px var(--brand-glow);vertical-align:middle;margin:0 2px}
         .rp-suppage{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:11px;font-size:12px;color:var(--muted);font-weight:600}
         .rp-suppage b{margin:0 8px;font-variant-numeric:tabular-nums}
-        .rp-tag{display:inline-block;font-size:11px;font-weight:700;padding:3px 9px;border-radius:999px;background:var(--panel-2);border:1px solid var(--line-2);color:var(--ink);white-space:nowrap}
-        .rp-live-dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--brand);box-shadow:0 0 0 3px var(--brand-glow);vertical-align:middle;margin:0 2px}
-        .rp-tbl2{width:100%;border-collapse:collapse;font-size:13px}
-        .rp-tbl2 th{color:var(--faint);font-size:10px;font-weight:800;text-transform:uppercase;text-align:left;padding:5px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
-        .rp-tbl2 td{padding:6px 8px;border-bottom:1px solid var(--line);vertical-align:top}
-        .rp-tbl2 tr:last-child td{border-bottom:none}
-        /* right-aligned columns: the HEADER must follow its cells, or every numeric column
-           reads as a left-aligned label sitting over right-aligned digits (audit 2026-07-25) */
-        .rp-tbl2 td.r,.rp-tbl2 th.r{text-align:right;font-variant-numeric:tabular-nums}
         .rp-pager{display:flex;align-items:center;justify-content:flex-end;gap:10px;padding:9px 2px 0;font-size:12px;color:var(--muted);font-weight:600}
         .rp-pager b{color:var(--ink);font-variant-numeric:tabular-nums}
-        .rp-pager .sp{margin-right:auto;font-weight:600}
-        .rp-aka{font-size:10.5px;font-weight:700;color:var(--faint);background:var(--panel-2);
-          border:1px solid var(--line-2);border-radius:999px;padding:1px 7px;white-space:nowrap}
+
         /* ---- Standings ---- */
-        .rp-bdbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px}
         .rp-bdwk{display:inline-flex;align-items:center;gap:1px;background:var(--panel-2);border:1px solid var(--line-2);border-radius:10px;padding:2px}
         .rp-bdwk button{font:inherit;font-size:13px;font-weight:800;color:var(--muted);background:transparent;border:0;border-radius:8px;padding:6px 10px;cursor:pointer}
         .rp-bdwk button:hover:not(:disabled){background:var(--panel);color:var(--ink)}
         .rp-bdwk button:disabled{opacity:.32;cursor:default}
         .rp-bdwk b{font-size:13px;font-weight:800;color:var(--ink);padding:0 10px;white-space:nowrap;font-variant-numeric:tabular-nums}
-        .rp-bdlive{font-size:10.5px;font-weight:800;padding:3px 9px;border-radius:999px;background:rgba(234,88,12,.14);color:#c2410c;letter-spacing:.02em}
-        .rp-bdsub{font-size:11.5px;color:var(--faint);line-height:1.5;margin:-4px 0 14px}
         .rp-bdpod{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:16px}
         @media (max-width:760px){.rp-bdpod{grid-template-columns:1fr}}
         .rp-bdcard{border:1px solid var(--line);border-radius:14px;background:var(--panel);padding:13px 15px;
@@ -314,34 +310,22 @@ registerPage({
         .rp-bdrv{font-size:24px;font-weight:800;color:var(--ink);font-variant-numeric:tabular-nums;line-height:1.1;margin-top:3px}
         .rp-bdrv small{font-size:11.5px;font-weight:700;color:var(--muted);margin-left:5px}
         .rp-bdmt{font-size:11.5px;color:var(--muted);font-weight:600}
-        .rp-bdtbl{width:100%;border-collapse:collapse;font-size:13px}
-        .rp-bdtbl th{text-align:left;font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;
-          color:var(--faint);padding:0 10px 7px;border-bottom:1px solid var(--line)}
-        .rp-bdtbl td{padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:middle}
-        .rp-bdtbl tr:last-child td{border-bottom:0}
-        .rp-bdtbl td.r,.rp-bdtbl th.r{text-align:right;font-variant-numeric:tabular-nums}
-        .rp-bdtbl tr.top td{background:var(--panel-2)}
         .rp-bdpz{font-weight:800;color:var(--ink);font-variant-numeric:tabular-nums;width:44px}
         .rp-bdpz i{font-style:normal;font-size:11px;color:var(--faint);font-weight:700}
-        .rp-bdfm{font-weight:700;color:var(--ink)}
-        .rp-bdmv{font-size:11px;font-weight:800;padding:2px 7px;border-radius:999px;white-space:nowrap}
-        .rp-bdmv.up{background:rgba(22,163,74,.13);color:#15803d}
-        .rp-bdmv.dn{background:rgba(220,38,38,.11);color:#b91c1b}
-        .rp-bdmv.flat{color:var(--faint)}
         .rp-bdidle{font-size:11.5px;color:var(--faint);margin-top:12px;padding-top:11px;border-top:1px dashed var(--line);line-height:1.6}
         @media (max-width:640px){.rp-wrap{max-height:calc(100vh - var(--pg-chrome, 300px))}}`;
       document.head.appendChild(st);
     }
 
     host.innerHTML = `
-      <div class="rp-head">
-        <h1>Foreman Performance <span id="rpLive" class="rp-live pending" title="Live reviews are read straight from the Data for Reviews sheet, ahead of the ~6-hour warehouse refresh">◷ syncing live…</span></h1>
+      <div class="rs-page-head">
+        <h1>Foreman Performance <span id="rpLive" class="rs-pill ok rp-live pending" title="Live reviews are read straight from the Data for Reviews sheet, ahead of the ~6-hour warehouse refresh">◷ syncing live…</span></h1>
         <p>Reviews generated per foreman · <b>reviews ÷ eligible jobs</b> · target 100% · click a cell for the jobs and where each review came from. The <b>Support</b> tab lists every job Support stepped in on.</p>
       </div>
-      <div class="rp-kpis" id="rpKpis"><div class="rs-loading">Loading jobs…</div></div>
-      <div class="rp-bar" id="rpBar"></div>
+      <div class="rs-kpis" id="rpKpis"><div class="rs-loading">Loading jobs…</div></div>
+      <div class="rs-bar rp-bar" id="rpBar"></div>
       <div id="rpLegend" class="rp-legend"></div>
-      <div class="rp-wrap" id="rpWrapEl"><div id="rpMatrix"></div></div>
+      <div class="rs-tablewrap rp-wrap" id="rpWrapEl"><div id="rpMatrix"></div></div>
       <div id="rpBoard" style="display:none"></div>
       <div id="rpReasons" style="display:none"></div>
       <div id="rpSupport" style="display:none"></div>`;
@@ -485,7 +469,7 @@ registerPage({
     // ---- toolbar ----
     var bar = barEl;
     function mkSeg(items, cur, onPick) {
-      var d = document.createElement("div"); d.className = "rp-seg";
+      var d = document.createElement("div"); d.className = "rs-seg";
       items.forEach(it => {
         var b = document.createElement("button"); b.type = "button"; b.textContent = it.label;
         b.classList.toggle("on", it.v === cur());
@@ -520,8 +504,8 @@ registerPage({
       mkMulti(bar, { label: "Bill", options: billcats.map(s => ({ v: s, label: s })), sel: RP.billcats, search: false, onChange: () => { closeDrawer(); repaint(); } }),
       mkMulti(bar, { label: "Foreman", options: foremenAll.map(s => ({ v: s, label: s })), sel: RP.foremen, search: true, onChange: () => { closeDrawer(); repaint(); } }),
     ];
-    var spring = document.createElement("span"); spring.className = "rp-spring"; bar.appendChild(spring);
-    var resetBtn = document.createElement("button"); resetBtn.type = "button"; resetBtn.className = "rp-btn"; resetBtn.textContent = "Reset";
+    var spring = document.createElement("span"); spring.className = "rs-spacer"; bar.appendChild(spring);
+    var resetBtn = document.createElement("button"); resetBtn.type = "button"; resetBtn.className = "rs-btn"; resetBtn.textContent = "Reset";
     bar.appendChild(resetBtn);
     // the four multiselects never announce themselves once the bar is shut, so the pill has to
     var barC = RSC.collapsible(barEl, "rsBarCollapsed:review-performance", {
@@ -592,10 +576,10 @@ registerPage({
     }
     function explainFormHTML(idx) {
       return `<div class="rp-exform" data-exform="${idx}">
-        <select data-exr>${rpReasons().map(x => `<option>${esc(x)}</option>`).join("")}</select>
+        <select class="rs-sel" data-exr>${rpReasons().map(x => `<option>${esc(x)}</option>`).join("")}</select>
         <textarea data-exn placeholder="Optional note…"></textarea>
-        <div class="row2"><button type="button" class="go" data-exgo>Save reason</button>
-        <button type="button" class="no" data-exno>Cancel</button></div></div>`;
+        <div class="row2"><button type="button" class="rs-btn pri" data-exgo>Save reason</button>
+        <button type="button" class="rs-btn" data-exno>Cancel</button></div></div>`;
     }
     function wireExplain(container, jobs, onSaved) {
       container.querySelectorAll("[data-exbtn]").forEach(b => b.onclick = () => {
@@ -610,7 +594,7 @@ registerPage({
           go.disabled = true; go.textContent = "Saving…";
           submitExplain(r, f.querySelector("[data-exr]").value, f.querySelector("[data-exn]").value.trim())
             .then(() => {
-              f.outerHTML = `<span class="rp-ok">✓ Saved — shows here now, syncs to the warehouse within ~6h</span>`;
+              f.outerHTML = `<span class="rs-pill ok rp-ok">✓ Saved — shows here now, syncs to the warehouse within ~6h</span>`;
               if (onSaved) onSaved();
             })
             .catch(e => {
@@ -618,7 +602,7 @@ registerPage({
               go.disabled = false; go.textContent = "Save reason";
               var w = f.querySelector(".rp-exerr") || f.insertAdjacentElement("beforeend", Object.assign(document.createElement("div"), { className: "rp-exerr" }));
               w.textContent = "Couldn't save (" + (e && e.message || e) + ") — nothing was recorded. Try again.";
-              w.style.cssText = "color:#b91c1c;font-size:11.5px;font-weight:700;margin-top:6px";
+              w.style.cssText = "color:var(--neg);font-size:11.5px;font-weight:700;margin-top:6px";
             });
         };
       });
@@ -643,10 +627,10 @@ registerPage({
     });
 
     var stPill = s => {
-      var m = { "Review Received": "p-rev", "Multiple Reviews Received": "p-rev", "Excluded – Support Intervention": "p-excl",
-        "Review Match Pending": "p-pend", "Missing Review – Explanation Received": "p-att",
-        "Missing Review – Waiting for Response": "p-miss", "Data Missing": "p-excl" };
-      return `<span class="rp-pill ${m[s] || "p-excl"}">${esc(s)}</span>`;
+      var m = { "Review Received": "ok", "Multiple Reviews Received": "ok", "Excluded – Support Intervention": "mute",
+        "Review Match Pending": "warn", "Missing Review – Explanation Received": "warn",
+        "Missing Review – Waiting for Response": "bad", "Data Missing": "mute" };
+      return `<span class="rs-pill ${m[s] || "mute"}">${esc(s)}</span>`;
     };
 
     function drill(fm, col) {
@@ -671,7 +655,7 @@ registerPage({
         rollArr.map(x => `<div class="row"><span class="nm"><i class="dot" style="background:${platColor(x.src)}"></i>${esc(x.src)}</span>
           <span class="bar"><i style="width:${rollMax ? Math.round(x.n / rollMax * 100) : 0}%;background:${platColor(x.src)}"></i></span>
           <span class="vn">${x.n}</span></div>`).join("") + `</div>`
-        : `<div class="rp-sec">Where the reviews came from</div><div class="rp-none" style="margin:0 2px 14px">No reviews written for these jobs yet</div>`;
+        : `<div class="rp-sec">Where the reviews came from</div><div class="rs-pill bad" style="margin:0 2px 14px">No reviews written for these jobs yet</div>`;
 
       // BOTH OF THE JOB'S NAMES, because the office searches by whichever one they were given:
       // dispatch quotes the job code, Moveboard quotes the request #, and a card showing one of
@@ -679,17 +663,17 @@ registerPage({
       var alsoKnownAs = function (r) {
         var a = String(r["Job Code"] || "").trim(), b = String(r["Job No"] || "").trim();
         return (a && b && a.toUpperCase() !== b.toUpperCase())
-          ? `<span class="rp-aka" title="the same job's other identifier">${esc(b)}</span>` : "";
+          ? `<span class="rs-pill mute" title="the same job's other identifier">${esc(b)}</span>` : "";
       };
-      var billPill = c => c === "High Increase" ? `<span class="rp-pill p-high">High +bill</span>`
-        : c === "Attention" ? `<span class="rp-pill p-att">+bill</span>` : "";
+      var billPill = c => c === "High Increase" ? `<span class="rs-pill bad">High +bill</span>`
+        : c === "Attention" ? `<span class="rs-pill warn">+bill</span>` : "";
 
       var cards = jobs.map((r, i) => {
         var elig = num(r["Eligible"]) === 1;
         var bk = parseBk(r["Review Breakdown"]);
         var revHtml = bk.length
           ? `<div class="rp-plats">` + bk.map(p => `<span class="rp-plat" style="background:${platColor(p.src)}">${esc(p.src)}${p.n > 1 ? ` <b>×${p.n}</b>` : ""}</span>`).join("") + `</div>`
-          : `<span class="rp-none">No review written</span>`;
+          : `<span class="rs-pill bad">No review written</span>`;
         var dpct = r["Bill Increase %"] == null || r["Bill Increase %"] === "" ? null : num(r["Bill Increase %"]);
         var expl = elig ? "" : `<div class="rp-expl"><b>Excluded:</b> ${esc(r["Exclusion Reason"] || "—")}${r["Support Intervention Reason"] ? " · " + esc(r["Support Intervention Reason"]) : ""}</div>`;
         var fexpl = (r["Foreman Explanation"] && String(r["Foreman Explanation"]).trim()) ? `<div class="rp-expl"><b>Explanation:</b> ${esc(r["Foreman Explanation"])}</div>` : "";
@@ -699,7 +683,7 @@ registerPage({
             <span style="flex:1"></span>${stPill(r["Final Status"])}</div>
           <div class="meta"><span>${esc(shortD(String(r["Job Date"] || "").slice(0, 10)))}</span>
             <span>${esc(r["Job Source"] || "—")}</span>
-            <span><b>${money(r["Estimate Bill"])}</b> → <b>${money(r["Actual Bill"])}</b>${dpct != null ? ` <span style="color:${dpct > 0 ? "#b45309" : "var(--muted)"}">(${dpct > 0 ? "+" : ""}${dpct}%)</span>` : ""}</span>
+            <span><b>${money(r["Estimate Bill"])}</b> → <b>${money(r["Actual Bill"])}</b>${dpct != null ? ` <span style="color:${dpct > 0 ? "var(--warn)" : "var(--muted)"}">(${dpct > 0 ? "+" : ""}${dpct}%)</span>` : ""}</span>
             ${r["Closing Filed"] === "No" ? '<span style="color:var(--faint);font-size:11px">closing sheet pending</span>' : billPill(r["Bill Increase Category"])}</div>
           ${revHtml}${fexpl}${expl}
           ${canExplain ? `<button type="button" class="rp-exbtn" data-exbtn="${i}">✍ Explain why there's no review</button>` : ""}</div>`;
@@ -714,7 +698,7 @@ registerPage({
             <em>${R} review${R === 1 ? "" : "s"} · ${J} eligible job${J === 1 ? "" : "s"} · ${jobs.length} completed</em></div>
         </div>
         <div class="rp-dbody">${rollHtml}
-          <div class="rp-sec">Jobs (${jobs.length})</div>${cards || `<div class="rp-none">No jobs.</div>`}</div>`;
+          <div class="rp-sec">Jobs (${jobs.length})</div>${cards || `<div class="rs-pill bad">No jobs.</div>`}</div>`;
       drawer.querySelector("#rpDx").onclick = closeDrawer;
       wireExplain(drawer, jobs, () => { paintKpis(filteredWindowed()); });
       scrim.classList.add("show"); drawer.classList.add("show");
@@ -763,7 +747,7 @@ registerPage({
         { l: "High +bill", v: N(tot.highBill), s: "> 25% over est." },
       ];
       document.getElementById("rpKpis").innerHTML = K.map(k =>
-        `<div class="rp-kpi${k.a ? " accent" : ""}"><b>${k.v}</b><span>${k.l}</span><small>${k.s}</small></div>`).join("");
+        `<div class="kpi${k.a ? " accent" : ""}"><div class="l">${k.l}</div><div class="v">${k.v}</div><div class="s">${k.s}</div></div>`).join("");
       return tot;
     }
 
@@ -878,45 +862,45 @@ registerPage({
 
       var mv = function (o) {
         var p = prev[o.fm];
-        if (p == null) return `<span class="rp-bdmv flat" title="not in last week's standings">\u00b7</span>`;
-        if (p === o.place) return `<span class="rp-bdmv flat" title="same place as last week">\u2014</span>`;
+        if (p == null) return `<span class="rs-pill mute" title="not in last week's standings">\u00b7</span>`;
+        if (p === o.place) return `<span class="rs-pill mute" title="same place as last week">\u2014</span>`;
         return p > o.place
-          ? `<span class="rp-bdmv up" title="was ${p} last week">\u25b2 ${p - o.place}</span>`
-          : `<span class="rp-bdmv dn" title="was ${p} last week">\u25bc ${o.place - p}</span>`;
+          ? `<span class="rs-pill ok" title="was ${p} last week">\u25b2 ${p - o.place}</span>`
+          : `<span class="rs-pill bad" title="was ${p} last week">\u25bc ${o.place - p}</span>`;
       };
       var body = st.ranked.map(function (o) {
         var b = band(Math.round(o.rate * 100));
-        return `<tr${o.place <= 3 ? ' class="top"' : ""}>
+        return `<tr${o.place <= 3 ? ' class="rp-bdtop"' : ""}>
           <td class="rp-bdpz">${o.place}${byPlace[o.place].length > 1 ? "<i>=</i>" : ""}</td>
-          <td class="rp-bdfm">${esc(o.fm)}</td>
-          <td class="r"><b>${N(o.rev)}</b></td>
-          <td class="r">${N(o.jobs)}</td>
-          <td class="r"><span class="rp-pill" style="background:${b.bg};color:${b.fg}">${Math.round(o.rate * 100)}%</span></td>
-          <td class="r">${mv(o)}</td></tr>`;
+          <td class="strong">${esc(o.fm)}</td>
+          <td class="num"><b>${N(o.rev)}</b></td>
+          <td class="num">${N(o.jobs)}</td>
+          <td class="num"><span class="rs-pill" style="background:${b.bg};color:${b.fg}">${Math.round(o.rate * 100)}%</span></td>
+          <td class="num">${mv(o)}</td></tr>`;
       }).join("");
 
-      el.innerHTML = `<div class="rp-bdbar">
+      el.innerHTML = `<div class="rs-bar rp-bdbar">
           <span class="rp-bdwk">
             <button type="button" id="rpBdOlder" title="Earlier week" ${wi >= ws.length - 1 ? "disabled" : ""}>\u2039</button>
             <b>Week ending ${bdWkLabel(wk)}</b>
             <button type="button" id="rpBdNewer" title="Later week" ${wi <= 0 ? "disabled" : ""}>\u203a</button>
           </span>
-          ${open ? `<span class="rp-bdlive">still running</span>` : ""}
-          <span class="rp-spring"></span>
-          <span class="rp-seg" id="rpBdKey">
+          ${open ? `<span class="rs-pill warn">still running</span>` : ""}
+          <span class="rs-spacer"></span>
+          <span class="rs-seg" id="rpBdKey">
             <button type="button" data-bdkey="rev" class="${RP.bdKey === "rev" ? "on" : ""}">By reviews</button>
             <button type="button" data-bdkey="rate" class="${RP.bdKey === "rate" ? "on" : ""}">By rate</button>
           </span>
-          <button type="button" class="rp-btn" id="rpBdCopy">Copy standings</button>
+          <button type="button" class="rs-btn" id="rpBdCopy">Copy standings</button>
         </div>
-        <div class="rp-bdsub">Ranked by ${unit} on jobs that ended this week. ${N(totR)} ${totR === 1 ? "review" : "reviews"} from
+        <div class="rs-hint">Ranked by ${unit} on jobs that ended this week. ${N(totR)} ${totR === 1 ? "review" : "reviews"} from
           ${N(totJ)} eligible ${totJ === 1 ? "job" : "jobs"} across ${N(st.ranked.length)} ${st.ranked.length === 1 ? "foreman" : "foremen"}.
           ${open ? "This week is not over \u2014 the places can still change." : "Movement is against the week before."}</div>
         ${pod ? `<div class="rp-bdpod">${pod}</div>` : ""}
         ${st.ranked.length
-          ? `<div class="rp-panel"><table class="rp-bdtbl"><thead><tr>
-               <th>Place</th><th>Foreman</th><th class="r">Reviews</th><th class="r">Jobs</th>
-               <th class="r">Rate</th><th class="r">vs last week</th></tr></thead><tbody>${body}</tbody></table>
+          ? `<div class="panel rs-noanim"><div class="rs-tablewrap"><table class="rs-table"><thead><tr>
+               <th>Place</th><th>Foreman</th><th class="num">Reviews</th><th class="num">Jobs</th>
+               <th class="num">Rate</th><th class="num">vs last week</th></tr></thead><tbody>${body}</tbody></table></div>
              ${st.idle.length ? `<div class="rp-bdidle"><b>Not ranked this week</b> \u2014 no eligible job, so no chance at a review:
                ${st.idle.map(o => esc(o.fm) + " (" + N(o.done) + ")").join(", ")}</div>` : ""}</div>`
           : `<div class="rs-loading" style="padding:22px">No eligible jobs in this week.</div>`}`;
@@ -1049,23 +1033,23 @@ registerPage({
     }
     function liveRespPanel() {
       if (liveRespState === "idle" || liveRespState === "loading")
-        return `<div class="rp-panel rp-live-wrap"><h3>Recent foreman explanations · live from the field</h3><div class="rs-loading" style="padding:14px">Loading…</div></div>`;
+        return `<div class="panel rs-noanim"><div class="panel-head"><h3 class="panel-title rp-h3">Recent foreman explanations · live from the field</h3></div><div class="rs-loading" style="padding:14px">Loading…</div></div>`;
       if (liveRespState === "fail") return "";   // silent — the warehouse worklist still renders
       var rs = (liveResp || []).slice().sort(function (a, b) { return String(b.ts || b.date || "").localeCompare(String(a.ts || a.date || "")); });
       var fmt = function (r) { var d = new Date(r.ts || r.date); return isNaN(d) ? String(r.date || "") : d.toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }); };
       var body = rs.length
         ? rs.slice(0, 30).map(function (r) {
-            return "<tr><td style=\"white-space:nowrap;color:var(--muted)\">" + esc(fmt(r)) + "</td>"
-              + "<td style=\"white-space:nowrap;font-weight:700\">" + esc(r.job || "—") + "</td>"
-              + "<td style=\"white-space:nowrap\">" + esc(r.foreman || "—") + "</td>"
-              + "<td><span class=\"rp-tag\">" + esc(r.reason || "—") + "</span></td>"
-              + "<td style=\"color:var(--muted)\">" + esc(r.note || "") + "</td></tr>";
+            return "<tr><td class=\"nowrap muted\">" + esc(fmt(r)) + "</td>"
+              + "<td class=\"nowrap strong\">" + esc(r.job || "—") + "</td>"
+              + "<td class=\"nowrap\">" + esc(r.foreman || "—") + "</td>"
+              + "<td><span class=\"rs-pill mute rp-tag\">" + esc(r.reason || "—") + "</span></td>"
+              + "<td class=\"muted\">" + esc(r.note || "") + "</td></tr>";
           }).join("")
-        : "<tr><td colspan=\"5\" style=\"color:var(--faint)\">No foreman explanations submitted yet. When a foreman taps “why no review?” on the Slack nudge, it appears here within about a minute.</td></tr>";
-      return `<div class="rp-panel rp-live-wrap" style="margin-bottom:12px">
-        <h3>Recent foreman explanations · <span class="rp-live-dot"></span> live from the field${rs.length ? " (" + N(rs.length) + ")" : ""}</h3>
-        <p class="rp-supsub">Straight from the reminder bot, ahead of the ~6-hour warehouse sync. Each one attaches to its job in the worklist below once that job’s closing sheet is filed (usually a few days), so a brand-new explanation may not yet line up with a job in the window above.</p>
-        <div style="overflow-x:auto"><table class="rp-tbl2"><thead><tr><th>When</th><th>Job</th><th>Foreman</th><th>Reason</th><th>Note</th></tr></thead><tbody>${body}</tbody></table></div>
+        : "<tr><td colspan=\"5\" class=\"dim\">No foreman explanations submitted yet. When a foreman taps “why no review?” on the Slack nudge, it appears here within about a minute.</td></tr>";
+      return `<div class="panel rs-noanim">
+        <div class="panel-head"><h3 class="panel-title rp-h3">Recent foreman explanations · <span class="rp-live-dot"></span> live from the field${rs.length ? " (" + N(rs.length) + ")" : ""}</h3></div>
+        <p class="rs-hint">Straight from the reminder bot, ahead of the ~6-hour warehouse sync. Each one attaches to its job in the worklist below once that job’s closing sheet is filed (usually a few days), so a brand-new explanation may not yet line up with a job in the window above.</p>
+        <div class="rs-tablewrap"><table class="rs-table"><thead><tr><th>When</th><th>Job</th><th>Foreman</th><th>Reason</th><th>Note</th></tr></thead><tbody>${body}</tbody></table></div>
       </div>`;
     }
     // ---- Reasons view ----
@@ -1085,7 +1069,7 @@ registerPage({
       var barsHtml = reasonArr.map(x => `<div class="row"><span class="nm" title="${esc(x.k)}">${esc(x.k.length > 30 ? x.k.slice(0, 29) + "…" : x.k)}</span>
           <span class="bar"><i style="width:${Math.round(x.n / rMax * 100)}%;background:var(--brand)"></i></span><span class="vn">${x.n}</span></div>`).join("") +
         `<div class="row"><span class="nm" style="color:var(--faint)">No explanation yet</span>
-          <span class="bar"><i style="width:${Math.round(waiting / rMax * 100)}%;background:#9ca3af"></i></span><span class="vn">${waiting}</span></div>`;
+          <span class="bar"><i style="width:${Math.round(waiting / rMax * 100)}%;background:var(--muted)"></i></span><span class="vn">${waiting}</span></div>`;
 
       // per-foreman accountability
       var byFm = {};
@@ -1101,8 +1085,8 @@ registerPage({
         var top = Object.entries(o.reasons).sort((a, b) => b[1] - a[1])[0];
         return { f, miss: o.miss, exp: o.exp, wait: o.miss - o.exp, top: top ? top[0] + " (" + top[1] + ")" : "—" };
       }).sort((a, b) => b.wait - a.wait || b.miss - a.miss);
-      var fmRows = fmArr.map(x => `<tr><td>${esc(x.f)}</td><td class="r">${x.miss}</td><td class="r">${x.exp}</td>
-        <td class="r" style="font-weight:800;color:${x.wait ? "#b91c1c" : "#15803d"}">${x.wait}</td><td>${esc(x.top)}</td></tr>`).join("");
+      var fmRows = fmArr.map(x => `<tr><td>${esc(x.f)}</td><td class="num">${x.miss}</td><td class="num">${x.exp}</td>
+        <td class="num strong" style="color:${x.wait ? "var(--neg)" : "var(--pos)"}">${x.wait}</td><td>${esc(x.top)}</td></tr>`).join("");
 
       // per-period trend
       var byCol = {};
@@ -1115,8 +1099,8 @@ registerPage({
       var trendRows = windowCols().map(c => {
         var o = byCol[c] || { miss: 0, exp: 0 };
         var pr = o.miss ? Math.round(o.exp / o.miss * 100) : null;
-        return `<tr><td>${esc(colLabel(c))}</td><td class="r">${o.miss}</td><td class="r">${o.exp}</td>
-          <td class="r">${pr == null ? "—" : pr + "%"}</td></tr>`;
+        return `<tr><td>${esc(colLabel(c))}</td><td class="num">${o.miss}</td><td class="num">${o.exp}</td>
+          <td class="num">${pr == null ? "—" : pr + "%"}</td></tr>`;
       }).join("");
 
       // worklist: waiting jobs first, then explained — with the inline explain action.
@@ -1135,25 +1119,25 @@ registerPage({
         return `<tr><td><b>#${esc(r["Job No"] || "")}</b><br><span style="color:var(--muted)">${esc(r["Customer"] || "—")}</span></td>
           <td>${esc(r["Foreman"] || "—")}</td>
           <td>${esc(shortD(String(r["Job Date"] || "").slice(0, 10)))}</td>
-          <td>${expl ? esc(expl) : `<span class="rp-pill p-miss">waiting</span><button type="button" class="rp-exbtn" style="margin:4px 0 0" data-exbtn="${wlStart + i}">✍ Explain</button>`}</td></tr>`;
+          <td>${expl ? esc(expl) : `<span class="rs-pill bad">waiting</span><button type="button" class="rp-exbtn" style="margin:4px 0 0" data-exbtn="${wlStart + i}">✍ Explain</button>`}</td></tr>`;
       }).join("");
-      var wlPager = wlPages > 1 ? `<div style="display:flex;align-items:center;gap:10px;justify-content:flex-end;padding:10px 2px 0;font-size:13px;color:var(--muted)">
-        <button type="button" class="rp-btn" data-wlprev${RP.wlPage === 0 ? " disabled" : ""}>‹ Prev</button>
-        <span>Page <b style="color:var(--ink)">${RP.wlPage + 1}</b> of ${wlPages}</span>
-        <button type="button" class="rp-btn" data-wlnext${RP.wlPage >= wlPages - 1 ? " disabled" : ""}>Next ›</button></div>` : "";
+      var wlPager = wlPages > 1 ? `<div class="rp-pager">
+        <button type="button" class="rs-btn" data-wlprev${RP.wlPage === 0 ? " disabled" : ""}>‹ Prev</button>
+        <span>Page <b>${RP.wlPage + 1}</b> of ${wlPages}</span>
+        <button type="button" class="rs-btn" data-wlnext${RP.wlPage >= wlPages - 1 ? " disabled" : ""}>Next ›</button></div>` : "";
 
       var el = document.getElementById("rpReasons");
       el.innerHTML = liveRespPanel() + `
-        <div class="rp-rgrid">
-          <div class="rp-panel"><h3>Why reviews are missing · ${N(explained.length)} of ${N(missing.length)} explained</h3>
+        <div class="rs-grid2 rp-rgrid">
+          <div class="panel rs-noanim"><div class="panel-head"><h3 class="panel-title rp-h3">Why reviews are missing · ${N(explained.length)} of ${N(missing.length)} explained</h3></div>
             <div class="rp-roll">${barsHtml}</div></div>
-          <div class="rp-panel"><h3>Response rate by ${RP.grain}</h3>
-            <div style="overflow-x:auto"><table class="rp-tbl2"><thead><tr><th>${RP.grain === "day" ? "Day" : RP.grain === "week" ? "Week" : "Month"}</th><th style="text-align:right">Missing</th><th style="text-align:right">Explained</th><th style="text-align:right">Resp. %</th></tr></thead><tbody>${trendRows}</tbody></table></div></div>
+          <div class="panel rs-noanim"><div class="panel-head"><h3 class="panel-title rp-h3">Response rate by ${RP.grain}</h3></div>
+            <div class="rs-tablewrap"><table class="rs-table"><thead><tr><th>${RP.grain === "day" ? "Day" : RP.grain === "week" ? "Week" : "Month"}</th><th class="num">Missing</th><th class="num">Explained</th><th class="num">Resp. %</th></tr></thead><tbody>${trendRows}</tbody></table></div></div>
         </div>
-        <div class="rp-panel" style="margin-top:12px"><h3>Foreman accountability — who owes explanations</h3>
-          <div style="overflow-x:auto"><table class="rp-tbl2"><thead><tr><th>Foreman</th><th style="text-align:right">Missing</th><th style="text-align:right">Explained</th><th style="text-align:right">Waiting</th><th>Top reason</th></tr></thead><tbody>${fmRows || `<tr><td colspan="5" style="color:var(--faint)">Nothing missing in this window 🎉</td></tr>`}</tbody></table></div></div>
-        <div class="rp-panel" style="margin-top:12px"><h3>Missing-review jobs (${N(missing.length)}) — explain right here</h3>
-          <div style="overflow-x:auto"><table class="rp-tbl2"><thead><tr><th>Job</th><th>Foreman</th><th>Date</th><th>Reason / action</th></tr></thead><tbody>${workRows || `<tr><td colspan="4" style="color:var(--faint)">None in this window.</td></tr>`}</tbody></table></div>${wlPager}</div>`;
+        <div class="panel rs-noanim"><div class="panel-head"><h3 class="panel-title rp-h3">Foreman accountability — who owes explanations</h3></div>
+          <div class="rs-tablewrap"><table class="rs-table"><thead><tr><th>Foreman</th><th class="num">Missing</th><th class="num">Explained</th><th class="num">Waiting</th><th>Top reason</th></tr></thead><tbody>${fmRows || `<tr><td colspan="5" class="dim">Nothing missing in this window 🎉</td></tr>`}</tbody></table></div></div>
+        <div class="panel rs-noanim"><div class="panel-head"><h3 class="panel-title rp-h3">Missing-review jobs (${N(missing.length)}) — explain right here</h3></div>
+          <div class="rs-tablewrap"><table class="rs-table"><thead><tr><th>Job</th><th>Foreman</th><th>Date</th><th>Reason / action</th></tr></thead><tbody>${workRows || `<tr><td colspan="4" class="dim">None in this window.</td></tr>`}</tbody></table></div>${wlPager}</div>`;
       wireExplain(el, work, () => paintReasons());
       var wp = el.querySelector("[data-wlprev]"), wn = el.querySelector("[data-wlnext]");
       if (wp) wp.onclick = () => { RP.wlPage--; paintReasons(); };
@@ -1188,7 +1172,10 @@ registerPage({
         { l: "In this list", v: N(list.length), s: (RP.supType || RP.supQ.trim()) ? "after search / chip" : "no filter" },
       ];
       var el = document.getElementById("rpKpis"); if (!el) return;
-      el.innerHTML = K.map(k => `<div class="rp-kpi${k.a ? " accent" : ""}"><b>${k.v}</b><span>${k.l}</span><small>${esc(k.s)}</small></div>`).join("");
+      // this strip is written directly rather than through RSC.kpis, which is the only
+      // thing that sets --kpi-cols -- without it six tiles lay out 4+2 above 1400px
+      el.style.setProperty("--kpi-cols", String(K.length));
+      el.innerHTML = K.map(k => `<div class="kpi${k.a ? " accent" : ""}"><div class="l">${k.l}</div><div class="v">${k.v}</div><div class="s">${esc(k.s)}</div></div>`).join("");
     }
     function paintSupport() {
       var SUP_PAGE = 25;
@@ -1215,38 +1202,38 @@ registerPage({
       if (RP.supPage >= pages) RP.supPage = 0;
       var shown = list.slice(RP.supPage * SUP_PAGE, RP.supPage * SUP_PAGE + SUP_PAGE);
       var typeTag = t => { var k = String(t || "").toLowerCase();
-        var c = /neg/.test(k) ? "#b45309" : /claim/.test(k) ? "#b91c1c" : /refund/.test(k) ? "#7c3aed" : "var(--muted)";
+        var c = /neg/.test(k) ? "var(--warn)" : /claim/.test(k) ? "var(--neg)" : /refund/.test(k) ? "var(--purple)" : "var(--muted)";
         return `<span style="font-weight:700;color:${c}">${esc(t || "—")}</span>`; };
       var rowsH = shown.map(r => `<tr>
-          <td style="white-space:nowrap;color:var(--muted)">${esc(supDate(r))}</td>
-          <td style="white-space:nowrap;font-weight:700">${esc(r["Job No"] || "—")}<br><span style="color:var(--faint);font-weight:400;font-size:11px">${esc(r["Customer"] || "")}</span></td>
-          <td style="white-space:nowrap">${esc(r["Foreman"] || "—")}</td>
+          <td class="nowrap muted">${esc(supDate(r))}</td>
+          <td class="nowrap strong">${esc(r["Job No"] || "—")}<br><span style="color:var(--faint);font-weight:400;font-size:11px">${esc(r["Customer"] || "")}</span></td>
+          <td class="nowrap">${esc(r["Foreman"] || "—")}</td>
           <td>${typeTag(r["Support Intervention Type"])}</td>
           <td>${esc(r["Support Intervention Reason"] || "—")}</td>
         </tr>`).join("");
       var chips = [{ t: "", label: "All types (" + N(all.length) + ")" }]
         .concat(Object.keys(typeCounts).sort((a, b) => typeCounts[b] - typeCounts[a]).map(t => ({ t: t, label: t + " (" + N(typeCounts[t]) + ")" })))
-        .map(c => `<button type="button" class="rp-supchip${RP.supType === c.t ? " on" : ""}" data-suptype="${esc(c.t)}">${esc(c.label)}</button>`).join("");
+        .map(c => `<button type="button" class="${RP.supType === c.t ? "on" : ""}" data-suptype="${esc(c.t)}">${esc(c.label)}</button>`).join("");
       var from = list.length ? RP.supPage * SUP_PAGE + 1 : 0, to = Math.min(list.length, (RP.supPage + 1) * SUP_PAGE);
       var pager = list.length > SUP_PAGE
         ? `<div class="rp-suppage"><span>${N(from)}–${N(to)} of ${N(list.length)}</span>
-             <span><button type="button" class="rp-btn" data-supprev ${RP.supPage === 0 ? "disabled" : ""}>‹ Prev</button>
+             <span><button type="button" class="rs-btn" data-supprev ${RP.supPage === 0 ? "disabled" : ""}>‹ Prev</button>
              <b>${RP.supPage + 1} / ${pages}</b>
-             <button type="button" class="rp-btn" data-supnext ${RP.supPage >= pages - 1 ? "disabled" : ""}>Next ›</button></span></div>`
+             <button type="button" class="rs-btn" data-supnext ${RP.supPage >= pages - 1 ? "disabled" : ""}>Next ›</button></span></div>`
         : `<div class="rp-suppage"><span>${N(list.length)} intervention${list.length === 1 ? "" : "s"}</span></div>`;
 
       var el = document.getElementById("rpSupport");
       el.innerHTML = `
-        <div class="rp-panel">
-          <h3>Support interventions — every job Support stepped in on</h3>
-          <p class="rp-supsub">All-time (not limited by the date window above). A job with a support intervention is excluded from review eligibility. Respects the Source / Foreman filters.</p>
-          <div class="rp-supbar">
-            <input type="text" id="rpSupQ" placeholder="Search job, customer, foreman, type, reason…" value="${esc(RP.supQ)}">
-            <div class="rp-supchips">${chips}</div>
+        <div class="panel rs-noanim">
+          <div class="panel-head"><h3 class="panel-title rp-h3">Support interventions — every job Support stepped in on</h3></div>
+          <p class="rs-hint">All-time (not limited by the date window above). A job with a support intervention is excluded from review eligibility. Respects the Source / Foreman filters.</p>
+          <div class="rs-bar rp-supbar">
+            <input type="text" class="rs-inp" id="rpSupQ" placeholder="Search job, customer, foreman, type, reason…" value="${esc(RP.supQ)}">
+            <div class="rs-seg rp-supchips">${chips}</div>
           </div>
-          <div style="overflow-x:auto"><table class="rp-tbl2">
+          <div class="rs-tablewrap"><table class="rs-table">
             <thead><tr><th>Date</th><th>Job</th><th>Foreman</th><th>Type</th><th>Reason</th></tr></thead>
-            <tbody>${rowsH || `<tr><td colspan="5" style="color:var(--faint)">No support interventions match.</td></tr>`}</tbody>
+            <tbody>${rowsH || `<tr><td colspan="5" class="dim">No support interventions match.</td></tr>`}</tbody>
           </table></div>
           ${pager}
         </div>`;

@@ -58,9 +58,10 @@ const RL = (() => {
     return Math.round(h / 24) + "d ago";
   };
   const pill = st => {
-    const c = { ok: "ok", error: "err", skipped: "skip", running: "run" }[st] || "skip";
+    // tones are the shared kit's: ok / warn / bad / info
+    const c = { ok: "ok", error: "bad", skipped: "warn", running: "info" }[st] || "warn";
     const l = { ok: "OK", error: "Error", skipped: "Skipped", running: "Running" }[st] || st;
-    return `<span class="rl-pill ${c}">${RSC.esc(l)}</span>`;
+    return `<span class="rs-pill ${c}">${RSC.esc(l)}</span>`;
   };
   function process(run) {
     const steps = (run.steps || []).map(s => ({ ...s, phase: phase(s), s0: ms(s.started_at), s1: ms(s.ended_at) }));
@@ -138,12 +139,10 @@ function rlInjectStyle() {
   .rl-mode{font-size:10.5px;font-weight:800;letter-spacing:.04em;text-transform:uppercase}
   .rl-mode.live{color:var(--brand)} .rl-mode.ref{color:var(--faint)}
   .rl-used{font-size:11.5px;color:var(--muted);max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .rl-bar{display:flex;gap:9px;align-items:center;flex-wrap:wrap;margin:2px 0 16px}
-  .rl-btn{font:inherit;font-size:12.5px;font-weight:700;background:var(--panel);color:var(--ink);border:1px solid var(--line-2);border-radius:10px;padding:8px 14px;cursor:pointer}
-  .rl-btn:hover:not(:disabled){border-color:var(--brand)}
-  .rl-btn.primary{background:var(--brand);color:var(--brand-ink);border-color:var(--brand)}
-  .rl-btn:disabled{opacity:.5;cursor:default}
-  .rl-runmsg{font-size:12.5px;color:var(--muted);display:inline-flex;align-items:center;gap:7px}
+  /* the control row and its buttons are the kit's (.rs-bar / .rs-btn / .rs-btn.pri). The only
+     thing left is the status message: .rs-bar bottom-aligns its controls, and a one-line
+     message beside two buttons wants to sit at their middle. */
+  .rl-runmsg{font-size:12.5px;color:var(--muted);display:inline-flex;align-items:center;gap:7px;align-self:center}
   .rl-dot{width:8px;height:8px;border-radius:50%;background:var(--faint);display:inline-block;flex:none}
   .rl-dot.ok{background:var(--brand)} .rl-dot.warn{background:var(--amber)} .rl-dot.bad{background:var(--red)}
   .rl-dot.run{background:var(--blue);animation:rlpulse 1.1s infinite}
@@ -160,9 +159,11 @@ function rlInjectStyle() {
   .rl-cov .rng{font-size:14px;font-weight:700;color:var(--ink);margin-top:6px;font-variant-numeric:tabular-nums}
   .rl-cov .rng .arw{color:var(--faint);margin:0 3px}
   .rl-cov .meta{font-size:11.5px;color:var(--muted);margin-top:5px;display:flex;align-items:center;gap:6px}
-  .rl-note{font-size:11.5px;color:var(--faint);margin-top:10px}
-  .rl-live{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px 16px;margin-bottom:14px;box-shadow:var(--shadow)}
-  .rl-live.on{border-color:var(--blue)}
+  /* the footnote under a card is a kit .rs-hint; only its spacing is page business */
+  .rl-note{margin:10px 0 0}
+  /* the live box is a kit .panel; all that is page-specific is the "something is happening
+     right now" edge. Three classes, to out-weigh the border shorthand on body.rs-app .panel. */
+  .panel.rl-live.on{border-color:var(--blue)}
   .rl-lvhead{display:flex;align-items:center;gap:9px;flex-wrap:wrap;font-size:13.5px;color:var(--ink)}
   .rl-lvsub{font-size:11.5px;color:var(--faint);font-weight:500}
   .rl-lvcount{font-size:11.5px;color:var(--muted);font-variant-numeric:tabular-nums}
@@ -185,26 +186,25 @@ function rlInjectStyle() {
   .rl-pager b{color:var(--ink);font-variant-numeric:tabular-nums}
   .rl-pgnav{display:flex;align-items:center;gap:9px}
   .rl-pgnav span{font-weight:700;color:var(--ink);font-variant-numeric:tabular-nums;min-width:92px;text-align:center}
-  .rl-pgnav button{font:inherit;font-size:12.5px;font-weight:700;background:var(--panel);color:var(--ink);border:1px solid var(--line-2);border-radius:9px;padding:7px 14px;cursor:pointer}
-  .rl-pgnav button:hover:not(:disabled){border-color:var(--brand)}
-  .rl-pgnav button:disabled{opacity:.35;cursor:default}
-  /* auto-fit, not a hard 4. The fifth tile (oldest feed) only renders when a feed is actually
-     ageing, so a fixed four-column grid left it orphaned across a whole row on its own —
-     a lone card the width of the screen, which reads as an error rather than a stat.
-     auto-fit collapses the empty tracks, so four cards sit four-up and five sit five-up. */
-  .rl-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px;margin-bottom:16px}
-  @media(max-width:820px){.rl-kpis{grid-template-columns:repeat(2,1fr)}}
-  .rl-kpi{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 16px;box-shadow:var(--shadow);position:relative;overflow:hidden}
-  .rl-kpi::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--line-2)}
-  .rl-kpi.raw::before{background:var(--blue)} .rl-kpi.cur::before{background:var(--purple)}
-  .rl-kpi.tot::before{background:var(--brand)}
-  .rl-kpi .lbl{font-size:10.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
-  .rl-kpi .val{font-size:23px;font-weight:820;color:var(--ink);margin-top:6px;letter-spacing:-.4px;font-variant-numeric:tabular-nums}
-  .rl-kpi .sub{font-size:11.5px;color:var(--faint);margin-top:3px}
-  .rl-card{background:var(--panel);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);padding:18px 20px;margin-bottom:16px}
+  /* The tiles are the kit's .rs-kpis/.kpi. Two things stay page-local.
+     ONE: auto-fit, not the kit's balanced column count. The fifth tile (oldest feed) only
+     renders when a feed is actually ageing, so a fixed four-column grid left it orphaned
+     across a whole row on its own — a lone card the width of the screen, which reads as an
+     error rather than a stat. auto-fit collapses the empty tracks, so four cards sit four-up
+     and five sit five-up.
+     TWO: the accent bar is COLOUR-CODED by phase, so a tile matches the legend, the split
+     bar and the gantt underneath it. */
+  .rs-kpis.rl-kpis{grid-template-columns:repeat(auto-fit,minmax(210px,1fr))}
+  @media(max-width:820px){.rs-kpis.rl-kpis{grid-template-columns:repeat(2,1fr)}}
+  /* phase colour-coding: the base is neutral so an UNphased tile cannot borrow a
+     legend colour it has no entry for */
+  .rl-kpis .kpi::before{background:var(--line-2)}
+  .rl-kpis .kpi.raw::before{background:var(--blue)}
+  .rl-kpis .kpi.cur::before{background:var(--purple)}
+  .rl-kpis .kpi.tot::before{background:var(--brand)}
   .rl-sec{font-size:11px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);margin:2px 0 13px}
-  .rl-hhead{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:14px}
-  .rl-htitle{font-size:16px;font-weight:800;color:var(--ink)}
+  /* card headings are the kit's .panel-head / .panel-title; the subtitle beside the title and
+     the total pinned to the right are the two pieces the kit has no name for */
   .rl-hsub{font-size:12.5px;color:var(--muted)}
   .rl-htot{margin-left:auto;font-size:12.5px;color:var(--muted)}.rl-htot b{color:var(--ink);font-size:17px;font-weight:820}
   .rl-legend{display:flex;gap:22px;flex-wrap:wrap;margin-bottom:9px}
@@ -237,8 +237,9 @@ function rlInjectStyle() {
              border-bottom:1px solid var(--line)}
   .rl-sghead b{font-size:13px;font-weight:800;letter-spacing:-.1px;color:var(--ink)}
   .rl-sghead span{font-size:11.5px;color:var(--faint)}
-  .rl-stale{margin-left:auto;font-size:10.5px;font-weight:800;padding:2px 9px;border-radius:999px;
-            background:var(--warn-bg);color:var(--warn)}
+  /* the chip that rides at the right end of a card heading. The chip itself is a kit
+     .rs-pill; this only pushes it over. */
+  .rl-hchip{margin-left:auto}
   /* how long since this feed actually brought something new -- the "did I forget" signal */
   .rl-age{display:inline-block;margin-top:6px;font-size:10px;font-weight:800;letter-spacing:.03em;
           padding:1px 7px;border-radius:999px;background:var(--panel);border:1px solid var(--line);
@@ -248,27 +249,24 @@ function rlInjectStyle() {
   .rl-age.ok{color:var(--muted)}
   .rl-age.warn{color:var(--warn);border-color:var(--warn)}
   .rl-age.old{color:var(--red);border-color:var(--red);font-weight:800}
-  .rl-kpi.stale::before{background:var(--amber)}
-  /* the freshness board */
-  .rl-fresh-ok{margin-left:auto;font-size:10.5px;font-weight:800;padding:2px 9px;border-radius:999px;
-               background:var(--pos-bg);color:var(--pos)}
-  .rl-ftab{width:100%;border-collapse:collapse;font-size:12.5px;margin-top:10px}
-  .rl-ftab th{text-align:left;font-size:10px;font-weight:800;letter-spacing:.07em;
-              text-transform:uppercase;color:var(--faint);padding:6px 10px;
-              border-bottom:1px solid var(--line);white-space:nowrap}
-  .rl-ftab th.n,.rl-ftab td.n{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
-  .rl-ftab td{padding:7px 10px;border-bottom:1px solid var(--line);color:var(--muted)}
-  .rl-ftab tr:last-child td{border-bottom:0}
-  .rl-ftab td b{color:var(--ink);font-weight:650}
-  .rl-fr.old td{background:var(--neg-bg)}
-  .rl-fr.warn td{background:var(--warn-bg)}
+  .rl-kpis .kpi.stale::before{background:var(--amber)}
+  /* THE FRESHNESS BOARD. The table is a kit .rs-table inside a .rs-tablewrap. What stays here
+     is the reading order of a row — the feed NAME is the ink and everything beside it is
+     supporting detail — and the row tint that says how late the feed is.
+     The tint needs tbody + two classes to out-rank the kit's own zebra stripe. */
+  .rl-ftw{margin-top:10px}
+  .rs-table.rl-ftab td{color:var(--muted)}
+  .rs-table.rl-ftab td b{color:var(--ink);font-weight:650}
+  .rs-table tbody tr.rl-fr.old td{background:var(--neg-bg)}
+  .rs-table tbody tr.rl-fr.warn td{background:var(--warn-bg)}
   .rl-fkind{display:block;font-size:10px;color:var(--faint);margin-top:1px}
   .rl-fnote{display:block;font-size:9.5px;color:var(--faint)}
   .rl-fdet{margin-top:12px}
   .rl-fdet summary{cursor:pointer;font-size:12px;font-weight:700;color:var(--muted);
                    user-select:none;padding:4px 0}
   .rl-fdet[open] summary{margin-bottom:2px}
-  .rl-fhelp{font-size:11px;color:var(--faint);line-height:1.6;margin-top:12px;max-width:100ch}
+  /* the long explanation under a card is a kit .rs-hint; it only needs to sit at the bottom */
+  .rl-fhelp{margin:12px 0 0}
   /* the per-feed reload switch */
   .rl-sw{font-family:inherit;font-size:10px;font-weight:800;letter-spacing:.04em;
          padding:2px 9px;border-radius:999px;cursor:pointer;border:1px solid;background:transparent}
@@ -277,16 +275,11 @@ function rlInjectStyle() {
   .rl-sw.off{color:var(--muted);border-color:var(--line-2);background:var(--panel-2)}
   .rl-sw:hover:not(:disabled){filter:brightness(1.15)}
   .rl-sw:disabled{opacity:.6;cursor:default}
-  .rl-fr.paused td{background:var(--panel-2);opacity:.72}
+  .rs-table tbody tr.rl-fr.paused td{background:var(--panel-2);opacity:.72}
   .rl-fr.paused b{text-decoration:line-through;text-decoration-color:var(--faint)}
   .rl-sname{font-size:12.5px;font-weight:650;color:var(--ink);display:flex;align-items:center;justify-content:space-between;gap:6px}
   .rl-smeta{font-size:11.5px;color:var(--muted);margin-top:4px;display:flex;justify-content:space-between}
   .rl-smeta b{color:var(--ink);font-weight:700;font-variant-numeric:tabular-nums}
-  .rl-pill{display:inline-flex;align-items:center;font-size:10.5px;font-weight:800;padding:1px 8px;border-radius:999px;border:1px solid;background:transparent;letter-spacing:.02em}
-  .rl-pill.ok{color:var(--brand);border-color:var(--brand)}
-  .rl-pill.skip{color:var(--amber);border-color:var(--amber)}
-  .rl-pill.err{color:var(--red);border-color:var(--red)}
-  .rl-pill.run{color:var(--blue);border-color:var(--blue)}
   .rl-run{background:var(--panel);border:1px solid var(--line);border-radius:11px;box-shadow:var(--shadow);margin-bottom:9px;overflow:hidden}
   .rl-rhead{display:flex;align-items:center;gap:13px;padding:12px 16px;cursor:pointer;user-select:none;transition:background .1s}
   .rl-rhead:hover{background:var(--panel-2)}
@@ -382,7 +375,7 @@ function rlSources(p) {
     </div>`;
 
   const staleChip = stale.length
-    ? `<span class="rl-stale">${stale.length} not updated in 3 weeks</span>` : "";
+    ? `<span class="rs-pill warn rl-hchip">${stale.length} not updated in 3 weeks</span>` : "";
   return block("What we feed it", raw.filter(s => s.status === "ok").length + " loaded · "
                + raw.filter(s => s.status === "skipped").length + " unchanged", raw, true, staleChip)
        + block("What it builds", cur.filter(s => s.status === "ok").length + " rebuilt · "
@@ -424,11 +417,11 @@ function rlCoverage(cov) {
     </div>`;
   }).join("");
   if (!cards) return "";
-  return `<div class="rl-card">
-    <div class="rl-hhead"><span class="rl-htitle">Data on hand</span>
+  return `<div class="panel rs-noanim">
+    <div class="panel-head"><span class="panel-title">Data on hand</span>
       <span class="rl-hsub">what the warehouse currently covers${cov.stamped_at ? " · stamped " + RSC.esc(String(cov.stamped_at).slice(0, 16)) : ""}</span></div>
     <div class="rl-covgrid">${cards}</div>
-    <div class="rl-note">First → newest record in each source. "Newest" is how far the data reaches, not when it was loaded — a source can refresh successfully and still have no new records.</div>
+    <div class="rs-hint rl-note">First → newest record in each source. "Newest" is how far the data reaches, not when it was loaded — a source can refresh successfully and still have no new records.</div>
   </div>`;
 }
 
@@ -461,7 +454,7 @@ function rlLiveHtml(st) {
       <span class="rl-lvmeta">${x.rows != null ? RS.fmtN(x.rows) + " rows" : (x.status === "skipped" ? "unchanged" : "")}</span>
       <span class="rl-lvtime">${RL.tOnly(x.ended_at)}</span></div>`;
   }).join("");
-  return `<div class="rl-live ${live ? "on" : "off"}">
+  return `<div class="panel rs-noanim rl-live ${live ? "on" : "off"}">
     <div class="rl-lvhead">
       <span class="rl-lvpulse ${live ? "on" : ""}"></span>
       <b>${live ? "Refresh in progress" : "No refresh running"}</b>
@@ -477,7 +470,7 @@ function rlLiveHtml(st) {
          <span class="rl-lvsub">since ${RSC.esc(RL.tOnly(cur.started_at))}</span>`
       : `<span class="rl-lvsub">starting…</span>`}</div>` : ""}
     ${recent ? `<div class="rl-lvlist"><div class="rl-lvcap">${live ? "Just finished" : "Last steps"}</div>${recent}</div>` : ""}
-    <div class="rl-note" style="margin-top:8px">All times Georgian (Tbilisi).</div>
+    <div class="rs-hint rl-note" style="margin-top:8px">All times Georgian (Tbilisi).</div>
   </div>`;
 }
 
@@ -551,17 +544,17 @@ function rlFreshness(fresh) {
       <td><span class="rl-mode ${live ? "live" : "ref"}" title="${RSC.esc(live || "pulled by the hourly pipeline")}">${
         live ? "live" : "refreshed"}</span></td>
       <td class="rl-used" title="${RSC.esc(usedTxt)}">${usedTxt === "—" ? "" : RSC.esc(usedTxt)}</td>
-      <td class="n">${sw}</td>
-      <td class="n"><span class="rl-age ${f.paused ? "none" : cls}">${age}</span></td>
-      <td class="n">${RSC.esc(f.file_updated ? String(f.file_updated).slice(0, 10) : "—")}</td>
-      <td class="n">${RSC.esc(f.newest_data || "—")}${dd != null && dd > 30
+      <td class="num nowrap">${sw}</td>
+      <td class="num nowrap"><span class="rl-age ${f.paused ? "none" : cls}">${age}</span></td>
+      <td class="num nowrap">${RSC.esc(f.file_updated ? String(f.file_updated).slice(0, 10) : "—")}</td>
+      <td class="num nowrap">${RSC.esc(f.newest_data || "—")}${dd != null && dd > 30
         ? `<span class="rl-fnote">${dd}d of data</span>` : ""}</td>
-      <td class="n">${f.rows == null ? "—" : RS.fmtN(f.rows)}</td>
+      <td class="num nowrap">${f.rows == null ? "—" : RS.fmtN(f.rows)}</td>
     </tr>`;
   };
   const head = `<thead><tr><th>Feed</th><th>Comes from</th><th>How</th><th>Used by</th>
-    <th class="n">Reload</th><th class="n">Last updated</th>
-    <th class="n">File date</th><th class="n">Newest row</th><th class="n">Rows</th></tr></thead>`;
+    <th class="num">Reload</th><th class="num">Last updated</th>
+    <th class="num">File date</th><th class="num">Newest row</th><th class="num">Rows</th></tr></thead>`;
 
   /* LIVE tables have no freshness row and never could: nobody "reloads" them, people
      WRITE them through the portal, so they are current the second someone saves. They
@@ -577,32 +570,33 @@ function rlFreshness(fresh) {
   }).join("");
   const liveCard = liveRows ? `<details class="rl-fdet">
       <summary>${Object.keys(RL.LIVE).length} live table${Object.keys(RL.LIVE).length === 1 ? "" : "s"} — written in the portal, never reloaded</summary>
-      <table class="rl-ftab"><thead><tr><th>What it is</th><th>Comes from</th><th>How</th><th>Used by</th></tr></thead>
-      <tbody>${liveRows}</tbody></table>
-      <div class="rl-fhelp">These are not exports. Somebody typing in the portal — a money-flow
+      <div class="rs-tablewrap rl-ftw"><table class="rs-table rl-ftab">
+      <thead><tr><th>What it is</th><th>Comes from</th><th>How</th><th>Used by</th></tr></thead>
+      <tbody>${liveRows}</tbody></table></div>
+      <div class="rs-hint rl-fhelp">These are not exports. Somebody typing in the portal — a money-flow
         confirmation, a cleanup decision, a questionnaire answer — writes straight to the
         warehouse, so there is nothing to go stale and nothing to pause.</div>
     </details>` : "";
 
-  return `<div class="rl-card">
-    <div class="rl-hhead">
-      <span class="rl-htitle">Where every number comes from</span>
+  return `<div class="panel rs-noanim">
+    <div class="panel-head">
+      <span class="panel-title">Where every number comes from</span>
       <span class="rl-hsub">each feed, who supplies it, and whether it is live or refreshed on a schedule</span>
-      ${bad.length ? `<span class="rl-stale">${bad.length} over three weeks</span>`
-                   : `<span class="rl-fresh-ok">everything current</span>`}
+      ${bad.length ? `<span class="rs-pill warn rl-hchip">${bad.length} over three weeks</span>`
+                   : `<span class="rs-pill ok rl-hchip">everything current</span>`}
     </div>
-    ${bad.length || watch.length ? `<table class="rl-ftab">${head}<tbody>
-        ${bad.map(row).join("")}${watch.map(row).join("")}</tbody></table>` : ""}
+    ${bad.length || watch.length ? `<div class="rs-tablewrap rl-ftw"><table class="rs-table rl-ftab">${head}<tbody>
+        ${bad.map(row).join("")}${watch.map(row).join("")}</tbody></table></div>` : ""}
     ${off.length ? `<details class="rl-fdet">
       <summary>${off.length} feed${off.length === 1 ? "" : "s"} paused — not reloaded at all</summary>
-      <table class="rl-ftab">${head}<tbody>${off.map(row).join("")}</tbody></table>
+      <div class="rs-tablewrap rl-ftw"><table class="rs-table rl-ftab">${head}<tbody>${off.map(row).join("")}</tbody></table></div>
     </details>` : ""}
     <details class="rl-fdet"${bad.length || watch.length ? "" : " open"}>
       <summary>${fine.length} feed${fine.length === 1 ? "" : "s"} updated in the last ${WATCH} days</summary>
-      <table class="rl-ftab">${head}<tbody>${fine.map(row).join("")}</tbody></table>
+      <div class="rs-tablewrap rl-ftw"><table class="rs-table rl-ftab">${head}<tbody>${fine.map(row).join("")}</tbody></table></div>
     </details>
     ${liveCard}
-    <div class="rl-fhelp">A feed goes amber after ${WATCH} days and red after three weeks.
+    <div class="rs-hint rl-fhelp">A feed goes amber after ${WATCH} days and red after three weeks.
       Some are meant to sit still — reference tables like zip codes barely change — so this is a
       prompt to look, not a fault. <b>Last updated</b> is the export file's own modified date;
       <b>newest row</b> is the freshest date inside it, which is the one that catches a file
@@ -618,8 +612,8 @@ function rlRender(host, runs, cov, fresh) {
   const procs = runs.map(RL.process);
   rlBuildLastLoaded(procs);
   const L = procs[0];
-  const kpi = (cls, lbl, val, sub) => `<div class="rl-kpi ${cls}"><div class="lbl">${lbl}</div><div class="val">${val}</div><div class="sub">${sub}</div></div>`;
-  const kpis = `<div class="rl-kpis">
+  const kpi = (cls, lbl, val, sub) => `<div class="kpi ${cls}"><div class="l">${lbl}</div><div class="v">${val}</div><div class="s">${sub}</div></div>`;
+  const kpis = `<div class="rs-kpis rl-kpis">
     ${kpi("", "Last refresh", RL.ago(L.run.ended_at || L.run.started_at), "on " + RL.dOnly(L.run.started_at) + " " + RL.tOnly(L.run.started_at))}
     ${kpi("raw", "Raw refresh", RL.fmtDur(L.rawDur), L.nLoaded + " sources loaded")}
     ${kpi("cur", "Curation", RL.fmtDur(L.curDur), "silver layer rebuilt")}
@@ -642,9 +636,9 @@ function rlRender(host, runs, cov, fresh) {
 
   const freshBoard = rlFreshness(fresh);
 
-  const hero = `<div class="rl-card">
-    <div class="rl-hhead">
-      <span class="rl-htitle">Latest refresh</span>
+  const hero = `<div class="panel rs-noanim">
+    <div class="panel-head">
+      <span class="panel-title">Latest refresh</span>
       <span class="rl-hsub">${RL.dOnly(L.run.started_at)} · ${RL.tOnly(L.run.started_at)} → ${RL.tOnly(L.run.ended_at)}</span>
       ${RL.pill(L.run.status)}
       <span class="rl-htot">total <b>${RL.fmtDur(L.total)}</b></span>
@@ -689,9 +683,9 @@ function rlRender(host, runs, cov, fresh) {
       + (pages > 1 ? `<div class="rl-pager">
           <div>Showing <b>${from + 1}–${Math.min(from + RPP, rest.length)}</b> of <b>${rest.length}</b> earlier runs</div>
           <div class="rl-pgnav">
-            <button id="rlPrev"${RL.hpage ? "" : " disabled"}>‹ Prev</button>
+            <button class="rs-btn" id="rlPrev"${RL.hpage ? "" : " disabled"}>‹ Prev</button>
             <span>Page ${RL.hpage + 1} of ${pages}</span>
-            <button id="rlNext"${RL.hpage + 1 < pages ? "" : " disabled"}>Next ›</button>
+            <button class="rs-btn" id="rlNext"${RL.hpage + 1 < pages ? "" : " disabled"}>Next ›</button>
           </div></div>` : "")
     : "";
 
@@ -780,8 +774,8 @@ function rlRender(host, runs, cov, fresh) {
       <div class="v">${RSC.esc(verdictLine)}</div>
       <div class="s">${verdictSub}</div>
     </div>
-    ${todo ? `<div class="rl-card"><div class="rl-hhead">
-        <span class="rl-htitle">What needs a person</span>
+    ${todo ? `<div class="panel rs-noanim"><div class="panel-head">
+        <span class="panel-title">What needs a person</span>
         <span class="rl-hsub">everything else arrives on its own</span></div>
       <div class="rl-todogrid">${todo}</div></div>` : ""}`;
 
@@ -842,9 +836,9 @@ registerPage({
         <p>How each data refresh ran — the raw source loads and the curation build, per run.
           <span class="freshness">· the pipeline runs every hour</span></p>
       </div>
-      <div class="rl-bar">
-        <button class="rl-btn" id="rlReload">↻ Reload this page's data</button>
-        <button class="rl-btn primary" id="rlRun">▶ Run a refresh now</button>
+      <div class="rs-bar">
+        <button class="rs-btn" id="rlReload">↻ Reload this page's data</button>
+        <button class="rs-btn pri" id="rlRun">▶ Run a refresh now</button>
         <span class="rl-runmsg" id="rlMsg"></span>
       </div>
       <div id="rlLive"></div>
@@ -854,12 +848,12 @@ registerPage({
     try {
       data = await ZTZ.api("/api/_refresh_log");
     } catch (e) {
-      body.innerHTML = `<div class="rl-card" style="color:var(--muted)">Couldn't load the refresh log: ${RSC.esc(e.message || String(e))}</div>`;
+      body.innerHTML = `<div class="panel" style="color:var(--muted)">Couldn't load the refresh log: ${RSC.esc(e.message || String(e))}</div>`;
       return;
     }
     const runs = (data && data.runs) || [];
     if (!runs.length) {
-      body.innerHTML = `<div class="rl-card" style="text-align:center;color:var(--muted);padding:30px">
+      body.innerHTML = `<div class="panel" style="text-align:center;color:var(--muted);padding:30px">
         No refresh runs recorded yet. This fills in automatically as the pipeline runs
         (every hour, or when a refresh is triggered).</div>`;
       return;

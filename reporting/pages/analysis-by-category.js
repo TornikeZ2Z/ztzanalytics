@@ -285,8 +285,8 @@ async function cbRender(host) {
         <p>Pick what to break down, by what, and how — <b>${RS.fmtN(rows.length)}</b>
            ${isLeads ? "leads" : "jobs"} in scope${activeFilters.length ? ` after ${activeFilters.length} page filter${activeFilters.length === 1 ? "" : "s"}` : ""}</p>
       </div>
-      <div class="panel cb-spec" id="cbSpec"></div>
-      ${coverage ? `<div class="cb-note" id="cbCov">${esc(coverage)}</div>` : ""}
+      <div class="panel rs-bar" id="cbSpec"></div>
+      ${coverage ? `<div class="rs-hint cb-note" id="cbCov">${esc(coverage)}</div>` : ""}
       <div class="rs-kpis" id="kpis"></div>
       <div id="main"></div>
       <div id="trend"></div>`;
@@ -295,39 +295,58 @@ async function cbRender(host) {
       const st = document.createElement("style");
       st.id = "cbCss";
       st.textContent = `
-        .cb-spec{padding:12px 14px;margin-bottom:12px;display:flex;flex-wrap:wrap;gap:10px 14px;align-items:flex-end}
-        .cb-f{display:flex;flex-direction:column;gap:4px}
-        .cb-f > span{font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--faint)}
-        .cb-spec select,.cb-spec input{background:var(--panel-2);color:var(--ink);border:1px solid var(--line-2);
-          border-radius:8px;padding:6px 9px;font:inherit;font-size:12.5px}
-        .cb-seg{display:flex;gap:0;border:1px solid var(--line-2);border-radius:8px;overflow:hidden}
-        .cb-seg button{background:var(--panel-2);color:var(--muted);border:0;padding:6px 11px;font:inherit;
-          font-size:12px;font-weight:600;cursor:pointer}
-        .cb-seg button.on{background:var(--brand);color:var(--brand-ink)}
+        /* The bar, the fields, the segment, the selects, the buttons, the hint and the table
+           all come from the shared kit in rs.css (.rs-bar / .rs-fld / .rs-seg / .rs-sel /
+           .rs-btn / .rs-hint / .rs-table). What is left in this sheet is what the kit cannot
+           say about a PIVOT, plus the one-line adjustments layered on kit components. */
+
+        /* the spec bar is also a card, and the four actions still need a group the row can
+           push to its far end */
         .cb-act{display:flex;gap:6px;margin-left:auto}
-        .cb-act button{background:var(--panel-2);color:var(--ink);border:1px solid var(--line-2);border-radius:8px;
-          padding:6px 11px;font:inherit;font-size:12px;font-weight:600;cursor:pointer}
-        .cb-act button:hover{border-color:var(--brand)}
-        .cb-note{background:var(--warn-bg);border:1px solid var(--line-2);border-radius:10px;padding:9px 12px;
-          font-size:11.5px;color:var(--ink);margin-bottom:12px;line-height:1.5}
+        /* "Top" is a two-digit answer. The kit's 132px select floor is sized for dimension
+           names and reads as an empty box around "20". */
+        #cbTop{min-width:82px}
+        /* .rs-hint carries a bottom margin because it usually sits under a bar. As the only
+           line inside a card -- or inside chartCard's own .tabwrap, which supplies no
+           padding of its own -- it wants neither. */
+        .cb-flat{margin:0}
+        .cb-void{margin:0;padding:18px}
+        /* two hints that have to be SEEN rather than read past: both explain why a "—"
+           bucket is large, which is the one thing that can make this page lie to you. The
+           amber tint is the page's own voice; the type comes from the kit. */
+        .rs-hint.cb-note{background:var(--warn-bg);border:1px solid var(--line-2);
+          border-radius:10px;padding:9px 12px;color:var(--ink)}
+        /* PAGE filters, not the shell's: this page keeps its own store and never writes to
+           RS.state.multi, so its chips are deliberately not the shell's brand-green
+           .rs-chip -- and the whole chip is the remove control, not an inner button. */
         .cb-chips{display:flex;flex-wrap:wrap;gap:6px;width:100%}
         .cb-chip{background:var(--blue-bg);border:1px solid var(--line-2);border-radius:999px;padding:3px 9px;
           font-size:11px;color:var(--ink);cursor:pointer}
         .cb-chip:hover{border-color:var(--red);color:var(--red)}
-        .cb-piv th[data-s]{cursor:pointer;user-select:none}
-        .cb-piv th[data-s]:hover{color:var(--brand)}
-        .cb-piv td.num,.cb-piv th.num{text-align:right;font-variant-numeric:tabular-nums}
+        /* ---- the pivot: what .rs-table cannot say ----
+           It scrolls sideways -- Columns = Year-Month is forty of them -- so the row label
+           has to stay put or a number stops belonging to anything. A sticky cell has to be
+           OPAQUE, which is why hover and the total row are restated on top of it instead of
+           being inherited from the kit's zebra. */
+        /* the pivot pins column one and the Total row -- see .rs-sticky in the kit */
+        .rs-table.cb-piv td{white-space:nowrap}
+        .rs-table.cb-piv td:first-child,.rs-table.cb-piv th:first-child{position:sticky;left:0}
+        .rs-table.cb-piv tbody td:first-child{background:var(--panel)}
+        .rs-table.cb-piv tbody tr:hover td:first-child{background:color-mix(in srgb,var(--ink) 5%,var(--panel))}
+        .rs-table.cb-piv th[data-s]{cursor:pointer;user-select:none}
+        .rs-table.cb-piv th[data-s]:hover{color:var(--brand)}
         /* descendant, not a qualifier: the 2nd measure is a <div class="b"> INSIDE the cell,
            and the cell itself carries class "num" -- td.b matched nothing, so both numbers
            in a stacked cell rendered at the same size and colour. */
-        .cb-piv td .b{font-size:10.5px;color:var(--muted)}
+        .rs-table.cb-piv td .b{font-size:10.5px;color:var(--muted)}
         /* The total row shipped as class="tot" and this sheet never defined it. .tot IS defined
            -- by monthly-report.js, refresh-log.js and review-performance.js -- so the row was
            styled only once you had visited one of those in the same session, and differently
-           depending on WHICH. Its own name, defined here. */
-        .cb-piv tr.cb-tot td{border-top:2px solid var(--line-2);font-weight:800;
+           depending on WHICH. Its own name, defined here -- and qualified deeply enough to
+           out-rank the kit's zebra and hover, which both reach three elements down. */
+        .rs-table.cb-piv tbody tr.cb-tot td,
+        .rs-table.cb-piv tbody tr.cb-tot:hover td{border-top:2px solid var(--line-2);font-weight:800;
           background:var(--panel-2);position:sticky;bottom:0}
-        .cb-drill{margin-top:10px}
         .cb-emptychart{display:flex;align-items:center;justify-content:center;height:100%;
           text-align:center;color:var(--muted);font-size:13px;padding:0 24px}`;
       document.head.appendChild(st);
@@ -340,7 +359,7 @@ async function cbRender(host) {
     const noRows = !rows.length;
     if (noRows) {
       document.getElementById("main").innerHTML =
-        `<div class="panel" style="padding:20px;color:var(--muted)">No ${isLeads ? "leads" : "jobs"} for the current filters.</div>`;
+        `<div class="panel"><div class="rs-hint cb-flat">No ${isLeads ? "leads" : "jobs"} for the current filters.</div></div>`;
     }
 
     /* ---- KPI strip --------------------------------------------------------------- */
@@ -368,33 +387,33 @@ async function cbRender(host) {
     const viewNames = Object.keys(views).filter(k => k !== "_last").sort();
 
     document.getElementById("cbSpec").innerHTML = `
-      <div class="cb-f"><span>Universe</span>
-        <div class="cb-seg" id="cbUni">
+      <div class="rs-fld"><span>Universe</span>
+        <div class="rs-seg" id="cbUni">
           <button data-u="jobs" class="${isLeads ? "" : "on"}">Jobs</button>
           <button data-u="leads" class="${isLeads ? "on" : ""}">Leads</button>
         </div></div>
-      <div class="cb-f"><span>Rows</span><select id="cbRow">${opt(Object.keys(DIMS), CB.rowDim)}</select></div>
-      <div class="cb-f"><span>Columns</span><select id="cbCol">
+      <div class="rs-fld"><span>Rows</span><select class="rs-sel" id="cbRow">${opt(Object.keys(DIMS), CB.rowDim)}</select></div>
+      <div class="rs-fld"><span>Columns</span><select class="rs-sel" id="cbCol">
         <option value="">— none —</option>${opt(Object.keys(DIMS), CB.colDim)}</select></div>
-      <div class="cb-f"><span>Measure</span><select id="cbMA">${optM(MEAS, CB.mA)}</select></div>
-      <div class="cb-f"><span>2nd measure</span><select id="cbMB">
+      <div class="rs-fld"><span>Measure</span><select class="rs-sel" id="cbMA">${optM(MEAS, CB.mA)}</select></div>
+      <div class="rs-fld"><span>2nd measure</span><select class="rs-sel" id="cbMB">
         <option value="">— none —</option>${optM(MEAS, CB.mB)}</select></div>
-      <div class="cb-f"><span>Top</span><select id="cbTop">
+      <div class="rs-fld"><span>Top</span><select class="rs-sel" id="cbTop">
         ${[10, 20, 50, 0].map(n => `<option value="${n}"${n === CB.topN ? " selected" : ""}>${n || "all"}</option>`).join("")}
         </select></div>
-      <div class="cb-f"><span>Chart</span><select id="cbChart">
+      <div class="rs-fld"><span>Chart</span><select class="rs-sel" id="cbChart">
         ${[["bar", "Bars"], ["hbar", "Bars (horizontal)"], ["stacked", "Stacked"], ["line", "Lines"], ["donut", "Donut"]]
           .map(([v, l]) => `<option value="${v}"${v === CB.chart ? " selected" : ""}>${l}</option>`).join("")}
         </select></div>
-      <div class="cb-f"><span>Filter by</span><select id="cbAddF">
+      <div class="rs-fld"><span>Filter by</span><select class="rs-sel" id="cbAddF">
         <option value="">+ add a filter…</option>${opt(Object.keys(DIMS), "")}</select></div>
-      <div class="cb-f"><span>Saved view</span><select id="cbView">
+      <div class="rs-fld"><span>Saved view</span><select class="rs-sel" id="cbView">
         <option value="">— none —</option>${opt(viewNames, CB.view)}</select></div>
       <div class="cb-act">
-        <button id="cbSave">Save view</button>
-        <button id="cbLink">Copy link</button>
-        <button id="cbCsv">CSV</button>
-        <button id="cbReset">Reset</button>
+        <button class="rs-btn" id="cbSave">Save view</button>
+        <button class="rs-btn" id="cbLink">Copy link</button>
+        <button class="rs-btn" id="cbCsv">CSV</button>
+        <button class="rs-btn" id="cbReset">Reset</button>
       </div>
       ${activeFilters.length ? `<div class="cb-chips">${activeFilters.map(k =>
         [...CB.filters[k]].map(v =>
@@ -404,7 +423,7 @@ async function cbRender(host) {
     /* ---- the pivot --------------------------------------------------------------- */
     function pivotHtml() {
       const G = group();
-      if (!G.rowKeys.length) return `<div style="padding:20px;color:var(--muted)">Nothing to break down.</div>`;
+      if (!G.rowKeys.length) return `<div class="rs-hint cb-void">Nothing to break down.</div>`;
       const grand = mA.seg(rows, bookedRows);
       const cellVal = (rKey, cKey, m) => {
         const rs = G.cell.get(rKey + " " + cKey) || [];
@@ -473,7 +492,7 @@ async function cbRender(host) {
         + `<td class="num">${grand ? esc(RS.fmtPct(1)) : "—"}</td>`
         + `<td class="num">${RS.fmtN(rows.length)}</td></tr>`;
 
-      return `<table class="tab cb-piv"><thead>${head}</thead><tbody>${body}${tot}</tbody></table>`;
+      return `<table class="rs-table rs-sticky cb-piv"><thead>${head}</thead><tbody>${body}${tot}</tbody></table>`;
     }
 
     /* ---- the chart --------------------------------------------------------------- */
@@ -613,7 +632,7 @@ async function cbRender(host) {
       buildTable() {
         const { months, series } = trendSpec();
         if (!series.length) {
-          return `<div class="cb-note">Nothing to trend: every row lands in the “—” bucket for `
+          return `<div class="rs-hint cb-note">Nothing to trend: every row lands in the “—” bucket for `
             + `<b>${esc(CB.rowDim)}</b>, so there is no named category to follow month by month.</div>`;
         }
         const head = `<tr><th>${esc(CB.rowDim)}</th>`
@@ -622,7 +641,7 @@ async function cbRender(host) {
           + months.map(mm => { const v = s.at(mm);
               return `<td class="num">${v == null ? "—" : esc(mA.fmt(v))}</td>`; }).join("")
           + "</tr>").join("");
-        return `<table class="tab cb-piv"><thead>${head}</thead><tbody>${body}</tbody></table>`;
+        return `<table class="rs-table rs-sticky cb-piv"><thead>${head}</thead><tbody>${body}</tbody></table>`;
       },
     });
 
