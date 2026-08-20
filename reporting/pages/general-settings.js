@@ -13,33 +13,36 @@ registerPage({
 
     if (!document.getElementById("gsCss")) {
       var st = document.createElement("style"); st.id = "gsCss";
+      // THE COMPONENT KIT (rs.css) now supplies the page head, the card and its title, the
+      // description line, the add fields and the buttons. What is left below is what the kit
+      // does not name — the masonry columns, the removable e-mail token, the from→to mapping
+      // row — plus one one-line adjustment TO a kit component.
       st.textContent = `
-        .gs-head h1{margin:0;font-size:22px;font-weight:800;letter-spacing:-.4px}
-        .gs-head p{margin:4px 0 16px;font-size:12.5px;color:var(--muted);max-width:640px}
         /* plain length: min() is not valid in column-width, so the whole declaration was
            dropped and the page rendered as ONE 2090px column of label/value pairs. */
         #gsBody{column-width:560px;column-gap:16px}
-        /* break-inside so a card is never split across two columns mid-form */
+        /* the card itself is a kit .panel; this is only the column-break behaviour, because a
+           card split across two columns mid-form is unreadable */
         .gs-card{break-inside:avoid;-webkit-column-break-inside:avoid;page-break-inside:avoid;
-          display:inline-block;width:100%;background:var(--panel);border:1px solid var(--line-2);
-          border-radius:14px;padding:16px 18px;margin:0 0 16px}
-        .gs-card h3{margin:0 0 4px;font-size:14.5px;font-weight:800}
-        .gs-card .sub{font-size:11.5px;color:var(--faint);margin-bottom:12px}
+          display:inline-block;width:100%}
+        /* the title stays an h3 so the card keeps a heading level — drop the browser's margin */
+        .gs-card .panel-title{margin:0 0 4px}
+        /* A REMOVABLE TOKEN, which the kit cannot say: .rs-pill states a verdict and .rs-tog
+           switches a filter — neither carries a ✕ that deletes the value it is showing. */
         .gs-chips{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px}
         .gs-chip{display:inline-flex;align-items:center;gap:7px;font-size:12.5px;font-weight:700;background:var(--panel-2);border:1px solid var(--line-2);border-radius:999px;padding:6px 8px 6px 13px}
         .gs-chip button{font:inherit;font-weight:800;color:var(--faint);background:transparent;border:0;cursor:pointer;padding:0 5px;border-radius:50%}
-        .gs-chip button:hover{color:#b02a37}
+        .gs-chip button:hover{color:var(--neg)}
+        /* one from→to mapping, on a grid so the arrows line up down the card */
         .gs-pair{display:grid;grid-template-columns:1fr 24px 1fr 34px;gap:8px;align-items:center;margin-bottom:6px;font-size:12.5px}
         .gs-pair .arr{text-align:center;color:var(--faint);font-weight:800}
-        .gs-add{display:flex;gap:8px;margin-top:4px;flex-wrap:wrap}
-        .gs-add input{font:inherit;font-size:12.5px;background:var(--panel);color:var(--ink);border:1px solid var(--line-2);border-radius:9px;padding:8px 11px;min-width:210px}
-        .gs-btn{font:inherit;font-size:12px;font-weight:800;background:var(--brand);color:var(--brand-ink);border:0;border-radius:9px;padding:8px 15px;cursor:pointer}
-        .gs-btn[disabled]{opacity:.55;cursor:default}
-        .gs-btn.ghost{background:var(--panel-2);color:var(--muted);border:1px solid var(--line-2)}
-        .gs-meta{font-size:10.5px;color:var(--faint);margin-top:8px}
-        .gs-ok{color:#1c7a4a;font-size:11.5px;font-weight:700;margin-left:10px}
-        .gs-err{color:#b02a37;font-size:11.5px;font-weight:700;margin-left:10px}
         .gs-x{font-size:12px;color:var(--faint);background:transparent;border:1px solid var(--line-2);border-radius:7px;cursor:pointer;padding:4px 8px}
+        .gs-add{display:flex;gap:8px;margin-top:4px;flex-wrap:wrap}
+        .gs-actions{margin-top:12px}
+        .gs-empty{color:var(--faint);font-size:12px}
+        div.gs-empty{margin-bottom:8px}
+        .gs-err{color:var(--neg);font-size:11.5px;font-weight:700;margin-left:10px}
+        .gs-meta{font-size:10.5px;color:var(--faint);margin-top:8px}
         .gs-load{padding:40px;text-align:center;color:var(--faint)}`;
       document.head.appendChild(st);
     }
@@ -67,7 +70,7 @@ registerPage({
       },
     };
 
-    host.innerHTML = '<div class="gs-head"><h1>General Translators</h1>'
+    host.innerHTML = '<div class="rs-page-head"><h1>General Translators</h1>'
       + '<p>Values the system used to have hardcoded — now editable here. Changes apply on the next pipeline run (within ~6 hours); Money Flow foreman names refresh on the next rebuild.</p></div>'
       + '<div id="gsBody"><div class="gs-load">Loading…</div></div>';
 
@@ -109,20 +112,20 @@ registerPage({
         if (m.kind === "emails") {
           inner = '<div class="gs-chips">' + (cur.length ? cur.map(function (em, i) {
               return '<span class="gs-chip">' + esc(em) + '<button title="remove" data-grm="' + i + '">✕</button></span>';
-            }).join("") : '<span style="color:var(--faint);font-size:12px">— empty —</span>') + "</div>"
-            + '<div class="gs-add"><input data-gin placeholder="name@example.com">'
-            + '<button class="gs-btn ghost" data-gadd>Add</button></div>';
+            }).join("") : '<span class="gs-empty">— empty —</span>') + "</div>"
+            + '<div class="gs-add"><input class="rs-inp" data-gin placeholder="name@example.com">'
+            + '<button class="rs-btn" data-gadd>Add</button></div>';
         } else {
           inner = (cur.length ? cur.map(function (p, i) {
               return '<div class="gs-pair"><span>' + esc(p[0]) + '</span><span class="arr">→</span><span>' + esc(p[1])
                 + '</span><button class="gs-x" title="remove" data-grm="' + i + '">✕</button></div>';
-            }).join("") : '<div style="color:var(--faint);font-size:12px;margin-bottom:8px">— empty —</div>')
-            + '<div class="gs-add"><input data-gin placeholder="from@example.com"><input data-gin2 placeholder="to@example.com">'
-            + '<button class="gs-btn ghost" data-gadd>Add</button></div>';
+            }).join("") : '<div class="gs-empty">— empty —</div>')
+            + '<div class="gs-add"><input class="rs-inp" data-gin placeholder="from@example.com"><input class="rs-inp" data-gin2 placeholder="to@example.com">'
+            + '<button class="rs-btn" data-gadd>Add</button></div>';
         }
-        return '<div class="gs-card" data-gname="' + name + '"><h3>' + m.t + '</h3><div class="sub">' + m.p + "</div>"
+        return '<div class="panel rs-noanim gs-card" data-gname="' + name + '"><h3 class="panel-title">' + m.t + '</h3><div class="rs-hint">' + m.p + "</div>"
           + inner
-          + '<div style="margin-top:12px"><button class="gs-btn" data-gsave>Save</button><span data-gmsg></span></div>'
+          + '<div class="gs-actions"><button class="rs-btn pri" data-gsave>Save</button><span data-gmsg></span></div>'
           + '<div class="gs-meta">' + (meta.at ? "Last saved " + esc(meta.at) + " by " + esc(String(meta.by || "")) : "Never edited (seeded defaults)") + "</div></div>";
       }).join("");
 

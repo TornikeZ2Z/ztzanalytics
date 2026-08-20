@@ -28,27 +28,21 @@ registerPage({
   async render(host) {
     // Data Quality is now a HUB: warehouse checks + calendar coverage + request-# consistency as tabs
     // (the latter two register their render on window.DQ_SUB instead of as standalone pages).
-    if (!document.getElementById("dq-tabstyle")) {
-      const st = document.createElement("style"); st.id = "dq-tabstyle";
-      st.textContent = `.dq-tabbar{display:flex;gap:6px;flex-wrap:wrap;border-bottom:1px solid var(--line);margin:4px 2px 16px;padding-left:2px}
-        .dq-tab{appearance:none;border:0;background:none;font-family:inherit;font-size:14px;font-weight:650;color:var(--muted);
-          padding:9px 14px;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;transition:color .12s,border-color .12s}
-        .dq-tab:hover{color:var(--ink)} .dq-tab.on{color:var(--brand);border-bottom-color:var(--brand)}`;
-      document.head.appendChild(st);
-    }
+    // The tab bar is the kit's (.rs-tabs / .rs-tab), so this hub reads like every other
+    // merged page; the page no longer carries a tab sheet of its own.
     const TABS = [
       { key: "checks", label: "Warehouse checks", render: renderChecks },
       { key: "coverage", label: "Calendar Coverage", render: (window.DQ_SUB || {}).coverage },
       { key: "consistency", label: "Request # Consistency", render: (window.DQ_SUB || {}).consistency },
       { key: "mfissues", label: "Issues in Money Flow", render: (window.DQ_SUB || {}).mfissues },
     ];
-    host.innerHTML = `<div class="dq-tabbar" id="dqTabs"></div><div id="dqContent"></div>`;
+    host.innerHTML = `<div class="rs-tabs" id="dqTabs"></div><div id="dqContent"></div>`;
     const content = host.querySelector("#dqContent");
     let active = "checks";
     const paintTabs = () => {
       document.getElementById("dqTabs").innerHTML = TABS.map(t =>
-        `<button class="dq-tab ${t.key === active ? "on" : ""}" data-k="${t.key}">${RSC.esc(t.label)}</button>`).join("");
-      document.querySelectorAll("#dqTabs .dq-tab").forEach(b => b.onclick = () => go(b.getAttribute("data-k")));
+        `<button class="rs-tab ${t.key === active ? "on" : ""}" data-k="${t.key}">${RSC.esc(t.label)}</button>`).join("");
+      document.querySelectorAll("#dqTabs .rs-tab").forEach(b => b.onclick = () => go(b.getAttribute("data-k")));
     };
     const go = async (k) => {
       active = k; paintTabs();
@@ -108,7 +102,7 @@ async function renderChecks(host) {
             + "date. Both monthly reports are then right and they disagree. Rows that "
             + "predate the measurement are excluded, not guessed at.",
         cols: [{ key: "table", label: "Where" }, { key: "date", label: "Row date" },
-               { key: "seen", label: "Amount arrived" }, { key: "days", label: "Days late" }],
+               { key: "seen", label: "Amount arrived" }, { key: "days", label: "Days late", align: "r" }],
         compute: x => (x.lag || [])
           .filter(r => +r["Landed In A Later Month"] === 1)
           .sort((a, b) => (+b["Days To Record"] || 0) - (+a["Days To Record"] || 0))
@@ -152,6 +146,10 @@ async function renderChecks(host) {
     if (!document.getElementById("dq-look")) {
       const st = document.createElement("style"); st.id = "dq-look";
       st.textContent = [
+        // The kit's older tab rule is the one control here it does not fully describe:
+        // unlike .rs-btn / .rs-seg it never sets font-family, so a bare <button> falls back
+        // to the UA font. Covered here so this hub keeps Inter; it belongs in rs.css.
+        "#dqTabs .rs-tab{font-family:inherit}",
         // A worklist reads badly at full monitor width: the count ends up a screen away from
         // the check it belongs to. So each CARD stays capped -- but the cards now sit in a
         // grid that uses the whole box, instead of one capped column with 700px of nothing
@@ -161,40 +159,44 @@ async function renderChecks(host) {
         // LEFT while the cards it belongs to sat CENTRED, 350px out of line with each other.)
         ".dq-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(620px,1fr));"
         + "gap:0 26px;align-items:start}",
-        ".dq-card{max-width:var(--rs-row-max)}",
-        ".dq-card.open{grid-column:1/-1;max-width:none}",
+        // the heading is the kit's .rs-page-head; only the score-to-the-right row is ours
         ".dq-head{display:flex;align-items:flex-start;gap:16px;flex-wrap:wrap;margin:2px 2px 18px}",
-        ".dq-head h1{margin:0 0 5px;font-size:23px;letter-spacing:-.4px}",
-        ".dq-head p{margin:0;max-width:640px;color:var(--muted);font-size:13px;line-height:1.55}",
+        ".dq-head p{max-width:640px;line-height:1.55}",
         ".dq-score{margin-left:auto;text-align:right;flex:none}",
         ".dq-score b{display:block;font-size:30px;letter-spacing:-.8px;line-height:1.05;font-variant-numeric:tabular-nums}",
         ".dq-score span{font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:var(--faint)}",
-        ".dq-score.clean b{color:var(--pos,#1c7a4a)}",
-        ".dq-card{background:var(--panel);border:1px solid var(--line);border-radius:15px;margin-bottom:13px;overflow:hidden}",
-        ".dq-card.clean{background:var(--panel-2);border-style:dashed}",
-        ".dq-ch{display:flex;align-items:center;gap:11px;padding:13px 16px;cursor:pointer;user-select:none}",
+        ".dq-score.clean b{color:var(--pos)}",
+        // THE CARD IS A KIT .panel. Only the accordion's own needs are layered on it: the
+        // header row is full-bleed so its hover fills the card edge to edge, which the
+        // panel's own padding would inset. `body.rs-app` because that is the specificity
+        // rs.css states .panel at -- a bare .dq-card would lose to it and silently keep
+        // the padding.
+        "body.rs-app .dq-card{padding:0;overflow:hidden;max-width:var(--rs-row-max)}",
+        "body.rs-app .dq-card.open{grid-column:1/-1;max-width:none}",
+        "body.rs-app .dq-card.clean{background:var(--panel-2);border-style:dashed}",
+        "body.rs-app .dq-ch{margin:0;flex-wrap:nowrap;padding:13px 16px;cursor:pointer;user-select:none}",
         ".dq-ch:hover{background:var(--panel-2)}",
         ".dq-card.clean .dq-ch:hover{background:transparent}",
+        // the count is a kit .rs-pill; it only has to push itself to the far end of the row
+        ".dq-ch .rs-pill{margin-left:auto;font-variant-numeric:tabular-nums}",
+        // the severity dot is the page's own: the kit names no such mark
         ".dq-dot{width:9px;height:9px;border-radius:50%;flex:none;background:var(--line-2)}",
-        ".dq-dot.bad{background:var(--neg,#b02a37)}",
-        ".dq-dot.warn{background:#d99100}",
-        ".dq-dot.ok{background:var(--pos,#1c7a4a)}",
-        ".dq-ttl{font-size:14.5px;font-weight:750;letter-spacing:-.15px}",
-        ".dq-cnt{margin-left:auto;font-size:12.5px;font-weight:800;font-variant-numeric:tabular-nums;padding:3px 11px;border-radius:999px;background:var(--panel-2);color:var(--muted);flex:none}",
-        ".dq-cnt.bad{background:rgba(176,42,55,.11);color:var(--neg,#b02a37)}",
-        ".dq-cnt.warn{background:rgba(217,145,0,.14);color:#a06a00}",
-        ".dq-cnt.ok{background:rgba(28,122,74,.12);color:var(--pos,#1c7a4a)}",
+        ".dq-dot.bad{background:var(--neg)}",
+        ".dq-dot.warn{background:var(--warn)}",
+        ".dq-dot.ok{background:var(--pos)}",
         ".dq-caret{flex:none;color:var(--faint);font-size:11px;transition:transform .15s}",
         ".dq-card.open .dq-caret{transform:rotate(90deg)}",
-        ".dq-desc{padding:0 16px 12px 36px;color:var(--muted);font-size:12.5px;line-height:1.55;max-width:760px}",
-        ".dq-body{display:none;padding:0 6px 8px}",
+        // the description is a kit .rs-hint; the indent lines it up under the title, past the dot
+        ".dq-desc{margin:0;padding:0 16px 12px 36px}",
+        ".dq-body{display:none;padding:0 12px 14px}",
         ".dq-card.open .dq-body{display:block}",
-        ".dq-more{color:var(--faint);font-size:11.5px;padding:7px 12px 3px}"
+        ".dq-empty{margin:0;padding:4px 4px 8px}",
+        ".dq-more{margin:9px 2px 2px}"
       ].join("");
       document.head.appendChild(st);
     }
     host.innerHTML = `
-      <div class="dq-head">
+      <div class="rs-page-head dq-head">
         <div>
           <h1>Warehouse checks</h1>
           <p>Rows that look wrong or unfinished — fix them at the source sheet.
@@ -207,22 +209,37 @@ async function renderChecks(host) {
     const cont = document.getElementById("dqChecks");
     const panelById = {};
     DEFS.forEach((d) => {
-      const panel = RSC.el("div", "dq-card");
+      const panel = RSC.el("div", "panel dq-card");
       panel.id = "dq-card-" + d.id;
       panel.innerHTML =
-        `<div class="dq-ch"><span class="dq-dot" id="dq-dot-${d.id}"></span>
-           <span class="dq-ttl">${RSC.esc(d.title)}</span>
-           <span class="dq-cnt" id="dq-n-${d.id}">…</span>
+        `<div class="panel-head dq-ch"><span class="dq-dot" id="dq-dot-${d.id}"></span>
+           <span class="panel-title">${RSC.esc(d.title)}</span>
+           <span class="rs-pill mute" id="dq-n-${d.id}">…</span>
            <span class="dq-caret">▶</span></div>
-         <div class="dq-desc">${RSC.esc(d.desc)}</div>
+         <div class="rs-hint dq-desc">${RSC.esc(d.desc)}</div>
          <div class="dq-body" id="dq-body-${d.id}">
-           <div style="padding:12px;color:var(--muted);font-size:13px">Checking…</div>
+           <div class="rs-hint dq-empty">Checking…</div>
          </div>`;
       // the whole header row toggles it — a check with nothing to fix simply stays shut
       panel.querySelector(".dq-ch").onclick = () => panel.classList.toggle("open");
       cont.appendChild(panel);
       panelById[d.id] = {};
     });
+
+    /* The kit's table (.rs-tablewrap + .rs-table) rendered from the SAME column spec
+       RSC.table takes, with the same escaping, the same c.fmt hook and the same "—" for a
+       null -- only the class vocabulary differs. These are worklists of names, dates and
+       customers, so the kit's left-aligned default is right for them; a column that
+       declares align:"r" (Revenue) becomes the kit's .num cell. */
+    const dqTable = (cols, rows) =>
+      `<div class="rs-tablewrap"><table class="rs-table"><thead><tr>`
+      + cols.map(c => `<th class="${c.align === "r" ? "num" : ""}">${RSC.esc(c.label)}</th>`).join("")
+      + `</tr></thead><tbody>`
+      + rows.map(r => `<tr>` + cols.map(c => {
+        const v = r[c.key];
+        return `<td class="${c.align === "r" ? "num" : ""}">${c.fmt ? c.fmt(v) : (v == null ? "—" : RSC.esc(v))}</td>`;
+      }).join("") + `</tr>`).join("")
+      + `</tbody></table></div>`;
 
     const paintPanel = (d, rows) => {
       const n = rows.length;
@@ -233,16 +250,16 @@ async function renderChecks(host) {
       // severity is simply size: clear / a handful / a pile. It drives the dot and the
       // pill so the state of every check reads at a glance without opening anything.
       const lvl = !n ? "ok" : n > 100 ? "bad" : "warn";
-      if (nEl) { nEl.textContent = n ? RS.fmtN(n) : "clear"; nEl.className = "dq-cnt " + lvl; }
+      if (nEl) { nEl.textContent = n ? RS.fmtN(n) : "clear"; nEl.className = "rs-pill " + lvl; }
       if (dot) dot.className = "dq-dot " + lvl;
       if (card) card.classList.toggle("clean", !n);
       if (!body) return;
       if (!n) {
-        body.innerHTML = `<div style="padding:10px 12px 14px;color:var(--muted);font-size:13px">Nothing to fix here.</div>`;
+        body.innerHTML = `<div class="rs-hint dq-empty">Nothing to fix here.</div>`;
       } else {
         const shown = rows.slice(0, CAP);
-        body.innerHTML = RSC.table(d.cols, shown)
-          + (n > CAP ? `<div class="dq-more">showing ${CAP} of ${RS.fmtN(n)} — narrow the filters to see the rest</div>` : "");
+        body.innerHTML = dqTable(d.cols, shown)
+          + (n > CAP ? `<div class="rs-hint dq-more">showing ${CAP} of ${RS.fmtN(n)} — narrow the filters to see the rest</div>` : "");
       }
     };
     const paintTotal = results => {

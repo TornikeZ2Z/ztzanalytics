@@ -25,39 +25,36 @@ registerPage({
     };
     var S = window.__GT || (window.__GT = { bases: null, loading: false, msg: "" });
 
+    // The card, its head, the reading line, the table, the inputs and the buttons now come from
+    // THE COMPONENT KIT in rs.css. What is left here is the page's own width, its status line,
+    // and three one-line adjustments TO kit components.
     host.innerHTML = '<style id="gtCss">'
       + ".gt-wrap{max-width:var(--rs-row-max);margin:0 auto}"
-      + ".gt-card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:18px 20px;margin-bottom:16px}"
-      + ".gt-hd{display:flex;align-items:baseline;gap:10px;margin-bottom:3px}"
-      + ".gt-hd b{font-size:15.5px;letter-spacing:-.2px}"
-      + ".gt-sub{font-size:12.5px;color:var(--faint);line-height:1.55;margin-bottom:13px}"
-      + ".gt-tbl{width:100%;border-collapse:collapse;font-size:13px}"
-      + ".gt-tbl th{text-align:left;font-size:9.5px;font-weight:800;text-transform:uppercase;"
-      + "letter-spacing:.07em;color:var(--faint);padding:0 10px 6px 0}"
-      + ".gt-tbl td{padding:4px 10px 4px 0;vertical-align:middle}"
-      + ".gt-in{width:100%;font:inherit;font-size:13px;color:var(--ink);background:var(--panel-2);"
-      + "border:1px solid var(--line-2);border-radius:9px;padding:8px 11px}"
-      + ".gt-in:focus{outline:none;border-color:var(--blue)}"
-      + ".gt-btn{font:inherit;font-size:12px;font-weight:750;color:var(--ink);background:var(--panel-2);"
-      + "border:1px solid var(--line-2);border-radius:9px;padding:7px 13px;cursor:pointer;white-space:nowrap}"
-      + ".gt-btn:hover{border-color:var(--blue)}"
-      + ".gt-btn.pri{background:var(--brand);color:var(--brand-ink);border:0}"
+      // these inputs live in table cells, so they fill their column instead of asking for the kit's 210px
+      + ".gt-wrap .rs-inp{width:100%;min-width:0}"
+      // form rows, not reading rows: the input already carries its own padding, so the cell adds less
+      + ".gt-wrap .rs-table td{padding:6px 12px}"
+      // a form wearing a data table's clothes: no zebra, no row hover -- those say
+      // "these are records to scan", and these are fields to fill in
+      + ".gt-wrap .rs-table tbody tr:nth-child(even) td{background:transparent}"
+      + ".gt-wrap .rs-table tbody tr:hover td{background:transparent}"
+      // "no truck" is the reason a depot can never be used, so it is a real negative, not a quiet one
+      + ".gt-wrap .rs-table td.gt-none{color:var(--neg);font-weight:700}"
+      // the save/remove status line, with its height reserved so a message never shifts the card
       + ".gt-msg{font-size:12.5px;font-weight:650;margin-top:10px;min-height:17px}"
-      + ".gt-fleet{font-size:11.5px;color:var(--faint);font-weight:650}"
-      + ".gt-none{color:var(--neg,#b02a37)}"
       + "</style><div class='gt-wrap'><div id='gtBody'></div></div>";
 
     function paint() {
       var body = host.querySelector("#gtBody");
       if (!body) return;
       var bs = S.bases;
-      body.innerHTML = '<div class="gt-card">'
-        + '<div class="gt-hd"><b>Bases &middot; our depots</b></div>'
-        + '<div class="gt-sub">A truck leaves its depot and comes back to the same one, so each job is '
+      body.innerHTML = '<div class="panel rs-noanim">'
+        + '<div class="panel-head"><div class="panel-title">Bases &middot; our depots</div></div>'
+        + '<div class="rs-hint">A truck leaves its depot and comes back to the same one, so each job is '
         + 'planned from the depot with the shortest round trip &mdash; out to where the goods are, on to the '
         + 'delivery, and home again. A depot can only take a job when one of its own trucks fits the load, '
         + 'so a depot with no truck is never used. Truck home depots come from the Fleet File.</div>'
-        + (bs == null ? '<div class="gt-sub">Loading&hellip;</div>' : tbl(bs))
+        + (bs == null ? '<div class="rs-hint">Loading&hellip;</div>' : tbl(bs))
         + '<div class="gt-msg" id="gtMsg">' + esc(S.msg) + "</div></div>";
       wire();
     }
@@ -68,22 +65,23 @@ registerPage({
         var id = b ? b.id : "new";
         var fleet = b ? (+b.trucks || 0) : 0;
         return '<tr data-bid="' + esc(id) + '">'
-          + '<td><input class="gt-in" data-f="name" value="' + esc(b ? b.name : "")
+          + '<td><input class="rs-inp" data-f="name" value="' + esc(b ? b.name : "")
           +   '" placeholder="e.g. VA"></td>'
-          + '<td style="width:110px"><input class="gt-in" data-f="zip" inputmode="numeric" maxlength="5" value="'
+          + '<td style="width:110px"><input class="rs-inp" data-f="zip" inputmode="numeric" maxlength="5" value="'
           +   esc(b ? b.zip : "") + '" placeholder="22102"></td>'
-          + '<td><input class="gt-in" data-f="address" value="' + esc(b ? (b.address || "") : "")
+          + '<td><input class="rs-inp" data-f="address" value="' + esc(b ? (b.address || "") : "")
           +   '" placeholder="filled from the zip"></td>'
-          + '<td class="gt-fleet' + (b && !fleet ? " gt-none" : "") + '">'
+          + '<td class="' + (b && !fleet ? "gt-none" : "muted") + '">'
           +   (b ? (fleet ? fleet + (fleet === 1 ? " truck" : " trucks") : "no truck") : "") + "</td>"
-          + '<td style="white-space:nowrap">'
-          +   '<button class="gt-btn' + (b ? "" : " pri") + '" data-save="' + esc(id) + '">'
+          + '<td class="nowrap">'
+          +   '<button class="rs-btn' + (b ? "" : " pri") + '" data-save="' + esc(id) + '">'
           +   (b ? "Save" : "Add base") + "</button>"
-          +   (b ? ' <button class="gt-btn" data-del="' + esc(id) + '">Remove</button>' : "")
+          +   (b ? ' <button class="rs-btn" data-del="' + esc(id) + '">Remove</button>' : "")
           + "</td></tr>";
       };
-      return '<table class="gt-tbl"><tr><th>Name</th><th>Zip</th><th>Address</th><th>Fleet</th><th></th></tr>'
-        + live.map(row).join("") + row(null) + "</table>";
+      return '<div class="rs-tablewrap"><table class="rs-table">'
+        + '<thead><tr><th>Name</th><th>Zip</th><th>Address</th><th>Fleet</th><th></th></tr></thead><tbody>'
+        + live.map(row).join("") + row(null) + "</tbody></table></div>";
     }
 
     function load() {

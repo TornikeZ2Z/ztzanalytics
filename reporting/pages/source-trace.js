@@ -113,7 +113,7 @@ registerPage({
         /* The bar controls come from the kit: .rs-inp for the search box, .rs-seg for the
            mode pills. Only the two things the kit cannot know stay here -- the search box is
            this page's whole subject so it runs wide, and the mode row wants air under it. */
-        #stSearch{width:100%;max-width:520px;background:var(--panel-2)}
+        #stSearch{width:100%;max-width:520px}
         #stModes{margin-bottom:13px}
         .strc-results{margin-top:12px}
         /* min(320px,100%) so it never overflows a narrow pane, and auto-fit so the six

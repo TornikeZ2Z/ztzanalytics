@@ -26,8 +26,11 @@ registerPage({
     const num = RS.num, money = RS.money, moneyC = RS.moneyC || RS.money, fmtN = RS.fmtN;
     const pctS = v => (v == null || isNaN(v)) ? "—" : (v * 100).toFixed(1) + "%";
     const M = RS.M;
+    // The kit's own loading state (.rs-loading) inside the kit's card. The only page-local
+    // bit is the height: these placeholders stand where a 340px chartbox will land, so the
+    // grid must not collapse and then jump when phase 2 arrives.
     const loadingCard = t => `<div class="panel" style="min-height:320px;display:grid;place-items:center">
-      <div style="text-align:center;color:var(--muted)"><b>${t}</b><br><span style="font-size:12px">Loading…</span></div></div>`;
+      <div class="rs-loading"><b>${t}</b>Loading…</div></div>`;
 
     const head = `
       <div class="rs-page-head">
@@ -131,6 +134,11 @@ registerPage({
     });
 
     // ---- per-job detail (closing only), full width ----
+    // Every table on this page is RSC.table (`table.tab` in `.tabwrap`), NOT the kit's
+    // .rs-tablewrap/.rs-table. That is deliberate: all seven carry a totals row, and only
+    // table.tab styles a <tfoot> (sticky bottom, ink, top rule) and pins the first column.
+    // Moving them to .rs-table would silently unstyle the totals — a regression, not a
+    // migration. The shared component is the right place to close that gap, not this page.
     const detail = scoped.slice()
       .sort((a, b) => String(b["Date"] || "").localeCompare(String(a["Date"] || "")))
       .map(r => ({
@@ -149,7 +157,7 @@ registerPage({
     document.getElementById("boDetail").innerHTML = `
       <div class="panel" style="margin-top:14px">
         <div class="panel-head"><span class="panel-title">Every branch-owner job (${fmtN(detail.length)})</span></div>
-        <div style="padding:0 4px 8px"><div class="tabwrap">${detailTable}</div></div>
+        <div class="tabwrap">${detailTable}</div>
       </div>`;
 
     // ================= PHASE 2: cross-dataset costs (sales / helper / refunds) =================
@@ -246,7 +254,7 @@ registerPage({
           (() => { const ap = pnl(closingRows);
             return { k: "All jobs", jobs: ap.jobs, bill: ap.bill, cut: totalCut,
                      op: ap.op, opm: ap.opm, scm: ap.scm }; })()) +
-          `<p style="margin:6px 2px 0;font-size:12px;color:var(--faint)">Sales Comm. % is the real salesperson commission — Giorgi's branch-owner cut is excluded (it's the separate "Giorgi's Cut" column). Gross profit still subtracts his cut.</p>`;
+          `<p class="rs-hint" style="margin:6px 2px 0">Sales Comm. % is the real salesperson commission — Giorgi's branch-owner cut is excluded (it's the separate "Giorgi's Cut" column). Gross profit still subtracts his cut.</p>`;
       },
     });
 
@@ -374,7 +382,7 @@ registerPage({
               rate: hrs ? hp.forman / hrs : null, pctb: hp.bill ? hp.forman / hp.bill : null,
               op: hp.op, opm: hp.opm }; })()) +
           (byForeman.length > shownF.length
-            ? `<p style="margin:6px 2px 0;font-size:12px;color:var(--faint)">Showing top ${shownF.length} of ${fmtN(byForeman.length)} foremen — the rest are in "All others".</p>`
+            ? `<p class="rs-hint" style="margin:6px 2px 0">Showing top ${shownF.length} of ${fmtN(byForeman.length)} foremen — the rest are in "All others".</p>`
             : "");
       },
     });

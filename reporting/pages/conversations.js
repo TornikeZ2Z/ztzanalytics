@@ -25,26 +25,36 @@ const CONV = (() => {
     const st = document.createElement("style");
     st.id = "cnv-style";
     st.textContent = `
+    /* MASTER / DETAIL. Both cards are the kit's .panel; what stays here is only what
+       the kit cannot say — that the lead rail is a fixed-width column that sticks
+       while the conversation beside it scrolls. */
     .cnv-wrap{display:grid;grid-template-columns:340px 1fr;gap:16px;align-items:start}
     @media(max-width:900px){.cnv-wrap{grid-template-columns:1fr}}
-    .cnv-side{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px;
-      position:sticky;top:8px;max-height:calc(100vh - var(--pg-chrome, 220px));display:flex;flex-direction:column}
-    .cnv-search{display:flex;gap:8px;margin-bottom:10px}
-    .cnv-search input{flex:1;background:var(--bg);border:1px solid var(--line);border-radius:8px;
-      padding:9px 11px;color:var(--ink);font-size:14px}
-    .cnv-search button{background:var(--blue);border:0;color:#fff;border-radius:8px;padding:9px 14px;
-      font-weight:600;cursor:pointer}
+    .cnv-side{position:sticky;top:8px;max-height:calc(100vh - var(--pg-chrome, 220px));
+      display:flex;flex-direction:column}
+    .cnv-main{min-height:420px}
+    /* the search row is a kit .rs-bar inside a ~316px rail, so its field has to be
+       allowed below the kit's 210px minimum or "Find" drops to a second line */
+    .cnv-search .rs-inp{flex:1;min-width:0}
     .cnv-hits{overflow:auto;flex:1;margin:0 -4px}
+
+    /* A LEAD RESULT. Not a kit table row, but it follows the kit's affordance rule:
+       the brand tint is reserved for things that actually open something. */
     .cnv-hit{padding:9px 10px;border-radius:9px;cursor:pointer;border:1px solid transparent}
-    .cnv-hit:hover{background:var(--bg)}
-    .cnv-hit.on{background:var(--bg);border-color:var(--blue)}
+    .cnv-hit:hover{background:var(--brand-glow)}
+    .cnv-hit.on{background:var(--brand-glow);border-color:var(--brand)}
     .cnv-hit b{display:block;font-size:13.5px}
     .cnv-hit span{display:block;color:var(--muted);font-size:11.5px;margin-top:2px}
     .cnv-pills{display:flex;gap:5px;margin-top:5px;flex-wrap:wrap}
-    .cnv-pill{font-size:10.5px;padding:1px 7px;border-radius:999px;background:var(--bg);
-      border:1px solid var(--line);color:var(--muted)}
-    .cnv-pill.tr{border-color:var(--purple);color:var(--purple)}
-    .cnv-main{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px 18px;min-height:420px}
+    /* the count chips are <i> elements, so the kit pill would arrive italic */
+    .cnv-pills .rs-pill{font-style:normal;color:var(--muted)}
+    /* purple is this page's transcript accent — the summary rule, the Read-transcript
+       button, the speaker column — and the kit names no purple pill */
+    .rs-pill.cnv-pill-tr{background:color-mix(in srgb,var(--purple) 14%,transparent);color:var(--purple)}
+
+    /* THE THREAD. A messaging app, deliberately: ours right, theirs left, day
+       dividers down the middle, transcripts folding open inside a bubble. None of
+       this is kit vocabulary and migrating it would be a regression. */
     .cnv-lead{display:flex;flex-wrap:wrap;gap:14px;align-items:baseline;padding-bottom:12px;
       border-bottom:1px solid var(--line);margin-bottom:16px}
     .cnv-lead h2{margin:0;font-size:19px}
@@ -141,9 +151,9 @@ const CONV = (() => {
         <b>${esc(l["Customer"] || "(no name)")}</b>
         <span>${esc(l["Job No"])} · ${esc(l["Phone"] || "")} · ${esc(l["Status"] || "")}</span>
         <div class="cnv-pills">
-          <i class="cnv-pill">${l["Calls"] || 0} calls</i>
-          <i class="cnv-pill">${l["Texts"] || 0} texts</i>
-          ${Number(l["Transcripts"]) ? `<i class="cnv-pill tr">${l["Transcripts"]} transcribed</i>` : ""}
+          <i class="rs-pill mute">${l["Calls"] || 0} calls</i>
+          <i class="rs-pill mute">${l["Texts"] || 0} texts</i>
+          ${Number(l["Transcripts"]) ? `<i class="rs-pill cnv-pill-tr">${l["Transcripts"]} transcribed</i>` : ""}
         </div>
       </div>`).join("");
     box.querySelectorAll(".cnv-hit").forEach(el =>
@@ -298,14 +308,14 @@ registerPage({
           <span class="freshness">· transcripts exist for recorded calls from 19 Jun 2026 onward</span></p>
       </div>
       <div class="cnv-wrap">
-        <div class="cnv-side">
-          <div class="cnv-search">
-            <input id="cnvQ" type="search" placeholder="Name, phone or job #" value="${RSC.esc(CONV.S.q)}">
-            <button id="cnvGo">Find</button>
+        <div class="panel cnv-side">
+          <div class="rs-bar cnv-search">
+            <input id="cnvQ" class="rs-inp" type="search" placeholder="Name, phone or job #" value="${RSC.esc(CONV.S.q)}">
+            <button id="cnvGo" class="rs-btn pri">Find</button>
           </div>
           <div class="cnv-hits" id="cnvHits"></div>
         </div>
-        <div class="cnv-main" id="cnvMain"></div>
+        <div class="panel cnv-main" id="cnvMain"></div>
       </div>`;
     const q = host.querySelector("#cnvQ");
     const go = () => { CONV.S.q = q.value.trim(); CONV.search(host); };
