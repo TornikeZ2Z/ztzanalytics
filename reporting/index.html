@@ -165,6 +165,7 @@ const GROUP_OVERRIDE = {
   "general-tables": "admin",
   // Marketing — source attribution belongs with the marketing views
   "source-trace": "marketing", "meta-referrals": "marketing",
+  "jobs-by-area": "marketing",
   "referral-candidates": "marketing",
   // Company Overview
   "monthly-report": "company", "analysis-by-category": "company",
@@ -201,7 +202,7 @@ const NAV_ORDER = {
   "rev-production": 1, "review-performance": 2, "response-analysis": 3, "reviews-reminders": 4, "review-settings": 5,
   "sup-claims": 1, "sup-refunds": 2, "sup-phone": 3,
   "data-quality": 2, "refresh-log": 1, "general-settings": 3, "general-tables": 4, "admin-users": 5,
-  "source-trace": 8, "meta-referrals": 10, "referral-candidates": 11,
+  "source-trace": 8, "meta-referrals": 10, "referral-candidates": 11, "jobs-by-area": 12,
 };
 
 /* Inline SVG icon set (Feather-style, stroke-based) — no emojis anywhere. */
@@ -267,7 +268,7 @@ const PAGE_ICONS = {
   "log-foreman": "tool", "log-packing": "box",
   "fin-revenue": "trend", "fin-rr": "trend", "rev-production": "star",
   "sup-claims": "shield", "sup-refunds": "clipboard", "sup-phone": "phone",
-  "general-settings": "sliders", "general-tables": "grid", "data-quality": "clipboard", "refresh-log": "activity", "source-trace": "activity", "meta-referrals": "upload-cloud", "referral-candidates": "gift", "calendar-coverage": "calendar", "request-consistency": "alert-triangle", "review-performance": "star", "reviews-reminders": "megaphone", "response-analysis": "activity", "review-settings": "tool",
+  "general-settings": "sliders", "general-tables": "grid", "data-quality": "clipboard", "refresh-log": "activity", "source-trace": "activity", "meta-referrals": "upload-cloud", "referral-candidates": "gift", "jobs-by-area": "map-pin", "calendar-coverage": "calendar", "request-consistency": "alert-triangle", "review-performance": "star", "reviews-reminders": "megaphone", "response-analysis": "activity", "review-settings": "tool",
 };
 
 /* Pages not yet built — shown greyed with a SOON tag so the full scope is visible. */
@@ -654,6 +655,7 @@ const PAGE_DATASETS = {
   "source-trace": [],
   "meta-referrals": [],
   "referral-candidates": [],   // loads fct_referral_candidates itself; filters live on the page
+  "jobs-by-area": [],          // loads mart_jobs_geo itself; season/year/company live on the page
   "calendar-coverage": [],
   "request-consistency": [],
   "review-performance": [],
@@ -857,7 +859,7 @@ function navigate(id, push) {
 /* Pages that bring their OWN toolbar and ignore the global filter bar (PAGE_DATASETS=[])
    render "bare" — the global date/slicer bar + company chip are hidden so the page's board
    starts right under the header instead of below two rows of greyed-out, unusable filters. */
-const BARE_CHROME = new Set(["review-performance", "demand-analysis", "reviews-reminders", "response-analysis", "review-settings", "monthly-report", "money-flow", "ld-planning", "cleanup", "packing-control", "storage-control", "foreman-assessment", "fuel-control", "foreman-closings", "refresh-log", "general-tables", "hr-questionnaire", "hr-my-questionnaire", "hr-directory", "conversations", "referral-candidates", "meta-referrals",
+const BARE_CHROME = new Set(["review-performance", "demand-analysis", "reviews-reminders", "response-analysis", "review-settings", "monthly-report", "money-flow", "ld-planning", "cleanup", "packing-control", "storage-control", "foreman-assessment", "fuel-control", "foreman-closings", "refresh-log", "general-tables", "hr-questionnaire", "hr-my-questionnaire", "hr-directory", "conversations", "referral-candidates", "jobs-by-area", "meta-referrals",
   // Straight vs Local reads its whole history on purpose (Tornike 2026-08-19: "i dont need
   // any filters here, its just kinda analysis and directions"). A date filter left over from
   // another page emptied it completely, which is worse than useless -- it looked like there
@@ -966,6 +968,7 @@ const NAV_TITLES = {
   "data-quality": "Data Quality",
   "source-trace": "Source Trace", "meta-referrals": "Meta Referrals",
   "referral-candidates": "List of Possible Referrals",
+  "jobs-by-area": "Jobs by Area",
   "calendar-coverage": "Calendar Coverage",
   "request-consistency": "Request # Consistency",
   "admin-users": "Users & Access",
@@ -1022,6 +1025,7 @@ const SEARCH_ALIASES = {
   "source-trace": "source trace lineage attribution callrail google local phone match booked from moveboard corrected final source faithful pbix diagnostic audit",
   "meta-referrals": "meta referral upload facebook instagram lead form fills csv export dedupe source",
   "referral-candidates": "referral candidates five star reviews customers email phone contact list marketing call sheet",
+  "jobs-by-area": "jobs by area state county summer season june july august month volume geography where we work marketing",
   "calendar-coverage": "calendar coverage connection linked unconnected google calendar event closing job request match bridge scheduling gap missing",
   "request-consistency": "request consistency miskey mis-key wrong request number customer mismatch moveboard calendar data quality typo audit",
   "admin-users": "users access acl permissions grants admin administrator",
@@ -1522,7 +1526,7 @@ const aclIconFor = id => (MERGED.find(m => m.id === id) || {}).icon ||
 const ACL_DEPTS = [
   { id: "company",   label: "Company Overview", icon: "spark",     reports: ["monthly-report", "analysis-by-category"] },
   { id: "sales",     label: "Sales",            icon: "funnel",    reports: ["sales-command", "demand-analysis", "conversations"] },
-  { id: "marketing", label: "Marketing",        icon: "megaphone", reports: ["source-trace", "referral-candidates"] },
+  { id: "marketing", label: "Marketing",        icon: "megaphone", reports: ["source-trace", "referral-candidates", "jobs-by-area"] },
   { id: "logistics", label: "Logistics",        icon: "tool",      reports: ["money-flow", "ld-planning", "foreman-closings", "packing-control", "storage-control", "foreman-assessment", "fuel-control", "straight-vs-local", "area-plan"] },
   // MUST mirror DEPT_REPORTS["hr"] in bridge/app.py. Employees answering the questionnaire
   // need NO grant at all — this tile is for HR: managing it and reading the results.
@@ -1739,7 +1743,8 @@ registerPage({
 <script src="pages/conversations.js?v=9"></script>
 <script src="pages/source-trace.js?v=22"></script>
 <script src="pages/meta-referrals.js?v=2"></script>
-<script src="pages/referral-candidates.js?v=5"></script>
+<script src="pages/jobs-by-area.js?v=3"></script>
+<script src="pages/referral-candidates.js?v=6"></script>
 <script src="pages/calendar-coverage.js?v=8"></script>
 <script src="pages/request-consistency.js?v=4"></script>
 <script src="pages/branch-owner.js?v=7"></script>
@@ -1749,7 +1754,7 @@ registerPage({
 <script src="pages/packing-control.js?v=18"></script>
 <script src="pages/storage-control.js?v=10"></script>
 <script src="pages/foreman-assessment.js?v=29"></script>
-<script src="pages/hr-questionnaire.js?v=30"></script>
+<script src="pages/hr-questionnaire.js?v=31"></script>
 <script src="pages/hr-my-questionnaire.js?v=11"></script>
 <script src="pages/hr-directory.js?v=7"></script>
 <script src="pages/fuel-control.js?v=10"></script>

@@ -95,6 +95,12 @@ registerPage({
         ".hq-msg{font-size:12.5px;font-weight:700}",
         ".hq input[type=checkbox],.hq input[type=radio]{accent-color:var(--brand)}",
         ".hq-card h4.eyebrow{font-size:11.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);margin-bottom:14px}",
+        ".hq-diradd{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:10px}",
+        ".hq-diradd input{flex:1 1 190px;min-width:150px;border:1.5px solid var(--line-2);"
+          + "border-radius:10px;padding:9px 12px;font:inherit;font-size:13.5px;"
+          + "background:var(--panel-2);color:var(--ink)}",
+        ".hq-diradd input:focus{outline:none;border-color:var(--brand)}",
+        ".hq-warn2{margin-top:8px;font-size:12.5px;color:var(--neg);font-weight:700}",
         ".hq-audsel{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:10px;margin-bottom:12px}",
         ".hq-audopt{position:relative;border:1.5px solid var(--line-2);border-radius:13px;padding:13px 44px 12px 16px;cursor:pointer;transition:border-color .12s}",
         ".hq-audopt:hover{border-color:var(--brand)}",
@@ -558,6 +564,11 @@ registerPage({
                         ? "The questionnaire goes live and <b>" + audN + " people</b> receive their "
                           + "team's <b>anonymous</b> link by email. Nobody's name is ever recorded. "
                           + "Questions lock, and it can never be deleted — only deactivated."
+                        : q.audience_kind === "direct"
+                        ? "The questionnaire goes live and <b>" + audN + (audN === 1 ? " person" : " people")
+                          + "</b> receive a <b>personal link</b> by email — no sign-in needed, and their "
+                          + "answers are recorded under their address. You can add more people later and "
+                          + "send to just them. Questions lock, and it can never be deleted."
                         : "The questionnaire goes live and <b>" + audN + (audN === 1 ? " person" : " people")
                         + "</b> receive the invite email right away. Questions lock, and it can "
                         + "never be deleted — only deactivated.",
@@ -1056,8 +1067,12 @@ registerPage({
       var depts = {};
       (S.roster || []).forEach(function (p) { if (p.department && p.status === "active") depts[p.department] = 1; });
       var kaW = (q.i18n && q.i18n.ka) || {};
-      var audSig = function (k, arr) { return k + "|" + arr.slice().sort().join(","); };
-      var aud0 = audSig(q.audience_kind, (q.audience_values || []).map(function (v) { return String(v).toLowerCase(); }));
+      var audSig = function (k, arr) {
+        return k + "|" + arr.map(function (v) {
+          return k === "direct" ? String(v) : String(v).toLowerCase();
+        }).sort().join(",");
+      };
+      var aud0 = audSig(q.audience_kind, q.audience_values || []);
       body.innerHTML =
         (lockNote ? '<div class="hq-dim" style="margin-bottom:12px">' + esc(lockNote) + "</div>" : "")
         + '<div class="hq-card" style="padding:20px 24px"><h4 class="eyebrow">Wording</h4>'
@@ -1091,18 +1106,20 @@ registerPage({
         + '<a href="#page=hr-directory" style="color:var(--brand);font-weight:700">Team Directory</a> — '
         + "add or move someone there and this list follows.</div>"
         + '<div class="hq-audsel">'
-        + ["all", "departments", "emails", "anon_depts"].map(function (k) {
+        + ["all", "departments", "emails", "anon_depts", "direct"].map(function (k) {
             var nAll = (S.roster || []).filter(function (p2) { return p2.status === "active"; }).length;
             var sub = { all: "All " + nAll + " people — office and crew alike",
                         departments: "Whole teams at once",
                         emails: "Hand-pick specific people, one by one",
-                        anon_depts: "Nobody's name is recorded — every team gets its own link" }[k];
+                        anon_depts: "Nobody's name is recorded — every team gets its own link",
+                        direct: "Type any email address — a personal link, no sign-in" }[k];
             return '<label class="hq-audopt' + (q.audience_kind === k ? " on" : "") + '">'
               + '<input type="radio" name="hsAud" value="' + k + '"'
               + (q.audience_kind === k ? " checked" : "") + dis(true) + ">"
               + "<b>" + { all: "Everyone on the People list", departments: "Chosen departments",
                           emails: "Chosen people",
-                          anon_depts: "Anonymous by department" }[k] + "</b>"
+                          anon_depts: "Anonymous by department",
+                          direct: "Send to an address" }[k] + "</b>"
               + "<span>" + sub + '</span><span class="tick">✓</span></label>';
           }).join("")
         + "</div>"
@@ -1268,6 +1285,109 @@ registerPage({
           return;
         }
 
+        if (kind === "direct") {
+          // SEND TO AN ADDRESS (his ask 2026-08-21, for the exit interview): the person has
+          // left, so the Team Directory cannot answer for them and their work mailbox is
+          // shut. HR types whatever address still reaches them and they get a link that
+          // needs no account at all. Everything else — who was mailed, who answered, the
+          // Results tab — behaves exactly like the named kinds, because the address is
+          // stored as the identity rather than an anonymous id.
+          if (S.dirFor !== q.id) {
+            S.dirList = (q.audience_kind === "direct" ? (q.audience_values || []) : [])
+              .map(function (v) {
+                var pp = String(v).split("|");
+                return { email: String(pp[0] || "").toLowerCase(), name: pp[1] || "" };
+              }).filter(function (x) { return x.email; });
+            S.dirFor = q.id; S.dirName = ""; S.dirMail = ""; S.dirErr = "";
+          }
+          var okMail = function (v) { return /^[^@\s,;<>]+@[^@\s,;<>]+\.[A-Za-z]{2,}$/.test(v); };
+          el.innerHTML =
+            '<div class="hq-tags">' + (S.dirList.length
+              ? S.dirList.map(function (x) {
+                  return '<span class="hq-tag"><span>' + esc(x.name || x.email)
+                    + (x.name ? ' <em>· ' + esc(x.email) + "</em>" : "") + "</span>"
+                    + (locked2 ? "" : '<button data-rmd="' + esc(x.email) + '" title="Remove">✕</button>')
+                    + "</span>";
+                }).join("")
+              : '<span class="hq-dim">Nobody yet — type a name and an address below.</span>') + "</div>"
+            + (locked2 ? "" :
+              '<div class="hq-diradd"><input id="hqDirName" placeholder="Name (optional)" value="'
+              + esc(S.dirName || "") + '">'
+              + '<input id="hqDirMail" placeholder="their.address@gmail.com" value="'
+              + esc(S.dirMail || "") + '">'
+              + '<button type="button" class="hq-btn" id="hqDirAdd">Add</button></div>'
+              + (S.dirErr ? '<div class="hq-warn2">' + esc(S.dirErr) + "</div>" : "")
+              + '<div class="hq-dim" style="margin-top:8px">Any domain works — a personal '
+              + "link goes to each address, so they never need a company account. Add someone "
+              + "later and press <b>Send invites</b> to reach only them.</div>");
+          if (!locked2) {
+            var addOne = function () {
+              var nm = (el.querySelector("#hqDirName") || {}).value || "";
+              var mv = String((el.querySelector("#hqDirMail") || {}).value || "").trim().toLowerCase();
+              if (!okMail(mv)) { S.dirErr = "That does not look like an email address."; }
+              else if (S.dirList.some(function (x) { return x.email === mv; })) {
+                S.dirErr = "That address is already on the list.";
+              } else {
+                S.dirList.push({ email: mv, name: nm.trim() });
+                S.dirName = ""; S.dirMail = ""; S.dirErr = "";
+                markDirty();
+              }
+              paintAudVals();
+              var f = el.querySelector(S.dirErr ? "#hqDirMail" : "#hqDirName");
+              if (f) f.focus();
+            };
+            ["#hqDirName", "#hqDirMail"].forEach(function (sel2) {
+              var inp = el.querySelector(sel2);
+              if (!inp) return;
+              inp.oninput = function () {
+                if (sel2 === "#hqDirName") S.dirName = this.value; else S.dirMail = this.value;
+              };
+              inp.onkeydown = function (ev) { if (ev.key === "Enter") { ev.preventDefault(); addOne(); } };
+            });
+            var ab = el.querySelector("#hqDirAdd");
+            if (ab) ab.onclick = addOne;
+            el.querySelectorAll("[data-rmd]").forEach(function (b) {
+              b.onclick = function () {
+                S.dirList = S.dirList.filter(function (x) { return x.email !== b.dataset.rmd; });
+                markDirty(); paintAudVals();
+              };
+            });
+          }
+          // the personal links, live from the bridge — HR copies one out when the mail
+          // bounces, which a leaver's address often does
+          if (canM) {
+            api("/api/_hrqadmin?view=directlinks&id=" + q.id).then(function (lk) {
+              var host2 = body.querySelector("#hqAnLinks");
+              var card2 = body.querySelector("#hqLinksCard");
+              if (!host2 || !lk.links || !lk.links.length) return;
+              if (card2) card2.style.display = "";
+              var hd2 = body.querySelector("#hqLinksCard .eyebrow");
+              if (hd2) hd2.textContent = "Their personal links";
+              var sub2 = body.querySelector("#hqLinksSub");
+              if (sub2) sub2.textContent = q.status !== "published"
+                ? "One link per person. They go live once you finalize."
+                : "One link per person — it opens their form with no sign-in.";
+              host2.innerHTML = lk.links.map(function (l2) {
+                    var st3 = l2.status === "submitted" || l2.status === "resubmitted" ? "answered"
+                      : l2.status === "in_progress" ? "started"
+                      : l2.invite === "sent" ? "invited" : "not sent yet";
+                    return '<div class="hq-anlk"><b>' + esc(l2.name || l2.email) + "</b>"
+                      + "<code>" + esc(l2.url) + "</code>"
+                      + '<span class="hq-dim">' + esc(st3) + "</span>"
+                      + '<button class="hq-btn" data-cp="' + esc(l2.url) + '">Copy</button></div>';
+                  }).join("");
+              host2.querySelectorAll("[data-cp]").forEach(function (b2) {
+                b2.onclick = function () {
+                  navigator.clipboard.writeText(b2.dataset.cp).then(function () {
+                    b2.textContent = "Copied"; setTimeout(function () { b2.textContent = "Copy"; }, 1400);
+                  });
+                };
+              });
+            }).catch(function () {});
+          }
+          return;
+        }
+
         if (kind === "emails") {
           // HAND-PICKED PEOPLE (his design, 2026-08-18): chosen ones sit above as tags,
           // the picker below shows ONLY who is not yet added — pick someone and they
@@ -1392,13 +1512,17 @@ registerPage({
             if (S.anonMap[em4] && S.anonMap[em4] !== "__out__")
               vals.push(S.anonMap[em4] + "|" + em4);
           });
+        } else if (kind === "direct") {
+          vals = (S.dirList || []).map(function (x) {
+            return x.name ? x.email + "|" + x.name : x.email;
+          });
         } else {
           vals = [].map.call(body.querySelectorAll("[data-aud]:checked"), function (c) { return c.dataset.aud; });
         }
         var payload = { action: "update_meta", id: q.id };
         // audience travels ONLY when it actually changed — a wording-only save must
         // never re-state (and thereby reshape) the audience as a side effect
-        if (audSig(kind, vals.map(function (v) { return String(v).toLowerCase(); })) !== aud0) {
+        if (audSig(kind, vals) !== aud0) {
           payload.audience_kind = kind; payload.audience_values = vals;
         }
         if (q.status === "draft") {

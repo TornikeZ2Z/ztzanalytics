@@ -71,13 +71,21 @@ registerPage({
       });
     };
     var S = window.__RF || (window.__RF = { q: "", co: "", plat: "", contact: false,
-                                            src: "", mt: "", size: "", sp: "", verdict: "" });
+                                            src: "", mt: "", size: "", sp: "", unrated: false });
     /* THE GATES (Tornike 2026-08-19, confirmed 2026-08-20): a five-star review alone is not
      * enough to ask for a referral. GOOD TO ASK = the customer rated the move 10/10 on the
-     * closing AND the bill stayed within 25% (and $300) of the quote's top end. Anything
-     * rated below 10, or a bill that ran away, is RULED OUT — shown and flagged, never
-     * hidden, so the list stays checkable. A missing score is its own bucket: absence of
-     * evidence, not a verdict. */
+     * closing AND the bill stayed within 25% (and $300) of the quote's top end.
+     *
+     * THE GATE IS A FILTER, NOT A COLUMN (his call 2026-08-21: "i need user just to see the
+     * list of people who are good — not all of them with status"). The first cut showed all
+     * 1,928 five-star customers with a verdict pill against each; the page is a CALL SHEET,
+     * and a caller should never have to read a status before dialling. Failing rows leave
+     * the table entirely — 720 rated below 10 or billed well over the quote.
+     *
+     * A missing score is not a failure, it is missing evidence — 391 customers whose closing
+     * recorded no rating. They cannot be certified good, so they are out of the default list,
+     * but one switch in the bar brings them back: silently dropping a fifth of a call sheet
+     * with no way to see it would be its own kind of lie. The counts are stated in the hint. */
     function gate(r) {
       var sat = r["Satisfaction Score"] == null || r["Satisfaction Score"] === ""
         ? null : +r["Satisfaction Score"];
@@ -134,23 +142,34 @@ registerPage({
 
       function view() {
         return rows.filter(function (r) {
-          if (S.co && r.Company !== S.co) return false;
-          if (S.plat && platsOf(r).indexOf(S.plat) < 0) return false;
-          if (S.src && r["Lead Source"] !== S.src) return false;
-          if (S.mt && r["Move Type"] !== S.mt) return false;
-          if (S.size && r["Size of Move"] !== S.size) return false;
-          if (S.sp && r["Sales Person"] !== S.sp) return false;
-          if (S.verdict && r._g.v !== S.verdict) return false;
-          if (S.contact && !r.Email && !r.Phone) return false;
-          if (S.q) {
-            var q = S.q.toLowerCase();
-            if (String(r.Customer || "").toLowerCase().indexOf(q) < 0
-              && String(r.Email || "").toLowerCase().indexOf(q) < 0
-              && String(r.Phone || "").toLowerCase().indexOf(q) < 0
-              && String(r["Request No"] || "").toLowerCase().indexOf(q) < 0) return false;
-          }
-          return true;
+          return passes(r) && gateLetsIn(r);
         }).sort(function (a, b) { return String(b.Day).localeCompare(String(a.Day)); });
+      }
+
+      // the gate, applied as a FILTER: only the good ones, plus the unrated when the
+      // switch is on. Kept apart from the other filters so the hint can count what the
+      // gate alone removed FROM THIS VIEW -- "720 more are left out" has to mean 720 of
+      // the rows the company/source/size filters already agreed to show.
+      function gateLetsIn(r) {
+        return r._g.v === "ok" || (r._g.v === "nos" && S.unrated);
+      }
+
+      function passes(r) {
+        if (S.co && r.Company !== S.co) return false;
+        if (S.plat && platsOf(r).indexOf(S.plat) < 0) return false;
+        if (S.src && r["Lead Source"] !== S.src) return false;
+        if (S.mt && r["Move Type"] !== S.mt) return false;
+        if (S.size && r["Size of Move"] !== S.size) return false;
+        if (S.sp && r["Sales Person"] !== S.sp) return false;
+        if (S.contact && !r.Email && !r.Phone) return false;
+        if (S.q) {
+          var q = S.q.toLowerCase();
+          if (String(r.Customer || "").toLowerCase().indexOf(q) < 0
+            && String(r.Email || "").toLowerCase().indexOf(q) < 0
+            && String(r.Phone || "").toLowerCase().indexOf(q) < 0
+            && String(r["Request No"] || "").toLowerCase().indexOf(q) < 0) return false;
+        }
+        return true;
       }
 
       function sel(id, label, current, values) {
@@ -169,9 +188,11 @@ registerPage({
         var withPhone = v.filter(function (r) { return r.Phone; }).length;
         var unmatched = v.filter(function (r) { return !r["Lead Matched"]; }).length;
         var fiveTotal = v.reduce(function (a, r) { return a + r["Five Star Reviews"]; }, 0);
-        var gOk = v.filter(function (r) { return r._g.v === "ok"; }).length;
-        var gBad = v.filter(function (r) { return r._g.v === "bad"; }).length;
-        var gNos = v.length - gOk - gBad;
+        // what the gates left out, counted on the SAME filters the visible list uses, so
+        // the sentence under the table always describes this view and not the whole table
+        var others = rows.filter(function (r) { return passes(r) && !gateLetsIn(r); });
+        var nBad = others.filter(function (r) { return r._g.v === "bad"; }).length;
+        var nNos = others.filter(function (r) { return r._g.v === "nos"; }).length;
         var pctOf = function (n) { return v.length ? Math.round(n / v.length * 100) + "%" : "—"; };
 
         var html = '<div class="rf">'
@@ -181,13 +202,10 @@ registerPage({
           + '<span class="freshness"> · reviews since 2025 · contact details come from the '
           + "lead the move was booked on</span></p></div>"
           + '<div class="rs-kpis">'
-          + kpi(v.length.toLocaleString(), "Five-star customers", fiveTotal.toLocaleString() + " five-star reviews between them", "")
-          + kpi(gOk.toLocaleString(), "Good to ask",
-                "rated the move 10/10 and the bill stayed near the quote", "pos")
-          + kpi(gBad.toLocaleString(), "Ruled out — არ ვარგა",
-                "rated below 10, or the bill ran 25%+ over the quote", gBad ? "warn" : "pos")
-          + kpi(gNos.toLocaleString(), "No score on the closing",
-                "nothing to judge by — neither ruled in nor out", "")
+          + kpi(v.length.toLocaleString(), "People to ask",
+                "five-star reviewers whose move went right", "pos")
+          + kpi(fiveTotal.toLocaleString(), "Five-star reviews",
+                "written by these customers between them", "")
           + kpi(withMail.toLocaleString(), "With an email", pctOf(withMail) + " of the list", "pos")
           + kpi(withPhone.toLocaleString(), "With a phone", pctOf(withPhone) + " of the list", "pos")
           + "</div>"
@@ -198,13 +216,8 @@ registerPage({
           + sel("rfMt", "Move type", S.mt, allMt)
           + sel("rfSize", "Size", S.size, allSize)
           + sel("rfSp", "Sales person", S.sp, allSp)
-          + '<label class="rs-fld"><span>Verdict</span><select class="rs-sel" id="rfVerdict">'
-          + '<option value="">All</option>'
-          + '<option value="ok"' + (S.verdict === "ok" ? " selected" : "") + ">Good to ask</option>"
-          + '<option value="bad"' + (S.verdict === "bad" ? " selected" : "") + ">Ruled out</option>"
-          + '<option value="nos"' + (S.verdict === "nos" ? " selected" : "") + ">No score</option>"
-          + "</select></label>"
           + '<div class="rs-tog' + (S.contact ? " on" : "") + '" id="rfContact"><i></i>Only with contact details</div>'
+          + '<div class="rs-tog' + (S.unrated ? " on" : "") + '" id="rfUnrated"><i></i>Include unrated moves</div>'
           + '<label class="rs-fld"><span>Find</span><input class="rs-inp" id="rfQ" placeholder="Name, email, phone or request…" '
           + 'value="' + esc(S.q) + '"></label>'
           + '<span class="rs-spacer"></span>'
@@ -214,10 +227,16 @@ registerPage({
           + "</div>"
           + '<div class="panel"><div class="panel-head"><div class="panel-title">The list</div>'
           + '<span class="n">' + v.length + "</span></div>"
-          + '<div class="rs-hint">Every five-star reviewer, matched back to the lead the move was booked on. '
-          + "A blank email or phone means the lead was created without one — "
-          + (unmatched ? unmatched + " could not be matched to a lead at all and carry the name and request number only. " : "")
-          + "Rows marked <i>uncounted</i> are reviews the platform later filtered; the customer still wrote them, "
+          + '<div class="rs-hint">Five-star reviewers whose move also went right — they rated it '
+          + "<b>10/10</b> on the closing and the bill stayed close to the quote. "
+          + (nBad ? "<b>" + nBad + "</b> more five-star customers are left out: they rated the move "
+             + "below 10, or the bill ran 25%+ over the quote. " : "")
+          + (nNos ? "<b>" + nNos + "</b> have no rating on their closing"
+             + (S.unrated ? " and are included here." : " — switch on <i>Include unrated moves</i> to see them.") + " " : "")
+          + "Contact details come from the lead the move was booked on, so a blank email or phone means the lead "
+          + "was created without one"
+          + (unmatched ? "; " + unmatched + " could not be matched to a lead at all and carry the name and request number only" : "")
+          + ". Rows marked <i>uncounted</i> are reviews the platform later filtered; the customer still wrote them, "
           + "so they still belong on a referral list.</div>";
 
         if (!v.length) {
@@ -228,20 +247,13 @@ registerPage({
         }
         var CAP = 1000;
         html += '<div class="rs-tablewrap"><table class="rs-table"><thead><tr>'
-          + "<th>Verdict</th><th>Review</th><th>Customer</th><th>Email</th><th>Phone</th><th>Platform</th>"
+          + "<th>Review</th><th>Customer</th><th>Email</th><th>Phone</th><th>Platform</th>"
           + "<th>Reviews</th><th>Score</th><th>Company</th><th>Request #</th><th>Move type</th><th>Size</th>"
           + "<th>Route</th><th>Source</th><th>Sales person</th>"
           + "</tr></thead><tbody>"
           + v.slice(0, CAP).map(function (r) {
               var route = [r["Pickup State"], r["Delivery State"]].filter(Boolean).join(" → ");
-              var g = r._g;
-              var vcell = g.v === "ok"
-                ? '<span class="rs-pill ok">good to ask</span>'
-                : g.v === "bad"
-                  ? '<span class="rs-pill bad" title="' + esc(g.why.join("; ")) + '">არ ვარგა</span>'
-                    + '<div class="rs-why">' + esc(g.why.join(" · ")) + "</div>"
-                  : '<span class="rs-pill mute">no score</span>';
-              return '<tr><td>' + vcell + "</td>"
+              return "<tr>"
                 + '<td class="nowrap">' + esc(dayLab(r.Day)) + "</td>"
                 + '<td class="strong">' + esc(r.Customer || "—") + "</td>"
                 + (r.Email
@@ -255,7 +267,8 @@ registerPage({
                     : '<span class="rs-pill warn" title="the platform later filtered this review; the customer still wrote it">★ '
                       + r["Five Star Reviews"] + " · uncounted</span>") + "</td>"
                 + (r["Satisfaction Score"] == null || r["Satisfaction Score"] === ""
-                    ? '<td class="dim">—</td>' : "<td>" + esc(String(r["Satisfaction Score"])) + "/10</td>")
+                    ? '<td class="nowrap dim">not rated</td>'
+                    : "<td>" + esc(String(r["Satisfaction Score"])) + "/10</td>")
                 + "<td>" + esc(r.Company || "—") + "</td>"
                 + "<td>" + esc(r["Request No"] || "—") + "</td>"
                 + '<td class="nowrap">' + esc(r["Move Type"] || "—") + "</td>"
@@ -293,12 +306,14 @@ registerPage({
 
       function wire(v) {
         [["rfCo", "co"], ["rfPlat", "plat"], ["rfSrc", "src"], ["rfMt", "mt"],
-         ["rfSize", "size"], ["rfSp", "sp"], ["rfVerdict", "verdict"]].forEach(function (pair) {
+         ["rfSize", "size"], ["rfSp", "sp"]].forEach(function (pair) {
           var el = host.querySelector("#" + pair[0]);
           if (el) el.onchange = function () { S[pair[1]] = this.value; paint(); };
         });
         var tg = host.querySelector("#rfContact");
         if (tg) tg.onclick = function () { S.contact = !S.contact; paint(); };
+        var tu = host.querySelector("#rfUnrated");
+        if (tu) tu.onclick = function () { S.unrated = !S.unrated; paint(); };
         var q = host.querySelector("#rfQ");
         if (q) q.oninput = function () {
           S.q = this.value;
@@ -328,7 +343,7 @@ registerPage({
                       "Five Star Reviews", "Counted", "Company", "Request No",
                       "Move Type", "Size of Move", "Lead Source",
                       "Pickup State", "Delivery State", "Sales Person",
-                      "Satisfaction Score", "Bill Total", "Quote High", "Verdict"];
+                      "Satisfaction Score", "Bill Total", "Quote High"];
           var cell = function (x) {
             var s = String(x == null ? "" : x);
             // customer-typed values opening as live Excel formulas is a real attack
@@ -342,10 +357,8 @@ registerPage({
                     r.Company, r["Request No"], r["Move Type"], r["Size of Move"],
                     r["Lead Source"], r["Pickup State"],
                     r["Delivery State"], r["Sales Person"],
-                    r["Satisfaction Score"], r["Bill Total"], r["Quote High"],
-                    r._g.v === "ok" ? "good to ask"
-                      : r._g.v === "bad" ? "ruled out: " + r._g.why.join("; ")
-                      : "no score"].map(cell).join(",");
+                    r["Satisfaction Score"], r["Bill Total"],
+                    r["Quote High"]].map(cell).join(",");
           }));
           // the BOM is for Excel: without it a Georgian or accented name opens as mojibake
           var blob = new Blob(["﻿" + lines.join("\r\n")], { type: "text/csv;charset=utf-8" });
