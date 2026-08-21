@@ -45,12 +45,9 @@ registerPage({
       var st = document.createElement("style"); st.id = "hmCss";
       st.textContent = [
         ".hm{max-width:860px;margin:0 auto;font-variant-numeric:tabular-nums}",
-        ".hm-card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px 20px;margin-bottom:14px}",
         ".hm-dim{font-size:12px;color:var(--faint);line-height:1.55}",
-        ".hm-conf{border-left:3px solid var(--warn);background:rgba(226,168,43,.07);border-radius:0 10px 10px 0;padding:10px 14px;font-size:12.5px;line-height:1.55;color:var(--muted);margin:12px 0}",
-        ".hm-pill{display:inline-block;font-size:10.5px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;padding:3px 10px;border-radius:999px;background:var(--panel-2);color:var(--muted)}",
-        ".hm-pill.ok{background:rgba(46,160,90,.16);color:var(--pos)}",
-        ".hm-pill.warn{background:rgba(226,168,43,.16);color:var(--warn)}",
+        // the confidentiality note: a warn-toned side rule, which the kit has no word for
+        ".hm-conf{border-left:3px solid var(--warn);background:color-mix(in srgb,var(--warn) 7%,transparent);border-radius:0 10px 10px 0;padding:10px 14px;font-size:12.5px;line-height:1.55;color:var(--muted);margin:12px 0}",
         ".hm-q{border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-bottom:11px;background:var(--panel)}",
         ".hm-q .lab{font-size:14.5px;font-weight:750;line-height:1.35}",
         ".hm-q .lab u{text-decoration:none;color:var(--neg);margin-left:4px}",
@@ -63,21 +60,16 @@ registerPage({
         ".hm-star:hover:not(:disabled){transform:scale(1.15)}",
         ".hm-choice{display:flex;gap:9px;align-items:flex-start;padding:7px 10px;border:1px solid var(--line-2);border-radius:9px;margin-bottom:6px;cursor:pointer;font-size:13.5px;line-height:1.4}",
         ".hm-choice:hover{border-color:var(--brand)}",
-        ".hm-choice.on{border-color:var(--brand);background:rgba(183,226,59,.07)}",
+        ".hm-choice.on{border-color:var(--brand);background:color-mix(in srgb,var(--brand) 7%,transparent)}",
         ".hm-choice input{margin-top:2px}",
-        ".hm-ta{width:100%;box-sizing:border-box;font:inherit;font-size:13px;line-height:1.5;color:var(--ink);background:var(--panel);border:1px solid var(--line-2);border-radius:9px;padding:9px 11px;resize:vertical}",
-        ".hm-ta:focus{outline:none;border-color:var(--brand)}",
+        // the answer box IS the kit field (.rs-inp); a textarea only adds "fill the card,
+        // grow downwards" -- which is the one thing a single-line input never needs
+        ".hm-ta{width:100%;box-sizing:border-box;min-width:0;line-height:1.5;resize:vertical}",
         ".hm-ct{font-size:10.5px;color:var(--faint);text-align:right;margin-top:3px}",
         // min-height RESERVES the line: without it the first "saved" label grows the card
         // and every question below jumps mid-click
         ".hm-saved{font-size:11px;color:var(--pos);font-weight:700;min-height:15px}",
         ".hm-err{font-size:12px;color:var(--neg);font-weight:700;margin-top:6px}",
-        ".hm-submitbar{position:sticky;bottom:14px;background:var(--panel);border:1px solid var(--line-2);border-radius:13px;box-shadow:0 12px 34px rgba(0,0,0,.28);padding:13px 18px;display:flex;gap:14px;align-items:center;z-index:5}",
-        ".hm-go{font:inherit;font-size:14px;font-weight:800;padding:11px 22px;border-radius:11px;border:0;background:var(--brand);color:var(--brand-ink);cursor:pointer}",
-        ".hm-go:hover{filter:brightness(1.06)}",
-        ".hm-go:disabled{opacity:.55;cursor:default}",
-        ".hm-btn{font:inherit;font-size:12.5px;font-weight:700;color:var(--muted);background:var(--panel);border:1px solid var(--line-2);border-radius:9px;padding:7px 13px;cursor:pointer}",
-        ".hm-btn:hover{border-color:var(--brand);color:var(--brand)}",
         ".hm-ro{border-left:3px solid var(--line-2);padding:4px 12px;margin-top:10px;font-size:13.5px;line-height:1.5}",
         ".hm-ro .a{color:var(--ink)}",
         ".hm-empty{text-align:center;padding:48px 20px;color:var(--muted);font-size:14px;line-height:1.6}",
@@ -96,28 +88,28 @@ registerPage({
         ".hm-num:hover:not(:disabled){border-color:var(--brand);color:var(--brand)}",
         ".hm-num.on{background:var(--brand);border-color:var(--brand);color:var(--brand-ink)}",
         ".hm-scalelab{display:flex;justify-content:space-between;font-size:11.5px;color:var(--faint);margin-top:5px;max-width:460px}",
-        ".hm-sel{font:inherit;font-size:13.5px;color:var(--ink);background:var(--panel);border:1px solid var(--line-2);border-radius:9px;padding:9px 12px;min-width:260px}",
-        ".hm-sel:focus{outline:none;border-color:var(--brand)}",
+        // a wider .rs-sel: these options are sentences, not one-word filter values
+        ".hm-sel{min-width:260px;max-width:100%}",
         ".hm-oth{font:inherit;font-size:13px;border:0;border-bottom:1px solid var(--line-2);background:transparent;color:var(--ink);padding:2px 4px;flex:1;min-width:140px}",
         ".hm-oth:focus{outline:none;border-bottom-color:var(--brand)}",
         // the guided flow: progress, part headers, nav, review
         ".hm-pb{height:6px;border-radius:4px;background:var(--panel-2);overflow:hidden;margin:2px 0 6px}",
         ".hm-pb i{display:block;height:100%;background:var(--brand);border-radius:4px;transition:width .3s}",
-        ".hm-top{display:flex;gap:10px;align-items:center;margin-bottom:10px}",
         ".hm-part{margin:20px 0 16px}",
         ".hm-part .pn{display:block;font-size:10.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--brand);margin-bottom:5px}",
         ".hm-part b{font-size:21px;letter-spacing:-.3px}",
         ".hm-part .pd{font-size:13px;color:var(--muted);margin-top:7px;line-height:1.6;max-width:680px}",
-        ".hm-navbar{position:sticky;bottom:14px;background:var(--panel);border:1px solid var(--line-2);border-radius:13px;box-shadow:0 12px 34px rgba(0,0,0,.28);padding:12px 16px;display:flex;gap:12px;align-items:center;z-index:5;margin-top:16px}",
-        ".hm-meta{font-size:12.5px;color:var(--brand);font-weight:700;margin-top:10px}",
+        ".hm-navbar{position:sticky;bottom:14px;background:var(--panel);border:1px solid var(--line-2);border-radius:13px;box-shadow:var(--shadow);padding:12px 16px;display:flex;gap:12px;align-items:center;z-index:5;margin-top:16px}",
+        // the kit hint line, tucked under the title it explains
+        ".hm-meta{margin:10px 0 0}",
         ".hm-rrow{display:flex;gap:11px;align-items:center;padding:11px 12px;border-radius:10px;cursor:pointer;font-size:13.5px}",
         ".hm-rrow:hover{background:var(--panel-2)}",
-        ".hm-rrow .tick{width:22px;height:22px;border-radius:50%;background:rgba(46,160,90,.15);color:var(--pos);display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:900;flex:0 0 auto}",
-        ".hm-rrow.miss .tick{background:rgba(226,73,73,.13);color:var(--neg)}",
+        ".hm-rrow .tick{width:22px;height:22px;border-radius:50%;background:var(--pos-bg);color:var(--pos);display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:900;flex:0 0 auto}",
+        ".hm-rrow.miss .tick{background:var(--neg-bg);color:var(--neg)}",
         ".hm-missb{border-color:var(--neg) !important}",
         // the confirmation modal (no native confirm here either)
-        ".hm-cfm{position:fixed;inset:0;background:rgba(10,14,20,.5);z-index:150;display:flex;align-items:center;justify-content:center;padding:20px}",
-        ".hm-cfm .box{background:var(--panel);border:1px solid var(--line);border-radius:16px;max-width:440px;width:100%;padding:24px 26px;box-shadow:0 18px 60px rgba(0,0,0,.4)}",
+        ".hm-cfm{position:fixed;inset:0;background:var(--scrim);z-index:150;display:flex;align-items:center;justify-content:center;padding:20px}",
+        ".hm-cfm .box{background:var(--panel);border:1px solid var(--line);border-radius:16px;max-width:440px;width:100%;padding:24px 26px;box-shadow:var(--shadow)}",
         ".hm-cfm h3{margin:0 0 9px;font-size:16.5px}",
         ".hm-cfm p{margin:0 0 20px;font-size:13.5px;color:var(--muted);line-height:1.65}",
         ".hm-cfm .btns{display:flex;gap:10px;justify-content:flex-end}",
@@ -145,8 +137,8 @@ registerPage({
         var o = document.createElement("div");
         o.className = "hm-cfm";
         o.innerHTML = '<div class="box"><h3>' + opts.t + "</h3><p>" + opts.b + "</p>"
-          + '<div class="btns"><button class="hm-btn" data-no>' + (opts.no || "Cancel") + "</button>"
-          + '<button class="hm-go" data-yes>' + (opts.yes || "Confirm") + "</button></div></div>";
+          + '<div class="btns"><button class="rs-btn" data-no>' + (opts.no || "Cancel") + "</button>"
+          + '<button class="rs-btn pri" data-yes>' + (opts.yes || "Confirm") + "</button></div></div>";
         document.body.appendChild(o);
         var done = function (v) { o.remove(); document.removeEventListener("keydown", onk); res(v); };
         var onk = function (e) { if (e.key === "Escape") done(false); };
@@ -159,11 +151,11 @@ registerPage({
     }
 
     function statusPill(q) {
-      var m = { not_started: ["", "not started"], in_progress: ["warn", "in progress"],
+      var m = { not_started: ["mute", "not started"], in_progress: ["warn", "in progress"],
                 submitted: ["ok", "submitted"], resubmitted: ["ok", "resubmitted"],
                 reopened: ["warn", "reopened for correction"] };
-      var x = m[q.my_status] || ["", esc(q.my_status)];
-      return '<span class="hm-pill ' + x[0] + '">' + x[1] + "</span>";
+      var x = m[q.my_status] || ["mute", esc(q.my_status)];
+      return '<span class="rs-pill ' + x[0] + '">' + x[1] + "</span>";
     }
 
     function paint() {
@@ -182,7 +174,7 @@ registerPage({
       if (!cur.editable) {
         // a submitted/closed copy reads best as one quiet page
         main.innerHTML =
-          '<div style="margin-bottom:12px"><button class="hm-btn" id="hmBack">← All questionnaires</button></div>'
+          '<div class="rs-bar"><button class="rs-btn" id="hmBack">← All questionnaires</button></div>'
           + paintOne(cur);
         main.querySelector("#hmBack").onclick = function () { S.open = null; S.step = null; paint(); };
         return;
@@ -252,19 +244,19 @@ registerPage({
     function paintIntro(cur, steps) {
       var p = progCounts(cur, steps);
       main.innerHTML =
-        '<div style="margin-bottom:12px"><button class="hm-btn" id="hmBack">← All questionnaires</button></div>'
-        + '<div class="hm-card" style="padding:26px 28px">'
+        '<div class="rs-bar"><button class="rs-btn" id="hmBack">← All questionnaires</button></div>'
+        + '<div class="panel" style="padding:26px 28px">'
         + '<b style="font-size:21px;letter-spacing:-.3px">' + esc(cur.title) + "</b> " + statusPill(cur)
         + (cur.description ? '<div style="font-size:13.5px;color:var(--muted);margin-top:9px;line-height:1.6">' + esc(cur.description) + "</div>" : "")
-        + '<div class="hm-meta">' + steps.length + " part" + (steps.length === 1 ? "" : "s") + " · "
-        + p.t + " questions · your answers save as you go — leave and come back any time</div>"
+        + '<div class="rs-hint hm-meta"><span class="em">' + steps.length + " part" + (steps.length === 1 ? "" : "s") + " · "
+        + p.t + " questions · your answers save as you go — leave and come back any time</span></div>"
         + (cur.instructions ? '<div style="font-size:13px;margin-top:13px;line-height:1.65">' + esc(cur.instructions) + "</div>" : "")
         + '<div class="hm-conf">' + esc(cur.confidentiality) + "</div>"
         + (cur.my_status === "reopened"
             ? '<div class="hm-dim" style="margin-top:8px">HR reopened this response for you — fix what needs fixing and submit again.</div>' : "")
         + (p.a ? '<div style="margin-top:16px">' + progBar(p.a, p.t)
             + '<span class="hm-dim" id="hmCnt">' + p.a + " of " + p.t + " answered</span></div>" : "")
-        + '<div style="margin-top:20px"><button class="hm-go" id="hmStart">'
+        + '<div style="margin-top:20px"><button class="rs-btn pri" id="hmStart">'
         + (p.a >= p.t ? "Review & submit" : p.a ? "Continue where you left off" : "Start") + "</button></div>"
         + "</div>";
       main.querySelector("#hmBack").onclick = function () { S.open = null; S.step = null; paint(); };
@@ -279,8 +271,8 @@ registerPage({
     function paintStep(cur, steps, si) {
       var s = steps[si], p = progCounts(cur, steps);
       main.innerHTML =
-        '<div class="hm-top"><button class="hm-btn" id="hmBack">← All questionnaires</button>'
-        + '<span style="flex:1"></span><span class="hm-dim" id="hmCnt">' + p.a + " of " + p.t + " answered</span></div>"
+        '<div class="rs-bar"><button class="rs-btn" id="hmBack">← All questionnaires</button>'
+        + '<span class="rs-spacer"></span><span class="hm-dim" id="hmCnt">' + p.a + " of " + p.t + " answered</span></div>"
         + progBar(p.a, p.t)
         + '<div class="hm-part"><span class="pn">Part ' + (si + 1) + " of " + steps.length + "</span>"
         + "<b>" + esc(s.title || cur.title) + "</b>"
@@ -288,9 +280,9 @@ registerPage({
         + "</div>"
         + s.items.map(function (qq) { return qCard(cur, qq, qq._num, false); }).join("")
         + '<div class="hm-navbar">'
-        + '<button class="hm-btn" id="hmPrev">' + (si === 0 ? "← Intro" : "← Back") + "</button>"
-        + '<span style="flex:1"></span>'
-        + '<button class="hm-go" id="hmNext" style="padding:10px 24px">'
+        + '<button class="rs-btn" id="hmPrev">' + (si === 0 ? "← Intro" : "← Back") + "</button>"
+        + '<span class="rs-spacer"></span>'
+        + '<button class="rs-btn pri" id="hmNext">'
         + (si === steps.length - 1 ? "Review & submit →" : "Next →") + "</button></div>";
       main.querySelector("#hmBack").onclick = function () { S.open = null; S.step = null; paint(); };
       main.querySelector("#hmPrev").onclick = function () { S.step = si - 1; paint(); window.scrollTo(0, 0); };
@@ -310,20 +302,20 @@ registerPage({
           + "<b>" + esc(s.title || cur.title) + "</b>"
           + '<span class="hm-dim">' + a + " of " + t + " answered"
           + (reqMiss ? " · " + reqMiss + " required still missing" : "") + "</span>"
-          + '<span style="flex:1"></span><span class="hm-dim">open ›</span></div>';
+          + '<span class="rs-spacer"></span><span class="hm-dim">open ›</span></div>';
       });
       main.innerHTML =
-        '<div class="hm-top"><button class="hm-btn" id="hmBack">← All questionnaires</button>'
-        + '<span style="flex:1"></span><span class="hm-dim" id="hmCnt">' + p.a + " of " + p.t + " answered</span></div>"
+        '<div class="rs-bar"><button class="rs-btn" id="hmBack">← All questionnaires</button>'
+        + '<span class="rs-spacer"></span><span class="hm-dim" id="hmCnt">' + p.a + " of " + p.t + " answered</span></div>"
         + progBar(p.a, p.t)
         + '<div class="hm-part"><span class="pn">Review</span><b>Ready to submit?</b>'
         + '<div class="pd">Open any part below to change an answer. Submitting makes your answers '
         + "final — only HR can reopen them afterwards.</div></div>"
-        + '<div class="hm-card" style="padding:8px 10px">' + rows.join("") + "</div>"
+        + '<div class="panel" style="padding:8px 10px">' + rows.join("") + "</div>"
         + '<div class="hm-conf">' + esc(cur.confidentiality) + "</div>"
-        + '<div class="hm-navbar"><button class="hm-btn" id="hmPrev">← Back</button>'
-        + '<span class="hm-err" id="hmErr" style="margin:0"></span><span style="flex:1"></span>'
-        + '<button class="hm-go" id="hmSubmit">'
+        + '<div class="hm-navbar"><button class="rs-btn" id="hmPrev">← Back</button>'
+        + '<span class="hm-err" id="hmErr" style="margin:0"></span><span class="rs-spacer"></span>'
+        + '<button class="rs-btn pri" id="hmSubmit">'
         + (cur.my_status === "reopened" ? "Submit the correction" : "Submit") + "</button></div>";
       main.querySelector("#hmBack").onclick = function () { S.open = null; S.step = null; paint(); };
       main.querySelector("#hmPrev").onclick = function () { S.step = steps.length - 1; paint(); window.scrollTo(0, 0); };
@@ -385,7 +377,7 @@ registerPage({
         }).join("");
       } else if (qq.qtype === "dropdown") {
         var isOthD = v != null && String(v).indexOf("Other: ") === 0;
-        inner = '<select class="hm-sel" data-dd="' + qq.id + '">'
+        inner = '<select class="rs-sel hm-sel" data-dd="' + qq.id + '">'
           + '<option value=""' + (v == null || v === "" ? " selected" : "") + ">Choose\u2026</option>"
           + (qq.options || []).map(function (o) {
               var on = o === OTH ? isOthD : v === o;
@@ -408,7 +400,7 @@ registerPage({
             + "</span><span>" + esc(labHi || "") + "</span></div>" : "");
       } else {
         var max = qq.qtype === "short_text" ? 300 : 5000;
-        inner = '<textarea class="hm-ta" data-t="' + qq.id + '" maxlength="' + max + '" rows="'
+        inner = '<textarea class="rs-inp hm-ta" data-t="' + qq.id + '" maxlength="' + max + '" rows="'
           + (qq.qtype === "short_text" ? 2 : 5) + '" placeholder="Your answer\u2026">' + esc(v || "") + "</textarea>"
           + '<div class="hm-ct" data-ct="' + qq.id + '">' + String(v || "").length + " / " + max + "</div>"
           + (ro || qq.qtype === "short_text" ? "" : "");
@@ -423,7 +415,7 @@ registerPage({
 
     /* ---- the single-page READ-ONLY copy (submitted / closed) ---- */
     function paintOne(q) {
-      var head = '<div class="hm-card"><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">'
+      var head = '<div class="panel"><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">'
         + '<b style="font-size:17px">' + esc(q.title) + "</b>" + statusPill(q)
         + "</div>"
         + (q.description ? '<div class="hm-dim" style="margin-top:6px;font-size:13px">' + esc(q.description) + "</div>" : "")

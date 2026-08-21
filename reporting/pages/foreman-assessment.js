@@ -139,23 +139,25 @@ registerPage({
       // mid-sentence with the bar drawn on top of it, looking like a text overflow bug.
       + ".fa2{font-variant-numeric:tabular-nums;padding-bottom:96px}"
       // ---- the two views: rating, and the questionnaire behind it ----------------------
-      + ".fa2-views{display:flex;gap:8px;margin:0 0 16px}"
-      + ".fa2-view{font-family:inherit;font-size:14.5px;font-weight:750;padding:11px 20px;"
-      + "border-radius:12px;border:1px solid var(--line);background:var(--panel);"
-      + "color:var(--muted);cursor:pointer;display:inline-flex;align-items:center;gap:9px}"
-      + ".fa2-view:hover{border-color:var(--line-2);color:var(--ink)}"
-      + ".fa2-view.on{background:var(--ink);border-color:var(--ink);color:var(--panel)}"
-      + ".fa2-view i{font-style:normal;font-size:11px;font-weight:800;letter-spacing:.09em;"
+      /* THE KIT (rs.css, "THE COMPONENT KIT"): this was a private copy of .rs-seg in bigger
+         type. The switcher is now the same segmented control every other page uses; all that
+         survives here is the eyebrow tag the admin button carries, which no other segment has. */
+      + ".fa2-views{margin:0 0 16px}"
+      + ".fa2-views i{font-style:normal;font-size:11px;font-weight:800;letter-spacing:.09em;"
       + "text-transform:uppercase;opacity:.7}"
       // ---- the questionnaire admin screen ---------------------------------------------
-      + ".fa2-qn{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:0 0 26px}"
+      /* the shell is the kit's .panel; only its padding is page-specific, because the action
+         bar below has to reach the card's own edges to sit flush when it sticks.
+         `body.rs-app` is not decoration: the kit writes `body.rs-app .panel{padding:...}`,
+         so a bare page class loses to it however late the sheet loads. */
+      + "body.rs-app .fa2-qn{padding:0 0 26px}"
       /* THE ACTION BAR STICKS TO THE TOP AND THE BUTTONS SIT TOP-RIGHT -- his ask
          (2026-08-08). They used to live at the very bottom of a nine-row form, so after
          editing the fourth question you had to scroll past five more to find out whether
          you could save. Now the running total and the two buttons follow you down. */
       + ".fa2-qnact{position:sticky;top:0;z-index:12;display:flex;align-items:center;gap:16px;"
       + "flex-wrap:wrap;padding:15px 26px;background:var(--panel);border-bottom:1px solid var(--line);"
-      + "border-radius:16px 16px 0 0}"
+      + "border-radius:13px 13px 0 0}"
       + ".fa2-qnact .run{display:flex;align-items:baseline;gap:9px;margin-right:auto}"
       + ".fa2-qnact .run b{font-size:27px;font-weight:800;letter-spacing:-.7px;line-height:1;"
       + "font-variant-numeric:tabular-nums}"
@@ -166,12 +168,15 @@ registerPage({
       + ".fa2-qnbody{padding:22px 26px 0}"
       + ".fa2-qnhead{display:flex;gap:32px;align-items:flex-start;flex-wrap:wrap;margin-bottom:22px}"
       + ".fa2-qnhead h2{margin:0 0 6px;font-size:23px;font-weight:800;letter-spacing:-.4px}"
-      + ".fa2-qnhead p{margin:0;font-size:13.5px;color:var(--muted);line-height:1.65;max-width:88ch}"
-      + ".fa2-qnmon{margin-left:auto;display:flex;flex-direction:column;gap:5px;min-width:230px}"
-      + ".fa2-qnmon label{font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--faint)}"
-      + ".fa2-qnmon select{font:inherit;font-size:15px;font-weight:700;background:var(--panel-2);"
-      + "color:var(--ink);border:1px solid var(--line-2);border-radius:11px;padding:10px 13px}"
-      + ".fa2-qnmon .hint{font-size:11.5px;color:var(--faint);line-height:1.5}"
+      // the prose is the kit's .rs-hint; only the margin it must NOT have inside this head
+      // and the wider measure this paragraph was written to are page-specific
+      + ".fa2-qnhead .rs-hint{margin:0;max-width:88ch}"
+      // the month picker is a kit .rs-fld + .rs-sel; these two lines are all that is left
+      + ".fa2-qnmon{margin-left:auto;min-width:230px}"
+      /* the hint under the select is a DIRECT CHILD SPAN of .rs-fld, which the kit styles as
+         the field's uppercase caption -- it has to say it is prose, not a second label */
+      + ".fa2-qnmon .hint{font-size:11.5px;font-weight:500;letter-spacing:0;text-transform:none;"
+      + "color:var(--faint);line-height:1.5}"
       + ".fa2-qnbar{height:5px;border-radius:3px;background:var(--line);overflow:hidden;"
       + "width:190px;flex:0 0 auto}"
       + ".fa2-qnbar u{display:block;height:100%;background:var(--brand);transition:width .2s}"
@@ -197,37 +202,35 @@ registerPage({
       + ".fa2-qnrow .n{width:34px;height:34px;border-radius:10px;background:var(--panel);border:1px solid var(--line-2);"
       + "display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;color:var(--faint)}"
       + ".fa2-qnrow .f{display:flex;flex-direction:column;gap:7px;min-width:0}"
-      + ".fa2-qnrow .p,.fa2-qnrow .s{display:flex;flex-direction:column;gap:5px}"
-      + ".fa2-qnrow label{font-size:11px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--faint)}"
-      + ".fa2-qnrow input,.fa2-qnrow select{font:inherit;font-size:15px;background:var(--panel);"
-      + "color:var(--ink);border:1px solid var(--line-2);border-radius:10px;padding:11px 14px;min-width:0}"
-      + ".fa2-qnrow .rbq{font-size:17px;font-weight:700}"
-      + ".fa2-qnrow .rbd{font-size:14px;color:var(--muted)}"
-      + ".fa2-qnrow .p input{font-size:17px;font-weight:800;text-align:center;"
-      + "font-variant-numeric:tabular-nums}"
-      + ".fa2-qnrow .p input.over{border-color:var(--neg);color:var(--neg)}"
-      + ".fa2-qnrow label{display:flex;align-items:baseline;gap:6px}"
-      + ".fa2-qnrow label i{font-style:normal;font-weight:600;letter-spacing:0;text-transform:none;"
-      + "color:var(--faint);font-size:10.5px}"
-      + ".fa2-qnrow input:focus,.fa2-qnrow select:focus{outline:none;border-color:var(--brand)}"
-      + ".fa2-qnrow select:disabled{opacity:.55;cursor:not-allowed}"
-      + ".fa2-qnstars,.fa2-qnold{font-size:15px;font-weight:700;color:var(--muted);padding:11px 2px}"
+      /* THE FIELDS IN A ROW ARE KIT FIELDS. .p / .s were a private .rs-fld and the inputs a
+         private .rs-inp / .rs-sel / .rs-num, so the editor's controls no longer match the
+         ones a rater sees two clicks away. What stays below is only what the kit cannot know:
+         these fields sit ON a --panel-2 row, so their controls need the lighter ground back,
+         and .rs-inp's 210px floor would push the grid's flexible column open. */
+      + ".fa2-qnrow .rs-inp{background:var(--panel);min-width:0}"
+      + ".fa2-qnrow .rs-num{background:var(--panel)}"
+      + ".fa2-qnrow .rbq{font-size:15px;font-weight:750}"
+      + ".fa2-qnrow .rbd{color:var(--muted)}"
+      + ".fa2-qnrow .rbp.over{border-color:var(--neg);color:var(--neg)}"
+      + ".fa2-qnrow .rs-fld>span i{font-style:normal;font-weight:600;letter-spacing:0;"
+      + "text-transform:none;color:var(--faint);font-size:10.5px}"
+      + ".fa2-qnstars,.fa2-qnold{font-size:13px;font-weight:700;color:var(--muted);padding:9px 2px}"
       + ".fa2-qnold{color:var(--warn);cursor:help}"
-      + ".fa2-qnrow .rbx{align-self:center;font:inherit;font-size:12.5px;font-weight:700;background:transparent;"
-      + "color:var(--faint);border:1px solid var(--line-2);border-radius:10px;padding:9px 14px;cursor:pointer;white-space:nowrap}"
+      + ".fa2-qnrow .rbx{align-self:center}"
       + ".fa2-qnrow .rbx:hover{color:var(--neg);border-color:var(--neg)}"
       + ".fa2-qnrow.rated{border-left:3px solid var(--blue)}"
       + ".fa2-qnfoot{display:flex;gap:16px;align-items:center;flex-wrap:wrap;margin-top:20px}"
-      + ".fa2-qnfoot .hint{font-size:12.5px;color:var(--faint);line-height:1.6;max-width:78ch}"
-      + ".fa2-qnadd{font-family:inherit;font-size:14px;font-weight:750;padding:12px 20px;"
-      + "border-radius:12px;border:1px dashed var(--line-2);background:transparent;color:var(--muted);"
-      + "cursor:pointer}"
-      + ".fa2-qnadd:hover{border-color:var(--brand);color:var(--brand);border-style:solid}"
+      + ".fa2-qnfoot .rs-hint{margin:0;max-width:78ch}"
+      // "add" is the one button here that is an invitation rather than an action, and the
+      // dashed edge is the whole of that difference -- the rest is the kit's .rs-btn
+      + ".fa2-qnadd{border-style:dashed}"
+      + ".fa2-qnadd:hover{border-style:solid}"
       + "@media(max-width:1150px){.fa2-qnrow{grid-template-columns:1fr;gap:10px}.fa2-qnrow .n{display:none}}"
       // ---- hero ------------------------------------------------------------------------
-      // NOT overflow:hidden — the month list hangs out of the hero, and clipping it left
-      // the dropdown showing exactly one row. The progress bar rounds its own corners.
-      + ".fa2-hero{background:var(--panel);border:1px solid var(--line);border-radius:16px;margin-bottom:14px;box-shadow:var(--shadow);position:relative}"
+      // The card itself is the kit's .panel. NOT overflow:hidden — the month list hangs out
+      // of the hero, and clipping it left the dropdown showing exactly one row. The rows
+      // inside carry their own padding, and the progress bar rounds its own corners.
+      + "body.rs-app .fa2-hero{padding:0;position:relative}"
       + ".fa2-hrow{display:flex;flex-wrap:wrap;gap:14px 30px;align-items:center;padding:18px 22px}"
       + ".fa2-eyebrow{font-size:11px;font-weight:800;letter-spacing:.13em;text-transform:uppercase;color:var(--faint);margin-bottom:2px}"
       // the month picker: a native <select> popup cannot be styled, so the trigger is the
@@ -245,24 +248,20 @@ registerPage({
       + "body.rs-app:not(.light) .fa2-mopt.cur{color:var(--brand)}"
       + ".fa2-mopt .tag{margin-left:auto;font-size:11px;font-weight:800;letter-spacing:.07em;text-transform:uppercase}"
       + ".fa2-mopt .tag.sub{color:var(--blue)} .fa2-mopt .tag.op{color:var(--pos)}"
-      + ".fa2-pill{display:inline-flex;align-items:center;gap:7px;font-size:12.5px;font-weight:800;padding:7px 14px;border-radius:999px;margin-top:5px}"
-      + ".fa2-pill.open{background:var(--pos-bg);color:var(--pos)}"
-      + ".fa2-pill.sub{background:var(--blue-bg);color:var(--blue)}"
+      // the month's state is a kit verdict pill (.rs-pill .ok / .info); it only needs to sit
+      // off the baseline of the 31px month title beside it
+      + ".fa2-pill{margin-top:5px}"
       + ".fa2-stats{display:flex;flex-wrap:wrap;margin-left:auto}"
       + ".fa2-st{padding:4px 28px;border-left:1px solid var(--line)}"
       + ".fa2-st b{display:block;font-size:26px;font-weight:750;letter-spacing:-.4px;line-height:1.15;white-space:nowrap}"
       + ".fa2-st span{font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--faint)}"
       + ".fa2-st small{display:block;font-size:12px;color:var(--muted);margin-top:1px;white-space:nowrap}"
-      + ".fa2-prog{height:5px;background:var(--panel-2);border-radius:0 0 15px 15px;overflow:hidden}"
+      + ".fa2-prog{height:5px;background:var(--panel-2);border-radius:0 0 13px 13px;overflow:hidden}"
       + ".fa2-prog i{display:block;height:100%;background:var(--blue);transition:width .4s ease}"
       // ---- toolbar ---------------------------------------------------------------------
-      + ".fa2-bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:12px}"
-      + ".fa2-chip{font-family:inherit;font-size:13.5px;font-weight:700;padding:9px 16px;border-radius:999px;border:1px solid var(--line);background:var(--panel);color:var(--muted);cursor:pointer}"
-      + ".fa2-chip:hover{border-color:var(--line-2)}"
-      + ".fa2-chip.on{background:var(--brand-glow);border-color:transparent;color:var(--brand-d)}"
-      + "body.rs-app:not(.light) .fa2-chip.on{color:var(--brand)}"
-      + ".fa2-bar input{margin-left:auto;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:8px 12px;color:var(--ink);font-family:inherit;font-size:12.5px;min-width:220px}"
-      + ".fa2-how{font-size:13px;color:var(--faint);line-height:1.65;max-width:112ch;margin:0 0 14px}"
+      /* THE WHOLE BAR IS THE KIT NOW: .rs-bar holds it, .rs-seg is the four-way progress
+         filter (it was four loose pill buttons, which is the same control drawn differently),
+         .rs-inp is the search box and .rs-spacer pushes it right. Nothing left to define. */
       + ".fa2-how summary{cursor:pointer;font-weight:700;color:var(--muted);font-size:13.5px;user-select:none}"
       + ".fa2-how[open] summary{margin-bottom:5px}"
       + ".fa2-msg{font-size:13.5px;padding:11px 15px;border-radius:10px;margin-bottom:12px;display:none}"
@@ -271,8 +270,8 @@ registerPage({
       // ---- submitted banner ------------------------------------------------------------
       + ".fa2-done{background:var(--blue-bg);border-radius:14px;padding:13px 18px;margin-bottom:12px;display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;color:var(--blue);font-size:13px;font-weight:750}"
       + ".fa2-done small{color:var(--muted);font-weight:500;font-size:13px}"
-      + ".fa2-ghost{font-family:inherit;font-size:13px;font-weight:700;padding:9px 16px;border-radius:10px;border:1px solid var(--line-2);background:var(--panel);color:var(--muted);cursor:pointer;margin-left:auto}"
-      + ".fa2-ghost:hover{border-color:var(--faint);color:var(--ink)}"
+      // Reopen is a kit .rs-btn; inside this banner it belongs at the far end of the sentence
+      + ".fa2-done .rs-btn{margin-left:auto}"
       // ---- cards -----------------------------------------------------------------------
       + ".fa2-card{background:var(--panel);border:1px solid var(--line);border-radius:14px;margin-bottom:9px;overflow:hidden;transition:border-color .15s,box-shadow .15s}"
       + ".fa2-card.on{border-color:var(--line-2);box-shadow:var(--shadow)}"
@@ -331,21 +330,19 @@ registerPage({
       + ".fa2-q.rated{border-left-color:var(--pos);background:var(--panel)}"
       + ".fa2-q .qt{flex:1;display:flex;flex-direction:column;align-items:flex-start}"
       + ".fa2-q .qt b{font-size:17px;font-weight:750;display:block;letter-spacing:-.2px;line-height:1.3}"
-      + ".fa2-q .qt span{font-size:14px;color:var(--muted);line-height:1.6;display:block;margin-top:7px}"
+      + ".fa2-q .qt span{font-size:14px;color:var(--muted);line-height:1.6;display:block;"
+      + "margin-top:7px;width:100%}"
       + ".fa2-q .qt em{font-style:normal;font-size:12px;color:var(--faint);display:block;margin-top:8px}"
-      + ".fa2-q .qt span:not(.qw){width:100%}"
       + ".fa2-qfoot{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;"
       + "margin-top:15px;padding-top:14px;border-top:1px solid var(--line)}"
       // ---- the rubric panel: what is being scored, and Ramaz's editor ------------------
-      + ".fa2-rub{background:var(--panel);border:1px solid var(--line);border-radius:15px;padding:18px 20px;margin-bottom:14px}"
-      + ".fa2-rub.edit{border-color:var(--brand)}"
-      + ".fa2-rubh{display:flex;align-items:center;gap:12px;flex-wrap:wrap}"
-      + ".fa2-rubh b{font-size:16px;font-weight:800}"
+      // the card is the kit's .panel and its heading row the kit's .panel-head / .panel-title;
+      // what is page-specific is the chip list of questions and their points
       + ".fa2-rubt{font-size:13px;font-weight:700;color:var(--muted);margin-right:auto}"
       + ".fa2-rubt.bad{color:var(--neg)}"
       + ".fa2-rubnote,.fa2-rubwarn{font-size:12.5px;color:var(--faint)}"
       + ".fa2-rubwarn{color:var(--warn)}"
-      + ".fa2-rublist{display:flex;flex-wrap:wrap;gap:9px;margin-top:13px}"
+      + ".fa2-rublist{display:flex;flex-wrap:wrap;gap:9px;margin-top:2px}"
       + ".fa2-rubchip{display:inline-flex;align-items:center;gap:10px;background:var(--panel-2);"
       + "border:1px solid var(--line-2);border-radius:999px;padding:7px 8px 7px 15px;font-size:14px}"
       + ".fa2-rubchip u{text-decoration:none;font-weight:800;background:var(--brand-glow);"
@@ -353,9 +350,6 @@ registerPage({
       + "body.rs-app:not(.light) .fa2-rubchip u{color:var(--brand)}"
       + ".fa2-rubchip i.tri{font-style:normal;font-size:11px;font-weight:800;letter-spacing:.05em;"
       + "text-transform:uppercase;color:var(--faint)}"
-      + ".fa2-go{font:inherit;font-size:12.5px;font-weight:800;background:var(--brand);"
-      + "color:var(--brand-ink);border:0;border-radius:9px;padding:8px 16px;cursor:pointer}"
-      + ".fa2-go:disabled{opacity:.45;cursor:default}"
       // ---- the three-way control -------------------------------------------------------
       + ".fa2-ctl{display:flex;gap:9px;align-items:center;flex-wrap:wrap}"
       + ".fa2-tri{display:inline-flex;gap:5px;flex-wrap:wrap}"
@@ -377,10 +371,8 @@ registerPage({
       + ".fa2-boolb.on.y{background:var(--pos);border-color:var(--pos);color:#fff}"
       + ".fa2-boolb.on.n{background:var(--neg);border-color:var(--neg);color:#fff}"
       + ".fa2-boolb:disabled{cursor:default;opacity:.7}"
-      + ".fa2-q .qw{align-self:flex-start;font-size:12px;font-weight:800;letter-spacing:.03em;"
-      + "color:var(--faint);background:var(--panel);border:1px solid var(--line);"
-      + "border-radius:999px;padding:3px 11px;margin-bottom:9px;font-variant-numeric:tabular-nums}"
-      + ".fa2-q.rated .qw{background:var(--panel-2)}"
+      // (the .qw "worth 5.0" pill was removed from the markup on 2026-08-10; its rules went
+      //  with it here — nothing has rendered a .qw since)
       + ".fa2-clr.arm{color:#b91c1c;font-weight:800}"
       + ".fa2-note{grid-column:1/-1;margin-top:9px;padding-top:9px;border-top:1px dashed var(--line);"
       + "display:flex;align-items:flex-start;gap:8px}"
@@ -418,18 +410,16 @@ registerPage({
       + ".fa2-sub{position:sticky;bottom:18px;margin:18px 26px 0;background:var(--panel);border:1px solid var(--line-2);border-radius:14px;box-shadow:0 14px 38px rgba(0,0,0,.26),var(--shadow);padding:15px 22px;display:flex;flex-wrap:wrap;gap:12px 18px;align-items:center;z-index:6}"
       + ".fa2-sub .t{font-size:14px;color:var(--muted)} .fa2-sub .t b{color:var(--ink);font-size:15.5px}"
       + ".fa2-auto{font-size:13px;color:var(--faint);white-space:nowrap}"
-      /* Submit is deliberately NOT the brand colour: it is rare, it is one-way, and it should
-         not look like the primary thing to press on a page you spend an hour in. */
-      + ".fa2-submit{font-family:inherit;font-size:13.5px;font-weight:750;padding:9px 17px;"
-      + "border-radius:10px;border:1px solid var(--line-2);background:var(--panel);"
-      + "color:var(--muted);cursor:pointer;margin-left:10px;display:inline-flex;align-items:center;gap:8px}"
-      + ".fa2-submit:hover{border-color:var(--blue);color:var(--blue)}"
+      /* Submit is a kit .rs-btn, deliberately NOT .rs-btn.pri: it is rare, it is one-way, and
+         it should not look like the primary thing to press on a page you spend an hour in.
+         The blue hover is the rest of that sentence — it is the colour this page uses for
+         "submitted", so the button hovers into the state it produces. */
+      + ".fa2-submit{display:inline-flex;align-items:center;gap:8px}"
+      + ".fa2-submit:hover:not(:disabled){border-color:var(--blue);color:var(--blue)}"
       + ".fa2-submit i{font-style:normal;font-size:11.5px;font-weight:800;color:var(--faint);"
       + "font-variant-numeric:tabular-nums}"
       + ".fa2-spb{flex:1;min-width:150px;height:6px;border-radius:4px;background:var(--panel-2);overflow:hidden}"
       + ".fa2-spb i{display:block;height:100%;background:var(--blue);transition:width .3s}"
-      + ".fa2-go{font-family:inherit;font-size:14px;font-weight:800;padding:12px 24px;border-radius:11px;border:0;background:var(--brand);color:var(--brand-ink);cursor:pointer}"
-      + ".fa2-go:hover{background:var(--brand-d)} .fa2-go:disabled{opacity:.6;cursor:default}"
       + ".fa2-empty{padding:52px;text-align:center;color:var(--faint);font-size:15px;background:var(--panel);border:1px dashed var(--line-2);border-radius:14px}"
       + "@media(max-width:820px){.fa2-qgrid{grid-template-columns:1fr}.fa2-head{grid-template-columns:42px 1fr auto;gap:12px}.fa2-stats{margin-left:0}.fa2-st{padding-left:0;padding-right:24px;border-left:0}.fa2-sc{gap:9px}.fa2-sb{width:80px}}"
       + '</style><div class="fa2"><div id="fa2Main"></div></div>';
@@ -508,8 +498,9 @@ registerPage({
 
     const stat = (b, lab, sub) => '<div class="fa2-st"><span>' + esc(lab) + "</span><b>" + b
       + "</b><small>" + esc(sub) + "</small></div>";
-    const chip = (id, lab) => '<button class="fa2-chip' + (S.tab === id ? " on" : "")
-      + '" data-tab="' + id + '">' + lab + "</button>";
+    // one button inside the kit's .rs-seg; `data-tab` is what the wiring finds it by
+    const chip = (id, lab) => '<button' + (S.tab === id ? ' class="on"' : "")
+      + ' data-tab="' + id + '">' + lab + "</button>";
 
     /* THE RUBRIC, ON TOP OF THE VIEW — "imagine having list of assestments and points it
      * holds in the view on top ... he can easily add / remove question and assign points.
@@ -768,7 +759,7 @@ registerPage({
       // THE ACTION BAR, STICKY AT THE TOP. His ask (2026-08-08): Undo and Save belong
       // top-right, not at the bottom of a nine-row form where you cannot see whether the
       // points balance without scrolling past everything you just typed.
-      let h = '<div class="fa2-qn">'
+      let h = '<div class="panel rs-noanim fa2-qn">'
         + '<div class="fa2-qnact' + (balanced ? " ok" : " bad") + '">'
         + '<div class="run"><b>' + fmt1(dt) + "</b><span>of " + fmt1(MANUAL_TOTAL())
         + " points given out</span></div>"
@@ -777,20 +768,20 @@ registerPage({
         + '<span class="state">' + (balanced ? "balanced"
              : left > 0 ? fmt1(left) + " still to give out"
                         : fmt1(-left) + " too many") + "</span>"
-        + '<button class="fa2-ghost" id="fa2RubCancel" style="margin-left:0">Undo changes</button>'
-        + '<button class="fa2-go" id="fa2RubSave"' + (balanced ? "" : " disabled")
+        + '<button class="rs-btn" id="fa2RubCancel">Undo changes</button>'
+        + '<button class="rs-btn pri" id="fa2RubSave"' + (balanced ? "" : " disabled")
         + ">Save the questionnaire</button>"
         + "</div>"
         + '<div class="fa2-qnbody">'
         + '<div class="fa2-qnhead">'
         + "<div><h2>The questionnaire</h2>"
-        + "<p>These are the questions logistics answers for every foreman, and what each one "
+        + '<p class="rs-hint">These are the questions logistics answers for every foreman, and what each one '
         + "is worth. They always share <b>" + fmt1(MANUAL_TOTAL()) + " points</b> — the other "
         + "60 the warehouse counts on its own. Change them for a month and that month is "
         + "scored the new way; months already submitted keep the questions they were scored "
         + "under.</p></div>"
-        + '<div class="fa2-qnmon"><label>Month being shaped</label>'
-        + '<select id="fa2QnMonth">'
+        + '<div class="rs-fld fa2-qnmon"><span>Month being shaped</span>'
+        + '<select class="rs-sel" id="fa2QnMonth">'
         + (months.length ? months.slice().reverse().map(x =>
             '<option value="' + x + '"' + (x === m ? " selected" : "") + ">" + monLab(x) + "</option>").join("")
            : '<option value="">nothing open</option>')
@@ -816,13 +807,13 @@ registerPage({
           + (i === d.length - 1 ? " disabled" : "") + ' title="Move down">▼</button>'
           + "</div>"
           + '<div class="f">'
-          + '<input class="rbq" data-i="' + i + '" data-k="label" value="' + esc(q.label)
+          + '<input class="rbq rs-inp" data-i="' + i + '" data-k="label" value="' + esc(q.label)
           + '" placeholder="What is being judged, in the rater\'s words">'
-          + '<input class="rbd" data-i="' + i + '" data-k="description" value="'
+          + '<input class="rbd rs-inp" data-i="' + i + '" data-k="description" value="'
           + esc(q.description || "") + '" placeholder="How to judge it — the rater reads this under the question">'
           + "</div>"
-          + '<div class="p"><label>Points <i>max ' + fmt1(MAX_Q_POINTS) + "</i></label>"
-          + '<input class="rbp' + ((+q.points || 0) > MAX_Q_POINTS ? " over" : "") + '"'
+          + '<div class="rs-fld"><span>Points <i>max ' + fmt1(MAX_Q_POINTS) + "</i></span>"
+          + '<input class="rbp rs-num' + ((+q.points || 0) > MAX_Q_POINTS ? " over" : "") + '"'
           + ' type="number" step="0.5" min="0.5" max="' + MAX_Q_POINTS + '" data-i="' + i
           + '" data-k="points" value="' + q.points + '"></div>'
           /* NO "ANSWERED BY" ANY MORE (Tornike, 2026-08-10): every question is five stars.
@@ -832,18 +823,18 @@ registerPage({
            * pretending it is stars -- it is history, and history should not be edited by
            * being ignored. */
           + (q.scale && q.scale !== "stars5"
-              ? '<div class="s"><label>Answered by</label>'
+              ? '<div class="rs-fld"><span>Answered by</span>'
                 + '<div class="fa2-qnold" title="A control this rubric no longer offers. '
                 + 'Remove the question and add it again to move it to stars.">'
                 + (q.scale === "bool" ? "Yes or No" : "No / Partly / Fully") + "</div></div>"
-              : '<div class="s"><label>Answered by</label>'
+              : '<div class="rs-fld"><span>Answered by</span>'
                 + '<div class="fa2-qnstars">\u2605 Stars, 1 to 5</div></div>')
-          + '<button class="rbx" data-i="' + i + '" title="Remove this question">Remove</button>'
+          + '<button class="rbx rs-btn" data-i="' + i + '" title="Remove this question">Remove</button>'
           + "</div>").join("") + "</div>";
 
       h += '<div class="fa2-qnfoot">'
-        + '<button class="fa2-qnadd" id="fa2RubAdd">+ Add a question</button>'
-        + '<span class="hint">Drag the ⠿ handle or use ▲▼ to change the order — that is the '
+        + '<button class="rs-btn fa2-qnadd" id="fa2RubAdd">+ Add a question</button>'
+        + '<span class="rs-hint">Drag the ⠿ handle or use ▲▼ to change the order — that is the '
         + "order the raters see. Removing a question stops it counting from this month on; "
         + "nothing already scored is lost. A question that has already been rated this month "
         + "cannot change how it is answered — add a new one instead.</span>"
@@ -856,19 +847,19 @@ registerPage({
       const editable = S.canEditRubric && (S.rubricMonths || []).indexOf(S.month) >= 0 && !S.locked;
 
       if (!qs.length) {
-        return '<div class="fa2-rub"><div class="fa2-rubh"><b>No rubric for '
-          + esc(monLab(S.month)) + "</b>"
+        return '<div class="panel rs-noanim"><div class="panel-head">'
+          + '<b class="panel-title">No rubric for ' + esc(monLab(S.month)) + "</b>"
           + '<span class="fa2-rubwarn">Nothing can be scored until this month has questions. '
           + "The nightly pipeline seeds it; if this persists, say so.</span></div></div>";
       }
 
-      return '<div class="fa2-rub"><div class="fa2-rubh">'
-        + "<b>What is being scored · " + esc(monLab(S.month)) + "</b>"
+      return '<div class="panel rs-noanim"><div class="panel-head">'
+        + '<b class="panel-title">What is being scored · ' + esc(monLab(S.month)) + "</b>"
         + '<span class="fa2-rubt' + (Math.abs(total - MANUAL_TOTAL()) > 0.05 ? " bad" : "") + '">'
         + fmt1(total) + " of " + fmt1(MANUAL_TOTAL()) + " points across "
         + qs.length + " question" + (qs.length === 1 ? "" : "s") + "</span>"
         + (S.canEditRubric
-           ? '<button class="fa2-ghost" id="fa2RubEdit">'
+           ? '<button class="rs-btn" id="fa2RubEdit">'
              + (editable ? "Edit the questions" : "Open the questionnaire") + "</button>"
            : "")
         + (S.canEditRubric && !editable
@@ -914,7 +905,9 @@ registerPage({
         rows = rows.filter(x => x.f.Foreman.toLowerCase().indexOf(qq) >= 0);
       }
 
-      let h = '<div class="fa2-hero"><div class="fa2-hrow">'
+      // rs-noanim: paint() rewrites main.innerHTML on every star click, and the kit's panel
+      // entrance animation would replay each time — the page would flinch on every rating
+      let h = '<div class="panel rs-noanim fa2-hero"><div class="fa2-hrow">'
         + '<div><div class="fa2-eyebrow">Foreman assessment</div>'
         + '<div class="fa2-mon"><button class="fa2-monbtn" id="fa2MonBtn" type="button">'
         + esc(monLab(S.month)) + ' <span class="car">▼</span></button>'
@@ -924,7 +917,7 @@ registerPage({
             + '<span class="tag ' + ((S.locks || {})[m] ? "sub" : isOpenForRating(m) ? "op" : "sub") + '">'
             + ((S.locks || {})[m] ? "✓ submitted" : isOpenForRating(m) ? "open" : "rubric only") + "</span></button>").join("")
         + "</div></div>"
-        + '<div><span class="fa2-pill ' + (S.locked ? "sub" : S.notOpen ? "sub" : "open") + '">'
+        + '<div><span class="rs-pill fa2-pill ' + (S.locked ? "info" : S.notOpen ? "info" : "ok") + '">'
         + (S.locked ? "✓ Submitted — ratings are final" : S.notOpen ? "○ Rubric only — rating opens on the " + OPEN_DAY + "th" : "● Open for rating") + "</span></div></div>"
         + '<div class="fa2-stats">'
         + stat(fmtN(all.length), "Foremen", "with work in " + monLab(S.month))
@@ -936,7 +929,7 @@ registerPage({
         + "</div></div>"
         + '<div class="fa2-prog"><i style="width:' + (all.length ? (done / all.length * 100).toFixed(0) : 0) + '%"></i></div></div>';
 
-      h += '<details class="fa2-how"><summary>How the scoring works · who can win</summary>'
+      h += '<details class="rs-hint fa2-how"><summary>How the scoring works · who can win</summary>'
         + "The warehouse already scores four topics — packing per 100 CF (30), reviews (10), "
         + "packing against the sales estimate (10) and complaints upheld (10, less 2.5 for each "
         + "claim upheld against him): <b>60 points</b>. The questions below are yours, sharing "
@@ -954,9 +947,9 @@ registerPage({
       // the questionnaire himself. It used to be a small Edit button on a panel that
       // said "cannot be changed" for the month you actually land on, which read as
       // "the questions are hardcoded" — because in practice they were.
-      h += '<div class="fa2-views">'
-        + '<button class="fa2-view' + (S.view === "rate" ? " on" : "") + '" data-view="rate">Rate foremen</button>'
-        + (S.canEditRubric ? '<button class="fa2-view' + (S.view === "rubric" ? " on" : "") + '" data-view="rubric">Questionnaire <i>admin</i></button>' : "")
+      h += '<div class="rs-seg fa2-views">'
+        + '<button' + (S.view === "rate" ? ' class="on"' : "") + ' data-view="rate">Rate foremen</button>'
+        + (S.canEditRubric ? '<button' + (S.view === "rubric" ? ' class="on"' : "") + ' data-view="rubric">Questionnaire <i>admin</i></button>' : "")
         + "</div>";
       h += '<div class="fa2-msg' + (S.msg ? (S.msgErr ? " err" : " on") : "") + '">' + esc(S.msg || "") + "</div>";
       if (S.view === "rubric") { main.innerHTML = h + questionnaireView(); wire(); return; }
@@ -966,19 +959,20 @@ registerPage({
         h += '<div class="fa2-done">✓ ' + esc(monLab(S.month)) + " is submitted — ratings are final"
           + (S.subBy ? " <small>by " + esc(String(S.subBy).split("@")[0])
               + (S.subAt ? " · " + esc(String(S.subAt).slice(0, 16)) : "") + "</small>" : "")
-          + (S.canReopen ? '<button class="fa2-ghost" id="fa2Reopen">Reopen this month</button>' : "")
+          + (S.canReopen ? '<button class="rs-btn" id="fa2Reopen">Reopen this month</button>' : "")
           + "</div>";
       }
 
-      h += '<div class="fa2-bar">'
+      h += '<div class="rs-bar"><div class="rs-seg">'
         + chip("all", "All " + all.length) + chip("todo", "Not started " + todo)
         + chip("part", "In progress " + part) + chip("done", "Done " + done)
-        + '<input id="fa2Q" placeholder="Find a foreman…" value="' + esc(S.q) + '">'
+        + '</div><span class="rs-spacer"></span>'
+        + '<input class="rs-inp" id="fa2Q" placeholder="Find a foreman…" value="' + esc(S.q) + '">'
         // SUBMIT LIVES UP HERE NOW, away from the hand that is reaching for Save, and it says
         // what it costs. It is the last thing you do to a month, not the thing you do to keep
         // your work -- that happens by itself on every click.
         + (!S.locked && !S.notOpen && all.length
-            ? '<button class="fa2-submit" id="fa2Submit" title="Ratings become final and only '
+            ? '<button class="rs-btn fa2-submit" id="fa2Submit" title="Ratings become final and only '
               + 'an admin can reopen the month">Submit ' + esc(monLab(S.month))
               + " <i>" + done + "/" + all.length + "</i></button>"
             : "")
@@ -1150,7 +1144,7 @@ registerPage({
         return '<div class="fa2-note"><button class="fa2-noteadd"' + at
           + ">+ why this score</button></div>";
       }
-      return '<div class="fa2-note has"><span class="fa2-notetx">' + esc(note) + "</span>"
+      return '<div class="fa2-note"><span class="fa2-notetx">' + esc(note) + "</span>"
         + (shut ? "" : '<button class="fa2-noteedit"' + at + ' title="Edit this reason">edit</button>')
         + "</div>";
     }
@@ -1268,14 +1262,16 @@ registerPage({
           };
         });
       }
-      main.querySelectorAll(".fa2-view").forEach(b => {
+      // the view switcher and the progress filter are kit .rs-seg buttons now, so they are
+      // found by the data-attribute they already carried rather than by a private class
+      main.querySelectorAll("[data-view]").forEach(b => {
         b.onclick = () => {
           if (b.dataset.view === "rubric") { openQuestionnaire(); return; }
           S.view = b.dataset.view; S.msg = "";
           paint();
         };
       });
-      main.querySelectorAll(".fa2-chip").forEach(c => {
+      main.querySelectorAll("[data-tab]").forEach(c => {
         c.onclick = () => { S.tab = c.dataset.tab; paint(); };
       });
       const q = main.querySelector("#fa2Q");

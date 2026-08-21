@@ -79,30 +79,30 @@ registerPage({
       busy: "", msg: "", msgErr: false, msgFor: null, open: null, draft: {},
     });
 
+    // THE KIT (assets/rs.css, "THE COMPONENT KIT") now supplies the KPI strip, the control
+    // bar with its segments / select / find box / toggle, the reading hint, both data tables
+    // and every button. What is left below is what the kit cannot say -- the queue card with
+    // its verdict edge and its drawer, the fact tiles, the flag chips, the spend bar drawn
+    // inside a cell -- plus a handful of one-line adjustments layered ON kit components.
     host.innerHTML = '<style id="fuCss">'
       + ".fu{font-variant-numeric:tabular-nums}"
-      + ".fu-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(168px,1fr));gap:11px;margin-bottom:14px}"
-      + ".fu-k{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:13px 16px}"
-      + ".fu-k b{display:block;font-size:24px;font-weight:750;letter-spacing:-.5px;line-height:1.15}"
-      + ".fu-k span{display:block;font-size:9px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);margin-top:5px}"
-      + ".fu-k small{display:block;font-size:11px;color:var(--muted);margin-top:2px}"
-      + ".fu-k.alert{border-color:var(--warn);background:var(--warn-bg)}"
-      + ".fu-k.alert b{color:var(--warn)}"
-      + ".fu-bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:12px}"
-      + ".fu-seg{display:flex;background:var(--panel-2);border:1px solid var(--line);border-radius:10px;overflow:hidden}"
-      + ".fu-seg button{font-family:inherit;font-size:12px;font-weight:700;padding:7px 14px;border:0;background:none;color:var(--muted);cursor:pointer}"
-      + ".fu-seg button.on{background:var(--brand);color:var(--brand-ink)}"
-      + ".fu-bar select,.fu-bar input{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:7px 11px;color:var(--ink);font-family:inherit;font-size:12.5px}"
-      + ".fu-bar input{min-width:210px}"
-      + ".fu-bar .sp{margin-left:auto;display:flex;gap:8px;align-items:center}"
-      + ".fu-tog{font-family:inherit;font-size:11.5px;font-weight:700;padding:7px 12px;border-radius:999px;border:1px solid var(--line);background:var(--panel);color:var(--muted);cursor:pointer}"
-      + ".fu-tog.on{background:var(--brand-glow);border-color:transparent;color:var(--brand-d)}"
-      + "body.rs-app:not(.light) .fu-tog.on{color:var(--brand)}"
-      + ".fu-note{font-size:11.5px;color:var(--faint);line-height:1.65;max-width:110ch;margin:0 0 14px}"
+      // FIVE tiles across one row -- the column count RSC.kpis would have computed for five.
+      // And no entrance fade: paint() rewrites this whole body on every keystroke in the find
+      // box, so the kit's animation would replay on each one and the strip would flinch.
+      + ".rs-content .fu .rs-kpis{--kpi-cols:5;animation:none}"
+      // the kit paints every tile in --ink on a neutral card. The tile that is ASKING for an
+      // answer wears the warn tone instead -- its top rule included, brand-green by default.
+      + "body.rs-app .fu .rs-kpis .kpi.alert{border-color:var(--warn);background:var(--warn-bg)}"
+      + ".fu .rs-kpis .kpi.alert .v{color:var(--warn)}"
+      + ".fu .rs-kpis .kpi.alert::before{background:linear-gradient(90deg,var(--warn),transparent 70%)}"
+      // what the page says back after a save: a block notice, which the kit does not name
       + ".fu-msg{font-size:12.5px;padding:9px 13px;border-radius:10px;margin-bottom:12px;display:none}"
       + ".fu-msg.on{display:block;background:var(--pos-bg);color:var(--pos)}"
       + ".fu-msg.err{display:block;background:var(--neg-bg);color:var(--neg)}"
       // ---- queue cards -----------------------------------------------------------------
+      // The LEFT EDGE IS THE VERDICT: amber for a swipe that answers to nothing, quiet for one
+      // already placed on a job, green once a person has written down what happened. No kit
+      // component says that, and the card is this page's own object.
       + ".fu-card{background:var(--panel);border:1px solid var(--line);border-left:4px solid var(--warn);border-radius:13px;margin-bottom:9px;overflow:hidden}"
       + ".fu-card.ok{border-left-color:var(--line-2)}"
       + ".fu-card.done{border-left-color:var(--pos);opacity:.78}"
@@ -118,7 +118,6 @@ registerPage({
       + ".fu-when{font-size:11px;color:var(--faint);margin-top:1px}"
       + ".fu-why{font-size:12px;color:var(--warn);font-weight:650}"
       + ".fu-why.ok{color:var(--muted);font-weight:500}"
-      + ".fu-whysub{font-size:11px;color:var(--faint);margin-top:1px}"
       + ".fu-amt{text-align:right;white-space:nowrap}"
       + ".fu-amt b{font-size:17px;font-weight:800;letter-spacing:-.3px}"
       + ".fu-amt i{display:block;font-style:normal;font-size:10px;color:var(--faint);margin-top:1px}"
@@ -130,35 +129,43 @@ registerPage({
       + ".fu-f .v{font-size:13px;font-weight:700;margin-top:2px;word-break:break-word}"
       + ".fu-f .s{font-size:10.5px;color:var(--muted);margin-top:1px}"
       + ".fu-flags{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}"
+      // NOT .rs-pill: a pill is a one-word verdict that may never wrap, and these carry a
+      // whole sentence -- "card says truck 1207, the job says 1103". They stay chips that wrap.
       + ".fu-flag{font-size:11px;font-weight:650;padding:4px 10px;border-radius:999px;background:var(--warn-bg);color:var(--warn)}"
       + ".fu-flag.ctx{background:var(--panel-2);color:var(--muted);font-weight:500}"
+      // the box and the two buttons are kit controls; only the row holding them is ours, and
+      // the box stretches to fill whatever the buttons leave
       + ".fu-res{display:flex;flex-wrap:wrap;gap:8px;align-items:center}"
-      + ".fu-res input{flex:1;min-width:260px;background:var(--panel-2);border:1px solid var(--line);border-radius:10px;padding:9px 12px;color:var(--ink);font-family:inherit;font-size:12.5px}"
-      + ".fu-go{font-family:inherit;font-size:12.5px;font-weight:800;padding:9px 16px;border-radius:10px;border:0;background:var(--brand);color:var(--brand-ink);cursor:pointer}"
-      + ".fu-go:hover{background:var(--brand-d)} .fu-go:disabled{opacity:.55;cursor:default}"
-      + ".fu-undo{font-family:inherit;font-size:11.5px;font-weight:700;padding:8px 13px;border-radius:10px;border:1px solid var(--line-2);background:var(--panel);color:var(--muted);cursor:pointer}"
+      + ".fu .fu-res .rs-inp{flex:1;min-width:260px}"
       + ".fu-done{font-size:12px;color:var(--pos);font-weight:700}"
       + ".fu-done small{color:var(--muted);font-weight:500}"
-      // ---- tables ----------------------------------------------------------------------
-      + ".fu-wrap{background:var(--panel);border:1px solid var(--line);border-radius:14px;overflow:auto;max-height:calc(100vh - 330px)}"
-      + ".fu-t{border-collapse:collapse;width:100%;font-size:12.5px}"
-      + ".fu-t th{position:sticky;top:0;z-index:2;background:var(--panel);text-align:right;font-size:9.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--faint);padding:10px 12px;border-bottom:1px solid var(--line-2);white-space:nowrap}"
-      + ".fu-t th:first-child,.fu-t td:first-child{text-align:left}"
-      + ".fu-t td{padding:9px 12px;text-align:right;border-bottom:1px solid var(--line);white-space:nowrap}"
-      + ".fu-t tbody tr:hover{background:var(--panel-2)}"
-      + ".fu-t td.nm{font-weight:700}"
-      + ".fu-t .bar{position:relative;min-width:110px}"
-      + ".fu-t .bar i{position:absolute;left:12px;top:50%;transform:translateY(-50%);height:6px;border-radius:4px;background:var(--brand);opacity:.5}"
-      + ".fu-t .bar span{position:relative}"
-      + ".fu-t tr.tot td{font-weight:800;border-top:2px solid var(--line-2);border-bottom:0;background:var(--panel-2)}"
-      + ".fu-neg{color:var(--neg);font-weight:800} .fu-pos{color:var(--pos);font-weight:800}"
+      // ---- tables: kit tables, numeric by convention -------------------------------------
+      // These stand on the page without a card of their own, so the scroller keeps the panel
+      // ground it always had, and the height cap keeps the sticky header earning its keep.
+      + ".fu .rs-tablewrap{background:var(--panel);max-height:calc(100vh - 330px)}"
+      // every column but the first is a quantity, so alignment is a RULE here rather than
+      // forty hand-tagged .num cells
+      + ".fu .fu-t th,.fu .fu-t td{text-align:right}"
+      + ".fu .fu-t th:first-child,.fu .fu-t td:first-child{text-align:left}"
+      + ".fu .fu-t td{white-space:nowrap}"
+      // spend drawn INSIDE the cell: the bar is this row's share of the biggest spender
+      + ".fu .fu-t td.bar{position:relative;min-width:110px}"
+      + ".fu .fu-t td.bar i{position:absolute;left:12px;top:50%;transform:translateY(-50%);height:6px;border-radius:4px;background:var(--brand);opacity:.5}"
+      + ".fu .fu-t td.bar span{position:relative}"
+      // the totals row, which the kit's zebra and hover would otherwise paint over
+      + ".fu .fu-t tr.tot td{font-weight:800;border-top:2px solid var(--line-2);border-bottom:0;background:var(--panel-2)}"
+      + ".fu-neg{color:var(--neg);font-weight:800}"
       + ".fu-empty{padding:40px;text-align:center;color:var(--faint);font-size:13.5px;background:var(--panel);border:1px dashed var(--line-2);border-radius:14px}"
       + ".fu-empty b{display:block;font-size:16px;color:var(--pos);margin-bottom:5px}"
+      // a footnote UNDER a table: quieter than .rs-hint, and it hangs below, not above
+      + ".fu-note{font-size:12.5px;color:var(--faint);line-height:1.55;margin:10px 0 0;max-width:var(--rs-prose)}"
+      // the divider over the swipes somebody has already explained, at the kit's label scale
+      + ".fu-h2{font-size:10.5px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;color:var(--faint);margin:20px 0 9px}"
       + "@media(max-width:820px){.fu-head{grid-template-columns:1fr;gap:6px}.fu-amt{text-align:left}}"
       + '</style><div class="fu"><div id="fuMain"></div></div>';
 
     const main = host.querySelector("#fuMain");
-    main.innerHTML = '<div class="fu-empty">Loading the fuel card…</div>';
+    main.innerHTML = '<div class="rs-loading">Loading the fuel card…</div>';
 
     function api(path, opts) {
       return fetch(ZTZ.API + path, Object.assign({
@@ -215,13 +222,6 @@ registerPage({
         return;
       }
       const rs = scope();
-      // the guard above tests the whole feed; this one tests what the month and the search
-      // actually left, which is what the tables below are built from
-      if (!rs.length) {
-        host.querySelector("#fuBody").innerHTML = '<div class="fu-empty">'
-          + "No card swipes match this month or search.</div>";
-        return;
-      }
       const openQ = rs.filter(r => +r["Needs Review"] === 1 && +r.Resolved !== 1);
       const resolved = rs.filter(r => +r.Resolved === 1);
       const unplaced = rs.filter(r => !PLACED[r["Match Status"]]);
@@ -230,7 +230,7 @@ registerPage({
       const gallons = rs.reduce((a, r) => a + num(r.Gallons), 0);
       const assigned = rs.filter(r => PLACED[r["Match Status"]]);
 
-      let h = '<div class="fu-kpis">'
+      let h = '<div class="rs-kpis">'
         + kpi(money0(spend), "Card spend", fmtN(rs.length) + " transaction" + (rs.length === 1 ? "" : "s"))
         + kpi(fmtN(gallons) + " gal", "Fuel bought",
               gallons ? "$" + (spend / gallons).toFixed(2) + " a gallon" : "—")
@@ -242,24 +242,28 @@ registerPage({
         + kpi(fmtN(resolved.length), "Explained", resolved.length ? "checked by a person" : "none yet")
         + "</div>";
 
-      h += '<div class="fu-bar">'
-        + '<div class="fu-seg">'
+      h += '<div class="rs-bar">'
+        + '<div class="rs-seg">'
         + seg("queue", "Queue" + (openQ.length ? " " + openQ.length : ""))
         + seg("foremen", "By foreman") + seg("trucks", "By truck") + seg("all", "All swipes")
         + "</div>"
-        + '<select id="fuMonth"><option value="">Every month</option>'
+        + '<select class="rs-sel" id="fuMonth"><option value="">Every month</option>'
         + months().map(m => '<option value="' + m + '"' + (m === S.month ? " selected" : "") + ">"
             + monLab(m) + "</option>").join("") + "</select>"
-        + '<input id="fuQ" placeholder="Find a foreman, truck, merchant…" value="' + esc(S.q) + '">'
+        + '<input class="rs-inp" id="fuQ" placeholder="Find a foreman, truck, merchant…" value="' + esc(S.q) + '">'
         + (S.view === "queue"
-            ? '<div class="sp"><button class="fu-tog' + (S.showResolved ? " on" : "")
-              + '" id="fuShowRes">Show explained</button></div>' : "")
+            ? '<span class="rs-spacer"></span><div class="rs-tog' + (S.showResolved ? " on" : "")
+              + '" id="fuShowRes"><i></i>Show explained</div>' : "")
         + "</div>";
 
       h += '<div class="fu-msg' + (S.msg && !S.msgFor ? (S.msgErr ? " err" : " on") : "") + '">'
         + esc(S.msgFor ? "" : (S.msg || "")) + "</div>";
 
-      if (S.view === "queue") h += queueView(openQ, resolved);
+      // the guard above tests the whole feed; this one tests what the month and the search
+      // actually left. It renders BELOW the bar on purpose -- an early return would have
+      // wiped the search box the user is typing into (it did, and threw doing it).
+      if (!rs.length) h += '<div class="fu-empty">No card swipes match this month or search.</div>';
+      else if (S.view === "queue") h += queueView(openQ, resolved);
       else if (S.view === "foremen") h += foremanView(rs);
       else if (S.view === "trucks") h += truckView(rs);
       else h += allView(rs);
@@ -268,8 +272,9 @@ registerPage({
       wire();
     }
 
-    const kpi = (b, lab, sub, cls) => '<div class="fu-k ' + (cls || "") + '"><b>' + esc(b)
-      + "</b><span>" + esc(lab) + "</span><small>" + esc(sub) + "</small></div>";
+    const kpi = (b, lab, sub, cls) => '<div class="kpi ' + (cls || "") + '"><div class="l">'
+      + esc(lab) + '</div><div class="v">' + esc(b) + '</div><div class="s">' + esc(sub)
+      + "</div></div>";
     const seg = (id, lab) => '<button data-v="' + id + '"' + (S.view === id ? ' class="on"' : "")
       + ">" + esc(lab) + "</button>";
     const MON = ["January", "February", "March", "April", "May", "June", "July", "August",
@@ -278,7 +283,7 @@ registerPage({
 
     // ---- the queue: the reason this page exists ---------------------------------------
     function queueView(openQ, resolved) {
-      let h = '<p class="fu-note"><b>A swipe belongs to a job.</b> A foreman has the truck '
+      let h = '<p class="rs-hint"><b>A swipe belongs to a job.</b> A foreman has the truck '
         + "because he is running a job that day, so the day's fuel goes on that day's first "
         + "job. Everything below is a swipe that could not be placed that way, or that could "
         + "be placed but looks odd — the reason is on each card. <b>Nothing here costs a job "
@@ -292,8 +297,7 @@ registerPage({
         h += openQ.map(card).join("");
       }
       if (S.showResolved && resolved.length) {
-        h += '<div style="font-size:9.5px;font-weight:800;letter-spacing:.09em;'
-          + 'text-transform:uppercase;color:var(--faint);margin:20px 0 9px">Explained · '
+        h += '<div class="fu-h2">Explained · '
           + resolved.length + "</div>" + resolved.map(card).join("");
       }
       return h;
@@ -326,7 +330,7 @@ registerPage({
                      + (r["Job Customer"] || r["Job Request"] || "a job") : (STATUS_LABEL[st] || st))
         + (flags.length ? ' <span style="color:var(--warn)">· ' + flags.length + " to check</span>" : "")
         + "</div>"
-        + '<div class="fu-whysub">' + esc(r["Match Note"] || WHY[st] || "") + "</div></div>"
+        + '<span class="rs-why">' + esc(r["Match Note"] || WHY[st] || "") + "</span></div>"
         + '<div class="fu-amt"><b>' + money(r["Net Cost"]) + "</b>"
         + "<i>" + (r.Gallons ? fmt1(r.Gallons) + " gal · " : "")
         + esc(r["Fuel Kind"] || r.Product || "") + "</i></div></div>";
@@ -367,12 +371,12 @@ registerPage({
           + " <small>— " + esc(String(r["Resolved By"] || "").split("@")[0])
           + (r["Resolved At"] ? " · " + esc(String(r["Resolved At"]).slice(0, 10)) : "")
           + "</small></span>"
-          + '<button class="fu-undo" data-reopen="' + key + '">Put it back in the queue</button></div>';
+          + '<button class="rs-btn" data-reopen="' + key + '">Put it back in the queue</button></div>';
       } else {
         h += '<div class="fu-res">'
-          + '<input data-ex="' + key + '" placeholder="What actually happened? (required)" '
+          + '<input class="rs-inp" data-ex="' + key + '" placeholder="What actually happened? (required)" '
           + 'value="' + esc(S.draft[r["Line Key"]] || "") + '" maxlength="300">'
-          + '<button class="fu-go" data-resolve="' + key + '">Checked — nothing to worry about</button>'
+          + '<button class="rs-btn pri" data-resolve="' + key + '">Checked — nothing to worry about</button>'
           + (S.msgFor === r["Line Key"]
               ? '<span style="font-size:11.5px;color:var(--neg);font-weight:650">'
                 + esc(S.msg) + "</span>" : "")
@@ -402,10 +406,10 @@ registerPage({
       const mx = Math.max.apply(null, list.map(x => x.usd)) || 1;
       const tot = list.reduce((a, x) => ({ n: a.n + x.n, gal: a.gal + x.gal, usd: a.usd + x.usd,
                                            open: a.open + x.open }), { n: 0, gal: 0, usd: 0, open: 0 });
-      return '<div class="fu-wrap"><table class="fu-t"><thead><tr><th>Foreman</th><th>Swipes</th>'
+      return '<div class="rs-tablewrap"><table class="rs-table fu-t"><thead><tr><th>Foreman</th><th>Swipes</th>'
         + "<th>Gallons</th><th>Spend</th><th>$ / gal</th><th>Jobs fuelled</th><th>Trucks</th>"
         + "<th>To answer</th></tr></thead><tbody>"
-        + list.map(x => "<tr><td class='nm'>" + esc(x.f) + "</td><td>" + fmtN(x.n) + "</td><td>"
+        + list.map(x => '<tr><td class="strong">' + esc(x.f) + "</td><td>" + fmtN(x.n) + "</td><td>"
             + fmt1(x.gal) + '</td><td class="bar"><i style="width:'
             + (x.usd / mx * 100).toFixed(0) + '%"></i><span>' + money0(x.usd) + "</span></td><td>"
             + (x.gal ? "$" + (x.usd / x.gal).toFixed(2) : "—") + "</td><td>" + fmtN(x.jobs.size)
@@ -437,10 +441,10 @@ registerPage({
       });
       const list = Object.values(by).sort((a, b) => b.usd - a.usd);
       const mx = Math.max.apply(null, list.map(x => x.usd)) || 1;
-      return '<div class="fu-wrap"><table class="fu-t"><thead><tr><th>Truck</th><th>Swipes</th>'
+      return '<div class="rs-tablewrap"><table class="rs-table fu-t"><thead><tr><th>Truck</th><th>Swipes</th>'
         + "<th>Gallons</th><th>Spend</th><th>$ / gal</th><th>Products</th><th>Who fuelled it</th>"
         + "</tr></thead><tbody>"
-        + list.map(x => "<tr><td class='nm'>" + esc(x.t)
+        + list.map(x => '<tr><td class="strong">' + esc(x.t)
             + (x.known ? (x.fuel ? ' <span style="font-weight:500;color:var(--faint)">· '
                                    + esc(x.fuel) + "</span>" : "")
                        : ' <span class="fu-neg" style="font-size:10px">not in the register</span>')
@@ -463,10 +467,10 @@ registerPage({
       const list = rs.slice().sort((a, b) => String(b.Date || "").localeCompare(String(a.Date || ""))
         || String(b.Time || "").localeCompare(String(a.Time || "")));
       const cap = list.slice(0, 400);
-      return '<div class="fu-wrap"><table class="fu-t"><thead><tr><th>Date</th><th>Foreman</th>'
+      return '<div class="rs-tablewrap"><table class="rs-table fu-t"><thead><tr><th>Date</th><th>Foreman</th>'
         + "<th>Truck</th><th>Merchant</th><th>Product</th><th>Gallons</th><th>Net</th>"
         + "<th>Placed on</th></tr></thead><tbody>"
-        + cap.map(r => "<tr><td class='nm'>" + esc(String(r.Date || "").slice(0, 10))
+        + cap.map(r => '<tr><td class="strong">' + esc(String(r.Date || "").slice(0, 10))
             + (r.Time ? ' <span style="color:var(--faint);font-weight:500">'
                         + esc(String(r.Time).slice(0, 5)) + "</span>" : "")
             + "</td><td>" + esc(r.Foreman || r["Driver Raw"] || "—") + "</td><td>"
@@ -486,7 +490,7 @@ registerPage({
     }
 
     function wire() {
-      main.querySelectorAll(".fu-seg button").forEach(b => {
+      main.querySelectorAll(".rs-seg button").forEach(b => {
         b.onclick = () => { S.view = b.dataset.v; S.msg = ""; paint(); };
       });
       const m = main.querySelector("#fuMonth");

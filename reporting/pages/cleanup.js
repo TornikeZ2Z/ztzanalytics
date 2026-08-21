@@ -64,15 +64,21 @@ registerPage({
       baseF: null, coF: null, mapOn: false, openRun: null, shut: {} });
 
     host.innerHTML = '<style id="cuCss">'
+      /* THE SHARED KIT (assets/rs.css) carries this page's tiles, cards, control bars,
+         segments, buttons, pills and hints. The cu-kpis / cu-kpi / cu-card / cu-hd /
+         cu-pill / cu-btn / cu-nav / cu-fil / cu-chip copies that used to live here were
+         the same controls, drifted. What is left below is what the kit has no answer for:
+         the day horizon, the clock timeline, the chain ledger, the option ladder, the run
+         drawer and the map. */
       + ".cu-wrap{--t1:26px;--t2:15px;--t3:13.5px;--t4:12px;--t5:11px;--t6:9.5px;--r-card:14px;--r-ctl:10px;--r-bar:6px;--cu-lab:200px;max-width:none}"
-      + ".cu-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:16px}"
-      + ".cu-kpi{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:13px 16px}"
-      + ".cu-kpi b{font-variant-numeric:tabular-nums;display:block;font-size:26px;letter-spacing:-.5px;line-height:1.1}"
-      + ".cu-kpi span{display:block;font-size:10.5px;font-weight:800;letter-spacing:.06em;"
-      + "text-transform:uppercase;color:var(--faint);margin-top:4px}"
-      + ".cu-kpi small{display:block;font-size:11px;color:var(--faint);margin-top:2px}"
-      + ".cu-kpi.bad b{color:var(--neg)} .cu-kpi.warn b{color:var(--warn)}"
-      + ".cu-kpi.good b{color:var(--pos)}"
+      /* This board REWRITES ITS WHOLE BODY on every click -- a day, a run, a base filter.
+         The kit's entrance animation would replay each time, and the page reads as
+         flinching. Same reason rs.css gives .panel its own .rs-noanim escape. */
+      + ".cu-wrap .rs-kpis,.cu-wrap .panel{animation:none}"
+      /* on a KPI tile the kit paints .v in --ink at (0,3,0); the capacity tones have to
+         out-specify it or the tile carries no signal */
+      + ".rs-kpis .kpi .v.cu-bad{color:var(--neg)} .rs-kpis .kpi .v.cu-warn{color:var(--warn)}"
+      + ".rs-kpis .kpi .v.cu-good{color:var(--pos)}"
       /* the horizon: one tile per day, so a problem is found by scanning not reading */
       + ".cu-strip{display:flex;gap:8px;overflow-x:auto;padding:2px 2px 10px;margin-bottom:16px}"
       + ".cu-day{flex:0 0 auto;width:104px;background:var(--panel);border:1px solid var(--line);"
@@ -92,24 +98,13 @@ registerPage({
       + ".cu-day .fig b{color:var(--ink);font-weight:700}"
       + ".cu-day.today{background:linear-gradient(0deg,var(--panel-2),var(--panel))}"
       + ".cu-day.today .dow{color:var(--blue)}"
-      + ".cu-card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:16px 18px;margin-bottom:14px}"
-      + ".cu-hd{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:12px}"
-      + ".cu-hd b{font-size:16px;letter-spacing:-.25px}"
-      + ".cu-pill{font-size:10px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;"
-      + "padding:2px 8px;border-radius:999px;background:var(--panel-2);color:var(--faint)}"
-      + ".cu-pill.ok{background:var(--pos-bg);color:var(--pos)}"
-      + ".cu-pill.tight{background:var(--warn-bg);color:var(--warn)}"
-      + ".cu-pill.k-chain{background:var(--blue-bg);color:var(--blue)}"
-      + ".cu-pill.k-move{background:var(--warn-bg);color:var(--warn)}"
-      + ".cu-pill.k-free{background:var(--pos-bg);color:var(--pos)}"
-      + ".cu-pill.k-rec{background:var(--pos-bg);color:var(--pos)}"
-      + ".cu-otitle .cu-pill{margin-right:7px}"
-      + ".cu-pill.short{background:var(--neg-bg);color:var(--neg)}"
-      /* the sentence a dispatcher actually needs */
-      + ".cu-verdict{font-size:14px;line-height:1.6;color:var(--ink);margin-bottom:12px}"
-      + ".cu-verdict b{font-variant-numeric:tabular-nums}"
-      + ".cu-off{font-size:12.5px;color:var(--faint);margin-bottom:12px}"
-      + ".cu-note{font-size:12px;color:var(--faint);line-height:1.6;margin-top:10px}"
+      /* the sentence a dispatcher actually needs -- the kit's hint measure and margins,
+         but at reading weight: this is the answer the page exists to give */
+      + ".rs-hint.cu-verdict{font-size:14px;color:var(--ink);margin-bottom:12px}"
+      + ".rs-hint.cu-verdict b{font-variant-numeric:tabular-nums}"
+      + ".rs-hint.cu-off{margin-bottom:12px}"
+      /* a note that closes a block, so it takes its space above rather than below */
+      + ".rs-hint.cu-note{margin:10px 0 0}"
       + ".cu-empty{color:var(--faint);font-size:13.5px;padding:16px 0}"
       /* Full width is right for the timeline and the map -- they are diagrams, and width is
          what makes them readable. It is WRONG for prose and for a row whose action sits at
@@ -119,21 +114,25 @@ registerPage({
       + ".cu-opt{display:flex;gap:12px;align-items:flex-start;padding:11px 0;"
       + "border-top:1px solid var(--line-2);max-width:var(--rs-row-max)}"
       + ".cu-ghd,.cu-msg{max-width:var(--rs-row-max)}"
-      + ".cu-verdict,.cu-note,.cu-off,.cu-ledhd span,.cu-lwarn,.cu-lnote{max-width:104ch}"
+      /* the kit's .rs-hint already measures itself in characters (--rs-prose), so only the
+         ledger's own prose still needs saying here */
+      + ".cu-ledhd span,.cu-lwarn,.cu-lnote{max-width:104ch}"
       + ".cu-led{max-width:var(--rs-row-max)}"
       + ".cu-opt:first-child{border-top:0}"
       + ".cu-opt.done{opacity:.5}"
       + ".cu-obody{flex:1;min-width:0}"
       + ".cu-otitle{font-size:13.5px;font-weight:700;letter-spacing:-.1px}"
+      + ".cu-otitle .rs-pill{margin-right:7px}"
       + ".cu-owhy{font-size:12.5px;color:var(--faint);line-height:1.55;margin-top:2px}"
       + ".cu-oact{display:flex;gap:6px;flex:0 0 auto}"
-      + ".cu-btn{font:inherit;font-size:12px;font-weight:750;color:var(--ink);background:var(--panel-2);"
-      + "border:1px solid var(--line-2);border-radius:9px;padding:6px 12px;cursor:pointer;white-space:nowrap}"
-      + ".cu-btn:hover{border-color:var(--blue)} .cu-btn:disabled{opacity:.5;cursor:default}"
-      + ".cu-btn.pri{background:var(--brand);color:var(--brand-ink);border:1px solid transparent}"
-      /* a view toggle must not look like the button that records a permanent decision */
-      + ".cu-btn.sel{background:var(--blue-bg);border-color:var(--blue);color:var(--blue)}"
-      + ".cu-btn.danger:hover{border-color:var(--neg);color:var(--neg)}"
+      /* a view toggle must not look like the button that records a permanent decision, and
+         declining is the one button on this page that can never be taken back */
+      + ".rs-btn.cu-sel,.rs-btn.cu-sel:hover:not(:disabled)"
+      + "{background:var(--blue-bg);border-color:var(--blue);color:var(--blue)}"
+      + ".rs-btn.cu-danger:hover:not(:disabled){border-color:var(--neg);color:var(--neg)}"
+      /* the kit's toggle chip is written for a <div>; on the <button> this page uses (so it
+         stays keyboard-reachable) the UA font would win unless it is handed back */
+      + ".cu-wrap .rs-tog{font-family:inherit}"
       + ".cu-wrap :focus-visible{outline:2px solid var(--blue);outline-offset:2px}"
       + ".cu-msg{font-size:12.5px;font-weight:650;min-height:17px;margin-top:8px}"
       /* THE CHAINS ALREADY COUNTED -- history, not an offer, so it is quiet and green */
@@ -162,16 +161,7 @@ registerPage({
       + ".cu-ghd b{font-size:var(--t6);font-weight:800;letter-spacing:.07em;"
       + "text-transform:uppercase;color:var(--faint)}"
       + ".cu-ghd span{font-size:var(--t5);color:var(--faint)}"
-      /* DAY NAV */
-      + ".cu-nav{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:10px}"
-      + ".cu-nav .cu-btn{padding:5px 11px}"
-      /* FILTERS */
-      + ".cu-fil{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:12px}"
-      + ".cu-fil .lab{font-size:9.5px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;"
-      + "color:var(--faint);margin-right:2px}"
-      + ".cu-chip{font:inherit;font-size:11.5px;font-weight:700;padding:4px 10px;border-radius:999px;"
-      + "background:var(--panel-2);border:1px solid var(--line-2);color:var(--faint);cursor:pointer}"
-      + ".cu-chip.on{background:var(--ink);border-color:var(--ink);color:var(--panel)}"
+      /* DAY NAV and FILTERS are both .rs-bar now -- see assets/rs.css, THE COMPONENT KIT */
       /* THE DAY'S WORK: a route is one crew's row on a clock, grouped by its depot */
       + ".cu-split{display:flex;gap:16px;align-items:flex-start}"
       + ".cu-tlwrap{flex:1;min-width:0}"
@@ -296,6 +286,9 @@ registerPage({
     var gen = (window.__CUGEN = (window.__CUGEN || 0) + 1);
 
     function money(n) { return Number(n || 0).toLocaleString(); }
+    // the shared kit's pill tones (assets/rs.css: .rs-pill), keyed by the mart's own
+    // status word -- the word itself is still what the pill prints
+    var PILL = { ok: "ok", tight: "warn", short: "bad" };
     function fmtDay(iso) {
       var d = new Date(String(iso).slice(0, 10) + "T12:00");
       return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
@@ -320,17 +313,18 @@ registerPage({
       if (bases.length < 2 && cos.length < 2) return "";
       function chips(list, cur, attr) {
         return list.map(function (v) {
-          return "<button class='cu-chip" + (cur === v ? " on" : "") + "' " + attr + "='"
+          return "<button" + (cur === v ? " class='on'" : "") + " " + attr + "='"
             + esc(v) + "'>" + esc(v) + "</button>";
         }).join("");
       }
-      return "<div class='cu-fil'>"
-        + (bases.length > 1 ? "<span class='lab'>Base</span>"
-            + "<button class='cu-chip" + (S.baseF ? "" : " on") + "' data-base=''>All</button>"
-            + chips(bases, S.baseF, "data-base") : "")
-        + (cos.length > 1 ? "<span class='lab' style='margin-left:10px'>Company</span>"
-            + "<button class='cu-chip" + (S.coF ? "" : " on") + "' data-co=''>All</button>"
-            + chips(cos, S.coF, "data-co") : "")
+      function seg(label, cur, attr, list) {
+        return "<div class='rs-fld'><span>" + label + "</span><div class='rs-seg'>"
+          + "<button" + (cur ? "" : " class='on'") + " " + attr + "=''>All</button>"
+          + chips(list, cur, attr) + "</div></div>";
+      }
+      return "<div class='rs-bar'>"
+        + (bases.length > 1 ? seg("Base", S.baseF, "data-base", bases) : "")
+        + (cos.length > 1 ? seg("Company", S.coF, "data-co", cos) : "")
         + "</div>";
     }
 
@@ -634,7 +628,7 @@ registerPage({
         + "<span>" + esc(first.Base || "") + " base · " + legs.length + " job"
         + (legs.length === 1 ? "" : "s") + " · the whole run for this day</span></div>"
         + "<div class='cu-dhdbtn'>"
-        + "<button class='cu-btn" + (S.mapOn ? "" : " sel") + "' id='cuDrwMap'>"
+        + "<button class='rs-btn" + (S.mapOn ? "" : " cu-sel") + "' id='cuDrwMap'>"
         + (S.mapOn ? "Hide map" : "Analyze this run") + "</button>"
         + "<button class='cu-x' id='cuDrwX' title='Close' aria-label='Close run'>✕</button>"
         + "</div></div>"
@@ -960,19 +954,25 @@ registerPage({
       var totJobs = days.reduce(function (a, d) { return a + (+d.Jobs || 0); }, 0);
       var totChain = days.reduce(function (a, d) { return a + (+d["Chains Applied"] || 0); }, 0);
 
-      var kpis = "<div class='cu-kpis'>"
-        + "<div class='cu-kpi " + (nProb ? "bad" : "good") + "'><b>" + nProb + "</b>"
-        + "<span>Days short of crews</span><small>fewer crews than routes</small></div>"
-        + "<div class='cu-kpi " + (nNear ? "warn" : "") + "'><b>" + nNear + "</b>"
-        + "<span>Days with no buffer</span><small>staffed, but nothing spare</small></div>"
-        + "<div class='cu-kpi" + (tightest && +tightest.Spare < 0 ? " bad"
-            : (tightest && +tightest.Spare === 0 ? " warn" : "")) + "'><b>"
-        + (tightest ? ((+tightest.Spare > 0 ? "+" : "") + tightest.Spare) : "—") + "</b>"
-        + "<span>Tightest day</span><small>" + (tightest ? fmtDay(tightest.Day) : "") + " · spare crews</small></div>"
-        + "<div class='cu-kpi'><b>" + money(totJobs) + "</b>"
-        + "<span>Jobs in horizon</span><small>" + days.length + " days</small></div>"
-        + "<div class='cu-kpi'><b>" + totChain + "</b>"
-        + "<span>Chains already counted</span><small>jobs the board put on one crew</small></div>"
+      // five tiles, always five, so the kit's balanced-column variable is a constant here
+      var kpis = "<div class='rs-kpis' style='--kpi-cols:5'>"
+        + "<div class='kpi'><div class='l'>Days short of crews</div>"
+        + "<div class='v " + (nProb ? "cu-bad" : "cu-good") + "'>" + nProb + "</div>"
+        + "<div class='s'>fewer crews than routes</div></div>"
+        + "<div class='kpi'><div class='l'>Days with no buffer</div>"
+        + "<div class='v " + (nNear ? "cu-warn" : "") + "'>" + nNear + "</div>"
+        + "<div class='s'>staffed, but nothing spare</div></div>"
+        + "<div class='kpi'><div class='l'>Tightest day</div>"
+        + "<div class='v" + (tightest && +tightest.Spare < 0 ? " cu-bad"
+            : (tightest && +tightest.Spare === 0 ? " cu-warn" : "")) + "'>"
+        + (tightest ? ((+tightest.Spare > 0 ? "+" : "") + tightest.Spare) : "—") + "</div>"
+        + "<div class='s'>" + (tightest ? fmtDay(tightest.Day) : "") + " · spare crews</div></div>"
+        + "<div class='kpi'><div class='l'>Jobs in horizon</div>"
+        + "<div class='v'>" + money(totJobs) + "</div>"
+        + "<div class='s'>" + days.length + " days</div></div>"
+        + "<div class='kpi'><div class='l'>Chains already counted</div>"
+        + "<div class='v'>" + totChain + "</div>"
+        + "<div class='s'>jobs the board put on one crew</div></div>"
         + "</div>";
 
       // an empty filtered strip took the arrows with it and said nothing -- see below
@@ -1071,7 +1071,7 @@ registerPage({
             + freeCh.map(function (o) {
                 var ar = o.Arrive ? String(o.Arrive) : null;
                 return "<div class='cu-lrow" + (+o["Arrives Late"] ? " late" : "") + "'>"
-                  + "<span class='cu-pill k-free'>"
+                  + "<span class='rs-pill ok'>"
                   + (o.Purpose === "auto" ? "same route" : "afternoon") + "</span>"
                   + "<b>" + esc(o.Customer || o["Job Code"]) + "</b>"
                   + "<i>after " + esc(o["After Customer"] || o["After Code"] || "—") + "</i>"
@@ -1114,7 +1114,7 @@ registerPage({
                   + " there, so it costs no crew on the day it moves to."
                   : "It would need its own crew on that day."));
           var btn = function (act, label, cls) {
-            return "<button class='cu-btn" + (cls ? " " + cls : "") + "' data-dec='" + act
+            return "<button class='rs-btn" + (cls ? " " + cls : "") + "' data-dec='" + act
               + "' data-kind='" + esc(o.Kind) + "' data-code='" + esc(o["Job Code"])
               + "' data-cust='" + esc(o.Customer || "") + "' data-after='"
               + esc(o["After Code"] || "") + "' data-to='" + esc(o["Move To"] || "") + "'"
@@ -1122,15 +1122,15 @@ registerPage({
           };
           return "<div class='cu-opt" + (done ? " done" : "") + "'>"
             + "<div class='cu-obody'><div class='cu-otitle'>"
-            + "<span class='cu-pill " + (isCall ? "k-chain" : "k-move") + "'>"
+            + "<span class='rs-pill " + (isCall ? "info" : "warn") + "'>"
             + (isCall ? "call" : "move date") + "</span>" + title
-            + (+o.Recommended ? " <span class='cu-pill k-rec'>recommended</span>" : "")
+            + (+o.Recommended ? " <span class='rs-pill ok'>recommended</span>" : "")
             + "</div><div class='cu-owhy'>" + why + "</div></div>"
             + "<div class='cu-oact'>"
             + (done
-               ? "<span class='cu-pill " + (o.Status === "accepted" ? "ok" : "short") + "'>"
+               ? "<span class='rs-pill " + (o.Status === "accepted" ? "ok" : "bad") + "'>"
                  + esc(o.Status) + "</span>" + btn("reopened", "Reopen")
-               : btn("accepted", "Accept", "pri") + btn("declined", "Decline", "danger"))
+               : btn("accepted", "Accept", "pri") + btn("declined", "Decline", "cu-danger"))
             + "</div></div>";
         }
 
@@ -1141,18 +1141,18 @@ registerPage({
             return "<div class='cu-ghd'><b>" + head + "</b><span>" + sub + "</span></div>"
               + list.map(optRow).join("");
           };
-          optHtml = "<div class='cu-card'><div class='cu-hd'>"
-            + "<b>What would free another crew</b>"
-            + "<span class='cu-pill'>" + openOpts.length + " open</span>"
+          optHtml = "<div class='panel'><div class='panel-head'>"
+            + "<span class='panel-title'>What would free another crew</span>"
+            + "<span class='rs-pill mute'>" + openOpts.length + " open</span>"
             + (opts.length - openOpts.length
-                ? "<span class='cu-pill'>" + (opts.length - openOpts.length)
+                ? "<span class='rs-pill mute'>" + (opts.length - openOpts.length)
                   + " decided</span>" : "")
             + "</div>"
             // the ladder is an order, not a list: a call is cheaper than moving someone's date
             + group("call", "Calls", "a phone call and a $50 same-day discount")
             + group("move", "Date moves", "only when calls cannot clear the day")
             + "<div class='cu-msg'>" + esc(S.msg || "") + "</div>"
-            + "<div class='cu-note'>Declining is <b>permanent and per customer</b> — you only "
+            + "<div class='rs-hint cu-note'>Declining is <b>permanent and per customer</b> — you only "
             + "get to ask someone once, so a customer who says no is never suggested again, on "
             + "any day, until you reopen it. Decisions are recorded for everyone, not just this "
             + "browser. Accepting records the decision; the calendar is not changed yet.</div>"
@@ -1161,27 +1161,28 @@ registerPage({
 
         // ORDER: the verdict, then what to DO about it, then the day itself. The plan is the
         // reason a dispatcher opened this page; the routes are the evidence behind it.
-        detail = "<div class='cu-card'>"
-          + "<div class='cu-hd'><b>" + new Date(S.sel + "T12:00").toLocaleDateString("en-US",
-              { weekday: "long", month: "long", day: "numeric" }) + "</b>"
-          + "<span class='cu-pill " + esc(d.Status) + "'>" + esc(d.Status) + "</span>"
-          + "<span class='cu-pill'>" + d.Jobs + " jobs</span>"
-          + "<span class='cu-pill'>" + rt + " crews needed</span>"
-          + (+d.Skipped ? "<span class='cu-pill tight' title='" + esc(d["Skipped Why"] || "")
+        detail = "<div class='panel'>"
+          + "<div class='panel-head'><span class='panel-title'>"
+          + new Date(S.sel + "T12:00").toLocaleDateString("en-US",
+              { weekday: "long", month: "long", day: "numeric" }) + "</span>"
+          + "<span class='rs-pill " + (PILL[d.Status] || "mute") + "'>" + esc(d.Status) + "</span>"
+          + "<span class='rs-pill mute'>" + d.Jobs + " jobs</span>"
+          + "<span class='rs-pill mute'>" + rt + " crews needed</span>"
+          + (+d.Skipped ? "<span class='rs-pill warn' title='" + esc(d["Skipped Why"] || "")
               + "'>" + d.Skipped + " event" + (+d.Skipped === 1 ? "" : "s")
               + " skipped</span>" : "")
           + "</div>"
-          + "<div class='cu-verdict'>" + verdict + "</div>"
-          + (+d.Skipped ? "<div class='cu-off'><b>Not counted:</b> "
+          + "<div class='rs-hint cu-verdict'>" + verdict + "</div>"
+          + (+d.Skipped ? "<div class='rs-hint cu-off'><b>Not counted:</b> "
               + esc(d["Skipped Why"] || "") + "</div>" : "")
-          + (d["Crews Off"] ? "<div class='cu-off'><b>Off today:</b> " + esc(d["Crews Off"]) + "</div>" : "")
+          + (d["Crews Off"] ? "<div class='rs-hint cu-off'><b>Off today:</b> " + esc(d["Crews Off"]) + "</div>" : "")
           + ledger
           + "</div>"
           + optHtml
-          + "<div class='cu-card'>"
-          + "<div class='cu-hd'><b>The day itself</b>"
-          + "<span class='cu-pill'>" + rt + " crew" + (rt === 1 ? "" : "s") + "</span>"
-          + "<span class='cu-pill'>" + shown.length + " of " + jobs.length + " jobs</span></div>"
+          + "<div class='panel'>"
+          + "<div class='panel-head'><span class='panel-title'>The day itself</span>"
+          + "<span class='rs-pill mute'>" + rt + " crew" + (rt === 1 ? "" : "s") + "</span>"
+          + "<span class='rs-pill mute'>" + shown.length + " of " + jobs.length + " jobs</span></div>"
           + filters(jobs)
           + "<div class='cu-mleg' style='margin:0 0 6px'>"
           + "<span><i style='background:var(--job-local)'></i>local</span>"
@@ -1193,7 +1194,7 @@ registerPage({
           + "<div class='cu-tlwrap'>"
           + (shown.length ? timeline(shown)
             : "<div class='cu-empty'>No jobs match this filter.</div>")
-          + "<div class='cu-note'>Each row is <b>one crew's day</b>, grouped by the depot it "
+          + "<div class='rs-hint cu-note'>Each row is <b>one crew's day</b>, grouped by the depot it "
           + "leaves from and laid out on the clock. A row with two bars is a chain — one crew "
           + "running both jobs, and the hatched gap between them is the empty drive that costs. "
           + "Click a row to open the run.</div></div>"
@@ -1214,16 +1215,16 @@ registerPage({
       var has = function (iso) {
         return days.some(function (x) { return String(x.Day).slice(0, 10) === iso; }); };
 
-      var toggle = "<div class='cu-nav'>"
-        + "<button class='cu-btn' id='cuPrev'" + (at <= 0 ? " disabled" : "") + ">‹</button>"
-        + "<button class='cu-btn' id='cuNext'"
+      var toggle = "<div class='rs-bar'>"
+        + "<button class='rs-btn' id='cuPrev'" + (at <= 0 ? " disabled" : "") + ">‹</button>"
+        + "<button class='rs-btn' id='cuNext'"
         + (at < 0 || at >= order.length - 1 ? " disabled" : "") + ">›</button>"
-        + "<button class='cu-btn" + (S.sel === TODAY ? " sel" : "") + "' data-jump='" + TODAY + "'"
+        + "<button class='rs-btn" + (S.sel === TODAY ? " cu-sel" : "") + "' data-jump='" + TODAY + "'"
         + (has(TODAY) ? "" : " disabled") + ">Today</button>"
-        + "<button class='cu-btn" + (S.sel === TOM ? " sel" : "") + "' data-jump='" + TOM + "'"
+        + "<button class='rs-btn" + (S.sel === TOM ? " cu-sel" : "") + "' data-jump='" + TOM + "'"
         + (has(TOM) ? "" : " disabled") + ">Tomorrow</button>"
-        + "<button class='cu-pill" + (S.probOnly ? " tight" : "") + "' id='cuProb' "
-        + "style='cursor:pointer;border:0;font:inherit;font-size:10px;font-weight:800;margin-left:auto'>"
+        + "<div class='rs-spacer'></div>"
+        + "<button class='rs-tog" + (S.probOnly ? " on" : "") + "' id='cuProb'><i></i>"
         + (S.probOnly ? "Showing days that need attention" : "Show only days that need attention")
         + "</button></div>";
 

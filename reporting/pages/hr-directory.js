@@ -68,41 +68,42 @@
 
       if (!document.getElementById("hdCss")) {
         var st = document.createElement("style"); st.id = "hdCss";
+        // THE COMPONENT KIT (rs.css) now supplies the tile row, the tab bar, the control
+        // bar, the fields, the buttons, the tables and the pills. What is left below is
+        // what the kit has no word for — the avatar, the department band, the editor pane
+        // and the org chart — plus a handful of one-line adjustments TO kit components.
         st.textContent = [
           ".hd{font-variant-numeric:tabular-nums}",   // full width — a bigger screen means more room, not more margin
-          ".hd-kpis{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px}",
-          ".hd-kpi{flex:1 1 150px;background:var(--panel);border:1px solid var(--line);border-radius:13px;padding:12px 16px}",
-          ".hd-kpi b{display:block;font-size:20px;font-weight:800}",
-          ".hd-kpi span{font-size:11.5px;color:var(--faint);text-transform:uppercase;letter-spacing:.04em;font-weight:700}",
-          ".hd-kpi.warn b{color:var(--warn)}",
-          ".hd-tabs{display:flex;gap:4px;margin:2px 0 16px}",
-          ".hd-tabs button{font:inherit;font-size:14.5px;font-weight:750;color:var(--muted);background:transparent;border:0;border-radius:10px;padding:9px 16px;cursor:pointer}",
-          ".hd-tabs button:hover{background:var(--panel-2);color:var(--ink)}",
-          ".hd-tabs button.on{background:var(--brand);color:var(--brand-ink)}",
-          ".hd-row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}",
-          ".hd-in{font:inherit;font-size:13.5px;color:var(--ink);background:var(--panel);border:1px solid var(--line-2);border-radius:8px;padding:7px 10px}",
-          ".hd-in:focus{outline:none;border-color:var(--brand)}",
-          ".hd-btn{font:inherit;font-size:13.5px;font-weight:700;color:var(--ink);background:var(--panel);border:1px solid var(--line-2);border-radius:9px;padding:7px 13px;cursor:pointer}",
-          ".hd-btn:hover{border-color:var(--brand);color:var(--brand)}",
-          ".hd-btn.go{background:var(--brand);border-color:var(--brand);color:var(--brand-ink)}",
-          ".hd-btn.warn:hover{border-color:var(--neg);color:var(--neg)}",
+          // the tile count is DATA-dependent: three fixed tiles plus one per published
+          // questionnaire, so no fixed column count can be right. Wrap the way the kit
+          // itself does below 1400px — which is exactly what this row has always done.
+          ".hd .rs-kpis{grid-template-columns:repeat(auto-fit,minmax(170px,1fr))}",
+          // the kit paints every tile value in --ink; "without an email yet" is a warning
+          ".hd .rs-kpis .kpi.warn .v{color:var(--warn)}",
+          // this bar carries no field labels — a button, a find box and a sentence — so it
+          // centres instead of sitting on the kit's label-aligned baseline
+          ".hd .rs-bar{align-items:center}",
+          // a department table is its own little card; there is no .panel around it
+          ".hd .rs-tablewrap{background:var(--panel)}",
           ".hd-av{display:inline-flex;align-items:center;justify-content:center;border-radius:50%;color:#fff;font-weight:800;flex:0 0 auto;letter-spacing:.02em}",
           // -------- people view: department cards of two-line rows --------
           ".hd-dept{margin:20px 0 8px;display:flex;align-items:center;gap:8px}",
           ".hd-dept i{font-style:normal;font-size:12px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}",
           ".hd-dept em{font-style:normal;font-size:11px;color:var(--faint);font-weight:700}",
           ".hd-dept .dot{width:9px;height:9px;border-radius:50%}",
-          ".hd-card{background:var(--panel);border:1px solid var(--line);border-radius:14px;overflow:hidden}",
-          ".hd-p{cursor:pointer}",
-          ".hd-p:hover td{background:var(--panel-2)}",
           ".hd-p.off{opacity:.55}",
           ".hd-p .pcell{display:flex;align-items:center;gap:10px}",
           ".hd-p .pcell .hd-av{font-size:12px}",
           ".hd-p .pcell b{font-size:14px;white-space:nowrap}",
-          ".hd-tbl td.r{text-align:right;white-space:nowrap}",
-          ".hd-tbl.fixed{table-layout:fixed;min-width:860px}",
-          ".hd-tbl.fixed td{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}",
-          ".hd-noem{display:inline-block;font-size:10px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;border:1px dashed var(--warn);color:var(--warn);border-radius:999px;padding:2px 9px}",
+          // ONE fixed layout for every table on the page, so Title, Reports to and Email
+          // sit at identical x positions all the way down (the colgroups do the rest)
+          ".hd .rs-table.hd-fixed{table-layout:fixed;min-width:860px}",
+          ".hd .rs-table.hd-fixed td{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}",
+          // the edit affordance hugs the right edge — a hint, not a quantity, so not .num
+          ".hd .rs-table td.hd-act{text-align:right;white-space:nowrap}",
+          // an ABSENT email is drawn as an outline, not a filled pill: the dashed edge is
+          // how this page has always said "nothing here yet"
+          ".rs-pill.warn.hd-noem{background:transparent;border-style:dashed;border-color:var(--warn)}",
           // -------- editor popup --------
           ".hd-ovl{position:fixed;inset:0;background:rgba(10,14,20,.55);z-index:130;display:flex;align-items:flex-start;justify-content:center;padding:60px 16px;overflow:auto}",
           ".hd-pane{background:var(--panel);border:1px solid var(--line);border-radius:16px;max-width:560px;width:100%;box-shadow:0 18px 60px rgba(0,0,0,.35);overflow:hidden}",
@@ -112,9 +113,13 @@
           ".hd-pane .head span{font-size:12px;color:var(--faint)}",
           ".hd-pane .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:16px 18px}",
           ".hd-pane .grid .wide{grid-column:1 / -1}",
-          ".hd-pane label{display:block;font-size:11px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--faint);margin-bottom:5px}",
-          ".hd-pane .hd-in{width:100%;box-sizing:border-box}",
+          // a 560px pane two columns deep: its fields fill their cell rather than keeping
+          // the kit's standalone min/max width, and the long email label is free to wrap
+          ".hd-pane .rs-inp,.hd-pane .rs-sel{width:100%;min-width:0;max-width:none}",
+          ".hd-pane .rs-fld>span{line-height:1.35}",
           ".hd-pane .foot{display:flex;gap:8px;align-items:center;padding:14px 18px;border-top:1px solid var(--line);background:var(--panel-2)}",
+          // Deactivate is destructive, and the kit's button hover is brand-coloured
+          ".hd-pane .rs-btn.hd-danger:hover{border-color:var(--neg);color:var(--neg)}",
           "@media(max-width:560px){.hd-pane .grid{grid-template-columns:1fr}}",
           ".hd-msg{font-size:12px;font-weight:700;min-height:16px}",
           ".hd-msg.ok{color:var(--pos)}.hd-msg.err{color:var(--neg)}",
@@ -143,15 +148,8 @@
           ".hd-sub{margin-left:26px;display:flex;flex-direction:column;align-items:flex-start;position:relative}",
           ".hd-sub .hd-tc{width:186px}",
           ".hd-sub::before{content:'';position:absolute;left:-13px;top:-4px;bottom:24px;border-left:2px dashed var(--line-2)}",
-          // -------- crew --------
-          ".hd-note{background:var(--panel-2);border:1px solid var(--line);border-left:3px solid var(--brand);border-radius:10px;padding:10px 14px;font-size:12.5px;color:var(--muted);margin-bottom:12px;line-height:1.5}",
-          ".hd-wrap{overflow-x:auto}",
-          ".hd-tbl{width:100%;border-collapse:collapse;font-size:13.5px}",
-          ".hd-tbl th{text-align:left;font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:var(--faint);font-weight:800;padding:9px 12px;border-bottom:1px solid var(--line)}",
-          ".hd-tbl td{padding:8px 12px;border-bottom:1px solid var(--line);vertical-align:middle}",
-          ".hd-tbl tr:last-child td{border-bottom:0}",
-          ".hd-pill{display:inline-block;font-size:10px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;border-radius:999px;padding:2px 9px;background:var(--panel-2);color:var(--muted)}",
-          ".hd-pill.on{background:var(--brand);color:var(--brand-ink)}",
+          // an inline aside the kit has no word for: quieter than .rs-hint and it sits
+          // NEXT TO a control rather than under the bar
           ".hd-dim{font-size:12.5px;color:var(--faint)}",
         ].join("\n");
         document.head.appendChild(st);
@@ -161,8 +159,8 @@
         + '<div class="rs-page-head"><h1>Team Directory</h1>'
         + "<p>Everyone at Zip to Zip. The office side is edited here and receives the "
         + "questionnaires; crew follows the crew Google Sheet.</p></div>"
-        + '<div class="hd-kpis" id="hdKpis"></div>'
-        + '<div class="hd-tabs" id="hdTabs"></div>'
+        + '<div class="rs-kpis" id="hdKpis"></div>'
+        + '<div class="rs-tabs" id="hdTabs"></div>'
         + '<div id="hdMain"></div><div class="hd-msg" id="hdMsg" style="margin-top:8px"></div></div>';
       var main = host.querySelector("#hdMain");
       var kpis = host.querySelector("#hdKpis");
@@ -194,21 +192,21 @@
         var crewAct = S.crew.filter(function (c) { return String(c.status).toLowerCase() === "active"; });
         var pub = (S.home.questionnaires || []).filter(function (q) { return q.status === "published"; });
         kpis.innerHTML =
-          '<div class="hd-kpi"><b>' + office.length + "</b><span>office people</span></div>"
-          + '<div class="hd-kpi' + (noEmail.length ? " warn" : "") + '"><b>' + noEmail.length
-          + "</b><span>without an email yet</span></div>"
-          + '<div class="hd-kpi"><b>' + crewAct.length + "</b><span>active crew (sheet)</span></div>"
+          '<div class="kpi"><div class="l">office people</div><div class="v">' + office.length + "</div></div>"
+          + '<div class="kpi' + (noEmail.length ? " warn" : "") + '"><div class="l">without an email yet</div>'
+          + '<div class="v">' + noEmail.length + "</div></div>"
+          + '<div class="kpi"><div class="l">active crew (sheet)</div><div class="v">' + crewAct.length + "</div></div>"
           + pub.map(function (q) {
               var done = (q.responses.submitted || 0) + (q.responses.resubmitted || 0);
               var pct = q.audience_size ? Math.round(done / q.audience_size * 100) : 0;
-              return '<div class="hd-kpi"><b>' + done + " / " + q.audience_size + " · " + pct + "%</b>"
-                + "<span>" + esc(q.title.slice(0, 26)) + " filled</span></div>";
+              return '<div class="kpi"><div class="l">' + esc(q.title.slice(0, 26)) + " filled</div>"
+                + '<div class="v">' + done + " / " + q.audience_size + " · " + pct + "%</div></div>";
             }).join("");
       }
 
       function paintTabs() {
         tabsEl.innerHTML = [["people", "People"], ["org", "Organization"], ["crew", "Crew"]].map(function (t) {
-          return '<button data-t="' + t[0] + '" class="' + (S.tab === t[0] ? "on" : "") + '">' + t[1] + "</button>";
+          return '<button data-t="' + t[0] + '" class="rs-tab' + (S.tab === t[0] ? " on" : "") + '">' + t[1] + "</button>";
         }).join("");
         tabsEl.querySelectorAll("button").forEach(function (b) {
           b.onclick = function () { S.tab = b.dataset.t; S.editing = null; S.adding = false; S.q = ""; paint(); };
@@ -226,9 +224,9 @@
         closeModal();
         S.editing = p.id || null; S.adding = !p.id;
         var f = function (k, lab, v, wide) {
-          return '<div class="' + (wide ? "wide" : "") + '"><label>' + lab
-            + '</label><input class="hd-in" data-f="' + k + '" value="'
-            + esc(v == null ? "" : v) + '"></div>';
+          return '<label class="rs-fld' + (wide ? " wide" : "") + '"><span>' + lab
+            + '</span><input class="rs-inp" data-f="' + k + '" value="'
+            + esc(v == null ? "" : v) + '"></label>';
         };
         // reports-to picks from the active people — a typed name with a typo silently
         // drops someone off the Organization chart, a dropdown cannot miss
@@ -237,7 +235,7 @@
           .map(function (x) { return x.name; })
           .sort(function (a, b) { return a.localeCompare(b); });
         var sel = function (k, lab, v) {
-          return "<div><label>" + lab + '</label><select class="hd-in" data-f="' + k + '">'
+          return '<label class="rs-fld"><span>' + lab + '</span><select class="rs-sel" data-f="' + k + '">'
             + '<option value="">— nobody —</option>'
             + bosses.map(function (n) {
                 return '<option value="' + esc(n) + '"' + (n === (v || "") ? " selected" : "") + ">"
@@ -246,7 +244,7 @@
             // a stored name that no longer matches anyone stays selectable, visibly broken
             + (v && bosses.indexOf(v) < 0
                 ? '<option value="' + esc(v) + '" selected>' + esc(v) + " (not on the list)</option>" : "")
-            + "</select></div>";
+            + "</select></label>";
         };
         var ovl = document.createElement("div");
         ovl.id = "hdOvl"; ovl.className = "hd-ovl";
@@ -254,7 +252,7 @@
           + '<div class="head">' + avatar(p.name ? p : { name: "+", department: p.department }, 40)
           + "<span style=\"flex:1\"><b>" + (p.id ? esc(p.name || "—") : "New person") + "</b>"
           + "<span>" + (p.id ? esc(p.title || p.department || "") : "joins the office list and every questionnaire audience") + "</span></span>"
-          + '<button class="hd-btn" data-cx>✕</button></div>'
+          + '<button class="rs-btn" data-cx>✕</button></div>'
           + '<div class="grid">'
           + f("name", "Name", p.name)
           + f("alias", "Alias (sales name)", p.alias)
@@ -265,10 +263,10 @@
           + f("email", "Sign-in email (Google) — lets them receive and answer questionnaires", p.email, true)
           + "</div>"
           + '<div class="foot">'
-          + '<button class="hd-btn go" data-sv>Save</button>'
-          + '<button class="hd-btn" data-cx2>Cancel</button>'
+          + '<button class="rs-btn pri" data-sv>Save</button>'
+          + '<button class="rs-btn" data-cx2>Cancel</button>'
           + '<span style="flex:1"></span>'
-          + (p.id ? '<button class="hd-btn warn" data-tg>'
+          + (p.id ? '<button class="rs-btn hd-danger" data-tg>'
               + (p.status === "active" ? "Deactivate" : "Reactivate") + "</button>" : "")
           + "</div></div>";
         document.body.appendChild(ovl);
@@ -308,17 +306,17 @@
 
       /* ---------------- People ---------------- */
       function personRow(p) {
-        return '<tr class="hd-p' + (p.status === "active" ? "" : " off") + '" data-id="' + p.id + '">'
+        return '<tr class="hd-p click' + (p.status === "active" ? "" : " off") + '" data-id="' + p.id + '">'
           + '<td class="pcell">' + avatar(p, 32)
           + "<span><b>" + esc(p.name || "—")
           + (p.alias ? '<small class="hd-dim"> · ' + esc(p.alias) + "</small>" : "") + "</b></span></td>"
           + "<td>" + esc(p.title || "—") + "</td>"
-          + '<td class="hd-dim">' + esc(p.reports_to || "—")
+          + '<td class="muted">' + esc(p.reports_to || "—")
           + (p.also_reports_to ? ' <span title="dotted line">+ ' + esc(p.also_reports_to) + "</span>" : "")
           + "</td>"
-          + "<td>" + (p.email ? '<span class="hd-dim">' + esc(p.email) + "</span>"
-                              : '<span class="hd-noem">no email yet</span>') + "</td>"
-          + '<td class="r hd-dim">' + (p.status === "active" ? "edit ›" : "inactive · edit ›") + "</td></tr>";
+          + '<td class="muted">' + (p.email ? esc(p.email)
+                              : '<span class="rs-pill warn hd-noem">no email yet</span>') + "</td>"
+          + '<td class="hd-act dim">' + (p.status === "active" ? "edit ›" : "inactive · edit ›") + "</td></tr>";
       }
 
       // ONE colgroup for every department table (fixed layout) — so Title, Reports to and
@@ -326,7 +324,7 @@
       var PEOPLE_COLS = '<colgroup><col style="width:28%"><col style="width:22%">'
         + '<col style="width:20%"><col style="width:24%"><col style="width:6%"></colgroup>';
       function deptTable(rowsHtml) {
-        return '<div class="hd-card hd-wrap"><table class="hd-tbl fixed">' + PEOPLE_COLS
+        return '<div class="rs-tablewrap"><table class="rs-table hd-fixed">' + PEOPLE_COLS
           + "<thead><tr><th>Person</th><th>Title</th><th>Reports to</th><th>Email</th><th></th>"
           + "</tr></thead><tbody>" + rowsHtml + "</tbody></table></div>";
       }
@@ -345,9 +343,9 @@
           return deptRank(a.department) - deptRank(b.department)
             || String(a.name || "").localeCompare(String(b.name || ""));
         });
-        var html = '<div class="hd-row" style="margin-bottom:4px">'
-          + '<button class="hd-btn go" id="hdAdd">+ Add a person</button>'
-          + '<input class="hd-in" id="hdQ" placeholder="Find a person…" value="' + esc(S.q) + '" style="min-width:220px">'
+        var html = '<div class="rs-bar" style="margin-bottom:4px">'
+          + '<button class="rs-btn pri" id="hdAdd">+ Add a person</button>'
+          + '<input class="rs-inp" id="hdQ" placeholder="Find a person…" value="' + esc(S.q) + '" style="min-width:220px">'
           + '<span class="hd-dim">Click a person to edit — the email is what lets them sign in and answer questionnaires.</span></div>';
         var dept = null, buf = "";
         act.forEach(function (p) {
@@ -476,15 +474,15 @@
             return String(v || "").toLowerCase().indexOf(q2) >= 0;
           });
         });
-        main.innerHTML = '<div class="hd-note"><b>Crew is edited in the crew Google Sheet, not here.</b> '
+        main.innerHTML = '<p class="rs-hint"><b>Crew is edited in the crew Google Sheet, not here.</b> '
           + "This list follows the sheet through the nightly pipeline — change someone there and "
-          + "this page catches up on the next refresh.</div>"
-          + '<div class="hd-row" style="margin-bottom:12px">'
-          + (S.crewSheet ? '<a class="hd-btn go" href="' + esc(S.crewSheet)
+          + "this page catches up on the next refresh.</p>"
+          + '<div class="rs-bar" style="margin-bottom:12px">'
+          + (S.crewSheet ? '<a class="rs-btn pri" href="' + esc(S.crewSheet)
               + '" target="_blank" rel="noopener" style="text-decoration:none">Open the Google Sheet ↗</a>' : "")
-          + '<input class="hd-in" id="hdQ" placeholder="Find a crew member…" value="' + esc(S.q) + '" style="min-width:220px">'
+          + '<input class="rs-inp" id="hdQ" placeholder="Find a crew member…" value="' + esc(S.q) + '" style="min-width:220px">'
           + '<span class="hd-dim">' + rows.length + " people shown</span></div>"
-          + '<div class="hd-card hd-wrap"><table class="hd-tbl fixed">'
+          + '<div class="rs-tablewrap"><table class="rs-table hd-fixed">'
           + '<colgroup><col style="width:19%"><col style="width:12%"><col style="width:15%">'
           + '<col style="width:10%"><col style="width:8%"><col style="width:22%"><col style="width:14%"></colgroup>'
           + "<thead><tr><th>Name</th><th>Nickname</th><th>Role</th><th>Status</th>"
@@ -494,11 +492,11 @@
               return "<tr" + (on ? "" : ' style="opacity:.55"') + "><td><b>" + esc(c.name || "—") + "</b></td>"
                 + "<td>" + esc(c.nickname || "—") + "</td>"
                 + "<td>" + esc(c.role || "—") + "</td>"
-                + '<td><span class="hd-pill' + (on ? " on" : "") + '">' + esc(c.status || "—") + "</span></td>"
+                + '<td><span class="rs-pill ' + (on ? "ok" : "mute") + '">' + esc(c.status || "—") + "</span></td>"
                 + "<td>" + esc(c.base || "—") + "</td>"
-                + '<td class="hd-dim">' + esc(c.email || "—") + "</td>"
-                + '<td class="hd-dim">' + esc(c.phone || "—") + "</td></tr>";
-            }).join("") || '<tr><td colspan="7" class="hd-dim" style="padding:14px">Nobody matches.</td></tr>')
+                + '<td class="muted">' + esc(c.email || "—") + "</td>"
+                + '<td class="muted">' + esc(c.phone || "—") + "</td></tr>";
+            }).join("") || '<tr><td colspan="7" class="dim" style="padding:14px">Nobody matches.</td></tr>')
           + "</tbody></table></div>";
         var qi = main.querySelector("#hdQ");
         qi.oninput = function () {

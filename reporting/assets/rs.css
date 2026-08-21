@@ -8,6 +8,9 @@ body.rs-app{
   /* SEMANTIC tier. Pages were reaching for var(--pos,#1c7a4a) and always getting the
      fallback, which is a light-theme green sitting at 1.8:1 on this panel. Capacity colour
      and category colour are deliberately separate: green only ever means "we have room". */
+  /* a modal scrim must DIM, so it is a constant, not a tint of --bg: derive it from the
+     background and the light theme gets a white veil that dims nothing (2026-08-20) */
+  --scrim:rgba(10,14,20,.5);
   --pos:var(--brand); --pos-bg:rgba(183,226,59,.14);
   --warn:var(--amber); --warn-bg:rgba(251,191,36,.14);
   --neg:var(--red); --neg-bg:rgba(248,113,113,.14);
@@ -145,7 +148,7 @@ body.rs-app .gate p{color:var(--muted)}
 
 /* ---------- merged-page tab bar ---------- */
 .rs-tabs{display:flex;gap:6px;margin:0 0 14px;flex-wrap:wrap}
-.rs-tab{border:1px solid var(--line);background:#0e1522;color:var(--muted);border-radius:10px;height:32px;padding:0 15px;font-size:12.5px;font-weight:700;cursor:pointer;transition:color .12s,border-color .12s}
+.rs-tab{border:1px solid var(--line);background:#0e1522;color:var(--muted);border-radius:10px;height:32px;padding:0 15px;font-family:inherit;font-size:12.5px;font-weight:700;cursor:pointer;transition:color .12s,border-color .12s}
 .rs-tab:hover{color:var(--ink);border-color:var(--line-2)}
 .rs-tab.on{background:var(--brand-glow);border-color:var(--brand);color:var(--brand)}
 
