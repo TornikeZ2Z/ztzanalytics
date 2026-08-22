@@ -71,7 +71,8 @@ registerPage({
       });
     };
     var S = window.__RF || (window.__RF = { q: "", co: "", plat: "", contact: false,
-                                            src: "", mt: "", size: "", sp: "", unrated: false });
+                                            src: "", mt: "", size: "", sp: "", unrated: false,
+                                            from: null, to: null });
     /* THE GATES (Tornike 2026-08-19, confirmed 2026-08-20): a five-star review alone is not
      * enough to ask for a referral. GOOD TO ASK = the customer rated the move 10/10 on the
      * closing AND the bill stayed within 25% (and $300) of the quote's top end.
@@ -161,6 +162,12 @@ registerPage({
         if (S.mt && r["Move Type"] !== S.mt) return false;
         if (S.size && r["Size of Move"] !== S.size) return false;
         if (S.sp && r["Sales Person"] !== S.sp) return false;
+        // WHEN THE REVIEW WAS WRITTEN, not when the move happened. A referral ask rides on
+        // how recent the good feeling is, and the review date is the moment we can prove
+        // they felt it. Both bounds are inclusive; r.Day is already 'YYYY-MM-DD', so a
+        // string compare IS a date compare and no parsing (or timezone) enters into it.
+        if (S.from && (!r.Day || r.Day < S.from)) return false;
+        if (S.to && (!r.Day || r.Day > S.to)) return false;
         if (S.contact && !r.Email && !r.Phone) return false;
         if (S.q) {
           var q = S.q.toLowerCase();
@@ -199,8 +206,8 @@ registerPage({
           + '<div class="rs-page-head"><h1>List of Possible Referrals</h1>'
           + "<p>Customers who left a <b>five-star review</b> — with the email and phone "
           + "their lead carried. Newest review first."
-          + '<span class="freshness"> · reviews since 2025 · contact details come from the '
-          + "lead the move was booked on</span></p></div>"
+          + '<span class="freshness"> · reviews since 2025 · the date filter reads the '
+          + "REVIEW date · contact details come from the lead the move was booked on</span></p></div>"
           + '<div class="rs-kpis">'
           + kpi(v.length.toLocaleString(), "People to ask",
                 "five-star reviewers whose move went right", "pos")
@@ -210,6 +217,11 @@ registerPage({
           + kpi(withPhone.toLocaleString(), "With a phone", pctOf(withPhone) + " of the list", "pos")
           + "</div>"
           + '<div class="rs-bar">'
+          // the kit's date picker (RSC.dateRange), mounted in wire(). It keeps ITS RANGE
+          // HERE, in this page's own state -- the global slicer's dateBar would write into
+          // RS.state instead, and picking "This year" on a call sheet would then quietly
+          // narrow the Monthly Report the next time it was opened.
+          + '<div class="rs-fld"><span>Review date</span><div id="rfDateHost"></div></div>'
           + sel("rfCo", "Company", S.co, allCos)
           + sel("rfPlat", "Platform", S.plat, allPlats)
           + sel("rfSrc", "Source", S.src, allSrc)
@@ -310,6 +322,14 @@ registerPage({
           var el = host.querySelector("#" + pair[0]);
           if (el) el.onchange = function () { S[pair[1]] = this.value; paint(); };
         });
+        var dh = host.querySelector("#rfDateHost");
+        if (dh && window.RSC && RSC.dateRange) {
+          RSC.dateRange(dh, {
+            get: function () { return { from: S.from, to: S.to }; },
+            set: function (f, t) { S.from = f; S.to = t; },
+            onChange: paint,
+          });
+        }
         var tg = host.querySelector("#rfContact");
         if (tg) tg.onclick = function () { S.contact = !S.contact; paint(); };
         var tu = host.querySelector("#rfUnrated");
@@ -343,7 +363,8 @@ registerPage({
                       "Five Star Reviews", "Counted", "Company", "Request No",
                       "Move Type", "Size of Move", "Lead Source",
                       "Pickup State", "Delivery State", "Sales Person",
-                      "Satisfaction Score", "Bill Total", "Quote High"];
+                      "Satisfaction Score", "Bill Total", "Quote High",
+                      "Later Jobs"];
           var cell = function (x) {
             var s = String(x == null ? "" : x);
             // customer-typed values opening as live Excel formulas is a real attack
@@ -358,7 +379,11 @@ registerPage({
                     r["Lead Source"], r["Pickup State"],
                     r["Delivery State"], r["Sales Person"],
                     r["Satisfaction Score"], r["Bill Total"],
-                    r["Quote High"]].map(cell).join(",");
+                    r["Quote High"],
+                    // jobs this customer had MORE than 60 days after the first, which the
+                    // bill-vs-quote test leaves out -- a repeat customer, and a strong
+                    // referral signal in its own right
+                    r["Later Jobs"]].map(cell).join(",");
           }));
           // the BOM is for Excel: without it a Georgian or accented name opens as mojibake
           var blob = new Blob(["﻿" + lines.join("\r\n")], { type: "text/csv;charset=utf-8" });

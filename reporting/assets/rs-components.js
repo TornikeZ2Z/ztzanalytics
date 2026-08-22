@@ -145,6 +145,93 @@ window.RSC = (function () {
      one compact button showing the active period; the popover holds one-click presets,
      a custom from→to with Apply, and the day-of-month pacing inputs. Same visual pattern
      as money-flow.js's mfDtBtn/mf-dtpop (rs-datebtn/rs-datepop in rs.css). */
+  /* THE PRESET LADDER, in one place. Both date controls read it: the global slicer bar and
+     the page-owned range picker below. Money Flow hand-rolls the same six ranges with the
+     same wording, and that is the drift this exists to stop -- one page saying "Last 3
+     months" while another says "Past 90 days" is the kind of difference nobody decides on
+     purpose. Dates are computed at CALL time, never cached: a tab left open past midnight
+     would otherwise offer "This month" ending yesterday. */
+  function datePresets() {
+    const iso = d => d.toLocaleDateString("en-CA");
+    const now = new Date();
+    const today = iso(now);
+    const b3 = new Date(now); b3.setMonth(b3.getMonth() - 3);
+    return [
+      ["All time", "", ""],
+      ["This month", iso(new Date(now.getFullYear(), now.getMonth(), 1)), today],
+      ["Past month", iso(new Date(now.getFullYear(), now.getMonth() - 1, 1)),
+       iso(new Date(now.getFullYear(), now.getMonth(), 0))],
+      ["Last 3 months", iso(b3), today],
+      ["This year", now.getFullYear() + "-01-01", today],
+      ["Last year", (now.getFullYear() - 1) + "-01-01", (now.getFullYear() - 1) + "-12-31"],
+    ];
+  }
+
+  /* ---------------- page-owned date range ----------------
+     The same button-and-popover the global slicer bar uses, but the range belongs to the
+     CALLER, not to RS.state. That distinction is the whole reason this exists: a page with
+     its own filters (Referrals, and Money Flow when it joins the kit) must be able to offer
+     a date range without writing into the global filter -- otherwise picking "This month"
+     on one page silently narrows the Monthly Report the next time it is opened.
+
+     opts: { get() -> {from, to}, set(from, to), onChange(), presets?, icon? }
+     Returns { repaint }. Safe to mount again after a full innerHTML repaint -- pages that
+     rebuild their bar every paint simply call it again on the fresh host. */
+  function dateRange(host, opts) {
+    const PRESETS = opts.presets || datePresets();
+    const wrap = el("div", "rs-dtwrap");
+    const cur = () => opts.get() || {};
+    const label = () => {
+      const f = cur().from || "", t = cur().to || "";
+      if (!f && !t) return "All time";
+      const hit = PRESETS.find(p => p[1] === f && p[2] === t);
+      return hit ? hit[0] : (f || "…") + " → " + (t || "…");
+    };
+    wrap.innerHTML = `
+      <button class="rs-datebtn" type="button"></button>
+      <div class="rs-datepop hidden">
+        <div class="pre">${PRESETS.map((p, i) =>
+          `<button type="button" data-p="${i}">${esc(p[0])}</button>`).join("")}</div>
+        <div class="rng"><input type="date" class="from"><span>→</span><input type="date" class="to"></div>
+        <button class="apply" type="button">Apply this range</button>
+      </div>`;
+    const btn = wrap.querySelector(".rs-datebtn"), pop = wrap.querySelector(".rs-datepop");
+    const from = wrap.querySelector(".from"), to = wrap.querySelector(".to");
+    const paint = () => {
+      const c = cur();
+      from.value = c.from || ""; to.value = c.to || "";
+      btn.innerHTML = (opts.icon === false ? "" : "📅 ") + esc(label()) + " ▾";
+      btn.classList.toggle("on", !!(c.from || c.to));
+      pop.querySelectorAll(".pre button").forEach(b => {
+        const p = PRESETS[+b.dataset.p];
+        b.classList.toggle("on", p[1] === (c.from || "") && p[2] === (c.to || ""));
+      });
+    };
+    const commit = (f, t) => {
+      pop.classList.add("hidden");
+      opts.set(f || null, t || null);
+      paint();
+      opts.onChange();
+    };
+    pop.querySelectorAll(".pre button").forEach(b => b.onclick = () => {
+      const p = PRESETS[+b.dataset.p];
+      commit(p[1], p[2]);
+    });
+    wrap.querySelector(".apply").onclick = () => commit(from.value, to.value);
+    btn.onclick = e => {
+      e.stopPropagation();
+      document.querySelectorAll(".rs-slicer-pop, .rs-datepop").forEach(x => {
+        if (x !== pop) x.classList.add("hidden");
+      });
+      pop.classList.toggle("hidden");
+    };
+    pop.addEventListener("click", e => e.stopPropagation());
+    document.addEventListener("click", () => pop.classList.add("hidden"));
+    host.appendChild(wrap);
+    paint();
+    return { repaint: paint };
+  }
+
   function dateBar(host, onChange) {
     // rs-dtwrap ONLY. This wrapper used to carry both classes: .rs-daterange styles the old
     // inline from/to field (border, background, 34px height, display:inline-flex) and
@@ -153,21 +240,7 @@ window.RSC = (function () {
     // one compact date button that replaced it. The wrapper needs position:relative for the
     // popover and nothing else.
     const wrap = el("div", "rs-dtwrap");
-    const iso = d => d.toLocaleDateString("en-CA");
-    const now = new Date();
-    const today = iso(now);
-    const firstThis = iso(new Date(now.getFullYear(), now.getMonth(), 1));
-    const firstPrev = iso(new Date(now.getFullYear(), now.getMonth() - 1, 1));
-    const lastPrev = iso(new Date(now.getFullYear(), now.getMonth(), 0));
-    const b3 = new Date(now); b3.setMonth(b3.getMonth() - 3);
-    const PRESETS = [
-      ["All time", "", ""],
-      ["This month", firstThis, today],
-      ["Past month", firstPrev, lastPrev],
-      ["Last 3 months", iso(b3), today],
-      ["This year", now.getFullYear() + "-01-01", today],
-      ["Last year", (now.getFullYear() - 1) + "-01-01", (now.getFullYear() - 1) + "-12-31"],
-    ];
+    const PRESETS = datePresets();      // the one ladder, shared with dateRange
     const label = () => {
       const f = RS.state.dateFrom || "", t = RS.state.dateTo || "";
       if (!f && !t) return "All time";
@@ -505,6 +578,7 @@ window.RSC = (function () {
   document.addEventListener("click", () =>
     document.querySelectorAll(".rs-slicer-pop").forEach(p => p.classList.add("hidden")));
 
-  return { el, esc, multiSelect, singleSelect, dateBar, kpis, chartCard, table, matrix,
+  return { el, esc, multiSelect, singleSelect, dateBar, dateRange, datePresets,
+           kpis, chartCard, table, matrix,
            collapsible, fitScroller, fit, reflow, reflowAfter };
 })();
