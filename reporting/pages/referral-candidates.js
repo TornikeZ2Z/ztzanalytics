@@ -15,11 +15,19 @@
   if (window.RS && RS.DATASETS && !RS.DATASETS.referral_candidates) {
     RS.DATASETS.referral_candidates = {
       table: "fct_referral_candidates",
-      cols: ["Row Id", "Company", "Event Date", "Customer", "Request No", "Platforms",
-             "Five Star Reviews", "Counted", "Email", "Phone",
+      // THIS LIST IS A PAYLOAD CONTRACT, not documentation. Projection is always on, so a
+      // column missing here is a column the bridge never sends -- the page then reads
+      // undefined and renders an em dash, with no error anywhere to say why. Both of the
+      // columns below were added to the mart and left out of this list: `Later Jobs`
+      // exported blank in the CSV for a day, and `Move Date` emptied the entire Move column
+      // the moment the page started reading it. The cache key includes this list, so
+      // extending it also invalidates every stale browser copy.
+      cols: ["Row Id", "Company", "Event Date", "Move Date", "Customer", "Request No",
+             "Platforms", "Five Star Reviews", "Counted", "Email", "Phone",
              "Move Type", "Size of Move", "Lead Source",
              "Pickup State", "Delivery State", "Sales Person",
-             "Satisfaction Score", "Bill Total", "Quote High", "Lead Matched"],
+             "Satisfaction Score", "Bill Total", "Quote High", "Later Jobs",
+             "Lead Matched"],
     };
   }
 })();
