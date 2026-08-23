@@ -111,7 +111,12 @@ registerPage({
         r["Five Star Reviews"] = +r["Five Star Reviews"] || 1;
         r["Lead Matched"] = +r["Lead Matched"] || 0;
         r["Counted"] = +r["Counted"] || 0;
-        r.Day = String(r["Event Date"] || "").slice(0, 10);
+        // THE PAGE'S DATE IS THE MOVE DATE (his call 2026-08-22). Everything that reads
+        // a date off a row -- the filter, the sort, the column -- reads this one, so the
+        // page cannot end up filtering on one basis and sorting on another. The review
+        // date survives in the CSV alone, where an export may still want it.
+        r.Day = String(r["Move Date"] || "").slice(0, 10);
+        r.Reviewed = String(r["Event Date"] || "").slice(0, 10);
         r._g = gate(r);
         return r;
       });
@@ -162,10 +167,11 @@ registerPage({
         if (S.mt && r["Move Type"] !== S.mt) return false;
         if (S.size && r["Size of Move"] !== S.size) return false;
         if (S.sp && r["Sales Person"] !== S.sp) return false;
-        // WHEN THE REVIEW WAS WRITTEN, not when the move happened. A referral ask rides on
-        // how recent the good feeling is, and the review date is the moment we can prove
-        // they felt it. Both bounds are inclusive; r.Day is already 'YYYY-MM-DD', so a
-        // string compare IS a date compare and no parsing (or timezone) enters into it.
+        // WHEN WE MOVED THEM. Both bounds are inclusive; r.Day is already 'YYYY-MM-DD',
+        // so a string compare IS a date compare and no parsing (or timezone) enters into
+        // it. One candidate in 1,929 has no move date on any closing and drops out of any
+        // range -- the alternative, keeping it in every range, would make it appear under
+        // filters that contradict each other.
         if (S.from && (!r.Day || r.Day < S.from)) return false;
         if (S.to && (!r.Day || r.Day > S.to)) return false;
         if (S.contact && !r.Email && !r.Phone) return false;
@@ -205,9 +211,9 @@ registerPage({
         var html = '<div class="rf">'
           + '<div class="rs-page-head"><h1>List of Possible Referrals</h1>'
           + "<p>Customers who left a <b>five-star review</b> — with the email and phone "
-          + "their lead carried. Newest review first."
-          + '<span class="freshness"> · reviews since 2025 · the date filter reads the '
-          + "REVIEW date · contact details come from the lead the move was booked on</span></p></div>"
+          + "their lead carried. <b>Newest move first.</b>"
+          + '<span class="freshness"> · reviews since 2025 · every date on this page is the '
+          + "MOVE date · contact details come from the lead the move was booked on</span></p></div>"
           + '<div class="rs-kpis">'
           + kpi(v.length.toLocaleString(), "People to ask",
                 "five-star reviewers whose move went right", "pos")
@@ -221,7 +227,7 @@ registerPage({
           // HERE, in this page's own state -- the global slicer's dateBar would write into
           // RS.state instead, and picking "This year" on a call sheet would then quietly
           // narrow the Monthly Report the next time it was opened.
-          + '<div class="rs-fld"><span>Review date</span><div id="rfDateHost"></div></div>'
+          + '<div class="rs-fld"><span>Move date</span><div id="rfDateHost"></div></div>'
           + sel("rfCo", "Company", S.co, allCos)
           + sel("rfPlat", "Platform", S.plat, allPlats)
           + sel("rfSrc", "Source", S.src, allSrc)
@@ -259,7 +265,7 @@ registerPage({
         }
         var CAP = 1000;
         html += '<div class="rs-tablewrap"><table class="rs-table"><thead><tr>'
-          + "<th>Review</th><th>Customer</th><th>Email</th><th>Phone</th><th>Platform</th>"
+          + "<th>Move</th><th>Customer</th><th>Email</th><th>Phone</th><th>Platform</th>"
           + "<th>Reviews</th><th>Score</th><th>Company</th><th>Request #</th><th>Move type</th><th>Size</th>"
           + "<th>Route</th><th>Source</th><th>Sales person</th>"
           + "</tr></thead><tbody>"
@@ -359,7 +365,7 @@ registerPage({
         // (the 1000-row render cap is a screen limit, not a data limit)
         var bc = host.querySelector("#rfCsv");
         if (bc) bc.onclick = function () {
-          var cols = ["Review Date", "Customer", "Email", "Phone", "Platforms",
+          var cols = ["Move Date", "Review Date", "Customer", "Email", "Phone", "Platforms",
                       "Five Star Reviews", "Counted", "Company", "Request No",
                       "Move Type", "Size of Move", "Lead Source",
                       "Pickup State", "Delivery State", "Sales Person",
@@ -373,7 +379,7 @@ registerPage({
             return '"' + s.replace(/"/g, '""') + '"';
           };
           var lines = [cols.map(cell).join(",")].concat((v || []).map(function (r) {
-            return [r.Day, r.Customer, r.Email, r.Phone, r.Platforms,
+            return [r.Day, r.Reviewed, r.Customer, r.Email, r.Phone, r.Platforms,
                     r["Five Star Reviews"], r.Counted ? "counted" : "uncounted",
                     r.Company, r["Request No"], r["Move Type"], r["Size of Move"],
                     r["Lead Source"], r["Pickup State"],
