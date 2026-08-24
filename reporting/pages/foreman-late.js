@@ -74,7 +74,10 @@
       + ".fla-err{font-size:12.5px;font-weight:700;color:var(--neg)}"
       + ".fla-ok{font-size:12.5px;color:var(--muted)}"
       // the answer as it reads afterwards, in the row itself
-      + ".fla-why{display:flex;flex-direction:column;gap:2px;min-width:0}"
+      + ".fla-why{display:flex;flex-direction:column;align-items:flex-start;gap:2px;"
+      + "min-width:0;max-width:100%;font:inherit;background:none;border:0;padding:0;"
+      + "cursor:pointer;text-align:left}"
+      + ".fla-why:hover em{color:var(--ink)}"
       + ".fla-why em{font-style:normal;font-size:11.5px;color:var(--muted);overflow:hidden;"
       + "text-overflow:ellipsis;white-space:nowrap;max-width:230px}"
       + ".fla-ask{font:inherit;font-size:12px;font-weight:700;color:var(--blue);background:none;"
@@ -265,10 +268,13 @@
         function whyCell(r) {
           if (r.answered) {
             const v = VMAP[r.verdict] || { label: r.verdict || "—" };
-            return '<div class="fla-why"><span class="rs-pill '
+            // A BUTTON, not a label. An answer has to be reachable again: people change
+            // their minds, and the withdrawal lives inside the form this reopens.
+            return '<button class="fla-why" data-explain="' + esc(r.key)
+              + '" title="Change or withdraw this answer"><span class="rs-pill '
               + (VPILL[r.verdict] || "mute") + '">' + esc(v.label) + "</span>"
               + '<em title="' + esc(r.why || "") + '">' + esc(r.why || "")
-              + (r.whoSaid ? " — " + esc(r.whoSaid) : "") + "</em></div>";
+              + (r.whoSaid ? " — " + esc(r.whoSaid) : "") + "</em></button>";
           }
           if (!r.isLate) return "";
           return '<button class="fla-ask" data-explain="' + esc(r.key) + '">Why?</button>';
@@ -368,7 +374,9 @@
             + "clock — the job's start, or the recorded arrival on a flat-rate job."
             + '<span class="freshness"> · local moves with a contract, from November 2025 · '
             + "both sides are New York time</span></p></div>"
-            + '<div class="rs-kpis">'
+            // FIVE, said out loud: the kit's grid defaults to four, so the fifth tile
+            // dropped onto a row of its own and read as a separate, more important thing.
+            + '<div class="rs-kpis" style="--kpi-cols:5">'
             + kpi(v.length.toLocaleString(), "Jobs", "with a window and a recorded arrival", "")
             + kpi((S.blameOnly ? nBlame : nLate).toLocaleString(),
                   S.blameOnly ? "Late, and ours" : "Arrived late",
