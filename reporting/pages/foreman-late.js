@@ -55,12 +55,58 @@
       + ".fla-rate i{display:block;height:100%;border-radius:4px;background:var(--warn)}"
       + ".fla-rate i.bad{background:var(--neg)}"
       + ".fla-lnk{color:var(--blue);font-weight:700;text-decoration:none;margin-right:10px}"
-      + ".fla-lnk:hover{text-decoration:underline}";
+      + ".fla-lnk:hover{text-decoration:underline}"
+      // the answer form. It opens INSIDE the job list rather than in a dialog, because the
+      // question it asks -- was this really our fault -- can only be answered while the
+      // window, the arrival and the minutes late are still on screen next to it.
+      + ".fla-form>td{background:var(--panel-2);padding:0 12px 14px}"
+      + ".fla-fbox{border:1px solid var(--line-2);border-left:3px solid var(--brand);"
+      + "border-radius:10px;background:var(--panel);padding:14px 16px;display:flex;"
+      + "flex-direction:column;gap:11px}"
+      + ".fla-fq{font-size:13px;font-weight:800;color:var(--ink)}"
+      + ".fla-fq small{display:block;font-weight:500;color:var(--muted);margin-top:3px}"
+      + ".fla-tx{width:100%;min-height:62px;resize:vertical;font-family:inherit;font-size:13px;"
+      + "line-height:1.55;padding:10px 12px;border-radius:10px;border:1px solid var(--line-2);"
+      + "background:var(--panel-2);color:var(--ink);outline:0}"
+      + ".fla-tx:focus{border-color:var(--brand);box-shadow:0 0 0 3px var(--brand-glow)}"
+      + ".fla-fact{display:flex;gap:9px;align-items:center;flex-wrap:wrap}"
+      + ".fla-vsel{min-width:330px;max-width:100%}"
+      + ".fla-err{font-size:12.5px;font-weight:700;color:var(--neg)}"
+      + ".fla-ok{font-size:12.5px;color:var(--muted)}"
+      // the answer as it reads afterwards, in the row itself
+      + ".fla-why{display:flex;flex-direction:column;gap:2px;min-width:0}"
+      + ".fla-why em{font-style:normal;font-size:11.5px;color:var(--muted);overflow:hidden;"
+      + "text-overflow:ellipsis;white-space:nowrap;max-width:230px}"
+      + ".fla-ask{font:inherit;font-size:12px;font-weight:700;color:var(--blue);background:none;"
+      + "border:0;padding:0;cursor:pointer;text-align:left}"
+      + ".fla-ask:hover{text-decoration:underline}";
     document.head.appendChild(st);
   }
 
   const MON3 = ["", "Jan", "Feb", "Mar", "Apr", "May", "Jun",
                 "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+  /* THE FOUR ANSWERS. His ask, 2026-08-24: "user will be able to say if it was really a
+     problem or it was lets say caused by customer, they asked us to arrive later".
+
+     Only `ours` is the crew's own doing -- that is the whole point of splitting them, and it
+     is what lets the page offer a late rate that counts only what somebody there could have
+     controlled. The list is closed and mirrored in bridge/app.py (LATE_VERDICTS): a verdict
+     drives a count, so a free-text one would silently invent a fifth bucket. */
+  const VERDICTS = [
+    ["customer", "The customer moved it", "bad",
+     "They asked us to come later, or were not ready for us"],
+    ["outside", "Outside our control", "warn",
+     "Traffic, weather, the job before overran, no access to the building"],
+    ["ours", "On us", "bad", "The crew or dispatch, and nothing else"],
+    ["window", "The window is wrong", "mute",
+     "The calendar never matched what was actually agreed with the customer"],
+  ];
+  const VMAP = {};
+  VERDICTS.forEach(v => { VMAP[v[0]] = { label: v[1], hint: v[3] }; });
+  // how each verdict READS in a row. `ours` is the only one that stays red -- the others are
+  // answers, not accusations, so they must not go on looking like unresolved problems.
+  const VPILL = { customer: "info", outside: "info", ours: "bad", window: "mute" };
 
   registerPage({
     id: "foreman-late",
@@ -80,12 +126,45 @@
 
       const S = window.__FLA || (window.__FLA = {
         from: null, to: null, co: "", fm: "", hideSuspect: true, openFm: null, openMo: null,
+        // the answers, keyed by "<Job Code>|<date>", and the form that is open over them
+        reviews: {}, openJob: null, draft: {}, msg: "", msgErr: false, msgFor: null,
+        // OFF by default. Turning it on removes excused jobs from the LATE count only --
+        // never from the job count, because the job still happened.
+        blameOnly: false,
       });
 
       injectStyle();
       host.innerHTML = '<div class="panel">Loading arrival times…</div>';
 
-      RS.load("foreman_late").then(rows => {
+      function api(path, opts) {
+        return fetch(ZTZ.API + path, Object.assign({
+          headers: Object.assign({ Authorization: "Bearer " + ZTZ.getToken() },
+                                 (opts && opts.body) ? { "Content-Type": "application/json" } : {}),
+        }, opts || {})).then(r => r.json().then(j => {
+          if (!r.ok || j.error) throw new Error(j.error || ("HTTP " + r.status));
+          return j;
+        }));
+      }
+
+      const jobKey = r => String(r["Job Code"] || "") + "|" + String(r.Day || "");
+
+      // TWO SOURCES, and the answers are the live one. The mart carries no verdict at all --
+      // it is rebuilt with CREATE TABLE ... AS on every run, so anything written onto it
+      // would be gone within the hour. If the answers fail to load we say so out loud rather
+      // than rendering an empty set: showing every job as unexplained would quietly send
+      // somebody to re-answer thirty jobs they had already done.
+      let reviewError = null;
+      Promise.all([
+        RS.load("foreman_late"),
+        api("/api/_latereview").catch(e => {
+          reviewError = e.message || String(e);
+          return { reviews: [] };
+        }),
+      ]).then(([rows, rev]) => {
+        S.reviews = {};
+        (rev.reviews || []).forEach(x => { S.reviews[x["Job Key"]] = x; });
+        return rows;
+      }).then(rows => {
         if (!alive()) return;
         rows = (rows || []).map(r => {
           r.Day = String(r.Date || "").slice(0, 10);
@@ -94,12 +173,32 @@
           r.over = !!(+r["Over An Hour"]);
           r.strict = !!(+r["Strict Appointment"]);
           r.suspect = !!(+r["Suspect Reschedule"]);
+          r.key = jobKey(r);
+          decorate(r);
           return r;
         });
         if (!rows.length) {
           host.innerHTML = '<div class="panel">No arrival data yet — the mart may not be ' +
             "built (sources=curated).</div>";
           return;
+        }
+
+        // The verdict does not live on the row, it lives on the answer -- so everything
+        // that reads r.verdict has to be refreshed when an answer changes. One function,
+        // called on load and again after every save, so a row has one way to learn its own
+        // answer and there is nowhere for the two to drift apart.
+        function decorate(r) {
+          const v = S.reviews[r.key];
+          r.verdict = v ? v.Verdict : null;
+          r.why = v ? v.Explanation : null;
+          r.whoSaid = v ? String(v["Entered By"] || "").split("@")[0] : null;
+          r.whenSaid = v ? String(v["Entered At"] || "").slice(0, 10) : null;
+          r.answered = !!v;
+          // EXCUSED IS NOT THE SAME AS ANSWERED. A job answered "on us" is answered and still
+          // entirely the crew's fault; it has to keep counting, or this feature becomes a way
+          // to make a bad number go away by writing a sentence under it.
+          r.excused = !!v && v.Verdict !== "ours";
+          return r;
         }
 
         const cos = {}, fms = {};
@@ -131,9 +230,15 @@
           const out = {};
           list.forEach(r => {
             const k = r[key] || "—";
-            const g = out[k] || (out[k] = { key: k, n: 0, late: 0, over: 0, strict: 0, rows: [] });
+            const g = out[k] || (out[k] = { key: k, n: 0, late: 0, over: 0, strict: 0,
+                                            answered: 0, excused: 0, rows: [] });
             g.n++; g.late += r.isLate ? 1 : 0; g.over += r.over ? 1 : 0;
-            g.strict += r.strict ? 1 : 0; g.rows.push(r);
+            g.strict += r.strict ? 1 : 0;
+            // only LATE jobs count as answered or excused -- a note on an on-time job would
+            // otherwise inflate the explained figure with nothing that needed explaining
+            if (r.isLate && r.answered) g.answered++;
+            if (r.isLate && r.excused) g.excused++;
+            g.rows.push(r);
           });
           return Object.values(out);
         }
@@ -150,8 +255,60 @@
         function jobTable(list) {
           return '<div class="rs-sub-card"><table class="rs-table"><thead><tr>'
             + "<th>Date</th><th>Job</th><th>Customer</th><th>Window</th><th>Arrived</th>"
-            + '<th class="num">Late by</th><th></th><th>Open</th></tr></thead><tbody>'
-            + jobRows(list) + "</tbody></table></div>";
+            + '<th class="num">Late by</th><th></th><th>Why</th><th>Open</th>'
+            + "</tr></thead><tbody>" + jobRows(list) + "</tbody></table></div>";
+        }
+
+        /* THE ANSWER, as the row reads once it has been given: the verdict, the sentence
+           behind it and who said so. An unanswered late job gets the ask instead; an on-time
+           job gets nothing at all, because there is nothing to explain. */
+        function whyCell(r) {
+          if (r.answered) {
+            const v = VMAP[r.verdict] || { label: r.verdict || "—" };
+            return '<div class="fla-why"><span class="rs-pill '
+              + (VPILL[r.verdict] || "mute") + '">' + esc(v.label) + "</span>"
+              + '<em title="' + esc(r.why || "") + '">' + esc(r.why || "")
+              + (r.whoSaid ? " — " + esc(r.whoSaid) : "") + "</em></div>";
+          }
+          if (!r.isLate) return "";
+          return '<button class="fla-ask" data-explain="' + esc(r.key) + '">Why?</button>';
+        }
+
+        /* The form is rebuilt from S on every rows repaint, so an open form survives one --
+           which is exactly why the draft lives in S.draft and not only in the textarea. */
+        function formRow(r) {
+          const d = S.draft[r.key] != null ? S.draft[r.key] : (r.why || "");
+          const cur = S.draft[r.key + "|v"] != null ? S.draft[r.key + "|v"] : (r.verdict || "");
+          return '<tr class="fla-form"><td colspan="9"><div class="fla-fbox">'
+            + '<div class="fla-fq">Why was this one late?'
+            + "<small>The job keeps its minutes either way — this decides whether they count "
+            + "against the crew.</small></div>"
+            + '<div class="fla-fact">'
+            + '<select class="rs-sel fla-vsel" data-vd="' + esc(r.key) + '">'
+            + '<option value="">Pick what happened…</option>'
+            + VERDICTS.map(v => '<option value="' + v[0] + '"'
+                + (cur === v[0] ? " selected" : "") + ">" + esc(v[1]) + " — "
+                + esc(v[3]) + "</option>").join("")
+            + "</select></div>"
+            + '<textarea class="fla-tx" data-ex="' + esc(r.key) + '" '
+            + 'placeholder="What actually happened? One sentence is enough.">'
+            + esc(d) + "</textarea>"
+            + '<div class="fla-fact">'
+            + '<button class="rs-btn pri" data-save="' + esc(r.key) + '">Save</button>'
+            + '<button class="rs-btn" data-cancel="1">Cancel</button>'
+            + (r.answered
+                ? '<span class="rs-spacer"></span><button class="rs-btn" data-withdraw="'
+                  + esc(r.key) + '">Withdraw this answer</button>'
+                : "")
+            + (S.msgFor === r.key
+                ? '<span class="' + (S.msgErr ? "fla-err" : "fla-ok") + '">' + esc(S.msg)
+                  + "</span>"
+                : "")
+            + (r.answered && r.whenSaid
+                ? '<span class="fla-ok">answered ' + esc(r.whenSaid)
+                  + (r.whoSaid ? " by " + esc(r.whoSaid) : "") + "</span>"
+                : "")
+            + "</div></div></td></tr>";
         }
 
         function jobRows(list) {
@@ -175,7 +332,9 @@
               + "<td>" + (r.strict ? '<span class="rs-pill info">exact time</span>' : "")
                 + (r.suspect ? ' <span class="rs-pill mute">looks rescheduled</span>' : "")
               + "</td>"
-              + '<td class="nowrap">' + links + "</td></tr>";
+              + "<td>" + whyCell(r) + "</td>"
+              + '<td class="nowrap">' + links + "</td></tr>"
+              + (S.openJob === r.key ? formRow(r) : "");
           }).join("");
         }
 
@@ -186,10 +345,17 @@
         function paint() {
           if (!alive()) return;
           const v = rows.filter(passes);
-          const nLate = v.filter(r => r.isLate).length;
+          const lateRows = v.filter(r => r.isLate);
+          const nLate = lateRows.length;
           const nOver = v.filter(r => r.over).length;
           const nStrict = v.filter(r => r.strict).length;
           const hidden = rows.filter(r => r.suspect).length;
+          const nAnswered = lateRows.filter(r => r.answered).length;
+          const nExcused = lateRows.filter(r => r.excused).length;
+          // WHAT THE CREW IS ACTUALLY ANSWERABLE FOR. Every late job still happened and still
+          // counts in `nLate`; this is the same set minus the ones somebody has looked at and
+          // said were not the crew's doing. It only ever appears when the reader asks for it.
+          const nBlame = nLate - nExcused;
 
           const byFm = group(v, "Foreman").sort((a, b) =>
             (b.late / (b.n || 1)) - (a.late / (a.n || 1)) || b.n - a.n);
@@ -204,12 +370,18 @@
             + "both sides are New York time</span></p></div>"
             + '<div class="rs-kpis">'
             + kpi(v.length.toLocaleString(), "Jobs", "with a window and a recorded arrival", "")
-            + kpi(nLate.toLocaleString(), "Arrived late", pct(nLate, v.length) + "% of jobs",
-                  nLate ? "warn" : "pos")
+            + kpi((S.blameOnly ? nBlame : nLate).toLocaleString(),
+                  S.blameOnly ? "Late, and ours" : "Arrived late",
+                  pct(S.blameOnly ? nBlame : nLate, v.length) + "% of jobs"
+                    + (S.blameOnly ? " — " + nExcused.toLocaleString() + " excused" : ""),
+                  (S.blameOnly ? nBlame : nLate) ? "warn" : "pos")
             + kpi(nOver.toLocaleString(), "More than an hour late",
                   pct(nOver, v.length) + "% of jobs", nOver ? "neg" : "pos")
             + kpi(nStrict.toLocaleString(), "Exact-time appointments",
                   pct(nStrict, v.length) + "% of jobs — no window to spare", "")
+            + kpi(nAnswered.toLocaleString() + " / " + nLate.toLocaleString(), "Explained",
+                  nLate ? (nExcused.toLocaleString() + " were not the crew's doing")
+                        : "nothing to explain", "")
             + "</div>"
             + '<div class="rs-bar">'
             + '<div class="rs-fld"><span>Job date</span><div id="flaDate"></div></div>'
@@ -217,6 +389,8 @@
             + sel("flaFm", "Foreman", S.fm, fms)
             + '<div class="rs-tog' + (S.hideSuspect ? " on" : "") + '" id="flaSus"><i></i>'
             + "Hide jobs that look rescheduled</div>"
+            + '<div class="rs-tog' + (S.blameOnly ? " on" : "") + '" id="flaBlame"><i></i>'
+            + "Count only what was the crew's fault</div>"
             + '<span class="rs-spacer"></span>'
             + '<button class="rs-btn" id="flaCsv">Download CSV · ' + v.length + "</button>"
             + "</div>"
@@ -225,7 +399,19 @@
             + byFm.length + "</span></div>"
             + '<div class="rs-hint">Ranked by how often they were late. Click a foreman for '
             + "his months, and a month for the jobs themselves — each one links to its "
-            + "calendar event and its digital contract. "
+            + "calendar event and its digital contract, and each late one can be answered "
+            + '<b>Why?</b> — the customer moved it, something outside anyone\'s control, or '
+            + "the crew. "
+            + (reviewError
+                ? '<span class="em">The answers could not be loaded (' + esc(reviewError)
+                  + ") — every job below is showing as unanswered, so do not re-answer them "
+                  + "until this clears.</span> "
+                : "")
+            + (S.blameOnly
+                ? "<b>Late % counts only what was the crew's fault</b> — " + nExcused
+                  + " answered job" + (nExcused === 1 ? "" : "s")
+                  + " are not counted. The job total is unchanged. "
+                : "")
             + (S.hideSuspect && hidden
                 ? "<b>" + hidden + "</b> job" + (hidden === 1 ? " is" : "s are") + " hidden: the "
                   + "recorded start is hours past the deadline and the job ended after "
@@ -243,13 +429,14 @@
 
           html += '<div class="rs-tablewrap rs-fit" id="flaScroll">'
             + '<table class="rs-table rs-fixed rs-even">'
-            + '<colgroup><col style="width:26%"><col style="width:9%"><col style="width:9%">'
-            + '<col style="width:15%"><col style="width:11%"><col style="width:13%">'
-            + '<col style="width:17%"></colgroup>'
+            + '<colgroup><col style="width:24%"><col style="width:8%"><col style="width:8%">'
+            + '<col style="width:14%"><col style="width:10%"><col style="width:11%">'
+            + '<col style="width:13%"><col style="width:12%"></colgroup>'
             + "<thead><tr>"
             + "<th>Foreman</th><th class=\"num\">Jobs</th><th class=\"num\">Late</th>"
             + "<th class=\"num\">Late %</th><th class=\"num\">&gt; 1 hour</th>"
-            + "<th class=\"num\">&gt; 1 hour %</th><th class=\"num\">Exact-time jobs</th>"
+            + "<th class=\"num\">&gt; 1 hour %</th><th class=\"num\">Explained</th>"
+            + "<th class=\"num\">Exact-time jobs</th>"
             + '</tr></thead><tbody id="flaBody">' + bodyHtml(byFm)
             + "</tbody></table></div></div></div>";
           host.innerHTML = html;
@@ -270,40 +457,124 @@
         function bodyHtml(byFm) {
           let out = "";
           byFm.forEach(f => {
-            const p = pct(f.late, f.n), po = pct(f.over, f.n);
+            // the LATE figure the reader asked for: raw, or net of what somebody has said
+            // was not the crew's doing. The job count never changes either way.
+            const fl = S.blameOnly ? (f.late - f.excused) : f.late;
+            const p = pct(fl, f.n), po = pct(f.over, f.n);
             const open = S.openFm === f.key;
             out += '<tr class="rs-group' + (open ? " on" : "") + '" data-fm="'
               + esc(f.key) + '">'
               + '<td class="strong"><span class="rs-caret">&rsaquo;</span> ' + esc(f.key) + "</td>"
               + '<td class="num">' + f.n + "</td>"
-              + '<td class="num">' + f.late + "</td>"
+              + '<td class="num">' + fl + "</td>"
               + '<td class="num">' + p + "%"
               + '<span class="fla-rate"><i class="' + (p >= 40 ? "bad" : "")
               + '" style="width:' + Math.min(100, p) + '%"></i></span></td>'
               + '<td class="num">' + f.over + "</td>"
               + '<td class="num">' + po + "%</td>"
+              + '<td class="num' + (f.answered ? "" : " dim") + '">'
+                + (f.late ? f.answered + " / " + f.late : "—") + "</td>"
               + '<td class="num muted">' + pct(f.strict, f.n) + "%</td></tr>";
 
             if (!open) return;
             group(f.rows, "Month").sort((a, b) => String(b.key).localeCompare(String(a.key)))
               .forEach(m => {
-                const mp = pct(m.late, m.n);
+                const ml = S.blameOnly ? (m.late - m.excused) : m.late;
+                const mp = pct(ml, m.n);
                 const mopen = S.openMo === f.key + "|" + m.key;
                 out += '<tr class="rs-group2' + (mopen ? " on" : "") + '" data-mo="'
                   + esc(f.key + "|" + m.key) + '">'
                   + '<td><span class="rs-caret">&rsaquo;</span> ' + esc(fmtMonth(m.key)) + "</td>"
                   + '<td class="num">' + m.n + "</td>"
-                  + '<td class="num">' + m.late + "</td>"
+                  + '<td class="num">' + ml + "</td>"
                   + '<td class="num">' + mp + "%</td>"
                   + '<td class="num">' + m.over + "</td>"
                   + '<td class="num">' + pct(m.over, m.n) + "%</td>"
+                  + '<td class="num' + (m.answered ? "" : " dim") + '">'
+                    + (m.late ? m.answered + " / " + m.late : "—") + "</td>"
                   + '<td class="num muted">' + pct(m.strict, m.n) + "%</td></tr>";
                 if (mopen) {
-                  out += '<tr class="rs-sub"><td colspan="7">' + jobTable(m.rows) + "</td></tr>";
+                  out += '<tr class="rs-sub"><td colspan="8">' + jobTable(m.rows) + "</td></tr>";
                 }
               });
           });
           return out;
+        }
+
+        /* A SAVE CHANGES NUMBERS ABOVE THE TABLE -- the tiles and every foreman's Explained
+           column -- so unlike a disclosure it needs the whole page. The scroll offset is
+           carried across by hand, because somebody who has just answered a job forty rows
+           down should still be looking at it afterwards. */
+        function repaintAll() {
+          const before = host.querySelector("#flaScroll");
+          const top = before ? before.scrollTop : 0;
+          paint();
+          const after = host.querySelector("#flaScroll");
+          if (after) after.scrollTop = top;
+        }
+
+        function rowFor(k) { return (rows || []).filter(r => r.key === k)[0]; }
+
+        function saveAnswer(key, btn) {
+          // read the controls, not the draft: the draft is the fallback for a form that was
+          // rebuilt underneath the reader, not the source of truth while it is on screen
+          const box = host.querySelector('[data-ex="' + CSS.escape(key) + '"]');
+          const vsel = host.querySelector('[data-vd="' + CSS.escape(key) + '"]');
+          const ex = String(box ? box.value : (S.draft[key] || "")).trim();
+          const vd = String(vsel ? vsel.value : (S.draft[key + "|v"] || ""));
+          S.draft[key] = ex;
+          S.draft[key + "|v"] = vd;
+
+          const complain = m => {
+            S.msg = m; S.msgErr = true; S.msgFor = key;
+            repaintRows();
+          };
+          if (!vd) return complain("Pick what happened first.");
+          if (!ex) return complain("Say what happened — a verdict on its own explains nothing.");
+
+          if (btn) { btn.disabled = true; btn.textContent = "Saving…"; }
+          api("/api/_latereview", { method: "POST", body: JSON.stringify({
+                job_key: key, verdict: vd, explanation: ex }) })
+            .then(j => {
+              // patch what we hold rather than re-pulling the mart: the answer is ours, and
+              // the mart has nothing to say about it in the first place
+              S.reviews[key] = { "Job Key": key, Verdict: vd, Explanation: ex,
+                                 "Entered By": j.by || "you",
+                                 "Entered At": new Date().toISOString().slice(0, 19).replace("T", " ") };
+              const r = rowFor(key);
+              if (r) decorate(r);
+              delete S.draft[key];
+              delete S.draft[key + "|v"];
+              S.openJob = null;
+              S.msg = ""; S.msgErr = false; S.msgFor = null;
+              repaintAll();
+            })
+            .catch(e => {
+              if (btn) { btn.disabled = false; btn.textContent = "Save"; }
+              complain("Not saved — " + (e.message || e));
+            });
+        }
+
+        function withdraw(key, btn) {
+          if (btn) { btn.disabled = true; btn.textContent = "…"; }
+          api("/api/_latereview", { method: "POST",
+                                    body: JSON.stringify({ job_key: key, reopen: true }) })
+            .then(() => {
+              delete S.reviews[key];
+              const r = rowFor(key);
+              if (r) decorate(r);
+              delete S.draft[key];
+              delete S.draft[key + "|v"];
+              S.openJob = null;
+              S.msg = ""; S.msgErr = false; S.msgFor = null;
+              repaintAll();
+            })
+            .catch(e => {
+              if (btn) { btn.disabled = false; btn.textContent = "Withdraw this answer"; }
+              S.msg = "Not withdrawn — " + (e.message || e);
+              S.msgErr = true; S.msgFor = key;
+              repaintRows();
+            });
         }
 
         function repaintRows() {
@@ -342,12 +613,45 @@
           if (fm) fm.onchange = function () { S.fm = this.value; paint(); };
           const sus = host.querySelector("#flaSus");
           if (sus) sus.onclick = () => { S.hideSuspect = !S.hideSuspect; paint(); };
+          const bl = host.querySelector("#flaBlame");
+          if (bl) bl.onclick = () => { S.blameOnly = !S.blameOnly; repaintAll(); };
           // DELEGATED, on the tbody: the rows are replaced on every disclosure, so a handler
           // bound to a row would be thrown away with it. The tbody survives, so this is bound
           // once per full paint and keeps working for every rows-only write after it.
           const tb = host.querySelector("#flaBody");
+          // the answer form lives inside the job list, so its controls arrive at the same
+          // delegate as the disclosures -- and must be taken FIRST, or a click on Save would
+          // fall through and be read as a click on the month that contains it
+          if (tb) tb.oninput = e => {
+            const t = e.target.closest("[data-ex]");
+            if (t) S.draft[t.dataset.ex] = t.value;
+          };
+          if (tb) tb.onchange = e => {
+            const v = e.target.closest("[data-vd]");
+            if (v) S.draft[v.dataset.vd + "|v"] = v.value;
+          };
           if (tb) tb.onclick = e => {
             if (e.target.closest("a")) return;      // a link opens a job; it does not toggle
+
+            const ask = e.target.closest("[data-explain]");
+            if (ask) {
+              S.openJob = S.openJob === ask.dataset.explain ? null : ask.dataset.explain;
+              S.msg = ""; S.msgFor = null;
+              repaintRows();
+              return;
+            }
+            const save = e.target.closest("[data-save]");
+            if (save) { saveAnswer(save.dataset.save, save); return; }
+            if (e.target.closest("[data-cancel]")) {
+              S.openJob = null; S.msg = ""; S.msgFor = null;
+              repaintRows();
+              return;
+            }
+            const wd = e.target.closest("[data-withdraw]");
+            if (wd) { withdraw(wd.dataset.withdraw, wd); return; }
+            // a click anywhere else inside an open form must not toggle the month under it
+            if (e.target.closest(".fla-form")) return;
+
             const mo = e.target.closest("[data-mo]");
             if (mo) {
               S.openMo = S.openMo === mo.dataset.mo ? null : mo.dataset.mo;
@@ -366,7 +670,8 @@
             const cols = ["Date", "Job Code", "Foreman", "Customer", "Company", "Job Type",
                           "Arrival Source", "Window Start", "Deadline", "Arrived",
                           "Late Minutes", "Is Late", "Over An Hour", "Strict Appointment",
-                          "Suspect Reschedule", "Calendar Link", "Contract URL"];
+                          "Suspect Reschedule", "Verdict", "Explanation", "Answered By",
+                          "Answered At", "Calendar Link", "Contract URL"];
             const cell = x => {
               let s = String(x == null ? "" : x);
               // a value opening as a live Excel formula is a real attack surface
@@ -378,6 +683,8 @@
                r["Arrival Source"], r["Window Start"], r.Deadline, r.Arrived,
                r.late, r.isLate ? "yes" : "no", r.over ? "yes" : "no",
                r.strict ? "yes" : "no", r.suspect ? "yes" : "no",
+               r.verdict ? ((VMAP[r.verdict] || {}).label || r.verdict) : "",
+               r.why || "", r.whoSaid || "", r.whenSaid || "",
                r["Calendar Link"], r["Contract URL"]].map(cell).join(",")));
             // the BOM is for Excel: without it a Georgian name opens as mojibake
             const blob = new Blob(["﻿" + lines.join("\r\n")],
