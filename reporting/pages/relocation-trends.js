@@ -491,8 +491,10 @@
             + "Florida looks like a huge net gain by construction. It says nothing about "
             + "where Americans are moving.</li>"
             + '<li class="no"><b>The Storage Trends section cannot be written from '
-            + "here.</b> The closing sheet's storage flag has stopped being filled — 113 "
-            + "jobs in 2025, 10 this year — while the register shows storage entries "
+            + "here.</b> The closing sheet's storage flag has stopped being filled — "
+            + "113 jobs across all of 2025 against 10 so far this year, and the same "
+            + "collapse shows in the day-matched counts above — while the register shows "
+            + "storage entries "
             + "holding up. And duration is worse: leave dates were only recorded from March "
             + "2025 and a quarter of customers are still in storage, so every average is "
             + "biased low. If storage must appear, quote the median stay of about six weeks "
