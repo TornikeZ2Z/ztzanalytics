@@ -32,7 +32,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/portal.css?v=2">
-<link rel="stylesheet" href="assets/rs.css?v=28">
+<link rel="stylesheet" href="assets/rs.css?v=29">
 <style>
 /* collapsible sidebar groups + nested hub sub-items */
 #nav .g-title{cursor:pointer;user-select:none;display:flex;align-items:center;justify-content:space-between}
@@ -924,6 +924,15 @@ async function renderPage() {
   // destroy the outgoing page's Chart instances BEFORE wiping the DOM — otherwise they leak on
   // every navigation / theme change / re-render (worst on chart-heavy pages)
   try { Object.values(Chart.instances || {}).forEach(ch => { if (ch.canvas && host.contains(ch.canvas)) ch.destroy(); }); } catch (e) {}
+  // RE-ARM THE ENTRANCE. The fade lives on #content (rs.css `.rs-content.rs-enter`) rather
+  // than on the panels inside it, so that a page rewriting its own markup cannot replay it --
+  // that replay was the whole screen blinking on every click. Re-adding a class does not
+  // restart a CSS animation on its own; the element has to be reflowed in between, which is
+  // what reading offsetWidth forces. This is the only place that arms it, and every page
+  // change comes through here.
+  host.classList.remove("rs-enter");
+  void host.offsetWidth;
+  host.classList.add("rs-enter");
   host.innerHTML = `<div class="rs-loading"><div>Loading <b>${RSC.esc(CURRENT.title)}</b>…</div><div class="bar"><i></i></div></div>`;
   try {
     await CURRENT.render(host);
@@ -1717,7 +1726,7 @@ registerPage({
 <script src="pages/insights.js?v=7"></script> -->
 <script src="pages/source-identification.js?v=3"></script>
 <script src="pages/jobs-vs-hours.js?v=7"></script>
-<script src="pages/analysis-by-category.js?v=13"></script>
+<script src="pages/analysis-by-category.js?v=14"></script>
 <script src="pages/yoy-diff.js?v=7"></script>
 <script src="pages/leads-analysis.js?v=7"></script>
 <script src="pages/leads-by-state.js?v=5"></script>
@@ -1745,7 +1754,7 @@ registerPage({
 <script src="pages/source-trace.js?v=22"></script>
 <script src="pages/meta-referrals.js?v=2"></script>
 <script src="pages/jobs-by-area.js?v=3"></script>
-<script src="pages/foreman-late.js?v=2"></script>
+<script src="pages/foreman-late.js?v=3"></script>
 <script src="pages/referral-candidates.js?v=9"></script>
 <script src="pages/calendar-coverage.js?v=8"></script>
 <script src="pages/request-consistency.js?v=4"></script>
@@ -1753,14 +1762,14 @@ registerPage({
 <script src="pages/money-flow.js?v=54"></script>
 <script src="pages/ld-planning.js?v=80"></script>
 <script src="pages/cleanup.js?v=26"></script>
-<script src="pages/packing-control.js?v=18"></script>
+<script src="pages/packing-control.js?v=19"></script>
 <script src="pages/storage-control.js?v=10"></script>
 <script src="pages/foreman-assessment.js?v=29"></script>
 <script src="pages/hr-questionnaire.js?v=32"></script>
 <script src="pages/hr-my-questionnaire.js?v=11"></script>
 <script src="pages/hr-directory.js?v=7"></script>
 <script src="pages/fuel-control.js?v=10"></script>
-<script src="pages/demand-analysis.js?v=8"></script>
+<script src="pages/demand-analysis.js?v=9"></script>
 <script src="pages/straight-vs-local.js?v=6"></script>
 <script src="pages/area-plan.js?v=6"></script>
 <script src="pages/general-tables.js?v=4"></script>

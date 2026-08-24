@@ -163,9 +163,20 @@ body.rs-app .gate p{color:var(--muted)}
 .insight-note{font-size:11.5px;color:var(--faint);margin:-6px 0 14px}
 
 /* ---------- page-load motion ---------- */
-.rs-content .rs-page-head,.rs-content .rs-kpis,.rs-content .panel{animation:rsfade .28s ease-out both}
+/* THE ENTRANCE BELONGS TO THE NAVIGATION, NOT TO THE ELEMENTS.
+   This used to animate .rs-page-head, .rs-kpis and .panel individually. That is right exactly
+   once -- when the page opens -- and wrong every other time, because a page that rewrites its
+   own markup re-creates those elements and the animation starts again from opacity:0. Twelve
+   of the portal's fifty-five pages rewrite themselves on every click, so a filter change or a
+   disclosure made the whole screen blink ("when i click anything, for a split second it hides
+   and shows everything" -- Tornike, 2026-08-24).
+
+   #content is never re-created, so animating IT gives the entrance exactly once per
+   navigation, and nothing a page does to its own contents can replay it. renderPage() in
+   index.html re-arms the class; that is the single chokepoint every page change goes through. */
+.rs-content.rs-enter{animation:rsfade .28s ease-out both}
 @keyframes rsfade{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:none}}
-@media(prefers-reduced-motion:reduce){.rs-content .rs-page-head,.rs-content .rs-kpis,.rs-content .panel{animation:none}}
+@media(prefers-reduced-motion:reduce){.rs-content.rs-enter{animation:none}}
 
 /* ---------- KPI cards (compact) ---------- */
 /* Balanced columns from RSC.kpis (--kpi-cols), so a strip never leaves an orphan card
@@ -552,30 +563,43 @@ body.rs-app.light .rs-cpill{border-color:rgba(127,163,43,.4);color:var(--brand-d
 .rs-btn:disabled{opacity:.5;cursor:default}
 
 /* ---------- the reading hint under a bar or heading ---------- */
-/* a panel that REPAINTS ITSELF (innerHTML rewritten on save) must not replay the
-   entrance animation on every write -- it reads as the page flinching */
-.rs-content .panel.rs-noanim{animation:none}
+/* .rs-noanim was the OPT-OUT from the old per-element entrance animation: a panel that
+   repainted itself had to ask not to flinch. Since the entrance moved onto .rs-content
+   (above) nothing inside ever animates, so this is a no-op. It is kept defined because six
+   pages still carry the class and lint_page_css.py fails a kit class rs.css does not define;
+   it can go when those are cleaned up. Adding it to a NEW page does nothing -- if a page
+   flinches now, the cause is something else. */
+.rs-content .rs-noanim{animation:none}
 .rs-hint{font-size:12.5px;color:var(--muted);line-height:1.6;margin:0 0 14px;max-width:var(--rs-prose)}
 .rs-hint b{color:var(--ink)}
 .rs-hint .em{color:var(--brand);font-weight:700}
 
 /* ---------- the data table ---------- */
 .rs-tablewrap{overflow:auto;border:1px solid var(--line);border-radius:12px}
-.rs-table{width:100%;border-collapse:collapse;font-size:13.5px;font-variant-numeric:tabular-nums}
+.rs-table{width:100%;border-collapse:collapse;font-size:14px;font-variant-numeric:tabular-nums}
 .rs-table th{position:sticky;top:0;z-index:1;background:var(--panel-2);color:var(--muted);
   text-align:left;font-size:11px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;
-  padding:10px 12px;border-bottom:2px solid var(--line-2);white-space:nowrap}
-.rs-table td{padding:10px 12px;border-bottom:1px solid var(--line);vertical-align:middle}
+  padding:12px 12px;border-bottom:1px solid var(--line-2);white-space:nowrap}
+/* ROOM TO BREATHE (his note, 2026-08-24: "it is very dense"). The air is VERTICAL only --
+   13px top and bottom puts an ordinary row near 45px and a row carrying a pill near 56px,
+   which is Money Flow's rhythm. The horizontal 12px must not move: it is what Money Flow
+   uses too, and every extra pixel is paid N times over by the wide tables (the category
+   pivot is ~45 columns) for no readability at all. */
+.rs-table td{padding:13px 12px;border-bottom:1px solid var(--line);vertical-align:middle}
 .rs-table tbody tr:last-child td{border-bottom:0}
-/* zebra on the INK, not on --line: a 14%-of-hairline tint is invisible on a white panel
-   and the table reads as unstyled (his screenshot, 2026-08-19) */
-.rs-table tbody tr:nth-child(even) td{background:color-mix(in srgb,var(--ink) 3.5%,transparent)}
-/* HOVER MEANS TWO DIFFERENT THINGS, so it gets two different weights: a neutral
-   wash helps the eye track a row across a wide table, while the brand tint is an
-   AFFORDANCE and belongs only to rows that actually open something. Unconditional
-   brand-glow made inert rows look clickable on three tables at once (2026-08-20). */
-.rs-table tbody tr:hover td{background:color-mix(in srgb,var(--ink) 5%,transparent)}
-.rs-table tbody tr.click:hover td{background:var(--brand-glow)}
+/* NO BANDS, AND NO COLOUR ON HOVER -- his call, 2026-08-24: "i dont like banded rows and
+   colors while highlighting something". Both are gone; what separates one row from the next
+   is the hairline on td above, which is exactly how Money Flow does it (its table has never
+   striped, and it is the page he pointed at as the one that reads well).
+
+   Hover survives as a NEUTRAL wash, because it is not decoration: on a forty-column pivot it
+   is the only thing that keeps the eye on one row all the way across. --panel-2 is the same
+   surface the group rows use, and it is opaque, which a pinned first column needs.
+
+   The brand tint is GONE from hover entirely. It used to mark "this row opens something", but
+   that is what the caret and the pointer cursor say, and saying it a third time in green is
+   the colour he asked to be rid of. */
+.rs-table tbody tr:hover td{background:var(--panel-2)}
 /* A PINNED COLUMN NEEDS `separate`. With border-collapse:collapse the borders belong to
    the TABLE, not the cell, so they do not travel with a position:sticky cell and the pinned
    column loses its rules as it scrolls. Any table pinning a row or column wears .rs-sticky. */
@@ -615,7 +639,7 @@ body.rs-app.light .rs-cpill{border-color:rgba(127,163,43,.4);color:var(--brand-d
 .rs-table.rs-fixed td{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 /* every row the same height, so a row carrying a pill is not shorter than one carrying a
    button -- the ragged rhythm that came from mixed content (his catch, 2026-07-22) */
-.rs-table.rs-even tbody tr{height:var(--rs-rowh,52px)}
+.rs-table.rs-even tbody tr{height:var(--rs-rowh,56px)}
 
 .rs-table tbody tr.rs-group>td{background:var(--panel-2);font-weight:800;
   border-bottom:1px solid var(--line-2)}
@@ -635,15 +659,17 @@ body.rs-app.light .rs-cpill{border-color:rgba(127,163,43,.4);color:var(--brand-d
 /* the opened detail. padding on the CELL, card on the inner wrapper: a nested table with no
    card of its own reads as more rows of the parent, which is exactly the confusion a pivot
    is supposed to remove */
-.rs-table tr.rs-sub>td{padding:0 14px 14px 32px;background:var(--panel-2);border-bottom:0}
+.rs-table tbody tr.rs-sub>td{padding:0 14px 14px 32px;background:var(--panel-2);border-bottom:0}
 .rs-sub-card{background:var(--panel);border:1px solid var(--line-2);border-radius:10px;
   overflow:hidden}
-.rs-sub-card .rs-table{font-size:12.8px}
-.rs-sub-card .rs-table th{background:var(--panel);font-size:10px}
-/* a nested table never stripes: the parent already tinted this whole block, and a second
-   stripe on top of it turns into noise */
-.rs-sub-card .rs-table tbody tr:nth-child(even) td{background:transparent}
-.rs-sub-card .rs-table tbody tr:hover td{background:var(--brand-glow)}
+/* the nested table steps DOWN from its parent, but only slightly -- it is the same data at
+   a finer grain, not a footnote */
+.rs-sub-card .rs-table{font-size:13.2px}
+.rs-sub-card .rs-table th{background:var(--panel);font-size:10.5px}
+.rs-sub-card .rs-table td{padding:11px 12px}
+/* the nested rows are inert -- links inside them are the only targets -- so they get the same
+   neutral wash as everything else rather than the brand tint they used to get */
+.rs-sub-card .rs-table tbody tr:hover td{background:var(--panel-2)}
 
 /* ---------- verdict pills ---------- */
 .rs-pill{display:inline-block;border-radius:999px;padding:3px 10px;font-size:11.5px;font-weight:800;

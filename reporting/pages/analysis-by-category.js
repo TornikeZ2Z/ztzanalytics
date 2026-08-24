@@ -327,12 +327,15 @@ async function cbRender(host) {
            It scrolls sideways -- Columns = Year-Month is forty of them -- so the row label
            has to stay put or a number stops belonging to anything. A sticky cell has to be
            OPAQUE, which is why hover and the total row are restated on top of it instead of
-           being inherited from the kit's zebra. */
+           being inherited from the kit. */
         /* the pivot pins column one and the Total row -- see .rs-sticky in the kit */
         .rs-table.cb-piv td{white-space:nowrap}
         .rs-table.cb-piv td:first-child,.rs-table.cb-piv th:first-child{position:sticky;left:0}
         .rs-table.cb-piv tbody td:first-child{background:var(--panel)}
-        .rs-table.cb-piv tbody tr:hover td:first-child{background:color-mix(in srgb,var(--ink) 5%,var(--panel))}
+        /* must MATCH the kit's hover exactly (rs.css: --panel-2), or the pinned cell lights
+           a different colour from the rest of its own row. --panel-2 is already opaque, which
+           is the whole reason this restatement exists. */
+        .rs-table.cb-piv tbody tr:hover td:first-child{background:var(--panel-2)}
         .rs-table.cb-piv th[data-s]{cursor:pointer;user-select:none}
         .rs-table.cb-piv th[data-s]:hover{color:var(--brand)}
         /* descendant, not a qualifier: the 2nd measure is a <div class="b"> INSIDE the cell,
@@ -343,7 +346,7 @@ async function cbRender(host) {
            -- by monthly-report.js, refresh-log.js and review-performance.js -- so the row was
            styled only once you had visited one of those in the same session, and differently
            depending on WHICH. Its own name, defined here -- and qualified deeply enough to
-           out-rank the kit's zebra and hover, which both reach three elements down. */
+           out-rank the kit's hover, which reaches three elements down. */
         .rs-table.cb-piv tbody tr.cb-tot td,
         .rs-table.cb-piv tbody tr.cb-tot:hover td{border-top:2px solid var(--line-2);font-weight:800;
           background:var(--panel-2);position:sticky;bottom:0}

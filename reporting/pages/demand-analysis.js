@@ -174,12 +174,12 @@ registerPage({
       // ---- tables ---------------------------------------------------------------------------
       // dm-t is now a NARROW ADJUSTMENT ON .rs-table, not a table of its own: these are
       // numeric tables, so cells are right-aligned by default and the first column is the
-      // label. Everything else -- header, zebra, hover, borders -- comes from the kit.
-      + ".dm-t{font-size:12.5px}"
-      + ".dm-t th{text-align:right;font-size:9.5px;"
-      + "color:var(--faint);padding:8px 10px;border-bottom:1px solid var(--line-2);white-space:nowrap}"
+      // label. Everything else -- size, spacing, header, hover, borders -- comes from the kit.
+      // It used to restate the type and the padding too, which meant this page did NOT loosen
+      // with the kit on 2026-08-24 and was the only table left at the old density.
+      + ".dm-t th{text-align:right;white-space:nowrap}"
       + ".dm-t th:first-child,.dm-t td:first-child{text-align:left}"
-      + ".dm-t td{padding:8px 10px;text-align:right;white-space:nowrap}"
+      + ".dm-t td{text-align:right;white-space:nowrap}"
       + ".dm-t td.nm{font-weight:700;color:var(--ink)}"
       + ".dm-scroll{overflow-x:auto}"
       // ---- distribution bars -----------------------------------------------------------------

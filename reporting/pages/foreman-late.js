@@ -179,6 +179,10 @@
           }).join("");
         }
 
+        // what paint() last drew, so repaintRows() can redraw the same view without
+        // recomputing it and without touching anything above the table
+        let last = null;
+
         function paint() {
           if (!alive()) return;
           const v = rows.filter(passes);
@@ -189,6 +193,7 @@
 
           const byFm = group(v, "Foreman").sort((a, b) =>
             (b.late / (b.n || 1)) - (a.late / (a.n || 1)) || b.n - a.n);
+          last = { v: v, byFm: byFm };
 
           let html = '<div class="fla">'
             + '<div class="rs-page-head"><h1>Late Arrivals</h1>'
@@ -237,7 +242,7 @@
           }
 
           html += '<div class="rs-tablewrap rs-fit" id="flaScroll">'
-            + '<table class="rs-table rs-fixed">'
+            + '<table class="rs-table rs-fixed rs-even">'
             + '<colgroup><col style="width:26%"><col style="width:9%"><col style="width:9%">'
             + '<col style="width:15%"><col style="width:11%"><col style="width:13%">'
             + '<col style="width:17%"></colgroup>'
@@ -245,14 +250,31 @@
             + "<th>Foreman</th><th class=\"num\">Jobs</th><th class=\"num\">Late</th>"
             + "<th class=\"num\">Late %</th><th class=\"num\">&gt; 1 hour</th>"
             + "<th class=\"num\">&gt; 1 hour %</th><th class=\"num\">Exact-time jobs</th>"
-            + "</tr></thead><tbody>";
+            + '</tr></thead><tbody id="flaBody">' + bodyHtml(byFm)
+            + "</tbody></table></div></div></div>";
+          host.innerHTML = html;
+          wire(v);
+        }
 
+        /* THE ROWS ARE THEIR OWN WRITE.
+           Opening a foreman changes nothing above the table: not the tiles, not the filters,
+           not the hint, not even the other foremen. Rewriting the page for it replayed the
+           kit's entrance animation (rs.css `rsfade`, which starts at opacity:0) on every
+           single click -- "for a split second it hides and shows everything", his words,
+           2026-08-24 -- and threw the scroll position away with it, so a click on a foreman
+           near the bottom bounced the reader back to the top.
+
+           So a disclosure writes ONE tbody. The scroller, the header and the wired handlers
+           are all the same elements afterwards, which is why the click delegation in wire()
+           sits on the tbody and not on the rows. */
+        function bodyHtml(byFm) {
+          let out = "";
           byFm.forEach(f => {
             const p = pct(f.late, f.n), po = pct(f.over, f.n);
             const open = S.openFm === f.key;
-            html += '<tr class="rs-group' + (open ? " on" : "") + '" data-fm="'
+            out += '<tr class="rs-group' + (open ? " on" : "") + '" data-fm="'
               + esc(f.key) + '">'
-              + '<td class="strong"><span class="rs-caret">›</span> ' + esc(f.key) + "</td>"
+              + '<td class="strong"><span class="rs-caret">&rsaquo;</span> ' + esc(f.key) + "</td>"
               + '<td class="num">' + f.n + "</td>"
               + '<td class="num">' + f.late + "</td>"
               + '<td class="num">' + p + "%"
@@ -267,9 +289,9 @@
               .forEach(m => {
                 const mp = pct(m.late, m.n);
                 const mopen = S.openMo === f.key + "|" + m.key;
-                html += '<tr class="rs-group2' + (mopen ? " on" : "") + '" data-mo="'
+                out += '<tr class="rs-group2' + (mopen ? " on" : "") + '" data-mo="'
                   + esc(f.key + "|" + m.key) + '">'
-                  + '<td><span class="rs-caret">›</span> ' + esc(fmtMonth(m.key)) + "</td>"
+                  + '<td><span class="rs-caret">&rsaquo;</span> ' + esc(fmtMonth(m.key)) + "</td>"
                   + '<td class="num">' + m.n + "</td>"
                   + '<td class="num">' + m.late + "</td>"
                   + '<td class="num">' + mp + "%</td>"
@@ -277,14 +299,19 @@
                   + '<td class="num">' + pct(m.over, m.n) + "%</td>"
                   + '<td class="num muted">' + pct(m.strict, m.n) + "%</td></tr>";
                 if (mopen) {
-                  html += '<tr class="rs-sub"><td colspan="7">' + jobTable(m.rows) + "</td></tr>";
+                  out += '<tr class="rs-sub"><td colspan="7">' + jobTable(m.rows) + "</td></tr>";
                 }
               });
           });
+          return out;
+        }
 
-          html += "</tbody></table></div></div></div>";
-          host.innerHTML = html;
-          wire(v);
+        function repaintRows() {
+          if (!alive() || !last) return;
+          const tb = host.querySelector("#flaBody");
+          // no tbody means the empty-state is on screen, and that IS a full repaint
+          if (!tb) { paint(); return; }
+          tb.innerHTML = bodyHtml(last.byFm);
         }
 
         function kpi(val, lab, sub, cls) {
@@ -315,20 +342,25 @@
           if (fm) fm.onchange = function () { S.fm = this.value; paint(); };
           const sus = host.querySelector("#flaSus");
           if (sus) sus.onclick = () => { S.hideSuspect = !S.hideSuspect; paint(); };
-          host.querySelectorAll("[data-fm]").forEach(tr => {
-            tr.onclick = () => {
-              S.openFm = S.openFm === tr.dataset.fm ? null : tr.dataset.fm;
+          // DELEGATED, on the tbody: the rows are replaced on every disclosure, so a handler
+          // bound to a row would be thrown away with it. The tbody survives, so this is bound
+          // once per full paint and keeps working for every rows-only write after it.
+          const tb = host.querySelector("#flaBody");
+          if (tb) tb.onclick = e => {
+            if (e.target.closest("a")) return;      // a link opens a job; it does not toggle
+            const mo = e.target.closest("[data-mo]");
+            if (mo) {
+              S.openMo = S.openMo === mo.dataset.mo ? null : mo.dataset.mo;
+              repaintRows();
+              return;
+            }
+            const fm = e.target.closest("[data-fm]");
+            if (fm) {
+              S.openFm = S.openFm === fm.dataset.fm ? null : fm.dataset.fm;
               S.openMo = null;
-              paint();
-            };
-          });
-          host.querySelectorAll("[data-mo]").forEach(tr => {
-            tr.onclick = e => {
-              e.stopPropagation();
-              S.openMo = S.openMo === tr.dataset.mo ? null : tr.dataset.mo;
-              paint();
-            };
-          });
+              repaintRows();
+            }
+          };
           const csv = host.querySelector("#flaCsv");
           if (csv) csv.onclick = () => {
             const cols = ["Date", "Job Code", "Foreman", "Customer", "Company", "Job Type",

@@ -415,11 +415,15 @@ registerPage({
       + ".pk-sec h4{margin:0 0 4px;font-size:var(--t2);font-weight:800}"
       + ".pk-sec h4 .pk-dim{font-weight:600;margin-left:6px}"
       // NARROW ADJUSTMENTS TO THE KIT TABLE, and nothing more. The table, its header, the
-      // zebra, the right-aligned .num column and the pills inside it all come from rs.css;
-      // what stays here is only what this page's evidence tables need on top of it — a cell
-      // that carries a second explanatory line reads top-aligned, and the gap / significance
-      // tints are this page's own reading of a row.
-      + ".pk .rs-table td{vertical-align:top}"
+      // right-aligned .num column and the pills inside it all come from rs.css; what stays
+      // here is only what this page's evidence tables need on top of it — a cell that carries
+      // a second explanatory line reads top-aligned, and the gap / significance tints are this
+      // page's own reading of a row.
+      // TOP-ALIGN ONLY THE CELLS THAT WRAP. Applied to every td it was harmless while rows
+      // were 40px; once the kit gave rows room to breathe (2026-08-24) a single-line number
+      // pinned to the top of a 56px row and left a visible band under it. A cell with a
+      // <small> sub-line still has to start at the top, so it keeps it by name.
+      + ".pk .rs-table td:has(small){vertical-align:top}"
       + ".pk .rs-table td small{display:block;font-weight:500;margin-top:2px;max-width:400px}"
       + ".pk .rs-table td.pk-neg{color:var(--neg);font-weight:700}"
       + ".pk .rs-table td.pk-pos{color:var(--pos);font-weight:700}"
