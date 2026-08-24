@@ -167,6 +167,7 @@ const GROUP_OVERRIDE = {
   "source-trace": "marketing", "meta-referrals": "marketing",
   "jobs-by-area": "marketing",
   "relocation-trends": "marketing",
+  "promised-reviews": "marketing",
   "referral-candidates": "marketing",
   // Company Overview
   "monthly-report": "company", "analysis-by-category": "company",
@@ -205,7 +206,7 @@ const NAV_ORDER = {
   "sup-claims": 1, "sup-refunds": 2, "sup-phone": 3,
   "data-quality": 2, "refresh-log": 1, "general-settings": 3, "general-tables": 4, "admin-users": 5,
   "source-trace": 8, "meta-referrals": 10, "referral-candidates": 11, "jobs-by-area": 12,
-  "relocation-trends": 13,
+  "relocation-trends": 13, "promised-reviews": 14,
 };
 
 /* Inline SVG icon set (Feather-style, stroke-based) — no emojis anywhere. */
@@ -271,7 +272,7 @@ const PAGE_ICONS = {
   "log-foreman": "tool", "log-packing": "box",
   "fin-revenue": "trend", "fin-rr": "trend", "rev-production": "star",
   "sup-claims": "shield", "sup-refunds": "clipboard", "sup-phone": "phone",
-  "general-settings": "sliders", "general-tables": "grid", "data-quality": "clipboard", "refresh-log": "activity", "source-trace": "activity", "meta-referrals": "upload-cloud", "referral-candidates": "gift", "jobs-by-area": "map-pin", "relocation-trends": "trending-up", "calendar-coverage": "calendar", "request-consistency": "alert-triangle", "review-performance": "star", "reviews-reminders": "megaphone", "response-analysis": "activity", "review-settings": "tool",
+  "general-settings": "sliders", "general-tables": "grid", "data-quality": "clipboard", "refresh-log": "activity", "source-trace": "activity", "meta-referrals": "upload-cloud", "referral-candidates": "gift", "jobs-by-area": "map-pin", "relocation-trends": "trending-up", "promised-reviews": "star", "calendar-coverage": "calendar", "request-consistency": "alert-triangle", "review-performance": "star", "reviews-reminders": "megaphone", "response-analysis": "activity", "review-settings": "tool",
 };
 
 /* Pages not yet built — shown greyed with a SOON tag so the full scope is visible. */
@@ -660,6 +661,7 @@ const PAGE_DATASETS = {
   "referral-candidates": [],   // loads fct_referral_candidates itself; filters live on the page
   "jobs-by-area": [],          // loads mart_jobs_geo itself; season/year/company live on the page
   "relocation-trends": [],     // loads mart_relocation itself; year/window/company live on the page
+  "promised-reviews": [],      // loads its own mart + the Birdie log; no global slicers apply
   "calendar-coverage": [],
   "request-consistency": [],
   "review-performance": [],
@@ -863,7 +865,7 @@ function navigate(id, push) {
 /* Pages that bring their OWN toolbar and ignore the global filter bar (PAGE_DATASETS=[])
    render "bare" — the global date/slicer bar + company chip are hidden so the page's board
    starts right under the header instead of below two rows of greyed-out, unusable filters. */
-const BARE_CHROME = new Set(["review-performance", "demand-analysis", "reviews-reminders", "response-analysis", "review-settings", "monthly-report", "money-flow", "ld-planning", "cleanup", "packing-control", "storage-control", "foreman-assessment", "fuel-control", "foreman-closings", "refresh-log", "general-tables", "hr-questionnaire", "hr-my-questionnaire", "hr-directory", "conversations", "referral-candidates", "jobs-by-area", "meta-referrals", "relocation-trends",
+const BARE_CHROME = new Set(["review-performance", "demand-analysis", "reviews-reminders", "response-analysis", "review-settings", "monthly-report", "money-flow", "ld-planning", "cleanup", "packing-control", "storage-control", "foreman-assessment", "fuel-control", "foreman-closings", "refresh-log", "general-tables", "hr-questionnaire", "hr-my-questionnaire", "hr-directory", "conversations", "referral-candidates", "jobs-by-area", "meta-referrals", "relocation-trends", "promised-reviews",
   // Straight vs Local reads its whole history on purpose (Tornike 2026-08-19: "i dont need
   // any filters here, its just kinda analysis and directions"). A date filter left over from
   // another page emptied it completely, which is worse than useless -- it looked like there
@@ -1758,6 +1760,7 @@ registerPage({
 <script src="pages/meta-referrals.js?v=2"></script>
 <script src="pages/jobs-by-area.js?v=3"></script>
 <script src="pages/relocation-trends.js?v=4"></script>
+<script src="pages/promised-reviews.js?v=1"></script>
 <script src="pages/foreman-late.js?v=5"></script>
 <script src="pages/referral-candidates.js?v=9"></script>
 <script src="pages/calendar-coverage.js?v=8"></script>
