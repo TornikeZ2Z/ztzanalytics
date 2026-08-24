@@ -179,6 +179,7 @@ const GROUP_OVERRIDE = {
   // Financial
   "fin-revenue": "financial", "fin-rr": "financial", "branch-owner": "financial", "money-flow": "logistics", "ld-planning": "logistics", "foreman-closings": "logistics",
   "packing-control": "logistics", "storage-control": "logistics", "fuel-control": "logistics",
+  "foreman-late": "logistics",
   "foreman-assessment": "logistics",
   "hr-questionnaire": "hr", "hr-my-questionnaire": "hr", "hr-directory": "hr",
   // Customer Service
@@ -195,7 +196,7 @@ const NAV_ORDER = {
   "monthly-report": 1, "analysis-by-category": 2,
   "sales-command": 0.5, "conversations": 0.7, "sales-funnel": 1, "sales-perf": 2, "demand-analysis": 5,
   "mkt-roi": 1, "mkt-sources": 2, "mkt-phone": 3,
-  "money-flow": 1, "foreman-closings": 2, "ld-planning": 3, "packing-control": 4, "storage-control": 5, "foreman-assessment": 6, "fuel-control": 7, "log-foreman": 8, "log-packing": 9,
+  "money-flow": 1, "foreman-closings": 2, "ld-planning": 3, "packing-control": 4, "storage-control": 5, "foreman-assessment": 6, "fuel-control": 7, "foreman-late": 7.5, "log-foreman": 8, "log-packing": 9,
   "hr-directory": 1, "hr-questionnaire": 2, "hr-my-questionnaire": 3,
   "cleanup": 1,
   "fin-revenue": 1, "fin-rr": 2, "sales-geo": 3, "branch-owner": 6,
@@ -1744,6 +1745,7 @@ registerPage({
 <script src="pages/source-trace.js?v=22"></script>
 <script src="pages/meta-referrals.js?v=2"></script>
 <script src="pages/jobs-by-area.js?v=3"></script>
+<script src="pages/foreman-late.js?v=1"></script>
 <script src="pages/referral-candidates.js?v=9"></script>
 <script src="pages/calendar-coverage.js?v=8"></script>
 <script src="pages/request-consistency.js?v=4"></script>
