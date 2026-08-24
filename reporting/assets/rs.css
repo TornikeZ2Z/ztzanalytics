@@ -591,6 +591,60 @@ body.rs-app.light .rs-cpill{border-color:rgba(127,163,43,.4);color:var(--brand-d
 .rs-table a{color:var(--blue);text-decoration:none;font-weight:600}
 .rs-table a:hover{text-decoration:underline}
 
+/* ---------- the PIVOT table ----------
+   Money Flow grew a table the rest of the portal never had, and his ask (2026-08-24) was to
+   make every page able to look like it. Four things separate it from a plain data table, and
+   each is opt-in so no existing table moves:
+
+     .rs-fit    the scroller is sized to the VIEWPORT, not the content, so the sticky header
+                actually stays put -- a header only sticks against a scrolling ANCESTOR, and
+                on a page-scrolling table it slides away with everything else.
+     .rs-fixed  columns lock and long text ellipses, so one wide customer name cannot reshape
+                the table (his catch, 2026-07-22). Below --rs-tmin the wrap scrolls sideways
+                rather than CLIPPING the right-hand headers.
+     .rs-group  a summary row that opens something: heavier, on the sunk background, with a
+                caret that turns. This is the pivot itself.
+     .rs-sub    the row that holds the opened detail, which sits in its own card so a nested
+                table never reads as more rows of the parent.
+
+   Order matters here: these rules sit AFTER the zebra and hover rules deliberately. A group
+   row and an even row have identical specificity, so the later one wins, and a group row
+   must never be striped. */
+.rs-tablewrap.rs-fit{max-height:calc(100vh - var(--pg-chrome, 320px))}
+.rs-table.rs-fixed{table-layout:fixed;min-width:var(--rs-tmin,1100px)}
+.rs-table.rs-fixed td{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* every row the same height, so a row carrying a pill is not shorter than one carrying a
+   button -- the ragged rhythm that came from mixed content (his catch, 2026-07-22) */
+.rs-table.rs-even tbody tr{height:var(--rs-rowh,52px)}
+
+.rs-table tbody tr.rs-group>td{background:var(--panel-2);font-weight:800;
+  border-bottom:1px solid var(--line-2)}
+.rs-table tbody tr.rs-group:hover>td{background:var(--line)}
+.rs-table tbody tr.rs-group{cursor:pointer}
+/* the second level sits inside the first: same treatment, quieter, and indented so the
+   hierarchy is legible without a single connecting line */
+.rs-table tbody tr.rs-group2>td{background:color-mix(in srgb,var(--ink) 4%,transparent);
+  font-weight:700;font-size:13px}
+.rs-table tbody tr.rs-group2>td:first-child{padding-left:32px}
+.rs-table tbody tr.rs-group2:hover>td{background:color-mix(in srgb,var(--ink) 8%,transparent)}
+
+.rs-caret{display:inline-block;width:14px;color:var(--faint);font-weight:800;
+  transition:transform .12s;transform-origin:45% 50%}
+.rs-group.on .rs-caret,.rs-group2.on .rs-caret{transform:rotate(90deg);color:var(--brand)}
+
+/* the opened detail. padding on the CELL, card on the inner wrapper: a nested table with no
+   card of its own reads as more rows of the parent, which is exactly the confusion a pivot
+   is supposed to remove */
+.rs-table tr.rs-sub>td{padding:0 14px 14px 32px;background:var(--panel-2);border-bottom:0}
+.rs-sub-card{background:var(--panel);border:1px solid var(--line-2);border-radius:10px;
+  overflow:hidden}
+.rs-sub-card .rs-table{font-size:12.8px}
+.rs-sub-card .rs-table th{background:var(--panel);font-size:10px}
+/* a nested table never stripes: the parent already tinted this whole block, and a second
+   stripe on top of it turns into noise */
+.rs-sub-card .rs-table tbody tr:nth-child(even) td{background:transparent}
+.rs-sub-card .rs-table tbody tr:hover td{background:var(--brand-glow)}
+
 /* ---------- verdict pills ---------- */
 .rs-pill{display:inline-block;border-radius:999px;padding:3px 10px;font-size:11.5px;font-weight:800;
   letter-spacing:.03em;white-space:nowrap;border:1px solid transparent}

@@ -46,22 +46,15 @@
     // what the kit has no name for lives here.
     st.textContent = ""
       + ".fla{font-variant-numeric:tabular-nums}"
+      // how wide the pivot needs before it starts scrolling sideways rather than squeezing
+      + ".fla .rs-tablewrap{--rs-tmin:1080px}"
       // the rate bar: the eye ranks foremen before it reads a single number
       + ".fla-rate{position:relative;display:block;height:6px;border-radius:4px;"
-      + "background:color-mix(in srgb,var(--ink) 7%,transparent);margin-top:5px;overflow:hidden}"
+      + "background:color-mix(in srgb,var(--ink) 10%,transparent);margin-top:5px;"
+      + "overflow:hidden;min-width:54px}"
       + ".fla-rate i{display:block;height:100%;border-radius:4px;background:var(--warn)}"
       + ".fla-rate i.bad{background:var(--neg)}"
-      // an expandable row reads as expandable
-      + ".fla-x{cursor:pointer}"
-      + ".fla-x .ch{display:inline-block;width:14px;color:var(--faint);font-weight:800;"
-      + "transition:transform .12s}"
-      + ".fla-x.on .ch{transform:rotate(90deg);color:var(--brand)}"
-      // the month rows sit inside their foreman, the job rows inside their month
-      + ".fla-m td{background:color-mix(in srgb,var(--ink) 3%,transparent)}"
-      + ".fla-m td:first-child{padding-left:34px}"
-      + ".fla-j td{background:color-mix(in srgb,var(--ink) 5%,transparent);font-size:12.8px}"
-      + ".fla-j td:first-child{padding-left:52px}"
-      + ".fla-lnk{color:var(--brand);font-weight:700;text-decoration:none;margin-right:10px}"
+      + ".fla-lnk{color:var(--blue);font-weight:700;text-decoration:none;margin-right:10px}"
       + ".fla-lnk:hover{text-decoration:underline}";
     document.head.appendChild(st);
   }
@@ -154,6 +147,13 @@
             + "</select></label>";
         }
 
+        function jobTable(list) {
+          return '<div class="rs-sub-card"><table class="rs-table"><thead><tr>'
+            + "<th>Date</th><th>Job</th><th>Customer</th><th>Window</th><th>Arrived</th>"
+            + '<th class="num">Late by</th><th></th><th>Open</th></tr></thead><tbody>'
+            + jobRows(list) + "</tbody></table></div>";
+        }
+
         function jobRows(list) {
           return list.slice().sort((a, b) => b.late - a.late).map(r => {
             const links = (r["Calendar Link"]
@@ -162,13 +162,13 @@
               + (r["Contract URL"]
                 ? '<a class="fla-lnk" href="' + esc(r["Contract URL"])
                   + '" target="_blank" rel="noopener">Contract</a>' : "");
-            return '<tr class="fla-j"><td class="nowrap">' + esc(r.Day) + "</td>"
+            return "<tr><td class=\"nowrap\">" + esc(r.Day) + "</td>"
               + '<td class="strong">' + esc(r["Job Code"] || "—") + "</td>"
               + "<td>" + esc(r.Customer || "—") + "</td>"
               + '<td class="nowrap muted">' + esc(r["Window Start"] || "—") + " – "
               + esc(r.Deadline || "—") + "</td>"
               + '<td class="nowrap">' + esc(r.Arrived || "—") + "</td>"
-              + '<td class="num">' + (r.isLate
+              + '<td class="num nowrap">' + (r.isLate
                   ? '<span class="rs-pill ' + (r.over ? "bad" : "warn") + '">+'
                     + r.late + " min</span>"
                   : '<span class="rs-pill ok">on time</span>') + "</td>"
@@ -236,16 +236,23 @@
             return;
           }
 
-          html += '<div class="rs-tablewrap"><table class="rs-table"><thead><tr>'
-            + "<th>Foreman</th><th>Jobs</th><th>Late</th><th>Late %</th>"
-            + "<th>&gt; 1 hour</th><th>&gt; 1 hour %</th><th>Exact-time jobs</th>"
+          html += '<div class="rs-tablewrap rs-fit" id="flaScroll">'
+            + '<table class="rs-table rs-fixed">'
+            + '<colgroup><col style="width:26%"><col style="width:9%"><col style="width:9%">'
+            + '<col style="width:15%"><col style="width:11%"><col style="width:13%">'
+            + '<col style="width:17%"></colgroup>'
+            + "<thead><tr>"
+            + "<th>Foreman</th><th class=\"num\">Jobs</th><th class=\"num\">Late</th>"
+            + "<th class=\"num\">Late %</th><th class=\"num\">&gt; 1 hour</th>"
+            + "<th class=\"num\">&gt; 1 hour %</th><th class=\"num\">Exact-time jobs</th>"
             + "</tr></thead><tbody>";
 
           byFm.forEach(f => {
             const p = pct(f.late, f.n), po = pct(f.over, f.n);
             const open = S.openFm === f.key;
-            html += '<tr class="fla-x' + (open ? " on" : "") + '" data-fm="' + esc(f.key) + '">'
-              + '<td class="strong"><span class="ch">›</span> ' + esc(f.key) + "</td>"
+            html += '<tr class="rs-group' + (open ? " on" : "") + '" data-fm="'
+              + esc(f.key) + '">'
+              + '<td class="strong"><span class="rs-caret">›</span> ' + esc(f.key) + "</td>"
               + '<td class="num">' + f.n + "</td>"
               + '<td class="num">' + f.late + "</td>"
               + '<td class="num">' + p + "%"
@@ -260,9 +267,9 @@
               .forEach(m => {
                 const mp = pct(m.late, m.n);
                 const mopen = S.openMo === f.key + "|" + m.key;
-                html += '<tr class="fla-x fla-m' + (mopen ? " on" : "") + '" data-mo="'
+                html += '<tr class="rs-group2' + (mopen ? " on" : "") + '" data-mo="'
                   + esc(f.key + "|" + m.key) + '">'
-                  + '<td><span class="ch">›</span> ' + esc(fmtMonth(m.key)) + "</td>"
+                  + '<td><span class="rs-caret">›</span> ' + esc(fmtMonth(m.key)) + "</td>"
                   + '<td class="num">' + m.n + "</td>"
                   + '<td class="num">' + m.late + "</td>"
                   + '<td class="num">' + mp + "%</td>"
@@ -270,12 +277,7 @@
                   + '<td class="num">' + pct(m.over, m.n) + "%</td>"
                   + '<td class="num muted">' + pct(m.strict, m.n) + "%</td></tr>";
                 if (mopen) {
-                  html += '<tr class="fla-j"><td colspan="7" style="padding:0">'
-                    + '<div class="rs-tablewrap" style="border:0;box-shadow:none;margin:0">'
-                    + '<table class="rs-table"><thead><tr><th>Date</th><th>Job</th>'
-                    + "<th>Customer</th><th>Window</th><th>Arrived</th><th>Late by</th>"
-                    + "<th></th><th>Open</th></tr></thead><tbody>"
-                    + jobRows(m.rows) + "</tbody></table></div></td></tr>";
+                  html += '<tr class="rs-sub"><td colspan="7">' + jobTable(m.rows) + "</td></tr>";
                 }
               });
           });
@@ -293,6 +295,12 @@
 
         function wire(v) {
           if (!alive()) return;
+          // A sticky header only sticks against a SCROLLING ANCESTOR. rs-fit gives the wrap
+          // a viewport-sized max-height, and fitScroller measures the chrome actually above
+          // it so a collapsed filter bar leaves no dead gap. It must run after EVERY repaint:
+          // the table is rebuilt wholesale, so the previous element is gone.
+          const sc = host.querySelector("#flaScroll");
+          if (sc && window.RSC && RSC.fitScroller) RSC.fitScroller(sc);
           const dh = host.querySelector("#flaDate");
           if (dh && window.RSC && RSC.dateRange) {
             RSC.dateRange(dh, {
