@@ -199,10 +199,14 @@
           if (was == null || now == null) return '<span class="rlc-d flat">—</span>';
           const d = now - was;
           if (o.counts) {
+            // TWO standard errors, not one. At one sigma Virginia's 2 -> 6 rendered as
+            // "+200%" and Massachusetts' 42 -> 26 as "-38.1%", and both are what two small
+            // counts do on their own. Two sigma suppresses those and still passes every
+            // real movement on this page.
             const se = Math.sqrt(Math.max(1, now + was));
-            if (Math.abs(d) < se) {
-              return '<span class="rlc-d flat" title="within noise: the difference is '
-                + "smaller than the standard error on two counts this size\">~ flat</span>";
+            if (Math.abs(d) < 2 * se) {
+              return '<span class="rlc-d flat" title="within noise: on two counts this size '
+                + "a gap this small is what chance produces\">~ flat</span>";
             }
           }
           if (!was) return '<span class="rlc-d flat">new</span>';
@@ -250,8 +254,12 @@
           prev.forEach(r => { a[r.mon] = (a[r.mon] || 0) + 1; });
           cur.forEach(r => { b[r.mon] = (b[r.mon] || 0) + 1; });
           const top = Math.max(...Object.values(a), ...Object.values(b), 1);
+          // only the months the window actually covers: a like-for-like view stops in
+          // August, and drawing Sep-Dec as four hairlines reads as a collapse in the autumn
+          // rather than as months nobody asked about
+          const last = S.window === "match" ? (+cutoff().slice(0, 2) || 12) : 12;
           let h = '<div class="rlc-mon">';
-          for (let m = 1; m <= 12; m++) {
+          for (let m = 1; m <= last; m++) {
             const av = a[m] || 0, bv = b[m] || 0;
             h += '<div class="m"><div class="pair">'
               + '<i class="a" style="height:' + Math.round(100 * av / top) + '%" title="'
@@ -446,8 +454,9 @@
 
           // ---- the panel nobody may skip
           html += '<div class="rlc-warn"><h3>Before any of this is published</h3>'
-            + "<p>Six things a review pass caught on the way to print. The first four are "
-            + "already handled by this page; the last two are not ours to fix.</p><ul>"
+            + "<p>Seven things a review pass caught on the way to print. The first four "
+            + "are handled by this page; the last three are judgement calls for whoever "
+            + "writes the post.</p><ul>"
             + "<li><b>Never compare a part-year to a whole year.</b> Set against a full "
             + "2025, New Jersey reads as down 22% when it is actually up 15%. This page is "
             + "day-matched unless you switch it off.</li>"
@@ -461,6 +470,11 @@
             + "<li><b>Rising bills are not all rising prices.</b> The median invoice is up "
             + "sharply, but roughly half of that is bigger loads, not higher rates — and "
             + "2025 was a dip, so compare against 2024 too before calling it a trend.</li>"
+            + '<li class="no"><b>Massachusetts is us, not the market.</b> The Boston '
+            + "operation wound down — 92 jobs in 2025 against 11 this year — so any fall in "
+            + "Massachusetts is our own decision showing up as a trend. The same caution "
+            + "applies in reverse to Delaware and Connecticut, where part of the growth is "
+            + "the Tuji and Zip to Zip company mix rather than the market.</li>"
             + '<li class="no"><b>Do not publish net inbound or outbound by state.</b> We '
             + "book moves out of our service area and almost never one back into it, so "
             + "Florida looks like a huge net gain by construction. It says nothing about "
