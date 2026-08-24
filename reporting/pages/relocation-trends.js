@@ -432,7 +432,11 @@
           // ---- size, packing, storage
           const pkFull = cur.filter(r => r["Packing Service"] === "Full Packing").length;
           const pkPart = cur.filter(r => r["Packing Service"] === "Partial Packing").length;
-          const stor = cur.filter(r => r.Storage && r.Storage !== "No").length;
+          // ONLY 'Our Storage' MEANS STORAGE. The column also carries 'Mini Van Job'
+          // (209 rows in 2024), 'Truck' and 'Delivered', and counting any non-blank value
+          // put the 2024 storage rate at five times the truth.
+          const stor = cur.filter(r => r.Storage === "Our Storage").length;
+          const storWas = prev.filter(r => r.Storage === "Our Storage").length;
           html += '<div class="rlc-grid">'
             + '<div class="panel"><div class="panel-head">'
             + '<div class="panel-title">How big the moves were</div></div>'
@@ -448,13 +452,20 @@
             + '<div class="rlc-sub">booked <b>full</b> packing (' + num(pkFull) + ")</div></div>"
             + '<div><div class="rlc-fig">' + pct(pkPart, cur.length) + "%</div>"
             + '<div class="rlc-sub">booked <b>partial</b> packing (' + num(pkPart) + ")</div></div>"
-            + '<div><div class="rlc-fig">' + pct(stor, cur.length) + "%</div>"
-            + '<div class="rlc-sub">involved storage</div></div>'
-            + "</div></div></div>";
+            + '<div><div class="rlc-fig muted">' + num(stor) + "</div>"
+            + '<div class="rlc-sub">jobs flagged storage — <b>not a usable rate</b>, see '
+            + "below (" + num(storWas) + " in " + S.base + ")</div></div>"
+            + '</div><div class="rs-hint" style="margin:12px 0 0"><b class="em">Storage '
+            + "cannot be answered from this page.</b> The closing sheet flagged storage on "
+            + num(storWas) + " jobs in " + S.base + " and only " + num(stor) + " so far in "
+            + S.year + ", while the storage register recorded a comparable number of "
+            + "customers entering storage in both years — so the fall is the flag going "
+            + "unfilled, not demand falling. Storage Control is the report that owns this "
+            + "question.</div></div></div>";
 
           // ---- the panel nobody may skip
           html += '<div class="rlc-warn"><h3>Before any of this is published</h3>'
-            + "<p>Seven things a review pass caught on the way to print. The first four "
+            + "<p>Eight things a review pass caught on the way to print. The first four "
             + "are handled by this page; the last three are judgement calls for whoever "
             + "writes the post.</p><ul>"
             + "<li><b>Never compare a part-year to a whole year.</b> Set against a full "
@@ -479,6 +490,13 @@
             + "book moves out of our service area and almost never one back into it, so "
             + "Florida looks like a huge net gain by construction. It says nothing about "
             + "where Americans are moving.</li>"
+            + '<li class="no"><b>The Storage Trends section cannot be written from '
+            + "here.</b> The closing sheet's storage flag has stopped being filled — 113 "
+            + "jobs in 2025, 10 this year — while the register shows storage entries "
+            + "holding up. And duration is worse: leave dates were only recorded from March "
+            + "2025 and a quarter of customers are still in storage, so every average is "
+            + "biased low. If storage must appear, quote the median stay of about six weeks "
+            + "with the count beside it, and never a mean.</li>"
             + '<li class="no"><b>Three questions in the brief have no data at all:</b> '
             + "customer age, reason for moving, and search demand. Nothing in the warehouse "
             + "carries them, and a keyword-scrape of sales notes reaches under 3% coverage. "
