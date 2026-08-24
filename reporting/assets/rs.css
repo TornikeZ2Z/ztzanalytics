@@ -578,7 +578,7 @@ body.rs-app.light .rs-cpill{border-color:rgba(127,163,43,.4);color:var(--brand-d
 .rs-tablewrap{overflow:auto;border:1px solid var(--line);border-radius:12px}
 .rs-table{width:100%;border-collapse:collapse;font-size:14px;font-variant-numeric:tabular-nums}
 .rs-table th{position:sticky;top:0;z-index:1;background:var(--panel-2);color:var(--muted);
-  text-align:left;font-size:11px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;
+  text-align:left;font-size:11.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;
   padding:12px 12px;border-bottom:1px solid var(--line-2);white-space:nowrap}
 /* ROOM TO BREATHE (his note, 2026-08-24: "it is very dense"). The air is VERTICAL only --
    13px top and bottom puts an ordinary row near 45px and a row carrying a pill near 56px,
