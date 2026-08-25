@@ -1538,11 +1538,20 @@ const aclIconFor = id => (MERGED.find(m => m.id === id) || {}).icon ||
    Retired themed dashboards removed from every department 2026-07-26: they were folded into
    the Monthly Report on 2026-07-22 but only in the RETIRED nav set above, so they stayed in
    these lists and kept granting the full Monthly Report table set. */
+/* WHAT A DEPARTMENT GRANT SHOWS. This list is the CLIENT half of the access model: the
+   bridge's DEPT_REPORTS decides what the API will serve, this decides what appears in the
+   sidebar, and the two must agree. They drifted three times (foreman-late,
+   relocation-trends, promised-reviews) and nobody noticed, because the failure is silent in
+   this direction: the department could reach the data and simply saw no link to it, which
+   looks exactly like a page that was never built.
+
+   scripts/check_acl_mirror.py now fails the build on any divergence. Run it before an
+   analytics or bridge deploy. */
 const ACL_DEPTS = [
   { id: "company",   label: "Company Overview", icon: "spark",     reports: ["monthly-report", "analysis-by-category"] },
   { id: "sales",     label: "Sales",            icon: "funnel",    reports: ["sales-command", "demand-analysis", "conversations"] },
-  { id: "marketing", label: "Marketing",        icon: "megaphone", reports: ["source-trace", "referral-candidates", "jobs-by-area"] },
-  { id: "logistics", label: "Logistics",        icon: "tool",      reports: ["money-flow", "ld-planning", "foreman-closings", "packing-control", "storage-control", "foreman-assessment", "fuel-control", "straight-vs-local", "area-plan"] },
+  { id: "marketing", label: "Marketing",        icon: "megaphone", reports: ["source-trace", "referral-candidates", "jobs-by-area", "relocation-trends", "promised-reviews"] },
+  { id: "logistics", label: "Logistics",        icon: "tool",      reports: ["money-flow", "ld-planning", "foreman-closings", "packing-control", "storage-control", "foreman-assessment", "fuel-control", "foreman-late", "straight-vs-local", "area-plan"] },
   // MUST mirror DEPT_REPORTS["hr"] in bridge/app.py. Employees answering the questionnaire
   // need NO grant at all — this tile is for HR: managing it and reading the results.
   { id: "hr",        label: "Human Resources", icon: "user",      reports: ["hr-questionnaire", "hr-responses", "hr-directory"] },
