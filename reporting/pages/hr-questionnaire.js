@@ -54,6 +54,87 @@ registerPage({
         ".hq-card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px 18px;margin-bottom:14px}",
         ".hq-card h4{margin:0 0 10px;font-size:15px;font-weight:800}",
         ".hq-dim{font-size:12.5px;color:var(--faint);line-height:1.55}",
+
+        /* ---- ONE RESPONSE. A form is read top to bottom, so this is a READING column, not
+           a dashboard: one measure, generous leading, and the question visually subordinate
+           to the answer -- you are here for what they said, not to re-read what you asked. */
+        ".hq-or-w{max-width:760px}",
+        ".hq-orhd{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:9px}",
+        ".hq-orwho{display:flex;flex-direction:column;line-height:1.25;min-width:0}",
+        ".hq-orwho b{font-size:15.5px;font-weight:800;color:var(--ink)}",
+        ".hq-orwho span{font-size:12px;color:var(--faint)}",
+        ".hq-orgap{flex:1 1 auto}",
+        // the switch is small: it is a preference, not a filter, and must not read as one
+        ".hq-orlang{padding:2px}",
+        ".hq-orlang button{font-size:12px;padding:5px 11px;border-radius:7px}",
+        ".hq-ormeta{font-size:12px;color:var(--faint);margin-bottom:14px}",
+
+        /* how much of the form they actually filled in, before any of the words */
+        ".hq-orprog{display:flex;align-items:center;gap:10px;margin-bottom:16px}",
+        ".hq-orprog b{font-size:12px;font-weight:750;color:var(--muted);white-space:nowrap}",
+        ".hq-orpbar{flex:1;height:5px;border-radius:3px;background:var(--panel-2);"
+          + "border:1px solid var(--line);overflow:hidden;max-width:280px}",
+        ".hq-orpbar span{display:block;height:100%;background:var(--brand)}",
+
+        ".hq-orbody{background:var(--panel);border:1px solid var(--line);border-radius:14px;"
+          + "padding:6px 20px 18px}",
+        /* the form's own sections, which the old flat list threw away */
+        ".hq-orsec{margin:22px 0 6px;padding-top:14px;border-top:1px solid var(--line);"
+          + "font-size:11px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;"
+          + "color:var(--brand)}",
+        ".hq-orsec:first-child{margin-top:12px;padding-top:0;border-top:0}",
+
+        ".hq-orq{display:flex;gap:13px;padding:15px 0;border-bottom:1px solid var(--line)}",
+        ".hq-orq:last-child{border-bottom:0;padding-bottom:4px}",
+        // a fixed-width number column keeps every question and every answer on one left edge
+        ".hq-orqn{flex:0 0 22px;font-size:11.5px;font-weight:800;color:var(--faint);"
+          + "text-align:right;padding-top:2px;font-variant-numeric:tabular-nums}",
+        ".hq-orqb{flex:1;min-width:0}",
+        ".hq-orql{font-size:13px;font-weight:650;color:var(--muted);line-height:1.5}",
+        ".hq-orqd{font-size:11.5px;color:var(--faint);margin-top:2px;line-height:1.5}",
+
+        /* THE ANSWER IS THE POINT, so it is the biggest thing in the block. */
+        ".hq-ortext{margin-top:7px;font-size:14.5px;line-height:1.65;color:var(--ink);"
+          + "white-space:pre-wrap;overflow-wrap:anywhere}",
+        ".hq-oram{margin-top:6px;font-size:12.5px;color:var(--faint);font-style:italic}",
+        ".hq-oram.req{color:var(--warn);font-style:normal;font-weight:650}",
+        ".hq-orreq{font-size:10px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;"
+          + "border:1px solid var(--warn);border-radius:999px;padding:1px 6px;margin-left:5px}",
+
+        ".hq-orpicks{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}",
+        ".hq-orpick{font-size:13.5px;font-weight:700;color:var(--ink);background:var(--panel-2);"
+          + "border:1px solid var(--line-2);border-radius:9px;padding:5px 11px;line-height:1.4}",
+        // a written-in answer is prose, so it gets a quiet caption rather than a chip's shape
+        ".hq-orpick.other{font-weight:600;background:transparent;border-style:dashed}",
+        ".hq-orpick.other i{font-style:normal;font-size:10.5px;font-weight:800;"
+          + "letter-spacing:.05em;text-transform:uppercase;color:var(--faint);margin-right:7px}",
+
+        ".hq-orstars{display:flex;align-items:center;gap:8px;margin-top:7px;font-size:17px;"
+          + "letter-spacing:2px}",
+        ".hq-orstars .on{color:var(--warn)}",
+        ".hq-orstars .off{color:var(--line-2)}",
+        ".hq-orstars b{font-size:12.5px;font-weight:750;color:var(--faint);letter-spacing:0}",
+
+        /* a scale answer is a POSITION, and a number alone makes the reader do that work */
+        ".hq-orscale{margin-top:8px;max-width:340px}",
+        ".hq-orsnum{display:flex;align-items:baseline;gap:1px;margin-bottom:5px}",
+        ".hq-orsnum b{font-size:20px;font-weight:800;line-height:1}",
+        ".hq-orsnum i{font-style:normal;font-size:12px;font-weight:700;color:var(--faint)}",
+        ".hq-orsnum.good b{color:var(--pos)}",
+        ".hq-orsnum.mid b{color:var(--warn)}",
+        ".hq-orsnum.bad b{color:var(--neg)}",
+        ".hq-orsbar{height:6px;border-radius:4px;background:var(--panel-2);"
+          + "border:1px solid var(--line);overflow:hidden}",
+        ".hq-orsbar span{display:block;height:100%;border-radius:4px}",
+        ".hq-orsbar span.good{background:var(--pos)}",
+        ".hq-orsbar span.mid{background:var(--warn)}",
+        ".hq-orsbar span.bad{background:var(--neg)}",
+        ".hq-orsends{display:flex;justify-content:space-between;gap:12px;margin-top:4px;"
+          + "font-size:10.5px;color:var(--faint);line-height:1.4}",
+        ".hq-orsends span:last-child{text-align:right}",
+
+        "@media(max-width:640px){.hq-orq{gap:9px}.hq-orbody{padding:4px 13px 14px}"
+          + ".hq-orlang{order:9}}",
         ".hq-row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}",
         ".hq-btn{font:inherit;font-size:13.5px;font-weight:700;color:var(--muted);background:var(--panel);border:1px solid var(--line-2);border-radius:9px;padding:7px 13px;cursor:pointer;white-space:nowrap}",
         ".hq-btn:hover{border-color:var(--brand);color:var(--brand)}",
@@ -644,6 +725,68 @@ registerPage({
                       long_text: { ic: "≡", hint: "Free writing" },
                       section: { ic: "§", hint: "A heading that groups the questions under it" } };
     var OTH = "Other…";
+
+    /* ---------------------------------------------------------------- READING LANGUAGE
+
+       His report (2026-08-25): reading one person's answers, the QUESTION came out in
+       English while the ANSWER was in Georgian, and it was confusing to follow.
+
+       He is right, and it is not a rendering slip -- it is baked into the design. The form
+       stores THE ENGLISH VALUE whatever language it was filled in (analytics/form.html), so
+       results stay comparable across people. That is the correct trade for analysis and the
+       wrong one for reading: the crew answered a Georgian form, wrote Georgian prose, and
+       chose options they saw in Georgian, and this screen was captioning all of it in
+       English.
+
+       So the whole screen now reads in ONE language: labels, section headings, choice
+       options and scale end labels all follow the switch. Free text is shown exactly as it
+       was typed and never touched -- it is a person's own words, and there is nothing to
+       translate it with.
+
+       GEORGIAN IS THE DEFAULT, his call, and the same call he made for the form itself. The
+       key is shared with analytics/form.html on purpose: whoever set a language while
+       previewing a form finds this screen already speaking it. */
+    var HQ_LKEY = "hrq_lang";
+    function qLang() {
+      var v;
+      try { v = localStorage.getItem(HQ_LKEY); } catch (e) { v = null; }
+      return v === "en" ? "en" : "ka";
+    }
+    function setQLang(v) {
+      try { localStorage.setItem(HQ_LKEY, v === "en" ? "en" : "ka"); } catch (e) { /* private mode */ }
+    }
+    // a question's own words: translated when the blob has them, English when it does not
+    function tx(qq, field) {
+      var i = qq && qq.i18n && qq.i18n[qLang()];
+      return (i && i[field]) || (qq && qq[field]) || "";
+    }
+    // a CHOICE label. The stored value never changes -- only what is drawn over it.
+    function tOpt(qq, o) {
+      var i = qq && qq.i18n && qq.i18n[qLang()];
+      if (o === OTH) return (i && i.other) || (qLang() === "ka" ? "\u10e1\u10ee\u10d5\u10d0\u2026" : OTH);
+      return (i && i.opt && i.opt[o]) || o;
+    }
+    function tScale(qq, which, fallback) {
+      var i = qq && qq.i18n && qq.i18n[qLang()];
+      return (i && i[which]) || fallback || "";
+    }
+    // the few words this SCREEN owns, as opposed to the questionnaire's
+    var HQ_STR = {
+      en: { notAnswered: "not answered", required: "required", of: "of",
+            answered: function (a, t) { return a + " of " + t + " answered"; },
+            everyone: "\u2190 Everyone", reopen: "Reopen", notStarted: "has not started",
+            notInvited: "Not invited yet", invited: "Invited", invite: "Invite",
+            other: "Other", skipped: "skipped" },
+      ka: { notAnswered: "\u10d0\u10e0 \u10e3\u10de\u10d0\u10e1\u10e3\u10ee\u10d8\u10d0",
+            required: "\u10e1\u10d0\u10d5\u10d0\u10da\u10d3\u10d4\u10d1\u10e3\u10da\u10dd",
+            of: "/",
+            answered: function (a, t) { return t + "-\u10d3\u10d0\u10dc " + a + " \u10e8\u10d4\u10d5\u10e1\u10d4\u10d1\u10e3\u10da\u10d8\u10d0"; },
+            everyone: "\u2190 \u10e7\u10d5\u10d4\u10da\u10d0", reopen: "\u10ee\u10d4\u10da\u10d0\u10ee\u10da\u10d0 \u10d2\u10d0\u10ee\u10e1\u10dc\u10d0",
+            notStarted: "\u10d0\u10e0 \u10d3\u10d0\u10d5\u10e3\u10da\u10d8\u10d0", notInvited: "\u10db\u10dd\u10ec\u10d5\u10d4\u10d5\u10d0 \u10d0\u10e0 \u10d2\u10d0\u10d3\u10d0\u10ed\u10d8\u10e0\u10d4\u10d1\u10e3\u10da\u10d0",
+            invited: "\u10db\u10dd\u10ec\u10d5\u10d4\u10d5\u10d0", invite: "\u10db\u10dd\u10ec\u10d5\u10d4\u10d5\u10d0",
+            other: "\u10e1\u10ee\u10d5\u10d0", skipped: "\u10d2\u10d0\u10db\u10dd\u10e2\u10dd\u10d5\u10d4\u10d1\u10e3\u10da\u10d8" },
+    };
+    function LS() { return HQ_STR[qLang()]; }
     var CHOICE_T = { single: 1, multi: 1, dropdown: 1 };
     function slugify(label, taken) {
       var base = String(label).toLowerCase().replace(/[^a-z0-9]+/g, "_")
@@ -1609,46 +1752,158 @@ registerPage({
       }
     }
 
-    /* ============================================================ one response */
+    /* ============================================================ one response
+
+       ONE PERSON'S FORM, READ THE WAY THEY FILLED IT IN. See the language helpers above for
+       why this screen used to mix English questions with Georgian answers.
+
+       The old version was a flat stack of "<b>label</b><br>answer" with no separation between
+       the two, so a long written answer ran straight into the next question and the sections
+       the form is built around were invisible. Reading somebody's whole form meant scrolling
+       and guessing. This lays it out as the form itself is shaped -- sections, numbered
+       questions, and an answer block whose SHAPE tells you the kind of answer before you read
+       a word of it: a scale draws where the number sits between its two ends, a choice shows
+       what they picked, free writing gets room to be read. */
     async function paintOneResponse(body, canR) {
       var d;
       try { d = await api("/api/_hrqadmin?view=response&id=" + S.qid + "&email=" + encodeURIComponent(S.subOpen)); }
       catch (e) { S.subOpen = null; toast(e.message, true); return paintSubmissions(body, canR); }
       var r = d.response;
-      var answerHtml = function (qq, v) {
-        if (qq.qtype === "section") return "";
-        if (v == null || v === "") return '<span class="hq-dim">— not answered</span>';
-        if (qq.qtype === "stars5") return '<span style="color:var(--warn)">' + "★".repeat(clampStar(v))
-          + '</span> <span class="hq-dim">' + esc(v) + "/5</span>";
-        if (qq.qtype === "scale") return esc(v) + '<span class="hq-dim"> of ' + esc((qq.options || [])[1] || "") + "</span>";
-        if (qq.qtype === "multi") return esc(safeArr(v).join(", "));
-        return esc(v);
-      };
+      var qs = d.questions || [];
+      var ans = d.answers || {};
+
+      // real questions, i.e. everything a person could actually answer
+      var asked = qs.filter(function (q) { return q.qtype !== "section"; });
+      var filled = asked.filter(function (q) {
+        var v = ans[q.id];
+        if (v == null || v === "") return false;
+        if (q.qtype === "multi") return safeArr(v).length > 0;
+        return true;
+      }).length;
+      var pct = asked.length ? Math.round((filled / asked.length) * 100) : 0;
+
+      /* THE ANSWER, drawn as the kind of thing it is. Free text is the one case that is
+         never translated or reformatted -- it is the person's own words. */
+      function answerHtml(qq, v) {
+        var blank = (v == null || v === ""
+          || (qq.qtype === "multi" && !safeArr(v).length));
+        if (blank) {
+          return '<div class="hq-oram' + (qq.required ? " req" : "") + '">'
+            + esc(LS().notAnswered)
+            + (qq.required ? ' <span class="hq-orreq">' + esc(LS().required) + "</span>" : "")
+            + "</div>";
+        }
+        if (qq.qtype === "stars5") {
+          var n = clampStar(v);
+          return '<div class="hq-orstars"><span class="on">' + "★".repeat(n) + "</span>"
+            + '<span class="off">' + "★".repeat(Math.max(0, 5 - n)) + "</span>"
+            + '<b>' + esc(n) + "/5</b></div>";
+        }
+        if (qq.qtype === "scale") {
+          var o = qq.options || [];
+          var lo = +o[0], hi = +o[1];
+          if (!isFinite(lo)) lo = 1;
+          if (!isFinite(hi) || hi <= lo) hi = 10;
+          var num = +v;
+          var frac = isFinite(num) ? Math.max(0, Math.min(1, (num - lo) / (hi - lo))) : 0;
+          // low third reads as a complaint, high third as praise -- the colour says which
+          // without the reader doing the arithmetic
+          var tone = frac >= 0.66 ? "good" : (frac <= 0.33 ? "bad" : "mid");
+          return '<div class="hq-orscale">'
+            + '<div class="hq-orsnum ' + tone + '"><b>' + esc(v) + "</b><i>/" + esc(hi) + "</i></div>"
+            + '<div class="hq-orsbar"><span class="' + tone + '" style="width:'
+            + Math.round(frac * 100) + '%"></span></div>'
+            + '<div class="hq-orsends"><span>' + esc(tScale(qq, "lo", o[2] || "")) + "</span>"
+            + "<span>" + esc(tScale(qq, "hi", o[3] || "")) + "</span></div>"
+            + "</div>";
+        }
+        if (qq.qtype === "single" || qq.qtype === "multi" || qq.qtype === "dropdown") {
+          var picked = qq.qtype === "multi" ? safeArr(v) : [v];
+          return '<div class="hq-orpicks">' + picked.map(function (x) {
+            var known = (qq.options || []).indexOf(x) >= 0 || x === OTH;
+            // A WRITTEN-IN "Other" IS NOT AN OPTION. It is free text wearing a choice's
+            // clothes, so it is shown as what it is rather than as a phantom option.
+            return known
+              ? '<span class="hq-orpick">' + esc(tOpt(qq, x)) + "</span>"
+              : '<span class="hq-orpick other"><i>' + esc(LS().other) + "</i>"
+                + esc(x) + "</span>";
+          }).join("") + "</div>";
+        }
+        // short_text / long_text and anything new: their words, their line breaks
+        return '<div class="hq-ortext">' + esc(v) + "</div>";
+      }
+
+      var statusPill = "";
+      if (r) {
+        var st2 = r.status === "submitted" || r.status === "resubmitted" ? "ok"
+          : (r.status === "in_progress" ? "warn" : "mute");
+        statusPill = '<span class="rs-pill ' + st2 + '">' + esc(r.status.replace("_", " "))
+          + "</span>";
+      }
+
+      var n = 0;
       body.innerHTML =
-        '<div class="hq-row" style="margin-bottom:12px">'
-        + '<button class="hq-btn" id="hrBack">← Everyone</button>'
-        + "<b style=\"font-size:15px\">" + esc(d.name || d.email) + "</b>"
-        + '<span class="hq-dim">' + esc(d.email)
-        + (r && r.department ? " · " + esc(r.department) : "") + "</span>"
-        + '<span style="flex:1"></span>'
-        + (r && (r.status === "submitted" || r.status === "resubmitted") && canR
-            ? '<button class="hq-btn" id="hrReop">Reopen</button>' : "")
+        // A READING COLUMN. Answers are prose and prose needs a measure -- across a wide
+        // monitor an unbounded line is genuinely hard to track back to the next one.
+        '<div class="hq-or-w">'
+        + '<div class="hq-orhd">'
+        + '<button class="hq-btn" id="hrBack">' + esc(LS().everyone) + "</button>"
+        + '<div class="hq-orwho"><b>' + esc(d.name || d.email) + "</b>"
+        + '<span>' + esc(d.email)
+        + (r && r.department ? " · " + esc(r.department) : "") + "</span></div>"
+        + statusPill
+        + '<span class="hq-orgap"></span>'
+        /* THE SWITCH. Beside the answers rather than in the page bar, because it changes
+           what is written in THIS card and nothing else on the screen. */
+        + '<div class="rs-seg hq-orlang" id="hrLang">'
+        + '<button data-l="ka"' + (qLang() === "ka" ? ' class="on"' : "") + ">ქართული</button>"
+        + '<button data-l="en"' + (qLang() === "en" ? ' class="on"' : "") + ">English</button>"
         + "</div>"
-        + '<div class="hq-dim" style="margin-bottom:12px">'
-        + (d.invite ? (d.invite.status === "sent" ? "Invited " + esc(fmtWhen(d.invite.sent_at)) : "Invite " + esc(d.invite.status)) : "Not invited yet")
+        + (r && (r.status === "submitted" || r.status === "resubmitted") && canR
+            ? '<button class="hq-btn" id="hrReop">' + esc(LS().reopen) + "</button>" : "")
+        + "</div>"
+
+        + '<div class="hq-ormeta">'
+        + (d.invite ? (d.invite.status === "sent"
+              ? esc(LS().invited) + " " + esc(fmtWhen(d.invite.sent_at))
+              : esc(LS().invite) + " " + esc(d.invite.status))
+            : esc(LS().notInvited))
         + (r ? " · " + esc(r.status.replace("_", " "))
              + (r.submitted_at ? " " + esc(fmtWhen(r.submitted_at)) : "")
+             + (r.submit_count > 1 ? " · " + esc(r.submit_count) + "×" : "")
              + (r.reopened_by ? " · reopened by " + esc(String(r.reopened_by).split("@")[0]) : "")
-          : " · has not started") + "</div>"
-        + '<div class="hq-card">'
-        + (d.questions || []).map(function (qq) {
-            if (qq.qtype === "section")
-              return '<div style="margin:14px 0 4px;padding:7px 12px;border-left:3px solid var(--brand);background:var(--panel-2);border-radius:0 8px 8px 0;font-weight:800;font-size:13px">'
-                + esc(qq.label) + "</div>";
-            return '<div class="hq-txt"><b>' + esc(qq.label) + "</b><br>" + answerHtml(qq, d.answers[qq.id]) + "</div>";
+          : " · " + esc(LS().notStarted)) + "</div>"
+
+        + (asked.length
+            ? '<div class="hq-orprog"><div class="hq-orpbar"><span style="width:' + pct
+              + '%"></span></div><b>' + esc(LS().answered(filled, asked.length)) + "</b></div>"
+            : "")
+
+        + '<div class="hq-orbody">'
+        + qs.map(function (qq) {
+            if (qq.qtype === "section") {
+              return '<div class="hq-orsec">' + esc(tx(qq, "label")) + "</div>";
+            }
+            n += 1;
+            var desc = tx(qq, "description");
+            return '<div class="hq-orq">'
+              + '<div class="hq-orqn">' + n + "</div>"
+              + '<div class="hq-orqb">'
+              + '<div class="hq-orql">' + esc(tx(qq, "label")) + "</div>"
+              + (desc ? '<div class="hq-orqd">' + esc(desc) + "</div>" : "")
+              + answerHtml(qq, ans[qq.id])
+              + "</div></div>";
           }).join("")
-        + "</div>";
+        + "</div></div>";
+
       body.querySelector("#hrBack").onclick = function () { S.subOpen = null; paintSubmissions(body, canR); };
+      Array.prototype.forEach.call(body.querySelectorAll("#hrLang button"), function (b) {
+        b.onclick = function () {
+          if (qLang() === b.dataset.l) return;
+          setQLang(b.dataset.l);
+          paintOneResponse(body, canR);          // one source of truth: repaint, never patch
+        };
+      });
       var rb = body.querySelector("#hrReop");
       if (rb) rb.onclick = async function () {
         if (!(await hqConfirm({ t: "Reopen this response?",
