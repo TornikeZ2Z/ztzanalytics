@@ -24,7 +24,8 @@
         cols: ["Day", "Rank", "Kind", "Job Code", "Customer", "CF", "After Code",
                "After Customer", "Move To", "Target Spare", "Link Miles", "Link Minutes",
                "Cost", "Discount", "Recommended", "Purpose", "Lands Behind", "Status",
-               "Arrive", "Arrives Late", "Anchor Route"],
+               "Arrive", "Arrives Late", "Anchor Route",
+               "Event Id", "Calendar Id", "After Event Id"],
       };
     }
     if (!RS.DATASETS.fct_cleanup_job) {
@@ -1118,6 +1119,12 @@ registerPage({
               + "' data-kind='" + esc(o.Kind) + "' data-code='" + esc(o["Job Code"])
               + "' data-cust='" + esc(o.Customer || "") + "' data-after='"
               + esc(o["After Code"] || "") + "' data-to='" + esc(o["Move To"] || "") + "'"
+              // WHICH EVENT. A job code and a day do not name one -- 245 codes appear on
+              // more than one date -- so the decision carries the id the board was looking
+              // at rather than leaving anything downstream to guess by code.
+              + " data-ev='" + esc(o["Event Id"] || "") + "' data-cal='"
+              + esc(o["Calendar Id"] || "") + "' data-afterev='"
+              + esc(o["After Event Id"] || "") + "'"
               + (S.busy ? " disabled" : "") + ">" + label + "</button>";
           };
           return "<div class='cu-opt" + (done ? " done" : "") + "'>"
@@ -1345,7 +1352,10 @@ registerPage({
         body: JSON.stringify({
           day: S.sel, job_code: code, customer: cust, kind: btn.getAttribute("data-kind"),
           action: action, after_code: btn.getAttribute("data-after") || null,
-          move_to: btn.getAttribute("data-to") || null }),
+          move_to: btn.getAttribute("data-to") || null,
+          event_id: btn.getAttribute("data-ev") || null,
+          calendar_id: btn.getAttribute("data-cal") || null,
+          after_event_id: btn.getAttribute("data-afterev") || null }),
       }).then(function (r) { return r.json().then(function (j) {
           if (!r.ok || j.error) throw new Error(j.error || ("HTTP " + r.status));
           // reflect it now; the mart re-reads decisions on its next build
