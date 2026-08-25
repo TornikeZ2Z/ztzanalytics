@@ -31,7 +31,14 @@
       cols: ["Job Code", "Request No", "Date", "Month", "Company", "Foreman", "Customer",
              "Job Type", "Arrival Source", "Window Start", "Deadline", "Arrived",
              "Late Minutes", "Is Late", "Over An Hour", "Strict Appointment",
-             "Suspect Reschedule", "Calendar Link", "Contract URL"],
+             "Suspect Reschedule", "Calendar Link", "Contract URL",
+             // WHO CHAINED THIS JOB, AND WHOSE DEADLINE WE ARE GRADING AGAINST. Calendar
+             // Cleanup can rewrite a chained job's arrival window, and that window IS the
+             // deadline on this page -- so a crew can be "on time" because the board moved
+             // the line. `Original Deadline` is what the customer had before we touched it.
+             "Chained", "Chain Source", "Chained Behind", "Window Rewritten",
+             "Originally Strict", "Original Deadline", "Late Minutes vs Original",
+             "On Time Only After Rewrite"],
     };
   }
 })();
@@ -54,6 +61,8 @@
       + "overflow:hidden;min-width:54px}"
       + ".fla-rate i{display:block;height:100%;border-radius:4px;background:var(--warn)}"
       + ".fla-rate i.bad{background:var(--neg)}"
+      // the window we replaced, sitting under the one being graded
+      + ".fla-was{display:block;font-size:11px;color:var(--faint);text-decoration:line-through}"
       + ".fla-lnk{color:var(--blue);font-weight:700;text-decoration:none;margin-right:10px}"
       + ".fla-lnk:hover{text-decoration:underline}"
       // the answer form. It opens INSIDE the job list rather than in a dialog, because the
@@ -176,6 +185,13 @@
           r.over = !!(+r["Over An Hour"]);
           r.strict = !!(+r["Strict Appointment"]);
           r.suspect = !!(+r["Suspect Reschedule"]);
+          r.chained = !!(+r.Chained);
+          r.byBoard = String(r["Chain Source"] || "") === "Board";
+          r.rewritten = !!(+r["Window Rewritten"]);
+          r.wasStrict = !!(+r["Originally Strict"]);
+          r.rescued = !!(+r["On Time Only After Rewrite"]);
+          r.origLate = r["Late Minutes vs Original"] == null
+            ? null : +r["Late Minutes vs Original"];
           r.key = jobKey(r);
           decorate(r);
           return r;
@@ -329,13 +345,35 @@
               + '<td class="strong">' + esc(r["Job Code"] || "—") + "</td>"
               + "<td>" + esc(r.Customer || "—") + "</td>"
               + '<td class="nowrap muted">' + esc(r["Window Start"] || "—") + " – "
-              + esc(r.Deadline || "—") + "</td>"
+              + esc(r.Deadline || "—")
+              // THE PROMISE WE REPLACED, under the one we grade against. Only ever shown
+              // where the two differ, so an untouched job reads exactly as it always did.
+              + (r.rewritten && r["Original Deadline"]
+                  ? '<span class="fla-was">was – ' + esc(r["Original Deadline"])
+                    + "</span>" : "")
+              + "</td>"
               + '<td class="nowrap">' + esc(r.Arrived || "—") + "</td>"
               + '<td class="num nowrap">' + (r.isLate
                   ? '<span class="rs-pill ' + (r.over ? "bad" : "warn") + '">+'
                     + r.late + " min</span>"
                   : '<span class="rs-pill ok">on time</span>') + "</td>"
               + "<td>" + (r.strict ? '<span class="rs-pill info">exact time</span>' : "")
+                + (!r.strict && r.wasStrict
+                    ? ' <span class="rs-pill info">was an exact time</span>' : "")
+                + (r.chained
+                    ? ' <span class="rs-pill mute">chained' + (r.byBoard ? " by the board" : "")
+                      + (r["Chained Behind"] ? " · " + esc(r["Chained Behind"]) : "")
+                      + "</span>" : "")
+                /* THE ONE A READER MUST NOT MISS. On time against the window this system
+                   wrote, late against the one the customer agreed. Loud on purpose: it is
+                   the only row shape where the number above it flatters us. */
+                + (r.rescued
+                    ? ' <span class="rs-pill bad">on time only after we moved the window'
+                      + (r.origLate != null ? " · +" + r.origLate + " min against it" : "")
+                      + "</span>"
+                    : (r.rewritten
+                        ? ' <span class="rs-pill warn">window rewritten by the board</span>'
+                        : ""))
                 + (r.suspect ? ' <span class="rs-pill mute">looks rescheduled</span>' : "")
               + "</td>"
               + "<td>" + whyCell(r) + "</td>"
@@ -678,7 +716,10 @@
             const cols = ["Date", "Job Code", "Foreman", "Customer", "Company", "Job Type",
                           "Arrival Source", "Window Start", "Deadline", "Arrived",
                           "Late Minutes", "Is Late", "Over An Hour", "Strict Appointment",
-                          "Suspect Reschedule", "Verdict", "Explanation", "Answered By",
+                          "Suspect Reschedule", "Chained", "Chain Source", "Chained Behind",
+                          "Window Rewritten", "Original Deadline", "Late Minutes vs Original",
+                          "On Time Only After Rewrite",
+                          "Verdict", "Explanation", "Answered By",
                           "Answered At", "Calendar Link", "Contract URL"];
             const cell = x => {
               let s = String(x == null ? "" : x);
@@ -691,6 +732,9 @@
                r["Arrival Source"], r["Window Start"], r.Deadline, r.Arrived,
                r.late, r.isLate ? "yes" : "no", r.over ? "yes" : "no",
                r.strict ? "yes" : "no", r.suspect ? "yes" : "no",
+               r.chained ? "yes" : "no", r["Chain Source"] || "", r["Chained Behind"] || "",
+               r.rewritten ? "yes" : "no", r["Original Deadline"] || "",
+               r.origLate == null ? "" : r.origLate, r.rescued ? "yes" : "no",
                r.verdict ? ((VMAP[r.verdict] || {}).label || r.verdict) : "",
                r.why || "", r.whoSaid || "", r.whenSaid || "",
                r["Calendar Link"], r["Contract URL"]].map(cell).join(",")));
