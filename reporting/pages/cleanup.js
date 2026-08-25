@@ -1162,6 +1162,10 @@ registerPage({
               // somebody could set elsewhere. Caught in testing when a manually-changed
               // S.sel recorded a decision against the wrong date.
               + " data-day='" + esc(String(o.Day).slice(0, 10)) + "'"
+              // WHEN THE CHAINED CREW ACTUALLY TURNS UP. Without this the calendar keeps
+              // showing the originally booked hour while the crew is hours behind it, which
+              // is precisely the confusion a chain creates if nobody writes it down.
+              + " data-arrive='" + esc(o.Arrive || "") + "'"
               + " data-ev='" + esc(o["Event Id"] || "") + "' data-cal='"
               + esc(o["Calendar Id"] || "") + "' data-afterev='"
               + esc(o["After Event Id"] || "") + "'"
@@ -1517,6 +1521,7 @@ registerPage({
           job_code: code, customer: cust, kind: btn.getAttribute("data-kind"),
           action: action, after_code: btn.getAttribute("data-after") || null,
           move_to: btn.getAttribute("data-to") || null,
+          arrive_hhmm: btn.getAttribute("data-arrive") || null,
           event_id: btn.getAttribute("data-ev") || null,
           calendar_id: btn.getAttribute("data-cal") || null,
           after_event_id: btn.getAttribute("data-afterev") || null }),
