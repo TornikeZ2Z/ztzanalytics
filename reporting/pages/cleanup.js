@@ -131,6 +131,10 @@ registerPage({
       + ".cu-mnote{font-size:12.5px;color:var(--muted);line-height:1.6;margin-top:10px}"
       + ".cu-merr{margin-top:10px;padding:9px 11px;border-radius:8px;background:var(--neg-bg);"
       + "border:1px solid var(--neg);color:var(--neg);font-size:12.5px;line-height:1.55}"
+      + ".cu-merr.warn{background:var(--warn-bg);border-color:var(--warn);color:var(--warn)}"
+      + ".cu-mstrict{margin-left:6px;font-size:10.5px;font-weight:700;color:var(--warn);"
+      + "background:var(--warn-bg);border:1px solid var(--warn);border-radius:999px;"
+      + "padding:1px 7px;vertical-align:1px}"
       + ".cu-fmwarn{margin-top:8px;padding:8px 10px;border-radius:8px;background:var(--warn-bg);border:1px solid var(--warn);font-size:12px;line-height:1.55;color:var(--muted)}"
       + ".cu-fmwarn b{color:var(--ink)}"
       + ".cu-opt{display:flex;gap:12px;align-items:flex-start;padding:11px 0;"
@@ -1125,7 +1129,13 @@ registerPage({
           var why = isCall
             ? ("Ring them and ask to run in the afternoon behind "
                + esc(o["After Customer"] || o["After Code"] || "") + ". "
-               + (o.Arrive ? "They would arrive about " + esc(o.Arrive) + ". " : "")
+               // THE CREW'S TIME AND THE CUSTOMER'S PROMISE ARE DIFFERENT THINGS, and
+               // the dispatcher is about to make the second one. The calendar gets a whole
+               // hour window around the arrival (see arrival_window in cleanup_write.py), so
+               // it is said here, before the decision, not discovered afterwards.
+               + (o.Arrive ? "They would arrive about " + esc(o.Arrive)
+                    + ", and the calendar would promise " + esc(sayWindow(o.Arrive))
+                    + ". " : "")
                + (o["Link Minutes"] != null ? "About " + o["Link Minutes"] + " min ("
                   + o["Link Miles"] + " mi) between the two. " : "")
                + (o.Discount ? "Costs a $" + o.Discount + " same-day discount." : ""))
@@ -1390,6 +1400,22 @@ registerPage({
        decision ledger, where a completed write appends action='pushed' -- so a written job
        stops being 'accepted' and drops out of this count on the next rebuild. Until that
        rebuild the page removes them itself (see writeNow). */
+    /* "13:36" -> "1-4pm": the whole-hour window the writer will put on the calendar.
+       Must agree with arrival_window() in src/cleanup_write.py -- the same three hours from
+       the top of the arrival's own hour. Kept deliberately simple here: this is a label, and
+       the calendar is written by the server, which owns the real rule including its day-end
+       cut. */
+    var WINDOW_HOURS = 3;
+    function sayWindow(hhmm) {
+      var m = /^(\d{1,2}):(\d{2})$/.exec(String(hhmm || "").trim());
+      if (!m) return "";
+      var sh = +m[1];
+      var eh = Math.min(sh + WINDOW_HOURS, 23);
+      if (eh <= sh) return "";
+      var h12 = function (h) { return String(h % 12 || 12); };
+      return h12(sh) + "-" + h12(eh) + (eh < 12 ? "am" : "pm");
+    }
+
     function pendingWrites() {
       return (S.opts || []).filter(function (o) {
         return o.Status === "accepted" && o["Event Id"];
@@ -1441,12 +1467,26 @@ registerPage({
       cuWriteCall(true).then(function (plan) {
         var items = plan.items || [];
         var will = items.filter(function (i) { return i.did && !/no change needed/.test(i.did); });
+        var strict = items.filter(function (i) { return i.strict; });
         var rows = items.map(function (i) {
           var skip = /no change needed|nothing to write/.test(i.did || "");
           return "<div class='cu-mrow" + (skip ? " skip" : "") + "'><b>" + esc(i.job)
-            + "</b> <span class='cu-mday'>" + esc(i.day) + "</span><div>" + esc(i.did)
-            + "</div></div>";
+            + "</b> <span class='cu-mday'>" + esc(i.day) + "</span>"
+            + (i.strict ? "<span class='cu-mstrict'>exact time asked for</span>" : "")
+            + "<div>" + esc(i.did) + "</div></div>";
         }).join("") || "<div class='cu-mnote'>Nothing is waiting to be written.</div>";
+        /* A ZERO-LENGTH EVENT IS A PROMISE OF AN EXACT TIME, not missing data -- 625 of this
+           year's events are one, and they run late 59% of the time against 18% for a real
+           window. Replacing one with a three-hour window is somebody's phone call being
+           quietly renegotiated, so it is said out loud here and nowhere else would do: this
+           is the last screen before the calendar changes. */
+        if (strict.length) {
+          rows += "<div class='cu-merr warn'><b>" + strict.length + " of these asked for an "
+            + "exact time</b> and would be given a " + WINDOW_HOURS + "-hour window instead: "
+            + strict.map(function (i) { return esc(i.job); }).join(", ")
+            + ". The customer agreed a specific hour with somebody \u2014 widening it here "
+            + "does not tell them.</div>";
+        }
         var errs = (plan.errors || []).length
           ? "<div class='cu-merr'>" + (plan.errors || []).map(esc).join("<br>") + "</div>" : "";
         var foot = will.length
