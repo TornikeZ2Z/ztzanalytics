@@ -1413,8 +1413,15 @@ registerPage({
     function sayWindow(hhmm) {
       var m = /^(\d{1,2}):(\d{2})$/.exec(String(hhmm || "").trim());
       if (!m) return "";
-      var sh = +m[1];
-      var eh = Math.min(sh + WINDOW_HOURS, 23);
+      var ah = +m[1], am = +m[2], sh = ah;
+      // the last quarter of an hour opens the window an hour earlier -- must match
+      // LATE_QUARTER_CUSP in src/cleanup_write.py or this label contradicts the calendar
+      if (am >= 45 && sh > 5) sh -= 1;
+      // ...and the same taper the server applies: close by 8pm where it can, but never less
+      // than an hour after the crew is due, and never past 11pm. Checked to agree with
+      // arrival_window() across the working day; the ONE thing this cannot know is the window
+      // the job already has, which is why the sentence around it is hedged.
+      var eh = Math.min(Math.max(Math.min(sh + WINDOW_HOURS, 20), (am ? ah + 1 : ah) + 1), 23);
       if (eh <= sh) return "";
       var h12 = function (h) { return String(h % 12 || 12); };
       return h12(sh) + "-" + h12(eh) + (eh < 12 ? "am" : "pm");
