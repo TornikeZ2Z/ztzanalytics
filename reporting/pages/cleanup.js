@@ -113,6 +113,24 @@ registerPage({
          its end: at 2000px the Accept button ended up an inch from the far edge of the
          screen, a long way from the sentence it answers. Text-bearing blocks keep a
          comfortable measure; only the diagrams stretch. */
+      + ".cu-mask{position:fixed;inset:0;z-index:60;background:rgba(4,8,14,.5);"
+      + "display:grid;place-items:center;padding:24px}"
+      + ".cu-modal{background:var(--panel);border:1px solid var(--line-2);border-radius:14px;"
+      + "box-shadow:var(--shadow);max-width:620px;width:100%;max-height:80vh;display:flex;"
+      + "flex-direction:column}"
+      + ".cu-mhd{padding:15px 18px;font-size:15px;font-weight:800;color:var(--ink);"
+      + "border-bottom:1px solid var(--line)}"
+      + ".cu-mbody{padding:14px 18px;overflow:auto}"
+      + ".cu-mft{padding:13px 18px;border-top:1px solid var(--line);display:flex;gap:9px;"
+      + "justify-content:flex-end}"
+      + ".cu-mrow{padding:8px 0;border-bottom:1px solid var(--line);font-size:13px}"
+      + ".cu-mrow:last-child{border-bottom:0}"
+      + ".cu-mrow.skip{opacity:.5}"
+      + ".cu-mrow div{color:var(--muted);font-size:12.5px;margin-top:2px}"
+      + ".cu-mday{color:var(--faint);font-size:11.5px;margin-left:6px}"
+      + ".cu-mnote{font-size:12.5px;color:var(--muted);line-height:1.6;margin-top:10px}"
+      + ".cu-merr{margin-top:10px;padding:9px 11px;border-radius:8px;background:var(--neg-bg);"
+      + "border:1px solid var(--neg);color:var(--neg);font-size:12.5px;line-height:1.55}"
       + ".cu-fmwarn{margin-top:8px;padding:8px 10px;border-radius:8px;background:var(--warn-bg);border:1px solid var(--warn);font-size:12px;line-height:1.55;color:var(--muted)}"
       + ".cu-fmwarn b{color:var(--ink)}"
       + ".cu-opt{display:flex;gap:12px;align-items:flex-start;padding:11px 0;"
@@ -1248,6 +1266,11 @@ registerPage({
         + "<button class='rs-btn" + (S.sel === TOM ? " cu-sel" : "") + "' data-jump='" + TOM + "'"
         + (has(TOM) ? "" : " disabled") + ">Tomorrow</button>"
         + "<div class='rs-spacer'></div>"
+        // WHAT IS AGREED BUT NOT YET ON THE CALENDAR. Counted across the whole horizon, not
+        // this day: a dispatcher works a day at a time and would otherwise have to visit
+        // each one to discover there was anything to write.
+        + (pendingWrites() ? "<button class='rs-btn pri' id='cuWrite'>"
+             + "Update calendar \u00b7 " + pendingWrites() + "</button>" : "")
         + "<button class='rs-tog" + (S.probOnly ? " on" : "") + "' id='cuProb'><i></i>"
         + (S.probOnly ? "Showing days that need attention" : "Show only days that need attention")
         + "</button></div>";
@@ -1286,6 +1309,8 @@ registerPage({
       Array.prototype.forEach.call(body.querySelectorAll("[data-dec]"), function (b) {
         b.onclick = function () { decide(b); };
       });
+      var wbtn = body.querySelector("#cuWrite");
+      if (wbtn) wbtn.onclick = writeFlow;
       Array.prototype.forEach.call(body.querySelectorAll("[data-base]"), function (b) {
         b.onclick = function () {
           S.baseF = b.getAttribute("data-base") || null;
@@ -1349,6 +1374,121 @@ registerPage({
           return String(j.Day).slice(0, 10) === S.sel
             && (j.Route || ("solo:" + j["Job Code"])) === S.openRun; }));
       }
+    }
+
+    /* Accepted, and the calendar does not know yet. `Status` is the mart's replay of the
+       decision ledger, where a completed write appends action='pushed' -- so a written job
+       stops being 'accepted' and drops out of this count on the next rebuild. Until that
+       rebuild the page removes them itself (see writeNow). */
+    function pendingWrites() {
+      return (S.opts || []).filter(function (o) {
+        return o.Status === "accepted" && o["Event Id"];
+      }).length;
+    }
+
+    function cuModal(title, html, footer) {
+      // document.body, not the page host: the mask is position:fixed and must not be
+      // clipped by a scrolling ancestor, and `body` here is a local in the render closure
+      // that this function does not share.
+      var host = document.getElementById("cuModalHost");
+      if (!host) {
+        host = document.createElement("div");
+        host.id = "cuModalHost";
+        document.body.appendChild(host);
+      }
+      host.innerHTML = "<div class='cu-mask'><div class='cu-modal'>"
+        + "<div class='cu-mhd'>" + title + "</div>"
+        + "<div class='cu-mbody'>" + html + "</div>"
+        + "<div class='cu-mft'>" + (footer || "") + "</div></div></div>";
+      var mask = host.querySelector(".cu-mask");
+      mask.onclick = function (e) { if (e.target === mask) host.innerHTML = ""; };
+      return host;
+    }
+
+    function closeModal() {
+      var h = document.getElementById("cuModalHost");
+      if (h) h.innerHTML = "";
+    }
+
+    function cuWriteCall(dry) {
+      return fetch(ZTZ.API + "/api/_cleanupwrite", {
+        method: "POST",
+        headers: { "Content-Type": "application/json",
+                   Authorization: "Bearer " + ZTZ.getToken() },
+        body: JSON.stringify({ dry_run: !!dry }),
+      }).then(function (r) { return r.json().then(function (j) {
+        if (!r.ok || j.error) throw new Error(j.error || ("HTTP " + r.status));
+        return j.result || {};
+      }); });
+    }
+
+    /* THE GATE. The summary is a REAL dry run against Google, not a replay of what the board
+       remembers -- so an event somebody edited by hand since shows its true state here,
+       before anything is touched, and an option that turns out to need no change says so. */
+    function writeFlow() {
+      cuModal("Checking the calendar\u2026",
+              "<div class='cu-mnote'>Reading the events these changes would touch.</div>", "");
+      cuWriteCall(true).then(function (plan) {
+        var items = plan.items || [];
+        var will = items.filter(function (i) { return i.did && !/no change needed/.test(i.did); });
+        var rows = items.map(function (i) {
+          var skip = /no change needed|nothing to write/.test(i.did || "");
+          return "<div class='cu-mrow" + (skip ? " skip" : "") + "'><b>" + esc(i.job)
+            + "</b> <span class='cu-mday'>" + esc(i.day) + "</span><div>" + esc(i.did)
+            + "</div></div>";
+        }).join("") || "<div class='cu-mnote'>Nothing is waiting to be written.</div>";
+        var errs = (plan.errors || []).length
+          ? "<div class='cu-merr'>" + (plan.errors || []).map(esc).join("<br>") + "</div>" : "";
+        var foot = will.length
+          ? "<button class='rs-btn' id='cuCancel'>Cancel</button>"
+            + "<button class='rs-btn pri' id='cuGo'>Write " + will.length
+            + " change" + (will.length === 1 ? "" : "s") + " to the calendar</button>"
+          : "<button class='rs-btn' id='cuCancel'>Close</button>";
+        var host = cuModal("Update calendar", rows + errs
+          + "<div class='cu-mnote'>Chained jobs will notify their crew by calendar invite. "
+          + "Date moves will not \u2014 those are posted to the alerts channel instead. "
+          + "Nobody is added to or removed from any event.</div>", foot);
+        host.querySelector("#cuCancel").onclick = closeModal;
+        var go = host.querySelector("#cuGo");
+        if (go) go.onclick = function () { go.disabled = true; go.textContent = "Writing\u2026"; writeNow(); };
+      }).catch(function (e) {
+        cuModal("Could not check the calendar",
+                "<div class='cu-merr'>" + esc(e.message) + "</div>",
+                "<button class='rs-btn' id='cuCancel'>Close</button>");
+        var h = document.getElementById("cuModalHost");
+        h.querySelector("#cuCancel").onclick = closeModal;
+      });
+    }
+
+    function writeNow() {
+      cuWriteCall(false).then(function (res) {
+        // reflect it NOW. The mart replays the ledger on its next build, but the dispatcher
+        // is looking at the board this second and a button that changes nothing reads as a
+        // button that did nothing.
+        var done = {};
+        (res.items || []).forEach(function (i) { if (i.written) done[i.job] = 1; });
+        (S.opts || []).forEach(function (o) {
+          if (done[o["Job Code"]] && o.Status === "accepted") o.Status = "pushed";
+        });
+        var lines = (res.items || []).filter(function (i) { return i.written; })
+          .map(function (i) { return "<div class='cu-mrow'><b>" + esc(i.job) + "</b><div>"
+            + esc(i.did) + "</div></div>"; }).join("");
+        var errs = (res.errors || []).length
+          ? "<div class='cu-merr'>" + (res.errors || []).map(esc).join("<br>") + "</div>" : "";
+        var host = cuModal("Calendar updated",
+          "<div class='cu-mnote'>" + (res.written || 0) + " change"
+          + ((res.written || 0) === 1 ? "" : "s") + " written"
+          + (res.failed ? " \u00b7 " + res.failed + " failed" : "") + ".</div>"
+          + lines + errs,
+          "<button class='rs-btn pri' id='cuCancel'>Done</button>");
+        host.querySelector("#cuCancel").onclick = function () { closeModal(); paint(); };
+      }).catch(function (e) {
+        cuModal("The calendar was not updated",
+                "<div class='cu-merr'>" + esc(e.message) + "</div>",
+                "<button class='rs-btn' id='cuCancel'>Close</button>");
+        var h = document.getElementById("cuModalHost");
+        h.querySelector("#cuCancel").onclick = closeModal;
+      });
     }
 
     function decide(btn) {
