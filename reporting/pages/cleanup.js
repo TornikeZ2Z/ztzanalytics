@@ -1135,7 +1135,11 @@ registerPage({
                // it is said here, before the decision, not discovered afterwards.
                + (o.Arrive ? "They would arrive about " + esc(o.Arrive)
                     + ", and the calendar would promise " + esc(sayWindow(o.Arrive))
-                    + ". " : "")
+                    // HEDGED ON PURPOSE. This label knows the arrival but not the window the
+                    // job already has, and the writer leaves that window alone when the crew
+                    // still makes it. Saying so is better than a confident number the
+                    // confirmation screen then contradicts.
+                    + " unless the window they already have still covers it. " : "")
                + (o["Link Minutes"] != null ? "About " + o["Link Minutes"] + " min ("
                   + o["Link Miles"] + " mi) between the two. " : "")
                + (o.Discount ? "Costs a $" + o.Discount + " same-day discount." : ""))
