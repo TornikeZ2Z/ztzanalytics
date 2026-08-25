@@ -767,7 +767,7 @@ registerPage({
     // a CHOICE label. The stored value never changes -- only what is drawn over it.
     function tOpt(qq, o) {
       var i = qq && qq.i18n && qq.i18n[qLang()];
-      if (o === OTH) return (i && i.other) || (qLang() === "ka" ? "\u10e1\u10ee\u10d5\u10d0\u2026" : OTH);
+      if (o === OTH) return (i && i.other) || (qLang() === "ka" ? "სხვა\u2026" : OTH);
       return (i && i.opt && i.opt[o]) || o;
     }
     function tScale(qq, which, fallback) {
@@ -776,21 +776,47 @@ registerPage({
     }
     // the few words this SCREEN owns, as opposed to the questionnaire's
     var HQ_STR = {
-      en: { notAnswered: "not answered", required: "required", of: "of",
+      en: { notAnswered: "not answered", required: "required",
             answered: function (a, t) { return a + " of " + t + " answered"; },
             everyone: "\u2190 Everyone", reopen: "Reopen", notStarted: "has not started",
             notInvited: "Not invited yet", invited: "Invited", invite: "Invite",
-            other: "Other", skipped: "skipped" },
-      ka: { notAnswered: "\u10d0\u10e0 \u10e3\u10de\u10d0\u10e1\u10e3\u10ee\u10d8\u10d0",
-            required: "\u10e1\u10d0\u10d5\u10d0\u10da\u10d3\u10d4\u10d1\u10e3\u10da\u10dd",
-            of: "/",
-            answered: function (a, t) { return t + "-\u10d3\u10d0\u10dc " + a + " \u10e8\u10d4\u10d5\u10e1\u10d4\u10d1\u10e3\u10da\u10d8\u10d0"; },
-            everyone: "\u2190 \u10e7\u10d5\u10d4\u10da\u10d0", reopen: "\u10ee\u10d4\u10da\u10d0\u10ee\u10da\u10d0 \u10d2\u10d0\u10ee\u10e1\u10dc\u10d0",
-            notStarted: "\u10d0\u10e0 \u10d3\u10d0\u10d5\u10e3\u10da\u10d8\u10d0", notInvited: "\u10db\u10dd\u10ec\u10d5\u10d4\u10d5\u10d0 \u10d0\u10e0 \u10d2\u10d0\u10d3\u10d0\u10ed\u10d8\u10e0\u10d4\u10d1\u10e3\u10da\u10d0",
-            invited: "\u10db\u10dd\u10ec\u10d5\u10d4\u10d5\u10d0", invite: "\u10db\u10dd\u10ec\u10d5\u10d4\u10d5\u10d0",
-            other: "\u10e1\u10ee\u10d5\u10d0", skipped: "\u10d2\u10d0\u10db\u10dd\u10e2\u10dd\u10d5\u10d4\u10d1\u10e3\u10da\u10d8" },
+            other: "Other", print: "Print" },
+      ka: { notAnswered: "არ უპასუხია", required: "სავალდებულო",
+            answered: function (a, t) { return t + "-დან " + a + " შევსებულია"; },
+            everyone: "\u2190 ყველა", reopen: "ხელახლა გახსნა",
+            notStarted: "არ დაუწყია", notInvited: "მოწვევა არ გაგზავნილა",
+            invited: "მოწვეულია", invite: "მოწვევა", other: "სხვა",
+            print: "ბეჭდვა" },
     };
     function LS() { return HQ_STR[qLang()]; }
+
+    // Statistics has its own vocabulary -- counts, averages and the captions around them.
+    var HQ_RES = {
+      en: { audience: "audience", submitted: "submitted", completion: "completion",
+            pending: "reopened / pending", allDepts: "All departments",
+            aggregate: "Aggregate \u2014 everyone", csv: "Download CSV",
+            average: "average", of: "of", answers: function (n) { return n + " answers"; },
+            several: "several choices allowed",
+            otherWords: "Other, in their words: ", noneYet: "No written answers yet.",
+            submittedOn: "submitted" },
+      ka: { audience: "აუდიტორია", submitted: "გაგზავნილი", completion: "შევსება",
+            pending: "ხელახლა გახსნილი / მოლოდინში", allDepts: "ყველა დეპარტამენტი",
+            aggregate: "საერთო \u2014 ყველა", csv: "CSV-ის გადმოწერა",
+            average: "საშუალო", of: "/", answers: function (n) { return n + " პასუხი"; },
+            several: "შესაძლებელია რამდენიმეს არჩევა",
+            otherWords: "სხვა, მათი სიტყვებით: ", noneYet: "ჯერ არ არის პასუხები.",
+            submittedOn: "გაგზავნილია" },
+    };
+    function RS_() { return HQ_RES[qLang()]; }
+    // the question TYPE, named in the reading language
+    var TYPE_LABEL_KA = {
+      stars5: "შეფასება 1\u20135", scale: "წრფივი შკალა",
+      single: "ერთი პასუხი", multi: "რამდენიმე პასუხი", dropdown: "სია",
+      short_text: "მოკლე ტექსტი", long_text: "ვრცელი ტექსტი", section: "სექცია",
+    };
+    function typeLabel(t) {
+      return (qLang() === "ka" && TYPE_LABEL_KA[t]) || TYPE_LABEL[t] || t;
+    }
     var CHOICE_T = { single: 1, multi: 1, dropdown: 1 };
     function slugify(label, taken) {
       var base = String(label).toLowerCase().replace(/[^a-z0-9]+/g, "_")
@@ -1756,6 +1782,234 @@ registerPage({
       }
     }
 
+      /* THE ANSWER, drawn as the kind of thing it is -- shared by the Responses screen and
+       by the one-person view inside Statistics, which used to draw the same answers a
+       different and much flatter way. Two renderings of one thing is two things to keep
+       right, and only one of them ever gets fixed.
+
+       Free text is the one case never translated or reformatted: it is the person's own
+       words, and there is nothing to translate it with. */
+    function hqAnswerHtml(qq, v) {
+      var blank = (v == null || v === ""
+        || (qq.qtype === "multi" && !safeArr(v).length));
+      if (blank) {
+        return '<div class="hq-oram' + (qq.required ? " req" : "") + '">'
+          + esc(LS().notAnswered)
+          + (qq.required ? ' <span class="hq-orreq">' + esc(LS().required) + "</span>" : "")
+          + "</div>";
+      }
+      if (qq.qtype === "stars5") {
+        var n = clampStar(v);
+        return '<div class="hq-orstars"><span class="on">' + "★".repeat(n) + "</span>"
+          + '<span class="off">' + "★".repeat(Math.max(0, 5 - n)) + "</span>"
+          + '<b>' + esc(n) + "/5</b></div>";
+      }
+      if (qq.qtype === "scale") {
+        var o = qq.options || [];
+        var lo = +o[0], hi = +o[1];
+        if (!isFinite(lo)) lo = 1;
+        if (!isFinite(hi) || hi <= lo) hi = 10;
+        var num = +v;
+        var frac = isFinite(num) ? Math.max(0, Math.min(1, (num - lo) / (hi - lo))) : 0;
+        // low third reads as a complaint, high third as praise -- the colour says which
+        // without the reader doing the arithmetic
+        var tone = frac >= 0.66 ? "good" : (frac <= 0.33 ? "bad" : "mid");
+        return '<div class="hq-orscale">'
+          + '<div class="hq-orsnum ' + tone + '"><b>' + esc(v) + "</b><i>/" + esc(hi) + "</i></div>"
+          + '<div class="hq-orsbar"><span class="' + tone + '" style="width:'
+          + Math.round(frac * 100) + '%"></span></div>'
+          + '<div class="hq-orsends"><span>' + esc(tScale(qq, "lo", o[2] || "")) + "</span>"
+          + "<span>" + esc(tScale(qq, "hi", o[3] || "")) + "</span></div>"
+          + "</div>";
+      }
+      if (qq.qtype === "single" || qq.qtype === "multi" || qq.qtype === "dropdown") {
+        var picked = qq.qtype === "multi" ? safeArr(v) : [v];
+        return '<div class="hq-orpicks">' + picked.map(function (x) {
+          var known = (qq.options || []).indexOf(x) >= 0 || x === OTH;
+          // A WRITTEN-IN "Other" IS NOT AN OPTION. It is free text wearing a choice's
+          // clothes, so it is shown as what it is rather than as a phantom option.
+          return known
+            ? '<span class="hq-orpick">' + esc(tOpt(qq, x)) + "</span>"
+            : '<span class="hq-orpick other"><i>' + esc(LS().other) + "</i>"
+              + esc(x) + "</span>";
+        }).join("") + "</div>";
+      }
+      // short_text / long_text and anything new: their words, their line breaks
+      return '<div class="hq-ortext">' + esc(v) + "</div>";
+    }
+
+    /* ONE PERSON'S FORM, laid out as the form is shaped: sections, numbered questions, and
+       the answer given more room than the question -- the reader is here for what they said,
+       not to re-read what was asked. */
+    function hqQuestionList(qs, ans) {
+      var n = 0;
+      return (qs || []).map(function (qq) {
+        if (qq.qtype === "section") {
+          return '<div class="hq-orsec">' + esc(tx(qq, "label")) + "</div>";
+        }
+        n += 1;
+        var desc = tx(qq, "description");
+        return '<div class="hq-orq">'
+          + '<div class="hq-orqn">' + n + "</div>"
+          + '<div class="hq-orqb">'
+          + '<div class="hq-orql">' + esc(tx(qq, "label")) + "</div>"
+          + (desc ? '<div class="hq-orqd">' + esc(desc) + "</div>" : "")
+          + hqAnswerHtml(qq, (ans || {})[qq.id])
+          + "</div></div>";
+      }).join("");
+    }
+
+    /* the little language switch, wherever answers are being read */
+    function hqLangSeg(id) {
+      return '<div class="rs-seg hq-orlang" id="' + id + '">'
+        + '<button data-l="ka"' + (qLang() === "ka" ? ' class="on"' : "") + ">ქართული</button>"
+        + '<button data-l="en"' + (qLang() === "en" ? ' class="on"' : "") + ">English</button>"
+        + "</div>";
+    }
+    function hqWireLang(scope, id, repaint) {
+      Array.prototype.forEach.call(scope.querySelectorAll("#" + id + " button"), function (b) {
+        b.onclick = function () {
+          if (qLang() === b.dataset.l) return;
+          setQLang(b.dataset.l);
+          repaint();                    // one source of truth: repaint, never patch in place
+        };
+      });
+    }
+
+
+    /* ============================================================ printing one response
+
+       His ask (2026-08-25): print a response, laid out well enough to keep as a document.
+
+       A SEPARATE DOCUMENT, not `@media print` over this page. The portal around these
+       answers is a sidebar, a filter bar, a date picker and a nav tree, and printing it means
+       hiding all of that and then hoping no future page adds something else that leaks onto
+       the paper. Building the document instead means what prints is exactly what is written
+       here -- and it is a real document: a letterhead, the person, the questions and their
+       answers, and a footer saying when it was taken and by whom.
+
+       It prints in the language on screen, for the same reason everything else does.
+
+       Colour is asked for explicitly (`print-color-adjust`) because browsers drop backgrounds
+       when printing, and a scale bar with no fill is a white box that says nothing. Every
+       block that carries meaning also carries a border, so it still reads if a printer or a
+       policy refuses the colour anyway. */
+    function hqPrintDoc(title, person, qs, ans) {
+      var win = window.open("", "_blank");
+      if (!win) { toast("Allow pop-ups for this site to print.", true); return; }
+
+      var n = 0;
+      var rows = (qs || []).map(function (qq) {
+        if (qq.qtype === "section") {
+          return '<h2>' + esc(tx(qq, "label")) + "</h2>";
+        }
+        n += 1;
+        var v = (ans || {})[qq.id];
+        var blank = (v == null || v === ""
+          || (qq.qtype === "multi" && !safeArr(v).length));
+        var a;
+        if (blank) {
+          a = '<div class="a none">' + esc(LS().notAnswered) + "</div>";
+        } else if (qq.qtype === "stars5") {
+          var k = clampStar(v);
+          a = '<div class="a"><span class="stars">' + "★".repeat(k)
+            + '<span class="off">' + "★".repeat(Math.max(0, 5 - k)) + "</span></span> "
+            + esc(k) + "/5</div>";
+        } else if (qq.qtype === "scale") {
+          var o = qq.options || [];
+          var lo = +o[0], hi = +o[1];
+          if (!isFinite(lo)) lo = 1;
+          if (!isFinite(hi) || hi <= lo) hi = 10;
+          var num = +v;
+          var fr = isFinite(num) ? Math.max(0, Math.min(1, (num - lo) / (hi - lo))) : 0;
+          a = '<div class="a"><div class="sc"><b>' + esc(v) + "</b>/" + esc(hi) + "</div>"
+            + '<div class="bar"><i style="width:' + Math.round(fr * 100) + '%"></i></div>'
+            + '<div class="ends"><span>' + esc(tScale(qq, "lo", o[2] || "")) + "</span>"
+            + "<span>" + esc(tScale(qq, "hi", o[3] || "")) + "</span></div></div>";
+        } else if (qq.qtype === "single" || qq.qtype === "multi" || qq.qtype === "dropdown") {
+          var picked = qq.qtype === "multi" ? safeArr(v) : [v];
+          a = '<div class="a">' + picked.map(function (x) {
+            var known = (qq.options || []).indexOf(x) >= 0 || x === OTH;
+            return '<span class="pick">' + esc(known ? tOpt(qq, x) : x) + "</span>";
+          }).join("") + "</div>";
+        } else {
+          a = '<div class="a text">' + esc(v) + "</div>";
+        }
+        var desc = tx(qq, "description");
+        return '<div class="q"><div class="num">' + n + "</div><div class="
+          + '"qb"><div class="ql">' + esc(tx(qq, "label")) + "</div>"
+          + (desc ? '<div class="qd">' + esc(desc) + "</div>" : "")
+          + a + "</div></div>";
+      }).join("");
+
+      var when = new Date();
+      var stamp = when.getFullYear() + "-"
+        + ("0" + (when.getMonth() + 1)).slice(-2) + "-"
+        + ("0" + when.getDate()).slice(-2);
+
+      var doc = '<!doctype html><html lang="' + qLang() + '"><head><meta charset="utf-8">'
+        + "<title>" + esc((person.name || person.email) + " — " + title) + "</title>"
+        + "<style>"
+        // Sylfaen is the Georgian face every Windows machine already has; Noto covers the rest
+        + '@page{size:A4;margin:17mm 15mm 15mm}'
+        + 'html,body{margin:0;padding:0}'
+        + 'body{font:12pt/1.5 "Noto Sans Georgian",Sylfaen,"Segoe UI",system-ui,sans-serif;'
+        + 'color:#15202b;-webkit-print-color-adjust:exact;print-color-adjust:exact}'
+        + '.sheet{max-width:170mm;margin:0 auto}'
+        + 'header{border-bottom:2px solid #15202b;padding-bottom:8px;margin-bottom:14px;'
+        + 'display:flex;align-items:flex-end;justify-content:space-between;gap:16px}'
+        + '.brand{font-size:9pt;font-weight:800;letter-spacing:.14em;text-transform:uppercase;'
+        + 'color:#5b6a78}'
+        + 'h1{margin:2px 0 0;font-size:17pt;font-weight:800;line-height:1.2}'
+        + '.who{text-align:right;font-size:9.5pt;line-height:1.45;color:#48586a}'
+        + '.who b{display:block;font-size:12pt;color:#15202b}'
+        + 'h2{margin:16px 0 6px;padding-top:9px;border-top:1px solid #d8dee5;font-size:9pt;'
+        + 'font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:#3d6b2f;'
+        + 'break-after:avoid;page-break-after:avoid}'
+        + 'h2:first-of-type{border-top:0;padding-top:0;margin-top:6px}'
+        // a question and its answer must never be split across two sheets
+        + '.q{display:flex;gap:9px;padding:8px 0;border-bottom:1px solid #eef1f4;'
+        + 'break-inside:avoid;page-break-inside:avoid}'
+        + '.num{flex:0 0 18px;text-align:right;font-size:8.5pt;font-weight:800;color:#93a1b0;'
+        + 'padding-top:3px}'
+        + '.qb{flex:1;min-width:0}'
+        + '.ql{font-size:10pt;font-weight:600;color:#5b6a78;line-height:1.4}'
+        + '.qd{font-size:8.5pt;color:#93a1b0;margin-top:1px}'
+        + '.a{margin-top:4px;font-size:11.5pt;line-height:1.55}'
+        + '.a.text{white-space:pre-wrap;overflow-wrap:anywhere}'
+        + '.a.none{font-size:10pt;color:#93a1b0;font-style:italic}'
+        + '.pick{display:inline-block;border:1px solid #c6ced7;border-radius:4px;'
+        + 'padding:1px 8px;margin:2px 4px 2px 0;font-size:11pt;font-weight:600}'
+        + '.stars{letter-spacing:1px;color:#c8912a}.stars .off{color:#d8dee5}'
+        + '.sc{font-size:14pt;font-weight:800}.sc b{font-size:16pt}'
+        + '.bar{height:5px;border:1px solid #c6ced7;border-radius:3px;max-width:70mm;'
+        + 'overflow:hidden;margin:2px 0}'
+        + '.bar i{display:block;height:100%;background:#4a7c3a}'
+        + '.ends{display:flex;justify-content:space-between;max-width:70mm;font-size:8pt;'
+        + 'color:#93a1b0}'
+        + 'footer{margin-top:16px;padding-top:8px;border-top:1px solid #d8dee5;font-size:8.5pt;'
+        + 'color:#93a1b0;display:flex;justify-content:space-between;gap:12px}'
+        + "</style></head><body><div class='sheet'>"
+        + "<header><div><div class='brand'>Zip to Zip Moving</div><h1>" + esc(title) + "</h1></div>"
+        + "<div class='who'><b>" + esc(person.name || person.email) + "</b>"
+        + esc(person.email || "")
+        + (person.department ? "<br>" + esc(person.department) : "")
+        + (person.submitted_at ? "<br>" + esc(RS_().submittedOn) + " "
+            + esc(fmtWhen(person.submitted_at)) : "")
+        + "</div></header>"
+        + rows
+        + "<footer><span>" + esc(title) + " · " + esc(person.email || "") + "</span>"
+        + "<span>" + esc(stamp) + "</span></footer>"
+        + "</div></body></html>";
+
+      win.document.open();
+      win.document.write(doc);
+      win.document.close();
+      win.focus();
+      // let the document lay out (and Georgian webfonts settle) before the dialog opens
+      setTimeout(function () { try { win.print(); } catch (e) { /* user can print manually */ } }, 350);
+    }
+
     /* ============================================================ one response
 
        ONE PERSON'S FORM, READ THE WAY THEY FILLED IT IN. See the language helpers above for
@@ -1786,57 +2040,6 @@ registerPage({
       }).length;
       var pct = asked.length ? Math.round((filled / asked.length) * 100) : 0;
 
-      /* THE ANSWER, drawn as the kind of thing it is. Free text is the one case that is
-         never translated or reformatted -- it is the person's own words. */
-      function answerHtml(qq, v) {
-        var blank = (v == null || v === ""
-          || (qq.qtype === "multi" && !safeArr(v).length));
-        if (blank) {
-          return '<div class="hq-oram' + (qq.required ? " req" : "") + '">'
-            + esc(LS().notAnswered)
-            + (qq.required ? ' <span class="hq-orreq">' + esc(LS().required) + "</span>" : "")
-            + "</div>";
-        }
-        if (qq.qtype === "stars5") {
-          var n = clampStar(v);
-          return '<div class="hq-orstars"><span class="on">' + "★".repeat(n) + "</span>"
-            + '<span class="off">' + "★".repeat(Math.max(0, 5 - n)) + "</span>"
-            + '<b>' + esc(n) + "/5</b></div>";
-        }
-        if (qq.qtype === "scale") {
-          var o = qq.options || [];
-          var lo = +o[0], hi = +o[1];
-          if (!isFinite(lo)) lo = 1;
-          if (!isFinite(hi) || hi <= lo) hi = 10;
-          var num = +v;
-          var frac = isFinite(num) ? Math.max(0, Math.min(1, (num - lo) / (hi - lo))) : 0;
-          // low third reads as a complaint, high third as praise -- the colour says which
-          // without the reader doing the arithmetic
-          var tone = frac >= 0.66 ? "good" : (frac <= 0.33 ? "bad" : "mid");
-          return '<div class="hq-orscale">'
-            + '<div class="hq-orsnum ' + tone + '"><b>' + esc(v) + "</b><i>/" + esc(hi) + "</i></div>"
-            + '<div class="hq-orsbar"><span class="' + tone + '" style="width:'
-            + Math.round(frac * 100) + '%"></span></div>'
-            + '<div class="hq-orsends"><span>' + esc(tScale(qq, "lo", o[2] || "")) + "</span>"
-            + "<span>" + esc(tScale(qq, "hi", o[3] || "")) + "</span></div>"
-            + "</div>";
-        }
-        if (qq.qtype === "single" || qq.qtype === "multi" || qq.qtype === "dropdown") {
-          var picked = qq.qtype === "multi" ? safeArr(v) : [v];
-          return '<div class="hq-orpicks">' + picked.map(function (x) {
-            var known = (qq.options || []).indexOf(x) >= 0 || x === OTH;
-            // A WRITTEN-IN "Other" IS NOT AN OPTION. It is free text wearing a choice's
-            // clothes, so it is shown as what it is rather than as a phantom option.
-            return known
-              ? '<span class="hq-orpick">' + esc(tOpt(qq, x)) + "</span>"
-              : '<span class="hq-orpick other"><i>' + esc(LS().other) + "</i>"
-                + esc(x) + "</span>";
-          }).join("") + "</div>";
-        }
-        // short_text / long_text and anything new: their words, their line breaks
-        return '<div class="hq-ortext">' + esc(v) + "</div>";
-      }
-
       var statusPill = "";
       if (r) {
         var st2 = r.status === "submitted" || r.status === "resubmitted" ? "ok"
@@ -1845,7 +2048,6 @@ registerPage({
           + "</span>";
       }
 
-      var n = 0;
       body.innerHTML =
         // A READING COLUMN. Answers are prose and prose needs a measure -- across a wide
         // monitor an unbounded line is genuinely hard to track back to the next one.
@@ -1859,10 +2061,8 @@ registerPage({
         + '<span class="hq-orgap"></span>'
         /* THE SWITCH. Beside the answers rather than in the page bar, because it changes
            what is written in THIS card and nothing else on the screen. */
-        + '<div class="rs-seg hq-orlang" id="hrLang">'
-        + '<button data-l="ka"' + (qLang() === "ka" ? ' class="on"' : "") + ">ქართული</button>"
-        + '<button data-l="en"' + (qLang() === "en" ? ' class="on"' : "") + ">English</button>"
-        + "</div>"
+        + hqLangSeg("hrLang")
+        + '<button class="hq-btn" id="hrPrint">' + esc(LS().print) + "</button>"
         + (r && (r.status === "submitted" || r.status === "resubmitted") && canR
             ? '<button class="hq-btn" id="hrReop">' + esc(LS().reopen) + "</button>" : "")
         + "</div>"
@@ -1883,31 +2083,17 @@ registerPage({
               + '%"></span></div><b>' + esc(LS().answered(filled, asked.length)) + "</b></div>"
             : "")
 
-        + '<div class="hq-orbody">'
-        + qs.map(function (qq) {
-            if (qq.qtype === "section") {
-              return '<div class="hq-orsec">' + esc(tx(qq, "label")) + "</div>";
-            }
-            n += 1;
-            var desc = tx(qq, "description");
-            return '<div class="hq-orq">'
-              + '<div class="hq-orqn">' + n + "</div>"
-              + '<div class="hq-orqb">'
-              + '<div class="hq-orql">' + esc(tx(qq, "label")) + "</div>"
-              + (desc ? '<div class="hq-orqd">' + esc(desc) + "</div>" : "")
-              + answerHtml(qq, ans[qq.id])
-              + "</div></div>";
-          }).join("")
-        + "</div></div>";
+        + '<div class="hq-orbody">' + hqQuestionList(qs, ans) + "</div></div>";
 
       body.querySelector("#hrBack").onclick = function () { S.subOpen = null; paintSubmissions(body, canR); };
-      Array.prototype.forEach.call(body.querySelectorAll("#hrLang button"), function (b) {
-        b.onclick = function () {
-          if (qLang() === b.dataset.l) return;
-          setQLang(b.dataset.l);
-          paintOneResponse(body, canR);          // one source of truth: repaint, never patch
-        };
-      });
+      hqWireLang(body, "hrLang", function () { paintOneResponse(body, canR); });
+      body.querySelector("#hrPrint").onclick = function () {
+        hqPrintDoc((S.q && S.q.title) || "Questionnaire",
+                   { name: d.name, email: d.email,
+                     department: r && r.department,
+                     submitted_at: r && r.submitted_at },
+                   qs, ans);
+      };
       var rb = body.querySelector("#hrReop");
       if (rb) rb.onclick = async function () {
         if (!(await hqConfirm({ t: "Reopen this response?",
@@ -2056,35 +2242,38 @@ registerPage({
       var view = S.resDept ? subs.filter(function (r) { return (r.department || "—") === S.resDept; }) : subs;
       var qById = {}; R.questions.forEach(function (x) { qById[x.id] = x; });
       var html = '<div class="hq-kpis">'
-        + '<div class="hq-kpi"><b>' + R.audience_size + "</b><span>audience</span></div>"
-        + '<div class="hq-kpi"><b>' + subs.length + "</b><span>submitted</span></div>"
-        + '<div class="hq-kpi"><b>' + fmtPct(subs.length, R.audience_size) + "</b><span>completion</span></div>"
-        + '<div class="hq-kpi"><b>' + (R.individuals.length - subs.length) + "</b><span>reopened / pending</span></div></div>"
+        + '<div class="hq-kpi"><b>' + R.audience_size + "</b><span>" + esc(RS_().audience) + "</span></div>"
+        + '<div class="hq-kpi"><b>' + subs.length + "</b><span>" + esc(RS_().submitted) + "</span></div>"
+        + '<div class="hq-kpi"><b>' + fmtPct(subs.length, R.audience_size) + "</b><span>" + esc(RS_().completion) + "</span></div>"
+        + '<div class="hq-kpi"><b>' + (R.individuals.length - subs.length) + "</b><span>" + esc(RS_().pending) + "</span></div></div>"
         + '<div class="hq-row" style="margin-bottom:12px">'
-        + '<select class="hq-sel" id="hrDept"><option value="">All departments</option>'
+        + '<select class="hq-sel" id="hrDept"><option value="">' + esc(RS_().allDepts) + "</option>"
         + depts.map(function (dpt) { return '<option' + (S.resDept === dpt ? " selected" : "") + ">" + esc(dpt) + "</option>"; }).join("")
         + "</select>"
         + (S.q && S.q.audience_kind === "anon_depts" ? ""    // anonymous: there IS no person
-          : '<select class="hq-sel" id="hrWho"><option value="">Aggregate — everyone</option>'
+          : '<select class="hq-sel" id="hrWho"><option value="">' + esc(RS_().aggregate) + "</option>"
           + view.map(function (r) { return '<option value="' + esc(r.email) + '"' + (S.resPerson === r.email ? " selected" : "") + ">" + esc(r.name || r.email) + "</option>"; }).join("")
           + "</select>")
-        + '<span style="flex:1"></span><button class="hq-btn" id="hrCsv">Download CSV</button></div>';
+        + '<span style="flex:1"></span>' + hqLangSeg("hrResLang")
+        + '<button class="hq-btn" id="hrCsv">' + esc(RS_().csv) + "</button></div>";
 
       if (S.resPerson) {
         var person = view.filter(function (r) { return r.email === S.resPerson; })[0];
         if (!person) { S.resPerson = ""; return paintResults(body); }
-        html += '<div class="hq-card"><h4>' + esc(person.name || person.email)
-          + ' <span class="hq-dim">' + esc(person.department || "") + " · submitted "
-          + esc(fmtWhen(person.submitted_at)) + "</span></h4>"
-          + questions.map(function (qq) {
-              var v = person.answers[qq.id];
-              var shown = v == null || v === "" ? '<span class="hq-dim">— not answered</span>'
-                : qq.qtype === "multi" ? esc(safeArr(v).join(", "))
-                : qq.qtype === "stars5" ? "★".repeat(clampStar(v)) + '<span class="hq-dim"> (' + esc(v) + "/5)</span>"
-                : qq.qtype === "scale" ? esc(v) + '<span class="hq-dim"> of ' + esc((qq.options || [])[1] || "") + "</span>"
-                : esc(v);
-              return '<div class="hq-txt"><b>' + esc(qq.label) + "</b><br>" + shown + "</div>";
-            }).join("") + "</div>";
+        // THE SAME RENDERER AS THE RESPONSES SCREEN. This used to be a second, flatter
+        // drawing of identical data -- sections thrown away, scales as bare numbers -- so
+        // one person's form looked like two different things depending on which tab you
+        // reached it through, and only one of the two ever got improved.
+        html += '<div class="hq-or-w"><div class="hq-orhd">'
+          + '<div class="hq-orwho"><b>' + esc(person.name || person.email) + "</b>"
+          + "<span>" + esc(person.department || "")
+          + (person.submitted_at ? " · " + esc(RS_().submittedOn) + " "
+              + esc(fmtWhen(person.submitted_at)) : "") + "</span></div>"
+          + '<span class="hq-orgap"></span>'
+          + '<button class="hq-btn" id="hrPrint2">' + esc(LS().print) + "</button></div>"
+          + '<div class="hq-orbody">'
+          + hqQuestionList(R.questions.filter(function (x) { return x.active; }), person.answers)
+          + "</div></div>";
       } else {
         html += '<div class="hq-resgrid">' + questions.map(function (qq) {
           var vals = view.map(function (r) { return r.answers[qq.id]; })
@@ -2099,8 +2288,10 @@ registerPage({
             for (var st2 = hi3; st2 >= lo3; st2--) steps.push(st2);
             var mx = Math.max.apply(null, steps.map(function (s3) {
               return nums.filter(function (n) { return n === s3; }).length; }).concat([1]));
-            inner = '<div class="hq-dim" style="margin-bottom:6px">average <b style="color:var(--ink)">'
-              + (avg == null ? "—" : avg.toFixed(2)) + "</b> of " + hi3 + " · " + nums.length + " answers</div>"
+            inner = '<div class="hq-dim" style="margin-bottom:6px">' + esc(RS_().average)
+              + ' <b style="color:var(--ink)">'
+              + (avg == null ? "—" : avg.toFixed(2)) + "</b> " + esc(RS_().of) + " " + hi3
+              + " · " + esc(RS_().answers(nums.length)) + "</div>"
               + steps.map(function (s2) {
                   var n = nums.filter(function (x2) { return x2 === s2; }).length;
                   return '<div class="hq-bar"><span>' + (qq.qtype === "stars5" ? "★".repeat(s2) : s2)
@@ -2119,15 +2310,17 @@ registerPage({
               });
             });
             var mx2 = Math.max.apply(null, Object.keys(counts2).map(function (k) { return counts2[k]; }).concat([1]));
-            inner = '<div class="hq-dim" style="margin-bottom:6px">' + vals.length + " answers"
-              + (qq.qtype === "multi" ? " · several choices allowed" : "") + "</div>"
+            inner = '<div class="hq-dim" style="margin-bottom:6px">' + esc(RS_().answers(vals.length))
+              + (qq.qtype === "multi" ? " · " + esc(RS_().several) : "") + "</div>"
               + (qq.options || []).map(function (o) {
-                  return '<div class="hq-bar"><span>' + esc(o) + '</span><span class="tr"><i style="width:'
+                  // the OPTION as the person read it; the count underneath is the same
+                  // number either way, because the stored value never changed
+                  return '<div class="hq-bar"><span>' + esc(tOpt(qq, o)) + '</span><span class="tr"><i style="width:'
                     + Math.round(counts2[o] / mx2 * 100) + '%"></i></span><span class="n">' + counts2[o]
                     + (vals.length ? " · " + Math.round(counts2[o] / vals.length * 100) + "%" : "") + "</span></div>";
                 }).join("")
               + (otherTexts.length
-                  ? '<div class="hq-dim" style="margin-top:7px">Other, in their words: '
+                  ? '<div class="hq-dim" style="margin-top:7px">' + esc(RS_().otherWords)
                     + otherTexts.slice(0, 12).map(esc).join(" · ")
                     + (otherTexts.length > 12 ? " …" : "") + "</div>" : "");
           } else {
@@ -2136,13 +2329,23 @@ registerPage({
                   return '<div class="hq-txt">' + esc(r.answers[qq.id])
                     + '<div class="who">' + esc(r.name || r.email) + (r.department ? " · " + esc(r.department) : "") + "</div></div>";
                 }).join("")
-              : '<div class="hq-dim">No written answers yet.</div>';
+              : '<div class="hq-dim">' + esc(RS_().noneYet) + "</div>";
           }
-          return '<div class="hq-card"><h4>' + esc(qq.label)
-            + ' <span class="hq-dim" style="font-weight:600">' + TYPE_LABEL[qq.qtype] + "</span></h4>" + inner + "</div>";
+          return '<div class="hq-card"><h4>' + esc(tx(qq, "label"))
+            + ' <span class="hq-dim" style="font-weight:600">' + esc(typeLabel(qq.qtype))
+            + "</span></h4>" + inner + "</div>";
         }).join("") + "</div>";
       }
       body.innerHTML = html;
+      hqWireLang(body, "hrResLang", function () { paintResults(body); });
+      var pb2 = body.querySelector("#hrPrint2");
+      if (pb2) pb2.onclick = function () {
+        var who = view.filter(function (x) { return x.email === S.resPerson; })[0];
+        if (who) {
+          hqPrintDoc((S.q && S.q.title) || "Questionnaire", who,
+                     R.questions.filter(function (x) { return x.active; }), who.answers);
+        }
+      };
       body.querySelector("#hrDept").onchange = function () { S.resDept = this.value; S.resPerson = ""; paintResults(body); };
       var whoSel = body.querySelector("#hrWho");
       if (whoSel) whoSel.onchange = function () { S.resPerson = this.value; paintResults(body); };
@@ -2154,19 +2357,36 @@ registerPage({
           if (/^[=+\-@\t\r]/.test(v)) v = "'" + v;
           return /[",\n\r]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v;
         };
-        var head = ["Email", "Name", "Department", "Status", "Submitted"].concat(questions.map(function (qq) { return qq.label; }));
+        /* THE FILE READS IN THE LANGUAGE ON SCREEN, header and choices alike. A Georgian
+           header over English answers is the same mismatch he reported, exported.
+
+           Free text is never touched. Neither is any COUNT: the stored value is unchanged,
+           only its caption, so a Georgian export and an English one describe exactly the
+           same answers. Flip the switch and download again to get the other. The language is
+           in the filename so the two do not overwrite each other in the downloads folder. */
+        var head = ["Email", "Name", "Department", "Status", "Submitted"]
+          .concat(questions.map(function (qq) { return tx(qq, "label"); }));
         var lines = [head.map(escC).join(",")];
         view.forEach(function (r) {
           lines.push([r.email, r.name || "", r.department || "", r.status, r.submitted_at || ""]
             .concat(questions.map(function (qq) {
               var v = r.answers[qq.id];
-              return v == null ? "" : qq.qtype === "multi" ? safeArr(v).join("; ") : v;
+              if (v == null || v === "") return "";
+              if (qq.qtype === "multi") {
+                return safeArr(v).map(function (o) { return tOpt(qq, o); }).join("; ");
+              }
+              if (qq.qtype === "single" || qq.qtype === "dropdown") {
+                // a written-in "Other: …" is prose and is left exactly as typed
+                return String(v).indexOf("Other: ") === 0 ? v : tOpt(qq, v);
+              }
+              return v;
             })).map(escC).join(","));
         });
         var blob = new Blob(["﻿" + lines.join("\r\n")], { type: "text/csv;charset=utf-8" });
         var a = document.createElement("a");
         a.href = URL.createObjectURL(blob);
-        a.download = (S.q ? S.q.title.replace(/[^\w \-]+/g, "") : "questionnaire") + " results.csv";
+        a.download = (S.q ? S.q.title.replace(/[^\w \-]+/g, "") : "questionnaire")
+          + " results (" + qLang() + ").csv";
         a.click();
         setTimeout(function () { URL.revokeObjectURL(a.href); }, 4000);
       };
