@@ -145,6 +145,19 @@
           ".hd-crown{position:absolute;top:-8px;left:11px;background:var(--c,#4f46e5);color:#fff;font-size:8.5px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;padding:2px 8px;border-radius:999px;white-space:nowrap}",
           ".hd-tc:not(.lead){border-left:3px solid var(--c,#94a3b8)}",
           ".hd-tc:not(.top)::before{content:'';position:absolute;top:-9px;left:50%;height:8px;border-left:2px solid var(--line-2)}",
+          /* THE GROUP HEADING inside a leader's column. `align-self:stretch` matters: the
+             column centres its children, so without it the rule's flex:1 divider collapses to
+             nothing -- stretching also makes the heading match whatever card width that level
+             uses (204px at the top, 186px in a sub-indent) without hard-coding either. */
+          ".hd-grp{align-self:stretch;display:flex;align-items:center;gap:7px;margin:13px 0 3px;"
+            + "font-size:9.5px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;"
+            + "color:var(--faint)}",
+          ".hd-grp em{font-style:normal;font-weight:700;color:var(--muted);background:var(--panel-2);"
+            + "border:1px solid var(--line);border-radius:999px;padding:0 6px;font-size:9.5px}",
+          ".hd-grp::after{content:'';flex:1;height:1px;background:var(--line)}",
+          // the connector stub bridges the gap between two stacked cards; a heading now fills
+          // that gap, so the card below one would draw its line straight through the label
+          ".hd-grp + .hd-tc::before{display:none}",
           ".hd-sub{margin-left:26px;display:flex;flex-direction:column;align-items:flex-start;position:relative}",
           ".hd-sub .hd-tc{width:186px}",
           ".hd-sub::before{content:'';position:absolute;left:-13px;top:-4px;bottom:24px;border-left:2px dashed var(--line-2)}",
@@ -387,6 +400,22 @@
        * CEO on top, one connector down, the classic T-branch row of leader columns, and
        * each column a vertical run of cards; a sub-manager's people hang off a dashed
        * indent under them. Leaders wear their department as a colored crown. */
+      /* A SELLER, as opposed to somebody who happens to sit in Sales.
+         His ask (2026-08-25): split the people under the Head of Sales so the reps read as
+         one group and everyone else as another. Today that is 11 reps against two Shift
+         Managers and a Customer Service Manager.
+
+         Matched on the WHOLE title, not a substring, and with an explicit guard against the
+         management words -- "Head of Sales" and a future "Sales Manager" both contain
+         "sales" and neither is a rep. Checked across the live roster: the only titles this
+         calls a rep are "Sales" and "Sales Rep". */
+      var REP_TITLE = /^sales(\s+(rep|representative|agent)s?)?$/i;
+      var NOT_REP = /manager|head|lead|supervisor|director|chief/i;
+      function isSalesRep(p) {
+        var t = String((p && p.title) || "").trim();
+        return REP_TITLE.test(t) && !NOT_REP.test(t);
+      }
+
       function paintOrg() {
         var act = officeOnly().filter(function (p) { return p.status === "active"; });
         var byName = {};
@@ -423,13 +452,26 @@
         function run(p, depth) {
           if (depth > 10) return "";
           var ks = kids[p.name.toLowerCase()] || [];
-          return ks.map(function (c2) {
+          var one = function (c2) {
             var k2 = c2.name.toLowerCase();
             if (seen[k2]) return "";
             seen[k2] = 1;
             var sub = run(c2, depth + 1);
             return card(c2, "") + (sub ? '<div class="hd-sub">' + sub + "</div>" : "");
-          }).join("");
+          };
+          /* A MIXED TEAM GETS TWO HEADINGS. Only when the leader actually has both kinds --
+             a team of all reps or none reads better as one plain run, and a heading over a
+             single group is just furniture. Keyed on the mix rather than on a person's
+             name, so it follows the ROLE: whoever heads Sales gets this, and nobody else is
+             affected unless their team becomes mixed too. */
+          var reps = ks.filter(isSalesRep);
+          var others = ks.filter(function (c2) { return !isSalesRep(c2); });
+          if (!reps.length || !others.length) return ks.map(one).join("");
+          var head = function (label, n) {
+            return '<div class="hd-grp">' + label + "<em>" + n + "</em></div>";
+          };
+          return head("Sales reps", reps.length) + reps.map(one).join("")
+            + head("Other", others.length) + others.map(one).join("");
         }
         var ceo = roots[0] || act[0];
         var html = '<div class="hd-org"><div class="hd-tree">';
