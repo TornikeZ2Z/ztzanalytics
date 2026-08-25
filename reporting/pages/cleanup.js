@@ -1156,6 +1156,12 @@ registerPage({
               // WHICH EVENT. A job code and a day do not name one -- 245 codes appear on
               // more than one date -- so the decision carries the id the board was looking
               // at rather than leaving anything downstream to guess by code.
+              // THE OPTION'S OWN DAY, not the day the page happens to be showing. They
+              // cannot diverge by clicking -- the visible options are the selected day's --
+              // but the decision is a permanent record and should not depend on a variable
+              // somebody could set elsewhere. Caught in testing when a manually-changed
+              // S.sel recorded a decision against the wrong date.
+              + " data-day='" + esc(String(o.Day).slice(0, 10)) + "'"
               + " data-ev='" + esc(o["Event Id"] || "") + "' data-cal='"
               + esc(o["Calendar Id"] || "") + "' data-afterev='"
               + esc(o["After Event Id"] || "") + "'"
@@ -1507,7 +1513,8 @@ registerPage({
         headers: { "Content-Type": "application/json",
                    Authorization: "Bearer " + ZTZ.getToken() },
         body: JSON.stringify({
-          day: S.sel, job_code: code, customer: cust, kind: btn.getAttribute("data-kind"),
+          day: btn.getAttribute("data-day") || S.sel,
+          job_code: code, customer: cust, kind: btn.getAttribute("data-kind"),
           action: action, after_code: btn.getAttribute("data-after") || null,
           move_to: btn.getAttribute("data-to") || null,
           event_id: btn.getAttribute("data-ev") || null,
@@ -1518,7 +1525,8 @@ registerPage({
           // reflect it now; the mart re-reads decisions on its next build
           var shows = action === "reopened" ? "open" : action;
           (S.opts || []).forEach(function (o) {
-            if (o["Job Code"] === code && String(o.Day).slice(0, 10) === S.sel) o.Status = shows;
+            var dday = btn.getAttribute("data-day") || S.sel;
+            if (o["Job Code"] === code && String(o.Day).slice(0, 10) === dday) o.Status = shows;
             if (action === "declined" && cust && o.Customer === cust) o.Status = "declined";
             // reopening lifts the customer-wide block the decline had cast
             if (action === "reopened" && cust && o.Customer === cust && o.Status === "declined")
