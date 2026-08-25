@@ -25,7 +25,8 @@
                "After Customer", "Move To", "Target Spare", "Link Miles", "Link Minutes",
                "Cost", "Discount", "Recommended", "Purpose", "Lands Behind", "Status",
                "Arrive", "Arrives Late", "Anchor Route",
-               "Event Id", "Calendar Id", "After Event Id"],
+               "Event Id", "Calendar Id", "After Event Id",
+               "Foreman Assigned", "Foreman Assigned Name"],
       };
     }
     if (!RS.DATASETS.fct_cleanup_job) {
@@ -112,6 +113,8 @@ registerPage({
          its end: at 2000px the Accept button ended up an inch from the far edge of the
          screen, a long way from the sentence it answers. Text-bearing blocks keep a
          comfortable measure; only the diagrams stretch. */
+      + ".cu-fmwarn{margin-top:8px;padding:8px 10px;border-radius:8px;background:var(--warn-bg);border:1px solid var(--warn);font-size:12px;line-height:1.55;color:var(--muted)}"
+      + ".cu-fmwarn b{color:var(--ink)}"
       + ".cu-opt{display:flex;gap:12px;align-items:flex-start;padding:11px 0;"
       + "border-top:1px solid var(--line-2);max-width:var(--rs-row-max)}"
       + ".cu-ghd,.cu-msg{max-width:var(--rs-row-max)}"
@@ -1114,6 +1117,19 @@ registerPage({
                + (o["Lands Behind"] ? "It would chain behind " + esc(o["Lands Behind"])
                   + " there, so it costs no crew on the day it moves to."
                   : "It would need its own crew on that day."));
+          /* SOMEBODY IS ALREADY ON THIS JOB. A chain hands it to the anchor's crew, so an
+             assigned foreman would be displaced -- and that is the dispatcher's call to
+             make knowingly, not something the board should do quietly (his ruling,
+             2026-08-25). The branch owner never appears here: he sits on many future jobs
+             as a placeholder and is not somebody a chain displaces. */
+          var fmWarn = o["Foreman Assigned"]
+            ? "<div class='cu-fmwarn'>⚠ <b>"
+              + esc(o["Foreman Assigned Name"] || o["Foreman Assigned"])
+              + "</b> is already assigned to this job. Chaining it hands the job to "
+              + esc(o["After Customer"] || o["After Code"] || "the other crew")
+              + "’s crew — he would be replaced. The calendar guest list is not "
+              + "changed by this board; somebody has to do that deliberately.</div>"
+            : "";
           var btn = function (act, label, cls) {
             return "<button class='rs-btn" + (cls ? " " + cls : "") + "' data-dec='" + act
               + "' data-kind='" + esc(o.Kind) + "' data-code='" + esc(o["Job Code"])
@@ -1127,12 +1143,13 @@ registerPage({
               + esc(o["After Event Id"] || "") + "'"
               + (S.busy ? " disabled" : "") + ">" + label + "</button>";
           };
-          return "<div class='cu-opt" + (done ? " done" : "") + "'>"
+          return "<div class='cu-opt" + (done ? " done" : "")
+            + (o["Foreman Assigned"] ? " hasfm" : "") + "'>"
             + "<div class='cu-obody'><div class='cu-otitle'>"
             + "<span class='rs-pill " + (isCall ? "info" : "warn") + "'>"
             + (isCall ? "call" : "move date") + "</span>" + title
             + (+o.Recommended ? " <span class='rs-pill ok'>recommended</span>" : "")
-            + "</div><div class='cu-owhy'>" + why + "</div></div>"
+            + "</div><div class='cu-owhy'>" + why + "</div>" + fmWarn + "</div>"
             + "<div class='cu-oact'>"
             + (done
                ? "<span class='rs-pill " + (o.Status === "accepted" ? "ok" : "bad") + "'>"
