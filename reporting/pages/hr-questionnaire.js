@@ -58,7 +58,10 @@ registerPage({
         /* ---- ONE RESPONSE. A form is read top to bottom, so this is a READING column, not
            a dashboard: one measure, generous leading, and the question visually subordinate
            to the answer -- you are here for what they said, not to re-read what you asked. */
-        ".hq-or-w{max-width:760px}",
+        // WIDE ENOUGH NOT TO LOOK BROKEN, narrow enough to read. A 760px card stranded in a
+        // 2,000px window reads as a layout bug rather than as a deliberate measure, so the
+        // CARD takes the width and the PROSE keeps the measure (.hq-ortext below).
+        ".hq-or-w{max-width:1040px}",
         ".hq-orhd{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:9px}",
         ".hq-orwho{display:flex;flex-direction:column;line-height:1.25;min-width:0}",
         ".hq-orwho b{font-size:15.5px;font-weight:800;color:var(--ink)}",
@@ -94,8 +97,9 @@ registerPage({
         ".hq-orqd{font-size:11.5px;color:var(--faint);margin-top:2px;line-height:1.5}",
 
         /* THE ANSWER IS THE POINT, so it is the biggest thing in the block. */
+        // ~70 characters is where a line stops being tiring to track back from
         ".hq-ortext{margin-top:7px;font-size:14.5px;line-height:1.65;color:var(--ink);"
-          + "white-space:pre-wrap;overflow-wrap:anywhere}",
+          + "white-space:pre-wrap;overflow-wrap:anywhere;max-width:70ch}",
         ".hq-oram{margin-top:6px;font-size:12.5px;color:var(--faint);font-style:italic}",
         ".hq-oram.req{color:var(--warn);font-style:normal;font-weight:650}",
         ".hq-orreq{font-size:10px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;"
