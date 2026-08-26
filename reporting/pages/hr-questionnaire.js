@@ -421,6 +421,32 @@ registerPage({
         // statistics: two questions share a row on wide screens
         ".hq-resgrid{display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:start}",
         ".hq-resgrid .hq-card{margin-bottom:0}",
+        // a score, sized so it reads before the label does
+        ".hq-score{font-size:26px;font-weight:800;letter-spacing:-.6px;line-height:1}",
+        ".hq-score small{font-size:12px;font-weight:700;color:var(--faint);margin-left:3px}",
+        // the team matrix: questions down, teams across, one mean per cell
+        ".hq-mx{width:100%;border-collapse:collapse;font-size:12.5px}",
+        ".hq-mx th{font-size:10px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;"
+          + "color:var(--faint);text-align:center;padding:0 6px 9px;white-space:nowrap}",
+        ".hq-mx th.q{text-align:left;width:34%}",
+        ".hq-mx td{padding:4px 5px;text-align:center}",
+        ".hq-mx td.q{text-align:left;font-weight:650;color:var(--ink);padding-left:0;line-height:1.35}",
+        ".hq-mx .cell{display:block;border-radius:8px;padding:8px 4px;font-weight:800;"
+          + "font-variant-numeric:tabular-nums}",
+        ".hq-mx .cell.hid{background:var(--panel-2);color:var(--faint);font-weight:600;font-size:11px}",
+        ".hq-mx tfoot td{padding-top:10px;font-size:11px;color:var(--faint)}",
+        // one question, one card, but the number leads
+        ".hq-qhd{display:flex;align-items:flex-start;gap:12px;margin-bottom:9px}",
+        ".hq-qhd .lb{flex:1;font-size:13.5px;font-weight:700;color:var(--ink);line-height:1.4}",
+        ".hq-qhd .rt{text-align:right;white-space:nowrap}",
+        ".hq-n{font-size:11px;color:var(--faint);font-weight:700}",
+        // a quote that opens the response it came from
+        ".hq-txt.click{cursor:pointer}",
+        ".hq-txt.click:hover{border-left-color:var(--brand);background:var(--panel-2)}",
+        ".hq-txt .who b{color:var(--muted);font-weight:700}",
+        // the basis line: what these numbers are computed from
+        ".hq-basis{font-size:12px;color:var(--muted);line-height:1.6;margin:0 0 14px}",
+        ".hq-basis b{color:var(--ink)}",
         "@media(max-width:1150px){.hq-resgrid{grid-template-columns:1fr}}",
         // preview: email on the left, the form on the right
         ".pv-grid{display:grid;grid-template-columns:390px minmax(0,1fr);gap:26px;align-items:start}",
@@ -800,6 +826,21 @@ registerPage({
     };
     function LS() { return HQ_STR[qLang()]; }
 
+    /* THE MIN-N RULES, in one place because they are a promise and not a preference.
+
+       A mean over ONE answer IS that answer. A mean over TWO plus a reader who knows their own
+       answer solves for the other exactly -- and this survey has a live example: Other /
+       "my manager supports me", n=2, mean 7.0, from a 4 and a 10. Five is the smallest cell
+       where knowing your own answer still leaves four unknowns.
+
+       And a team of THREE can never reach five, so it is not a column: it is pooled. Hiding
+       only the small column would not help either -- with the company mean and five of six
+       columns shown, the sixth is recoverable by subtraction. Pooling removes the arithmetic
+       instead of hiding its result. His decision to keep Support Team as its own AUDIENCE and
+       its own LINK is untouched by this; this is only about what a score column may claim. */
+    var MIN_CELL = 5;      // answers behind a single team-and-question mean
+    var MIN_GROUP = 8;     // respondents before a team is a column of its own
+
     // Statistics has its own vocabulary -- counts, averages and the captions around them.
     var HQ_RES = {
       en: { audience: "audience", submitted: "submitted", completion: "completion",
@@ -808,14 +849,49 @@ registerPage({
             average: "average", of: "of", answers: function (n) { return n + " answers"; },
             several: "several choices allowed",
             otherWords: "Other, in their words: ", noneYet: "No written answers yet.",
-            submittedOn: "submitted" },
+            submittedOn: "submitted",
+            voices: "voices captured", ofInvited: function (n) { return "of " + n + " invited"; },
+            finishedWriting: function (a, b) { return a + " finished · " + b + " still writing"; },
+            overall: "overall", weakest: "lowest scoring", strongest: "highest scoring",
+            teamsHeard: "teams heard from", notStartedYet: function (l) { return l + " not started"; },
+            byTeam: "How each team scored",
+            byTeamNote: "Higher is better. A team needs enough answers before a score can be "
+              + "shown without pointing at a person.",
+            tooFew: "too few",
+            pooled: function (l) { return l + " are reported together — a team that small "
+              + "cannot be scored on its own without identifying someone."; },
+            everyone: "Everyone",
+            basis: function (a, b) { return "Scores below come from <b>" + a + "</b> people who "
+              + "have answered, including <b>" + b + "</b> still filling the form. Completion "
+              + "counts only finished ones."; },
+            noAnswersYet: "Nothing to show yet — the first answers appear here as they arrive.",
+            openResponse: "open this response",
+            range: function (lo, hi) { return "lowest " + lo + " · highest " + hi; },
+            nAnswered: function (n) { return n + " answered"; } },
       ka: { audience: "აუდიტორია", submitted: "გაგზავნილი", completion: "შევსება",
             pending: "ხელახლა გახსნილი / მოლოდინში", allDepts: "ყველა დეპარტამენტი",
             aggregate: "საერთო \u2014 ყველა", csv: "CSV-ის გადმოწერა",
             average: "საშუალო", of: "/", answers: function (n) { return n + " პასუხი"; },
             several: "შესაძლებელია რამდენიმეს არჩევა",
             otherWords: "სხვა, მათი სიტყვებით: ", noneYet: "ჯერ არ არის პასუხები.",
-            submittedOn: "გაგზავნილია" },
+            submittedOn: "გაგზავნილია",
+            voices: "მოსმენილი ხმა", ofInvited: function (n) { return n + "-დან"; },
+            finishedWriting: function (a, b) { return a + " დაასრულა · " + b + " ჯერ წერს"; },
+            overall: "საერთო", weakest: "ყველაზე დაბალი", strongest: "ყველაზე მაღალი",
+            teamsHeard: "გუნდი გამოეხმაურა", notStartedYet: function (l) { return l + " არ დაუწყია"; },
+            byTeam: "როგორ შეაფასა თითოეულმა გუნდმა",
+            byTeamNote: "მეტი უკეთესია. გუნდს სჭირდება საკმარისი პასუხი, სანამ ქულა გამოჩნდება — "
+              + "რომ კონკრეტულ ადამიანზე არ მიუთითოს.",
+            tooFew: "ცოტაა",
+            pooled: function (l) { return l + " ერთად არის ნაჩვენები — ასეთი პატარა გუნდის "
+              + "ცალკე შეფასება ადამიანს გამოააშკარავებდა."; },
+            everyone: "ყველა",
+            basis: function (a, b) { return "ქულები ეყრდნობა <b>" + a + "</b> ადამიანის პასუხს, "
+              + "მათ შორის <b>" + b + "</b> ჯერ ავსებს ფორმას. შევსება ითვლის მხოლოდ დასრულებულს."; },
+            noAnswersYet: "ჯერ არაფერია — პასუხები აქ გამოჩნდება მოსვლისთანავე.",
+            openResponse: "პასუხის გახსნა",
+            range: function (lo, hi) { return "ყველაზე დაბალი " + lo + " · მაღალი " + hi; },
+            nAnswered: function (n) { return n + " პასუხი"; } },
     };
     function RS_() { return HQ_RES[qLang()]; }
     // the question TYPE, named in the reading language
@@ -2308,15 +2384,67 @@ registerPage({
       await loadRes();
       // sections are layout, not data — they hold no answers and get no chart
       var R = S.res, questions = R.questions.filter(function (x) { return x.active && x.qtype !== "section"; });
+      /* WHO COUNTS. Submitted rows govern COMPLETION -- that is what finishing means. But
+         every aggregate below counts everyone who has ANSWERED, in-progress included: the
+         form autosaves, so an unfinished row is a real opinion, and on this survey's first
+         afternoon excluding them hid 77 of 111 answers and reported a flat 10.00 on every
+         scale because the only two people who had pressed Submit had scored everything
+         perfect. Leaving them out is not caution, it deletes the unhappy answers. */
       var subs = R.individuals.filter(function (r) { return r.status === "submitted" || r.status === "resubmitted"; });
-      var depts = [...new Set(subs.map(function (r) { return r.department || "—"; }))].sort();
-      var view = S.resDept ? subs.filter(function (r) { return (r.department || "—") === S.resDept; }) : subs;
+      var answered = R.individuals.filter(function (r) {
+        return r.answers && Object.keys(r.answers).some(function (k) {
+          var v = r.answers[k]; return v != null && v !== "";
+        });
+      });
+      var writing = answered.length - subs.length;
+      var depts = [...new Set(answered.map(function (r) { return r.department || "—"; }))].sort();
+      var view = S.resDept ? answered.filter(function (r) { return (r.department || "—") === S.resDept; }) : answered;
       var qById = {}; R.questions.forEach(function (x) { qById[x.id] = x; });
-      var html = '<div class="hq-kpis">'
-        + '<div class="hq-kpi"><b>' + R.audience_size + "</b><span>" + esc(RS_().audience) + "</span></div>"
-        + '<div class="hq-kpi"><b>' + subs.length + "</b><span>" + esc(RS_().submitted) + "</span></div>"
-        + '<div class="hq-kpi"><b>' + fmtPct(subs.length, R.audience_size) + "</b><span>" + esc(RS_().completion) + "</span></div>"
-        + '<div class="hq-kpi"><b>' + (R.individuals.length - subs.length) + "</b><span>" + esc(RS_().pending) + "</span></div></div>"
+
+      // the scale questions, in form order -- the spine of every score on this tab
+      var scales = R.questions.filter(function (x) {
+        return x.active && (x.qtype === "scale" || x.qtype === "stars5");
+      });
+      var scaleHi = function (qq) {
+        return qq.qtype === "scale" ? (parseInt((qq.options || [])[1], 10) || 10) : 5;
+      };
+      var scaleLo = function (qq) {
+        return qq.qtype === "scale" ? (parseInt((qq.options || [])[0], 10) || 1) : 1;
+      };
+      var numsOf = function (qq, rows) {
+        var lo = scaleLo(qq), hi = scaleHi(qq);
+        return rows.map(function (r) { return Number(r.answers[qq.id]); })
+          .filter(function (n) { return !isNaN(n) && n >= lo && n <= hi; });
+      };
+      var meanOf = function (a) {
+        return a.length ? a.reduce(function (x, y) { return x + y; }, 0) / a.length : null;
+      };
+      // every score on a 0-1 footing, so questions on different scales can be compared
+      var normOf = function (qq, rows) {
+        var m = meanOf(numsOf(qq, rows)), lo = scaleLo(qq), hi = scaleHi(qq);
+        return m == null || hi === lo ? null : (m - lo) / (hi - lo);
+      };
+      var ranked = scales.map(function (qq) {
+        return { q: qq, n: numsOf(qq, view).length, mean: meanOf(numsOf(qq, view)),
+                 norm: normOf(qq, view) };
+      }).filter(function (x) { return x.n >= MIN_CELL; })
+        .sort(function (a, b) { return a.norm - b.norm; });
+
+      // the one question the form asks as a summary, else the lowest-scoring one
+      var overallQ = scales.filter(function (qq) {
+        return /overall|satisf|საერთო/i.test(String(qq.label || "")); })[0] || scales[0];
+      var overallN = overallQ ? numsOf(overallQ, view) : [];
+      var overallM = meanOf(overallN);
+
+      var teamsStarted = [...new Set(answered.map(function (r) { return r.department || "—"; }))];
+      var allTeams = (S.sub && S.sub.cats ? S.sub.cats.map(function (c) { return c.category; })
+                      : teamsStarted);
+      var silent = allTeams.filter(function (t) { return teamsStarted.indexOf(t) < 0; });
+
+      var kpiHtml = "";
+      var html = '<div class="rs-kpis" id="hrKpis"></div>'
+        + (answered.length
+            ? '<div class="hq-basis">' + RS_().basis(answered.length, writing) + "</div>" : "")
         + '<div class="hq-row" style="margin-bottom:12px">'
         + '<select class="hq-sel" id="hrDept"><option value="">' + esc(RS_().allDepts) + "</option>"
         + depts.map(function (dpt) { return '<option' + (S.resDept === dpt ? " selected" : "") + ">" + esc(dpt) + "</option>"; }).join("")
@@ -2338,15 +2466,103 @@ registerPage({
         html += '<div class="hq-or-w"><div class="hq-orhd">'
           + '<div class="hq-orwho"><b>' + esc(person.name || person.email) + "</b>"
           + "<span>" + esc(person.department || "")
-          + (person.submitted_at ? " · " + esc(RS_().submittedOn) + " "
-              + esc(fmtWhen(person.submitted_at)) : "") + "</span></div>"
+          // an anonymous row carries a DAY, not an instant: running a bare date through the
+          // instant formatter re-zones it and invents the minute the bridge stripped
+          + (person.submitted_day
+              ? " · " + esc(RS_().submittedOn) + " " + esc(person.submitted_day)
+              : person.submitted_at ? " · " + esc(RS_().submittedOn) + " "
+                + esc(fmtWhen(person.submitted_at)) : "") + "</span></div>"
           + '<span class="hq-orgap"></span>'
           + '<button class="hq-btn" id="hrPrint2">' + esc(LS().print) + "</button></div>"
           + '<div class="hq-orbody">'
           + hqQuestionList(R.questions.filter(function (x) { return x.active; }), person.answers)
           + "</div></div>";
+      } else if (!answered.length) {
+        // NOT AN EMPTY GRID. Fourteen blank cards read as broken; this reads as early.
+        html += '<div class="hq-card hq-dim" style="padding:26px;text-align:center">'
+          + esc(RS_().noAnswersYet) + "</div>";
       } else {
-        html += '<div class="hq-resgrid">' + questions.map(function (qq) {
+        /* HOW EACH TEAM SCORED. The one view this survey was built to support and the one
+           it did not have: it is anonymous BY DEPARTMENT, and until now the only way to
+           compare two teams was to filter to one, remember the number, and filter to the
+           other. The sharpest thing in the data -- one team markedly lower on teamwork than
+           the rest -- was unreachable by any sequence of clicks.
+
+           Teams below MIN_GROUP respondents are pooled rather than hidden: hiding one column
+           while showing the company mean and every other column leaves the missing one
+           recoverable by subtraction, which is not privacy, it is arithmetic homework. */
+        var byTeam = {};
+        answered.forEach(function (r) {
+          var t = r.department || "—";
+          (byTeam[t] = byTeam[t] || []).push(r);
+        });
+        var bigTeams = Object.keys(byTeam).filter(function (t) { return byTeam[t].length >= MIN_GROUP; }).sort();
+        var smallTeams = Object.keys(byTeam).filter(function (t) { return byTeam[t].length < MIN_GROUP; }).sort();
+        var cols = bigTeams.map(function (t) { return { key: t, label: t, rows: byTeam[t] }; });
+        if (smallTeams.length) {
+          var pooledRows = [];
+          smallTeams.forEach(function (t) { pooledRows = pooledRows.concat(byTeam[t]); });
+          cols.push({ key: "__pool__", label: smallTeams.join(" + "), rows: pooledRows, pooled: true });
+        }
+        if (scales.length && cols.length) {
+          // a score painted on the pos→neg ramp the portal already speaks in
+          var cellStyle = function (norm) {
+            if (norm == null) return "";
+            var g = Math.round(norm * 100);
+            var col = norm >= 0.8 ? "var(--pos)" : norm >= 0.6 ? "var(--warn)" : "var(--neg)";
+            var bg = norm >= 0.8 ? "var(--pos-bg)" : norm >= 0.6 ? "var(--warn-bg)" : "var(--neg-bg)";
+            return 'style="background:' + bg + ";color:" + col + '"';
+          };
+          html += '<div class="hq-card"><h4>' + esc(RS_().byTeam) + "</h4>"
+            + '<div class="hq-dim" style="margin:-4px 0 12px">' + esc(RS_().byTeamNote) + "</div>"
+            + '<div class="rs-tablewrap" style="border:0"><table class="hq-mx"><thead><tr>'
+            + '<th class="q"></th>'
+            + cols.map(function (c) {
+                return "<th>" + esc(c.label) + '<div class="hq-n">'
+                  + esc(RS_().nAnswered(c.rows.length)) + "</div></th>";
+              }).join("")
+            + "<th>" + esc(RS_().everyone) + '<div class="hq-n">'
+            + esc(RS_().nAnswered(answered.length)) + "</div></th>"
+            + "</tr></thead><tbody>"
+            + scales.map(function (qq) {
+                return '<tr><td class="q">' + esc(tx(qq, "label")) + "</td>"
+                  + cols.map(function (c) {
+                      var ns = numsOf(qq, c.rows), m = meanOf(ns);
+                      if (ns.length < MIN_CELL) {
+                        return '<td><span class="cell hid">' + esc(RS_().tooFew) + "</span></td>";
+                      }
+                      return "<td><span class=\"cell\" " + cellStyle(normOf(qq, c.rows)) + ">"
+                        + m.toFixed(1) + "</span></td>";
+                    }).join("")
+                  + (function () {
+                      var ns2 = numsOf(qq, answered), m2 = meanOf(ns2);
+                      return ns2.length < MIN_CELL
+                        ? '<td><span class="cell hid">' + esc(RS_().tooFew) + "</span></td>"
+                        : "<td><span class=\"cell\" " + cellStyle(normOf(qq, answered)) + ">"
+                          + m2.toFixed(1) + "</span></td>";
+                    })()
+                  + "</tr>";
+              }).join("")
+            + "</tbody>"
+            + (smallTeams.length
+                ? '<tfoot><tr><td colspan="' + (cols.length + 2) + '">'
+                  + esc(RS_().pooled(smallTeams.join(" + "))) + "</td></tr></tfoot>" : "")
+            + "</table></div></div>";
+        }
+
+        /* THE QUESTIONS, UNDER THE FORM'S OWN FOUR PARTS. The sections were thrown away
+           here -- filtered out as "layout, not data" -- so a form the team reads as four
+           named chapters was read back as fourteen loose cards. The chapter names are the
+           only grouping the author gave; using them costs nothing and restores the shape. */
+        var grouped = [], cur = null;
+        R.questions.filter(function (x) { return x.active; }).forEach(function (x) {
+          if (x.qtype === "section") { cur = { sec: x, items: [] }; grouped.push(cur); return; }
+          if (!cur) { cur = { sec: null, items: [] }; grouped.push(cur); }
+          cur.items.push(x);
+        });
+        html += grouped.filter(function (g) { return g.items.length; }).map(function (g) {
+          return (g.sec ? '<div class="hq-secdiv">' + esc(tx(g.sec, "label")) + "</div>" : "")
+            + '<div class="hq-resgrid">' + g.items.map(function (qq) {
           var vals = view.map(function (r) { return r.answers[qq.id]; })
             .filter(function (v) { return v != null && v !== ""; });
           var inner;
@@ -2395,19 +2611,91 @@ registerPage({
                     + otherTexts.slice(0, 12).map(esc).join(" · ")
                     + (otherTexts.length > 12 ? " …" : "") + "</div>" : "");
           } else {
+            /* A QUOTE THAT OPENS ITS RESPONSE. Reading one sentence and wanting the rest
+               of that person's form is the commonest move on this tab, and it used to be a
+               dead end. The label is the team, never a name -- and it is the same
+               "Anonymous N" the board and the response view use, so the three agree. */
             inner = vals.length
               ? view.filter(function (r) { return r.answers[qq.id]; }).map(function (r) {
-                  return '<div class="hq-txt">' + esc(r.answers[qq.id])
-                    + '<div class="who">' + esc(r.name || r.email) + (r.department ? " · " + esc(r.department) : "") + "</div></div>";
+                  var canOpen = r.rid != null;
+                  return '<div class="hq-txt' + (canOpen ? " click" : "")
+                    + (canOpen ? '" data-openrid="' + r.rid + '" title="'
+                        + esc(RS_().openResponse) : '"') + '">'
+                    + esc(r.answers[qq.id])
+                    + '<div class="who"><b>' + esc(r.name || r.email) + "</b>"
+                    + (r.department ? " · " + esc(r.department) : "") + "</div></div>";
                 }).join("")
               : '<div class="hq-dim">' + esc(RS_().noneYet) + "</div>";
           }
-          return '<div class="hq-card"><h4>' + esc(tx(qq, "label"))
-            + ' <span class="hq-dim" style="font-weight:600">' + esc(typeLabel(qq.qtype))
-            + "</span></h4>" + inner + "</div>";
+          /* THE NUMBER LEADS. A card whose title is a sentence and whose score is buried
+             three lines down makes fourteen cards look identical; the count of answers sits
+             beside it because on a survey still arriving, n is half the meaning. */
+          var nHere = (function () {
+            if (qq.qtype === "scale" || qq.qtype === "stars5") return numsOf(qq, view).length;
+            return view.filter(function (r) {
+              var v = r.answers[qq.id]; return v != null && v !== "";
+            }).length;
+          })();
+          var lead = "";
+          if (qq.qtype === "scale" || qq.qtype === "stars5") {
+            var mHere = meanOf(numsOf(qq, view));
+            lead = '<div class="rt"><div class="hq-score">'
+              + (mHere == null ? "—" : mHere.toFixed(1))
+              + "<small>/" + scaleHi(qq) + "</small></div>"
+              + '<div class="hq-n">' + esc(RS_().nAnswered(nHere)) + "</div></div>";
+          } else {
+            lead = '<div class="rt"><div class="hq-n">' + esc(RS_().nAnswered(nHere)) + "</div></div>";
+          }
+          return '<div class="hq-card"><div class="hq-qhd"><div class="lb">'
+            + esc(tx(qq, "label")) + "</div>" + lead + "</div>" + inner + "</div>";
         }).join("") + "</div>";
+        }).join("");
       }
       body.innerHTML = html;
+
+      /* THE HEADLINE, through the kit's own tiles. The four it replaces were: the audience
+         size (a number he chose himself when building it), submitted and completion (the
+         same fact twice), and "reopened / pending" -- which is computed as a difference that
+         can only ever be zero, and so read "nothing pending" while nine people were mid-form. */
+      var kp = body.querySelector("#hrKpis");
+      if (kp && window.RSC && RSC.kpis) {
+        var tiles = [{
+          label: RS_().voices, value: String(answered.length),
+          sub: RS_().ofInvited(R.audience_size) + " · "
+               + RS_().finishedWriting(subs.length, writing),
+        }];
+        if (overallQ && overallN.length >= MIN_CELL) {
+          tiles.push({
+            label: tx(overallQ, "label").slice(0, 34), value: overallM.toFixed(1) + " / " + scaleHi(overallQ),
+            tone: normOf(overallQ, view) >= 0.8 ? "pos" : normOf(overallQ, view) >= 0.6 ? "warn" : "neg",
+            sub: RS_().range(Math.min.apply(null, overallN), Math.max.apply(null, overallN)),
+          });
+        }
+        if (ranked.length) {
+          var lo4 = ranked[0], hi4 = ranked[ranked.length - 1];
+          tiles.push({ label: RS_().weakest, value: lo4.mean.toFixed(1) + " / " + scaleHi(lo4.q),
+                       tone: "neg", sub: tx(lo4.q, "label").slice(0, 46) });
+          if (hi4 !== lo4) {
+            tiles.push({ label: RS_().strongest, value: hi4.mean.toFixed(1) + " / " + scaleHi(hi4.q),
+                         tone: "pos", sub: tx(hi4.q, "label").slice(0, 46) });
+          }
+        }
+        tiles.push({
+          label: RS_().teamsHeard,
+          value: (allTeams.length - silent.length) + " / " + allTeams.length,
+          tone: silent.length ? "warn" : "pos",
+          sub: silent.length ? RS_().notStartedYet(silent.join(", ")) : "",
+        });
+        RSC.kpis(kp, tiles);
+      }
+
+      body.querySelectorAll("[data-openrid]").forEach(function (el4) {
+        el4.onclick = function () {
+          S.subOpen = "#" + el4.dataset.openrid;
+          S.qtab = "submissions";
+          go();
+        };
+      });
       hqWireLang(body, "hrResLang", function () { paintResults(body); });
       var pb2 = body.querySelector("#hrPrint2");
       if (pb2) pb2.onclick = function () {
