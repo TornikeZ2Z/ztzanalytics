@@ -25,7 +25,8 @@
              "Our Status", "Our Category", "Angi Status", "Furthest Stage", "Reason",
              "Reason Source", "Est Quote", "Revenue", "Move Date", "Sales Rep",
              "First Called At", "First Connected At", "Mins To First Call", "Speed Bucket",
-             "Call Attempts", "Ever Connected", "Texted", "Call Tracked"],
+             "Call Attempts", "Ever Connected", "Texted", "Call Tracked",
+             "Company", "Dup Count", "Dup Primary"],
     };
   }
 })();
@@ -41,6 +42,18 @@
     ["Speed Bucket", "Response speed"],
     ["Reason", "Reason / outcome"],
     ["Sales Rep", "Sales rep"],
+    ["Company", "Account"],
+  ];
+
+  /* 250 rows share a customer and a date with another row -- 99 of them one lead sitting in
+     BOTH Moveboard accounts, the rest one customer entered several times in one account.
+     Collapsing them moves the lead count AND the close rate, so the choice is a control the
+     reader makes and can see, not a decision taken quietly in a build script. Default is
+     every row, because that is what the warehouse actually holds. */
+  var DUPE_MODES = [
+    ["", "All rows"],
+    ["primary", "One per customer/day"],
+    ["dupes", "Duplicates only"],
   ];
 
   function injectStyle() {
@@ -82,7 +95,10 @@
   function match(r) {
     for (var k in S.f) {
       if (!S.f[k]) continue;
-      if (k === "_q") {
+      if (k === "_dupe") {
+        if (S.f._dupe === "primary" && !+r["Dup Primary"]) return false;
+        if (S.f._dupe === "dupes" && +r["Dup Count"] < 2) return false;
+      } else if (k === "_q") {
         var q = S.f._q.toLowerCase();
         var hay = [r["Customer"], r["Zip"], r["Lead ID"], r["Moving From"], r["Moving To"]]
           .join(" ").toLowerCase();
@@ -115,6 +131,7 @@
        nobody rang them. Divided by everything the rate reads 72% and invites Angi to conclude
        we ignored a quarter of their leads. Divided by what we can actually see, it is 84%. */
     var tracked = view.filter(function (r) { return +r["Call Tracked"]; });
+    var dupes = view.filter(function (r) { return !+r["Dup Primary"]; }).length;
     var revenue = won.reduce(function (a, r) { return a + (num(r["Revenue"]) || 0); }, 0);
     var pc = function (n, d) { return d ? (100 * n / d).toFixed(1) + "%" : "—"; };
     var kpi = function (l, v, s, cls) {
@@ -147,6 +164,13 @@
             + '<select data-k="' + esc(f[0]) + '"><option value="">All</option>'
             + opts(f[0]) + "</select></label>";
         }).join("")
+      + '<label class="agf-fld"><span>Duplicate leads</span>'
+      + '<select id="agfDupe">'
+      + DUPE_MODES.map(function (m) {
+          return '<option value="' + esc(m[0]) + '"'
+            + ((S.f._dupe || "") === m[0] ? " selected" : "") + ">" + esc(m[1]) + "</option>";
+        }).join("")
+      + '</select></label>'
       + '<label class="agf-fld"><span>Search</span>'
       + '<input id="agfQ" placeholder="name, ZIP, lead ID…" value="' + esc(S.f._q || "") + '"></label>'
       + '<span class="agf-sp"></span>'
@@ -156,7 +180,7 @@
       + '<button class="rs-btn pri" id="agfCsv">Download CSV</button></label>'
       + "</div>"
 
-      + '<div class="rs-kpis" style="--kpi-cols:5">'
+      + '<div class="rs-kpis" style="--kpi-cols:4">'
       + kpi("Leads", fmtN(view.length),
             view.length === S.rows.length ? "all Angi leads" : "of " + fmtN(S.rows.length) + " filtered")
       + kpi("Contacted", pc(connected.length, tracked.length),
@@ -167,12 +191,20 @@
       + kpi("Revenue", money0(revenue), "from closed won")
       + kpi("No call record", fmtN(view.length - tracked.length),
             "before call tracking began", (view.length - tracked.length) ? "warn" : "")
+      + kpi("Duplicate rows", fmtN(dupes), "same customer, same day", dupes ? "warn" : "")
       + "</div>"
       + (view.length - tracked.length
           ? '<div class="rs-hint">Call tracking starts <b>1 Mar 2025</b>. The '
             + fmtN(view.length - tracked.length) + " leads before it have no call record — "
             + "they are not counted as unreached, and their stage reads "
             + "<b>No call record</b> rather than <i>Never called</i>.</div>"
+          : "")
+      + (dupes
+          ? '<div class="rs-hint">' + fmtN(dupes) + " row"
+            + (dupes === 1 ? " shares" : "s share") + " a customer and a date with another — "
+            + "one lead landing in <b>both Moveboard accounts</b> (Zip to Zip and Tuji), or one "
+            + "customer entered twice in one. Nothing is dropped; switch "
+            + "<b>Duplicate leads</b> above to see the deduplicated count.</div>"
           : "")
 
       + '<div class="panel"><div class="panel-head">'
@@ -212,6 +244,9 @@
     host.querySelectorAll("select[data-k]").forEach(function (sel) {
       sel.onchange = function () { S.f[sel.dataset.k] = sel.value; S.page = 0; paint(host); };
     });
+    host.querySelector("#agfDupe").onchange = function () {
+      S.f._dupe = this.value; S.page = 0; paint(host);
+    };
     var q = host.querySelector("#agfQ");
     q.oninput = function () {
       S.f._q = this.value; S.page = 0;
@@ -269,7 +304,8 @@
     var cols = ["Lead ID", "Customer", "Zip", "Moving From", "Moving To", "State", "County",
       "Service Type", "Size of Move", "Received At", "First Called At", "First Connected At",
       "Mins To First Call", "Speed Bucket", "Call Attempts", "Ever Connected", "Texted",
-      "Call Tracked", "Angi Status", "Furthest Stage", "Our Status", "Reason", "Reason Source",
+      "Call Tracked", "Company", "Dup Count", "Dup Primary",
+      "Angi Status", "Furthest Stage", "Our Status", "Reason", "Reason Source",
       "Est Quote", "Revenue", "Move Date", "Sales Rep"];
     var cell = function (x) {
       var s = String(x == null ? "" : x);
@@ -281,6 +317,7 @@
       return cols.map(function (c) {
         if (c === "Ever Connected" || c === "Texted" || c === "Call Tracked")
           return cell(+r[c] ? "Yes" : "No");
+      if (c === "Dup Primary") return cell(+r[c] ? "Primary" : "Duplicate");
         return cell(r[c]);
       }).join(",");
     }));
