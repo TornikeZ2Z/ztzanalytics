@@ -53,29 +53,42 @@
 })();
 
 (function () {
-  // id, what a sales head would call it, and the population it is measured over
+  /* id, the SHORT column head, the full sentence for the tooltip, the population, and the
+     group it belongs to.
+
+     THE SHORT HEAD IS NOT COSMETIC. The first cut used the full sentence, and in a
+     fixed-width table five consecutive columns all rendered as "ESTABLISHED T..." — the
+     discovery half of the rubric was unreadable, which is the half he most wants to see. The
+     sentence still exists, on hover and in the drill-down. */
   var CHECKS = [
-    ["open_identified", "Said who you are and the company", "quote"],
-    ["open_goodtime", "Asked if it was a good time", "outbound"],
-    ["disc_date", "Established the move date", "first"],
-    ["disc_inventory", "Established what is being moved", "first"],
-    ["disc_access", "Established floors and elevator", "first"],
-    ["disc_heavy", "Established heavy items", "first"],
-    ["disc_packing", "Established boxes and packing", "first"],
-    ["price_after_discovery", "Learned something before quoting", "priced"],
-    ["px_explained", "Explained how the price is built", "priced"],
-    ["dep_named", "Raised the deposit", "priced"],
-    ["dep_purpose", "Said what the deposit is for", "priced"],
-    ["close_ask", "Asked for the booking", "priced"],
-    ["obj_response", "Answered the pushback", "objection"],
-    ["gave_direct_line", "Gave a direct line back", "quote"],
-    ["shape_broadcast", "Let the customer speak", "quote"],
-    ["shape_monologue", "Did not hold the floor 90s", "quote"],
+    ["open_identified", "Name + company", "Said who you are and who you are calling from, in the first 30 seconds", "quote", "Opening"],
+    ["open_goodtime", "Good time?", "Asked whether it was a good time to talk", "outbound", "Opening"],
+    ["disc_date", "Move date", "Established when the move is", "first", "Discovery"],
+    ["disc_inventory", "Inventory", "Established what is being moved, or booked a walkthrough", "first", "Discovery"],
+    ["disc_access", "Floors / lift", "Established floors, stairs and elevator", "first", "Discovery"],
+    ["disc_heavy", "Heavy items", "Established heavy or specialty items", "first", "Discovery"],
+    ["disc_packing", "Boxes", "Established boxes and who is packing", "first", "Discovery"],
+    ["price_after_discovery", "Asked first", "Learned something about the job before naming a number", "priced", "Price"],
+    ["px_explained", "How it is built", "Explained the basis and the crew behind the price", "priced", "Price"],
+    ["dep_named", "Deposit", "Raised the deposit", "priced", "Price"],
+    ["dep_purpose", "What it is for", "Said what the deposit is for", "priced", "Price"],
+    ["close_ask", "Asked to book", "Asked for the booking", "priced", "Close"],
+    ["obj_response", "Answered pushback", "Responded after the customer pushed back", "objection", "Close"],
+    ["gave_direct_line", "Direct line", "Gave the customer a direct line back", "quote", "Close"],
+  ];
+  /* THE TWO SHAPE MEASURES ARE FLAGS, NOT RATES. Re-measured on the quote-call population they
+     fire on a handful of calls, so a "pass rate" column reads 100% for everybody and tells the
+     reader nothing. A count of the calls that tripped is the honest presentation, and it is
+     the count a coach would actually open. */
+  var FLAGS = [
+    ["shape_broadcast", "Broadcast", "The rep talked and the customer barely spoke at all"],
+    ["shape_monologue", "90s monologue", "The rep held the floor for 90 seconds unbroken"],
   ];
   var POP = {
     quote: "quote calls", outbound: "outbound quote calls", first: "first contacts",
     priced: "calls where a price was said", objection: "calls with pushback",
   };
+  var GROUPS = ["Opening", "Discovery", "Price", "Close"];
   var MIN_CALLS = 50;
 
   function injectStyle() {
@@ -88,6 +101,12 @@
     // define: passing "neg" to a kpi tile without this renders identically to a plain one.
     st.textContent = ""
       + ".scx{font-variant-numeric:tabular-nums}"
+      // the rep column needs to fit a name; rs-fixed spreads everything else evenly
+      + ".scx .rs-table th:first-child,.scx .rs-table td:first-child{width:150px;min-width:150px}"
+      + ".scx .rs-table th{font-size:11px;line-height:1.25;vertical-align:bottom}"
+      + ".scx .rs-tablewrap{--rs-tmin:1450px}"
+      + ".scx-grp{font-size:10px!important;letter-spacing:.1em;text-transform:uppercase;"
+      + "color:var(--brand);border-bottom:1px solid var(--line-2);text-align:center!important}"
       + ".scx .rs-kpis .kpi.neg .v{color:var(--neg)}"
       + ".scx .rs-kpis .kpi.warn .v{color:var(--warn)}"
       + ".scx .rs-kpis .kpi.pos .v{color:var(--pos)}"
@@ -239,13 +258,36 @@
       + '<span class="scx-bar"><i class="' + tone + '" style="width:' + p + '%"></i></span></td>';
   }
 
+  /* A FLAG IS A COUNT, and it is a link to work rather than a score. Zero prints as a dash,
+     not as "0" -- nothing to look at should look like nothing, not like a measurement. */
+  function flagCell(rows, cid) {
+    var app = applicable(rows, cid);
+    var tripped = app.filter(function (r) { return !+r[cid]; }).length;
+    if (!app.length) return '<td class="num"><span class="scx-thin">—</span></td>';
+    if (!tripped) return '<td class="num"><span class="scx-thin">—</span></td>';
+    return '<td class="num" title="' + tripped + ' of ' + app.length + ' long enough to judge">'
+      + '<span class="rs-pill warn">' + tripped + "</span></td>";
+  }
+
   function repTable(byRep, reps, quote) {
     var shared = quote.filter(function (r) { return +r["Shared Line"]; });
-    var head = '<tr><th>Rep</th><th class="num">Quote calls</th>'
+    // TWO HEADER ROWS. Sixteen bare columns is a wall; the same sixteen under Opening /
+    // Discovery / Price / Close is a sales call in the order it happens.
+    var grouped = '<tr><th colspan="4"></th>'
+      + GROUPS.map(function (g) {
+          var n = CHECKS.filter(function (c) { return c[4] === g; }).length;
+          return '<th class="num scx-grp" colspan="' + n + '">' + esc(g) + "</th>";
+        }).join("")
+      + '<th class="num scx-grp" colspan="' + FLAGS.length + '">Flagged calls</th></tr>';
+    var head = grouped
+      + '<tr><th>Rep</th><th class="num">Quote calls</th>'
       + '<th class="num">Outbound</th><th class="num">First contact</th>'
       + CHECKS.map(function (c) {
-          return '<th class="num" title="measured over ' + esc(POP[c[2]]) + '">'
-            + esc(c[1]) + "</th>";
+          return '<th class="num" title="' + esc(c[2]) + ' — measured over '
+            + esc(POP[c[3]]) + '">' + esc(c[1]) + "</th>";
+        }).join("")
+      + FLAGS.map(function (f) {
+          return '<th class="num" title="' + esc(f[2]) + '">' + esc(f[1]) + "</th>";
         }).join("") + "</tr>";
 
     var body = reps.map(function (rep) {
@@ -255,7 +297,7 @@
       // instinct with a new hire is to want the number anyway.
       if (rows.length < MIN_CALLS) {
         return "<tr><td>" + esc(rep) + '</td><td class="num">' + rows.length + "</td>"
-          + '<td colspan="' + (CHECKS.length + 2) + '"><span class="scx-thin">'
+          + '<td colspan="' + (CHECKS.length + FLAGS.length + 2) + '"><span class="scx-thin">'
           + "not enough calls to show a rate — under " + MIN_CALLS + " scored quote calls"
           + "</span></td></tr>";
       }
@@ -268,6 +310,7 @@
         + '<td class="num">' + ob + "%</td>"
         + '<td class="num">' + fc + "%</td>"
         + CHECKS.map(function (c) { return rateCell(rows, c[0]); }).join("")
+        + FLAGS.map(function (f) { return flagCell(rows, f[0]); }).join("")
         + "</tr>";
     }).join("");
 
@@ -275,7 +318,7 @@
     if (shared.length) {
       body += '<tr class="scx-shared"><td>Support Zip To Zip</td>'
         + '<td class="num">' + shared.length + "</td>"
-        + '<td colspan="' + (CHECKS.length + 2) + '"><span class="scx-thin">'
+        + '<td colspan="' + (CHECKS.length + FLAGS.length + 2) + '"><span class="scx-thin">'
         + "a shared queue with no identifiable person on the record — its calls are excluded "
         + "from every rate above</span></td></tr>";
     }
