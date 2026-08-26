@@ -208,7 +208,17 @@
     var tracked = view.filter(function (r) { return +r["Call Tracked"]; });
     var untracked = view.length - tracked.length;
     var dupes = view.filter(function (r) { return !+r["Dup Primary"]; }).length;
-    var withId = view.filter(function (r) { return r["Angi Lead ID"]; }).length;
+    var haveId = view.filter(function (r) { return r["Angi Lead ID"]; });
+    var withId = haveId.length;
+    /* How far Angi's own file reaches. It is a periodic manual drop -- at the time of writing
+       it ran to 6 Aug while the warehouse was on the 26th -- so the NEWEST leads have no Angi
+       id yet. The table is newest-first, which means page one is the worst-covered page on the
+       whole dataset and reads as a broken join unless the page says otherwise. Derived from
+       the data rather than stored, so it is right on its own the next time the file lands. */
+    var angiThrough = haveId.reduce(function (a, r) {
+      var d = String(r["Received Date"] || "").slice(0, 10);
+      return d > a ? d : a;
+    }, "");
     var revenue = won.reduce(function (a, r) { return a + (num(r["Revenue"]) || 0); }, 0);
     var pc = function (n, d) { return d ? (100 * n / d).toFixed(1) + "%" : "—"; };
 
@@ -250,7 +260,12 @@
       + 'is marked <span class="rs-pill ok src">call</span>; the rest come from our CRM status '
       + '<span class="rs-pill mute src">crm</span>, which is weaker evidence. '
       + "<b>" + pc(withId, view.length) + "</b> carry Angi's own lead number, so those rows can "
-      + "be reconciled against their system; the rest are not in the file Angi sends us."
+      + "be reconciled against their system."
+      + (angiThrough
+          ? " Angi's own file is a periodic drop and currently reaches <b>" + esc(angiThrough)
+            + "</b>, so leads newer than that have no id yet — which is why the first page, "
+            + "sorted newest-first, shows the fewest."
+          : "")
       + (untracked
           ? " Call tracking starts <b>1 Mar 2025</b>; the " + fmtN(untracked)
             + " leads before it have no call record, are not counted as unreached, and read "
