@@ -174,7 +174,7 @@ const GROUP_OVERRIDE = {
   "monthly-report": "company", "analysis-by-category": "company",
   // Sales ("sales-geo" moved to Financial — Tornike 2026-07-13: geography is a money view)
   "sales-funnel": "sales", "sales-perf": "sales", "sales-geo": "financial", "demand-analysis": "sales", "sales-command": "sales",
-  "conversations": "sales", "sales-comms": "sales",
+  "conversations": "sales", "sales-comms": "sales", "sales-trackers": "sales",
   // Marketing
   "mkt-roi": "marketing", "mkt-sources": "marketing", "mkt-phone": "marketing",
   // Logistics
@@ -197,7 +197,7 @@ const groupOf = p => GROUP_OVERRIDE[p.id] || p.group;
 /* explicit per-container item order (numbers are scoped within each group's display list) */
 const NAV_ORDER = {
   "monthly-report": 1, "analysis-by-category": 2,
-  "sales-command": 0.5, "conversations": 0.7, "sales-comms": 0.8, "sales-funnel": 1, "sales-perf": 2, "demand-analysis": 5,
+  "sales-command": 0.5, "conversations": 0.7, "sales-comms": 0.8, "sales-trackers": 0.9, "sales-funnel": 1, "sales-perf": 2, "demand-analysis": 5,
   "mkt-roi": 1, "mkt-sources": 2, "mkt-phone": 3,
   "money-flow": 1, "foreman-closings": 2, "ld-planning": 3, "packing-control": 4, "storage-control": 5, "foreman-assessment": 6, "fuel-control": 7, "foreman-late": 7.5, "log-foreman": 8, "log-packing": 9,
   "hr-directory": 1, "hr-questionnaire": 2, "hr-my-questionnaire": 3,
@@ -268,7 +268,7 @@ const PAGE_ICONS = {
   "angi-vs-moveboard": "compass", "reviews-team": "star", "support-team": "shield", "lead-source-analysis": "compass", "source-analysis": "compass", "movers-analysis": "megaphone",
   "financial-team": "trend", "sales-team": "user", "marketing-team": "megaphone", "logistics-team": "tool",
   // themed dashboards + settings (2026-07-09 restructure)
-  "sales-command": "gauge", "conversations": "chat", "sales-comms": "user", "sales-funnel": "funnel", "sales-perf": "user", "sales-geo": "pin", "demand-analysis": "calendar",
+  "sales-command": "gauge", "conversations": "chat", "sales-comms": "user", "sales-trackers": "activity", "sales-funnel": "funnel", "sales-perf": "user", "sales-geo": "pin", "demand-analysis": "calendar",
   "mkt-roi": "trend", "mkt-sources": "compass", "mkt-phone": "phone",
   "log-foreman": "tool", "log-packing": "box",
   "fin-revenue": "trend", "fin-rr": "trend", "rev-production": "star",
@@ -675,6 +675,7 @@ const PAGE_DATASETS = {
   // from the gated _conv* endpoints, so the global slicers have nothing to act on.
   "conversations": [],
   "sales-comms": ["mart_sales_call_score"],
+  "sales-trackers": [],      // loads its own eval + score tables; verdicts ignore the global bar
   "money-flow": [],          // loads fct_money_flow itself + the /api/_mf live overlay
   "ld-planning": [],         // loads fct_ld_planning itself; no global slicers apply
   "cleanup": [],             // its own horizon; a global date filter would fight it
@@ -1066,6 +1067,7 @@ const SEARCH_ALIASES = {
   "sales-command": "sales person analysis sales team command lead journey 360 explorer call history timeline salesperson rep profile lead file important",
   "conversations": "conversations transcripts call recording ringsense what was said customer chat sms text thread talk speech summary",
   "sales-comms": "sales communication analysis call quality coaching rubric checklist what was said discovery deposit close objection talk ratio rep performance ringsense",
+  "sales-trackers": "ai trackers custom tracker inventory review storage discussion price objection competitor mention llm judged met partial compliance ringsense analysis control panel",
   "source-trace": "source trace lineage attribution callrail google local phone match booked from moveboard corrected final source faithful pbix diagnostic audit",
   "meta-referrals": "meta referral upload facebook instagram lead form fills csv export dedupe source",
   "referral-candidates": "referral candidates five star reviews customers email phone contact list marketing call sheet",
@@ -1507,6 +1509,7 @@ const REPORT_LABELS = {
   // Sales
   "conversations": "Conversations (call transcripts)",
   "sales-comms": "Sales Communication Analysis",
+  "sales-trackers": "Sales AI Trackers",
   // Customer Service
   "cleanup": "Calendar Cleanup",
   // Logistics
@@ -1581,7 +1584,7 @@ const aclIconFor = id => (MERGED.find(m => m.id === id) || {}).icon ||
    analytics or bridge deploy. */
 const ACL_DEPTS = [
   { id: "company",   label: "Company Overview", icon: "spark",     reports: ["monthly-report", "analysis-by-category"] },
-  { id: "sales",     label: "Sales",            icon: "funnel",    reports: ["sales-command", "demand-analysis", "conversations", "sales-comms"] },
+  { id: "sales",     label: "Sales",            icon: "funnel",    reports: ["sales-command", "demand-analysis", "conversations", "sales-comms", "sales-trackers"] },
   { id: "marketing", label: "Marketing",        icon: "megaphone", reports: ["source-trace", "referral-candidates", "jobs-by-area", "relocation-trends", "angi-funnel", "promised-reviews"] },
   { id: "logistics", label: "Logistics",        icon: "tool",      reports: ["money-flow", "ld-planning", "foreman-closings", "packing-control", "storage-control", "foreman-assessment", "fuel-control", "foreman-late", "straight-vs-local", "area-plan"] },
   // MUST mirror DEPT_REPORTS["hr"] in bridge/app.py. Employees answering the questionnaire
@@ -1797,6 +1800,7 @@ registerPage({
 <script src="pages/refresh-log.js?v=24"></script>
 <script src="pages/sales-team.js?v=47"></script>
 <script src="pages/sales-comms.js?v=3"></script>
+<script src="pages/sales-trackers.js?v=1"></script>
 <script src="pages/conversations.js?v=9"></script>
 <script src="pages/source-trace.js?v=22"></script>
 <script src="pages/meta-referrals.js?v=2"></script>
