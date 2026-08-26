@@ -7,15 +7,21 @@
  * BUILT ON THE SHARED KIT, not on its own vocabulary. The first cut hand-rolled .agf-bar /
  * .agf-fld / .agf-src at values a few pixels off the kit's, which is exactly how a page ends
  * up looking foreign on a portal where every other page shares one bar and one table. It now
- * uses .rs-bar / .rs-fld / .rs-sel / .rs-inp / .rs-tablewrap / .rs-table / .rs-pill, so it
- * inherits the hover and focus states those carry — the hand-rolled selects had neither.
- * Page CSS below is only what is genuinely specific to this page.
+ * uses .rs-bar / .rs-fld / .rs-sel / .rs-inp / .rs-tablewrap.rs-fit / .rs-table.rs-sticky
+ * .rs-fixed / .rs-pill, so it inherits their hover, focus and pinning behaviour rather than
+ * re-typing approximations of them.
+ *
+ * THE KIT DEFINES NO .kpi TONE RULE — that is a real gap, not an oversight to route around.
+ * RSC.kpis emits the `tone` class and rs.css colours nothing, so every page carries its own
+ * copy. cl-analysis.js declares its copy UN-NAMESPACED, which means this page's KPIs came out
+ * green and red only for a reader who had opened CL Analysis earlier in the same session, and
+ * plain black for anyone who landed here first. The rules below are namespaced under .agf so
+ * they work here and leak nowhere.
  *
  * ITS OWN FILTERS, NOT THE GLOBAL BAR. Registered with no datasets in the shell's map, so the
  * portal-wide slicers are hidden. They would be wrong here in both directions: half of them
  * (Foreman, Size of Move as the shell defines it) do not apply to a LEAD, and the ones that do
  * would not offer the cuts Angi actually asked about — status, response speed, ZIP, outcome.
- * So the toolbar is the questions this page exists to answer.
  *
  * NO VERBATIM CUSTOMER SPEECH, his ruling. Angi asked for "call or CRM notes"; the mart reads
  * the RingSense summaries and reduces each to a short tag before anything is stored, so the
@@ -27,7 +33,8 @@
   if (window.RS && RS.DATASETS && !RS.DATASETS.angi_lead) {
     RS.DATASETS.angi_lead = {
       table: "mart_angi_lead",
-      cols: ["Lead ID", "Customer", "Zip", "Moving From", "Moving To", "State", "County",
+      cols: ["Lead ID", "Angi Lead ID", "Angi ID Match", "Customer", "Zip",
+             "Moving From", "Moving To", "State", "County",
              "Service Type", "Size of Move", "Received At", "Received Date", "Received Month",
              "Our Status", "Our Category", "Angi Status", "Furthest Stage", "Reason",
              "Reason Source", "Est Quote", "Revenue", "Move Date", "Sales Rep",
@@ -39,7 +46,7 @@
 })();
 
 (function () {
-  var S = { rows: [], f: {}, page: 0, per: 50, all: false };
+  var S = { rows: [], f: {}, page: 0, per: 50, opts: null };
 
   var FILTERS = [
     ["Received Month", "Month"],
@@ -50,6 +57,18 @@
     ["Reason", "Reason / outcome"],
     ["Sales Rep", "Sales rep"],
     ["Company", "Account"],
+    ["Angi ID Match", "Angi ID"],
+  ];
+
+  /* Column widths as PERCENTAGES, because .rs-fixed is table-layout:fixed and without a
+     colgroup that means fifteen equal columns. Percentages rather than pixels so the table
+     still fills a wide window and still honours --rs-tmin on a narrow one. Must sum to 100. */
+  var COLS = [
+    ["Received", 11, "nowrap"], ["Lead", 4.5, "nowrap"], ["Angi lead", 7.5, "nowrap"],
+    ["Customer", 9, "wrap"], ["ZIP", 3.5, "nowrap"], ["State", 5.5, "nowrap"],
+    ["Size", 6.5, "wrap"], ["Status", 9, "nowrap"], ["Furthest stage", 8, "wrap"],
+    ["Reason", 10.5, "wrap"], ["Mins to call", 5, "num nowrap"], ["Attempts", 4, "num"],
+    ["Connected", 4.5, ""], ["Revenue", 4.5, "num"], ["Rep", 7, "wrap"],
   ];
 
   /* 250 rows share a customer and a date with another row — 99 of them one lead sitting in
@@ -78,33 +97,47 @@
     if (old) old.remove();
     var st = document.createElement("style");
     st.id = "agf-style";
-    /* Page-specific only. Everything structural — bar, field, select, input, button, table,
-       pill — comes from rs.css and must NOT be redeclared here. */
+    /* Page-specific only, and every rule namespaced under .agf. Structural things — bar,
+       field, select, input, button, table, pill — come from rs.css and are NOT redeclared. */
     st.textContent = ""
-      // the search box wants room for "Name, ZIP or lead ID…" without truncating the placeholder
-      + ".agf .rs-inp{min-width:210px}"
-      // a 14-column table over 10,962 rows: cap the scroller so the sticky header has a
-      // scrolling ancestor to stick against, and keep columns from crushing on a narrow window
-      + ".agf .rs-tablewrap{max-height:calc(100vh - var(--pg-chrome,420px));min-height:280px}"
-      + ".agf .rs-table{min-width:1240px}"
-      // the reason-source marker rides INSIDE a cell beside the reason, so it steps down from a
-      // standalone pill rather than competing with the status pill in the column beside it
-      + ".agf .rs-pill.src{font-size:9.5px;padding:2px 7px;margin-left:7px;letter-spacing:.06em;"
-      + "vertical-align:1px}"
-      // the pager: kit buttons, kit tokens, sitting under the scroller inside the same panel
+      // the sideways-scroll threshold for fifteen columns. A documented kit token, set per
+      // page, which is the sanctioned way to move it (rs.css) rather than re-typing min-width.
+      + ".agf{--rs-tmin:1364px}"
+      // a floor so the scroller does not collapse to two rows when a filter bites hard. The
+      // kit has no min-height and should not grow one.
+      + ".agf .rs-tablewrap{min-height:280px}"
+      /* .rs-fixed forces nowrap + ellipsis on EVERY cell, which would cut a reason in half and
+         take its call/crm marker with it. The text-carrying columns wrap instead — the same
+         thing the referral table does — so nothing is lost and the widths still never move. */
+      + ".agf .rs-table.rs-fixed td.wrap{white-space:normal;overflow:visible;text-overflow:clip}"
+      /* THE KIT COLOURS NO KPI TONE. Namespaced here so it works on this page and leaks to no
+         other — unlike cl-analysis.js, whose un-namespaced copy is why these tiles used to be
+         coloured only for a reader who had visited that page first. */
+      + ".agf .rs-kpis .kpi.pos .v{color:var(--pos)}"
+      + ".agf .rs-kpis .kpi.neg .v{color:var(--neg)}"
+      + ".agf .rs-kpis .kpi.warn .v{color:var(--warn)}"
+      // a second pill sharing a cell with text: spacing only, the kit owns its size and colour
+      + ".agf .rs-pill.src{margin-left:7px}"
+      // the pager. Confirmed the kit has no pagination component; cl-analysis.js is the only
+      // sibling with a real one, and these are its metrics.
       + ".agf-foot{display:flex;align-items:center;gap:12px;flex-wrap:wrap;"
       + "padding:11px 2px 0;font-size:12.5px;color:var(--muted)}"
       + ".agf-foot .rs-btn{padding:5px 11px;font-size:12.5px}"
       + ".agf-pg{display:inline-flex;align-items:center;gap:8px}"
       + ".agf-pg b{font-weight:800;color:var(--ink);min-width:62px;text-align:center;"
       + "font-variant-numeric:tabular-nums}"
+      + ".agf-tip{font-size:11.5px;color:var(--faint)}"
       + ".agf-empty{padding:26px 14px;text-align:center;color:var(--faint);font-size:13px}";
     document.head.appendChild(st);
   }
 
+  // RSC.esc escapes both quote characters; the local fallback exists only for the load-order
+  // case where the kit has not arrived yet.
   function esc(s) {
+    if (window.RSC && RSC.esc) return RSC.esc(s == null ? "" : s);
     return String(s == null ? "" : s).replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+      .replace(/</g, "&lt;").replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
   }
 
   function match(r) {
@@ -115,8 +148,8 @@
         if (S.f._dupe === "dupes" && +r["Dup Count"] < 2) return false;
       } else if (k === "_q") {
         var q = S.f._q.toLowerCase();
-        var hay = [r["Customer"], r["Zip"], r["Lead ID"], r["Moving From"], r["Moving To"]]
-          .join(" ").toLowerCase();
+        var hay = [r["Customer"], r["Zip"], r["Lead ID"], r["Angi Lead ID"],
+                   r["Moving From"], r["Moving To"]].join(" ").toLowerCase();
         if (hay.indexOf(q) < 0) return false;
       } else if (String(r[k] == null ? "" : r[k]) !== S.f[k]) return false;
     }
@@ -128,10 +161,37 @@
     host.innerHTML = '<div class="rs-loading" style="padding:22px">Reading Angi leads…</div>';
     RS.load("angi_lead").then(function (d) {
       S.rows = (d && (d.rows || d)) || [];
+      S.opts = null;
       paint(host);
     }).catch(function (e) {
       host.innerHTML = '<div class="panel">Could not load — ' + esc(e.message) + "</div>";
     });
+  }
+
+  /* The dropdown options depend on S.rows, which never changes after load — so they are built
+     ONCE. They used to be rebuilt on every repaint, which meant nine full scans of eleven
+     thousand rows per keystroke in the search box. */
+  function optionHtml(key) {
+    if (!S.opts) {
+      S.opts = {};
+      var counts = {};
+      FILTERS.forEach(function (f) { counts[f[0]] = {}; });
+      S.rows.forEach(function (r) {
+        FILTERS.forEach(function (f) {
+          var v = r[f[0]] == null ? "" : String(r[f[0]]);
+          if (v) counts[f[0]][v] = (counts[f[0]][v] || 0) + 1;
+        });
+      });
+      FILTERS.forEach(function (f) {
+        S.opts[f[0]] = Object.keys(counts[f[0]]).sort().map(function (v) {
+          return { v: v, n: counts[f[0]][v] };
+        });
+      });
+    }
+    return S.opts[key].map(function (o) {
+      return '<option value="' + esc(o.v) + '"' + (S.f[key] === o.v ? " selected" : "") + ">"
+        + esc(o.v) + " · " + RS.fmtN(o.n) + "</option>";
+    }).join("");
   }
 
   function paint(host) {
@@ -148,20 +208,9 @@
     var tracked = view.filter(function (r) { return +r["Call Tracked"]; });
     var untracked = view.length - tracked.length;
     var dupes = view.filter(function (r) { return !+r["Dup Primary"]; }).length;
+    var withId = view.filter(function (r) { return r["Angi Lead ID"]; }).length;
     var revenue = won.reduce(function (a, r) { return a + (num(r["Revenue"]) || 0); }, 0);
     var pc = function (n, d) { return d ? (100 * n / d).toFixed(1) + "%" : "—"; };
-
-    var opts = function (key) {
-      var seen = {};
-      S.rows.forEach(function (r) {
-        var v = r[key] == null ? "" : String(r[key]);
-        if (v) seen[v] = (seen[v] || 0) + 1;
-      });
-      return Object.keys(seen).sort().map(function (v) {
-        return '<option value="' + esc(v) + '"' + (S.f[key] === v ? " selected" : "") + ">"
-          + esc(v) + " · " + fmtN(seen[v]) + "</option>";
-      }).join("");
-    };
 
     host.innerHTML = '<div class="agf">'
       + '<div class="rs-page-head"><h1>Angi Lead Funnel</h1>'
@@ -174,7 +223,7 @@
       + FILTERS.map(function (f) {
           return '<label class="rs-fld"><span>' + esc(f[1]) + "</span>"
             + '<select class="rs-sel" data-k="' + esc(f[0]) + '"><option value="">All</option>'
-            + opts(f[0]) + "</select></label>";
+            + optionHtml(f[0]) + "</select></label>";
         }).join("")
       + '<label class="rs-fld"><span>Duplicate leads</span>'
       + '<select class="rs-sel" id="agfDupe">'
@@ -184,7 +233,7 @@
         }).join("")
       + "</select></label>"
       + '<label class="rs-fld"><span>Find</span>'
-      + '<input class="rs-inp" id="agfQ" placeholder="Name, ZIP or lead ID…" value="'
+      + '<input class="rs-inp" id="agfQ" placeholder="Name, ZIP, lead or Angi ID…" value="'
       + esc(S.f._q || "") + '"></label>'
       + '<span class="rs-spacer"></span>'
       + '<button class="rs-btn" id="agfClear">Clear filters</button>'
@@ -199,7 +248,9 @@
       + pc(connected.length, tracked.length) + " of the leads we can see. The gap is the mix: "
       + "studios and urban ZIPs convert far below the rest. A reason drawn from a recorded call "
       + 'is marked <span class="rs-pill ok src">call</span>; the rest come from our CRM status '
-      + '<span class="rs-pill mute src">crm</span>, which is weaker evidence.'
+      + '<span class="rs-pill mute src">crm</span>, which is weaker evidence. '
+      + "<b>" + pc(withId, view.length) + "</b> carry Angi's own lead number, so those rows can "
+      + "be reconciled against their system; the rest are not in the file Angi sends us."
       + (untracked
           ? " Call tracking starts <b>1 Mar 2025</b>; the " + fmtN(untracked)
             + " leads before it have no call record, are not counted as unreached, and read "
@@ -213,11 +264,18 @@
           : "")
       + "</div>"
 
-      + '<div class="rs-tablewrap" id="agfTbl"><table class="rs-table"><thead><tr>'
-      + "<th>Received</th><th>Lead</th><th>Customer</th><th>ZIP</th><th>State</th>"
-      + "<th>Size</th><th>Status</th><th>Furthest stage</th><th>Reason</th>"
-      + '<th class="num nowrap">Mins to call</th><th class="num">Attempts</th>'
-      + '<th>Connected</th><th class="num">Revenue</th><th>Rep</th>'
+      /* .rs-fit sizes the scroller to the VIEWPORT so the pinned header has a scrolling
+         ancestor to stick against; .rs-sticky is required with it, because under
+         border-collapse the header's border belongs to the table and does not travel with the
+         sticky cell; .rs-fixed locks the columns so they stop resizing on every pager click. */
+      + '<div class="rs-tablewrap rs-fit" id="agfTbl">'
+      + '<table class="rs-table rs-sticky rs-fixed"><colgroup>'
+      + COLS.map(function (c) { return '<col style="width:' + c[1] + '%">'; }).join("")
+      + "</colgroup><thead><tr>"
+      + COLS.map(function (c) {
+          return "<th" + (/num/.test(c[2]) ? ' class="num nowrap"' : "") + ">"
+            + esc(c[0]) + "</th>";
+        }).join("")
       + "</tr></thead><tbody></tbody></table></div>"
       + '<div class="agf-foot" data-foot></div></div>'
       + "</div>";
@@ -238,38 +296,50 @@
         sub: "before call tracking began" },
     ]);
 
+    /* .dim is the kit's tone for an ABSENT value and rs.css says in as many words that it must
+       not be borrowed for present ones. So a missing customer or ZIP is dim; a measured zero
+       and a measured "No" are not — those are answers, not gaps. */
+    var td = function (cls, html) { return "<td" + (cls ? ' class="' + cls + '"' : "") + ">" + html + "</td>"; };
+    var val = function (cls, v) {
+      return v == null || v === "" ? td((cls ? cls + " " : "") + "dim", "—") : td(cls, esc(v));
+    };
+
     var rowsHtml = view.slice().sort(function (a, b) {
       return String(b["Received At"] || "").localeCompare(String(a["Received At"] || ""));
     }).map(function (r) {
       var src = String(r["Reason Source"] || "");
       var st = String(r["Angi Status"] || "");
-      var reason = r["Reason"];
+      var mins = r["Mins To First Call"];
       return "<tr>"
-        + '<td class="nowrap muted">' + esc(String(r["Received At"] || "").slice(0, 16)) + "</td>"
-        + '<td class="strong nowrap">' + esc(r["Lead ID"]) + "</td>"
-        + "<td>" + esc(r["Customer"] || "—") + "</td>"
-        + '<td class="nowrap">' + esc(r["Zip"] || "—") + "</td>"
-        + '<td class="nowrap muted">' + esc(r["State"] || "—") + "</td>"
-        + '<td class="muted">' + esc(r["Size of Move"] || "—") + "</td>"
-        + "<td>" + (st ? '<span class="rs-pill ' + (STATUS_TONE[st] || "mute") + '">'
-                         + esc(st) + "</span>" : '<span class="dim">—</span>') + "</td>"
-        + '<td class="muted nowrap">' + esc(r["Furthest Stage"] || "—") + "</td>"
-        + (reason
-            ? "<td>" + esc(reason)
-              + (src === "call" || src === "crm"
-                  ? '<span class="rs-pill ' + (src === "call" ? "ok" : "mute") + ' src">'
-                    + esc(src) + "</span>"
-                  : "") + "</td>"
-            : '<td class="dim">—</td>')
-        + '<td class="num' + (r["Mins To First Call"] == null ? " dim" : "") + '">'
-          + (r["Mins To First Call"] == null ? "—" : fmtN(r["Mins To First Call"])) + "</td>"
-        + '<td class="num' + (+r["Call Attempts"] ? "" : " dim") + '">'
-          + fmtN(r["Call Attempts"] || 0) + "</td>"
-        + '<td class="' + (+r["Ever Connected"] ? "" : "dim") + '">'
-          + (+r["Ever Connected"] ? "Yes" : "No") + "</td>"
-        + '<td class="num' + (r["Revenue"] == null ? " dim" : "") + '">'
-          + (r["Revenue"] == null ? "—" : money0(num(r["Revenue"]))) + "</td>"
-        + '<td class="nowrap muted">' + esc(r["Sales Rep"] || "—") + "</td></tr>";
+        + val("nowrap muted", String(r["Received At"] || "").slice(0, 16))
+        + val("strong nowrap", r["Lead ID"])
+        // Angi's own number, with a marker when we could not pin it to exactly one of their
+        // leads — a bare id would claim more certainty than the match carries
+        + (r["Angi Lead ID"]
+            ? td("nowrap", esc(r["Angi Lead ID"])
+                + (r["Angi ID Match"] === "multiple"
+                    ? '<span class="rs-pill warn src" title="this job matched more than one '
+                      + 'Angi lead; the lowest id is shown">?</span>' : ""))
+            : td("nowrap dim", "not in Angi’s file"))
+        + val("wrap", r["Customer"])
+        + val("nowrap", r["Zip"])
+        + val("nowrap muted", r["State"])
+        + val("wrap muted", r["Size of Move"])
+        + td("nowrap", st ? '<span class="rs-pill ' + (STATUS_TONE[st] || "mute") + '">'
+                            + esc(st) + "</span>" : "—")
+        + val("wrap muted", r["Furthest Stage"])
+        + (r["Reason"]
+            ? td("wrap", esc(r["Reason"])
+                + (src === "call" || src === "crm"
+                    ? '<span class="rs-pill ' + (src === "call" ? "ok" : "mute") + ' src">'
+                      + esc(src) + "</span>" : ""))
+            : td("wrap dim", "—"))
+        + (mins == null ? td("num dim", "—") : td("num", fmtN(mins)))
+        + td("num", fmtN(r["Call Attempts"] || 0))
+        + td("", +r["Ever Connected"] ? "Yes" : "No")
+        + (r["Revenue"] == null ? td("num dim", "—") : td("num", money0(num(r["Revenue"]))))
+        + val("wrap muted", r["Sales Rep"])
+        + "</tr>";
     });
 
     paginate(host, rowsHtml);
@@ -289,11 +359,11 @@
       if (n) { n.focus(); n.setSelectionRange(at, at); }
     };
     host.querySelector("#agfClear").onclick = function () {
-      S.f = {}; S.page = 0; S.all = false; paint(host);
+      S.f = {}; S.page = 0; paint(host);
     };
     host.querySelector("#agfCsv").onclick = function () { downloadCsv(view); };
 
-    // measure the scroller so the sticky header has a real ancestor height to stick against
+    // measure the scroller so .rs-fit's viewport height is this page's, not the CSS fallback
     if (window.RSC && RSC.fitScroller) RSC.fitScroller(host.querySelector("#agfTbl"));
   }
 
@@ -307,9 +377,9 @@
     var pages = Math.max(1, Math.ceil(rowsHtml.length / per));
     function draw() {
       if (S.page >= pages) S.page = 0;
-      tbody.innerHTML = (S.all ? rowsHtml
-        : rowsHtml.slice(S.page * per, S.page * per + per)).join("")
-        || '<tr><td colspan="14" class="agf-empty">Nothing matches these filters.</td></tr>';
+      tbody.innerHTML = rowsHtml.slice(S.page * per, S.page * per + per).join("")
+        || '<tr><td colspan="' + COLS.length + '" class="agf-empty">'
+           + "Nothing matches these filters.</td></tr>";
       if (rowsHtml.length <= per) {
         foot.innerHTML = rowsHtml.length
           ? "<span>" + RS.fmtN(rowsHtml.length) + " lead"
@@ -317,23 +387,30 @@
           : "";
         return;
       }
-      var from = S.all ? 1 : S.page * per + 1;
-      var to = S.all ? rowsHtml.length : Math.min(rowsHtml.length, S.page * per + per);
-      foot.innerHTML = "<span>" + RS.fmtN(from) + "–" + RS.fmtN(to) + " of "
+      /* NO "SHOW ALL". His call, and he is right: it put ten thousand rows into the DOM in one
+         insert, which locks the tab and can take the page down. Narrow with the filters, or
+         take the CSV — the download already carries everything the filters leave. */
+      foot.innerHTML = "<span>" + RS.fmtN(S.page * per + 1) + "–"
+        + RS.fmtN(Math.min(rowsHtml.length, S.page * per + per)) + " of "
         + RS.fmtN(rowsHtml.length) + "</span>"
-        + (S.all ? "" : '<span class="agf-pg">'
-            + '<button class="rs-btn" data-prev ' + (S.page === 0 ? "disabled" : "") + ">‹ Prev</button>"
-            + "<b>" + (S.page + 1) + " / " + pages + "</b>"
-            + '<button class="rs-btn" data-next ' + (S.page >= pages - 1 ? "disabled" : "") + ">Next ›</button>"
-            + "</span>")
+        + '<span class="agf-pg">'
+        + '<button class="rs-btn" data-first ' + (S.page === 0 ? "disabled" : "") + ">« First</button>"
+        + '<button class="rs-btn" data-prev ' + (S.page === 0 ? "disabled" : "") + ">‹ Prev</button>"
+        + "<b>" + RS.fmtN(S.page + 1) + " / " + RS.fmtN(pages) + "</b>"
+        + '<button class="rs-btn" data-next ' + (S.page >= pages - 1 ? "disabled" : "") + ">Next ›</button>"
+        + '<button class="rs-btn" data-last ' + (S.page >= pages - 1 ? "disabled" : "") + ">Last »</button>"
+        + "</span>"
         + '<span class="rs-spacer"></span>'
-        + '<button class="rs-btn" data-all>' + (S.all ? "Paginate" : "Show all") + "</button>";
-      var pv = foot.querySelector("[data-prev]");
-      if (pv) pv.onclick = function () { if (S.page > 0) { S.page--; draw(); } };
-      var nx = foot.querySelector("[data-next]");
-      if (nx) nx.onclick = function () { if (S.page < pages - 1) { S.page++; draw(); } };
-      var al = foot.querySelector("[data-all]");
-      if (al) al.onclick = function () { S.all = !S.all; S.page = 0; draw(); };
+        + '<span class="agf-tip">All ' + RS.fmtN(rowsHtml.length)
+        + " rows are in the CSV — the download takes whatever the filters leave.</span>";
+      var go = function (sel, next) {
+        var b = foot.querySelector(sel);
+        if (b) b.onclick = function () { S.page = next(); draw(); mount.scrollTop = 0; };
+      };
+      go("[data-first]", function () { return 0; });
+      go("[data-prev]", function () { return Math.max(0, S.page - 1); });
+      go("[data-next]", function () { return Math.min(pages - 1, S.page + 1); });
+      go("[data-last]", function () { return pages - 1; });
     }
     draw();
   }
@@ -342,7 +419,8 @@
      narrowed view is a narrowed file and nobody sends ten thousand rows meaning to send one
      ZIP. Still no verbatim speech: the Reason column is the tag, never the sentence. */
   function downloadCsv(view) {
-    var cols = ["Lead ID", "Customer", "Zip", "Moving From", "Moving To", "State", "County",
+    var cols = ["Lead ID", "Angi Lead ID", "Angi ID Match",
+      "Customer", "Zip", "Moving From", "Moving To", "State", "County",
       "Service Type", "Size of Move", "Received At", "First Called At", "First Connected At",
       "Mins To First Call", "Speed Bucket", "Call Attempts", "Ever Connected", "Texted",
       "Call Tracked", "Company", "Dup Count", "Dup Primary",
