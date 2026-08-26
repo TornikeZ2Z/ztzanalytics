@@ -517,8 +517,9 @@
           /* "FORMAN", NOT "FOREMAN". The crew sheet spells it without the E and this repo
              has been caught by that spelling before (the raw closing column is `Forman` too).
              Matching the correct spelling found nobody at all — 39 of 59 active crew are
-             foremen and every base rendered a zero. */
-          var isForeman = function (c) { return /for?eman/i.test(String(c.role || "")); };
+             foremen and every base rendered a zero. The optional letter is the E, not the R:
+             /for?eman/ means "foeman" or "foreman" and still matches neither. */
+          var isForeman = function (c) { return /fore?man/i.test(String(c.role || "")); };
           var byBase = {};
           live.forEach(function (c) {
             var b = String(c.base || "").trim() || "No base set";
