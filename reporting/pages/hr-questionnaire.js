@@ -434,6 +434,8 @@ registerPage({
         ".hq-mx .cell{display:block;border-radius:8px;padding:8px 4px;font-weight:800;"
           + "font-variant-numeric:tabular-nums}",
         ".hq-mx .cell.hid{background:var(--panel-2);color:var(--faint);font-weight:600;font-size:11px}",
+        ".hq-mx .cell .cn{display:block;font-style:normal;font-size:9.5px;font-weight:700;"
+          + "opacity:.72;margin-top:1px}",
         ".hq-mx tfoot td{padding-top:10px;font-size:11px;color:var(--faint)}",
         // one question, one card, but the number leads
         ".hq-qhd{display:flex;align-items:flex-start;gap:12px;margin-bottom:9px}",
@@ -447,6 +449,30 @@ registerPage({
         // the basis line: what these numbers are computed from
         ".hq-basis{font-size:12px;color:var(--muted);line-height:1.6;margin:0 0 14px}",
         ".hq-basis b{color:var(--ink)}",
+        // participation: one company donut, then one small donut per team
+        ".hq-part{display:grid;grid-template-columns:220px 1fr;gap:22px;align-items:center}",
+        "@media(max-width:900px){.hq-part{grid-template-columns:1fr}}",
+        ".hq-donut{position:relative;width:200px;height:200px;margin:0 auto}",
+        ".hq-donut .mid{position:absolute;inset:0;display:flex;flex-direction:column;"
+          + "align-items:center;justify-content:center;pointer-events:none}",
+        ".hq-donut .mid b{font-size:30px;font-weight:800;letter-spacing:-1px;line-height:1}",
+        ".hq-donut .mid span{font-size:10px;font-weight:800;letter-spacing:.07em;"
+          + "text-transform:uppercase;color:var(--faint);margin-top:3px}",
+        ".hq-teams{display:grid;grid-template-columns:repeat(auto-fit,minmax(118px,1fr));gap:14px}",
+        ".hq-tm{text-align:center}",
+        ".hq-tm .ring{position:relative;width:96px;height:96px;margin:0 auto 7px}",
+        ".hq-tm .ring b{position:absolute;inset:0;display:flex;align-items:center;"
+          + "justify-content:center;font-size:17px;font-weight:800;letter-spacing:-.4px}",
+        ".hq-tm .nm{font-size:12px;font-weight:750;color:var(--ink);line-height:1.3}",
+        ".hq-tm .ct{font-size:11px;color:var(--faint);margin-top:2px}",
+        ".hq-lgd{display:flex;flex-wrap:wrap;gap:12px;justify-content:center;margin-top:12px;"
+          + "font-size:11.5px;color:var(--muted)}",
+        ".hq-lgd i{display:inline-block;width:9px;height:9px;border-radius:3px;margin-right:5px}",
+        // the written read of the numbers
+        ".hq-read li{margin:0 0 9px;line-height:1.6;font-size:13.5px}",
+        ".hq-read li b{color:var(--ink)}",
+        ".hq-read .prov{font-size:11px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;"
+          + "color:var(--warn);margin-left:6px}",
         "@media(max-width:1150px){.hq-resgrid{grid-template-columns:1fr}}",
         // preview: email on the left, the form on the right
         ".pv-grid{display:grid;grid-template-columns:390px minmax(0,1fr);gap:26px;align-items:start}",
@@ -872,7 +898,14 @@ registerPage({
             noAnswersYet: "Nothing to show yet — the first answers appear here as they arrive.",
             openResponse: "open this response",
             range: function (lo, hi) { return "lowest " + lo + " · highest " + hi; },
-            nAnswered: function (n) { return n + " answered"; } },
+            nAnswered: function (n) { return n + " answered"; },
+            whoFilled: "Who has filled it in", haveAnswered: "have answered",
+            stillWriting: "still writing", notOpened: "not opened",
+            fromN: function (n) { return "from " + n; },
+            theRead: "What the numbers say",
+            readEarly: "Too early to read much into this — the note under each line says how "
+              + "many answers it rests on.",
+            provisional: "provisional" },
       ka: { audience: "აუდიტორია", submitted: "გაგზავნილი", completion: "შევსება",
             pending: "ხელახლა გახსნილი / მოლოდინში", allDepts: "ყველა დეპარტამენტი",
             aggregate: "საერთო \u2014 ყველა", csv: "CSV-ის გადმოწერა",
@@ -897,9 +930,36 @@ registerPage({
             noAnswersYet: "ჯერ არაფერია — პასუხები აქ გამოჩნდება მოსვლისთანავე.",
             openResponse: "პასუხის გახსნა",
             range: function (lo, hi) { return "ყველაზე დაბალი " + lo + " · მაღალი " + hi; },
-            nAnswered: function (n) { return n + " პასუხი"; } },
+            nAnswered: function (n) { return n + " პასუხი"; },
+            whoFilled: "ვინ შეავსო", haveAnswered: "უპასუხა",
+            stillWriting: "ჯერ წერს", notOpened: "არ გაუხსნია",
+            fromN: function (n) { return n + " პასუხიდან"; },
+            theRead: "რას ამბობს ციფრები",
+            readEarly: "ჯერ ნაადრევია დასკვნებისთვის — თითოეულ სტრიქონს ქვემოთ წერია რამდენ "
+              + "პასუხს ეყრდნობა.",
+            provisional: "წინასწარი" },
     };
     function RS_() { return HQ_RES[qLang()]; }
+
+    /* A DONUT. segs = [{v, color}] drawn clockwise from twelve o'clock over a track ring, so
+       an empty segment simply does not appear and the track shows through as "the rest". */
+    function donut(segs, size, thick) {
+      var r = (size - thick) / 2, c = size / 2, circ = 2 * Math.PI * r, off = 0;
+      var tot = segs.reduce(function (a, x) { return a + (x.v || 0); }, 0);
+      return '<svg width="' + size + '" height="' + size + '" viewBox="0 0 ' + size + " " + size
+        + '" aria-hidden="true"><circle cx="' + c + '" cy="' + c + '" r="' + r
+        + '" fill="none" stroke="var(--line)" stroke-width="' + thick + '"/>'
+        + (tot ? segs.filter(function (x) { return x.v > 0; }).map(function (x) {
+            var len = x.v / tot * circ;
+            var out = '<circle cx="' + c + '" cy="' + c + '" r="' + r + '" fill="none" stroke="'
+              + x.color + '" stroke-width="' + thick + '" stroke-dasharray="' + len + " "
+              + (circ - len) + '" stroke-dashoffset="' + (-off)
+              + '" transform="rotate(-90 ' + c + " " + c + ')"/>';
+            off += len;
+            return out;
+          }).join("") : "")
+        + "</svg>";
+    }
     // the question TYPE, named in the reading language
     var TYPE_LABEL_KA = {
       stars5: "შეფასება 1\u20135", scale: "წრფივი შკალა",
@@ -2397,6 +2457,9 @@ registerPage({
     /* ================================================================ results */
     async function paintResults(body) {
       await loadRes();
+      // the same per-team counts the Responses board shows -- fetched here rather than
+      // recomputed, so the two tabs can never disagree about how many people answered
+      if (!S.sub || S.subFor !== S.qid) { try { await loadSub(); S.subFor = S.qid; } catch (e) {} }
       // sections are layout, not data — they hold no answers and get no chart
       var R = S.res, questions = R.questions.filter(function (x) { return x.active && x.qtype !== "section"; });
       /* WHO COUNTS. Submitted rows govern COMPLETION -- that is what finishing means. But
@@ -2525,6 +2588,46 @@ registerPage({
           cols.push({ key: "__pool__", label: smallTeams.join(" + "), rows: pooledRows, pooled: true });
           smallTeams = [];
         }
+        /* WHO HAS ACTUALLY FILLED IT IN. The tab could not answer this at all: a team
+           with no responses is invisible in `individuals` by construction, so the silence of
+           an entire department -- the thing most worth chasing -- was the one thing the
+           statistics could not show. */
+        var cats2 = (S.sub && S.sub.cats) || [];
+        if (cats2.length) {
+          var tp = cats2.reduce(function (a, c2) {
+            a.people += c2.people; a.started += c2.started; a.submitted += c2.submitted;
+            return a;
+          }, { people: 0, started: 0, submitted: 0 });
+          var notStarted = Math.max(0, tp.people - tp.started - tp.submitted);
+          var pctOf = function (n, d) { return d ? Math.round(n / d * 100) : 0; };
+          html += '<div class="hq-card"><h4>' + esc(RS_().whoFilled) + "</h4>"
+            + '<div class="hq-part">'
+            + "<div><div class=\"hq-donut\">"
+            + donut([{ v: tp.submitted, color: "var(--pos)" },
+                     { v: tp.started, color: "var(--warn)" },
+                     { v: notStarted, color: "var(--line)" }], 200, 26)
+            + '<div class="mid"><b>' + pctOf(tp.submitted + tp.started, tp.people) + "%</b>"
+            + "<span>" + esc(RS_().haveAnswered) + "</span></div></div>"
+            + '<div class="hq-lgd">'
+            + '<span><i style="background:var(--pos)"></i>' + esc(RS_().submitted) + " " + tp.submitted + "</span>"
+            + '<span><i style="background:var(--warn)"></i>' + esc(RS_().stillWriting) + " " + tp.started + "</span>"
+            + '<span><i style="background:var(--line)"></i>' + esc(RS_().notOpened) + " " + notStarted + "</span>"
+            + "</div></div>"
+            + '<div class="hq-teams">'
+            + cats2.slice().sort(function (a, b) {
+                return (b.submitted + b.started) / (b.people || 1) - (a.submitted + a.started) / (a.people || 1);
+              }).map(function (c2) {
+                var got = c2.submitted + c2.started, left = Math.max(0, c2.people - got);
+                var dc3 = deptColor(c2.category);
+                return '<div class="hq-tm"><div class="ring">'
+                  + donut([{ v: got, color: dc3 }, { v: left, color: "var(--line)" }], 96, 13)
+                  + "<b>" + pctOf(got, c2.people) + "%</b></div>"
+                  + '<div class="nm">' + esc(c2.category) + "</div>"
+                  + '<div class="ct">' + got + " / " + c2.people + "</div></div>";
+              }).join("")
+            + "</div></div></div>";
+        }
+
         if (scales.length && cols.length) {
           // a score painted on the pos→neg ramp the portal already speaks in
           var cellStyle = function (norm) {
@@ -2552,15 +2655,16 @@ registerPage({
                       if (ns.length < MIN_CELL) {
                         return '<td><span class="cell hid">' + esc(RS_().tooFew) + "</span></td>";
                       }
+                      // the mean AND what it rests on, in the cell: "8.6" over "from 10"
                       return "<td><span class=\"cell\" " + cellStyle(normOf(qq, c.rows)) + ">"
-                        + m.toFixed(1) + "</span></td>";
+                        + m.toFixed(1) + '<i class="cn">' + RS_().fromN(ns.length) + "</i></span></td>";
                     }).join("")
                   + (function () {
                       var ns2 = numsOf(qq, answered), m2 = meanOf(ns2);
                       return ns2.length < MIN_CELL
                         ? '<td><span class="cell hid">' + esc(RS_().tooFew) + "</span></td>"
                         : "<td><span class=\"cell\" " + cellStyle(normOf(qq, answered)) + ">"
-                          + m2.toFixed(1) + "</span></td>";
+                          + m2.toFixed(1) + '<i class="cn">' + RS_().fromN(ns2.length) + "</i></span></td>";
                     })()
                   + "</tr>";
               }).join("")
@@ -2583,9 +2687,17 @@ registerPage({
           if (!cur) { cur = { sec: null, items: [] }; grouped.push(cur); }
           cur.items.push(x);
         });
-        html += grouped.filter(function (g) { return g.items.length; }).map(function (g) {
+        html += grouped.filter(function (g) {
+          return g.items.some(function (qq) {
+            return qq.qtype !== "scale" && qq.qtype !== "stars5";
+          });
+        }).map(function (g) {
           return (g.sec ? '<div class="hq-secdiv">' + esc(tx(g.sec, "label")) + "</div>" : "")
-            + '<div class="hq-resgrid">' + g.items.map(function (qq) {
+            + '<div class="hq-resgrid">' + g.items.filter(function (qq) {
+              // a scale already has a row in the matrix, with its mean, its per-team means
+              // and the count each rests on. Drawing it again below is the repetition.
+              return qq.qtype !== "scale" && qq.qtype !== "stars5";
+            }).map(function (qq) {
           var vals = view.map(function (r) { return r.answers[qq.id]; })
             .filter(function (v) { return v != null && v !== ""; });
           var inner;
@@ -2619,6 +2731,30 @@ registerPage({
                 }
               });
             });
+            /* A SHARE OF PEOPLE, drawn as one. A single-choice question is exactly the
+               shape a pie is for -- parts of one whole -- where a bar list asked the reader
+               to add the numbers up themselves. Multi-choice keeps bars: its parts overlap,
+               so they are not a whole and a pie of them would be a lie. */
+            var PIE = ["var(--pos)", "var(--brand)", "var(--warn)", "var(--blue)", "var(--neg)",
+                       "var(--muted)"];
+            var opts2 = (qq.options || []).filter(function (o) { return counts2[o] > 0; });
+            if (qq.qtype !== "multi" && opts2.length && vals.length) {
+              inner = '<div class="hq-part" style="grid-template-columns:170px 1fr">'
+                + "<div><div class=\"hq-donut\" style=\"width:150px;height:150px\">"
+                + donut(opts2.map(function (o, i) {
+                    return { v: counts2[o], color: PIE[i % PIE.length] };
+                  }), 150, 22)
+                + '<div class="mid"><b>' + vals.length + "</b><span>"
+                + esc(RS_().nAnswered(vals.length)).replace(/^\d+\s*/, "") + "</span></div></div></div>"
+                + "<div>" + opts2.map(function (o, i) {
+                    return '<div class="hq-bar" style="grid-template-columns:14px 1fr 74px">'
+                      + '<span><i style="display:inline-block;width:9px;height:9px;border-radius:3px;'
+                      + "background:" + PIE[i % PIE.length] + '"></i></span>'
+                      + "<span>" + esc(tOpt(qq, o)) + "</span>"
+                      + '<span class="n">' + counts2[o] + " · "
+                      + Math.round(counts2[o] / vals.length * 100) + "%</span></div>";
+                  }).join("") + "</div></div>";
+            } else {
             var mx2 = Math.max.apply(null, Object.keys(counts2).map(function (k) { return counts2[k]; }).concat([1]));
             inner = '<div class="hq-dim" style="margin-bottom:6px">' + esc(RS_().answers(vals.length))
               + (qq.qtype === "multi" ? " · " + esc(RS_().several) : "") + "</div>"
@@ -2633,6 +2769,7 @@ registerPage({
                   ? '<div class="hq-dim" style="margin-top:7px">' + esc(RS_().otherWords)
                     + otherTexts.slice(0, 12).map(esc).join(" · ")
                     + (otherTexts.length > 12 ? " …" : "") + "</div>" : "");
+            }
           } else {
             /* A QUOTE THAT OPENS ITS RESPONSE. Reading one sentence and wanting the rest
                of that person's form is the commonest move on this tab, and it used to be a
