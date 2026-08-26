@@ -356,7 +356,10 @@ registerPage({
       const mount = document.getElementById(mountId);
       if (!mount) return;
       const tbody = mount.querySelector("tbody");
-      const foot = mount.querySelector("[data-foot]");
+      // THE FOOTER IS A SIBLING OF THE TABLE WRAPPER, not a child of it — it has to sit
+      // outside the horizontally-scrolling box or it scrolls away with the widest column.
+      // Looking for it inside the mount found nothing and silently drew no rows at all.
+      const foot = (mount.parentElement || document).querySelector("[data-foot]");
       if (!tbody || !foot) return;
       per = per || 25;
       let page = 0, all = rowsHtml.length <= per;
