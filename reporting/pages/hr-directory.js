@@ -514,7 +514,11 @@
             return String(c.status).toLowerCase() === "active";
           });
           if (!live.length) return "";
-          var isForeman = function (c) { return /foreman/i.test(String(c.role || "")); };
+          /* "FORMAN", NOT "FOREMAN". The crew sheet spells it without the E and this repo
+             has been caught by that spelling before (the raw closing column is `Forman` too).
+             Matching the correct spelling found nobody at all — 39 of 59 active crew are
+             foremen and every base rendered a zero. */
+          var isForeman = function (c) { return /for?eman/i.test(String(c.role || "")); };
           var byBase = {};
           live.forEach(function (c) {
             var b = String(c.base || "").trim() || "No base set";
@@ -533,14 +537,18 @@
             + bases.map(function (b) {
                 var list = byBase[b];
                 var fm = list.filter(isForeman);
-                var drivers = list.filter(function (c) { return /driver/i.test(c.role || ""); });
-                var helpers = list.filter(function (c) { return /helper/i.test(c.role || ""); });
+                // THE POOL IS WHOEVER IS NOT A FOREMAN. Roles are a comma list and they
+                // overlap — "Forman, Driver" is a crew lead who also drives, not a spare
+                // driver — so counting by role alone would count the same person twice.
+                var pool = list.filter(function (c) { return !isForeman(c); });
+                var canDrive = pool.filter(function (c) { return /driver/i.test(c.role || ""); });
                 return '<div class="hd-base">'
                   + '<div class="hd-bhd"><b>' + esc(b) + "</b><em>" + fm.length + "</em></div>"
                   + '<div class="hd-bsub">' + fm.length
                   + (fm.length === 1 ? " crew" : " crews") + " based here"
-                  + (drivers.length || helpers.length
-                      ? " · " + drivers.length + " drivers, " + helpers.length + " helpers"
+                  + (pool.length
+                      ? " · " + pool.length + " in the support pool"
+                        + (canDrive.length ? " (" + canDrive.length + " can drive)" : "")
                       : "") + "</div>"
                   + (fm.length
                       ? fm.map(function (c) {
