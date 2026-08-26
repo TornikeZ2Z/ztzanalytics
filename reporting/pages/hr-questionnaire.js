@@ -903,6 +903,20 @@ registerPage({
             stillWriting: "still writing", notOpened: "not opened",
             fromN: function (n) { return "from " + n; },
             theRead: "What the numbers say",
+            rdOpen: function (a, b, c) { return "<b>" + a + " of " + b + "</b> have opened it so "
+              + "far and <b>" + c + "</b> have finished. The survey is still open, so read this "
+              + "as where it has got to, not as the final result."; },
+            rdSilent: function (l) { return "<b>" + l + "</b> have not opened it at all. That is "
+              + "the most actionable thing on this page — it says nothing about how they feel, "
+              + "only that their answers are missing."; },
+            rdLowest: function (q, m, n) { return "The lowest-scoring question is <b>" + q
+              + "</b> at <b>" + m + "</b>, from " + n + " answers."; },
+            rdGap: function (q, ta, ma, tb, mb) { return "On <b>" + q + "</b>, " + ta + " sit at "
+              + ma + " against " + tb + " at " + mb + " — the widest gap between two teams that "
+              + "both have enough answers to compare."; },
+            rdDecay: function (hi, lo) { return "The number of people behind each question falls "
+              + "from " + hi + " on the first to " + lo + " on the last, because the form is "
+              + "answered top to bottom — so two questions are not automatically comparable."; },
             readEarly: "Too early to read much into this — the note under each line says how "
               + "many answers it rests on.",
             provisional: "provisional" },
@@ -935,6 +949,20 @@ registerPage({
             stillWriting: "ჯერ წერს", notOpened: "არ გაუხსნია",
             fromN: function (n) { return n + " პასუხიდან"; },
             theRead: "რას ამბობს ციფრები",
+            rdOpen: function (a, b, c) { return "<b>" + b + "-დან " + a + "-მა</b> გახსნა და "
+              + "<b>" + c + "-მა</b> დაასრულა. გამოკითხვა ჯერ ღიაა — ეს არის მიმდინარე "
+              + "სურათი, არა საბოლოო შედეგი."; },
+            rdSilent: function (l) { return "<b>" + l + "</b> საერთოდ არ გაუხსნია. ეს ყველაზე "
+              + "სამოქმედო ინფორმაციაა — არაფერს ამბობს მათ განწყობაზე, მხოლოდ იმას, რომ "
+              + "მათი პასუხები აკლია."; },
+            rdLowest: function (q, m, n) { return "ყველაზე დაბალი შეფასება: <b>" + q + "</b> — <b>"
+              + m + "</b>, " + n + " პასუხიდან."; },
+            rdGap: function (q, ta, ma, tb, mb) { return "<b>" + q + "</b>: " + ta + " — " + ma
+              + ", " + tb + " — " + mb + ". ეს არის ყველაზე დიდი სხვაობა ორ გუნდს შორის, "
+              + "რომლებსაც საკმარისი პასუხი აქვთ."; },
+            rdDecay: function (hi, lo) { return "პასუხების რაოდენობა კითხვებზე მცირდება " + hi
+              + "-დან " + lo + "-მდე, რადგან ფორმა ზემოდან ქვემოთ ივსება — ამიტომ ორი კითხვა "
+              + "ავტომატურად შესადარებელი არ არის."; },
             readEarly: "ჯერ ნაადრევია დასკვნებისთვის — თითოეულ სტრიქონს ქვემოთ წერია რამდენ "
               + "პასუხს ეყრდნობა.",
             provisional: "წინასწარი" },
@@ -2514,6 +2542,13 @@ registerPage({
       var overallN = overallQ ? numsOf(overallQ, view) : [];
       var overallM = meanOf(overallN);
 
+      // grouped here rather than inside the matrix block, because the written read below
+      // needs the same grouping and a `var` declared later is hoisted but undefined
+      var byTeam = {};
+      answered.forEach(function (r) {
+        var t = r.department || "—";
+        (byTeam[t] = byTeam[t] || []).push(r);
+      });
       var teamsStarted = [...new Set(answered.map(function (r) { return r.department || "—"; }))];
       // the audience's own team list, from THIS payload -- reading it off S.sub made the tile
       // depend on the Responses tab having been opened first, and it silently reported
@@ -2521,10 +2556,70 @@ registerPage({
       var allTeams = (R.teams && R.teams.length ? R.teams : teamsStarted);
       var silent = allTeams.filter(function (t) { return teamsStarted.indexOf(t) < 0; });
 
+      /* THE READ. Sentences, not another chart -- and every one of them refuses to say
+         more than its n supports. The temptations it is built to resist, each checked
+         against this survey's own data: calling a one-hour-old snapshot "the response
+         rate"; reporting completion-among-starters as a company figure; calling a team with
+         zero rows disengaged when zero rows cannot tell unwillingness from an email that
+         never arrived; and comparing two questions whose answering bases differ by half. */
+      var read = [];
+      if (answered.length) {
+        var startedN = (S.sub && S.sub.cats)
+          ? S.sub.cats.reduce(function (a, c2) { return a + c2.started + c2.submitted; }, 0)
+          : answered.length;
+        read.push({ t: RS_().rdOpen(startedN, R.audience_size, subs.length) });
+        if (silent.length) read.push({ t: RS_().rdSilent(silent.join(", ")) });
+
+        if (ranked.length) {
+          var lo5 = ranked[0];
+          read.push({ t: RS_().rdLowest(tx(lo5.q, "label"), lo5.mean.toFixed(1), lo5.n),
+                      prov: lo5.n < 10 });
+        }
+        // the widest team gap, but only where BOTH sides clear the cell minimum
+        var widest = null;
+        scales.forEach(function (qq) {
+          var per = Object.keys(byTeam || {}).map(function (t) {
+            var ns5 = numsOf(qq, byTeam[t]);
+            return ns5.length >= MIN_CELL ? { t: t, m: meanOf(ns5), n: ns5.length } : null;
+          }).filter(Boolean).sort(function (a, b) { return a.m - b.m; });
+          if (per.length >= 2) {
+            var gap = per[per.length - 1].m - per[0].m;
+            if (!widest || gap > widest.gap) {
+              widest = { gap: gap, q: qq, lo: per[0], hi: per[per.length - 1] };
+            }
+          }
+        });
+        // under a point on a ten-point scale is not a gap, it is noise at these sizes
+        if (widest && widest.gap >= 1) {
+          read.push({ t: RS_().rdGap(tx(widest.q, "label"), widest.lo.t, widest.lo.m.toFixed(1),
+                                     widest.hi.t, widest.hi.m.toFixed(1)),
+                      prov: Math.min(widest.lo.n, widest.hi.n) < 8 });
+        }
+        var ns6 = R.questions.filter(function (x) { return x.active && x.qtype !== "section"; })
+          .map(function (qq) {
+            return answered.filter(function (r) {
+              var v = r.answers[qq.id]; return v != null && v !== "";
+            }).length;
+          }).filter(function (n) { return n > 0; });
+        if (ns6.length) {
+          var hiN = Math.max.apply(null, ns6), loN = Math.min.apply(null, ns6);
+          if (hiN - loN >= 5) read.push({ t: RS_().rdDecay(hiN, loN) });
+        }
+      }
+
       var kpiHtml = "";
       var html = '<div class="rs-kpis" id="hrKpis"></div>'
         + (answered.length
             ? '<div class="hq-basis">' + RS_().basis(answered.length, writing) + "</div>" : "")
+        + (read.length
+            ? '<div class="hq-card"><h4>' + esc(RS_().theRead) + "</h4><ul class=\"hq-read\">"
+              + read.map(function (x) {
+                  return "<li>" + x.t
+                    + (x.prov ? '<span class="prov">' + esc(RS_().provisional) + "</span>" : "")
+                    + "</li>";
+                }).join("")
+              + "</ul></div>"
+            : "")
         + '<div class="hq-row" style="margin-bottom:12px">'
         + '<select class="hq-sel" id="hrDept"><option value="">' + esc(RS_().allDepts) + "</option>"
         + depts.map(function (dpt) { return '<option' + (S.resDept === dpt ? " selected" : "") + ">" + esc(dpt) + "</option>"; }).join("")
@@ -2571,11 +2666,6 @@ registerPage({
            Teams below MIN_GROUP respondents are pooled rather than hidden: hiding one column
            while showing the company mean and every other column leaves the missing one
            recoverable by subtraction, which is not privacy, it is arithmetic homework. */
-        var byTeam = {};
-        answered.forEach(function (r) {
-          var t = r.department || "—";
-          (byTeam[t] = byTeam[t] || []).push(r);
-        });
         var bigTeams = Object.keys(byTeam).filter(function (t) { return byTeam[t].length >= MIN_GROUP; }).sort();
         var smallTeams = Object.keys(byTeam).filter(function (t) { return byTeam[t].length < MIN_GROUP; }).sort();
         var cols = bigTeams.map(function (t) { return { key: t, label: t, rows: byTeam[t] }; });
