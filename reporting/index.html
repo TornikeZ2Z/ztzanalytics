@@ -715,6 +715,21 @@ function currentLeafId() {
 /* N13: per-slicer tooltips shown while the slicer is active (the "not used here"
    message below takes priority when it's greyed). rs-core may also ship RS.FIELDS[k].tip. */
 const SLICER_TIPS = { cfRange: "Estimated move volume in cubic feet" };
+/* A SLICER THE PAGE HAS ALREADY FIXED IS NOT A FILTER. The existing rule greys a slicer whose
+   FIELD is missing from the page's datasets, which is the right rule for a field that does not
+   exist — but CL Analysis reads `closing`, so Source and Sales Person both map fine and both
+   render live while being constant by definition: every row on that page is already Source=CL
+   and Sales Person=Peter. Offering them invites somebody to filter to a different salesperson
+   and conclude the page is broken when it empties.
+
+   Keyed by page and slicer, with the reason shown on hover, because "greyed out" with no
+   explanation is its own small mystery. */
+const PAGE_SLICER_FIXED = {
+  "cl-analysis": {
+    source: "This page is only the CL source — filtering it can only empty the page",
+    sales: "This page is only Peter's jobs — filtering by salesperson can only empty the page",
+  },
+};
 /* C1: say what "Date" means on this page. C6: grey out slicers whose field has no
    mapping in any of the page's datasets — a silent no-op filter misleads with confidence. */
 function updateFilterContext() {
@@ -739,13 +754,19 @@ function updateFilterContext() {
     active = new Set();
     dsList.forEach(ds => RS.fieldsFor(ds).forEach(k => active.add(k)));
   }
+  const fixed = PAGE_SLICER_FIXED[leaf] || {};
   document.querySelectorAll("#frowSlicers .rs-slicer[data-key]").forEach(w => {
     const k = w.dataset.key;
-    const off = !!(active && !active.has(k));
+    // A slicer the page has already pinned is greyed for a DIFFERENT reason than one whose
+    // field is missing, so it says which — and its own reason wins, being the more specific.
+    const pinned = fixed[k];
+    const off = !!pinned || !!(active && !active.has(k));
     w.classList.toggle("rs-off", off);
-    w.title = off
-      ? "Not used on this page — this report's data has no " + ((RS.FIELDS[k] || {}).label || k) + " field"
-      : ((RS.FIELDS[k] || {}).tip || SLICER_TIPS[k] || "");
+    w.title = pinned
+      ? pinned
+      : (off
+          ? "Not used on this page — this report's data has no " + ((RS.FIELDS[k] || {}).label || k) + " field"
+          : ((RS.FIELDS[k] || {}).tip || SLICER_TIPS[k] || ""));
   });
 }
 /* C31: Month=March + Date=Jan 1-31 silently intersects to zero rows. Detect it and say so. */
@@ -1782,7 +1803,7 @@ registerPage({
 <script src="pages/referral-candidates.js?v=9"></script>
 <script src="pages/calendar-coverage.js?v=8"></script>
 <script src="pages/request-consistency.js?v=4"></script>
-<script src="pages/cl-analysis.js?v=2"></script>
+<script src="pages/cl-analysis.js?v=3"></script>
 <script src="pages/branch-owner.js?v=7"></script>
 <script src="pages/money-flow.js?v=54"></script>
 <script src="pages/ld-planning.js?v=80"></script>

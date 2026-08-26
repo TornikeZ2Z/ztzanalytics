@@ -52,6 +52,12 @@ registerPage({
         // does not need a whole colour and the table stays readable
         ".cla-over{color:var(--neg)!important;font-weight:800}",
         ".cla-of{color:var(--faint);font-weight:400;font-size:11px}",
+        ".cla-foot{display:flex;align-items:center;gap:12px;padding:9px 2px 2px;"
+          + "font-size:12px;color:var(--muted)}",
+        ".cla-foot .rs-btn{padding:4px 10px;font-size:12px}",
+        ".cla-foot > button[data-all]{margin-left:auto}",
+        ".cla-pg{display:inline-flex;align-items:center;gap:8px}",
+        ".cla-pg b{font-weight:700;color:var(--ink);min-width:52px;text-align:center}",
       ].join("");
       document.head.appendChild(st);
     }
@@ -152,7 +158,7 @@ registerPage({
     }).join("");
 
     // ---- every job, newest first
-    const jobRows = jobs.slice().sort((a, b) =>
+    const jobRowsHtml = jobs.slice().sort((a, b) =>
       String(b["Date"] || "").localeCompare(String(a["Date"] || ""))).map(r => {
       const rev = num(r["Total Bill"]) || 0;
       const c = cut(r), d = dep(r);
@@ -180,7 +186,17 @@ registerPage({
         <td class="num">${money0(pr)}</td>
         <td class="num">${pctS(rev ? (pr || 0) / rev : null)}</td>
         <td class="nowrap muted">${esc(r["Foreman"] || "—")}</td></tr>`;
-    }).join("");
+    });
+
+    const overRowsHtml = overCap.slice()
+      .sort((a, b) => (cutPct(b) || 0) - (cutPct(a) || 0)).map(r => `<tr>
+        <td class="nowrap">${esc(String(r["Date"] || "").slice(0, 10))}</td>
+        <td class="strong">${esc(r["Job No"] || r["Request #"] || "—")}</td>
+        <td>${esc(r["Customer"] || "—")}</td>
+        <td class="num">${money0(num(r["Total Bill"]))}</td>
+        <td class="num">${money0(cut(r))}</td>
+        <td class="num cla-over">${pctS(cutPct(r))}</td>
+        <td class="num">${money0(overBy(r))}</td></tr>`);
 
     host.innerHTML = `
       <div class="rs-page-head"><h1>CL Analysis</h1>
@@ -247,35 +263,32 @@ registerPage({
         <p class="rs-hint">The deal is 30% at most. These jobs paid more than that, worst
           first, with how much each one went over. The total is what a conversation with him
           would actually be about.</p>
-        <div class="rs-tablewrap"><table class="rs-table">
+        <div class="rs-tablewrap" id="clOver"><table class="rs-table">
           <thead><tr><th>Date</th><th>Job</th><th>Customer</th><th class="num">Revenue</th>
             <th class="num">His cut</th><th class="num">Cut %</th>
             <th class="num">Over by</th></tr></thead>
-          <tbody>${overCap.slice().sort((a, b) => (cutPct(b) || 0) - (cutPct(a) || 0))
-            .map(r => `<tr>
-              <td class="nowrap">${esc(String(r["Date"] || "").slice(0, 10))}</td>
-              <td class="strong">${esc(r["Job No"] || r["Request #"] || "—")}</td>
-              <td>${esc(r["Customer"] || "—")}</td>
-              <td class="num">${money0(num(r["Total Bill"]))}</td>
-              <td class="num">${money0(cut(r))}</td>
-              <td class="num cla-over">${pctS(cutPct(r))}</td>
-              <td class="num">${money0(overBy(r))}</td></tr>`).join("")}</tbody>
+          <tbody></tbody>
         </table></div>
+        <div class="cla-foot" data-foot></div>
       </div>` : ""}
 
       <div class="panel">
         <div class="panel-head"><div class="panel-title">Every job he has given us</div>
           <div class="rs-spacer"></div>
           <button class="rs-btn" id="clCsv">Download CSV</button></div>
-        <div class="rs-tablewrap"><table class="rs-table">
+        <div class="rs-tablewrap" id="clJobs"><table class="rs-table">
           <thead><tr><th>Date</th><th>Job</th><th>Customer</th><th>Type</th><th>Size</th>
             <th>State</th><th class="num">Revenue</th><th class="num">His cut</th>
             <th class="num">Cut %</th><th class="num">Over cap</th>
             <th class="num">Foreman $</th><th class="num">Materials</th>
             <th class="num">Expenses</th><th class="num">Profit</th><th class="num">Margin</th>
             <th>Foreman</th></tr></thead>
-          <tbody>${jobRows}</tbody></table></div>
+          <tbody></tbody></table></div>
+        <div class="cla-foot" data-foot></div>
       </div>`;
+
+    paginate("clJobs", jobRowsHtml, 25);
+    paginate("clOver", overRowsHtml, 15);
 
     /* PROFIT PER JOB, MONTH BY MONTH — the trend he asked for. Bars are what we keep on an
        average job; the line is his cut as a share of the bill, with the 30% cap drawn across
@@ -334,6 +347,46 @@ registerPage({
             pctv: revenue ? hisCut / revenue : null });
       },
     });
+
+    /* PAGINATION. A hundred and eight rows in one scroll is a wall, and the two long tables
+       here are the ones a reader actually works through. Rows are rendered from an array of
+       row-HTML rather than re-derived per page, so paging costs nothing and "Show all" stays
+       available for anybody who wants to search the lot with the browser's own find. */
+    function paginate(mountId, rowsHtml, per) {
+      const mount = document.getElementById(mountId);
+      if (!mount) return;
+      const tbody = mount.querySelector("tbody");
+      const foot = mount.querySelector("[data-foot]");
+      if (!tbody || !foot) return;
+      per = per || 25;
+      let page = 0, all = rowsHtml.length <= per;
+      const pages = Math.max(1, Math.ceil(rowsHtml.length / per));
+      function draw() {
+        tbody.innerHTML = (all ? rowsHtml
+          : rowsHtml.slice(page * per, page * per + per)).join("");
+        if (rowsHtml.length <= per) {
+          foot.innerHTML = `<span>${fmtN(rowsHtml.length)} `
+            + `row${rowsHtml.length === 1 ? "" : "s"}</span>`;
+          return;
+        }
+        const from = all ? 1 : page * per + 1;
+        const to = all ? rowsHtml.length : Math.min(rowsHtml.length, page * per + per);
+        foot.innerHTML = `<span>${fmtN(from)}\u2013${fmtN(to)} of ${fmtN(rowsHtml.length)}</span>`
+          + (all ? "" : `<span class="cla-pg">
+               <button class="rs-btn" data-prev ${page === 0 ? "disabled" : ""}>\u2039</button>
+               <b>${page + 1} / ${pages}</b>
+               <button class="rs-btn" data-next ${page >= pages - 1 ? "disabled" : ""}>\u203a</button>
+             </span>`)
+          + `<button class="rs-btn" data-all>${all ? "Paginate" : "Show all"}</button>`;
+        const pv = foot.querySelector("[data-prev]");
+        if (pv) pv.onclick = () => { if (page > 0) { page--; draw(); } };
+        const nx = foot.querySelector("[data-next]");
+        if (nx) nx.onclick = () => { if (page < pages - 1) { page++; draw(); } };
+        const al = foot.querySelector("[data-all]");
+        if (al) al.onclick = () => { all = !all; page = 0; draw(); };
+      }
+      draw();
+    }
 
     function chk(ok, good, bad) {
       return `<div class="cla-chk ${ok ? "ok" : "bad"}">
