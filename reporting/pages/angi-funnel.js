@@ -40,7 +40,8 @@
              "Reason Source", "Est Quote", "Revenue", "Move Date", "Sales Rep",
              "First Called At", "First Connected At", "Mins To First Call", "Speed Bucket",
              "Call Attempts", "Ever Connected", "Texted", "Call Tracked",
-             "Company", "Dup Count", "Dup Primary"],
+             "Company", "Dup Count", "Dup Primary",
+             "Disposition", "Net Closing", "Closing Legs"],
     };
   }
 })();
@@ -58,6 +59,7 @@
     ["Sales Rep", "Sales rep"],
     ["Company", "Account"],
     ["Angi ID Match", "Angi ID"],
+    ["Disposition", "Rep disposition"],
   ];
 
   /* Column widths as PERCENTAGES, because .rs-fixed is table-layout:fixed and without a
@@ -68,7 +70,7 @@
     ["Customer", 9, "wrap"], ["ZIP", 3.5, "nowrap"], ["State", 5.5, "nowrap"],
     ["Size", 6.5, "wrap"], ["Status", 9, "nowrap"], ["Furthest stage", 8, "wrap"],
     ["Reason", 10.5, "wrap"], ["Mins to call", 5, "num nowrap"], ["Attempts", 4, "num"],
-    ["Connected", 4.5, ""], ["Revenue", 4.5, "num"], ["Rep", 7, "wrap"],
+    ["Connected", 4.5, ""], ["Job value", 4.5, "num"], ["Rep", 7, "wrap"],
   ];
 
   /* 250 rows share a customer and a date with another row — 99 of them one lead sitting in
@@ -85,6 +87,16 @@
   /* Angi's taxonomy, toned. "Closed lost" is deliberately MUTE rather than bad: it is 7,615 of
      10,962 rows, and painting two thirds of a table red says nothing except that most leads do
      not book, which is what a close rate is for. */
+  /* Where a loss reason came from, strongest first. A recorded call beats what a rep typed,
+     which beats a CRM status that only says the lead expired. Angi should not have to guess
+     which of the three they are reading. */
+  var SRC_TONE = { call: "ok", rep: "info", crm: "mute" };
+  var SRC_HELP = {
+    call: "derived from a recorded call",
+    rep: "entered by the sales rep as this lead's disposition",
+    crm: "inferred from our CRM status only - the weakest of the three",
+  };
+
   var STATUS_TONE = {
     "Closed won": "ok",
     "Contacted": "info",
@@ -257,8 +269,10 @@
       + '<div class="rs-hint"><b>Contact is not the bottleneck</b> — we reach '
       + pc(connected.length, tracked.length) + " of the leads we can see. The gap is the mix: "
       + "studios and urban ZIPs convert far below the rest. A reason drawn from a recorded call "
-      + 'is marked <span class="rs-pill ok src">call</span>; the rest come from our CRM status '
-      + '<span class="rs-pill mute src">crm</span>, which is weaker evidence. '
+      + 'is marked <span class="rs-pill ok src">call</span>, one the sales rep typed as the '
+      + 'lead’s disposition <span class="rs-pill info src">rep</span>, and one inferred '
+      + 'only from our CRM status <span class="rs-pill mute src">crm</span>, the weakest of '
+      + 'the three. '
       + "<b>" + pc(withId, view.length) + "</b> carry Angi's own lead number, so those rows can "
       + "be reconciled against their system."
       + (angiThrough
@@ -345,9 +359,9 @@
         + val("wrap muted", r["Furthest Stage"])
         + (r["Reason"]
             ? td("wrap", esc(r["Reason"])
-                + (src === "call" || src === "crm"
-                    ? '<span class="rs-pill ' + (src === "call" ? "ok" : "mute") + ' src">'
-                      + esc(src) + "</span>" : ""))
+                + (SRC_TONE[src]
+                    ? '<span class="rs-pill ' + SRC_TONE[src] + ' src" title="'
+                      + esc(SRC_HELP[src]) + '">' + esc(src) + "</span>" : ""))
             : td("wrap dim", "—"))
         + (mins == null ? td("num dim", "—") : td("num", fmtN(mins)))
         + td("num", fmtN(r["Call Attempts"] || 0))
@@ -438,9 +452,12 @@
       "Customer", "Zip", "Moving From", "Moving To", "State", "County",
       "Service Type", "Size of Move", "Received At", "First Called At", "First Connected At",
       "Mins To First Call", "Speed Bucket", "Call Attempts", "Ever Connected", "Texted",
-      "Call Tracked", "Company", "Dup Count", "Dup Primary",
+      "Call Tracked", "Company", "Dup Count", "Dup Primary", "Disposition",
       "Angi Status", "Furthest Stage", "Our Status", "Reason", "Reason Source",
       "Est Quote", "Revenue", "Move Date", "Sales Rep"];
+    // `Revenue` is the closing sheet's Total Bill -- what the customer was billed.
+    // Moveboard's own `Closing Total` is a net residual worth about a quarter of it, and
+    // is deliberately NOT in this file.
     var cell = function (x) {
       var s = String(x == null ? "" : x);
       // a value opening as a live formula executes in Excel, and this file is going outside
