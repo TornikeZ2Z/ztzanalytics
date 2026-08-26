@@ -120,21 +120,16 @@
       return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
     });
   };
-  // team tokens read "<team-slug>-<8hex>" (legacy 32-hex links pass the same shape)
-  if (!/^[a-z0-9][a-z0-9-]{7,95}$/.test(t)) {
-    main.innerHTML = '<div class="card"><b>' + L().bad + "</b>" +
-      '<div class="dim" style="margin-top:6px">' + L().badSub + "</div></div>";
-    return;
-  }
-  // the browser's own random id — resume/autosave continuity, never an identity
-  var cidKey = "hrq_anon_" + t;
-  var cid = localStorage.getItem(cidKey) || "";
-  if (!/^[a-f0-9]{32}$/.test(cid)) {
-    var b = new Uint8Array(16); crypto.getRandomValues(b);
-    cid = Array.prototype.map.call(b, function (x) {
-      return ("0" + x.toString(16)).slice(-2); }).join("");
-    localStorage.setItem(cidKey, cid);
-  }
+  /* STORAGE THAT CANNOT KILL THE PAGE. In storage-blocked browsers (in-app webviews,
+     strict cookie settings, some private modes) the bare accessor itself throws, and it
+     used to throw before the first paint — the reader stared at "Loading…" forever. A
+     failed store now degrades to in-memory: autosave still works for the sitting; only
+     resume-after-close is lost. */
+  var mem = {};
+  var store = {
+    get: function (k) { try { return localStorage.getItem(k); } catch (e) { return mem[k] || null; } },
+    set: function (k, v) { mem[k] = v; try { localStorage.setItem(k, v); } catch (e) {} }
+  };
 
   // ---- LANGUAGE (his ask 2026-08-17). The page's own words live here; the
   // questionnaire's words come from its `i18n` blob. THE STORED ANSWER IS ALWAYS THE
@@ -179,7 +174,7 @@
       qs: function (n) { return n + " კითხვა"; },
       saveNote: "პასუხები ავტომატურად ინახება — შეგიძლიათ მოგვიანებით დაასრულოთ",
       anon: function (team) { return "ეს ფორმა ანონიმურია. ინახება მხოლოდ თქვენი გუნდი — "
-        + team + " — და არასოდეს თქვენი სახელი, ელფოსტა ან ანგარიში. ვერავინ ნახავს ვინ რა დაწერა."; },
+        + trTeam(team) + " — და არასოდეს თქვენი სახელი, ელფოსტა ან ანგარიში. ვერავინ ნახავს ვინ რა დაწერა."; },
       prevNote: "ეს არის წინასწარი ნახვა — პასუხები არსად არ ინახება. გაიარეთ ფორმა ისე, "
         + "როგორც გუნდი ნახავს, და გამოგვიგზავნეთ თქვენი შენიშვნები.",
       answered: function (a, t) { return t + "-დან " + a + " შევსებულია"; },
@@ -195,21 +190,51 @@
       optional: "არასავალდებულო", required: "სავალდებულო", other: "სხვა:", choose: "აირჩიეთ…",
       yourAnswer: "თქვენი პასუხი…", fewSentences: "რამდენიმე წინადადება საკმარისია.",
       saving: "ინახება…", saved: "შენახულია", notSaved: "ვერ შეინახა — ",
-      topAnon: function (team) { return "ანონიმური · გუნდი: " + team; },
+      topAnon: function (team) { return "ანონიმური · გუნდი: " + trTeam(team); },
       topPrev: "წინასწარი ნახვა · არაფერი ინახება",
       doneT: "გმადლობთ — თქვენი პასუხები მიღებულია.",
       doneS: function (team) { return "ფორმა ანონიმური იყო: ჩაიწერა მხოლოდ თქვენი გუნდი ("
-        + team + "), არასოდეს თქვენი სახელი."; },
+        + trTeam(team) + "), არასოდეს თქვენი სახელი."; },
       donePvT: "ეს იყო მთელი ფორმა — არაფერი ჩაწერილა.",
       donePvS: "ეს იყო წინასწარი ნახვა. გთხოვთ გამოგზავნოთ შენიშვნები — რა იყო გაუგებარი, "
         + "გრძელი ან დაკლებული — იმ ადამიანთან, ვინც ბმული გამოგიგზავნათ."
     }
   };
+  /* THE SERVER'S ERROR SENTENCES, translated. The bridge answers in English; the form
+     defaults to Georgian, and the failure moments — closed survey, submit race, device
+     already used — are exactly when a reader needs their own language. Keyed on the exact
+     bridge strings; an unknown message falls through untranslated rather than lying. */
+  var SRV_KA = {
+    "this questionnaire is not open right now": "ეს გამოკითხვა ამჟამად გახსნილი არ არის.",
+    "this questionnaire is closed": "ეს გამოკითხვა დახურულია.",
+    "this device already submitted its answers": "ამ ტელეფონიდან პასუხები უკვე გაიგზავნა.",
+    "required questions are not answered": "სავალდებულო კითხვები შეუვსებელია.",
+    "the response changed in another window — reload": "პასუხები სხვა ფანჯარაში შეიცვალა — განაახლეთ გვერდი.",
+    "something went wrong — reload and try again": "მოხდა შეცდომა — განაახლეთ გვერდი და სცადეთ თავიდან.",
+    "this link does not exist": "ასეთი ბმული არ არსებობს.",
+    "this link is not valid": "ბმული არასწორია."
+  };
+  function trErr(m) {
+    m = String(m || "");
+    return (lang === "ka" && SRV_KA[m]) || m;
+  }
+  /* Team names, shown in Georgian inside the Georgian banners. DISPLAY ONLY — the stored
+     category never changes, same rule as answers. Unknown names pass through. */
+  var TEAM_KA = {
+    "Drivers": "მძღოლები", "Helpers": "დამხმარეები", "Foremen": "ფორმანები",
+    "Sales Representatives": "გაყიდვების გუნდი", "Support Team": "მხარდაჭერის გუნდი",
+    "Other": "სხვა განყოფილებები"
+  };
+  function trTeam(c) {
+    c = String(c || "");
+    return (lang === "ka" && TEAM_KA[c]) || c;
+  }
+
   var LKEY = "hrq_lang";
   // GEORGIAN IS THE DEFAULT (his call 2026-08-17): the crew reads Georgian first, and a
   // form that opens in the wrong language is a form half the team skims. English stays one
   // click away, and a chosen language sticks in this browser.
-  var lang = localStorage.getItem(LKEY);
+  var lang = store.get(LKEY);
   if (lang !== "ka" && lang !== "en") lang = "ka";
   var L = function () { return STR[lang]; };
   // the questionnaire's own words: translated when present, English when not
@@ -234,7 +259,7 @@
       b.classList.toggle("on", b.dataset.l === lang);
       b.onclick = function () {
         if (lang === b.dataset.l) return;
-        lang = b.dataset.l; localStorage.setItem(LKEY, lang);
+        lang = b.dataset.l; store.set(LKEY, lang);
         document.documentElement.lang = lang;
         paintLang(); if (Q) paint();
       };
@@ -242,6 +267,26 @@
   }
   paintLang();
   document.documentElement.lang = lang;
+
+  /* The link gate lives BELOW the language table on purpose: it used to sit 90 lines above
+     it, where L() was still undefined — so the one screen written for a broken link died in
+     a TypeError and the reader got an eternal "Loading…". Links get forwarded and mangled;
+     this screen has to be the sturdiest one on the page. */
+  // team tokens read "<team-slug>-<8hex>" (legacy 32-hex links pass the same shape)
+  if (!/^[a-z0-9][a-z0-9-]{7,95}$/.test(t)) {
+    main.innerHTML = '<div class="card"><b>' + L().bad + "</b>" +
+      '<div class="dim" style="margin-top:6px">' + L().badSub + "</div></div>";
+    return;
+  }
+  // the browser's own random id — resume/autosave continuity, never an identity
+  var cidKey = "hrq_anon_" + t;
+  var cid = store.get(cidKey) || "";
+  if (!/^[a-f0-9]{32}$/.test(cid)) {
+    var b = new Uint8Array(16); crypto.getRandomValues(b);
+    cid = Array.prototype.map.call(b, function (x) {
+      return ("0" + x.toString(16)).slice(-2); }).join("");
+    store.set(cidKey, cid);
+  }
 
   var Q = null, step = -1, seq = {}, chain = {}, okv = {};
 
@@ -474,7 +519,7 @@
         Q.my_status = "submitted"; paint(); window.scrollTo(0, 0);
       }, function (e) {
         btn.disabled = false; btn.textContent = L().submit;
-        document.getElementById("err").textContent = e.message;
+        document.getElementById("err").textContent = trErr(e.message);
       });
     };
   }
@@ -502,7 +547,7 @@
       if (seq[key] !== my) return;
       Q.answers[qid] = okv[key];
       var sv2 = main.querySelector('[data-sv="' + qid + '"]');
-      if (sv2) { sv2.textContent = L().notSaved + (e.message || e); sv2.style.color = "var(--neg)"; }
+      if (sv2) { sv2.textContent = L().notSaved + trErr(e.message || e); sv2.style.color = "var(--neg)"; }
     });
   }
 
@@ -618,8 +663,8 @@
   }
 
   api().then(function (j) { Q = j; paint(); }, function (e) {
-    main.innerHTML = '<div class="card"><b>' + esc(e.message) + "</b>" +
-      '<div class="dim" style="margin-top:6px">If this keeps happening, ask for a fresh link.</div></div>';
+    main.innerHTML = '<div class="card"><b>' + esc(trErr(e.message)) + "</b>" +
+      '<div class="dim" style="margin-top:6px">' + L().badSub + "</div></div>";
   });
 })();
 </script>

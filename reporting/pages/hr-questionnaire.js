@@ -1762,24 +1762,29 @@ registerPage({
     // claims-then-mails a few people, so a tab closed mid-way loses nothing (the next
     // "Send invites" click, or the next publish, picks up exactly where it stopped).
     async function sendInvites(qid) {
-      var total = 0, guard = 0;
+      var total = 0, guard = 0, failedTotal = 0, lastRemaining = -1;
       toast("Sending invites…");
+      var r = null, extra = "";
       while (guard++ < 40) {
-        var r;
         try { r = await post({ action: "send_invites", id: qid }); }
         catch (e) { toast("Invites: " + e.message, true); return; }
         total += r.sent;
-        var extra = r.mode !== "live" ? " · TEST mode — everything lands at " + r.test_to : "";
-        if (!r.remaining || (!r.sent && !r.failed)) {
-          toast("Invites done — " + total + " sent"
-            + (r.failed ? " · " + r.failed + " failed (retry with Send invites)" : "")
-            + (r.no_email ? " · " + r.no_email + " people have no email yet" : "") + extra,
-            !!r.failed);
-          if (S.view === "q" && S.qtab === "submissions") go();
-          return;
-        }
+        failedTotal += r.failed || 0;
+        extra = r.mode !== "live" ? " · TEST mode — everything lands at " + r.test_to : "";
+        if (!r.remaining || (!r.sent && !r.failed)) break;
+        /* A permanently failing address is re-claimed on every pass, so "failed but
+           remaining unchanged" used to loop forty times and fall out with NO summary —
+           the admin stared at "N to go" forever. No forward progress now ends the loop
+           and says so. */
+        if (!r.sent && r.remaining === lastRemaining) break;
+        lastRemaining = r.remaining;
         toast("Sending invites… " + total + " sent · " + r.remaining + " to go" + extra);
       }
+      toast("Invites done — " + total + " sent"
+        + (failedTotal ? " · " + failedTotal + " failed (fix the address, then Send invites)" : "")
+        + (r && r.no_email ? " · " + r.no_email + " people have no email yet" : "") + extra,
+        !!failedTotal);
+      if (S.view === "q" && S.qtab === "submissions") go();
     }
 
       /* THE ANSWER, drawn as the kind of thing it is -- shared by the Responses screen and
