@@ -4,6 +4,13 @@
  * their leads fall through. The page is the working view; the CSV is what actually goes to
  * them.
  *
+ * BUILT ON THE SHARED KIT, not on its own vocabulary. The first cut hand-rolled .agf-bar /
+ * .agf-fld / .agf-src at values a few pixels off the kit's, which is exactly how a page ends
+ * up looking foreign on a portal where every other page shares one bar and one table. It now
+ * uses .rs-bar / .rs-fld / .rs-sel / .rs-inp / .rs-tablewrap / .rs-table / .rs-pill, so it
+ * inherits the hover and focus states those carry — the hand-rolled selects had neither.
+ * Page CSS below is only what is genuinely specific to this page.
+ *
  * ITS OWN FILTERS, NOT THE GLOBAL BAR. Registered with no datasets in the shell's map, so the
  * portal-wide slicers are hidden. They would be wrong here in both directions: half of them
  * (Foreman, Size of Move as the shell defines it) do not apply to a LEAD, and the ones that do
@@ -12,7 +19,7 @@
  *
  * NO VERBATIM CUSTOMER SPEECH, his ruling. Angi asked for "call or CRM notes"; the mart reads
  * the RingSense summaries and reduces each to a short tag before anything is stored, so the
- * pattern travels and the conversation does not. The `Reason Source` column says whether a
+ * pattern travels and the conversation does not. The `Reason Source` marker says whether a
  * reason came from a call or merely from our CRM status, because those are not equally strong
  * and a reader should not have to guess which they are looking at.
  */
@@ -32,7 +39,7 @@
 })();
 
 (function () {
-  var S = { rows: [], f: {}, page: 0, per: 50 };
+  var S = { rows: [], f: {}, page: 0, per: 50, all: false };
 
   var FILTERS = [
     ["Received Month", "Month"],
@@ -45,7 +52,7 @@
     ["Company", "Account"],
   ];
 
-  /* 250 rows share a customer and a date with another row -- 99 of them one lead sitting in
+  /* 250 rows share a customer and a date with another row — 99 of them one lead sitting in
      BOTH Moveboard accounts, the rest one customer entered several times in one account.
      Collapsing them moves the lead count AND the close rate, so the choice is a control the
      reader makes and can see, not a decision taken quietly in a build script. Default is
@@ -56,34 +63,42 @@
     ["dupes", "Duplicates only"],
   ];
 
+  /* Angi's taxonomy, toned. "Closed lost" is deliberately MUTE rather than bad: it is 7,615 of
+     10,962 rows, and painting two thirds of a table red says nothing except that most leads do
+     not book, which is what a close rate is for. */
+  var STATUS_TONE = {
+    "Closed won": "ok",
+    "Contacted": "info",
+    "Not contacted": "warn",
+    "Closed lost": "mute",
+  };
+
   function injectStyle() {
     var old = document.getElementById("agf-style");
     if (old) old.remove();
     var st = document.createElement("style");
     st.id = "agf-style";
+    /* Page-specific only. Everything structural — bar, field, select, input, button, table,
+       pill — comes from rs.css and must NOT be redeclared here. */
     st.textContent = ""
-      + ".agf{font-variant-numeric:tabular-nums}"
-      + ".agf .rs-kpis .kpi.neg .v{color:var(--neg)}"
-      + ".agf .rs-kpis .kpi.pos .v{color:var(--pos)}"
-      + ".agf .rs-kpis .kpi.warn .v{color:var(--warn)}"
-      + ".agf-bar{display:flex;flex-wrap:wrap;gap:9px;align-items:flex-end;margin:2px 0 14px}"
-      + ".agf-fld{display:flex;flex-direction:column;gap:3px}"
-      + ".agf-fld span{font-size:10px;font-weight:800;letter-spacing:.07em;"
-      + "text-transform:uppercase;color:var(--faint)}"
-      + ".agf-fld select,.agf-fld input{font:inherit;font-size:13px;padding:7px 10px;"
-      + "border:1px solid var(--line-2);border-radius:9px;background:var(--panel);"
-      + "color:var(--ink);min-width:150px}"
-      + ".agf-sp{flex:1 1 auto}"
-      + ".agf-foot{display:flex;align-items:center;gap:12px;padding:9px 2px 2px;"
-      + "font-size:12px;color:var(--muted)}"
-      + ".agf-foot .rs-btn{padding:4px 10px;font-size:12px}"
+      // the search box wants room for "Name, ZIP or lead ID…" without truncating the placeholder
+      + ".agf .rs-inp{min-width:210px}"
+      // a 14-column table over 10,962 rows: cap the scroller so the sticky header has a
+      // scrolling ancestor to stick against, and keep columns from crushing on a narrow window
+      + ".agf .rs-tablewrap{max-height:calc(100vh - var(--pg-chrome,420px));min-height:280px}"
+      + ".agf .rs-table{min-width:1240px}"
+      // the reason-source marker rides INSIDE a cell beside the reason, so it steps down from a
+      // standalone pill rather than competing with the status pill in the column beside it
+      + ".agf .rs-pill.src{font-size:9.5px;padding:2px 7px;margin-left:7px;letter-spacing:.06em;"
+      + "vertical-align:1px}"
+      // the pager: kit buttons, kit tokens, sitting under the scroller inside the same panel
+      + ".agf-foot{display:flex;align-items:center;gap:12px;flex-wrap:wrap;"
+      + "padding:11px 2px 0;font-size:12.5px;color:var(--muted)}"
+      + ".agf-foot .rs-btn{padding:5px 11px;font-size:12.5px}"
       + ".agf-pg{display:inline-flex;align-items:center;gap:8px}"
-      + ".agf-pg b{font-weight:700;color:var(--ink);min-width:56px;text-align:center}"
-      + ".agf-src{font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;"
-      + "border-radius:999px;padding:1px 6px;margin-left:5px}"
-      + ".agf-src.call{color:var(--pos);background:var(--pos-bg)}"
-      + ".agf-src.crm{color:var(--faint);background:var(--panel-2)}"
-      + ".agf .rs-table{min-width:1500px}";
+      + ".agf-pg b{font-weight:800;color:var(--ink);min-width:62px;text-align:center;"
+      + "font-variant-numeric:tabular-nums}"
+      + ".agf-empty{padding:26px 14px;text-align:center;color:var(--faint);font-size:13px}";
     document.head.appendChild(st);
   }
 
@@ -131,13 +146,10 @@
        nobody rang them. Divided by everything the rate reads 72% and invites Angi to conclude
        we ignored a quarter of their leads. Divided by what we can actually see, it is 84%. */
     var tracked = view.filter(function (r) { return +r["Call Tracked"]; });
+    var untracked = view.length - tracked.length;
     var dupes = view.filter(function (r) { return !+r["Dup Primary"]; }).length;
     var revenue = won.reduce(function (a, r) { return a + (num(r["Revenue"]) || 0); }, 0);
     var pc = function (n, d) { return d ? (100 * n / d).toFixed(1) + "%" : "—"; };
-    var kpi = function (l, v, s, cls) {
-      return '<div class="kpi ' + (cls || "") + '"><div class="l">' + esc(l) + "</div>"
-        + '<div class="v">' + esc(v) + '</div><div class="s">' + esc(s || "") + "</div></div>";
-    };
 
     var opts = function (key) {
       var seen = {};
@@ -147,95 +159,116 @@
       });
       return Object.keys(seen).sort().map(function (v) {
         return '<option value="' + esc(v) + '"' + (S.f[key] === v ? " selected" : "") + ">"
-          + esc(v) + " (" + fmtN(seen[v]) + ")</option>";
+          + esc(v) + " · " + fmtN(seen[v]) + "</option>";
       }).join("");
     };
 
     host.innerHTML = '<div class="agf">'
       + '<div class="rs-page-head"><h1>Angi Lead Funnel</h1>'
-      + "<p>Every Angi lead from arrival to outcome — the lead-level detail Angi asked for. "
-      + "<b>Contact is not the bottleneck</b>: we reach most of them. The gap is the mix — "
-      + "studios and urban ZIPs convert far below the rest. Reasons drawn from a recorded call "
-      + "are marked <b>call</b>; the rest come from our CRM status.</p></div>"
+      + "<p>Every Angi lead from arrival to outcome — the lead-level detail Angi asked for.</p>"
+      + "</div>"
 
-      + '<div class="agf-bar">'
+      + '<div class="rs-kpis" id="agfKpis"></div>'
+
+      + '<div class="rs-bar">'
       + FILTERS.map(function (f) {
-          return '<label class="agf-fld"><span>' + esc(f[1]) + "</span>"
-            + '<select data-k="' + esc(f[0]) + '"><option value="">All</option>'
+          return '<label class="rs-fld"><span>' + esc(f[1]) + "</span>"
+            + '<select class="rs-sel" data-k="' + esc(f[0]) + '"><option value="">All</option>'
             + opts(f[0]) + "</select></label>";
         }).join("")
-      + '<label class="agf-fld"><span>Duplicate leads</span>'
-      + '<select id="agfDupe">'
+      + '<label class="rs-fld"><span>Duplicate leads</span>'
+      + '<select class="rs-sel" id="agfDupe">'
       + DUPE_MODES.map(function (m) {
           return '<option value="' + esc(m[0]) + '"'
             + ((S.f._dupe || "") === m[0] ? " selected" : "") + ">" + esc(m[1]) + "</option>";
         }).join("")
-      + '</select></label>'
-      + '<label class="agf-fld"><span>Search</span>'
-      + '<input id="agfQ" placeholder="name, ZIP, lead ID…" value="' + esc(S.f._q || "") + '"></label>'
-      + '<span class="agf-sp"></span>'
-      + '<label class="agf-fld"><span>&nbsp;</span>'
-      + '<button class="rs-btn" id="agfClear">Clear filters</button></label>'
-      + '<label class="agf-fld"><span>&nbsp;</span>'
-      + '<button class="rs-btn pri" id="agfCsv">Download CSV</button></label>'
+      + "</select></label>"
+      + '<label class="rs-fld"><span>Find</span>'
+      + '<input class="rs-inp" id="agfQ" placeholder="Name, ZIP or lead ID…" value="'
+      + esc(S.f._q || "") + '"></label>'
+      + '<span class="rs-spacer"></span>'
+      + '<button class="rs-btn" id="agfClear">Clear filters</button>'
+      + '<button class="rs-btn pri" id="agfCsv">Download CSV · ' + fmtN(view.length) + "</button>"
       + "</div>"
-
-      + '<div class="rs-kpis" style="--kpi-cols:4">'
-      + kpi("Leads", fmtN(view.length),
-            view.length === S.rows.length ? "all Angi leads" : "of " + fmtN(S.rows.length) + " filtered")
-      + kpi("Contacted", pc(connected.length, tracked.length),
-            fmtN(connected.length) + " of " + fmtN(tracked.length) + " tracked", "pos")
-      + kpi("Closed won", fmtN(won.length), "booked jobs")
-      + kpi("Close rate", pc(won.length, view.length), "of leads shown",
-            (won.length / Math.max(view.length, 1)) < 0.05 ? "neg" : "")
-      + kpi("Revenue", money0(revenue), "from closed won")
-      + kpi("No call record", fmtN(view.length - tracked.length),
-            "before call tracking began", (view.length - tracked.length) ? "warn" : "")
-      + kpi("Duplicate rows", fmtN(dupes), "same customer, same day", dupes ? "warn" : "")
-      + "</div>"
-      + (view.length - tracked.length
-          ? '<div class="rs-hint">Call tracking starts <b>1 Mar 2025</b>. The '
-            + fmtN(view.length - tracked.length) + " leads before it have no call record — "
-            + "they are not counted as unreached, and their stage reads "
-            + "<b>No call record</b> rather than <i>Never called</i>.</div>"
-          : "")
-      + (dupes
-          ? '<div class="rs-hint">' + fmtN(dupes) + " row"
-            + (dupes === 1 ? " shares" : "s share") + " a customer and a date with another — "
-            + "one lead landing in <b>both Moveboard accounts</b> (Zip to Zip and Tuji), or one "
-            + "customer entered twice in one. Nothing is dropped; switch "
-            + "<b>Duplicate leads</b> above to see the deduplicated count.</div>"
-          : "")
 
       + '<div class="panel"><div class="panel-head">'
-      + '<div class="panel-title">Leads</div></div>'
+      + '<div class="panel-title">Leads</div>'
+      + '<span class="rs-pill mute">' + fmtN(view.length) + "</span></div>"
+
+      + '<div class="rs-hint"><b>Contact is not the bottleneck</b> — we reach '
+      + pc(connected.length, tracked.length) + " of the leads we can see. The gap is the mix: "
+      + "studios and urban ZIPs convert far below the rest. A reason drawn from a recorded call "
+      + 'is marked <span class="rs-pill ok src">call</span>; the rest come from our CRM status '
+      + '<span class="rs-pill mute src">crm</span>, which is weaker evidence.'
+      + (untracked
+          ? " Call tracking starts <b>1 Mar 2025</b>; the " + fmtN(untracked)
+            + " leads before it have no call record, are not counted as unreached, and read "
+            + "<b>No call record</b> rather than <i>Never called</i>."
+          : "")
+      + (dupes
+          ? " " + fmtN(dupes) + " row" + (dupes === 1 ? " shares" : "s share")
+            + " a customer and a date with another — one lead landing in <b>both Moveboard "
+            + "accounts</b> (Zip to Zip and Tuji), or one customer entered twice in one. "
+            + "Nothing is dropped; switch <b>Duplicate leads</b> above for the deduplicated count."
+          : "")
+      + "</div>"
+
       + '<div class="rs-tablewrap" id="agfTbl"><table class="rs-table"><thead><tr>'
       + "<th>Received</th><th>Lead</th><th>Customer</th><th>ZIP</th><th>State</th>"
       + "<th>Size</th><th>Status</th><th>Furthest stage</th><th>Reason</th>"
-      + '<th class="num">Mins to call</th><th class="num">Attempts</th>'
-      + "<th>Connected</th><th class=\"num\">Revenue</th><th>Rep</th>"
+      + '<th class="num nowrap">Mins to call</th><th class="num">Attempts</th>'
+      + '<th>Connected</th><th class="num">Revenue</th><th>Rep</th>'
       + "</tr></thead><tbody></tbody></table></div>"
       + '<div class="agf-foot" data-foot></div></div>'
       + "</div>";
+
+    /* RSC.kpis balances the grid itself — six items become one row of six, where the hardcoded
+       four left three cards and a hole. */
+    RSC.kpis(host.querySelector("#agfKpis"), [
+      { label: "Leads", value: fmtN(view.length),
+        sub: view.length === S.rows.length ? "all Angi leads"
+                                           : "of " + fmtN(S.rows.length) + " · filtered" },
+      { label: "Contacted", value: pc(connected.length, tracked.length), tone: "pos",
+        sub: fmtN(connected.length) + " of " + fmtN(tracked.length) + " tracked" },
+      { label: "Closed won", value: fmtN(won.length), sub: "booked jobs" },
+      { label: "Close rate", value: pc(won.length, view.length), sub: "of leads shown",
+        tone: (won.length / Math.max(view.length, 1)) < 0.05 ? "neg" : "" },
+      { label: "Revenue", value: money0(revenue), sub: "from closed won" },
+      { label: "No call record", value: fmtN(untracked), tone: untracked ? "warn" : "",
+        sub: "before call tracking began" },
+    ]);
 
     var rowsHtml = view.slice().sort(function (a, b) {
       return String(b["Received At"] || "").localeCompare(String(a["Received At"] || ""));
     }).map(function (r) {
       var src = String(r["Reason Source"] || "");
-      return "<tr><td class=\"nowrap\">" + esc(String(r["Received At"] || "").slice(0, 16)) + "</td>"
-        + '<td class="strong">' + esc(r["Lead ID"]) + "</td>"
+      var st = String(r["Angi Status"] || "");
+      var reason = r["Reason"];
+      return "<tr>"
+        + '<td class="nowrap muted">' + esc(String(r["Received At"] || "").slice(0, 16)) + "</td>"
+        + '<td class="strong nowrap">' + esc(r["Lead ID"]) + "</td>"
         + "<td>" + esc(r["Customer"] || "—") + "</td>"
         + '<td class="nowrap">' + esc(r["Zip"] || "—") + "</td>"
         + '<td class="nowrap muted">' + esc(r["State"] || "—") + "</td>"
-        + '<td class="nowrap muted">' + esc(r["Size of Move"] || "—") + "</td>"
-        + "<td>" + esc(r["Angi Status"] || "—") + "</td>"
-        + '<td class="muted">' + esc(r["Furthest Stage"] || "—") + "</td>"
-        + "<td>" + esc(r["Reason"] || "—")
-          + (src ? '<span class="agf-src ' + esc(src) + '">' + esc(src) + "</span>" : "") + "</td>"
-        + '<td class="num">' + (r["Mins To First Call"] == null ? "—" : fmtN(r["Mins To First Call"])) + "</td>"
-        + '<td class="num">' + fmtN(r["Call Attempts"] || 0) + "</td>"
-        + "<td>" + (+r["Ever Connected"] ? "Yes" : "No") + "</td>"
-        + '<td class="num">' + (r["Revenue"] == null ? "—" : money0(num(r["Revenue"]))) + "</td>"
+        + '<td class="muted">' + esc(r["Size of Move"] || "—") + "</td>"
+        + "<td>" + (st ? '<span class="rs-pill ' + (STATUS_TONE[st] || "mute") + '">'
+                         + esc(st) + "</span>" : '<span class="dim">—</span>') + "</td>"
+        + '<td class="muted nowrap">' + esc(r["Furthest Stage"] || "—") + "</td>"
+        + (reason
+            ? "<td>" + esc(reason)
+              + (src === "call" || src === "crm"
+                  ? '<span class="rs-pill ' + (src === "call" ? "ok" : "mute") + ' src">'
+                    + esc(src) + "</span>"
+                  : "") + "</td>"
+            : '<td class="dim">—</td>')
+        + '<td class="num' + (r["Mins To First Call"] == null ? " dim" : "") + '">'
+          + (r["Mins To First Call"] == null ? "—" : fmtN(r["Mins To First Call"])) + "</td>"
+        + '<td class="num' + (+r["Call Attempts"] ? "" : " dim") + '">'
+          + fmtN(r["Call Attempts"] || 0) + "</td>"
+        + '<td class="' + (+r["Ever Connected"] ? "" : "dim") + '">'
+          + (+r["Ever Connected"] ? "Yes" : "No") + "</td>"
+        + '<td class="num' + (r["Revenue"] == null ? " dim" : "") + '">'
+          + (r["Revenue"] == null ? "—" : money0(num(r["Revenue"]))) + "</td>"
         + '<td class="nowrap muted">' + esc(r["Sales Rep"] || "—") + "</td></tr>";
     });
 
@@ -255,8 +288,13 @@
       var n = host.querySelector("#agfQ");
       if (n) { n.focus(); n.setSelectionRange(at, at); }
     };
-    host.querySelector("#agfClear").onclick = function () { S.f = {}; S.page = 0; paint(host); };
+    host.querySelector("#agfClear").onclick = function () {
+      S.f = {}; S.page = 0; S.all = false; paint(host);
+    };
     host.querySelector("#agfCsv").onclick = function () { downloadCsv(view); };
+
+    // measure the scroller so the sticky header has a real ancestor height to stick against
+    if (window.RSC && RSC.fitScroller) RSC.fitScroller(host.querySelector("#agfTbl"));
   }
 
   function paginate(host, rowsHtml) {
@@ -265,34 +303,37 @@
     // the footer sits OUTSIDE the scrolling wrapper so it does not scroll away sideways,
     // so it is found on the panel rather than inside the mount
     var foot = mount.parentElement.querySelector("[data-foot]");
-    var per = S.per, all = false;
+    var per = S.per;
     var pages = Math.max(1, Math.ceil(rowsHtml.length / per));
     function draw() {
       if (S.page >= pages) S.page = 0;
-      tbody.innerHTML = (all ? rowsHtml
+      tbody.innerHTML = (S.all ? rowsHtml
         : rowsHtml.slice(S.page * per, S.page * per + per)).join("")
-        || '<tr><td colspan="14" style="padding:16px;color:var(--faint)">Nothing matches these filters.</td></tr>';
+        || '<tr><td colspan="14" class="agf-empty">Nothing matches these filters.</td></tr>';
       if (rowsHtml.length <= per) {
-        foot.innerHTML = "<span>" + RS.fmtN(rowsHtml.length) + " lead"
-          + (rowsHtml.length === 1 ? "" : "s") + "</span>";
+        foot.innerHTML = rowsHtml.length
+          ? "<span>" + RS.fmtN(rowsHtml.length) + " lead"
+            + (rowsHtml.length === 1 ? "" : "s") + "</span>"
+          : "";
         return;
       }
-      var from = all ? 1 : S.page * per + 1;
-      var to = all ? rowsHtml.length : Math.min(rowsHtml.length, S.page * per + per);
+      var from = S.all ? 1 : S.page * per + 1;
+      var to = S.all ? rowsHtml.length : Math.min(rowsHtml.length, S.page * per + per);
       foot.innerHTML = "<span>" + RS.fmtN(from) + "–" + RS.fmtN(to) + " of "
         + RS.fmtN(rowsHtml.length) + "</span>"
-        + (all ? "" : '<span class="agf-pg">'
-            + '<button class="rs-btn" data-prev ' + (S.page === 0 ? "disabled" : "") + ">‹</button>"
+        + (S.all ? "" : '<span class="agf-pg">'
+            + '<button class="rs-btn" data-prev ' + (S.page === 0 ? "disabled" : "") + ">‹ Prev</button>"
             + "<b>" + (S.page + 1) + " / " + pages + "</b>"
-            + '<button class="rs-btn" data-next ' + (S.page >= pages - 1 ? "disabled" : "") + ">›</button>"
+            + '<button class="rs-btn" data-next ' + (S.page >= pages - 1 ? "disabled" : "") + ">Next ›</button>"
             + "</span>")
-        + '<button class="rs-btn" data-all>' + (all ? "Paginate" : "Show all") + "</button>";
+        + '<span class="rs-spacer"></span>'
+        + '<button class="rs-btn" data-all>' + (S.all ? "Paginate" : "Show all") + "</button>";
       var pv = foot.querySelector("[data-prev]");
       if (pv) pv.onclick = function () { if (S.page > 0) { S.page--; draw(); } };
       var nx = foot.querySelector("[data-next]");
       if (nx) nx.onclick = function () { if (S.page < pages - 1) { S.page++; draw(); } };
       var al = foot.querySelector("[data-all]");
-      if (al) al.onclick = function () { all = !all; S.page = 0; draw(); };
+      if (al) al.onclick = function () { S.all = !S.all; S.page = 0; draw(); };
     }
     draw();
   }
@@ -317,7 +358,7 @@
       return cols.map(function (c) {
         if (c === "Ever Connected" || c === "Texted" || c === "Call Tracked")
           return cell(+r[c] ? "Yes" : "No");
-      if (c === "Dup Primary") return cell(+r[c] ? "Primary" : "Duplicate");
+        if (c === "Dup Primary") return cell(+r[c] ? "Primary" : "Duplicate");
         return cell(r[c]);
       }).join(",");
     }));
