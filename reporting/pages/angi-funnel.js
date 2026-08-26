@@ -262,9 +262,9 @@
       + "<b>" + pc(withId, view.length) + "</b> carry Angi's own lead number, so those rows can "
       + "be reconciled against their system."
       + (angiThrough
-          ? " Angi's own file is a periodic drop and currently reaches <b>" + esc(angiThrough)
-            + "</b>, so leads newer than that have no id yet — which is why the first page, "
-            + "sorted newest-first, shows the fewest."
+          ? " Angi's own file is a periodic drop, so coverage THINS over the most recent weeks "
+            + "— the newest lead it reaches is <b>" + esc(angiThrough) + "</b>. This table is "
+            + "sorted newest-first, which makes the first page the most sparsely matched one."
           : "")
       + (untracked
           ? " Call tracking starts <b>1 Mar 2025</b>; the " + fmtN(untracked)
