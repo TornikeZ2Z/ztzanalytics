@@ -164,30 +164,6 @@
           // an inline aside the kit has no word for: quieter than .rs-hint and it sits
           // NEXT TO a control rather than under the bar
           ".hd-dim{font-size:12.5px;color:var(--faint)}",
-
-          /* ---- WORKFLOW: one card per person, what they give beside what they receive. Two
-             columns rather than a drawn graph on purpose -- his hand-drawn version is already
-             a thicket of crossing lines, and the question a reader actually arrives with is
-             "what does THIS person owe, and to whom", which reads far better as a list. */
-          ".hd-flow{background:var(--panel);border:1px solid var(--line);border-radius:13px;"
-            + "padding:13px 16px;margin-bottom:11px;max-width:1000px}",
-          ".hd-fhd{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:9px;"
-            + "padding-bottom:8px;border-bottom:1px solid var(--line)}",
-          ".hd-fhd b{font-size:14.5px;font-weight:800}",
-          ".hd-ftitle{font-size:12px;color:var(--muted)}",
-          // a box on the map that is not a colleague: the web team, Birdeye, the CRM tools
-          ".hd-fext{font-size:10.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;"
-            + "color:var(--faint);border:1px dashed var(--line-2);border-radius:999px;padding:1px 8px}",
-          ".hd-fcount{margin-left:auto;font-size:11.5px;color:var(--faint)}",
-          ".hd-fcols{display:grid;grid-template-columns:1fr 1fr;gap:18px}",
-          "@media(max-width:720px){.hd-fcols{grid-template-columns:1fr}}",
-          ".hd-flab{font-size:10px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;"
-            + "color:var(--brand);margin-bottom:6px}",
-          ".hd-fitem{padding:6px 0;border-bottom:1px solid var(--line)}",
-          ".hd-fitem:last-child{border-bottom:0}",
-          ".hd-fwhat{font-size:13px;line-height:1.5;color:var(--ink)}",
-          ".hd-fwho{font-size:11.5px;color:var(--faint);margin-top:1px}",
-          ".hd-fcad{color:var(--muted);font-weight:700}",
         ].join("\n");
         document.head.appendChild(st);
       }
@@ -210,12 +186,11 @@
 
       async function loadAll() {
         var r = await Promise.all([
-          api("/api/_hrqadmin?view=roster"),   // also carries the dependency edges
+          api("/api/_hrqadmin?view=roster"),
           api("/api/_hrqadmin?view=crew"),
           api("/api/_hrqadmin?view=home"),
         ]);
         S.roster = r[0].roster || [];
-        S.deps = r[0].deps || [];
         S.crew = r[1].crew || [];
         S.crewSheet = r[1].sheet_url || "";
         S.home = r[2];
@@ -243,8 +218,7 @@
       }
 
       function paintTabs() {
-        tabsEl.innerHTML = [["people", "People"], ["org", "Organization"],
-                            ["flow", "Workflow"], ["crew", "Crew"]].map(function (t) {
+        tabsEl.innerHTML = [["people", "People"], ["org", "Organization"], ["crew", "Crew"]].map(function (t) {
           return '<button data-t="' + t[0] + '" class="rs-tab' + (S.tab === t[0] ? " on" : "") + '">' + t[1] + "</button>";
         }).join("");
         tabsEl.querySelectorAll("button").forEach(function (b) {
@@ -574,93 +548,11 @@
         };
       }
 
-      /* ============================================================ WORKFLOW
-
-         WHO BRIEFS WHOM, which is NOT who reports to whom, and the distinction is the whole
-         reason this is a separate view rather than more arrows on the org chart:
-
-           * the org chart is a TREE — `reports_to`, exactly one parent per person. This is a
-             directed graph. Nikita takes briefs from both Elene and Aleksandra; Giorgi from
-             both Elene and Dimitri. There is no single parent to write.
-           * the edges carry WORDS. "unique UTMs and CallRail numbers per campaign" is the
-             valuable part of his map and there is nowhere on a reporting line to put it.
-           * some boxes are not people at all — Birdeye, the web team, the CRM tools. They
-             belong on a workflow and must never reach the roster, so the edge stores what
-             kind of thing it points at rather than guessing from a name lookup.
-
-         Seeded from the marketing team's own hand-drawn dependency map (2026-08-25). Briefing
-         is not managing, so nothing here changed anybody's reporting line. */
-      function paintFlow() {
-        var deps = S.deps || [];
-        if (!deps.length) {
-          main.innerHTML = '<div class="hd-dim" style="padding:16px">No workflow has been '
-            + "mapped yet. This view shows who hands what to whom — briefs, assets, data — "
-            + "which is a different question from who reports to whom.</div>";
-          return;
-        }
-        var byPerson = {};
-        var titleOf = {};
-        (S.roster || []).forEach(function (r) {
-          if (r.status === "active") titleOf[r.name] = r.title || "";
-        });
-        deps.forEach(function (d) {
-          (byPerson[d.from] = byPerson[d.from] || { out: [], inn: [] }).out.push(d);
-          (byPerson[d.to] = byPerson[d.to] || { out: [], inn: [] }).inn.push(d);
-        });
-        // busiest first: the person with the most lines through them is where the work piles up
-        var people = Object.keys(byPerson).sort(function (a, b) {
-          var na = byPerson[a].out.length + byPerson[a].inn.length;
-          var nb = byPerson[b].out.length + byPerson[b].inn.length;
-          return nb - na || a.localeCompare(b);
-        });
-        var depts = {};
-        deps.forEach(function (d) { depts[d.dept || "—"] = 1; });
-
-        main.innerHTML = ''
-          + '<p class="hd-dim" style="margin:0 0 14px;max-width:78ch">Who hands <b>what</b> to '
-          + "whom. This is not the reporting line — a brief is not a management relationship, "
-          + "and one person can be briefed by several. Mapped for "
-          + esc(Object.keys(depts).join(", ")) + " from the team's own dependency map."
-          + "</p>"
-          + people.map(function (nm) {
-              var d = byPerson[nm];
-              var known = titleOf[nm] != null;
-              return '<div class="hd-flow">'
-                + '<div class="hd-fhd"><b>' + esc(nm) + "</b>"
-                + (known ? '<span class="hd-ftitle">' + esc(titleOf[nm]) + "</span>"
-                         : '<span class="hd-fext">not a person on the roster</span>')
-                + '<span class="hd-fcount">' + (d.out.length + d.inn.length) + " lines</span>"
-                + "</div>"
-                + '<div class="hd-fcols">'
-                + fcol("Gives", d.out, "to")
-                + fcol("Receives", d.inn, "from")
-                + "</div></div>";
-            }).join("");
-      }
-
-      function fcol(label, list, dir) {
-        if (!list.length) {
-          return '<div class="hd-fcol"><div class="hd-flab">' + label + "</div>"
-            + '<div class="hd-dim" style="font-size:12px">nothing mapped</div></div>';
-        }
-        return '<div class="hd-fcol"><div class="hd-flab">' + label + " · " + list.length
-          + "</div>"
-          + list.map(function (d) {
-              var other = dir === "to" ? d.to : d.from;
-              return '<div class="hd-fitem"><div class="hd-fwhat">' + esc(d.what) + "</div>"
-                + '<div class="hd-fwho">' + (dir === "to" ? "\u2192 " : "\u2190 ")
-                + esc(other) + (d.cadence ? ' <span class="hd-fcad">' + esc(d.cadence)
-                                            + "</span>" : "") + "</div></div>";
-            }).join("")
-          + "</div>";
-      }
-
       function paint() {
         paintTabs();
         paintKpis();
         if (S.tab === "crew") paintCrew();
         else if (S.tab === "org") paintOrg();
-        else if (S.tab === "flow") paintFlow();
         else paintPeople();
       }
 
