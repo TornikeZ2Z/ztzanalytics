@@ -862,8 +862,9 @@ registerPage({
             byTeamNote: "Higher is better. A team needs enough answers before a score can be "
               + "shown without pointing at a person.",
             tooFew: "too few",
-            pooled: function (l) { return l + " are reported together — a team that small "
-              + "cannot be scored on its own without identifying someone."; },
+            pooled: function (l) { return l + " are not shown as columns — a team that "
+              + "small cannot be scored on its own without pointing at a person. Their "
+              + "answers are counted in Everyone."; },
             everyone: "Everyone",
             basis: function (a, b) { return "Scores below come from <b>" + a + "</b> people who "
               + "have answered, including <b>" + b + "</b> still filling the form. Completion "
@@ -887,8 +888,9 @@ registerPage({
             byTeamNote: "მეტი უკეთესია. გუნდს სჭირდება საკმარისი პასუხი, სანამ ქულა გამოჩნდება — "
               + "რომ კონკრეტულ ადამიანზე არ მიუთითოს.",
             tooFew: "ცოტაა",
-            pooled: function (l) { return l + " ერთად არის ნაჩვენები — ასეთი პატარა გუნდის "
-              + "ცალკე შეფასება ადამიანს გამოააშკარავებდა."; },
+            pooled: function (l) { return l + " ცალკე სვეტად არ ჩანს — ასეთი პატარა გუნდის "
+              + "ცალკე შეფასება კონკრეტულ ადამიანზე მიუთითებდა. მათი პასუხები "
+              + "ჩათვლილია სვეტში „ყველა“."; },
             everyone: "ყველა",
             basis: function (a, b) { return "ქულები ეყრდნობა <b>" + a + "</b> ადამიანის პასუხს, "
               + "მათ შორის <b>" + b + "</b> ჯერ ავსებს ფორმას. შევსება ითვლის მხოლოდ დასრულებულს."; },
