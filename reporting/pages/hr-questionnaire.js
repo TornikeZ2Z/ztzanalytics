@@ -2183,7 +2183,10 @@ registerPage({
               : esc(LS().invite) + " " + esc(d.invite.status))
             : esc(LS().notInvited))
         + (r ? " · " + esc(r.status.replace("_", " "))
-             + (r.submitted_at ? " " + esc(fmtWhen(r.submitted_at)) : "")
+             // a day is a day: running it through the instant formatter re-zones it and
+             // invents the minute the bridge just stripped
+             + (r.submitted_at
+                 ? " " + esc(r.day_only ? r.submitted_at : fmtWhen(r.submitted_at)) : "")
              + (r.submit_count > 1 ? " · " + esc(r.submit_count) + "×" : "")
              + (r.reopened_by ? " · reopened by " + esc(String(r.reopened_by).split("@")[0]) : "")
           : " · " + esc(LS().notStarted)) + "</div>"
