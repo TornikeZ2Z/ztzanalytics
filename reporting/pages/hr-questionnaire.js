@@ -2218,11 +2218,16 @@ registerPage({
         var resp = S.sub.responses || [];
         var askable = S.sub.askable || 0;
         var pillAnon = function (st3) {
-          var m3 = { in_progress: ["a", LS().inProgress], submitted: ["g", LS().submitted],
-                     resubmitted: ["g", LS().submitted], reopened: ["b", "reopened"] }[st3]
+          var m3 = { in_progress: ["a", "in progress"], submitted: ["g", "submitted"],
+                     resubmitted: ["g", "resubmitted"], reopened: ["b", "reopened"] }[st3]
                  || ["n", String(st3).replace("_", " ")];
           return '<span class="hq-st ' + m3[0] + '"><i></i>' + esc(m3[1]) + "</span>";
         };
+        /* A DAY, NOT A MINUTE, on an anonymous row. "Submitted 8:55 PM" beside a team of
+           three plus a manager's memory of who was at a desk is a name -- the same reason
+           the Statistics payload sends a day. HR needs to know answers are arriving, which
+           a date says perfectly well. */
+        var dayOf = function (t) { return t ? String(t).slice(0, 10) : "—"; };
         var tot = { people: 0, invited: 0, started: 0, submitted: 0 };
         cats.forEach(function (c2) {
           tot.people += c2.people; tot.invited += c2.invited;
@@ -2260,8 +2265,8 @@ registerPage({
              a label and a team — no name, no address, no device id — and opens the very same
              renderer the identified questionnaires use. */
           + '<div class="hq-row" style="margin:16px 0 8px">'
-          + '<b style="font-size:14px">' + esc(LS().respList) + "</b>"
-          + '<span class="hq-dim">' + esc(LS().readOne) + "</span></div>"
+          + '<b style="font-size:14px">The responses</b>'
+          + '<span class="hq-dim">Open one to read it on its own.</span></div>'
           + (resp.length
               ? '<div class="hq-card" style="padding:0;overflow:hidden">'
                 + '<table class="hq-tbl board"><thead><tr>'
@@ -2279,13 +2284,14 @@ registerPage({
                           ? '<span class="hq-dept"><i style="background:' + dc2 + '"></i>'
                             + esc(x.department) + "</span>" : '<span class="hq-dim">—</span>') + "</td>"
                       + "<td>" + pillAnon(x.status) + "</td>"
-                      + '<td class="r">' + esc(LS().ofN(x.answered, askable)) + "</td>"
-                      + '<td class="hq-dim">' + (x.started_at ? esc(fmtWhen(x.started_at)) : "—") + "</td>"
-                      + '<td class="hq-dim">' + (x.submitted_at ? esc(fmtWhen(x.submitted_at)) : "—") + "</td>"
+                      + '<td class="r">' + x.answered + " of " + askable + "</td>"
+                      + '<td class="hq-dim">' + esc(dayOf(x.started_at)) + "</td>"
+                      + '<td class="hq-dim">' + esc(dayOf(x.submitted_at)) + "</td>"
                       + '<td class="r hq-dim">open ›</td></tr>';
                   }).join("")
                 + "</tbody></table></div>"
-              : '<div class="hq-card hq-dim">' + esc(LS().noneYet) + "</div>");
+              : '<div class="hq-card hq-dim">No answers yet. They appear here the moment '
+                + "someone starts.</div>");
         var ib2 = body.querySelector("#hbInv");
         if (ib2) ib2.onclick = function () { sendInvites(S.qid); };
         body.querySelectorAll("[data-rid]").forEach(function (tr) {
