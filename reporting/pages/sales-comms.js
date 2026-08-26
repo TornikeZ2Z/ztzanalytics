@@ -101,10 +101,14 @@
     // define: passing "neg" to a kpi tile without this renders identically to a plain one.
     st.textContent = ""
       + ".scx{font-variant-numeric:tabular-nums}"
-      // the rep column needs to fit a name; rs-fixed spreads everything else evenly
-      + ".scx .rs-table th:first-child,.scx .rs-table td:first-child{width:150px;min-width:150px}"
-      + ".scx .rs-table th{font-size:11px;line-height:1.25;vertical-align:bottom}"
-      + ".scx .rs-tablewrap{--rs-tmin:1450px}"
+      // twenty columns will not fit a laptop, so the table scrolls inside its wrapper rather
+      // than shrinking every column past the point of being readable
+      + ".scx .rs-table{min-width:1720px}"
+      + ".scx .rs-table th:first-child,.scx .rs-table td:first-child{min-width:148px;"
+      + "white-space:nowrap}"
+      + ".scx .rs-table th{font-size:11px;line-height:1.25;vertical-align:bottom;"
+      + "white-space:nowrap}"
+      + ".scx .rs-table td.num{white-space:nowrap}"
       + ".scx-grp{font-size:10px!important;letter-spacing:.1em;text-transform:uppercase;"
       + "color:var(--brand);border-bottom:1px solid var(--line-2);text-align:center!important}"
       + ".scx .rs-kpis .kpi.neg .v{color:var(--neg)}"
@@ -323,7 +327,13 @@
         + "from every rate above</span></td></tr>";
     }
 
-    return '<div class="rs-tablewrap rs-fit"><table class="rs-table rs-fixed">'
+    /* AUTO LAYOUT, NOT rs-fixed. The kit's fixed layout divides the width evenly and clips
+       with an ellipsis, which is right for a handful of wide columns and wrong for twenty
+       narrow ones: it squeezed the rep names down to a single letter. It cannot be rescued
+       with a width rule either, because the grouped header row opens with a colspan cell and
+       a colspan cell sets no per-column width. Auto layout sizes each column to its content
+       and the wrapper scrolls. */
+    return '<div class="rs-tablewrap"><table class="rs-table">'
       + "<thead>" + head + "</thead><tbody>" + body + "</tbody></table></div>";
   }
 
