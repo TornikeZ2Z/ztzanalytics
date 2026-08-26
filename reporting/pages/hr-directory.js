@@ -164,6 +164,33 @@
           // an inline aside the kit has no word for: quieter than .rs-hint and it sits
           // NEXT TO a control rather than under the bar
           ".hd-dim{font-size:12.5px;color:var(--faint)}",
+
+          /* ---- THE FIELD FLANK. His own org.html put the crew down one side behind a
+             dashed rule rather than under the COO, and it was right to: the office is a
+             reporting tree and the crew is a roster grouped by base. Two different things,
+             side by side, with the rule saying so. */
+          ".hd-orgwrap{display:flex;align-items:flex-start;gap:0;min-width:max-content}",
+          ".hd-flank{flex:0 0 auto;width:232px;display:flex;flex-direction:column;gap:9px;"
+            + "padding-top:4px}",
+          ".hd-vrule{align-self:stretch;border-left:2px dashed var(--line-2);margin:0 20px}",
+          ".hd-flabel{display:flex;align-items:center;gap:7px;font-size:10px;font-weight:800;"
+            + "letter-spacing:.09em;text-transform:uppercase;color:var(--faint)}",
+          ".hd-flabel em{font-style:normal;font-weight:700;color:var(--muted);"
+            + "background:var(--panel-2);border:1px solid var(--line);border-radius:999px;"
+            + "padding:0 6px;font-size:10px}",
+          ".hd-base{background:var(--panel);border:1px solid var(--line);border-radius:12px;"
+            + "border-left:3px solid var(--brand);padding:9px 12px 8px}",
+          ".hd-bhd{display:flex;align-items:baseline;gap:7px}",
+          ".hd-bhd b{font-size:12.5px;font-weight:800;line-height:1.25}",
+          ".hd-bhd em{margin-left:auto;font-style:normal;font-size:11px;font-weight:800;"
+            + "color:var(--brand-ink);background:var(--brand);border-radius:999px;padding:0 7px}",
+          ".hd-bsub{font-size:10.5px;color:var(--faint);margin:1px 0 6px;line-height:1.4}",
+          ".hd-crew{font-size:12px;padding:3px 0;border-top:1px solid var(--line);"
+            + "display:flex;gap:6px;align-items:baseline}",
+          ".hd-crew b{font-weight:650;color:var(--ink)}",
+          ".hd-crew i{font-style:normal;font-size:10.5px;color:var(--faint)}",
+          "@media(max-width:900px){.hd-orgwrap{flex-direction:column}"
+            + ".hd-flank{width:100%}.hd-vrule{display:none;}}",
         ].join("\n");
         document.head.appendChild(st);
       }
@@ -473,8 +500,64 @@
           return head("Sales reps", reps.length) + reps.map(one).join("")
             + head("Other", others.length) + others.map(one).join("");
         }
+        /* THE FIELD SIDE, on the left, behind a dashed rule — the shape his own
+           zipdispatch/org.html used: the office is a reporting TREE, the crew is a roster
+           grouped BY BASE, and the two do not belong in one hierarchy. A foreman does not
+           report to the COO in any sense the chart means, and drawing him as if he did was
+           the reason the crew sat in a separate tab in the first place.
+
+           Only FOREMEN are named. Drivers and helpers are counted, not listed: there are
+           dozens of them, they are pooled rather than assigned, and a wall of fifty names
+           down the side of an org chart is not a thing anybody reads. */
+        function crewFlank() {
+          var live = (S.crew || []).filter(function (c) {
+            return String(c.status).toLowerCase() === "active";
+          });
+          if (!live.length) return "";
+          var isForeman = function (c) { return /foreman/i.test(String(c.role || "")); };
+          var byBase = {};
+          live.forEach(function (c) {
+            var b = String(c.base || "").trim() || "No base set";
+            (byBase[b] = byBase[b] || []).push(c);
+          });
+          // busiest base first; an unset base always last, because it is a data gap rather
+          // than a place and should not sit between two real ones
+          var bases = Object.keys(byBase).sort(function (a, b) {
+            if (a === "No base set") return 1;
+            if (b === "No base set") return -1;
+            return byBase[b].filter(isForeman).length - byBase[a].filter(isForeman).length
+              || a.localeCompare(b);
+          });
+          return '<div class="hd-flank">'
+            + '<div class="hd-flabel">Field &amp; crew <em>' + live.length + "</em></div>"
+            + bases.map(function (b) {
+                var list = byBase[b];
+                var fm = list.filter(isForeman);
+                var drivers = list.filter(function (c) { return /driver/i.test(c.role || ""); });
+                var helpers = list.filter(function (c) { return /helper/i.test(c.role || ""); });
+                return '<div class="hd-base">'
+                  + '<div class="hd-bhd"><b>' + esc(b) + "</b><em>" + fm.length + "</em></div>"
+                  + '<div class="hd-bsub">' + fm.length
+                  + (fm.length === 1 ? " crew" : " crews") + " based here"
+                  + (drivers.length || helpers.length
+                      ? " · " + drivers.length + " drivers, " + helpers.length + " helpers"
+                      : "") + "</div>"
+                  + (fm.length
+                      ? fm.map(function (c) {
+                          return '<div class="hd-crew"><b>' + esc(c.name || "—") + "</b>"
+                            + (c.nickname ? "<i>" + esc(c.nickname) + "</i>" : "")
+                            + "</div>";
+                        }).join("")
+                      : '<div class="hd-dim" style="font-size:11.5px">No foreman based here.</div>')
+                  + "</div>";
+              }).join("")
+            + "</div>";
+        }
+
         var ceo = roots[0] || act[0];
-        var html = '<div class="hd-org"><div class="hd-tree">';
+        var html = '<div class="hd-orgwrap">' + crewFlank()
+          + (S.crew && S.crew.length ? '<div class="hd-vrule"></div>' : "")
+          + '<div class="hd-org"><div class="hd-tree">';
         if (ceo) {
           seen[ceo.name.toLowerCase()] = 1;
           html += card(ceo, "lead top");
@@ -497,7 +580,7 @@
             + '<div style="display:flex;gap:10px;flex-wrap:wrap">'
             + missed.map(function (p) { return card(p, "top"); }).join("") + "</div>";
         }
-        html += "</div>";
+        html += "</div></div>";
         main.innerHTML = html;
         main.querySelectorAll(".hd-tc").forEach(function (c) {
           c.onclick = function () {
