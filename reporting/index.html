@@ -123,7 +123,7 @@ body.rs-viewas .rs-layout{box-shadow:inset 0 0 0 2px #7c3aed}
 </div>
 
 <script src="assets/portal.js?v=12"></script>
-<script src="assets/rs-core.js?v=45"></script>
+<script src="assets/rs-core.js?v=46"></script>
 <script src="assets/rs-components.js?v=19"></script>
 <script>
 /* ---------------- page registry ---------------- */
@@ -179,7 +179,7 @@ const GROUP_OVERRIDE = {
   // Logistics
   "log-foreman": "logistics", "log-packing": "logistics",
   // Financial
-  "fin-revenue": "financial", "fin-rr": "financial", "branch-owner": "financial", "money-flow": "logistics", "ld-planning": "logistics", "foreman-closings": "logistics",
+  "fin-revenue": "financial", "fin-rr": "financial", "branch-owner": "financial", "cl-analysis": "financial", "money-flow": "logistics", "ld-planning": "logistics", "foreman-closings": "logistics",
   "packing-control": "logistics", "storage-control": "logistics", "fuel-control": "logistics",
   "foreman-late": "logistics",
   "foreman-assessment": "logistics",
@@ -201,7 +201,7 @@ const NAV_ORDER = {
   "money-flow": 1, "foreman-closings": 2, "ld-planning": 3, "packing-control": 4, "storage-control": 5, "foreman-assessment": 6, "fuel-control": 7, "foreman-late": 7.5, "log-foreman": 8, "log-packing": 9,
   "hr-directory": 1, "hr-questionnaire": 2, "hr-my-questionnaire": 3,
   "cleanup": 1,
-  "fin-revenue": 1, "fin-rr": 2, "sales-geo": 3, "branch-owner": 6,
+  "fin-revenue": 1, "fin-rr": 2, "sales-geo": 3, "branch-owner": 6, "cl-analysis": 6.5,
   "rev-production": 1, "review-performance": 2, "response-analysis": 3, "reviews-reminders": 4, "review-settings": 5,
   "sup-claims": 1, "sup-refunds": 2, "sup-phone": 3,
   "data-quality": 2, "refresh-log": 1, "general-settings": 3, "general-tables": 4, "admin-users": 5,
@@ -251,7 +251,7 @@ const PAGE_ICONS = {
   "ads-analysis": "megaphone", "callrail": "phone", "forman": "tool",
   "packing": "box", "claims": "shield", "insights": "spark",
   "source-identification": "compass",
-  "branch-owner": "user", "customer-experience": "user",
+  "branch-owner": "user", "cl-analysis": "trend", "customer-experience": "user",
   "money-flow": "dollar",
   "ld-planning": "truck",
   "packing-control": "box",
@@ -645,6 +645,7 @@ const PAGE_DATASETS = {
   "claims": ["claims", "closing", "scorecard", "rollup"],
   "reviews": ["reviews_breakdown", "review_counts", "review_goals"],
   "branch-owner": ["closing"],
+  "cl-analysis": ["closing"],
   "customer-experience": ["closing", "claims", "refunds", "negative_reviews", "rollup"],
   "labor-analysis": ["closing", "helper_salaries"],
   "post-card-analysis": ["card_expenses", "moveboard", "closing", "helper_salaries", "sales_salaries", "refunds"],
@@ -969,6 +970,7 @@ const NAV_TITLES = {
   "analysis-by-category": "Custom Breakdown",
   "insights": "Recommendations",
   "branch-owner": "Branch Owner",
+  "cl-analysis": "CL Analysis",
   "money-flow": "Money Flow",
   "ld-planning": "Long Distance Planning",
   "packing-control": "Packing Control",
@@ -1022,6 +1024,7 @@ const SEARCH_ALIASES = {
   // Financial
   "fin-revenue": "revenue profit growth executive summary composition segments per job profitability p&l pnl profit and loss gross profit gross margin operational",
   "branch-owner": "branch owner giorgi kolbaia cut payout sales person financial ct",
+  "cl-analysis": "cl analysis peter montanaro partner deposit cut craigslist source jobs referral partner financial",
   "fin-rr": "repeat referral repeat business referral business returning customers financial revenue reviews",
   // Reviews
   "rev-production": "actual reviews review rating ratings stars review production generated",
@@ -1505,6 +1508,7 @@ const REPORT_LABELS = {
   // Financial
   "fin-revenue": "Revenue & Profit",
   "branch-owner": "Branch Owner (Giorgi)",
+  "cl-analysis": "CL Analysis (Peter)",
   "fin-rr": "Repeat & Referral",
   // Reviews
   "review-performance": "Foreman Performance",
@@ -1559,7 +1563,7 @@ const ACL_DEPTS = [
   // need NO grant at all — this tile is for HR: managing it and reading the results.
   { id: "hr",        label: "Human Resources", icon: "user",      reports: ["hr-questionnaire", "hr-responses", "hr-directory"] },
   { id: "customer-service", label: "Customer Service", icon: "calendar", reports: ["cleanup"] },
-  { id: "financial", label: "Financial",        icon: "trend",     reports: ["branch-owner"] },
+  { id: "financial", label: "Financial",        icon: "trend",     reports: ["branch-owner", "cl-analysis"] },
   { id: "reviews",   label: "Reviews",          icon: "star",      reports: ["review-performance", "reviews-reminders", "response-analysis", "review-settings"] },
   { id: "explorer",  label: "Data Explorer — the separate Data Management app", icon: "archive", reports: ["explorer"] },
 ];
@@ -1778,6 +1782,7 @@ registerPage({
 <script src="pages/referral-candidates.js?v=9"></script>
 <script src="pages/calendar-coverage.js?v=8"></script>
 <script src="pages/request-consistency.js?v=4"></script>
+<script src="pages/cl-analysis.js?v=1"></script>
 <script src="pages/branch-owner.js?v=7"></script>
 <script src="pages/money-flow.js?v=54"></script>
 <script src="pages/ld-planning.js?v=80"></script>

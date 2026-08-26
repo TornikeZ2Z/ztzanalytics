@@ -37,7 +37,10 @@ window.RS = (function () {
         "Profit per Job", "Storage", "State", "State Name", "Moving Type", "Size of Move",
         "Bill Range", "Commission Bucket Range", "Extra Bill From Trips", "Net Cash From Trips",
         "Crew Size", "Request Encounter", "Is Last Encounter", "Job Part of the Day",
-        "Forman Job Order", "Request Joinkey", "Branch Owner", "Branch Owner Cut"],
+        "Forman Job Order", "Request Joinkey", "Branch Owner", "Branch Owner Cut",
+        // CL Analysis: the partner's cut is booked as the SP-1 sales salary, and the job
+        // number is how a finance reader finds the job in the closing sheet.
+        "Job No", "Sales 1 Salary"],
       dateCols: { "Date": "Date" }, defaultDate: "Date",
     },
     moveboard: {
