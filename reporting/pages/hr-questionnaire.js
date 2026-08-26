@@ -780,13 +780,23 @@ registerPage({
             answered: function (a, t) { return a + " of " + t + " answered"; },
             everyone: "\u2190 Everyone", reopen: "Reopen", notStarted: "has not started",
             notInvited: "Not invited yet", invited: "Invited", invite: "Invite",
-            other: "Other", print: "Print" },
+            other: "Other", print: "Print",
+            anonNote: "Anonymous — the team is recorded, never the person.",
+            readOne: "Open a response to read it on its own.",
+            noneYet: "No answers yet. They appear here the moment someone starts.",
+            started: "started", inProgress: "in progress", submitted: "submitted",
+            respList: "The responses", ofN: function (a, t) { return a + " of " + t; } },
       ka: { notAnswered: "არ უპასუხია", required: "სავალდებულო",
             answered: function (a, t) { return t + "-დან " + a + " შევსებულია"; },
             everyone: "\u2190 ყველა", reopen: "ხელახლა გახსნა",
             notStarted: "არ დაუწყია", notInvited: "მოწვევა არ გაგზავნილა",
             invited: "მოწვეულია", invite: "მოწვევა", other: "სხვა",
-            print: "ბეჭდვა" },
+            print: "ბეჭდვა",
+            anonNote: "ანონიმური — ჩაიწერება გუნდი, არასოდეს ადამიანი.",
+            readOne: "გახსენით პასუხი ცალკე წასაკითხად.",
+            noneYet: "პასუხები ჯერ არ არის. გამოჩნდება როგორც კი ვინმე დაიწყებს.",
+            started: "დაიწყო", inProgress: "მიმდინარეობს", submitted: "გაგზავნილი",
+            respList: "პასუხები", ofN: function (a, t) { return t + "-დან " + a; } },
     };
     function LS() { return HQ_STR[qLang()]; }
 
@@ -2029,7 +2039,16 @@ registerPage({
        what they picked, free writing gets room to be read. */
     async function paintOneResponse(body, canR) {
       var d;
-      try { d = await api("/api/_hrqadmin?view=response&id=" + S.qid + "&email=" + encodeURIComponent(S.subOpen)); }
+      /* S.subOpen carries EITHER an address (identified questionnaires) or "#<row id>"
+         (anonymous ones). An anonymous response has no address that may leave the server —
+         the stored one is the respondent's own resume credential — so it is opened by its
+         row id, which is an index and cannot be used to fill anything in. */
+      var byRid = String(S.subOpen || "").charAt(0) === "#";
+      try {
+        d = await api("/api/_hrqadmin?view=response&id=" + S.qid
+          + (byRid ? "&rid=" + encodeURIComponent(String(S.subOpen).slice(1))
+                   : "&email=" + encodeURIComponent(S.subOpen)));
+      }
       catch (e) { S.subOpen = null; toast(e.message, true); return paintSubmissions(body, canR); }
       var r = d.response;
       var qs = d.questions || [];
@@ -2060,7 +2079,7 @@ registerPage({
         + '<div class="hq-orhd">'
         + '<button class="hq-btn" id="hrBack">' + esc(LS().everyone) + "</button>"
         + '<div class="hq-orwho"><b>' + esc(d.name || d.email) + "</b>"
-        + '<span>' + esc(d.email)
+        + '<span>' + (d.anon ? esc(LS().anonNote) : esc(d.email))
         + (r && r.department ? " · " + esc(r.department) : "") + "</span></div>"
         + statusPill
         + '<span class="hq-orgap"></span>'
@@ -2068,12 +2087,16 @@ registerPage({
            what is written in THIS card and nothing else on the screen. */
         + hqLangSeg("hrLang")
         + '<button class="hq-btn" id="hrPrint">' + esc(LS().print) + "</button>"
-        + (r && (r.status === "submitted" || r.status === "resubmitted") && canR
+        + (r && (r.status === "submitted" || r.status === "resubmitted") && canR && !d.anon
             ? '<button class="hq-btn" id="hrReop">' + esc(LS().reopen) + "</button>" : "")
         + "</div>"
 
         + '<div class="hq-ormeta">'
-        + (d.invite ? (d.invite.status === "sent"
+        /* NO INVITE TRAIL ON AN ANONYMOUS RESPONSE. The invite went to a PERSON and this
+           answer belongs to a TEAM; printing "invited 26 Aug 16:47" beside it invites the
+           reader to join the two, which is the one thing we promised not to do. */
+        + (d.anon ? esc(LS().anonNote)
+           : d.invite ? (d.invite.status === "sent"
               ? esc(LS().invited) + " " + esc(fmtWhen(d.invite.sent_at))
               : esc(LS().invite) + " " + esc(d.invite.status))
             : esc(LS().notInvited))
@@ -2116,6 +2139,14 @@ registerPage({
       if (S.sub.anon) {
         // ANONYMOUS: a category rollup — no names exist, which is the point
         var cats = S.sub.cats || [];
+        var resp = S.sub.responses || [];
+        var askable = S.sub.askable || 0;
+        var pillAnon = function (st3) {
+          var m3 = { in_progress: ["a", LS().inProgress], submitted: ["g", LS().submitted],
+                     resubmitted: ["g", LS().submitted], reopened: ["b", "reopened"] }[st3]
+                 || ["n", String(st3).replace("_", " ")];
+          return '<span class="hq-st ' + m3[0] + '"><i></i>' + esc(m3[1]) + "</span>";
+        };
         var tot = { people: 0, invited: 0, started: 0, submitted: 0 };
         cats.forEach(function (c2) {
           tot.people += c2.people; tot.invited += c2.invited;
@@ -2146,9 +2177,44 @@ registerPage({
                 + '<td class="r">' + c2.started + "</td>"
                 + '<td class="r hq-new" style="color:var(--pos);font-weight:800">' + c2.submitted + "</td></tr>";
             }).join("")
-          + "</tbody></table></div>";
+          + "</tbody></table></div>"
+
+          /* THE RESPONSES THEMSELVES. Anonymous does not mean unreadable: he still wants to
+             sit with one answer-set at a time, the way the Exit Interview reads. Each row is
+             a label and a team — no name, no address, no device id — and opens the very same
+             renderer the identified questionnaires use. */
+          + '<div class="hq-row" style="margin:16px 0 8px">'
+          + '<b style="font-size:14px">' + esc(LS().respList) + "</b>"
+          + '<span class="hq-dim">' + esc(LS().readOne) + "</span></div>"
+          + (resp.length
+              ? '<div class="hq-card" style="padding:0;overflow:hidden">'
+                + '<table class="hq-tbl board"><thead><tr>'
+                + "<th>Response</th><th>Team</th><th>Status</th>"
+                + '<th class="r">Answered</th><th>Started</th><th>Submitted</th><th></th>'
+                + "</tr></thead><tbody>"
+                + resp.map(function (x) {
+                    var dc2 = deptColor(x.department);
+                    var done2 = x.status === "submitted" || x.status === "resubmitted";
+                    return '<tr class="rowlink" data-rid="' + x.rid + '" title="Open this response">'
+                      + '<td><div class="hq-pcell"><span class="hq-av" style="background:'
+                      + dc2 + '22;color:' + dc2 + '">' + esc(String(x.label).replace(/[^0-9]/g, "") || "?")
+                      + '</span><span><span class="nm">' + esc(x.label) + "</span></span></div></td>"
+                      + "<td>" + (x.department
+                          ? '<span class="hq-dept"><i style="background:' + dc2 + '"></i>'
+                            + esc(x.department) + "</span>" : '<span class="hq-dim">—</span>') + "</td>"
+                      + "<td>" + pillAnon(x.status) + "</td>"
+                      + '<td class="r">' + esc(LS().ofN(x.answered, askable)) + "</td>"
+                      + '<td class="hq-dim">' + (x.started_at ? esc(fmtWhen(x.started_at)) : "—") + "</td>"
+                      + '<td class="hq-dim">' + (x.submitted_at ? esc(fmtWhen(x.submitted_at)) : "—") + "</td>"
+                      + '<td class="r hq-dim">open ›</td></tr>';
+                  }).join("")
+                + "</tbody></table></div>"
+              : '<div class="hq-card hq-dim">' + esc(LS().noneYet) + "</div>");
         var ib2 = body.querySelector("#hbInv");
         if (ib2) ib2.onclick = function () { sendInvites(S.qid); };
+        body.querySelectorAll("[data-rid]").forEach(function (tr) {
+          tr.onclick = function () { S.subOpen = "#" + tr.dataset.rid; paintSubmissions(body, canR); };
+        });
         return;
       }
       var board = S.sub.board, counts = {};
