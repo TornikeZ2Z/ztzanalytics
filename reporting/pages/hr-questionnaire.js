@@ -839,7 +839,11 @@ registerPage({
        instead of hiding its result. His decision to keep Support Team as its own AUDIENCE and
        its own LINK is untouched by this; this is only about what a score column may claim. */
     var MIN_CELL = 5;      // answers behind a single team-and-question mean
-    var MIN_GROUP = 8;     // respondents before a team is a column of its own
+    /* A team needs as many RESPONDENTS as a cell needs answers before it is a column at all.
+       Set higher (8 was tried) and every team on a young survey falls under it, the whole
+       matrix pools into one column, and the comparison the block exists for disappears on
+       exactly the days he most wants to watch it. */
+    var MIN_GROUP = MIN_CELL;
 
     // Statistics has its own vocabulary -- counts, averages and the captions around them.
     var HQ_RES = {
@@ -2443,8 +2447,10 @@ registerPage({
       var overallM = meanOf(overallN);
 
       var teamsStarted = [...new Set(answered.map(function (r) { return r.department || "—"; }))];
-      var allTeams = (S.sub && S.sub.cats ? S.sub.cats.map(function (c) { return c.category; })
-                      : teamsStarted);
+      // the audience's own team list, from THIS payload -- reading it off S.sub made the tile
+      // depend on the Responses tab having been opened first, and it silently reported
+      // "4 of 4 teams" when two teams had not started at all
+      var allTeams = (R.teams && R.teams.length ? R.teams : teamsStarted);
       var silent = allTeams.filter(function (t) { return teamsStarted.indexOf(t) < 0; });
 
       var kpiHtml = "";
@@ -2505,10 +2511,14 @@ registerPage({
         var bigTeams = Object.keys(byTeam).filter(function (t) { return byTeam[t].length >= MIN_GROUP; }).sort();
         var smallTeams = Object.keys(byTeam).filter(function (t) { return byTeam[t].length < MIN_GROUP; }).sort();
         var cols = bigTeams.map(function (t) { return { key: t, label: t, rows: byTeam[t] }; });
-        if (smallTeams.length) {
-          var pooledRows = [];
-          smallTeams.forEach(function (t) { pooledRows = pooledRows.concat(byTeam[t]); });
+        var pooledRows = [];
+        smallTeams.forEach(function (t) { pooledRows = pooledRows.concat(byTeam[t]); });
+        // pooled together IF the pool itself clears the bar; a pool of one is just the
+        // hidden team wearing a different hat. Otherwise no column, and the footnote says
+        // whose answers are therefore only inside Everyone.
+        if (pooledRows.length >= MIN_GROUP) {
           cols.push({ key: "__pool__", label: smallTeams.join(" + "), rows: pooledRows, pooled: true });
+          smallTeams = [];
         }
         if (scales.length && cols.length) {
           // a score painted on the pos→neg ramp the portal already speaks in
@@ -2552,7 +2562,9 @@ registerPage({
             + "</tbody>"
             + (smallTeams.length
                 ? '<tfoot><tr><td colspan="' + (cols.length + 2) + '">'
-                  + esc(RS_().pooled(smallTeams.join(" + "))) + "</td></tr></tfoot>" : "")
+                  + esc(RS_().pooled(smallTeams.map(function (t) {
+                      return t + " (" + byTeam[t].length + ")"; }).join(", ")))
+                  + "</td></tr></tfoot>" : "")
             + "</table></div></div>";
         }
 
