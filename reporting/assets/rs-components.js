@@ -92,6 +92,12 @@ window.RSC = (function () {
     });
     btn.onclick = (e) => {
       e.stopPropagation();
+      // a slicer the shell greyed out (rs-off: pinned by the page, or its field is not in
+      // any of the page's datasets) must not open at all — the popover sits INSIDE the
+      // wrapper, so it inherits the .38 disabled opacity and renders as a ghost floating
+      // over the tiles (caught live on CL Analysis, 2026-08-27). The hover title keeps
+      // explaining WHY it is off; the click just stops pretending it works.
+      if (wrap.classList.contains("rs-off")) return;
       document.querySelectorAll(".rs-slicer-pop").forEach(p => { if (p !== pop) p.classList.add("hidden"); });
       pop.classList.toggle("hidden");
     };
@@ -131,6 +137,7 @@ window.RSC = (function () {
     });
     btn.onclick = e => {
       e.stopPropagation();
+      if (wrap.classList.contains("rs-off")) return;   // same ghost-popover guard as above
       document.querySelectorAll(".rs-slicer-pop").forEach(p => { if (p !== pop) p.classList.add("hidden"); });
       pop.classList.toggle("hidden");
     };
