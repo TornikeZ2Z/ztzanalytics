@@ -46,9 +46,14 @@
 
 (function () {
   var MIN_CALLS = 25;          // below this a rep's rate is words, not a number
+  /* TWO VOCABULARIES ON PURPOSE. A keyword tracker can only know the topic CAME UP, so its
+     verdicts say Mentioned — printing "Met" for a keyword hit is exactly the false claim
+     the spec warned about. Only ai-mode trackers (a model reading the call) say Met. */
   var RESULTS = ["Met", "Partial", "Not Met", "Not Applicable"];
+  var KW_RESULTS = ["Mentioned", "Not Mentioned"];
   var TONE = { "Met": "ok", "Partial": "warn", "Not Met": "bad",
-               "Not Applicable": "mute", "Pending": "mute", "Error": "bad" };
+               "Not Applicable": "mute", "Pending": "mute", "Error": "bad",
+               "Mentioned": "ok", "Not Mentioned": "bad" };
 
   function esc(s) {
     return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;")
@@ -162,10 +167,11 @@
     var canEdit = !!(S.meta && S.meta.can_edit);
     var html = ''
       + '<div class="rs-page-head"><h1>Sales AI Trackers</h1>'
-      + "<p>Tell the system what to listen for — an instruction in plain language — and every "
-      + "applicable call transcript is judged against it: <b>Met / Partial / Not Met</b>, with "
-      + "a confidence and the sentences behind the verdict. An AI verdict is an opinion with "
-      + "evidence, not a fact: every one opens the transcript it came from.</p></div>"
+      + "<p>Tell the system what to listen for, and every applicable call transcript is "
+      + "checked against it. <b>Keyword trackers</b> (free) record that a topic <b>came up</b> "
+      + "— Mentioned / Not mentioned, with the exact sentences. <b>AI trackers</b> (paid, "
+      + "per call) judge whether the behaviour <b>actually happened</b> — Met / Partial / "
+      + "Not Met with a confidence. Every verdict opens the transcript it came from.</p></div>"
       + '<div class="stx-tabs rs-seg">'
       + seg("results", "Results", S)
       + (canEdit ? seg("manage", "Tracker management", S) : "")
@@ -216,16 +222,23 @@
   }
 
   function trackerCard(t, rows, S) {
+    var isKw = t.mode !== "ai";
+    var vocab = isKw ? KW_RESULTS : RESULTS;
     var judged = rows.filter(function (e) {
-      return RESULTS.indexOf(e.Result) >= 0;
+      return vocab.indexOf(e.Result) >= 0;
     });
-    var applicable = judged.filter(function (e) { return e.Result !== "Not Applicable"; });
-    var met = applicable.filter(function (e) { return e.Result === "Met"; }).length;
+    var applicable = isKw ? judged
+      : judged.filter(function (e) { return e.Result !== "Not Applicable"; });
+    var main = applicable.filter(function (e) {
+      return e.Result === (isKw ? "Mentioned" : "Met");
+    }).length;
     var partial = applicable.filter(function (e) { return e.Result === "Partial"; }).length;
     var pending = rows.filter(function (e) { return e.Result === "Pending"; }).length;
 
     var head = '<div class="panel-head"><div><div class="panel-title">' + esc(t.name)
-      + "</div>" + '<p class="stx-desc">' + esc(t.description) + "</p>"
+      + ' <span class="rs-pill ' + (isKw ? "mute" : "info") + '">'
+      + (isKw ? "keyword" : "AI judged") + "</span></div>"
+      + '<p class="stx-desc">' + esc(t.description) + "</p>"
       + '<div class="stx-scope">' + esc(scopeWords(t.scope)) + "</div></div></div>";
 
     if (!judged.length) {
@@ -233,24 +246,36 @@
         + '<p class="stx-note">'
         + (pending ? pending.toLocaleString() + " calls are queued for evaluation — verdicts "
                      + "land as each batch finishes (usually within the hour)."
-           : "No calls evaluated yet. Verdicts appear once the evaluation engine has run "
-             + "over this tracker's calls.")
+           : "No calls checked yet — results land with the next pipeline pass (hourly), or "
+             + "press Run evaluation now under Tracker management.")
         + "</p></div>";
     }
 
-    var kpis = '<div class="rs-kpis" style="--kpi-cols:4">'
-      + kpi("Calls judged", judged.length.toLocaleString(),
-            pending ? pending.toLocaleString() + " still queued" : "backlog clear", "")
-      + kpi("Met", pct(met, applicable.length) + "%",
-            "of " + applicable.length.toLocaleString() + " applicable calls",
-            pct(met, applicable.length) >= 60 ? "pos" : "neg")
-      + kpi("Partial", pct(partial, applicable.length) + "%", "attempted but incomplete", "warn")
-      + kpi("Not applicable", (judged.length - applicable.length).toLocaleString(),
-            "the situation never arose", "")
-      + "</div>";
+    var kpis;
+    if (isKw) {
+      kpis = '<div class="rs-kpis" style="--kpi-cols:3">'
+        + kpi("Calls checked", judged.length.toLocaleString(),
+              "in this tracker's scope", "")
+        + kpi("Topic came up", pct(main, applicable.length) + "%",
+              "one of the keywords was said", pct(main, applicable.length) >= 60 ? "pos" : "neg")
+        + kpi("Never mentioned", (applicable.length - main).toLocaleString(),
+              "calls where no keyword appears", "")
+        + "</div>";
+    } else {
+      kpis = '<div class="rs-kpis" style="--kpi-cols:4">'
+        + kpi("Calls judged", judged.length.toLocaleString(),
+              pending ? pending.toLocaleString() + " still queued" : "backlog clear", "")
+        + kpi("Met", pct(main, applicable.length) + "%",
+              "of " + applicable.length.toLocaleString() + " applicable calls",
+              pct(main, applicable.length) >= 60 ? "pos" : "neg")
+        + kpi("Partial", pct(partial, applicable.length) + "%", "attempted but incomplete", "warn")
+        + kpi("Not applicable", (judged.length - applicable.length).toLocaleString(),
+              "the situation never arose", "")
+        + "</div>";
+    }
 
     return '<div class="panel stx-card">' + head + kpis
-      + repTable(t, applicable, S)
+      + repTable(t, applicable, S, isKw)
       + recentCalls(t, judged, S)
       + "</div>";
   }
@@ -260,7 +285,9 @@
       + '<div class="v">' + esc(value) + '</div><div class="s">' + esc(sub) + "</div></div>";
   }
 
-  function repTable(t, applicable, S) {
+  function repTable(t, applicable, S, isKw) {
+    var cols = isKw ? ["Mentioned", "Not Mentioned"] : ["Met", "Partial", "Not Met"];
+    var mainResult = cols[0];
     var byRep = {};
     applicable.forEach(function (e) {
       var c = S.calls[e["Record Id"]];
@@ -275,28 +302,33 @@
       var list = byRep[rep];
       if (list.length < MIN_CALLS) {
         return "<tr><td>" + esc(rep) + '</td><td class="num">' + list.length + "</td>"
-          + '<td colspan="3"><span class="stx-thin">not enough judged calls to show a rate '
-          + "— under " + MIN_CALLS + "</span></td></tr>";
+          + '<td colspan="' + cols.length + '"><span class="stx-thin">not enough checked '
+          + "calls to show a rate — under " + MIN_CALLS + "</span></td></tr>";
       }
       function cell(result) {
         var p = pct(list.filter(function (e) { return e.Result === result; }).length,
                     list.length);
-        var tone = result === "Met" ? (p >= 60 ? "" : (p >= 25 ? "mid" : "low")) : "";
+        var tone = result === mainResult ? (p >= 60 ? "" : (p >= 25 ? "mid" : "low")) : "";
         return '<td class="num"><span class="stx-rate">' + p + "%</span>"
-          + (result === "Met"
+          + (result === mainResult
              ? '<span class="stx-bar"><i class="' + tone + '" style="width:' + p + '%"></i></span>'
              : "") + "</td>";
       }
       return '<tr><td class="strong">' + esc(rep) + '</td><td class="num">'
-        + list.length + "</td>" + cell("Met") + cell("Partial") + cell("Not Met") + "</tr>";
+        + list.length + "</td>" + cols.map(cell).join("") + "</tr>";
     }).join("");
     return '<div class="rs-tablewrap"><table class="rs-table">'
-      + "<thead><tr><th>Rep</th><th class=\"num\">Applicable calls</th>"
-      + '<th class="num">Met</th><th class="num">Partial</th><th class="num">Not met</th>'
+      + "<thead><tr><th>Rep</th><th class=\"num\">"
+      + (isKw ? "Checked calls" : "Applicable calls") + "</th>"
+      + cols.map(function (c) { return '<th class="num">' + esc(c) + "</th>"; }).join("")
       + "</tr></thead><tbody>" + rows + "</tbody></table></div>"
-      + '<p class="rs-hint">Rates are over each rep\'s <b>applicable</b> judged calls — a '
-      + "call where the situation never arose counts against nobody. Sorted by volume; "
-      + "there is deliberately no rank.</p>";
+      + '<p class="rs-hint">'
+      + (isKw
+         ? "The share of each rep's in-scope calls where a keyword came up — said by either "
+           + "party. A keyword hit means the topic was RAISED, not that it was handled well."
+         : "Rates are over each rep's <b>applicable</b> judged calls — a call where the "
+           + "situation never arose counts against nobody.")
+      + " Sorted by volume; there is deliberately no rank.</p>";
   }
 
   function recentCalls(t, judged, S) {
@@ -398,6 +430,8 @@
                  + (c["Not Applicable"] || 0);
       return "<tr><td class=\"strong\">" + esc(t.name)
         + '<div class="stx-scope">' + esc(t.key) + "</div></td>"
+        + '<td><span class="rs-pill ' + (t.mode === "ai" ? "info" : "mute") + '">'
+        + (t.mode === "ai" ? "AI" : "keyword") + "</span></td>"
         + '<td><div class="stx-expl">' + esc(t.description) + "</div></td>"
         + "<td>" + esc(scopeWords(t.scope)) + "</td>"
         + '<td><span class="rs-pill ' + (t.active ? "pos" : "") + '">'
@@ -420,8 +454,8 @@
       + '<button class="rs-btn pri" id="stxNew">New tracker</button></div>'
       + (trackers.length
          ? '<div class="rs-tablewrap"><table class="rs-table"><thead><tr>'
-           + "<th>Tracker</th><th>Instruction</th><th>Scope</th><th>Status</th>"
-           + '<th class="num">Judged</th><th>Last edited</th><th></th></tr></thead><tbody>'
+           + "<th>Tracker</th><th>Mode</th><th>Description</th><th>Scope</th><th>Status</th>"
+           + '<th class="num">Checked</th><th>Last edited</th><th></th></tr></thead><tbody>'
            + rows + "</tbody></table></div>"
          : '<p class="stx-note">Nothing yet — create the first tracker.</p>')
       + "</div>";
@@ -435,10 +469,10 @@
         }).catch(function (e) { alert(e.message); });
     };
     body.querySelector("#stxNew").onclick = function () {
-      // quote calls only BY DEFAULT — his cost call (2026-08-26): a tracker over every
-      // two-way call doubles the bill and mostly judges service calls a sales tracker
-      // was never about. The editor can still untick it for a genuinely broader tracker.
-      S.edit = { key: "", name: "", description: "", keywords: "",
+      // keyword mode + quote calls only BY DEFAULT — his cost calls (2026-08-26/27):
+      // keyword trackers are free, and a tracker over every two-way call mostly checks
+      // service calls a sales tracker was never about.
+      S.edit = { key: "", name: "", description: "", keywords: "", mode: "keyword",
                  scope: { quote_only: true }, isNew: true };
       paintEditor(body.querySelector("#stxEditor"), host, S);
     };
@@ -487,15 +521,25 @@
       + '<div><label>Key ' + (t.isNew ? "(from the name)" : "(fixed)") + "</label>"
       + '<input class="stx-in" id="stxKey" value="' + esc(t.key) + '" '
       + (t.isNew ? "" : "disabled") + "></div>"
-      + '<div class="full"><label>Instruction — what the AI judges by</label>'
+      + '<div class="full"><label>How it is evaluated</label>'
+      + '<div class="rs-seg" id="stxMode">'
+      + '<button data-mode="keyword" class="' + (t.mode !== "ai" ? "on" : "")
+      + '">Keyword — free</button>'
+      + '<button data-mode="ai" class="' + (t.mode === "ai" ? "on" : "")
+      + '">AI judged — paid per call</button></div>'
+      + '<p class="rs-hint">Keyword: the pipeline checks whether any keyword was said — '
+      + "free, results say <b>Mentioned / Not mentioned</b>. AI: a model reads each call "
+      + "and judges whether the behaviour <b>actually happened</b> — needs the API key and "
+      + "costs a fraction of a cent per call.</p></div>"
+      + '<div class="full"><label>Description'
+      + '<span id="stxDescLbl">' + (t.mode === "ai" ? " — the instruction the AI judges by"
+                                                     : " — what this tracker is about")
+      + "</span></label>"
       + '<textarea class="stx-in" id="stxDesc" maxlength="4000">' + esc(t.description)
-      + "</textarea>"
-      + '<p class="rs-hint">Describe the behaviour that should count as <b>met</b> — e.g. '
-      + "“the rep walks the customer room by room through everything being moved: "
-      + "furniture, boxes, garage, attic, storage…”. Mentioning a keyword alone "
-      + "never counts; the model is instructed to judge whether the behaviour actually "
-      + "happened.</p></div>"
-      + '<div class="full"><label>Keyword hints (optional, comma-separated)</label>'
+      + "</textarea></div>"
+      + '<div class="full"><label>Keywords (comma-separated'
+      + '<span id="stxKwLbl">' + (t.mode === "ai" ? ", optional hints" : " — what gets matched")
+      + "</span>)</label>"
       + '<input class="stx-in" id="stxKw" maxlength="1000" value="' + esc(t.keywords || "")
       + '"></div>'
       + '<div class="full"><label>Scope — which calls this applies to</label>'
@@ -522,8 +566,8 @@
       + '<button class="rs-btn pri" id="stxSave">'
       + (t.isNew ? "Create tracker" : "Save changes") + "</button>"
       + '<button class="rs-btn" id="stxCancel">Cancel</button>'
-      + '<span class="stx-thin">saving a changed instruction, keywords or scope re-evaluates '
-      + "every matching call</span></div>"
+      + '<span class="stx-thin">changing keywords, description, scope or mode re-checks '
+      + "every matching call — free in keyword mode, billed in AI mode</span></div>"
       + "</div></div>";
 
     var nameEl = elt.querySelector("#stxName");
@@ -532,6 +576,18 @@
         elt.querySelector("#stxKey").value = keyFromName(nameEl.value);
       };
     }
+    elt.querySelectorAll("#stxMode button").forEach(function (b) {
+      b.onclick = function () {
+        t.mode = b.getAttribute("data-mode");
+        elt.querySelectorAll("#stxMode button").forEach(function (x) {
+          x.className = x === b ? "on" : "";
+        });
+        elt.querySelector("#stxDescLbl").textContent = t.mode === "ai"
+          ? " — the instruction the AI judges by" : " — what this tracker is about";
+        elt.querySelector("#stxKwLbl").textContent = t.mode === "ai"
+          ? ", optional hints" : " — what gets matched";
+      };
+    });
     elt.querySelector("#stxCancel").onclick = function () { S.edit = null; elt.innerHTML = ""; };
     elt.querySelector("#stxSave").onclick = function () {
       var scope = {
@@ -545,6 +601,7 @@
         action: "save",
         key: t.isNew ? keyFromName(nameEl.value) : t.key,
         name: nameEl.value.trim(),
+        mode: t.mode === "ai" ? "ai" : "keyword",
         description: elt.querySelector("#stxDesc").value.trim(),
         keywords: elt.querySelector("#stxKw").value.trim(),
         scope: scope,
