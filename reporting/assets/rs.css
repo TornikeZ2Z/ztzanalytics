@@ -681,3 +681,10 @@ body.rs-app.light .rs-cpill{border-color:rgba(127,163,43,.4);color:var(--brand-d
 .rs-pill.mute{background:var(--panel-2);color:var(--faint);border-color:var(--line-2)}
 /* a second line under a pill, for the reason it says what it says */
 .rs-why{display:block;font-size:12px;color:var(--muted);margin-top:3px;line-height:1.4}
+
+/* form-field variant of RSC.localSelect (2026-08-27): an input-shaped button + the kit
+   popover, for selects INSIDE forms — no naked browser <select> next to kit components. */
+.rs-slicer.rs-form{display:block;width:100%}
+.rs-slicer.rs-form .rs-slicer-btn{width:100%;justify-content:space-between;height:auto;padding:8px 11px;font-size:13px;border-radius:9px}
+.rs-slicer.rs-form .rs-slicer-btn .val{flex:1;text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rs-slicer.rs-form .rs-slicer-pop{left:0;right:0;width:100%;min-width:0}

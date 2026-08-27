@@ -709,11 +709,6 @@
                       Category: "", Priority: "Medium", Assignees: "", "Job No": "",
                       Label: "", Severity: "Operational", "Start Date": "", "Due Date": "",
                       Description: "" };
-    function opts(list, cur, blank) {
-      return (blank ? '<option value=""></option>' : "") + (list || []).map(function (x) {
-        return '<option' + (cur === x ? " selected" : "") + ">" + esc(x) + "</option>";
-      }).join("");
-    }
     var picked = String(v.Assignees || "").split(",").map(function (s) {
       return s.trim();
     }).filter(Boolean);
@@ -725,20 +720,16 @@
       + '<div class="full"><label>' + (isT ? "Customer / issue" : "Title")
       + '</label><input class="wtx-in" id="eTitle" maxlength="200" value="'
       + esc(v.Title) + '"></div>'
-      + "<div><label>Team</label><select class=\"wtx-in\" id=\"eDept\">"
-      + opts(d.departments, v.Department) + "</select></div>"
+      + '<div><label>Team</label><div id="eDeptM"></div></div>'
       + (isT
          ? '<div><label>Issue label</label><input class="wtx-in" id="eLabel" '
            + 'maxlength="60" list="wtxLabels" value="' + esc(v.Label || "") + '">'
            + '<datalist id="wtxLabels">' + LABELS.map(function (l) {
                return '<option value="' + esc(l) + '">';
              }).join("") + "</datalist></div>"
-           + "<div><label>Severity</label><select class=\"wtx-in\" id=\"eSev\">"
-           + opts(d.severities, v.Severity || "Operational") + "</select></div>"
-         : "<div><label>Category</label><select class=\"wtx-in\" id=\"eCat\">"
-           + opts(d.categories, v.Category, true) + "</select></div>"
-           + "<div><label>Priority</label><select class=\"wtx-in\" id=\"ePrio\">"
-           + opts(["Low", "Medium", "High", "Critical"], v.Priority) + "</select></div>")
+           + '<div><label>Severity</label><div id="eSevM"></div></div>'
+         : '<div><label>Category</label><div id="eCatM"></div></div>'
+           + '<div><label>Priority</label><div id="ePrioM"></div></div>')
       + '<div><label>Job #' + (isT ? "" : " (optional)")
       + '</label><div style="display:flex;gap:6px">'
       + '<input class="wtx-in" id="eJob" value="' + esc(v["Job No"] || "") + '">'
@@ -762,6 +753,28 @@
       + (item ? '<button class="rs-btn" id="eDelete" style="margin-left:auto">Delete'
                 + "</button>" : "")
       + "</div></div>";
+
+    // kit-styled form selects (his call 2026-08-27): the same localSelect as the filter
+    // bars, in its input-shaped `form` variant — handles are read at save time.
+    var hDept = RSC.localSelect(dw.el.querySelector("#eDeptM"), {
+      label: "Team", values: d.departments, value: v.Department, form: true, required: true,
+    });
+    var hSev = null, hCat = null, hPrio = null;
+    if (isT) {
+      hSev = RSC.localSelect(dw.el.querySelector("#eSevM"), {
+        label: "Severity", values: d.severities || [],
+        value: v.Severity || "Operational", form: true, required: true,
+      });
+    } else {
+      hCat = RSC.localSelect(dw.el.querySelector("#eCatM"), {
+        label: "Category", values: d.categories, value: v.Category || "", form: true,
+        allLabel: "—",
+      });
+      hPrio = RSC.localSelect(dw.el.querySelector("#ePrioM"), {
+        label: "Priority", values: ["Low", "Medium", "High", "Critical"],
+        value: v.Priority || "Medium", form: true, required: true,
+      });
+    }
 
     dw.el.querySelector("#dwClose").onclick = dw.close;
     dw.el.querySelector("#eCancel").onclick = function () {
@@ -810,11 +823,11 @@
         kind: isT ? "ticket" : "project",
         work_id: item ? item["Work Id"] : undefined,
         title: dw.el.querySelector("#eTitle").value.trim(),
-        department: dw.el.querySelector("#eDept").value,
-        category: isT ? "" : dw.el.querySelector("#eCat").value,
-        priority: isT ? "Medium" : dw.el.querySelector("#ePrio").value,
+        department: hDept.get(),
+        category: isT ? "" : (hCat ? hCat.get() : ""),
+        priority: isT ? "Medium" : (hPrio ? hPrio.get() : "Medium"),
         label: isT ? dw.el.querySelector("#eLabel").value.trim() : "",
-        severity: isT ? dw.el.querySelector("#eSev").value : "",
+        severity: isT ? (hSev ? hSev.get() : "") : "",
         job_no: dw.el.querySelector("#eJob").value.trim(),
         start: dw.el.querySelector("#eStart").value,
         due: dw.el.querySelector("#eDue").value,

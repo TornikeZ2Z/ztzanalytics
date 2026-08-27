@@ -116,25 +116,29 @@ window.RSC = (function () {
      "wtf is this foreman dropdown", 2026-08-27). This is the kit answer: same vocabulary,
      state owned by the caller. `allLabel` is the empty choice; search appears past 8
      options; returns {set(v), get()} so a re-render can restore the selection. */
-  function localSelect(host, { label, values, value, allLabel, onChange }) {
+  function localSelect(host, { label, values, value, allLabel, onChange, form, required }) {
     const items = (values || []).map(v => typeof v === "object" ? v : { v: v, l: v });
     let cur = value || "";
-    const wrap = el("div", "rs-slicer");
+    // form:true = an input-shaped field INSIDE a form (its label lives above it, so the
+    // button carries only the value); required:true = no "All"/empty row.
+    const wrap = el("div", "rs-slicer" + (form ? " rs-form" : ""));
     const btn = el("button", "rs-slicer-btn");
+    btn.type = "button";                      // a bare <button> inside a <form> submits it
     const pop = el("div", "rs-slicer-pop hidden");
     const paint = () => {
       const it = items.find(i => i.v === cur);
-      btn.innerHTML = `<span class="lbl">${esc(label)}</span>`
-        + `<span class="val">${esc(it ? it.l : (allLabel || "All"))}</span>`
+      btn.innerHTML = (form ? "" : `<span class="lbl">${esc(label)}</span>`)
+        + `<span class="val">${esc(it ? it.l : (allLabel || (form ? "—" : "All")))}</span>`
         + `<span class="chev">▾</span>`;
-      btn.classList.toggle("on", !!cur);
+      btn.classList.toggle("on", !form && !!cur);
       pop.querySelectorAll(".opt").forEach(o =>
         o.classList.toggle("sel", o.dataset.v === String(cur)));
     };
     const withSearch = items.length > 8;
     pop.innerHTML = (withSearch
         ? `<div class="tools"><input class="q" placeholder="Search…"></div>` : "")
-      + `<div class="opts"><div class="opt" data-v=""><span class="ol">${esc(allLabel || "All")}</span></div>`
+      + `<div class="opts">`
+      + (required ? "" : `<div class="opt" data-v=""><span class="ol">${esc(allLabel || (form ? "—" : "All"))}</span></div>`)
       + items.map(i => `<div class="opt" data-v="${esc(i.v)}"><span class="ol">${esc(i.l)}</span>`
           + (i.n != null ? `<span class="on">${Number(i.n).toLocaleString()}</span>` : "")
           + `</div>`).join("")
