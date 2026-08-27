@@ -11,10 +11,20 @@
  * the HR questionnaire): using the company's own work tool must not depend on a grant.
  */
 (function () {
-  var STATUSES = ["Planned", "In Progress", "Stuck"];          // the live board columns
-  var ARCHIVE = ["Done", "Declined", "Dropped"];
+  var STATUSES = ["Planned", "In Progress", "Stuck"];          // project board columns
+  var T_STATUSES = ["New", "In Progress", "Waiting"];          // ticket board columns
+  var ARCHIVE = ["Done", "Declined", "Dropped", "Resolved", "Rejected"];
   var TONE = { "Requested": "info", "Planned": "mute", "In Progress": "ok", "Stuck": "warn",
-               "Done": "ok", "Declined": "bad", "Dropped": "mute" };
+               "Done": "ok", "Declined": "bad", "Dropped": "mute",
+               "New": "info", "Waiting": "warn", "Resolved": "ok", "Rejected": "mute" };
+  var SEV_TONE = { "Critical": "bad", "Needs meeting": "warn", "Operational": "mute" };
+  /* the labels Monday\u2019s ticket board actually uses \u2014 a datalist, not a closed
+     list, so new ones can be typed */
+  var LABELS = ["Damaged Items/Furniture", "Incorrect Estimate of the job", "TIP Request",
+    "FLAT PRICE - issue", "Increased Price", "Stair Fee Not charged", "Late Arrival",
+    "Violation of regulations", "Was Not Fully Paid", "Unloading before payment",
+    "Investigation Required", "Crazy Customer", "Payment details were not explained",
+    "charge was not reviewed with customer", "For informational purposes only"];
   var PRIO_TONE = { Critical: "bad", High: "bad", Medium: "warn", Low: "mute" };
 
   function esc(s) {
@@ -104,7 +114,12 @@
   function paint(host, S) {
     var d = S.data;
     var inbox = d.items.filter(function (i) { return i.Status === "Requested"; });
-    var tabs = [["board", "Board"], ["mine", "My work"]];
+    var nTix = d.items.filter(function (i) {
+      return i.Kind === "ticket" && ARCHIVE.indexOf(i.Status) < 0;
+    }).length;
+    var tabs = [["board", "Board"],
+                ["tickets", "Tickets" + (nTix ? " · " + nTix : "")],
+                ["mine", "My work"]];
     if (d.can_triage) tabs.push(["inbox", "Inbox" + (inbox.length ? " · " + inbox.length : "")]);
     tabs.push(["archive", "Archive"]);
 
@@ -121,7 +136,8 @@
       + ["All"].concat(d.departments).map(function (x) {
           return '<option' + (S.dept === x ? " selected" : "") + ">" + esc(x) + "</option>";
         }).join("") + "</select>"
-      + '<button class="rs-btn pri" id="wtxNew">New item</button>'
+      + '<button class="rs-btn pri" id="wtxNew">'
+      + (S.tab === "tickets" ? "New ticket" : "New item") + "</button>"
       + (d.can_triage && d.request_token
          ? '<span class="wtx-link" id="wtxShare">copy the request link</span>' : "")
       + "</div>"
@@ -135,7 +151,7 @@
       S.dept = e.target.value; paint(host, S);
     };
     host.querySelector("#wtxNew").onclick = function () {
-      openEditor(host, S, null);
+      openEditor(host, S, null, S.tab === "tickets" ? "ticket" : "project");
     };
     var share = host.querySelector("#wtxShare");
     if (share) share.onclick = function () {
@@ -151,8 +167,11 @@
       return S.dept === "All" || i.Department === S.dept;
     });
     if (S.tab === "board") paintBoard(body, host, S, items.filter(function (i) {
-      return STATUSES.indexOf(i.Status) >= 0;
-    }));
+      return i.Kind !== "ticket" && STATUSES.indexOf(i.Status) >= 0;
+    }), STATUSES);
+    else if (S.tab === "tickets") paintBoard(body, host, S, items.filter(function (i) {
+      return i.Kind === "ticket" && T_STATUSES.indexOf(i.Status) >= 0;
+    }), T_STATUSES);
     else if (S.tab === "mine") paintList(body, host, S, d.items.filter(function (i) {
       return (i.Assignees || "").indexOf(d.me) >= 0 && ARCHIVE.indexOf(i.Status) < 0;
     }), "Nothing assigned to you right now.");
@@ -171,8 +190,14 @@
       && i["Due Date"] < new Date().toISOString().slice(0, 10);
     return '<div class="wtx-card" data-open="' + i["Work Id"] + '"><b>' + esc(i.Title) + "</b>"
       + '<div class="wtx-meta">'
-      + '<span class="rs-pill ' + (PRIO_TONE[i.Priority] || "mute") + '">'
-      + esc(i.Priority) + "</span>"
+      + (i.Kind === "ticket" && i.Label
+         ? '<span class="rs-pill info">' + esc(i.Label) + "</span>" : "")
+      + (i.Kind === "ticket" && i.Severity
+         ? '<span class="rs-pill ' + (SEV_TONE[i.Severity] || "mute") + '">'
+           + esc(i.Severity) + "</span>"
+         : '<span class="rs-pill ' + (PRIO_TONE[i.Priority] || "mute") + '">'
+           + esc(i.Priority) + "</span>")
+      + (i["Job No"] ? "<span># " + esc(i["Job No"]) + "</span>" : "")
       + "<span>" + esc(i.Department) + "</span>"
       + (i.Assignees ? "<span>· " + esc(i.Assignees) + "</span>" : "")
       + (i["Due Date"] ? '<span class="' + (late ? "wtx-late" : "") + '">· due '
@@ -183,8 +208,8 @@
       + "</div></div>";
   }
 
-  function paintBoard(body, host, S, items) {
-    body.innerHTML = '<div class="wtx-cols">' + STATUSES.map(function (st) {
+  function paintBoard(body, host, S, items, cols) {
+    body.innerHTML = '<div class="wtx-cols">' + cols.map(function (st) {
       var list = items.filter(function (i) { return i.Status === st; });
       return '<div class="wtx-col"><div class="wtx-colh"><span>' + esc(st)
         + "</span><span>" + list.length + "</span></div>"
@@ -284,7 +309,9 @@
     api("/api/_work?item=" + wid).then(function (j) {
       var det = j.detail || { subtasks: [], comments: [] };
       var dr = ov.querySelector(".wtx-drawer");
-      var statusBtns = STATUSES.concat(["Done", "Dropped"]).map(function (st) {
+      var statusBtns = (i.Kind === "ticket"
+          ? T_STATUSES.concat(["Resolved", "Rejected"])
+          : STATUSES.concat(["Done", "Dropped"])).map(function (st) {
         return '<button class="rs-btn' + (i.Status === st ? " pri" : "") + '" data-st="'
           + st + '">' + esc(st) + "</button>";
       }).join(" ");
@@ -381,12 +408,14 @@
 
   /* ---------------------------------------------------------------- editor */
 
-  function openEditor(host, S, item) {
+  function openEditor(host, S, item, kind) {
     var d = S.data;
+    var isTicket = item ? item.Kind === "ticket" : kind === "ticket";
     var elt = host.querySelector("#wtxEditor");
     var v = item || { Title: "", Department: S.dept !== "All" ? S.dept : d.departments[0],
                       Category: "", Priority: "Medium", Assignees: "", "Job No": "",
-                      "Start Date": "", "Due Date": "", Description: "" };
+                      Label: "", Severity: "", "Start Date": "", "Due Date": "",
+                      Description: "" };
     function opts(list, cur, blank) {
       return (blank ? '<option value=""></option>' : "") + list.map(function (x) {
         return '<option' + (cur === x ? " selected" : "") + ">" + esc(x) + "</option>";
@@ -396,19 +425,33 @@
       return s.trim();
     }).filter(Boolean);
     elt.innerHTML = '<div class="panel" style="margin-top:16px"><div class="panel-head">'
-      + '<div class="panel-title">' + (item ? "Edit — " + esc(item.Title) : "New item")
+      + '<div class="panel-title">'
+      + (item ? "Edit — " + esc(item.Title) : (isTicket ? "New ticket" : "New item"))
       + "</div></div>"
       + '<div class="wtx-form">'
-      + '<div class="full"><label>Title</label><input class="wtx-in" id="wTitle" '
+      + '<div class="full"><label>' + (isTicket ? "Customer / issue" : "Title")
+      + '</label><input class="wtx-in" id="wTitle" '
       + 'maxlength="200" value="' + esc(v.Title) + '"></div>'
       + "<div><label>Team</label><select class=\"wtx-in\" id=\"wDept\">"
       + opts(d.departments, v.Department) + "</select></div>"
-      + "<div><label>Category</label><select class=\"wtx-in\" id=\"wCat\">"
-      + opts(d.categories, v.Category, true) + "</select></div>"
-      + "<div><label>Priority</label><select class=\"wtx-in\" id=\"wPrio\">"
-      + opts(["Low", "Medium", "High", "Critical"], v.Priority) + "</select></div>"
-      + '<div><label>Job # (optional)</label><input class="wtx-in" id="wJob" value="'
-      + esc(v["Job No"] || "") + '"></div>'
+      + (isTicket
+         ? '<div><label>Issue label</label><input class="wtx-in" id="wLabel" '
+           + 'maxlength="60" list="wtxLabels" value="' + esc(v.Label || "") + '">'
+           + '<datalist id="wtxLabels">' + LABELS.map(function (l) {
+               return '<option value="' + esc(l) + '">';
+             }).join("") + "</datalist></div>"
+           + "<div><label>Severity</label><select class=\"wtx-in\" id=\"wSev\">"
+           + opts(d.severities || [], v.Severity || "Operational") + "</select></div>"
+         : "<div><label>Category</label><select class=\"wtx-in\" id=\"wCat\">"
+           + opts(d.categories, v.Category, true) + "</select></div>"
+           + "<div><label>Priority</label><select class=\"wtx-in\" id=\"wPrio\">"
+           + opts(["Low", "Medium", "High", "Critical"], v.Priority) + "</select></div>")
+      + '<div><label>Job #' + (isTicket ? "" : " (optional)")
+      + '</label><div style="display:flex;gap:6px">'
+      + '<input class="wtx-in" id="wJob" value="' + esc(v["Job No"] || "") + '">'
+      + (isTicket ? '<button class="rs-btn" id="wLookup" title="fill from the warehouse">'
+                    + "Look up</button>" : "")
+      + '</div><div class="wtx-note" id="wJobInfo" style="margin-top:3px"></div></div>'
       + '<div><label>Start</label><input class="wtx-in" id="wStart" type="date" value="'
       + esc(String(v["Start Date"] || "").slice(0, 10)) + '"></div>'
       + '<div><label>Due</label><input class="wtx-in" id="wDue" type="date" value="'
@@ -429,6 +472,23 @@
     elt.scrollIntoView({ behavior: "smooth", block: "nearest" });
 
     elt.querySelector("#wCancel").onclick = function () { elt.innerHTML = ""; };
+    var lk = elt.querySelector("#wLookup");
+    if (lk) lk.onclick = function () {
+      var j = elt.querySelector("#wJob").value.trim();
+      if (!j) return;
+      var info = elt.querySelector("#wJobInfo");
+      info.textContent = "looking up…";
+      api("/api/_work?job=" + encodeURIComponent(j)).then(function (r) {
+        if (!r.job_info) { info.textContent = "job not found in the warehouse"; return; }
+        var ji = r.job_info;
+        info.textContent = [ji.customer, ji.job_date && ("moved " + ji.job_date),
+                            ji.rep && ("rep " + ji.rep),
+                            ji.foreman && ("foreman " + ji.foreman)]
+          .filter(Boolean).join(" · ");
+        var t = elt.querySelector("#wTitle");
+        if (!t.value.trim() && ji.customer) t.value = ji.customer;
+      }).catch(function (e) { info.textContent = e.message; });
+    };
     var del = elt.querySelector("#wDelete");
     if (del) del.onclick = function () {
       if (!confirm("Delete this item? It disappears from every view (history is kept).")) return;
@@ -439,11 +499,14 @@
     elt.querySelector("#wSave").onclick = function () {
       var payload = {
         action: item ? "update" : "create",
+        kind: isTicket ? "ticket" : "project",
         work_id: item ? item["Work Id"] : undefined,
         title: elt.querySelector("#wTitle").value.trim(),
         department: elt.querySelector("#wDept").value,
-        category: elt.querySelector("#wCat").value,
-        priority: elt.querySelector("#wPrio").value,
+        category: isTicket ? "" : elt.querySelector("#wCat").value,
+        priority: isTicket ? "Medium" : elt.querySelector("#wPrio").value,
+        label: isTicket ? elt.querySelector("#wLabel").value.trim() : "",
+        severity: isTicket ? elt.querySelector("#wSev").value : "",
         job_no: elt.querySelector("#wJob").value.trim(),
         start: elt.querySelector("#wStart").value,
         due: elt.querySelector("#wDue").value,
