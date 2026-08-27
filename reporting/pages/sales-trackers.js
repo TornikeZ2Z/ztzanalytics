@@ -168,10 +168,9 @@
     var html = ''
       + '<div class="rs-page-head"><h1>Sales AI Trackers</h1>'
       + "<p>Tell the system what to listen for, and every applicable call transcript is "
-      + "checked against it. <b>Keyword trackers</b> (free) record that a topic <b>came up</b> "
-      + "— Mentioned / Not mentioned, with the exact sentences. <b>AI trackers</b> (paid, "
-      + "per call) judge whether the behaviour <b>actually happened</b> — Met / Partial / "
-      + "Not Met with a confidence. Every verdict opens the transcript it came from.</p></div>"
+      + "checked against it: <b>Mentioned / Not mentioned</b>, with pointers to the exact "
+      + "sentences. A tracker records that a topic <b>came up</b> on the call — said by "
+      + "either side — and every verdict opens the transcript it came from.</p></div>"
       + '<div class="stx-tabs rs-seg">'
       + seg("results", "Results", S)
       + (canEdit ? seg("manage", "Tracker management", S) : "")
@@ -236,8 +235,7 @@
     var pending = rows.filter(function (e) { return e.Result === "Pending"; }).length;
 
     var head = '<div class="panel-head"><div><div class="panel-title">' + esc(t.name)
-      + ' <span class="rs-pill ' + (isKw ? "mute" : "info") + '">'
-      + (isKw ? "keyword" : "AI judged") + "</span></div>"
+      + "</div>"
       + '<p class="stx-desc">' + esc(t.description) + "</p>"
       + '<div class="stx-scope">' + esc(scopeWords(t.scope)) + "</div></div></div>";
 
@@ -416,13 +414,11 @@
     var engine = '<div class="panel stx-card"><div class="panel-head">'
       + '<div class="panel-title">Evaluation engine</div>'
       + '<button class="rs-btn" id="stxRun">Run evaluation now</button></div>'
-      + '<p class="stx-note">Evaluation runs in hourly batches: each pass collects finished '
-      + "verdicts and submits the next batch of calls. "
+      + '<p class="stx-note">Calls are checked in the data pipeline every hour; '
+      + '<b>Run evaluation now</b> checks immediately. '
       + (open ? ("<b>" + open + " batch" + (open > 1 ? "es" : "") + " in flight.</b> ") : "")
-      + (eng.last_collected ? "Last verdicts landed " + esc(eng.last_collected) + " UTC. "
-                            : "No verdicts collected yet. ")
-      + "Changing a tracker's <b>instruction, keywords or scope</b> re-evaluates every "
-      + "matching call (that costs real API usage); renaming alone does not.</p></div>";
+      + "Changing a tracker's <b>keywords, description or scope</b> re-checks every "
+      + "matching call automatically; renaming alone does not.</p></div>";
 
     var rows = trackers.map(function (t) {
       var c = cov[t.key] || {};
@@ -430,8 +426,6 @@
                  + (c["Not Applicable"] || 0);
       return "<tr><td class=\"strong\">" + esc(t.name)
         + '<div class="stx-scope">' + esc(t.key) + "</div></td>"
-        + '<td><span class="rs-pill ' + (t.mode === "ai" ? "info" : "mute") + '">'
-        + (t.mode === "ai" ? "AI" : "keyword") + "</span></td>"
         + '<td><div class="stx-expl">' + esc(t.description) + "</div></td>"
         + "<td>" + esc(scopeWords(t.scope)) + "</td>"
         + '<td><span class="rs-pill ' + (t.active ? "pos" : "") + '">'
@@ -454,7 +448,7 @@
       + '<button class="rs-btn pri" id="stxNew">New tracker</button></div>'
       + (trackers.length
          ? '<div class="rs-tablewrap"><table class="rs-table"><thead><tr>'
-           + "<th>Tracker</th><th>Mode</th><th>Description</th><th>Scope</th><th>Status</th>"
+           + "<th>Tracker</th><th>Description</th><th>Scope</th><th>Status</th>"
            + '<th class="num">Checked</th><th>Last edited</th><th></th></tr></thead><tbody>'
            + rows + "</tbody></table></div>"
          : '<p class="stx-note">Nothing yet — create the first tracker.</p>')
@@ -521,25 +515,10 @@
       + '<div><label>Key ' + (t.isNew ? "(from the name)" : "(fixed)") + "</label>"
       + '<input class="stx-in" id="stxKey" value="' + esc(t.key) + '" '
       + (t.isNew ? "" : "disabled") + "></div>"
-      + '<div class="full"><label>How it is evaluated</label>'
-      + '<div class="rs-seg" id="stxMode">'
-      + '<button data-mode="keyword" class="' + (t.mode !== "ai" ? "on" : "")
-      + '">Keyword — free</button>'
-      + '<button data-mode="ai" class="' + (t.mode === "ai" ? "on" : "")
-      + '">AI judged — paid per call</button></div>'
-      + '<p class="rs-hint">Keyword: the pipeline checks whether any keyword was said — '
-      + "free, results say <b>Mentioned / Not mentioned</b>. AI: a model reads each call "
-      + "and judges whether the behaviour <b>actually happened</b> — needs the API key and "
-      + "costs a fraction of a cent per call.</p></div>"
-      + '<div class="full"><label>Description'
-      + '<span id="stxDescLbl">' + (t.mode === "ai" ? " — the instruction the AI judges by"
-                                                     : " — what this tracker is about")
-      + "</span></label>"
+      + '<div class="full"><label>Description — what this tracker is about</label>'
       + '<textarea class="stx-in" id="stxDesc" maxlength="4000">' + esc(t.description)
       + "</textarea></div>"
-      + '<div class="full"><label>Keywords (comma-separated'
-      + '<span id="stxKwLbl">' + (t.mode === "ai" ? ", optional hints" : " — what gets matched")
-      + "</span>)</label>"
+      + '<div class="full"><label>Keywords (comma-separated — what gets matched)</label>'
       + '<input class="stx-in" id="stxKw" maxlength="1000" value="' + esc(t.keywords || "")
       + '"></div>'
       + '<div class="full"><label>Scope — which calls this applies to</label>'
@@ -566,8 +545,8 @@
       + '<button class="rs-btn pri" id="stxSave">'
       + (t.isNew ? "Create tracker" : "Save changes") + "</button>"
       + '<button class="rs-btn" id="stxCancel">Cancel</button>'
-      + '<span class="stx-thin">changing keywords, description, scope or mode re-checks '
-      + "every matching call — free in keyword mode, billed in AI mode</span></div>"
+      + '<span class="stx-thin">changing keywords, description or scope re-checks '
+      + "every matching call automatically</span></div>"
       + "</div></div>";
 
     var nameEl = elt.querySelector("#stxName");
@@ -576,18 +555,6 @@
         elt.querySelector("#stxKey").value = keyFromName(nameEl.value);
       };
     }
-    elt.querySelectorAll("#stxMode button").forEach(function (b) {
-      b.onclick = function () {
-        t.mode = b.getAttribute("data-mode");
-        elt.querySelectorAll("#stxMode button").forEach(function (x) {
-          x.className = x === b ? "on" : "";
-        });
-        elt.querySelector("#stxDescLbl").textContent = t.mode === "ai"
-          ? " — the instruction the AI judges by" : " — what this tracker is about";
-        elt.querySelector("#stxKwLbl").textContent = t.mode === "ai"
-          ? ", optional hints" : " — what gets matched";
-      };
-    });
     elt.querySelector("#stxCancel").onclick = function () { S.edit = null; elt.innerHTML = ""; };
     elt.querySelector("#stxSave").onclick = function () {
       var scope = {
@@ -601,7 +568,7 @@
         action: "save",
         key: t.isNew ? keyFromName(nameEl.value) : t.key,
         name: nameEl.value.trim(),
-        mode: t.mode === "ai" ? "ai" : "keyword",
+        mode: "keyword",
         description: elt.querySelector("#stxDesc").value.trim(),
         keywords: elt.querySelector("#stxKw").value.trim(),
         scope: scope,
