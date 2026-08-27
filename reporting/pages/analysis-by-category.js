@@ -807,7 +807,18 @@ async function cbRender(host) {
         }];
       }
       const trunc = { callback(v) { const l = this.getLabelForValue ? this.getLabelForValue(v) : v;
-        return typeof l === "string" && l.length > 16 ? l.slice(0, 15) + "…" : l; } };
+        return typeof l === "string" && l.length > 20 ? l.slice(0, 19) + "…" : l; } };
+      // EVERY CATEGORY KEEPS ITS NAME (his ask, 2026-08-27): a bar without a label is a bar
+      // nobody can quote. autoSkip dropped names once the list grew, so it is OFF on the
+      // CATEGORY axis; labels rotate harder and the font steps down as the list grows
+      // instead of thinning out. The VALUE axis keeps Chart.js defaults. Full names always
+      // sit in the tooltip; truncation only guards the axis against one 40-char customer.
+      const catTicks = Object.assign({}, trunc, {
+        autoSkip: false,
+        maxRotation: horiz ? 0 : (labels.length > 12 ? 60 : 45),
+        minRotation: horiz ? 0 : (labels.length > 12 ? 45 : 0),
+        font: { size: labels.length > 30 ? 9 : labels.length > 18 ? 10 : 11 },
+      });
       const fmtFor = lbl => (mB && lbl === disp(CB.mB)) ? mB.fmt : mA.fmt;
       return new Chart(canvas, {
         type: donut ? "doughnut" : (CB.chart === "line" ? "line" : "bar"),
@@ -817,11 +828,14 @@ async function cbRender(host) {
           responsive: true, maintainAspectRatio: false,
           plugins: {
             legend: { display: donut || datasets.length > 1, position: "top", labels: { boxWidth: 12 } },
-            tooltip: { callbacks: { label: c => `${c.dataset.label}: ${fmtFor(c.dataset.label)(c.raw)}` } },
+            tooltip: { callbacks: {
+              title: items => items.length ? String(labels[items[0].dataIndex]) : "",
+              label: c => `${c.dataset.label}: ${fmtFor(c.dataset.label)(c.raw)}`,
+            } },
           },
           scales: donut ? {} : {
-            x: { stacked, ticks: Object.assign({}, horiz ? {} : trunc, { autoSkip: true, maxTicksLimit: 18, maxRotation: 45 }) },
-            y: { stacked, ticks: horiz ? trunc : {} },
+            x: { stacked, ticks: horiz ? {} : catTicks },
+            y: { stacked, ticks: horiz ? catTicks : {} },
           },
         },
       });
@@ -882,7 +896,7 @@ async function cbRender(host) {
             interaction: { mode: "index", intersect: false },
             plugins: { legend: { position: "top", labels: { boxWidth: 12 } },
               tooltip: { callbacks: { label: c => `${c.dataset.label}: ${c.raw == null ? "—" : mA.fmt(c.raw)}` } } },
-            scales: { x: { ticks: { maxRotation: 45, autoSkip: true, maxTicksLimit: 14 } } } },
+            scales: { x: { ticks: { maxRotation: 45, minRotation: 45, autoSkip: false, font: { size: 10 } } } } },
         });
       },
       buildTable() {
