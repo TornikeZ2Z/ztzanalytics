@@ -250,7 +250,7 @@
       + '<div class="rs-seg" id="wtxTabs"></div>'
       + '<input class="wtx-in wtx-search" id="wtxQ" placeholder="search title, person, '
       + 'job #…" value="' + esc(S.q) + '">'
-      + '<select class="wtx-in" id="wtxPerson" style="width:auto;flex:0"></select>'
+      + '<span id="wtxPersonMount"></span>'
       + '<button class="rs-btn pri" id="wtxNew">New</button>'
       + (d.can_triage && d.request_token
          ? '<span class="wtx-link" id="wtxShare">copy the request link</span>' : "")
@@ -262,6 +262,18 @@
     S.host.querySelector("#wtxQ").oninput = function (e) {
       S.q = e.target.value; paintBody(S);
     };
+    // the kit dropdown (local state), not a naked <select> — his call 2026-08-27
+    var pnames = {};
+    d.items.forEach(function (i) {
+      String(i.Assignees || "").split(",").forEach(function (n) {
+        n = n.trim(); if (n) pnames[n] = 1;
+      });
+    });
+    RSC.localSelect(S.host.querySelector("#wtxPersonMount"), {
+      label: "Person", values: Object.keys(pnames).sort(), value: S.person,
+      allLabel: "Everyone",
+      onChange: function (v) { S.person = v; paintBody(S); },
+    });
     S.host.querySelector("#wtxNew").onclick = function () {
       openDrawer(S, null, S.tab === "tickets" ? "ticket" : "project");
     };
@@ -314,25 +326,10 @@
     });
   }
 
-  function paintPersonFilter(S) {
-    var names = {};
-    S.data.items.forEach(function (i) {
-      String(i.Assignees || "").split(",").forEach(function (n) {
-        n = n.trim(); if (n) names[n] = 1;
-      });
-    });
-    var el = S.host.querySelector("#wtxPerson");
-    el.innerHTML = '<option value="">everyone</option>' + Object.keys(names).sort()
-      .map(function (n) {
-        return '<option' + (S.person === n ? " selected" : "") + ">" + esc(n) + "</option>";
-      }).join("");
-    el.onchange = function (e) { S.person = e.target.value; paintBody(S); };
-  }
-
   /* ------------------------------------------------------------------ views */
 
   function paintBody(S) {
-    paintTabs(S); paintDeptChips(S); paintPersonFilter(S);
+    paintTabs(S); paintDeptChips(S);
     var body = S.host.querySelector("#wtxBody");
     var items = itemsOf(S);
     if (S.tab === "board") {

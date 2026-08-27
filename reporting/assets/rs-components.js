@@ -107,6 +107,64 @@ window.RSC = (function () {
     return { repaint: paint };
   }
 
+  /* ------------- page-local single-select dropdown -------------
+     The slicer LOOK (button + popover + searchable options) without the slicer STATE:
+     multiSelect/singleSelect write into RS.state.multi, which is the GLOBAL filter bar —
+     a page-local filter using them would grow chips in the global bar and be swept by
+     "Clear all". Pages kept solving this with a bare <input>/<select> instead, which is
+     how a naked browser dropdown ended up beside kit components on CL Analysis (his
+     "wtf is this foreman dropdown", 2026-08-27). This is the kit answer: same vocabulary,
+     state owned by the caller. `allLabel` is the empty choice; search appears past 8
+     options; returns {set(v), get()} so a re-render can restore the selection. */
+  function localSelect(host, { label, values, value, allLabel, onChange }) {
+    const items = (values || []).map(v => typeof v === "object" ? v : { v: v, l: v });
+    let cur = value || "";
+    const wrap = el("div", "rs-slicer");
+    const btn = el("button", "rs-slicer-btn");
+    const pop = el("div", "rs-slicer-pop hidden");
+    const paint = () => {
+      const it = items.find(i => i.v === cur);
+      btn.innerHTML = `<span class="lbl">${esc(label)}</span>`
+        + `<span class="val">${esc(it ? it.l : (allLabel || "All"))}</span>`
+        + `<span class="chev">▾</span>`;
+      btn.classList.toggle("on", !!cur);
+      pop.querySelectorAll(".opt").forEach(o =>
+        o.classList.toggle("sel", o.dataset.v === String(cur)));
+    };
+    const withSearch = items.length > 8;
+    pop.innerHTML = (withSearch
+        ? `<div class="tools"><input class="q" placeholder="Search…"></div>` : "")
+      + `<div class="opts"><div class="opt" data-v=""><span class="ol">${esc(allLabel || "All")}</span></div>`
+      + items.map(i => `<div class="opt" data-v="${esc(i.v)}"><span class="ol">${esc(i.l)}</span>`
+          + (i.n != null ? `<span class="on">${Number(i.n).toLocaleString()}</span>` : "")
+          + `</div>`).join("")
+      + `</div>`;
+    pop.querySelectorAll(".opt").forEach(o => o.onclick = () => {
+      cur = o.dataset.v;
+      paint(); pop.classList.add("hidden");
+      if (onChange) onChange(cur);
+    });
+    const q = pop.querySelector(".q");
+    if (q) q.oninput = () => {
+      const needle = q.value.toLowerCase();
+      pop.querySelectorAll(".opt").forEach(o => {
+        if (!o.dataset.v) return;      // the All row always stays
+        o.classList.toggle("hidden",
+          needle && o.textContent.toLowerCase().indexOf(needle) < 0);
+      });
+    };
+    btn.onclick = e => {
+      e.stopPropagation();
+      document.querySelectorAll(".rs-slicer-pop").forEach(p => { if (p !== pop) p.classList.add("hidden"); });
+      pop.classList.toggle("hidden");
+      if (!pop.classList.contains("hidden") && q) { q.value = ""; q.oninput(); q.focus(); }
+    };
+    pop.addEventListener("click", e => e.stopPropagation());
+    wrap.appendChild(btn); wrap.appendChild(pop); host.appendChild(wrap);
+    paint();
+    return { set(v) { cur = v || ""; paint(); }, get() { return cur; } };
+  }
+
   /* ------------- single-select slicer (always exactly one value chosen) ------------- */
   function singleSelect(host, { key, label, values, defaultValue, onChange }) {
     const items = values.map(v => typeof v === "object" ? v : { v: v, l: v });
@@ -585,7 +643,7 @@ window.RSC = (function () {
   document.addEventListener("click", () =>
     document.querySelectorAll(".rs-slicer-pop").forEach(p => p.classList.add("hidden")));
 
-  return { el, esc, multiSelect, singleSelect, dateBar, dateRange, datePresets,
+  return { el, esc, multiSelect, singleSelect, localSelect, dateBar, dateRange, datePresets,
            kpis, chartCard, table, matrix,
            collapsible, fitScroller, fit, reflow, reflowAfter };
 })();

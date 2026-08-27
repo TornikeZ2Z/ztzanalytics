@@ -281,10 +281,7 @@ registerPage({
         <div class="cla-bar">
           <input class="cla-in" id="claQ" style="flex:0 1 260px" placeholder="search job #, customer, state…"
             value="${esc(S.q)}">
-          <select class="cla-in" id="claFm">
-            <option value="">All foremen</option>
-            ${foremen.map(f => `<option${S.fm === f ? " selected" : ""}>${esc(f)}</option>`).join("")}
-          </select>
+          <span id="claFmMount"></span>
           <span class="cla-count">${filtered
             ? `${fmtN(jobs.length)} of ${fmtN(baseJobs.length)} jobs`
             : `${fmtN(jobs.length)} jobs`}</span>
@@ -385,7 +382,12 @@ registerPage({
           el2.focus(); el2.setSelectionRange(el2.value.length, el2.value.length);
         }, 250);
       };
-      host.querySelector("#claFm").onchange = (e) => { S.fm = e.target.value; paint(); };
+      // the KIT dropdown, not a naked <select> — his call 2026-08-27. Local state, so it
+      // never grows a chip in the global filter bar and "Clear all" cannot sweep it.
+      RSC.localSelect(host.querySelector("#claFmMount"), {
+        label: "Foreman", values: foremen, value: S.fm, allLabel: "All foremen",
+        onChange: v => { S.fm = v; paint(); },
+      });
       const clr = host.querySelector("#claClear");
       if (clr) clr.onclick = () => { S.q = ""; S.fm = ""; paint(); };
       if (!jobs.length) return;
