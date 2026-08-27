@@ -421,6 +421,58 @@ registerPage({
         // statistics: two questions share a row on wide screens
         ".hq-resgrid{display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:start}",
         ".hq-resgrid .hq-card{margin-bottom:0}",
+        // a score, sized so it reads before the label does
+        ".hq-score{font-size:26px;font-weight:800;letter-spacing:-.6px;line-height:1}",
+        ".hq-score small{font-size:12px;font-weight:700;color:var(--faint);margin-left:3px}",
+        // the team matrix: questions down, teams across, one mean per cell
+        ".hq-mx{width:100%;border-collapse:collapse;font-size:12.5px}",
+        ".hq-mx th{font-size:10px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;"
+          + "color:var(--faint);text-align:center;padding:0 6px 9px;white-space:nowrap}",
+        ".hq-mx th.q{text-align:left;width:34%}",
+        ".hq-mx td{padding:4px 5px;text-align:center}",
+        ".hq-mx td.q{text-align:left;font-weight:650;color:var(--ink);padding-left:0;line-height:1.35}",
+        ".hq-mx .cell{display:block;border-radius:8px;padding:8px 4px;font-weight:800;"
+          + "font-variant-numeric:tabular-nums}",
+        ".hq-mx .cell.hid{background:var(--panel-2);color:var(--faint);font-weight:600;font-size:11px}",
+        ".hq-mx .cell .cn{display:block;font-style:normal;font-size:9.5px;font-weight:700;"
+          + "opacity:.72;margin-top:1px}",
+        ".hq-mx tfoot td{padding-top:10px;font-size:11px;color:var(--faint)}",
+        // one question, one card, but the number leads
+        ".hq-qhd{display:flex;align-items:flex-start;gap:12px;margin-bottom:9px}",
+        ".hq-qhd .lb{flex:1;font-size:13.5px;font-weight:700;color:var(--ink);line-height:1.4}",
+        ".hq-qhd .rt{text-align:right;white-space:nowrap}",
+        ".hq-n{font-size:11px;color:var(--faint);font-weight:700}",
+        // a quote that opens the response it came from
+        ".hq-txt.click{cursor:pointer}",
+        ".hq-txt.click:hover{border-left-color:var(--brand);background:var(--panel-2)}",
+        ".hq-txt .who b{color:var(--muted);font-weight:700}",
+        // the basis line: what these numbers are computed from
+        ".hq-basis{font-size:12px;color:var(--muted);line-height:1.6;margin:0 0 14px}",
+        ".hq-basis b{color:var(--ink)}",
+        // participation: one company donut, then one small donut per team
+        ".hq-part{display:grid;grid-template-columns:220px 1fr;gap:22px;align-items:center}",
+        "@media(max-width:900px){.hq-part{grid-template-columns:1fr}}",
+        ".hq-donut{position:relative;width:200px;height:200px;margin:0 auto}",
+        ".hq-donut .mid{position:absolute;inset:0;display:flex;flex-direction:column;"
+          + "align-items:center;justify-content:center;pointer-events:none}",
+        ".hq-donut .mid b{font-size:30px;font-weight:800;letter-spacing:-1px;line-height:1}",
+        ".hq-donut .mid span{font-size:10px;font-weight:800;letter-spacing:.07em;"
+          + "text-transform:uppercase;color:var(--faint);margin-top:3px}",
+        ".hq-teams{display:grid;grid-template-columns:repeat(auto-fit,minmax(118px,1fr));gap:14px}",
+        ".hq-tm{text-align:center}",
+        ".hq-tm .ring{position:relative;width:96px;height:96px;margin:0 auto 7px}",
+        ".hq-tm .ring b{position:absolute;inset:0;display:flex;align-items:center;"
+          + "justify-content:center;font-size:17px;font-weight:800;letter-spacing:-.4px}",
+        ".hq-tm .nm{font-size:12px;font-weight:750;color:var(--ink);line-height:1.3}",
+        ".hq-tm .ct{font-size:11px;color:var(--faint);margin-top:2px}",
+        ".hq-lgd{display:flex;flex-wrap:wrap;gap:12px;justify-content:center;margin-top:12px;"
+          + "font-size:11.5px;color:var(--muted)}",
+        ".hq-lgd i{display:inline-block;width:9px;height:9px;border-radius:3px;margin-right:5px}",
+        // the written read of the numbers
+        ".hq-read li{margin:0 0 9px;line-height:1.6;font-size:13.5px}",
+        ".hq-read li b{color:var(--ink)}",
+        ".hq-read .prov{font-size:11px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;"
+          + "color:var(--warn);margin-left:6px}",
         "@media(max-width:1150px){.hq-resgrid{grid-template-columns:1fr}}",
         // preview: email on the left, the form on the right
         ".pv-grid{display:grid;grid-template-columns:390px minmax(0,1fr);gap:26px;align-items:start}",
@@ -780,15 +832,44 @@ registerPage({
             answered: function (a, t) { return a + " of " + t + " answered"; },
             everyone: "\u2190 Everyone", reopen: "Reopen", notStarted: "has not started",
             notInvited: "Not invited yet", invited: "Invited", invite: "Invite",
-            other: "Other", print: "Print" },
+            other: "Other", print: "Print",
+            anonNote: "Anonymous — the team is recorded, never the person.",
+            readOne: "Open a response to read it on its own.",
+            noneYet: "No answers yet. They appear here the moment someone starts.",
+            started: "started", inProgress: "in progress", submitted: "submitted",
+            respList: "The responses", ofN: function (a, t) { return a + " of " + t; } },
       ka: { notAnswered: "არ უპასუხია", required: "სავალდებულო",
             answered: function (a, t) { return t + "-დან " + a + " შევსებულია"; },
             everyone: "\u2190 ყველა", reopen: "ხელახლა გახსნა",
             notStarted: "არ დაუწყია", notInvited: "მოწვევა არ გაგზავნილა",
             invited: "მოწვეულია", invite: "მოწვევა", other: "სხვა",
-            print: "ბეჭდვა" },
+            print: "ბეჭდვა",
+            anonNote: "ანონიმური — ჩაიწერება გუნდი, არასოდეს ადამიანი.",
+            readOne: "გახსენით პასუხი ცალკე წასაკითხად.",
+            noneYet: "პასუხები ჯერ არ არის. გამოჩნდება როგორც კი ვინმე დაიწყებს.",
+            started: "დაიწყო", inProgress: "მიმდინარეობს", submitted: "გაგზავნილი",
+            respList: "პასუხები", ofN: function (a, t) { return t + "-დან " + a; } },
     };
     function LS() { return HQ_STR[qLang()]; }
+
+    /* THE MIN-N RULES, in one place because they are a promise and not a preference.
+
+       A mean over ONE answer IS that answer. A mean over TWO plus a reader who knows their own
+       answer solves for the other exactly -- and this survey has a live example: Other /
+       "my manager supports me", n=2, mean 7.0, from a 4 and a 10. Five is the smallest cell
+       where knowing your own answer still leaves four unknowns.
+
+       And a team of THREE can never reach five, so it is not a column: it is pooled. Hiding
+       only the small column would not help either -- with the company mean and five of six
+       columns shown, the sixth is recoverable by subtraction. Pooling removes the arithmetic
+       instead of hiding its result. His decision to keep Support Team as its own AUDIENCE and
+       its own LINK is untouched by this; this is only about what a score column may claim. */
+    var MIN_CELL = 5;      // answers behind a single team-and-question mean
+    /* A team needs as many RESPONDENTS as a cell needs answers before it is a column at all.
+       Set higher (8 was tried) and every team on a young survey falls under it, the whole
+       matrix pools into one column, and the comparison the block exists for disappears on
+       exactly the days he most wants to watch it. */
+    var MIN_GROUP = MIN_CELL;
 
     // Statistics has its own vocabulary -- counts, averages and the captions around them.
     var HQ_RES = {
@@ -798,16 +879,115 @@ registerPage({
             average: "average", of: "of", answers: function (n) { return n + " answers"; },
             several: "several choices allowed",
             otherWords: "Other, in their words: ", noneYet: "No written answers yet.",
-            submittedOn: "submitted" },
+            submittedOn: "submitted",
+            voices: "voices captured", ofInvited: function (n) { return "of " + n + " invited"; },
+            finishedWriting: function (a, b) { return a + " finished · " + b + " still writing"; },
+            overall: "overall", weakest: "lowest scoring", strongest: "highest scoring",
+            teamsHeard: "teams heard from", notStartedYet: function (l) { return l + " not started"; },
+            byTeam: "How each team scored",
+            byTeamNote: "Higher is better. A team needs enough answers before a score can be "
+              + "shown without pointing at a person.",
+            tooFew: "too few",
+            pooled: function (l) { return l + " are not shown as columns — a team that "
+              + "small cannot be scored on its own without pointing at a person. Their "
+              + "answers are counted in Everyone."; },
+            everyone: "Everyone",
+            basis: function (a, b) { return "Scores below come from <b>" + a + "</b> people who "
+              + "have answered, including <b>" + b + "</b> still filling the form. Completion "
+              + "counts only finished ones."; },
+            noAnswersYet: "Nothing to show yet — the first answers appear here as they arrive.",
+            openResponse: "open this response",
+            range: function (lo, hi) { return "lowest " + lo + " · highest " + hi; },
+            nAnswered: function (n) { return n + " answered"; },
+            whoFilled: "Who has filled it in", haveAnswered: "have answered",
+            stillWriting: "still writing", notOpened: "not opened",
+            fromN: function (n) { return "from " + n; },
+            theRead: "What the numbers say",
+            rdOpen: function (a, b, c) { return "<b>" + a + " of " + b + "</b> have opened it so "
+              + "far and <b>" + c + "</b> have finished. The survey is still open, so read this "
+              + "as where it has got to, not as the final result."; },
+            rdSilent: function (l) { return "<b>" + l + "</b> have not opened it at all. That is "
+              + "the most actionable thing on this page — it says nothing about how they feel, "
+              + "only that their answers are missing."; },
+            rdLowest: function (q, m, n) { return "The lowest-scoring question is <b>" + q
+              + "</b> at <b>" + m + "</b>, from " + n + " answers."; },
+            rdGap: function (q, ta, ma, tb, mb) { return "On <b>" + q + "</b>, " + ta + " sit at "
+              + ma + " against " + tb + " at " + mb + " — the widest gap between two teams that "
+              + "both have enough answers to compare."; },
+            rdDecay: function (hi, lo) { return "The number of people behind each question falls "
+              + "from " + hi + " on the first to " + lo + " on the last, because the form is "
+              + "answered top to bottom — so two questions are not automatically comparable."; },
+            readEarly: "Too early to read much into this — the note under each line says how "
+              + "many answers it rests on.",
+            provisional: "provisional" },
       ka: { audience: "აუდიტორია", submitted: "გაგზავნილი", completion: "შევსება",
             pending: "ხელახლა გახსნილი / მოლოდინში", allDepts: "ყველა დეპარტამენტი",
             aggregate: "საერთო \u2014 ყველა", csv: "CSV-ის გადმოწერა",
             average: "საშუალო", of: "/", answers: function (n) { return n + " პასუხი"; },
             several: "შესაძლებელია რამდენიმეს არჩევა",
             otherWords: "სხვა, მათი სიტყვებით: ", noneYet: "ჯერ არ არის პასუხები.",
-            submittedOn: "გაგზავნილია" },
+            submittedOn: "გაგზავნილია",
+            voices: "მოსმენილი ხმა", ofInvited: function (n) { return n + "-დან"; },
+            finishedWriting: function (a, b) { return a + " დაასრულა · " + b + " ჯერ წერს"; },
+            overall: "საერთო", weakest: "ყველაზე დაბალი", strongest: "ყველაზე მაღალი",
+            teamsHeard: "გუნდი გამოეხმაურა", notStartedYet: function (l) { return l + " არ დაუწყია"; },
+            byTeam: "როგორ შეაფასა თითოეულმა გუნდმა",
+            byTeamNote: "მეტი უკეთესია. გუნდს სჭირდება საკმარისი პასუხი, სანამ ქულა გამოჩნდება — "
+              + "რომ კონკრეტულ ადამიანზე არ მიუთითოს.",
+            tooFew: "ცოტაა",
+            pooled: function (l) { return l + " ცალკე სვეტად არ ჩანს — ასეთი პატარა გუნდის "
+              + "ცალკე შეფასება კონკრეტულ ადამიანზე მიუთითებდა. მათი პასუხები "
+              + "ჩათვლილია სვეტში „ყველა“."; },
+            everyone: "ყველა",
+            basis: function (a, b) { return "ქულები ეყრდნობა <b>" + a + "</b> ადამიანის პასუხს, "
+              + "მათ შორის <b>" + b + "</b> ჯერ ავსებს ფორმას. შევსება ითვლის მხოლოდ დასრულებულს."; },
+            noAnswersYet: "ჯერ არაფერია — პასუხები აქ გამოჩნდება მოსვლისთანავე.",
+            openResponse: "პასუხის გახსნა",
+            range: function (lo, hi) { return "ყველაზე დაბალი " + lo + " · მაღალი " + hi; },
+            nAnswered: function (n) { return n + " პასუხი"; },
+            whoFilled: "ვინ შეავსო", haveAnswered: "უპასუხა",
+            stillWriting: "ჯერ წერს", notOpened: "არ გაუხსნია",
+            fromN: function (n) { return n + " პასუხიდან"; },
+            theRead: "რას ამბობს ციფრები",
+            rdOpen: function (a, b, c) { return "<b>" + b + "-დან " + a + "-მა</b> გახსნა და "
+              + "<b>" + c + "-მა</b> დაასრულა. გამოკითხვა ჯერ ღიაა — ეს არის მიმდინარე "
+              + "სურათი, არა საბოლოო შედეგი."; },
+            rdSilent: function (l) { return "<b>" + l + "</b> საერთოდ არ გაუხსნია. ეს ყველაზე "
+              + "სამოქმედო ინფორმაციაა — არაფერს ამბობს მათ განწყობაზე, მხოლოდ იმას, რომ "
+              + "მათი პასუხები აკლია."; },
+            rdLowest: function (q, m, n) { return "ყველაზე დაბალი შეფასება: <b>" + q + "</b> — <b>"
+              + m + "</b>, " + n + " პასუხიდან."; },
+            rdGap: function (q, ta, ma, tb, mb) { return "<b>" + q + "</b>: " + ta + " — " + ma
+              + ", " + tb + " — " + mb + ". ეს არის ყველაზე დიდი სხვაობა ორ გუნდს შორის, "
+              + "რომლებსაც საკმარისი პასუხი აქვთ."; },
+            rdDecay: function (hi, lo) { return "პასუხების რაოდენობა კითხვებზე მცირდება " + hi
+              + "-დან " + lo + "-მდე, რადგან ფორმა ზემოდან ქვემოთ ივსება — ამიტომ ორი კითხვა "
+              + "ავტომატურად შესადარებელი არ არის."; },
+            readEarly: "ჯერ ნაადრევია დასკვნებისთვის — თითოეულ სტრიქონს ქვემოთ წერია რამდენ "
+              + "პასუხს ეყრდნობა.",
+            provisional: "წინასწარი" },
     };
     function RS_() { return HQ_RES[qLang()]; }
+
+    /* A DONUT. segs = [{v, color}] drawn clockwise from twelve o'clock over a track ring, so
+       an empty segment simply does not appear and the track shows through as "the rest". */
+    function donut(segs, size, thick) {
+      var r = (size - thick) / 2, c = size / 2, circ = 2 * Math.PI * r, off = 0;
+      var tot = segs.reduce(function (a, x) { return a + (x.v || 0); }, 0);
+      return '<svg width="' + size + '" height="' + size + '" viewBox="0 0 ' + size + " " + size
+        + '" aria-hidden="true"><circle cx="' + c + '" cy="' + c + '" r="' + r
+        + '" fill="none" stroke="var(--line)" stroke-width="' + thick + '"/>'
+        + (tot ? segs.filter(function (x) { return x.v > 0; }).map(function (x) {
+            var len = x.v / tot * circ;
+            var out = '<circle cx="' + c + '" cy="' + c + '" r="' + r + '" fill="none" stroke="'
+              + x.color + '" stroke-width="' + thick + '" stroke-dasharray="' + len + " "
+              + (circ - len) + '" stroke-dashoffset="' + (-off)
+              + '" transform="rotate(-90 ' + c + " " + c + ')"/>';
+            off += len;
+            return out;
+          }).join("") : "")
+        + "</svg>";
+    }
     // the question TYPE, named in the reading language
     var TYPE_LABEL_KA = {
       stars5: "შეფასება 1\u20135", scale: "წრფივი შკალა",
@@ -2029,7 +2209,16 @@ registerPage({
        what they picked, free writing gets room to be read. */
     async function paintOneResponse(body, canR) {
       var d;
-      try { d = await api("/api/_hrqadmin?view=response&id=" + S.qid + "&email=" + encodeURIComponent(S.subOpen)); }
+      /* S.subOpen carries EITHER an address (identified questionnaires) or "#<row id>"
+         (anonymous ones). An anonymous response has no address that may leave the server —
+         the stored one is the respondent's own resume credential — so it is opened by its
+         row id, which is an index and cannot be used to fill anything in. */
+      var byRid = String(S.subOpen || "").charAt(0) === "#";
+      try {
+        d = await api("/api/_hrqadmin?view=response&id=" + S.qid
+          + (byRid ? "&rid=" + encodeURIComponent(String(S.subOpen).slice(1))
+                   : "&email=" + encodeURIComponent(S.subOpen)));
+      }
       catch (e) { S.subOpen = null; toast(e.message, true); return paintSubmissions(body, canR); }
       var r = d.response;
       var qs = d.questions || [];
@@ -2060,7 +2249,7 @@ registerPage({
         + '<div class="hq-orhd">'
         + '<button class="hq-btn" id="hrBack">' + esc(LS().everyone) + "</button>"
         + '<div class="hq-orwho"><b>' + esc(d.name || d.email) + "</b>"
-        + '<span>' + esc(d.email)
+        + '<span>' + (d.anon ? esc(LS().anonNote) : esc(d.email))
         + (r && r.department ? " · " + esc(r.department) : "") + "</span></div>"
         + statusPill
         + '<span class="hq-orgap"></span>'
@@ -2068,17 +2257,24 @@ registerPage({
            what is written in THIS card and nothing else on the screen. */
         + hqLangSeg("hrLang")
         + '<button class="hq-btn" id="hrPrint">' + esc(LS().print) + "</button>"
-        + (r && (r.status === "submitted" || r.status === "resubmitted") && canR
+        + (r && (r.status === "submitted" || r.status === "resubmitted") && canR && !d.anon
             ? '<button class="hq-btn" id="hrReop">' + esc(LS().reopen) + "</button>" : "")
         + "</div>"
 
         + '<div class="hq-ormeta">'
-        + (d.invite ? (d.invite.status === "sent"
+        /* NO INVITE TRAIL ON AN ANONYMOUS RESPONSE. The invite went to a PERSON and this
+           answer belongs to a TEAM; printing "invited 26 Aug 16:47" beside it invites the
+           reader to join the two, which is the one thing we promised not to do. */
+        + (d.anon ? esc(LS().anonNote)
+           : d.invite ? (d.invite.status === "sent"
               ? esc(LS().invited) + " " + esc(fmtWhen(d.invite.sent_at))
               : esc(LS().invite) + " " + esc(d.invite.status))
             : esc(LS().notInvited))
         + (r ? " · " + esc(r.status.replace("_", " "))
-             + (r.submitted_at ? " " + esc(fmtWhen(r.submitted_at)) : "")
+             // a day is a day: running it through the instant formatter re-zones it and
+             // invents the minute the bridge just stripped
+             + (r.submitted_at
+                 ? " " + esc(r.day_only ? r.submitted_at : fmtWhen(r.submitted_at)) : "")
              + (r.submit_count > 1 ? " · " + esc(r.submit_count) + "×" : "")
              + (r.reopened_by ? " · reopened by " + esc(String(r.reopened_by).split("@")[0]) : "")
           : " · " + esc(LS().notStarted)) + "</div>"
@@ -2116,6 +2312,19 @@ registerPage({
       if (S.sub.anon) {
         // ANONYMOUS: a category rollup — no names exist, which is the point
         var cats = S.sub.cats || [];
+        var resp = S.sub.responses || [];
+        var askable = S.sub.askable || 0;
+        var pillAnon = function (st3) {
+          var m3 = { in_progress: ["a", "in progress"], submitted: ["g", "submitted"],
+                     resubmitted: ["g", "resubmitted"], reopened: ["b", "reopened"] }[st3]
+                 || ["n", String(st3).replace("_", " ")];
+          return '<span class="hq-st ' + m3[0] + '"><i></i>' + esc(m3[1]) + "</span>";
+        };
+        /* A DAY, NOT A MINUTE, on an anonymous row. "Submitted 8:55 PM" beside a team of
+           three plus a manager's memory of who was at a desk is a name -- the same reason
+           the Statistics payload sends a day. HR needs to know answers are arriving, which
+           a date says perfectly well. */
+        var dayOf = function (t) { return t ? String(t).slice(0, 10) : "—"; };
         var tot = { people: 0, invited: 0, started: 0, submitted: 0 };
         cats.forEach(function (c2) {
           tot.people += c2.people; tot.invited += c2.invited;
@@ -2146,9 +2355,45 @@ registerPage({
                 + '<td class="r">' + c2.started + "</td>"
                 + '<td class="r hq-new" style="color:var(--pos);font-weight:800">' + c2.submitted + "</td></tr>";
             }).join("")
-          + "</tbody></table></div>";
+          + "</tbody></table></div>"
+
+          /* THE RESPONSES THEMSELVES. Anonymous does not mean unreadable: he still wants to
+             sit with one answer-set at a time, the way the Exit Interview reads. Each row is
+             a label and a team — no name, no address, no device id — and opens the very same
+             renderer the identified questionnaires use. */
+          + '<div class="hq-row" style="margin:16px 0 8px">'
+          + '<b style="font-size:14px">The responses</b>'
+          + '<span class="hq-dim">Open one to read it on its own.</span></div>'
+          + (resp.length
+              ? '<div class="hq-card" style="padding:0;overflow:hidden">'
+                + '<table class="hq-tbl board"><thead><tr>'
+                + "<th>Response</th><th>Team</th><th>Status</th>"
+                + '<th class="r">Answered</th><th>Started</th><th>Submitted</th><th></th>'
+                + "</tr></thead><tbody>"
+                + resp.map(function (x) {
+                    var dc2 = deptColor(x.department);
+                    var done2 = x.status === "submitted" || x.status === "resubmitted";
+                    return '<tr class="rowlink" data-rid="' + x.rid + '" title="Open this response">'
+                      + '<td><div class="hq-pcell"><span class="hq-av" style="background:'
+                      + dc2 + '22;color:' + dc2 + '">' + esc(String(x.label).replace(/[^0-9]/g, "") || "?")
+                      + '</span><span><span class="nm">' + esc(x.label) + "</span></span></div></td>"
+                      + "<td>" + (x.department
+                          ? '<span class="hq-dept"><i style="background:' + dc2 + '"></i>'
+                            + esc(x.department) + "</span>" : '<span class="hq-dim">—</span>') + "</td>"
+                      + "<td>" + pillAnon(x.status) + "</td>"
+                      + '<td class="r">' + x.answered + " of " + askable + "</td>"
+                      + '<td class="hq-dim">' + esc(dayOf(x.started_at)) + "</td>"
+                      + '<td class="hq-dim">' + esc(dayOf(x.submitted_at)) + "</td>"
+                      + '<td class="r hq-dim">open ›</td></tr>';
+                  }).join("")
+                + "</tbody></table></div>"
+              : '<div class="hq-card hq-dim">No answers yet. They appear here the moment '
+                + "someone starts.</div>");
         var ib2 = body.querySelector("#hbInv");
         if (ib2) ib2.onclick = function () { sendInvites(S.qid); };
+        body.querySelectorAll("[data-rid]").forEach(function (tr) {
+          tr.onclick = function () { S.subOpen = "#" + tr.dataset.rid; paintSubmissions(body, canR); };
+        });
         return;
       }
       var board = S.sub.board, counts = {};
@@ -2240,17 +2485,141 @@ registerPage({
     /* ================================================================ results */
     async function paintResults(body) {
       await loadRes();
+      // the same per-team counts the Responses board shows -- fetched here rather than
+      // recomputed, so the two tabs can never disagree about how many people answered
+      if (!S.sub || S.subFor !== S.qid) { try { await loadSub(); S.subFor = S.qid; } catch (e) {} }
       // sections are layout, not data — they hold no answers and get no chart
       var R = S.res, questions = R.questions.filter(function (x) { return x.active && x.qtype !== "section"; });
+      /* WHO COUNTS. Submitted rows govern COMPLETION -- that is what finishing means. But
+         every aggregate below counts everyone who has ANSWERED, in-progress included: the
+         form autosaves, so an unfinished row is a real opinion, and on this survey's first
+         afternoon excluding them hid 77 of 111 answers and reported a flat 10.00 on every
+         scale because the only two people who had pressed Submit had scored everything
+         perfect. Leaving them out is not caution, it deletes the unhappy answers. */
       var subs = R.individuals.filter(function (r) { return r.status === "submitted" || r.status === "resubmitted"; });
-      var depts = [...new Set(subs.map(function (r) { return r.department || "—"; }))].sort();
-      var view = S.resDept ? subs.filter(function (r) { return (r.department || "—") === S.resDept; }) : subs;
+      var answered = R.individuals.filter(function (r) {
+        return r.answers && Object.keys(r.answers).some(function (k) {
+          var v = r.answers[k]; return v != null && v !== "";
+        });
+      });
+      var writing = answered.length - subs.length;
+      var depts = [...new Set(answered.map(function (r) { return r.department || "—"; }))].sort();
+      var view = S.resDept ? answered.filter(function (r) { return (r.department || "—") === S.resDept; }) : answered;
       var qById = {}; R.questions.forEach(function (x) { qById[x.id] = x; });
-      var html = '<div class="hq-kpis">'
-        + '<div class="hq-kpi"><b>' + R.audience_size + "</b><span>" + esc(RS_().audience) + "</span></div>"
-        + '<div class="hq-kpi"><b>' + subs.length + "</b><span>" + esc(RS_().submitted) + "</span></div>"
-        + '<div class="hq-kpi"><b>' + fmtPct(subs.length, R.audience_size) + "</b><span>" + esc(RS_().completion) + "</span></div>"
-        + '<div class="hq-kpi"><b>' + (R.individuals.length - subs.length) + "</b><span>" + esc(RS_().pending) + "</span></div></div>"
+
+      // the scale questions, in form order -- the spine of every score on this tab
+      var scales = R.questions.filter(function (x) {
+        return x.active && (x.qtype === "scale" || x.qtype === "stars5");
+      });
+      var scaleHi = function (qq) {
+        return qq.qtype === "scale" ? (parseInt((qq.options || [])[1], 10) || 10) : 5;
+      };
+      var scaleLo = function (qq) {
+        return qq.qtype === "scale" ? (parseInt((qq.options || [])[0], 10) || 1) : 1;
+      };
+      var numsOf = function (qq, rows) {
+        var lo = scaleLo(qq), hi = scaleHi(qq);
+        return rows.map(function (r) { return Number(r.answers[qq.id]); })
+          .filter(function (n) { return !isNaN(n) && n >= lo && n <= hi; });
+      };
+      var meanOf = function (a) {
+        return a.length ? a.reduce(function (x, y) { return x + y; }, 0) / a.length : null;
+      };
+      // every score on a 0-1 footing, so questions on different scales can be compared
+      var normOf = function (qq, rows) {
+        var m = meanOf(numsOf(qq, rows)), lo = scaleLo(qq), hi = scaleHi(qq);
+        return m == null || hi === lo ? null : (m - lo) / (hi - lo);
+      };
+      var ranked = scales.map(function (qq) {
+        return { q: qq, n: numsOf(qq, view).length, mean: meanOf(numsOf(qq, view)),
+                 norm: normOf(qq, view) };
+      }).filter(function (x) { return x.n >= MIN_CELL; })
+        .sort(function (a, b) { return a.norm - b.norm; });
+
+      // the one question the form asks as a summary, else the lowest-scoring one
+      var overallQ = scales.filter(function (qq) {
+        return /overall|satisf|საერთო/i.test(String(qq.label || "")); })[0] || scales[0];
+      var overallN = overallQ ? numsOf(overallQ, view) : [];
+      var overallM = meanOf(overallN);
+
+      // grouped here rather than inside the matrix block, because the written read below
+      // needs the same grouping and a `var` declared later is hoisted but undefined
+      var byTeam = {};
+      answered.forEach(function (r) {
+        var t = r.department || "—";
+        (byTeam[t] = byTeam[t] || []).push(r);
+      });
+      var teamsStarted = [...new Set(answered.map(function (r) { return r.department || "—"; }))];
+      // the audience's own team list, from THIS payload -- reading it off S.sub made the tile
+      // depend on the Responses tab having been opened first, and it silently reported
+      // "4 of 4 teams" when two teams had not started at all
+      var allTeams = (R.teams && R.teams.length ? R.teams : teamsStarted);
+      var silent = allTeams.filter(function (t) { return teamsStarted.indexOf(t) < 0; });
+
+      /* THE READ. Sentences, not another chart -- and every one of them refuses to say
+         more than its n supports. The temptations it is built to resist, each checked
+         against this survey's own data: calling a one-hour-old snapshot "the response
+         rate"; reporting completion-among-starters as a company figure; calling a team with
+         zero rows disengaged when zero rows cannot tell unwillingness from an email that
+         never arrived; and comparing two questions whose answering bases differ by half. */
+      var read = [];
+      if (answered.length) {
+        var startedN = (S.sub && S.sub.cats)
+          ? S.sub.cats.reduce(function (a, c2) { return a + c2.started + c2.submitted; }, 0)
+          : answered.length;
+        read.push({ t: RS_().rdOpen(startedN, R.audience_size, subs.length) });
+        if (silent.length) read.push({ t: RS_().rdSilent(silent.join(", ")) });
+
+        if (ranked.length) {
+          var lo5 = ranked[0];
+          read.push({ t: RS_().rdLowest(tx(lo5.q, "label"), lo5.mean.toFixed(1), lo5.n),
+                      prov: lo5.n < 10 });
+        }
+        // the widest team gap, but only where BOTH sides clear the cell minimum
+        var widest = null;
+        scales.forEach(function (qq) {
+          var per = Object.keys(byTeam || {}).map(function (t) {
+            var ns5 = numsOf(qq, byTeam[t]);
+            return ns5.length >= MIN_CELL ? { t: t, m: meanOf(ns5), n: ns5.length } : null;
+          }).filter(Boolean).sort(function (a, b) { return a.m - b.m; });
+          if (per.length >= 2) {
+            var gap = per[per.length - 1].m - per[0].m;
+            if (!widest || gap > widest.gap) {
+              widest = { gap: gap, q: qq, lo: per[0], hi: per[per.length - 1] };
+            }
+          }
+        });
+        // under a point on a ten-point scale is not a gap, it is noise at these sizes
+        if (widest && widest.gap >= 1) {
+          read.push({ t: RS_().rdGap(tx(widest.q, "label"), widest.lo.t, widest.lo.m.toFixed(1),
+                                     widest.hi.t, widest.hi.m.toFixed(1)),
+                      prov: Math.min(widest.lo.n, widest.hi.n) < 8 });
+        }
+        var ns6 = R.questions.filter(function (x) { return x.active && x.qtype !== "section"; })
+          .map(function (qq) {
+            return answered.filter(function (r) {
+              var v = r.answers[qq.id]; return v != null && v !== "";
+            }).length;
+          }).filter(function (n) { return n > 0; });
+        if (ns6.length) {
+          var hiN = Math.max.apply(null, ns6), loN = Math.min.apply(null, ns6);
+          if (hiN - loN >= 5) read.push({ t: RS_().rdDecay(hiN, loN) });
+        }
+      }
+
+      var kpiHtml = "";
+      var html = '<div class="rs-kpis" id="hrKpis"></div>'
+        + (answered.length
+            ? '<div class="hq-basis">' + RS_().basis(answered.length, writing) + "</div>" : "")
+        + (read.length
+            ? '<div class="hq-card"><h4>' + esc(RS_().theRead) + "</h4><ul class=\"hq-read\">"
+              + read.map(function (x) {
+                  return "<li>" + x.t
+                    + (x.prov ? '<span class="prov">' + esc(RS_().provisional) + "</span>" : "")
+                    + "</li>";
+                }).join("")
+              + "</ul></div>"
+            : "")
         + '<div class="hq-row" style="margin-bottom:12px">'
         + '<select class="hq-sel" id="hrDept"><option value="">' + esc(RS_().allDepts) + "</option>"
         + depts.map(function (dpt) { return '<option' + (S.resDept === dpt ? " selected" : "") + ">" + esc(dpt) + "</option>"; }).join("")
@@ -2272,15 +2641,153 @@ registerPage({
         html += '<div class="hq-or-w"><div class="hq-orhd">'
           + '<div class="hq-orwho"><b>' + esc(person.name || person.email) + "</b>"
           + "<span>" + esc(person.department || "")
-          + (person.submitted_at ? " · " + esc(RS_().submittedOn) + " "
-              + esc(fmtWhen(person.submitted_at)) : "") + "</span></div>"
+          // an anonymous row carries a DAY, not an instant: running a bare date through the
+          // instant formatter re-zones it and invents the minute the bridge stripped
+          + (person.submitted_day
+              ? " · " + esc(RS_().submittedOn) + " " + esc(person.submitted_day)
+              : person.submitted_at ? " · " + esc(RS_().submittedOn) + " "
+                + esc(fmtWhen(person.submitted_at)) : "") + "</span></div>"
           + '<span class="hq-orgap"></span>'
           + '<button class="hq-btn" id="hrPrint2">' + esc(LS().print) + "</button></div>"
           + '<div class="hq-orbody">'
           + hqQuestionList(R.questions.filter(function (x) { return x.active; }), person.answers)
           + "</div></div>";
+      } else if (!answered.length) {
+        // NOT AN EMPTY GRID. Fourteen blank cards read as broken; this reads as early.
+        html += '<div class="hq-card hq-dim" style="padding:26px;text-align:center">'
+          + esc(RS_().noAnswersYet) + "</div>";
       } else {
-        html += '<div class="hq-resgrid">' + questions.map(function (qq) {
+        /* HOW EACH TEAM SCORED. The one view this survey was built to support and the one
+           it did not have: it is anonymous BY DEPARTMENT, and until now the only way to
+           compare two teams was to filter to one, remember the number, and filter to the
+           other. The sharpest thing in the data -- one team markedly lower on teamwork than
+           the rest -- was unreachable by any sequence of clicks.
+
+           Teams below MIN_GROUP respondents are pooled rather than hidden: hiding one column
+           while showing the company mean and every other column leaves the missing one
+           recoverable by subtraction, which is not privacy, it is arithmetic homework. */
+        var bigTeams = Object.keys(byTeam).filter(function (t) { return byTeam[t].length >= MIN_GROUP; }).sort();
+        var smallTeams = Object.keys(byTeam).filter(function (t) { return byTeam[t].length < MIN_GROUP; }).sort();
+        var cols = bigTeams.map(function (t) { return { key: t, label: t, rows: byTeam[t] }; });
+        var pooledRows = [];
+        smallTeams.forEach(function (t) { pooledRows = pooledRows.concat(byTeam[t]); });
+        // pooled together IF the pool itself clears the bar; a pool of one is just the
+        // hidden team wearing a different hat. Otherwise no column, and the footnote says
+        // whose answers are therefore only inside Everyone.
+        if (pooledRows.length >= MIN_GROUP) {
+          cols.push({ key: "__pool__", label: smallTeams.join(" + "), rows: pooledRows, pooled: true });
+          smallTeams = [];
+        }
+        /* WHO HAS ACTUALLY FILLED IT IN. The tab could not answer this at all: a team
+           with no responses is invisible in `individuals` by construction, so the silence of
+           an entire department -- the thing most worth chasing -- was the one thing the
+           statistics could not show. */
+        var cats2 = (S.sub && S.sub.cats) || [];
+        if (cats2.length) {
+          var tp = cats2.reduce(function (a, c2) {
+            a.people += c2.people; a.started += c2.started; a.submitted += c2.submitted;
+            return a;
+          }, { people: 0, started: 0, submitted: 0 });
+          var notStarted = Math.max(0, tp.people - tp.started - tp.submitted);
+          var pctOf = function (n, d) { return d ? Math.round(n / d * 100) : 0; };
+          html += '<div class="hq-card"><h4>' + esc(RS_().whoFilled) + "</h4>"
+            + '<div class="hq-part">'
+            + "<div><div class=\"hq-donut\">"
+            + donut([{ v: tp.submitted, color: "var(--pos)" },
+                     { v: tp.started, color: "var(--warn)" },
+                     { v: notStarted, color: "var(--line)" }], 200, 26)
+            + '<div class="mid"><b>' + pctOf(tp.submitted + tp.started, tp.people) + "%</b>"
+            + "<span>" + esc(RS_().haveAnswered) + "</span></div></div>"
+            + '<div class="hq-lgd">'
+            + '<span><i style="background:var(--pos)"></i>' + esc(RS_().submitted) + " " + tp.submitted + "</span>"
+            + '<span><i style="background:var(--warn)"></i>' + esc(RS_().stillWriting) + " " + tp.started + "</span>"
+            + '<span><i style="background:var(--line)"></i>' + esc(RS_().notOpened) + " " + notStarted + "</span>"
+            + "</div></div>"
+            + '<div class="hq-teams">'
+            + cats2.slice().sort(function (a, b) {
+                return (b.submitted + b.started) / (b.people || 1) - (a.submitted + a.started) / (a.people || 1);
+              }).map(function (c2) {
+                var got = c2.submitted + c2.started, left = Math.max(0, c2.people - got);
+                var dc3 = deptColor(c2.category);
+                return '<div class="hq-tm"><div class="ring">'
+                  + donut([{ v: got, color: dc3 }, { v: left, color: "var(--line)" }], 96, 13)
+                  + "<b>" + pctOf(got, c2.people) + "%</b></div>"
+                  + '<div class="nm">' + esc(c2.category) + "</div>"
+                  + '<div class="ct">' + got + " / " + c2.people + "</div></div>";
+              }).join("")
+            + "</div></div></div>";
+        }
+
+        if (scales.length && cols.length) {
+          // a score painted on the pos→neg ramp the portal already speaks in
+          var cellStyle = function (norm) {
+            if (norm == null) return "";
+            var g = Math.round(norm * 100);
+            var col = norm >= 0.8 ? "var(--pos)" : norm >= 0.6 ? "var(--warn)" : "var(--neg)";
+            var bg = norm >= 0.8 ? "var(--pos-bg)" : norm >= 0.6 ? "var(--warn-bg)" : "var(--neg-bg)";
+            return 'style="background:' + bg + ";color:" + col + '"';
+          };
+          html += '<div class="hq-card"><h4>' + esc(RS_().byTeam) + "</h4>"
+            + '<div class="hq-dim" style="margin:-4px 0 12px">' + esc(RS_().byTeamNote) + "</div>"
+            + '<div class="rs-tablewrap" style="border:0"><table class="hq-mx"><thead><tr>'
+            + '<th class="q"></th>'
+            + cols.map(function (c) {
+                return "<th>" + esc(c.label) + '<div class="hq-n">'
+                  + esc(RS_().nAnswered(c.rows.length)) + "</div></th>";
+              }).join("")
+            + "<th>" + esc(RS_().everyone) + '<div class="hq-n">'
+            + esc(RS_().nAnswered(answered.length)) + "</div></th>"
+            + "</tr></thead><tbody>"
+            + scales.map(function (qq) {
+                return '<tr><td class="q">' + esc(tx(qq, "label")) + "</td>"
+                  + cols.map(function (c) {
+                      var ns = numsOf(qq, c.rows), m = meanOf(ns);
+                      if (ns.length < MIN_CELL) {
+                        return '<td><span class="cell hid">' + esc(RS_().tooFew) + "</span></td>";
+                      }
+                      // the mean AND what it rests on, in the cell: "8.6" over "from 10"
+                      return "<td><span class=\"cell\" " + cellStyle(normOf(qq, c.rows)) + ">"
+                        + m.toFixed(1) + '<i class="cn">' + RS_().fromN(ns.length) + "</i></span></td>";
+                    }).join("")
+                  + (function () {
+                      var ns2 = numsOf(qq, answered), m2 = meanOf(ns2);
+                      return ns2.length < MIN_CELL
+                        ? '<td><span class="cell hid">' + esc(RS_().tooFew) + "</span></td>"
+                        : "<td><span class=\"cell\" " + cellStyle(normOf(qq, answered)) + ">"
+                          + m2.toFixed(1) + '<i class="cn">' + RS_().fromN(ns2.length) + "</i></span></td>";
+                    })()
+                  + "</tr>";
+              }).join("")
+            + "</tbody>"
+            + (smallTeams.length
+                ? '<tfoot><tr><td colspan="' + (cols.length + 2) + '">'
+                  + esc(RS_().pooled(smallTeams.map(function (t) {
+                      return t + " (" + byTeam[t].length + ")"; }).join(", ")))
+                  + "</td></tr></tfoot>" : "")
+            + "</table></div></div>";
+        }
+
+        /* THE QUESTIONS, UNDER THE FORM'S OWN FOUR PARTS. The sections were thrown away
+           here -- filtered out as "layout, not data" -- so a form the team reads as four
+           named chapters was read back as fourteen loose cards. The chapter names are the
+           only grouping the author gave; using them costs nothing and restores the shape. */
+        var grouped = [], cur = null;
+        R.questions.filter(function (x) { return x.active; }).forEach(function (x) {
+          if (x.qtype === "section") { cur = { sec: x, items: [] }; grouped.push(cur); return; }
+          if (!cur) { cur = { sec: null, items: [] }; grouped.push(cur); }
+          cur.items.push(x);
+        });
+        html += grouped.filter(function (g) {
+          return g.items.some(function (qq) {
+            return qq.qtype !== "scale" && qq.qtype !== "stars5";
+          });
+        }).map(function (g) {
+          return (g.sec ? '<div class="hq-secdiv">' + esc(tx(g.sec, "label")) + "</div>" : "")
+            + '<div class="hq-resgrid">' + g.items.filter(function (qq) {
+              // a scale already has a row in the matrix, with its mean, its per-team means
+              // and the count each rests on. Drawing it again below is the repetition.
+              return qq.qtype !== "scale" && qq.qtype !== "stars5";
+            }).map(function (qq) {
           var vals = view.map(function (r) { return r.answers[qq.id]; })
             .filter(function (v) { return v != null && v !== ""; });
           var inner;
@@ -2314,6 +2821,30 @@ registerPage({
                 }
               });
             });
+            /* A SHARE OF PEOPLE, drawn as one. A single-choice question is exactly the
+               shape a pie is for -- parts of one whole -- where a bar list asked the reader
+               to add the numbers up themselves. Multi-choice keeps bars: its parts overlap,
+               so they are not a whole and a pie of them would be a lie. */
+            var PIE = ["var(--pos)", "var(--brand)", "var(--warn)", "var(--blue)", "var(--neg)",
+                       "var(--muted)"];
+            var opts2 = (qq.options || []).filter(function (o) { return counts2[o] > 0; });
+            if (qq.qtype !== "multi" && opts2.length && vals.length) {
+              inner = '<div class="hq-part" style="grid-template-columns:170px 1fr">'
+                + "<div><div class=\"hq-donut\" style=\"width:150px;height:150px\">"
+                + donut(opts2.map(function (o, i) {
+                    return { v: counts2[o], color: PIE[i % PIE.length] };
+                  }), 150, 22)
+                + '<div class="mid"><b>' + vals.length + "</b><span>"
+                + esc(RS_().nAnswered(vals.length)).replace(/^\d+\s*/, "") + "</span></div></div></div>"
+                + "<div>" + opts2.map(function (o, i) {
+                    return '<div class="hq-bar" style="grid-template-columns:14px 1fr 74px">'
+                      + '<span><i style="display:inline-block;width:9px;height:9px;border-radius:3px;'
+                      + "background:" + PIE[i % PIE.length] + '"></i></span>'
+                      + "<span>" + esc(tOpt(qq, o)) + "</span>"
+                      + '<span class="n">' + counts2[o] + " · "
+                      + Math.round(counts2[o] / vals.length * 100) + "%</span></div>";
+                  }).join("") + "</div></div>";
+            } else {
             var mx2 = Math.max.apply(null, Object.keys(counts2).map(function (k) { return counts2[k]; }).concat([1]));
             inner = '<div class="hq-dim" style="margin-bottom:6px">' + esc(RS_().answers(vals.length))
               + (qq.qtype === "multi" ? " · " + esc(RS_().several) : "") + "</div>"
@@ -2328,20 +2859,93 @@ registerPage({
                   ? '<div class="hq-dim" style="margin-top:7px">' + esc(RS_().otherWords)
                     + otherTexts.slice(0, 12).map(esc).join(" · ")
                     + (otherTexts.length > 12 ? " …" : "") + "</div>" : "");
+            }
           } else {
+            /* A QUOTE THAT OPENS ITS RESPONSE. Reading one sentence and wanting the rest
+               of that person's form is the commonest move on this tab, and it used to be a
+               dead end. The label is the team, never a name -- and it is the same
+               "Anonymous N" the board and the response view use, so the three agree. */
             inner = vals.length
               ? view.filter(function (r) { return r.answers[qq.id]; }).map(function (r) {
-                  return '<div class="hq-txt">' + esc(r.answers[qq.id])
-                    + '<div class="who">' + esc(r.name || r.email) + (r.department ? " · " + esc(r.department) : "") + "</div></div>";
+                  var canOpen = r.rid != null;
+                  return '<div class="hq-txt' + (canOpen ? " click" : "")
+                    + (canOpen ? '" data-openrid="' + r.rid + '" title="'
+                        + esc(RS_().openResponse) : '"') + '">'
+                    + esc(r.answers[qq.id])
+                    + '<div class="who"><b>' + esc(r.name || r.email) + "</b>"
+                    + (r.department ? " · " + esc(r.department) : "") + "</div></div>";
                 }).join("")
               : '<div class="hq-dim">' + esc(RS_().noneYet) + "</div>";
           }
-          return '<div class="hq-card"><h4>' + esc(tx(qq, "label"))
-            + ' <span class="hq-dim" style="font-weight:600">' + esc(typeLabel(qq.qtype))
-            + "</span></h4>" + inner + "</div>";
+          /* THE NUMBER LEADS. A card whose title is a sentence and whose score is buried
+             three lines down makes fourteen cards look identical; the count of answers sits
+             beside it because on a survey still arriving, n is half the meaning. */
+          var nHere = (function () {
+            if (qq.qtype === "scale" || qq.qtype === "stars5") return numsOf(qq, view).length;
+            return view.filter(function (r) {
+              var v = r.answers[qq.id]; return v != null && v !== "";
+            }).length;
+          })();
+          var lead = "";
+          if (qq.qtype === "scale" || qq.qtype === "stars5") {
+            var mHere = meanOf(numsOf(qq, view));
+            lead = '<div class="rt"><div class="hq-score">'
+              + (mHere == null ? "—" : mHere.toFixed(1))
+              + "<small>/" + scaleHi(qq) + "</small></div>"
+              + '<div class="hq-n">' + esc(RS_().nAnswered(nHere)) + "</div></div>";
+          } else {
+            lead = '<div class="rt"><div class="hq-n">' + esc(RS_().nAnswered(nHere)) + "</div></div>";
+          }
+          return '<div class="hq-card"><div class="hq-qhd"><div class="lb">'
+            + esc(tx(qq, "label")) + "</div>" + lead + "</div>" + inner + "</div>";
         }).join("") + "</div>";
+        }).join("");
       }
       body.innerHTML = html;
+
+      /* THE HEADLINE, through the kit's own tiles. The four it replaces were: the audience
+         size (a number he chose himself when building it), submitted and completion (the
+         same fact twice), and "reopened / pending" -- which is computed as a difference that
+         can only ever be zero, and so read "nothing pending" while nine people were mid-form. */
+      var kp = body.querySelector("#hrKpis");
+      if (kp && window.RSC && RSC.kpis) {
+        var tiles = [{
+          label: RS_().voices, value: String(answered.length),
+          sub: RS_().ofInvited(R.audience_size) + " · "
+               + RS_().finishedWriting(subs.length, writing),
+        }];
+        if (overallQ && overallN.length >= MIN_CELL) {
+          tiles.push({
+            label: tx(overallQ, "label").slice(0, 34), value: overallM.toFixed(1) + " / " + scaleHi(overallQ),
+            tone: normOf(overallQ, view) >= 0.8 ? "pos" : normOf(overallQ, view) >= 0.6 ? "warn" : "neg",
+            sub: RS_().range(Math.min.apply(null, overallN), Math.max.apply(null, overallN)),
+          });
+        }
+        if (ranked.length) {
+          var lo4 = ranked[0], hi4 = ranked[ranked.length - 1];
+          tiles.push({ label: RS_().weakest, value: lo4.mean.toFixed(1) + " / " + scaleHi(lo4.q),
+                       tone: "neg", sub: tx(lo4.q, "label").slice(0, 46) });
+          if (hi4 !== lo4) {
+            tiles.push({ label: RS_().strongest, value: hi4.mean.toFixed(1) + " / " + scaleHi(hi4.q),
+                         tone: "pos", sub: tx(hi4.q, "label").slice(0, 46) });
+          }
+        }
+        tiles.push({
+          label: RS_().teamsHeard,
+          value: (allTeams.length - silent.length) + " / " + allTeams.length,
+          tone: silent.length ? "warn" : "pos",
+          sub: silent.length ? RS_().notStartedYet(silent.join(", ")) : "",
+        });
+        RSC.kpis(kp, tiles);
+      }
+
+      body.querySelectorAll("[data-openrid]").forEach(function (el4) {
+        el4.onclick = function () {
+          S.subOpen = "#" + el4.dataset.openrid;
+          S.qtab = "submissions";
+          go();
+        };
+      });
       hqWireLang(body, "hrResLang", function () { paintResults(body); });
       var pb2 = body.querySelector("#hrPrint2");
       if (pb2) pb2.onclick = function () {
