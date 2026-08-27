@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Zip to Zip — Request</title>
+<style>
+  /* Standalone on purpose, like form.html: the people using this link have no portal
+     login and load no shell. One column, phone-first, brand green. */
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: Arial, Helvetica, sans-serif; background: #f2f4f7; color: #16202c;
+         min-height: 100vh; display: flex; justify-content: center; padding: 24px 14px; }
+  .card { width: 100%; max-width: 560px; background: #fff; border-radius: 14px;
+          padding: 26px 24px; box-shadow: 0 6px 24px rgba(16,24,40,.08); height: fit-content; }
+  h1 { font-size: 20px; margin-bottom: 4px; }
+  .sub { font-size: 13px; color: #5b6b7c; margin-bottom: 20px; line-height: 1.5; }
+  label { display: block; font-size: 11px; font-weight: 700; letter-spacing: .05em;
+          text-transform: uppercase; color: #8593a3; margin: 14px 0 5px; }
+  input, select, textarea { width: 100%; font-family: inherit; font-size: 15px;
+          border: 1px solid #d5dbe3; border-radius: 9px; padding: 10px 12px; outline: 0;
+          background: #fff; }
+  input:focus, select:focus, textarea:focus { border-color: #7fa32b; }
+  textarea { min-height: 110px; resize: vertical; }
+  .row { display: flex; gap: 10px; }
+  .row > div { flex: 1; }
+  button { margin-top: 20px; width: 100%; background: #7fa32b; color: #fff; border: 0;
+           border-radius: 10px; font-size: 16px; font-weight: 700; padding: 13px;
+           cursor: pointer; }
+  button:disabled { opacity: .6; cursor: default; }
+  .msg { margin-top: 14px; font-size: 14px; line-height: 1.5; }
+  .msg.err { color: #b42318; }
+  .done { text-align: center; padding: 30px 6px; }
+  .done h2 { font-size: 20px; margin-bottom: 8px; }
+  .done p { font-size: 14px; color: #5b6b7c; line-height: 1.6; }
+</style>
+</head>
+<body>
+<div class="card" id="card">
+  <h1>Request something</h1>
+  <p class="sub">Tell us what you need — it lands directly on the right team's board and you
+  can ask your manager about its status any time.</p>
+  <div id="form" style="display:none">
+    <label>Your name</label>
+    <select id="who"><option value="">— pick your name —</option></select>
+    <label>Which team is this for?</label>
+    <select id="dept"></select>
+    <label>What do you need? (short title)</label>
+    <input id="title" maxlength="200" placeholder="e.g. New tablet for the crew">
+    <label>Details</label>
+    <textarea id="desc" maxlength="8000"
+      placeholder="Describe it so the team can act without calling you back."></textarea>
+    <div class="row">
+      <div>
+        <label>Priority</label>
+        <select id="prio"></select>
+      </div>
+      <div>
+        <label>Job # (optional)</label>
+        <input id="job" maxlength="60" placeholder="if about a specific job">
+      </div>
+    </div>
+    <button id="send">Send request</button>
+    <div class="msg err" id="err"></div>
+  </div>
+  <div class="msg" id="boot">Loading…</div>
+</div>
+<script>
+(function () {
+  var API = "https://ztz-bridge-32168089642.us-east4.run.app";
+  var t = new URLSearchParams(location.search).get("t") || "";
+  var $ = function (id) { return document.getElementById(id); };
+
+  function fill(sel, list, keep) {
+    list.forEach(function (v) {
+      var o = document.createElement("option");
+      o.value = v; o.textContent = v; sel.appendChild(o);
+    });
+    if (keep) sel.value = keep;
+  }
+
+  fetch(API + "/api/_workreq?t=" + encodeURIComponent(t))
+    .then(function (r) { return r.json().then(function (j) { return r.ok ? j : Promise.reject(j); }); })
+    .then(function (j) {
+      fill($("who"), j.names);
+      fill($("dept"), j.departments);
+      fill($("prio"), j.priorities, "Medium");
+      $("boot").style.display = "none";
+      $("form").style.display = "";
+    })
+    .catch(function () {
+      $("boot").textContent = "This link is not valid. Ask for a fresh request link.";
+    });
+
+  $("send").onclick = function () {
+    $("err").textContent = "";
+    var b = $("send"); b.disabled = true;
+    fetch(API + "/api/_workreq", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        t: t, name: $("who").value, department: $("dept").value,
+        title: $("title").value.trim(), description: $("desc").value.trim(),
+        priority: $("prio").value, job_no: $("job").value.trim(),
+      }),
+    }).then(function (r) { return r.json().then(function (j) { return r.ok && !j.error ? j : Promise.reject(j); }); })
+      .then(function () {
+        $("card").innerHTML = '<div class="done"><h2>Request sent ✔</h2>' +
+          "<p>It is on the team's board now. You can send another one any time " +
+          "from this same link.</p></div>";
+      })
+      .catch(function (j) {
+        b.disabled = false;
+        $("err").textContent = (j && j.error) || "Could not send — try again.";
+      });
+  };
+})();
+</script>
+</body>
+</html>

@@ -171,7 +171,7 @@ const GROUP_OVERRIDE = {
   "promised-reviews": "marketing",
   "referral-candidates": "marketing",
   // Company Overview
-  "monthly-report": "company", "analysis-by-category": "company",
+  "monthly-report": "company", "analysis-by-category": "company", "work": "company",
   // Sales ("sales-geo" moved to Financial — Tornike 2026-07-13: geography is a money view)
   "sales-funnel": "sales", "sales-perf": "sales", "sales-geo": "financial", "demand-analysis": "sales", "sales-command": "sales",
   "conversations": "sales", "sales-comms": "sales", "sales-trackers": "sales",
@@ -196,7 +196,7 @@ const GROUP_OVERRIDE = {
 const groupOf = p => GROUP_OVERRIDE[p.id] || p.group;
 /* explicit per-container item order (numbers are scoped within each group's display list) */
 const NAV_ORDER = {
-  "monthly-report": 1, "analysis-by-category": 2,
+  "monthly-report": 1, "analysis-by-category": 2, "work": 0.5,
   "sales-command": 0.5, "conversations": 0.7, "sales-comms": 0.8, "sales-trackers": 0.9, "sales-funnel": 1, "sales-perf": 2, "demand-analysis": 5,
   "mkt-roi": 1, "mkt-sources": 2, "mkt-phone": 3,
   "money-flow": 1, "foreman-closings": 2, "ld-planning": 3, "packing-control": 4, "storage-control": 5, "foreman-assessment": 6, "fuel-control": 7, "foreman-late": 7.5, "log-foreman": 8, "log-packing": 9,
@@ -264,7 +264,7 @@ const PAGE_ICONS = {
   "foreman-closings": "receipt",
   "labor-analysis": "activity",
   "post-card-analysis": "megaphone",
-  "monthly-report": "spark",
+  "monthly-report": "spark", "work": "clipboard",
   "angi-vs-moveboard": "compass", "reviews-team": "star", "support-team": "shield", "lead-source-analysis": "compass", "source-analysis": "compass", "movers-analysis": "megaphone",
   "financial-team": "trend", "sales-team": "user", "marketing-team": "megaphone", "logistics-team": "tool",
   // themed dashboards + settings (2026-07-09 restructure)
@@ -673,6 +673,7 @@ const PAGE_DATASETS = {
   "sales-command": ["lead_journey"],
   // [] on purpose: this page searches by customer, not by date — everything comes
   // from the gated _conv* endpoints, so the global slicers have nothing to act on.
+  "work": [],               // everything moves through /api/_work; no global slicers
   "conversations": [],
   "sales-comms": ["mart_sales_call_score"],
   "sales-trackers": [],      // loads its own eval + score tables; verdicts ignore the global bar
@@ -1064,6 +1065,7 @@ const SEARCH_ALIASES = {
   // Settings
   "data-quality": "data quality freshness completeness health integrity checks",
   "refresh-log": "refresh log pipeline curation raw source timing history update run duration",
+  "work": "work projects tasks tickets requests board kanban monday inbox triage todo assignments team",
   "sales-command": "sales person analysis sales team command lead journey 360 explorer call history timeline salesperson rep profile lead file important",
   "conversations": "conversations transcripts call recording ringsense what was said customer chat sms text thread talk speech summary",
   "sales-comms": "sales communication analysis call quality coaching rubric checklist what was said discovery deposit close objection talk ratio rep performance ringsense",
@@ -1508,6 +1510,7 @@ const REPORT_LABELS = {
   "hr-directory": "Team Directory",
   // Sales
   "conversations": "Conversations (call transcripts)",
+  "work": "Work",
   "sales-comms": "Sales Communication Analysis",
   "sales-trackers": "Sales AI Trackers",
   // Customer Service
@@ -1583,17 +1586,17 @@ const aclIconFor = id => (MERGED.find(m => m.id === id) || {}).icon ||
    scripts/check_acl_mirror.py now fails the build on any divergence. Run it before an
    analytics or bridge deploy. */
 const ACL_DEPTS = [
-  { id: "company",   label: "Company Overview", icon: "spark",     reports: ["monthly-report", "analysis-by-category"] },
-  { id: "sales",     label: "Sales",            icon: "funnel",    reports: ["sales-command", "demand-analysis", "conversations", "sales-comms", "sales-trackers"] },
-  { id: "marketing", label: "Marketing",        icon: "megaphone", reports: ["source-trace", "referral-candidates", "jobs-by-area", "relocation-trends", "angi-funnel", "promised-reviews"] },
-  { id: "logistics", label: "Logistics",        icon: "tool",      reports: ["money-flow", "ld-planning", "foreman-closings", "packing-control", "storage-control", "foreman-assessment", "fuel-control", "foreman-late", "straight-vs-local", "area-plan"] },
+  { id: "company",   label: "Company Overview", icon: "spark",     reports: ["work", "monthly-report", "analysis-by-category"] },
+  { id: "sales",     label: "Sales",            icon: "funnel",    reports: ["work", "sales-command", "demand-analysis", "conversations", "sales-comms", "sales-trackers"] },
+  { id: "marketing", label: "Marketing",        icon: "megaphone", reports: ["work", "source-trace", "referral-candidates", "jobs-by-area", "relocation-trends", "angi-funnel", "promised-reviews"] },
+  { id: "logistics", label: "Logistics",        icon: "tool",      reports: ["work", "money-flow", "ld-planning", "foreman-closings", "packing-control", "storage-control", "foreman-assessment", "fuel-control", "foreman-late", "straight-vs-local", "area-plan"] },
   // MUST mirror DEPT_REPORTS["hr"] in bridge/app.py. Employees answering the questionnaire
   // need NO grant at all — this tile is for HR: managing it and reading the results.
-  { id: "hr",        label: "Human Resources", icon: "user",      reports: ["hr-questionnaire", "hr-responses", "hr-directory"] },
-  { id: "customer-service", label: "Customer Service", icon: "calendar", reports: ["cleanup"] },
-  { id: "financial", label: "Financial",        icon: "trend",     reports: ["branch-owner", "cl-analysis"] },
-  { id: "reviews",   label: "Reviews",          icon: "star",      reports: ["review-performance", "reviews-reminders", "response-analysis", "review-settings"] },
-  { id: "explorer",  label: "Data Explorer — the separate Data Management app", icon: "archive", reports: ["explorer"] },
+  { id: "hr",        label: "Human Resources", icon: "user",      reports: ["work", "hr-questionnaire", "hr-responses", "hr-directory"] },
+  { id: "customer-service", label: "Customer Service", icon: "calendar", reports: ["work", "cleanup"] },
+  { id: "financial", label: "Financial",        icon: "trend",     reports: ["work", "branch-owner", "cl-analysis"] },
+  { id: "reviews",   label: "Reviews",          icon: "star",      reports: ["work", "review-performance", "reviews-reminders", "response-analysis", "review-settings"] },
+  { id: "explorer",  label: "Data Explorer — the separate Data Management app", icon: "archive", reports: ["work", "explorer"] },
 ];
 /* ADMINISTRATION is granted as a tile like everything else (Tornike 2026-07-27), but it is
    NOT a department — ticking it sets is_admin, i.e. every report plus the admin pages. It is
@@ -1801,6 +1804,7 @@ registerPage({
 <script src="pages/sales-team.js?v=47"></script>
 <script src="pages/sales-comms.js?v=3"></script>
 <script src="pages/sales-trackers.js?v=4"></script>
+<script src="pages/work.js?v=1"></script>
 <script src="pages/conversations.js?v=9"></script>
 <script src="pages/source-trace.js?v=22"></script>
 <script src="pages/meta-referrals.js?v=2"></script>
