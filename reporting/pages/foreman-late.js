@@ -241,12 +241,13 @@
           // to make a bad number go away by writing a sentence under it.
           r.excused = !!v && v.Verdict !== "ours";
           // THE SLACK DECISION is separate from the explanation above: Confirm/Dismiss in
-          // the daily digest channel is what Foreman of the Month reads, and only a
-          // CONFIRMED morning-window lateness costs points.
+          // the daily digest channel is what Foreman of the Month reads. THE DEFAULT IS
+          // COUNTED (his reversal, 2026-08-27): a morning-window lateness costs points
+          // unless somebody pressed Dismiss; Confirm affirms, it is not required.
           const a = (S.adj || {})[r.key];
           r.adj = a ? String(a.Action || "") : null;
           r.adjBy = a ? String(a["Decided By"] || "") : null;
-          r.counts = r.isLate && r.morning && r.adj === "confirmed";
+          r.counts = r.isLate && r.morning && r.adj !== "dismissed";
           return r;
         }
 
@@ -405,20 +406,20 @@
                         ? ' <span class="rs-pill warn">window rewritten by the board</span>'
                         : ""))
                 + (r.suspect ? ' <span class="rs-pill mute">looks rescheduled</span>' : "")
-                /* WHAT THE MONTH WILL READ. Confirmed = counts in Foreman of the Month;
-                   dismissed = our side caused it; a late MORNING job nobody has pressed a
-                   button on yet is awaiting the Slack digest; an afternoon window never
-                   costs points at all (his rule, 2026-08-27). */
+                /* WHAT THE MONTH WILL READ. THE DEFAULT IS COUNTED (his reversal,
+                   2026-08-27): every morning-window lateness costs Foreman-of-the-Month
+                   points unless somebody pressed Dismiss in the Slack digest. Confirm
+                   affirms it; an afternoon window never costs points at all. */
                 + (r.isLate
-                    ? (r.adj === "confirmed"
-                        ? ' <span class="rs-pill bad">counts for FotM'
+                    ? (r.adj === "dismissed"
+                        ? ' <span class="rs-pill mute">dismissed — our side'
                           + (r.adjBy ? " · " + esc(r.adjBy) : "") + "</span>"
-                        : r.adj === "dismissed"
-                          ? ' <span class="rs-pill mute">dismissed — our side'
-                            + (r.adjBy ? " · " + esc(r.adjBy) : "") + "</span>"
-                          : r.morning
-                            ? ' <span class="rs-pill info">awaiting Slack review</span>'
-                            : ' <span class="rs-pill mute">afternoon — stats only</span>')
+                        : !r.morning
+                          ? ' <span class="rs-pill mute">afternoon — stats only</span>'
+                          : r.adj === "confirmed"
+                            ? ' <span class="rs-pill bad">counts for FotM · confirmed'
+                              + (r.adjBy ? " by " + esc(r.adjBy) : "") + "</span>"
+                            : ' <span class="rs-pill warn">counts for FotM unless dismissed</span>')
                     : "")
                 + (r.claimsN
                     ? ' <span class="rs-pill ' + (r.claimLate ? "bad" : "warn") + '" title="'
