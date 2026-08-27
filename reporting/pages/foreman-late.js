@@ -414,12 +414,19 @@
                     ? (r.adj === "dismissed"
                         ? ' <span class="rs-pill mute">dismissed — our side'
                           + (r.adjBy ? " · " + esc(r.adjBy) : "") + "</span>"
+                          /* THE UNDO: puts a struck lateness back to counting */
+                          + ' <button class="fla-ask" data-adj="' + esc(r.key)
+                          + '" data-act="confirmed">undo</button>'
                         : !r.morning
                           ? ' <span class="rs-pill mute">afternoon — stats only</span>'
-                          : r.adj === "confirmed"
-                            ? ' <span class="rs-pill bad">counts for FotM · confirmed'
-                              + (r.adjBy ? " by " + esc(r.adjBy) : "") + "</span>"
-                            : ' <span class="rs-pill warn">counts for FotM unless dismissed</span>')
+                          : (r.adj === "confirmed"
+                              ? ' <span class="rs-pill bad">counts for FotM · confirmed'
+                                + (r.adjBy ? " by " + esc(r.adjBy) : "") + "</span>"
+                              : ' <span class="rs-pill warn">counts for FotM</span>')
+                            /* THE WEB TWIN of the Slack button (his ask): the default is
+                               counted, so the only action on offer is the strike */
+                            + ' <button class="fla-ask" data-adj="' + esc(r.key)
+                            + '" data-act="dismissed">doesn&#39;t count?</button>')
                     : "")
                 + (r.claimsN
                     ? ' <span class="rs-pill ' + (r.claimLate ? "bad" : "warn") + '" title="'
@@ -675,6 +682,28 @@
             });
         }
 
+        /* THE WEB TWIN of the Slack Dismiss — same ledger, Source='portal'. Patch what we
+           hold rather than re-pulling: the decision is ours and the mart knows nothing of
+           it. A failed save turns the button into its own error message, because these
+           buttons live outside the answer form and its message slot. */
+        function saveAdj(key, action, btn) {
+          const was = btn ? btn.textContent : "";
+          if (btn) { btn.disabled = true; btn.textContent = "…"; }
+          api("/api/_lateadj", { method: "POST",
+                                 body: JSON.stringify({ job_key: key, action: action }) })
+            .then(j => {
+              S.adj[key] = { "Job Key": key, Action: action,
+                             "Decided By": String(j.by || "you").split("@")[0], "Is Current": 1 };
+              const r = rowFor(key);
+              if (r) decorate(r);
+              repaintAll();
+            })
+            .catch(() => {
+              if (btn) { btn.disabled = false; btn.textContent = "failed — retry"; }
+              setTimeout(() => { if (btn && btn.textContent === "failed — retry") btn.textContent = was; }, 2500);
+            });
+        }
+
         function repaintRows() {
           if (!alive() || !last) return;
           const tb = host.querySelector("#flaBody");
@@ -730,6 +759,9 @@
           };
           if (tb) tb.onclick = e => {
             if (e.target.closest("a")) return;      // a link opens a job; it does not toggle
+
+            const adj = e.target.closest("[data-adj]");
+            if (adj) { saveAdj(adj.dataset.adj, adj.dataset.act, adj); return; }
 
             const ask = e.target.closest("[data-explain]");
             if (ask) {
