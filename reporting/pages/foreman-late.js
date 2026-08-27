@@ -38,7 +38,19 @@
              // the line. `Original Deadline` is what the customer had before we touched it.
              "Chained", "Chain Source", "Chained Behind", "Window Rewritten",
              "Originally Strict", "Original Deadline", "Late Minutes vs Original",
-             "On Time Only After Rewrite"],
+             "On Time Only After Rewrite",
+             // THE SCORING BOUNDARY + THE CLAIM TRAIL (2026-08-27): only a morning window
+             // can cost Foreman-of-the-Month points, and a claim on a late job is part of
+             // its story — reasons shown, lateness-worded ones flagged.
+             "Morning Window", "Claims N", "Claim Reasons", "Claim Cites Lateness"],
+    };
+  }
+  // The Slack Confirm/Dismiss ledger — which latenesses actually count for Foreman of the
+  // Month. Written ONLY by the Slack buttons on the daily digest; read-only here.
+  if (window.RS && RS.DATASETS && !RS.DATASETS.late_adj) {
+    RS.DATASETS.late_adj = {
+      table: "late_adjudication",
+      cols: ["Job Key", "Action", "Decided By", "Entered At", "Is Current"],
     };
   }
 })();
@@ -172,9 +184,16 @@
           reviewError = e.message || String(e);
           return { reviews: [] };
         }),
-      ]).then(([rows, rev]) => {
+        // the Slack ledger arriving empty is a real state (nothing decided yet), and a
+        // failed fetch must not sink the page — the pills just show "awaiting review"
+        RS.load("late_adj").catch(() => []),
+      ]).then(([rows, rev, adj]) => {
         S.reviews = {};
         (rev.reviews || []).forEach(x => { S.reviews[x["Job Key"]] = x; });
+        S.adj = {};
+        (adj || []).forEach(x => {
+          if (+x["Is Current"]) S.adj[x["Job Key"]] = x;
+        });
         return rows;
       }).then(rows => {
         if (!alive()) return;
@@ -192,6 +211,10 @@
           r.rescued = !!(+r["On Time Only After Rewrite"]);
           r.origLate = r["Late Minutes vs Original"] == null
             ? null : +r["Late Minutes vs Original"];
+          r.morning = !!(+r["Morning Window"]);
+          r.claimsN = +r["Claims N"] || 0;
+          r.claimWhy = r["Claim Reasons"] || "";
+          r.claimLate = !!(+r["Claim Cites Lateness"]);
           r.key = jobKey(r);
           decorate(r);
           return r;
@@ -217,6 +240,13 @@
           // entirely the crew's fault; it has to keep counting, or this feature becomes a way
           // to make a bad number go away by writing a sentence under it.
           r.excused = !!v && v.Verdict !== "ours";
+          // THE SLACK DECISION is separate from the explanation above: Confirm/Dismiss in
+          // the daily digest channel is what Foreman of the Month reads, and only a
+          // CONFIRMED morning-window lateness costs points.
+          const a = (S.adj || {})[r.key];
+          r.adj = a ? String(a.Action || "") : null;
+          r.adjBy = a ? String(a["Decided By"] || "") : null;
+          r.counts = r.isLate && r.morning && r.adj === "confirmed";
           return r;
         }
 
@@ -375,6 +405,27 @@
                         ? ' <span class="rs-pill warn">window rewritten by the board</span>'
                         : ""))
                 + (r.suspect ? ' <span class="rs-pill mute">looks rescheduled</span>' : "")
+                /* WHAT THE MONTH WILL READ. Confirmed = counts in Foreman of the Month;
+                   dismissed = our side caused it; a late MORNING job nobody has pressed a
+                   button on yet is awaiting the Slack digest; an afternoon window never
+                   costs points at all (his rule, 2026-08-27). */
+                + (r.isLate
+                    ? (r.adj === "confirmed"
+                        ? ' <span class="rs-pill bad">counts for FotM'
+                          + (r.adjBy ? " · " + esc(r.adjBy) : "") + "</span>"
+                        : r.adj === "dismissed"
+                          ? ' <span class="rs-pill mute">dismissed — our side'
+                            + (r.adjBy ? " · " + esc(r.adjBy) : "") + "</span>"
+                          : r.morning
+                            ? ' <span class="rs-pill info">awaiting Slack review</span>'
+                            : ' <span class="rs-pill mute">afternoon — stats only</span>')
+                    : "")
+                + (r.claimsN
+                    ? ' <span class="rs-pill ' + (r.claimLate ? "bad" : "warn") + '" title="'
+                      + esc(r.claimWhy) + '">' + r.claimsN + " claim"
+                      + (r.claimsN === 1 ? "" : "s")
+                      + (r.claimLate ? " · cites lateness" : "") + "</span>"
+                    : "")
               + "</td>"
               + "<td>" + whyCell(r) + "</td>"
               + '<td class="nowrap">' + links + "</td></tr>"

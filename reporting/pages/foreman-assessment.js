@@ -43,7 +43,10 @@
              // questions its rubric asked and for how many points, and whether the man
              // was rated on all of them.
              "Counted Total", "Questions In Rubric", "Manual Total", "Fully Assessed",
-             "Claims Charged"],
+             "Claims Charged",
+             // the 2026-09 model: the Late topic (confirmed morning latenesses, -2.5 each
+             // out of 10) and the marker that says which model a month was scored under
+             "Late Charged", "Late Score", "Model Version"],
     };
   }
 })();
@@ -94,7 +97,15 @@ registerPage({
         raw: "Claims Charged", fmt: "int" },
     ];
     const AUTO_V1 = AUTO_V2.map(a => a.k === "Review Score" ? Object.assign({}, a, { w: 20 }) : a);
-    const autoFor = f => (num(f["Counted Total"]) === 70 ? AUTO_V1 : AUTO_V2);
+    // V3 (2026-09 on): packing hands 10 of its 30 to a Late topic — confirmed morning
+    // latenesses from the daily Slack digest, -2.5 each out of 10, floor 0 at four. The
+    // count shown is `Late Charged`: only what the channel CONFIRMED, never raw lateness.
+    const AUTO_V3 = AUTO_V2.map(a => a.k === "Packing per 100 CF Score"
+      ? Object.assign({}, a, { w: 20 }) : a).concat([
+      { k: "Late Score", w: 10, lab: "Late arrivals (confirmed)",
+        raw: "Late Charged", fmt: "int" }]);
+    const autoFor = f => (num(f["Model Version"]) === 3 ? AUTO_V3
+      : num(f["Counted Total"]) === 70 ? AUTO_V1 : AUTO_V2);
     const countedTotal = f => num(f["Counted Total"]) || 60;
     const MIN_MONTH = "2026-07", OPEN_DAY = 20;
     const MONTHS = ["January", "February", "March", "April", "May", "June", "July",
