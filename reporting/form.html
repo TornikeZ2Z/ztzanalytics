@@ -339,6 +339,21 @@
     try { var a = JSON.parse(v); return Array.isArray(a) ? a : []; } catch (e) { return []; }
   }
 
+  /* HIS ASK 2026-08-27: "some people forget to finalize the form yet its mostly filled".
+     Answers autosave, so nothing is LOST on close — but an unsubmitted form never reaches
+     the results. The browser's own leave-confirmation is the only popup allowed at close
+     time, so it fires whenever there is at least one answer and no submit yet. Preview
+     links are exempt: nothing they enter is ever written, so there is nothing to lose. */
+  window.addEventListener("beforeunload", function (e) {
+    try {
+      if (!Q || Q.preview) return;
+      if (Q.my_status === "submitted" || Q.my_status === "resubmitted") return;
+      if (!counts(buildSteps()).a) return;
+      e.preventDefault();
+      e.returnValue = "";
+    } catch (err) { /* the guard must never break the form itself */ }
+  });
+
   function paint() {
     var steps = buildSteps();
     if (Q.my_status === "submitted" || Q.my_status === "resubmitted") return paintDone();

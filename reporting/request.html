@@ -6,8 +6,9 @@
 <meta name="robots" content="noindex">
 <title>Zip to Zip — Request</title>
 <style>
-  /* Standalone on purpose, like form.html: the people using this link have no portal
-     login and load no shell. One column, phone-first, brand green. */
+  /* Standalone like form.html — no portal shell — but the CONTROLS wear the kit's
+     vocabulary (his call 2026-08-27: no naked browser dropdowns anywhere): an
+     input-shaped button opening a searchable popover, in the page's light theme. */
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: Arial, Helvetica, sans-serif; background: #f2f4f7; color: #16202c;
          min-height: 100vh; display: flex; justify-content: center; padding: 24px 14px; }
@@ -17,22 +18,43 @@
   .sub { font-size: 13px; color: #5b6b7c; margin-bottom: 20px; line-height: 1.5; }
   label { display: block; font-size: 11px; font-weight: 700; letter-spacing: .05em;
           text-transform: uppercase; color: #8593a3; margin: 14px 0 5px; }
-  input, select, textarea { width: 100%; font-family: inherit; font-size: 15px;
+  input, textarea { width: 100%; font-family: inherit; font-size: 15px;
           border: 1px solid #d5dbe3; border-radius: 9px; padding: 10px 12px; outline: 0;
           background: #fff; }
-  input:focus, select:focus, textarea:focus { border-color: #7fa32b; }
+  input:focus, textarea:focus { border-color: #7fa32b; }
   textarea { min-height: 110px; resize: vertical; }
   .row { display: flex; gap: 10px; }
   .row > div { flex: 1; }
-  button { margin-top: 20px; width: 100%; background: #7fa32b; color: #fff; border: 0;
+  button.send { margin-top: 20px; width: 100%; background: #7fa32b; color: #fff; border: 0;
            border-radius: 10px; font-size: 16px; font-weight: 700; padding: 13px;
-           cursor: pointer; }
-  button:disabled { opacity: .6; cursor: default; }
+           cursor: pointer; font-family: inherit; }
+  button.send:disabled { opacity: .6; cursor: default; }
   .msg { margin-top: 14px; font-size: 14px; line-height: 1.5; }
   .msg.err { color: #b42318; }
   .done { text-align: center; padding: 30px 6px; }
   .done h2 { font-size: 20px; margin-bottom: 8px; }
   .done p { font-size: 14px; color: #5b6b7c; line-height: 1.6; }
+  /* the kit dropdown, light-themed */
+  .ksel { position: relative; }
+  .ksel-btn { width: 100%; display: flex; align-items: center; justify-content: space-between;
+          gap: 8px; font-family: inherit; font-size: 15px; text-align: left;
+          border: 1px solid #d5dbe3; border-radius: 9px; padding: 10px 12px; background: #fff;
+          cursor: pointer; color: #16202c; }
+  .ksel-btn:focus { outline: 0; border-color: #7fa32b; }
+  .ksel-btn .val.empty { color: #8593a3; }
+  .ksel-btn .chev { color: #8593a3; font-size: 10px; flex: 0 0 auto; }
+  .ksel-pop { position: absolute; top: calc(100% + 6px); left: 0; right: 0; z-index: 30;
+          background: #fff; border: 1px solid #d5dbe3; border-radius: 12px;
+          box-shadow: 0 14px 38px rgba(16,24,40,.18); padding: 8px; }
+  .ksel-pop.hidden { display: none; }
+  .ksel-pop .q { width: 100%; font-size: 14px; padding: 8px 10px; margin-bottom: 6px;
+          border: 1px solid #d5dbe3; border-radius: 8px; }
+  .ksel-opts { max-height: 240px; overflow-y: auto; }
+  .ksel-opt { padding: 9px 10px; border-radius: 8px; font-size: 14.5px; cursor: pointer;
+          color: #33404e; }
+  .ksel-opt:hover { background: #f2f6e9; color: #16202c; }
+  .ksel-opt.sel { background: #eef4dd; color: #55701c; font-weight: 700; }
+  .ksel-opt.hidden { display: none; }
 </style>
 </head>
 <body>
@@ -42,9 +64,9 @@
   can ask your manager about its status any time.</p>
   <div id="form" style="display:none">
     <label>Your name</label>
-    <select id="who"><option value="">— pick your name —</option></select>
+    <div id="kWho"></div>
     <label>Which team is this for?</label>
-    <select id="dept"></select>
+    <div id="kDept"></div>
     <label>What do you need? (short title)</label>
     <input id="title" maxlength="200" placeholder="e.g. New tablet for the crew">
     <label>Details</label>
@@ -53,14 +75,14 @@
     <div class="row">
       <div>
         <label>Priority</label>
-        <select id="prio"></select>
+        <div id="kPrio"></div>
       </div>
       <div>
         <label>Job # (optional)</label>
         <input id="job" maxlength="60" placeholder="if about a specific job">
       </div>
     </div>
-    <button id="send">Send request</button>
+    <button class="send" id="send">Send request</button>
     <div class="msg err" id="err"></div>
   </div>
   <div class="msg" id="boot">Loading…</div>
@@ -70,27 +92,103 @@
   var API = "https://ztz-bridge-32168089642.us-east4.run.app";
   var t = new URLSearchParams(location.search).get("t") || "";
   var $ = function (id) { return document.getElementById(id); };
+  var sent = false;
 
-  function fill(sel, list, keep) {
-    list.forEach(function (v) {
-      var o = document.createElement("option");
-      o.value = v; o.textContent = v; sel.appendChild(o);
-    });
-    if (keep) sel.value = keep;
+  function esc(s) {
+    return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
   }
 
+  /* the kit dropdown pattern (button + searchable popover), standalone light edition */
+  function kitSelect(host, opts) {
+    var cur = opts.value || "";
+    var wrap = document.createElement("div");
+    wrap.className = "ksel";
+    var withSearch = opts.values.length > 8;
+    wrap.innerHTML = '<button type="button" class="ksel-btn"><span class="val"></span>'
+      + '<span class="chev">▾</span></button>'
+      + '<div class="ksel-pop hidden">'
+      + (withSearch ? '<input class="q" placeholder="Search…">' : "")
+      + '<div class="ksel-opts">'
+      + (opts.required ? "" : '<div class="ksel-opt" data-v=""></div>')
+      + opts.values.map(function (v) {
+          return '<div class="ksel-opt" data-v="' + esc(v) + '">' + esc(v) + "</div>";
+        }).join("")
+      + "</div></div>";
+    var btn = wrap.querySelector(".ksel-btn");
+    var pop = wrap.querySelector(".ksel-pop");
+    var q = wrap.querySelector(".q");
+    var empty = wrap.querySelector('[data-v=""]');
+    if (empty) empty.textContent = opts.placeholder || "—";
+    function paint() {
+      var val = btn.querySelector(".val");
+      val.textContent = cur || opts.placeholder || "—";
+      val.className = "val" + (cur ? "" : " empty");
+      wrap.querySelectorAll(".ksel-opt").forEach(function (o) {
+        o.classList.toggle("sel", o.dataset.v === cur);
+      });
+    }
+    wrap.querySelectorAll(".ksel-opt").forEach(function (o) {
+      o.onclick = function () {
+        cur = o.dataset.v; paint(); pop.classList.add("hidden");
+        if (opts.onChange) opts.onChange(cur);
+      };
+    });
+    if (q) q.oninput = function () {
+      var needle = q.value.toLowerCase();
+      wrap.querySelectorAll(".ksel-opt").forEach(function (o) {
+        if (!o.dataset.v) return;
+        o.classList.toggle("hidden",
+          needle && o.textContent.toLowerCase().indexOf(needle) < 0);
+      });
+    };
+    btn.onclick = function (e) {
+      e.stopPropagation();
+      document.querySelectorAll(".ksel-pop").forEach(function (p) {
+        if (p !== pop) p.classList.add("hidden");
+      });
+      pop.classList.toggle("hidden");
+      if (!pop.classList.contains("hidden") && q) { q.value = ""; q.oninput(); q.focus(); }
+    };
+    pop.onclick = function (e) { e.stopPropagation(); };
+    host.appendChild(wrap);
+    paint();
+    return { get: function () { return cur; } };
+  }
+  document.addEventListener("click", function () {
+    document.querySelectorAll(".ksel-pop").forEach(function (p) {
+      p.classList.add("hidden");
+    });
+  });
+
+  var hWho, hDept, hPrio;
   fetch(API + "/api/_workreq?t=" + encodeURIComponent(t))
     .then(function (r) { return r.json().then(function (j) { return r.ok ? j : Promise.reject(j); }); })
     .then(function (j) {
-      fill($("who"), j.names);
-      fill($("dept"), j.departments);
-      fill($("prio"), j.priorities, "Medium");
+      hWho = kitSelect($("kWho"), { values: j.names, placeholder: "— pick your name —" });
+      hDept = kitSelect($("kDept"), { values: j.departments, value: j.departments[0],
+                                      required: true });
+      hPrio = kitSelect($("kPrio"), { values: j.priorities, value: "Medium",
+                                      required: true });
       $("boot").style.display = "none";
       $("form").style.display = "";
     })
     .catch(function () {
       $("boot").textContent = "This link is not valid. Ask for a fresh request link.";
     });
+
+  /* HIS ASK 2026-08-27: a filled form must not close silently. The browser's own leave
+     dialog is the only popup allowed at close time; it arms as soon as anything is filled
+     and disarms the moment the request is sent. */
+  window.addEventListener("beforeunload", function (e) {
+    if (sent) return;
+    var dirty = ($("title") && $("title").value.trim())
+      || ($("desc") && $("desc").value.trim())
+      || (hWho && hWho.get());
+    if (!dirty) return;
+    e.preventDefault();
+    e.returnValue = "";
+  });
 
   $("send").onclick = function () {
     $("err").textContent = "";
@@ -99,12 +197,13 @@
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        t: t, name: $("who").value, department: $("dept").value,
+        t: t, name: hWho.get(), department: hDept.get(),
         title: $("title").value.trim(), description: $("desc").value.trim(),
-        priority: $("prio").value, job_no: $("job").value.trim(),
+        priority: hPrio.get(), job_no: $("job").value.trim(),
       }),
     }).then(function (r) { return r.json().then(function (j) { return r.ok && !j.error ? j : Promise.reject(j); }); })
       .then(function () {
+        sent = true;
         $("card").innerHTML = '<div class="done"><h2>Request sent ✔</h2>' +
           "<p>It is on the team's board now. You can send another one any time " +
           "from this same link.</p></div>";
