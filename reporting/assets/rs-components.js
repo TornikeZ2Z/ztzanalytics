@@ -117,6 +117,8 @@ window.RSC = (function () {
      state owned by the caller. `allLabel` is the empty choice; search appears past 8
      options; returns {set(v), get()} so a re-render can restore the selection. */
   function localSelect(host, { label, values, value, allLabel, onChange, form, required }) {
+    // {div:"Title"} entries render as section headings (the multiSelect's .opt-div) so a
+    // long list — Custom Breakdown offers 20+ measures — reads in groups, not as a wall
     const items = (values || []).map(v => typeof v === "object" ? v : { v: v, l: v });
     let cur = value || "";
     // form:true = an input-shaped field INSIDE a form (its label lives above it, so the
@@ -134,14 +136,16 @@ window.RSC = (function () {
       pop.querySelectorAll(".opt").forEach(o =>
         o.classList.toggle("sel", o.dataset.v === String(cur)));
     };
-    const withSearch = items.length > 8;
+    const withSearch = items.filter(i => !i.div).length > 8;
     pop.innerHTML = (withSearch
         ? `<div class="tools"><input class="q" placeholder="Search…"></div>` : "")
       + `<div class="opts">`
       + (required ? "" : `<div class="opt" data-v=""><span class="ol">${esc(allLabel || (form ? "—" : "All"))}</span></div>`)
-      + items.map(i => `<div class="opt" data-v="${esc(i.v)}"><span class="ol">${esc(i.l)}</span>`
-          + (i.n != null ? `<span class="on">${Number(i.n).toLocaleString()}</span>` : "")
-          + `</div>`).join("")
+      + items.map(i => i.div
+          ? `<div class="opt-div">${esc(i.div)}</div>`
+          : `<div class="opt" data-v="${esc(i.v)}"><span class="ol">${esc(i.l)}</span>`
+            + (i.n != null ? `<span class="on">${Number(i.n).toLocaleString()}</span>` : "")
+            + `</div>`).join("")
       + `</div>`;
     pop.querySelectorAll(".opt").forEach(o => o.onclick = () => {
       cur = o.dataset.v;
@@ -156,6 +160,8 @@ window.RSC = (function () {
         o.classList.toggle("hidden",
           needle && o.textContent.toLowerCase().indexOf(needle) < 0);
       });
+      // a heading over a fully-hidden section is noise; while searching, drop them all
+      pop.querySelectorAll(".opt-div").forEach(d => d.classList.toggle("hidden", !!needle));
     };
     btn.onclick = e => {
       e.stopPropagation();
@@ -167,6 +173,71 @@ window.RSC = (function () {
     wrap.appendChild(btn); wrap.appendChild(pop); host.appendChild(wrap);
     paint();
     return { set(v) { cur = v || ""; paint(); }, get() { return cur; } };
+  }
+
+  /* ------------- page-local MULTI-select dropdown -------------
+     localSelect's sibling: the multiSelect LOOK (checkboxes, counts, search, All/Clear)
+     with state owned by the CALLER, never RS.state.multi. Built for Custom Breakdown's
+     page filters, which until now were collected through window.prompt — the one control
+     in the portal with no design system at all. `values` takes strings or {v,l,n};
+     `selected` is an array or Set; onChange receives the current Set. */
+  function localMulti(host, { label, values, selected, onChange, emptyLabel }) {
+    const items = (values || []).map(v => typeof v === "object" ? v : { v: v, l: v });
+    const labelOf = {};
+    items.forEach(i => { labelOf[i.v] = i.l; });
+    const set = new Set(selected instanceof Set ? [...selected] : (selected || []));
+    const wrap = el("div", "rs-slicer");
+    const btn = el("button", "rs-slicer-btn");
+    btn.type = "button";
+    const pop = el("div", "rs-slicer-pop hidden");
+    const paint = () => {
+      const n = set.size;
+      const txt = !n ? (emptyLabel || "All")
+        : n <= 2 ? [...set].map(v => labelOf[v] || v).join(", ")
+        : n + " selected";
+      btn.innerHTML = `<span class="lbl">${esc(label)}</span><span class="val">${esc(txt)}</span><span class="chev">▾</span>`;
+      btn.classList.toggle("on", n > 0);
+    };
+    const opt = i => `<label class="opt">`
+      + `<input type="checkbox" value="${esc(i.v)}" ${set.has(i.v) ? "checked" : ""}>`
+      + ` <span class="ol">${esc(i.l)}</span>`
+      + (i.n != null ? `<span class="on">${Number(i.n).toLocaleString()}</span>` : "")
+      + `</label>`;
+    pop.innerHTML = `
+      <div class="tools"><input type="text" class="q" placeholder="Search…">
+        <button type="button" class="mini" data-a="all">All</button>
+        <button type="button" class="mini" data-a="none">Clear</button></div>
+      <div class="opts">` + items.map(opt).join("") + `</div>`;
+    const sync = () => {
+      set.clear();
+      pop.querySelectorAll(".opt input:checked").forEach(cb => set.add(cb.value));
+      paint(); if (onChange) onChange(set);
+    };
+    pop.addEventListener("change", sync);
+    pop.querySelector(".q").addEventListener("input", e => {
+      const q = e.target.value.toLowerCase();
+      pop.querySelectorAll(".opt").forEach(o =>
+        o.classList.toggle("hidden", !o.textContent.toLowerCase().includes(q)));
+    });
+    pop.querySelectorAll(".mini").forEach(b => b.onclick = () => {
+      const on = b.dataset.a === "all";
+      pop.querySelectorAll(".opt:not(.hidden) input").forEach(cb => cb.checked = on);
+      sync();
+    });
+    btn.onclick = e => {
+      e.stopPropagation();
+      document.querySelectorAll(".rs-slicer-pop").forEach(p => { if (p !== pop) p.classList.add("hidden"); });
+      pop.classList.toggle("hidden");
+      const q = pop.querySelector(".q");
+      if (!pop.classList.contains("hidden") && q) { q.value = ""; q.dispatchEvent(new Event("input")); q.focus(); }
+    };
+    pop.addEventListener("click", e => e.stopPropagation());
+    wrap.appendChild(btn); wrap.appendChild(pop); host.appendChild(wrap);
+    paint();
+    return { get() { return new Set([...set]); },
+             set(v) { set.clear(); (v instanceof Set ? [...v] : (v || [])).forEach(x => set.add(x));
+                      pop.querySelectorAll(".opt input").forEach(cb => cb.checked = set.has(cb.value));
+                      paint(); } };
   }
 
   /* ------------- single-select slicer (always exactly one value chosen) ------------- */
@@ -647,7 +718,7 @@ window.RSC = (function () {
   document.addEventListener("click", () =>
     document.querySelectorAll(".rs-slicer-pop").forEach(p => p.classList.add("hidden")));
 
-  return { el, esc, multiSelect, singleSelect, localSelect, dateBar, dateRange, datePresets,
+  return { el, esc, multiSelect, singleSelect, localSelect, localMulti, dateBar, dateRange, datePresets,
            kpis, chartCard, table, matrix,
            collapsible, fitScroller, fit, reflow, reflowAfter };
 })();
