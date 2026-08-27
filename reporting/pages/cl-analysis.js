@@ -189,13 +189,17 @@ registerPage({
       }).join("");
 
       // TOTALS (his ask 2026-08-27): sums where money, weighted rates where a rate — an
-      // average of monthly percentages would weight a 2-job month like a 30-job one.
+      // average of monthly percentages would weight a 2-job month like a 30-job one. The
+      // share total is against OUR closings in HIS months, not all-time — 109 jobs against
+      // every closing since 2023 reads 0.9% while every month above says 2-4%, and the
+      // mismatch would be read as a bug (it briefly was one).
+      const oursInHisMonths = months.reduce((a, m) => a + (allByMonth[m] || 0), 0);
       const monthTotal = `<tr>
         <td>All</td>
         <td class="num">${fmtN(jobs.length)}</td>
         <td class="num">${filtered ? '<span class="cla-of">—</span>'
-          : pctS(rows.length ? jobs.length / rows.length : null)
-            + `<span class="cla-of"> of ${fmtN(rows.length)}</span>`}</td>
+          : pctS(oursInHisMonths ? jobs.length / oursInHisMonths : null)
+            + `<span class="cla-of"> of ${fmtN(oursInHisMonths)}</span>`}</td>
         <td class="num">${money0(billed)}</td>
         <td class="num">${money0(hisCut)}</td>
         <td class="num ${billed && hisCut / billed > CAP ? "cla-over" : ""}">${pctS(billed ? hisCut / billed : null)}</td>
