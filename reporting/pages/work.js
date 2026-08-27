@@ -15,7 +15,7 @@
   var ARCHIVE = ["Done", "Declined", "Dropped"];
   var TONE = { "Requested": "info", "Planned": "mute", "In Progress": "ok", "Stuck": "warn",
                "Done": "ok", "Declined": "bad", "Dropped": "mute" };
-  var PRIO_TONE = { High: "bad", Medium: "warn", Low: "mute" };
+  var PRIO_TONE = { Critical: "bad", High: "bad", Medium: "warn", Low: "mute" };
 
   function esc(s) {
     return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;")
@@ -406,7 +406,7 @@
       + "<div><label>Category</label><select class=\"wtx-in\" id=\"wCat\">"
       + opts(d.categories, v.Category, true) + "</select></div>"
       + "<div><label>Priority</label><select class=\"wtx-in\" id=\"wPrio\">"
-      + opts(["Low", "Medium", "High"], v.Priority) + "</select></div>"
+      + opts(["Low", "Medium", "High", "Critical"], v.Priority) + "</select></div>"
       + '<div><label>Job # (optional)</label><input class="wtx-in" id="wJob" value="'
       + esc(v["Job No"] || "") + '"></div>'
       + '<div><label>Start</label><input class="wtx-in" id="wStart" type="date" value="'
