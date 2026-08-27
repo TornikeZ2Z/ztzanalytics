@@ -181,7 +181,7 @@ window.RSC = (function () {
      page filters, which until now were collected through window.prompt — the one control
      in the portal with no design system at all. `values` takes strings or {v,l,n};
      `selected` is an array or Set; onChange receives the current Set. */
-  function localMulti(host, { label, values, selected, onChange, emptyLabel }) {
+  function localMulti(host, { label, values, selected, onChange, emptyLabel, startOpen }) {
     const items = (values || []).map(v => typeof v === "object" ? v : { v: v, l: v });
     const labelOf = {};
     items.forEach(i => { labelOf[i.v] = i.l; });
@@ -234,6 +234,11 @@ window.RSC = (function () {
     pop.addEventListener("click", e => e.stopPropagation());
     wrap.appendChild(btn); wrap.appendChild(pop); host.appendChild(wrap);
     paint();
+    // startOpen: a page that fully re-renders on every change (Custom Breakdown) remounts
+    // this control mid-edit; opening the fresh popover keeps the reader's checkbox session
+    // alive instead of slamming the door after every tick. The kit's document-level click
+    // handler still closes it the moment they click anywhere else.
+    if (startOpen) pop.classList.remove("hidden");
     return { get() { return new Set([...set]); },
              set(v) { set.clear(); (v instanceof Set ? [...v] : (v || [])).forEach(x => set.add(x));
                       pop.querySelectorAll(".opt input").forEach(cb => cb.checked = set.has(cb.value));
