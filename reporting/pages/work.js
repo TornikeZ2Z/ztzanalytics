@@ -160,6 +160,10 @@
       + "line-height:1.55}"
       + ".wtx-cmt .who{font-size:11px;color:var(--faint);margin-bottom:3px;font-weight:700}"
       + ".wtx-addrow{display:flex;gap:8px;margin-top:10px}"
+      + ".wtx-shots{display:flex;flex-wrap:wrap;gap:8px;margin:4px 0}"
+      + ".wtx-shot{width:96px;height:96px;border-radius:10px;border:1px solid var(--line);"
+      + "overflow:hidden;background:var(--panel-2);cursor:pointer;text-align:center}"
+      + ".wtx-shot img{width:100%;height:100%;object-fit:cover;display:block}"
       + ".wtx-note{font-size:12.5px;color:var(--muted);line-height:1.6;max-width:80ch}"
       + ".wtx-link{font-size:12px;color:var(--brand);cursor:pointer;font-weight:700}"
       + ".wtx-jobline{font-size:12px;color:var(--muted);margin-top:4px;font-weight:600}"
@@ -605,6 +609,14 @@
          + "</b> " + esc(i["Declined Reason"]) + "</p>" : "")
       + '<div class="wtx-strip">' + strip + "</div>"
       + (i.Description ? '<div class="wtx-desc">' + esc(i.Description) + "</div>" : "")
+      + ((det.attachments || []).length
+         ? '<div class="wtx-sec">Images</div><div class="wtx-shots" id="dwShots">'
+           + det.attachments.map(function (a) {
+               return '<div class="wtx-shot" data-att="' + a.id + '" title="click to open">'
+                 + '<div class="rs-loading" style="font-size:10px;padding:30px 4px">…</div>'
+                 + "</div>";
+             }).join("") + "</div>"
+         : "")
       + '<div class="wtx-sec">Subtasks</div><div id="dwSubs"></div>'
       + '<div class="wtx-addrow"><input class="wtx-in" id="dwSubNew" '
       + 'placeholder="add a subtask…"><button class="rs-btn" id="dwSubAdd">Add</button></div>'
@@ -624,6 +636,23 @@
           });
         });
       };
+    });
+
+    // attached screenshots: fetched WITH the bearer token (an <img src> cannot carry
+    // Authorization), shown as thumbnails, click opens the full image in a new tab
+    dw.el.querySelectorAll("[data-att]").forEach(function (mount) {
+      fetch(ZTZ.API + "/api/_workimg?id=" + mount.getAttribute("data-att"), {
+        headers: { Authorization: "Bearer " + ZTZ.getToken() },
+      }).then(function (r) {
+        if (!r.ok) throw new Error("image " + r.status);
+        return r.blob();
+      }).then(function (blob) {
+        var url = URL.createObjectURL(blob);
+        mount.innerHTML = '<img src="' + url + '" alt="">';
+        mount.onclick = function () { window.open(url, "_blank"); };
+      }).catch(function () {
+        mount.innerHTML = '<div class="wtx-note" style="padding:26px 4px">✕</div>';
+      });
     });
 
     // the warehouse line: a ticket with a job number explains itself

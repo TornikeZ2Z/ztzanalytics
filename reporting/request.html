@@ -4,15 +4,15 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
-<title>Zip to Zip — Request</title>
+<title>Zip to Zip — IT Request</title>
 <style>
-  /* Standalone like form.html — no portal shell — but the CONTROLS wear the kit's
-     vocabulary (his call 2026-08-27: no naked browser dropdowns anywhere): an
-     input-shaped button opening a searchable popover, in the page's light theme. */
+  /* HIS REDESIGN 2026-08-27: IT-only — every non-IT topic removed completely. Identify
+     yourself, explain in detail, paste screenshots. Standalone like form.html; controls
+     wear the kit's dropdown vocabulary in the page's light theme. */
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: Arial, Helvetica, sans-serif; background: #f2f4f7; color: #16202c;
          min-height: 100vh; display: flex; justify-content: center; padding: 24px 14px; }
-  .card { width: 100%; max-width: 560px; background: #fff; border-radius: 14px;
+  .card { width: 100%; max-width: 600px; background: #fff; border-radius: 14px;
           padding: 26px 24px; box-shadow: 0 6px 24px rgba(16,24,40,.08); height: fit-content; }
   h1 { font-size: 20px; margin-bottom: 4px; }
   .sub { font-size: 13px; color: #5b6b7c; margin-bottom: 20px; line-height: 1.5; }
@@ -22,9 +22,8 @@
           border: 1px solid #d5dbe3; border-radius: 9px; padding: 10px 12px; outline: 0;
           background: #fff; }
   input:focus, textarea:focus { border-color: #7fa32b; }
-  textarea { min-height: 110px; resize: vertical; }
-  .row { display: flex; gap: 10px; }
-  .row > div { flex: 1; }
+  textarea { min-height: 150px; resize: vertical; }
+  .hint { font-size: 12px; color: #8593a3; margin-top: 5px; line-height: 1.5; }
   button.send { margin-top: 20px; width: 100%; background: #7fa32b; color: #fff; border: 0;
            border-radius: 10px; font-size: 16px; font-weight: 700; padding: 13px;
            cursor: pointer; font-family: inherit; }
@@ -55,33 +54,38 @@
   .ksel-opt:hover { background: #f2f6e9; color: #16202c; }
   .ksel-opt.sel { background: #eef4dd; color: #55701c; font-weight: 700; }
   .ksel-opt.hidden { display: none; }
+  /* attached images */
+  .shots { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+  .shot { position: relative; width: 84px; height: 84px; border-radius: 10px;
+          border: 1px solid #d5dbe3; overflow: hidden; background: #f2f4f7; }
+  .shot img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .shot .x { position: absolute; top: 3px; right: 3px; width: 20px; height: 20px;
+          border-radius: 99px; background: rgba(16,32,44,.75); color: #fff; border: 0;
+          font-size: 11px; line-height: 20px; cursor: pointer; padding: 0; }
+  .addimg { margin-top: 8px; font-size: 13px; font-weight: 700; color: #7fa32b;
+          background: none; border: 1px dashed #b9cf85; border-radius: 9px;
+          padding: 8px 14px; cursor: pointer; font-family: inherit; }
+  .drop { outline: 2px dashed #7fa32b; outline-offset: -2px; }
 </style>
 </head>
 <body>
 <div class="card" id="card">
-  <h1>Request something</h1>
-  <p class="sub">Tell us what you need — it lands directly on the right team's board and you
-  can ask your manager about its status any time.</p>
+  <h1>IT request</h1>
+  <p class="sub">Something you need built, fixed, changed or looked at — it goes straight
+  onto the IT board. The more detail you give, the faster it happens.</p>
   <div id="form" style="display:none">
     <label>Your name</label>
     <div id="kWho"></div>
-    <label>Which team is this for?</label>
-    <div id="kDept"></div>
     <label>What do you need? (short title)</label>
-    <input id="title" maxlength="200" placeholder="e.g. New tablet for the crew">
-    <label>Details</label>
+    <input id="title" maxlength="200" placeholder="e.g. Report shows wrong totals for August">
+    <label>Detailed explanation</label>
     <textarea id="desc" maxlength="8000"
-      placeholder="Describe it so the team can act without calling you back."></textarea>
-    <div class="row">
-      <div>
-        <label>Priority</label>
-        <div id="kPrio"></div>
-      </div>
-      <div>
-        <label>Job # (optional)</label>
-        <input id="job" maxlength="60" placeholder="if about a specific job">
-      </div>
-    </div>
+      placeholder="Explain exactly what you need: where it happens, what you expected, what you saw instead. Enough detail to act on without calling you back."></textarea>
+    <div class="hint">📷 You can <b>paste a screenshot straight into the text box</b>
+      (Ctrl+V), drop an image onto it, or add one below. Up to 5 images.</div>
+    <div class="shots" id="shots"></div>
+    <button type="button" class="addimg" id="addImg">+ Add image</button>
+    <input type="file" id="file" accept="image/*" multiple style="display:none">
     <button class="send" id="send">Send request</button>
     <div class="msg err" id="err"></div>
   </div>
@@ -93,13 +97,14 @@
   var t = new URLSearchParams(location.search).get("t") || "";
   var $ = function (id) { return document.getElementById(id); };
   var sent = false;
+  var images = [];                    // [{mime, b64, url}]
 
   function esc(s) {
     return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;")
       .replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
   }
 
-  /* the kit dropdown pattern (button + searchable popover), standalone light edition */
+  /* kit dropdown (button + searchable popover), standalone light edition */
   function kitSelect(host, opts) {
     var cur = opts.value || "";
     var wrap = document.createElement("div");
@@ -110,7 +115,6 @@
       + '<div class="ksel-pop hidden">'
       + (withSearch ? '<input class="q" placeholder="Search…">' : "")
       + '<div class="ksel-opts">'
-      + (opts.required ? "" : '<div class="ksel-opt" data-v=""></div>')
       + opts.values.map(function (v) {
           return '<div class="ksel-opt" data-v="' + esc(v) + '">' + esc(v) + "</div>";
         }).join("")
@@ -118,8 +122,6 @@
     var btn = wrap.querySelector(".ksel-btn");
     var pop = wrap.querySelector(".ksel-pop");
     var q = wrap.querySelector(".q");
-    var empty = wrap.querySelector('[data-v=""]');
-    if (empty) empty.textContent = opts.placeholder || "—";
     function paint() {
       var val = btn.querySelector(".val");
       val.textContent = cur || opts.placeholder || "—";
@@ -131,13 +133,11 @@
     wrap.querySelectorAll(".ksel-opt").forEach(function (o) {
       o.onclick = function () {
         cur = o.dataset.v; paint(); pop.classList.add("hidden");
-        if (opts.onChange) opts.onChange(cur);
       };
     });
     if (q) q.oninput = function () {
       var needle = q.value.toLowerCase();
       wrap.querySelectorAll(".ksel-opt").forEach(function (o) {
-        if (!o.dataset.v) return;
         o.classList.toggle("hidden",
           needle && o.textContent.toLowerCase().indexOf(needle) < 0);
       });
@@ -161,30 +161,84 @@
     });
   });
 
-  var hWho, hDept, hPrio;
+  /* ---- images: paste / drop / pick — all downscaled to ≤1280px JPEG before upload */
+  function addImageFile(file) {
+    if (!file || file.type.indexOf("image/") !== 0) return;
+    if (images.length >= 5) { showErr("Up to 5 images."); return; }
+    var img = new Image();
+    img.onload = function () {
+      var MAX = 1280;
+      var w = img.width, h = img.height;
+      if (w > MAX || h > MAX) {
+        var k = Math.min(MAX / w, MAX / h);
+        w = Math.round(w * k); h = Math.round(h * k);
+      }
+      var c = document.createElement("canvas");
+      c.width = w; c.height = h;
+      c.getContext("2d").drawImage(img, 0, 0, w, h);
+      var dataUrl = c.toDataURL("image/jpeg", 0.82);
+      URL.revokeObjectURL(img.src);
+      images.push({ mime: "image/jpeg", b64: dataUrl.split(",")[1], url: dataUrl });
+      paintShots();
+    };
+    img.onerror = function () { showErr("Could not read that image."); };
+    img.src = URL.createObjectURL(file);
+  }
+  function paintShots() {
+    $("shots").innerHTML = images.map(function (im, i) {
+      return '<div class="shot"><img src="' + im.url + '">'
+        + '<button type="button" class="x" data-i="' + i + '">✕</button></div>';
+    }).join("");
+    document.querySelectorAll(".shot .x").forEach(function (b) {
+      b.onclick = function () { images.splice(+b.dataset.i, 1); paintShots(); };
+    });
+    $("addImg").style.display = images.length >= 5 ? "none" : "";
+  }
+  function showErr(m) { $("err").textContent = m; setTimeout(function () {
+    if ($("err").textContent === m) $("err").textContent = ""; }, 4000); }
+
+  var hWho;
   fetch(API + "/api/_workreq?t=" + encodeURIComponent(t))
     .then(function (r) { return r.json().then(function (j) { return r.ok ? j : Promise.reject(j); }); })
     .then(function (j) {
       hWho = kitSelect($("kWho"), { values: j.names, placeholder: "— pick your name —" });
-      hDept = kitSelect($("kDept"), { values: j.departments, value: j.departments[0],
-                                      required: true });
-      hPrio = kitSelect($("kPrio"), { values: j.priorities, value: "Medium",
-                                      required: true });
       $("boot").style.display = "none";
       $("form").style.display = "";
+      var ta = $("desc");
+      // PASTE a screenshot straight into the description — his ask, verbatim
+      ta.addEventListener("paste", function (e) {
+        var items = (e.clipboardData || {}).items || [];
+        for (var i = 0; i < items.length; i++) {
+          if (items[i].type && items[i].type.indexOf("image/") === 0) {
+            e.preventDefault();
+            addImageFile(items[i].getAsFile());
+          }
+        }
+      });
+      ta.addEventListener("dragover", function (e) { e.preventDefault(); ta.classList.add("drop"); });
+      ta.addEventListener("dragleave", function () { ta.classList.remove("drop"); });
+      ta.addEventListener("drop", function (e) {
+        e.preventDefault(); ta.classList.remove("drop");
+        var fs = (e.dataTransfer || {}).files || [];
+        for (var i = 0; i < fs.length; i++) addImageFile(fs[i]);
+      });
+      $("addImg").onclick = function () { $("file").click(); };
+      $("file").onchange = function () {
+        for (var i = 0; i < this.files.length; i++) addImageFile(this.files[i]);
+        this.value = "";
+      };
     })
     .catch(function () {
       $("boot").textContent = "This link is not valid. Ask for a fresh request link.";
     });
 
-  /* HIS ASK 2026-08-27: a filled form must not close silently. The browser's own leave
-     dialog is the only popup allowed at close time; it arms as soon as anything is filled
-     and disarms the moment the request is sent. */
+  /* a filled form must not close silently (his ask): the browser's own leave dialog arms
+     while anything is filled and unsent */
   window.addEventListener("beforeunload", function (e) {
     if (sent) return;
     var dirty = ($("title") && $("title").value.trim())
       || ($("desc") && $("desc").value.trim())
-      || (hWho && hWho.get());
+      || images.length || (hWho && hWho.get());
     if (!dirty) return;
     e.preventDefault();
     e.returnValue = "";
@@ -197,15 +251,16 @@
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        t: t, name: hWho.get(), department: hDept.get(),
-        title: $("title").value.trim(), description: $("desc").value.trim(),
-        priority: hPrio.get(), job_no: $("job").value.trim(),
+        t: t, name: hWho.get(),
+        title: $("title").value.trim(),
+        description: $("desc").value.trim(),
+        images: images.map(function (im) { return { mime: im.mime, b64: im.b64 }; }),
       }),
     }).then(function (r) { return r.json().then(function (j) { return r.ok && !j.error ? j : Promise.reject(j); }); })
       .then(function () {
         sent = true;
         $("card").innerHTML = '<div class="done"><h2>Request sent ✔</h2>' +
-          "<p>It is on the team's board now. You can send another one any time " +
+          "<p>It is on the IT board now. You can send another one any time " +
           "from this same link.</p></div>";
       })
       .catch(function (j) {
