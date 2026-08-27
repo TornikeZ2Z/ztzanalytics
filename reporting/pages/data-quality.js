@@ -140,6 +140,33 @@ async function renderChecks(host) {
           key: x.cKey(r), date: r._d || "—", customer: r["Customer"] || "—",
           bill: RS.money(RS.num(r["Total Bill"])) })) },
 
+      /* The CFO's Michael Lyons finding (2026-08-27): a move closed twice — the pickup row
+         bills the FULL move price and carries a Balance Due, then the delivery row enters
+         that same balance as a new bill, so the balance is counted as revenue twice.
+         "Excluded" rows the warehouse already handles (their bill is NULLed in the fact,
+         the sheet's value shown here as Raw bill). "NEEDS FIX" pairs — the same bill typed
+         twice on one request — the warehouse will NOT guess at: delete the twin in the
+         closing sheet itself. */
+      { id: "splitbill", title: "Split-closing double billing",
+        desc: "The same money billed twice across two closing rows of one request. "
+            + "“Excluded” = a delivery row re-billing an earlier leg's Balance Due — already "
+            + "removed from revenue automatically. “NEEDS FIX” = an identical bill entered "
+            + "twice — fix it in the closing sheet.",
+        cols: [{ key: "status", label: "Status" }, { key: "job", label: "Job #" },
+               { key: "req", label: "Request #" }, { key: "date", label: "Move date" },
+               { key: "customer", label: "Customer" }, { key: "raw", label: "Raw bill", align: "r" },
+               { key: "counted", label: "Counted as revenue", align: "r" }],
+        compute: x => x.closingJobs
+          .filter(r => r["Split Rebill"] === "Yes" || r["Dup Bill Suspect"] === "Yes")
+          .sort((a, b) => (a["Dup Bill Suspect"] === "Yes" ? 0 : 1) - (b["Dup Bill Suspect"] === "Yes" ? 0 : 1)
+                        || String(a._d || "").localeCompare(String(b._d || "")))
+          .map(r => ({
+            status: r["Dup Bill Suspect"] === "Yes" ? "NEEDS FIX — duplicate bill" : "Excluded — re-billed balance",
+            job: r["Job No"] || "—", req: r["Request #"] || "—", date: r._d || "—",
+            customer: r["Customer"] || "—",
+            raw: RS.money(RS.num(r["Total Bill Raw"])),
+            counted: x.blank(r["Total Bill"]) ? "$0 (excluded)" : RS.money(RS.num(r["Total Bill"])) })) },
+
     ];
 
     /* ---------------- 1) paint the shell immediately (no compute yet) ---------------- */

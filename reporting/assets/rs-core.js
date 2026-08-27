@@ -40,7 +40,11 @@ window.RS = (function () {
         "Forman Job Order", "Request Joinkey", "Branch Owner", "Branch Owner Cut",
         // CL Analysis: the partner's cut is booked as the SP-1 sales salary, and the job
         // number is how a finance reader finds the job in the closing sheet.
-        "Job No", "Sales 1 Salary"],
+        "Job No", "Sales 1 Salary",
+        // Split-closing guard (2026-08-27): a `Split Rebill` row's Total Bill is NULL in the
+        // fact (the sheet's value lives in `Total Bill Raw`); `Dup Bill Suspect` marks both
+        // rows of an identical-bill pair for the Data Quality worklist.
+        "Split Rebill", "Total Bill Raw", "Dup Bill Suspect"],
       dateCols: { "Date": "Date" }, defaultDate: "Date",
     },
     moveboard: {
