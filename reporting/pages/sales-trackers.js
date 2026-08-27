@@ -435,7 +435,11 @@
         }).catch(function (e) { alert(e.message); });
     };
     body.querySelector("#stxNew").onclick = function () {
-      S.edit = { key: "", name: "", description: "", keywords: "", scope: {}, isNew: true };
+      // quote calls only BY DEFAULT — his cost call (2026-08-26): a tracker over every
+      // two-way call doubles the bill and mostly judges service calls a sales tracker
+      // was never about. The editor can still untick it for a genuinely broader tracker.
+      S.edit = { key: "", name: "", description: "", keywords: "",
+                 scope: { quote_only: true }, isNew: true };
       paintEditor(body.querySelector("#stxEditor"), host, S);
     };
     body.querySelectorAll("[data-edit]").forEach(function (b) {
@@ -509,7 +513,11 @@
       + (sc.quote_only ? " checked" : "") + "> quote calls only</span>"
       + '<span class="stx-check"><input type="checkbox" id="stxShared"'
       + (sc.include_shared ? " checked" : "") + "> include the shared line</span>"
-      + "</div></div>"
+      + "</div>"
+      + '<p class="rs-hint">Scope is also the cost dial: every in-scope call is judged by '
+      + "the AI. Quote-calls-only roughly halves the bill, and a <b>from</b> date of today "
+      + "skips the historical backfill entirely — the tracker then measures from now on.</p>"
+      + "</div>"
       + '<div class="full" style="display:flex;gap:8px;align-items:center">'
       + '<button class="rs-btn pri" id="stxSave">'
       + (t.isNew ? "Create tracker" : "Save changes") + "</button>"
