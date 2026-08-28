@@ -392,9 +392,6 @@
                     + r.late + " min</span>"
                   : '<span class="rs-pill ok">on time</span>') + "</td>"
               + "<td>" + (r.strict ? '<span class="rs-pill info">exact time</span>' : "")
-                + (String(r["Foreman Source"] || "") === "Contract"
-                    ? ' <span class="rs-pill mute" title="The closing sheet has no row for this job yet; the name comes from the digital contract and the closing takes over once filed.">foreman from the contract</span>'
-                    : "")
                 + (!r.strict && r.wasStrict
                     ? ' <span class="rs-pill info">was an exact time</span>' : "")
                 + (r.chained
