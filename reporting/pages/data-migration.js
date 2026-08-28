@@ -443,11 +443,21 @@
         mig_job_money_flow_entry: "JobMoneyFlowEntry",
         mig_job_claim: "JobClaim", mig_negative_review: "NegativeReview",
         mig_positive_review: "PositiveReview", mig_job_pricing: "JobPricing",
+        mig_job_sales_attribution: "JobSalesAttribution",
+        mig_job_vehicle_inspection: "JobVehicleInspection",
+        mig_job_vehicle_inspection_item: "JobVehicleInspectionItem",
+        mig_job_storage_order: "JobStorageOrder",
+        mig_storage_record: "StorageRecord",
       };
       // THEIR models' scalar fields (generated from schema.prisma,
       // tetrobyte-studio/ziptozip @ 2026-08-29). r:1 = the importer resolves
       // it (uuid, FK id, audit stamp) — never a data gap on our side.
       const MIG_FIELDS = {
+        mig_job_sales_attribution: [{f:"id",r:1},{f:"jobId",r:1},{f:"userId",r:1},{f:"type",r:0},{f:"distributionPct",r:0},{f:"rateBps",r:0},{f:"createdAt",r:1}],
+        mig_job_vehicle_inspection: [{f:"id",r:1},{f:"truckId",r:1},{f:"inspectionTime",r:0},{f:"timeZone",r:0},{f:"fuelLevel",r:0},{f:"createdById",r:1},{f:"createdAt",r:1},{f:"updatedAt",r:1}],
+        mig_job_vehicle_inspection_item: [{f:"id",r:1},{f:"inspectionId",r:1},{f:"itemName",r:0},{f:"condition",r:0},{f:"note",r:0},{f:"sortOrder",r:0}],
+        mig_job_storage_order: [{f:"id",r:1},{f:"jobId",r:1},{f:"storageSoldCF",r:0},{f:"pricePerCFCents",r:0},{f:"monthlyFeeCents",r:0},{f:"numberOfMonths",r:0},{f:"numberOfPayments",r:0},{f:"upfrontChargeCents",r:0},{f:"firstMonthFree",r:0},{f:"storageStartDate",r:0},{f:"createdById",r:1},{f:"createdAt",r:1},{f:"updatedAt",r:1}],
+        mig_storage_record: [{f:"id",r:1},{f:"jobId",r:1},{f:"customerId",r:1},{f:"salesRepUserId",r:1},{f:"accountNumber",r:0},{f:"entryDate",r:0},{f:"firstMonthFree",r:0},{f:"chargeableCF",r:0},{f:"initialFeePerCFCents",r:0},{f:"realCF",r:0},{f:"upfrontMonths",r:0},{f:"paymentType",r:0},{f:"anchorDay",r:0},{f:"nextBillingDate",r:0},{f:"balanceCents",r:0},{f:"statusOverride",r:0},{f:"cancelledAt",r:0},{f:"billingPausedReason",r:0},{f:"locationKind",r:0},{f:"ownedSlots",r:0},{f:"truckLabel",r:0},{f:"rentedStorageName",r:0},{f:"rentedUnitNumber",r:0},{f:"rentedStorageId",r:1},{f:"notes",r:0},{f:"isFinal",r:0},{f:"leftAt",r:0},{f:"createdById",r:1},{f:"createdAt",r:1},{f:"updatedAt",r:1}],
         mig_job_pricing: [{f:"id",r:1},{f:"jobId",r:1},{f:"kind",r:0},{f:"actTime",r:0},{f:"totalCF",r:0},{f:"vanQty",r:0},{f:"truckQty",r:0},{f:"packingEstimateCents",r:0},{f:"discountCents",r:0},{f:"depositCents",r:0},{f:"grandTotalCashCents",r:0},{f:"grandTotalCardCents",r:0},{f:"data",r:0},{f:"createdAt",r:1},{f:"updatedAt",r:1}],
         mig_customer: [{f:"id",r:1},{f:"firstName",r:0},{f:"lastName",r:0},{f:"email",r:0},{f:"phone",r:0},{f:"notes",r:0},{f:"createdAt",r:1},{f:"updatedAt",r:1},{f:"deletedAt",r:1}],
         mig_job: [{f:"id",r:1},{f:"jobCode",r:0},{f:"status",r:0},{f:"ownerId",r:1},{f:"customerId",r:1},{f:"branchId",r:1},{f:"sourceId",r:1},{f:"movingType",r:0},{f:"jobType",r:0},{f:"moveDate",r:0},{f:"startTime",r:0},{f:"endTime",r:0},{f:"strictArrival",r:0},{f:"notes",r:0},{f:"furnitureCount",r:0},{f:"furnitureNotes",r:0},{f:"boxesCount",r:0},{f:"boxesNotes",r:0},{f:"actualCF",r:0},{f:"requestNumber",r:0},{f:"legacyMainJobId",r:1},{f:"salesNotes",r:0},{f:"eventTitle",r:0},{f:"foremanConfirmedAt",r:0},{f:"foremanFinishedAt",r:0},{f:"afterJobId",r:1},{f:"storageDeliveryOfId",r:1},{f:"storagePickupJobId",r:1},{f:"estimatedDuration",r:0},{f:"mainJobId",r:1},{f:"finalizedAt",r:0},{f:"finalizedById",r:1},{f:"bolLockedAt",r:0},{f:"bolLockedById",r:1},{f:"netCashSnapshotCents",r:0},{f:"moneyBalanceCents",r:0},{f:"moneyReceivedAt",r:0},{f:"createdAt",r:1},{f:"updatedAt",r:1}],
