@@ -357,8 +357,10 @@
         const ours = new Set(ourCols);
         const filled = [], missing = [], resolved = [];
         spec.forEach(x => {
-          if (x.r) resolved.push(x.f);
-          else if (ours.has(x.f)) filled.push(x.f);
+          // a field we actually provide is FILLED even if it looks importer-resolved
+          // (legacyMainJobId ends in Id and is real data we ship)
+          if (ours.has(x.f)) filled.push(x.f);
+          else if (x.r) resolved.push(x.f);
           else missing.push(x.f);
         });
         return { filled, missing, resolved };
