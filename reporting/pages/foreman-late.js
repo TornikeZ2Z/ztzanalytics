@@ -42,7 +42,10 @@
              // THE SCORING BOUNDARY + THE CLAIM TRAIL (2026-08-27): only a morning window
              // can cost Foreman-of-the-Month points, and a claim on a late job is part of
              // its story — reasons shown, lateness-worded ones flagged.
-             "Morning Window", "Claims N", "Claim Reasons", "Claim Cites Lateness"],
+             "Morning Window", "Claims N", "Claim Reasons", "Claim Cites Lateness",
+             // who named the foreman: the closing sheet (normal) or the digital contract
+             // (the closing is not filed yet — fresh jobs, his call 2026-08-28)
+             "Foreman Source"],
     };
   }
   // The Slack Confirm/Dismiss ledger — which latenesses actually count for Foreman of the
@@ -389,6 +392,9 @@
                     + r.late + " min</span>"
                   : '<span class="rs-pill ok">on time</span>') + "</td>"
               + "<td>" + (r.strict ? '<span class="rs-pill info">exact time</span>' : "")
+                + (String(r["Foreman Source"] || "") === "Contract"
+                    ? ' <span class="rs-pill mute" title="The closing sheet has no row for this job yet; the name comes from the digital contract and the closing takes over once filed.">foreman from the contract</span>'
+                    : "")
                 + (!r.strict && r.wasStrict
                     ? ' <span class="rs-pill info">was an exact time</span>' : "")
                 + (r.chained
