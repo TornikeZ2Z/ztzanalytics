@@ -1967,6 +1967,34 @@ registerPage({
       if (S.view === "q" && S.qtab === "submissions") go();
     }
 
+    /* THE NUDGE (his ask, 2026-08-28). Answers to an anonymous questionnaire carry no
+       name, so "remind only the non-fillers" cannot exist — the reminder goes to the
+       WHOLE audience and the mail opens with "already filled it in? thank you, ignore
+       this." The confirm says exactly that before a single mail moves. Rounds are the
+       server's: a second click after a finished round starts a new one. */
+    async function sendReminders(qid) {
+      if (!window.confirm("Send a reminder to EVERYONE on this questionnaire's audience?\n\n"
+          + "Answers are anonymous, so the people who already filled it in cannot be "
+          + "skipped — their mail opens with “already filled it in? thank you, ignore "
+          + "this”.")) return;
+      var total = 0, guard = 0, failedTotal = 0, lastRemaining = -1;
+      toast("Sending reminders…");
+      var r = null, extra = "";
+      while (guard++ < 40) {
+        try { r = await post({ action: "remind", id: qid }); }
+        catch (e) { toast("Reminders: " + e.message, true); return; }
+        total += r.sent;
+        failedTotal += r.failed || 0;
+        extra = r.mode !== "live" ? " · TEST mode" : "";
+        if (!r.remaining || (!r.sent && !r.failed)) break;
+        if (!r.sent && r.remaining === lastRemaining) break;
+        lastRemaining = r.remaining;
+        toast("Sending reminders… " + total + " sent · " + r.remaining + " to go" + extra);
+      }
+      toast("Reminders done — round " + (r ? r.round : "?") + ", " + total + " sent"
+        + (failedTotal ? " · " + failedTotal + " failed" : "") + extra, !!failedTotal);
+    }
+
       /* THE ANSWER, drawn as the kind of thing it is -- shared by the Responses screen and
        by the one-person view inside Statistics, which used to draw the same answers a
        different and much flatter way. Two renderings of one thing is two things to keep
@@ -2343,7 +2371,8 @@ registerPage({
           + "someone opens the link on two devices.</div>"
           + '<div class="hq-row" style="margin-bottom:10px">'
           + (S.q && S.q.status === "published" && S.home && S.home.can_manage
-              ? '<span style="flex:1"></span><button class="hq-btn" id="hbInv">Send invites</button>' : "")
+              ? '<span style="flex:1"></span><button class="hq-btn" id="hbRem">Send reminder to everyone</button>'
+                + '<button class="hq-btn" id="hbInv">Send invites</button>' : "")
           + "</div>"
           + '<div class="hq-card" style="padding:0;overflow:hidden"><table class="hq-tbl board"><thead><tr>'
           + "<th>Team</th><th class=\"r\">People</th><th class=\"r\">Invited</th>"
@@ -2391,6 +2420,8 @@ registerPage({
                 + "someone starts.</div>");
         var ib2 = body.querySelector("#hbInv");
         if (ib2) ib2.onclick = function () { sendInvites(S.qid); };
+        var rb2 = body.querySelector("#hbRem");
+        if (rb2) rb2.onclick = function () { sendReminders(S.qid); };
         body.querySelectorAll("[data-rid]").forEach(function (tr) {
           tr.onclick = function () { S.subOpen = "#" + tr.dataset.rid; paintSubmissions(body, canR); };
         });
@@ -2439,7 +2470,8 @@ registerPage({
         + '<input class="hq-in" id="hbQ" placeholder="Find a person…" value="' + esc(S.subQ) + '">'
         + '<span class="hq-dim">' + rows.length + " shown</span>"
         + (S.q && S.q.status === "published" && S.home && S.home.can_manage
-            ? '<span style="flex:1"></span><button class="hq-btn" id="hbInv">Send invites</button>' : "")
+            ? '<span style="flex:1"></span><button class="hq-btn" id="hbRem">Send reminder to everyone</button>'
+                + '<button class="hq-btn" id="hbInv">Send invites</button>' : "")
         + "</div>"
         + '<div class="hq-card" style="padding:0;overflow:hidden"><table class="hq-tbl board"><thead><tr>'
         + "<th>Person</th><th>Department</th><th>Status</th><th>Invited</th><th>Submitted</th><th></th></tr></thead><tbody>"
@@ -2469,6 +2501,8 @@ registerPage({
         + "</tbody></table></div>";
       var ib = body.querySelector("#hbInv");
       if (ib) ib.onclick = function () { sendInvites(S.qid); };
+      var rb = body.querySelector("#hbRem");
+      if (rb) rb.onclick = function () { sendReminders(S.qid); };
       body.querySelector("#hbF").onchange = function () { S.subFilter = this.value; paintSubmissions(body, canR); };
       var qi = body.querySelector("#hbQ");
       qi.oninput = function () {
