@@ -165,6 +165,7 @@ const DEFAULT_COLLAPSED = ["admin"];
 const GROUP_OVERRIDE = {
   // Administration (admin-only, collapsed by default)
   "data-quality": "admin", "refresh-log": "admin", "general-settings": "admin", "admin-users": "admin",
+  "data-migration": "admin",
   "general-tables": "admin",
   // Marketing — source attribution belongs with the marketing views
   "source-trace": "marketing", "meta-referrals": "marketing",
@@ -276,7 +277,7 @@ const PAGE_ICONS = {
   "log-foreman": "tool", "log-packing": "box",
   "fin-revenue": "trend", "fin-rr": "trend", "rev-production": "star",
   "sup-claims": "shield", "sup-refunds": "clipboard", "sup-phone": "phone",
-  "general-settings": "sliders", "general-tables": "grid", "data-quality": "clipboard", "refresh-log": "activity", "source-trace": "activity", "meta-referrals": "upload-cloud", "referral-candidates": "gift", "jobs-by-area": "map-pin", "relocation-trends": "trending-up", "angi-funnel": "funnel", "promised-reviews": "star", "calendar-coverage": "calendar", "request-consistency": "alert-triangle", "review-performance": "star", "reviews-reminders": "megaphone", "response-analysis": "activity", "review-settings": "tool",
+  "general-settings": "sliders", "general-tables": "grid", "data-quality": "clipboard", "data-migration": "share-2", "refresh-log": "activity", "source-trace": "activity", "meta-referrals": "upload-cloud", "referral-candidates": "gift", "jobs-by-area": "map-pin", "relocation-trends": "trending-up", "angi-funnel": "funnel", "promised-reviews": "star", "calendar-coverage": "calendar", "request-consistency": "alert-triangle", "review-performance": "star", "reviews-reminders": "megaphone", "response-analysis": "activity", "review-settings": "tool",
 };
 
 /* Pages not yet built — shown greyed with a SOON tag so the full scope is visible. */
@@ -398,7 +399,8 @@ function canSee(id) {
   if (ME.admin) return true;
   // everything in the Administration container is admin-only
   if (id === "admin-users" || id === "general-settings" || id === "refresh-log"
-      || id === "data-quality" || id === "general-tables") return false;
+      || id === "data-quality" || id === "general-tables"
+      || id === "data-migration") return false;
   // My Questionnaire is open to EVERY authorized user — no grant models "may answer":
   // the server gates it by the HR roster, and an un-rostered visitor just sees "nothing is
   // waiting for you". Hiding it behind a grant would force Tornike to touch Users & Access
@@ -661,6 +663,7 @@ const PAGE_DATASETS = {
   "general-settings": [],
   "general-tables": [],
   "data-quality": [],
+  "data-migration": [],
   "source-trace": [],
   "meta-referrals": [],
   "referral-candidates": [],   // loads fct_referral_candidates itself; filters live on the page
@@ -901,7 +904,7 @@ const BARE_CHROME = new Set(["review-performance", "demand-analysis", "reviews-r
   // another page emptied it completely, which is worse than useless -- it looked like there
   // were no Straight jobs at all.
   "straight-vs-local",
-  "area-plan", "truck-economics"]);
+  "area-plan", "truck-economics", "data-migration"]);
 /* Pages where the global filter bar MUST STAY VISIBLE, so Hide filters is not offered at all.
    The control exists for pages carrying a wall of slicers you want out of the way to read the
    board full-screen — Custom Breakdown is the case it was built for. It is wrong wherever the
@@ -1013,6 +1016,7 @@ const NAV_TITLES = {
   "cleanup": "Calendar Cleanup",
   "foreman-closings": "Foreman Closings",
   "data-quality": "Data Quality",
+  "data-migration": "Data Migration",
   "source-trace": "Source Trace", "meta-referrals": "Meta Referrals",
   "referral-candidates": "List of Possible Referrals",
   "jobs-by-area": "Jobs by Area",
@@ -1541,6 +1545,7 @@ const REPORT_LABELS = {
   "sup-phone": "Support — Phone & Response",
   // Settings / data portal
   "data-quality": "Data Quality",
+  "data-migration": "Data Migration",
   "explorer": "Data Explorer (the Data portal — every table)",
 };
 async function aclCall(method, body) {
