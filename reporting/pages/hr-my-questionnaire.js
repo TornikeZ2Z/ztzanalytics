@@ -28,6 +28,7 @@ registerPage({
     });
     S.open = null;                      // every visit starts on the list of forms
     S.step = null;                      // and outside any part of the stepper
+    S._dirty = S._dirty || {};          // qid -> true while local answers are unsubmitted
 
     function api(path, opts) {
       return fetch(ZTZ.API + path, Object.assign({
@@ -38,6 +39,36 @@ registerPage({
           if (!r.ok || j.error) throw new Error(j.error || ("HTTP " + r.status));
           return j;
         });
+      });
+    }
+
+    /* ---- LOCAL-UNTIL-SUBMIT (his call 2026-08-28: "dont save Not Submitted requests") ----
+       Unsubmitted answers never reach the server: they live in q.answers (memory) plus a
+       per-questionnaire localStorage draft, and are pushed in one go when Submit is
+       pressed. HR never sees a half-filled "in progress" response again, and a closed
+       tab resumes from the local draft. */
+    function draftKey(qid) {
+      var who = ""; try { who = (ZTZ.email && ZTZ.email()) || ""; } catch (e) {}
+      return "ztz_hrq_draft_" + who + "_" + qid;
+    }
+    function draftLoad(qid) {
+      try { return JSON.parse(localStorage.getItem(draftKey(qid)) || "null"); }
+      catch (e) { return null; }
+    }
+    function draftStore(q) {
+      try { localStorage.setItem(draftKey(q.id), JSON.stringify({ answers: q.answers })); }
+      catch (e) {}
+    }
+    function draftClear(qid) { try { localStorage.removeItem(draftKey(qid)); } catch (e) {} }
+    // closing the tab with unsubmitted answers gets the browser's own "are you sure" —
+    // the draft survives either way, but nothing has reached HR yet
+    if (!window.__HRME_UNLOAD) {
+      window.__HRME_UNLOAD = true;
+      window.addEventListener("beforeunload", function (e) {
+        var st = window.__HRME;
+        if (st && st._dirty && Object.keys(st._dirty).some(function (k) {
+          return st._dirty[k];
+        })) { e.preventDefault(); e.returnValue = ""; }
       });
     }
 
@@ -118,7 +149,8 @@ registerPage({
     }
 
     host.innerHTML = '<div class="hm"><div class="rs-page-head"><h1>My Survey</h1>'
-      + "<p>Questionnaires assigned to you. Answers save as you go; Submit makes them final."
+      + "<p>Questionnaires assigned to you. Answers stay on this device while you fill in — "
+      + "nothing reaches HR until you press Submit."
       + '</p></div><div id="hmMain"></div></div>';
     var main = host.querySelector("#hmMain");
 
@@ -129,6 +161,23 @@ registerPage({
         main.innerHTML = '<div class="hm-empty">Could not load — ' + esc(e.message || e) + "</div>";
         return;
       }
+      // resume local drafts (a draft is newer than the server copy, so it wins);
+      // a form no longer editable was submitted or closed — its draft is done
+      (S.data.questionnaires || []).forEach(function (q) {
+        if (!q.editable) { S._dirty[q.id] = false; draftClear(q.id); return; }
+        var d = draftLoad(q.id);
+        if (d && d.answers) {
+          var had = false;
+          Object.keys(d.answers).forEach(function (k) {
+            q.answers[k] = d.answers[k];
+            if (d.answers[k] != null && d.answers[k] !== "") had = true;
+          });
+          if (had) {
+            S._dirty[q.id] = true;
+            if (q.my_status === "not_started") q.my_status = "in_progress";
+          }
+        }
+      });
       paint();
     }
 
@@ -249,7 +298,7 @@ registerPage({
         + '<b style="font-size:21px;letter-spacing:-.3px">' + esc(cur.title) + "</b> " + statusPill(cur)
         + (cur.description ? '<div style="font-size:13.5px;color:var(--muted);margin-top:9px;line-height:1.6">' + esc(cur.description) + "</div>" : "")
         + '<div class="rs-hint hm-meta"><span class="em">' + steps.length + " part" + (steps.length === 1 ? "" : "s") + " · "
-        + p.t + " questions · your answers save as you go — leave and come back any time</span></div>"
+        + p.t + " questions · answers stay on this device until you submit — leave and come back any time</span></div>"
         + (cur.instructions ? '<div style="font-size:13px;margin-top:13px;line-height:1.65">' + esc(cur.instructions) + "</div>" : "")
         + '<div class="hm-conf">' + esc(cur.confidentiality) + "</div>"
         + (cur.my_status === "reopened"
@@ -259,7 +308,7 @@ registerPage({
         + '<div style="margin-top:20px"><button class="rs-btn pri" id="hmStart">'
         + (p.a >= p.t ? "Review & submit" : p.a ? "Continue where you left off" : "Start") + "</button></div>"
         + "</div>";
-      main.querySelector("#hmBack").onclick = function () { S.open = null; S.step = null; paint(); };
+      main.querySelector("#hmBack").onclick = function () { leaveToList(cur); };
       main.querySelector("#hmStart").onclick = function () {
         var at = steps.length;                          // everything answered → review
         for (var i = 0; i < steps.length; i++)
@@ -284,7 +333,7 @@ registerPage({
         + '<span class="rs-spacer"></span>'
         + '<button class="rs-btn pri" id="hmNext">'
         + (si === steps.length - 1 ? "Review & submit →" : "Next →") + "</button></div>";
-      main.querySelector("#hmBack").onclick = function () { S.open = null; S.step = null; paint(); };
+      main.querySelector("#hmBack").onclick = function () { leaveToList(cur); };
       main.querySelector("#hmPrev").onclick = function () { S.step = si - 1; paint(); window.scrollTo(0, 0); };
       main.querySelector("#hmNext").onclick = function () { S.step = si + 1; paint(); window.scrollTo(0, 0); };
       wire(cur);
@@ -317,7 +366,7 @@ registerPage({
         + '<span class="hm-err" id="hmErr" style="margin:0"></span><span class="rs-spacer"></span>'
         + '<button class="rs-btn pri" id="hmSubmit">'
         + (cur.my_status === "reopened" ? "Submit the correction" : "Submit") + "</button></div>";
-      main.querySelector("#hmBack").onclick = function () { S.open = null; S.step = null; paint(); };
+      main.querySelector("#hmBack").onclick = function () { leaveToList(cur); };
       main.querySelector("#hmPrev").onclick = function () { S.step = steps.length - 1; paint(); window.scrollTo(0, 0); };
       main.querySelectorAll("[data-go]").forEach(function (r) {
         r.onclick = function () { S.step = +r.dataset.go; paint(); window.scrollTo(0, 0); };
@@ -453,49 +502,36 @@ registerPage({
       return d.toLocaleString();
     }
 
-    /* Save one answer — the assessment's race rules verbatim: optimistic local update,
-     * per-question monotonic seq + serialized chain, rollback with a message on failure. */
-    function save(q, questionId, value, el) {
-      var key = q.id + "|" + questionId;
-      S._ok = S._ok || {};                       // last value the SERVER confirmed, per question
-      var my = S._seq[key] = (S._seq[key] || 0) + 1;
+    /* Save one answer LOCALLY — memory + the localStorage draft, never the server (his
+     * call 2026-08-28: an unsubmitted response must not exist anywhere HR can see).
+     * The whole set is pushed at Submit; the old per-answer race machinery went with
+     * the network calls. */
+    function save(q, questionId, value) {
       var stored = (value != null && Array.isArray(value)) ? JSON.stringify(value) : value;
-      if (!(key in S._ok)) S._ok[key] = q.answers[questionId];
       q.answers[questionId] = stored;
-      if (q.my_status === "not_started") q.my_status = "in_progress";
+      if (q.my_status === "not_started") q.my_status = "in_progress";  // the pill only
+      S._dirty[q.id] = true;
+      draftStore(q);
       var sv = main.querySelector('[data-sv="' + questionId + '"]');
-      if (sv) { sv.textContent = "saving…"; sv.style.color = "var(--faint)"; }
-      S._chain[key] = (S._chain[key] || Promise.resolve()).then(function () {
-        return api("/api/_hrq", { method: "POST", body: JSON.stringify({
-          questionnaire_id: q.id, question_id: questionId, value: value }) });
-      }).then(function () {
-        S._ok[key] = stored;
-        if (S._seq[key] !== my) return;
-        // re-query: a failure repaint elsewhere may have replaced the captured node
-        var svNow = main.querySelector('[data-sv="' + questionId + '"]') || sv;
-        if (svNow) { svNow.textContent = "saved"; svNow.style.color = "var(--pos)"; }
-        // the header progress ticks live as answers land
-        var pb = main.querySelector("#hmPbi"), ct3 = main.querySelector("#hmCnt");
-        if (pb || ct3) {
-          var st3 = buildSteps(q), pc = progCounts(q, st3);
-          if (pb) pb.style.width = (pc.t ? Math.round(pc.a / pc.t * 100) : 0) + "%";
-          if (ct3) ct3.textContent = pc.a + " of " + pc.t + " answered";
-        }
-      }, function (e) {
-        if (S._seq[key] !== my) return;
-        // Roll back to the last CONFIRMED value — not to "the value when this call
-        // started", which after two queued failures would be a phantom never stored.
-        q.answers[questionId] = S._ok[key];
-        // Keep what is typed in OTHER questions on screen: paint() re-renders every
-        // textarea from q.answers, and text inside the debounce window isn't there yet.
-        main.querySelectorAll("textarea[data-t]").forEach(function (t2) {
-          var k2 = +t2.dataset.t;
-          if (k2 !== questionId) q.answers[k2] = t2.value;
-        });
-        paint();                                  // rebuild FIRST, then write the message
-        var sv2 = main.querySelector('[data-sv="' + questionId + '"]');
-        if (sv2) { sv2.textContent = "NOT saved — " + (e.message || e); sv2.style.color = "var(--neg)"; }
-      });
+      if (sv) { sv.textContent = "saved on this device"; sv.style.color = "var(--pos)"; }
+      var pb = main.querySelector("#hmPbi"), ct3 = main.querySelector("#hmCnt");
+      if (pb || ct3) {
+        var st3 = buildSteps(q), pc = progCounts(q, st3);
+        if (pb) pb.style.width = (pc.t ? Math.round(pc.a / pc.t * 100) : 0) + "%";
+        if (ct3) ct3.textContent = pc.a + " of " + pc.t + " answered";
+      }
+    }
+
+    /* Leaving an editable form with unsubmitted answers gets the proper "hey, it's not
+     * sent" popup (his ask). The draft stays on the device either way. */
+    async function leaveToList(q) {
+      if (q && q.editable && S._dirty[q.id]) {
+        if (!(await hmConfirm({ t: "Not submitted yet",
+            b: "Your answers are saved on this device only — HR has not received "
+              + "anything. Come back any time and press Submit to send them.",
+            yes: "Leave anyway", no: "Keep filling" }))) return;
+      }
+      S.open = null; S.step = null; paint();
     }
 
     function wire(q) {
@@ -662,9 +698,28 @@ registerPage({
             b: "After this they become read-only — only HR can reopen them for a correction.",
             yes: q.my_status === "reopened" ? "Submit the correction" : "Submit" }))) return;
         sb.disabled = true; sb.textContent = "Submitting…";
-        api("/api/_hrq", { method: "POST", body: JSON.stringify({ questionnaire_id: q.id, submit: true }) })
-          .then(function () { return load(); },
-                function (e) { sb.disabled = false; sb.textContent = "Submit"; errEl.textContent = e.message || e; });
+        // the server saw NOTHING until now: push every locally-held answer, then finalize.
+        // "" goes too — on a reopened form it is an explicit clear of the old server value.
+        var chain = Promise.resolve();
+        Object.keys(q.answers).forEach(function (k) {
+          var v = q.answers[k];
+          if (v == null) return;
+          // multi answers are stored as JSON strings; the API expects the array back
+          if (typeof v === "string" && v.charAt(0) === "[") {
+            try { v = JSON.parse(v); } catch (e2) {}
+          }
+          chain = chain.then(function () {
+            return api("/api/_hrq", { method: "POST", body: JSON.stringify({
+              questionnaire_id: q.id, question_id: +k, value: v }) });
+          });
+        });
+        chain.then(function () {
+          return api("/api/_hrq", { method: "POST",
+            body: JSON.stringify({ questionnaire_id: q.id, submit: true }) });
+        }).then(function () {
+          S._dirty[q.id] = false; draftClear(q.id);
+          return load();
+        }, function (e) { sb.disabled = false; sb.textContent = "Submit"; errEl.textContent = e.message || e; });
       };
     }
 
