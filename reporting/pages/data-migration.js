@@ -414,7 +414,7 @@
         el.querySelector("#dmgSample").innerHTML = rows.length ? `
           <div class="dmg-note" style="margin-bottom:6px">First ${rows.length} rows, exactly
             as the API returns them${missCols.length
-              ? ' — <span class="dmg-miss-t">red headers are their model\\'s fields we '
+              ? ' — <span class="dmg-miss-t">red headers are model fields we '
                 + "have no source for</span>" : ""}:</div>
           <div class="dmg-sample"><table>
             <tr>${cols.map(c => "<th>" + esc(c) + "</th>").join("")}${missCols.map(c =>
