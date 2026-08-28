@@ -442,12 +442,13 @@
         mig_job_review: "JobReview",
         mig_job_money_flow_entry: "JobMoneyFlowEntry",
         mig_job_claim: "JobClaim", mig_negative_review: "NegativeReview",
-        mig_positive_review: "PositiveReview",
+        mig_positive_review: "PositiveReview", mig_job_pricing: "JobPricing",
       };
       // THEIR models' scalar fields (generated from schema.prisma,
       // tetrobyte-studio/ziptozip @ 2026-08-29). r:1 = the importer resolves
       // it (uuid, FK id, audit stamp) — never a data gap on our side.
       const MIG_FIELDS = {
+        mig_job_pricing: [{f:"id",r:1},{f:"jobId",r:1},{f:"kind",r:0},{f:"actTime",r:0},{f:"totalCF",r:0},{f:"vanQty",r:0},{f:"truckQty",r:0},{f:"packingEstimateCents",r:0},{f:"discountCents",r:0},{f:"depositCents",r:0},{f:"grandTotalCashCents",r:0},{f:"grandTotalCardCents",r:0},{f:"data",r:0},{f:"createdAt",r:1},{f:"updatedAt",r:1}],
         mig_customer: [{f:"id",r:1},{f:"firstName",r:0},{f:"lastName",r:0},{f:"email",r:0},{f:"phone",r:0},{f:"notes",r:0},{f:"createdAt",r:1},{f:"updatedAt",r:1},{f:"deletedAt",r:1}],
         mig_job: [{f:"id",r:1},{f:"jobCode",r:0},{f:"status",r:0},{f:"ownerId",r:1},{f:"customerId",r:1},{f:"branchId",r:1},{f:"sourceId",r:1},{f:"movingType",r:0},{f:"jobType",r:0},{f:"moveDate",r:0},{f:"startTime",r:0},{f:"endTime",r:0},{f:"strictArrival",r:0},{f:"notes",r:0},{f:"furnitureCount",r:0},{f:"furnitureNotes",r:0},{f:"boxesCount",r:0},{f:"boxesNotes",r:0},{f:"actualCF",r:0},{f:"requestNumber",r:0},{f:"legacyMainJobId",r:1},{f:"salesNotes",r:0},{f:"eventTitle",r:0},{f:"foremanConfirmedAt",r:0},{f:"foremanFinishedAt",r:0},{f:"afterJobId",r:1},{f:"storageDeliveryOfId",r:1},{f:"storagePickupJobId",r:1},{f:"estimatedDuration",r:0},{f:"mainJobId",r:1},{f:"finalizedAt",r:0},{f:"finalizedById",r:1},{f:"bolLockedAt",r:0},{f:"bolLockedById",r:1},{f:"netCashSnapshotCents",r:0},{f:"moneyBalanceCents",r:0},{f:"moneyReceivedAt",r:0},{f:"createdAt",r:1},{f:"updatedAt",r:1}],
         mig_job_address: [{f:"id",r:1},{f:"jobId",r:1},{f:"kind",r:0},{f:"street",r:0},{f:"city",r:0},{f:"zip",r:0},{f:"stateCode",r:0},{f:"lat",r:0},{f:"lng",r:0},{f:"buildingType",r:0},{f:"buildingSize",r:0},{f:"floorRateId",r:1},{f:"longCarryFt",r:0},{f:"longCarryFeeId",r:1},{f:"parkingType",r:0},{f:"entryDetails",r:0},{f:"storageKind",r:0},{f:"ownedWarehouseId",r:1},{f:"rentedStorageId",r:1},{f:"createdAt",r:1},{f:"updatedAt",r:1}],
