@@ -1462,32 +1462,10 @@ if (!ZTZ.getToken()) {
         } catch (e) {}
       };
     }
-    // PIPELINE ALARMS (2026-07-20). Two faults ran for weeks unseen: a run killed mid-way so the
-    // job list froze, and a spreadsheet silently skipped for 19 days. Both looked healthy — the
-    // footer even said "fresh". This banner sits above every page while a check is failing, so a
-    // silent breakage cannot hide again. Failures shout; warnings are quieter; healthy shows nothing.
-    // ADMINS ONLY (Tornike 2026-08-28: "users should not see error at all - it is only
-    // something I should see and try to control"): a pipeline fault is his to fix, and a
-    // red banner over a salesperson's report only teaches people to distrust the numbers.
-    (async () => {
-      try {
-        if (!ME || !ME.admin) return;
-        const h = await ZTZ.api("/api/_health");
-        if (!h || !h.checks || !h.checks.length) return;
-        const bad = h.checks.filter(c => c.status === "fail" || c.status === "warn");
-        const wrap = document.getElementById("pipeHealth");
-        if (!wrap || !bad.length) return;
-        const fail = h.status === "fail";
-        wrap.style.cssText = "margin:0 16px 12px;border-radius:12px;padding:11px 15px;font-size:13px;line-height:1.55;"
-          + "display:flex;gap:11px;align-items:flex-start;flex-wrap:wrap;border:1px solid "
-          + (fail ? "#f0b4ba;background:#fdeced;color:#7a1f28" : "#f2ddb0;background:#fdf4e3;color:#6b4c12");
-        wrap.innerHTML = '<b style="flex:0 0 auto">' + (fail ? "⚠ Data pipeline problem" : "Data pipeline notice")
-          + "</b><span style='flex:1;min-width:240px'>"
-          + bad.map(c => RSC.esc(c.detail)).join("<br>")
-          + "</span>";
-        wrap.classList.remove("hidden");
-      } catch (e) {}
-    })();
+    // PIPELINE ALARMS moved OFF the shell entirely (Tornike 2026-08-28, second ruling:
+    // "have it only in Data Refresh tab") — the health checks still run every hour and
+    // their warnings render on the Refresh Log page, where the person who can act on
+    // them goes looking. Nothing pipeline-shaped is shown over a report page any more.
     // PERF (2026-07-15 plan, batch A): boot used to be SERIAL — `await buildFilters()` (which
     // itself awaits the full closing+moveboard downloads for the slicer option lists) before the
     // page was allowed to render, so every page's own fetches started ~12s late ("wave 2").
@@ -1805,7 +1783,7 @@ registerPage({
 <script src="pages/leads-vs-moveboard.js?v=7"></script>
 <script src="pages/source-analysis.js?v=4"></script>
 <script src="pages/data-quality.js?v=14"></script>
-<script src="pages/refresh-log.js?v=24"></script>
+<script src="pages/refresh-log.js?v=25"></script>
 <script src="pages/sales-team.js?v=47"></script>
 <script src="pages/sales-comms.js?v=3"></script>
 <script src="pages/sales-trackers.js?v=4"></script>

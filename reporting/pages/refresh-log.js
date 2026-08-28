@@ -708,6 +708,14 @@ function rlRender(host, runs, cov, fresh) {
   // NOT `alert`: this is function-scoped and the pause/resume handler below calls the
   // GLOBAL alert() on its only error path -- shadowed, that call threw instead of reporting.
   let alertHtml = "";
+  const hbad = (RL.health || []).filter(c => c.status === "fail" || c.status === "warn");
+  if (hbad.length) {
+    alertHtml += `<div class="rl-alert">
+      <div class="rl-alert-h">⚠ ${hbad.length} health check${hbad.length === 1 ? "" : "s"} raising a hand</div>
+      ${hbad.map(c => `<div class="rl-alert-r"><b>${RSC.esc(String(c.check_name || c.check || "").replace(/_/g, " "))}</b>
+        <span class="rl-alert-d">${RSC.esc(c.detail || "")}</span></div>`).join("")}
+    </div>`;
+  }
   if (skipped.length) {
     alertHtml += `<div class="rl-alert" style="border-color:color-mix(in srgb,var(--amber) 45%,transparent);background:color-mix(in srgb,var(--amber) 8%,var(--panel))">
       <div class="rl-alert-h" style="color:var(--amber)">✉ ${skipped.length} email${
@@ -844,6 +852,11 @@ registerPage({
       <div id="rlLive"></div>
       <div id="rlBody"><div class="rs-loading" style="padding:26px">Loading refresh history…</div></div>`;
     const body = host.querySelector("#rlBody");
+    // the pipeline health checks used to be a banner over EVERY page; his ruling
+    // (2026-08-28) moved them here, the one tab that exists to answer "is the data ok".
+    // Non-fatal on purpose: a broken health endpoint must not take the log down with it.
+    try { RL.health = (await ZTZ.api("/api/_health")).checks || []; }
+    catch (e) { RL.health = []; }
     let data;
     try {
       data = await ZTZ.api("/api/_refresh_log");
