@@ -141,7 +141,7 @@
       badSub: "Ask for a fresh questionnaire link.",
       parts: function (n) { return n + " part" + (n === 1 ? "" : "s"); },
       qs: function (n) { return n + " questions"; },
-      saveNote: "your answers save as you go — you can come back any time",
+      saveNote: "answers stay on this device until you submit — you can come back any time",
       anon: function (team) { return "This form is anonymous. It records your team — " + team
         + " — and never your name, email or account. Nobody can see who wrote what."; },
       prevNote: "This is a PREVIEW — answers are not recorded anywhere. Walk through the form "
@@ -157,7 +157,7 @@
       missReq: function (n) { return " · " + n + " required still missing"; },
       optional: "optional", required: "required", other: "Other:", choose: "Choose…",
       yourAnswer: "Your answer…", fewSentences: "A few sentences is plenty.",
-      saving: "saving…", saved: "saved", notSaved: "NOT saved — ",
+      saving: "saving…", saved: "saved on this device", notSaved: "NOT saved — ",
       topAnon: function (team) { return "Anonymous · team: " + team; },
       topPrev: "Preview · nothing is recorded",
       doneT: "Thank you — your answers are in.",
@@ -172,7 +172,7 @@
       badSub: "მოითხოვეთ ახალი ბმული.",
       parts: function (n) { return n + " ნაწილი"; },
       qs: function (n) { return n + " კითხვა"; },
-      saveNote: "პასუხები ავტომატურად ინახება — შეგიძლიათ მოგვიანებით დაასრულოთ",
+      saveNote: "პასუხები გაგზავნამდე მხოლოდ ამ მოწყობილობაზე ინახება — შეგიძლიათ მოგვიანებით დაასრულოთ",
       anon: function (team) { return "ეს ფორმა ანონიმურია. ინახება მხოლოდ თქვენი გუნდი — "
         + trTeam(team) + " — და არასოდეს თქვენი სახელი, ელფოსტა ან ანგარიში. ვერავინ ნახავს ვინ რა დაწერა."; },
       prevNote: "ეს არის წინასწარი ნახვა — პასუხები არსად არ ინახება. გაიარეთ ფორმა ისე, "
@@ -189,7 +189,7 @@
       missReq: function (n) { return " · " + n + " სავალდებულო კითხვა დარჩა"; },
       optional: "არასავალდებულო", required: "სავალდებულო", other: "სხვა:", choose: "აირჩიეთ…",
       yourAnswer: "თქვენი პასუხი…", fewSentences: "რამდენიმე წინადადება საკმარისია.",
-      saving: "ინახება…", saved: "შენახულია", notSaved: "ვერ შეინახა — ",
+      saving: "ინახება…", saved: "შენახულია ამ მოწყობილობაზე", notSaved: "ვერ შეინახა — ",
       topAnon: function (team) { return "ანონიმური · გუნდი: " + trTeam(team); },
       topPrev: "წინასწარი ნახვა · არაფერი ინახება",
       doneT: "გმადლობთ — თქვენი პასუხები მიღებულია.",
@@ -530,8 +530,26 @@
       }
       var btn = document.getElementById("submit");
       btn.disabled = true; btn.textContent = L().submitting;
-      savePost({ submit: true }).then(function () {
-        Q.my_status = "submitted"; paint(); window.scrollTo(0, 0);
+      // the server saw NOTHING until now — push every locally-held answer, then finalize.
+      // A preview still pushes nothing: its answers are never recorded anywhere.
+      var push = Promise.resolve();
+      if (!Q.preview) Object.keys(Q.answers || {}).forEach(function (k) {
+        var v = Q.answers[k];
+        if (v == null || v === "") return;
+        // multi answers are stored as JSON strings; the API expects the array back
+        if (typeof v === "string" && v.charAt(0) === "[") {
+          try { v = JSON.parse(v); } catch (e2) {}
+        }
+        push = push.then(function () {
+          return savePost({ question_id: +k, value: v });
+        });
+      });
+      push.then(function () {
+        return savePost({ submit: true });
+      }).then(function () {
+        Q.my_status = "submitted";
+        try { store.set(draftKey, ""); } catch (e3) {}
+        paint(); window.scrollTo(0, 0);
       }, function (e) {
         btn.disabled = false; btn.textContent = L().submit;
         document.getElementById("err").textContent = trErr(e.message);
@@ -539,31 +557,25 @@
     };
   }
 
+  /* Save one answer LOCALLY — memory + the device draft, never the server (his call
+     2026-08-28: an unsubmitted response must not exist anywhere HR can see it). The
+     whole set is pushed when Submit is pressed; server rows therefore only ever hold
+     submitted answers. A preview writes nothing anywhere, as before. */
+  var draftKey = "hrq_draft_" + t;
+  function draftWrite() {
+    if (!Q || Q.preview) return;
+    try { store.set(draftKey, JSON.stringify(Q.answers || {})); } catch (e) {}
+  }
   function save(qid, value) {
-    var key = String(qid);
-    var my = seq[key] = (seq[key] || 0) + 1;
     var stored = Array.isArray(value) ? JSON.stringify(value) : value;
-    if (!(key in okv)) okv[key] = Q.answers[qid];
     Q.answers[qid] = stored;
+    draftWrite();
     var sv = main.querySelector('[data-sv="' + qid + '"]');
-    if (sv) { sv.textContent = L().saving; sv.style.color = "var(--faint)"; }
-    chain[key] = (chain[key] || Promise.resolve()).then(function () {
-      return savePost({ question_id: qid, value: value });
-    }).then(function () {
-      okv[key] = stored;
-      if (seq[key] !== my) return;
-      var sv2 = main.querySelector('[data-sv="' + qid + '"]');
-      if (sv2) { sv2.textContent = L().saved; sv2.style.color = "var(--pos)"; }
-      var steps = buildSteps(), p = counts(steps);
-      var pbi = document.getElementById("pbi"), cnt = document.getElementById("cnt");
-      if (pbi) pbi.style.width = (p.t ? Math.round(p.a / p.t * 100) : 0) + "%";
-      if (cnt) cnt.textContent = L().answered(p.a, p.t);
-    }, function (e) {
-      if (seq[key] !== my) return;
-      Q.answers[qid] = okv[key];
-      var sv2 = main.querySelector('[data-sv="' + qid + '"]');
-      if (sv2) { sv2.textContent = L().notSaved + trErr(e.message || e); sv2.style.color = "var(--neg)"; }
-    });
+    if (sv) { sv.textContent = L().saved; sv.style.color = "var(--pos)"; }
+    var steps = buildSteps(), p = counts(steps);
+    var pbi = document.getElementById("pbi"), cnt = document.getElementById("cnt");
+    if (pbi) pbi.style.width = (p.t ? Math.round(p.a / p.t * 100) : 0) + "%";
+    if (cnt) cnt.textContent = L().answered(p.a, p.t);
   }
 
   function wire() {
@@ -677,7 +689,21 @@
     });
   }
 
-  api().then(function (j) { Q = j; paint(); }, function (e) {
+  api().then(function (j) {
+    Q = j;
+    // resume the device draft over whatever the server holds (legacy autosaved rows
+    // still return their answers; the draft is newer, so it wins per question)
+    if (!Q.preview && Q.my_status !== "submitted" && Q.my_status !== "resubmitted") {
+      try {
+        var d = JSON.parse(store.get(draftKey) || "null");
+        if (d && typeof d === "object") {
+          Q.answers = Q.answers || {};
+          Object.keys(d).forEach(function (k) { Q.answers[k] = d[k]; });
+        }
+      } catch (e) {}
+    }
+    paint();
+  }, function (e) {
     main.innerHTML = '<div class="card"><b>' + esc(trErr(e.message)) + "</b>" +
       '<div class="dim" style="margin-top:6px">' + L().badSub + "</div></div>";
   });

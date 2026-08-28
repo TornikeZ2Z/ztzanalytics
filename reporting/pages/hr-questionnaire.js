@@ -2383,11 +2383,13 @@ registerPage({
           tot.people += c2.people; tot.invited += c2.invited;
           tot.started += c2.started; tot.submitted += c2.submitted;
         });
+        // NO "in progress" anywhere (his call 2026-08-28): an unsubmitted response is
+        // invisible — the form keeps answers on the respondent's device until Submit,
+        // and the bridge hides the legacy autosaved stragglers until they submit.
         body.innerHTML =
           '<div class="hq-kpis">'
           + '<div class="hq-kpi"><b>' + tot.people + "</b><span>people invited to answer</span></div>"
           + '<div class="hq-kpi"><b>' + tot.invited + "</b><span>invite emails sent</span></div>"
-          + '<div class="hq-kpi"><b>' + tot.started + "</b><span>in progress</span></div>"
           + '<div class="hq-kpi"><b>' + tot.submitted + "</b><span>submitted</span>"
           + '<div class="pb"><i style="width:' + (tot.people ? Math.round(tot.submitted / tot.people * 100) : 0)
           + '%"></i></div></div></div>'
@@ -2401,12 +2403,11 @@ registerPage({
           + "</div>"
           + '<div class="hq-card" style="padding:0;overflow:hidden"><table class="hq-tbl board"><thead><tr>'
           + "<th>Team</th><th class=\"r\">People</th><th class=\"r\">Invited</th>"
-          + "<th class=\"r\">In progress</th><th class=\"r\">Submitted</th></tr></thead><tbody>"
+          + "<th class=\"r\">Submitted</th></tr></thead><tbody>"
           + cats.map(function (c2) {
               return "<tr><td><b>" + esc(c2.category) + "</b></td>"
                 + '<td class="r">' + c2.people + "</td>"
                 + '<td class="r">' + c2.invited + "</td>"
-                + '<td class="r">' + c2.started + "</td>"
                 + '<td class="r hq-new" style="color:var(--pos);font-weight:800">' + c2.submitted + "</td></tr>";
             }).join("")
           + "</tbody></table></div>"
@@ -2442,7 +2443,7 @@ registerPage({
                   }).join("")
                 + "</tbody></table></div>"
               : '<div class="hq-card hq-dim">No answers yet. They appear here the moment '
-                + "someone starts.</div>");
+                + "someone submits.</div>");
         var ib2 = body.querySelector("#hbInv");
         if (ib2) ib2.onclick = function () { sendInvites(S.qid); };
         var rb2 = body.querySelector("#hbRem");
