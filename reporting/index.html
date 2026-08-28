@@ -1465,8 +1465,12 @@ if (!ZTZ.getToken()) {
     // job list froze, and a spreadsheet silently skipped for 19 days. Both looked healthy — the
     // footer even said "fresh". This banner sits above every page while a check is failing, so a
     // silent breakage cannot hide again. Failures shout; warnings are quieter; healthy shows nothing.
+    // ADMINS ONLY (Tornike 2026-08-28: "users should not see error at all - it is only
+    // something I should see and try to control"): a pipeline fault is his to fix, and a
+    // red banner over a salesperson's report only teaches people to distrust the numbers.
     (async () => {
       try {
+        if (!ME || !ME.admin) return;
         const h = await ZTZ.api("/api/_health");
         if (!h || !h.checks || !h.checks.length) return;
         const bad = h.checks.filter(c => c.status === "fail" || c.status === "warn");
