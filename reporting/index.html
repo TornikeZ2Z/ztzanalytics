@@ -901,7 +901,7 @@ const BARE_CHROME = new Set(["review-performance", "demand-analysis", "reviews-r
   // another page emptied it completely, which is worse than useless -- it looked like there
   // were no Straight jobs at all.
   "straight-vs-local",
-  "area-plan"]);
+  "area-plan", "truck-economics"]);
 /* Pages where the global filter bar MUST STAY VISIBLE, so Hide filters is not offered at all.
    The control exists for pages carrying a wall of slicers you want out of the way to read the
    board full-screen — Custom Breakdown is the case it was built for. It is wrong wherever the
@@ -1575,7 +1575,7 @@ const ACL_DEPTS = [
   { id: "company",   label: "Company Overview", icon: "spark",     reports: ["work", "monthly-report", "analysis-by-category"] },
   { id: "sales",     label: "Sales",            icon: "funnel",    reports: ["work", "sales-command", "demand-analysis", "conversations", "sales-comms", "sales-trackers"] },
   { id: "marketing", label: "Marketing",        icon: "megaphone", reports: ["work", "source-trace", "referral-candidates", "jobs-by-area", "relocation-trends", "angi-funnel", "promised-reviews"] },
-  { id: "logistics", label: "Logistics",        icon: "tool",      reports: ["work", "money-flow", "ld-planning", "foreman-closings", "packing-control", "storage-control", "foreman-assessment", "fuel-control", "foreman-late", "straight-vs-local", "area-plan"] },
+  { id: "logistics", label: "Logistics",        icon: "tool",      reports: ["work", "money-flow", "ld-planning", "foreman-closings", "packing-control", "storage-control", "foreman-assessment", "fuel-control", "foreman-late", "straight-vs-local", "area-plan", "truck-economics"] },
   // MUST mirror DEPT_REPORTS["hr"] in bridge/app.py. Employees answering the questionnaire
   // need NO grant at all — this tile is for HR: managing it and reading the results.
   { id: "hr",        label: "Human Resources", icon: "user",      reports: ["work", "hr-questionnaire", "hr-responses", "hr-directory"] },
@@ -1819,6 +1819,7 @@ registerPage({
 <script src="pages/demand-analysis.js?v=10"></script>
 <script src="pages/straight-vs-local.js?v=6"></script>
 <script src="pages/area-plan.js?v=7"></script>
+<script src="pages/truck-economics.js?v=2"></script>
 <script src="pages/general-tables.js?v=6"></script>
 <script src="pages/money-flow-issues.js?v=3"></script>
 <script src="pages/foreman-closings.js?v=20"></script>
