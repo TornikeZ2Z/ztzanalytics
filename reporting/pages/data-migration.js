@@ -51,6 +51,17 @@
       background:var(--panel-2);border:1px solid var(--line);border-radius:7px;
       padding:2px 8px;color:var(--muted)}
     .dmg-col b{color:var(--ink)}
+    /* coverage against THEIR model: filled, missing (red), importer-resolved (faint) */
+    .dmg-col.dmg-fill{border-color:color-mix(in srgb,var(--pos) 45%,var(--line))}
+    .dmg-col.dmg-miss{border-color:var(--neg);color:var(--neg);
+      background:color-mix(in srgb,var(--neg) 7%,transparent)}
+    .dmg-col.dmg-miss b{color:var(--neg)}
+    .dmg-col.dmg-res{opacity:.55}
+    .dmg-miss-t{color:var(--neg);font-weight:800}
+    .dmg-full-t{color:var(--pos);font-weight:800}
+    .dmg-sample th.miss{color:var(--neg);
+      background:color-mix(in srgb,var(--neg) 9%,var(--panel-2))}
+    .dmg-sample td.missc{color:var(--faint);text-align:center}
     .dmg-sample{max-height:52vh;overflow:auto;border:1px solid var(--line);
       border-radius:10px}
     .dmg-sample table{border-collapse:collapse;font-size:11.5px;white-space:nowrap}
@@ -338,9 +349,25 @@
         if (S.sel) paintDetail(body.querySelector("#dmgDetail"));
       }
 
+      // which of THEIR model fields each mig_ table misses — computed here so the
+      // detail can paint the gap in red, not just what we have
+      function migCoverage(table, ourCols) {
+        const spec = MIG_FIELDS[table];
+        if (!spec) return null;
+        const ours = new Set(ourCols);
+        const filled = [], missing = [], resolved = [];
+        spec.forEach(x => {
+          if (x.r) resolved.push(x.f);
+          else if (ours.has(x.f)) filled.push(x.f);
+          else missing.push(x.f);
+        });
+        return { filled, missing, resolved };
+      }
+
       function paintDetail(el) {
         const meta = (S.catalog.tables || []).find(t => t.table === S.sel);
         if (!meta) { el.innerHTML = ""; return; }
+        const cov = migCoverage(meta.table, meta.columns.map(c => c.name));
         const head = `
           <div class="panel">
             <div class="panel-title" style="font-family:ui-monospace,Consolas,monospace">
@@ -349,9 +376,23 @@
                 ~${(+meta.rows_approx).toLocaleString()} rows ·
                 ${meta.columns.length} columns</span></div>
             ${meta.note ? '<div class="dmg-notebox">★ ' + esc(meta.note) + "</div>" : ""}
-            <div class="dmg-cols">${meta.columns.map(c =>
-              '<span class="dmg-col"><b>' + esc(c.name) + "</b> " + esc(c.type) + "</span>")
-              .join("")}</div>
+            ${cov ? `
+              <div class="dmg-note" style="margin:6px 0 2px"><b>Their model's fields —
+                ${cov.filled.length} filled${cov.missing.length
+                  ? ', <span class="dmg-miss-t">' + cov.missing.length
+                    + " missing</span>" : ", complete"}</b>
+                (grey = the importer resolves these: ids, links, audit stamps):</div>
+              <div class="dmg-cols">
+                ${cov.filled.map(f => '<span class="dmg-col dmg-fill"><b>' + esc(f)
+                  + "</b></span>").join("")}
+                ${cov.missing.map(f => '<span class="dmg-col dmg-miss"><b>' + esc(f)
+                  + "</b> no source</span>").join("")}
+                ${cov.resolved.map(f => '<span class="dmg-col dmg-res">' + esc(f)
+                  + "</span>").join("")}
+              </div>` : `
+              <div class="dmg-cols">${meta.columns.map(c =>
+                '<span class="dmg-col"><b>' + esc(c.name) + "</b> " + esc(c.type)
+                + "</span>").join("")}</div>`}
             <div class="dmg-url" style="margin:8px 0 4px">GET ${esc(S.admin.endpoint)}?t=&lt;token&gt;&amp;table=${esc(meta.table)}&amp;limit=1000&amp;offset=0</div>
             <div id="dmgSample"><div class="dmg-note">Loading a live sample…</div></div>
           </div>`;
@@ -367,16 +408,23 @@
         }
         const rows = S.sample.rows || [];
         const cols = rows.length ? Object.keys(rows[0]) : meta.columns.map(c => c.name);
+        // the missing model fields ride along as RED headers with empty cells, so the
+        // sample reads as "their table, with our holes visible" (his ask 2026-08-29)
+        const missCols = cov ? cov.missing : [];
         el.querySelector("#dmgSample").innerHTML = rows.length ? `
           <div class="dmg-note" style="margin-bottom:6px">First ${rows.length} rows, exactly
-            as the API returns them (JSON values rendered as text):</div>
+            as the API returns them${missCols.length
+              ? ' — <span class="dmg-miss-t">red headers are their model\\'s fields we '
+                + "have no source for</span>" : ""}:</div>
           <div class="dmg-sample"><table>
-            <tr>${cols.map(c => "<th>" + esc(c) + "</th>").join("")}</tr>
+            <tr>${cols.map(c => "<th>" + esc(c) + "</th>").join("")}${missCols.map(c =>
+              '<th class="miss">' + esc(c) + "</th>").join("")}</tr>
             ${rows.map(r => "<tr>" + cols.map(c => {
               const v = r[c];
               const txt = (v && typeof v === "object") ? JSON.stringify(v) : v;
               return "<td>" + esc(txt == null ? "" : String(txt)) + "</td>";
-            }).join("") + "</tr>").join("")}
+            }).join("") + missCols.map(() => '<td class="missc">—</td>').join("")
+              + "</tr>").join("")}
           </table></div>` : '<div class="dmg-note">The table is empty.</div>';
       }
 
@@ -393,6 +441,23 @@
         mig_job_money_flow_entry: "JobMoneyFlowEntry",
         mig_job_claim: "JobClaim", mig_negative_review: "NegativeReview",
         mig_positive_review: "PositiveReview",
+      };
+      // THEIR models' scalar fields (generated from schema.prisma,
+      // tetrobyte-studio/ziptozip @ 2026-08-29). r:1 = the importer resolves
+      // it (uuid, FK id, audit stamp) — never a data gap on our side.
+      const MIG_FIELDS = {
+        mig_customer: [{f:"id",r:1},{f:"firstName",r:0},{f:"lastName",r:0},{f:"email",r:0},{f:"phone",r:0},{f:"notes",r:0},{f:"createdAt",r:1},{f:"updatedAt",r:1},{f:"deletedAt",r:1}],
+        mig_job: [{f:"id",r:1},{f:"jobCode",r:0},{f:"status",r:0},{f:"ownerId",r:1},{f:"customerId",r:1},{f:"branchId",r:1},{f:"sourceId",r:1},{f:"movingType",r:0},{f:"jobType",r:0},{f:"moveDate",r:0},{f:"startTime",r:0},{f:"endTime",r:0},{f:"strictArrival",r:0},{f:"notes",r:0},{f:"furnitureCount",r:0},{f:"furnitureNotes",r:0},{f:"boxesCount",r:0},{f:"boxesNotes",r:0},{f:"actualCF",r:0},{f:"requestNumber",r:0},{f:"legacyMainJobId",r:1},{f:"salesNotes",r:0},{f:"eventTitle",r:0},{f:"foremanConfirmedAt",r:0},{f:"foremanFinishedAt",r:0},{f:"afterJobId",r:1},{f:"storageDeliveryOfId",r:1},{f:"storagePickupJobId",r:1},{f:"estimatedDuration",r:0},{f:"mainJobId",r:1},{f:"finalizedAt",r:0},{f:"finalizedById",r:1},{f:"bolLockedAt",r:0},{f:"bolLockedById",r:1},{f:"netCashSnapshotCents",r:0},{f:"moneyBalanceCents",r:0},{f:"moneyReceivedAt",r:0},{f:"createdAt",r:1},{f:"updatedAt",r:1}],
+        mig_job_address: [{f:"id",r:1},{f:"jobId",r:1},{f:"kind",r:0},{f:"street",r:0},{f:"city",r:0},{f:"zip",r:0},{f:"stateCode",r:0},{f:"lat",r:0},{f:"lng",r:0},{f:"buildingType",r:0},{f:"buildingSize",r:0},{f:"floorRateId",r:1},{f:"longCarryFt",r:0},{f:"longCarryFeeId",r:1},{f:"parkingType",r:0},{f:"entryDetails",r:0},{f:"storageKind",r:0},{f:"ownedWarehouseId",r:1},{f:"rentedStorageId",r:1},{f:"createdAt",r:1},{f:"updatedAt",r:1}],
+        mig_job_timeline_event: [{f:"id",r:1},{f:"jobId",r:1},{f:"kind",r:0},{f:"timeText",r:0},{f:"crewSize",r:0},{f:"truckQty",r:0},{f:"cashRateCents",r:0},{f:"cardRateCents",r:0},{f:"serviceFeeCents",r:0},{f:"ratesOverridden",r:0},{f:"ratesOverriddenAt",r:0},{f:"ratesOverriddenById",r:1},{f:"capturedById",r:1},{f:"capturedAt",r:0}],
+        mig_job_payment_calc: [{f:"id",r:1},{f:"jobId",r:1},{f:"paymentByCashCents",r:0},{f:"paymentByCardCents",r:0},{f:"selectedTipCents",r:0},{f:"cardPaymentProvider",r:0},{f:"hourlyLaborChargeCents",r:0},{f:"serviceFeeCents",r:0},{f:"movingFeeBeforeAdjustmentCents",r:0},{f:"cfAdjustmentCents",r:0},{f:"longCarryAdjustmentCents",r:0},{f:"floorAdjustmentCents",r:0},{f:"packingLaborTimeAdjustmentCents",r:0},{f:"bulkyWeightAdjustmentCents",r:0},{f:"totalAdjustmentCents",r:0},{f:"totalMovingFeeCents",r:0},{f:"waitingTimeFeeCents",r:0},{f:"totalPackingMaterialsCents",r:0},{f:"bulkyItemsFeeCents",r:0},{f:"stairsFeeCents",r:0},{f:"longCarryFeeCents",r:0},{f:"hoistingFeeCents",r:0},{f:"overnightFeeCents",r:0},{f:"junkRemovalFeeCents",r:0},{f:"storageFeeCents",r:0},{f:"storageBalanceDueCents",r:0},{f:"mainJobBalanceDueCents",r:0},{f:"otherAdditionalFeesCents",r:0},{f:"discountsCents",r:0},{f:"totalChargeCents",r:0},{f:"duePaymentSnapshotCents",r:0},{f:"depositPaidCents",r:0},{f:"discountForCashPaymentBps",r:0},{f:"additionalDiscountCents",r:0},{f:"totalAmountToBePaidCents",r:0},{f:"remainingBalanceCents",r:0},{f:"createdById",r:1},{f:"createdAt",r:1},{f:"updatedAt",r:1}],
+        mig_job_crew_member: [{f:"id",r:1},{f:"jobId",r:1},{f:"rowIndex",r:0},{f:"memberType",r:0},{f:"isAnonymous",r:0},{f:"memberName",r:0},{f:"crewProfileId",r:1},{f:"startAtText",r:0},{f:"endAtText",r:0},{f:"advanceSalaryCents",r:0},{f:"advanceSalaryNote",r:0},{f:"deductionSalaryCents",r:0},{f:"deductionSalaryNote",r:0},{f:"createdById",r:1},{f:"createdAt",r:1}],
+        mig_job_truck: [{f:"id",r:1},{f:"jobId",r:1},{f:"truckIndex",r:0},{f:"vehicleId",r:1},{f:"kind",r:0},{f:"rentalCompany",r:0},{f:"rentalNumber",r:0},{f:"workersCarInfo",r:0},{f:"travelMiles",r:0},{f:"truckFuelCents",r:0},{f:"carExpenseCents",r:0},{f:"createdById",r:1},{f:"createdAt",r:1},{f:"updatedAt",r:1}],
+        mig_job_review: [{f:"id",r:1},{f:"jobId",r:1},{f:"satisfactionScore",r:0},{f:"createdById",r:1},{f:"createdAt",r:1},{f:"updatedAt",r:1}],
+        mig_job_money_flow_entry: [{f:"id",r:1},{f:"jobId",r:1},{f:"kind",r:0},{f:"amountCents",r:0},{f:"note",r:0},{f:"createdById",r:1},{f:"createdAt",r:1}],
+        mig_job_claim: [{f:"id",r:1},{f:"jobId",r:1},{f:"caseOwnerId",r:1},{f:"customerName",r:0},{f:"salesRepName",r:0},{f:"foremanName",r:0},{f:"stage",r:0},{f:"statusOptionId",r:1},{f:"closedAt",r:0},{f:"responsibilityOptionId",r:1},{f:"reasonOptionId",r:1},{f:"claimFormStatus",r:0},{f:"releaseFormStatus",r:0},{f:"totalRefundCents",r:0},{f:"salesResponsibilityCents",r:0},{f:"commissionReducedPct",r:0},{f:"commissionReducedAmountCents",r:0},{f:"reduced",r:0},{f:"refundDate",r:0},{f:"paymentOption",r:0},{f:"reasonNotes",r:0},{f:"createdById",r:1},{f:"createdAt",r:1},{f:"updatedAt",r:1}],
+        mig_negative_review: [{f:"id",r:1},{f:"jobId",r:1},{f:"providerId",r:1},{f:"providerName",r:0},{f:"location",r:0},{f:"rating",r:0},{f:"priority",r:0},{f:"stage",r:0},{f:"statusOptionId",r:1},{f:"resolvedAt",r:0},{f:"caseOwnerId",r:1},{f:"customerName",r:0},{f:"notes",r:0},{f:"createdById",r:1},{f:"createdAt",r:1},{f:"updatedAt",r:1}],
+        mig_positive_review: [{f:"id",r:1},{f:"jobId",r:1},{f:"providerId",r:1},{f:"providerName",r:0},{f:"rating",r:0},{f:"reviewLink",r:0},{f:"reviewedAt",r:0},{f:"customerName",r:0},{f:"foremanName",r:0},{f:"foremanCrewProfileId",r:1},{f:"notes",r:0},{f:"createdById",r:1},{f:"createdAt",r:1},{f:"updatedAt",r:1}],
       };
       function paintMig(body) {
         if (!S.catalog) {
@@ -420,9 +485,11 @@
                 developer's catalog) on their own.</div>` : ""}
             <div class="rs-tablewrap"><table class="rs-table">
               <thead><tr><th>Our table</th><th>Fills their model</th>
-                <th class="r">Rows</th><th>What it carries</th></tr></thead>
+                <th class="r">Rows</th><th>Their fields</th>
+                <th>What it carries</th></tr></thead>
               <tbody>${names.map(n => {
                 const t = have[n];
+                const cov = t ? migCoverage(n, t.columns.map(c => c.name)) : null;
                 return `<tr${t ? ' data-mig="' + esc(n) + '" style="cursor:pointer"' : ""}>
                   <td class="strong" style="font-family:ui-monospace,Consolas,monospace">
                     ${esc(n)}</td>
@@ -430,7 +497,13 @@
                     ${esc(MIG_MODELS[n])}</td>
                   <td class="r">${t ? (+t.rows_approx).toLocaleString()
                     : '<span class="rs-pill mute">next run</span>'}</td>
-                  <td class="rs-hint" style="max-width:520px">${esc((t && t.note)
+                  <td>${cov ? cov.filled.length + " of "
+                    + (cov.filled.length + cov.missing.length) + " filled"
+                    + (cov.missing.length
+                       ? ' · <span class="dmg-miss-t">' + cov.missing.length
+                         + " missing</span>"
+                       : ' · <span class="dmg-full-t">complete</span>') : "—"}</td>
+                  <td class="rs-hint" style="max-width:440px">${esc((t && t.note)
                     ? t.note.replace(/^READY-TO-IMPORT /, "") : "")}</td></tr>`;
               }).join("")}
               </tbody></table></div>
