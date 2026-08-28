@@ -537,6 +537,10 @@ async function renderMonthly(host, MRCFG) {
          cover — the value ("June", "2026") was near-invisible. On this surface it is white. */
       .mrx-cvpick .rs-slicer-btn .val{color:#fff}
       .mrx-cvpick .rs-slicer-btn .chev{color:${DK_TXT}}
+      /* The kit popover is z-index:60 (rs.css) and the sticky .mrx-toc below is ALSO 60 — a tie
+         the toc wins on DOM order, so an open Month/Year/Company popover slid UNDER the section
+         bar. Lift only these popovers above it. */
+      .mrx-cvpick .rs-slicer-pop{z-index:70}
       .mrx-lite-h{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;background:#fff;border:1px solid ${LINE};border-left:5px solid ${LIME};border-radius:12px;padding:13px 18px;margin-bottom:14px;box-shadow:0 1px 2px rgba(14,22,33,.05)}
       .mrx-lite-tt{font-size:20px;font-weight:800;letter-spacing:-.4px;color:${INK}}
       .mrx-lite-tt b{display:block;font-size:12px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:${LIMED}}
