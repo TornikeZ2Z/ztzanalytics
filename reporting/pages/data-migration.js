@@ -135,7 +135,28 @@
                   sample: null, doc: null, q: "" };
 
       function load() {
-        return api("/api/_migrate_admin?preview=state").then(d => { S.admin = d; paint(); })
+        // the state travels as parseable text in the doc envelope — the only shape a
+        // browser security layer reliably lets through for this endpoint (see bridge)
+        return api("/api/_migrate_admin?preview=doc&part=panel").then(j => {
+          const st = { enabled: false, token_masked: null,
+                       endpoint: "https://ztz-bridge-32168089642.us-east4.run.app/api/_migrate",
+                       excluded: [], excluded_patterns: [], log: [] };
+          String(j.doc || "").split("\n").forEach(ln => {
+            if (ln.startsWith("ON ")) st.enabled = ln.slice(3).trim() === "yes";
+            else if (ln.startsWith("HINT ")) {
+              const h = ln.slice(5).trim();
+              st.token_masked = h === "-" ? null : h + "…";
+            } else if (ln.startsWith("SHIELDP ")) st.excluded_patterns = ln.slice(8).trim().split(/\s+/);
+            else if (ln.startsWith("SHIELD ")) st.excluded = ln.slice(7).trim().split(/\s+/);
+            else if (ln.startsWith("LOG ")) {
+              const p = ln.slice(4).split(" | ");
+              st.log.push({ at: p[0], endpoint: p[1], table: p[2], params: p[3],
+                            rows: +p[4] || 0, ip: p[5] });
+            }
+          });
+          S.admin = st;
+          paint();
+        })
           .catch(e => { host.innerHTML = '<div class="panel">' + esc(e.message) + "</div>"; });
       }
 
