@@ -25,7 +25,8 @@
     if (!RS.DATASETS.truck_cost) {
       RS.DATASETS.truck_cost = {
         table: "mart_truck_cost",
-        cols: ["ym", "Fleet Size", "Insurance", "Parking", "Maintenance", "Financing",
+        cols: ["ym", "Fleet Size", "Fleet Working", "Insurance", "Parking",
+               "Maintenance", "Financing",
                "Fuel Card", "Fuel WEX", "Rental Ryder", "Rental Penske",
                "Rental Enterprise", "Rental U-Haul", "Rental Other"],
       };
@@ -152,7 +153,8 @@
           const rent = {
             Enterprise: 0, Ryder: 0, Penske: 0, "U-Haul": 0, Other: 0,
           };
-          let ins = 0, park = 0, maint = 0, fin = 0, fuel = 0, fleetSum = 0;
+          let ins = 0, park = 0, maint = 0, fin = 0, fuel = 0, fleetSum = 0,
+              workSum = 0;
           C.forEach(c => {
             rent.Enterprise += num(c["Rental Enterprise"]);
             rent.Ryder += num(c["Rental Ryder"]);
@@ -166,9 +168,12 @@
             // month with only one of the two is not undercounted, never both.
             fuel += Math.max(num(c["Fuel WEX"]), num(c["Fuel Card"]));
             fleetSum += num(c["Fleet Size"]);
+            workSum += num(c["Fleet Working"]);
           });
           const rentTotal = Object.keys(rent).reduce((a, k) => a + rent[k], 0);
           const fleet = fleetSum / Math.max(1, C.length);
+          // what we could dispatch, not what we pay for — see the mart's `working` CTE
+          const working = workSum / Math.max(1, C.length);
 
           // ---- truck-days ----
           let ownedDays = 0, rentalDays = 0, jobs = 0, ownedJobs = 0, rentalJobs = 0;
@@ -213,13 +218,17 @@
           // ---- his priced buy case ----
           const b = S.buy;
           const buyYear = b.ins + b.park + b.maint;          // running cost, no financing
-          const nextTruck = marg.find(m => m.n === Math.round(fleet) + 1)
+          const nextTruck = marg.find(m => m.n === Math.round(working) + 1)
             || marg[marg.length - 1] || { days: 0, displaced: 0 };
           const buyDisplacedYear = (nextTruck.displaced / months) * 12;
           const buyNet = buyDisplacedYear - buyYear;
           const paybackMonths = buyNet > 0 ? (b.price / (buyNet / 12)) : null;
 
+          const overDays = D.filter(d =>
+            (num(d["Owned Used"]) + num(d["Rental Floor"])) > Math.round(working)).length;
+          const idle = Math.max(0, fleet - working);
           return { D, C, U, months, rent, rentTotal, ins, park, maint, fin, fuel, fleet,
+                   working, overDays, idle,
                    ownedDays, rentalDays, rentalDaysEq, jobs, ownedJobs, rentalJobs,
                    jobsPerOwnedDay, rentPerDay, ownedTotal, ownPerTruckYear, ownPerDay,
                    hist, maxNeed, marg, best, buyYear, buyDisplacedYear, buyNet,
@@ -228,6 +237,7 @@
 
         function paint() {
           const M = compute();
+          const workR = Math.round(M.working);
           const ratio = M.ownPerDay ? M.rentPerDay / M.ownPerDay : 0;
           const rentShare = M.jobs ? M.rentalJobs / M.jobs : 0;
           const vendors = Object.keys(M.rent)
@@ -235,7 +245,7 @@
             .sort((a, b2) => M.rent[b2] - M.rent[a]);
 
           const histMax = Math.max(1, ...M.hist.map(h => h.days));
-          const fleetR = Math.round(M.fleet);
+          const fleetR = Math.round(M.working);   // the line that matters is capacity
 
           host.innerHTML = `
             <div class="rs-page-head">
@@ -254,23 +264,23 @@
             </div>
 
             <div class="tec-verdict">
-              <b>${M.best > fleetR
-                    ? `Own more: the numbers support about ${M.best} trucks, and the fleet
-                       averaged ${n1(M.fleet)}.`
-                    : M.best === fleetR
-                      ? `The fleet is about right: ${fleetR} trucks, and truck ${M.best}
-                         still pays for itself.`
-                      : `Own fewer: only ${M.best} trucks earn their keep, and the fleet
-                         averaged ${n1(M.fleet)}.`}</b>
+              <b>${M.best > workR
+                    ? `Own more trucks that run: about ${M.best} pay for themselves and
+                       only ${workR} were on the road.`
+                    : `We pay for ${n1(M.fleet)} trucks and dispatch ${workR}. About
+                       ${M.best} earn their keep at this demand.`}</b>
               <div class="sub">
-                A rented truck-day costs <b>${money1(M.rentPerDay)}</b> against
-                <b>${money1(M.ownPerDay)}</b> for one we own — ${n1(ratio)}× —
-                and demand pushed past the fleet on
-                <b>${fmtN(M.hist.filter(h => h.n > fleetR).reduce((a, h) => a + h.days, 0)
-                          ? M.D.filter(d => (+d["Owned Used"] + +d["Rental Floor"]) > fleetR).length
-                          : 0)}</b> of ${fmtN(M.D.length)} working days.
-                Rentals carried ${pct(rentShare)} of jobs and cost
-                <b>${money(M.rentTotal)}</b> over this period.
+                A rented truck-day cost <b>${money1(M.rentPerDay)}</b>; a day on a truck we
+                own cost <b>${money1(M.ownPerDay)}</b> — but that owned figure carries the
+                whole fleet's insurance, financing and parking spread over the days trucks
+                actually moved, so it is the price of OWNING CAPACITY, not of using it.
+                Demand needed more than the ${workR} working trucks on
+                <b>${fmtN(M.overDays)}</b> of ${fmtN(M.D.length)} days, and rentals still
+                carried ${pct(rentShare)} of all jobs at a cost of
+                <b>${money(M.rentTotal)}</b>.
+                ${M.idle >= 1 ? `<b>${n1(M.idle)} trucks are paid for and not working</b> —
+                  that is ${money(M.idle * M.ownPerTruckYear * (M.months / 12))} of this
+                  period's cost buying no capacity at all.` : ""}
               </div>
             </div>
 
@@ -286,11 +296,11 @@
               <div class="kpi"><span class="k">One owned truck, per year</span>
                 <span class="v">${money(M.ownPerTruckYear)}</span>
                 <span class="s">insurance, parking, repairs, financing, fuel ÷
-                  ${n1(M.fleet)} trucks</span></div>
+                  ${n1(M.fleet)} trucks paid for</span></div>
               <div class="kpi"><span class="k">Trucks worth owning</span>
                 <span class="v ${M.best > fleetR ? "tec-warn" : "tec-good"}">${M.best}</span>
-                <span class="s">fleet today ${n1(M.fleet)} · demand peaked at
-                  ${M.maxNeed}</span></div>
+                <span class="s">${workR} on the road · ${n1(M.fleet)} paid for ·
+                  demand peaked at ${M.maxNeed}</span></div>
             </div>
 
             <div class="panel">
@@ -315,8 +325,9 @@
               <div class="panel-title">Days that needed at least N trucks</div>
               <div class="tec-note">Each bar is a truck: how many days in this period
                 needed that many trucks at once. Bars past
-                <b>${fleetR}</b> are the days we could not cover with what we own — those
-                are the rentals. This is the shape that decides the fleet size.</div>
+                <b>${fleetR}</b> — the trucks that actually went out — are the days we
+                could not cover ourselves, and those are the rentals. This is the shape
+                that decides how many trucks to own.</div>
               <div class="tec-hist">
                 ${M.hist.map(h => `<div class="b${h.n > fleetR ? " over" : ""}"
                     style="height:${Math.max(2, Math.round(100 * h.days / histMax))}%"
@@ -343,7 +354,7 @@
                   <tbody>${M.marg.map(m => `
                     <tr${m.n === fleetR ? ' style="background:var(--panel-2)"' : ""}>
                       <td class="strong">#${m.n}${m.n === fleetR
-                        ? ' <span class="rs-pill mute">fleet today</span>' : ""}</td>
+                        ? ' <span class="rs-pill mute">last working truck</span>' : ""}</td>
                       <td class="r">${fmtN(m.days)}</td>
                       <td class="r">${money(m.displaced)}</td>
                       <td class="r">${money(m.cost)}</td>
@@ -360,7 +371,8 @@
 
             <div class="panel">
               <div class="tec-eyebrow">The buy in front of us</div>
-              <div class="panel-title">Buying truck #${fleetR + 1}</div>
+              <div class="panel-title">Buying one more working truck
+                (the ${workR + 1}${workR + 1 === 1 ? "st" : "th"})</div>
               <div class="tec-note">The candidate we priced: a 2019 Freightliner M2 at
                 Penske North Bergen, spec'd under 26,000 lbs so New Jersey asks $300k of
                 liability cover instead of $1.5M. Change any number — the payback follows.</div>
