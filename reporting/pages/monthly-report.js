@@ -532,7 +532,11 @@ async function renderMonthly(host, MRCFG) {
       .mrx-print2:hover{color:#fff;border-color:${DK_LINE_H}}
       .mrx-cvpick{display:flex;gap:8px;margin:10px 0 8px;flex-wrap:wrap}
       /* .mrx-ctl survives on the localSelect mount divs purely as the print/PDF hide hook —
-         the control's look is the kit slicer's own (rs.css) */
+         the control's look is the kit slicer's own (rs.css). One override the cover forces:
+         the kit paints the picked value var(--muted), which is dark-on-dark against the INK
+         cover — the value ("June", "2026") was near-invisible. On this surface it is white. */
+      .mrx-cvpick .rs-slicer-btn .val{color:#fff}
+      .mrx-cvpick .rs-slicer-btn .chev{color:${DK_TXT}}
       .mrx-lite-h{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;background:#fff;border:1px solid ${LINE};border-left:5px solid ${LIME};border-radius:12px;padding:13px 18px;margin-bottom:14px;box-shadow:0 1px 2px rgba(14,22,33,.05)}
       .mrx-lite-tt{font-size:20px;font-weight:800;letter-spacing:-.4px;color:${INK}}
       .mrx-lite-tt b{display:block;font-size:12px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:${LIMED}}
