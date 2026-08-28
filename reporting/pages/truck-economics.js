@@ -18,7 +18,7 @@
       RS.DATASETS.truck_day = {
         table: "mart_truck_day",
         cols: ["Day", "ym", "Jobs", "Owned Jobs", "Rental Jobs", "Other Jobs",
-               "No Truck Jobs", "Owned Used", "Rental Floor", "Revenue",
+               "No Truck Jobs", "Owned Used", "Rental Used", "Revenue",
                "Rental Revenue"],
       };
     }
@@ -179,17 +179,16 @@
           let ownedDays = 0, rentalDays = 0, jobs = 0, ownedJobs = 0, rentalJobs = 0;
           D.forEach(d => {
             ownedDays += num(d["Owned Used"]);
-            rentalDays += num(d["Rental Floor"]);
+            rentalDays += num(d["Rental Used"]);
             jobs += num(d.Jobs);
             ownedJobs += num(d["Owned Jobs"]);
             rentalJobs += num(d["Rental Jobs"]);
           });
-          // A rental LABEL covers however many trucks that vendor sent that day, so the
-          // day count is a floor. The honest unit is the JOB: rental jobs / the jobs an
-          // owned truck does in a day says how many truck-days those jobs really took.
+          // HIS RULE (2026-08-28): one foreman drives one truck a day, so the foremen on
+          // rental jobs ARE the rented trucks — the mart counts them, and a rented
+          // truck-day is now measured the same way an owned one is.
           const jobsPerOwnedDay = ownedDays ? ownedJobs / ownedDays : 0;
-          const rentalDaysEq = jobsPerOwnedDay ? rentalJobs / jobsPerOwnedDay : rentalDays;
-          const rentPerDay = rentalDaysEq ? rentTotal / rentalDaysEq : 0;
+          const rentPerDay = rentalDays ? rentTotal / rentalDays : 0;
 
           // ---- owned cost per truck-day ----
           const ownedTotal = ins + park + maint + fin + fuel;
@@ -197,7 +196,7 @@
           const ownPerDay = ownedDays ? ownedTotal / ownedDays : 0;
 
           // ---- the demand curve: how many days needed at least N trucks ----
-          const need = D.map(d => num(d["Owned Used"]) + num(d["Rental Floor"]));
+          const need = D.map(d => num(d["Owned Used"]) + num(d["Rental Used"]));
           const maxNeed = Math.max(0, ...need);
           const hist = [];
           for (let n = 1; n <= maxNeed; n++) {
@@ -225,11 +224,11 @@
           const paybackMonths = buyNet > 0 ? (b.price / (buyNet / 12)) : null;
 
           const overDays = D.filter(d =>
-            (num(d["Owned Used"]) + num(d["Rental Floor"])) > Math.round(working)).length;
+            (num(d["Owned Used"]) + num(d["Rental Used"])) > Math.round(working)).length;
           const idle = Math.max(0, fleet - working);
           return { D, C, U, months, rent, rentTotal, ins, park, maint, fin, fuel, fleet,
                    working, overDays, idle,
-                   ownedDays, rentalDays, rentalDaysEq, jobs, ownedJobs, rentalJobs,
+                   ownedDays, rentalDays, jobs, ownedJobs, rentalJobs,
                    jobsPerOwnedDay, rentPerDay, ownedTotal, ownPerTruckYear, ownPerDay,
                    hist, maxNeed, marg, best, buyYear, buyDisplacedYear, buyNet,
                    paybackMonths, nextTruck };
@@ -287,7 +286,7 @@
             <div class="rs-kpis">
               <div class="kpi"><span class="k">Cost of a rented truck-day</span>
                 <span class="v tec-bad">${money1(M.rentPerDay)}</span>
-                <span class="s">${fmtN(M.rentalDaysEq)} rental truck-days ·
+                <span class="s">${fmtN(M.rentalDays)} rental truck-days ·
                   ${money(M.rentTotal)}</span></div>
               <div class="kpi"><span class="k">Cost of an owned truck-day</span>
                 <span class="v tec-good">${money1(M.ownPerDay)}</span>
@@ -437,10 +436,10 @@
                   })()}</tbody>
                 </table>
               </div>
-              <div class="tec-note" style="margin-top:8px">A rental row is the company,
-                not one vehicle: several rented trucks on the same day share one label, so
-                a rental line's "days worked" is a floor and its jobs-per-day reads high.
-                Owned rows are exact — the fleet number is on the closing.</div>
+              <div class="tec-note" style="margin-top:8px">A rental row is the
+                company, not one vehicle — Enterprise sends several trucks on the same day.
+                Its days are counted as TRUCK-days: one per foreman per day, since a
+                foreman drives one truck. Owned rows are exact, by fleet number.</div>
             </div>
 
             <div class="panel">
