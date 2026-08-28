@@ -170,12 +170,14 @@
         host.innerHTML = `
           <div class="rs-page-head"><h1>Data Migration</h1>
             <p>ziptozip.app is filled from this warehouse through a read-only, fully
-               logged API. Three views: your controls, exactly what the developer's
-               token sees, and the documentation he follows.</p></div>
+               logged API. Four views: your controls, exactly what the developer's
+               token sees, the documentation he follows, and the tables shaped
+               field-for-field to his schema.</p></div>
           <div class="rs-bar"><div class="rs-seg" id="dmgTabs">
             <button data-t="access" class="${S.tab === "access" ? "on" : ""}">Access &amp; log</button>
             <button data-t="see" class="${S.tab === "see" ? "on" : ""}">What Giorgi sees</button>
             <button data-t="docs" class="${S.tab === "docs" ? "on" : ""}">How to call the API</button>
+            <button data-t="mig" class="${S.tab === "mig" ? "on" : ""}">The exact tables</button>
           </div>
           <span class="rs-spacer"></span>
           <span class="rs-hint">endpoint status:
@@ -188,6 +190,7 @@
         const body = host.querySelector("#dmgBody");
         if (S.tab === "access") paintAccess(body);
         else if (S.tab === "see") paintSee(body);
+        else if (S.tab === "mig") paintMig(body);
         else paintDocs(body);
       }
 
@@ -375,6 +378,75 @@
               return "<td>" + esc(txt == null ? "" : String(txt)) + "</td>";
             }).join("") + "</tr>").join("")}
           </table></div>` : '<div class="dmg-note">The table is empty.</div>';
+      }
+
+      /* --------------------------------------- tab 4: the exact mig_ tables */
+      // one row per ziptozip.app Prisma model the warehouse fills — table names
+      // map to their models mechanically, and the pairing is stated here so the
+      // tab reads as the contract it is
+      const MIG_MODELS = {
+        mig_customer: "Customer", mig_job: "Job", mig_job_address: "JobAddress",
+        mig_job_timeline_event: "JobTimelineEvent",
+        mig_job_payment_calc: "JobPaymentCalc",
+        mig_job_crew_member: "JobCrewMember", mig_job_truck: "JobTruck",
+        mig_job_review: "JobReview",
+        mig_job_money_flow_entry: "JobMoneyFlowEntry",
+        mig_job_claim: "JobClaim", mig_negative_review: "NegativeReview",
+        mig_positive_review: "PositiveReview",
+      };
+      function paintMig(body) {
+        if (!S.catalog) {
+          body.innerHTML = '<div class="panel">Loading the catalog…</div>';
+          api("/api/_migrate_admin?preview=catalog").then(c => {
+            S.catalog = c; paintMig(body);
+          }).catch(e => { body.innerHTML = '<div class="panel">' + esc(e.message) + "</div>"; });
+          return;
+        }
+        const have = {};
+        (S.catalog.tables || []).forEach(t => {
+          if (t.table.startsWith("mig_")) have[t.table] = t;
+        });
+        const names = Object.keys(MIG_MODELS);
+        const built = names.filter(n => have[n]).length;
+        body.innerHTML = `
+          <div class="panel">
+            <div class="panel-title">Shaped field-for-field to his schema
+              <span class="rs-hint" style="margin-left:8px">${built} of ${names.length}
+                built · columns are THEIR field names, enums THEIR values, money in
+                cents · x-columns are our natural keys and extras</span></div>
+            ${built === 0 ? `
+              <div class="dmg-note" style="margin:8px 0">The mig_ tables are committed
+                and build with the next pipeline run — they appear here (and in the
+                developer's catalog) on their own.</div>` : ""}
+            <div class="rs-tablewrap"><table class="rs-table">
+              <thead><tr><th>Our table</th><th>Fills their model</th>
+                <th class="r">Rows</th><th>What it carries</th></tr></thead>
+              <tbody>${names.map(n => {
+                const t = have[n];
+                return `<tr${t ? ' data-mig="' + esc(n) + '" style="cursor:pointer"' : ""}>
+                  <td class="strong" style="font-family:ui-monospace,Consolas,monospace">
+                    ${esc(n)}</td>
+                  <td style="font-family:ui-monospace,Consolas,monospace">
+                    ${esc(MIG_MODELS[n])}</td>
+                  <td class="r">${t ? (+t.rows_approx).toLocaleString()
+                    : '<span class="rs-pill mute">next run</span>'}</td>
+                  <td class="rs-hint" style="max-width:520px">${esc((t && t.note)
+                    ? t.note.replace(/^READY-TO-IMPORT /, "") : "")}</td></tr>`;
+              }).join("")}
+              </tbody></table></div>
+            <div class="dmg-note" style="margin-top:8px">Click a built row for its
+              columns and a live sample — served by the same functions the
+              developer's token calls. Not shaped yet (raw tables only): storage
+              records, quotes, bank statements, inventory.</div>
+          </div>
+          <div id="migDetail"></div>`;
+        body.querySelectorAll("[data-mig]").forEach(r => {
+          r.onclick = () => {
+            S.sel = r.getAttribute("data-mig"); S.sample = null;
+            paintDetail(body.querySelector("#migDetail"));
+          };
+        });
+        if (S.sel && have[S.sel]) paintDetail(body.querySelector("#migDetail"));
       }
 
       /* ------------------------------------------------- tab 3: how to call */
