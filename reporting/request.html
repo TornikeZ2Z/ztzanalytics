@@ -66,22 +66,30 @@
           background: none; border: 1px dashed #b9cf85; border-radius: 9px;
           padding: 8px 14px; cursor: pointer; font-family: inherit; }
   .drop { outline: 2px dashed #7fa32b; outline-offset: -2px; }
+  /* language toggle — his ask 2026-08-28: the form readable in Georgian too */
+  .lang { display: flex; gap: 6px; justify-content: flex-end; margin: -4px 0 10px; }
+  .lang button { font-family: inherit; font-size: 12px; font-weight: 700; padding: 5px 12px;
+          border-radius: 999px; border: 1px solid #d5dbe3; background: #fff; color: #5b6b7c;
+          cursor: pointer; }
+  .lang button.on { background: #7fa32b; border-color: #7fa32b; color: #fff; }
 </style>
 </head>
 <body>
 <div class="card" id="card">
-  <h1>IT request</h1>
-  <p class="sub">Something you need built, fixed, changed or looked at — it goes straight
-  onto the IT board. The more detail you give, the faster it happens.</p>
+  <div class="lang"><button type="button" id="langEn" class="on">EN</button
+  ><button type="button" id="langKa">ქართული</button></div>
+  <h1 id="h1">IT request</h1>
+  <p class="sub" id="sub">Something you need built, fixed, changed or looked at — it goes
+  straight onto the IT list. The more detail you give, the faster it happens.</p>
   <div id="form" style="display:none">
-    <label>Your name</label>
+    <label id="lWho">Your name</label>
     <div id="kWho"></div>
-    <label>What do you need? (short title)</label>
+    <label id="lTitle">What do you need? (short title)</label>
     <input id="title" maxlength="200" placeholder="e.g. Report shows wrong totals for August">
-    <label>Detailed explanation</label>
+    <label id="lDesc">Detailed explanation</label>
     <textarea id="desc" maxlength="8000"
       placeholder="Explain exactly what you need: where it happens, what you expected, what you saw instead. Enough detail to act on without calling you back."></textarea>
-    <div class="hint">📷 You can <b>paste a screenshot straight into the text box</b>
+    <div class="hint" id="hint">📷 You can <b>paste a screenshot straight into the text box</b>
       (Ctrl+V), drop an image onto it, or add one below. Up to 5 images.</div>
     <div class="shots" id="shots"></div>
     <button type="button" class="addimg" id="addImg">+ Add image</button>
@@ -99,6 +107,84 @@
   var sent = false;
   var images = [];                    // [{mime, b64, url}]
 
+  /* ---- EN/KA — a toggle, not a browser-locale guess: most requesters read Georgian,
+     the head reads what they file in whatever language they wrote it */
+  var L = {
+    en: {
+      h1: "IT request",
+      sub: "Something you need built, fixed, changed or looked at — it goes straight "
+        + "onto the IT list. The more detail you give, the faster it happens.",
+      lWho: "Your name", lTitle: "What do you need? (short title)",
+      lDesc: "Detailed explanation",
+      phName: "— pick your name —",
+      phTitle: "e.g. Report shows wrong totals for August",
+      phDesc: "Explain exactly what you need: where it happens, what you expected, what "
+        + "you saw instead. Enough detail to act on without calling you back.",
+      hint: "📷 You can <b>paste a screenshot straight into the text box</b> (Ctrl+V), "
+        + "drop an image onto it, or add one below. Up to 5 images.",
+      addImg: "+ Add image", send: "Send request", search: "Search…",
+      loading: "Loading…",
+      badLink: "This link is not valid. Ask for a fresh request link.",
+      max5: "Up to 5 images.", badImg: "Could not read that image.",
+      doneH: "Request sent ✔",
+      doneP: "It is on the IT list now. You can send another one any time from this "
+        + "same link.",
+      failed: "Could not send — try again.",
+    },
+    ka: {
+      h1: "IT მოთხოვნა",
+      sub: "რაც გჭირდებათ — აშენება, გასწორება, შეცვლა თუ შემოწმება — პირდაპირ IT-ის "
+        + "სიაში ხვდება. რაც მეტ დეტალს მოგვცემთ, მით უფრო სწრაფად გაკეთდება.",
+      lWho: "თქვენი სახელი", lTitle: "რა გჭირდებათ? (მოკლე სათაური)",
+      lDesc: "დეტალური განმარტება",
+      phName: "— აირჩიეთ თქვენი სახელი —",
+      phTitle: "მაგ.: ანგარიში აგვისტოში არასწორ ჯამებს აჩვენებს",
+      phDesc: "აღწერეთ ზუსტად რა გჭირდებათ: სად ხდება, რას ელოდით და რას ხედავთ სინამდვილეში. "
+        + "საკმარისი დეტალით, რომ დამატებითი კითხვები აღარ დაგვჭირდეს.",
+      hint: "📷 შეგიძლიათ <b>სქრინშოტი პირდაპირ ტექსტის ველში ჩასვათ</b> (Ctrl+V), "
+        + "გადმოათრიოთ სურათი, ან ქვემოთ დაამატოთ. მაქსიმუმ 5 სურათი.",
+      addImg: "+ სურათის დამატება", send: "მოთხოვნის გაგზავნა", search: "ძიება…",
+      loading: "იტვირთება…",
+      badLink: "ეს ბმული აღარ მოქმედებს. სთხოვეთ ახალი ბმული.",
+      max5: "მაქსიმუმ 5 სურათი.", badImg: "სურათი ვერ წავიკითხეთ.",
+      doneH: "მოთხოვნა გაგზავნილია ✔",
+      doneP: "ის უკვე IT-ის სიაშია. ამავე ბმულით ნებისმიერ დროს შეგიძლიათ სხვა "
+        + "მოთხოვნის გაგზავნაც.",
+      failed: "ვერ გაიგზავნა — სცადეთ თავიდან.",
+    },
+  };
+  var lang = "en";
+  try { lang = localStorage.getItem("ztz_req_lang") === "ka" ? "ka" : "en"; } catch (e) {}
+  var bootState = "loading";          // loading | failed | gone
+  function tr(k) { return (L[lang] || L.en)[k] || L.en[k]; }
+  function applyLang() {
+    document.documentElement.lang = lang;
+    $("langEn").className = lang === "en" ? "on" : "";
+    $("langKa").className = lang === "ka" ? "on" : "";
+    ["h1", "sub", "lWho", "lTitle", "lDesc"].forEach(function (id) {
+      $(id).textContent = tr(id);
+    });
+    $("title").placeholder = tr("phTitle");
+    $("desc").placeholder = tr("phDesc");
+    $("hint").innerHTML = tr("hint");
+    $("addImg").textContent = tr("addImg");
+    $("send").textContent = tr("send");
+    if (bootState !== "gone") $("boot").textContent = tr(bootState === "failed"
+      ? "badLink" : "loading");
+    // the name dropdown repaints its own texts when empty
+    var v = document.querySelector("#kWho .ksel-btn .val.empty");
+    if (v) v.textContent = tr("phName");
+    var q = document.querySelector("#kWho .q");
+    if (q) q.placeholder = tr("search");
+  }
+  function setLang(l) {
+    lang = l;
+    try { localStorage.setItem("ztz_req_lang", l); } catch (e) {}
+    applyLang();
+  }
+  $("langEn").onclick = function () { setLang("en"); };
+  $("langKa").onclick = function () { setLang("ka"); };
+
   function esc(s) {
     return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;")
       .replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
@@ -113,7 +199,7 @@
     wrap.innerHTML = '<button type="button" class="ksel-btn"><span class="val"></span>'
       + '<span class="chev">▾</span></button>'
       + '<div class="ksel-pop hidden">'
-      + (withSearch ? '<input class="q" placeholder="Search…">' : "")
+      + (withSearch ? '<input class="q" placeholder="' + esc(tr("search")) + '">' : "")
       + '<div class="ksel-opts">'
       + opts.values.map(function (v) {
           return '<div class="ksel-opt" data-v="' + esc(v) + '">' + esc(v) + "</div>";
@@ -124,7 +210,9 @@
     var q = wrap.querySelector(".q");
     function paint() {
       var val = btn.querySelector(".val");
-      val.textContent = cur || opts.placeholder || "—";
+      var ph = typeof opts.placeholder === "function" ? opts.placeholder()
+        : (opts.placeholder || "—");
+      val.textContent = cur || ph;
       val.className = "val" + (cur ? "" : " empty");
       wrap.querySelectorAll(".ksel-opt").forEach(function (o) {
         o.classList.toggle("sel", o.dataset.v === cur);
@@ -164,7 +252,7 @@
   /* ---- images: paste / drop / pick — all downscaled to ≤1280px JPEG before upload */
   function addImageFile(file) {
     if (!file || file.type.indexOf("image/") !== 0) return;
-    if (images.length >= 5) { showErr("Up to 5 images."); return; }
+    if (images.length >= 5) { showErr(tr("max5")); return; }
     var img = new Image();
     img.onload = function () {
       var MAX = 1280;
@@ -181,7 +269,7 @@
       images.push({ mime: "image/jpeg", b64: dataUrl.split(",")[1], url: dataUrl });
       paintShots();
     };
-    img.onerror = function () { showErr("Could not read that image."); };
+    img.onerror = function () { showErr(tr("badImg")); };
     img.src = URL.createObjectURL(file);
   }
   function paintShots() {
@@ -198,10 +286,13 @@
     if ($("err").textContent === m) $("err").textContent = ""; }, 4000); }
 
   var hWho;
+  applyLang();
   fetch(API + "/api/_workreq?t=" + encodeURIComponent(t))
     .then(function (r) { return r.json().then(function (j) { return r.ok ? j : Promise.reject(j); }); })
     .then(function (j) {
-      hWho = kitSelect($("kWho"), { values: j.names, placeholder: "— pick your name —" });
+      hWho = kitSelect($("kWho"), { values: j.names,
+        placeholder: function () { return tr("phName"); } });
+      bootState = "gone";
       $("boot").style.display = "none";
       $("form").style.display = "";
       var ta = $("desc");
@@ -229,7 +320,8 @@
       };
     })
     .catch(function () {
-      $("boot").textContent = "This link is not valid. Ask for a fresh request link.";
+      bootState = "failed";
+      $("boot").textContent = tr("badLink");
     });
 
   /* a filled form must not close silently (his ask): the browser's own leave dialog arms
@@ -259,13 +351,12 @@
     }).then(function (r) { return r.json().then(function (j) { return r.ok && !j.error ? j : Promise.reject(j); }); })
       .then(function () {
         sent = true;
-        $("card").innerHTML = '<div class="done"><h2>Request sent ✔</h2>' +
-          "<p>It is on the IT board now. You can send another one any time " +
-          "from this same link.</p></div>";
+        $("card").innerHTML = '<div class="done"><h2>' + esc(tr("doneH")) + "</h2>" +
+          "<p>" + esc(tr("doneP")) + "</p></div>";
       })
       .catch(function (j) {
         b.disabled = false;
-        $("err").textContent = (j && j.error) || "Could not send — try again.";
+        $("err").textContent = (j && j.error) || tr("failed");
       });
   };
 })();

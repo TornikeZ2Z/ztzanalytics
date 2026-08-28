@@ -47,7 +47,10 @@
 body.mr-own-time #frowDates .rs-slicer[data-key="year"],
 body.mr-own-time #frowDates .rs-slicer[data-key="month"]{display:none}
 /* ---- admin "view as user" banner ---- */
-.viewas{position:sticky;top:0;z-index:200;display:flex;align-items:center;gap:11px;
+/* z-index 29, NOT 200: shell filter-bar popovers live in .rs-filters' stacking context (z:30) —
+   at 200 this banner painted over an open slicer dropdown. 29 keeps it above every page sticky
+   (all <= 28) but under the shell's popovers. */
+.viewas{position:sticky;top:0;z-index:29;display:flex;align-items:center;gap:11px;
   padding:9px 16px;background:#7c3aed;color:#fff;font-size:13px;font-weight:600;
   box-shadow:0 2px 10px rgba(0,0,0,.22)}
 .viewas.hidden{display:none}
@@ -1781,7 +1784,7 @@ registerPage({
 <script src="pages/customer-experience.js?v=3"></script>
 <script src="pages/labor-analysis.js?v=3"></script>
 <script src="pages/post-card-analysis.js?v=4"></script>
-<script src="pages/monthly-report.js?v=105"></script>
+<script src="pages/monthly-report.js?v=106"></script>
 <script src="pages/leads-vs-moveboard.js?v=7"></script>
 <script src="pages/source-analysis.js?v=5"></script>
 <script src="pages/data-quality.js?v=14"></script>
@@ -1789,7 +1792,7 @@ registerPage({
 <script src="pages/sales-team.js?v=48"></script>
 <script src="pages/sales-comms.js?v=3"></script>
 <script src="pages/sales-trackers.js?v=5"></script>
-<script src="pages/work.js?v=8"></script>
+<script src="pages/work.js?v=9"></script>
 <script src="pages/conversations.js?v=9"></script>
 <script src="pages/source-trace.js?v=22"></script>
 <script src="pages/meta-referrals.js?v=2"></script>

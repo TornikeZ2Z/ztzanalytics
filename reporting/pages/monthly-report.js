@@ -557,7 +557,11 @@ async function renderMonthly(host, MRCFG) {
          pane's visible edge, and a scroll container's top padding is not clipped — so that 16px strip
          stayed a live window onto the report sliding under it (the dark cover / INK bars / .mrx-rule
          showing above the white bar). -16px parks it flush. Keep in sync with .rs-content's padding-top. */
-      .mrx-toc{position:sticky;top:-16px;z-index:60;background:#fff;box-shadow:0 4px 14px rgba(14,22,33,.14);border-bottom:1px solid ${LINE};display:flex;flex-direction:column;padding:0;margin:0 -24px 10px}
+      /* z-index 28, NOT 60: the shell filter bar (.rs-filters, rs.css) is a flex item with z-index:30,
+         so every popover it contains is TRAPPED in a stacking context capped at 30 — at 60 this bar
+         painted over an open shell slicer dropdown once stuck. 28 still clears all page content
+         (nothing else here exceeds 12) while staying under the shell's popovers. */
+      .mrx-toc{position:sticky;top:-16px;z-index:28;background:#fff;box-shadow:0 4px 14px rgba(14,22,33,.14);border-bottom:1px solid ${LINE};display:flex;flex-direction:column;padding:0;margin:0 -24px 10px}
       .mrx-tocrow{display:flex;align-items:center;gap:8px;padding:10px 24px 9px;flex-wrap:wrap}
       .mrx-tocrow.sub{gap:6px;padding:8px 24px 10px;border-top:1px solid ${GRID};background:#fbfcfd}
       .mrx-tocmain{display:inline-flex;align-items:center;gap:9px;font:inherit;font-size:13px;font-weight:800;letter-spacing:-.1px;color:${INK2};background:#fff;border:1px solid ${LINE};border-radius:10px;padding:7px 14px;cursor:pointer;white-space:nowrap;user-select:none;transition:background .12s,color .12s,border-color .12s,box-shadow .12s}
