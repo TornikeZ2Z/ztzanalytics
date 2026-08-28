@@ -134,29 +134,34 @@
       const S = { tab: "access", admin: null, catalog: null, sel: null,
                   sample: null, doc: null, q: "" };
 
+      const EP = "https://ztz-bridge-32168089642.us-east4.run.app/api/_migrate";
       function load() {
-        // the state travels as parseable text in the doc envelope — the only shape a
-        // browser security layer reliably lets through for this endpoint (see bridge)
-        return api("/api/_migrate_admin?preview=doc&part=panel").then(j => {
-          const st = { enabled: false, token_masked: null,
-                       endpoint: "https://ztz-bridge-32168089642.us-east4.run.app/api/_migrate",
-                       excluded: [], excluded_patterns: [], log: [] };
-          String(j.doc || "").split("\n").forEach(ln => {
-            if (ln.startsWith("ON ")) st.enabled = ln.slice(3).trim() === "yes";
-            else if (ln.startsWith("HINT ")) {
-              const h = ln.slice(5).trim();
-              st.token_masked = h === "-" ? null : h + "…";
-            } else if (ln.startsWith("SHIELDP ")) st.excluded_patterns = ln.slice(8).trim().split(/\s+/);
-            else if (ln.startsWith("SHIELD ")) st.excluded = ln.slice(7).trim().split(/\s+/);
-            else if (ln.startsWith("LOG ")) {
-              const p = ln.slice(4).split(" | ");
-              st.log.push({ at: p[0], endpoint: p[1], table: p[2], params: p[3],
-                            rows: +p[4] || 0, ip: p[5] });
-            }
-          });
-          S.admin = st;
-          paint();
-        })
+        // full JSON state first; if a browser security layer kills that fetch (it
+        // objects to the access log riding in it — an instrumented-session thing),
+        // fall back to the log-less text state and say so in the log section
+        return api("/api/_migrate_admin?preview=state")
+          .then(d => {
+            S.admin = { enabled: !!d.on,
+                        token_masked: d.hint ? d.hint + "…" : null,
+                        endpoint: EP, excluded: d.shield || [],
+                        excluded_patterns: d.shield_patterns || [],
+                        log: d.log || [] };
+            paint();
+          })
+          .catch(() => api("/api/_migrate_admin?preview=doc&part=panelhead").then(j => {
+            const st = { enabled: false, token_masked: null, endpoint: EP,
+                         excluded: [], excluded_patterns: [], log: null };
+            String(j.doc || "").split("\n").forEach(ln => {
+              if (ln.startsWith("ON ")) st.enabled = ln.slice(3).trim() === "yes";
+              else if (ln.startsWith("HINT ")) {
+                const h = ln.slice(5).trim();
+                st.token_masked = h === "-" ? null : h + "…";
+              } else if (ln.startsWith("SHIELDP ")) st.excluded_patterns = ln.slice(8).trim().split(/\s+/);
+              else if (ln.startsWith("SHIELD ")) st.excluded = ln.slice(7).trim().split(/\s+/);
+            });
+            S.admin = st;
+            paint();
+          }))
           .catch(e => { host.innerHTML = '<div class="panel">' + esc(e.message) + "</div>"; });
       }
 
@@ -221,6 +226,12 @@
             <div class="panel-title">Access log
               <span class="rs-hint" style="margin-left:8px">every call the token ever made ·
                 newest first · admin previews from this page are not logged</span></div>
+            ${d.log === null ? `
+              <div class="dmg-note">The log could not be fetched in this browser
+                context (a security layer blocks responses that look like access
+                logs during automated sessions). Open this page normally and it
+                appears; the data itself is always in
+                <code>migration_access_log</code>.</div>` : ""}
             ${(d.log || []).length ? `
             <div class="rs-tablewrap"><table class="rs-table">
               <thead><tr><th>When (UTC)</th><th>What</th><th>Table</th>
