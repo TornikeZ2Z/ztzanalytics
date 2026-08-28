@@ -992,6 +992,7 @@ async function renderPage() {
 /* Sidebar display-name overrides — page modules keep their ids/titles, the shell decides
    what the nav item is CALLED (same pattern as GROUP_OVERRIDE). */
 const NAV_TITLES = {
+  "work": "IT Requests",
   "analysis-by-category": "Custom Breakdown",
   "insights": "Recommendations",
   "branch-owner": "Branch Owner",
@@ -1065,7 +1066,7 @@ const SEARCH_ALIASES = {
   // Settings
   "data-quality": "data quality freshness completeness health integrity checks",
   "refresh-log": "refresh log pipeline curation raw source timing history update run duration",
-  "work": "work projects tasks tickets requests board kanban monday inbox triage todo assignments team",
+  "work": "it requests work projects tasks tickets issues board kanban inbox triage todo",
   "sales-command": "sales person analysis sales team command lead journey 360 explorer call history timeline salesperson rep profile lead file important",
   "conversations": "conversations transcripts call recording ringsense what was said customer chat sms text thread talk speech summary",
   "sales-comms": "sales communication analysis call quality coaching rubric checklist what was said discovery deposit close objection talk ratio rep performance ringsense",
@@ -1514,7 +1515,7 @@ const REPORT_LABELS = {
   "hr-directory": "Team Directory",
   // Sales
   "conversations": "Conversations (call transcripts)",
-  "work": "Work",
+  "work": "IT Requests",
   "sales-comms": "Sales Communication Analysis",
   "sales-trackers": "Sales AI Trackers",
   // Customer Service
@@ -1808,7 +1809,7 @@ registerPage({
 <script src="pages/sales-team.js?v=47"></script>
 <script src="pages/sales-comms.js?v=3"></script>
 <script src="pages/sales-trackers.js?v=4"></script>
-<script src="pages/work.js?v=7"></script>
+<script src="pages/work.js?v=8"></script>
 <script src="pages/conversations.js?v=9"></script>
 <script src="pages/source-trace.js?v=22"></script>
 <script src="pages/meta-referrals.js?v=2"></script>

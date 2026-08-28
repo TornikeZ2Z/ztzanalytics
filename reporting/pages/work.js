@@ -246,10 +246,10 @@
 
   function paintShell(S) {
     var d = S.data;
-    var html = '<div class="rs-page-head"><h1>Work</h1>'
-      + "<p>Projects, requests and tickets for every team — one board, one history. A "
-      + "request lands in the Inbox, the head accepts it onto the board or declines it "
-      + "with a reason, and the requester can always see where it stands.</p></div>"
+    var html = '<div class="rs-page-head"><h1>IT Requests</h1>'
+      + "<p>Everything IT is asked to build, fix or look at — one board, one history. A "
+      + "request lands in the Inbox, it is accepted onto the board or declined with a "
+      + "reason, and the requester can always see where it stands.</p></div>"
       + '<div class="wtx-top">'
       + '<div class="rs-seg" id="wtxTabs"></div>'
       + '<input class="wtx-in wtx-search" id="wtxQ" placeholder="search title, person, '
@@ -313,21 +313,13 @@
   }
 
   function paintDeptChips(S) {
-    var d = S.data;
-    var counts = {};
-    d.items.forEach(function (i) {
-      if (ARCHIVE.indexOf(i.Status) >= 0) return;
-      counts[i.Department] = (counts[i.Department] || 0) + 1;
-    });
+    // THE BOARD IS IT-ONLY NOW (his call, 2026-08-28: "get rid of WORK thing at all -
+    // clear the history and leave only IT related topics"). The every-department Monday
+    // import was soft-deleted the same day (395 projects, recoverable via `Deleted`=0),
+    // so a department chip bar would be a row of zeros with one working chip. Gone.
     var el = S.host.querySelector("#wtxDepts");
-    el.innerHTML = ["All"].concat(d.departments).map(function (x) {
-      var n = x === "All" ? null : counts[x];
-      return '<span class="wtx-chip' + (S.dept === x ? " on" : "") + '" data-dept="'
-        + esc(x) + '">' + esc(x) + (n ? "<small>" + n + "</small>" : "") + "</span>";
-    }).join("");
-    el.querySelectorAll("[data-dept]").forEach(function (c) {
-      c.onclick = function () { S.dept = c.getAttribute("data-dept"); paintBody(S); };
-    });
+    if (el) { el.innerHTML = ""; el.style.display = "none"; }
+    S.dept = "All";
   }
 
   /* ------------------------------------------------------------------ views */
@@ -376,7 +368,7 @@
       tags += '<span class="rs-pill ' + (PRIO_TONE[i.Priority] || "mute") + '">'
         + esc(i.Priority) + "</span>";
     }
-    if (S.dept === "All")
+    if (i.Department && i.Department !== "Informational Technology")
       tags += '<span class="rs-pill mute">' + esc(i.Department) + "</span>";
     var foot = "";
     if (i["Job No"]) foot += "<span># " + esc(i["Job No"]) + "</span>";
@@ -734,7 +726,7 @@
   function paintEdit(S, dw, item, newKind) {
     var d = S.data;
     var isT = item ? item.Kind === "ticket" : newKind === "ticket";
-    var v = item || { Title: "", Department: S.dept !== "All" ? S.dept : d.departments[0],
+    var v = item || { Title: "", Department: "Informational Technology",
                       Category: "", Priority: "Medium", Assignees: "", "Job No": "",
                       Label: "", Severity: "Operational", "Start Date": "", "Due Date": "",
                       Description: "" };
@@ -749,7 +741,6 @@
       + '<div class="full"><label>' + (isT ? "Customer / issue" : "Title")
       + '</label><input class="wtx-in" id="eTitle" maxlength="200" value="'
       + esc(v.Title) + '"></div>'
-      + '<div><label>Team</label><div id="eDeptM"></div></div>'
       + (isT
          ? '<div><label>Issue label</label><input class="wtx-in" id="eLabel" '
            + 'maxlength="60" list="wtxLabels" value="' + esc(v.Label || "") + '">'
@@ -785,9 +776,10 @@
 
     // kit-styled form selects (his call 2026-08-27): the same localSelect as the filter
     // bars, in its input-shaped `form` variant — handles are read at save time.
-    var hDept = RSC.localSelect(dw.el.querySelector("#eDeptM"), {
-      label: "Team", values: d.departments, value: v.Department, form: true, required: true,
-    });
+    // IT-only board: the team is not a choice any more. Existing items keep whatever
+    // department they carry (old tickets name the team that RAISED them); anything
+    // edited or created here belongs to Informational Technology.
+    var hDept = { get: function () { return v.Department || "Informational Technology"; } };
     var hSev = null, hCat = null, hPrio = null;
     if (isT) {
       hSev = RSC.localSelect(dw.el.querySelector("#eSevM"), {
