@@ -168,20 +168,21 @@
       /* ------------------------------------------------ tab 1: access & log */
       function paintAccess(body) {
         const d = S.admin;
-        const curl = d.endpoint + "?t=" + (d.enabled ? d.token : "<token>");
         body.innerHTML = `
           <div class="panel">
             <div class="panel-title">The token</div>
             ${d.enabled ? `
               <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:8px 0">
-                <span class="dmg-tok">${esc(d.token)}</span>
-                <button class="rs-btn" id="dmgCopy">Copy</button>
+                <span class="dmg-tok">${esc(d.token_masked)}</span>
+                <button class="rs-btn" id="dmgCopy">Copy token</button>
+                <button class="rs-btn" id="dmgCopyLine">Copy Giorgi's line</button>
                 <button class="rs-btn" id="dmgRegen">Regenerate</button>
                 <button class="rs-btn" id="dmgOff">Disable</button>
               </div>
-              <div class="dmg-note" style="margin-top:6px">Hand the developer the token and
-                this one line — everything else is self-describing:</div>
-              <div class="dmg-url">${esc(curl)}&amp;doc=1</div>`
+              <div class="dmg-note" style="margin-top:6px">The full token never rides on a
+                page load — the copy buttons fetch it the moment you press them.
+                "Giorgi's line" is the one URL to hand over:</div>
+              <div class="dmg-url">${esc(d.endpoint)}?t=&lt;token&gt;&amp;doc=1</div>`
             : `
               <div class="dmg-note" style="margin:8px 0">No token exists — the endpoint
                 answers 404 to everyone. Generate one to open access, then hand it to
@@ -215,6 +216,13 @@
             : '<div class="dmg-note">No access yet.</div>'}
           </div>`;
 
+        const reveal = () => api("/api/_migrate_admin", { method: "POST",
+          body: JSON.stringify({ action: "reveal" }) }).then(j => j.token);
+        const flash = (btn, txt) => {
+          const was = btn.textContent;
+          btn.textContent = txt;
+          setTimeout(() => { btn.textContent = was; }, 1600);
+        };
         const regen = body.querySelector("#dmgRegen");
         if (regen) regen.onclick = async () => {
           if (S.admin.enabled && !(await RSC.confirm({
@@ -224,7 +232,7 @@
             yes: "Regenerate", danger: true }))) return;
           api("/api/_migrate_admin", { method: "POST",
             body: JSON.stringify({ action: "regenerate" }) })
-            .then(d2 => { S.admin = d2; paint(); })
+            .then(() => load())
             .catch(e => RSC.notice({ title: "Failed", body: e.message }));
         };
         const off = body.querySelector("#dmgOff");
@@ -235,16 +243,20 @@
             yes: "Disable", danger: true }))) return;
           api("/api/_migrate_admin", { method: "POST",
             body: JSON.stringify({ action: "disable" }) })
-            .then(d2 => { S.admin = d2; paint(); })
+            .then(() => load())
             .catch(e => RSC.notice({ title: "Failed", body: e.message }));
         };
         const copy = body.querySelector("#dmgCopy");
-        if (copy) copy.onclick = () => {
-          navigator.clipboard.writeText(S.admin.token).then(() => {
-            copy.textContent = "Copied";
-            setTimeout(() => { copy.textContent = "Copy"; }, 1500);
-          });
-        };
+        if (copy) copy.onclick = () => reveal()
+          .then(t => navigator.clipboard.writeText(t))
+          .then(() => flash(copy, "Copied"))
+          .catch(e => RSC.notice({ title: "Failed", body: e.message }));
+        const copyLine = body.querySelector("#dmgCopyLine");
+        if (copyLine) copyLine.onclick = () => reveal()
+          .then(t => navigator.clipboard.writeText(
+            S.admin.endpoint + "?t=" + t + "&doc=1"))
+          .then(() => flash(copyLine, "Copied"))
+          .catch(e => RSC.notice({ title: "Failed", body: e.message }));
       }
 
       /* -------------------------------------------- tab 2: what Giorgi sees */
