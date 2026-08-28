@@ -135,7 +135,7 @@
                   sample: null, doc: null, q: "" };
 
       function load() {
-        return api("/api/_migrate_admin").then(d => { S.admin = d; paint(); })
+        return api("/api/_migrate_admin?preview=state").then(d => { S.admin = d; paint(); })
           .catch(e => { host.innerHTML = '<div class="panel">' + esc(e.message) + "</div>"; });
       }
 
@@ -216,8 +216,8 @@
             : '<div class="dmg-note">No access yet.</div>'}
           </div>`;
 
-        const reveal = () => api("/api/_migrate_admin", { method: "POST",
-          body: JSON.stringify({ action: "reveal" }) }).then(j => j.token);
+        const reveal = () => api("/api/_migrate_admin?preview=reveal", { method: "POST",
+          body: JSON.stringify({ action: "reveal" }) }).then(j => (j.parts || []).join(""));
         const flash = (btn, txt) => {
           const was = btn.textContent;
           btn.textContent = txt;
@@ -230,7 +230,7 @@
             body: "The current token stops working the moment the new one exists — " +
                   "the developer's next pull fails until you hand him the new one.",
             yes: "Regenerate", danger: true }))) return;
-          api("/api/_migrate_admin", { method: "POST",
+          api("/api/_migrate_admin?preview=act", { method: "POST",
             body: JSON.stringify({ action: "regenerate" }) })
             .then(() => load())
             .catch(e => RSC.notice({ title: "Failed", body: e.message }));
@@ -241,7 +241,7 @@
             title: "Disable migration access",
             body: "The endpoint answers 404 to everyone until a new token is generated.",
             yes: "Disable", danger: true }))) return;
-          api("/api/_migrate_admin", { method: "POST",
+          api("/api/_migrate_admin?preview=act", { method: "POST",
             body: JSON.stringify({ action: "disable" }) })
             .then(() => load())
             .catch(e => RSC.notice({ title: "Failed", body: e.message }));
