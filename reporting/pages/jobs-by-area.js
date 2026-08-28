@@ -183,15 +183,8 @@ registerPage({
               + (k === S.season ? ' class="on"' : "") + ">" + esc(SEASONS[k].lab)
               + "</button>").join("")
           + "</div></div>"
-          + '<label class="rs-fld"><span>Year</span><select class="rs-sel" id="jbaYear">'
-          + years.map(y => '<option value="' + y + '"' + (y === S.year ? " selected" : "") + ">"
-              + y + "</option>").join("") + "</select></label>"
-          + (cos.length > 1
-              ? '<label class="rs-fld"><span>Company</span><select class="rs-sel" id="jbaCo">'
-                + '<option value="">Both books</option>'
-                + cos.map(c => '<option value="' + esc(c) + '"' + (c === S.co ? " selected" : "")
-                    + ">" + esc(c) + "</option>").join("") + "</select></label>"
-              : "")
+          + '<div id="jbaYear"></div>'
+          + (cos.length > 1 ? '<div id="jbaCo"></div>' : "")
           + "</div>"
           + '<p class="rs-hint">A job is a <b>closing</b> — the same thing the Monthly Report '
           + "counts, so the two always agree. A move that came back (storage out, a split "
@@ -297,10 +290,16 @@ registerPage({
 
       function wire() {
         if (!alive()) return;
+        // the kit's localSelect, never a native dropdown; option values stay the exact
+        // strings the old <option>s carried (year as String(y), company as the raw name)
         const yr = mine.querySelector("#jbaYear");
-        if (yr) yr.onchange = function () { S.year = +this.value; paint(); };
+        if (yr) RSC.localSelect(yr, { label: "Year",
+          values: years.map(y => String(y)), value: String(S.year), required: true,
+          onChange: function (v) { S.year = +v; paint(); } });
         const co = mine.querySelector("#jbaCo");
-        if (co) co.onchange = function () { S.co = this.value; paint(); };
+        if (co) RSC.localSelect(co, { label: "Company",
+          values: cos, value: S.co, allLabel: "Both books",
+          onChange: function (v) { S.co = v; paint(); } });
         mine.querySelectorAll("#jbaSeason button").forEach(b => {
           b.onclick = () => { S.season = b.dataset.s; paint(); };
         });

@@ -720,10 +720,74 @@ window.RSC = (function () {
     return html;
   }
 
+  /* ------------- the kit's dialogs: confirm / ask / notice -------------
+     The browser's confirm()/prompt()/alert() cannot be styled, freeze the tab, and read
+     as a different application butting in (his standing rule, 2026-08-28: nothing native
+     is left on the portal). These are the ONE replacement: a promise-based modal in the
+     kit vocabulary. `confirm` resolves true/false; `ask` resolves the string or null;
+     `notice` just resolves. Escape and the backdrop both mean "no". */
+  function _dlg({ title, body, input, value, placeholder, yes, no, danger, noCancel }) {
+    return new Promise(resolve => {
+      const mask = el("div", "rs-dlg-mask");
+      const box = el("div", "rs-dlg");
+      box.innerHTML = (title ? `<div class="rs-dlg-t">${esc(title)}</div>` : "")
+        + (body ? `<div class="rs-dlg-b">${esc(body)}</div>` : "")
+        + (input ? `<input class="rs-dlg-in" value="${esc(value || "")}" placeholder="${esc(placeholder || "")}">` : "")
+        + `<div class="rs-dlg-a">`
+        + (noCancel ? "" : `<button type="button" class="rs-btn" data-a="no">${esc(no || "Cancel")}</button>`)
+        + `<button type="button" class="rs-btn ${danger ? "danger" : "pri"}" data-a="yes">${esc(yes || "OK")}</button>`
+        + `</div>`;
+      mask.appendChild(box);
+      document.body.appendChild(mask);
+      const inp = box.querySelector(".rs-dlg-in");
+      const done = ok => {
+        document.removeEventListener("keydown", onKey, true);
+        mask.remove();
+        resolve(input ? (ok ? String(inp.value) : null) : ok);
+      };
+      const onKey = e => {
+        if (e.key === "Escape") { e.stopPropagation(); done(false); }
+        if (e.key === "Enter" && (input ? e.target === inp : true)) { e.stopPropagation(); done(true); }
+      };
+      document.addEventListener("keydown", onKey, true);
+      mask.onclick = e => { if (e.target === mask) done(false); };
+      box.querySelector('[data-a="yes"]').onclick = () => done(true);
+      const nb = box.querySelector('[data-a="no"]');
+      if (nb) nb.onclick = () => done(false);
+      if (inp) { inp.focus(); inp.select(); }
+      else box.querySelector('[data-a="yes"]').focus();
+    });
+  }
+  const confirmDlg = opts => _dlg(typeof opts === "string" ? { body: opts } : opts);
+  const askDlg = opts => _dlg(Object.assign({ input: true },
+    typeof opts === "string" ? { body: opts } : opts));
+  const noticeDlg = opts => _dlg(Object.assign({ noCancel: true },
+    typeof opts === "string" ? { body: opts } : opts));
+  if (!document.getElementById("rs-dlg-css")) {
+    const st = document.createElement("style");
+    st.id = "rs-dlg-css";
+    st.textContent = [
+      ".rs-dlg-mask{position:fixed;inset:0;z-index:400;background:rgba(8,12,20,.55);",
+      "display:flex;align-items:center;justify-content:center;padding:20px}",
+      ".rs-dlg{background:var(--panel,#fff);border:1px solid var(--line-2,#d8dee8);border-radius:16px;",
+      "box-shadow:0 24px 64px rgba(0,0,0,.35);max-width:440px;width:100%;padding:20px 22px;",
+      "color:var(--ink,#16202c)}",
+      ".rs-dlg-t{font-size:15px;font-weight:800;margin-bottom:8px}",
+      ".rs-dlg-b{font-size:13px;line-height:1.6;color:var(--muted,#5b6b7c);white-space:pre-line}",
+      ".rs-dlg-in{width:100%;margin-top:12px;border:1px solid var(--line,#d8dee8);border-radius:10px;",
+      "padding:9px 12px;font-size:13px;background:var(--panel-2,#f4f6fa);color:var(--ink,#16202c);outline:0}",
+      ".rs-dlg-in:focus{border-color:var(--brand,#7fa32b)}",
+      ".rs-dlg-a{display:flex;gap:8px;justify-content:flex-end;margin-top:16px}",
+      ".rs-dlg .rs-btn.danger{background:var(--neg,#c2413f);border-color:var(--neg,#c2413f);color:#fff}",
+    ].join("");
+    document.head.appendChild(st);
+  }
+
   document.addEventListener("click", () =>
     document.querySelectorAll(".rs-slicer-pop").forEach(p => p.classList.add("hidden")));
 
   return { el, esc, multiSelect, singleSelect, localSelect, localMulti, dateBar, dateRange, datePresets,
            kpis, chartCard, table, matrix,
+           confirm: confirmDlg, ask: askDlg, notice: noticeDlg,
            collapsible, fitScroller, fit, reflow, reflowAfter };
 })();

@@ -459,8 +459,8 @@
     body.querySelector("#stxRun").onclick = function () {
       api("/api/_trackers", { method: "POST", body: JSON.stringify({ action: "run" }) })
         .then(function () {
-          alert("Evaluation fired — verdicts land as batches finish (usually within the hour).");
-        }).catch(function (e) { alert(e.message); });
+          RSC.notice("Evaluation fired — verdicts land as batches finish (usually within the hour).");
+        }).catch(function (e) { RSC.notice(e.message); });
     };
     body.querySelector("#stxNew").onclick = function () {
       // keyword mode + quote calls only BY DEFAULT — his cost calls (2026-08-26/27):
@@ -482,17 +482,20 @@
         api("/api/_trackers", { method: "POST", body: JSON.stringify({
           action: "toggle", key: b.getAttribute("data-toggle"),
           active: +b.getAttribute("data-on") }) })
-          .then(function () { render(host); }).catch(function (e) { alert(e.message); });
+          .then(function () { render(host); }).catch(function (e) { RSC.notice(e.message); });
       };
     });
     body.querySelectorAll("[data-del]").forEach(function (b) {
-      b.onclick = function () {
+      b.onclick = async function () {
         var k = b.getAttribute("data-del");
-        if (!confirm("Delete tracker '" + k + "'? Its stored verdicts are kept but hidden; "
-                     + "the key can be revived later.")) return;
+        if (!await RSC.confirm({
+          title: "Delete tracker '" + k + "'?",
+          body: "Its stored verdicts are kept but hidden; the key can be revived later.",
+          yes: "Delete", danger: true,
+        })) return;
         api("/api/_trackers", { method: "POST",
                                 body: JSON.stringify({ action: "delete", key: k }) })
-          .then(function () { render(host); }).catch(function (e) { alert(e.message); });
+          .then(function () { render(host); }).catch(function (e) { RSC.notice(e.message); });
       };
     });
   }
@@ -523,11 +526,7 @@
       + '"></div>'
       + '<div class="full"><label>Scope — which calls this applies to</label>'
       + '<div class="stx-scoperow">'
-      + '<select class="stx-in" id="stxDir" style="width:auto">'
-      + ["any", "inbound", "outbound"].map(function (d) {
-          return '<option value="' + d + '"' + ((sc.direction || "any") === d ? " selected" : "")
-            + ">" + d + "</option>";
-        }).join("") + "</select>"
+      + '<div id="stxDir"></div>'
       + '<input class="stx-in" id="stxMin" type="number" min="0" max="7200" '
       + 'placeholder="min seconds" style="width:110px" value="' + (sc.min_seconds || "") + '">'
       + '<input class="stx-in" id="stxFrom" type="date" style="width:150px" value="'
@@ -549,6 +548,12 @@
       + "every matching call automatically</span></div>"
       + "</div></div>";
 
+    // the kit dropdown, not a naked <select> — same values, same default ("any")
+    var dirSel = RSC.localSelect(elt.querySelector("#stxDir"), {
+      label: "Direction", values: ["any", "inbound", "outbound"],
+      value: sc.direction || "any", form: true, required: true,
+    });
+
     var nameEl = elt.querySelector("#stxName");
     if (t.isNew) {
       nameEl.oninput = function () {
@@ -558,7 +563,7 @@
     elt.querySelector("#stxCancel").onclick = function () { S.edit = null; elt.innerHTML = ""; };
     elt.querySelector("#stxSave").onclick = function () {
       var scope = {
-        direction: elt.querySelector("#stxDir").value,
+        direction: dirSel.get(),
         min_seconds: +elt.querySelector("#stxMin").value || 0,
         date_from: elt.querySelector("#stxFrom").value || "",
         quote_only: elt.querySelector("#stxQuote").checked,
@@ -575,15 +580,18 @@
       };
       api("/api/_trackers", { method: "POST", body: JSON.stringify(payload) })
         .then(function () { S.edit = null; render(host); })
-        .catch(function (e) {
+        .catch(async function (e) {
           // the revive rule surfaces here: a deleted key needs an explicit yes
           if (/revive:true/.test(e.message)
-              && confirm(e.message + "\n\nBring the old tracker back with its verdicts?")) {
+              && await RSC.confirm({
+                   body: e.message + "\n\nBring the old tracker back with its verdicts?",
+                   yes: "Bring it back",
+                 })) {
             payload.revive = true;
             api("/api/_trackers", { method: "POST", body: JSON.stringify(payload) })
               .then(function () { S.edit = null; render(host); })
-              .catch(function (e2) { alert(e2.message); });
-          } else { alert(e.message); }
+              .catch(function (e2) { RSC.notice(e2.message); });
+          } else { RSC.notice(e.message); }
         });
     };
   }

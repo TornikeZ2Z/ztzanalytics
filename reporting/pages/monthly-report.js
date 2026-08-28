@@ -516,8 +516,13 @@ async function renderMonthly(host, MRCFG) {
       .mrx-loaderr{background:${NEG_T1};border:1.5px solid ${NEG_BD};border-left:5px solid ${NEG};color:${NEG_TXT};border-radius:12px;
         padding:13px 16px;margin-bottom:14px;font-size:13.5px;line-height:1.55;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
       .mrx-loaderr button{margin-top:0}
-      .mrx-cover{position:relative;background:${INK};color:#fff;border-radius:16px;padding:24px 26px;margin-bottom:16px;overflow:hidden}
-      .mrx-cover .mrx-accent{position:absolute;left:0;top:0;bottom:0;width:6px;background:${LIME}}
+      /* overflow:visible (was hidden): the Month/Year/Company pickers are kit localSelects whose
+         popover is an absolutely-positioned CHILD of the cover — overflow:hidden clipped it at the
+         cover's bottom edge (the old native <select> dropdown was OS-rendered and immune). The only
+         thing the clip protected was the accent strip's square corners, so the accent now rounds
+         its own left corners instead. */
+      .mrx-cover{position:relative;background:${INK};color:#fff;border-radius:16px;padding:24px 26px;margin-bottom:16px}
+      .mrx-cover .mrx-accent{position:absolute;left:0;top:0;bottom:0;width:6px;background:${LIME};border-radius:16px 0 0 16px}
       .mrx-eyebrow{font-size:12px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:${LIME}}
       .mrx-h1{font-size:33px;font-weight:800;letter-spacing:-.9px;margin:6px 0 4px;color:#fff}
       .mrx-cvsub{color:${DK_TXT};font-size:12.5px;font-weight:600}
@@ -525,14 +530,13 @@ async function renderMonthly(host, MRCFG) {
       .mrx-print{background:${LIME};color:${INK};border:0;border-radius:9px;padding:9px 15px;font-size:13px;font-weight:800;cursor:pointer}
       .mrx-print2{background:transparent;color:${DK_TXT};border:1px solid ${DK_LINE};border-radius:9px;padding:9px 12px;font-size:12.5px;font-weight:700;cursor:pointer}
       .mrx-print2:hover{color:#fff;border-color:${DK_LINE_H}}
-      .mrx-cvpick{display:flex;gap:8px;margin:10px 0 8px}
-      .mrx-ctl{font:inherit;font-size:14px;font-weight:700;color:#fff;background:${INK2};border:1px solid ${DK_LINE};border-radius:9px;padding:8px 12px;cursor:pointer;outline:none}
-      .mrx-ctl:focus-visible{outline:2px solid ${LIME};outline-offset:1px}
+      .mrx-cvpick{display:flex;gap:8px;margin:10px 0 8px;flex-wrap:wrap}
+      /* .mrx-ctl survives on the localSelect mount divs purely as the print/PDF hide hook —
+         the control's look is the kit slicer's own (rs.css) */
       .mrx-lite-h{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;background:#fff;border:1px solid ${LINE};border-left:5px solid ${LIME};border-radius:12px;padding:13px 18px;margin-bottom:14px;box-shadow:0 1px 2px rgba(14,22,33,.05)}
       .mrx-lite-tt{font-size:20px;font-weight:800;letter-spacing:-.4px;color:${INK}}
       .mrx-lite-tt b{display:block;font-size:12px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:${LIMED}}
-      .mrx-lite-ctl{font-size:12.5px;font-weight:700;color:${SUB};white-space:nowrap}
-      .mrx-lite-ctl select{font:inherit;font-weight:700;color:${INK};background:${PAGE_BG};border:1px solid ${LINE};border-radius:7px;padding:3px 8px;margin-left:4px}
+      .mrx-lite-ctl{display:flex;gap:8px;align-items:center;font-size:12.5px;font-weight:700;color:${SUB};white-space:nowrap}
       .mrx-bwrap{margin-bottom:16px}
       .mrx-banner{display:flex;align-items:center;gap:11px;background:${WARN_BG};border:1px solid ${WARN_BD};border-left:4px solid ${WARN_A};border-radius:11px;padding:11px 15px;font-size:13px;color:${WARN};font-weight:600}
       .mrx-banner b{font-family:${MONO};color:${INK};font-weight:800}
@@ -663,8 +667,6 @@ async function renderMonthly(host, MRCFG) {
         .mrx-tocchip{flex:none}
         .mrx-tocsublbl{flex:none}
         .mrx-tocstep{flex:none;margin-left:8px;position:sticky;right:0;background:#fff;box-shadow:-8px 0 8px -4px rgba(14,22,33,.10)}
-        .mrx-ctl{padding:10px 12px}
-        .mrx-lite-ctl select{padding:9px 11px}
       }
       @media print{
         @page{margin:9mm}
@@ -1175,7 +1177,7 @@ async function renderMonthly(host, MRCFG) {
         for (let i = 1; i <= np; i++) { pdf.setPage(i); pdf.setFontSize(8); pdf.setTextColor(150); pdf.text(`${CO} · ${PDF_NAME} · ${MON[mo]} ${curY} · ${i}/${np}`, pageW / 2, pageH - 8, { align: "center" }); }
         console.log("PDF_OK pages=" + np);
         pdf.save(`${CO.replace(/\s+/g, "-")}-${PDF_NAME.replace(/\s+/g, "-")}-${MON[mo]}-${curY}.pdf`);
-      } catch (e) { console.error("PDF generation failed", e); alert("PDF generation failed: " + (e && e.message || e)); }
+      } catch (e) { console.error("PDF generation failed", e); RSC.notice("PDF generation failed: " + (e && e.message || e)); }
       finally {
         scrim.remove();   // NEVER leave a full-screen overlay behind (the .rp-scrim lesson)
         collapsed.forEach(s => s.classList.add("collapsed"));
@@ -1214,9 +1216,14 @@ async function renderMonthly(host, MRCFG) {
     // no empty future year); the selected year is always offered even if it has no rows yet.
     const dataYears = [...new Set(closing.filter(r => coRow(r) && r._y >= "2000").map(r => +r._y))];
     if (dataYears.indexOf(curY) < 0) dataYears.push(curY);
-    const yearOpts = dataYears.filter(y => y <= new Date().getFullYear()).sort((a, b) => a - b);
-    const monthOptions = MON.slice(1).map((m, i) => `<option value="${i + 1}"${i + 1 === mo ? " selected" : ""}>${m}</option>`).join("");
-    const yearOptions = yearOpts.map(y => `<option${y === curY ? " selected" : ""}>${y}</option>`).join("");
+    // (curY survives the no-future-year cut: the month-step arrow can walk into January of
+    // next year, and a required kit select with a value not in its list paints "All" — a lie)
+    const yearOpts = dataYears.filter(y => y <= new Date().getFullYear() || y === curY).sort((a, b) => a - b);
+    // Month/Year pickers are kit localSelects (his rule 2026-08-28: nothing native on the
+    // portal). Option VALUES stay byte-identical to the old <option>s — "1".."12" and the
+    // year as its bare text — because st.month/st.year are re-parsed with +v downstream.
+    const monthValues = MON.slice(1).map((m, i) => ({ v: String(i + 1), l: m }));
+    const yearValues = yearOpts.map(y => String(y));
     const LITE = !!(MRCFG && MRCFG.lite);
     // Data-feed failure banner — LOUD and first. A feed that failed all retries means the
     // page below is missing data (and composites like Gross Profit would read wrong), so
@@ -1232,7 +1239,7 @@ async function renderMonthly(host, MRCFG) {
       // themed dashboards: a compact header (topic title + month/year selector) — no hero, no PDF.
       const hdr = document.createElement("div"); hdr.className = "mrx-lite-h";
       hdr.innerHTML = `<div class="mrx-lite-tt"><b>Monthly · ${esc(CO)}</b>${esc(MRCFG.title || TEAM || "Monthly Review")}</div>
-        <div class="mrx-lite-ctl">Month: <select id="mrMonth">${monthOptions}</select> Year: <select id="mrYear">${yearOptions}</select></div>`;
+        <div class="mrx-lite-ctl"><div id="mrMonth"></div><div id="mrYear"></div></div>`;
       root.appendChild(hdr);
     } else {
       // THE PICKER FOLLOWS THE MONTH. Zip to Zip and Tuji trade throughout; Boston and
@@ -1256,11 +1263,10 @@ async function renderMonthly(host, MRCFG) {
       // the two ongoing books are always offered, so the picker can never collapse to one
       const coVals = [...new Set([MR_CO_DEFAULT, "Tuji", ...tradedThisMonth, CO])]
         .filter(Boolean).sort();
-      const coOptions = coVals.map(v => {
+      const coValues = coVals.map(v => {
         const gone = !tradedThisMonth.has(v);
-        return `<option value="${esc(v)}"${v === CO ? " selected" : ""}>`
-             + `${esc(v)}${gone ? " — no jobs this month" : ""}</option>`;
-      }).join("");
+        return { v: v, l: v + (gone ? " — no jobs this month" : "") };
+      });
 
       // and if the picked brand was not trading, say so with its real window instead of
       // rendering a page of zeros that looks like a data failure
@@ -1281,12 +1287,25 @@ async function renderMonthly(host, MRCFG) {
         <div class="mrx-eyebrow">${esc(TEAM ? TEAM + " — Monthly Review" : "Monthly Business Review")} · ${esc(CO)}</div>
         <div class="mrx-h1">Report for ${MON[mo]} ${curY}</div>
         <div class="mrx-cvpick">
-          <select id="mrMonth" class="mrx-ctl">${monthOptions}</select>
-          <select id="mrYear" class="mrx-ctl">${yearOptions}</select>
-          <select id="mrCo" class="mrx-ctl" title="Which company this report covers">${coOptions}</select>
+          <div id="mrMonth" class="mrx-ctl"></div>
+          <div id="mrYear" class="mrx-ctl"></div>
+          <div id="mrCo" class="mrx-ctl" title="Which company this report covers"></div>
         </div>
         <div class="mrx-cvsub">${esc(freshness)} · ${esc(CO)} only</div>${orphanNote}`;
       root.appendChild(cover);
+      // The pick lives on the PAGE, not in RS.state.multi: that object is session-global and read
+      // by every other report, so writing it here would silently re-scope pages the user cannot
+      // see a filter bar on. withMonth injects CO into the filter state and puts it back after.
+      // (mounted here because coValues is scoped to this branch; reRender is hoisted-by-closure
+      // from the wiring block below and only called on user interaction, well after it exists)
+      RSC.localSelect(cover.querySelector("#mrCo"), {
+        label: "Company", values: coValues, value: CO, required: true,
+        onChange: v => {
+          st.company = v;
+          try { localStorage.setItem("ztzMrCompany", st.company || ""); } catch (err) {}
+          reRender();
+        },
+      });
     }
 
     // completeness banner — closings awaiting return (blank Net Cash), with an expandable job list
@@ -2877,17 +2896,16 @@ async function renderMonthly(host, MRCFG) {
       await renderPage();
       const s2 = document.querySelector(".rs-content"); if (s2) s2.scrollTop = y;
     };
-    document.getElementById("mrMonth").onchange = e => { st.month = +e.target.value; saveMonth(); reRender(); };
-    document.getElementById("mrYear").onchange = e => { st.year = +e.target.value; saveMonth(); reRender(); };
-    // The pick lives on the PAGE, not in RS.state.multi: that object is session-global and read
-    // by every other report, so writing it here would silently re-scope pages the user cannot
-    // see a filter bar on. withMonth injects CO into the filter state and puts it back after.
-    const coSel = document.getElementById("mrCo");
-    if (coSel) coSel.onchange = e => {
-      st.company = e.target.value;
-      try { localStorage.setItem("ztzMrCompany", st.company || ""); } catch (err) {}
-      reRender();
-    };
+    RSC.localSelect(document.getElementById("mrMonth"), {
+      label: "Month", values: monthValues, value: String(mo), required: true,
+      onChange: v => { st.month = +v; saveMonth(); reRender(); },
+    });
+    RSC.localSelect(document.getElementById("mrYear"), {
+      label: "Year", values: yearValues, value: String(curY), required: true,
+      onChange: v => { st.year = +v; saveMonth(); reRender(); },
+    });
+    // (the Company pick — full report only — is mounted where the cover is built, so it can
+    // read coValues; it follows the same page-not-global-state rule.)
     const pb = document.getElementById("mrPrint"); if (pb) pb.onclick = downloadReportPDF;
     const pv = document.getElementById("mrPrint2"); if (pv) pv.onclick = () => window.print();
     const rl = document.getElementById("mrRetryLoad"); if (rl) rl.onclick = () => reRender();   // failed feeds aren't cached — a re-render refetches them

@@ -124,7 +124,7 @@ body.rs-viewas .rs-layout{box-shadow:inset 0 0 0 2px #7c3aed}
 
 <script src="assets/portal.js?v=12"></script>
 <script src="assets/rs-core.js?v=47"></script>
-<script src="assets/rs-components.js?v=23"></script>
+<script src="assets/rs-components.js?v=24"></script>
 <script>
 /* ---------------- page registry ---------------- */
 window.PAGES = [];
@@ -1724,10 +1724,12 @@ registerPage({
     host.querySelectorAll("[data-edit]").forEach(b => b.onclick = () =>
       openEditor(data.users.find(x => x.email === b.dataset.edit)));
     host.querySelectorAll("[data-del]").forEach(b => b.onclick = async () => {
-      if (!confirm("Remove ALL access for " + b.dataset.del + "?")) return;
+      if (!(await RSC.confirm({ title: "Remove all access",
+          body: "Remove ALL access for " + b.dataset.del + "?",
+          yes: "Remove access", danger: true }))) return;
       try { await aclCall("POST", { action: "delete", email: b.dataset.del });
         ZTZ.toast("Access removed"); self.render(host); }
-      catch (e) { alert(e.message); }
+      catch (e) { RSC.notice({ title: "Not removed", body: e.message }); }
     });
     host.querySelector("#uSave").onclick = async () => {
       const msg = host.querySelector("#uMsg");
@@ -1760,65 +1762,65 @@ registerPage({
      restoring this tag + the GROUP_OVERRIDE/NAV_ORDER/ACL_DEPTS/SEARCH_ALIASES "insights" entries.
 <script src="pages/insights.js?v=7"></script> -->
 <script src="pages/source-identification.js?v=3"></script>
-<script src="pages/jobs-vs-hours.js?v=7"></script>
+<script src="pages/jobs-vs-hours.js?v=8"></script>
 <script src="pages/analysis-by-category.js?v=16"></script>
-<script src="pages/yoy-diff.js?v=7"></script>
-<script src="pages/leads-analysis.js?v=7"></script>
-<script src="pages/leads-by-state.js?v=5"></script>
+<script src="pages/yoy-diff.js?v=8"></script>
+<script src="pages/leads-analysis.js?v=8"></script>
+<script src="pages/leads-by-state.js?v=6"></script>
 <script src="pages/storage.js?v=5"></script>
-<script src="pages/sales-person-analysis.js?v=7"></script>
-<script src="pages/ads-analysis.js?v=8"></script>
-<script src="pages/callrail.js?v=5"></script>
+<script src="pages/sales-person-analysis.js?v=8"></script>
+<script src="pages/ads-analysis.js?v=9"></script>
+<script src="pages/callrail.js?v=6"></script>
 <script src="pages/forman.js?v=6"></script>
 <script src="pages/packing.js?v=6"></script>
-<script src="pages/claims.js?v=6"></script>
+<script src="pages/claims.js?v=7"></script>
 <script src="pages/reviews.js?v=10"></script>
 <script src="pages/packing-analysis.js?v=7"></script>
-<script src="pages/forman-analysis.js?v=6"></script>
+<script src="pages/forman-analysis.js?v=7"></script>
 <script src="pages/packing-per-100cf.js?v=6"></script>
 <script src="pages/customer-experience.js?v=3"></script>
 <script src="pages/labor-analysis.js?v=3"></script>
 <script src="pages/post-card-analysis.js?v=4"></script>
-<script src="pages/monthly-report.js?v=102"></script>
+<script src="pages/monthly-report.js?v=103"></script>
 <script src="pages/leads-vs-moveboard.js?v=7"></script>
-<script src="pages/source-analysis.js?v=4"></script>
+<script src="pages/source-analysis.js?v=5"></script>
 <script src="pages/data-quality.js?v=14"></script>
-<script src="pages/refresh-log.js?v=25"></script>
-<script src="pages/sales-team.js?v=47"></script>
+<script src="pages/refresh-log.js?v=27"></script>
+<script src="pages/sales-team.js?v=48"></script>
 <script src="pages/sales-comms.js?v=3"></script>
-<script src="pages/sales-trackers.js?v=4"></script>
+<script src="pages/sales-trackers.js?v=5"></script>
 <script src="pages/work.js?v=8"></script>
 <script src="pages/conversations.js?v=9"></script>
 <script src="pages/source-trace.js?v=22"></script>
 <script src="pages/meta-referrals.js?v=2"></script>
-<script src="pages/jobs-by-area.js?v=3"></script>
-<script src="pages/relocation-trends.js?v=4"></script>
-<script src="pages/angi-funnel.js?v=7"></script>
+<script src="pages/jobs-by-area.js?v=4"></script>
+<script src="pages/relocation-trends.js?v=5"></script>
+<script src="pages/angi-funnel.js?v=8"></script>
 <script src="pages/promised-reviews.js?v=1"></script>
-<script src="pages/foreman-late.js?v=11"></script>
-<script src="pages/referral-candidates.js?v=9"></script>
+<script src="pages/foreman-late.js?v=13"></script>
+<script src="pages/referral-candidates.js?v=11"></script>
 <script src="pages/calendar-coverage.js?v=8"></script>
 <script src="pages/request-consistency.js?v=4"></script>
 <script src="pages/cl-analysis.js?v=7"></script>
 <script src="pages/branch-owner.js?v=7"></script>
-<script src="pages/money-flow.js?v=54"></script>
-<script src="pages/ld-planning.js?v=80"></script>
-<script src="pages/cleanup.js?v=35"></script>
-<script src="pages/packing-control.js?v=19"></script>
+<script src="pages/money-flow.js?v=56"></script>
+<script src="pages/ld-planning.js?v=81"></script>
+<script src="pages/cleanup.js?v=37"></script>
+<script src="pages/packing-control.js?v=21"></script>
 <script src="pages/storage-control.js?v=10"></script>
-<script src="pages/foreman-assessment.js?v=30"></script>
-<script src="pages/hr-questionnaire.js?v=45"></script>
-<script src="pages/hr-my-questionnaire.js?v=11"></script>
-<script src="pages/hr-directory.js?v=14"></script>
-<script src="pages/fuel-control.js?v=10"></script>
-<script src="pages/demand-analysis.js?v=9"></script>
+<script src="pages/foreman-assessment.js?v=32"></script>
+<script src="pages/hr-questionnaire.js?v=46"></script>
+<script src="pages/hr-my-questionnaire.js?v=12"></script>
+<script src="pages/hr-directory.js?v=15"></script>
+<script src="pages/fuel-control.js?v=11"></script>
+<script src="pages/demand-analysis.js?v=10"></script>
 <script src="pages/straight-vs-local.js?v=6"></script>
-<script src="pages/area-plan.js?v=6"></script>
-<script src="pages/general-tables.js?v=4"></script>
+<script src="pages/area-plan.js?v=7"></script>
+<script src="pages/general-tables.js?v=6"></script>
 <script src="pages/money-flow-issues.js?v=3"></script>
-<script src="pages/foreman-closings.js?v=18"></script>
+<script src="pages/foreman-closings.js?v=20"></script>
 <script src="pages/general-settings.js?v=6"></script>
-<script src="pages/review-performance.js?v=29"></script>
-<script src="pages/reminders.js?v=46"></script>
+<script src="pages/review-performance.js?v=30"></script>
+<script src="pages/reminders.js?v=47"></script>
 </body>
 </html>

@@ -45,14 +45,18 @@ async function renderSourceAnalysis(host, lockedSource) {
     <div class="rs-page-head">
       <h1>${esc(lockedSource ? sel + " — Source Analysis" : "Lead Sources — Overview")}</h1>
       <p>${lockedSource ? "everything we track about this source" : "(formerly Lead Source Analysis) · pick any lead source — funnel, revenue, spend and geography update together"}
-        ${lockedSource ? "" : `&nbsp;·&nbsp;<select id="srcPick" style="font:inherit;font-weight:700;color:#fff;background:#1b2a3f;border:1px solid #2c3e57;border-radius:7px;padding:4px 9px">${sources.map(s => `<option${s === sel ? " selected" : ""}>${esc(s)}</option>`).join("")}</select>`}
+        ${lockedSource ? "" : `&nbsp;·&nbsp;<span id="srcPick" style="display:inline-block;vertical-align:middle"></span>`}
       </p>
     </div>
     <div class="rs-kpis" id="saKpis"></div>
     <div class="rs-grid2" id="saGrid"></div>`;
   if (!lockedSource) {
+    // the kit's localSelect, never a native dropdown — same source strings, same re-render
     const pick = host.querySelector("#srcPick");
-    if (pick) pick.onchange = e => { window.__srcSel = e.target.value; renderSourceAnalysis(host, null); };
+    if (pick) RSC.localSelect(pick, {
+      label: "Source", values: sources, value: sel, required: true,
+      onChange: v => { window.__srcSel = v; renderSourceAnalysis(host, null); },
+    });
   }
 
   RSC.kpis(document.getElementById("saKpis"), [

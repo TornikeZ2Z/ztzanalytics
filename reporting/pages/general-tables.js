@@ -112,12 +112,13 @@ registerPage({
 
     function wire() {
       Array.prototype.forEach.call(host.querySelectorAll("[data-save],[data-del]"), function (b) {
-        b.onclick = function () {
+        b.onclick = async function () {
           var del = b.hasAttribute("data-del");
           var id = b.getAttribute(del ? "data-del" : "data-save");
           if (del) {
-            if (!window.confirm("Remove this depot? Jobs planned from it move to the next-best "
-                                + "depot on the next rebuild.")) return;
+            if (!(await RSC.confirm({ title: "Remove this depot?",
+                  body: "Jobs planned from it move to the next-best depot on the next rebuild.",
+                  yes: "Remove", danger: true }))) return;
             send({ id: +id, delete: 1 }, b);
             return;
           }

@@ -377,12 +377,9 @@ registerPage({
         }).join("");
       } else if (qq.qtype === "dropdown") {
         var isOthD = v != null && String(v).indexOf("Other: ") === 0;
-        inner = '<select class="rs-sel hm-sel" data-dd="' + qq.id + '">'
-          + '<option value=""' + (v == null || v === "" ? " selected" : "") + ">Choose\u2026</option>"
-          + (qq.options || []).map(function (o) {
-              var on = o === OTH ? isOthD : v === o;
-              return '<option value="' + esc(o) + '"' + (on ? " selected" : "") + ">" + esc(o) + "</option>";
-            }).join("") + "</select>"
+        // the kit dropdown (RSC.localSelect) mounts on this div in wire() \u2014 no native
+        // <select> on the portal (his standing rule, 2026-08-28)
+        inner = '<div data-dd="' + qq.id + '"></div>'
           + '<div style="margin-top:8px;display:' + (isOthD ? "flex" : "none") + ';gap:8px;align-items:center" data-ddrow="' + qq.id + '">'
           + '<span style="font-size:13px">Other:</span>'
           + '<input class="hm-oth" style="max-width:340px" data-ddo="' + qq.id + '" value="'
@@ -586,20 +583,29 @@ registerPage({
         oi.oninput = function () { clearTimeout(t); t = setTimeout(push, 900); };
         oi.onblur = function () { clearTimeout(t); push(); };
       });
-      main.querySelectorAll("select[data-dd]").forEach(function (dd) {
-        var qid = +dd.dataset.dd;
+      main.querySelectorAll("div[data-dd]").forEach(function (mount) {
+        var qid = +mount.dataset.dd;
         var row = main.querySelector('[data-ddrow="' + qid + '"]');
-        dd.onchange = function () {
-          var v = dd.value;
-          if (v === "Other\u2026") {
-            if (row) { row.style.display = "flex"; row.querySelector("input").focus(); }
-            var oi = row && row.querySelector("input");
-            if (oi && oi.value.trim()) save(q, qid, "Other: " + oi.value.trim());
-          } else {
-            if (row) row.style.display = "none";
-            save(q, qid, v);                       // "" = an explicit clear
-          }
-        };
+        var qq = q.questions.filter(function (x) { return x.id === qid; })[0];
+        var v0 = q.answers[qid];
+        var isOth0 = v0 != null && String(v0).indexOf("Other: ") === 0;
+        // option values byte-identical to the old <option>s ("" = Choose\u2026, the option
+        // text otherwise; a stored "Other: x" shows as the Other\u2026 option, like before)
+        RSC.localSelect(mount, {
+          values: (qq && qq.options) || [],
+          value: isOth0 ? "Other\u2026" : (v0 || ""),
+          allLabel: "Choose\u2026", form: true,
+          onChange: function (v) {
+            if (v === "Other\u2026") {
+              if (row) { row.style.display = "flex"; row.querySelector("input").focus(); }
+              var oi = row && row.querySelector("input");
+              if (oi && oi.value.trim()) save(q, qid, "Other: " + oi.value.trim());
+            } else {
+              if (row) row.style.display = "none";
+              save(q, qid, v);                       // "" = an explicit clear
+            }
+          },
+        });
       });
       main.querySelectorAll("input[data-ddo]").forEach(function (oi) {
         var qid = +oi.dataset.ddo, t = null;

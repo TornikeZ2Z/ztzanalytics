@@ -334,19 +334,15 @@
 
           // ---- the controls
           html += '<div class="rs-bar">'
-            + '<div class="rs-fld"><span>Compare</span><select class="rs-sel" id="rlcYear">'
-            + years.map(y => '<option value="' + y + '"' + (y === S.year ? " selected" : "")
-                + ">" + y + "</option>").join("") + "</select></div>"
-            + '<div class="rs-fld"><span>Against</span><select class="rs-sel" id="rlcBase">'
-            + years.map(y => '<option value="' + y + '"' + (y === S.base ? " selected" : "")
-                + ">" + y + "</option>").join("") + "</select></div>"
+            + '<div id="rlcYear"></div>'
+            + '<div id="rlcBase"></div>'
             + '<div class="rs-fld"><span>Window</span><div class="rs-seg" id="rlcWin">'
             + '<button data-w="match"' + (S.window === "match" ? ' class="on"' : "")
             + ">Like-for-like</button>"
             + '<button data-w="full"' + (S.window === "full" ? ' class="on"' : "")
             + ">Full year</button></div></div>"
-            + sel("rlcCo", "Company", S.co, cos)
-            + sel("rlcType", "Move type", S.type, types)
+            + '<div id="rlcCo"></div>'
+            + '<div id="rlcType"></div>'
             + '<div class="rs-tog' + (S.showFacility ? " on" : "") + '" id="rlcFac"><i></i>'
             + "Include our own storage facility</div>"
             + '<span class="rs-spacer"></span>'
@@ -515,28 +511,37 @@
             + '</div><div class="v">' + val + '</div><div class="s">' + sub + "</div></div>";
         }
 
-        function sel(id, label, cur, values) {
-          return '<label class="rs-fld"><span>' + label + "</span>"
-            + '<select class="rs-sel" id="' + id + '"><option value="">All</option>'
-            + Object.keys(values).sort().map(v =>
-                '<option value="' + esc(v) + '"' + (cur === v ? " selected" : "") + ">"
-                + esc(v) + "</option>").join("")
-            + "</select></label>";
-        }
-
         function wire(cur) {
           if (!alive()) return;
+          // the four dropdowns are kit slicers (RSC.localSelect) — no native <select> on
+          // the portal. Option values stay the exact strings the old options carried.
           const y = host.querySelector("#rlcYear");
-          if (y) y.onchange = function () { S.year = +this.value; paint(); };
+          if (y) RSC.localSelect(y, {
+            label: "Compare", values: years.map(String), value: String(S.year),
+            required: true,
+            onChange: function (v) { S.year = +v; paint(); },
+          });
           const b = host.querySelector("#rlcBase");
-          if (b) b.onchange = function () { S.base = +this.value; paint(); };
+          if (b) RSC.localSelect(b, {
+            label: "Against", values: years.map(String), value: String(S.base),
+            required: true,
+            onChange: function (v) { S.base = +v; paint(); },
+          });
           host.querySelectorAll("#rlcWin button").forEach(btn => {
             btn.onclick = () => { S.window = btn.dataset.w; paint(); };
           });
           const co = host.querySelector("#rlcCo");
-          if (co) co.onchange = function () { S.co = this.value; paint(); };
+          if (co) RSC.localSelect(co, {
+            label: "Company", values: Object.keys(cos).sort(), value: S.co,
+            allLabel: "All",
+            onChange: function (v) { S.co = v; paint(); },
+          });
           const tp = host.querySelector("#rlcType");
-          if (tp) tp.onchange = function () { S.type = this.value; paint(); };
+          if (tp) RSC.localSelect(tp, {
+            label: "Move type", values: Object.keys(types).sort(), value: S.type,
+            allLabel: "All",
+            onChange: function (v) { S.type = v; paint(); },
+          });
           const fac = host.querySelector("#rlcFac");
           if (fac) fac.onclick = () => { S.showFacility = !S.showFacility; paint(); };
 

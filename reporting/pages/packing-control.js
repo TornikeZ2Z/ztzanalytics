@@ -689,26 +689,12 @@ registerPage({
         }
       }
       var curYm = TODAY.slice(0, 7);
+      // the bar's dropdowns are the kit's localSelect — bare divs here, mounted after the
+      // innerHTML lands (same option values and order as the old <select>s)
       html += '<div class="rs-bar">'
-        + '<label class="rs-fld"><span>Month</span><select class="rs-sel" id="pkMonth"><option value="">All months</option>'
-        + mList.map(function (m) {
-            return '<option value="' + m + '"' + (S.month === m ? " selected" : "") + ">" + monLab(m)
-              + (m > curYm ? " · upcoming" : "") + "</option>";
-          }).join("") + "</select></label>"
-        + (Object.keys(cos).length > 1
-            ? '<label class="rs-fld"><span>Company</span><select class="rs-sel" id="pkCo"><option value="">Both books</option>'
-              + Object.keys(cos).sort().map(function (c) {
-                  return '<option value="' + esc(c) + '"' + (S.co === c ? " selected" : "") + ">" + esc(c) + "</option>";
-                }).join("") + "</select></label>"
-            : "")
-        + (S.view === "profile" && profiles.length ?
-            '<label class="rs-fld"><span>Foreman</span><select class="rs-sel" id="pkWho">'
-            + profiles.map(function (p) { return p.name; }).sort().map(function (n) {
-                var q = profileOf(n, profiles);
-                return '<option value="' + esc(n) + '"' + (n === S.fm ? " selected" : "") + ">"
-                  + esc(n) + (q && q.score != null ? "  ·  " + q.score : "") + "</option>";
-              }).join("")
-            + "</select></label>" : "")
+        + '<div id="pkMonth"></div>'
+        + (Object.keys(cos).length > 1 ? '<div id="pkCo"></div>' : "")
+        + (S.view === "profile" && profiles.length ? '<div id="pkWho"></div>' : "")
         // the way back must survive an empty window -- the button, unlike the select,
         // renders on the profile view unconditionally
         + (S.view === "profile"
@@ -778,6 +764,33 @@ registerPage({
       }
 
       main.innerHTML = html;
+      // mount the kit dropdowns onto the divs painted above; state stays in S, exactly as
+      // the old <select> onchange handlers left it
+      RSC.localSelect(main.querySelector("#pkMonth"), {
+        label: "Month", allLabel: "All months",
+        values: mList.map(function (m) {
+          return { v: m, l: monLab(m) + (m > curYm ? " · upcoming" : "") };
+        }),
+        value: S.month,
+        onChange: function (v) { S.month = v; invalidate(); paint(); },
+      });
+      var coHost = main.querySelector("#pkCo");
+      if (coHost) RSC.localSelect(coHost, {
+        label: "Company", allLabel: "Both books",
+        values: Object.keys(cos).sort(),
+        value: S.co,
+        onChange: function (v) { S.co = v; invalidate(); paint(); },
+      });
+      var whoHost = main.querySelector("#pkWho");
+      if (whoHost) RSC.localSelect(whoHost, {
+        label: "Foreman", required: true,
+        values: profiles.map(function (p) { return p.name; }).sort().map(function (n) {
+          var q2 = profileOf(n, profiles);
+          return { v: n, l: n + (q2 && q2.score != null ? "  ·  " + q2.score : "") };
+        }),
+        value: S.fm,
+        onChange: function (v) { S.fm = v; paint(); },
+      });
       wire(here, profiles);
       // the note under the bar says every card is read "over the window selected above" — so
       // the collapsed pill has to keep naming that window
@@ -1337,15 +1350,11 @@ registerPage({
       main.querySelectorAll(".pk-tabs button").forEach(function (b) {
         b.onclick = function () { S.view = b.dataset.v; close(); paint(); };
       });
-      var who = main.querySelector("#pkWho");
-      if (who) who.onchange = function () { S.fm = this.value; paint(); };
+      // #pkWho / #pkMonth / #pkCo are localSelect mounts now — wired where they are
+      // mounted, in paint(), not here
       var tb = main.querySelector("#pkToBoard");
       if (tb) tb.onclick = function () { S.view = "board"; paint(); };
 
-      var mm = main.querySelector("#pkMonth");
-      if (mm) mm.onchange = function () { S.month = this.value; invalidate(); paint(); };
-      var cc = main.querySelector("#pkCo");
-      if (cc) cc.onchange = function () { S.co = this.value; invalidate(); paint(); };
       var fo = main.querySelector("#pkFlag");
       if (fo) fo.onclick = function () { S.flagOnly = !S.flagOnly; paint(); };
       var ck = main.querySelector("#pkOnly");

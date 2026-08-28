@@ -120,8 +120,7 @@ registerPage({
       // The tabular view shows fixed funnel columns regardless of the "Show:"
       // selection (that selector only drives the ranked-bar chart), so hide it in Tabular.
       controlsGraphOnly: true,
-      controlsHtml: `<span class="lbl">Show:</span><select id="lbsCalc">` +
-        CALC.map(c => `<option ${c === calcBy ? "selected" : ""}>${c}</option>`).join("") + `</select>`,
+      controlsHtml: `<div id="lbsCalc"></div>`,
       buildChart(canvas) {
         const isRate = calcBy === "Booking Rate";
         const val = s => isRate ? s.rate : (calcBy === "Confirmed Leads" ? s.conf : s.total);
@@ -162,7 +161,10 @@ registerPage({
           (states.length > shown.length ? noteHtml(shown.length, states.length, "states — totals cover all") : "");
       },
     });
-    document.getElementById("lbsCalc").onchange = e => { calcBy = e.target.value; stateCard.rerender(); };
+    RSC.localSelect(document.getElementById("lbsCalc"), {
+      label: "Show", values: CALC, value: calcBy, required: true,
+      onChange: v => { calcBy = v; stateCard.rerender(); },
+    });
 
     /* ---- sub 1: county drill level ---- */
     const subs = document.getElementById("subs");

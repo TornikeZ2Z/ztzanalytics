@@ -117,8 +117,7 @@ registerPage({
     // ---- chart 1: yearly comparison — measure bars by year + YoY growth % line
     const yearCard = RSC.chartCard(document.getElementById("yearly"), {
       title: "Yearly comparison",
-      controlsHtml: `<span class="lbl">Show:</span><select id="yoyCalcBy">` +
-        CALC.map(c => `<option value="${c}" ${c === calcBy ? "selected" : ""}>${disp(c)}</option>`).join("") + `</select>`,
+      controlsHtml: `<span id="yoyCalcBy"></span>`,
       buildChart(canvas) {
         const m = M[calcBy], vals = perYear(calcBy);
         // inline: PBI "Yearly Growth Rate" — growth vs prior year, not in RS.M registry
@@ -231,9 +230,12 @@ registerPage({
       },
     });
 
-    document.getElementById("yoyCalcBy").onchange = e => {
-      calcBy = e.target.value;
-      yearCard.rerender(); monthCard.rerender();
-    };
+    // the kit's localSelect, never a native dropdown — controlsHtml is set once by
+    // chartCard and survives rerender(), so this mounts once and lives on
+    RSC.localSelect(document.getElementById("yoyCalcBy"), {
+      label: "Show", values: CALC.map(c => ({ v: c, l: disp(c) })), value: calcBy,
+      required: true,
+      onChange: v => { calcBy = v; yearCard.rerender(); monthCard.rerender(); },
+    });
   },
 });

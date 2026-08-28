@@ -476,24 +476,30 @@ registerPage({
       Array.prototype.forEach.call(host.querySelectorAll("[data-fncv]"), function (b) { b.onclick = function () { S.view = b.getAttribute("data-fncv"); S._userPicked = true; paint(); }; });
       Array.prototype.forEach.call(host.querySelectorAll("[data-fncd]"), function (b) { b.onclick = function () { S.dense = b.getAttribute("data-fncd"); paint(); }; });
       var q = host.querySelector("#fncQ");
-      if (q) q.oninput = function () { S.q = q.value; var pos = q.selectionStart; paint(); var n2 = host.querySelector("#fncQ"); if (n2) { n2.focus(); try { n2.setSelectionRange(pos, pos); } catch (e) { S._jobs[id] = []; if (S.copen[id]) paint(); } } };
+      if (q) q.oninput = function () { S.q = q.value; var pos = q.selectionStart; paint(); var n2 = host.querySelector("#fncQ"); if (n2) { n2.focus(); try { n2.setSelectionRange(pos, pos); } catch (e) { /* caret restore is best-effort */ } } };
       Array.prototype.forEach.call(host.querySelectorAll("a.fnc-doc"), function (a) { a.onclick = function (e) { e.stopPropagation(); }; });
       // manual-run controls
       var runAll = host.querySelector("#fncRunAll");
-      if (runAll) runAll.onclick = function () {
+      if (runAll) runAll.onclick = async function () {
         var n = (data.pending || []).length;
         if (!n) return;
-        if (confirm("Close " + n + " pending foreman" + (n === 1 ? "" : "s") + " now? This settles their batches and archives the PDFs, and each statement is EMAILED on the next scheduled run. A closing cannot be undone."))
+        if (await RSC.confirm({
+              title: "Close " + n + " pending foreman" + (n === 1 ? "" : "s") + " now?",
+              body: "This settles their batches and archives the PDFs, and each statement is EMAILED on the next scheduled run. A closing cannot be undone.",
+              yes: "Close " + (n === 1 ? "the batch" : n + " batches"), danger: true }))
           doRun(null, runAll);
       };
       Array.prototype.forEach.call(host.querySelectorAll("[data-fnc-prev]"), function (b) {
         b.onclick = function (e) { e.stopPropagation(); openPreview(b.getAttribute("data-fnc-prev")); };
       });
       Array.prototype.forEach.call(host.querySelectorAll("[data-fnc-close]"), function (b) {
-        b.onclick = function (e) {
+        b.onclick = async function (e) {
           e.stopPropagation();
           var f = b.getAttribute("data-fnc-close");
-          if (confirm("Close " + f + "'s batch now? This settles his batch and archives the PDF, and his statement is EMAILED on the next scheduled run. A closing cannot be undone."))
+          if (await RSC.confirm({
+                title: "Close " + f + "'s batch now?",
+                body: "This settles his batch and archives the PDF, and his statement is EMAILED on the next scheduled run. A closing cannot be undone.",
+                yes: "Close the batch", danger: true }))
             doRun(f, b);
         };
       });

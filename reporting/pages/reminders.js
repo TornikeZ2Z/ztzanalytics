@@ -236,14 +236,16 @@ registerPage({ id: "review-settings", group: "reviews", title: "Review URLs and 
         ".rrp-clock{font-size:12px;font-weight:700;color:var(--muted);background:var(--panel);border:1px solid var(--line-2);border-radius:9px;padding:7px 12px;white-space:nowrap;font-variant-numeric:tabular-nums}",
         ".rrp-headright{display:flex;align-items:center;gap:9px;flex-wrap:wrap;justify-content:flex-end}",
         /* ---------- live preview ---------- */
-        ".rrp-pv{position:sticky;top:8px;background:var(--panel);border:1px solid var(--line);border-radius:16px;overflow:hidden;box-shadow:var(--shadow)}",
+        /* overflow:visible (was hidden): the state pick is now a kit localSelect whose popover
+           must escape the aside; no child paints a background at the rounded corners, so
+           nothing is lost by not clipping. */
+        ".rrp-pv{position:sticky;top:8px;background:var(--panel);border:1px solid var(--line);border-radius:16px;overflow:visible;box-shadow:var(--shadow)}",
         "@media(max-width:1120px){.rrp-pv{position:static}}",
         ".rrp-pvh{padding:14px 16px 12px;border-bottom:1px solid var(--line)}",
         ".rrp-pvh h4{margin:0;font-size:14px;font-weight:800;display:flex;align-items:center;gap:8px}",
         ".rrp-pvh h4 em{font-style:normal;font-size:9.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--blue);background:color-mix(in srgb,var(--blue) 15%,transparent);padding:2px 7px;border-radius:999px}",
         ".rrp-pvh p{margin:4px 0 0;font-size:11.5px;color:var(--muted);line-height:1.5}",
         ".rrp-pvctl{display:flex;gap:7px;padding:11px 16px;border-bottom:1px solid var(--line);flex-wrap:wrap;align-items:center}",
-        ".rrp-pvctl select{font:inherit;font-size:12px;font-weight:700;background:var(--panel-2);color:var(--ink);border:1px solid var(--line-2);border-radius:8px;padding:6px 9px}",
         ".rrp-pvseg{display:inline-flex;background:var(--panel-2);border:1px solid var(--line-2);border-radius:9px;padding:2px}",
         ".rrp-pvseg button{border:0;background:transparent;color:var(--muted);font:inherit;font-size:11.5px;font-weight:800;padding:5px 10px;border-radius:7px;cursor:pointer}",
         ".rrp-pvseg button.on{background:var(--brand);color:var(--brand-ink)}",
@@ -334,7 +336,7 @@ registerPage({ id: "review-settings", group: "reviews", title: "Review URLs and 
         ".rrp-exbtn{font:inherit;font-size:11.5px;font-weight:700;color:var(--brand-ink);background:var(--brand);border:0;border-radius:8px;padding:5px 11px;cursor:pointer}",
         ".rrp-exbtn:hover{background:var(--brand-d)}",
         ".rrp-exform{display:inline-flex;gap:6px;align-items:center;flex-wrap:wrap}",
-        ".rrp-exform select,.rrp-exform input{font:inherit;font-size:12px;background:var(--panel-2);color:var(--ink);border:1px solid var(--line-2);border-radius:7px;padding:5px 8px}",
+        ".rrp-exform input{font:inherit;font-size:12px;background:var(--panel-2);color:var(--ink);border:1px solid var(--line-2);border-radius:7px;padding:5px 8px}",
         ".rrp-exform input{min-width:130px}",
         ".rrp-exform .rrp-exgo{background:var(--brand);color:var(--brand-ink);border:0;border-radius:7px;padding:5px 10px;font-weight:700;cursor:pointer}",
         ".rrp-exform .rrp-exgo:disabled{opacity:.6;cursor:default}",
@@ -1211,17 +1213,22 @@ registerPage({ id: "review-settings", group: "reviews", title: "Review URLs and 
       Array.prototype.forEach.call(root.querySelectorAll("[data-exi]"), function (b) {
         b.onclick = function () {
           var j = rm.jobs[+b.getAttribute("data-exi")]; if (!j) return;
-          var opts = rm.reasons.map(function (r) { return '<option>' + esc(r) + "</option>"; }).join("");
           var f = document.createElement("span"); f.className = "rrp-exform";
-          f.innerHTML = '<select class="rrp-exr">' + opts + '</select><input class="rrp-exn" placeholder="note (optional)"><button class="rrp-exgo">Save</button><button class="rrp-exno">✕</button>';
+          f.innerHTML = '<span class="rrp-exr"></span><input class="rrp-exn" placeholder="note (optional)"><button class="rrp-exgo">Save</button><button class="rrp-exno">✕</button>';
           b.replaceWith(f);
+          // kit localSelect in place of the old native <select>: same options (the reason list,
+          // verbatim), same default (the first reason) — read back via exReason.get() below.
+          var exReason = RSC.localSelect(f.querySelector(".rrp-exr"), {
+            label: "Reason", values: rm.reasons.slice(), value: rm.reasons[0] || "",
+            required: true, onChange: function () {},
+          });
           f.querySelector(".rrp-exno").onclick = function () { paint(); };
           f.querySelector(".rrp-exgo").onclick = function () {
             var go = f.querySelector(".rrp-exgo"); go.disabled = true; go.textContent = "Saving…";
             var who = ""; try { who = (window.ZTZ && ZTZ.email && ZTZ.email()) || ""; } catch (e) {}
             // the CODE when the job has one -- see identFor() above and review-performance.js
             var body = JSON.stringify({ kind: "reviewReason", jobCode: String(j.ident || j.job || ""), foreman: String(j.foreman || ""),
-              date: String(j.day || ""), reason: f.querySelector(".rrp-exr").value,
+              date: String(j.day || ""), reason: exReason.get(),
               note: (f.querySelector(".rrp-exn").value.trim() ? f.querySelector(".rrp-exn").value.trim() + " — " : "") + "via portal" + (who ? " (" + who + ")" : "") });
             fetch(ZTZ.API + "/api/_rrp", { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8", "Authorization": "Bearer " + ZTZ.getToken() }, body: body })
               .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status);
@@ -1409,11 +1416,9 @@ registerPage({ id: "review-settings", group: "reviews", title: "Review URLs and 
       // preview column — self-heal a preview state whose last listing was just deleted, otherwise
       // the bubble keeps naming a state the dropdown no longer offers (audit 2026-07-25)
       if (RRP.pvState && states.indexOf(RRP.pvState) < 0) RRP.pvState = states[0] || null;
-      var pvState = RRP.pvState || (d.google[0] && d.google[0].state) || "NJ";
       var pv = '<aside class="rrp-pv"><div class="rrp-pvh"><h4>What the foreman gets <em>preview</em></h4>'
         + "<p>Built from your edits above — it updates as you type.</p></div>"
-        + '<div class="rrp-pvctl"><select data-pvstate>' + states.map(function (s2) {
-            return '<option value="' + esc(s2) + '"' + (s2 === pvState ? " selected" : "") + ">" + esc(s2) + " delivery</option>"; }).join("") + "</select>"
+        + '<div class="rrp-pvctl"><span data-pvstate></span>'
         + '<span class="rrp-pvseg"><button data-pvmode="reg"' + (RRP.pvYelp ? "" : ' class="on"') + ">Regular</button>"
         + '<button data-pvmode="yelp"' + (RRP.pvYelp ? ' class="on"' : "") + ">Yelp</button></span></div>"
         + '<div class="rrp-pvbody" id="rrpPvBody">' + pvBodyHtml(d) + "</div>"
@@ -1551,8 +1556,21 @@ registerPage({ id: "review-settings", group: "reviews", title: "Review URLs and 
         RRP.saved = 0; paint();
       };
       // ---- live preview controls ----
-      var pvSel = root.querySelector("[data-pvstate]");
-      if (pvSel) pvSel.onchange = function () { RRP.pvState = pvSel.value; refreshPv(); };
+      // the state pick is a kit localSelect mounted into the [data-pvstate] span (the markup is
+      // rebuilt on every paint, so this mounts fresh each time); values/order/labels match the
+      // old <select> exactly — states in first-seen d.google order, "XX delivery" labels.
+      var pvHost = root.querySelector("[data-pvstate]");
+      if (pvHost) {
+        var pvStates = [], pvSeen = {};
+        d.google.forEach(function (g) { if (!pvSeen[g.state]) { pvSeen[g.state] = 1; pvStates.push(g.state); } });
+        RSC.localSelect(pvHost, {
+          label: "State",
+          values: pvStates.map(function (s2) { return { v: s2, l: s2 + " delivery" }; }),
+          value: RRP.pvState || (d.google[0] && d.google[0].state) || "NJ",
+          required: true, allLabel: "—",
+          onChange: function (v) { RRP.pvState = v; refreshPv(); },
+        });
+      }
       Array.prototype.forEach.call(root.querySelectorAll("[data-pvmode]"), function (el) {
         el.onclick = function () {
           RRP.pvYelp = el.getAttribute("data-pvmode") === "yelp";
@@ -1571,7 +1589,7 @@ registerPage({ id: "review-settings", group: "reviews", title: "Review URLs and 
         // basic guard: every state needs exactly one active link
         var states = {}; d.google.forEach(function (g) { states[g.state] = states[g.state] || 0; if (g.active && g.url) states[g.state]++; });
         var bad = Object.keys(states).filter(function (s2) { return states[s2] !== 1; });
-        if (bad.length) { alert("Each state needs exactly one active link with a URL. Check: " + bad.join(", ")); return; }
+        if (bad.length) { RSC.notice("Each state needs exactly one active link with a URL. Check: " + bad.join(", ")); return; }
         RRP.saving = true; RRP.saved = 0; paint();
         try {
           var _body = JSON.stringify({ kind: "reviewLinkConfig", config: d });

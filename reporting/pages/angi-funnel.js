@@ -182,8 +182,10 @@
 
   /* The dropdown options depend on S.rows, which never changes after load — so they are built
      ONCE. They used to be rebuilt on every repaint, which meant nine full scans of eleven
-     thousand rows per keystroke in the search box. */
-  function optionHtml(key) {
+     thousand rows per keystroke in the search box. Returns {v,l,n} items for RSC.localSelect,
+     which renders the count as its own right-aligned span (the old <option> glued it into the
+     label text; the value strings are unchanged). */
+  function optionsFor(key) {
     if (!S.opts) {
       S.opts = {};
       var counts = {};
@@ -196,14 +198,11 @@
       });
       FILTERS.forEach(function (f) {
         S.opts[f[0]] = Object.keys(counts[f[0]]).sort().map(function (v) {
-          return { v: v, n: counts[f[0]][v] };
+          return { v: v, l: v, n: counts[f[0]][v] };
         });
       });
     }
-    return S.opts[key].map(function (o) {
-      return '<option value="' + esc(o.v) + '"' + (S.f[key] === o.v ? " selected" : "") + ">"
-        + esc(o.v) + " · " + RS.fmtN(o.n) + "</option>";
-    }).join("");
+    return S.opts[key];
   }
 
   function paint(host) {
@@ -242,18 +241,12 @@
       + '<div class="rs-kpis" id="agfKpis"></div>'
 
       + '<div class="rs-bar">'
+      /* localSelect mounts — the kit slicer replaces the native <select>; it renders its own
+         label chip, so the old .rs-fld label wrapper collapses to a bare mount div. */
       + FILTERS.map(function (f) {
-          return '<label class="rs-fld"><span>' + esc(f[1]) + "</span>"
-            + '<select class="rs-sel" data-k="' + esc(f[0]) + '"><option value="">All</option>'
-            + optionHtml(f[0]) + "</select></label>";
+          return '<div data-k="' + esc(f[0]) + '"></div>';
         }).join("")
-      + '<label class="rs-fld"><span>Duplicate leads</span>'
-      + '<select class="rs-sel" id="agfDupe">'
-      + DUPE_MODES.map(function (m) {
-          return '<option value="' + esc(m[0]) + '"'
-            + ((S.f._dupe || "") === m[0] ? " selected" : "") + ">" + esc(m[1]) + "</option>";
-        }).join("")
-      + "</select></label>"
+      + '<div id="agfDupe"></div>'
       + '<label class="rs-fld"><span>Find</span>'
       + '<input class="rs-inp" id="agfQ" placeholder="Name, ZIP, lead or Angi ID…" value="'
       + esc(S.f._q || "") + '"></label>'
@@ -373,12 +366,23 @@
 
     paginate(host, rowsHtml);
 
-    host.querySelectorAll("select[data-k]").forEach(function (sel) {
-      sel.onchange = function () { S.f[sel.dataset.k] = sel.value; S.page = 0; paint(host); };
+    FILTERS.forEach(function (f) {
+      RSC.localSelect(host.querySelector('div[data-k="' + CSS.escape(f[0]) + '"]'), {
+        label: f[1],
+        values: optionsFor(f[0]),
+        value: S.f[f[0]] || "",
+        allLabel: "All",
+        onChange: function (v) { S.f[f[0]] = v; S.page = 0; paint(host); },
+      });
     });
-    host.querySelector("#agfDupe").onchange = function () {
-      S.f._dupe = this.value; S.page = 0; paint(host);
-    };
+    RSC.localSelect(host.querySelector("#agfDupe"), {
+      label: "Duplicate leads",
+      values: DUPE_MODES.filter(function (m) { return m[0]; })
+        .map(function (m) { return { v: m[0], l: m[1] }; }),
+      value: S.f._dupe || "",
+      allLabel: DUPE_MODES[0][1],   // "All rows" — the old empty-value option
+      onChange: function (v) { S.f._dupe = v; S.page = 0; paint(host); },
+    });
     var q = host.querySelector("#agfQ");
     q.oninput = function () {
       S.f._q = this.value; S.page = 0;

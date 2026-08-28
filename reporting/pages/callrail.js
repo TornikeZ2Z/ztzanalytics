@@ -194,8 +194,7 @@ registerPage({
     };
     const dimCard = RSC.chartCard(grid, {
       title: "Calls by ad number",
-      controlsHtml: `<span class="lbl">Dimension</span>
-        <select id="crDim"><option selected>Number Name</option><option>Source</option></select>`,
+      controlsHtml: `<div id="crDim"></div>`,
       buildChart(canvas) {
         const list = byDim();
         const top = list.slice(0, 15);
@@ -244,7 +243,10 @@ registerPage({
              : "");
       },
     });
-    dimCard.card.querySelector("#crDim").onchange = e => { dim = e.target.value; dimCard.rerender(); };
+    RSC.localSelect(dimCard.card.querySelector("#crDim"), {
+      label: "Dimension", values: ["Number Name", "Source"], value: dim, required: true,
+      onChange: v => { dim = v; dimCard.rerender(); },
+    });
 
     // (b) call-status split (doughnut + tabular) — colors keyed by status keyword
     const statColor = s => { const t = String(s).toLowerCase();

@@ -705,8 +705,9 @@ function rlRender(host, runs, cov, fresh) {
         && /not sent|suppress/i.test(String(st.detail)))
       skipped.push({ run: p.run.started_at, step: st.step, detail: st.detail });
   }));
-  // NOT `alert`: this is function-scoped and the pause/resume handler below calls the
-  // GLOBAL alert() on its only error path -- shadowed, that call threw instead of reporting.
+  // NOT `alert`: this is function-scoped and the pause/resume handler below used to call
+  // the GLOBAL alert() on its only error path -- shadowed, that call threw instead of
+  // reporting. It is RSC.notice now, but the name stays clear of the global on principle.
   let alertHtml = "";
   const hbad = (RL.health || []).filter(c => c.status === "fail" || c.status === "warn");
   if (hbad.length) {
@@ -802,8 +803,10 @@ function rlRender(host, runs, cov, fresh) {
       const t = b.dataset.t;
       let note = null;
       if (!on) {
-        note = prompt("Pause \"" + t + "\" — it will stop reloading every run.\n"
-                      + "Why? (optional, but it helps whoever finds this later)", "");
+        note = await RSC.ask({
+          title: "Pause \"" + t + "\"",
+          body: "It will stop reloading every run.\nWhy? (optional, but it helps whoever finds this later)",
+          value: "", yes: "Pause" });
         if (note === null) return;             // cancelled
       }
       b.disabled = true; b.textContent = "…";
@@ -823,7 +826,7 @@ function rlRender(host, runs, cov, fresh) {
         rlRender(host, (d && d.runs) || runs, d && d.coverage, d && d.freshness);
       } catch (e) {
         b.disabled = false; b.textContent = on ? "paused" : "on";
-        alert("Could not change it: " + (e.message || e));
+        RSC.notice("Could not change it: " + (e.message || e));
       }
     };
   });
@@ -887,7 +890,10 @@ registerPage({
     };
     const run = host.querySelector("#rlRun");
     if (run) run.onclick = async () => {
-      if (!confirm("Start a full data refresh now? It takes about 15 minutes — you can keep using the portal, and the numbers update when it finishes.")) return;
+      if (!(await RSC.confirm({
+            title: "Start a full data refresh now?",
+            body: "It takes about 15 minutes — you can keep using the portal, and the numbers update when it finishes.",
+            yes: "Start the refresh" }))) return;
       run.disabled = true;
       msg.innerHTML = `<span class="rl-dot run"></span>Starting…`;
       try {

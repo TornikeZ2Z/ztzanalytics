@@ -1164,14 +1164,7 @@ registerPage({
               + '<datalist id="mfFnList">'
               + names.map(function (n) { return '<option value="' + esc(n) + '">'; }).join("")
               + "</datalist></div>")
-        + '<div class="mf-fld"><label>What kind of movement</label><select id="mfFnType">'
-        + [["fine", "Fine \u2014 we charged him (debt goes up)"],
-           ["repayment", "Repayment \u2014 he paid it back (debt goes down)"],
-           ["opening", "Opening balance \u2014 what he already owed (debt goes up)"]]
-            .map(function (o) {
-              return '<option value="' + o[0] + '"' + (o[0] === t ? " selected" : "") + ">"
-                + o[1] + "</option>"; }).join("")
-        + "</select></div>"
+        + '<div class="mf-fld"><label>What kind of movement</label><div id="mfFnType"></div></div>'
         + '<div class="mf-mrow">'
         + '<div class="mf-fld"><label>Amount ($)</label><input id="mfFnAmt" type="number" step="0.01" '
         + 'min="0" value="' + esc(e ? String(e.Amount) : "") + '" placeholder="0.00"></div>'
@@ -1190,6 +1183,17 @@ registerPage({
         + '<div id="mfFnErr"></div>'
         + "</div></div></div>";
 
+      // the type picker is the kit's localSelect — form-shaped (its label is the .mf-fld's,
+      // above), required (choosing a movement IS the form, so there is no empty row)
+      var fnTypeSel = RSC.localSelect(document.getElementById("mfFnType"), {
+        values: [
+          { v: "fine", l: "Fine — we charged him (debt goes up)" },
+          { v: "repayment", l: "Repayment — he paid it back (debt goes down)" },
+          { v: "opening", l: "Opening balance — what he already owed (debt goes up)" },
+        ],
+        value: t, form: true, required: true,
+      });
+
       function close() { S.fineEdit = null; hostEl.innerHTML = ""; }
       document.getElementById("mfMx").onclick = close;
       document.getElementById("mfFnCancel").onclick = close;
@@ -1205,7 +1209,7 @@ registerPage({
         var btn = this, err = document.getElementById("mfFnErr");
         var body = {
           foreman: (document.getElementById("mfFnWho").value || "").trim(),
-          entry_type: document.getElementById("mfFnType").value,
+          entry_type: fnTypeSel.get(),
           amount: num(document.getElementById("mfFnAmt").value),
           date: document.getElementById("mfFnDate").value || "",
           reason: (document.getElementById("mfFnWhy").value || "").trim(),
@@ -1281,9 +1285,7 @@ registerPage({
         + "</b></div>"
         + (r.dcTs ? '<div class="mf-mdc">Recorded in the contract system ' + fmtTs(r.dcTs) + "</div>" : "")
         + '<div class="mf-ro bal ok" id="mfMBalRow"><span>Net Cash Balance</span><b id="mfMBal">$0</b></div>'
-        + '<div class="mf-fld"><label>Type</label><select id="mfMType">'
-        + ["Cash Brought to Base", "Cash Taken Away from Base"].map(function (t) {
-            return "<option" + (t === pre.type ? " selected" : "") + ">" + t + "</option>"; }).join("") + "</select></div>"
+        + '<div class="mf-fld"><label>Type</label><div id="mfMType"></div></div>'
         + '<div class="mf-fld"><label>Amount ($)</label><input id="mfMAmt" type="number" step="0.01" min="0" value="' + esc(String(pre.amount)) + '"></div>'
         + '<div class="mf-mrow">'
         + '<div class="mf-fld"><label>Forman Deduction ($) <i>on top of what he owes</i></label><input id="mfMDed" type="number" step="0.01" min="0" value="' + esc(String(r.ded != null ? Math.abs(r.ded) : "")) + '" placeholder="0"></div>'
@@ -1307,12 +1309,21 @@ registerPage({
             }).join("") + "</tbody></table></div></div>" : "")
         + "</div></div></div>";
 
+      // Type is the kit's localSelect — form-shaped (the .mf-fld label sits above it),
+      // required (both directions are real answers, so there is no empty row). Picking a
+      // type re-runs the live balance exactly as the old select's onchange did.
+      var mTypeSel = RSC.localSelect(document.getElementById("mfMType"), {
+        values: ["Cash Brought to Base", "Cash Taken Away from Base"],
+        value: pre.type, form: true, required: true,
+        onChange: function () { calc(); },
+      });
+
       function calc() {
         var el = document.getElementById("mfMBal"), row = document.getElementById("mfMBalRow");
         // no contract amount -> no balance to compute; a red "−$X" here would tell the
         // operator his CORRECT manual entry is wrong (he was trained: green $0 = good)
         if (r.expected == null) { el.textContent = "no contract amount"; row.className = "mf-ro bal"; return; }
-        var type = document.getElementById("mfMType").value;
+        var type = mTypeSel.get();
         var amt = num(document.getElementById("mfMAmt").value);
         var ded = num(document.getElementById("mfMDed").value) || 0;
         var adv = num(document.getElementById("mfMAdv").value) || 0;
@@ -1321,7 +1332,7 @@ registerPage({
         el.textContent = money2(bal);
         row.className = "mf-ro bal " + (Math.abs(bal) <= MF_TOL ? "ok" : "off");
       }
-      ["mfMType", "mfMAmt", "mfMDed", "mfMAdv"].forEach(function (id) {
+      ["mfMAmt", "mfMDed", "mfMAdv"].forEach(function (id) {
         var el = document.getElementById(id);
         el.oninput = calc; el.onchange = calc;
       });
@@ -1340,7 +1351,7 @@ registerPage({
       };
       document.getElementById("mfMSave").onclick = async function () {
         var errEl = document.getElementById("mfMErr");
-        var type = document.getElementById("mfMType").value;
+        var type = mTypeSel.get();
         var amt = num(document.getElementById("mfMAmt").value);
         var ded = num(document.getElementById("mfMDed").value);
         // a locked (legacy-refund) advance is display-only — never read it back for saving

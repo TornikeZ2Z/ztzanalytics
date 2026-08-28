@@ -72,8 +72,7 @@ registerPage({
     const card = RSC.chartCard(document.getElementById("main"), {
       title: "By Foreman",
       controlsGraphOnly: true,
-      controlsHtml: `<span class="lbl">Show:</span><select id="calcBy">` +
-        CALC.map(c => `<option value="${c}" ${c === calcBy ? "selected" : ""}>${disp(c)}</option>`).join("") + `</select>`,
+      controlsHtml: `<span id="calcBy"></span>`,
       buildChart(canvas) {
         const m = RS.M[calcBy];
         const g = {};
@@ -132,7 +131,11 @@ registerPage({
             : "");
       },
     });
-    document.getElementById("calcBy").onchange = e => { calcBy = e.target.value; card.rerender(); };
+    RSC.localSelect(document.getElementById("calcBy"), {
+      label: "Show:", values: CALC.map(c => ({ v: c, l: disp(c) })),
+      value: calcBy, required: true,
+      onChange: v => { calcBy = v; card.rerender(); },
+    });
 
     // ---- sub-table 1: Sales Person rollup · sub-table 2: monthly matrix
     const subs = document.getElementById("subs");

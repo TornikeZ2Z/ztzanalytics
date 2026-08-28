@@ -282,7 +282,12 @@ registerPage({
            both languages sat truncated in the left third of a very wide card. */
         ".hq-grid input,.hq-grid textarea,.hq-grid select{width:100%;box-sizing:border-box}",
         ".hq-scrow{display:flex;align-items:center;gap:9px;font-size:13px;color:var(--muted)}",
-        ".hq-scrow select{width:auto;min-width:68px}",
+        /* the kit dropdowns that replaced the two bounds selects: keep the old select's
+           68px footprint, and un-pin the popover from the chip — rs-form stretches the
+           popover to the wrap's width (rs.css .rs-slicer.rs-form .rs-slicer-pop), which
+           here is a ~40px chip, far too narrow for the search box + nine options. */
+        ".hq-scrow .rs-slicer-btn{min-width:68px}",
+        ".hq-scrow .rs-slicer.rs-form .rs-slicer-pop{right:auto;width:auto;min-width:112px}",
         ".hq-opt .n.end{width:22px;height:22px;border-radius:50%;background:var(--brand-glow);color:var(--brand);font-weight:800;font-size:11px;display:grid;place-items:center;text-align:center}",
         ".hq-grid>div:nth-child(even){border-left:1px solid var(--line);padding-left:14px}",
         ".hq-ed .hq-grid .lbl{font-size:17px;font-weight:750;line-height:1.4}",
@@ -1083,11 +1088,16 @@ registerPage({
             var so = item.options || [];
             var lo = parseInt(so[0], 10); if (isNaN(lo)) lo = 1;
             var hi = parseInt(so[1], 10); if (isNaN(hi)) hi = 5;
+            // the kit dropdown instead of a native <select> (nothing native on the portal,
+            // 2026-08-28). Unlocked: a mount host the [data-f] wiring below fills with
+            // RSC.localSelect. Locked: a static kit-styled button — the wiring loop never
+            // runs when locked, so a live mount there would render an empty host.
             var selN = function (f2, val, from, to) {
-              var s2 = '<select class="hq-sel" data-f="' + f2 + '"' + dis + ">";
-              for (var n2 = from; n2 <= to; n2++)
-                s2 += '<option value="' + n2 + '"' + (n2 === val ? " selected" : "") + ">" + n2 + "</option>";
-              return s2 + "</select>";
+              if (locked)
+                return '<span class="rs-slicer rs-off"><button type="button" class="rs-slicer-btn" disabled>'
+                  + '<span class="val">' + val + '</span><span class="chev">▾</span></button></span>';
+              return '<span class="hq-scsel" data-f="' + f2 + '" data-v="' + val
+                + '" data-from="' + from + '" data-to="' + to + '"></span>';
             };
             // The two labels are the ENDS of the scale, so each row is stamped with the
             // number it belongs to on BOTH sides — otherwise it is four look-alike boxes
@@ -1235,6 +1245,19 @@ registerPage({
             }
             d[i].i18n = Object.keys(ka).length ? { ka: ka } : null;
           };
+          // the scale-bounds hosts get the kit dropdown, not a native handler — a mount
+          // host fires no input/change of its own, and syncScale keeps reading `.value`
+          // off the host exactly as it read the old <select>
+          if (inp.classList.contains("hq-scsel")) {
+            var scVals = [];
+            for (var sn = +inp.dataset.from; sn <= +inp.dataset.to; sn++) scVals.push(String(sn));
+            inp.value = inp.dataset.v;
+            RSC.localSelect(inp, {
+              label: "", values: scVals, value: inp.dataset.v, form: true, required: true,
+              onChange: function (v) { inp.value = v; syncScale(); mark(); },
+            });
+            return;
+          }
           inp.oninput = function () {
             if (f.indexOf("ka_") === 0) syncKa();
             else if (f === "opt" || f === "kaopt" || f === "oth") { syncOpts(); syncKa(); }
@@ -1243,9 +1266,9 @@ registerPage({
             else d[i][f] = inp.value;
             mark();
           };
-          if (f === "oth" || f === "sc_lo" || f === "sc_hi")
+          if (f === "oth")
             inp.onchange = function () {
-              if (f === "oth") syncOpts(); else syncScale();
+              syncOpts();
               mark();
             };
         });
@@ -1973,10 +1996,12 @@ registerPage({
        this." The confirm says exactly that before a single mail moves. Rounds are the
        server's: a second click after a finished round starts a new one. */
     async function sendReminders(qid) {
-      if (!window.confirm("Send a reminder to EVERYONE on this questionnaire's audience?\n\n"
-          + "Answers are anonymous, so the people who already filled it in cannot be "
-          + "skipped — their mail opens with “already filled it in? thank you, ignore "
-          + "this”.")) return;
+      if (!(await RSC.confirm({
+          title: "Send a reminder to EVERYONE on this questionnaire's audience?",
+          body: "Answers are anonymous, so the people who already filled it in cannot be "
+            + "skipped — their mail opens with “already filled it in? thank you, ignore "
+            + "this”.",
+          yes: "Send the reminder" }))) return;
       var total = 0, guard = 0, failedTotal = 0, lastRemaining = -1;
       toast("Sending reminders…");
       var r = null, extra = "";
@@ -2463,10 +2488,7 @@ registerPage({
         + '<div class="hq-kpi"><b>' + fmtPct(done, board.length) + "</b><span>completion</span>"
         + '<div class="pb"><i style="width:' + (board.length ? Math.round(done / board.length * 100) : 0) + '%"></i></div></div></div>'
         + '<div class="hq-row" style="margin-bottom:10px">'
-        + '<select class="hq-sel" id="hbF"><option value="">Every status</option>'
-        + ["not_started", "in_progress", "submitted", "resubmitted", "reopened"].map(function (s) {
-            return '<option value="' + s + '"' + (S.subFilter === s ? " selected" : "") + ">" + s.replace("_", " ") + "</option>";
-          }).join("") + "</select>"
+        + '<div id="hbF"></div>'
         + '<input class="hq-in" id="hbQ" placeholder="Find a person…" value="' + esc(S.subQ) + '">'
         + '<span class="hq-dim">' + rows.length + " shown</span>"
         + (S.q && S.q.status === "published" && S.home && S.home.can_manage
@@ -2503,7 +2525,15 @@ registerPage({
       if (ib) ib.onclick = function () { sendInvites(S.qid); };
       var rb = body.querySelector("#hbRem");
       if (rb) rb.onclick = function () { sendReminders(S.qid); };
-      body.querySelector("#hbF").onchange = function () { S.subFilter = this.value; paintSubmissions(body, canR); };
+      RSC.localSelect(body.querySelector("#hbF"), {
+        label: "Status",
+        values: ["not_started", "in_progress", "submitted", "resubmitted", "reopened"].map(function (s) {
+          return { v: s, l: s.replace("_", " ") };
+        }),
+        value: S.subFilter,
+        allLabel: "Every status",
+        onChange: function (v) { S.subFilter = v; paintSubmissions(body, canR); },
+      });
       var qi = body.querySelector("#hbQ");
       qi.oninput = function () {
         S.subQ = this.value; var at = this.selectionStart;
@@ -2655,13 +2685,9 @@ registerPage({
               + "</ul></div>"
             : "")
         + '<div class="hq-row" style="margin-bottom:12px">'
-        + '<select class="hq-sel" id="hrDept"><option value="">' + esc(RS_().allDepts) + "</option>"
-        + depts.map(function (dpt) { return '<option' + (S.resDept === dpt ? " selected" : "") + ">" + esc(dpt) + "</option>"; }).join("")
-        + "</select>"
+        + '<div id="hrDept"></div>'
         + (S.q && S.q.audience_kind === "anon_depts" ? ""    // anonymous: there IS no person
-          : '<select class="hq-sel" id="hrWho"><option value="">' + esc(RS_().aggregate) + "</option>"
-          + view.map(function (r) { return '<option value="' + esc(r.email) + '"' + (S.resPerson === r.email ? " selected" : "") + ">" + esc(r.name || r.email) + "</option>"; }).join("")
-          + "</select>")
+          : '<div id="hrWho"></div>')
         + '<span style="flex:1"></span>' + hqLangSeg("hrResLang")
         + '<button class="hq-btn" id="hrCsv">' + esc(RS_().csv) + "</button></div>";
 
@@ -2989,9 +3015,20 @@ registerPage({
                      R.questions.filter(function (x) { return x.active; }), who.answers);
         }
       };
-      body.querySelector("#hrDept").onchange = function () { S.resDept = this.value; S.resPerson = ""; paintResults(body); };
+      // form:true = value-only kit buttons: the Statistics screen reads in ONE language
+      // (his 2026-08-25 rule), and a label chip here would have to invent an English-only
+      // word the HQ_RES pack does not carry — the old selects showed only the value too
+      RSC.localSelect(body.querySelector("#hrDept"), {
+        label: "", values: depts, value: S.resDept, allLabel: RS_().allDepts, form: true,
+        onChange: function (v) { S.resDept = v; S.resPerson = ""; paintResults(body); },
+      });
       var whoSel = body.querySelector("#hrWho");
-      if (whoSel) whoSel.onchange = function () { S.resPerson = this.value; paintResults(body); };
+      if (whoSel) RSC.localSelect(whoSel, {
+        label: "",
+        values: view.map(function (r) { return { v: r.email, l: r.name || r.email }; }),
+        value: S.resPerson, allLabel: RS_().aggregate, form: true,
+        onChange: function (v) { S.resPerson = v; paintResults(body); },
+      });
       body.querySelector("#hrCsv").onclick = function () {
         // the ld-planning CSV pattern — plus a formula guard: a leading = + - @ or tab
         // would execute in Excel on HR's machine, and answer text is employee-controlled

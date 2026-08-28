@@ -188,9 +188,7 @@ registerPage({
     };
     const mainCard = RSC.chartCard(document.getElementById("spaMain"), {
       title: "By Sales Person",
-      controlsHtml: `<span class="lbl">Show:</span><select id="spaCalc">` +
-        Object.keys(CALCS).map(c => `<option ${c === calcBy ? "selected" : ""}>${c}</option>`).join("") +
-        `</select>`,
+      controlsHtml: `<span id="spaCalc"></span>`,
       buildChart(canvas) {
         const c = CALCS[calcBy];
         // PBI hides blank Full Name on the chart — same here (blanks stay in the table).
@@ -255,7 +253,11 @@ registerPage({
             comm: totComm, red: totReduced, fin: totFinal, mom: null });
       },
     });
-    document.getElementById("spaCalc").onchange = e => { calcBy = e.target.value; mainCard.rerender(); };
+    // the kit's localSelect, never a native dropdown — same option strings, same rerender
+    RSC.localSelect(document.getElementById("spaCalc"), {
+      label: "Show", values: Object.keys(CALCS), value: calcBy, required: true,
+      onChange: v => { calcBy = v; mainCard.rerender(); },
+    });
 
     const grid = document.getElementById("spaGrid");
 

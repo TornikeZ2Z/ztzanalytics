@@ -162,9 +162,7 @@ registerPage({
     // ---- main card: foreman comparison bar + the full tabular breakdown
     const mainCard = RSC.chartCard(document.getElementById("faMain"), {
       title: "Foreman comparison",
-      controlsHtml: `<span class="lbl">Measure</span><select id="faCalc">` +
-        Object.keys(CALC).map(c => `<option ${c === calcBy ? "selected" : ""}>${c}</option>`).join("") +
-        `</select>`,
+      controlsHtml: `<span id="faCalc"></span>`,
       buildChart(canvas) {
         const c = CALC[calcBy];
         const list = byForeman().slice(0, 20);
@@ -231,9 +229,10 @@ registerPage({
             : "");
       },
     });
-    document.getElementById("faCalc").onchange = e => {
-      calcBy = e.target.value; mainCard.rerender();
-    };
+    RSC.localSelect(document.getElementById("faCalc"), {
+      label: "Measure", values: Object.keys(CALC), value: calcBy, required: true,
+      onChange: v => { calcBy = v; mainCard.rerender(); },
+    });
 
     const grid = document.getElementById("faGrid");
 
@@ -243,9 +242,7 @@ registerPage({
     let mxBy = "Total Jobs";
     const mx = RSC.el("div", "panel",
       `<div class="panel-head"><span class="panel-title">Foreman × Month</span>
-         <span class="rs-ctl"><span class="lbl">Measure</span><select id="faMxCalc">` +
-        Object.keys(CALC).map(c => `<option ${c === mxBy ? "selected" : ""}>${c}</option>`).join("") +
-        `</select></span><span class="spacer"></span>
+         <span class="rs-ctl"><span id="faMxCalc"></span></span><span class="spacer"></span>
          <span class="rs-ctl"><span class="lbl" id="faMxNote">top 15 · last 13 mo</span></span></div>
        <div class="tabwrap" id="faMx"></div>`);
     grid.appendChild(mx);
@@ -281,7 +278,10 @@ registerPage({
       document.getElementById("faMx").innerHTML = html;
     };
     paintMatrix();
-    document.getElementById("faMxCalc").onchange = e => { mxBy = e.target.value; paintMatrix(); };
+    RSC.localSelect(document.getElementById("faMxCalc"), {
+      label: "Measure", values: Object.keys(CALC), value: mxBy, required: true,
+      onChange: v => { mxBy = v; paintMatrix(); },
+    });
 
     // ---- grid (b): Morning vs Afternoon jobs by foreman (stacked, top 12) —
     // PBI 'Job Part of the Day' split ('Forman Job Order' = 1 → Morning Job).

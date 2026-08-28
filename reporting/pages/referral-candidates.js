@@ -193,14 +193,9 @@ registerPage({
         return true;
       }
 
-      function sel(id, label, current, values) {
-        return '<label class="rs-fld"><span>' + label + '</span><select class="rs-sel" id="' + id + '">'
-          + '<option value="">All</option>'
-          + Object.keys(values).sort().map(function (v) {
-              return '<option value="' + esc(v) + '"' + (current === v ? " selected" : "")
-                + ">" + esc(v) + "</option>";
-            }).join("") + "</select></label>";
-      }
+      // the kit slicer's mount point -- RSC.localSelect is mounted onto it in wire(),
+      // which is also where the label, options and current value are handed over
+      function sel(id) { return '<div id="' + id + '"></div>'; }
 
       function paint() {
         var v = view();
@@ -236,12 +231,12 @@ registerPage({
           // RS.state instead, and picking "This year" on a call sheet would then quietly
           // narrow the Monthly Report the next time it was opened.
           + '<div class="rs-fld"><span>Move date</span><div id="rfDateHost"></div></div>'
-          + sel("rfCo", "Company", S.co, allCos)
-          + sel("rfPlat", "Platform", S.plat, allPlats)
-          + sel("rfSrc", "Source", S.src, allSrc)
-          + sel("rfMt", "Move type", S.mt, allMt)
-          + sel("rfSize", "Size", S.size, allSize)
-          + sel("rfSp", "Sales person", S.sp, allSp)
+          + sel("rfCo")
+          + sel("rfPlat")
+          + sel("rfSrc")
+          + sel("rfMt")
+          + sel("rfSize")
+          + sel("rfSp")
           + '<div class="rs-tog' + (S.contact ? " on" : "") + '" id="rfContact"><i></i>Only with contact details</div>'
           + '<div class="rs-tog' + (S.unrated ? " on" : "") + '" id="rfUnrated"><i></i>Include unrated moves</div>'
           + '<label class="rs-fld"><span>Find</span><input class="rs-inp" id="rfQ" placeholder="Name, email, phone or request…" '
@@ -331,10 +326,24 @@ registerPage({
       }
 
       function wire(v) {
-        [["rfCo", "co"], ["rfPlat", "plat"], ["rfSrc", "src"], ["rfMt", "mt"],
-         ["rfSize", "size"], ["rfSp", "sp"]].forEach(function (pair) {
+        // the kit's page-local single-selects: same options in the same order as the old
+        // native dropdowns, and the state stays in S (never RS.state, which is the GLOBAL
+        // filter bar). Every paint rebuilds the bar wholesale, so these mount fresh each
+        // time with the current value.
+        [["rfCo", "co", "Company", allCos], ["rfPlat", "plat", "Platform", allPlats],
+         ["rfSrc", "src", "Source", allSrc], ["rfMt", "mt", "Move type", allMt],
+         ["rfSize", "size", "Size", allSize], ["rfSp", "sp", "Sales person", allSp]
+        ].forEach(function (pair) {
           var el = host.querySelector("#" + pair[0]);
-          if (el) el.onchange = function () { S[pair[1]] = this.value; paint(); };
+          if (el && window.RSC && RSC.localSelect) {
+            RSC.localSelect(el, {
+              label: pair[2],
+              values: Object.keys(pair[3]).sort(),
+              value: S[pair[1]],
+              allLabel: "All",
+              onChange: function (v) { S[pair[1]] = v; paint(); },
+            });
+          }
         });
         var dh = host.querySelector("#rfDateHost");
         if (dh && window.RSC && RSC.dateRange) {

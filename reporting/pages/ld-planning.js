@@ -62,6 +62,8 @@ registerPage({
         .ldp-fl{display:flex;align-items:center;gap:6px;font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--faint);padding-right:8px}
         .ldp-fl select{font:inherit;font-size:12.5px;font-weight:600;text-transform:none;letter-spacing:0;color:var(--ink);background:var(--panel-2);border:1px solid var(--line-2);border-radius:8px;padding:6px 8px;cursor:pointer}
         .ldp-fl select:focus{outline:none;border-color:var(--brand)}
+        /* the localSelect mounts stand where the .ldp-fl labels stood — same 8px of air */
+        .ldp-fbox #ldpCo,.ldp-fbox #ldpLoc{margin-right:8px}
         .ldp-clr{font:inherit;font-size:12px;font-weight:700;color:var(--muted);background:var(--panel-2);border:1px solid var(--line-2);border-radius:8px;padding:6px 12px;cursor:pointer;margin-right:4px}
         .ldp-clr:hover{border-color:var(--brand);color:var(--ink)}
         .ldp-count{font-size:12.5px;font-weight:600;color:var(--muted);margin-left:auto}
@@ -1103,6 +1105,8 @@ registerPage({
 
       var cos = {}; var locs = {};
       all.forEach(function (r) { cos[r["Company"]] = 1; locs[r["Location"]] = 1; });
+      // wire() is a different scope — hand it the option lists for the localSelect mounts
+      S._cos = Object.keys(cos).sort(); S._locs = Object.keys(locs).sort();
       // FILTER BAR — one bordered strip instead of three loose controls: a search field with
       // an inline icon, labelled selects, and a Clear that only appears when something is
       // actually filtering (so it never adds noise at rest).
@@ -1122,10 +1126,10 @@ registerPage({
         +   '<span class="ldp-srch"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>'
         +   '<input id="ldpQ" placeholder="Search customer, request #, job code or sticker" value="' + esc(S.q) + '"></span>'
         +   '<span class="ldp-fdiv"></span>'
-        +   '<label class="ldp-fl">Company<select class="ldp-sel" id="ldpCo"><option value="">All</option>' + Object.keys(cos).sort().map(function (c) {
-              return '<option' + (S.co === c ? " selected" : "") + ">" + esc(c) + "</option>"; }).join("") + "</select></label>"
-        +   '<label class="ldp-fl">Location<select class="ldp-sel" id="ldpLoc"><option value="">All</option>' + Object.keys(locs).sort().map(function (l) {
-              return '<option' + (S.loc === l ? " selected" : "") + ">" + esc(l) + "</option>"; }).join("") + "</select></label>"
+        // kit localSelect mounts (his rule 2026-08-28: no native <select> on the portal);
+        // wire() mounts RSC.localSelect into these — values stashed on S just below
+        +   '<div id="ldpCo"></div>'
+        +   '<div id="ldpLoc"></div>'
         +   msBox("type", "Type", [["straight", "Straight"], ["regular", "Regular"]])
         +   msBox("cust", "Status", [["no", "To collect"], ["us", "With us"], ["tp", "Storage"],
                                      ["car", "Carrier"], ["cnr", "Contracts Not Received"],
@@ -1274,12 +1278,10 @@ registerPage({
                 ["Location", (canEd
                     ? (function () {
                         var inL = LDP_LOCATIONS.indexOf(String(r["Location"] || "")) >= 0;
-                        return '<select class="ldp-cinp" id="ldpEdLoc" data-init="' + esc(inL ? r["Location"] : "") + '">'
-                          + (inL ? "" : '<option selected disabled>' + esc(r["Location"] || "—") + "</option>")
-                          + LDP_LOCATIONS.map(function (l) {
-                              return '<option' + (String(r["Location"]) === l ? " selected" : "") + ">" + esc(l) + "</option>";
-                            }).join("")
-                          + "</select>" + (String(r["Location Source"]) === "portal" ? rstLink("ldpRstLoc") : "")
+                        // kit localSelect mount (form:true) — wired where the other editors are.
+                        // data-init carries the same "revert to this" value the old select did.
+                        return '<div id="ldpEdLoc" data-init="' + esc(inL ? r["Location"] : "") + '"></div>'
+                          + (String(r["Location Source"]) === "portal" ? rstLink("ldpRstLoc") : "")
                           + '<input class="ldp-cinp" id="ldpEdLocN" maxlength="200" style="margin-top:6px" data-init="' + esc(det)
                           + '" placeholder="address / unit / note (optional)" value="' + esc(det) + '">'
                           + (dfrom.addr ? '<div class="ldp-addr">' + esc(dfrom.addr) + "</div>" : "");
@@ -1407,9 +1409,11 @@ registerPage({
         b.onclick = function () {
           var msg = tx ? tx.value : bhMsg(r);
           var done = function () { b.textContent = "Copied \u2713"; b.classList.add("done"); };
+          // no clipboard API: a kit dialog with the message prefilled and selectable
+          var manual = function () { RSC.ask({ title: "Copy the outreach message", value: msg, yes: "Done" }); };
           if (navigator.clipboard && navigator.clipboard.writeText) {
-            navigator.clipboard.writeText(msg).then(done, function () { window.prompt("Copy the outreach message:", msg); });
-          } else { window.prompt("Copy the outreach message:", msg); }
+            navigator.clipboard.writeText(msg).then(done, manual);
+          } else { manual(); }
         };
       }
       function openDrawer(key) {
@@ -1519,10 +1523,29 @@ registerPage({
             { field: "timeframe_override", local: function (v) { r["Timeframe"] = v; } },
             { field: "timeframe_override", hadOv: function () { return !!entV("timeframe_override"); },
               local: function () {} });
-          wire(dr.querySelector("#ldpEdLoc"),
-            { field: "location", check: function (v) { return LDP_LOCATIONS.indexOf(v) >= 0; },
-              local: function (v) { r["Location"] = v; r["Location Source"] = "portal"; } },
-            null);
+          // the Location editor is a kit localSelect, not an <input>/<select>, so it gets
+          // its own wiring with EXACTLY wire()'s contract: same-as-init is a no-op, an
+          // off-list value reverts, a failed save reverts + toasts, success saves locally.
+          (function () {
+            var lh = dr.querySelector("#ldpEdLoc");
+            if (!lh) return;
+            var init = lh.getAttribute("data-init") || "";
+            var lsc = RSC.localSelect(lh, {
+              label: "Location", form: true, required: true,
+              values: LDP_LOCATIONS, value: init,
+              // a location outside the buckets (old disabled placeholder) still shows its name
+              allLabel: String(r["Location"] || "—"),
+              onChange: function (v) {
+                v = String(v).trim();
+                if (v === init) return;
+                if (LDP_LOCATIONS.indexOf(v) < 0) { lsc.set(init); return; }
+                post("location", v)
+                  .then(function () { r["Location"] = v; r["Location Source"] = "portal";
+                                      ZTZ.toast(SAVED); refresh(); })
+                  .catch(function (eS) { lsc.set(init); ZTZ.toast(String(eS.message || eS)); });
+              },
+            });
+          })();
           wire(dr.querySelector("#ldpEdLocN"),
             { field: "location_note", local: function (v) { r["Location Detail"] = v; } },
             { field: "location_note", hadOv: function () { return !!entV("location_note"); },
@@ -2462,7 +2485,9 @@ registerPage({
     function ldpAsk(msg, onYes) {
       var w2 = document.getElementById("ldpAsk"), t = document.getElementById("ldpAskTxt");
       var y = document.getElementById("ldpAskYes"), n2 = document.getElementById("ldpAskNo");
-      if (!w2) { onYes(); return; }
+      // markup missing (never in practice — it is static host HTML): fall back to the kit
+      // confirm instead of silently auto-accepting, which would fire onYes with no question
+      if (!w2) { RSC.confirm(msg).then(function (ok) { if (ok) onYes(); }); return; }
       t.textContent = msg;
       w2.classList.add("show");
       var close = function () { w2.classList.remove("show"); y.onclick = n2.onclick = w2.onclick = null; };
@@ -2474,8 +2499,20 @@ registerPage({
     function wire() {
       var q = host.querySelector("#ldpQ");
       if (q) q.oninput = function () { S.q = q.value; var pos = q.selectionStart; paint(); var n2 = host.querySelector("#ldpQ"); if (n2) { n2.focus(); try { n2.setSelectionRange(pos, pos); } catch (e) {} } };
-      var co = host.querySelector("#ldpCo"); if (co) co.onchange = function () { S.co = co.value; paint(); };
-      var lo = host.querySelector("#ldpLoc"); if (lo) lo.onchange = function () { S.loc = lo.value; paint(); };
+      // paint() rewrites the bar every repaint, so these mount fresh each time — no
+      // duplicate-popover risk. Same option strings as the old <option>s (S._cos/S._locs).
+      // capture-phase: the kit button stops propagation, so the page's document-level
+      // msBox closer never fires — close the msBox popovers ourselves, as a click on
+      // the old native select did (its click bubbled to document)
+      var closeMs = function () { if (host.__msClose) host.__msClose(); };
+      var co = host.querySelector("#ldpCo");
+      if (co) { co.addEventListener("click", closeMs, true);
+        RSC.localSelect(co, { label: "Company", values: S._cos || [], value: S.co,
+          allLabel: "All", onChange: function (v) { S.co = v; paint(); } }); }
+      var lo = host.querySelector("#ldpLoc");
+      if (lo) { lo.addEventListener("click", closeMs, true);
+        RSC.localSelect(lo, { label: "Location", values: S._locs || [], value: S.loc,
+          allLabel: "All", onChange: function (v) { S.loc = v; paint(); } }); }
       var cl = host.querySelector("#ldpClr"); if (cl) cl.onclick = function () { S.q = ""; S.co = ""; S.loc = ""; S.kpi = ""; S.tlSeg = ""; S.ms = { type: [], cust: [], route: [] }; paint(); };
       var xb = host.querySelector("#ldpCsv");
       if (xb) xb.onclick = function () {
@@ -2533,9 +2570,10 @@ registerPage({
       // reload the decision list so the card disappears (or returns) without a page reload.
       Array.prototype.forEach.call(host.querySelectorAll(".ldp-rdecline[data-decline]"), function (b) {
         b.onclick = async function () {
-          var why = window.prompt("Decline this route — why? (optional, but it is what the next "
-            + "dispatcher will read)", "");
-          if (why === null) return;      // cancelled the prompt: do nothing
+          var why = await RSC.ask({ title: "Decline this route — why?",
+            body: "(optional, but it is what the next dispatcher will read)",
+            value: "", yes: "Decline" });
+          if (why === null) return;      // cancelled the dialog: do nothing
           b.disabled = true; b.textContent = "Declining…";
           try {
             var res = await fetch(ZTZ.API + "/api/_ldroutes", { method: "POST",
@@ -2550,7 +2588,7 @@ registerPage({
             S._racc = null; S._rsug = null; paint();
           } catch (e) {
             b.disabled = false; b.textContent = "Decline";
-            window.alert("Could not decline: " + (e && e.message));
+            RSC.notice("Could not decline: " + (e && e.message));
           }
         };
       });
@@ -2566,7 +2604,7 @@ registerPage({
             S._racc = null; S._rsug = null; paint();
           } catch (e) {
             b.disabled = false; b.textContent = "Put back";
-            window.alert("Could not put it back: " + (e && e.message));
+            RSC.notice("Could not put it back: " + (e && e.message));
           }
         };
       });
@@ -2699,6 +2737,9 @@ registerPage({
           var wasOpen = S.msOpen === dim;
           S.msOpen = wasOpen ? "" : dim;
           host.querySelectorAll(".ldp-mspop").forEach(function (p) { p.classList.add("hidden"); });
+          // the old native select dropdowns were OS-closed by any click; the kit popovers
+          // rely on a document click this stopPropagation swallows — close them here
+          document.querySelectorAll(".rs-slicer-pop").forEach(function (p) { p.classList.add("hidden"); });
           if (pop && !wasOpen) pop.classList.remove("hidden");
         };
       });
@@ -2789,7 +2830,11 @@ registerPage({
     // Form wiring is scoped to a ROOT so it can bind either the page or the drawer.
     function wireForms(root) {
       Array.prototype.forEach.call(root.querySelectorAll("[data-ldpform]"), function (box) {
-        box.onclick = function (e) { e.stopPropagation(); };
+        box.onclick = function (e) { e.stopPropagation();
+          // this swallow also blocks the kit popovers' document-level closer — the drawer's
+          // Location localSelect would stay open across a click into the form; close it here
+          document.querySelectorAll(".rs-slicer-pop").forEach(function (p) { p.classList.add("hidden"); });
+        };
         var btn = box.querySelector(".ldp-savebtn");
         if (!btn) return;
         btn.onclick = async function () {

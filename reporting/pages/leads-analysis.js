@@ -103,8 +103,7 @@ registerPage({
     const srcCard = RSC.chartCard(document.getElementById("bySource"), {
       title: "Leads by Source",
       controlsGraphOnly: true,   // tabular view shows the full funnel table; "Show:" only drives the chart
-      controlsHtml: `<span class="lbl">Show:</span><select id="calcBy">` +
-        FUNNEL.map(c => `<option value="${c}" ${c === calcBy ? "selected" : ""}>${disp(c)}</option>`).join("") + `</select>`,
+      controlsHtml: `<div id="calcBy"></div>`,
       buildChart(canvas) {
         const m = RS.M[calcBy];
         const isPct = m.fmt === RS.fmtPct;
@@ -149,7 +148,10 @@ registerPage({
             dead: M["Dead Leads"].fn(rows), rate: RS.bookingRate(rows, rowsB) }) + note;
       },
     });
-    document.getElementById("calcBy").onchange = e => { calcBy = e.target.value; srcCard.rerender(); };
+    RSC.localSelect(document.getElementById("calcBy"), {
+      label: "Show", values: FUNNEL.map(c => ({ v: c, l: disp(c) })), value: calcBy, required: true,
+      onChange: v => { calcBy = v; srcCard.rerender(); },
+    });
 
     /* ---- chart 2: Leads over time (monthly, Total + Confirmed lines) ---- */
     function byMonth() {

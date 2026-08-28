@@ -225,8 +225,6 @@ registerPage({
 
       /* ---------------- pieces ---------------- */
       function periodBar() {
-        const opts = allYms.map(m =>
-          '<option value="' + m + '">' + ymLabel(m) + '</option>').join("");
         const chip = (label, from, to) =>
           '<button' +
           (inputs.from === from && inputs.to === to ? ' class="on"' : "") +
@@ -241,10 +239,8 @@ registerPage({
           chip("Last 3 months", l3from, last) +
           chip("2025", "2025-01", "2025-12") +
           '</div></div>' +
-          '<div class="rs-fld"><span>From</span>' +
-          '<select class="rs-sel" id="apFrom">' + opts + '</select></div>' +
-          '<div class="rs-fld"><span>To</span>' +
-          '<select class="rs-sel" id="apTo">' + opts + '</select></div>' +
+          '<div id="apFrom"></div>' +
+          '<div id="apTo"></div>' +
           '<div class="rs-spacer"></div>' +
           '<span class="ap-note">comparing against <b>' +
           esc(P.prevLabel) + '</b>' +
@@ -450,18 +446,23 @@ registerPage({
           const el = document.getElementById("apRq-" + st);
           if (el) el.textContent = fmtN((P.S[st] || {}).qualified || 0);
         });
-        // wire the period selects
+        // wire the period selects — the kit's localSelect, never a native dropdown
         const f = document.getElementById("apFrom"), t = document.getElementById("apTo");
         if (f && t) {
-          f.value = inputs.from; t.value = inputs.to;
+          const ymVals = allYms.map(m => ({ v: m, l: ymLabel(m) }));
+          let fSel, tSel;
           const onSel = () => {
-            inputs.from = f.value <= t.value ? f.value : t.value;
-            inputs.to = f.value <= t.value ? t.value : f.value;
+            const fv = fSel.get(), tv = tSel.get();
+            inputs.from = fv <= tv ? fv : tv;
+            inputs.to = fv <= tv ? tv : fv;
             inputs.utilization = null; inputs.leadsPerRep = null;
             inputs.dollarsPerLead = null;      // re-seed from the new period
             save(); paint();
           };
-          f.onchange = onSel; t.onchange = onSel;
+          fSel = RSC.localSelect(f, { label: "From", values: ymVals,
+            value: inputs.from, required: true, onChange: onSel });
+          tSel = RSC.localSelect(t, { label: "To", values: ymVals,
+            value: inputs.to, required: true, onChange: onSel });
         }
         host.querySelectorAll("#apPeriod button").forEach(b => b.onclick = () => {
           inputs.from = b.dataset.from; inputs.to = b.dataset.to;

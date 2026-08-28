@@ -106,7 +106,11 @@
           ".rs-pill.warn.hd-noem{background:transparent;border-style:dashed;border-color:var(--warn)}",
           // -------- editor popup --------
           ".hd-ovl{position:fixed;inset:0;background:rgba(10,14,20,.55);z-index:130;display:flex;align-items:flex-start;justify-content:center;padding:60px 16px;overflow:auto}",
-          ".hd-pane{background:var(--panel);border:1px solid var(--line);border-radius:16px;max-width:560px;width:100%;box-shadow:0 18px 60px rgba(0,0,0,.35);overflow:hidden}",
+          // overflow:VISIBLE, not hidden — the reports-to pickers are kit localSelects now,
+          // and their popover is a DOM child of the pane: hidden would clip it to the strip
+          // above the foot (the native <select> this replaced popped at the OS layer and
+          // never cared). The foot rounds its own bottom corners instead.
+          ".hd-pane{background:var(--panel);border:1px solid var(--line);border-radius:16px;max-width:560px;width:100%;box-shadow:0 18px 60px rgba(0,0,0,.35);overflow:visible}",
           ".hd-pane .head{display:flex;align-items:center;gap:12px;padding:16px 18px;border-bottom:1px solid var(--line)}",
           ".hd-pane .head .hd-av{font-size:14px}",
           ".hd-pane .head b{font-size:15px;display:block}",
@@ -117,7 +121,7 @@
           // the kit's standalone min/max width, and the long email label is free to wrap
           ".hd-pane .rs-inp,.hd-pane .rs-sel{width:100%;min-width:0;max-width:none}",
           ".hd-pane .rs-fld>span{line-height:1.35}",
-          ".hd-pane .foot{display:flex;gap:8px;align-items:center;padding:14px 18px;border-top:1px solid var(--line);background:var(--panel-2)}",
+          ".hd-pane .foot{display:flex;gap:8px;align-items:center;padding:14px 18px;border-top:1px solid var(--line);background:var(--panel-2);border-radius:0 0 15px 15px}",
           // Deactivate is destructive, and the kit's button hover is brand-coloured
           ".hd-pane .rs-btn.hd-danger:hover{border-color:var(--neg);color:var(--neg)}",
           "@media(max-width:560px){.hd-pane .grid{grid-template-columns:1fr}}",
@@ -274,17 +278,13 @@
           .filter(function (x) { return x.status === "active" && x.name && x.id !== p.id; })
           .map(function (x) { return x.name; })
           .sort(function (a, b) { return a.localeCompare(b); });
-        var sel = function (k, lab, v) {
-          return '<label class="rs-fld"><span>' + lab + '</span><select class="rs-sel" data-f="' + k + '">'
-            + '<option value="">— nobody —</option>'
-            + bosses.map(function (n) {
-                return '<option value="' + esc(n) + '"' + (n === (v || "") ? " selected" : "") + ">"
-                  + esc(n) + "</option>";
-              }).join("")
-            // a stored name that no longer matches anyone stays selectable, visibly broken
-            + (v && bosses.indexOf(v) < 0
-                ? '<option value="' + esc(v) + '" selected>' + esc(v) + " (not on the list)</option>" : "")
-            + "</select></label>";
+        // kit form select (no native <select> on the portal): the .rs-fld field keeps its
+        // label span, the inner div is the localSelect mount, and the handle — not the
+        // DOM — carries the value at save time. A DIV wrapper, not a <label>: a label
+        // click-forwards to the first labelable descendant, so picking a popover option
+        // would synthesize a second click on the slicer button and reopen it.
+        var sel = function (k, lab) {
+          return '<div class="rs-fld"><span>' + lab + '</span><div data-f="' + k + '"></div></div>';
         };
         var ovl = document.createElement("div");
         ovl.id = "hdOvl"; ovl.className = "hd-ovl";
@@ -298,8 +298,8 @@
           + f("alias", "Alias (sales name)", p.alias)
           + f("title", "Title", p.title)
           + f("department", "Department", p.department)
-          + sel("reports_to", "Reports to", p.reports_to)
-          + sel("also_reports_to", "Also reports to (dotted)", p.also_reports_to)
+          + sel("reports_to", "Reports to")
+          + sel("also_reports_to", "Also reports to (dotted)")
           + f("email", "Sign-in email (Google) — lets them receive and answer questionnaires", p.email, true)
           + "</div>"
           + '<div class="foot">'
@@ -311,10 +311,25 @@
           + "</div></div>";
         document.body.appendChild(ovl);
         ovl.onclick = function (e) { if (e.target === ovl) closeModal(); };
+        // the two reports-to pickers, mounted on their data-f divs. Option values stay
+        // byte-identical to the old <option>s: "" for nobody, the plain name otherwise —
+        // and a stored name that no longer matches anyone stays selectable, visibly broken.
+        var mkSel = function (k, lab, v) {
+          var items = bosses.slice();
+          if (v && bosses.indexOf(v) < 0) items.push({ v: v, l: v + " (not on the list)" });
+          return RSC.localSelect(ovl.querySelector('[data-f="' + k + '"]'), {
+            label: lab, values: items, value: v || "",
+            allLabel: "— nobody —", form: true,
+          });
+        };
+        var hRep = mkSel("reports_to", "Reports to", p.reports_to);
+        var hAlso = mkSel("also_reports_to", "Also reports to (dotted)", p.also_reports_to);
         var read = function () {
           var out = { action: "roster_upsert", status: p.status || "active" };
           if (p.id) out.id = p.id;
-          ovl.querySelectorAll("[data-f]").forEach(function (inp) { out[inp.dataset.f] = inp.value; });
+          ovl.querySelectorAll("input[data-f]").forEach(function (inp) { out[inp.dataset.f] = inp.value; });
+          out.reports_to = hRep.get();
+          out.also_reports_to = hAlso.get();
           return out;
         };
         ovl.querySelector("[data-sv]").onclick = async function () {
@@ -330,9 +345,11 @@
         var tg = ovl.querySelector("[data-tg]");
         if (tg) tg.onclick = async function () {
           var to = p.status === "active" ? "inactive" : "active";
-          if (to === "inactive" && !confirm("Deactivate " + (p.name || "this person")
-              + "? They leave every questionnaire denominator; past answers stay. "
-              + "You can bring them back by searching their name.")) return;
+          if (to === "inactive" && !(await RSC.confirm({
+              title: "Deactivate " + (p.name || "this person") + "?",
+              body: "They leave every questionnaire denominator; past answers stay. "
+                + "You can bring them back by searching their name.",
+              yes: "Deactivate", danger: true }))) return;
           try {
             var payload = read(); payload.status = to;
             await post(payload);

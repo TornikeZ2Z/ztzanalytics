@@ -342,12 +342,7 @@ registerPage({
        with a responsibility filter instead of two side-by-side visuals. */
     const recent = RSC.el("div", "panel",
       `<div class="panel-head"><span class="panel-title">Recent claims</span>
-         <span class="rs-ctl"><span class="lbl">Show</span>
-           <select id="clmRespF">
-             <option value="all">All responsibilities</option>
-             <option value="fore">Foreman-fault only</option>
-             <option value="other">Non-foreman only</option>
-           </select></span>
+         <span class="rs-ctl"><span id="clmRespF"></span></span>
          <span class="spacer"></span>
          <span class="rs-ctl"><span class="lbl" id="clmRecentN"></span></span></div>
        <div class="tabwrap"></div>`);
@@ -385,7 +380,19 @@ registerPage({
          Refund shown is for the whole request — it repeats if a request has several claims.
          "—" = no support record; $0 = recorded, nothing refunded.</div>`;
     };
-    recent.querySelector("#clmRespF").onchange = e => paintRecent(e.target.value);
+    /* Kit slicer instead of the native <select>; required (no empty row) because "all" is a
+       real value here, not an empty placeholder. The button carries its own "Show" chip. */
+    RSC.localSelect(recent.querySelector("#clmRespF"), {
+      label: "Show",
+      values: [
+        { v: "all", l: "All responsibilities" },
+        { v: "fore", l: "Foreman-fault only" },
+        { v: "other", l: "Non-foreman only" },
+      ],
+      value: "all",
+      required: true,
+      onChange: v => paintRecent(v),
+    });
     paintRecent("all");
   },
 });

@@ -247,9 +247,7 @@ registerPage({
         + seg("queue", "Queue" + (openQ.length ? " " + openQ.length : ""))
         + seg("foremen", "By foreman") + seg("trucks", "By truck") + seg("all", "All swipes")
         + "</div>"
-        + '<select class="rs-sel" id="fuMonth"><option value="">Every month</option>'
-        + months().map(m => '<option value="' + m + '"' + (m === S.month ? " selected" : "") + ">"
-            + monLab(m) + "</option>").join("") + "</select>"
+        + '<div id="fuMonth"></div>'
         + '<input class="rs-inp" id="fuQ" placeholder="Find a foreman, truck, merchant…" value="' + esc(S.q) + '">'
         + (S.view === "queue"
             ? '<span class="rs-spacer"></span><div class="rs-tog' + (S.showResolved ? " on" : "")
@@ -493,8 +491,15 @@ registerPage({
       main.querySelectorAll(".rs-seg button").forEach(b => {
         b.onclick = () => { S.view = b.dataset.v; S.msg = ""; paint(); };
       });
+      // kit slicer instead of the native month <select> — same "" = every-month value
       const m = main.querySelector("#fuMonth");
-      if (m) m.onchange = function () { S.month = this.value; paint(); };
+      if (m && RSC.localSelect) RSC.localSelect(m, {
+        label: "Month",
+        values: months().map(mo => ({ v: mo, l: monLab(mo) })),
+        value: S.month,
+        allLabel: "Every month",
+        onChange: v => { S.month = v; paint(); },
+      });
       const q = main.querySelector("#fuQ");
       if (q) q.oninput = function () {
         S.q = this.value;

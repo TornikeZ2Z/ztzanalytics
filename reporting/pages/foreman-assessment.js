@@ -182,7 +182,7 @@ registerPage({
       // the prose is the kit's .rs-hint; only the margin it must NOT have inside this head
       // and the wider measure this paragraph was written to are page-specific
       + ".fa2-qnhead .rs-hint{margin:0;max-width:88ch}"
-      // the month picker is a kit .rs-fld + .rs-sel; these two lines are all that is left
+      // the month picker is a kit .rs-fld + localSelect mount; these two lines are all that is left
       + ".fa2-qnmon{margin-left:auto;min-width:230px}"
       /* the hint under the select is a DIRECT CHILD SPAN of .rs-fld, which the kit styles as
          the field's uppercase caption -- it has to say it is prose, not a second label */
@@ -556,12 +556,28 @@ registerPage({
         // in the Questionnaire view "Undo changes" means reload the saved set, not leave
         S.draft = draftFromRubric(); S.msg = ""; paint();
       };
-      // the Questionnaire view shapes a month of its own, which may not be the one being rated
+      // the Questionnaire view shapes a month of its own, which may not be the one being
+      // rated. The picker is the kit's localSelect (form variant — the .rs-fld caption above
+      // it is the label); option values stay the raw "YYYY-MM" the old <option>s carried.
       const qm = main.querySelector("#fa2QnMonth");
-      if (qm) qm.onchange = () => {
-        S.rubMonth = qm.value; S.msg = "";
-        loadRubricFor(qm.value);
-      };
+      if (qm) {
+        const qmMonths = S.rubricMonths || [];
+        const qmCur = S.rubMonth
+          || (qmMonths.indexOf(S.month) >= 0 ? S.month : qmMonths[qmMonths.length - 1]);
+        RSC.localSelect(qm, {
+          label: "Month being shaped",
+          values: qmMonths.slice().reverse().map(x => ({ v: x, l: monLab(x) })),
+          value: qmCur || "",
+          form: true,
+          required: !!qmMonths.length,
+          allLabel: "nothing open",
+          onChange: v => {
+            if (!v) return;                    // the "nothing open" placeholder row
+            S.rubMonth = v; S.msg = "";
+            loadRubricFor(v);
+          },
+        });
+      }
 
       main.querySelectorAll(".fa2-qnrow input, .fa2-qnrow select").forEach(el => {
         const commit = () => {
@@ -791,12 +807,10 @@ registerPage({
         + "60 the warehouse counts on its own. Change them for a month and that month is "
         + "scored the new way; months already submitted keep the questions they were scored "
         + "under.</p></div>"
+        // the kit dropdown mounts into this div (wireRubric); the caption above it is the
+        // .rs-fld's own, so the control runs in its input-shaped `form` variant
         + '<div class="rs-fld fa2-qnmon"><span>Month being shaped</span>'
-        + '<select class="rs-sel" id="fa2QnMonth">'
-        + (months.length ? months.slice().reverse().map(x =>
-            '<option value="' + x + '"' + (x === m ? " selected" : "") + ">" + monLab(x) + "</option>").join("")
-           : '<option value="">nothing open</option>')
-        + "</select>"
+        + '<div id="fa2QnMonth"></div>'
         + '<span class="hint">' + (months.length
             ? "submitted months are not listed — reopen one to change it"
             : "every month is submitted; reopen one to change its questions") + "</span>"
@@ -1421,15 +1435,19 @@ registerPage({
       });
     }
 
-    function submitMonth() {
+    async function submitMonth() {
       const all = (S.sc || []).filter(r => String(r.Month || "").slice(0, 7) === S.month).map(rowFor);
       const done = all.filter(x => x.full).length;
       const lbl = monLab(S.month);
-      const ask = done < all.length
-        ? "Only " + done + " of " + all.length + " foremen are fully assessed.\n\nSubmit " + lbl
-          + " anyway? Ratings become final and only an admin can reopen the month."
-        : "Submit " + lbl + "? Ratings become final and only an admin can reopen the month.";
-      if (!confirm(ask)) return;
+      const ok = await RSC.confirm(done < all.length
+        ? { title: "Submit " + lbl + " anyway?",
+            body: "Only " + done + " of " + all.length + " foremen are fully assessed.\n\n"
+              + "Ratings become final and only an admin can reopen the month.",
+            yes: "Submit " + lbl }
+        : { title: "Submit " + lbl + "?",
+            body: "Ratings become final and only an admin can reopen the month.",
+            yes: "Submit " + lbl });
+      if (!ok) return;
       const btn = main.querySelector("#fa2Submit");
       if (btn) { btn.disabled = true; btn.textContent = "Submitting…"; }
       api("/api/_fassess", { method: "POST", body: JSON.stringify({ month: S.month, submit: true }) })
@@ -1437,8 +1455,11 @@ registerPage({
         .catch(e => { S.msg = e.message; S.msgErr = true; paint(); });
     }
 
-    function reopenMonth() {
-      if (!confirm("Reopen " + monLab(S.month) + " for rating? The published standing can change.")) return;
+    async function reopenMonth() {
+      if (!(await RSC.confirm({
+            title: "Reopen " + monLab(S.month) + " for rating?",
+            body: "The published standing can change.",
+            yes: "Reopen" }))) return;
       api("/api/_fassess", { method: "POST", body: JSON.stringify({ month: S.month, unlock: true }) })
         .then(() => { S.msg = monLab(S.month) + " reopened."; S.msgErr = false; load(); })
         .catch(e => { S.msg = e.message; S.msgErr = true; paint(); });

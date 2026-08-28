@@ -164,16 +164,22 @@ registerPage({
         .rs-kpis .kpi.accent .v{color:var(--brand)}
         /* the top three carry the header tint, so the table agrees with the podium above it */
         .rs-table tbody tr.rp-bdtop td{background:var(--panel-2)}
-        /* the drawer gives this select ~400px; the kit's 260px cap would waste a third of it */
-        .rp-exform .rs-sel{max-width:none}
+        /* the reason picker is a form-mode localSelect — full-width by the kit (rs-form),
+           so the old max-width lift for the native select is no longer needed */
 
-        /* ---- the window stepper: a prev/next pair wrapped AROUND a select. Not a segmented
-           control (its middle is a menu, not a pill) and not a button group. ---- */
+        /* ---- the window stepper: a prev/next pair wrapped AROUND a menu. Not a segmented
+           control (its middle is a menu, not a pill) and not a button group. The middle is a
+           kit localSelect (form mode: value only); these overrides flatten its button into
+           the pill the way the old borderless select sat in it. ---- */
         .rp-time{display:inline-flex;align-items:center;gap:1px;background:var(--panel-2);border:1px solid var(--line-2);border-radius:10px;padding:2px}
-        .rp-time button{border:0;background:transparent;color:var(--ink);cursor:pointer;font-size:14px;line-height:1;padding:5px 9px;border-radius:8px}
-        .rp-time button:hover:not(:disabled){background:var(--panel)}
-        .rp-time button:disabled{opacity:.3;cursor:default}
-        .rp-time select{border:0;background:transparent;color:var(--ink);font-family:inherit;font-size:12.5px;font-weight:700;cursor:pointer;outline:none;padding:0 2px}
+        .rp-time>button{border:0;background:transparent;color:var(--ink);cursor:pointer;font-size:14px;line-height:1;padding:5px 9px;border-radius:8px}
+        .rp-time>button:hover:not(:disabled){background:var(--panel)}
+        .rp-time>button:disabled{opacity:.3;cursor:default}
+        .rp-time .rs-slicer.rs-form{display:inline-block;width:auto}
+        .rp-time .rs-slicer.rs-form .rs-slicer-btn{width:auto;border:0;background:transparent;height:auto;padding:5px 4px;border-radius:8px;font-size:12.5px}
+        .rp-time .rs-slicer.rs-form .rs-slicer-btn:hover{background:var(--panel)}
+        .rp-time .rs-slicer.rs-form .rs-slicer-btn .val{flex:none;font-weight:700;color:var(--ink)}
+        .rp-time .rs-slicer.rs-form .rs-slicer-pop{left:0;right:auto;width:auto;min-width:150px}
         .rp-range{font-size:11px;color:var(--muted);white-space:nowrap}
 
         /* ---- multiselect: a checkbox popover with search and select-all. The kit bar has
@@ -489,13 +495,28 @@ registerPage({
       () => RP.grain,
       v => { RP.grain = v; RP.offset = 0; RP.sortCol = null; closeDrawer(); paintWinOpts(); repaint(); }));
     var timeWrap = document.createElement("div"); timeWrap.className = "rp-time";
-    timeWrap.innerHTML = `<button type="button" id="rpOlder" title="Older">‹</button><select id="rpWin"></select><button type="button" id="rpNewer" title="Newer">›</button>`;
+    timeWrap.innerHTML = `<button type="button" id="rpOlder" title="Older">‹</button><div id="rpWin"></div><button type="button" id="rpNewer" title="Newer">›</button>`;
     bar.appendChild(timeWrap);
     var rangeLbl = document.createElement("span"); rangeLbl.className = "rp-range"; rangeLbl.id = "rpRange";
     bar.appendChild(rangeLbl);
     function paintWinOpts() {
-      var sel = document.getElementById("rpWin"), unit = RP.grain === "day" ? "days" : RP.grain === "week" ? "weeks" : "months";
-      sel.innerHTML = RP_WIN[RP.grain].map(w => `<option value="${w}"${w === win() ? " selected" : ""}>${w} ${unit}</option>`).join("");
+      // the stepper's middle is a kit localSelect now (form mode: value only, no label chip,
+      // no empty row — the old <select> had neither). Remounted per grain because the option
+      // list changes with it; value strings are the same digits the old options carried.
+      var mount = document.getElementById("rpWin"), unit = RP.grain === "day" ? "days" : RP.grain === "week" ? "weeks" : "months";
+      mount.innerHTML = "";
+      RSC.localSelect(mount, {
+        label: "Window",
+        values: RP_WIN[RP.grain].map(w => ({ v: String(w), l: w + " " + unit })),
+        value: String(win()),
+        form: true, required: true,
+        onChange: v => {
+          if (RP.grain === "day") RP.winD = +v;
+          else if (RP.grain === "week") RP.winW = +v;
+          else RP.winM = +v;
+          RP.offset = 0; closeDrawer(); repaint();
+        },
+      });
     }
     paintWinOpts();
     var msControls = [
@@ -576,7 +597,7 @@ registerPage({
     }
     function explainFormHTML(idx) {
       return `<div class="rp-exform" data-exform="${idx}">
-        <select class="rs-sel" data-exr>${rpReasons().map(x => `<option>${esc(x)}</option>`).join("")}</select>
+        <div data-exr></div>
         <textarea data-exn placeholder="Optional note…"></textarea>
         <div class="row2"><button type="button" class="rs-btn pri" data-exgo>Save reason</button>
         <button type="button" class="rs-btn" data-exno>Cancel</button></div></div>`;
@@ -587,12 +608,18 @@ registerPage({
         b.insertAdjacentHTML("afterend", explainFormHTML(i));
         b.style.display = "none";
         var f = container.querySelector(`[data-exform="${i}"]`);
+        // the reason picker is a kit localSelect in form mode (full-width, value-only
+        // button); like the old <select>, it starts on the first reason and has no
+        // empty row, so `.get()` always returns a real reason
+        var reasons = rpReasons();
+        var exSel = RSC.localSelect(f.querySelector("[data-exr]"), {
+          label: "Reason", values: reasons, value: reasons[0], form: true, required: true });
         f.querySelector("[data-exno]").onclick = () => { f.remove(); b.style.display = ""; };
         f.querySelector("[data-exgo]").onclick = () => {
           var r = jobs[+i];
           var go = f.querySelector("[data-exgo]");
           go.disabled = true; go.textContent = "Saving…";
-          submitExplain(r, f.querySelector("[data-exr]").value, f.querySelector("[data-exn]").value.trim())
+          submitExplain(r, exSel.get(), f.querySelector("[data-exn]").value.trim())
             .then(() => {
               f.outerHTML = `<span class="rs-pill ok rp-ok">✓ Saved — shows here now, syncs to the warehouse within ~6h</span>`;
               if (onSaved) onSaved();
@@ -722,7 +749,9 @@ registerPage({
       if (rl) rl.textContent = !timeOn ? "all time" : (cols.length ? colLabel(cols[cols.length - 1]) + " – " + colLabel(cols[0]) : "—");
       if (ob) ob.disabled = !timeOn || RP.offset >= maxOff;
       if (nb) nb.disabled = !timeOn || RP.offset <= 0;
-      if (ws) ws.disabled = !timeOn;
+      // ws is the localSelect mount div — pointer-events stands in for the old select's
+      // `disabled`, and the parent .rp-time dims exactly as before
+      if (ws) ws.style.pointerEvents = timeOn ? "" : "none";
       if (ws && ws.parentElement) ws.parentElement.style.opacity = timeOn ? "" : ".45";
       if (rl) rl.style.opacity = timeOn ? "" : ".6";
     }
@@ -1273,13 +1302,7 @@ registerPage({
       RSC.fitScroller(document.getElementById("rpWrapEl"));
     }
 
-    // ---- control wiring ----
-    document.getElementById("rpWin").onchange = e => {
-      if (RP.grain === "day") RP.winD = +e.target.value;
-      else if (RP.grain === "week") RP.winW = +e.target.value;
-      else RP.winM = +e.target.value;
-      RP.offset = 0; closeDrawer(); repaint();
-    };
+    // ---- control wiring ---- (the window picker wires itself inside paintWinOpts)
     document.getElementById("rpOlder").onclick = () => { RP.offset = Math.min(Math.max(0, allCols().length - win()), RP.offset + win()); closeDrawer(); repaint(); };
     document.getElementById("rpNewer").onclick = () => { RP.offset = Math.max(0, RP.offset - win()); closeDrawer(); repaint(); };
     resetBtn.onclick = () => {

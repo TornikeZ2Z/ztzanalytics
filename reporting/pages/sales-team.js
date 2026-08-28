@@ -178,8 +178,6 @@
     .st-search{position:relative;flex:1;min-width:240px}
     .st-search input{width:100%;background:var(--panel-2) no-repeat 11px center;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='15' height='15' viewBox='0 0 24 24' fill='none' stroke='%238a97a6' stroke-width='2.2' stroke-linecap='round'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='M21 21l-4.3-4.3'/%3E%3C/svg%3E");border:1px solid var(--line);border-radius:10px;color:var(--ink);font:inherit;font-size:13.5px;padding:9px 12px 9px 34px;outline:0;transition:border-color .15s,box-shadow .15s}
     .st-search input:focus{border-color:var(--brand);box-shadow:0 0 0 3px var(--brand-glow)}
-    .st-toolbar select{background:var(--panel-2);border:1px solid var(--line);border-radius:10px;color:var(--ink);font:inherit;font-size:13px;font-weight:600;padding:9px 11px;outline:0;cursor:pointer;transition:border-color .15s}
-    .st-toolbar select:hover{border-color:var(--line-2)} .st-toolbar select:focus{border-color:var(--brand)}
     .st-bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
     /* ---- Compare (N1) ---- */
     .cmp-wrap{background:var(--panel);border:1px solid var(--line);border-radius:15px;overflow:hidden}
@@ -189,10 +187,6 @@
               padding:20px 24px;border-bottom:1px solid var(--line);background:var(--panel-2)}
     .cmp-pick{display:flex;flex-direction:column;gap:6px;min-width:0}
     .cmp-pick label{font-size:11px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;color:var(--faint)}
-    .cmp-pick select{font:inherit;font-size:16px;font-weight:700;background:var(--panel);
-                     color:var(--ink);border:1px solid var(--line-2);border-radius:11px;padding:11px 14px;
-                     max-width:100%}
-    .cmp-pick select:focus{outline:none;border-color:var(--brand)}
     .cmp-vs{text-align:center;font-size:13px;font-weight:800;letter-spacing:.1em;
             text-transform:uppercase;color:var(--faint);padding-bottom:14px}
     .cmp-score{padding:16px 24px;font-size:15.5px;border-bottom:1px solid var(--line)}
@@ -214,7 +208,6 @@
     .cmp-sec td{background:var(--panel-2);font-size:11.5px;font-weight:800;letter-spacing:.09em;
                 text-transform:uppercase;color:var(--faint);text-align:left !important;padding:11px 24px}
     @media(max-width:820px){.cmp-head{grid-template-columns:1fr}.cmp-vs{padding:0}}
-    .st-bar select{background:var(--panel);border:1px solid var(--line);border-radius:10px;color:var(--ink);font:inherit;font-size:13px;padding:9px 11px;outline:0;cursor:pointer}
     .st-chips{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:13px}
     .st-chip{appearance:none;border:1px solid var(--line-2);background:var(--panel);border-radius:999px;color:var(--muted);font:inherit;font-size:12.5px;font-weight:700;padding:7px 15px;cursor:pointer;transition:.13s}
     .st-chip:hover{color:var(--ink);border-color:var(--faint)}
@@ -327,11 +320,6 @@
     .rp-calc summary{font-size:12px;font-weight:750;color:var(--brand-d);cursor:pointer;list-style:none}
     .rp-calc summary::-webkit-details-marker{display:none}
     .rp-dist-tot td{border-top:2px solid var(--line-2)!important;font-weight:800;background:var(--panel-2)}
-    .rp-pick{display:inline-flex;align-items:center;gap:8px}
-    .rp-pick span{font-size:10.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--faint)}
-    .rp-pick select{font:inherit;font-size:14px;font-weight:800;color:var(--ink);background:var(--panel);
-      border:1px solid var(--line-2);border-radius:10px;padding:7px 11px;cursor:pointer;max-width:260px}
-    .rp-pick select:hover{border-color:var(--brand)}
     .st-seg{display:inline-flex;border:1px solid var(--line-2);border-radius:10px;overflow:hidden}
     .st-seg button{appearance:none;border:0;background:var(--panel);color:var(--muted);font:inherit;font-size:12.5px;font-weight:700;padding:8px 14px;cursor:pointer}
     .st-seg button.on{background:var(--brand);color:var(--brand-ink)}
@@ -986,24 +974,13 @@
       ["gap", "Quote gap"], ["noclose", "Confirmed, no closing"], ["dead", "Dead leads"],
       ["calbad", "Calendar mismatch"],
     ];
-    const sel = (id, label, opts, cur) =>
-      `<select id="${id}"><option value="">${label}</option>` +
-      opts.map(o => `<option${o === cur ? " selected" : ""}>${esc(o)}</option>`).join("") + `</select>`;
     host.innerHTML = `
       <div class="st-toolbar">
         <div class="st-search"><input type="text" id="stQ" placeholder="Search customer, job #, or source…"></div>
-        <select id="stCalled"><option value="">Contact — any</option>
-          <option value="y">Contacted</option><option value="n">No contact</option>
-          <option value="c">Connected out</option></select>
-        <select id="stType"><option value="">LD + local</option>
-          <option value="ld">Long distance</option><option value="loc">Local</option></select>
-        ${sel("stBucket", "Any speed", buckets, "")}
-        <select id="stSort">
-          <option value="new">Newest first</option><option value="move">Move date (soonest)</option><option value="slow">Slowest first call</option>
-          <option value="bill">Biggest bill</option><option value="gap">Biggest quote gap</option>
-          <option value="cf">Biggest CF</option><option value="calls">Most calls</option>
-          <option value="talk">Most talk time</option>
-        </select>
+        <div id="stCalled"></div>
+        <div id="stType"></div>
+        <div id="stBucket"></div>
+        <div id="stSort"></div>
       </div>
       <div class="st-chips">
         ${CHIPS.map(([k, l]) => `<button class="st-chip" data-c="${k}">${l}</button>`).join("")}
@@ -1135,11 +1112,33 @@
       host.querySelectorAll(".st-chips .st-chip").forEach(x => x.classList.toggle("on", x.dataset.c === state.chip));
       paint();
     });
-    [["stCalled", "called"], ["stType", "type"], ["stBucket", "bucket"], ["stSort", "sort"]]
-      .forEach(([id, k]) => {
-        const el = host.querySelector("#" + id);
-        if (el) el.onchange = e => { state[k] = e.target.value; state.page = 0; paint(); };
-      });
+    // the KIT dropdowns, not naked <select>s — same value strings, state stays page-local
+    RSC.localSelect(host.querySelector("#stCalled"), {
+      label: "Contact", allLabel: "Any",
+      values: [{ v: "y", l: "Contacted" }, { v: "n", l: "No contact" },
+               { v: "c", l: "Connected out" }],
+      value: state.called,
+      onChange: v => { state.called = v; state.page = 0; paint(); },
+    });
+    RSC.localSelect(host.querySelector("#stType"), {
+      label: "Type", allLabel: "LD + local",
+      values: [{ v: "ld", l: "Long distance" }, { v: "loc", l: "Local" }],
+      value: state.type,
+      onChange: v => { state.type = v; state.page = 0; paint(); },
+    });
+    RSC.localSelect(host.querySelector("#stBucket"), {
+      label: "Speed", allLabel: "Any speed", values: buckets, value: state.bucket,
+      onChange: v => { state.bucket = v; state.page = 0; paint(); },
+    });
+    RSC.localSelect(host.querySelector("#stSort"), {
+      label: "Sort", required: true,
+      values: [{ v: "new", l: "Newest first" }, { v: "move", l: "Move date (soonest)" },
+               { v: "slow", l: "Slowest first call" }, { v: "bill", l: "Biggest bill" },
+               { v: "gap", l: "Biggest quote gap" }, { v: "cf", l: "Biggest CF" },
+               { v: "calls", l: "Most calls" }, { v: "talk", l: "Most talk time" }],
+      value: state.sort,
+      onChange: v => { state.sort = v; state.page = 0; paint(); },
+    });
     paint();
   }
 
@@ -1404,9 +1403,8 @@
       ST_CMP_B = (reps.find(p => p.name !== ST_CMP_A) || reps[0]).name;
     }
 
-    const opts = (sel) => reps.map(p =>
-      `<option value="${esc(p.name)}"${p.name === sel ? " selected" : ""}>${esc(p.name)}
-       — ${RS.fmtN(p.leads)} leads</option>`).join("");
+    // option VALUES stay the bare rep names — ST_CMP_A/B comparisons depend on them
+    const repOpts = reps.map(p => ({ v: p.name, l: `${p.name} — ${RS.fmtN(p.leads)} leads` }));
 
     // MONTHS THE DATA ACTUALLY HAS, newest first — offering a month with nothing in it is
     // offering an empty column.
@@ -1441,23 +1439,15 @@
       <div class="cmp-wrap">
         ${ST_CMP_MODE === "rep" ? `
         <div class="cmp-head">
-          <div class="cmp-pick"><label>Rep A</label>
-            <select id="cmpA">${opts(ST_CMP_A)}</select></div>
+          <div class="cmp-pick"><label>Rep A</label><div id="cmpA"></div></div>
           <div class="cmp-vs">vs</div>
-          <div class="cmp-pick"><label>Rep B</label>
-            <select id="cmpB">${opts(ST_CMP_B)}</select></div>
+          <div class="cmp-pick"><label>Rep B</label><div id="cmpB"></div></div>
         </div>` : `
         <div class="cmp-head cmp-head3">
-          <div class="cmp-pick"><label>Rep</label>
-            <select id="cmpWho">${reps.map(p =>
-              `<option value="${esc(p.name)}"${p.name === ST_CMP_WHO ? " selected" : ""}>${esc(p.name)}</option>`).join("")}</select></div>
-          <div class="cmp-pick"><label>Period A</label>
-            <select id="cmpP1">${monthsSeen.map(m =>
-              `<option value="${m}"${m === ST_CMP_P1 ? " selected" : ""}>${esc(monLabel(m))}</option>`).join("")}</select></div>
+          <div class="cmp-pick"><label>Rep</label><div id="cmpWho"></div></div>
+          <div class="cmp-pick"><label>Period A</label><div id="cmpP1"></div></div>
           <div class="cmp-vs">vs</div>
-          <div class="cmp-pick"><label>Period B</label>
-            <select id="cmpP2">${monthsSeen.map(m =>
-              `<option value="${m}"${m === ST_CMP_P2 ? " selected" : ""}>${esc(monLabel(m))}</option>`).join("")}</select></div>
+          <div class="cmp-pick"><label>Period B</label><div id="cmpP2"></div></div>
         </div>`}
         <div id="cmpBody"></div>
       </div>`;
@@ -1469,19 +1459,34 @@
 
     if (ST_CMP_MODE === "period") {
       if (monthsSeen.length < 2) {
+        // nothing to pick — hide the picker row instead of showing labels over empty mounts
+        const head3 = host.querySelector(".cmp-head3");
+        if (head3) head3.style.display = "none";
         host.querySelector("#cmpBody").innerHTML =
           `<div class="st-card">Only one month of leads is in scope — there is nothing to
            compare it against.</div>`;
         return;
       }
       if (!ST_CMP_WHO || !reps.some(p => p.name === ST_CMP_WHO)) ST_CMP_WHO = reps[0].name;
-      host.querySelector("#cmpWho").onchange = e => { ST_CMP_WHO = e.target.value; reRender(); };
-      host.querySelector("#cmpP1").onchange = e => {
-        ST_CMP_P1 = e.target.value; if (ST_CMP_P1 === ST_CMP_P2) ST_CMP_P2 = null; reRender();
-      };
-      host.querySelector("#cmpP2").onchange = e => {
-        ST_CMP_P2 = e.target.value; if (ST_CMP_P1 === ST_CMP_P2) ST_CMP_P1 = null; reRender();
-      };
+      RSC.localSelect(host.querySelector("#cmpWho"), {
+        label: "Rep", values: reps.map(p => p.name), value: ST_CMP_WHO,
+        form: true, required: true,
+        onChange: v => { ST_CMP_WHO = v; reRender(); },
+      });
+      RSC.localSelect(host.querySelector("#cmpP1"), {
+        label: "Period A", values: monthsSeen.map(m => ({ v: m, l: monLabel(m) })),
+        value: ST_CMP_P1, form: true, required: true,
+        onChange: v => {
+          ST_CMP_P1 = v; if (ST_CMP_P1 === ST_CMP_P2) ST_CMP_P2 = null; reRender();
+        },
+      });
+      RSC.localSelect(host.querySelector("#cmpP2"), {
+        label: "Period B", values: monthsSeen.map(m => ({ v: m, l: monLabel(m) })),
+        value: ST_CMP_P2, form: true, required: true,
+        onChange: v => {
+          ST_CMP_P2 = v; if (ST_CMP_P1 === ST_CMP_P2) ST_CMP_P1 = null; reRender();
+        },
+      });
       host.querySelector("#cmpSwap").onclick = () => {
         const t = ST_CMP_P1; ST_CMP_P1 = ST_CMP_P2; ST_CMP_P2 = t; reRender();
       };
@@ -1503,16 +1508,22 @@
       return;
     }
 
-    host.querySelector("#cmpA").onchange = e => {
-      ST_CMP_A = e.target.value;
-      if (ST_CMP_A === ST_CMP_B) ST_CMP_B = null;   // re-picked above
-      reRender();
-    };
-    host.querySelector("#cmpB").onchange = e => {
-      ST_CMP_B = e.target.value;
-      if (ST_CMP_A === ST_CMP_B) ST_CMP_A = null;
-      reRender();
-    };
+    RSC.localSelect(host.querySelector("#cmpA"), {
+      label: "Rep A", values: repOpts, value: ST_CMP_A, form: true, required: true,
+      onChange: v => {
+        ST_CMP_A = v;
+        if (ST_CMP_A === ST_CMP_B) ST_CMP_B = null;   // re-picked above
+        reRender();
+      },
+    });
+    RSC.localSelect(host.querySelector("#cmpB"), {
+      label: "Rep B", values: repOpts, value: ST_CMP_B, form: true, required: true,
+      onChange: v => {
+        ST_CMP_B = v;
+        if (ST_CMP_A === ST_CMP_B) ST_CMP_A = null;
+        reRender();
+      },
+    });
     host.querySelector("#cmpSwap").onclick = () => {
       const t = ST_CMP_A; ST_CMP_A = ST_CMP_B; ST_CMP_B = t; reRender();
     };
@@ -1639,16 +1650,17 @@
      * is exactly one source of truth and the Explorer tab stays in step. */
     host.innerHTML = `
       <div class="st-bar">
-        <label class="rp-pick"><span>Rep</span>
-          <select id="rpWho">${reps.map(p => `<option${p.name === ctx.repSel ? " selected" : ""}>${esc(p.name)}</option>`).join("")}</select>
-        </label>
+        <div id="rpWho"></div>
         <span class="st-dim" style="font-size:12.5px">${reps.length} active on the team · the Sales Person filter follows this</span>
         <span style="flex:1"></span>
         <button class="st-chip" id="rpJump">Open their leads in Explorer →</button></div>
       <div id="rpBody"></div>`;
     // "rep", not "profile" — TABS keys this tab "rep", and a key that matches nothing falls
     // through to the Explorer, which would have thrown you off the page you were reading
-    host.querySelector("#rpWho").onchange = e => jumpToRepLeads(ctx, e.target.value, "rep");
+    RSC.localSelect(host.querySelector("#rpWho"), {
+      label: "Rep", values: reps.map(p => p.name), value: ctx.repSel, required: true,
+      onChange: v => jumpToRepLeads(ctx, v, "rep"),
+    });
     host.querySelector("#rpJump").onclick = () => { ST_LAST_TAB = "explorer"; ctx.go("explorer"); };
     paintRep(host.querySelector("#rpBody"), book, ctx.repSel, th, teamIndex(ctx.repRows || ctx.rows));
   }

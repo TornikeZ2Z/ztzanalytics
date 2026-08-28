@@ -95,6 +95,12 @@
       + ".fla-tx:focus{border-color:var(--brand);box-shadow:0 0 0 3px var(--brand-glow)}"
       + ".fla-fact{display:flex;gap:9px;align-items:center;flex-wrap:wrap}"
       + ".fla-vsel{min-width:330px;max-width:100%}"
+      // the verdict picker's popover is absolutely positioned INSIDE the job list's
+      // rs-sub-card, and the kit clips that card (overflow:hidden, for its rounded
+      // corners) -- so on the last row of a month the options would be cut off. The old
+      // native dropdown escaped the DOM entirely; the kit one cannot, so while an answer
+      // form is open the card that holds it must let the popover out.
+      + ".fla-sub:has(.fla-form){overflow:visible}"
       + ".fla-err{font-size:12.5px;font-weight:700;color:var(--neg)}"
       + ".fla-ok{font-size:12.5px;color:var(--muted)}"
       // the answer as it reads afterwards, in the row itself
@@ -296,17 +302,12 @@
           return Object.values(out);
         }
 
-        function sel(id, label, cur, values) {
-          return '<label class="rs-fld"><span>' + label + '</span>'
-            + '<select class="rs-sel" id="' + id + '"><option value="">All</option>'
-            + Object.keys(values).sort().map(v =>
-                '<option value="' + esc(v) + '"' + (cur === v ? " selected" : "") + ">"
-                + esc(v) + "</option>").join("")
-            + "</select></label>";
-        }
+        // the kit slicer's mount point — RSC.localSelect is mounted onto it in wire(),
+        // which is also where the label, options and current value are handed over
+        function sel(id) { return '<div id="' + id + '"></div>'; }
 
         function jobTable(list) {
-          return '<div class="rs-sub-card"><table class="rs-table"><thead><tr>'
+          return '<div class="rs-sub-card fla-sub"><table class="rs-table"><thead><tr>'
             + "<th>Date</th><th>Job</th><th>Customer</th><th>Window</th><th>Arrived</th>"
             + '<th class="num">Late by</th><th></th><th>Why</th><th>Open</th>'
             + "</tr></thead><tbody>" + jobRows(list) + "</tbody></table></div>";
@@ -334,18 +335,15 @@
            which is exactly why the draft lives in S.draft and not only in the textarea. */
         function formRow(r) {
           const d = S.draft[r.key] != null ? S.draft[r.key] : (r.why || "");
-          const cur = S.draft[r.key + "|v"] != null ? S.draft[r.key + "|v"] : (r.verdict || "");
+          // the verdict picker is the kit's localSelect, mounted onto this div by
+          // mountVerdict() after every write of the tbody (the value it opens with is
+          // computed there, from the same draft-then-answer fallback the textarea uses)
           return '<tr class="fla-form"><td colspan="9"><div class="fla-fbox">'
             + '<div class="fla-fq">Why was this one late?'
             + "<small>The job keeps its minutes either way — this decides whether they count "
             + "against the crew.</small></div>"
             + '<div class="fla-fact">'
-            + '<select class="rs-sel fla-vsel" data-vd="' + esc(r.key) + '">'
-            + '<option value="">Pick what happened…</option>'
-            + VERDICTS.map(v => '<option value="' + v[0] + '"'
-                + (cur === v[0] ? " selected" : "") + ">" + esc(v[1]) + " — "
-                + esc(v[3]) + "</option>").join("")
-            + "</select></div>"
+            + '<div class="fla-vsel" data-vd="' + esc(r.key) + '"></div></div>'
             + '<textarea class="fla-tx" data-ex="' + esc(r.key) + '" '
             + 'placeholder="What actually happened? One sentence is enough.">'
             + esc(d) + "</textarea>"
@@ -447,6 +445,29 @@
         // what paint() last drew, so repaintRows() can redraw the same view without
         // recomputing it and without touching anything above the table
         let last = null;
+        // the ONE open answer form's verdict picker (S.openJob means there is at most one).
+        // Every write of the tbody destroys the mounted control, so both writers --
+        // wire() after a full paint and repaintRows() after a rows-only one -- remount it.
+        let vdCtl = null, vdKey = null;
+
+        function mountVerdict() {
+          vdCtl = null; vdKey = null;
+          const dv = host.querySelector(".fla-vsel[data-vd]");
+          if (!dv || !window.RSC || !RSC.localSelect) return;
+          const key = dv.dataset.vd;
+          const r = rowFor(key);
+          const cur = S.draft[key + "|v"] != null ? S.draft[key + "|v"]
+            : ((r && r.verdict) || "");
+          vdKey = key;
+          vdCtl = RSC.localSelect(dv, {
+            label: "What happened",
+            values: VERDICTS.map(v => ({ v: v[0], l: v[1] + " — " + v[3] })),
+            value: cur,
+            allLabel: "Pick what happened…",
+            form: true,
+            onChange: v => { S.draft[key + "|v"] = v; },
+          });
+        }
 
         function paint() {
           if (!alive()) return;
@@ -493,8 +514,8 @@
             + "</div>"
             + '<div class="rs-bar">'
             + '<div class="rs-fld"><span>Job date</span><div id="flaDate"></div></div>'
-            + sel("flaCo", "Company", S.co, cos)
-            + sel("flaFm", "Foreman", S.fm, fms)
+            + sel("flaCo")
+            + sel("flaFm")
             + '<div class="rs-tog' + (S.hideSuspect ? " on" : "") + '" id="flaSus"><i></i>'
             + "Hide jobs that look rescheduled</div>"
             + '<div class="rs-tog' + (S.blameOnly ? " on" : "") + '" id="flaBlame"><i></i>'
@@ -627,9 +648,9 @@
           // read the controls, not the draft: the draft is the fallback for a form that was
           // rebuilt underneath the reader, not the source of truth while it is on screen
           const box = host.querySelector('[data-ex="' + CSS.escape(key) + '"]');
-          const vsel = host.querySelector('[data-vd="' + CSS.escape(key) + '"]');
           const ex = String(box ? box.value : (S.draft[key] || "")).trim();
-          const vd = String(vsel ? vsel.value : (S.draft[key + "|v"] || ""));
+          const vd = String(vdCtl && vdKey === key ? vdCtl.get()
+            : (S.draft[key + "|v"] || ""));
           S.draft[key] = ex;
           S.draft[key + "|v"] = vd;
 
@@ -713,6 +734,7 @@
           // no tbody means the empty-state is on screen, and that IS a full repaint
           if (!tb) { paint(); return; }
           tb.innerHTML = bodyHtml(last.byFm);
+          mountVerdict();
         }
 
         function kpi(val, lab, sub, cls) {
@@ -738,9 +760,25 @@
             });
           }
           const co = host.querySelector("#flaCo");
-          if (co) co.onchange = function () { S.co = this.value; paint(); };
+          if (co && window.RSC && RSC.localSelect) {
+            RSC.localSelect(co, {
+              label: "Company",
+              values: Object.keys(cos).sort(),
+              value: S.co,
+              allLabel: "All",
+              onChange: function (v) { S.co = v; paint(); },
+            });
+          }
           const fm = host.querySelector("#flaFm");
-          if (fm) fm.onchange = function () { S.fm = this.value; paint(); };
+          if (fm && window.RSC && RSC.localSelect) {
+            RSC.localSelect(fm, {
+              label: "Foreman",
+              values: Object.keys(fms).sort(),
+              value: S.fm,
+              allLabel: "All",
+              onChange: function (v) { S.fm = v; paint(); },
+            });
+          }
           const sus = host.querySelector("#flaSus");
           if (sus) sus.onclick = () => { S.hideSuspect = !S.hideSuspect; paint(); };
           const bl = host.querySelector("#flaBlame");
@@ -756,10 +794,8 @@
             const t = e.target.closest("[data-ex]");
             if (t) S.draft[t.dataset.ex] = t.value;
           };
-          if (tb) tb.onchange = e => {
-            const v = e.target.closest("[data-vd]");
-            if (v) S.draft[v.dataset.vd + "|v"] = v.value;
-          };
+          // the verdict picker keeps its own draft in sync through localSelect's onChange
+          // (mountVerdict) -- kit options fire no change event for a delegate to catch
           if (tb) tb.onclick = e => {
             if (e.target.closest("a")) return;      // a link opens a job; it does not toggle
 
@@ -835,6 +871,9 @@
             a.click();
             setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500);
           };
+          // a full paint rebuilt the tbody too, so the open answer form (if any) needs
+          // its verdict picker mounted afresh
+          mountVerdict();
         }
 
         paint();

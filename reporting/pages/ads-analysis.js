@@ -150,8 +150,7 @@ registerPage({
       title: "Spend by Provider",
       // table shows fixed columns (spend + txns + avg) regardless of the "Show:" pick (PBI "Calculate by")
       controlsGraphOnly: true,
-      controlsHtml: `<span class="lbl">Show:</span><select id="adsProvCalc">` +
-        PROV_CALC.map(c => `<option ${c === provCalc ? "selected" : ""}>${c}</option>`).join("") + `</select>`,
+      controlsHtml: `<span id="adsProvCalc"></span>`,
       buildChart(canvas) {
         const list = provSorted();
         const top = list.slice(0, 15);
@@ -213,7 +212,10 @@ registerPage({
           { r: "", k: "Total", v: totV, sh: totV ? 1 : null, n: totN, avg: totN ? totV / totN : null }) + note;
       },
     });
-    document.getElementById("adsProvCalc").onchange = e => { provCalc = e.target.value; mainCard.rerender(); };
+    RSC.localSelect(document.getElementById("adsProvCalc"), {
+      label: "Show:", values: PROV_CALC, value: provCalc, required: true,
+      onChange: v => { provCalc = v; mainCard.rerender(); },
+    });
 
     /* ================= grid2 (a): Spend vs Revenue by Source ================= */
     // Aggregate the three datasets per ad source once.
@@ -431,9 +433,8 @@ registerPage({
       };
       const chanCard = RSC.chartCard(chanHost, {
         title: "Channel efficiency over time",
-        controlsHtml: `<span class="lbl">Source (top 12 by spend)</span><select id="adsChanSrc">` +
-          chanTop.map(x => `<option value="${RSC.esc(x.k)}">${RSC.esc(x.disp)}</option>`).join("") +
-          `</select><span class="lbl">· last 24 mo · CPL/CAC left · ROAS right</span>`,
+        controlsHtml: `<span id="adsChanSrc"></span>` +
+          `<span class="lbl">· last 24 mo · CPL/CAC left · ROAS right</span>`,
         buildChart(canvas) {
           const rows = chanRows();
           return new Chart(canvas, {
@@ -495,8 +496,12 @@ registerPage({
               j: tJ, cac: tJ ? tS / tJ : null, rev: tR, roas: tS ? tR / tS : null });
         },
       });
-      document.getElementById("adsChanSrc").onchange = e => {
-        chanKey = e.target.value; chanCard.rerender(); };
+      RSC.localSelect(document.getElementById("adsChanSrc"), {
+        label: "Source (top 12 by spend)",
+        values: chanTop.map(x => ({ v: x.k, l: x.disp })),
+        value: chanKey, required: true,
+        onChange: v => { chanKey = v; chanCard.rerender(); },
+      });
     }
   },
 });

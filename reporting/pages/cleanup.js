@@ -1560,16 +1560,18 @@ registerPage({
       });
     }
 
-    function decide(btn) {
+    async function decide(btn) {
       if (S.busy) return;
       var action = btn.getAttribute("data-dec");
       var code = btn.getAttribute("data-code");
       var cust = btn.getAttribute("data-cust");
       // Declining is permanent and reaches every other day, so it gets a confirm; accepting
       // only records an intention and is easily reopened.
-      if (action === "declined" && !window.confirm(
-            "Decline for " + (cust || code) + "?\n\nThis is permanent: " + (cust || "this customer")
-            + " will not be suggested again on any day, for any option.")) return;
+      if (action === "declined" && !(await RSC.confirm({
+            title: "Decline for " + (cust || code) + "?",
+            body: "This is permanent: " + (cust || "this customer")
+              + " will not be suggested again on any day, for any option.",
+            yes: "Decline", danger: true }))) return;
       S.busy = code; S.msg = ""; paint();
       fetch(ZTZ.API + "/api/_cleanupdecide", {
         method: "POST",

@@ -477,18 +477,19 @@ registerPage({
         + "</div>");
       // the per-lead filters (his ask, 2026-08-19): status / source / size. Options come
       // from the lead layer, so they show real values, not guesses; until it streams in
-      // they render disabled rather than empty-but-clickable.
+      // they render disabled rather than empty-but-clickable. The control is the kit's
+      // localSelect (mounted in wire()), never a native dropdown — it carries its own
+      // label chip, so no .rs-fld caption wraps it. The loading placeholder is the same
+      // slicer button in the kit's rs-off state: dimmed, dashed, no popover.
       const ldSel = (id, label, cur, key) => {
         if (!S.leads) {
-          return fld(label, '<select class="rs-sel" disabled><option>'
-            + (S.leadsErr ? "unavailable" : "loading…") + "</option></select>");
+          return '<div class="rs-slicer rs-off"><button type="button" class="rs-slicer-btn" disabled>'
+            + '<span class="lbl">' + esc(label) + '</span><span class="val">'
+            + (S.leadsErr ? "unavailable" : "loading…")
+            + '</span><span class="chev">▾</span></button></div>';
         }
-        const vals = [...new Set(S.leads.map(l => l[key] || ""))].filter(Boolean).sort();
-        return fld(label, '<select class="rs-sel" data-lf="' + id + '">'
-          + '<option value="">All</option>'
-          + vals.map(v => '<option value="' + esc(v) + '"' + (cur === v ? " selected" : "") + ">"
-              + esc(v) + "</option>").join("")
-          + "</select>");
+        return '<div data-lf="' + id + '" data-lf-label="' + esc(label)
+          + '" data-lf-key="' + esc(key) + '"></div>';
       };
       h += ldSel("status", "Status", S.status, "Status")
         + ldSel("src", "Source", S.src, "Source")
@@ -980,8 +981,16 @@ registerPage({
       main.querySelectorAll("[data-m]").forEach(b => {
         b.onclick = () => { S.metric = b.dataset.m; paint(); };
       });
+      // mount the kit's localSelect on each lead-filter host (values from the lead layer,
+      // same option strings the old <option>s carried; "" stays the All value)
       main.querySelectorAll("[data-lf]").forEach(el => {
-        el.onchange = () => { S[el.dataset.lf] = el.value; paint(); };
+        const id = el.dataset.lf;
+        const vals = [...new Set((S.leads || []).map(l => l[el.dataset.lfKey] || ""))]
+          .filter(Boolean).sort();
+        RSC.localSelect(el, {
+          label: el.dataset.lfLabel, values: vals, value: S[id], allLabel: "All",
+          onChange: v => { S[id] = v; paint(); },
+        });
       });
       const cap = main.querySelector("#dmCap");
       if (cap) cap.onchange = () => {
