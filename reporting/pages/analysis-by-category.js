@@ -61,6 +61,7 @@ const CB = {
   chart: "bar",              // bar | hbar | stacked | line | donut
   sort: { key: "a", dir: -1 },
   filters: {},               // { dimName: Set(values) } — PAGE-LOCAL, never RS.state.multi
+  q: "",                     // the customer / request # search box (the CFO's lens)
   view: "",                  // name of the loaded saved view, for the shelf highlight
   _booted: false,
 };
@@ -79,6 +80,7 @@ function cbWriteViews(v) {
 function cbSpec() {
   return { universe: CB.universe, rowDim: CB.rowDim, colDim: CB.colDim, mA: CB.mA, mB: CB.mB,
            topN: CB.topN, other: CB.other, chart: CB.chart, sort: CB.sort,
+           q: CB.q || "",
            filters: Object.keys(CB.filters).reduce((o, k) => {
              const s = CB.filters[k]; if (s && s.size) o[k] = [...s]; return o; }, {}) };
 }
@@ -89,6 +91,7 @@ function cbApply(spec) {
   if (typeof spec.topN === "number") CB.topN = spec.topN;
   if (typeof spec.other === "boolean") CB.other = spec.other;
   if (spec.sort && typeof spec.sort === "object") CB.sort = spec.sort;
+  CB.q = typeof spec.q === "string" ? spec.q : "";
   CB.filters = {};
   Object.keys(spec.filters || {}).forEach(k => { CB.filters[k] = new Set(spec.filters[k] || []); });
 }
@@ -171,6 +174,11 @@ async function cbRender(host) {
     // about how many jobs actually matched a lead before anyone reads the "—" bucket as real.
     const JOB_DIMS = {
       "Source":        { fn: r => r.Source, group: "Job" },
+      /* the CFO's verification pair (Tornike 2026-08-29): group or search by the
+         exact customer / request — search:1 keeps them out of the value pickers
+         (78k values would freeze the popover); the search box serves them */
+      "Customer":      { fn: r => r.Customer, group: "Job", search: 1 },
+      "Request #":     { fn: r => r["Request #"], group: "Job", search: 1 },
       "Foreman":       { fn: r => r.Foreman, group: "Job" },
       "Driver":        { fn: r => r.Driver, group: "Job" },
       "Sales Person":  { fn: r => r["Sales Person"], group: "Job" },
@@ -204,6 +212,8 @@ async function cbRender(host) {
     };
     const LEAD_DIMS = {
       "Source":         { fn: r => r.Source, group: "Lead" },
+      "Customer":       { fn: r => r.Customer, group: "Lead", search: 1 },
+      "Request #":      { fn: r => r["Job No"], group: "Lead", search: 1 },
       "Status":         { fn: r => r.Status, group: "Lead" },
       "Status Category":{ fn: r => r["Status Category"], group: "Lead" },
       "Service Type":   { fn: r => r["Service Type"], group: "Lead" },
@@ -225,6 +235,8 @@ async function cbRender(host) {
     };
     const PK_DIMS = {
       "Foreman":       { fn: r => r.Foreman, group: "Job" },
+      "Customer":      { fn: r => r.Customer, group: "Job", search: 1 },
+      "Request #":     { fn: r => r["Job Code"], group: "Job", search: 1 },
       "Company":       { fn: r => r.Company, group: "Job" },
       "Job Type":      { fn: r => r["Job Type"], group: "Job" },
       "Moving Type":   { fn: r => r["Moving Type"], group: "Job" },
@@ -379,10 +391,18 @@ async function cbRender(host) {
       return (v == null || v === "") ? "—" : String(v);
     };
     const activeFilters = Object.keys(CB.filters).filter(k => DIMS[k] && CB.filters[k] && CB.filters[k].size);
-    const passes = r => activeFilters.every(k => CB.filters[k].has(keyOf(k, r)));
-    const rows = activeFilters.length ? scoped.filter(passes) : scoped;
+    // the customer / request search: case-insensitive substring over the pair,
+    // so the CFO types a name or a number and sees exactly what we calculated
+    const qNeedle = String(CB.q || "").trim().toLowerCase();
+    const qOf = isLeads ? (r => (r.Customer || "") + " " + (r["Job No"] || ""))
+      : isPacking ? (r => (r.Customer || "") + " " + (r["Job Code"] || ""))
+      : (r => (r.Customer || "") + " " + (r["Request #"] || ""));
+    const passes = r => (!qNeedle || qOf(r).toLowerCase().indexOf(qNeedle) >= 0)
+      && activeFilters.every(k => CB.filters[k].has(keyOf(k, r)));
+    const anyFilter = activeFilters.length || qNeedle;
+    const rows = anyFilter ? scoped.filter(passes) : scoped;
     const bookedRows = isLeads
-      ? (activeFilters.length ? bookedAll.filter(passes) : bookedAll) : null;
+      ? (anyFilter ? bookedAll.filter(passes) : bookedAll) : null;
 
     const mA = measure(CB.mA), mB = CB.mB ? measure(CB.mB) : null;
 
@@ -504,6 +524,9 @@ async function cbRender(host) {
         .cb-fdel{border:0;background:transparent;color:var(--faint);cursor:pointer;
           font-size:12px;padding:2px 2px 2px 0;margin-left:-4px}
         .cb-fdel:hover{color:var(--red)}
+        .cb-q{border:1px solid var(--line);background:transparent;color:var(--ink);
+          border-radius:9px;padding:6px 10px;font-size:12.5px;outline:0;width:200px}
+        .cb-q:focus{border-color:var(--brand)}
         .cb-savebox{display:flex;gap:6px;align-items:center}
         .cb-savebox input{border:1px solid var(--line);background:transparent;color:var(--ink);
           border-radius:9px;padding:6px 10px;font-size:12.5px;outline:0;width:170px}
@@ -583,7 +606,7 @@ async function cbRender(host) {
     uni.querySelectorAll("button").forEach(b => b.onclick = () => {
       if (CB.universe === b.dataset.u) return;
       CB._editF = "";
-      CB.universe = b.dataset.u; CB.filters = {}; CB.colDim = ""; CB.mB = ""; CB.view = "";
+      CB.universe = b.dataset.u; CB.filters = {}; CB.q = ""; CB.colDim = ""; CB.mB = ""; CB.view = "";
       // sensible landing spot per universe, not a stale carry-over
       if (CB.universe === "packing") { CB.rowDim = "Foreman"; CB.mA = "Packing Sold $"; }
       else if (CB.universe === "leads") { CB.rowDim = "Source"; CB.mA = "Total Leads"; }
@@ -608,6 +631,20 @@ async function cbRender(host) {
     /* row 2: page filters as LIVE kit multi-pickers (click to edit, ✕ to drop), then
        Top / Chart segments and the actions. */
     const row2 = $("cbRow2");
+    const qIn = document.createElement("input");
+    qIn.className = "cb-q"; qIn.id = "cbQ";
+    qIn.placeholder = "customer or request #…";
+    qIn.value = CB.q || "";
+    let qTimer = null;
+    qIn.oninput = () => {
+      clearTimeout(qTimer);
+      qTimer = setTimeout(() => { CB.q = qIn.value; CB._qFocus = 1; redraw(); }, 350);
+    };
+    row2.appendChild(qIn);
+    if (CB._qFocus) {
+      CB._qFocus = 0;
+      qIn.focus(); qIn.setSelectionRange(qIn.value.length, qIn.value.length);
+    }
     const fWord = document.createElement("span"); fWord.className = "cb-word"; fWord.textContent = "filter"; row2.appendChild(fWord);
     activeFilters.concat(Object.keys(CB.filters).filter(k => DIMS[k] && !activeFilters.includes(k))).forEach(dim => {
       const counts = new Map();
@@ -623,7 +660,8 @@ async function cbRender(host) {
       del.onclick = () => { CB._editF = ""; delete CB.filters[dim]; redraw(); };
       row2.appendChild(del);
     });
-    RSC.localSelect(row2, { label: "+ Add", values: Object.keys(DIMS).filter(d => !(d in CB.filters)),
+    RSC.localSelect(row2, { label: "+ Add", values: Object.keys(DIMS)
+      .filter(d => !(d in CB.filters) && !DIMS[d].search),
       value: "", allLabel: "a filter…",
       onChange: v => { if (v) { CB.filters[v] = new Set(); CB._editF = v; redraw(); } } });
 
@@ -953,7 +991,7 @@ async function cbRender(host) {
     };
     $("cbReset").onclick = () => {
       CB.rowDim = Object.keys(DIMS)[0]; CB.colDim = ""; CB.mB = ""; CB.topN = 20;
-      CB.chart = "bar"; CB.filters = {}; CB.view = ""; redraw();
+      CB.chart = "bar"; CB.filters = {}; CB.q = ""; CB.view = ""; redraw();
     };
     $("cbCsv").onclick = () => {
       const G = group();
