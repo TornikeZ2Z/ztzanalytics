@@ -448,11 +448,20 @@
         mig_job_vehicle_inspection_item: "JobVehicleInspectionItem",
         mig_job_storage_order: "JobStorageOrder",
         mig_storage_record: "StorageRecord",
+        mig_job_crew_salary_snapshot: "JobCrewSalarySnapshot",
+        mig_job_survey_response: "JobSurveyResponse",
+        mig_job_note: "JobNote", mig_job_damage: "JobDamage",
+        mig_job_discount: "JobDiscount",
       };
       // THEIR models' scalar fields (generated from schema.prisma,
       // tetrobyte-studio/ziptozip @ 2026-08-29). r:1 = the importer resolves
       // it (uuid, FK id, audit stamp) — never a data gap on our side.
       const MIG_FIELDS = {
+        mig_job_crew_salary_snapshot: [{f:"id",r:1},{f:"jobId",r:1},{f:"rowIndex",r:0},{f:"crewMemberId",r:1},{f:"memberName",r:0},{f:"memberType",r:0},{f:"isAnonymous",r:0},{f:"hoursWorked",r:0},{f:"hourlyRateCents",r:0},{f:"hourlySalaryCents",r:0},{f:"reviewSalaryCents",r:0},{f:"tipSalaryCents",r:0},{f:"stairsSalaryCents",r:0},{f:"bulkySalaryCents",r:0},{f:"hoistingSalaryCents",r:0},{f:"junkSalaryCents",r:0},{f:"storageSalaryCents",r:0},{f:"packingSalaryCents",r:0},{f:"additionalSalaryCents",r:0},{f:"additionalSalaryNote",r:0},{f:"advanceSalaryCents",r:0},{f:"advanceSalaryNote",r:0},{f:"deductionSalaryCents",r:0},{f:"deductionSalaryNote",r:0},{f:"totalCents",r:0},{f:"createdAt",r:1}],
+        mig_job_survey_response: [{f:"id",r:1},{f:"jobId",r:1},{f:"questionId",r:1},{f:"questionText",r:0},{f:"score",r:0},{f:"comment",r:0},{f:"capturedById",r:1},{f:"capturedAt",r:0}],
+        mig_job_note: [{f:"id",r:1},{f:"jobId",r:1},{f:"body",r:0},{f:"templateId",r:1},{f:"createdById",r:1},{f:"createdAt",r:1}],
+        mig_job_damage: [{f:"id",r:1},{f:"jobId",r:1},{f:"description",r:0},{f:"createdById",r:1},{f:"createdAt",r:1}],
+        mig_job_discount: [{f:"id",r:1},{f:"jobId",r:1},{f:"amountCents",r:0},{f:"reason",r:0},{f:"templateId",r:1},{f:"createdById",r:1},{f:"createdAt",r:1}],
         mig_job_sales_attribution: [{f:"id",r:1},{f:"jobId",r:1},{f:"userId",r:1},{f:"type",r:0},{f:"distributionPct",r:0},{f:"rateBps",r:0},{f:"createdAt",r:1}],
         mig_job_vehicle_inspection: [{f:"id",r:1},{f:"truckId",r:1},{f:"inspectionTime",r:0},{f:"timeZone",r:0},{f:"fuelLevel",r:0},{f:"createdById",r:1},{f:"createdAt",r:1},{f:"updatedAt",r:1}],
         mig_job_vehicle_inspection_item: [{f:"id",r:1},{f:"inspectionId",r:1},{f:"itemName",r:0},{f:"condition",r:0},{f:"note",r:0},{f:"sortOrder",r:0}],
