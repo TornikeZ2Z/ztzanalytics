@@ -243,6 +243,7 @@
             <button data-t="see" class="${S.tab === "see" ? "on" : ""}">What Giorgi sees</button>
             <button data-t="docs" class="${S.tab === "docs" ? "on" : ""}">How to call the API</button>
             <button data-t="mig" class="${S.tab === "mig" ? "on" : ""}">The exact tables</button>
+            <button data-t="kept" class="${S.tab === "kept" ? "on" : ""}">Kept back</button>
           </div>
           <span class="rs-spacer"></span>
           <span class="rs-hint">endpoint status:
@@ -256,6 +257,7 @@
         if (S.tab === "access") paintAccess(body);
         else if (S.tab === "see") paintSee(body);
         else if (S.tab === "mig") paintMig(body);
+        else if (S.tab === "kept") paintKept(body);
         else paintDocs(body);
       }
 
@@ -660,6 +662,144 @@
         body.querySelectorAll(".dmg-card").forEach(c =>
           c.classList.toggle("on", c.getAttribute("data-mig") === S.sel));
         paintDetail(ov.querySelector("#dmgDrBody"));
+      }
+
+      /* --------------------------- tab 5: what we DON'T send, and why (his
+         ask 2026-08-29: "i need somewhere to see the data that we dont send") */
+      function keptGroupOf(name) {
+        const n = name.toLowerCase();
+        if (n.startsWith("mig_")) return null;                 // the exact tables
+        // sources the exact tables are BUILT from — their content travels
+        if (n.startsWith("dc_") || n === "closing_sheet" || n === "vehicles"
+            || n === "claims" || n === "reviews" || n === "negative_reviews"
+            || n === "calendar_events" || n === "fct_storage_register"
+            || ["fct_closing", "fct_moveboard", "fct_claims", "fct_reviews",
+                "fct_negative_reviews", "fct_money_flow", "fct_fuel",
+                "dim_crew", "dim_truck", "hrq_roster"].includes(n))
+          return "sources";
+        // external-system exports — stay behind by his rule (the systems
+        // themselves are being replaced or keep living beside the ERP)
+        if (n === "moveboard" || n.startsWith("callrail") || n.startsWith("angi")
+            || n.startsWith("meta_referral") || n.startsWith("hatch")
+            || n.startsWith("thumbtack") || n.includes("ringcentral")
+            || n.startsWith("ringsense") || n.startsWith("rc_")
+            || n === "fuel_transactions" || n === "trips"
+            || n.startsWith("wex") || n.startsWith("zip_codes")
+            || n.startsWith("card_expenses") || n === "card_transactions")
+          return "exports";
+        // the portal's own application data — lives and dies with this portal
+        if (n.startsWith("hrq_") || n.startsWith("work_") || n.startsWith("late_")
+            || n.startsWith("acl_") || n.startsWith("review_")
+            || n.startsWith("reviews_") || n.startsWith("birdie")
+            || n.startsWith("cleanup") || n.startsWith("reminder")
+            || n.startsWith("migration_") || n.startsWith("sales_call")
+            || n.startsWith("sales_tracker") || n.startsWith("fuel_review")
+            || n.startsWith("promised"))
+          return "portal";
+        // the analytics layer — derived HERE from the sources above; it is
+        // arithmetic, not data, and the ERP will grow its own reporting
+        if (n.startsWith("fct_") || n.startsWith("mart_") || n.startsWith("dim_")
+            || n.startsWith("cal_") || n.startsWith("bridge_")
+            || n.endsWith("_score") || n.startsWith("calendar_")
+            || n.startsWith("stg_") || n.startsWith("v_"))
+          return "derived";
+        return "raw";
+      }
+
+      const KEPT_META = {
+        sources: ["Already travelling", "The exact tables are built from these — " +
+          "their content reaches the ERP through the mig_ family, so pulling them " +
+          "raw would import the same facts twice."],
+        exports: ["External-system exports — stay behind", "Moveboard/CRM, CallRail, " +
+          "Angi, Meta, RingCentral, WEX, bank card exports (his rule 2026-08-29): " +
+          "these mirror OTHER systems' data. The insights derived from them stay in " +
+          "this portal; the ERP is not their home."],
+        derived: ["Analytics layer — arithmetic, not data", "fct_/mart_/dim_/cal_ " +
+          "tables are computed HERE from the sources every night. Migrating them " +
+          "would freeze derived numbers; the ERP will compute its own."],
+        portal: ["This portal's own app data", "Questionnaires, IT requests, late " +
+          "adjudications, review workflows, access control — the reporting portal's " +
+          "living records, not company history for the ERP."],
+        raw: ["Raw and available", "Not shaped into a mig_ table (yet) — pullable " +
+          "through the API as-is; say the word and any of it becomes an exact shape."],
+      };
+
+      // THEIR side of the accounting: the 150 Prisma models, and why the
+      // unfilled ones are unfilled (generated from schema.prisma 2026-08-29)
+      const THEIR_UNFILLED = [
+        ["Fillable from our data — next in line",
+         "JobPackingInTruck (dc_packing_materials_in_vehicle, 29k rows) · " +
+         "JobPackingMaterial (dc packing lines, 24k) · JobTruckExpense (dc expense " +
+         "breakdowns, ~5k) · StorageItemBill/Payment (storage_payments + fct_storage) · " +
+         "RentedStorage/Unit + OwnedWarehouse/Slot (storage facility tables) · " +
+         "Vehicle (the register) · BankTransaction (card_transactions, 6k) · " +
+         "JobInventoryEntry (calendar inventory, 137k lines) · JobTruckInformation " +
+         "(closing tips + LD actuals) · JobOtherInformation (dc, 33)"],
+        ["Excluded by his rule",
+         "PriceQuote / PublicLead — these are the Moveboard/CRM side"],
+        ["App configuration they seed themselves",
+         "~60 models: pricing brackets and bands, rate tables, templates, label " +
+         "options, inventory catalogs, roles and grants, system settings"],
+        ["Born in the new app — nothing to migrate",
+         "~25 models: notifications, audit and actual logs, batches, assignments, " +
+         "signatures, concerns, salary batches, cleanup decisions, sessions"],
+        ["Files that were never databased",
+         "~12 attachment/photo models — the old world stored photo COUNTS " +
+         "(they ride in x-columns) but the files lived in Drive folders"],
+        ["No historical data ever existed",
+         "CrewTimeOff, comment threads on claims/reviews"],
+      ];
+
+      function paintKept(body) {
+        if (!S.catalog) {
+          body.innerHTML = '<div class="panel">Loading the catalog…</div>';
+          api("/api/_migrate_admin?preview=catalog").then(c => {
+            S.catalog = c; paintKept(body);
+          }).catch(e => { body.innerHTML = '<div class="panel">' + esc(e.message) + "</div>"; });
+          return;
+        }
+        const groups = { sources: [], exports: [], derived: [], portal: [], raw: [] };
+        let migN = 0;
+        (S.catalog.tables || []).forEach(t => {
+          const g = keptGroupOf(t.table);
+          if (g === null) { migN++; return; }
+          groups[g].push(t);
+        });
+        const shield = (S.admin.excluded || []);
+        const shieldP = (S.admin.excluded_patterns || []);
+        const chip = t => `<span class="dmg-x" title="~${(+t.rows_approx).toLocaleString()} rows">
+          ${esc(t.table)} <i class="dmg-kdim">${(+t.rows_approx).toLocaleString()}</i></span>`;
+        body.innerHTML = `
+          <div class="dmg-note" style="margin:2px 0 14px">The other side of the
+            migration: everything in the warehouse that does <b>not</b> travel as an
+            exact table, and why. ${migN} mig_ tables carry the history; the rest
+            falls into five buckets. Anything here can still be pulled raw through
+            the API — or shaped on request.</div>
+          ${["sources", "raw", "exports", "derived", "portal"].map(g => `
+            <div class="panel">
+              <div class="panel-title">${esc(KEPT_META[g][0])}
+                <span class="rs-hint" style="margin-left:8px">${groups[g].length}
+                  tables</span></div>
+              <div class="dmg-note" style="margin-bottom:8px">${esc(KEPT_META[g][1])}</div>
+              <div>${groups[g].sort((a, b) => b.rows_approx - a.rows_approx)
+                .map(chip).join("")}</div>
+            </div>`).join("")}
+          <div class="panel">
+            <div class="panel-title">Hidden even from the token
+              <span class="rs-hint" style="margin-left:8px">the shield</span></div>
+            <div class="dmg-note" style="margin-bottom:8px">Secrets, the
+              anonymous-survey promise, image blobs, pipeline internals — excluded
+              server-side whatever the token says.</div>
+            <div>${shield.map(x => '<span class="dmg-x">' + esc(x) + "</span>").join("")}
+              ${shieldP.map(x => '<span class="dmg-x">' + esc(x) + "*</span>").join("")}</div>
+          </div>
+          <div class="panel">
+            <div class="panel-title">Their schema's other 127 models — why they are
+              not filled</div>
+            ${THEIR_UNFILLED.map(([t, d]) => `
+              <div class="dmg-ghead" style="margin-top:12px">${esc(t)}</div>
+              <div class="dmg-note">${esc(d)}</div>`).join("")}
+          </div>`;
       }
 
       /* ------------------------------------------------- tab 3: how to call */
