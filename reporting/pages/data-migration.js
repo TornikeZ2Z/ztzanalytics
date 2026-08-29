@@ -70,6 +70,60 @@
       text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--line);z-index:1}
     .dmg-sample td{padding:5px 10px;border-bottom:1px solid var(--line);
       max-width:280px;overflow:hidden;text-overflow:ellipsis;color:var(--ink)}
+    /* the exact-tables tab: KPI strip, grouped card grid, drawer detail */
+    .dmg-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));
+      gap:10px;margin:0 0 12px}
+    .dmg-kpis .kpi{background:var(--panel);border:1px solid var(--line);
+      border-radius:13px;padding:13px 16px 11px}
+    .dmg-kpis .l{font-size:10.5px;font-weight:800;letter-spacing:.07em;
+      text-transform:uppercase;color:var(--faint);margin-bottom:5px}
+    .dmg-kpis .v{font-size:23px;font-weight:800;letter-spacing:-.4px;color:var(--ink);
+      font-variant-numeric:tabular-nums}
+    .dmg-kdim{font-size:13px;font-weight:600;color:var(--faint)}
+    .dmg-leg{display:inline-block;width:22px;height:7px;border-radius:4px;
+      vertical-align:1px;margin:0 3px 0 8px}
+    .dmg-leg.f{background:var(--pos)}
+    .dmg-leg.m{background:var(--neg)}
+    .dmg-ghead{font-size:11px;font-weight:800;letter-spacing:.09em;
+      text-transform:uppercase;color:var(--faint);margin:16px 2px 8px;
+      display:flex;align-items:center;gap:10px}
+    .dmg-ghead::after{content:'';flex:1;height:1px;background:var(--line)}
+    .dmg-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));
+      gap:10px}
+    .dmg-card{background:var(--panel);border:1px solid var(--line);border-radius:13px;
+      padding:13px 15px 12px;cursor:pointer;
+      transition:border-color .12s,transform .12s,box-shadow .12s}
+    .dmg-card:hover{border-color:var(--brand);transform:translateY(-1px);
+      box-shadow:0 4px 14px rgba(0,0,0,.10)}
+    .dmg-card.on{border-color:var(--brand);box-shadow:0 0 0 1px var(--brand)}
+    .dmg-card.off{opacity:.6;cursor:default}
+    .dmg-card.off:hover{border-color:var(--line);transform:none;box-shadow:none}
+    .dmg-card .nm{font-family:ui-monospace,Consolas,monospace;font-size:12.5px;
+      font-weight:700;color:var(--ink);overflow:hidden;text-overflow:ellipsis;
+      white-space:nowrap}
+    .dmg-card .mdl{font-family:ui-monospace,Consolas,monospace;font-size:11px;
+      color:var(--brand);margin:2px 0 8px}
+    .dmg-card .big{font-size:21px;font-weight:800;letter-spacing:-.4px;
+      color:var(--ink);font-variant-numeric:tabular-nums;margin-bottom:9px}
+    .dmg-card .big span{font-size:11px;font-weight:600;color:var(--faint);
+      letter-spacing:0}
+    .dmg-card .covbar{display:flex;height:7px;border-radius:4px;overflow:hidden;
+      background:var(--panel-2);border:1px solid var(--line)}
+    .dmg-card .covbar i.f{background:var(--pos)}
+    .dmg-card .covbar i.m{background:var(--neg)}
+    .dmg-card .covline{font-size:11.5px;color:var(--muted);margin-top:6px;
+      font-variant-numeric:tabular-nums}
+    .dmg-ov{position:fixed;inset:0;background:rgba(10,16,24,.45);z-index:60;
+      display:flex;justify-content:flex-end;animation:dmgFade .15s ease}
+    @keyframes dmgFade{from{opacity:0}to{opacity:1}}
+    .dmg-drawer{position:relative;width:min(880px,96vw);height:100%;
+      background:var(--bg);overflow:auto;padding:20px 22px 40px;
+      box-shadow:-14px 0 44px rgba(0,0,0,.28);animation:dmgSlide .18s ease}
+    @keyframes dmgSlide{from{transform:translateX(40px);opacity:.4}
+      to{transform:translateX(0);opacity:1}}
+    .dmg-x2{position:absolute;top:14px;right:16px;z-index:2}
+    .dmg-drawer .panel{border:0;box-shadow:none;padding-top:2px}
+    .dmg-drawer .panel-title{padding-right:46px}
     /* the docs tab */
     .dmg-doc{max-width:96ch;font-size:13.5px;line-height:1.7;color:var(--ink)}
     .dmg-doc h1{font-size:21px;margin:4px 0 12px}
@@ -495,53 +549,117 @@
         });
         const names = Object.keys(MIG_MODELS);
         const built = names.filter(n => have[n]).length;
+
+        // the 23 shapes read best in the order Giorgi imports them
+        const GROUPS = [
+          ["The spine", ["mig_customer", "mig_job", "mig_job_address",
+                         "mig_job_pricing"]],
+          ["The money", ["mig_job_payment_calc", "mig_job_money_flow_entry",
+                         "mig_job_sales_attribution"]],
+          ["Crew & trucks", ["mig_job_crew_member", "mig_job_crew_salary_snapshot",
+                             "mig_job_timeline_event", "mig_job_truck",
+                             "mig_job_vehicle_inspection",
+                             "mig_job_vehicle_inspection_item"]],
+          ["Storage", ["mig_job_storage_order", "mig_storage_record"]],
+          ["Feedback & cases", ["mig_job_review", "mig_job_survey_response",
+                                "mig_positive_review", "mig_negative_review",
+                                "mig_job_claim", "mig_job_note", "mig_job_damage",
+                                "mig_job_discount"]],
+        ];
+
+        let totRows = 0, totFilled = 0, totFields = 0, complete = 0;
+        const covOf = {};
+        names.forEach(n => {
+          const t = have[n];
+          if (!t) return;
+          totRows += +t.rows_approx || 0;
+          const cov = migCoverage(n, t.columns.map(c => c.name));
+          covOf[n] = cov;
+          totFilled += cov.filled.length;
+          totFields += cov.filled.length + cov.missing.length;
+          if (!cov.missing.length) complete++;
+        });
+
+        const card = n => {
+          const t = have[n];
+          const cov = covOf[n];
+          if (!t) return `
+            <div class="dmg-card off">
+              <div class="nm">${esc(n)}</div>
+              <div class="mdl">→ ${esc(MIG_MODELS[n])}</div>
+              <span class="rs-pill mute">next pipeline run</span>
+            </div>`;
+          const f = cov.filled.length, ms = cov.missing.length,
+                rs = cov.resolved.length, tot = f + ms + rs;
+          return `
+            <div class="dmg-card${S.sel === n ? " on" : ""}" data-mig="${esc(n)}">
+              <div class="nm">${esc(n)}</div>
+              <div class="mdl">→ ${esc(MIG_MODELS[n])}</div>
+              <div class="big">${(+t.rows_approx).toLocaleString()}
+                <span>rows</span></div>
+              <div class="covbar" title="${f} filled · ${ms} missing · ${rs} resolved by the importer">
+                <i class="f" style="width:${tot ? (100 * f / tot) : 0}%"></i><i class="m"
+                  style="width:${tot ? (100 * ms / tot) : 0}%"></i></div>
+              <div class="covline">${f} of ${f + ms} fields ·
+                ${ms ? '<span class="dmg-miss-t">' + ms + " missing</span>"
+                     : '<span class="dmg-full-t">complete ✓</span>'}</div>
+            </div>`;
+        };
+
         body.innerHTML = `
-          <div class="panel">
-            <div class="panel-title">Shaped field-for-field to his schema
-              <span class="rs-hint" style="margin-left:8px">${built} of ${names.length}
-                built · columns are THEIR field names, enums THEIR values, money in
-                cents · x-columns are our natural keys and extras</span></div>
-            ${built === 0 ? `
-              <div class="dmg-note" style="margin:8px 0">The mig_ tables are committed
-                and build with the next pipeline run — they appear here (and in the
-                developer's catalog) on their own.</div>` : ""}
-            <div class="rs-tablewrap"><table class="rs-table">
-              <thead><tr><th>Our table</th><th>Fills their model</th>
-                <th class="r">Rows</th><th>Their fields</th>
-                <th>What it carries</th></tr></thead>
-              <tbody>${names.map(n => {
-                const t = have[n];
-                const cov = t ? migCoverage(n, t.columns.map(c => c.name)) : null;
-                return `<tr${t ? ' data-mig="' + esc(n) + '" style="cursor:pointer"' : ""}>
-                  <td class="strong" style="font-family:ui-monospace,Consolas,monospace">
-                    ${esc(n)}</td>
-                  <td style="font-family:ui-monospace,Consolas,monospace">
-                    ${esc(MIG_MODELS[n])}</td>
-                  <td class="r">${t ? (+t.rows_approx).toLocaleString()
-                    : '<span class="rs-pill mute">next run</span>'}</td>
-                  <td>${cov ? cov.filled.length + " of "
-                    + (cov.filled.length + cov.missing.length) + " filled"
-                    + (cov.missing.length
-                       ? ' · <span class="dmg-miss-t">' + cov.missing.length
-                         + " missing</span>"
-                       : ' · <span class="dmg-full-t">complete</span>') : "—"}</td>
-                  <td class="rs-hint" style="max-width:440px">${esc((t && t.note)
-                    ? t.note.replace(/^READY-TO-IMPORT /, "") : "")}</td></tr>`;
-              }).join("")}
-              </tbody></table></div>
-            <div class="dmg-note" style="margin-top:8px">Click a built row for its
-              columns and a live sample — served by the same functions the
-              developer's token calls. Not shaped yet (raw tables only): storage
-              records, quotes, bank statements, inventory.</div>
+          <div class="dmg-kpis">
+            <div class="kpi"><div class="l">Tables built</div>
+              <div class="v">${built} <span class="dmg-kdim">of ${names.length}</span></div></div>
+            <div class="kpi"><div class="l">Rows ready to import</div>
+              <div class="v">${totRows.toLocaleString()}</div></div>
+            <div class="kpi"><div class="l">Their fields filled</div>
+              <div class="v">${totFilled} <span class="dmg-kdim">of ${totFields}</span></div></div>
+            <div class="kpi"><div class="l">Complete tables</div>
+              <div class="v">${complete}</div></div>
           </div>
-          <div id="migDetail"></div>`;
+          <div class="dmg-note" style="margin:2px 0 14px">Every card is one of THEIR
+            Prisma models, filled field-for-field — their names, their enums, money in
+            cents. The bar is their model:
+            <i class="dmg-leg f"></i> we fill it
+            <i class="dmg-leg m"></i> no source exists
+            <span class="dmg-kdim">· the grey remainder the importer resolves (ids,
+            links, stamps)</span>. Click a card for columns, the gap list and a live
+            sample.</div>
+          ${GROUPS.map(([title, list]) => `
+            <div class="dmg-ghead">${esc(title)}</div>
+            <div class="dmg-grid">${list.map(card).join("")}</div>`).join("")}
+          <div id="migDrawer"></div>`;
+
         body.querySelectorAll("[data-mig]").forEach(r => {
           r.onclick = () => {
             S.sel = r.getAttribute("data-mig"); S.sample = null;
-            paintDetail(body.querySelector("#migDetail"));
+            openMigDrawer(body);
           };
         });
-        if (S.sel && have[S.sel]) paintDetail(body.querySelector("#migDetail"));
+      }
+
+      // the detail rides in a drawer, so the grid never scroll-hunts
+      function openMigDrawer(body) {
+        const old = document.getElementById("dmgDrawerOv");
+        if (old) old.remove();
+        const ov = document.createElement("div");
+        ov.id = "dmgDrawerOv";
+        ov.className = "dmg-ov";
+        ov.innerHTML = '<div class="dmg-drawer"><button class="rs-btn dmg-x2" ' +
+          'id="dmgDrClose">✕</button><div id="dmgDrBody"></div></div>';
+        document.body.appendChild(ov);
+        const close = () => {
+          ov.remove();
+          document.removeEventListener("keydown", onk);
+          body.querySelectorAll(".dmg-card.on").forEach(c => c.classList.remove("on"));
+        };
+        const onk = e => { if (e.key === "Escape") close(); };
+        document.addEventListener("keydown", onk);
+        ov.onclick = e => { if (e.target === ov) close(); };
+        ov.querySelector("#dmgDrClose").onclick = close;
+        body.querySelectorAll(".dmg-card").forEach(c =>
+          c.classList.toggle("on", c.getAttribute("data-mig") === S.sel));
+        paintDetail(ov.querySelector("#dmgDrBody"));
       }
 
       /* ------------------------------------------------- tab 3: how to call */
