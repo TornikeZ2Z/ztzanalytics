@@ -508,6 +508,9 @@
         mig_job_survey_response: "JobSurveyResponse",
         mig_job_note: "JobNote", mig_job_damage: "JobDamage",
         mig_job_discount: "JobDiscount",
+        mig_job_inventory_section: "JobInventorySection",
+        mig_job_inventory_entry: "JobInventoryEntry",
+        mig_storage_item_payment: "StorageItemPayment",
       };
       // THEIR models' scalar fields (generated from schema.prisma,
       // tetrobyte-studio/ziptozip @ 2026-08-29). r:1 = the importer resolves
@@ -536,6 +539,9 @@
         mig_job_claim: [{f:"id",r:1},{f:"jobId",r:1},{f:"caseOwnerId",r:1},{f:"customerName",r:0},{f:"salesRepName",r:0},{f:"foremanName",r:0},{f:"stage",r:0},{f:"statusOptionId",r:1},{f:"closedAt",r:0},{f:"responsibilityOptionId",r:1},{f:"reasonOptionId",r:1},{f:"claimFormStatus",r:0},{f:"releaseFormStatus",r:0},{f:"totalRefundCents",r:0},{f:"salesResponsibilityCents",r:0},{f:"commissionReducedPct",r:0},{f:"commissionReducedAmountCents",r:0},{f:"reduced",r:0},{f:"refundDate",r:0},{f:"paymentOption",r:0},{f:"reasonNotes",r:0},{f:"createdById",r:1},{f:"createdAt",r:1},{f:"updatedAt",r:1}],
         mig_negative_review: [{f:"id",r:1},{f:"jobId",r:1},{f:"providerId",r:1},{f:"providerName",r:0},{f:"location",r:0},{f:"rating",r:0},{f:"priority",r:0},{f:"stage",r:0},{f:"statusOptionId",r:1},{f:"resolvedAt",r:0},{f:"caseOwnerId",r:1},{f:"customerName",r:0},{f:"notes",r:0},{f:"createdById",r:1},{f:"createdAt",r:1},{f:"updatedAt",r:1}],
         mig_positive_review: [{f:"id",r:1},{f:"jobId",r:1},{f:"providerId",r:1},{f:"providerName",r:0},{f:"rating",r:0},{f:"reviewLink",r:0},{f:"reviewedAt",r:0},{f:"customerName",r:0},{f:"foremanName",r:0},{f:"foremanCrewProfileId",r:1},{f:"notes",r:0},{f:"createdById",r:1},{f:"createdAt",r:1},{f:"updatedAt",r:1}],
+        mig_job_inventory_section: [{f:"id",r:1},{f:"jobId",r:1},{f:"sectionId",r:1},{f:"label",r:0},{f:"sortOrder",r:0}],
+        mig_job_inventory_entry: [{f:"id",r:1},{f:"jobId",r:1},{f:"tagFrom",r:0},{f:"tagTo",r:0},{f:"inventoryItemId",r:1},{f:"articleName",r:0},{f:"damaged",r:0},{f:"remarks",r:0},{f:"jobInventorySectionId",r:1},{f:"packedByOwner",r:0}],
+        mig_storage_item_payment: [{f:"id",r:1},{f:"storageRecordId",r:1},{f:"billId",r:1},{f:"amountCents",r:0},{f:"paidAt",r:0},{f:"method",r:0},{f:"reference",r:0},{f:"failureReason",r:0},{f:"receiptUrl",r:0},{f:"recordedById",r:1},{f:"notes",r:0},{f:"createdAt",r:1}],
       };
       function paintMig(body) {
         if (!S.catalog) {
@@ -552,7 +558,7 @@
         const names = Object.keys(MIG_MODELS);
         const built = names.filter(n => have[n]).length;
 
-        // the 23 shapes read best in the order Giorgi imports them
+        // the 26 shapes read best in the order Giorgi imports them
         const GROUPS = [
           ["The spine", ["mig_customer", "mig_job", "mig_job_address",
                          "mig_job_pricing"]],
@@ -562,7 +568,10 @@
                              "mig_job_timeline_event", "mig_job_truck",
                              "mig_job_vehicle_inspection",
                              "mig_job_vehicle_inspection_item"]],
-          ["Storage", ["mig_job_storage_order", "mig_storage_record"]],
+          ["Storage", ["mig_job_storage_order", "mig_storage_record",
+                       "mig_storage_item_payment"]],
+          ["The inventory", ["mig_job_inventory_section",
+                             "mig_job_inventory_entry"]],
           ["Feedback & cases", ["mig_job_review", "mig_job_survey_response",
                                 "mig_positive_review", "mig_negative_review",
                                 "mig_job_claim", "mig_job_note", "mig_job_damage",
@@ -730,11 +739,17 @@
         ["Fillable from our data — next in line",
          "JobPackingInTruck (dc_packing_materials_in_vehicle, 29k rows) · " +
          "JobPackingMaterial (dc packing lines, 24k) · JobTruckExpense (dc expense " +
-         "breakdowns, ~5k) · StorageItemBill/Payment (storage_payments + fct_storage) · " +
-         "RentedStorage/Unit + OwnedWarehouse/Slot (storage facility tables) · " +
-         "Vehicle (the register) · BankTransaction (card_transactions, 6k) · " +
-         "JobInventoryEntry (calendar inventory, 137k lines) · JobTruckInformation " +
-         "(closing tips + LD actuals) · JobOtherInformation (dc, 33)"],
+         "breakdowns, ~5k) · RentedStorage/Unit + OwnedWarehouse/Slot (storage " +
+         "facility tables) · Vehicle (the register) · BankTransaction " +
+         "(card_transactions, 6k) · JobTruckInformation (closing tips + LD " +
+         "actuals) · JobOtherInformation (dc, 33)"],
+        ["Shipped 2026-08-30 — the manifest's two top asks",
+         "JobInventoryEntry + JobInventorySection (the calendar SURVEY inventory, " +
+         "~139k lines, untagged by design) → mig_job_inventory_entry/_section · " +
+         "StorageItemPayment (the real payment ledger, 425 rows) → " +
+         "mig_storage_item_payment. StorageItemBill stays out: per-bill accrual " +
+         "rows were never struck in the legacy system — the pricing params to " +
+         "reconstruct them ride on mig_storage_record."],
         ["Excluded by his rule",
          "PriceQuote / PublicLead — these are the Moveboard/CRM side"],
         ["App configuration they seed themselves",
@@ -830,8 +845,20 @@
                 the table's <code>Update Date</code> — pull, import, remember the
                 timestamp, repeat. Tables without an <code>Update Date</code> column
                 ignore the parameter (re-pull them whole).</div></div>
+            <div class="dmg-req"><div class="t">4 · Distinct values of one column (NEW — the manifest's lookup lists)</div>
+              <pre>curl "${esc(base)}&amp;table=mig_job&amp;distinct=xSourceName"</pre>
+              <div class="dmg-note" style="margin-top:6px"><code>distinct=</code> returns
+                the distinct non-empty values of that column with counts (top 5000
+                by frequency) — built so sources, branches, claim labels and people
+                reconcile as lists BEFORE a load, not row by row.</div></div>
             <div class="dmg-req"><div class="t">The guide (markdown, written for his agent)</div>
-              <pre>curl "${esc(base)}&amp;doc=1"</pre></div>
+              <pre>curl "${esc(base)}&amp;doc=1"</pre>
+              <div class="dmg-note" style="margin-top:6px">Now ends with the
+                <b>Answers to the ERP Migration Manifest</b> (2026-08-30): person
+                resolution by exact name string, the six lookup lists, the storage
+                pair key, <code>legacyMainJobId</code> semantics, and why each of
+                the six job-history areas is shipped, out of band, or never
+                existed.</div></div>
             <div class="dmg-note">Errors: a wrong token or a hidden table answers
               <b>404</b> — the endpoint never confirms what exists behind it.
               Need data shaped differently (a join, a view)? That goes through the IT
