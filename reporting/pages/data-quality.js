@@ -151,21 +151,37 @@ async function renderChecks(host) {
         desc: "The same money billed twice across two closing rows of one request. "
             + "“Excluded” = a delivery row re-billing an earlier leg's Balance Due — already "
             + "removed from revenue automatically. “NEEDS FIX” = an identical bill entered "
-            + "twice — fix it in the closing sheet.",
+            + "twice — fix it in the closing sheet. “REVIEW” = an earlier leg left a balance "
+            + "over $300 and this row billed a different amount: it may already contain that "
+            + "balance, or be genuine new work — the numbers cannot tell, so nothing is "
+            + "excluded until someone rules on it.",
         cols: [{ key: "status", label: "Status" }, { key: "job", label: "Job #" },
                { key: "req", label: "Request #" }, { key: "date", label: "Move date" },
-               { key: "customer", label: "Customer" }, { key: "raw", label: "Raw bill", align: "r" },
+               { key: "customer", label: "Customer" },
+               { key: "prior", label: "Balance carried in", align: "r" },
+               { key: "raw", label: "Raw bill", align: "r" },
                { key: "counted", label: "Counted as revenue", align: "r" }],
-        compute: x => x.closingJobs
-          .filter(r => r["Split Rebill"] === "Yes" || r["Dup Bill Suspect"] === "Yes")
-          .sort((a, b) => (a["Dup Bill Suspect"] === "Yes" ? 0 : 1) - (b["Dup Bill Suspect"] === "Yes" ? 0 : 1)
-                        || String(a._d || "").localeCompare(String(b._d || "")))
-          .map(r => ({
-            status: r["Dup Bill Suspect"] === "Yes" ? "NEEDS FIX — duplicate bill" : "Excluded — re-billed balance",
-            job: r["Job No"] || "—", req: r["Request #"] || "—", date: r._d || "—",
-            customer: r["Customer"] || "—",
-            raw: RS.money(RS.num(r["Total Bill Raw"])),
-            counted: x.blank(r["Total Bill"]) ? "$0 (excluded)" : RS.money(RS.num(r["Total Bill"])) })) },
+        compute: x => {
+          // worst first: a duplicate bill is a live error, REVIEW is a question,
+          // Excluded is already handled and only here so the fix stays auditable
+          const rank = r => r["Dup Bill Suspect"] === "Yes" ? 0
+                          : r["Rebill Review"] === "Yes" ? 1 : 2;
+          return x.closingJobs
+            .filter(r => r["Split Rebill"] === "Yes" || r["Dup Bill Suspect"] === "Yes"
+                      || r["Rebill Review"] === "Yes")
+            .sort((a, b) => rank(a) - rank(b)
+                          || String(a._d || "").localeCompare(String(b._d || "")))
+            .map(r => ({
+              status: r["Dup Bill Suspect"] === "Yes" ? "NEEDS FIX — duplicate bill"
+                    : r["Rebill Review"] === "Yes" ? "REVIEW — balance carried in"
+                    : "Excluded — re-billed balance",
+              job: r["Job No"] || "—", req: r["Request #"] || "—", date: r._d || "—",
+              customer: r["Customer"] || "—",
+              prior: x.blank(r["Prior Balance Due"]) ? "—"
+                   : RS.money(RS.num(r["Prior Balance Due"])),
+              raw: RS.money(RS.num(r["Total Bill Raw"])),
+              counted: x.blank(r["Total Bill"]) ? "$0 (excluded)" : RS.money(RS.num(r["Total Bill"])) }));
+        } },
 
     ];
 

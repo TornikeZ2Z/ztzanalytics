@@ -44,7 +44,10 @@ window.RS = (function () {
         // Split-closing guard (2026-08-27): a `Split Rebill` row's Total Bill is NULL in the
         // fact (the sheet's value lives in `Total Bill Raw`); `Dup Bill Suspect` marks both
         // rows of an identical-bill pair for the Data Quality worklist.
-        "Split Rebill", "Total Bill Raw", "Dup Bill Suspect"],
+        // `Rebill Review` + `Prior Balance Due` (2026-08-30) are the residual bucket the
+        // CFO rules on: a carried balance on an earlier leg, a different bill on this one.
+        "Split Rebill", "Total Bill Raw", "Dup Bill Suspect",
+        "Rebill Review", "Prior Balance Due"],
       dateCols: { "Date": "Date" }, defaultDate: "Date",
     },
     moveboard: {
