@@ -699,10 +699,9 @@ registerPage({
                ${money0(adjCut - adjOur)} by comparison, which is where the real difference sits.`)}
             ${chk(false, "",
               `The last two rows are the same jobs on an employee's terms: the claim comes off the
-               bill first (${money0(billed - netBill)} across these jobs), then our own rate —
-               <b>9%</b>, which four sellers are on, or <b>5%</b>, which the rest of the team is on.
-               He was paid ${money0(hisCut)}; the sales-person equivalents are ${money0(sp9)} and
-               ${money0(sp5)}.`)}
+               bill first (${money0(billed - netBill)} across these jobs), then our own rate — 9%,
+               which four sellers are on, or 5%, which the rest of the team is on. He was paid
+               ${money0(hisCut)}; the sales-person equivalents are ${money0(sp9)} and ${money0(sp5)}.`)}
             ${chk(false, "",
               `One thing the comparison does not hold equal, and it is worth saying before he does:
                our sales people are handed leads the company pays for. He brings the work as well as
