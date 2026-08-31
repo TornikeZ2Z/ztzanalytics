@@ -92,6 +92,38 @@ registerPage({
         ".rs-table tfoot td{font-weight:800;border-top:2px solid var(--line-2);"
           + "color:var(--ink)}",
         ".rs-table tfoot .cla-of{font-weight:400}",
+        // the proposal preview: slides at the shape they print at, scaled down on screen
+        ".cla-deck{display:flex;flex-direction:column;gap:14px;background:var(--line-2);"
+          + "padding:14px;border-radius:10px;max-height:560px;overflow:auto}",
+        ".cla-slide{background:#fff;color:#1B1A17;padding:26px 30px;border-radius:6px;"
+          + "font-family:Georgia,'Times New Roman',serif;box-shadow:0 1px 3px rgba(0,0,0,.18)}",
+        ".cla-slide h2{font-family:inherit;font-size:21px;margin:0 0 10px;color:#1B1A17;"
+          + "letter-spacing:-.01em}",
+        ".cla-slide .eyebrow{font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;"
+          + "color:#A9691B;font-weight:700;margin:0 0 8px}",
+        ".cla-slide p{font-size:13px;line-height:1.55;color:#3A3833;margin:0 0 9px;max-width:66ch}",
+        ".cla-slide table{width:100%;border-collapse:collapse;font-size:12.5px;margin-top:8px}",
+        ".cla-slide th{text-align:left;font-size:9.5px;letter-spacing:.07em;text-transform:uppercase;"
+          + "color:#78756B;padding:7px 10px;border-bottom:1px solid #DCDAD1;font-family:inherit}",
+        ".cla-slide td{padding:7px 10px;border-bottom:1px solid #EDEBE4;color:#1B1A17}",
+        ".cla-slide td.r,.cla-slide th.r{text-align:right;font-variant-numeric:tabular-nums}",
+        ".cla-slide tr.hi td{background:#F6EADA}",
+        ".cla-figs{display:flex;gap:0;border-block:1px solid #DCDAD1;margin:12px 0 4px}",
+        ".cla-fig{flex:1;padding:12px 10px 12px 0}",
+        ".cla-fig b{display:block;font-size:22px;color:#A9691B;font-family:Georgia,serif;"
+          + "font-variant-numeric:tabular-nums}",
+        ".cla-fig i{font-style:normal;font-size:10.5px;color:#78756B;display:block;margin-top:3px}",
+        ".cla-split{display:grid;grid-template-columns:96px 1fr;gap:12px;padding:9px 0;"
+          + "border-top:1px solid #EDEBE4;font-size:12.5px}",
+        ".cla-split:first-of-type{border-top:0}",
+        ".cla-splitb{display:flex;height:18px;border:1px solid #C9C6BA;overflow:hidden;margin-bottom:5px}",
+        ".cla-splitb i{font-style:normal;font-size:9px;color:#fff;display:grid;place-items:center;"
+          + "font-family:Arial,sans-serif}",
+        ".cla-bar{display:flex;align-items:center;gap:9px;margin:5px 0;font-size:11.5px}",
+        ".cla-bar span.t{width:150px;color:#3A3833}",
+        ".cla-bar span.b{height:15px;background:#A9691B}",
+        ".cla-bar span.b.now{background:#33566E}",
+        ".cla-bar span.v{color:#3A3833;font-variant-numeric:tabular-nums;white-space:nowrap}",
       ].join("");
       document.head.appendChild(st);
     }
@@ -155,6 +187,201 @@ registerPage({
                 r["Move Type"] || r["Moving Type"], String(r["Date"] || "").slice(0, 10)]
           .some(v => String(v || "").toLowerCase().includes(q));
       });
+    }
+
+    /* THE PROPOSAL FOR CL — built from the mart, so it can never drift from the page above it.
+       Always the FULL set of his jobs, never the filtered view: a deck showing "his jobs with
+       foreman X" would be read as his whole account and would be wrong.
+
+       It prints as a SEPARATE DOCUMENT rather than @media print over the portal, for the reason
+       hr-questionnaire.js gives: hiding a sidebar and hoping nothing else leaks onto the paper
+       is not a document. What prints is exactly what is written here. */
+    function deckData() {
+      const rowsE = baseJobs.map(E).filter(Boolean);
+      const S2 = (f) => rowsE.reduce((a, e) => a + (num(f(e)) || 0), 0);
+      const n = rowsE.length;
+      const bill = S2(e => e["Total Bill"]);
+      const paid = S2(e => e["His Cut"]);
+      const ours = S2(e => e["Our Price"]);
+      const refund = S2(e => e["Refund $"]);
+      const U = 1.20;
+      const mk = (label, newBill, pay, note) => ({
+        label, bill: newBill, pay, note,
+        ticket: n ? newBill / n : 0,
+        per: n ? pay / n : 0,
+        breakeven: pay > 0 ? paid / (pay / n) : null,
+      });
+      return {
+        n, bill, paid, ours, refund,
+        ticket: n ? bill / n : 0, per: n ? paid / n : 0,
+        months: [...new Set(baseJobs.map(r => String(r["Date"] || "").slice(0, 7)).filter(Boolean))].length,
+        plans: [
+          mk("A · no uplift, 20% of the bill", bill / U, 0.20 * (bill / U),
+             "The 20% increase comes off. You quote our calculator price exactly as it comes — the sharpest price you can put in front of a customer — and earn 20% of it."),
+          mk("B · 10% uplift, 25% of the bill", bill / U * 1.10, 0.25 * (bill / U * 1.10),
+             "Half the increase stays in the price — still cheaper than today — and your share of the bill rises from 20% to 25%."),
+          mk("C · keep the 20%, 25% of our price", bill, 0.25 * ours,
+             "Nothing changes for your customers: you quote exactly what you quote today. Your 25% is measured against our calculator price, under the three rules above."),
+        ],
+      };
+    }
+
+    function deckHtml(D) {
+      const m0 = v => money0(v);
+      const pj = D.plans;
+      const A = pj[0];
+      const maxPay = Math.max(D.paid, ...pj.map(p => p.pay), A.per * (D.n * 1.8));
+      const bar = (label, val, isNow, tail) => `<div class="cla-bar">
+        <span class="t">${esc(label)}</span>
+        <span class="b${isNow ? " now" : ""}" style="width:${Math.max(2, val / maxPay * 300)}px"></span>
+        <span class="v">${m0(val)}${tail ? " — " + esc(tail) : ""}</span></div>`;
+      const growth = [0.20, 0.40, 0.56, 0.80];
+
+      return `
+      <section class="cla-slide">
+        <p class="eyebrow">Zip to Zip · partnership review</p>
+        <h2>The CL Agreement</h2>
+        <p>Eight months of work together, what each job earned you, and three ways to structure
+          the next eight — priced against the jobs we have already done.</p>
+        <div class="cla-figs">
+          <div class="cla-fig"><b>${fmtN(D.n)}</b><i>jobs in ${D.months} months — about
+            ${fmtN(Math.round(D.n / Math.max(1, D.months)))} a month</i></div>
+          <div class="cla-fig"><b>${m0(D.ticket)}</b><i>average ticket</i></div>
+          <div class="cla-fig"><b>${m0(D.per)}</b><i>your earnings per job</i></div>
+          <div class="cla-fig"><b>${m0(D.paid)}</b><i>your earnings over the period</i></div>
+        </div>
+      </section>
+
+      <section class="cla-slide">
+        <p class="eyebrow">Where the price comes from</p>
+        <h2>Every quote is our calculator price, plus 20%</h2>
+        <p>The prices on these jobs are the ones our Sales Price Calculator recommends — the same
+          engine our own sales team quotes from. On your jobs each quote then carries a
+          <b>20% increase</b> on top of that number.</p>
+        <p>Across these ${fmtN(D.n)} jobs the calculator price was <b>${m0(D.ours)}</b> and the
+          customers were billed <b>${m0(D.bill)}</b>. That difference is the lever in everything
+          below: it can stay in the price, come out of the price, or change what your percentage
+          is measured against.</p>
+      </section>
+
+      <section class="cla-slide">
+        <p class="eyebrow">Before percentages</p>
+        <h2>Three parts of a bill nobody earns commission on</h2>
+        <p>Whatever percentage we agree, it does not apply to the whole bill — parts of a bill are
+          not the sales side's to earn on. This is how it works for every Zip to Zip sales person.</p>
+        <div class="cla-split"><div><b>Stairs fee</b></div><div>
+          <div class="cla-splitb"><i style="width:100%;background:#A9691B">100% to the crew</i></div>
+          The company keeps <b>nothing</b>. Every dollar goes to the foreman and helpers who carried
+          the furniture up the stairs, so there is no share to commission.</div></div>
+        <div class="cla-split"><div><b>Bulky items</b></div><div>
+          <div class="cla-splitb"><i style="width:50%;background:#A9691B">50% crew</i><i style="width:50%;background:#33566E">50% company</i></div>
+          Split down the middle. The crew takes half for handling the piano or the safe; commission
+          is paid out of <b>the company half only</b>.</div></div>
+        <div class="cla-split"><div><b>Storage</b></div><div>
+          <div class="cla-splitb"><i style="width:20%;background:#33566E">month 1</i><i style="width:80%;background:#EBEAE4;color:#78756B">months 2, 3, 4, 5 …</i></div>
+          Commission is earned on the <b>first month only</b>. Storage at $1,000 a month for five
+          months pays commission on $1,000, not $5,000 — the rest pays for the warehouse.</div></div>
+      </section>
+
+      <section class="cla-slide">
+        <p class="eyebrow">The three plans</p>
+        <h2>Same ${fmtN(D.n)} jobs, three structures</h2>
+        <p>These are not projections. Each plan is applied to the months already completed, so you
+          can see exactly what the same work would have paid you.</p>
+        <table>
+          <thead><tr><th>Plan</th><th class="r">Average ticket</th><th class="r">You keep per job</th>
+            <th class="r">Over ${fmtN(D.n)} jobs</th><th class="r">Jobs to match today</th></tr></thead>
+          <tbody>
+            <tr class="hi"><td><b>Today</b></td><td class="r">${m0(D.ticket)}</td>
+              <td class="r">${m0(D.per)}</td><td class="r">${m0(D.paid)}</td><td class="r">${fmtN(D.n)}</td></tr>
+            ${pj.map(p => `<tr><td><b>${esc(p.label)}</b></td>
+              <td class="r">${m0(p.ticket)}</td><td class="r">${m0(p.per)}</td>
+              <td class="r">${m0(p.pay)}</td>
+              <td class="r">${p.breakeven ? fmtN(Math.round(p.breakeven)) : "—"}</td></tr>`).join("")}
+          </tbody></table>
+        ${pj.map(p => `<p style="margin-top:10px"><b>${esc(p.label)}.</b> ${esc(p.note)}</p>`).join("")}
+      </section>
+
+      <section class="cla-slide">
+        <p class="eyebrow">Plan A, properly</p>
+        <h2>A cheaper price should bring more jobs — here is how many it needs</h2>
+        <p>Plan A drops your average ticket by
+          <b>${((1 - A.ticket / D.ticket) * 100).toFixed(0)}%</b>, from ${m0(D.ticket)} to
+          ${m0(A.ticket)}. That is a real advantage in a quote and it should win work a higher
+          price loses. The question is how much more.</p>
+        <p>At ${m0(A.per)} a job you match today's ${m0(D.paid)} at
+          <b>${fmtN(Math.round(A.breakeven))} jobs</b> —
+          ${fmtN(Math.round(A.breakeven - D.n))} more than the ${fmtN(D.n)} you brought, about
+          <b>${(Math.round(A.breakeven - D.n) / Math.max(1, D.months)).toFixed(0)} extra jobs a
+          month</b>. Everything past that is ahead of where you are today.</p>
+        ${bar("Today · " + fmtN(D.n) + " jobs", D.paid, true, "")}
+        ${bar("Plan A · no growth", A.pay, false, "")}
+        ${growth.map(g => bar("Plan A · +" + Math.round(g * 100) + "% → "
+            + fmtN(Math.round(D.n * (1 + g))) + " jobs", A.per * D.n * (1 + g), false,
+            Math.abs(g - 0.56) < .01 ? "level with today" : "")).join("")}
+        <p style="margin-top:10px">The same arithmetic is kinder to the other two, because their
+          tickets fall less. <b>Plan B needs ${fmtN(Math.round(pj[1].breakeven))} jobs</b> to match
+          today; <b>Plan C needs ${fmtN(Math.round(pj[2].breakeven))}</b>, with no price change at
+          all to help win them.</p>
+      </section>
+
+      <section class="cla-slide">
+        <p class="eyebrow">What happens either way</p>
+        <h2>Three things we will do on our side</h2>
+        <p><b>The calculation stops being a monthly conversation.</b> Your commission is computed
+          the same way every month, from the same fields, and you can see it per job.</p>
+        <p><b>You get the same job-level view we have</b> — the bill, what came off it and why, and
+          your share, on every job, so nothing needs reconciling afterwards.</p>
+        <p><b>Refunds and claims stay visible.</b> Across these months there was
+          ${D.refund > 0 ? m0(D.refund) + " refunded on one job" : "no refund"}, and it should stay
+          named rather than disappear into an average.</p>
+        <p style="color:#78756B;font-size:11.5px;margin-top:14px">All figures come from closed jobs
+          in our reporting system, ${fmtN(D.n)} jobs sourced through CL. "Our price" is the Sales
+          Price Calculator amount after the stairs, bulky and storage rules and before the 20%
+          uplift. Per-job figures are period totals divided by ${fmtN(D.n)}; volume scenarios hold
+          the per-job amount constant and vary the number of jobs.</p>
+      </section>`;
+    }
+
+    function deckPrint() {
+      const win = window.open("", "_blank");
+      if (!win) { alert("Allow pop-ups for this site to save the presentation as a PDF."); return; }
+      const css = `
+        @page{size:A4;margin:14mm}
+        *{-webkit-print-color-adjust:exact;print-color-adjust:exact;box-sizing:border-box}
+        body{margin:0;background:#fff;color:#1B1A17;font-family:Georgia,'Times New Roman',serif}
+        section{padding:0 0 26px;break-inside:avoid;break-after:page}
+        section:last-child{break-after:auto}
+        h2{font-size:26px;margin:0 0 12px;letter-spacing:-.02em}
+        .eyebrow{font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:#A9691B;
+          font-weight:700;margin:0 0 10px;font-family:Arial,sans-serif}
+        p{font-size:13.5px;line-height:1.6;color:#3A3833;margin:0 0 11px;max-width:70ch}
+        table{width:100%;border-collapse:collapse;font-size:13px;margin-top:10px}
+        th{text-align:left;font-size:10px;letter-spacing:.07em;text-transform:uppercase;color:#78756B;
+          padding:9px 11px;border-bottom:1px solid #DCDAD1;font-family:Arial,sans-serif}
+        td{padding:9px 11px;border-bottom:1px solid #EDEBE4}
+        td.r,th.r{text-align:right;font-variant-numeric:tabular-nums}
+        tr.hi td{background:#F6EADA}
+        .cla-figs{display:flex;border-top:1px solid #DCDAD1;border-bottom:1px solid #DCDAD1;margin:16px 0}
+        .cla-fig{flex:1;padding:16px 12px 16px 0}
+        .cla-fig b{display:block;font-size:30px;color:#A9691B;font-variant-numeric:tabular-nums}
+        .cla-fig i{font-style:normal;font-size:11px;color:#78756B;display:block;margin-top:5px}
+        .cla-split{display:grid;grid-template-columns:110px 1fr;gap:14px;padding:11px 0;
+          border-top:1px solid #EDEBE4;font-size:13px}
+        .cla-splitb{display:flex;height:20px;border:1px solid #C9C6BA;overflow:hidden;margin-bottom:6px}
+        .cla-splitb i{font-style:normal;font-size:9.5px;color:#fff;display:grid;place-items:center;
+          font-family:Arial,sans-serif}
+        .cla-bar{display:flex;align-items:center;gap:10px;margin:6px 0;font-size:12px}
+        .cla-bar span.t{width:170px;color:#3A3833}
+        .cla-bar span.b{height:16px;background:#A9691B}
+        .cla-bar span.b.now{background:#33566E}
+        .cla-bar span.v{color:#3A3833;font-variant-numeric:tabular-nums;white-space:nowrap}`;
+      win.document.write('<!doctype html><html><head><meta charset="utf-8">'
+        + "<title>The CL Agreement</title><style>" + css + "</style></head><body>"
+        + deckHtml(deckData()) + "</body></html>");
+      win.document.close();
+      win.focus();
+      setTimeout(() => win.print(), 350);
     }
 
     function paint() {
@@ -468,6 +695,18 @@ registerPage({
             pipeline run, and this panel fills itself in then.</p>
         </div>`}
 
+        ${econReady ? `
+        <div class="panel">
+          <div class="panel-head"><div class="panel-title">The proposal for CL</div>
+            <div class="rs-spacer"></div>
+            <button class="rs-btn primary" id="clDeckPdf">Download PDF</button></div>
+          <p class="rs-hint">What he sees: his jobs, his ticket, what he keeps per job, and the
+            volume each plan needs to match today — <b>nothing about our margin</b>. Always his
+            full ${fmtN(baseJobs.length)} jobs, never the filter above. The button opens a
+            print-ready document; choose <b>Save as PDF</b> as the destination.</p>
+          <div class="cla-deck">${deckHtml(deckData())}</div>
+        </div>` : ""}
+
         <div class="panel">
           <div class="panel-head"><div class="panel-title">By month</div></div>
           <p class="rs-hint">How much work he brings us, and what it costs. <b>Share of our
@@ -521,6 +760,9 @@ registerPage({
              ${fmtN(baseJobs.length)}.</div>`}`;
 
       // ---- wire the local bar (debounced, focus preserved across the repaint)
+      const pdfBtn = host.querySelector("#clDeckPdf");
+      if (pdfBtn) pdfBtn.onclick = deckPrint;
+
       const qEl = host.querySelector("#claQ");
       qEl.oninput = () => {
         clearTimeout(qTimer);
