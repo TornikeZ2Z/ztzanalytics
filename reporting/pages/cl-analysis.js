@@ -23,6 +23,25 @@
  * slicers stay deliberately fixed (this page IS one source and one salesperson); Foreman
  * lives here instead so the control sits next to the tables it drives.
  */
+// The economics mart: the fee rules, the uplift, refunds and claims, computed once in
+// the warehouse (src/curated.py::mart_cl_analysis) so the page never re-derives money.
+// PAYLOAD CONTRACT: a column missing from this list never arrives, however well the
+// page is written.
+if (window.RS && RS.DATASETS && !RS.DATASETS.mart_cl_analysis) {
+  RS.DATASETS.mart_cl_analysis = {
+    table: "mart_cl_analysis",
+    cols: ["Unique Key", "Date", "Job No", "Request #", "Customer", "Foreman",
+           "Total Bill", "His Cut", "Profit per Job",
+           "Stairs Fee", "Bulky Fee", "Storage Monthly", "Storage Past Month 1",
+           "Commissionable Bill", "Our Price", "Standard Pay",
+           "Over Cap", "Over Cap $",
+           "Refund $", "Refund Reason", "Claims", "Claim Status", "Claim Reason",
+           "Extra Spend", "Other Expenses", "Company Tip", "Discount Given",
+           "Has Contract"],
+    dateCols: { "Date": "Date" }, defaultDate: "Date",
+  };
+}
+
 registerPage({
   id: "cl-analysis",
   group: "financial",
@@ -81,6 +100,18 @@ registerPage({
 
     const all = await RS.load("closing");
     const rows = RS.filtered("closing", all).filter(r => r["Record Source"] === "closing");
+
+    // The economics mart, keyed by Unique Key so every job on this page can look up its
+    // own fee rules, refund and claim. If the mart has not been built yet the page still
+    // renders -- the new panels simply say so rather than showing wrong money.
+    let econ = {};
+    let econReady = false;
+    try {
+      const em = await RS.load("mart_cl_analysis");
+      (em || []).forEach(r => { if (r["Unique Key"]) econ[r["Unique Key"]] = r; });
+      econReady = Object.keys(econ).length > 0;
+    } catch (e) { econReady = false; }
+    const E = r => econ[r["Unique Key"]] || null;
 
     const isCL = r => String(r["Source"] || "").trim().toUpperCase() === "CL";
     const isPeter = r => /peter/i.test(String(r["Sales Person"] || ""));
@@ -141,6 +172,19 @@ registerPage({
       const profit = sum(r => num(r["Profit per Job"]));
       const overPaid = sum(overBy);
       const avgProfit = jobs.length ? profit / jobs.length : null;
+      // WHAT ELSE THESE JOBS COST US, and what he would earn on our own rules.
+      // Every number here comes from the mart, never re-derived in the page.
+      const eSum = f => jobs.reduce((a, r) => { const e = E(r); return a + (e ? (num(f(e)) || 0) : 0); }, 0);
+      const refunds = eSum(e => e["Refund $"]);
+      const claimsN = eSum(e => e["Claims"]);
+      const extraSpend = eSum(e => e["Extra Spend"]);
+      const stdPay = eSum(e => e["Standard Pay"]);
+      const ourPrice = eSum(e => e["Our Price"]);
+      const stdPct = billed ? stdPay / billed : null;
+      const overJobs = jobs.filter(r => (cutPct(r) || 0) > CAP);
+      const oBill = overJobs.reduce((a, r) => a + (num(r["Total Bill"]) || 0), 0);
+      const oCut = overJobs.reduce((a, r) => a + cut(r), 0);
+      const oStd = overJobs.reduce((a, r) => { const e = E(r); return a + (e ? num(e["Standard Pay"]) || 0 : 0); }, 0);
       const tForeman = sum(r => num(r["Forman Total $"]));
       const tMaterial = sum(r => num(r["Material $"]));
       const tExpense = sum(r => num(r["Total Expense"]));
@@ -289,7 +333,7 @@ registerPage({
         </div>
 
         ${jobs.length ? `
-        <div class="rs-kpis" style="--kpi-cols:6">
+        <div class="rs-kpis" style="--kpi-cols:8">
           ${kpi("Jobs " + (S.fm ? "with " + esc(S.fm) : "he brought"), fmtN(jobs.length),
                 months.length + (months.length === 1 ? " month" : " months"))}
           ${kpi("Revenue", money0(revenue), "billed on these jobs")}
@@ -301,6 +345,14 @@ registerPage({
                 overCap.length ? "neg" : "pos")}
           ${kpi("Profit to us", money0(profit),
                 "already net of his cut · " + money0(avgProfit) + " a job", "pos")}
+          ${kpi("Spent on top", econReady ? money0(extraSpend + refunds) : "—",
+                econReady
+                  ? money0(extraSpend) + " extras" + (refunds ? " · " + money0(refunds) + " refunded" : "")
+                  : "mart not built yet",
+                (extraSpend + refunds) > 0 ? "warn" : "")}
+          ${kpi("Paid our way", econReady ? pctS(stdPct) : "—",
+                econReady ? money0(stdPay) + " instead of " + money0(hisCut) : "mart not built yet",
+                econReady && stdPay < hisCut ? "pos" : "")}
         </div>
 
         <div id="clTrend"></div>
@@ -320,6 +372,77 @@ registerPage({
                 `${fmtN(peterOnly.length)} Peter job(s) from another source — included here, but not partner-sourced`)}
           </div>
         </div>
+
+        ${econReady ? `
+        <div class="panel">
+          <div class="panel-head"><div class="panel-title">If he were paid the way our sales people are paid</div>
+            <div class="rs-spacer"></div>
+            <span class="rs-pill ${oStd < oCut ? "warn" : ""}">${pctS(oBill ? oStd / oBill : null)} on the
+              ${fmtN(overJobs.length)} over-cap job${overJobs.length === 1 ? "" : "s"}</span></div>
+          <p class="rs-hint">Our own sales people do not earn on the whole bill. Three parts come
+            out first — <b>the stairs fee</b> (all of it goes to the crew, we keep nothing),
+            <b>half the bulky fee</b> (the crew takes the other half), and <b>storage past the
+            first month</b> (the sales person earns on month one only). And they earn on
+            <b>our Sales Price Calculator price</b>, while every CL quote is that price
+            <b>plus 20%</b>. What is left is the commissionable bill; 30% of it — his own cap —
+            is what the same job would have paid him.</p>
+          <div class="rs-tablewrap"><table class="rs-table">
+            <thead><tr><th>Jobs</th><th class="num">Bill</th><th class="num">His cut</th>
+              <th class="num">Cut %</th><th class="num">Our price</th>
+              <th class="num">Paid our way</th><th class="num">% of bill</th>
+              <th class="num">Difference</th></tr></thead>
+            <tbody>
+              <tr><td class="strong">All ${fmtN(jobs.length)}</td>
+                <td class="num">${money0(billed)}</td>
+                <td class="num">${money0(hisCut)}</td>
+                <td class="num ${billed && hisCut / billed > CAP ? "cla-over" : ""}">${pctS(billed ? hisCut / billed : null)}</td>
+                <td class="num muted">${money0(ourPrice)}</td>
+                <td class="num">${money0(stdPay)}</td>
+                <td class="num strong">${pctS(stdPct)}</td>
+                <td class="num ${stdPay < hisCut ? "cla-over" : ""}">${money0(stdPay - hisCut)}</td></tr>
+              <tr><td class="strong">The ${fmtN(overJobs.length)} over the cap</td>
+                <td class="num">${money0(oBill)}</td>
+                <td class="num">${money0(oCut)}</td>
+                <td class="num cla-over">${pctS(oBill ? oCut / oBill : null)}</td>
+                <td class="num muted">${money0(overJobs.reduce((a, r) => { const e = E(r); return a + (e ? num(e["Our Price"]) || 0 : 0); }, 0))}</td>
+                <td class="num">${money0(oStd)}</td>
+                <td class="num strong">${pctS(oBill ? oStd / oBill : null)}</td>
+                <td class="num cla-over">${money0(oStd - oCut)}</td></tr>
+            </tbody></table></div>
+          <p class="rs-hint" style="margin-top:10px">On the jobs where he went past 30%, the same
+            work on our own rules pays <b>${pctS(oBill ? oStd / oBill : null)}</b> of the bill —
+            he was paid <b>${pctS(oBill ? oCut / oBill : null)}</b>.</p>
+        </div>
+
+        ${(refunds > 0 || claimsN > 0 || extraSpend > 0) ? `
+        <div class="panel">
+          <div class="panel-head"><div class="panel-title">What these jobs cost us beyond the crew</div></div>
+          <p class="rs-hint">Money that leaves after the job is closed, and is not in the crew or
+            materials lines.</p>
+          <div class="rs-tablewrap"><table class="rs-table">
+            <thead><tr><th>What</th><th class="num">Amount</th><th>Where it shows</th></tr></thead>
+            <tbody>
+              <tr><td class="strong">Refunds</td><td class="num">${money0(refunds)}</td>
+                <td class="muted">${refunds > 0
+                  ? esc(jobs.map(r => E(r)).filter(e => e && num(e["Refund $"]) > 0)
+                        .map(e => e["Customer"] + " — " + (e["Refund Reason"] || "no reason recorded")).join(" · "))
+                  : "none on these jobs"}</td></tr>
+              <tr><td class="strong">Claims</td><td class="num">${fmtN(claimsN)}</td>
+                <td class="muted">${claimsN > 0
+                  ? esc(jobs.map(r => E(r)).filter(e => e && num(e["Claims"]) > 0)
+                        .map(e => e["Customer"] + " — " + (e["Claim Reason"] || "—") + " (" + (e["Claim Status"] || "open") + ")").join(" · "))
+                  : "none on these jobs"}</td></tr>
+              <tr><td class="strong">Extra spend</td><td class="num">${money0(extraSpend)}</td>
+                <td class="muted">other expenses, company tips and discounts given</td></tr>
+              <tr><td class="strong">Total on top</td><td class="num strong">${money0(refunds + extraSpend)}</td>
+                <td class="muted">${pctS(billed ? (refunds + extraSpend) / billed : null)} of the bill on these jobs</td></tr>
+            </tbody></table></div>
+        </div>` : ""}` : `
+        <div class="panel">
+          <div class="panel-head"><div class="panel-title">If he were paid the way our sales people are paid</div></div>
+          <p class="rs-hint">The economics mart has not been built yet — it lands on the next
+            pipeline run, and this panel fills itself in then.</p>
+        </div>`}
 
         <div class="panel">
           <div class="panel-head"><div class="panel-title">By month</div></div>
