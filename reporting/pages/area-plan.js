@@ -199,9 +199,14 @@ registerPage({
         const natQ = Object.values(P.S).reduce((a, s) => a + s.qualified, 0);
         const natB = Object.values(P.S).reduce((a, s) => a + s.booked, 0);
         P.natConv = natQ ? natB / natQ : 0.2;
-        const curForemen = BASES.reduce((a, b) => a + num(inputs.bases[b.st].cur), 0);
-        P.measuredUtil = (curForemen && P.yms.length)
-          ? P.M.jobs / (curForemen * DAYS_PER_MONTH * P.yms.length) : 0.34;
+        /* MEASURED means measured: the jobs done in the period were done by his REAL
+           foreman table, so the denominator is the BASES constants — never the edited
+           cells. Loading the 28-crew aim must not quietly re-measure history against a
+           fleet that did not do the work (caught live 2026-09-01: the note read 36.5%
+           the moment the aim seed dropped cur to 28). */
+        const realForemen = BASES.reduce((a, b) => a + b.cur, 0);
+        P.measuredUtil = (realForemen && P.yms.length)
+          ? P.M.jobs / (realForemen * DAYS_PER_MONTH * P.yms.length) : 0.34;
         // seeds follow the period unless the user has typed their own
         if (inputs.utilization == null)
           inputs.utilization = Math.round(P.measuredUtil * 1000) / 10;
