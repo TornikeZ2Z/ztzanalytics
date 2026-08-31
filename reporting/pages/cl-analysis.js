@@ -34,6 +34,7 @@ if (window.RS && RS.DATASETS && !RS.DATASETS.mart_cl_analysis) {
            "Total Bill", "His Cut", "Profit per Job",
            "Stairs Fee", "Bulky Fee", "Storage Monthly", "Storage Past Month 1",
            "Commissionable Bill", "Our Price", "Standard Pay",
+           "Adjusted Cut", "Adjusted Cut Our Price", "Cut On Fees",
            "Over Cap", "Over Cap $",
            "Refund $", "Refund Reason", "Claims", "Claim Status", "Claim Reason",
            "Extra Spend", "Other Expenses", "Company Tip", "Discount Given",
@@ -181,10 +182,18 @@ registerPage({
       const stdPay = eSum(e => e["Standard Pay"]);
       const ourPrice = eSum(e => e["Our Price"]);
       const stdPct = billed ? stdPay / billed : null;
+      const adjCut = eSum(e => e["Adjusted Cut"]);            // his rate, fee parts removed
+      const adjOur = eSum(e => e["Adjusted Cut Our Price"]);  // ...and off our price
+      const cutOnFees = eSum(e => e["Cut On Fees"]);          // what he earned on those parts
+      const feeMoney = eSum(e => num(e["Stairs Fee"]) + num(e["Bulky Fee"]) * 0.5
+                                 + num(e["Storage Past Month 1"]));
+      const withContract = jobs.filter(r => { const e = E(r); return e && String(e["Has Contract"]) === "Yes"; }).length;
       const overJobs = jobs.filter(r => (cutPct(r) || 0) > CAP);
       const oBill = overJobs.reduce((a, r) => a + (num(r["Total Bill"]) || 0), 0);
       const oCut = overJobs.reduce((a, r) => a + cut(r), 0);
       const oStd = overJobs.reduce((a, r) => { const e = E(r); return a + (e ? num(e["Standard Pay"]) || 0 : 0); }, 0);
+      const oAdj = overJobs.reduce((a, r) => { const e = E(r); return a + (e ? num(e["Adjusted Cut"]) || 0 : 0); }, 0);
+      const oAdjOur = overJobs.reduce((a, r) => { const e = E(r); return a + (e ? num(e["Adjusted Cut Our Price"]) || 0 : 0); }, 0);
       const tForeman = sum(r => num(r["Forman Total $"]));
       const tMaterial = sum(r => num(r["Material $"]));
       const tExpense = sum(r => num(r["Total Expense"]));
@@ -350,9 +359,10 @@ registerPage({
                   ? money0(extraSpend) + " extras" + (refunds ? " · " + money0(refunds) + " refunded" : "")
                   : "mart not built yet",
                 (extraSpend + refunds) > 0 ? "warn" : "")}
-          ${kpi("Paid our way", econReady ? pctS(stdPct) : "—",
-                econReady ? money0(stdPay) + " instead of " + money0(hisCut) : "mart not built yet",
-                econReady && stdPay < hisCut ? "pos" : "")}
+          ${kpi("Without the fee parts", econReady ? pctS(billed ? adjCut / billed : null) : "—",
+                econReady ? money0(adjCut) + " instead of " + money0(hisCut)
+                          + " · " + money0(cutOnFees) + " earned on them" : "mart not built yet",
+                econReady && adjCut < hisCut ? "pos" : "")}
         </div>
 
         <div id="clTrend"></div>
@@ -375,43 +385,57 @@ registerPage({
 
         ${econReady ? `
         <div class="panel">
-          <div class="panel-head"><div class="panel-title">If he were paid the way our sales people are paid</div>
-            <div class="rs-spacer"></div>
-            <span class="rs-pill ${oStd < oCut ? "warn" : ""}">${pctS(oBill ? oStd / oBill : null)} on the
-              ${fmtN(overJobs.length)} over-cap job${overJobs.length === 1 ? "" : "s"}</span></div>
-          <p class="rs-hint">Our own sales people do not earn on the whole bill. Three parts come
-            out first — <b>the stairs fee</b> (all of it goes to the crew, we keep nothing),
-            <b>half the bulky fee</b> (the crew takes the other half), and <b>storage past the
-            first month</b> (the sales person earns on month one only). And they earn on
-            <b>our Sales Price Calculator price</b>, while every CL quote is that price
-            <b>plus 20%</b>. What is left is the commissionable bill; 30% of it — his own cap —
-            is what the same job would have paid him.</p>
+          <div class="panel-head"><div class="panel-title">What he would have earned without the parts our sales people never earn on</div></div>
+          <p class="rs-hint">His rate stays exactly what he was paid — only the <b>base it applies
+            to</b> shrinks. Three parts of a bill are not the sales person's to earn on:
+            <b>the stairs fee</b> (all of it goes to the crew, we keep nothing), <b>half the bulky
+            fee</b> (the crew takes the other half), and <b>storage past the first month</b>. The
+            last row goes one step further and prices him on <b>our Sales Price Calculator
+            number</b> rather than the quote, which carries a 20% increase on top.</p>
           <div class="rs-tablewrap"><table class="rs-table">
-            <thead><tr><th>Jobs</th><th class="num">Bill</th><th class="num">His cut</th>
-              <th class="num">Cut %</th><th class="num">Our price</th>
-              <th class="num">Paid our way</th><th class="num">% of bill</th>
-              <th class="num">Difference</th></tr></thead>
+            <thead><tr><th>What he earns on</th>
+              <th class="num">All ${fmtN(jobs.length)} jobs</th><th class="num">% of bill</th>
+              <th class="num">The ${fmtN(overJobs.length)} over the cap</th><th class="num">% of bill</th></tr></thead>
             <tbody>
-              <tr><td class="strong">All ${fmtN(jobs.length)}</td>
-                <td class="num">${money0(billed)}</td>
+              <tr><td class="strong">The whole bill — what he was paid</td>
                 <td class="num">${money0(hisCut)}</td>
                 <td class="num ${billed && hisCut / billed > CAP ? "cla-over" : ""}">${pctS(billed ? hisCut / billed : null)}</td>
-                <td class="num muted">${money0(ourPrice)}</td>
-                <td class="num">${money0(stdPay)}</td>
-                <td class="num strong">${pctS(stdPct)}</td>
-                <td class="num ${stdPay < hisCut ? "cla-over" : ""}">${money0(stdPay - hisCut)}</td></tr>
-              <tr><td class="strong">The ${fmtN(overJobs.length)} over the cap</td>
-                <td class="num">${money0(oBill)}</td>
                 <td class="num">${money0(oCut)}</td>
-                <td class="num cla-over">${pctS(oBill ? oCut / oBill : null)}</td>
-                <td class="num muted">${money0(overJobs.reduce((a, r) => { const e = E(r); return a + (e ? num(e["Our Price"]) || 0 : 0); }, 0))}</td>
-                <td class="num">${money0(oStd)}</td>
-                <td class="num strong">${pctS(oBill ? oStd / oBill : null)}</td>
-                <td class="num cla-over">${money0(oStd - oCut)}</td></tr>
-            </tbody></table></div>
-          <p class="rs-hint" style="margin-top:10px">On the jobs where he went past 30%, the same
-            work on our own rules pays <b>${pctS(oBill ? oStd / oBill : null)}</b> of the bill —
-            he was paid <b>${pctS(oBill ? oCut / oBill : null)}</b>.</p>
+                <td class="num cla-over">${pctS(oBill ? oCut / oBill : null)}</td></tr>
+              <tr><td class="strong">Minus stairs, half the bulky, storage after month 1</td>
+                <td class="num">${money0(adjCut)}</td>
+                <td class="num">${pctS(billed ? adjCut / billed : null)}</td>
+                <td class="num">${money0(oAdj)}</td>
+                <td class="num">${pctS(oBill ? oAdj / oBill : null)}</td></tr>
+              <tr><td class="strong">…and on our price, not the quote with +20%</td>
+                <td class="num">${money0(adjOur)}</td>
+                <td class="num strong">${pctS(billed ? adjOur / billed : null)}</td>
+                <td class="num">${money0(oAdjOur)}</td>
+                <td class="num strong">${pctS(oBill ? oAdjOur / oBill : null)}</td></tr>
+            </tbody>
+            <tfoot><tr><td>Difference from what he was paid</td>
+              <td class="num">${money0(adjOur - hisCut)}</td><td></td>
+              <td class="num">${money0(oAdjOur - oCut)}</td><td></td></tr></tfoot>
+          </table></div>
+
+          <div class="cla-checks" style="margin-top:14px">
+            ${chk(false,
+              "",
+              `The fee rules move the number by only ${money0(hisCut - adjCut)} across ${fmtN(jobs.length)} jobs.
+               There is ${money0(feeMoney)} of deductible fee on these jobs in total — the stairs fee appears
+               on a handful, and storage past month one on none at all. The 20% quote increase is worth
+               ${money0(adjCut - adjOur)} by comparison, which is where the real difference sits.`)}
+            ${chk(withContract === jobs.length,
+              `All ${fmtN(jobs.length)} jobs have a digital contract, so every fee line is known`,
+              `Only ${fmtN(withContract)} of ${fmtN(jobs.length)} jobs have a digital contract. On the other
+               ${fmtN(jobs.length - withContract)} we cannot see a stairs or bulky fee even if one was charged,
+               so the fee deduction above is a floor, not the full amount.`)}
+          </div>
+
+          <p class="rs-hint" style="margin-top:12px">For reference, a flat 30% of our price — the
+            cap he already has, applied the way a salesperson would be paid — comes to
+            <b>${money0(stdPay)}</b> (${pctS(stdPct)}) across all jobs and <b>${money0(oStd)}</b>
+            (${pctS(oBill ? oStd / oBill : null)}) on the ${fmtN(overJobs.length)} over the cap.</p>
         </div>
 
         ${(refunds > 0 || claimsN > 0 || extraSpend > 0) ? `
