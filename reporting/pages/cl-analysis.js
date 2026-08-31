@@ -36,6 +36,7 @@ if (window.RS && RS.DATASETS && !RS.DATASETS.mart_cl_analysis) {
            "Commissionable Bill", "Our Price", "Standard Pay",
            "Adjusted Cut", "Adjusted Cut Our Price", "Cut On Fees",
            "Bill After Claims", "As Sales Person 5", "As Sales Person 9",
+           "Refund His Share", "Refund By Profit",
            "Over Cap", "Over Cap $",
            "Refund $", "Refund Reason", "Claims", "Claim Status", "Claim Reason",
            "Extra Spend", "Other Expenses", "Company Tip", "Discount Given",
@@ -546,6 +547,8 @@ registerPage({
       const netBill = eSum(e => e["Bill After Claims"]);   // claims off the bill first
       const sp5 = eSum(e => e["As Sales Person 5"]);
       const sp9 = eSum(e => e["As Sales Person 9"]);
+      const refHis = eSum(e => e["Refund His Share"]);      // 30%, his agreed rate
+      const refProfit = eSum(e => e["Refund By Profit"]);   // the case-by-case split
       const overJobs = jobs.filter(r => (cutPct(r) || 0) > CAP);
       const oBill = overJobs.reduce((a, r) => a + (num(r["Total Bill"]) || 0), 0);
       const oCut = overJobs.reduce((a, r) => a + cut(r), 0);
@@ -716,11 +719,11 @@ registerPage({
                 overCap.length ? "neg" : "pos")}
           ${kpi("Profit to us", money0(profit),
                 "already net of his cut · " + money0(avgProfit) + " a job", "pos")}
-          ${kpi("Spent on top", econReady ? money0(extraSpend + refunds) : "—",
+          ${kpi("Refunded", econReady ? money0(refunds) : "—",
                 econReady
-                  ? money0(extraSpend) + " extras" + (refunds ? " · " + money0(refunds) + " refunded" : "")
+                  ? (refunds ? money0(refHis) + " of it his at 30%" : "none on these jobs")
                   : "mart not built yet",
-                (extraSpend + refunds) > 0 ? "warn" : "")}
+                refunds > 0 ? "warn" : "")}
           ${kpi("Without the fee parts", econReady ? pctS(billed ? adjCut / billed : null) : "—",
                 econReady ? money0(adjCut) + " instead of " + money0(hisCut)
                           + " · " + money0(cutOnFees) + " earned on them" : "mart not built yet",
@@ -755,42 +758,48 @@ registerPage({
             last row goes one step further and prices him on <b>our Sales Price Calculator
             number</b> rather than the quote, which carries a 20% increase on top.</p>
           <div class="rs-tablewrap"><table class="rs-table">
-            <thead><tr><th>What he earns on</th>
-              <th class="num">All ${fmtN(jobs.length)} jobs</th><th class="num">% of bill</th>
-              <th class="num">The ${fmtN(overJobs.length)} over the cap</th><th class="num">% of bill</th></tr></thead>
+            <thead><tr><th>The question</th><th>What changes</th>
+              <th class="num">Over all 109 jobs</th><th class="num">% of the bill</th>
+              <th class="num">vs what he was paid</th></tr></thead>
             <tbody>
-              <tr><td class="strong">The whole bill — what he was paid</td>
-                <td class="num">${money0(hisCut)}</td>
+              <tr><td class="strong">What he was actually paid</td>
+                <td class="muted">his cut, against the whole bill</td>
+                <td class="num strong">${money0(hisCut)}</td>
                 <td class="num ${billed && hisCut / billed > CAP ? "cla-over" : ""}">${pctS(billed ? hisCut / billed : null)}</td>
-                <td class="num">${money0(oCut)}</td>
-                <td class="num cla-over">${pctS(oBill ? oCut / oBill : null)}</td></tr>
-              <tr><td class="strong">Minus stairs, half the bulky, storage after month 1</td>
+                <td class="num muted">—</td></tr>
+
+              <tr><td colspan="5" class="muted" style="padding-top:14px">
+                <b>If he kept his own rate, but only earned on what a sales person may earn on</b></td></tr>
+              <tr><td>1 · Take out the parts nobody earns commission on</td>
+                <td class="muted">the stairs fee, half the bulky fee, storage after month 1</td>
                 <td class="num">${money0(adjCut)}</td>
                 <td class="num">${pctS(billed ? adjCut / billed : null)}</td>
-                <td class="num">${money0(oAdj)}</td>
-                <td class="num">${pctS(oBill ? oAdj / oBill : null)}</td></tr>
-              <tr><td class="strong">…and on our price, not the quote with +20%</td>
-                <td class="num">${money0(adjOur)}</td>
+                <td class="num">${money0(adjCut - hisCut)}</td></tr>
+              <tr><td>2 · …and price it on our number, not his quote</td>
+                <td class="muted">every CL quote is our price plus 20% — this removes that</td>
+                <td class="num strong">${money0(adjOur)}</td>
                 <td class="num strong">${pctS(billed ? adjOur / billed : null)}</td>
-                <td class="num">${money0(oAdjOur)}</td>
-                <td class="num strong">${pctS(oBill ? oAdjOur / oBill : null)}</td></tr>
-              <tr><td class="strong">On a sales person's deal — 9%, claims off the bill
-                  <span class="cla-of">the senior rate</span></td>
+                <td class="num strong">${money0(adjOur - hisCut)}</td></tr>
+
+              <tr><td colspan="5" class="muted" style="padding-top:14px">
+                <b>If he were on the payroll instead — our own sales rates</b></td></tr>
+              <tr><td>At 9% — our senior rate</td>
+                <td class="muted">the claim comes off the bill first, then 9%</td>
                 <td class="num">${money0(sp9)}</td>
-                <td class="num strong">${pctS(billed ? sp9 / billed : null)}</td>
-                <td class="num">${money0(oSp9)}</td>
-                <td class="num strong">${pctS(oBill ? oSp9 / oBill : null)}</td></tr>
-              <tr><td class="strong">On a sales person's deal — 5%
-                  <span class="cla-of">what most of the team is on</span></td>
+                <td class="num">${pctS(billed ? sp9 / billed : null)}</td>
+                <td class="num">${money0(sp9 - hisCut)}</td></tr>
+              <tr><td>At 5% — what most of the team is on</td>
+                <td class="muted">same basis, our common rate</td>
                 <td class="num">${money0(sp5)}</td>
-                <td class="num strong">${pctS(billed ? sp5 / billed : null)}</td>
-                <td class="num">${money0(oSp5)}</td>
-                <td class="num strong">${pctS(oBill ? oSp5 / oBill : null)}</td></tr>
-            </tbody>
-            <tfoot><tr><td>Difference from what he was paid</td>
-              <td class="num">${money0(adjOur - hisCut)}</td><td></td>
-              <td class="num">${money0(oAdjOur - oCut)}</td><td></td></tr></tfoot>
-          </table></div>
+                <td class="num">${pctS(billed ? sp5 / billed : null)}</td>
+                <td class="num">${money0(sp5 - hisCut)}</td></tr>
+            </tbody></table></div>
+
+          <p class="rs-hint" style="margin-top:12px">Same five questions, asked only of the
+            <b>${fmtN(overJobs.length)} jobs where he went past the 30% cap</b> (${money0(oBill)}
+            billed): paid <b>${money0(oCut)}</b> (${pctS(oBill ? oCut / oBill : null)}) ·
+            without the fee parts ${money0(oAdj)} · on our price ${money0(oAdjOur)}
+            (${pctS(oBill ? oAdjOur / oBill : null)}) · at 9% ${money0(oSp9)} · at 5% ${money0(oSp5)}.</p>
 
           <div class="cla-checks" style="margin-top:14px">
             ${chk(false,
@@ -822,34 +831,45 @@ registerPage({
             (${pctS(oBill ? oStd / oBill : null)}) on the ${fmtN(overJobs.length)} over the cap.</p>
         </div>
 
-        ${(refunds > 0 || claimsN > 0 || extraSpend > 0) ? `
+        ${(refunds > 0 || claimsN > 0) ? `
         <div class="panel">
-          <div class="panel-head"><div class="panel-title">What these jobs cost us beyond the crew</div></div>
-          <p class="rs-hint">Money that leaves after the job is closed, and is not in the crew or
-            materials lines.</p>
+          <div class="panel-head"><div class="panel-title">Refunds and claims on his jobs</div></div>
+          <p class="rs-hint">A refund is money that leaves after the job is closed. It is not part
+            of the bill, and it is not ours alone to carry.</p>
           <div class="rs-tablewrap"><table class="rs-table">
-            <thead><tr><th>What</th><th class="num">Amount</th><th>Where it shows</th></tr></thead>
+            <thead><tr><th>What</th><th class="num">Amount</th><th>Job</th></tr></thead>
             <tbody>
-              <tr><td class="strong">Refunds</td><td class="num">${money0(refunds)}</td>
+              <tr><td class="strong">Refunded to customers</td><td class="num">${money0(refunds)}</td>
                 <td class="muted">${refunds > 0
                   ? esc(jobs.map(r => E(r)).filter(e => e && num(e["Refund $"]) > 0)
                         .map(e => e["Customer"] + " — " + (e["Refund Reason"] || "no reason recorded")).join(" · "))
-                  : "none on these jobs"}</td></tr>
-              <tr><td class="strong">Claims</td><td class="num">${fmtN(claimsN)}</td>
+                  : "none"}</td></tr>
+              <tr><td class="strong">His share at his 30%</td>
+                <td class="num">${money0(refHis)}</td>
+                <td class="muted">the rate he is paid at, taken back the way a sales person's
+                  commission is</td></tr>
+              <tr><td class="strong">His share split by profit</td>
+                <td class="num">${money0(refProfit)}</td>
+                <td class="muted">the case-by-case rule below — ours to carry:
+                  ${money0(refunds - refProfit)}</td></tr>
+              <tr><td class="strong">Claims opened</td><td class="num">${fmtN(claimsN)}</td>
                 <td class="muted">${claimsN > 0
                   ? esc(jobs.map(r => E(r)).filter(e => e && num(e["Claims"]) > 0)
                         .map(e => e["Customer"] + " — " + (e["Claim Reason"] || "—") + " (" + (e["Claim Status"] || "open") + ")").join(" · "))
-                  : "none on these jobs"}</td></tr>
-              <tr><td class="strong">Extra spend</td><td class="num">${money0(extraSpend)}</td>
-                <td class="muted">other expenses, company tips and discounts given</td></tr>
-              <tr><td class="strong">Total on top</td><td class="num strong">${money0(refunds + extraSpend)}</td>
-                <td class="muted">${pctS(billed ? (refunds + extraSpend) / billed : null)} of the bill on these jobs</td></tr>
+                  : "none"}</td></tr>
             </tbody></table></div>
+          <div class="cla-checks" style="margin-top:12px">
+            ${chk(false, "",
+              `THE RULE, going forward: a refund of any kind is handled case by case. We work out
+               what each side actually made on that job and share the refund in the same proportion.
+               Example: if we made $1,000 on the job and CL made $500, a $3,000 refund is $2,000
+               from Zip to Zip and $1,000 from CL.`)}
+          </div>
         </div>` : ""}` : `
         <div class="panel">
-          <div class="panel-head"><div class="panel-title">If he were paid the way our sales people are paid</div></div>
+          <div class="panel-head"><div class="panel-title">What he would have earned on our own rules</div></div>
           <p class="rs-hint">The economics mart has not been built yet — it lands on the next
-            pipeline run, and this panel fills itself in then.</p>
+            pipeline run, and this fills itself in then.</p>
         </div>`}
 
         <div class="panel">
