@@ -215,8 +215,49 @@ registerPage({
       const netBill = S2(e => e["Bill After Claims"]);
       const sp5 = S2(e => e["As Sales Person 5"]);
       const sp9 = S2(e => e["As Sales Person 9"]);
+
+      // HOW HIS SHARE IS ACTUALLY DISTRIBUTED. This is the honest reason to rewrite the
+      // agreement: not that he earns too much on average, but that job to job the number
+      // is unpredictable — it has ranged from nothing to two thirds of the bill.
+      const shares = rowsE.filter(e => num(e["Total Bill"]) > 0)
+        .map(e => num(e["His Cut"]) / num(e["Total Bill"]));
+      const bandOf = p => p < 0.20 ? 0 : p < 0.25 ? 1 : p < 0.30 ? 2 : p < 0.35 ? 3 : 4;
+      const bands = [0, 0, 0, 0, 0];
+      shares.forEach(p => { bands[bandOf(p)]++; });
+      const sorted = shares.slice().sort((a, b) => a - b);
+      const median = sorted.length ? sorted[Math.floor(sorted.length / 2)] : 0;
+
+      // per-job: which plan pays MORE than he actually got, and on how many jobs
+      const payOf = (e, which) => {
+        const b = num(e["Total Bill"]) || 0;
+        if (which === "A") return 0.20 * (b / U);
+        if (which === "B") return 0.25 * (b / U * 1.10);
+        return 0.25 * (num(e["Our Price"]) || 0);
+      };
+      const split = which => {
+        let up = 0, down = 0, upAmt = 0;
+        rowsE.forEach(e => {
+          const d = payOf(e, which) - num(e["His Cut"]);
+          if (d > 0.5) { up++; upAmt += d; } else if (d < -0.5) { down++; }
+        });
+        return { up, down, upAmt };
+      };
+      // his ordinary work — the jobs that stayed inside the 30% he agreed to
+      const under = rowsE.filter(e => num(e["Total Bill"]) > 0
+        && num(e["His Cut"]) <= 0.30 * num(e["Total Bill"]));
+      const uBill = under.reduce((a, e) => a + num(e["Total Bill"]), 0);
+      const uPaid = under.reduce((a, e) => a + num(e["His Cut"]), 0);
+      const uPay = which => under.reduce((a, e) => a + payOf(e, which), 0);
+      const byMonth = {};
+      baseJobs.forEach(r => {
+        const k = String(r["Date"] || "").slice(0, 7);
+        if (k) byMonth[k] = (byMonth[k] || 0) + 1;
+      });
+
       return {
         n, bill, paid, ours, refund, netBill, sp5, sp9,
+        bands, median, split, under: { n: under.length, bill: uBill, paid: uPaid, pay: uPay },
+        months2: Object.keys(byMonth).sort().map(k => ({ m: k, n: byMonth[k] })),
         ticket: n ? bill / n : 0, per: n ? paid / n : 0,
         months: [...new Set(baseJobs.map(r => String(r["Date"] || "").slice(0, 7)).filter(Boolean))].length,
         plans: [
@@ -233,140 +274,156 @@ registerPage({
     function deckHtml(D) {
       const m0 = v => money0(v);
       const pj = D.plans;
-      const A = pj[0];
-      const maxPay = Math.max(D.paid, ...pj.map(p => p.pay), A.per * (D.n * 1.8));
+      const A = pj[0], B = pj[1], C = pj[2];
+      const pct1 = v => (v * 100).toFixed(1) + "%";
+      const maxPay = Math.max(D.paid, A.per * (D.n * 1.8));
       const bar = (label, val, isNow, tail) => `<div class="cla-bar">
         <span class="t">${esc(label)}</span>
         <span class="b${isNow ? " now" : ""}" style="width:${Math.max(2, val / maxPay * 300)}px"></span>
         <span class="v">${m0(val)}${tail ? " — " + esc(tail) : ""}</span></div>`;
-      const growth = [0.20, 0.40, 0.56, 0.80];
+      const bandN = Math.max(...D.bands, 1);
+      const bandLbl = ["under 20%", "20–25%", "25–30%", "30–35%", "over 35%"];
+      const sB = D.split("B"), sC = D.split("C"), sA = D.split("A");
+      const maxMonth = Math.max(...D.months2.map(x => x.n), 1);
 
       return `
       <section class="cla-slide">
-        <p class="eyebrow">Zip to Zip · partnership review</p>
+        <p class="eyebrow">Zip to Zip · a new agreement</p>
         <h2>The CL Agreement</h2>
-        <p>Eight months of work together, what each job earned you, and three ways to structure
-          the next eight — priced against the jobs we have already done.</p>
+        <p>${fmtN(D.n)} jobs together in ${D.months} months, ${m0(D.bill)} billed, ${m0(D.paid)}
+          earned by you. We want to keep all of it — and put one rule underneath it.</p>
         <div class="cla-figs">
-          <div class="cla-fig"><b>${fmtN(D.n)}</b><i>jobs in ${D.months} months — about
+          <div class="cla-fig"><b>${fmtN(D.n)}</b><i>jobs — about
             ${fmtN(Math.round(D.n / Math.max(1, D.months)))} a month</i></div>
           <div class="cla-fig"><b>${m0(D.ticket)}</b><i>average ticket</i></div>
-          <div class="cla-fig"><b>${m0(D.per)}</b><i>your earnings per job</i></div>
-          <div class="cla-fig"><b>${m0(D.paid)}</b><i>your earnings over the period</i></div>
+          <div class="cla-fig"><b>${m0(D.per)}</b><i>you keep, per job</i></div>
+          <div class="cla-fig"><b>${m0(D.paid)}</b><i>your earnings so far</i></div>
         </div>
       </section>
 
       <section class="cla-slide">
-        <p class="eyebrow">Where the price comes from</p>
-        <h2>Every quote is our calculator price, plus 20%</h2>
-        <p>The prices on these jobs are the ones our Sales Price Calculator recommends — the same
-          engine our own sales team quotes from. On your jobs each quote then carries a
-          <b>20% increase</b> on top of that number.</p>
-        <p>Across these ${fmtN(D.n)} jobs the calculator price was <b>${m0(D.ours)}</b> and the
-          customers were billed <b>${m0(D.bill)}</b>. That difference is the lever in everything
-          below: it can stay in the price, come out of the price, or change what your percentage
-          is measured against.</p>
+        <p class="eyebrow">Why we are rewriting it</p>
+        <h2>Your share has no rule — it has ranged from nothing to two thirds of a bill</h2>
+        <p>This is not a complaint about the amount. Across the ${fmtN(D.n)} jobs your share of the
+          bill has landed almost anywhere, with a median of <b>${pct1(D.median)}</b>. On ${fmtN(D.bands[0])}
+          jobs you took under 20%; on ${fmtN(D.bands[4])} you took over 35%. The agreement says 30% at
+          most, and roughly a third of the jobs sit outside it in one direction or the other.</p>
+        ${D.bands.map((v, i) => `<div class="cla-bar">
+            <span class="t">${bandLbl[i]}</span>
+            <span class="b" style="width:${Math.max(2, v / bandN * 210)}px"></span>
+            <span class="v">${fmtN(v)} job${v === 1 ? "" : "s"}</span></div>`).join("")}
+        <p style="margin-top:10px">Neither of us can plan on a number that moves like that. Everything
+          below is an attempt to replace it with one you can calculate yourself before you quote.</p>
       </section>
 
       <section class="cla-slide">
-        <p class="eyebrow">Before percentages</p>
-        <h2>Three parts of a bill nobody earns commission on</h2>
-        <p>Whatever percentage we agree, it does not apply to the whole bill — parts of a bill are
-          not the sales side's to earn on. This is how it works for every Zip to Zip sales person.</p>
+        <p class="eyebrow">The offer</p>
+        <h2>Three structures — pick the one that fits how you want to sell</h2>
+        <table>
+          <thead><tr><th>Plan</th><th class="r">Your average ticket</th><th class="r">You keep per job</th>
+            <th class="r">Over ${fmtN(D.n)} jobs</th></tr></thead>
+          <tbody>
+            <tr class="hi"><td><b>Today</b> — no fixed rule</td><td class="r">${m0(D.ticket)}</td>
+              <td class="r">${m0(D.per)}</td><td class="r">${m0(D.paid)}</td></tr>
+            ${pj.map(p => `<tr><td><b>${esc(p.label)}</b></td><td class="r">${m0(p.ticket)}</td>
+              <td class="r">${m0(p.per)}</td><td class="r">${m0(p.pay)}</td></tr>`).join("")}
+          </tbody></table>
+        ${pj.map(p => `<p style="margin-top:9px"><b>${esc(p.label)}.</b> ${esc(p.note)}</p>`).join("")}
+      </section>
+
+      <section class="cla-slide">
+        <p class="eyebrow">What it means job by job</p>
+        <h2>These are not blanket cuts — two of them pay you more on the work you do most</h2>
+        <p>A total hides what actually happens on each job. Run every plan across all
+          ${fmtN(D.n)} jobs one at a time:</p>
+        <table>
+          <thead><tr><th>Plan</th><th class="r">Pays you more on</th><th class="r">Pays you less on</th>
+            <th class="r">On your ${fmtN(D.under.n)} jobs inside 30%</th></tr></thead>
+          <tbody>
+            <tr><td><b>Plan A</b></td><td class="r">${fmtN(sA.up)} jobs</td>
+              <td class="r">${fmtN(sA.down)} jobs</td>
+              <td class="r">${m0(D.under.pay("A") - D.under.paid)}</td></tr>
+            <tr class="hi"><td><b>Plan B</b></td><td class="r">${fmtN(sB.up)} jobs</td>
+              <td class="r">${fmtN(sB.down)} jobs</td>
+              <td class="r">${m0(D.under.pay("B") - D.under.paid)}</td></tr>
+            <tr><td><b>Plan C</b></td><td class="r">${fmtN(sC.up)} jobs</td>
+              <td class="r">${fmtN(sC.down)} jobs</td>
+              <td class="r">${m0(D.under.pay("C") - D.under.paid)}</td></tr>
+          </tbody></table>
+        <p style="margin-top:10px">The last column is the one worth reading twice. On the
+          <b>${fmtN(D.under.n)} jobs where you stayed inside the 30%</b> — your ordinary work, which is
+          ${(D.under.n / D.n * 100).toFixed(0)}% of everything you brought us —
+          <b>Plan B pays you ${m0(Math.abs(D.under.pay("B") - D.under.paid))}
+          ${D.under.pay("B") >= D.under.paid ? "more" : "less"} than you actually received</b>.
+          What the plans reprice is the tail, not the everyday job.</p>
+      </section>
+
+      <section class="cla-slide">
+        <p class="eyebrow">How the percentage is calculated</p>
+        <h2>Three parts of a bill that no one earns commission on</h2>
+        <p>So you can compute your own number before you quote, here is exactly what the percentage
+          applies to. These rules are the same for every Zip to Zip sales person.</p>
         <div class="cla-split"><div><b>Stairs fee</b></div><div>
           <div class="cla-splitb"><i style="width:100%;background:#A9691B">100% to the crew</i></div>
-          The company keeps <b>nothing</b>. Every dollar goes to the foreman and helpers who carried
-          the furniture up the stairs, so there is no share to commission.</div></div>
+          The company keeps nothing — it all goes to the foreman and helpers who carried the
+          furniture, so there is no share to commission.</div></div>
         <div class="cla-split"><div><b>Bulky items</b></div><div>
           <div class="cla-splitb"><i style="width:50%;background:#A9691B">50% crew</i><i style="width:50%;background:#33566E">50% company</i></div>
-          Split down the middle. The crew takes half for handling the piano or the safe; commission
-          is paid out of <b>the company half only</b>.</div></div>
+          Split down the middle; commission is paid out of the company half only.</div></div>
         <div class="cla-split"><div><b>Storage</b></div><div>
           <div class="cla-splitb"><i style="width:20%;background:#33566E">month 1</i><i style="width:80%;background:#EBEAE4;color:#78756B">months 2, 3, 4, 5 …</i></div>
-          Commission is earned on the <b>first month only</b>. Storage at $1,000 a month for five
-          months pays commission on $1,000, not $5,000 — the rest pays for the warehouse.</div></div>
+          Commission on the first month only — $1,000 a month for five months pays on $1,000, not
+          $5,000. The rest pays for the warehouse.</div></div>
+        <p style="margin-top:12px">And on the price itself: every CL quote is our Sales Price
+          Calculator number <b>plus 20%</b>. Across these jobs that is ${m0(D.ours)} of our price
+          against ${m0(D.bill)} billed. Plans A and B change that uplift; Plan C leaves it exactly
+          as it is and measures your 25% against our number.</p>
+        <p style="color:#78756B;font-size:11.5px">For context on the rates: our own sellers earn 9%
+          or 5% of a bill. Every plan here pays you 20–25%, because you bring the work as well as
+          closing it — that difference is deliberate and we are not proposing to remove it.</p>
       </section>
 
       <section class="cla-slide">
-        <p class="eyebrow">The three plans</p>
-        <h2>Same ${fmtN(D.n)} jobs, three structures</h2>
-        <p>These are not projections. Each plan is applied to the months already completed, so you
-          can see exactly what the same work would have paid you.</p>
-        <table>
-          <thead><tr><th>Plan</th><th class="r">Average ticket</th><th class="r">You keep per job</th>
-            <th class="r">Over ${fmtN(D.n)} jobs</th><th class="r">Jobs to match today</th></tr></thead>
-          <tbody>
-            <tr class="hi"><td><b>Today</b></td><td class="r">${m0(D.ticket)}</td>
-              <td class="r">${m0(D.per)}</td><td class="r">${m0(D.paid)}</td><td class="r">${fmtN(D.n)}</td></tr>
-            ${pj.map(p => `<tr><td><b>${esc(p.label)}</b></td>
-              <td class="r">${m0(p.ticket)}</td><td class="r">${m0(p.per)}</td>
-              <td class="r">${m0(p.pay)}</td>
-              <td class="r">${p.breakeven ? fmtN(Math.round(p.breakeven)) : "—"}</td></tr>`).join("")}
-          </tbody></table>
-        ${pj.map(p => `<p style="margin-top:10px"><b>${esc(p.label)}.</b> ${esc(p.note)}</p>`).join("")}
-      </section>
-
-      <section class="cla-slide">
-        <p class="eyebrow">One more comparison</p>
-        <h2>The same work, on a Zip to Zip sales person's terms</h2>
-        <p>Our own sellers are paid a percentage of the bill after any claim is taken off it. Two
-          rates exist on the team: <b>9%</b>, which our four senior sellers are on, and <b>5%</b>,
-          which everyone else is on. On these ${fmtN(D.n)} jobs — ${m0(D.netBill)} after claims —
-          that comes to:</p>
-        <table>
-          <thead><tr><th>Terms</th><th class="r">Over ${fmtN(D.n)} jobs</th>
-            <th class="r">Per job</th><th class="r">% of the bill</th></tr></thead>
-          <tbody>
-            <tr class="hi"><td><b>What you were paid</b></td><td class="r">${m0(D.paid)}</td>
-              <td class="r">${m0(D.per)}</td><td class="r">${(D.paid / D.bill * 100).toFixed(1)}%</td></tr>
-            <tr><td><b>A senior sales person — 9%</b></td><td class="r">${m0(D.sp9)}</td>
-              <td class="r">${m0(D.sp9 / D.n)}</td><td class="r">${(D.sp9 / D.bill * 100).toFixed(1)}%</td></tr>
-            <tr><td><b>A sales person — 5%</b></td><td class="r">${m0(D.sp5)}</td>
-              <td class="r">${m0(D.sp5 / D.n)}</td><td class="r">${(D.sp5 / D.bill * 100).toFixed(1)}%</td></tr>
-          </tbody></table>
-        <p style="margin-top:10px">The comparison is not perfectly equal and we would rather say so
-          than have it argued back: <b>our sales people are handed leads the company has paid
-          for</b>. You bring the work as well as closing it, and every plan on the previous page
-          pays you well above these rates because of it.</p>
-      </section>
-
-      <section class="cla-slide">
-        <p class="eyebrow">Plan A, properly</p>
-        <h2>A cheaper price should bring more jobs — here is how many it needs</h2>
-        <p>Plan A drops your average ticket by
-          <b>${((1 - A.ticket / D.ticket) * 100).toFixed(0)}%</b>, from ${m0(D.ticket)} to
-          ${m0(A.ticket)}. That is a real advantage in a quote and it should win work a higher
-          price loses. The question is how much more.</p>
-        <p>At ${m0(A.per)} a job you match today's ${m0(D.paid)} at
-          <b>${fmtN(Math.round(A.breakeven))} jobs</b> —
-          ${fmtN(Math.round(A.breakeven - D.n))} more than the ${fmtN(D.n)} you brought, about
-          <b>${(Math.round(A.breakeven - D.n) / Math.max(1, D.months)).toFixed(0)} extra jobs a
-          month</b>. Everything past that is ahead of where you are today.</p>
+        <p class="eyebrow">If you want the cheaper price</p>
+        <h2>Plan A only works if volume follows — here is the number it needs</h2>
+        <p>Plan A drops your ticket by <b>${((1 - A.ticket / D.ticket) * 100).toFixed(0)}%</b>, from
+          ${m0(D.ticket)} to ${m0(A.ticket)}, which is a real weapon in a quote. At ${m0(A.per)} a job
+          you match today's ${m0(D.paid)} at <b>${fmtN(Math.round(A.breakeven))} jobs</b> —
+          ${fmtN(Math.round(A.breakeven - D.n))} more than you brought, about
+          <b>${(Math.round(A.breakeven - D.n) / Math.max(1, D.months)).toFixed(0)} extra a month</b>.</p>
         ${bar("Today · " + fmtN(D.n) + " jobs", D.paid, true, "")}
-        ${bar("Plan A · no growth", A.pay, false, "")}
-        ${growth.map(g => bar("Plan A · +" + Math.round(g * 100) + "% → "
-            + fmtN(Math.round(D.n * (1 + g))) + " jobs", A.per * D.n * (1 + g), false,
+        ${[0, 0.20, 0.40, 0.56, 0.80].map(g => bar(
+            g === 0 ? "Plan A · same volume" : "Plan A · +" + Math.round(g * 100) + "% → "
+              + fmtN(Math.round(D.n * (1 + g))) + " jobs",
+            A.per * D.n * (1 + g), false,
             Math.abs(g - 0.56) < .01 ? "level with today" : "")).join("")}
-        <p style="margin-top:10px">The same arithmetic is kinder to the other two, because their
-          tickets fall less. <b>Plan B needs ${fmtN(Math.round(pj[1].breakeven))} jobs</b> to match
-          today; <b>Plan C needs ${fmtN(Math.round(pj[2].breakeven))}</b>, with no price change at
-          all to help win them.</p>
+        <p style="margin-top:10px">Worth being straight about the starting point: your volume has
+          been steady rather than climbing — ${D.months2.map(x => x.n).join(", ")} jobs a month since
+          January. Plan A is a bet that a lower price changes that. <b>Plan B needs only
+          ${fmtN(Math.round(B.breakeven))} jobs</b> and <b>Plan C ${fmtN(Math.round(C.breakeven))}</b>
+          to leave you level.</p>
       </section>
 
       <section class="cla-slide">
-        <p class="eyebrow">What happens either way</p>
-        <h2>Three things we will do on our side</h2>
-        <p><b>The calculation stops being a monthly conversation.</b> Your commission is computed
-          the same way every month, from the same fields, and you can see it per job.</p>
-        <p><b>You get the same job-level view we have</b> — the bill, what came off it and why, and
-          your share, on every job, so nothing needs reconciling afterwards.</p>
-        <p><b>Refunds and claims stay visible.</b> Across these months there was
-          ${D.refund > 0 ? m0(D.refund) + " refunded on one job" : "no refund"}, and it should stay
-          named rather than disappear into an average.</p>
-        <p style="color:#78756B;font-size:11.5px;margin-top:14px">All figures come from closed jobs
-          in our reporting system, ${fmtN(D.n)} jobs sourced through CL. "Our price" is the Sales
-          Price Calculator amount after the stairs, bulky and storage rules and before the 20%
-          uplift. Per-job figures are period totals divided by ${fmtN(D.n)}; volume scenarios hold
+        <p class="eyebrow">Our recommendation</p>
+        <h2>Plan B — and here is what you get in any of them</h2>
+        <p><b>We think Plan B fits best.</b> It is the closest to what you earn today, it is the only
+          plan that pays you <b>more</b> on your ordinary jobs, it still lets you quote below today's
+          price, and it needs the smallest change in volume — ${fmtN(Math.round(B.breakeven))} jobs
+          against the ${fmtN(D.n)} you already do — to leave you level.</p>
+        <p><b>One rule, calculable before you quote.</b> No more month-by-month conversation about
+          what a job earned. You will be able to work out your own number from the quote.</p>
+        <p><b>No cap.</b> Today's agreement caps you at 30% and it has not held in either direction.
+          A flat percentage has no ceiling to argue about.</p>
+        <p><b>The same job-level view we have</b> — the bill, what came off it and why, and your
+          share, on every job.</p>
+        <p><b>Refunds and claims stay named.</b> Across these ${D.months} months there was
+          ${D.refund > 0 ? m0(D.refund) + " refunded on one job" : "no refund"} — small, and it should
+          stay visible rather than disappear into an average.</p>
+        <p style="color:#78756B;font-size:11.5px;margin-top:14px">Figures from closed jobs in our
+          reporting system, ${fmtN(D.n)} jobs sourced through CL, ${D.months} months. "Our price" is
+          the Sales Price Calculator amount after the stairs, bulky and storage rules and before the
+          20% uplift. Per-job figures are period totals divided by ${fmtN(D.n)}; volume scenarios hold
           the per-job amount constant and vary the number of jobs.</p>
       </section>`;
     }
