@@ -62,12 +62,18 @@ registerPage({
         ".crw-mix{display:flex;height:9px;border-radius:5px;overflow:hidden;background:var(--panel-2);"
           + "min-width:64px}",
         ".crw-mix i{display:block;height:100%}",
+        // --pos resolves to --brand in this theme, so a wage/tip bar drawn in brand+pos is
+        // ONE COLOUR and the split it exists to show is invisible. Tips are amber, which is
+        // also what the Tips tile uses, so the same money is the same colour everywhere.
         ".crw-mix i.s{background:var(--brand)}",
-        ".crw-mix i.t{background:var(--pos);opacity:.75}",
+        ".crw-mix i.t{background:var(--warn)}",
         ".crw-legend{display:flex;gap:14px;align-items:center;font-size:12px;color:var(--faint);"
           + "margin-top:8px}",
         ".crw-legend b{display:inline-block;width:9px;height:9px;border-radius:3px;margin-right:5px}",
-        ".crw-legend .s b{background:var(--brand)} .crw-legend .t b{background:var(--pos);opacity:.75}",
+        ".crw-legend .s b{background:var(--brand)} .crw-legend .t b{background:var(--warn)}",
+        // the kit does not colour KPI values; these three classes are this page's own
+        ".rs-kpis .kpi.pos .v{color:var(--pos)}",
+        ".rs-kpis .kpi.warn .v{color:var(--warn)}",
         // the month matrix scrolls sideways on its own, never the page
         ".crw-mx{overflow-x:auto}",
         ".crw-mx table{min-width:max-content}",
@@ -86,8 +92,12 @@ registerPage({
         ".crw-x{margin-left:auto;border:0;background:transparent;color:var(--faint);cursor:pointer;"
           + "font-size:19px;line-height:1;padding:2px 6px}",
         ".crw-x:hover{color:var(--ink)}",
-        ".crw-spark{display:flex;align-items:flex-end;gap:3px;height:46px;margin:12px 0 4px}",
-        ".crw-spark i{flex:1;background:var(--brand);opacity:.85;border-radius:2px 2px 0 0;min-height:2px}",
+        ".crw-spark{display:flex;align-items:flex-end;gap:5px;height:56px;margin:12px 0 4px}",
+        // a bar per month, capped: at six months a flex:1 bar is 200px wide and the trend
+        // reads as a wall rather than a shape
+        ".crw-spark i{flex:1 1 0;max-width:44px;background:var(--brand);border-radius:3px 3px 0 0;"
+          + "min-height:3px;transition:opacity .12s}",
+        ".crw-spark i:hover{opacity:.7}",
         ".crw-spark i.dim{background:var(--line-2)}",
       ].join("");
       document.head.appendChild(st);
