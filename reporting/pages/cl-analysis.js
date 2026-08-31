@@ -719,11 +719,12 @@ registerPage({
                 overCap.length ? "neg" : "pos")}
           ${kpi("Profit to us", money0(profit),
                 "already net of his cut · " + money0(avgProfit) + " a job", "pos")}
-          ${kpi("Refunded", econReady ? money0(refunds) : "—",
+          ${kpi("To come off", econReady ? money0(refHis + overPaid) : "—",
                 econReady
-                  ? (refunds ? money0(refHis) + " of it his at 30%" : "none on these jobs")
+                  ? money0(overPaid) + " above the cap"
+                    + (refunds ? " · " + money0(refHis) + " of the refund" : "")
                   : "mart not built yet",
-                refunds > 0 ? "warn" : "")}
+                (refHis + overPaid) > 0 ? "warn" : "")}
           ${kpi("Without the fee parts", econReady ? pctS(billed ? adjCut / billed : null) : "—",
                 econReady ? money0(adjCut) + " instead of " + money0(hisCut)
                           + " · " + money0(cutOnFees) + " earned on them" : "mart not built yet",
@@ -833,9 +834,15 @@ registerPage({
 
         ${(refunds > 0 || claimsN > 0) ? `
         <div class="panel">
-          <div class="panel-head"><div class="panel-title">Refunds and claims on his jobs</div></div>
-          <p class="rs-hint">A refund is money that leaves after the job is closed. It is not part
-            of the bill, and it is not ours alone to carry.</p>
+          <div class="panel-head"><div class="panel-title">What comes off — refunds, and the cap</div>
+            <div class="rs-spacer"></div>
+            <span class="rs-pill ${(refHis + overPaid) > 0 ? "warn" : ""}">${money0(refHis + overPaid)} in total</span></div>
+          <p class="rs-hint">Two separate things leave the account. A <b>refund</b> is money that
+            went back to a customer after the job closed — not part of the bill, and not ours alone
+            to carry. <b>Above the cap</b> is money he was paid over the 30% the deal allows: on a
+            job billed $10,000 he may earn $3,000, and anything past that was never his to take.
+            From here on the 30% is enforced job by job, so this is a one-off correction, not a
+            recurring line.</p>
           <div class="rs-tablewrap"><table class="rs-table">
             <thead><tr><th>What</th><th class="num">Amount</th><th>Job</th></tr></thead>
             <tbody>
@@ -852,6 +859,19 @@ registerPage({
                 <td class="num">${money0(refProfit)}</td>
                 <td class="muted">the case-by-case rule below — ours to carry:
                   ${money0(refunds - refProfit)}</td></tr>
+              <tr><td class="strong">Paid above the 30% cap</td>
+                <td class="num ${overPaid > 0 ? "cla-over" : ""}">${money0(overPaid)}</td>
+                <td class="muted">${overCap.length
+                  ? fmtN(overCap.length) + " job" + (overCap.length === 1 ? "" : "s")
+                    + " where his cut ran past 30% of the bill — he took "
+                    + pctS(oBill ? oCut / oBill : null) + " on them where 30% was the most allowed"
+                  : "no job went past the cap"}</td></tr>
+              <tr><td class="strong">Total to come off</td>
+                <td class="num strong">${money0(refHis + overPaid)}</td>
+                <td class="muted">his ${money0(refHis)} share of the refund plus
+                  ${money0(overPaid)} taken above the cap${refProfit !== refHis
+                    ? " — " + money0(refProfit + overPaid) + " if the refund is split by profit instead"
+                    : ""}</td></tr>
               <tr><td class="strong">Claims opened</td><td class="num">${fmtN(claimsN)}</td>
                 <td class="muted">${claimsN > 0
                   ? esc(jobs.map(r => E(r)).filter(e => e && num(e["Claims"]) > 0)
