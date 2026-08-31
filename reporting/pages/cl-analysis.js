@@ -446,14 +446,14 @@ registerPage({
       const netBill = eSum(e => e["Bill After Claims"]);   // claims off the bill first
       const sp5 = eSum(e => e["As Sales Person 5"]);
       const sp9 = eSum(e => e["As Sales Person 9"]);
-      const oSp5 = overJobs.reduce((a, r) => { const e = E(r); return a + (e ? num(e["As Sales Person 5"]) || 0 : 0); }, 0);
-      const oSp9 = overJobs.reduce((a, r) => { const e = E(r); return a + (e ? num(e["As Sales Person 9"]) || 0 : 0); }, 0);
       const overJobs = jobs.filter(r => (cutPct(r) || 0) > CAP);
       const oBill = overJobs.reduce((a, r) => a + (num(r["Total Bill"]) || 0), 0);
       const oCut = overJobs.reduce((a, r) => a + cut(r), 0);
       const oStd = overJobs.reduce((a, r) => { const e = E(r); return a + (e ? num(e["Standard Pay"]) || 0 : 0); }, 0);
       const oAdj = overJobs.reduce((a, r) => { const e = E(r); return a + (e ? num(e["Adjusted Cut"]) || 0 : 0); }, 0);
       const oAdjOur = overJobs.reduce((a, r) => { const e = E(r); return a + (e ? num(e["Adjusted Cut Our Price"]) || 0 : 0); }, 0);
+      const oSp5 = overJobs.reduce((a, r) => { const e = E(r); return a + (e ? num(e["As Sales Person 5"]) || 0 : 0); }, 0);
+      const oSp9 = overJobs.reduce((a, r) => { const e = E(r); return a + (e ? num(e["As Sales Person 9"]) || 0 : 0); }, 0);
       const tForeman = sum(r => num(r["Forman Total $"]));
       const tMaterial = sum(r => num(r["Material $"]));
       const tExpense = sum(r => num(r["Total Expense"]));
