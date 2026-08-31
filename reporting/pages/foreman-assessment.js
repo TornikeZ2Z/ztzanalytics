@@ -305,16 +305,15 @@ registerPage({
       + ".fa2-half span{font-size:12px;color:var(--faint);white-space:nowrap}"
       + "@media(max-width:1250px){.fa2-half{display:none}}"
 
-      // last month's place: quiet next to this month's numbers, but always there
-      + ".fa2-prev{display:flex;flex-direction:column;gap:2px;text-align:right;"
-      + "padding-left:15px;border-left:1px solid var(--line);min-width:74px}"
-      + ".fa2-prev span{font-size:10.5px;letter-spacing:.05em;text-transform:uppercase;"
-      + "color:var(--faint);font-weight:700}"
-      + ".fa2-prev b{font-size:19px;font-weight:750;line-height:1.05;color:var(--ink);"
-      + "font-variant-numeric:tabular-nums}"
-      + ".fa2-prev small{font-size:11.5px;color:var(--faint);white-space:nowrap}"
-      + ".fa2-prev.won b{color:var(--pos)}"
-      + "@media(max-width:1250px){.fa2-prev{display:none}}"
+      // last month, inline under the name: the same size as the rest of that line, with
+      // only the place and the movement carrying any weight
+      + ".fa2-pv{color:var(--faint);white-space:nowrap}"
+      + ".fa2-pv b{font-weight:750;color:var(--muted);font-variant-numeric:tabular-nums}"
+      + ".fa2-pv i{font-style:normal;font-weight:750;font-size:12.5px;padding:1px 5px;"
+      + "border-radius:6px;margin-left:2px;font-variant-numeric:tabular-nums}"
+      + ".fa2-pv i.up{color:var(--pos);background:var(--pos-bg)}"
+      + ".fa2-pv i.down{color:var(--neg);background:var(--neg-bg)}"
+      + ".fa2-pv i.same{color:var(--faint);background:var(--panel-2)}"
 
       + ".fa2-sc{display:flex;align-items:center;gap:13px}"
       + ".fa2-sb{width:180px;height:11px;border-radius:6px;background:var(--panel-2);overflow:hidden;display:flex}"
@@ -516,6 +515,31 @@ registerPage({
                total: auto == null ? null : auto + manual,
                full: NQ() > 0 && answered >= NQ(),
                ok: +f["Qualified"] === 1, why: f["Not Qualified Because"] || "" };
+    }
+
+    /* Last month, in one clause: the place he finished, what he scored, and which way he has
+       moved since. Silent when there is nothing honest to say — a month he was not scored in
+       gets a plain "new this month" rather than a dash that reads as a zero. */
+    function prevBit(x) {
+      const p = x.prev;
+      if (!S._prevN) return "";
+      const when = monLab(S._prevMonth);
+      if (!p) return ' · <span class="fa2-pv">new this month</span>';
+      if (p.total == null) return ' · <span class="fa2-pv">not scored in ' + esc(when) + "</span>";
+      const score = fmt1(p.total) + (p.full ? "" : "*");
+      if (!p.rank) {
+        return ' · <span class="fa2-pv">' + esc(when) + " " + score
+          + ' <i title="' + esc(p.why || "did not qualify") + '">not ranked</i></span>';
+      }
+      let mv = "";
+      if (x.ok && x.rank) {
+        const d = p.rank - x.rank;                    // positive = moved up the board
+        mv = d === 0 ? '<i class="same" title="same place as ' + esc(when) + '">=</i>'
+          : d > 0 ? '<i class="up" title="up ' + d + ' from ' + esc(when) + '">▲' + d + "</i>"
+          : '<i class="down" title="down ' + (-d) + ' from ' + esc(when) + '">▼' + (-d) + "</i>";
+      }
+      return ' · <span class="fa2-pv">' + esc(when) + " <b>" + ord(p.rank) + "</b> · "
+        + score + " " + mv + "</span>";
     }
 
     /* 1st / 2nd / 3rd — a place reads as a place, not as a number in a column. */
@@ -1094,6 +1118,10 @@ registerPage({
         + '<div class="fa2-si">' + fmtN(jobs) + " job" + (jobs === 1 ? "" : "s")
         + (cf ? " · " + fmtN(Math.round(cf)) + " CF" : "")
         + (x.ok ? "" : ' · <span class="oor">' + esc(x.why) + "</span>")
+        // LAST MONTH sits in the line that already carries his context, so the header grid
+        // keeps its five columns and the card gains no visual weight. The movement arrow is
+        // the point of it: a place on its own says less than a place that moved.
+        + prevBit(x)
         + "</div></div>"
         // TWO HALVES AND A TOTAL. The strip of nine per-question chips is gone: at nine
         // questions it was nine 10px labels nobody read, and he asked for the points and the
@@ -1111,22 +1139,6 @@ registerPage({
         + '<u class="m" style="width:' + x.manual.toFixed(0) + '%"></u></span>'
         + '<span class="fa2-tot"><b>' + (x.total == null ? "—" : fmt1(x.total)) + "</b>"
         + "<i>" + (x.total == null ? "not measurable" : x.ok ? "of 100" : "not ranked") + "</i></span></div>"
-        // LAST MONTH: where he finished and what he scored, so this month is rated against
-        // something. Absent months say so rather than showing a dash that reads as zero.
-        + '<div class="fa2-prev' + (x.prev && x.prev.rank === 1 ? " won" : "") + '" title="'
-        + esc(S._prevN
-              ? (x.prev
-                 ? monLab(S._prevMonth) + ": " + (x.prev.total == null ? "no score"
-                     : fmt1(x.prev.total) + " points")
-                   + (x.prev.rank ? ", finished " + ord(x.prev.rank) : ", not ranked — " + (x.prev.why || "did not qualify"))
-                   + (x.prev.full ? "" : " (the counted side only — the rubric had not been rated)")
-                 : "No scorecard for " + monLab(S._prevMonth) + " — he did not work, or had no measurable month")
-              : "No assessment data for " + monLab(S._prevMonth)) + '">'
-        + '<span>' + esc(S._prevN ? "last month" : "no last month") + "</span>"
-        + "<b>" + (x.prev && x.prev.rank ? ord(x.prev.rank)
-                   : x.prev && x.prev.total != null ? "—" : "·") + "</b>"
-        + "<small>" + (x.prev && x.prev.total != null ? fmt1(x.prev.total) + " pts"
-                       : x.prev ? "not ranked" : "not scored") + "</small></div>"
         + "</div>";
 
       h += '<div class="fa2-body">';
