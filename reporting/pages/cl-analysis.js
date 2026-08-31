@@ -35,6 +35,7 @@ if (window.RS && RS.DATASETS && !RS.DATASETS.mart_cl_analysis) {
            "Stairs Fee", "Bulky Fee", "Storage Monthly", "Storage Past Month 1",
            "Commissionable Bill", "Our Price", "Standard Pay",
            "Adjusted Cut", "Adjusted Cut Our Price", "Cut On Fees",
+           "Bill After Claims", "As Sales Person 5", "As Sales Person 9",
            "Over Cap", "Over Cap $",
            "Refund $", "Refund Reason", "Claims", "Claim Status", "Claim Reason",
            "Extra Spend", "Other Expenses", "Company Tip", "Discount Given",
@@ -211,8 +212,11 @@ registerPage({
         per: n ? pay / n : 0,
         breakeven: pay > 0 ? paid / (pay / n) : null,
       });
+      const netBill = S2(e => e["Bill After Claims"]);
+      const sp5 = S2(e => e["As Sales Person 5"]);
+      const sp9 = S2(e => e["As Sales Person 9"]);
       return {
-        n, bill, paid, ours, refund,
+        n, bill, paid, ours, refund, netBill, sp5, sp9,
         ticket: n ? bill / n : 0, per: n ? paid / n : 0,
         months: [...new Set(baseJobs.map(r => String(r["Date"] || "").slice(0, 7)).filter(Boolean))].length,
         plans: [
@@ -300,6 +304,30 @@ registerPage({
               <td class="r">${p.breakeven ? fmtN(Math.round(p.breakeven)) : "—"}</td></tr>`).join("")}
           </tbody></table>
         ${pj.map(p => `<p style="margin-top:10px"><b>${esc(p.label)}.</b> ${esc(p.note)}</p>`).join("")}
+      </section>
+
+      <section class="cla-slide">
+        <p class="eyebrow">One more comparison</p>
+        <h2>The same work, on a Zip to Zip sales person's terms</h2>
+        <p>Our own sellers are paid a percentage of the bill after any claim is taken off it. Two
+          rates exist on the team: <b>9%</b>, which our four senior sellers are on, and <b>5%</b>,
+          which everyone else is on. On these ${fmtN(D.n)} jobs — ${m0(D.netBill)} after claims —
+          that comes to:</p>
+        <table>
+          <thead><tr><th>Terms</th><th class="r">Over ${fmtN(D.n)} jobs</th>
+            <th class="r">Per job</th><th class="r">% of the bill</th></tr></thead>
+          <tbody>
+            <tr class="hi"><td><b>What you were paid</b></td><td class="r">${m0(D.paid)}</td>
+              <td class="r">${m0(D.per)}</td><td class="r">${(D.paid / D.bill * 100).toFixed(1)}%</td></tr>
+            <tr><td><b>A senior sales person — 9%</b></td><td class="r">${m0(D.sp9)}</td>
+              <td class="r">${m0(D.sp9 / D.n)}</td><td class="r">${(D.sp9 / D.bill * 100).toFixed(1)}%</td></tr>
+            <tr><td><b>A sales person — 5%</b></td><td class="r">${m0(D.sp5)}</td>
+              <td class="r">${m0(D.sp5 / D.n)}</td><td class="r">${(D.sp5 / D.bill * 100).toFixed(1)}%</td></tr>
+          </tbody></table>
+        <p style="margin-top:10px">The comparison is not perfectly equal and we would rather say so
+          than have it argued back: <b>our sales people are handed leads the company has paid
+          for</b>. You bring the work as well as closing it, and every plan on the previous page
+          pays you well above these rates because of it.</p>
       </section>
 
       <section class="cla-slide">
@@ -415,6 +443,11 @@ registerPage({
       const feeMoney = eSum(e => num(e["Stairs Fee"]) + num(e["Bulky Fee"]) * 0.5
                                  + num(e["Storage Past Month 1"]));
       const withContract = jobs.filter(r => { const e = E(r); return e && String(e["Has Contract"]) === "Yes"; }).length;
+      const netBill = eSum(e => e["Bill After Claims"]);   // claims off the bill first
+      const sp5 = eSum(e => e["As Sales Person 5"]);
+      const sp9 = eSum(e => e["As Sales Person 9"]);
+      const oSp5 = overJobs.reduce((a, r) => { const e = E(r); return a + (e ? num(e["As Sales Person 5"]) || 0 : 0); }, 0);
+      const oSp9 = overJobs.reduce((a, r) => { const e = E(r); return a + (e ? num(e["As Sales Person 9"]) || 0 : 0); }, 0);
       const overJobs = jobs.filter(r => (cutPct(r) || 0) > CAP);
       const oBill = overJobs.reduce((a, r) => a + (num(r["Total Bill"]) || 0), 0);
       const oCut = overJobs.reduce((a, r) => a + cut(r), 0);
@@ -639,6 +672,18 @@ registerPage({
                 <td class="num strong">${pctS(billed ? adjOur / billed : null)}</td>
                 <td class="num">${money0(oAdjOur)}</td>
                 <td class="num strong">${pctS(oBill ? oAdjOur / oBill : null)}</td></tr>
+              <tr><td class="strong">On a sales person's deal — 9%, claims off the bill
+                  <span class="cla-of">the senior rate</span></td>
+                <td class="num">${money0(sp9)}</td>
+                <td class="num strong">${pctS(billed ? sp9 / billed : null)}</td>
+                <td class="num">${money0(oSp9)}</td>
+                <td class="num strong">${pctS(oBill ? oSp9 / oBill : null)}</td></tr>
+              <tr><td class="strong">On a sales person's deal — 5%
+                  <span class="cla-of">what most of the team is on</span></td>
+                <td class="num">${money0(sp5)}</td>
+                <td class="num strong">${pctS(billed ? sp5 / billed : null)}</td>
+                <td class="num">${money0(oSp5)}</td>
+                <td class="num strong">${pctS(oBill ? oSp5 / oBill : null)}</td></tr>
             </tbody>
             <tfoot><tr><td>Difference from what he was paid</td>
               <td class="num">${money0(adjOur - hisCut)}</td><td></td>
@@ -652,6 +697,17 @@ registerPage({
                There is ${money0(feeMoney)} of deductible fee on these jobs in total — the stairs fee appears
                on a handful, and storage past month one on none at all. The 20% quote increase is worth
                ${money0(adjCut - adjOur)} by comparison, which is where the real difference sits.`)}
+            ${chk(false, "",
+              `The last two rows are the same jobs on an employee's terms: the claim comes off the
+               bill first (${money0(billed - netBill)} across these jobs), then our own rate —
+               <b>9%</b>, which four sellers are on, or <b>5%</b>, which the rest of the team is on.
+               He was paid ${money0(hisCut)}; the sales-person equivalents are ${money0(sp9)} and
+               ${money0(sp5)}.`)}
+            ${chk(false, "",
+              `One thing the comparison does not hold equal, and it is worth saying before he does:
+               our sales people are handed leads the company pays for. He brings the work as well as
+               closing it, so the gap between 26.1% and 9% is not all margin — part of it is what we
+               would otherwise spend to get the job.`)}
             ${chk(withContract === jobs.length,
               `All ${fmtN(jobs.length)} jobs have a digital contract, so every fee line is known`,
               `Only ${fmtN(withContract)} of ${fmtN(jobs.length)} jobs have a digital contract. On the other
