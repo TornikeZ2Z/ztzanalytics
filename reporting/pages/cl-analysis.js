@@ -547,6 +547,10 @@ registerPage({
                                  + num(e["Storage Past Month 1"]));
       const withContract = jobs.filter(r => { const e = E(r); return e && String(e["Has Contract"]) === "Yes"; }).length;
       const netBill = eSum(e => e["Bill After Claims"]);   // claims off the bill first
+      const sp5 = eSum(e => e["As Sales Person 5"]);
+      const sp9 = eSum(e => e["As Sales Person 9"]);
+      const refHis = eSum(e => e["Refund His Share"]);      // 30%, his agreed rate
+      const refProfit = eSum(e => e["Refund By Profit"]);   // the case-by-case split
       /* THE WATERFALL (his rule, 2026-08-31). Not a set of scenarios — one number, reached by
          taking off what he should not have earned on, each at the 30% his deal allows:
          the money above the cap, his share of any refund, and his share of the three fee parts
@@ -557,10 +561,6 @@ registerPage({
       const feeParts = feeStairs + feeBulkyHalf + feeStorage;
       const feeHis = feeParts * CAP;
       const adjusted = hisCut - overPaid - refHis - feeHis;
-      const sp5 = eSum(e => e["As Sales Person 5"]);
-      const sp9 = eSum(e => e["As Sales Person 9"]);
-      const refHis = eSum(e => e["Refund His Share"]);      // 30%, his agreed rate
-      const refProfit = eSum(e => e["Refund By Profit"]);   // the case-by-case split
       const overJobs = jobs.filter(r => (cutPct(r) || 0) > CAP);
       const oBill = overJobs.reduce((a, r) => a + (num(r["Total Bill"]) || 0), 0);
       const oCut = overJobs.reduce((a, r) => a + cut(r), 0);
