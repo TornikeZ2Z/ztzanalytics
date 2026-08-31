@@ -94,6 +94,8 @@ registerPage({
         ".rs-table tfoot td{font-weight:800;border-top:2px solid var(--line-2);"
           + "color:var(--ink)}",
         ".rs-table tfoot .cla-of{font-weight:400}",
+        ".cla-wf td:nth-child(3),.cla-wf td:nth-child(4){white-space:nowrap}",
+        ".cla-wf-tot td{border-top:2px solid var(--line-2);background:var(--panel-2)}",
         // THE PROPOSAL IS ITS OWN VIEW, not a panel inside the analysis: the slides are the
         // document CL will be sent, so they are shown at reading size on a plain ground,
         // one under the other, exactly as they print.
@@ -545,6 +547,16 @@ registerPage({
                                  + num(e["Storage Past Month 1"]));
       const withContract = jobs.filter(r => { const e = E(r); return e && String(e["Has Contract"]) === "Yes"; }).length;
       const netBill = eSum(e => e["Bill After Claims"]);   // claims off the bill first
+      /* THE WATERFALL (his rule, 2026-08-31). Not a set of scenarios — one number, reached by
+         taking off what he should not have earned on, each at the 30% his deal allows:
+         the money above the cap, his share of any refund, and his share of the three fee parts
+         (stairs whole, half the bulky, storage past the first month). */
+      const feeStairs = eSum(e => e["Stairs Fee"]);
+      const feeBulkyHalf = eSum(e => num(e["Bulky Fee"]) * 0.5);
+      const feeStorage = eSum(e => e["Storage Past Month 1"]);
+      const feeParts = feeStairs + feeBulkyHalf + feeStorage;
+      const feeHis = feeParts * CAP;
+      const adjusted = hisCut - overPaid - refHis - feeHis;
       const sp5 = eSum(e => e["As Sales Person 5"]);
       const sp9 = eSum(e => e["As Sales Person 9"]);
       const refHis = eSum(e => e["Refund His Share"]);      // 30%, his agreed rate
@@ -719,12 +731,11 @@ registerPage({
                 overCap.length ? "neg" : "pos")}
           ${kpi("Profit to us", money0(profit),
                 "already net of his cut · " + money0(avgProfit) + " a job", "pos")}
-          ${kpi("To come off", econReady ? money0(refHis + overPaid) : "—",
+          ${kpi("Adjusted cut", econReady ? money0(adjusted) : "—",
                 econReady
-                  ? money0(overPaid) + " above the cap"
-                    + (refunds ? " · " + money0(refHis) + " of the refund" : "")
+                  ? money0(hisCut - adjusted) + " off · " + pctS(billed ? adjusted / billed : null) + " of the bill"
                   : "mart not built yet",
-                (refHis + overPaid) > 0 ? "warn" : "")}
+                econReady && adjusted < hisCut ? "pos" : "")}
           ${kpi("Without the fee parts", econReady ? pctS(billed ? adjCut / billed : null) : "—",
                 econReady ? money0(adjCut) + " instead of " + money0(hisCut)
                           + " · " + money0(cutOnFees) + " earned on them" : "mart not built yet",
@@ -751,86 +762,49 @@ registerPage({
 
         ${econReady ? `
         <div class="panel">
-          <div class="panel-head"><div class="panel-title">What he would have earned without the parts our sales people never earn on</div></div>
-          <p class="rs-hint">His rate stays exactly what he was paid — only the <b>base it applies
-            to</b> shrinks. Three parts of a bill are not the sales person's to earn on:
-            <b>the stairs fee</b> (all of it goes to the crew, we keep nothing), <b>half the bulky
-            fee</b> (the crew takes the other half), and <b>storage past the first month</b>. The
-            last row goes one step further and prices him on <b>our Sales Price Calculator
-            number</b> rather than the quote, which carries a 20% increase on top.</p>
-          <div class="rs-tablewrap"><table class="rs-table">
-            <thead><tr><th>The question</th><th>What changes</th>
-              <th class="num">Over all 109 jobs</th><th class="num">% of the bill</th>
-              <th class="num">vs what he was paid</th></tr></thead>
+          <div class="panel-head"><div class="panel-title">His adjusted cut</div>
+            <div class="rs-spacer"></div>
+            <span class="rs-pill">${money0(adjusted)} · ${pctS(billed ? adjusted / billed : null)} of the bill</span></div>
+          <p class="rs-hint">What he was paid, less the three things he should not have been paid
+            on. Every deduction is at <b>30%</b> — his own rate — because that is the rate the
+            deal allows.</p>
+          <div class="rs-tablewrap"><table class="rs-table cla-wf">
             <tbody>
-              <tr><td class="strong">What he was actually paid</td>
-                <td class="muted">his cut, against the whole bill</td>
-                <td class="num strong">${money0(hisCut)}</td>
-                <td class="num ${billed && hisCut / billed > CAP ? "cla-over" : ""}">${pctS(billed ? hisCut / billed : null)}</td>
-                <td class="num muted">—</td></tr>
-
-              <tr><td colspan="5" class="muted" style="padding-top:14px">
-                <b>If he kept his own rate, but only earned on what a sales person may earn on</b></td></tr>
-              <tr><td>1 · Take out the parts nobody earns commission on</td>
-                <td class="muted">the stairs fee, half the bulky fee, storage after month 1</td>
-                <td class="num">${money0(adjCut)}</td>
-                <td class="num">${pctS(billed ? adjCut / billed : null)}</td>
-                <td class="num">${money0(adjCut - hisCut)}</td></tr>
-              <tr><td>2 · …and price it on our number, not his quote</td>
-                <td class="muted">every CL quote is our price plus 20% — this removes that</td>
-                <td class="num strong">${money0(adjOur)}</td>
-                <td class="num strong">${pctS(billed ? adjOur / billed : null)}</td>
-                <td class="num strong">${money0(adjOur - hisCut)}</td></tr>
-
-              <tr><td colspan="5" class="muted" style="padding-top:14px">
-                <b>If he were on the payroll instead — our own sales rates</b></td></tr>
-              <tr><td>At 9% — our senior rate</td>
-                <td class="muted">the claim comes off the bill first, then 9%</td>
-                <td class="num">${money0(sp9)}</td>
-                <td class="num">${pctS(billed ? sp9 / billed : null)}</td>
-                <td class="num">${money0(sp9 - hisCut)}</td></tr>
-              <tr><td>At 5% — what most of the team is on</td>
-                <td class="muted">same basis, our common rate</td>
-                <td class="num">${money0(sp5)}</td>
-                <td class="num">${pctS(billed ? sp5 / billed : null)}</td>
-                <td class="num">${money0(sp5 - hisCut)}</td></tr>
+              <tr><td class="strong">1 · What he was paid</td>
+                <td class="muted">${fmtN(jobs.length)} jobs · ${money0(billed)} billed</td>
+                <td class="num"></td>
+                <td class="num strong">${money0(hisCut)}</td></tr>
+              <tr><td class="strong">2 · Less what he took above 30%</td>
+                <td class="muted">${fmtN(overJobs.length)} job${overJobs.length === 1 ? "" : "s"} ran past the cap — brought back to 30%</td>
+                <td class="num cla-over">−${money0(overPaid)}</td>
+                <td class="num">${money0(hisCut - overPaid)}</td></tr>
+              <tr><td class="strong">3 · Less his share of refunds</td>
+                <td class="muted">30% of ${money0(refunds)} refunded to customers</td>
+                <td class="num cla-over">−${money0(refHis)}</td>
+                <td class="num">${money0(hisCut - overPaid - refHis)}</td></tr>
+              <tr><td class="strong">4 · Less his share of the fee parts</td>
+                <td class="muted">30% of ${money0(feeParts)} — stairs ${money0(feeStairs)},
+                  half the bulky ${money0(feeBulkyHalf)}, storage past month one ${money0(feeStorage)}</td>
+                <td class="num cla-over">−${money0(feeHis)}</td>
+                <td class="num">${money0(adjusted)}</td></tr>
+              <tr class="cla-wf-tot"><td class="strong">5 · His adjusted cut</td>
+                <td class="muted">${pctS(billed ? adjusted / billed : null)} of the bill,
+                  against the ${pctS(billed ? hisCut / billed : null)} he was paid</td>
+                <td class="num strong">−${money0(hisCut - adjusted)}</td>
+                <td class="num strong">${money0(adjusted)}</td></tr>
             </tbody></table></div>
-
-          <p class="rs-hint" style="margin-top:12px">Same five questions, asked only of the
-            <b>${fmtN(overJobs.length)} jobs where he went past the 30% cap</b> (${money0(oBill)}
-            billed): paid <b>${money0(oCut)}</b> (${pctS(oBill ? oCut / oBill : null)}) ·
-            without the fee parts ${money0(oAdj)} · on our price ${money0(oAdjOur)}
-            (${pctS(oBill ? oAdjOur / oBill : null)}) · at 9% ${money0(oSp9)} · at 5% ${money0(oSp5)}.</p>
-
-          <div class="cla-checks" style="margin-top:14px">
-            ${chk(false,
-              "",
-              `The fee rules move the number by only ${money0(hisCut - adjCut)} across ${fmtN(jobs.length)} jobs.
-               There is ${money0(feeMoney)} of deductible fee on these jobs in total — the stairs fee appears
-               on a handful, and storage past month one on none at all. The 20% quote increase is worth
-               ${money0(adjCut - adjOur)} by comparison, which is where the real difference sits.`)}
-            ${chk(false, "",
-              `The last two rows are the same jobs on an employee's terms: the claim comes off the
-               bill first (${money0(billed - netBill)} across these jobs), then our own rate — 9%,
-               which four sellers are on, or 5%, which the rest of the team is on. He was paid
-               ${money0(hisCut)}; the sales-person equivalents are ${money0(sp9)} and ${money0(sp5)}.`)}
-            ${chk(false, "",
-              `One thing the comparison does not hold equal, and it is worth saying before he does:
-               our sales people are handed leads the company pays for. He brings the work as well as
-               closing it, so the gap between 26.1% and 9% is not all margin — part of it is what we
-               would otherwise spend to get the job.`)}
-            ${chk(withContract === jobs.length,
-              `All ${fmtN(jobs.length)} jobs have a digital contract, so every fee line is known`,
-              `Only ${fmtN(withContract)} of ${fmtN(jobs.length)} jobs have a digital contract. On the other
-               ${fmtN(jobs.length - withContract)} we cannot see a stairs or bulky fee even if one was charged,
-               so the fee deduction above is a floor, not the full amount.`)}
-          </div>
-
-          <p class="rs-hint" style="margin-top:12px">For reference, a flat 30% of our price — the
-            cap he already has, applied the way a salesperson would be paid — comes to
-            <b>${money0(stdPay)}</b> (${pctS(stdPct)}) across all jobs and <b>${money0(oStd)}</b>
-            (${pctS(oBill ? oStd / oBill : null)}) on the ${fmtN(overJobs.length)} over the cap.</p>
-        </div>
+          <p class="rs-hint" style="margin-top:10px">Step 4 is a floor, not the full amount: only
+            ${fmtN(withContract)} of ${fmtN(jobs.length)} jobs have a digital contract, so on the
+            other ${fmtN(jobs.length - withContract)} a stairs or bulky fee cannot be seen even if
+            one was charged. For reference, one of our own sales people on the same jobs would earn
+            ${money0(sp9)} at 9% or ${money0(sp5)} at 5% — but they are handed leads the company
+            pays for, and he brings the work as well as closing it.</p>
+        </div>` : `
+        <div class="panel">
+          <div class="panel-head"><div class="panel-title">His adjusted cut</div></div>
+          <p class="rs-hint">The economics mart has not been built yet — it lands on the next
+            pipeline run, and this fills itself in then.</p>
+        </div>`}
 
         ${(refunds > 0 || claimsN > 0) ? `
         <div class="panel">
@@ -885,12 +859,7 @@ registerPage({
                Example: if we made $1,000 on the job and CL made $500, a $3,000 refund is $2,000
                from Zip to Zip and $1,000 from CL.`)}
           </div>
-        </div>` : ""}` : `
-        <div class="panel">
-          <div class="panel-head"><div class="panel-title">What he would have earned on our own rules</div></div>
-          <p class="rs-hint">The economics mart has not been built yet — it lands on the next
-            pipeline run, and this fills itself in then.</p>
-        </div>`}
+        </div>` : ""}
 
         <div class="panel">
           <div class="panel-head"><div class="panel-title">By month</div></div>
