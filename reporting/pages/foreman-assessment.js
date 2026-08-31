@@ -305,6 +305,17 @@ registerPage({
       + ".fa2-half span{font-size:12px;color:var(--faint);white-space:nowrap}"
       + "@media(max-width:1250px){.fa2-half{display:none}}"
 
+      // last month's place: quiet next to this month's numbers, but always there
+      + ".fa2-prev{display:flex;flex-direction:column;gap:2px;text-align:right;"
+      + "padding-left:15px;border-left:1px solid var(--line);min-width:74px}"
+      + ".fa2-prev span{font-size:10.5px;letter-spacing:.05em;text-transform:uppercase;"
+      + "color:var(--faint);font-weight:700}"
+      + ".fa2-prev b{font-size:19px;font-weight:750;line-height:1.05;color:var(--ink);"
+      + "font-variant-numeric:tabular-nums}"
+      + ".fa2-prev small{font-size:11.5px;color:var(--faint);white-space:nowrap}"
+      + ".fa2-prev.won b{color:var(--pos)}"
+      + "@media(max-width:1250px){.fa2-prev{display:none}}"
+
       + ".fa2-sc{display:flex;align-items:center;gap:13px}"
       + ".fa2-sb{width:180px;height:11px;border-radius:6px;background:var(--panel-2);overflow:hidden;display:flex}"
       + ".fa2-sb u{display:block;height:100%}"
@@ -506,6 +517,14 @@ registerPage({
                full: NQ() > 0 && answered >= NQ(),
                ok: +f["Qualified"] === 1, why: f["Not Qualified Because"] || "" };
     }
+
+    /* 1st / 2nd / 3rd — a place reads as a place, not as a number in a column. */
+    const ord = n => {
+      if (n == null) return "—";
+      const t = n % 100;
+      return n + (t >= 11 && t <= 13 ? "th"
+        : n % 10 === 1 ? "st" : n % 10 === 2 ? "nd" : n % 10 === 3 ? "rd" : "th");
+    };
 
     const stat = (b, lab, sub) => '<div class="fa2-st"><span>' + esc(lab) + "</span><b>" + b
       + "</b><small>" + esc(sub) + "</small></div>";
@@ -915,11 +934,51 @@ registerPage({
       let rk = 0;
       all.forEach(x => { x.rank = x.ok ? ++rk : null; });
 
+      /* LAST MONTH, BESIDE THIS ONE (Tornike 2026-08-31). A rater who cannot see where the
+         man finished last month is scoring him in a vacuum.
+
+         The previous month is ranked HERE, by the same rule as the month on screen —
+         qualified men first, then by total — rather than read from the warehouse's own
+         `Total Score Rank`, which ranks a different population. Two numbers side by side
+         have to be produced the same way or the comparison is a lie.
+
+         `manual` is read from the scorecard for the old month (`Manual Points`), not from
+         S.ratings, which only ever holds the month being edited. A month scored before the
+         rubric existed therefore shows its counted side and says so. */
+      const prevMonth = (() => {
+        const [y, m] = S.month.split("-").map(Number);
+        const d = new Date(Date.UTC(y, m - 2, 1));
+        return d.getUTCFullYear() + "-" + String(d.getUTCMonth() + 1).padStart(2, "0");
+      })();
+      const prevRows = (S.sc || []).filter(r => String(r.Month || "").slice(0, 7) === prevMonth);
+      const PREV = {};
+      if (prevRows.length) {
+        const pv = prevRows.map(f => {
+          const auto = num(f["Auto Score"]);
+          const manual = num(f["Manual Points"]);
+          return { name: f.Foreman, auto, manual,
+                   total: num(f["Total Score"]) != null ? num(f["Total Score"])
+                          : (auto == null ? null : auto + (manual || 0)),
+                   ok: +f["Qualified"] === 1,
+                   full: +f["Fully Assessed"] === 1,
+                   why: f["Not Qualified Because"] || "",
+                   jobs: num(f["Total Jobs"]) || 0 };
+        }).sort((a, b) => (a.ok === b.ok ? 0 : a.ok ? -1 : 1)
+          || ((b.total != null ? b.total : -1) - (a.total != null ? a.total : -1))
+          || (b.jobs - a.jobs));
+        let prk = 0;
+        pv.forEach(p => { p.rank = p.ok ? ++prk : null; PREV[p.name] = p; });
+      }
+      const prevN = Object.keys(PREV).length;
+
       const done = all.filter(x => x.full).length;
       const part = all.filter(x => x.answered > 0 && !x.full).length;
       const todo = all.length - done - part;
       const leader = all.filter(x => x.ok && x.total != null)[0];
       const nQual = all.filter(x => x.ok).length;
+
+      all.forEach(x => { x.prev = PREV[x.f.Foreman] || null; });
+      S._prevMonth = prevMonth; S._prevN = prevN;
 
       let rows = all;
       if (S.tab === "todo") rows = rows.filter(x => x.answered === 0);
@@ -1052,6 +1111,22 @@ registerPage({
         + '<u class="m" style="width:' + x.manual.toFixed(0) + '%"></u></span>'
         + '<span class="fa2-tot"><b>' + (x.total == null ? "—" : fmt1(x.total)) + "</b>"
         + "<i>" + (x.total == null ? "not measurable" : x.ok ? "of 100" : "not ranked") + "</i></span></div>"
+        // LAST MONTH: where he finished and what he scored, so this month is rated against
+        // something. Absent months say so rather than showing a dash that reads as zero.
+        + '<div class="fa2-prev' + (x.prev && x.prev.rank === 1 ? " won" : "") + '" title="'
+        + esc(S._prevN
+              ? (x.prev
+                 ? monLab(S._prevMonth) + ": " + (x.prev.total == null ? "no score"
+                     : fmt1(x.prev.total) + " points")
+                   + (x.prev.rank ? ", finished " + ord(x.prev.rank) : ", not ranked — " + (x.prev.why || "did not qualify"))
+                   + (x.prev.full ? "" : " (the counted side only — the rubric had not been rated)")
+                 : "No scorecard for " + monLab(S._prevMonth) + " — he did not work, or had no measurable month")
+              : "No assessment data for " + monLab(S._prevMonth)) + '">'
+        + '<span>' + esc(S._prevN ? "last month" : "no last month") + "</span>"
+        + "<b>" + (x.prev && x.prev.rank ? ord(x.prev.rank)
+                   : x.prev && x.prev.total != null ? "—" : "·") + "</b>"
+        + "<small>" + (x.prev && x.prev.total != null ? fmt1(x.prev.total) + " pts"
+                       : x.prev ? "not ranked" : "not scored") + "</small></div>"
         + "</div>";
 
       h += '<div class="fa2-body">';
