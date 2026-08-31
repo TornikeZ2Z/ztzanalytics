@@ -188,7 +188,27 @@
           // rental jobs ARE the rented trucks — the mart counts them, and a rented
           // truck-day is now measured the same way an owned one is.
           const jobsPerOwnedDay = ownedDays ? ownedJobs / ownedDays : 0;
-          const rentPerDay = rentalDays ? rentTotal / rentalDays : 0;
+          /* FEED-LAG GUARD (2026-09-01): the card feed lands ~a month behind the closings.
+             Aug-2026 had 213 real rental truck-days and $0.00 of recorded spend — divide
+             the period total by ALL rental days and every downstream number (the marginal
+             table, the buy payback) is flattered toward renting. The blended $/day is
+             priced only on months where BOTH sides exist; the lag months still count in
+             the day totals, they just don't dilute the price. */
+          const rentDaysByYm = {};
+          D.forEach(d => {
+            rentDaysByYm[d._ym] = (rentDaysByYm[d._ym] || 0) + num(d["Rental Used"]);
+          });
+          let pricedSpend = 0, pricedDays = 0, lagMonths = [];
+          C.forEach(c => {
+            const ym = String(c.ym);
+            const spend = num(c["Rental Enterprise"]) + num(c["Rental Ryder"]) +
+              num(c["Rental Penske"]) + num(c["Rental U-Haul"]) + num(c["Rental Other"]);
+            const dys = rentDaysByYm[ym] || 0;
+            if (spend <= 0 && dys > 0) { lagMonths.push(ym); return; }
+            pricedSpend += spend; pricedDays += dys;
+          });
+          const rentPerDay = pricedDays ? pricedSpend / pricedDays
+            : (rentalDays ? rentTotal / rentalDays : 0);
 
           // ---- owned cost per truck-day ----
           const ownedTotal = ins + park + maint + fin + fuel;
@@ -222,6 +242,14 @@
           const buyDisplacedYear = (nextTruck.displaced / months) * 12;
           const buyNet = buyDisplacedYear - buyYear;
           const paybackMonths = buyNet > 0 ? (b.price / (buyNet / 12)) : null;
+          /* HIS GUESS IS +2, so price the PAIR: the second truck works only the days
+             demand reaches working+2 — strictly fewer than the first — and both carry the
+             same running cost. One combined payback, not two rows left for the reader. */
+          const truck2 = marg.find(m => m.n === Math.round(working) + 2)
+            || { days: 0, displaced: 0 };
+          const pairDisplacedYear = ((nextTruck.displaced + truck2.displaced) / months) * 12;
+          const pairNet = pairDisplacedYear - buyYear * 2;
+          const pairPayback = pairNet > 0 ? ((b.price * 2) / (pairNet / 12)) : null;
 
           const overDays = D.filter(d =>
             (num(d["Owned Used"]) + num(d["Rental Used"])) > Math.round(working)).length;
@@ -231,7 +259,8 @@
                    ownedDays, rentalDays, jobs, ownedJobs, rentalJobs,
                    jobsPerOwnedDay, rentPerDay, ownedTotal, ownPerTruckYear, ownPerDay,
                    hist, maxNeed, marg, best, buyYear, buyDisplacedYear, buyNet,
-                   paybackMonths, nextTruck };
+                   paybackMonths, nextTruck,
+                   truck2, pairDisplacedYear, pairNet, pairPayback, lagMonths };
         }
 
         function paint() {
@@ -287,7 +316,10 @@
               <div class="kpi"><span class="k">Cost of a rented truck-day</span>
                 <span class="v tec-bad">${money1(M.rentPerDay)}</span>
                 <span class="s">${fmtN(M.rentalDays)} rental truck-days ·
-                  ${money(M.rentTotal)}</span></div>
+                  ${money(M.rentTotal)}${M.lagMonths.length
+                    ? " · " + M.lagMonths.map(ymLabel).join(", ") +
+                      " priced out — rental days with no card spend yet"
+                    : ""}</span></div>
               <div class="kpi"><span class="k">Cost of an owned truck-day</span>
                 <span class="v tec-good">${money1(M.ownPerDay)}</span>
                 <span class="s">${fmtN(M.ownedDays)} owned truck-days ·
@@ -407,6 +439,16 @@
                     ? money(M.buyNet) + " a year better than renting"
                     : "renting is cheaper at this demand"}</span></div>
               </div>
+              <div class="tec-note" style="margin-top:12px"><b>The +2 pair, priced
+                together:</b> the second truck works only ${fmtN((M.truck2.days / M.months) * 12)}
+                days/yr (demand must reach ${Math.round(M.working) + 2} trucks), so the pair
+                replaces ${money(M.pairDisplacedYear)}/yr of renting against
+                ${money(M.buyYear * 2)}/yr of running cost — ${M.pairNet > 0
+                  ? "<b>" + money(M.pairNet) + "/yr better than renting, both trucks" +
+                    " paid off in " + (M.pairPayback ? n1(M.pairPayback) + " months" : "—") + "</b>"
+                  : "<b>the second truck does not pay at this period's demand" +
+                    " — buy one, keep renting the peak</b>"}
+                (both at the same purchase price and running cost as above).</div>
             </div>
 
             <div class="panel">

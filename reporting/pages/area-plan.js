@@ -66,7 +66,16 @@
     { st: "DE", cur: 3,  add: 3, note: "" },
     { st: "CT", cur: 5,  add: 2, note: "" },
     { st: "MA", cur: 0,  add: 0, note: "" },
+    /* MD and VA were not bases in his table, but they ARE in the 28-crew aim (MD 3 -- Tuji
+       and Zip together -- and VA 1). They seed at zero so the default totals stay his real
+       plan; the aim chip below fills them. */
+    { st: "MD", cur: 0,  add: 0, note: "Tuji + Zip together in the aim" },
+    { st: "VA", cur: 0,  add: 0, note: "a stated marketing bet -- no measured demand" },
   ];
+  /* The 28-crew AIM from the original brief (also shipped as model.crew_aim): the maximum
+     from the brief, distinct from the real base table above. One chip loads each; a hand
+     edit makes the plan "custom". */
+  const AIM_FALLBACK = { NJ: 10, PA: 8, MD: 3, CT: 4, MA: 2, VA: 1 };
   const DAYS_PER_MONTH = 30;
 
 registerPage({
@@ -116,6 +125,7 @@ registerPage({
       })();
       const inputs = Object.assign({
         from: "2025-09", to: "2025-09",
+        seed: "real",                // "real" = his table; "aim" = the 28-crew aim; "custom"
         bases: Object.fromEntries(BASES.map(b => [b.st, { cur: b.cur, add: b.add }])),
         utilization: null,           // seeded from the selected period below
         leadsPerRep: null,
@@ -252,7 +262,9 @@ registerPage({
         const t = (l, v, s, cls) =>
           '<div class="kpi"><div class="l">' + l + '</div><div class="v' +
           (cls ? " " + cls : "") + '">' + v + '</div><div class="s">' + s + '</div></div>';
-        return t("Foremen today", c.totCur, "his real current numbers") +
+        return t(inputs.seed === "aim" ? "Aim foremen" : "Foremen today", c.totCur,
+                 inputs.seed === "aim" ? "the 28-crew aim (a maximum)"
+                   : inputs.seed === "custom" ? "hand-edited below" : "his real current numbers") +
           t("Planned foremen", c.totForemen, "+" + (c.totForemen - c.totCur) + " additional") +
           t("Jobs in " + esc(P.label), fmtN(c.totJobs),
             "at " + n1(c.util * 100) + "% utilization") +
@@ -300,6 +312,29 @@ registerPage({
           ).join("") + '</tbody></table>';
       }
 
+      function seedChipsHtml() {
+        const chip = (key, label) => '<button' + (inputs.seed === key ? ' class="on"' : '') +
+          ' data-seed="' + key + '">' + label + '</button>';
+        return '<div class="rs-fld" style="margin-bottom:12px"><span>Seed</span>' +
+          '<div class="rs-seg" id="apSeed">' +
+          chip("real", "His table (real numbers)") +
+          chip("aim", "The 28-crew aim: NJ 10 / PA 8 / MD 3 / CT 4 / MA 2 / VA 1") +
+          '</div></div>';
+      }
+
+      /* One foreman = one truck per day (his own rule from Truck Economics), so the truck
+         layout IS the foreman layout -- said out loud instead of leaving "where do the
+         trucks go" to be inferred from a column meant for people. */
+      function trucksByBaseNote(c) {
+        const parts = c.perBase.filter(r => r.foremen > 0)
+          .map(r => esc(r.st) + " " + r.foremen).join(" / ");
+        return '<div class="ap-note" style="margin-top:10px">Trucks by base @ plan ' +
+          '(a foreman needs a truck): <b>' + parts + ' = ' + c.totForemen + '</b> vs ' +
+          fmtN((model.fleet || {}).owned_trucks) + ' in the whole vehicles register -- the ' +
+          'paid-for operating fleet is smaller (sold/damaged units stay on the register); ' +
+          'Truck Economics has the working count and the rent-vs-buy math.</div>';
+      }
+
       function assumptionsHtml() {
         return '<div class="ap-assume">' +
           [["utilization", "Utilization of the ceiling, %",
@@ -333,14 +368,21 @@ registerPage({
           '<th class="num">' + esc(P.label) + '</th>' +
           '<th class="num">Conversion, then → now</th><th class="num">Lost</th>' +
           '<th>Top counties (leads · lost)</th>' +
+          '<th>Where it leaks (lost of leads)</th>' +
           '</tr></thead><tbody>' +
           states.map(st => {
             const a = P.Sprev[st] || {}, b = P.S[st] || {};
             const dl = (a.leads && b.leads) ? (b.leads - a.leads) / a.leads : null;
             const convDown = (b.conversion || 0) < (a.conversion || 0);
-            const counties = Object.entries(byCounty[st] || {})
+            const cs = Object.entries(byCounty[st] || {});
+            const counties = cs.slice()
               .sort((x, y) => y[1].leads - x[1].leads).slice(0, 4)
               .map(([c, v]) => esc(c) + " " + v.leads + " · " + v.lost).join("   ");
+            /* ranked by LOST -- where the leak actually is; top-by-leads hides a county
+               that loses most of a smaller volume */
+            const leaks = cs.slice()
+              .sort((x, y) => y[1].lost - x[1].lost).slice(0, 4)
+              .map(([c, v]) => esc(c) + " " + v.lost + " of " + v.leads).join("   ");
             return '<tr><td class="strong">' + esc(st) + '</td>' +
               '<td class="num dim">' + fmtN(a.leads) + ' → ' + fmtN(a.booked) + '</td>' +
               '<td class="num"><b>' + fmtN(b.leads) + '</b>' +
@@ -350,7 +392,8 @@ registerPage({
               '<td class="num ' + (convDown ? 'ap-bad' : 'ap-good') + '">' + pct(a.conversion) +
                 ' → ' + pct(b.conversion) + '</td>' +
               '<td class="num ap-bad"><b>' + fmtN(b.lost) + '</b></td>' +
-              '<td class="ap-towns">' + counties + '</td></tr>';
+              '<td class="ap-towns">' + counties + '</td>' +
+              '<td class="ap-towns">' + leaks + '</td></tr>';
           }).join("") + '</tbody></table>';
       }
 
@@ -389,7 +432,10 @@ registerPage({
         '<div class="ap-note" style="margin-top:10px">Owned fleet <b>' +
         fmtN((model.fleet || {}).owned_trucks) + '</b> · insurance <b>' +
         money((model.fleet || {}).insurance_yearly_total) + '/yr</b> · parking <b>' +
-        money((model.fleet || {}).parking_monthly_total) + '/mo</b></div>' +
+        money((model.fleet || {}).parking_monthly_total) +
+        '/mo</b> — the whole vehicles register, sold and damaged units included; the ' +
+        'paid-for month-by-month fleet (smaller) and the per-day economics live on ' +
+        'Truck Economics.</div>' +
         (function (t) {
           if (!t) return "";
           return '<div class="ap-callout"><b>The +2 answer, priced from live market ' +
@@ -417,8 +463,9 @@ registerPage({
                "considered",
                "Your real numbers. NY is covered from the NJ base. Change any cell; the " +
                "tiles above follow. Edits stay in this browser.",
-               assumptionsHtml() + '<div id="apBase" style="overflow-x:auto">' + baseHtml(c) +
-               '</div>') +
+               seedChipsHtml() + assumptionsHtml() +
+               '<div id="apBase" style="overflow-x:auto">' + baseHtml(c) + '</div>' +
+               trucksByBaseNote(c)) +
           card("The demand", esc(P.label) + " vs " + esc(P.prevLabel),
                "Leads counted where the move starts, on create date. Lost = qualified and " +
                "never booked.",
@@ -439,8 +486,8 @@ registerPage({
                'foremen to a month of jobs and re-seeds when you change the period — typing ' +
                'your own value overrides it. Lost = qualified, never booked. Geography is ' +
                'where the move starts. Marketing $/lead is company-wide. MD counts Tuji and ' +
-               'Zip together; MD/VA are not bases in this plan but their history stays ' +
-               'visible above.</div>');
+               'Zip together; MD/VA seed at zero in his table — the 28-crew aim chip ' +
+               'fills them.</div>');
         // the research table's qualified column follows the period
         Object.keys(R.states || {}).forEach(st => {
           const el = document.getElementById("apRq-" + st);
@@ -464,6 +511,18 @@ registerPage({
           tSel = RSC.localSelect(t, { label: "To", values: ymVals,
             value: inputs.to, required: true, onChange: onSel });
         }
+        host.querySelectorAll("#apSeed button").forEach(b => b.onclick = () => {
+          const k = b.dataset.seed;
+          if (k === inputs.seed) return;
+          const aim = model.crew_aim || AIM_FALLBACK;
+          BASES.forEach(bb => {
+            inputs.bases[bb.st] = k === "aim"
+              ? { cur: num(aim[bb.st]) || 0, add: 0 }
+              : { cur: bb.cur, add: bb.add };
+          });
+          inputs.seed = k;
+          save(); paint();
+        });
         host.querySelectorAll("#apPeriod button").forEach(b => b.onclick = () => {
           inputs.from = b.dataset.from; inputs.to = b.dataset.to;
           inputs.utilization = null; inputs.leadsPerRep = null;
@@ -481,7 +540,13 @@ registerPage({
       host.addEventListener("input", e => {
         const t = e.target;
         if (!t.classList || !t.classList.contains("rs-num")) return;
-        if (t.dataset.st) inputs.bases[t.dataset.st][t.dataset.f] = parseFloat(t.value) || 0;
+        if (t.dataset.st) {
+          inputs.bases[t.dataset.st][t.dataset.f] = parseFloat(t.value) || 0;
+          if (inputs.seed !== "custom") {
+            inputs.seed = "custom";
+            host.querySelectorAll("#apSeed button").forEach(b => b.classList.remove("on"));
+          }
+        }
         else if (t.dataset.k) inputs[t.dataset.k] = parseFloat(t.value) || 0;
         save();
         const c = calc();
