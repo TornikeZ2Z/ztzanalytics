@@ -186,6 +186,7 @@ const GROUP_OVERRIDE = {
   // Financial
   "fin-revenue": "financial", "fin-rr": "financial", "branch-owner": "financial", "cl-analysis": "financial", "money-flow": "logistics", "ld-planning": "logistics", "foreman-closings": "logistics",
   "packing-control": "logistics", "storage-control": "logistics", "fuel-control": "logistics",
+  "crew-salaries": "logistics",
   "foreman-late": "logistics",
   "foreman-assessment": "logistics",
   "hr-questionnaire": "hr", "hr-my-questionnaire": "hr", "hr-directory": "hr",
@@ -203,7 +204,7 @@ const NAV_ORDER = {
   "monthly-report": 1, "analysis-by-category": 2, "work": 0.5,
   "sales-command": 0.5, "conversations": 0.7, "sales-comms": 0.8, "sales-trackers": 0.9, "sales-funnel": 1, "sales-perf": 2, "demand-analysis": 5,
   "mkt-roi": 1, "mkt-sources": 2, "mkt-phone": 3,
-  "money-flow": 1, "foreman-closings": 2, "ld-planning": 3, "packing-control": 4, "storage-control": 5, "foreman-assessment": 6, "fuel-control": 7, "foreman-late": 7.5, "log-foreman": 8, "log-packing": 9,
+  "money-flow": 1, "foreman-closings": 2, "ld-planning": 3, "packing-control": 4, "storage-control": 5, "foreman-assessment": 6, "crew-salaries": 6.5, "fuel-control": 7, "foreman-late": 7.5, "log-foreman": 8, "log-packing": 9,
   "hr-directory": 1, "hr-questionnaire": 2, "hr-my-questionnaire": 3,
   "cleanup": 1,
   "fin-revenue": 1, "fin-rr": 2, "sales-geo": 3, "branch-owner": 6, "cl-analysis": 6.5,
@@ -259,7 +260,7 @@ const PAGE_ICONS = {
   "branch-owner": "user", "cl-analysis": "trend", "customer-experience": "user",
   "money-flow": "dollar",
   "ld-planning": "truck",
-  "packing-control": "box",
+  "packing-control": "box", "crew-salaries": "user",
   "storage-control": "archive",
   "fuel-control": "truck",
   "foreman-assessment": "star",
@@ -687,6 +688,7 @@ const PAGE_DATASETS = {
   "ld-planning": [],         // loads fct_ld_planning itself; no global slicers apply
   "cleanup": [],             // its own horizon; a global date filter would fight it
   "packing-control": [],     // loads fct_packing_job itself; its month picker owns the window
+  "crew-salaries": [],       // its own month range + role segment own the window
   "storage-control": [],     // loads the storage register itself; no global slicers apply
   "fuel-control": [],        // its own month picker owns the window
   "foreman-assessment": [],  // its own month picker owns the window
@@ -898,7 +900,7 @@ function navigate(id, push) {
 /* Pages that bring their OWN toolbar and ignore the global filter bar (PAGE_DATASETS=[])
    render "bare" — the global date/slicer bar + company chip are hidden so the page's board
    starts right under the header instead of below two rows of greyed-out, unusable filters. */
-const BARE_CHROME = new Set(["review-performance", "demand-analysis", "reviews-reminders", "response-analysis", "review-settings", "monthly-report", "money-flow", "ld-planning", "cleanup", "packing-control", "storage-control", "foreman-assessment", "fuel-control", "foreman-closings", "refresh-log", "general-tables", "hr-questionnaire", "hr-my-questionnaire", "hr-directory", "conversations", "sales-comms", "referral-candidates", "jobs-by-area", "meta-referrals", "relocation-trends", "angi-funnel", "promised-reviews",
+const BARE_CHROME = new Set(["review-performance", "demand-analysis", "reviews-reminders", "response-analysis", "review-settings", "monthly-report", "money-flow", "ld-planning", "cleanup", "packing-control", "crew-salaries", "storage-control", "foreman-assessment", "fuel-control", "foreman-closings", "refresh-log", "general-tables", "hr-questionnaire", "hr-my-questionnaire", "hr-directory", "conversations", "sales-comms", "referral-candidates", "jobs-by-area", "meta-referrals", "relocation-trends", "angi-funnel", "promised-reviews",
   // Straight vs Local reads its whole history on purpose (Tornike 2026-08-19: "i dont need
   // any filters here, its just kinda analysis and directions"). A date filter left over from
   // another page emptied it completely, which is worse than useless -- it looked like there
@@ -1006,6 +1008,7 @@ const NAV_TITLES = {
   "money-flow": "Money Flow",
   "ld-planning": "Long Distance Planning",
   "packing-control": "Packing Control",
+  "crew-salaries": "Crew Salaries",
   "storage-control": "Storage Control",
   "fuel-control": "Fuel Control",
   "demand-analysis": "Demand by Move Date",
@@ -1059,6 +1062,7 @@ const SEARCH_ALIASES = {
   "fin-revenue": "revenue profit growth executive summary composition segments per job profitability p&l pnl profit and loss gross profit gross margin operational",
   "branch-owner": "branch owner giorgi kolbaia cut payout sales person financial ct",
   "cl-analysis": "cl analysis peter montanaro partner deposit cut craigslist source jobs referral partner financial",
+  "crew-salaries": "crew salaries wages payroll foreman driver helper rate hours tips pay per person crew cost logistics",
   "fin-rr": "repeat referral repeat business referral business returning customers financial revenue reviews",
   // Reviews
   "rev-production": "actual reviews review rating ratings stars review production generated",
@@ -1580,7 +1584,7 @@ const ACL_DEPTS = [
   { id: "company",   label: "Company Overview", icon: "spark",     reports: ["work", "monthly-report", "analysis-by-category"] },
   { id: "sales",     label: "Sales",            icon: "funnel",    reports: ["work", "sales-command", "demand-analysis", "conversations", "sales-comms", "sales-trackers"] },
   { id: "marketing", label: "Marketing",        icon: "megaphone", reports: ["work", "source-trace", "referral-candidates", "jobs-by-area", "relocation-trends", "angi-funnel", "promised-reviews"] },
-  { id: "logistics", label: "Logistics",        icon: "tool",      reports: ["work", "money-flow", "ld-planning", "foreman-closings", "packing-control", "storage-control", "foreman-assessment", "fuel-control", "foreman-late", "straight-vs-local", "area-plan", "truck-economics"] },
+  { id: "logistics", label: "Logistics",        icon: "tool",      reports: ["work", "money-flow", "ld-planning", "foreman-closings", "packing-control", "crew-salaries", "storage-control", "foreman-assessment", "fuel-control", "foreman-late", "straight-vs-local", "area-plan", "truck-economics"] },
   // MUST mirror DEPT_REPORTS["hr"] in bridge/app.py. Employees answering the questionnaire
   // need NO grant at all — this tile is for HR: managing it and reading the results.
   { id: "hr",        label: "Human Resources", icon: "user",      reports: ["work", "hr-questionnaire", "hr-responses", "hr-directory"] },
@@ -1817,6 +1821,7 @@ registerPage({
 <script src="pages/packing-control.js?v=21"></script>
 <script src="pages/storage-control.js?v=10"></script>
 <script src="pages/foreman-assessment.js?v=34"></script>
+<script src="pages/crew-salaries.js?v=1"></script>
 <script src="pages/hr-questionnaire.js?v=47"></script>
 <script src="pages/hr-my-questionnaire.js?v=13"></script>
 <script src="pages/hr-directory.js?v=15"></script>
