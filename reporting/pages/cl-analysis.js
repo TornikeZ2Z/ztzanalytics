@@ -93,11 +93,14 @@ registerPage({
         ".rs-table tfoot td{font-weight:800;border-top:2px solid var(--line-2);"
           + "color:var(--ink)}",
         ".rs-table tfoot .cla-of{font-weight:400}",
-        // the proposal preview: slides at the shape they print at, scaled down on screen
-        ".cla-deck{display:flex;flex-direction:column;gap:14px;background:var(--line-2);"
-          + "padding:14px;border-radius:10px;max-height:560px;overflow:auto}",
-        ".cla-slide{background:#fff;color:#1B1A17;padding:26px 30px;border-radius:6px;"
-          + "font-family:Georgia,'Times New Roman',serif;box-shadow:0 1px 3px rgba(0,0,0,.18)}",
+        // THE PROPOSAL IS ITS OWN VIEW, not a panel inside the analysis: the slides are the
+        // document CL will be sent, so they are shown at reading size on a plain ground,
+        // one under the other, exactly as they print.
+        ".cla-view{display:flex;flex-direction:column;gap:18px;padding:4px 0 8px}",
+        ".cla-slide{background:#fff;color:#1B1A17;padding:34px 40px;border-radius:8px;"
+          + "font-family:Georgia,'Times New Roman',serif;border:1px solid var(--line-2);"
+          + "box-shadow:0 1px 2px rgba(0,0,0,.06),0 12px 32px -24px rgba(0,0,0,.5);"
+          + "max-width:860px;width:100%;margin:0 auto}",
         ".cla-slide h2{font-family:inherit;font-size:21px;margin:0 0 10px;color:#1B1A17;"
           + "letter-spacing:-.01em}",
         ".cla-slide .eyebrow{font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;"
@@ -125,6 +128,8 @@ registerPage({
         ".cla-bar span.b{height:15px;background:#A9691B}",
         ".cla-bar span.b.now{background:#33566E}",
         ".cla-bar span.v{color:#3A3833;font-variant-numeric:tabular-nums;white-space:nowrap}",
+        ".cla-vh{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:0 0 14px}",
+        ".cla-vh .rs-hint{margin:0;flex:1 1 340px;min-width:0}",
       ].join("");
       document.head.appendChild(st);
     }
@@ -172,8 +177,9 @@ registerPage({
     const foremen = [...new Set(baseJobs.map(r => String(r["Foreman"] || "").trim())
       .filter(Boolean))].sort();
 
-    // page-local state; paint() recomputes the whole page over the filtered set
-    const S = { q: "", fm: "" };
+    // page-local state; paint() recomputes the whole page over the filtered set.
+    // `view` is the top-level switch: the analysis, or the document we send CL.
+    const S = { q: "", fm: "", view: "analysis" };
     let qTimer = null;
 
     paint();
@@ -428,6 +434,42 @@ registerPage({
       </section>`;
     }
 
+    function paintProposal() {
+      host.innerHTML = `
+        <div class="rs-page-head"><h1>CL Analysis</h1></div>
+        <div class="cla-bar" id="claViews"></div>
+        <div class="cla-vh">
+          <p class="rs-hint">The document we send CL: his jobs, his ticket, what he keeps, and the
+            volume each plan needs — <b>nothing about our margin</b>. Always his full
+            ${fmtN(baseJobs.length)} jobs, never a filter. It is built from the same numbers as the
+            analysis, so the two can never disagree.</p>
+          <button class="rs-btn primary" id="clDeckPdf">Download PDF</button>
+        </div>
+        ${econReady
+          ? `<div class="cla-view">${deckHtml(deckData())}</div>`
+          : `<div class="panel">The economics mart has not been built yet — it lands on the next
+               pipeline run, and the proposal fills itself in then.</div>`}`;
+      mountViews();
+      const b = host.querySelector("#clDeckPdf");
+      if (b) b.onclick = deckPrint;
+    }
+
+    /* The view switch, mounted into whichever view is on screen. */
+    function mountViews() {
+      const host2 = host.querySelector("#claViews");
+      if (!host2) return;
+      const seg = document.createElement("div");
+      seg.className = "rs-seg";
+      [["analysis", "Analysis"], ["proposal", "Proposal for CL"]].forEach(([k, label]) => {
+        const b = document.createElement("button");
+        b.textContent = label;
+        if (S.view === k) b.className = "on";
+        b.onclick = () => { if (S.view !== k) { S.view = k; paint(); } };
+        seg.appendChild(b);
+      });
+      host2.appendChild(seg);
+    }
+
     function deckPrint() {
       const win = window.open("", "_blank");
       if (!win) { alert("Allow pop-ups for this site to save the presentation as a PDF."); return; }
@@ -470,6 +512,7 @@ registerPage({
     }
 
     function paint() {
+      if (S.view === "proposal") { paintProposal(); return; }
       const jobs = filteredJobs();
       const filtered = S.q || S.fm;
 
@@ -648,6 +691,8 @@ registerPage({
              already inside job expenses, so the profit below is <b>net of it</b> and is not
              reduced again.</p></div>
 
+        <div class="cla-bar" id="claViews"></div>
+
         <div class="cla-bar">
           <input class="cla-in" id="claQ" style="flex:0 1 260px" placeholder="search job #, customer, state…"
             value="${esc(S.q)}">
@@ -807,18 +852,6 @@ registerPage({
             pipeline run, and this panel fills itself in then.</p>
         </div>`}
 
-        ${econReady ? `
-        <div class="panel">
-          <div class="panel-head"><div class="panel-title">The proposal for CL</div>
-            <div class="rs-spacer"></div>
-            <button class="rs-btn primary" id="clDeckPdf">Download PDF</button></div>
-          <p class="rs-hint">What he sees: his jobs, his ticket, what he keeps per job, and the
-            volume each plan needs to match today — <b>nothing about our margin</b>. Always his
-            full ${fmtN(baseJobs.length)} jobs, never the filter above. The button opens a
-            print-ready document; choose <b>Save as PDF</b> as the destination.</p>
-          <div class="cla-deck">${deckHtml(deckData())}</div>
-        </div>` : ""}
-
         <div class="panel">
           <div class="panel-head"><div class="panel-title">By month</div></div>
           <p class="rs-hint">How much work he brings us, and what it costs. <b>Share of our
@@ -872,8 +905,7 @@ registerPage({
              ${fmtN(baseJobs.length)}.</div>`}`;
 
       // ---- wire the local bar (debounced, focus preserved across the repaint)
-      const pdfBtn = host.querySelector("#clDeckPdf");
-      if (pdfBtn) pdfBtn.onclick = deckPrint;
+      mountViews();
 
       const qEl = host.querySelector("#claQ");
       qEl.oninput = () => {
