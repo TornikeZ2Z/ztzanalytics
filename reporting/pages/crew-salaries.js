@@ -22,9 +22,12 @@
     // PAYLOAD CONTRACT: a column missing here never arrives, however well the page is written.
     RS.DATASETS.mart_crew_salary = {
       table: "mart_crew_salary",
+      // `Total Bill`, `Move Type` and `Slot` are in the mart but NOT requested here: nothing
+      // on this page reads them, and at 40k rows each unread column is ~0.5-1 MB of JSON the
+      // browser parses and holds for nothing. The mart keeps them; the payload does not.
       cols: ["Unique Key", "Date", "Month", "Company", "Job No", "Request #", "Customer",
-             "Moving Type", "Move Type", "Total Bill", "Job Foreman", "Role", "Person",
-             "Slot", "Hours", "Rate", "Salary", "Tip", "Total Pay"],
+             "Moving Type", "Job Foreman", "Role", "Person",
+             "Hours", "Rate", "Salary", "Tip", "Total Pay"],
       dateCols: { "Date": "Date" }, defaultDate: "Date",
     };
   }
