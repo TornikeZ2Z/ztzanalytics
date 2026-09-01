@@ -60,7 +60,7 @@ registerPage({
           + "transition:border-color .15s}",
         ".rvc-in:focus{border-color:var(--brand)}",
         // a horizontal share bar: one colour per meaning, never per row
-        ".rvc-share{display:grid;grid-template-columns:minmax(120px,220px) 1fr 120px;gap:10px;"
+        ".rvc-share{display:grid;grid-template-columns:minmax(110px,200px) minmax(60px,1fr) auto;gap:10px;"
           + "align-items:center;padding:6px 0;border-bottom:1px solid var(--line-2)}",
         ".rvc-share:last-child{border-bottom:0}",
         ".rvc-share .n{font-size:13px;font-weight:600;min-width:0;overflow:hidden;"
@@ -75,6 +75,9 @@ registerPage({
         ".rvc-pager .rs-btn[disabled]{opacity:.4;pointer-events:none}",
         ".rvc-note{font-size:12px;color:var(--faint);margin-top:8px;line-height:1.6}",
         ".rvc-stars{color:var(--warn);letter-spacing:1px}",
+        // 1fr grid columns default to min-width:auto — a table inside forces the column
+        // wider than the viewport (the classic grid blowout; measured 2385px vs 2048).
+        ".rvc-grid>.panel{min-width:0}",
       ].join("");
       document.head.appendChild(st);
     }
@@ -280,7 +283,7 @@ registerPage({
             fmtN(clMatched.length) + " have a negative review")}
         </div>
 
-        <div class="rs-grid2">
+        <div class="rs-grid2 rvc-grid">
           <div class="panel">
             <div class="panel-head"><div class="panel-title">Where they complain</div>
               <div class="rs-spacer"></div><span class="rs-pill">${fmtN(nr.length)} reviews</span></div>
@@ -301,7 +304,7 @@ registerPage({
           </div>
         </div>
 
-        <div class="rs-grid2">
+        <div class="rs-grid2 rvc-grid">
           <div class="panel">
             <div class="panel-head"><div class="panel-title">The overlap</div></div>
             <p class="rs-hint" style="max-width:64ch">
