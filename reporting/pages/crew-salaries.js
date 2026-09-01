@@ -102,6 +102,9 @@ registerPage({
           + "min-height:3px;transition:opacity .12s}",
         ".crw-spark i:hover{opacity:.7}",
         ".crw-spark i.dim{background:var(--line-2)}",
+        ".crw-pager{display:flex;gap:8px;align-items:center;justify-content:flex-end;"
+          + "margin-top:12px;font-size:12.5px;color:var(--faint)}",
+        ".crw-pager .rs-btn[disabled]{opacity:.4;pointer-events:none}",
       ].join("");
       document.head.appendChild(st);
     }
@@ -124,8 +127,12 @@ registerPage({
 
     // A payroll page opens on the LAST COMPLETE MONTH, not on all time: the question is
     // always "what did we pay this month", and 3.6 years of rows answers a different one.
-    const S = { role: "", from: months[Math.max(0, months.length - 6)] || "", to: months[months.length - 1] || "",
-                co: "", fm: "", type: "", q: "", sort: "pay", dir: -1, person: null };
+    /* Opens on the LAST 3 MONTHS (his ask, 2026-09-01 -- was 6) and on Zip to Zip:
+       that is the company he reads payroll for; Tuji stays one click away. */
+    const S = { role: "", from: months[Math.max(0, months.length - 3)] || "", to: months[months.length - 1] || "",
+                co: companies.includes("Zip to Zip") ? "Zip to Zip" : "", fm: "", type: "",
+                q: "", sort: "pay", dir: -1, person: null,
+                page: 0, pageSize: 50, showAll: false };
     let qTimer = null;
 
     paint();
@@ -215,7 +222,13 @@ registerPage({
         b.salary += num(r.Salary) || 0; b.tip += num(r.Tip) || 0; b.people.add(r.Person);
       });
       const mKeys = Object.keys(byMonth).sort();
-      const maxMonth = Math.max(1, ...mKeys.map(k => byMonth[k].salary + byMonth[k].tip));
+
+      /* PAGINATION (his ask, 2026-09-01): 300 rows of markup was the slow part of the
+         paint -- 50 at a time, with Show all for the person who wants the whole roster. */
+      const pages = S.showAll ? 1 : Math.max(1, Math.ceil(sorted.length / S.pageSize));
+      S.page = Math.min(S.page, pages - 1);
+      const pageRows = S.showAll ? sorted
+        : sorted.slice(S.page * S.pageSize, (S.page + 1) * S.pageSize);
 
       const kpi = (l, v, s, cls) => `<div class="kpi ${cls || ""}">
         <div class="l">${l}</div><div class="v">${v}</div><div class="s">${s || ""}</div></div>`;
@@ -257,19 +270,6 @@ registerPage({
           <div class="crw-legend"><span class="s"><b></b>wage</span><span class="t"><b></b>tips</span></div>
         </div>` : ""}
 
-        ${mKeys.length > 1 ? `
-        <div class="panel">
-          <div class="panel-head"><div class="panel-title">By month</div>
-            <div class="rs-spacer"></div>
-            <span class="rs-pill">${esc(mKeys[0])} — ${esc(mKeys[mKeys.length - 1])}</span></div>
-          <div class="crw-spark">${mKeys.map(k => {
-            const b = byMonth[k], t = b.salary + b.tip;
-            return `<i style="height:${Math.max(2, t / maxMonth * 46)}px"
-              title="${esc(k)} · ${m0(t)} · ${fmtN(b.people.size)} people"></i>`;
-          }).join("")}</div>
-          <p class="rs-hint">Total paid per month across the current filter. Hover for the month.</p>
-        </div>` : ""}
-
         <div class="panel">
           <div class="panel-head"><div class="panel-title">Every person</div>
             <div class="rs-spacer"></div>
@@ -281,7 +281,7 @@ registerPage({
               ${th("jobs", "Jobs")}${th("hours", "Hours")}${th("rate", "Rate")}
               ${th("salary", "Wage")}${th("tip", "Tips")}${th("pay", "Total pay")}
               ${th("perJob", "Per job")}<th style="width:140px">Mix</th></tr></thead>
-            <tbody>${sorted.slice(0, 300).map(p => `<tr>
+            <tbody>${pageRows.map(p => `<tr>
               <td class="crw-nm" data-person="${esc(p.person)}" data-role="${esc(p.role)}">${esc(p.person)}</td>
               <td><span class="${roleCls(p.role)}">${esc(p.role)}</span></td>
               <td class="num">${fmtN(p.jobs)}</td>
@@ -293,13 +293,22 @@ registerPage({
               <td class="num muted">${m0(p.perJob)}</td>
               <td>${mix(p)}</td></tr>`).join("")}
             </tbody>
-            <tfoot><tr><td colspan="2">${fmtN(sorted.length)} people${sorted.length > 300
-                ? " · showing the top 300" : ""}</td>
+            <tfoot><tr><td colspan="2">${fmtN(sorted.length)} people</td>
               <td class="num">${fmtN(rs.length)}</td>
               <td class="num">${fmtN(Math.round(hours))}</td><td></td>
               <td class="num">${m0(salary)}</td><td class="num">${m0(tip)}</td>
               <td class="num">${m0(pay)}</td><td></td><td></td></tr></tfoot>
           </table></div>
+          <div class="crw-pager">
+            ${S.showAll
+              ? `<span>all ${fmtN(sorted.length)} people</span>
+                 <button class="rs-btn" data-pg="pages">Back to pages</button>`
+              : `<span>${fmtN(S.page * S.pageSize + 1)}–${fmtN(Math.min(sorted.length,
+                    (S.page + 1) * S.pageSize))} of ${fmtN(sorted.length)}</span>
+                 <button class="rs-btn" data-pg="prev" ${S.page === 0 ? "disabled" : ""}>‹ Prev</button>
+                 <button class="rs-btn" data-pg="next" ${S.page >= pages - 1 ? "disabled" : ""}>Next ›</button>
+                 <button class="rs-btn" data-pg="all">Show all</button>`}
+          </div>
         </div>`;
 
       mountBar();
@@ -307,6 +316,17 @@ registerPage({
         el.onclick = () => {
           const k = el.dataset.sort;
           if (S.sort === k) S.dir = -S.dir; else { S.sort = k; S.dir = k === "person" ? 1 : -1; }
+          S.page = 0;
+          paint();
+        };
+      });
+      host.querySelectorAll("[data-pg]").forEach(el => {
+        el.onclick = () => {
+          const k = el.dataset.pg;
+          if (k === "prev") S.page--;
+          else if (k === "next") S.page++;
+          else if (k === "all") S.showAll = true;
+          else { S.showAll = false; S.page = 0; }
           paint();
         };
       });
@@ -327,30 +347,53 @@ registerPage({
           const b = document.createElement("button");
           b.textContent = l;
           if (S.role === v) b.className = "on";
-          b.onclick = () => { if (S.role !== v) { S.role = v; paint(); } };
+          b.onclick = () => { if (S.role !== v) { S.role = v; S.page = 0; paint(); } };
           seg.appendChild(b);
         });
       bar.appendChild(seg);
 
       const mLabel = m => m ? RS.monthName(+m.slice(5, 7)) + " " + m.slice(0, 4) : "";
+      /* The SAME period control the other local pages wear (Area Plan, Truck Economics):
+         preset chips + From/To month selects, instead of a bare pair of dropdowns. */
+      const last = months[months.length - 1] || "";
+      const back = n => months[Math.max(0, months.length - n)] || last;
+      const seg2 = document.createElement("div");
+      seg2.className = "rs-seg";
+      [["Last month", last, last],
+       ["Last 3 months", back(3), last],
+       ["Last 6 months", back(6), last],
+       ["This year", (last || "").slice(0, 4) + "-01", last],
+       ["All time", months[0] || "", last]]
+        .forEach(([l, f, t]) => {
+          const b = document.createElement("button");
+          b.textContent = l;
+          if (S.from === f && S.to === t) b.className = "on";
+          b.onclick = () => { S.from = f; S.to = t; S.page = 0; paint(); };
+          seg2.appendChild(b);
+        });
+      const segWrap = document.createElement("div");
+      segWrap.className = "rs-fld";
+      segWrap.innerHTML = "<span>Period</span>";
+      segWrap.appendChild(seg2);
+      bar.appendChild(segWrap);
       RSC.localSelect(bar, { label: "From", required: true,
         values: months.map(m => ({ v: m, l: mLabel(m) })), value: S.from,
-        onChange: v => { S.from = v; if (S.to < S.from) S.to = S.from; paint(); } });
+        onChange: v => { S.from = v; if (S.to < S.from) S.to = S.from; S.page = 0; paint(); } });
       RSC.localSelect(bar, { label: "To", required: true,
         values: months.map(m => ({ v: m, l: mLabel(m) })), value: S.to,
-        onChange: v => { S.to = v; if (S.from > S.to) S.from = S.to; paint(); } });
+        onChange: v => { S.to = v; if (S.from > S.to) S.from = S.to; S.page = 0; paint(); } });
       RSC.localSelect(bar, { label: "Company", values: companies, value: S.co, allLabel: "All companies",
-        onChange: v => { S.co = v; paint(); } });
+        onChange: v => { S.co = v; S.page = 0; paint(); } });
       RSC.localSelect(bar, { label: "Foreman on the job", values: foremen, value: S.fm,
-        allLabel: "Any foreman", onChange: v => { S.fm = v; paint(); } });
+        allLabel: "Any foreman", onChange: v => { S.fm = v; S.page = 0; paint(); } });
       RSC.localSelect(bar, { label: "Move type", values: types, value: S.type, allLabel: "All types",
-        onChange: v => { S.type = v; paint(); } });
+        onChange: v => { S.type = v; S.page = 0; paint(); } });
 
       const q = document.createElement("input");
       q.className = "crw-in"; q.placeholder = "find a person…"; q.value = S.q;
       q.style.flex = "0 1 190px";
       q.oninput = () => { clearTimeout(qTimer);
-        qTimer = setTimeout(() => { S.q = q.value; S._focus = 1; paint(); }, 300); };
+        qTimer = setTimeout(() => { S.q = q.value; S._focus = 1; S.page = 0; paint(); }, 300); };
       bar.appendChild(q);
       if (S._focus) { S._focus = 0; q.focus(); q.setSelectionRange(q.value.length, q.value.length); }
     }
