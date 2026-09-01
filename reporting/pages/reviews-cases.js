@@ -189,7 +189,8 @@ registerPage({
         <div class="rvc-share ${cls || ""}" title="${esc(label)}${extra ? " · " + esc(extra) : ""}">
           <span class="n">${esc(label)}</span>
           <span class="t"><i style="width:${n / max * 100}%"></i></span>
-          <span class="v">${fmtN(n)} · ${pct(n, total)}${extra ? " · " + esc(extra) : ""}</span>
+          <span class="v">${fmtN(n)} · ${pct(n, total)}${extra && extra.length <= 40
+            ? " · " + esc(extra) : ""}</span>
         </div>`).join("");
     }
 
@@ -317,7 +318,7 @@ registerPage({
             ${nrMatched.length ? `<div class="rs-tablewrap"><table class="rs-table">
               <thead><tr><th>Customer</th><th>Platform</th><th>Review</th>
                 <th>Claim reason</th><th>Matched by</th></tr></thead>
-              <tbody>${nrMatched.slice(0, 30).map(({ r, m }) => {
+              <tbody>${nrMatched.slice(0, 12).map(({ r, m }) => {
                 const jk = String(r["Request Joinkey"] || "").trim();
                 const nm = String(r.Customer || "").trim().toLowerCase();
                 const claim = (m === "joinkey" ? clByJoin.get(jk) : clByName.get(nm))[0];
@@ -327,7 +328,7 @@ registerPage({
                   <td>${esc(claimReason(claim.Reason))}</td>
                   <td class="muted">${m === "joinkey" ? "request" : "name"}</td></tr>`;
               }).join("")}</tbody></table></div>
-              ${nrMatched.length > 30 ? `<div class="rvc-note">Showing 30 of ${fmtN(nrMatched.length)}.</div>` : ""}`
+              ${nrMatched.length > 12 ? `<div class="rvc-note">Showing 12 of ${fmtN(nrMatched.length)} — every one is in the case tables below.</div>` : ""}`
               : ""}
           </div>
 
