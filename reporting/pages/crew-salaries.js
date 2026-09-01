@@ -259,7 +259,8 @@ registerPage({
                 + " customers · " + m0(rs.reduce((a, r) => a + (num(r["Tip Company"]) || 0), 0))
                 + " company", "warn")}
           ${kpi("Hours", fmtN(Math.round(hours)),
-                hours ? m0(salary / hours) + " a paid hour" : "—")}
+                hours ? m0(rs.reduce((a, r) => a + (num(r["Is Trip"]) ? 0 : num(r.Salary) || 0), 0)
+                        / hours) + " a paid hour (day-rate trips excluded)" : "—")}
         </div>
 
         ${roles.length > 1 ? `
