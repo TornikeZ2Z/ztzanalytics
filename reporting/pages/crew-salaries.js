@@ -27,7 +27,8 @@
       // browser parses and holds for nothing. The mart keeps them; the payload does not.
       cols: ["Unique Key", "Date", "Month", "Company", "Job No", "Request #", "Customer",
              "Moving Type", "Job Foreman", "Role", "Person",
-             "Hours", "Rate", "Salary", "Tip", "Tip Company", "Tip Customer", "Total Pay"],
+             "Hours", "Rate", "Salary", "Tip", "Tip Company", "Tip Customer", "Total Pay",
+             "Is Trip"],
       dateCols: { "Date": "Date" }, defaultDate: "Date",
     };
   }
@@ -102,6 +103,7 @@ registerPage({
           + "min-height:3px;transition:opacity .12s}",
         ".crw-spark i:hover{opacity:.7}",
         ".crw-spark i.dim{background:var(--line-2)}",
+        ".crw-trip{font-size:10.5px;font-weight:800;color:var(--blue);white-space:nowrap}",
         ".crw-pager{display:flex;gap:8px;align-items:center;justify-content:flex-end;"
           + "margin-top:12px;font-size:12.5px;color:var(--faint)}",
         ".crw-pager .rs-btn[disabled]{opacity:.4;pointer-events:none}",
@@ -161,11 +163,12 @@ registerPage({
         let p = m.get(k);
         if (!p) m.set(k, p = { person: r.Person, role: r.Role, jobs: 0, hours: 0, salary: 0,
                               tip: 0, tipCo: 0, tipCu: 0, pay: 0, rateHours: 0, rateSum: 0,
-                              months: new Set() });
-        p.jobs++;
+                              trips: 0, months: new Set() });
+        if (num(r["Is Trip"])) p.trips++; else p.jobs++;
         const h = num(r.Hours) || 0, rt = num(r.Rate) || 0;
+        // a trip leg pays a DAY rate (260/day, no hours) — it must never touch the $/hr
+        if (!num(r["Is Trip"]) && h > 0 && rt > 0) { p.rateHours += h; p.rateSum += rt * h; }
         p.hours += h;
-        if (h > 0 && rt > 0) { p.rateHours += h; p.rateSum += rt * h; }
         p.salary += num(r.Salary) || 0;
         p.tip += num(r.Tip) || 0;
         p.tipCo += num(r["Tip Company"]) || 0;
@@ -175,7 +178,7 @@ registerPage({
       });
       return [...m.values()].map(p => ({ ...p,
         rate: p.rateHours ? p.rateSum / p.rateHours : null,
-        perJob: p.jobs ? p.pay / p.jobs : null,
+        perJob: (p.jobs + p.trips) ? p.pay / (p.jobs + p.trips) : null,
         tipShare: p.pay ? p.tip / p.pay : null }));
     }
 
@@ -185,7 +188,8 @@ registerPage({
       const sum = f => rs.reduce((a, r) => a + (num(f(r)) || 0), 0);
       const salary = sum(r => r.Salary), tip = sum(r => r.Tip), pay = salary + tip;
       const hours = sum(r => r.Hours);
-      const jobs = new Set(rs.map(r => r["Unique Key"])).size;
+      const jobs = new Set(rs.filter(r => !num(r["Is Trip"])).map(r => r["Unique Key"])).size;
+      const tripLegs = new Set(rs.filter(r => num(r["Is Trip"])).map(r => r["Unique Key"])).size;
 
       const key = { pay: p => p.pay, salary: p => p.salary, tip: p => p.tip,
                     tipCo: p => p.tipCo, tipCu: p => p.tipCu, jobs: p => p.jobs,
@@ -247,7 +251,8 @@ registerPage({
         <div class="rs-kpis" style="--kpi-cols:6">
           ${kpi("People paid", fmtN(people.length),
                 (S.role || "all roles") + " · " + fmtN(mKeys.length) + " month" + (mKeys.length === 1 ? "" : "s"))}
-          ${kpi("Jobs covered", fmtN(jobs), fmtN(rs.length) + " person-jobs")}
+          ${kpi("Jobs covered", fmtN(jobs), fmtN(rs.length) + " person-jobs"
+                + (tripLegs ? " · +" + fmtN(tripLegs) + " trip leg" + (tripLegs === 1 ? "" : "s") : ""))}
           ${kpi("Total paid", m0(pay), m0(pay / (jobs || 1)) + " a job")}
           ${kpi("Wage", m0(salary), pct(pay ? salary / pay : null) + " of it", "pos")}
           ${kpi("Tips", m0(tip), m0(rs.reduce((a, r) => a + (num(r["Tip Customer"]) || 0), 0))
@@ -290,7 +295,8 @@ registerPage({
             <tbody>${pageRows.map(p => `<tr>
               <td class="crw-nm" data-person="${esc(p.person)}" data-role="${esc(p.role)}">${esc(p.person)}</td>
               <td><span class="${roleCls(p.role)}">${esc(p.role)}</span></td>
-              <td class="num">${fmtN(p.jobs)}</td>
+              <td class="num">${fmtN(p.jobs)}${p.trips
+                ? ' <span class="crw-trip" title="trip legs — day-rate, not jobs">+' + p.trips + "t</span>" : ""}</td>
               <td class="num">${p.hours ? fmtN(Math.round(p.hours)) : "—"}</td>
               <td class="num">${p.rate ? "$" + p.rate.toFixed(2) : "—"}</td>
               <td class="num">${m0(p.salary)}</td>
@@ -458,7 +464,7 @@ registerPage({
           <tbody>${rs.slice().sort((a, b) => String(b.Date || "").localeCompare(String(a.Date || "")))
             .slice(0, 120).map(r => `<tr>
               <td class="nowrap">${esc(String(r.Date || "").slice(0, 10))}</td>
-              <td>${esc(r["Job No"] || r["Request #"] || "—")}</td>
+              <td>${num(r["Is Trip"]) ? '<span class="rs-pill mute">Trip</span> ' : ""}${esc(r["Job No"] || r["Request #"] || "—")}</td>
               <td class="muted">${esc(r.Customer || "—")}</td>
               <td class="num">${r.Hours ? num(r.Hours) : "—"}</td>
               <td class="num">${r.Rate ? "$" + num(r.Rate).toFixed(2) : "—"}</td>
@@ -477,7 +483,7 @@ registerPage({
     }
 
     function downloadCsv(people) {
-      const head = ["Person", "Seat", "Jobs", "Hours", "Rate", "Wage",
+      const head = ["Person", "Seat", "Jobs", "Trip Legs", "Hours", "Rate", "Wage",
                     "Tips Customer", "Tips Company", "Total Pay", "Per job"];
       // formula-injection guard: a leading =+-@ becomes text, the referral-list rule
       const cell = v => {
@@ -486,6 +492,7 @@ registerPage({
         return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
       };
       const lines = [head.join(",")].concat(people.map(p => [p.person, p.role, p.jobs,
+        p.trips || "",
         p.hours ? Math.round(p.hours) : "", p.rate ? p.rate.toFixed(2) : "",
         Math.round(p.salary), Math.round(p.tipCu), Math.round(p.tipCo), Math.round(p.pay),
         p.perJob ? Math.round(p.perJob) : ""].map(cell).join(",")));
