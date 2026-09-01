@@ -165,6 +165,24 @@ registerPage({
 
     paint();
 
+    /* CSV, the portal's one pattern: UTF-8 BOM + CRLF + the formula-injection guard
+       (a leading =+-@ becomes text). Always the FILTERED set — what the reader sees,
+       not the page they happen to be on. */
+    function dlCsv(name, head, rows) {
+      const cell = v => {
+        let x = String(v == null ? "" : v);
+        if (/^[=+\-@]/.test(x)) x = " " + x;
+        return /[",\n]/.test(x) ? '"' + x.replace(/"/g, '""') + '"' : x;
+      };
+      const lines = [head.join(",")].concat(rows.map(r => r.map(cell).join(",")));
+      const blob = new Blob(["\ufeff" + lines.join("\r\n")], { type: "text/csv;charset=utf-8" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = name + (S.year ? "-" + S.year : "-all-years") + ".csv";
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+    }
+
     function inYear(dateStr) {
       if (!S.year) return true;
       return String(dateStr || "").slice(0, 4) === S.year;
@@ -343,7 +361,8 @@ registerPage({
 
         <div class="panel">
           <div class="panel-head"><div class="panel-title">Negative reviews — the cases</div>
-            <div class="rs-spacer"></div><span class="rs-pill">${fmtN(nr.length)}</span></div>
+            <div class="rs-spacer"></div><span class="rs-pill">${fmtN(nr.length)}</span>
+            <button class="rs-btn" data-dl="nr">Download CSV</button></div>
           <div class="rs-tablewrap"><table class="rs-table">
             <thead><tr><th>Written</th><th>Customer</th><th>Platform</th><th>Raw label</th>
               <th>Review</th><th>Group</th><th>Status</th><th>Owner</th></tr></thead>
@@ -364,7 +383,8 @@ registerPage({
 
         <div class="panel">
           <div class="panel-head"><div class="panel-title">Claims — the cases</div>
-            <div class="rs-spacer"></div><span class="rs-pill">${fmtN(cl.length)}</span></div>
+            <div class="rs-spacer"></div><span class="rs-pill">${fmtN(cl.length)}</span>
+            <button class="rs-btn" data-dl="cl">Download CSV</button></div>
           <div class="rs-tablewrap"><table class="rs-table">
             <thead><tr><th>Created</th><th>Customer</th><th>Reason</th><th>Status</th>
               <th>Responsibility</th><th>Foreman</th><th>Went public</th></tr></thead>
@@ -383,6 +403,31 @@ registerPage({
         </div>`;
 
       mountBar();
+      host.querySelectorAll("[data-dl]").forEach(el => {
+        el.onclick = () => {
+          if (el.dataset.dl === "nr") {
+            dlCsv("negative-reviews",
+              ["Written Date", "Customer", "Platform", "Raw Label", "Stars", "Kind",
+               "Group", "Status", "Case Owner", "Request No", "Has Claim", "Matched By"],
+              nr.map(r => {
+                const st = stars(r["Review Score"]), m = nrClaimMatch(r);
+                return [String(r["Written Date"] || "").slice(0, 10), r.Customer,
+                        PLATFORM(r.Source), String(r.Source || "").trim(),
+                        st.kind === "stars" ? st.n : "", st.kind,
+                        r.Group, r.Status, r["Case Owner"], r["Request No"],
+                        m ? "yes" : "no", m || ""];
+              }));
+          } else {
+            dlCsv("claims",
+              ["Created Date", "Customer", "Reason", "Status", "Group", "Responsibility",
+               "Foreman", "Request No", "Went Public"],
+              cl.map(r => [String(r["Created Date"] || "").slice(0, 10), r.Customer,
+                           claimReason(r.Reason), r.Status, r.Group,
+                           String(r.Responsibility || "").trim(), r.Foreman,
+                           r["Request No"], clReviewMatch(r) ? "yes" : "no"]));
+          }
+        };
+      });
       host.querySelectorAll("[data-pg]").forEach(el => {
         el.onclick = () => {
           const [key, dir] = el.dataset.pg.split(":");

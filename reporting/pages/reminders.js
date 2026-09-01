@@ -892,6 +892,21 @@ registerPage({ id: "review-settings", group: "reviews", title: "Review URLs and 
     // joined to the foreman's explanation (responses). The office can log a reason inline for any
     // of them — a job up to a week old can still be explained.
     var jobKey = function (j) { return String(j == null ? "" : j).trim().toUpperCase(); };
+    // CSV, the portal's one pattern: BOM + CRLF + the formula-injection guard.
+    function dlCsv(name, head, rows) {
+      var cell = function (v) {
+        var x = String(v == null ? "" : v);
+        if (/^[=+\-@]/.test(x)) x = " " + x;
+        return /[",\n]/.test(x) ? '"' + x.replace(/"/g, '""') + '"' : x;
+      };
+      var lines = [head.join(",")].concat(rows.map(function (r) { return r.map(cell).join(","); }));
+      var blob = new Blob(["\ufeff" + lines.join("\r\n")], { type: "text/csv;charset=utf-8" });
+      var a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = name + ".csv";
+      a.click();
+      setTimeout(function () { URL.revokeObjectURL(a.href); }, 2000);
+    }
     function responseModel() {
       var log = cleanLog(), resp = (RRP.data && RRP.data.responses) || [];
       var todayKey = etDayKey(new Date().toISOString());
@@ -1151,10 +1166,12 @@ registerPage({ id: "review-settings", group: "reviews", title: "Review URLs and 
           + "</td><td>" + esc(c.name || "—") + "</td><td>" + contact + "</td><td>" + foremanCell(x.r.foreman)
           + "</td><td>" + (x.rev ? '<span class="pill s-sent">Review landed</span>' : '<span class="pill s-wait">Still waiting</span>') + "</td></tr>";
       }).join("") : '<tr><td colspan="7" class="ra-none">Nobody has promised a review yet.</td></tr>';
+      RRP._pmRows = rows;   // the chase-list export reads exactly what the card shows
       return '<div class="rrp-card" style="padding:0;margin-top:12px"><div class="ra-cardhd pad">'
         + "<h4>Promised a review — chase them</h4>"
         + '<span class="rs-pill">' + N(rows.length) + " customer" + (rows.length === 1 ? "" : "s")
-        + (landed ? " · " + N(landed) + " already landed" : "") + " · all time</span></div>"
+        + (landed ? " · " + N(landed) + " already landed" : "") + " · all time</span>"
+        + '<button class="rs-btn" id="pmDl" title="The whole chase list with phone and email">Download CSV</button></div>'
         + '<div class="rs-tablewrap"><table class="rs-table"><thead><tr><th>Promised</th>'
         + '<th class="num">Age</th><th>Job</th><th>Customer</th><th>Contact</th><th>Foreman</th><th>Status</th>'
         + "</tr></thead><tbody>" + body + "</tbody></table></div>"
@@ -1176,7 +1193,8 @@ registerPage({ id: "review-settings", group: "reviews", title: "Review URLs and 
       // the 7/30/all seg lives in the left card's head — no floating section header; the
       // right card's pill prints the same window so nobody wonders what it covers
       var bars = '<div class="rrp-card" style="padding:14px 16px"><div class="ra-cardhd"><h4>Why reviews are missing</h4>'
-        + periodBar() + "</div>"
+        + '<span style="display:flex;gap:8px;align-items:center">' + periodBar()
+        + '<button class="rs-btn" id="raDl" title="Every answer in this period — date, job, foreman, reason, note">Download CSV</button></span></div>' 
         + (fr.length ? reasonBars(fr) : '<div class="ra-none">No answers in this period.</div>')
         + '<div class="ra-hint" style="padding:10px 2px 0">' + N(arows.length) + " answer"
         + (arows.length === 1 ? "" : "s") + " · " + esc(aPer) + " · one per job</div></div>";
@@ -1318,9 +1336,28 @@ registerPage({ id: "review-settings", group: "reviews", title: "Review URLs and 
         };
       });
       var rc = scope.querySelector("#raClose"); if (rc) rc.onclick = function () { RRP.raForeman = null; repaintStats(); };
+      var dl = scope.querySelector("#raDl"); if (dl) dl.onclick = function () {
+        var rows = answerRowsCached().map(function (r) {
+          return [etDay(r.ts) || String(r.ts || "").slice(0, 10), r.job || "",
+                  foremanName(r.foreman), r.reason || "", cleanNote(r.note) || ""];
+        });
+        dlCsv("review-answers-" + periodLabel().replace(/\s+/g, "-"),
+              ["Answered", "Job", "Foreman", "Reason", "Note"], rows);
+      };
     }
     function wirePromised() {
       var scope = root.querySelector("#rrpProm"); if (!scope) return;
+      var dl = scope.querySelector("#pmDl"); if (dl) dl.onclick = function () {
+        var rows = (RRP._pmRows || []).map(function (x) {
+          var c = x.c || {};
+          return [etDay(x.r.ts) || "", x.age == null ? "" : x.age, x.r.job || "",
+                  c.name || "", c.mobile || "", c.email || "",
+                  foremanName(x.r.foreman), x.rev ? "review landed" : "still waiting"];
+        });
+        dlCsv("promised-reviews-chase",
+              ["Promised", "Age Days", "Job", "Customer", "Phone", "Email",
+               "Foreman", "Status"], rows);
+      };
       Array.prototype.forEach.call(scope.querySelectorAll("[data-pg]"), function (b) {
         b.onclick = function () {
           RRP.pmPage = (RRP.pmPage || 0) + (String(b.getAttribute("data-pg")).split(":")[1] === "next" ? 1 : -1);
