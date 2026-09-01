@@ -265,6 +265,57 @@ registerPage({ id: "review-settings", group: "reviews", title: "Review URLs and 
         ".rrp-savemsg.bad{color:var(--amber)}",
         ".rrp-warnbanner{background:color-mix(in srgb,var(--amber) 12%,transparent);border:1px solid color-mix(in srgb,var(--amber) 40%,transparent);border-radius:12px;padding:12px 15px;font-size:12.5px;color:var(--ink);line-height:1.55;margin-bottom:16px}",
         ".rrp-fresh{display:flex;align-items:center;gap:10px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px 14px;font-size:12px;color:var(--muted);line-height:1.5;margin-bottom:14px;flex-wrap:wrap}",
+        /* ---- the redesigned Response Analysis (rx-) ---------------------------------
+           One hero panel carries the week's whole story: a single stacked funnel bar
+           (reviewed / explained / waiting), the per-day mini columns, and the data
+           freshness as a quiet footer -- replacing a KPI wall, a beige strip and a
+           five-column day table that each said a sixth of it. */
+        ".rx-hero{padding:20px 22px 14px}",
+        ".rx-top{display:flex;gap:26px;align-items:center;flex-wrap:wrap}",
+        ".rx-big b,.rx-rate b{display:block;font-size:34px;font-weight:800;letter-spacing:-1px;"
+          + "line-height:1;font-variant-numeric:tabular-nums}",
+        ".rx-big span,.rx-rate span{font-size:11px;color:var(--faint);font-weight:700;"
+          + "text-transform:uppercase;letter-spacing:.07em;display:block;margin-top:6px;line-height:1.5}",
+        ".rx-rate{text-align:right}",
+        ".rx-rate b{color:var(--brand)}",
+        ".rx-funnel{flex:1 1 320px;min-width:0}",
+        ".rx-fbar{display:flex;height:22px;border-radius:11px;background:var(--panel-2);overflow:hidden}",
+        ".rx-fbar i{display:block;height:100%}",
+        ".rx-fbar i.rv{background:var(--pos)}",
+        ".rx-fbar i.ex{background:var(--warn)}",
+        ".rx-legend{display:flex;gap:18px;flex-wrap:wrap;margin-top:10px;font-size:12.5px;color:var(--muted)}",
+        ".rx-legend b.d{display:inline-block;width:9px;height:9px;border-radius:3px;margin-right:6px}",
+        ".rx-legend .rv b.d{background:var(--pos)} .rx-legend .ex b.d{background:var(--warn)}",
+        ".rx-legend .wt b.d{background:var(--panel-2);border:1px solid var(--line-2)}",
+        ".rx-legend b:not(.d){color:var(--ink);font-weight:700}",
+        // seven little days: height says how busy, colour says how answered
+        ".rx-days{display:flex;gap:14px;align-items:flex-end;margin:18px 2px 2px}",
+        ".rx-day{display:flex;flex-direction:column;align-items:center;gap:5px;flex:0 0 auto}",
+        ".rx-dcol{width:34px;height:56px;background:var(--panel-2);border-radius:6px;overflow:hidden;"
+          + "display:flex;flex-direction:column-reverse;position:relative}",
+        ".rx-dcol i{display:block;width:100%}",
+        ".rx-dcol i.rv{background:var(--pos)} .rx-dcol i.ex{background:var(--warn)}",
+        ".rx-day span{font-size:10.5px;color:var(--faint);font-weight:700}",
+        ".rx-day em{font-style:normal;font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums}",
+        ".rx-hero .rrp-fresh{border:0;background:transparent;border-radius:0;margin:14px 0 0;"
+          + "padding:12px 0 0;border-top:1px solid var(--line-2)}",
+        // the by-foreman list: a share row per man, the reason as a quiet pill
+        ".rx-frow{display:grid;grid-template-columns:minmax(140px,200px) minmax(50px,1fr) 34px auto 18px;"
+          + "gap:10px;align-items:center;padding:7px 15px;border-bottom:1px solid var(--line-2);"
+          + "cursor:pointer;font-size:13px;transition:background .12s}",
+        ".rx-frow:hover{background:var(--panel-2)}",
+        ".rx-frow.on{background:var(--brand-glow)}",
+        ".rx-frow:last-child{border-bottom:0}",
+        ".rx-frow .n{font-weight:600;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}",
+        ".rx-frow .t{height:10px;background:var(--panel-2);border-radius:5px;overflow:hidden}",
+        ".rx-frow .t i{display:block;height:100%;background:var(--warn);border-radius:5px}",
+        ".rx-frow .v{font-size:12.5px;color:var(--muted);text-align:right;font-variant-numeric:tabular-nums}",
+        ".rx-frow .ch{color:var(--faint);text-align:right}",
+        ".rx-age{display:inline-block;min-width:34px;text-align:center;border-radius:6px;"
+          + "padding:2px 6px;font-size:11.5px;font-weight:800;font-variant-numeric:tabular-nums;"
+          + "background:var(--panel-2);color:var(--muted)}",
+        ".rx-age.warn{background:var(--warn-bg);color:var(--warn)}",
+        ".rx-age.neg{background:var(--neg-bg);color:var(--neg)}",
         ".rrp-fresh b{color:var(--ink);font-weight:700}",
         ".rrp-fresh .dot{width:7px;height:7px;border-radius:50%;background:var(--brand);flex:0 0 auto;box-shadow:0 0 0 3px var(--brand-glow)}",
         ".rrp-fresh .dot.stale{background:var(--amber);box-shadow:0 0 0 3px color-mix(in srgb,var(--amber) 20%,transparent)}",
@@ -995,24 +1046,42 @@ registerPage({ id: "review-settings", group: "reviews", title: "Review URLs and 
         return o;
       }).sort(function (a, b) { return b.n - a.n || a.f.localeCompare(b.f); });
     }
-    // N3: the per-foreman table. Rows are clickable — that's N4.
+    // The long reason labels become one quiet word on a pill; the full label rides the title.
+    function shortReason(k) {
+      var map = {
+        "The customer promised to write later": "promised later",
+        "Elderly customer (not comfortable with technology)": "elderly",
+        "Billing issue": "billing",
+        "Support intervention was required": "support case",
+        "No internet / poor internet connection": "no internet",
+        "Customer was unfriendly / not willing to engage": "unfriendly",
+        "Long Distance Move (Regular)": "LD move",
+        "Customer was unhappy due to late arrival": "late arrival",
+        "The customer was dissatisfied": "dissatisfied",
+        "Customer refused": "refused",
+        "Open claim": "open claim",
+      };
+      if (map[k]) return map[k];
+      var t = String(k || "—").replace(/^Other.*$/i, "other");
+      return t.length > 16 ? t.slice(0, 15) + "…" : t;
+    }
+    // N3: the per-foreman list — the same share-row language as every bar on this page,
+    // with his top reason as a pill instead of a full sentence column. Rows drill (N4).
     function foremanCard(rows, per) {
       var st = statsByForeman(rows), sel = RRP.raForeman || "";
+      var max = st.length ? st[0].n : 1;
       var body = st.length ? st.map(function (o) {
-        return '<tr class="ra-frow' + (o.f === sel ? " on" : "") + '" data-raf="' + esc(o.f) + '">'
-          + "<td>" + foremanCell(o.f) + '</td><td class="num"><b>' + o.n + '</b></td><td class="ra-top" title="' + esc(o.top) + '">' + esc(o.top)
-          + '</td><td class="num ra-chev">' + (o.f === sel ? "▾" : "›") + "</td></tr>";
-      }).join("") : '<tr><td colspan="4" class="ra-none">No answers in this period.</td></tr>';
-      return '<div class="rrp-card" style="padding:0"><div class="ra-cardhd pad"><h4>By foreman</h4>'
+        return '<div class="rx-frow' + (o.f === sel ? " on" : "") + '" data-raf="' + esc(o.f) + '">'
+          + '<span class="n">' + foremanCell(o.f) + "</span>"
+          + '<span class="t"><i style="width:' + (o.n / max * 100).toFixed(0) + '%"></i></span>'
+          + '<span class="v">' + o.n + "</span>"
+          + '<span class="rs-pill mute" title="' + esc(o.top) + '">' + esc(shortReason(o.top)) + "</span>"
+          + '<span class="ch">' + (o.f === sel ? "▾" : "›") + "</span></div>";
+      }).join("") : '<div class="ra-none" style="padding:14px 15px">No answers in this period.</div>';
+      return '<div class="rrp-card" style="padding:0"><div class="ra-cardhd pad"><h4>Who answers, and with what</h4>'
         + '<span class="rs-pill">' + N(st.length) + (st.length === 1 ? " foreman" : " foremen") + " · " + esc(per) + "</span></div>"
-        // table-layout:fixed reads its widths from the FIRST row — with four unsized columns the
-        // 1-character chevron owned a full quarter and the reason text was ellipsised away.
-        + '<div class="rs-tablewrap"><table class="rs-table ra-ftbl"><colgroup>'
-        + '<col style="width:34%"><col style="width:98px"><col><col style="width:30px"></colgroup>'
-        + '<thead><tr><th>Foreman</th>'
-        + '<th class="num">Answers</th><th>Most common reason</th><th></th></tr></thead><tbody>'
-        + body + "</tbody></table></div>"
-        + '<div class="ra-hint">Click a foreman to see his own breakdown.</div></div>';
+        + body
+        + '<div class="ra-hint">Click a foreman for his own breakdown and every answer behind it.</div></div>';
     }
     // N4: the drill-down for the selected foreman — his reason mix + the jobs behind it.
     function foremanDrill(rows) {
@@ -1074,13 +1143,16 @@ registerPage({ id: "review-settings", group: "reviews", title: "Review URLs and 
           tel ? '<a href="tel:' + esc(tel.replace(/[^0-9+]/g, "")) + '">' + esc(tel) + "</a>" : "",
           mail ? '<a href="mailto:' + esc(mail) + '">' + esc(mail) + "</a>" : "",
         ].filter(Boolean).join('<span class="ra-dot">·</span>') || '<span class="ra-none-i">no contact on file</span>';
+        var ageChip = x.age == null ? '<span class="rx-age">—</span>'
+          : '<span class="rx-age' + (x.age > 45 ? " neg" : x.age > 21 ? " warn" : "") + '">'
+            + x.age + "d</span>";
         return '<tr' + (x.rev ? ' class="ra-done"' : "") + "><td>" + esc(etDay(x.r.ts) || "—")
-          + '</td><td class="num">' + (x.age == null ? "—" : x.age + "d") + "</td><td>" + esc(x.r.job || "—")
+          + '</td><td class="num">' + ageChip + "</td><td>" + esc(x.r.job || "—")
           + "</td><td>" + esc(c.name || "—") + "</td><td>" + contact + "</td><td>" + foremanCell(x.r.foreman)
           + "</td><td>" + (x.rev ? '<span class="pill s-sent">Review landed</span>' : '<span class="pill s-wait">Still waiting</span>') + "</td></tr>";
       }).join("") : '<tr><td colspan="7" class="ra-none">Nobody has promised a review yet.</td></tr>';
       return '<div class="rrp-card" style="padding:0;margin-top:12px"><div class="ra-cardhd pad">'
-        + "<h4>Promised a review — follow up</h4>"
+        + "<h4>Promised a review — chase them</h4>"
         + '<span class="rs-pill">' + N(rows.length) + " customer" + (rows.length === 1 ? "" : "s")
         + (landed ? " · " + N(landed) + " already landed" : "") + " · all time</span></div>"
         + '<div class="rs-tablewrap"><table class="rs-table"><thead><tr><th>Promised</th>'
@@ -1101,11 +1173,14 @@ registerPage({ id: "review-settings", group: "reviews", title: "Review URLs and 
       var arows = answerRowsCached(), aPer = periodLabel();
       var freq = {}; arows.forEach(function (r) { var k = r.reason || "—"; freq[k] = (freq[k] || 0) + 1; });
       var fr = Object.keys(freq).map(function (k) { return { k: k, n: freq[k] }; }).sort(function (a, b) { return b.n - a.n; });
+      // the 7/30/all seg lives in the left card's head — no floating section header; the
+      // right card's pill prints the same window so nobody wonders what it covers
       var bars = '<div class="rrp-card" style="padding:14px 16px"><div class="ra-cardhd"><h4>Why reviews are missing</h4>'
-        + '<span class="rs-pill">' + N(arows.length) + " answer" + (arows.length === 1 ? "" : "s") + " · " + esc(aPer) + "</span></div>"
-        + (fr.length ? reasonBars(fr) : '<div class="ra-none">No answers in this period.</div>') + "</div>";
-      return '<div class="ra-sechd"><h3>Answer statistics</h3>' + periodBar() + "</div>"
-        + '<div class="rrp-rgrid">' + bars + foremanCard(arows, aPer) + "</div>"
+        + periodBar() + "</div>"
+        + (fr.length ? reasonBars(fr) : '<div class="ra-none">No answers in this period.</div>')
+        + '<div class="ra-hint" style="padding:10px 2px 0">' + N(arows.length) + " answer"
+        + (arows.length === 1 ? "" : "s") + " · " + esc(aPer) + " · one per job</div></div>";
+      return '<div class="rrp-rgrid">' + bars + foremanCard(arows, aPer) + "</div>"
         + foremanDrill(arows);
     }
     function viewResponse() {
@@ -1124,36 +1199,57 @@ registerPage({ id: "review-settings", group: "reviews", title: "Review URLs and 
       var rvBad = !!RRP.revErr;
       var kpBanner = rvBad ? '<div class="rrp-warnbanner">Review matching is <b>off</b> right now (' + esc(RRP.revErr)
         + ") — the warehouse review register couldn’t be read, so reviewed/response numbers are unknown and every unexplained job shows as waiting. Foreman explanations below are unaffected.</div>" : "";
-      var kp = kpBanner + '<div class="rs-kpis" style="--kpi-cols:6">' + [
-        { v: N(total), l: "Recent jobs", s: "yesterday → 7 days ago" },
-        { v: rvBad ? "—" : N(revd), l: "Reviewed jobs", s: rvBad ? "review matching is off" : "review written — no reason needed", cls: rvBad ? "" : "pos" },
-        { v: rvBad ? "—" : N(revTot), l: "Reviews written", s: rvBad ? "review matching is off" : "total, on those " + N(revd) + " job" + (revd === 1 ? "" : "s"), cls: rvBad ? "" : "pos" },
-        { v: N(expd), l: "Explained", s: "foreman told us why", cls: "pos" },
-        { v: N(waiting), l: rvBad ? "Unanswered" : "Waiting", s: rvBad ? "no reason logged" : "no review, no reason", cls: "warn" },
-        { v: rvBad ? "—" : cov + "%", l: "Response rate", s: rvBad ? "needs review matching" : "reviewed + explained ÷ recent" }
-      ].map(kpiTile).join("") + "</div>";
-      // by-day response rate (reviewed OR explained both count as answered)
-      var dayRows = m.winDays.map(function (dk) {
+      /* THE HERO. One stacked bar answers the page's whole question — of the week's jobs,
+         how many ended in a review, how many the foreman explained, how many are still
+         hanging — and seven mini day-columns under it show the shape of the week (height =
+         jobs that day, colour = how it was answered). The old six-tile KPI wall, the beige
+         freshness strip and the five-column day table all folded into this one panel. */
+      var pRv = total ? revd / total * 100 : 0, pEx = total ? expd / total * 100 : 0;
+      var maxDay = Math.max(1, Math.max.apply(null, m.winDays.map(function (dk) {
+        return jobs.filter(function (j) { return j.day === dk; }).length;
+      })));
+      var dayCols = m.winDays.slice().reverse().map(function (dk) {
         var day = jobs.filter(function (j) { return j.day === dk; });
         var rv = day.filter(function (j) { return j.rev; }).length;
-        var e = day.filter(function (j) { return j.exp; }).length;
-        var ok = day.filter(function (j) { return j.exp || j.rev; }).length;
-        return "<tr><td>" + esc(etDay(dk + "T12:00:00") || dk) + '</td><td class="num">' + day.length + '</td><td class="num">' + rv + '</td><td class="num">' + e + '</td><td class="num">' + (day.length ? Math.round(ok / day.length * 100) + "%" : "—") + "</td></tr>";
+        var e = day.filter(function (j) { return j.exp && !j.rev; }).length;
+        var hTot = day.length / maxDay * 56;
+        var lbl = etDay(dk + "T12:00:00") || dk;
+        return '<div class="rx-day" title="' + esc(lbl) + " — " + day.length + " job"
+          + (day.length === 1 ? "" : "s") + ", " + rv + " reviewed, " + e + ' explained">'
+          + '<div class="rx-dcol" style="height:56px">'
+          + '<i class="rv" style="height:' + (day.length ? rv / day.length * hTot : 0).toFixed(0) + 'px"></i>'
+          + '<i class="ex" style="height:' + (day.length ? e / day.length * hTot : 0).toFixed(0) + 'px"></i>'
+          + '<i style="height:' + (56 - hTot).toFixed(0) + 'px;background:var(--panel)"></i>'
+          + "</div><span>" + esc(String(lbl).slice(0, 3)) + "</span><em>" + day.length + "</em></div>";
       }).join("");
-      // widths, or five short columns stretch 7x across the full 2082px content box
-      var dayTbl = '<div class="rrp-card" style="padding:0"><div class="rs-tablewrap"><table class="rs-table">'
-        + '<colgroup><col style="width:190px"><col style="width:90px"><col style="width:110px">'
-        + '<col style="width:110px"><col style="width:90px"><col></colgroup>'
-        + '<thead><tr><th>Day</th><th class="num">Jobs</th><th class="num">Reviewed</th><th class="num">Explained</th><th class="num">Rate</th></tr></thead><tbody>' + (dayRows || '<tr><td colspan="5" style="color:var(--faint);padding:14px">No recent jobs.</td></tr>') + "</tbody></table></div></div>";
+      var kp = kpBanner + '<div class="rrp-card rx-hero">'
+        + '<div class="rx-top">'
+        + '<div class="rx-big"><b>' + N(total) + "</b><span>jobs asked about<br>yesterday → 7 days back</span></div>"
+        + '<div class="rx-funnel"><div class="rx-fbar">'
+        + (rvBad ? "" : '<i class="rv" style="width:' + pRv.toFixed(1) + '%"></i>')
+        + '<i class="ex" style="width:' + pEx.toFixed(1) + '%"></i></div>'
+        + '<div class="rx-legend">'
+        + (rvBad ? '<span class="ex"><b class="d"></b><b>' + N(expd) + "</b> explained</span>"
+                 + '<span class="wt"><b class="d"></b><b>' + N(waiting) + "</b> unanswered (review matching off)</span>"
+           : '<span class="rv"><b class="d"></b><b>' + N(revd) + "</b> reviewed · " + N(revTot) + " review" + (revTot === 1 ? "" : "s") + " written</span>"
+           + '<span class="ex"><b class="d"></b><b>' + N(expd) + "</b> explained by the foreman</span>"
+           + '<span class="wt"><b class="d"></b><b>' + N(waiting) + "</b> still waiting</span>")
+        + "</div></div>"
+        + '<div class="rx-rate"><b>' + (rvBad ? "—" : cov + "%") + "</b><span>answered</span></div>"
+        + "</div>"
+        + '<div class="rx-days">' + dayCols + "</div>"
+        + freshBar() + "</div>";
       // stash the model + reason list for wireWork's inline explain form
       var reasons = (RRP.data && RRP.data.config && RRP.data.config.reasons) || RRP_SEED.reasons;
       RRP._rm = { jobs: jobs, reasons: reasons };
-      // #rrpStats / #rrpProm / #rrpWorkWrap are the scoped-repaint mount points
-      return freshBar() + kp
+      // Order is the reader's order: the week (hero), the why (stats pair), then the two
+      // ACTION lists — the waiting worklist first because it is today's work; the chase
+      // list after, because a promise ages slower than an unanswered nudge.
+      // #rrpStats / #rrpProm / #rrpWorkWrap are the scoped-repaint mount points.
+      return kp
         + '<div id="rrpStats">' + statsSection() + "</div>"
-        + '<div id="rrpProm">' + promisedCard() + "</div>"
-        + dayTbl
-        + '<div id="rrpWorkWrap">' + workCard() + "</div>";
+        + '<div id="rrpWorkWrap">' + workCard() + "</div>"
+        + '<div id="rrpProm">' + promisedCard() + "</div>";
     }
     // the recent-jobs worklist card — its pager and the optimistic reason save repaint ONLY this
     function workCard() {
@@ -1184,7 +1280,10 @@ registerPage({ id: "review-settings", group: "reviews", title: "Review URLs and 
       }).join("");
       var revNote = '<div class="rrp-msgnote" style="margin:8px 2px 0">Reviews are matched from the warehouse review register (every review event, counting or not), joined to the job by its Request # via the calendar link. The register refreshes with the data pipeline — a review written since the last refresh isn’t matched yet, so a freshly-reviewed job can briefly show as waiting.'
         + (RRP.revErr ? ' <b style="color:var(--warn)">Review matching is OFF right now (' + esc(RRP.revErr) + ') — every unexplained job shows as waiting.</b>' : "") + "</div>";
-      return '<div class="rrp-card" style="padding:0;margin-top:12px"><div style="padding:12px 15px 4px;font-size:14px;font-weight:800">Recent jobs — ' + N(waiting) + ' waiting for a reason</div>'
+      return '<div class="rrp-card" style="padding:0;margin-top:12px"><div class="ra-cardhd pad">'
+        + "<h4>Needs a reason</h4>"
+        + '<span class="rs-pill' + (waiting ? " warn" : "") + '">' + N(waiting)
+        + " waiting · " + N(jobs.length) + " recent job" + (jobs.length === 1 ? "" : "s") + "</span></div>"
         + '<div class="rs-tablewrap"><table class="rs-table" id="rrpWork"><thead><tr><th>Date</th><th>Job</th><th>Customer</th><th>Foreman</th><th>Status / Reason</th></tr></thead><tbody>'
         + (work || '<tr><td colspan="5" style="color:var(--faint);padding:14px">No jobs in the last 7 days. As the bot sends nudges, they land here.</td></tr>') + "</tbody></table></div>"
         + pager(jobs.length, rjFrom, rjShown.length, RRP.rjPage, rjPages, "rj") + "</div>" + revNote;
