@@ -149,11 +149,20 @@ registerPage({ id: "review-settings", group: "reviews", title: "Review URLs and 
         ".rrp-pager{display:flex;align-items:center;gap:10px;padding:10px 15px;border-top:1px solid var(--line);font-size:12px;color:var(--muted);font-weight:700}",
         ".rrp-pager .sp{margin-right:auto;font-weight:600}",
         ".rrp-pager b{color:var(--ink);font-variant-numeric:tabular-nums}",
-        ".rrp-bars{display:flex;flex-direction:column;gap:7px;margin-bottom:18px}",
-        ".rrp-bar{display:grid;grid-template-columns:210px 1fr 40px;gap:10px;align-items:center;font-size:12.5px}",
-        ".rrp-bar .track{background:var(--panel-2);border-radius:6px;height:16px;overflow:hidden;border:1px solid var(--line)}",
-        ".rrp-bar .track i{display:block;height:100%;background:linear-gradient(90deg,var(--brand-d),var(--brand))}",
-        ".rrp-bar b{font-variant-numeric:tabular-nums;text-align:right;font-weight:800}",
+        ".rrp-bars{display:flex;flex-direction:column;margin-bottom:18px}",
+        /* the same share-bar face as Claims & Negative Reviews (his ask 2026-09-01): slim
+           flat track, one muted value, hairline row separators -- amber because a missing
+           review is a leak, exactly like the claim-reason bars there */
+        ".rrp-bar{display:grid;grid-template-columns:minmax(150px,230px) minmax(60px,1fr) auto;"
+          + "gap:10px;align-items:center;font-size:13px;padding:6px 0;"
+          + "border-bottom:1px solid var(--line-2)}",
+        ".rrp-bar:last-child{border-bottom:0}",
+        ".rrp-bar>span:first-child{font-weight:600;min-width:0;overflow:hidden;"
+          + "text-overflow:ellipsis}",
+        ".rrp-bar .track{background:var(--panel-2);border-radius:5px;height:10px;overflow:hidden}",
+        ".rrp-bar .track i{display:block;height:100%;background:var(--warn);border-radius:5px}",
+        ".rrp-bar .rvv{font-size:12.5px;color:var(--muted);text-align:right;"
+          + "font-variant-numeric:tabular-nums;white-space:nowrap}",
         /* ---------- Settings (redesign 2026-07-16) ----------
            Two columns: editor + a STICKY live preview of the real Slack message. Everything is
            built from the shell's theme tokens, so it works in dark AND light with no overrides. */
@@ -267,14 +276,13 @@ registerPage({ id: "review-settings", group: "reviews", title: "Review URLs and 
         ".ra-sechd h3{margin:0;font-size:15px;font-weight:800;letter-spacing:-.2px}",
         ".ra-cardhd{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap;margin:0 0 10px}",
         ".ra-cardhd.pad{padding:13px 15px 9px;margin:0}",
-        ".ra-cardhd h4{margin:0;font-size:13.5px;font-weight:800}",
-        ".ra-sub{font-size:11.5px;font-weight:700;color:var(--faint)}",
+        ".ra-cardhd h4{margin:0;font-size:15px;font-weight:750;letter-spacing:-.1px}",
         ".ra-hint{padding:9px 15px 12px;font-size:11.5px;color:var(--faint);border-top:1px solid var(--line)}",
         ".ra-none{color:var(--faint);padding:14px;font-size:12.5px}",
         ".ra-none-i{color:var(--faint);font-style:italic}",
         // the reason bar gains a % column, so the grid gets a 4th track
         ".rrp-card .rrp-bars{margin-bottom:0}",
-        ".rrp-bar{grid-template-columns:200px 1fr 34px 38px}",
+
         ".ra-pct{font-style:normal;font-size:11px;font-weight:700;color:var(--faint);text-align:right;font-variant-numeric:tabular-nums}",
         ".ra-ftbl tbody tr{cursor:pointer}",
         ".ra-ftbl tr.on td{background:var(--panel-2)}",
@@ -295,7 +303,7 @@ registerPage({ id: "review-settings", group: "reviews", title: "Review URLs and 
         /* the shared .rrp-bar grid hardcodes a 200px label; inside this ~300px column that left the
            track about 5px wide, so the drill-down chart rendered as a column of dots. Give the
            label a flexible track here and let the bar keep the rest (audit 2026-07-25). */
-        ".ra-drillbars .rrp-bar{grid-template-columns:minmax(0,1.1fr) minmax(46px,1fr) 26px 34px;gap:8px}",
+        ".ra-drillbars .rrp-bar{grid-template-columns:minmax(0,1.1fr) minmax(46px,1fr) auto;gap:8px}",
         ".ra-drillbars .rrp-bar>span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}",
         "@media(max-width:900px){.ra-drillgrid{grid-template-columns:minmax(0,1fr)}.ra-drillbars{border-right:0;border-bottom:1px solid var(--line)}}",
         ".ra-note{color:var(--muted);font-size:12px;max-width:340px}",
@@ -969,8 +977,8 @@ registerPage({ id: "review-settings", group: "reviews", title: "Review URLs and 
       var max = fr[0] ? fr[0].n : 1, tot = fr.reduce(function (a, f) { return a + f.n; }, 0);
       return '<div class="rrp-bars">' + fr.map(function (f) {
         return '<div class="rrp-bar" title="' + esc(f.k) + '"><span>' + esc(f.k) + '</span><span class="track"><i style="width:'
-          + (f.n / max * 100).toFixed(0) + '%"></i></span><b>' + f.n + '</b><em class="ra-pct">'
-          + (tot ? Math.round(f.n / tot * 100) : 0) + "%</em></div>";
+          + (f.n / max * 100).toFixed(0) + '%"></i></span><span class="rvv">' + f.n + " · "
+          + (tot ? Math.round(f.n / tot * 100) : 0) + "%</span></div>";
       }).join("") + "</div>";
     }
     function statsByForeman(rows) {
@@ -996,7 +1004,7 @@ registerPage({ id: "review-settings", group: "reviews", title: "Review URLs and 
           + '</td><td class="num ra-chev">' + (o.f === sel ? "▾" : "›") + "</td></tr>";
       }).join("") : '<tr><td colspan="4" class="ra-none">No answers in this period.</td></tr>';
       return '<div class="rrp-card" style="padding:0"><div class="ra-cardhd pad"><h4>By foreman</h4>'
-        + '<span class="ra-sub">' + N(st.length) + (st.length === 1 ? " foreman" : " foremen") + " · " + esc(per) + "</span></div>"
+        + '<span class="rs-pill">' + N(st.length) + (st.length === 1 ? " foreman" : " foremen") + " · " + esc(per) + "</span></div>"
         // table-layout:fixed reads its widths from the FIRST row — with four unsized columns the
         // 1-character chevron owned a full quarter and the reason text was ellipsised away.
         + '<div class="rs-tablewrap"><table class="rs-table ra-ftbl"><colgroup>'
@@ -1073,7 +1081,7 @@ registerPage({ id: "review-settings", group: "reviews", title: "Review URLs and 
       }).join("") : '<tr><td colspan="7" class="ra-none">Nobody has promised a review yet.</td></tr>';
       return '<div class="rrp-card" style="padding:0;margin-top:12px"><div class="ra-cardhd pad">'
         + "<h4>Promised a review — follow up</h4>"
-        + '<span class="ra-sub">' + N(rows.length) + " customer" + (rows.length === 1 ? "" : "s")
+        + '<span class="rs-pill">' + N(rows.length) + " customer" + (rows.length === 1 ? "" : "s")
         + (landed ? " · " + N(landed) + " already landed" : "") + " · all time</span></div>"
         + '<div class="rs-tablewrap"><table class="rs-table"><thead><tr><th>Promised</th>'
         + '<th class="num">Age</th><th>Job</th><th>Customer</th><th>Contact</th><th>Foreman</th><th>Status</th>'
@@ -1094,7 +1102,7 @@ registerPage({ id: "review-settings", group: "reviews", title: "Review URLs and 
       var freq = {}; arows.forEach(function (r) { var k = r.reason || "—"; freq[k] = (freq[k] || 0) + 1; });
       var fr = Object.keys(freq).map(function (k) { return { k: k, n: freq[k] }; }).sort(function (a, b) { return b.n - a.n; });
       var bars = '<div class="rrp-card" style="padding:14px 16px"><div class="ra-cardhd"><h4>Why reviews are missing</h4>'
-        + '<span class="ra-sub">' + N(arows.length) + " answer" + (arows.length === 1 ? "" : "s") + " · " + esc(aPer) + "</span></div>"
+        + '<span class="rs-pill">' + N(arows.length) + " answer" + (arows.length === 1 ? "" : "s") + " · " + esc(aPer) + "</span></div>"
         + (fr.length ? reasonBars(fr) : '<div class="ra-none">No answers in this period.</div>') + "</div>";
       return '<div class="ra-sechd"><h3>Answer statistics</h3>' + periodBar() + "</div>"
         + '<div class="rrp-rgrid">' + bars + foremanCard(arows, aPer) + "</div>"
@@ -1514,13 +1522,19 @@ registerPage({ id: "review-settings", group: "reviews", title: "Review URLs and 
       var body = bodyHtml();
       var hd = HEAD[RRP.view] || HEAD.log;
 
-      root.innerHTML =
-        '<div class="rrp-head"><div>'
-        + '<h1><span class="rrp-star"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 17.3l-6.2 3.7 1.6-7L2 9.2l7.1-.6L12 2l2.9 6.6 7.1.6-5.4 4.8 1.6 7z"/></svg></span>' + esc(hd.t) + '</h1>'
-        + '<p>' + esc(hd.p) + '</p></div>'
-        + '<div class="rrp-headright"><div class="rrp-clock" title="Reminders fire on New Jersey time — compare a job’s scheduled time to this">' + I_CLOCK + '<span id="rrpClockTx">' + esc(nowLabel()) + "</span></div>"
-        + '<button class="rs-btn" id="rrpRefresh">' + I_REFRESH + " Refresh</button></div></div>"
-        + '<div id="rrpBody">' + body + "</div>";
+      /* Response Analysis wears the portal's STANDARD page head (his ask 2026-09-01 — match
+         the Claims & Negative Reviews face). The bot-branded head with the star, the NJ
+         clock and the header Refresh stays on Send Reminders and Settings, where schedule
+         times make the clock earn its place; on the stats page the fresh bar already owns
+         refresh, so the header button would be a duplicate. */
+      var headHtml = RRP.view === "response"
+        ? '<div class="rs-page-head"><h1>' + esc(hd.t) + "</h1><p>" + esc(hd.p) + "</p></div>"
+        : '<div class="rrp-head"><div>'
+          + '<h1><span class="rrp-star"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 17.3l-6.2 3.7 1.6-7L2 9.2l7.1-.6L12 2l2.9 6.6 7.1.6-5.4 4.8 1.6 7z"/></svg></span>' + esc(hd.t) + '</h1>'
+          + '<p>' + esc(hd.p) + '</p></div>'
+          + '<div class="rrp-headright"><div class="rrp-clock" title="Reminders fire on New Jersey time — compare a job’s scheduled time to this">' + I_CLOCK + '<span id="rrpClockTx">' + esc(nowLabel()) + "</span></div>"
+          + '<button class="rs-btn" id="rrpRefresh">' + I_REFRESH + " Refresh</button></div></div>";
+      root.innerHTML = headHtml + '<div id="rrpBody">' + body + "</div>";
       var rf = root.querySelector("#rrpRefresh"); if (rf) rf.onclick = function () {
         RRP.data = null; RRP._fmap = null; RRP.dataFresh = false; RRP.draft = null; RRP.draftSrc = null; RRP.goals = null; render(host);
       };
