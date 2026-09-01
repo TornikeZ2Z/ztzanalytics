@@ -50,7 +50,8 @@ registerPage({
       st.id = "crw-style";
       st.textContent = [
         // Only what the kit cannot say. Everything else is .panel / .rs-table / .rs-kpis.
-        ".crw-bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:0 0 14px}",
+        ".crw-bar{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin:0 0 14px}",
+        ".crw-bar>.crw-in{margin-bottom:1px}",
         ".crw-in{font-family:inherit;background:var(--panel);border:1px solid var(--line);"
           + "border-radius:9px;color:var(--ink);padding:8px 12px;font-size:13px;outline:0;"
           + "transition:border-color .15s;min-width:0}",

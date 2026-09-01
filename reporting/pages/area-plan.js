@@ -41,7 +41,8 @@
     st.id = "ap-style";
     st.textContent = `
     /* v4 (ap2-): only what the kit cannot say. */
-    .ap2-ctl{display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin:0 0 14px}
+    .ap2-ctl{display:flex;gap:14px;align-items:flex-end;flex-wrap:wrap;margin:0 0 14px}
+    .ap2-ctl>.ap2-note{padding-bottom:8px}
     .ap2-warn{font-size:12px;color:var(--warn);font-weight:700}
     /* the hero: decision numbers as one connected strip */
     .ap2-hero{padding:20px 22px 16px}

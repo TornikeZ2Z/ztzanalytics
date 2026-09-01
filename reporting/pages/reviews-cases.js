@@ -54,7 +54,8 @@ registerPage({
       st.id = "rvc-style";
       st.textContent = [
         // Only what the kit cannot say; everything else is .panel/.rs-kpis/.rs-table/.rs-seg.
-        ".rvc-bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:0 0 14px}",
+        ".rvc-bar{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin:0 0 14px}",
+        ".rvc-bar>.rvc-in{margin-bottom:1px}",
         ".rvc-in{font-family:inherit;background:var(--panel);border:1px solid var(--line);"
           + "border-radius:9px;color:var(--ink);padding:8px 12px;font-size:13px;outline:0;"
           + "transition:border-color .15s}",
