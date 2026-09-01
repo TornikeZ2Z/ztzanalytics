@@ -27,7 +27,7 @@
       // browser parses and holds for nothing. The mart keeps them; the payload does not.
       cols: ["Unique Key", "Date", "Month", "Company", "Job No", "Request #", "Customer",
              "Moving Type", "Job Foreman", "Role", "Person",
-             "Hours", "Rate", "Salary", "Tip", "Total Pay"],
+             "Hours", "Rate", "Salary", "Tip", "Tip Company", "Tip Customer", "Total Pay"],
       dateCols: { "Date": "Date" }, defaultDate: "Date",
     };
   }
@@ -160,13 +160,16 @@ registerPage({
         const k = r.Person + "|" + r.Role;
         let p = m.get(k);
         if (!p) m.set(k, p = { person: r.Person, role: r.Role, jobs: 0, hours: 0, salary: 0,
-                              tip: 0, pay: 0, rateHours: 0, rateSum: 0, months: new Set() });
+                              tip: 0, tipCo: 0, tipCu: 0, pay: 0, rateHours: 0, rateSum: 0,
+                              months: new Set() });
         p.jobs++;
         const h = num(r.Hours) || 0, rt = num(r.Rate) || 0;
         p.hours += h;
         if (h > 0 && rt > 0) { p.rateHours += h; p.rateSum += rt * h; }
         p.salary += num(r.Salary) || 0;
         p.tip += num(r.Tip) || 0;
+        p.tipCo += num(r["Tip Company"]) || 0;
+        p.tipCu += num(r["Tip Customer"]) || 0;
         p.pay += num(r["Total Pay"]) || 0;
         if (r.Month) p.months.add(r.Month);
       });
@@ -184,7 +187,8 @@ registerPage({
       const hours = sum(r => r.Hours);
       const jobs = new Set(rs.map(r => r["Unique Key"])).size;
 
-      const key = { pay: p => p.pay, salary: p => p.salary, tip: p => p.tip, jobs: p => p.jobs,
+      const key = { pay: p => p.pay, salary: p => p.salary, tip: p => p.tip,
+                    tipCo: p => p.tipCo, tipCu: p => p.tipCu, jobs: p => p.jobs,
                     hours: p => p.hours, rate: p => p.rate || 0, perJob: p => p.perJob || 0,
                     person: p => p.person }[S.sort] || (p => p.pay);
       const sorted = people.slice().sort((a, b) => {
@@ -246,7 +250,9 @@ registerPage({
           ${kpi("Jobs covered", fmtN(jobs), fmtN(rs.length) + " person-jobs")}
           ${kpi("Total paid", m0(pay), m0(pay / (jobs || 1)) + " a job")}
           ${kpi("Wage", m0(salary), pct(pay ? salary / pay : null) + " of it", "pos")}
-          ${kpi("Tips", m0(tip), pct(pay ? tip / pay : null) + " of it", "warn")}
+          ${kpi("Tips", m0(tip), m0(rs.reduce((a, r) => a + (num(r["Tip Customer"]) || 0), 0))
+                + " customers · " + m0(rs.reduce((a, r) => a + (num(r["Tip Company"]) || 0), 0))
+                + " company", "warn")}
           ${kpi("Hours", fmtN(Math.round(hours)),
                 hours ? m0(salary / hours) + " a paid hour" : "—")}
         </div>
@@ -279,7 +285,7 @@ registerPage({
           <div class="rs-tablewrap crw-mx"><table class="rs-table">
             <thead><tr>${th("person", "Person", "")}<th>Seat</th>
               ${th("jobs", "Jobs")}${th("hours", "Hours")}${th("rate", "Rate")}
-              ${th("salary", "Wage")}${th("tip", "Tips")}${th("pay", "Total pay")}
+              ${th("salary", "Wage")}${th("tipCu", "Tips · cust")}${th("tipCo", "Tips · co")}${th("pay", "Total pay")}
               ${th("perJob", "Per job")}<th style="width:140px">Mix</th></tr></thead>
             <tbody>${pageRows.map(p => `<tr>
               <td class="crw-nm" data-person="${esc(p.person)}" data-role="${esc(p.role)}">${esc(p.person)}</td>
@@ -288,7 +294,8 @@ registerPage({
               <td class="num">${p.hours ? fmtN(Math.round(p.hours)) : "—"}</td>
               <td class="num">${p.rate ? "$" + p.rate.toFixed(2) : "—"}</td>
               <td class="num">${m0(p.salary)}</td>
-              <td class="num">${m0(p.tip)}</td>
+              <td class="num">${m0(p.tipCu)}</td>
+              <td class="num muted">${p.tipCo ? m0(p.tipCo) : "—"}</td>
               <td class="num strong">${m0(p.pay)}</td>
               <td class="num muted">${m0(p.perJob)}</td>
               <td>${mix(p)}</td></tr>`).join("")}
@@ -296,7 +303,9 @@ registerPage({
             <tfoot><tr><td colspan="2">${fmtN(sorted.length)} people</td>
               <td class="num">${fmtN(rs.length)}</td>
               <td class="num">${fmtN(Math.round(hours))}</td><td></td>
-              <td class="num">${m0(salary)}</td><td class="num">${m0(tip)}</td>
+              <td class="num">${m0(salary)}</td>
+              <td class="num">${m0(rs.reduce((a, r) => a + (num(r["Tip Customer"]) || 0), 0))}</td>
+              <td class="num">${m0(rs.reduce((a, r) => a + (num(r["Tip Company"]) || 0), 0))}</td>
               <td class="num">${m0(pay)}</td><td></td><td></td></tr></tfoot>
           </table></div>
           <div class="crw-pager">
@@ -468,7 +477,8 @@ registerPage({
     }
 
     function downloadCsv(people) {
-      const head = ["Person", "Seat", "Jobs", "Hours", "Rate", "Wage", "Tips", "Total Pay", "Per job"];
+      const head = ["Person", "Seat", "Jobs", "Hours", "Rate", "Wage",
+                    "Tips Customer", "Tips Company", "Total Pay", "Per job"];
       // formula-injection guard: a leading =+-@ becomes text, the referral-list rule
       const cell = v => {
         let s = String(v == null ? "" : v);
@@ -477,7 +487,7 @@ registerPage({
       };
       const lines = [head.join(",")].concat(people.map(p => [p.person, p.role, p.jobs,
         p.hours ? Math.round(p.hours) : "", p.rate ? p.rate.toFixed(2) : "",
-        Math.round(p.salary), Math.round(p.tip), Math.round(p.pay),
+        Math.round(p.salary), Math.round(p.tipCu), Math.round(p.tipCo), Math.round(p.pay),
         p.perJob ? Math.round(p.perJob) : ""].map(cell).join(",")));
       const blob = new Blob(["﻿" + lines.join("\r\n")], { type: "text/csv;charset=utf-8" });
       const a = document.createElement("a");
