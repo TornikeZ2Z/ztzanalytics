@@ -26,6 +26,19 @@
       dateCols: { "Created Date": "Created Date" }, defaultDate: "Created Date",
     };
   }
+  if (window.RS && RS.DATASETS && !RS.DATASETS.claims_keywords) {
+    RS.DATASETS.claims_keywords = {
+      table: "mart_claim_keywords",
+      cols: ["Monday Item Id", "Language", "Keyword Family", "Keyword Family 2", "Keyword Confidence",
+             "Matched Keywords", "Board Family", "Family Used", "Agreement", "Severity Signal",
+             "Hits Price", "Hits Damage", "Hits Missing", "Hits Timing", "Hits Conduct", "Hits Billing",
+             "Hits Storage", "Hits Customer", "Mentions Refund", "Mentions Discount", "Mentions Review",
+             "Mentions Dispute", "Mentions Legal", "Mentions Photos", "Mentions Claim Form", "Dict Version"],
+    };
+  }
+  if (window.RS && RS.DATASETS && !RS.DATASETS.claim_keyword_rules) {
+    RS.DATASETS.claim_keyword_rules = { table: "claim_keyword_rule", cols: ["Kind", "Family", "Term", "Weight"] };
+  }
 })();
 
 registerPage({
@@ -112,6 +125,26 @@ registerPage({
     const [claimsAll, closingAll] = await Promise.all([
       RS.load("claims_analysis"), RS.load("closing")]);
     const closing = (closingAll || []).filter(r => r["Record Source"] === "closing");
+    // THE KEYWORD READING (src/claims_keywords.py): the thread scored against word lists.
+    // A manager's correction (claim_class_override) sits over it; nothing is destroyed.
+    const KW = {}, RULES = [];
+    try { (await RS.load("claims_keywords") || []).forEach(r => { KW[String(r["Monday Item Id"])] = r; }); }
+    catch (e) { /* stage not run yet */ }
+    try { (await RS.load("claim_keyword_rules") || []).forEach(r => RULES.push(r)); } catch (e) { /* none */ }
+    const OV = {};
+    try {
+      const res = await fetch(ZTZ.API + "/api/_claimoverride", { headers: { Authorization: "Bearer " + ZTZ.getToken() } });
+      const j = await res.json();
+      (j.overrides || []).forEach(o => { OV[String(o["Monday Item Id"])] = o; });
+    } catch (e) { /* no access or none yet */ }
+    const kwOf = r => KW[String(r["Monday Item Id"])] || null;
+    const ovOf = r => OV[String(r["Monday Item Id"])] || null;
+    // the family the page COUNTS: a manager's correction > the board's own Reason > keywords
+    const famOf = r => { const o = ovOf(r), k = kwOf(r);
+      return (o && o.Family) || (k && k["Family Used"]) || r["Reason Family"]; };
+    const sevOf = r => { const o = ovOf(r), k = kwOf(r); return (o && o.Severity) || (k && k["Severity Signal"]) || null; };
+    const nKW = Object.keys(KW).length;
+    const FAM_LIST = ["Price", "Damage", "Missing", "Timing", "Conduct", "Billing", "Storage", "Customer", "Other"];
 
     /* ---------- state ---------- */
     const S = { period: "6m", svc: "", q: "", page: 0, pageSize: 25 };
@@ -162,6 +195,13 @@ registerPage({
       const refund$ = refunded.reduce((a, r) => a + (num(r["Refund $"]) || 0), 0);
       const pub = claims.filter(r => (num(r["Negative Reviews"]) || 0) > 0).length;
       const unclassified = claims.filter(r => r["Reason Family"] === "Unclassified").length;
+      const kwFilled = claims.filter(r => { const k = kwOf(r);
+        return r["Reason Family"] === "Unclassified" && k && k["Keyword Family"] !== "No keywords"; }).length;
+      const compared = claims.filter(r => { const k = kwOf(r); return k && k.Agreement != null; });
+      const agree = compared.filter(r => num(kwOf(r).Agreement) === 1).length;
+      const critical = claims.filter(r => sevOf(r) === "Critical").length;
+      const high = claims.filter(r => sevOf(r) === "High").length;
+      const flagCount = f => claims.filter(r => { const k = kwOf(r); return k && num(k["Mentions " + f]) > 0; }).length;
 
       /* by month (claims + rate) */
       const byM = {};
@@ -178,7 +218,13 @@ registerPage({
         claims.forEach(r => { const k = r[key] || "—"; o[k] = (o[k] || 0) + 1; });
         return Object.entries(o).sort((a, b) => b[1] - a[1]);
       };
-      const famShare = share("Reason Family"), respShare = share("Responsibility Family");
+      const famShare = (() => { const o = {}; claims.forEach(r => { const k = famOf(r) || "—"; o[k] = (o[k] || 0) + 1; });
+        return Object.entries(o).sort((a, b) => b[1] - a[1]); })();
+      const respShare = share("Responsibility Family");
+      // where both the team and the keywords spoke: how often they agree, per family
+      const agreeByFam = (() => { const o = {}; compared.forEach(r => { const f = r["Reason Family"];
+        const a = o[f] = o[f] || { n: 0, ok: 0 }; a.n++; if (num(kwOf(r).Agreement) === 1) a.ok++; });
+        return Object.entries(o).sort((a, b) => b[1].n - a[1].n); })();
       const svcShare = share("Service Type").slice(0, 8);
 
       /* per person: jobs in window from the closing, claims from the mart */
@@ -192,7 +238,7 @@ registerPage({
           const o = rows[p] = rows[p] || { name: p, claims: 0, price: 0, damage: 0, missing: 0, timing: 0,
                                            refund: 0, pub: 0, inc: [], cfv: [] };
           o.claims++;
-          const f = r["Reason Family"];
+          const f = famOf(r);
           if (f === "Price") o.price++; if (f === "Damage") o.damage++;
           if (f === "Missing") o.missing++; if (f === "Timing") o.timing++;
           o.refund += num(r["Refund $"]) || 0;
@@ -256,8 +302,12 @@ registerPage({
             <div class="s"><b>${money0(refund$)}</b> given back · ${n ? Math.round(refunded.length / n * 100) : 0}% of claims</div></div>
           <div class="cln-led-g"><div class="l">Went public</div><div class="v ${pub ? "bad" : ""}">${fmtN(pub)}</div>
             <div class="s">claims that also have a negative review on file</div></div>
-          <div class="cln-led-g"><div class="l">No reason chosen</div><div class="v">${fmtN(unclassified)}</div>
-            <div class="s">${n ? Math.round(unclassified / n * 100) : 0}% of claims carry no Reason on the board</div></div>
+          ${nKW ? `<div class="cln-led-g"><div class="l">Read by keywords</div><div class="v pos">${fmtN(kwFilled)}</div>
+            <div class="s">of the <b>${fmtN(unclassified)}</b> claims with no Reason on the board got a family from their thread · where both exist the keywords agree with the team on <b>${compared.length ? Math.round(agree / compared.length * 100) + "%" : "—"}</b></div></div>
+          <div class="cln-led-g"><div class="l">Signals in the threads</div><div class="v ${critical ? "bad" : ""}">${fmtN(critical)}</div>
+            <div class="s"><b>${fmtN(critical)}</b> mention a dispute or legal action · <b>${fmtN(high)}</b> a review or a large refund · refund mentioned on ${fmtN(flagCount("Refund"))}, discount on ${fmtN(flagCount("Discount"))}, photos on ${fmtN(flagCount("Photos"))}</div></div>`
+          : `<div class="cln-led-g"><div class="l">No reason chosen</div><div class="v">${fmtN(unclassified)}</div>
+            <div class="s">${n ? Math.round(unclassified / n * 100) : 0}% of claims carry no Reason on the board</div></div>`}
         </div>
 
         <div class="cln-grid">
@@ -270,9 +320,17 @@ registerPage({
               <span class="v">${j ? r1(per100(byM[m], j)) + " /100" : "—"}</span></div>`; }).join("") || '<div class="rs-hint">no claims in this window</div>'}
           </div>
           <div class="panel"><div class="panel-head"><div class="panel-title">What they are about</div>
-              <div class="rs-hint">the board's Reason, folded into families</div></div>
+              <div class="rs-hint">${nKW ? "the board's Reason where the team chose one, the thread's keywords where it did not, a manager's correction over both" : "the board's Reason, folded into families"}</div></div>
             ${shareRows(famShare)}
           </div>
+          ${nKW ? `<div class="panel"><div class="panel-head"><div class="panel-title">Keywords vs the team's Reason</div>
+              <div class="rs-hint">on the ${fmtN(compared.length)} claims where both exist — how often the words in the thread point where the team pointed</div></div>
+            ${agreeByFam.map(([f, a]) => `<div class="cln-share ${a.ok / a.n >= 0.7 ? "brand" : (a.ok / a.n >= 0.4 ? "" : "neg")}">
+              <span class="n">${esc(f)}</span>
+              <span class="t"><i style="width:${Math.max(2, a.ok / a.n * 100)}%"></i></span>
+              <span class="v"><b>${Math.round(a.ok / a.n * 100)}%</b> · ${fmtN(a.ok)} of ${fmtN(a.n)}</span></div>`).join("") || '<div class="rs-hint">nothing to compare yet</div>'}
+            <div class="rs-hint" style="margin-top:8px">${RULES.length ? RULES.filter(r => r.Kind === "family").length + " words define the families (" + RULES.filter(r => r.Kind === "flag").length + " more for the signals); English, Georgian and Latin-Georgian alike." : ""}</div>
+          </div>` : ""}
           <div class="panel"><div class="panel-head"><div class="panel-title">Who the team held responsible</div>
               <div class="rs-hint">the board's Responsibility — a choice, not a finding</div></div>
             ${shareRows(respShare, "neg")}
@@ -310,13 +368,17 @@ registerPage({
             <button class="rs-btn" id="clnDl">Download CSV</button></div>
           <div class="rs-hint" style="margin:0 0 8px">Click a claim to read its whole Monday thread here.</div>
           <div class="rs-tablewrap"><table class="rs-table">
-            <thead><tr><th>Created</th><th>Customer</th><th>Family · reason</th><th>Status</th>
+            <thead><tr><th>Created</th><th>Customer</th><th>Family · ${nKW ? "reason or words" : "reason"}</th>${nKW ? "<th>Signals</th>" : ""}<th>Status</th>
               <th>Salesperson</th><th>Foreman</th><th class="num">Bill</th><th class="num">vs quote</th>
               <th class="num">Refund</th><th class="num">Msgs</th></tr></thead>
             <tbody>${pageRows.map(r => `<tr class="cln-row" data-item="${esc(r["Monday Item Id"])}">
               <td class="nowrap">${esc(String(r["Created Date"] || "").slice(0, 10))}</td>
               <td class="strong">${esc(r.Customer || "—")}</td>
-              <td>${esc(r["Reason Family"] || "—")}${r.Reason ? ` <span class="cln-small">· ${esc(r.Reason)}</span>` : ""}</td>
+              ${(() => { const k = kwOf(r), o = ovOf(r); const fam = famOf(r);
+                const why = o ? "corrected by " + (o["Entered By"] || "") : (r.Reason ? r.Reason : (k && k["Keyword Family"] !== "No keywords" ? "words: " + String(k["Matched Keywords"] || "").split(", ").slice(0, 3).join(", ") : ""));
+                const sig = k ? [["Legal", "bad"], ["Dispute", "bad"], ["Review", "warn"], ["Refund", ""], ["Discount", ""], ["Photos", "mute"]]
+                  .filter(([f]) => num(k["Mentions " + f]) > 0).map(([f, c]) => `<span class="rs-pill ${c}">${f.toLowerCase()}</span>`).join(" ") : "";
+                return `<td>${o ? '<span class="rs-pill ok">✓</span> ' : ""}<b>${esc(fam || "—")}</b>${why ? ` <span class="cln-small">· ${esc(why)}</span>` : ""}</td>${nKW ? `<td>${sig || '<span class="cln-small">—</span>'}</td>` : ""}`; })()}
               <td>${num(r["Is Open"]) === 1 ? '<span class="rs-pill warn">' + esc(r.Status || "open") + "</span>" : esc(r.Status || "—")}</td>
               <td class="muted">${esc(r["Sales Person"] || r["Board Sale"] || "—")}</td>
               <td class="muted">${esc(r.Foreman || "—")}</td>
@@ -408,9 +470,46 @@ registerPage({
             ${row && row["Refund $"] ? `<div class="cln-cell"><div class="l">Refund</div><div class="v">${money0(num(row["Refund $"]))}</div></div>` : ""}
           </div>
           ${(j.files || []).length ? `<div class="cln-eyebrow">Files on the claim</div><div class="rs-hint">${(j.files || []).map(f => esc((f.Name || "") + " " + (f.Extension || ""))).join(" · ")}</div>` : ""}
+          ${(() => { const k = row ? kwOf(row) : null, o = row ? ovOf(row) : null; if (!k && !o) return "";
+            const hits = k ? FAM_LIST.filter(f => f !== "Other").map(f => [f, num(k["Hits " + f]) || 0]).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]) : [];
+            const flags = k ? ["Refund", "Discount", "Review", "Dispute", "Legal", "Photos", "Claim Form"].filter(f => num(k["Mentions " + f]) > 0) : [];
+            return `<div class="cln-eyebrow">What the words say${k ? " · " + esc(k.Language || "") : ""}</div>
+              ${o ? `<div class="rs-hint" style="margin-bottom:8px">Corrected by ${esc(o["Entered By"] || "")} on ${esc(String(o["Entered At"] || "").slice(0, 10))}: ${[o.Family, o.Severity].filter(Boolean).map(esc).join(" · ")}${o.Comment ? " — " + esc(o.Comment) : ""}</div>` : ""}
+              ${k ? `<div class="cln-cells">
+                <div class="cln-cell"><div class="l">Keyword family</div><div class="v"><b>${esc(k["Keyword Family"])}</b> <span class="cln-small">${esc(k["Keyword Confidence"] || "")}${k["Keyword Family 2"] ? " · then " + esc(k["Keyword Family 2"]) : ""}</span></div></div>
+                <div class="cln-cell"><div class="l">Team's reason</div><div class="v">${esc(row.Reason || "—")}${k.Agreement == null ? "" : (num(k.Agreement) === 1 ? ' <span class="rs-pill ok">agrees</span>' : ' <span class="rs-pill warn">differs</span>')}</div></div>
+                <div class="cln-cell"><div class="l">Severity signal</div><div class="v">${esc(k["Severity Signal"] || "—")}</div></div>
+                <div class="cln-cell"><div class="l">Signals</div><div class="v">${flags.map(esc).join(", ") || "—"}</div></div>
+              </div>
+              <div class="cln-msg"><div class="txt"><b>Hits by family.</b> ${hits.map(([f, v]) => esc(f) + " " + v).join(" · ") || "none"}</div>
+                <div class="txt" style="margin-top:6px"><b>Words that fired.</b> ${esc(k["Matched Keywords"] || "—")}</div></div>` : ""}
+              <details style="margin-top:10px"><summary class="rs-hint" style="cursor:pointer">Correct this family</summary>
+                <div class="cln-cells" style="margin-top:8px">
+                  <div class="cln-cell"><div class="l">Family</div><select class="cln-in" id="ovFam"><option value="">— keep —</option>${FAM_LIST.map(f => `<option>${f}</option>`).join("")}</select></div>
+                  <div class="cln-cell"><div class="l">Severity</div><select class="cln-in" id="ovSev"><option value="">— keep —</option>${["Low", "Medium", "High", "Critical"].map(f => `<option>${f}</option>`).join("")}</select></div>
+                </div>
+                <input class="cln-in" id="ovNote" placeholder="why (optional)" style="width:100%;margin-top:6px">
+                <div style="margin-top:8px"><button class="rs-btn pri" id="ovSave">Save correction</button> <span class="cln-small" id="ovMsg"></span></div>
+              </details>`; })()}
           <div class="cln-eyebrow">Thread · ${fmtN((j.thread || []).length)} updates</div>
           ${(j.thread || []).map(m => msg(m, false)).join("") || '<div class="rs-hint">no updates on this claim</div>'}
           ${it.Url ? `<div class="rs-hint" style="margin-top:14px"><a href="${esc(it.Url)}" target="_blank" rel="noopener">Open in Monday</a></div>` : ""}`;
+        const save = body.querySelector("#ovSave");
+        if (save) save.onclick = async () => {
+          const g = id => (body.querySelector("#" + id) || {}).value || "";
+          const payload = { item: itemId, family: g("ovFam"), severity: g("ovSev"), comment: g("ovNote") };
+          const msg = body.querySelector("#ovMsg"); msg.textContent = "saving…";
+          try {
+            const res = await fetch(ZTZ.API + "/api/_claimoverride", { method: "POST",
+              headers: { Authorization: "Bearer " + ZTZ.getToken(), "Content-Type": "application/json" },
+              body: JSON.stringify(payload) });
+            const j = await res.json();
+            if (!res.ok || j.error) { msg.textContent = j.error || "could not save"; return; }
+            OV[String(itemId)] = { "Monday Item Id": itemId, Family: payload.family || null, Severity: payload.severity || null,
+              Comment: payload.comment || null, "Entered By": j.by || "", "Entered At": new Date().toISOString() };
+            msg.textContent = "saved"; paint();
+          } catch (e) { msg.textContent = "could not save"; }
+        };
       } catch (e) {
         body.innerHTML = `<div class="rs-hint">could not load the thread</div>`;
       }
