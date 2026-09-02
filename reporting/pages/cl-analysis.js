@@ -41,7 +41,7 @@ if (window.RS && RS.DATASETS && !RS.DATASETS.mart_cl_analysis) {
            "Refund $", "Refund Reason", "Claims", "Claim Status", "Claim Reason",
            "Extra Spend", "Other Expenses", "Company Tip", "Discount Given",
            "Has Contract",
-           "Truck #", "Truck Ownership", "Miles Used", "Miles Basis", "Fuel Recorded", "Tolls Recorded", "Rental Cost Est", "Owned Overhead Est", "Fuel Est", "Toll Est", "Adjusted Gross Profit", "Rate Rental Per Job", "Rate Owned Per Job", "Rate Fuel Per Gal", "Rate Toll Per Job"],
+           "Truck #", "Truck Ownership", "Miles Used", "Miles Basis", "Fuel Recorded", "Tolls Recorded", "Rental Cost Est", "Owned Overhead Est", "Fuel Est", "Toll Est", "Adjusted Gross Profit", "Rate Rental Per Job", "Rate Owned Per Job", "Rate Fuel Per Gal", "Rate Toll Per Job", "Elevator Both Ends", "Rate Stairs Share All"],
     dateCols: { "Date": "Date" }, defaultDate: "Date",
   };
 }
@@ -888,7 +888,13 @@ registerPage({
             other ${fmtN(jobs.length - withContract)} a stairs or bulky fee cannot be seen even if
             one was charged. For reference, one of our own sales people on the same jobs would earn
             ${money0(sp9)} at 9% or ${money0(sp5)} at 5% — but they are handed leads the company
-            pays for, and he brings the work as well as closing it.</p>
+            pays for, and he brings the work as well as closing it. ${(() => { const ec = jobs.filter(r => { const e = E(r); return e && num(e["Elevator Both Ends"]) === 1; }).length;
+              const st = jobs.filter(r => { const e = E(r); return e && num(e["Stairs Fee"]) > 0; }).length;
+              const all = rate("Rate Stairs Share All");
+              return ec ? "The stairs total is small because " + fmtN(ec) + " of the " + fmtN(withContract)
+                + " contracted jobs are elevator buildings at both ends; a stairs fee appears on " + fmtN(st)
+                + " of them (" + pctS(withContract ? st / withContract : null) + "), against " + pctS(all)
+                + " of all contracted jobs this year." : ""; })()}</p>
         </div>` : `
         <div class="panel">
           <div class="panel-head"><div class="panel-title">His adjusted cut</div></div>
