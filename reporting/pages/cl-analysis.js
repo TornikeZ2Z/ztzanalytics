@@ -40,7 +40,8 @@ if (window.RS && RS.DATASETS && !RS.DATASETS.mart_cl_analysis) {
            "Over Cap", "Over Cap $",
            "Refund $", "Refund Reason", "Claims", "Claim Status", "Claim Reason",
            "Extra Spend", "Other Expenses", "Company Tip", "Discount Given",
-           "Has Contract"],
+           "Has Contract",
+           "Truck #", "Truck Ownership", "Miles Used", "Miles Basis", "Fuel Recorded", "Tolls Recorded", "Rental Cost Est", "Owned Overhead Est", "Fuel Est", "Toll Est", "Adjusted Gross Profit", "Rate Rental Per Job", "Rate Owned Per Job", "Rate Fuel Per Gal", "Rate Toll Per Job"],
     dateCols: { "Date": "Date" }, defaultDate: "Date",
   };
 }
@@ -114,6 +115,8 @@ registerPage({
         ".cla-led-g li b{color:var(--ink);font-weight:700}",
         ".cla-led-g li.over{color:var(--neg)}",
         ".cla-wf td:nth-child(3),.cla-wf td:nth-child(4){white-space:nowrap}",
+        ".cla-eyebrow{font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;"
+          + "color:var(--muted);margin-bottom:3px}",
         ".cla-wf-tot td{border-top:2px solid var(--line-2);background:var(--panel-2)}",
         // THE PROPOSAL IS ITS OWN VIEW, not a panel inside the analysis: the slides are the
         // document CL will be sent, so they are shown at reading size on a plain ground,
@@ -562,6 +565,17 @@ registerPage({
       const adjCut = eSum(e => e["Adjusted Cut"]);            // his rate, fee parts removed
       const adjOur = eSum(e => e["Adjusted Cut Our Price"]);  // ...and off our price
       const cutOnFees = eSum(e => e["Cut On Fees"]);          // what he earned on those parts
+      // THE FINANCE VIEW (his ask 2026-09-02): four truck costs the closing never carried.
+      const finRental = eSum(e => e["Rental Cost Est"]);
+      const finOwned = eSum(e => e["Owned Overhead Est"]);
+      const finFuelRec = eSum(e => e["Fuel Recorded"]), finFuelEst = eSum(e => e["Fuel Est"]);
+      const finTollRec = eSum(e => e["Tolls Recorded"]), finTollEst = eSum(e => e["Toll Est"]);
+      const finAdj = eSum(e => e["Adjusted Gross Profit"]);
+      const own = k => jobs.filter(r => { const e = E(r); return e && e["Truck Ownership"] === k; }).length;
+      const nRental = own("Rental"), nOwned = own("Owned");
+      const nMiles = jobs.filter(r => { const e = E(r); return e && e["Miles Basis"] !== "average"; }).length;
+      const rate = k => { const e = jobs.map(E).find(Boolean); return e ? (num(e[k]) || 0) : 0; };
+      const signed = v => (v >= 0 ? "+" : "\u2212") + money0(Math.abs(v));
       const feeMoney = eSum(e => num(e["Stairs Fee"]) + num(e["Bulky Fee"]) * 0.5
                                  + num(e["Storage Past Month 1"]));
       const withContract = jobs.filter(r => { const e = E(r); return e && String(e["Has Contract"]) === "Yes"; }).length;
@@ -760,7 +774,8 @@ registerPage({
             <div class="v pos">${money0(profit)}</div>
             <ul>
               <li><b>${pctS(billed ? profit / billed : null)}</b> gross margin, after his cut</li>
-              <li>${money0(avgProfit)} a job</li>
+              <li>${money0(avgProfit)} a job${econReady
+                ? " · finance view <b>" + money0(finAdj) + "</b> (" + pctS(billed ? finAdj / billed : null) + ")" : ""}</li>
             </ul>
           </div>
           <div class="cla-led-g">
@@ -774,6 +789,48 @@ registerPage({
             </ul>
           </div>
         </div>
+
+        ${econReady ? `
+        <div class="panel" style="margin-top:12px">
+          <div class="panel-head"><div>
+            <div class="cla-eyebrow">Finance view</div>
+            <div class="panel-title">Gross profit after the truck costs the closing sheet does not carry</div>
+            <div class="rs-hint">His cut is already out of every number here. What the sheet misses:
+              a rented truck has no rental line, an owned truck has no insurance or parking line,
+              its Fuel is whatever fill-up happened that day, and tolls are almost never entered.
+              Every rate below is our own books over the last 12 months; the only assumption is
+              8 mpg for a loaded box truck.</div>
+          </div><span class="rs-pill ${finAdj < profit ? "warn" : "ok"}">${money0(finAdj)} · ${pctS(billed ? finAdj / billed : null)} margin</span></div>
+          <div class="rs-tablewrap"><table class="rs-table cla-wf">
+            <thead><tr><th>Step</th><th>Basis</th><th class="num">Jobs</th>
+              <th class="num">Amount</th><th class="num">Running</th></tr></thead>
+            <tbody>
+              <tr><td class="strong">Gross profit on the books</td>
+                <td>the closing's profit, net of his cut</td>
+                <td class="num">${fmtN(jobs.length)}</td><td class="num"></td>
+                <td class="num">${money0(profit)}</td></tr>
+              <tr><td>1 · Truck rental</td>
+                <td>${money0(rate("Rate Rental Per Job"))} a job on a rented truck (Enterprise, Penske) — rental invoices over rental-truck jobs</td>
+                <td class="num">${fmtN(nRental)}</td><td class="num">${signed(-finRental)}</td>
+                <td class="num">${money0(profit - finRental)}</td></tr>
+              <tr><td>2 · Owned-truck overhead</td>
+                <td>${money0(rate("Rate Owned Per Job"))} a job on our own truck — insurance, parking, maintenance and financing over owned-truck jobs</td>
+                <td class="num">${fmtN(nOwned)}</td><td class="num">${signed(-finOwned)}</td>
+                <td class="num">${money0(profit - finRental - finOwned)}</td></tr>
+              <tr><td>3 · Fuel restated</td>
+                <td>miles ÷ 8 mpg × $${(rate("Rate Fuel Per Gal") || 0).toFixed(2)} a gallon of diesel, replacing the sheet's ${money0(finFuelRec)} of fill-ups · miles on file for ${fmtN(nMiles)} jobs, the rest take the CL average</td>
+                <td class="num">${fmtN(jobs.length)}</td><td class="num">${signed(finFuelRec - finFuelEst)}</td>
+                <td class="num">${money0(profit - finRental - finOwned + finFuelRec - finFuelEst)}</td></tr>
+              <tr><td>4 · Tolls restated</td>
+                <td>${money0(rate("Rate Toll Per Job"))} a job of E-ZPass — every top-up and rebill over every closing — replacing the sheet's ${money0(finTollRec)}</td>
+                <td class="num">${fmtN(jobs.length)}</td><td class="num">${signed(finTollRec - finTollEst)}</td>
+                <td class="num">${money0(profit - finRental - finOwned + finFuelRec - finFuelEst + finTollRec - finTollEst)}</td></tr>
+              <tr class="cla-wf-tot"><td class="strong">Adjusted gross profit</td>
+                <td>the finance view · ${pctS(billed ? finAdj / billed : null)} of revenue, against ${pctS(billed ? profit / billed : null)} on the books</td>
+                <td class="num">${fmtN(jobs.length)}</td><td class="num">${signed(finAdj - profit)}</td>
+                <td class="num strong">${money0(finAdj)}</td></tr>
+            </tbody></table></div>
+        </div>` : ""}
 
         <div id="clTrend"></div>
 

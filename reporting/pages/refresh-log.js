@@ -10,7 +10,7 @@ const RL = (() => {
   const STAGE_LABEL = {
     sharepoint: "SharePoint exports", closing: "Closing sheets", card_expenses: "Card expenses",
     sheets: "Google Sheets", calendar: "Google Calendar", excel: "Reference workbooks",
-    ringcentral_api: "RingCentral API",
+    ringcentral_api: "RingCentral API", monday_sync: "monday.com boards",
     curated: "Curation · silver layer", calendar_curated: "Calendar model", money_flow: "Money flow",
     job_overview: "Job overview", lead_call: "Lead calls", ld_planning: "LD planning",
     foreman_closings: "Foreman closings", health: "Health checks",
@@ -429,7 +429,7 @@ function rlCoverage(cov) {
    ENDED, so a refresh in flight looked identical to nothing happening (Tornike 2026-07-28:
    "i dont see that it is refreshing or the refresh is in progress"). runlog now writes each
    step as it starts and finishes, so this panel can show what the pipeline is doing right now. */
-const RL_STAGE_ORDER = ["sharepoint", "closing", "card_expenses", "sheets", "calendar", "excel",
+const RL_STAGE_ORDER = ["sharepoint", "closing", "card_expenses", "sheets", "calendar", "monday_sync", "excel",
   "curated", "calendar_curated", "money_flow", "job_overview", "lead_call", "lead_journey",
   "ld_planning", "foreman_closings", "health"];
 
