@@ -94,6 +94,25 @@ registerPage({
         ".rs-table tfoot td{font-weight:800;border-top:2px solid var(--line-2);"
           + "color:var(--ink)}",
         ".rs-table tfoot .cla-of{font-weight:400}",
+        /* THE LEDGER (2026-09-01): nine equal KPI cards could not fit the page — every
+           sub-line hit the kit's 2-line clamp and truncated mid-sentence. The same facts
+           now sit in FOUR groups reading left to right as the story: the work he brought,
+           what he takes, what we keep, what it should be. Deliberately NO nowrap and NO
+           clamp anywhere below: a long line wraps inside its own column instead of being
+           cut off, which was the whole complaint. */
+        ".cla-led{display:flex;flex-wrap:wrap;gap:0;padding:18px 20px}",
+        ".cla-led-g{flex:1 1 210px;min-width:0;padding:0 20px 0 0}",
+        ".cla-led-g + .cla-led-g{padding-left:20px;border-left:1px solid var(--line-2)}",
+        ".cla-led-g>.l{font-size:10px;font-weight:800;letter-spacing:.09em;"
+          + "text-transform:uppercase;color:var(--faint)}",
+        ".cla-led-g>.v{font-size:clamp(24px,2vw,31px);font-weight:800;letter-spacing:-.8px;"
+          + "line-height:1.15;margin-top:5px;font-variant-numeric:tabular-nums;color:var(--ink)}",
+        ".cla-led-g>.v.warn{color:var(--warn)}",
+        ".cla-led-g>.v.pos{color:var(--brand)}",
+        ".cla-led-g>ul{list-style:none;margin:9px 0 0;padding:0}",
+        ".cla-led-g li{font-size:12px;color:var(--muted);line-height:1.55;margin-top:3px}",
+        ".cla-led-g li b{color:var(--ink);font-weight:700}",
+        ".cla-led-g li.over{color:var(--neg)}",
         ".cla-wf td:nth-child(3),.cla-wf td:nth-child(4){white-space:nowrap}",
         ".cla-wf-tot td{border-top:2px solid var(--line-2);background:var(--panel-2)}",
         // THE PROPOSAL IS ITS OWN VIEW, not a panel inside the analysis: the slides are the
@@ -240,7 +259,7 @@ registerPage({
       const payOf = (e, which) => {
         const b = num(e["Total Bill"]) || 0;
         if (which === "A") return 0.20 * (b / U);
-        if (which === "B") return 0.25 * (b / U * 1.10);
+        if (which === "B") return 0.225 * (b / U * 1.10);
         return 0.25 * (num(e["Our Price"]) || 0);
       };
       const split = which => {
@@ -272,8 +291,8 @@ registerPage({
         plans: [
           mk("A · no uplift, 20% of the bill", bill / U, 0.20 * (bill / U),
              "The 20% increase comes off. You quote our calculator price exactly as it comes — the sharpest price you can put in front of a customer — and earn 20% of it."),
-          mk("B · 10% uplift, 25% of the bill", bill / U * 1.10, 0.25 * (bill / U * 1.10),
-             "Half the increase stays in the price — still cheaper than today — and your share of the bill rises from 20% to 25%."),
+          mk("B · 10% uplift, 22.5% of the bill", bill / U * 1.10, 0.225 * (bill / U * 1.10),
+             "Half the increase stays in the price — still cheaper than today — and your share of the bill rises from 20% to 22.5%."),
           mk("C · keep the 20%, 25% of our price", bill, 0.25 * ours,
              "Nothing changes for your customers: you quote exactly what you quote today. Your 25% is measured against our calculator price, under the three rules above."),
         ],
@@ -583,9 +602,6 @@ registerPage({
         if (m) allByMonth[m] = (allByMonth[m] || 0) + 1;
       });
 
-      const kpi = (l, v, s, cls) => `<div class="kpi ${cls || ""}">
-        <div class="l">${l}</div><div class="v">${v}</div><div class="s">${s || ""}</div></div>`;
-
       const byMonth = {};
       jobs.forEach(r => {
         const m = String(r["Date"] || "").slice(0, 7) || "—";
@@ -719,29 +735,44 @@ registerPage({
         </div>
 
         ${jobs.length ? `
-        <div class="rs-kpis" style="--kpi-cols:9">
-          ${kpi("Jobs " + (S.fm ? "with " + esc(S.fm) : "he brought"), fmtN(jobs.length),
-                months.length + (months.length === 1 ? " month" : " months"))}
-          ${kpi("Revenue", money0(revenue), "billed on these jobs")}
-          ${kpi("His cut", money0(hisCut), "paid as sales salary", "warn")}
-          ${kpi("Cut of revenue", pctS(billed ? hisCut / billed : null),
-                "the deal says 30% at most")}
-          ${kpi("Over the 30% cap", fmtN(overCap.length),
-                overCap.length ? money0(overPaid) + " paid above it" : "none",
-                overCap.length ? "neg" : "pos")}
-          ${kpi("Gross profit", money0(profit),
-                "already net of his cut · " + money0(avgProfit) + " a job", "pos")}
-          ${kpi("Gross margin", pctS(billed ? profit / billed : null),
-                "of revenue, after his cut", "pos")}
-          ${kpi("Adjusted cut", econReady ? money0(adjusted) : "—",
-                econReady
-                  ? money0(hisCut - adjusted) + " off · " + pctS(billed ? adjusted / billed : null) + " of the bill"
-                  : "mart not built yet",
-                econReady && adjusted < hisCut ? "pos" : "")}
-          ${kpi("Without the fee parts", econReady ? pctS(billed ? adjCut / billed : null) : "—",
-                econReady ? money0(adjCut) + " instead of " + money0(hisCut)
-                          + " · " + money0(cutOnFees) + " earned on them" : "mart not built yet",
-                econReady && adjCut < hisCut ? "pos" : "")}
+        <div class="panel cla-led">
+          <div class="cla-led-g">
+            <div class="l">${S.fm ? "Jobs with " + esc(S.fm) : "Jobs he brought"}</div>
+            <div class="v">${fmtN(jobs.length)}</div>
+            <ul>
+              <li><b>${money0(revenue)}</b> billed on them</li>
+              <li>over ${months.length} ${months.length === 1 ? "month" : "months"}</li>
+            </ul>
+          </div>
+          <div class="cla-led-g">
+            <div class="l">His cut</div>
+            <div class="v warn">${money0(hisCut)}</div>
+            <ul>
+              <li><b>${pctS(billed ? hisCut / billed : null)}</b> of revenue — the deal says 30% at most</li>
+              <li${overCap.length ? ' class="over"' : ""}>${overCap.length
+                ? fmtN(overCap.length) + " job" + (overCap.length === 1 ? "" : "s")
+                  + " ran past the cap · <b>" + money0(overPaid) + "</b> above it"
+                : "no job ran past the cap"}</li>
+            </ul>
+          </div>
+          <div class="cla-led-g">
+            <div class="l">Gross profit</div>
+            <div class="v pos">${money0(profit)}</div>
+            <ul>
+              <li><b>${pctS(billed ? profit / billed : null)}</b> gross margin, after his cut</li>
+              <li>${money0(avgProfit)} a job</li>
+            </ul>
+          </div>
+          <div class="cla-led-g">
+            <div class="l">His adjusted cut</div>
+            <div class="v${econReady && adjusted < hisCut ? " pos" : ""}">${econReady ? money0(adjusted) : "—"}</div>
+            <ul>
+              ${econReady ? `
+              <li><b>${money0(hisCut - adjusted)}</b> off · ${pctS(billed ? adjusted / billed : null)} of the bill</li>
+              <li>on the fee parts alone he would keep ${money0(adjCut)} (${pctS(billed ? adjCut / billed : null)})</li>`
+                : `<li>the economics mart lands on the next pipeline run</li>`}
+            </ul>
+          </div>
         </div>
 
         <div id="clTrend"></div>
