@@ -194,7 +194,7 @@ const GROUP_OVERRIDE = {
   "cleanup": "customer-service",
   // Reviews
   "review-performance": "reviews", "rev-production": "reviews", "reviews-reminders": "reviews",
-  "response-analysis": "reviews", "review-settings": "reviews", "reviews-cases": "reviews",
+  "response-analysis": "reviews", "review-settings": "reviews", "reviews-cases": "reviews", "claims-analysis": "reviews",
   // Support
   "sup-claims": "support", "sup-refunds": "support", "sup-phone": "support",
 };
@@ -208,7 +208,7 @@ const NAV_ORDER = {
   "hr-directory": 1, "hr-questionnaire": 2, "hr-my-questionnaire": 3,
   "cleanup": 1,
   "fin-revenue": 1, "fin-rr": 2, "sales-geo": 3, "branch-owner": 6, "cl-analysis": 6.5,
-  "rev-production": 1, "review-performance": 2, "reviews-cases": 2.5, "response-analysis": 3, "reviews-reminders": 4, "review-settings": 5,
+  "rev-production": 1, "review-performance": 2, "reviews-cases": 2.5, "claims-analysis": 2.6, "response-analysis": 3, "reviews-reminders": 4, "review-settings": 5,
   "sup-claims": 1, "sup-refunds": 2, "sup-phone": 3,
   "data-quality": 2, "refresh-log": 1, "general-settings": 3, "general-tables": 4, "admin-users": 5,
   "source-trace": 8, "meta-referrals": 10, "referral-candidates": 11, "jobs-by-area": 12,
@@ -278,7 +278,7 @@ const PAGE_ICONS = {
   "log-foreman": "tool", "log-packing": "box",
   "fin-revenue": "trend", "fin-rr": "trend", "rev-production": "star",
   "sup-claims": "shield", "sup-refunds": "clipboard", "sup-phone": "phone",
-  "general-settings": "sliders", "general-tables": "grid", "data-quality": "clipboard", "data-migration": "share-2", "refresh-log": "activity", "source-trace": "activity", "meta-referrals": "upload-cloud", "referral-candidates": "gift", "jobs-by-area": "map-pin", "relocation-trends": "trending-up", "angi-funnel": "funnel", "promised-reviews": "star", "calendar-coverage": "calendar", "request-consistency": "alert-triangle", "review-performance": "star", "reviews-reminders": "megaphone", "response-analysis": "activity", "review-settings": "tool", "reviews-cases": "star",
+  "general-settings": "sliders", "general-tables": "grid", "data-quality": "clipboard", "data-migration": "share-2", "refresh-log": "activity", "source-trace": "activity", "meta-referrals": "upload-cloud", "referral-candidates": "gift", "jobs-by-area": "map-pin", "relocation-trends": "trending-up", "angi-funnel": "funnel", "promised-reviews": "star", "calendar-coverage": "calendar", "request-consistency": "alert-triangle", "review-performance": "star", "reviews-reminders": "megaphone", "response-analysis": "activity", "review-settings": "tool", "reviews-cases": "star", "claims-analysis": "alert-triangle",
 };
 
 /* Pages not yet built — shown greyed with a SOON tag so the full scope is visible. */
@@ -676,6 +676,7 @@ const PAGE_DATASETS = {
   "review-performance": [],
   "response-analysis": [], "review-settings": [],
   "reviews-cases": [],       // both boards load whole (307+888 rows); year filter is local
+  "claims-analysis": [],     // the claims mart + closings load whole; period/service filters are local
   "demand-analysis": [],   // its own year + company pickers own the window
   "sales-command": ["lead_journey"],
   // [] on purpose: this page searches by customer, not by date — everything comes
@@ -900,7 +901,7 @@ function navigate(id, push) {
 /* Pages that bring their OWN toolbar and ignore the global filter bar (PAGE_DATASETS=[])
    render "bare" — the global date/slicer bar + company chip are hidden so the page's board
    starts right under the header instead of below two rows of greyed-out, unusable filters. */
-const BARE_CHROME = new Set(["review-performance", "reviews-cases", "demand-analysis", "reviews-reminders", "response-analysis", "review-settings", "monthly-report", "money-flow", "ld-planning", "cleanup", "packing-control", "crew-salaries", "storage-control", "foreman-assessment", "fuel-control", "foreman-closings", "refresh-log", "general-tables", "hr-questionnaire", "hr-my-questionnaire", "hr-directory", "conversations", "sales-comms", "referral-candidates", "jobs-by-area", "meta-referrals", "relocation-trends", "angi-funnel", "promised-reviews",
+const BARE_CHROME = new Set(["review-performance", "reviews-cases", "claims-analysis", "demand-analysis", "reviews-reminders", "response-analysis", "review-settings", "monthly-report", "money-flow", "ld-planning", "cleanup", "packing-control", "crew-salaries", "storage-control", "foreman-assessment", "fuel-control", "foreman-closings", "refresh-log", "general-tables", "hr-questionnaire", "hr-my-questionnaire", "hr-directory", "conversations", "sales-comms", "referral-candidates", "jobs-by-area", "meta-referrals", "relocation-trends", "angi-funnel", "promised-reviews",
   // Straight vs Local reads its whole history on purpose (Tornike 2026-08-19: "i dont need
   // any filters here, its just kinda analysis and directions"). A date filter left over from
   // another page emptied it completely, which is worse than useless -- it looked like there
@@ -1030,6 +1031,7 @@ const NAV_TITLES = {
   "review-performance": "Foreman Performance",
   "reviews-reminders": "Send Reminders",
   "reviews-cases": "Claims & Negative Reviews",
+  "claims-analysis": "Claims Analysis",
   "response-analysis": "Response Analysis",
   "review-settings": "Review URLs and Reasons",
   "general-settings": "General Translators",
@@ -1071,6 +1073,7 @@ const SEARCH_ALIASES = {
   "review-performance": "foreman performance review weekly matrix reviews per eligible job R J percent target support intervention excluded bill increase estimate vs actual drill down claim negative refund",
   "reviews-reminders": "send reminders review request slack automation bot foreman nudge daily jobs log sent skipped",
   "reviews-cases": "claims negative reviews complaints platforms stars overlap tako monday",
+  "claims-analysis": "claims analysis rate per 100 jobs salesperson foreman reason responsibility thread monday",
   "response-analysis": "response analysis missed review reasons why no review foreman explanation waiting for reason response rate accountability",
   "review-settings": "review settings link control google trustpilot facebook kearny shafto qr code delivery state reasons why no review platform config",
   "sup-claims": "claim claims damage damages",
@@ -1542,6 +1545,7 @@ const REPORT_LABELS = {
   "rev-production": "Actual Reviews",
   "reviews-reminders": "Send Reminders",
   "reviews-cases": "Claims & Negative Reviews",
+  "claims-analysis": "Claims Analysis",
   "response-analysis": "Response Analysis",
   "review-settings": "Review URLs and Reasons",
   "general-settings": "General Translators",
@@ -1593,7 +1597,7 @@ const ACL_DEPTS = [
   { id: "hr",        label: "Human Resources", icon: "user",      reports: ["work", "hr-questionnaire", "hr-responses", "hr-directory"] },
   { id: "customer-service", label: "Customer Service", icon: "calendar", reports: ["work", "cleanup", "conversations"] },
   { id: "financial", label: "Financial",        icon: "trend",     reports: ["work", "branch-owner", "cl-analysis"] },
-  { id: "reviews",   label: "Reviews",          icon: "star",      reports: ["work", "review-performance", "reviews-cases", "reviews-reminders", "response-analysis", "review-settings"] },
+  { id: "reviews",   label: "Reviews",          icon: "star",      reports: ["work", "review-performance", "reviews-cases", "claims-analysis", "reviews-reminders", "response-analysis", "review-settings"] },
   { id: "explorer",  label: "Data Explorer — the separate Data Management app", icon: "archive", reports: ["work", "explorer"] },
 ];
 /* ADMINISTRATION is granted as a tile like everything else (Tornike 2026-07-27), but it is
@@ -1840,5 +1844,6 @@ registerPage({
 <script src="pages/review-performance.js?v=30"></script>
 <script src="pages/reminders.js?v=51"></script>
 <script src="pages/reviews-cases.js?v=5"></script>
+<script src="pages/claims-analysis.js?v=1"></script>
 </body>
 </html>
