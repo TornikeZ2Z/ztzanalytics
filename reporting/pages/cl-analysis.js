@@ -719,7 +719,7 @@ registerPage({
         </div>
 
         ${jobs.length ? `
-        <div class="rs-kpis" style="--kpi-cols:8">
+        <div class="rs-kpis" style="--kpi-cols:9">
           ${kpi("Jobs " + (S.fm ? "with " + esc(S.fm) : "he brought"), fmtN(jobs.length),
                 months.length + (months.length === 1 ? " month" : " months"))}
           ${kpi("Revenue", money0(revenue), "billed on these jobs")}
@@ -729,8 +729,10 @@ registerPage({
           ${kpi("Over the 30% cap", fmtN(overCap.length),
                 overCap.length ? money0(overPaid) + " paid above it" : "none",
                 overCap.length ? "neg" : "pos")}
-          ${kpi("Profit to us", money0(profit),
+          ${kpi("Gross profit", money0(profit),
                 "already net of his cut · " + money0(avgProfit) + " a job", "pos")}
+          ${kpi("Gross margin", pctS(billed ? profit / billed : null),
+                "of revenue, after his cut", "pos")}
           ${kpi("Adjusted cut", econReady ? money0(adjusted) : "—",
                 econReady
                   ? money0(hisCut - adjusted) + " off · " + pctS(billed ? adjusted / billed : null) + " of the bill"
