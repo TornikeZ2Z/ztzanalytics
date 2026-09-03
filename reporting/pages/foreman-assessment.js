@@ -354,6 +354,14 @@ registerPage({
       + ".fa2-q .qt span{font-size:14px;color:var(--muted);line-height:1.6;display:block;"
       + "margin-top:7px;width:100%}"
       + ".fa2-q .qt em{font-style:normal;font-size:12px;color:var(--faint);display:block;margin-top:8px}"
+      // last month, on the same row as the question it belongs to
+      + ".fa2-prev{font-style:normal;font-size:12.5px;color:var(--muted);display:block;"
+      + "margin-top:8px;padding:6px 10px;background:var(--panel-2);border-radius:8px;"
+      + "border-left:2px solid var(--line-2);line-height:1.6}"
+      + ".fa2-prev b{font-weight:750;color:var(--ink)}"
+      + ".fa2-prev .s{color:var(--warn);letter-spacing:1px}"
+      + ".fa2-prev q{display:block;color:var(--ink);font-style:italic;margin-top:3px;quotes:'\201C' '\201D'}"
+      + ".fa2-prev.none{color:var(--faint)}"
       + ".fa2-qfoot{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;"
       + "margin-top:15px;padding-top:14px;border-top:1px solid var(--line)}"
       // ---- the rubric panel: what is being scored, and Ramaz's editor ------------------
@@ -492,6 +500,18 @@ registerPage({
           (j.ratings || []).forEach(x => {
             (S.ratings[x.Foreman] = S.ratings[x.Foreman] || {})[x.Question] = x;
           });
+          // LAST MONTH, PER QUESTION (his ask 2026-09-03). The card already carried last
+          // month's TOTAL; this is the same comparison one category deep, so a rater can see
+          // how the man was scored on THIS question before scoring it again.
+          S.prevMonthKey = j.prev_month || null;
+          S.prevRatings = {};
+          (j.prev_ratings || []).forEach(x => {
+            (S.prevRatings[x.Foreman] = S.prevRatings[x.Foreman] || {})[x.Question] = x;
+          });
+          // priced with LAST MONTH'S rubric, never this month's: the rubric is versioned by
+          // month, so a question worth 5 then and 8 now must print the 5 it earned
+          S.prevPts = {};
+          (j.prev_rubric || []).forEach(q => { S.prevPts[q.Question] = +q.Points || 0; });
           paint();
         });
       }).catch(e => {
@@ -1214,6 +1234,7 @@ registerPage({
         return '<div class="fa2-q' + (stars != null ? " rated" : "") + '"><div class="qt">'
           + "<b>" + esc(q.Label) + "</b>"
           + "<span>" + esc(q.Description || "") + "</span>"
+          + lastMonthRow(f.Foreman, q)
           + (cur && cur["Entered By"] ? "<em>" + esc(String(cur["Entered By"]).split("@")[0])
               + " · " + esc(String(cur["Entered At"] || "").slice(0, 10)) + "</em>" : "")
           + "</div>"
@@ -1259,6 +1280,40 @@ registerPage({
       return '<div class="fa2-note"><span class="fa2-notetx">' + esc(note) + "</span>"
         + (shut ? "" : '<button class="fa2-noteedit"' + at + ' title="Edit this reason">edit</button>')
         + "</div>";
+    }
+
+    /* WHAT THIS MAN SCORED ON THIS QUESTION LAST MONTH (Tornike 2026-09-03, urgent).
+       Three states, and they are not the same thing, so none of them prints as a zero:
+         · rated      -> the stars he got, priced with LAST MONTH'S points, plus who rated
+                         him and the reason they typed;
+         · not rated  -> the question was asked and nobody answered it;
+         · not asked  -> the question is not in last month's rubric at all (Ramaz edits the
+                         rubric per month), so there is nothing to compare and saying "0"
+                         would invent a score he never received.
+       A month with no assessment at all prints nothing rather than ten "not rated" lines. */
+    function lastMonthRow(fm, q) {
+      if (!S.prevMonthKey || !S.prevRatings) return "";
+      const anyPrev = Object.keys(S.prevRatings).length > 0;
+      if (!anyPrev) return "";
+      const lab = monLab(S.prevMonthKey);   // always the real month name, never "last month"
+      const asked = Object.prototype.hasOwnProperty.call(S.prevPts || {}, q.Question);
+      const v = (S.prevRatings[fm] || {})[q.Question];
+      if (!asked && !v) {
+        return '<em class="fa2-prev none">' + esc(lab) + ": not asked</em>";
+      }
+      if (!v || v.Stars == null) {
+        return '<em class="fa2-prev none">' + esc(lab) + ": not rated</em>";
+      }
+      const st = +v.Stars;
+      const pts = asked ? (S.prevPts[q.Question] || 0) : null;
+      const who = v["Entered By"] ? String(v["Entered By"]).split("@")[0] : "";
+      const stars = "★".repeat(Math.round(st)) + "☆".repeat(Math.max(0, 5 - Math.round(st)));
+      return '<em class="fa2-prev"><b>' + esc(lab) + "</b> "
+        + '<span class="s">' + stars + "</span> " + fmt1(st) + " of 5"
+        + (pts != null ? " · " + fmt1(st / 5 * pts) + " of " + fmt1(pts) : "")
+        + (who ? " · " + esc(who) : "")
+        + (v.Note ? '<q>' + esc(String(v.Note)) + "</q>" : "")
+        + "</em>";
     }
 
     // The editor replaces the row in place rather than opening a dialog: he is going down a
