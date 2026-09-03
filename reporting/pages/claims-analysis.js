@@ -37,6 +37,16 @@
              "Mentions Dispute", "Mentions Legal", "Mentions Photos", "Mentions Claim Form", "Dict Version"],
     };
   }
+  // WHO GETS CREDITED FOR A JOB AND IN WHAT SHARE. One row per (job, salesperson); the
+  // share is the closing sheet's own split, normalised to sum to 1 per job, with branch
+  // owners already excluded upstream so real salespeople carry the whole sale.
+  if (window.RS && RS.DATASETS && !RS.DATASETS.sales_credit) {
+    RS.DATASETS.sales_credit = {
+      table: "mart_sales_credit",
+      cols: ["Request Joinkey", "Job Date", "Company", "Sales Person", "SP Slot",
+             "Share", "Bill Share", "Shared Sale"],
+    };
+  }
   if (window.RS && RS.DATASETS && !RS.DATASETS.claim_keyword_rules) {
     RS.DATASETS.claim_keyword_rules = { table: "claim_keyword_rule", cols: ["Kind", "Family", "Term", "Weight"] };
   }
@@ -62,6 +72,11 @@ registerPage({
     // simply the unit people already read. Everything on the page formats through rPct.
     const per100 = (c, j) => j ? (c / j * 100) : null;
     const rPct = v => (v == null || isNaN(v)) ? "—" : v.toFixed(1) + "%";
+    // A CREDITED NUMBER MAY BE FRACTIONAL. Half a claim is a real thing once a job has two
+    // salespeople, and printing 38.5 as "39" would be the kind of quiet rounding that makes
+    // a column stop adding up. One decimal only where there is one to show.
+    const fmtC = v => { const x = num(v) || 0;
+      return Math.abs(x - Math.round(x)) < 0.05 ? fmtN(Math.round(x)) : x.toFixed(1); };
     const r1 = v => (v == null || isNaN(v)) ? "—" : v.toFixed(1);
     const MIN_JOBS = 30;
 
@@ -177,9 +192,31 @@ registerPage({
     host.innerHTML = `<div class="rs-page-head"><h1>Claims Analysis</h1></div>
       <div class="rs-loading" style="padding:22px">Reading the claims and the closings…</div>`;
 
-    const [claimsAll, closingAll] = await Promise.all([
-      RS.load("claims_analysis"), RS.load("closing")]);
+    const [claimsAll, closingAll, creditAll] = await Promise.all([
+      RS.load("claims_analysis"), RS.load("closing"),
+      RS.load("sales_credit").catch(() => [])]);
     const closing = (closingAll || []).filter(r => r["Record Source"] === "closing");
+    // credit, indexed by the job. A job with one salesperson has a single entry of share 1.
+    const CREDIT = {};
+    (creditAll || []).forEach(r => {
+      const jk = r["Request Joinkey"], p = String(r["Sales Person"] || "").trim();
+      if (!jk || !p) return;
+      const sh = num(r.Share); if (!(sh > 0)) return;
+      (CREDIT[jk] = CREDIT[jk] || []).push({ p, sh, slot: num(r["SP Slot"]) || 1 });
+    });
+    const creditOf = jk => CREDIT[jk] || null;
+    const hasCredit = Object.keys(CREDIT).length > 0;
+    // every name that is credited anywhere -- the picker offers these, not just slot 1
+    const CREDITED_NAMES = (() => {
+      const o = {};
+      (creditAll || []).forEach(r => { const p = String(r["Sales Person"] || "").trim();
+        if (p && num(r.Share) > 0) o[p] = 1; });
+      return Object.keys(o).sort();
+    })();
+    const soldBy = (jk, who) => {
+      const c = creditOf(jk);
+      return c ? c.some(x => x.p === who) : false;
+    };
     // THE KEYWORD READING (src/claims_keywords.py): the thread scored against word lists.
     // A manager's correction (claim_class_override) sits over it; nothing is destroyed.
     const KW = {}, RULES = [];
@@ -245,7 +282,10 @@ registerPage({
         if (!inWin(r["Created Date"])) return false;
         // --- these four also narrow the jobs, so they keep the rate honest
         if (S.jobType && r["Job Type"] !== S.jobType) return false;
-        if (S.sp && r["Sales Person"] !== S.sp) return false;
+        // A REP IS CREDITED FOR EVERY JOB THEY SOLD, not only the ones where the sheet
+        // happened to list them first. Matching on the claim's `Sales Person` (which is the
+        // closing's slot 1) silently dropped every job a rep sold second.
+        if (S.sp && !(hasCredit ? soldBy(r["Request Joinkey"], S.sp) : r["Sales Person"] === S.sp)) return false;
         if (S.fm && r.Foreman !== S.fm) return false;
         // --- these three narrow the claims only
         if (S.resp && (r["Responsibility Family"] || "Not assigned") !== S.resp) return false;
@@ -262,7 +302,7 @@ registerPage({
       const jobs = closing.filter(r => {
         if (!inWin(r.Date)) return false;
         if (S.jobType && jobTypeOfClosing(r) !== S.jobType) return false;
-        if (S.sp && r["Sales Person"] !== S.sp) return false;
+        if (S.sp && !(hasCredit ? soldBy(r["Request Joinkey"], S.sp) : r["Sales Person"] === S.sp)) return false;
         if (S.fm && r.Foreman !== S.fm) return false;
         return true;
       });
@@ -285,14 +325,13 @@ registerPage({
       function rateOver(f, t) {
         if (!f || !t) return null;
         const win = d => { const v = String(d || "").slice(0, 10); return v && v >= f && v <= t; };
+        const spOk = r => !S.sp || (hasCredit ? soldBy(r["Request Joinkey"], S.sp) : r["Sales Person"] === S.sp);
         const c = claimsAll.filter(r => win(r["Created Date"])
           && (!S.jobType || r["Job Type"] === S.jobType)
-          && (!S.sp || r["Sales Person"] === S.sp)
-          && (!S.fm || r.Foreman === S.fm)).length;
+          && spOk(r) && (!S.fm || r.Foreman === S.fm)).length;
         const j = new Set(closing.filter(r => win(r.Date)
           && (!S.jobType || jobTypeOfClosing(r) === S.jobType)
-          && (!S.sp || r["Sales Person"] === S.sp)
-          && (!S.fm || r.Foreman === S.fm)).map(r => r["Request Joinkey"]).filter(Boolean)).size;
+          && spOk(r) && (!S.fm || r.Foreman === S.fm)).map(r => r["Request Joinkey"]).filter(Boolean)).size;
         return j ? { rate: c / j * 100, claims: c, jobs: j } : null;
       }
       const nowRate = nJobs ? (claims.length / nJobs * 100) : null;
@@ -329,43 +368,66 @@ registerPage({
       /* per person: jobs in window from the closing, claims from the mart */
       const blank = name => ({ name, claims: 0, price: 0, damage: 0, missing: 0, timing: 0,
                                refund: 0, pub: 0, inc: [], cfv: [], rows: [] });
-      const perPerson = (jobField, claimField) => {
-        const jobsBy = {};
-        jobs.forEach(r => { const p = r[jobField]; const jk = r["Request Joinkey"];
-          if (!p || !jk) return; (jobsBy[p] = jobsBy[p] || new Set()).add(jk); });
+      // WEIGHTED WHEN A JOB WAS SOLD BY MORE THAN ONE PERSON (his ask). `weigh` turns a row
+      // into a list of (person, share) pairs. For a foreman that is always one pair of share
+      // 1 -- one person runs a job. For a salesperson it is the closing sheet's own split, so
+      // a 50/50 job gives each of them 0.5 of the claim and 0.5 of the job. Weighting BOTH
+      // sides identically is what keeps the percentage meaningful, and because the shares sum
+      // to 1 the credited claims still add up to the headline exactly.
+      const perPerson = (jobField, claimField, weighted) => {
+        const parts = r => {
+          if (!weighted || !hasCredit) {
+            const p = r[claimField] || r[jobField];
+            return p ? [{ p, sh: 1 }] : [];
+          }
+          const c = creditOf(r["Request Joinkey"]);
+          return c ? c.map(x => ({ p: x.p, sh: x.sh })) : [];
+        };
+        const jobsBy = {};                 // name -> summed share of jobs
+        jobs.forEach(r => {
+          if (!r["Request Joinkey"]) return;
+          (weighted && hasCredit ? parts(r) : (r[jobField] ? [{ p: r[jobField], sh: 1 }] : []))
+            .forEach(x => { jobsBy[x.p] = (jobsBy[x.p] || 0) + x.sh; });
+        });
         // the same tally over EVERY closing, not just this window's -- it is the only way to
-        // tell "this name has never run a job for us" from "his jobs are outside the window"
+        // tell "this name has never worked for us" from "their jobs are outside the window"
         const everBy = {};
-        closing.forEach(r => { const p = r[jobField]; if (p) everBy[p] = 1; });
+        if (weighted && hasCredit) { CREDITED_NAMES.forEach(p => { everBy[p] = 1; }); }
+        else closing.forEach(r => { const p = r[jobField]; if (p) everBy[p] = 1; });
         const rows = {};
-        const orphan = blank("");          // claims with nobody on them at all
+        const orphan = blank("");          // claims nobody is credited for
         claims.forEach(r => {
-          const p = r[claimField];
-          if (!p) { orphan.claims++; orphan.rows.push(r);
+          const ps = parts(r);
+          if (!ps.length) { orphan.claims++; orphan.rows.push(r);
                     orphan.refund += num(r["Refund $"]) || 0;
                     if ((num(r["Negative Reviews"]) || 0) > 0) orphan.pub++;
                     const f0 = famOf(r);
                     if (f0 === "Price") orphan.price++; if (f0 === "Damage") orphan.damage++;
                     if (f0 === "Missing") orphan.missing++; if (f0 === "Timing") orphan.timing++;
                     return; }
-          const o = rows[p] = rows[p] || blank(p);
-          // THE LIST IS THE ACCUMULATOR THAT PRODUCED THE COUNT. Collected here rather than
-          // re-filtered later, so "the drill shows exactly the claims behind this number" is
-          // true by construction and cannot drift from whatever field the tally uses.
-          o.rows.push(r);
-          o.claims++;
-          const f = famOf(r);
-          if (f === "Price") o.price++; if (f === "Damage") o.damage++;
-          if (f === "Missing") o.missing++; if (f === "Timing") o.timing++;
-          o.refund += num(r["Refund $"]) || 0;
-          if ((num(r["Negative Reviews"]) || 0) > 0) o.pub++;
-          const pi = num(r["Price Increase Pct"]); if (pi != null && !isNaN(pi)) o.inc.push(pi);
-          const cv = num(r["CF Variance Pct"]); if (cv != null && !isNaN(cv)) o.cfv.push(cv);
+          ps.forEach(({ p, sh }) => {
+            const o = rows[p] = rows[p] || blank(p);
+            // THE LIST IS THE ACCUMULATOR THAT PRODUCED THE NUMBER. Collected here rather
+            // than re-filtered later, so "the drill shows exactly the claims behind this
+            // number" is true by construction. `shareOf` remembers what fraction of each
+            // claim this person carries, so the drill can show it.
+            o.rows.push(r);
+            (o.shareOf = o.shareOf || {})[String(r["Monday Item Id"])] = sh;
+            o.claims += sh;
+            if (sh < 0.999) o.shared = (o.shared || 0) + 1;
+            const f = famOf(r);
+            if (f === "Price") o.price += sh; if (f === "Damage") o.damage += sh;
+            if (f === "Missing") o.missing += sh; if (f === "Timing") o.timing += sh;
+            o.refund += (num(r["Refund $"]) || 0) * sh;
+            if ((num(r["Negative Reviews"]) || 0) > 0) o.pub += sh;
+            const pi = num(r["Price Increase Pct"]); if (pi != null && !isNaN(pi)) o.inc.push(pi);
+            const cv = num(r["CF Variance Pct"]); if (cv != null && !isNaN(cv)) o.cfv.push(cv);
+          });
         });
         Object.keys(jobsBy).forEach(p => { if (!rows[p]) rows[p] = blank(p); });
         const median = a => { if (!a.length) return null; const s = a.slice().sort((x, y) => x - y);
           return s[Math.floor(s.length / 2)]; };
-        const all = Object.values(rows).map(o => ({ ...o, jobs: (jobsBy[o.name] || new Set()).size,
+        const all = Object.values(rows).map(o => ({ ...o, jobs: jobsBy[o.name] || 0,
           medInc: median(o.inc), medCf: median(o.cfv) }))
           .filter(o => o.claims > 0 || o.jobs >= MIN_JOBS);
         const named = all.filter(o => o.jobs > 0);
@@ -396,7 +458,7 @@ registerPage({
         if (orphan.claims) {
           orphan.residual = true; orphan.kind = "none"; orphan.jobs = 0;
           orphan.name = claimField === "Foreman" ? "No foreman on the claim"
-                                                 : "No salesperson on the closing";
+                                                 : "No salesperson credited for the job";
           orphan.medInc = null; orphan.medCf = null;
           tailRows.push(orphan);
         }
@@ -404,8 +466,8 @@ registerPage({
           (per100(b.claims, b.jobs) || -1) - (per100(a.claims, a.jobs) || -1)
           || b.claims - a.claims).concat(tailRows);
       };
-      const sales = perPerson("Sales Person", "Sales Person");
-      const foremen = perPerson("Foreman", "Foreman");
+      const sales = perPerson("Sales Person", "Sales Person", true);
+      const foremen = perPerson("Foreman", "Foreman", false);
       const rateCell = (c, j, cls) => narrowed
         ? `<td class="num"><span class="cln-small" title="a rate needs the whole population — the service picker and the search box narrow the claims but cannot narrow the jobs">—</span></td>`
         : (j >= MIN_JOBS
@@ -431,13 +493,22 @@ registerPage({
         const rows = (o.rows || []).slice()
           .sort((a, b) => String(b["Created Date"] || "").localeCompare(String(a["Created Date"] || "")));
         const stale = rows.filter(r => r["Job Date"] && !dayIn(r["Job Date"])).length;
+        // TWO NUMBERS, BOTH TRUE, AND THE DIFFERENCE IS THE POINT. `rows.length` is how many
+        // claims touch this person; `o.claims` is how much of them they are credited for,
+        // which is less whenever a job was sold by two people. The rate uses the credited
+        // figure over the credited job count -- both weighted the same way, so it stays a
+        // percentage of their own work.
+        const credited = o.claims;
+        const isSplit = Math.abs(credited - rows.length) > 0.05;
         const head = o.residual
           ? `<b>${fmtN(rows.length)} claim${rows.length === 1 ? "" : "s"}</b>`
           : `<b>${fmtN(rows.length)} claim${rows.length === 1 ? "" : "s"}</b>` +
-            `<span class="cln-small">${fmtN(o.jobs)} job${o.jobs === 1 ? "" : "s"} done in this window</span>` +
+            (isSplit ? `<span class="cln-small"><b>${fmtC(credited)}</b> credited to them &mdash;
+               ${o.shared || 0} of these ${(o.shared || 0) === 1 ? "was" : "were"} sold with someone else</span>` : "") +
+            `<span class="cln-small">${fmtC(o.jobs)} job${Math.round(o.jobs) === 1 ? "" : "s"} credited in this window</span>` +
             (narrowed
               ? '<span class="cln-small">rate not shown &mdash; the filter narrows the claims but not the jobs</span>'
-              : `<span class="cln-small"><b>${rPct(per100(rows.length, o.jobs))}</b> of them drew a claim${o.jobs < MIN_JOBS ? " &middot; small sample" : ""}</span>`);
+              : `<span class="cln-small"><b>${rPct(per100(credited, o.jobs))}</b> of their jobs drew a claim${o.jobs < MIN_JOBS ? " &middot; small sample" : ""}</span>`);
         if (!rows.length) {
           return `<div class="cln-sub"><div class="cln-subh">${head}</div>
             <div class="rs-hint">No claim on ${esc(o.name)} in this window.</div></div>`;
@@ -447,7 +518,8 @@ registerPage({
           <div class="rs-tablewrap"><table class="rs-table">
             <thead><tr><th>Filed</th><th>Job date</th><th class="num">Days after</th>
               <th>Request&nbsp;#</th><th>Customer</th><th>Family</th><th>Status</th>
-              <th>Case owner</th><th class="num">Bill</th><th class="num">Refund</th>
+              <th>Case owner</th>${isSplit ? '<th class="num">Their share</th>' : ""}
+              <th class="num">Bill</th><th class="num">Refund</th>
               <th>Monday</th></tr></thead>
             <tbody>${rows.map(r => {
               const out = r["Job Date"] && !dayIn(r["Job Date"]);
@@ -460,6 +532,9 @@ registerPage({
                 <td>${esc(famOf(r) || "—")}</td>
                 <td>${num(r["Is Open"]) === 1 ? '<span class="rs-pill warn">' + esc(r.Status || "open") + "</span>" : esc(r.Status || "—")}</td>
                 <td class="muted">${esc(r["Case Owner"] || "—")}</td>
+                ${isSplit ? (() => { const sh = (o.shareOf || {})[String(r["Monday Item Id"])];
+                  return `<td class="num">${sh == null ? '<span class="cln-small">&mdash;</span>'
+                    : (sh > 0.999 ? '<span class="cln-small">all of it</span>' : Math.round(sh * 100) + "%")}</td>`; })() : ""}
                 <td class="num">${num(r["Total Bill"]) ? money0(num(r["Total Bill"])) : '<span class="cln-small">&mdash;</span>'}</td>
                 <td class="num">${num(r["Refund $"]) ? money0(num(r["Refund $"])) : '<span class="cln-small">&mdash;</span>'}</td>
                 <td>${mondayCell(r["Monday Url"])}</td></tr>`; }).join("")}
@@ -487,11 +562,11 @@ registerPage({
           const on = openName === o.name;
           const cells = `<td class="strong"><span class="cln-cx">&#9656;</span> ${esc(o.name)}` +
             (o.residual ? ` <span class="cln-small">${esc(residLabel(o))}</span>` : "") + "</td>" +
-            `<td class="num">${o.jobs ? fmtN(o.jobs) : '<span class="cln-small">&mdash;</span>'}</td>` +
-            `<td class="num">${fmtN(o.claims)}</td>` +
+            `<td class="num">${o.jobs ? fmtC(o.jobs) : '<span class="cln-small">&mdash;</span>'}</td>` +
+            `<td class="num">${fmtC(o.claims)}</td>` +
             rateCell(o.claims, o.jobs, "strong") + extra.cells(o) +
             `<td class="num">${o.refund ? money0(o.refund) : '<span class="cln-small">&mdash;</span>'}</td>` +
-            `<td class="num">${o.pub || '<span class="cln-small">&mdash;</span>'}</td>`;
+            `<td class="num">${o.pub ? fmtC(o.pub) : '<span class="cln-small">&mdash;</span>'}</td>`;
           return `<tr class="cln-open${on ? " on" : ""}${o.residual ? " cln-tail" : ""}" data-person="${esc(o.name)}">${cells}</tr>` +
             (on ? `<tr class="cln-subrow"><td colspan="${6 + extra.cols}">${subCard(o, extra.who)}</td></tr>` : "");
         }).join("") + (main.length > CAP && !showAll
@@ -502,20 +577,20 @@ registerPage({
       const spExtra = {
         who: "Salesperson", cols: 4,
         head: `<th class="num">Price claims</th><th class="num">% of jobs</th><th class="num">Median bill vs quote</th><th class="num">Median CF vs estimate</th>`,
-        cells: o => `<td class="num">${o.price || '<span class="cln-small">&mdash;</span>'}</td>${rateCell(o.price, o.jobs)}
+        cells: o => `<td class="num">${o.price ? fmtC(o.price) : '<span class="cln-small">&mdash;</span>'}</td>${rateCell(o.price, o.jobs)}
           <td class="num">${o.medInc == null ? '<span class="cln-small">&mdash;</span>' : (o.medInc > 0 ? "+" : "") + pct1(o.medInc)}</td>
           <td class="num">${o.medCf == null ? '<span class="cln-small">&mdash;</span>' : (o.medCf > 0 ? "+" : "") + pct1(o.medCf)}</td>`,
       };
       const fmExtra = {
         who: "Foreman", cols: 4,
         head: `<th class="num">Damage</th><th class="num">% of jobs</th><th class="num">Missing</th><th class="num">Timing</th>`,
-        cells: o => `<td class="num">${o.damage || '<span class="cln-small">&mdash;</span>'}</td>${rateCell(o.damage, o.jobs)}
-          <td class="num">${o.missing || '<span class="cln-small">&mdash;</span>'}</td><td class="num">${o.timing || '<span class="cln-small">&mdash;</span>'}</td>`,
+        cells: o => `<td class="num">${o.damage ? fmtC(o.damage) : '<span class="cln-small">&mdash;</span>'}</td>${rateCell(o.damage, o.jobs)}
+          <td class="num">${o.missing ? fmtC(o.missing) : '<span class="cln-small">&mdash;</span>'}</td><td class="num">${o.timing ? fmtC(o.timing) : '<span class="cln-small">&mdash;</span>'}</td>`,
       };
 
       const perTable = (rows, who, extra, bodyId, openName, showAll) => `
           <div class="rs-tablewrap"><table class="rs-table">
-            <thead><tr><th>${who}</th><th class="num">Jobs</th><th class="num">Claims</th>
+            <thead><tr><th>${who}</th><th class="num">Jobs</th><th class="num">${extra.who === "Salesperson" && hasCredit ? "Claims credited" : "Claims"}</th>
               <th class="num">% of jobs</th>${extra.head}<th class="num">Refunds</th><th class="num">Went public</th></tr></thead>
             <tbody id="${bodyId}">${bodyHtml(rows, extra, openName, showAll)}</tbody></table></div>`;
 
@@ -720,7 +795,7 @@ registerPage({
 
         <div class="panel" style="margin-top:12px">
           <div class="panel-head"><div><div class="panel-title">Salespeople</div>
-            <div class="rs-hint">jobs sold in the window (the closing's salesperson), the claims on them, and — where the lead's quote and the contract's real CF exist — how far the bill and the volume ran past the estimate on the claimed jobs. Fewer than ${MIN_JOBS} jobs reads "small". <b>Click any row</b> to see the claims behind its number and open each on the board.
+            <div class="rs-hint">${hasCredit ? `A job sold by two people is credited to both in the share the closing sheet paid them, so a 50/50 job gives each half the job <b>and</b> half the claim &mdash; the percentage stays a percentage of their own work, and the credited claims still add up to the ${fmtN(n)} above. ` : ""}jobs sold in the window (the closing's salesperson), the claims on them, and — where the lead's quote and the contract's real CF exist — how far the bill and the volume ran past the estimate on the claimed jobs. Fewer than ${MIN_JOBS} jobs reads "small". <b>Click any row</b> to see the claims behind its number and open each on the board.
             <br><b>This is not the same number as Sales Team Command's own claim rate.</b> That page counts a claim against the rep who booked the lead and divides by closed leads; this one counts it against the salesperson on the closing and divides by jobs done. Two honest definitions — they will not tie out, and neither has been declared the right one.</div></div></div>
           ${perTable(sales, "Salesperson", spExtra, "clnSpBody", S.openSp, S.allSp)}
         </div>
@@ -864,7 +939,8 @@ registerPage({
       };
       const spH = holder(); bar.appendChild(spH);
       if (window.RSC && RSC.localSelect) {
-        RSC.localSelect(spH, { label: "Salesperson", values: names(jobs, "Sales Person"),
+        RSC.localSelect(spH, { label: "Salesperson",
+          values: hasCredit ? CREDITED_NAMES : names(jobs, "Sales Person"),
           value: S.sp, allLabel: "All",
           onChange: v => { S.sp = v; S.page = 0; S.openSp = ""; paint(); } });
       }
