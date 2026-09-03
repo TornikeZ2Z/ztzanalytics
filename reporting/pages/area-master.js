@@ -20,6 +20,7 @@
       cols: ["State", "City", "County", "Leads", "Booked", "Booking Rate", "Leads 90d",
              "Jobs", "Revenue", "Avg Ticket", "Revenue Per Lead", "Avg Quote", "Avg CF",
              "Nearest Base", "Miles To Base", "Foremen At Base", "Crew At Base", "Untapped",
+             "Claims", "Claims Per 100 Jobs", "Claim Refunds", "Claims Gone Public",
              "Ad Spend", "Ad Sources", "Search Volume", "Wealth Tier"],
     };
   }
@@ -141,7 +142,9 @@ registerPage({
           <p>Every city that sent us a lead this year, with what it books, what it earns, how far
           it sits from a base and how much crew stands behind it. The three columns we cannot fill
           from our own systems — ad spend by area, search demand and the wealth research — are left
-          empty on purpose rather than guessed.</p></div>
+          empty on purpose rather than guessed. This is the evidence;
+          <a href="#page=area-plan">Area Plan</a> is where you turn it into crews, trucks and
+          salespeople.</p></div>
         <div class="amx-bar" id="amxBar"></div>
 
         <div class="panel amx-led">
@@ -186,6 +189,25 @@ registerPage({
                   <td class="num ${(num(r["Foremen At Base"]) || 0) === 0 ? "" : ""}">${(num(r["Foremen At Base"]) || 0) || '<span class="amx-small">none</span>'}</td>
                 </tr>`).join("")}</tbody></table></div>
           </div>
+          <div class="panel"><div class="panel-head"><div><div class="panel-title">Where the claims come from</div>
+            <div class="rs-hint">Claims per 100 jobs done in that city — a city that runs 12 jobs and gets 2 claims is a worse place to work than one that runs 150 and gets 5. Only cities with 10+ jobs.</div></div></div>
+            <div class="rs-tablewrap"><table class="rs-table">
+              <thead><tr><th>City</th><th class="num">Jobs</th><th class="num">Claims</th>
+                <th class="num">Per 100</th><th class="num">Refunded</th><th class="num">Public</th></tr></thead>
+              <tbody>${rows.filter(r => (num(r.Jobs) || 0) >= 10)
+                .sort((a, b) => (num(b["Claims Per 100 Jobs"]) || 0) - (num(a["Claims Per 100 Jobs"]) || 0))
+                .slice(0, 8).map(r => `<tr>
+                  <td class="strong">${esc(r.City)} <span class="amx-small">${esc(r.State)}</span></td>
+                  <td class="num">${fmtN(num(r.Jobs))}</td>
+                  <td class="num">${fmtN(num(r.Claims))}</td>
+                  <td class="num"><b>${r1(num(r["Claims Per 100 Jobs"]))}</b></td>
+                  <td class="num">${(num(r["Claim Refunds"]) || 0) ? money0(num(r["Claim Refunds"])) : '<span class="amx-small">—</span>'}</td>
+                  <td class="num">${(num(r["Claims Gone Public"]) || 0) || '<span class="amx-small">—</span>'}</td>
+                </tr>`).join("")}</tbody></table></div>
+            <div class="rs-hint" style="margin-top:8px">Company-wide this year: <b>${fmtN(T("Claims"))}</b> claims
+              on <b>${fmtN(jobs)}</b> jobs — <b>${jobs ? (T("Claims") / jobs * 100).toFixed(1) : "—"}</b> per 100.
+              <a href="#page=claims-analysis">Open Claims Analysis</a> for the reason behind each one.</div>
+          </div>
         </div>
 
         <div class="panel" style="margin-top:12px">
@@ -205,6 +227,7 @@ registerPage({
               ${th("$/lead", "Revenue Per Lead", "num")}${th("Ticket", "Avg Ticket", "num")}
               ${th("Base", "Nearest Base")}${th("Miles", "Miles To Base", "num")}
               ${th("Foremen", "Foremen At Base", "num")}
+              ${th("Claims", "Claims", "num")}${th("/100", "Claims Per 100 Jobs", "num")}
               <th class="num amx-ext">Ad $</th><th class="amx-ext">Sources</th>
               <th class="num amx-ext">Search</th><th class="amx-ext">Wealth</th>
             </tr></thead>
@@ -222,6 +245,8 @@ registerPage({
               <td>${esc(r["Nearest Base"] || "—")}</td>
               <td class="num">${r1(num(r["Miles To Base"]))}</td>
               <td class="num">${(num(r["Foremen At Base"]) || 0) || '<span class="amx-small">0</span>'}</td>
+              <td class="num">${(num(r.Claims) || 0) || '<span class="amx-small">—</span>'}</td>
+              <td class="num">${(num(r.Claims) || 0) ? r1(num(r["Claims Per 100 Jobs"])) : '<span class="amx-small">—</span>'}</td>
               <td class="num amx-ext">—</td><td class="amx-ext">—</td>
               <td class="num amx-ext">—</td><td class="amx-ext">—</td>
             </tr>`).join("")}</tbody></table></div>
@@ -285,6 +310,7 @@ registerPage({
       const cols = ["State", "City", "County", "Leads", "Leads 90d", "Booked", "Booking Rate",
         "Jobs", "Revenue", "Avg Ticket", "Revenue Per Lead", "Avg Quote", "Avg CF",
         "Nearest Base", "Miles To Base", "Foremen At Base", "Crew At Base", "Untapped",
+        "Claims", "Claims Per 100 Jobs", "Claim Refunds", "Claims Gone Public",
         "Ad Spend", "Ad Sources", "Search Volume", "Wealth Tier"];
       const cell = x => { let s = String(x == null ? "" : x); if (/^[=+\-@]/.test(s)) s = " " + s;
         return '"' + s.replace(/"/g, '""') + '"'; };

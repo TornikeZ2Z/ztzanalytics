@@ -24,6 +24,18 @@
  * defaults once.
  */
 (function () {
+  // THE MASTER UNDERNEATH THE PLAN (2026-09-03). Area Plan decides how many crews, trucks and
+  // salespeople a state needs; Area Master says which CITIES inside it produce the work, how
+  // far they are from a base and what they book. Same numbers, two altitudes -- so the plan
+  // reads the master rather than each answering the same question differently.
+  if (window.RS && RS.DATASETS && !RS.DATASETS.area_master_lite) {
+    RS.DATASETS.area_master_lite = {
+      table: "mart_area_master",
+      cols: ["State", "City", "Leads", "Booked", "Booking Rate", "Jobs", "Revenue",
+             "Revenue Per Lead", "Nearest Base", "Miles To Base", "Foremen At Base",
+             "Claims Per 100 Jobs", "Untapped"],
+    };
+  }
   if (window.RS && RS.DATASETS && !RS.DATASETS.area_plan) {
     RS.DATASETS.area_plan = {
       table: "mart_area_plan",
