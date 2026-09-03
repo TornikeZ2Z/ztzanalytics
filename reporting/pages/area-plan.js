@@ -167,7 +167,8 @@ registerPage({
       RS.load("area_plan"),
       ZTZ.api("/api/mart_area_plan_model?limit=1").then(
         j => JSON.parse(((j.rows || [])[0] || {}).payload || "null")).catch(() => null),
-    ]).then(([rows, model]) => {
+      RS.load("area_master_lite").catch(() => []),
+    ]).then(([rows, model, cityRows]) => {
       if (!rows.length || !model) {
         host.innerHTML = '<div class="panel">The Area Plan mart has not been built yet — ' +
           'run sources=area-plan and reload.</div>';
@@ -451,6 +452,73 @@ registerPage({
           : '<p class="rs-hint">No county-level losses in this window.</p>';
       }
 
+      /* ============ THE CITIES BEHIND THE PLAN (the merge with Area Master) ============
+         The plan sizes crews per STATE. This says which CITIES inside that state produce the
+         work, how far each sits from its base and what it costs us in claims -- read straight
+         off mart_area_master, so the two pages can never disagree. */
+      const CITY = (cityRows || []).map(r => ({
+        st: String(r.State || "").trim(), city: String(r.City || "").trim(),
+        leads: num(r.Leads), booked: num(r.Booked), rate: num(r["Booking Rate"]),
+        jobs: num(r.Jobs), rev: num(r.Revenue),
+        base: String(r["Nearest Base"] || "").trim(), mi: num(r["Miles To Base"]),
+        foremen: num(r["Foremen At Base"]), c100: num(r["Claims Per 100 Jobs"]),
+      })).filter(r => r.city);
+      let citySt = "";   // "" = every state the plan covers
+
+      function cityHtml() {
+        if (!CITY.length) {
+          return '<p class="rs-hint">The area master mart has not been built yet &mdash; run ' +
+                 'sources=area-master and reload.</p>';
+        }
+        const pick = citySt ? CITY.filter(r => r.st === citySt) : CITY;
+        const top = pick.slice().sort((a, b) => b.rev - a.rev).slice(0, 12);
+        const sts = [...new Set(CITY.map(r => r.st))].sort();
+        const seg = '<div class="rs-seg" id="apCitySt">' +
+          ['<button data-v="" class="' + (citySt ? "" : "on") + '">All</button>']
+            .concat(sts.map(v => '<button data-v="' + esc(v) + '" class="' +
+              (citySt === v ? "on" : "") + '">' + esc(v) + "</button>")).join("") + "</div>";
+        const gaps = pick.filter(r => r.leads >= 40 && r.rate < 10)
+          .sort((a, b) => b.leads - a.leads).slice(0, 3);
+        return '<div class="rs-bar" style="margin-bottom:10px">' +
+          '<div class="rs-fld"><span>State</span>' + seg + "</div></div>" +
+          '<div class="rs-tablewrap"><table class="rs-table">' +
+          '<thead><tr><th>City</th><th class="num">Leads</th><th class="num">Booked</th>' +
+          '<th class="num">Book %</th><th class="num">Jobs</th><th class="num">Revenue</th>' +
+          '<th>Base</th><th class="num">Miles</th><th class="num">Foremen</th>' +
+          '<th class="num">Claims /100</th></tr></thead><tbody>' +
+          top.map(r => '<tr><td class="strong">' + esc(r.city) +
+            ' <span class="ap2-note">' + esc(r.st) + "</span></td>" +
+            '<td class="num">' + fmtN(r.leads) + "</td>" +
+            '<td class="num">' + fmtN(r.booked) + "</td>" +
+            '<td class="num"><b>' + r.rate.toFixed(1) + "%</b></td>" +
+            '<td class="num">' + fmtN(r.jobs) + "</td>" +
+            '<td class="num">' + money(r.rev) + "</td>" +
+            "<td>" + (r.base ? esc(r.base) : '<span class="ap2-note">&mdash;</span>') + "</td>" +
+            '<td class="num">' + r.mi.toFixed(1) + "</td>" +
+            '<td class="num">' + (r.foremen || '<span class="ap2-note">0</span>') + "</td>" +
+            '<td class="num">' + (r.c100 ? r.c100.toFixed(1) : '<span class="ap2-note">&mdash;</span>') +
+            "</td></tr>").join("") + "</tbody></table></div>" +
+          (gaps.length ? '<div class="ap2-note" style="margin-top:10px">Real volume we convert ' +
+            "badly here: " + gaps.map(r => "<b>" + esc(r.city) + "</b> (" + fmtN(r.leads) +
+            " leads, " + r.rate.toFixed(1) + "%)").join(", ") + ". A crew or a campaign in " +
+            "these pays before a new base does.</div>" : "") +
+          '<div class="ap2-note" style="margin-top:8px">' + fmtN(pick.length) +
+          " cities" + (citySt ? " in " + esc(citySt) : "") + " sent leads this year. " +
+          '<a href="#page=area-master">Open Area Master</a> for all of them, with the ROI, ' +
+          "distance and claim columns and a CSV.</div>";
+      }
+
+      function wireCity() {
+        const cs = document.getElementById("apCitySt");
+        if (!cs) return;
+        cs.addEventListener("click", ev => {
+          const b = ev.target.closest("button"); if (!b) return;
+          citySt = b.getAttribute("data-v") || "";
+          const holder = document.getElementById("apCity");
+          if (holder) { holder.innerHTML = cityHtml(); wireCity(); }
+        });
+      }
+
       const R = model.research || {};
       function researchHtml(c) {
         if (!R.states) return "";
@@ -525,6 +593,11 @@ registerPage({
                "Rows are service areas (NY is worked from the NJ base). Change any cell; " +
                "the hero follows. Edits stay in this browser.",
                '<div id="apBase" style="overflow-x:auto">' + planHtml(c) + "</div>") +
+          card("The cities behind it", "Which cities inside each area produce the work",
+               "Straight from Area Master, so the plan and the master can never disagree. " +
+               "Distance is to the nearest active base and claims are per 100 jobs done in " +
+               "that city.",
+               '<div id="apCity">' + cityHtml() + "</div>") +
           card("Where it leaks", "The counties that lose the most",
                "Top county losses in " + esc(P.label) + " — where extra sales attention " +
                "or pricing would bite first.",
@@ -546,6 +619,8 @@ registerPage({
                "never booked. Geography is where the move starts. Marketing $/lead is " +
                "company-wide. MD counts Tuji and Zip together; MD/VA seed at zero in his " +
                "table — the aim chip fills them.</div>");
+
+        wireCity();
 
         // period selects — the kit's localSelect, never a native dropdown
         const f = document.getElementById("apFrom"), t = document.getElementById("apTo");
