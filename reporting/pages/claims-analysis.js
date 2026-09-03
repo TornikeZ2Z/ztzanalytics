@@ -797,7 +797,7 @@ registerPage({
               <span class="n">${esc(f)}</span>
               <span class="t"><i style="width:${Math.max(2, a.ok / a.n * 100)}%"></i></span>
               <span class="v"><b>${Math.round(a.ok / a.n * 100)}%</b> &middot; ${fmtN(a.ok)} of ${fmtN(a.n)}</span></div>`).join("") || '<div class="rs-hint">nothing to compare yet</div>'}
-              <div class="cln-say" style="margin:8px 0 0">${RULES.length ? RULES.filter(r => r.Kind === "family").length + " words define the families (" + RULES.filter(r => r.Kind === "flag").length + " more for the signals); English, Georgian and Latin-Georgian alike." : ""}</div>
+              ${RULES.length ? `<div class="cln-say" style="margin:8px 0 0">${RULES.filter(r => r.Kind === "family").length} words define the families (${RULES.filter(r => r.Kind === "flag").length} more for the signals); English, Georgian and Latin-Georgian alike.</div>` : ""}
             </div></details>` : ""}
         </div>
 
