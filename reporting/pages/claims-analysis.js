@@ -442,9 +442,14 @@ registerPage({
         Object.keys(jobsBy).forEach(p => { if (!rows[p]) rows[p] = blank(p); });
         const median = a => { if (!a.length) return null; const s = a.slice().sort((x, y) => x - y);
           return s[Math.floor(s.length / 2)]; };
-        const all = Object.values(rows).map(o => ({ ...o, jobs: jobsBy[o.name] || 0,
-          medInc: median(o.inc), medCf: median(o.cfv) }))
-          .filter(o => o.claims > 0 || o.jobs >= MIN_JOBS);
+        const everyone = Object.values(rows).map(o => ({ ...o, jobs: jobsBy[o.name] || 0,
+          medInc: median(o.inc), medCf: median(o.cfv) }));
+        const grand = everyone.reduce((a, o) => ({
+          people: a.people + ((o.claims > 0 || o.jobs > 0) ? 1 : 0),
+          claims: a.claims + (o.claims || 0), jobs: a.jobs + (o.jobs || 0),
+          refund: a.refund + (o.refund || 0), pub: a.pub + (o.pub || 0),
+        }), { people: 0, claims: 0, jobs: 0, refund: 0, pub: 0 });
+        const all = everyone.filter(o => o.claims > 0 || o.jobs >= MIN_JOBS);
         const named = all.filter(o => o.jobs > 0);
         // TWO KINDS OF ZERO, AND THEY ARE NOT THE SAME THING.
         // "Never ran a job for us" is a name the board typed that no closing has ever
@@ -478,10 +483,14 @@ registerPage({
           tailRows.push(orphan);
         }
         const small = o => (o.jobs || 0) < MIN_JOBS;
-        return named.sort((a, b) =>
+        const out = named.sort((a, b) =>
           (small(a) ? 1 : 0) - (small(b) ? 1 : 0)
           || (per100(b.claims, b.jobs) || -1) - (per100(a.claims, a.jobs) || -1)
           || b.claims - a.claims).concat(tailRows);
+        tailRows.forEach(t => { grand.claims += t.claims || 0; grand.refund += t.refund || 0;
+          grand.pub += t.pub || 0; });
+        out.grand = grand;
+        return out;
       };
       const sales = perPerson("Sales Person", "Sales Person", true);
       const foremen = perPerson("Foreman", "Foreman", false);
@@ -609,16 +618,20 @@ registerPage({
       // residuals and anything behind "Show all" included -- never from the rounded text,
       // which is what made the column read 289.9 against a headline of 290.
       function totalRow(rows, extra) {
-        const t = rows.reduce((a, o) => ({
-          claims: a.claims + (o.claims || 0), jobs: a.jobs + (o.jobs || 0),
+        const t = rows.grand || rows.reduce((a, o) => ({
+          people: 0, claims: a.claims + (o.claims || 0), jobs: a.jobs + (o.jobs || 0),
           refund: a.refund + (o.refund || 0), pub: a.pub + (o.pub || 0),
         }), { claims: 0, jobs: 0, refund: 0, pub: 0 });
-        const people = rows.filter(o => !o.residual).length;
+        const people = t.people || rows.filter(o => !o.residual).length;
         const blanks = extra.cols ? '<td class="num"></td>'.repeat(extra.cols) : "";
+        // the headline counts every job in the window; this counts every job that HAS one of
+        // these people on it, so a job nobody is named on is in the headline and not here
+        const missing = Math.max(0, nJobs - t.jobs);
         return `<tr class="cln-tot">
           <td>All ${fmtN(people)} ${esc(people === 1 ? (extra.who || "").toLowerCase()
-            : (extra.who === "Foreman" ? "foremen" : "salespeople"))}${
-            rows.some(o => o.residual) ? ' <span class="cln-small">including the rows below</span>' : ""}</td>
+            : (extra.who === "Foreman" ? "foremen" : "salespeople"))}<span class="cln-small">${
+            missing >= 1 ? " &middot; " + fmtC(missing) + " of the " + fmtN(nJobs)
+              + " jobs have no " + esc((extra.who || "").toLowerCase()) + " on them" : ""}</span></td>
           <td class="num">${fmtC(t.jobs)}</td>
           <td class="num">${fmtC(t.claims)}</td>
           ${narrowed
