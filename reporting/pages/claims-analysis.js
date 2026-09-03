@@ -392,10 +392,17 @@ registerPage({
           return c ? c.map(x => ({ p: x.p, sh: x.sh })) : [];
         };
         const jobsBy = {};                 // name -> summed share of jobs
+        const jobSeen = {};                // (person, joinkey) already counted
         jobs.forEach(r => {
-          if (!r["Request Joinkey"]) return;
+          const jk = r["Request Joinkey"];
+          if (!jk) return;
           (weighted && hasCredit ? parts(r) : (r[jobField] ? [{ p: r[jobField], sh: 1 }] : []))
-            .forEach(x => { jobsBy[x.p] = (jobsBy[x.p] || 0) + x.sh; });
+            .forEach(x => {
+              const k = x.p + " " + jk;
+              if (jobSeen[k]) return;      // one job is one job, however many closing rows
+              jobSeen[k] = 1;
+              jobsBy[x.p] = (jobsBy[x.p] || 0) + x.sh;
+            });
         });
         // the same tally over EVERY closing, not just this window's -- it is the only way to
         // tell "this name has never worked for us" from "their jobs are outside the window"
@@ -609,7 +616,8 @@ registerPage({
         const people = rows.filter(o => !o.residual).length;
         const blanks = extra.cols ? '<td class="num"></td>'.repeat(extra.cols) : "";
         return `<tr class="cln-tot">
-          <td>All ${fmtN(people)} ${esc(String(extra.who || "").toLowerCase())}${people === 1 ? "" : "s"}${
+          <td>All ${fmtN(people)} ${esc(people === 1 ? (extra.who || "").toLowerCase()
+            : (extra.who === "Foreman" ? "foremen" : "salespeople"))}${
             rows.some(o => o.residual) ? ' <span class="cln-small">including the rows below</span>' : ""}</td>
           <td class="num">${fmtC(t.jobs)}</td>
           <td class="num">${fmtC(t.claims)}</td>
