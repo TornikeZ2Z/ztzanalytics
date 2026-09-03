@@ -266,6 +266,29 @@ registerPage({
       <div id="stIdle"></div>
       <div id="stTrace"></div>`;
 
+    const inp = document.getElementById("stSearch");
+    const countEl = document.getElementById("stCount");
+    const resultsEl = document.getElementById("stResults");
+    const traceEl = document.getElementById("stTrace");
+    const modesEl = document.getElementById("stModes");
+
+    /* WHICH RUNG WON — the single definition, used by the browse list AND by each
+       trace's ladder. Kept here rather than inside the renderers so a job cannot be
+       listed under one rung and then shown winning a different one. */
+    const RUNGS = {
+      // Returned and Recommended are SEPARATE rungs (2026-08-18): they were one line
+      // reading "Returned / Recommended", which made the two tabs look irreconcilable
+      // — 2,145 here against 249 there — when the Moveboard side simply had no
+      // Recommended rung and its ~2,400 Recommended leads sat in the raw bucket.
+      // UTM (2026-09-03) enters at #3 on BOTH sides — his rule: the tag decides the
+      // source unless the lead is Recommended or Returned. On the closing side it
+      // arrives inherited, through the moveboard lead behind the job.
+      closing: ["Returned Customer", "Recommended", "UTM tag", "Meta Referral",
+                "Google Local", "Post Card", "Angi", "Thumbtack", "Whatever the sheet says"],
+      moveboard: ["Returned Customer", "Recommended", "UTM tag", "Meta Referral", "CallRail",
+                  "Post Card", "Google Local", "Angi", "Thumbtack", "Raw booked source"],
+    };
+
     /* The page spends most of its life waiting for someone to type, and it used to spend that
        time as a small box in the corner of an empty screen. The ladder below is the whole
        point of the report — the order the rungs are tried in is exactly what a trace walks —
@@ -316,29 +339,6 @@ registerPage({
                  <div class="strc-howd">${RSC.esc(r.d)}</div></div>
           </div>`).join("")}</div>
       </div>`;
-
-    const inp = document.getElementById("stSearch");
-    const countEl = document.getElementById("stCount");
-    const resultsEl = document.getElementById("stResults");
-    const traceEl = document.getElementById("stTrace");
-    const modesEl = document.getElementById("stModes");
-
-    /* WHICH RUNG WON — the single definition, used by the browse list AND by each
-       trace's ladder. Kept here rather than inside the renderers so a job cannot be
-       listed under one rung and then shown winning a different one. */
-    const RUNGS = {
-      // Returned and Recommended are SEPARATE rungs (2026-08-18): they were one line
-      // reading "Returned / Recommended", which made the two tabs look irreconcilable
-      // — 2,145 here against 249 there — when the Moveboard side simply had no
-      // Recommended rung and its ~2,400 Recommended leads sat in the raw bucket.
-      // UTM (2026-09-03) enters at #3 on BOTH sides — his rule: the tag decides the
-      // source unless the lead is Recommended or Returned. On the closing side it
-      // arrives inherited, through the moveboard lead behind the job.
-      closing: ["Returned Customer", "Recommended", "UTM tag", "Meta Referral",
-                "Google Local", "Post Card", "Angi", "Thumbtack", "Whatever the sheet says"],
-      moveboard: ["Returned Customer", "Recommended", "UTM tag", "Meta Referral", "CallRail",
-                  "Post Card", "Google Local", "Angi", "Thumbtack", "Raw booked source"],
-    };
     function winClosing(r) {
       const lc = String(r["Match Path"] || "").toLowerCase();
       const isPost = /post card/.test(norm(r["Final Source (current)"])) || /post card/.test(norm(r["Source Connector"]));
