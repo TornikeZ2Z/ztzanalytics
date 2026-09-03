@@ -280,7 +280,7 @@ const PAGE_ICONS = {
   "log-foreman": "tool", "log-packing": "box",
   "fin-revenue": "trend", "fin-rr": "trend", "rev-production": "star",
   "sup-claims": "shield", "sup-refunds": "clipboard", "sup-phone": "phone",
-  "general-settings": "sliders", "general-tables": "grid", "data-quality": "clipboard", "data-migration": "share-2", "refresh-log": "activity", "source-trace": "activity", "meta-referrals": "upload-cloud", "referral-candidates": "gift", "jobs-by-area": "map-pin", "relocation-trends": "trending-up", "angi-funnel": "funnel", "promised-reviews": "star", "calendar-coverage": "calendar", "request-consistency": "alert-triangle", "review-performance": "star", "reviews-reminders": "megaphone", "response-analysis": "activity", "review-settings": "tool", "reviews-cases": "star", "claims-analysis": "alert-triangle",
+  "general-settings": "sliders", "general-tables": "grid", "data-quality": "clipboard", "data-migration": "share-2", "refresh-log": "activity", "source-trace": "activity", "meta-referrals": "upload-cloud", "referral-candidates": "gift", "jobs-by-area": "map-pin", "relocation-trends": "trending-up", "angi-funnel": "funnel", "promised-reviews": "star", "calendar-coverage": "calendar", "request-consistency": "alert-triangle", "review-performance": "star", "reviews-reminders": "megaphone", "response-analysis": "activity", "review-settings": "tool", "reviews-cases": "star", "claims-analysis": "alert-triangle", "area-master": "map-pin",
 };
 
 /* Pages not yet built — shown greyed with a SOON tag so the full scope is visible. */
@@ -677,6 +677,7 @@ const PAGE_DATASETS = {
   "request-consistency": [],
   "review-performance": [],
   "response-analysis": [], "review-settings": [],
+  "area-master": [],         // one row per city, loads whole; state/view filters are local
   "reviews-cases": [],       // both boards load whole (307+888 rows); year filter is local
   "claims-analysis": [],     // the claims mart + closings load whole; period/service filters are local
   "demand-analysis": [],   // its own year + company pickers own the window
@@ -903,13 +904,13 @@ function navigate(id, push) {
 /* Pages that bring their OWN toolbar and ignore the global filter bar (PAGE_DATASETS=[])
    render "bare" — the global date/slicer bar + company chip are hidden so the page's board
    starts right under the header instead of below two rows of greyed-out, unusable filters. */
-const BARE_CHROME = new Set(["review-performance", "reviews-cases", "claims-analysis", "demand-analysis", "reviews-reminders", "response-analysis", "review-settings", "monthly-report", "money-flow", "ld-planning", "cleanup", "packing-control", "crew-salaries", "storage-control", "foreman-assessment", "fuel-control", "foreman-closings", "refresh-log", "general-tables", "hr-questionnaire", "hr-my-questionnaire", "hr-directory", "conversations", "sales-comms", "referral-candidates", "jobs-by-area", "meta-referrals", "relocation-trends", "angi-funnel", "promised-reviews",
+const BARE_CHROME = new Set(["review-performance", "reviews-cases", "claims-analysis", "area-master", "demand-analysis", "reviews-reminders", "response-analysis", "review-settings", "monthly-report", "money-flow", "ld-planning", "cleanup", "packing-control", "crew-salaries", "storage-control", "foreman-assessment", "fuel-control", "foreman-closings", "refresh-log", "general-tables", "hr-questionnaire", "hr-my-questionnaire", "hr-directory", "conversations", "sales-comms", "referral-candidates", "jobs-by-area", "meta-referrals", "relocation-trends", "angi-funnel", "promised-reviews",
   // Straight vs Local reads its whole history on purpose (Tornike 2026-08-19: "i dont need
   // any filters here, its just kinda analysis and directions"). A date filter left over from
   // another page emptied it completely, which is worse than useless -- it looked like there
   // were no Straight jobs at all.
   "straight-vs-local",
-  "area-plan", "truck-economics", "data-migration"]);
+  "area-plan", "area-master", "truck-economics", "data-migration"]);
 /* Pages where the global filter bar MUST STAY VISIBLE, so Hide filters is not offered at all.
    The control exists for pages carrying a wall of slicers you want out of the way to read the
    board full-screen — Custom Breakdown is the case it was built for. It is wrong wherever the
@@ -1033,6 +1034,7 @@ const NAV_TITLES = {
   "review-performance": "Foreman Performance",
   "reviews-reminders": "Send Reminders",
   "reviews-cases": "Claims & Negative Reviews",
+  "area-master": "Area Master",
   "claims-analysis": "Claims Analysis",
   "response-analysis": "Response Analysis",
   "review-settings": "Review URLs and Reasons",
@@ -1076,6 +1078,7 @@ const SEARCH_ALIASES = {
   "reviews-reminders": "send reminders review request slack automation bot foreman nudge daily jobs log sent skipped",
   "reviews-cases": "claims negative reviews complaints platforms stars overlap tako monday",
   "claims-analysis": "claims analysis rate per 100 jobs salesperson foreman reason responsibility thread monday",
+  "area-master": "area master city roi leads ad budget distance base foremen untapped marketing targeting planning",
   "response-analysis": "response analysis missed review reasons why no review foreman explanation waiting for reason response rate accountability",
   "review-settings": "review settings link control google trustpilot facebook kearny shafto qr code delivery state reasons why no review platform config",
   "sup-claims": "claim claims damage damages",
@@ -1547,6 +1550,7 @@ const REPORT_LABELS = {
   "rev-production": "Actual Reviews",
   "reviews-reminders": "Send Reminders",
   "reviews-cases": "Claims & Negative Reviews",
+  "area-master": "Area Master",
   "claims-analysis": "Claims Analysis",
   "response-analysis": "Response Analysis",
   "review-settings": "Review URLs and Reasons",
@@ -1593,7 +1597,7 @@ const ACL_DEPTS = [
   { id: "company",   label: "Company Overview", icon: "spark",     reports: ["work", "monthly-report", "analysis-by-category"] },
   { id: "sales",     label: "Sales",            icon: "funnel",    reports: ["work", "sales-command", "demand-analysis", "conversations", "sales-comms", "sales-trackers"] },
   { id: "marketing", label: "Marketing",        icon: "megaphone", reports: ["work", "source-trace", "referral-candidates", "jobs-by-area", "relocation-trends", "angi-funnel", "promised-reviews"] },
-  { id: "logistics", label: "Logistics",        icon: "tool",      reports: ["work", "money-flow", "ld-planning", "foreman-closings", "packing-control", "crew-salaries", "storage-control", "foreman-assessment", "fuel-control", "foreman-late", "straight-vs-local", "area-plan", "truck-economics"] },
+  { id: "logistics", label: "Logistics",        icon: "tool",      reports: ["work", "money-flow", "ld-planning", "foreman-closings", "packing-control", "crew-salaries", "storage-control", "foreman-assessment", "fuel-control", "foreman-late", "straight-vs-local", "area-plan", "area-master", "truck-economics"] },
   // MUST mirror DEPT_REPORTS["hr"] in bridge/app.py. Employees answering the questionnaire
   // need NO grant at all — this tile is for HR: managing it and reading the results.
   { id: "hr",        label: "Human Resources", icon: "user",      reports: ["work", "hr-questionnaire", "hr-responses", "hr-directory"] },
@@ -1837,6 +1841,7 @@ registerPage({
 <script src="pages/demand-analysis.js?v=10"></script>
 <script src="pages/straight-vs-local.js?v=6"></script>
 <script src="pages/area-plan.js?v=11"></script>
+<script src="pages/area-master.js?v=1"></script>
 <script src="pages/truck-economics.js?v=5"></script>
 <script src="pages/data-migration.js?v=17"></script>
 <script src="pages/general-tables.js?v=6"></script>
