@@ -28,11 +28,20 @@
         dateCols: { "Written Date": "Written Date" }, defaultDate: "Written Date",
       };
     }
+    // THE WAY OUT TO THE BOARD (2026-09-03). fct_claims has no Url and must not get one --
+    // it is granted to monthly-report and data-quality, who have no business on the claims
+    // board. mart_claims_analysis carries it and is granted only here and to Claims Analysis.
+    if (!RS.DATASETS.claim_links) {
+      RS.DATASETS.claim_links = {
+        table: "mart_claims_analysis",
+        cols: ["Monday Item Id", "Request Joinkey", "Monday Url"],
+      };
+    }
     if (!RS.DATASETS.claims_cases) {
       RS.DATASETS.claims_cases = {
         table: "fct_claims",
         cols: ["Created Date", "Customer", "Request No", "Group", "Status", "Reason",
-               "Responsibility", "Request Joinkey", "Foreman"],
+               "Responsibility", "Request Joinkey", "Foreman", "Monday Item Id"],
         dateCols: { "Created Date": "Created Date" }, defaultDate: "Created Date",
       };
     }
@@ -45,8 +54,9 @@ registerPage({
   title: "Claims & Negative Reviews",
   async render(host) {
     const num = RS.num, fmtN = RS.fmtN;
-    const esc = RS.esc || (s => String(s == null ? "" : s)
-      .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"));
+    const esc = s => String(s == null ? "" : s)
+      .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
     const pct = (a, b) => b ? Math.round(a / b * 100) + "%" : "—";
 
     if (!document.getElementById("rvc-style")) {
@@ -54,6 +64,9 @@ registerPage({
       st.id = "rvc-style";
       st.textContent = [
         // Only what the kit cannot say; everything else is .panel/.rs-kpis/.rs-table/.rs-seg.
+        ".rvc-mon{color:var(--brand);font-weight:600;text-decoration:none;white-space:nowrap}",
+        ".rvc-mon:hover{text-decoration:underline}",
+        ".rvc-small{color:var(--faint);font-size:11.5px;white-space:nowrap}",
         ".rvc-bar{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin:0 0 14px}",
         ".rvc-bar>.rvc-in{margin-bottom:1px}",
         ".rvc-in{font-family:inherit;background:var(--panel);border:1px solid var(--line);"
@@ -86,8 +99,13 @@ registerPage({
     host.innerHTML = `<div class="rs-page-head"><h1>Claims &amp; Negative Reviews</h1></div>
       <div class="rs-loading" style="padding:22px">Reading both boards…</div>`;
 
-    const [nrAll, clAll] = await Promise.all([
-      RS.load("negative_reviews_cases"), RS.load("claims_cases")]);
+    const [nrAll, clAll, clLinks] = await Promise.all([
+      RS.load("negative_reviews_cases"), RS.load("claims_cases"),
+      RS.load("claim_links").catch(() => [])]);
+    // the board link, keyed by the item the claim already carries
+    const URLBY = {};
+    (clLinks || []).forEach(r => { const k = String(r["Monday Item Id"] || "");
+      if (k && r["Monday Url"]) URLBY[k] = r["Monday Url"]; });
 
     /* ---------- canonicalisation (the audit's map, verbatim) ---------- */
     const PLATFORM = (raw) => {
@@ -155,6 +173,13 @@ registerPage({
       const nm = String(r.Customer || "").trim().toLowerCase();
       if (nm && clByName.has(nm)) return "name";
       return null;
+    };
+    // an href scheme is not a place for trust: only https ever reaches the DOM
+    const clMonday = r => {
+      const u = URLBY[String(r["Monday Item Id"] || "")];
+      return /^https:\/\//i.test(String(u || ""))
+        ? `<a class="rvc-mon" href="${esc(u)}" target="_blank" rel="noopener">Open &#8599;</a>`
+        : '<span class="rvc-small">&mdash;</span>';
     };
     const clReviewMatch = r => {
       const jk = String(r["Request Joinkey"] || "").trim();
@@ -388,7 +413,7 @@ registerPage({
             <button class="rs-btn" data-dl="cl">Download CSV</button></div>
           <div class="rs-tablewrap"><table class="rs-table">
             <thead><tr><th>Created</th><th>Customer</th><th>Reason</th><th>Status</th>
-              <th>Responsibility</th><th>Foreman</th><th>Went public</th></tr></thead>
+              <th>Responsibility</th><th>Foreman</th><th>Went public</th><th>Monday</th></tr></thead>
             <tbody>${clPageRows.map(r => `<tr>
               <td class="nowrap">${esc(String(r["Created Date"] || "").slice(0, 10) || "—")}</td>
               <td class="strong">${esc(r.Customer || "—")}</td>
@@ -398,7 +423,8 @@ registerPage({
               <td class="muted">${esc(r.Foreman || "—")}</td>
               <td>${clReviewMatch(r)
                 ? '<span class="rs-pill warn">yes</span>'
-                : '<span class="rs-pill mute">no</span>'}</td></tr>`).join("")}
+                : '<span class="rs-pill mute">no</span>'}</td>
+              <td>${clMonday(r)}</td></tr>`).join("")}
             </tbody></table></div>
           ${pager(S.clPage, cl.length, "cl")}
         </div>`;

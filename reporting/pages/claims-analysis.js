@@ -22,7 +22,7 @@
              "Open Date", "Close Date", "Messages", "Files", "Job Date", "Company", "Sales Person",
              "Foreman", "Moving Type", "State", "Total Bill", "Quote", "Estimated CF", "Real CF",
              "Price Increase Pct", "CF Variance Pct", "Refund $", "Has Refund", "Negative Reviews",
-             "Days After Job", "Days To Close"],
+             "Days After Job", "Days To Close", "Monday Url"],
       dateCols: { "Created Date": "Created Date" }, defaultDate: "Created Date",
     };
   }
@@ -47,8 +47,13 @@ registerPage({
   title: "Claims Analysis",
   async render(host) {
     const num = RS.num, fmtN = RS.fmtN;
-    const esc = RS.esc || (s => String(s == null ? "" : s)
-      .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"));
+    const esc = s => String(s == null ? "" : s)
+      .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+    // an href scheme is not a place for trust: only https ever reaches the DOM
+    const mondayCell = u => (/^https:\/\//i.test(String(u || ""))
+      ? `<a class="cln-mon" href="${esc(u)}" target="_blank" rel="noopener" title="open this claim on the Monday board">Open &#8599;</a>`
+      : '<span class="cln-small">&mdash;</span>');
     const money0 = v => (v == null || isNaN(v)) ? "—" : "$" + Math.round(v).toLocaleString("en-US");
     const pct1 = v => (v == null || isNaN(v)) ? "—" : (v * 100).toFixed(1) + "%";
     const per100 = (c, j) => j ? (c / j * 100) : null;
@@ -93,9 +98,22 @@ registerPage({
         ".cln-month .t{height:12px;background:var(--panel-2);border-radius:6px;overflow:hidden}",
         ".cln-month .t i{display:block;height:100%;background:var(--warn);border-radius:6px}",
         ".cln-month .v{text-align:right;font-variant-numeric:tabular-nums;color:var(--muted);white-space:nowrap}",
-        ".cln-tail td{background:var(--panel-2);color:var(--muted)}",
         ".cln-small{color:var(--faint);font-size:11.5px;white-space:nowrap}",
         ".cln-row{cursor:pointer} .cln-row:hover td{background:var(--panel-2)}",
+        ".cln-mon{color:var(--brand);font-weight:600;text-decoration:none;white-space:nowrap}",
+        ".cln-mon:hover{text-decoration:underline}",
+        // the person row that opens: a caret, and a hover the inert kit rows do not get
+        ".cln-open{cursor:pointer} .cln-open:hover td{background:var(--panel-2)}",
+        ".cln-cx{display:inline-block;width:12px;color:var(--faint);font-size:10px;" +
+          "transition:transform .12s ease}",
+        ".cln-open.on .cln-cx{transform:rotate(90deg);color:var(--brand)}",
+        ".cln-subrow td{background:var(--panel-2);padding:0 0 10px}",
+        ".cln-sub{border-left:2px solid var(--line-2);margin:0 0 0 18px;padding:10px 12px}",
+        ".cln-subh{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap;margin-bottom:8px}",
+        ".cln-subh b{font-size:13px}",
+        ".cln-sub .rs-table td,.cln-sub .rs-table th{padding:5px 8px;font-size:11.5px}",
+        ".cln-stale td{opacity:.55}",
+        ".cln-tail td{background:var(--panel-2);color:var(--muted)}",
         ".cln-pager{display:flex;gap:8px;align-items:center;justify-content:flex-end;margin-top:12px;font-size:12.5px;color:var(--faint)}",
         ".cln-pager .rs-btn[disabled]{opacity:.4;pointer-events:none}",
         // the drawer: one claim, read in full
@@ -148,7 +166,8 @@ registerPage({
     const FAM_LIST = ["Price", "Damage", "Missing", "Timing", "Conduct", "Billing", "Storage", "Customer", "Other"];
 
     /* ---------- state ---------- */
-    const S = { period: "6m", svc: "", q: "", page: 0, pageSize: 25 };
+    const S = { period: "6m", svc: "", q: "", page: 0, pageSize: 25,
+                openSp: "", openFm: "", allSp: 0, allFm: 0 };
     let qTimer = null;
     const today = new Date();
     const iso = d => d.toISOString().slice(0, 10);
@@ -184,8 +203,14 @@ registerPage({
         }
         return true;
       });
-      // the denominator: every closing in the same window (service-type slice applies to
-      // claims only -- the closing has no service type of its own)
+      // THE DENOMINATOR AND WHY A RATE IS SOMETIMES WITHHELD (2026-09-03).
+      // The Service picker and the search box filter the CLAIMS. They cannot filter the
+      // JOBS -- a closing carries no service type and no customer's complaint text -- so
+      // under either of them a per-100 would be a narrowed numerator over a whole
+      // denominator, which is not a rate. The page now withholds those numbers instead of
+      // printing them. Only the period filter moves both sides, so only the period leaves
+      // a rate standing.
+      const narrowed = !!(S.svc || q);
       const jobs = closing.filter(r => !from || String(r.Date || "").slice(0, 10) >= from);
       const jobKeys = new Set(jobs.map(r => r["Request Joinkey"]).filter(Boolean));
       const nJobs = jobKeys.size;
@@ -226,18 +251,39 @@ registerPage({
       const agreeByFam = (() => { const o = {}; compared.forEach(r => { const f = r["Reason Family"];
         const a = o[f] = o[f] || { n: 0, ok: 0 }; a.n++; if (num(kwOf(r).Agreement) === 1) a.ok++; });
         return Object.entries(o).sort((a, b) => b[1].n - a[1].n); })();
-      const svcShare = share("Service Type").slice(0, 8);
+      const svcShare = (() => {
+        const all = share("Service Type"), top = all.slice(0, 8);
+        const rest = all.slice(8).reduce((a, [, v]) => a + v, 0);
+        return rest ? top.concat([["All others (" + (all.length - 8) + ")", rest]]) : top;
+      })();
 
       /* per person: jobs in window from the closing, claims from the mart */
+      const blank = name => ({ name, claims: 0, price: 0, damage: 0, missing: 0, timing: 0,
+                               refund: 0, pub: 0, inc: [], cfv: [], rows: [] });
       const perPerson = (jobField, claimField) => {
         const jobsBy = {};
         jobs.forEach(r => { const p = r[jobField]; const jk = r["Request Joinkey"];
           if (!p || !jk) return; (jobsBy[p] = jobsBy[p] || new Set()).add(jk); });
+        // the same tally over EVERY closing, not just this window's -- it is the only way to
+        // tell "this name has never run a job for us" from "his jobs are outside the window"
+        const everBy = {};
+        closing.forEach(r => { const p = r[jobField]; if (p) everBy[p] = 1; });
         const rows = {};
+        const orphan = blank("");          // claims with nobody on them at all
         claims.forEach(r => {
-          const p = r[claimField]; if (!p) return;
-          const o = rows[p] = rows[p] || { name: p, claims: 0, price: 0, damage: 0, missing: 0, timing: 0,
-                                           refund: 0, pub: 0, inc: [], cfv: [] };
+          const p = r[claimField];
+          if (!p) { orphan.claims++; orphan.rows.push(r);
+                    orphan.refund += num(r["Refund $"]) || 0;
+                    if ((num(r["Negative Reviews"]) || 0) > 0) orphan.pub++;
+                    const f0 = famOf(r);
+                    if (f0 === "Price") orphan.price++; if (f0 === "Damage") orphan.damage++;
+                    if (f0 === "Missing") orphan.missing++; if (f0 === "Timing") orphan.timing++;
+                    return; }
+          const o = rows[p] = rows[p] || blank(p);
+          // THE LIST IS THE ACCUMULATOR THAT PRODUCED THE COUNT. Collected here rather than
+          // re-filtered later, so "the drill shows exactly the claims behind this number" is
+          // true by construction and cannot drift from whatever field the tally uses.
+          o.rows.push(r);
           o.claims++;
           const f = famOf(r);
           if (f === "Price") o.price++; if (f === "Damage") o.damage++;
@@ -247,37 +293,55 @@ registerPage({
           const pi = num(r["Price Increase Pct"]); if (pi != null && !isNaN(pi)) o.inc.push(pi);
           const cv = num(r["CF Variance Pct"]); if (cv != null && !isNaN(cv)) o.cfv.push(cv);
         });
-        Object.keys(jobsBy).forEach(p => { if (!rows[p]) rows[p] = { name: p, claims: 0, price: 0, damage: 0,
-          missing: 0, timing: 0, refund: 0, pub: 0, inc: [], cfv: [] }; });
+        Object.keys(jobsBy).forEach(p => { if (!rows[p]) rows[p] = blank(p); });
         const median = a => { if (!a.length) return null; const s = a.slice().sort((x, y) => x - y);
           return s[Math.floor(s.length / 2)]; };
         const all = Object.values(rows).map(o => ({ ...o, jobs: (jobsBy[o.name] || new Set()).size,
           medInc: median(o.inc), medCf: median(o.cfv) }))
           .filter(o => o.claims > 0 || o.jobs >= MIN_JOBS);
-        // NAMES THAT NEVER MATCHED A CLOSING. The Monday dropdown is free text, so a handful of
-        // claims carry a nickname or a first name only. There is no job count behind them, so
-        // there is no rate -- one row at the foot keeps their claims in the total without
-        // pretending each is a person with a record.
         const named = all.filter(o => o.jobs > 0);
-        const loose = all.filter(o => o.jobs === 0);
-        if (loose.length) {
-          named.push(loose.reduce((a, o) => ({
-            name: "Not matched to a closing", tail: true, names: (a.names || 0) + 1,
-            jobs: 0, claims: a.claims + o.claims, price: a.price + o.price,
-            damage: a.damage + o.damage, missing: a.missing + o.missing,
-            timing: a.timing + o.timing, refund: a.refund + o.refund, pub: a.pub + o.pub,
-            medInc: null, medCf: null,
-          }), { claims: 0, price: 0, damage: 0, missing: 0, timing: 0, refund: 0, pub: 0 }));
+        // TWO KINDS OF ZERO, AND THEY ARE NOT THE SAME THING.
+        // "Never ran a job for us" is a name the board typed that no closing has ever
+        // carried -- the Monday dropdown is free text, so a claim can be filed against
+        // "Abaza" where the closing says "Giorgi Abazadze". "Jobs outside this window" is a
+        // real person whose work simply predates the period; his claims count in the
+        // numerator while his jobs are not in the denominator. Folding the two together
+        // would put a false label on a real person.
+        const fold = (list, name, kind) => {
+          if (!list.length) return null;
+          const o = blank(name); o.residual = true; o.kind = kind; o.jobs = 0;
+          o.names = list.length; o.medInc = null; o.medCf = null;
+          list.forEach(x => { o.claims += x.claims; o.price += x.price; o.damage += x.damage;
+            o.missing += x.missing; o.timing += x.timing; o.refund += x.refund; o.pub += x.pub;
+            o.rows = o.rows.concat(x.rows || []); });
+          return o;
+        };
+        const tailRows = [
+          fold(all.filter(o => o.jobs === 0 && !everBy[o.name]),
+               "Not a name on any closing", "never"),
+          fold(all.filter(o => o.jobs === 0 && everBy[o.name]),
+               "Their jobs are outside this window", "outside"),
+        ].filter(Boolean);
+        // CLAIMS WITH NOBODY ON THEM. Dropped before this table existed, so the Claims
+        // column never summed to the headline above it. They get a row of their own.
+        if (orphan.claims) {
+          orphan.residual = true; orphan.kind = "none"; orphan.jobs = 0;
+          orphan.name = claimField === "Foreman" ? "No foreman on the claim"
+                                                 : "No salesperson on the closing";
+          orphan.medInc = null; orphan.medCf = null;
+          tailRows.push(orphan);
         }
-        return named.sort((a, b) => (a.tail ? 1 : 0) - (b.tail ? 1 : 0)
-          || (per100(b.claims, b.jobs) || -1) - (per100(a.claims, a.jobs) || -1)
-          || b.claims - a.claims);
+        return named.sort((a, b) =>
+          (per100(b.claims, b.jobs) || -1) - (per100(a.claims, a.jobs) || -1)
+          || b.claims - a.claims).concat(tailRows);
       };
       const sales = perPerson("Sales Person", "Sales Person");
       const foremen = perPerson("Foreman", "Foreman");
-      const rateCell = (c, j, cls) => j >= MIN_JOBS
-        ? `<td class="num ${cls || ""}">${r1(per100(c, j))}</td>`
-        : `<td class="num"><span class="cln-small" title="fewer than ${MIN_JOBS} jobs in this window">${j ? r1(per100(c, j)) + " · small" : "—"}</span></td>`;
+      const rateCell = (c, j, cls) => narrowed
+        ? `<td class="num"><span class="cln-small" title="a rate needs the whole population — the service picker and the search box narrow the claims but cannot narrow the jobs">—</span></td>`
+        : (j >= MIN_JOBS
+          ? `<td class="num ${cls || ""}">${r1(per100(c, j))}</td>`
+          : `<td class="num"><span class="cln-small" title="fewer than ${MIN_JOBS} jobs in this window">${j ? r1(per100(c, j)) + " · small" : "—"}</span></td>`);
 
       /* the list */
       const sorted = claims.slice().sort((a, b) =>
@@ -291,23 +355,108 @@ registerPage({
           <span class="t"><i style="width:${Math.max(2, v / Math.max(1, arr[0][1]) * 100)}%"></i></span>
           <span class="v"><b>${fmtN(v)}</b> · ${n ? Math.round(v / n * 100) : 0}%</span></div>`).join("");
 
-      const perTable = (rows, who, extra) => `
+      /* ---------- the drill: the claims that made a person's number ----------
+         Rows were collected during the tally (perPerson), so o.rows IS what produced
+         o.claims. The header restates the same arithmetic from the same array; where a
+         numerator-only filter is active it refuses to state a rate at all. */
+      const CAP = 25;
+      const dayIn = d => { const v = String(d || "").slice(0, 10); return !from || (v && v >= from); };
+
+      function subCard(o, who) {
+        const rows = (o.rows || []).slice()
+          .sort((a, b) => String(b["Created Date"] || "").localeCompare(String(a["Created Date"] || "")));
+        const stale = rows.filter(r => r["Job Date"] && !dayIn(r["Job Date"])).length;
+        const head = o.residual
+          ? `<b>${fmtN(rows.length)} claim${rows.length === 1 ? "" : "s"}</b>`
+          : `<b>${fmtN(rows.length)} claim${rows.length === 1 ? "" : "s"}</b>` +
+            `<span class="cln-small">${fmtN(o.jobs)} job${o.jobs === 1 ? "" : "s"} done in this window</span>` +
+            (narrowed
+              ? '<span class="cln-small">rate not shown &mdash; the filter narrows the claims but not the jobs</span>'
+              : `<span class="cln-small"><b>${r1(per100(rows.length, o.jobs))}</b> per 100${o.jobs < MIN_JOBS ? " &middot; small" : ""}</span>`);
+        if (!rows.length) {
+          return `<div class="cln-sub"><div class="cln-subh">${head}</div>
+            <div class="rs-hint">No claim on ${esc(o.name)} in this window.</div></div>`;
+        }
+        return `<div class="cln-sub">
+          <div class="cln-subh">${head}</div>
+          <div class="rs-tablewrap"><table class="rs-table">
+            <thead><tr><th>Filed</th><th>Job date</th><th class="num">Days after</th>
+              <th>Request&nbsp;#</th><th>Customer</th><th>Family</th><th>Status</th>
+              <th>Case owner</th><th class="num">Bill</th><th class="num">Refund</th>
+              <th>Monday</th></tr></thead>
+            <tbody>${rows.map(r => {
+              const out = r["Job Date"] && !dayIn(r["Job Date"]);
+              return `<tr class="cln-row${out ? " cln-stale" : ""}" data-item="${esc(r["Monday Item Id"])}"${out ? ' title="the job is older than this window, so it is not among the jobs counted above"' : ""}>
+                <td class="nowrap">${esc(String(r["Created Date"] || "").slice(0, 10))}</td>
+                <td class="nowrap">${r["Job Date"] ? esc(String(r["Job Date"]).slice(0, 10)) : '<span class="cln-small">&mdash;</span>'}</td>
+                <td class="num">${r["Days After Job"] == null ? '<span class="cln-small">&mdash;</span>' : fmtN(num(r["Days After Job"]))}</td>
+                <td class="nowrap">${esc(r["Request No"] || "—")}</td>
+                <td class="strong">${esc(r.Customer || "—")}</td>
+                <td>${esc(famOf(r) || "—")}</td>
+                <td>${num(r["Is Open"]) === 1 ? '<span class="rs-pill warn">' + esc(r.Status || "open") + "</span>" : esc(r.Status || "—")}</td>
+                <td class="muted">${esc(r["Case Owner"] || "—")}</td>
+                <td class="num">${num(r["Total Bill"]) ? money0(num(r["Total Bill"])) : '<span class="cln-small">&mdash;</span>'}</td>
+                <td class="num">${num(r["Refund $"]) ? money0(num(r["Refund $"])) : '<span class="cln-small">&mdash;</span>'}</td>
+                <td>${mondayCell(r["Monday Url"])}</td></tr>`; }).join("")}
+            </tbody></table></div>
+          ${stale ? `<div class="rs-hint" style="margin-top:8px">${fmtN(stale)} of these ${stale === 1 ? "was" : "were"}
+            filed about a job done <b>before</b> this window. A claim counts when it was FILED; the job
+            count beside it counts jobs DONE — so those ${stale === 1 ? "is" : "are"} in the number above
+            and their jobs are not.</div>` : ""}
+          <div class="rs-hint" style="margin-top:6px">Click any row to read the whole Monday thread here,
+            or <b>Open &#8599;</b> to go to the board.</div>
+        </div>`;
+      }
+
+      const residLabel = o => o.kind === "never"
+        ? `${o.names} name${o.names === 1 ? "" : "s"} the board typed that no closing has ever carried`
+        : o.kind === "outside"
+          ? `${o.names} ${o.names === 1 ? "person" : "people"} whose jobs fall outside this window`
+          : "claims the board left this field empty on";
+
+      function bodyHtml(rows, extra, openName, showAll) {
+        const main = rows.filter(o => !o.residual);
+        const shown = showAll ? main : main.slice(0, CAP);
+        const out = shown.concat(rows.filter(o => o.residual));
+        return out.map(o => {
+          const on = openName === o.name;
+          const cells = `<td class="strong"><span class="cln-cx">&#9656;</span> ${esc(o.name)}` +
+            (o.residual ? ` <span class="cln-small">${esc(residLabel(o))}</span>` : "") + "</td>" +
+            `<td class="num">${o.jobs ? fmtN(o.jobs) : '<span class="cln-small">&mdash;</span>'}</td>` +
+            `<td class="num">${fmtN(o.claims)}</td>` +
+            rateCell(o.claims, o.jobs, "strong") + extra.cells(o) +
+            `<td class="num">${o.refund ? money0(o.refund) : '<span class="cln-small">&mdash;</span>'}</td>` +
+            `<td class="num">${o.pub || '<span class="cln-small">&mdash;</span>'}</td>`;
+          return `<tr class="cln-open${on ? " on" : ""}${o.residual ? " cln-tail" : ""}" data-person="${esc(o.name)}">${cells}</tr>` +
+            (on ? `<tr class="cln-subrow"><td colspan="${6 + extra.cols}">${subCard(o, extra.who)}</td></tr>` : "");
+        }).join("") + (main.length > CAP && !showAll
+          ? `<tr class="cln-tail"><td colspan="${6 + extra.cols}"><a href="#" data-showall="1">Show all ${fmtN(main.length)}</a> &mdash; ${fmtN(main.length - CAP)} more below the top ${CAP}</td></tr>`
+          : "");
+      }
+
+      const spExtra = {
+        who: "Salesperson", cols: 4,
+        head: `<th class="num">Price claims</th><th class="num">per 100</th><th class="num">Median bill vs quote</th><th class="num">Median CF vs estimate</th>`,
+        cells: o => `<td class="num">${o.price || '<span class="cln-small">&mdash;</span>'}</td>${rateCell(o.price, o.jobs)}
+          <td class="num">${o.medInc == null ? '<span class="cln-small">&mdash;</span>' : (o.medInc > 0 ? "+" : "") + pct1(o.medInc)}</td>
+          <td class="num">${o.medCf == null ? '<span class="cln-small">&mdash;</span>' : (o.medCf > 0 ? "+" : "") + pct1(o.medCf)}</td>`,
+      };
+      const fmExtra = {
+        who: "Foreman", cols: 4,
+        head: `<th class="num">Damage</th><th class="num">per 100</th><th class="num">Missing</th><th class="num">Timing</th>`,
+        cells: o => `<td class="num">${o.damage || '<span class="cln-small">&mdash;</span>'}</td>${rateCell(o.damage, o.jobs)}
+          <td class="num">${o.missing || '<span class="cln-small">&mdash;</span>'}</td><td class="num">${o.timing || '<span class="cln-small">&mdash;</span>'}</td>`,
+      };
+
+      const perTable = (rows, who, extra, bodyId, openName, showAll) => `
           <div class="rs-tablewrap"><table class="rs-table">
             <thead><tr><th>${who}</th><th class="num">Jobs</th><th class="num">Claims</th>
               <th class="num">per 100 jobs</th>${extra.head}<th class="num">Refunds</th><th class="num">Went public</th></tr></thead>
-            <tbody>${rows.filter(o => !o.tail).slice(0, 25).concat(rows.filter(o => o.tail)).map(o => `<tr${o.tail ? ' class="cln-tail"' : ""}>
-              <td class="strong">${esc(o.name)}${o.tail ? ` <span class="cln-small">${o.names} name${o.names === 1 ? "" : "s"} on the board with no job behind them</span>` : ""}</td>
-              <td class="num">${o.jobs ? fmtN(o.jobs) : '<span class="cln-small">—</span>'}</td>
-              <td class="num">${fmtN(o.claims)}</td>
-              ${rateCell(o.claims, o.jobs, "strong")}
-              ${extra.cells(o)}
-              <td class="num">${o.refund ? money0(o.refund) : '<span class="cln-small">—</span>'}</td>
-              <td class="num">${o.pub || '<span class="cln-small">—</span>'}</td></tr>`).join("")}
-            </tbody></table></div>`;
+            <tbody id="${bodyId}">${bodyHtml(rows, extra, openName, showAll)}</tbody></table></div>`;
 
       host.innerHTML = `
         <div class="rs-page-head"><h1>Claims Analysis</h1>
-          <p>Every claim with the job it belongs to, read as rates — claims per 100 jobs by month, by salesperson and by foreman. The families come from the board's own Reason and Responsibility, which the team fills on about four claims in ten; where they left it blank, the words in the thread say what it was about.</p></div>
+          <p>Every claim with the job it belongs to, read as rates — claims per 100 jobs by month, by salesperson and by foreman. The families come from the board's own Reason and Responsibility, which the team fills on about four claims in ten; where they left it blank, the words in the thread say what it was about. Click a salesperson or a foreman to see the claims behind their number; <b>Open&nbsp;&#8599;</b> goes to the claim on the Monday board.</p></div>
         <div class="cln-bar" id="clnBar"></div>
 
         <div class="panel cln-led">
@@ -360,23 +509,15 @@ registerPage({
 
         <div class="panel" style="margin-top:12px">
           <div class="panel-head"><div><div class="panel-title">Salespeople</div>
-            <div class="rs-hint">jobs sold in the window (the closing's salesperson), the claims on them, and — where the lead's quote and the contract's real CF exist — how far the bill and the volume ran past the estimate on the claimed jobs. Fewer than ${MIN_JOBS} jobs reads "small".</div></div></div>
-          ${perTable(sales, "Salesperson", {
-            head: `<th class="num">Price claims</th><th class="num">per 100</th><th class="num">Median bill vs quote</th><th class="num">Median CF vs estimate</th>`,
-            cells: o => `<td class="num">${o.price || '<span class="cln-small">—</span>'}</td>${rateCell(o.price, o.jobs)}
-              <td class="num">${o.medInc == null ? '<span class="cln-small">—</span>' : (o.medInc > 0 ? "+" : "") + pct1(o.medInc)}</td>
-              <td class="num">${o.medCf == null ? '<span class="cln-small">—</span>' : (o.medCf > 0 ? "+" : "") + pct1(o.medCf)}</td>`,
-          })}
+            <div class="rs-hint">jobs sold in the window (the closing's salesperson), the claims on them, and — where the lead's quote and the contract's real CF exist — how far the bill and the volume ran past the estimate on the claimed jobs. Fewer than ${MIN_JOBS} jobs reads "small". <b>Click any row</b> to see the claims behind its number and open each on the board.
+            <br><b>This is not the same number as Sales Team Command's "claims per 100".</b> That page counts a claim against the rep who booked the lead and divides by closed leads; this one counts it against the salesperson on the closing and divides by jobs done. Two honest definitions — they will not tie out, and neither has been declared the right one.</div></div></div>
+          ${perTable(sales, "Salesperson", spExtra, "clnSpBody", S.openSp, S.allSp)}
         </div>
 
         <div class="panel" style="margin-top:12px">
           <div class="panel-head"><div><div class="panel-title">Foremen</div>
-            <div class="rs-hint">jobs run in the window (the closing's foreman) and the claims on them, split by family. A damage claim is what the customer said, not what an inspection found — read the thread before it counts against anyone.</div></div></div>
-          ${perTable(foremen, "Foreman", {
-            head: `<th class="num">Damage</th><th class="num">per 100</th><th class="num">Missing</th><th class="num">Timing</th>`,
-            cells: o => `<td class="num">${o.damage || '<span class="cln-small">—</span>'}</td>${rateCell(o.damage, o.jobs)}
-              <td class="num">${o.missing || '<span class="cln-small">—</span>'}</td><td class="num">${o.timing || '<span class="cln-small">—</span>'}</td>`,
-          })}
+            <div class="rs-hint">jobs run in the window (the closing's foreman) and the claims on them, split by family. A damage claim is what the customer said, not what an inspection found — read the thread before it counts against anyone. <b>Click any row</b> to see the claims behind its number and open each on the board.</div></div></div>
+          ${perTable(foremen, "Foreman", fmExtra, "clnFmBody", S.openFm, S.allFm)}
         </div>
 
         <div class="panel" style="margin-top:12px">
@@ -387,8 +528,8 @@ registerPage({
           <div class="rs-tablewrap"><table class="rs-table">
             <thead><tr><th>Created</th><th>Customer</th><th>Family · ${nKW ? "reason or words" : "reason"}</th>${nKW ? "<th>Signals</th>" : ""}<th>Status</th>
               <th>Salesperson</th><th>Foreman</th><th class="num">Bill</th><th class="num">vs quote</th>
-              <th class="num">Refund</th><th class="num">Msgs</th></tr></thead>
-            <tbody>${pageRows.map(r => `<tr class="cln-row" data-item="${esc(r["Monday Item Id"])}">
+              <th class="num">Refund</th><th class="num">Msgs</th><th>Monday</th></tr></thead>
+            <tbody class="cln-list-body">${pageRows.map(r => `<tr class="cln-row" data-item="${esc(r["Monday Item Id"])}">
               <td class="nowrap">${esc(String(r["Created Date"] || "").slice(0, 10))}</td>
               <td class="strong">${esc(r.Customer || "—")}</td>
               ${(() => { const k = kwOf(r), o = ovOf(r); const fam = famOf(r);
@@ -402,7 +543,8 @@ registerPage({
               <td class="num">${num(r["Total Bill"]) ? money0(num(r["Total Bill"])) : '<span class="cln-small">—</span>'}</td>
               <td class="num">${r["Price Increase Pct"] == null ? '<span class="cln-small">—</span>' : (num(r["Price Increase Pct"]) > 0 ? "+" : "") + pct1(num(r["Price Increase Pct"]))}</td>
               <td class="num">${num(r["Refund $"]) ? money0(num(r["Refund $"])) : '<span class="cln-small">—</span>'}</td>
-              <td class="num">${fmtN(num(r.Messages) || 0)}</td></tr>`).join("")}
+              <td class="num">${fmtN(num(r.Messages) || 0)}</td>
+              <td>${mondayCell(r["Monday Url"])}</td></tr>`).join("")}
             </tbody></table></div>
           <div class="cln-pager">
             <span>page ${S.page + 1} of ${pages}</span>
@@ -415,9 +557,39 @@ registerPage({
       host.querySelectorAll("[data-pg]").forEach(el => {
         el.onclick = () => { S.page += el.dataset.pg === "next" ? 1 : -1; paint(); };
       });
-      host.querySelectorAll(".cln-row").forEach(tr => {
-        tr.onclick = () => openDrawer(tr.dataset.item, sorted.find(r => String(r["Monday Item Id"]) === tr.dataset.item));
-      });
+      // ONE DELEGATED HANDLER PER TBODY, never per row, so replacing a tbody's innerHTML
+      // when a person opens cannot lose it. A link inside a clickable row must not fire the
+      // row -- otherwise "Open in Monday" would also open the in-portal drawer behind it.
+      const byId = id => claims.find(r => String(r["Monday Item Id"]) === id);
+      const wireRows = root => {
+        if (!root || root._clnWired) return;
+        root._clnWired = 1;
+        root.addEventListener("click", ev => {
+          if (ev.target.closest("a")) return;
+          const tr = ev.target.closest(".cln-row"); if (!tr) return;
+          openDrawer(tr.dataset.item, byId(tr.dataset.item));
+        });
+      };
+      wireRows(host.querySelector(".cln-list-body"));
+
+      const wirePeople = (bodyId, rows, extra, key, allKey) => {
+        const tb = host.querySelector("#" + bodyId);
+        if (!tb) return;
+        const redraw = () => { tb.innerHTML = bodyHtml(rows, extra, S[key], S[allKey]); };
+        tb.addEventListener("click", ev => {
+          const more = ev.target.closest("[data-showall]");
+          if (more) { ev.preventDefault(); S[allKey] = 1; redraw(); return; }
+          if (ev.target.closest("a")) return;
+          const sub = ev.target.closest(".cln-row");
+          if (sub) { openDrawer(sub.dataset.item, byId(sub.dataset.item)); return; }
+          const tr = ev.target.closest(".cln-open"); if (!tr) return;
+          S[key] = S[key] === tr.dataset.person ? "" : tr.dataset.person;
+          redraw();
+        });
+      };
+      wirePeople("clnSpBody", sales, spExtra, "openSp", "allSp");
+      wirePeople("clnFmBody", foremen, fmExtra, "openFm", "allFm");
+
       const dl = host.querySelector("#clnDl");
       if (dl) dl.onclick = () => dlCsv(sorted);
     }
@@ -456,11 +628,15 @@ registerPage({
       closeDrawer();
       const dim = document.createElement("div"); dim.className = "cln-dim"; dim.onclick = closeDrawer;
       const dr = document.createElement("div"); dr.className = "cln-drawer";
-      dr.innerHTML = `<div class="cln-dh"><div><h3>${esc(row ? row.Customer : "Claim")}</h3>
-          <div class="sub">${row ? esc([row["Reason Family"], row.Reason, row.Status].filter(Boolean).join(" · ")) : ""}</div></div>
+      const url = row && row["Monday Url"];
+      dr.innerHTML = `<div class="cln-dh"><div><h3>${esc(row && row.Customer ? row.Customer : "Claim")}</h3>
+          <div class="sub">${row ? esc([row["Request No"] ? "Request " + row["Request No"] : "",
+            row["Reason Family"], row.Reason, row.Status].filter(Boolean).join(" · ")) : ""}</div></div>
+          ${/^https:\/\//i.test(String(url || "")) ? `<a class="rs-btn" href="${esc(url)}" target="_blank" rel="noopener">Open in Monday &#8599;</a>` : ""}
           <button class="rs-btn x" id="clnX">Close</button></div>
         <div class="cln-db"><div class="rs-loading">Reading the thread…</div></div>`;
       document.body.appendChild(dim); document.body.appendChild(dr);
+      document.addEventListener("keydown", onEsc);
       dr.querySelector("#clnX").onclick = closeDrawer;
       const body = dr.querySelector(".cln-db");
       try {
@@ -510,7 +686,7 @@ registerPage({
               </details>`; })()}
           <div class="cln-eyebrow">Thread · ${fmtN((j.thread || []).length)} updates</div>
           ${(j.thread || []).map(m => msg(m, false)).join("") || '<div class="rs-hint">no updates on this claim</div>'}
-          ${it.Url ? `<div class="rs-hint" style="margin-top:14px"><a href="${esc(it.Url)}" target="_blank" rel="noopener">Open in Monday</a></div>` : ""}`;
+          ${(!url && it.Url) ? `<div class="rs-hint" style="margin-top:14px"><a href="${esc(it.Url)}" target="_blank" rel="noopener">Open in Monday &#8599;</a></div>` : ""}`;
         const save = body.querySelector("#ovSave");
         if (save) save.onclick = async () => {
           const g = id => (body.querySelector("#" + id) || {}).value || "";
@@ -531,15 +707,20 @@ registerPage({
         body.innerHTML = `<div class="rs-hint">could not load the thread</div>`;
       }
     }
+    // The drawer lives on document.body while the router only wipes #content, so without
+    // this an open claim thread survives a jump to another report.
+    function onEsc(ev) { if (ev.key === "Escape") closeDrawer(); }
     function closeDrawer() {
       document.querySelectorAll(".cln-dim,.cln-drawer").forEach(el => el.remove());
+      document.removeEventListener("keydown", onEsc);
     }
 
     function dlCsv(rows) {
       const cols = ["Created Date", "Customer", "Request No", "Group", "Status", "Reason Family", "Reason",
         "Responsibility Family", "Responsibility", "Service Type", "Sales Person", "Foreman", "Job Date",
         "Total Bill", "Quote", "Price Increase Pct", "Estimated CF", "Real CF", "CF Variance Pct",
-        "Refund $", "Negative Reviews", "Messages", "Files", "Monday Item Id"];
+        "Days After Job", "Case Owner", "Refund $", "Negative Reviews", "Messages", "Files",
+        "Monday Item Id", "Monday Url"];
       const cell = x => { let s = String(x == null ? "" : x); if (/^[=+\-@]/.test(s)) s = " " + s;
         return '"' + s.replace(/"/g, '""') + '"'; };
       const lines = [cols.map(cell).join(",")].concat(rows.map(r => cols.map(c => cell(r[c])).join(",")));
