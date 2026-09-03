@@ -2,9 +2,9 @@
  *
  * Built 2026-09-02 on the direct Monday feed (src/monday_sync.py -> fct_claims ->
  * mart_claims_analysis). Two rules from the design review that this page enforces:
- *   1. NEVER compare people on claim COUNTS. Every per-person number is claims per 100 of
- *      that person's jobs in the same window, and a person with fewer than MIN_JOBS jobs
- *      is shown as "small sample" instead of a rate that would mislead.
+ *   1. NEVER compare people on claim COUNTS. Every per-person number is the SHARE of that
+ *      person's own jobs in the window that drew a claim, and a person with fewer than
+ *      MIN_JOBS jobs is shown as "small sample" instead of a rate that would mislead.
  *   2. The board's Reason / Responsibility are what an employee CHOSE (59% blank). They are
  *      shown as families so they can be counted, and labelled as the team's own
  *      classification; no model reads a claim -- the words in the thread do the work.
@@ -22,7 +22,8 @@
              "Open Date", "Close Date", "Messages", "Files", "Job Date", "Company", "Sales Person",
              "Foreman", "Moving Type", "State", "Total Bill", "Quote", "Estimated CF", "Real CF",
              "Price Increase Pct", "CF Variance Pct", "Refund $", "Has Refund", "Negative Reviews",
-             "Days After Job", "Days To Close", "Monday Url"],
+             "Days After Job", "Days To Close", "Monday Url",
+             "Job Type", "Had Storage", "Had Overnight", "Was Labor", "Two Sales People"],
       dateCols: { "Created Date": "Created Date" }, defaultDate: "Created Date",
     };
   }
@@ -56,7 +57,11 @@ registerPage({
       : '<span class="cln-small">&mdash;</span>');
     const money0 = v => (v == null || isNaN(v)) ? "—" : "$" + Math.round(v).toLocaleString("en-US");
     const pct1 = v => (v == null || isNaN(v)) ? "—" : (v * 100).toFixed(1) + "%";
+    // A RATE IS A PERCENT OF THE JOBS (his call 2026-09-03: "per 100-s --> lets make it
+    // percentages"). claims / jobs * 100 is identical arithmetic either way; the percent is
+    // simply the unit people already read. Everything on the page formats through rPct.
     const per100 = (c, j) => j ? (c / j * 100) : null;
+    const rPct = v => (v == null || isNaN(v)) ? "—" : v.toFixed(1) + "%";
     const r1 = v => (v == null || isNaN(v)) ? "—" : v.toFixed(1);
     const MIN_JOBS = 30;
 
@@ -71,17 +76,52 @@ registerPage({
           + "margin-bottom:1px}",
         ".cln-in:focus{border-color:var(--brand)}",
         // the ledger (the CL page's rule: groups with sentences, never a wall of tiles)
-        ".cln-led{display:flex;flex-wrap:wrap;gap:0;padding:18px 20px}",
-        ".cln-led-g{flex:1 1 170px;min-width:0;padding:0 18px 0 0}",
-        ".cln-led-g + .cln-led-g{padding-left:18px;border-left:1px solid var(--line-2)}",
-        ".cln-led-g>.l{font-size:10px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;color:var(--faint)}",
-        ".cln-led-g>.v{font-size:clamp(24px,2vw,31px);font-weight:800;letter-spacing:-.8px;line-height:1.15;"
-          + "margin-top:5px;font-variant-numeric:tabular-nums;color:var(--ink)}",
-        ".cln-led-g>.v.warn{color:var(--warn)} .cln-led-g>.v.bad{color:var(--neg)} .cln-led-g>.v.pos{color:var(--brand)}",
-        ".cln-led-g>.s{font-size:12px;color:var(--muted);line-height:1.55;margin-top:6px}",
-        ".cln-led-g>.s b{color:var(--ink)}",
         ".cln-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(360px,1fr));gap:12px;margin-top:12px}",
         ".cln-grid>.panel{min-width:0}",
+        // THE HERO: one answer, at the size of an answer. Everything else is evidence.
+        ".cln-hero{display:grid;grid-template-columns:minmax(230px,300px) 1fr;gap:26px;padding:20px 22px;align-items:start}",
+        "@media (max-width:860px){.cln-hero{grid-template-columns:1fr}}",
+        ".cln-hero .lbl{font-size:10px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;color:var(--faint)}",
+        ".cln-big{font-size:clamp(38px,4.4vw,58px);font-weight:800;letter-spacing:-2px;line-height:1;"
+          + "margin:8px 0 2px;font-variant-numeric:tabular-nums}",
+        ".cln-big .u{font-size:15px;font-weight:700;letter-spacing:0;color:var(--muted);margin-left:6px}",
+        ".cln-deltas{display:flex;gap:7px;flex-wrap:wrap;margin-top:10px}",
+        ".cln-d{font-size:11.5px;font-weight:700;padding:3px 9px;border-radius:999px;white-space:nowrap;"
+          + "background:var(--panel-2);color:var(--muted);border:1px solid var(--line-2)}",
+        ".cln-d.good{color:var(--pos);border-color:color-mix(in srgb,var(--pos) 34%,transparent)}",
+        ".cln-d.bad{color:var(--neg);border-color:color-mix(in srgb,var(--neg) 34%,transparent)}",
+        ".cln-d small{font-weight:600;color:var(--faint);margin-left:4px}",
+        ".cln-note{font-size:12px;color:var(--muted);line-height:1.55;margin-top:12px;max-width:34em}",
+        ".cln-note b{color:var(--ink)}",
+        // the secondary figures: a quiet strip, not four more hero tiles
+        ".cln-mini{display:grid;grid-template-columns:repeat(auto-fit,minmax(122px,1fr));gap:0;"
+          + "border-top:1px solid var(--line-2);margin-top:16px;padding-top:14px}",
+        ".cln-mini>div{padding:0 16px;border-left:1px solid var(--line-2);min-width:0}",
+        ".cln-mini>div:first-child{border-left:0;padding-left:0}",
+        ".cln-mini .k{font-size:10px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--faint)}",
+        ".cln-mini .n{font-size:20px;font-weight:800;margin-top:4px;font-variant-numeric:tabular-nums;letter-spacing:-.5px}",
+        ".cln-mini .n.warn{color:var(--warn)} .cln-mini .n.bad{color:var(--neg)}",
+        ".cln-mini .h{font-size:11px;color:var(--faint);margin-top:3px;line-height:1.45}",
+        // the trend, drawn rather than listed
+        ".cln-svg{width:100%;height:auto;display:block;overflow:visible}",
+        ".cln-svg .ax{stroke:var(--line-2);stroke-width:1}",
+        ".cln-svg .bar{fill:var(--line-2)}",
+        ".cln-svg .ln{fill:none;stroke:var(--warn);stroke-width:2;stroke-linejoin:round;stroke-linecap:round}",
+        ".cln-svg .ar{fill:var(--warn);opacity:.10}",
+        ".cln-svg .dot{fill:var(--panel);stroke:var(--warn);stroke-width:2}",
+        ".cln-svg .tk{font-size:9.5px;fill:var(--faint);font-weight:600}",
+        ".cln-svg .vl{font-size:10px;fill:var(--muted);font-weight:700}",
+        // one pivot table instead of three share cards
+        ".cln-dim-seg{display:flex;gap:0;flex-wrap:wrap;border:1px solid var(--line);border-radius:9px;overflow:hidden}",
+        ".cln-dim-seg button{font-family:inherit;font-size:12px;font-weight:600;padding:7px 12px;border:0;"
+          + "background:var(--panel);color:var(--muted);cursor:pointer;border-left:1px solid var(--line-2)}",
+        ".cln-dim-seg button:first-child{border-left:0}",
+        ".cln-dim-seg button.on{background:var(--brand);color:#fff}",
+        ".cln-chip{font-family:inherit;font-size:12px;font-weight:600;padding:6px 11px;border-radius:999px;"
+          + "border:1px solid var(--line);background:var(--panel);color:var(--muted);cursor:pointer;margin-bottom:1px}",
+        ".cln-chip.on{background:var(--brand);color:#fff;border-color:var(--brand)}",
+        ".cln-wbar{height:8px;background:var(--panel-2);border-radius:4px;overflow:hidden;min-width:44px}",
+        ".cln-wbar i{display:block;height:100%;background:var(--warn);border-radius:4px}",
         // share rows: one colour per meaning
         ".cln-share{display:grid;grid-template-columns:minmax(110px,190px) minmax(60px,1fr) auto;gap:10px;"
           + "align-items:center;padding:6px 0;border-bottom:1px solid var(--line-2)}",
@@ -92,12 +132,6 @@ registerPage({
         ".cln-share.neg .t i{background:var(--neg)} .cln-share.brand .t i{background:var(--brand)}",
         ".cln-share .v{font-size:12.5px;color:var(--muted);text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}",
         // months: bars with the rate beside
-        ".cln-month{display:grid;grid-template-columns:64px minmax(60px,1fr) auto auto;gap:10px;align-items:center;"
-          + "padding:5px 0;border-bottom:1px solid var(--line-2);font-size:12.5px}",
-        ".cln-month:last-child{border-bottom:0}",
-        ".cln-month .t{height:12px;background:var(--panel-2);border-radius:6px;overflow:hidden}",
-        ".cln-month .t i{display:block;height:100%;background:var(--warn);border-radius:6px}",
-        ".cln-month .v{text-align:right;font-variant-numeric:tabular-nums;color:var(--muted);white-space:nowrap}",
         ".cln-small{color:var(--faint);font-size:11.5px;white-space:nowrap}",
         ".cln-row{cursor:pointer} .cln-row:hover td{background:var(--panel-2)}",
         ".cln-mon{color:var(--brand);font-weight:600;text-decoration:none;white-space:nowrap}",
@@ -165,55 +199,103 @@ registerPage({
     const nKW = Object.keys(KW).length;
     const FAM_LIST = ["Price", "Damage", "Missing", "Timing", "Conduct", "Billing", "Storage", "Customer", "Other"];
 
-    /* ---------- state ---------- */
-    const S = { period: "6m", svc: "", q: "", page: 0, pageSize: 25,
-                openSp: "", openFm: "", allSp: 0, allFm: 0 };
-    let qTimer = null;
+    /* ---------- state ----------
+       TWO KINDS OF FILTER, AND THE WHOLE ANALYTICAL ARGUMENT OF THE PAGE IS THE DIFFERENCE.
+       from/to, jobType, sp and fm all exist ON THE CLOSING, so each narrows the jobs
+       denominator as well as the claims -- a per-100 under them is a real rate. resp, extra
+       and q exist only on the CLAIM, so they narrow the numerator alone and their per-100
+       would be a lie. See RATE below. */
     const today = new Date();
     const iso = d => d.toISOString().slice(0, 10);
-    function window_() {
-      const t = new Date(today);
-      if (S.period === "3m") { t.setMonth(t.getMonth() - 3); return [iso(t), null]; }
-      if (S.period === "6m") { t.setMonth(t.getMonth() - 6); return [iso(t), null]; }
-      if (S.period === "12m") { t.setMonth(t.getMonth() - 12); return [iso(t), null]; }
-      if (S.period === "ytd") return [today.getFullYear() + "-01-01", null];
-      return [null, null];
-    }
-    const svcFamily = s => {
-      const v = String(s || "").toLowerCase();
-      if (!v) return "";
-      if (v.startsWith("ld") || v.startsWith("long")) return "Long distance";
-      if (v.includes("storage")) return "Storage";
-      if (v.startsWith("labor")) return "Labor";
-      return "Local";
+    const back = months => { const t = new Date(today); t.setMonth(t.getMonth() - months); return iso(t); };
+    const S = { from: back(6), to: iso(today), jobType: "", sp: "", fm: "", resp: "",
+                extra: "", q: "", dim: "Family", page: 0, pageSize: 25,
+                openSp: "", openFm: "", allSp: 0, allFm: 0 };
+    let qTimer = null;
+
+    // JOB TYPE COMES FROM THE CLOSING (his call 2026-09-03). The mart carries `Job Type`
+    // derived from the closing's own Moving Type; the board's Service Type is not consulted
+    // for a type, only for the extra services below.
+    const jobTypeOfClosing = r => {
+      const v = String(r["Move Type"] || "").trim().toUpperCase();
+      if (v === "LM") return "Local";
+      if (v === "LD") return "Long distance";
+      return "";
     };
+    // ...AND STORAGE IS AN EXTRA SERVICE, NOT A TYPE. "it is not related to job type - it is
+    // kinda extra service that customer took". These live on the claim only, so they never
+    // leave a rate standing.
+    const EXTRAS = [["storage", "Storage", "Had Storage"], ["overnight", "Overnight", "Had Overnight"],
+                    ["labor", "Labor only", "Was Labor"], ["tworeps", "Two salespeople", "Two Sales People"]];
 
     /* ---------- one paint ---------- */
     function paint() {
-      const [from] = window_();
+      const from = S.from, to = S.to;
       const q = S.q.trim().toLowerCase();
+      const inWin = d => { const v = String(d || "").slice(0, 10);
+        if (!v) return false;
+        if (from && v < from) return false;
+        if (to && v > to) return false;
+        return true; };
+      const ex = EXTRAS.find(e => e[0] === S.extra);
+
       const claims = claimsAll.filter(r => {
-        const d = String(r["Created Date"] || "").slice(0, 10);
-        if (from && d < from) return false;
-        if (S.svc && svcFamily(r["Service Type"]) !== S.svc) return false;
+        if (!inWin(r["Created Date"])) return false;
+        // --- these four also narrow the jobs, so they keep the rate honest
+        if (S.jobType && r["Job Type"] !== S.jobType) return false;
+        if (S.sp && r["Sales Person"] !== S.sp) return false;
+        if (S.fm && r.Foreman !== S.fm) return false;
+        // --- these three narrow the claims only
+        if (S.resp && (r["Responsibility Family"] || "Not assigned") !== S.resp) return false;
+        if (ex && num(r[ex[2]]) !== 1) return false;
         if (q) {
           const hay = [r.Customer, r.Reason, r.Status, r["Sales Person"], r.Foreman, r["Request No"],
-                       r["Service Type"]].join(" ").toLowerCase();
+                       r["Job Type"], r["Case Owner"], r.State].join(" ").toLowerCase();
           if (!hay.includes(q)) return false;
         }
         return true;
       });
-      // THE DENOMINATOR AND WHY A RATE IS SOMETIMES WITHHELD (2026-09-03).
-      // The Service picker and the search box filter the CLAIMS. They cannot filter the
-      // JOBS -- a closing carries no service type and no customer's complaint text -- so
-      // under either of them a per-100 would be a narrowed numerator over a whole
-      // denominator, which is not a rate. The page now withholds those numbers instead of
-      // printing them. Only the period filter moves both sides, so only the period leaves
-      // a rate standing.
-      const narrowed = !!(S.svc || q);
-      const jobs = closing.filter(r => !from || String(r.Date || "").slice(0, 10) >= from);
+
+      // THE DENOMINATOR. The jobs are narrowed by exactly the filters the CLOSING can honour.
+      const jobs = closing.filter(r => {
+        if (!inWin(r.Date)) return false;
+        if (S.jobType && jobTypeOfClosing(r) !== S.jobType) return false;
+        if (S.sp && r["Sales Person"] !== S.sp) return false;
+        if (S.fm && r.Foreman !== S.fm) return false;
+        return true;
+      });
+      // RATE. A per-100 is only a rate when every active filter moved BOTH sides. Date, job
+      // type, salesperson and foreman do; responsibility, extra service and the search box
+      // cannot -- there is no such column on a closing -- so under those the page withholds
+      // the number rather than dividing a narrowed numerator by a whole denominator.
+      const narrowed = !!(S.resp || S.extra || q);
+      const whyNarrowed = S.resp ? "the responsibility filter"
+        : S.extra ? "the extra-service filter" : "the search box";
       const jobKeys = new Set(jobs.map(r => r["Request Joinkey"]).filter(Boolean));
       const nJobs = jobKeys.size;
+
+      // DIRECTION (his chosen feature). The same rate over the previous window of equal
+      // length, and over the same window a year earlier. Both use the identical filter
+      // predicates, so the comparison is like-for-like or it is not shown at all.
+      const shift = (d, days) => { const t = new Date(d + "T00:00:00"); t.setDate(t.getDate() - days); return iso(t); };
+      const spanDays = (from && to)
+        ? Math.max(1, Math.round((new Date(to) - new Date(from)) / 86400000) + 1) : 0;
+      function rateOver(f, t) {
+        if (!f || !t) return null;
+        const win = d => { const v = String(d || "").slice(0, 10); return v && v >= f && v <= t; };
+        const c = claimsAll.filter(r => win(r["Created Date"])
+          && (!S.jobType || r["Job Type"] === S.jobType)
+          && (!S.sp || r["Sales Person"] === S.sp)
+          && (!S.fm || r.Foreman === S.fm)).length;
+        const j = new Set(closing.filter(r => win(r.Date)
+          && (!S.jobType || jobTypeOfClosing(r) === S.jobType)
+          && (!S.sp || r["Sales Person"] === S.sp)
+          && (!S.fm || r.Foreman === S.fm)).map(r => r["Request Joinkey"]).filter(Boolean)).size;
+        return j ? { rate: c / j * 100, claims: c, jobs: j } : null;
+      }
+      const nowRate = nJobs ? (claims.length / nJobs * 100) : null;
+      const prevWin = spanDays ? rateOver(shift(from, spanDays), shift(to, spanDays)) : null;
+      const yoyWin = spanDays ? rateOver(shift(from, 365), shift(to, 365)) : null;
 
       const n = claims.length;
       const open = claims.filter(r => num(r["Is Open"]) === 1).length;
@@ -236,26 +318,11 @@ registerPage({
       jobs.forEach(r => { const k = String(r.Date || "").slice(0, 7); const jk = r["Request Joinkey"];
         if (!k || !jk) return; (jobsByM[k] = jobsByM[k] || new Set()).add(jk); });
       const months = Object.keys(byM).sort();
-      const maxM = Math.max(1, ...months.map(m => byM[m]));
 
-      /* shares */
-      const share = (key) => {
-        const o = {};
-        claims.forEach(r => { const k = r[key] || "—"; o[k] = (o[k] || 0) + 1; });
-        return Object.entries(o).sort((a, b) => b[1] - a[1]);
-      };
-      const famShare = (() => { const o = {}; claims.forEach(r => { const k = famOf(r) || "—"; o[k] = (o[k] || 0) + 1; });
-        return Object.entries(o).sort((a, b) => b[1] - a[1]); })();
-      const respShare = share("Responsibility Family");
       // where both the team and the keywords spoke: how often they agree, per family
       const agreeByFam = (() => { const o = {}; compared.forEach(r => { const f = r["Reason Family"];
         const a = o[f] = o[f] || { n: 0, ok: 0 }; a.n++; if (num(kwOf(r).Agreement) === 1) a.ok++; });
         return Object.entries(o).sort((a, b) => b[1].n - a[1].n); })();
-      const svcShare = (() => {
-        const all = share("Service Type"), top = all.slice(0, 8);
-        const rest = all.slice(8).reduce((a, [, v]) => a + v, 0);
-        return rest ? top.concat([["All others (" + (all.length - 8) + ")", rest]]) : top;
-      })();
 
       /* per person: jobs in window from the closing, claims from the mart */
       const blank = name => ({ name, claims: 0, price: 0, damage: 0, missing: 0, timing: 0,
@@ -340,8 +407,8 @@ registerPage({
       const rateCell = (c, j, cls) => narrowed
         ? `<td class="num"><span class="cln-small" title="a rate needs the whole population — the service picker and the search box narrow the claims but cannot narrow the jobs">—</span></td>`
         : (j >= MIN_JOBS
-          ? `<td class="num ${cls || ""}">${r1(per100(c, j))}</td>`
-          : `<td class="num"><span class="cln-small" title="fewer than ${MIN_JOBS} jobs in this window">${j ? r1(per100(c, j)) + " · small" : "—"}</span></td>`);
+          ? `<td class="num ${cls || ""}">${rPct(per100(c, j))}</td>`
+          : `<td class="num"><span class="cln-small" title="fewer than ${MIN_JOBS} jobs in this window">${j ? rPct(per100(c, j)) + " · small" : "—"}</span></td>`);
 
       /* the list */
       const sorted = claims.slice().sort((a, b) =>
@@ -350,10 +417,6 @@ registerPage({
       const pageRows = sorted.slice(S.page * S.pageSize, (S.page + 1) * S.pageSize);
       const pages = Math.max(1, Math.ceil(sorted.length / S.pageSize));
 
-      const shareRows = (arr, cls) => arr.map(([k, v]) => `<div class="cln-share ${cls || ""}">
-          <span class="n" title="${esc(k)}">${esc(k)}</span>
-          <span class="t"><i style="width:${Math.max(2, v / Math.max(1, arr[0][1]) * 100)}%"></i></span>
-          <span class="v"><b>${fmtN(v)}</b> · ${n ? Math.round(v / n * 100) : 0}%</span></div>`).join("");
 
       /* ---------- the drill: the claims that made a person's number ----------
          Rows were collected during the tally (perPerson), so o.rows IS what produced
@@ -372,7 +435,7 @@ registerPage({
             `<span class="cln-small">${fmtN(o.jobs)} job${o.jobs === 1 ? "" : "s"} done in this window</span>` +
             (narrowed
               ? '<span class="cln-small">rate not shown &mdash; the filter narrows the claims but not the jobs</span>'
-              : `<span class="cln-small"><b>${r1(per100(rows.length, o.jobs))}</b> per 100${o.jobs < MIN_JOBS ? " &middot; small" : ""}</span>`);
+              : `<span class="cln-small"><b>${rPct(per100(rows.length, o.jobs))}</b> of them drew a claim${o.jobs < MIN_JOBS ? " &middot; small sample" : ""}</span>`);
         if (!rows.length) {
           return `<div class="cln-sub"><div class="cln-subh">${head}</div>
             <div class="rs-hint">No claim on ${esc(o.name)} in this window.</div></div>`;
@@ -436,14 +499,14 @@ registerPage({
 
       const spExtra = {
         who: "Salesperson", cols: 4,
-        head: `<th class="num">Price claims</th><th class="num">per 100</th><th class="num">Median bill vs quote</th><th class="num">Median CF vs estimate</th>`,
+        head: `<th class="num">Price claims</th><th class="num">% of jobs</th><th class="num">Median bill vs quote</th><th class="num">Median CF vs estimate</th>`,
         cells: o => `<td class="num">${o.price || '<span class="cln-small">&mdash;</span>'}</td>${rateCell(o.price, o.jobs)}
           <td class="num">${o.medInc == null ? '<span class="cln-small">&mdash;</span>' : (o.medInc > 0 ? "+" : "") + pct1(o.medInc)}</td>
           <td class="num">${o.medCf == null ? '<span class="cln-small">&mdash;</span>' : (o.medCf > 0 ? "+" : "") + pct1(o.medCf)}</td>`,
       };
       const fmExtra = {
         who: "Foreman", cols: 4,
-        head: `<th class="num">Damage</th><th class="num">per 100</th><th class="num">Missing</th><th class="num">Timing</th>`,
+        head: `<th class="num">Damage</th><th class="num">% of jobs</th><th class="num">Missing</th><th class="num">Timing</th>`,
         cells: o => `<td class="num">${o.damage || '<span class="cln-small">&mdash;</span>'}</td>${rateCell(o.damage, o.jobs)}
           <td class="num">${o.missing || '<span class="cln-small">&mdash;</span>'}</td><td class="num">${o.timing || '<span class="cln-small">&mdash;</span>'}</td>`,
       };
@@ -451,69 +514,190 @@ registerPage({
       const perTable = (rows, who, extra, bodyId, openName, showAll) => `
           <div class="rs-tablewrap"><table class="rs-table">
             <thead><tr><th>${who}</th><th class="num">Jobs</th><th class="num">Claims</th>
-              <th class="num">per 100 jobs</th>${extra.head}<th class="num">Refunds</th><th class="num">Went public</th></tr></thead>
+              <th class="num">% of jobs</th>${extra.head}<th class="num">Refunds</th><th class="num">Went public</th></tr></thead>
             <tbody id="${bodyId}">${bodyHtml(rows, extra, openName, showAll)}</tbody></table></div>`;
+
+      /* ---------- the pivot: one table where three cards used to be ----------
+         Family / Responsibility / Job type / Extra service / Case owner / State / Company.
+         Strictly more than the three fixed cards could say, in a third of the height -- and
+         every row carries its own rate, refund rate and public count rather than a bare bar. */
+      const DIMS = [
+        ["Family", r => famOf(r) || "—"],
+        ["Responsibility", r => r["Responsibility Family"] || "Not assigned"],
+        ["Job type", r => r["Job Type"] || "No closing"],
+        ["Extra service", r => {
+          const on = EXTRAS.filter(e => num(r[e[2]]) === 1).map(e => e[1]);
+          return on.length ? on.join(" + ") : "Plain move";
+        }],
+        ["Case owner", r => r["Case Owner"] || "Unassigned"],
+        ["State", r => r.State || "—"],
+        ["Company", r => r.Company || "—"],
+      ];
+      const dimFn = (DIMS.find(d => d[0] === S.dim) || DIMS[0])[1];
+      const pivot = (() => {
+        const o = {};
+        claims.forEach(r => {
+          const k = dimFn(r);
+          const a = o[k] = o[k] || { k, n: 0, refunded: 0, refund: 0, pub: 0, open: 0, days: [] };
+          a.n++;
+          if (num(r["Has Refund"]) === 1) { a.refunded++; a.refund += num(r["Refund $"]) || 0; }
+          if ((num(r["Negative Reviews"]) || 0) > 0) a.pub++;
+          if (num(r["Is Open"]) === 1) a.open++;
+          const d = num(r["Days After Job"]); if (d != null && !isNaN(d)) a.days.push(d);
+        });
+        // JOBS PER DIMENSION VALUE, but only where the closing can actually answer. Job type
+        // is the one dimension the closing shares, so it is the one that gets a rate.
+        const jobsBy = {};
+        if (S.dim === "Job type") {
+          jobs.forEach(r => { const k = jobTypeOfClosing(r) || "No closing"; const jk = r["Request Joinkey"];
+            if (jk) (jobsBy[k] = jobsBy[k] || new Set()).add(jk); });
+        } else if (S.dim === "Company") {
+          jobs.forEach(r => { const k = r.Company || "—"; const jk = r["Request Joinkey"];
+            if (jk) (jobsBy[k] = jobsBy[k] || new Set()).add(jk); });
+        }
+        const med = a => { if (!a.length) return null; const x = a.slice().sort((p, q) => p - q); return x[Math.floor(x.length / 2)]; };
+        return Object.values(o).map(a => ({ ...a, jobs: (jobsBy[a.k] || new Set()).size, medDays: med(a.days) }))
+          .sort((a, b) => b.n - a.n);
+      })();
+      const pivMax = Math.max(1, ...pivot.map(a => a.n));
+      const pivHasRate = (S.dim === "Job type" || S.dim === "Company") && !narrowed;
+
+      /* ---------- the trend, drawn ----------
+         Monthly claim count as faint bars, the rate as the line on top. One picture answers
+         "is this getting better or worse" -- which the old month list, sorted by month with a
+         bar for the count only, could not. */
+      function trendSvg() {
+        const ms = months;
+        if (ms.length < 2) return '<div class="rs-hint">at least two months are needed to draw a trend</div>';
+        const W = 1000, H = 190, L = 34, R = 34, T = 14, B = 26;
+        const iw = W - L - R, ih = H - T - B;
+        const cnt = ms.map(m => byM[m]);
+        const rate = ms.map(m => { const j = (jobsByM[m] || new Set()).size; return j ? byM[m] / j * 100 : null; });
+        const maxC = Math.max(1, ...cnt);
+        const rv = rate.filter(v => v != null);
+        const maxR = Math.max(1, ...(rv.length ? rv : [1])) * 1.18;
+        const x = i => L + (ms.length === 1 ? iw / 2 : i * iw / (ms.length - 1));
+        const bw = Math.max(5, Math.min(30, iw / ms.length * 0.5));
+        const yC = v => T + ih - (v / maxC) * ih;
+        const yR = v => T + ih - (v / maxR) * ih;
+        const pts = ms.map((m, i) => (rate[i] == null ? null : [x(i), yR(rate[i])])).filter(Boolean);
+        const line = pts.map((pt, i) => (i ? "L" : "M") + pt[0].toFixed(1) + " " + pt[1].toFixed(1)).join(" ");
+        const area = pts.length > 1
+          ? line + " L" + pts[pts.length - 1][0].toFixed(1) + " " + (T + ih) + " L" + pts[0][0].toFixed(1) + " " + (T + ih) + " Z"
+          : "";
+        const every = ms.length > 14 ? Math.ceil(ms.length / 12) : 1;
+        return `<svg class="cln-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img"
+            aria-label="claims per month and the share of jobs that drew a claim">
+          <line class="ax" x1="${L}" y1="${T + ih}" x2="${W - R}" y2="${T + ih}"></line>
+          ${ms.map((m, i) => `<rect class="bar" x="${(x(i) - bw / 2).toFixed(1)}" y="${yC(cnt[i]).toFixed(1)}"
+              width="${bw.toFixed(1)}" height="${(T + ih - yC(cnt[i])).toFixed(1)}" rx="2"></rect>`).join("")}
+          ${area && !narrowed ? `<path class="ar" d="${area}"></path>` : ""}
+          ${!narrowed ? `<path class="ln" d="${line}"></path>` : ""}
+          ${!narrowed ? ms.map((m, i) => (rate[i] == null ? "" :
+              `<circle class="dot" cx="${x(i).toFixed(1)}" cy="${yR(rate[i]).toFixed(1)}" r="3"></circle>`)).join("") : ""}
+          ${ms.map((m, i) => (i % every ? "" : `<text class="tk" x="${x(i).toFixed(1)}" y="${H - 8}"
+              text-anchor="middle">${esc(m.slice(2))}</text>`)).join("")}
+          <text class="vl" x="${L - 6}" y="${T + 8}" text-anchor="end">${fmtN(maxC)}</text>
+          ${!narrowed ? `<text class="vl" x="${W - R + 6}" y="${T + 8}">${r1(maxR)}</text>` : ""}
+        </svg>`;
+      }
+
+      const dChip = (w, label) => {
+        if (!w || nowRate == null) return "";
+        const diff = nowRate - w.rate;
+        const pctMove = w.rate ? diff / w.rate * 100 : null;
+        // fewer claims per job is GOOD, so a fall paints positive
+        const cls = Math.abs(diff) < 0.05 ? "" : (diff < 0 ? "good" : "bad");
+        const arrow = Math.abs(diff) < 0.05 ? "=" : (diff < 0 ? "\u25be" : "\u25b4");
+        return `<span class="cln-d ${cls}" title="${esc(label)}: ${rPct(w.rate)} of jobs — ${fmtN(w.claims)} claims over ${fmtN(w.jobs)} jobs">
+          ${arrow} ${pctMove == null ? r1(Math.abs(diff)) : Math.abs(Math.round(pctMove)) + "%"}
+          <small>vs ${esc(label)}</small></span>`;
+      };
 
       host.innerHTML = `
         <div class="rs-page-head"><h1>Claims Analysis</h1>
-          <p>Every claim with the job it belongs to, read as rates — claims per 100 jobs by month, by salesperson and by foreman. The families come from the board's own Reason and Responsibility, which the team fills on about four claims in ten; where they left it blank, the words in the thread say what it was about. Click a salesperson or a foreman to see the claims behind their number; <b>Open&nbsp;&#8599;</b> goes to the claim on the Monday board.</p></div>
+          <p>Every claim joined to the job it came from, read as the <b>share of jobs that drew a
+          claim</b> rather than a count. The
+          date range, job type, salesperson and foreman all come from the closing, so they narrow
+          the jobs as well as the claims and the rate stays a real rate; responsibility, extra
+          service and the search box exist only on the claim, so under those the rate is withheld
+          rather than guessed. Click a salesperson or a foreman to see the claims behind their
+          number; <b>Open&nbsp;&#8599;</b> opens the claim on the Monday board.</p></div>
         <div class="cln-bar" id="clnBar"></div>
 
-        <div class="panel cln-led">
-          <div class="cln-led-g"><div class="l">Claims</div><div class="v">${fmtN(n)}</div>
-            <div class="s">${narrowed
-              ? `<b>rate not shown</b> — ${esc(S.svc ? "the service picker" : "the search box")} narrows the claims but cannot narrow the ${fmtN(nJobs)} jobs`
-              : `<b>${nJobs ? r1(per100(n, nJobs)) : "—"}</b> per 100 jobs · ${fmtN(nJobs)} jobs in the window`}</div></div>
-          <div class="cln-led-g"><div class="l">Open now</div><div class="v ${open ? "warn" : ""}">${fmtN(open)}</div>
-            <div class="s">not yet Done, Refunded or closed</div></div>
-          <div class="cln-led-g"><div class="l">Refunded</div><div class="v">${fmtN(refunded.length)}</div>
-            <div class="s"><b>${money0(refund$)}</b> given back · ${n ? Math.round(refunded.length / n * 100) : 0}% of claims</div></div>
-          <div class="cln-led-g"><div class="l">Went public</div><div class="v ${pub ? "bad" : ""}">${fmtN(pub)}</div>
-            <div class="s">claims that also have a negative review on file</div></div>
-          ${nKW ? `<div class="cln-led-g"><div class="l">Read by keywords</div><div class="v pos">${fmtN(kwFilled)}</div>
-            <div class="s">of the <b>${fmtN(unclassified)}</b> claims with no Reason on the board got a family from their thread · where both exist the keywords agree with the team on <b>${compared.length ? Math.round(agree / compared.length * 100) + "%" : "—"}</b></div></div>
-          <div class="cln-led-g"><div class="l">Signals in the threads</div><div class="v ${critical ? "bad" : ""}">${fmtN(critical)}</div>
-            <div class="s"><b>${fmtN(critical)}</b> mention a dispute or legal action · <b>${fmtN(high)}</b> a review or a large refund · refund mentioned on ${fmtN(flagCount("Refund"))}, discount on ${fmtN(flagCount("Discount"))}, photos on ${fmtN(flagCount("Photos"))}</div></div>`
-          : `<div class="cln-led-g"><div class="l">No reason chosen</div><div class="v">${fmtN(unclassified)}</div>
-            <div class="s">${n ? Math.round(unclassified / n * 100) : 0}% of claims carry no Reason on the board</div></div>`}
+        <div class="panel cln-hero">
+          <div>
+            <div class="lbl">Share of jobs that drew a claim</div>
+            <div class="cln-big">${narrowed ? "&mdash;" : (nowRate == null ? "&mdash;" : nowRate.toFixed(1))}
+              ${narrowed || nowRate == null ? "" : '<span class="u">% of jobs</span>'}</div>
+            <div class="cln-deltas">${narrowed ? "" : dChip(prevWin, "previous period") + dChip(yoyWin, "a year earlier")}</div>
+            <div class="cln-note">${narrowed
+              ? `<b>${fmtN(n)}</b> claims match, but a rate is not shown: ${esc(whyNarrowed)} narrows the
+                 claims and there is no such field on a closing, so the ${fmtN(nJobs)} jobs cannot be
+                 narrowed with them. Clear it to see the rate.`
+              : `<b>${fmtN(n)}</b> claims on <b>${fmtN(nJobs)}</b> jobs done in this window.
+                 ${prevWin || yoyWin ? "Direction is measured over the same length of time with the same filters." : ""}`}</div>
+          </div>
+          <div>
+            ${trendSvg()}
+            <div class="cln-mini">
+              <div><div class="k">Open now</div><div class="n ${open ? "warn" : ""}">${fmtN(open)}</div>
+                <div class="h">not yet Done, Refunded or closed</div></div>
+              <div><div class="k">Refunded</div><div class="n">${fmtN(refunded.length)}</div>
+                <div class="h">${money0(refund$)} back${narrowed || !nJobs ? "" : ` &middot; <b>${rPct(per100(refunded.length, nJobs))}</b> of jobs`}</div></div>
+              <div><div class="k">Went public</div><div class="n ${pub ? "bad" : ""}">${fmtN(pub)}</div>
+                <div class="h">also has a negative review on file</div></div>
+              <div><div class="k">No reason chosen</div><div class="n">${fmtN(unclassified)}</div>
+                <div class="h">${n ? Math.round(unclassified / n * 100) : 0}% of claims${nKW ? ` &middot; ${fmtN(kwFilled)} read from their thread` : ""}</div></div>
+              ${nKW ? `<div><div class="k">Disputes</div><div class="n ${critical ? "bad" : ""}">${fmtN(critical)}</div>
+                <div class="h">mention a dispute or legal action${high ? ` &middot; ${fmtN(high)} a review or large refund` : ""}</div></div>` : ""}
+            </div>
+          </div>
         </div>
 
-        <div class="cln-grid">
-          <div class="panel"><div class="panel-head"><div class="panel-title">By month</div>
-              <div class="rs-hint">claims filed, and the rate against that month's jobs${narrowed ? " — the rate is withheld while a filter narrows the claims but not the jobs" : ""}</div></div>
-            ${months.map(m => { const j = (jobsByM[m] || new Set()).size; return `<div class="cln-month">
-              <span>${esc(m)}</span>
-              <span class="t"><i style="width:${Math.max(2, byM[m] / maxM * 100)}%"></i></span>
-              <span class="v"><b>${fmtN(byM[m])}</b></span>
-              <span class="v">${narrowed ? '<span class="cln-small" title="a rate needs the whole population — this filter narrows the claims but not the jobs">—</span>'
-                : (j ? r1(per100(byM[m], j)) + " /100" : "—")}</span></div>`; }).join("") || '<div class="rs-hint">no claims in this window</div>'}
+        <div class="panel" style="margin-top:12px">
+          <div class="panel-head"><div><div class="panel-title">Where they come from</div>
+            <div class="rs-hint">One table, grouped however you need it. ${pivHasRate
+              ? "This grouping exists on the closing too, so it carries a real rate."
+              : "A rate needs the same grouping on a closing; only job type and company have one, so the other groupings show shares."}</div></div>
+            <div class="rs-spacer"></div>
+            <div class="cln-dim-seg" id="clnDim">${DIMS.map(([d]) =>
+              `<button data-dim="${esc(d)}" class="${S.dim === d ? "on" : ""}">${esc(d)}</button>`).join("")}</div>
           </div>
-          <div class="panel"><div class="panel-head"><div class="panel-title">What they are about</div>
-              <div class="rs-hint">${nKW ? "the board's Reason where the team chose one, the thread's keywords where it did not, a manager's correction over both" : "the board's Reason, folded into families"}</div></div>
-            ${shareRows(famShare)}
-          </div>
-          ${nKW ? `<div class="panel"><div class="panel-head"><div class="panel-title">Keywords vs the team's Reason</div>
-              <div class="rs-hint">on the ${fmtN(compared.length)} claims where both exist — how often the words in the thread point where the team pointed</div></div>
-            ${agreeByFam.map(([f, a]) => `<div class="cln-share ${a.ok / a.n >= 0.7 ? "brand" : (a.ok / a.n >= 0.4 ? "" : "neg")}">
+          <div class="rs-tablewrap"><table class="rs-table">
+            <thead><tr><th>${esc(S.dim)}</th><th class="num">Claims</th><th>Share</th>
+              ${pivHasRate ? '<th class="num">Jobs</th><th class="num">% of jobs</th>' : ""}
+              <th class="num">Open</th><th class="num">Refunded</th><th class="num">Refund $</th>
+              <th class="num">Went public</th><th class="num">Median days after</th></tr></thead>
+            <tbody>${pivot.map(a => `<tr>
+              <td class="strong">${esc(a.k)}</td>
+              <td class="num"><b>${fmtN(a.n)}</b></td>
+              <td><div class="cln-wbar"><i style="width:${Math.max(3, a.n / pivMax * 100)}%"></i></div>
+                <span class="cln-small">${n ? Math.round(a.n / n * 100) : 0}%</span></td>
+              ${pivHasRate ? `<td class="num">${a.jobs ? fmtN(a.jobs) : '<span class="cln-small">&mdash;</span>'}</td>
+                <td class="num"><b>${a.jobs ? rPct(per100(a.n, a.jobs)) : '<span class="cln-small">&mdash;</span>'}</b></td>` : ""}
+              <td class="num">${a.open || '<span class="cln-small">&mdash;</span>'}</td>
+              <td class="num">${a.refunded || '<span class="cln-small">&mdash;</span>'}</td>
+              <td class="num">${a.refund ? money0(a.refund) : '<span class="cln-small">&mdash;</span>'}</td>
+              <td class="num">${a.pub || '<span class="cln-small">&mdash;</span>'}</td>
+              <td class="num">${a.medDays == null ? '<span class="cln-small">&mdash;</span>' : fmtN(a.medDays)}</td>
+            </tr>`).join("") || '<tr><td colspan="10"><span class="rs-hint">no claims match these filters</span></td></tr>'}
+            </tbody></table></div>
+          ${nKW ? `<details style="margin-top:10px"><summary class="rs-hint" style="cursor:pointer">
+              How the words read against the team&rsquo;s own Reason &mdash; agreement on
+              ${fmtN(compared.length)} claims where both exist${compared.length ? ", " + Math.round(agree / compared.length * 100) + "% overall" : ""}</summary>
+            <div style="margin-top:10px">${agreeByFam.map(([f, a]) => `<div class="cln-share ${a.ok / a.n >= 0.7 ? "brand" : (a.ok / a.n >= 0.4 ? "" : "neg")}">
               <span class="n">${esc(f)}</span>
               <span class="t"><i style="width:${Math.max(2, a.ok / a.n * 100)}%"></i></span>
-              <span class="v"><b>${Math.round(a.ok / a.n * 100)}%</b> · ${fmtN(a.ok)} of ${fmtN(a.n)}</span></div>`).join("") || '<div class="rs-hint">nothing to compare yet</div>'}
-            <div class="rs-hint" style="margin-top:8px">${RULES.length ? RULES.filter(r => r.Kind === "family").length + " words define the families (" + RULES.filter(r => r.Kind === "flag").length + " more for the signals); English, Georgian and Latin-Georgian alike." : ""}</div>
-          </div>` : ""}
-          <div class="panel"><div class="panel-head"><div class="panel-title">Who the team held responsible</div>
-              <div class="rs-hint">the board's Responsibility — a choice, not a finding</div></div>
-            ${shareRows(respShare, "neg")}
-          </div>
-          <div class="panel"><div class="panel-head"><div class="panel-title">By service type</div>
-              <div class="rs-hint">the board's Service Type, top eight</div></div>
-            ${shareRows(svcShare, "brand")}
-          </div>
+              <span class="v"><b>${Math.round(a.ok / a.n * 100)}%</b> &middot; ${fmtN(a.ok)} of ${fmtN(a.n)}</span></div>`).join("") || '<div class="rs-hint">nothing to compare yet</div>'}
+              <div class="rs-hint" style="margin-top:8px">${RULES.length ? RULES.filter(r => r.Kind === "family").length + " words define the families (" + RULES.filter(r => r.Kind === "flag").length + " more for the signals); English, Georgian and Latin-Georgian alike." : ""}</div>
+            </div></details>` : ""}
         </div>
 
         <div class="panel" style="margin-top:12px">
           <div class="panel-head"><div><div class="panel-title">Salespeople</div>
             <div class="rs-hint">jobs sold in the window (the closing's salesperson), the claims on them, and — where the lead's quote and the contract's real CF exist — how far the bill and the volume ran past the estimate on the claimed jobs. Fewer than ${MIN_JOBS} jobs reads "small". <b>Click any row</b> to see the claims behind its number and open each on the board.
-            <br><b>This is not the same number as Sales Team Command's "claims per 100".</b> That page counts a claim against the rep who booked the lead and divides by closed leads; this one counts it against the salesperson on the closing and divides by jobs done. Two honest definitions — they will not tie out, and neither has been declared the right one.</div></div></div>
+            <br><b>This is not the same number as Sales Team Command's own claim rate.</b> That page counts a claim against the rep who booked the lead and divides by closed leads; this one counts it against the salesperson on the closing and divides by jobs done. Two honest definitions — they will not tie out, and neither has been declared the right one.</div></div></div>
           ${perTable(sales, "Salesperson", spExtra, "clnSpBody", S.openSp, S.allSp)}
         </div>
 
@@ -556,7 +740,7 @@ registerPage({
           </div>
         </div>`;
 
-      mountBar();
+      mountBar(claims, jobs);
       host.querySelectorAll("[data-pg]").forEach(el => {
         el.onclick = () => { S.page += el.dataset.pg === "next" ? 1 : -1; paint(); };
       });
@@ -598,31 +782,112 @@ registerPage({
     }
 
     /* ---------- controls ---------- */
-    function mountBar() {
+    /* ---------- the filter bar ----------
+       "add proper for dates as we have in other pages, have SP, Foreman and other filters."
+       RSC.dateRange is that component -- the same preset ladder plus two date inputs every
+       other page uses -- and RSC.localSelect is the house picker. The value lists are derived
+       from the data in the window so a picker never offers a name with nothing behind it.
+       The order is deliberate: the four that keep a rate honest first, then the three that
+       narrow the claims alone. */
+    function mountBar(claims, jobs) {
       const bar = host.querySelector("#clnBar");
       if (!bar) return;
+      const fld = (label, el) => { const w = document.createElement("div"); w.className = "rs-fld";
+        w.innerHTML = `<span>${label}</span>`; w.appendChild(el); return w; };
       const seg = (opts, cur, set) => {
-        const s = document.createElement("div"); s.className = "rs-seg";
+        const d = document.createElement("div"); d.className = "rs-seg";
         opts.forEach(([v, label]) => {
           const b = document.createElement("button"); b.textContent = label;
           if (cur === v) b.className = "on";
-          b.onclick = () => { set(v); S.page = 0; paint(); };
-          s.appendChild(b);
+          b.onclick = () => { set(v); S.page = 0; S.openSp = ""; S.openFm = ""; paint(); };
+          d.appendChild(b);
         });
-        return s;
+        return d;
       };
-      const fld = (label, el) => { const w = document.createElement("div"); w.className = "rs-fld";
-        w.innerHTML = `<span>${label}</span>`; w.appendChild(el); return w; };
-      bar.appendChild(fld("Period", seg([["3m", "Last 3 months"], ["6m", "Last 6"], ["12m", "Last 12"],
-        ["ytd", "This year"], ["all", "All time"]], S.period, v => { S.period = v; })));
-      bar.appendChild(fld("Service", seg([["", "All"], ["Local", "Local"], ["Long distance", "Long distance"],
-        ["Storage", "Storage"]], S.svc, v => { S.svc = v; })));
+      const holder = () => document.createElement("div");
+
+      // 1. dates -- the house component
+      const dh = holder();
+      bar.appendChild(fld("Dates", dh));
+      if (window.RSC && RSC.dateRange) {
+        RSC.dateRange(dh, {
+          get: () => ({ from: S.from, to: S.to }),
+          set: (f, t) => { S.from = f; S.to = t; },
+          onChange: () => { S.page = 0; S.openSp = ""; S.openFm = ""; paint(); },
+        });
+      } else {
+        dh.appendChild(seg([[back(3), "3m"], [back(6), "6m"], [back(12), "12m"]], S.from,
+          v => { S.from = v; S.to = iso(today); }));
+      }
+
+      // 2. job type -- FROM THE CLOSING, and storage is not one of the options
+      bar.appendChild(fld("Job type", seg([["", "All"], ["Local", "Local"],
+        ["Long distance", "Long distance"]], S.jobType, v => { S.jobType = v; })));
+
+      // 3-4. the people. Names come from the CLOSINGS in the window, not from the claims, so
+      // the list is every person who could have a rate -- including those with no claim at all.
+      const names = (rows, key) => {
+        const o = {};
+        rows.forEach(r => { const v = String(r[key] || "").trim(); if (v) o[v] = 1; });
+        return Object.keys(o).sort();
+      };
+      const spH = holder(); bar.appendChild(spH);
+      if (window.RSC && RSC.localSelect) {
+        RSC.localSelect(spH, { label: "Salesperson", values: names(jobs, "Sales Person"),
+          value: S.sp, allLabel: "All",
+          onChange: v => { S.sp = v; S.page = 0; S.openSp = ""; paint(); } });
+      }
+      const fmH = holder(); bar.appendChild(fmH);
+      if (window.RSC && RSC.localSelect) {
+        RSC.localSelect(fmH, { label: "Foreman", values: names(jobs, "Foreman"),
+          value: S.fm, allLabel: "All",
+          onChange: v => { S.fm = v; S.page = 0; S.openFm = ""; paint(); } });
+      }
+
+      // 5. responsibility -- his chosen feature. Claims-only, so it withholds the rate.
+      const rsH = holder(); bar.appendChild(rsH);
+      if (window.RSC && RSC.localSelect) {
+        RSC.localSelect(rsH, { label: "Responsibility",
+          values: names(claimsAll.filter(r => r["Responsibility Family"]), "Responsibility Family"),
+          value: S.resp, allLabel: "All",
+          onChange: v => { S.resp = v; S.page = 0; paint(); } });
+      }
+
+      // 6. the extra services the customer took -- NOT job types
+      const exW = document.createElement("div");
+      exW.className = "rs-fld";
+      exW.innerHTML = '<span>Extra service</span>';
+      const exRow = document.createElement("div");
+      exRow.style.cssText = "display:flex;gap:6px;flex-wrap:wrap";
+      EXTRAS.forEach(([key, label]) => {
+        const b = document.createElement("button");
+        b.className = "cln-chip" + (S.extra === key ? " on" : "");
+        b.textContent = label;
+        b.onclick = () => { S.extra = S.extra === key ? "" : key; S.page = 0; paint(); };
+        exRow.appendChild(b);
+      });
+      exW.appendChild(exRow);
+      bar.appendChild(exW);
+
+      // 7. free text
       const q = document.createElement("input");
-      q.className = "cln-in"; q.placeholder = "find a customer, reason, salesperson, foreman…";
-      q.value = S.q; q.style.flex = "0 1 300px";
+      q.className = "cln-in"; q.placeholder = "find a customer, reason, request #…";
+      q.value = S.q; q.style.flex = "0 1 240px";
       q.oninput = () => { clearTimeout(qTimer);
         qTimer = setTimeout(() => { S.q = q.value; S.page = 0; S._focus = 1; paint(); }, 300); };
       bar.appendChild(q);
+
+      if (S.from !== back(6) || S.to !== iso(today) || S.jobType || S.sp || S.fm || S.resp || S.extra || S.q) {
+        const clear = document.createElement("button");
+        clear.className = "rs-btn"; clear.textContent = "Clear";
+        clear.style.marginBottom = "1px";
+        clear.onclick = () => {
+          S.from = back(6); S.to = iso(today); S.jobType = ""; S.sp = ""; S.fm = "";
+          S.resp = ""; S.extra = ""; S.q = ""; S.page = 0; S.openSp = ""; S.openFm = "";
+          paint();
+        };
+        bar.appendChild(clear);
+      }
       if (S._focus) { S._focus = 0; q.focus(); q.setSelectionRange(q.value.length, q.value.length); }
     }
 
