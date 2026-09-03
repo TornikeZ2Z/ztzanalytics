@@ -461,7 +461,9 @@ registerPage({
 
         <div class="panel cln-led">
           <div class="cln-led-g"><div class="l">Claims</div><div class="v">${fmtN(n)}</div>
-            <div class="s"><b>${nJobs ? r1(per100(n, nJobs)) : "—"}</b> per 100 jobs · ${fmtN(nJobs)} jobs in the window</div></div>
+            <div class="s">${narrowed
+              ? `<b>rate not shown</b> — ${esc(S.svc ? "the service picker" : "the search box")} narrows the claims but cannot narrow the ${fmtN(nJobs)} jobs`
+              : `<b>${nJobs ? r1(per100(n, nJobs)) : "—"}</b> per 100 jobs · ${fmtN(nJobs)} jobs in the window`}</div></div>
           <div class="cln-led-g"><div class="l">Open now</div><div class="v ${open ? "warn" : ""}">${fmtN(open)}</div>
             <div class="s">not yet Done, Refunded or closed</div></div>
           <div class="cln-led-g"><div class="l">Refunded</div><div class="v">${fmtN(refunded.length)}</div>
@@ -478,12 +480,13 @@ registerPage({
 
         <div class="cln-grid">
           <div class="panel"><div class="panel-head"><div class="panel-title">By month</div>
-              <div class="rs-hint">claims filed, and the rate against that month's jobs</div></div>
+              <div class="rs-hint">claims filed, and the rate against that month's jobs${narrowed ? " — the rate is withheld while a filter narrows the claims but not the jobs" : ""}</div></div>
             ${months.map(m => { const j = (jobsByM[m] || new Set()).size; return `<div class="cln-month">
               <span>${esc(m)}</span>
               <span class="t"><i style="width:${Math.max(2, byM[m] / maxM * 100)}%"></i></span>
               <span class="v"><b>${fmtN(byM[m])}</b></span>
-              <span class="v">${j ? r1(per100(byM[m], j)) + " /100" : "—"}</span></div>`; }).join("") || '<div class="rs-hint">no claims in this window</div>'}
+              <span class="v">${narrowed ? '<span class="cln-small" title="a rate needs the whole population — this filter narrows the claims but not the jobs">—</span>'
+                : (j ? r1(per100(byM[m], j)) + " /100" : "—")}</span></div>`; }).join("") || '<div class="rs-hint">no claims in this window</div>'}
           </div>
           <div class="panel"><div class="panel-head"><div class="panel-title">What they are about</div>
               <div class="rs-hint">${nKW ? "the board's Reason where the team chose one, the thread's keywords where it did not, a manager's correction over both" : "the board's Reason, folded into families"}</div></div>
