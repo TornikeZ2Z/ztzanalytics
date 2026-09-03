@@ -42,7 +42,7 @@ if (window.RS && RS.DATASETS && !RS.DATASETS.mart_cl_analysis) {
            "Extra Spend", "Other Expenses", "Company Tip", "Discount Given",
            "Has Contract",
            "Truck #", "Truck Ownership", "Miles Used", "Miles Basis", "Fuel Recorded", "Tolls Recorded", "Rental Cost Est", "Owned Overhead Est", "Fuel Est", "Toll Est", "Adjusted Gross Profit", "Rate Rental Per Job", "Rate Owned Per Job", "Rate Fuel Per Gal", "Rate Toll Per Job", "Elevator Both Ends", "Rate Stairs Share All",
-           "Crew $", "Car $", "Other Exp $", "Refund Half", "Material $"],
+           "Crew $", "Car $", "Other Exp $", "Refund Half", "Material $", "Packing Sold"],
     dateCols: { "Date": "Date" }, defaultDate: "Date",
   };
 }
@@ -136,8 +136,39 @@ registerPage({
         ".cla-slide th{text-align:left;font-size:9.5px;letter-spacing:.07em;text-transform:uppercase;"
           + "color:#78756B;padding:7px 10px;border-bottom:1px solid #DCDAD1;font-family:inherit}",
         ".cla-slide td{padding:7px 10px;border-bottom:1px solid #EDEBE4;color:#1B1A17}",
+        // the second line of a cost row: what the number is MADE OF, so a reader does not
+        // have to take "crew" or "materials" on trust
+        ".cla-slide .cla-sub{display:block;font-size:10.5px;color:#78756B;margin-top:2px}",
         ".cla-slide td.r,.cla-slide th.r{text-align:right;font-variant-numeric:tabular-nums}",
         ".cla-slide tr.hi td{background:#F6EADA}",
+        // ---- redesign 2026-09-04 -------------------------------------------------
+        // COVER. A title page, not slide 1 of 6 with a bigger heading: the rule and the
+        // generous space above the fold are what make the rest read as a document.
+        ".cla-slide.cover{padding:56px 40px 40px}",
+        ".cla-slide.cover h2{font-size:38px;line-height:1.1;letter-spacing:-.025em;margin:0 0 14px;"
+          + "max-width:18ch}",
+        ".cla-slide.cover .lede{font-size:15px;line-height:1.6;color:#3A3833;max-width:56ch}",
+        ".cla-rule{height:3px;width:56px;background:#A9691B;margin:0 0 20px}",
+        // SLIDE FOOTER. Numbered, so a printed deck can be talked through on a phone call.
+        ".cla-foot{display:flex;justify-content:space-between;align-items:baseline;margin-top:22px;"
+          + "padding-top:10px;border-top:1px solid #EDEBE4;font-size:9.5px;letter-spacing:.1em;"
+          + "text-transform:uppercase;color:#A29E92}",
+        // COST WATERFALL. Each line drawn to scale against the bill, so the shape of the
+        // money is visible before a single number is read.
+        ".cla-wfall{margin:14px 0 4px}",
+        ".cla-wfrow{display:grid;grid-template-columns:1fr 92px 62px;gap:12px;align-items:center;"
+          + "padding:7px 0;border-bottom:1px solid #F1EFE8}",
+        ".cla-wfrow .lab{font-size:12.5px;color:#1B1A17;line-height:1.35}",
+        ".cla-wfrow .lab i{font-style:normal;display:block;font-size:10.5px;color:#78756B;margin-top:2px}",
+        ".cla-wfrow .amt,.cla-wfrow .pc{text-align:right;font-variant-numeric:tabular-nums;font-size:12.5px}",
+        ".cla-wfrow .pc{color:#78756B}",
+        ".cla-wfbar{grid-column:1 / -1;height:7px;background:#F1EFE8;margin-top:6px;overflow:hidden}",
+        ".cla-wfbar i{display:block;height:100%;background:#C08A46}",
+        ".cla-wfrow.tot{border-bottom:0;border-top:2px solid #DCDAD1;margin-top:4px;padding-top:11px}",
+        ".cla-wfrow.tot .lab,.cla-wfrow.tot .amt{font-weight:700;font-size:13.5px}",
+        ".cla-wfrow.you .cla-wfbar i{background:#33566E}",
+        ".cla-wfrow.us .cla-wfbar i{background:#4F7C4A}",
+        ".cla-wfrow.cost .cla-wfbar i{background:#A9691B}",
         ".cla-figs{display:flex;gap:0;border-block:1px solid #DCDAD1;margin:12px 0 4px}",
         ".cla-fig{flex:1;padding:12px 10px 12px 0}",
         ".cla-fig b{display:block;font-size:22px;color:#A9691B;font-family:Georgia,serif;"
@@ -290,15 +321,37 @@ registerPage({
       // fuel and tolls are the finance view's own rates, because the sheet records the day's
       // fill-up rather than the job's fuel. `weKept` is what is left after both.
       const eS = f => rowsE.reduce((a, e) => a + (num(f(e)) || 0), 0);
+
+      // ⭐ TWO CORRECTIONS, HIS, 2026-09-04.
+      //
+      // `Material $` IS NOT THE COST OF THE MATERIALS. It is the foreman's cut of packing
+      // sold, and the data says so exactly: 20.00% of `Packing Sold` on 2,359 of the 2,446
+      // closings in 2026. So it is crew pay and it moves into the crew line — leaving it
+      // under "packing materials" both hid a fifth of the crew's earnings and invented a
+      // material cost that was never incurred. The real COGS is modelled instead, at
+      // MAT_COGS of packing sold, "we have on average 15% for each item".
+      //
+      // COST_UPLIFT is his 10% cushion on the lines we ESTIMATE or that the closing sheet
+      // under-records: fuel and tolls come from the finance view's rates, and car and other
+      // job costs are whatever made it onto the sheet that day. Deliberately NOT applied to
+      // company tips or discounts — those are recorded to the dollar, and padding an exact
+      // number is how a model stops being checkable.
+      const MAT_COGS = 0.15, COST_UPLIFT = 1.10;
+      const packingSold = eS(e => e["Packing Sold"]);
+      const packingPay = eS(e => e["Material $"]);
       const cost = {
-        crew: eS(e => e["Crew $"]),
-        materials: eS(e => e["Material $"]),
+        crew: eS(e => e["Crew $"]) + packingPay,
+        materials: MAT_COGS * packingSold,
         truck: eS(e => e["Rental Cost Est"]) + eS(e => e["Owned Overhead Est"]),
-        fuel: eS(e => e["Fuel Est"]),
-        tolls: eS(e => e["Toll Est"]),
-        other: eS(e => e["Car $"]) + eS(e => e["Other Exp $"]) + eS(e => e["Company Tip"])
-             + eS(e => e["Discount Given"]),
+        fuel: eS(e => e["Fuel Est"]) * COST_UPLIFT,
+        tolls: eS(e => e["Toll Est"]) * COST_UPLIFT,
+        other: (eS(e => e["Car $"]) + eS(e => e["Other Exp $"])) * COST_UPLIFT
+             + eS(e => e["Company Tip"]) + eS(e => e["Discount Given"]),
       };
+      cost.packingSold = packingSold;
+      cost.packingPay = packingPay;
+      cost.uplift = COST_UPLIFT;
+      cost.matRate = MAT_COGS;
       cost.total = cost.crew + cost.materials + cost.truck + cost.fuel + cost.tolls + cost.other;
       const weKept = bill - cost.total - paid;
 
@@ -323,15 +376,32 @@ registerPage({
       const m0 = v => money0(v);
       const pct1 = v => (v * 100).toFixed(1) + "%";
       const pctB = v => D.bill ? (v / D.bill * 100).toFixed(1) + "%" : "—";
+      // every slide carries the same footer, so a printed deck can be talked through by
+      // page number on a phone call
+      const SLIDES = 6;
+      const foot = n => `<div class="cla-foot"><span>Zip to Zip · the CL agreement</span>
+        <span>${n} / ${SLIDES}</span></div>`;
+      // one cost line, drawn to scale against the bill
+      const wf = (label, sub, amount, cls) => {
+        const w = D.bill ? Math.max(0.4, Math.min(100, amount / D.bill * 100)) : 0;
+        return `<div class="cla-wfrow ${cls || ""}">
+          <div class="lab">${label}${sub ? `<i>${sub}</i>` : ""}</div>
+          <div class="amt">${m0(amount)}</div>
+          <div class="pc">${pctB(amount)}</div>
+          <div class="cla-wfbar"><i style="width:${w.toFixed(1)}%"></i></div>
+        </div>`;
+      };
       const bandN = Math.max(...D.bands, 1);
       const bandLbl = ["under 20%", "20–25%", "25–30%", "30–35%", "over 35%"];
 
       return `
-      <section class="cla-slide">
+      <section class="cla-slide cover">
         <p class="eyebrow">Zip to Zip · a new agreement</p>
+        <div class="cla-rule"></div>
         <h2>The CL Agreement</h2>
-        <p>${fmtN(D.n)} jobs together in ${D.months} months, ${m0(D.bill)} billed, ${m0(D.paid)}
-          earned by you. We want to keep all of it — and put one rule underneath it.</p>
+        <p class="lede">${fmtN(D.n)} jobs together in ${D.months} months, ${m0(D.bill)} billed,
+          ${m0(D.paid)} earned by you. We want to keep all of it — and put one rule
+          underneath it.</p>
         <div class="cla-figs">
           <div class="cla-fig"><b>${fmtN(D.n)}</b><i>jobs — about
             ${fmtN(Math.round(D.n / Math.max(1, D.months)))} a month</i></div>
@@ -339,6 +409,7 @@ registerPage({
           <div class="cla-fig"><b>${m0(D.per)}</b><i>you keep, per job</i></div>
           <div class="cla-fig"><b>${m0(D.paid)}</b><i>your earnings so far</i></div>
         </div>
+        ${foot(1)}
       </section>
 
       <section class="cla-slide">
@@ -354,6 +425,7 @@ registerPage({
             <span class="v">${fmtN(v)} job${v === 1 ? "" : "s"}</span></div>`).join("")}
         <p style="margin-top:10px">Neither of us can plan on a number that moves like that. Everything
           below is an attempt to replace it with one you can calculate yourself before you quote.</p>
+        ${foot(2)}
       </section>
 
       <section class="cla-slide">
@@ -361,34 +433,29 @@ registerPage({
         <h2>The ${fmtN(D.n)} jobs, from the total down</h2>
         <p>This is not a projection. It is what the ${fmtN(D.n)} jobs actually cost and actually
           paid, taken from our closing sheets and our own books. Percentages are of the money the
-          customers paid.</p>
-        <table>
-          <thead><tr><th>From the total</th><th class="r">Amount</th><th class="r">% of the bill</th></tr></thead>
-          <tbody>
-            <tr class="hi"><td><b>Billed to customers</b></td>
-              <td class="r"><b>${m0(D.bill)}</b></td><td class="r"><b>100%</b></td></tr>
-            <tr><td>Crew — foreman, driver and helpers</td>
-              <td class="r">${m0(D.cost.crew)}</td><td class="r">${pctB(D.cost.crew)}</td></tr>
-            <tr><td>Packing materials</td>
-              <td class="r">${m0(D.cost.materials)}</td><td class="r">${pctB(D.cost.materials)}</td></tr>
-            <tr><td>Truck — rental, and insurance, parking and financing on ours</td>
-              <td class="r">${m0(D.cost.truck)}</td><td class="r">${pctB(D.cost.truck)}</td></tr>
-            <tr><td>Fuel</td>
-              <td class="r">${m0(D.cost.fuel)}</td><td class="r">${pctB(D.cost.fuel)}</td></tr>
-            <tr><td>Tolls</td>
-              <td class="r">${m0(D.cost.tolls)}</td><td class="r">${pctB(D.cost.tolls)}</td></tr>
-            <tr><td>Car, tips we paid, discounts and other job costs</td>
-              <td class="r">${m0(D.cost.other)}</td><td class="r">${pctB(D.cost.other)}</td></tr>
-            <tr class="hi"><td><b>What the jobs cost us to run</b></td>
-              <td class="r"><b>${m0(D.cost.total)}</b></td><td class="r"><b>${pctB(D.cost.total)}</b></td></tr>
-            <tr class="hi"><td><b>You kept</b></td>
-              <td class="r"><b>${m0(D.paid)}</b></td><td class="r"><b>${pctB(D.paid)}</b></td></tr>
-            <tr class="hi"><td><b>We kept</b></td>
-              <td class="r"><b>${m0(D.weKept)}</b></td><td class="r"><b>${pctB(D.weKept)}</b></td></tr>
-          </tbody></table>
+          customers paid. Fuel, tolls, car and other job costs carry a
+          ${Math.round((D.cost.uplift - 1) * 100)}% allowance, because those are the lines the
+          sheet records loosest.</p>
+        <div class="cla-wfall">
+          ${wf("<b>Billed to customers</b>", "", D.bill, "tot")}
+          ${wf("Crew — foreman, driver and helpers",
+               `includes ${m0(D.cost.packingPay)} of packing pay, the foreman's ${Math.round(D.cost.packingPay / Math.max(D.cost.packingSold, 1) * 100)}% of packing sold`,
+               D.cost.crew, "cost")}
+          ${wf("Packing materials",
+               `${Math.round(D.cost.matRate * 100)}% of the ${m0(D.cost.packingSold)} of packing sold`,
+               D.cost.materials, "cost")}
+          ${wf("Truck", "rental, and insurance, parking and financing on ours", D.cost.truck, "cost")}
+          ${wf("Fuel", "miles at our own diesel rate", D.cost.fuel, "cost")}
+          ${wf("Tolls", "our E-ZPass spend per job", D.cost.tolls, "cost")}
+          ${wf("Car, tips we paid, discounts and other job costs", "", D.cost.other, "cost")}
+          ${wf("<b>What the jobs cost us to run</b>", "", D.cost.total, "tot cost")}
+          ${wf("<b>You kept</b>", "", D.paid, "tot you")}
+          ${wf("<b>We kept</b>", "", D.weKept, "tot us")}
+        </div>
         <p style="margin-top:10px">After the jobs are paid for, <b>${m0(D.paid + D.weKept)}</b> is
           left — ${pctB(D.paid + D.weKept)} of the bill. Of that you took <b>${m0(D.paid)}</b> and we
           took <b>${m0(D.weKept)}</b>: a <b>${Math.round(100 * D.paid / (D.paid + D.weKept))} / ${Math.round(100 * D.weKept / (D.paid + D.weKept))}</b> split.</p>
+        ${foot(3)}
       </section>
 
       <section class="cla-slide">
@@ -408,6 +475,7 @@ registerPage({
         <p style="margin-top:10px">${D.refund > 0
           ? "It is a small number today — " + m0(D.refund) + " across " + fmtN(D.n) + " jobs — and that is the point: the rule is easy to agree now, while nothing is at stake."
           : "There has been no refund across these jobs. That is exactly when a rule is easy to agree."}</p>
+        ${foot(4)}
       </section>
 
       <section class="cla-slide">
@@ -433,6 +501,7 @@ registerPage({
         <p style="color:#78756B;font-size:11.5px">For context on the rates: our own sellers earn 9%
           or 5% of a bill. You have been averaging ${pct1(D.median)}, because you bring the work as
           well as closing it — that difference is deliberate and we are not proposing to remove it.</p>
+        ${foot(5)}
       </section>
 
       <section class="cla-slide">
@@ -452,6 +521,7 @@ registerPage({
           fill-up on the day rather than the fuel a job used, so miles driven and our own diesel
           price are the honest way to charge it. "Our price" is the Sales Price Calculator amount
           before the 20% CL uplift.</p>
+        ${foot(6)}
       </section>`;
     }
 
@@ -510,6 +580,28 @@ registerPage({
         td{padding:9px 11px;border-bottom:1px solid #EDEBE4}
         td.r,th.r{text-align:right;font-variant-numeric:tabular-nums}
         tr.hi td{background:#F6EADA}
+        .cla-sub{display:block;font-size:11px;color:#78756B;margin-top:2px}
+        section.cover{padding-top:22mm}
+        section.cover h2{font-size:44px;line-height:1.08;letter-spacing:-.025em;max-width:18ch}
+        section.cover .lede{font-size:16px;line-height:1.6;max-width:56ch}
+        .cla-rule{height:3px;width:60px;background:#A9691B;margin:0 0 22px}
+        .cla-foot{display:flex;justify-content:space-between;margin-top:26px;padding-top:11px;
+          border-top:1px solid #EDEBE4;font-size:10px;letter-spacing:.1em;text-transform:uppercase;
+          color:#A29E92;font-family:Arial,sans-serif}
+        .cla-wfall{margin:16px 0 6px}
+        .cla-wfrow{display:grid;grid-template-columns:1fr 100px 66px;gap:14px;align-items:center;
+          padding:8px 0;border-bottom:1px solid #F1EFE8}
+        .cla-wfrow .lab{font-size:13px;line-height:1.35}
+        .cla-wfrow .lab i{font-style:normal;display:block;font-size:11px;color:#78756B;margin-top:2px}
+        .cla-wfrow .amt,.cla-wfrow .pc{text-align:right;font-variant-numeric:tabular-nums;font-size:13px}
+        .cla-wfrow .pc{color:#78756B}
+        .cla-wfbar{grid-column:1 / -1;height:7px;background:#F1EFE8;margin-top:6px}
+        .cla-wfbar i{display:block;height:100%;background:#C08A46}
+        .cla-wfrow.tot{border-bottom:0;border-top:2px solid #DCDAD1;margin-top:5px;padding-top:12px}
+        .cla-wfrow.tot .lab,.cla-wfrow.tot .amt{font-weight:700;font-size:14px}
+        .cla-wfrow.you .cla-wfbar i{background:#33566E}
+        .cla-wfrow.us .cla-wfbar i{background:#4F7C4A}
+        .cla-wfrow.cost .cla-wfbar i{background:#A9691B}
         .cla-figs{display:flex;border-top:1px solid #DCDAD1;border-bottom:1px solid #DCDAD1;margin:16px 0}
         .cla-fig{flex:1;padding:16px 12px 16px 0}
         .cla-fig b{display:block;font-size:30px;color:#A9691B;font-variant-numeric:tabular-nums}
@@ -599,7 +691,7 @@ registerPage({
       const oSp5 = overJobs.reduce((a, r) => { const e = E(r); return a + (e ? num(e["As Sales Person 5"]) || 0 : 0); }, 0);
       const oSp9 = overJobs.reduce((a, r) => { const e = E(r); return a + (e ? num(e["As Sales Person 9"]) || 0 : 0); }, 0);
       const tForeman = sum(r => num(r["Forman Total $"]));
-      const tMaterial = sum(r => num(r["Material $"]));
+      const tMaterial = sum(r => num(r["Material $"]));   // packing PAY, not material cost
       const tExpense = sum(r => num(r["Total Expense"]));
 
       /* HIS SHARE OF OUR WORK needs the jobs he did NOT bring; the denominator follows the
@@ -995,7 +1087,7 @@ registerPage({
             <thead><tr><th>Date</th><th>Job</th><th>Customer</th><th>Type</th><th>Size</th>
               <th>State</th><th class="num">Revenue</th><th class="num">His cut</th>
               <th class="num">Cut %</th><th class="num">Over cap</th>
-              <th class="num">Foreman $</th><th class="num">Materials</th>
+              <th class="num">Foreman $</th><th class="num" title="the sheet's Material $ — 20% of packing sold, paid to the foreman">Packing pay</th>
               <th class="num">Expenses</th><th class="num">Profit</th><th class="num">Margin</th>
               <th>Foreman</th></tr></thead>
             <tbody></tbody>
@@ -1087,7 +1179,7 @@ registerPage({
       const csv = host.querySelector("#clCsv");
       if (csv) csv.onclick = () => {
         const cols = ["Date", "Job No", "Customer", "Move Type", "Size of Move", "State",
-          "Revenue", "His Cut (sales salary)", "Deposit", "Cut %", "Foreman $", "Materials",
+          "Revenue", "His Cut (sales salary)", "Deposit", "Cut %", "Foreman $", "Packing Pay (20% of packing sold)",
           "Total Expense", "Profit", "Margin", "Foreman"];
         const cell = x => {
           let s = String(x == null ? "" : x);
