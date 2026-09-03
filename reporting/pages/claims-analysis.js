@@ -763,6 +763,13 @@ registerPage({
         </div>`;
 
       mountBar(claims, jobs);
+
+      // the pivot's dimension picker
+      const dimSeg = host.querySelector("#clnDim");
+      if (dimSeg) dimSeg.addEventListener("click", ev => {
+        const b = ev.target.closest("button[data-dim]"); if (!b) return;
+        S.dim = b.getAttribute("data-dim"); paint();
+      });
       host.querySelectorAll("[data-pg]").forEach(el => {
         el.onclick = () => { S.page += el.dataset.pg === "next" ? 1 : -1; paint(); };
       });
