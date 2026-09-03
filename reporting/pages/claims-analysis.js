@@ -393,6 +393,7 @@ registerPage({
         };
         const jobsBy = {};                 // name -> summed share of jobs
         const jobSeen = {};                // (person, joinkey) already counted
+        const jobsAnyone = new Set();      // distinct jobs that have ANY of these people
         jobs.forEach(r => {
           const jk = r["Request Joinkey"];
           if (!jk) return;
@@ -401,6 +402,7 @@ registerPage({
               const k = x.p + " " + jk;
               if (jobSeen[k]) return;      // one job is one job, however many closing rows
               jobSeen[k] = 1;
+              jobsAnyone.add(jk);
               jobsBy[x.p] = (jobsBy[x.p] || 0) + x.sh;
             });
         });
@@ -446,9 +448,10 @@ registerPage({
           medInc: median(o.inc), medCf: median(o.cfv) }));
         const grand = everyone.reduce((a, o) => ({
           people: a.people + ((o.claims > 0 || o.jobs > 0) ? 1 : 0),
-          claims: a.claims + (o.claims || 0), jobs: a.jobs + (o.jobs || 0),
+          claims: a.claims + (o.claims || 0),
           refund: a.refund + (o.refund || 0), pub: a.pub + (o.pub || 0),
-        }), { people: 0, claims: 0, jobs: 0, refund: 0, pub: 0 });
+        }), { people: 0, claims: 0, refund: 0, pub: 0 });
+        grand.jobs = jobsAnyone.size;
         const all = everyone.filter(o => o.claims > 0 || o.jobs >= MIN_JOBS);
         const named = all.filter(o => o.jobs > 0);
         // TWO KINDS OF ZERO, AND THEY ARE NOT THE SAME THING.
@@ -487,8 +490,10 @@ registerPage({
           (small(a) ? 1 : 0) - (small(b) ? 1 : 0)
           || (per100(b.claims, b.jobs) || -1) - (per100(a.claims, a.jobs) || -1)
           || b.claims - a.claims).concat(tailRows);
-        tailRows.forEach(t => { grand.claims += t.claims || 0; grand.refund += t.refund || 0;
-          grand.pub += t.pub || 0; });
+        // `fold` builds its rows FROM `everyone`, so those claims are already in `grand`.
+        // The orphan is the only thing that never had a person and so was never counted.
+        if (orphan.claims) { grand.claims += orphan.claims; grand.refund += orphan.refund;
+          grand.pub += orphan.pub; }
         out.grand = grand;
         return out;
       };
