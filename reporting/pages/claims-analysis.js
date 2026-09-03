@@ -551,8 +551,8 @@ registerPage({
         // is the one dimension the closing shares, so it is the one that gets a rate.
         const jobsBy = {};
         if (S.dim === "Job type") {
-          jobs.forEach(r => { const k = jobTypeOfClosing(r) || "No closing"; const jk = r["Request Joinkey"];
-            if (jk) (jobsBy[k] = jobsBy[k] || new Set()).add(jk); });
+          jobs.forEach(r => { const k = jobTypeOfClosing(r); const jk = r["Request Joinkey"];
+            if (jk && k) (jobsBy[k] = jobsBy[k] || new Set()).add(jk); });
         } else if (S.dim === "Company") {
           jobs.forEach(r => { const k = r.Company || "—"; const jk = r["Request Joinkey"];
             if (jk) (jobsBy[k] = jobsBy[k] || new Set()).add(jk); });
@@ -697,7 +697,9 @@ registerPage({
               <td><div class="cln-wbar"><i style="width:${Math.max(3, a.n / pivMax * 100)}%"></i></div>
                 <span class="cln-small">${n ? Math.round(a.n / n * 100) : 0}%</span></td>
               ${pivHasRate ? `<td class="num">${a.jobs ? fmtN(a.jobs) : '<span class="cln-small">&mdash;</span>'}</td>
-                <td class="num"><b>${a.jobs ? rPct(per100(a.n, a.jobs)) : '<span class="cln-small">&mdash;</span>'}</b></td>` : ""}
+                <td class="num">${(a.jobs && a.k !== "No closing" && a.k !== "—")
+                  ? "<b>" + rPct(per100(a.n, a.jobs)) + "</b>"
+                  : '<span class="cln-small" title="these claims never matched a closing, so there is no job count to divide by">&mdash;</span>'}</td>` : ""}
               <td class="num">${a.open || '<span class="cln-small">&mdash;</span>'}</td>
               <td class="num">${a.refunded || '<span class="cln-small">&mdash;</span>'}</td>
               <td class="num">${a.refund ? money0(a.refund) : '<span class="cln-small">&mdash;</span>'}</td>
