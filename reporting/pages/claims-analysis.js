@@ -149,6 +149,12 @@ registerPage({
         ".cln-share.neg .t i{background:var(--neg)} .cln-share.brand .t i{background:var(--brand)}",
         ".cln-share .v{font-size:12.5px;color:var(--muted);text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}",
         // months: bars with the rate beside
+        // FULL-WIDTH EXPLANATORY TEXT. The kit's .rs-hint is capped at --rs-prose, which is
+        // correct for a caption but leaves these -- which carry the argument, not a label --
+        // ending two thirds across with empty panel beside them. Same voice, whole width.
+        ".cln-say{font-size:12.5px;color:var(--muted);line-height:1.6;max-width:none;"
+          + "margin:0 0 12px}",
+        ".cln-say b{color:var(--ink)}",
         ".cln-small{color:var(--faint);font-size:11.5px;white-space:nowrap}",
         ".cln-row{cursor:pointer} .cln-row:hover td{background:var(--panel-2)}",
         ".cln-mon{color:var(--brand);font-weight:600;text-decoration:none;white-space:nowrap}",
@@ -541,11 +547,11 @@ registerPage({
                 <td class="num">${num(r["Refund $"]) ? money0(num(r["Refund $"])) : '<span class="cln-small">&mdash;</span>'}</td>
                 <td>${mondayCell(r["Monday Url"])}</td></tr>`; }).join("")}
             </tbody></table></div>
-          ${stale ? `<div class="rs-hint" style="margin-top:8px">${fmtN(stale)} of these ${stale === 1 ? "was" : "were"}
+          ${stale ? `<div class="cln-say" style="margin:8px 0 0">${fmtN(stale)} of these ${stale === 1 ? "was" : "were"}
             filed about a job done <b>before</b> this window. A claim counts when it was FILED; the job
             count beside it counts jobs DONE — so those ${stale === 1 ? "is" : "are"} in the number above
             and their jobs are not.</div>` : ""}
-          <div class="rs-hint" style="margin-top:6px">Click any row to read the whole Monday thread here,
+          <div class="cln-say" style="margin:6px 0 0">Click any row to read the whole Monday thread here,
             or <b>Open &#8599;</b> to go to the board.</div>
         </div>`;
       }
@@ -696,7 +702,7 @@ registerPage({
           <text class="vl" x="${L - 6}" y="${T + 8}" text-anchor="end">${fmtN(maxC)}</text>
           ${!narrowed ? `<text class="vl" x="${W - R + 6}" y="${T + 8}">${rPct(maxR)}</text>` : ""}
         </svg>`
-        + (partial ? `<div class="rs-hint" style="margin-top:2px">${esc(lastM)} is only counted to
+        + (partial ? `<div class="cln-say" style="margin:2px 0 0">${esc(lastM)} is only counted to
             ${esc(to)}, so its share sits on a few days of jobs and swings — it is drawn dashed and
             should not be read as a trend.</div>` : "");
       }
@@ -715,7 +721,7 @@ registerPage({
 
       host.innerHTML = `
         <div class="rs-page-head"><h1>Claims Analysis</h1>
-          <p>Every claim joined to the job it came from, read as the <b>share of jobs that drew a
+          <p style="max-width:none">Every claim joined to the job it came from, read as the <b>share of jobs that drew a
           claim</b> rather than a count. The
           date range, job type, salesperson and foreman all come from the closing, so they narrow
           the jobs as well as the claims and the rate stays a real rate; responsibility, extra
@@ -755,14 +761,14 @@ registerPage({
         </div>
 
         <div class="panel" style="margin-top:12px">
-          <div class="panel-head"><div><div class="panel-title">Where they come from</div>
-            <div class="rs-hint">One table, grouped however you need it. ${pivHasRate
-              ? "This grouping exists on the closing too, so it carries a real rate."
-              : "A rate needs the same grouping on a closing; only job type and company have one, so the other groupings show shares."}</div></div>
+          <div class="panel-head"><div class="panel-title">Where they come from</div>
             <div class="rs-spacer"></div>
             <div class="cln-dim-seg" id="clnDim">${DIMS.map(([d]) =>
               `<button data-dim="${esc(d)}" class="${S.dim === d ? "on" : ""}">${esc(d)}</button>`).join("")}</div>
           </div>
+          <div class="cln-say">One table, grouped however you need it. ${pivHasRate
+            ? "This grouping exists on the closing too, so it carries a real rate."
+            : "A rate needs the same grouping on a closing; only job type and company have one, so the other groupings show shares."}</div>
           <div class="rs-tablewrap"><table class="rs-table">
             <thead><tr><th>${esc(S.dim)}</th><th class="num">Claims</th><th>Share</th>
               ${pivHasRate ? '<th class="num">Jobs</th><th class="num">% of jobs</th>' : ""}
@@ -791,20 +797,20 @@ registerPage({
               <span class="n">${esc(f)}</span>
               <span class="t"><i style="width:${Math.max(2, a.ok / a.n * 100)}%"></i></span>
               <span class="v"><b>${Math.round(a.ok / a.n * 100)}%</b> &middot; ${fmtN(a.ok)} of ${fmtN(a.n)}</span></div>`).join("") || '<div class="rs-hint">nothing to compare yet</div>'}
-              <div class="rs-hint" style="margin-top:8px">${RULES.length ? RULES.filter(r => r.Kind === "family").length + " words define the families (" + RULES.filter(r => r.Kind === "flag").length + " more for the signals); English, Georgian and Latin-Georgian alike." : ""}</div>
+              <div class="cln-say" style="margin:8px 0 0">${RULES.length ? RULES.filter(r => r.Kind === "family").length + " words define the families (" + RULES.filter(r => r.Kind === "flag").length + " more for the signals); English, Georgian and Latin-Georgian alike." : ""}</div>
             </div></details>` : ""}
         </div>
 
         <div class="panel" style="margin-top:12px">
-          <div class="panel-head"><div><div class="panel-title">Salespeople</div>
-            <div class="rs-hint">${hasCredit ? `A job sold by two people is credited to both in the share the closing sheet paid them, so a 50/50 job gives each half the job <b>and</b> half the claim &mdash; the percentage stays a percentage of their own work, and the credited claims still add up to the ${fmtN(n)} above. ` : ""}jobs sold in the window (the closing's salesperson), the claims on them, and — where the lead's quote and the contract's real CF exist — how far the bill and the volume ran past the estimate on the claimed jobs. Fewer than ${MIN_JOBS} credited jobs reads "small" and sorts below the rest &mdash; a rate on a handful of jobs is noise, so it is shown but never ranked first. <b>Click any row</b> to see the claims behind its number and open each on the board.
-            <br><b>This is not the same number as Sales Team Command's own claim rate.</b> That page counts a claim against the rep who booked the lead and divides by closed leads; this one counts it against the salesperson on the closing and divides by jobs done. Two honest definitions — they will not tie out, and neither has been declared the right one.</div></div></div>
+          <div class="panel-head"><div class="panel-title">Salespeople</div></div>
+          <div class="cln-say">${hasCredit ? `A job sold by two people is credited to both in the share the closing sheet paid them, so a 50/50 job gives each half the job <b>and</b> half the claim &mdash; the percentage stays a percentage of their own work, and the credited claims still add up to the ${fmtN(n)} above. ` : ""}jobs sold in the window (the closing's salesperson), the claims on them, and — where the lead's quote and the contract's real CF exist — how far the bill and the volume ran past the estimate on the claimed jobs. Fewer than ${MIN_JOBS} credited jobs reads "small" and sorts below the rest &mdash; a rate on a handful of jobs is noise, so it is shown but never ranked first. <b>Click any row</b> to see the claims behind its number and open each on the board.
+            <br><b>This is not the same number as Sales Team Command's own claim rate.</b> That page counts a claim against the rep who booked the lead and divides by closed leads; this one counts it against the salesperson on the closing and divides by jobs done. Two honest definitions — they will not tie out, and neither has been declared the right one.</div>
           ${perTable(sales, "Salesperson", spExtra, "clnSpBody", S.openSp, S.allSp)}
         </div>
 
         <div class="panel" style="margin-top:12px">
-          <div class="panel-head"><div><div class="panel-title">Foremen</div>
-            <div class="rs-hint">jobs run in the window (the closing's foreman) and the claims on them, split by family. A damage claim is what the customer said, not what an inspection found — read the thread before it counts against anyone. <b>Click any row</b> to see the claims behind its number and open each on the board.</div></div></div>
+          <div class="panel-head"><div class="panel-title">Foremen</div></div>
+          <div class="cln-say">jobs run in the window (the closing's foreman) and the claims on them, split by family. A damage claim is what the customer said, not what an inspection found — read the thread before it counts against anyone. <b>Click any row</b> to see the claims behind its number and open each on the board.</div>
           ${perTable(foremen, "Foreman", fmExtra, "clnFmBody", S.openFm, S.allFm)}
         </div>
 
@@ -812,7 +818,7 @@ registerPage({
           <div class="panel-head"><div class="panel-title">The claims</div>
             <div class="rs-spacer"></div><span class="rs-pill">${fmtN(sorted.length)}</span>
             <button class="rs-btn" id="clnDl">Download CSV</button></div>
-          <div class="rs-hint" style="margin:0 0 8px">Click a claim to read its whole Monday thread here.</div>
+          <div class="cln-say">Click a claim to read its whole Monday thread here, or <b>Open&nbsp;&#8599;</b> to go straight to it on the board.</div>
           <div class="rs-tablewrap"><table class="rs-table">
             <thead><tr><th>Created</th><th>Customer</th><th>Family · ${nKW ? "reason or words" : "reason"}</th>${nKW ? "<th>Signals</th>" : ""}<th>Status</th>
               <th>Salesperson</th><th>Foreman</th><th class="num">Bill</th><th class="num">vs quote</th>
