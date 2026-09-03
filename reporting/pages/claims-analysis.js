@@ -636,7 +636,8 @@ registerPage({
           <td>All ${fmtN(people)} ${esc(people === 1 ? (extra.who || "").toLowerCase()
             : (extra.who === "Foreman" ? "foremen" : "salespeople"))}<span class="cln-small">${
             missing >= 1 ? " &middot; " + fmtC(missing) + " of the " + fmtN(nJobs)
-              + " jobs have no " + esc((extra.who || "").toLowerCase()) + " on them" : ""}</span></td>
+              + (missing < 1.5 ? " jobs has no " : " jobs have no ")
+              + esc((extra.who || "").toLowerCase()) + " on it" : ""}</span></td>
           <td class="num">${fmtC(t.jobs)}</td>
           <td class="num">${fmtC(t.claims)}</td>
           ${narrowed
