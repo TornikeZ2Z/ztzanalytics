@@ -242,8 +242,9 @@ registerPage({
       <div class="rs-page-head">
         <h1>Source Trace</h1>
         <p>Look up any job and see how its lead <b>source</b> is decided, step by step — the
-           priority ladder (incl. <b>Meta Referral</b> forms, CallRail, Google Local,
-           <b>Angi</b> / <b>Thumbtack</b> lead-data matching, Post Card region) that resolves it. Switch between the
+           priority ladder (incl. the <b>UTM tag</b> on the link they clicked, <b>Meta Referral</b>
+           forms, CallRail, Google Local, <b>Angi</b> / <b>Thumbtack</b> lead-data matching, Post Card
+           region) that resolves it. Switch between the
            <b>Closing</b> sheet source and the upstream <b>Moveboard</b> source.
            <span class="freshness">· read-only</span></p>
       </div>
@@ -270,24 +271,40 @@ registerPage({
        point of the report — the order the rungs are tried in is exactly what a trace walks —
        so showing it while idle answers "how is source decided?" without anyone searching, and
        gives the screen something to hold. It clears the moment a job is opened. */
-    const LADDER = [
-      { n: 1, t: "Returned customer",
-        d: "Booked as a returning customer. Wins outright — ahead of any phone, lead or postcard match." },
-      { n: 2, t: "Recommended",
-        d: "Somebody sent them. Kept as recorded, ahead of any phone or lead match — a referral is not outranked by the number they happened to dial." },
-      { n: 3, t: "Meta Referral — referral form match",
-        d: "Phone or email matches a Meta referral form, and the lead came in on or after that form, within 90 days. Beats every phone and lead match below it." },
-      { n: 4, t: "Google Local phone match",
-        d: "The customer's phone matched a Google Local lead, and no CallRail postcard overrides it." },
-      { n: 5, t: "Post Card — region from pickup state",
-        d: "Resolves to a Post Card, and the region comes from the pickup state rather than the tracking number's label." },
-      { n: 6, t: "Angi — lead-data match",
-        d: "Matched an Angi lead on its own data. Only ever intercepts the fallback — it never outranks the rungs above." },
-      { n: 7, t: "Thumbtack — lead-data match",
-        d: "Same as Angi, one rung lower: it takes the fallback but never beats a higher rung." },
-      { n: 8, t: "Whatever the sheet says",
-        d: "Nothing above matched, so the source stands as recorded — the Closing sheet's own value, or what it was booked from." },
-    ];
+    /* The landing explainer is GENERATED FROM RUNGS.closing, not restated beside it.
+       It used to be a third hardcoded copy of the ladder, and when UTM went in at #3 the two
+       per-job renderers got it and this one did not — so the first thing on the page still
+       described eight rungs and the change read as "nothing shipped" (2026-09-04). Prose per
+       rung lives in RUNG_TEXT keyed by the RUNGS name; a rung with no entry still appears,
+       titled by its own name, so the numbering can never silently drift again. */
+    const RUNG_TEXT = {
+      "Returned Customer": ["Returned customer",
+        "Booked as a returning customer. Wins outright — ahead of any tag, phone, lead or postcard match."],
+      "Recommended": ["Recommended",
+        "Somebody sent them. Kept as recorded — a referral is not outranked by a tag, or by the number they happened to dial."],
+      "UTM tag": ["UTM tag — the link they actually clicked",
+        "The lead came from a submission on the website form, and the page it was submitted from carried UTM tags. A first-party record of the click that produced THIS lead, so it decides the source ahead of every match below — but never over Returned or Recommended."],
+      "Meta Referral": ["Meta Referral — referral form match",
+        "Phone or email matches a Meta referral form, and the lead came in on or after that form, within 90 days."],
+      "Google Local": ["Google Local phone match",
+        "The customer's phone matched a Google Local lead, and no CallRail postcard overrides it."],
+      "CallRail": ["CallRail phone match",
+        "The customer's phone matched a CallRail tracking number — its Number Name becomes the source, and CallRail beats Google Local."],
+      "Post Card": ["Post Card — region from pickup state",
+        "Resolves to a Post Card, and the region comes from the pickup state rather than the tracking number's label."],
+      "Angi": ["Angi — lead-data match",
+        "Matched an Angi lead on its own data. Only ever intercepts the fallback — it never outranks the rungs above."],
+      "Thumbtack": ["Thumbtack — lead-data match",
+        "Same as Angi, one rung lower: it takes the fallback but never beats a higher rung."],
+      "Whatever the sheet says": ["Whatever the sheet says",
+        "Nothing above matched, so the source stands as recorded — the Closing sheet's own value, or what it was booked from."],
+      "Raw booked source": ["Raw booked source",
+        "Nothing above matched, so the moveboard's booked source stands, translated to its canonical name."],
+    };
+    const LADDER = RUNGS.closing.map((name, i) => {
+      const t = RUNG_TEXT[name] || [name, ""];
+      return { n: i + 1, t: t[0], d: t[1] };
+    });
     document.getElementById("stIdle").innerHTML = `
       <div class="panel">
         <div class="panel-head"><h3 style="margin:0">How a source is decided</h3>
