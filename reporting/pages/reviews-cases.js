@@ -65,6 +65,9 @@ registerPage({
       st.textContent = [
         // Only what the kit cannot say; everything else is .panel/.rs-kpis/.rs-table/.rs-seg.
         ".rvc-mon{color:var(--brand);font-weight:600;text-decoration:none;white-space:nowrap}",
+        // the print button sits with the page title, right-aligned, and never squeezes
+        // the description text on a narrow window
+        ".rvc-pdf{float:right;margin:-2px 0 8px 16px}",
         ".rvc-mon:hover{text-decoration:underline}",
         ".rvc-small{color:var(--faint);font-size:11.5px;white-space:nowrap}",
         ".rvc-bar{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin:0 0 14px}",
@@ -309,7 +312,8 @@ registerPage({
         <div class="rs-page-head"><h1>Claims &amp; Negative Reviews</h1>
           <p>Both boards from the warehouse — where the bad reviews land, what the claims are
              about, and how much the two overlap. Matching is by request first, customer name
-             as fallback.</p></div>
+             as fallback.</p>
+          <button class="rs-btn pri rvc-pdf" id="rvcPdf" title="a print sheet of this dashboard, to save as a PDF">Download PDF</button></div>
 
         <div class="rvc-bar" id="rvcBar"></div>
 
@@ -430,6 +434,20 @@ registerPage({
         </div>`;
 
       mountBar();
+
+      const pdfBtn = host.querySelector("#rvcPdf");
+      if (pdfBtn) pdfBtn.onclick = () => RSC.printView({
+        host,
+        title: "Claims & Negative Reviews",
+        // the PDF's reader has no filter bar, so the window is stated in words
+        subtitle: (S.year ? S.year : "all years")
+                + (S.q.trim() ? ` · search "${S.q.trim()}"` : " · no search"),
+        note: "Both boards read whole; the year filter is applied here, not in the warehouse. "
+            + "A review or claim with no date sits outside every year and is counted separately. "
+            + "Matching between the two boards is by request number first, customer name as fallback.",
+        drop: [".rvc-bar", ".rvc-pdf"],
+      });
+
       host.querySelectorAll("[data-dl]").forEach(el => {
         el.onclick = () => {
           if (el.dataset.dl === "nr") {

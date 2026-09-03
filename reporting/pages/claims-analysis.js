@@ -86,6 +86,9 @@ registerPage({
       st.textContent = [
         // only what the kit cannot say; page-prefixed so it can never leak
         ".cln-bar{display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;margin:0 0 14px}",
+        // the print button sits with the page title, right-aligned, and never squeezes
+        // the description text on a narrow window
+        ".cln-pdf{float:right;margin:-2px 0 8px 16px}",
         ".cln-in{font-family:inherit;background:var(--panel);border:1px solid var(--line);"
           + "border-radius:9px;color:var(--ink);padding:8px 12px;font-size:13px;outline:0;"
           + "margin-bottom:1px}",
@@ -259,6 +262,20 @@ registerPage({
                 extra: "", q: "", dim: "Family", page: 0, pageSize: 25,
                 openSp: "", openFm: "", allSp: 0, allFm: 0 };
     let qTimer = null;
+
+    /* WHAT WINDOW IS THIS? On screen the filter bar answers that; on a phone looking at a PDF
+       nothing does, so the print header says it in words. Every filter that is actually set
+       gets named — an unnamed filter is how a screenshot starts an argument. */
+    function printWindowLabel() {
+      const bits = [`${S.from} to ${S.to}`];
+      if (S.jobType) bits.push(S.jobType);
+      if (S.sp) bits.push("salesperson " + S.sp);
+      if (S.fm) bits.push("foreman " + S.fm);
+      if (S.resp) bits.push("responsibility " + S.resp);
+      if (S.extra) bits.push("extra service " + S.extra);
+      if (S.q.trim()) bits.push(`search "${S.q.trim()}"`);
+      return bits.join(" · ") + (bits.length === 1 ? " · no other filters" : "");
+    }
 
     // JOB TYPE COMES FROM THE CLOSING (his call 2026-09-03). The mart carries `Job Type`
     // derived from the closing's own Moving Type; the board's Service Type is not consulted
@@ -780,7 +797,8 @@ registerPage({
           the jobs as well as the claims and the rate stays a real rate; responsibility, extra
           service and the search box exist only on the claim, so under those the rate is withheld
           rather than guessed. Click a salesperson or a foreman to see the claims behind their
-          number; <b>Open&nbsp;&#8599;</b> opens the claim on the Monday board.</p></div>
+          number; <b>Open&nbsp;&#8599;</b> opens the claim on the Monday board.</p>
+          <button class="rs-btn pri cln-pdf" id="clnPdf" title="a print sheet of this dashboard, to save as a PDF">Download PDF</button></div>
         <div class="cln-bar" id="clnBar"></div>
 
         <div class="panel cln-hero">
@@ -902,6 +920,17 @@ registerPage({
         </div>`;
 
       mountBar(claims, jobs);
+
+      const pdfBtn = host.querySelector("#clnPdf");
+      if (pdfBtn) pdfBtn.onclick = () => RSC.printView({
+        host,
+        title: "Claims Analysis",
+        subtitle: printWindowLabel(),
+        note: "Every per-person number is the share of that person's own jobs in this window "
+            + "that drew a claim \u2014 never a count. Where a filter exists only on the claim, "
+            + "the rate is withheld rather than guessed.",
+        drop: [".cln-bar", ".cln-pdf", ".cln-drawer"],
+      });
 
       // the pivot's dimension picker
       const dimSeg = host.querySelector("#clnDim");

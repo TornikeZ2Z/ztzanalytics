@@ -786,8 +786,108 @@ window.RSC = (function () {
   document.addEventListener("click", () =>
     document.querySelectorAll(".rs-slicer-pop").forEach(p => p.classList.add("hidden")));
 
+
+  /* ---------------------------------------------------------------- print view ----
+     A paper version of whatever the page is currently showing. See the note in
+     scripts/../rs-components: it SNAPSHOTS the live dashboard instead of re-rendering the
+     numbers, so the PDF can never disagree with the screen it was taken from.
+
+       RSC.printView({ host, title, subtitle, note, drop })
+
+     host     the element to snapshot (the page's own container)
+     title    document heading, also the window title the browser suggests as a filename
+     subtitle one line under it — say what is IN the window, e.g. the active filters
+     note     optional smaller line under that (a caveat the reader needs on paper)
+     drop     extra CSS selectors to remove, on top of the interactive chrome always removed
+  */
+  function printView(cfg) {
+    const host = cfg.host;
+    if (!host) return;
+    const win = window.open("", "_blank");
+    if (!win) {
+      alert("Allow pop-ups for this site to save this as a PDF.");
+      return;
+    }
+    const body = host.cloneNode(true);
+
+    // Interactive chrome cannot be used on paper and only costs space. `.rs-bar` is the
+    // filter row, `.rs-seg` the view switch; both describe state that the subtitle carries
+    // in words instead.
+    const DROP = [".rs-bar", ".rs-seg", "button", "input", "select", "label.rs-fld",
+                  ".rs-spacer", "[data-foot]", ".rs-pager", ".rs-hidden"];
+    DROP.concat(cfg.drop || []).forEach(sel => {
+      body.querySelectorAll(sel).forEach(el => el.remove());
+    });
+    // a table that scrolls on screen must print WHOLE — the point of paper is that there is
+    // no overflow to hide rows behind
+    body.querySelectorAll(".rs-tablewrap").forEach(el => {
+      el.style.overflow = "visible";
+      el.style.maxHeight = "none";
+      el.style.height = "auto";
+    });
+    body.querySelectorAll("table").forEach(el => { el.style.tableLayout = "auto"; });
+
+    const esc2 = v => esc(v == null ? "" : v);
+    const when = new Date().toLocaleDateString(undefined,
+      { year: "numeric", month: "long", day: "numeric" });
+
+    win.document.write(`<!doctype html><html><head><meta charset="utf-8">
+      <title>${esc2(cfg.title || "Report")}</title>
+      <style>
+        @page{size:A4 landscape;margin:12mm}
+        *{-webkit-print-color-adjust:exact;print-color-adjust:exact;box-sizing:border-box}
+        body{margin:0;background:#fff;color:#16181D;
+          font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;
+          font-size:11px;line-height:1.45}
+        .pv-head{border-bottom:2px solid #16181D;padding-bottom:10px;margin-bottom:16px}
+        .pv-head h1{font-size:20px;margin:0 0 4px;letter-spacing:-.01em}
+        .pv-head .sub{font-size:11.5px;color:#5B5F6B}
+        .pv-head .note{font-size:10.5px;color:#7A7E88;margin-top:4px}
+        .pv-head .when{float:right;font-size:10px;color:#7A7E88;text-transform:uppercase;
+          letter-spacing:.08em}
+        /* the kit's vocabulary, restyled for paper */
+        .rs-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;
+          margin:0 0 16px}
+        .kpi{border:1px solid #DCDEE3;border-radius:5px;padding:9px 11px;break-inside:avoid}
+        .kpi .l{font-size:9px;text-transform:uppercase;letter-spacing:.07em;color:#7A7E88}
+        .kpi .v{font-size:19px;font-weight:700;margin-top:3px;font-variant-numeric:tabular-nums}
+        .kpi .s{font-size:9.5px;color:#7A7E88;margin-top:3px}
+        .panel{border:1px solid #DCDEE3;border-radius:6px;margin:0 0 14px;break-inside:avoid;
+          overflow:visible}
+        .panel-head{padding:9px 12px;border-bottom:1px solid #E6E8EC;background:#F7F8FA;
+          display:flex;align-items:baseline;gap:8px}
+        .panel-title{font-size:12px;font-weight:700}
+        .rs-hint{font-size:10px;color:#5B5F6B;padding:8px 12px 0;max-width:110ch}
+        .rs-tablewrap{overflow:visible!important;max-height:none!important}
+        table{width:100%;border-collapse:collapse;font-size:10px}
+        th{text-align:left;font-size:8.5px;text-transform:uppercase;letter-spacing:.06em;
+          color:#7A7E88;padding:6px 8px;border-bottom:1px solid #DCDEE3;background:#F7F8FA}
+        td{padding:5px 8px;border-bottom:1px solid #EEF0F3}
+        td.num,th.num,td.r,th.r{text-align:right;font-variant-numeric:tabular-nums}
+        tr{break-inside:avoid}
+        .rs-pill{display:inline-block;border:1px solid #DCDEE3;border-radius:99px;
+          padding:1px 7px;font-size:9px}
+        .dim,.muted{color:#9A9EA8}
+        svg{max-width:100%;height:auto}
+        .pv-foot{margin-top:14px;padding-top:8px;border-top:1px solid #DCDEE3;
+          font-size:9px;color:#9A9EA8;text-transform:uppercase;letter-spacing:.08em}
+      </style></head><body>
+      <div class="pv-head">
+        <span class="when">${esc2(when)}</span>
+        <h1>${esc2(cfg.title || "Report")}</h1>
+        ${cfg.subtitle ? `<div class="sub">${esc2(cfg.subtitle)}</div>` : ""}
+        ${cfg.note ? `<div class="note">${esc2(cfg.note)}</div>` : ""}
+      </div>
+      ${body.innerHTML}
+      <div class="pv-foot">Zip to Zip · Reporting System · ${esc2(when)}</div>
+      </body></html>`);
+    win.document.close();
+    // let the clone lay out before the print dialog measures it
+    win.setTimeout(() => { win.focus(); win.print(); }, 350);
+  }
+
   return { el, esc, multiSelect, singleSelect, localSelect, localMulti, dateBar, dateRange, datePresets,
            kpis, chartCard, table, matrix,
            confirm: confirmDlg, ask: askDlg, notice: noticeDlg,
-           collapsible, fitScroller, fit, reflow, reflowAfter };
+           collapsible, fitScroller, fit, reflow, reflowAfter, printView };
 })();
