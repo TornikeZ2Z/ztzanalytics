@@ -462,8 +462,10 @@ registerPage({
           orphan.medInc = null; orphan.medCf = null;
           tailRows.push(orphan);
         }
+        const small = o => (o.jobs || 0) < MIN_JOBS;
         return named.sort((a, b) =>
-          (per100(b.claims, b.jobs) || -1) - (per100(a.claims, a.jobs) || -1)
+          (small(a) ? 1 : 0) - (small(b) ? 1 : 0)
+          || (per100(b.claims, b.jobs) || -1) - (per100(a.claims, a.jobs) || -1)
           || b.claims - a.claims).concat(tailRows);
       };
       const sales = perPerson("Sales Person", "Sales Person", true);
@@ -795,7 +797,7 @@ registerPage({
 
         <div class="panel" style="margin-top:12px">
           <div class="panel-head"><div><div class="panel-title">Salespeople</div>
-            <div class="rs-hint">${hasCredit ? `A job sold by two people is credited to both in the share the closing sheet paid them, so a 50/50 job gives each half the job <b>and</b> half the claim &mdash; the percentage stays a percentage of their own work, and the credited claims still add up to the ${fmtN(n)} above. ` : ""}jobs sold in the window (the closing's salesperson), the claims on them, and — where the lead's quote and the contract's real CF exist — how far the bill and the volume ran past the estimate on the claimed jobs. Fewer than ${MIN_JOBS} jobs reads "small". <b>Click any row</b> to see the claims behind its number and open each on the board.
+            <div class="rs-hint">${hasCredit ? `A job sold by two people is credited to both in the share the closing sheet paid them, so a 50/50 job gives each half the job <b>and</b> half the claim &mdash; the percentage stays a percentage of their own work, and the credited claims still add up to the ${fmtN(n)} above. ` : ""}jobs sold in the window (the closing's salesperson), the claims on them, and — where the lead's quote and the contract's real CF exist — how far the bill and the volume ran past the estimate on the claimed jobs. Fewer than ${MIN_JOBS} credited jobs reads "small" and sorts below the rest &mdash; a rate on a handful of jobs is noise, so it is shown but never ranked first. <b>Click any row</b> to see the claims behind its number and open each on the board.
             <br><b>This is not the same number as Sales Team Command's own claim rate.</b> That page counts a claim against the rep who booked the lead and divides by closed leads; this one counts it against the salesperson on the closing and divides by jobs done. Two honest definitions — they will not tie out, and neither has been declared the right one.</div></div></div>
           ${perTable(sales, "Salesperson", spExtra, "clnSpBody", S.openSp, S.allSp)}
         </div>
