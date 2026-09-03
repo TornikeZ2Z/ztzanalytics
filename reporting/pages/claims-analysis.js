@@ -171,6 +171,8 @@ registerPage({
         ".cln-sub .rs-table td,.cln-sub .rs-table th{padding:5px 8px;font-size:11.5px}",
         ".cln-stale td{opacity:.55}",
         ".cln-tail td{background:var(--panel-2);color:var(--muted)}",
+        ".cln-tot td{border-top:2px solid var(--line);font-weight:700;background:var(--panel-2)}",
+        ".cln-tot .cln-small{font-weight:600}",
         ".cln-pager{display:flex;gap:8px;align-items:center;justify-content:flex-end;margin-top:12px;font-size:12.5px;color:var(--faint)}",
         ".cln-pager .rs-btn[disabled]{opacity:.4;pointer-events:none}",
         // the drawer: one claim, read in full
@@ -596,11 +598,35 @@ registerPage({
           <td class="num">${o.missing ? fmtC(o.missing) : '<span class="cln-small">&mdash;</span>'}</td><td class="num">${o.timing ? fmtC(o.timing) : '<span class="cln-small">&mdash;</span>'}</td>`,
       };
 
+      // THE TABLE STATES ITS OWN SUM. Summed from the underlying values over EVERY row --
+      // residuals and anything behind "Show all" included -- never from the rounded text,
+      // which is what made the column read 289.9 against a headline of 290.
+      function totalRow(rows, extra) {
+        const t = rows.reduce((a, o) => ({
+          claims: a.claims + (o.claims || 0), jobs: a.jobs + (o.jobs || 0),
+          refund: a.refund + (o.refund || 0), pub: a.pub + (o.pub || 0),
+        }), { claims: 0, jobs: 0, refund: 0, pub: 0 });
+        const people = rows.filter(o => !o.residual).length;
+        const blanks = extra.cols ? '<td class="num"></td>'.repeat(extra.cols) : "";
+        return `<tr class="cln-tot">
+          <td>All ${fmtN(people)} ${esc(String(extra.who || "").toLowerCase())}${people === 1 ? "" : "s"}${
+            rows.some(o => o.residual) ? ' <span class="cln-small">including the rows below</span>' : ""}</td>
+          <td class="num">${fmtC(t.jobs)}</td>
+          <td class="num">${fmtC(t.claims)}</td>
+          ${narrowed
+            ? '<td class="num"><span class="cln-small">&mdash;</span></td>'
+            : `<td class="num">${t.jobs ? rPct(per100(t.claims, t.jobs)) : '<span class="cln-small">&mdash;</span>'}</td>`}
+          ${blanks}
+          <td class="num">${t.refund ? money0(t.refund) : '<span class="cln-small">&mdash;</span>'}</td>
+          <td class="num">${t.pub ? fmtC(t.pub) : '<span class="cln-small">&mdash;</span>'}</td></tr>`;
+      }
+
       const perTable = (rows, who, extra, bodyId, openName, showAll) => `
           <div class="rs-tablewrap"><table class="rs-table">
             <thead><tr><th>${who}</th><th class="num">Jobs</th><th class="num">${extra.who === "Salesperson" && hasCredit ? "Claims credited" : "Claims"}</th>
               <th class="num">% of jobs</th>${extra.head}<th class="num">Refunds</th><th class="num">Went public</th></tr></thead>
-            <tbody id="${bodyId}">${bodyHtml(rows, extra, openName, showAll)}</tbody></table></div>`;
+            <tbody id="${bodyId}">${bodyHtml(rows, extra, openName, showAll)}</tbody>
+            <tfoot>${totalRow(rows, extra)}</tfoot></table></div>`;
 
       /* ---------- the pivot: one table where three cards used to be ----------
          Family / Responsibility / Job type / Extra service / Case owner / State / Company.
@@ -803,7 +829,8 @@ registerPage({
 
         <div class="panel" style="margin-top:12px">
           <div class="panel-head"><div class="panel-title">Salespeople</div></div>
-          <div class="cln-say">${hasCredit ? `A job sold by two people is credited to both in the share the closing sheet paid them, so a 50/50 job gives each half the job <b>and</b> half the claim &mdash; the percentage stays a percentage of their own work, and the credited claims still add up to the ${fmtN(n)} above. ` : ""}jobs sold in the window (the closing's salesperson), the claims on them, and — where the lead's quote and the contract's real CF exist — how far the bill and the volume ran past the estimate on the claimed jobs. Fewer than ${MIN_JOBS} credited jobs reads "small" and sorts below the rest &mdash; a rate on a handful of jobs is noise, so it is shown but never ranked first. <b>Click any row</b> to see the claims behind its number and open each on the board.
+          <div class="cln-say">${hasCredit ? `A job sold by two people is credited to both in the share the closing sheet paid them, so a 50/50 job gives each half the job <b>and</b> half the claim &mdash; the percentage stays a percentage of their own work, and the credited claims still add up to the ${fmtN(n)} above &mdash; the total row at the foot
+            states it, because the column prints one decimal and adding those by hand drifts. ` : ""}jobs sold in the window (the closing's salesperson), the claims on them, and — where the lead's quote and the contract's real CF exist — how far the bill and the volume ran past the estimate on the claimed jobs. Fewer than ${MIN_JOBS} credited jobs reads "small" and sorts below the rest &mdash; a rate on a handful of jobs is noise, so it is shown but never ranked first. <b>Click any row</b> to see the claims behind its number and open each on the board.
             <br><b>This is not the same number as Sales Team Command's own claim rate.</b> That page counts a claim against the rep who booked the lead and divides by closed leads; this one counts it against the salesperson on the closing and divides by jobs done. Two honest definitions — they will not tie out, and neither has been declared the right one.</div>
           ${perTable(sales, "Salesperson", spExtra, "clnSpBody", S.openSp, S.allSp)}
         </div>
