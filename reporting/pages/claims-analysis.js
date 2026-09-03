@@ -7,7 +7,7 @@
  *      is shown as "small sample" instead of a rate that would mislead.
  *   2. The board's Reason / Responsibility are what an employee CHOSE (59% blank). They are
  *      shown as families so they can be counted, and labelled as the team's own
- *      classification; the AI root cause lands beside them when that stage ships.
+ *      classification; no model reads a claim -- the words in the thread do the work.
  *
  * The drawer reads ONE claim's whole Monday thread through the gated /api/_claimthread
  * (monday_update never travels through the generic dataset path).
@@ -93,6 +93,7 @@ registerPage({
         ".cln-month .t{height:12px;background:var(--panel-2);border-radius:6px;overflow:hidden}",
         ".cln-month .t i{display:block;height:100%;background:var(--warn);border-radius:6px}",
         ".cln-month .v{text-align:right;font-variant-numeric:tabular-nums;color:var(--muted);white-space:nowrap}",
+        ".cln-tail td{background:var(--panel-2);color:var(--muted)}",
         ".cln-small{color:var(--faint);font-size:11.5px;white-space:nowrap}",
         ".cln-row{cursor:pointer} .cln-row:hover td{background:var(--panel-2)}",
         ".cln-pager{display:flex;gap:8px;align-items:center;justify-content:flex-end;margin-top:12px;font-size:12.5px;color:var(--faint)}",
@@ -250,11 +251,27 @@ registerPage({
           missing: 0, timing: 0, refund: 0, pub: 0, inc: [], cfv: [] }; });
         const median = a => { if (!a.length) return null; const s = a.slice().sort((x, y) => x - y);
           return s[Math.floor(s.length / 2)]; };
-        return Object.values(rows).map(o => ({ ...o, jobs: (jobsBy[o.name] || new Set()).size,
+        const all = Object.values(rows).map(o => ({ ...o, jobs: (jobsBy[o.name] || new Set()).size,
           medInc: median(o.inc), medCf: median(o.cfv) }))
-          .filter(o => o.claims > 0 || o.jobs >= MIN_JOBS)
-          .sort((a, b) => (per100(b.claims, b.jobs) || -1) - (per100(a.claims, a.jobs) || -1)
-            || b.claims - a.claims);
+          .filter(o => o.claims > 0 || o.jobs >= MIN_JOBS);
+        // NAMES THAT NEVER MATCHED A CLOSING. The Monday dropdown is free text, so a handful of
+        // claims carry a nickname or a first name only. There is no job count behind them, so
+        // there is no rate -- one row at the foot keeps their claims in the total without
+        // pretending each is a person with a record.
+        const named = all.filter(o => o.jobs > 0);
+        const loose = all.filter(o => o.jobs === 0);
+        if (loose.length) {
+          named.push(loose.reduce((a, o) => ({
+            name: "Not matched to a closing", tail: true, names: (a.names || 0) + 1,
+            jobs: 0, claims: a.claims + o.claims, price: a.price + o.price,
+            damage: a.damage + o.damage, missing: a.missing + o.missing,
+            timing: a.timing + o.timing, refund: a.refund + o.refund, pub: a.pub + o.pub,
+            medInc: null, medCf: null,
+          }), { claims: 0, price: 0, damage: 0, missing: 0, timing: 0, refund: 0, pub: 0 }));
+        }
+        return named.sort((a, b) => (a.tail ? 1 : 0) - (b.tail ? 1 : 0)
+          || (per100(b.claims, b.jobs) || -1) - (per100(a.claims, a.jobs) || -1)
+          || b.claims - a.claims);
       };
       const sales = perPerson("Sales Person", "Sales Person");
       const foremen = perPerson("Foreman", "Foreman");
@@ -278,9 +295,9 @@ registerPage({
           <div class="rs-tablewrap"><table class="rs-table">
             <thead><tr><th>${who}</th><th class="num">Jobs</th><th class="num">Claims</th>
               <th class="num">per 100 jobs</th>${extra.head}<th class="num">Refunds</th><th class="num">Went public</th></tr></thead>
-            <tbody>${rows.slice(0, 25).map(o => `<tr>
-              <td class="strong">${esc(o.name)}</td>
-              <td class="num">${fmtN(o.jobs)}</td>
+            <tbody>${rows.filter(o => !o.tail).slice(0, 25).concat(rows.filter(o => o.tail)).map(o => `<tr${o.tail ? ' class="cln-tail"' : ""}>
+              <td class="strong">${esc(o.name)}${o.tail ? ` <span class="cln-small">${o.names} name${o.names === 1 ? "" : "s"} on the board with no job behind them</span>` : ""}</td>
+              <td class="num">${o.jobs ? fmtN(o.jobs) : '<span class="cln-small">—</span>'}</td>
               <td class="num">${fmtN(o.claims)}</td>
               ${rateCell(o.claims, o.jobs, "strong")}
               ${extra.cells(o)}
@@ -290,7 +307,7 @@ registerPage({
 
       host.innerHTML = `
         <div class="rs-page-head"><h1>Claims Analysis</h1>
-          <p>Every claim with the job it belongs to, read as rates — claims per 100 jobs by month, by salesperson and by foreman. The families come from the board's own Reason and Responsibility, which the team fills on about four claims in ten; the AI root cause will sit beside them.</p></div>
+          <p>Every claim with the job it belongs to, read as rates — claims per 100 jobs by month, by salesperson and by foreman. The families come from the board's own Reason and Responsibility, which the team fills on about four claims in ten; where they left it blank, the words in the thread say what it was about.</p></div>
         <div class="cln-bar" id="clnBar"></div>
 
         <div class="panel cln-led">
@@ -354,7 +371,7 @@ registerPage({
 
         <div class="panel" style="margin-top:12px">
           <div class="panel-head"><div><div class="panel-title">Foremen</div>
-            <div class="rs-hint">jobs run in the window (the closing's foreman) and the claims on them, split by family. A damage claim is not a damage finding — the AI evidence pass is what will tell those apart.</div></div></div>
+            <div class="rs-hint">jobs run in the window (the closing's foreman) and the claims on them, split by family. A damage claim is what the customer said, not what an inspection found — read the thread before it counts against anyone.</div></div></div>
           ${perTable(foremen, "Foreman", {
             head: `<th class="num">Damage</th><th class="num">per 100</th><th class="num">Missing</th><th class="num">Timing</th>`,
             cells: o => `<td class="num">${o.damage || '<span class="cln-small">—</span>'}</td>${rateCell(o.damage, o.jobs)}
