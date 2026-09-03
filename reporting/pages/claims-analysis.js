@@ -109,6 +109,8 @@ registerPage({
         ".cln-svg .ln{fill:none;stroke:var(--warn);stroke-width:2;stroke-linejoin:round;stroke-linecap:round}",
         ".cln-svg .ar{fill:var(--warn);opacity:.10}",
         ".cln-svg .dot{fill:var(--panel);stroke:var(--warn);stroke-width:2}",
+        ".cln-svg .ln.part{stroke-dasharray:4 3;opacity:.6}",
+        ".cln-svg .dot.part{stroke-dasharray:2 2;opacity:.7}",
         ".cln-svg .tk{font-size:9.5px;fill:var(--faint);font-weight:600}",
         ".cln-svg .vl{font-size:10px;fill:var(--muted);font-weight:700}",
         // one pivot table instead of three share cards
@@ -585,21 +587,41 @@ registerPage({
         const area = pts.length > 1
           ? line + " L" + pts[pts.length - 1][0].toFixed(1) + " " + (T + ih) + " L" + pts[0][0].toFixed(1) + " " + (T + ih) + " Z"
           : "";
+        // is the last month only partly covered by this window?
+        const lastM = ms[ms.length - 1];
+        const monthEnd = (() => { const [y, mm] = lastM.split("-").map(Number);
+          return iso(new Date(Date.UTC(y, mm, 0))); })();
+        const partial = !!(to && lastM && to < monthEnd);
+        const solid = partial ? pts.slice(0, -1) : pts;
+        const solidLine = solid.map((pt, i) => (i ? "L" : "M") + pt[0].toFixed(1) + " " + pt[1].toFixed(1)).join(" ");
+        const tailLine = partial && pts.length > 1
+          ? "M" + pts[pts.length - 2][0].toFixed(1) + " " + pts[pts.length - 2][1].toFixed(1)
+            + " L" + pts[pts.length - 1][0].toFixed(1) + " " + pts[pts.length - 1][1].toFixed(1)
+          : "";
+        const solidArea = solid.length > 1
+          ? solidLine + " L" + solid[solid.length - 1][0].toFixed(1) + " " + (T + ih)
+            + " L" + solid[0][0].toFixed(1) + " " + (T + ih) + " Z"
+          : "";
         const every = ms.length > 14 ? Math.ceil(ms.length / 12) : 1;
         return `<svg class="cln-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img"
             aria-label="claims per month and the share of jobs that drew a claim">
           <line class="ax" x1="${L}" y1="${T + ih}" x2="${W - R}" y2="${T + ih}"></line>
           ${ms.map((m, i) => `<rect class="bar" x="${(x(i) - bw / 2).toFixed(1)}" y="${yC(cnt[i]).toFixed(1)}"
               width="${bw.toFixed(1)}" height="${(T + ih - yC(cnt[i])).toFixed(1)}" rx="2"></rect>`).join("")}
-          ${area && !narrowed ? `<path class="ar" d="${area}"></path>` : ""}
-          ${!narrowed ? `<path class="ln" d="${line}"></path>` : ""}
+          ${solidArea && !narrowed ? `<path class="ar" d="${solidArea}"></path>` : ""}
+          ${!narrowed && solidLine ? `<path class="ln" d="${solidLine}"></path>` : ""}
+          ${!narrowed && tailLine ? `<path class="ln part" d="${tailLine}"></path>` : ""}
           ${!narrowed ? ms.map((m, i) => (rate[i] == null ? "" :
-              `<circle class="dot" cx="${x(i).toFixed(1)}" cy="${yR(rate[i]).toFixed(1)}" r="3"></circle>`)).join("") : ""}
+              `<circle class="dot${partial && i === ms.length - 1 ? " part" : ""}"
+                 cx="${x(i).toFixed(1)}" cy="${yR(rate[i]).toFixed(1)}" r="3"></circle>`)).join("") : ""}
           ${ms.map((m, i) => (i % every ? "" : `<text class="tk" x="${x(i).toFixed(1)}" y="${H - 8}"
               text-anchor="middle">${esc(m.slice(2))}</text>`)).join("")}
           <text class="vl" x="${L - 6}" y="${T + 8}" text-anchor="end">${fmtN(maxC)}</text>
-          ${!narrowed ? `<text class="vl" x="${W - R + 6}" y="${T + 8}">${r1(maxR)}</text>` : ""}
-        </svg>`;
+          ${!narrowed ? `<text class="vl" x="${W - R + 6}" y="${T + 8}">${rPct(maxR)}</text>` : ""}
+        </svg>`
+        + (partial ? `<div class="rs-hint" style="margin-top:2px">${esc(lastM)} is only counted to
+            ${esc(to)}, so its share sits on a few days of jobs and swings — it is drawn dashed and
+            should not be read as a trend.</div>` : "");
       }
 
       const dChip = (w, label) => {
