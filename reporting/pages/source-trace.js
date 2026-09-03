@@ -293,24 +293,33 @@ registerPage({
        time as a small box in the corner of an empty screen. The ladder below is the whole
        point of the report — the order the rungs are tried in is exactly what a trace walks —
        so showing it while idle answers "how is source decided?" without anyone searching, and
-       gives the screen something to hold. It clears the moment a job is opened. */
+       gives the screen something to hold. It clears the moment a job is opened, and it
+       FOLLOWS THE TAB: the two sides do not walk the same ladder — CallRail is a rung of its
+       own on the Moveboard side with Google Local beneath it, where the Closing side folds
+       CallRail into the Post Card and fallback rungs. Drawing the closing ladder over the
+       moveboard tab described nine rungs while the trace below walked ten (2026-09-04). */
     /* The landing explainer is GENERATED FROM RUNGS.closing, not restated beside it.
        It used to be a third hardcoded copy of the ladder, and when UTM went in at #3 the two
        per-job renderers got it and this one did not — so the first thing on the page still
        described eight rungs and the change read as "nothing shipped" (2026-09-04). Prose per
        rung lives in RUNG_TEXT keyed by the RUNGS name; a rung with no entry still appears,
-       titled by its own name, so the numbering can never silently drift again. */
+       titled by its own name, so the numbering can never silently drift again. A third
+       entry, where present, is the wording for the MOVEBOARD side — the same rung, but the
+       thing above it differs, and a description that quietly contradicts the tab it is on is
+       worse than no description. */
     const RUNG_TEXT = {
       "Returned Customer": ["Returned customer",
         "Booked as a returning customer. Wins outright — ahead of any tag, phone, lead or postcard match."],
       "Recommended": ["Recommended",
         "Somebody sent them. Kept as recorded — a referral is not outranked by a tag, or by the number they happened to dial."],
       "UTM tag": ["UTM tag — the link they actually clicked",
+        "The moveboard lead behind the job came from a submission on the website form whose page carried UTM tags, and the closing inherits the source that produced. A first-party record of the click, so it decides ahead of every match below — but never over Returned or Recommended.",
         "The lead came from a submission on the website form, and the page it was submitted from carried UTM tags. A first-party record of the click that produced THIS lead, so it decides the source ahead of every match below — but never over Returned or Recommended."],
       "Meta Referral": ["Meta Referral — referral form match",
         "Phone or email matches a Meta referral form, and the lead came in on or after that form, within 90 days."],
       "Google Local": ["Google Local phone match",
-        "The customer's phone matched a Google Local lead, and no CallRail postcard overrides it."],
+        "The customer's phone matched a Google Local lead, and no CallRail postcard overrides it.",
+        "The customer's phone matched a Google Local lead. CallRail is tried first and beats it — here that is the rung above, not a footnote."],
       "CallRail": ["CallRail phone match",
         "The customer's phone matched a CallRail tracking number — its Number Name becomes the source, and CallRail beats Google Local."],
       "Post Card": ["Post Card — region from pickup state",
@@ -324,21 +333,29 @@ registerPage({
       "Raw booked source": ["Raw booked source",
         "Nothing above matched, so the moveboard's booked source stands, translated to its canonical name."],
     };
-    const LADDER = RUNGS.closing.map((name, i) => {
-      const t = RUNG_TEXT[name] || [name, ""];
-      return { n: i + 1, t: t[0], d: t[1] };
-    });
-    document.getElementById("stIdle").innerHTML = `
+    function paintIdleLadder() {
+      const el = document.getElementById("stIdle");
+      if (!el) return;
+      // the multi tab has its own subject; the explainer describes the other two
+      const mode = ST_STATE.mode === "multi" ? "closing" : ST_STATE.mode;
+      const unit = mode === "moveboard" ? "moveboard lead" : "closing job";
+      const rungs = (RUNGS[mode] || RUNGS.closing).map((name, i) => {
+        const t = RUNG_TEXT[name] || [name, ""];
+        return { n: i + 1, t: t[0], d: (mode === "moveboard" && t[2]) || t[1] };
+      });
+      el.innerHTML = `
       <div class="panel">
         <div class="panel-head"><h3 style="margin:0">How a source is decided</h3>
-          <span class="strc-cap">the ladder every trace walks, in order — the first rung that matches wins</span></div>
-        <div class="strc-howgrid">${LADDER.map(r => `
+          <span class="strc-cap">the ladder every ${RSC.esc(unit)} trace walks, in order — the first rung that matches wins</span></div>
+        <div class="strc-howgrid">${rungs.map(r => `
           <div class="strc-howrung">
             <div class="strc-hown">${r.n}</div>
             <div><div class="strc-howt">${RSC.esc(r.t)}</div>
                  <div class="strc-howd">${RSC.esc(r.d)}</div></div>
           </div>`).join("")}</div>
       </div>`;
+    }
+    paintIdleLadder();
     function winClosing(r) {
       const lc = String(r["Match Path"] || "").toLowerCase();
       const isPost = /post card/.test(norm(r["Final Source (current)"])) || /post card/.test(norm(r["Source Connector"]));
@@ -1015,6 +1032,7 @@ registerPage({
       { const e = document.getElementById("stChips"); if (e) e.innerHTML = ""; }
       { const e = document.getElementById("stIdle");
         if (e) e.style.display = ST_STATE.mode === "multi" ? "none" : ""; }
+      paintIdleLadder();          // the two sides walk different ladders
       if (await loadMode(ST_STATE.mode)) {
         if (ST_STATE.mode === "multi") { paintMultiChips(); paintMulti(); }
         else { idleCount(); paintChips(); }
