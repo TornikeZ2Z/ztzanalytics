@@ -209,6 +209,17 @@ async function cbRender(host) {
       "County":        { fn: r => { const b = mbOf(r); return b && b["County Name"]; }, kind: "lead", group: "From the lead" },
       "Via QR":        { fn: r => { const b = mbOf(r); return b ? (+b["Via QR"] ? "Scanned the QR code" : "Not via QR") : null; },
                          kind: "lead", sort: (a, b2) => String(b2).localeCompare(String(a)), group: "From the lead" },
+      // WEBSITE FORM / UTM (2026-09-03), through the same bridge. Only knowable back to
+      // the CMS export's window (2025-05), so "No form on file" is two things at once -- a
+      // lead that came in by phone, and a lead older than the export.
+      "UTM Campaign":  { fn: r => { const b = mbOf(r); return b && b["UTM Campaign"]; },
+                         kind: "lead", group: "From the lead" },
+      "UTM Source":    { fn: r => { const b = mbOf(r); return b && b["UTM Source"]; },
+                         kind: "lead", group: "From the lead" },
+      "Web Form":      { fn: r => { const b = mbOf(r); return b ? (+b["Web Form"] ? "From the website form" : "No form on file") : null; },
+                         kind: "lead", sort: (a, b2) => String(b2).localeCompare(String(a)), group: "From the lead" },
+      "Paid Ad Click": { fn: r => { const b = mbOf(r); return b ? (+b["Paid Click"] ? "Paid ad click" : "Not a paid click") : null; },
+                         kind: "lead", sort: (a, b2) => String(b2).localeCompare(String(a)), group: "From the lead" },
     };
     const LEAD_DIMS = {
       "Source":         { fn: r => r.Source, group: "Lead" },
@@ -226,6 +237,16 @@ async function cbRender(host) {
       "Quote Range":    { fn: r => r["Bill Range"], sort: byBand, group: "Lead" },
       "Big Job":        { fn: r => r["Big Job Status"], group: "Lead" },
       "Via QR":         { fn: r => (+r["Via QR"] ? "Scanned the QR code" : "Not via QR"),
+                          sort: (a, b) => String(b).localeCompare(String(a)), group: "Lead" },
+      // WEBSITE FORM / UTM (2026-09-03) -- the tags on the link the lead arrived through.
+      // Coverage starts 2025-05 (the CMS export's window), so "No form on file" mixes phone
+      // leads with leads older than the export; read it with a date filter on.
+      "UTM Campaign":   { fn: r => r["UTM Campaign"], group: "Lead" },
+      "UTM Source":     { fn: r => r["UTM Source"], group: "Lead" },
+      "UTM Medium":     { fn: r => r["UTM Medium"], group: "Lead" },
+      "Web Form":       { fn: r => (+r["Web Form"] ? "From the website form" : "No form on file"),
+                          sort: (a, b) => String(b).localeCompare(String(a)), group: "Lead" },
+      "Paid Ad Click":  { fn: r => (+r["Paid Click"] ? "Paid ad click" : "Not a paid click"),
                           sort: (a, b) => String(b).localeCompare(String(a)), group: "Lead" },
       "Company":        { fn: r => r.Company, group: "Lead" },
       "Year":           { fn: r => r._y, sort: byText, group: "Time" },

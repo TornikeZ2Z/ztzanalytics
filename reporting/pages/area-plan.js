@@ -32,7 +32,7 @@
     RS.DATASETS.area_plan = {
       table: "mart_area_plan",
       cols: ["ym", "company", "state", "county",
-             "leads", "qualified", "lost", "booked", "total_cf"],
+             "leads", "qualified", "lost", "booked", "total_cf", "built_at"],
     };
   }
   // the per-city master, whole: every column the mart builds. A column not listed never
@@ -414,7 +414,7 @@ registerPage({
         /* MEASURED means measured: the jobs done in the period were done by the crew that
            actually worked, so the denominator is the MEASURED foremen for those months --
            never the edited cells. */
-        const worked = seedStates.reduce((a, st) => a + P.M.workedByState(st), 0)
+        const worked = Math.max(0, ...P.yms.map(m => (((CAPM[m] || {})._national || {}).foremen_worked || 0)))
           || HIS_TABLE.reduce((a, b) => a + b.cur, 0);
         P.measuredForemen = worked;
         P.measuredUtil = (worked && P.yms.length)
@@ -526,7 +526,7 @@ registerPage({
         const trail = MKT.trailing_12m_avg_monthly_spend;
         return [["utilization", "Utilization of the ceiling, %",
             "measured " + esc(P.label) + ": " + n1(P.measuredUtil * 100) + "% (" +
-            fmtN(P.M.jobs) + " jobs vs " + fmtN(P.measuredForemen) + " foremen who worked × " + DAYS_PER_MONTH + " days)"],
+            fmtN(P.M.jobs) + " jobs vs " + fmtN(P.measuredForemen) + " distinct foremen in the busiest month × " + DAYS_PER_MONTH + " days × " + P.yms.length + " months)"],
            ["leadsPerRep", "Leads one salesperson handles / month",
             "measured " + esc(P.label) + ": " + (P.M.leadsPerRep || "—") + " median"],
            ["dollarsPerLead", "Marketing $ per lead",
@@ -1006,7 +1006,8 @@ registerPage({
           else b[t.dataset.f] = parseFloat(t.value) || 0;
           if (inputs.seed !== "custom") {
             inputs.seed = "custom";
-            host.querySelectorAll("#apSeed button").forEach(x => x.classList.remove("on"));
+            const cb = host.querySelector(".ap2-ctl");
+            if (cb) { cb.outerHTML = controlBar(); wireControls(); }
           }
         } else if (t.dataset.k) inputs[t.dataset.k] = parseFloat(t.value) || 0;
         save();

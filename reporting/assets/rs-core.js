@@ -56,6 +56,12 @@ window.RS = (function () {
         "Move Date", "Service Type", "Size of Move", "Customer", "State", "State Name",
         "County Name", "City Name", "Source", "Source Before Adjustment", "Source Connector",
         "Via QR", "Meta Referral", "Min Quote", "Max Quote",
+        // website form / UTM (2026-09-03). `Web Form` is only knowable back to the CMS
+        // export's window (2025-05): a 0 means "no matching submission on file", never
+        // "this lead did not come from the website".
+        "Web Form", "Web Form Match Rule", "Web Form Dropdown", "UTM Source", "UTM Medium",
+        "UTM Campaign", "UTM Content", "UTM Term", "UTM Landing Page", "Ad Campaign Id",
+        "Paid Click", "UTM Source Resolved",
         "Average Quote", "Total CF", "Total Lbs", "Big Job Status", "CF Range", "Bill Range",
         "Assigned", "Request Joinkey", "Closing Sheet Connector"],
       dateCols: { "Create Date": "Create Date", "Booked Date": "Booked Date", "Move Date": "Move Date" },
