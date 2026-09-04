@@ -88,7 +88,7 @@ registerPage({
     /* THE SHEET'S CSS, ONCE. The overlay writes it into the page's own stylesheet and the
        print document writes it into its head, so the sheet on screen and the sheet on paper
        are the same object. Two copies would drift the first time either was edited. */
-    const SHEET_CSS = ".fa2-sheet{width:210mm;min-height:297mm;background:#fff;color:#16181D;padding:14mm;box-shadow:0 18px 60px rgba(0,0,0,.4);font-size:10.5px;line-height:1.45;font-variant-numeric:tabular-nums}.fa2-sheet h1{font-size:19px;margin:0;letter-spacing:-.3px}.fa2-sheet .rhd{display:flex;align-items:flex-end;gap:12px;border-bottom:2px solid #16181D;padding-bottom:9px;margin-bottom:13px}.fa2-sheet .rhd .sub{font-size:11px;color:#5B5F6B;margin-top:3px}.fa2-sheet .rhd .big{margin-left:auto;text-align:right;line-height:1}.fa2-sheet .rhd .big b{font-size:35px;font-weight:800;letter-spacing:-1px}.fa2-sheet .rhd .big i{display:block;font-style:normal;font-size:9px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:#7A7E88;margin-top:3px}.fa2-sheet .rstrip{display:grid;grid-template-columns:repeat(4,1fr);gap:9px;margin-bottom:14px}.fa2-sheet .rstrip div{border:1px solid #DCDEE3;border-radius:5px;padding:8px 10px}.fa2-sheet .rstrip .l{font-size:8.5px;text-transform:uppercase;letter-spacing:.07em;color:#7A7E88}.fa2-sheet .rstrip .v{font-size:17px;font-weight:750;margin-top:2px}.fa2-sheet .rstrip .s{font-size:9px;color:#7A7E88;margin-top:2px}.fa2-sheet h2{font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:#7A7E88;margin:0 0 6px;padding-bottom:4px;border-bottom:1px solid #DCDEE3}.fa2-sheet table{width:100%;border-collapse:collapse;margin-bottom:13px}.fa2-sheet th{text-align:left;font-size:8.5px;text-transform:uppercase;letter-spacing:.05em;color:#7A7E88;padding:4px 6px;border-bottom:1px solid #DCDEE3;font-weight:700}.fa2-sheet td{padding:5px 6px;border-bottom:1px solid #EFF0F3;vertical-align:top}.fa2-sheet td.n{text-align:right;white-space:nowrap}.fa2-sheet td.q{color:#7A7E88;font-size:9.5px}.fa2-sheet .st{color:#C9911B;letter-spacing:.5px;white-space:nowrap}.fa2-sheet .why{color:#16181D;font-style:italic;font-size:9.5px;display:block;margin-top:2px}.fa2-sheet .foot{font-size:9px;color:#7A7E88;line-height:1.55;border-top:1px solid #DCDEE3;padding-top:8px;margin-top:4px}";
+    const SHEET_CSS = ".fa2-sheet{width:210mm;min-height:297mm;background:#fff;color:#16181D;padding:14mm;box-shadow:0 18px 60px rgba(0,0,0,.4);font-size:10.5px;line-height:1.45;font-variant-numeric:tabular-nums}.fa2-sheet h1{font-size:19px;margin:0;letter-spacing:-.3px}.fa2-sheet .rhd{display:flex;align-items:flex-end;gap:12px;border-bottom:2px solid #16181D;padding-bottom:9px;margin-bottom:13px}.fa2-sheet .rhd .sub{font-size:11px;color:#5B5F6B;margin-top:3px}.fa2-sheet .rhd .big{margin-left:auto;text-align:right;line-height:1}.fa2-sheet .rhd .big b{font-size:35px;font-weight:800;letter-spacing:-1px}.fa2-sheet .rhd .big i{display:block;font-style:normal;font-size:9px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:#7A7E88;margin-top:3px}.fa2-sheet .rstrip{display:grid;grid-template-columns:repeat(4,1fr);gap:9px;margin-bottom:14px}.fa2-sheet .rstrip div{border:1px solid #DCDEE3;border-radius:5px;padding:8px 10px}.fa2-sheet .rstrip .l{font-size:8.5px;text-transform:uppercase;letter-spacing:.06em;color:#7A7E88;min-height:2.1em;line-height:1.25}.fa2-sheet .rstrip .v{font-size:17px;font-weight:750;margin-top:2px}.fa2-sheet .rstrip .s{font-size:9px;color:#7A7E88;margin-top:2px}.fa2-sheet h2{font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:#7A7E88;margin:0 0 6px;padding-bottom:4px;border-bottom:1px solid #DCDEE3}.fa2-sheet table{width:100%;border-collapse:collapse;margin-bottom:13px}.fa2-sheet th{text-align:left;font-size:8.5px;text-transform:uppercase;letter-spacing:.05em;color:#7A7E88;padding:4px 6px;border-bottom:1px solid #DCDEE3;font-weight:700}.fa2-sheet td{padding:5px 6px;border-bottom:1px solid #EFF0F3;vertical-align:top}.fa2-sheet td.n{text-align:right;white-space:nowrap}.fa2-sheet td.q{color:#7A7E88;font-size:9.5px}.fa2-sheet .st{color:#C9911B;letter-spacing:.5px;white-space:nowrap}.fa2-sheet .why{color:#16181D;font-style:italic;font-size:9.5px;display:block;margin-top:2px}.fa2-sheet .foot{font-size:9px;color:#7A7E88;line-height:1.55;border-top:1px solid #DCDEE3;padding-top:8px;margin-top:4px}";
 
     const AUTO_V2 = [
       { k: "Packing per 100 CF Score", w: 30, lab: "Packing per 100 CF",
@@ -1322,7 +1322,6 @@ registerPage({
       const measured = num(f["Auto Weight Measured"]);
       const stars5 = st => "\u2605".repeat(Math.round(st)) + "\u2606".repeat(Math.max(0, 5 - Math.round(st)));
       const r = (S.ratings || {})[f.Foreman] || {};
-      const pr = (S.prevRatings || {})[f.Foreman] || {};
 
       const counted = autoFor(f).map(a => {
         const sc = num(f[a.k]), rawv = num(f[a.raw]);
@@ -1339,21 +1338,15 @@ registerPage({
       const assessed = QS().map(q => {
         const v = r[q.Question], pts = +q.Points || 0;
         const st = v && v.Stars != null ? +v.Stars : null;
-        const pv = pr[q.Question], pst = pv && pv.Stars != null ? +pv.Stars : null;
         return "<tr><td><b>" + esc(q.Label) + "</b>"
           + (v && v.Note ? '<span class="why">\u201c' + esc(String(v.Note)) + "\u201d</span>" : "")
           + "</td>"
           + '<td class="q">' + (st == null ? "not rated"
               : '<span class="st">' + stars5(st) + "</span> " + fmt1(st) + " of 5")
-          + (pst != null ? '<br><span style="font-size:9px">' + esc(monLab(S.prevMonthKey))
-              + ": " + fmt1(pst) + " of 5</span>" : "")
           + "</td>"
           + '<td class="n">' + (st == null ? "\u2014" : fmt1(st / 5 * pts)) + "</td>"
           + '<td class="n q">of ' + fmt1(pts) + "</td></tr>";
       }).join("");
-
-      const prevTot = x.prev && x.prev.total != null ? x.prev.total : null;
-      const move = (prevTot != null && x.total != null) ? x.total - prevTot : null;
 
       return '<div class="fa2-sheet" id="faSheet"><div class="fit">'
         + '<div class="rhd"><div><h1>' + esc(f.Foreman) + "</h1>"
@@ -1362,34 +1355,35 @@ registerPage({
         + (num(f["Total CF"]) ? " \u00b7 " + fmtN(Math.round(num(f["Total CF"]))) + " CF" : "")
         + "</div></div>"
         + '<div class="big"><b>' + (x.total == null ? "\u2014" : fmt1(x.total)) + "</b>"
-        + "<i>" + (x.total == null ? "not measurable" : "out of 100") + "</i></div></div>"
+        + "<i>" + (x.total == null ? "not measurable"
+            : (x.ok && x.rank ? "out of 100 \u00b7 place #" + x.rank : "out of 100")) + "</i></div></div>"
 
+        // HIS MONTH IN HIS OWN TERMS FIRST. Jobs and volume are what a foreman recognises
+        // as the month he worked; the two score halves follow. No previous month here -- that
+        // belongs on the rater's card, not on the sheet the man is handed.
         + '<div class="rstrip">'
-        + '<div><div class="l">Counted by the system</div><div class="v">'
+        + '<div><div class="l">Jobs</div><div class="v">' + fmtN(num(f["Total Jobs"]) || 0) + "</div>"
+          + '<div class="s">completed in ' + esc(monLab(S.month)) + "</div></div>"
+        + '<div><div class="l">Volume moved</div><div class="v">'
+          + (num(f["Total CF"]) ? fmtN(Math.round(num(f["Total CF"]))) : "\u2014") + "</div>"
+          + '<div class="s">cubic feet</div></div>'
+        + '<div><div class="l">Automatically Calculated</div><div class="v">'
           + (x.auto == null ? "\u2014" : fmt1(x.auto)) + " / " + cTot + "</div>"
           + '<div class="s">' + (measured != null && measured < cTot
               ? "only " + measured + " of " + cTot + " measurable, rescaled" : "all topics measured")
           + "</div></div>"
-        + '<div><div class="l">Assessed by a person</div><div class="v">'
+        + '<div><div class="l">Manually Assessed</div><div class="v">'
           + fmt1(x.manual) + " / " + fmt1(MANUAL_TOTAL()) + "</div>"
           + '<div class="s">' + (x.full ? "all " + NQ() + " questions rated"
               : x.answered ? x.answered + " of " + NQ() + " rated" : "nothing rated yet")
           + "</div></div>"
-        + '<div><div class="l">Place this month</div><div class="v">'
-          + (x.ok && x.rank ? "#" + x.rank : "\u2014") + "</div>"
-          + '<div class="s">' + (x.ok ? "of " + (S._nQual || "") + " ranked" : esc(x.why || "not ranked"))
-          + "</div></div>"
-        + '<div><div class="l">' + esc(S.prevMonthKey ? monLab(S.prevMonthKey) : "Last month") + "</div>"
-          + '<div class="v">' + (prevTot == null ? "\u2014" : fmt1(prevTot)) + "</div>"
-          + '<div class="s">' + (move == null ? "no comparable month"
-              : (move > 0 ? "+" : "") + fmt1(move) + " this month") + "</div></div>"
         + "</div>"
 
-        + "<h2>Already counted \u2014 measured from the jobs</h2>"
+        + "<h2>Automatically Calculated \u2014 measured from the jobs</h2>"
         + "<table><thead><tr><th>Topic</th><th>What was measured</th><th>Earned</th><th></th></tr></thead>"
         + "<tbody>" + counted + "</tbody></table>"
 
-        + "<h2>Assessed \u2014 rated by " + esc(String(f["Assessed By"] || "the reviewer").split("@")[0]) + "</h2>"
+        + "<h2>Manually Assessed \u2014 rated by Logistics</h2>"
         + "<table><thead><tr><th>Question</th><th>Rating</th><th>Earned</th><th></th></tr></thead>"
         + "<tbody>" + (assessed || '<tr><td colspan="4" class="q">No rubric for this month.</td></tr>')
         + "</tbody></table>"
@@ -1397,7 +1391,7 @@ registerPage({
         + '<div class="foot">The score is ' + cTot + " points measured from the jobs plus "
         + fmt1(MANUAL_TOTAL()) + " judged by a person, out of 100. Complaints upheld and late "
         + "arrivals are deductions, not points to earn \u2014 a clean month keeps them whole. "
-        + (f["Assessed At"] ? "Assessed " + esc(String(f["Assessed At"]).slice(0, 10)) + ". " : "")
+        + (f["Assessed At"] ? "Assessed " + esc(String(f["Assessed At"]).slice(0, 10)) + " by Logistics. " : "")
         + "Generated from the reporting system on " + esc(new Date().toISOString().slice(0, 10))
         + ".</div>"
         + "</div></div>";
