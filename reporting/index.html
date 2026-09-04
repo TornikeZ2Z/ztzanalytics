@@ -179,7 +179,9 @@ const GROUP_OVERRIDE = {
   "monthly-report": "company", "analysis-by-category": "company", "work": "company",
   // Sales ("sales-geo" moved to Financial — Tornike 2026-07-13: geography is a money view)
   "sales-funnel": "sales", "sales-perf": "sales", "sales-geo": "financial", "demand-analysis": "sales", "sales-command": "sales",
-  "conversations": "sales", "sales-comms": "sales", "sales-trackers": "sales",
+  // a sales tool AND a support tool: the same transcripts answer "did we call them back"
+  // and "what did we actually say to this customer" (his ask 2026-09-04)
+  "conversations": ["sales", "customer-service"], "sales-comms": "sales", "sales-trackers": "sales",
   // Marketing
   "mkt-roi": "marketing", "mkt-sources": "marketing", "mkt-phone": "marketing",
   // Logistics
@@ -201,7 +203,10 @@ const GROUP_OVERRIDE = {
   // Support
   "sup-claims": "support", "sup-refunds": "support", "sup-phone": "support",
 };
-const groupOf = p => GROUP_OVERRIDE[p.id] || p.group;
+const groupsOf = p => { const g = GROUP_OVERRIDE[p.id] || p.group;
+  return Array.isArray(g) ? g : [g]; };
+// kept for anything that still wants a single answer: the FIRST group is the page's home
+const groupOf = p => groupsOf(p)[0];
 /* explicit per-container item order (numbers are scoped within each group's display list) */
 const NAV_ORDER = {
   "monthly-report": 1, "analysis-by-category": 2, "work": 0.5,
@@ -1125,7 +1130,7 @@ function buildNav() {
     // (at its first constituent's position) and its constituents are hidden.
     const display = [];
     const seenMerged = new Set();
-    PAGES.filter(p => groupOf(p) === g.key && !RETIRED.has(p.id)).forEach(p => {
+    PAGES.filter(p => groupsOf(p).indexOf(g.key) >= 0 && !RETIRED.has(p.id)).forEach(p => {
       const m = MERGED_BY_TAB[p.id];
       if (m) {
         if (!seenMerged.has(m.id) && canSee(m.id)) {
