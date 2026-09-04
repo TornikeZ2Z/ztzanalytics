@@ -366,7 +366,14 @@ registerPage({
         wrap.innerHTML = "<div class='sm-empty'>No scored months yet.</div>";
         return;
       }
-      if (!S.month || months.indexOf(S.month) < 0) S.month = months[0];
+      // OPEN ON THE LAST MONTH THAT ACTUALLY FINISHED. The newest row is the month we are
+      // standing in — a handful of days, four people over the twenty-lead line, and a
+      // ranking that will not survive the week. An award page should land on a month that
+      // happened.
+      if (!S.month || months.indexOf(S.month) < 0) {
+        S.month = months.find(m => (num((rowsFor(m)[0] || {})["Months Matured"]) || 0) >= 1)
+                  || months[0];
+      }
       const rows = rowsFor(S.month);
       const ranked = rows.filter(r => num(r["Rank"]) != null);
       const leader = ranked[0] || null;
@@ -394,9 +401,10 @@ registerPage({
         + months.map(m => {
             const rr = rowsFor(m).filter(x => num(x["Rank"]) != null);
             const mm = num((rowsFor(m)[0] || {})["Months Matured"]);
+            const growing = mm != null && mm < 2;
             return "<button class='sm-mopt" + (m === S.month ? " cur" : "") + "' data-m='" + esc(m) + "'>"
-              + esc(monLab(m)) + "<span class='tag" + (mm != null && mm < 2 ? " yg" : "") + "'>"
-              + (mm != null && mm < 2 ? "still growing" : rr.length + " ranked") + "</span></button>";
+              + esc(monLab(m)) + "<span class='tag" + (growing ? " yg" : "") + "'>"
+              + rr.length + " ranked" + (growing ? " · growing" : "") + "</span></button>";
           }).join("")
         + "</div></div>"
         + "<div class='sm-sub'>Everything here is counted from the record — the leads that "
@@ -405,6 +413,14 @@ registerPage({
         + (young ? " <b>" + esc(monLab(S.month)) + " is still growing</b> — a fifth of the "
                  + "leads that eventually book do so more than a month after they arrive, so "
                  + "this order will still move." : "")
+        // A PERCENTILE NEEDS PEOPLE TO BE A PERCENTILE OF. With four reps over the line,
+        // last place on the two topics that could be measured scores a flat 0.0 — which
+        // reads as a verdict on the person when it only means "the lowest of four". Say so
+        // rather than let the number speak for itself.
+        + (ranked.length && ranked.length < 6
+            ? " <b>Only " + ranked.length + " salespeople cleared 20 leads here</b>, so these "
+              + "standings separate very few people — the bottom of a pool this small scores "
+              + "near zero by arithmetic, not by judgement." : "")
         + "</div></div>"
         + "<div class='sm-stats'>"
         + stat("Ranked", fmtN(ranked.length),
