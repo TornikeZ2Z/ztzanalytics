@@ -327,8 +327,10 @@ registerPage({
     // ---------------------------------------------------------------- data
     function load() {
       wrap.innerHTML = "<div class='sm-empty'>Reading the record…</div>";
-      RS.load(["sotm"]).then(() => {
-        S.rows = (RS.rows("sotm") || []).slice();
+      // RS.load takes ONE dataset key and resolves to its rows — there is no RS.rows()
+      // accessor to read them back out afterwards.
+      RS.load("sotm").then(rows => {
+        S.rows = (rows || []).slice();
         paint();
       }).catch(e => {
         wrap.innerHTML = "<div class='sm-empty'>Could not load the scorecard — " + esc(e && e.message || e) + "</div>";
