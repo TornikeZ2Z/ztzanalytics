@@ -85,6 +85,11 @@ registerPage({
     // the four counted topics, for the "already counted" strip inside each card. Reviews
     // went 20 -> 10 when the manual side went 30 -> 40 (Tornike, 2026-08-07); months before
     // 2026-07 were scored on the old weights and say so via `Counted Total`.
+    /* THE SHEET'S CSS, ONCE. The overlay writes it into the page's own stylesheet and the
+       print document writes it into its head, so the sheet on screen and the sheet on paper
+       are the same object. Two copies would drift the first time either was edited. */
+    const SHEET_CSS = ".fa2-sheet{width:210mm;min-height:297mm;background:#fff;color:#16181D;padding:14mm;box-shadow:0 18px 60px rgba(0,0,0,.4);font-size:10.5px;line-height:1.45;font-variant-numeric:tabular-nums}.fa2-sheet h1{font-size:19px;margin:0;letter-spacing:-.3px}.fa2-sheet .rhd{display:flex;align-items:flex-end;gap:12px;border-bottom:2px solid #16181D;padding-bottom:9px;margin-bottom:13px}.fa2-sheet .rhd .sub{font-size:11px;color:#5B5F6B;margin-top:3px}.fa2-sheet .rhd .big{margin-left:auto;text-align:right;line-height:1}.fa2-sheet .rhd .big b{font-size:35px;font-weight:800;letter-spacing:-1px}.fa2-sheet .rhd .big i{display:block;font-style:normal;font-size:9px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:#7A7E88;margin-top:3px}.fa2-sheet .rstrip{display:grid;grid-template-columns:repeat(4,1fr);gap:9px;margin-bottom:14px}.fa2-sheet .rstrip div{border:1px solid #DCDEE3;border-radius:5px;padding:8px 10px}.fa2-sheet .rstrip .l{font-size:8.5px;text-transform:uppercase;letter-spacing:.07em;color:#7A7E88}.fa2-sheet .rstrip .v{font-size:17px;font-weight:750;margin-top:2px}.fa2-sheet .rstrip .s{font-size:9px;color:#7A7E88;margin-top:2px}.fa2-sheet h2{font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:#7A7E88;margin:0 0 6px;padding-bottom:4px;border-bottom:1px solid #DCDEE3}.fa2-sheet table{width:100%;border-collapse:collapse;margin-bottom:13px}.fa2-sheet th{text-align:left;font-size:8.5px;text-transform:uppercase;letter-spacing:.05em;color:#7A7E88;padding:4px 6px;border-bottom:1px solid #DCDEE3;font-weight:700}.fa2-sheet td{padding:5px 6px;border-bottom:1px solid #EFF0F3;vertical-align:top}.fa2-sheet td.n{text-align:right;white-space:nowrap}.fa2-sheet td.q{color:#7A7E88;font-size:9.5px}.fa2-sheet .st{color:#C9911B;letter-spacing:.5px;white-space:nowrap}.fa2-sheet .why{color:#16181D;font-style:italic;font-size:9.5px;display:block;margin-top:2px}.fa2-sheet .foot{font-size:9px;color:#7A7E88;line-height:1.55;border-top:1px solid #DCDEE3;padding-top:8px;margin-top:4px}";
+
     const AUTO_V2 = [
       { k: "Packing per 100 CF Score", w: 30, lab: "Packing per 100 CF",
         raw: "Packing per 100 CF", fmt: "usd" },
@@ -322,6 +327,22 @@ registerPage({
       + ".fa2-tot{text-align:right;min-width:92px}"
       + ".fa2-tot b{font-size:31px;font-weight:800;letter-spacing:-.7px}"
       + ".fa2-tot i{display:block;font-style:normal;font-size:11px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--faint);margin-top:1px}"
+      + ".fa2-rep{font-family:inherit;font-size:12px;font-weight:700;margin-left:13px;"
+      + "padding:7px 13px;border-radius:9px;border:1px solid var(--line);background:var(--panel);"
+      + "color:var(--muted);cursor:pointer;white-space:nowrap}"
+      + ".fa2-rep:hover{border-color:var(--brand);color:var(--brand);background:var(--panel-2)}"
+      + "@media(max-width:820px){.fa2-rep{display:none}}"
+      // the report overlay: an A4 PORTRAIT sheet, shown at the size it prints
+      + ".fa2-rdim{position:fixed;inset:0;background:rgba(0,0,0,.42);z-index:70;overflow:auto;"
+      + "padding:26px 16px;display:flex;flex-direction:column;align-items:center;gap:12px}"
+      + ".fa2-rbar{display:flex;gap:9px;align-items:center;width:210mm;max-width:100%}"
+      + ".fa2-rbar .sp{flex:1}"
+      + ".fa2-rbtn{font-family:inherit;font-size:13px;font-weight:700;padding:9px 15px;"
+      + "border-radius:10px;border:1px solid rgba(255,255,255,.35);background:rgba(255,255,255,.12);"
+      + "color:#fff;cursor:pointer}"
+      + ".fa2-rbtn.pri{background:#fff;color:#16181D;border-color:#fff}"
+      // 210x297mm exactly, so what he sees is what the sheet is
+      + SHEET_CSS
       + ".fa2-body{display:none;border-top:1px solid var(--line);padding:20px 22px 24px}"
       + ".fa2-card.on .fa2-body{display:block;animation:fa2in .16s ease}"
       + "@keyframes fa2in{from{opacity:0;transform:translateY(-3px)}to{opacity:1;transform:none}}"
@@ -1023,6 +1044,9 @@ registerPage({
 
       all.forEach(x => { x.prev = PREV[x.f.Foreman] || null; });
       S._prevMonth = prevMonth; S._prevN = prevN;
+      // the report opens from the SAME rows the cards were built from -- it must never
+      // recompute a man's score, or the sheet could disagree with the line it came from
+      S._rows = all; S._nQual = nQual;
 
       let rows = all;
       if (S.tab === "todo") rows = rows.filter(x => x.answered === 0);
@@ -1158,7 +1182,11 @@ registerPage({
         + '<u class="a" style="width:' + (x.auto == null ? 0 : x.auto.toFixed(0)) + '%"></u>'
         + '<u class="m" style="width:' + x.manual.toFixed(0) + '%"></u></span>'
         + '<span class="fa2-tot"><b>' + (x.total == null ? "—" : fmt1(x.total)) + "</b>"
-        + "<i>" + (x.total == null ? "not measurable" : x.ok ? "of 100" : "not ranked") + "</i></span></div>"
+        + "<i>" + (x.total == null ? "not measurable" : x.ok ? "of 100" : "not ranked") + "</i></span>"
+        // the head toggles the card, so this button must not: the handler stops the event
+        + '<button class="fa2-rep" data-rep="' + esc(f.Foreman) + '" title="One page about '
+        + esc(f.Foreman) + ', ' + esc(monLab(S.month)) + '">Report</button>'
+        + "</div>"
         + "</div>";
 
       h += '<div class="fa2-body">';
@@ -1280,6 +1308,144 @@ registerPage({
       return '<div class="fa2-note"><span class="fa2-notetx">' + esc(note) + "</span>"
         + (shut ? "" : '<button class="fa2-noteedit"' + at + ' title="Edit this reason">edit</button>')
         + "</div>";
+    }
+
+    /* ONE A4 PORTRAIT PAGE ABOUT ONE MAN (his ask 2026-09-04).
+       Built from the `x` the card already computed and the same autoFor/QS lists it renders
+       from -- never recomputed. The sheet is 210x297mm on screen at the size it prints, so
+       what overflows here overflows on paper too and he can see it.
+
+       Everything that is not measurable says so rather than printing a zero: a topic the
+       month could not measure, a question nobody rated, a man who is not ranked. */
+    function reportHtml(f, x) {
+      const cTot = countedTotal(f);
+      const measured = num(f["Auto Weight Measured"]);
+      const stars5 = st => "\u2605".repeat(Math.round(st)) + "\u2606".repeat(Math.max(0, 5 - Math.round(st)));
+      const r = (S.ratings || {})[f.Foreman] || {};
+      const pr = (S.prevRatings || {})[f.Foreman] || {};
+
+      const counted = autoFor(f).map(a => {
+        const sc = num(f[a.k]), rawv = num(f[a.raw]);
+        const rawTxt = rawv == null ? "not measured"
+          : a.fmt === "usd" ? "$" + rawv.toFixed(2) + " per 100 CF"
+          : a.fmt === "x" ? rawv.toFixed(2) + "\u00d7 the estimate"
+          : a.fmt === "ratio" ? (rawv * 100).toFixed(0) + " per 100 jobs"
+          : fmtN(rawv);
+        return "<tr><td><b>" + esc(a.lab) + "</b></td><td class=\"q\">" + esc(rawTxt) + "</td>"
+          + '<td class="n">' + (sc == null ? "not measured" : fmt1(sc / 100 * a.w)) + "</td>"
+          + '<td class="n q">of ' + a.w + "</td></tr>";
+      }).join("");
+
+      const assessed = QS().map(q => {
+        const v = r[q.Question], pts = +q.Points || 0;
+        const st = v && v.Stars != null ? +v.Stars : null;
+        const pv = pr[q.Question], pst = pv && pv.Stars != null ? +pv.Stars : null;
+        return "<tr><td><b>" + esc(q.Label) + "</b>"
+          + (v && v.Note ? '<span class="why">\u201c' + esc(String(v.Note)) + "\u201d</span>" : "")
+          + "</td>"
+          + '<td class="q">' + (st == null ? "not rated"
+              : '<span class="st">' + stars5(st) + "</span> " + fmt1(st) + " of 5")
+          + (pst != null ? '<br><span style="font-size:9px">' + esc(monLab(S.prevMonthKey))
+              + ": " + fmt1(pst) + " of 5</span>" : "")
+          + "</td>"
+          + '<td class="n">' + (st == null ? "\u2014" : fmt1(st / 5 * pts)) + "</td>"
+          + '<td class="n q">of ' + fmt1(pts) + "</td></tr>";
+      }).join("");
+
+      const prevTot = x.prev && x.prev.total != null ? x.prev.total : null;
+      const move = (prevTot != null && x.total != null) ? x.total - prevTot : null;
+
+      return '<div class="fa2-sheet" id="faSheet">'
+        + '<div class="rhd"><div><h1>' + esc(f.Foreman) + "</h1>"
+        + '<div class="sub">Performance for ' + esc(monLab(S.month))
+        + " \u00b7 " + fmtN(num(f["Total Jobs"]) || 0) + " jobs"
+        + (num(f["Total CF"]) ? " \u00b7 " + fmtN(Math.round(num(f["Total CF"]))) + " CF" : "")
+        + "</div></div>"
+        + '<div class="big"><b>' + (x.total == null ? "\u2014" : fmt1(x.total)) + "</b>"
+        + "<i>" + (x.total == null ? "not measurable" : "out of 100") + "</i></div></div>"
+
+        + '<div class="rstrip">'
+        + '<div><div class="l">Counted by the system</div><div class="v">'
+          + (x.auto == null ? "\u2014" : fmt1(x.auto)) + " / " + cTot + "</div>"
+          + '<div class="s">' + (measured != null && measured < cTot
+              ? "only " + measured + " of " + cTot + " measurable, rescaled" : "all topics measured")
+          + "</div></div>"
+        + '<div><div class="l">Assessed by a person</div><div class="v">'
+          + fmt1(x.manual) + " / " + fmt1(MANUAL_TOTAL()) + "</div>"
+          + '<div class="s">' + (x.full ? "all " + NQ() + " questions rated"
+              : x.answered ? x.answered + " of " + NQ() + " rated" : "nothing rated yet")
+          + "</div></div>"
+        + '<div><div class="l">Place this month</div><div class="v">'
+          + (x.ok && x.rank ? "#" + x.rank : "\u2014") + "</div>"
+          + '<div class="s">' + (x.ok ? "of " + (S._nQual || "") + " ranked" : esc(x.why || "not ranked"))
+          + "</div></div>"
+        + '<div><div class="l">' + esc(S.prevMonthKey ? monLab(S.prevMonthKey) : "Last month") + "</div>"
+          + '<div class="v">' + (prevTot == null ? "\u2014" : fmt1(prevTot)) + "</div>"
+          + '<div class="s">' + (move == null ? "no comparable month"
+              : (move > 0 ? "+" : "") + fmt1(move) + " this month") + "</div></div>"
+        + "</div>"
+
+        + "<h2>Already counted \u2014 measured from the jobs</h2>"
+        + "<table><thead><tr><th>Topic</th><th>What was measured</th><th>Earned</th><th></th></tr></thead>"
+        + "<tbody>" + counted + "</tbody></table>"
+
+        + "<h2>Assessed \u2014 rated by " + esc(String(f["Assessed By"] || "the reviewer").split("@")[0]) + "</h2>"
+        + "<table><thead><tr><th>Question</th><th>Rating</th><th>Earned</th><th></th></tr></thead>"
+        + "<tbody>" + (assessed || '<tr><td colspan="4" class="q">No rubric for this month.</td></tr>')
+        + "</tbody></table>"
+
+        + '<div class="foot">The score is ' + cTot + " points measured from the jobs plus "
+        + fmt1(MANUAL_TOTAL()) + " judged by a person, out of 100. Complaints upheld and late "
+        + "arrivals are deductions, not points to earn \u2014 a clean month keeps them whole. "
+        + (f["Assessed At"] ? "Assessed " + esc(String(f["Assessed At"]).slice(0, 10)) + ". " : "")
+        + "Generated from the reporting system on " + esc(new Date().toISOString().slice(0, 10))
+        + ".</div>"
+        + "</div>";
+    }
+
+    function openReport(name) {
+      const x = (S._rows || []).find(r2 => r2.f.Foreman === name);
+      if (!x) return;
+      closeReport();
+      const dim = document.createElement("div");
+      dim.className = "fa2-rdim";
+      dim.innerHTML = '<div class="fa2-rbar"><span class="sp"></span>'
+        + '<button class="fa2-rbtn pri" id="faPdf">Save as PDF</button>'
+        + '<button class="fa2-rbtn" id="faRx">Close</button></div>'
+        + reportHtml(x.f, x);
+      dim.onclick = e => { if (e.target === dim) closeReport(); };
+      document.body.appendChild(dim);
+      document.addEventListener("keydown", onReportEsc);
+      dim.querySelector("#faRx").onclick = closeReport;
+      dim.querySelector("#faPdf").onclick = () => printSheet(name, dim.querySelector("#faSheet"));
+    }
+    /* Its own document, for the same reason hqPrintDoc has one: RSC.printView writes its own
+       stylesheet and carries none of a page's, so a sheet styled by this page would print
+       unstyled. Here the screen and the paper share SHEET_CSS. print-color-adjust is not
+       optional -- browsers drop backgrounds when printing, and a score with no rule above it
+       is just a number floating on a white page. */
+    function printSheet(name, sheet) {
+      if (!sheet) return;
+      const win = window.open("", "_blank");
+      if (!win) { alert("Allow pop-ups for this site to save this as a PDF."); return; }
+      win.document.write('<!doctype html><html><head><meta charset="utf-8"><title>'
+        + esc(name + " \u2014 " + monLab(S.month)) + "</title><style>"
+        + "@page{size:A4 portrait;margin:0}"
+        + "*{-webkit-print-color-adjust:exact;print-color-adjust:exact;box-sizing:border-box}"
+        + "html,body{margin:0;padding:0;background:#fff}"
+        + SHEET_CSS
+        // on paper the sheet IS the page: no shadow, and the @page margin is already 0 so the
+        // 14mm padding it carries on screen becomes the printed margin
+        + ".fa2-sheet{box-shadow:none;margin:0}"
+        + "</style></head><body>" + sheet.outerHTML + "</body></html>");
+      win.document.close();
+      win.setTimeout(() => { win.focus(); win.print(); }, 350);
+    }
+
+    function onReportEsc(e) { if (e.key === "Escape") closeReport(); }
+    function closeReport() {
+      document.querySelectorAll(".fa2-rdim").forEach(el => el.remove());
+      document.removeEventListener("keydown", onReportEsc);
     }
 
     /* WHAT THIS MAN SCORED ON THIS QUESTION LAST MONTH (Tornike 2026-09-03, urgent).
@@ -1449,6 +1615,9 @@ registerPage({
         const nq = main.querySelector("#fa2Q");
         if (nq) { nq.focus(); nq.setSelectionRange(at, at); }
       };
+      main.querySelectorAll(".fa2-rep").forEach(b => {
+        b.onclick = e => { e.stopPropagation(); openReport(b.dataset.rep); };
+      });
       main.querySelectorAll(".fa2-head").forEach(hd => {
         hd.onclick = () => {
           const f = hd.parentElement.dataset.f;
