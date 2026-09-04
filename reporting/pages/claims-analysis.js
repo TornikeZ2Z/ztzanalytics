@@ -925,6 +925,8 @@ registerPage({
       if (pdfBtn) pdfBtn.onclick = () => RSC.printView({
         host,
         title: "Claims Analysis",
+        // built from its own classes rather than the kit, so the PDF needs its CSS
+        pageCss: "cln-style",
         subtitle: printWindowLabel(),
         note: "Every per-person number is the share of that person's own jobs in this window "
             + "that drew a claim \u2014 never a count. Where a filter exists only on the claim, "

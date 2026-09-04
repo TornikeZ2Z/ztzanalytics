@@ -799,6 +799,11 @@ window.RSC = (function () {
      subtitle one line under it — say what is IN the window, e.g. the active filters
      note     optional smaller line under that (a caveat the reader needs on paper)
      drop     extra CSS selectors to remove, on top of the interactive chrome always removed
+     pageCss  id of the page's own <style> element, or the CSS text itself. A page built from
+              its own classes rather than the kit MUST pass this or it prints unstyled --
+              this helper restyles the kit vocabulary only. Omit it and behaviour is exactly
+              as before.
+     orientation  "landscape" (default) or "portrait".
   */
   function printView(cfg) {
     const host = cfg.host;
@@ -863,6 +868,24 @@ window.RSC = (function () {
       pagesHtml = `<section class="pv-page">${body.innerHTML}</section>`;
     }
 
+    /* THE TOKENS PAGE CSS IS WRITTEN AGAINST. A standalone document defines none of them,
+       so var(--ink) and friends would resolve to nothing and a page's own rules would paint
+       in no colour at all. These are rs.css's LIGHT values, because this is ink on paper. */
+    const PAPER_TOKENS = ":root{--bg:#fff;--panel:#fff;--panel-2:#f8fafc;--line:#e3e8f0;"
+      + "--line-2:#cdd6e2;--ink:#16202c;--muted:#5b6b7c;--faint:#8a97a6;--brand:#5f7c20;"
+      + "--brand-d:#5f7c20;--brand-ink:#fff;--brand-glow:rgba(127,163,43,.14);--blue:#2f62d8;"
+      + "--purple:#7c5cd6;--amber:#b97b0a;--red:#d43d55;--shadow:none;--pos:#5f7c20;"
+      + "--pos-bg:rgba(127,163,43,.12);--warn:#b97b0a;--warn-bg:rgba(185,123,10,.12);"
+      + "--neg:#d43d55;--neg-bg:rgba(212,61,85,.10);--blue-bg:rgba(47,98,216,.10);"
+      + "--job-ink:#fff}";
+
+    // the page's own stylesheet, by element id or as raw text
+    let pageCss = "";
+    if (cfg.pageCss) {
+      const el = document.getElementById(cfg.pageCss);
+      pageCss = el ? el.textContent : String(cfg.pageCss);
+    }
+
     const esc2 = v => esc(v == null ? "" : v);
     const when = new Date().toLocaleDateString(undefined,
       { year: "numeric", month: "long", day: "numeric" });
@@ -870,7 +893,9 @@ window.RSC = (function () {
     win.document.write(`<!doctype html><html><head><meta charset="utf-8">
       <title>${esc2(cfg.title || "Report")}</title>
       <style>
-        @page{size:A4 landscape;margin:12mm}
+        @page{size:A4 ${cfg.orientation === "portrait" ? "portrait" : "landscape"};margin:12mm}
+        ${PAPER_TOKENS}
+        ${pageCss}
         *{-webkit-print-color-adjust:exact;print-color-adjust:exact;box-sizing:border-box}
         body{margin:0;background:#fff;color:#16181D;
           font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;

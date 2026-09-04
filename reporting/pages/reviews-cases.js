@@ -439,6 +439,8 @@ registerPage({
       if (pdfBtn) pdfBtn.onclick = () => RSC.printView({
         host,
         title: "Claims & Negative Reviews",
+        // built from its own classes rather than the kit, so the PDF needs its CSS
+        pageCss: "rvc-style",
         // the PDF's reader has no filter bar, so the window is stated in words
         subtitle: (S.year ? S.year : "all years")
                 + (S.q.trim() ? ` · search "${S.q.trim()}"` : " · no search"),
