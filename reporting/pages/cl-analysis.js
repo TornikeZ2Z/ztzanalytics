@@ -359,6 +359,7 @@ registerPage({
 
       return {
         n, bill, paid, ours, refund, netBill, sp5, sp9, cost, weKept,
+        uplift: U - 1,          // today's uplift, so the slide never reaches into this scope
         bands, median, split, under: { n: under.length, bill: uBill, paid: uPaid, pay: uPay },
         months2: Object.keys(byMonth).sort().map(k => ({ m: k, n: byMonth[k] })),
         ticket: n ? bill / n : 0, per: n ? paid / n : 0,
@@ -540,7 +541,7 @@ registerPage({
           </tr></thead>
           <tbody>
             <tr class="hi"><td><b>Today</b></td>
-              <td class="r">${((U - 1) * 100).toFixed(0)}%</td>
+              <td class="r">${(D.uplift * 100).toFixed(0)}%</td>
               <td class="r"><b>${pctB(D.paid)}</b></td></tr>
             ${D.plans.map(p => `
               <tr><td><b>${p.label}</b></td>
