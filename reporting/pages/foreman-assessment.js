@@ -1355,7 +1355,7 @@ registerPage({
       const prevTot = x.prev && x.prev.total != null ? x.prev.total : null;
       const move = (prevTot != null && x.total != null) ? x.total - prevTot : null;
 
-      return '<div class="fa2-sheet" id="faSheet">'
+      return '<div class="fa2-sheet" id="faSheet"><div class="fit">'
         + '<div class="rhd"><div><h1>' + esc(f.Foreman) + "</h1>"
         + '<div class="sub">Performance for ' + esc(monLab(S.month))
         + " \u00b7 " + fmtN(num(f["Total Jobs"]) || 0) + " jobs"
@@ -1400,7 +1400,7 @@ registerPage({
         + (f["Assessed At"] ? "Assessed " + esc(String(f["Assessed At"]).slice(0, 10)) + ". " : "")
         + "Generated from the reporting system on " + esc(new Date().toISOString().slice(0, 10))
         + ".</div>"
-        + "</div>";
+        + "</div></div>";
     }
 
     function openReport(name) {
@@ -1417,6 +1417,7 @@ registerPage({
       document.body.appendChild(dim);
       document.addEventListener("keydown", onReportEsc);
       dim.querySelector("#faRx").onclick = closeReport;
+      fitSheet(dim.querySelector("#faSheet"));
       dim.querySelector("#faPdf").onclick = () => printSheet(name, dim.querySelector("#faSheet"));
     }
     /* Its own document, for the same reason hqPrintDoc has one: RSC.printView writes its own
@@ -1439,7 +1440,49 @@ registerPage({
         + ".fa2-sheet{box-shadow:none;margin:0}"
         + "</style></head><body>" + sheet.outerHTML + "</body></html>");
       win.document.close();
-      win.setTimeout(() => { win.focus(); win.print(); }, 350);
+      win.setTimeout(() => {
+        // the same guard on paper: the print window lays out on its own and must be
+        // measured there, not trusted to match the screen
+        const s2 = win.document.getElementById("faSheet");
+        const box = s2 && s2.querySelector(".fit");
+        if (box) {
+          const cs = win.getComputedStyle(s2);
+          const avail = s2.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
+          const need = box.scrollHeight;
+          if (need > avail && need > 0) {
+            const k = Math.max(0.62, avail / need);
+            box.style.transformOrigin = "top left";
+            box.style.transform = "scale(" + k.toFixed(4) + ")";
+            box.style.width = (100 / k).toFixed(2) + "%";
+          }
+        }
+        win.focus(); win.print();
+      }, 350);
+    }
+
+    /* ONE PAGE IS THE PROMISE, SO IT IS MEASURED RATHER THAN HOPED FOR.
+       Today every one of the 22 men fits with ~180px to spare, but the reasons Ramaz writes
+       are a VARCHAR(300) each and ten long ones overflow an A4 by about 154px -- silently,
+       and precisely when the sheet has become worth reading. So the content is measured
+       after layout and, if it is over, scaled down to the page. Scaling loses nothing; a
+       second page loses the thing he asked for. Nothing is ever scaled UP: a short sheet
+       stays at its natural size rather than being stretched to fill paper. */
+    function fitSheet(sheet) {
+      if (!sheet) return;
+      const box = sheet.querySelector(".fit");
+      if (!box) return;
+      box.style.transform = "none";
+      box.style.width = "";
+      const pad = parseFloat(getComputedStyle(sheet).paddingTop)
+                + parseFloat(getComputedStyle(sheet).paddingBottom);
+      const avail = sheet.clientHeight - pad;
+      const need = box.scrollHeight;
+      if (need > avail && need > 0) {
+        const k = Math.max(0.62, avail / need);   // below this it stops being readable
+        box.style.transformOrigin = "top left";
+        box.style.transform = "scale(" + k.toFixed(4) + ")";
+        box.style.width = (100 / k).toFixed(2) + "%";
+      }
     }
 
     function onReportEsc(e) { if (e.key === "Escape") closeReport(); }
