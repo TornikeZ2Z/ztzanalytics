@@ -339,8 +339,16 @@ registerPage({
       // company tips or discounts — those are recorded to the dollar, and padding an exact
       // number is how a model stops being checkable.
       const MAT_COGS = 0.15, COST_UPLIFT = 1.10;
-      const packingSold = eS(e => e["Packing Sold"]);
       const packingPay = eS(e => e["Material $"]);
+      // `Packing Sold` is a NEW mart column, and the hourly pipeline rebuilds this mart from
+      // whatever loader revision is deployed -- so between a portal deploy and a loader
+      // deploy the column simply is not there, and the materials line would silently read
+      // zero while the crew line lost its packing pay. Derive it back out of the commission
+      // in that window: the commission IS 20% of packing sold, measured on 2,359 of 2,446
+      // closings, so the inverse is exact wherever the rate held.
+      const PACK_RATE = 0.20;
+      const soldCol = eS(e => e["Packing Sold"]);
+      const packingSold = soldCol || (packingPay / PACK_RATE);
       const cost = {
         crew: eS(e => e["Crew $"]) + packingPay,
         materials: MAT_COGS * packingSold,
