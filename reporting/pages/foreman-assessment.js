@@ -1410,15 +1410,42 @@ registerPage({
       dim.onclick = e => { if (e.target === dim) closeReport(); };
       document.body.appendChild(dim);
       document.addEventListener("keydown", onReportEsc);
+      // WIRE FIRST, MEASURE SECOND, AND NEVER LET THE MEASURING BREAK THE WIRING. fitSheet
+      // threw once (it had been deleted by a refactor) between these two lines, which left
+      // Close working and Save as PDF dead -- a layout helper must not be able to disable a
+      // button, so the order is fixed and the call is guarded.
       dim.querySelector("#faRx").onclick = closeReport;
-      fitSheet(dim.querySelector("#faSheet"));
       dim.querySelector("#faPdf").onclick = () => printSheet(name, dim.querySelector("#faSheet"));
+      try { fitSheet(dim.querySelector("#faSheet")); }
+      catch (e) { /* an unscaled sheet is worth more than a dead dialog */ }
     }
     /* Its own document, for the same reason hqPrintDoc has one: RSC.printView writes its own
        stylesheet and carries none of a page's, so a sheet styled by this page would print
        unstyled. Here the screen and the paper share SHEET_CSS. print-color-adjust is not
        optional -- browsers drop backgrounds when printing, and a score with no rule above it
        is just a number floating on a white page. */
+    /* ONE PAGE IS THE PROMISE, SO IT IS MEASURED RATHER THAN HOPED FOR. Ten maximum-length
+       reasons overflow an A4 by about 154px -- silently, and precisely when the sheet has
+       become worth reading. Scaling loses nothing; a second page loses what he asked for.
+       Never scaled UP: a short sheet keeps its natural size rather than filling paper. */
+    function fitSheet(sheet) {
+      if (!sheet) return;
+      const box = sheet.querySelector(".fit");
+      if (!box) return;
+      box.style.transform = "none";
+      box.style.width = "";
+      const cs = getComputedStyle(sheet);
+      const pad = parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom);
+      const avail = sheet.clientHeight - pad;
+      const need = box.scrollHeight;
+      if (need > avail && need > 0) {
+        const k = Math.max(0.62, avail / need);   // below this it stops being readable
+        box.style.transformOrigin = "top left";
+        box.style.transform = "scale(" + k.toFixed(4) + ")";
+        box.style.width = (100 / k).toFixed(2) + "%";
+      }
+    }
+
     function printSheet(name, sheet) {
       if (!sheet) return;
       const doc = '<!doctype html><html><head><meta charset="utf-8"><title>'
