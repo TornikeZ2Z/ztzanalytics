@@ -773,6 +773,7 @@ registerPage({
       const finOwned = eSum(e => e["Owned Overhead Est"]);
       const finFuelRec = eSum(e => e["Fuel Recorded"]), finFuelEst = eSum(e => e["Fuel Est"]);
       const finTollRec = eSum(e => e["Tolls Recorded"]), finTollEst = eSum(e => e["Toll Est"]);
+      const finCont = eSum(e => e["Contingency Est"]);
       const finAdj = eSum(e => e["Adjusted Gross Profit"]);
       const own = k => jobs.filter(r => { const e = E(r); return e && e["Truck Ownership"] === k; }).length;
       const nRental = own("Rental"), nOwned = own("Owned");
@@ -1029,6 +1030,12 @@ registerPage({
                 <td>our four toll accounts spread over the miles that actually drive them &mdash; the NJ E-ZPass account across every job, the Enterprise rebills only on rented trucks, the Turnpike and New York accounts only on routes that touch those states &mdash; replacing the sheet's ${money0(finTollRec)} and a flat ${money0(rate("Rate Toll Per Job"))} a job. His book is short-haul owned-truck New Jersey work, so it carries less of them than a head count implied</td>
                 <td class="num">${fmtN(jobs.length)}</td><td class="num">${signed(finTollRec - finTollEst)}</td>
                 <td class="num">${money0(profit - finRental - finOwned + finFuelRec - finFuelEst + finTollRec - finTollEst)}</td></tr>
+              <tr><td>5 &middot; Contingency</td>
+                <td>10% on the two lines this view re-derives &mdash; fuel and tolls &mdash; carried
+                  as its own step rather than folded into the rates, so the allowance stays a
+                  decision you can see and argue with instead of a number pretending to be measured</td>
+                <td class="num">${fmtN(jobs.length)}</td><td class="num">${signed(-finCont)}</td>
+                <td class="num">${money0(profit - finRental - finOwned + finFuelRec - finFuelEst + finTollRec - finTollEst - finCont)}</td></tr>
               <tr class="cla-wf-tot"><td class="strong">Adjusted gross profit</td>
                 <td>the finance view · ${pctS(billed ? finAdj / billed : null)} of revenue, against ${pctS(billed ? profit / billed : null)} on the books</td>
                 <td class="num">${fmtN(jobs.length)}</td><td class="num">${signed(finAdj - profit)}</td>
