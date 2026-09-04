@@ -1001,8 +1001,9 @@ registerPage({
             <div class="rs-hint">His cut is already out of every number here. What the sheet misses:
               a rented truck has no rental line, an owned truck has no insurance or parking line,
               its Fuel is whatever fill-up happened that day, and tolls are almost never entered.
-              Every rate below is our own books over the last 12 months; the only assumption is
-              8 mpg for a loaded box truck.</div>
+              Every rate below is our own books over the last 12 months &mdash; including the
+              7 mpg, which four separate readings of our WEX gallons against our own GPS miles
+              bracket between 6.3 and 8.0. It used to be the one figure taken from outside.</div>
           </div><span class="rs-pill ${finAdj < profit ? "warn" : "ok"}">${money0(finAdj)} · ${pctS(billed ? finAdj / billed : null)} margin</span></div>
           <div class="rs-tablewrap"><table class="rs-table cla-wf">
             <thead><tr><th>Step</th><th>Basis</th><th class="num">Jobs</th>
@@ -1021,11 +1022,11 @@ registerPage({
                 <td class="num">${fmtN(nOwned)}</td><td class="num">${signed(-finOwned)}</td>
                 <td class="num">${money0(profit - finRental - finOwned)}</td></tr>
               <tr><td>3 · Fuel restated</td>
-                <td>miles ÷ 8 mpg × $${(rate("Rate Fuel Per Gal") || 0).toFixed(2)} a gallon of diesel, replacing the sheet's ${money0(finFuelRec)} of fill-ups · miles on file for ${fmtN(nMiles)} jobs, the rest take the CL average</td>
+                <td>miles ÷ 7 mpg × $${(rate("Rate Fuel Per Gal") || 0).toFixed(2)} a gallon of diesel, replacing the sheet's ${money0(finFuelRec)} of fill-ups · miles are the GPS legs where they were filed (a missing return leg imputed from the outbound), the contract's mileage corrected to what GPS actually measures, then the distance the zips imply &mdash; only ${fmtN(4)} jobs fall back to the CL average</td>
                 <td class="num">${fmtN(jobs.length)}</td><td class="num">${signed(finFuelRec - finFuelEst)}</td>
                 <td class="num">${money0(profit - finRental - finOwned + finFuelRec - finFuelEst)}</td></tr>
               <tr><td>4 · Tolls restated</td>
-                <td>${money0(rate("Rate Toll Per Job"))} a job of E-ZPass — every top-up and rebill over every closing — replacing the sheet's ${money0(finTollRec)}</td>
+                <td>our four toll accounts spread over the miles that actually drive them &mdash; the NJ E-ZPass account across every job, the Enterprise rebills only on rented trucks, the Turnpike and New York accounts only on routes that touch those states &mdash; replacing the sheet's ${money0(finTollRec)} and a flat ${money0(rate("Rate Toll Per Job"))} a job. His book is short-haul owned-truck New Jersey work, so it carries less of them than a head count implied</td>
                 <td class="num">${fmtN(jobs.length)}</td><td class="num">${signed(finTollRec - finTollEst)}</td>
                 <td class="num">${money0(profit - finRental - finOwned + finFuelRec - finFuelEst + finTollRec - finTollEst)}</td></tr>
               <tr class="cla-wf-tot"><td class="strong">Adjusted gross profit</td>
