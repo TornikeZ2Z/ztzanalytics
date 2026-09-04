@@ -210,7 +210,7 @@ const groupOf = p => groupsOf(p)[0];
 /* explicit per-container item order (numbers are scoped within each group's display list) */
 const NAV_ORDER = {
   "monthly-report": 1, "analysis-by-category": 2, "work": 0.5,
-  "sales-command": 0.5, "conversations": 0.7, "sales-comms": 0.8, "sales-trackers": 0.9, "sales-funnel": 1, "sales-perf": 2, "demand-analysis": 5,
+  "sales-command": 0.5, "sales-of-the-month": 0.6, "conversations": 0.7, "sales-comms": 0.8, "sales-trackers": 0.9, "sales-funnel": 1, "sales-perf": 2, "demand-analysis": 5,
   "mkt-roi": 1, "mkt-sources": 2, "mkt-phone": 3,
   "money-flow": 1, "foreman-closings": 2, "ld-planning": 3, "packing-control": 4, "storage-control": 5, "foreman-assessment": 6, "crew-salaries": 6.5, "fuel-control": 7, "foreman-late": 7.5, "log-foreman": 8, "log-packing": 9,
   "hr-directory": 1, "hr-questionnaire": 2, "hr-my-questionnaire": 3,
@@ -282,7 +282,7 @@ const PAGE_ICONS = {
   "angi-vs-moveboard": "compass", "reviews-team": "star", "support-team": "shield", "lead-source-analysis": "compass", "source-analysis": "compass", "movers-analysis": "megaphone",
   "financial-team": "trend", "sales-team": "user", "marketing-team": "megaphone", "logistics-team": "tool",
   // themed dashboards + settings (2026-07-09 restructure)
-  "sales-command": "gauge", "conversations": "chat", "sales-comms": "user", "sales-trackers": "activity", "sales-funnel": "funnel", "sales-perf": "user", "sales-geo": "pin", "demand-analysis": "calendar",
+  "sales-command": "gauge", "sales-of-the-month": "star", "conversations": "chat", "sales-comms": "user", "sales-trackers": "activity", "sales-funnel": "funnel", "sales-perf": "user", "sales-geo": "pin", "demand-analysis": "calendar",
   "mkt-roi": "trend", "mkt-sources": "compass", "mkt-phone": "phone",
   "log-foreman": "tool", "log-packing": "box",
   "fin-revenue": "trend", "fin-rr": "trend", "rev-production": "star",
@@ -697,6 +697,10 @@ const PAGE_DATASETS = {
   "claims-analysis": [],     // the claims mart + closings load whole; period/service filters are local
   "demand-analysis": [],   // its own year + company pickers own the window
   "sales-command": ["lead_journey"],
+  // [] on purpose: the month picker on the page owns the window, and the score is a
+  // monthly whole -- a global date range that cut a month in half would silently
+  // re-rank everybody against a partial pool.
+  "sales-of-the-month": [],
   // [] on purpose: this page searches by customer, not by date — everything comes
   // from the gated _conv* endpoints, so the global slicers have nothing to act on.
   "work": [],               // everything moves through /api/_work; no global slicers
@@ -919,7 +923,7 @@ function navigate(id, push) {
 /* Pages that bring their OWN toolbar and ignore the global filter bar (PAGE_DATASETS=[])
    render "bare" — the global date/slicer bar + company chip are hidden so the page's board
    starts right under the header instead of below two rows of greyed-out, unusable filters. */
-const BARE_CHROME = new Set(["review-performance", "reviews-cases", "claims-analysis", "demand-analysis", "reviews-reminders", "response-analysis", "review-settings", "monthly-report", "money-flow", "ld-planning", "cleanup", "packing-control", "crew-salaries", "storage-control", "foreman-assessment", "fuel-control", "foreman-closings", "refresh-log", "general-tables", "hr-questionnaire", "hr-my-questionnaire", "hr-directory", "conversations", "sales-comms", "referral-candidates", "jobs-by-area", "meta-referrals", "relocation-trends", "angi-funnel", "utm-campaigns", "promised-reviews",
+const BARE_CHROME = new Set(["sales-of-the-month", "review-performance", "reviews-cases", "claims-analysis", "demand-analysis", "reviews-reminders", "response-analysis", "review-settings", "monthly-report", "money-flow", "ld-planning", "cleanup", "packing-control", "crew-salaries", "storage-control", "foreman-assessment", "fuel-control", "foreman-closings", "refresh-log", "general-tables", "hr-questionnaire", "hr-my-questionnaire", "hr-directory", "conversations", "sales-comms", "referral-candidates", "jobs-by-area", "meta-referrals", "relocation-trends", "angi-funnel", "utm-campaigns", "promised-reviews",
   // Straight vs Local reads its whole history on purpose (Tornike 2026-08-19: "i dont need
   // any filters here, its just kinda analysis and directions"). A date filter left over from
   // another page emptied it completely, which is worse than useless -- it looked like there
@@ -1106,6 +1110,7 @@ const SEARCH_ALIASES = {
   "data-quality": "data quality freshness completeness health integrity checks",
   "refresh-log": "refresh log pipeline curation raw source timing history update run duration",
   "work": "it requests work projects tasks tickets issues board kanban inbox triage todo",
+  "sales-of-the-month": "sales person of the month salesperson of the month best rep monthly score scorecard ranking award winner leaderboard conversion skill profit per lead",
   "sales-command": "sales person analysis sales team command lead journey 360 explorer call history timeline salesperson rep profile lead file important",
   "conversations": "conversations transcripts call recording ringsense what was said customer chat sms text thread talk speech summary",
   "sales-comms": "sales communication analysis call quality coaching rubric checklist what was said discovery deposit close objection talk ratio rep performance ringsense",
@@ -1615,7 +1620,7 @@ const aclIconFor = id => (MERGED.find(m => m.id === id) || {}).icon ||
    analytics or bridge deploy. */
 const ACL_DEPTS = [
   { id: "company",   label: "Company Overview", icon: "spark",     reports: ["work", "monthly-report", "analysis-by-category"] },
-  { id: "sales",     label: "Sales",            icon: "funnel",    reports: ["work", "sales-command", "demand-analysis", "conversations", "sales-comms", "sales-trackers"] },
+  { id: "sales",     label: "Sales",            icon: "funnel",    reports: ["work", "sales-command", "sales-of-the-month", "demand-analysis", "conversations", "sales-comms", "sales-trackers"] },
   { id: "marketing", label: "Marketing",        icon: "megaphone", reports: ["work", "source-trace", "referral-candidates", "jobs-by-area", "relocation-trends", "angi-funnel", "utm-campaigns", "promised-reviews"] },
   { id: "logistics", label: "Logistics",        icon: "tool",      reports: ["work", "money-flow", "ld-planning", "foreman-closings", "packing-control", "crew-salaries", "storage-control", "foreman-assessment", "fuel-control", "foreman-late", "straight-vs-local", "area-plan", "season-settings", "truck-economics"] },
   // MUST mirror DEPT_REPORTS["hr"] in bridge/app.py. Employees answering the questionnaire
@@ -1873,5 +1878,6 @@ registerPage({
 <script src="pages/reminders.js?v=51"></script>
 <script src="pages/reviews-cases.js?v=9"></script>
 <script src="pages/claims-analysis.js?v=22"></script>
+<script src="pages/sales-of-the-month.js?v=1"></script>
 </body>
 </html>
