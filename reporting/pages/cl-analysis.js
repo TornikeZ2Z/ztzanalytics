@@ -41,7 +41,7 @@ if (window.RS && RS.DATASETS && !RS.DATASETS.mart_cl_analysis) {
            "Refund $", "Refund Reason", "Claims", "Claim Status", "Claim Reason",
            "Extra Spend", "Other Expenses", "Company Tip", "Discount Given",
            "Has Contract",
-           "Truck #", "Truck Ownership", "Miles Used", "Miles Basis", "Fuel Recorded", "Tolls Recorded", "Rental Cost Est", "Owned Overhead Est", "Fuel Est", "Toll Est", "Adjusted Gross Profit", "Rate Rental Per Job", "Rate Owned Per Job", "Rate Fuel Per Gal", "Rate Toll Per Job", "Elevator Both Ends", "Rate Stairs Share All",
+           "Truck #", "Truck Ownership", "Miles Used", "Miles Basis", "Fuel Recorded", "Tolls Recorded", "Rental Cost Est", "Owned Overhead Est", "Fuel Est", "Toll Est", "Contingency Est", "Adjusted Gross Profit", "Rate Rental Per Job", "Rate Owned Per Job", "Rate Fuel Per Gal", "Rate Toll Per Job", "Elevator Both Ends", "Rate Stairs Share All",
            "Crew $", "Car $", "Other Exp $", "Refund Half", "Material $", "Packing Sold"],
     dateCols: { "Date": "Date" }, defaultDate: "Date",
   };
@@ -353,16 +353,25 @@ registerPage({
         crew: eS(e => e["Crew $"]) + packingPay,
         materials: MAT_COGS * packingSold,
         truck: eS(e => e["Rental Cost Est"]) + eS(e => e["Owned Overhead Est"]),
-        fuel: eS(e => e["Fuel Est"]) * COST_UPLIFT,
-        tolls: eS(e => e["Toll Est"]) * COST_UPLIFT,
-        other: (eS(e => e["Car $"]) + eS(e => e["Other Exp $"])) * COST_UPLIFT
+        fuel: eS(e => e["Fuel Est"]),
+        tolls: eS(e => e["Toll Est"]),
+        other: eS(e => e["Car $"]) + eS(e => e["Other Exp $"])
              + eS(e => e["Company Tip"]) + eS(e => e["Discount Given"]),
       };
+      // HIS 10%, ON ITS OWN LINE. It used to be a silent x1.10 inside fuel, tolls and the
+      // other job costs, which meant the waterfall never showed it and nobody could switch
+      // it off. The mart now computes it per job on the two ESTIMATED lines; the car and
+      // other job costs keep their share here, since they are the sheet's own under-recorded
+      // figures. Same total, one visible row instead of three hidden multipliers.
+      const contMart = eS(e => e["Contingency Est"]);
+      cost.contingency = (contMart || (cost.fuel + cost.tolls) * (COST_UPLIFT - 1))
+        + (eS(e => e["Car $"]) + eS(e => e["Other Exp $"])) * (COST_UPLIFT - 1);
       cost.packingSold = packingSold;
       cost.packingPay = packingPay;
       cost.uplift = COST_UPLIFT;
       cost.matRate = MAT_COGS;
-      cost.total = cost.crew + cost.materials + cost.truck + cost.fuel + cost.tolls + cost.other;
+      cost.total = cost.crew + cost.materials + cost.truck + cost.fuel + cost.tolls
+                 + cost.other + cost.contingency;
       const weKept = bill - cost.total - paid;
 
       /* A TYPICAL PRICE, SO THE PERCENTAGE HAS SOMETHING TO STAND ON (his ask 2026-09-04).
@@ -474,9 +483,10 @@ registerPage({
                `${Math.round(D.cost.matRate * 100)}% of the ${m0(D.cost.packingSold)} of packing sold`,
                D.cost.materials, "cost")}
           ${wf("Truck", "rental, and insurance, parking and financing on ours", D.cost.truck, "cost")}
-          ${wf("Fuel", "miles at our own diesel rate", D.cost.fuel, "cost")}
-          ${wf("Tolls", "our E-ZPass spend per job", D.cost.tolls, "cost")}
+          ${wf("Fuel", "miles at 7 mpg and our own diesel price", D.cost.fuel, "cost")}
+          ${wf("Tolls", "the toll accounts spread over the miles that drive them", D.cost.tolls, "cost")}
           ${wf("Car, tips we paid, discounts and other job costs", "", D.cost.other, "cost")}
+          ${wf("Contingency", "his 10% on the estimated lines, shown rather than folded into a rate", D.cost.contingency, "cost")}
           ${wf("<b>What the jobs cost us to run</b>", "", D.cost.total, "tot cost")}
           ${wf("<b>You kept</b>", "", D.paid, "tot you")}
           ${wf("<b>We kept</b>", "", D.weKept, "tot us")}
