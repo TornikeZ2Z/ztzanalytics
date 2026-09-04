@@ -365,8 +365,26 @@ registerPage({
       cost.total = cost.crew + cost.materials + cost.truck + cost.fuel + cost.tolls + cost.other;
       const weKept = bill - cost.total - paid;
 
+      /* A TYPICAL PRICE, SO THE PERCENTAGE HAS SOMETHING TO STAND ON (his ask 2026-09-04).
+         Company-wide averages over the trailing 12 months, from every closing rather than
+         from the CL ones -- CL is 109 jobs and its own average is already carrying the
+         uplift, so it cannot show what the uplift DOES. `all` is the unfiltered closing set
+         on purpose: this is a fixed reference in a document, not a figure that should move
+         when someone changes a filter on the page behind it. */
+      const refCut = (() => { const d = new Date(); d.setMonth(d.getMonth() - 12);
+        return d.toISOString().slice(0, 10); })();
+      const refOf = mt => {
+        const v = (all || []).filter(r => r["Record Source"] === "closing"
+          && +r["Is Last Encounter"] === 1
+          && String(r["Move Type"] || "").trim().toUpperCase() === mt
+          && String(r["Date"] || "").slice(0, 10) >= refCut
+          && num(r["Total Bill"]) > 0).map(r => num(r["Total Bill"]));
+        return v.length ? { n: v.length, avg: v.reduce((a, b) => a + b, 0) / v.length } : null;
+      };
+      const ref = { lm: refOf("LM"), ld: refOf("LD") };
+
       return {
-        n, bill, paid, ours, refund, netBill, sp5, sp9, cost, weKept,
+        n, bill, paid, ours, refund, netBill, sp5, sp9, cost, weKept, ref,
         uplift: U - 1,          // today's uplift, so the slide never reaches into this scope
         bands, median, split, under: { n: under.length, bill: uBill, paid: uPaid, pay: uPay },
         months2: Object.keys(byMonth).sort().map(k => ({ m: k, n: byMonth[k] })),
@@ -558,6 +576,37 @@ registerPage({
               </tr>`).join("")}
           </tbody></table>
         ${D.plans.map(p => `<p style="margin-top:10px"><b>Plan ${p.label}</b> — ${p.note}</p>`).join("")}
+
+        ${(D.ref.lm || D.ref.ld) ? `
+        <h3 style="font-size:14px;margin:20px 0 6px">What an uplift does to a real price</h3>
+        <p>Our calculator price for an ordinary job, averaged over the last twelve months of
+          our own closings. These are what a customer pays us directly, before anything is
+          added — so they show what each percentage above would actually put on a quote.</p>
+        <table>
+          <thead><tr><th>A typical job</th><th class="r">Our price</th>
+            <th class="r">+${(D.uplift * 100).toFixed(0)}% today</th>
+            <th class="r">+10% (Plan B)</th></tr></thead>
+          <tbody>
+            ${D.ref.lm ? `<tr><td><b>Local move</b> <span style="color:#78756B">·
+              ${fmtN(D.ref.lm.n)} jobs</span></td>
+              <td class="r">${m0(D.ref.lm.avg)}</td>
+              <td class="r"><b>${m0(D.ref.lm.avg * (1 + D.uplift))}</b>
+                <span style="color:#78756B">+${m0(D.ref.lm.avg * D.uplift)}</span></td>
+              <td class="r">${m0(D.ref.lm.avg * 1.10)}
+                <span style="color:#78756B">+${m0(D.ref.lm.avg * 0.10)}</span></td></tr>` : ""}
+            ${D.ref.ld ? `<tr><td><b>Long-distance move</b> <span style="color:#78756B">·
+              ${fmtN(D.ref.ld.n)} jobs</span></td>
+              <td class="r">${m0(D.ref.ld.avg)}</td>
+              <td class="r"><b>${m0(D.ref.ld.avg * (1 + D.uplift))}</b>
+                <span style="color:#78756B">+${m0(D.ref.ld.avg * D.uplift)}</span></td>
+              <td class="r">${m0(D.ref.ld.avg * 1.10)}
+                <span style="color:#78756B">+${m0(D.ref.ld.avg * 0.10)}</span></td></tr>` : ""}
+          </tbody></table>
+        <p style="margin-top:10px">${D.ref.ld ? "Every one of the " + fmtN(D.n) + " jobs you have "
+          + "sent us so far has been a local move, so the long-distance line is what the same "
+          + "rule would do to that price rather than something we have billed together. " : ""}The
+          averages are ours across every customer, not yours — your own average job bills
+          ${m0(D.ticket)}, because the ${(D.uplift * 100).toFixed(0)}% is already inside it.</p>` : ""}
 
         <h3 style="font-size:14px;margin:20px 0 6px">What the Total Bill means</h3>
         <p>The Total Bill is what the customer actually pays us for the job, written on the
