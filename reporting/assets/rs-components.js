@@ -813,8 +813,10 @@ window.RSC = (function () {
     // Interactive chrome cannot be used on paper and only costs space. `.rs-bar` is the
     // filter row, `.rs-seg` the view switch; both describe state that the subtitle carries
     // in words instead.
+    // `.rs-page-head` goes too: the print header above carries the title and the window,
+    // and printing both means the reader sees the page described twice before any number.
     const DROP = [".rs-bar", ".rs-seg", "button", "input", "select", "label.rs-fld",
-                  ".rs-spacer", "[data-foot]", ".rs-pager", ".rs-hidden"];
+                  ".rs-spacer", "[data-foot]", ".rs-pager", ".rs-hidden", ".rs-page-head"];
     DROP.concat(cfg.drop || []).forEach(sel => {
       body.querySelectorAll(sel).forEach(el => el.remove());
     });
@@ -826,6 +828,40 @@ window.RSC = (function () {
       el.style.height = "auto";
     });
     body.querySelectorAll("table").forEach(el => { el.style.tableLayout = "auto"; });
+
+    /* THEMED PAGES. Each entry becomes one printed page with its own heading and a forced
+       break after it. Elements are claimed in the order the caller lists them, so a panel
+       named twice belongs to the first theme that asks for it. Whatever nobody claims still
+       prints, on a final page -- quietly dropping a panel out of a document somebody is
+       about to send is the worst thing this could do. */
+    let pagesHtml = "";
+    if (cfg.pages && cfg.pages.length) {
+      const claimed = new Set();
+      const sections = [];
+      cfg.pages.forEach(pg => {
+        const picked = [];
+        (pg.sel || "").split(",").map(x => x.trim()).filter(Boolean).forEach(sel => {
+          body.querySelectorAll(sel).forEach(el => {
+            if (claimed.has(el) || [...claimed].some(c => c.contains(el))) return;
+            claimed.add(el);
+            picked.push(el);
+          });
+        });
+        if (picked.length) {
+          sections.push(`<section class="pv-page"><h2>${esc(pg.title || "")}</h2>`
+            + picked.map(el => el.outerHTML).join("") + `</section>`);
+        }
+      });
+      const rest = [...body.children].filter(
+        el => !claimed.has(el) && ![...claimed].some(c => c.contains(el)));
+      if (rest.length) {
+        sections.push(`<section class="pv-page"><h2>${esc(cfg.restTitle || "Detail")}</h2>`
+          + rest.map(el => el.outerHTML).join("") + `</section>`);
+      }
+      pagesHtml = sections.join("");
+    } else {
+      pagesHtml = `<section class="pv-page">${body.innerHTML}</section>`;
+    }
 
     const esc2 = v => esc(v == null ? "" : v);
     const when = new Date().toLocaleDateString(undefined,
@@ -871,6 +907,18 @@ window.RSC = (function () {
         svg{max-width:100%;height:auto}
         .pv-foot{margin-top:14px;padding-top:8px;border-top:1px solid #DCDEE3;
           font-size:9px;color:#9A9EA8;text-transform:uppercase;letter-spacing:.08em}
+        /* ONE THEME PER SHEET. break-after on every page but the last, and a min-height so a
+           short theme still reads as a full page rather than a stripe at the top of one. */
+        .pv-page{break-after:page;page-break-after:always;min-height:172mm;
+          padding-bottom:8mm}
+        .pv-page:last-of-type{break-after:auto;page-break-after:auto;min-height:0}
+        .pv-page > h2{font-size:13px;text-transform:uppercase;letter-spacing:.09em;
+          color:#16181D;margin:0 0 12px;padding-bottom:6px;border-bottom:1px solid #DCDEE3}
+        .pv-page > h2:empty{display:none}
+        /* a panel taller than a sheet must be allowed to split, or it overflows off the page
+           and the rows at the bottom are simply gone */
+        .pv-page .panel{break-inside:auto}
+        .pv-page .rs-kpis{break-inside:avoid}
       </style></head><body>
       <div class="pv-head">
         <span class="when">${esc2(when)}</span>
@@ -878,7 +926,7 @@ window.RSC = (function () {
         ${cfg.subtitle ? `<div class="sub">${esc2(cfg.subtitle)}</div>` : ""}
         ${cfg.note ? `<div class="note">${esc2(cfg.note)}</div>` : ""}
       </div>
-      ${body.innerHTML}
+      ${pagesHtml}
       <div class="pv-foot">Zip to Zip · Reporting System · ${esc2(when)}</div>
       </body></html>`);
     win.document.close();

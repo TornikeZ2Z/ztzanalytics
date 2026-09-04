@@ -333,7 +333,7 @@ registerPage({
         </div>
 
         <div class="rs-grid2 rvc-grid">
-          <div class="panel">
+          <div class="panel" id="rvcPnlWhere">
             <div class="panel-head"><div class="panel-title">Where they complain</div>
               <div class="rs-spacer"></div><span class="rs-pill">${fmtN(nr.length)} reviews</span></div>
             ${nr.length ? shareRows(platRows, nr.length) :
@@ -343,7 +343,7 @@ registerPage({
               Blank sources read as Unlabeled.</div>
           </div>
 
-          <div class="panel">
+          <div class="panel" id="rvcPnlWhy">
             <div class="panel-head"><div class="panel-title">Why they claim</div>
               <div class="rs-spacer"></div><span class="rs-pill">${fmtN(cl.length)} claims</span></div>
             ${cl.length ? shareRows(reasonRows, cl.length, "warn") :
@@ -354,7 +354,7 @@ registerPage({
         </div>
 
         <div class="rs-grid2 rvc-grid">
-          <div class="panel">
+          <div class="panel" id="rvcPnlOverlap">
             <div class="panel-head"><div class="panel-title">The overlap</div></div>
             <p class="rs-hint" style="max-width:64ch">
               <b>${pct(nrMatched.length, nr.length)}</b> of ${yearLabel}'s negative reviews
@@ -380,7 +380,7 @@ registerPage({
               : ""}
           </div>
 
-          <div class="panel">
+          <div class="panel" id="rvcPnlFault">
             <div class="panel-head"><div class="panel-title">Whose fault, per the board</div></div>
             ${cl.length ? shareRows(respRows.map(([k, n]) => [k, n, ""]), cl.length, "warn") : ""}
             <div class="rvc-note">Not attributed dominates — the board's Responsibility column
@@ -389,7 +389,7 @@ registerPage({
           </div>
         </div>
 
-        <div class="panel">
+        <div class="panel" id="rvcPnlNr">
           <div class="panel-head"><div class="panel-title">Negative reviews — the cases</div>
             <div class="rs-spacer"></div><span class="rs-pill">${fmtN(nr.length)}</span>
             <button class="rs-btn" data-dl="nr">Download CSV</button></div>
@@ -411,7 +411,7 @@ registerPage({
           ${pager(S.nrPage, nr.length, "nr")}
         </div>
 
-        <div class="panel">
+        <div class="panel" id="rvcPnlCl">
           <div class="panel-head"><div class="panel-title">Claims — the cases</div>
             <div class="rs-spacer"></div><span class="rs-pill">${fmtN(cl.length)}</span>
             <button class="rs-btn" data-dl="cl">Download CSV</button></div>
@@ -446,6 +446,15 @@ registerPage({
             + "A review or claim with no date sits outside every year and is counted separately. "
             + "Matching between the two boards is by request number first, customer name as fallback.",
         drop: [".rvc-bar", ".rvc-pdf"],
+        // ONE THEME PER SHEET: the headline counts, then the two boards' own shapes, then
+        // where they meet, then the cases behind them.
+        pages: [
+          { title: "The headline", sel: ".rs-kpis" },
+          { title: "Where they complain, and why they claim", sel: "#rvcPnlWhere, #rvcPnlWhy" },
+          { title: "The overlap, and whose fault the board says it is", sel: "#rvcPnlOverlap, #rvcPnlFault" },
+          { title: "Negative reviews — the cases", sel: "#rvcPnlNr" },
+          { title: "Claims — the cases", sel: "#rvcPnlCl" },
+        ],
       });
 
       host.querySelectorAll("[data-dl]").forEach(el => {

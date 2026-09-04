@@ -831,7 +831,7 @@ registerPage({
           </div>
         </div>
 
-        <div class="panel" style="margin-top:12px">
+        <div class="panel" id="clnPnlSources" style="margin-top:12px">
           <div class="panel-head"><div class="panel-title">Where they come from</div>
             <div class="rs-spacer"></div>
             <div class="cln-dim-seg" id="clnDim">${DIMS.map(([d]) =>
@@ -872,7 +872,7 @@ registerPage({
             </div></details>` : ""}
         </div>
 
-        <div class="panel" style="margin-top:12px">
+        <div class="panel" id="clnPnlSp" style="margin-top:12px">
           <div class="panel-head"><div class="panel-title">Salespeople</div></div>
           <div class="cln-say">${hasCredit ? `A job sold by two people is credited to both in the share the closing sheet paid them, so a 50/50 job gives each half the job <b>and</b> half the claim &mdash; the percentage stays a percentage of their own work, and the credited claims still add up to the ${fmtN(n)} above &mdash; the total row at the foot
             states it, because the column prints one decimal and adding those by hand drifts. ` : ""}jobs sold in the window (the closing's salesperson), the claims on them, and — where the lead's quote and the contract's real CF exist — how far the bill and the volume ran past the estimate on the claimed jobs. Fewer than ${MIN_JOBS} credited jobs reads "small" and sorts below the rest &mdash; a rate on a handful of jobs is noise, so it is shown but never ranked first. <b>Click any row</b> to see the claims behind its number and open each on the board.
@@ -880,13 +880,13 @@ registerPage({
           ${perTable(sales, "Salesperson", spExtra, "clnSpBody", S.openSp, S.allSp)}
         </div>
 
-        <div class="panel" style="margin-top:12px">
+        <div class="panel" id="clnPnlFm" style="margin-top:12px">
           <div class="panel-head"><div class="panel-title">Foremen</div></div>
           <div class="cln-say">jobs run in the window (the closing's foreman) and the claims on them, split by family. A damage claim is what the customer said, not what an inspection found — read the thread before it counts against anyone. <b>Click any row</b> to see the claims behind its number and open each on the board.</div>
           ${perTable(foremen, "Foreman", fmExtra, "clnFmBody", S.openFm, S.allFm)}
         </div>
 
-        <div class="panel" style="margin-top:12px">
+        <div class="panel" id="clnPnlCases" style="margin-top:12px">
           <div class="panel-head"><div class="panel-title">The claims</div>
             <div class="rs-spacer"></div><span class="rs-pill">${fmtN(sorted.length)}</span>
             <button class="rs-btn" id="clnDl">Download CSV</button></div>
@@ -930,6 +930,15 @@ registerPage({
             + "that drew a claim \u2014 never a count. Where a filter exists only on the claim, "
             + "the rate is withheld rather than guessed.",
         drop: [".cln-bar", ".cln-pdf", ".cln-drawer"],
+        // ONE THEME PER SHEET, in the order somebody reads the argument: how often it
+        // happens, then what it is about, then who, then the cases themselves.
+        pages: [
+          { title: "The rate, and where it is going", sel: ".cln-hero" },
+          { title: "What the claims are about", sel: "#clnPnlSources" },
+          { title: "By salesperson and by foreman", sel: "#clnPnlSp, #clnPnlFm" },
+          { title: "The claims themselves", sel: "#clnPnlCases" },
+        ],
+        restTitle: "Everything else",
       });
 
       // the pivot's dimension picker

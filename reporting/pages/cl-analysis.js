@@ -378,7 +378,7 @@ registerPage({
       const pctB = v => D.bill ? (v / D.bill * 100).toFixed(1) + "%" : "—";
       // every slide carries the same footer, so a printed deck can be talked through by
       // page number on a phone call
-      const SLIDES = 6;
+      const SLIDES = 7;
       const foot = n => `<div class="cla-foot"><span>Zip to Zip · the CL agreement</span>
         <span>${n} / ${SLIDES}</span></div>`;
       // one cost line, drawn to scale against the bill
@@ -522,6 +522,39 @@ registerPage({
           price are the honest way to charge it. "Our price" is the Sales Price Calculator amount
           before the 20% CL uplift.</p>
         ${foot(6)}
+      </section>
+
+      <section class="cla-slide">
+        <p class="eyebrow">The options</p>
+        <h2>Three ways to write it, and what each one pays you</h2>
+        <p>Every option is priced on the ${fmtN(D.n)} jobs we have already done together, so
+          none of these is a forecast — it is the same work, paid three different ways. Today's
+          row is there so you can see each one against what you actually earned.</p>
+        <table>
+          <thead><tr>
+            <th>Option</th>
+            <th class="r">Your customer pays</th>
+            <th class="r">You earn</th>
+            <th class="r">Per job</th>
+            <th class="r">Share of the bill</th>
+          </tr></thead>
+          <tbody>
+            <tr class="hi"><td><b>Today</b></td>
+              <td class="r">${m0(D.bill)}</td><td class="r"><b>${m0(D.paid)}</b></td>
+              <td class="r">${m0(D.per)}</td><td class="r">${pctB(D.paid)}</td></tr>
+            ${D.plans.map(p => `
+              <tr><td>${p.label}</td>
+                <td class="r">${m0(p.bill)}</td>
+                <td class="r"><b>${m0(p.pay)}</b></td>
+                <td class="r">${m0(p.per)}</td>
+                <td class="r">${p.bill ? (p.pay / p.bill * 100).toFixed(1) + "%" : "—"}</td></tr>`).join("")}
+          </tbody></table>
+        ${D.plans.map(p => `<p style="margin-top:10px"><b>${p.label.split("·")[0].trim()}</b>
+          — ${p.note}</p>`).join("")}
+        <p style="margin-top:14px">All three pay you a share you can work out before you quote,
+          and all three sit above what one of our own salespeople earns on a job the company
+          hands them. Which one we sign is your call.</p>
+        ${foot(7)}
       </section>`;
     }
 
@@ -568,8 +601,12 @@ registerPage({
         @page{size:A4;margin:14mm}
         *{-webkit-print-color-adjust:exact;print-color-adjust:exact;box-sizing:border-box}
         body{margin:0;background:#fff;color:#1B1A17;font-family:Georgia,'Times New Roman',serif}
-        section{padding:0 0 26px;break-inside:avoid;break-after:page}
+        section{padding:0 0 26px;break-inside:avoid;break-after:page;
+          min-height:200mm;display:flex;flex-direction:column}
         section:last-child{break-after:auto}
+        /* the footer sits on the baseline of the sheet, so seven slides of different lengths
+           still print as seven pages of the same shape */
+        section > .cla-foot{margin-top:auto}
         h2{font-size:26px;margin:0 0 12px;letter-spacing:-.02em}
         .eyebrow{font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:#A9691B;
           font-weight:700;margin:0 0 10px;font-family:Arial,sans-serif}
