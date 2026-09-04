@@ -1421,9 +1421,7 @@ registerPage({
        is just a number floating on a white page. */
     function printSheet(name, sheet) {
       if (!sheet) return;
-      const win = window.open("", "_blank");
-      if (!win) { alert("Allow pop-ups for this site to save this as a PDF."); return; }
-      win.document.write('<!doctype html><html><head><meta charset="utf-8"><title>'
+      const doc = '<!doctype html><html><head><meta charset="utf-8"><title>'
         + esc(name + " \u2014 " + monLab(S.month)) + "</title><style>"
         + "@page{size:A4 portrait;margin:0}"
         + "*{-webkit-print-color-adjust:exact;print-color-adjust:exact;box-sizing:border-box}"
@@ -1432,15 +1430,17 @@ registerPage({
         // on paper the sheet IS the page: no shadow, and the @page margin is already 0 so the
         // 14mm padding it carries on screen becomes the printed margin
         + ".fa2-sheet{box-shadow:none;margin:0}"
-        + "</style></head><body>" + sheet.outerHTML + "</body></html>");
-      win.document.close();
-      win.setTimeout(() => {
-        // the same guard on paper: the print window lays out on its own and must be
-        // measured there, not trusted to match the screen
-        const s2 = win.document.getElementById("faSheet");
-        const box = s2 && s2.querySelector(".fit");
-        if (box) {
-          const cs = win.getComputedStyle(s2);
+        + "</style></head><body>" + sheet.outerHTML + "</body></html>";
+      if (!(window.RSC && RSC.printDoc)) { window.print(); return; }
+      RSC.printDoc(doc, {
+        title: name, width: "210mm", height: "297mm",
+        // THE SAME ONE-PAGE GUARD, MEASURED WHERE IT PRINTS. The frame lays the sheet out on
+        // its own and must be measured there rather than trusted to match the screen.
+        beforePrint: (w, d) => {
+          const s2 = d.getElementById("faSheet");
+          const box = s2 && s2.querySelector(".fit");
+          if (!box) return;
+          const cs = w.getComputedStyle(s2);
           const avail = s2.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
           const need = box.scrollHeight;
           if (need > avail && need > 0) {
@@ -1449,34 +1449,8 @@ registerPage({
             box.style.transform = "scale(" + k.toFixed(4) + ")";
             box.style.width = (100 / k).toFixed(2) + "%";
           }
-        }
-        win.focus(); win.print();
-      }, 350);
-    }
-
-    /* ONE PAGE IS THE PROMISE, SO IT IS MEASURED RATHER THAN HOPED FOR.
-       Today every one of the 22 men fits with ~180px to spare, but the reasons Ramaz writes
-       are a VARCHAR(300) each and ten long ones overflow an A4 by about 154px -- silently,
-       and precisely when the sheet has become worth reading. So the content is measured
-       after layout and, if it is over, scaled down to the page. Scaling loses nothing; a
-       second page loses the thing he asked for. Nothing is ever scaled UP: a short sheet
-       stays at its natural size rather than being stretched to fill paper. */
-    function fitSheet(sheet) {
-      if (!sheet) return;
-      const box = sheet.querySelector(".fit");
-      if (!box) return;
-      box.style.transform = "none";
-      box.style.width = "";
-      const pad = parseFloat(getComputedStyle(sheet).paddingTop)
-                + parseFloat(getComputedStyle(sheet).paddingBottom);
-      const avail = sheet.clientHeight - pad;
-      const need = box.scrollHeight;
-      if (need > avail && need > 0) {
-        const k = Math.max(0.62, avail / need);   // below this it stops being readable
-        box.style.transformOrigin = "top left";
-        box.style.transform = "scale(" + k.toFixed(4) + ")";
-        box.style.width = (100 / k).toFixed(2) + "%";
-      }
+        },
+      });
     }
 
     function onReportEsc(e) { if (e.key === "Escape") closeReport(); }

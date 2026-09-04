@@ -2133,7 +2133,7 @@ registerPage({
        block that carries meaning also carries a border, so it still reads if a printer or a
        policy refuses the colour anyway. */
     function hqPrintDoc(title, person, qs, ans) {
-      var win = window.open("", "_blank");
+      var win = window.open("", "_blank");   /* legacy path, kept for the no-RSC case */
       if (!win) { toast("Allow pop-ups for this site to print.", true); return; }
 
       var n = 0;

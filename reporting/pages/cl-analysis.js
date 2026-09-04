@@ -663,8 +663,6 @@ registerPage({
     }
 
     function deckPrint() {
-      const win = window.open("", "_blank");
-      if (!win) { alert("Allow pop-ups for this site to save the presentation as a PDF."); return; }
       const css = `
         @page{size:A4;margin:14mm}
         *{-webkit-print-color-adjust:exact;print-color-adjust:exact;box-sizing:border-box}
@@ -722,12 +720,13 @@ registerPage({
         .cla-bar span.b{height:16px;background:#A9691B}
         .cla-bar span.b.now{background:#33566E}
         .cla-bar span.v{color:#3A3833;font-variant-numeric:tabular-nums;white-space:nowrap}`;
-      win.document.write('<!doctype html><html><head><meta charset="utf-8">'
+      const DECK_DOC = ('<!doctype html><html><head><meta charset="utf-8">'
         + "<title>The CL Agreement</title><style>" + css + "</style></head><body>"
         + deckHtml(deckData()) + "</body></html>");
-      win.document.close();
-      win.focus();
-      setTimeout(() => win.print(), 350);
+      if (!(window.RSC && RSC.printDoc)) { window.print(); return; }
+      // A4 PORTRAIT: the deck's own @page says portrait, so the frame must lay it out at that
+      // width or every slide reflows the moment the dialog opens.
+      RSC.printDoc(DECK_DOC, { title: "CL \u2014 the proposal", width: "210mm", height: "297mm" });
     }
 
     function paint() {

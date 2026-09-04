@@ -805,14 +805,44 @@ window.RSC = (function () {
               as before.
      orientation  "landscape" (default) or "portrait".
   */
+  /* PRINT A WHOLE DOCUMENT WITHOUT A POPUP.
+     window.open is blocked unless the browser credits the click as a direct user gesture, and
+     a handler wired in JS usually is not credited -- so the Save-as-PDF buttons either alerted
+     or did nothing at all. A same-origin iframe needs no permission and prints the same
+     document through the same native dialog, whose "Save as PDF" destination IS the download.
+     Sized to a real page on purpose: a 0x0 frame lays out at zero width and a table that never
+     had room prints as broken cells. */
+  function printDoc(html, opts) {
+    const o = opts || {};
+    const prev = document.getElementById("rs-print-frame");
+    if (prev) prev.remove();
+    const f = document.createElement("iframe");
+    f.id = "rs-print-frame";
+    f.setAttribute("aria-hidden", "true");
+    f.setAttribute("title", o.title || "print");
+    f.style.cssText = "position:fixed;left:-10000px;top:0;width:" + (o.width || "297mm")
+      + ";height:" + (o.height || "210mm") + ";border:0;visibility:hidden";
+    document.body.appendChild(f);
+    const d = f.contentWindow.document;
+    d.open();
+    d.write(html);
+    d.close();
+    const go = () => {
+      try {
+        if (o.beforePrint) o.beforePrint(f.contentWindow, d);
+        f.contentWindow.focus();
+        f.contentWindow.print();
+      } catch (e) { /* the dialog is the browser's; nothing here can recover it */ }
+    };
+    // the same 350ms the popup allowed for layout before printing
+    if (d.readyState === "complete") setTimeout(go, 350);
+    else f.onload = () => setTimeout(go, 350);
+    return f;
+  }
+
   function printView(cfg) {
     const host = cfg.host;
     if (!host) return;
-    const win = window.open("", "_blank");
-    if (!win) {
-      alert("Allow pop-ups for this site to save this as a PDF.");
-      return;
-    }
     const body = host.cloneNode(true);
 
     // Interactive chrome cannot be used on paper and only costs space. `.rs-bar` is the
@@ -890,7 +920,7 @@ window.RSC = (function () {
     const when = new Date().toLocaleDateString(undefined,
       { year: "numeric", month: "long", day: "numeric" });
 
-    win.document.write(`<!doctype html><html><head><meta charset="utf-8">
+    const DOC = `<!doctype html><html><head><meta charset="utf-8">
       <title>${esc2(cfg.title || "Report")}</title>
       <style>
         @page{size:A4 ${cfg.orientation === "portrait" ? "portrait" : "landscape"};margin:12mm}
@@ -953,13 +983,16 @@ window.RSC = (function () {
       </div>
       ${pagesHtml}
       <div class="pv-foot">Zip to Zip · Reporting System · ${esc2(when)}</div>
-      </body></html>`);
-    win.document.close();
-    // let the clone lay out before the print dialog measures it
-    win.setTimeout(() => { win.focus(); win.print(); }, 350);
+      </body></html>`;
+    // the frame takes the orientation the document asks for, so the clone lays out at the
+    // width it will actually print at rather than reflowing when the dialog opens
+    const portrait = cfg.orientation === "portrait";
+    printDoc(DOC, { title: cfg.title || "Report",
+                    width: portrait ? "210mm" : "297mm",
+                    height: portrait ? "297mm" : "210mm" });
   }
 
-  return { el, esc, multiSelect, singleSelect, localSelect, localMulti, dateBar, dateRange, datePresets,
+  return { el, esc, printDoc, multiSelect, singleSelect, localSelect, localMulti, dateBar, dateRange, datePresets,
            kpis, chartCard, table, matrix,
            confirm: confirmDlg, ask: askDlg, notice: noticeDlg,
            collapsible, fitScroller, fit, reflow, reflowAfter, printView };
