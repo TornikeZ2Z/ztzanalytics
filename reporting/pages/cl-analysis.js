@@ -129,6 +129,8 @@ registerPage({
           + "max-width:860px;width:100%;margin:0 auto}",
         ".cla-slide h2{font-family:inherit;font-size:21px;margin:0 0 10px;color:#1B1A17;"
           + "letter-spacing:-.01em}",
+        ".cla-slide h3{font-family:inherit;font-size:14px;margin:20px 0 6px;color:#1B1A17;"
+          + "letter-spacing:-.005em}",
         ".cla-slide .eyebrow{font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;"
           + "color:#A9691B;font-weight:700;margin:0 0 8px}",
         ".cla-slide p{font-size:13px;line-height:1.55;color:#3A3833;margin:0 0 9px;max-width:66ch}",
@@ -269,8 +271,8 @@ registerPage({
       const ours = S2(e => e["Our Price"]);
       const refund = S2(e => e["Refund $"]);
       const U = 1.20;
-      const mk = (label, newBill, pay, note) => ({
-        label, bill: newBill, pay, note,
+      const mk = (label, uplift, newBill, pay, note) => ({
+        label, uplift, bill: newBill, pay, note,
         ticket: n ? newBill / n : 0,
         per: n ? pay / n : 0,
         breakeven: pay > 0 ? paid / (pay / n) : null,
@@ -362,11 +364,11 @@ registerPage({
         ticket: n ? bill / n : 0, per: n ? paid / n : 0,
         months: [...new Set(baseJobs.map(r => String(r["Date"] || "").slice(0, 7)).filter(Boolean))].length,
         plans: [
-          mk("A · no uplift, 20% of the bill", bill / U, 0.20 * (bill / U),
+          mk("A", 0, bill / U, 0.20 * (bill / U),
              "The 20% increase comes off. You quote our calculator price exactly as it comes — the sharpest price you can put in front of a customer — and earn 20% of it."),
-          mk("B · 10% uplift, 22.5% of the bill", bill / U * 1.10, 0.225 * (bill / U * 1.10),
+          mk("B", 0.10, bill / U * 1.10, 0.225 * (bill / U * 1.10),
              "Half the increase stays in the price — still cheaper than today — and your share of the bill rises from 20% to 22.5%."),
-          mk("C · keep the 20%, 25% of our price", bill, 0.25 * ours,
+          mk("C", U - 1, bill, 0.25 * ours,
              "Nothing changes for your customers: you quote exactly what you quote today. Your 25% is measured against our calculator price, under the three rules above."),
         ],
       };
@@ -526,34 +528,42 @@ registerPage({
 
       <section class="cla-slide">
         <p class="eyebrow">The options</p>
-        <h2>Three ways to write it, and what each one pays you</h2>
-        <p>Every option is priced on the ${fmtN(D.n)} jobs we have already done together, so
-          none of these is a forecast — it is the same work, paid three different ways. Today's
-          row is there so you can see each one against what you actually earned.</p>
+        <h2>Three ways to write it</h2>
+        <p>Two numbers describe each one: how much goes on top of our price when you quote,
+          and the share of the Total Bill you keep. Today's row is there so each option reads
+          against what you have actually been earning.</p>
         <table>
           <thead><tr>
-            <th>Option</th>
-            <th class="r">Your customer pays</th>
-            <th class="r">You earn</th>
-            <th class="r">Per job</th>
-            <th class="r">Share of the bill</th>
+            <th>Plan</th>
+            <th class="r">Uplift on our price</th>
+            <th class="r">Your share of the Total Bill</th>
           </tr></thead>
           <tbody>
             <tr class="hi"><td><b>Today</b></td>
-              <td class="r">${m0(D.bill)}</td><td class="r"><b>${m0(D.paid)}</b></td>
-              <td class="r">${m0(D.per)}</td><td class="r">${pctB(D.paid)}</td></tr>
+              <td class="r">${((U - 1) * 100).toFixed(0)}%</td>
+              <td class="r"><b>${pctB(D.paid)}</b></td></tr>
             ${D.plans.map(p => `
-              <tr><td>${p.label}</td>
-                <td class="r">${m0(p.bill)}</td>
-                <td class="r"><b>${m0(p.pay)}</b></td>
-                <td class="r">${m0(p.per)}</td>
-                <td class="r">${p.bill ? (p.pay / p.bill * 100).toFixed(1) + "%" : "—"}</td></tr>`).join("")}
+              <tr><td><b>${p.label}</b></td>
+                <td class="r">${p.uplift ? (p.uplift * 100).toFixed(0) + "%" : "none"}</td>
+                <td class="r"><b>${p.bill ? (p.pay / p.bill * 100).toFixed(1) + "%" : "—"}</b></td>
+              </tr>`).join("")}
           </tbody></table>
-        ${D.plans.map(p => `<p style="margin-top:10px"><b>${p.label.split("·")[0].trim()}</b>
-          — ${p.note}</p>`).join("")}
-        <p style="margin-top:14px">All three pay you a share you can work out before you quote,
-          and all three sit above what one of our own salespeople earns on a job the company
-          hands them. Which one we sign is your call.</p>
+        ${D.plans.map(p => `<p style="margin-top:10px"><b>Plan ${p.label}</b> — ${p.note}</p>`).join("")}
+
+        <h3 style="font-size:14px;margin:20px 0 6px">What the Total Bill means</h3>
+        <p>The Total Bill is what the customer actually pays us for the job, written on the
+          closing sheet the day the job finishes — the moving charge plus everything sold with
+          it: packing and materials, stairs, bulky items, hoisting and storage. It is the final
+          figure, not the quote: if the job ran longer or shorter than estimated, the Total Bill
+          is the amount that was really charged.</p>
+        <p>Two things sit outside it, both deliberately. <b>Tips are not part of the bill</b> —
+          they belong to the crew and neither of us earns commission on them. And the bill is
+          counted <b>before any of our costs</b>: your share is measured against the whole
+          amount the customer paid, not against what is left after the crew, the truck and the
+          materials are paid for.</p>
+        <p style="margin-top:14px">All three plans pay you a share you can work out before you
+          quote, and all three sit above what one of our own salespeople earns on a job the
+          company hands them. Which one we sign is your call.</p>
         ${foot(7)}
       </section>`;
     }
@@ -608,6 +618,7 @@ registerPage({
            still print as seven pages of the same shape */
         section > .cla-foot{margin-top:auto}
         h2{font-size:26px;margin:0 0 12px;letter-spacing:-.02em}
+        h3{font-size:16px;margin:22px 0 7px;letter-spacing:-.01em}
         .eyebrow{font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:#A9691B;
           font-weight:700;margin:0 0 10px;font-family:Arial,sans-serif}
         p{font-size:13.5px;line-height:1.6;color:#3A3833;margin:0 0 11px;max-width:70ch}
