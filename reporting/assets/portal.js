@@ -289,11 +289,141 @@ window.ZTZ = (function () {
         `font-size:13px;font-weight:650;color:var(--ink,#16202c)">Sign out</button>`;
       document.body.appendChild(m);
       m.addEventListener("click", ev => ev.stopPropagation());
-      m.querySelector("#ztzSignOut").onclick = () => { clearToken(); location.reload(); };
+      m.querySelector("#ztzSignOut").onclick = () => {
+        activity.flush();                     // the visit ends here, not at the reload
+        clearToken(); location.reload();
+      };
       const close = () => { m.remove(); document.removeEventListener("click", close); };
       setTimeout(() => document.addEventListener("click", close), 0);
     };
   }
+
+  /* ---------- activity odometer (Administration > User Activity) ----------
+     Measures how long the signed-in person spends on each report, and reports it to
+     /api/_activity. Two numbers, because Tornike asked for two (2026-09-06): "i dont need
+     to see just how long it was open".
+
+       total  — wall clock on the page. A hidden tab still counts: it IS open.
+       active — the part of that the person was actually engaged for: the tab visible AND
+                some interaction (key, click, scroll, touch) inside the last minute.
+
+     WHAT IT DOES NOT SEE, by design: no filters, no search terms, no rows, no keystroke
+     content. The interaction listeners look only at the FACT that an event fired; they
+     never read it. This is a usage log, not a keylogger.
+
+     Slices are ADDITIVE and append-only — each flush sends the time since the last flush
+     and resets to zero — so a browser that is killed loses at most the last unflushed
+     slice instead of the whole visit, and the server never has to update a row.
+
+     Three deliberate details:
+       · dt is measured from the CLOCK, not counted in ticks, so a background tab that the
+         browser throttles to one wake a minute still books its minute;
+       · dt is capped at 60s, so a laptop shut for three hours books a minute, not three
+         hours — the cap is the reason "total" stays a usable number at all;
+       · every send is keepalive, which is what survives the unload that a plain fetch
+         does not, and unlike sendBeacon it can still carry the Authorization header. */
+  const activity = (function () {
+    const TICK_MS = 5000;          // resolution; also the normal dt
+    const DT_CAP_MS = 60000;       // a sleeping machine must not bill three hours
+    const IDLE_MS = 60000;         // engaged = an interaction inside the last minute
+    const FLUSH_MS = 300000;       // insurance flush, so a crash loses five minutes at most
+    let cur = null;                // { page, title, total, active }
+    let lastTick = 0, lastAct = 0, timer = null, flushAt = 0, on = false;
+
+    const device = () => {
+      try {
+        if (window.matchMedia("(max-width: 700px)").matches) return "phone";
+        if (window.matchMedia("(max-width: 1024px)").matches) return "tablet";
+      } catch (e) {}
+      return "desktop";
+    };
+
+    function post(events) {
+      const tok = getToken();
+      if (!tok || !events.length) return;
+      try {
+        fetch(API + "/api/_activity", {
+          method: "POST",
+          headers: { Authorization: "Bearer " + tok, "Content-Type": "application/json" },
+          body: JSON.stringify({ events: events, device: device() }),
+          keepalive: true,
+        }).catch(function () {});
+      } catch (e) { /* the odometer never breaks the car */ }
+    }
+
+    function tick() {
+      if (!cur) return;
+      const now = Date.now();
+      const dt = Math.min(now - lastTick, DT_CAP_MS);
+      lastTick = now;
+      if (dt <= 0) return;
+      cur.total += dt;
+      let visible = true;
+      try { visible = document.visibilityState !== "hidden"; } catch (e) {}
+      if (visible && (now - lastAct) < IDLE_MS) cur.active += dt;
+      if (now >= flushAt) flush();
+    }
+
+    /* Send what has accumulated and reset to zero. Sub-second slices are dropped rather
+       than sent as 0 — a page bounced through on the way somewhere else is not a visit. */
+    function flush() {
+      flushAt = Date.now() + FLUSH_MS;
+      if (!cur) return;
+      tickless();
+      const secs = Math.round(cur.total / 1000);
+      if (secs < 1) return;
+      post([{ page: cur.page, title: cur.title,
+              seconds: secs, active: Math.round(cur.active / 1000) }]);
+      cur.total = 0; cur.active = 0;
+    }
+    /* fold in the time since the last tick without recursing back into flush() */
+    function tickless() {
+      const now = Date.now();
+      const dt = Math.min(now - lastTick, DT_CAP_MS);
+      lastTick = now;
+      if (dt <= 0) return;
+      cur.total += dt;
+      let visible = true;
+      try { visible = document.visibilityState !== "hidden"; } catch (e) {}
+      if (visible && (now - lastAct) < IDLE_MS) cur.active += dt;
+    }
+
+    function start() {
+      if (on) return;
+      on = true;
+      lastTick = lastAct = Date.now();
+      flushAt = lastTick + FLUSH_MS;
+      timer = setInterval(tick, TICK_MS);
+      const mark = function () { lastAct = Date.now(); };
+      ["mousedown", "keydown", "wheel", "touchstart", "pointerdown", "scroll"]
+        .forEach(function (ev) {
+          try { window.addEventListener(ev, mark, { passive: true, capture: true }); }
+          catch (e) { window.addEventListener(ev, mark, true); }
+        });
+      // hidden fires where unload does not (phones, tab switches); pagehide covers the rest.
+      // Coming BACK deliberately resets nothing: a backgrounded tab is still open, so the
+      // gap is credited to `total` like any other -- capped at 60s by dt, which is what
+      // stops a laptop shut overnight from booking eight hours against a report.
+      document.addEventListener("visibilitychange", function () {
+        if (document.visibilityState === "hidden") flush();
+      });
+      window.addEventListener("pagehide", flush);
+    }
+
+    return {
+      /* Called from navigate() on every page change, including the first render. */
+      page(id, title) {
+        if (!getToken() || !id) return;
+        start();
+        if (cur && cur.page === id) return;   // a re-render of the same report is not a visit
+        flush();
+        cur = { page: String(id), title: String(title || id), total: 0, active: 0 };
+        lastTick = Date.now();
+      },
+      /* Sign-out and anything else that ends the visit deliberately. */
+      flush,
+    };
+  })();
 
   /* ---------- misc ---------- */
   function toast(msg) {
@@ -309,5 +439,5 @@ window.ZTZ = (function () {
 
   return { API, CLIENT_ID, decodeJwt, tokenValid, getToken, setToken, clearToken, email,
            getViewAs, setViewAs,
-           api, mountSignin, header, toast, num, fmtN, money };
+           api, mountSignin, header, toast, num, fmtN, money, activity };
 })();
