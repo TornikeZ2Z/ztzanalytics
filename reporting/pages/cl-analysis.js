@@ -1044,7 +1044,10 @@ registerPage({
               its Fuel is whatever fill-up happened that day, and tolls are almost never entered.
               Every rate below is our own books over the last 12 months &mdash; including the
               7 mpg, which four separate readings of our WEX gallons against our own GPS miles
-              bracket between 6.3 and 8.0. It used to be the one figure taken from outside.</div>
+              bracket between 6.3 and 8.0. <b>One exception, stated rather than buried:</b> the
+              rental truck carries a ${money0(175)} floor Tornike set, above the ${money0(123)}
+              our invoices measure &mdash; the invoice feed lags about two months and the billed
+              rate reads as contract pricing. Everything else is measured.</div>
           </div><span class="rs-pill ${finAdj < profit ? "warn" : "ok"}">${money0(finAdj)} · ${pctS(billed ? finAdj / billed : null)} margin</span></div>
           <div class="rs-tablewrap"><table class="rs-table cla-wf">
             <thead><tr><th>Step</th><th>Basis</th><th class="num">Jobs</th>
@@ -1055,7 +1058,7 @@ registerPage({
                 <td class="num">${fmtN(jobs.length)}</td><td class="num"></td>
                 <td class="num">${money0(profit)}</td></tr>
               <tr><td>1 · Truck rental</td>
-                <td>${money0(rate("Rate Rental Per Job"))} a job on a rented truck (Enterprise, Penske) — rental invoices over rental-truck jobs</td>
+                <td>${money0(rate("Rate Rental Per Job"))} a job on a rented truck (Enterprise, Penske). Our invoices over rental-truck jobs give ${money0(123)} &mdash; $157 a truck-day over 1.24 jobs a truck-day &mdash; but the invoice feed lags about two months (August: 228 rental truck-days, nothing invoiced) and the billed rate reads as contract pricing rather than what a truck is taken at. ${money0(175)} is the floor Tornike set; if the invoices ever exceed it, they win</td>
                 <td class="num">${fmtN(nRental)}</td><td class="num">${signed(-finRental)}</td>
                 <td class="num">${money0(profit - finRental)}</td></tr>
               <tr><td>2 · Owned-truck overhead</td>
