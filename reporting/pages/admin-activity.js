@@ -65,14 +65,33 @@ const UA = (() => {
   };
   const who = u => u.name || (u.email || "").split("@")[0];
 
-  /* A stable colour per report, so the strip on a session and the list under it agree, and
-     so the same report keeps its colour from one person's card to the next. */
-  const PALETTE = ["var(--blue)", "var(--purple)", "var(--amber)", "var(--brand)",
-                   "var(--red)", "#3fb6a8", "#e07a5f", "#7d8cc4"];
-  const tone = id => {
+  /* A colour per report — hashed, so a report tends to keep the same colour from one card
+     to the next, but DECONFLICTED inside each strip, because a hash alone will happily
+     hand two reports sitting next to each other the same swatch. (It did: the first build
+     drew Angi Lead Funnel and Crew Salaries in two reds side by side, and the legend was
+     the only way to tell the segments apart — which defeats the strip.)
+
+     Ordered by hue so that "the next free slot" is also a visibly different colour. The
+     five tokens follow the theme; the three literals are mid-tone enough to read on both
+     the light and the dark ground. */
+  const PALETTE = ["var(--blue)", "var(--amber)", "var(--purple)", "#3fb6a8",
+                   "var(--red)", "var(--brand)", "#d267a8", "#8a6a4f"];
+  const hashIx = id => {
     let h = 0;
     for (let i = 0; i < (id || "").length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
-    return PALETTE[h % PALETTE.length];
+    return h % PALETTE.length;
+  };
+  /* pages -> { pageId: colour }, distinct within this one group wherever the palette allows */
+  const tones = pages => {
+    const used = new Set(), out = {};
+    (pages || []).forEach(p => {
+      const start = hashIx(p.page);
+      let ix = start;
+      for (let n = 0; n < PALETTE.length && used.has(ix); n++) ix = (ix + 1) % PALETTE.length;
+      used.add(ix);
+      out[p.page] = PALETTE[ix];
+    });
+    return out;
   };
 
   /* ---------- the engaged-inside-open bar ----------
@@ -207,8 +226,9 @@ const UA = (() => {
     body.innerHTML = `<div class="ua-list">` + users.map(u => {
       const idle = u.sessions === 0;
       const top = u.top || [];
+      const col = tones(top);
       const chips = top.map(p =>
-        `<span class="ua-chip"><i style="background:${tone(p.page)}"></i>${RSC.esc(p.title)}
+        `<span class="ua-chip"><i style="background:${col[p.page]}"></i>${RSC.esc(p.title)}
            <u>${fmtDur(p.seconds)}</u></span>`).join("");
       const more = u.pages > top.length
         ? `<span class="ua-chip"><u>+${u.pages - top.length} more</u></span>` : "";
@@ -263,12 +283,13 @@ const UA = (() => {
        </div>` +
       (sessions.length ? sessions.map(s => {
         const pages = s.pages || [];
+        const col = tones(pages);
         const tot = Math.max(1, pages.reduce((a, p) => a + p.seconds, 0));
         const strip = pages.map(p =>
-          `<i style="flex:${(p.seconds / tot * 100).toFixed(2)};background:${tone(p.page)}"
+          `<i style="flex:${(p.seconds / tot * 100).toFixed(2)};background:${col[p.page]}"
               title="${RSC.esc(p.title)} · ${fmtDur(p.seconds)}"></i>`).join("");
         const rows = pages.map(p => `<tr>
-            <td class="nm"><i style="background:${tone(p.page)}"></i>${RSC.esc(p.title)}</td>
+            <td class="nm"><i style="background:${col[p.page]}"></i>${RSC.esc(p.title)}</td>
             <td class="r dim">${p.visits}</td>
             <td class="r dim">${fmtDur(p.seconds)}</td>
             <td class="r"><b>${fmtDur(p.active)}</b></td>
