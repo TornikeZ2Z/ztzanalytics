@@ -42,7 +42,8 @@ if (window.RS && RS.DATASETS && !RS.DATASETS.mart_cl_analysis) {
            "Extra Spend", "Other Expenses", "Company Tip", "Discount Given",
            "Has Contract",
            "Truck #", "Truck Ownership", "Miles Used", "Miles Basis", "Fuel Recorded", "Tolls Recorded", "Rental Cost Est", "Owned Overhead Est", "Fuel Est", "Toll Est", "Contingency Est", "Adjusted Gross Profit", "Rate Rental Per Job", "Rate Owned Per Job", "Rate Fuel Per Gal", "Rate Toll Per Job", "Elevator Both Ends", "Rate Stairs Share All",
-           "Crew $", "Car $", "Other Exp $", "Refund Half", "Material $", "Packing Sold"],
+           "Crew $", "Car $", "Other Exp $", "Refund Half", "Material $", "Packing Sold",
+           "Card Paid", "Card Fee Est"],
     dateCols: { "Date": "Date" }, defaultDate: "Date",
   };
 }
@@ -351,11 +352,23 @@ registerPage({
       // MAT_COGS of packing sold, "we have on average 15% for each item".
       //
       // COST_UPLIFT is his 10% cushion on the lines we ESTIMATE or that the closing sheet
-      // under-records: fuel and tolls come from the finance view's rates, and car and other
-      // job costs are whatever made it onto the sheet that day. Deliberately NOT applied to
+      // under-records: fuel and tolls come from the finance view's rates, and the other job
+      // costs are whatever made it onto the sheet that day. Deliberately NOT applied to
       // company tips or discounts — those are recorded to the dollar, and padding an exact
       // number is how a model stops being checkable.
-      const MAT_COGS = 0.15, COST_UPLIFT = 1.10;
+      //
+      // IT NO LONGER HAS ITS OWN ROW (his call 2026-09-06: "the Contingency has some
+      // confusing explanation, distribute it on fuel and toll and truck and etc"). It rides
+      // inside the lines it was computed from, and the total is unchanged to the cent:
+      //   fuel + tolls + other + 0.10 x (fuel + tolls + carOther)
+      //     === 1.10 x fuel + 1.10 x tolls + 1.10 x carOther + tips and discounts
+      // The truck line is NOT padded: its rental rate already carries his own $175 floor
+      // over the $123.30 the invoices measure, and a second cushion on top would charge the
+      // same allowance twice.
+      //
+      // CARD_FEE is what the processor keeps. The closing sheet books the gross the customer
+      // paid, so this outflow has never appeared anywhere on this page.
+      const MAT_COGS = 0.15, COST_UPLIFT = 1.10, CARD_FEE = 0.035;
       const packingPay = eS(e => e["Material $"]);
       // `Packing Sold` is a NEW mart column, and the hourly pipeline rebuilds this mart from
       // whatever loader revision is deployed -- so between a portal deploy and a loader
@@ -366,29 +379,34 @@ registerPage({
       const PACK_RATE = 0.20;
       const soldCol = eS(e => e["Packing Sold"]);
       const packingSold = soldCol || (packingPay / PACK_RATE);
+      // The daily travel-to-base allowance (`Car $`) is crew money, not a vehicle cost, and
+      // he does not want it itemised -- it sits in the same line as the tips and discounts,
+      // exactly where it already was. Only the label changed.
+      const carOther = eS(e => e["Car $"]) + eS(e => e["Other Exp $"]);
+      const exactly = eS(e => e["Company Tip"]) + eS(e => e["Discount Given"]);
+      // `Card Fee Est` is a NEW mart column, and the hourly pipeline rebuilds this mart from
+      // whatever loader revision is deployed -- so between a portal deploy and a loader
+      // deploy it is simply absent. Fall back to the rate on `Card Paid`, and to nothing at
+      // all if that is missing too, rather than showing a silent zero as if the fee were
+      // real and zero.
+      const cardPaid = eS(e => e["Card Paid"]);
       const cost = {
         crew: eS(e => e["Crew $"]) + packingPay,
         materials: MAT_COGS * packingSold,
         truck: eS(e => e["Rental Cost Est"]) + eS(e => e["Owned Overhead Est"]),
-        fuel: eS(e => e["Fuel Est"]),
-        tolls: eS(e => e["Toll Est"]),
-        other: eS(e => e["Car $"]) + eS(e => e["Other Exp $"])
-             + eS(e => e["Company Tip"]) + eS(e => e["Discount Given"]),
+        fuel: eS(e => e["Fuel Est"]) * COST_UPLIFT,
+        tolls: eS(e => e["Toll Est"]) * COST_UPLIFT,
+        other: carOther * COST_UPLIFT + exactly,
+        cardFee: eS(e => e["Card Fee Est"]) || CARD_FEE * cardPaid,
       };
-      // HIS 10%, ON ITS OWN LINE. It used to be a silent x1.10 inside fuel, tolls and the
-      // other job costs, which meant the waterfall never showed it and nobody could switch
-      // it off. The mart now computes it per job on the two ESTIMATED lines; the car and
-      // other job costs keep their share here, since they are the sheet's own under-recorded
-      // figures. Same total, one visible row instead of three hidden multipliers.
-      const contMart = eS(e => e["Contingency Est"]);
-      cost.contingency = (contMart || (cost.fuel + cost.tolls) * (COST_UPLIFT - 1))
-        + (eS(e => e["Car $"]) + eS(e => e["Other Exp $"])) * (COST_UPLIFT - 1);
       cost.packingSold = packingSold;
       cost.packingPay = packingPay;
       cost.uplift = COST_UPLIFT;
       cost.matRate = MAT_COGS;
+      cost.cardRate = CARD_FEE;
+      cost.cardPaid = cardPaid;
       cost.total = cost.crew + cost.materials + cost.truck + cost.fuel + cost.tolls
-                 + cost.other + cost.contingency;
+                 + cost.other + cost.cardFee;
       const weKept = bill - cost.total - paid;
 
       /* A TYPICAL PRICE, SO THE PERCENTAGE HAS SOMETHING TO STAND ON (his ask 2026-09-04).
@@ -488,9 +506,9 @@ registerPage({
         <h2>The ${fmtN(D.n)} jobs, from the total down</h2>
         <p>This is not a projection. It is what the ${fmtN(D.n)} jobs actually cost and actually
           paid, taken from our closing sheets and our own books. Percentages are of the money the
-          customers paid. Fuel, tolls, car and other job costs carry a
-          ${Math.round((D.cost.uplift - 1) * 100)}% allowance, because those are the lines the
-          sheet records loosest.</p>
+          customers paid. Fuel, tolls and the other job costs carry a
+          ${Math.round((D.cost.uplift - 1) * 100)}% allowance inside the line, because those are
+          the ones the sheet records loosest.</p>
         <div class="cla-wfall">
           ${wf("<b>Billed to customers</b>", "", D.bill, "tot")}
           ${wf("Crew — foreman, driver and helpers",
@@ -500,10 +518,10 @@ registerPage({
                `${Math.round(D.cost.matRate * 100)}% of the ${m0(D.cost.packingSold)} of packing sold`,
                D.cost.materials, "cost")}
           ${wf("Truck", "rental, and insurance, parking and financing on ours", D.cost.truck, "cost")}
-          ${wf("Fuel", "miles at 7 mpg and our own diesel price", D.cost.fuel, "cost")}
-          ${wf("Tolls", "the toll accounts spread over the miles that drive them", D.cost.tolls, "cost")}
-          ${wf("Car, tips we paid, discounts and other job costs", "", D.cost.other, "cost")}
-          ${wf("Contingency", "his 10% on the estimated lines, shown rather than folded into a rate", D.cost.contingency, "cost")}
+          ${wf("Fuel", "miles at 7 mpg and our own diesel price, plus a 10% allowance", D.cost.fuel, "cost")}
+          ${wf("Tolls", "the toll accounts spread over the miles that drive them, plus a 10% allowance", D.cost.tolls, "cost")}
+          ${wf("Tips we paid, discounts and other job costs", "", D.cost.other, "cost")}
+          ${wf("Card processing", `${(D.cost.cardRate * 100).toFixed(1)}% of the ${m0(D.cost.cardPaid)} the customers paid by card`, D.cost.cardFee, "cost")}
           ${wf("<b>What the jobs cost us to run</b>", "", D.cost.total, "tot cost")}
           ${wf("<b>You kept</b>", "", D.paid, "tot you")}
           ${wf("<b>We kept</b>", "", D.weKept, "tot us")}
@@ -813,7 +831,13 @@ registerPage({
       const finOwned = eSum(e => e["Owned Overhead Est"]);
       const finFuelRec = eSum(e => e["Fuel Recorded"]), finFuelEst = eSum(e => e["Fuel Est"]);
       const finTollRec = eSum(e => e["Tolls Recorded"]), finTollEst = eSum(e => e["Toll Est"]);
-      const finCont = eSum(e => e["Contingency Est"]);
+      // The 10% no longer stands as its own step: it rides inside the fuel and toll lines
+      // it was always computed from, so `finFuel` / `finToll` ARE the charged amounts.
+      const CL_UPLIFT = 1.10, CL_CARD = 0.035;
+      const finFuel = finFuelEst * CL_UPLIFT;
+      const finToll = finTollEst * CL_UPLIFT;
+      const finCardPaid = eSum(e => e["Card Paid"]);
+      const finCard = eSum(e => e["Card Fee Est"]) || CL_CARD * finCardPaid;
       const finAdj = eSum(e => e["Adjusted Gross Profit"]);
       const own = k => jobs.filter(r => { const e = E(r); return e && e["Truck Ownership"] === k; }).length;
       const nRental = own("Rental"), nOwned = own("Owned");
@@ -1047,7 +1071,10 @@ registerPage({
               bracket between 6.3 and 8.0. <b>One exception, stated rather than buried:</b> the
               rental truck carries a ${money0(175)} floor Tornike set, above the ${money0(123)}
               our invoices measure &mdash; the invoice feed lags about two months and the billed
-              rate reads as contract pricing. Everything else is measured.</div>
+              rate reads as contract pricing. Everything else is measured. The ${Math.round((CL_UPLIFT - 1) * 100)}%
+              allowance he asked for rides inside the fuel and toll lines rather than standing as
+              its own step; the truck line is not padded with it, because the ${money0(175)} floor
+              is already that cushion.</div>
           </div><span class="rs-pill ${finAdj < profit ? "warn" : "ok"}">${money0(finAdj)} · ${pctS(billed ? finAdj / billed : null)} margin</span></div>
           <div class="rs-tablewrap"><table class="rs-table cla-wf">
             <thead><tr><th>Step</th><th>Basis</th><th class="num">Jobs</th>
@@ -1066,19 +1093,20 @@ registerPage({
                 <td class="num">${fmtN(nOwned)}</td><td class="num">${signed(-finOwned)}</td>
                 <td class="num">${money0(profit - finRental - finOwned)}</td></tr>
               <tr><td>3 · Fuel restated</td>
-                <td>miles ÷ 7 mpg × $${(rate("Rate Fuel Per Gal") || 0).toFixed(2)} a gallon of diesel, replacing the sheet's ${money0(finFuelRec)} of fill-ups · miles are the GPS legs where they were filed (a missing return leg imputed from the outbound), the contract's mileage corrected to what GPS actually measures, then the distance the zips imply &mdash; only ${fmtN(4)} jobs fall back to the CL average</td>
-                <td class="num">${fmtN(jobs.length)}</td><td class="num">${signed(finFuelRec - finFuelEst)}</td>
-                <td class="num">${money0(profit - finRental - finOwned + finFuelRec - finFuelEst)}</td></tr>
+                <td>miles ÷ 7 mpg × $${(rate("Rate Fuel Per Gal") || 0).toFixed(2)} a gallon of diesel, plus a ${Math.round((CL_UPLIFT - 1) * 100)}% allowance, replacing the sheet's ${money0(finFuelRec)} of fill-ups · miles are the GPS legs where they were filed (a missing return leg imputed from the outbound), the contract's mileage corrected to what GPS actually measures, then the distance the zips imply &mdash; only ${fmtN(4)} jobs fall back to the CL average</td>
+                <td class="num">${fmtN(jobs.length)}</td><td class="num">${signed(finFuelRec - finFuel)}</td>
+                <td class="num">${money0(profit - finRental - finOwned + finFuelRec - finFuel)}</td></tr>
               <tr><td>4 · Tolls restated</td>
-                <td>our four toll accounts spread over the miles that actually drive them &mdash; the NJ E-ZPass account across every job, the Enterprise rebills only on rented trucks, the Turnpike and New York accounts only on routes that touch those states &mdash; replacing the sheet's ${money0(finTollRec)} and a flat ${money0(rate("Rate Toll Per Job"))} a job. His book is short-haul owned-truck New Jersey work, so it carries less of them than a head count implied</td>
-                <td class="num">${fmtN(jobs.length)}</td><td class="num">${signed(finTollRec - finTollEst)}</td>
-                <td class="num">${money0(profit - finRental - finOwned + finFuelRec - finFuelEst + finTollRec - finTollEst)}</td></tr>
-              <tr><td>5 &middot; Contingency</td>
-                <td>10% on the two lines this view re-derives &mdash; fuel and tolls &mdash; carried
-                  as its own step rather than folded into the rates, so the allowance stays a
-                  decision you can see and argue with instead of a number pretending to be measured</td>
-                <td class="num">${fmtN(jobs.length)}</td><td class="num">${signed(-finCont)}</td>
-                <td class="num">${money0(profit - finRental - finOwned + finFuelRec - finFuelEst + finTollRec - finTollEst - finCont)}</td></tr>
+                <td>our four toll accounts spread over the miles that actually drive them, plus the same ${Math.round((CL_UPLIFT - 1) * 100)}% allowance &mdash; the NJ E-ZPass account across every job, the Enterprise rebills only on rented trucks, the Turnpike and New York accounts only on routes that touch those states &mdash; replacing the sheet's ${money0(finTollRec)} and a flat ${money0(rate("Rate Toll Per Job"))} a job. His book is short-haul owned-truck New Jersey work, so it carries less of them than a head count implied</td>
+                <td class="num">${fmtN(jobs.length)}</td><td class="num">${signed(finTollRec - finToll)}</td>
+                <td class="num">${money0(profit - finRental - finOwned + finFuelRec - finFuel + finTollRec - finToll)}</td></tr>
+              <tr><td>5 &middot; Card processing</td>
+                <td>${(CL_CARD * 100).toFixed(1)}% of the ${money0(finCardPaid)} his customers paid by card. The closing sheet books the
+                  gross the customer paid, so the processor's cut has never appeared on any of these
+                  numbers &mdash; it leaves before the money lands. The deposit is not in the base:
+                  nothing in the closing or the contract records how a deposit was taken</td>
+                <td class="num">${fmtN(jobs.filter(r => { const e = E(r); return e && num(e["Card Paid"]) > 0; }).length)}</td><td class="num">${signed(-finCard)}</td>
+                <td class="num">${money0(profit - finRental - finOwned + finFuelRec - finFuel + finTollRec - finToll - finCard)}</td></tr>
               <tr class="cla-wf-tot"><td class="strong">Adjusted gross profit</td>
                 <td>the finance view · ${pctS(billed ? finAdj / billed : null)} of revenue, against ${pctS(billed ? profit / billed : null)} on the books</td>
                 <td class="num">${fmtN(jobs.length)}</td><td class="num">${signed(finAdj - profit)}</td>
