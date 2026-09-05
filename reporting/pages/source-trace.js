@@ -280,13 +280,16 @@ registerPage({
       // reading "Returned / Recommended", which made the two tabs look irreconcilable
       // — 2,145 here against 249 there — when the Moveboard side simply had no
       // Recommended rung and its ~2,400 Recommended leads sat in the raw bucket.
-      // UTM (2026-09-03) enters at #3 on BOTH sides — his rule: the tag decides the
-      // source unless the lead is Recommended or Returned. On the closing side it
-      // arrives inherited, through the moveboard lead behind the job.
-      closing: ["Returned Customer", "Recommended", "UTM tag", "Meta Referral",
-                "Google Local", "Post Card", "Angi", "Thumbtack", "Whatever the sheet says"],
-      moveboard: ["Returned Customer", "Recommended", "UTM tag", "Meta Referral", "CallRail",
-                  "Post Card", "Google Local", "Angi", "Thumbtack", "Raw booked source"],
+      // UTM sits BELOW the phone matches and Post Card (Tornike 2026-09-05: "matching by
+      // phone number is more important and more correct, therefore take it after google
+      // local and post cards"). It shipped at #3 on 09-03 and he has since weighed it the
+      // other way — a phone that rang a tracked number is the harder evidence, so the tag
+      // now decides only what the phone could not.
+      closing: ["Returned Customer", "Recommended", "Meta Referral", "Google Local",
+                "Post Card", "UTM tag", "Angi", "Thumbtack", "Whatever the sheet says"],
+      moveboard: ["Returned Customer", "Recommended", "Meta Referral", "CallRail",
+                  "Post Card", "Google Local", "UTM tag", "Angi", "Thumbtack",
+                  "Raw booked source"],
     };
 
     /* The page spends most of its life waiting for someone to type, and it used to spend that
@@ -313,12 +316,12 @@ registerPage({
       "Recommended": ["Recommended",
         "Somebody sent them. Kept as recorded — a referral is not outranked by a tag, or by the number they happened to dial."],
       "UTM tag": ["UTM tag — the link they actually clicked",
-        "The moveboard lead behind the job came from a submission on the website form whose page carried UTM tags, and the closing inherits the source that produced. A first-party record of the click, so it decides ahead of every match below — but never over Returned or Recommended.",
-        "The lead came from a submission on the website form, and the page it was submitted from carried UTM tags. A first-party record of the click that produced THIS lead, so it decides the source ahead of every match below — but never over Returned or Recommended."],
+        "The moveboard lead behind the job came from a submission on the website form whose page carried UTM tags, and the closing inherits the source that produced. It decides the source only where nothing above it did: a phone that rang a tracked number, or a postcard, is the harder evidence and wins first.",
+        "The lead came from a submission on the website form, and the page it was submitted from carried UTM tags. It decides the source only where nothing above it did — a phone that rang a tracked number, or a postcard, is the harder evidence and is tried first."],
       "Meta Referral": ["Meta Referral — referral form match",
         "Phone or email matches a Meta referral form, and the lead came in on or after that form, within 90 days."],
       "Google Local": ["Google Local phone match",
-        "The customer's phone matched a Google Local lead, and no CallRail postcard overrides it.",
+        "The customer's phone matched a Google Local lead, and no CallRail postcard overrides it. A phone match beats the UTM tag beneath it.",
         "The customer's phone matched a Google Local lead. CallRail is tried first and beats it — here that is the rung above, not a footnote."],
       "CallRail": ["CallRail phone match",
         "The customer's phone matched a CallRail tracking number — its Number Name becomes the source, and CallRail beats Google Local."],
@@ -359,14 +362,15 @@ registerPage({
     function winClosing(r) {
       const lc = String(r["Match Path"] || "").toLowerCase();
       const isPost = /post card/.test(norm(r["Final Source (current)"])) || /post card/.test(norm(r["Source Connector"]));
+      // the UTM path is PREFIXED, and a campaign name can contain another rung's word
+      // ("gbp_..." resolving to Google Local), so it is matched first and mapped to its
+      // own rung rather than tested in ladder order
+      if (lc.indexOf("utm tag") === 0) return 6;
       if (/returned customer/.test(lc)) return 1;
       if (/recommended/.test(lc)) return 2;
-      // tested BEFORE google local: a tag reading "UTM tag: google / gbp_kearny_nj"
-      // resolves to Google Local, and the rung that decided it is the tag, not the phone
-      if (lc.indexOf("utm tag") === 0) return 3;
-      if (yes(r["Meta Referral Match"])) return 4;
-      if (/google local/.test(lc)) return 5;
-      if (isPost) return 6;
+      if (yes(r["Meta Referral Match"])) return 3;
+      if (/google local/.test(lc)) return 4;
+      if (isPost) return 5;
       if (yes(r["Angi Match"])) return 7;
       if (yes(r["Thumbtack Match"])) return 8;
       return 9;
@@ -381,13 +385,13 @@ registerPage({
       // leads matched Angi and 2,648 matched Thumbtack (measured 2026-08-18). They are
       // read from the match flags now, exactly like the Closing tab does.
       const lc = String(r["Match Path"] || "").toLowerCase();
+      if (lc.indexOf("utm tag") === 0) return 7;      // prefixed; see winClosing
       if (lc.includes("returned customer")) return 1;
       if (lc.includes("recommended")) return 2;
-      if (lc.indexOf("utm tag") === 0) return 3;
-      if (yes(r["Meta Referral Match"])) return 4;
-      if (lc.indexOf("callrail") === 0) return 5;
-      if (lc.includes("post card")) return 6;
-      if (lc.includes("google local")) return 7;
+      if (yes(r["Meta Referral Match"])) return 3;
+      if (lc.indexOf("callrail") === 0) return 4;
+      if (lc.includes("post card")) return 5;
+      if (lc.includes("google local")) return 6;
       if (yes(r["Angi Match"])) return 8;
       if (yes(r["Thumbtack Match"])) return 9;
       return 10;
@@ -571,13 +575,27 @@ registerPage({
     /* ---------------- MULTI-SOURCE (third tab, 2026-08-19) --------------------------
        Folded in from the retired Multi-Source Leads page: leads where 2+ EXTERNAL
        trackers independently claim the same customer — CallRail, Google Local, Angi,
-       Thumbtack — regardless of what was booked. Clicking a lead opens its FULL
-       moveboard trace right here (his ask: "once user clicks that lead — i need to see
-       the trace of how its found"); the old standalone page could only hash-hop to this
-       one and the job parameter was silently dropped on arrival. */
+       Thumbtack and, since 2026-09-05, the UTM tag — regardless of what was booked.
+       Clicking a lead opens its FULL moveboard trace right here (his ask: "once user
+       clicks that lead — i need to see the trace of how its found"); the old standalone
+       page could only hash-hop to this one and the job parameter was silently dropped on
+       arrival.
+
+       THE UTM TAG BELONGS HERE FOR THE SAME REASON THE OTHERS DO (his ask: include it "on
+       double source things"). A tagged link is an independent claim on the customer — the
+       click really happened — and it stays a claim even after he moved the tag BELOW the
+       phone matches in the ladder. That is the point of this tab: it ignores which rung
+       won and asks how many trackers saw the same person. A lead that rang a CallRail
+       number AND arrived on a Pmax link is exactly the case worth looking at, and before
+       today it read as single-source.
+
+       It fires on the RESOLVED tag, not the raw one: a tag `utm_source_map` has no rule
+       for cannot name a source, so counting it would be claiming knowledge we do not
+       have. Those show up on the Website Forms & UTM page as "tags with no rule". */
     const TRACKERS = [
       { key: "CallRail", on: r => has(r["CallRail Number Name"]) },
       { key: "Google Local", on: r => yes(r["Google Local Match"]) },
+      { key: "UTM tag", on: r => has(r["UTM Source Corrected"]) },
       { key: "Angi", on: r => yes(r["Angi Match"]) },
       { key: "Thumbtack", on: r => yes(r["Thumbtack Match"]) },
     ];
@@ -753,29 +771,29 @@ registerPage({
         { n: 2, t: "Recommended",
           d: "Somebody sent them — kept ahead of any phone or lead match.",
           got: () => `Wins → <b>${RSC.esc(show(finalC))}</b>` },
-        { n: 3, t: "UTM tag — the link they actually clicked",
+        { n: 3, t: "Meta Referral — referral form match",
+          d: "The customer's phone or email matches a Meta referral form, and the lead was created on or after that form within 90 days. Added to the live pipeline in Aug 2026 — Power BI never had this step, so the faithful chain above will disagree here on purpose.",
+          matched: metaMatch,
+          status: () => metaMatch
+            ? (win === 3
+                ? `Wins → <b>Meta Referral</b> (matched by <b>${RSC.esc(show(metaVia))}</b>${
+                    metaKey ? " " + RSC.esc(show(metaKey)) : ""}${metaDate ? `, form filled ${RSC.esc(metaDate)}` : ""})`
+                : `<span style="color:var(--warn);font-weight:700">Matched a Meta referral form</span> — outranked by Priority #${win}`)
+            : "No referral-form match" },
+        { n: 4, t: "Google Local phone match",
+          d: "The customer's phone matched a Google Local lead (and no CallRail postcard overrides it).",
+          got: () => `Wins → <b>Google Local</b>` },
+        { n: 5, t: "Post Card — region from pickup state",
+          d: "The source resolves to a Post Card → keep it, taking the region from the pickup state (not the number's label).",
+          got: () => `Wins → <b>${RSC.esc(show(finalC))}</b>` },
+        { n: 6, t: "UTM tag — the link they actually clicked",
           d: "The moveboard lead behind this job came from a website form submission whose page carried UTM tags, and the closing inherits the source that produced. The tag is a first-party record of the click, so it decides the source ahead of every match below it — unless the lead is Returned or Recommended, which it can never overrule.",
           matched: has(utmR),
           status: () => !wfMatch ? "No website form submission on file for this lead"
             : !has(utmS) ? "Website form submission found (" + show(r["Web Form Match Rule"]) + "), but the link carried no UTM tags"
             : has(utmU) ? `<span style="color:var(--warn);font-weight:700">Tagged <b>${RSC.esc(show(utmU))}</b> — no rule for it in utm_source_map, so it decides nothing</span>`
-            : win === 3 ? `Wins → <b>${RSC.esc(show(utmR))}</b> <span class="strc-mini">${RSC.esc(utmLine)}</span>`
+            : win === 6 ? `Wins → <b>${RSC.esc(show(utmR))}</b> <span class="strc-mini">${RSC.esc(utmLine)}</span>`
             : `<span style="color:var(--warn);font-weight:700">Tagged ${RSC.esc(utmLine)}</span> — outranked by Priority #${win}` },
-        { n: 4, t: "Meta Referral — referral form match",
-          d: "The customer's phone or email matches a Meta referral form, and the lead was created on or after that form within 90 days. Added to the live pipeline in Aug 2026 — Power BI never had this step, so the faithful chain above will disagree here on purpose.",
-          matched: metaMatch,
-          status: () => metaMatch
-            ? (win === 4
-                ? `Wins → <b>Meta Referral</b> (matched by <b>${RSC.esc(show(metaVia))}</b>${
-                    metaKey ? " " + RSC.esc(show(metaKey)) : ""}${metaDate ? `, form filled ${RSC.esc(metaDate)}` : ""})`
-                : `<span style="color:var(--warn);font-weight:700">Matched a Meta referral form</span> — outranked by Priority #${win}`)
-            : "No referral-form match" },
-        { n: 5, t: "Google Local phone match",
-          d: "The customer's phone matched a Google Local lead (and no CallRail postcard overrides it).",
-          got: () => `Wins → <b>Google Local</b>` },
-        { n: 6, t: "Post Card — region from pickup state",
-          d: "The source resolves to a Post Card → keep it, taking the region from the pickup state (not the number's label).",
-          got: () => `Wins → <b>${RSC.esc(show(finalC))}</b>` },
         { n: 7, t: "Angi — lead-data match",
           d: "The customer matches an Angi lead by email or phone, or by name + zip / name + date.",
           matched: angiMatch, status: () => leadRow(7, angiMatch, angiKey, "Angi") },
@@ -787,6 +805,7 @@ registerPage({
           got: () => bookedWon
             ? `Wins via <b>Closing booked-from</b> → <b>${RSC.esc(show(finalC))}</b>`
             : `Wins via <b>Moveboard source</b> → <b>${RSC.esc(show(finalC))}</b>` },
+      
       ];
 
       const ladder = rules.map(rule => {
@@ -810,14 +829,14 @@ registerPage({
       const chain = chainStrip([
         { label: "Raw moveboard source", value: mbraw, raw: true,
           note: "What ops entered on the moveboard, before any transformation." },
+        { label: "Phone match — CallRail / Google Local", value: pm.value, note: pm.note, chg: pm.chg, badge: 1 },
         { label: "Website form — UTM tag", value: has(utmR) ? utmR : (wfMatch ? "no tag" : ""),
           note: wfMatch ? ("Form submission matched by " + show(r["Web Form Match Rule"]).toLowerCase()
                            + (has(utmS) ? ". Tagged " + utmLine + "." : ". The link carried no UTM tags."))
                         : "No website form submission on file for this lead.",
-          chg: has(utmR) && norm(utmR) !== norm(mbraw), badge: 1 },
-        { label: "Phone match — CallRail / Google Local", value: pm.value, note: pm.note, chg: pm.chg, badge: 2 },
+          chg: has(utmR) && norm(utmR) !== norm(mbraw), badge: 2 },
         { label: "Merged source", value: merged, badge: 3,
-          note: "Returned/Recommended kept first, then the UTM tag, then the phone match, else the raw source.",
+          note: "Returned/Recommended kept first, then the referral form, then the phone match, then the UTM tag, else the raw source.",
           chg: norm(merged) !== norm(mbraw) },
         { label: "Translated + Post-Card region", value: mbSrc, badge: 4,
           note: (has(tran) && norm(tran) !== norm(merged) ? "Canonical name via the Source Translator." : "")
@@ -906,32 +925,32 @@ registerPage({
         { n: 2, t: "Recommended",
           d: "Booked as recommended — somebody sent them. Kept ahead of any phone or lead match (protected 2026-08-18; before that a CallRail or Google match could overwrite it).",
           got: () => `Wins → <b>Recommended</b>` },
-        { n: 3, t: "UTM tag — the link they actually clicked",
+        { n: 3, t: "Meta Referral — referral form match",
+          d: "The customer's phone or email matches a Meta referral form, and this lead was created on or after that form within 90 days. Both windows are deliberate: without them an existing customer filling the form would re-source their own older lead, and a move a year later would still be credited to the referral.",
+          matched: metaMatch,
+          status: () => metaMatch
+            ? (win === 3
+                ? `Wins → <b>Meta Referral</b> (matched by <b>${RSC.esc(show(metaVia))}</b>${
+                    metaKey ? " " + RSC.esc(show(metaKey)) : ""}${metaDate ? `, form filled ${RSC.esc(metaDate)}` : ""})`
+                : `<span style="color:var(--warn);font-weight:700">Matched a Meta referral form</span> — outranked by Priority #${win}`)
+            : "No referral-form match" },
+        { n: 4, t: "CallRail phone match",
+          d: "The customer's phone matched a CallRail tracking number — its Number Name becomes the source (CallRail beats Google Local).",
+          got: () => `Wins → <b>${RSC.esc(show(crnn))}</b>${has(crtr) && norm(crtr) !== norm(crnn) ? ` → <b>${RSC.esc(crtr)}</b>` : ""}` },
+        { n: 5, t: "Post Card — region from pickup state",
+          d: "Booked as a Post Card, so the region comes from the pickup state rather than the tracking number's label.",
+          got: () => `Wins → <b>${RSC.esc(show(conn))}</b>` },
+        { n: 6, t: "Google Local phone match",
+          d: "The customer's phone matched a Google Local lead.",
+          got: () => `Wins → <b>Google Local</b>` },
+        { n: 7, t: "UTM tag — the link they actually clicked",
           d: "This lead came from a submission on the website form, and the page it was submitted from carried UTM tags. The tag is a first-party record of the click that produced this lead, so it decides the source ahead of every match below it — unless the lead is Returned or Recommended, which it can never overrule.",
           matched: has(utmR),
           status: () => !wfMatch ? "No website form submission on file for this lead"
             : !has(utmS) ? "Website form submission found (" + show(r["Web Form Match Rule"]) + "), but the link carried no UTM tags"
             : has(utmU) ? `<span style="color:var(--warn);font-weight:700">Tagged <b>${RSC.esc(show(utmU))}</b> — no rule for it in utm_source_map, so it decides nothing</span>`
-            : win === 3 ? `Wins → <b>${RSC.esc(show(utmR))}</b> <span class="strc-mini">${RSC.esc(utmLine)}</span>`
+            : win === 7 ? `Wins → <b>${RSC.esc(show(utmR))}</b> <span class="strc-mini">${RSC.esc(utmLine)}</span>`
             : `<span style="color:var(--warn);font-weight:700">Tagged ${RSC.esc(utmLine)}</span> — outranked by Priority #${win}` },
-        { n: 4, t: "Meta Referral — referral form match",
-          d: "The customer's phone or email matches a Meta referral form, and this lead was created on or after that form within 90 days. Both windows are deliberate: without them an existing customer filling the form would re-source their own older lead, and a move a year later would still be credited to the referral.",
-          matched: metaMatch,
-          status: () => metaMatch
-            ? (win === 4
-                ? `Wins → <b>Meta Referral</b> (matched by <b>${RSC.esc(show(metaVia))}</b>${
-                    metaKey ? " " + RSC.esc(show(metaKey)) : ""}${metaDate ? `, form filled ${RSC.esc(metaDate)}` : ""})`
-                : `<span style="color:var(--warn);font-weight:700">Matched a Meta referral form</span> — outranked by Priority #${win}`)
-            : "No referral-form match" },
-        { n: 5, t: "CallRail phone match",
-          d: "The customer's phone matched a CallRail tracking number — its Number Name becomes the source (CallRail beats Google Local).",
-          got: () => `Wins → <b>${RSC.esc(show(crnn))}</b>${has(crtr) && norm(crtr) !== norm(crnn) ? ` → <b>${RSC.esc(crtr)}</b>` : ""}` },
-        { n: 6, t: "Post Card — region from pickup state",
-          d: "Booked as a Post Card, so the region comes from the pickup state rather than the tracking number's label.",
-          got: () => `Wins → <b>${RSC.esc(show(conn))}</b>` },
-        { n: 7, t: "Google Local phone match",
-          d: "The customer's phone matched a Google Local lead.",
-          got: () => `Wins → <b>Google Local</b>` },
         { n: 8, t: "Angi — lead-data match",
           d: "The customer matches an Angi lead by email/phone, or name + zip / name + date.",
           matched: angiMatch, status: () => mbLead(8, angiMatch, angiKey, "Angi") },
@@ -941,6 +960,7 @@ registerPage({
         { n: 10, t: "Raw booked source",
           d: "Otherwise the moveboard's booked source, translated to its canonical name (Post Card split by pickup state).",
           got: () => `Wins → <b>${RSC.esc(show(conn))}</b>` },
+      
       ];
       const ladder = rules.map(rule => {
         const won = rule.n === win;
@@ -971,14 +991,14 @@ registerPage({
       const chain = chainStrip([
         { label: "Raw moveboard source", value: rawS, raw: true,
           note: "What ops entered on the moveboard, before any transformation." },
+        { label: "Phone match — CallRail / Google Local", value: pm.value, note: pm.note, chg: pm.chg, badge: 1 },
         { label: "Website form — UTM tag", value: has(utmR) ? utmR : (wfMatch ? "no tag" : ""),
           note: wfMatch ? ("Form submission matched by " + show(r["Web Form Match Rule"]).toLowerCase()
                            + (has(utmS) ? ". Tagged " + utmLine + "." : ". The link carried no UTM tags."))
                         : "No website form submission on file for this lead.",
-          chg: has(utmR) && norm(utmR) !== norm(rawS), badge: 1 },
-        { label: "Phone match — CallRail / Google Local", value: pm.value, note: pm.note, chg: pm.chg, badge: 2 },
+          chg: has(utmR) && norm(utmR) !== norm(rawS), badge: 2 },
         { label: "Merged source", value: merged, badge: 3,
-          note: "Returned/Recommended kept first, then the UTM tag, then the phone match, else the raw source.",
+          note: "Returned/Recommended kept first, then the referral form, then the phone match, then the UTM tag, else the raw source.",
           chg: norm(merged) !== norm(rawS) },
         { label: "Translated", value: tran, badge: 4,
           note: "Canonical name via the Source Translator.",

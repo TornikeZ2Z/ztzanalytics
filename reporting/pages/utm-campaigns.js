@@ -249,8 +249,11 @@
       + "<b>The export carries no submission date</b>, only the move date the customer asked "
       + "for, so every month here is the matched lead’s Moveboard create date and the "
       + fmtN(view.length - leads.length) + " submissions with no lead sit outside every month. "
-      + "A tag decides the lead’s source unless the lead is <b>Returned</b> or "
-      + "<b>Recommended</b>, which it can never overrule."
+      + "A tag decides the lead’s source only where nothing above it did: <b>Returned</b>, "
+      + "<b>Recommended</b>, a referral form, a <b>phone match</b> on a tracked number, and "
+      + "<b>Post Card</b> all rank higher (his ruling 2026-09-05 — a phone that rang a "
+      + "tracked number is the harder evidence). So <b>Tag set the source</b> below counts "
+      + "the leads the tag actually decided, not every lead that carried one."
       + (unmappedKeys.length
           ? ' <span class="rs-pill warn">no rule</span> '
             + unmappedKeys.map(function (u) {
