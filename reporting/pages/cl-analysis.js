@@ -158,19 +158,36 @@ registerPage({
         // COST WATERFALL. Each line drawn to scale against the bill, so the shape of the
         // money is visible before a single number is read.
         ".cla-wfall{margin:14px 0 4px}",
-        ".cla-wfrow{display:grid;grid-template-columns:1fr 92px 62px;gap:12px;align-items:center;"
-          + "padding:7px 0;border-bottom:1px solid #F1EFE8}",
+        // ONE ROW, ONE OBJECT: the bar sits BETWEEN the label and the money instead of on
+        // its own line underneath, so a cost line reads as a single thing.
+        ".cla-wfrow{display:grid;grid-template-columns:minmax(0,1fr) 132px 96px 58px;gap:14px;"
+          + "align-items:center;padding:8px 0;border-bottom:1px solid #F1EFE8}",
         ".cla-wfrow .lab{font-size:12.5px;color:#1B1A17;line-height:1.35}",
         ".cla-wfrow .lab i{font-style:normal;display:block;font-size:10.5px;color:#78756B;margin-top:2px}",
         ".cla-wfrow .amt,.cla-wfrow .pc{text-align:right;font-variant-numeric:tabular-nums;font-size:12.5px}",
         ".cla-wfrow .pc{color:#78756B}",
-        ".cla-wfbar{grid-column:1 / -1;height:7px;background:#F1EFE8;margin-top:6px;overflow:hidden}",
+        ".cla-wfbar{height:9px;background:#F1EFE8;overflow:hidden;border-radius:1px}",
         ".cla-wfbar i{display:block;height:100%;background:#C08A46}",
-        ".cla-wfrow.tot{border-bottom:0;border-top:2px solid #DCDAD1;margin-top:4px;padding-top:11px}",
-        ".cla-wfrow.tot .lab,.cla-wfrow.tot .amt{font-weight:700;font-size:13.5px}",
+        // THE FOUR NUMBERS THE SLIDE EXISTS FOR, lifted out of the seven between them.
+        ".cla-wfrow.tot{border-bottom:0;border-top:1.5px solid #C9C6BA;margin-top:6px;"
+          + "padding:12px 10px 12px 0;background:#FBF7F0}",
+        ".cla-wfrow.tot .lab{font-weight:700;font-size:15px}",
+        ".cla-wfrow.tot .amt{font-weight:700;font-size:16px}",
+        ".cla-wfrow.tot .pc{font-weight:700;color:#3A3833}",
+        ".cla-wfrow.head{background:transparent;border-top:0;margin-top:0}",
         ".cla-wfrow.you .cla-wfbar i{background:#33566E}",
         ".cla-wfrow.us .cla-wfbar i{background:#4F7C4A}",
         ".cla-wfrow.cost .cla-wfbar i{background:#A9691B}",
+        // the split, as one bar rather than as a sentence
+        ".cla-share{display:flex;height:34px;margin:18px 0 8px;border:1px solid #C9C6BA;"
+          + "overflow:hidden;border-radius:2px}",
+        ".cla-share i{font-style:normal;display:flex;align-items:center;justify-content:center;"
+          + "font-size:11.5px;font-weight:700;color:#fff;letter-spacing:.02em}",
+        ".cla-share i.c{background:#A9691B}",
+        ".cla-share i.y{background:#33566E}",
+        ".cla-share i.u{background:#4F7C4A}",
+        ".cla-sharekey{display:flex;gap:18px;font-size:11px;color:#78756B;margin-bottom:4px}",
+        ".cla-sharekey b{color:#1B1A17}",
         ".cla-figs{display:flex;gap:0;border-block:1px solid #DCDAD1;margin:12px 0 4px}",
         ".cla-fig{flex:1;padding:12px 10px 12px 0}",
         ".cla-fig b{display:block;font-size:22px;color:#A9691B;font-family:Georgia,serif;"
@@ -421,12 +438,12 @@ registerPage({
         <span>${n} / ${SLIDES}</span></div>`;
       // one cost line, drawn to scale against the bill
       const wf = (label, sub, amount, cls) => {
-        const w = D.bill ? Math.max(0.4, Math.min(100, amount / D.bill * 100)) : 0;
+        const w = D.bill ? Math.max(0.6, Math.min(100, amount / D.bill * 100)) : 0;
         return `<div class="cla-wfrow ${cls || ""}">
           <div class="lab">${label}${sub ? `<i>${sub}</i>` : ""}</div>
+          <div class="cla-wfbar"><i style="width:${w.toFixed(1)}%"></i></div>
           <div class="amt">${m0(amount)}</div>
           <div class="pc">${pctB(amount)}</div>
-          <div class="cla-wfbar"><i style="width:${w.toFixed(1)}%"></i></div>
         </div>`;
       };
       const bandN = Math.max(...D.bands, 1);
@@ -491,7 +508,19 @@ registerPage({
           ${wf("<b>You kept</b>", "", D.paid, "tot you")}
           ${wf("<b>We kept</b>", "", D.weKept, "tot us")}
         </div>
-        <p style="margin-top:10px">After the jobs are paid for, <b>${m0(D.paid + D.weKept)}</b> is
+        <!-- THE PUNCHLINE AS A PICTURE. "a 46 / 54 split" is the line CL reacts to, and it
+             was the last clause of a paragraph. One bar, three parts, to scale. -->
+        <div class="cla-sharekey">
+          <span><b>${pctB(D.cost.total)}</b> what the jobs cost</span>
+          <span><b>${pctB(D.paid)}</b> you kept</span>
+          <span><b>${pctB(D.weKept)}</b> we kept</span>
+        </div>
+        <div class="cla-share">
+          <i class="c" style="width:${(D.cost.total / D.bill * 100).toFixed(1)}%">${m0(D.cost.total)}</i>
+          <i class="y" style="width:${(D.paid / D.bill * 100).toFixed(1)}%">${m0(D.paid)}</i>
+          <i class="u" style="width:${(D.weKept / D.bill * 100).toFixed(1)}%">${m0(D.weKept)}</i>
+        </div>
+        <p style="margin-top:12px">After the jobs are paid for, <b>${m0(D.paid + D.weKept)}</b> is
           left — ${pctB(D.paid + D.weKept)} of the bill. Of that you took <b>${m0(D.paid)}</b> and we
           took <b>${m0(D.weKept)}</b>: a <b>${Math.round(100 * D.paid / (D.paid + D.weKept))} / ${Math.round(100 * D.weKept / (D.paid + D.weKept))}</b> split.</p>
         ${foot(3)}
@@ -703,16 +732,27 @@ registerPage({
           border-top:1px solid #EDEBE4;font-size:10px;letter-spacing:.1em;text-transform:uppercase;
           color:#A29E92;font-family:Arial,sans-serif}
         .cla-wfall{margin:16px 0 6px}
-        .cla-wfrow{display:grid;grid-template-columns:1fr 100px 66px;gap:14px;align-items:center;
-          padding:8px 0;border-bottom:1px solid #F1EFE8}
+        .cla-wfrow{display:grid;grid-template-columns:minmax(0,1fr) 140px 104px 62px;gap:16px;
+          align-items:center;padding:9px 0;border-bottom:1px solid #F1EFE8}
         .cla-wfrow .lab{font-size:13px;line-height:1.35}
         .cla-wfrow .lab i{font-style:normal;display:block;font-size:11px;color:#78756B;margin-top:2px}
         .cla-wfrow .amt,.cla-wfrow .pc{text-align:right;font-variant-numeric:tabular-nums;font-size:13px}
         .cla-wfrow .pc{color:#78756B}
-        .cla-wfbar{grid-column:1 / -1;height:7px;background:#F1EFE8;margin-top:6px}
+        .cla-wfbar{height:9px;background:#F1EFE8}
         .cla-wfbar i{display:block;height:100%;background:#C08A46}
-        .cla-wfrow.tot{border-bottom:0;border-top:2px solid #DCDAD1;margin-top:5px;padding-top:12px}
-        .cla-wfrow.tot .lab,.cla-wfrow.tot .amt{font-weight:700;font-size:14px}
+        .cla-wfrow.tot{border-bottom:0;border-top:1.5px solid #C9C6BA;margin-top:6px;
+          padding:13px 10px 13px 0;background:#FBF7F0}
+        .cla-wfrow.tot .lab{font-weight:700;font-size:15px}
+        .cla-wfrow.tot .amt{font-weight:700;font-size:16.5px}
+        .cla-wfrow.tot .pc{font-weight:700;color:#3A3833}
+        .cla-share{display:flex;height:36px;margin:20px 0 8px;border:1px solid #C9C6BA}
+        .cla-share i{font-style:normal;display:flex;align-items:center;justify-content:center;
+          font-size:12px;font-weight:700;color:#fff}
+        .cla-share i.c{background:#A9691B}
+        .cla-share i.y{background:#33566E}
+        .cla-share i.u{background:#4F7C4A}
+        .cla-sharekey{display:flex;gap:20px;font-size:11.5px;color:#78756B;margin-bottom:4px}
+        .cla-sharekey b{color:#1B1A17}
         .cla-wfrow.you .cla-wfbar i{background:#33566E}
         .cla-wfrow.us .cla-wfbar i{background:#4F7C4A}
         .cla-wfrow.cost .cla-wfbar i{background:#A9691B}
