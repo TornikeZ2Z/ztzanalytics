@@ -182,9 +182,12 @@ const UA = (() => {
   }
 
   /* ---------- fetch ---------- */
+  /* cache: "no-store" as well as the server's header, because a response the browser has
+     ALREADY put in its cache is not evicted by a header on the next one -- and the whole
+     point of the Reload button is that it re-reads. */
   async function load(qs) {
-    const r = await fetch(ZTZ.API + "/api/_activity?" + qs,
-      { headers: { Authorization: "Bearer " + ZTZ.getToken() } });
+    const r = await fetch(ZTZ.API + "/api/_activity?" + qs + "&_=" + Date.now(),
+      { cache: "no-store", headers: { Authorization: "Bearer " + ZTZ.getToken() } });
     if (!r.ok) throw new Error(await r.text());
     return r.json();
   }
