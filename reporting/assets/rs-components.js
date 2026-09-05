@@ -956,6 +956,13 @@ window.RSC = (function () {
         td{padding:5px 8px;border-bottom:1px solid #EEF0F3}
         td.num,th.num,td.r,th.r{text-align:right;font-variant-numeric:tabular-nums}
         tr{break-inside:avoid}
+        /* A ROW LIST CAN BE TALLER THAN A SHEET AND THAT IS FINE -- what is not fine is the
+           continuation page arriving with no column headings, so the reader gets a grid of
+           numbers and no idea which is which. table-header-group reprints the thead on
+           every sheet the table touches. (No backticks in here: this CSS lives inside a
+           template literal, and one closes it.) */
+        thead{display:table-header-group}
+        tfoot{display:table-footer-group}
         .rs-pill{display:inline-block;border:1px solid #DCDEE3;border-radius:99px;
           padding:1px 7px;font-size:9px}
         .dim,.muted{color:#9A9EA8}

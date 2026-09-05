@@ -937,7 +937,10 @@ registerPage({
         pages: [
           { title: "The rate, and where it is going", sel: ".cln-hero" },
           { title: "What the claims are about", sel: "#clnPnlSources" },
-          { title: "By salesperson and by foreman", sel: "#clnPnlSp, #clnPnlFm" },
+          // one panel per sheet: the two together measured 417mm against ~186mm of usable
+          // A4 landscape, so they printed as one heading followed by an orphaned page
+          { title: "By salesperson", sel: "#clnPnlSp" },
+          { title: "By foreman", sel: "#clnPnlFm" },
           { title: "The claims themselves", sel: "#clnPnlCases" },
         ],
         restTitle: "Everything else",
