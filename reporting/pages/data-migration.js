@@ -10,7 +10,17 @@
  *                       the real endpoint runs, so the preview cannot drift
  *   How to call       — the request documentation + the migration guide he receives
  * Plan: docs/plans/2026-08-28-erp-migration-tool.md.
+ *
+ * ROW COUNTS COME FROM `rows_exact` FIRST. The catalog stopped publishing `rows_approx`
+ * for the mig_ family on 2026-09-06 -- it was an InnoDB ESTIMATE sitting next to a real
+ * COUNT(*), and reading the wrong one made mig_job look like 8,376 rows against a true
+ * 10,720. Every count on this page went `NaN` the moment it vanished, because they all
+ * read the estimate. One helper now, so a field going away cannot silently print NaN
+ * across four places again.
  */
+const dmgRows = t => Number(
+  (t && (t.rows_exact != null ? t.rows_exact : t.rows_approx)) || 0);
+
 (() => {
   function injectStyle() {
     const old = document.getElementById("dmg-style");
@@ -387,7 +397,7 @@
                 <div class="dmg-row${S.sel === t.table ? " on" : ""}" data-tb="${esc(t.table)}">
                   <b>${esc(t.table)}</b>
                   ${t.note ? '<span class="star">★</span>' : ""}
-                  <span class="n">${(+t.rows_approx).toLocaleString()}</span>
+                  <span class="n">${dmgRows(t).toLocaleString()}</span>
                 </div>`).join("")}</div>
             </div>
             <div id="dmgDetail">
@@ -431,7 +441,7 @@
             <div class="panel-title" style="font-family:ui-monospace,Consolas,monospace">
               ${esc(meta.table)}
               <span class="rs-hint" style="margin-left:8px">
-                ~${(+meta.rows_approx).toLocaleString()} rows ·
+                ~${dmgRows(meta).toLocaleString()} rows ·
                 ${meta.columns.length} columns</span></div>
             ${meta.note ? '<div class="dmg-notebox">★ ' + esc(meta.note) + "</div>" : ""}
             ${cov ? `
@@ -583,7 +593,7 @@
         names.forEach(n => {
           const t = have[n];
           if (!t) return;
-          totRows += +t.rows_approx || 0;
+          totRows += dmgRows(t);
           const cov = migCoverage(n, t.columns.map(c => c.name));
           covOf[n] = cov;
           totFilled += cov.filled.length;
@@ -606,7 +616,7 @@
             <div class="dmg-card${S.sel === n ? " on" : ""}" data-mig="${esc(n)}">
               <div class="nm">${esc(n)}</div>
               <div class="mdl">→ ${esc(MIG_MODELS[n])}</div>
-              <div class="big">${(+t.rows_approx).toLocaleString()}
+              <div class="big">${dmgRows(t).toLocaleString()}
                 <span>rows</span></div>
               <div class="covbar" title="${f} filled · ${ms} missing · ${rs} resolved by the importer">
                 <i class="f" style="width:${tot ? (100 * f / tot) : 0}%"></i><i class="m"
@@ -782,8 +792,8 @@
         });
         const shield = (S.admin.excluded || []);
         const shieldP = (S.admin.excluded_patterns || []);
-        const chip = t => `<span class="dmg-x" title="~${(+t.rows_approx).toLocaleString()} rows">
-          ${esc(t.table)} <i class="dmg-kdim">${(+t.rows_approx).toLocaleString()}</i></span>`;
+        const chip = t => `<span class="dmg-x" title="~${dmgRows(t).toLocaleString()} rows">
+          ${esc(t.table)} <i class="dmg-kdim">${dmgRows(t).toLocaleString()}</i></span>`;
         body.innerHTML = `
           <div class="dmg-note" style="margin:2px 0 14px">The other side of the
             migration: everything in the warehouse that does <b>not</b> travel as an
@@ -796,7 +806,7 @@
                 <span class="rs-hint" style="margin-left:8px">${groups[g].length}
                   tables</span></div>
               <div class="dmg-note" style="margin-bottom:8px">${esc(KEPT_META[g][1])}</div>
-              <div>${groups[g].sort((a, b) => b.rows_approx - a.rows_approx)
+              <div>${groups[g].sort((a, b) => dmgRows(b) - dmgRows(a))
                 .map(chip).join("")}</div>
             </div>`).join("")}
           <div class="panel">
