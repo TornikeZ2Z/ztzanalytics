@@ -32,6 +32,11 @@ if (window.RS && RS.DATASETS && !RS.DATASETS.mart_cl_analysis) {
     table: "mart_cl_analysis",
     cols: ["Unique Key", "Date", "Job No", "Request #", "Customer", "Foreman",
            "Total Bill", "His Cut", "Profit per Job",
+           // projected because the card-fee base is balance + deposit; the cols list is a
+           // payload CONTRACT (projection is always on), so a column missing here reads as
+           // undefined rather than erroring -- which would have quietly charged the fee on
+           // the balance alone if `Card Base` were ever absent
+           "Deposit",
            "Stairs Fee", "Bulky Fee", "Storage Monthly", "Storage Past Month 1",
            "Commissionable Bill", "Our Price", "Standard Pay",
            "Adjusted Cut", "Adjusted Cut Our Price", "Cut On Fees",
@@ -43,7 +48,7 @@ if (window.RS && RS.DATASETS && !RS.DATASETS.mart_cl_analysis) {
            "Has Contract",
            "Truck #", "Truck Ownership", "Miles Used", "Miles Basis", "Fuel Recorded", "Tolls Recorded", "Rental Cost Est", "Owned Overhead Est", "Fuel Est", "Toll Est", "Contingency Est", "Adjusted Gross Profit", "Rate Rental Per Job", "Rate Owned Per Job", "Rate Fuel Per Gal", "Rate Toll Per Job", "Elevator Both Ends", "Rate Stairs Share All",
            "Crew $", "Car $", "Other Exp $", "Refund Half", "Material $", "Packing Sold",
-           "Card Paid", "Card Fee Est"],
+           "Card Paid", "Card Base", "Card Fee Est"],
     dateCols: { "Date": "Date" }, defaultDate: "Date",
   };
 }
@@ -389,7 +394,11 @@ registerPage({
       // deploy it is simply absent. Fall back to the rate on `Card Paid`, and to nothing at
       // all if that is missing too, rather than showing a silent zero as if the fee were
       // real and zero.
-      const cardPaid = eS(e => e["Card Paid"]);
+      // THE BASE IS BALANCE + DEPOSIT (his ruling 2026-09-06: a booking deposit is taken
+      // by card). `Card Base` carries it so the deck and the finance ladder charge the same
+      // thing; the fallback reconstructs it if the loader has not shipped the column yet.
+      const cardPaid = eS(e => e["Card Base"])
+        || (eS(e => e["Card Paid"]) + eS(e => e["Deposit"]));
       const cost = {
         crew: eS(e => e["Crew $"]) + packingPay,
         materials: MAT_COGS * packingSold,
@@ -397,7 +406,13 @@ registerPage({
         fuel: eS(e => e["Fuel Est"]) * COST_UPLIFT,
         tolls: eS(e => e["Toll Est"]) * COST_UPLIFT,
         other: carOther * COST_UPLIFT + exactly,
-        cardFee: eS(e => e["Card Fee Est"]) || CARD_FEE * cardPaid,
+        // DERIVED FROM THE BASE, not read from `Card Fee Est`, and this is the one place
+        // the page deliberately breaks the "every number comes from the mart" rule. The
+        // mart is rebuilt hourly from whatever loader is deployed, so between a portal
+        // deploy and a loader deploy `Card Fee Est` can still be the BALANCE-ONLY fee while
+        // the base beside it already includes deposits -- a row whose label and amount
+        // contradict each other. A flat 3.5% of a stated base cannot drift.
+        cardFee: CARD_FEE * cardPaid,
       };
       cost.packingSold = packingSold;
       cost.packingPay = packingPay;
@@ -521,7 +536,7 @@ registerPage({
           ${wf("Fuel", "miles at 7 mpg and our own diesel price, plus a 10% allowance", D.cost.fuel, "cost")}
           ${wf("Tolls", "the toll accounts spread over the miles that drive them, plus a 10% allowance", D.cost.tolls, "cost")}
           ${wf("Tips we paid, discounts and other job costs", "", D.cost.other, "cost")}
-          ${wf("Card processing", `${(D.cost.cardRate * 100).toFixed(1)}% of the ${m0(D.cost.cardPaid)} the customers paid by card`, D.cost.cardFee, "cost")}
+          ${wf("Card processing", `${(D.cost.cardRate * 100).toFixed(1)}% of the ${m0(D.cost.cardPaid)} paid by card — the balance plus the deposit`, D.cost.cardFee, "cost")}
           ${wf("<b>What the jobs cost us to run</b>", "", D.cost.total, "tot cost")}
           ${wf("<b>You kept</b>", "", D.paid, "tot you")}
           ${wf("<b>We kept</b>", "", D.weKept, "tot us")}
@@ -836,8 +851,9 @@ registerPage({
       const CL_UPLIFT = 1.10, CL_CARD = 0.035;
       const finFuel = finFuelEst * CL_UPLIFT;
       const finToll = finTollEst * CL_UPLIFT;
-      const finCardPaid = eSum(e => e["Card Paid"]);
-      const finCard = eSum(e => e["Card Fee Est"]) || CL_CARD * finCardPaid;
+      const finCardPaid = eSum(e => e["Card Base"])
+        || (eSum(e => e["Card Paid"]) + eSum(e => e["Deposit"]));
+      const finCard = CL_CARD * finCardPaid;   // derived, see the deck's note
       const finAdj = eSum(e => e["Adjusted Gross Profit"]);
       const own = k => jobs.filter(r => { const e = E(r); return e && e["Truck Ownership"] === k; }).length;
       const nRental = own("Rental"), nOwned = own("Owned");
@@ -1101,11 +1117,12 @@ registerPage({
                 <td class="num">${fmtN(jobs.length)}</td><td class="num">${signed(finTollRec - finToll)}</td>
                 <td class="num">${money0(profit - finRental - finOwned + finFuelRec - finFuel + finTollRec - finToll)}</td></tr>
               <tr><td>5 &middot; Card processing</td>
-                <td>${(CL_CARD * 100).toFixed(1)}% of the ${money0(finCardPaid)} his customers paid by card. The closing sheet books the
-                  gross the customer paid, so the processor's cut has never appeared on any of these
-                  numbers &mdash; it leaves before the money lands. The deposit is not in the base:
-                  nothing in the closing or the contract records how a deposit was taken</td>
-                <td class="num">${fmtN(jobs.filter(r => { const e = E(r); return e && num(e["Card Paid"]) > 0; }).length)}</td><td class="num">${signed(-finCard)}</td>
+                <td>${(CL_CARD * 100).toFixed(1)}% of the ${money0(finCardPaid)} his customers paid by card &mdash; the balance
+                  on the day plus the booking deposit. The closing sheet books the gross the customer
+                  paid, so the processor's cut has never appeared on any of these numbers: it leaves
+                  before the money lands. Nothing records a deposit's method, so counting deposits as
+                  card is Tornike's ruling rather than something measured</td>
+                <td class="num">${fmtN(jobs.filter(r => { const e = E(r); return e && (num(e["Card Base"]) || num(e["Card Paid"]) + num(e["Deposit"])) > 0; }).length)}</td><td class="num">${signed(-finCard)}</td>
                 <td class="num">${money0(profit - finRental - finOwned + finFuelRec - finFuel + finTollRec - finToll - finCard)}</td></tr>
               <tr class="cla-wf-tot"><td class="strong">Adjusted gross profit</td>
                 <td>the finance view · ${pctS(billed ? finAdj / billed : null)} of revenue, against ${pctS(billed ? profit / billed : null)} on the books</td>
