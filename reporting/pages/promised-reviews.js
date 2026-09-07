@@ -28,7 +28,7 @@
                "mobile", "Can Send", "Age Days",
                // THE OUTCOME. This list is a projection contract: omit one of these and the
                // page silently reports every promise as un-asked, with no error anywhere.
-               "Status", "Request Sent At", "Reviewed", "Days To Review", "Days Since Sent"],
+               "Status", "Request Sent At", "Reviewed", "Days Since Sent"],
       };
     }
   }
@@ -89,8 +89,6 @@
           r.status = String(r["Status"] || "Not asked yet");
           r.sentAt = r["Request Sent At"] || null;
           r.reviewed = +r["Reviewed"] === 1;   // detail only -- Status is the verdict
-          // null unless we asked BEFORE they wrote -- see the module note
-          r.daysToReview = r["Days To Review"] == null ? null : +r["Days To Review"];
           r.daysSinceSent = r["Days Since Sent"] == null ? null : +r["Days Since Sent"];
           return r;
         });
@@ -113,11 +111,11 @@
       // decided a customer who had ALREADY REVIEWED "needs an email". `Status` is computed
       // once, in SQL; the raw fields are only for the detail line underneath.
       function statusCell(r) {
+        // "reviewed" and nothing else. It used to add "Nd after we asked" or "wrote
+        // before we asked", which reads as a verdict on whether the request worked -- see
+        // the KPI note. The review exists; that is the whole claim.
         if (r.status === "Reviewed") {
-          return '<span class="rs-pill ok">reviewed</span>'
-            + (r.daysToReview != null
-                ? '<span class="prv-sub">' + r.daysToReview + "d after we asked</span>"
-                : '<span class="prv-sub">wrote before we asked</span>');
+          return '<span class="rs-pill ok">reviewed</span>';
         }
         if (r.status === "Request sent") {
           return '<span class="rs-pill">request sent</span><span class="prv-sub">'
@@ -189,27 +187,24 @@
         const asked = rows.filter(r => r.sentAt).length;
         const reviewed = rows.filter(r => r.status === "Reviewed").length;
         const waiting = rows.filter(r => r.status === "Not asked yet").length;
-        // ONLY reviews that landed AFTER we asked. Everything else is a review we had no
-        // hand in, and counting it would print a conversion rate the campaign did not earn.
-        const converted = rows.filter(r => r.daysToReview != null);
-        const convPct = asked ? Math.round(100 * converted.length / asked) : null;
-        const days = converted.map(r => r.daysToReview).sort((a, b) => a - b);
-        const medianDays = days.length
-          ? (days.length % 2 ? days[(days.length - 1) / 2]
-             : Math.round((days[days.length / 2 - 1] + days[days.length / 2]) / 2))
-          : null;
+        const noEmail = rows.filter(r => r.status === "No email").length;
 
+        // THREE FACTS, NO CAUSATION. There was a fourth KPI here -- "Converted" -- and it
+        // could not be earned: proving a review CAME FROM our request needs the date the
+        // customer wrote (Birdeye has it, we do not) and an attribution from review back to
+        // the person we asked (customerId was null on all 20 recent reviews). The honest
+        // fallback is matching reviewer names to customer names, which is the fuzzy match
+        // that nearly merged two different salespeople -- and here it would err in the
+        // flattering direction. A rate nobody can stand behind still gets quoted.
         html += '<div class="rs-kpis" style="--kpi-cols:4">'
           + kpi(rows.length.toLocaleString(), "Promised a review",
                 "every promise a foreman has relayed", "")
           + kpi(asked.toLocaleString(), "Request sent",
                 waiting + " still waiting to be asked", asked ? "pos" : "warn")
           + kpi(reviewed.toLocaleString(), "Have reviewed",
-                converted.length + " of them after we asked", reviewed ? "pos" : "")
-          + kpi(converted.length ? convPct + "%" : "—", "Converted",
-                converted.length
-                  ? "median " + medianDays + "d to write"
-                  : "no review yet from anyone we asked", "")
+                "a review exists for that job", reviewed ? "pos" : "")
+          + kpi(noEmail.toLocaleString(), "No email",
+                "cannot be asked until somebody fills one in", noEmail ? "warn" : "")
           + "</div>";
 
         {
