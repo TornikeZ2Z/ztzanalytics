@@ -31,19 +31,9 @@
                "Status", "Request Sent At", "Reviewed", "Days Since Sent"],
       };
     }
-    // ⭐ THE TYPED EMAIL, READ STRAIGHT FROM ITS OWN TABLE. The mart already COALESCEs this
-    // override in -- but the mart is a table rebuilt hourly, so between the save and that
-    // rebuild it still reports the OLD empty address. The page would then show "needs an
-    // email" over a value somebody had just typed, which is indistinguishable from the save
-    // having been lost. This is the same defect he reported on LD Planning, and I shipped it
-    // here the same morning: a write path that patches the row in memory looks perfect until
-    // the first reload.
-    if (!RS.DATASETS.review_email_override) {
-      RS.DATASETS.review_email_override = {
-        table: "review_contact_override",
-        cols: ["Job Code", "Email", "Updated By", "Updated At"],
-      };
-    }
+    // NO DATASET FOR THE OVERRIDES, ON PURPOSE -- see the GET in `load()` below. Registering
+    // one here is the obvious move and it is wrong: RS.load caches on the PIPELINE EPOCH, so
+    // a table the portal writes between runs is served from the browser's own stale copy.
   }
 })();
 
@@ -95,17 +85,28 @@
       injectStyle();
       host.innerHTML = '<div class="panel">Loading the follow-up list…</div>';
 
-      // The mart, plus the overrides it has not absorbed yet. An empty override table is a
-      // normal state, not a failure -- the list must still render if nobody has typed one.
+      // ⭐ THE MART, PLUS THE OVERRIDES IT HAS NOT ABSORBED YET -- AND THE SECOND ONE COMES
+      // FROM A LIVE ENDPOINT, NOT `RS.load`. The mart is rebuilt hourly, so between a save and
+      // that rebuild it still reports the OLD empty address and the row reads "needs an email"
+      // over something somebody just typed -- the same defect he reported on LD Planning.
+      //
+      // My first fix read the override TABLE through `RS.load`, which looked right and changed
+      // nothing: that cache is keyed on the pipeline's data epoch, and a portal write does not
+      // move the epoch, so the browser kept serving its own cached empty body for the full
+      // hour. I only caught it because the reload check still failed on the live page. Live
+      // state needs a live endpoint -- `/api/_revemail` answers GET for exactly this.
+      //
+      // An empty override table is a normal state, not a failure: the list must still render
+      // when nobody has typed one, so a failed lookup degrades to the mart's own answer.
       Promise.all([
         RS.load("review_promised"),
-        RS.load("review_email_override").catch(() => []),
+        api("/api/_revemail").then(j => j.overrides || {}).catch(() => ({})),
       ]).then(([rows, ovr]) => {
         if (!alive()) return;
         const byJob = {};
-        (ovr || []).forEach(o => {
-          const em = String(o["Email"] || "").trim();
-          if (em) byJob[String(o["Job Code"] || "").trim().toUpperCase()] = em;
+        Object.keys(ovr || {}).forEach(k => {
+          const em = String(ovr[k] || "").trim();
+          if (em) byJob[String(k).trim().toUpperCase()] = em;
         });
         rows = (rows || []).map(r => {
           r.canSend = +r["Can Send"] === 1;

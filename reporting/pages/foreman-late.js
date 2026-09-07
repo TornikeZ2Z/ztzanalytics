@@ -50,12 +50,9 @@
   }
   // The Slack Confirm/Dismiss ledger — which latenesses actually count for Foreman of the
   // Month. Written ONLY by the Slack buttons on the daily digest; read-only here.
-  if (window.RS && RS.DATASETS && !RS.DATASETS.late_adj) {
-    RS.DATASETS.late_adj = {
-      table: "late_adjudication",
-      cols: ["Job Key", "Action", "Decided By", "Entered At", "Is Current"],
-    };
-  }
+  // NO DATASET FOR THE ADJUDICATIONS -- they come from `/api/_latereview` now. `RS.load`
+  // caches on the PIPELINE EPOCH, and this page WRITES this table (the Dismiss button), so
+  // a decision made here stayed invisible to the next reload until the pipeline next ran.
 })();
 
 (() => {
@@ -193,16 +190,15 @@
           reviewError = e.message || String(e);
           return { reviews: [] };
         }),
-        // the Slack ledger arriving empty is a real state (nothing decided yet), and a
-        // failed fetch must not sink the page — the pills just show "awaiting review"
-        RS.load("late_adj").catch(() => []),
-      ]).then(([rows, rev, adj]) => {
+      ]).then(([rows, rev]) => {
         S.reviews = {};
         (rev.reviews || []).forEach(x => { S.reviews[x["Job Key"]] = x; });
+        // The Slack ledger arriving empty is a real state (nothing decided yet). It rides on
+        // the same call as the reviews because both are LIVE state: a dismissal decides
+        // whether a lateness counts, and reading it from a pipeline-epoch cache meant this
+        // page could still be scoring a job somebody had already struck.
         S.adj = {};
-        (adj || []).forEach(x => {
-          if (+x["Is Current"]) S.adj[x["Job Key"]] = x;
-        });
+        (rev.adjudications || []).forEach(x => { S.adj[x["Job Key"]] = x; });
         return rows;
       }).then(rows => {
         if (!alive()) return;
