@@ -174,6 +174,18 @@
         if (S.page < 0) S.page = 0;
         const shown = list.slice(S.page * PAGE, S.page * PAGE + PAGE);
 
+        // RESTORED. Retiring the hand-off tab, I cut from the old `logSorted` line down
+        // to here -- and the page head sat between them, so `html` lost its declaration
+        // and the page died with "html is not defined". Shipped it, saw it, fixing it.
+        let html = '<div class="prv">'
+          + '<div class="rs-page-head"><h1>Promised Reviews</h1>'
+          + "<p>Customers whose foreman reported that they would write a review later. "
+          // NOT "every night" -- there is no scheduler. His ruling 2026-09-07: the
+          // trigger is the foreman's own submission, seconds after he answers.
+          + "The moment a foreman answers, that customer is sent a review form by "
+          + "<b>Birdeye</b>, <b>each job once, and never again</b>."
+          + '<span class="freshness"> · a row here means the form actually went, from the ledger</span></p></div>';
+
         const asked = rows.filter(r => r.sentAt).length;
         const reviewed = rows.filter(r => r.status === "Reviewed").length;
         const waiting = rows.filter(r => r.status === "Not asked yet").length;
