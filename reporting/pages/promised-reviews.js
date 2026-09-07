@@ -31,13 +31,6 @@
                "Status", "Request Sent At", "Reviewed", "Days To Review", "Days Since Sent"],
       };
     }
-    if (!RS.DATASETS.birdie_log) {
-      RS.DATASETS.birdie_log = {
-        table: "birdie_sent",
-        cols: ["Job Code", "Customer", "Customer Email", "Customer Mobile", "Job Date",
-               "Foreman", "Promised At", "Batch", "Sent At", "Sent To", "Mode"],
-      };
-    }
   }
 })();
 
@@ -78,17 +71,17 @@
       const alive = () => document.body.contains(mine);
 
       const S = window.__PRV || (window.__PRV = {
-        view: "list", page: 0, logPage: 0, q: "", onlySendable: false,
+        page: 0, q: "", onlySendable: false,
       });
 
       injectStyle();
       host.innerHTML = '<div class="panel">Loading the follow-up list…</div>';
 
+      // ONE dataset now. The hand-off log went with the CSV export it recorded; see the
+      // module note -- the table survives as an anti-join, it just is not drawn.
       Promise.all([
         RS.load("review_promised"),
-        // the log is young and may be empty; an empty log is a normal state, not a failure
-        RS.load("birdie_log").catch(() => []),
-      ]).then(([rows, log]) => {
+      ]).then(([rows]) => {
         if (!alive()) return;
         rows = (rows || []).map(r => {
           r.canSend = +r["Can Send"] === 1;
@@ -101,8 +94,7 @@
           r.daysSinceSent = r["Days Since Sent"] == null ? null : +r["Days Since Sent"];
           return r;
         });
-        log = log || [];
-        paint(rows, log);
+        paint(rows);
       }).catch(e => {
         if (!alive()) return;
         host.innerHTML = '<div class="panel">Could not load — ' + esc(e && e.message || e)
@@ -161,7 +153,7 @@
           + (page >= pages - 1 ? " disabled" : "") + ">Next</button></div>";
       }
 
-      function paint(rows, log) {
+      function paint(rows) {
         if (!alive()) return;
 
         const q = S.q.trim().toLowerCase();
@@ -181,24 +173,6 @@
         if (S.page >= pages) S.page = pages - 1;
         if (S.page < 0) S.page = 0;
         const shown = list.slice(S.page * PAGE, S.page * PAGE + PAGE);
-
-        const logSorted = log.slice().sort((a, b) =>
-          String(b["Sent At"] || "").localeCompare(String(a["Sent At"] || "")));
-        const lPages = Math.max(1, Math.ceil(logSorted.length / PAGE));
-        if (S.logPage >= lPages) S.logPage = lPages - 1;
-        if (S.logPage < 0) S.logPage = 0;
-        const lShown = logSorted.slice(S.logPage * PAGE, S.logPage * PAGE + PAGE);
-        const lastBatch = logSorted.length ? fmtDate(logSorted[0]["Sent At"]) : null;
-
-        let html = '<div class="prv">'
-          + '<div class="rs-page-head"><h1>Promised Reviews</h1>'
-          + "<p>Customers whose foreman reported that they would write a review later. "
-          // NOT "every night" -- there is no scheduler. His ruling 2026-09-07: the
-          // trigger is the foreman's own submission, so it goes seconds after he answers.
-          + "The moment a foreman answers, that customer is sent a review form by "
-          + "<b>Birdeye</b>, "
-          + "<b>each job once, and never again</b>."
-          + '<span class="freshness"> · we never email the customer ourselves</span></p></div>';
 
         const asked = rows.filter(r => r.sentAt).length;
         const reviewed = rows.filter(r => r.status === "Reviewed").length;
@@ -226,13 +200,7 @@
                   : "no review yet from anyone we asked", "")
           + "</div>";
 
-        html += '<div class="rs-seg" id="prvView">'
-          + '<button data-v="list"' + (S.view === "list" ? ' class="on"' : "")
-          + ">The list · " + rows.length + "</button>"
-          + '<button data-v="log"' + (S.view === "log" ? ' class="on"' : "")
-          + ">Sent to Birdie · " + logSorted.length + "</button></div>";
-
-        if (S.view === "list") {
+        {
           html += '<div class="rs-bar" style="margin-top:14px">'
             + '<label class="rs-fld"><span>Find</span>'
             + '<input class="rs-inp" id="prvQ" placeholder="Customer, job, email or foreman…" '
@@ -263,39 +231,11 @@
                 + "has either written a review or been handed over.</td></tr>")
             + "</tbody></table></div>"
             + pager(list.length, S.page, pages, "l") + "</div>";
-        } else {
-          html += '<div class="rs-hint" style="margin-top:14px">Every row here has been sent '
-            + "to Birdie and <b>will never be sent again</b> — the job code is unique in the "
-            + "log, so a repeat is refused by the database rather than by a filter. "
-            + "A row sent while the mailer was in <b>test</b> mode is not recorded at all, "
-            + "which is why a test run leaves this view unchanged.</div>";
-
-          html += '<div class="panel" style="padding:0">'
-            + '<div class="rs-tablewrap" style="border:0">'
-            + '<table class="rs-table rs-even"><thead><tr>'
-            + "<th>Sent</th><th>Batch</th><th>Job</th><th>Customer</th><th>Email</th>"
-            + "<th>Foreman</th><th>To</th>"
-            + "</tr></thead><tbody>"
-            + (lShown.length ? lShown.map(r =>
-                "<tr><td class=\"nowrap\">" + esc(String(r["Sent At"] || "").slice(0, 16))
-                + "</td>"
-                + '<td class="nowrap muted">' + esc(r.Batch || "—") + "</td>"
-                + '<td class="strong nowrap">' + esc(r["Job Code"] || "—") + "</td>"
-                + "<td>" + esc(r.Customer || "—") + "</td>"
-                + "<td>" + esc(r["Customer Email"] || "—") + "</td>"
-                + '<td class="muted">' + esc(r.Foreman || "—") + "</td>"
-                + '<td class="muted nowrap">' + esc(r["Sent To"] || "—") + "</td></tr>"
-              ).join("")
-              : '<tr><td colspan="7" class="dim">Nothing has been handed to Birdie yet. '
-                + "The mailer is in test mode until somebody turns it live, and a test run "
-                + "deliberately records nothing.</td></tr>")
-            + "</tbody></table></div>"
-            + pager(logSorted.length, S.logPage, lPages, "g") + "</div>";
         }
 
         html += "</div>";
         host.innerHTML = html;
-        wire(rows, log, list);
+        wire(rows, list);
       }
 
       function kpi(val, lab, sub, cls) {
@@ -304,26 +244,23 @@
           + esc(sub) + "</div></div>";
       }
 
-      function wire(rows, log, list) {
+      function wire(rows, list) {
         if (!alive()) return;
-        host.querySelectorAll("#prvView button").forEach(b => {
-          b.onclick = () => { S.view = b.dataset.v; paint(rows, log); };
-        });
         const q = host.querySelector("#prvQ");
         if (q) {
           q.oninput = function () { S.q = this.value; S.page = 0; };
           // repaint on a pause, not on every keystroke: a repaint would take the caret away
-          q.onchange = () => paint(rows, log);
-          q.onkeyup = e => { if (e.key === "Enter") paint(rows, log); };
+          q.onchange = () => paint(rows);
+          q.onkeyup = e => { if (e.key === "Enter") paint(rows); };
         }
         const tg = host.querySelector("#prvSend");
-        if (tg) tg.onclick = () => { S.onlySendable = !S.onlySendable; S.page = 0; paint(rows, log); };
+        if (tg) tg.onclick = () => { S.onlySendable = !S.onlySendable; S.page = 0; paint(rows); };
         host.querySelectorAll("[data-pg]").forEach(b => {
           b.onclick = () => {
             const [which, dir] = b.dataset.pg.split(":");
-            const k = which === "l" ? "page" : "logPage";
+            const k = "page";
             S[k] += (dir === "next" ? 1 : -1);
-            paint(rows, log);
+            paint(rows);
           };
         });
         const csv = host.querySelector("#prvCsv");
