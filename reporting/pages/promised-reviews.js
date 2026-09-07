@@ -193,8 +193,11 @@
         let html = '<div class="prv">'
           + '<div class="rs-page-head"><h1>Promised Reviews</h1>'
           + "<p>Customers whose foreman reported that they would write a review later. "
-          + "Every night the ones who still have not written are handed to <b>Birdie</b>, "
-          + "who send them a review form — <b>each job once, and never again</b>."
+          // NOT "every night" -- there is no scheduler. His ruling 2026-09-07: the
+          // trigger is the foreman's own submission, so it goes seconds after he answers.
+          + "The moment a foreman answers, that customer is sent a review form by "
+          + "<b>Birdeye</b>, "
+          + "<b>each job once, and never again</b>."
           + '<span class="freshness"> · we never email the customer ourselves</span></p></div>';
 
         const asked = rows.filter(r => r.sentAt).length;
