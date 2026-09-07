@@ -31,6 +31,19 @@
                "Status", "Request Sent At", "Reviewed", "Days Since Sent"],
       };
     }
+    // ⭐ THE TYPED EMAIL, READ STRAIGHT FROM ITS OWN TABLE. The mart already COALESCEs this
+    // override in -- but the mart is a table rebuilt hourly, so between the save and that
+    // rebuild it still reports the OLD empty address. The page would then show "needs an
+    // email" over a value somebody had just typed, which is indistinguishable from the save
+    // having been lost. This is the same defect he reported on LD Planning, and I shipped it
+    // here the same morning: a write path that patches the row in memory looks perfect until
+    // the first reload.
+    if (!RS.DATASETS.review_email_override) {
+      RS.DATASETS.review_email_override = {
+        table: "review_contact_override",
+        cols: ["Job Code", "Email", "Updated By", "Updated At"],
+      };
+    }
   }
 })();
 
@@ -82,12 +95,18 @@
       injectStyle();
       host.innerHTML = '<div class="panel">Loading the follow-up list…</div>';
 
-      // ONE dataset now. The hand-off log went with the CSV export it recorded; see the
-      // module note -- the table survives as an anti-join, it just is not drawn.
+      // The mart, plus the overrides it has not absorbed yet. An empty override table is a
+      // normal state, not a failure -- the list must still render if nobody has typed one.
       Promise.all([
         RS.load("review_promised"),
-      ]).then(([rows]) => {
+        RS.load("review_email_override").catch(() => []),
+      ]).then(([rows, ovr]) => {
         if (!alive()) return;
+        const byJob = {};
+        (ovr || []).forEach(o => {
+          const em = String(o["Email"] || "").trim();
+          if (em) byJob[String(o["Job Code"] || "").trim().toUpperCase()] = em;
+        });
         rows = (rows || []).map(r => {
           r.canSend = +r["Can Send"] === 1;
           r.age = r["Age Days"] == null ? null : +r["Age Days"];
@@ -95,6 +114,14 @@
           r.sentAt = r["Request Sent At"] || null;
           r.reviewed = +r["Reviewed"] === 1;   // detail only -- Status is the verdict
           r.daysSinceSent = r["Days Since Sent"] == null ? null : +r["Days Since Sent"];
+          // THE TYPED ADDRESS WINS UNTIL THE MART CATCHES UP. Only "No email" is rewritten:
+          // a row already asked or already reviewed keeps that verdict, because an address
+          // typed afterwards changes how we reach them, not what has happened to them.
+          const typed = byJob[String(r.job_code || "").trim().toUpperCase()];
+          if (typed) {
+            r.email = typed;
+            if (r.status === "No email") { r.status = "Not asked yet"; r.canSend = true; }
+          }
           return r;
         });
         paint(rows);
@@ -292,11 +319,13 @@
             if (!alive()) return;
             if (row) {
               row.email = (res && res.email) || "";
-              // Status is the database's verdict everywhere else on this page, but the row
-              // in hand is now out of date and a full reload for one address is heavy. The
-              // next refresh restores the authoritative value.
-              row.status = row.email ? "Not asked yet" : "No email";
-              row.canSend = !!row.email;
+              // ONLY the "can we reach them" half of the verdict moves. Setting the status
+              // from the address alone would demote a row we have ALREADY asked, or one that
+              // has already been reviewed, back to "not asked yet" -- correcting somebody's
+              // address is not an undo of what happened to them. Same rule as the load path.
+              if (row.status === "No email" && row.email) row.status = "Not asked yet";
+              else if (row.status === "Not asked yet" && !row.email) row.status = "No email";
+              row.canSend = !!row.email && !row.sentAt && !row.reviewed;
             }
             paint(rows);
           })
