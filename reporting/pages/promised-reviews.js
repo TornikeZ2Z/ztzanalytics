@@ -50,7 +50,12 @@
       + ".prv-c a{color:var(--blue);text-decoration:none;font-weight:600}"
       + ".prv-c a:hover{text-decoration:underline}"
       + ".prv-c .sep{color:var(--faint);margin:0 6px}"
-      + ".prv-sub{display:block;font-size:11px;color:var(--dim);margin-top:3px;white-space:nowrap}";
+      + ".prv-sub{display:block;font-size:11px;color:var(--dim);margin-top:3px;white-space:nowrap}"
+      + ".prv-edit{display:inline-flex;gap:6px;align-items:center}"
+      + ".prv-em{min-width:210px;padding:3px 7px;font-size:12px}"
+      + ".prv-save{padding:3px 10px;font-size:12px}"
+      + ".prv-pen{border:0;background:none;cursor:pointer;color:var(--faint);font-size:12px;padding:0 4px}"
+      + ".prv-pen:hover{color:var(--blue)}";
     document.head.appendChild(st);
   }
 
@@ -128,14 +133,29 @@
         return '<span class="rs-pill mute">not asked yet</span>';
       }
 
-      function contact(mail, tel) {
-        const m = String(mail || "").trim(), t = String(tel || "").trim();
-        const bits = [];
-        if (m) bits.push('<a href="mailto:' + esc(m) + '">' + esc(m) + "</a>");
-        if (t) bits.push('<a href="tel:' + esc(t.replace(/[^0-9+]/g, "")) + '">'
-          + esc(t) + "</a>");
-        return bits.length ? '<span class="prv-c">' + bits.join('<span class="sep">·</span>')
-          + "</span>" : '<span class="rs-pill mute">no email</span>';
+      function contact(r) {
+        const m = String(r.email || "").trim(), t = String(r.mobile || "").trim();
+        const job = esc(r.job_code || "");
+        const tel = t ? '<a href="tel:' + esc(t.replace(/[^0-9+]/g, "")) + '">'
+          + esc(t) + "</a>" : "";
+
+        // NO ADDRESS: the box goes right here, because this is the row somebody is looking
+        // at when they realise they know the email. It is also the only thing standing
+        // between this customer and being asked.
+        if (!m) {
+          return '<span class="prv-c prv-edit">'
+            + '<input class="rs-inp prv-em" data-job="' + job + '" type="email" '
+            + 'placeholder="add an email to unblock this one…">'
+            + '<button class="rs-btn prv-save" data-job="' + job + '">Save</button>'
+            + (tel ? '<span class="sep">·</span>' + tel : "") + "</span>";
+        }
+        // HAS ONE: keep the row readable, but an address we hold can be wrong and somebody
+        // chasing a bounce needs to fix it without leaving the page.
+        return '<span class="prv-c">'
+          + '<a href="mailto:' + esc(m) + '">' + esc(m) + "</a>"
+          + '<button class="prv-pen" data-job="' + job + '" data-cur="' + esc(m)
+          + '" title="Change this address">✎</button>'
+          + (tel ? '<span class="sep">·</span>' + tel : "") + "</span>";
       }
 
       function pager(total, page, pages, id) {
@@ -230,7 +250,7 @@
                 + '<td class="strong nowrap">' + esc(r.job_code || "—") + "</td>"
                 + '<td class="nowrap muted">' + esc(fmtDate(r.job_date)) + "</td>"
                 + "<td>" + esc(r.customer || "—") + "</td>"
-                + "<td>" + contact(r.email, r.mobile) + "</td>"
+                + "<td>" + contact(r) + "</td>"
                 + '<td class="muted">' + esc(r.foreman || "—") + "</td>"
                 + "<td>" + statusCell(r) + "</td></tr>"
               ).join("")
@@ -251,8 +271,61 @@
           + esc(sub) + "</div></div>";
       }
 
+      // Writes the address, then REPAINTS FROM THE ANSWER rather than assuming it worked.
+      // An input that just clears itself leaves the row looking untouched, which is how the
+      // same address gets typed twice.
+      function api(path, opts) {
+        return fetch(ZTZ.API + path, Object.assign({
+          headers: Object.assign({ Authorization: "Bearer " + ZTZ.getToken() },
+                                 (opts && opts.body) ? { "Content-Type": "application/json" } : {}),
+        }, opts || {})).then(r => r.json().then(j => {
+          if (!r.ok || j.error) throw new Error(j.error || ("HTTP " + r.status));
+          return j;
+        }));
+      }
+
+      function saveEmail(job, addr, rows) {
+        const row = rows.filter(x => String(x.job_code) === String(job))[0];
+        return api("/api/_revemail", {method: "POST",
+                    body: JSON.stringify({job_code: job, email: addr})})
+          .then(res => {
+            if (!alive()) return;
+            if (row) {
+              row.email = (res && res.email) || "";
+              // Status is the database's verdict everywhere else on this page, but the row
+              // in hand is now out of date and a full reload for one address is heavy. The
+              // next refresh restores the authoritative value.
+              row.status = row.email ? "Not asked yet" : "No email";
+              row.canSend = !!row.email;
+            }
+            paint(rows);
+          })
+          .catch(e => {
+            if (!alive()) return;
+            window.alert("Could not save that address — " + (e && e.message || e));
+          });
+      }
+
       function wire(rows, list) {
         if (!alive()) return;
+        host.querySelectorAll(".prv-save").forEach(b => {
+          b.onclick = () => {
+            const box = host.querySelector('.prv-em[data-job="' + b.dataset.job + '"]');
+            saveEmail(b.dataset.job, box ? box.value.trim() : "", rows);
+          };
+        });
+        host.querySelectorAll(".prv-em").forEach(inp => {
+          inp.onkeyup = e => {
+            if (e.key === "Enter") saveEmail(inp.dataset.job, inp.value.trim(), rows);
+          };
+        });
+        host.querySelectorAll(".prv-pen").forEach(p => {
+          p.onclick = () => {
+            const next = window.prompt("Email for job " + p.dataset.job, p.dataset.cur || "");
+            // null = they cancelled, which is not the same as clearing it
+            if (next !== null) saveEmail(p.dataset.job, next.trim(), rows);
+          };
+        });
         const q = host.querySelector("#prvQ");
         if (q) {
           q.oninput = function () { S.q = this.value; S.page = 0; };
