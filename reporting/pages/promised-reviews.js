@@ -153,7 +153,7 @@
         // chasing a bounce needs to fix it without leaving the page.
         return '<span class="prv-c">'
           + '<a href="mailto:' + esc(m) + '">' + esc(m) + "</a>"
-          + '<button class="prv-pen" data-job="' + job + '" data-cur="' + esc(m)
+          + '<button class="prv-pen" data-job="' + job
           + '" title="Change this address">✎</button>'
           + (tel ? '<span class="sep">·</span>' + tel : "") + "</span>";
       }
@@ -319,11 +319,13 @@
             if (e.key === "Enter") saveEmail(inp.dataset.job, inp.value.trim(), rows);
           };
         });
+        // THE SAME INLINE EDITOR the empty rows get, rather than a browser prompt. A
+        // modal is unstyled, blocks the page, and is the only thing on this portal that
+        // would look like that.
         host.querySelectorAll(".prv-pen").forEach(p => {
           p.onclick = () => {
-            const next = window.prompt("Email for job " + p.dataset.job, p.dataset.cur || "");
-            // null = they cancelled, which is not the same as clearing it
-            if (next !== null) saveEmail(p.dataset.job, next.trim(), rows);
+            const row = rows.filter(x => String(x.job_code) === String(p.dataset.job))[0];
+            if (row) { row._editing = true; paint(rows); }
           };
         });
         const q = host.querySelector("#prvQ");
