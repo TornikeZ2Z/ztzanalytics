@@ -25,7 +25,10 @@
         table: "mart_review_promised",
         // A PAYLOAD CONTRACT: projection is always on, so a column missing here never arrives.
         cols: ["job_code", "promised_at", "foreman", "job_date", "customer", "email",
-               "mobile", "Can Send", "Age Days"],
+               "mobile", "Can Send", "Age Days",
+               // THE OUTCOME. This list is a projection contract: omit one of these and the
+               // page silently reports every promise as un-asked, with no error anywhere.
+               "Status", "Request Sent At", "Reviewed", "Days To Review", "Days Since Sent"],
       };
     }
     if (!RS.DATASETS.birdie_log) {
@@ -53,7 +56,8 @@
       + ".prv-pg .rs-spacer{flex:1}"
       + ".prv-c a{color:var(--blue);text-decoration:none;font-weight:600}"
       + ".prv-c a:hover{text-decoration:underline}"
-      + ".prv-c .sep{color:var(--faint);margin:0 6px}";
+      + ".prv-c .sep{color:var(--faint);margin:0 6px}"
+      + ".prv-sub{display:block;font-size:11px;color:var(--dim);margin-top:3px;white-space:nowrap}";
     document.head.appendChild(st);
   }
 
@@ -89,6 +93,12 @@
         rows = (rows || []).map(r => {
           r.canSend = +r["Can Send"] === 1;
           r.age = r["Age Days"] == null ? null : +r["Age Days"];
+          r.status = String(r["Status"] || "Not asked yet");
+          r.sentAt = r["Request Sent At"] || null;
+          r.reviewed = +r["Reviewed"] === 1;
+          // null unless we asked BEFORE they wrote -- see the module note
+          r.daysToReview = r["Days To Review"] == null ? null : +r["Days To Review"];
+          r.daysSinceSent = r["Days Since Sent"] == null ? null : +r["Days Since Sent"];
           return r;
         });
         log = log || [];
@@ -102,6 +112,24 @@
       function fmtDate(v) {
         const s = String(v || "");
         return s ? s.slice(0, 10) : "—";
+      }
+
+      // The whole point of the page now: what happened to this promise. Each chip also
+      // carries the WHEN, because "sent" without a date is the kind of status nobody trusts.
+      function statusCell(r) {
+        if (r.reviewed) {
+          return '<span class="rs-pill ok">reviewed</span>'
+            + (r.daysToReview != null
+                ? '<span class="prv-sub">' + r.daysToReview + "d after we asked</span>"
+                : '<span class="prv-sub">wrote before we asked</span>');
+        }
+        if (r.sentAt) {
+          return '<span class="rs-pill">request sent</span><span class="prv-sub">'
+            + esc(fmtDate(r.sentAt))
+            + (r.daysSinceSent != null ? " · " + r.daysSinceSent + "d ago" : "") + "</span>";
+        }
+        if (!r.canSend) return '<span class="rs-pill warn">needs an email</span>';
+        return '<span class="rs-pill mute">not asked yet</span>';
       }
 
       function contact(mail, tel) {
@@ -159,16 +187,30 @@
           + "who send them a review form — <b>each job once, and never again</b>."
           + '<span class="freshness"> · we never email the customer ourselves</span></p></div>';
 
+        const asked = rows.filter(r => r.sentAt).length;
+        const reviewed = rows.filter(r => r.reviewed).length;
+        const waiting = rows.filter(r => r.status === "Not asked yet").length;
+        // ONLY reviews that landed AFTER we asked. Everything else is a review we had no
+        // hand in, and counting it would print a conversion rate the campaign did not earn.
+        const converted = rows.filter(r => r.daysToReview != null);
+        const convPct = asked ? Math.round(100 * converted.length / asked) : null;
+        const days = converted.map(r => r.daysToReview).sort((a, b) => a - b);
+        const medianDays = days.length
+          ? (days.length % 2 ? days[(days.length - 1) / 2]
+             : Math.round((days[days.length / 2 - 1] + days[days.length / 2]) / 2))
+          : null;
+
         html += '<div class="rs-kpis" style="--kpi-cols:4">'
-          + kpi(rows.length.toLocaleString(), "Waiting to be asked",
-                "promised, and no review since", rows.length ? "warn" : "pos")
-          + kpi(sendable.toLocaleString(), "Ready for tonight",
-                "have an email address", "")
-          + kpi((rows.length - sendable).toLocaleString(), "Unreachable",
-                "no email on file — not sent, not retired",
-                (rows.length - sendable) ? "warn" : "")
-          + kpi(logSorted.length.toLocaleString(), "Handed over so far",
-                lastBatch ? "last on " + lastBatch : "nothing sent yet", "")
+          + kpi(rows.length.toLocaleString(), "Promised a review",
+                "every promise a foreman has relayed", "")
+          + kpi(asked.toLocaleString(), "Request sent",
+                waiting + " still waiting to be asked", asked ? "pos" : "warn")
+          + kpi(reviewed.toLocaleString(), "Have reviewed",
+                converted.length + " of them after we asked", reviewed ? "pos" : "")
+          + kpi(converted.length ? convPct + "%" : "—", "Converted",
+                converted.length
+                  ? "median " + medianDays + "d to write"
+                  : "no review yet from anyone we asked", "")
           + "</div>";
 
         html += '<div class="rs-seg" id="prvView">'
@@ -192,7 +234,7 @@
             + '<div class="rs-tablewrap" style="border:0">'
             + '<table class="rs-table rs-even"><thead><tr>'
             + "<th>Promised</th><th class=\"num\">Age</th><th>Job</th><th>Job date</th>"
-            + "<th>Customer</th><th>Contact</th><th>Foreman</th><th>Tonight</th>"
+            + "<th>Customer</th><th>Contact</th><th>Foreman</th><th>Status</th>"
             + "</tr></thead><tbody>"
             + (shown.length ? shown.map(r =>
                 "<tr><td class=\"nowrap\">" + esc(fmtDate(r.promised_at)) + "</td>"
@@ -202,9 +244,7 @@
                 + "<td>" + esc(r.customer || "—") + "</td>"
                 + "<td>" + contact(r.email, r.mobile) + "</td>"
                 + '<td class="muted">' + esc(r.foreman || "—") + "</td>"
-                + "<td>" + (r.canSend
-                    ? '<span class="rs-pill ok">goes tonight</span>'
-                    : '<span class="rs-pill warn">needs an email</span>') + "</td></tr>"
+                + "<td>" + statusCell(r) + "</td></tr>"
               ).join("")
               : '<tr><td colspan="8" class="dim">Nobody is waiting — everyone who promised '
                 + "has either written a review or been handed over.</td></tr>")
