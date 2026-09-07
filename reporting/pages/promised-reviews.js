@@ -170,10 +170,18 @@
         // NO ADDRESS: the box goes right here, because this is the row somebody is looking
         // at when they realise they know the email. It is also the only thing standing
         // between this customer and being asked.
-        if (!m) {
+        //
+        // `_editing` is the pencil below asking for the same box over an address we already
+        // hold. IT WAS NOT HANDLED HERE AT ALL: the pencil set the flag, repainted, and this
+        // function rendered the read-only branch again -- so the button did nothing, silently,
+        // on every row that had an email. Found it trying to clear a test value.
+        if (!m || r._editing) {
           return '<span class="prv-c prv-edit">'
             + '<input class="rs-inp prv-em" data-job="' + job + '" type="email" '
-            + 'placeholder="add an email to unblock this one…">'
+            + 'value="' + esc(m) + '" '
+            // clearing it is the documented way to drop an override, so say so on the row
+            + 'placeholder="' + (m ? "clear it to drop the override"
+                                   : "add an email to unblock this one…") + '">'
             + '<button class="rs-btn prv-save" data-job="' + job + '">Save</button>'
             + (tel ? '<span class="sep">·</span>' + tel : "") + "</span>";
         }
@@ -319,6 +327,7 @@
           .then(res => {
             if (!alive()) return;
             if (row) {
+              row._editing = false;
               row.email = (res && res.email) || "";
               // ONLY the "can we reach them" half of the verdict moves. Setting the status
               // from the address alone would demote a row we have ALREADY asked, or one that
@@ -347,6 +356,12 @@
         host.querySelectorAll(".prv-em").forEach(inp => {
           inp.onkeyup = e => {
             if (e.key === "Enter") saveEmail(inp.dataset.job, inp.value.trim(), rows);
+            // ESCAPE IS NOT A CLEAR. Backing out of an edit has to differ from emptying the
+            // box, or a glance-and-close would silently drop the address.
+            if (e.key === "Escape") {
+              const row = rows.filter(x => String(x.job_code) === String(inp.dataset.job))[0];
+              if (row && row._editing) { row._editing = false; paint(rows); }
+            }
           };
         });
         // THE SAME INLINE EDITOR the empty rows get, rather than a browser prompt. A
