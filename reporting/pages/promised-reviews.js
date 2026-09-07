@@ -95,7 +95,7 @@
           r.age = r["Age Days"] == null ? null : +r["Age Days"];
           r.status = String(r["Status"] || "Not asked yet");
           r.sentAt = r["Request Sent At"] || null;
-          r.reviewed = +r["Reviewed"] === 1;
+          r.reviewed = +r["Reviewed"] === 1;   // detail only -- Status is the verdict
           // null unless we asked BEFORE they wrote -- see the module note
           r.daysToReview = r["Days To Review"] == null ? null : +r["Days To Review"];
           r.daysSinceSent = r["Days Since Sent"] == null ? null : +r["Days Since Sent"];
@@ -116,19 +116,25 @@
 
       // The whole point of the page now: what happened to this promise. Each chip also
       // carries the WHEN, because "sent" without a date is the kind of status nobody trusts.
+      // THE DATABASE OWNS THE VERDICT. This used to re-derive it from three raw fields,
+      // and when a column arrived under a different name than expected the browser quietly
+      // decided a customer who had ALREADY REVIEWED "needs an email". `Status` is computed
+      // once, in SQL; the raw fields are only for the detail line underneath.
       function statusCell(r) {
-        if (r.reviewed) {
+        if (r.status === "Reviewed") {
           return '<span class="rs-pill ok">reviewed</span>'
             + (r.daysToReview != null
                 ? '<span class="prv-sub">' + r.daysToReview + "d after we asked</span>"
                 : '<span class="prv-sub">wrote before we asked</span>');
         }
-        if (r.sentAt) {
+        if (r.status === "Request sent") {
           return '<span class="rs-pill">request sent</span><span class="prv-sub">'
             + esc(fmtDate(r.sentAt))
             + (r.daysSinceSent != null ? " · " + r.daysSinceSent + "d ago" : "") + "</span>";
         }
-        if (!r.canSend) return '<span class="rs-pill warn">needs an email</span>';
+        if (r.status === "No email") {
+          return '<span class="rs-pill warn">needs an email</span>';
+        }
         return '<span class="rs-pill mute">not asked yet</span>';
       }
 
@@ -164,7 +170,11 @@
           if (!q) return true;
           return [r.customer, r.job_code, r.email, r.foreman].some(v =>
             String(v || "").toLowerCase().indexOf(q) >= 0);
-        }).sort((a, b) => (b.age || 0) - (a.age || 0));
+        // NEWEST PROMISE FIRST (his call). It was oldest-first, which suits a queue you
+        // are working down but buries what just happened -- and now that the table
+        // carries outcomes, today's sends are the rows anyone opens it to see.
+        }).sort((a, b) => String(b.promised_at || "").localeCompare(
+                          String(a.promised_at || "")));
 
         const sendable = rows.filter(r => r.canSend).length;
         const pages = Math.max(1, Math.ceil(list.length / PAGE));
@@ -188,7 +198,7 @@
           + '<span class="freshness"> · we never email the customer ourselves</span></p></div>';
 
         const asked = rows.filter(r => r.sentAt).length;
-        const reviewed = rows.filter(r => r.reviewed).length;
+        const reviewed = rows.filter(r => r.status === "Reviewed").length;
         const waiting = rows.filter(r => r.status === "Not asked yet").length;
         // ONLY reviews that landed AFTER we asked. Everything else is a review we had no
         // hand in, and counting it would print a conversion rate the campaign did not earn.
