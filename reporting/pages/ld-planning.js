@@ -1216,13 +1216,26 @@ registerPage({
         var rstLink = function (id) {
           return '<a class="ldp-rst" id="' + id + '" title="Remove the override — the sheet value returns on the next data refresh">↺ back to sheet</a>';
         };
-        var fadIso = r["FAD"] ? String(r["FAD"]).slice(0, 10) : "";
-        var tfCur = (r["Timeframe"] && String(r["Timeframe"]).trim() !== "0") ? String(r["Timeframe"]) : "";
+        // ⭐ THE SAVED OVERRIDE WINS OVER THE COMPUTED VALUE. `r` comes from the mart, which
+        // only recomputes on the next pipeline run — up to an hour later. Until then it
+        // still holds the SHEET's number even though an override is stored, and rendering
+        // `r` here is what made a reload look like the save had been thrown away: the write
+        // patches `r` in memory so it looks right immediately, and only a refresh exposes it.
+        var ovV = function (f) { return hasOv(f) ? String(entHere[f].value) : null; };
+        var fadOv = ovV("fad_override");
+        var fadIso = fadOv ? fadOv.slice(0, 10)
+                   : (r["FAD"] ? String(r["FAD"]).slice(0, 10) : "");
+        var tfOv = ovV("timeframe_override");
+        var tfCur = tfOv != null ? tfOv
+                  : ((r["Timeframe"] && String(r["Timeframe"]).trim() !== "0")
+                     ? String(r["Timeframe"]) : "");
         // Type-aware, exactly as in the table: a Straight job has no FAD — the office keeps
         // the committed DELIVERY DATE in that field, so labelling it "FAD" here would lie.
         var fadCell = canEd
           ? '<input class="ldp-cinp" type="date" id="ldpEdFad" data-init="' + esc(fadIso) + '" value="' + esc(fadIso) + '">'
-            + srcTag(r["FAD Source"]) + (hasOv("fad_override") ? rstLink("ldpRstFad") : "")
+            // no "(sheet)" tag under a value the office typed — that label would be a lie
+            + (fadOv ? "" : srcTag(r["FAD Source"]))
+            + (hasOv("fad_override") ? rstLink("ldpRstFad") : "")
           : fmtD(r["FAD"]) + srcTag(r["FAD Source"]);
         var tfCell = canEd
           ? '<input class="ldp-cinp" id="ldpEdTf" maxlength="120" data-init="' + esc(tfCur) + '" value="' + esc(tfCur)
@@ -1277,13 +1290,19 @@ registerPage({
                 // the "extra stuff" (Tornike 2026-07-28); this row names the bucket only
                 ["Location", (canEd
                     ? (function () {
-                        var inL = LDP_LOCATIONS.indexOf(String(r["Location"] || "")) >= 0;
+                        // the stored override first, for the same reason as FAD above:
+                        // the mart still holds the pre-edit value until it rebuilds
+                        var locCur = ovV("location") != null ? ovV("location")
+                                   : String(r["Location"] || "");
+                        var noteCur = ovV("location_note") != null ? ovV("location_note") : det;
+                        var inL = LDP_LOCATIONS.indexOf(locCur) >= 0;
                         // kit localSelect mount (form:true) — wired where the other editors are.
                         // data-init carries the same "revert to this" value the old select did.
-                        return '<div id="ldpEdLoc" data-init="' + esc(inL ? r["Location"] : "") + '"></div>'
-                          + (String(r["Location Source"]) === "portal" ? rstLink("ldpRstLoc") : "")
-                          + '<input class="ldp-cinp" id="ldpEdLocN" maxlength="200" style="margin-top:6px" data-init="' + esc(det)
-                          + '" placeholder="address / unit / note (optional)" value="' + esc(det) + '">'
+                        return '<div id="ldpEdLoc" data-init="' + esc(inL ? locCur : "") + '"></div>'
+                          + ((String(r["Location Source"]) === "portal" || ovV("location") != null)
+                             ? rstLink("ldpRstLoc") : "")
+                          + '<input class="ldp-cinp" id="ldpEdLocN" maxlength="200" style="margin-top:6px" data-init="' + esc(noteCur)
+                          + '" placeholder="address / unit / note (optional)" value="' + esc(noteCur) + '">'
                           + (dfrom.addr ? '<div class="ldp-addr">' + esc(dfrom.addr) + "</div>" : "");
                       })()
                     : '<b class="ldp-big">' + esc(r["Location"] || "—") + "</b>"
@@ -1297,7 +1316,8 @@ registerPage({
                 !isStraight(r) ? ["Carrier location",
                   '<input class="ldp-cinp" id="ldpCarLoc" inputmode="numeric" maxlength="5"'
                   + ' placeholder="5-digit zip where the carrier takes it" value="'
-                  + esc(r["Carrier Location"] || "") + '">'
+                  + esc(ovV("carrier_location") != null ? ovV("carrier_location")
+                        : (r["Carrier Location"] || "")) + '">'
                   + '<button class="ldp-bhbtn" id="ldpCarSave" style="margin-top:7px">Save</button>'
                   + '<span class="ldp-sub" id="ldpCarMsg" style="margin-left:8px"></span>'] : null,
                 (!isStraight(r) && r["Total To Carrier"] != null)
