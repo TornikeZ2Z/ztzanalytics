@@ -613,24 +613,48 @@ const dmgRows = t => Number(
         const built = names.filter(n => have[n]).length;
 
         // the 26 shapes read best in the order Giorgi imports them
+        // IMPORT ORDER, and people and catalogs now come FIRST: every job row resolves an
+        // owner, a crew member, a vehicle or a catalog entry, so importing the spine
+        // before them is importing dangling references.
         const GROUPS = [
+          ["People & the fleet", ["mig_person", "mig_user", "mig_crew_profile",
+                                  "mig_person_phone", "mig_crew_allowed_state",
+                                  "mig_crew_time_off", "mig_vehicle", "mig_base"]],
+          ["The catalogs", ["mig_packing_material", "mig_raw_material",
+                            "mig_survey_question", "mig_job_source",
+                            "mig_bulky_item"]],
           ["The spine", ["mig_customer", "mig_job", "mig_job_address",
                          "mig_job_pricing"]],
           ["The money", ["mig_job_payment_calc", "mig_job_money_flow_entry",
-                         "mig_job_sales_attribution"]],
+                         "mig_job_sales_attribution", "mig_foreman_fine"]],
           ["Crew & trucks", ["mig_job_crew_member", "mig_job_crew_salary_snapshot",
                              "mig_job_timeline_event", "mig_job_truck",
+                             "mig_job_truck_expense",
                              "mig_job_vehicle_inspection",
                              "mig_job_vehicle_inspection_item"]],
           ["Storage", ["mig_job_storage_order", "mig_storage_record",
                        "mig_storage_item_payment"]],
-          ["The inventory", ["mig_job_inventory_section",
-                             "mig_job_inventory_entry"]],
+          ["The inventory", ["mig_job_inventory_section", "mig_job_inventory_entry",
+                             "mig_job_packing_material", "mig_job_packing_in_truck"]],
           ["Feedback & cases", ["mig_job_review", "mig_job_survey_response",
                                 "mig_positive_review", "mig_negative_review",
                                 "mig_job_claim", "mig_job_note", "mig_job_damage",
-                                "mig_job_discount"]],
+                                "mig_job_discount", "mig_job_other_information"]],
         ];
+
+        // ⭐ NOTHING MAY FALL OFF THIS PAGE BECAUSE SOMEBODY FORGOT A LIST. The groups
+        // above are hand-ordered on purpose -- import order is a judgement, not something
+        // to derive -- but a hand list drifts the moment a build is added without touching
+        // it, and it drifts SILENTLY: the KPI strip counts every mig_ table in the
+        // catalog, so the header says "44 of 44" while the grid renders 26 cards and the
+        // eighteen newest tables are simply absent. That is exactly what happened on
+        // 2026-09-09, and reading the header is what hid it.
+        // So anything the catalog knows about and no group claims lands here, visibly.
+        (function () {
+          const claimed = new Set(GROUPS.reduce((a, g) => a.concat(g[1]), []));
+          const loose = Object.keys(MIG_MODELS).filter(t => !claimed.has(t)).sort();
+          if (loose.length) GROUPS.push(["Not yet grouped", loose]);
+        })();
 
         let totRows = 0, totFilled = 0, totFields = 0, complete = 0;
         const covOf = {};
