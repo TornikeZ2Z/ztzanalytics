@@ -523,6 +523,9 @@ const dmgRows = t => Number(
         mig_storage_item_payment: "StorageItemPayment",
         mig_job_packing_material: "JobPackingMaterial",
         mig_job_packing_in_truck: "JobPackingInTruck",
+        mig_person: "Person", mig_user: "User",
+        mig_crew_profile: "CrewProfile", mig_crew_time_off: "CrewTimeOff",
+        mig_vehicle: "Vehicle",
       };
       // THEIR models' scalar fields (generated from schema.prisma,
       // tetrobyte-studio/ziptozip @ 2026-08-29). r:1 = the importer resolves
@@ -537,6 +540,19 @@ const dmgRows = t => Number(
         // rawMaterialId is their optional catalog link, nullable by design — their own
         // comment keeps materialName authoritative for display.
         mig_job_packing_in_truck: [{f:"id",r:1},{f:"truckId",r:1},{f:"materialName",r:0},{f:"rawMaterialId",r:1},{f:"qtyBeforeAdding",r:0},{f:"qtyAddedFromStorage",r:0},{f:"qtyBeforeJob",r:0},{f:"qtyAfterJob",r:0},{f:"createdById",r:1},{f:"createdAt",r:1}],
+        // THE REFERENCE LAYER, field lists read from the LIVE schema.prisma 2026-09-09
+        // (ZipToZip/ziptozip — renamed from tetrobyte-studio; 157 models now, was 150).
+        // birthDate / personalNumber / the address block / emergency contacts have never
+        // existed in any sheet — real gaps, not omissions.
+        mig_person: [{f:"id",r:1},{f:"firstName",r:0},{f:"lastName",r:0},{f:"nickname",r:0},{f:"birthDate",r:0},{f:"personalNumber",r:0},{f:"photoKey",r:0},{f:"addressLine",r:0},{f:"street",r:0},{f:"city",r:0},{f:"region",r:0},{f:"postalCode",r:0},{f:"lat",r:0},{f:"lng",r:0},{f:"emergencyContactName",r:0},{f:"emergencyContactPhone",r:0},{f:"createdAt",r:1},{f:"updatedAt",r:1}],
+        // commissionRateBps / isEstimator / isBranchOwner / salesNumber are flags the
+        // sheet era never had; passwordHash and lastLoginAt are theirs to create.
+        mig_user: [{f:"id",r:1},{f:"personId",r:1},{f:"email",r:0},{f:"passwordHash",r:1},{f:"status",r:0},{f:"roleId",r:1},{f:"commissionRateBps",r:0},{f:"isEstimator",r:0},{f:"isBranchOwner",r:0},{f:"salesNumber",r:0},{f:"lastLoginAt",r:1},{f:"deletedAt",r:1},{f:"createdAt",r:1},{f:"updatedAt",r:1}],
+        mig_crew_profile: [{f:"id",r:1},{f:"personId",r:1},{f:"userId",r:1},{f:"baseState",r:0},{f:"homeBaseId",r:1},{f:"crewCapabilities",r:0},{f:"crewStandingStatus",r:0},{f:"idDocStatus",r:0},{f:"infoFinalized",r:0},{f:"legalStatus",r:0},{f:"medicalCardValid",r:0},{f:"medicalCardExpiresAt",r:0},{f:"hiredAt",r:0},{f:"localHourlyRateCents",r:0},{f:"longDistanceDailyRateCents",r:0},{f:"goodEnglish",r:0},{f:"stacking",r:0},{f:"canDoPacking",r:0},{f:"canSellPacking",r:0},{f:"canDoBigJob",r:0},{f:"longDistancePickup",r:0},{f:"moreThanOneTruck",r:0},{f:"truckDriving",r:0},{f:"carDriving",r:0},{f:"piano",r:0},{f:"canDoLongDistance",r:0},{f:"notes",r:0},{f:"sortOrder",r:0},{f:"createdAt",r:1},{f:"updatedAt",r:1}],
+        // status + the approval trio are NEW since the August schema and have no source:
+        // these were logged in a sheet after the fact, never requested or approved.
+        mig_crew_time_off: [{f:"id",r:1},{f:"crewProfileId",r:1},{f:"kind",r:0},{f:"startDate",r:0},{f:"endDate",r:0},{f:"note",r:0},{f:"status",r:0},{f:"requestedById",r:1},{f:"decidedById",r:1},{f:"decidedAt",r:0},{f:"decisionNote",r:0},{f:"createdAt",r:1},{f:"updatedAt",r:1}],
+        mig_vehicle: [{f:"id",r:1},{f:"status",r:0},{f:"type",r:0},{f:"truckNumber",r:0},{f:"customName",r:0},{f:"registeredToName",r:0},{f:"capacityCF",r:0},{f:"maxCrewSize",r:0},{f:"baseId",r:1},{f:"vinCode",r:0},{f:"plateNumber",r:0},{f:"ezPass",r:0},{f:"modelName",r:0},{f:"manufacturedAt",r:0},{f:"fuel",r:0},{f:"truckFullHeightFt",r:0},{f:"truckFullWidthFt",r:0},{f:"truckFullLengthFt",r:0},{f:"truckBoxHeightFt",r:0},{f:"truckBoxWidthFt",r:0},{f:"truckBoxLengthFt",r:0},{f:"registrationExpiresAt",r:0},{f:"inspectionDate",r:0},{f:"emissionDate",r:0},{f:"insuranceCompanyName",r:0},{f:"insuranceRenewalDate",r:0},{f:"insuranceYearlyCostCents",r:0},{f:"monthlyParkingFeeCents",r:0},{f:"buyDate",r:0},{f:"salesDate",r:0},{f:"notes",r:0},{f:"createdAt",r:1},{f:"updatedAt",r:1}],
         mig_job_note: [{f:"id",r:1},{f:"jobId",r:1},{f:"body",r:0},{f:"templateId",r:1},{f:"createdById",r:1},{f:"createdAt",r:1}],
         mig_job_damage: [{f:"id",r:1},{f:"jobId",r:1},{f:"description",r:0},{f:"createdById",r:1},{f:"createdAt",r:1}],
         mig_job_discount: [{f:"id",r:1},{f:"jobId",r:1},{f:"amountCents",r:0},{f:"reason",r:0},{f:"templateId",r:1},{f:"createdById",r:1},{f:"createdAt",r:1}],
