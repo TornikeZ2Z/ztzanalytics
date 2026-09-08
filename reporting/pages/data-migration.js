@@ -521,6 +521,8 @@ const dmgRows = t => Number(
         mig_job_inventory_section: "JobInventorySection",
         mig_job_inventory_entry: "JobInventoryEntry",
         mig_storage_item_payment: "StorageItemPayment",
+        mig_job_packing_material: "JobPackingMaterial",
+        mig_job_packing_in_truck: "JobPackingInTruck",
       };
       // THEIR models' scalar fields (generated from schema.prisma,
       // tetrobyte-studio/ziptozip @ 2026-08-29). r:1 = the importer resolves
@@ -528,6 +530,13 @@ const dmgRows = t => Number(
       const MIG_FIELDS = {
         mig_job_crew_salary_snapshot: [{f:"id",r:1},{f:"jobId",r:1},{f:"rowIndex",r:0},{f:"crewMemberId",r:1},{f:"memberName",r:0},{f:"memberType",r:0},{f:"isAnonymous",r:0},{f:"hoursWorked",r:0},{f:"hourlyRateCents",r:0},{f:"hourlySalaryCents",r:0},{f:"reviewSalaryCents",r:0},{f:"tipSalaryCents",r:0},{f:"stairsSalaryCents",r:0},{f:"bulkySalaryCents",r:0},{f:"hoistingSalaryCents",r:0},{f:"junkSalaryCents",r:0},{f:"storageSalaryCents",r:0},{f:"packingSalaryCents",r:0},{f:"additionalSalaryCents",r:0},{f:"additionalSalaryNote",r:0},{f:"advanceSalaryCents",r:0},{f:"advanceSalaryNote",r:0},{f:"deductionSalaryCents",r:0},{f:"deductionSalaryNote",r:0},{f:"totalCents",r:0},{f:"createdAt",r:1}],
         mig_job_survey_response: [{f:"id",r:1},{f:"jobId",r:1},{f:"questionId",r:1},{f:"questionText",r:0},{f:"score",r:0},{f:"comment",r:0},{f:"capturedById",r:1},{f:"capturedAt",r:0}],
+        // packingMaterialId resolves off materialName against their catalog (29 distinct
+        // names). actualQty has no source anywhere upstream — it stays a real gap rather
+        // than being invented from the estimate.
+        mig_job_packing_material: [{f:"id",r:1},{f:"jobId",r:1},{f:"packingMaterialId",r:1},{f:"qty",r:0},{f:"actualQty",r:0},{f:"laborQty",r:0},{f:"createdAt",r:1},{f:"updatedAt",r:1}],
+        // rawMaterialId is their optional catalog link, nullable by design — their own
+        // comment keeps materialName authoritative for display.
+        mig_job_packing_in_truck: [{f:"id",r:1},{f:"truckId",r:1},{f:"materialName",r:0},{f:"rawMaterialId",r:1},{f:"qtyBeforeAdding",r:0},{f:"qtyAddedFromStorage",r:0},{f:"qtyBeforeJob",r:0},{f:"qtyAfterJob",r:0},{f:"createdById",r:1},{f:"createdAt",r:1}],
         mig_job_note: [{f:"id",r:1},{f:"jobId",r:1},{f:"body",r:0},{f:"templateId",r:1},{f:"createdById",r:1},{f:"createdAt",r:1}],
         mig_job_damage: [{f:"id",r:1},{f:"jobId",r:1},{f:"description",r:0},{f:"createdById",r:1},{f:"createdAt",r:1}],
         mig_job_discount: [{f:"id",r:1},{f:"jobId",r:1},{f:"amountCents",r:0},{f:"reason",r:0},{f:"templateId",r:1},{f:"createdById",r:1},{f:"createdAt",r:1}],
@@ -747,12 +756,22 @@ const dmgRows = t => Number(
       // unfilled ones are unfilled (generated from schema.prisma 2026-08-29)
       const THEIR_UNFILLED = [
         ["Fillable from our data — next in line",
-         "JobPackingInTruck (dc_packing_materials_in_vehicle, 29k rows) · " +
-         "JobPackingMaterial (dc packing lines, 24k) · JobTruckExpense (dc expense " +
+         "JobTruckExpense (dc expense " +
          "breakdowns, ~5k) · RentedStorage/Unit + OwnedWarehouse/Slot (storage " +
          "facility tables) · Vehicle (the register) · BankTransaction " +
          "(card_transactions, 6k) · JobTruckInformation (closing tips + LD " +
          "actuals) · JobOtherInformation (dc, 33)"],
+        ["Shipped 2026-09-08 — what was actually packed",
+         "JobPackingMaterial (dc_job_packing_line, 25,267 lines over 2,552 jobs) → " +
+         "mig_job_packing_material · JobPackingInTruck (30,110 rows over 2,874 jobs) → " +
+         "mig_job_packing_in_truck, which MERGES the two DC halves the model expects: " +
+         "dc_packing_materials_in_vehicle is the start-of-job inspection, " +
+         "dc_job_packing_after the end-of-job count, one row per (job, material) with " +
+         "both. Note MaterialPrice upstream is a UNIT price, not a line total — the " +
+         "line total is price × qty, carried as xLineTotalCents. Job.salesNotes was " +
+         "RETIRED the same day (his call): it mixed lead-stage board chatter with the " +
+         "calendar description, and the latter already ships whole as " +
+         "xCalendarDescription."],
         ["Shipped 2026-08-30 — the manifest's two top asks",
          "JobInventoryEntry + JobInventorySection (the calendar SURVEY inventory, " +
          "~139k lines, untagged by design) → mig_job_inventory_entry/_section · " +
