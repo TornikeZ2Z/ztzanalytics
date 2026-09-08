@@ -526,6 +526,10 @@ const dmgRows = t => Number(
         mig_person: "Person", mig_user: "User",
         mig_crew_profile: "CrewProfile", mig_crew_time_off: "CrewTimeOff",
         mig_vehicle: "Vehicle",
+        mig_packing_material: "PackingMaterial", mig_raw_material: "RawMaterial",
+        mig_survey_question: "SurveyQuestion", mig_job_source: "JobSource",
+        mig_bulky_item: "BulkyItem", mig_person_phone: "PersonPhone",
+        mig_crew_allowed_state: "CrewAllowedState",
       };
       // THEIR models' scalar fields (generated from schema.prisma,
       // tetrobyte-studio/ziptozip @ 2026-08-29). r:1 = the importer resolves
@@ -552,6 +556,14 @@ const dmgRows = t => Number(
         // status + the approval trio are NEW since the August schema and have no source:
         // these were logged in a sheet after the fact, never requested or approved.
         mig_crew_time_off: [{f:"id",r:1},{f:"crewProfileId",r:1},{f:"kind",r:0},{f:"startDate",r:0},{f:"endDate",r:0},{f:"note",r:0},{f:"status",r:0},{f:"requestedById",r:1},{f:"decidedById",r:1},{f:"decidedAt",r:0},{f:"decisionNote",r:0},{f:"createdAt",r:1},{f:"updatedAt",r:1}],
+        // THE CATALOGS the fact tables resolve names against, read from the live schema.
+        mig_packing_material: [{f:"id",r:1},{f:"name",r:0},{f:"category",r:0},{f:"additionalInfo",r:0},{f:"materialPriceCents",r:0},{f:"laborTimeSeconds",r:0},{f:"isActive",r:0},{f:"sortOrder",r:0},{f:"createdAt",r:1},{f:"updatedAt",r:1}],
+        mig_raw_material: [{f:"id",r:1},{f:"name",r:0},{f:"isActive",r:0},{f:"sortOrder",r:0},{f:"createdAt",r:1},{f:"updatedAt",r:1}],
+        mig_survey_question: [{f:"id",r:1},{f:"body",r:0},{f:"isActive",r:0},{f:"sortOrder",r:0},{f:"createdAt",r:1},{f:"updatedAt",r:1}],
+        mig_job_source: [{f:"id",r:1},{f:"name",r:0},{f:"isActive",r:0},{f:"createdAt",r:1},{f:"updatedAt",r:1}],
+        mig_bulky_item: [{f:"id",r:1},{f:"name",r:0},{f:"isActive",r:0},{f:"sortOrder",r:0},{f:"createdAt",r:1},{f:"updatedAt",r:1}],
+        mig_person_phone: [{f:"id",r:1},{f:"personId",r:1},{f:"number",r:0},{f:"label",r:0},{f:"isPrimary",r:0},{f:"sortOrder",r:0},{f:"createdAt",r:1},{f:"updatedAt",r:1}],
+        mig_crew_allowed_state: [{f:"crewProfileId",r:1},{f:"stateCode",r:0}],
         mig_vehicle: [{f:"id",r:1},{f:"status",r:0},{f:"type",r:0},{f:"truckNumber",r:0},{f:"customName",r:0},{f:"registeredToName",r:0},{f:"capacityCF",r:0},{f:"maxCrewSize",r:0},{f:"baseId",r:1},{f:"vinCode",r:0},{f:"plateNumber",r:0},{f:"ezPass",r:0},{f:"modelName",r:0},{f:"manufacturedAt",r:0},{f:"fuel",r:0},{f:"truckFullHeightFt",r:0},{f:"truckFullWidthFt",r:0},{f:"truckFullLengthFt",r:0},{f:"truckBoxHeightFt",r:0},{f:"truckBoxWidthFt",r:0},{f:"truckBoxLengthFt",r:0},{f:"registrationExpiresAt",r:0},{f:"inspectionDate",r:0},{f:"emissionDate",r:0},{f:"insuranceCompanyName",r:0},{f:"insuranceRenewalDate",r:0},{f:"insuranceYearlyCostCents",r:0},{f:"monthlyParkingFeeCents",r:0},{f:"buyDate",r:0},{f:"salesDate",r:0},{f:"notes",r:0},{f:"createdAt",r:1},{f:"updatedAt",r:1}],
         mig_job_note: [{f:"id",r:1},{f:"jobId",r:1},{f:"body",r:0},{f:"templateId",r:1},{f:"createdById",r:1},{f:"createdAt",r:1}],
         mig_job_damage: [{f:"id",r:1},{f:"jobId",r:1},{f:"description",r:0},{f:"createdById",r:1},{f:"createdAt",r:1}],
