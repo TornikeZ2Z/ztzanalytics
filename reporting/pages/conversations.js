@@ -17,7 +17,9 @@
 const CONV = (() => {
   // module-level so a global filter change (which re-runs render wholesale) does not
   // throw away the lead you are reading
-  const S = { q: "", leads: [], job: null, thread: null, open: {}, busy: false, err: "" };
+  // `kw` is the find-in-this-conversation word, kept here so it survives switching
+  // leads — you are usually chasing the same word across several of them.
+  const S = { q: "", leads: [], job: null, thread: null, open: {}, busy: false, err: "", kw: "" };
 
   function injectStyle() {
     const old = document.getElementById("cnv-style");
@@ -85,6 +87,17 @@ const CONV = (() => {
     .cnv-utt .t{color:var(--muted);font-variant-numeric:tabular-nums;font-size:11.5px}
     .cnv-utt .s{color:var(--blue);font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
     .cnv-utt.them .s{color:var(--warn)}
+    /* the find row sits on its own line of the lead header: flex-basis 100% rather
+       than another margin-left:auto, which the events count already owns */
+    .cnv-find{flex:1 0 100%;display:flex;gap:10px;align-items:center;margin-top:2px}
+    .cnv-find .rs-inp{max-width:340px;flex:1}
+    .cnv-kwn{font-size:12px;color:var(--muted);white-space:nowrap}
+    .cnv-kwn.none{color:var(--warn)}
+    /* NOT .cnv-hit: that is a lead row in the rail, and it carries a cursor and a
+       hover background that make no sense on a word inside a sentence */
+    .cnv-mark{background:color-mix(in srgb,var(--warn) 38%,transparent);color:inherit;
+      border-radius:3px;padding:0 1px}
+    .cnv-tbtn .n{color:var(--warn);font-weight:600}
     .cnv-empty{color:var(--muted);text-align:center;padding:70px 20px;font-size:14px}
     .cnv-x{align-self:center;width:min(760px,86%);opacity:.95}
     .cnv-day{align-self:center;font-size:11px;color:var(--muted);background:var(--bg);
@@ -94,6 +107,76 @@ const CONV = (() => {
   }
 
   const esc = s => RSC.esc(s == null ? "" : String(s));
+
+  /* ---- keyword search, inside one conversation ---------------------------------- */
+
+  // LITERAL, not a pattern. People search for "damage" or "3rd floor", and a stray
+  // parenthesis out of a phone number would otherwise throw on every keystroke.
+  const rxEsc = t => String(t).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+  // A single character matches nearly every message, which is noise wearing the
+  // costume of a search -- so nothing happens until there are two.
+  function kwRx(kw) {
+    const k = String(kw || "").trim();
+    return k.length < 2 ? null : new RegExp(rxEsc(esc(k)), "gi");
+  }
+
+  // Escape FIRST, then mark. The needle went through the same escaping as the
+  // haystack, so it still matches, and <mark> is the only raw html we introduce.
+  function mark(text, rx) {
+    const t = esc(text);
+    return rx ? t.replace(rx, m => `<mark class="cnv-mark">${m}</mark>`) : t;
+  }
+
+  function nHits(text, rx) {
+    if (!rx || !text) return 0;
+    const m = esc(text).match(rx);
+    return m ? m.length : 0;
+  }
+
+  const parseJson = j => { try { return JSON.parse(j || "null"); } catch (e) { return null; } };
+  // RingSense returns these as [{start,end,value}] — NOT plain strings. Rendered raw,
+  // the summary box showed a wall of JSON to the reader (caught in review 2026-08-18).
+  const listOf = v => Array.isArray(v) ? v.map(x =>
+    typeof x === "string" ? x
+      : (x && (x.value || x.text || x.title || x.name)) || "").filter(Boolean) : [];
+
+  // Hoisted out of transcriptHtml so the COUNTER and the RENDERER can never disagree
+  // about what a transcript says -- a count that includes text the page does not show,
+  // or misses text it does, is worse than no count.
+  function trParts(tr) {
+    const sumRaw = tr["Summary"];
+    const sumParsed = typeof sumRaw === "string" && sumRaw.trim().startsWith("[")
+      ? listOf(parseJson(sumRaw)) : null;
+    return {
+      summary: sumParsed && sumParsed.length ? sumParsed.join(" ") : (sumRaw || ""),
+      highlights: listOf(parseJson(tr["Highlights Json"])),
+      nextSteps: listOf(parseJson(tr["Next Steps Json"])),
+    };
+  }
+
+  function trStrings(tr) {
+    if (!tr) return [];
+    const p = trParts(tr);
+    return [p.summary].concat(p.highlights, p.nextSteps,
+      (tr.utterances || []).map(u => u["Text"]));
+  }
+
+  // What one event contributes to the count, open or folded.
+  function evHits(e, tr, rx) {
+    if (!rx) return 0;
+    if (e["Kind"] === "SMS") return nHits(e["Message Text"] || "", rx);
+    const t = e["Telephony Session Id"] ? tr[e["Telephony Session Id"]] : null;
+    return trStrings(t).reduce((n, x) => n + nHits(x, rx), 0);
+  }
+
+  function threadHits(ev, tr, kw) {
+    const rx = kwRx(kw);
+    if (!rx) return { total: 0, events: 0, active: false };
+    let total = 0, events = 0;
+    (ev || []).forEach(e => { const n = evHits(e, tr || {}, rx); if (n) { total += n; events++; } });
+    return { total: total, events: events, active: true };
+  }
   const isOut = d => d === "Outgoing" || d === "Outbound";
 
   function dur(sec) {
@@ -160,29 +243,26 @@ const CONV = (() => {
       el.onclick = () => openLead(host, el.dataset.job));
   }
 
-  function transcriptHtml(tr, custName) {
+  // `kw` is optional and defaults to no highlighting, so the Sales Person Analysis
+  // drawer — which calls this directly with two arguments — is untouched.
+  function transcriptHtml(tr, custName, kw) {
     if (!tr) return "";
+    const rx = kwRx(kw);
     let extra = "";
-    const parse = j => { try { return JSON.parse(j || "null"); } catch (e) { return null; } };
-    const hi = parse(tr["Highlights Json"]), ns = parse(tr["Next Steps Json"]);
-    // RingSense returns these as [{start,end,value}] — NOT plain strings. Rendered raw,
-    // the summary box showed a wall of JSON to the reader (caught in review 2026-08-18).
-    const listOf = v => Array.isArray(v) ? v.map(x =>
-      typeof x === "string" ? x
-        : (x && (x.value || x.text || x.title || x.name)) || "").filter(Boolean) : [];
-    const sumRaw = tr["Summary"];
-    const sumParsed = typeof sumRaw === "string" && sumRaw.trim().startsWith("[")
-      ? listOf(parse(sumRaw)) : null;
-    const summary = sumParsed && sumParsed.length ? sumParsed.join(" ") : (sumRaw || "");
-    if (summary) extra += `<div class="cnv-sum"><h5>Summary</h5>${esc(summary)}</div>`;
-    const hl = listOf(hi), st = listOf(ns);
-    if (hl.length) extra += `<div class="cnv-sum"><h5>Highlights</h5>${hl.map(esc).join("<br>")}</div>`;
-    if (st.length) extra += `<div class="cnv-sum"><h5>Next steps</h5>${st.map(esc).join("<br>")}</div>`;
+    // parsing lives in trParts now, shared with the counter so the two cannot drift
+    const p = trParts(tr);
+    const summary = p.summary;
+    if (summary) extra += `<div class="cnv-sum"><h5>Summary</h5>${mark(summary, rx)}</div>`;
+    const hl = p.highlights, st = p.nextSteps;
+    if (hl.length) extra += `<div class="cnv-sum"><h5>Highlights</h5>${
+      hl.map(x => mark(x, rx)).join("<br>")}</div>`;
+    if (st.length) extra += `<div class="cnv-sum"><h5>Next steps</h5>${
+      st.map(x => mark(x, rx)).join("<br>")}</div>`;
     const us = tr.utterances || [];
     // Who is US and who is THEM: RingSense names BOTH sides (the customer too), so
     // "has a name" cannot tell them apart. The speaker carrying an extensionId is on
     // our phone system; everyone else is the customer.
-    const spk = parse(tr["Speakers Json"]) || [];
+    const spk = parseJson(tr["Speakers Json"]) || [];
     const ours = new Set(spk.filter(s => s && s.extensionId).map(s => s.speakerId));
     const rows = us.map(u => {
       const isUs = ours.has(u["Speaker Id"]);
@@ -194,7 +274,7 @@ const CONV = (() => {
       <div class="cnv-utt${isUs ? "" : " them"}">
         <div class="t">${clock(u["Start"])}</div>
         <div class="s">${esc(label)}</div>
-        <div>${esc(u["Text"])}</div>
+        <div>${mark(u["Text"], rx)}</div>
       </div>`;
     }).join("");
     return `<div class="cnv-tr">${extra}${rows || `<div class="cnv-empty" style="padding:14px">No speech captured.</div>`}</div>`;
@@ -203,8 +283,9 @@ const CONV = (() => {
   /* The thread renderer, shared. The Sales Person Analysis drawer mounts the SAME
      markup (CONV.mountThread) so a conversation looks and behaves identically
      wherever it is read — one renderer, not two that drift apart. */
-  function threadHtml(ev, tr, open, customerName, extras) {
+  function threadHtml(ev, tr, open, customerName, extras, kw) {
     const h = { Customer: customerName || (ev[0] && ev[0]["Customer"]) || "Customer" };
+    const rx = kwRx(kw);
     let lastDay = "";
     // `extras` are foreign rows (the lead file's milestones) that belong in the SAME
     // stream. They are merged and sorted HERE, before render — an earlier version
@@ -224,12 +305,16 @@ const CONV = (() => {
       if (e["Kind"] === "SMS") {
         return sep + `<div class="cnv-ev ${out ? "out" : "in"}" data-at="${esc(e["Event At"] || "")}">
           <div class="cnv-head">${head}</div>
-          <div class="cnv-body"><div class="cnv-txt">${esc(e["Message Text"] || "(no text captured)")}</div></div>
+          <div class="cnv-body"><div class="cnv-txt">${
+            e["Message Text"] ? mark(e["Message Text"], rx) : "(no text captured)"}</div></div>
         </div>`;
       }
       const missed = !out && /missed|voicemail/i.test(String(e["Result"] || ""));
       const t = e["Telephony Session Id"] ? tr[e["Telephony Session Id"]] : null;
       const opened = !!open[i];
+      // How many mentions are inside this call, said on the button — so a transcript
+      // the reader has folded still declares what it is holding.
+      const nIn = t ? evHits(e, tr, rx) : 0;
       return sep + `<div class="cnv-ev ${out ? "out" : "in"}${missed ? " cnv-miss" : ""}" data-at="${esc(e["Event At"] || "")}">
         <div class="cnv-head">${head}</div>
         <div class="cnv-body">
@@ -238,9 +323,10 @@ const CONV = (() => {
             <div>${out ? "Called" : "Called in"}${e["Duration Seconds"] ? " · " + esc(dur(e["Duration Seconds"])) : ""}
               <span style="color:var(--muted)"> · ${esc(e["Result"] || "")}</span></div>
             ${t ? `<button class="cnv-tbtn" data-i="${i}">${opened ? "Hide" : "Read"} transcript${
-              e["Utterance Count"] ? " (" + e["Utterance Count"] + ")" : ""}</button>` : ""}
+              e["Utterance Count"] ? " (" + e["Utterance Count"] + ")" : ""}${
+              nIn ? ` · <span class="n">${nIn} here</span>` : ""}</button>` : ""}
           </div>
-          ${opened && t ? transcriptHtml(t, h["Customer"]) : ""}
+          ${opened && t ? transcriptHtml(t, h["Customer"], kw) : ""}
         </div>
       </div>`;
     }).join("");
@@ -249,16 +335,35 @@ const CONV = (() => {
 
   /* Render a thread into any element and keep its own expand state. Used by this
      page AND by the Sales Person Analysis lead drawer. */
-  function mountThread(el, ev, tr, customerName, extras) {
+  function mountThread(el, ev, tr, customerName, extras, kw) {
     const open = {};
+    let cur = kw || "";
     const draw = () => {
-      el.innerHTML = threadHtml(ev, tr, open, customerName, extras);
+      el.innerHTML = threadHtml(ev, tr, open, customerName, extras, cur);
       el.querySelectorAll(".cnv-tbtn").forEach(b => b.onclick = () => {
         open[b.dataset.i] = !open[b.dataset.i];
         draw();
       });
     };
     draw();
+    return {
+      // A SEARCH SEEDS `open`, IT DOES NOT OVERRIDE IT. Computing "open because the
+      // search says so" would leave the Read/Hide button lying: the reader clicks
+      // Hide, `open[i]` flips to false, and the override holds it open anyway. By
+      // writing into the same state the button owns, the button always does what it
+      // says. A transcript closed during a search stays closed until the search
+      // changes — at which point the matches are different and re-opening is right.
+      setKeyword(k) {
+        cur = k || "";
+        const rx = kwRx(cur);
+        if (rx) ev.forEach((e, i) => { if (evHits(e, tr || {}, rx)) open[i] = true; });
+        draw();
+        // `nearest` so it only moves the page when the first mention is off-screen —
+        // scrolling on every keystroke of a word you are still typing is horrible.
+        const first = el.querySelector(".cnv-mark");
+        if (first) first.scrollIntoView({ block: "nearest" });
+      },
+    };
   }
 
   function paintMain(host) {
@@ -282,9 +387,36 @@ const CONV = (() => {
         <div class="meta">${esc(h["Status"] || "")}${h["Assigned"] ? " · " + esc(h["Assigned"]) : ""}${
           h["Source"] ? " · " + esc(h["Source"]) : ""}</div>
         <div class="meta" style="margin-left:auto">${ev.length} events · ${nTr} transcribed</div>
+        <div class="cnv-find">
+          <input id="cnvKw" class="rs-inp" type="search" autocomplete="off"
+            placeholder="Find a word in this conversation…" value="${esc(S.kw)}">
+          <span class="cnv-kwn" id="cnvKwN"></span>
+        </div>
       </div>
       <div id="cnvThread"></div>`;
-    mountThread(box.querySelector("#cnvThread"), ev, S.thread.transcripts || {}, h["Customer"]);
+    const trs = S.thread.transcripts || {};
+    const ctl = mountThread(box.querySelector("#cnvThread"), ev, trs, h["Customer"]);
+    const kwEl = box.querySelector("#cnvKw"), nEl = box.querySelector("#cnvKwN");
+
+    // THE COUNT COMES FROM THE DATA, NOT THE PAGE. Transcripts render only when opened,
+    // so counting rendered <mark>s would report a fraction of the truth on any thread
+    // with folded calls — and the reader would have no way to tell.
+    const apply = () => {
+      S.kw = kwEl.value;
+      ctl.setKeyword(S.kw);
+      const r = threadHits(ev, trs, S.kw);
+      nEl.className = "cnv-kwn" + (r.active && !r.total ? " none" : "");
+      nEl.textContent = !r.active ? ""
+        : !r.total ? "not mentioned"
+          : `${r.total} mention${r.total === 1 ? "" : "s"} in ${r.events} event${
+            r.events === 1 ? "" : "s"}`;
+    };
+    // on a pause, not on every keystroke: re-rendering the whole thread per character
+    // fights the typist on a long conversation
+    let t = null;
+    kwEl.oninput = () => { clearTimeout(t); t = setTimeout(apply, 160); };
+    // the word survives switching leads — you are usually looking for it across several
+    if (S.kw) apply();
   }
 
   return { injectStyle, search, openLead, paintSide, paintMain, mountThread, threadHtml, transcriptHtml, S };
