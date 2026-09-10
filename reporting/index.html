@@ -151,6 +151,10 @@ const GROUPS = [
   { key: "different", title: "Different Analysis" },
   { key: "reviews",   title: "Reviews" },
   { key: "support",   title: "Support" },
+  // Tech Team (2026-09-10): the ERP work itself — the developer's work queue and the data
+  // migration. Visibility stays per page: ERP Bug Briefs opens to every account (Giorgi),
+  // Data Migration stays admin-only (canSee), so the group shows whatever a person may open.
+  { key: "tech",      title: "Tech Team" },
   // Admin-only, and collapsed on first visit (see ADMIN_GROUPS / DEFAULT_COLLAPSED below).
   { key: "admin",     title: "Administration" },
 ];
@@ -166,8 +170,9 @@ const GROUP_OVERRIDE = {
   // Administration (admin-only, collapsed by default)
   "data-quality": "admin", "refresh-log": "admin", "general-settings": "admin", "admin-users": "admin",
   "admin-activity": "admin",
-  "data-migration": "admin",
   "general-tables": "admin",
+  // Tech Team
+  "erp-briefs": "tech", "data-migration": "tech",
   // Marketing — source attribution belongs with the marketing views
   "source-trace": "marketing", "meta-referrals": "marketing",
   "jobs-by-area": "marketing",
@@ -179,7 +184,6 @@ const GROUP_OVERRIDE = {
   "referral-candidates": "marketing",
   // Company Overview
   "monthly-report": "company", "analysis-by-category": "company", "work": "company",
-  "erp-briefs": "company",
   // Sales ("sales-geo" moved to Financial — Tornike 2026-07-13: geography is a money view)
   "sales-funnel": "sales", "sales-perf": "sales", "sales-geo": "financial", "demand-analysis": "sales", "sales-command": "sales",
   // a sales tool AND a support tool: the same transcripts answer "did we call them back"
