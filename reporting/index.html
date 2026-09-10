@@ -179,6 +179,7 @@ const GROUP_OVERRIDE = {
   "referral-candidates": "marketing",
   // Company Overview
   "monthly-report": "company", "analysis-by-category": "company", "work": "company",
+  "erp-briefs": "company",
   // Sales ("sales-geo" moved to Financial — Tornike 2026-07-13: geography is a money view)
   "sales-funnel": "sales", "sales-perf": "sales", "sales-geo": "financial", "demand-analysis": "sales", "sales-command": "sales",
   // a sales tool AND a support tool: the same transcripts answer "did we call them back"
@@ -211,7 +212,7 @@ const groupsOf = p => { const g = GROUP_OVERRIDE[p.id] || p.group;
 const groupOf = p => groupsOf(p)[0];
 /* explicit per-container item order (numbers are scoped within each group's display list) */
 const NAV_ORDER = {
-  "monthly-report": 1, "analysis-by-category": 2, "work": 0.5,
+  "monthly-report": 1, "analysis-by-category": 2, "work": 0.5, "erp-briefs": 0.6,
   "sales-command": 0.5, "sales-of-the-month": 0.6, "conversations": 0.7, "sales-comms": 0.8, "sales-trackers": 0.9, "sales-funnel": 1, "sales-perf": 2, "demand-analysis": 5,
   "mkt-roi": 1, "mkt-sources": 2, "mkt-phone": 3,
   "money-flow": 1, "foreman-closings": 2, "ld-planning": 3, "packing-control": 4, "storage-control": 5, "foreman-assessment": 6, "crew-salaries": 6.5, "fuel-control": 7, "foreman-late": 7.5, "log-foreman": 8, "log-packing": 9,
@@ -282,7 +283,7 @@ const PAGE_ICONS = {
   "foreman-closings": "receipt",
   "labor-analysis": "activity",
   "post-card-analysis": "megaphone",
-  "monthly-report": "spark", "work": "clipboard",
+  "monthly-report": "spark", "work": "clipboard", "erp-briefs": "tool",
   "angi-vs-moveboard": "compass", "reviews-team": "star", "support-team": "shield", "lead-source-analysis": "compass", "source-analysis": "compass", "movers-analysis": "megaphone",
   "financial-team": "trend", "sales-team": "user", "marketing-team": "megaphone", "logistics-team": "tool",
   // themed dashboards + settings (2026-07-09 restructure)
@@ -711,6 +712,7 @@ const PAGE_DATASETS = {
   // [] on purpose: this page searches by customer, not by date — everything comes
   // from the gated _conv* endpoints, so the global slicers have nothing to act on.
   "work": [],               // everything moves through /api/_work; no global slicers
+  "erp-briefs": [],         // everything moves through /api/_erpbrief; no global slicers
   "conversations": [],
   "sales-comms": ["mart_sales_call_score"],
   "sales-trackers": [],      // loads its own eval + score tables; verdicts ignore the global bar
@@ -1034,6 +1036,7 @@ async function renderPage() {
    what the nav item is CALLED (same pattern as GROUP_OVERRIDE). */
 const NAV_TITLES = {
   "work": "IT Requests",
+  "erp-briefs": "ERP Bug Briefs",
   "analysis-by-category": "Custom Breakdown",
   "insights": "Recommendations",
   "branch-owner": "Branch Owner",
@@ -1122,6 +1125,7 @@ const SEARCH_ALIASES = {
   "refresh-log": "refresh log pipeline curation raw source timing history update run duration",
   "admin-activity": "user activity log logins sign in sessions who logged in usage time spent engaged audit trail seen last active adoption",
   "work": "it requests work projects tasks tickets issues board kanban inbox triage todo",
+  "erp-briefs": "erp bug briefs bugs tracker software test team ziptozip app staging giorgi tasks questions clarification dispatch quote calculator claims reviews fleet ops closing sheet",
   "sales-of-the-month": "sales person of the month salesperson of the month best rep monthly score scorecard ranking award winner leaderboard conversion skill profit per lead",
   "sales-command": "sales person analysis sales team command lead journey 360 explorer call history timeline salesperson rep profile lead file important",
   "conversations": "conversations transcripts call recording ringsense what was said customer chat sms text thread talk speech summary",
@@ -1552,6 +1556,7 @@ const REPORT_LABELS = {
   // Sales
   "conversations": "Conversations (call transcripts)",
   "work": "IT Requests",
+  "erp-briefs": "ERP Bug Briefs",
   "sales-comms": "Sales Communication Analysis",
   "sales-trackers": "Sales AI Trackers",
   // Customer Service
@@ -1632,17 +1637,17 @@ const aclIconFor = id => (MERGED.find(m => m.id === id) || {}).icon ||
    scripts/check_acl_mirror.py now fails the build on any divergence. Run it before an
    analytics or bridge deploy. */
 const ACL_DEPTS = [
-  { id: "company",   label: "Company Overview", icon: "spark",     reports: ["work", "monthly-report", "analysis-by-category"] },
-  { id: "sales",     label: "Sales",            icon: "funnel",    reports: ["work", "sales-command", "sales-of-the-month", "demand-analysis", "conversations", "sales-comms", "sales-trackers"] },
-  { id: "marketing", label: "Marketing",        icon: "megaphone", reports: ["work", "source-trace", "referral-candidates", "jobs-by-area", "packing-sales", "relocation-trends", "angi-funnel", "utm-campaigns", "promised-reviews"] },
-  { id: "logistics", label: "Logistics",        icon: "tool",      reports: ["work", "money-flow", "ld-planning", "foreman-closings", "packing-control", "crew-salaries", "storage-control", "foreman-assessment", "fuel-control", "foreman-late", "straight-vs-local", "area-plan", "season-settings", "truck-economics"] },
+  { id: "company",   label: "Company Overview", icon: "spark",     reports: ["work", "erp-briefs","monthly-report", "analysis-by-category"] },
+  { id: "sales",     label: "Sales",            icon: "funnel",    reports: ["work", "erp-briefs","sales-command", "sales-of-the-month", "demand-analysis", "conversations", "sales-comms", "sales-trackers"] },
+  { id: "marketing", label: "Marketing",        icon: "megaphone", reports: ["work", "erp-briefs","source-trace", "referral-candidates", "jobs-by-area", "packing-sales", "relocation-trends", "angi-funnel", "utm-campaigns", "promised-reviews"] },
+  { id: "logistics", label: "Logistics",        icon: "tool",      reports: ["work", "erp-briefs","money-flow", "ld-planning", "foreman-closings", "packing-control", "crew-salaries", "storage-control", "foreman-assessment", "fuel-control", "foreman-late", "straight-vs-local", "area-plan", "season-settings", "truck-economics"] },
   // MUST mirror DEPT_REPORTS["hr"] in bridge/app.py. Employees answering the questionnaire
   // need NO grant at all — this tile is for HR: managing it and reading the results.
-  { id: "hr",        label: "Human Resources", icon: "user",      reports: ["work", "hr-questionnaire", "hr-responses", "hr-directory"] },
-  { id: "customer-service", label: "Customer Service", icon: "calendar", reports: ["work", "cleanup", "conversations", "claims-analysis"] },
-  { id: "financial", label: "Financial",        icon: "trend",     reports: ["work", "branch-owner", "cl-analysis"] },
-  { id: "reviews",   label: "Reviews",          icon: "star",      reports: ["work", "review-performance", "reviews-cases", "claims-analysis", "reviews-reminders", "response-analysis", "review-settings"] },
-  { id: "explorer",  label: "Data Explorer — the separate Data Management app", icon: "archive", reports: ["work", "explorer"] },
+  { id: "hr",        label: "Human Resources", icon: "user",      reports: ["work", "erp-briefs","hr-questionnaire", "hr-responses", "hr-directory"] },
+  { id: "customer-service", label: "Customer Service", icon: "calendar", reports: ["work", "erp-briefs","cleanup", "conversations", "claims-analysis"] },
+  { id: "financial", label: "Financial",        icon: "trend",     reports: ["work", "erp-briefs","branch-owner", "cl-analysis"] },
+  { id: "reviews",   label: "Reviews",          icon: "star",      reports: ["work", "erp-briefs","review-performance", "reviews-cases", "claims-analysis", "reviews-reminders", "response-analysis", "review-settings"] },
+  { id: "explorer",  label: "Data Explorer — the separate Data Management app", icon: "archive", reports: ["work", "erp-briefs","explorer"] },
 ];
 /* ADMINISTRATION is granted as a tile like everything else (Tornike 2026-07-27), but it is
    NOT a department — ticking it sets is_admin, i.e. every report plus the admin pages. It is
@@ -1853,6 +1858,7 @@ registerPage({
 <script src="pages/sales-comms.js?v=3"></script>
 <script src="pages/sales-trackers.js?v=5"></script>
 <script src="pages/work.js?v=9"></script>
+<script src="pages/erp-briefs.js?v=1"></script>
 <script src="pages/conversations.js?v=10"></script>
 <script src="pages/source-trace.js?v=27"></script>
 <script src="pages/meta-referrals.js?v=2"></script>
