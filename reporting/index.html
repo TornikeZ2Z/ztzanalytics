@@ -936,6 +936,8 @@ function navigate(id, push) {
    render "bare" — the global date/slicer bar + company chip are hidden so the page's board
    starts right under the header instead of below two rows of greyed-out, unusable filters. */
 const BARE_CHROME = new Set(["sales-of-the-month", "review-performance", "reviews-cases", "claims-analysis", "demand-analysis", "reviews-reminders", "response-analysis", "review-settings", "monthly-report", "money-flow", "ld-planning", "cleanup", "packing-control", "crew-salaries", "storage-control", "foreman-assessment", "fuel-control", "foreman-closings", "refresh-log", "general-tables", "hr-questionnaire", "hr-my-questionnaire", "hr-directory", "conversations", "sales-comms", "referral-candidates", "jobs-by-area", "packing-sales", "meta-referrals", "relocation-trends", "angi-funnel", "utm-campaigns", "promised-reviews",
+  // ERP Bug Briefs has nothing a global slicer could act on; the greyed bar only got in the way
+  "erp-briefs",
   // Straight vs Local reads its whole history on purpose (Tornike 2026-08-19: "i dont need
   // any filters here, its just kinda analysis and directions"). A date filter left over from
   // another page emptied it completely, which is worse than useless -- it looked like there
@@ -1858,7 +1860,7 @@ registerPage({
 <script src="pages/sales-comms.js?v=3"></script>
 <script src="pages/sales-trackers.js?v=5"></script>
 <script src="pages/work.js?v=9"></script>
-<script src="pages/erp-briefs.js?v=2"></script>
+<script src="pages/erp-briefs.js?v=3"></script>
 <script src="pages/conversations.js?v=10"></script>
 <script src="pages/source-trace.js?v=27"></script>
 <script src="pages/meta-referrals.js?v=2"></script>
