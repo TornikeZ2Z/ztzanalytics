@@ -839,8 +839,9 @@
       + '<div class="rs-page-head"><h1>ERP Bug Briefs</h1>'
       + '<p>What the ERP test team reported in <a href="' + CHANNEL_URL + '" target="_blank" '
       + 'rel="noopener">#z2z-soft-test-team</a>, grouped into tasks per ERP page — each linked to '
-      + "the Slack reports it came from and the GitHub work that answers it. Answer the open "
-      + "questions here; the change document folds them in.</p></div>"
+      + "the Slack reports it came from and the GitHub work that answers it. It fills itself: "
+      + "<b>/erp-refresh</b> in Claude Code reads the new reports, groups and refines them, and "
+      + "folds in answers given here or in Slack.</p></div>"
       + '<div class="rs-kpis" id="erbKpis"></div>'
       + '<div class="erb-bar"><div class="rs-seg" id="erbView" role="tablist">'
       + '<button data-v="page" role="tab">By ERP page</button>'
@@ -868,8 +869,14 @@
   function paintGh(S) {
     var el = S.host.querySelector("#erbGh");
     if (!el || !S.ov) return;
-    var gh = S.ov.gh;
-    el.innerHTML = (gh.configured
+    var gh = S.ov.gh, rf = S.ov.refresh, info = {};
+    try { info = rf && rf.info ? JSON.parse(rf.info) : {}; } catch (e) { info = {}; }
+    el.innerHTML = (rf
+        ? '<span class="erb-ghs" title="' + esc(info.summary || "") + '">Refreshed from Slack '
+          + esc(ago(rf.at)) + "</span>"
+        : '<span class="erb-ghs off" title="Run /erp-refresh in Claude Code">Not refreshed from '
+          + "Slack yet</span>")
+      + (gh.configured
         ? '<span class="erb-ghs' + (S.syncing ? " busy" : "") + '" title="' + esc(gh.repo) + '">'
           + (S.syncing ? "Syncing with GitHub…" : "GitHub · synced "
              + (gh.last_sync ? esc(ago(gh.last_sync)) : "never")) + "</span>"
@@ -902,7 +909,7 @@
       { label: "Questions waiting", value: oq.length,
         sub: ppl.length + " people · " + notAsked + " not asked yet" },
       { label: "Answers to fold in", value: fold,
-        sub: fold ? "ask Claude to re-run the refine" : "every answer is in its spec" },
+        sub: fold ? "the next /erp-refresh builds them in" : "every answer is in its spec" },
       { label: "Tasks in GitHub", value: inCode.length, sub: live + " live in production" },
       { label: "Waiting for retest", value: ver, sub: "the reporter confirms, then Verified" },
     ]);
@@ -1434,8 +1441,8 @@
     el.innerHTML = n
       ? '<div class="erb-note"><div><b>' + n + (n === 1 ? " answer is" : " answers are")
         + " not in the specs yet.</b> The document lists " + (n === 1 ? "it" : "them")
-        + " as decisions under each task. Ask Claude to re-run the refine — it rewrites those "
-        + "specs with the answers built in, and this document updates by itself.</div></div>"
+        + " as decisions under each task. The next /erp-refresh rewrites those specs with the "
+        + "answers built in, and this document updates by itself.</div></div>"
       : "";
   }
   function paintDoc(S, main) {

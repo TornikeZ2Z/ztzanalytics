@@ -426,6 +426,9 @@ function canSee(id) {
   // waiting for you". Hiding it behind a grant would force Tornike to touch Users & Access
   // for every employee, which is exactly what the HR roster exists to avoid (2026-08-17).
   if (id === "hr-my-questionnaire") return true;
+  // ERP Bug Briefs is the ERP developer's work queue: Giorgi reads it from an account that
+  // holds no report grant, and /api/_erpbrief already sits above the ACL gate (2026-09-10).
+  if (id === "erp-briefs") return true;
   const reports = ME.reports || [];
   if (reports.includes(id)) return true;
   // hr-responses is a CAPABILITY id (read answers, reopen), not a page id — its holder
@@ -1860,7 +1863,7 @@ registerPage({
 <script src="pages/sales-comms.js?v=3"></script>
 <script src="pages/sales-trackers.js?v=5"></script>
 <script src="pages/work.js?v=9"></script>
-<script src="pages/erp-briefs.js?v=5"></script>
+<script src="pages/erp-briefs.js?v=6"></script>
 <script src="pages/conversations.js?v=10"></script>
 <script src="pages/source-trace.js?v=27"></script>
 <script src="pages/meta-referrals.js?v=2"></script>
