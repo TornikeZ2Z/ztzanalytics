@@ -405,15 +405,19 @@ async function renderSeasonal(host) {
     opts = opts || {}; const c = card(mount, title, sub, opts); const { b, cv } = chartBox(c, opts.h || 420);
     if (pts.length < 2) { empty(b, "Too few people with enough jobs to compare"); return c; }
     const maxR = Math.max(...pts.map(p => p.r || 1));
+    // one extreme performer must not squash everyone else into a corner: cap the x axis where the
+    // pack sits, pin the outlier to the edge with its true value written beside it (and in the hover)
+    const xsS = pts.map(p => p.x).sort((a, b) => a - b), q9 = xsS[Math.floor(xsS.length * 0.9)] || xsS[xsS.length - 1];
+    const xCap = Math.max(q9 * 1.5, (opts.xAvg || 0) * 1.6), clampX = xsS[xsS.length - 1] > xCap;
     const xa = opts.xAvg != null ? opts.xAvg : pts.reduce((a, p) => a + p.x, 0) / pts.length;
     const ya = opts.yAvg != null ? opts.yAvg : pts.reduce((a, p) => a + p.y, 0) / pts.length;
     const okX = p => opts.goodX === "low" ? p.x <= xa : p.x >= xa, okY = p => opts.goodY === "low" ? p.y <= ya : p.y >= ya;
     const col = p => okX(p) && okY(p) ? LIME : !okX(p) && !okY(p) ? NEG : BLUE;
-    new Chart(cv, { type: "bubble", data: { datasets: [{ data: pts.map(p => ({ x: p.x, y: p.y, r: 5 + 16 * Math.sqrt((p.r || 1) / maxR), k: p.k, sz: p.r })),
+    new Chart(cv, { type: "bubble", data: { datasets: [{ data: pts.map(p => ({ x: clampX ? Math.min(p.x, xCap) : p.x, rx: p.x, over: clampX && p.x > xCap, y: p.y, r: 5 + 16 * Math.sqrt((p.r || 1) / maxR), k: p.k, sz: p.r })),
       backgroundColor: pts.map(col), borderColor: "#fff", borderWidth: 1.5, hoverBorderColor: INK }] },
       options: { __solidBars: true, maintainAspectRatio: false, animation: false, layout: { padding: { top: 18, right: 24 } },
-        plugins: { legend: { display: false }, tooltip: Object.assign({}, tipTheme, { callbacks: { label: x => `${x.raw.k}: ${opts.xLabel} ${xf(x.raw.x)} · ${opts.yLabel} ${yf(x.raw.y)} · ${fmtN(x.raw.sz)} ${opts.rLabel || "jobs"}` } }) },
-        scales: { x: Object.assign(axY(xf, { beginAtZero: false }), { title: { display: true, text: opts.xLabel, color: SUB, font: { size: 12, weight: "700" } }, grid: { color: GRID } }),
+        plugins: { legend: { display: false }, tooltip: Object.assign({}, tipTheme, { callbacks: { label: x => `${x.raw.k}: ${opts.xLabel} ${xf(x.raw.rx)} · ${opts.yLabel} ${yf(x.raw.y)} · ${fmtN(x.raw.sz)} ${opts.rLabel || "jobs"}` } }) },
+        scales: { x: Object.assign(axY(xf, { beginAtZero: false }), clampX ? { max: xCap * 1.04 } : {}, { title: { display: true, text: opts.xLabel, color: SUB, font: { size: 12, weight: "700" } }, grid: { color: GRID } }),
           y: Object.assign(axY(yf, { beginAtZero: false }), { title: { display: true, text: opts.yLabel, color: SUB, font: { size: 12, weight: "700" } } }) } },
       plugins: [{ id: "srq", afterDatasetsDraw(ch) {
         const ctx = ch.ctx, a = ch.chartArea, X = ch.scales.x.getPixelForValue(xa), Yp = ch.scales.y.getPixelForValue(ya);
@@ -424,7 +428,7 @@ async function renderSeasonal(host) {
           const pos = { tl: [a.left + 6, a.top + 14, "left"], tr: [a.right - 6, a.top + 14, "right"], bl: [a.left + 6, a.bottom - 8, "left"], br: [a.right - 6, a.bottom - 8, "right"] };
           Object.entries(opts.q).forEach(([k2, t]) => { const p = pos[k2]; if (!p || !t) return; ctx.textAlign = p[2]; ctx.fillText(t, p[0], p[1]); }); }
         ctx.font = "700 11.5px Inter"; ctx.fillStyle = INK2; ctx.textAlign = "left"; ctx.textBaseline = "middle";
-        ch.getDatasetMeta(0).data.forEach((el, i) => { const p = ch.data.datasets[0].data[i]; const nm = String(p.k).split(" ")[0]; ctx.fillText(nm, el.x + el.options.radius + 3, el.y); });
+        ch.getDatasetMeta(0).data.forEach((el, i) => { const p = ch.data.datasets[0].data[i]; const nm = String(p.k).split(" ")[0]; if (p.over) { ctx.textAlign = "right"; ctx.fillText(nm + " " + xf(p.rx) + " ›", el.x - el.options.radius - 3, el.y); ctx.textAlign = "left"; } else ctx.fillText(nm, el.x + el.options.radius + 3, el.y); });
         ctx.restore(); } }] });
     if (opts.note) note(c, opts.note); if (opts.how) note(c, opts.how, true); return c;
   }
