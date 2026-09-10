@@ -1548,7 +1548,11 @@
       + '<div class="erb-meta"><span class="erb-eyebrow">' + esc(shortOf(d.brief.Key, d.brief.Title))
       + "</span>" + pill(t.Priority, PRIO_TONE[t.Priority]) + pill(t.Status, TONE[t.Status])
       + '<span class="erb-dim" title="' + esc(when(t["Updated At"])) + '">updated '
-      + esc(ago(t["Updated At"])) + " by " + esc(who(t["Updated By"])) + "</span></div>"
+      + esc(ago(t["Updated At"])) + " by " + esc(who(t["Updated By"])) + "</span>"
+      + (srcs.length ? "<span>reported by " + stack(S, reps) + ' · <button class="erb-link" '
+         + "data-jump>" + srcs.length + (srcs.length === 1 ? " Slack report" : " Slack reports")
+         + " ↓</button></span>" : "")
+      + "</div>"
       + '<div class="erb-strip" id="dwStrip" role="group" aria-label="Status">' + STATUSES.map(function (st) {
           return '<button class="erb-stbtn' + (t.Status === st ? " on" : "") + '" data-st="'
             + esc(st) + '" aria-pressed="' + (t.Status === st) + '">' + esc(st) + "</button>";
@@ -1557,11 +1561,6 @@
       + '<div id="dwPrio"></div></div>'
       + '<div style="flex:1 1 220px"><span class="erb-lbl">Who is on it (a dev chat, a person…)</span>'
       + '<input class="erb-in" id="dwWho" value="' + esc(t.Assignee || "") + '"></div></div>'
-      + '<div class="erb-sec"><span>Reported in Slack</span><span class="r">' + srcs.length
-      + (srcs.length === 1 ? " report" : " reports") + "</span></div>"
-      + (srcs.length ? srcs.map(function (s) { return srcCard(S, s); }).join("")
-         : '<div class="panel"><div class="erb-empty">No Slack report is linked — this task was '
-           + "written from the discussion.</div></div>")
       + (writeTo.length ? '<div class="erb-sec"><span>Message</span></div><div class="erb-writes">'
          + writeTo.map(function (k) {
              return '<button class="rs-btn" data-write="' + esc(k) + '">' + av(S, k) + "Write to "
@@ -1577,6 +1576,13 @@
       + '<div class="erb-row"><input class="erb-in" id="dwQNew" placeholder="Ask a question about '
       + 'this task…" style="flex:1 1 240px"><input class="erb-in" id="dwQWho" placeholder="Ask whom" '
       + 'style="flex:0 1 150px"><button class="rs-btn" id="dwQAdd">Add</button></div>'
+      // the evidence sits below the spec: with six reports behind one task the spec was two
+      // screens down; the header's "N Slack reports ↓" jumps here
+      + '<div class="erb-sec" id="dwSrc"><span>Reported in Slack</span><span class="r">'
+      + srcs.length + (srcs.length === 1 ? " report" : " reports") + "</span></div>"
+      + (srcs.length ? srcs.map(function (s) { return srcCard(S, s); }).join("")
+         : '<div class="panel"><div class="erb-empty">No Slack report is linked — this task was '
+           + "written from the discussion.</div></div>")
       + '<div class="erb-sec"><span>Notes</span></div>'
       + '<textarea class="erb-in" id="dwNotes" placeholder="Decisions, what the dev chat did, '
       + 'where it stands…">' + esc(t.Notes || "") + "</textarea>"
@@ -1587,6 +1593,10 @@
 
     dw.el.querySelector("#dwClose").onclick = dw.close;
     dw.el.querySelector("#dwEdit").onclick = function () { paintTaskEdit(S, dw, t); };
+    var jump = dw.el.querySelector("[data-jump]");
+    if (jump) jump.onclick = function () {
+      dw.el.querySelector("#dwSrc").scrollIntoView({ behavior: "smooth", block: "start" });
+    };
     dw.el.querySelectorAll("[data-more]").forEach(function (b) {
       b.onclick = function () {
         var txt = b.previousElementSibling;
