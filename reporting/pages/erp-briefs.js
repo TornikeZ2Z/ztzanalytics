@@ -255,7 +255,7 @@
   function render(host) {
     injectStyle();
     host.innerHTML = '<div class="rs-loading" style="padding:22px">Loading briefs…</div>';
-    var S = { host: host, key: null, list: null, data: null, status: "Open", q: "" };
+    var S = { host: host, key: null, list: null, data: null, status: "_open", q: "" };
     try { S.key = localStorage.getItem("erb-key") || null; } catch (e) { /* private mode */ }
     api("/api/_erpbrief").then(function (j) {
       S.list = j;
@@ -312,7 +312,7 @@
     }).join("");
     el.querySelectorAll("[data-key]").forEach(function (t) {
       t.onclick = function () {
-        S.key = t.getAttribute("data-key"); S.status = "Open"; S.q = "";
+        S.key = t.getAttribute("data-key"); S.status = "_open"; S.q = "";
         try { localStorage.setItem("erb-key", S.key); } catch (e) { /* ignore */ }
         paintTabs(S); loadBrief(S);
       };
@@ -424,13 +424,13 @@
   function paintChips(S) {
     var counts = {};
     S.data.tasks.forEach(function (t) { counts[t.Status] = (counts[t.Status] || 0) + 1; });
-    var chips = [["Open", openTasks(S).length], ["All", S.data.tasks.length]]
+    var chips = [["_open", openTasks(S).length], ["All", S.data.tasks.length]]
       .concat(STATUSES.filter(function (st) { return counts[st]; })
         .map(function (st) { return [st, counts[st]]; }));
     var el = S.host.querySelector("#erbChips");
     el.innerHTML = chips.map(function (c) {
       return '<span class="erb-chip' + (S.status === c[0] ? " on" : "") + '" data-st="'
-        + esc(c[0]) + '">' + esc(c[0] === "Open" ? "Open (any working status)" : c[0])
+        + esc(c[0]) + '">' + esc(c[0] === "_open" ? "Working (any open status)" : c[0])
         + "<small>" + c[1] + "</small></span>";
     }).join("");
     el.querySelectorAll("[data-st]").forEach(function (b) {
@@ -440,7 +440,7 @@
 
   function tasksOf(S) {
     return S.data.tasks.filter(function (t) {
-      if (S.status === "Open") return OPEN_STATUSES.indexOf(t.Status) >= 0;
+      if (S.status === "_open") return OPEN_STATUSES.indexOf(t.Status) >= 0;
       if (S.status === "All") return true;
       return t.Status === S.status;
     });
