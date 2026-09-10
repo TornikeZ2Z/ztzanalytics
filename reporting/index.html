@@ -183,7 +183,7 @@ const GROUP_OVERRIDE = {
   "promised-reviews": "marketing",
   "referral-candidates": "marketing",
   // Company Overview
-  "monthly-report": "company", "analysis-by-category": "company", "work": "company",
+  "monthly-report": "company", "seasonal-report": "company", "analysis-by-category": "company", "work": "company",
   // Sales ("sales-geo" moved to Financial — Tornike 2026-07-13: geography is a money view)
   "sales-funnel": "sales", "sales-perf": "sales", "sales-geo": "financial", "demand-analysis": "sales", "sales-command": "sales",
   // a sales tool AND a support tool: the same transcripts answer "did we call them back"
@@ -216,7 +216,7 @@ const groupsOf = p => { const g = GROUP_OVERRIDE[p.id] || p.group;
 const groupOf = p => groupsOf(p)[0];
 /* explicit per-container item order (numbers are scoped within each group's display list) */
 const NAV_ORDER = {
-  "monthly-report": 1, "analysis-by-category": 2, "work": 0.5, "erp-briefs": 0.6,
+  "monthly-report": 1, "seasonal-report": 1.5, "analysis-by-category": 2, "work": 0.5, "erp-briefs": 0.6,
   "sales-command": 0.5, "sales-of-the-month": 0.6, "conversations": 0.7, "sales-comms": 0.8, "sales-trackers": 0.9, "sales-funnel": 1, "sales-perf": 2, "demand-analysis": 5,
   "mkt-roi": 1, "mkt-sources": 2, "mkt-phone": 3,
   "money-flow": 1, "foreman-closings": 2, "ld-planning": 3, "packing-control": 4, "storage-control": 5, "foreman-assessment": 6, "crew-salaries": 6.5, "fuel-control": 7, "foreman-late": 7.5, "log-foreman": 8, "log-packing": 9,
@@ -287,7 +287,7 @@ const PAGE_ICONS = {
   "foreman-closings": "receipt",
   "labor-analysis": "activity",
   "post-card-analysis": "megaphone",
-  "monthly-report": "spark", "work": "clipboard", "erp-briefs": "tool",
+  "monthly-report": "spark", "seasonal-report": "calendar", "work": "clipboard", "erp-briefs": "tool",
   "angi-vs-moveboard": "compass", "reviews-team": "star", "support-team": "shield", "lead-source-analysis": "compass", "source-analysis": "compass", "movers-analysis": "megaphone",
   "financial-team": "trend", "sales-team": "user", "marketing-team": "megaphone", "logistics-team": "tool",
   // themed dashboards + settings (2026-07-09 restructure)
@@ -685,6 +685,7 @@ const PAGE_DATASETS = {
   "movers-analysis": ["closing", "moveboard", "card_expenses"],
   "angi-vs-moveboard": [],   // fetches its own raw data — the global filter bar doesn't reach it
   "monthly-report": MR_DATASETS,
+  "seasonal-report": [],   // brings its own season picker and loads its own feeds
   "admin-users": [],
   "admin-activity": [],
   "general-settings": [],
@@ -942,7 +943,7 @@ function navigate(id, push) {
 /* Pages that bring their OWN toolbar and ignore the global filter bar (PAGE_DATASETS=[])
    render "bare" — the global date/slicer bar + company chip are hidden so the page's board
    starts right under the header instead of below two rows of greyed-out, unusable filters. */
-const BARE_CHROME = new Set(["sales-of-the-month", "review-performance", "reviews-cases", "claims-analysis", "demand-analysis", "reviews-reminders", "response-analysis", "review-settings", "monthly-report", "money-flow", "ld-planning", "cleanup", "packing-control", "crew-salaries", "storage-control", "foreman-assessment", "fuel-control", "foreman-closings", "refresh-log", "general-tables", "hr-questionnaire", "hr-my-questionnaire", "hr-directory", "conversations", "sales-comms", "referral-candidates", "jobs-by-area", "packing-sales", "meta-referrals", "relocation-trends", "angi-funnel", "utm-campaigns", "promised-reviews",
+const BARE_CHROME = new Set(["sales-of-the-month", "review-performance", "reviews-cases", "claims-analysis", "demand-analysis", "reviews-reminders", "response-analysis", "review-settings", "monthly-report", "seasonal-report", "money-flow", "ld-planning", "cleanup", "packing-control", "crew-salaries", "storage-control", "foreman-assessment", "fuel-control", "foreman-closings", "refresh-log", "general-tables", "hr-questionnaire", "hr-my-questionnaire", "hr-directory", "conversations", "sales-comms", "referral-candidates", "jobs-by-area", "packing-sales", "meta-referrals", "relocation-trends", "angi-funnel", "utm-campaigns", "promised-reviews",
   // ERP Bug Briefs has nothing a global slicer could act on; the greyed bar only got in the way
   "erp-briefs",
   // Straight vs Local reads its whole history on purpose (Tornike 2026-08-19: "i dont need
@@ -1095,6 +1096,7 @@ const SEARCH_ALIASES = {
   "hr-directory": "team directory people staff back office crew org employees roster emails",
   // Company Overview
   "monthly-report": "monthly report month review presentation ppt slides jobs done vs hours worked jobs vs hours job hour efficiency all in one",
+  "seasonal-report": "seasonal report season summer report may june july august peak season year over year netcash card goals foreman of the summer postcard yelp cpl",
   "analysis-by-category": "analysis by category custom breakdown categories explorer yoy diff year over year comparison annual vs last year",
   // ("insights" hidden for now — Tornike 2026-07-13: recommendations page needs rework)
   // Sales
@@ -1576,6 +1578,7 @@ const REPORT_LABELS = {
   "fuel-control": "Fuel Control",
   // Company Overview
   "monthly-report": "Monthly Report (all-in-one)",
+  "seasonal-report": "Seasonal Report (the busy season, season over season)",
   "analysis-by-category": "Custom Breakdown",
   "insights": "Insights & Recommendations",
   // Sales
@@ -1646,7 +1649,7 @@ const aclIconFor = id => (MERGED.find(m => m.id === id) || {}).icon ||
    scripts/check_acl_mirror.py now fails the build on any divergence. Run it before an
    analytics or bridge deploy. */
 const ACL_DEPTS = [
-  { id: "company",   label: "Company Overview", icon: "spark",     reports: ["work", "erp-briefs","monthly-report", "analysis-by-category"] },
+  { id: "company",   label: "Company Overview", icon: "spark",     reports: ["work", "erp-briefs","monthly-report", "seasonal-report", "analysis-by-category"] },
   { id: "sales",     label: "Sales",            icon: "funnel",    reports: ["work", "erp-briefs","sales-command", "sales-of-the-month", "demand-analysis", "conversations", "sales-comms", "sales-trackers"] },
   { id: "marketing", label: "Marketing",        icon: "megaphone", reports: ["work", "erp-briefs","source-trace", "referral-candidates", "jobs-by-area", "packing-sales", "relocation-trends", "angi-funnel", "utm-campaigns", "promised-reviews"] },
   { id: "logistics", label: "Logistics",        icon: "tool",      reports: ["work", "erp-briefs","money-flow", "ld-planning", "foreman-closings", "packing-control", "crew-salaries", "storage-control", "foreman-assessment", "fuel-control", "foreman-late", "straight-vs-local", "area-plan", "season-settings", "truck-economics"] },
@@ -1859,6 +1862,7 @@ registerPage({
 <script src="pages/labor-analysis.js?v=3"></script>
 <script src="pages/post-card-analysis.js?v=4"></script>
 <script src="pages/monthly-report.js?v=106"></script>
+<script src="pages/seasonal-report.js?v=1"></script>
 <script src="pages/leads-vs-moveboard.js?v=7"></script>
 <script src="pages/source-analysis.js?v=5"></script>
 <script src="pages/data-quality.js?v=15"></script>
