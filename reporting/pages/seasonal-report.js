@@ -39,6 +39,23 @@ async function renderSeasonal(host) {
     api("RingCentral lines", "/api/mart_rc_monthly_line?limit=100000"),
     api("RingCentral teammates", "/api/mart_rc_monthly_agent?limit=100000")]);
   const DS = { closing, moveboard, claims, refunds, card_expenses: cardEx, callrail };
+  /* Claims + reviews deep-dives read tables that are granted with Claims Analysis / Review Performance.
+     They are OPTIONAL here: a reader without those pages gets a note on the section (never a red
+     banner), and this page never widens who can reach the claims board — the grant stays where it is. */
+  const opt = url => ZTZ.api(url).then(j => j.rows || []).catch(e => { console.warn("SR optional feed:", url, e); return null; });
+  const colq = a => "&cols=" + encodeURIComponent(a.join(","));
+  const [cmart, ckw, credit, jov, negrev, revbk, rcounts] = await Promise.all([
+    opt("/api/mart_claims_analysis?limit=100000"),
+    opt("/api/mart_claim_keywords?limit=100000" + colq(["Monday Item Id", "Family Used"])),
+    opt("/api/mart_sales_credit?limit=300000" + colq(["Request Joinkey", "Sales Person", "Share"])),
+    opt("/api/fct_job_overview?limit=100000" + colq(["Job Date", "Job No", "Customer", "Foreman", "Company", "Job Type", "Number of Reviews",
+      "Review Breakdown", "Eligible", "Exclusion Reason", "Final Status", "Foreman Reason", "Request Joinkey"])),
+    grab("negative_reviews"), grab("reviews_breakdown"), grab("review_counts")]);
+  DS.negative_reviews = negrev; DS.reviews_breakdown = revbk;
+  // a manager's correction of a claim's family (Claims Analysis) — read-only here, same precedence as that page
+  const OV = {};
+  try { if (ZTZ.API && ZTZ.getToken && cmart) { const res = await fetch(ZTZ.API + "/api/_claimoverride", { headers: { Authorization: "Bearer " + ZTZ.getToken() } });
+    if (res.ok) ((await res.json()).overrides || []).forEach(o => { OV[String(o["Monday Item Id"])] = o; }); } } catch (e) { /* no access or none yet */ }
 
   const coRow = r => r.Company == null || String(r.Company) === CO;
   // fct_claims has no Company column — attribute each claim through the company's own closings
@@ -177,6 +194,33 @@ async function renderSeasonal(host) {
     .srx-tbl td.ok{color:${POS};font-weight:800}.srx-tbl td.no{color:${NEG};font-weight:800}
     .srx-mx td{text-align:center}.srx-mx td:first-child{text-align:left}
     .srx-mx td small{display:block;font-size:11.5px;color:${FAINT};font-weight:600}
+    .srx-strip{display:grid;grid-template-columns:minmax(260px,1.6fr) repeat(auto-fit,minmax(150px,1fr));gap:14px;align-items:stretch}
+    .srx-big{background:${INK};color:#fff;border-radius:12px;padding:16px 18px;display:flex;flex-direction:column;gap:4px}
+    .srx-big b{font-family:${MONO};font-size:40px;font-weight:900;letter-spacing:-1.5px;color:${LIME};line-height:1}
+    .srx-big span{font-size:13px;font-weight:700;color:#e8edf3}
+    .srx-big em{font-style:normal;font-size:12px;color:#a9b6c6;font-family:${MONO};margin-top:4px}
+    .srx-big .srx-chip{align-self:flex-start;margin-top:4px}
+    .srx-st{border:1px solid ${LINE};border-radius:12px;padding:12px 14px;background:#fff}
+    .srx-st .l{font-size:12px;font-weight:750;color:${SUB};text-transform:uppercase;letter-spacing:.05em}
+    .srx-st .v{font-family:${MONO};font-size:24px;font-weight:800;margin:5px 0 3px;letter-spacing:-.5px}
+    .srx-st .s{font-size:12px;color:${FAINT};font-weight:600;line-height:1.4}
+    .srx-tbl tr.srx-dr{cursor:pointer}
+    .srx-tbl tr.srx-dr:hover td{background:#f6f8fb}
+    .srx-tbl tr.srx-dr.open td{background:#eef3e0}
+    .srx-tbl td.srx-car{width:18px;color:${LIMED};font-weight:800;padding-right:0}
+    .srx-tbl tr.srx-det>td{background:#fbfcf7;white-space:normal;padding:10px 14px 14px;border-bottom:2px solid ${LIME}}
+    .srx-tbl tr.small td{color:${FAINT}}
+    .srx-mini{width:100%;border-collapse:collapse;font-size:12.5px;font-family:Inter,sans-serif}
+    .srx-mini th{text-align:left;font-size:11.5px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:${SUB};padding:5px 8px;border-bottom:1px solid ${LINE}}
+    .srx-mini td{text-align:left!important;padding:5px 8px;border-bottom:1px solid ${GRID};font-weight:500!important;color:${INK2}!important;font-family:Inter,sans-serif!important;white-space:nowrap}
+    .srx-mini td.no{color:${NEG}!important;font-weight:700!important}
+    .srx-minif{margin-top:6px;font-size:12px;color:${SUB};font-weight:600}
+    .srx-pg{display:flex;justify-content:space-between;align-items:center;margin-top:10px;font-family:${MONO};font-size:12.5px;font-weight:700;color:${SUB}}
+    .srx-pg button{font:inherit;border:1px solid ${LINE};background:#fff;color:${INK};border-radius:7px;padding:5px 12px;margin-left:6px;cursor:pointer}
+    .srx-pg button[disabled]{opacity:.4;cursor:default}
+    .srx-pg button.all{background:${LIME};border-color:${LIME};font-weight:800}
+    .srx-link{color:${BLUE};font-weight:700;text-decoration:none;font-family:Inter,sans-serif}
+    .srx-link:hover{text-decoration:underline}
     .srx-empty{height:100%;min-height:120px;display:grid;place-items:center;color:${FAINT};font-size:13px;font-weight:600}
     .srx-gap li{margin:4px 0}
     @media print{
@@ -239,6 +283,8 @@ async function renderSeasonal(host) {
     return `<span class="srx-chip" style="background:${good ? POS_T1 : NEG_T1};color:${good ? POS : NEG}">${lbl || "vs " + yy(LY)} ${g >= 0 ? "▲" : "▼"} ${Math.abs(g * 100).toFixed(0)}%</span>`;
   }
   const dcell = (c, p, inv) => { const g = growth(c, p); if (g == null) return `<td class="dim">—</td>`; const good = inv ? g < 0 : g >= 0; return `<td class="${good ? "up" : "dn"}">${g >= 0 ? "+" : ""}${(g * 100).toFixed(0)}%</td>`; };
+  // for a rate where lower is better (claims): the sign says which way it moved, the colour says whether that is good
+  const ppInv = (c, p) => { if (c == null || p == null || !isFinite(c) || !isFinite(p)) return `<td class="dim">—</td>`; const d = (c - p) * 100; return `<td class="${d <= 0 ? "up" : "dn"}">${d >= 0 ? "+" : ""}${d.toFixed(1)}pp</td>`; };
   const ppcell = (c, p) => { if (c == null || p == null || !isFinite(c) || !isFinite(p)) return `<td class="dim">—</td>`; const d = (c - p) * 100; return `<td class="${d >= 0 ? "up" : "dn"}">${d >= 0 ? "+" : ""}${d.toFixed(1)}pp</td>`; };
 
   // columns across SEASONS — one dataset, or several side by side (e.g. Total Bill vs Netcash + Card)
@@ -318,6 +364,84 @@ async function renderSeasonal(host) {
   const td = (v, cls) => `<td${cls ? ` class="${cls}"` : ""}>${v}</td>`;
   const tdn = (v, fmt) => v == null || (typeof v === "number" && !isFinite(v)) ? `<td class="dim">—</td>` : `<td>${fmt ? fmt(v) : v}</td>`;
 
+  // a table whose rows can open into the records behind them, and page past 15 rows.
+  // rows = [{ h: "<td>…</td>…", d: detailHtml | null, cls }]; the detail is built when the row is built,
+  // so "these are the records behind this number" is true by construction.
+  function ptable(mount, title, sub, headers, rowsIn, opts) {
+    opts = opts || {}; const c = card(mount, title, sub, Object.assign({ span2: opts.span2 !== false }, opts));
+    const per = opts.per || 0, n = headers.length + (opts.drillCol ? 1 : 0);
+    const g = opts.groups ? `<tr>${opts.drillCol ? "<th></th>" : ""}${opts.groups.map(([l, k]) => `<th class="grp" colspan="${k}">${esc(l)}</th>`).join("")}</tr>` : "";
+    const w = document.createElement("div"); w.className = "srx-scroll"; c.appendChild(w);
+    let page = 0, all = false;
+    const draw = () => {
+      if (!rowsIn.length) { w.innerHTML = `<div class="srx-empty">No data in this window</div>`; return; }
+      const shown = per && !all ? rowsIn.slice(page * per, page * per + per) : rowsIn;
+      w.innerHTML = `<table class="srx-tbl${opts.matrix ? " srx-mx" : ""}"><thead>${g}<tr>${opts.drillCol ? "<th></th>" : ""}${headers.map(h => `<th>${esc(h)}</th>`).join("")}</tr></thead><tbody>` +
+        shown.map((r, i) => `<tr class="${r.cls || ""}${r.d ? " srx-dr" : ""}" data-i="${i}">${opts.drillCol ? `<td class="srx-car">${r.d ? "▸" : ""}</td>` : ""}${r.h}</tr>` +
+          (r.d ? `<tr class="srx-det" hidden><td colspan="${n}">${r.d}</td></tr>` : "")).join("") +
+        (opts.tot ? `<tr class="tot">${opts.drillCol ? "<td></td>" : ""}${opts.tot}</tr>` : "") + `</tbody></table>` +
+        (per && rowsIn.length > per ? `<div class="srx-pg"><span>${all ? `all ${rowsIn.length}` : `${page * per + 1}–${Math.min(rowsIn.length, page * per + per)} of ${rowsIn.length}`}</span>
+          <span>${all ? "" : `<button type="button" data-p="-1" ${page ? "" : "disabled"}>‹ prev</button><button type="button" data-p="1" ${(page + 1) * per < rowsIn.length ? "" : "disabled"}>next ›</button>`}<button type="button" data-p="all" class="all">${all ? "show pages" : "show all"}</button></span></div>` : "");
+    };
+    w.addEventListener("click", e => {
+      const pb = e.target.closest("button[data-p]");
+      if (pb) { const v = pb.dataset.p; if (v === "all") all = !all; else page += +v; draw(); return; }
+      if (e.target.closest("a")) return;
+      const tr = e.target.closest("tr.srx-dr"); if (!tr) return;
+      const det = tr.nextElementSibling; if (!det || !det.classList.contains("srx-det")) return;
+      det.hidden = !det.hidden; tr.classList.toggle("open", !det.hidden);
+      const car = tr.querySelector(".srx-car"); if (car) car.textContent = det.hidden ? "▸" : "▾";
+    });
+    draw();
+    if (opts.note) note(c, opts.note); if (opts.how) note(c, opts.how, true); return c;
+  }
+  // the records behind a number, as a compact inner table
+  const mini = (headers, rowsH, foot) => `<table class="srx-mini"><thead><tr>${headers.map(h => `<th>${esc(h)}</th>`).join("")}</tr></thead><tbody>${rowsH.join("")}</tbody></table>${foot ? `<div class="srx-minif">${foot}</div>` : ""}`;
+  const mondayLink = u => u && /^https:\/\//.test(String(u)) ? `<a class="srx-link" href="${esc(u)}" target="_blank" rel="noopener">Monday ↗</a>` : "";
+
+  // quality map — two rates against each other, bubble = volume, dashed lines = the team's own average.
+  // Colour answers "good on both / bad on both / mixed", so a reader never has to decode the axes first.
+  function quadrant(mount, title, sub, pts, xf, yf, opts) {
+    opts = opts || {}; const c = card(mount, title, sub, opts); const { b, cv } = chartBox(c, opts.h || 420);
+    if (pts.length < 2) { empty(b, "Too few people with enough jobs to compare"); return c; }
+    const maxR = Math.max(...pts.map(p => p.r || 1));
+    const xa = opts.xAvg != null ? opts.xAvg : pts.reduce((a, p) => a + p.x, 0) / pts.length;
+    const ya = opts.yAvg != null ? opts.yAvg : pts.reduce((a, p) => a + p.y, 0) / pts.length;
+    const okX = p => opts.goodX === "low" ? p.x <= xa : p.x >= xa, okY = p => opts.goodY === "low" ? p.y <= ya : p.y >= ya;
+    const col = p => okX(p) && okY(p) ? LIME : !okX(p) && !okY(p) ? NEG : BLUE;
+    new Chart(cv, { type: "bubble", data: { datasets: [{ data: pts.map(p => ({ x: p.x, y: p.y, r: 5 + 16 * Math.sqrt((p.r || 1) / maxR), k: p.k, sz: p.r })),
+      backgroundColor: pts.map(col), borderColor: "#fff", borderWidth: 1.5, hoverBorderColor: INK }] },
+      options: { __solidBars: true, maintainAspectRatio: false, animation: false, layout: { padding: { top: 18, right: 24 } },
+        plugins: { legend: { display: false }, tooltip: Object.assign({}, tipTheme, { callbacks: { label: x => `${x.raw.k}: ${opts.xLabel} ${xf(x.raw.x)} · ${opts.yLabel} ${yf(x.raw.y)} · ${fmtN(x.raw.sz)} ${opts.rLabel || "jobs"}` } }) },
+        scales: { x: Object.assign(axY(xf, { beginAtZero: false }), { title: { display: true, text: opts.xLabel, color: SUB, font: { size: 12, weight: "700" } }, grid: { color: GRID } }),
+          y: Object.assign(axY(yf, { beginAtZero: false }), { title: { display: true, text: opts.yLabel, color: SUB, font: { size: 12, weight: "700" } } }) } },
+      plugins: [{ id: "srq", afterDatasetsDraw(ch) {
+        const ctx = ch.ctx, a = ch.chartArea, X = ch.scales.x.getPixelForValue(xa), Yp = ch.scales.y.getPixelForValue(ya);
+        ctx.save(); ctx.strokeStyle = FAINT; ctx.setLineDash([4, 4]); ctx.lineWidth = 1.2;
+        ctx.beginPath(); ctx.moveTo(X, a.top); ctx.lineTo(X, a.bottom); ctx.moveTo(a.left, Yp); ctx.lineTo(a.right, Yp); ctx.stroke(); ctx.setLineDash([]);
+        ctx.font = "700 11.5px " + MONO; ctx.fillStyle = FAINT; ctx.textAlign = "left"; ctx.fillText("team avg", X + 4, a.top + 11);
+        if (opts.q) { ctx.font = "800 11.5px Inter"; ctx.fillStyle = SUB;
+          const pos = { tl: [a.left + 6, a.top + 14, "left"], tr: [a.right - 6, a.top + 14, "right"], bl: [a.left + 6, a.bottom - 8, "left"], br: [a.right - 6, a.bottom - 8, "right"] };
+          Object.entries(opts.q).forEach(([k2, t]) => { const p = pos[k2]; if (!p || !t) return; ctx.textAlign = p[2]; ctx.fillText(t, p[0], p[1]); }); }
+        ctx.font = "700 11.5px Inter"; ctx.fillStyle = INK2; ctx.textAlign = "left"; ctx.textBaseline = "middle";
+        ch.getDatasetMeta(0).data.forEach((el, i) => { const p = ch.data.datasets[0].data[i]; const nm = String(p.k).split(" ")[0]; ctx.fillText(nm, el.x + el.options.radius + 3, el.y); });
+        ctx.restore(); } }] });
+    if (opts.note) note(c, opts.note); if (opts.how) note(c, opts.how, true); return c;
+  }
+  // bridge from one total to another — floating steps, green up, red down
+  function waterfall(mount, title, sub, steps, fmt, opts) {
+    opts = opts || {}; const c = card(mount, title, sub, opts); const { b, cv } = chartBox(c, opts.h || 330);
+    let run = 0; const bars = [], cols = [];
+    steps.forEach(s => { if (s.total) { bars.push([0, s.v]); cols.push(s.hero ? LIME : INK); run = s.v; } else { bars.push([run, run + s.v]); cols.push(s.v >= 0 ? POS : NEG); run += s.v; } });
+    new Chart(cv, { type: "bar", data: { labels: steps.map(s => s.label), datasets: [{ data: bars, backgroundColor: cols, borderRadius: 3, maxBarThickness: 90, categoryPercentage: .9, barPercentage: .95 }] },
+      options: base({ layout: { padding: { top: 24 } }, plugins: { legend: legend(false), tooltip: Object.assign({}, tipTheme, { callbacks: { label: x => { const d = x.raw; return fmt(d[1] - d[0]); } } }) },
+        scales: { x: { ticks: { color: INK2, font: { size: 12, weight: "600" }, maxRotation: 0, autoSkip: false, callback(v) { const l = this.getLabelForValue(v); return l.length > 16 ? l.split(" — ") : l; } }, grid: { display: false } },
+          y: axY(moneyC, { beginAtZero: !!opts.zero }) } }, fmt),
+      plugins: [{ id: "srwf", afterDatasetsDraw(ch) { const ctx = ch.ctx; ctx.save(); ctx.font = "800 12px " + MONO; ctx.textAlign = "center"; ctx.textBaseline = "bottom";
+        ch.getDatasetMeta(0).data.forEach((el, i) => { const d = bars[i], v = d[1] - d[0], top = Math.min(el.y, el.base); ctx.fillStyle = steps[i].total ? INK : v >= 0 ? POS : NEG; ctx.fillText((steps[i].total ? "" : v >= 0 ? "+" : "−") + fmt(Math.abs(v)), el.x, top - 4); }); ctx.restore(); } }] });
+    if (opts.note) note(c, opts.note); if (opts.how) note(c, opts.how, true); return c;
+  }
+
   /* ---------- the headline, per season ---------- */
   const sumCol = (rs, col) => rs.reduce((a, r) => a + num(r[col]), 0);
   const H = {};
@@ -334,11 +458,46 @@ async function renderSeasonal(host) {
       leads: cr.length, qual: qual(cr), conf: conf(bk), book: RS.bookingRate(cr, bk), bad: cr.length ? 1 - qual(cr) / cr.length : null,
       claims: rows("claims", y).filter(r => coJk.has(String(r["Request Joinkey"] || ""))).length,
       refunds: sumCol(rows("refunds", y).filter(coRow), "Total refund"),
-      revPerJob: scJobs ? sumCol(sc, "Total Reviews Written") / scJobs : null,
+      revPerJob: scJobs && sumCol(sc, "Total Reviews Written") > 0 ? sumCol(sc, "Total Reviews Written") / scJobs : null,
       missRate: inCalls ? missed / inCalls : null, inCalls,
       adSpend, adPer1: adSpend ? ncc(adCl.filter(r => paid.has(normSrc(r.Source)))) / adSpend : null };
   });
   const C = H[Y], P = H[LY] || {};
+
+  /* ---------- customer experience: claims + reviews, per season ----------
+     CLAIMS follow Claims Analysis exactly: a claim counts in the window of the day it was FILED
+     (New Jersey day), jobs count by the closing's date, and the rate is claims ÷ DISTINCT jobs
+     (closing rows, one per request). The family counted is a manager's correction > the keyword
+     reading > the board's own reason. Refunds are stored per JOB on the mart, so a job with two
+     claims would carry its refund twice — every refund total here counts each job once.
+     REVIEWS follow Review Performance: review EVENTS on ELIGIBLE jobs (no claim, refund or negative
+     review on the job, and a foreman on it), by the job's date — so a job reviewed on three
+     platforms counts three and a foreman can pass 100%. */
+  const inWin = (d, y, a, b) => { d = String(d || "").slice(0, 10); if (d.length < 10) return false; const m = +d.slice(5, 7); return +d.slice(0, 4) === y && m >= (a || F) && m <= (b || T); };
+  const jobKeys = (y, a, b) => { const s = new Set(); cl(y, a, b).forEach(r => { if (r["Record Source"] === "closing" && r["Request Joinkey"]) s.add(String(r["Request Joinkey"])); }); return s; };
+  const KWF = {}; (ckw || []).forEach(r => { KWF[String(r["Monday Item Id"])] = r["Family Used"]; });
+  const famOf = r => { const id = String(r["Monday Item Id"]); return (OV[id] && OV[id].Family) || KWF[id] || r["Reason Family"] || "Unclassified"; };
+  const respOf = r => String(r["Responsibility Family"] || "").trim() || "Not assigned";
+  const CM = (cmart || []).filter(r => String(r.Company || "") === CO);
+  const claimsIn = (y, a, b) => CM.filter(r => inWin(r["Created Date"], y, a, b));
+  const refundOf = rs => { const seen = new Set(); let t = 0; rs.forEach(r => { const jk = String(r["Request Joinkey"] || ""); if (seen.has(jk)) return; seen.add(jk); t += num(r["Refund $"]); }); return t; };
+  const isOpenC = r => Number(r["Is Open"]) === 1, wentPublic = r => num(r["Negative Reviews"]) > 0;
+  const median = a => { const s = a.filter(v => v != null && isFinite(v)).sort((x, y) => x - y); return s.length ? s[Math.floor(s.length / 2)] : null; };
+  const JO = (jov || []).filter(r => !r.Company || String(r.Company) === CO);
+  const joIn = (y, a, b) => JO.filter(r => inWin(r["Job Date"], y, a, b));
+  const elig = r => Number(r.Eligible) === 1;
+  const nRev = r => num(r["Number of Reviews"]);
+  const CX = {};
+  YEARS.forEach(y => {
+    const jn = jobKeys(y).size, cs = cmart ? claimsIn(y) : null, el = jov ? joIn(y).filter(elig) : null;
+    const o = CX[y] = { jobsN: jn, claims: cs ? cs.length : null, rate: cs && jn ? cs.length / jn : null, refund: cs ? refundOf(cs) : null,
+      open: cs ? cs.filter(isOpenC).length : null, pub: cs ? cs.filter(wentPublic).length : null,
+      eligN: el ? el.length : null, revs: el ? el.reduce((a, r) => a + nRev(r), 0) : null, reviewed: el ? el.filter(r => nRev(r) > 0).length : null,
+      neg: rows("negative_reviews", y).length };
+    o.revPerJob = o.eligN ? o.revs / o.eligN : null; o.revShare = o.eligN ? o.reviewed / o.eligN : null;
+  });
+  const CC = CX[Y], CP = CX[LY] || {};
+  let FMCL = null, SPCL = null, REVFM = null;   // filled by the claims and reviews parts, read by crew + findings
 
   /* ---------- cover + honesty banners + contents ---------- */
   const root = host.querySelector(".srx"); root.innerHTML = "";
@@ -366,7 +525,7 @@ async function renderSeasonal(host) {
     o = o || {}; const el = document.createElement("div"); // "srx-hero", never bare "hero": portal.css owns .hero {text-align:center;max-width:760px}
     el.className = "srx-kpi" + (o.hero ? " srx-hero" : "");
     let ch;
-    if (o.pp) { const d = c != null && p != null ? (c - p) * 100 : null; ch = d == null ? `<span class="srx-chip" style="background:${GRID};color:${SUB}">vs ${yy(LY)} —</span>` : `<span class="srx-chip" style="background:${d >= 0 ? POS_T1 : NEG_T1};color:${d >= 0 ? POS : NEG}">vs ${yy(LY)} ${d >= 0 ? "▲" : "▼"} ${Math.abs(d).toFixed(1)}pp</span>`; }
+    if (o.pp) { const d = c != null && p != null ? (c - p) * 100 : null; ch = d == null ? `<span class="srx-chip" style="background:${GRID};color:${SUB}">vs ${yy(LY)} —</span>` : `<span class="srx-chip" style="background:${(o.inv ? d <= 0 : d >= 0) ? POS_T1 : NEG_T1};color:${(o.inv ? d <= 0 : d >= 0) ? POS : NEG}">vs ${yy(LY)} ${d >= 0 ? "▲" : "▼"} ${Math.abs(d).toFixed(1)}pp</span>`; }
     else ch = chip(c, p, o.inv);
     el.innerHTML = `<div class="srx-kl">${esc(l)}</div><div class="srx-kv">${v}</div>${ch}<span class="srx-chip" style="color:${FAINT}">${yy(LY)}: ${p == null ? "—" : (o.f || String)(p)}</span>`;
     g.appendChild(el);
@@ -379,6 +538,11 @@ async function renderSeasonal(host) {
   kpi(g1, "Avg job value", C.avg == null ? "—" : money(C.avg), C.avg, P.avg, { f: money });
   kpi(g1, "Qualified leads", fmtN(C.qual), C.qual, P.qual, { f: fmtN });
   kpi(g1, "Booking rate", pct(C.book), C.book, P.book, { pp: true, f: pct });
+  kpi(g1, "Claims — share of jobs", CC.rate == null ? "—" : pct(CC.rate), CC.rate, CP.rate, { pp: true, inv: true, f: pct });
+  kpi(g1, "Refunds on claimed jobs", CC.refund == null ? "—" : money(CC.refund), CC.refund, CP.refund, { inv: true, f: money });
+  kpi(g1, "Reviews per eligible job", CC.revPerJob == null ? "—" : pct0(CC.revPerJob), CC.revPerJob, CP.revPerJob, { pp: true, f: pct0 });
+  kpi(g1, "Negative reviews", fmtN(CC.neg), CC.neg, CP.neg, { inv: true, f: fmtN });
+
 
   const g1b = grid();
   // the story, computed from the same numbers the tiles show — never written by hand
@@ -417,6 +581,40 @@ async function renderSeasonal(host) {
     table(g1b, `${Y} goals — set in the Summer Report ${LY}`, "graded on this season's data", ["Goal", "Target", String(Y), String(LY), "Result"], rowsT,
       { head: `${met} / ${measurable}`, how: `The targets are the ones the Summer Report ${LY} deck proposed for ${Y} (its strategy and KPI-goal slides). "Netcash + Card" is the deck's profit line: Net Cash + Card Payment. Booking rate divides by QUALIFIED leads, so it rises when more leads are marked bad${C.bad != null && P.bad != null ? ` (${pct0(C.bad)} of ${Y} leads vs ${pct0(P.bad)} of ${LY})` : ""} — read it next to the confirmed-jobs count. Missed calls read the RingCentral inbound log across every ${CO} line; the deck quoted a per-rep figure, which the data here cannot rebuild month by month yet.` });
   }
+
+  // what moved the Total Bill: more jobs vs bigger jobs, local and long distance apart.
+  // Per segment: volume = (jobs now − jobs then) × last season's average job; value = (average now −
+  // average then) × jobs now. The two add up to the segment's change exactly, so the bars reconcile.
+  const segOf = (y, loc) => cl(y).filter(r => loc ? !isLD(r) : isLD(r));
+  const br = [["Local", true], ["Long distance", false]].map(([n, loc]) => { const t = segOf(Y, loc), l = segOf(LY, loc);
+    const aT = t.length ? bill(t) / t.length : 0, aL = l.length ? bill(l) / l.length : 0;
+    return { n, vol: (t.length - l.length) * aL, val: (aT - aL) * t.length, jT: t.length, jL: l.length, aT, aL }; });
+  if (H[LY]) {
+    const lbl = (b2, k) => k === "vol" ? `${b2.n} — ${b2.vol >= 0 ? "more" : "fewer"} jobs` : `${b2.n} — ${b2.val >= 0 ? "bigger" : "smaller"} avg job`;
+    const vT = br.reduce((a, x) => a + x.vol, 0), pT = br.reduce((a, x) => a + x.val, 0);
+    waterfall(g1b, `What moved the Total Bill, ${LY} → ${Y}`, "more jobs vs bigger jobs — local and long distance apart", [
+      { label: `${seasonName} ${LY}`, v: P.bill, total: true },
+      ...br.flatMap(b2 => [{ label: lbl(b2, "vol"), v: b2.vol }, { label: lbl(b2, "val"), v: b2.val }]),
+      { label: `${seasonName} ${Y}`, v: C.bill, total: true, hero: true }], money,
+      { span2: true, head: (C.bill - P.bill >= 0 ? "+" : "−") + money(Math.abs(C.bill - P.bill)),
+        note: `${money(Math.abs(pT))} of the change came from the average job ${pT >= 0 ? "growing" : "shrinking"} and ${money(Math.abs(vT))} from ${vT >= 0 ? "doing more" : "doing fewer"} jobs. Local average job ${money(br[0].aL)} → ${money(br[0].aT)}; long distance ${money(br[1].aL)} → ${money(br[1].aT)}.`,
+        how: "Volume effect = change in jobs × last season's average job. Value effect = change in the average job × this season's jobs. The value effect carries both price and job size (a bigger move bills more at the same rate). Long distance = Regular + Straight moves, standalone trips included." });
+  }
+  // season pace — the running Total Bill week by week, every season on one scale
+  (() => {
+    const c = card(g1b, "Season pace — running Total Bill by week", "cumulative from the first day of the window", { span2: true, head: money(C.bill) });
+    const { b, cv } = chartBox(c, 330);
+    const start = y => new Date(Date.UTC(y, F - 1, 1)), nW = Math.ceil(winMonths.reduce((a, m) => a + lastDay(Y, m), 0) / 7);
+    const sets = YEARS.map(y => { const wk = new Array(nW).fill(0); let last = -1;
+      cl(y).forEach(r => { const d = new Date(String(r._d || r.Date).slice(0, 10) + "T00:00:00Z"); const w = Math.min(nW - 1, Math.floor((d - start(y)) / 864e5 / 7)); if (w >= 0) { wk[w] += num(r["Total Bill"]) + num(r["Extra Bill From Trips"]); if (w > last) last = w; } });
+      let run = 0; return { label: String(y), data: wk.map((v, i) => { run += v; return i <= last ? run : null; }), borderColor: yearColor(y), backgroundColor: yearColor(y),
+        borderWidth: y === Y ? 3.4 : 2, pointRadius: 0, tension: 0, fill: false }; });
+    new Chart(cv, { type: "line", data: { labels: Array.from({ length: nW }, (_, i) => "Wk " + (i + 1)), datasets: sets },
+      options: base({ layout: { padding: { top: 10, right: 12 } }, plugins: { legend: legend(true), tooltip: Object.assign({}, tipTheme, { callbacks: { label: x => x.dataset.label + ": " + money(x.parsed.y) } }) },
+        scales: { x: axX(), y: axY(moneyC) } }, money) });
+    const wkNow = sets[sets.length - 1].data.filter(v => v != null).length, prevAt = H[LY] ? sets[sets.length - 2].data[wkNow - 1] : null;
+    if (prevAt && wkNow < nW) note(c, `After week ${wkNow} this season stands at ${money(sets[sets.length - 1].data[wkNow - 1])} against ${money(prevAt)} at the same point of ${LY}.`);
+  })();
 
   /* ================= 02 · money, season over season ================= */
   const g2 = part("Financials", "Total Bill, Netcash + Card and jobs — every season on file");
@@ -467,9 +665,6 @@ async function renderSeasonal(host) {
   pairBars(g2, "Afternoon jobs — a foreman's second job of the day", `by month · ${Y} vs ${LY}`, winMonths.map(m => MON[m]), aL, aT, fmtN,
     { head: fmtN(aTt), chips: chip(aTt, aLt), how: "The closing sheet has no start time, so this counts jobs that were NOT the foreman's first job that day (foreman job order ≥ 2). The deck's \"evening jobs\" were counted by hand and run about 10% higher." });
 
-  // claims + refunds
-  combo(g2, "Claims and refunds", "claims filed (by claim date) · refunds paid (by refund date)", YEARS.map(String), YEARS.map(y => H[y].claims), "Claims", fmtN, YEARS.map(y => H[y].refunds), "Refunds paid", moneyC,
-    { head: fmtN(C.claims) + " claims", chips: chip(C.claims, P.claims, true), barAxis: fmtN });
 
   // packing — written vs material bought
   const packRow = y => { const c = cl(y), w = sumCol(c, "Material Total"), com = sumCol(c, "Material $");
@@ -478,7 +673,197 @@ async function renderSeasonal(host) {
     YEARS.slice().reverse().map(y => { const p = packRow(y); return `<tr>${td(y === Y ? `<b>${y}</b>` : y)}${td(money(p.w))}${td(money(p.com))}${p.bought ? td(money(p.bought)) : `<td class="dim">—</td>`}${tdn(p.bought ? p.w / p.bought : null, x1)}</tr>`; }),
     { span2: false, how: "Written = Material Total on the closings. Commission = the foreman's packing share (Material $). Material bought = card transactions categorised Job Supplies → Packing Material; seasons before that category existed show —." });
 
-  /* ================= 03 · demand (Moveboard) ================= */
+  /* ================= claims ================= */
+  const gC = part("Claims", "how many jobs draw a claim, what it is about, whose jobs — and how it ends");
+  if (!cmart) {
+    const c = card(gC, "The claims deep-dive needs Claims Analysis access", "", { span2: true });
+    note(c, "This part reads the Claims Analysis data (reasons, responsibility, refunds, the link to each Monday case). That data is granted with the Claims Analysis and Review Cases pages only, and this report does not widen it. Below is the plain count every reader can see.", true);
+    combo(gC, "Claims and refunds", "claims filed (by claim date) · refunds paid (by refund date)", YEARS.map(String), YEARS.map(y => H[y].claims), "Claims", fmtN, YEARS.map(y => H[y].refunds), "Refunds paid", moneyC,
+      { span2: true, head: fmtN(C.claims) + " claims", chips: chip(C.claims, P.claims, true), barAxis: fmtN });
+  } else {
+    const csT = claimsIn(Y), csL = claimsIn(LY);
+    const ppChip = (c, p) => { if (c == null || p == null) return ""; const d = (c - p) * 100; return `<span class="srx-chip" style="background:${d <= 0 ? POS_T1 : NEG_T1};color:${d <= 0 ? POS : NEG}">vs ${yy(LY)} ${d >= 0 ? "▲" : "▼"} ${Math.abs(d).toFixed(1)}pp</span>`; };
+    // headline strip
+    const hero = card(gC, `Claims — ${seasonName} ${Y}`, "the one number, and what happened to those claims", { span2: true });
+    const med = median(csT.map(r => r["Days After Job"] == null ? null : num(r["Days After Job"])));
+    const stat = (l, v, s) => `<div class="srx-st"><div class="l">${esc(l)}</div><div class="v">${v}</div><div class="s">${s || ""}</div></div>`;
+    const hs = document.createElement("div"); hs.className = "srx-strip";
+    hs.innerHTML = `<div class="srx-big"><b>${pct(CC.rate)}</b><span>of jobs drew a claim</span>${ppChip(CC.rate, CP.rate)}<em>${fmtN(CC.claims)} claims on ${fmtN(CC.jobsN)} jobs · ${LY}: ${fmtN(CP.claims || 0)} on ${fmtN(CP.jobsN || 0)} (${pct(CP.rate)})</em></div>` +
+      stat("Still open", fmtN(CC.open), `${pct0(CC.claims ? CC.open / CC.claims : null)} of this season's claims`) +
+      stat("Ended in a refund", money(CC.refund), `${fmtN(new Set(csT.filter(r => num(r["Refund $"]) > 0).map(r => r["Request Joinkey"])).size)} jobs refunded`) +
+      stat("Went public", fmtN(CC.pub), "claims whose job also has a negative review") +
+      stat("Typical lag", med == null ? "—" : fmtN(med) + (med === 1 ? " day" : " days"), "from the job to the claim (median)");
+    hero.appendChild(hs);
+    note(hero, `Claims count on the day they were filed; jobs on the day they were done — the same rule as Claims Analysis, ${CO} only. The claims board only came into full use during 2025 (it logged 1.9% of jobs in March 2025 and 11% by August), so part of the rise against ${LY} is the board being used, not only more claims.`, true);
+    combo(gC, "Claims and claim rate — every season", "bars: claims filed · line: share of jobs", YEARS.map(String), YEARS.map(y => CX[y].claims), "Claims", fmtN, YEARS.map(y => CX[y].rate), "Share of jobs", pct,
+      { barAxis: fmtN, head: pct(CC.rate) });
+    const mRate = (y, m) => { const n = jobKeys(y, m, m).size; return n ? claimsIn(y, m, m).length / n : null; };
+    pairBars(gC, "Claim rate by month", `${Y} vs ${LY} · share of that month's jobs`, winMonths.map(m => MON[m]), winMonths.map(m => mRate(LY, m)), winMonths.map(m => mRate(Y, m)), pct, { axis: pct0 });
+
+    // local vs long distance, every season
+    const jt = (y, ld) => { const ks = new Set(); cl(y).forEach(r => { if (r["Record Source"] === "closing" && r["Request Joinkey"] && isLD(r) === ld) ks.add(String(r["Request Joinkey"])); });
+      const c2 = claimsIn(y).filter(r => (String(r["Job Type"] || "") === "Long distance") === ld && r["Job Type"]); return { n: ks.size, c: c2.length, r: ks.size ? c2.length / ks.size : null }; };
+    table(gC, "Local vs long distance", "claims as a share of each kind of job", ["Season", "Jobs", "Claims", "Share", "Jobs", "Claims", "Share"],
+      YEARS.slice().reverse().map(y => { const a = jt(y, false), b2 = jt(y, true);
+        return `<tr>${td(y === Y ? `<b>${y}</b>` : y)}${td(fmtN(a.n))}${td(fmtN(a.c))}${tdn(a.r, pct)}${td(fmtN(b2.n))}${td(fmtN(b2.c))}${b2.r == null ? `<td class="dim">—</td>` : `<td class="dn">${pct(b2.r)}</td>`}</tr>`; }),
+      { span2: false, groups: [["", 1], ["Local", 3], ["Long distance", 3]], note: (() => { const a = jt(Y, false), b2 = jt(Y, true); return a.r && b2.r ? `A long-distance job is ${(b2.r / a.r).toFixed(1)}× as likely to draw a claim as a local one (${pct(b2.r)} vs ${pct(a.r)}).` : ""; })() });
+
+    // what the claims are about — this season vs last, with the money and the outcome per family
+    const fT = grp(csT, famOf), fL = grp(csL, famOf);
+    const fams = [...new Set([...fT.keys(), ...fL.keys()])].sort((a, b) => (fT.get(b) || []).length - (fT.get(a) || []).length);
+    pairBars(gC, "What the claims are about", `${Y} vs ${LY} · claims per family`, fams, fams.map(f => (fL.get(f) || []).length), fams.map(f => (fT.get(f) || []).length), fmtN,
+      { head: fmtN(csT.length), how: "Family = a manager's correction on Claims Analysis, else the keyword reading of the whole thread, else the reason support picked on the board. The keyword reading is what fills last season's claims, most of which were filed with no reason." });
+    const rT = grp(csT, respOf), rL = grp(csL, respOf), resps = [...new Set([...rT.keys(), ...rL.keys()])].sort((a, b) => (rT.get(b) || []).length - (rT.get(a) || []).length);
+    pairBars(gC, "Whose responsibility", `${Y} vs ${LY} · as recorded on the board`, resps, resps.map(f => (rL.get(f) || []).length), resps.map(f => (rT.get(f) || []).length), fmtN,
+      { head: pct0(csT.length ? (rT.get("Not assigned") || []).length / csT.length : null) + " not assigned",
+        note: (rT.get("Not assigned") || []).length > csT.length / 3 ? `${fmtN((rT.get("Not assigned") || []).length)} of ${fmtN(csT.length)} claims have no responsibility recorded — the board cannot say whose they are, which limits every "whose fault" number below.` : "" });
+    const claimRow = r => `<tr>${td(esc(String(r["Created Date"] || "").slice(0, 10)))}${td(esc(r.Customer || "—"))}${td(esc(String(r["Request No"] || "—")))}${td(esc(famOf(r)))}${td(esc(respOf(r)))}${td(esc(r.Status || "—"))}${num(r["Refund $"]) ? td(money(num(r["Refund $"])), "no") : `<td class="dim">—</td>`}<td>${mondayLink(r["Monday Url"])}</td></tr>`;
+    const claimHdr = ["Filed", "Customer", "Request", "Family", "Responsibility", "Status", "Job refund", ""];
+    ptable(gC, "Families — outcome and money", `${seasonName} ${Y}`, ["Family", "Claims", String(LY), "Share of jobs", "Open", "Jobs refunded", "Refund $", "Went public", "Median days after job"],
+      fams.map(f => { const a = fT.get(f) || [], l = fL.get(f) || [];
+        return { h: `${td(esc(f))}${td(fmtN(a.length))}${td(fmtN(l.length))}${tdn(CC.jobsN ? a.length / CC.jobsN : null, pct)}${td(fmtN(a.filter(isOpenC).length))}${td(fmtN(new Set(a.filter(r => num(r["Refund $"]) > 0).map(r => r["Request Joinkey"])).size))}${td(money(refundOf(a)))}${td(fmtN(a.filter(wentPublic).length))}${tdn(median(a.map(r => r["Days After Job"] == null ? null : num(r["Days After Job"]))), fmtN)}`,
+          d: a.length ? mini(claimHdr, a.slice().sort((x, y) => String(y["Created Date"]).localeCompare(String(x["Created Date"]))).map(claimRow)) : null }; }),
+      { drillCol: true, tot: `${td("All")}${td(fmtN(csT.length))}${td(fmtN(csL.length))}${tdn(CC.rate, pct)}${td(fmtN(CC.open))}${td(fmtN(new Set(csT.filter(r => num(r["Refund $"]) > 0).map(r => r["Request Joinkey"])).size))}${td(money(CC.refund))}${td(fmtN(CC.pub))}${tdn(med, fmtN)}`,
+        how: "Click a family to see its claims. Refund $ is the refund paid on the claimed job (any date), counted once per job." });
+
+    // foremen: claims as a share of THEIR jobs (unweighted — one foreman per job), 30-job floor like Claims Analysis
+    const MINJ = 30;
+    const perForeman = y => { const jobs = new Map(); cl(y).forEach(r => { if (r["Record Source"] !== "closing" || !r.Foreman || !r["Request Joinkey"]) return; const f = String(r.Foreman).trim(); (jobs.get(f) || jobs.set(f, new Set()).get(f)).add(String(r["Request Joinkey"])); });
+      const cls = grp(claimsIn(y), key("Foreman")); return { jobs, cls }; };
+    const pfT = perForeman(Y), pfL = perForeman(LY);
+    const fmRows = [...new Set([...pfT.jobs.keys(), ...pfT.cls.keys()])].map(f => { const n = (pfT.jobs.get(f) || new Set()).size, cs = pfT.cls.get(f) || [], nL = (pfL.jobs.get(f) || new Set()).size, cL = (pfL.cls.get(f) || []).length;
+      return { f, n, cs, r: n ? cs.length / n : null, rL: nL >= MINJ ? cL / nL : null, small: n < MINJ }; }).filter(x => x.cs.length || x.n >= MINJ)
+      .sort((a, b) => (a.small - b.small) || (b.r || 0) - (a.r || 0));
+    FMCL = new Map(fmRows.map(x => [x.f, x]));   // reused by the crew and reviews parts
+    ptable(gC, "Foremen — claims on their jobs", `${seasonName} ${Y} · worst first`, ["Foreman", "Jobs", "Claims", "Share of jobs", "vs " + LY, "Damage", "Missing", "Timing", "Refund $", "Went public"],
+      fmRows.map(x => { const by = f => x.cs.filter(r => famOf(r) === f).length;
+        return { cls: x.small ? "small" : "", h: `${td(esc(x.f))}${td(fmtN(x.n))}${td(fmtN(x.cs.length))}${x.r == null ? `<td class="dim">—</td>` : x.small ? `<td class="dim">${pct(x.r)} · small</td>` : `<td class="${x.r > CC.rate ? "dn" : "up"}">${pct(x.r)}</td>`}${x.small ? `<td class="dim">—</td>` : ppInv(x.r, x.rL)}${td(fmtN(by("Damage")))}${td(fmtN(by("Missing")))}${td(fmtN(by("Timing")))}${refundOf(x.cs) ? td(money(refundOf(x.cs)), "no") : `<td class="dim">—</td>`}${td(fmtN(x.cs.filter(wentPublic).length))}`,
+          d: x.cs.length ? mini(claimHdr, x.cs.map(claimRow)) : null }; }),
+      { drillCol: true, per: 15, how: `Share = claims on the foreman's jobs ÷ the jobs he led in the window (from the closing). Red = above the team's ${pct(CC.rate)}. Under ${MINJ} jobs the share is shown as "small" and sorted last — too few jobs to rank. "vs ${LY}" is green when his share fell. Click a foreman to see the claims behind his number.` });
+
+    // salespeople: credited, like Claims Analysis — a 50/50 job gives each rep half the claim AND half the job
+    const CRED = new Map(); (credit || []).forEach(r => { const jk = String(r["Request Joinkey"] || ""), p = String(r["Sales Person"] || "").trim(), sh = num(r.Share); if (jk && p && sh > 0) (CRED.get(jk) || CRED.set(jk, []).get(jk)).push({ p, sh }); });
+    const credOf = (jk, fallback) => CRED.get(jk) || (fallback ? [{ p: fallback, sh: 1 }] : []);
+    const perRep = y => { const jobs = new Map(), cls = new Map(), seen = new Set();
+      cl(y).forEach(r => { const jk = String(r["Request Joinkey"] || ""); if (r["Record Source"] !== "closing" || !jk || seen.has(jk)) return; seen.add(jk); credOf(jk, r["Sales Person"]).forEach(({ p, sh }) => jobs.set(p, (jobs.get(p) || 0) + sh)); });
+      claimsIn(y).forEach(r => credOf(String(r["Request Joinkey"] || ""), r["Sales Person"]).forEach(({ p, sh }) => { const a = cls.get(p) || cls.set(p, { c: 0, rows: [], price: 0 }).get(p); a.c += sh; a.rows.push({ r, sh }); if (famOf(r) === "Price") a.price += sh; }));
+      return { jobs, cls }; };
+    const prT = perRep(Y), prL = perRep(LY), f1 = v => v == null ? "—" : (Math.round(v * 10) / 10).toLocaleString();
+    const spRows = [...new Set([...prT.jobs.keys(), ...prT.cls.keys()])].filter(p => !/^test\b/i.test(p)).map(p => { const n = prT.jobs.get(p) || 0, a = prT.cls.get(p) || { c: 0, rows: [], price: 0 }, nL = prL.jobs.get(p) || 0, aL = prL.cls.get(p);
+      return { p, n, a, r: n ? a.c / n : null, rL: nL >= MINJ ? (aL ? aL.c : 0) / nL : null, small: n < MINJ }; }).filter(x => x.a.c > 0 || x.n >= MINJ)
+      .sort((a, b) => (a.small - b.small) || (b.r || 0) - (a.r || 0));
+    SPCL = new Map(spRows.map(x => [x.p, x]));
+    ptable(gC, "Salespeople — claims on the jobs they sold", `${seasonName} ${Y} · credited share · worst first`, ["Salesperson", "Jobs (credited)", "Claims (credited)", "Share of jobs", "vs " + LY, "Price claims", "Refund $"],
+      spRows.map(x => ({ cls: x.small ? "small" : "", h: `${td(esc(x.p))}${td(f1(x.n))}${td(f1(x.a.c))}${x.r == null ? `<td class="dim">—</td>` : x.small ? `<td class="dim">${pct(x.r)} · small</td>` : `<td class="${x.r > CC.rate ? "dn" : "up"}">${pct(x.r)}</td>`}${x.small ? `<td class="dim">—</td>` : ppInv(x.r, x.rL)}${td(f1(x.a.price))}${refundOf(x.a.rows.map(o => o.r)) ? td(money(refundOf(x.a.rows.map(o => o.r))), "no") : `<td class="dim">—</td>`}`,
+        d: x.a.rows.length ? mini(claimHdr.concat(["Their share"]), x.a.rows.map(o => claimRow(o.r).replace(/<\/tr>$/, `<td>${o.sh >= .999 ? "all of it" : pct0(o.sh)}</td></tr>`))) : null })),
+      { drillCol: true, per: 15, how: `Same rule as Claims Analysis: a job sold by two reps gives each their share of the job AND of any claim on it, so every rep's share stays a share of their own work and the column adds up to the season's claims. Price claims are the ones about the bill or the quote. Yelp Team and the CT branch owner carry no sales blame. Under ${MINJ} credited jobs = "small", sorted last.` });
+
+    // when claims arrive, and how they end
+    const lagB = r => { const d = r["Days After Job"]; if (d == null || d === "") return "No job date"; const v = num(d); return v <= 1 ? "Same or next day" : v <= 7 ? "2–7 days" : v <= 30 ? "8–30 days" : "Over 30 days"; };
+    const LAGS = ["Same or next day", "2–7 days", "8–30 days", "Over 30 days", "No job date"];
+    const lT = grp(csT, lagB), lL = grp(csL, lagB), lags = LAGS.filter(k => lT.has(k) || lL.has(k));
+    pairBars(gC, "How long after the job the claim came in", `${Y} vs ${LY}`, lags, lags.map(k => (lL.get(k) || []).length), lags.map(k => (lT.get(k) || []).length), fmtN,
+      { head: med == null ? "" : "median " + fmtN(med) + " d", how: "Days from the job's date to the day the claim was filed." });
+    donut(gC, "Where this season's claims stand", `${seasonName} ${Y} · status on the board today`, [...grp(csT, r => String(r.Status || "(no status)")).entries()].map(([k, rs]) => ({ k, v: rs.length })).sort((a, b) => b.v - a.v), fmtN,
+      { head: fmtN(CC.open) + " open" });
+    ptable(gC, "Every claim this season", `${seasonName} ${Y} · newest first`, ["Filed", "Customer", "Request", "Family", "Responsibility", "Foreman", "Salesperson", "Job type", "Status", "Job refund", ""],
+      csT.slice().sort((a, b) => String(b["Created Date"]).localeCompare(String(a["Created Date"]))).map(r => ({ h: `${td(esc(String(r["Created Date"] || "").slice(0, 10)))}${td(esc(r.Customer || "—"))}${td(esc(String(r["Request No"] || "—")))}${td(esc(famOf(r)))}${td(esc(respOf(r)))}${td(esc(r.Foreman || "—"))}${td(esc(r["Sales Person"] || "—"))}${td(esc(r["Job Type"] || "—"))}${td(esc(r.Status || "—"), isOpenC(r) ? "no" : "")}${num(r["Refund $"]) ? td(money(num(r["Refund $"])), "no") : `<td class="dim">—</td>`}<td>${mondayLink(r["Monday Url"])}</td>` })),
+      { per: 15, how: "Monday ↗ opens the case on the claims board. For the full thread and the keyword reading, use Claims Analysis." });
+  }
+
+  /* ================= reviews ================= */
+  const gR = part("Reviews", "how many reviews the season's jobs generated — by platform, foreman and salesperson");
+  // counted reviews (the ones the platform publishes) — reviews_breakdown's Event Date is the JOB's date
+  const isCounted = r => String(r.Counts || "") === "Yes";
+  const rvIn = (y, a, b) => (DS.reviews_breakdown ? rows("reviews_breakdown", y, null, a, b) : []).filter(isCounted);
+  const revN = rs => rs.reduce((a, r) => a + num(r["Number of Reviews"]), 0);
+  const RV = {}; YEARS.forEach(y => { const rs = rvIn(y); RV[y] = { rs, n: revN(rs), img: revN(rs.filter(r => String(r["With Image"]) === "Yes")), five: revN(rs.filter(r => num(r["Review Score"]) === 5)) }; });
+  const RY = RV[Y], RL = RV[LY] || { n: 0, rs: [] };
+  const revYears = YEARS.filter(y => RV[y].n > 0);
+  const endD = new Date(Date.UTC(Y, T - 1, lastDay(Y, T))), ageDays = Math.floor((Date.now() - endD) / 864e5);
+  {
+    const hero = card(gR, `Reviews — ${seasonName} ${Y}`, "what the season's jobs earned", { span2: true });
+    const up = (c, p) => { if (c == null || p == null) return ""; const d = (c - p) * 100; return `<span class="srx-chip" style="background:${d >= 0 ? POS_T1 : NEG_T1};color:${d >= 0 ? POS : NEG}">vs ${yy(LY)} ${d >= 0 ? "▲" : "▼"} ${Math.abs(d).toFixed(0)}pp</span>`; };
+    const stat = (l, v, s) => `<div class="srx-st"><div class="l">${esc(l)}</div><div class="v">${v}</div><div class="s">${s || ""}</div></div>`;
+    const hs = document.createElement("div"); hs.className = "srx-strip";
+    hs.innerHTML = (jov ? `<div class="srx-big"><b>${pct0(CC.revPerJob)}</b><span>reviews per eligible job</span>${up(CC.revPerJob, CP.revPerJob)}<em>${fmtN(CC.revs)} reviews on ${fmtN(CC.eligN)} eligible jobs · ${LY}: ${CP.revPerJob == null ? "—" : pct0(CP.revPerJob)}</em></div>`
+        : `<div class="srx-big"><b>${fmtN(RY.n)}</b><span>reviews generated</span>${chip(RY.n, RL.n)}</div>`) +
+      stat("Reviews generated", fmtN(RY.n), `${LY}: ${fmtN(RL.n)} · ${chip(RY.n, RL.n)}`) +
+      (jov ? stat("Jobs with a review", pct0(CC.revShare), `${fmtN(CC.reviewed)} of ${fmtN(CC.eligN)} eligible jobs`) : "") +
+      stat("With a photo", pct0(RY.n ? RY.img / RY.n : null), `${fmtN(RY.img)} reviews`) +
+      stat("Five stars", pct0(RY.n ? RY.five / RY.n : null), "of counted reviews (only 4–5★ are logged)") +
+      stat("Negative reviews", fmtN(CC.neg), `${LY}: ${fmtN(CP.neg || 0)}`);
+    hero.appendChild(hs);
+    note(hero, `Counted reviews only — the ones the platform publishes. Reviews are dated by the JOB they belong to, and they arrive weeks after it (about a third within a month, three quarters within two to three months)${ageDays < 90 ? `, so the last weeks of ${seasonName.toLowerCase()} ${Y} will still grow — compare the early months first` : ""}. "Eligible" is Review Performance's rule: no claim, refund or negative review on the job, a foreman on it, and not a regular long-distance move. Job-level reviews are on file from 2025.`, true);
+  }
+  const mRevPer = (y, m) => { const el = joIn(y, m, m).filter(elig); return el.length ? el.reduce((a, r) => a + nRev(r), 0) / el.length : null; };
+  pairBars(gR, "Reviews generated by month", `${Y} vs ${LY} · counted reviews, by job date`, winMonths.map(m => MON[m]), winMonths.map(m => revN(rvIn(LY, m, m))), winMonths.map(m => revN(rvIn(Y, m, m))), fmtN,
+    { head: fmtN(RY.n), chips: chip(RY.n, RL.n) });
+  if (jov) pairBars(gR, "Reviews per eligible job by month", `${Y} vs ${LY}`, winMonths.map(m => MON[m]), winMonths.map(m => mRevPer(LY, m)), winMonths.map(m => mRevPer(Y, m)), pct0,
+    { axis: pct0, head: pct0(CC.revPerJob) });
+  // platforms
+  const pT = new Map(), pL = new Map(); RY.rs.forEach(r => pT.set(r.Source, (pT.get(r.Source) || 0) + num(r["Number of Reviews"]))); RL.rs.forEach(r => pL.set(r.Source, (pL.get(r.Source) || 0) + num(r["Number of Reviews"])));
+  const plats = [...new Set([...pT.keys(), ...pL.keys()])].filter(Boolean).sort((a, b) => (pT.get(b) || 0) - (pT.get(a) || 0)).slice(0, 14);
+  pairBars(gR, "Reviews by platform", `${Y} vs ${LY} · counted, per listing`, plats, plats.map(p => pL.get(p) || 0), plats.map(p => pT.get(p) || 0), fmtN, { head: fmtN(RY.n) });
+  // public footprint — the only review series that reaches back to 2023: listing totals at the window's end minus its start
+  const snapAt = (plat, key0) => { let best = null; (rcounts || []).forEach(r => { if (String(r.Company) !== CO || String(r.Platform) !== plat) return; const d = String(r.Date || "").slice(0, 10); if (d && d <= key0 && (!best || d > best.d)) best = { d, v: num(r["Number of Reviews"]) }; }); return best; };
+  const platsAll = [...new Set((rcounts || []).filter(r => String(r.Company) === CO).map(r => String(r.Platform)))];
+  // the footprint sheet is filled monthly and trails the calendar: every season is cut to the same span the latest snapshot allows
+  const lastSnap = (rcounts || []).filter(r => String(r.Company) === CO).reduce((a, r) => { const d = String(r.Date || "").slice(0, 10); return d > a ? d : a; }, "");
+  const endM = (() => { const want = T + 1; if (!lastSnap) return want; const sy = +lastSnap.slice(0, 4), sm = +lastSnap.slice(5, 7);
+    if (sy > Y || (sy === Y && sm >= want)) return want; return sy === Y && sm > F ? sm : null; })();
+  const resets = [];
+  const footGrow = y => { if (endM == null) return null; const s = `${y}-${pad(F)}-01`, e = endM === 13 ? `${y + 1}-01-01` : `${y}-${pad(endM)}-01`; let tot = 0, any = false;
+    platsAll.forEach(p => { const a = snapAt(p, s), b = snapAt(p, e); if (!(a && b && a.d >= `${y}-01-01` && b.d > a.d)) return;
+      // a listing that loses 30%+ between snapshots was reset or renamed (or mistyped) — reviews do not go backwards that fast
+      if (b.v < a.v * 0.7) { if (y === Y) resets.push(`${p} ${fmtN(a.v)} → ${fmtN(b.v)}`); return; }
+      tot += b.v - a.v; any = true; }); return any ? tot : null; };
+  const footVals = YEARS.map(footGrow);
+  const footSpan = endM == null ? winLbl : (endM - 1 === F ? MS[F] : MS[F] + "–" + MS[endM === 13 ? 12 : endM - 1]);
+  seasonCols(gR, "Public reviews added across all listings", `listing totals, start of ${MS[F]} → end of ${endM == null ? MS[T] : MS[endM === 13 ? 12 : endM - 1]} · every season`, [{ label: "Added", vals: footVals }], fmtN,
+    { axis: fmtN, head: footVals[footVals.length - 1] == null ? "—" : fmtN(footVals[footVals.length - 1]),
+      note: resets.length ? `Left out as a reset or rename — check the footprint sheet: ${resets.join("; ")}.` : "",
+      how: `From the monthly footprint snapshots (review_counts): each ${CO} listing's public total at the end of the span minus its total at the start, summed. It counts everything the platforms show, including reviews not tied to a job. ${footSpan !== winLbl ? `The latest snapshot is ${lastSnap}, so every season is measured ${footSpan} to compare like for like. ` : ""}The first snapshot is 1 May 2023.` });
+
+  // foremen — Review Performance's rule: review events ÷ eligible jobs
+  const MINE = 15;
+  const fmRev = y => { const g = new Map(); joIn(y).forEach(r => { const f = String(r.Foreman || "").trim(); if (!f) return; const a = g.get(f) || g.set(f, { el: 0, rv: 0, withR: 0, excl: 0, miss: [], all: 0 }).get(f);
+    a.all++; if (elig(r)) { a.el++; a.rv += nRev(r); if (nRev(r) > 0) a.withR++; else a.miss.push(r); } else a.excl++; }); return g; };
+  if (jov) {
+    const frT = fmRev(Y), frL = fmRev(LY), teamR = CC.revPerJob;
+    REVFM = new Map([...frT.entries()].map(([f, a]) => [f, a]));
+    const fr = [...frT.entries()].map(([f, a]) => { const l = frL.get(f); return { f, a, r: a.el ? a.rv / a.el : null, rL: l && l.el >= MINE ? l.rv / l.el : null, small: a.el < MINE }; })
+      .filter(x => x.a.all >= 5).sort((a, b) => (a.small - b.small) || (b.r || 0) - (a.r || 0));
+    ptable(gR, "Foremen — reviews their jobs earned", `${seasonName} ${Y} · best first`, ["Foreman", "Jobs", "Eligible", "Reviews", "Per eligible job", "vs " + LY, "Jobs with a review", "Claims share", "Excluded"],
+      fr.map(x => { const cc = FMCL && FMCL.get(x.f);
+        return { cls: x.small ? "small" : "", h: `${td(esc(x.f))}${td(fmtN(x.a.all))}${td(fmtN(x.a.el))}${td(fmtN(x.a.rv))}${x.r == null ? `<td class="dim">—</td>` : x.small ? `<td class="dim">${pct0(x.r)} · small</td>` : `<td class="${x.r >= teamR ? "up" : "dn"}"><b>${pct0(x.r)}</b></td>`}${x.small ? `<td class="dim">—</td>` : ppcell(x.r, x.rL)}${tdn(x.a.el ? x.a.withR / x.a.el : null, pct0)}${cc && cc.r != null ? `<td class="${cc.small ? "dim" : cc.r > (CC.rate || 0) ? "dn" : "up"}">${pct(cc.r)}</td>` : `<td class="dim">—</td>`}${td(fmtN(x.a.excl))}`,
+          d: x.a.miss.length ? mini(["Job date", "Customer", "Job", "Status", "Foreman's reason"], x.a.miss.slice().sort((p, q) => String(q["Job Date"]).localeCompare(String(p["Job Date"]))).map(r => `<tr>${td(esc(String(r["Job Date"] || "").slice(0, 10)))}${td(esc(r.Customer || "—"))}${td(esc(String(r["Job No"] || "—")))}${td(esc(r["Final Status"] || "—"))}${td(esc(r["Foreman Reason"] || "—"))}</tr>`), `${x.a.miss.length} eligible jobs with no review yet`) : null }; }),
+      { drillCol: true, per: 15, how: `Per eligible job = review events ÷ eligible jobs, Review Performance's measure: a job reviewed on three platforms counts three, so a foreman can pass 100%. Green = at or above the team's ${pct0(teamR)}. Under ${MINE} eligible jobs = "small", sorted last. Excluded = jobs taken out of his count because of a claim, refund or negative review (or a regular long-distance move). Click a foreman to see his eligible jobs with no review yet and the reason he gave.` });
+    // the quality map: reviews earned vs claims drawn, one bubble per foreman
+    const qp = fr.filter(x => !x.small && x.r != null).map(x => { const cc = FMCL && FMCL.get(x.f); return cc && !cc.small && cc.r != null ? { k: x.f, x: x.r, y: cc.r, r: x.a.all } : null; }).filter(Boolean);
+    if (FMCL) quadrant(gR, "Foreman quality map — reviews earned vs claims drawn", `${seasonName} ${Y} · bubble = jobs · dashed = team average`, qp, pct0, pct,
+      { xLabel: "Reviews per eligible job", yLabel: "Claims — share of jobs", goodX: "high", goodY: "low", xAvg: teamR, yAvg: CC.rate, q: { br: "★ more reviews, fewer claims", tl: "fewer reviews, more claims" },
+        how: `Only foremen with ${MINE}+ eligible jobs and 30+ jobs for the claim share. Lime = better than the team on both, red = worse on both, blue = mixed.` });
+  } else {
+    const c = card(gR, "Per-foreman reviews need Review Performance access", "", { span2: true });
+    note(c, "The foreman view uses Review Performance's job table (eligible jobs, exclusions, the foreman's reason for a missing review). It is granted with that page; this report does not widen it.", true);
+  }
+  // salespeople — reviews on the jobs they closed (breakdown → the closing's salesperson; the review sheet's own name is mostly blank)
+  const spRev = y => { const jkSP = new Map(); cl(y).forEach(r => { if (r["Record Source"] === "closing" && r["Request Joinkey"] && r["Sales Person"]) jkSP.set(String(r["Request Joinkey"]), String(r["Sales Person"]).trim()); });
+    const jobs = new Map(); jkSP.forEach(p => jobs.set(p, (jobs.get(p) || 0) + 1));
+    const rv = new Map(); rvIn(y).forEach(r => { const p = jkSP.get(String(r["Request Joinkey"] || "")); if (p) rv.set(p, (rv.get(p) || 0) + num(r["Number of Reviews"])); });
+    return { jobs, rv }; };
+  const srT = spRev(Y), srL = spRev(LY);
+  const spR = [...srT.jobs.entries()].filter(([p, n]) => n >= 30 && !/^test\b/i.test(p)).map(([p, n]) => ({ p, r: (srT.rv.get(p) || 0) / n, rL: (srL.jobs.get(p) || 0) >= 30 ? (srL.rv.get(p) || 0) / srL.jobs.get(p) : null })).sort((a, b) => b.r - a.r);
+  pairBars(gR, "Reviews per job by salesperson", `${Y} vs ${LY} · reps with 30+ jobs`, spR.map(x => x.p), spR.map(x => x.rL), spR.map(x => x.r), pct0,
+    { axis: pct0, how: "Counted reviews on the jobs a rep closed ÷ their jobs (all jobs — reps have no eligibility rule). It shows whose customers leave reviews; the foreman on the day still matters most." });
+  // negative reviews by platform
+  const ngT = grp(rows("negative_reviews", Y), r => String(r.Source || r.Platform || "(no platform)")), ngL = grp(rows("negative_reviews", LY), r => String(r.Source || r.Platform || "(no platform)"));
+  const ngK = [...new Set([...ngT.keys(), ...ngL.keys()])].sort((a, b) => (ngT.get(b) || []).length - (ngT.get(a) || []).length).slice(0, 12);
+  pairBars(gR, "Negative reviews by platform", `${Y} vs ${LY}`, ngK, ngK.map(k => (ngL.get(k) || []).length), ngK.map(k => (ngT.get(k) || []).length), fmtN,
+    { head: fmtN(CC.neg), chips: chip(CC.neg, CP.neg, true), how: "From the negative-reviews board: one row per platform listing, so one unhappy customer posting on two platforms counts twice. Removed reviews with no date fall out of the window." });
+
+  /* ================= demand (Moveboard) ================= */
   const g3 = part("Demand", "leads, bookings and what was quoted — by segment and county");
   combo(g3, "Confirmed jobs and booking rate", "every season", YEARS.map(String), YEARS.map(y => H[y].conf), "Confirmed", fmtN, YEARS.map(y => H[y].book), "Booking rate", pct,
     { head: pct(C.book), chips: chip(C.book, P.book), barAxis: fmtN, how: "Booking rate = leads confirmed in the window (by booked date) ÷ qualified leads created in the window (all leads minus bad leads) — the portal's one booking-rate formula, the same as the Monthly Report." });
@@ -532,6 +917,10 @@ async function renderSeasonal(host) {
   pairBars(g4, "Booking rate by rep", `${Y} vs ${LY}`, rb.map(r => r.n), rb.map(r => r.bookL), rb.map(r => r.book), pct, { axis: pct0, head: pct(C.book) + " team" });
   const re = REPS.filter(r => r.estUsd || r.estUsdL);
   pairBars(g4, "Estimates sold by rep", `${Y} vs ${LY} · $ of confirmed leads`, re.map(r => r.n), re.map(r => r.estUsdL), re.map(r => r.estUsd), money, { axis: moneyC, lbl: moneyC, head: money(estOf(Y).usd) });
+  const qR = REPS.filter(r => r.book != null && r.jobs >= 20);
+  quadrant(g4, "Salespeople — conversion vs job value", `${seasonName} ${Y} · bubble = jobs · dashed = team average`, qR.map(r => ({ k: r.n, x: r.book, y: r.bill / r.jobs, r: r.jobs })), pct0, money,
+    { xLabel: "Booking rate", yLabel: "Average job value", goodX: "high", goodY: "high", xAvg: C.book, yAvg: C.avg, q: { tr: "★ converts more, sells bigger", bl: "converts less, sells smaller" },
+      how: "Reps with a booking rate (10+ qualified leads) and 20+ jobs. A rep top-left sells big jobs but loses many leads; bottom-right books a lot of small ones." });
 
   // rep × lead source — which rep converts which provider
   const srcQ = grp(created(Y), r => normSrc(r.Source) || null), srcB = grp(booked(Y), r => normSrc(r.Source) || null);
@@ -573,9 +962,9 @@ async function renderSeasonal(host) {
   const FM = [...scT.entries()].filter(([, a]) => a.jobs >= 15 && a.sj).map(([n, a]) => { const l = scL.get(n), c = fcl.get(n) || [];
     return { n, a, score: a.sw / a.sj, scoreL: l && l.sj ? l.sw / l.sj : null, bill: bill(c), ncc: ncc(c), hrs: sumCol(c, "Foreman Hours"), ref: sumCol(fref.get(n) || [], "Total refund") }; })
     .sort((a, b) => b.score - a.score);
-  table(g5, `Foreman of the ${seasonName.toLowerCase() === "summer" ? "Summer" : "Season"} ${Y}`, "job-weighted season score · ranked", ["#", "Foreman", "Score", "vs " + LY, "Jobs", "Total Bill", "Netcash + Card", "Hours / job", "Packing written", "vs estimate", "Packing / 100 CF", "Reviews / job", "Fault claims", "Refunds"],
-    FM.map((f, i) => `<tr>${td(i + 1)}${td(`${i === 0 ? "👑 " : ""}${esc(f.n)}`, "")}${td(`<b>${f.score.toFixed(1)}</b>`)}${f.scoreL == null ? `<td class="dim">—</td>` : `<td class="${f.score >= f.scoreL ? "up" : "dn"}">${f.score >= f.scoreL ? "+" : ""}${(f.score - f.scoreL).toFixed(1)}</td>`}${td(fmtN(f.a.jobs))}${td(money(f.bill))}${td(money(f.ncc))}${tdn(f.a.jobs ? f.hrs / f.a.jobs : null, v => v.toFixed(1))}${td(money(f.a.w))}${tdn(f.a.e ? f.a.w / f.a.e : null, pct0)}${tdn(f.a.cf ? f.a.w / f.a.cf * 100 : null, money)}${tdn(f.a.jobs ? f.a.rv / f.a.jobs : null, pct0)}${f.a.fc ? td(fmtN(f.a.fc), "no") : td("0")}${f.ref ? td(money(f.ref), "no") : `<td class="dim">—</td>`}</tr>`),
-    { how: `Score = each month's foreman Total Score weighted by that month's jobs, so a busy July counts more than a quiet May. From July 2026 the monthly score is the 60 automatic + 40 assessment model; earlier months used the 70/30 model. Foremen with fewer than 15 jobs in the window are left out. Packing "vs estimate" = written ÷ the sales estimate: it is a floor, not a target — crews routinely write 1.5–3× the estimate.` });
+  table(g5, `Foreman of the ${seasonName.toLowerCase() === "summer" ? "Summer" : "Season"} ${Y}`, "job-weighted season score · ranked", ["#", "Foreman", "Score", "vs " + LY, "Jobs", "Total Bill", "Netcash + Card", "Hours / job", "Packing written", "vs estimate", "Packing / 100 CF", "Reviews / eligible job", "Claims share", "Refunds"],
+    FM.map((f, i) => `<tr>${td(i + 1)}${td(`${i === 0 ? "👑 " : ""}${esc(f.n)}`, "")}${td(`<b>${f.score.toFixed(1)}</b>`)}${f.scoreL == null ? `<td class="dim">—</td>` : `<td class="${f.score >= f.scoreL ? "up" : "dn"}">${f.score >= f.scoreL ? "+" : ""}${(f.score - f.scoreL).toFixed(1)}</td>`}${td(fmtN(f.a.jobs))}${td(money(f.bill))}${td(money(f.ncc))}${tdn(f.a.jobs ? f.hrs / f.a.jobs : null, v => v.toFixed(1))}${td(money(f.a.w))}${tdn(f.a.e ? f.a.w / f.a.e : null, pct0)}${tdn(f.a.cf ? f.a.w / f.a.cf * 100 : null, money)}${(() => { const rv = REVFM && REVFM.get(f.n); return rv && rv.el ? tdn(rv.rv / rv.el, pct0) : tdn(f.a.jobs && f.a.rv ? f.a.rv / f.a.jobs : null, pct0); })()}${(() => { const x = FMCL && FMCL.get(f.n); return x && x.r != null ? `<td class="${x.small ? "dim" : x.r > (CC.rate || 0) ? "dn" : "up"}">${pct(x.r)}</td>` : (f.a.fc ? td(fmtN(f.a.fc) + " fault", "no") : td("0")); })()}${f.ref ? td(money(f.ref), "no") : `<td class="dim">—</td>`}</tr>`),
+    { how: `Score = each month's foreman Total Score weighted by that month's jobs, so a busy July counts more than a quiet May. From July 2026 the monthly score is the 60 automatic + 40 assessment model; earlier months used the 70/30 model. Foremen with fewer than 15 jobs in the window are left out. Packing "vs estimate" = written ÷ the sales estimate: it is a floor, not a target — crews routinely write 1.5–3× the estimate. Reviews per eligible job and the claims share use the same rules as the Reviews and Claims parts above.` });
   const fh = [...fcl.entries()].map(([n, c]) => ({ n, j: c.length, h: sumCol(c, "Foreman Hours") })).filter(x => x.j >= 10).sort((a, b) => b.h - a.h).slice(0, 22);
   combo(g5, "Hours worked vs jobs done", `${seasonName} ${Y} · per foreman`, fh.map(x => x.n), fh.map(x => x.j), "Jobs", fmtN, fh.map(x => x.h), "Hours", fmtN,
     { span2: true, rotate: true, barColors: fh.map(() => INK), barAxis: fmtN, head: fmtN(fh.reduce((a, x) => a + x.h, 0)) + " h" });
@@ -616,6 +1005,10 @@ async function renderSeasonal(host) {
       .concat([`<tr class="tot">${td("All paid channels")}${td(money(chTot.ad))}${td(fmtN(chTot.leads))}${tdn(cpl(chTot), money)}<td></td>${td(fmtN(chTot.jobs))}${td(money(chTot.bill))}${td(money(chTot.ncc))}${tdn(per1(chTot), x1)}<td></td></tr>`]),
     { how: `Every column uses the same months (${adLbl || winLbl}) so spend and results line up. Cost per lead = ad spend ÷ every lead from that source (bad leads included, as the deck did). Per $1 = Netcash + Card of the jobs from that source ÷ its ad spend. Last season's CPL is green when this season is cheaper. Post Card states are pooled here and split out below.` });
 
+  const qC = chRows.map(([s, a]) => ({ k: s, x: cpl(a), y: per1(a), r: Math.round(a.ad) })).filter(p => p.x != null && p.y != null && p.r >= 1000);
+  quadrant(g6, "Channels — cost per lead vs return per $1", `${adLbl || winLbl} ${Y} · bubble = ad spend`, qC, money, x1,
+    { xLabel: "Cost per lead", yLabel: "Netcash + Card per $1", goodX: "low", goodY: "high", xAvg: cpl(chTot), yAvg: per1(chTot), rLabel: "ad $", q: { tl: "★ cheap leads, strong return", br: "dear leads, weak return" },
+      how: "Channels with at least $1,000 of spend in the window. Lime = cheaper leads AND a better return than the paid average." });
   const pcKey = s => { const m = /post ?card\s*-\s*([A-Za-z]+)/i.exec(String(s || "")); return m ? "Post Card - " + m[1].toUpperCase() : null; };
   const pc = y => { if (adTo == null) return new Map(); const g = new Map(), get = k => g.get(k) || (g.set(k, { ad: 0, cr: [], bk: [], jobs: 0, ncc: 0 }), g.get(k));
     adRows(y).forEach(r => { const k = pcKey(r.Source) || pcKey(r.Provider); if (k) get(k).ad += num(r.Amount); });
@@ -681,6 +1074,10 @@ async function renderSeasonal(host) {
   if (rbD.length >= 2) F7.push(`Booking rate: ${rbD[0].n} gained the most (${rbD[0].d >= 0 ? "+" : ""}${(rbD[0].d * 100).toFixed(1)}pp); ${rbD[rbD.length - 1].n} lost the most (${(rbD[rbD.length - 1].d * 100).toFixed(1)}pp).`);
   if (C.missRate != null) F7.push(`${pct(C.missRate)} of inbound calls to company lines went unanswered or to voicemail (${P.missRate != null ? pct(P.missRate) + " last season" : "no prior season on file"}); the deck's goal is 5%.`);
   if (FM.length) F7.push(`Foreman of the ${seasonName.toLowerCase() === "summer" ? "Summer" : "Season"}: ${FM[0].n} (${FM[0].score.toFixed(1)}), ahead of ${FM.slice(1, 3).map(f => f.n + " (" + f.score.toFixed(1) + ")").join(" and ")}.`);
+  if (CC.rate != null && CP.rate != null) F7.push(`Claims: ${pct(CC.rate)} of jobs drew one, against ${pct(CP.rate)} in ${LY} — ${fmtN(CC.claims)} claims, ${fmtN(CC.open)} still open, ${money(CC.refund || 0)} refunded on claimed jobs. Part of the rise is the claims board being used fully since mid-2025.`);
+  if (FMCL) { const w = [...FMCL.values()].filter(x => !x.small && x.r != null).sort((a, b) => b.r - a.r); if (w.length >= 2) F7.push(`Highest claim share among foremen with 30+ jobs: ${w[0].f} (${pct(w[0].r)} of ${fmtN(w[0].n)} jobs); lowest: ${w[w.length - 1].f} (${pct(w[w.length - 1].r)}).`); }
+  if (CC.revPerJob != null) F7.push(`Reviews: ${pct0(CC.revPerJob)} reviews per eligible job against ${CP.revPerJob == null ? "—" : pct0(CP.revPerJob)} in ${LY}; ${pct0(CC.revShare)} of eligible jobs got at least one. Negative reviews ${fmtN(CC.neg)} (${fmtN(CP.neg || 0)} in ${LY}).`);
+  if (REVFM) { const b = [...REVFM.entries()].filter(([, a]) => a.el >= 15).map(([f, a]) => ({ f, r: a.rv / a.el })).sort((a, b2) => b2.r - a.r); if (b.length) F7.push(`Most reviews per eligible job: ${b[0].f} (${pct0(b[0].r)})${b.length > 1 ? `, then ${b[1].f} (${pct0(b[1].r)})` : ""}.`); }
   const fx = document.createElement("div"); fx.className = "srx-card span2";
   fx.innerHTML = `<div class="srx-exec"><b>Findings.</b><ul>${F7.map(t => `<li>${esc(t)}</li>`).join("")}</ul></div>`;
   g7.appendChild(fx);
@@ -695,6 +1092,12 @@ async function renderSeasonal(host) {
     <li><b>Evening jobs by clock time</b> — the closing sheet has no start time; "afternoon jobs" (a foreman's second job of the day) stands in.</li>
     <li><b>Sales commission paid on the estimate</b> (the deck's what-if) — the rule it modelled was not written down; tell us the rule and it can be computed.</li></ul>`;
   gap.appendChild(gl);
+
+  // layout balance: a half-width card with no partner on its row is promoted to full width, so a
+  // card that is conditional (a missing grant, a thin season) can never leave a hole in the grid
+  bodyEl.querySelectorAll(".srx-grid:not(.k)").forEach(g => { let pend = null;
+    [...g.children].forEach(ch => { const full = ch.classList.contains("span2"); if (full) { if (pend) pend.classList.add("span2"); pend = null; } else pend = pend ? null : ch; });
+    if (pend) pend.classList.add("span2"); });
 
   /* ---------- contents + controls ---------- */
   tocItems.forEach(t => { const b = document.createElement("button"); b.type = "button"; b.className = "srx-tocb"; b.innerHTML = `<i>${pad(t.n)}</i>${esc(t.title)}`; b.onclick = () => t.el.scrollIntoView({ behavior: document.visibilityState === "visible" ? "smooth" : "auto", block: "start" }); toc.appendChild(b); });
