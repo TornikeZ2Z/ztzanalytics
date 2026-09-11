@@ -765,6 +765,11 @@ registerPage({
             if (sp) await post(sp);
             if (qp) await post({ action: "save_questions", id: q.id, questions: qp });
             S.dirty = false; toast("Saved"); go();
+            /* ADDING SOMEONE TO A LIVE QUESTIONNAIRE IS SENDING IT TO THEM (2026-09-11: HR added
+               two leavers to the Exit Interview, saved, and nothing went — the invite waited on a
+               separate "Send invites" press nobody knew was needed). The claim ledger mails only
+               addresses never invited, so this cannot re-send to anyone already reached. */
+            if (sp && sp.audience_values && q.status === "published") sendInvites(q.id);
           } catch (e) { toast(e.message, true); }
         };
       }
