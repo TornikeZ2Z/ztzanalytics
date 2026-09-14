@@ -13,7 +13,6 @@
 
    Zip to Zip only, like the Monthly Report's default. */
 async function renderSeasonal(host) {
-  const CO = "Zip to Zip";
   const M = RS.M, esc = RSC.esc;
   const money = RS.money, moneyC = RS.moneyC, fmtN = RS.fmtN;
   const num = v => (v == null || v === "" || isNaN(v)) ? 0 : +v;
@@ -22,7 +21,10 @@ async function renderSeasonal(host) {
   const x1 = v => v == null || !isFinite(v) ? "—" : "$" + v.toFixed(1);
   const MON = ["", "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
   const MS = ["", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-  const st = window.__srState || (window.__srState = { year: 0, from: 5, to: 8 });
+  const st = window.__srState || (window.__srState = { year: 0, from: 5, to: 8, company: "" });
+  if (!st.company) { try { st.company = String(localStorage.getItem("ztzSrCompany") || ""); } catch (e) { /* storage blocked */ } }
+  // the company this page reports on (his ask 2026-09-14: "from where can the user choose Tuji or Zip?")
+  const CO = st.company || "Zip to Zip", ZIP = CO === "Zip to Zip";
 
   host.innerHTML = `<div class="srx"><div class="srx-loading">Reading every season on file…</div></div>`;
 
@@ -44,14 +46,18 @@ async function renderSeasonal(host) {
      banner), and this page never widens who can reach the claims board — the grant stays where it is. */
   const opt = url => ZTZ.api(url).then(j => j.rows || []).catch(e => { console.warn("SR optional feed:", url, e); return null; });
   const colq = a => "&cols=" + encodeURIComponent(a.join(","));
-  const [cmart, ckw, credit, jov, negrev, revbk, rcounts] = await Promise.all([
+  const [cmart, ckw, credit, jovAll, negrev, revbk, rcounts] = await Promise.all([
     opt("/api/mart_claims_analysis?limit=100000"),
     opt("/api/mart_claim_keywords?limit=100000" + colq(["Monday Item Id", "Family Used"])),
     opt("/api/mart_sales_credit?limit=300000" + colq(["Request Joinkey", "Sales Person", "Share"])),
     opt("/api/fct_job_overview?limit=100000" + colq(["Job Date", "Job No", "Customer", "Foreman", "Company", "Job Type", "Number of Reviews",
       "Review Breakdown", "Eligible", "Exclusion Reason", "Final Status", "Foreman Reason", "Request Joinkey"])),
     grab("negative_reviews"), grab("reviews_breakdown"), grab("review_counts")]);
-  DS.negative_reviews = negrev; DS.reviews_breakdown = revbk;
+  // negative reviews: the table stamps every row Zip to Zip; the request key names the real company
+  DS.negative_reviews = (negrev || []).map(r => Object.assign({}, r, { Company: /^tuji\s/i.test(String(r["Request Joinkey"] || "")) ? "Tuji" : (r.Company || "Zip to Zip") }));
+  DS.reviews_breakdown = revbk;
+  // Review Performance's job table runs on Zip to Zip's calendar only
+  const jov = ZIP ? jovAll : null;
   // a manager's correction of a claim's family (Claims Analysis) — read-only here, same precedence as that page
   const OV = {};
   try { if (ZTZ.API && ZTZ.getToken && cmart) { const res = await fetch(ZTZ.API + "/api/_claimoverride", { headers: { Authorization: "Bearer " + ZTZ.getToken() } });
@@ -470,7 +476,7 @@ async function renderSeasonal(host) {
   const H = {};
   YEARS.forEach(y => {
     const c = cl(y), cr = created(y), bk = booked(y), b = bill(c), n = ncc(c);
-    const sc = scorecard.filter(r => { const m = String(r.Month || ""); return +m.slice(0, 4) === y && +m.slice(5, 7) >= F && +m.slice(5, 7) <= T; });
+    const sc = !ZIP ? [] : scorecard.filter(r => { const m = String(r.Month || ""); return +m.slice(0, 4) === y && +m.slice(5, 7) >= F && +m.slice(5, 7) <= T; });
     const inb = rcLine.filter(r => String(r.Company) === CO && !NOT_REP(r["Line Name"]) && +String(r.Month).slice(0, 4) === y && +String(r.Month).slice(5, 7) >= F && +String(r.Month).slice(5, 7) <= T);
     const inCalls = sumCol(inb, "Calls"), missed = sumCol(inb.filter(r => /^(Missed|Voicemail)$/i.test(String(r["Action Result"] || ""))), "Calls");
     const ads = adRows(y), adSpend = sumCol(ads, "Amount");
@@ -528,7 +534,7 @@ async function renderSeasonal(host) {
   cover.innerHTML = `<button class="srx-print" id="srPrint" title="Browser print">🖨 Print</button>
     <div class="srx-eyebrow">Seasonal Report · ${esc(CO)}</div>
     <div class="srx-h1">${esc(seasonName)} <em>${Y}</em></div>
-    <div class="srx-pick"><div id="srYear"></div><div id="srFrom"></div><div id="srTo"></div></div>
+    <div class="srx-pick"><div id="srCo"></div><div id="srYear"></div><div id="srFrom"></div><div id="srTo"></div></div>
     <div class="srx-cvsub">${MON[F]} 1 – ${MON[T]} ${lastDay(Y, T)}, ${Y}, compared with the same window in every season since 2023${latest ? ` · closings through ${esc(latest)}` : ""} · ${esc(CO)} only</div>`;
   root.appendChild(cover);
   const banner = (html, bad) => { const b = document.createElement("div"); b.className = "srx-banner" + (bad ? " bad" : ""); b.innerHTML = html; root.appendChild(b); };
@@ -595,7 +601,7 @@ async function renderSeasonal(host) {
     { g: "Jobs lost to capacity", t: "< 10% of demand", v: null, why: "no surge-day / capacity data on file" },
     { g: "Postcard conversion (leads ÷ postcards sent)", t: "≥ 0.6%", v: null, why: "postcards-sent counts are not on file" },
     { g: "Google Search click-through rate", t: "≥ 0.6%", v: null, why: "Search Console is not connected" }] };
-  if (TARGETS[Y]) {
+  if (TARGETS[Y] && ZIP) {   // the goals were written for Zip to Zip
     const rowsT = TARGETS[Y].map(t => {
       const has = t.v != null && isFinite(t.v), met = has && t.ok(t.v);
       return `<tr>${td(esc(t.g))}${td(esc(t.t))}${has ? td(t.f(t.v)) : `<td class="dim">—</td>`}${t.pv != null && isFinite(t.pv) ? td(t.f(t.pv)) : `<td class="dim">—</td>`}${has ? `<td class="${met ? "ok" : "no"}">${met ? "✓ met" : "✗ missed"}</td>` : `<td class="dim">${esc(t.why || "no data")}</td>`}</tr>`;
@@ -883,8 +889,8 @@ async function renderSeasonal(host) {
       { xLabel: "Reviews per eligible job", yLabel: "Claims — share of jobs", goodX: "high", goodY: "low", xAvg: teamR, yAvg: CC.rate, q: { br: "★ more reviews, fewer claims", tl: "fewer reviews, more claims" },
         how: `Only foremen with ${MINE}+ eligible jobs and 30+ jobs for the claim share. Lime = better than the team on both, red = worse on both, blue = mixed.` });
   } else {
-    const c = card(gR, "Per-foreman reviews need Review Performance access", "", { span2: true });
-    note(c, "The foreman view uses Review Performance's job table (eligible jobs, exclusions, the foreman's reason for a missing review). It is granted with that page; this report does not widen it.", true);
+    const c = card(gR, !ZIP ? "Per-foreman reviews are tracked for Zip to Zip only" : "Per-foreman reviews need Review Performance access", "", { span2: true });
+    note(c, !ZIP ? `Review Performance (eligible jobs, the foreman's reason for a missing review) runs on Zip to Zip's job calendar, so there is no per-foreman review data for ${CO}.` : "The foreman view uses Review Performance's job table (eligible jobs, exclusions, the foreman's reason for a missing review). It is granted with that page; this report does not widen it.", true);
   }
   // salespeople — reviews on the jobs they closed (breakdown → the closing's salesperson; the review sheet's own name is mostly blank)
   const spRev = y => { const jkSP = new Map(); cl(y).forEach(r => { if (r["Record Source"] === "closing" && r["Request Joinkey"] && r["Sales Person"]) jkSP.set(String(r["Request Joinkey"]), String(r["Sales Person"]).trim()); });
@@ -990,7 +996,10 @@ async function renderSeasonal(host) {
 
   /* ================= 05 · crew (foremen) ================= */
   const g5 = part("Crew", "foremen over the whole season — score, packing, reviews, hours");
-  const scIn = y => scorecard.filter(r => { const m = String(r.Month || ""); return +m.slice(0, 4) === y && +m.slice(5, 7) >= F && +m.slice(5, 7) <= T; });
+  const homeS = y => { const t = {}; closing.forEach(r => { if (!inWin(r._d || r.Date, y)) return; const f = String(r.Foreman || "").trim(), c2 = String(r.Company || ""); if (!f || !c2) return; const o = t[f] || (t[f] = {}); o[c2] = (o[c2] || 0) + 1; });
+    const out = {}; Object.keys(t).forEach(f => { out[f] = Object.entries(t[f]).sort((a, b) => b[1] - a[1])[0][0]; }); return out; };
+  const homeBy = {}; const homeOf = (y, f) => (homeBy[y] || (homeBy[y] = homeS(y)))[f] || CO;
+  const scIn = y => !ZIP ? [] : scorecard.filter(r => homeOf(y, String(r.Foreman || "").trim()) === CO).filter(r => { const m = String(r.Month || ""); return +m.slice(0, 4) === y && +m.slice(5, 7) >= F && +m.slice(5, 7) <= T; });
   const scFold = y => { const g = new Map(); scIn(y).forEach(r => { const n = String(r.Foreman || "").trim(); if (!n) return;
     const a = g.get(n) || { jobs: 0, sw: 0, sj: 0, w: 0, e: 0, cf: 0, rv: 0, fc: 0 }, j = num(r["Total Jobs"]), s = r["Total Score"];
     a.jobs += j; if (s != null && s !== "" && !isNaN(s)) { a.sw += +s * j; a.sj += j; }
@@ -1000,7 +1009,8 @@ async function renderSeasonal(host) {
   const FM = [...scT.entries()].filter(([, a]) => a.jobs >= 15 && a.sj).map(([n, a]) => { const l = scL.get(n), c = fcl.get(n) || [];
     return { n, a, score: a.sw / a.sj, scoreL: l && l.sj ? l.sw / l.sj : null, bill: bill(c), ncc: ncc(c), hrs: sumCol(c, "Foreman Hours"), ref: sumCol(fref.get(n) || [], "Total refund") }; })
     .sort((a, b) => b.score - a.score);
-  table(g5, `Foreman of the ${seasonName.toLowerCase() === "summer" ? "Summer" : "Season"} ${Y}`, "job-weighted season score · ranked", ["#", "Foreman", "Score", "vs " + LY, "Jobs", "Netcash + Card", "Hours / job", "Packing written", "vs estimate", "Packing / 100 CF", "Reviews / eligible job", "Claims share", "Refunds"],
+  if (!ZIP) { const nc = card(g5, "Foreman scores are kept for Zip to Zip", `${seasonName} ${Y}`, { span2: true }); note(nc, `Foreman of the Summer and the packing-commission what-if come from Zip to Zip's foreman scorecard, which has no company split, so they are not shown for ${CO}. Hours vs jobs and the crew pay what-if below are ${CO} only.`); }
+  else table(g5, `Foreman of the ${seasonName.toLowerCase() === "summer" ? "Summer" : "Season"} ${Y}`, "job-weighted season score · ranked", ["#", "Foreman", "Score", "vs " + LY, "Jobs", "Netcash + Card", "Hours / job", "Packing written", "vs estimate", "Packing / 100 CF", "Reviews / eligible job", "Claims share", "Refunds"],
     FM.map((f, i) => `<tr>${td(i + 1)}${td(`${i === 0 ? "👑 " : ""}${esc(f.n)}`, "")}${td(`<b>${f.score.toFixed(1)}</b>`)}${f.scoreL == null ? `<td class="dim">—</td>` : `<td class="${f.score >= f.scoreL ? "up" : "dn"}">${f.score >= f.scoreL ? "+" : ""}${(f.score - f.scoreL).toFixed(1)}</td>`}${td(fmtN(f.a.jobs))}${td(money(f.ncc))}${tdn(f.a.jobs ? f.hrs / f.a.jobs : null, v => v.toFixed(1))}${td(money(f.a.w))}${tdn(f.a.e ? f.a.w / f.a.e : null, pct0)}${tdn(f.a.cf ? f.a.w / f.a.cf * 100 : null, money)}${(() => { const rv = REVFM && REVFM.get(f.n); return rv && rv.el ? tdn(rv.rv / rv.el, pct0) : tdn(f.a.jobs && f.a.rv ? f.a.rv / f.a.jobs : null, pct0); })()}${(() => { const x = FMCL && FMCL.get(f.n); return x && x.r != null ? `<td class="${x.small ? "dim" : x.r > (CC.rate || 0) ? "dn" : "up"}">${pct(x.r)}</td>` : (f.a.fc ? td(fmtN(f.a.fc) + " fault", "no") : td("0")); })()}${f.ref ? td(money(f.ref), "no") : `<td class="dim">—</td>`}</tr>`),
     { how: `Score = each month's foreman Total Score weighted by that month's jobs, so a busy July counts more than a quiet May. From July 2026 the monthly score is the 60 automatic + 40 assessment model; earlier months used the 70/30 model. Foremen with fewer than 15 jobs in the window are left out. Packing "vs estimate" = written ÷ the sales estimate: it is a floor, not a target — crews routinely write 1.5–3× the estimate. Reviews per eligible job and the claims share use the same rules as the Reviews and Claims parts above.` });
   const fh = [...fcl.entries()].map(([n, c]) => ({ n, j: c.length, h: sumCol(c, "Foreman Hours") })).filter(x => x.j >= 10).sort((a, b) => b.h - a.h).slice(0, 22);
@@ -1019,7 +1029,7 @@ async function renderSeasonal(host) {
   const pk = y => { const c = cl(y), sc = scFold(y); let alt = 0, com = 0, wr = 0, est = 0;
     grp(c, key("Foreman")).forEach((rs, n) => { const W = sumCol(rs, "Material Total"), K = sumCol(rs, "Material $"), E = (sc.get(n) || {}).e || 0; com += K; wr += W; est += E; if (W > 0) alt += K / W * Math.max(0, W - E); });
     return { wr, est, com, alt }; };
-  table(g5, "What if packing commission were paid only above the estimate?", "per season", ["Season", "Written", "Estimate", "Commission paid", "If paid above estimate only", "Company keeps"],
+  if (ZIP) table(g5, "What if packing commission were paid only above the estimate?", "per season", ["Season", "Written", "Estimate", "Commission paid", "If paid above estimate only", "Company keeps"],
     [Y, LY].filter(y => H[y]).map(y => { const p = pk(y); return `<tr>${td(y === Y ? `<b>${y}</b>` : y)}${td(money(p.wr))}${td(money(p.est))}${td(money(p.com))}${td(money(p.alt))}${td(money(p.com - p.alt), "up")}</tr>`; }),
     { span2: false, how: "Each foreman keeps his current commission rate, but earns it only on packing written above his sales estimate (estimate from the foreman scorecard). The difference is what the company would keep. It ignores how crews would change behaviour — a sizing, not a forecast." });
 
@@ -1094,7 +1104,8 @@ async function renderSeasonal(host) {
       return `<tr>${td(esc(k))}${td(fmtN(a.in))}${dcell(a.in, l && l.in)}${td(fmtN(a.ans))}${mr == null ? `<td class="dim">—</td>` : `<td class="${mr > .05 ? "dn" : "up"}">${pct(mr)}</td>`}${td(mmss(a.ans ? a.dur / a.ans : null))}</tr>`; }),
     { span2: false, how: "Inbound voice calls per company line (sessions, not ring legs). Missed includes voicemail, as the deck's \"% missed (w/ VM)\" did; red above the 5% goal. Handle time averages answered calls only." });
   const crT = rows("callrail", Y), crG = grp(crT, r => String(r.Source || "").trim() || "(no source)");
-  table(g6, "Tracked marketing numbers", `CallRail · ${seasonName} ${Y}`, ["Source", "Calls", "First-time", "Returning", "Minutes", "Avg call"],
+  if (ZIP) table(g6, "Tracked marketing numbers",   // CallRail tracks Zip to Zip numbers only
+    `CallRail · ${seasonName} ${Y}`, ["Source", "Calls", "First-time", "Returning", "Minutes", "Avg call"],
     [...crG.entries()].sort((a, b) => b[1].length - a[1].length).slice(0, 15).map(([k, rs]) => { const ft = rs.filter(r => Number(r["First-Time Caller"]) === 1).length, sec = sumCol(rs, "Duration Seconds");
       return `<tr>${td(esc(k))}${td(fmtN(rs.length))}${td(fmtN(ft))}${td(fmtN(rs.length - ft))}${td(fmtN(Math.round(sec / 60)))}${td(mmss(rs.length ? sec / rs.length : null))}</tr>`; }),
     { span2: false, how: "Calls to the CallRail tracking numbers, grouped by the source each number is assigned to. First-time = CallRail's first-time-caller flag." });
@@ -1160,6 +1171,8 @@ async function renderSeasonal(host) {
   RSC.localSelect(cover.querySelector("#srYear"), { label: "Season", values: yearVals, value: String(Y), required: true, onChange: v => { st.year = +v; reRender(); } });
   RSC.localSelect(cover.querySelector("#srFrom"), { label: "From", values: monVals, value: String(F), required: true, onChange: v => { st.from = +v; if (st.to < st.from) st.to = st.from; reRender(); } });
   RSC.localSelect(cover.querySelector("#srTo"), { label: "To", values: monVals, value: String(T), required: true, onChange: v => { st.to = +v; if (st.from > st.to) st.from = st.to; reRender(); } });
+  const coVals = [...new Set(["Zip to Zip", "Tuji", CO, ...closing.filter(r => inWin(r._d || r.Date, Y)).map(r => String(r.Company || "")).filter(Boolean)])].sort();
+  RSC.localSelect(cover.querySelector("#srCo"), { label: "Company", values: coVals, value: CO, required: true, onChange: v => { st.company = v; st.year = 0; try { localStorage.setItem("ztzSrCompany", v); } catch (e) { /* storage blocked */ } reRender(); } });
   const pb = cover.querySelector("#srPrint"); if (pb) pb.onclick = () => window.print();
 }
 

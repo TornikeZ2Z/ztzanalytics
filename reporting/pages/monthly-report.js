@@ -25,6 +25,9 @@ async function renderMonthly(host, MRCFG) {
 
        Rows with no Company value pass through, so a missing lineage column can never blank
        a card. */
+    // The remembered company must be read BEFORE the company is decided. It used to be read ~190 lines
+    // later, so a first load rendered Zip to Zip data while the saved pick said Tuji (2026-09-14).
+    if (!MRCFG && st && !st.company) { try { st.company = String(localStorage.getItem("ztzMrCompany") || ""); } catch (e) {} }
     const MR_CO_DEFAULT = "Zip to Zip";
     const CO = (!MRCFG && st && st.company) ? String(st.company)
              : ((RS.state.multi.company && RS.state.multi.company.size)
@@ -208,7 +211,7 @@ async function renderMonthly(host, MRCFG) {
     // retired caches (Fleet section removed + dead per-job packing fetch deleted, 2026-07-15)
     delete window.__mrFleetCache; delete window.__mrFleetCache2;
     delete window.__mrPackCache; delete window.__mrPackCache2;
-    const DS = { closing, moveboard, storage, claims, refunds, card_expenses: cardEx, reviews_breakdown: reviews, negative_reviews: negrev, callrail, scorecard, review_counts: rcounts, review_goals: rgoals, helper_salaries: helperSalDs, sales_salaries: salesSalDs, headcount };
+    const DS = { closing, moveboard, storage, claims, refunds, card_expenses: cardEx, reviews_breakdown: reviews, negative_reviews: (negrev || []).map(r => Object.assign({}, r, { Company: /^tuji\s/i.test(String(r["Request Joinkey"] || "")) ? "Tuji" : (r.Company || MR_CO_DEFAULT) })), callrail, scorecard, review_counts: rcounts, review_goals: rgoals, helper_salaries: helperSalDs, sales_salaries: salesSalDs, headcount };
     const coJk = new Set((closing || []).filter(r => String(r.Company) === CO)
       .map(r => String(r["Request Joinkey"] || "")).filter(Boolean));
     const jkCo = r => coJk.has(String(r["Request Joinkey"] || ""));
@@ -1824,7 +1827,7 @@ async function renderMonthly(host, MRCFG) {
        slot and takes his cut (`Branch Owner` / `Branch Owner Cut` columns — his SP-slot book, never
        his foreman work). Gross profit is AFTER his cut, built the Job P&L way (helper/sales joined by
        Unique Key, refunds by Request Joinkey — attached to the job whenever paid). ---- */
-    if (SEC("CT Branch")) {
+    if (SEC("CT Branch") && CO === MR_CO_DEFAULT) {   // the CT branch is a Zip to Zip book
       const g = section("CT Branch", "the CT branch book — revenue, the owner's cut and profitability (Giorgi Kolbaia)");
       const isBO = r => r["Record Source"] === "closing" && r["Branch Owner"] != null && String(r["Branch Owner"]).trim() !== "";
       const accum = (src, keyCol, valCol) => { const m2 = new Map(); (src || []).forEach(r => { const k = r[keyCol]; if (k == null || k === "") return; m2.set(k, (m2.get(k) || 0) + num(r[valCol])); }); return m2; };
@@ -2262,7 +2265,7 @@ async function renderMonthly(host, MRCFG) {
         if (cSms && smsB) note(cSms, `${MON[mo]}: ${fmtN(smsB.in)} received, ${fmtN(smsB.out)} sent${smsB.fail ? `, ${fmtN(smsB.fail)} failed to deliver` : ""}. ${esc(CO)} lines only. Direction comes straight from the RingCentral export.`, "how");
       }
       // ---- CallRail — the tracked marketing numbers, shown SEPARATELY from RingCentral (Tornike 2026-07-16) ----
-      if (callrail && callrail.length) {
+      if (CO === MR_CO_DEFAULT && callrail && callrail.length) {   // CallRail tracks Zip to Zip numbers only
         subHead("CallRail", "tracked marketing numbers · inbound only · used for source attribution");
         const crTot = momReduce("callrail", 12, rs => rs.length);
         const crAns = momReduce("callrail", 12, rs => rs.filter(r => String(r["Call Status"]) === "Answered Call").length);
@@ -2304,8 +2307,17 @@ async function renderMonthly(host, MRCFG) {
       segReduce("closing", "Foreman", rs => rs.length, PMY, PM).forEach(r => jobsFmPM[r.k] = r.v);
       // tiny MoM arrow: ▲/▼ + % vs previous month, green/red
       const mArrow = (cur, prev) => { if (prev == null || !prev) return ""; const d2 = (cur - prev) / Math.abs(prev); return ` <span style="color:${d2 >= 0 ? POS : NEG};font-size:10px;font-weight:800">${d2 >= 0 ? "▲" : "▼"}${Math.abs(d2 * 100).toFixed(0)}%</span>`; };
-      const scRows = (DS.scorecard || []).filter(r => { const d = String(r["Month"] || "").slice(0, 7); return d === `${curY}-${String(mo).padStart(2, "0")}`; });
-      const scPrev = (DS.scorecard || []).filter(r => { const d = String(r["Month"] || "").slice(0, 7); return d === `${PMY}-${String(PM).padStart(2, "0")}`; });
+      /* COMPANY (2026-09-14). The foreman scorecard mart has no Company column: a foreman's month is scored
+         across every book he worked. So each foreman appears only under the company where he ran most of
+         that month's jobs (Giorgi Kirvalidze, summer 2026: 48 Tuji jobs, 4 Zip), and the scores, the
+         assessment and the crew roster - Zip to Zip's own scoring system - are not shown for another company. */
+      const homeCo = (y, m2) => { const t = {}; (monthRows("closing", y, m2) || []).forEach(r => { const f = String(r.Foreman || "").trim(), c2 = String(r.Company || ""); if (!f || !c2) return; const o = t[f] || (t[f] = {}); o[c2] = (o[c2] || 0) + 1; });
+        const out = {}; Object.keys(t).forEach(f => { out[f] = Object.entries(t[f]).sort((a, b) => b[1] - a[1])[0][0]; }); return out; };
+      const SC_ZIP = CO === MR_CO_DEFAULT, hcCur = homeCo(curY, mo), hcPrev = homeCo(PMY, PM);
+      const scRows = !SC_ZIP ? [] : (DS.scorecard || []).filter(r => { const d = String(r["Month"] || "").slice(0, 7); return d === `${curY}-${String(mo).padStart(2, "0")}` && (hcCur[String(r.Foreman || "").trim()] || CO) === CO; });
+      const scPrev = !SC_ZIP ? [] : (DS.scorecard || []).filter(r => { const d = String(r["Month"] || "").slice(0, 7); return d === `${PMY}-${String(PM).padStart(2, "0")}` && (hcPrev[String(r.Foreman || "").trim()] || CO) === CO; });
+      if (!SC_ZIP) { const nc = card(g, "Foreman scores are kept for Zip to Zip", monLbl, { span2: true });
+        note(nc, `Foreman of the Month, the logistics assessment, the ranked scorecard, crew counts and packing-vs-estimate come from Zip to Zip's scoring system, which has no company split, so they are not shown for ${CO}. The job-based foreman cards below (jobs vs hours, packing written, refunds, pay rate) are ${CO} only.`); }
       if (scRows.length) {
         const sc = scRows.map(r => ({ f: r.Foreman, jobs: num(r["Total Jobs"]), cf: num(r["Total CF"]), written: num(r["Total Packing Written"]), est: num(r["Total Packing Estimate"]), rev: num(r["Total Reviews Written"]), claims: num(r["Forman Fault Claims"]), score: nn(r["Total Score"]) != null ? nn(r["Total Score"])
                   : (nn(r["Auto Score"]) != null ? nn(r["Auto Score"]) : num(r["Forman Score"])),
@@ -2514,6 +2526,7 @@ async function renderMonthly(host, MRCFG) {
       // because no job record names a driver.
       (function () {
         const hc = (DS.headcount || []);
+        if (CO !== MR_CO_DEFAULT) return;   // crew counts are company-wide - no company split exists
         const at = k => hc.filter(r => String(r.Month || "").slice(0, 7) === k)[0];
         const cur = at(`${curY}-${String(mo).padStart(2, "0")}`);
         const prv = at(`${PMY}-${String(PM).padStart(2, "0")}`);
@@ -2570,7 +2583,7 @@ async function renderMonthly(host, MRCFG) {
       // join on trimmed+case-folded names so a stray space can't zero an estimate bar
       const nrmF = s => String(s == null ? "" : s).trim().toLowerCase();
       const estM = {}; scRows.forEach(r => estM[nrmF(r.Foreman)] = num(r["Total Packing Estimate"]));
-      groupedBars(g, "Packing written vs estimate by foreman", packCur.map(r => r.k), packCur.map(r => estM[nrmF(r.k)] || 0), "Estimate", packCur.map(r => r.v), "Written", money, { sub: monLbl });
+      if (scRows.length) groupedBars(g, "Packing written vs estimate by foreman", packCur.map(r => r.k), packCur.map(r => estM[nrmF(r.k)] || 0), "Estimate", packCur.map(r => r.v), "Written", money, { sub: monLbl });
       const refByFm = segReduce("refunds", "Foreman", rs => Math.abs(rs.reduce((a, x) => a + num(x["Total refund"]), 0)), curY, mo).filter(r => r.v > 0 && r.k !== "—");
       if (refByFm.length) rankBars(g, "Refunds by foreman", refByFm, money, { top: 10 });
       // deck s43: per-foreman pay RATE ($/hour) + hours — the scorecard shows pay but never the rate behind it
@@ -2765,7 +2778,7 @@ async function renderMonthly(host, MRCFG) {
         { l: "Amount Reduced from Sales Person", v: money(redTot), c: redTot, ly: redTotLY, pm: redTotPM, icon: KIC.tag, inv: 1 }
       ].forEach(k => kpiTile(kg, k));
       // ---- breakdown charts ----
-      rankBars(g, "Claims by responsibility", segReduce("claims", "Responsibility", rs => rs.length, curY, mo).map(s => ({ ...s, k: dispResp(s.k) })), fmtN, { top: 8 });
+      rankBars(g, "Claims by responsibility", segReduce("claims", "Responsibility", rs => rs.filter(jkCo).length, curY, mo).filter(s => s.v > 0).map(s => ({ ...s, k: dispResp(s.k) })), fmtN, { top: 8 });
       donut(g, "Claims by reason", segReduce("claims", "Reason", rs => rs.filter(jkCo).length, curY, mo).filter(r => r.k !== "—" && r.k !== "(blank)"), fmtN, { center: fmtN(reduceMonth("claims", curY, mo, rs => rs.filter(jkCo).filter(r => r.Reason && r.Reason !== "(blank)").length) || 0), centerLbl: "classified" });
       // "Refunds by reason" chart + the "Refund % of revenue" tile removed 2026-07-15 (Tornike):
       // the refund register below already carries reason per row, and refunds are ~0.2% of revenue —
