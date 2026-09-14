@@ -109,6 +109,9 @@ async function renderSeasonal(host) {
   const growth = (c, p) => (c == null || !p) ? null : (c - p) / Math.abs(p);
   // Post Card is booked per state ("Post Card - NJ") on some rows and pooled on others — pool for channel views
   const normSrc = s => /post ?card/i.test(String(s || "")) ? "Post Card" : String(s || "").trim();
+  // NOT SALESPEOPLE (2026-09-14): Mary Della Russo manages the sales team, Anna Kalan has left, "TEST" is a
+  // test account. Hidden from every per-person sales and phone view; their jobs stay in company totals.
+  const NOT_REP = n => /^(test\b|mary della russ|anna kalan)/i.test(String(n || "").trim());
 
   /* The ad ledger lags (card statements post ~a month late). Ad-based ratios compare LIKE FOR LIKE:
      if the picked season's last months are not posted yet, every year is cut to the same months. */
@@ -182,13 +185,14 @@ async function renderSeasonal(host) {
     .srx-exec b{color:${LIME}}
     .srx-exec ul{margin:6px 0 0;padding-left:18px}
     .srx-scroll{overflow-x:auto}
-    .srx-tbl{width:100%;border-collapse:collapse;font-size:13.5px;font-family:${MONO};font-variant-numeric:tabular-nums}
-    .srx-tbl th{font-family:Inter,sans-serif;font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:${SUB};text-align:right;padding:7px 9px;border-bottom:2px solid ${INK};white-space:nowrap}
+    .srx-tbl{width:100%;border-collapse:collapse;font-size:13px;font-family:${MONO};font-variant-numeric:tabular-nums}
+    .srx-tbl th{font-family:Inter,sans-serif;font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:${SUB};text-align:right;padding:6px 7px;border-bottom:2px solid ${INK};white-space:normal;vertical-align:bottom}
     .srx-tbl th:first-child,.srx-tbl td:first-child{text-align:left}
-    .srx-tbl td{padding:7px 9px;text-align:right;border-bottom:1px solid ${GRID};color:${INK2};white-space:nowrap}
-    .srx-tbl td:first-child{font-family:Inter,sans-serif;font-weight:600;color:${INK}}
+    .srx-tbl td{padding:6px 7px;text-align:right;border-bottom:1px solid ${GRID};color:${INK2};white-space:nowrap}
+    .srx-tbl td:first-child{font-family:Inter,sans-serif;font-weight:600;color:${INK};white-space:normal;min-width:88px}
     .srx-tbl tr.tot td{font-weight:800;border-top:2px solid ${INK};border-bottom:0;color:${INK}}
     .srx-tbl td.dim{color:${FAINT}}
+    .srx-tbl td.w{white-space:normal;text-align:left;min-width:84px}
     .srx-tbl th.grp{text-align:center;border-bottom:1px solid ${LINE};color:${INK2}}
     .srx-tbl .up{color:${POS};font-weight:800}.srx-tbl .dn{color:${NEG};font-weight:800}
     .srx-tbl td.ok{color:${POS};font-weight:800}.srx-tbl td.no{color:${NEG};font-weight:800}
@@ -212,7 +216,7 @@ async function renderSeasonal(host) {
     .srx-tbl tr.small td{color:${FAINT}}
     .srx-mini{width:100%;border-collapse:collapse;font-size:12.5px;font-family:Inter,sans-serif}
     .srx-mini th{text-align:left;font-size:11.5px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:${SUB};padding:5px 8px;border-bottom:1px solid ${LINE}}
-    .srx-mini td{text-align:left!important;padding:5px 8px;border-bottom:1px solid ${GRID};font-weight:500!important;color:${INK2}!important;font-family:Inter,sans-serif!important;white-space:nowrap}
+    .srx-mini td{text-align:left!important;padding:5px 8px;border-bottom:1px solid ${GRID};font-weight:500!important;color:${INK2}!important;font-family:Inter,sans-serif!important;white-space:normal}
     .srx-mini td.no{color:${NEG}!important;font-weight:700!important}
     .srx-minif{margin-top:6px;font-size:12px;color:${SUB};font-weight:600}
     .srx-pg{display:flex;justify-content:space-between;align-items:center;margin-top:10px;font-family:${MONO};font-size:12.5px;font-weight:700;color:${SUB}}
@@ -221,6 +225,7 @@ async function renderSeasonal(host) {
     .srx-pg button.all{background:${LIME};border-color:${LIME};font-weight:800}
     .srx-link{color:${BLUE};font-weight:700;text-decoration:none;font-family:Inter,sans-serif}
     .srx-link:hover{text-decoration:underline}
+    .srx-fold{margin-top:10px}.srx-fold summary{cursor:pointer;font-size:12.5px;font-weight:700;color:${BLUE};padding:4px 0}
     .srx-empty{height:100%;min-height:120px;display:grid;place-items:center;color:${FAINT};font-size:13px;font-weight:600}
     .srx-gap li{margin:4px 0}
     @media print{
@@ -275,6 +280,17 @@ async function renderSeasonal(host) {
     if (!txt) return; const n = document.createElement("div"); n.className = "srx-note" + (how ? " how" : "");
     n.innerHTML = `<b>${how ? "How it's counted · " : "Insight · "}</b>${esc(txt)}`; c.appendChild(n);
   }
+  /* LAZY CHARTS (her MacBook, 2026-09-14): ~31 canvases at 2x retina exhausted the browser's canvas memory -
+     later charts drew BLANK and a chart whose card widened kept its first, smaller bitmap. A chart now exists
+     only while its box is near the screen, is destroyed (bitmap freed) once it scrolls well away, and is drawn
+     after the layout has settled, so it always fills its box. */
+  if (window.__srLZ) { try { window.__srLZ.io.disconnect(); window.__srLZ.items.forEach(it => { if (it.ch) it.ch.destroy(); }); } catch (e) { /* stale */ } }
+  const LZ = window.__srLZ = { items: new Map(), io: null };
+  LZ.io = new IntersectionObserver(ents => ents.forEach(e => { const it = LZ.items.get(e.target); if (!it) return;
+    if (!e.target.isConnected) { LZ.io.unobserve(e.target); LZ.items.delete(e.target); if (it.ch) { it.ch.destroy(); it.ch = null; } return; }
+    if (e.isIntersecting) { if (!it.ch) it.ch = new Chart(it.cv, it.cfg); } else if (it.ch) { it.ch.destroy(); it.ch = null; } }), { rootMargin: "700px 0px" });
+  function lazyChart(cv, cfg) { const box = cv.parentNode; LZ.items.set(box, { cv, cfg, ch: null }); LZ.io.observe(box); }
+  if (!window.__srPrintHook) { window.__srPrintHook = 1; window.addEventListener("beforeprint", () => { const z = window.__srLZ; if (z) z.items.forEach(it => { if (!it.ch && it.cv.isConnected) it.ch = new Chart(it.cv, it.cfg); }); }); }
   function chartBox(c, h) { const b = document.createElement("div"); b.className = "srx-box"; if (h) b.style.height = h + "px"; const cv = document.createElement("canvas"); b.appendChild(cv); c.appendChild(b); return { b, cv }; }
   const empty = (b, msg) => { b.innerHTML = `<div class="srx-empty">${esc(msg || "No data in this window")}</div>`; };
   function chip(c, p, inv, lbl) {
@@ -285,6 +301,9 @@ async function renderSeasonal(host) {
   const dcell = (c, p, inv) => { const g = growth(c, p); if (g == null) return `<td class="dim">—</td>`; const good = inv ? g < 0 : g >= 0; return `<td class="${good ? "up" : "dn"}">${g >= 0 ? "+" : ""}${(g * 100).toFixed(0)}%</td>`; };
   // for a rate where lower is better (claims): the sign says which way it moved, the colour says whether that is good
   const ppInv = (c, p) => { if (c == null || p == null || !isFinite(c) || !isFinite(p)) return `<td class="dim">—</td>`; const d = (c - p) * 100; return `<td class="${d <= 0 ? "up" : "dn"}">${d >= 0 ? "+" : ""}${d.toFixed(1)}pp</td>`; };
+  // this season's value coloured by its move against last season (green up, red down); the exact change is in the hover
+  const dtd = (c, p, fmt) => { const g = growth(c, p); return g == null ? tdn(c, fmt) : `<td class="${g >= 0 ? "up" : "dn"}" title="${g >= 0 ? "+" : ""}${(g * 100).toFixed(0)}% vs ${LY}">${fmt(c)}</td>`; };
+  const ptd = (c, p) => (c == null || p == null || !isFinite(c) || !isFinite(p)) ? tdn(c, pct) : `<td class="${c >= p ? "up" : "dn"}" title="${c >= p ? "+" : ""}${((c - p) * 100).toFixed(1)}pp vs ${LY}">${pct(c)}</td>`;
   const ppcell = (c, p) => { if (c == null || p == null || !isFinite(c) || !isFinite(p)) return `<td class="dim">—</td>`; const d = (c - p) * 100; return `<td class="${d >= 0 ? "up" : "dn"}">${d >= 0 ? "+" : ""}${d.toFixed(1)}pp</td>`; };
 
   // columns across SEASONS — one dataset, or several side by side (e.g. Total Bill vs Netcash + Card)
@@ -292,7 +311,7 @@ async function renderSeasonal(host) {
     opts = opts || {}; const c = card(mount, title, sub, opts); const { b, cv } = chartBox(c, opts.h);
     if (!sets.some(s => s.vals.some(v => v != null))) { empty(b); return c; }
     const single = sets.length === 1;
-    new Chart(cv, { type: "bar", data: { labels: YEARS.map(String), datasets: sets.map((s, i) => ({ label: s.label, data: s.vals,
+    lazyChart(cv, { type: "bar", data: { labels: YEARS.map(String), datasets: sets.map((s, i) => ({ label: s.label, data: s.vals,
       backgroundColor: single ? YEARS.map(yearColor) : (s.color || [INK, BLUE, VIOLET][i]), borderRadius: 5, maxBarThickness: single ? 64 : 40, categoryPercentage: .72, barPercentage: .86 })) },
       options: base({ layout: { padding: { top: 24 } }, plugins: { legend: legend(!single), tooltip: Object.assign({}, tipTheme, { callbacks: { label: x => (single ? "" : x.dataset.label + ": ") + (opts.tip || fmt)(x.parsed.y) } }) },
         scales: { x: axX(), y: axY(opts.axis || moneyC) } }, fmt), plugins: [valLabels(opts.lbl || fmt, false)] });
@@ -302,7 +321,7 @@ async function renderSeasonal(host) {
   function pairBars(mount, title, sub, labels, prev, cur, fmt, opts) {
     opts = opts || {}; const c = card(mount, title, sub, opts); const { b, cv } = chartBox(c, Math.max(210, 50 + labels.length * 34));
     if (!labels.length) { empty(b); return c; }
-    new Chart(cv, { type: "bar", data: { labels, datasets: [
+    lazyChart(cv, { type: "bar", data: { labels, datasets: [
       { label: String(LY), data: prev, backgroundColor: CTX, hoverBackgroundColor: CTX_H, borderRadius: 3, maxBarThickness: 13 },
       { label: String(Y), data: cur, backgroundColor: INK, hoverBackgroundColor: INK_H, borderRadius: 3, maxBarThickness: 13 }] },
       options: base({ indexAxis: "y", layout: { padding: { right: 70 } }, plugins: { legend: legend(true), tooltip: Object.assign({}, tipTheme, { callbacks: { label: x => x.dataset.label + ": " + fmt(x.parsed.x) } }) },
@@ -312,7 +331,7 @@ async function renderSeasonal(host) {
   function rankBars(mount, title, sub, series, fmt, opts) {
     opts = opts || {}; const s = series.slice(0, opts.top || 14); const c = card(mount, title, sub, opts);
     const { b, cv } = chartBox(c, Math.max(210, 48 + s.length * 30)); if (!s.length) { empty(b); return c; }
-    new Chart(cv, { type: "bar", data: { labels: s.map(r => r.k), datasets: [{ data: s.map(r => r.v), backgroundColor: s.map((_, i) => i === 0 ? LIME : INK), hoverBackgroundColor: INK_H, borderRadius: 4, maxBarThickness: 20 }] },
+    lazyChart(cv, { type: "bar", data: { labels: s.map(r => r.k), datasets: [{ data: s.map(r => r.v), backgroundColor: s.map((_, i) => i === 0 ? LIME : INK), hoverBackgroundColor: INK_H, borderRadius: 4, maxBarThickness: 20 }] },
       options: base({ indexAxis: "y", layout: { padding: { right: 70 } }, scales: { x: axY(opts.axis || fmt), y: axCat() } }, fmt), plugins: [valLabels(fmt, true)] });
     if (opts.note) note(c, opts.note); if (opts.how) note(c, opts.how, true); return c;
   }
@@ -320,7 +339,7 @@ async function renderSeasonal(host) {
   function combo(mount, title, sub, labels, bars, barLbl, barFmt, line, lineLbl, lineFmt, opts) {
     opts = opts || {}; const c = card(mount, title, sub, opts); const { b, cv } = chartBox(c, opts.h);
     if (!labels.length) { empty(b); return c; }
-    new Chart(cv, { data: { labels, datasets: [
+    lazyChart(cv, { data: { labels, datasets: [
       { type: "bar", label: barLbl, data: bars, backgroundColor: opts.barColors || labels.map(l => String(l) === String(Y) ? LIME : INK), borderRadius: 4, maxBarThickness: 46, yAxisID: "y", order: 2 },
       { type: "line", label: lineLbl, data: line, borderColor: BLUE, backgroundColor: BLUE, tension: 0, borderWidth: 2.6, pointRadius: 3.5, pointBackgroundColor: BLUE, pointBorderColor: "#fff", yAxisID: "y1", order: 1 }] },
       options: base({ layout: { padding: { top: 22, right: 8 } }, plugins: { legend: legend(true), tooltip: Object.assign({}, tipTheme, { callbacks: { label: x => x.dataset.yAxisID === "y1" ? lineLbl + ": " + lineFmt(x.parsed.y) : barLbl + ": " + barFmt(x.parsed.y) } }) },
@@ -335,7 +354,7 @@ async function renderSeasonal(host) {
     const sets = YEARS.map(y => ({ label: String(y), data: winMonths.map(m => valFn(y, m)), borderColor: yearColor(y), backgroundColor: yearColor(y),
       borderWidth: y === Y ? 3.4 : 2, pointRadius: y === Y ? 4 : 2.5, pointBackgroundColor: yearColor(y), pointBorderColor: "#fff", tension: 0, fill: false }));
     if (!sets.some(s => s.data.some(v => v))) { empty(b); return c; }
-    new Chart(cv, { type: "line", data: { labels: winMonths.map(m => MS[m]), datasets: sets },
+    lazyChart(cv, { type: "line", data: { labels: winMonths.map(m => MS[m]), datasets: sets },
       options: base({ layout: { padding: { top: 12, right: 12 } }, plugins: { legend: legend(true), tooltip: Object.assign({}, tipTheme, { callbacks: { label: x => x.dataset.label + ": " + fmt(x.parsed.y) } }) },
         scales: { x: axX(), y: axY(opts.axis || fmt, { beginAtZero: false }) } }, fmt) });
     if (opts.note) note(c, opts.note); if (opts.how) note(c, opts.how, true); return c;
@@ -346,7 +365,7 @@ async function renderSeasonal(host) {
     const tot = s.reduce((a, r) => a + r.v, 0); const c = card(mount, title, sub, Object.assign({ head: fmt(tot) }, opts)); const { b, cv } = chartBox(c, 300);
     if (!s.length) { empty(b); return c; }
     const COL = [INK, BLUE, VIOLET, LIME, "#4a6285", "#84aef0", "#c4aef9", LIMED, "#aeb9c8"];
-    new Chart(cv, { type: "doughnut", data: { labels: s.map(r => r.k), datasets: [{ data: s.map(r => r.v), backgroundColor: s.map((_, i) => COL[i % COL.length]), borderColor: "#fff", borderWidth: 3 }] },
+    lazyChart(cv, { type: "doughnut", data: { labels: s.map(r => r.k), datasets: [{ data: s.map(r => r.v), backgroundColor: s.map((_, i) => COL[i % COL.length]), borderColor: "#fff", borderWidth: 3 }] },
       options: { __solidBars: true, maintainAspectRatio: false, animation: false, cutout: "62%", plugins: { legend: { position: "right", labels: { color: INK2, font: { size: 12.5 }, boxWidth: 12, usePointStyle: true } },
         tooltip: Object.assign({}, tipTheme, { callbacks: { label: x => `${x.label}: ${fmt(x.parsed)} (${(x.parsed / tot * 100).toFixed(0)}%)` } }) } },
       plugins: [{ id: "srdl", afterDatasetsDraw(ch) { const ctx = ch.ctx; ctx.save(); ctx.font = "800 12px " + MONO; ctx.textAlign = "center"; ctx.textBaseline = "middle";
@@ -413,7 +432,7 @@ async function renderSeasonal(host) {
     const ya = opts.yAvg != null ? opts.yAvg : pts.reduce((a, p) => a + p.y, 0) / pts.length;
     const okX = p => opts.goodX === "low" ? p.x <= xa : p.x >= xa, okY = p => opts.goodY === "low" ? p.y <= ya : p.y >= ya;
     const col = p => okX(p) && okY(p) ? LIME : !okX(p) && !okY(p) ? NEG : BLUE;
-    new Chart(cv, { type: "bubble", data: { datasets: [{ data: pts.map(p => ({ x: clampX ? Math.min(p.x, xCap) : p.x, rx: p.x, over: clampX && p.x > xCap, y: p.y, r: 5 + 16 * Math.sqrt((p.r || 1) / maxR), k: p.k, sz: p.r })),
+    lazyChart(cv, { type: "bubble", data: { datasets: [{ data: pts.map(p => ({ x: clampX ? Math.min(p.x, xCap) : p.x, rx: p.x, over: clampX && p.x > xCap, y: p.y, r: 5 + 16 * Math.sqrt((p.r || 1) / maxR), k: p.k, sz: p.r })),
       backgroundColor: pts.map(col), borderColor: "#fff", borderWidth: 1.5, hoverBorderColor: INK }] },
       options: { __solidBars: true, maintainAspectRatio: false, animation: false, layout: { padding: { top: 18, right: 24 } },
         plugins: { legend: { display: false }, tooltip: Object.assign({}, tipTheme, { callbacks: { label: x => `${x.raw.k}: ${opts.xLabel} ${xf(x.raw.rx)} · ${opts.yLabel} ${yf(x.raw.y)} · ${fmtN(x.raw.sz)} ${opts.rLabel || "jobs"}` } }) },
@@ -437,7 +456,7 @@ async function renderSeasonal(host) {
     opts = opts || {}; const c = card(mount, title, sub, opts); const { b, cv } = chartBox(c, opts.h || 330);
     let run = 0; const bars = [], cols = [];
     steps.forEach(s => { if (s.total) { bars.push([0, s.v]); cols.push(s.hero ? LIME : INK); run = s.v; } else { bars.push([run, run + s.v]); cols.push(s.v >= 0 ? POS : NEG); run += s.v; } });
-    new Chart(cv, { type: "bar", data: { labels: steps.map(s => s.label), datasets: [{ data: bars, backgroundColor: cols, borderRadius: 3, maxBarThickness: 90, categoryPercentage: .9, barPercentage: .95 }] },
+    lazyChart(cv, { type: "bar", data: { labels: steps.map(s => s.label), datasets: [{ data: bars, backgroundColor: cols, borderRadius: 3, maxBarThickness: 90, categoryPercentage: .9, barPercentage: .95 }] },
       options: base({ layout: { padding: { top: 24 } }, plugins: { legend: legend(false), tooltip: Object.assign({}, tipTheme, { callbacks: { label: x => { const d = x.raw; return fmt(d[1] - d[0]); } } }) },
         scales: { x: { ticks: { color: INK2, font: { size: 12, weight: "600" }, maxRotation: 0, autoSkip: false, callback(v) { const l = this.getLabelForValue(v); return l.length > 16 ? l.split(" — ") : l; } }, grid: { display: false } },
           y: axY(moneyC, { beginAtZero: !!opts.zero }) } }, fmt),
@@ -452,7 +471,7 @@ async function renderSeasonal(host) {
   YEARS.forEach(y => {
     const c = cl(y), cr = created(y), bk = booked(y), b = bill(c), n = ncc(c);
     const sc = scorecard.filter(r => { const m = String(r.Month || ""); return +m.slice(0, 4) === y && +m.slice(5, 7) >= F && +m.slice(5, 7) <= T; });
-    const inb = rcLine.filter(r => String(r.Company) === CO && +String(r.Month).slice(0, 4) === y && +String(r.Month).slice(5, 7) >= F && +String(r.Month).slice(5, 7) <= T);
+    const inb = rcLine.filter(r => String(r.Company) === CO && !NOT_REP(r["Line Name"]) && +String(r.Month).slice(0, 4) === y && +String(r.Month).slice(5, 7) >= F && +String(r.Month).slice(5, 7) <= T);
     const inCalls = sumCol(inb, "Calls"), missed = sumCol(inb.filter(r => /^(Missed|Voicemail)$/i.test(String(r["Action Result"] || ""))), "Calls");
     const ads = adRows(y), adSpend = sumCol(ads, "Amount");
     const paid = new Set(ads.map(r => normSrc(r.Source)).filter(Boolean));
@@ -613,7 +632,7 @@ async function renderSeasonal(host) {
       cl(y).forEach(r => { const d = new Date(String(r._d || r.Date).slice(0, 10) + "T00:00:00Z"); const w = Math.min(nW - 1, Math.floor((d - start(y)) / 864e5 / 7)); if (w >= 0) { wk[w] += num(r["Total Bill"]) + num(r["Extra Bill From Trips"]); if (w > last) last = w; } });
       let run = 0; return { label: String(y), data: wk.map((v, i) => { run += v; return i <= last ? run : null; }), borderColor: yearColor(y), backgroundColor: yearColor(y),
         borderWidth: y === Y ? 3.4 : 2, pointRadius: 0, tension: 0, fill: false }; });
-    new Chart(cv, { type: "line", data: { labels: Array.from({ length: nW }, (_, i) => "Wk " + (i + 1)), datasets: sets },
+    lazyChart(cv, { type: "line", data: { labels: Array.from({ length: nW }, (_, i) => "Wk " + (i + 1)), datasets: sets },
       options: base({ layout: { padding: { top: 10, right: 12 } }, plugins: { legend: legend(true), tooltip: Object.assign({}, tipTheme, { callbacks: { label: x => x.dataset.label + ": " + money(x.parsed.y) } }) },
         scales: { x: axX(), y: axY(moneyC) } }, money) });
     const wkNow = sets[sets.length - 1].data.filter(v => v != null).length, prevAt = H[LY] ? sets[sets.length - 2].data[wkNow - 1] : null;
@@ -629,6 +648,12 @@ async function renderSeasonal(host) {
     { axis: pct0, head: pct(C.rate), how: "Net Cash + Card Payment (trips included) divided by Total Bill, both summed over the whole window — not an average of monthly rates." });
   seasonCols(g2, "Jobs done", `${winLbl} · every season`, [{ label: "Jobs", vals: YEARS.map(y => H[y].jobs) }], fmtN, { axis: fmtN, head: fmtN(C.jobs), chips: chip(C.jobs, P.jobs) });
   seasonShape(g2, "How the season unfolded — Total Bill by month", "one line per season", (y, m) => bill(cl(y, m, m)) || null, money, { axis: moneyC });
+  // her ask: "a chart of the monthly rise of card payments"
+  const cardOf = rs => M["Card Payment"].fn(rs), cardT = cardOf(cl(Y)), cardL = H[LY] ? cardOf(cl(LY)) : null;
+  seasonShape(g2, "Card payments by month", "one line per season", (y, m) => cardOf(cl(y, m, m)) || null, money,
+    { axis: moneyC, head: money(cardT), chips: chip(cardT, cardL), how: "Card Payment on the closings, by the job's date." });
+  seasonShape(g2, "Card payments as a share of Netcash + Card", "by month · one line per season", (y, m) => { const rs = cl(y, m, m), n = ncc(rs); return n ? cardOf(rs) / n : null; }, pct,
+    { axis: pct0, head: pct(C.ncc ? cardT / C.ncc : null), how: "Card Payment ÷ (Net Cash + Card Payment) for the month's jobs — how much of what the company keeps now arrives by card." });
 
   // Local vs long distance, one row per season
   table(g2, "Local vs Long-distance", "jobs, Total Bill and Netcash + Card per season", ["Season", "Jobs", "Total Bill", "Netcash + Card", "Jobs", "Total Bill", "Netcash + Card", "LD share of bill"],
@@ -650,11 +675,14 @@ async function renderSeasonal(host) {
   function distTable(mount, title, keyFn, order, how) {
     const tY = grp(cl(Y), keyFn), tL = grp(cl(LY), keyFn); const keys = [...new Set([...tY.keys(), ...tL.keys()])].sort(order);
     const totY = ncc(cl(Y)), totL = ncc(cl(LY));
-    table(mount, title, `${Y} · share of Netcash + Card vs ${LY}`, ["", "Jobs", "Total Bill", "Netcash + Card", "Share", "Share " + LY, "Δ"],
-      keys.map(k => { const a = tY.get(k) || [], b = tL.get(k) || []; const sT = totY ? ncc(a) / totY : null, sL = totL ? ncc(b) / totL : null;
-        return `<tr>${td(esc(k))}${td(fmtN(a.length))}${td(money(bill(a)))}${td(money(ncc(a)))}${tdn(sT, pct)}${tdn(sL, pct)}${ppcell(sT, sL)}</tr>`; })
-        .concat([`<tr class="tot">${td("All jobs")}${td(fmtN(C.jobs))}${td(money(C.bill))}${td(money(C.ncc))}${td("100%")}${td("100%")}<td></td></tr>`]),
-      { span2: false, how });
+    const sh = (g, k, tot) => tot ? ncc(g.get(k) || []) / tot : null;
+    // her note: "graph chart would be better" - the share is the story, so the share is the chart; the money is one click away
+    const c = pairBars(mount, title, `share of Netcash + Card · ${Y} vs ${LY}`, keys, keys.map(k => sh(tL, k, totL)), keys.map(k => sh(tY, k, totY)), pct, { axis: pct0, how });
+    const det = document.createElement("details"); det.className = "srx-fold";
+    det.innerHTML = `<summary>The numbers behind it</summary><div class="srx-scroll"><table class="srx-tbl"><thead><tr>${["", "Jobs", "Netcash + Card", "Share", "vs " + LY].map(h => `<th>${esc(h)}</th>`).join("")}</tr></thead><tbody>` +
+      keys.map(k => { const a2 = tY.get(k) || [], sT = sh(tY, k, totY), sL = sh(tL, k, totL); return `<tr>${td(esc(k))}${td(fmtN(a2.length))}${td(money(ncc(a2)))}${tdn(sT, pct)}${ppcell(sT, sL)}</tr>`; }).join("") +
+      `<tr class="tot">${td("All jobs")}${td(fmtN(C.jobs))}${td(money(C.ncc))}${td("100%")}<td></td></tr></tbody></table></div>`;
+    c.appendChild(det);
   }
   distTable(g2, "Profit distribution by size of move", r => r["Size of Move"] ? String(r["Size of Move"]).trim() : "(size not recorded)", (a, b) => sizeKey(a) - sizeKey(b) || a.localeCompare(b));
   const jkCF = new Map(); moveboard.forEach(r => { const jk = r["Request Joinkey"], cf = r["CF Range"]; if (jk && cf) jkCF.set(String(jk), String(cf)); });
@@ -670,12 +698,18 @@ async function renderSeasonal(host) {
     { head: fmtN(aTt), chips: chip(aTt, aLt), how: "The closing sheet has no start time, so this counts jobs that were NOT the foreman's first job that day (foreman job order ≥ 2). The deck's \"evening jobs\" were counted by hand and run about 10% higher." });
 
 
-  // packing — written vs material bought
+  // packing - written vs material bought. Card purchases post about a month late (August was missing), so the
+  // bought side and its ratio cover only the months the ledger has, in EVERY season - like for like, as ad spend does.
+  const ledLast = cardEx.filter(coRow).reduce((a2, r) => { const d = String(r["Transaction Date"] || "").slice(0, 7); return d > a2 ? d : a2; }, "");
+  const ledTo = (() => { if (!ledLast) return null; const [ly2, lm2] = ledLast.split("-").map(Number); if (ly2 > Y || (ly2 === Y && lm2 >= T)) return T; if (ly2 === Y && lm2 >= F) return lm2; return null; })();
+  const ledCut = ledTo != null && ledTo < T, ledLbl = ledTo == null ? "" : (ledTo === F ? MS[F] : MS[F] + "–" + MS[ledTo]);
   const packRow = y => { const c = cl(y), w = sumCol(c, "Material Total"), com = sumCol(c, "Material $");
-    const bought = sumCol(rows("card_expenses", y).filter(r => Number(r["Is Packing Material Cost"]) === 1), "Amount"); return { y, w, com, bought }; };
-  table(g2, "Packing — written vs material bought", "per season", ["Season", "Packing written", "Foreman packing commission", "Packing material bought", "Written per $1 of material"],
-    YEARS.slice().reverse().map(y => { const p = packRow(y); return `<tr>${td(y === Y ? `<b>${y}</b>` : y)}${td(money(p.w))}${td(money(p.com))}${p.bought ? td(money(p.bought)) : `<td class="dim">—</td>`}${tdn(p.bought ? p.w / p.bought : null, x1)}</tr>`; }),
-    { span2: false, how: "Written = Material Total on the closings. Commission = the foreman's packing share (Material $). Material bought = card transactions categorised Job Supplies → Packing Material; seasons before that category existed show —." });
+    const wCut = ledTo == null ? 0 : sumCol(cl(y, F, ledTo), "Material Total");
+    const bought = ledTo == null ? 0 : sumCol(rows("card_expenses", y, null, F, ledTo).filter(r => Number(r["Is Packing Material Cost"]) === 1), "Amount"); return { w, com, wCut, bought }; };
+  table(g2, "Packing — written vs material bought", ledCut ? `per season · bought ${ledLbl}` : "per season", ["Season", "Written", "Commission", ledCut ? "Bought " + ledLbl : "Bought", "Written per $1 bought"],
+    YEARS.slice().reverse().map(y => { const p2 = packRow(y); return `<tr>${td(y === Y ? `<b>${y}</b>` : y)}${!p2.w && p2.com ? `<td class="dim">not recorded</td>` : td(money(p2.w))}${td(money(p2.com))}${p2.bought ? td(money(p2.bought)) : `<td class="dim">—</td>`}${tdn(p2.bought && p2.wCut ? p2.wCut / p2.bought : null, x1)}</tr>`; }),
+    { span2: false, note: ledCut ? `Card purchases are posted through ${MON[ledTo]} ${Y}, so material bought — and written per $1 — compare ${ledLbl} in every season. ${MON[T]} fills in when that statement posts.` : "",
+      how: "Written = Material Total on the closings. Commission = the foreman's packing share (Material $). Bought = card transactions categorised Job Supplies → Packing Material; seasons before that category existed show —. 2023 closings recorded the commission but not the packing written." });
 
   /* ================= claims ================= */
   const gC = part("Claims", "how many jobs draw a claim, what it is about, whose jobs — and how it ends");
@@ -753,7 +787,7 @@ async function renderSeasonal(host) {
       claimsIn(y).forEach(r => credOf(String(r["Request Joinkey"] || ""), r["Sales Person"]).forEach(({ p, sh }) => { const a = cls.get(p) || cls.set(p, { c: 0, rows: [], price: 0 }).get(p); a.c += sh; a.rows.push({ r, sh }); if (famOf(r) === "Price") a.price += sh; }));
       return { jobs, cls }; };
     const prT = perRep(Y), prL = perRep(LY), f1 = v => v == null ? "—" : (Math.round(v * 10) / 10).toLocaleString();
-    const spRows = [...new Set([...prT.jobs.keys(), ...prT.cls.keys()])].filter(p => !/^test\b/i.test(p)).map(p => { const n = prT.jobs.get(p) || 0, a = prT.cls.get(p) || { c: 0, rows: [], price: 0 }, nL = prL.jobs.get(p) || 0, aL = prL.cls.get(p);
+    const spRows = [...new Set([...prT.jobs.keys(), ...prT.cls.keys()])].filter(p => !NOT_REP(p)).map(p => { const n = prT.jobs.get(p) || 0, a = prT.cls.get(p) || { c: 0, rows: [], price: 0 }, nL = prL.jobs.get(p) || 0, aL = prL.cls.get(p);
       return { p, n, a, r: n ? a.c / n : null, rL: nL >= MINJ ? (aL ? aL.c : 0) / nL : null, small: n < MINJ }; }).filter(x => x.a.c > 0 || x.n >= MINJ)
       .sort((a, b) => (a.small - b.small) || (b.r || 0) - (a.r || 0));
     SPCL = new Map(spRows.map(x => [x.p, x]));
@@ -771,7 +805,7 @@ async function renderSeasonal(host) {
     donut(gC, "Where this season's claims stand", `${seasonName} ${Y} · status on the board today`, [...grp(csT, r => String(r.Status || "(no status)")).entries()].map(([k, rs]) => ({ k, v: rs.length })).sort((a, b) => b.v - a.v), fmtN,
       { head: fmtN(CC.open) + " open" });
     ptable(gC, "Every claim this season", `${seasonName} ${Y} · newest first`, ["Filed", "Customer", "Request", "Family", "Responsibility", "Foreman", "Salesperson", "Job type", "Status", "Job refund", ""],
-      csT.slice().sort((a, b) => String(b["Created Date"]).localeCompare(String(a["Created Date"]))).map(r => ({ h: `${td(esc(String(r["Created Date"] || "").slice(0, 10)))}${td(esc(r.Customer || "—"))}${td(esc(String(r["Request No"] || "—")))}${td(esc(famOf(r)))}${td(esc(respOf(r)))}${td(esc(r.Foreman || "—"))}${td(esc(r["Sales Person"] || "—"))}${td(esc(r["Job Type"] || "—"))}${td(esc(r.Status || "—"), isOpenC(r) ? "no" : "")}${num(r["Refund $"]) ? td(money(num(r["Refund $"])), "no") : `<td class="dim">—</td>`}<td>${mondayLink(r["Monday Url"])}</td>` })),
+      csT.slice().sort((a, b) => String(b["Created Date"]).localeCompare(String(a["Created Date"]))).map(r => ({ h: `${td(esc(String(r["Created Date"] || "").slice(0, 10)))}${td(esc(r.Customer || "—"), "w")}${td(esc(String(r["Request No"] || "—")))}${td(esc(famOf(r)))}${td(esc(respOf(r)), "w")}${td(esc(r.Foreman || "—"), "w")}${td(esc(r["Sales Person"] || "—"), "w")}${td(esc(r["Job Type"] || "—"), "w")}${td(esc(r.Status || "—"), isOpenC(r) ? "no w" : "w")}${num(r["Refund $"]) ? td(money(num(r["Refund $"])), "no") : `<td class="dim">—</td>`}<td>${mondayLink(r["Monday Url"])}</td>` })),
       { per: 15, how: "Monday ↗ opens the case on the claims board. For the full thread and the keyword reading, use Claims Analysis." });
   }
 
@@ -858,7 +892,7 @@ async function renderSeasonal(host) {
     const rv = new Map(); rvIn(y).forEach(r => { const p = jkSP.get(String(r["Request Joinkey"] || "")); if (p) rv.set(p, (rv.get(p) || 0) + num(r["Number of Reviews"])); });
     return { jobs, rv }; };
   const srT = spRev(Y), srL = spRev(LY);
-  const spR = [...srT.jobs.entries()].filter(([p, n]) => n >= 30 && !/^test\b/i.test(p)).map(([p, n]) => ({ p, r: (srT.rv.get(p) || 0) / n, rL: (srL.jobs.get(p) || 0) >= 30 ? (srL.rv.get(p) || 0) / srL.jobs.get(p) : null })).sort((a, b) => b.r - a.r);
+  const spR = [...srT.jobs.entries()].filter(([p, n]) => n >= 30 && !NOT_REP(p)).map(([p, n]) => ({ p, r: (srT.rv.get(p) || 0) / n, rL: (srL.jobs.get(p) || 0) >= 30 ? (srL.rv.get(p) || 0) / srL.jobs.get(p) : null })).sort((a, b) => b.r - a.r);
   pairBars(gR, "Reviews per job by salesperson", `${Y} vs ${LY} · reps with 30+ jobs`, spR.map(x => x.p), spR.map(x => x.rL), spR.map(x => x.r), pct0,
     { axis: pct0, how: "Counted reviews on the jobs a rep closed ÷ their jobs (all jobs — reps have no eligibility rule). It shows whose customers leave reviews; the foreman on the day still matters most." });
   // negative reviews by platform
@@ -885,10 +919,10 @@ async function renderSeasonal(host) {
     keys = order ? keys.sort((a, b) => order(a.k, b.k)) : keys.sort((a, b) => b.qT - a.qT);
     if (opts.top) keys = keys.slice(0, opts.top);
     const rowsF = keys.map(x => { const rT = RS.bookingRate(cT.get(x.k) || [], bT.get(x.k) || []), rL = RS.bookingRate(cL.get(x.k) || [], bL.get(x.k) || []);
-      return `<tr>${td(esc(x.k))}${td(fmtN(x.qL))}${td(fmtN(x.qT))}${dcell(x.qT, x.qL)}${td(fmtN(conf(bL.get(x.k) || [])))}${td(fmtN(conf(bT.get(x.k) || [])))}${tdn(rL, pct)}${tdn(rT, pct)}${ppcell(rT, rL)}</tr>`; });
-    rowsF.push(`<tr class="tot">${td("All")}${td(fmtN(P.qual || 0))}${td(fmtN(C.qual))}${dcell(C.qual, P.qual)}${td(fmtN(P.conf || 0))}${td(fmtN(C.conf))}${tdn(P.book, pct)}${tdn(C.book, pct)}${ppcell(C.book, P.book)}</tr>`);
-    table(mount, title, `${Y} vs ${LY}`, ["", String(LY), String(Y), "Δ", String(LY), String(Y), String(LY), String(Y), "Δ"], rowsF,
-      { span2: opts.span2 || false, groups: [["", 1], ["Qualified leads", 3], ["Confirmed", 2], ["Booking rate", 3]], how: opts.how });
+      return `<tr>${td(esc(x.k))}${td(fmtN(x.qL))}${dtd(x.qT, x.qL, fmtN)}${td(fmtN(conf(bL.get(x.k) || [])))}${dtd(conf(bT.get(x.k) || []), conf(bL.get(x.k) || []), fmtN)}${tdn(rL, pct)}${ptd(rT, rL)}</tr>`; });
+    rowsF.push(`<tr class="tot">${td("All")}${td(fmtN(P.qual || 0))}${dtd(C.qual, P.qual, fmtN)}${td(fmtN(P.conf || 0))}${dtd(C.conf, P.conf, fmtN)}${tdn(P.book, pct)}${ptd(C.book, P.book)}</tr>`);
+    table(mount, title, `${Y} vs ${LY} · green up, red down`, ["", String(LY), String(Y), String(LY), String(Y), String(LY), String(Y)], rowsF,
+      { span2: opts.span2 || false, groups: [["", 1], ["Qualified leads", 2], ["Confirmed", 2], ["Booking rate", 2]], how: opts.how });
   }
   const cfKey = s => { const n = parseInt(String(s), 10); return /over/i.test(s) ? 1e6 : isNaN(n) ? 1e7 : n; };
   funnelTable(g3, "By service type", key("Service Type"));
@@ -904,7 +938,7 @@ async function renderSeasonal(host) {
   const rClT = repCl(Y), rClL = repCl(LY), rCrT = repCr(Y), rCrL = repCr(LY), rBkT = repBk(Y), rBkL = repBk(LY);
   const rRef = grp(rows("refunds", Y).filter(coRow), key("Sales Person"));
   const isBig = r => String(r["Big Job Status"]) === "Yes";
-  const repNames = [...new Set([...rClT.keys(), ...rCrT.keys()])].filter(n => !/^test/i.test(n) && ((rClT.get(n) || []).length >= 5 || (qual(rCrT.get(n) || []) >= 30 && conf(rBkT.get(n) || []) > 0)))
+  const repNames = [...new Set([...rClT.keys(), ...rCrT.keys()])].filter(n => !NOT_REP(n) && ((rClT.get(n) || []).length >= 5 || (qual(rCrT.get(n) || []) >= 30 && conf(rBkT.get(n) || []) > 0)))
     .sort((a, b) => bill(rClT.get(b) || []) - bill(rClT.get(a) || []));
   const rep = n => { const c = rClT.get(n) || [], cr = rCrT.get(n) || [], bk = rBkT.get(n) || [], crL = rCrL.get(n) || [], bkL = rBkL.get(n) || [];
     const sold = bk.filter(r => String(r["Status Category"]) === "Confirmed"), soldL = bkL.filter(r => String(r["Status Category"]) === "Confirmed");
@@ -914,8 +948,8 @@ async function renderSeasonal(host) {
       estUsd: sumCol(sold, "Average Quote"), estUsdL: sumCol(soldL, "Average Quote"), estCf: sumCol(sold, "Total CF"), estCfL: sumCol(soldL, "Total CF"),
       big: qual(cr.filter(isBig)) >= 5 ? RS.bookingRate(cr.filter(isBig), bk.filter(isBig)) : null, ref: sumCol(rRef.get(n) || [], "Total refund") }; };
   const REPS = repNames.map(rep);
-  table(g4, "Rep scorecard", `${seasonName} ${Y} · vs ${LY} where it matters`, ["Rep", "Jobs", "Total Bill", "vs " + LY, "Netcash + Card", "Qualified", "Confirmed", "Booking", "vs " + LY, "Estimates sold", "CF sold", "CF vs " + LY, "Big-move booking", "Refunds"],
-    REPS.map(r => `<tr>${td(esc(r.n))}${td(fmtN(r.jobs))}${td(money(r.bill))}${dcell(r.bill, r.billL)}${td(money(r.ncc))}${td(fmtN(r.q))}${td(fmtN(r.conf))}${tdn(r.book, pct)}${ppcell(r.book, r.bookL)}${td(money(r.estUsd))}${td(fmtN(r.estCf))}${dcell(r.estCf, r.estCfL)}${tdn(r.big, pct)}${r.ref ? td(money(r.ref), "no") : `<td class="dim">—</td>`}</tr>`),
+  table(g4, "Rep scorecard", `${seasonName} ${Y} · vs ${LY} where it matters`, ["Rep", "Jobs", "Total Bill", "vs " + LY, "Qualified", "Confirmed", "Booking", "vs " + LY, "Estimates sold", "CF sold", "Big-move booking", "Refunds"],
+    REPS.map(r => `<tr>${td(esc(r.n))}${td(fmtN(r.jobs))}${td(money(r.bill))}${dcell(r.bill, r.billL)}${td(fmtN(r.q))}${td(fmtN(r.conf))}${tdn(r.book, pct)}${ppcell(r.book, r.bookL)}${td(money(r.estUsd))}${td(fmtN(r.estCf))}${tdn(r.big, pct)}${r.ref ? td(money(r.ref), "no") : `<td class="dim">—</td>`}</tr>`),
     { how: "Money = closings credited to the rep as Sales Person. Leads, bookings and estimates sold = Moveboard leads Assigned to the rep (estimates sold = average quote and CF of the leads they confirmed). A booking rate needs at least 10 qualified leads; big-move booking needs 5 big-move leads (the Moveboard Big Job flag). Refunds = paid in the window, by refund date." });
   const rb = REPS.filter(r => r.book != null);
   pairBars(g4, "Booking rate by rep", `${Y} vs ${LY}`, rb.map(r => r.n), rb.map(r => r.bookL), rb.map(r => r.book), pct, { axis: pct0, head: pct(C.book) + " team" });
@@ -943,7 +977,7 @@ async function renderSeasonal(host) {
   // outbound calls by teammate (RingCentral) — the only per-person phone data served month by month
   const days = (y, a, b) => { let d = 0; for (let m = a; m <= b; m++) d += lastDay(y, m); return d; };
   const agentFold = y => { const g = new Map(); rcAgent.forEach(r => { if (String(r.Company) !== CO) return; const ym = String(r.Month || ""); if (+ym.slice(0, 4) !== y || +ym.slice(5, 7) < F || +ym.slice(5, 7) > T) return;
-    const ext = String(r.Extension || "").trim(); if (!ext || /support zip to zip/i.test(ext)) return; const nm = ext.replace(/^\d+\s*-\s*/, "");
+    const ext = String(r.Extension || "").trim(); if (!ext || /support zip to zip/i.test(ext)) return; const nm = ext.replace(/^\d+\s*-\s*/, ""); if (NOT_REP(nm)) return;
     const a = g.get(nm) || { calls: 0, dur: 0 }; a.calls += num(r.Calls); a.dur += num(r["Duration Seconds"]); g.set(nm, a); }); return g; };
   const agT = agentFold(Y), agL = agentFold(LY), dW = days(Y, F, T);
   const agRows = [...agT.entries()].filter(([, a]) => a.calls >= 50).sort((a, b) => b[1].calls - a[1].calls);
@@ -966,8 +1000,8 @@ async function renderSeasonal(host) {
   const FM = [...scT.entries()].filter(([, a]) => a.jobs >= 15 && a.sj).map(([n, a]) => { const l = scL.get(n), c = fcl.get(n) || [];
     return { n, a, score: a.sw / a.sj, scoreL: l && l.sj ? l.sw / l.sj : null, bill: bill(c), ncc: ncc(c), hrs: sumCol(c, "Foreman Hours"), ref: sumCol(fref.get(n) || [], "Total refund") }; })
     .sort((a, b) => b.score - a.score);
-  table(g5, `Foreman of the ${seasonName.toLowerCase() === "summer" ? "Summer" : "Season"} ${Y}`, "job-weighted season score · ranked", ["#", "Foreman", "Score", "vs " + LY, "Jobs", "Total Bill", "Netcash + Card", "Hours / job", "Packing written", "vs estimate", "Packing / 100 CF", "Reviews / eligible job", "Claims share", "Refunds"],
-    FM.map((f, i) => `<tr>${td(i + 1)}${td(`${i === 0 ? "👑 " : ""}${esc(f.n)}`, "")}${td(`<b>${f.score.toFixed(1)}</b>`)}${f.scoreL == null ? `<td class="dim">—</td>` : `<td class="${f.score >= f.scoreL ? "up" : "dn"}">${f.score >= f.scoreL ? "+" : ""}${(f.score - f.scoreL).toFixed(1)}</td>`}${td(fmtN(f.a.jobs))}${td(money(f.bill))}${td(money(f.ncc))}${tdn(f.a.jobs ? f.hrs / f.a.jobs : null, v => v.toFixed(1))}${td(money(f.a.w))}${tdn(f.a.e ? f.a.w / f.a.e : null, pct0)}${tdn(f.a.cf ? f.a.w / f.a.cf * 100 : null, money)}${(() => { const rv = REVFM && REVFM.get(f.n); return rv && rv.el ? tdn(rv.rv / rv.el, pct0) : tdn(f.a.jobs && f.a.rv ? f.a.rv / f.a.jobs : null, pct0); })()}${(() => { const x = FMCL && FMCL.get(f.n); return x && x.r != null ? `<td class="${x.small ? "dim" : x.r > (CC.rate || 0) ? "dn" : "up"}">${pct(x.r)}</td>` : (f.a.fc ? td(fmtN(f.a.fc) + " fault", "no") : td("0")); })()}${f.ref ? td(money(f.ref), "no") : `<td class="dim">—</td>`}</tr>`),
+  table(g5, `Foreman of the ${seasonName.toLowerCase() === "summer" ? "Summer" : "Season"} ${Y}`, "job-weighted season score · ranked", ["#", "Foreman", "Score", "vs " + LY, "Jobs", "Netcash + Card", "Hours / job", "Packing written", "vs estimate", "Packing / 100 CF", "Reviews / eligible job", "Claims share", "Refunds"],
+    FM.map((f, i) => `<tr>${td(i + 1)}${td(`${i === 0 ? "👑 " : ""}${esc(f.n)}`, "")}${td(`<b>${f.score.toFixed(1)}</b>`)}${f.scoreL == null ? `<td class="dim">—</td>` : `<td class="${f.score >= f.scoreL ? "up" : "dn"}">${f.score >= f.scoreL ? "+" : ""}${(f.score - f.scoreL).toFixed(1)}</td>`}${td(fmtN(f.a.jobs))}${td(money(f.ncc))}${tdn(f.a.jobs ? f.hrs / f.a.jobs : null, v => v.toFixed(1))}${td(money(f.a.w))}${tdn(f.a.e ? f.a.w / f.a.e : null, pct0)}${tdn(f.a.cf ? f.a.w / f.a.cf * 100 : null, money)}${(() => { const rv = REVFM && REVFM.get(f.n); return rv && rv.el ? tdn(rv.rv / rv.el, pct0) : tdn(f.a.jobs && f.a.rv ? f.a.rv / f.a.jobs : null, pct0); })()}${(() => { const x = FMCL && FMCL.get(f.n); return x && x.r != null ? `<td class="${x.small ? "dim" : x.r > (CC.rate || 0) ? "dn" : "up"}">${pct(x.r)}</td>` : (f.a.fc ? td(fmtN(f.a.fc) + " fault", "no") : td("0")); })()}${f.ref ? td(money(f.ref), "no") : `<td class="dim">—</td>`}</tr>`),
     { how: `Score = each month's foreman Total Score weighted by that month's jobs, so a busy July counts more than a quiet May. From July 2026 the monthly score is the 60 automatic + 40 assessment model; earlier months used the 70/30 model. Foremen with fewer than 15 jobs in the window are left out. Packing "vs estimate" = written ÷ the sales estimate: it is a floor, not a target — crews routinely write 1.5–3× the estimate. Reviews per eligible job and the claims share use the same rules as the Reviews and Claims parts above.` });
   const fh = [...fcl.entries()].map(([n, c]) => ({ n, j: c.length, h: sumCol(c, "Foreman Hours") })).filter(x => x.j >= 10).sort((a, b) => b.h - a.h).slice(0, 22);
   combo(g5, "Hours worked vs jobs done", `${seasonName} ${Y} · per foreman`, fh.map(x => x.n), fh.map(x => x.j), "Jobs", fmtN, fh.map(x => x.h), "Hours", fmtN,
@@ -985,7 +1019,7 @@ async function renderSeasonal(host) {
   const pk = y => { const c = cl(y), sc = scFold(y); let alt = 0, com = 0, wr = 0, est = 0;
     grp(c, key("Foreman")).forEach((rs, n) => { const W = sumCol(rs, "Material Total"), K = sumCol(rs, "Material $"), E = (sc.get(n) || {}).e || 0; com += K; wr += W; est += E; if (W > 0) alt += K / W * Math.max(0, W - E); });
     return { wr, est, com, alt }; };
-  table(g5, "What if packing commission were paid only above the estimate?", "per season", ["Season", "Packing written", "Sales estimate", "Commission paid", "If only above estimate", "Difference"],
+  table(g5, "What if packing commission were paid only above the estimate?", "per season", ["Season", "Written", "Estimate", "Commission paid", "If paid above estimate only", "Company keeps"],
     [Y, LY].filter(y => H[y]).map(y => { const p = pk(y); return `<tr>${td(y === Y ? `<b>${y}</b>` : y)}${td(money(p.wr))}${td(money(p.est))}${td(money(p.com))}${td(money(p.alt))}${td(money(p.com - p.alt), "up")}</tr>`; }),
     { span2: false, how: "Each foreman keeps his current commission rate, but earns it only on packing written above his sales estimate (estimate from the foreman scorecard). The difference is what the company would keep. It ignores how crews would change behaviour — a sizing, not a forecast." });
 
@@ -1021,20 +1055,20 @@ async function renderSeasonal(host) {
     grp(cl(y, F, adTo), r => pcKey(r.Source)).forEach((rs, k) => { const a = get(k); a.jobs = rs.length; a.ncc = ncc(rs); });
     return g; };
   const pcT = pc(Y), pcL = pc(LY);
-  table(g6, "Postcard campaigns by state", `${adLbl || winLbl} ${Y} vs ${LY}`, ["Campaign", "Spend", "Leads", "Confirmed", "Booking", "Jobs", "Netcash + Card", "Per $1", "Per $1 " + LY],
+  table(g6, "Postcard campaigns by state", `${adLbl || winLbl} ${Y} vs ${LY}`, ["Campaign", "Spend", "Leads", "Booking", "Jobs", "Netcash + Card", "Per $1", "Per $1 " + LY],
     [...pcT.entries()].filter(([, a]) => a.ad || a.cr.length).sort((a, b) => b[1].ad - a[1].ad).map(([k, a]) => { const l = pcL.get(k), p1 = a.ad ? a.ncc / a.ad : null, p0 = l && l.ad ? l.ncc / l.ad : null;
-      return `<tr>${td(esc(k))}${a.ad ? td(money(a.ad)) : `<td class="dim">—</td>`}${td(fmtN(a.cr.length))}${td(fmtN(conf(a.bk)))}${tdn(RS.bookingRate(a.cr, a.bk), pct)}${td(fmtN(a.jobs))}${td(money(a.ncc))}${tdn(p1, x1)}${tdn(p0, x1)}</tr>`; }),
+      return `<tr>${td(esc(k))}${a.ad ? td(money(a.ad)) : `<td class="dim">—</td>`}${td(fmtN(a.cr.length))}${tdn(RS.bookingRate(a.cr, a.bk), pct)}${td(fmtN(a.jobs))}${td(money(a.ncc))}${tdn(p1, x1)}${tdn(p0, x1)}</tr>`; }),
     { span2: false, how: "Campaign = the state on the postcard's tracking line (Moveboard source connector, the closing's source, the card line's provider). The deck's conversion rate needs how many postcards were mailed — that count is not on file." });
   // Yelp — the card ledger books Yelp as ONE line, so return per $1 is company-wide; the funnel splits by state
   const yelpRows = (rs) => rs.filter(r => /^yelp/i.test(String(r.Source || "")));
   const yc = y => grp(yelpRows(created(y)), key("State Name")), yb = y => grp(yelpRows(booked(y)), key("State Name"));
   const ycT = yc(Y), ycL = yc(LY), ybT = yb(Y), ybL = yb(LY);
   const yAd = y => sumCol(adRows(y).filter(r => /^yelp/i.test(String(r.Source || ""))), "Amount"), yN = y => adTo == null ? 0 : ncc(cl(y, F, adTo).filter(r => /^yelp/i.test(String(r.Source || ""))));
-  table(g6, "Yelp by state", `${Y} vs ${LY}`, ["State", String(LY), String(Y), String(LY), String(Y), String(LY), String(Y), "Δ"],
+  table(g6, "Yelp by state", `${Y} vs ${LY} · green up, red down`, ["State", String(LY), String(Y), String(LY), String(Y), String(LY), String(Y)],
     [...new Set([...ycT.keys(), ...ycL.keys()])].map(s => ({ s, qT: qual(ycT.get(s) || []), qL: qual(ycL.get(s) || []) })).filter(x => x.qT + x.qL >= 10).sort((a, b) => b.qT - a.qT)
       .map(x => { const rT = RS.bookingRate(ycT.get(x.s) || [], ybT.get(x.s) || []), rL = RS.bookingRate(ycL.get(x.s) || [], ybL.get(x.s) || []);
-        return `<tr>${td(esc(x.s))}${td(fmtN(x.qL))}${td(fmtN(x.qT))}${td(fmtN(conf(ybL.get(x.s) || [])))}${td(fmtN(conf(ybT.get(x.s) || [])))}${tdn(rL, pct)}${tdn(rT, pct)}${ppcell(rT, rL)}</tr>`; }),
-    { span2: false, groups: [["", 1], ["Qualified leads", 2], ["Confirmed", 2], ["Booking rate", 3]],
+        return `<tr>${td(esc(x.s))}${td(fmtN(x.qL))}${dtd(x.qT, x.qL, fmtN)}${td(fmtN(conf(ybL.get(x.s) || [])))}${dtd(conf(ybT.get(x.s) || []), conf(ybL.get(x.s) || []), fmtN)}${tdn(rL, pct)}${ptd(rT, rL)}</tr>`; }),
+    { span2: false, groups: [["", 1], ["Qualified leads", 2], ["Confirmed", 2], ["Booking rate", 2]],
       note: adTo == null ? "" : `Yelp spend ${money(yAd(Y))} returned ${x1(yAd(Y) ? yN(Y) / yAd(Y) : null)} of Netcash + Card per $1 (${adLbl}); ${LY}: ${x1(yAd(LY) ? yN(LY) / yAd(LY) : null)}.`,
       how: "Yelp is paid as a single account, so spend cannot be split by state — only the per-$1 return for Yelp as a whole is shown, in the insight line." });
 
@@ -1048,14 +1082,14 @@ async function renderSeasonal(host) {
   table(g6, "Repeat and referral share by state", `${Y} vs ${LY}`, ["State", String(LY), String(Y), String(LY), String(Y), String(LY), String(Y)],
     rrSt.map(s => { const a = stTY.get(s) || [], b = stLY.get(s) || [];
       return `<tr>${td(esc(s))}${tdn(shr(b, "Returned Customer"), pct)}${tdn(shr(a, "Returned Customer"), pct)}${tdn(shr(b, "Recommended"), pct)}${tdn(shr(a, "Recommended"), pct)}${tdn(rsh(b), pct)}${tdn(rsh(a), pct)}</tr>`; }),
-    { span2: false, groups: [["", 1], ["Returned % of jobs", 2], ["Recommended % of jobs", 2], ["Share of Total Bill", 2]], how: "A job is repeat when its closing source is Returned Customer, a referral when it is Recommended. States with at least 20 jobs this season." });
+    { span2: false, groups: [["", 1], ["Returned, % of jobs", 2], ["Recommended, % of jobs", 2], ["Share of bill", 2]], how: "A job is repeat when its closing source is Returned Customer, a referral when it is Recommended. States with at least 20 jobs this season." });
 
   // phones — RingCentral inbound lines, CallRail tracked numbers
-  const lineFold = y => { const g = new Map(); rcLine.forEach(r => { if (String(r.Company) !== CO) return; const ym = String(r.Month || ""); if (+ym.slice(0, 4) !== y || +ym.slice(5, 7) < F || +ym.slice(5, 7) > T) return;
+  const lineFold = y => { const g = new Map(); rcLine.forEach(r => { if (String(r.Company) !== CO || NOT_REP(r["Line Name"])) return; const ym = String(r.Month || ""); if (+ym.slice(0, 4) !== y || +ym.slice(5, 7) < F || +ym.slice(5, 7) > T) return;
     const k = String(r["Line Name"] || "").trim() || "(unnamed numbers)", a = g.get(k) || { in: 0, ans: 0, miss: 0, dur: 0 }, n = num(r.Calls), res = String(r["Action Result"] || "");
     a.in += n; if (/^Accepted$/i.test(res)) { a.ans += n; a.dur += num(r["Duration Seconds"]); } else if (/^(Missed|Voicemail)$/i.test(res)) a.miss += n; g.set(k, a); }); return g; };
   const lnT = lineFold(Y), lnL = lineFold(LY);
-  table(g6, "Inbound calls by company line", `RingCentral · ${seasonName} ${Y}`, ["Line", "Inbound", "vs " + LY, "Answered", "Missed (incl. VM)", "Avg handle time"],
+  table(g6, "Inbound calls by company line", `RingCentral · ${seasonName} ${Y}`, ["Line", "Inbound", "vs " + LY, "Answered", "Missed", "Handle time"],
     [...lnT.entries()].filter(([, a]) => a.in >= 20).sort((a, b) => b[1].in - a[1].in).map(([k, a]) => { const l = lnL.get(k), mr = a.in ? a.miss / a.in : null;
       return `<tr>${td(esc(k))}${td(fmtN(a.in))}${dcell(a.in, l && l.in)}${td(fmtN(a.ans))}${mr == null ? `<td class="dim">—</td>` : `<td class="${mr > .05 ? "dn" : "up"}">${pct(mr)}</td>`}${td(mmss(a.ans ? a.dur / a.ans : null))}</tr>`; }),
     { span2: false, how: "Inbound voice calls per company line (sessions, not ring legs). Missed includes voicemail, as the deck's \"% missed (w/ VM)\" did; red above the 5% goal. Handle time averages answered calls only." });
@@ -1099,9 +1133,19 @@ async function renderSeasonal(host) {
 
   // layout balance: a half-width card with no partner on its row is promoted to full width, so a
   // card that is conditional (a missing grant, a thin season) can never leave a hole in the grid
-  bodyEl.querySelectorAll(".srx-grid:not(.k)").forEach(g => { let pend = null;
+  const balance = () => bodyEl.querySelectorAll(".srx-grid:not(.k)").forEach(g => { let pend = null;
     [...g.children].forEach(ch => { const full = ch.classList.contains("span2"); if (full) { if (pend) pend.classList.add("span2"); pend = null; } else pend = pend ? null : ch; });
     if (pend) pend.classList.add("span2"); });
+  // NO TABLE SCROLLS (her notes on nine cards): a half-width card whose table does not fit becomes full width and
+  // the grid is re-paired. The fit depends on the reader's screen, so it is re-checked after fonts load and on resize.
+  const fitTables = () => { let moved = false;
+    bodyEl.querySelectorAll(".srx-card:not(.span2) > .srx-scroll").forEach(w2 => { if (w2.scrollWidth > w2.clientWidth + 2) { w2.parentNode.classList.add("span2"); moved = true; } });
+    if (moved) balance(); return moved; };
+  balance(); fitTables();
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { if (root.isConnected) fitTables(); });
+  if (window.__srFit) window.removeEventListener("resize", window.__srFit);
+  let fitT = null; window.__srFit = () => { clearTimeout(fitT); fitT = setTimeout(() => { if (root.isConnected) fitTables(); }, 200); };
+  window.addEventListener("resize", window.__srFit);
 
   /* ---------- contents + controls ---------- */
   tocItems.forEach(t => { const b = document.createElement("button"); b.type = "button"; b.className = "srx-tocb"; b.innerHTML = `<i>${pad(t.n)}</i>${esc(t.title)}`; b.onclick = () => t.el.scrollIntoView({ behavior: document.visibilityState === "visible" ? "smooth" : "auto", block: "start" }); toc.appendChild(b); });
