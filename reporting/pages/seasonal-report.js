@@ -3,13 +3,14 @@
    used as a CHECKLIST of analyses, not as a design to copy.
 
    Why a separate page and not a Monthly Report mode: every number here is a WINDOW SUM (May 1 →
-   Aug 31) compared with the same window in earlier years. Ratios (booking rate, netcash rate,
+   Aug 31) compared with the same window in earlier years. Ratios (booking rate, cash collected rate,
    per-$1 returns) are recomputed on the pooled window rows — never averaged month by month —
    so a quiet May cannot count as much as a busy July.
 
-   Money follows the deck's own vocabulary: Total Bill, and Netcash + Card (the rs-core measure
-   "Operating Profit Before Commission" = Net Cash + Card Payment, trips included). Gross Profit
-   (the Monthly Report's measure) is shown once, in the headline, as the bridge between the two.
+   Money uses the portal's names (his ask 2026-09-14), not the deck's: Revenue (the rs-core measure
+   "Revenue") and Cash Collected (Net + Card) (the measure "Operating Profit Before Commission" =
+   Net Cash + Card Payment, trips included; the deck called it "Cash collected" - it is collected
+   cash, not profit). Gross Profit is shown once, in the headline. Data KEYS keep their column names.
 
    Zip to Zip only, like the Monthly Report's default. */
 async function renderSeasonal(host) {
@@ -234,11 +235,18 @@ async function renderSeasonal(host) {
     .srx-fold{margin-top:10px}.srx-fold summary{cursor:pointer;font-size:12.5px;font-weight:700;color:${BLUE};padding:4px 0}
     .srx-empty{height:100%;min-height:120px;display:grid;place-items:center;color:${FAINT};font-size:13px;font-weight:600}
     .srx-gap li{margin:4px 0}
+    .srx-hr{display:flex;gap:12px;align-items:flex-start;flex:0 0 auto}
+    .srx-vsw{display:inline-flex;border:1px solid ${LINE};border-radius:9px;overflow:hidden;flex:0 0 auto}
+    .srx-vsw button{font:inherit;font-size:12px;font-weight:750;border:0;background:#fff;color:${SUB};padding:5px 11px;cursor:pointer}
+    .srx-vsw button+button{border-left:1px solid ${LINE}}
+    .srx-vsw button.on{background:${INK};color:#fff}
+    .srx-pane{display:flex;flex-direction:column;flex:1 0 auto}
     @media print{
       html,body{height:auto!important;overflow:visible!important}
       body.rs-app,.rs-layout,.rs-main,.rs-content,#content,#app{height:auto!important;overflow:visible!important;display:block!important}
       .rs-side,.rs-filters,.rs-chips,.rs-topbar,header,.srx-toc,.srx-print,.srx-pick{display:none!important}
       .srx{background:#fff;padding:0}.srx-card,.srx-kpi,.srx-part{break-inside:avoid}
+      .srx-vsw{display:none!important}.srx-pane.d[hidden]{display:flex!important}
       *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
     }`;
     document.head.appendChild(s);
@@ -270,6 +278,7 @@ async function renderSeasonal(host) {
     ctx.restore(); } });
 
   let bodyEl, partN = 0; const tocItems = [];
+  let FIT = null;   // fitTables, once the page is built (a Data pane opened later re-checks the fit)
   function part(title, sub) {
     partN++; const el = document.createElement("div"); el.className = "srx-part"; el.id = "srxp" + partN;
     el.innerHTML = `<div class="pl"><div class="pt">${esc(title)}</div><div class="ps">${esc(sub || "")}</div></div><div class="pn">${pad(partN)}</div>`;
@@ -312,7 +321,7 @@ async function renderSeasonal(host) {
   const ptd = (c, p) => (c == null || p == null || !isFinite(c) || !isFinite(p)) ? tdn(c, pct) : `<td class="${c >= p ? "up" : "dn"}" title="${c >= p ? "+" : ""}${((c - p) * 100).toFixed(1)}pp vs ${LY}">${pct(c)}</td>`;
   const ppcell = (c, p) => { if (c == null || p == null || !isFinite(c) || !isFinite(p)) return `<td class="dim">—</td>`; const d = (c - p) * 100; return `<td class="${d >= 0 ? "up" : "dn"}">${d >= 0 ? "+" : ""}${d.toFixed(1)}pp</td>`; };
 
-  // columns across SEASONS — one dataset, or several side by side (e.g. Total Bill vs Netcash + Card)
+  // columns across SEASONS — one dataset, or several side by side (e.g. Revenue vs Cash Collected (Net + Card))
   function seasonCols(mount, title, sub, sets, fmt, opts) {
     opts = opts || {}; const c = card(mount, title, sub, opts); const { b, cv } = chartBox(c, opts.h);
     if (!sets.some(s => s.vals.some(v => v != null))) { empty(b); return c; }
@@ -422,6 +431,25 @@ async function renderSeasonal(host) {
   }
   // the records behind a number, as a compact inner table
   const mini = (headers, rowsH, foot) => `<table class="srx-mini"><thead><tr>${headers.map(h => `<th>${esc(h)}</th>`).join("")}</tr></thead><tbody>${rowsH.join("")}</tbody></table>${foot ? `<div class="srx-minif">${foot}</div>` : ""}`;
+  /* GRAPH / DATA (his ask 2026-09-14: "turn the important tables into graphs - a Graph View / Data View switch").
+     Both builders draw into a detached holder; the graph card becomes the frame and the table's body moves into a
+     second pane behind the switch, keeping its drill-downs, paging and notes. Graph is the default view. */
+  function dual(mount, graphFn, dataFn) {
+    const hold = document.createElement("div");
+    const frame = graphFn(hold), data = dataFn(hold);
+    if (data.classList.contains("span2")) frame.classList.add("span2");
+    const pane = (c2, cls) => { const p = document.createElement("div"); p.className = "srx-pane " + cls; [...c2.children].filter(ch => !ch.classList.contains("srx-ch")).forEach(ch => p.appendChild(ch)); return p; };
+    const gP = pane(frame, "g"), dP = pane(data, "d"); dP.hidden = true;
+    frame.appendChild(gP); frame.appendChild(dP);
+    const ch = frame.querySelector(".srx-ch"), hr = document.createElement("div"); hr.className = "srx-hr";
+    const hv = ch.querySelector(".srx-hv") || data.querySelector(".srx-hv"); if (hv) hr.appendChild(hv);
+    const sw = document.createElement("div"); sw.className = "srx-vsw";
+    sw.innerHTML = `<button type="button" class="on" data-v="g" title="The key numbers as a chart">Graph</button><button type="button" data-v="d" title="Every number, as a table">Data</button>`;
+    hr.appendChild(sw); ch.appendChild(hr);
+    sw.addEventListener("click", e => { const b = e.target.closest("button"); if (!b) return; const g = b.dataset.v === "g";
+      gP.hidden = !g; dP.hidden = g; sw.querySelectorAll("button").forEach(x => x.classList.toggle("on", x === b)); if (!g && FIT) FIT(); });
+    mount.appendChild(frame); return frame;
+  }
   const mondayLink = u => u && /^https:\/\//.test(String(u)) ? `<a class="srx-link" href="${esc(u)}" target="_blank" rel="noopener">Monday ↗</a>` : "";
 
   // quality map — two rates against each other, bubble = volume, dashed lines = the team's own average.
@@ -506,7 +534,10 @@ async function renderSeasonal(host) {
   const jobKeys = (y, a, b) => { const s = new Set(); cl(y, a, b).forEach(r => { if (r["Record Source"] === "closing" && r["Request Joinkey"]) s.add(String(r["Request Joinkey"])); }); return s; };
   const KWF = {}; (ckw || []).forEach(r => { KWF[String(r["Monday Item Id"])] = r["Family Used"]; });
   const famOf = r => { const id = String(r["Monday Item Id"]); return (OV[id] && OV[id].Family) || KWF[id] || r["Reason Family"] || "Unclassified"; };
-  const respOf = r => String(r["Responsibility Family"] || "").trim() || "Not assigned";
+  // the board's label. "Nobody" is a recorded answer (the mart folds it into Not assigned); a blank was never recorded.
+  // Claims Analysis reads each case thread for WHAT the claim is about (the family), not whose fault it was.
+  const respOf = r => { const f = String(r["Responsibility Family"] || "").trim(); if (f && f !== "Not assigned") return f;
+    return /nobody/i.test(String(r.Responsibility || "")) ? "Nobody's fault" : "Not recorded on the board"; };
   const CM = (cmart || []).filter(r => String(r.Company || "") === CO);
   const claimsIn = (y, a, b) => CM.filter(r => inWin(r["Created Date"], y, a, b));
   const refundOf = rs => { const seen = new Set(); let t = 0; rs.forEach(r => { const jk = String(r["Request Joinkey"] || ""); if (seen.has(jk)) return; seen.add(jk); t += num(r["Refund $"]); }); return t; };
@@ -534,7 +565,7 @@ async function renderSeasonal(host) {
   cover.innerHTML = `<button class="srx-print" id="srPrint" title="Browser print">🖨 Print</button>
     <div class="srx-eyebrow">Seasonal Report · ${esc(CO)}</div>
     <div class="srx-h1">${esc(seasonName)} <em>${Y}</em></div>
-    <div class="srx-pick"><div id="srCo"></div><div id="srYear"></div><div id="srFrom"></div><div id="srTo"></div></div>
+    <div class="srx-pick"><div id="srFrom"></div><div id="srTo"></div><div id="srYear"></div><div id="srCo"></div></div>
     <div class="srx-cvsub">${MON[F]} 1 – ${MON[T]} ${lastDay(Y, T)}, ${Y}, compared with the same window in every season since 2023${latest ? ` · closings through ${esc(latest)}` : ""} · ${esc(CO)} only</div>`;
   root.appendChild(cover);
   const banner = (html, bad) => { const b = document.createElement("div"); b.className = "srx-banner" + (bad ? " bad" : ""); b.innerHTML = html; root.appendChild(b); };
@@ -559,9 +590,9 @@ async function renderSeasonal(host) {
     el.innerHTML = `<div class="srx-kl">${esc(l)}</div><div class="srx-kv">${v}</div>${ch}<span class="srx-chip" style="color:${FAINT}">${yy(LY)}: ${p == null ? "—" : (o.f || String)(p)}</span>`;
     g.appendChild(el);
   }
-  kpi(g1, "Total Bill", money(C.bill), C.bill, P.bill, { hero: true, f: money });
-  kpi(g1, "Netcash + Card", money(C.ncc), C.ncc, P.ncc, { f: money });
-  kpi(g1, "Netcash rate", pct(C.rate), C.rate, P.rate, { pp: true, f: pct });
+  kpi(g1, "Revenue", money(C.bill), C.bill, P.bill, { hero: true, f: money });
+  kpi(g1, "Cash Collected (Net + Card)", money(C.ncc), C.ncc, P.ncc, { f: money });
+  kpi(g1, "Cash collected rate", pct(C.rate), C.rate, P.rate, { pp: true, f: pct });
   kpi(g1, "Jobs done", fmtN(C.jobs), C.jobs, P.jobs, { f: fmtN });
   kpi(g1, "Gross Profit", C.gp == null ? "—" : money(C.gp), C.gp, P.gp, { f: money });
   kpi(g1, "Avg job value", C.avg == null ? "—" : money(C.avg), C.avg, P.avg, { f: money });
@@ -581,8 +612,8 @@ async function renderSeasonal(host) {
   const ex = document.createElement("div"); ex.className = "srx-card span2";
   const gb = growth(C.bill, P.bill), gj = growth(C.jobs, P.jobs);
   ex.innerHTML = `<div class="srx-exec"><b>${esc(seasonName)} ${Y} in one read.</b><ul>
-    <li>Total Bill <b>${money(C.bill)}</b>${gb != null ? `, ${gb >= 0 ? "up" : "down"} ${Math.abs(gb * 100).toFixed(0)}% on ${LY}` : ""} — on ${fmtN(C.jobs)} jobs (${gj != null ? (gj >= 0 ? "+" : "") + (gj * 100).toFixed(0) + "%" : "—"}), so the average job moved from ${P.avg ? money(P.avg) : "—"} to <b>${C.avg ? money(C.avg) : "—"}</b>.</li>
-    <li>Netcash + Card <b>${money(C.ncc)}</b> — ${pct(C.rate)} of the bill (${pct(P.rate)} in ${LY}).</li>
+    <li>Revenue <b>${money(C.bill)}</b>${gb != null ? `, ${gb >= 0 ? "up" : "down"} ${Math.abs(gb * 100).toFixed(0)}% on ${LY}` : ""} — on ${fmtN(C.jobs)} jobs (${gj != null ? (gj >= 0 ? "+" : "") + (gj * 100).toFixed(0) + "%" : "—"}), so the average job moved from ${P.avg ? money(P.avg) : "—"} to <b>${C.avg ? money(C.avg) : "—"}</b>.</li>
+    <li>Cash Collected (Net + Card) <b>${money(C.ncc)}</b> — ${pct(C.rate)} of revenue (${pct(P.rate)} in ${LY}).</li>
     <li>Qualified leads ${fmtN(C.qual)} (${fmtN(P.qual || 0)} in ${LY}); booking rate <b>${pct(C.book)}</b> vs ${pct(P.book)}${C.bad != null && P.bad != null && Math.abs(C.bad - P.bad) > .05 ? ` — but ${pct0(C.bad)} of ${Y} leads were marked bad against ${pct0(P.bad)} in ${LY}, and bad leads leave the denominator, so part of that rise is how leads were closed out, not more bookings (confirmed jobs: ${fmtN(C.conf)} vs ${fmtN(P.conf || 0)})` : ""}.</li>
     ${bestM && bestM.v ? `<li>Busiest month: <b>${MON[bestM.m]}</b> at ${money(bestM.v)}.</li>` : ""}
     ${stMove.length ? `<li>Biggest mover by state: <b>${esc(stMove[0].s)}</b> ${stMove[0].d >= 0 ? "+" : "−"}${money(Math.abs(stMove[0].d))}${stMove.length > 1 && stMove[stMove.length - 1].d < 0 ? `; weakest ${esc(stMove[stMove.length - 1].s)} −${money(Math.abs(stMove[stMove.length - 1].d))}` : ""}.</li>` : ""}
@@ -592,12 +623,12 @@ async function renderSeasonal(host) {
   /* The 2026 goals were written into the Summer Report 2025 deck (strategic suggestions + KPI goals
      slides). They are its authors' targets, shown here so the season can be graded against them. */
   const TARGETS = { 2026: [
-    { g: "Total Bill (revenue target)", t: "≥ $4.5M", v: C.bill, ok: v => v >= 4.5e6, f: money, pv: P.bill },
-    { g: "Netcash + Card (profit target)", t: "≥ $2.7M", v: C.ncc, ok: v => v >= 2.7e6, f: money, pv: P.ncc },
+    { g: "Revenue", t: "≥ $4.5M", v: C.bill, ok: v => v >= 4.5e6, f: money, pv: P.bill },
+    { g: "Cash Collected (Net + Card)", t: "≥ $2.7M", v: C.ncc, ok: v => v >= 2.7e6, f: money, pv: P.ncc },
     { g: "Booking rate", t: "≥ 25%", v: C.book, ok: v => v >= .25, f: pct, pv: P.book },
     { g: "Incoming calls missed (incl. voicemail, all company lines)", t: "≤ 5%", v: C.missRate, ok: v => v <= .05, f: pct, pv: P.missRate },
     { g: "Reviews per job (foreman scorecard)", t: "≥ 70%", v: C.revPerJob, ok: v => v >= .7, f: pct0, pv: P.revPerJob },
-    { g: `Netcash + Card per $1 of advertising (paid channels${adCut ? ", " + adLbl : ""})`, t: "≥ $10", v: C.adPer1, ok: v => v >= 10, f: x1, pv: P.adPer1 },
+    { g: `Cash collected per $1 of advertising (paid channels${adCut ? ", " + adLbl : ""})`, t: "≥ $10", v: C.adPer1, ok: v => v >= 10, f: x1, pv: P.adPer1 },
     { g: "Jobs lost to capacity", t: "< 10% of demand", v: null, why: "no surge-day / capacity data on file" },
     { g: "Postcard conversion (leads ÷ postcards sent)", t: "≥ 0.6%", v: null, why: "postcards-sent counts are not on file" },
     { g: "Google Search click-through rate", t: "≥ 0.6%", v: null, why: "Search Console is not connected" }] };
@@ -608,10 +639,10 @@ async function renderSeasonal(host) {
     });
     const met = TARGETS[Y].filter(t => t.v != null && isFinite(t.v) && t.ok(t.v)).length, measurable = TARGETS[Y].filter(t => t.v != null && isFinite(t.v)).length;
     table(g1b, `${Y} goals — set in the Summer Report ${LY}`, "graded on this season's data", ["Goal", "Target", String(Y), String(LY), "Result"], rowsT,
-      { head: `${met} / ${measurable}`, how: `The targets are the ones the Summer Report ${LY} deck proposed for ${Y} (its strategy and KPI-goal slides). "Netcash + Card" is the deck's profit line: Net Cash + Card Payment. Booking rate divides by QUALIFIED leads, so it rises when more leads are marked bad${C.bad != null && P.bad != null ? ` (${pct0(C.bad)} of ${Y} leads vs ${pct0(P.bad)} of ${LY})` : ""} — read it next to the confirmed-jobs count. Missed calls read the RingCentral inbound log across every ${CO} line; the deck quoted a per-rep figure, which the data here cannot rebuild month by month yet.` });
+      { head: `${met} / ${measurable}`, how: `The targets are the ones the Summer Report ${LY} deck proposed for ${Y} (its strategy and KPI-goal slides). Cash Collected = Net Cash + Card Payment (the deck called it "Cash collected"). Booking rate divides by QUALIFIED leads, so it rises when more leads are marked bad${C.bad != null && P.bad != null ? ` (${pct0(C.bad)} of ${Y} leads vs ${pct0(P.bad)} of ${LY})` : ""} — read it next to the confirmed-jobs count. Missed calls read the RingCentral inbound log across every ${CO} line; the deck quoted a per-rep figure, which the data here cannot rebuild month by month yet.` });
   }
 
-  // what moved the Total Bill: more jobs vs bigger jobs, local and long distance apart.
+  // what moved the Revenue: more jobs vs bigger jobs, local and long distance apart.
   // Per segment: volume = (jobs now − jobs then) × last season's average job; value = (average now −
   // average then) × jobs now. The two add up to the segment's change exactly, so the bars reconcile.
   const segOf = (y, loc) => cl(y).filter(r => loc ? !isLD(r) : isLD(r));
@@ -621,7 +652,7 @@ async function renderSeasonal(host) {
   if (H[LY]) {
     const lbl = (b2, k) => k === "vol" ? `${b2.n} — ${b2.vol >= 0 ? "more" : "fewer"} jobs` : `${b2.n} — ${b2.val >= 0 ? "bigger" : "smaller"} avg job`;
     const vT = br.reduce((a, x) => a + x.vol, 0), pT = br.reduce((a, x) => a + x.val, 0);
-    waterfall(g1b, `What moved the Total Bill, ${LY} → ${Y}`, "more jobs vs bigger jobs — local and long distance apart", [
+    waterfall(g1b, `What moved the Revenue, ${LY} → ${Y}`, "more jobs vs bigger jobs — local and long distance apart", [
       { label: `${seasonName} ${LY}`, v: P.bill, total: true },
       ...br.flatMap(b2 => [{ label: lbl(b2, "vol"), v: b2.vol }, { label: lbl(b2, "val"), v: b2.val }]),
       { label: `${seasonName} ${Y}`, v: C.bill, total: true, hero: true }], money,
@@ -629,9 +660,9 @@ async function renderSeasonal(host) {
         note: `${money(Math.abs(pT))} of the change came from the average job ${pT >= 0 ? "growing" : "shrinking"} and ${money(Math.abs(vT))} from ${vT >= 0 ? "doing more" : "doing fewer"} jobs. Local average job ${money(br[0].aL)} → ${money(br[0].aT)}; long distance ${money(br[1].aL)} → ${money(br[1].aT)}.`,
         how: "Volume effect = change in jobs × last season's average job. Value effect = change in the average job × this season's jobs. The value effect carries both price and job size (a bigger move bills more at the same rate). Long distance = Regular + Straight moves, standalone trips included." });
   }
-  // season pace — the running Total Bill week by week, every season on one scale
+  // season pace — the running Revenue week by week, every season on one scale
   (() => {
-    const c = card(g1b, "Season pace — running Total Bill by week", "cumulative from the first day of the window", { span2: true, head: money(C.bill) });
+    const c = card(g1b, "Season pace — running Revenue by week", "cumulative from the first day of the window", { span2: true, head: money(C.bill) });
     const { b, cv } = chartBox(c, 330);
     const start = y => new Date(Date.UTC(y, F - 1, 1)), nW = Math.ceil(winMonths.reduce((a, m) => a + lastDay(Y, m), 0) / 7);
     const sets = YEARS.map(y => { const wk = new Array(nW).fill(0); let last = -1;
@@ -646,35 +677,39 @@ async function renderSeasonal(host) {
   })();
 
   /* ================= 02 · money, season over season ================= */
-  const g2 = part("Financials", "Total Bill, Netcash + Card and jobs — every season on file");
-  seasonCols(g2, "Total Bill and Netcash + Card", `${winLbl} · every season`, [
-    { label: "Total Bill", vals: YEARS.map(y => H[y].bill), color: INK }, { label: "Netcash + Card", vals: YEARS.map(y => H[y].ncc), color: BLUE }], money,
+  const g2 = part("Financials", "Revenue, Cash Collected (Net + Card) and jobs — every season on file");
+  seasonCols(g2, "Revenue and Cash Collected (Net + Card)", `${winLbl} · every season`, [
+    { label: "Revenue", vals: YEARS.map(y => H[y].bill), color: INK }, { label: "Cash collected", vals: YEARS.map(y => H[y].ncc), color: BLUE }], money,
     { lbl: moneyC, head: money(C.bill), chips: chip(C.bill, P.bill) });
-  seasonCols(g2, "Netcash rate", "Netcash + Card ÷ Total Bill", [{ label: "Netcash rate", vals: YEARS.map(y => H[y].rate) }], pct,
-    { axis: pct0, head: pct(C.rate), how: "Net Cash + Card Payment (trips included) divided by Total Bill, both summed over the whole window — not an average of monthly rates." });
+  seasonCols(g2, "Cash collected rate", "Cash Collected ÷ Revenue", [{ label: "Cash collected rate", vals: YEARS.map(y => H[y].rate) }], pct,
+    { axis: pct0, head: pct(C.rate), how: "Net Cash + Card Payment (trips included) divided by Revenue, both summed over the whole window — not an average of monthly rates." });
   seasonCols(g2, "Jobs done", `${winLbl} · every season`, [{ label: "Jobs", vals: YEARS.map(y => H[y].jobs) }], fmtN, { axis: fmtN, head: fmtN(C.jobs), chips: chip(C.jobs, P.jobs) });
-  seasonShape(g2, "How the season unfolded — Total Bill by month", "one line per season", (y, m) => bill(cl(y, m, m)) || null, money, { axis: moneyC });
+  seasonShape(g2, "How the season unfolded — Revenue by month", "one line per season", (y, m) => bill(cl(y, m, m)) || null, money, { axis: moneyC });
   // her ask: "a chart of the monthly rise of card payments"
   const cardOf = rs => M["Card Payment"].fn(rs), cardT = cardOf(cl(Y)), cardL = H[LY] ? cardOf(cl(LY)) : null;
   seasonShape(g2, "Card payments by month", "one line per season", (y, m) => cardOf(cl(y, m, m)) || null, money,
     { axis: moneyC, head: money(cardT), chips: chip(cardT, cardL), how: "Card Payment on the closings, by the job's date." });
-  seasonShape(g2, "Card payments as a share of Netcash + Card", "by month · one line per season", (y, m) => { const rs = cl(y, m, m), n = ncc(rs); return n ? cardOf(rs) / n : null; }, pct,
+  seasonShape(g2, "Card payments as a share of cash collected", "by month · one line per season", (y, m) => { const rs = cl(y, m, m), n = ncc(rs); return n ? cardOf(rs) / n : null; }, pct,
     { axis: pct0, head: pct(C.ncc ? cardT / C.ncc : null), how: "Card Payment ÷ (Net Cash + Card Payment) for the month's jobs — how much of what the company keeps now arrives by card." });
 
   // Local vs long distance, one row per season
-  table(g2, "Local vs Long-distance", "jobs, Total Bill and Netcash + Card per season", ["Season", "Jobs", "Total Bill", "Netcash + Card", "Jobs", "Total Bill", "Netcash + Card", "LD share of bill"],
+  dual(g2, m => seasonCols(m, "Local vs Long-distance", "Revenue per season", [
+      { label: "Local moving", vals: YEARS.map(y => bill(cl(y).filter(r => !isLD(r)))), color: INK }, { label: "Long distance", vals: YEARS.map(y => bill(cl(y).filter(isLD))), color: BLUE }], money,
+      { lbl: moneyC, head: pct(C.bill ? bill(cl(Y).filter(isLD)) / C.bill : null) + " long distance" }),
+    m => table(m, "Local vs Long-distance", "jobs, Revenue and Cash Collected (Net + Card) per season", ["Season", "Jobs", "Revenue", "Cash collected", "Jobs", "Revenue", "Cash collected", "LD share of revenue"],
     YEARS.slice().reverse().map(y => { const c = cl(y), l = c.filter(r => !isLD(r)), d = c.filter(isLD), bb = bill(c);
       return `<tr>${td(y === Y ? `<b>${y}</b>` : y)}${td(fmtN(l.length))}${td(money(bill(l)))}${td(money(ncc(l)))}${td(fmtN(d.length))}${td(money(bill(d)))}${td(money(ncc(d)))}${tdn(bb ? bill(d) / bb : null, pct)}</tr>`; }),
-    { groups: [["", 1], ["Local moving", 3], ["Long distance (regular + straight)", 3], ["", 1]] });
+    { groups: [["", 1], ["Local moving", 3], ["Long distance (regular + straight)", 3], ["", 1]] }));
 
   // states, this season vs last
   const states = [...new Set([...stTY.keys(), ...stLY.keys()])].map(s => { const a = stTY.get(s) || [], b = stLY.get(s) || [];
     return { s, jT: a.length, jL: b.length, bT: bill(a), bL: bill(b), nT: ncc(a), nL: ncc(b) }; }).filter(x => x.jT + x.jL >= 3).sort((a, b) => b.bT - a.bT);
   const stTot = { jT: C.jobs, jL: P.jobs || 0, bT: C.bill, bL: P.bill || 0, nT: C.ncc, nL: P.ncc || 0 };
-  table(g2, "By state", `${Y} vs ${LY}`, ["State", String(LY), String(Y), "Δ", String(LY), String(Y), "Δ", String(LY), String(Y), "Rate " + Y],
+  dual(g2, m => pairBars(m, "By state", `Revenue · ${Y} vs ${LY}`, states.slice(0, 14).map(x => x.s), states.slice(0, 14).map(x => x.bL), states.slice(0, 14).map(x => x.bT), money, { axis: moneyC, lbl: moneyC, head: money(C.bill), chips: chip(C.bill, P.bill) }),
+    m => table(m, "By state", `${Y} vs ${LY}`, ["State", String(LY), String(Y), "Δ", String(LY), String(Y), "Δ", String(LY), String(Y), "Rate " + Y],
     states.map(x => `<tr>${td(esc(x.s))}${td(fmtN(x.jL))}${td(fmtN(x.jT))}${dcell(x.jT, x.jL)}${td(money(x.bL))}${td(money(x.bT))}${dcell(x.bT, x.bL)}${td(money(x.nL))}${td(money(x.nT))}${tdn(x.bT ? x.nT / x.bT : null, pct)}</tr>`)
       .concat([`<tr class="tot">${td("All states")}${td(fmtN(stTot.jL))}${td(fmtN(stTot.jT))}${dcell(stTot.jT, stTot.jL)}${td(money(stTot.bL))}${td(money(stTot.bT))}${dcell(stTot.bT, stTot.bL)}${td(money(stTot.nL))}${td(money(stTot.nT))}${tdn(C.rate, pct)}</tr>`]),
-    { groups: [["", 1], ["Jobs", 3], ["Total Bill", 3], ["Netcash + Card", 3]], how: "State = the pickup state on the closing (standalone trips use their delivery state). States with fewer than 3 jobs across both seasons are left out of the rows but stay in the total." });
+    { groups: [["", 1], ["Jobs", 3], ["Revenue", 3], ["Cash collected", 3]], how: "State = the pickup state on the closing (standalone trips use their delivery state). States with fewer than 3 jobs across both seasons are left out of the rows but stay in the total." }));
 
   // where the profit comes from — size of move, and cubic feet (CF lives on the lead, joined by request)
   const sizeKey = s => { s = String(s || "").toLowerCase(); if (/single/.test(s)) return 1; if (/studio/.test(s)) return 5; const n = /(\d+)\s*bed/.exec(s); if (n) return 10 * +n[1] + (/house/.test(s) ? 1 : 0); if (/storage/.test(s)) return 100; if (/office/.test(s)) return 101; return 200; };
@@ -683,18 +718,18 @@ async function renderSeasonal(host) {
     const totY = ncc(cl(Y)), totL = ncc(cl(LY));
     const sh = (g, k, tot) => tot ? ncc(g.get(k) || []) / tot : null;
     // her note: "graph chart would be better" - the share is the story, so the share is the chart; the money is one click away
-    const c = pairBars(mount, title, `share of Netcash + Card · ${Y} vs ${LY}`, keys, keys.map(k => sh(tL, k, totL)), keys.map(k => sh(tY, k, totY)), pct, { axis: pct0, how });
+    const c = pairBars(mount, title, `share of cash collected · ${Y} vs ${LY}`, keys, keys.map(k => sh(tL, k, totL)), keys.map(k => sh(tY, k, totY)), pct, { axis: pct0, how });
     const det = document.createElement("details"); det.className = "srx-fold";
-    det.innerHTML = `<summary>The numbers behind it</summary><div class="srx-scroll"><table class="srx-tbl"><thead><tr>${["", "Jobs", "Netcash + Card", "Share", "vs " + LY].map(h => `<th>${esc(h)}</th>`).join("")}</tr></thead><tbody>` +
+    det.innerHTML = `<summary>The numbers behind it</summary><div class="srx-scroll"><table class="srx-tbl"><thead><tr>${["", "Jobs", "Cash collected", "Share", "vs " + LY].map(h => `<th>${esc(h)}</th>`).join("")}</tr></thead><tbody>` +
       keys.map(k => { const a2 = tY.get(k) || [], sT = sh(tY, k, totY), sL = sh(tL, k, totL); return `<tr>${td(esc(k))}${td(fmtN(a2.length))}${td(money(ncc(a2)))}${tdn(sT, pct)}${ppcell(sT, sL)}</tr>`; }).join("") +
       `<tr class="tot">${td("All jobs")}${td(fmtN(C.jobs))}${td(money(C.ncc))}${td("100%")}<td></td></tr></tbody></table></div>`;
     c.appendChild(det);
   }
-  distTable(g2, "Profit distribution by size of move", r => r["Size of Move"] ? String(r["Size of Move"]).trim() : "(size not recorded)", (a, b) => sizeKey(a) - sizeKey(b) || a.localeCompare(b));
+  distTable(g2, "Cash collected by size of move", r => r["Size of Move"] ? String(r["Size of Move"]).trim() : "(size not recorded)", (a, b) => sizeKey(a) - sizeKey(b) || a.localeCompare(b));
   const jkCF = new Map(); moveboard.forEach(r => { const jk = r["Request Joinkey"], cf = r["CF Range"]; if (jk && cf) jkCF.set(String(jk), String(cf)); });
   const cfBucket = r => { const cf = jkCF.get(String(r["Request Joinkey"] || "")); if (!cf) return "No CF on the lead"; const n = parseInt(String(cf).replace(/[^\d].*$/, ""), 10); if (/over/i.test(cf)) return "Over 1,000 CF"; if (isNaN(n)) return "No CF on the lead"; return n < 500 ? "Up to 500 CF" : n < 1000 ? "501–1,000 CF" : "Over 1,000 CF"; };
   const cfOrder = ["Up to 500 CF", "501–1,000 CF", "Over 1,000 CF", "No CF on the lead"];
-  distTable(g2, "Profit distribution by cubic feet", cfBucket, (a, b) => cfOrder.indexOf(a) - cfOrder.indexOf(b),
+  distTable(g2, "Cash collected by cubic feet", cfBucket, (a, b) => cfOrder.indexOf(a) - cfOrder.indexOf(b),
     "Closings carry no cubic feet, so each job takes the CF range from its Moveboard lead (matched on the request key). Jobs whose lead has no CF range sit in their own row.");
 
   // second jobs of the day
@@ -712,10 +747,14 @@ async function renderSeasonal(host) {
   const packRow = y => { const c = cl(y), w = sumCol(c, "Material Total"), com = sumCol(c, "Material $");
     const wCut = ledTo == null ? 0 : sumCol(cl(y, F, ledTo), "Material Total");
     const bought = ledTo == null ? 0 : sumCol(rows("card_expenses", y, null, F, ledTo).filter(r => Number(r["Is Packing Material Cost"]) === 1), "Amount"); return { w, com, wCut, bought }; };
-  table(g2, "Packing — written vs material bought", ledCut ? `per season · bought ${ledLbl}` : "per season", ["Season", "Written", "Commission", ledCut ? "Bought " + ledLbl : "Bought", "Written per $1 bought"],
+  const PKR = {}, pkr = y => PKR[y] || (PKR[y] = packRow(y));
+  dual(g2, m => seasonCols(m, "Packing — written vs material bought", ledTo == null ? "packing written per season" : `per season · ${ledLbl}, like for like`,
+      ledTo == null ? [{ label: "Written", vals: YEARS.map(y => pkr(y).w || null) }] : [{ label: "Written", vals: YEARS.map(y => pkr(y).wCut || null), color: INK }, { label: "Material bought", vals: YEARS.map(y => pkr(y).bought || null), color: BLUE }],
+      money, { lbl: moneyC, span2: false }),
+    m => table(m, "Packing — written vs material bought", ledCut ? `per season · bought ${ledLbl}` : "per season", ["Season", "Written", "Commission", ledCut ? "Bought " + ledLbl : "Bought", "Written per $1 bought"],
     YEARS.slice().reverse().map(y => { const p2 = packRow(y); return `<tr>${td(y === Y ? `<b>${y}</b>` : y)}${!p2.w && p2.com ? `<td class="dim">not recorded</td>` : td(money(p2.w))}${td(money(p2.com))}${p2.bought ? td(money(p2.bought)) : `<td class="dim">—</td>`}${tdn(p2.bought && p2.wCut ? p2.wCut / p2.bought : null, x1)}</tr>`; }),
     { span2: false, note: ledCut ? `Card purchases are posted through ${MON[ledTo]} ${Y}, so material bought — and written per $1 — compare ${ledLbl} in every season. ${MON[T]} fills in when that statement posts.` : "",
-      how: "Written = Material Total on the closings. Commission = the foreman's packing share (Material $). Bought = card transactions categorised Job Supplies → Packing Material; seasons before that category existed show —. 2023 closings recorded the commission but not the packing written." });
+      how: "Written = Material Total on the closings. Commission = the foreman's packing share (Material $). Bought = card transactions categorised Job Supplies → Packing Material; seasons before that category existed show —. 2023 closings recorded the commission but not the packing written." }));
 
   /* ================= claims ================= */
   const gC = part("Claims", "how many jobs draw a claim, what it is about, whose jobs — and how it ends");
@@ -747,28 +786,30 @@ async function renderSeasonal(host) {
     // local vs long distance, every season
     const jt = (y, ld) => { const ks = new Set(); cl(y).forEach(r => { if (r["Record Source"] === "closing" && r["Request Joinkey"] && isLD(r) === ld) ks.add(String(r["Request Joinkey"])); });
       const c2 = claimsIn(y).filter(r => (String(r["Job Type"] || "") === "Long distance") === ld && r["Job Type"]); return { n: ks.size, c: c2.length, r: ks.size ? c2.length / ks.size : null }; };
-    table(gC, "Local vs long distance", "claims as a share of each kind of job", ["Season", "Jobs", "Claims", "Share", "Jobs", "Claims", "Share"],
+    dual(gC, m => seasonCols(m, "Local vs long distance", "claims as a share of each kind of job", [{ label: "Local", vals: YEARS.map(y => jt(y, false).r), color: INK }, { label: "Long distance", vals: YEARS.map(y => jt(y, true).r), color: BLUE }], pct, { axis: pct0, span2: false }),
+      m => table(m, "Local vs long distance", "claims as a share of each kind of job", ["Season", "Jobs", "Claims", "Share", "Jobs", "Claims", "Share"],
       YEARS.slice().reverse().map(y => { const a = jt(y, false), b2 = jt(y, true);
         return `<tr>${td(y === Y ? `<b>${y}</b>` : y)}${td(fmtN(a.n))}${td(fmtN(a.c))}${tdn(a.r, pct)}${td(fmtN(b2.n))}${td(fmtN(b2.c))}${b2.r == null ? `<td class="dim">—</td>` : `<td class="dn">${pct(b2.r)}</td>`}</tr>`; }),
-      { span2: false, groups: [["", 1], ["Local", 3], ["Long distance", 3]], note: (() => { const a = jt(Y, false), b2 = jt(Y, true); return a.r && b2.r ? `A long-distance job is ${(b2.r / a.r).toFixed(1)}× as likely to draw a claim as a local one (${pct(b2.r)} vs ${pct(a.r)}).` : ""; })() });
+      { span2: false, groups: [["", 1], ["Local", 3], ["Long distance", 3]], note: (() => { const a = jt(Y, false), b2 = jt(Y, true); return a.r && b2.r ? `A long-distance job is ${(b2.r / a.r).toFixed(1)}× as likely to draw a claim as a local one (${pct(b2.r)} vs ${pct(a.r)}).` : ""; })() }));
 
     // what the claims are about — this season vs last, with the money and the outcome per family
     const fT = grp(csT, famOf), fL = grp(csL, famOf);
     const fams = [...new Set([...fT.keys(), ...fL.keys()])].sort((a, b) => (fT.get(b) || []).length - (fT.get(a) || []).length);
-    pairBars(gC, "What the claims are about", `${Y} vs ${LY} · claims per family`, fams, fams.map(f => (fL.get(f) || []).length), fams.map(f => (fT.get(f) || []).length), fmtN,
+    // item 7: the family chart and the family money table were two cards about one thing - now one card, Graph / Data
+    const famGraph = m => pairBars(m, "Claim families — what the claims are about", `${Y} vs ${LY} · claims per family`, fams, fams.map(f => (fL.get(f) || []).length), fams.map(f => (fT.get(f) || []).length), fmtN,
       { head: fmtN(csT.length), how: "Family = a manager's correction on Claims Analysis, else the keyword reading of the whole thread, else the reason support picked on the board. The keyword reading is what fills last season's claims, most of which were filed with no reason." });
     const rT = grp(csT, respOf), rL = grp(csL, respOf), resps = [...new Set([...rT.keys(), ...rL.keys()])].sort((a, b) => (rT.get(b) || []).length - (rT.get(a) || []).length);
     pairBars(gC, "Whose responsibility", `${Y} vs ${LY} · as recorded on the board`, resps, resps.map(f => (rL.get(f) || []).length), resps.map(f => (rT.get(f) || []).length), fmtN,
-      { head: pct0(csT.length ? (rT.get("Not assigned") || []).length / csT.length : null) + " not assigned",
-        note: (rT.get("Not assigned") || []).length > csT.length / 3 ? `${fmtN((rT.get("Not assigned") || []).length)} of ${fmtN(csT.length)} claims have no responsibility recorded — the board cannot say whose they are, which limits every "whose fault" number below.` : "" });
+      { head: pct0(csT.length ? (rT.get("Not recorded on the board") || []).length / csT.length : null) + " not recorded",
+        note: (rT.get("Not recorded on the board") || []).length > csT.length / 3 ? `${fmtN((rT.get("Not recorded on the board") || []).length)} of ${fmtN(csT.length)} claims have no responsibility recorded — the board cannot say whose they are, which limits every "whose fault" number below. Claims Analysis reads each case thread for what the claim is about (the families), not for whose fault it was, so it cannot fill these in — a manager has to record it.` : "" });
     const claimRow = r => `<tr>${td(esc(String(r["Created Date"] || "").slice(0, 10)))}${td(esc(r.Customer || "—"))}${td(esc(String(r["Request No"] || "—")))}${td(esc(famOf(r)))}${td(esc(respOf(r)))}${td(esc(r.Status || "—"))}${num(r["Refund $"]) ? td(money(num(r["Refund $"])), "no") : `<td class="dim">—</td>`}<td>${mondayLink(r["Monday Url"])}</td></tr>`;
     const claimHdr = ["Filed", "Customer", "Request", "Family", "Responsibility", "Status", "Job refund", ""];
-    ptable(gC, "Families — outcome and money", `${seasonName} ${Y}`, ["Family", "Claims", String(LY), "Share of jobs", "Open", "Jobs refunded", "Refund $", "Went public", "Median days after job"],
+    dual(gC, famGraph, m => ptable(m, "Families — outcome and money", `${seasonName} ${Y}`, ["Family", "Claims", String(LY), "Share of jobs", "Open", "Jobs refunded", "Refund $", "Went public", "Median days after job"],
       fams.map(f => { const a = fT.get(f) || [], l = fL.get(f) || [];
         return { h: `${td(esc(f))}${td(fmtN(a.length))}${td(fmtN(l.length))}${tdn(CC.jobsN ? a.length / CC.jobsN : null, pct)}${td(fmtN(a.filter(isOpenC).length))}${td(fmtN(new Set(a.filter(r => num(r["Refund $"]) > 0).map(r => r["Request Joinkey"])).size))}${td(money(refundOf(a)))}${td(fmtN(a.filter(wentPublic).length))}${tdn(median(a.map(r => r["Days After Job"] == null ? null : num(r["Days After Job"]))), fmtN)}`,
           d: a.length ? mini(claimHdr, a.slice().sort((x, y) => String(y["Created Date"]).localeCompare(String(x["Created Date"]))).map(claimRow)) : null }; }),
       { drillCol: true, tot: `${td("All")}${td(fmtN(csT.length))}${td(fmtN(csL.length))}${tdn(CC.rate, pct)}${td(fmtN(CC.open))}${td(fmtN(new Set(csT.filter(r => num(r["Refund $"]) > 0).map(r => r["Request Joinkey"])).size))}${td(money(CC.refund))}${td(fmtN(CC.pub))}${tdn(med, fmtN)}`,
-        how: "Click a family to see its claims. Refund $ is the refund paid on the claimed job (any date), counted once per job." });
+        how: "Click a family to see its claims. Refund $ is the refund paid on the claimed job (any date), counted once per job." }));
 
     // foremen: claims as a share of THEIR jobs (unweighted — one foreman per job), 30-job floor like Claims Analysis
     const MINJ = 30;
@@ -779,11 +820,13 @@ async function renderSeasonal(host) {
       return { f, n, cs, r: n ? cs.length / n : null, rL: nL >= MINJ ? cL / nL : null, small: n < MINJ }; }).filter(x => x.cs.length || x.n >= MINJ)
       .sort((a, b) => (a.small - b.small) || (b.r || 0) - (a.r || 0));
     FMCL = new Map(fmRows.map(x => [x.f, x]));   // reused by the crew and reviews parts
-    ptable(gC, "Foremen — claims on their jobs", `${seasonName} ${Y} · worst first`, ["Foreman", "Jobs", "Claims", "Share of jobs", "vs " + LY, "Damage", "Missing", "Timing", "Refund $", "Went public"],
+    dual(gC, m => { const ok = fmRows.filter(x => !x.small && x.r != null).slice(0, 15);
+        return pairBars(m, "Foremen — claims on their jobs", `share of jobs · ${Y} vs ${LY} · 30+ jobs, worst first`, ok.map(x => x.f), ok.map(x => x.rL), ok.map(x => x.r), pct, { axis: pct0, head: pct(CC.rate) + " team" }); },
+      m => ptable(m, "Foremen — claims on their jobs", `${seasonName} ${Y} · worst first`, ["Foreman", "Jobs", "Claims", "Share of jobs", "vs " + LY, "Damage", "Missing", "Timing", "Refund $", "Went public"],
       fmRows.map(x => { const by = f => x.cs.filter(r => famOf(r) === f).length;
         return { cls: x.small ? "small" : "", h: `${td(esc(x.f))}${td(fmtN(x.n))}${td(fmtN(x.cs.length))}${x.r == null ? `<td class="dim">—</td>` : x.small ? `<td class="dim">${pct(x.r)} · small</td>` : `<td class="${x.r > CC.rate ? "dn" : "up"}">${pct(x.r)}</td>`}${x.small ? `<td class="dim">—</td>` : ppInv(x.r, x.rL)}${td(fmtN(by("Damage")))}${td(fmtN(by("Missing")))}${td(fmtN(by("Timing")))}${refundOf(x.cs) ? td(money(refundOf(x.cs)), "no") : `<td class="dim">—</td>`}${td(fmtN(x.cs.filter(wentPublic).length))}`,
           d: x.cs.length ? mini(claimHdr, x.cs.map(claimRow)) : null }; }),
-      { drillCol: true, per: 15, how: `Share = claims on the foreman's jobs ÷ the jobs he led in the window (from the closing). Red = above the team's ${pct(CC.rate)}. Under ${MINJ} jobs the share is shown as "small" and sorted last — too few jobs to rank. "vs ${LY}" is green when his share fell. Click a foreman to see the claims behind his number.` });
+      { drillCol: true, per: 15, how: `Share = claims on the foreman's jobs ÷ the jobs he led in the window (from the closing). Red = above the team's ${pct(CC.rate)}. Under ${MINJ} jobs the share is shown as "small" and sorted last — too few jobs to rank. "vs ${LY}" is green when his share fell. Click a foreman to see the claims behind his number.` }));
 
     // salespeople: credited, like Claims Analysis — a 50/50 job gives each rep half the claim AND half the job
     const CRED = new Map(); (credit || []).forEach(r => { const jk = String(r["Request Joinkey"] || ""), p = String(r["Sales Person"] || "").trim(), sh = num(r.Share); if (jk && p && sh > 0) (CRED.get(jk) || CRED.set(jk, []).get(jk)).push({ p, sh }); });
@@ -797,10 +840,12 @@ async function renderSeasonal(host) {
       return { p, n, a, r: n ? a.c / n : null, rL: nL >= MINJ ? (aL ? aL.c : 0) / nL : null, small: n < MINJ }; }).filter(x => x.a.c > 0 || x.n >= MINJ)
       .sort((a, b) => (a.small - b.small) || (b.r || 0) - (a.r || 0));
     SPCL = new Map(spRows.map(x => [x.p, x]));
-    ptable(gC, "Salespeople — claims on the jobs they sold", `${seasonName} ${Y} · credited share · worst first`, ["Salesperson", "Jobs (credited)", "Claims (credited)", "Share of jobs", "vs " + LY, "Price claims", "Refund $"],
+    dual(gC, m => { const ok = spRows.filter(x => !x.small && x.r != null).slice(0, 15);
+        return pairBars(m, "Salespeople — claims on the jobs they sold", `share of credited jobs · ${Y} vs ${LY} · worst first`, ok.map(x => x.p), ok.map(x => x.rL), ok.map(x => x.r), pct, { axis: pct0, head: pct(CC.rate) + " team" }); },
+      m => ptable(m, "Salespeople — claims on the jobs they sold", `${seasonName} ${Y} · credited share · worst first`, ["Salesperson", "Jobs (credited)", "Claims (credited)", "Share of jobs", "vs " + LY, "Price claims", "Refund $"],
       spRows.map(x => ({ cls: x.small ? "small" : "", h: `${td(esc(x.p))}${td(f1(x.n))}${td(f1(x.a.c))}${x.r == null ? `<td class="dim">—</td>` : x.small ? `<td class="dim">${pct(x.r)} · small</td>` : `<td class="${x.r > CC.rate ? "dn" : "up"}">${pct(x.r)}</td>`}${x.small ? `<td class="dim">—</td>` : ppInv(x.r, x.rL)}${td(f1(x.a.price))}${refundOf(x.a.rows.map(o => o.r)) ? td(money(refundOf(x.a.rows.map(o => o.r))), "no") : `<td class="dim">—</td>`}`,
         d: x.a.rows.length ? mini(claimHdr.concat(["Their share"]), x.a.rows.map(o => claimRow(o.r).replace(/<\/tr>$/, `<td>${o.sh >= .999 ? "all of it" : pct0(o.sh)}</td></tr>`))) : null })),
-      { drillCol: true, per: 15, how: `Same rule as Claims Analysis: a job sold by two reps gives each their share of the job AND of any claim on it, so every rep's share stays a share of their own work and the column adds up to the season's claims. Price claims are the ones about the bill or the quote. Yelp Team and the CT branch owner carry no sales blame. Under ${MINJ} credited jobs = "small", sorted last.` });
+      { drillCol: true, per: 15, how: `Same rule as Claims Analysis: a job sold by two reps gives each their share of the job AND of any claim on it, so every rep's share stays a share of their own work and the column adds up to the season's claims. Price claims are the ones about the price or the quote. Yelp Team and the CT branch owner carry no sales blame. Under ${MINJ} credited jobs = "small", sorted last.` }));
 
     // when claims arrive, and how they end
     const lagB = r => { const d = r["Days After Job"]; if (d == null || d === "") return "No job date"; const v = num(d); return v <= 1 ? "Same or next day" : v <= 7 ? "2–7 days" : v <= 30 ? "8–30 days" : "Over 30 days"; };
@@ -878,11 +923,13 @@ async function renderSeasonal(host) {
     REVFM = new Map([...frT.entries()].map(([f, a]) => [f, a]));
     const fr = [...frT.entries()].map(([f, a]) => { const l = frL.get(f); return { f, a, r: a.el ? a.rv / a.el : null, rL: l && l.el >= MINE ? l.rv / l.el : null, small: a.el < MINE }; })
       .filter(x => x.a.all >= 5).sort((a, b) => (a.small - b.small) || (b.r || 0) - (a.r || 0));
-    ptable(gR, "Foremen — reviews their jobs earned", `${seasonName} ${Y} · best first`, ["Foreman", "Jobs", "Eligible", "Reviews", "Per eligible job", "vs " + LY, "Jobs with a review", "Claims share", "Excluded"],
+    dual(gR, m => { const ok = fr.filter(x => !x.small && x.r != null).slice(0, 15);
+        return pairBars(m, "Foremen — reviews their jobs earned", `reviews per eligible job · ${Y} vs ${LY} · best first`, ok.map(x => x.f), ok.map(x => x.rL), ok.map(x => x.r), pct0, { axis: pct0, head: pct0(teamR) + " team" }); },
+      m => ptable(m, "Foremen — reviews their jobs earned", `${seasonName} ${Y} · best first`, ["Foreman", "Jobs", "Eligible", "Reviews", "Per eligible job", "vs " + LY, "Jobs with a review", "Claims share", "Excluded"],
       fr.map(x => { const cc = FMCL && FMCL.get(x.f);
         return { cls: x.small ? "small" : "", h: `${td(esc(x.f))}${td(fmtN(x.a.all))}${td(fmtN(x.a.el))}${td(fmtN(x.a.rv))}${x.r == null ? `<td class="dim">—</td>` : x.small ? `<td class="dim">${pct0(x.r)} · small</td>` : `<td class="${x.r >= teamR ? "up" : "dn"}"><b>${pct0(x.r)}</b></td>`}${x.small ? `<td class="dim">—</td>` : ppcell(x.r, x.rL)}${tdn(x.a.el ? x.a.withR / x.a.el : null, pct0)}${cc && cc.r != null ? `<td class="${cc.small ? "dim" : cc.r > (CC.rate || 0) ? "dn" : "up"}">${pct(cc.r)}</td>` : `<td class="dim">—</td>`}${td(fmtN(x.a.excl))}`,
           d: x.a.miss.length ? mini(["Job date", "Customer", "Job", "Status", "Foreman's reason"], x.a.miss.slice().sort((p, q) => String(q["Job Date"]).localeCompare(String(p["Job Date"]))).map(r => `<tr>${td(esc(String(r["Job Date"] || "").slice(0, 10)))}${td(esc(r.Customer || "—"))}${td(esc(String(r["Job No"] || "—")))}${td(esc(r["Final Status"] || "—"))}${td(esc(r["Foreman Reason"] || "—"))}</tr>`), `${x.a.miss.length} eligible jobs with no review yet`) : null }; }),
-      { drillCol: true, per: 15, how: `Per eligible job = review events ÷ eligible jobs, Review Performance's measure: a job reviewed on three platforms counts three, so a foreman can pass 100%. Green = at or above the team's ${pct0(teamR)}. Under ${MINE} eligible jobs = "small", sorted last. Excluded = jobs taken out of his count because of a claim, refund or negative review (or a regular long-distance move). Click a foreman to see his eligible jobs with no review yet and the reason he gave.` });
+      { drillCol: true, per: 15, how: `Per eligible job = review events ÷ eligible jobs, Review Performance's measure: a job reviewed on three platforms counts three, so a foreman can pass 100%. Green = at or above the team's ${pct0(teamR)}. Under ${MINE} eligible jobs = "small", sorted last. Excluded = jobs taken out of his count because of a claim, refund or negative review (or a regular long-distance move). Click a foreman to see his eligible jobs with no review yet and the reason he gave.` }));
     // the quality map: reviews earned vs claims drawn, one bubble per foreman
     const qp = fr.filter(x => !x.small && x.r != null).map(x => { const cc = FMCL && FMCL.get(x.f); return cc && !cc.small && cc.r != null ? { k: x.f, x: x.r, y: cc.r, r: x.a.all } : null; }).filter(Boolean);
     if (FMCL) quadrant(gR, "Foreman quality map — reviews earned vs claims drawn", `${seasonName} ${Y} · bubble = jobs · dashed = team average`, qp, pct0, pct,
@@ -913,10 +960,13 @@ async function renderSeasonal(host) {
     { head: pct(C.book), chips: chip(C.book, P.book), barAxis: fmtN, how: "Booking rate = leads confirmed in the window (by booked date) ÷ qualified leads created in the window (all leads minus bad leads) — the portal's one booking-rate formula, the same as the Monthly Report." });
   seasonShape(g3, "Qualified leads by month", "one line per season", (y, m) => qual(created(y, m, m)) || null, fmtN);
   const estOf = y => { const bk = booked(y).filter(r => String(r["Status Category"]) === "Confirmed"); return { usd: sumCol(bk, "Average Quote"), cf: sumCol(bk, "Total CF"), n: bk.length }; };
-  table(g3, "The funnel, season by season", `${winLbl} · leads by the date they came in, bookings by booked date`, ["Season", "Leads", "Qualified", "Confirmed", "Booking rate", "Estimates booked", "CF booked", "Avg estimate"],
+  dual(g3, m => seasonCols(m, "The funnel, season by season", `${winLbl} · leads, qualified and confirmed`, [
+      { label: "Leads", vals: YEARS.map(y => H[y].leads), color: CTX }, { label: "Qualified", vals: YEARS.map(y => H[y].qual), color: INK }, { label: "Confirmed", vals: YEARS.map(y => H[y].conf), color: LIMED }], fmtN,
+      { axis: fmtN, head: fmtN(C.conf) + " confirmed" }),
+    m => table(m, "The funnel, season by season", `${winLbl} · leads by the date they came in, bookings by booked date`, ["Season", "Leads", "Qualified", "Confirmed", "Booking rate", "Estimates booked", "CF booked", "Avg estimate"],
     YEARS.slice().reverse().map(y => { const h = H[y], e = estOf(y);
       return `<tr>${td(y === Y ? `<b>${y}</b>` : y)}${td(fmtN(h.leads))}${td(fmtN(h.qual))}${td(fmtN(h.conf))}${tdn(h.book, pct)}${td(money(e.usd))}${td(fmtN(e.cf))}${tdn(e.n ? e.usd / e.n : null, money)}</tr>`; }),
-    { how: "Estimates booked = the Moveboard average quote and total cubic feet of every lead confirmed in the window. Bad leads = Dead Lead, Archive and Spam." });
+    { how: "Estimates booked = the Moveboard average quote and total cubic feet of every lead confirmed in the window. Bad leads = Dead Lead, Archive and Spam." }));
 
   function funnelTable(mount, title, keyFn, order, opts) {
     opts = opts || {};
@@ -927,8 +977,10 @@ async function renderSeasonal(host) {
     const rowsF = keys.map(x => { const rT = RS.bookingRate(cT.get(x.k) || [], bT.get(x.k) || []), rL = RS.bookingRate(cL.get(x.k) || [], bL.get(x.k) || []);
       return `<tr>${td(esc(x.k))}${td(fmtN(x.qL))}${dtd(x.qT, x.qL, fmtN)}${td(fmtN(conf(bL.get(x.k) || [])))}${dtd(conf(bT.get(x.k) || []), conf(bL.get(x.k) || []), fmtN)}${tdn(rL, pct)}${ptd(rT, rL)}</tr>`; });
     rowsF.push(`<tr class="tot">${td("All")}${td(fmtN(P.qual || 0))}${dtd(C.qual, P.qual, fmtN)}${td(fmtN(P.conf || 0))}${dtd(C.conf, P.conf, fmtN)}${tdn(P.book, pct)}${ptd(C.book, P.book)}</tr>`);
-    table(mount, title, `${Y} vs ${LY} · green up, red down`, ["", String(LY), String(Y), String(LY), String(Y), String(LY), String(Y)], rowsF,
-      { span2: opts.span2 || false, groups: [["", 1], ["Qualified leads", 2], ["Confirmed", 2], ["Booking rate", 2]], how: opts.how });
+    const rateOf = (cc, bb, k) => RS.bookingRate(cc.get(k) || [], bb.get(k) || []);
+    dual(mount, m => pairBars(m, title, `booking rate · ${Y} vs ${LY}`, keys.map(x => x.k), keys.map(x => rateOf(cL, bL, x.k)), keys.map(x => rateOf(cT, bT, x.k)), pct, { axis: pct0, span2: opts.span2 || false, head: pct(C.book) + " all" }),
+      m => table(m, title, `${Y} vs ${LY} · green up, red down`, ["", String(LY), String(Y), String(LY), String(Y), String(LY), String(Y)], rowsF,
+        { span2: opts.span2 || false, groups: [["", 1], ["Qualified leads", 2], ["Confirmed", 2], ["Booking rate", 2]], how: opts.how }));
   }
   const cfKey = s => { const n = parseInt(String(s), 10); return /over/i.test(s) ? 1e6 : isNaN(n) ? 1e7 : n; };
   funnelTable(g3, "By service type", key("Service Type"));
@@ -954,9 +1006,10 @@ async function renderSeasonal(host) {
       estUsd: sumCol(sold, "Average Quote"), estUsdL: sumCol(soldL, "Average Quote"), estCf: sumCol(sold, "Total CF"), estCfL: sumCol(soldL, "Total CF"),
       big: qual(cr.filter(isBig)) >= 5 ? RS.bookingRate(cr.filter(isBig), bk.filter(isBig)) : null, ref: sumCol(rRef.get(n) || [], "Total refund") }; };
   const REPS = repNames.map(rep);
-  table(g4, "Rep scorecard", `${seasonName} ${Y} · vs ${LY} where it matters`, ["Rep", "Jobs", "Total Bill", "vs " + LY, "Qualified", "Confirmed", "Booking", "vs " + LY, "Estimates sold", "CF sold", "Big-move booking", "Refunds"],
+  dual(g4, m => pairBars(m, "Rep scorecard", `Revenue · ${Y} vs ${LY}`, REPS.map(r => r.n), REPS.map(r => r.billL), REPS.map(r => r.bill), money, { axis: moneyC, lbl: moneyC, head: money(C.bill) }),
+    m => table(m, "Rep scorecard", `${seasonName} ${Y} · vs ${LY} where it matters`, ["Rep", "Jobs", "Revenue", "vs " + LY, "Qualified", "Confirmed", "Booking", "vs " + LY, "Estimates sold", "CF sold", "Big-move booking", "Refunds"],
     REPS.map(r => `<tr>${td(esc(r.n))}${td(fmtN(r.jobs))}${td(money(r.bill))}${dcell(r.bill, r.billL)}${td(fmtN(r.q))}${td(fmtN(r.conf))}${tdn(r.book, pct)}${ppcell(r.book, r.bookL)}${td(money(r.estUsd))}${td(fmtN(r.estCf))}${tdn(r.big, pct)}${r.ref ? td(money(r.ref), "no") : `<td class="dim">—</td>`}</tr>`),
-    { how: "Money = closings credited to the rep as Sales Person. Leads, bookings and estimates sold = Moveboard leads Assigned to the rep (estimates sold = average quote and CF of the leads they confirmed). A booking rate needs at least 10 qualified leads; big-move booking needs 5 big-move leads (the Moveboard Big Job flag). Refunds = paid in the window, by refund date." });
+    { how: "Money = closings credited to the rep as Sales Person. Leads, bookings and estimates sold = Moveboard leads Assigned to the rep (estimates sold = average quote and CF of the leads they confirmed). A booking rate needs at least 10 qualified leads; big-move booking needs 5 big-move leads (the Moveboard Big Job flag). Refunds = paid in the window, by refund date." }));
   const rb = REPS.filter(r => r.book != null);
   pairBars(g4, "Booking rate by rep", `${Y} vs ${LY}`, rb.map(r => r.n), rb.map(r => r.bookL), rb.map(r => r.book), pct, { axis: pct0, head: pct(C.book) + " team" });
   const re = REPS.filter(r => r.estUsd || r.estUsdL);
@@ -988,9 +1041,11 @@ async function renderSeasonal(host) {
   const agT = agentFold(Y), agL = agentFold(LY), dW = days(Y, F, T);
   const agRows = [...agT.entries()].filter(([, a]) => a.calls >= 50).sort((a, b) => b[1].calls - a[1].calls);
   const mmss = s => !s || !isFinite(s) ? "—" : Math.floor(s / 60) + ":" + pad(Math.round(s % 60));
-  table(g4, "Outbound calls by teammate", `RingCentral · ${seasonName} ${Y}`, ["Teammate", "Calls", "Calls / day", "vs " + LY, "Talk hours", "Avg call"],
+  dual(g4, m => pairBars(m, "Outbound calls by teammate", `RingCentral · ${Y} vs ${LY}`, agRows.map(([n]) => n), agRows.map(([n]) => (agL.get(n) || {}).calls || null), agRows.map(([, a]) => a.calls), fmtN,
+      { span2: false, head: fmtN(agRows.reduce((t, [, a]) => t + a.calls, 0)) }),
+    m => table(m, "Outbound calls by teammate", `RingCentral · ${seasonName} ${Y}`, ["Teammate", "Calls", "Calls / day", "vs " + LY, "Talk hours", "Avg call"],
     agRows.map(([n, a]) => { const l = agL.get(n); return `<tr>${td(esc(n))}${td(fmtN(a.calls))}${td((a.calls / dW).toFixed(1))}${dcell(a.calls, l && l.calls)}${td(fmtN(Math.round(a.dur / 3600)))}${td(mmss(a.calls ? a.dur / a.calls : null))}</tr>`; }),
-    { span2: false, how: "Outbound calls per RingCentral extension; calls per day divide by calendar days in the window, as the deck did. Inbound answered and missed calls per rep are not in the monthly phone rollups yet — see the gaps note at the end." });
+    { span2: false, how: "Outbound calls per RingCentral extension; calls per day divide by calendar days in the window, as the deck did. Inbound answered and missed calls per rep are not in the monthly phone rollups yet — see the gaps note at the end." }));
   const rc = REPS.filter(r => r.conf || (rBkL.get(r.n) || []).length);
   pairBars(g4, "Confirmed jobs by rep", `${Y} vs ${LY}`, rc.map(r => r.n), rc.map(r => conf(rBkL.get(r.n) || [])), rc.map(r => r.conf), fmtN, { head: fmtN(C.conf) });
 
@@ -1000,19 +1055,35 @@ async function renderSeasonal(host) {
     const out = {}; Object.keys(t).forEach(f => { out[f] = Object.entries(t[f]).sort((a, b) => b[1] - a[1])[0][0]; }); return out; };
   const homeBy = {}; const homeOf = (y, f) => (homeBy[y] || (homeBy[y] = homeS(y)))[f] || CO;
   const scIn = y => !ZIP ? [] : scorecard.filter(r => homeOf(y, String(r.Foreman || "").trim()) === CO).filter(r => { const m = String(r.Month || ""); return +m.slice(0, 4) === y && +m.slice(5, 7) >= F && +m.slice(5, 7) <= T; });
+  /* FOREMAN OF THE SUMMER - the counted score only (his ask 2026-09-14: "does it cover our assessment logic?").
+     A month's Total Score is not one scale: to 2026-06 it is 70 counted points, from 2026-07 it is 60 counted + 40
+     assessed by the logistics team, so averaging it ranked foremen by how many of their jobs fell in July-August.
+     The season score is each month's COUNTED score as a share of that month's counted points (Auto Score ÷ Counted
+     Total × 100), weighted by jobs: one scale in every season. The assessment began 2026-07 and is not complete, so
+     it is shown beside the ranking (job-weighted, out of 40, over the assessed months) and never inside it. */
   const scFold = y => { const g = new Map(); scIn(y).forEach(r => { const n = String(r.Foreman || "").trim(); if (!n) return;
-    const a = g.get(n) || { jobs: 0, sw: 0, sj: 0, w: 0, e: 0, cf: 0, rv: 0, fc: 0 }, j = num(r["Total Jobs"]), s = r["Total Score"];
-    a.jobs += j; if (s != null && s !== "" && !isNaN(s)) { a.sw += +s * j; a.sj += j; }
+    const a = g.get(n) || { jobs: 0, sw: 0, sj: 0, w: 0, e: 0, cf: 0, rv: 0, fc: 0, mw: 0, mj: 0 }, j = num(r["Total Jobs"]), s = r["Auto Score"], ct = num(r["Counted Total"]) || 70;
+    a.jobs += j; if (s != null && s !== "" && !isNaN(s)) { a.sw += +s / ct * 100 * j; a.sj += j; }
+    if (num(r["Questions Answered"]) > 0 && r["Manual Points"] != null && r["Manual Points"] !== "") { a.mw += num(r["Manual Points"]) / (num(r["Manual Total"]) || 40) * 40 * j; a.mj += j; }
     a.w += num(r["Total Packing Written"]); a.e += num(r["Total Packing Estimate"]); a.cf += num(r["Total CF"]); a.rv += num(r["Total Reviews Written"]); a.fc += num(r["Forman Fault Claims"]);
     g.set(n, a); }); return g; };
   const scT = scFold(Y), scL = scFold(LY), fcl = grp(cl(Y), key("Foreman")), fref = grp(rows("refunds", Y).filter(coRow), key("Foreman"));
   const FM = [...scT.entries()].filter(([, a]) => a.jobs >= 15 && a.sj).map(([n, a]) => { const l = scL.get(n), c = fcl.get(n) || [];
     return { n, a, score: a.sw / a.sj, scoreL: l && l.sj ? l.sw / l.sj : null, bill: bill(c), ncc: ncc(c), hrs: sumCol(c, "Foreman Hours"), ref: sumCol(fref.get(n) || [], "Total refund") }; })
     .sort((a, b) => b.score - a.score);
+  // the assessment, for reference: which months of the window have any ratings, and how complete they are
+  const asRows = scIn(Y).filter(r => num(r["Questions Answered"]) > 0), asFull = asRows.filter(r => +r["Fully Assessed"] === 1).length;
+  const asMon = [...new Set(asRows.map(r => +String(r.Month).slice(5, 7)))].sort((a, b) => a - b), noMon = winMonths.filter(m => asMon.indexOf(m) < 0);
+  const monList = ms => !ms.length ? "" : ms.length === 1 ? MS[ms[0]] : ms.every((m, i) => !i || m === ms[i - 1] + 1) ? MS[ms[0]] + "–" + MS[ms[ms.length - 1]] : ms.map(m => MS[m]).join(", ");
+  const asLbl = monList(asMon);
+  const asNote = !asRows.length
+    ? `The logistics team's Foreman Assessment (40 of the monthly points since July 2026) has no ratings in this window, so the ranking is the counted score only.`
+    : `The logistics team's Foreman Assessment (40 of the monthly points) is not part of this ranking for now: ${noMon.length ? `${monList(noMon)} ${noMon.length === 1 ? "has" : "have"} no assessment, and ` : ""}${asLbl} ${asFull < asRows.length ? `${asMon.length === 1 ? "is" : "are"} not fully assessed yet (${asFull} of ${asRows.length} foreman-months have every question answered)` : `${asMon.length === 1 ? "is" : "are"} fully assessed`}. The ranking is the counted score on one scale; the ${asLbl} assessment is shown beside it for reference.`;
   if (!ZIP) { const nc = card(g5, "Foreman scores are kept for Zip to Zip", `${seasonName} ${Y}`, { span2: true }); note(nc, `Foreman of the Summer and the packing-commission what-if come from Zip to Zip's foreman scorecard, which has no company split, so they are not shown for ${CO}. Hours vs jobs and the crew pay what-if below are ${CO} only.`); }
-  else table(g5, `Foreman of the ${seasonName.toLowerCase() === "summer" ? "Summer" : "Season"} ${Y}`, "job-weighted season score · ranked", ["#", "Foreman", "Score", "vs " + LY, "Jobs", "Netcash + Card", "Hours / job", "Packing written", "vs estimate", "Packing / 100 CF", "Reviews / eligible job", "Claims share", "Refunds"],
-    FM.map((f, i) => `<tr>${td(i + 1)}${td(`${i === 0 ? "👑 " : ""}${esc(f.n)}`, "")}${td(`<b>${f.score.toFixed(1)}</b>`)}${f.scoreL == null ? `<td class="dim">—</td>` : `<td class="${f.score >= f.scoreL ? "up" : "dn"}">${f.score >= f.scoreL ? "+" : ""}${(f.score - f.scoreL).toFixed(1)}</td>`}${td(fmtN(f.a.jobs))}${td(money(f.ncc))}${tdn(f.a.jobs ? f.hrs / f.a.jobs : null, v => v.toFixed(1))}${td(money(f.a.w))}${tdn(f.a.e ? f.a.w / f.a.e : null, pct0)}${tdn(f.a.cf ? f.a.w / f.a.cf * 100 : null, money)}${(() => { const rv = REVFM && REVFM.get(f.n); return rv && rv.el ? tdn(rv.rv / rv.el, pct0) : tdn(f.a.jobs && f.a.rv ? f.a.rv / f.a.jobs : null, pct0); })()}${(() => { const x = FMCL && FMCL.get(f.n); return x && x.r != null ? `<td class="${x.small ? "dim" : x.r > (CC.rate || 0) ? "dn" : "up"}">${pct(x.r)}</td>` : (f.a.fc ? td(fmtN(f.a.fc) + " fault", "no") : td("0")); })()}${f.ref ? td(money(f.ref), "no") : `<td class="dim">—</td>`}</tr>`),
-    { how: `Score = each month's foreman Total Score weighted by that month's jobs, so a busy July counts more than a quiet May. From July 2026 the monthly score is the 60 automatic + 40 assessment model; earlier months used the 70/30 model. Foremen with fewer than 15 jobs in the window are left out. Packing "vs estimate" = written ÷ the sales estimate: it is a floor, not a target — crews routinely write 1.5–3× the estimate. Reviews per eligible job and the claims share use the same rules as the Reviews and Claims parts above.` });
+  else dual(g5, m => rankBars(m, `Foreman of the ${seasonName.toLowerCase() === "summer" ? "Summer" : "Season"} ${Y}`, "counted score out of 100 · job-weighted · assessment not included", FM.map(f => ({ k: f.n, v: f.score })), v => v.toFixed(1), { top: 15, head: FM.length ? "👑 " + esc(FM[0].n) : "", note: asNote }),
+    m => table(m, `Foreman of the ${seasonName.toLowerCase() === "summer" ? "Summer" : "Season"} ${Y}`, "counted score · job-weighted · ranked", ["Foreman", "Counted score", "vs " + LY].concat(asRows.length ? ["Assessment " + asLbl] : []).concat(["Jobs", "Cash collected", "Packing written", "vs estimate", "Packing / 100 CF", "Reviews / eligible job", "Claims share", "Refunds"]),
+    FM.map((f, i) => `<tr>${td(`<span style="color:${FAINT};font-weight:600;margin-right:6px">${i + 1}</span>${i === 0 ? "👑 " : ""}${esc(f.n)}`, "")}${td(`<b>${f.score.toFixed(1)}</b>`)}${f.scoreL == null ? `<td class="dim">—</td>` : `<td class="${f.score >= f.scoreL ? "up" : "dn"}">${f.score >= f.scoreL ? "+" : ""}${(f.score - f.scoreL).toFixed(1)}</td>`}${asRows.length ? (f.a.mj ? td(`${(f.a.mw / f.a.mj).toFixed(1)} <small>/ 40</small>`) : `<td class="dim">not assessed</td>`) : ""}${td(fmtN(f.a.jobs))}${td(money(f.ncc))}${td(money(f.a.w))}${tdn(f.a.e ? f.a.w / f.a.e : null, pct0)}${tdn(f.a.cf ? f.a.w / f.a.cf * 100 : null, money)}${(() => { const rv = REVFM && REVFM.get(f.n); return rv && rv.el ? tdn(rv.rv / rv.el, pct0) : tdn(f.a.jobs && f.a.rv ? f.a.rv / f.a.jobs : null, pct0); })()}${(() => { const x = FMCL && FMCL.get(f.n); return x && x.r != null ? `<td class="${x.small ? "dim" : x.r > (CC.rate || 0) ? "dn" : "up"}">${pct(x.r)}</td>` : (f.a.fc ? td(fmtN(f.a.fc) + " fault", "no") : td("0")); })()}${f.ref ? td(money(f.ref), "no") : `<td class="dim">—</td>`}</tr>`),
+    { note: asNote, how: `Counted score = each month's automatic score (packing per 100 CF, reviews, packing vs estimate, claims) as a share of that month's counted points, weighted by that month's jobs: a busy July counts more than a quiet May, and a 70-point month and a 60-point month sit on the same 0–100 scale. "vs ${LY}" is the same measure last season.${asRows.length ? ` Assessment = the logistics team's points out of 40, job-weighted over ${asLbl}; a question left unanswered counts as zero there.` : ""} Foremen with fewer than 15 jobs in the window are left out. Packing "vs estimate" = written ÷ the sales estimate: it is a floor, not a target — crews routinely write 1.5–3× the estimate. Reviews per eligible job and the claims share use the same rules as the Reviews and Claims parts above.` }));
   const fh = [...fcl.entries()].map(([n, c]) => ({ n, j: c.length, h: sumCol(c, "Foreman Hours") })).filter(x => x.j >= 10).sort((a, b) => b.h - a.h).slice(0, 22);
   combo(g5, "Hours worked vs jobs done", `${seasonName} ${Y} · per foreman`, fh.map(x => x.n), fh.map(x => x.j), "Jobs", fmtN, fh.map(x => x.h), "Hours", fmtN,
     { span2: true, rotate: true, barColors: fh.map(() => INK), barAxis: fmtN, head: fmtN(fh.reduce((a, x) => a + x.h, 0)) + " h" });
@@ -1024,8 +1095,8 @@ async function renderSeasonal(host) {
   table(g5, "What if crew pay rose by $1 an hour?", `${seasonName} ${Y} hours`, ["Role", "Hours", "Paid", "+$1 / hour costs", "Pay increase"],
     [[`Foremen`, w.fh, w.fp], [`Helpers`, w.hh, w.hp]].map(([r, h, p]) => `<tr>${td(r)}${td(fmtN(Math.round(h)))}${td(money(p))}${td(money(h))}${tdn(p ? h / p : null, pct)}</tr>`)
       .concat([`<tr class="tot">${td("Crew")}${td(fmtN(Math.round(w.fh + w.hh)))}${td(money(w.fp + w.hp))}${td(money(w.fh + w.hh))}${tdn(w.fp + w.hp ? (w.fh + w.hh) / (w.fp + w.hp) : null, pct)}</tr>`]),
-    { span2: false, note: `One more dollar an hour for every foreman and helper would have cost ${money(w.fh + w.hh)} this season — ${C.ncc ? pct((w.fh + w.hh) / C.ncc) : "—"} of Netcash + Card.`,
-      how: "Hours = foreman hours on the closings + helper hours on the helper salary sheet, for this window's jobs. Paid = foreman hourly + packing pay (Forman Total $) and helper amount received. Driver hours are not in the served data, so drivers are left out." });
+    { span2: false, note: `One more dollar an hour for every foreman and helper would have cost ${money(w.fh + w.hh)} this season — ${C.ncc ? pct((w.fh + w.hh) / C.ncc) : "—"} of Cash Collected (Net + Card).`,
+      how: "Hours = foreman hours on the closings + helper hours on the helper salary sheet, for this window's jobs. Paid = foreman hourly + packing pay (Foreman Total $) and helper amount received. Driver hours are not in the served data, so drivers are left out." });
   const pk = y => { const c = cl(y), sc = scFold(y); let alt = 0, com = 0, wr = 0, est = 0;
     grp(c, key("Foreman")).forEach((rs, n) => { const W = sumCol(rs, "Material Total"), K = sumCol(rs, "Material $"), E = (sc.get(n) || {}).e || 0; com += K; wr += W; est += E; if (W > 0) alt += K / W * Math.max(0, W - E); });
     return { wr, est, com, alt }; };
@@ -1047,15 +1118,16 @@ async function renderSeasonal(host) {
   const chRows = [...chT.entries()].filter(([, a]) => a.ad > 0).sort((a, b) => b[1].ad - a[1].ad);
   const cpl = a => a && a.leads ? a.ad / a.leads : null, per1 = a => a && a.ad ? a.ncc / a.ad : null;
   const chTot = [...chT.values()].reduce((t, a) => ({ ad: t.ad + a.ad, leads: t.leads + a.leads, jobs: t.jobs + a.jobs, bill: t.bill + a.bill, ncc: t.ncc + a.ncc }), { ad: 0, leads: 0, jobs: 0, bill: 0, ncc: 0 });
-  table(g6, "Paid channels — cost per lead and return per $1", `${adLbl || winLbl} ${Y} vs ${LY}`, ["Channel", "Ad spend", "Leads", "Cost / lead", "CPL " + LY, "Jobs", "Total Bill", "Netcash + Card", "Per $1", "Per $1 " + LY],
+  dual(g6, m => pairBars(m, "Paid channels — cost per lead and return per $1", `Cash collected per $1 of ad spend · ${adLbl || winLbl} · ${Y} vs ${LY}`, chRows.map(([k]) => k), chRows.map(([k]) => per1(chL.get(k))), chRows.map(([, a]) => per1(a)), x1, { head: x1(per1(chTot)) + " all paid" }),
+    m => table(m, "Paid channels — cost per lead and return per $1", `${adLbl || winLbl} ${Y} vs ${LY}`, ["Channel", "Ad spend", "Leads", "Cost / lead", "CPL " + LY, "Jobs", "Revenue", "Cash collected", "Per $1", "Per $1 " + LY],
     chRows.map(([s, a]) => { const l = chL.get(s); const c1 = cpl(a), c0 = cpl(l), p1 = per1(a), p0 = per1(l);
       return `<tr>${td(esc(s))}${td(money(a.ad))}${td(fmtN(a.leads))}${tdn(c1, money)}${c0 == null ? `<td class="dim">—</td>` : `<td class="${c1 != null && c1 <= c0 ? "up" : "dn"}">${money(c0)}</td>`}${td(fmtN(a.jobs))}${td(money(a.bill))}${td(money(a.ncc))}${p1 == null ? `<td class="dim">—</td>` : `<td class="${p1 >= 5 ? "up" : p1 < 2 ? "dn" : ""}"><b>${x1(p1)}</b></td>`}${tdn(p0, x1)}</tr>`; })
       .concat([`<tr class="tot">${td("All paid channels")}${td(money(chTot.ad))}${td(fmtN(chTot.leads))}${tdn(cpl(chTot), money)}<td></td>${td(fmtN(chTot.jobs))}${td(money(chTot.bill))}${td(money(chTot.ncc))}${tdn(per1(chTot), x1)}<td></td></tr>`]),
-    { how: `Every column uses the same months (${adLbl || winLbl}) so spend and results line up. Cost per lead = ad spend ÷ every lead from that source (bad leads included, as the deck did). Per $1 = Netcash + Card of the jobs from that source ÷ its ad spend. Last season's CPL is green when this season is cheaper. Post Card states are pooled here and split out below.` });
+    { how: `Every column uses the same months (${adLbl || winLbl}) so spend and results line up. Cost per lead = ad spend ÷ every lead from that source (bad leads included, as the deck did). Per $1 = Cash Collected (Net + Card) of the jobs from that source ÷ its ad spend. Last season's CPL is green when this season is cheaper. Post Card states are pooled here and split out below.` }));
 
   const qC = chRows.map(([s, a]) => ({ k: s, x: cpl(a), y: per1(a), r: Math.round(a.ad) })).filter(p => p.x != null && p.y != null && p.r >= 1000);
   quadrant(g6, "Channels — cost per lead vs return per $1", `${adLbl || winLbl} ${Y} · bubble = ad spend`, qC, money, x1,
-    { xLabel: "Cost per lead", yLabel: "Netcash + Card per $1", goodX: "low", goodY: "high", xAvg: cpl(chTot), yAvg: per1(chTot), rLabel: "ad $", q: { tl: "★ cheap leads, strong return", br: "dear leads, weak return" },
+    { xLabel: "Cost per lead", yLabel: "Cash collected per $1", goodX: "low", goodY: "high", xAvg: cpl(chTot), yAvg: per1(chTot), rLabel: "ad $", q: { tl: "★ cheap leads, strong return", br: "dear leads, weak return" },
       how: "Channels with at least $1,000 of spend in the window. Lime = cheaper leads AND a better return than the paid average." });
   const pcKey = s => { const m = /post ?card\s*-\s*([A-Za-z]+)/i.exec(String(s || "")); return m ? "Post Card - " + m[1].toUpperCase() : null; };
   const pc = y => { if (adTo == null) return new Map(); const g = new Map(), get = k => g.get(k) || (g.set(k, { ad: 0, cr: [], bk: [], jobs: 0, ncc: 0 }), g.get(k));
@@ -1065,56 +1137,64 @@ async function renderSeasonal(host) {
     grp(cl(y, F, adTo), r => pcKey(r.Source)).forEach((rs, k) => { const a = get(k); a.jobs = rs.length; a.ncc = ncc(rs); });
     return g; };
   const pcT = pc(Y), pcL = pc(LY);
-  table(g6, "Postcard campaigns by state", `${adLbl || winLbl} ${Y} vs ${LY}`, ["Campaign", "Spend", "Leads", "Booking", "Jobs", "Netcash + Card", "Per $1", "Per $1 " + LY],
+  dual(g6, m => { const rs = [...pcT.entries()].filter(([, a]) => a.ad).sort((a, b) => b[1].ad - a[1].ad);
+      return pairBars(m, "Postcard campaigns by state", `Cash collected per $1 · ${Y} vs ${LY}`, rs.map(([k]) => k), rs.map(([k]) => { const l = pcL.get(k); return l && l.ad ? l.ncc / l.ad : null; }), rs.map(([, a]) => a.ncc / a.ad), x1, { span2: false }); },
+    m => table(m, "Postcard campaigns by state", `${adLbl || winLbl} ${Y} vs ${LY}`, ["Campaign", "Spend", "Leads", "Booking", "Jobs", "Cash collected", "Per $1", "Per $1 " + LY],
     [...pcT.entries()].filter(([, a]) => a.ad || a.cr.length).sort((a, b) => b[1].ad - a[1].ad).map(([k, a]) => { const l = pcL.get(k), p1 = a.ad ? a.ncc / a.ad : null, p0 = l && l.ad ? l.ncc / l.ad : null;
       return `<tr>${td(esc(k))}${a.ad ? td(money(a.ad)) : `<td class="dim">—</td>`}${td(fmtN(a.cr.length))}${tdn(RS.bookingRate(a.cr, a.bk), pct)}${td(fmtN(a.jobs))}${td(money(a.ncc))}${tdn(p1, x1)}${tdn(p0, x1)}</tr>`; }),
-    { span2: false, how: "Campaign = the state on the postcard's tracking line (Moveboard source connector, the closing's source, the card line's provider). The deck's conversion rate needs how many postcards were mailed — that count is not on file." });
+    { span2: false, how: "Campaign = the state on the postcard's tracking line (Moveboard source connector, the closing's source, the card line's provider). The deck's conversion rate needs how many postcards were mailed — that count is not on file." }));
   // Yelp — the card ledger books Yelp as ONE line, so return per $1 is company-wide; the funnel splits by state
   const yelpRows = (rs) => rs.filter(r => /^yelp/i.test(String(r.Source || "")));
   const yc = y => grp(yelpRows(created(y)), key("State Name")), yb = y => grp(yelpRows(booked(y)), key("State Name"));
   const ycT = yc(Y), ycL = yc(LY), ybT = yb(Y), ybL = yb(LY);
   const yAd = y => sumCol(adRows(y).filter(r => /^yelp/i.test(String(r.Source || ""))), "Amount"), yN = y => adTo == null ? 0 : ncc(cl(y, F, adTo).filter(r => /^yelp/i.test(String(r.Source || ""))));
-  table(g6, "Yelp by state", `${Y} vs ${LY} · green up, red down`, ["State", String(LY), String(Y), String(LY), String(Y), String(LY), String(Y)],
+  dual(g6, m => { const ks = [...new Set([...ycT.keys(), ...ycL.keys()])].map(k => ({ k, n: qual(ycT.get(k) || []) + qual(ycL.get(k) || []), qT: qual(ycT.get(k) || []) })).filter(x => x.n >= 10).sort((a, b) => b.qT - a.qT);
+      return pairBars(m, "Yelp by state", `booking rate · ${Y} vs ${LY}`, ks.map(x => x.k), ks.map(x => RS.bookingRate(ycL.get(x.k) || [], ybL.get(x.k) || [])), ks.map(x => RS.bookingRate(ycT.get(x.k) || [], ybT.get(x.k) || [])), pct, { axis: pct0, span2: false }); },
+    m => table(m, "Yelp by state", `${Y} vs ${LY} · green up, red down`, ["State", String(LY), String(Y), String(LY), String(Y), String(LY), String(Y)],
     [...new Set([...ycT.keys(), ...ycL.keys()])].map(s => ({ s, qT: qual(ycT.get(s) || []), qL: qual(ycL.get(s) || []) })).filter(x => x.qT + x.qL >= 10).sort((a, b) => b.qT - a.qT)
       .map(x => { const rT = RS.bookingRate(ycT.get(x.s) || [], ybT.get(x.s) || []), rL = RS.bookingRate(ycL.get(x.s) || [], ybL.get(x.s) || []);
         return `<tr>${td(esc(x.s))}${td(fmtN(x.qL))}${dtd(x.qT, x.qL, fmtN)}${td(fmtN(conf(ybL.get(x.s) || [])))}${dtd(conf(ybT.get(x.s) || []), conf(ybL.get(x.s) || []), fmtN)}${tdn(rL, pct)}${ptd(rT, rL)}</tr>`; }),
     { span2: false, groups: [["", 1], ["Qualified leads", 2], ["Confirmed", 2], ["Booking rate", 2]],
-      note: adTo == null ? "" : `Yelp spend ${money(yAd(Y))} returned ${x1(yAd(Y) ? yN(Y) / yAd(Y) : null)} of Netcash + Card per $1 (${adLbl}); ${LY}: ${x1(yAd(LY) ? yN(LY) / yAd(LY) : null)}.`,
-      how: "Yelp is paid as a single account, so spend cannot be split by state — only the per-$1 return for Yelp as a whole is shown, in the insight line." });
+      note: adTo == null ? "" : `Yelp spend ${money(yAd(Y))} returned ${x1(yAd(Y) ? yN(Y) / yAd(Y) : null)} of Cash collected per $1 (${adLbl}); ${LY}: ${x1(yAd(LY) ? yN(LY) / yAd(LY) : null)}.`,
+      how: "Yelp is paid as a single account, so spend cannot be split by state — only the per-$1 return for Yelp as a whole is shown, in the insight line." }));
 
   // repeat + referral customers
   const rr = (rs, which) => rs.filter(r => String(r.Source || "") === which);
-  seasonCols(g6, "Repeat and referral customers — Total Bill", "Returned Customer vs Recommended · every season", [
+  seasonCols(g6, "Repeat and referral customers — Revenue", "Returned Customer vs Recommended · every season", [
     { label: "Returned customer", vals: YEARS.map(y => bill(rr(cl(y), "Returned Customer"))), color: LIMED }, { label: "Recommended", vals: YEARS.map(y => bill(rr(cl(y), "Recommended"))), color: INK }], money,
     { lbl: moneyC, head: money(bill(rr(cl(Y), "Returned Customer")) + bill(rr(cl(Y), "Recommended"))) });
   const rrSt = [...stTY.keys()].filter(s => (stTY.get(s) || []).length >= 20).sort((a, b) => (stTY.get(b) || []).length - (stTY.get(a) || []).length);
   const shr = (rs, which) => rs.length ? rr(rs, which).length / rs.length : null, rsh = rs => { const b = bill(rs); return b ? (bill(rr(rs, "Returned Customer")) + bill(rr(rs, "Recommended"))) / b : null; };
-  table(g6, "Repeat and referral share by state", `${Y} vs ${LY}`, ["State", String(LY), String(Y), String(LY), String(Y), String(LY), String(Y)],
+  dual(g6, m => pairBars(m, "Repeat and referral share by state", `share of Revenue · ${Y} vs ${LY}`, rrSt, rrSt.map(k => rsh(stLY.get(k) || [])), rrSt.map(k => rsh(stTY.get(k) || [])), pct, { axis: pct0, span2: false }),
+    m => table(m, "Repeat and referral share by state", `${Y} vs ${LY}`, ["State", String(LY), String(Y), String(LY), String(Y), String(LY), String(Y)],
     rrSt.map(s => { const a = stTY.get(s) || [], b = stLY.get(s) || [];
       return `<tr>${td(esc(s))}${tdn(shr(b, "Returned Customer"), pct)}${tdn(shr(a, "Returned Customer"), pct)}${tdn(shr(b, "Recommended"), pct)}${tdn(shr(a, "Recommended"), pct)}${tdn(rsh(b), pct)}${tdn(rsh(a), pct)}</tr>`; }),
-    { span2: false, groups: [["", 1], ["Returned, % of jobs", 2], ["Recommended, % of jobs", 2], ["Share of bill", 2]], how: "A job is repeat when its closing source is Returned Customer, a referral when it is Recommended. States with at least 20 jobs this season." });
+    { span2: false, groups: [["", 1], ["Returned, % of jobs", 2], ["Recommended, % of jobs", 2], ["Share of revenue", 2]], how: "A job is repeat when its closing source is Returned Customer, a referral when it is Recommended. States with at least 20 jobs this season." }));
 
   // phones — RingCentral inbound lines, CallRail tracked numbers
   const lineFold = y => { const g = new Map(); rcLine.forEach(r => { if (String(r.Company) !== CO || NOT_REP(r["Line Name"])) return; const ym = String(r.Month || ""); if (+ym.slice(0, 4) !== y || +ym.slice(5, 7) < F || +ym.slice(5, 7) > T) return;
     const k = String(r["Line Name"] || "").trim() || "(unnamed numbers)", a = g.get(k) || { in: 0, ans: 0, miss: 0, dur: 0 }, n = num(r.Calls), res = String(r["Action Result"] || "");
     a.in += n; if (/^Accepted$/i.test(res)) { a.ans += n; a.dur += num(r["Duration Seconds"]); } else if (/^(Missed|Voicemail)$/i.test(res)) a.miss += n; g.set(k, a); }); return g; };
   const lnT = lineFold(Y), lnL = lineFold(LY);
-  table(g6, "Inbound calls by company line", `RingCentral · ${seasonName} ${Y}`, ["Line", "Inbound", "vs " + LY, "Answered", "Missed", "Handle time"],
+  dual(g6, m => { const ls = [...lnT.entries()].filter(([, a]) => a.in >= 20).sort((a, b) => b[1].in - a[1].in), mr = a => a && a.in ? a.miss / a.in : null;
+      return pairBars(m, "Inbound calls by company line", `missed or voicemail · ${Y} vs ${LY} · goal 5%`, ls.map(([k]) => k), ls.map(([k]) => mr(lnL.get(k))), ls.map(([, a]) => mr(a)), pct, { axis: pct0, span2: false, head: C.missRate == null ? "" : pct(C.missRate) + " missed" }); },
+    m => table(m, "Inbound calls by company line", `RingCentral · ${seasonName} ${Y}`, ["Line", "Inbound", "vs " + LY, "Answered", "Missed", "Handle time"],
     [...lnT.entries()].filter(([, a]) => a.in >= 20).sort((a, b) => b[1].in - a[1].in).map(([k, a]) => { const l = lnL.get(k), mr = a.in ? a.miss / a.in : null;
       return `<tr>${td(esc(k))}${td(fmtN(a.in))}${dcell(a.in, l && l.in)}${td(fmtN(a.ans))}${mr == null ? `<td class="dim">—</td>` : `<td class="${mr > .05 ? "dn" : "up"}">${pct(mr)}</td>`}${td(mmss(a.ans ? a.dur / a.ans : null))}</tr>`; }),
-    { span2: false, how: "Inbound voice calls per company line (sessions, not ring legs). Missed includes voicemail, as the deck's \"% missed (w/ VM)\" did; red above the 5% goal. Handle time averages answered calls only." });
+    { span2: false, how: "Inbound voice calls per company line (sessions, not ring legs). Missed includes voicemail, as the deck's \"% missed (w/ VM)\" did; red above the 5% goal. Handle time averages answered calls only." }));
   const crT = rows("callrail", Y), crG = grp(crT, r => String(r.Source || "").trim() || "(no source)");
-  if (ZIP) table(g6, "Tracked marketing numbers",   // CallRail tracks Zip to Zip numbers only
+  if (ZIP) dual(g6, m => rankBars(m, "Tracked marketing numbers", `CallRail · calls by source · ${seasonName} ${Y}`, [...crG.entries()].sort((a, b) => b[1].length - a[1].length).map(([k, rs]) => ({ k, v: rs.length })), fmtN, { span2: false }),
+    m => table(m, "Tracked marketing numbers",   // CallRail tracks Zip to Zip numbers only
     `CallRail · ${seasonName} ${Y}`, ["Source", "Calls", "First-time", "Returning", "Minutes", "Avg call"],
     [...crG.entries()].sort((a, b) => b[1].length - a[1].length).slice(0, 15).map(([k, rs]) => { const ft = rs.filter(r => Number(r["First-Time Caller"]) === 1).length, sec = sumCol(rs, "Duration Seconds");
       return `<tr>${td(esc(k))}${td(fmtN(rs.length))}${td(fmtN(ft))}${td(fmtN(rs.length - ft))}${td(fmtN(Math.round(sec / 60)))}${td(mmss(rs.length ? sec / rs.length : null))}</tr>`; }),
-    { span2: false, how: "Calls to the CallRail tracking numbers, grouped by the source each number is assigned to. First-time = CallRail's first-time-caller flag." });
+    { span2: false, how: "Calls to the CallRail tracking numbers, grouped by the source each number is assigned to. First-time = CallRail's first-time-caller flag." }));
 
   /* ================= 07 · what the season says ================= */
   const g7 = part("What the season says", "findings computed from the cards above — and what this report cannot show yet");
   const F7 = [];
-  if (gb != null) F7.push(`Total Bill ${gb >= 0 ? "grew" : "fell"} ${Math.abs(gb * 100).toFixed(0)}% while jobs ${gj >= 0 ? "grew" : "fell"} ${Math.abs((gj || 0) * 100).toFixed(0)}% — ${Math.abs(gb) > Math.abs(gj || 0) + .05 ? "price and job size did most of the work, not volume" : "volume and value moved together"}.`);
-  if (C.rate != null && P.rate != null) F7.push(`The netcash rate ${C.rate >= P.rate ? "improved" : "slipped"} from ${pct(P.rate)} to ${pct(C.rate)}${Math.abs(C.rate - P.rate) < .01 ? " — essentially flat" : ""}.`);
+  if (gb != null) F7.push(`Revenue ${gb >= 0 ? "grew" : "fell"} ${Math.abs(gb * 100).toFixed(0)}% while jobs ${gj >= 0 ? "grew" : "fell"} ${Math.abs((gj || 0) * 100).toFixed(0)}% — ${Math.abs(gb) > Math.abs(gj || 0) + .05 ? "price and job size did most of the work, not volume" : "volume and value moved together"}.`);
+  if (C.rate != null && P.rate != null) F7.push(`The cash collected rate ${C.rate >= P.rate ? "improved" : "slipped"} from ${pct(P.rate)} to ${pct(C.rate)}${Math.abs(C.rate - P.rate) < .01 ? " — essentially flat" : ""}.`);
   const chRank = chRows.map(([s, a]) => ({ s, p: per1(a), ad: a.ad, c: cpl(a) })).filter(x => x.ad >= 2000 && x.p != null).sort((a, b) => b.p - a.p);
   if (chRank.length >= 2) F7.push(`Best paid channel per $1: ${chRank[0].s} (${x1(chRank[0].p)}); weakest with real spend: ${chRank[chRank.length - 1].s} (${x1(chRank[chRank.length - 1].p)} on ${money(chRank[chRank.length - 1].ad)}).`);
   const cplRank = chRank.filter(x => x.c != null).sort((a, b) => a.c - b.c);
@@ -1122,7 +1202,7 @@ async function renderSeasonal(host) {
   const rbD = REPS.filter(r => r.book != null && r.bookL != null).map(r => ({ n: r.n, d: r.book - r.bookL })).sort((a, b) => b.d - a.d);
   if (rbD.length >= 2) F7.push(`Booking rate: ${rbD[0].n} gained the most (${rbD[0].d >= 0 ? "+" : ""}${(rbD[0].d * 100).toFixed(1)}pp); ${rbD[rbD.length - 1].n} lost the most (${(rbD[rbD.length - 1].d * 100).toFixed(1)}pp).`);
   if (C.missRate != null) F7.push(`${pct(C.missRate)} of inbound calls to company lines went unanswered or to voicemail (${P.missRate != null ? pct(P.missRate) + " last season" : "no prior season on file"}); the deck's goal is 5%.`);
-  if (FM.length) F7.push(`Foreman of the ${seasonName.toLowerCase() === "summer" ? "Summer" : "Season"}: ${FM[0].n} (${FM[0].score.toFixed(1)}), ahead of ${FM.slice(1, 3).map(f => f.n + " (" + f.score.toFixed(1) + ")").join(" and ")}.`);
+  if (FM.length) F7.push(`Foreman of the ${seasonName.toLowerCase() === "summer" ? "Summer" : "Season"} on the counted score (assessment not included): ${FM[0].n} (${FM[0].score.toFixed(1)}), ahead of ${FM.slice(1, 3).map(f => f.n + " (" + f.score.toFixed(1) + ")").join(" and ")}.`);
   if (CC.rate != null && CP.rate != null) F7.push(`Claims: ${pct(CC.rate)} of jobs drew one, against ${pct(CP.rate)} in ${LY} — ${fmtN(CC.claims)} claims, ${fmtN(CC.open)} still open, ${money(CC.refund || 0)} refunded on claimed jobs. Part of the rise is the claims board being used fully since mid-2025.`);
   if (FMCL) { const w = [...FMCL.values()].filter(x => !x.small && x.r != null).sort((a, b) => b.r - a.r); if (w.length >= 2) F7.push(`Highest claim share among foremen with 30+ jobs: ${w[0].f} (${pct(w[0].r)} of ${fmtN(w[0].n)} jobs); lowest: ${w[w.length - 1].f} (${pct(w[w.length - 1].r)}).`); }
   if (CC.revPerJob != null) F7.push(`Reviews: ${pct0(CC.revPerJob)} reviews per eligible job against ${CP.revPerJob == null ? "—" : pct0(CP.revPerJob)} in ${LY}; ${pct0(CC.revShare)} of eligible jobs got at least one. Negative reviews ${fmtN(CC.neg)} (${fmtN(CP.neg || 0)} in ${LY}).`);
@@ -1150,9 +1230,9 @@ async function renderSeasonal(host) {
   // NO TABLE SCROLLS (her notes on nine cards): a half-width card whose table does not fit becomes full width and
   // the grid is re-paired. The fit depends on the reader's screen, so it is re-checked after fonts load and on resize.
   const fitTables = () => { let moved = false;
-    bodyEl.querySelectorAll(".srx-card:not(.span2) > .srx-scroll").forEach(w2 => { if (w2.scrollWidth > w2.clientWidth + 2) { w2.parentNode.classList.add("span2"); moved = true; } });
+    bodyEl.querySelectorAll(".srx-card:not(.span2) > .srx-scroll, .srx-card:not(.span2) > .srx-pane > .srx-scroll").forEach(w2 => { if (w2.scrollWidth > w2.clientWidth + 2) { w2.closest(".srx-card").classList.add("span2"); moved = true; } });
     if (moved) balance(); return moved; };
-  balance(); fitTables();
+  balance(); fitTables(); FIT = fitTables;
   if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { if (root.isConnected) fitTables(); });
   if (window.__srFit) window.removeEventListener("resize", window.__srFit);
   let fitT = null; window.__srFit = () => { clearTimeout(fitT); fitT = setTimeout(() => { if (root.isConnected) fitTables(); }, 200); };
@@ -1168,7 +1248,7 @@ async function renderSeasonal(host) {
   const maxY = latest ? +latest.slice(0, 4) : new Date().getFullYear();
   const yearVals = []; for (let y = maxY; y >= 2023; y--) yearVals.push({ v: String(y), l: String(y) });
   const monVals = MON.slice(1).map((l, i) => ({ v: String(i + 1), l }));
-  RSC.localSelect(cover.querySelector("#srYear"), { label: "Season", values: yearVals, value: String(Y), required: true, onChange: v => { st.year = +v; reRender(); } });
+  RSC.localSelect(cover.querySelector("#srYear"), { label: "Year", values: yearVals, value: String(Y), required: true, onChange: v => { st.year = +v; reRender(); } });
   RSC.localSelect(cover.querySelector("#srFrom"), { label: "From", values: monVals, value: String(F), required: true, onChange: v => { st.from = +v; if (st.to < st.from) st.to = st.from; reRender(); } });
   RSC.localSelect(cover.querySelector("#srTo"), { label: "To", values: monVals, value: String(T), required: true, onChange: v => { st.to = +v; if (st.from > st.to) st.from = st.to; reRender(); } });
   const coVals = [...new Set(["Zip to Zip", "Tuji", CO, ...closing.filter(r => inWin(r._d || r.Date, Y)).map(r => String(r.Company || "")).filter(Boolean)])].sort();

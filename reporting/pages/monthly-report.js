@@ -1698,8 +1698,8 @@ async function renderMonthly(host, MRCFG) {
       const billRank = s => { const m = String(s.rk).match(/\$?\s*([\d,]+)/); return /over/i.test(String(s.rk)) ? 9e9 : (m ? +m[1].replace(/,/g, "") : 9e12); };
       revSeg("Revenue by moving type", "Moving Type", { mapKey: mtKey,                                            // 1 · left-top
         note: "Long Distance combines the closing sheet's Regular and Straight moving types — a lone “Regular Moving” bar in months with no Straight jobs read as if Straight had vanished. Green = gross profit kept; end label = revenue · gross margin." });
-      revSeg("Revenue by bill size", "Bill Range", { order: (a, b) => billRank(a) - billRank(b), top: 10,        // 2 · right-top
-        note: "Closed jobs don't carry cubic feet, so revenue is banded by each job's total bill — a reliable stand-in for move size. Green = gross profit kept; end label = revenue · gross margin." });
+      revSeg("Revenue by job size ($)", "Bill Range", { order: (a, b) => billRank(a) - billRank(b), top: 10,        // 2 · right-top
+        note: "Closed jobs don't carry cubic feet, so revenue is banded by each job's revenue — a reliable stand-in for move size. Green = gross profit kept; end label = revenue · gross margin." });
       revSeg("Revenue by state", "State Name", { top: 8 });                                                       // 3 · left-bottom
       revSeg("Revenue by size of move", "Size of Move", { top: 8 });                                              // 4 · right-bottom
     }
@@ -1926,7 +1926,7 @@ async function renderMonthly(host, MRCFG) {
         const fH = `<table class="mrx-tbl"><thead><tr><th>Foreman</th><th>Jobs</th><th>Hours</th><th>Foreman Pay</th><th>$/hr</th><th>Pay % of revenue</th></tr></thead><tbody>${
           byF.map(r => `<tr><td>${esc(r.f)}</td>${td(fmtN(r.jobs))}${td(fmt1(r.hrs))}${td(money(r.pay))}${td(r.rate == null ? "—" : money(r.rate), "font-weight:800")}${td(r.pctb == null ? "—" : pct(r.pctb))}</tr>`).join("")
         }<tr class="tot"><td>Total</td>${td(fmtN(p.jobs))}${td(fmt1(totHrs))}${td(money(totPay))}${td(totHrs ? money(totPay / totHrs) : "—")}${td(p.bill ? pct(totPay / p.bill) : "—")}</tr></tbody></table>`;
-        tableCard(g, "CT branch by foreman — hours & pay", monLbl + " · pay = full company pay", fH, { span2: false, icon: KIC.grid, headVal: money(totPay), noteKind: "how", note: "Foreman Pay is the FULL company pay (hourly + packing + review + CF + company-tip part) — the same Forman Salary the Branch Owner page uses, so the two tie out. Customer tips are not included. $/hr = pay ÷ hours on these jobs; Pay % of revenue = pay ÷ the jobs' revenue." });
+        tableCard(g, "CT branch by foreman — hours & pay", monLbl + " · pay = full company pay", fH, { span2: false, icon: KIC.grid, headVal: money(totPay), noteKind: "how", note: "Foreman Pay is the FULL company pay (hourly + packing + review + CF + company-tip part) — the same Foreman Salary the Branch Owner page uses, so the two tie out. Customer tips are not included. $/hr = pay ÷ hours on these jobs; Pay % of revenue = pay ÷ the jobs' revenue." });
       }
       // per-job detail for the selected period
       const det = bo.slice().sort((a, b) => String(b.Date || "").localeCompare(String(a.Date || "")))
@@ -2713,11 +2713,11 @@ async function renderMonthly(host, MRCFG) {
       note(cStC, "Active = any storage payment that month; recurring = monthly-billed customers (excludes one-off pickup/delivery payments). Growth or churn in the recurring line is the storage-planning signal.", "how");
       // deck s13/19/27a: the storage revenue SPLIT — billed separately vs bundled into the job's bill (Tornike 2026-07-15)
       const stoAddS = momSeries("storage", "Storage Additional Revenue", 14), stoInclS = momSeries("storage", "Storage Revenue Included in Total Bill", 14);
-      const cSpl = stackedTime(g, "Storage revenue — additional vs included in the bill", "last 14 months", stoAddS.map(r => r.k),
+      const cSpl = stackedTime(g, "Storage revenue — additional vs included in the job's revenue", "last 14 months", stoAddS.map(r => r.k),
         [ { label: "Additional (billed separately)", data: stoAddS.map(r => r.v || 0), color: VIOLET },
-          { label: "Included in the bill (paid at pickup)", data: stoInclS.map(r => r.v || 0), color: INK } ], money, { span2: true });
+          { label: "Included in the job price (paid at pickup)", data: stoInclS.map(r => r.v || 0), color: INK } ], money, { span2: true });
       const lAdd = lastV(stoAddS) || 0, lIncl = lastV(stoInclS) || 0;
-      note(cSpl, `Storage money arrives two ways: billed SEPARATELY as its own storage payment (${money(lAdd)} in ${endMon}) or bundled INTO the job's total bill and collected at pickup (${money(lIncl)}). The income charts above track only the additional half — the bundled half is already inside Revenue, so the two must never be added to Revenue again.`, "how");
+      note(cSpl, `Storage money arrives two ways: billed SEPARATELY as its own storage payment (${money(lAdd)} in ${endMon}) or bundled INTO the job's revenue and collected at pickup (${money(lIncl)}). The income charts above track only the additional half — the bundled half is already inside Revenue, so the two must never be added to Revenue again.`, "how");
       // (#1) "Packing by type — estimate vs written" removed per Tornike 2026-07-15.
     }
 
