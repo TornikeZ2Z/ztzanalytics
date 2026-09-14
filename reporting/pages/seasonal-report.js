@@ -241,6 +241,7 @@ async function renderSeasonal(host) {
     .srx-vsw button+button{border-left:1px solid ${LINE}}
     .srx-vsw button.on{background:${INK};color:#fff}
     .srx-pane{display:flex;flex-direction:column;flex:1 0 auto}
+    .srx-pane[hidden]{display:none}   /* the class sets display, which would otherwise beat the hidden attribute: both panes showed */
     @media print{
       html,body{height:auto!important;overflow:visible!important}
       body.rs-app,.rs-layout,.rs-main,.rs-content,#content,#app{height:auto!important;overflow:visible!important;display:block!important}
