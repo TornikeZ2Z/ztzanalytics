@@ -697,6 +697,56 @@ async function renderSeasonal(host) {
     if (prevAt && wkNow < nW) note(c, `After week ${wkNow} this season stands at ${money(sets[sets.length - 1].data[wkNow - 1])} against ${money(prevAt)} at the same point of ${LY}.`);
   })();
 
+  /* PRICE OR JOB SIZE (his pick 2026-09-15, suggestion 1): the value side of "what moved the Revenue" opened up. On the jobs
+     whose Moveboard lead carries a Total CF, revenue = jobs × CF per job × revenue per CF, and the change splits exactly into
+     more jobs, bigger moves and a higher price per CF. */
+  (() => {
+    const cfOf = new Map(); moveboard.forEach(r => { if (r["Request Joinkey"] && num(r["Total CF"]) > 0) cfOf.set(String(r["Request Joinkey"]), num(r["Total CF"])); });
+    const agg = y => { const o = { n: 0, rev: 0, cf: 0, all: 0 }; cl(y).forEach(r => { if (r["Record Source"] !== "closing") return; o.all++;
+      const c2 = cfOf.get(String(r["Request Joinkey"] || "")); if (!c2) return; o.n++; o.cf += c2; o.rev += num(r["Total Bill"]); });
+      o.pcf = o.cf ? o.rev / o.cf : null; o.cfj = o.n ? o.cf / o.n : null; return o; };
+    const a = agg(Y), b = agg(LY);
+    if (!a.n || !b.n || !a.pcf || !b.pcf) return;
+    const vol = (a.n - b.n) * b.cfj * b.pcf, size = a.n * (a.cfj - b.cfj) * b.pcf, price = a.n * a.cfj * (a.pcf - b.pcf);
+    waterfall(g1b, `Price or job size? ${LY} → ${Y}`, "revenue on jobs with cubic feet on the lead", [
+      { label: `${seasonName} ${LY}`, v: b.rev, total: true },
+      { label: a.n >= b.n ? "More jobs" : "Fewer jobs", v: vol },
+      { label: a.cfj >= b.cfj ? "Bigger moves" : "Smaller moves", v: size },
+      { label: a.pcf >= b.pcf ? "Higher price per CF" : "Lower price per CF", v: price },
+      { label: `${seasonName} ${Y}`, v: a.rev, total: true, hero: true }], money,
+      { span2: true, head: (a.rev - b.rev >= 0 ? "+" : "−") + money(Math.abs(a.rev - b.rev)),
+        note: `The average move went from ${fmtN(Math.round(b.cfj))} to ${fmtN(Math.round(a.cfj))} CF and revenue per CF from $${b.pcf.toFixed(2)} to $${a.pcf.toFixed(2)}: ${Math.abs(price) >= Math.abs(size) ? "price did more than size" : "size did more than price"}. Covers ${pct0(a.all ? a.n / a.all : null)} of this season's jobs — the ones whose lead has cubic feet.`,
+        how: "Jobs effect = the change in jobs × last season's CF per job × last season's revenue per CF. Size effect = this season's jobs × the change in CF per job × last season's revenue per CF. Price effect = this season's jobs × this season's CF per job × the change in revenue per CF. The three add up to the change exactly. CF is the Moveboard lead's Total CF (what sales wrote), matched on the request." });
+  })();
+
+  /* CREW CAPACITY BESIDE DEMAND (his pick 2026-09-15, suggestion 3): jobs and the people who worked them, week by week.
+     A week where jobs per foreman climbs is a week crews ran more than one job a day - the pressure point for hiring. */
+  (() => {
+    const clByUk = new Map(); closing.forEach(r => { if (r["Unique Key"]) clByUk.set(String(r["Unique Key"]), r); });
+    const nW = Math.ceil(winMonths.reduce((t, m) => t + lastDay(Y, m), 0) / 7);
+    const wkOf = (y, d) => Math.floor((new Date(String(d).slice(0, 10) + "T00:00:00Z") - Date.UTC(y, F - 1, 1)) / 864e5 / 7);
+    const weekly = y => { const W = Array.from({ length: nW }, () => ({ jobs: 0, fm: new Set(), hp: new Set() }));
+      cl(y).forEach(r => { if (r["Record Source"] !== "closing") return; const i = wkOf(y, r._d || r.Date); if (i < 0 || i >= nW) return;
+        W[i].jobs++; const f = String(r.Foreman || "").trim(); if (f) W[i].fm.add(f.toLowerCase()); });
+      (helperSal || []).forEach(h => { const c = clByUk.get(String(h["Unique Key"] || "")); if (!c || c["Record Source"] !== "closing" || String(c.Company) !== CO || !inWin(c._d || c.Date, y)) return;
+        const i = wkOf(y, c._d || c.Date); if (i < 0 || i >= nW) return; const n = String(h["Helper Name"] || "").trim(); if (n) W[i].hp.add(n.toLowerCase()); });
+      return W.map(w => ({ jobs: w.jobs, fm: w.fm.size, hp: w.hp.size })); };
+    const WT = weekly(Y), WL = H[LY] ? weekly(LY) : [];
+    let last = WT.length - 1; while (last > 0 && !WT[last].jobs) last--;
+    const rowsW = WT.slice(0, last + 1);
+    if (!rowsW.some(w => w.jobs)) return;
+    const lblW = rowsW.map((_, i) => { const d = new Date(Date.UTC(Y, F - 1, 1) + i * 7 * 864e5); return MS[d.getUTCMonth() + 1] + " " + d.getUTCDate(); });
+    const per = w => w.fm ? w.jobs / w.fm : null;
+    const bi = rowsW.reduce((bst, w, i) => w.jobs > rowsW[bst].jobs ? i : bst, 0), bw = rowsW[bi], lw = WL[bi] || {};
+    const peakPer = Math.max(...rowsW.map(w => per(w) || 0));
+    dual(g1b, m => combo(m, "Crew capacity beside demand", `jobs and foremen working, week by week · ${seasonName} ${Y}`, lblW, rowsW.map(w => w.jobs), "Jobs", fmtN, rowsW.map(w => w.fm), "Foremen working", fmtN,
+        { span2: true, rotate: true, barColors: rowsW.map(() => INK), barAxis: fmtN, head: peakPer ? peakPer.toFixed(1) + " jobs / foreman at peak" : "",
+          note: `Busiest week: ${lblW[bi]}, ${fmtN(bw.jobs)} jobs on ${fmtN(bw.fm)} foremen and ${fmtN(bw.hp)} helpers (${per(bw) == null ? "—" : per(bw).toFixed(1)} jobs per foreman)${lw.jobs ? `; the same week of ${LY} had ${fmtN(lw.jobs)} jobs on ${fmtN(lw.fm)} foremen` : ""}.` }),
+      m => table(m, "Crew capacity beside demand", `by week · ${Y} vs ${LY}`, ["Week of", "Jobs", "Foremen", "Helpers", "Jobs per foreman", "Jobs " + LY, "Foremen " + LY, "Helpers " + LY],
+        rowsW.map((w, i) => { const l = WL[i] || {}; return `<tr>${td(lblW[i])}${td(fmtN(w.jobs))}${td(fmtN(w.fm))}${td(fmtN(w.hp))}${tdn(per(w), v => v.toFixed(1))}${td(fmtN(l.jobs || 0))}${td(fmtN(l.fm || 0))}${td(fmtN(l.hp || 0))}</tr>`; }),
+        { how: "Jobs = closings by the job's date. Foremen and helpers working = distinct people on those jobs that week (helpers from the helper salary sheet; drivers are not in the served data). Weeks count from the first day of the window; the same week number is compared with last season." }));
+  })();
+
   /* ================= 02 · money, season over season ================= */
   const g2 = part("Financials", "Revenue, Cash Collected (Net + Card) and jobs — every season on file");
   seasonCols(g2, "Revenue and Cash Collected (Net + Card)", `${winLbl} · every season`, [
