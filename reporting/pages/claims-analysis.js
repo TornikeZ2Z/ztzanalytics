@@ -34,7 +34,8 @@
              "Matched Keywords", "Board Family", "Family Used", "Agreement", "Severity Signal",
              "Hits Price", "Hits Damage", "Hits Missing", "Hits Timing", "Hits Conduct", "Hits Billing",
              "Hits Storage", "Hits Customer", "Mentions Refund", "Mentions Discount", "Mentions Review",
-             "Mentions Dispute", "Mentions Legal", "Mentions Photos", "Mentions Claim Form", "Dict Version"],
+             "Mentions Dispute", "Mentions Legal", "Mentions Photos", "Mentions Claim Form", "Dict Version",
+             "Keyword Responsibility", "Responsibility Confidence", "Matched Responsibility"],
     };
   }
   // WHO GETS CREDITED FOR A JOB AND IN WHAT SHARE. One row per (job, salesperson); the
@@ -246,6 +247,17 @@ registerPage({
     const famOf = r => { const o = ovOf(r), k = kwOf(r);
       return (o && o.Family) || (k && k["Family Used"]) || r["Reason Family"]; };
     const sevOf = r => { const o = ovOf(r), k = kwOf(r); return (o && o.Severity) || (k && k["Severity Signal"]) || null; };
+    // WHOSE FAULT (his order 2026-09-15): a manager's pick > the Monday board's label (so a pick re-writes it here,
+    // locally) > the thread's words when they are STRONG (wrong blame is worse than none) > not recorded.
+    // "Nobody" on the board is an answer; the mart's Responsibility Family folds it into Not assigned.
+    const RESP_LIST = ["Foreman", "Sales", "Foreman + Sales", "Customer", "Carrier", "Support", "Nobody"];
+    const boardResp = r => { const f = String(r["Responsibility Family"] || "").trim(); if (f && f !== "Not assigned") return f;
+      return /nobody/i.test(String(r.Responsibility || "")) ? "Nobody" : null; };
+    const kwResp = r => { const k = kwOf(r), v = k && k["Keyword Responsibility"];
+      return v && v !== "No keywords" && k["Responsibility Confidence"] === "Strong" ? v : null; };
+    const respSrc = r => { const o = ovOf(r); return o && o.Responsibility ? "manager" : boardResp(r) ? "board" : kwResp(r) ? "words" : null; };
+    const respOf = r => { const o = ovOf(r); return (o && o.Responsibility) || boardResp(r) || kwResp(r) || "Not recorded"; };
+    const RESP_SRC_LBL = { manager: "set by a manager", board: "on the Monday board", words: "from the thread's words" };
     const nKW = Object.keys(KW).length;
     const FAM_LIST = ["Price", "Damage", "Missing", "Timing", "Conduct", "Billing", "Storage", "Customer", "Other"];
 
@@ -313,7 +325,7 @@ registerPage({
         if (S.sp && !(hasCredit ? soldBy(r["Request Joinkey"], S.sp) : r["Sales Person"] === S.sp)) return false;
         if (S.fm && r.Foreman !== S.fm) return false;
         // --- these three narrow the claims only
-        if (S.resp && (r["Responsibility Family"] || "Not assigned") !== S.resp) return false;
+        if (S.resp && respOf(r) !== S.resp) return false;
         if (ex && num(r[ex[2]]) !== 1) return false;
         if (q) {
           const hay = [r.Customer, r.Reason, r.Status, r["Sales Person"], r.Foreman, r["Request No"],
@@ -678,7 +690,7 @@ registerPage({
          every row carries its own rate, refund rate and public count rather than a bare bar. */
       const DIMS = [
         ["Family", r => famOf(r) || "—"],
-        ["Responsibility", r => r["Responsibility Family"] || "Not assigned"],
+        ["Responsibility", r => respOf(r)],
         ["Job type", r => r["Job Type"] || "No closing"],
         ["Extra service", r => {
           const on = EXTRAS.filter(e => num(r[e[2]]) === 1).map(e => e[1]);
@@ -1060,7 +1072,7 @@ registerPage({
       const rsH = holder(); bar.appendChild(rsH);
       if (window.RSC && RSC.localSelect) {
         RSC.localSelect(rsH, { label: "Responsibility",
-          values: names(claimsAll.filter(r => r["Responsibility Family"]), "Responsibility Family"),
+          values: names(claimsAll.map(r => ({ "Whose Fault": respOf(r) })), "Whose Fault"),
           value: S.resp, allLabel: "All",
           onChange: v => { S.resp = v; S.page = 0; paint(); } });
       }
@@ -1143,23 +1155,25 @@ registerPage({
             ${row && row["Refund $"] ? `<div class="cln-cell"><div class="l">Refund</div><div class="v">${money0(num(row["Refund $"]))}</div></div>` : ""}
           </div>
           ${(j.files || []).length ? `<div class="cln-eyebrow">Files on the claim</div><div class="rs-hint">${(j.files || []).map(f => esc((f.Name || "") + " " + (f.Extension || ""))).join(" · ")}</div>` : ""}
-          ${(() => { const k = row ? kwOf(row) : null, o = row ? ovOf(row) : null; if (!k && !o) return "";
+          ${(() => { const k = row ? kwOf(row) : null, o = row ? ovOf(row) : null; if (!row) return "";   // a claim newer than the last keyword run can still be corrected
             const hits = k ? FAM_LIST.filter(f => f !== "Other").map(f => [f, num(k["Hits " + f]) || 0]).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]) : [];
             const flags = k ? ["Refund", "Discount", "Review", "Dispute", "Legal", "Photos", "Claim Form"].filter(f => num(k["Mentions " + f]) > 0) : [];
             return `<div class="cln-eyebrow">What the words say${k ? " · " + esc(k.Language || "") : ""}</div>
-              ${o ? `<div class="rs-hint" style="margin-bottom:8px">Corrected by ${esc(o["Entered By"] || "")} on ${esc(String(o["Entered At"] || "").slice(0, 10))}: ${[o.Family, o.Severity].filter(Boolean).map(esc).join(" · ")}${o.Comment ? " — " + esc(o.Comment) : ""}</div>` : ""}
+              ${o ? `<div class="rs-hint" style="margin-bottom:8px">Corrected by ${esc(o["Entered By"] || "")} on ${esc(String(o["Entered At"] || "").slice(0, 10))}: ${[o.Family, o.Severity, o.Responsibility ? "fault: " + o.Responsibility : ""].filter(Boolean).map(esc).join(" · ")}${o.Comment ? " — " + esc(o.Comment) : ""}</div>` : ""}
               ${k ? `<div class="cln-cells">
                 <div class="cln-cell"><div class="l">Keyword family</div><div class="v"><b>${esc(k["Keyword Family"])}</b> <span class="cln-small">${esc(k["Keyword Confidence"] || "")}${k["Keyword Family 2"] ? " · then " + esc(k["Keyword Family 2"]) : ""}</span></div></div>
                 <div class="cln-cell"><div class="l">Team's reason</div><div class="v">${esc(row.Reason || "—")}${k.Agreement == null ? "" : (num(k.Agreement) === 1 ? ' <span class="rs-pill ok">agrees</span>' : ' <span class="rs-pill warn">differs</span>')}</div></div>
                 <div class="cln-cell"><div class="l">Severity signal</div><div class="v">${esc(k["Severity Signal"] || "—")}</div></div>
+                <div class="cln-cell"><div class="l">Whose fault</div><div class="v"><b>${esc(respOf(row))}</b> <span class="cln-small">${RESP_SRC_LBL[respSrc(row)] || ""}${k["Keyword Responsibility"] && k["Keyword Responsibility"] !== "No keywords" ? " · words say " + esc(k["Keyword Responsibility"]) + " (" + esc(k["Responsibility Confidence"] || "") + ")" : ""}</span></div></div>
                 <div class="cln-cell"><div class="l">Signals</div><div class="v">${flags.map(esc).join(", ") || "—"}</div></div>
               </div>
               <div class="cln-msg"><div class="txt"><b>Hits by family.</b> ${hits.map(([f, v]) => esc(f) + " " + v).join(" · ") || "none"}</div>
                 <div class="txt" style="margin-top:6px"><b>Words that fired.</b> ${esc(k["Matched Keywords"] || "—")}</div></div>` : ""}
-              <details style="margin-top:10px"><summary class="rs-hint" style="cursor:pointer">Correct this family</summary>
+              <details style="margin-top:10px"><summary class="rs-hint" style="cursor:pointer">Correct this claim — family, severity, whose fault</summary>
                 <div class="cln-cells" style="margin-top:8px">
                   <div class="cln-cell"><div class="l">Family</div><select class="cln-in" id="ovFam"><option value="">— keep —</option>${FAM_LIST.map(f => `<option>${f}</option>`).join("")}</select></div>
                   <div class="cln-cell"><div class="l">Severity</div><select class="cln-in" id="ovSev"><option value="">— keep —</option>${["Low", "Medium", "High", "Critical"].map(f => `<option>${f}</option>`).join("")}</select></div>
+                  <div class="cln-cell"><div class="l">Whose fault</div><select class="cln-in" id="ovResp"><option value="">— keep —</option><option value="__board__">Use the Monday board's label</option>${RESP_LIST.map(f => `<option>${f}</option>`).join("")}</select></div>
                 </div>
                 <input class="cln-in" id="ovNote" placeholder="why (optional)" style="width:100%;margin-top:6px">
                 <div style="margin-top:8px"><button class="rs-btn pri" id="ovSave">Save correction</button> <span class="cln-small" id="ovMsg"></span></div>
@@ -1170,7 +1184,7 @@ registerPage({
         const save = body.querySelector("#ovSave");
         if (save) save.onclick = async () => {
           const g = id => (body.querySelector("#" + id) || {}).value || "";
-          const payload = { item: itemId, family: g("ovFam"), severity: g("ovSev"), comment: g("ovNote") };
+          const payload = { item: itemId, family: g("ovFam"), severity: g("ovSev"), responsibility: g("ovResp"), comment: g("ovNote") };
           const msg = body.querySelector("#ovMsg"); msg.textContent = "saving…";
           try {
             const res = await fetch(ZTZ.API + "/api/_claimoverride", { method: "POST",
@@ -1178,7 +1192,10 @@ registerPage({
               body: JSON.stringify(payload) });
             const j = await res.json();
             if (!res.ok || j.error) { msg.textContent = j.error || "could not save"; return; }
-            OV[String(itemId)] = { "Monday Item Id": itemId, Family: payload.family || null, Severity: payload.severity || null,
+            // merge like the server does: a field left on "keep" keeps the value set earlier
+            const prevO = OV[String(itemId)] || {};
+            OV[String(itemId)] = { "Monday Item Id": itemId, Family: payload.family || prevO.Family || null, Severity: payload.severity || prevO.Severity || null,
+              Responsibility: payload.responsibility === "__board__" ? null : (payload.responsibility || prevO.Responsibility || null),
               Comment: payload.comment || null, "Entered By": j.by || "", "Entered At": new Date().toISOString() };
             msg.textContent = "saved"; paint();
           } catch (e) { msg.textContent = "could not save"; }

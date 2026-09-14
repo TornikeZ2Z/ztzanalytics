@@ -34,13 +34,17 @@ async function renderSeasonal(host) {
   const grab = ds => RS.load(ds).catch(e => { failures.push(ds); console.error("SR feed failed:", ds, e); return []; });
   const api = (label, url) => ZTZ.api(url).then(j => j.rows || []).catch(e => { failures.push(label); console.error("SR feed failed:", label, e); return []; });
   // helper_salaries / sales_salaries / refunds must be in RS's cache: Gross Profit reads them via _msr()
-  const [closing, moveboard, claims, refunds, cardEx, scorecard, helperSal] = await Promise.all([
+  const [closing, moveboard, claims, refunds, cardEx, scorecard, helperSal, salesSal] = await Promise.all([
     grab("closing"), grab("moveboard"), grab("claims"), grab("refunds"), grab("card_expenses"),
     grab("scorecard"), grab("helper_salaries"), grab("sales_salaries")]);
-  const [callrail, rcLine, rcAgent] = await Promise.all([
+  // the season-gap marts (2026-09-15) are SOFT: until the loader has built them a missing one hides its card
+  const soft = url => ZTZ.api(url).then(j => j.rows || []).catch(e => { console.warn("SR optional feed:", url, e); return null; });
+  const [callrail, rcLine, rcAgent, arrival, surge, rcRepIn, longDist] = await Promise.all([
     grab("callrail"),
     api("RingCentral lines", "/api/mart_rc_monthly_line?limit=100000"),
-    api("RingCentral teammates", "/api/mart_rc_monthly_agent?limit=100000")]);
+    api("RingCentral teammates", "/api/mart_rc_monthly_agent?limit=100000"),
+    soft("/api/mart_job_arrival?limit=200000"), soft("/api/mart_surge_day?limit=50000"),
+    soft("/api/mart_rc_monthly_rep_inbound?limit=100000"), grab("long_distance")]);
   const DS = { closing, moveboard, claims, refunds, card_expenses: cardEx, callrail };
   /* Claims + reviews deep-dives read tables that are granted with Claims Analysis / Review Performance.
      They are OPTIONAL here: a reader without those pages gets a note on the section (never a red
@@ -49,7 +53,7 @@ async function renderSeasonal(host) {
   const colq = a => "&cols=" + encodeURIComponent(a.join(","));
   const [cmart, ckw, credit, jovAll, negrev, revbk, rcounts] = await Promise.all([
     opt("/api/mart_claims_analysis?limit=100000"),
-    opt("/api/mart_claim_keywords?limit=100000" + colq(["Monday Item Id", "Family Used"])),
+    opt("/api/mart_claim_keywords?limit=100000" + colq(["Monday Item Id", "Family Used", "Keyword Responsibility", "Responsibility Confidence"])),
     opt("/api/mart_sales_credit?limit=300000" + colq(["Request Joinkey", "Sales Person", "Share"])),
     opt("/api/fct_job_overview?limit=100000" + colq(["Job Date", "Job No", "Customer", "Foreman", "Company", "Job Type", "Number of Reviews",
       "Review Breakdown", "Eligible", "Exclusion Reason", "Final Status", "Foreman Reason", "Request Joinkey"])),
@@ -533,12 +537,17 @@ async function renderSeasonal(host) {
      platforms counts three and a foreman can pass 100%. */
   const inWin = (d, y, a, b) => { d = String(d || "").slice(0, 10); if (d.length < 10) return false; const m = +d.slice(5, 7); return +d.slice(0, 4) === y && m >= (a || F) && m <= (b || T); };
   const jobKeys = (y, a, b) => { const s = new Set(); cl(y, a, b).forEach(r => { if (r["Record Source"] === "closing" && r["Request Joinkey"]) s.add(String(r["Request Joinkey"])); }); return s; };
-  const KWF = {}; (ckw || []).forEach(r => { KWF[String(r["Monday Item Id"])] = r["Family Used"]; });
+  const KWF = {}, KWR = {}; (ckw || []).forEach(r => { const id = String(r["Monday Item Id"]); KWF[id] = r["Family Used"];
+    const kr = r["Keyword Responsibility"]; if (kr && kr !== "No keywords" && r["Responsibility Confidence"] === "Strong") KWR[id] = kr; });
   const famOf = r => { const id = String(r["Monday Item Id"]); return (OV[id] && OV[id].Family) || KWF[id] || r["Reason Family"] || "Unclassified"; };
-  // the board's label. "Nobody" is a recorded answer (the mart folds it into Not assigned); a blank was never recorded.
-  // Claims Analysis reads each case thread for WHAT the claim is about (the family), not whose fault it was.
-  const respOf = r => { const f = String(r["Responsibility Family"] || "").trim(); if (f && f !== "Not assigned") return f;
-    return /nobody/i.test(String(r.Responsibility || "")) ? "Nobody's fault" : "Not recorded on the board"; };
+  // WHOSE FAULT (his order 2026-09-15), the same as Claims Analysis: a manager's pick > the Monday board's label ("Nobody"
+  // is an answer) > the thread's words when they are strong - shown as its own "(from the thread)" bar, never mixed
+  // into a recorded answer > not recorded.
+  const nb = v => v === "Nobody" ? "Nobody's fault" : v;
+  const respOf = r => { const id = String(r["Monday Item Id"]); if (OV[id] && OV[id].Responsibility) return nb(OV[id].Responsibility);
+    const f = String(r["Responsibility Family"] || "").trim(); if (f && f !== "Not assigned") return f;
+    if (/nobody/i.test(String(r.Responsibility || ""))) return "Nobody's fault";
+    return KWR[id] ? nb(KWR[id]) + " (from the thread)" : "Not recorded"; };
   const CM = (cmart || []).filter(r => String(r.Company || "") === CO);
   const claimsIn = (y, a, b) => CM.filter(r => inWin(r["Created Date"], y, a, b));
   const refundOf = rs => { const seen = new Set(); let t = 0; rs.forEach(r => { const jk = String(r["Request Joinkey"] || ""); if (seen.has(jk)) return; seen.add(jk); t += num(r["Refund $"]); }); return t; };
@@ -623,6 +632,17 @@ async function renderSeasonal(host) {
 
   /* The 2026 goals were written into the Summer Report 2025 deck (strategic suggestions + KPI goals
      slides). They are its authors' targets, shown here so the season can be graded against them. */
+  /* SURGE DAYS (mart_surge_day, his ask 2026-09-15 "lost to availability"). A day is a surge day when its jobs reached
+     90% of the month's busiest day's foremen - no crews-available history exists, so capacity is read from the crews
+     that worked. Lost = a lead for that move date that did not book and was marked "We are not available" or flagged
+     "Requested Fully Booked Date" (a flag that only exists from 2 June 2026). */
+  const SD = surge && surge.length ? surge.filter(r => String(r.Company) === CO) : null;
+  const SV = {};
+  if (SD) YEARS.forEach(y => { const rs = SD.filter(r => inWin(r.Date, y)), sr = rs.filter(r => +r["Is Surge"] === 1), nr = rs.filter(r => +r["Is Surge"] !== 1 && num(r.Jobs) > 0);
+    const leads = sumCol(rs, "Leads For Date"), lost = sumCol(rs, "Lost To Availability");
+    SV[y] = { days: sr.length, alert: rs.filter(r => +r["Is Surge Alert Rule"] === 1).length, leads, lost, lostS: sumCol(sr, "Lost To Availability"),
+      lpdS: sr.length ? sumCol(sr, "Leads For Date") / sr.length : null, lpdN: nr.length ? sumCol(nr, "Leads For Date") / nr.length : null,
+      share: leads ? lost / leads : null }; });
   const TARGETS = { 2026: [
     { g: "Revenue", t: "≥ $4.5M", v: C.bill, ok: v => v >= 4.5e6, f: money, pv: P.bill },
     { g: "Cash Collected (Net + Card)", t: "≥ $2.7M", v: C.ncc, ok: v => v >= 2.7e6, f: money, pv: P.ncc },
@@ -630,7 +650,7 @@ async function renderSeasonal(host) {
     { g: "Incoming calls missed (incl. voicemail, all company lines)", t: "≤ 5%", v: C.missRate, ok: v => v <= .05, f: pct, pv: P.missRate },
     { g: "Reviews per job (foreman scorecard)", t: "≥ 70%", v: C.revPerJob, ok: v => v >= .7, f: pct0, pv: P.revPerJob },
     { g: `Cash collected per $1 of advertising (paid channels${adCut ? ", " + adLbl : ""})`, t: "≥ $10", v: C.adPer1, ok: v => v >= 10, f: x1, pv: P.adPer1 },
-    { g: "Jobs lost to capacity", t: "< 10% of demand", v: null, why: "no surge-day / capacity data on file" },
+    { g: "Leads turned away for availability (recorded)", t: "< 10% of demand", v: SD ? SV[Y].share : null, ok: v => v < 0.1, f: pct, pv: SD && SV[LY] ? SV[LY].share : null, why: "surge-day data not loaded yet" },
     { g: "Postcard conversion (leads ÷ postcards sent)", t: "≥ 0.6%", v: null, why: "postcards-sent counts are not on file" },
     { g: "Google Search click-through rate", t: "≥ 0.6%", v: null, why: "Search Console is not connected" }] };
   if (TARGETS[Y] && ZIP) {   // the goals were written for Zip to Zip
@@ -702,6 +722,25 @@ async function renderSeasonal(host) {
       return `<tr>${td(y === Y ? `<b>${y}</b>` : y)}${td(fmtN(l.length))}${td(money(bill(l)))}${td(money(ncc(l)))}${td(fmtN(d.length))}${td(money(bill(d)))}${td(money(ncc(d)))}${tdn(bb ? bill(d) / bb : null, pct)}</tr>`; }),
     { groups: [["", 1], ["Local moving", 3], ["Long distance (regular + straight)", 3], ["", 1]] }));
 
+  /* CARRIER CF vs WRITTEN CF (his confirmation 2026-09-15: the long-distance sheet's "CF (real)" is the carrier's CF).
+     The sheet row joins its closing on Unique Key; the written CF is the Moveboard lead's Total CF on that request. */
+  if (longDist && longDist.length) {
+    const clByUk = new Map(closing.filter(r => r["Unique Key"]).map(r => [String(r["Unique Key"]), r]));
+    const cfByJk = new Map(); moveboard.forEach(r => { if (r["Request Joinkey"] && num(r["Total CF"]) > 0) cfByJk.set(String(r["Request Joinkey"]), num(r["Total CF"])); });
+    const sp1 = v => v == null || !isFinite(v) ? "—" : (v >= 0 ? "+" : "") + (v * 100).toFixed(1) + "%";
+    const ldIn = y => { let jobs = 0; const xs = [];
+      longDist.forEach(r => { const c = clByUk.get(String(r["Unique Key"] || "")); if (!c || String(c.Company) !== CO || !inWin(c._d || c.Date, y)) return; jobs++;
+        const car = num(r.CF), wr = cfByJk.get(String(c["Request Joinkey"] || "")); if (car > 0 && wr > 0) xs.push({ car, wr, pay: num(r["Total To Carrier"]) }); });
+      const car = xs.reduce((t, x) => t + x.car, 0), wr = xs.reduce((t, x) => t + x.wr, 0), pay = xs.reduce((t, x) => t + (x.pay > 0 ? x.pay : 0), 0), carPaid = xs.reduce((t, x) => t + (x.pay > 0 ? x.car : 0), 0);
+      return { jobs, n: xs.length, car, wr, diff: wr ? car / wr - 1 : null, over: xs.filter(x => x.car > x.wr * 1.1).length, under: xs.filter(x => x.car < x.wr * 0.9).length, perCf: carPaid ? pay / carPaid : null }; };
+    const LDV = {}; YEARS.forEach(y => { LDV[y] = ldIn(y); });
+    dual(g2, m => seasonCols(m, "Long distance — the carrier's CF against the CF sales wrote", "pooled difference per season · + = the carrier measured more", [{ label: "Carrier vs written", vals: YEARS.map(y => LDV[y].n ? LDV[y].diff : null) }], sp1,
+        { axis: pct0, span2: false, head: sp1(LDV[Y].diff), note: `${fmtN(LDV[Y].n)} of ${fmtN(LDV[Y].jobs)} long-distance jobs this season have the carrier's CF on the sheet; ${fmtN(LDV[Y].over)} came in more than 10% above what sales wrote and ${fmtN(LDV[Y].under)} more than 10% below.` }),
+      m => table(m, "Long distance — the carrier's CF against the CF sales wrote", "per season", ["Season", "LD jobs", "With carrier CF", "Written CF", "Carrier CF", "Difference", "10%+ over", "10%+ under", "Carrier $ / CF"],
+        YEARS.slice().reverse().map(y => { const v = LDV[y]; return `<tr>${td(y === Y ? `<b>${y}</b>` : y)}${td(fmtN(v.jobs))}${td(fmtN(v.n))}${td(fmtN(v.wr))}${td(fmtN(v.car))}${v.diff == null ? `<td class="dim">—</td>` : `<td class="${Math.abs(v.diff) <= .05 ? "" : v.diff > 0 ? "up" : "dn"}">${sp1(v.diff)}</td>`}${td(fmtN(v.over))}${td(fmtN(v.under))}${tdn(v.perCf, x => "$" + x.toFixed(2))}</tr>`; }),
+        { span2: false, how: "Carrier CF = \"CF (real)\" on the long-distance sheet; written CF = the Moveboard lead's Total CF, matched through the closing. Only jobs with both are compared, and the sheet's CF is filled on about half of long-distance jobs (often after delivery), so this covers the recorded jobs only. Difference = total carrier CF ÷ total written CF − 1. Carrier $ / CF = what was paid to the carrier ÷ the carrier's CF, on jobs with a payment." }));
+  }
+
   // states, this season vs last
   const states = [...new Set([...stTY.keys(), ...stLY.keys()])].map(s => { const a = stTY.get(s) || [], b = stLY.get(s) || [];
     return { s, jT: a.length, jL: b.length, bT: bill(a), bL: bill(b), nT: ncc(a), nL: ncc(b) }; }).filter(x => x.jT + x.jL >= 3).sort((a, b) => b.bT - a.bT);
@@ -733,6 +772,20 @@ async function renderSeasonal(host) {
   distTable(g2, "Cash collected by cubic feet", cfBucket, (a, b) => cfOrder.indexOf(a) - cfOrder.indexOf(b),
     "Closings carry no cubic feet, so each job takes the CF range from its Moveboard lead (matched on the request key). Jobs whose lead has no CF range sit in their own row.");
 
+  /* EVENING JOBS BY CLOCK TIME (mart_job_arrival, his cutoff 2026-09-15: a window starting at 15:00 or later). The
+     arrival window is the Google Calendar event the closing is linked to, on the job's own date. */
+  const EVE_H = 15;
+  const hourOf = v => { if (v == null || v === "") return null; if (typeof v === "number") return v / 3600; const m = /^(\d{1,2}):(\d{2})/.exec(String(v)); return m ? +m[1] + +m[2] / 60 : null; };
+  if (arrival && arrival.length) {
+    const arrBy = new Map(arrival.filter(r => String(r.Company) === CO).map(r => [String(r["Unique Key"]), hourOf(r["Arrival Window Start"])]));
+    const eveIn = (y, a, b) => { const o = { n: 0, mid: 0, linked: 0, jobs: 0 }; cl(y, a, b).forEach(r => { if (r["Record Source"] !== "closing") return; o.jobs++;
+      const h = arrBy.get(String(r["Unique Key"])); if (h == null) return; o.linked++; if (h >= EVE_H) o.n++; else if (h >= 13) o.mid++; }); return o; };
+    const eT = winMonths.map(m => eveIn(Y, m, m).n), eL = winMonths.map(m => eveIn(LY, m, m).n), ET = eveIn(Y), EL = eveIn(LY);
+    pairBars(g2, "Evening jobs — arrival window at 3 pm or later", `by month · ${Y} vs ${LY}`, winMonths.map(m => MON[m]), eL, eT, fmtN,
+      { head: fmtN(ET.n), chips: chip(ET.n, EL.n),
+        note: `${fmtN(ET.n)} evening jobs this season (${pct(ET.jobs ? ET.n / ET.jobs : null)} of jobs) against ${fmtN(EL.n)} in ${LY}. A further ${fmtN(ET.mid)} got a 1–3 pm window (${fmtN(EL.mid)} in ${LY}): afternoon windows have been written earlier since 2025, so part of any drop is how the window is set, not fewer late jobs.`,
+        how: `From the Google Calendar event each closing is linked to (${pct0(ET.jobs ? ET.linked / ET.jobs : null)} of this season's jobs have one): the earliest arrival window on the job's own date, New Jersey time. Evening = the window starts at 15:00 or later.` });
+  }
   // second jobs of the day
   const aft = (y, m) => cl(y, m, m).filter(r => String(r["Job Part of the Day"] || "") === "Afternoon Job").length;
   const aT = winMonths.map(m => aft(Y, m)), aL = winMonths.map(m => aft(LY, m)), aTt = aT.reduce((a, b) => a + b, 0), aLt = aL.reduce((a, b) => a + b, 0);
@@ -801,8 +854,8 @@ async function renderSeasonal(host) {
       { head: fmtN(csT.length), how: "Family = a manager's correction on Claims Analysis, else the keyword reading of the whole thread, else the reason support picked on the board. The keyword reading is what fills last season's claims, most of which were filed with no reason." });
     const rT = grp(csT, respOf), rL = grp(csL, respOf), resps = [...new Set([...rT.keys(), ...rL.keys()])].sort((a, b) => (rT.get(b) || []).length - (rT.get(a) || []).length);
     pairBars(gC, "Whose responsibility", `${Y} vs ${LY} · as recorded on the board`, resps, resps.map(f => (rL.get(f) || []).length), resps.map(f => (rT.get(f) || []).length), fmtN,
-      { head: pct0(csT.length ? (rT.get("Not recorded on the board") || []).length / csT.length : null) + " not recorded",
-        note: (rT.get("Not recorded on the board") || []).length > csT.length / 3 ? `${fmtN((rT.get("Not recorded on the board") || []).length)} of ${fmtN(csT.length)} claims have no responsibility recorded — the board cannot say whose they are, which limits every "whose fault" number below. Claims Analysis reads each case thread for what the claim is about (the families), not for whose fault it was, so it cannot fill these in — a manager has to record it.` : "" });
+      { head: pct0(csT.length ? (rT.get("Not recorded") || []).length / csT.length : null) + " not recorded",
+        note: (rT.get("Not recorded") || []).length > csT.length / 3 ? `${fmtN((rT.get("Not recorded") || []).length)} of ${fmtN(csT.length)} claims have no responsibility recorded — the board cannot say whose they are, which limits every "whose fault" number below. A manager can set it on the claim in Claims Analysis (Whose fault); "(from the thread)" bars are read from the case discussion where the words are clear.` : "" });
     const claimRow = r => `<tr>${td(esc(String(r["Created Date"] || "").slice(0, 10)))}${td(esc(r.Customer || "—"))}${td(esc(String(r["Request No"] || "—")))}${td(esc(famOf(r)))}${td(esc(respOf(r)))}${td(esc(r.Status || "—"))}${num(r["Refund $"]) ? td(money(num(r["Refund $"])), "no") : `<td class="dim">—</td>`}<td>${mondayLink(r["Monday Url"])}</td></tr>`;
     const claimHdr = ["Filed", "Customer", "Request", "Family", "Responsibility", "Status", "Job refund", ""];
     dual(gC, famGraph, m => ptable(m, "Families — outcome and money", `${seasonName} ${Y}`, ["Family", "Claims", String(LY), "Share of jobs", "Open", "Jobs refunded", "Refund $", "Went public", "Median days after job"],
@@ -960,6 +1013,17 @@ async function renderSeasonal(host) {
   combo(g3, "Confirmed jobs and booking rate", "every season", YEARS.map(String), YEARS.map(y => H[y].conf), "Confirmed", fmtN, YEARS.map(y => H[y].book), "Booking rate", pct,
     { head: pct(C.book), chips: chip(C.book, P.book), barAxis: fmtN, how: "Booking rate = leads confirmed in the window (by booked date) ÷ qualified leads created in the window (all leads minus bad leads) — the portal's one booking-rate formula, the same as the Monthly Report." });
   seasonShape(g3, "Qualified leads by month", "one line per season", (y, m) => qual(created(y, m, m)) || null, fmtN);
+  if (SD) {
+    const f1 = v => v == null || !isFinite(v) ? "—" : (Math.round(v * 10) / 10).toLocaleString();
+    dual(g3, m => seasonCols(m, "Surge days — when demand reached the crews' limit", `${winLbl} · every season`, [
+        { label: "Surge days", vals: YEARS.map(y => SV[y] ? SV[y].days : null), color: INK }, { label: "Leads turned away for availability", vals: YEARS.map(y => SV[y] ? SV[y].lost : null), color: BLUE }], fmtN,
+        { axis: fmtN, head: fmtN(SV[Y].days) + " days",
+          note: `${fmtN(SV[Y].days)} surge days this season${SV[LY] ? ` (${fmtN(SV[LY].days)} in ${LY})` : ""}. On them, ${f1(SV[Y].lpdS)} leads asked for each date against ${f1(SV[Y].lpdN)} on other working days, and ${fmtN(SV[Y].lostS)} of the season's ${fmtN(SV[Y].lost)} leads turned away for availability fell on a surge day.`,
+          how: `A surge day = the day's jobs reached 90% of the month's busiest day's foremen (no crews-available history exists, so capacity is read from the crews that worked). Turned away = a lead for that move date that did not book and was marked "We are not available" or flagged "Requested Fully Booked Date". That flag only exists from 2 June 2026 and the status is used rarely, so earlier seasons under-count lost leads: compare surge days across seasons, lost leads within ${Y}.` }),
+      m => table(m, "Surge days — when demand reached the crews' limit", "per season", ["Season", "Surge days", "Leads per date, surge days", "Leads per date, other days", "Turned away", "on surge days", "Share of leads", "Days under the cleanup-alert rule"],
+        YEARS.slice().reverse().filter(y => SV[y]).map(y => { const v = SV[y]; return `<tr>${td(y === Y ? `<b>${y}</b>` : y)}${td(fmtN(v.days))}${td(f1(v.lpdS))}${td(f1(v.lpdN))}${td(fmtN(v.lost))}${td(fmtN(v.lostS))}${tdn(v.share, pct)}${td(fmtN(v.alert))}</tr>`; }),
+        { how: "The cleanup-alert rule (jobs ≥ the month's foremen − 3) is shown for comparison; measured on 2024–2026 it caught fewer of the turned-away leads, because a month's foremen include occasional ones." }));
+  }
   const estOf = y => { const bk = booked(y).filter(r => String(r["Status Category"]) === "Confirmed"); return { usd: sumCol(bk, "Average Quote"), cf: sumCol(bk, "Total CF"), n: bk.length }; };
   dual(g3, m => seasonCols(m, "The funnel, season by season", `${winLbl} · leads, qualified and confirmed`, [
       { label: "Leads", vals: YEARS.map(y => H[y].leads), color: CTX }, { label: "Qualified", vals: YEARS.map(y => H[y].qual), color: INK }, { label: "Confirmed", vals: YEARS.map(y => H[y].conf), color: LIMED }], fmtN,
@@ -1046,7 +1110,48 @@ async function renderSeasonal(host) {
       { span2: false, head: fmtN(agRows.reduce((t, [, a]) => t + a.calls, 0)) }),
     m => table(m, "Outbound calls by teammate", `RingCentral · ${seasonName} ${Y}`, ["Teammate", "Calls", "Calls / day", "vs " + LY, "Talk hours", "Avg call"],
     agRows.map(([n, a]) => { const l = agL.get(n); return `<tr>${td(esc(n))}${td(fmtN(a.calls))}${td((a.calls / dW).toFixed(1))}${dcell(a.calls, l && l.calls)}${td(fmtN(Math.round(a.dur / 3600)))}${td(mmss(a.calls ? a.dur / a.calls : null))}</tr>`; }),
-    { span2: false, how: "Outbound calls per RingCentral extension; calls per day divide by calendar days in the window, as the deck did. Inbound answered and missed calls per rep are not in the monthly phone rollups yet — see the gaps note at the end." }));
+    { span2: false, how: "Outbound calls per RingCentral extension; calls per day divide by calendar days in the window, as the deck did. Inbound calls per rep are in the next card." }));
+
+  /* INBOUND CALLS PER REP (mart_rc_monthly_rep_inbound, 2026-09-15). Answered = the rep took it directly, or picked it up
+     through the phone menu / department queue (kept apart). Rang = a missed or voicemail call that rang the rep's phone;
+     one call can ring several reps, so rep rows do not add up to the company total. Shared lines are not people. */
+  if (rcRepIn && rcRepIn.length) {
+    const repIn = y => { const g = new Map(); rcRepIn.forEach(r => { if (String(r.Company) !== CO) return; const ym = String(r.Month || ""); if (+ym.slice(0, 4) !== y || +ym.slice(5, 7) < F || +ym.slice(5, 7) > T) return;
+      const nm = String(r.Extension || "").replace(/^\d+\s*-\s*/, "").trim(); if (!nm || /support zip to zip|zip to zip shafto/i.test(nm) || NOT_REP(nm)) return;
+      const a = g.get(nm) || { ans: 0, q: 0, miss: 0, vm: 0, sec: 0 }, n = num(r["Inbound Answered"]); a.ans += n; if (r["Answer Path"] === "Queue") a.q += n;
+      a.miss += num(r["Rang Missed"]); a.vm += num(r["Rang Voicemail"]); a.sec += num(r["Answer Seconds"]); g.set(nm, a); }); return g; };
+    const riT = repIn(Y), riL = repIn(LY);
+    const firstM = rcRepIn.reduce((a, r) => { const m = String(r.Month || ""); return m && (!a || m < a) ? m : a; }, "");
+    const riRows = [...riT.entries()].filter(([, a]) => a.ans + a.miss + a.vm >= 30).sort((a, b) => b[1].ans - a[1].ans);
+    const partial = firstM && firstM > `${LY}-${pad(F)}`;
+    dual(g4, m => pairBars(m, "Inbound calls answered by rep", `RingCentral · ${Y} vs ${LY}${partial ? " (partial)" : ""}`, riRows.map(([n]) => n), riRows.map(([n]) => (riL.get(n) || {}).ans || null), riRows.map(([, a]) => a.ans), fmtN,
+        { span2: false, head: fmtN(riRows.reduce((t, [, a]) => t + a.ans, 0)), note: partial ? `The call-by-call phone log starts ${firstM}, so ${LY} covers only part of the season.` : "" }),
+      m => table(m, "Inbound calls answered by rep", `RingCentral · ${seasonName} ${Y}`, ["Rep", "Answered", "via the queue", "Rang, missed", "Rang, voicemail", "Answer rate", "Avg answered call"],
+        riRows.map(([n, a]) => { const rang = a.ans + a.miss + a.vm; return `<tr>${td(esc(n))}${td(fmtN(a.ans))}${td(fmtN(a.q))}${td(fmtN(a.miss))}${td(fmtN(a.vm))}${tdn(rang ? a.ans / rang : null, pct0)}${td(mmss(a.ans ? a.sec / a.ans : null))}</tr>`; }),
+        { span2: false, how: "Answered = the rep's extension took the call directly or picked it up through the phone menu / department queue (\"via the queue\"). Rang = a call that rang the rep's phone and ended missed or in voicemail; one call can ring several reps, so these do not add up to the company's missed calls. Answer rate = answered ÷ every call that reached the rep. The Support and Shafto shared lines are left out." }));
+  }
+
+  /* WHAT IF SALES COMMISSION WERE PAID ON THE ESTIMATE (the deck's what-if; rule found 2026-09-15). Today each salesperson
+     slot earns its rate × the job's revenue (the sales salary sheet). The what-if applies the same rate to the Moveboard
+     average quote (revenue where the lead has no quote). Slots with no rate (the CL partner's cuts) are left out. */
+  if (salesSal && salesSal.length) {
+    const ssByUk = new Map(); salesSal.forEach(r => { const uk = String(r["Unique Key"] || ""); if (uk) (ssByUk.get(uk) || ssByUk.set(uk, []).get(uk)).push(r); });
+    const qByJk = new Map(); moveboard.forEach(r => { if (r["Request Joinkey"] && num(r["Average Quote"]) > 0) qByJk.set(String(r["Request Joinkey"]), num(r["Average Quote"])); });
+    const commIn = y => { const o = { jobs: 0, rev: 0, est: 0, rule: 0, alt: 0, ownRule: 0, ownAlt: 0 };
+      cl(y).forEach(c => { if (c["Record Source"] !== "closing") return; const slots = (ssByUk.get(String(c["Unique Key"])) || []).filter(x => num(x.Rate) > 0); if (!slots.length) return;
+        const b = num(c["Total Bill"]), q = qByJk.get(String(c["Request Joinkey"] || "")) || b; o.jobs++; o.rev += b; o.est += q;
+        slots.forEach(x => { const rt = num(x.Rate) > 1 ? num(x.Rate) / 100 : num(x.Rate); o.rule += rt * b; o.alt += rt * q; if (String(x["Is Branch Owner"]) === "Yes") { o.ownRule += rt * b; o.ownAlt += rt * q; } }); });
+      return o; };
+    const CM = {}; YEARS.forEach(y => { CM[y] = commIn(y); });
+    dual(g4, m => seasonCols(m, "What if sales commission were paid on the estimate?", "commission per season · today vs on the estimate", [
+        { label: "Paid on revenue (today)", vals: YEARS.map(y => CM[y].rule || null), color: INK }, { label: "If paid on the estimate", vals: YEARS.map(y => CM[y].alt || null), color: BLUE }], money,
+        { lbl: moneyC, span2: false, head: (CM[Y].alt - CM[Y].rule >= 0 ? "+" : "−") + money(Math.abs(CM[Y].alt - CM[Y].rule)),
+          note: CM[Y].rev ? `Paid on the estimate, this season's commission would have been ${money(CM[Y].alt)} instead of ${money(CM[Y].rule)} — the final revenue ran ${(CM[Y].rev / CM[Y].est).toFixed(2)}× the average quote. Without the branch owner's cut: ${money(CM[Y].alt - CM[Y].ownAlt)} instead of ${money(CM[Y].rule - CM[Y].ownRule)}.` : "" }),
+      m => table(m, "What if sales commission were paid on the estimate?", "per season", ["Season", "Jobs", "Revenue", "Estimate", "Commission today", "On the estimate", "Difference", "Without branch owner"],
+        YEARS.slice().reverse().map(y => { const v = CM[y], d = v.alt - v.rule, dO = (v.alt - v.ownAlt) - (v.rule - v.ownRule);
+          return `<tr>${td(y === Y ? `<b>${y}</b>` : y)}${td(fmtN(v.jobs))}${td(money(v.rev))}${td(money(v.est))}${td(money(v.rule))}${td(money(v.alt))}${td((d >= 0 ? "+" : "−") + money(Math.abs(d)), d <= 0 ? "up" : "dn")}${td((dO >= 0 ? "+" : "−") + money(Math.abs(dO)))}</tr>`; }),
+        { span2: false, how: "Commission today = each salesperson slot's rate × the job's revenue — the rule on the sales salary sheet (the paid figure can differ slightly where the sheet used another base). On the estimate = the same rate × the Moveboard average quote, or revenue where the lead has no quote. Slots with no rate (the CL partner's cuts) are left out. Without branch owner = the same difference with the CT branch owner's cut removed." }));
+  }
   const rc = REPS.filter(r => r.conf || (rBkL.get(r.n) || []).length);
   pairBars(g4, "Confirmed jobs by rep", `${Y} vs ${LY}`, rc.map(r => r.n), rc.map(r => conf(rBkL.get(r.n) || [])), rc.map(r => r.conf), fmtN, { head: fmtN(C.conf) });
 
@@ -1208,19 +1313,16 @@ async function renderSeasonal(host) {
   if (FMCL) { const w = [...FMCL.values()].filter(x => !x.small && x.r != null).sort((a, b) => b.r - a.r); if (w.length >= 2) F7.push(`Highest claim share among foremen with 30+ jobs: ${w[0].f} (${pct(w[0].r)} of ${fmtN(w[0].n)} jobs); lowest: ${w[w.length - 1].f} (${pct(w[w.length - 1].r)}).`); }
   if (CC.revPerJob != null) F7.push(`Reviews: ${pct0(CC.revPerJob)} reviews per eligible job against ${CP.revPerJob == null ? "—" : pct0(CP.revPerJob)} in ${LY}; ${pct0(CC.revShare)} of eligible jobs got at least one. Negative reviews ${fmtN(CC.neg)} (${fmtN(CP.neg || 0)} in ${LY}).`);
   if (REVFM) { const b = [...REVFM.entries()].filter(([, a]) => a.el >= 15).map(([f, a]) => ({ f, r: a.rv / a.el })).sort((a, b2) => b2.r - a.r); if (b.length) F7.push(`Most reviews per eligible job: ${b[0].f} (${pct0(b[0].r)})${b.length > 1 ? `, then ${b[1].f} (${pct0(b[1].r)})` : ""}.`); }
+  if (SD && SV[Y]) F7.push(`${fmtN(SV[Y].days)} surge days, when the day's jobs reached the crews' limit; ${fmtN(SV[Y].lostS)} of the ${fmtN(SV[Y].lost)} leads recorded as turned away for availability asked for one of those dates.`);
   const fx = document.createElement("div"); fx.className = "srx-card span2";
   fx.innerHTML = `<div class="srx-exec"><b>Findings.</b><ul>${F7.map(t => `<li>${esc(t)}</li>`).join("")}</ul></div>`;
   g7.appendChild(fx);
   const gap = card(g7, "In last summer's deck, not in this report yet", "missing data, not missing effort", { span2: true });
   const gl = document.createElement("div"); gl.className = "srx-note how";
   gl.innerHTML = `<b>Needs data we do not have · </b><ul class="srx-gap">
-    <li><b>Customers lost to availability / price</b> — the deck counted surge days per state and the requests turned away on them. No surge-day or turned-away log exists; the Moveboard status "We are not available" is used on only a handful of leads.</li>
-    <li><b>Postcard conversion rate</b> — needs the number of postcards mailed per campaign (a mailing file with campaign, state, date, count, cost).</li>
-    <li><b>Google Search Console</b> clicks, impressions, CTR, position — not connected.</li>
-    <li><b>CF written vs the carrier's CF</b> on long-distance jobs — the long-distance sheet keeps one CF value; a separate carrier CF is not recorded.</li>
-    <li><b>Inbound answered / missed calls per sales rep</b> — the monthly phone rollups are per line (inbound) and per extension (outbound only). Rebuilding per-rep inbound needs a new rollup.</li>
-    <li><b>Evening jobs by clock time</b> — the closing sheet has no start time; "afternoon jobs" (a foreman's second job of the day) stands in.</li>
-    <li><b>Sales commission paid on the estimate</b> (the deck's what-if) — the rule it modelled was not written down; tell us the rule and it can be computed.</li></ul>`;
+    <li><b>Postcard conversion rate</b> — needs the number of postcards mailed per drop (or the price per piece). Spend, leads, bookings and the return per $1 per state campaign are in Marketing.</li>
+    <li><b>Google Search Console</b> clicks, impressions, CTR, position — not connected yet: it needs the loader's service account added as a user on the Search Console property. Search Console keeps only 16 months, so connecting soon keeps last summer.</li>
+    <li><b>Customers lost to price</b> — the Moveboard "proposed price exceeded their budget" flag holds only a lead's latest flag and was barely used before this summer, so it cannot be compared season over season yet. Leads turned away for availability are in Demand.</li></ul>`;
   gap.appendChild(gl);
 
   // layout balance: a half-width card with no partner on its row is promoted to full width, so a
