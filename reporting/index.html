@@ -197,7 +197,7 @@ const GROUP_OVERRIDE = {
   // Logistics
   "log-foreman": "logistics", "log-packing": "logistics",
   // Financial
-  "fin-revenue": "financial", "fin-rr": "financial", "branch-owner": "financial", "cl-analysis": "financial", "money-flow": "logistics", "ld-planning": "logistics", "foreman-closings": "logistics",
+  "fin-revenue": "financial", "fin-rr": "financial", "branch-owner": "financial", "cl-analysis": "financial", "postcard-expenditure": "financial", "money-flow": "logistics", "ld-planning": "logistics", "foreman-closings": "logistics",
   "packing-control": "logistics", "storage-control": "logistics", "fuel-control": "logistics",
   "crew-salaries": "logistics",
   "foreman-late": "logistics",
@@ -226,7 +226,7 @@ const NAV_ORDER = {
   "hr-directory": 1, "hr-questionnaire": 2, "hr-my-questionnaire": 3,
   "cleanup": 1,
   "straight-vs-local": 1, "area-plan": 2, "season-settings": 2.5, "truck-economics": 3,
-  "fin-revenue": 1, "fin-rr": 2, "sales-geo": 3, "branch-owner": 6, "cl-analysis": 6.5,
+  "fin-revenue": 1, "fin-rr": 2, "sales-geo": 3, "branch-owner": 6, "cl-analysis": 6.5, "postcard-expenditure": 6.7,
   "rev-production": 1, "review-performance": 2, "reviews-cases": 2.5, "claims-analysis": 2.6, "response-analysis": 3, "reviews-reminders": 4, "review-settings": 5,
   "sup-claims": 1, "sup-refunds": 2, "sup-phone": 3,
   "data-quality": 2, "refresh-log": 1, "general-settings": 3, "general-tables": 4, "admin-users": 5,
@@ -278,7 +278,7 @@ const PAGE_ICONS = {
   "ads-analysis": "megaphone", "callrail": "phone", "forman": "tool",
   "packing": "box", "claims": "shield", "insights": "spark",
   "source-identification": "compass",
-  "branch-owner": "user", "cl-analysis": "trend", "customer-experience": "user",
+  "branch-owner": "user", "cl-analysis": "trend", "postcard-expenditure": "trend", "customer-experience": "user",
   "money-flow": "dollar",
   "ld-planning": "truck",
   "packing-control": "box", "crew-salaries": "user",
@@ -680,6 +680,7 @@ const PAGE_DATASETS = {
   "packing-per-100cf": ["scorecard"],
   "claims": ["claims", "closing", "scorecard", "rollup"],
   "branch-owner": ["closing"],
+  "postcard-expenditure": [],   // Post Card Expenditure: reads its marts + /api/_pcpurchase directly
   "cl-analysis": ["closing", "mart_cl_analysis"],
   "customer-experience": ["closing", "claims", "refunds", "negative_reviews", "rollup"],
   "labor-analysis": ["closing", "helper_salaries"],
@@ -1054,6 +1055,7 @@ const NAV_TITLES = {
   "analysis-by-category": "Custom Breakdown",
   "insights": "Recommendations",
   "branch-owner": "Branch Owner",
+  "postcard-expenditure": "Post Card Expenditure",
   "cl-analysis": "CL Analysis",
   "money-flow": "Money Flow",
   "ld-planning": "Long Distance Planning",
@@ -1118,6 +1120,7 @@ const SEARCH_ALIASES = {
   // Financial
   "fin-revenue": "revenue profit growth executive summary composition segments per job profitability p&l pnl profit and loss gross profit gross margin operational",
   "branch-owner": "branch owner giorgi kolbaia cut payout sales person financial ct",
+  "postcard-expenditure": "post card postcard expenditure purchases quantity unit cost cogs mailed roi marketing financial",
   "cl-analysis": "cl analysis peter montanaro partner deposit cut craigslist source jobs referral partner financial",
   "crew-salaries": "crew salaries wages payroll foreman driver helper rate hours tips pay per person crew cost logistics",
   "fin-rr": "repeat referral repeat business referral business returning customers financial revenue reviews",
@@ -1601,6 +1604,7 @@ const REPORT_LABELS = {
   // Financial
   "fin-revenue": "Revenue & Profit",
   "branch-owner": "Branch Owner (Giorgi)",
+  "postcard-expenditure": "Post Card Expenditure",
   "cl-analysis": "CL Analysis (Peter)",
   "fin-rr": "Repeat & Referral",
   // Reviews
@@ -1661,7 +1665,7 @@ const ACL_DEPTS = [
   // need NO grant at all — this tile is for HR: managing it and reading the results.
   { id: "hr",        label: "Human Resources", icon: "user",      reports: ["work", "erp-briefs","hr-questionnaire", "hr-responses", "hr-directory"] },
   { id: "customer-service", label: "Customer Service", icon: "calendar", reports: ["work", "erp-briefs","cleanup", "conversations", "claims-analysis"] },
-  { id: "financial", label: "Financial",        icon: "trend",     reports: ["work", "erp-briefs","branch-owner", "cl-analysis"] },
+  { id: "financial", label: "Financial",        icon: "trend",     reports: ["work", "erp-briefs","branch-owner", "cl-analysis", "postcard-expenditure"] },
   { id: "reviews",   label: "Reviews",          icon: "star",      reports: ["work", "erp-briefs","review-performance", "reviews-cases", "claims-analysis", "reviews-reminders", "response-analysis", "review-settings"] },
   { id: "explorer",  label: "Data Explorer — the separate Data Management app", icon: "archive", reports: ["work", "erp-briefs","explorer"] },
 ];
@@ -1907,6 +1911,7 @@ registerPage({
 <script src="pages/straight-vs-local.js?v=6"></script>
 <script src="pages/area-plan.js?v=16"></script>
 <script src="pages/season-settings.js?v=1"></script>
+<script src="pages/postcard-expenditure.js?v=1"></script>
 <script src="pages/truck-economics.js?v=5"></script>
 <script src="pages/data-migration.js?v=24"></script>
 <script src="pages/general-tables.js?v=6"></script>
