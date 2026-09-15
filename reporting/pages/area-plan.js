@@ -933,7 +933,7 @@ registerPage({
           return s;
         };
         bar.appendChild(fld("View", seg([["planning", "Planning"], ["marketing", "Marketing"]], C.mode || "planning", v => { C.mode = v; })));
-        if (CITYSEASON.length) bar.appendChild(fld("Window", seg([["ytd", "Year to date"], ["season", "Last season"]], C.window || "ytd", v => { C.window = v; CITYALL = v === "season" ? CITYSEASON : CITYYTD; })));
+        if (CITYSEASON.length) bar.appendChild(fld("Window", seg([["ytd", "Year to date"], ["season", "Season (May–Aug)"]], C.window || "ytd", v => { C.window = v; CITYALL = v === "season" ? CITYSEASON : CITYYTD; })));
         bar.appendChild(fld("Show", seg([["all", "All"], ["working", "We work there"], ["untapped", "Leads, no jobs"], ["far", "25+ miles out"]], C.view, v => { C.view = v; })));
         bar.appendChild(fld("Min leads", seg([[5, "5"], [20, "20"], [50, "50"], [100, "100"]], C.minLeads, v => { C.minLeads = v; })));
         const q = document.createElement("input");
