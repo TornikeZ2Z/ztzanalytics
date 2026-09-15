@@ -72,11 +72,13 @@ registerPage({
     const model = modelRow || {};
     const SEASON = model.season || {};
     const SEED = model.base_seed || {};
+    const FC = model.forecast || {};
     const CAP = model.capacity || {};
     const saved = ((gset.settings || {}).season_plan || {}).value || {};
     const meta = (gset.settings || {}).season_plan || {};
     const V = JSON.parse(JSON.stringify(saved));   // the working copy
     V.bases = V.bases || {};
+    V.growth_pct = V.growth_pct || {};
 
     // the states the plan table shows: the eight service areas + any state the data seeds 3+
     const SERVICE_AREAS = ["NJ", "PA", "NY", "DE", "CT", "MA", "MD", "VA"];
@@ -129,6 +131,17 @@ registerPage({
               "measured last season: <b>" + (measured.dollarsPerLead ? "$" + measured.dollarsPerLead : "—") + "</b>") +
         "</div></div>" +
 
+        '<div class="panel" style="margin-top:12px"><div class="panel-title">Next season</div>' +
+          '<div class="ssv-say">How the coming season is planned (his decisions, 2026-09-16). Growth per state opens on the measured season-over-season change, capped ±' + Math.round(((FC.growth_cap || .3)) * 100) + '%; type a percent to override it. The busy-day factor is measured per month (' + Math.round((FC.surge_percentile || .9) * 100) + 'th-percentile day ÷ average day); a value here replaces every month\'s.</div>' +
+          row("Onboarding, weeks", "hire-by = month start minus this", inp("onboarding_weeks", V.onboarding_weeks, String(FC.onboarding_weeks || 2)), "default <b>" + (FC.onboarding_weeks || 2) + " weeks</b>") +
+          row("Busy-day factor", "replaces the measured one", inp("surge_headroom", V.surge_headroom, "measured"), "measured per state and month, 1.25 where no daily data") +
+          row("Helpers per foreman", "", inp("helpers_per_foreman", V.helpers_per_foreman, "1"), "his call: a crew is foreman + driver + helper") +
+          row("Drivers per foreman", "", inp("drivers_per_foreman", V.drivers_per_foreman, "1"), "") +
+          row("Trucks per foreman", "", inp("trucks_per_foreman", V.trucks_per_foreman, "1"), "owned trucks come off the total; the rest is rented") +
+          '<div class="rs-tablewrap" style="margin-top:8px"><table class="rs-table"><thead><tr><th>State</th><th class="num">Season jobs, year before</th><th class="num">Last season</th><th class="num">Measured growth</th><th class="num">Growth override, %</th></tr></thead><tbody>' +
+          states.filter(st => (FC.states || {})[st]).map(st => { const f = FC.states[st]; return '<tr><td class="strong">' + esc(st) + '</td><td class="num">' + (f.season_jobs_prior || "—") + '</td><td class="num">' + (f.season_jobs_last || "—") + '</td><td class="num">' + (f.growth_source === "measured" ? (f.growth >= 0 ? "+" : "") + Math.round(f.growth * 100) + "%" : "—") + '</td><td class="num">' + inp("growth_pct." + st, (V.growth_pct || {})[st], "measured") + "</td></tr>"; }).join("") +
+          "</tbody></table></div>" +
+        "</div>" +
         '<div class="panel" style="margin-top:12px"><div class="panel-title">The foreman table</div>' +
           '<div class="ssv-say">Per state: the foremen on hand and the additions being considered. <b>Worked last season</b> is the distinct foremen on closings over ' + esc((lastWin || []).join(" – ") || "the season") + ' — the seed the plan opens on. Where two companies run a state, each has its own line and the state line is the pooled figure.</div>' +
           '<div class="rs-tablewrap"><table class="rs-table"><thead><tr><th>State</th><th class="num">Worked last season</th><th class="num">Foreman quantity</th><th class="num">Additional</th></tr></thead><tbody>' +
@@ -155,7 +168,7 @@ registerPage({
       }));
       host.querySelector("#ssvSave").onclick = () => saveAll();
       host.querySelector("#ssvClear").onclick = () => {
-        Object.keys(V).forEach(k => delete V[k]); V.bases = {};
+        Object.keys(V).forEach(k => delete V[k]); V.bases = {}; V.growth_pct = {};
         saveAll(true);
       };
     }
@@ -179,6 +192,10 @@ registerPage({
       if (share != null && (share < 0.5 || share > 0.95)) { msg.className = "ssv-msg bad"; msg.textContent = "share of peak must be between 0.50 and 0.95"; return; }
       const dpm = num(V.days_per_month);
       if (dpm != null && (dpm < 1 || dpm > 31)) { msg.className = "ssv-msg bad"; msg.textContent = "days per month must be 1–31"; return; }
+      const ow = num(V.onboarding_weeks);
+      if (ow != null && (ow < 0 || ow > 26)) { msg.className = "ssv-msg bad"; msg.textContent = "onboarding weeks must be 0–26"; return; }
+      const sh = num(V.surge_headroom);
+      if (sh != null && (sh < 1 || sh > 3)) { msg.className = "ssv-msg bad"; msg.textContent = "the busy-day factor is a multiplier between 1 and 3"; return; }
       msg.className = "ssv-msg"; msg.textContent = "saving…";
       const body = prune(JSON.parse(JSON.stringify(V)));
       try {

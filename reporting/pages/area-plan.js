@@ -53,6 +53,10 @@
     };
   }
   // the white space: every zip inside the territory, with the outside signals (2026-09-15)
+  if (window.RS && RS.DATASETS && RS.DATASETS.area_master && !RS.DATASETS.area_master_season) {
+    // the same master over the latest complete season (May-Aug); his 2026-09-16 call: a two-window toggle
+    RS.DATASETS.area_master_season = Object.assign({}, RS.DATASETS.area_master, { table: "mart_area_master_season" });
+  }
   if (window.RS && RS.DATASETS && !RS.DATASETS.area_whitespace) {
     RS.DATASETS.area_whitespace = {
       table: "mart_area_whitespace",
@@ -139,6 +143,9 @@
     .ap2-leak .t i{display:block;height:100%;background:var(--warn);border-radius:5px}
     .ap2-leak .v{font-size:12.5px;color:var(--muted);text-align:right;white-space:nowrap;
       font-variant-numeric:tabular-nums}
+    .ap2-next{font-size:12.5px} .ap2-next th.ap2-sh,.ap2-next td.ap2-sh{color:var(--faint);background:color-mix(in srgb,var(--line) 35%,transparent)}
+    .ap2-next td small{display:block;font-size:10.5px;color:var(--faint);font-weight:600} .ap2-next tr.ap2-tot td{font-weight:800;border-top:2px solid var(--line)}
+    .ap2-hire{color:var(--neg)} .ap2-ok{color:var(--pos);font-weight:700;font-size:11.5px} .ap2-dim{color:var(--faint)}
     /* Band B: the evidence (carried from Area Master, prefix renamed) */
     .ap2-led{display:flex;flex-wrap:wrap;gap:0;padding:18px 20px}
     .ap2-led-g{flex:1 1 165px;min-width:0;padding:0 18px 0 0}
@@ -257,7 +264,8 @@ registerPage({
         j => JSON.parse(((j.rows || [])[0] || {}).payload || "null")).catch(() => null),
       RS.load("area_master").catch(e => ({ __err: e })),
       RS.load("area_whitespace").catch(() => null),
-    ]).then(([rows, model, cityAll, wsAll]) => {
+      RS.load("area_master_season").catch(() => null),
+    ]).then(([rows, model, cityAll, wsAll, cityAllSeason]) => {
       // FOUR DISTINCT FAILURES, each named -- the old page blamed the mart for a model outage
       if (!rows || !rows.length) {
         host.innerHTML = '<div class="panel">The state plan mart (mart_area_plan) is empty — run ' +
@@ -275,7 +283,9 @@ registerPage({
           : 'The per-city master (mart_area_master) could not be read: ' + esc(msg)) + '</div>';
         return;
       }
-      const CITYALL = cityAll || [];
+      const CITYYTD = cityAll || [];
+      const CITYSEASON = (cityAllSeason && !cityAllSeason.__err) ? cityAllSeason : [];
+      let CITYALL = CITYYTD;
       const WSALL = wsAll || [];
       // "Leads No Jobs" is the honest name of the old Untapped flag (the city sent leads, nothing booked)
       const lnj = r => num(r["Leads No Jobs"] != null ? r["Leads No Jobs"] : r.Untapped);
@@ -350,6 +360,7 @@ registerPage({
       }, saved);
       inputs.city = Object.assign({ minLeads: 20, view: "all", q: "", sort: "Revenue", desc: true,
                                     page: 0, pageSize: 30 }, inputs.city || {});
+      if ((inputs.city || {}).window === "season" && CITYSEASON.length) CITYALL = CITYSEASON;
       seedStates.forEach(st => { if (!inputs.bases[st]) inputs.bases[st] = { cur: 0, add: 0, byCo: {} }; });
       // the picker may hold months the mart does not (a fresh season): clamp to what exists
       if (!allYms.includes(inputs.from)) inputs.from = allYms.includes(inputs.to) ? inputs.to : lastSettled;
@@ -922,6 +933,7 @@ registerPage({
           return s;
         };
         bar.appendChild(fld("View", seg([["planning", "Planning"], ["marketing", "Marketing"]], C.mode || "planning", v => { C.mode = v; })));
+        if (CITYSEASON.length) bar.appendChild(fld("Window", seg([["ytd", "Year to date"], ["season", "Last season"]], C.window || "ytd", v => { C.window = v; CITYALL = v === "season" ? CITYSEASON : CITYYTD; })));
         bar.appendChild(fld("Show", seg([["all", "All"], ["working", "We work there"], ["untapped", "Leads, no jobs"], ["far", "25+ miles out"]], C.view, v => { C.view = v; })));
         bar.appendChild(fld("Min leads", seg([[5, "5"], [20, "20"], [50, "50"], [100, "100"]], C.minLeads, v => { C.minLeads = v; })));
         const q = document.createElement("input");
@@ -998,6 +1010,64 @@ registerPage({
           "</span><span>city master: nightly</span><span>research: " + esc((R.vintage || "").slice(0, 22)) + "</span></div>";
       }
 
+
+      /* ------- NEXT SEASON (his 2026-09-16 decisions): jobs by move month from last season x growth,
+         foremen for the 90th-percentile day, hire-by two weeks ahead, a crew of foreman + driver +
+         helper, one truck per foreman, leads needed a month earlier. Zip to Zip only. ------------ */
+      const FC = model.forecast || {};
+      const FCS = FC.states || {};
+      function nextCalc() {
+        const util = (num(inputs.utilization) / 100) || 0.34;
+        const perFm = Math.max(1, DAYS_PER_MONTH * util);              // jobs one foreman does in a month
+        const crew = FC.crew_per_foreman || { helpers: 1, drivers: 1, trucks: 1 };
+        const months = (FC.months || []).map(m => FC.year + "-" + String(m).padStart(2, "0"));
+        const core = months.filter(ym => !((FCS[Object.keys(FCS)[0]] || { months: {} }).months[ym] || {}).shoulder);
+        // the service areas, plus any other state with a real season (a one-off long-distance job is not a market)
+        const sts = seedStates.filter(st => FCS[st]).concat(Object.keys(FCS).filter(st => !seedStates.includes(st) && (FCS[st].season_jobs_last || 0) >= 10).sort());
+        const rows = sts.map(st => {
+          const s = FCS[st], have = num((inputs.bases[st] || {}).cur) + num((inputs.bases[st] || {}).add);
+          const cells = months.map(ym => { const r = s.months[ym] || {}; const need = r.jobs ? Math.ceil(r.jobs * (r.headroom || 1) / perFm) : 0;
+            return Object.assign({ ym, need }, r); });
+          const coreCells = cells.filter(c => !c.shoulder);
+          const peak = Math.max(0, ...coreCells.map(c => c.need));
+          const first = coreCells.find(c => c.need > have);
+          const jobs = coreCells.reduce((a, c) => a + (c.jobs || 0), 0);
+          const leads = coreCells.reduce((a, c) => a + (c.leads_needed || 0), 0);
+          return { st, s, have, cells, peak, hire: Math.max(0, peak - have), hireBy: first ? first.hire_by : null, jobs, leads,
+                   helpers: Math.ceil(peak * (crew.helpers || 0)), drivers: Math.ceil(peak * (crew.drivers || 0)), trucks: Math.ceil(peak * (crew.trucks || 0)) };
+        });
+        const tot = { jobs: rows.reduce((a, r) => a + r.jobs, 0), peak: rows.reduce((a, r) => a + r.peak, 0), have: rows.reduce((a, r) => a + r.have, 0),
+                      hire: rows.reduce((a, r) => a + r.hire, 0), trucks: rows.reduce((a, r) => a + r.trucks, 0), leads: rows.reduce((a, r) => a + r.leads, 0),
+                      helpers: rows.reduce((a, r) => a + r.helpers, 0), drivers: rows.reduce((a, r) => a + r.drivers, 0) };
+        return { months, core, rows, tot, perFm, util, crew, owned: (model.fleet || {}).owned_trucks || 0 };
+      }
+      function nextHtml() {
+        if (!FC.year) return '<div class="ap2-note">The forecast block is not in the model yet — it appears after the next plan rebuild (07:50 NJ, or run <b>sources=area-plan</b>).</div>';
+        const N = nextCalc();
+        const sgn = g => (g >= 0 ? "+" : "") + Math.round(g * 100) + "%";
+        const mLbl = ym => MONTH_NAMES[+ym.slice(5, 7)];
+        const th = (t, cls) => '<th class="' + (cls || "num") + '">' + t + "</th>";
+        const tdc = (v, cls) => '<td class="' + (cls || "num") + '">' + v + "</td>";
+        const head = "<tr>" + th("State", "") + th("Growth") + N.months.map(ym => { const sh = !N.core.includes(ym);
+          return '<th class="num' + (sh ? " ap2-sh" : "") + '" title="' + (sh ? "shoulder month: shown, not planned" : "season month") + '">' + mLbl(ym) + "</th>"; }).join("") +
+          th("Peak foremen") + th("Have") + th("Hire") + th("Hire by", "") + th("Helpers") + th("Drivers") + th("Trucks") + th("Leads needed") + "</tr>";
+        const body = N.rows.map(r => "<tr>" + tdc("<b>" + esc(r.st) + "</b>", "strong") +
+          tdc('<span title="' + (r.s.growth_source === "override" ? "set on Planning Variables" : "measured: " + fmtN(r.s.season_jobs_prior) + " → " + fmtN(r.s.season_jobs_last) + " season jobs, capped ±" + Math.round((FC.growth_cap || .3) * 100) + "%") + '">' + sgn(r.s.growth) + (r.s.growth_source === "override" ? " ✎" : "") + "</span>") +
+          r.cells.map(c => '<td class="num' + (c.shoulder ? " ap2-sh" : "") + '" title="last year ' + fmtN(c.last) + ' jobs · busy-day factor ' + r1(c.headroom) + '">' + (c.jobs ? fmtN(c.jobs) + '<small> · ' + c.need + " fm</small>" : '<span class="ap2-dim">—</span>') + "</td>").join("") +
+          tdc("<b>" + r.peak + "</b>") + tdc(fmtN(r.have)) + tdc(r.hire ? '<b class="ap2-hire">+' + r.hire + "</b>" : '<span class="ap2-ok">covered</span>') +
+          tdc(r.hireBy ? esc(r.hireBy) : "—", "") + tdc(fmtN(r.helpers)) + tdc(fmtN(r.drivers)) + tdc(fmtN(r.trucks)) + tdc(fmtN(r.leads)) + "</tr>").join("");
+        const foot = '<tr class="ap2-tot">' + tdc("<b>All states</b>", "strong") + tdc("") + N.months.map(ym => tdc("<b>" + fmtN(N.rows.reduce((a, r) => a + ((r.cells.find(c => c.ym === ym) || {}).jobs || 0), 0)) + "</b>")).join("") +
+          tdc("<b>" + N.tot.peak + "</b>") + tdc(fmtN(N.tot.have)) + tdc(N.tot.hire ? '<b class="ap2-hire">+' + N.tot.hire + "</b>" : "—") + tdc("", "") + tdc(fmtN(N.tot.helpers)) + tdc(fmtN(N.tot.drivers)) +
+          tdc(fmtN(N.tot.trucks) + (N.tot.trucks > N.owned ? '<small> · rent ' + (N.tot.trucks - N.owned) + "</small>" : "")) + tdc(fmtN(N.tot.leads)) + "</tr>";
+        const lag = FC.lead_lag_months || 1;
+        const ramp = N.core.map(ym => { const d = new Date(+ym.slice(0, 4), +ym.slice(5, 7) - 1 - lag, 1); const by = MONTH_NAMES[d.getMonth() + 1] + " " + d.getFullYear();
+          const leads = N.rows.reduce((a, r) => a + (((r.cells.find(c => c.ym === ym) || {}).leads_needed) || 0), 0);
+          return "<b>" + esc(by) + "</b> " + fmtN(leads) + " leads for " + mLbl(ym) + "'s jobs"; }).join(" · ");
+        return '<div class="ap2-note" style="margin-bottom:8px">Jobs = last season\'s same month × the state\'s growth (season over season, capped ±' + Math.round((FC.growth_cap || .3) * 100) + '%). Foremen per month = jobs × the busy-day factor (the ' + Math.round((FC.surge_percentile || .9) * 100) + 'th-percentile day over the average day) ÷ ' + r1(N.perFm) + ' jobs per foreman-month (' + DAYS_PER_MONTH + ' days × ' + Math.round(N.util * 100) + '% utilization — the dial above). <b>Have</b> = the foreman table\'s quantity + additional. Hire by = the first short month\'s start minus ' + (FC.onboarding_weeks || 2) + ' weeks. Crew per foreman: ' + (N.crew.helpers || 0) + ' helper, ' + (N.crew.drivers || 0) + ' driver, ' + (N.crew.trucks || 0) + ' truck. Greyed months are shoulders.</div>' +
+          '<table class="rs-table ap2-next"><thead>' + head + "</thead><tbody>" + body + foot + "</tbody></table>" +
+          '<div class="ap2-note" style="margin-top:8px"><b>Leads to bring in</b> (jobs ÷ last season\'s booking rate, needed ' + lag + ' month ahead — the lead→move lag): ' + ramp + ".</div>";
+      }
+
       function paint() {
         recalcPeriod();
         const c = calc();
@@ -1015,6 +1085,9 @@ registerPage({
           card("The plan", "Base capacity — foreman quantity, plus the additions",
                "Rows are service areas (NY is worked from the NJ base). <b>Worked (measured)</b> is the distinct foremen on closings in the period, so the typed cell has its measured counterpart on the same row. Where two companies run a state, each has its own editable line. Change any cell; the hero follows. Edits stay in this browser — the Planning Variables page makes them permanent.",
                '<div id="apBase" style="overflow-x:auto">' + planHtml(c) + "</div>") +
+          card("Next season — " + (FC.year || "the coming one"), "Jobs, foremen, crew and leads per state and month, planned from last season",
+               "The decision table: what each month needs, what the foreman table gives, and the gap. Jobs move with the growth and utilization dials; the crew ratios and the hire lead time are on Planning Variables.",
+               '<div id="apNext" style="overflow-x:auto">' + nextHtml() + "</div>") +
           card("Where it leaks", "The counties that lose the most",
                "Top county losses in " + esc(P.label) + (inputs.focus ? " for " + esc(inputs.focus) : "") + " — where extra sales attention or pricing would bite first.",
                '<div id="apLeak">' + leakHtml() + "</div>") +
@@ -1115,6 +1188,7 @@ registerPage({
         save();
         const c = calc();
         document.getElementById("apHero").innerHTML = heroHtml(c);
+        const nx = document.getElementById("apNext"); if (nx) nx.innerHTML = nextHtml();
         const tbl = document.getElementById("apBase");
         c.perBase.forEach(r => {
           const row = tbl.querySelector('tr.ap2-row[data-focus="' + CSS.escape(r.st) + '"]'); if (!row) return;
