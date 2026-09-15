@@ -64,10 +64,21 @@ registerPage({
         ".pce-read{font-size:13px;line-height:1.65;color:var(--ink)} .pce-read li{margin:0 0 7px} .pce-read .w{color:var(--neg);font-weight:700} .pce-read .g{color:var(--pos);font-weight:700}",
         ".pce-addm{display:flex;gap:8px;align-items:center;margin-top:10px;flex-wrap:wrap}",
         ".pce-mask{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:900;display:flex;align-items:center;justify-content:center;padding:16px}",
-        ".pce-modal{background:var(--panel);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);width:min(620px,100%);max-height:92vh;overflow:auto;padding:18px 20px}",
-        ".pce-modal h3{margin:0 0 4px;font-size:17px;color:var(--ink)} .pce-modal .sub{font-size:12.5px;color:var(--muted);margin-bottom:12px}",
-        ".pce-modal table{width:100%;border-collapse:collapse} .pce-modal td,.pce-modal th{padding:6px 8px;border-bottom:1px solid var(--line-2);font-size:13px;text-align:right} .pce-modal td:first-child,.pce-modal th:first-child{text-align:left}",
-        ".pce-modal tr.tot td{font-weight:800;border-top:2px solid var(--line);border-bottom:0}",
+        ".pce-modal{background:var(--panel);border:1px solid var(--line);border-radius:18px;box-shadow:var(--shadow);width:min(740px,100%);max-height:92vh;overflow:auto;padding:20px 22px}",
+        ".pce-modal .hd{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin-bottom:14px}",
+        ".pce-modal h3{margin:0 0 3px;font-size:18px;color:var(--ink);letter-spacing:-.2px} .pce-modal .sub{font-size:12.5px;color:var(--muted);line-height:1.5}",
+        ".pce-modal .amt{font-size:26px;font-weight:850;color:var(--ink);font-variant-numeric:tabular-nums;white-space:nowrap} .pce-modal .amt small{display:block;font-size:11px;font-weight:700;color:var(--faint);text-transform:uppercase;letter-spacing:.04em;text-align:right}",
+        ".pce-modal .eyebrow{font-size:11px;font-weight:800;color:var(--faint);text-transform:uppercase;letter-spacing:.05em;margin:12px 0 7px}",
+        ".pce-sgrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px} @media (max-width:560px){.pce-sgrid{grid-template-columns:repeat(2,minmax(0,1fr))}}",
+        ".pce-tile{display:flex;align-items:center;justify-content:space-between;gap:8px;border:1px solid var(--line);border-radius:12px;padding:9px 10px 9px 12px;background:var(--panel-2);transition:border-color .12s,background .12s}",
+        ".pce-tile.on{border-color:var(--brand);background:var(--brand-glow)} .pce-tile:focus-within{border-color:var(--brand)}",
+        ".pce-tile .st{font-weight:850;font-size:14px;color:var(--ink)} .pce-tile .st small{display:block;font-size:10.5px;font-weight:700;color:var(--brand-d);letter-spacing:.03em}",
+        ".pce-tile .sh{font-size:11px;color:var(--faint);text-align:right;margin-top:3px;min-height:13px}",
+        ".pce-tile input{width:88px}",
+        ".pce-pool{display:flex;align-items:center;justify-content:space-between;gap:10px;border:1px dashed var(--line-2);border-radius:12px;padding:9px 12px;margin-top:8px}",
+        ".pce-pool .st{font-size:13px;font-weight:700;color:var(--muted)} .pce-pool .st small{display:block;font-weight:500;font-size:11px;color:var(--faint)}",
+        ".pce-sum{display:flex;justify-content:space-between;align-items:center;gap:12px;background:color-mix(in srgb,var(--ink) 5%,var(--panel));border-radius:12px;padding:11px 14px;margin-top:12px;flex-wrap:wrap}",
+        ".pce-sum .n{font-size:17px;font-weight:850;color:var(--ink)} .pce-sum .n small{font-size:12px;font-weight:600;color:var(--muted);margin-left:5px} .pce-sum .p{font-size:13px;color:var(--muted)} .pce-sum .p b{color:var(--ink);font-size:15px}",
         ".pce-modal .acts{display:flex;gap:10px;align-items:center;margin-top:14px;flex-wrap:wrap}",
         ".pce-msg{font-size:12px;color:var(--muted)} .pce-msg.bad{color:var(--neg);font-weight:700} .pce-msg.ok{color:var(--pos);font-weight:700}",
       ].join("");
@@ -190,21 +201,26 @@ registerPage({
       const p = PUR[key]; if (!p) return;
       const cur = {}; p.splits.forEach(s => { cur[s.state || ""] = s.qty; });
       const mask = document.createElement("div"); mask.className = "pce-mask";
-      const rowsHtml = ["", ...STATES].map(st => '<tr><td>' + (st ? esc(st) + (p.ledger === st ? ' <span class="pce-dim">(ledger)</span>' : "") : 'Pooled <span class="pce-dim">(no state)</span>') +
-        '</td><td><input class="pce-in' + (cur[st] ? " set" : "") + '" type="number" min="0" step="1" data-st="' + st + '" value="' + (cur[st] || "") + '" placeholder="cards"></td><td data-share="' + st + '">—</td></tr>').join("");
-      mask.innerHTML = '<div class="pce-modal" role="dialog"><h3>' + esc(p.provider) + " · " + esc(p.date) + " · " + money(p.amount) + "</h3>" +
-        '<div class="sub">How many cards did this payment buy, and for which states? A payment for one state is one line; leave the others blank. The paid amount is shared by cards.</div>' +
-        '<table><thead><tr><th>State</th><th>Cards</th><th>Share of paid</th></tr></thead><tbody>' + rowsHtml +
-        '<tr class="tot"><td>Total</td><td data-tot>—</td><td data-price>—</td></tr></tbody></table>' +
+      const order = p.ledger ? [p.ledger, ...STATES.filter(s => s !== p.ledger)] : STATES;   // the ledger's state first
+      const tile = st => '<label class="pce-tile' + (cur[st] ? " on" : "") + '" data-tile="' + st + '"><span class="st">' + esc(st) + (p.ledger === st ? "<small>on the ledger</small>" : "") + "</span>" +
+        '<span><input class="pce-in' + (cur[st] ? " set" : "") + '" type="number" min="0" step="1" data-st="' + st + '" value="' + (cur[st] || "") + '" placeholder="cards"><span class="sh" data-share="' + st + '"></span></span></label>';
+      mask.innerHTML = '<div class="pce-modal" role="dialog"><div class="hd"><div><h3>' + esc(p.provider) + "</h3>" +
+        '<div class="sub">Paid ' + esc(p.date) + " · " + esc(p.company || "") + (p.desc ? " · " + esc(p.desc.slice(0, 60)) : "") + "</div>" +
+        '<div class="sub">Type how many cards this payment bought for each state it covered; leave the rest blank. The amount paid is shared out by cards.</div></div>' +
+        '<div class="amt"><small>paid</small>' + money(p.amount) + "</div></div>" +
+        '<div class="eyebrow">Cards by state</div><div class="pce-sgrid">' + order.map(tile).join("") + "</div>" +
+        '<div class="pce-pool"><span class="st">Not tied to a state<small>pooled — still counts in the unit cost</small></span><span><input class="pce-in' + (cur[""] ? " set" : "") + '" type="number" min="0" step="1" data-st="" value="' + (cur[""] || "") + '" placeholder="cards"></span></div>' +
+        '<div class="pce-sum"><span class="n" data-tot>—</span><span class="p" data-price>type the cards to see the price per card</span></div>' +
         '<div style="margin-top:12px"><input class="pce-in wide" type="text" maxlength="500" data-note placeholder="note (optional)" value="' + esc(p.note || "") + '"></div>' +
         '<div class="acts"><button class="pce-btn pri" data-save>Save</button><button class="pce-btn" data-cancel>Cancel</button><span class="pce-msg" data-msg></span></div></div>';
       document.body.appendChild(mask);
       const inputs = [...mask.querySelectorAll("[data-st]")];
       const recalc = () => { const tot = inputs.reduce((t, i) => t + (num(i.value) || 0), 0);
         inputs.forEach(i => { const q = num(i.value) || 0; i.classList.toggle("set", q > 0);
-          mask.querySelector('[data-share="' + i.dataset.st + '"]').textContent = q > 0 && tot ? money(p.amount * q / tot) : "—"; });
-        mask.querySelector("[data-tot]").innerHTML = tot ? "<b>" + fmtN(tot) + "</b> cards" : "—";
-        mask.querySelector("[data-price]").textContent = tot && p.amount != null ? money2(p.amount / tot) + " per card" : "—"; };
+          const t = mask.querySelector('[data-tile="' + i.dataset.st + '"]'); if (t) t.classList.toggle("on", q > 0);
+          const sh = mask.querySelector('[data-share="' + i.dataset.st + '"]'); if (sh) sh.textContent = q > 0 && tot ? money(p.amount * q / tot) + " of the paid" : ""; });
+        mask.querySelector("[data-tot]").innerHTML = tot ? fmtN(tot) + "<small>cards bought</small>" : "—";
+        mask.querySelector("[data-price]").innerHTML = tot && p.amount != null ? "<b>" + money2(p.amount / tot) + "</b> per card" : "type the cards to see the price per card"; };
       inputs.forEach(i => i.addEventListener("input", recalc)); recalc();
       const close = () => { mask.remove(); document.removeEventListener("keydown", onKey); };
       const onKey = e => { if (e.key === "Escape") close(); };
