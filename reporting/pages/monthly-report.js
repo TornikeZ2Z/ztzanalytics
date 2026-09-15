@@ -119,7 +119,7 @@ async function renderMonthly(host, MRCFG) {
     const grabIf = (ds, on) => on ? grab(ds) : Promise.resolve([]);
     const [closing, moveboard, storage, claims, refunds, cardEx,
            reviews, negrev, callrail, scorecard, rcounts, rgoals,
-           helperSalDs, salesSalDs, headcount] = await Promise.all([
+           helperSalDs, salesSalDs, headcount, pcm] = await Promise.all([
       grab("closing"), grab("moveboard"), grabIf("storage", SEC("Packing & Storage")),
       grab("claims"), grab("refunds"), grab("card_expenses"),
       grab("reviews_breakdown"), grabIf("negative_reviews", SEC("Reviews Production")),
@@ -127,7 +127,9 @@ async function renderMonthly(host, MRCFG) {
       grab("review_goals"), grab("helper_salaries"), grab("sales_salaries"),
       // 44 rows, one per month — cheap enough to always load, and the crew card sits in a
       // section that is on by default
-      grab("headcount")]);
+      grab("headcount"),
+      // post cards by month and state (2026-09-16): cards mailed, usage-based cost and the return
+      SEC("Marketing ROI") ? pooled("Post cards", () => ZTZ.api("/api/mart_postcard_month?limit=20000").then(j => j.rows || [])) : Promise.resolve([])]);
     // Derive the cost flags from the shared rows. Amount is ALREADY positive here (RS.load
     // negates the bank convention once) — `amt: num(r.Amount)`, never a second negation.
     const cardCost = !needPack ? [] : cardEx.filter(coRow).map(r => {
@@ -2224,6 +2226,27 @@ async function renderMonthly(host, MRCFG) {
            Tornike's call, 2026-08-06. */
         tableCard(g, `Profit per ad $ — ${W.label}`, `${W.sub} · net $ returned per $1 of ad spend ((profit − spend) ÷ spend)`, html, { icon: KIC.trend, headVal: totArr[curY] == null ? "—" : "$" + totArr[curY].toFixed(2) });
       });
+      // ===== POST CARDS ON USAGE (2026-09-16) =====
+      // the ad ledger books the vendor when PAID; this reads the cards MAILED in the period (typed on Post Card
+      // Expenditure) against the cumulative unit cost, and the leads / jobs / revenue with a Post Card source
+      if ((pcm || []).length) {
+        const inP = r => spanYMs.includes(String(r.Month));
+        const lyYMs = spanYMs.map(ym => (+ym.slice(0, 4) - 1) + ym.slice(4));
+        const agg = rs => { const a = { mailed: 0, cogs: 0, unknown: false, leads: 0, booked: 0, jobs: 0, rev: 0 };
+          rs.forEach(r => { const c = num(r["Cards Mailed"]), k = num(r.COGS); a.mailed += c; if (c && k == null) a.unknown = true; else a.cogs += k || 0;
+            a.leads += num(r.Leads); a.booked += num(r.Booked); a.jobs += num(r.Jobs); a.rev += num(r.Revenue); });
+          a.cost = a.unknown || !a.mailed ? null : a.cogs; return a; };
+        const cur = agg(pcm.filter(inP)), ly = agg(pcm.filter(r => lyYMs.includes(String(r.Month))));
+        const byS = new Map(); pcm.filter(inP).forEach(r => { const k = r.State || "—"; byS.set(k, (byS.get(k) || []).concat(r)); });
+        const sts = [...byS.entries()].map(([k, rs]) => [k, agg(rs)]).filter(([, a]) => a.mailed || a.rev).sort((a, b) => b[1].rev - a[1].rev);
+        const ln = (name, a, cls) => `<tr${cls ? ` class="${cls}"` : ""}><td>${name}</td><td>${fmtN(a.mailed)}</td><td>${a.cost != null ? money(a.cost) : "—"}</td><td>${fmtN(a.leads)}</td><td>${a.mailed ? (a.leads / a.mailed * 1000).toFixed(2) : "—"}</td><td>${a.cost > 0 && a.leads ? money(a.cost / a.leads) : "—"}</td><td>${fmtN(a.jobs)}</td><td>${money(a.rev)}</td><td>${a.cost > 0 ? "$" + (a.rev / a.cost).toFixed(1) : "—"}</td></tr>`;
+        tableCard(g, "Post cards — mailed, cost and return", `${spanLbl(curY, mo, true)} · by the state on the lead`,
+          `<table class="mrx-tbl"><thead><tr><th>State</th><th>Mailed</th><th>Cost of mailed</th><th>Leads</th><th>per 1,000</th><th>$ / lead</th><th>Jobs</th><th>Revenue</th><th>Per $1</th></tr></thead><tbody>` +
+          sts.map(([k, a]) => ln(esc(k), a)).join("") + ln("All states", cur, "tot") + ln(`Same ${SPAN === 1 ? "month" : "months"} last year`, ly) + `</tbody></table>`,
+          { headVal: fmtN(cur.mailed) + " cards", note: cur.mailed && cur.cost == null
+              ? "The cost of the cards mailed is not known yet: a purchase covering these months has no quantity typed on Post Card Expenditure. Leads, jobs and revenue are complete."
+              : "Cards mailed per state and month are typed on Post Card Expenditure (Financial); cost of mailed = cards × the cumulative unit cost of the purchases (paid ÷ cards bought). The ad-spend cards above book the vendor when paid; this one books the cards when mailed." });
+      }
     }
 
     /* ---- 11 · Lead Sources (theme split B of former "Marketing & Channels") ---- */

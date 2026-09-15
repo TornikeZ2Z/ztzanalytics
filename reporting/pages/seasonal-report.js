@@ -39,12 +39,12 @@ async function renderSeasonal(host) {
     grab("scorecard"), grab("helper_salaries"), grab("sales_salaries")]);
   // the season-gap marts (2026-09-15) are SOFT: until the loader has built them a missing one hides its card
   const soft = url => ZTZ.api(url).then(j => j.rows || []).catch(e => { console.warn("SR optional feed:", url, e); return null; });
-  const [callrail, rcLine, rcAgent, arrival, surge, rcRepIn] = await Promise.all([
+  const [callrail, rcLine, rcAgent, arrival, surge, rcRepIn, pcm] = await Promise.all([
     grab("callrail"),
     api("RingCentral lines", "/api/mart_rc_monthly_line?limit=100000"),
     api("RingCentral teammates", "/api/mart_rc_monthly_agent?limit=100000"),
     soft("/api/mart_job_arrival?limit=200000"), soft("/api/mart_surge_day?limit=50000"),
-    soft("/api/mart_rc_monthly_rep_inbound?limit=100000")]);
+    soft("/api/mart_rc_monthly_rep_inbound?limit=100000"), soft("/api/mart_postcard_month?limit=20000")]);
   const DS = { closing, moveboard, claims, refunds, card_expenses: cardEx, callrail };
   /* Claims + reviews deep-dives read tables that are granted with Claims Analysis / Review Performance.
      They are OPTIONAL here: a reader without those pages gets a note on the section (never a red
@@ -86,6 +86,16 @@ async function renderSeasonal(host) {
   const winLbl = F === T ? MS[F] : MS[F] + "–" + MS[T];
   const seasonName = (F === 5 && T === 8) ? "Summer" : winLbl;
   const YEARS = []; for (let y = 2023; y <= Y; y++) YEARS.push(y);   // 2023 cutoff: nothing earlier is on file
+  // post cards (2026-09-16): cards mailed per state-month (typed on Post Card Expenditure), the usage-based cost
+  // and the return. A season = the window months of that year. Cost is NULL until every mailed month has a unit cost.
+  const PCM = pcm || [];
+  const pcIn = y => PCM.filter(r => String(r.Month).slice(0, 4) === String(y) && +String(r.Month).slice(5, 7) >= F && +String(r.Month).slice(5, 7) <= T);
+  const pcAgg = rs => { const a = { mailed: 0, cogs: 0, unknown: false, leads: 0, booked: 0, jobs: 0, rev: 0 };
+    rs.forEach(r => { const c = num(r["Cards Mailed"]), k = num(r.COGS); a.mailed += c; if (c && k == null) a.unknown = true; else a.cogs += k || 0;
+      a.leads += num(r.Leads); a.booked += num(r.Booked); a.jobs += num(r.Jobs); a.rev += num(r.Revenue); });
+    a.cost = a.unknown || !a.mailed ? null : a.cogs; return a; };
+  const PCS = {}; YEARS.forEach(y => { PCS[y] = pcAgg(pcIn(y)); });
+  const pcConv = y => PCS[y] && PCS[y].mailed ? PCS[y].leads / PCS[y].mailed : null;
   const yy = y => "'" + String(y).slice(2);
   const winMonths = (() => { const a = []; for (let m = F; m <= T; m++) a.push(m); return a; })();
 
@@ -651,7 +661,7 @@ async function renderSeasonal(host) {
     { g: "Reviews per job (foreman scorecard)", t: "≥ 70%", v: C.revPerJob, ok: v => v >= .7, f: pct0, pv: P.revPerJob },
     { g: `Cash collected per $1 of advertising (paid channels${adCut ? ", " + adLbl : ""})`, t: "≥ $10", v: C.adPer1, ok: v => v >= 10, f: x1, pv: P.adPer1 },
     { g: "Leads turned away for availability (recorded)", t: "< 10% of demand", v: SD ? SV[Y].share : null, ok: v => v < 0.1, f: pct, pv: SD && SV[LY] ? SV[LY].share : null, why: "surge-day data not loaded yet" },
-    { g: "Postcard conversion (leads ÷ postcards sent)", t: "≥ 0.6%", v: null, why: "postcards-sent counts are not on file" },
+    { g: "Postcard conversion (leads ÷ postcards mailed)", t: "≥ 0.6%", v: pcConv(Y), ok: v => v >= .006, f: v => (v * 100).toFixed(2) + "%", pv: pcConv(LY), why: pcConv(Y) == null ? "no cards mailed on file for this window — type them on Post Card Expenditure" : "" },
     { g: "Google Search click-through rate", t: "≥ 0.6%", v: null, why: "Search Console is not connected" }] };
   if (TARGETS[Y] && ZIP) {   // the goals were written for Zip to Zip
     const rowsT = TARGETS[Y].map(t => {
@@ -1279,7 +1289,21 @@ async function renderSeasonal(host) {
     m => table(m, "Postcard campaigns by state", `${adLbl || winLbl} ${Y} vs ${LY}`, ["Campaign", "Spend", "Leads", "Booking", "Jobs", "Cash collected", "Per $1", "Per $1 " + LY],
     [...pcT.entries()].filter(([, a]) => a.ad || a.cr.length).sort((a, b) => b[1].ad - a[1].ad).map(([k, a]) => { const l = pcL.get(k), p1 = a.ad ? a.ncc / a.ad : null, p0 = l && l.ad ? l.ncc / l.ad : null;
       return `<tr>${td(esc(k))}${a.ad ? td(money(a.ad)) : `<td class="dim">—</td>`}${td(fmtN(a.cr.length))}${tdn(RS.bookingRate(a.cr, a.bk), pct)}${td(fmtN(a.jobs))}${td(money(a.ncc))}${tdn(p1, x1)}${tdn(p0, x1)}</tr>`; }),
-    { span2: false, how: "Campaign = the state on the postcard's tracking line (Moveboard source connector, the closing's source, the card line's provider). The deck's conversion rate needs how many postcards were mailed — that count is not on file." }));
+    { span2: false, how: "Campaign = the state on the postcard's tracking line (Moveboard source connector, the closing's source, the card line's provider). Spend here is the month the vendor was PAID; the usage-based view (cards mailed × unit cost) is the next card." }));
+  // post cards on USAGE: what went out each season and what it brought (Post Card Expenditure, 2026-09-16)
+  if (PCM.length) {
+    const pcS = y => PCS[y] || pcAgg([]);
+    dual(g6, m => seasonCols(m, "Post cards — mailed per season", `cards mailed ${winLbl} · from the Post Card Expenditure record`, [{ label: "Cards mailed", vals: YEARS.map(y => pcS(y).mailed || null) }], fmtN,
+        { axis: fmtN, lbl: fmtN, span2: false, head: fmtN(pcS(Y).mailed), note: pcS(Y).mailed ? `${fmtN(pcS(Y).leads)} leads (${(pcS(Y).leads / pcS(Y).mailed * 1000).toFixed(2)} per 1,000 cards), ${fmtN(pcS(Y).jobs)} jobs, ${money(pcS(Y).rev)} revenue` + (pcS(Y).cost != null ? ` on ${money(pcS(Y).cost)} of cards — ${x1(pcS(Y).rev / pcS(Y).cost)} per $1` : " — the cost waits on the purchase quantities") : "no cards mailed on file for this window" }),
+      m => table(m, "Post cards — mailed, cost and return", `per season · ${winLbl}`, ["Season", "Mailed", "Cost of mailed", "Leads", "per 1,000", "Jobs", "Revenue", "Per $1"],
+        YEARS.slice().reverse().map(y => { const a = pcS(y); return `<tr>${td(y === Y ? `<b>${y}</b>` : y)}${td(fmtN(a.mailed))}${a.cost != null ? td(money(a.cost)) : `<td class="dim">—</td>`}${td(fmtN(a.leads))}${tdn(a.mailed ? a.leads / a.mailed * 1000 : null, v => v.toFixed(2))}${td(fmtN(a.jobs))}${td(money(a.rev))}${tdn(a.cost > 0 ? a.rev / a.cost : null, x1)}</tr>`; }),
+        { span2: false, how: "Cards mailed per state and month are typed on Post Card Expenditure (Financial); cost of mailed = cards × the cumulative unit cost of the purchases (paid ÷ cards bought). Leads = Moveboard leads whose source is Post Card, by create month and state; revenue = closings with a Post Card source. A season with a mailed month that has no unit cost yet shows no cost." }));
+    const pcBy = (() => { const g = new Map(); pcIn(Y).forEach(r => { const s = g.get(r.State) || { mailed: 0, cogs: 0, unknown: false, leads: 0, jobs: 0, rev: 0 }; const c = num(r["Cards Mailed"]), k = num(r.COGS);
+      s.mailed += c; if (c && k == null) s.unknown = true; else s.cogs += k || 0; s.leads += num(r.Leads); s.jobs += num(r.Jobs); s.rev += num(r.Revenue); g.set(r.State, s); }); return [...g.entries()].filter(([, s]) => s.mailed || s.rev).sort((a, b) => b[1].rev - a[1].rev); })();
+    table(g6, "Post cards by state", `${winLbl} ${Y}`, ["State", "Mailed", "Cost", "Leads", "per 1,000", "Jobs", "Revenue", "Per $1"],
+      pcBy.map(([st, s]) => { const c = s.unknown || !s.mailed ? null : s.cogs; return `<tr>${td(esc(st))}${td(fmtN(s.mailed))}${c != null ? td(money(c)) : `<td class="dim">—</td>`}${td(fmtN(s.leads))}${tdn(s.mailed ? s.leads / s.mailed * 1000 : null, v => v.toFixed(2))}${td(fmtN(s.jobs))}${td(money(s.rev))}${tdn(c > 0 ? s.rev / c : null, x1)}</tr>`; }),
+      { span2: false, how: "The same numbers as the season card, split by the state on the lead." });
+  }
   // Yelp — the card ledger books Yelp as ONE line, so return per $1 is company-wide; the funnel splits by state
   const yelpRows = (rs) => rs.filter(r => /^yelp/i.test(String(r.Source || "")));
   const yc = y => grp(yelpRows(created(y)), key("State Name")), yb = y => grp(yelpRows(booked(y)), key("State Name"));
@@ -1351,7 +1375,6 @@ async function renderSeasonal(host) {
   const gap = card(g7, "In last summer's deck, not in this report yet", "missing data, not missing effort", { span2: true });
   const gl = document.createElement("div"); gl.className = "srx-note how";
   gl.innerHTML = `<b>Needs data we do not have · </b><ul class="srx-gap">
-    <li><b>Postcard conversion rate</b> — needs the number of postcards mailed per drop (or the price per piece). Spend, leads, bookings and the return per $1 per state campaign are in Marketing.</li>
     <li><b>Google Search Console</b> clicks, impressions, CTR, position — not connected yet: it needs the loader's service account added as a user on the Search Console property. Search Console keeps only 16 months, so connecting soon keeps last summer.</li>
     <li><b>Customers lost to price</b> — the Moveboard "proposed price exceeded their budget" flag holds only a lead's latest flag and was barely used before this summer, so it cannot be compared season over season yet. Leads turned away for availability are in Demand.</li></ul>`;
   gap.appendChild(gl);
