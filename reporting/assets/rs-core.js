@@ -81,7 +81,7 @@ window.RS = (function () {
         "Profit", "Total Expense", "Sales Commission", "Satisfaction", "Deposit", "Sales Person",
         "Sales People", "Sales Split N", "Bill Vs Quote Pct", "Refund Total", "Claims N",
         "Review Score", "Flag Never Called", "Flag Slow First Call", "Flag Single Touch",
-        "Flag Big Quote Gap", "Flag Confirmed No Closing"],
+        "Flag Big Quote Gap", "Flag Confirmed No Closing", "Closing Days"],
       dateCols: { "Create Date": "Create Date", "Booked Date": "Booked Date",
         "Move Date": "Move Date", "Closing Date": "Closing Date" },
       defaultDate: "Create Date",

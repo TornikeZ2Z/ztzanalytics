@@ -85,8 +85,9 @@
     const q = num(r["Avg Quote"]), b = num(r["Total Bill"]);
     if (q == null && b == null) return "—";
     if (b == null) return money0(q);
-    const d = r["Bill Vs Quote Pct"];
+    const d = r["Bill Vs Quote Pct"], days = +r["Closing Days"] || 0;
     return `${money0(q)} → <b>${money0(b)}</b>` +
+      (days > 1 ? ` <span class="st-dim" title="Billed on ${days} closing sheets; the actual adds them all up, like the estimate">${days} days</span>` : "") +
       (d != null ? ` <span class="${+d >= 0 ? "st-good" : "st-bad"}">${+d > 0 ? "+" : ""}${pct1(+d)}</span>` : "");
   };
   const stripExt = s => String(s == null ? "" : s).replace(/\b\d+\s*-\s*/g, "").trim();
@@ -555,7 +556,14 @@
     for (let i = 1; i <= 7; i++) {
       if (g("H " + i)) helpers.push(esc(g("H " + i)));
     }
-    const main = `<div class="st-fin">
+    // same 60-day window as the mart's _combine_closings
+    const day0 = Date.parse(String(g("Date") || "").slice(0, 10));
+    const sheets = (cl.__all || []).filter(x => x["Total Bill"] != null &&
+      Math.abs(Date.parse(String(x["Date"] || "").slice(0, 10)) - day0) <= 60 * 864e5);
+    const multi = sheets.length > 1 ? `<div class="st-note" style="margin:0 0 8px">Billed on ${sheets.length} closing sheets: ${
+      sheets.map(x => esc(String(x["Date"] || "").slice(0, 10)) + " " + money0(num(x["Total Bill"]))).join(" · ")
+    }. The tiles below are the last sheet; the estimate comparison adds them all.</div>` : "";
+    const main = multi + `<div class="st-fin">
       ${finCard("Move date", esc((g("Date") || "—").slice(0, 10)))}
       ${finCard("Foreman", esc(g("Foreman") || g("Forman") || "—"), true)}
       ${finCard("Job status", esc(g("Job Status") || "—"), true)}
@@ -742,7 +750,7 @@
         <div class="src">said on the calls &middot; picked up by RingSense</div></div>` : ""}
     </div>` : "";
 
-    if (d.closing) d.closing.__gapPct = j["Bill Vs Quote Pct"];
+    if (d.closing) { d.closing.__gapPct = j["Bill Vs Quote Pct"]; d.closing.__all = d.closings || []; }
     // Facts are grouped and folded. Everything is still here; a lead just opens on the
     // money and the story instead of on seventy tiles.
     drawerEl.querySelector("#stDB").innerHTML = verdict + openBlock +
