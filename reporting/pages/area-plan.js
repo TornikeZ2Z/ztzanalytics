@@ -21,8 +21,10 @@
  * clocks -- the period picker vs "this year" -- and count jobs two ways (the plan by closing
  * rows in the closing's state; the master by last-encounter closings in the lead's pickup
  * city). Both are labelled where they appear and the coverage line says how much of a
- * state's leads the city rows carry. The four external columns (ad spend, ad sources, search
- * volume, wealth tier) are parked by his call and shown as one note, not four blank columns.
+ * state's leads the city rows carry. Outside data (2026-09-15): Zillow home values and Census income /
+ * movers per zip, lead source mix and an ESTIMATED ad cost per city (company cost per lead by source),
+ * a Planning / Marketing view of the master, and the white space: zips within 35 miles of a depot
+ * that never sent a lead. Measured ad spend by area and search volume are still to connect.
  *
  * localStorage: ztzAreaPlan.v5 (the inputs shape gained focus + view state; a v4 blob must
  * not be read).
@@ -45,7 +47,18 @@
              "Nearest Base", "Miles To Base", "Foremen At Base", "Crew At Base", "Untapped",
              "Claims", "Claims Per 100 Jobs", "Claim Refunds", "Claims Gone Public",
              "Top Claim Reason", "Ad Spend", "Ad Sources", "Search Volume", "Wealth Tier",
-             "Latitude", "Longitude"],
+             "Latitude", "Longitude", "Foremen From", "Leads No Jobs", "Lead Source Mix", "Est Ad Cost",
+             "Est Revenue Per Ad Dollar", "Home Value", "Home Value Change Pct", "Home Value As Of",
+             "Median Income", "Mover Rate"],
+    };
+  }
+  // the white space: every zip inside the territory, with the outside signals (2026-09-15)
+  if (window.RS && RS.DATASETS && !RS.DATASETS.area_whitespace) {
+    RS.DATASETS.area_whitespace = {
+      table: "mart_area_whitespace",
+      cols: ["Zip", "City", "County", "State", "Nearest Base", "Miles To Base", "Leads 24m", "Jobs 24m",
+             "Last Lead", "Never A Lead", "Home Value", "Home Value Change Pct", "Population",
+             "Median Income", "Mover Rate", "Movers Per Year"],
     };
   }
 })();
@@ -243,7 +256,8 @@ registerPage({
       ZTZ.api("/api/mart_area_plan_model?limit=1").then(
         j => JSON.parse(((j.rows || [])[0] || {}).payload || "null")).catch(() => null),
       RS.load("area_master").catch(e => ({ __err: e })),
-    ]).then(([rows, model, cityAll]) => {
+      RS.load("area_whitespace").catch(() => null),
+    ]).then(([rows, model, cityAll, wsAll]) => {
       // FOUR DISTINCT FAILURES, each named -- the old page blamed the mart for a model outage
       if (!rows || !rows.length) {
         host.innerHTML = '<div class="panel">The state plan mart (mart_area_plan) is empty — run ' +
@@ -262,6 +276,10 @@ registerPage({
         return;
       }
       const CITYALL = cityAll || [];
+      const WSALL = wsAll || [];
+      // "Leads No Jobs" is the honest name of the old Untapped flag (the city sent leads, nothing booked)
+      const lnj = r => num(r["Leads No Jobs"] != null ? r["Leads No Jobs"] : r.Untapped);
+      const sgnPct = v => (v >= 0 ? "+" : "") + (+v).toFixed(1) + "%";
 
       const MS = model.monthly_states || {};
       const CAPM = model.capacity || {};
@@ -662,8 +680,8 @@ registerPage({
         return CITYALL.filter(r => {
           if (inputs.focus && r.State !== inputs.focus) return false;
           if ((num(r.Leads) || 0) < C.minLeads) return false;
-          if (C.view === "untapped" && num(r.Untapped) !== 1) return false;
-          if (C.view === "working" && num(r.Untapped) === 1) return false;
+          if (C.view === "untapped" && lnj(r) !== 1) return false;
+          if (C.view === "working" && lnj(r) === 1) return false;
           if (C.view === "far" && (num(r["Miles To Base"]) || 0) < 25) return false;
           if (q && !((r.City || "") + " " + (r.County || "") + " " + (r.State || "")).toLowerCase().includes(q)) return false;
           return true;
@@ -674,7 +692,7 @@ registerPage({
         const rs = cityRows();
         const T = k => rs.reduce((a, r) => a + (num(r[k]) || 0), 0);
         const leads = T("Leads"), booked = T("Booked"), jobs = T("Jobs"), rev = T("Revenue");
-        const untapped = rs.filter(r => num(r.Untapped) === 1);
+        const untapped = rs.filter(r => lnj(r) === 1);
         const untappedLeads = untapped.reduce((a, r) => a + (num(r.Leads) || 0), 0);
         const noCrew = rs.filter(r => (num(r["Foremen At Base"]) || 0) === 0);
         const noCrewLeads = noCrew.reduce((a, r) => a + (num(r.Leads) || 0), 0);
@@ -707,7 +725,8 @@ registerPage({
           '<span class="clock">every city · <b>' + yr + ' year to date</b> · all companies · this half does not follow the period picker above</span></div>' +
           '<div class="ap2-say">Booked here means <b>a closing exists</b> — the same rule as the plan. Distance is <b>straight-line</b> to the nearest active base. Jobs are last-encounter closings placed by the lead\'s pickup city, so a state total in Band A will not equal the sum of its cities. ' +
           (stateLeadsYtd ? "These " + fmtN(rs.length) + " cities carry <b>" + fmtN(leads) + "</b> of the <b>" + fmtN(stateLeadsYtd) + "</b> leads " + (inputs.focus ? esc(inputs.focus) : "all states") + " produced this year; the rest are cities under the " + C.minLeads + "-lead floor (" + fmtN(belowFloor) + " leads), under 5 leads, or with no city name. " : "") +
-          "The ad-spend, ad-source, search-volume and wealth columns are parked until Google Ads and the other platforms are connected.</div>" +
+          (CITYALL.some(r => r["Home Value"] != null) ? "Home values are Zillow's typical value per zip (as of <b>" + esc(String((CITYALL.find(r => r["Home Value As Of"]) || {})["Home Value As Of"] || "").slice(0, 7)) + "</b>), weighted by where the city's leads came from. " : "") +
+          "Switch the master to <b>Marketing</b> for lead sources, an <b>estimated</b> ad cost per city and the outside signals. Measured ad spend by area (Google Ads) and search volume (Semrush) are still to connect.</div>" +
           '<div class="ap2-bar"><div class="rs-fld"><span>Focus</span><div>' + stateChips + "</div></div></div>" +
 
           '<div class="panel ap2-led">' +
@@ -715,7 +734,7 @@ registerPage({
             '<div class="s"><b>' + fmtN(leads) + "</b> leads · <b>" + fmtN(booked) + "</b> booked (" + (leads ? (booked / leads * 100).toFixed(1) : "—") + "%)</div></div>" +
           '<div class="ap2-led-g"><div class="l">Revenue</div><div class="v">' + money0(rev) + '</div>' +
             '<div class="s"><b>' + fmtN(jobs) + "</b> jobs · <b>" + money0(leads ? rev / leads : 0) + "</b> per lead</div></div>" +
-          '<div class="ap2-led-g"><div class="l">Never worked</div><div class="v' + (untapped.length ? " warn" : "") + '">' + fmtN(untapped.length) + '</div>' +
+          '<div class="ap2-led-g"><div class="l">Leads, no jobs</div><div class="v' + (untapped.length ? " warn" : "") + '">' + fmtN(untapped.length) + '</div>' +
             '<div class="s">cities sent <b>' + fmtN(untappedLeads) + "</b> leads and produced no job</div></div>" +
           '<div class="ap2-led-g"><div class="l">No crew behind them</div><div class="v' + (noCrew.length ? " warn" : "") + '">' + fmtN(noCrew.length) + '</div>' +
             '<div class="s"><b>' + fmtN(noCrewLeads) + "</b> leads whose nearest base has no foreman on the register</div></div>" +
@@ -760,7 +779,87 @@ registerPage({
             '<div class="rs-spacer"></div><span class="rs-pill" id="apCityCount"></span>' +
             '<button class="rs-btn" id="apDl">Download CSV</button></div>' +
             '<div class="ap2-bar" id="apCityBar"></div>' +
-            '<div id="apCityTable"></div></div>';
+            '<div id="apCityTable"></div></div>' +
+          '<div id="apWs">' + wsHtml() + "</div>";
+      }
+
+      /* THE WHITE SPACE (Giga, 2026-09-15): zips inside the territory that never sent a lead */
+      function wsNever() {
+        return WSALL.filter(r => (!inputs.focus || r.State === inputs.focus) && num(r["Never A Lead"]) === 1);
+      }
+      function wsSorted() {
+        const k = C.wsSort || "Home Value";
+        return wsNever().sort((a, b) => k === "Miles To Base" ? num(a[k]) - num(b[k]) : num(b[k]) - num(a[k]));
+      }
+      function wsHtml() {
+        if (!WSALL.length) return '<div class="panel" style="margin-top:12px"><div class="panel-title">White space</div>' +
+          '<div class="ap2-say">The territory table (mart_area_whitespace) has not been built yet — it arrives with the next data refresh.</div></div>';
+        const inF = WSALL.filter(r => !inputs.focus || r.State === inputs.focus);
+        const k = C.wsSort || "Home Value", rs = wsSorted();
+        const hasAcs = WSALL.some(r => r["Movers Per Year"] != null), hasHv = WSALL.some(r => r["Home Value"] != null);
+        const d = '<span class="ap2-small">—</span>';
+        const btn = (key, label) => '<button class="' + (k === key ? "on" : "") + '" data-wssort="' + esc(key) + '">' + label + "</button>";
+        return '<div class="panel" style="margin-top:12px"><div class="panel-head"><div class="panel-title">White space — within 35 miles of a depot, no lead in two years</div>' +
+          '<div class="rs-spacer"></div><span class="rs-pill">' + fmtN(rs.length) + " of " + fmtN(inF.length) + ' zips</span>' +
+          '<button class="rs-btn" id="apWsDl">Download CSV</button></div>' +
+          '<div class="ap2-say">Every zip within <b>35 straight-line miles</b> of an active depot' + (inputs.focus ? " in " + esc(inputs.focus) : "") +
+            " that has not sent a single lead in two years — where to start next season. " +
+            (hasHv ? "Home value is Zillow's typical value for the zip. " : "") +
+            (hasAcs ? "Movers per year = the Census population × the share of households that moved last year. " : "Census income and movers per year appear once a Census API key is connected. ") + "</div>" +
+          '<div class="rs-seg" style="margin:0 0 10px">' + btn("Home Value", "Highest home value") + btn("Miles To Base", "Closest") +
+            (hasAcs ? btn("Movers Per Year", "Most movers") : "") + "</div>" +
+          '<div class="rs-tablewrap"><table class="rs-table"><thead><tr><th>Zip</th><th>Town</th><th>County</th><th>St</th><th>Base</th>' +
+            '<th class="num">Miles</th><th class="num">Home value</th><th class="num">12 months</th>' +
+            (hasAcs ? '<th class="num">Income</th><th class="num">Movers / yr</th>' : "") + "</tr></thead><tbody>" +
+          rs.slice(0, 40).map(r => "<tr><td>" + esc(r.Zip) + '</td><td class="strong">' + esc(r.City || "—") + '</td><td class="muted">' + esc(r.County || "—") + "</td>" +
+            "<td>" + esc(r.State) + "</td><td>" + esc(r["Nearest Base"] || "—") + '</td><td class="num">' + r1(num(r["Miles To Base"])) + "</td>" +
+            '<td class="num">' + (r["Home Value"] != null ? money0(num(r["Home Value"])) : d) + "</td>" +
+            '<td class="num">' + (r["Home Value Change Pct"] != null ? sgnPct(num(r["Home Value Change Pct"])) : d) + "</td>" +
+            (hasAcs ? '<td class="num">' + (r["Median Income"] != null ? money0(num(r["Median Income"])) : d) + '</td><td class="num">' + (r["Movers Per Year"] != null ? fmtN(num(r["Movers Per Year"])) : d) + "</td>" : "") +
+            "</tr>").join("") + "</tbody></table></div>" +
+          (rs.length > 40 ? '<div class="ap2-note" style="margin-top:6px">The top 40 are shown — the CSV has all ' + fmtN(rs.length) + ".</div>" : "") + "</div>";
+      }
+      function wsCsv() {
+        const cols = RS.DATASETS.area_whitespace.cols.slice();
+        const cell = x => { let s = String(x == null ? "" : x); if (/^[=+\-@]/.test(s)) s = " " + s; return '"' + s.replace(/"/g, '""') + '"'; };
+        const lines = [cols.map(cell).join(",")].concat(wsSorted().map(r => cols.map(c => cell(r[c])).join(",")));
+        const blob = new Blob(["\ufeff" + lines.join("\r\n")], { type: "text/csv;charset=utf-8" });
+        const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
+        a.download = "Seasonal Planning - white space" + (inputs.focus ? " - " + inputs.focus : "") + ".csv"; a.click();
+        setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+      }
+      function wireWs() {
+        host.querySelectorAll("#apWs [data-wssort]").forEach(el => el.onclick = () => {
+          C.wsSort = el.dataset.wssort; save(); const w = host.querySelector("#apWs"); if (w) { w.innerHTML = wsHtml(); wireWs(); } });
+        const dl = host.querySelector("#apWsDl"); if (dl) dl.onclick = wsCsv;
+      }
+
+      /* THE MARKETING VIEW of the same rows: where the leads come from, what they cost (estimated), the outside signals */
+      function mktTableHtml(pageRows, th, pages) {
+        const d = '<span class="ap2-small">—</span>';
+        return '<div class="rs-tablewrap"><table class="rs-table"><thead><tr>' +
+          th("City", "City") + th("St", "State") + th("Leads", "Leads", "num") + th("Book %", "Booking Rate", "num") +
+          th("Revenue", "Revenue", "num") + th("$/lead", "Revenue Per Lead", "num") + th("Lead sources", "Lead Source Mix") +
+          th("Est. ad cost", "Est Ad Cost", "num") + th("Revenue / ad $ (est.)", "Est Revenue Per Ad Dollar", "num") +
+          th("Home value", "Home Value", "num") + th("12 months", "Home Value Change Pct", "num") +
+          th("Income", "Median Income", "num") + th("Moved last yr", "Mover Rate", "num") + th("Wealth", "Wealth Tier") +
+          "</tr></thead><tbody>" + pageRows.map(r => "<tr>" +
+            '<td class="strong">' + esc(r.City) + (lnj(r) === 1 ? ' <span class="rs-pill warn">no jobs</span>' : "") + "</td><td>" + esc(r.State) + "</td>" +
+            '<td class="num">' + fmtN(num(r.Leads)) + '</td><td class="num">' + r1(num(r["Booking Rate"])) + "%</td>" +
+            '<td class="num">' + money0(num(r.Revenue)) + '</td><td class="num">' + money0(num(r["Revenue Per Lead"])) + "</td>" +
+            '<td class="muted" style="white-space:nowrap">' + esc(r["Lead Source Mix"] || "—") + "</td>" +
+            '<td class="num">' + (r["Est Ad Cost"] != null ? money0(num(r["Est Ad Cost"])) : d) + "</td>" +
+            '<td class="num">' + (r["Est Revenue Per Ad Dollar"] != null ? "$" + num(r["Est Revenue Per Ad Dollar"]).toFixed(1) : d) + "</td>" +
+            '<td class="num">' + (r["Home Value"] != null ? money0(num(r["Home Value"])) : d) + "</td>" +
+            '<td class="num">' + (r["Home Value Change Pct"] != null ? sgnPct(num(r["Home Value Change Pct"])) : d) + "</td>" +
+            '<td class="num">' + (r["Median Income"] != null ? money0(num(r["Median Income"])) : d) + "</td>" +
+            '<td class="num">' + (r["Mover Rate"] != null ? (num(r["Mover Rate"]) * 100).toFixed(1) + "%" : d) + "</td>" +
+            "<td>" + esc(r["Wealth Tier"] || "—") + "</td></tr>").join("") +
+          "</tbody></table></div>" +
+          '<div class="ap2-note" style="margin-top:6px">Estimated ad cost = the city\'s leads by source × that source\'s company-wide cost per lead over the last 12 months (card spend ÷ leads). No spend we hold has geography, so this is an estimate, not measured spend. Revenue per lead is a yield, not a return. Wealth tier = the city\'s home-value fifth among these cities.</div>' +
+          '<div class="ap2-pager"><span>page ' + (C.page + 1) + " of " + pages + "</span>" +
+          '<button class="rs-btn" data-pg="prev"' + (C.page <= 0 ? " disabled" : "") + '>‹ Prev</button>' +
+          '<button class="rs-btn" data-pg="next"' + (C.page >= pages - 1 ? " disabled" : "") + '>Next ›</button></div>';
       }
 
       function cityTableHtml() {
@@ -778,6 +877,7 @@ registerPage({
         const th = (label, key, cls) => '<th class="ap2-th ' + (cls || "") + (C.sort === key ? " on" : "") + '" data-sort="' + esc(key) + '">' +
           esc(label) + (C.sort === key ? (C.desc ? " ↓" : " ↑") : "") + "</th>";
         const cnt = host.querySelector("#apCityCount"); if (cnt) cnt.textContent = fmtN(sorted.length) + " cities";
+        if (C.mode === "marketing") return mktTableHtml(pageRows, th, pages);
         return '<div class="rs-tablewrap"><table class="rs-table"><thead><tr>' +
           th("City", "City") + th("St", "State") + th("County", "County") +
           th("Leads", "Leads", "num") + th("90d", "Leads 90d", "num") + th("Booked", "Booked", "num") + th("Book %", "Booking Rate", "num") +
@@ -786,7 +886,7 @@ registerPage({
           th("Base", "Nearest Base") + th("Miles", "Miles To Base", "num") + th("Foremen / crew", "Foremen At Base", "num") +
           th("Claims", "Claims", "num") + th("% of jobs", "Claims Per 100 Jobs", "num") +
           "</tr></thead><tbody>" + pageRows.map(r => '<tr>' +
-            '<td class="strong">' + esc(r.City) + (num(r.Untapped) === 1 ? ' <span class="rs-pill warn">no jobs</span>' : "") + "</td>" +
+            '<td class="strong">' + esc(r.City) + (lnj(r) === 1 ? ' <span class="rs-pill warn">no jobs</span>' : "") + "</td>" +
             "<td>" + esc(r.State) + '</td><td class="muted">' + esc(r.County || "—") + "</td>" +
             '<td class="num">' + fmtN(num(r.Leads)) + '</td><td class="num">' + fmtN(num(r["Leads 90d"])) + "</td>" +
             '<td class="num">' + fmtN(num(r.Booked)) + '</td><td class="num">' + r1(num(r["Booking Rate"])) + "%</td>" +
@@ -796,7 +896,8 @@ registerPage({
             '<td class="num">' + (r["Avg CF"] ? fmtN(num(r["Avg CF"])) : '<span class="ap2-small">—</span>') + "</td>" +
             "<td>" + esc(r["Nearest Base"] || "—") + "</td>" +
             '<td class="num">' + (r["Nearest Base"] ? r1(num(r["Miles To Base"])) : '<span class="ap2-small">—</span>') + "</td>" +
-            '<td class="num">' + ((num(r["Foremen At Base"]) || 0) || '<span class="ap2-small">0</span>') + ' <span class="ap2-small">/ ' + (num(r["Crew At Base"]) || 0) + "</span></td>" +
+            '<td class="num">' + ((num(r["Foremen At Base"]) || 0) || '<span class="ap2-small">0</span>') + ' <span class="ap2-small">/ ' + (num(r["Crew At Base"]) || 0) + "</span>" +
+              (r["Foremen From"] && r["Foremen From"] !== r["Nearest Base"] ? ' <span class="ap2-small">· ' + esc(r["Foremen From"]) + "</span>" : "") + "</td>" +
             '<td class="num">' + ((num(r.Claims) || 0) || '<span class="ap2-small">—</span>') + "</td>" +
             '<td class="num">' + ((num(r.Claims) || 0) ? r1(num(r["Claims Per 100 Jobs"])) + "%" : '<span class="ap2-small">—</span>') + "</td></tr>").join("") +
           "</tbody></table></div>" +
@@ -820,7 +921,8 @@ registerPage({
           });
           return s;
         };
-        bar.appendChild(fld("Show", seg([["all", "All"], ["working", "We work there"], ["untapped", "Never worked"], ["far", "25+ miles out"]], C.view, v => { C.view = v; })));
+        bar.appendChild(fld("View", seg([["planning", "Planning"], ["marketing", "Marketing"]], C.mode || "planning", v => { C.mode = v; })));
+        bar.appendChild(fld("Show", seg([["all", "All"], ["working", "We work there"], ["untapped", "Leads, no jobs"], ["far", "25+ miles out"]], C.view, v => { C.view = v; })));
         bar.appendChild(fld("Min leads", seg([[5, "5"], [20, "20"], [50, "50"], [100, "100"]], C.minLeads, v => { C.minLeads = v; })));
         const q = document.createElement("input");
         q.className = "ap2-in"; q.placeholder = "find a city or county…"; q.value = C.q; q.style.flex = "0 1 240px";
@@ -937,7 +1039,7 @@ registerPage({
       }
       function repaintBandB() {
         const b = host.querySelector("#apBandB"); if (!b) return;
-        b.innerHTML = bandBHtml(); repaintCity(); wireFocus(b);
+        b.innerHTML = bandBHtml(); repaintCity(); wireFocus(b); wireWs();
       }
       function wireCityTable() {
         host.querySelectorAll("#apCityTable [data-sort]").forEach(el => el.onclick = () => {
@@ -989,7 +1091,7 @@ registerPage({
         const un = host.querySelector("[data-unfocus]"); if (un) un.onclick = ev => { ev.preventDefault(); inputs.focus = ""; setFocus(""); };
       }
       function wire() {
-        wireControls(); wireFocus(); mountCityBar(); repaintCity();
+        wireControls(); wireFocus(); mountCityBar(); repaintCity(); wireWs();
       }
       function save() { try { localStorage.setItem(LS_KEY, JSON.stringify(inputs)); } catch (e) {} }
 
