@@ -183,6 +183,7 @@ const GROUP_OVERRIDE = {
   "angi-funnel": "marketing",
   "utm-campaigns": "marketing",
   "promised-reviews": "marketing",
+  "birdeye-sends": "marketing",
   "referral-candidates": "marketing",
   // Company Overview
   "monthly-report": "company", "seasonal-report": "company", "analysis-by-category": "company",
@@ -231,7 +232,7 @@ const NAV_ORDER = {
   "data-quality": 2, "refresh-log": 1, "general-settings": 3, "general-tables": 4, "admin-users": 5,
   "admin-activity": 5.5,
   "source-trace": 8, "meta-referrals": 10, "referral-candidates": 11, "jobs-by-area": 12, "packing-sales": 12.5,
-  "relocation-trends": 13, "angi-funnel": 13.5, "utm-campaigns": 13.7, "promised-reviews": 14,
+  "relocation-trends": 13, "angi-funnel": 13.5, "utm-campaigns": 13.7, "promised-reviews": 14, "birdeye-sends": 14.2,
 };
 
 /* Inline SVG icon set (Feather-style, stroke-based) — no emojis anywhere. */
@@ -298,7 +299,7 @@ const PAGE_ICONS = {
   "log-foreman": "tool", "log-packing": "box",
   "fin-revenue": "trend", "fin-rr": "trend", "rev-production": "star",
   "sup-claims": "shield", "sup-refunds": "clipboard", "sup-phone": "phone",
-  "general-settings": "sliders", "general-tables": "grid", "admin-activity": "clock", "data-quality": "clipboard", "data-migration": "share-2", "refresh-log": "activity", "source-trace": "activity", "meta-referrals": "upload-cloud", "referral-candidates": "gift", "jobs-by-area": "map-pin", "packing-sales": "package", "relocation-trends": "trending-up", "angi-funnel": "funnel", "utm-campaigns": "link", "promised-reviews": "star", "calendar-coverage": "calendar", "request-consistency": "alert-triangle", "review-performance": "star", "reviews-reminders": "megaphone", "response-analysis": "activity", "review-settings": "tool", "reviews-cases": "star", "claims-analysis": "alert-triangle", "area-plan": "map-pin", "season-settings": "sliders",
+  "general-settings": "sliders", "general-tables": "grid", "admin-activity": "clock", "data-quality": "clipboard", "data-migration": "share-2", "refresh-log": "activity", "source-trace": "activity", "meta-referrals": "upload-cloud", "referral-candidates": "gift", "jobs-by-area": "map-pin", "packing-sales": "package", "relocation-trends": "trending-up", "angi-funnel": "funnel", "utm-campaigns": "link", "promised-reviews": "star", "birdeye-sends": "megaphone", "calendar-coverage": "calendar", "request-consistency": "alert-triangle", "review-performance": "star", "reviews-reminders": "megaphone", "response-analysis": "activity", "review-settings": "tool", "reviews-cases": "star", "claims-analysis": "alert-triangle", "area-plan": "map-pin", "season-settings": "sliders",
 };
 
 /* Pages not yet built — shown greyed with a SOON tag so the full scope is visible. */
@@ -705,6 +706,7 @@ const PAGE_DATASETS = {
   // submission timestamp at all, so this table has no date of its own to slice on.
   "utm-campaigns": [],
   "promised-reviews": [],      // loads its own mart + the Birdie log; no global slicers apply
+  "birdeye-sends": [],         // its own two marts, its own week picker; no global slicers apply
   "calendar-coverage": [],
   "request-consistency": [],
   "review-performance": [],
@@ -945,7 +947,7 @@ function navigate(id, push) {
 /* Pages that bring their OWN toolbar and ignore the global filter bar (PAGE_DATASETS=[])
    render "bare" — the global date/slicer bar + company chip are hidden so the page's board
    starts right under the header instead of below two rows of greyed-out, unusable filters. */
-const BARE_CHROME = new Set(["sales-of-the-month", "review-performance", "reviews-cases", "claims-analysis", "demand-analysis", "reviews-reminders", "response-analysis", "review-settings", "monthly-report", "seasonal-report", "money-flow", "ld-planning", "cleanup", "packing-control", "crew-salaries", "storage-control", "foreman-assessment", "fuel-control", "foreman-closings", "refresh-log", "general-tables", "hr-questionnaire", "hr-my-questionnaire", "hr-directory", "conversations", "sales-comms", "referral-candidates", "jobs-by-area", "packing-sales", "meta-referrals", "relocation-trends", "angi-funnel", "utm-campaigns", "promised-reviews",
+const BARE_CHROME = new Set(["sales-of-the-month", "review-performance", "reviews-cases", "claims-analysis", "demand-analysis", "reviews-reminders", "response-analysis", "review-settings", "monthly-report", "seasonal-report", "money-flow", "ld-planning", "cleanup", "packing-control", "crew-salaries", "storage-control", "foreman-assessment", "fuel-control", "foreman-closings", "refresh-log", "general-tables", "hr-questionnaire", "hr-my-questionnaire", "hr-directory", "conversations", "sales-comms", "referral-candidates", "jobs-by-area", "packing-sales", "meta-referrals", "relocation-trends", "angi-funnel", "utm-campaigns", "promised-reviews", "birdeye-sends",
   // ERP Bug Briefs has nothing a global slicer could act on; the greyed bar only got in the way
   "erp-briefs",
   // Straight vs Local reads its whole history on purpose (Tornike 2026-08-19: "i dont need
@@ -1653,7 +1655,7 @@ const aclIconFor = id => (MERGED.find(m => m.id === id) || {}).icon ||
 const ACL_DEPTS = [
   { id: "company",   label: "Company Overview", icon: "spark",     reports: ["work", "erp-briefs","monthly-report", "seasonal-report", "analysis-by-category"] },
   { id: "sales",     label: "Sales",            icon: "funnel",    reports: ["work", "erp-briefs","sales-command", "sales-of-the-month", "demand-analysis", "conversations", "sales-comms", "sales-trackers"] },
-  { id: "marketing", label: "Marketing",        icon: "megaphone", reports: ["work", "erp-briefs","source-trace", "referral-candidates", "jobs-by-area", "packing-sales", "relocation-trends", "angi-funnel", "utm-campaigns", "promised-reviews"] },
+  { id: "marketing", label: "Marketing",        icon: "megaphone", reports: ["work", "erp-briefs","source-trace", "referral-candidates", "jobs-by-area", "packing-sales", "relocation-trends", "angi-funnel", "utm-campaigns", "promised-reviews", "birdeye-sends"] },
   { id: "logistics", label: "Logistics",        icon: "tool",      reports: ["work", "erp-briefs","money-flow", "ld-planning", "foreman-closings", "packing-control", "crew-salaries", "storage-control", "foreman-assessment", "fuel-control", "foreman-late", "straight-vs-local", "area-plan", "season-settings", "truck-economics"] },
   // MUST mirror DEPT_REPORTS["hr"] in bridge/app.py. Employees answering the questionnaire
   // need NO grant at all — this tile is for HR: managing it and reading the results.
@@ -1883,6 +1885,7 @@ registerPage({
 <script src="pages/utm-campaigns.js?v=2"></script>
 <script src="pages/angi-funnel.js?v=8"></script>
 <script src="pages/promised-reviews.js?v=13"></script>
+<script src="pages/birdeye-sends.js?v=1"></script>
 <script src="pages/foreman-late.js?v=14"></script>
 <script src="pages/referral-candidates.js?v=11"></script>
 <script src="pages/calendar-coverage.js?v=8"></script>
