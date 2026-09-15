@@ -2233,7 +2233,7 @@ async function renderMonthly(host, MRCFG) {
         const inP = r => spanYMs.includes(String(r.Month));
         const lyYMs = spanYMs.map(ym => (+ym.slice(0, 4) - 1) + ym.slice(4));
         const agg = rs => { const a = { mailed: 0, cogs: 0, unknown: false, leads: 0, booked: 0, jobs: 0, rev: 0 };
-          rs.forEach(r => { const c = num(r["Cards Mailed"]), k = num(r.COGS); a.mailed += c; if (c && k == null) a.unknown = true; else a.cogs += k || 0;
+          rs.forEach(r => { const c = num(r["Cards Mailed"]), k = r.COGS == null ? null : num(r.COGS); a.mailed += c; if (c && k == null) a.unknown = true; else a.cogs += k || 0;
             a.leads += num(r.Leads); a.booked += num(r.Booked); a.jobs += num(r.Jobs); a.rev += num(r.Revenue); });
           a.cost = a.unknown || !a.mailed ? null : a.cogs; return a; };
         const cur = agg(pcm.filter(inP)), ly = agg(pcm.filter(r => lyYMs.includes(String(r.Month))));
