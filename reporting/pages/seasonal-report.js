@@ -39,12 +39,12 @@ async function renderSeasonal(host) {
     grab("scorecard"), grab("helper_salaries"), grab("sales_salaries")]);
   // the season-gap marts (2026-09-15) are SOFT: until the loader has built them a missing one hides its card
   const soft = url => ZTZ.api(url).then(j => j.rows || []).catch(e => { console.warn("SR optional feed:", url, e); return null; });
-  const [callrail, rcLine, rcAgent, arrival, surge, rcRepIn, longDist] = await Promise.all([
+  const [callrail, rcLine, rcAgent, arrival, surge, rcRepIn] = await Promise.all([
     grab("callrail"),
     api("RingCentral lines", "/api/mart_rc_monthly_line?limit=100000"),
     api("RingCentral teammates", "/api/mart_rc_monthly_agent?limit=100000"),
     soft("/api/mart_job_arrival?limit=200000"), soft("/api/mart_surge_day?limit=50000"),
-    soft("/api/mart_rc_monthly_rep_inbound?limit=100000"), grab("long_distance")]);
+    soft("/api/mart_rc_monthly_rep_inbound?limit=100000")]);
   const DS = { closing, moveboard, claims, refunds, card_expenses: cardEx, callrail };
   /* Claims + reviews deep-dives read tables that are granted with Claims Analysis / Review Performance.
      They are OPTIONAL here: a reader without those pages gets a note on the section (never a red
@@ -771,25 +771,6 @@ async function renderSeasonal(host) {
     YEARS.slice().reverse().map(y => { const c = cl(y), l = c.filter(r => !isLD(r)), d = c.filter(isLD), bb = bill(c);
       return `<tr>${td(y === Y ? `<b>${y}</b>` : y)}${td(fmtN(l.length))}${td(money(bill(l)))}${td(money(ncc(l)))}${td(fmtN(d.length))}${td(money(bill(d)))}${td(money(ncc(d)))}${tdn(bb ? bill(d) / bb : null, pct)}</tr>`; }),
     { groups: [["", 1], ["Local moving", 3], ["Long distance (regular + straight)", 3], ["", 1]] }));
-
-  /* CARRIER CF vs WRITTEN CF (his confirmation 2026-09-15: the long-distance sheet's "CF (real)" is the carrier's CF).
-     The sheet row joins its closing on Unique Key; the written CF is the Moveboard lead's Total CF on that request. */
-  if (longDist && longDist.length) {
-    const clByUk = new Map(closing.filter(r => r["Unique Key"]).map(r => [String(r["Unique Key"]), r]));
-    const cfByJk = new Map(); moveboard.forEach(r => { if (r["Request Joinkey"] && num(r["Total CF"]) > 0) cfByJk.set(String(r["Request Joinkey"]), num(r["Total CF"])); });
-    const sp1 = v => v == null || !isFinite(v) ? "—" : (v >= 0 ? "+" : "") + (v * 100).toFixed(1) + "%";
-    const ldIn = y => { let jobs = 0; const xs = [];
-      longDist.forEach(r => { const c = clByUk.get(String(r["Unique Key"] || "")); if (!c || String(c.Company) !== CO || !inWin(c._d || c.Date, y)) return; jobs++;
-        const car = num(r.CF), wr = cfByJk.get(String(c["Request Joinkey"] || "")); if (car > 0 && wr > 0) xs.push({ car, wr, pay: num(r["Total To Carrier"]) }); });
-      const car = xs.reduce((t, x) => t + x.car, 0), wr = xs.reduce((t, x) => t + x.wr, 0), pay = xs.reduce((t, x) => t + (x.pay > 0 ? x.pay : 0), 0), carPaid = xs.reduce((t, x) => t + (x.pay > 0 ? x.car : 0), 0);
-      return { jobs, n: xs.length, car, wr, diff: wr ? car / wr - 1 : null, over: xs.filter(x => x.car > x.wr * 1.1).length, under: xs.filter(x => x.car < x.wr * 0.9).length, perCf: carPaid ? pay / carPaid : null }; };
-    const LDV = {}; YEARS.forEach(y => { LDV[y] = ldIn(y); });
-    dual(g2, m => seasonCols(m, "Long distance — the carrier's CF against the CF sales wrote", "pooled difference per season · + = the carrier measured more", [{ label: "Carrier vs written", vals: YEARS.map(y => LDV[y].n ? LDV[y].diff : null) }], sp1,
-        { axis: pct0, span2: false, head: sp1(LDV[Y].diff), note: `${fmtN(LDV[Y].n)} of ${fmtN(LDV[Y].jobs)} long-distance jobs this season have the carrier's CF on the sheet; ${fmtN(LDV[Y].over)} came in more than 10% above what sales wrote and ${fmtN(LDV[Y].under)} more than 10% below.` }),
-      m => table(m, "Long distance — the carrier's CF against the CF sales wrote", "per season", ["Season", "LD jobs", "With carrier CF", "Written CF", "Carrier CF", "Difference", "10%+ over", "10%+ under", "Carrier $ / CF"],
-        YEARS.slice().reverse().map(y => { const v = LDV[y]; return `<tr>${td(y === Y ? `<b>${y}</b>` : y)}${td(fmtN(v.jobs))}${td(fmtN(v.n))}${td(fmtN(v.wr))}${td(fmtN(v.car))}${v.diff == null ? `<td class="dim">—</td>` : `<td class="${Math.abs(v.diff) <= .05 ? "" : v.diff > 0 ? "up" : "dn"}">${sp1(v.diff)}</td>`}${td(fmtN(v.over))}${td(fmtN(v.under))}${tdn(v.perCf, x => "$" + x.toFixed(2))}</tr>`; }),
-        { span2: false, how: "Carrier CF = \"CF (real)\" on the long-distance sheet; written CF = the Moveboard lead's Total CF, matched through the closing. Only jobs with both are compared, and the sheet's CF is filled on about half of long-distance jobs (often after delivery), so this covers the recorded jobs only. Difference = total carrier CF ÷ total written CF − 1. Carrier $ / CF = what was paid to the carrier ÷ the carrier's CF, on jobs with a payment." }));
-  }
 
   // states, this season vs last
   const states = [...new Set([...stTY.keys(), ...stLY.keys()])].map(s => { const a = stTY.get(s) || [], b = stLY.get(s) || [];
