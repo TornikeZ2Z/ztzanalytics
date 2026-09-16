@@ -125,7 +125,36 @@ registerPage({
       Object.keys(PUR).forEach(k => { if (live[k]) { PUR[k].splits = live[k].splits; PUR[k].note = live[k].note; PUR[k].opening = live[k].opening; } else { PUR[k].splits = []; PUR[k].note = null; PUR[k].opening = null; } });
     }
     const purch = Object.values(PUR).sort((a, b) => b.date.localeCompare(a.date));
-    const qtyOf = p => p.splits.reduce((t, s) => t + s.qty, 0);
+    const qtyTyped = p => p.splits.reduce((t, s) => t + s.qty, 0);
+    // the quantity that COUNTS: implied by reorders (s.iq, set by deriveQuantities) — typed only where no next buy exists
+    const qtyOf = p => p.splits.reduce((t, s) => t + (s.iq != null ? s.iq : s.qty), 0);
+    const SHELF = 1500;                              // his rule: ~1,500 cards are left when a state reorders
+
+    // cards mailed in a state between two dates (from incl., to excl.); monthly totals prorated by days
+    const DAYS = (y, m) => new Date(Date.UTC(y, m, 0)).getUTCDate();
+    function mailedBetween(st, d0, d1) {
+      let tot = 0;
+      Object.keys(MAIL).forEach(k => { const [ym, s] = k.split("|"); if (s !== st) return;
+        const y = +ym.slice(0, 4), m = +ym.slice(5, 7), days = DAYS(y, m);
+        const ms = Date.UTC(y, m - 1, 1), me = Date.UTC(y, m - 1, days) + 86400000;      // month end, exclusive
+        const lo = Math.max(ms, Date.parse(d0 + "T00:00:00Z")), hi = d1 ? Math.min(me, Date.parse(d1 + "T00:00:00Z")) : me;
+        if (hi > lo) tot += MAIL[k] * ((hi - lo) / 86400000) / days; });
+      return tot;
+    }
+    // his rule made operational: per state, a buy = what the state mailed until its next buy. The latest buy of a
+    // state keeps its typed size (nothing to measure it against yet); pooled and 'before' splits keep the typed size.
+    function deriveQuantities() {
+      const by = {};
+      purch.forEach(p => p.splits.forEach(s => { s.iq = null; s.basis = "typed";
+        if (p.role === "before" || !s.state) return;
+        (by[s.state] = by[s.state] || {}); (by[s.state][p.date] = by[s.state][p.date] || []).push(s); }));
+      Object.keys(by).forEach(st => { const dates = Object.keys(by[st]).sort();
+        dates.forEach((d, i) => { const nxt = dates[i + 1] || null, group = by[st][d];
+          if (!nxt) { group.forEach(s => { s.basis = "latest buy"; }); return; }
+          const mailed = mailedBetween(st, d, nxt), typed = group.reduce((t, s) => t + s.qty, 0);
+          group.forEach(s => { s.iq = Math.round(mailed * s.qty / typed); s.basis = "reorder"; s.next = nxt; }); }); });
+      return by;
+    }
 
     // his rule: the balance and the unit cost start at the FIRST MAILED MONTH. The last purchase date before that
     // month is the opening stock; every purchase before it was used up in mailings nobody recorded and stays out.
@@ -162,6 +191,7 @@ registerPage({
     }
     function calc() {
       const R = assignRoles();
+      deriveQuantities();
       const uc = unitCostByMonth();
       const ret = {};                                // "ym|st" -> {leads, booked, jobs, rev} from the mart
       month.forEach(r => { ret[r.Month + "|" + r.State] = { leads: num(r.Leads) || 0, booked: num(r.Booked) || 0, jobs: num(r.Jobs) || 0, rev: num(r.Revenue) || 0 }; });
@@ -172,11 +202,17 @@ registerPage({
       const P = purch.filter(p => inYear(p.date.slice(0, 7)));
       const sum = (a, f) => a.reduce((t, r) => t + (f(r) || 0), 0);
       // the stock: all-time, never filtered by the year chips -- opening + bought since - mailed since the record began
+      // opening per state = the shelf (~1,500) + what the state mailed before its first buy in the record;
+      // bought = implied quantities (latest buy typed); in stock = opening + bought − mailed = shelf + latest buy − mailed since it
       const stock = { fm: R.fm, od: R.od, open: 0, since: 0, mailed: 0, byState: {}, last: Object.keys(MAIL).map(k => k.slice(0, 7)).sort().pop() || null,
         before: purch.filter(p => p.role === "before").length, beforeSpend: sum(purch.filter(p => p.role === "before"), p => p.amount) };
-      const stS = st => stock.byState[st] || (stock.byState[st] = { open: 0, since: 0, mailed: 0 });
-      purch.forEach(p => { if (p.role === "before") return; p.splits.forEach(s => { const k = p.role === "opening" ? "open" : "since"; stock[k] += s.qty; stS(s.state || "pooled")[k] += s.qty; }); });
+      const stS = st => stock.byState[st] || (stock.byState[st] = { open: 0, since: 0, mailed: 0, first: null, latest: null, latestQty: 0, sinceLatest: 0 });
+      purch.forEach(p => { if (p.role === "before") return; p.splits.forEach(s => { const q = s.iq != null ? s.iq : s.qty, S = stS(s.state || "pooled");
+        S.since += q; stock.since += q; if (s.state) { if (!S.first || p.date < S.first) S.first = p.date; if (!S.latest || p.date > S.latest) { S.latest = p.date; S.latestQty = 0; } if (p.date === S.latest) S.latestQty += q; } }); });
       Object.keys(MAIL).forEach(k => { stock.mailed += MAIL[k]; stS(k.split("|")[1]).mailed += MAIL[k]; });
+      Object.keys(stock.byState).forEach(st => { const S = stock.byState[st]; if (st === "pooled" || !R.fm) return;
+        S.open = S.first ? SHELF + Math.round(mailedBetween(st, R.fm + "-01", S.first)) : 0; stock.open += S.open;
+        S.sinceLatest = S.latest ? Math.round(mailedBetween(st, S.latest, null)) : 0; });
       stock.left = stock.open + stock.since - stock.mailed;
       const unknown = rows.some(r => r.cards && r.cogs == null);
       const qP = P.filter(p => qtyOf(p) > 0 && p.role !== "before");
@@ -203,8 +239,8 @@ registerPage({
       host.querySelector("#pceKpis").innerHTML =
         kpi("Cards mailed", fmtN(K.cards), "by month and state, line 2") +
         kpi("Paid to the vendor", money(K.spend), fmtN(K.P.length) + " payments · " + (K.untyped ? "<b>" + K.untyped + " without quantities</b>" : "all with quantities")) +
-        kpi("Price per card", K.price != null ? money2(K.price) : "—", K.bought ? fmtN(K.bought) + " cards bought" + (K.stock.before ? " (in the balance)" : "") : "type the quantities in line 1") +
-        kpi("In stock", K.stock.fm ? fmtN(K.stock.left) : "—", K.stock.fm ? fmtN(K.stock.open + K.stock.since) + " in the balance − " + fmtN(K.stock.mailed) + " mailed" + (K.stock.last ? " to " + ymLbl(K.stock.last) : "") : "no mailed record yet") +
+        kpi("Price per card", K.price != null ? money2(K.price) : "—", K.bought ? fmtN(K.bought) + " cards bought, implied by reorders" : "type the quantities in line 1") +
+        kpi("In stock", K.stock.fm ? fmtN(K.stock.left) : "—", K.stock.fm ? "shelf + latest buys − mailed since" + (K.stock.last ? ", to " + ymLbl(K.stock.last) : "") : "no mailed record yet") +
         kpi("Cost of cards mailed", K.cogs != null ? money(K.cogs) : "—", K.unknown ? "unknown until every mailed month has a unit cost" : "mailed × unit cost") +
         kpi("Post card leads", fmtN(K.leads), fmtN(K.booked) + " booked") +
         kpi("Post card revenue", money(K.rev), fmtN(K.jobs) + " jobs · " + (K.cogs > 0 ? x1(K.revCosted / K.cogs) + " the cost" + (K.revOpen ? " (months with cards)" : "") : "—")) +
@@ -219,11 +255,12 @@ registerPage({
       if (!S.fm) { el.innerHTML = '<div class="pce-say">The balance starts with the first month typed in line 2.</div>'; return; }
       const keys = Object.keys(S.byState).filter(k => k !== "pooled").sort().concat(S.byState.pooled ? ["pooled"] : []);
       const row = (name, s, cls) => "<tr" + (cls ? ' class="' + cls + '"' : "") + ">" + td(name, "strong") + td(fmtN(s.open)) + td(fmtN(s.since)) + td(fmtN(s.mailed)) +
-        td((s.open + s.since - s.mailed < 0 ? '<span class="neg">' + fmtN(s.open + s.since - s.mailed) + "</span>" : "<b>" + fmtN(s.open + s.since - s.mailed) + "</b>")) + "</tr>";
-      el.innerHTML = '<div class="pce-say"><b>Cards in stock — the balance since ' + esc(ymLbl(S.fm)) + "</b>, the first month with a mailed record. " +
-        (S.od ? "The purchase of <b>" + esc(S.od) + "</b> is the opening stock; " + (S.before ? "<b>" + S.before + " earlier payment" + (S.before > 1 ? "s" : "") + "</b> (" + money(S.beforeSpend) + ") went out in mailings nobody recorded and stay out of the balance and the unit cost." : "nothing was bought before it.") : "No purchase precedes it, so the balance opens at zero.") +
-        " A negative state was mailed from the <b>pooled</b> purchases — split them by state to settle it.</div>" +
-        '<div class="rs-tablewrap"><table class="rs-table"><thead><tr><th>State</th><th class="num">Opening</th><th class="num">Bought since</th><th class="num">Mailed</th><th class="num">In stock</th></tr></thead><tbody>' +
+        td((s.open + s.since - s.mailed < 0 ? '<span class="neg">' + fmtN(s.open + s.since - s.mailed) + "</span>" : "<b>" + fmtN(s.open + s.since - s.mailed) + "</b>")) +
+        td(s.latest ? esc(s.latest) + ' <span class="pce-dim">' + fmtN(s.latestQty) + " bought · " + fmtN(s.sinceLatest) + " mailed since</span>" : '<span class="pce-dim">—</span>', "") + "</tr>";
+      el.innerHTML = '<div class="pce-say"><b>Cards in stock — the balance since ' + esc(ymLbl(S.fm)) + "</b>, the first month with a mailed record, on the reorder rule: a state buys when about <b>" + fmtN(SHELF) + "</b> cards are left, so each buy is sized by what the state mailed until its next buy (line 1 shows both the typed and the implied size). " +
+        "A state opens with the shelf plus whatever it mailed before its first buy in the record. What is in stock now is the shelf plus the latest buy less what went out since it" +
+        (S.before ? "; <b>" + S.before + " payment" + (S.before > 1 ? "s" : "") + "</b> before the record (" + money(S.beforeSpend) + ") stay out of the balance and the unit cost" : "") + ".</div>" +
+        '<div class="rs-tablewrap"><table class="rs-table"><thead><tr><th>State</th><th class="num">Opening</th><th class="num">Bought since</th><th class="num">Mailed</th><th class="num">In stock</th><th>Latest buy</th></tr></thead><tbody>' +
         keys.map(k => row(k === "pooled" ? "Pooled (no state)" : esc(k), S.byState[k])).join("") +
         row("All", { open: S.open, since: S.since, mailed: S.mailed }, "tot") + "</tbody></table></div>";
     }
@@ -232,14 +269,14 @@ registerPage({
     function paintPurchases() {
       const P = purch.filter(p => inYear(p.date.slice(0, 7)));
       host.querySelector("#pcePurch").innerHTML = P.length
-        ? '<div class="rs-tablewrap"><table class="rs-table"><thead><tr><th>Date</th><th>Company</th><th>Ledger line</th><th>Description</th><th class="num">Paid</th><th class="num">Cards bought</th><th class="num">$ / card</th><th>Split by state</th><th>Note</th><th></th></tr></thead><tbody>' +
-          P.map(p => { const q = qtyOf(p);
-            const split = p.splits.length ? p.splits.map(s => "<b>" + esc(s.state || "pooled") + "</b> " + fmtN(s.qty)).join(" · ")
+        ? '<div class="rs-tablewrap"><table class="rs-table"><thead><tr><th>Date</th><th>Company</th><th>Ledger line</th><th>Description</th><th class="num">Paid</th><th class="num">Cards bought<div class="pce-dim" style="font-weight:500;font-size:10.5px">implied by reorders</div></th><th class="num">$ / card</th><th>Split by state</th><th>Note</th><th></th></tr></thead><tbody>' +
+          P.map(p => { const q = qtyOf(p), qt = qtyTyped(p), derived = p.splits.some(s => s.iq != null);
+            const split = p.splits.length ? p.splits.map(s => "<b>" + esc(s.state || "pooled") + "</b> " + fmtN(s.iq != null ? s.iq : s.qty) + (s.iq != null && s.iq !== s.qty ? ' <span class="pce-dim">(typed ' + fmtN(s.qty) + ")</span>" : "") + (s.basis === "latest buy" ? ' <span class="pce-tag dim">latest buy</span>' : "")).join(" · ")
               : '<span class="pce-dim">' + (p.ledger ? esc(p.ledger) + " on the ledger · no quantity yet" : "no quantity yet") + "</span>";
             const tag = p.role === "opening" ? '<span class="pce-tag">opening stock</span>' : p.role === "before" ? '<span class="pce-tag dim">before the record</span>' : "";
             return '<tr data-row="' + esc(p.key) + '"' + (p.role === "before" ? ' class="pce-row-before"' : "") + ">" + td(esc(p.date) + tag, "") + td(esc(p.company || ""), "") + td(esc(p.provider), "") +
               td('<span class="pce-dim" title="' + esc(p.desc) + '">' + esc(p.desc.slice(0, 40)) + "</span>", "") +
-              td(money(p.amount)) + td(q ? "<b>" + fmtN(q) + "</b>" : '<span class="pce-dim">—</span>') + td(q && p.amount != null ? money2(p.amount / q) : "—") +
+              td(money(p.amount)) + td(q ? "<b>" + fmtN(q) + "</b>" + (derived && qt !== q ? '<div class="pce-dim" style="font-size:11px">typed ' + fmtN(qt) + "</div>" : "") : '<span class="pce-dim">—</span>') + td(q && p.amount != null ? money2(p.amount / q) : "—") +
               td('<span class="pce-split">' + split + "</span>", "") + td('<span class="pce-dim">' + esc(p.note || "") + "</span>", "") +
               td(canEdit ? '<button class="pce-btn" data-edit="' + esc(p.key) + '">' + (q ? "Edit" : "Add quantities") + "</button>" : "", "") + "</tr>"; }).join("") +
           "</tbody></table></div>"
@@ -405,7 +442,7 @@ registerPage({
       '<div class="pce-bar" id="pceBar"></div>' +
       '<div class="pce-kpis" id="pceKpis"></div>' +
       '<div class="panel pce-line"><div class="panel-title"><span class="pce-lno">1</span>Purchases — every postcard payment on the bank ledger</div>' +
-      '<div class="pce-say">Open a payment and type how many cards it bought, per state (one payment can cover several). The price per card and every cost below follow from it. A payment the ledger tags to a state is marked; an untagged one can be split or left <b>pooled</b>. Payments from before the mailed record began are shown but stay out of the balance and the unit cost' + (canEdit ? "" : " — <b>your access is read-only here</b>") + ".</div>" +
+      '<div class="pce-say">Open a payment and type how many cards it bought, per state (one payment can cover several). The price per card and every cost below follow from it. A payment the ledger tags to a state is marked; an untagged one can be split or left <b>pooled</b>. Payments from before the mailed record began are shown but stay out of the balance and the unit cost. The size that counts is <b>implied by reorders</b> (what the state mailed until its next buy, the typed size shown beside it); a state\'s latest buy keeps its typed size until the next one arrives' + (canEdit ? "" : " — <b>your access is read-only here</b>") + ".</div>" +
       '<div id="pcePurch"></div><div class="pce-stock" id="pceStock"></div></div>' +
       '<div class="panel pce-line"><div class="panel-title"><span class="pce-lno">2</span>Cards mailed by month and state</div>' +
       '<div class="pce-say">The record of what went out. Type straight into the grid — a cell saves as you leave it (green = saved). Clear a cell to remove it. The sheet this was migrated from is history; this grid is the truth now.</div>' +
