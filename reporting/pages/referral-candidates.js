@@ -27,7 +27,9 @@
              "Move Type", "Size of Move", "Lead Source",
              "Pickup State", "Delivery State", "Sales Person",
              "Satisfaction Score", "Bill Total", "Quote High", "Later Jobs",
-             "Lead Matched"],
+             "Lead Matched",
+             // the automated referral request (2026-09-16): claim gate + "received on"
+             "Request Joinkey", "Last Move Date", "Has Claim", "Referral Sent At"],
     };
   }
 })();
@@ -104,10 +106,14 @@ registerPage({
       var qh = (+r["Quote High"] > 0) ? +r["Quote High"] : null;
       var over = bill != null && qh != null && bill > qh * 1.25 && (bill - qh) >= 300;
       var why = [];
+      // "claim should not be" (Tornike 2026-09-16) -- the same rule the automated referral
+      // request applies, so the page never lists someone the automation will never ask
+      var claim = +r["Has Claim"] === 1;
+      if (claim) why.push("a claim was filed on this job");
       if (sat != null && sat < 10) why.push("rated the move " + sat + "/10");
       if (over) why.push("bill $" + Math.round(bill).toLocaleString() + " ran "
         + Math.round((bill / qh - 1) * 100) + "% over the $" + Math.round(qh).toLocaleString() + " quote");
-      if ((sat != null && sat < 10) || over) return { v: "bad", why: why };
+      if (claim || (sat != null && sat < 10) || over) return { v: "bad", why: why };
       if (sat == null) return { v: "nos", why: ["no satisfaction score on the closing"] };
       return { v: "ok", why: [] };
     }
@@ -269,7 +275,7 @@ registerPage({
         var CAP = 1000;
         html += '<div class="rs-tablewrap"><table class="rs-table"><thead><tr>'
           + "<th>Move</th><th>Customer</th><th>Email</th><th>Phone</th><th>Platform</th>"
-          + "<th>Reviews</th><th>Score</th><th>Company</th><th>Request #</th><th>Move type</th><th>Size</th>"
+          + "<th>Reviews</th><th>Score</th><th>Referral</th><th>Company</th><th>Request #</th><th>Move type</th><th>Size</th>"
           + "<th>Route</th><th>Source</th><th>Sales person</th>"
           + "</tr></thead><tbody>"
           + v.slice(0, CAP).map(function (r) {
@@ -290,6 +296,12 @@ registerPage({
                 + (r["Satisfaction Score"] == null || r["Satisfaction Score"] === ""
                     ? '<td class="nowrap dim">not rated</td>'
                     : "<td>" + esc(String(r["Satisfaction Score"])) + "/10</td>")
+                // RECEIVED THE REFERRAL REQUEST -- from the send ledger, matched on the address
+                // (once per person, ever), so a customer asked for an earlier move shows it too
+                + (r["Referral Sent At"]
+                    ? '<td class="nowrap"><span class="rs-pill ok">received</span> <span class="muted">'
+                      + esc(String(r["Referral Sent At"]).slice(0, 10)) + "</span></td>"
+                    : '<td class="nowrap dim">not sent</td>')
                 + "<td>" + esc(r.Company || "—") + "</td>"
                 + "<td>" + esc(r["Request No"] || "—") + "</td>"
                 + '<td class="nowrap">' + esc(r["Move Type"] || "—") + "</td>"
