@@ -155,9 +155,15 @@ registerPage({
       const sum = (a, f) => a.reduce((t, r) => t + (f(r) || 0), 0);
       const unknown = rows.some(r => r.cards && r.cogs == null);
       const qP = P.filter(p => qtyOf(p) > 0);
-      return { rows, P, uc, unknown,
+      // the return is judged only where cards were mailed AND costed; leads/jobs/revenue in months with no mailed
+      // record (2024, any month the grid has not been filled for) are counted apart, never in the ratio
+      const costed = rows.filter(r => r.cards && r.cogs != null), open = rows.filter(r => !r.cards);
+      return { rows, P, uc, unknown, costed, open,
         cards: sum(rows, r => r.cards), cogs: unknown ? null : sum(rows, r => r.cogs),
         leads: sum(rows, r => r.leads), booked: sum(rows, r => r.booked), jobs: sum(rows, r => r.jobs), rev: sum(rows, r => r.rev),
+        revCosted: sum(costed, r => r.rev), jobsCosted: sum(costed, r => r.jobs), leadsCosted: sum(costed, r => r.leads),
+        revOpen: sum(open, r => r.rev), jobsOpen: sum(open, r => r.jobs), leadsOpen: sum(open, r => r.leads),
+        openMonths: [...new Set(open.filter(r => r.leads || r.jobs).map(r => r.ym))].sort(),
         spend: sum(P, p => p.amount), bought: sum(qP, qtyOf),
         price: qP.length ? sum(qP, p => p.amount) / sum(qP, qtyOf) : null,
         untyped: P.filter(p => !(qtyOf(p) > 0)).length };
@@ -175,7 +181,8 @@ registerPage({
         kpi("Price per card", K.price != null ? money2(K.price) : "—", K.bought ? fmtN(K.bought) + " cards bought" : "type the quantities in line 1") +
         kpi("Cost of cards mailed", K.cogs != null ? money(K.cogs) : "—", K.unknown ? "unknown until every mailed month has a unit cost" : "mailed × unit cost") +
         kpi("Post card leads", fmtN(K.leads), fmtN(K.booked) + " booked") +
-        kpi("Post card revenue", money(K.rev), fmtN(K.jobs) + " jobs · " + (K.cogs > 0 ? x1(K.rev / K.cogs) + " the cost" : "—"));
+        kpi("Post card revenue", money(K.rev), fmtN(K.jobs) + " jobs · " + (K.cogs > 0 ? x1(K.revCosted / K.cogs) + " the cost" + (K.revOpen ? " (months with cards)" : "") : "—")) +
+        (K.openMonths.length ? kpi("Not costed", money(K.revOpen), fmtN(K.leadsOpen) + " leads, " + fmtN(K.jobsOpen) + " jobs in " + K.openMonths.length + " month" + (K.openMonths.length > 1 ? "s" : "") + " with no mailed record") : "");
       paintReturn();
     }
 
@@ -284,8 +291,9 @@ registerPage({
     // ================= line 3: the return, by state =================
     function paintReturn() {
       const byS = {};
-      K.rows.forEach(r => { const s = byS[r.st] = byS[r.st] || { cards: 0, cogs: 0, unknown: false, leads: 0, booked: 0, jobs: 0, rev: 0 };
-        s.cards += r.cards; if (r.cards && r.cogs == null) s.unknown = true; else s.cogs += r.cogs || 0; s.leads += r.leads; s.booked += r.booked; s.jobs += r.jobs; s.rev += r.rev; });
+      // per state, only the months with a mailed record: a lead from a month nobody costed is not a return on cards
+      K.rows.filter(r => r.cards).forEach(r => { const s = byS[r.st] = byS[r.st] || { cards: 0, cogs: 0, unknown: false, leads: 0, booked: 0, jobs: 0, rev: 0 };
+        s.cards += r.cards; if (r.cogs == null) s.unknown = true; else s.cogs += r.cogs || 0; s.leads += r.leads; s.booked += r.booked; s.jobs += r.jobs; s.rev += r.rev; });
       const sts = Object.keys(byS).filter(s => byS[s].cards || byS[s].leads || byS[s].rev).sort((a, b) => byS[b].rev - byS[a].rev || byS[b].cards - byS[a].cards);
       const cost = s => byS[s].unknown ? null : byS[s].cogs;
       // chart: revenue and cost per state, hand-drawn SVG so it follows the theme
@@ -308,7 +316,8 @@ registerPage({
 
       // the reading
       const read = [];
-      const tot = { cards: K.cards, cogs: K.cogs, leads: K.leads, jobs: K.jobs, rev: K.rev };
+      const tot = { cards: K.cards, cogs: K.cogs, leads: K.leadsCosted, jobs: K.jobsCosted, rev: K.revCosted };
+      if (K.openMonths.length) read.push('<span class="w">' + fmtN(K.leadsOpen) + " leads, " + fmtN(K.jobsOpen) + " jobs and " + money(K.revOpen) + " of revenue fall in " + K.openMonths.length + " month" + (K.openMonths.length > 1 ? "s" : "") + " with no mailed record</span> (" + esc(ymLbl(K.openMonths[0])) + (K.openMonths.length > 1 ? " – " + esc(ymLbl(K.openMonths[K.openMonths.length - 1])) : "") + ") — they are left out of every ratio here. Fill line 2 for those months and they count.");
       const per1k = s => byS[s].cards ? byS[s].leads / byS[s].cards * 1000 : null;
       const withCards = sts.filter(s => byS[s].cards >= 1000);
       if (tot.cogs > 0) read.push("Across every state, <b>$1</b> of postcards mailed came back as <b>" + money2(tot.rev / tot.cogs) + "</b> of revenue (" + money(tot.rev) + " on " + money(tot.cogs) + " of cards).");

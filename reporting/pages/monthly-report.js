@@ -2232,8 +2232,11 @@ async function renderMonthly(host, MRCFG) {
       if ((pcm || []).length) {
         const inP = r => spanYMs.includes(String(r.Month));
         const lyYMs = spanYMs.map(ym => (+ym.slice(0, 4) - 1) + ym.slice(4));
-        const agg = rs => { const a = { mailed: 0, cogs: 0, unknown: false, leads: 0, booked: 0, jobs: 0, rev: 0 };
-          rs.forEach(r => { const c = num(r["Cards Mailed"]), k = r.COGS == null ? null : num(r.COGS); a.mailed += c; if (c && k == null) a.unknown = true; else a.cogs += k || 0;
+        // only months WITH a mailed record count toward the return; uncosted months are named beside the card
+        const agg = rs => { const a = { mailed: 0, cogs: 0, unknown: false, leads: 0, booked: 0, jobs: 0, rev: 0, open: 0, revOpen: 0 };
+          rs.forEach(r => { const c = num(r["Cards Mailed"]), k = r.COGS == null ? null : num(r.COGS);
+            if (!c) { if (num(r.Leads) || num(r.Jobs)) { a.open++; a.revOpen += num(r.Revenue); } return; }
+            a.mailed += c; if (k == null) a.unknown = true; else a.cogs += k || 0;
             a.leads += num(r.Leads); a.booked += num(r.Booked); a.jobs += num(r.Jobs); a.rev += num(r.Revenue); });
           a.cost = a.unknown || !a.mailed ? null : a.cogs; return a; };
         const cur = agg(pcm.filter(inP)), ly = agg(pcm.filter(r => lyYMs.includes(String(r.Month))));
@@ -2243,9 +2246,9 @@ async function renderMonthly(host, MRCFG) {
         tableCard(g, "Post cards — mailed, cost and return", `${spanLbl(curY, mo, true)} · by the state on the lead`,
           `<table class="mrx-tbl"><thead><tr><th>State</th><th>Mailed</th><th>Cost of mailed</th><th>Leads</th><th>per 1,000</th><th>$ / lead</th><th>Jobs</th><th>Revenue</th><th>Per $1</th></tr></thead><tbody>` +
           sts.map(([k, a]) => ln(esc(k), a)).join("") + ln("All states", cur, "tot") + ln(`Same ${SPAN === 1 ? "month" : "months"} last year`, ly) + `</tbody></table>`,
-          { headVal: fmtN(cur.mailed) + " cards", note: cur.mailed && cur.cost == null
+          { headVal: fmtN(cur.mailed) + " cards", note: (cur.open ? "No mailed record for this period in " + cur.open + " state-month" + (cur.open > 1 ? "s" : "") + " that still had postcard leads or jobs (" + money(cur.revOpen) + " of revenue) — those are left out of the ratios; fill the grid on Post Card Expenditure and they count. " : "") + (cur.mailed && cur.cost == null
               ? "The cost of the cards mailed is not known yet: a purchase covering these months has no quantity typed on Post Card Expenditure. Leads, jobs and revenue are complete."
-              : "Cards mailed per state and month are typed on Post Card Expenditure (Financial); cost of mailed = cards × the cumulative unit cost of the purchases (paid ÷ cards bought). The ad-spend cards above book the vendor when paid; this one books the cards when mailed." });
+              : "Cards mailed per state and month are typed on Post Card Expenditure (Financial); cost of mailed = cards × the cumulative unit cost of the purchases (paid ÷ cards bought). The ad-spend cards above book the vendor when paid; this one books the cards when mailed.") });
       }
     }
 
