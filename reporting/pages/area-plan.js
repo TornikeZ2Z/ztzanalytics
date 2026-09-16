@@ -1160,7 +1160,8 @@ registerPage({
                          ["untapped", "Leads, no jobs (share)", r => num(r.Leads) ? lnj(r) / num(r.Leads) : null]];
       inputs.rankW = Object.assign({ rpa: 40, mover: 20, wealth: 20, untapped: 20 }, inputs.rankW || {});
       function rankRows() {
-        const rows = CITYALL.filter(r => num(r.Leads) >= (C.minLeads || 20) && (!inputs.focus || r.State === inputs.focus));
+        // service-area states only: a long-distance destination with 20 leads is not a market to buy leads in
+        const rows = CITYALL.filter(r => SERVICE_AREAS.includes(r.State) && num(r.Leads) >= (C.minLeads || 20) && (!inputs.focus || r.State === inputs.focus));
         const pr = {};   // percentile rank per dimension
         RANK_DIMS.forEach(([k, , f]) => { const vals = rows.map(f); const sorted = vals.filter(v => v != null).slice().sort((a, b) => a - b);
           pr[k] = vals.map(v => v == null ? null : sorted.length > 1 ? sorted.findIndex(x => x >= v) / (sorted.length - 1) : .5); });
