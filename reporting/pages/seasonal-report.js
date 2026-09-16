@@ -39,12 +39,13 @@ async function renderSeasonal(host) {
     grab("scorecard"), grab("helper_salaries"), grab("sales_salaries")]);
   // the season-gap marts (2026-09-15) are SOFT: until the loader has built them a missing one hides its card
   const soft = url => ZTZ.api(url).then(j => j.rows || []).catch(e => { console.warn("SR optional feed:", url, e); return null; });
-  const [callrail, rcLine, rcAgent, arrival, surge, rcRepIn, pcm] = await Promise.all([
+  const [callrail, rcLine, rcAgent, arrival, surge, rcRepIn, pcm, eam] = await Promise.all([
     grab("callrail"),
     api("RingCentral lines", "/api/mart_rc_monthly_line?limit=100000"),
     api("RingCentral teammates", "/api/mart_rc_monthly_agent?limit=100000"),
     soft("/api/mart_job_arrival?limit=200000"), soft("/api/mart_surge_day?limit=50000"),
-    soft("/api/mart_rc_monthly_rep_inbound?limit=100000"), soft("/api/mart_postcard_month?limit=20000")]);
+    soft("/api/mart_rc_monthly_rep_inbound?limit=100000"), soft("/api/mart_postcard_month?limit=20000"),
+    soft("/api/mart_estimate_actual?limit=60000")]);
   const DS = { closing, moveboard, claims, refunds, card_expenses: cardEx, callrail };
   /* Claims + reviews deep-dives read tables that are granted with Claims Analysis / Review Performance.
      They are OPTIONAL here: a reader without those pages gets a note on the section (never a red
@@ -359,6 +360,36 @@ async function renderSeasonal(host) {
       { label: String(Y), data: cur, backgroundColor: INK, hoverBackgroundColor: INK_H, borderRadius: 3, maxBarThickness: 13 }] },
       options: base({ indexAxis: "y", layout: { padding: { right: 70 } }, plugins: { legend: legend(true), tooltip: Object.assign({}, tipTheme, { callbacks: { label: x => x.dataset.label + ": " + fmt(x.parsed.x) } }) },
         scales: { x: axY(opts.axis || fmt), y: axCat() } }, fmt), plugins: [valLabels(opts.lbl || fmt, true)] });
+    if (opts.note) note(c, opts.note); if (opts.how) note(c, opts.how, true); return c;
+  }
+  // estimate vs actual per category (his 2026-09-16 ask): the actual bar carries the gap against the estimate
+  const spct = g => (g >= 0 ? "+" : "") + (g * 100).toFixed(0) + "%";
+  function gapBars(mount, title, sub, labels, est, act, gaps, opts) {
+    opts = opts || {}; const c = card(mount, title, sub, opts); const { b, cv } = chartBox(c, Math.max(210, 50 + labels.length * 36));
+    if (!labels.length) { empty(b); return c; }
+    const lblPlugin = { id: "srgap", afterDatasetsDraw(ch) { const ctx = ch.ctx; ctx.save(); ctx.font = "700 12px " + MONO; ctx.textAlign = "left"; ctx.textBaseline = "middle";
+      ch.data.datasets.forEach((d, di) => { const meta = ch.getDatasetMeta(di); if (meta.hidden) return;
+        meta.data.forEach((el, i) => { const v = d.data[i]; if (v == null || isNaN(v)) return; ctx.fillStyle = di === 1 ? LIMED : INK;
+          ctx.fillText(moneyC(v) + (di === 1 && gaps[i] != null ? "  " + spct(gaps[i]) : ""), el.x + 5, el.y); }); });
+      ctx.restore(); } };
+    lazyChart(cv, { type: "bar", data: { labels, datasets: [
+      { label: "Estimate", data: est, backgroundColor: INK, hoverBackgroundColor: INK_H, borderRadius: 3, maxBarThickness: 13 },
+      { label: "Actual billed", data: act, backgroundColor: LIME, hoverBackgroundColor: LIMED, borderRadius: 3, maxBarThickness: 13 }] },
+      options: base({ indexAxis: "y", layout: { padding: { right: 96 } }, plugins: { legend: legend(true), tooltip: Object.assign({}, tipTheme, { callbacks: { label: x => x.dataset.label + ": " + money(x.parsed.x) + (x.datasetIndex === 1 && gaps[x.dataIndex] != null ? " (" + spct(gaps[x.dataIndex]) + " vs estimate)" : "") } }) },
+        scales: { x: axY(moneyC), y: axCat() } }, money), plugins: [lblPlugin] });
+    if (opts.note) note(c, opts.note); if (opts.how) note(c, opts.how, true); return c;
+  }
+  // the gap split into its reasons, stacked per category; the label at the end = the whole gap vs the estimate
+  function splitBars(mount, title, sub, labels, parts, totals, opts) {
+    opts = opts || {}; const c = card(mount, title, sub, opts); const { b, cv } = chartBox(c, Math.max(210, 50 + labels.length * 34));
+    if (!labels.length) { empty(b); return c; }
+    const endLabels = { id: "srsplit", afterDatasetsDraw(ch) { const ctx = ch.ctx, xs = ch.scales.x, ys = ch.scales.y; ctx.save(); ctx.font = "700 12px " + MONO; ctx.textAlign = "left"; ctx.textBaseline = "middle";
+      labels.forEach((_, i) => { const t = totals[i]; if (!t || t.gap == null) return; const pos = parts.reduce((a, p) => a + Math.max(0, p.data[i] || 0), 0);
+        ctx.fillStyle = t.gap >= 0 ? LIMED : NEG; ctx.fillText(moneyC(t.gap) + (t.pct != null ? "  " + spct(t.pct) : ""), xs.getPixelForValue(pos) + 6, ys.getPixelForValue(i)); });
+      ctx.restore(); } };
+    lazyChart(cv, { type: "bar", data: { labels, datasets: parts.map(p => ({ label: p.label, data: p.data, backgroundColor: p.color, hoverBackgroundColor: p.color, borderRadius: 2, maxBarThickness: 16 })) },
+      options: base({ indexAxis: "y", layout: { padding: { right: 110 } }, plugins: { legend: legend(true), tooltip: Object.assign({}, tipTheme, { callbacks: { label: x => x.dataset.label + ": " + money(x.parsed.x) } }) },
+        scales: { x: Object.assign(axY(moneyC), { stacked: true }), y: Object.assign(axCat(), { stacked: true }) } }, money), plugins: [endLabels] });
     if (opts.note) note(c, opts.note); if (opts.how) note(c, opts.how, true); return c;
   }
   function rankBars(mount, title, sub, series, fmt, opts) {
@@ -1107,12 +1138,22 @@ async function renderSeasonal(host) {
   const isBig = r => String(r["Big Job Status"]) === "Yes";
   const repNames = [...new Set([...rClT.keys(), ...rCrT.keys()])].filter(n => !NOT_REP(n) && ((rClT.get(n) || []).length >= 5 || (qual(rCrT.get(n) || []) >= 30 && conf(rBkT.get(n) || []) > 0)))
     .sort((a, b) => bill(rClT.get(b) || []) - bill(rClT.get(a) || []));
+  // ESTIMATE vs ACTUAL (his 2026-09-16 ask, the underselling read): for the confirmed leads that reached a closing,
+  // the estimate is the lead's Average Quote and the actual is every closing sheet filed for that request (a 2-day
+  // job bills on two sheets). Leads without a closing yet are left out of both sides, so the pair is like for like.
+  const clByJk = grp(DS.closing || [], key("Request Joinkey"));
+  const eaOf = leads => { let n = 0, est = 0, act = 0;
+    leads.forEach(l => { const jk = key("Request Joinkey")(l); const cs = jk ? clByJk.get(jk) : null; if (!cs) return;
+      const a = cs.reduce((t, c) => t + (Number(c["Total Bill"]) || 0), 0); const e = Number(l["Average Quote"]) || 0; if (!(a > 0) || !(e > 0)) return;
+      n++; est += e; act += a; });
+    return { n, est, act, gap: est > 0 ? act / est - 1 : null }; };
   const rep = n => { const c = rClT.get(n) || [], cr = rCrT.get(n) || [], bk = rBkT.get(n) || [], crL = rCrL.get(n) || [], bkL = rBkL.get(n) || [];
     const sold = bk.filter(r => String(r["Status Category"]) === "Confirmed"), soldL = bkL.filter(r => String(r["Status Category"]) === "Confirmed");
     const q = qual(cr), qL = qual(crL);
     return { n, jobs: c.length, bill: bill(c), billL: bill(rClL.get(n) || []), ncc: ncc(c), q, conf: conf(bk),
       book: q >= 10 ? RS.bookingRate(cr, bk) : null, bookL: qL >= 10 ? RS.bookingRate(crL, bkL) : null,
       estUsd: sumCol(sold, "Average Quote"), estUsdL: sumCol(soldL, "Average Quote"), estCf: sumCol(sold, "Total CF"), estCfL: sumCol(soldL, "Total CF"),
+      ea: eaOf(sold), eaL: eaOf(soldL),
       big: qual(cr.filter(isBig)) >= 5 ? RS.bookingRate(cr.filter(isBig), bk.filter(isBig)) : null, ref: sumCol(rRef.get(n) || [], "Total refund") }; };
   const REPS = repNames.map(rep);
   dual(g4, m => pairBars(m, "Rep scorecard", `Revenue · ${Y} vs ${LY}`, REPS.map(r => r.n), REPS.map(r => r.billL), REPS.map(r => r.bill), money, { axis: moneyC, lbl: moneyC, head: money(C.bill) }),
@@ -1121,8 +1162,45 @@ async function renderSeasonal(host) {
     { how: "Money = closings credited to the rep as Sales Person. Leads, bookings and estimates sold = Moveboard leads Assigned to the rep (estimates sold = average quote and CF of the leads they confirmed). A booking rate needs at least 10 qualified leads; big-move booking needs 5 big-move leads (the Moveboard Big Job flag). Refunds = paid in the window, by refund date." }));
   const rb = REPS.filter(r => r.book != null);
   pairBars(g4, "Booking rate by rep", `${Y} vs ${LY}`, rb.map(r => r.n), rb.map(r => r.bookL), rb.map(r => r.book), pct, { axis: pct0, head: pct(C.book) + " team" });
-  const re = REPS.filter(r => r.estUsd || r.estUsdL);
-  pairBars(g4, "Estimates sold by rep", `${Y} vs ${LY} · $ of confirmed leads`, re.map(r => r.n), re.map(r => r.estUsdL), re.map(r => r.estUsd), money, { axis: moneyC, lbl: moneyC, head: money(estOf(Y).usd) });
+  const re = REPS.filter(r => r.ea.n || r.eaL.n);
+  const EA = eaOf(booked(Y).filter(r => String(r["Status Category"]) === "Confirmed")), EAL = eaOf(booked(LY).filter(r => String(r["Status Category"]) === "Confirmed"));
+  const gapTd = g => g == null ? `<td class="dim">—</td>` : `<td class="${g >= 0 ? "up" : "dn"}">${spct(g)}</td>`;
+  dual(g4, m => gapBars(m, "Estimate vs actual by rep", `${Y} · confirmed leads that reached a closing · label = actual vs estimate`, re.map(r => r.n), re.map(r => r.ea.est), re.map(r => r.ea.act), re.map(r => r.ea.gap),
+      { head: EA.gap != null ? spct(EA.gap) : "—", chips: chip(EA.gap != null ? 1 + EA.gap : null, EAL.gap != null ? 1 + EAL.gap : null),
+        note: EA.gap == null ? null : (EA.gap >= 0 ? `Across the team the jobs billed ${spct(EA.gap)} against what was quoted (${money(EA.act)} on ${money(EA.est)} of estimates, ${fmtN(EA.n)} closed leads)` : `Across the team the jobs billed ${spct(EA.gap)} against what was quoted (${money(EA.act)} on ${money(EA.est)} of estimates, ${fmtN(EA.n)} closed leads)`) + (EAL.gap != null ? ` — ${LY} was ${spct(EAL.gap)}.` : ".") + " A rep well above the team line is underselling: the crews are finding more work than the quote allowed for." }),
+    m => table(m, "Estimate vs actual by rep", `${seasonName} ${Y} · vs ${LY}`, ["Rep", "Estimates sold", "Closed", "Estimate $", "Actual $", "Gap $", "vs estimate", `${LY} vs estimate`],
+      re.map(r => `<tr>${td(esc(r.n))}${td(money(r.estUsd))}${td(fmtN(r.ea.n))}${td(money(r.ea.est))}${td(money(r.ea.act))}${td(money(r.ea.act - r.ea.est))}${gapTd(r.ea.gap)}${gapTd(r.eaL.gap)}</tr>`)
+        .concat([`<tr class="tot">${td("All reps")}${td(money(estOf(Y).usd))}${td(fmtN(EA.n))}${td(money(EA.est))}${td(money(EA.act))}${td(money(EA.act - EA.est))}${gapTd(EA.gap)}${gapTd(EAL.gap)}</tr>`]),
+      { how: "Estimates sold = the average quote of every lead the rep confirmed in the window. Closed = those leads that reached a closing sheet; for them the estimate and the actual (every closing sheet filed for the request, so a 2-day job counts both days) are compared like for like. Gap = actual − estimate; + means the job billed more than quoted." }));
+  // WHY the jobs billed more than quoted (his 2026-09-16 ask): packing sold on the job, more time than the rep sold,
+  // or other. Needs the calendar estimate AND the final digital contract, so the split exists from Oct 2025 on.
+  const EAM = (eam || []).filter(r => !CO || String(r.Company) === CO);
+  const eamIn = y => EAM.filter(r => { const d = String(r["Booked Date"] || ""); const m = +d.slice(5, 7); return d.slice(0, 4) === String(y) && m >= F && m <= T; });
+  const gapAgg = rs => { const d = rs.filter(r => +r.Detail === 1), s = (a, col) => sumCol(a, col);
+    const o = { n: rs.length, est: s(rs, "Estimate"), act: s(rs, "Actual"), nd: d.length, estD: s(d, "Estimate"), actD: s(d, "Actual"),
+      time: s(d, "Time Gap"), pack: s(d, "Packing Gap"), other: s(d, "Other Gap"), estH: s(d, "Est Hours"), billH: s(d, "Billed Hours"), estPack: s(d, "Est Packing"), packSold: s(d, "Packing Sold") };
+    o.gap = o.act - o.est; o.gapD = o.actD - o.estD; o.pct = o.est > 0 ? o.act / o.est - 1 : null; o.pctD = o.estD > 0 ? o.actD / o.estD - 1 : null; return o; };
+  const GA = gapAgg(eamIn(Y)), GAL = gapAgg(eamIn(LY));
+  const splitCards = (byCol, what, minJobs) => {
+    const g = grp(eamIn(Y), key(byCol)), gL = grp(eamIn(LY), key(byCol));
+    const rows_ = [...g.keys()].filter(k => !NOT_REP(k)).map(k => ({ k, a: gapAgg(g.get(k)), aL: gapAgg(gL.get(k) || []) })).filter(r => r.a.nd >= minJobs).sort((a, b) => b.a.gapD - a.a.gapD);
+    const money0 = v => (v < 0 ? "−" : "") + money(Math.abs(v));
+    const hrs = a => a.estH ? `${fmtN(Math.round(a.estH))} → ${fmtN(Math.round(a.billH))} h` : "—";
+    const shareTd = (part, gap) => gap ? `<td>${pct(Math.max(0, part) / Math.max(1, Math.abs(gap)))}</td>` : `<td class="dim">—</td>`;
+    dual(g4, m => splitBars(m, `Why the bill beat the quote — by ${what}`, `${Y} · closed leads with a final contract · packing, time, other`, rows_.map(r => r.k),
+        [{ label: "Packing sold on the job", data: rows_.map(r => r.a.pack), color: LIME }, { label: "More time than sold", data: rows_.map(r => r.a.time), color: BLUE }, { label: "Other (fees, discounts, rate)", data: rows_.map(r => r.a.other), color: CTX }],
+        rows_.map(r => ({ gap: r.a.gapD, pct: r.a.pctD })),
+        { head: GA.gapD ? money0(GA.gapD) : "—", note: !GA.nd ? "No closed leads with a final contract in this window yet." :
+            `Across ${fmtN(GA.nd)} closed leads with a contract the jobs billed ${money0(GA.gapD)} ${GA.gapD >= 0 ? "more" : "less"} than quoted (${spct(GA.pctD)}): packing ${money0(GA.pack)}, time ${money0(GA.time)} (${fmtN(Math.round(GA.estH))} hours sold, ${fmtN(Math.round(GA.billH))} billed), other ${money0(GA.other)}.` +
+            (GA.pack > Math.abs(GA.time) && GA.pack > Math.abs(GA.other) ? " Packing is the biggest reason: the estimate carried " + money(GA.estPack) + " of packing and the crews sold " + money(GA.packSold) + "." : GA.time > Math.abs(GA.pack) && GA.time > Math.abs(GA.other) ? " Time is the biggest reason: the jobs ran longer than the hours sold." : "") }),
+      m => table(m, `Why the bill beat the quote — by ${what}`, `${seasonName} ${Y} · closed leads with a final contract · ${LY} shows the total gap only`,
+        [what === "rep" ? "Rep" : "Foreman", "Closed", "With contract", "Estimate", "Actual", "Gap", "Packing", "Hours sold → billed", "Time", "Other", "Packing share", `${LY} gap`],
+        rows_.map(r => `<tr>${td(esc(r.k))}${td(fmtN(r.a.n))}${td(fmtN(r.a.nd))}${td(money(r.a.estD))}${td(money(r.a.actD))}${td(money0(r.a.gapD) + (r.a.pctD != null ? ` <span class="dim">${spct(r.a.pctD)}</span>` : ""))}${td(money0(r.a.pack))}${td(hrs(r.a))}${td(money0(r.a.time))}${td(money0(r.a.other))}${shareTd(r.a.pack, r.a.gapD)}${r.aL.n ? td(money0(r.aL.gap) + (r.aL.pct != null ? ` <span class="dim">${spct(r.aL.pct)}</span>` : "")) : `<td class="dim">—</td>`}</tr>`)
+          .concat([`<tr class="tot">${td("All")}${td(fmtN(GA.n))}${td(fmtN(GA.nd))}${td(money(GA.estD))}${td(money(GA.actD))}${td(money0(GA.gapD) + (GA.pctD != null ? ` <span class="dim">${spct(GA.pctD)}</span>` : ""))}${td(money0(GA.pack))}${td(hrs(GA))}${td(money0(GA.time))}${td(money0(GA.other))}${shareTd(GA.pack, GA.gapD)}${GAL.n ? td(money0(GAL.gap) + (GAL.pct != null ? ` <span class="dim">${spct(GAL.pct)}</span>` : "")) : `<td class="dim">—</td>`}</tr>`]),
+        { how: "Estimate = the lead's average quote; actual = every closing sheet filed for the request. The split needs the calendar booking (hours and packing as the rep sold them, the hourly rate) and the final digital contract (labor charge, packing sold, fees, discounts), so it exists for jobs from October 2025 on. Time = labor charge − hours sold × rate (billed hours vs sold hours, minimums included); Packing = packing sold on the job − packing in the estimate; Other = fees, discounts and rate differences. " + (what === "rep" ? "Rows need 5 closed leads with a contract." : "Rows need 5 jobs with a contract; the foreman is the one on the first closing sheet.") }));
+  };
+  splitCards("Sales Person", "rep", 5);
+  splitCards("Foreman", "foreman", 5);
   const qR = REPS.filter(r => r.book != null && r.jobs >= 20);
   quadrant(g4, "Salespeople — conversion vs job value", `${seasonName} ${Y} · bubble = jobs · dashed = team average`, qR.map(r => ({ k: r.n, x: r.book, y: r.bill / r.jobs, r: r.jobs })), pct0, money,
     { xLabel: "Booking rate", yLabel: "Average job value", goodX: "high", goodY: "high", xAvg: C.book, yAvg: C.avg, q: { tr: "★ converts more, sells bigger", bl: "converts less, sells smaller" },
