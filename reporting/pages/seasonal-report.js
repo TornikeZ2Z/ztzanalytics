@@ -92,8 +92,9 @@ async function renderSeasonal(host) {
   const PCM = pcm || [];
   const pcIn = y => PCM.filter(r => String(r.Month).slice(0, 4) === String(y) && +String(r.Month).slice(5, 7) >= F && +String(r.Month).slice(5, 7) <= T);
   // only months WITH a mailed record count toward the return: a lead from an uncosted month is not a return on cards
-  const pcAgg = rs => { const a = { mailed: 0, cogs: 0, unknown: false, leads: 0, booked: 0, jobs: 0, rev: 0, revOpen: 0 };
+  const pcAgg = rs => { const a = { mailed: 0, cogs: 0, unknown: false, leads: 0, booked: 0, jobs: 0, rev: 0, revOpen: 0, lost: 0, lostCost: 0 };
     rs.forEach(r => { const c = num(r["Cards Mailed"]), k = r.COGS == null ? null : num(r.COGS);
+      a.lost += num(r["Lost Cards"]); a.lostCost += num(r["Lost Cost"]);      // a count short of the model, booked in the count's month
       if (!c) { a.revOpen += num(r.Revenue); return; }
       a.mailed += c; if (k == null) a.unknown = true; else a.cogs += k || 0;
       a.leads += num(r.Leads); a.booked += num(r.Booked); a.jobs += num(r.Jobs); a.rev += num(r.Revenue); });
@@ -1379,11 +1380,12 @@ async function renderSeasonal(host) {
       m => table(m, "Post cards — mailed, cost and return", `per season · ${winLbl}`, ["Season", "Mailed", "Cost of mailed", "Leads", "per 1,000", "Jobs", "Revenue", "Per $1"],
         YEARS.slice().reverse().map(y => { const a = pcS(y); return `<tr>${td(y === Y ? `<b>${y}</b>` : y)}${td(fmtN(a.mailed))}${a.cost != null ? td(money(a.cost)) : `<td class="dim">—</td>`}${td(fmtN(a.leads))}${tdn(a.mailed ? a.leads / a.mailed * 1000 : null, v => v.toFixed(2))}${td(fmtN(a.jobs))}${td(money(a.rev))}${tdn(a.cost > 0 ? a.rev / a.cost : null, x1)}</tr>`; }),
         { span2: false, how: "Cards mailed per state and month are typed on Post Card Expenditure (Financial); cost of mailed = cards × the cumulative unit cost of the purchases (paid ÷ cards bought). Leads = Moveboard leads whose source is Post Card, by create month and state; revenue = closings with a Post Card source. A season with a mailed month that has no unit cost yet shows no cost." }));
-    const pcBy = (() => { const g = new Map(); pcIn(Y).forEach(r => { const c = num(r["Cards Mailed"]), k = r.COGS == null ? null : num(r.COGS); if (!c) return;
-      const s = g.get(r.State) || { mailed: 0, cogs: 0, unknown: false, leads: 0, jobs: 0, rev: 0 };
-      s.mailed += c; if (k == null) s.unknown = true; else s.cogs += k || 0; s.leads += num(r.Leads); s.jobs += num(r.Jobs); s.rev += num(r.Revenue); g.set(r.State, s); }); return [...g.entries()].filter(([, s]) => s.mailed || s.rev).sort((a, b) => b[1].rev - a[1].rev); })();
-    table(g6, "Post cards by state", `${winLbl} ${Y}`, ["State", "Mailed", "Cost", "Leads", "per 1,000", "Jobs", "Revenue", "Per $1"],
-      pcBy.map(([st, s]) => { const c = s.unknown || !s.mailed ? null : s.cogs; return `<tr>${td(esc(st))}${td(fmtN(s.mailed))}${c != null ? td(money(c)) : `<td class="dim">—</td>`}${td(fmtN(s.leads))}${tdn(s.mailed ? s.leads / s.mailed * 1000 : null, v => v.toFixed(2))}${td(fmtN(s.jobs))}${td(money(s.rev))}${tdn(c > 0 ? s.rev / c : null, x1)}</tr>`; }),
+    const pcBy = (() => { const g = new Map(); pcIn(Y).forEach(r => { const c = num(r["Cards Mailed"]), k = r.COGS == null ? null : num(r.COGS);
+      const s = g.get(r.State) || { mailed: 0, cogs: 0, unknown: false, leads: 0, jobs: 0, rev: 0, lost: 0 };
+      s.lost += num(r["Lost Cards"]); g.set(r.State, s); if (!c) return;
+      s.mailed += c; if (k == null) s.unknown = true; else s.cogs += k || 0; s.leads += num(r.Leads); s.jobs += num(r.Jobs); s.rev += num(r.Revenue); }); return [...g.entries()].filter(([, s]) => s.mailed || s.rev || s.lost).sort((a, b) => b[1].rev - a[1].rev); })();
+    table(g6, "Post cards by state", `${winLbl} ${Y}`, ["State", "Mailed", "Cost", "Leads", "per 1,000", "Jobs", "Revenue", "Per $1", "Lost"],
+      pcBy.map(([st, s]) => { const c = s.unknown || !s.mailed ? null : s.cogs; return `<tr>${td(esc(st))}${td(fmtN(s.mailed))}${c != null ? td(money(c)) : `<td class="dim">—</td>`}${td(fmtN(s.leads))}${tdn(s.mailed ? s.leads / s.mailed * 1000 : null, v => v.toFixed(2))}${td(fmtN(s.jobs))}${td(money(s.rev))}${tdn(c > 0 ? s.rev / c : null, x1)}${td(s.lost ? fmtN(s.lost) : "—")}</tr>`; }),
       { span2: false, how: "The same numbers as the season card, split by the state on the lead." });
   }
   // Yelp — the card ledger books Yelp as ONE line, so return per $1 is company-wide; the funnel splits by state

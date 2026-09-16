@@ -2233,18 +2233,19 @@ async function renderMonthly(host, MRCFG) {
         const inP = r => spanYMs.includes(String(r.Month));
         const lyYMs = spanYMs.map(ym => (+ym.slice(0, 4) - 1) + ym.slice(4));
         // only months WITH a mailed record count toward the return; uncosted months are named beside the card
-        const agg = rs => { const a = { mailed: 0, cogs: 0, unknown: false, leads: 0, booked: 0, jobs: 0, rev: 0, open: 0, revOpen: 0 };
+        const agg = rs => { const a = { mailed: 0, cogs: 0, unknown: false, leads: 0, booked: 0, jobs: 0, rev: 0, open: 0, revOpen: 0, lost: 0, lostCost: 0 };
           rs.forEach(r => { const c = num(r["Cards Mailed"]), k = r.COGS == null ? null : num(r.COGS);
+            a.lost += num(r["Lost Cards"]); a.lostCost += num(r["Lost Cost"]);      // a count short of the model, booked in the count's month
             if (!c) { if (num(r.Leads) || num(r.Jobs)) { a.open++; a.revOpen += num(r.Revenue); } return; }
             a.mailed += c; if (k == null) a.unknown = true; else a.cogs += k || 0;
             a.leads += num(r.Leads); a.booked += num(r.Booked); a.jobs += num(r.Jobs); a.rev += num(r.Revenue); });
           a.cost = a.unknown || !a.mailed ? null : a.cogs; return a; };
         const cur = agg(pcm.filter(inP)), ly = agg(pcm.filter(r => lyYMs.includes(String(r.Month))));
         const byS = new Map(); pcm.filter(inP).forEach(r => { const k = r.State || "—"; byS.set(k, (byS.get(k) || []).concat(r)); });
-        const sts = [...byS.entries()].map(([k, rs]) => [k, agg(rs)]).filter(([, a]) => a.mailed || a.rev).sort((a, b) => b[1].rev - a[1].rev);
-        const ln = (name, a, cls) => `<tr${cls ? ` class="${cls}"` : ""}><td>${name}</td><td>${fmtN(a.mailed)}</td><td>${a.cost != null ? money(a.cost) : "—"}</td><td>${fmtN(a.leads)}</td><td>${a.mailed ? (a.leads / a.mailed * 1000).toFixed(2) : "—"}</td><td>${a.cost > 0 && a.leads ? money(a.cost / a.leads) : "—"}</td><td>${fmtN(a.jobs)}</td><td>${money(a.rev)}</td><td>${a.cost > 0 ? "$" + (a.rev / a.cost).toFixed(1) : "—"}</td></tr>`;
+        const sts = [...byS.entries()].map(([k, rs]) => [k, agg(rs)]).filter(([, a]) => a.mailed || a.rev || a.lost).sort((a, b) => b[1].rev - a[1].rev);
+        const ln = (name, a, cls) => `<tr${cls ? ` class="${cls}"` : ""}><td>${name}</td><td>${fmtN(a.mailed)}</td><td>${a.cost != null ? money(a.cost) : "—"}</td><td>${fmtN(a.leads)}</td><td>${a.mailed ? (a.leads / a.mailed * 1000).toFixed(2) : "—"}</td><td>${a.cost > 0 && a.leads ? money(a.cost / a.leads) : "—"}</td><td>${fmtN(a.jobs)}</td><td>${money(a.rev)}</td><td>${a.cost > 0 ? "$" + (a.rev / a.cost).toFixed(1) : "—"}</td><td>${a.lost ? fmtN(a.lost) + (a.lostCost ? ` <span class="dim">${money(a.lostCost)}</span>` : "") : "—"}</td></tr>`;
         tableCard(g, "Post cards — mailed, cost and return", `${spanLbl(curY, mo, true)} · by the state on the lead`,
-          `<table class="mrx-tbl"><thead><tr><th>State</th><th>Mailed</th><th>Cost of mailed</th><th>Leads</th><th>per 1,000</th><th>$ / lead</th><th>Jobs</th><th>Revenue</th><th>Per $1</th></tr></thead><tbody>` +
+          `<table class="mrx-tbl"><thead><tr><th>State</th><th>Mailed</th><th>Cost of mailed</th><th>Leads</th><th>per 1,000</th><th>$ / lead</th><th>Jobs</th><th>Revenue</th><th>Per $1</th><th>Lost</th></tr></thead><tbody>` +
           sts.map(([k, a]) => ln(esc(k), a)).join("") + ln("All states", cur, "tot") + ln(`Same ${SPAN === 1 ? "month" : "months"} last year`, ly) + `</tbody></table>`,
           { headVal: fmtN(cur.mailed) + " cards", note: (cur.open ? "No mailed record for this period in " + cur.open + " state-month" + (cur.open > 1 ? "s" : "") + " that still had postcard leads or jobs (" + money(cur.revOpen) + " of revenue) — those are left out of the ratios; fill the grid on Post Card Expenditure and they count. " : "") + (cur.mailed && cur.cost == null
               ? "The cost of the cards mailed is not known yet: a purchase covering these months has no quantity typed on Post Card Expenditure. Leads, jobs and revenue are complete."
