@@ -56,6 +56,11 @@ registerPage({
         ".pce-btn{font-family:inherit;font-size:12px;font-weight:700;padding:5px 11px;border-radius:9px;border:1px solid var(--line-2);background:var(--panel);color:var(--ink);cursor:pointer}",
         ".pce-btn:hover{border-color:var(--brand)} .pce-btn.pri{background:var(--brand);border-color:var(--brand);color:#fff}",
         ".pce-dim{color:var(--faint)}",
+        ".pce-row-before td{opacity:.5}",
+        ".pce-tag{display:inline-block;font-size:10.5px;font-weight:800;padding:1px 7px;border-radius:999px;background:var(--brand-glow);color:var(--brand-d);margin-left:6px;white-space:nowrap;vertical-align:1px}",
+        ".pce-tag.dim{background:color-mix(in srgb,var(--ink) 8%,var(--panel));color:var(--muted)}",
+        ".pce-stock{margin-top:12px;border-top:1px solid var(--line);padding-top:12px}",
+        ".pce-stock .neg{color:var(--neg);font-weight:700}",
         ".pce-grid{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:14px}",
         "@media (max-width:1100px){.pce-grid{grid-template-columns:1fr}}",
         ".pce-chart{width:100%;height:auto;display:block;margin:4px 0 6px}",
@@ -121,6 +126,16 @@ registerPage({
     const purch = Object.values(PUR).sort((a, b) => b.date.localeCompare(a.date));
     const qtyOf = p => p.splits.reduce((t, s) => t + s.qty, 0);
 
+    // his rule: the balance and the unit cost start at the FIRST MAILED MONTH. The last purchase date before that
+    // month is the opening stock; every purchase before it was used up in mailings nobody recorded and stays out.
+    function assignRoles() {
+      const fm = Object.keys(MAIL).map(k => k.slice(0, 7)).sort()[0] || null;
+      const before = purch.filter(p => fm && p.date.slice(0, 7) < fm).map(p => p.date).sort();
+      const od = before.length ? before[before.length - 1] : null;
+      purch.forEach(p => { p.role = !fm || !od ? "in" : p.date < od ? "before" : p.date === od ? "opening" : "in"; });
+      return { fm, od };
+    }
+
     // ---- cards mailed: the editable record ----
     const MAIL = {};                                 // "ym|st" -> cards
     mailedRows.forEach(r => { if (num(r.Cards) > 0) MAIL[r.Month + "|" + r.State] = num(r.Cards); });
@@ -137,13 +152,14 @@ registerPage({
     // unit cost per month: cumulative paid ÷ cumulative cards over the payments that have quantities
     function unitCostByMonth() {
       const byM = {};
-      purch.forEach(p => { const q = qtyOf(p); if (!(q > 0) || p.amount == null) return; const ym = p.date.slice(0, 7);
+      purch.forEach(p => { const q = qtyOf(p); if (!(q > 0) || p.amount == null || p.role === "before") return; const ym = p.date.slice(0, 7);
         (byM[ym] = byM[ym] || { a: 0, q: 0 }); byM[ym].a += p.amount; byM[ym].q += q; });
       let ca = 0, cq = 0; const cum = [];
       Object.keys(byM).sort().forEach(ym => { ca += byM[ym].a; cq += byM[ym].q; cum.push([ym, cq > 0 ? ca / cq : null]); });
       return ym => { let uc = null; for (const [m, u] of cum) { if (m <= ym) uc = u; else break; } return uc; };
     }
     function calc() {
+      const R = assignRoles();
       const uc = unitCostByMonth();
       const ret = {};                                // "ym|st" -> {leads, booked, jobs, rev} from the mart
       month.forEach(r => { ret[r.Month + "|" + r.State] = { leads: num(r.Leads) || 0, booked: num(r.Booked) || 0, jobs: num(r.Jobs) || 0, rev: num(r.Revenue) || 0 }; });
@@ -153,12 +169,19 @@ registerPage({
         .filter(r => inYear(r.ym) && inStates(r.st));
       const P = purch.filter(p => inYear(p.date.slice(0, 7)));
       const sum = (a, f) => a.reduce((t, r) => t + (f(r) || 0), 0);
+      // the stock: all-time, never filtered by the year chips -- opening + bought since - mailed since the record began
+      const stock = { fm: R.fm, od: R.od, open: 0, since: 0, mailed: 0, byState: {}, last: Object.keys(MAIL).map(k => k.slice(0, 7)).sort().pop() || null,
+        before: purch.filter(p => p.role === "before").length, beforeSpend: sum(purch.filter(p => p.role === "before"), p => p.amount) };
+      const stS = st => stock.byState[st] || (stock.byState[st] = { open: 0, since: 0, mailed: 0 });
+      purch.forEach(p => { if (p.role === "before") return; p.splits.forEach(s => { const k = p.role === "opening" ? "open" : "since"; stock[k] += s.qty; stS(s.state || "pooled")[k] += s.qty; }); });
+      Object.keys(MAIL).forEach(k => { stock.mailed += MAIL[k]; stS(k.split("|")[1]).mailed += MAIL[k]; });
+      stock.left = stock.open + stock.since - stock.mailed;
       const unknown = rows.some(r => r.cards && r.cogs == null);
-      const qP = P.filter(p => qtyOf(p) > 0);
+      const qP = P.filter(p => qtyOf(p) > 0 && p.role !== "before");
       // the return is judged only where cards were mailed AND costed; leads/jobs/revenue in months with no mailed
       // record (2024, any month the grid has not been filled for) are counted apart, never in the ratio
       const costed = rows.filter(r => r.cards && r.cogs != null), open = rows.filter(r => !r.cards);
-      return { rows, P, uc, unknown, costed, open,
+      return { rows, P, uc, unknown, costed, open, stock,
         cards: sum(rows, r => r.cards), cogs: unknown ? null : sum(rows, r => r.cogs),
         leads: sum(rows, r => r.leads), booked: sum(rows, r => r.booked), jobs: sum(rows, r => r.jobs), rev: sum(rows, r => r.rev),
         revCosted: sum(costed, r => r.rev), jobsCosted: sum(costed, r => r.jobs), leadsCosted: sum(costed, r => r.leads),
@@ -166,7 +189,7 @@ registerPage({
         openMonths: [...new Set(open.filter(r => r.leads || r.jobs).map(r => r.ym))].sort(),
         spend: sum(P, p => p.amount), bought: sum(qP, qtyOf),
         price: qP.length ? sum(qP, p => p.amount) / sum(qP, qtyOf) : null,
-        untyped: P.filter(p => !(qtyOf(p) > 0)).length };
+        untyped: P.filter(p => !(qtyOf(p) > 0) && p.role !== "before").length };
     }
 
     const kpi = (l, v, s) => '<div class="pce-kpi"><div class="l">' + l + '</div><div class="v">' + v + '</div>' + (s ? '<div class="s">' + s + "</div>" : "") + "</div>";
@@ -178,12 +201,29 @@ registerPage({
       host.querySelector("#pceKpis").innerHTML =
         kpi("Cards mailed", fmtN(K.cards), "by month and state, line 2") +
         kpi("Paid to the vendor", money(K.spend), fmtN(K.P.length) + " payments · " + (K.untyped ? "<b>" + K.untyped + " without quantities</b>" : "all with quantities")) +
-        kpi("Price per card", K.price != null ? money2(K.price) : "—", K.bought ? fmtN(K.bought) + " cards bought" : "type the quantities in line 1") +
+        kpi("Price per card", K.price != null ? money2(K.price) : "—", K.bought ? fmtN(K.bought) + " cards bought" + (K.stock.before ? " (in the balance)" : "") : "type the quantities in line 1") +
+        kpi("In stock", K.stock.fm ? fmtN(K.stock.left) : "—", K.stock.fm ? fmtN(K.stock.open + K.stock.since) + " in the balance − " + fmtN(K.stock.mailed) + " mailed" + (K.stock.last ? " to " + ymLbl(K.stock.last) : "") : "no mailed record yet") +
         kpi("Cost of cards mailed", K.cogs != null ? money(K.cogs) : "—", K.unknown ? "unknown until every mailed month has a unit cost" : "mailed × unit cost") +
         kpi("Post card leads", fmtN(K.leads), fmtN(K.booked) + " booked") +
         kpi("Post card revenue", money(K.rev), fmtN(K.jobs) + " jobs · " + (K.cogs > 0 ? x1(K.revCosted / K.cogs) + " the cost" + (K.revOpen ? " (months with cards)" : "") : "—")) +
         (K.openMonths.length ? kpi("Not costed", money(K.revOpen), fmtN(K.leadsOpen) + " leads, " + fmtN(K.jobsOpen) + " jobs in " + K.openMonths.length + " month" + (K.openMonths.length > 1 ? "s" : "") + " with no mailed record") : "");
+      paintStock();
       paintReturn();
+    }
+
+    // the balance by state: opening + bought since the record began − mailed. A negative state was fed from the pool.
+    function paintStock() {
+      const S = K.stock, el = host.querySelector("#pceStock");
+      if (!S.fm) { el.innerHTML = '<div class="pce-say">The balance starts with the first month typed in line 2.</div>'; return; }
+      const keys = Object.keys(S.byState).filter(k => k !== "pooled").sort().concat(S.byState.pooled ? ["pooled"] : []);
+      const row = (name, s, cls) => "<tr" + (cls ? ' class="' + cls + '"' : "") + ">" + td(name, "strong") + td(fmtN(s.open)) + td(fmtN(s.since)) + td(fmtN(s.mailed)) +
+        td((s.open + s.since - s.mailed < 0 ? '<span class="neg">' + fmtN(s.open + s.since - s.mailed) + "</span>" : "<b>" + fmtN(s.open + s.since - s.mailed) + "</b>")) + "</tr>";
+      el.innerHTML = '<div class="pce-say"><b>Cards in stock — the balance since ' + esc(ymLbl(S.fm)) + "</b>, the first month with a mailed record. " +
+        (S.od ? "The purchase of <b>" + esc(S.od) + "</b> is the opening stock; " + (S.before ? "<b>" + S.before + " earlier payment" + (S.before > 1 ? "s" : "") + "</b> (" + money(S.beforeSpend) + ") went out in mailings nobody recorded and stay out of the balance and the unit cost." : "nothing was bought before it.") : "No purchase precedes it, so the balance opens at zero.") +
+        " A negative state was mailed from the <b>pooled</b> purchases — split them by state to settle it.</div>" +
+        '<div class="rs-tablewrap"><table class="rs-table"><thead><tr><th>State</th><th class="num">Opening</th><th class="num">Bought since</th><th class="num">Mailed</th><th class="num">In stock</th></tr></thead><tbody>' +
+        keys.map(k => row(k === "pooled" ? "Pooled (no state)" : esc(k), S.byState[k])).join("") +
+        row("All", { open: S.open, since: S.since, mailed: S.mailed }, "tot") + "</tbody></table></div>";
     }
 
     // ================= line 1: purchases =================
@@ -194,7 +234,8 @@ registerPage({
           P.map(p => { const q = qtyOf(p);
             const split = p.splits.length ? p.splits.map(s => "<b>" + esc(s.state || "pooled") + "</b> " + fmtN(s.qty)).join(" · ")
               : '<span class="pce-dim">' + (p.ledger ? esc(p.ledger) + " on the ledger · no quantity yet" : "no quantity yet") + "</span>";
-            return '<tr data-row="' + esc(p.key) + '">' + td(esc(p.date), "") + td(esc(p.company || ""), "") + td(esc(p.provider), "") +
+            const tag = p.role === "opening" ? '<span class="pce-tag">opening stock</span>' : p.role === "before" ? '<span class="pce-tag dim">before the record</span>' : "";
+            return '<tr data-row="' + esc(p.key) + '"' + (p.role === "before" ? ' class="pce-row-before"' : "") + ">" + td(esc(p.date) + tag, "") + td(esc(p.company || ""), "") + td(esc(p.provider), "") +
               td('<span class="pce-dim" title="' + esc(p.desc) + '">' + esc(p.desc.slice(0, 40)) + "</span>", "") +
               td(money(p.amount)) + td(q ? "<b>" + fmtN(q) + "</b>" : '<span class="pce-dim">—</span>') + td(q && p.amount != null ? money2(p.amount / q) : "—") +
               td('<span class="pce-split">' + split + "</span>", "") + td('<span class="pce-dim">' + esc(p.note || "") + "</span>", "") +
@@ -358,8 +399,8 @@ registerPage({
       '<div class="pce-bar" id="pceBar"></div>' +
       '<div class="pce-kpis" id="pceKpis"></div>' +
       '<div class="panel pce-line"><div class="panel-title"><span class="pce-lno">1</span>Purchases — every postcard payment on the bank ledger</div>' +
-      '<div class="pce-say">Open a payment and type how many cards it bought, per state (one payment can cover several). The price per card and every cost below follow from it. A payment the ledger tags to a state is marked; an untagged one can be split or left <b>pooled</b>' + (canEdit ? "" : " — <b>your access is read-only here</b>") + ".</div>" +
-      '<div id="pcePurch"></div></div>' +
+      '<div class="pce-say">Open a payment and type how many cards it bought, per state (one payment can cover several). The price per card and every cost below follow from it. A payment the ledger tags to a state is marked; an untagged one can be split or left <b>pooled</b>. Payments from before the mailed record began are shown but stay out of the balance and the unit cost' + (canEdit ? "" : " — <b>your access is read-only here</b>") + ".</div>" +
+      '<div id="pcePurch"></div><div class="pce-stock" id="pceStock"></div></div>' +
       '<div class="panel pce-line"><div class="panel-title"><span class="pce-lno">2</span>Cards mailed by month and state</div>' +
       '<div class="pce-say">The record of what went out. Type straight into the grid — a cell saves as you leave it (green = saved). Clear a cell to remove it. The sheet this was migrated from is history; this grid is the truth now.</div>' +
       '<div id="pceMailed"></div>' +
