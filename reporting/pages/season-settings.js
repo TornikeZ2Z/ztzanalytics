@@ -139,6 +139,8 @@ registerPage({
           row("Drivers per foreman", "", inp("drivers_per_foreman", V.drivers_per_foreman, "1"), "") +
           row("Trucks per foreman", "", inp("trucks_per_foreman", V.trucks_per_foreman, "1"), "owned trucks come off the total; the rest is rented") +
           row("Owned trucks working", "in the season", inp("owned_trucks_working", V.owned_trucks_working, String((FC.trucks || {}).owned_working || "measured")), "measured last season: <b>" + ((FC.trucks || {}).owned_working != null ? (FC.trucks || {}).owned_working : "—") + "</b> (fleet working, Truck Economics)") +
+          row("Depot candidates", "zips, comma-separated", '<input class="ssv-in' + (V.depot_candidates ? " set" : "") + '" data-key="depot_candidates" data-text="1" type="text" placeholder="19103, 07041" value="' + esc(V.depot_candidates || "") + '" style="width:150px">',
+              "presets: Philadelphia 19103, Millburn 07041, Hartford 06103 — these are added to them") +
           row("Rental $ per truck-day", "", inp("rental_per_day", V.rental_per_day, "measured"), "measured last season: <b>" + ((FC.trucks || {}).rental_per_day != null ? "$" + (FC.trucks || {}).rental_per_day : "—") + "</b> (" + esc(String((FC.trucks || {}).rental_days_last_season || 0)) + " rental truck-days)") +
           '<div class="rs-tablewrap" style="margin-top:8px"><table class="rs-table"><thead><tr><th>State</th><th class="num">Season jobs, year before</th><th class="num">Last season</th><th class="num">Measured growth</th><th class="num">Growth override, %</th></tr></thead><tbody>' +
           states.filter(st => (FC.states || {})[st]).map(st => { const f = FC.states[st]; return '<tr><td class="strong">' + esc(st) + '</td><td class="num">' + (f.season_jobs_prior || "—") + '</td><td class="num">' + (f.season_jobs_last || "—") + '</td><td class="num">' + (f.growth_source === "measured" ? (f.growth >= 0 ? "+" : "") + Math.round(f.growth * 100) + "%" : "—") + '</td><td class="num">' + inp("growth_pct." + st, (V.growth_pct || {})[st], "measured") + "</td></tr>"; }).join("") +
@@ -164,7 +166,7 @@ registerPage({
         "</div>";
 
       host.querySelectorAll(".ssv-in").forEach(el => el.addEventListener("input", () => {
-        const v = num(el.value);
+        const v = el.dataset.text ? el.value.trim() : num(el.value);
         setPath(V, el.dataset.key, el.value.trim() === "" ? null : v);
         el.classList.toggle("set", el.value.trim() !== "");
       }));

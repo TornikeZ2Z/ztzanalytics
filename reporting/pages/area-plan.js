@@ -155,6 +155,8 @@
     .ap2-next td small{display:block;font-size:10.5px;color:var(--faint);font-weight:600} .ap2-next tr.ap2-tot td{font-weight:800;border-top:2px solid var(--line)}
     .ap2-hire{color:var(--neg)} .ap2-ok{color:var(--pos);font-weight:700;font-size:11.5px} .ap2-dim{color:var(--faint)}
     .ap2-mpick{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin:0 0 10px}
+    .ap2-rankw{display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin:0 0 10px;font-size:12px;color:var(--muted)} .ap2-rankw label{display:inline-flex;gap:6px;align-items:center;font-weight:700} .ap2-rankw input{width:64px}
+    .ap2-rank2{display:grid;grid-template-columns:1fr 1fr;gap:14px} @media (max-width:1200px){.ap2-rank2{grid-template-columns:1fr}}
     .ap2-mbtn{font-family:inherit;font-size:12px;font-weight:700;padding:6px 12px;border-radius:10px;border:1px solid var(--line-2);background:var(--panel);color:var(--muted);cursor:pointer;text-align:left}
     .ap2-mbtn small{display:block;font-size:10.5px;font-weight:600;color:var(--faint)} .ap2-mbtn.on{border-color:var(--brand);color:var(--brand-d);background:var(--brand-glow)} .ap2-mbtn.on small{color:var(--brand-d)}
     /* Band B: the evidence (carried from Area Master, prefix renamed) */
@@ -276,7 +278,9 @@ registerPage({
       RS.load("area_master").catch(e => ({ __err: e })),
       RS.load("area_whitespace").catch(() => null),
       RS.load("area_master_season").catch(() => null),
-    ]).then(([rows, model, cityAll, wsAll, cityAllSeason]) => {
+      ZTZ.api("/api/mart_postcard_month?limit=20000").then(j => j.rows || []).catch(() => []),
+    ]).then(([rows, model, cityAll, wsAll, cityAllSeason, pcm]) => {
+      const PCM = pcm || [];
       // FOUR DISTINCT FAILURES, each named -- the old page blamed the mart for a model outage
       if (!rows || !rows.length) {
         host.innerHTML = '<div class="panel">The state plan mart (mart_area_plan) is empty — run ' +
@@ -1107,10 +1111,125 @@ registerPage({
           '<div class="ap2-note" style="margin-top:8px"><b>Leads to bring in</b> (jobs ÷ last season\'s booking rate, needed ' + lag + ' month ahead — the lead→move lag): ' + ramp + ".</div>";
       }
 
+
+      /* ================= PHASE 3 (2026-09-16) ================= */
+      /* ------- the season budget: the Next-season money plus marketing and postcards, per state ---- */
+      // state cost per lead = the master's estimated ad cost over its leads, in the chosen window
+      function stateCpl() {
+        const acc = {};
+        CITYALL.forEach(r => { const st = r.State; if (!st) return; const a = acc[st] = acc[st] || { cost: 0, leads: 0 };
+          a.cost += num(r["Est Ad Cost"]); a.leads += num(r.Leads); });
+        const out = {}; Object.entries(acc).forEach(([st, a]) => { out[st] = a.leads ? a.cost / a.leads : null; });
+        const cost = Object.values(acc).reduce((t, a) => t + a.cost, 0), leads = Object.values(acc).reduce((t, a) => t + a.leads, 0);
+        out._all = leads ? cost / leads : null;
+        return out;
+      }
+      // last season's postcard cost per state (Post Card Expenditure), as the planning placeholder
+      function postcardBy() {
+        const out = {}; const lo = (SEASON.last || [])[0], hi = (SEASON.last || [])[1];
+        (PCM || []).forEach(r => { const ym = String(r.Month); if (!lo || ym < lo || ym > hi) return;
+          const st = r.State; const o = out[st] = out[st] || { cost: 0, unknown: false, cards: 0 };
+          const c = num(r["Cards Mailed"]); o.cards += c; if (c && r.COGS == null) o.unknown = true; else o.cost += num(r.COGS); });
+        return out;
+      }
+      function budgetHtml() {
+        if (!FC.year) return "";
+        const N = nextCalc(), CPL = stateCpl(), PC = postcardBy();
+        const tdc = (v, cls) => '<td class="' + (cls || "num") + '">' + v + "</td>";
+        const th = (t, cls) => '<th class="' + (cls || "num") + '">' + t + "</th>";
+        const rows = N.rows.map(r => { const cpl = CPL[r.st] != null ? CPL[r.st] : CPL._all; const mkt = cpl != null ? r.leads * cpl : null;
+          const pc = PC[r.st]; const pcCost = pc && pc.cards ? (pc.unknown ? null : pc.cost) : 0;
+          const net = (r.gross != null && mkt != null) ? r.gross - mkt - (pcCost || 0) : null;
+          return { st: r.st, jobs: r.jobs, revenue: r.revenue, expense: r.expense, rent: r.rent, leads: r.leads, cpl, mkt, pcCost, pcUnknown: !!(pc && pc.unknown), net }; });
+        const sum = k => rows.reduce((a, r) => a + (r[k] || 0), 0);
+        const some = k => rows.some(r => r[k] != null);
+        const tot = { jobs: sum("jobs"), revenue: some("revenue") ? sum("revenue") : null, expense: some("expense") ? sum("expense") : null, rent: sum("rent"), leads: sum("leads"),
+                      mkt: some("mkt") ? sum("mkt") : null, pcCost: sum("pcCost"), pcUnknown: rows.some(r => r.pcUnknown), net: some("net") ? sum("net") : null };
+        const line = (name, r) => "<tr>" + tdc(name, "strong") + tdc(fmtN(r.jobs)) + tdc(r.revenue != null ? money0(r.revenue) : "—") + tdc(r.expense != null ? money0(r.expense) : "—") + tdc(r.rent ? money0(r.rent) : "—") +
+          tdc(fmtN(r.leads)) + tdc(r.cpl != null ? money0(r.cpl) : "—") + tdc(r.mkt != null ? money0(r.mkt) : "—") + tdc(r.pcUnknown ? '<span class="ap2-dim" title="cards were mailed there but the purchase quantities are not typed yet">?</span>' : r.pcCost ? money0(r.pcCost) : "—") +
+          tdc(r.net != null ? "<b>" + money0(r.net) + "</b>" : "—") + "</tr>";
+        return '<div class="ap2-note" style="margin-bottom:8px">Revenue, job expense and truck rent come from the Next-season card (same method, same dials). <b>Marketing</b> = the leads needed × the state\'s cost per lead — the Area Master\'s estimated ad cost over its leads in the ' + (C.window === "season" ? "season" : "year-to-date") + ' window (Band B). <b>Post cards</b> = last season\'s cost of cards mailed per state (Post Card Expenditure; a ? means cards went out but the purchase quantities are not typed yet). Net = gross − marketing − post cards, before overhead.</div>' +
+          '<table class="rs-table ap2-next"><thead><tr>' + th("State", "") + th("Jobs") + th("Revenue") + th("Job expense") + th("Truck rent") + th("Leads needed") + th("$ / lead") + th("Marketing") + th("Post cards") + th("Net") + "</tr></thead><tbody>" +
+          rows.map(r => line(esc(r.st), r)).join("") + '<tr class="ap2-tot">' + line("<b>All states</b>", tot).slice(4) + "</tbody></table>";
+      }
+
+      /* ------- push or cut: an opportunity rank over the cities, weights adjustable ------------------ */
+      const RANK_DIMS = [["rpa", "Revenue per ad $", r => num(r["Est Revenue Per Ad Dollar"]) || null],
+                         ["mover", "Mover rate", r => r["Mover Rate"] != null ? num(r["Mover Rate"]) : null],
+                         ["wealth", "Wealth tier", r => ({ "Top fifth": 1, "Fourth fifth": .75, "Middle fifth": .5, "Second fifth": .25, "Lowest fifth": 0 })[r["Wealth Tier"]] ?? null],
+                         ["untapped", "Leads, no jobs (share)", r => num(r.Leads) ? lnj(r) / num(r.Leads) : null]];
+      inputs.rankW = Object.assign({ rpa: 40, mover: 20, wealth: 20, untapped: 20 }, inputs.rankW || {});
+      function rankRows() {
+        const rows = CITYALL.filter(r => num(r.Leads) >= (C.minLeads || 20) && (!inputs.focus || r.State === inputs.focus));
+        const pr = {};   // percentile rank per dimension
+        RANK_DIMS.forEach(([k, , f]) => { const vals = rows.map(f); const sorted = vals.filter(v => v != null).slice().sort((a, b) => a - b);
+          pr[k] = vals.map(v => v == null ? null : sorted.length > 1 ? sorted.findIndex(x => x >= v) / (sorted.length - 1) : .5); });
+        const W = inputs.rankW, wsum = RANK_DIMS.reduce((a, [k]) => a + (num(W[k]) || 0), 0) || 1;
+        return rows.map((r, i) => { let s = 0, w = 0; RANK_DIMS.forEach(([k]) => { const v = pr[k][i]; if (v != null) { s += v * (num(W[k]) || 0); w += (num(W[k]) || 0); } });
+          return { r, score: w ? s / w : null, parts: Object.fromEntries(RANK_DIMS.map(([k]) => [k, pr[k][i]])) }; }).filter(x => x.score != null).sort((a, b) => b.score - a.score);
+      }
+      function rankHtml() {
+        const all = rankRows();
+        const push = all.slice(0, 12), cut = all.filter(x => num(x.r["Est Ad Cost"]) >= 1000).slice(-8).reverse();
+        const tdc = (v, cls) => '<td class="' + (cls || "num") + '">' + v + "</td>";
+        const line = x => { const r = x.r; return "<tr>" + tdc(esc(r.City) + ' <span class="ap2-dim">' + esc(r.State) + "</span>", "strong") + tdc(Math.round(x.score * 100)) + tdc(fmtN(r.Leads)) + tdc(pct(num(r["Booking Rate"]) || null)) +
+          tdc(money0(num(r["Est Ad Cost"]))) + tdc(r["Est Revenue Per Ad Dollar"] != null ? "$" + r1(r["Est Revenue Per Ad Dollar"]) : "—") + tdc(r["Mover Rate"] != null ? pct(num(r["Mover Rate"])) : "—") + tdc(esc(r["Wealth Tier"] || "—"), "") + tdc(fmtN(lnj(r))) + "</tr>"; };
+        const head = '<thead><tr><th>City</th><th class="num">Score</th><th class="num">Leads</th><th class="num">Booking</th><th class="num">Est. ad cost</th><th class="num">Rev / ad $</th><th class="num">Mover rate</th><th>Wealth</th><th class="num">Leads, no jobs</th></tr></thead>';
+        return '<div class="ap2-rankw">' + RANK_DIMS.map(([k, label]) => '<label>' + esc(label) + ' <input class="rs-num ap2-in" type="number" min="0" max="100" step="5" data-rank="' + k + '" value="' + (num(inputs.rankW[k]) || 0) + '"></label>').join("") +
+          '<span class="ap2-note" style="margin:0">weights · each dimension is a percentile rank among the cities shown (min leads and focus apply)</span></div>' +
+          '<div class="ap2-rank2"><div><div class="ap2-note"><b>Push</b> — the best-placed cities to add leads in</div><table class="rs-table ap2-next">' + head + "<tbody>" + push.map(line).join("") + "</tbody></table></div>" +
+          '<div><div class="ap2-note"><b>Cut or fix</b> — the weakest of the cities we already pay $1,000+ for</div><table class="rs-table ap2-next">' + head + "<tbody>" + cut.map(line).join("") + "</tbody></table></div></div>";
+      }
+      function repaintRank() { const el = host.querySelector("#apRank"); if (el) { el.innerHTML = rankHtml(); wireRank(); } }
+      function wireRank() {
+        host.querySelectorAll("#apRank [data-rank]").forEach(el => el.addEventListener("input", () => { inputs.rankW[el.dataset.rank] = parseFloat(el.value) || 0; save();
+          const keep = el.dataset.rank; repaintRank(); const again = host.querySelector('#apRank [data-rank="' + keep + '"]'); if (again) { again.focus(); } }));
+      }
+
+      /* ------- where a depot pays: the presets from the model, any zip from its maps ---------------- */
+      const DEP = model.depots || {};
+      const hav = (a, b, c, d) => { const R = 3958.7613, r = x => x * Math.PI / 180; const dp = r(c - a), dl = r(d - b);
+        const h = Math.sin(dp / 2) ** 2 + Math.cos(r(a)) * Math.cos(r(c)) * Math.sin(dl / 2) ** 2; return 2 * R * Math.asin(Math.sqrt(h)); };
+      function depotTry(zip) {
+        const J = DEP.jobs_by_zip || [], WS = DEP.ws_zips || [], B = DEP.bases || [];
+        const hit = J.find(x => x[0] === zip) || WS.find(x => x[0] === zip); if (!hit) return null;
+        const lat = hit[1], lon = hit[2]; const total = J.reduce((a, j) => a + j[3], 0);
+        const near = (la, lo, bs) => bs.reduce((best, b) => { const d = hav(la, lo, b.lat, b.lon); return d < best[0] ? [d, b.name] : best; }, [Infinity, null]);
+        const withC = B.concat([{ name: zip, lat, lon }]);
+        let mi = 0, base = 0, j15 = 0, j35 = 0, rehomed = 0;
+        J.forEach(j => { const d = hav(j[1], j[2], lat, lon); if (d <= (DEP.near_mi || 15)) j15 += j[3]; if (d <= (DEP.territory_mi || 35)) j35 += j[3];
+          base += near(j[1], j[2], B)[0] * j[3]; const n = near(j[1], j[2], withC); mi += n[0] * j[3]; if (n[1] === zip) rehomed += j[3]; });
+        let ws35 = 0, never = 0, movers = 0;
+        WS.forEach(w => { if (hav(w[1], w[2], lat, lon) <= (DEP.territory_mi || 35)) { ws35++; if (w[3]) { never++; movers += w[4]; } } });
+        return { zip, label: zip, mi_per_job: total ? mi / total : null, saved_mi_per_job: total ? (base - mi) / total : null, jobs_15: j15, jobs_35: j35, rehomed, ws_zips_35: ws35, ws_never_35: never, movers_never_35: movers };
+      }
+      function depotHtml() {
+        if (!DEP.baseline) return '<div class="ap2-note">Depot scenarios appear after the next plan rebuild (07:50 NJ, or run <b>sources=area-plan</b>).</div>';
+        const tdc = (v, cls) => '<td class="' + (cls || "num") + '">' + v + "</td>";
+        const cands = (DEP.candidates || []).slice();
+        if (inputs.depotZip && !cands.some(c => c.zip === inputs.depotZip)) { const t = depotTry(inputs.depotZip); cands.push(t || { zip: inputs.depotZip, label: inputs.depotZip, error: "not in the territory data (no jobs and not within 35 miles of a base)" }); }
+        const line = c => "<tr>" + tdc("<b>" + esc(c.label || c.zip) + "</b> <span class=\"ap2-dim\">" + esc(c.zip) + "</span>", "strong") +
+          (c.error ? '<td colspan="8" class="ap2-dim">' + esc(c.error) + "</td>" :
+            tdc(fmtN(c.jobs_15)) + tdc(fmtN(c.jobs_35)) + tdc("<b>" + fmtN(c.rehomed) + "</b>") + tdc(r1(c.mi_per_job)) + tdc('<span class="' + (c.saved_mi_per_job > 0 ? "ap2-ok" : "ap2-dim") + '">' + (c.saved_mi_per_job > 0 ? "−" : "") + r1(Math.abs(c.saved_mi_per_job)) + " mi</span>") +
+            tdc(fmtN(c.ws_zips_35)) + tdc(fmtN(c.ws_never_35)) + tdc(fmtN(c.movers_never_35))) + "</tr>";
+        return '<div class="ap2-note" style="margin-bottom:8px">Last twelve months of jobs by pickup zip, straight-line miles. Today: <b>' + fmtN(DEP.baseline.jobs) + '</b> jobs at <b>' + r1(DEP.baseline.mi_per_job) + ' mi/job</b> from ' + (DEP.baseline.bases || []).length + ' active bases (' + esc((DEP.baseline.bases || []).join(", ")) + '). <b>Re-homed</b> = jobs that would be closer to the new depot than to any base today. White space = territory zips within ' + (DEP.territory_mi || 35) + ' miles that never sent a lead, and the people who move there each year (Census).</div>' +
+          '<div class="ap2-mpick"><span class="ap2-note" style="margin:0 8px 0 0"><b>Try a zip</b></span><input class="ap2-in" id="apDepotZip" placeholder="e.g. 08540" maxlength="5" value="' + esc(inputs.depotZip || "") + '" style="width:110px"><button class="ap2-mbtn" id="apDepotGo">Add to the table</button>' +
+          '<span class="ap2-note" style="margin:0 0 0 10px">presets come from the plan; add more on Planning Variables (depot candidates)</span></div>' +
+          '<table class="rs-table ap2-next"><thead><tr><th>Depot at</th><th class="num">Jobs ≤ ' + (DEP.near_mi || 15) + ' mi</th><th class="num">Jobs ≤ ' + (DEP.territory_mi || 35) + ' mi</th><th class="num">Re-homed</th><th class="num">mi / job with it</th><th class="num">Saving</th><th class="num">Zips ≤ 35 mi</th><th class="num">Never a lead</th><th class="num">Movers / yr there</th></tr></thead><tbody>' +
+          cands.map(line).join("") + "</tbody></table>";
+      }
+      function wireDepot() {
+        const go = host.querySelector("#apDepotGo"), inp = host.querySelector("#apDepotZip"); if (!go || !inp) return;
+        const run = () => { const z = (inp.value || "").replace(/\D/g, "").slice(0, 5); if (z.length !== 5) return; inputs.depotZip = z; save();
+          const el = host.querySelector("#apDepot"); if (el) { el.innerHTML = depotHtml(); wireDepot(); } };
+        go.onclick = run; inp.onkeydown = e => { if (e.key === "Enter") run(); };
+      }
+
       function wireMethod() {
         host.querySelectorAll("#apNext [data-method]").forEach(b => b.onclick = () => {
           inputs.method = b.dataset.method; save();
           const nx = document.getElementById("apNext"); if (nx) { nx.innerHTML = nextHtml(); wireMethod(); }
+          repaintBudget();
         });
       }
       function paint() {
@@ -1133,10 +1252,19 @@ registerPage({
           card("Next season — " + (FC.year || "the coming one"), "Jobs, foremen, crew and leads per state and month, planned from last season",
                "The decision table: what each month needs, what the foreman table gives, and the gap. Jobs move with the growth and utilization dials; the crew ratios and the hire lead time are on Planning Variables.",
                '<div id="apNext" style="overflow-x:auto">' + nextHtml() + "</div>") +
+          card("Season budget — " + (FC.year || "the coming one"), "Revenue, the job and truck cost, marketing and post cards, per state",
+               "The whole season in one table: what the jobs bring, what they cost to run, what the leads cost to buy. Net is before overhead.",
+               '<div id="apBudget" style="overflow-x:auto">' + budgetHtml() + "</div>") +
           card("Where it leaks", "The counties that lose the most",
                "Top county losses in " + esc(P.label) + (inputs.focus ? " for " + esc(inputs.focus) : "") + " — where extra sales attention or pricing would bite first.",
                '<div id="apLeak">' + leakHtml() + "</div>") +
           '<div id="apBandB">' + bandBHtml() + "</div>" +
+          card("Push or cut — the opportunity rank", "Cities scored on return per ad dollar, movers, wealth and untapped leads — weights are yours",
+               "Where to add leads, and where the money already spent works least. The rank follows the Band B window, focus and minimum leads.",
+               '<div id="apRank">' + rankHtml() + "</div>") +
+          card("Where a depot pays", "Philadelphia, Millburn, Hartford — and any zip you try",
+               "Miles per job today against miles per job with the depot, the jobs it would take over, and the white space it would bring within reach.",
+               '<div id="apDepot" style="overflow-x:auto">' + depotHtml() + "</div>") +
           '<div class="ap2-band"><span class="k">Band C · Reference</span><h2>Read once a season</h2></div>' +
           ref("How the season was decided", (SEASON.months || []).map(m => MONTH_NAMES[m]).join("–"), card("The season", "Months that reach the threshold of the year's peak", "", seasonHtml())) +
           (R.states ? ref("The outside picture", "big houses and good areas, joined to our own demand",
@@ -1153,7 +1281,7 @@ registerPage({
 
       function repaintCity() {
         const t = host.querySelector("#apCityTable"); if (t) t.innerHTML = cityTableHtml();
-        mountCityBar(); wireCityTable();
+        mountCityBar(); wireCityTable(); repaintRank(); repaintBudget();
       }
       function repaintBandB() {
         const b = host.querySelector("#apBandB"); if (!b) return;
@@ -1209,8 +1337,9 @@ registerPage({
         const un = host.querySelector("[data-unfocus]"); if (un) un.onclick = ev => { ev.preventDefault(); inputs.focus = ""; setFocus(""); };
       }
       function wire() {
-        wireControls(); wireFocus(); mountCityBar(); repaintCity(); wireWs(); wireMethod();
+        wireControls(); wireFocus(); mountCityBar(); repaintCity(); wireWs(); wireMethod(); wireRank(); wireDepot();
       }
+      function repaintBudget() { const el = host.querySelector("#apBudget"); if (el) el.innerHTML = budgetHtml(); }
       function save() { try { localStorage.setItem(LS_KEY, JSON.stringify(inputs)); } catch (e) {} }
 
       paint();
@@ -1220,6 +1349,7 @@ registerPage({
       host.addEventListener("input", e => {
         const t = e.target;
         if (!t.classList || !t.classList.contains("rs-num")) return;
+        if (t.dataset.rank) return;                      // the opportunity-rank weights have their own handler
         if (t.dataset.st) {
           const b = inputs.bases[t.dataset.st];
           if (t.dataset.co) { (b.byCo[t.dataset.co] = b.byCo[t.dataset.co] || { cur: 0, add: 0 })[t.dataset.f] = parseFloat(t.value) || 0; }
@@ -1234,6 +1364,7 @@ registerPage({
         const c = calc();
         document.getElementById("apHero").innerHTML = heroHtml(c);
         const nx = document.getElementById("apNext"); if (nx) { nx.innerHTML = nextHtml(); wireMethod(); }
+        if (!t.dataset.rank) repaintBudget();
         const tbl = document.getElementById("apBase");
         c.perBase.forEach(r => {
           const row = tbl.querySelector('tr.ap2-row[data-focus="' + CSS.escape(r.st) + '"]'); if (!row) return;
