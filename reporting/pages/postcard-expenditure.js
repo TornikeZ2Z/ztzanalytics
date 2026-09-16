@@ -113,15 +113,16 @@ registerPage({
     purchRows.forEach(r => {
       const k = r["Purchase Key"];
       const p = PUR[k] || (PUR[k] = { key: k, date: String(r.Date).slice(0, 10), company: r.Company, provider: r.Provider || r["Sub Category"] || "",
-        desc: r.Description || "", amount: num(r.Amount), ledger: r["Ledger State"] || null, splits: [], note: r.Note || null });
+        desc: r.Description || "", amount: num(r.Amount), ledger: r["Ledger State"] || null, splits: [], note: r.Note || null, opening: null });
       if (num(r.Quantity) > 0) p.splits.push({ state: r["Split State"] || null, qty: num(r.Quantity) });
     });
     if (canEdit) {                                   // the page reads its own write table: the live answer wins
       const live = {};
-      ((ov && ov.purchases) || []).forEach(o => { (live[o["Purchase Key"]] = live[o["Purchase Key"]] || { splits: [], note: null });
+      ((ov && ov.purchases) || []).forEach(o => { (live[o["Purchase Key"]] = live[o["Purchase Key"]] || { splits: [], note: null, opening: null });
         if (num(o.Quantity) > 0) live[o["Purchase Key"]].splits.push({ state: o.State || null, qty: num(o.Quantity) });
-        if (o.Note) live[o["Purchase Key"]].note = o.Note; });
-      Object.keys(PUR).forEach(k => { if (live[k]) { PUR[k].splits = live[k].splits; PUR[k].note = live[k].note; } else { PUR[k].splits = []; PUR[k].note = null; } });
+        if (o.Note) live[o["Purchase Key"]].note = o.Note;
+        if (o.Opening != null) live[o["Purchase Key"]].opening = num(o.Opening); });
+      Object.keys(PUR).forEach(k => { if (live[k]) { PUR[k].splits = live[k].splits; PUR[k].note = live[k].note; PUR[k].opening = live[k].opening; } else { PUR[k].splits = []; PUR[k].note = null; PUR[k].opening = null; } });
     }
     const purch = Object.values(PUR).sort((a, b) => b.date.localeCompare(a.date));
     const qtyOf = p => p.splits.reduce((t, s) => t + s.qty, 0);
@@ -132,7 +133,8 @@ registerPage({
       const fm = Object.keys(MAIL).map(k => k.slice(0, 7)).sort()[0] || null;
       const before = purch.filter(p => fm && p.date.slice(0, 7) < fm).map(p => p.date).sort();
       const od = before.length ? before[before.length - 1] : null;
-      purch.forEach(p => { p.role = !fm || !od ? "in" : p.date < od ? "before" : p.date === od ? "opening" : "in"; });
+      // a choice typed on the page (counts as opening stock: yes / no) beats the date rule
+      purch.forEach(p => { p.role = p.opening === 1 ? "opening" : p.opening === 0 ? "before" : !fm || !od ? "in" : p.date < od ? "before" : p.date === od ? "opening" : "in"; });
       return { fm, od };
     }
 
@@ -259,6 +261,9 @@ registerPage({
         '<div class="eyebrow">Cards by state</div><div class="pce-sgrid">' + order.map(tile).join("") + "</div>" +
         '<div class="pce-pool"><span class="st">Not tied to a state<small>pooled — still counts in the unit cost</small></span><span><input class="pce-in' + (cur[""] ? " set" : "") + '" type="number" min="0" step="1" data-st="" value="' + (cur[""] || "") + '" placeholder="cards"></span></div>' +
         '<div class="pce-sum"><span class="n" data-tot>—</span><span class="p" data-price>type the cards to see the price per card</span></div>' +
+        (K.stock.fm && p.date.slice(0, 7) < K.stock.fm
+          ? '<label class="pce-pool" style="cursor:pointer"><span class="st">Counts as opening stock<small>paid before the mailed record began (' + esc(ymLbl(K.stock.fm)) + ') but still on the shelf then — in the balance and the unit cost</small></span><input type="checkbox" data-opening' + (p.role === "opening" ? " checked" : "") + "></label>"
+          : "") +
         '<div style="margin-top:12px"><input class="pce-in wide" type="text" maxlength="500" data-note placeholder="note (optional)" value="' + esc(p.note || "") + '"></div>' +
         '<div class="acts"><button class="pce-btn pri" data-save>Save</button><button class="pce-btn" data-cancel>Cancel</button><span class="pce-msg" data-msg></span></div></div>';
       document.body.appendChild(mask);
@@ -280,11 +285,12 @@ registerPage({
         const splits = inputs.map(i => ({ state: i.dataset.st, quantity: num(i.value) > 0 ? Math.round(num(i.value)) : null })).filter(s => s.quantity);
         try {
           const r = await fetch(ZTZ.API + "/api/_pcpurchase", { method: "POST", headers: { ...hdr, "Content-Type": "application/json" },
-            body: JSON.stringify({ key, splits, note: mask.querySelector("[data-note]").value.trim() }) });
+            body: JSON.stringify({ key, splits, note: mask.querySelector("[data-note]").value.trim(),
+              opening: mask.querySelector("[data-opening]") ? mask.querySelector("[data-opening]").checked : null }) });
           const j = await r.json();
           if (!r.ok || j.error) throw new Error(j.error || r.status);
           p.splits = (j.splits || []).filter(s => s.quantity > 0).map(s => ({ state: s.state || null, qty: s.quantity }));
-          p.note = j.note || null;
+          p.note = j.note || null; p.opening = j.opening == null ? null : num(j.opening);
           close(); paintPurchases(); paintTop();
         } catch (e) { msg.className = "pce-msg bad"; msg.textContent = "not saved: " + String(e.message || e).slice(0, 80); }
       };
