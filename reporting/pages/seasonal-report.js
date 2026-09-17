@@ -47,6 +47,7 @@ async function renderSeasonal(host) {
     soft("/api/mart_rc_monthly_rep_inbound?limit=100000"), soft("/api/mart_postcard_month?limit=20000"),
     soft("/api/mart_estimate_actual?limit=60000")]);
   const DS = { closing, moveboard, claims, refunds, card_expenses: cardEx, callrail };
+  const SHORT_ON = (rcLine || []).some(r => "Short Missed" in r);   // the 10-second rule's column (mart change 2026-09-17)
   /* Claims + reviews deep-dives read tables that are granted with Claims Analysis / Review Performance.
      They are OPTIONAL here: a reader without those pages gets a note on the section (never a red
      banner), and this page never widens who can reach the claims board — the grant stays where it is. */
@@ -556,7 +557,8 @@ async function renderSeasonal(host) {
     const c = cl(y), cr = created(y), bk = booked(y), b = bill(c), n = ncc(c);
     const sc = !ZIP ? [] : scorecard.filter(r => { const m = String(r.Month || ""); return +m.slice(0, 4) === y && +m.slice(5, 7) >= F && +m.slice(5, 7) <= T; });
     const inb = rcLine.filter(r => String(r.Company) === CO && !NOT_REP(r["Line Name"]) && +String(r.Month).slice(0, 4) === y && +String(r.Month).slice(5, 7) >= F && +String(r.Month).slice(5, 7) <= T);
-    const inCalls = sumCol(inb, "Calls"), missed = sumCol(inb.filter(r => /^(Missed|Voicemail)$/i.test(String(r["Action Result"] || ""))), "Calls");
+    // a missed or voicemail call under 10 seconds is a hang-up, not a missed call (his rule 2026-09-17): out of both counts
+    const shortN = sumCol(inb, "Short Missed"), inCalls = sumCol(inb, "Calls") - shortN, missed = sumCol(inb.filter(r => /^(Missed|Voicemail)$/i.test(String(r["Action Result"] || ""))), "Calls") - shortN;
     const ads = adRows(y), adSpend = sumCol(ads, "Amount");
     const paid = new Set(ads.map(r => normSrc(r.Source)).filter(Boolean));
     const adCl = adTo == null ? [] : cl(y, F, adTo);
@@ -566,7 +568,7 @@ async function renderSeasonal(host) {
       claims: rows("claims", y).filter(r => coJk.has(String(r["Request Joinkey"] || ""))).length,
       refunds: sumCol(rows("refunds", y).filter(coRow), "Total refund"),
       revPerJob: scJobs && sumCol(sc, "Total Reviews Written") > 0 ? sumCol(sc, "Total Reviews Written") / scJobs : null,
-      missRate: inCalls ? missed / inCalls : null, inCalls,
+      missRate: inCalls ? missed / inCalls : null, inCalls, shortN,
       adSpend, adPer1: adSpend ? ncc(adCl.filter(r => paid.has(normSrc(r.Source)))) / adSpend : null };
   });
   const C = H[Y], P = H[LY] || {};
@@ -692,7 +694,7 @@ async function renderSeasonal(host) {
     { g: "Revenue", t: "≥ $4.5M", v: C.bill, ok: v => v >= 4.5e6, f: money, pv: P.bill },
     { g: "Cash Collected (Net + Card)", t: "≥ $2.7M", v: C.ncc, ok: v => v >= 2.7e6, f: money, pv: P.ncc },
     { g: "Booking rate", t: "≥ 25%", v: C.book, ok: v => v >= .25, f: pct, pv: P.book },
-    { g: "Incoming calls missed (incl. voicemail, all company lines)", t: "≤ 5%", v: C.missRate, ok: v => v <= .05, f: pct, pv: P.missRate },
+    { g: "Incoming calls missed (incl. voicemail, all company lines, 10 s or longer)", t: "≤ 5%", v: C.missRate, ok: v => v <= .05, f: pct, pv: P.missRate },
     { g: "Reviews per job (foreman scorecard)", t: "≥ 70%", v: C.revPerJob, ok: v => v >= .7, f: pct0, pv: P.revPerJob },
     { g: `Cash collected per $1 of advertising (paid channels${adCut ? ", " + adLbl : ""})`, t: "≥ $10", v: C.adPer1, ok: v => v >= 10, f: x1, pv: P.adPer1 },
     { g: "Leads turned away for availability (recorded)", t: "< 10% of demand", v: SD ? SV[Y].share : null, ok: v => v < 0.1, f: pct, pv: SD && SV[LY] ? SV[LY].share : null, why: "surge-day data not loaded yet" },
@@ -1116,12 +1118,14 @@ async function renderSeasonal(host) {
     keys = order ? keys.sort((a, b) => order(a.k, b.k)) : keys.sort((a, b) => b.qT - a.qT);
     if (opts.top) keys = keys.slice(0, opts.top);
     const rowsF = keys.map(x => { const rT = RS.bookingRate(cT.get(x.k) || [], bT.get(x.k) || []), rL = RS.bookingRate(cL.get(x.k) || [], bL.get(x.k) || []);
-      return `<tr>${td(esc(x.k))}${td(fmtN(x.qL))}${dtd(x.qT, x.qL, fmtN)}${td(fmtN(conf(bL.get(x.k) || [])))}${dtd(conf(bT.get(x.k) || []), conf(bL.get(x.k) || []), fmtN)}${tdn(rL, pct)}${ptd(rT, rL)}</tr>`; });
-    rowsF.push(`<tr class="tot">${td("All")}${td(fmtN(P.qual || 0))}${dtd(C.qual, P.qual, fmtN)}${td(fmtN(P.conf || 0))}${dtd(C.conf, P.conf, fmtN)}${tdn(P.book, pct)}${ptd(C.book, P.book)}</tr>`);
+      const nT = (cT.get(x.k) || []).length, nL = (cL.get(x.k) || []).length;
+      return `<tr>${td(esc(x.k))}${td(fmtN(nL))}${dtd(nT, nL, fmtN)}${td(fmtN(x.qL))}${dtd(x.qT, x.qL, fmtN)}${td(fmtN(conf(bL.get(x.k) || [])))}${dtd(conf(bT.get(x.k) || []), conf(bL.get(x.k) || []), fmtN)}${tdn(rL, pct)}${ptd(rT, rL)}</tr>`; });
+    rowsF.push(`<tr class="tot">${td("All")}${td(fmtN(P.leads || 0))}${dtd(C.leads, P.leads, fmtN)}${td(fmtN(P.qual || 0))}${dtd(C.qual, P.qual, fmtN)}${td(fmtN(P.conf || 0))}${dtd(C.conf, P.conf, fmtN)}${tdn(P.book, pct)}${ptd(C.book, P.book)}</tr>`);
     const rateOf = (cc, bb, k) => RS.bookingRate(cc.get(k) || [], bb.get(k) || []);
     dual(mount, m => pairBars(m, title, `booking rate · ${Y} vs ${LY}`, keys.map(x => x.k), keys.map(x => rateOf(cL, bL, x.k)), keys.map(x => rateOf(cT, bT, x.k)), pct, { axis: pct0, span2: opts.span2 || false, head: pct(C.book) + " all" }),
-      m => table(m, title, `${Y} vs ${LY} · green up, red down`, ["", String(LY), String(Y), String(LY), String(Y), String(LY), String(Y)], rowsF,
-        { span2: opts.span2 || false, groups: [["", 1], ["Qualified leads", 2], ["Confirmed", 2], ["Booking rate", 2]], how: opts.how }));
+      m => table(m, title, `${Y} vs ${LY} · green up, red down`, ["", String(LY), String(Y), String(LY), String(Y), String(LY), String(Y), String(LY), String(Y)], rowsF,
+        { span2: opts.span2 || false, groups: [["", 1], ["Total leads", 2], ["Qualified leads", 2], ["Confirmed", 2], ["Booking rate", 2]],
+          how: (opts.how ? opts.how + " " : "") + "Total leads = every lead that came in, bad ones included; qualified leaves out Dead Lead, Archive and Spam, and the booking rate divides by qualified." }));
   }
   const cfKey = s => { const n = parseInt(String(s), 10); return /over/i.test(s) ? 1e6 : isNaN(n) ? 1e7 : n; };
   funnelTable(g3, "By service type", key("Service Type"));
@@ -1202,6 +1206,28 @@ async function renderSeasonal(host) {
   };
   splitCards("Sales Person", "rep", 5);
   splitCards("Foreman", "foreman", 5);
+  /* PACKING AND CLAIMS PER REP (Seasonal presentation feedback 2026-09-17: "who sells packing well, who struggles" and
+     "sales jobs + claims in one view"). Packing written = Material Total on the closings credited to the rep as Sales
+     Person — the same jobs as the scorecard. Packing in the estimate = what the rep put on the booking (calendar
+     estimate, jobs with a final contract, Oct 2025 on). Claims = the credited share from the Claims part. */
+  const packOf = rs => { const w = sumCol(rs, "Material Total"), n = rs.length, withP = rs.filter(r => num(r["Material Total"]) > 0).length, b = bill(rs);
+    return { w, n, withP, per: n ? w / n : null, share: n ? withP / n : null, ofRev: b ? w / b : null }; };
+  const eamRep = grp(eamIn(Y).filter(r => +r.Detail === 1), key("Sales Person"));
+  const PKT = packOf(cl(Y)), PKL = packOf(cl(LY));
+  const PKREP = REPS.map(r => { const e = eamRep.get(r.n) || [];
+    return { n: r.n, t: packOf(rClT.get(r.n) || []), l: packOf(rClL.get(r.n) || []), eN: e.length, est: e.length >= 5 ? sumCol(e, "Est Packing") / e.length : null, cx: SPCL ? SPCL.get(r.n) : null }; })
+    .filter(x => x.t.n >= 5).sort((a, b) => b.t.per - a.t.per);
+  const eamAll = eamIn(Y).filter(r => +r.Detail === 1), estTeam = eamAll.length ? sumCol(eamAll, "Est Packing") / eamAll.length : null;
+  const clsTd = x => !SPCL ? `<td class="dim">—</td>` : !x || x.r == null ? td("0") : x.small ? `<td class="dim">${pct(x.r)} · small</td>` : `<td class="${x.r > (CC.rate || 0) ? "dn" : "up"}">${pct(x.r)}</td>`;
+  const f1c = v => v == null ? "—" : (Math.round(v * 10) / 10).toLocaleString();
+  dual(g4, m => pairBars(m, "Packing and claims by rep", `packing written per job · ${Y} vs ${LY} · best first`, PKREP.map(x => x.n), PKREP.map(x => x.l.n >= 5 ? x.l.per : null), PKREP.map(x => x.t.per), money,
+      { axis: moneyC, head: money(PKT.per) + " / job team", chips: chip(PKT.per, PKL.per),
+        note: PKREP.length ? `Across the team ${pct0(PKT.share)} of jobs carried packing, ${money(PKT.per)} per job (${LY}: ${money(PKL.per)}). Best: ${PKREP[0].n} at ${money(PKREP[0].t.per)} per job; lowest: ${PKREP[PKREP.length - 1].n} at ${money(PKREP[PKREP.length - 1].t.per)}.` : "" }),
+    m => table(m, "Packing and claims by rep", `${seasonName} ${Y} · the jobs each rep sold`, ["Rep", "Jobs", "Packing written", "Per job", "vs " + LY, "Jobs with packing", "Share of revenue", "In the estimate / job", "Claims (credited)", "Claim share"],
+      PKREP.map(x => `<tr>${td(esc(x.n))}${td(fmtN(x.t.n))}${td(money(x.t.w))}<td class="${x.t.per >= PKT.per ? "up" : "dn"}"><b>${money(x.t.per)}</b></td>${dcell(x.t.per, x.l.n >= 5 ? x.l.per : null)}${tdn(x.t.share, pct0)}${tdn(x.t.ofRev, pct)}${tdn(x.est, money)}${!SPCL ? `<td class="dim">—</td>` : td(f1c(x.cx ? x.cx.a.c : 0))}${clsTd(x.cx)}</tr>`)
+        .concat([`<tr class="tot">${td("Team")}${td(fmtN(PKT.n))}${td(money(PKT.w))}${td(money(PKT.per))}${dcell(PKT.per, PKL.per)}${tdn(PKT.share, pct0)}${tdn(PKT.ofRev, pct)}${tdn(estTeam, money)}${!SPCL || CC.claims == null ? `<td class="dim">—</td>` : td(fmtN(CC.claims))}${tdn(CC.rate, pct)}</tr>`]),
+      { how: `Packing written = Material Total on the closings credited to the rep as Sales Person (the scorecard's jobs); green per job = above the team. Jobs with packing = share of those jobs with any packing written. In the estimate = the packing the rep put on the booking, per job with a final contract (booked ${MON[F]}–${MON[T]} ${Y}, 5+ such jobs; the booking detail exists from October 2025). Claims use the Claims part's rule: a job sold by two reps gives each their share of the job and of the claim; under 30 credited jobs the share is "small".${SPCL ? "" : " Claims need Claims Analysis access."}` }));
+
   const qR = REPS.filter(r => r.book != null && r.jobs >= 20);
   quadrant(g4, "Salespeople — conversion vs job value", `${seasonName} ${Y} · bubble = jobs · dashed = team average`, qR.map(r => ({ k: r.n, x: r.book, y: r.bill / r.jobs, r: r.jobs })), pct0, money,
     { xLabel: "Booking rate", yLabel: "Average job value", goodX: "high", goodY: "high", xAvg: C.book, yAvg: C.avg, q: { tr: "★ converts more, sells bigger", bl: "converts less, sells smaller" },
@@ -1313,6 +1339,27 @@ async function renderSeasonal(host) {
     m => table(m, `Foreman of the ${seasonName.toLowerCase() === "summer" ? "Summer" : "Season"} ${Y}`, "counted score · job-weighted · ranked", ["Foreman", "Counted score", "vs " + LY].concat(asRows.length ? ["Assessment " + asLbl] : []).concat(["Jobs", "Cash collected", "Packing written", "vs estimate", "Packing / 100 CF", "Reviews / eligible job", "Claims share", "Refunds"]),
     FM.map((f, i) => `<tr>${td(`<span style="color:${FAINT};font-weight:600;margin-right:6px">${i + 1}</span>${i === 0 ? "👑 " : ""}${esc(f.n)}`, "")}${td(`<b>${f.score.toFixed(1)}</b>`)}${f.scoreL == null ? `<td class="dim">—</td>` : `<td class="${f.score >= f.scoreL ? "up" : "dn"}">${f.score >= f.scoreL ? "+" : ""}${(f.score - f.scoreL).toFixed(1)}</td>`}${asRows.length ? (f.a.mj ? td(`${(f.a.mw / f.a.mj).toFixed(1)} <small>/ 40</small>`) : `<td class="dim">not assessed</td>`) : ""}${td(fmtN(f.a.jobs))}${td(money(f.ncc))}${td(money(f.a.w))}${tdn(f.a.e ? f.a.w / f.a.e : null, pct0)}${tdn(f.a.cf ? f.a.w / f.a.cf * 100 : null, money)}${(() => { const rv = REVFM && REVFM.get(f.n); return rv && rv.el ? tdn(rv.rv / rv.el, pct0) : tdn(f.a.jobs && f.a.rv ? f.a.rv / f.a.jobs : null, pct0); })()}${(() => { const x = FMCL && FMCL.get(f.n); return x && x.r != null ? `<td class="${x.small ? "dim" : x.r > (CC.rate || 0) ? "dn" : "up"}">${pct(x.r)}</td>` : (f.a.fc ? td(fmtN(f.a.fc) + " fault", "no") : td("0")); })()}${f.ref ? td(money(f.ref), "no") : `<td class="dim">—</td>`}</tr>`),
     { note: asNote, how: `Counted score = each month's automatic score (packing per 100 CF, reviews, packing vs estimate, claims) as a share of that month's counted points, weighted by that month's jobs: a busy July counts more than a quiet May, and a 70-point month and a 60-point month sit on the same 0–100 scale. "vs ${LY}" is the same measure last season.${asRows.length ? ` Assessment = the logistics team's points out of 40, job-weighted over ${asLbl}; a question left unanswered counts as zero there.` : ""} Foremen with fewer than 15 jobs in the window are left out. Packing "vs estimate" = written ÷ the sales estimate: it is a floor, not a target — crews routinely write 1.5–3× the estimate. Reviews per eligible job and the claims share use the same rules as the Reviews and Claims parts above.` }));
+  /* PACKING, CLAIMS AND TIPS PER FOREMAN (Seasonal presentation feedback 2026-09-17: "packing written + claims" and
+     "packing written + tips" in one view). All from the foreman's own closings in the window; the claim share is the
+     Claims part's (claims on his jobs ÷ his jobs, 30-job floor). Tips = Tip From the Customers on the closing. */
+  const fclL = grp(cl(LY), key("Foreman")), tipsOf = rs => sumCol(rs, "Tip From the Customers");
+  const TIPT = cl(Y).length ? tipsOf(cl(Y)) / cl(Y).length : null, TIPL = cl(LY).length ? tipsOf(cl(LY)) / cl(LY).length : null;
+  const FPT = [...fcl.entries()].filter(([n, c]) => c.length >= 15 && !NOT_REP(n)).map(([n, c]) => { const t = packOf(c), l = packOf(fclL.get(n) || []), tp = tipsOf(c), cL = (fclL.get(n) || []).length;
+    return { n, t, l, tips: tp, tipPer: tp / c.length, tipPerL: cL >= 15 ? tipsOf(fclL.get(n)) / cL : null, x: FMCL ? FMCL.get(n) : null }; }).sort((a, b) => b.t.per - a.t.per);
+  const fClsTd = x => !FMCL ? `<td class="dim">—</td>` : !x || x.r == null ? td("0") : x.small ? `<td class="dim">${pct(x.r)} · small</td>` : `<td class="${x.r > (CC.rate || 0) ? "dn" : "up"}">${pct(x.r)}</td>`;
+  const fpData = m => table(m, "Foremen — packing, claims and tips", `${seasonName} ${Y} · per foreman · best packing first`, ["Foreman", "Jobs", "Packing written", "Per job", "vs " + LY, "Jobs with packing", "Claims", "Claim share", "Customer tips", "Tips / job", "vs " + LY],
+    FPT.map(f => `<tr>${td(esc(f.n))}${td(fmtN(f.t.n))}${td(money(f.t.w))}<td class="${f.t.per >= PKT.per ? "up" : "dn"}"><b>${money(f.t.per)}</b></td>${dcell(f.t.per, f.l.n >= 15 ? f.l.per : null)}${tdn(f.t.share, pct0)}${!FMCL ? `<td class="dim">—</td>` : td(fmtN(f.x ? f.x.cs.length : 0))}${fClsTd(f.x)}${td(money(f.tips))}<td class="${f.tipPer >= TIPT ? "up" : "dn"}">${money(f.tipPer)}</td>${dcell(f.tipPer, f.tipPerL)}</tr>`)
+      .concat([`<tr class="tot">${td("Team")}${td(fmtN(PKT.n))}${td(money(PKT.w))}${td(money(PKT.per))}${dcell(PKT.per, PKL.per)}${tdn(PKT.share, pct0)}${!FMCL || CC.claims == null ? `<td class="dim">—</td>` : td(fmtN(CC.claims))}${tdn(CC.rate, pct)}${td(money(tipsOf(cl(Y))))}${tdn(TIPT, money)}${dcell(TIPT, TIPL)}</tr>`]),
+    { span2: true, how: `Foremen with 15+ jobs in the window, from their own closings. Packing written = Material Total; green per job = above the team's ${money(PKT.per)}. Claims and claim share follow the Claims part (claims filed in the window on his jobs ÷ his jobs; under 30 jobs = "small"); red = above the team's ${pct(CC.rate)}.${FMCL ? "" : " Claims need Claims Analysis access."} Customer tips = Tip From the Customers on the closing (the whole crew's tip); green tips per job = above the team's ${money(TIPT)}.` });
+  const qPC = FMCL ? FPT.filter(f => f.x && !f.x.small && f.x.r != null).map(f => ({ k: f.n, x: f.t.per, y: f.x.r, r: f.t.n })) : [];
+  if (qPC.length >= 2) dual(g5, m => quadrant(m, "Foremen — packing, claims and tips", `packing written vs claims · ${seasonName} ${Y} · bubble = jobs · dashed = team average`, qPC, money, pct,
+      { xLabel: "Packing written per job", yLabel: "Claims — share of jobs", goodX: "high", goodY: "low", xAvg: PKT.per, yAvg: CC.rate, span2: true, q: { br: "★ sells packing, few claims", tl: "little packing, many claims" },
+        how: "Does selling more packing come with fewer claims? Foremen with 30+ jobs (the claims floor). Lime = more packing AND fewer claims than the team; red = less packing AND more claims. Data holds every foreman with 15+ jobs, tips included." }), fpData);
+  else dual(g5, m => rankBars(m, "Foremen — packing, claims and tips", `packing written per job · ${seasonName} ${Y}`, FPT.map(f => ({ k: f.n, v: f.t.per })), money, { top: 20, span2: true }), fpData);
+  quadrant(g5, "Foremen — packing written vs customer tips", `${seasonName} ${Y} · per job · bubble = jobs · dashed = team average`, FPT.map(f => ({ k: f.n, x: f.t.per, y: f.tipPer, r: f.t.n })), money, money,
+    { xLabel: "Packing written per job", yLabel: "Customer tips per job", goodX: "high", goodY: "high", xAvg: PKT.per, yAvg: TIPT, span2: true, q: { tr: "★ sells packing, well tipped", bl: "little packing, low tips" },
+      how: "Foremen with 15+ jobs. Tips = Tip From the Customers on the closing, per job. Lime = above the team on both; red = below on both." });
+
   const fh = [...fcl.entries()].map(([n, c]) => ({ n, j: c.length, h: sumCol(c, "Foreman Hours") })).filter(x => x.j >= 10).sort((a, b) => b.h - a.h).slice(0, 22);
   combo(g5, "Hours worked vs jobs done", `${seasonName} ${Y} · per foreman`, fh.map(x => x.n), fh.map(x => x.j), "Jobs", fmtN, fh.map(x => x.h), "Hours", fmtN,
     { span2: true, rotate: true, barColors: fh.map(() => INK), barAxis: fmtN, head: fmtN(fh.reduce((a, x) => a + x.h, 0)) + " h" });
@@ -1419,14 +1466,15 @@ async function renderSeasonal(host) {
   // phones — RingCentral inbound lines, CallRail tracked numbers
   const lineFold = y => { const g = new Map(); rcLine.forEach(r => { if (String(r.Company) !== CO || NOT_REP(r["Line Name"])) return; const ym = String(r.Month || ""); if (+ym.slice(0, 4) !== y || +ym.slice(5, 7) < F || +ym.slice(5, 7) > T) return;
     const k = String(r["Line Name"] || "").trim() || "(unnamed numbers)", a = g.get(k) || { in: 0, ans: 0, miss: 0, dur: 0 }, n = num(r.Calls), res = String(r["Action Result"] || "");
-    a.in += n; if (/^Accepted$/i.test(res)) { a.ans += n; a.dur += num(r["Duration Seconds"]); } else if (/^(Missed|Voicemail)$/i.test(res)) a.miss += n; g.set(k, a); }); return g; };
+    const sh = num(r["Short Missed"]); a.in += n - sh; if (/^Accepted$/i.test(res)) { a.ans += n; a.dur += num(r["Duration Seconds"]); } else if (/^(Missed|Voicemail)$/i.test(res)) a.miss += n - sh; g.set(k, a); }); return g; };
   const lnT = lineFold(Y), lnL = lineFold(LY);
   dual(g6, m => { const ls = [...lnT.entries()].filter(([, a]) => a.in >= 20).sort((a, b) => b[1].in - a[1].in), mr = a => a && a.in ? a.miss / a.in : null;
       return pairBars(m, "Inbound calls by company line", `missed or voicemail · ${Y} vs ${LY} · goal 5%`, ls.map(([k]) => k), ls.map(([k]) => mr(lnL.get(k))), ls.map(([, a]) => mr(a)), pct, { axis: pct0, span2: false, head: C.missRate == null ? "" : pct(C.missRate) + " missed" }); },
     m => table(m, "Inbound calls by company line", `RingCentral · ${seasonName} ${Y}`, ["Line", "Inbound", "vs " + LY, "Answered", "Missed", "Handle time"],
     [...lnT.entries()].filter(([, a]) => a.in >= 20).sort((a, b) => b[1].in - a[1].in).map(([k, a]) => { const l = lnL.get(k), mr = a.in ? a.miss / a.in : null;
       return `<tr>${td(esc(k))}${td(fmtN(a.in))}${dcell(a.in, l && l.in)}${td(fmtN(a.ans))}${mr == null ? `<td class="dim">—</td>` : `<td class="${mr > .05 ? "dn" : "up"}">${pct(mr)}</td>`}${td(mmss(a.ans ? a.dur / a.ans : null))}</tr>`; }),
-    { span2: false, how: "Inbound voice calls per company line (sessions, not ring legs). Missed includes voicemail, as the deck's \"% missed (w/ VM)\" did; red above the 5% goal. Handle time averages answered calls only." }));
+    { span2: false, note: SHORT_ON ? `${fmtN(C.shortN)} missed or voicemail calls this season rang for under 10 seconds — hang-ups, left out of both the missed count and the inbound total.` : "The 10-second rule for missed calls applies after the next data refresh.",
+      how: "Inbound voice calls per company line (sessions, not ring legs). Missed includes voicemail, as the deck's \"% missed (w/ VM)\" did, but a missed or voicemail call shorter than 10 seconds is a hang-up and is not counted — neither as missed nor as a call. Red above the 5% goal. Handle time averages answered calls only." }));
   const crT = rows("callrail", Y), crG = grp(crT, r => String(r.Source || "").trim() || "(no source)");
   if (ZIP) dual(g6, m => rankBars(m, "Tracked marketing numbers", `CallRail · calls by source · ${seasonName} ${Y}`, [...crG.entries()].sort((a, b) => b[1].length - a[1].length).map(([k, rs]) => ({ k, v: rs.length })), fmtN, { span2: false }),
     m => table(m, "Tracked marketing numbers",   // CallRail tracks Zip to Zip numbers only

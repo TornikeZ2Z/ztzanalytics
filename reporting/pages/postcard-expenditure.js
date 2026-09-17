@@ -49,17 +49,25 @@ registerPage({
         ".pcx-in{font-family:inherit;background:var(--panel);border:1px solid var(--line);border-radius:8px;color:var(--ink);padding:5px 8px;font-size:12.5px;outline:0;width:78px;text-align:right}",
         ".pcx-in:focus{border-color:var(--brand)} .pcx-in.set{border-color:var(--brand);background:color-mix(in srgb,var(--brand) 8%,var(--panel))}",
         ".pcx-in.ok{border-color:var(--pos)} .pcx-in.bad{border-color:var(--neg)}",
-        ".pcx-tree{border:1px solid var(--line);border-radius:12px;overflow:hidden}",
+        // one fixed column plan for every month, so NJ sits under NJ all the way down the tree
+        ".pcx-tree{border:1px solid var(--line);border-radius:12px;overflow:hidden;max-width:1180px}",
         ".pcx-node{border-top:1px solid var(--line)} .pcx-node:first-child{border-top:0}",
-        ".pcx-hd{display:flex;align-items:center;gap:10px;padding:10px 14px;cursor:pointer;user-select:none;background:var(--panel)}",
-        ".pcx-hd:hover{background:var(--panel-2)} .pcx-hd .car{width:14px;color:var(--faint);font-size:12px;transition:transform .12s} .pcx-node.open>.pcx-hd .car{transform:rotate(90deg)}",
+        ".pcx-hd{display:flex;align-items:center;gap:10px;padding:10px 16px;cursor:pointer;user-select:none;background:var(--panel)}",
+        ".pcx-hd:hover{background:var(--panel-2)} .pcx-hd .car{width:14px;color:var(--faint);font-size:11px;transition:transform .12s} .pcx-node.open>.pcx-hd .car{transform:rotate(90deg)}",
         ".pcx-hd .t{font-weight:800;color:var(--ink);font-size:14px} .pcx-hd.m .t{font-size:13px;font-weight:750} .pcx-hd .n{margin-left:auto;font-variant-numeric:tabular-nums;font-weight:700;color:var(--ink)} .pcx-hd .n small{font-weight:500;color:var(--muted);margin-left:6px}",
-        ".pcx-hd.m{padding-left:34px} .pcx-body{display:none} .pcx-node.open>.pcx-body{display:block}",
-        ".pcx-weeks{padding:4px 14px 12px 54px;overflow-x:auto}",
-        ".pcx-weeks table{border-collapse:collapse;width:100%;font-size:12.5px} .pcx-weeks th{font-size:10.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--faint);font-weight:700;text-align:right;padding:6px 6px} .pcx-weeks th:first-child{text-align:left}",
-        ".pcx-weeks td{padding:4px 6px;text-align:right;white-space:nowrap} .pcx-weeks td:first-child{text-align:left;color:var(--ink);font-weight:600}",
-        ".pcx-weeks tr.now td:first-child{color:var(--brand-d)} .pcx-weeks td.tot{font-weight:800;color:var(--ink);font-variant-numeric:tabular-nums}",
-        ".pcx-weeks .sub{display:block;font-size:10.5px;color:var(--faint);font-weight:500}",
+        ".pcx-hd.m{padding-left:36px;border-top:1px solid var(--line)} .pcx-body{display:none} .pcx-node.open>.pcx-body{display:block}",
+        ".pcx-node.open>.pcx-hd{background:var(--panel-2)}",
+        ".pcx-weeks{padding:2px 16px 10px 36px;overflow-x:auto}",
+        ".pcx-weeks table{border-collapse:collapse;table-layout:fixed;width:1088px;font-size:12.5px}",
+        ".pcx-weeks col.w{width:232px} .pcx-weeks col.s{width:84px} .pcx-weeks col.t{width:100px}",
+        ".pcx-weeks th{font-size:10.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--faint);font-weight:700;text-align:center;padding:8px 4px 6px;border-bottom:1px solid var(--line)} .pcx-weeks th:first-child{text-align:left;padding-left:8px} .pcx-weeks th:last-child{text-align:right;padding-right:10px}",
+        ".pcx-weeks td{padding:5px 4px;text-align:center;white-space:nowrap;border-bottom:1px solid color-mix(in srgb,var(--line) 55%,transparent);font-variant-numeric:tabular-nums} .pcx-weeks tr:last-child td{border-bottom:0}",
+        ".pcx-weeks td:first-child{text-align:left;color:var(--ink);font-weight:600;padding-left:8px;overflow:hidden;text-overflow:ellipsis}",
+        ".pcx-weeks th:last-child,.pcx-weeks td.tot{text-align:right;padding-right:10px;border-left:1px solid var(--line)}",
+        ".pcx-weeks tbody tr:hover td{background:color-mix(in srgb,var(--ink) 3%,transparent)}",
+        ".pcx-weeks .pcx-in{width:70px;text-align:center}",
+        ".pcx-weeks tr.now td:first-child{color:var(--brand-d)} .pcx-weeks td.tot{font-weight:800;color:var(--ink)}",
+        ".pcx-weeks .sub{display:block;font-size:10.5px;color:var(--faint);font-weight:500;margin-top:1px}",
         ".pcx-tag{display:inline-block;font-size:10.5px;font-weight:800;padding:1px 7px;border-radius:999px;background:var(--brand-glow);color:var(--brand-d);margin-left:6px;white-space:nowrap}",
         ".pcx-tag.dim{background:color-mix(in srgb,var(--ink) 8%,var(--panel));color:var(--muted)}",
         ".pcx-legacy td{color:var(--muted)} .pcx-legacy td:first-child{font-weight:600}",
@@ -139,7 +147,7 @@ registerPage({
     }
     function monthBody(ym) {
       const ws = weeksOf(ym), hasW = monthHasWeeks(ym), legacy = !hasW && monthTot(ym) > 0;
-      return '<div class="pcx-weeks"><table><thead><tr><th>Week</th>' + STATES.map(s => "<th>" + s + "</th>").join("") + "<th>Total</th></tr></thead><tbody>" +
+      return '<div class="pcx-weeks"><table><colgroup><col class="w">' + STATES.map(() => '<col class="s">').join("") + '<col class="t"></colgroup><thead><tr><th>Week</th>' + STATES.map(s => "<th>" + s + "</th>").join("") + "<th>Total</th></tr></thead><tbody>" +
         (legacy ? '<tr class="pcx-legacy"><td>Month total<span class="sub">before the weekly grid — the vendor\'s monthly figure' + (canEdit ? "; type a week below and it takes over" : "") + "</span></td>" +
           STATES.map(s => td(fmtN((MONTH[ym + "|" + s] || {}).cards || null))).join("") + td(fmtN(monthTot(ym)), "tot") + "</tr>" : "") +
         ws.map(weekRow).join("") + (ws.length ? "" : '<tr><td colspan="' + (STATES.length + 2) + '" class="pcx-dim">No week of this month has started yet.</td></tr>') +
