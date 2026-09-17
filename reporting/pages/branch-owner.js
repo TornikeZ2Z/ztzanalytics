@@ -18,6 +18,19 @@
    ("Revenue" is the display name for the measure keyed 'Total Bill' = SUM(Total Bill) +
    Extra Bill From Trips.) Cross-dataset costs (Sales Commission, Helper Salary, Total
    Refunds) are attributed to each job by Unique Key / Request Joinkey (Job P&L pattern). */
+/* The branch-owner job mart (2026-09-17): the CL deck's job-cost model on his jobs. The cols list
+   is a payload CONTRACT (projection is always on), so every column the money walk reads is named. */
+if (window.RS && RS.DATASETS && !RS.DATASETS.mart_branch_owner_jobs) {
+  RS.DATASETS.mart_branch_owner_jobs = {
+    table: "mart_branch_owner_jobs",
+    cols: ["Unique Key", "Date", "Request Joinkey", "Customer", "Foreman", "Branch Owner", "Company",
+           "Total Bill", "His Cut", "Sales Commission $", "Crew $", "Material $", "Packing Sold",
+           "Rental Cost Est", "Owned Overhead Est", "Fuel Est", "Toll Est", "Car $", "Other Exp $",
+           "Company Tip", "Discount Given", "Card Paid", "Card Base", "Refund $", "Has Contract", "Truck Ownership"],
+    dateCols: { "Date": "Date" }, defaultDate: "Date",
+  };
+}
+
 registerPage({
   id: "branch-owner",
   group: "financial",
@@ -46,6 +59,7 @@ registerPage({
     host.innerHTML = head + `
       <div class="rs-kpis" id="boKpis"><div class="rs-loading">Loading…</div></div>
       <div class="rs-kpis" id="boProfitKpis"></div>
+      <div id="boMoney"></div>
       <div class="rs-grid2" id="boGrid">
         <div id="boSlotTrend"></div>
         <div id="boSlotCompare"></div>
@@ -159,6 +173,143 @@ registerPage({
         <div class="panel-head"><span class="panel-title">Every branch-owner job (${fmtN(detail.length)})</span></div>
         <div class="tabwrap">${detailTable}</div>
       </div>`;
+
+    // ================= WHERE THE MONEY WENT: his cut vs our profit (2026-09-17) =================
+    /* His ask: "a similar profit comparison for Branch Owners -- his salary part on jobs he made vs our
+       profit", on the CL deck's cost model so both partners read on one yardstick:
+         crew        = crew pay on the closing (foreman + driver + helpers) + the foreman's packing commission
+         materials   = 15% of packing sold (the modelled COGS; `Material $` is crew pay, not materials)
+         truck       = rental at the $175 floor / owned-truck overhead, per job
+         fuel, tolls = miles / 7 mpg x WEX diesel, tolls by route -- both +10%
+         other       = car allowance + other job costs (+10%), company tips and discounts (exact)
+         card fee    = 3.5% of what was paid by card
+         claims      = refunds paid on these jobs (all ours)
+         salespeople = the REAL salespeople's commission on the job (every SP slot minus his cut)
+       What is left after all of that and his cut is our profit. */
+    const MAT_COGS = 0.15, COST_UPLIFT = 1.10, CARD_FEE = 0.035;
+    try {
+      if (!document.getElementById("boe-css")) {
+        const st = document.createElement("style"); st.id = "boe-css";
+        st.textContent = [
+          ".boe-wrap{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:14px;margin-top:14px}",
+          "@media (max-width:1100px){.boe-wrap{grid-template-columns:1fr}}",
+          ".boe-head{display:flex;gap:18px;flex-wrap:wrap;align-items:flex-end;margin:4px 0 12px}",
+          ".boe-big{display:flex;flex-direction:column}.boe-big b{font-size:26px;font-weight:800;color:var(--ink);font-variant-numeric:tabular-nums}.boe-big span{font-size:12px;color:var(--muted)}",
+          ".boe-big.his b{color:var(--brand-d)}",
+          ".boe-stack{display:flex;height:14px;border-radius:7px;overflow:hidden;margin:4px 0 6px;background:var(--line)}",
+          ".boe-stack i{display:block;height:100%}",
+          ".boe-key{display:flex;gap:14px;flex-wrap:wrap;font-size:11.5px;color:var(--muted)}.boe-key i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px}",
+          ".boe-rows{display:grid;grid-template-columns:minmax(150px,1.1fr) minmax(80px,1.4fr) 92px 58px;gap:6px 12px;align-items:center;font-size:13px}",
+          ".boe-rows .l{color:var(--ink)}.boe-rows .l small{display:block;color:var(--faint);font-size:11px;line-height:1.3}",
+          ".boe-rows .bar{height:10px;border-radius:5px;background:var(--line);position:relative;overflow:hidden}",
+          ".boe-rows .bar i{position:absolute;top:0;bottom:0;border-radius:5px}",
+          ".boe-rows .m{text-align:right;font-variant-numeric:tabular-nums;color:var(--ink)}.boe-rows .p{text-align:right;font-variant-numeric:tabular-nums;color:var(--muted);font-size:12px}",
+          ".boe-rows .tot{font-weight:800;padding-top:6px;border-top:1px solid var(--line)}",
+        ].join("");
+        document.head.appendChild(st);
+      }
+      const martAll = await RS.load("mart_branch_owner_jobs");
+      const J = RS.filtered("mart_branch_owner_jobs", martAll);
+      const mount = document.getElementById("boMoney");
+      if (!J.length) {
+        mount.innerHTML = `<div class="panel" style="margin-top:14px"><div class="rs-loading">The cost breakdown has no branch-owner jobs in this range yet — it appears after the next data refresh.</div></div>`;
+      } else {
+        const eS = (rs, f) => rs.reduce((a, r) => a + (num(f(r)) || 0), 0);
+        const walk = rs => {
+          const bill = eS(rs, r => r["Total Bill"]), his = eS(rs, r => r["His Cut"]);
+          const c = {
+            crew: eS(rs, r => r["Crew $"]) + eS(rs, r => r["Material $"]),
+            materials: MAT_COGS * eS(rs, r => r["Packing Sold"]),
+            truck: eS(rs, r => r["Rental Cost Est"]) + eS(rs, r => r["Owned Overhead Est"]),
+            fuel: COST_UPLIFT * eS(rs, r => r["Fuel Est"]),
+            tolls: COST_UPLIFT * eS(rs, r => r["Toll Est"]),
+            other: COST_UPLIFT * (eS(rs, r => r["Car $"]) + eS(rs, r => r["Other Exp $"])) + eS(rs, r => r["Company Tip"]) + eS(rs, r => r["Discount Given"]),
+            card: CARD_FEE * (eS(rs, r => r["Card Base"]) || eS(rs, r => r["Card Paid"])),
+            claims: eS(rs, r => r["Refund $"]),
+            sales: eS(rs, r => r["Sales Commission $"]),
+          };
+          const cost = Object.values(c).reduce((a, v) => a + v, 0);
+          return { n: rs.length, bill, his, c, cost, ours: bill - cost - his };
+        };
+        const W = walk(J), pc = v => W.bill ? pctS(v / W.bill) : "—";
+        const INK = "#334155", LIME = "rgba(132,204,22,.85)", HIS = "#0f766e", GREY = "#94a3b8";
+        const lines = [
+          ["Crew", "foreman, driver and helpers, with the foreman's packing commission", W.c.crew],
+          ["Packing materials", "15% of the packing sold", W.c.materials],
+          ["Truck", "rental at $175 a job, or owned-truck insurance, parking and financing", W.c.truck],
+          ["Fuel", "miles ÷ 7 mpg × the WEX diesel price, +10%", W.c.fuel],
+          ["Tolls", "our toll accounts spread over the miles that drive them, +10%", W.c.tolls],
+          ["Tips we paid, discounts and other job costs", "other costs +10%; tips and discounts as recorded", W.c.other],
+          ["Card processing", "3.5% of what customers paid by card", W.c.card],
+          ["Claims refunded", "refunds paid on these jobs", W.c.claims],
+          ["Salespeople's commission", "the real salespeople on these jobs — not his cut", W.c.sales],
+        ];
+        const maxV = W.bill || 1;
+        const row = (l, sub, v, col, cls) => `<div class="l${cls ? " " + cls : ""}">${l}${sub ? `<small>${sub}</small>` : ""}</div>
+          <div class="bar${cls ? " " + cls : ""}"><i style="left:0;width:${Math.max(0, Math.min(100, v / maxV * 100)).toFixed(2)}%;background:${col}"></i></div>
+          <div class="m${cls ? " " + cls : ""}">${money(v)}</div><div class="p${cls ? " " + cls : ""}">${pc(v)}</div>`;
+        const perDollar = W.his > 0 ? W.ours / W.his : null;
+        const byOwner = [...new Set(J.map(r => r["Branch Owner"]).filter(Boolean))];
+        // his cut vs our profit, month by month
+        const mm = {}; J.forEach(r => { const k = String(r.Date || "").slice(0, 7); if (k) (mm[k] = mm[k] || []).push(r); });
+        const mRows = Object.keys(mm).sort().map(k => { const w = walk(mm[k]); return { k, jobs: w.n, bill: w.bill, cost: w.cost, his: w.his, ours: w.ours,
+          hisP: w.bill ? w.his / w.bill : null, oursP: w.bill ? w.ours / w.bill : null, ratio: w.his > 0 ? w.ours / w.his : null }; });
+        const x1 = v => v == null || !isFinite(v) ? "—" : "$" + v.toFixed(2);
+        mount.innerHTML = `
+          <div class="boe-wrap">
+            <div class="panel">
+              <div class="panel-head"><span class="panel-title">Where the money went — his cut vs our profit</span></div>
+              <div class="boe-head">
+                <div class="boe-big"><b>${money(W.bill)}</b><span>revenue · ${fmtN(W.n)} jobs${byOwner.length ? " · " + byOwner.join(", ") : ""}</span></div>
+                <div class="boe-big his"><b>${money(W.his)}</b><span>his cut · ${pc(W.his)}</span></div>
+                <div class="boe-big"><b>${money(W.ours)}</b><span>our profit · ${pc(W.ours)}</span></div>
+                <div class="boe-big"><b>${x1(perDollar)}</b><span>we kept per $1 he earned</span></div>
+              </div>
+              <div class="boe-stack"><i style="width:${(W.cost / maxV * 100).toFixed(2)}%;background:${GREY}"></i><i style="width:${(Math.max(0, W.his) / maxV * 100).toFixed(2)}%;background:${HIS}"></i><i style="width:${(Math.max(0, W.ours) / maxV * 100).toFixed(2)}%;background:${LIME}"></i></div>
+              <div class="boe-key"><span><i style="background:${GREY}"></i>cost to run the jobs ${pc(W.cost)}</span><span><i style="background:${HIS}"></i>his cut ${pc(W.his)}</span><span><i style="background:${LIME}"></i>our profit ${pc(W.ours)}</span></div>
+              <div class="boe-rows" style="margin-top:16px">
+                ${row("Revenue", "the final bill on his jobs", W.bill, INK, "tot")}
+                ${lines.map(([l, sub, v]) => row(l, sub, v, GREY)).join("")}
+                ${row("Cost to run the jobs", "", W.cost, GREY, "tot")}
+                ${row("His cut", "the branch-owner salary on these jobs", W.his, HIS, "tot")}
+                ${row("Our profit", "what is left for the company", W.ours, LIME, "tot")}
+              </div>
+              <p class="rs-hint" style="margin:12px 2px 0">The same cost model as the CL Analysis deck. Crew pay, tips and discounts come from the closing; truck, fuel and tolls are estimated from our own books (${fmtN(J.filter(r => r["Has Contract"] === "Yes").length)} of ${fmtN(J.length)} jobs have a digital contract with the route). Our profit is before overhead — office, marketing and management are not in it. Respects the date/company filter.</p>
+            </div>
+            <div id="boMoneyMonth"></div>
+          </div>`;
+        RSC.chartCard(document.getElementById("boMoneyMonth"), {
+          title: "His cut vs our profit by month",
+          key: "branch-owner-money-month",
+          buildChart(canvas) {
+            return new Chart(canvas, {
+              type: "bar",
+              data: { labels: mRows.map(r => r.k), datasets: [
+                { label: "His cut", data: mRows.map(r => r.his), backgroundColor: HIS },
+                { label: "Our profit", data: mRows.map(r => r.ours), backgroundColor: LIME },
+              ] },
+              options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: "bottom" },
+                tooltip: { callbacks: { label: x => x.dataset.label + ": " + money(x.raw) } } },
+                scales: { y: { beginAtZero: true, ticks: { callback: v => moneyC(v) } } } },
+            });
+          },
+          buildTable() {
+            return RSC.table(
+              [{ key: "k", label: "Month" }, { key: "jobs", label: "Jobs", align: "r", fmt: fmtN },
+               { key: "bill", label: "Revenue", align: "r", fmt: money }, { key: "cost", label: "Cost to run", align: "r", fmt: money },
+               { key: "his", label: "His cut", align: "r", fmt: money }, { key: "hisP", label: "His %", align: "r", fmt: pctS },
+               { key: "ours", label: "Our profit", align: "r", fmt: money }, { key: "oursP", label: "Our %", align: "r", fmt: pctS },
+               { key: "ratio", label: "We kept per $1 of his", align: "r", fmt: x1 }],
+              mRows,
+              { k: "Total", jobs: W.n, bill: W.bill, cost: W.cost, his: W.his, hisP: W.bill ? W.his / W.bill : null, ours: W.ours, oursP: W.bill ? W.ours / W.bill : null, ratio: perDollar });
+          },
+        });
+      }
+    } catch (e) {
+      console.error("branch-owner money walk:", e);
+      const mount = document.getElementById("boMoney");
+      if (mount) mount.innerHTML = `<div class="panel" style="margin-top:14px"><div class="rs-loading">The cost breakdown could not load — reload the page to try again.</div></div>`;
+    }
 
     // ================= PHASE 2: cross-dataset costs (sales / helper / refunds) =================
     const [salesAll, helperAll, refundAll] = await Promise.all([
