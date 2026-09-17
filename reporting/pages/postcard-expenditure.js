@@ -33,6 +33,11 @@ registerPage({
     const dayLbl = d => MON[d.getUTCMonth() + 1] + " " + d.getUTCDate();
     const weekLbl = ws => { const d = parse(ws); return "Mon " + dayLbl(d) + " – Sun " + dayLbl(addDays(d, 6)); };
     const fridayOf = ws => addDays(parse(ws), 4);
+    // ISO week number: Thursday of the week decides the year, week 1 is the one holding Jan 4.
+    // Irakli counts the week of Mon 14 Sep 2026 as 38, which is what this returns.
+    const isoWeek = ws => { const d = parse(ws); d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
+      const y0 = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+      return Math.ceil(((d - y0) / 86400000 + 1) / 7); };
 
     if (!document.getElementById("pcx-style")) {
       const st = document.createElement("style");
@@ -58,19 +63,21 @@ registerPage({
         ".pcx-hd.m{padding-left:36px;border-top:1px solid var(--line)} .pcx-body{display:none} .pcx-node.open>.pcx-body{display:block}",
         ".pcx-node.open>.pcx-hd{background:var(--panel-2)}",
         ".pcx-weeks{padding:2px 16px 10px 36px;overflow-x:auto}",
-        ".pcx-weeks table{border-collapse:collapse;table-layout:fixed;width:1118px;font-size:12.5px}",
-        ".pcx-weeks col.w{width:262px} .pcx-weeks col.s{width:84px} .pcx-weeks col.t{width:100px}",
-        ".pcx-weeks th{font-size:10.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--faint);font-weight:700;text-align:center;padding:8px 4px 6px;border-bottom:1px solid var(--line)} .pcx-weeks th:first-child{text-align:left;padding-left:8px} .pcx-weeks th:last-child{text-align:right;padding-right:10px}",
+        ".pcx-weeks table{border-collapse:collapse;table-layout:fixed;width:1164px;font-size:12.5px}",
+        ".pcx-weeks col.n{width:46px} .pcx-weeks col.w{width:250px} .pcx-weeks col.s{width:84px} .pcx-weeks col.t{width:100px}",
+        ".pcx-weeks td.wk{text-align:center;font-weight:800;color:var(--faint);font-variant-numeric:tabular-nums;padding-left:6px}",
+        ".pcx-weeks tr.now td.wk{color:var(--brand-d)}",
+        ".pcx-weeks th{font-size:10.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--faint);font-weight:700;text-align:center;padding:8px 4px 6px;border-bottom:1px solid var(--line)} .pcx-weeks th.lbl{text-align:left;padding-left:8px} .pcx-weeks th:last-child{text-align:right;padding-right:10px}",
         ".pcx-weeks td{padding:5px 4px;text-align:center;white-space:nowrap;border-bottom:1px solid color-mix(in srgb,var(--line) 55%,transparent);font-variant-numeric:tabular-nums} .pcx-weeks tr:last-child td{border-bottom:0}",
-        ".pcx-weeks td:first-child{text-align:left;color:var(--ink);font-weight:600;padding-left:8px;white-space:normal}",
+        ".pcx-weeks td.lbl{text-align:left;color:var(--ink);font-weight:600;padding-left:8px;white-space:normal}",
         ".pcx-weeks th:last-child,.pcx-weeks td.tot{text-align:right;padding-right:10px;border-left:1px solid var(--line)}",
         ".pcx-weeks tbody tr:hover td{background:color-mix(in srgb,var(--ink) 3%,transparent)}",
         ".pcx-weeks .pcx-in{width:70px;text-align:center}",
-        ".pcx-weeks tr.now td:first-child{color:var(--brand-d)} .pcx-weeks td.tot{font-weight:800;color:var(--ink)}",
+        ".pcx-weeks tr.now td.lbl{color:var(--brand-d)} .pcx-weeks td.tot{font-weight:800;color:var(--ink)}",
         ".pcx-weeks .sub{display:block;font-size:10.5px;color:var(--faint);font-weight:500;margin-top:1px}",
         ".pcx-tag{display:inline-block;font-size:10.5px;font-weight:800;padding:1px 7px;border-radius:999px;background:var(--brand-glow);color:var(--brand-d);margin-left:6px;white-space:nowrap}",
         ".pcx-tag.dim{background:color-mix(in srgb,var(--ink) 8%,var(--panel));color:var(--muted)}",
-        ".pcx-legacy td{color:var(--muted)} .pcx-legacy td:first-child{font-weight:600}",
+        ".pcx-legacy td{color:var(--muted)} .pcx-legacy td.lbl{font-weight:600}",
         ".pcx-shelf table td .neg{color:var(--neg);font-weight:700} .pcx-shelf table td .pos{color:var(--pos);font-weight:700}",
         ".pcx-btn{font-family:inherit;font-size:12px;font-weight:700;padding:5px 11px;border-radius:9px;border:1px solid var(--line-2);background:var(--panel);color:var(--ink);cursor:pointer} .pcx-btn:hover{border-color:var(--brand)}",
         ".pcx-count{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px}",
@@ -130,8 +137,8 @@ registerPage({
       const shelf = SRV ? Object.values(SRV.states).reduce((a, r) => a + (r.should || 0), 0) : null;
       const lost = SRV ? (SRV.counts || []).reduce((a, c) => a + Math.max(0, c.lost || 0), 0) : null;
       host.querySelector("#pcxKpis").innerHTML =
-        kpi("This week", fmtN(weekTot(thisMon)), weekLbl(thisMon) + " · report on Fri " + dayLbl(fridayOf(thisMon))) +
-        kpi("Last week", fmtN(weekTot(lastMon)), weekLbl(lastMon)) +
+        kpi("This week", fmtN(weekTot(thisMon)), "Week " + isoWeek(thisMon) + " · " + weekLbl(thisMon) + " · report on Fri " + dayLbl(fridayOf(thisMon))) +
+        kpi("Last week", fmtN(weekTot(lastMon)), "Week " + isoWeek(lastMon) + " · " + weekLbl(lastMon)) +
         kpi("Sent this year", fmtN(ytd), "all states, " + y) +
         kpi("On the shelf", shelf == null ? "—" : fmtN(shelf), SRV ? "what the states should hold today" : "shelf not available") +
         (lost ? kpi("Lost", fmtN(lost), "counts short of the model") : "");
@@ -141,16 +148,17 @@ registerPage({
     function weekRow(ws) {
       const isNow = ws === thisMon, isLast = ws === lastMon;
       return '<tr data-ws="' + ws + '"' + (isNow || isLast ? ' class="now"' : "") + ">" +
-        td(weekLbl(ws) + (isNow ? '<span class="pcx-tag">this week</span>' : isLast ? '<span class="pcx-tag dim">last week</span>' : "") + '<span class="sub">report Fri ' + dayLbl(fridayOf(ws)) + "</span>") +
+        td(isoWeek(ws), "wk") +
+        td(weekLbl(ws) + (isNow ? '<span class="pcx-tag">this week</span>' : isLast ? '<span class="pcx-tag dim">last week</span>' : "") + '<span class="sub">report Fri ' + dayLbl(fridayOf(ws)) + "</span>", "lbl") +
         STATES.map(s => { const v = WEEK[ws + "|" + s]; return td('<input class="pcx-in' + (v ? " set" : "") + '" type="number" min="0" step="1" data-ws="' + ws + '" data-st="' + s + '" value="' + (v || "") + '" placeholder="—"' + (canEdit ? "" : " disabled") + ">"); }).join("") +
         td('<span data-wtot="' + ws + '">' + fmtN(weekTot(ws)) + "</span>", "tot") + "</tr>";
     }
     function monthBody(ym) {
       const ws = weeksOf(ym), hasW = monthHasWeeks(ym), legacy = !hasW && monthTot(ym) > 0;
-      return '<div class="pcx-weeks"><table><colgroup><col class="w">' + STATES.map(() => '<col class="s">').join("") + '<col class="t"></colgroup><thead><tr><th>Week</th>' + STATES.map(s => "<th>" + s + "</th>").join("") + "<th>Total</th></tr></thead><tbody>" +
-        (legacy ? '<tr class="pcx-legacy"><td>Month total<span class="sub">before the weekly grid — the vendor\'s monthly figure' + (canEdit ? "; type a week below and it takes over" : "") + "</span></td>" +
+      return '<div class="pcx-weeks"><table><colgroup><col class="n"><col class="w">' + STATES.map(() => '<col class="s">').join("") + '<col class="t"></colgroup><thead><tr><th>Wk</th><th class="lbl">Week</th>' + STATES.map(s => "<th>" + s + "</th>").join("") + "<th>Total</th></tr></thead><tbody>" +
+        (legacy ? '<tr class="pcx-legacy"><td class="wk">—</td><td class="lbl">Month total<span class="sub">before the weekly grid — the vendor\'s monthly figure' + (canEdit ? "; type a week below and it takes over" : "") + "</span></td>" +
           STATES.map(s => td(fmtN((MONTH[ym + "|" + s] || {}).cards || null))).join("") + td(fmtN(monthTot(ym)), "tot") + "</tr>" : "") +
-        ws.map(weekRow).join("") + (ws.length ? "" : '<tr><td colspan="' + (STATES.length + 2) + '" class="pcx-dim">No week of this month has started yet.</td></tr>') +
+        ws.map(weekRow).join("") + (ws.length ? "" : '<tr><td colspan="' + (STATES.length + 3) + '" class="pcx-dim">No week of this month has started yet.</td></tr>') +
         "</tbody></table></div>";
     }
     function paintTree() {
@@ -243,7 +251,7 @@ registerPage({
       '<p style="max-width:none">Every Friday, write down how many postcards went out to each state that week. Open a year, then a month, and type into the week — a cell saves as you leave it (green = saved). This week and last week are open by default.' + (canEdit ? "" : " <b>Your access is read-only here.</b>") + "</p></div>" +
       '<div class="pcx-kpis" id="pcxKpis"></div>' +
       '<div class="panel pcx-line"><div class="panel-title"><span class="pcx-lno">1</span>Cards sent — by year, month and week</div>' +
-      '<div class="pcx-say">A week runs Monday to Sunday and counts in the month it starts. Months from before this grid show the vendor\'s monthly figure on one line; the first week you type in such a month takes over as the record for that month.</div>' +
+      '<div class="pcx-say">A week runs Monday to Sunday and counts in the month it starts; <b>Wk</b> is the week number of the year (the week of Mon 14 Sep 2026 is 38). Months from before this grid show the vendor\'s monthly figure on one line; the first week you type in such a month takes over as the record for that month.</div>' +
       '<div class="pcx-tree" id="pcxTree"></div></div>' +
       '<div class="panel pcx-line"><div class="panel-title"><span class="pcx-lno">2</span>The shelf — what should be there, and what you counted</div>' +
       '<div id="pcxShelf"></div></div>';
