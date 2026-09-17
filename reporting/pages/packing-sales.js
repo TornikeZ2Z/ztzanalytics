@@ -84,7 +84,7 @@
 
 registerPage({
   id: "packing-sales",
-  group: "marketing",
+  group: "logistics",
   title: "Packing Materials Sold",
   subtitle: "Which materials the crews sell, how many a job takes, and how that shifts with " +
             "the size of the move — from the contract's own packing lines.",
