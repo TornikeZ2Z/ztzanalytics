@@ -946,9 +946,72 @@ window.RS = (function () {
   }
   const tzShort = () => tzChoice().short;
 
+
+  /* REVIEW FLOW — ONE RULE FOR EVERY PAGE (Tornike 2026-09-17: "keep positive and negatives separately").
+     review_counts rows are CUMULATIVE listing totals, one snapshot a month. The month-to-month step per
+     listing (Company + case-folded platform name, so "NextdoorShafto" = "Nextdoor Shafto") is split,
+     never netted:
+       added   = the rises                         (never below zero)
+       removed = the falls a platform takes back   (a positive number, shown on its own)
+       reset   = a fall of 30%+ (and 20+ reviews) in one step — a listing reset, rename or typo, not reviews removed;
+                 kept out of both and named (`resets`) so the sheet can be checked.
+     A month a listing did not report carries its last total forward (no entry is not zero), and a
+     listing's first snapshot is lifetime history, not that month's production.
+     Negative REVIEWS (3 stars or fewer) are a different thing: their own table, never subtracted here. */
+  const RESET_DROP = 0.30, RESET_MIN = 20;   // a small listing losing 4 of 13 is removals, not a reset
+  function reviewPlatKey(r) {
+    return String(r.Company == null ? "—" : r.Company) + "|" + String(r.Platform == null ? "" : r.Platform).toLowerCase().replace(/[^a-z0-9]/g, "");
+  }
+  function reviewFlow(countRows) {
+    const ymOf = r => String(r.Date || r._d || "").slice(0, 7);
+    const plats = {}, monthsSet = new Set();
+    (countRows || []).forEach(r => {
+      const ym = ymOf(r); if (!/^\d{4}-\d{2}$/.test(ym)) return;
+      const k = reviewPlatKey(r), d = String(r.Date || r._d || "");
+      const g = plats[k] || (plats[k] = { label: String(r.Platform || "—"), company: r.Company, snaps: {} });
+      if (!g.snaps[ym] || d >= g.snaps[ym].d) g.snaps[ym] = { v: num(r["Number of Reviews"]), d };
+      monthsSet.add(ym);
+    });
+    const months = [...monthsSet].sort();
+    const byMonth = {};     // ym -> { added, removed, reset, level }
+    const byPlat = {};      // key -> { label, company, steps: { ym: { level, added, removed, reset } } }
+    Object.entries(plats).forEach(([k, g]) => {
+      let prev = null; const steps = {};
+      months.forEach(ym => {
+        const cur = g.snaps[ym] ? g.snaps[ym].v : prev;
+        if (cur == null) return;
+        const st = { level: cur, added: 0, removed: 0, reset: 0, from: prev };
+        if (prev != null) {
+          const dlt = cur - prev;
+          if (dlt > 0) st.added = dlt;
+          else if (dlt < 0) { if (prev > 0 && cur < prev * (1 - RESET_DROP) && -dlt >= RESET_MIN) st.reset = -dlt; else st.removed = -dlt; }
+        }
+        steps[ym] = st;
+        const b = byMonth[ym] || (byMonth[ym] = { added: 0, removed: 0, reset: 0, level: 0 });
+        b.added += st.added; b.removed += st.removed; b.reset += st.reset; b.level += cur;
+        prev = cur;
+      });
+      byPlat[k] = { label: g.label, company: g.company, steps };
+    });
+    // totals over an inclusive month span, optionally for some listings only
+    const span = (fromYm, toYm, keep) => {
+      const o = { added: 0, removed: 0, reset: 0, resets: [], any: false };
+      Object.entries(byPlat).forEach(([k, g]) => {
+        if (keep && !keep(k, g)) return;
+        Object.entries(g.steps).forEach(([ym, st]) => {
+          if (ym < fromYm || ym > toYm || st.from == null) return;
+          o.any = true; o.added += st.added; o.removed += st.removed; o.reset += st.reset;
+          if (st.reset) o.resets.push({ label: g.label, ym, from: st.from, to: st.level });
+        });
+      });
+      return o;
+    };
+    return { months, byMonth, byPlat, span, key: reviewPlatKey };
+  }
+
   return { DATASETS, FIELDS, state, load, filtered, monthName, M, value, yoy, groupBy, moneyC,
            fmtN, money, fmtPct, fmt1, num,
            MIN_MONTH_DAYS, displayMonth, coverage,
            TZ_CHOICES, tzId, tzChoice, setTz, tzShort, fmtTz, fmtTzDay,
-           bookingRate, dateBasis, fieldsFor, displayName, refresh };
+           bookingRate, dateBasis, fieldsFor, displayName, refresh, reviewFlow, reviewPlatKey };
 })();

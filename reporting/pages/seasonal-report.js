@@ -1027,24 +1027,26 @@ async function renderSeasonal(host) {
   const plats = [...new Set([...pT.keys(), ...pL.keys()])].filter(Boolean).sort((a, b) => (pT.get(b) || 0) - (pT.get(a) || 0)).slice(0, 14);
   pairBars(gR, "Reviews by platform", `${Y} vs ${LY} · counted, per listing`, plats, plats.map(p => pL.get(p) || 0), plats.map(p => pT.get(p) || 0), fmtN, { head: fmtN(RY.n) });
   // public footprint — the only review series that reaches back to 2023: listing totals at the window's end minus its start
-  const snapAt = (plat, key0) => { let best = null; (rcounts || []).forEach(r => { if (String(r.Company) !== CO || String(r.Platform) !== plat) return; const d = String(r.Date || "").slice(0, 10); if (d && d <= key0 && (!best || d > best.d)) best = { d, v: num(r["Number of Reviews"]) }; }); return best; };
-  const platsAll = [...new Set((rcounts || []).filter(r => String(r.Company) === CO).map(r => String(r.Platform)))];
   // the footprint sheet is filled monthly and trails the calendar: every season is cut to the same span the latest snapshot allows
   const lastSnap = (rcounts || []).filter(r => String(r.Company) === CO).reduce((a, r) => { const d = String(r.Date || "").slice(0, 10); return d > a ? d : a; }, "");
   const endM = (() => { const want = T + 1; if (!lastSnap) return want; const sy = +lastSnap.slice(0, 4), sm = +lastSnap.slice(5, 7);
     if (sy > Y || (sy === Y && sm >= want)) return want; return sy === Y && sm > F ? sm : null; })();
+  /* ADDED AND REMOVED, NEVER NETTED (RS.reviewFlow, the portal-wide rule since 2026-09-17): every month's rise in a
+     listing's total is new reviews, every fall is reviews the platform removed, and a one-month fall of 30%+ (20+ reviews) is a
+     listing reset or rename, counted as neither and named. The snapshot dated the 1st closes the month before it. */
   const resets = [];
-  const footGrow = y => { if (endM == null) return null; const s = `${y}-${pad(F)}-01`, e = endM === 13 ? `${y + 1}-01-01` : `${y}-${pad(endM)}-01`; let tot = 0, any = false;
-    platsAll.forEach(p => { const a = snapAt(p, s), b = snapAt(p, e); if (!(a && b && a.d >= `${y}-01-01` && b.d > a.d)) return;
-      // a listing that loses 30%+ between snapshots was reset or renamed (or mistyped) — reviews do not go backwards that fast
-      if (b.v < a.v * 0.7) { if (y === Y) resets.push(`${p} ${fmtN(a.v)} → ${fmtN(b.v)}`); return; }
-      tot += b.v - a.v; any = true; }); return any ? tot : null; };
-  const footVals = YEARS.map(footGrow);
+  const FLOWS = RS.reviewFlow((rcounts || []).filter(r => String(r.Company) === CO));
+  const footFlow = y => { if (endM == null) return null;
+    const o = FLOWS.span(F === 12 ? `${y + 1}-01` : `${y}-${pad(F + 1)}`, endM === 13 ? `${y + 1}-01` : `${y}-${pad(endM)}`);
+    if (y === Y) o.resets.forEach(x => resets.push(`${x.label} ${fmtN(x.from)} → ${fmtN(x.to)}`));
+    return o.any ? o : null; };
+  const footFl = YEARS.map(footFlow);
+  const footVals = footFl.map(o => o ? o.added : null), footRem = footFl.map(o => o ? o.removed : null);
   const footSpan = endM == null ? winLbl : (endM - 1 === F ? MS[F] : MS[F] + "–" + MS[endM === 13 ? 12 : endM - 1]);
-  seasonCols(gR, "Public reviews added across all listings", `listing totals, start of ${MS[F]} → end of ${endM == null ? MS[T] : MS[endM === 13 ? 12 : endM - 1]} · every season`, [{ label: "Added", vals: footVals }], fmtN,
+  seasonCols(gR, "Public reviews added and removed across all listings", `listing totals, start of ${MS[F]} → end of ${endM == null ? MS[T] : MS[endM === 13 ? 12 : endM - 1]} · every season`, [{ label: "Added", vals: footVals, color: LIMED }, { label: "Removed by the platform", vals: footRem, color: NEG }], fmtN,
     { axis: fmtN, head: footVals[footVals.length - 1] == null ? "—" : fmtN(footVals[footVals.length - 1]),
       note: resets.length ? `Left out as a reset or rename — check the footprint sheet: ${resets.join("; ")}.` : "",
-      how: `From the monthly footprint snapshots (review_counts): each ${CO} listing's public total at the end of the span minus its total at the start, summed. It counts everything the platforms show, including reviews not tied to a job. ${footSpan !== winLbl ? `The latest snapshot is ${lastSnap}, so every season is measured ${footSpan} to compare like for like. ` : ""}The first snapshot is 1 May 2023.` });
+      how: `From the monthly footprint snapshots (review_counts), month by month per ${CO} listing: a rise in its public total counts as added, a fall as removed by the platform — the two are kept apart, never netted, and negative reviews are a separate count. It counts everything the platforms show, including reviews not tied to a job. ${footSpan !== winLbl ? `The latest snapshot is ${lastSnap}, so every season is measured ${footSpan} to compare like for like. ` : ""}The first snapshot is 1 May 2023.` });
 
   // foremen — Review Performance's rule: review events ÷ eligible jobs
   const MINE = 15;

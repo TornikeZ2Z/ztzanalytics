@@ -1418,9 +1418,11 @@ async function renderMonthly(host, MRCFG) {
     const qual = valueFor("moveboard", "Qualified Leads", curY, mo);
     const margin = rev ? op / rev : null, marginLY = revLY ? opLY / revLY : null, marginPM = revPM ? opPM / revPM : null;
     const avgJob = jobs ? rev / jobs : null, avgJobLY = jobsLY ? revLY / jobsLY : null, avgJobPM = jobsPM ? revPM / jobsPM : null;
-    const revWritten = reduceMonth("reviews_breakdown", curY, mo, rs => rs.reduce((a, r) => a + num(r["Number of Reviews"]), 0)) || 0;
-    const revWrittenLY = reduceMonth("reviews_breakdown", curY - 1, mo, rs => rs.reduce((a, r) => a + num(r["Number of Reviews"]), 0)) || 0;
-    const revWrittenPM = reduceMonth("reviews_breakdown", PMY, PM, rs => rs.reduce((a, r) => a + num(r["Number of Reviews"]), 0)) || 0;
+    // "Reviews Written" = PUBLIC (counted) reviews only — one meaning across the portal (2026-09-17)
+    const pubRev = rs => rs.reduce((a, r) => a + (String(r.Counts) === "Yes" ? num(r["Number of Reviews"]) : 0), 0);
+    const revWritten = reduceMonth("reviews_breakdown", curY, mo, pubRev) || 0;
+    const revWrittenLY = reduceMonth("reviews_breakdown", curY - 1, mo, pubRev) || 0;
+    const revWrittenPM = reduceMonth("reviews_breakdown", PMY, PM, pubRev) || 0;
     /* Review goals are END-OF-PERIOD targets (Tornike 2026-07-14): a fct_review_goals row
        dated 2026-09-01 means "by the END OF AUGUST the public review footprint
        (fct_review_counts, cumulative per platform) must total these numbers". They are
@@ -1531,7 +1533,7 @@ async function renderMonthly(host, MRCFG) {
         { l: "Leads", v: fmtN(leadsN), c: leadsN, ly: leadsLY, pm: leadsPM, spk: momSeries("moveboard", "Total Leads", 12), icon: KIC.funnel },
         { l: "Booking Rate", v: pct(bk), c: bk, ly: bkLY, pm: bkPM, spk: momSeries("moveboard", "Booking Rate", 12), icon: KIC.check },
         { l: "Avg Job Value", v: money(avgJob), c: avgJob, ly: avgJobLY, pm: avgJobPM, spk: momReduce("closing", 12, rs => { const b = M["Revenue"].fn(rs), j = rs.length; return j ? b / j : null; }), icon: KIC.tag },
-        { l: "All Reviews Written (incl. non-counting)", v: fmtN(revWritten), c: revWritten, ly: revWrittenLY, pm: revWrittenPM, spk: momReduce("reviews_breakdown", 12, rs => rs.reduce((a, r) => a + num(r["Number of Reviews"]), 0)), icon: KIC.star }
+        { l: "Reviews Written (public)", v: fmtN(revWritten), c: revWritten, ly: revWrittenLY, pm: revWrittenPM, spk: momReduce("reviews_breakdown", 12, pubRev), icon: KIC.star }
       ].forEach(k => kpiTile(g, k));
       const gpRev = revLY ? (rev - revLY) / Math.abs(revLY) : 0;
       const tone = gpRev > 0.08 ? "A strong" : gpRev < -0.05 ? "A softer" : "A steady";
@@ -2758,8 +2760,8 @@ async function renderMonthly(host, MRCFG) {
       const negPM = reduceMonth("negative_reviews", PMY, PM, rs => rs.length) || 0;
       const negLY = reduceMonth("negative_reviews", curY - 1, mo, rs => rs.length) || 0;
       const kg = document.createElement("div"); kg.className = "mrx-grid k"; kg.style.gridColumn = "1/-1"; g.appendChild(kg);
-      // C8: number unchanged (all breakdown reviews) — the label now says so
-      [ { l: "All Reviews Written (incl. non-counting)", v: fmtN(revWritten), c: revWritten, ly: revWrittenLY, pm: revWrittenPM, icon: KIC.star },
+      // public (counted) reviews only, the portal-wide meaning since 2026-09-17
+      [ { l: "Reviews Written (public)", v: fmtN(revWritten), c: revWritten, ly: revWrittenLY, pm: revWrittenPM, icon: KIC.star },
         { l: "Negative Reviews", v: fmtN(negN), c: negN, ly: negLY, pm: negPM, icon: KIC.warn, inv: 1 }
       ].forEach(k => kpiTile(kg, k));
       /* ---- goal progress — END-OF-PERIOD footprint target (Tornike 2026-07-14) ----
@@ -2785,7 +2787,11 @@ async function renderMonthly(host, MRCFG) {
           const nowTot = plats.reduce((a, k) => a + (cur2[nk(k)] || 0), 0);
           const toGo = Math.max(0, goalTot - nowTot);
           const monthsLeft = Math.max(0, (gY * 12 + gM - 1) - (curY * 12 + mo));
-          const addedPM = prev2 ? plats.reduce((a, k) => a + (cur2[nk(k)] || 0), 0) - plats.reduce((a, k) => a + (prev2[nk(k)] || 0), 0) : null;
+          // rises and falls apart (RS.reviewFlow): a platform taking reviews back never hides the ones we earned
+          const goalKeys = new Set(plats.map(nk));
+          const flowG = snap && prev2 ? RS.reviewFlow(rcRows2.filter(r => { const d = String(r.Date || "").slice(0, 10); return d === snap || d === snapPrev; }))
+            .span(snap.slice(0, 7), snap.slice(0, 7), (k, gg) => goalKeys.has(nk(gg.label))) : null;
+          const addedPM = flowG ? flowG.added : null, removedPM = flowG ? flowG.removed : 0;
           const ended = !!goalPast;
           const untracked = plats.filter(k => !(nk(k) in cur2));
           const pcell = (now, goal2) => { const p = goal2 ? Math.min(100, now / goal2 * 100) : 0; return `<td class="bar"><i style="width:${p.toFixed(0)}%;background:${p >= 100 ? LIME_BG : BLUE_BG}"></i><span>${p.toFixed(0)}%</span></td>`; };
@@ -2794,7 +2800,7 @@ async function renderMonthly(host, MRCFG) {
           const gc = tableCard(g, "Review goal — where we stand", (ended ? `period ended ${MON[endM]} ${endY}` : `target for end of ${MON[endM]} ${endY}`) + ` · footprint as of ${snap || "—"}`,
             `<table class="mrx-tbl"><thead><tr><th>Platform</th><th>Reviews now</th><th>Goal</th><th>To go</th><th>Progress</th></tr></thead><tbody>${rowsH}</tbody></table>`,
             { icon: KIC.trend, headVal: goalTot ? pct(nowTot / goalTot) : "—" });
-          if (!ended && toGo > 0 && monthsLeft > 0) note(gc, `${fmtN(toGo)} reviews to go in ${monthsLeft} month${monthsLeft > 1 ? "s" : ""} — that's ~${fmtN(Math.ceil(toGo / monthsLeft))}/month${addedPM != null ? `; the footprint grew ${addedPM >= 0 ? "+" : ""}${fmtN(addedPM)} last month${addedPM < toGo / monthsLeft ? " — BELOW the needed pace" : " — on pace"}` : ""}.`);
+          if (!ended && toGo > 0 && monthsLeft > 0) note(gc, `${fmtN(toGo)} reviews to go in ${monthsLeft} month${monthsLeft > 1 ? "s" : ""} — that's ~${fmtN(Math.ceil(toGo / monthsLeft))}/month${addedPM != null ? `; the listings gained ${fmtN(addedPM)} new reviews last month${removedPM ? ` (and the platforms removed ${fmtN(removedPM)}, counted apart)` : ""}${addedPM < toGo / monthsLeft ? " — BELOW the needed pace" : " — on pace"}` : ""}.`);
           if (untracked.length) note(gc, `⚠ ${untracked.map(esc).join(", ")}: the goal sheet names ${untracked.length > 1 ? "these platforms" : "this platform"} but the review-counts sheet has no matching row — showing 0. If ${untracked.length > 1 ? "they exist" : "it exists"} under another name there, align the naming and this fixes itself.`);
           note(gc, `Goals are end-of-period targets: by ${MON[endM]} ${endY} the total public reviews on each platform must reach the Goal column. "Reviews now" is the latest footprint snapshot (fct_review_counts); progress = now ÷ goal.`, "how");
         }
@@ -2813,12 +2819,16 @@ async function renderMonthly(host, MRCFG) {
       const snap6 = snaps6[snaps6.length - 1];
       const foot6 = {}, footLbl6 = {};
       if (snap6) rc6.filter(r => String(r.Date || "").slice(0, 10) === snap6).forEach(r => { const k = rk6(r.Platform); const n = num(r["Number of Reviews"]); foot6[k] = (foot6[k] || 0) + n; if (!footLbl6[k]) footLbl6[k] = String(r.Platform || "—"); });
-      const add6 = {};
-      segReduce("reviews_breakdown", "Source", rs => rs.reduce((a, r) => a + num(r["Number of Reviews"]), 0), curY, mo).forEach(s => { add6[rk6(s.k)] = (add6[rk6(s.k)] || 0) + s.v; });
+      // ADDED = the listing's rise since the previous snapshot (RS.reviewFlow); what a platform removed is its own number
+      const add6 = {}, rem6 = {};
+      if (snap6) { const fl6 = RS.reviewFlow(rc6.filter(r => String(r.Date || "").slice(0, 10) <= snap6));
+        Object.values(fl6.byPlat).forEach(gg => { const st = gg.steps[snap6.slice(0, 7)]; if (!st || st.from == null) return; const k = rk6(gg.label);
+          add6[k] = (add6[k] || 0) + st.added; rem6[k] = (rem6[k] || 0) + st.removed; }); }
+      const remTot6 = Object.values(rem6).reduce((a, v) => a + v, 0);
       const rows6 = Object.keys(foot6).filter(k => foot6[k] > 0).map(k => ({ k: footLbl6[k], total: foot6[k], added: Math.min(add6[k] || 0, foot6[k]) })).sort((a, b) => b.total - a.total).slice(0, 14);
       if (rows6.length) {
         const addTot6 = rows6.reduce((a, r) => a + r.added, 0), footTot6 = rows6.reduce((a, r) => a + r.total, 0);
-        const cc6 = chartCard(g, "Public review footprint — total on file + added this " + perWord, `${monLbl} · ${fmtN(footTot6)} on file, +${fmtN(addTot6)} in ${perName}`, { span2: true, icon: KIC.star, headVal: fmtN(footTot6) });
+        const cc6 = chartCard(g, "Public review footprint — total on file + added this " + perWord, `${monLbl} · ${fmtN(footTot6)} on file, +${fmtN(addTot6)} new since the previous snapshot${remTot6 ? ` · ${fmtN(remTot6)} removed by the platforms` : ""}`, { span2: true, icon: KIC.star, headVal: fmtN(footTot6) });
         cc6.box.style.height = Math.max(220, 52 + rows6.length * 31) + "px";
         new Chart(cc6.cv, { type: "bar", data: { labels: rows6.map(r => r.k), datasets: [
           { label: "On file", data: rows6.map(r => r.total - r.added), backgroundColor: CTX, borderRadius: 2, stack: "f" },

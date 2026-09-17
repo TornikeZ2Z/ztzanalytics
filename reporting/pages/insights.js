@@ -764,6 +764,7 @@ registerPage({
       // review_counts / review_goals rows are cumulative platform snapshots —
       // "new reviews in a month" = latest snapshot in that month minus the prior
       // month's, summed per platform across companies.
+      const names = {};
       const platTotal = rows => {
         const best = {};
         rows.forEach(r => {
@@ -772,31 +773,39 @@ registerPage({
         });
         const per = {};
         Object.values(best).forEach(r => {
-          const p = String(r.Platform || "—");
+          // case-folded, so "NextdoorShafto" in the goals sheet meets "Nextdoor Shafto" in the counts sheet
+          const p = String(r.Platform || "—").toLowerCase().replace(/[^a-z0-9]/g, "");
+          if (!(p in names)) names[p] = String(r.Platform || "—");
           per[p] = (per[p] || 0) + num(r["Number of Reviews"]);
         });
         return per;
       };
       const c1 = platTotal(rcM[prevM] || []), c2 = platTotal(rcM[prev2M] || []);
+      // NEW reviews = the listings' rises only (RS.reviewFlow); a platform removing reviews is its own number, never netted
+      const flowI = RS.reviewFlow((rcM[prev2M] || []).concat(rcM[prevM] || []));
+      const addOf = {}, remOf = {};
+      Object.values(flowI.byPlat).forEach(g => { const st = g.steps[prevM]; if (!st || st.from == null) return;
+        const p = String(g.label || "—").toLowerCase().replace(/[^a-z0-9]/g, "");
+        addOf[p] = (addOf[p] || 0) + st.added; remOf[p] = (remOf[p] || 0) + st.removed; });
       const g1 = platTotal(rgM[prevM] || []), g2 = platTotal(rgM[prev2M] || []);
       const laggards = [], onPace = [];
       Object.keys(g1).forEach(p => {
         if (!(p in g2) || !(p in c1) || !(p in c2)) return;      // need both snapshots
-        const goalInc = g1[p] - g2[p], added = c1[p] - c2[p];
+        const goalInc = g1[p] - g2[p], added = addOf[p] || 0, removed = remOf[p] || 0;
         if (goalInc < 5) return;                                 // floor: real monthly goal
         const share = added / goalInc;
-        if (share < 0.7) laggards.push({ p, added, goalInc, share });
-        else onPace.push(`${p} ${Math.round(100 * share)}%`);
+        if (share < 0.7) laggards.push({ p: names[p] || p, added, removed, goalInc, share });
+        else onPace.push(`${names[p] || p} ${Math.round(100 * share)}%`);
       });
       if (laggards.length) {
         laggards.sort((a, b) => a.share - b.share);
         const w = laggards[0];
         push("people", "watch",
-          `${w.p} added ${w.added} new reviews in ${monthLabel(prevM)} against a ${w.goalInc}-review monthly goal (${Math.round(100 * w.share)}% of pace)`,
+          `${w.p} added ${w.added} new reviews in ${monthLabel(prevM)} against a ${w.goalInc}-review monthly goal (${Math.round(100 * w.share)}% of pace)${w.removed ? `; the platform also removed ${w.removed}` : ""}`,
           (laggards.length > 1 ? `Also behind: ${laggards.slice(1).map(l => `${l.p} at ${Math.round(100 * l.share)}%`).join(", ")}. ` : "") +
           (onPace.length ? `On pace: ${onPace.join(", ")}. ` : "") +
           `At this pace the yearly target slips — reviews come from asking on the job, so this lands with the crews.`,
-          `Trigger: a platform's new public reviews for the month (latest platform count minus the prior month's) below 70% of that month's goal increase from the review-goals sheet, for goals of 5+ reviews a month.`);
+          `Trigger: a platform's new public reviews for the month (the rise in its listing total; reviews the platform removed are counted apart, not netted) below 70% of that month's goal increase from the review-goals sheet, for goals of 5+ reviews a month.`);
       }
     }
 
