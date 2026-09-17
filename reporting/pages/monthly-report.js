@@ -144,7 +144,9 @@ async function renderMonthly(host, MRCFG) {
     // only Type='Voice' rows are real phone calls (Type NULL = ring/forward legs of the SAME call,
     // Type='Fax' = faxes). Counting every row inflated volumes ~2.5-3.4x and mislabeled ~71k
     // inbound ring-legs as outbound. Definitions: answered = Action Result 'Accepted';
-    // missed = 'Missed' + 'Voicemail' (kept separately); teammate = the agent's Extension
+    // missed = 'Missed' + 'Voicemail' (kept separately); teammate = the agent's Extension.
+    // 10-SECOND RULE (2026-09-17): a missed / voicemail call under 10 s is a hang-up — the marts' `Short Missed`
+    // is taken out of missed (or voicemail) AND out of incoming, so the answer rate's denominator drops too.
     // (the Name column is the OTHER party — ranking it credited customers as "teammates").
     if (rcP) {
       // a feed that failed every retry comes back as [] (and a red banner) — never crash the page on it
@@ -156,7 +158,7 @@ async function renderMonthly(host, MRCFG) {
       mrows.forEach(r => {
         if (!rcCo(r)) return;   // one company's lines only — the picked one
         const ym = String(r.Month || ""); if (!okYm(ym)) return;
-        const b = B(ym), n = +r.Calls || 0, dur = +r["Duration Seconds"] || 0, res = String(r["Action Result"] || "");
+        const b = B(ym), sh = +r["Short Missed"] || 0, n = (+r.Calls || 0) - sh, dur = +r["Duration Seconds"] || 0, res = String(r["Action Result"] || "");
         if (String(r.Direction) === "Incoming") {
           b.in += n; b.inDur += dur;
           if (/^Accepted$/i.test(res)) b.ans += n;
@@ -169,7 +171,7 @@ async function renderMonthly(host, MRCFG) {
       lrows.forEach(r => {
         if (!rcCo(r)) return;
         const ym = String(r.Month || ""); if (!okYm(ym)) return;
-        const b = B(ym), n = +r.Calls || 0, dur = +r["Duration Seconds"] || 0, res = String(r["Action Result"] || "");
+        const b = B(ym), n = (+r.Calls || 0) - (+r["Short Missed"] || 0), dur = +r["Duration Seconds"] || 0, res = String(r["Action Result"] || "");
         const lnName = String(r["Line Name"] || "").trim(), lnNum = String(r["Line Number"] || "").trim();
         const L = b.lines[lnName || "__unmapped__"] || (b.lines[lnName || "__unmapped__"] = { num: "", in: 0, ans: 0, miss: 0, vm: 0, ansDur: 0, nums: {} });
         if (lnNum) { L.nums[lnNum] = (L.nums[lnNum] || 0) + n; if (!L.num) L.num = lnNum; }
@@ -2305,7 +2307,7 @@ async function renderMonthly(host, MRCFG) {
         const curB = spanB(rcAgg);
         const cAns = lines(g, "Incoming answer rate", "last 12 months (RingCentral)", [{ label: "Answered %", series: ansT, color: LIMED }], pct, { headVal: pct(lastV(ansT)) });
         // C29: state the counting rule — RingCentral's own report may group voicemail differently
-        if (curB && curB.in) note(cAns, `${perName}: ${fmtN(curB.ans)} of ${fmtN(curB.in)} incoming calls answered (${pct(curB.ans / curB.in)}) — ${fmtN(curB.miss)} missed + ${fmtN(curB.vm)} to voicemail. Counted on real calls (sessions), not ring-legs: one call ringing five phones counts once. Answered = accepted by a person. Outbound side: ${fmtN(curB.out)} calls, ${fmt1(curB.outDur / 3600)}h outbound talk time.`, "how");
+        if (curB && curB.in) note(cAns, `${perName}: ${fmtN(curB.ans)} of ${fmtN(curB.in)} incoming calls answered (${pct(curB.ans / curB.in)}) — ${fmtN(curB.miss)} missed + ${fmtN(curB.vm)} to voicemail. Counted on real calls (sessions), not ring-legs: one call ringing five phones counts once. Answered = accepted by a person. A missed or voicemail call shorter than 10 seconds is a hang-up and is not counted at all. Outbound side: ${fmtN(curB.out)} calls, ${fmt1(curB.outDur / 3600)}h outbound talk time.`, "how");
         // deck s75: the per-LINE inbound table — which branch number rings, how well it's handled, and AHT
         if (curB && curB.lines && Object.keys(curB.lines).length) {
           const hms = s => { const _m = Math.floor(s / 60), _s = Math.round(s % 60); return _m + "m " + String(_s).padStart(2, "0") + "s"; };
@@ -2318,7 +2320,7 @@ async function renderMonthly(host, MRCFG) {
           const ansCol = p => p >= .8 ? POS : p >= .6 ? WARN : NEG;
           const nDist = un ? Object.keys(un.nums).length : 0;
           const lnHtml = `<table class="mrx-tbl"><thead><tr><th>Line</th><th>Number</th><th style="text-align:right">Inbound</th><th style="text-align:right">Answered</th><th style="text-align:right">Missed</th><th style="text-align:right">Voicemail</th><th style="text-align:right">Answer %</th><th style="text-align:right">Avg handle</th></tr></thead><tbody>${lnRows.map(r => { const isU = r.k === "__unmapped__"; return `<tr${isU ? ' style="background:rgba(176,42,55,.05)"' : ""}><td${isU ? `  style="color:${NEG};font-weight:700"` : ""}>${isU ? "Unnamed numbers" : esc(r.k)}</td>${td(isU ? fmtN(nDist) + " different numbers" : esc(fmtPh(r.num)), isU ? `color:${NEG}` : "")}${td(fmtN(r.in), "text-align:right")}${td(fmtN(r.ans), "text-align:right")}${td(fmtN(r.miss), "text-align:right" + (r.miss ? `;color:${NEG};font-weight:800` : ""))}${td(fmtN(r.vm), "text-align:right")}${td(r.in ? pct(r.ans / r.in) : "—", "text-align:right;font-weight:800" + (r.in ? ";color:" + ansCol(r.ans / r.in) : ""))}${td(r.ans ? hms(r.ansDur / r.ans) : "—", "text-align:right")}</tr>`; }).join("")}<tr class="tot"><td>All lines</td>${td("")}${td(fmtN(T.in), "text-align:right")}${td(fmtN(T.ans), "text-align:right")}${td(fmtN(T.miss), "text-align:right")}${td(fmtN(T.vm), "text-align:right")}${td(T.in ? pct(T.ans / T.in) : "—", "text-align:right")}${td(T.ans ? hms(T.ansDur / T.ans) : "—", "text-align:right")}</tr></tbody></table>`;
-          tableCard(g, "Inbound by line — answer rate & handle time", monLbl + " · RingCentral · real calls (sessions)", lnHtml, { icon: KIC.grid, headVal: T.in ? pct(T.ans / T.in) + " answered" : "—", noteKind: "how", note: "Every company number that rang this " + perWord + " — inbound volume, how each call ended, and Average Handle Time (mean talk time on ANSWERED calls only; a missed call or voicemail carries no handle time, so they're excluded from AHT but still counted in Inbound). Counted on real calls (sessions), never per-device ring-legs. Answer % green ≥80%, amber ≥60%, red below. Only ${esc(CO)} lines are counted." + (nDist ? " — “Unnamed numbers” are " + fmtN(nDist) + " company numbers that rang but carry no name in RingCentral's account mapping, so they can't be credited to a branch yet; they're pooled into one row rather than shown under any single number." : "") });
+          tableCard(g, "Inbound by line — answer rate & handle time", monLbl + " · RingCentral · real calls (sessions)", lnHtml, { icon: KIC.grid, headVal: T.in ? pct(T.ans / T.in) + " answered" : "—", noteKind: "how", note: "Every company number that rang this " + perWord + " — inbound volume, how each call ended, and Average Handle Time (mean talk time on ANSWERED calls only; a missed call or voicemail carries no handle time, so they're excluded from AHT but still counted in Inbound; one under 10 seconds is a hang-up and is not counted at all). Counted on real calls (sessions), never per-device ring-legs. Answer % green ≥80%, amber ≥60%, red below. Only ${esc(CO)} lines are counted." + (nDist ? " — “Unnamed numbers” are " + fmtN(nDist) + " company numbers that rang but carry no name in RingCentral's account mapping, so they can't be credited to a branch yet; they're pooled into one row rather than shown under any single number." : "") });
         }
         if (curB && Object.keys(curB.names).length) {
           // (talk-time card folded in here — same 10 names in near-identical order taught nothing new;
