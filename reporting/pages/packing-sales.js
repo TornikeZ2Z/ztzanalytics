@@ -26,7 +26,7 @@
       RS.DATASETS.packing_sales_line = {
         table: "mart_packing_sales_line",
         // A PAYLOAD CONTRACT: projection is always on, a column missing here never arrives
-        cols: ["Job Code", "Contract Id", "Company", "ym", "Material", "Category", "Units",
+        cols: ["Job Code", "Contract Id", "Company", "ym", "Material", "Material Raw", "Category", "Units",
                "Unit Price", "Line USD", "Labor Units", "Job CF", "CF Bucket",
                "Building Size", "Moving Type", "Job Type", "Foreman"],
       };
@@ -69,7 +69,19 @@
       + ".pks-seg{display:inline-flex;gap:4px;flex-wrap:wrap}"
       // a panel's heading row: title left, its segment control right
       + ".pks-sec{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:0 0 10px}"
-      + ".pks-sec h3{margin:0;font-size:15px;flex:1 1 auto}";
+      + ".pks-sec h3{margin:0;font-size:15px;flex:1 1 auto}"
+      // the merge editor: raw name, where it counts, what it sold
+      + ".pks-map input{font-family:inherit;font-size:12.5px;padding:4px 7px;border-radius:7px;border:1px solid var(--line);"
+      + "background:var(--panel);color:var(--ink);width:100%;max-width:290px;outline:0}"
+      + ".pks-map input:focus{border-color:var(--brand)}"
+      + ".pks-map input.ok{border-color:var(--pos)} .pks-map input.bad{border-color:var(--neg)}"
+      + ".pks-map tr.merged td:first-child{color:var(--muted)}"
+      + ".pks-map .to{font-weight:700;color:var(--brand-d)}"
+      + ".pks-sug{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0 2px}"
+      + ".pks-sug button{font-family:inherit;font-size:12px;padding:4px 10px;border-radius:999px;border:1px solid var(--line-2);"
+      + "background:var(--panel);color:var(--ink);cursor:pointer}"
+      + ".pks-sug button:hover{border-color:var(--brand)}"
+      + ".pks-msg{font-size:12px;color:var(--muted)} .pks-msg.bad{color:var(--neg);font-weight:700}";
     document.head.appendChild(st);
   }
 
@@ -110,11 +122,24 @@ registerPage({
     const TODAY = new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
     const NOW_YM = TODAY.slice(0, 7);
 
-    return Promise.all([RS.load("packing_sales_line"), RS.load("packing_sales_job")]).then(([lines, jobs]) => {
+    /* THE MERGE MAP (his ask 2026-09-18). The same material has been labelled several ways in the
+       contract's packing modal, so `packing_material_map` says which name each raw label counts under.
+       The mart already applies it; the page applies it again over the RAW label so an edit shows at
+       once instead of waiting for the next rebuild. A reader without write access still sees the
+       merged numbers -- only the editor is hidden. */
+    const mapHdr = { Authorization: "Bearer " + ZTZ.getToken() };
+    const loadMap = () => fetch(ZTZ.API + "/api/_pkmap", { headers: mapHdr }).then(r => r.json()).catch(e => ({ error: String(e) }));
+    return Promise.all([RS.load("packing_sales_line"), RS.load("packing_sales_job"), loadMap()]).then(([lines, jobs, mapRes]) => {
       if (!alive()) return;
+      const canMap = !!(mapRes && !mapRes.error && mapRes.rows);
+      const MAP = {};   // raw name -> { material, category }
+      ((mapRes && mapRes.rows) || []).forEach(r => { if (r && r.raw) MAP[r.raw] = { material: (r.material || "").trim(), category: (r.category || "").trim() }; });
+      const rawOf = r => r["Material Raw"] || r.Material;
+      const matOf = r => { const m = MAP[rawOf(r)]; return (m && m.material) || r.Material; };
+      const catOf = r => { const m = MAP[rawOf(r)]; return (m && m.category) || r.Category || "Other"; };
       lines = (lines || []).map(r => ({
         job: r["Job Code"], cid: String(r["Contract Id"]), co: r.Company || "Unknown", ym: r.ym,
-        mat: r.Material, cat: r.Category || "Other", units: +r.Units || 0,
+        mat: matOf(r), raw: rawOf(r), cat: catOf(r), units: +r.Units || 0,
         price: +r["Unit Price"] || 0, usd: +r["Line USD"] || 0, labor: +r["Labor Units"] || 0,
         cf: r["Job CF"] == null ? null : +r["Job CF"], cfb: r["CF Bucket"], size: r["Building Size"],
         mt: r["Moving Type"], jt: r["Job Type"], fm: r.Foreman || "Unknown",
@@ -355,13 +380,88 @@ registerPage({
           + (recClosing ? " (" + pct(recLines, recClosing) + ")" : "") + ". The closing stays the money of record; this page is the "
           + "material detail behind it, and a gap is a sale recorded on one and not the other.</p></div>";
 
+        h += mapPanel();
+
         mine.innerHTML = h;
         wire();
+        wireMap();
 
         function kpi(lab, val, sub) {
           // the kit's tile: .rs-kpis .kpi with .v (value) .l (label) .s (sub), value first
           return '<div class="kpi"><div class="v">' + val + '</div><div class="l">' + lab + '</div><div class="s">' + sub + "</div></div>";
         }
+      }
+
+      /* WHICH NAMES ARE THE SAME THING — the page's suggestion, never applied by itself.
+         Normalise away case, punctuation, the size in brackets and the plural, then any two
+         raw labels that land on the same string are offered as a merge into the one that
+         sold the most. He decides; nothing here changes a number until he saves. */
+      const normMat = m => String(m || "").toLowerCase()
+        .replace(/\(.*?\)/g, " ").replace(/[^a-z0-9]+/g, " ").replace(/\b(\w+)s\b/g, "$1").trim();
+      function mapRows() {
+        const t = {};
+        lines.forEach(l => { const a = t[l.raw] || (t[l.raw] = { raw: l.raw, units: 0, usd: 0, cat: l.cat }); a.units += l.units; a.usd += l.usd; });
+        return Object.values(t).sort((a, b) => b.usd - a.usd);
+      }
+      function suggestions(rows) {
+        const g = {};
+        rows.forEach(r => { if ((MAP[r.raw] || {}).material) return; (g[normMat(r.raw)] = g[normMat(r.raw)] || []).push(r); });
+        return Object.values(g).filter(a => a.length > 1)
+          .map(a => a.slice().sort((x, y) => y.usd - x.usd))
+          .map(a => ({ into: a[0].raw, from: a.slice(1) }));
+      }
+      function mapPanel() {
+        const rows = mapRows();
+        const names = [...new Set(rows.map(r => (MAP[r.raw] || {}).material || r.raw))].sort();
+        const sug = suggestions(rows);
+        let x = '<div class="panel" id="pksMap"><div class="pks-sec"><h3>Material names — merge the ones that are the same</h3></div>'
+          + '<p class="rs-hint" style="margin:0 0 10px">The contract\'s packing modal has been re-labelled over the years, so one material sells under several names. '
+          + 'Type the name a label should count under and it merges everywhere on this page at once; leave it empty to keep the label as it is. '
+          + (canMap ? "Saved for everyone, and the marts follow at the next refresh." : "<b>Your access here is read-only.</b>") + "</p>";
+        if (canMap && sug.length) {
+          x += '<div class="pks-sug"><span class="pks-msg">Look the same to me:</span>'
+            + sug.slice(0, 8).map(s2 => '<button type="button" data-sug="' + esc(s2.from.map(f => f.raw).join("|||")) + '" data-into="' + esc(s2.into) + '">'
+              + esc(shortMat(s2.from[0].raw)) + " → " + esc(shortMat(s2.into)) + (s2.from.length > 1 ? " +" + (s2.from.length - 1) : "") + "</button>").join("")
+            + '<button type="button" data-sugall="1">Merge all ' + sug.reduce((a, s2) => a + s2.from.length, 0) + "</button></div>";
+        }
+        x += '<datalist id="pksNames">' + names.map(n => '<option value="' + esc(n) + '"></option>').join("") + "</datalist>"
+          + '<div class="rs-tablewrap pks-map"><table class="rs-table"><thead><tr><th>Name on the contract</th><th>Counts under</th>'
+          + '<th class="num">Units</th><th class="num">Sold</th><th>Category</th></tr></thead><tbody>'
+          + rows.map(r => { const m = MAP[r.raw] || {}; const to = (m.material || "").trim();
+            return '<tr' + (to ? ' class="merged"' : "") + '><td>' + esc(r.raw) + "</td>"
+              + '<td>' + (canMap ? '<input list="pksNames" data-raw="' + esc(r.raw) + '" value="' + esc(to) + '" placeholder="— keeps its own name —">'
+                                 : (to ? '<span class="to">' + esc(to) + "</span>" : '<span class="rs-hint">—</span>')) + "</td>"
+              + '<td class="num">' + fmtN(r.units) + '</td><td class="num">' + fmtUSD(r.usd) + "</td>"
+              + "<td>" + esc(m.category || r.cat) + "</td></tr>"; }).join("")
+          + '</tbody></table></div><div class="pks-msg" id="pksMapMsg"></div></div>';
+        return x;
+      }
+      async function saveMap(raw, material, inp) {
+        if (inp) inp.classList.remove("ok", "bad");
+        const r = await fetch(ZTZ.API + "/api/_pkmap", { method: "POST", headers: Object.assign({ "Content-Type": "application/json" }, mapHdr),
+          body: JSON.stringify({ raw: raw, material: material }) });
+        const j = await r.json();
+        if (!r.ok || j.error) throw new Error(j.error || r.status);
+        if (j.material) MAP[raw] = { material: j.material, category: (MAP[raw] || {}).category || "" };
+        else delete MAP[raw];
+        if (inp) inp.classList.add("ok");
+      }
+      function wireMap() {
+        if (!alive() || !canMap) return;
+        const msg = mine.querySelector("#pksMapMsg");
+        mine.querySelectorAll('#pksMap input[data-raw]').forEach(inp => {
+          inp.addEventListener("change", async () => {
+            try { await saveMap(inp.dataset.raw, inp.value.trim(), inp); if (msg) msg.textContent = "saved — " + (inp.value.trim() ? inp.dataset.raw + " now counts under " + inp.value.trim() : inp.dataset.raw + " keeps its own name"); paint(); }
+            catch (e) { inp.classList.add("bad"); if (msg) { msg.className = "pks-msg bad"; msg.textContent = "not saved — " + String(e.message || e); } }
+          });
+        });
+        mine.querySelectorAll("#pksMap button[data-sug]").forEach(b => {
+          b.onclick = async () => { try { for (const raw of b.dataset.sug.split("|||")) await saveMap(raw, b.dataset.into); paint(); }
+            catch (e) { if (msg) { msg.className = "pks-msg bad"; msg.textContent = "not saved — " + String(e.message || e); } } };
+        });
+        const all = mine.querySelector("#pksMap button[data-sugall]");
+        if (all) all.onclick = async () => { try { for (const s2 of suggestions(mapRows())) for (const f of s2.from) await saveMap(f.raw, s2.into); paint(); }
+          catch (e) { if (msg) { msg.className = "pks-msg bad"; msg.textContent = "not saved — " + String(e.message || e); } } };
       }
 
       function shortMat(m) {
