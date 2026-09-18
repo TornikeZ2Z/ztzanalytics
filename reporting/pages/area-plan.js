@@ -1334,8 +1334,18 @@ registerPage({
       function wireAsks() {
         host.querySelectorAll("button[data-goto]").forEach(b => {
           b.onclick = () => { const el = host.querySelector("#" + b.dataset.goto);
-            if (el) { el.scrollIntoView({ behavior: "smooth", block: "center" }); el.style.transition = "box-shadow .4s";
-              el.style.boxShadow = "0 0 0 3px var(--brand-glow)"; setTimeout(() => { el.style.boxShadow = ""; }, 1400); } };
+            if (!el) return;
+            /* THE PORTAL SCROLLS AN INNER CONTAINER (.rs-content), and scrollIntoView does not move
+               it when the target sits inside a panel that has its own overflow — verified live on
+               2026-09-18: the highlight fired, the page stayed put. So the offset is computed and
+               that container is scrolled directly; scrollIntoView stays as the fallback. */
+            const sc = el.closest(".rs-content") || document.scrollingElement;
+            if (sc && sc.scrollHeight > sc.clientHeight + 4) {
+              const top = el.getBoundingClientRect().top - sc.getBoundingClientRect().top + sc.scrollTop - 90;
+              sc.scrollTo({ top: Math.max(0, top), behavior: "smooth" });
+            } else el.scrollIntoView({ behavior: "smooth", block: "start" });
+            el.style.transition = "box-shadow .4s";
+            el.style.boxShadow = "0 0 0 3px var(--brand-glow)"; setTimeout(() => { el.style.boxShadow = ""; }, 1600); };
         });
       }
 
