@@ -130,6 +130,8 @@
       gap:12px;align-items:center;padding:8px 6px;border-bottom:1px solid var(--line-2);
       cursor:pointer;border-radius:6px}
     .ap2-dem:last-child{border-bottom:0}
+    @media (max-width:640px){.ap2-dem{grid-template-columns:minmax(90px,1fr) minmax(60px,1fr)}
+      .ap2-dem .v{grid-column:1/-1;justify-self:end}}
     .ap2-dem:hover{background:var(--panel-2)}
     .ap2-dem.on{background:color-mix(in srgb,var(--brand) 10%,transparent)}
     .ap2-dem .n{font-weight:700;font-size:13.5px}
@@ -851,7 +853,7 @@ registerPage({
             (hasAcs ? "Movers per year = the Census population × the share of households that moved last year. " : "Census income and movers per year appear once a Census API key is connected. ") + "</div>" +
           '<div class="rs-seg" style="margin:0 0 10px">' + btn("Home Value", "Highest home value") + btn("Miles To Base", "Closest") +
             (hasAcs ? btn("Movers Per Year", "Most movers") : "") + "</div>" +
-          '<div class="rs-tablewrap"><table class="rs-table"><thead><tr><th>Zip</th><th>Town</th><th>County</th><th>St</th><th>Base</th>' +
+          '<div class="rs-tablewrap" data-nocsv><table class="rs-table"><thead><tr><th>Zip</th><th>Town</th><th>County</th><th>St</th><th>Base</th>' +
             '<th class="num">Miles</th><th class="num">Home value</th><th class="num">12 months</th>' +
             (hasAcs ? '<th class="num">Income</th><th class="num">Movers / yr</th>' : "") + "</tr></thead><tbody>" +
           rs.map(r => "<tr><td>" + esc(r.Zip) + '</td><td class="strong">' + esc(r.City || "—") + '</td><td class="muted">' + esc(r.County || "—") + "</td>" +
@@ -1361,7 +1363,8 @@ registerPage({
       }
       function tableName(tbl) {
         const card = tbl.closest(".panel") || tbl.parentElement;
-        const t = card && (card.querySelector(".panel-title") || card.querySelector("h3") || card.querySelector(".ap2-note"));
+        const det = tbl.closest("details"), sum = det && det.querySelector("summary");
+        const t = (card && (card.querySelector(".panel-title") || card.querySelector("h3"))) || sum;
         return (t ? t.innerText : "table").replace(/[\\/:*?"<>|]/g, " ").replace(/\s+/g, " ").trim().slice(0, 60);
       }
       function enhanceTables() {
