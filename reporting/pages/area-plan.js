@@ -85,6 +85,19 @@
     .ap2-ctl{display:flex;gap:14px;align-items:flex-end;flex-wrap:wrap;margin:0 0 14px}
     .ap2-ctl>.ap2-note{padding-bottom:8px}
     .ap2-warn{font-size:12px;color:var(--warn);font-weight:700}
+    .ap2-qa{display:grid;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));gap:10px;margin-top:10px}
+    .ap2-q{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+    .ap2-q .qq{font-size:13px;font-weight:750;color:var(--ink);line-height:1.45}
+    .ap2-q .qa{font-size:12.5px;color:var(--muted);line-height:1.6;margin-top:5px}
+    .ap2-q .qa b{color:var(--ink)}
+    .ap2-q .qh{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+    .ap2-q .qn{font-size:11px;font-weight:800;color:var(--brand-d);background:var(--brand-glow);border-radius:999px;padding:1px 8px}
+    .ap2-chip{font-size:10.5px;font-weight:800;border-radius:999px;padding:1px 8px;white-space:nowrap}
+    .ap2-chip.y{background:color-mix(in srgb,var(--pos) 14%,transparent);color:var(--pos)}
+    .ap2-chip.p{background:color-mix(in srgb,var(--warn) 18%,transparent);color:var(--warn)}
+    .ap2-chip.n{background:color-mix(in srgb,var(--neg) 12%,transparent);color:var(--neg)}
+    .ap2-goto{margin-top:7px;font-size:12px;font-weight:700;color:var(--brand-d);background:0;border:0;padding:0;cursor:pointer}
+    .ap2-goto:hover{text-decoration:underline}
     .ap2-band{display:flex;gap:12px;align-items:baseline;flex-wrap:wrap;margin:22px 0 10px;
       padding-top:14px;border-top:2px solid var(--line)}
     .ap2-band .k{font-size:11px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;
@@ -1233,13 +1246,100 @@ registerPage({
           repaintBudget();
         });
       }
+
+      /* ===================== THE QUESTIONS, ANSWERED =====================
+         His ask 2026-09-18: "i need the TOP of that seasonal planning to be the questions -
+         and answers - and below to have the logic of how we got to this numbers." The nine
+         questions are Giga's own (2026-09-09, docs/plans/2026-09-09-area-master-plan.md);
+         every answer is computed from the same data the panels below are drawn from, and
+         each carries the button that jumps to the panel showing how. A question the data
+         cannot answer says so — an honest "not yet" beats a number nobody can stand behind. */
+      function asksHtml() {
+        const C2 = inputs.city || {};
+        const cityRows = CITYALL || [];
+        const nCity = cityRows.length;
+        const has = (col) => cityRows.filter(r => r[col] != null && r[col] !== "").length;
+        const sum = (col) => cityRows.reduce((a, r) => a + num(r[col]), 0);
+        const leadsTot = sum("Leads"), revTot = sum("Revenue"), adTot = sum("Est Ad Cost");
+        const win = C2.window === "season" ? "the last season" : "this year to date";
+        const wsAll = (WSALL || []).length;
+        const wsNever = (WSALL || []).filter(r => +r["Never A Lead"] === 1).length;
+        const baseMiles = (() => { const v = cityRows.map(r => num(r["Miles To Base"])).filter(x => x > 0); return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null; })();
+        const fmAtBase = has("Foremen At Base");
+        // the best preset depot the plan scored, for the one-line answer on distance
+        const dep0 = ((DEP.candidates || []).filter(c => c.saved_mi_per_job > 0)
+          .sort((a, b) => b.saved_mi_per_job - a.saved_mi_per_job)[0]) || null;
+        const chip = (k, t) => '<span class="ap2-chip ' + k + '">' + t + "</span>";
+        const Q = [
+          { n: 1, q: "City — one row per area, for planning and for marketing",
+            st: ["y", "answered"],
+            a: "<b>" + fmtN(nCity) + "</b> cities carry leads in " + win + ", each with its county, its nearest base and its own demand. The plan above decides by state; this table is the detail underneath it.",
+            go: "apCityTable" },
+          { n: 2, q: "ROI per area",
+            st: adTot > 0 ? ["p", "estimated"] : ["n", "not yet"],
+            a: revTot ? "<b>$" + r1(leadsTot ? revTot / leadsTot : 0) + "</b> of revenue per lead across " + fmtN(has("Revenue")) + " cities" +
+                 (adTot > 0 ? ", and <b>$" + r1(adTot ? revTot / adTot : 0) + "</b> of revenue per estimated ad dollar. The ad dollar is <b>attributed</b>, not measured: each city's leads × what that source costs us company-wide. Measured spend by city needs the Google Ads feed." : ".")
+               : "No revenue in this window.",
+            go: "apRank" },
+          { n: 3, q: "Incoming leads, and which source we are on in that area",
+            st: ["y", "answered"],
+            a: "<b>" + fmtN(leadsTot) + "</b> leads in " + win + "; the top three sources are named per city on <b>" + fmtN(has("Lead Source Mix")) + "</b> of them.",
+            go: "apCityTable" },
+          { n: 4, q: "Allocated ad budget per area",
+            st: adTot > 0 ? ["p", "estimated"] : ["n", "not yet"],
+            a: "<b>" + money0(adTot) + "</b> estimated for " + win + " (leads × the source's cost per lead). The real spend per city sits in Google Ads — the BigQuery transfer is still to be switched on, and Meta only reports by region.",
+            go: "apBudget" },
+          { n: 5, q: "Where the richer areas are, the big houses, where the market is heading",
+            st: has("Median Income") ? ["y", "answered"] : ["n", "not yet"],
+            a: "Census and Zillow, per city: income on <b>" + fmtN(has("Median Income")) + "</b>, home value on <b>" + fmtN(has("Home Value")) + "</b>, and how many households moved last year on <b>" + fmtN(has("Mover Rate")) + "</b>. Wealth tier ranks every city into fifths. Not an opinion from a chatbot — published statistics.",
+            go: "apCityTable" },
+          { n: 6, q: "SEO — where the demand is on the web, and in what volume",
+            st: has("Search Volume") ? ["y", "answered"] : ["n", "not yet"],
+            a: has("Search Volume") ? "Search volume on <b>" + fmtN(has("Search Volume")) + "</b> cities, summed over the moving phrases that name the city."
+                 : "<b>Not answered.</b> The Semrush key we hold is not entitled to the keyword API (it answers 403), and Search Console has not been granted yet. Both are a purchase or an approval, not a build.",
+            go: "apCityTable" },
+          { n: 7, q: "Distance from the nearest base",
+            st: ["y", "answered"],
+            a: baseMiles == null ? "No distances in this window." :
+               "Average <b>" + r1(baseMiles) + " miles</b> from a city to its nearest base, straight-line. Today the jobs run <b>" + (DEP.baseline ? r1(DEP.baseline.mi_per_job) + " miles per job" : "—") + "</b> from " + ((DEP.baseline || {}).bases || []).length + " bases" +
+               (dep0 ? ", and a depot in <b>" + esc(dep0.label || dep0.zip) + "</b> would save <b>" + r1(dep0.saved_mi_per_job) + " miles a job</b>." : "."),
+            go: "apDepot" },
+          { n: 8, q: "How many foremen sit at the nearest base",
+            st: fmAtBase ? ["p", "partly"] : ["n", "not yet"],
+            a: "Counted for <b>" + fmtN(fmAtBase) + "</b> cities. The crew sheet records a <b>state</b>, not a depot, so the NY, DE and MA bases borrow their state's foremen instead of holding their own. A Depot column on the crew sheet closes this for good.",
+            go: "apBase" },
+          { n: 9, q: "The areas inside our territory where we have done nothing",
+            st: wsAll ? ["y", "answered"] : ["n", "not yet"],
+            a: wsAll ? "<b>" + fmtN(wsAll) + "</b> zips sit within 35 miles of a base, and <b>" + fmtN(wsNever) + "</b> of them have never sent us a single lead. They are ranked by home value, movers per year and distance."
+                     : "The territory list is not built in this window.",
+            go: "apWs" },
+        ];
+        return '<div class="ap2-band" style="margin-top:6px;border-top:0;padding-top:0"><span class="k">The questions</span>'
+          + "<h2>What was asked, and what the data answers</h2>"
+          + '<span class="clock">Giga\'s nine, 9 September · everything below this is how each number was reached</span></div>'
+          + '<div class="ap2-qa">' + Q.map(x =>
+              '<div class="ap2-q"><div class="qh"><span class="qn">' + x.n + "</span>" + chip(x.st[0], x.st[1]) + "</div>"
+              + '<div class="qq">' + esc(x.q) + '</div><div class="qa">' + x.a + "</div>"
+              + '<button type="button" class="ap2-goto" data-goto="' + x.go + '">Show me how ↓</button></div>').join("")
+          + "</div>";
+      }
+
+      function wireAsks() {
+        host.querySelectorAll("button[data-goto]").forEach(b => {
+          b.onclick = () => { const el = host.querySelector("#" + b.dataset.goto);
+            if (el) { el.scrollIntoView({ behavior: "smooth", block: "center" }); el.style.transition = "box-shadow .4s";
+              el.style.boxShadow = "0 0 0 3px var(--brand-glow)"; setTimeout(() => { el.style.boxShadow = ""; }, 1400); } };
+        });
+      }
+
       function paint() {
         recalcPeriod();
         const c = calc();
         host.innerHTML =
           '<div class="rs-page-head"><h1>Seasonal Planning</h1>' +
-          '<p style="max-width:none">Hiring first, then marketing, then the base question. <b>Band A</b> decides per state for the period you pick, seeded from the foremen who actually worked last season (or his table, or the aim), and any cell the <a href="#page=season-settings">Planning Variables</a> page has set wins. <b>Band B</b> is the per-city evidence for this year — click a state anywhere to focus it. <b>Band C</b> is the reference: the outside research, rent vs buy, and how the season was decided.</p></div>' +
-          '<div class="ap2-band" style="margin-top:6px;border-top:0;padding-top:0"><span class="k">Band A · Decide</span><h2>The plan for ' + esc(P.label) + '</h2>' +
+          '<p style="max-width:none">The questions first, with the answer the data gives today; everything under them is the working — hiring first, then marketing, then the base question. <b>Band A</b> decides per state for the period you pick, seeded from the foremen who actually worked last season (or his table, or the aim), and any cell the <a href="#page=season-settings">Planning Variables</a> page has set wins. <b>Band B</b> is the per-city evidence for this year — click a state anywhere to focus it. <b>Band C</b> is the reference: the outside research, rent vs buy, and how the season was decided.</p></div>' +
+          asksHtml() +
+          '<div class="ap2-band"><span class="k">Band A · Decide</span><h2>The plan for ' + esc(P.label) + '</h2>' +
           '<span class="clock">next season ' + esc((SEASON.next || []).join(" – ") || "—") + ' · planned from the same months last year</span></div>' +
           controlBar() +
           '<div class="panel ap2-hero"><div id="apHero">' + heroHtml(c) + "</div>" +
@@ -1338,7 +1438,7 @@ registerPage({
         const un = host.querySelector("[data-unfocus]"); if (un) un.onclick = ev => { ev.preventDefault(); inputs.focus = ""; setFocus(""); };
       }
       function wire() {
-        wireControls(); wireFocus(); mountCityBar(); repaintCity(); wireWs(); wireMethod(); wireRank(); wireDepot();
+        wireControls(); wireFocus(); mountCityBar(); repaintCity(); wireWs(); wireMethod(); wireRank(); wireDepot(); wireAsks();
       }
       function repaintBudget() { const el = host.querySelector("#apBudget"); if (el) el.innerHTML = budgetHtml(); }
       function save() { try { localStorage.setItem(LS_KEY, JSON.stringify(inputs)); } catch (e) {} }
