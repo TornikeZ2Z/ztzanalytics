@@ -202,6 +202,9 @@
     .ap2-tt{display:flex;align-items:center;gap:8px;justify-content:flex-end;margin:0 0 6px}
     .ap2-tt .n{font-size:11.5px;color:var(--faint);margin-right:auto}
     .ap2-tt .rs-btn{padding:3px 10px;font-size:11.5px}
+    .ap2-meas{display:inline-block;margin-left:6px;font-size:9.5px;font-weight:800;letter-spacing:.03em;
+      text-transform:uppercase;color:var(--pos);background:color-mix(in srgb,var(--pos) 13%,transparent);
+      border-radius:999px;padding:1px 6px;vertical-align:1px}
     .ap2-pager{display:flex;gap:8px;align-items:center;justify-content:flex-end;margin-top:12px;
       font-size:12.5px;color:var(--faint)}
     .ap2-pager .rs-btn[disabled]{opacity:.4;pointer-events:none}
@@ -887,7 +890,7 @@ registerPage({
         return '<div class="rs-tablewrap"><table class="rs-table"><thead><tr>' +
           th("City", "City") + th("St", "State") + th("Leads", "Leads", "num") + th("Book %", "Booking Rate", "num") +
           th("Revenue", "Revenue", "num") + th("$/lead", "Revenue Per Lead", "num") + th("Lead sources", "Lead Source Mix") +
-          th("Est. ad cost", "Est Ad Cost", "num") + th("Revenue / ad $ (est.)", "Est Revenue Per Ad Dollar", "num") +
+          th("Ad cost", "Est Ad Cost", "num") + th("Revenue / ad $", "Est Revenue Per Ad Dollar", "num") +
           th("Home value", "Home Value", "num") + th("12 months", "Home Value Change Pct", "num") +
           th("Income", "Median Income", "num") + th("Moved last yr", "Mover Rate", "num") + th("Wealth", "Wealth Tier") +
           "</tr></thead><tbody>" + pageRows.map(r => "<tr>" +
@@ -895,8 +898,8 @@ registerPage({
             '<td class="num">' + fmtN(num(r.Leads)) + '</td><td class="num">' + r1(num(r["Booking Rate"])) + "%</td>" +
             '<td class="num">' + money0(num(r.Revenue)) + '</td><td class="num">' + money0(num(r["Revenue Per Lead"])) + "</td>" +
             '<td class="muted" style="white-space:nowrap">' + esc(r["Lead Source Mix"] || "—") + "</td>" +
-            '<td class="num">' + (r["Est Ad Cost"] != null ? money0(num(r["Est Ad Cost"])) : d) + "</td>" +
-            '<td class="num">' + (r["Est Revenue Per Ad Dollar"] != null ? "$" + num(r["Est Revenue Per Ad Dollar"]).toFixed(1) : d) + "</td>" +
+            '<td class="num">' + (adCost(r) ? money0(adCost(r)) + adBadge(r) : d) + "</td>" +
+            '<td class="num">' + (adPerDollar(r) != null ? "$" + adPerDollar(r).toFixed(1) : d) + "</td>" +
             '<td class="num">' + (r["Home Value"] != null ? money0(num(r["Home Value"])) : d) + "</td>" +
             '<td class="num">' + (r["Home Value Change Pct"] != null ? sgnPct(num(r["Home Value Change Pct"])) : d) + "</td>" +
             '<td class="num">' + (r["Median Income"] != null ? money0(num(r["Median Income"])) : d) + "</td>" +
@@ -1138,7 +1141,7 @@ registerPage({
       function stateCpl() {
         const acc = {};
         CITYALL.forEach(r => { const st = r.State; if (!st) return; const a = acc[st] = acc[st] || { cost: 0, leads: 0 };
-          a.cost += num(r["Est Ad Cost"]); a.leads += num(r.Leads); });
+          a.cost += adCost(r); a.leads += num(r.Leads); });
         const out = {}; Object.entries(acc).forEach(([st, a]) => { out[st] = a.leads ? a.cost / a.leads : null; });
         const cost = Object.values(acc).reduce((t, a) => t + a.cost, 0), leads = Object.values(acc).reduce((t, a) => t + a.leads, 0);
         out._all = leads ? cost / leads : null;
@@ -1174,7 +1177,22 @@ registerPage({
       }
 
       /* ------- push or cut: an opportunity rank over the cities, weights adjustable ------------------ */
-      const RANK_DIMS = [["rpa", "Revenue per ad $", r => num(r["Est Revenue Per Ad Dollar"]) || null],
+      /* TWO DIFFERENT QUANTITIES — DO NOT SWAP ONE FOR THE OTHER (caught 2026-09-18, after the
+         first version of this did exactly that). `Est Ad Cost` is EVERY channel: the city's leads
+         by source times what that source costs us company-wide. `Ad Spend` is GOOGLE ADS ALONE,
+         what Google actually charged for that city. Philadelphia: $38,141 estimated across Angi
+         44% / Yelp 18% / Google 16%, against $11,440 measured on Google — substituting the second
+         for the first cut the city's ad cost by two thirds and made its return look three times
+         better. So the estimate stays the total, the measured Google figure rides beside it, and
+         the reader can see how much of the total is now real money rather than attribution. */
+      const adCost = r => num(r["Est Ad Cost"]) || 0;                 // every channel, attributed
+      const adGoogle = r => num(r["Ad Spend"]) || 0;                  // Google Ads, charged
+      const adIsMeasured = r => adGoogle(r) > 0;
+      const adPerDollar = r => { const c = adCost(r); return c > 0 ? num(r.Revenue) / c : null; };
+      const adBadge = r => adIsMeasured(r)
+        ? '<span class="ap2-meas" title="Google Ads charged ' + money0(adGoogle(r)) + ' for this city — part of the total beside it">G ' + money0(adGoogle(r)) + "</span>" : "";
+
+      const RANK_DIMS = [["rpa", "Revenue per ad $", r => adPerDollar(r)],
                          ["mover", "Mover rate", r => r["Mover Rate"] != null ? num(r["Mover Rate"]) : null],
                          ["wealth", "Wealth tier", r => ({ "Top fifth": 1, "Fourth fifth": .75, "Middle fifth": .5, "Second fifth": .25, "Lowest fifth": 0 })[r["Wealth Tier"]] ?? null],
                          ["untapped", "Leads, no jobs (share)", r => num(r.Leads) ? lnj(r) / num(r.Leads) : null]];
@@ -1191,10 +1209,10 @@ registerPage({
       }
       function rankHtml() {
         const all = rankRows();
-        const push = all.slice(0, 12), cut = all.filter(x => num(x.r["Est Ad Cost"]) >= 1000).slice(-8).reverse();
+        const push = all.slice(0, 12), cut = all.filter(x => adCost(x.r) >= 1000).slice(-8).reverse();   // the estimate is the total, so the floor reads the total
         const tdc = (v, cls) => '<td class="' + (cls || "num") + '">' + v + "</td>";
         const line = x => { const r = x.r; return "<tr>" + tdc(esc(r.City) + ' <span class="ap2-dim">' + esc(r.State) + "</span>", "strong") + tdc(Math.round(x.score * 100)) + tdc(fmtN(r.Leads)) + tdc(pct(num(r["Booking Rate"]) || null)) +
-          tdc(money0(num(r["Est Ad Cost"]))) + tdc(r["Est Revenue Per Ad Dollar"] != null ? "$" + r1(r["Est Revenue Per Ad Dollar"]) : "—") + tdc(r["Mover Rate"] != null ? pct(num(r["Mover Rate"])) : "—") + tdc(esc(r["Wealth Tier"] || "—"), "") + tdc(fmtN(lnj(r))) + "</tr>"; };
+          tdc(money0(adCost(r)) + adBadge(r)) + tdc(adPerDollar(r) != null ? "$" + r1(adPerDollar(r)) : "—") + tdc(r["Mover Rate"] != null ? pct(num(r["Mover Rate"])) : "—") + tdc(esc(r["Wealth Tier"] || "—"), "") + tdc(fmtN(lnj(r))) + "</tr>"; };
         const head = '<thead><tr><th>City</th><th class="num">Score</th><th class="num">Leads</th><th class="num">Booking</th><th class="num">Est. ad cost</th><th class="num">Rev / ad $</th><th class="num">Mover rate</th><th>Wealth</th><th class="num">Leads, no jobs</th></tr></thead>';
         return '<div class="ap2-rankw">' + RANK_DIMS.map(([k, label]) => '<label>' + esc(label) + ' <input class="rs-num ap2-in" type="number" min="0" max="100" step="5" data-rank="' + k + '" value="' + (num(inputs.rankW[k]) || 0) + '"></label>').join("") +
           '<span class="ap2-note" style="margin:0">weights · each dimension is a percentile rank among the cities shown (min leads and focus apply)</span></div>' +
@@ -1267,7 +1285,10 @@ registerPage({
         const nCity = cityRows.length;
         const has = (col) => cityRows.filter(r => r[col] != null && r[col] !== "").length;
         const sum = (col) => cityRows.reduce((a, r) => a + num(r[col]), 0);
-        const leadsTot = sum("Leads"), revTot = sum("Revenue"), adTot = sum("Est Ad Cost");
+        const leadsTot = sum("Leads"), revTot = sum("Revenue");
+        const adTot = cityRows.reduce((a, r) => a + adCost(r), 0);
+        const adMeas = cityRows.reduce((a, r) => a + adGoogle(r), 0);
+        const nMeas = cityRows.filter(adIsMeasured).length;
         const win = C2.window === "season" ? "the last season" : "this year to date";
         const wsAll = (WSALL || []).length;
         const wsNever = (WSALL || []).filter(r => +r["Never A Lead"] === 1).length;
@@ -1283,9 +1304,10 @@ registerPage({
             a: "<b>" + fmtN(nCity) + "</b> cities carry leads in " + win + ", each with its county, its nearest base and its own demand. The plan above decides by state; this table is the detail underneath it.",
             go: "apCityTable" },
           { n: 2, q: "ROI per area",
-            st: adTot > 0 ? ["p", "estimated"] : ["n", "not yet"],
+            st: nMeas ? ["y", "measured"] : adTot > 0 ? ["p", "estimated"] : ["n", "not yet"],
             a: revTot ? "<b>$" + r1(leadsTot ? revTot / leadsTot : 0) + "</b> of revenue per lead across " + fmtN(has("Revenue")) + " cities" +
-                 (adTot > 0 ? ", and <b>$" + r1(adTot ? revTot / adTot : 0) + "</b> of revenue per estimated ad dollar. The ad dollar is <b>attributed</b>, not measured: each city's leads × what that source costs us company-wide. Measured spend by city needs the Google Ads feed." : ".")
+                 (adTot > 0 ? ", and <b>$" + r1(adTot ? revTot / adTot : 0) + "</b> of revenue per ad dollar across every channel. " +
+                   (nMeas ? "Of that spend, <b>" + money0(adMeas) + "</b> on <b>" + fmtN(nMeas) + "</b> cities is what Google Ads charged us; the rest — Angi, Yelp, post cards — is attributed from what each source costs per lead." : "The ad dollar is <b>attributed</b>, not measured.") : ".")
                : "No revenue in this window.",
             go: "apRank" },
           { n: 3, q: "Incoming leads, and which source we are on in that area",
@@ -1293,8 +1315,8 @@ registerPage({
             a: "<b>" + fmtN(leadsTot) + "</b> leads in " + win + "; the top three sources are named per city on <b>" + fmtN(has("Lead Source Mix")) + "</b> of them.",
             go: "apCityTable" },
           { n: 4, q: "Allocated ad budget per area",
-            st: adTot > 0 ? ["p", "estimated"] : ["n", "not yet"],
-            a: "<b>" + money0(adTot) + "</b> estimated for " + win + " (leads × the source's cost per lead). The real spend per city sits in Google Ads — the BigQuery transfer is still to be switched on, and Meta only reports by region.",
+            st: nMeas ? ["y", "measured"] : adTot > 0 ? ["p", "estimated"] : ["n", "not yet"],
+            a: "<b>" + money0(adTot) + "</b> for " + win + " across every channel, of which <b>" + money0(adMeas) + "</b> is <b>measured</b> — Google Ads' own charge for " + fmtN(nMeas) + " cities, now 13 months deep. The rest is attributed (leads × the source's cost per lead): Meta reports by region only, and Angi and Yelp price per lead.",
             go: "apBudget" },
           { n: 5, q: "Where the richer areas are, the big houses, where the market is heading",
             st: has("Median Income") ? ["y", "answered"] : ["n", "not yet"],
