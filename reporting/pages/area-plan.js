@@ -1348,10 +1348,13 @@ registerPage({
               const to = Math.max(0, Math.min(sc.scrollHeight - sc.clientHeight,
                 el.getBoundingClientRect().top - sc.getBoundingClientRect().top + from - 90));
               const t0 = performance.now(), dur = 420;
-              const step = now => { const k = Math.min(1, (now - t0) / dur);
+              let stepped = false;
+              const step = now => { stepped = true; const k = Math.min(1, (now - t0) / dur);
                 sc.scrollTop = from + (to - from) * (1 - Math.pow(1 - k, 3));
                 if (k < 1) requestAnimationFrame(step); };
               requestAnimationFrame(step);
+              // a hidden or throttled tab never runs a frame — land on the target anyway
+              setTimeout(() => { if (!stepped) sc.scrollTop = to; }, 250);
             } else el.scrollIntoView({ behavior: "smooth", block: "start" });
             el.style.transition = "box-shadow .4s";
             el.style.boxShadow = "0 0 0 3px var(--brand-glow)"; setTimeout(() => { el.style.boxShadow = ""; }, 1600); };
