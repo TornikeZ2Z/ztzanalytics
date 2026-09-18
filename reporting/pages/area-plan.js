@@ -197,6 +197,9 @@
     .ap2-small{color:var(--faint);font-size:11.5px;white-space:nowrap}
     .ap2-th{cursor:pointer;user-select:none;white-space:nowrap}
     .ap2-th:hover{color:var(--brand)} .ap2-th.on{color:var(--brand)}
+    .ap2-tt{display:flex;align-items:center;gap:8px;justify-content:flex-end;margin:0 0 6px}
+    .ap2-tt .n{font-size:11.5px;color:var(--faint);margin-right:auto}
+    .ap2-tt .rs-btn{padding:3px 10px;font-size:11.5px}
     .ap2-pager{display:flex;gap:8px;align-items:center;justify-content:flex-end;margin-top:12px;
       font-size:12.5px;color:var(--faint)}
     .ap2-pager .rs-btn[disabled]{opacity:.4;pointer-events:none}
@@ -819,7 +822,7 @@ registerPage({
             '<div class="rs-spacer"></div><span class="rs-pill" id="apCityCount"></span>' +
             '<button class="rs-btn" id="apDl">Download CSV</button></div>' +
             '<div class="ap2-bar" id="apCityBar"></div>' +
-            '<div id="apCityTable"></div></div>' +
+            '<div id="apCityTable" data-noenh></div></div>' +
           '<div id="apWs">' + wsHtml() + "</div>";
       }
 
@@ -851,7 +854,7 @@ registerPage({
           '<div class="rs-tablewrap"><table class="rs-table"><thead><tr><th>Zip</th><th>Town</th><th>County</th><th>St</th><th>Base</th>' +
             '<th class="num">Miles</th><th class="num">Home value</th><th class="num">12 months</th>' +
             (hasAcs ? '<th class="num">Income</th><th class="num">Movers / yr</th>' : "") + "</tr></thead><tbody>" +
-          rs.slice(0, 40).map(r => "<tr><td>" + esc(r.Zip) + '</td><td class="strong">' + esc(r.City || "—") + '</td><td class="muted">' + esc(r.County || "—") + "</td>" +
+          rs.map(r => "<tr><td>" + esc(r.Zip) + '</td><td class="strong">' + esc(r.City || "—") + '</td><td class="muted">' + esc(r.County || "—") + "</td>" +
             "<td>" + esc(r.State) + "</td><td>" + esc(r["Nearest Base"] || "—") + '</td><td class="num">' + r1(num(r["Miles To Base"])) + "</td>" +
             '<td class="num">' + (r["Home Value"] != null ? money0(num(r["Home Value"])) : d) + "</td>" +
             '<td class="num">' + (r["Home Value Change Pct"] != null ? sgnPct(num(r["Home Value Change Pct"])) : d) + "</td>" +
@@ -859,6 +862,7 @@ registerPage({
             "</tr>").join("") + "</tbody></table></div>" +
           (rs.length > 40 ? '<div class="ap2-note" style="margin-top:6px">The top 40 are shown — the CSV has all ' + fmtN(rs.length) + ".</div>" : "") + "</div>";
       }
+      // the panel's own CSV carries every column of the territory table, not the rendered ones
       function wsCsv() {
         const cols = RS.DATASETS.area_whitespace.cols.slice();
         const cell = x => { let s = String(x == null ? "" : x); if (/^[=+\-@]/.test(s)) s = " " + s; return '"' + s.replace(/"/g, '""') + '"'; };
@@ -872,6 +876,7 @@ registerPage({
         host.querySelectorAll("#apWs [data-wssort]").forEach(el => el.onclick = () => {
           C.wsSort = el.dataset.wssort; save(); const w = host.querySelector("#apWs"); if (w) { w.innerHTML = wsHtml(); wireWs(); } });
         const dl = host.querySelector("#apWsDl"); if (dl) dl.onclick = wsCsv;
+        enhanceTables();
       }
 
       /* THE MARKETING VIEW of the same rows: where the leads come from, what they cost (estimated), the outside signals */
@@ -1191,7 +1196,7 @@ registerPage({
         const head = '<thead><tr><th>City</th><th class="num">Score</th><th class="num">Leads</th><th class="num">Booking</th><th class="num">Est. ad cost</th><th class="num">Rev / ad $</th><th class="num">Mover rate</th><th>Wealth</th><th class="num">Leads, no jobs</th></tr></thead>';
         return '<div class="ap2-rankw">' + RANK_DIMS.map(([k, label]) => '<label>' + esc(label) + ' <input class="rs-num ap2-in" type="number" min="0" max="100" step="5" data-rank="' + k + '" value="' + (num(inputs.rankW[k]) || 0) + '"></label>').join("") +
           '<span class="ap2-note" style="margin:0">weights · each dimension is a percentile rank among the cities shown (min leads and focus apply)</span></div>' +
-          '<div class="ap2-rank2"><div><div class="ap2-note"><b>Push</b> — the best-placed cities to add leads in</div><table class="rs-table ap2-next">' + head + "<tbody>" + push.map(line).join("") + "</tbody></table></div>" +
+          '<div class="ap2-rank2" data-nopage><div><div class="ap2-note"><b>Push</b> — the best-placed cities to add leads in</div><table class="rs-table ap2-next">' + head + "<tbody>" + push.map(line).join("") + "</tbody></table></div>" +
           '<div><div class="ap2-note"><b>Cut or fix</b> — the weakest of the cities we already pay $1,000+ for</div><table class="rs-table ap2-next">' + head + "<tbody>" + cut.map(line).join("") + "</tbody></table></div></div>";
       }
       function repaintRank() { const el = host.querySelector("#apRank"); if (el) { el.innerHTML = rankHtml(); wireRank(); } }
@@ -1235,14 +1240,14 @@ registerPage({
       function wireDepot() {
         const go = host.querySelector("#apDepotGo"), inp = host.querySelector("#apDepotZip"); if (!go || !inp) return;
         const run = () => { const z = (inp.value || "").replace(/\D/g, "").slice(0, 5); if (z.length !== 5) return; inputs.depotZip = z; save();
-          const el = host.querySelector("#apDepot"); if (el) { el.innerHTML = depotHtml(); wireDepot(); } };
+          const el = host.querySelector("#apDepot"); if (el) { el.innerHTML = depotHtml(); wireDepot(); enhanceTables(); } };
         go.onclick = run; inp.onkeydown = e => { if (e.key === "Enter") run(); };
       }
 
       function wireMethod() {
         host.querySelectorAll("#apNext [data-method]").forEach(b => b.onclick = () => {
           inputs.method = b.dataset.method; save();
-          const nx = document.getElementById("apNext"); if (nx) { nx.innerHTML = nextHtml(); wireMethod(); }
+          const nx = document.getElementById("apNext"); if (nx) { nx.innerHTML = nextHtml(); wireMethod(); enhanceTables(); }
           repaintBudget();
         });
       }
@@ -1332,6 +1337,62 @@ registerPage({
         });
       }
 
+
+      /* ===================== EVERY TABLE: PAGED, AND DOWNLOADABLE =====================
+         His rule 2026-09-18: "if we have tables - make sure its damn paginated with download
+         options". One treatment for the whole page instead of nine hand-built ones: after each
+         paint, every `.rs-table` gets a CSV button built from its own rendered rows, and any
+         table longer than the page size gets a pager. Rows are HIDDEN, never dropped, so the
+         CSV is always the whole table and a re-sort cannot fall out of step with it.
+         Opt out where a panel already owns both: `data-noenh` (the city table's own pager and
+         full-dataset CSV), `data-nocsv`, `data-nopage` (a deliberate top-N list). */
+      const ENH_PAGE = 25;
+      function csvCell(x) { let v = String(x == null ? "" : x).replace(/\s+/g, " ").trim();
+        if (/^[=+\-@]/.test(v)) v = " " + v; return '"' + v.replace(/"/g, '""') + '"'; }
+      function tableCsv(tbl, name) {
+        const head = [...tbl.querySelectorAll("thead tr")].slice(-1)[0];
+        const cols = head ? [...head.children].map(th => csvCell(th.innerText)) : [];
+        const body = [...tbl.querySelectorAll("tbody tr")].filter(tr => !tr.classList.contains("ap2-nodata"))
+          .map(tr => [...tr.children].map(td => csvCell(td.innerText)).join(","));
+        const blob = new Blob(["\ufeff" + [cols.join(",")].concat(body).join("\r\n")], { type: "text/csv;charset=utf-8" });
+        const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
+        a.download = ("Seasonal Planning - " + (name || "table") + (inputs.focus ? " - " + inputs.focus : "")).slice(0, 90) + ".csv";
+        a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+      }
+      function tableName(tbl) {
+        const card = tbl.closest(".panel") || tbl.parentElement;
+        const t = card && (card.querySelector(".panel-title") || card.querySelector("h3") || card.querySelector(".ap2-note"));
+        return (t ? t.innerText : "table").replace(/[\\/:*?"<>|]/g, " ").replace(/\s+/g, " ").trim().slice(0, 60);
+      }
+      function enhanceTables() {
+        host.querySelectorAll("table.rs-table").forEach(tbl => {
+          if (tbl.closest("[data-noenh]") || tbl.dataset.enh) return;
+          tbl.dataset.enh = "1";
+          const wrap = tbl.closest(".rs-tablewrap") || tbl.parentElement;
+          const rows = [...tbl.querySelectorAll("tbody tr")].filter(tr => !tr.classList.contains("ap2-nodata"));
+          const noCsv = !!tbl.closest("[data-nocsv]"), noPage = !!tbl.closest("[data-nopage]");
+          const pages = noPage ? 1 : Math.max(1, Math.ceil(rows.length / ENH_PAGE));
+          if (noCsv && pages < 2) return;
+          const bar = document.createElement("div"); bar.className = "ap2-tt";
+          bar.innerHTML = '<span class="n">' + RS.fmtN(rows.length) + (rows.length === 1 ? " row" : " rows") + "</span>";
+          if (!noCsv) { const b = document.createElement("button"); b.className = "rs-btn"; b.type = "button";
+            b.textContent = "Download CSV"; b.onclick = () => tableCsv(tbl, tableName(tbl)); bar.appendChild(b); }
+          wrap.parentNode.insertBefore(bar, wrap);
+          if (pages < 2) return;
+          let page = 0;
+          const pager = document.createElement("div"); pager.className = "ap2-pager";
+          const draw = () => {
+            rows.forEach((tr, i) => { tr.style.display = (i >= page * ENH_PAGE && i < (page + 1) * ENH_PAGE) ? "" : "none"; });
+            pager.innerHTML = "<span>page " + (page + 1) + " of " + pages + "</span>"
+              + '<button type="button" class="rs-btn" data-pg="prev"' + (page <= 0 ? " disabled" : "") + ">‹ Prev</button>"
+              + '<button type="button" class="rs-btn" data-pg="next"' + (page >= pages - 1 ? " disabled" : "") + ">Next ›</button>";
+            pager.querySelectorAll("[data-pg]").forEach(b => b.onclick = () => { page += b.dataset.pg === "next" ? 1 : -1; draw(); });
+          };
+          draw();
+          wrap.parentNode.insertBefore(pager, wrap.nextSibling);
+        });
+      }
+
       function paint() {
         recalcPeriod();
         const c = calc();
@@ -1386,7 +1447,7 @@ registerPage({
       }
       function repaintBandB() {
         const b = host.querySelector("#apBandB"); if (!b) return;
-        b.innerHTML = bandBHtml(); repaintCity(); wireFocus(b); wireWs();
+        b.innerHTML = bandBHtml(); repaintCity(); wireFocus(b); wireWs(); enhanceTables();
       }
       function wireCityTable() {
         host.querySelectorAll("#apCityTable [data-sort]").forEach(el => el.onclick = () => {
@@ -1438,7 +1499,7 @@ registerPage({
         const un = host.querySelector("[data-unfocus]"); if (un) un.onclick = ev => { ev.preventDefault(); inputs.focus = ""; setFocus(""); };
       }
       function wire() {
-        wireControls(); wireFocus(); mountCityBar(); repaintCity(); wireWs(); wireMethod(); wireRank(); wireDepot(); wireAsks();
+        wireControls(); wireFocus(); mountCityBar(); repaintCity(); wireWs(); wireMethod(); wireRank(); wireDepot(); wireAsks(); enhanceTables();
       }
       function repaintBudget() { const el = host.querySelector("#apBudget"); if (el) el.innerHTML = budgetHtml(); }
       function save() { try { localStorage.setItem(LS_KEY, JSON.stringify(inputs)); } catch (e) {} }
@@ -1464,7 +1525,7 @@ registerPage({
         save();
         const c = calc();
         document.getElementById("apHero").innerHTML = heroHtml(c);
-        const nx = document.getElementById("apNext"); if (nx) { nx.innerHTML = nextHtml(); wireMethod(); }
+        const nx = document.getElementById("apNext"); if (nx) { nx.innerHTML = nextHtml(); wireMethod(); enhanceTables(); }
         if (!t.dataset.rank) repaintBudget();
         const tbl = document.getElementById("apBase");
         c.perBase.forEach(r => {
