@@ -1341,8 +1341,17 @@ registerPage({
                that container is scrolled directly; scrollIntoView stays as the fallback. */
             const sc = el.closest(".rs-content") || document.scrollingElement;
             if (sc && sc.scrollHeight > sc.clientHeight + 4) {
-              const top = el.getBoundingClientRect().top - sc.getBoundingClientRect().top + sc.scrollTop - 90;
-              sc.scrollTo({ top: Math.max(0, top), behavior: "smooth" });
+              /* AND `scrollTo({behavior:"smooth"})` on that container does nothing either (verified
+                 live: the position never moved, while assigning scrollTop jumped straight there).
+                 So the glide is animated by hand — one rAF loop, 420ms, ease-out. */
+              const from = sc.scrollTop;
+              const to = Math.max(0, Math.min(sc.scrollHeight - sc.clientHeight,
+                el.getBoundingClientRect().top - sc.getBoundingClientRect().top + from - 90));
+              const t0 = performance.now(), dur = 420;
+              const step = now => { const k = Math.min(1, (now - t0) / dur);
+                sc.scrollTop = from + (to - from) * (1 - Math.pow(1 - k, 3));
+                if (k < 1) requestAnimationFrame(step); };
+              requestAnimationFrame(step);
             } else el.scrollIntoView({ behavior: "smooth", block: "start" });
             el.style.transition = "box-shadow .4s";
             el.style.boxShadow = "0 0 0 3px var(--brand-glow)"; setTimeout(() => { el.style.boxShadow = ""; }, 1600); };
