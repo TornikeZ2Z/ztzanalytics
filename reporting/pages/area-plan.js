@@ -407,6 +407,12 @@ registerPage({
       }, saved);
       inputs.city = Object.assign({ minLeads: 20, view: "all", q: "", sort: "Revenue", desc: true,
                                     page: 0, pageSize: 30 }, inputs.city || {});
+      /* A NAMED SEED IS RE-READ FROM THE MODEL ON EVERY LOAD (2026-09-19). The browser used to keep the
+         foreman table it was first seeded with, so after the plan went Zip-to-Zip-only the live page
+         still carried Delaware's five Tuji foremen from an old visit — "have 29" beside a model that
+         counts 24. Only a table somebody typed into (seed "custom") is theirs to keep. */
+      if (inputs.seed !== "custom")
+        inputs.bases = applyOverrides(inputs.seed === "aim" ? aimSeed() : inputs.seed === "his" ? hisSeed() : measuredSeed());
       if ((inputs.city || {}).window === "season" && CITYSEASON.length) CITYALL = CITYSEASON;
       seedStates.forEach(st => { if (!inputs.bases[st]) inputs.bases[st] = { cur: 0, add: 0, byCo: {} }; });
       // the picker may hold months the mart does not (a fresh season): clamp to what exists
@@ -1368,7 +1374,9 @@ registerPage({
           '<span class="clock">' + fmtN(N.tot.jobs) + " jobs forecast · the numbers below come from the Next-season card, and move with its method and dials</span></div>" +
           '<div class="ap2-dec">' +
             '<div class="ap2-d"><div class="dh"><span class="dn">Crew</span><b>' + N.tot.peak + " foremen</b> at the peak · have " + fmtN(N.tot.have) +
-              (N.tot.hire ? ' · <span class="ap2-hire">hire +' + N.tot.hire + "</span>" : ' · <span class="ap2-ok">covered</span>') + "</div>" +
+              (N.tot.hire ? ' · <span class="ap2-hire">hire +' + N.tot.hire + "</span>" : ' · <span class="ap2-ok">covered</span>') +
+              (() => { const spare = N.pools.filter(q => q.have > q.peak); return N.tot.hire && spare.length
+                ? ' <span style="font-size:12px">· ' + spare.map(q => (q.have - q.peak) + " spare in " + esc(q.label)).join(", ") + " — a pool's spare crews do not cover another depot</span>" : ""; })() + "</div>" +
               '<table class="ap2-dt"><thead><tr><th>Depot pool</th><th class="num">Need</th><th class="num">Have</th><th class="num">Hire</th><th>By</th></tr></thead><tbody>' + crewLines + "</tbody></table>" +
               '<div class="dx">Each foreman runs with ' + (N.crew.helpers || 0) + " helper and " + (N.crew.drivers || 0) + " driver: <b>" + fmtN(N.tot.helpers) + "</b> helpers, <b>" + fmtN(N.tot.drivers) + "</b> drivers, <b>" + fmtN(N.tot.trucks) + "</b> trucks" +
               (N.rentTrucks ? " (" + fmtN(N.owned) + " owned, <b>" + fmtN(N.rentTrucks) + " rented</b>)" : "") + ". Crews pool on the depot that serves the state, sized on what ran last season.</div>" + go("apNext", "How the crew is sized") + "</div>" +
