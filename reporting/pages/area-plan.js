@@ -1553,12 +1553,19 @@ registerPage({
          ignored and counted, never guessed at. Volumes are summed per city and posted to `_kwupload`. */
       const KW_CITIES = 60;
       const kwNorm = t => String(t || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
-      const kwPhrases = (city, st) => ["movers " + city, "moving company " + city, "moving companies " + city + " " + st, city + " movers"];
+      /* A city name that repeats inside our own list (Newark NJ and Newark DE) carries its state in EVERY
+         phrase — otherwise "movers newark" would be credited to whichever came last. The rest stay as
+         people type them, and the Planner's location is set to the eight service states, so
+         "movers wilmington" is Delaware's and not North Carolina's. */
+      const kwPhrases = (city, st, dup) => dup
+        ? ["movers " + city + " " + st, "moving company " + city + " " + st, "moving companies " + city + " " + st, city + " " + st + " movers"]
+        : ["movers " + city, "moving company " + city, "moving companies " + city + " " + st, city + " movers"];
       function kwTargets() {
         return CITYYTD.filter(r => r.City && r.State && SERVICE_AREAS.includes(r.State))
-          .slice().sort((a, b) => num(b.Leads) - num(a.Leads)).slice(0, KW_CITIES).map(r => ({ city: String(r.City), st: String(r.State) }));
+          .slice().sort((a, b) => num(b.Leads) - num(a.Leads)).slice(0, KW_CITIES).map(r => ({ city: String(r.City), st: String(r.State) }))
+          .map((t, i, all) => Object.assign(t, { dup: all.filter(x => x.city.toLowerCase() === t.city.toLowerCase()).length > 1 }));
       }
-      function kwMap() { const m = {}; kwTargets().forEach(t => kwPhrases(t.city, t.st).forEach(ph => { m[kwNorm(ph)] = t; })); return m; }
+      function kwMap() { const m = {}; kwTargets().forEach(t => kwPhrases(t.city, t.st, t.dup).forEach(ph => { m[kwNorm(ph)] = t; })); return m; }
       // "1K – 10K", "10 – 100", "2,400", "880" -> a number; a range takes its midpoint and is flagged
       function kwVolume(v) {
         const one = x => { const m = /([\d.,]+)\s*([KkMm]?)/.exec(String(x)); if (!m) return null;
@@ -1587,11 +1594,11 @@ registerPage({
       }
       function kwHtml() {
         const n = CITYYTD.filter(r => r["Search Volume"] != null && r["Search Volume"] !== "").length;
-        const list = kwTargets().flatMap(t => kwPhrases(t.city, t.st)).join("\n");
+        const list = kwTargets().flatMap(t => kwPhrases(t.city, t.st, t.dup)).join("\n");
         return '<div class="ap2-note" style="line-height:1.75"><b>' + (n ? fmtN(n) + " cities carry a search volume today." : "No search volume on file yet.") + "</b> " +
           "Google will not run Keyword Planner through our API connection, but it works in the browser for an account admin, so the volumes come in as a file, once a season:" +
           "<ol style=\"margin:6px 0 8px 18px;padding:0\"><li>Copy the keyword list below — four phrases for each of the " + KW_CITIES + " cities our leads come from.</li>" +
-          "<li>In Google Ads: <b>Tools → Keyword Planner → Get search volume and forecasts</b>, paste, location <b>United States</b>.</li>" +
+          "<li>In Google Ads: <b>Tools → Keyword Planner → Get search volume and forecasts</b>, paste. Set <b>Locations</b> to the eight states we serve (NJ, PA, NY, DE, CT, MA, MD, VA) — not the whole country, or Wilmington NC answers for Wilmington DE.</li>" +
           "<li>Open <b>Saved keywords</b>, then download <b>Plan historical metrics</b> (.csv).</li><li>Choose that file here.</li></ol></div>" +
           '<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:8px">' +
           '<button class="rs-btn" id="apKwCopy" type="button">Copy the ' + fmtN(kwTargets().length * 4) + " keywords</button>" +
