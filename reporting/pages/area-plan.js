@@ -1427,8 +1427,8 @@ registerPage({
           { n: 6, q: "SEO — where the demand is on the web, and in what volume",
             st: has("Search Volume") ? ["y", "answered"] : ["n", "not yet"],
             a: has("Search Volume") ? "Search volume on <b>" + fmtN(has("Search Volume")) + "</b> cities, summed over the moving phrases that name the city."
-                 : "<b>Not answered.</b> The Semrush key we hold is not entitled to the keyword API (it answers 403), and Search Console has not been granted yet. Both are a purchase or an approval, not a build.",
-            go: "apCityTable" },
+                 : "<b>Not answered yet.</b> Google will not run Keyword Planner through our API connection, so the volumes come in as a file from the Planner itself — the upload is at the bottom of this page. Search Console is connected, but it has no city in it: it says what people type to find <i>us</i>, not where the demand is.",
+            go: "apKw" },
           { n: 7, q: "Distance from the nearest base",
             st: ["y", "answered"],
             a: baseMiles == null ? "No distances in this window." :
@@ -1459,6 +1459,7 @@ registerPage({
         host.querySelectorAll("button[data-goto]").forEach(b => {
           b.onclick = () => { const el = host.querySelector("#" + b.dataset.goto);
             if (!el) return;
+            const det = el.closest("details"); if (det) det.open = true;      // a reference block is closed until asked for
             /* THE PORTAL SCROLLS AN INNER CONTAINER (.rs-content), and scrollIntoView does not move
                it when the target sits inside a panel that has its own overflow — verified live on
                2026-09-18: the highlight fired, the page stayed put. So the offset is computed and
@@ -1542,6 +1543,89 @@ registerPage({
         });
       }
 
+      /* ===================== SEARCH VOLUME — THE KEYWORD PLANNER UPLOAD =====================
+         Giga's sixth question, the route that is open to us (2026-09-19). The Ads API will not run
+         Keyword Planner for us — the connection is on Explorer access, which has no planning
+         services — but the Planner works in the browser for an account admin. So: this panel writes
+         the keyword list (four phrases per city, the cities our leads come from), the admin pastes it
+         into Keyword Planner and downloads "Plan historical metrics", and the file comes back here.
+         Every phrase maps to exactly one city because WE generated it; a keyword that is not ours is
+         ignored and counted, never guessed at. Volumes are summed per city and posted to `_kwupload`. */
+      const KW_CITIES = 60;
+      const kwNorm = t => String(t || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+      const kwPhrases = (city, st) => ["movers " + city, "moving company " + city, "moving companies " + city + " " + st, city + " movers"];
+      function kwTargets() {
+        return CITYYTD.filter(r => r.City && r.State && SERVICE_AREAS.includes(r.State))
+          .slice().sort((a, b) => num(b.Leads) - num(a.Leads)).slice(0, KW_CITIES).map(r => ({ city: String(r.City), st: String(r.State) }));
+      }
+      function kwMap() { const m = {}; kwTargets().forEach(t => kwPhrases(t.city, t.st).forEach(ph => { m[kwNorm(ph)] = t; })); return m; }
+      // "1K – 10K", "10 – 100", "2,400", "880" -> a number; a range takes its midpoint and is flagged
+      function kwVolume(v) {
+        const one = x => { const m = /([\d.,]+)\s*([KkMm]?)/.exec(String(x)); if (!m) return null;
+          const n = parseFloat(m[1].replace(/,/g, "")); return isNaN(n) ? null : n * (/k/i.test(m[2]) ? 1e3 : /m/i.test(m[2]) ? 1e6 : 1); };
+        const parts = String(v == null ? "" : v).split(/\s*[–—-]\s*/).map(one).filter(x => x != null);
+        if (!parts.length) return null;
+        return { n: parts.length > 1 ? Math.round((parts[0] + parts[1]) / 2) : Math.round(parts[0]), range: parts.length > 1 };
+      }
+      function kwParse(textIn) {
+        const lines = String(textIn || "").replace(/^﻿/, "").split(/\r?\n/).filter(l => l.trim());
+        const split = l => { if (l.includes("\t")) return l.split("\t"); const out = []; let cur = "", q = false;
+          for (const ch of l) { if (ch === '"') q = !q; else if (ch === "," && !q) { out.push(cur); cur = ""; } else cur += ch; } out.push(cur); return out; };
+        let kCol = 0, vCol = -1, start = 0;
+        for (let i = 0; i < Math.min(lines.length, 12); i++) { const cells = split(lines[i]).map(c => c.trim().toLowerCase());
+          const k = cells.findIndex(c => c === "keyword" || c === "keywords"), v = cells.findIndex(c => /avg\.? monthly searches/.test(c));
+          if (k >= 0 && v >= 0) { kCol = k; vCol = v; start = i + 1; break; } }
+        const map = kwMap(), acc = {}; let used = 0, ignored = 0, ranges = 0;
+        lines.slice(start).forEach(l => { const cells = split(l); const t = map[kwNorm(cells[kCol])];
+          const vol = kwVolume(vCol >= 0 ? cells[vCol] : cells[cells.length - 1]);
+          if (!t || !vol) { ignored++; return; }
+          used++; if (vol.range) ranges++;
+          const a = acc[t.st + "|" + t.city] = acc[t.st + "|" + t.city] || { state: t.st, city: t.city, volume: 0, kws: [] };
+          a.volume += vol.n; a.kws.push(kwNorm(cells[kCol]) + "=" + vol.n); });
+        const rows = Object.values(acc).map(a => ({ state: a.state, city: a.city, volume: a.volume, keywords: a.kws.join(", ") })).sort((a, b) => b.volume - a.volume);
+        return { rows, used, ignored, ranges, headerFound: vCol >= 0 };
+      }
+      function kwHtml() {
+        const n = CITYYTD.filter(r => r["Search Volume"] != null && r["Search Volume"] !== "").length;
+        const list = kwTargets().flatMap(t => kwPhrases(t.city, t.st)).join("\n");
+        return '<div class="ap2-note" style="line-height:1.75"><b>' + (n ? fmtN(n) + " cities carry a search volume today." : "No search volume on file yet.") + "</b> " +
+          "Google will not run Keyword Planner through our API connection, but it works in the browser for an account admin, so the volumes come in as a file, once a season:" +
+          "<ol style=\"margin:6px 0 8px 18px;padding:0\"><li>Copy the keyword list below — four phrases for each of the " + KW_CITIES + " cities our leads come from.</li>" +
+          "<li>In Google Ads: <b>Tools → Keyword Planner → Get search volume and forecasts</b>, paste, location <b>United States</b>.</li>" +
+          "<li>Open <b>Saved keywords</b>, then download <b>Plan historical metrics</b> (.csv).</li><li>Choose that file here.</li></ol></div>" +
+          '<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:8px">' +
+          '<button class="rs-btn" id="apKwCopy" type="button">Copy the ' + fmtN(kwTargets().length * 4) + " keywords</button>" +
+          '<label class="rs-btn" style="cursor:pointer">Choose the Keyword Planner file<input type="file" id="apKwFile" accept=".csv,.tsv,.txt" style="display:none"></label>' +
+          '<span class="ap2-note" id="apKwMsg" style="margin:0"></span></div>' +
+          '<textarea id="apKwList" readonly style="width:100%;height:90px;font:12px/1.5 var(--mono,monospace);border:1px solid var(--line);border-radius:8px;padding:8px;background:var(--panel-2);color:var(--muted)">' + esc(list) + "</textarea>" +
+          '<div id="apKwPrev"></div>';
+      }
+      function wireKw() {
+        const msg = host.querySelector("#apKwMsg"), say = (t, bad) => { if (msg) { msg.textContent = t; msg.style.color = bad ? "var(--neg)" : ""; } };
+        const cp = host.querySelector("#apKwCopy");
+        if (cp) cp.onclick = async () => { const ta = host.querySelector("#apKwList");
+          try { await navigator.clipboard.writeText(ta.value); say("copied"); } catch (e) { ta.select(); document.execCommand("copy"); say("copied"); } };
+        const fi = host.querySelector("#apKwFile");
+        if (fi) fi.onchange = async () => { const f = fi.files && fi.files[0]; if (!f) return;
+          const buf = await f.arrayBuffer(), u8 = new Uint8Array(buf);
+          // Keyword Planner exports UTF-16 (tab-separated); a re-saved file is usually UTF-8
+          const enc = (u8[0] === 0xFF && u8[1] === 0xFE) ? "utf-16le" : (u8[0] === 0xFE && u8[1] === 0xFF) ? "utf-16be" : "utf-8";
+          const P2 = kwParse(new TextDecoder(enc).decode(buf)), prev = host.querySelector("#apKwPrev");
+          if (!P2.rows.length) { say(P2.headerFound ? "none of our keywords are in that file" : "this does not look like a Keyword Planner export (no “Avg. monthly searches” column)", true); return; }
+          prev.innerHTML = '<div class="ap2-note" style="margin:10px 0 6px"><b>' + fmtN(P2.rows.length) + " cities</b> from " + fmtN(P2.used) + " keywords" + (P2.ignored ? " · " + fmtN(P2.ignored) + " lines ignored (not ours, or no volume)" : "") +
+            (P2.ranges ? " · <b>" + fmtN(P2.ranges) + " came as a range</b> and took its midpoint — Google shows exact numbers only to accounts that spend" : "") + '.</div>' +
+            '<div class="rs-tablewrap"><table class="rs-table"><thead><tr><th>City</th><th>St</th><th class="num">Searches / month</th></tr></thead><tbody>' +
+            P2.rows.map(r => "<tr><td>" + esc(r.city) + "</td><td>" + esc(r.state) + '</td><td class="num">' + fmtN(r.volume) + "</td></tr>").join("") + "</tbody></table></div>" +
+            '<button class="rs-btn" id="apKwSave" type="button" style="margin-top:8px">Save these ' + fmtN(P2.rows.length) + " cities</button>";
+          enhanceTables();
+          host.querySelector("#apKwSave").onclick = async () => { say("saving…");
+            try { const r = await fetch(ZTZ.API + "/api/_kwupload", { method: "POST", headers: { "Content-Type": "application/json", Authorization: "Bearer " + ZTZ.getToken() }, body: JSON.stringify({ rows: P2.rows }) });
+              const j = await r.json(); if (!r.ok || j.error) throw new Error(j.error || r.status);
+              say("saved " + fmtN(j.written) + " cities — the city table picks them up at the next data refresh"); }
+            catch (e) { say("not saved — " + String(e.message || e), true); } };
+        };
+      }
+
       function paint() {
         recalcPeriod();
         const c = calc();
@@ -1581,6 +1665,8 @@ registerPage({
           ref("How the season was decided", (SEASON.months || []).map(m => MONTH_NAMES[m]).join("–"), card("The season", "Months that reach the threshold of the year's peak", "", seasonHtml())) +
           (R.states ? ref("The outside picture", "big houses and good areas, joined to our own demand",
              card("Research", "Compiled by us — the gap between the outside case and our own numbers is the expansion argument", "", researchHtml(c))) : "") +
+          ref("Search volume — from Google's Keyword Planner", "where people search for a mover, city by city",
+             card("Search demand", "Uploaded once a season — the API will not run Keyword Planner for us", "", '<div id="apKw">' + kwHtml() + "</div>")) +
           ref("Trucks — rent vs buy", "as the company already lives it",
              card("Trucks", "Both sides are real card history: the company rents AND finances purchases today", "", trucksHtml())) +
           ref("Method", "what is measured and what is assumed",
@@ -1649,7 +1735,7 @@ registerPage({
         const un = host.querySelector("[data-unfocus]"); if (un) un.onclick = ev => { ev.preventDefault(); inputs.focus = ""; setFocus(""); };
       }
       function wire() {
-        wireControls(); wireFocus(); mountCityBar(); repaintCity(); wireWs(); wireMethod(); wireRank(); wireDepot(); wireAsks(); enhanceTables();
+        wireControls(); wireFocus(); mountCityBar(); repaintCity(); wireWs(); wireMethod(); wireRank(); wireDepot(); wireAsks(); wireKw(); enhanceTables();
       }
       function repaintBudget() { const el = host.querySelector("#apBudget"); if (el) el.innerHTML = budgetHtml(); }
       function save() { try { localStorage.setItem(LS_KEY, JSON.stringify(inputs)); } catch (e) {} }
