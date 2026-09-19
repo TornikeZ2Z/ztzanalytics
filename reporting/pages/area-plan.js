@@ -1132,6 +1132,23 @@ registerPage({
         const T = FC.trucks || {};
         const owned = T.owned_working != null ? T.owned_working : ((model.fleet || {}).owned_trucks || 0);
         const perDay = T.rental_per_day || 0;
+        /* THE POOL'S FOREMEN, PLACED BY STATE (his ask 2026-09-19: "the full plan by states — where, how
+           many crews"). A pool's need for a month is shared between its states in proportion to their
+           busy-day load, by largest remainder, so the states always add back up to the pool — never a
+           rounded-up foreman per state (that is how MA, MD and VA each got a whole crew for five jobs).
+           A state's headline number is its share in the POOL'S peak month, so the column sums to the
+           pool's peak. MD and VA have no depot: their share is work done FROM the PA/DE depots. */
+        const share = (need, loads) => { const tot = loads.reduce((a, x) => a + x, 0); if (!need || !tot) return loads.map(() => 0);
+          const q = loads.map(x => need * x / tot), out = q.map(Math.floor); let left = need - out.reduce((a, x) => a + x, 0);
+          q.map((x, i) => [x - out[i], i]).sort((a, b) => b[0] - a[0]).forEach(([, i]) => { if (left > 0 && loads[i] > 0) { out[i]++; left--; } });
+          return out; };
+        pools.forEach(q => { const prs = rows.filter(r => q.states.includes(r.st));
+          q.cells.forEach(pc => { const loads = prs.map(r => { const c = r.cells.find(x => x.ym === pc.ym) || {}; return (c.jobs || 0) * (c.headroom || 1); });
+            share(pc.need, loads).forEach((n, i) => { const c = prs[i].cells.find(x => x.ym === pc.ym); if (c) c.fm = n; }); });
+          const peakCell = q.cells.filter(c => !c.shoulder).sort((a, b) => b.need - a.need)[0];
+          q.peakYm = peakCell ? peakCell.ym : null;
+          prs.forEach(r => { const c = r.cells.find(x => x.ym === q.peakYm) || {}; r.fmPeak = c.fm || 0; r.pool = q.label; r.poolKey = q.pk;
+            r.fmHelpers = Math.ceil(r.fmPeak * (crew.helpers || 0)); r.fmDrivers = Math.ceil(r.fmPeak * (crew.drivers || 0)); r.fmTrucks = Math.ceil(r.fmPeak * (crew.trucks || 0)); }); });
         const trucksTot = pools.reduce((a, q) => a + q.trucks, 0);
         const rentTrucks = Math.max(0, trucksTot - owned);
         const coreDays = core.reduce((a, ym) => a + new Date(+ym.slice(0, 4), +ym.slice(5, 7), 0).getDate(), 0);
@@ -1379,14 +1396,72 @@ registerPage({
                 ? ' <span style="font-size:12px">· ' + spare.map(q => (q.have - q.peak) + " spare in " + esc(q.label)).join(", ") + " — a pool's spare crews do not cover another depot</span>" : ""; })() + "</div>" +
               '<table class="ap2-dt"><thead><tr><th>Depot pool</th><th class="num">Need</th><th class="num">Have</th><th class="num">Hire</th><th>By</th></tr></thead><tbody>' + crewLines + "</tbody></table>" +
               '<div class="dx">Each foreman runs with ' + (N.crew.helpers || 0) + " helper and " + (N.crew.drivers || 0) + " driver: <b>" + fmtN(N.tot.helpers) + "</b> helpers, <b>" + fmtN(N.tot.drivers) + "</b> drivers, <b>" + fmtN(N.tot.trucks) + "</b> trucks" +
-              (N.rentTrucks ? " (" + fmtN(N.owned) + " owned, <b>" + fmtN(N.rentTrucks) + " rented</b>)" : "") + ". Crews pool on the depot that serves the state, sized on what ran last season.</div>" + go("apNext", "How the crew is sized") + "</div>" +
+              (N.rentTrucks ? " (" + fmtN(N.owned) + " owned, <b>" + fmtN(N.rentTrucks) + " rented</b>)" : "") + ". Crews pool on the depot that serves the state, sized on what ran last season.</div>" + go("apFull", "Crews state by state") + "</div>" +
             '<div class="ap2-d"><div class="dh"><span class="dn">Sales</span><b>' + S.peak + " salespeople</b> at the peak" + (S.active ? " · " + fmtN(S.active) + " were active last season" : "") + "</div>" +
               '<div class="dbig">' + deskLine + "</div>" +
-              '<div class="dx">Leads land about ' + (FC.lead_lag_months || 1) + " month before the move, so the desk peaks in <b>" + esc(S.peakWhen) + "</b>, ahead of the crews. Sized at <b>" + fmtN(S.lpr) + "</b> leads per salesperson per month — the dial in Band A; sales is one desk, not a state.</div>" + go("apNext", "Leads and reps by month") + "</div>" +
+              '<div class="dx">Leads land about ' + (FC.lead_lag_months || 1) + " month before the move, so the desk peaks in <b>" + esc(S.peakWhen) + "</b>, ahead of the crews. Sized at <b>" + fmtN(S.lpr) + "</b> leads per salesperson per month — the dial in Band A; sales is one desk, not a state.</div>" + go("apFull", "The desk month by month") + "</div>" +
             '<div class="ap2-d"><div class="dh"><span class="dn">Marketing</span><b>' + money0(mktTot) + "</b> to buy " + fmtN(N.tot.leads) + " leads" + (pcTot ? " · + " + money0(pcTot) + " post cards" : "") + "</div>" +
               '<table class="ap2-dt"><thead><tr><th>State</th><th class="num">Leads</th><th class="num">$ / lead</th><th class="num">Budget</th></tr></thead><tbody>' + mktLines + "</tbody></table>" +
-              '<div class="dx">Cost per lead is every channel, attributed per state; Google\'s share of it is measured. Net of everything, the season is forecast at <b>' + (N.tot.gross != null ? money0(N.tot.gross - mktTot - pcTot) : "—") + "</b> before overhead.</div>" + go("apBudget", "The season budget") + "</div>" +
+              '<div class="dx">Cost per lead is every channel, attributed per state; Google\'s share of it is measured. Net of everything, the season is forecast at <b>' + (N.tot.gross != null ? money0(N.tot.gross - mktTot - pcTot) : "—") + "</b> before overhead.</div>" + go("apFull", "Budget and leads by state") + "</div>" +
           "</div>";
+      }
+
+      /* ===================== THE FULL PLAN, STATE BY STATE =====================
+         His ask 2026-09-19: "do the full plan by states for foreman - where how many crews we should
+         have - then do the plan for sales, and marketing budgets and leads by states". Three tables, all
+         read off nextCalc() so they can never disagree with the decisions band or the Next-season card:
+         crews by state and month; the sales desk by month with each state's share of its work; leads and
+         marketing dollars by state and month (in the month the money is SPENT — leads land a lag-month
+         before the move). Every table gets the page's CSV button. */
+      function fullPlanHtml() {
+        if (!FC.year) return "";
+        const N = nextCalc(), CPL = stateCpl(), PC = postcardBy();
+        const mL = ym => MONTH_NAMES[+ym.slice(5, 7)].slice(0, 3);
+        const th = (t, cls) => '<th class="' + (cls || "num") + '">' + t + "</th>", td = (v, cls) => '<td class="' + (cls || "num") + '">' + v + "</td>";
+        const BASE_OF = { NJ: "NJ depot", NY: "NY depot", PA: "PA depot", DE: "DE depot", CT: "CT depot", MA: "MA depot", MD: "from DE / PA", VA: "from DE / PA" };
+        const dim = '<span class="ap2-dim">—</span>';
+        // ---- crews
+        const crewRows = N.pools.map(q => N.rows.filter(r => q.states.includes(r.st)).map(r => { const gap = r.fmPeak - r.have;
+            return "<tr>" + td("<b>" + esc(r.st) + "</b>", "strong") + td(esc(BASE_OF[r.st] || "—"), "") +
+              N.months.map(ym => { const c = r.cells.find(x => x.ym === ym) || {}; return '<td class="num' + (c.shoulder ? " ap2-sh" : "") + '" title="' + fmtN(c.jobs || 0) + ' jobs">' + (c.jobs ? "<b>" + (c.fm || 0) + "</b>" : dim) + "</td>"; }).join("") +
+              td("<b>" + r.fmPeak + "</b>") + td(fmtN(r.have)) + td(gap > 0 ? '<b class="ap2-hire">+' + gap + "</b>" : gap < 0 ? '<span class="ap2-dim">' + gap + " spare</span>" : '<span class="ap2-ok">ok</span>') +
+              td(fmtN(r.fmHelpers)) + td(fmtN(r.fmDrivers)) + td(fmtN(r.fmTrucks)) + td(fmtN(r.jobs)) + "</tr>"; }).join("") +
+          '<tr class="ap2-pool">' + td("<b>" + esc(q.label) + "</b>", "strong") + td('<span class="ap2-dim">pool · peaks in ' + (q.peakYm ? MONTH_NAMES[+q.peakYm.slice(5, 7)] : "—") + "</span>", "") +
+            q.cells.map(c => '<td class="num' + (c.shoulder ? " ap2-sh" : "") + '">' + (c.jobs ? c.need : dim) + "</td>").join("") +
+            td("<b>" + q.peak + "</b>") + td(fmtN(q.have)) + td(q.hire ? '<b class="ap2-hire">+' + q.hire + "</b>" : '<span class="ap2-ok">covered</span>') + td(fmtN(q.helpers)) + td(fmtN(q.drivers)) + td(fmtN(q.trucks)) + td("") + "</tr>").join("");
+        const crewT = '<table class="rs-table ap2-next"><thead><tr>' + th("State", "") + th("Crews sit at", "") + N.months.map(ym => th(mL(ym), "num" + (N.core.includes(ym) ? "" : " ap2-sh"))).join("") +
+          th("Foremen at peak") + th("Have") + th("Hire / spare") + th("Helpers") + th("Drivers") + th("Trucks") + th("Season jobs") + "</tr></thead><tbody>" + crewRows +
+          '<tr class="ap2-tot">' + td("<b>All states</b>", "strong") + td("", "") + N.months.map(ym => td("<b>" + N.pools.reduce((a, q) => a + ((q.cells.find(c => c.ym === ym) || {}).need || 0), 0) + "</b>")).join("") +
+          td("<b>" + N.tot.peak + "</b>") + td(fmtN(N.tot.have)) + td(N.tot.hire ? '<b class="ap2-hire">+' + N.tot.hire + "</b>" : "—") + td(fmtN(N.tot.helpers)) + td(fmtN(N.tot.drivers)) + td(fmtN(N.tot.trucks)) + td("<b>" + fmtN(N.tot.jobs) + "</b>") + "</tr></tbody></table>";
+        // ---- sales: the desk by month, and whose leads it is working
+        const S = N.sales, stLeads = (r, ym) => ((r.cells.find(c => c.ym === ym) || {}).leads_needed) || 0;
+        const salesT = '<table class="rs-table ap2-next"><thead><tr>' + th("Leads worked for", "") + S.desk.map(x => th(esc(x.when.slice(0, 3)) + "<small> → " + mL(x.forYm) + " jobs</small>", "num" + (x.shoulder ? " ap2-sh" : ""))).join("") + th("Season leads") + th("Share of the desk") + "</tr></thead><tbody>" +
+          N.rows.filter(r => r.leads).map(r => "<tr>" + td("<b>" + esc(r.st) + "</b>", "strong") + S.desk.map(x => '<td class="num' + (x.shoulder ? " ap2-sh" : "") + '">' + (stLeads(r, x.forYm) ? fmtN(stLeads(r, x.forYm)) : dim) + "</td>").join("") +
+            td(fmtN(r.leads)) + td(N.tot.leads ? pct(r.leads / N.tot.leads) : "—") + "</tr>").join("") +
+          '<tr class="ap2-tot">' + td("<b>All leads</b>", "strong") + S.desk.map(x => td("<b>" + fmtN(x.leads) + "</b>")).join("") + td("<b>" + fmtN(N.tot.leads) + "</b>") + td("100%") + "</tr>" +
+          '<tr class="ap2-pool">' + td("<b>Salespeople needed</b>", "strong") + S.desk.map(x => '<td class="num' + (x.shoulder ? " ap2-sh" : "") + '"><b>' + x.reps + "</b></td>").join("") + td("<b>peak " + S.peak + "</b>") + td(fmtN(S.lpr) + " / rep") + "</tr></tbody></table>";
+        // ---- marketing: leads to buy and dollars, by state and the month the money is spent
+        const cplOf = r => CPL[r.st] != null ? CPL[r.st] : CPL._all;
+        const mkT = '<table class="rs-table ap2-next"><thead><tr>' + th("State", "") + th("$ / lead") + S.desk.map(x => th(esc(x.when.slice(0, 3)), "num" + (x.shoulder ? " ap2-sh" : ""))).join("") + th("Season leads") + th("Marketing") + th("Post cards") + th("Total") + "</tr></thead><tbody>" +
+          N.rows.filter(r => r.leads).map(r => { const cpl = cplOf(r), pc = PC[r.st], pcCost = pc && pc.cards && !pc.unknown ? pc.cost : 0, mk = cpl != null ? r.leads * cpl : null;
+            return "<tr>" + td("<b>" + esc(r.st) + "</b>", "strong") + td(cpl != null ? money0(cpl) : "—") +
+              S.desk.map(x => { const l = stLeads(r, x.forYm); return '<td class="num' + (x.shoulder ? " ap2-sh" : "") + '" title="' + fmtN(l) + ' leads">' + (l && cpl != null ? money0(l * cpl) : dim) + "</td>"; }).join("") +
+              td(fmtN(r.leads)) + td(mk != null ? "<b>" + money0(mk) + "</b>" : "—") + td(pcCost ? money0(pcCost) : dim) + td(mk != null ? "<b>" + money0(mk + pcCost) + "</b>" : "—") + "</tr>"; }).join("") +
+          (() => { const rowsL = N.rows.filter(r => r.leads), tot = ym => rowsL.reduce((a, r) => a + (cplOf(r) != null ? stLeads(r, ym) * cplOf(r) : 0), 0);
+            const mkAll = rowsL.reduce((a, r) => a + (cplOf(r) != null ? r.leads * cplOf(r) : 0), 0), pcAll = rowsL.reduce((a, r) => { const pc = PC[r.st]; return a + (pc && pc.cards && !pc.unknown ? pc.cost : 0); }, 0);
+            return '<tr class="ap2-tot">' + td("<b>All states</b>", "strong") + td("") + S.desk.map(x => td("<b>" + money0(tot(x.forYm)) + "</b>")).join("") + td("<b>" + fmtN(N.tot.leads) + "</b>") + td("<b>" + money0(mkAll) + "</b>") + td(money0(pcAll)) + td("<b>" + money0(mkAll + pcAll) + "</b>") + "</tr>"; })() +
+          "</tbody></table>";
+        const note = t => '<div class="ap2-note" style="margin:6px 0 8px">' + t + "</div>";
+        return '<div id="apFull">' +
+          '<div class="ap2-note" style="margin:0 0 4px"><b>1 · Crews — where, and how many</b></div>' +
+          note("Foremen per state and month. A depot pool's need is shared between its states by their busy-day load, so the states add up to the pool — the shaded rows. <b>Foremen at peak</b> is the state's share in its pool's busiest month; <b>Hire / spare</b> compares it with the foreman table. Maryland and Virginia have no depot: their crews run from Delaware and Pennsylvania. Each foreman carries " + (N.crew.helpers || 0) + " helper, " + (N.crew.drivers || 0) + " driver and " + (N.crew.trucks || 0) + " truck.") +
+          '<div style="overflow-x:auto">' + crewT + "</div>" +
+          '<div class="ap2-note" style="margin:18px 0 4px"><b>2 · Sales — the desk, month by month</b></div>' +
+          note("Leads arrive about " + (FC.lead_lag_months || 1) + " month before the move, so each column is the month the leads are <b>worked</b>, for the jobs a month later. Salespeople = that month's leads ÷ " + fmtN(S.lpr) + " per rep (the dial in Band A). Sales is one desk, so states show as a share of its work, not as separate teams. Shaded columns are the shoulder months, outside the season totals." + (S.active ? " Last season " + fmtN(S.active) + " reps were active." : "")) +
+          '<div style="overflow-x:auto">' + salesT + "</div>" +
+          '<div class="ap2-note" style="margin:18px 0 4px"><b>3 · Marketing — leads to buy and the budget, by state</b></div>' +
+          note("Dollars in the month they are <b>spent</b> (hover a cell for the leads). Budget = leads needed × the state's cost per lead across every channel; post cards are last season's cost of cards mailed. Cost per lead is attributed per source; Google's share of it is measured. <b>Shaded months are the shoulders</b> (April and September jobs): shown so the ramp is visible, left out of the season totals on the right.") +
+          '<div style="overflow-x:auto">' + mkT + "</div></div>";
       }
 
       function asksHtml() {
@@ -1648,6 +1723,9 @@ registerPage({
           '<div class="rs-page-head"><h1>Seasonal Planning</h1>' +
           '<p style="max-width:none">The three decisions first — crew, sales, marketing for next season — then the questions behind them with the answer the data gives today; everything under that is the working — hiring first, then marketing, then the base question. <b>Band A</b> decides per state for the period you pick, seeded from the foremen who actually worked last season (or his table, or the aim), and any cell the <a href="#page=season-settings">Planning Variables</a> page has set wins. <b>Band B</b> is the per-city evidence for this year — click a state anywhere to focus it. <b>Band C</b> is the reference: the outside research, rent vs buy, and how the season was decided.</p></div>' +
           decisionsHtml() +
+          card("The full plan — " + (FC.year || "next season"), "Crews by state, the sales desk by month, leads and marketing budget by state",
+               "The three decisions above, opened out: every state, every month. Same method and dials as the Next-season card below — change them there and this follows.",
+               fullPlanHtml()) +
           asksHtml().replace('style="margin-top:6px;border-top:0;padding-top:0"', "") +
           '<div class="ap2-band"><span class="k">Band A · Decide</span><h2>The plan for ' + esc(P.label) + '</h2>' +
           '<span class="clock">next season ' + esc((SEASON.next || []).join(" – ") || "—") + ' · planned from the same months last year</span></div>' +
