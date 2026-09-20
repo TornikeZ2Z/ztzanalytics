@@ -67,6 +67,20 @@
     RS.DATASETS.area_master_season = Object.assign({}, RS.DATASETS.area_master, { table: "mart_area_master_season" });
   }
   if (window.RS && RS.DATASETS && !RS.DATASETS.area_whitespace) {
+    /* Giga's map, 2026-09-20: "the main map giga wants to see is the TIER for each location, BY
+       COLOR... for that color we need a TOOLTIP so he can see the BUDGET for that specific county
+       for marketing. and finally the MAX JOBS PER DAY that county should handle - how many crew we
+       have that covers that location. CREW COVERING THAT LOCATION is a tricky thing and it should
+       be in the area of several radius." */
+    RS.DATASETS.area_county = {
+      table: "mart_area_county",
+      cols: ["State", "County", "Latitude", "Longitude", "Cities", "Leads", "Booked", "Jobs",
+             "Revenue", "Booking Rate", "Booking Rate Shrunk", "Avg Ticket", "Avg CF",
+             "Miles To Base", "Score Distance", "Score Booking", "Score Estimate", "Score CF",
+             "Score", "Tier", "State Lead Share", "Est Ad Cost", "Ad Spend Measured",
+             "Foremen Within 60mi", "Foremen Gravity", "Capacity Share", "Foremen Company",
+             "Uncovered"],
+    };
     RS.DATASETS.area_whitespace = {
       table: "mart_area_whitespace",
       cols: ["Zip", "City", "County", "State", "Nearest Base", "Miles To Base", "Leads 24m", "Jobs 24m",
@@ -94,7 +108,7 @@
     .ap2-d .dh{font-size:13.5px;color:var(--muted);line-height:1.5} .ap2-d .dq{font-size:12.5px;color:var(--muted);margin:0 0 4px}
     .ap2-d .dh b{color:var(--ink);font-size:26px;font-weight:800;line-height:1.15}
     .ap2-d .dn{display:block;font-size:10.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--brand-d);margin-bottom:2px}
-    .ap2-d .dbig{font-size:14px;color:var(--ink);margin:12px 0 4px;line-height:1.9;font-variant-numeric:tabular-nums} .ap2-d .dbig b{font-size:16px}
+   
     .ap2-d .dx{font-size:12px;color:var(--muted);line-height:1.6;margin-top:9px} .ap2-d .dx b{color:var(--ink)}
     .ap2-dt{width:100%;border-collapse:collapse;margin-top:10px;font-size:12.5px;font-variant-numeric:tabular-nums}
     .ap2-dt th{font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:var(--faint);font-weight:700;text-align:left;padding:3px 4px;border-bottom:1px solid var(--line)}
@@ -276,6 +290,481 @@
     details.ap2-ref[open]>summary::before{content:"▾ "}
     details.ap2-ref>summary small{font-weight:600;color:var(--faint);margin-left:8px}
     details.ap2-ref>.panel{margin-top:8px}
+
+
+/* ---------- THE FORMULA (2026-09-20) ------------------------------------------ */
+.ap2-formula{display:block}
+.ap2-formula .f-eq{display:flex;align-items:baseline;gap:9px;flex-wrap:wrap;
+  padding:9px 12px;border:1px solid var(--ap-rule);border-radius:var(--ap-r2);
+  background:var(--ap-sub);margin:0 0 7px;font-size:14px;color:var(--ink)}
+.ap2-formula .f-eq .n{font-family:var(--ap-mono);font-size:11px;font-weight:700;color:var(--ap-live);
+  border:1px solid var(--ap-rule-2);border-radius:var(--ap-r3);padding:1px 6px;flex:none}
+.ap2-formula .f-eq em{font-style:normal;color:var(--muted);padding:0 1px}
+.ap2-formula .f-eq b{font-family:var(--ap-mono);font-weight:800;color:var(--ap-live)}
+.ap2-formula .f-eq small{flex:1 1 220px;color:var(--muted);font-size:11.5px;text-align:right}
+.ap2-formula .f-unit{margin:11px 0 0;padding:11px 13px;border-radius:var(--ap-r2);
+  background:var(--ap-live-soft);border:1px solid var(--ap-rule-2);font-size:13.5px;line-height:1.6}
+.ap2-formula .f-unit b{color:var(--ink)}
+.ap2-formula .f-lead{font-size:13.5px;color:var(--muted);line-height:1.6;margin:0 0 9px}
+.ap2-formula .f-lead b{color:var(--ink);font-size:14.5px}
+.ap2-next td small{display:block;color:var(--muted)}
+/* ---------- THE MAP (2026-09-20) ----------------------------------------------
+   Leaflet is vendored and lazy-loaded; the tile layer is Carto Voyager, the same one
+   cleanup.js and ld-planning.js already use. Colours come from the SEMANTIC tokens so
+   the key means the same thing here as everywhere else on the page. */
+.ap2-mapbox{height:540px;border-radius:var(--ap-r1);border:1px solid var(--ap-rule);
+  background:var(--ap-sub);overflow:hidden}
+.ap2-mapkey{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin:0 0 10px;
+  font-size:11.5px;color:var(--muted)}
+.ap2-mapkey .sp{flex:1 1 auto}
+.ap2-mk{display:inline-flex;align-items:center;gap:6px}
+.ap2-mk b{color:var(--ink);font-variant-numeric:tabular-nums}
+.ap2-sw{width:11px;height:11px;border-radius:50%;flex:none;border:1px solid var(--ap-rule-2)}
+.ap2-sw.push{background:var(--ap-pos-ink)} .ap2-sw.hold{background:var(--ap-warn-ink)}
+.ap2-sw.fix{background:var(--ap-neg-ink)}  .ap2-sw.grey{background:var(--muted)}
+.ap2-sw.unc{background:transparent;border:2px dashed var(--ap-neg-ink)}
+/* the tooltip is Leaflet's, so it is styled through its own wrapper class */
+.leaflet-tooltip.ap2-tipwrap{background:var(--ap-bay);color:var(--ink);border:1px solid var(--ap-rule-2);
+  border-radius:var(--ap-r2);box-shadow:0 8px 24px rgba(0,0,0,.28);padding:9px 11px;font-family:inherit}
+.leaflet-tooltip.ap2-tipwrap:before{display:none}
+.ap2-tip{font-size:12px;line-height:1.55;max-width:290px}
+.ap2-tip b{font-size:13px;color:var(--ink)}
+.ap2-tip .t{font-family:var(--ap-mono);font-size:11px;letter-spacing:.04em;color:var(--ap-live);margin:1px 0 4px}
+.ap2-tip .b{margin-top:5px;padding-top:5px;border-top:1px solid var(--ap-rule);color:var(--ink);font-weight:700}
+.ap2-tip .c{color:var(--muted)}
+.ap2-tip .w{margin-top:4px;color:var(--ap-neg-ink);font-weight:700}
+.ap2-tip small{display:block;color:var(--muted);font-weight:400}
+
+/* ═══════════════════════════════════════════════════════════════════════════════
+   SEASONAL PLANNING — COMMAND SURFACE (visual layer, 2026-09-20)
+   Appended after the ap2- block above. Nothing above is removed.
+
+   THREE CONTEXTS, ONE SHEET. RSC.printView re-uses this stylesheet verbatim
+   (area-plan.js:1177 passes pageCss:"ap-style") into a document whose tokens sit on
+   :root and whose <body> has NO rs-app and NO light class (rs-components.js:904,:984).
+   So the contract is:
+     · a rule that restyles a KIT component (.panel .rs-table .rs-tab .rs-btn .rs-num
+       .rs-seg .rs-pill) carries body.rs-app  -> screen only, paper keeps printView's
+       own paper design for those components;
+     · a rule on an ap2- class stays unprefixed -> it reaches screen AND paper, which
+       is what the existing block already does;
+     · body.rs-app.light  -> never matches on paper.
+
+   NO GRADIENTS. His standing brief: solid filled, not partially; no gradients, no
+   radial glows. Every fill here is a flat token. The only repeating-linear-gradient
+   is a RULER of 1px hairlines - texture, not a fade. Kill switch: --ap-ruler:none.
+
+   INVARIANTS RESTATED SO A PASTE CANNOT LOSE THEM:
+     · .ap2-tabs stays sticky top:-16px / z-index:28, and its box is EXACTLY
+       14 + 32 + 7 + 1 = 54px, because three tables pin their header at top:54px
+       (.ap2-below-tabs, area-plan.js:225). #apPdf is pinned to 32px below for the
+       same reason - it is a .rs-btn (~36px) and today it drives the bar to ~59px.
+     · NO display property on .ap2-pane - any display rule of ours defeats the bare
+       [hidden] attribute.
+     · .ap2-assume .ap2-dials keeps margin-top:0 / padding-top:0 / border-top:0.
+     · .ap2-sech keeps scroll-margin-top:72px - 16 goto buttons land on it.
+     · NEVER put white-space in the same rule as overflow-wrap:anywhere - it makes
+       the wrap inert and the hero labels overprint.
+     · NO overflow:hidden on a panel, a pane or .ap2-d - it re-anchors every sticky
+       header and clips RSC.localSelect popovers.
+   ═══════════════════════════════════════════════════════════════════════════════ */
+
+/* ---------- 1 · TOKENS ------------------------------------------------------
+   On the four roots this page owns. NOT on body.rs-app: a page that writes custom
+   properties onto the shared shell node leaks them into the next report the reader
+   opens (portal-design-system.md records cl-analysis.js doing exactly that). */
+.ap2-tabs,.ap2-pane,.ap2-assume,.ap2-clockline{
+  --ap-mono:"Cascadia Mono","Segoe UI Mono","SF Mono",Consolas,ui-monospace,monospace;
+  --ap-r1:10px; --ap-r2:7px; --ap-r3:4px;
+  --ap-rule:var(--line); --ap-rule-2:var(--line-2);
+  --ap-bay:var(--panel); --ap-sub:var(--panel-2);
+  --ap-live:var(--brand);                 /* accent: live / typed / the outcome */
+  --ap-fill:var(--brand);                 /* a lime FILL, always with --brand-ink */
+  --ap-live-soft:color-mix(in srgb,var(--brand) 11%,transparent);
+  --ap-wash:12%;
+  --ap-tick:color-mix(in srgb,var(--ink) 12%,transparent);
+  --ap-lip:color-mix(in srgb,var(--ink) 7%,transparent);
+  /* INK-ON-WHITE IS THE DEFAULT, DARK STATES ITSELF (2026-09-20 review). These were gated on
+     body.rs-app.light , which NEVER matches in the print document -- rs-components.js builds a
+     page with no rs-app and no light class -- so the deck he presents from printed the dark-theme
+     semantic inks on white paper. Light and paper want the same thing, so they are the base. */
+  --ap-sink:inset 0 1px 2px rgba(16,32,48,.10);
+  --ap-live:var(--brand-d);               /* --brand is 2.66:1 on white - invisible as a hairline */
+  --ap-fill:var(--brand-d);               /* #fff on --brand is 2.93:1; on --brand-d it is 4.78:1 */
+  --ap-live-soft:color-mix(in srgb,var(--brand) 15%,transparent);
+  --ap-wash:8%;                           /* a white substrate needs less tint to hold 4.5:1 */
+  --ap-lip:transparent;                   /* a dark inner lip on a white card reads as a shadow */
+  --ap-pos-ink:color-mix(in srgb,var(--pos) 80%,var(--ink));
+  --ap-warn-ink:color-mix(in srgb,var(--warn) 76%,var(--ink));   /* 82% cleared 4.5:1 on --panel only */
+  --ap-neg-ink:color-mix(in srgb,var(--neg) 80%,var(--ink));
+  /* THE RULER IS GONE (2026-09-20 review): a per-track graduation cannot be seen under a solid
+     fill, and its pitch differed on every row, so it read as texture rather than a scale. Every
+     bar already has its number spelled out beside it. Kept as a token so nothing downstream breaks. */
+  --ap-ruler:none;
+  --ap-t:.13s; --ap-ease:cubic-bezier(.2,.7,.3,1);
+}
+/* DARK is the variant now. :not(.light) so it cannot reach paper either. */
+body.rs-app:not(.light) .ap2-tabs,body.rs-app:not(.light) .ap2-pane,
+body.rs-app:not(.light) .ap2-assume,body.rs-app:not(.light) .ap2-clockline{
+  --ap-live:var(--brand); --ap-fill:var(--brand);
+  --ap-live-soft:color-mix(in srgb,var(--brand) 11%,transparent);
+  --ap-wash:12%;
+  --ap-lip:color-mix(in srgb,var(--ink) 7%,transparent);
+  --ap-sink:inset 0 2px 3px rgba(0,0,0,.45);
+  --ap-pos-ink:var(--pos); --ap-warn-ink:var(--warn); --ap-neg-ink:var(--neg);
+}
+
+/* ---------- 2 · THE READOUT REGISTER ----------------------------------------
+   Monospace where a number is a READING and where chrome is machine chrome.
+   DELIBERATELY NOT on .rs-table td.num (120 cells, area-plan.js:700-708): mono digits
+   run 5-8% wider than Inter's tnum and dark_plan/w1707_00.png shows the 14-column
+   crews table already at full width at 1707px. Prose, table headers and .ap2-d .dh b
+   ("23 foremen" is a phrase, not a readout) stay Inter. */
+.ap2-step .v,.ap2-led-g>.v,.ap2-assume .rs-num,.ap2-pane .rs-num,
+.ap2-tt .n,.ap2-pager,.ap2-stamps,.ap2-q .qn,.ap2-meas,
+.ap2-band .k,.ap2-eyebrow{   /* .ap2-d .dq and .ap2-dial .l left OUT: a sentence is not a readout */
+  font-family:var(--ap-mono);font-variant-numeric:tabular-nums;
+  font-feature-settings:"tnum" 1,"zero" 1}
+/* the 11px floor. Eight declarations sat under it (one at 9.5px, two at 10px, five at
+   10.5px) - the a11y pass never actually applied one. */
+.ap2-dt th{font-size:11px;color:var(--muted);letter-spacing:.05em;padding:4px 4px;
+  border-bottom:1px solid var(--ap-rule-2)}
+.ap2-led-g>.l{font-size:11px;letter-spacing:.09em;color:var(--muted);overflow-wrap:anywhere}
+.ap2-step .l{font-size:11px;color:var(--muted);overflow-wrap:anywhere;
+  display:block;min-height:2.6em}   /* two lines reserved: a wrapped label used to drop its value 15px */
+.ap2-dial .l{font-size:11px;letter-spacing:.09em;color:var(--muted);margin-bottom:6px}
+.ap2-eyebrow{font-size:11px;letter-spacing:.1em;color:var(--muted);margin-bottom:4px}
+.ap2-mbtn small{font-size:11px}
+.ap2-next td small{font-size:11px}
+/* --faint stops being a text colour on this page: 3.30:1 on --panel in dark,
+   2.97:1 on white in light. Seventeen rules, all of them. */
+.ap2-step .s,.ap2-dial .m,.ap2-dem .n small,.ap2-leak .n small,.ap2-tie,.ap2-small,
+.ap2-dim,.ap2-stamps,.ap2-pager,.ap2-tt .n,.ap2-next td small,.ap2-card .foot,
+.ap2-mbtn small,.ap2-dt th,.ap2-led-g>.l,details.ap2-ref>summary small,
+.ap2-note,.ap2-say,.ap2-pane>.ap2-lede{color:var(--muted)}
+.ap2-note,.ap2-say,.ap2-pane>.ap2-lede{text-wrap:pretty}
+
+/* ---------- 3 · THE TAB RAIL ------------------------------------------------
+   GEOMETRY IS FROZEN AT 54px: 14 padding-top + 32 tab + 7 padding-bottom + 1 border.
+   That is the number .ap2-below-tabs th{top:54px} (area-plan.js:225) has always assumed
+   and never actually had - #apPdf is a .rs-btn (13px / 9px padding ~= 36px tall) sitting
+   in an align-items:center bar, which drives it to ~59px today. Both fixes are here and
+   they are a pair: change one and the bar paints over three sticky headers, silently. */
+.ap2-tabs{padding:14px 0 7px;border-bottom:1px solid var(--ap-rule)}
+.ap2-tabs:not(:has(.rs-tab)){display:none}   /* printView removes #apTabs and every button
+                                                (rs-components.js:852) but keeps this div -
+                                                an empty bordered strip prints today */
+#apTabs{counter-reset:apch}                  /* #apTabs carries inline display/gap (:1149) - leave them */
+#apTabs .rs-tab{position:relative;height:32px;padding:0 14px;border-radius:var(--ap-r2);
+  border:1px solid var(--ap-rule);background:var(--ap-sub);color:var(--muted);
+  font-family:inherit;font-size:12.5px;font-weight:700;
+  transition:color var(--ap-t) var(--ap-ease),border-color var(--ap-t) var(--ap-ease),
+             background var(--ap-t) var(--ap-ease),box-shadow var(--ap-t) var(--ap-ease)}
+/* aria-hidden is not available to a pseudo-element, so the ordinal is given an empty
+   alt via content's alt-text syntax: assistive tech reads "", sighted readers see "01". */
+#apTabs .rs-tab::before{counter-increment:apch;
+  content:counter(apch,decimal-leading-zero) / "";
+  font-family:var(--ap-mono);font-size:11px;font-weight:700;letter-spacing:.06em;
+  color:var(--muted);margin-right:9px}
+#apTabs .rs-tab:hover{color:var(--ink);border-color:var(--ap-rule-2);background:var(--ap-sub)}
+/* the live channel. box-shadow:inset, never a border or a padding change - the 32px box
+   must not move. Label is --ink, not lime: 13:1 in both themes. */
+#apTabs .rs-tab.on{background:var(--ap-live-soft);border-color:var(--ap-live);color:var(--ink);
+  box-shadow:inset 0 -2px 0 var(--ap-live)}
+#apTabs .rs-tab.on::before{color:var(--ap-live)}
+.ap2-tabs .rs-btn{height:32px;padding:0 14px;display:inline-flex;align-items:center;
+  border-radius:var(--ap-r2);font-size:12.5px}
+
+/* ---------- 4 · THE CONSOLE (assumptions + dials) --------------------------- */
+.ap2-assume{position:relative;display:flex;align-items:flex-start;gap:20px;flex-wrap:wrap;
+  background:var(--ap-sub);border:1px solid var(--ap-rule);border-radius:var(--ap-r1);
+  padding:13px 16px;margin:0 0 14px}
+.ap2-assume>.h{flex:1 1 210px;min-width:180px;font-size:12px;color:var(--muted);line-height:1.55}
+.ap2-assume .ap2-dials{display:flex;flex-wrap:wrap;gap:0;margin-top:0;padding-top:0;border-top:0}
+.ap2-assume .ap2-dial{margin:0;padding:0 22px}
+.ap2-assume .ap2-dial:first-child{padding-left:0}
+.ap2-assume .ap2-dial+.ap2-dial{border-left:1px solid var(--ap-rule)}
+@media (max-width:1180px){                   /* a wrapped dial must not start a line with a divider */
+  .ap2-assume .ap2-dial+.ap2-dial{border-left:0}
+  .ap2-assume .ap2-dial{padding:0 20px 0 0}}
+.ap2-dial .m{font-size:11.5px;margin-top:6px;max-width:260px;line-height:1.5}
+/* INPUTS SINK, RESULTS RISE. The z-axis says what a number IS before a word is read:
+   a hole you typed into, or a face the data computed. Panels and cards are the raised
+   bay; every .rs-num on the page is a recess in it. */
+body.rs-app .ap2-assume .rs-num,body.rs-app .ap2-pane .rs-num{
+  background:var(--bg);color:var(--ink);border:1px solid var(--ap-rule-2);
+  border-radius:var(--ap-r2);box-shadow:var(--ap-sink);
+  font-family:var(--ap-mono);font-size:15px;font-weight:700;padding:7px 11px;
+  transition:border-color var(--ap-t) var(--ap-ease),box-shadow var(--ap-t) var(--ap-ease)}
+body.rs-app .ap2-pane .rs-num{font-size:13px;padding:6px 9px}
+body.rs-app .ap2-assume .rs-num:hover,body.rs-app .ap2-pane .rs-num:hover{border-color:var(--ap-live)}
+body.rs-app .ap2-assume .rs-num:focus,body.rs-app .ap2-pane .rs-num:focus{
+  border-color:var(--ap-live);box-shadow:var(--ap-sink),0 0 0 3px var(--brand-glow)}
+/* THE MACHINED BRACKET - on exactly two elements, and they are the two surfaces you
+   OPERATE: the dials that size the plan, and the hero the dials produce. On every panel
+   it would be wallpaper. Two pseudo-elements, no gradient, nothing that repaints. */
+.ap2-assume::before,.ap2-assume::after,.ap2-hero::before,.ap2-hero::after{
+  content:"";position:absolute;width:13px;height:13px;pointer-events:none;
+  border:2px solid var(--ap-live)}
+.ap2-assume::before,.ap2-hero::before{top:-1px;left:-1px;border-right:0;border-bottom:0;
+  border-radius:var(--ap-r1) 0 0 0}
+.ap2-assume::after,.ap2-hero::after{bottom:-1px;right:-1px;border-left:0;border-top:0;
+  border-radius:0 0 var(--ap-r1) 0}
+
+/* ---------- 5 · CHANNEL HEADS ----------------------------------------------
+   THREE OF THE FOUR .ap2-band INSTANCES CARRY INLINE border-top:0;padding-top:0
+   (area-plan.js:1626, :1841, :2088) and inline beats any stylesheet rule. So the marker
+   is a FLEX ITEM, which inline style cannot reach. Never a border, never a :not([style]). */
+.ap2-band{align-items:baseline;gap:0 14px;margin:26px 0 12px;padding-top:15px;
+  border-top:1px solid var(--ap-rule)}
+.ap2-band::before{content:"";flex:none;align-self:center;width:26px;height:2px;
+  border-radius:1px;background:var(--ap-live)}
+.ap2-band .k{font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--muted)}                        /* was var(--brand) at :118 - 2.66:1 in light */
+.ap2-band h2{margin:0;font-size:17px;font-weight:800;letter-spacing:-.35px;color:var(--ink)}
+.ap2-band .clock{margin-left:auto;font-size:11.5px;color:var(--muted);font-weight:600}
+/* the section header as a channel: lime stub - title - rule out to the content edge */
+.ap2-sech{display:flex;align-items:center;gap:11px;font-size:15.5px;font-weight:800;
+  letter-spacing:-.2px;color:var(--ink);margin:26px 0 8px;scroll-margin-top:72px}
+.ap2-sech:first-child{margin-top:0}
+.ap2-sech::before{content:"";flex:none;width:3px;height:15px;border-radius:1px;background:var(--ap-live)}
+.ap2-sech::after{content:"";flex:1 1 auto;height:1px;background:var(--ap-rule)}
+
+/* ---------- 6 · THE DECISION BAYS ------------------------------------------
+   The identical border-top:3px solid var(--brand) came off all three cards (:93) - three
+   identical accents say nothing. .dq becomes a full-bleed recessed channel head with one
+   lime tick. NOTE: .ap2-d .dn is DEAD - grep -c 'class="dn"' returns 0. .dq is the live
+   eyebrow, emitted first at area-plan.js:1631/:1638/:1648.
+   The .dq negative margins are TIED to .ap2-d's padding: move one, move both. */
+.ap2-dec{gap:14px;margin-top:12px}
+.ap2-d{background:var(--ap-bay);border:1px solid var(--ap-rule);
+  border-top:1px solid var(--ap-rule);border-radius:var(--ap-r1);padding:14px 16px}
+.ap2-d .dq{display:flex;align-items:center;gap:9px;margin:-14px -16px 13px;padding:10px 16px;
+  background:var(--ap-sub);border-bottom:1px solid var(--ap-rule);
+  border-radius:var(--ap-r1) var(--ap-r1) 0 0;
+  font-size:11px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--muted)}
+.ap2-d .dq::before{content:"";flex:none;width:3px;height:12px;border-radius:1px;background:var(--ap-live)}
+.ap2-d .dh{font-size:13.5px;color:var(--muted);line-height:1.55}
+.ap2-d .dh b{font-size:27px;letter-spacing:-.5px;font-variant-numeric:tabular-nums}
+.ap2-dt td:first-child{color:var(--ink);font-weight:650}
+.ap2-dt td{border-bottom:1px solid color-mix(in srgb,var(--ap-rule) 60%,transparent)}
+
+/* ---------- 7 · HERO, STEPS, LEDGER ----------------------------------------
+   body.rs-app IS REQUIRED: .ap2-hero{padding} (:126) is DEAD today at (0,1,0) under
+   body.rs-app .panel (0,2,1, rs.css:201). These tie body.rs-app.light .panel (0,3,1,
+   rs.css:317) at (0,3,1) and win on source order, because injectStyle appends this
+   <style> to <head> AFTER the rs.css link (area-plan.js:280). If that ever moves, every
+   panel rule here silently loses in the light theme. */
+body.rs-app .ap2-pane .panel,body.rs-app .ap2-hero.panel{
+  background:var(--ap-bay);                  /* flattens rs.css:201's hard-coded dark gradient */
+  border:1px solid var(--ap-rule);border-radius:var(--ap-r1);box-shadow:none;padding:14px 16px}
+body.rs-app .ap2-hero.panel{position:relative;padding:20px 22px 17px}
+body.rs-app .ap2-pane .rs-tablewrap{border-radius:var(--ap-r1);border-color:var(--ap-rule)}
+/* DEPTH IS AN EDGE, NOT A GRADIENT - dark only; on white it would just grey every card top */
+body.rs-app:not(.light) .ap2-pane .panel,body.rs-app:not(.light) .ap2-hero.panel,
+body.rs-app:not(.light) .ap2-d,body.rs-app:not(.light) .ap2-q,
+body.rs-app:not(.light) .ap2-card{box-shadow:inset 0 1px 0 var(--ap-lip)}
+.ap2-step{padding:2px 20px 2px 0}
+.ap2-step+.ap2-step{padding-left:20px;border-left:1px solid var(--ap-rule)}
+.ap2-step .v{font-size:29px;font-weight:700;letter-spacing:-.4px;line-height:1.15;margin-top:6px;
+  color:var(--ink);padding-bottom:5px;border-bottom:2px solid transparent}
+/* A CROSSED THRESHOLD UNDERSCORES ITSELF - a second, non-colour cue at the exact place the
+   eye already is. The transparent placeholder keeps all six tiles on ONE optical baseline,
+   which a padding shift would destroy. */
+.ap2-step .v.warn{color:var(--ap-warn-ink);border-bottom-color:var(--warn)}
+.ap2-step .v.good{color:var(--ink);border-bottom-color:var(--ap-live)}
+.ap2-step .s{font-size:11.5px;margin-top:5px;line-height:1.5}
+body.rs-app .ap2-pane .ap2-led.panel{padding:16px 20px}   /* (0,1,0) lost to body.rs-app .panel */
+.ap2-led-g+.ap2-led-g{padding-left:18px;border-left:1px solid var(--ap-rule)}
+.ap2-led-g>.v{font-size:clamp(23px,1.85vw,29px);font-weight:700;letter-spacing:-.4px;margin-top:6px}
+.ap2-led-g>.v.pos{color:var(--ap-pos-ink)}   /* was var(--brand) at :199 - 2.66:1 in light */
+.ap2-led-g>.v.warn{color:var(--ap-warn-ink)}
+.ap2-led-g>.s{margin-top:6px}
+
+/* ---------- 8 · TELEMETRY --------------------------------------------------
+   .ap2-chip carried TWO conflicting definitions - a status tag (:109) and a filter button
+   (:247) - and the LATER one won for border/cursor/padding, so the "answered"/"measured"
+   spans at :1782 render outlined with a pointer cursor and impersonate buttons (visible in
+   dark_decide/w1707_00.png). Split by ELEMENT, which the markup guarantees: buttons at
+   :818, spans at :1782. Element-type is safer than [data-focus], which .ap2-dem (:672) and
+   tr.ap2-row (:693) also carry. */
+span.ap2-chip{display:inline-flex;align-items:center;gap:6px;font-family:var(--ap-mono);
+  font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;line-height:1.4;
+  border-radius:var(--ap-r3);padding:3px 8px;white-space:nowrap;border:1px solid transparent;
+  background:transparent;color:var(--muted);cursor:default}
+span.ap2-chip::before{content:"";flex:none;width:6px;height:6px;border-radius:1px;background:currentColor}
+span.ap2-chip.y{color:var(--ap-pos-ink);background:color-mix(in srgb,var(--pos) var(--ap-wash),transparent);
+  border-color:color-mix(in srgb,var(--pos) 30%,transparent)}
+span.ap2-chip.p{color:var(--ap-warn-ink);background:color-mix(in srgb,var(--warn) var(--ap-wash),transparent);
+  border-color:color-mix(in srgb,var(--warn) 32%,transparent)}
+span.ap2-chip.n{color:var(--ap-neg-ink);background:color-mix(in srgb,var(--neg) var(--ap-wash),transparent);
+  border-color:color-mix(in srgb,var(--neg) 30%,transparent)}
+/* the CONTROL: the Cities focus row. :250 set color:#fff on a lime fill - 1.48:1 in dark,
+   2.93:1 in light. That is the "All" chip washing out in dark_cities/w1707_00.png. */
+button.ap2-chip{font-family:inherit;font-size:11.5px;font-weight:700;letter-spacing:.04em;
+  padding:6px 12px;border-radius:var(--ap-r2);border:1px solid var(--ap-rule);
+  background:var(--ap-sub);color:var(--muted);cursor:pointer;white-space:nowrap;
+  transition:color var(--ap-t) var(--ap-ease),border-color var(--ap-t) var(--ap-ease),
+             background var(--ap-t) var(--ap-ease)}
+button.ap2-chip:hover{color:var(--ink);border-color:var(--ap-rule-2)}
+button.ap2-chip.on{background:var(--ap-fill);border-color:var(--ap-fill);
+  color:var(--brand-ink);font-weight:800}    /* 12.7:1 dark, 4.78:1 light */
+.ap2-meas{display:inline-block;margin-left:6px;font-size:11px;font-weight:700;letter-spacing:.04em;
+  text-transform:uppercase;color:var(--ap-pos-ink);border-radius:var(--ap-r3);padding:1px 6px;
+  vertical-align:1px;background:color-mix(in srgb,var(--pos) var(--ap-wash),transparent);
+  border:1px solid color-mix(in srgb,var(--pos) 30%,transparent)}
+/* the question index is STAMPED into the card, not printed on it */
+.ap2-q{background:var(--ap-bay);border:1px solid var(--ap-rule);border-radius:var(--ap-r1);padding:13px 15px}
+.ap2-q .qh{gap:9px;margin-bottom:8px}
+.ap2-q .qn{display:inline-flex;align-items:center;justify-content:center;min-width:22px;height:22px;
+  padding:0 6px;font-size:11px;font-weight:700;letter-spacing:.04em;color:var(--ink);
+  background:var(--bg);border:1px solid var(--ap-rule-2);border-radius:var(--ap-r3);
+  box-shadow:var(--ap-sink)}
+.ap2-q .qa{margin-top:6px;line-height:1.6}
+/* semantic small text, all of it on the darkened inks in light */
+.ap2-ok{color:var(--ap-pos-ink);font-weight:700;font-size:11.5px;letter-spacing:.03em}
+.ap2-hire{color:var(--ap-neg-ink);font-weight:800;font-variant-numeric:tabular-nums}
+.ap2-warn{color:var(--ap-warn-ink);font-size:12px;font-weight:700}
+.ap2-lost,.ap2-tension,.ap2-tie.bad{color:var(--ap-warn-ink);font-weight:700}
+.ap2-yoy{font-weight:800;font-size:11.5px}
+.ap2-yoy.up{color:var(--ap-pos-ink)} .ap2-yoy.dn{color:var(--ap-neg-ink)}
+/* kit pills: square the corner, and fix --warn, which is 3.56:1 on white today */
+body.rs-app .ap2-pane .rs-pill{border-radius:var(--ap-r3)}
+.ap2-pane .rs-pill.ok{color:var(--ap-pos-ink)}
+.ap2-pane .rs-pill.warn{color:var(--ap-warn-ink)}
+.ap2-pane .rs-pill.bad{color:var(--ap-neg-ink)}
+
+/* ---------- 9 · BARS: SOLID SLUGS IN A GRADUATED CHANNEL --------------------
+   His rule: solid filled, not partially. The lead/booked seam is a 1px notch, not a fade.
+   THE RULER answers a real defect: in dark_cities/w1707_00.png the distance ladder's
+   15.1 / 15.0 / 14.0 / 13.5% render as four bars you cannot tell apart, so the chart adds
+   nothing the numbers beside it already say. Bars are relative to the widest (area-plan.js
+   :854), so the ticks are tenths OF THE WIDEST BAR - a comparison scale, not an axis.
+   One static background-image on ~25 elements. Nothing repaints on scroll.
+   box-shadow, not border, for the channel wall: a border would change the track height. */
+.ap2-dem .t,.ap2-lad .t,.ap2-leak .t{position:relative;overflow:hidden;
+  border-radius:var(--ap-r3);background-color:var(--ap-sub);
+  box-shadow:inset 0 0 0 1px var(--ap-rule)}
+.ap2-dem .t{height:15px} .ap2-lad .t{height:14px} .ap2-leak .t{height:11px}
+.ap2-dem .t .lead{border-radius:2px 0 0 2px;background:color-mix(in srgb,var(--ink) 22%,var(--ap-sub))}
+.ap2-dem .t .book{border-radius:2px 0 0 2px;background:var(--ap-fill);
+  box-shadow:1px 0 0 var(--ap-sub)}          /* the 1px seam against the lead slug */
+.ap2-lad .t i{border-radius:2px 0 0 2px;background:var(--ap-fill)}
+.ap2-leak .t i{border-radius:2px 0 0 2px;background:var(--warn)}
+.ap2-dem{padding:9px 8px;border-bottom:1px solid var(--ap-rule);border-radius:var(--ap-r3);
+  transition:background-color var(--ap-t) var(--ap-ease),box-shadow var(--ap-t) var(--ap-ease)}
+.ap2-dem .n{font-weight:700;font-size:13.5px;color:var(--ink)}
+.ap2-dem .n small{font-size:11px;font-weight:600}
+.ap2-dem:hover{background:var(--ap-sub)}
+.ap2-dem.on{background:var(--ap-live-soft);box-shadow:inset 3px 0 0 var(--ap-live)}
+.ap2-lad,.ap2-leak{border-bottom:1px solid var(--ap-rule)}
+.ap2-leak .n{font-size:13px;color:var(--ink)}
+
+/* ---------- 10 · THE DENSE TABLES ------------------------------------------
+   .rs-table td PADDING IS DELIBERATELY NOT TOUCHED. His 2026-08-24 note ("it is very
+   dense" -> room to breathe, VERTICALLY only) bought that 13px; rs.css:583-588 records it.
+   Density here comes from type, labels and hairlines, never from taking his air back.
+
+   EVERY STATE BELOW IS WRITTEN TO BEAT rs.css:602 .rs-table tbody tr:hover td, which is
+   (0,2,3) and uses the 'background' SHORTHAND - so today it erases the shoulder wash, the
+   total, the pool tint and the selected-row tint the moment the mouse crosses the row, and
+   would wipe any background-image too. That is a pre-existing defect, fixed here. */
+.ap2-pane .rs-table td.ap2-sh{color:var(--muted);
+  background:color-mix(in srgb,var(--ap-rule) 40%,transparent);
+  box-shadow:inset 1px 0 0 var(--ap-rule-2),inset -1px 0 0 var(--ap-rule-2)}
+.ap2-pane .rs-table th.ap2-sh{color:var(--muted);
+  background:color-mix(in srgb,var(--ap-rule) 40%,transparent);
+  box-shadow:inset 1px 0 0 var(--ap-rule-2),inset -1px 0 0 var(--ap-rule-2),0 1px 0 var(--ap-rule-2)}
+.ap2-pane .rs-table tbody tr.ap2-tot td{font-weight:800;color:var(--ink);background:var(--ap-sub);
+  border-top:0;box-shadow:inset 0 2px 0 var(--ap-live)}   /* the sum is a LIT EDGE, not a slab */
+.ap2-pane .rs-table tbody tr.ap2-pool td{background:var(--ap-live-soft);
+  border-top:1px solid var(--ap-rule)}
+.ap2-pane .rs-table tbody tr.ap2-pool td:first-child{box-shadow:inset 3px 0 0 var(--ap-live)}
+/* A SUMMARY ROW MUST STILL SAY WHICH MONTHS ARE SHOULDERS (2026-09-20 review). tr.ap2-tot td and
+   tr.ap2-pool td are (0,3,3) and beat td.ap2-sh at (0,3,1), so the totals row -- the one row where
+   mistaking a shoulder for a season month changes the answer -- washed flat. These are (0,3,4). */
+.ap2-pane .rs-table tbody tr.ap2-tot td.ap2-sh{
+  background:color-mix(in srgb,var(--ap-rule) 40%,var(--ap-sub));
+  box-shadow:inset 0 2px 0 var(--ap-live),inset 1px 0 0 var(--ap-rule-2),inset -1px 0 0 var(--ap-rule-2)}
+.ap2-pane .rs-table tbody tr.ap2-pool td.ap2-sh{
+  background:color-mix(in srgb,var(--ap-rule) 30%,var(--ap-live-soft))}
+.ap2-pane .rs-table tbody tr.ap2-row.on td{background:var(--ap-live-soft)}
+.ap2-pane .rs-table tbody tr.ap2-row.on td:first-child{box-shadow:inset 3px 0 0 var(--ap-live)}
+.ap2-pane .rs-table tbody tr.ap2-sub td{background:var(--ap-sub);color:var(--muted);font-size:12px}
+.ap2-pane .rs-table tbody tr.ap2-sub td:first-child{padding-left:26px}
+/* A STICKY HEADER'S COLLAPSED BORDER DOES NOT TRAVEL WITH IT. rs.css:579 sets
+   border-collapse:collapse, so a th pinned at top:0 or top:54px loses its rule as rows
+   scroll under it. A box-shadow is painted by the cell and travels. */
+body.rs-app .ap2-pane .rs-table th:not(.ap2-sh){border-bottom:0;box-shadow:0 1px 0 var(--ap-rule-2)}
+/* the shoulder header keeps its side rails AND the travelling bottom rule */
+body.rs-app .ap2-pane .rs-table th.ap2-sh{border-bottom:0;
+  box-shadow:inset 1px 0 0 var(--ap-rule-2),inset -1px 0 0 var(--ap-rule-2),0 1px 0 var(--ap-rule-2)}
+.ap2-next td small{display:block;font-weight:600}
+.ap2-th{cursor:pointer;user-select:none;white-space:nowrap;transition:color var(--ap-t) var(--ap-ease)}
+.ap2-th:hover,.ap2-th.on{color:var(--ap-live)}   /* was var(--brand) at :215 - 2.66:1 in light */
+/* the CSV strip becomes the table's own header rail. position:sticky;left:0 MUST STAY -
+   it is what keeps the bar in view inside a horizontally scrolling wrap. */
+.ap2-tt{position:sticky;left:0;z-index:1;display:flex;align-items:center;gap:10px;
+  justify-content:flex-end;margin:0 0 9px;padding-bottom:7px;border-bottom:1px solid var(--ap-rule)}
+.ap2-tt .n{flex:1 1 auto;margin-right:0;font-size:11px;font-weight:700;letter-spacing:.07em;
+  text-transform:uppercase}
+.ap2-tt .n::before{content:"";display:inline-block;width:5px;height:5px;border-radius:1px;
+  background:var(--ap-live);margin-right:8px;vertical-align:1px}
+body.rs-app .ap2-tt .rs-btn{padding:4px 11px;font-size:11px;border-radius:var(--ap-r3);
+  font-family:var(--ap-mono);letter-spacing:.04em;text-transform:uppercase}
+.ap2-pager{font-size:12px;letter-spacing:.03em}
+
+/* ---------- 11 · CARDS, CALLOUT, CONTROLS, REFERENCE ----------------------- */
+.ap2-cards,.ap2-grid{gap:14px}
+.ap2-card{background:var(--ap-bay);border:1px solid var(--ap-rule);border-radius:var(--ap-r1);
+  padding:14px 16px}
+.ap2-card.hot{border-color:color-mix(in srgb,var(--warn) 55%,var(--ap-rule));
+  box-shadow:inset 3px 0 0 var(--warn)}
+.ap2-card .foot{border-top:1px solid var(--ap-rule)}
+.ap2-callout{background:var(--ap-live-soft);border:1px solid var(--ap-rule);
+  border-left:3px solid var(--ap-live);
+  border-radius:var(--ap-r3) var(--ap-r1) var(--ap-r1) var(--ap-r3);padding:14px 16px}
+.ap2-mbtn{border-radius:var(--ap-r2);border:1px solid var(--ap-rule);background:var(--ap-sub);
+  color:var(--muted);padding:7px 12px;
+  transition:color var(--ap-t) var(--ap-ease),border-color var(--ap-t) var(--ap-ease),
+             background var(--ap-t) var(--ap-ease)}
+.ap2-mbtn:hover{color:var(--ink);border-color:var(--ap-rule-2)}
+.ap2-mbtn.on{border-color:var(--ap-live);color:var(--ink);background:var(--ap-live-soft);
+  box-shadow:inset 3px 0 0 var(--ap-live)}
+.ap2-mbtn.on small{color:var(--muted)}
+.ap2-in{border-radius:var(--ap-r2);border-color:var(--ap-rule-2)}
+.ap2-in:focus{border-color:var(--ap-live)}
+/* rs.css:548 .rs-seg button.on is --brand-ink on --brand: #fff on #7fa32b = 2.93:1 in light */
+body.rs-app .ap2-pane .rs-seg{border-radius:var(--ap-r2)}
+body.rs-app .ap2-pane .rs-seg button{border-radius:var(--ap-r3)}
+body.rs-app .ap2-pane .rs-seg button.on{background:var(--ap-fill);color:var(--brand-ink)}
+.ap2-goto,.ap2-golink{color:var(--brand-d)}  /* the only brand token safe as text in both themes */
+details.ap2-ref>summary{border:1px solid var(--ap-rule);border-radius:var(--ap-r1);
+  background:var(--ap-sub);font-size:13.5px;
+  transition:border-color var(--ap-t) var(--ap-ease),color var(--ap-t) var(--ap-ease)}
+details.ap2-ref>summary:hover{border-color:var(--ap-rule-2)}
+details.ap2-ref>summary::before{color:var(--ap-live)}   /* was var(--brand) at :275 */
+
+/* ---------- 12 · FOCUS ------------------------------------------------------
+   There are ZERO :focus-visible rules in area-plan.js and ZERO in rs.css. Chips, gotos,
+   sort headers and method buttons all ride the UA default today. Element-type selectors,
+   so a control added later is covered without editing this list. */
+.ap2-tabs .rs-tab:focus-visible,.ap2-tabs .rs-btn:focus-visible,
+.ap2-pane button:focus-visible,.ap2-pane a:focus-visible,.ap2-pane input:focus-visible,
+.ap2-pane summary:focus-visible,.ap2-pane [tabindex]:focus-visible,
+.ap2-assume input:focus-visible,.ap2-assume a:focus-visible,
+.ap2-clockline a:focus-visible,.rs-page-head a:focus-visible{outline:2px solid var(--ap-live);outline-offset:2px}
+
+/* ---------- 13 · MOTION -----------------------------------------------------
+   TRANSITIONS ONLY, and that is structural, not taste. paint() rewrites host.innerHTML
+   (area-plan.js:2058) on every period, seed and focus change; an @keyframes entrance would
+   replay on all of them and reproduce the 2026-08-24 flash rs.css cured by moving rsfade
+   onto .rs-content (rs.css:166-178). A transition cannot fire on a freshly created node -
+   only on a change to a live one, which is exactly a tab click, a hover, a focus. */
+@media (prefers-reduced-motion:reduce){
+  #apTabs .rs-tab,button.ap2-chip,.ap2-dem,.ap2-mbtn,.ap2-th,details.ap2-ref>summary,
+  body.rs-app .ap2-assume .rs-num,body.rs-app .ap2-pane .rs-num{transition:none}
+}
     `;
     document.head.appendChild(st);
   }
@@ -315,6 +804,9 @@ registerPage({
     const pct = v => (v == null || isNaN(v)) ? "—" : (Math.round(+v * 1000) / 10) + "%";
     const n1 = v => (v == null || isNaN(v)) ? "—" : (Math.round(+v * 10) / 10);
     const r1 = v => (v == null || isNaN(v)) ? "—" : (+v).toFixed(1);
+    // jobs a foreman-day is the one figure on this page whose meaning is in its SECOND decimal:
+    // 1.12 against 1.04 is the Delaware argument; "1.1 against 1.0" is noise.
+    const r2 = v => (v == null || isNaN(v)) ? "—" : (+v).toFixed(2);
     const num = v => { const x = parseFloat(v); return isNaN(x) ? 0 : x; };
     /* THE MART STORES A BOOKING RATE ALREADY IN PERCENT (2026-09-20). pct() multiplies by 100, so the
        opportunity rank printed "2380%" and "3590%" - a number nobody could read past. */
@@ -333,9 +825,10 @@ registerPage({
         j => JSON.parse(((j.rows || [])[0] || {}).payload || "null")).catch(() => null),
       RS.load("area_master").catch(e => ({ __err: e })),
       RS.load("area_whitespace").catch(() => null),
+      RS.load("area_county").catch(() => null),
       RS.load("area_master_season").catch(() => null),
       ZTZ.api("/api/mart_postcard_month?limit=20000").then(j => j.rows || []).catch(() => []),
-    ]).then(([rows, model, cityAll, wsAll, cityAllSeason, pcm]) => {
+    ]).then(([rows, model, cityAll, wsAll, countyRows, cityAllSeason, pcm]) => {
       const PCM = pcm || [];
       // FOUR DISTINCT FAILURES, each named -- the old page blamed the mart for a model outage
       if (!rows || !rows.length) {
@@ -355,6 +848,7 @@ registerPage({
         return;
       }
       const CITYYTD = cityAll || [];
+      const COUNTY = (countyRows && !countyRows.__err) ? countyRows : [];
       const CITYSEASON = (cityAllSeason && !cityAllSeason.__err) ? cityAllSeason : [];
       let CITYALL = CITYYTD;
       const WSALL = wsAll || [];
@@ -650,7 +1144,9 @@ registerPage({
             "measured " + esc(P.label) + ": " + n1(P.measuredUtil * 100) + "% (" +
             fmtN(P.M.jobs) + " jobs vs " + fmtN(P.measuredForemen) + " distinct foremen in the busiest month × " + DAYS_PER_MONTH + " days × " + P.yms.length + " months)"],
            ["leadsPerRep", "Leads one salesperson handles / month",
-            "measured " + esc(P.label) + ": " + (P.M.leadsPerRep || "—") + " median"],
+            "measured " + esc(P.label) + ": " + (P.M.leadsPerRep || "—") + " median" +
+            (() => { const d = deadRate(P.yms); return d
+              ? " · <b>on TOTAL leads</b>, as marketing buys them — " + r1(d.pct) + "% of them were dead" : ""; })()],
            ["dollarsPerLead", "Marketing $ per lead",
             "measured " + esc(P.label) + ": " + (P.M.dollarsPerLead ? "$" + n1(P.M.dollarsPerLead) : "—") +
             (trail ? " · trailing 12-month spend " + money(trail) + "/month" : "")]]
@@ -800,7 +1296,12 @@ registerPage({
         const untappedLeads = untapped.reduce((a, r) => a + (num(r.Leads) || 0), 0);
         /* NOBODY WHO MAY WORK THERE (2026-09-20) — not merely nobody based there. Five of the six
            depots have no foreman living at them; what matters is whether anyone is allowed to be
-           sent. Delaware is the real gap: 0 based AND 0 permitted, against 100 forecast jobs. */
+           sent. Delaware reads as the hole: 0 based AND 0 permitted, against ~100 forecast jobs.
+           CORRECTED LATER THE SAME DAY: the register is Zip to Zip's, and Delaware is worked by
+           Tuji — 429 of its 548 jobs since 2024. The state is half-covered by a crew this page does
+           not count, not uncovered. "No crew behind them" is still the right alarm for the PLAN,
+           because Tuji's crews are not ours to dispatch, but it is not the right alarm for the
+           business, so the tile says whose register it is. See the card "Beside the plan". */
         const noCrew = rs.filter(r => (num(r["Foremen Can Work"]) || 0) === 0);
         const noCrewLeads = noCrew.reduce((a, r) => a + (num(r.Leads) || 0), 0);
         const yr = new Date().getFullYear();
@@ -844,7 +1345,10 @@ registerPage({
           '<div class="ap2-led-g"><div class="l">Leads, no jobs</div><div class="v' + (untapped.length ? " warn" : "") + '">' + fmtN(untapped.length) + '</div>' +
             '<div class="s">cities sent <b>' + fmtN(untappedLeads) + "</b> leads and produced no job</div></div>" +
           '<div class="ap2-led-g"><div class="l">No crew behind them</div><div class="v' + (noCrew.length ? " warn" : "") + '">' + fmtN(noCrew.length) + '</div>' +
-            '<div class="s"><b>' + fmtN(noCrewLeads) + "</b> leads whose nearest base has no foreman on the register</div></div>" +
+            '<div class="s"><b>' + fmtN(noCrewLeads) + "</b> leads whose nearest base has nobody on <b>" +
+              esc((SIS.plan_company || "Zip to Zip")) + "</b>'s register" +
+              (((SIS.companies || []).length) ? " — Delaware's are worked by <b>Tuji</b>, which the plan does not dispatch" : "") +
+              "</div></div>" +
           "</div>" +
 
           '<div class="ap2-grid">' +
@@ -1114,6 +1618,7 @@ registerPage({
       const PANES = [
         { k: "decide", label: "Decisions" },
         { k: "plan", label: null },              // named at render time: FC is declared below this block
+        { k: "map", label: "Map" },
         { k: "cities", label: "Cities" },
         { k: "capacity", label: "Capacity check" },
         { k: "ref", label: "Reference" },
@@ -1138,6 +1643,7 @@ registerPage({
          "the dial in Band A", "the card below", "see the full plan above" — which stopped being true
          the moment anything moved. Every one is now a named jump to an id. */
       const go = (id, t) => '<button type="button" class="ap2-goto" data-goto="' + id + '">' + t + " ↓</button>";
+      const note = t => '<div class="ap2-note" style="margin:6px 0 8px">' + t + "</div>";
       const goLink = (id, t) => '<button type="button" class="ap2-golink" data-goto="' + id + '">' + t + "</button>";
       const MON_SHORT = ["", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
       // "2027-05-18" -> "18 May 2027": a date a dispatcher reads, not an ISO stamp
@@ -1164,6 +1670,10 @@ registerPage({
         inputs.tab = key; save();
         try { history.replaceState(null, "", "#page=area-plan&tab=" + key); } catch (e) {}
         if (!quiet) { const sc = host.closest(".rs-content"); if (sc) sc.scrollTop = 0; }
+        /* LEAFLET SIZES ITSELF FROM THE CONTAINER, and a container in a hidden pane is 0x0 —
+           the map draws one grey tile, AND fitBounds clamps to maxZoom, until it is told to
+           measure again. Both have to be redone, not just the first. */
+        if (key === "map") setTimeout(fitMap, 40);
       }
       /* THE PLAN ON PAPER (2026-09-20). He presents this; a deck needs the decisions and the working,
          not the city evidence or a what-if. printView clones again and never touches the live DOM, so
@@ -1436,7 +1946,7 @@ registerPage({
           r.cells.map(c => '<td class="num' + (c.shoulder ? " ap2-sh" : "") + '" title="last year ' + fmtN(c.last) + ' jobs · busy-day factor ' + r1(c.headroom) + '">' + (c.jobs ? fmtN(c.jobs) : '<span class="ap2-dim">—</span>') + "</td>").join("") +
           tdc("<b>" + fmtN(r.jobs) + "</b>") + "</tr>";
         const body = N.rows.map(stRow).join("");
-        const foot = '<tr class="ap2-tot">' + tdc("<b>All states</b>", "strong") + tdc("") + N.months.map(ym => tdc("<b>" + fmtN(N.rows.reduce((a, r) => a + ((r.cells.find(c => c.ym === ym) || {}).jobs || 0), 0)) + "</b>")).join("") +
+        const foot = '<tr class="ap2-tot">' + tdc("<b>All states</b>", "strong") + tdc("") + N.months.map(ym => tdc("<b>" + fmtN(N.rows.reduce((a, r) => a + ((r.cells.find(c => c.ym === ym) || {}).jobs || 0), 0)) + "</b>", "num" + (N.core.includes(ym) ? "" : " ap2-sh"))).join("") +
           tdc("<b>" + fmtN(N.tot.jobs) + "</b>") + "</tr>";
         const lag = FC.lead_lag_months || 1;
         const ramp = N.core.map(ym => { const d = new Date(+ym.slice(0, 4), +ym.slice(5, 7) - 1 - lag, 1); const by = MONTH_NAMES[d.getMonth() + 1] + " " + d.getFullYear();
@@ -1597,6 +2107,401 @@ registerPage({
         });
       }
 
+
+
+      /* ===================== THE FORMULA =====================
+         Giga, 2026-09-20: "in the end i need a formula kind of thing, for location: if i have X
+         foreman - how many sales and marketing budget i need." Every coefficient below is measured
+         over May-Aug 2024/25/26, Zip to Zip, and the chain reproduces the live plan to within 3%
+         on marketing. Research: docs/plans/2026-09-20-bases-expansion-and-the-formula.md.
+
+         THE ONE CAVEAT THAT MATTERS, and it is on the card because it changes what he asks for:
+         jobs-per-foreman-month is NOT a productivity constant. It is demand divided by headcount.
+         In 2025 headcount rose 22% and jobs FELL 7% -- days worked per foreman collapsed while jobs
+         per working DAY barely moved. A foreman does not create jobs; leads do. So the honest
+         reading is "this is the sales and marketing it takes to keep X foremen busy". */
+      const FORMULA = { daysPerMonth: 17.5, leadsPerJob: 5.85,
+                        leadsPerRep: 281, perLead: 33.61, floorPerJob: 197, rampFirstSeason: 0.80 };
+      /* A FOREMAN-DAY IS NOT ONE JOB (his correction 2026-09-20): "if there is a chaining - it
+         means that foreman runs 2 jobs a day - yet its single foreman - and if we dont have it in
+         analysis, we are screwed." Measured: 23.2% of foreman-days carry two jobs, 1.1% carry
+         three or more, and 37% of all jobs happen on a chained day. It tracks job size, so the
+         rate is LOCAL -- CT 1.296 jobs a foreman-day against Delaware's 1.055. */
+      const CHAIN = model.chaining || {};
+      const SIS = model.sister || {};
+      /* the dead-lead rate, as its OWN number -- never folded into the desk sizing */
+      function deadRate(yms) {
+        let leads = 0, live = 0;
+        (yms || []).forEach(m => Object.values(MS[m] || {}).forEach(a => {
+          leads += a.leads || 0; live += a.qualified || 0; }));
+        return leads ? { leads, dead: leads - live, pct: (leads - live) / leads * 100 } : null;
+      }
+      const chainOf = st => ((CHAIN[st] || {}).jobs_per_foreman_day)
+                         || ((CHAIN._all || {}).jobs_per_foreman_day) || null;
+      const haveChain = () => chainOf("_all") != null;
+      function formulaHtml() {
+        const F = FORMULA, N = FC.year ? nextCalc() : null;
+        const months = N ? N.core.length : 4;
+        if (!haveChain()) return '<div class="panel">The plan model carries no <b>chaining</b> block ' +
+          'yet, and every number on this card is built on jobs a foreman-day. Run ' +
+          '<b>sources=area-plan</b> and reload — the card will not guess a rate.</div>';
+        const jpd = chainOf("_all");
+        const J = jpd * F.daysPerMonth;                               // jobs a foreman-month
+        const st = N ? N.rows.filter(r => r.jobs >= 20) : [];
+        const row = r => { const lpj = r.leadsPerJob != null ? r.leadsPerJob : F.leadsPerJob;
+          const jobs = Math.round(chainOf(r.st) * F.daysPerMonth * months * F.rampFirstSeason);
+          const leads = Math.round(jobs * lpj);
+          const cpl = N.mkt.cplOf(r.st);
+          const built = cpl != null ? leads * cpl : null;
+          const floor = jobs * F.floorPerJob;
+          const mkt = built == null ? floor : Math.max(built, floor);
+          return "<tr>" + tdc("<b>" + esc(r.st) + "</b>", "strong") +
+            tdc(fmtN(jobs) + '<small>at ' + r2(chainOf(r.st)) + " a foreman-day</small>") +
+            tdc(fmtN(leads) + '<small> at ' + r1(lpj) + " / job</small>") +
+            tdc(r1(leads / months / F.leadsPerRep)) +
+            tdc(cpl != null ? money0(cpl) : "—") +
+            tdc("<b>" + money0(mkt) + "</b>" + (built != null && floor > built ? '<small>floor</small>' : "")) + "</tr>"; };
+        const tdc = (v, cls) => '<td class="' + (cls || "num") + '">' + v + "</td>";
+        const th = (t, cls) => '<th class="' + (cls || "num") + '">' + t + "</th>";
+        const one = { jobs: Math.round(J * months), leads: Math.round(J * months * F.leadsPerJob) };
+        /* HIS INSTRUCTION, 2026-09-20: "i need you to tell us how many foreman we should have, not
+           vise versa." So the demand side leads and the per-foreman unit follows as the check. */
+        const inv = N ? N.rows.filter(r => r.jobs >= 20).map(r => {
+          const rate = chainOf(r.st) * F.daysPerMonth;
+          const peak = Math.max(0, ...r.cells.filter(c => !c.shoulder).map(c => c.jobs || 0));
+          return { st: r.st, jobs: r.jobs, peakJobs: peak, rate,
+                   fmSeason: r.jobs / (rate * months), fmPeak: peak / rate,
+                   have: r.have, chain: chainOf(r.st),
+                   share: (CHAIN[r.st] || {}).chained_day_share };
+        }) : [];
+        const invRow = x => "<tr>" + tdc("<b>" + esc(x.st) + "</b>", "strong") +
+          tdc(fmtN(x.jobs)) + tdc(fmtN(x.peakJobs)) +
+          tdc(r2(x.chain) + (x.share != null ? '<small>' + Math.round(x.share * 100) + "% of days chained</small>" : "")) +
+          tdc("<b>" + Math.ceil(x.fmPeak) + "</b>") + tdc(fmtN(x.have)) +
+          tdc(Math.ceil(x.fmPeak) - x.have > 0 ? '<b class="ap2-hire">+' + (Math.ceil(x.fmPeak) - x.have) + "</b>"
+              : '<span class="ap2-ok">covered</span>') + "</tr>";
+        return '<div class="ap2-formula">' +
+          '<div class="f-lead"><b>How many foremen should we have?</b> Start from the work, not the crew. ' +
+            'Each state\'s jobs in its busiest month, divided by what one foreman actually does in a day there.</div>' +
+          (inv.length ? '<table data-name="How many foremen we should have" class="rs-table ap2-next" style="margin:0 0 16px"><thead><tr>' +
+            th("State", "") + th("Season jobs") + th("Busiest month") + th("Jobs a foreman-day") +
+            th("Foremen needed") + th("Have") + th("Hire") + "</tr></thead><tbody>" +
+            inv.map(invRow).join("") + "</tbody></table>" : "") +
+          /* THESE DO NOT ADD UP, AND SAYING SO IS THE POINT. Each row is that state's own busiest
+             month, and the states peak in different months; the plan sizes the crew per depot pool,
+             which is why its total is smaller than the column suggests. Same trap as the crew
+             table's "29 at peak over months that never exceed 28". */
+          (inv.length && N ? note("These are <b>per-state peaks in different months</b>, so they do not add up: the column totals <b>" +
+            inv.reduce((a, x) => a + Math.ceil(x.fmPeak), 0) + "</b> where the plan sizes <b>" + N.tot.peak +
+            "</b>. The plan pools states onto the depot that serves them and calibrates on the crews that actually ran it; " +
+            "this table is the same question from first principles. Where a row is higher, that state ran hotter than its day-rate implies. " +
+            goLink("apFullCrew", "the crew plan")) : "") +
+          note("<b>A foreman-day is not one job.</b> Nearly a quarter of working days carry two jobs and a few carry three — " +
+               "37% of all jobs happen on a chained day, and it tracks job size: a one-job day bills " + money0(3394) +
+               ", a two-job day " + money0(2037) + " each. So the rate is measured per state, not assumed" +
+               (() => { const pair = ["CT", "DE", "PA", "NJ"].filter(x => chainOf(x) != null).slice(0, 2);
+                 return pair.length === 2
+                   ? ": " + esc(pair[0]) + " runs " + r2(chainOf(pair[0])) + " jobs a foreman-day against " +
+                     esc(pair[1]) + "'s " + r2(chainOf(pair[1])) + ". " : ". "; })() +
+               go("apMethod", "How this is calculated")) +
+          '<div class="f-lead" style="margin-top:18px"><b>And the other way round</b> — what one foreman needs behind them.</div>' +
+          note("The company rate below (<b>" + r2(chainOf("_all")) + "</b>) is higher than any single state's, and that is the grain, not an error: " +
+               "a state counts the days worked <b>in it</b>, so a crew that loads in New Jersey and unloads in Pennsylvania spends a day in each " +
+               "state's column and one day in the company's. Size a state off its own rate; size a foreman off this one.") +
+          '<div class="f-eq"><span class="n">1</span>jobs <em>=</em> foremen <em>x</em> <b>' + r1(J) + '</b>' +
+            '<small>' + r2(jpd) + ' jobs a foreman-day (measured, chaining included) <em>x</em> ' + r1(F.daysPerMonth) + ' days worked a month</small></div>' +
+          '<div class="f-eq"><span class="n">2</span>leads <em>=</em> jobs <em>x</em> <b>' + r1(F.leadsPerJob) + '</b>' +
+            '<small>the state\'s own ratio where it has one</small></div>' +
+          '<div class="f-eq"><span class="n">3</span>salespeople <em>=</em> leads <em>&divide;</em> <b>' + fmtN(F.leadsPerRep) + '</b>' +
+            '<small>staffed one month before the move month</small></div>' +
+          '<div class="f-eq"><span class="n">4</span>marketing <em>=</em> leads <em>x</em> <b>$/lead</b>' +
+            '<small>but never below jobs <em>x</em> ' + money0(F.floorPerJob) + '</small></div>' +
+          '<div class="f-unit"><b>One foreman, one season</b> = ' + fmtN(one.jobs) + ' jobs, ' + fmtN(one.leads) +
+            ' leads, ' + r1(one.leads / months / F.leadsPerRep) + ' of a salesperson, ' +
+            money0(one.jobs * F.floorPerJob) + ' of marketing. Equivalently <b>one salesperson per ' +
+            r1(F.leadsPerRep * months / (J * months * F.leadsPerJob) * 1) + ' foremen</b>.</div>' +
+          (st.length ? '<table data-name="One extra crew by state" class="rs-table ap2-next" style="margin-top:12px"><thead><tr>' +
+            th("Add one crew in", "") + th("Jobs a season") + th("Leads it needs") + th("Salespeople") +
+            th("$ / lead") + th("Marketing") + "</tr></thead><tbody>" + st.map(row).join("") + "</tbody></table>" : "") +
+          note("A new crew's first season carries a <b>" + Math.round(F.rampFirstSeason * 100) +
+               "%</b> ramp — month one runs 12.3 jobs against 21.7 by month three. " +
+               "<b>Jobs per foreman-month is the weak link</b>: it carries 89% of the budget error, because it is " +
+               "demand divided by headcount, not a productivity constant. In 2025 headcount rose 22% and jobs fell 7%. " +
+               "Read this as <b>the sales and marketing it takes to keep X foremen busy</b>, not as what they will produce. " +
+               go("apMethod", "How this is calculated")) + "</div>";
+      }
+
+
+      /* ===================== TUJI, BESIDE THE PLAN =====================
+         His instruction 2026-09-20: "i need it to be kinda separately but within plan."
+
+         So: on the page, never in a total. Every crew, salesperson and marketing dollar this page
+         sizes is Zip to Zip's, because Tuji hires, sells and advertises for itself. Folding it in
+         would inflate the hire and the budget for people we do not pay.
+
+         WHAT IT CHANGES IS DELAWARE. 429 of Tuji's 548 jobs since 2024 are Delaware jobs — the very
+         state this page has been calling a coverage gap because nobody on the Zip crew register is
+         permitted to work there. Delaware is not unserved; it is served by the sister company, and
+         in 2026 the two ran it almost exactly half and half (134 Tuji, 135 Zip).
+
+         That accident makes Delaware the only state in the eight where "based here" can be measured
+         against "shipped in" with the state held constant — which is the question he actually asked
+         when he said the margin is lower on the jobs we ship out of PA. */
+      function sisterHtml() {
+        const cos = (SIS.companies || []).filter(c => c.jobs >= 5);
+        if (!cos.length) return "";
+        const DE = SIS.de || {}, deRows = DE.rows || [];
+        const T = cos.find(c => /tuji/i.test(c.company));
+        const td = (v, cls) => '<td class="' + (cls || "num") + '">' + v + "</td>";
+        const th = (t, cls) => '<th class="' + (cls || "num") + '">' + t + "</th>";
+        const yr = String(new Date().getFullYear());
+        const pctOf = (a, b) => b ? Math.round(a / b * 100) : 0;
+
+        /* live or shut: a company whose last closing is months old is not a crew we can plan on */
+        const lastOf = c => (c.by_month && c.by_month.length) ? c.by_month[c.by_month.length - 1].ym : c.last;
+        const newest = cos.reduce((a, c) => (lastOf(c) > a ? lastOf(c) : a), "");
+        const coRow = c => {
+          const thisYr = (c.by_year || []).find(y => y.y === yr) || { jobs: 0, peak_foremen: 0 };
+          /* the newest month in the warehouse is part-counted -- a roster read off it always shrinks */
+          const whole = (c.by_month || []).slice(0, -1);
+          const now = whole.length ? whole[whole.length - 1] : null;
+          const live = lastOf(c) >= newest.slice(0, 4) + "-" + String(Math.max(1, +newest.slice(5, 7) - 2)).padStart(2, "0");
+          return "<tr>" +
+            td("<b>" + esc(c.company) + "</b>" + (live ? "" : '<small>last closing ' + esc(ymLabel(lastOf(c))) + "</small>"), "strong") +
+            td(fmtN(thisYr.jobs)) +
+            td((thisYr.peak_foremen || "—") + (now && now.foremen && now.foremen !== thisYr.peak_foremen
+                ? "<small>" + now.foremen + " in " + esc(ymLabel(now.ym)) + "</small>" : "")) +
+            td((c.states || []).slice(0, 3).map(x => esc(x.st) + " " + pctOf(x.jobs, c.jobs) + "%").join(" · "), "") +
+            td(money0(c.avg_bill)) + td(r1(c.margin_pct) + "%") +
+            td(c.jobs_per_foreman_day != null ? r2(c.jobs_per_foreman_day) : "—") + "</tr>";
+        };
+
+        /* Tuji's year has no shape. May-August is 33% of its year -- which is exactly four twelfths,
+           a dead-flat calendar -- against 44% for Zip to Zip. So its crews are not a summer reserve:
+           they are busy in December too, and cannot be leaned on for the peak. */
+        const summer = T ? T.summer_share : null, planSummer = SIS.plan_summer_share;
+
+        const deTable = deRows.length < 2 ? "" :
+          '<table data-name="Delaware, based against shipped" class="rs-table ap2-next" style="margin:4px 0 10px"><thead><tr>' +
+          th("Who runs the job", "") + th("Crew is based", "") + th("Jobs") + th("Foreman-days") +
+          th("Jobs a foreman-day") + th("Days that carried two") + th("Avg bill") + th("Margin") +
+          "</tr></thead><tbody>" + deRows.map(r => "<tr>" +
+            td("<b>" + esc(r.company) + "</b>", "strong") +
+            td(esc(r.based) + (/depot/i.test(r.based) ? '<small>shipped in</small>' : '<small>sleeps there</small>'), "") +
+            td(fmtN(r.jobs)) + td(fmtN(r.foreman_days)) +
+            td("<b>" + r2(r.jobs_per_foreman_day) + "</b>") +
+            td(r.chained_day_share != null ? r1(r.chained_day_share * 100) + "%" : "—") +
+            td(money0(r.avg_bill)) + td(r1(r.margin_pct) + "%") + "</tr>").join("") +
+          (DE.zip_home ? '<tr><td class="strong">' + esc(SIS.plan_company || "Zip to Zip") +
+             '</td><td>Pennsylvania<small>at home</small></td><td class="num">' + fmtN(DE.zip_home.jobs) +
+             '</td><td class="num">' + fmtN(DE.zip_home.foreman_days) + '</td><td class="num"><b>' +
+             r2(DE.zip_home.jobs_per_foreman_day) + '</b></td><td class="num">' +
+             r1(DE.zip_home.chained_day_share * 100) + '%</td><td class="num">—</td><td class="num">—</td></tr>' : "") +
+          "</tbody></table>";
+
+        const bands = (DE.bands || []);
+        const bandCos = bands.length ? Object.keys(bands[0]).filter(k => k !== "band") : [];
+        const bandTable = bands.length < 2 || bandCos.length < 2 ? "" :
+          '<table data-name="Delaware margin by ticket band" class="rs-table ap2-next" style="margin:4px 0 10px;max-width:820px"><thead><tr>' +
+          th("Job size", "") + bandCos.map(c => th(esc(c) + " margin")).join("") + "</tr></thead><tbody>" +
+          bands.map(b => "<tr>" + td("<b>" + esc(b.band) + "</b>", "strong") +
+            bandCos.map(c => td(b[c] ? r1(b[c].margin_pct) + "%<small>" + fmtN(b[c].jobs) + " jobs</small>" : "—")).join("") +
+            "</tr>").join("") + "</tbody></table>";
+
+        const zd = DE.zip_de || {}, td_ = DE.tuji_de || {}, hm = DE.zip_home || {};
+        const lift = (zd.jobs_per_foreman_day && td_.jobs_per_foreman_day)
+          ? (td_.jobs_per_foreman_day / zd.jobs_per_foreman_day - 1) * 100 : null;
+
+        return '<div class="ap2-say" style="margin-top:0">These numbers are <b>Tuji\'s, not the plan\'s</b>. ' +
+            'Every crew, salesperson and marketing dollar on this page is <b>' + esc(SIS.plan_company || "Zip to Zip") +
+            '\'s</b>, because the sister companies hire, sell and advertise for themselves — folding them in would ' +
+            'have the plan hiring people we do not pay. Nothing below is added to any total on this page.</div>' +
+          '<table data-name="The sister companies" class="rs-table ap2-next" style="margin:4px 0 14px"><thead><tr>' +
+            th("Company", "") + th(yr + " jobs") + th("Crews at peak") + th("Where it works", "") +
+            th("Avg bill") + th("Margin") + th("Jobs a foreman-day") + "</tr></thead><tbody>" +
+            cos.map(coRow).join("") + "</tbody></table>" +
+          (T ? note("<b>Tuji is Delaware.</b> " + fmtN((T.states.find(x => x.st === "DE") || {}).jobs) +
+                 " of its " + fmtN(T.jobs) + " jobs since 2024 — " +
+                 pctOf((T.states.find(x => x.st === "DE") || {}).jobs || 0, T.jobs) + "% — are Delaware jobs, and in " + yr +
+                 " the two companies split the state almost in half. So the plan does not have a Delaware hole; " +
+                 "it has a Delaware <b>half</b>, and the other half is run by a crew this page does not count." +
+                 (summer != null ? " Tuji also has <b>no season</b>. Four months out of twelve is " +
+                   r1(SIS.flat_year_share || 33.3) + "% of a year, and May–August is <b>" + r1(summer) +
+                   "%</b> of Tuji's" + (planSummer != null ? " against <b>" + r1(planSummer) + "%</b> of " +
+                   esc(SIS.plan_company || "Zip to Zip") + "'s" : "") + ". Its crews are as busy in December " +
+                   "as in July, so they are not a summer reserve — they cannot flex into our peak, and a " +
+                   "Delaware crew of our own would have to be hired for it." : "")) : "") +
+          '<div class="ap2-band" style="margin-top:14px;border-top:0;padding-top:0"><span class="k">The Delaware question</span>' +
+            "<h2>Based there, or shipped in from Pennsylvania</h2>" +
+            '<span class="clock">2024 to date · the one state two companies work from different bases</span></div>' +
+          '<div class="ap2-say">His reason for wanting a Delaware or Virginia crew, 2026-09-20: <i>"we cover DE\'s jobs from PA ' +
+            'currently, like we ship the crew from PA."</i> Because Tuji is based in Delaware and Zip to Zip drives in ' +
+            'from the PA depot, the state holds everything else constant — same customers, same season, same job types.</div>' +
+          deTable +
+          (lift != null ? note("<b>The crew that sleeps in Delaware gets " + r1(lift) + "% more out of a day.</b> " +
+            "A crew shipped from Pennsylvania chains a second job on <b>" + r1(zd.chained_day_share * 100) +
+            "%</b> of its Delaware days; the crew based there chains on <b>" + r1(td_.chained_day_share * 100) +
+            "%</b>" + (hm.chained_day_share ? ", and the same Zip crews chain <b>" + r1(hm.chained_day_share * 100) +
+            "%</b> of their days at home in Pennsylvania" : "") + ". The drive does not eat the job — it eats the " +
+            "<b>second</b> job, and foreman-days are the scarce unit this whole page is sized on. " +
+            go("apFormula", "The formula, and why a foreman-day is not one job")) : "") +
+          (bandTable ? '<div class="ap2-say" style="margin-top:10px"><b>What it does not cost is margin, and the page will not claim it does.</b> ' +
+            'Tuji earns more per dollar in Delaware than Zip to Zip does — but it earns more in <b>every</b> job size, ' +
+            'including the small ones where a drive cannot matter, so that gap is Tuji\'s cost base rather than the distance. ' +
+            'And Zip to Zip\'s own Delaware margin <b>beats</b> its Pennsylvania and New Jersey margin in every band. ' +
+            'The case for a Delaware crew is the foreman-day, not the P&amp;L line.</div>' + bandTable : "");
+      }
+
+      /* ===================== THE MAP — TIER, BUDGET, AND WHO CAN REACH IT =====================
+         Giga, 2026-09-20: the colour is the county's TIER; the tooltip carries the marketing
+         BUDGET for that county and the MAX JOBS PER DAY it can take. His own Power BI already
+         scored cities this way (City Target Score); the score is rebuilt on county aggregates in
+         mart_area_county, with his four measurement bugs corrected -- see the mart's comment.
+
+         THREE COLOURS, NOT FIVE. A five-tier assignment survives year to year only 33-40% of the
+         time against 52-55% for three: tier bands 2-4 points wide cannot hold against a booking
+         rate whose standard error is 7.6 points under 50 leads. T1/T2 = push, T3 = hold,
+         T4/T5 = fix, plus grey for not-rated and a ring for no-crew-in-range. */
+      let MAP_OUTSIDE = null;          // counties the mart holds that this map deliberately omits
+      const TIER_BAND = t => (t === 0 ? "grey" : t <= 2 ? "push" : t === 3 ? "hold" : "fix");
+      const TIER_LABEL = { push: "Push", hold: "Hold", fix: "Fix", grey: "Not rated" };
+      /* the company's MEASURED jobs-a-foreman-day, chaining included (see CHAIN below);
+         1.24 only as a floor if the model has no chaining block yet */
+      function ensureLeaflet(cb) {
+        if (window.L && window.L.map) { cb(); return; }
+        if (!document.getElementById("apLeafCss")) {
+          const lc = document.createElement("link");
+          lc.id = "apLeafCss"; lc.rel = "stylesheet"; lc.href = "assets/vendor/leaflet/leaflet.css";
+          document.head.appendChild(lc);
+        }
+        let sc = document.getElementById("apLeafJs");
+        if (sc) { sc.addEventListener("load", () => cb()); return; }
+        sc = document.createElement("script");
+        sc.id = "apLeafJs"; sc.src = "assets/vendor/leaflet/leaflet.js";
+        sc.onload = () => cb();
+        document.head.appendChild(sc);
+      }
+      const tok = n => (getComputedStyle(document.body).getPropertyValue(n) || "").trim() || "#888";
+
+      /* every county, with the three things the tooltip says. The budget follows LEADS: a county
+         takes its share of its own state's planned marketing, which is how the state number was
+         derived in the first place. No ad dollar carries geography, so this is a planned share. */
+      function countyRowsFor() {
+        if (!COUNTY.length) return [];
+        const N = FC.year ? nextCalc() : null;
+        const stBudget = {}, stLeads = {};
+        if (N) N.rows.forEach(r => { const cpl = N.mkt.cplOf(r.st);
+          stBudget[r.st] = cpl != null ? r.leads * cpl : null; });
+        COUNTY.forEach(c => { stLeads[c.State] = (stLeads[c.State] || 0) + num(c.Leads); });
+        const fleet = num((COUNTY[0] || {})["Foremen Company"]) || 0;
+        const planFm = N ? N.tot.peak : fleet;
+        const outside = COUNTY.filter(c => !SERVICE_AREAS.includes(c.State));
+        MAP_OUTSIDE = { counties: outside.length,
+                        leads: outside.reduce((a, c) => a + num(c.Leads), 0) };
+        return COUNTY.filter(c => SERVICE_AREAS.includes(c.State)).map(c => {
+          const share = stLeads[c.State] ? num(c.Leads) / stLeads[c.State] : 0;
+          const b = stBudget[c.State];
+          const jpd = chainOf(c.State);      // chaining is local: CT 1.30 vs DE 1.06
+          const ceil = num(c["Foremen Within 60mi"]) * jpd;
+          const fair = num(c["Capacity Share"]) * planFm * jpd;
+          return { st: c.State, county: c.County, la: num(c.Latitude), lo: num(c.Longitude),
+                   leads: num(c.Leads), jobs: num(c.Jobs), book: num(c["Booking Rate"]),
+                   mi: num(c["Miles To Base"]), score: c.Score == null ? null : num(c.Score),
+                   tier: num(c.Tier), band: TIER_BAND(num(c.Tier)),
+                   budget: b != null ? b * share : null, share,
+                   fm60: num(c["Foremen Within 60mi"]), ceil, fair,
+                   uncovered: num(c.Uncovered) === 1 };
+        }).filter(r => r.la && r.lo);
+      }
+
+      function mapHtml() {
+        if (!COUNTY.length) return '<div class="panel">The county mart (mart_area_county) is not ' +
+          'built yet — run <b>sources=mart_area_county</b> and reload.</div>';
+        const R = countyRowsFor();
+        const byBand = {}; R.forEach(r => { byBand[r.band] = (byBand[r.band] || 0) + 1; });
+        const unc = R.filter(r => r.uncovered);
+        const key = ["push", "hold", "fix", "grey"].map(b =>
+          '<span class="ap2-mk"><i class="ap2-sw ' + b + '"></i>' + TIER_LABEL[b] +
+          ' <b>' + (byBand[b] || 0) + '</b></span>').join("");
+        return '<div class="ap2-mapkey">' + key +
+          '<span class="ap2-mk"><i class="ap2-sw unc"></i>no crew within 60 mi <b>' + unc.length + "</b></span>" +
+          '<span class="sp"></span><span class="ap2-note" style="margin:0">circle size = leads</span></div>' +
+          '<div id="apMapBox" class="ap2-mapbox"></div>' +
+          note("Colour is the county's tier, scored on distance to a base, booking rate, ticket and cubic feet — " +
+               "his Power BI model, rebuilt on county totals. A county under 30 leads is <b>not rated</b> rather than " +
+               "called bad. Click a county to focus the page on its state. " +
+               "The dashed <b>no crew within 60 mi</b> ring is drawn off <b>" + esc(SIS.plan_company || "Zip to Zip") +
+               "</b>'s register: Delaware rings empty although Tuji works it, because Tuji's crews are not ours to send. " +
+               (MAP_OUTSIDE && MAP_OUTSIDE.counties
+                 ? "<b>" + fmtN(MAP_OUTSIDE.counties) + "</b> further counties outside the eight states (" +
+                   fmtN(MAP_OUTSIDE.leads) + " leads, nearly all long-distance pickups) are in the data and left off this map. "
+                 : "") +
+               go("apMethod", "How this is calculated"));
+      }
+
+      /* Size and frame the map against the container it actually has. Safe to call at any time:
+         it does nothing until the box has been laid out, so the first real call is the pane show. */
+      function fitMap() {
+        const box = host.querySelector("#apMapBox");
+        if (!box || !box._map || !box.clientWidth || !box.clientHeight) return;
+        box._map.invalidateSize();
+        if (box._fit && box._fit.length) box._map.fitBounds(box._fit, { padding: [26, 26] });
+      }
+
+      function wireMap() {
+        const box = host.querySelector("#apMapBox"); if (!box || box._ap) return;
+        box._ap = 1;
+        ensureLeaflet(() => {
+          const R = countyRowsFor(); if (!R.length) return;
+          const m = L.map(box, { scrollWheelZoom: false, zoomSnap: 0.5, attributionControl: false });
+          /* CARTO NOW KEYS EVERY BASEMAP (2026-09-20) — voyager, light_all and dark_all all come
+             back stamped "API KEY REQUIRED" across the tile. OpenStreetMap's own tiles need no key.
+             They are busier than a data map wants, so the layer is dimmed and, in the dark theme,
+             inverted: the ground goes quiet and the circles carry the meaning.
+             cleanup.js and ld-planning.js were moved off voyager the same day. */
+          const darkMap = !document.body.classList.contains("light");
+          const tiles = L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+                                    { maxZoom: 12, opacity: darkMap ? 1 : .62 });
+          tiles.addTo(m);
+          if (tiles.getContainer()) tiles.getContainer().style.filter = darkMap
+            ? "grayscale(1) invert(1) brightness(.82) contrast(.9)" : "grayscale(.55)";
+          const col = { push: tok("--pos") || "#5f7c20", hold: tok("--warn") || "#b97b0a",
+                        fix: tok("--neg") || "#d43d55", grey: tok("--faint") || "#8a97a6" };
+          const maxLeads = Math.max(1, ...R.map(r => r.leads));
+          const pts = [];
+          R.forEach(r => {
+            const rad = 7 + 20 * Math.sqrt(r.leads / maxLeads);
+            const c = L.circleMarker([r.la, r.lo], {
+              radius: rad, color: r.uncovered ? col.fix : col[r.band],
+              weight: r.uncovered ? 3 : 1.5, dashArray: r.uncovered ? "4 3" : null,
+              fillColor: col[r.band], fillOpacity: r.band === "grey" ? .18 : .45 });
+            c.bindTooltip(
+              '<div class="ap2-tip"><b>' + esc(r.county) + " " + esc(r.st) + "</b>" +
+              '<div class="t">' + (r.tier ? "Tier " + r.tier + " · " + TIER_LABEL[r.band] : "Not rated") +
+                (r.score != null ? " · score " + r1(r.score) : "") + "</div>" +
+              "<div>" + fmtN(r.leads) + " leads · " + r1(r.book) + "% booked · " + fmtN(r.jobs) + " jobs</div>" +
+              "<div>" + r1(r.mi) + " mi to the nearest base</div>" +
+              (r.budget != null ? '<div class="b">Marketing ' + money0(r.budget) + "<small> — " +
+                 r1(r.share * 100) + "% of the state's leads</small></div>" : "") +
+              '<div class="c">Max ' + r1(r.ceil) + " jobs/day if every crew in range came here" +
+                "<small> — " + r.fm60 + " foremen within 60 mi, shared with its neighbours</small></div>" +
+              '<div class="c">Fair share ' + r1(r.fair) + " jobs/day at today's dispatch pattern</div>" +
+              (r.uncovered ? '<div class="w">No foreman is based within 60 miles of here</div>' : "") +
+              "</div>", { sticky: true, className: "ap2-tipwrap" });
+            c.on("click", () => setFocus(r.st));
+            c.addTo(m); pts.push([r.la, r.lo]);
+          });
+          const ranked = R.slice().sort((a, b) => b.leads - a.leads);
+          const wanted = ranked.reduce((a, r) => a + r.leads, 0) * 0.97;
+          const fit = [];
+          let acc = 0;
+          for (const r of ranked) { if (acc >= wanted) break; acc += r.leads; fit.push([r.la, r.lo]); }
+          box._fit = fit.length ? fit : pts;
+          box._map = m;
+          fitMap();                       // a no-op while the pane is hidden; showPane calls it again
+        });
+      }
+
       /* ===================== THE QUESTIONS, ANSWERED =====================
          His ask 2026-09-18: "i need the TOP of that seasonal planning to be the questions -
          and answers - and below to have the logic of how we got to this numbers." The nine
@@ -1644,7 +2549,10 @@ registerPage({
                 "</td><td class=\"num\"><b>" + x.reps + "</b></td><td class=\"num\">" +
                 (S.active && x.reps > S.active ? '<span class="ap2-hire">+' + (x.reps - S.active) + "</span>" : '<span class="ap2-ok">ok</span>') + "</td></tr>").join("") +
               "</tbody></table>" +
-              '<div class="dx">Leads land about ' + (FC.lead_lag_months || 1) + " month before the move, so the desk peaks ahead of the crews. Sized at <b>" + fmtN(S.lpr) + "</b> leads per salesperson a month. One desk, not a team per state.</div>" + go("apFullSales", "The desk month by month") + "</div>" +
+              '<div class="dx">Leads land about ' + (FC.lead_lag_months || 1) + " month before the move, so the desk peaks ahead of the crews. Sized at <b>" + fmtN(S.lpr) + "</b> leads per salesperson a month, counted on <b>every lead marketing buys</b>" +
+              (() => { const d = deadRate(N.mkt.coreLeadYms); return d
+                ? " — " + r1(d.pct) + "% of which were dead on arrival last season (" + fmtN(d.dead) + " of " + fmtN(d.leads) + "). That share tripled in 2026, so it is tracked beside the load, never inside it" : ""; })() +
+              ".</div>" + go("apFullSales", "The desk month by month") + "</div>" +
             '<div class="ap2-d"><div class="dq">What is the marketing budget?</div><div class="dh"><b>' + money0(mktTot) + "</b> for " + fmtN(N.tot.leads) + " leads" +
               (lastS ? " · " + (mktTot >= lastS.spend ? "+" : "") + Math.round((mktTot / lastS.spend - 1) * 100) + "% on " + lastS.y + "'s " + money0(lastS.spend) : "") + "</div>" +
               '<table class="ap2-dt"><thead><tr><th>State</th><th class="num">Leads</th><th class="num">$ / lead</th><th class="num">Budget</th></tr></thead><tbody>' + mktLines + "</tbody></table>" +
@@ -1698,7 +2606,7 @@ registerPage({
         const salesT = '<table data-name="The sales desk by month" class="rs-table ap2-next"><thead><tr>' + th("Leads worked for", "") + S.desk.map(x => th(esc(x.when.slice(0, 3)) + "<small> → " + mL(x.forYm) + " jobs</small>", "num" + (x.shoulder ? " ap2-sh" : ""))).join("") + th("Season leads") + th("Share of the desk") + "</tr></thead><tbody>" +
           N.rows.filter(r => r.leads).map(r => "<tr>" + td("<b>" + esc(r.st) + "</b>", "strong") + S.desk.map(x => '<td class="num' + (x.shoulder ? " ap2-sh" : "") + '">' + (stLeads(r, x.forYm) ? fmtN(stLeads(r, x.forYm)) : dim) + "</td>").join("") +
             td(fmtN(r.leads)) + td(N.tot.leads ? pct(r.leads / N.tot.leads) : "—") + "</tr>").join("") +
-          '<tr class="ap2-tot">' + td("<b>All leads</b>", "strong") + S.desk.map(x => td("<b>" + fmtN(x.leads) + "</b>")).join("") + td("<b>" + fmtN(N.tot.leads) + "</b>") + td("100%") + "</tr>" +
+          '<tr class="ap2-tot">' + td("<b>All leads</b>", "strong") + S.desk.map(x => td("<b>" + fmtN(x.leads) + "</b>", "num" + (x.shoulder ? " ap2-sh" : ""))).join("") + td("<b>" + fmtN(N.tot.leads) + "</b>") + td("100%") + "</tr>" +
           '<tr class="ap2-pool">' + td("<b>Salespeople needed</b>", "strong") + S.desk.map(x => '<td class="num' + (x.shoulder ? " ap2-sh" : "") + '"><b>' + x.reps + "</b></td>").join("") + td("<b>peak " + S.peak + "</b>") + td(fmtN(S.lpr) + " / rep") + "</tr></tbody></table>";
         // ---- marketing: leads to buy and dollars, by state and the month the money is spent
         const cplOf = r => N.mkt.cplOf(r.st);
@@ -1710,9 +2618,8 @@ registerPage({
               td(mk != null ? "<b>" + money0(mk) + "</b>" : "—") + td(pcCost ? '<span class="ap2-dim">' + money0(pcCost) + "</span>" : dim) + "</tr>"; }).join("") +
           (() => { const rowsL = N.rows.filter(r => r.leads), tot = ym => rowsL.reduce((a, r) => a + (cplOf(r) != null ? stLeads(r, ym) * cplOf(r) : 0), 0);
             const mkAll = rowsL.reduce((a, r) => a + (cplOf(r) != null ? r.leads * cplOf(r) : 0), 0), pcAll = rowsL.reduce((a, r) => { const pc = PC[r.st]; return a + (pc && pc.cards && !pc.unknown ? pc.cost : 0); }, 0);
-            return '<tr class="ap2-tot">' + td("<b>All states</b>", "strong") + td(N.tot.leads && mkAll ? "$" + r1(mkAll / N.tot.leads) : "") + S.desk.map(x => td("<b>" + money0(tot(x.forYm)) + "</b>")).join("") + td("<b>" + fmtN(N.tot.leads) + "</b>") + td(N.tot.jobs ? r1(N.tot.leads / N.tot.jobs) : "") + td("<b>" + money0(mkAll) + "</b>") + td('<span class="ap2-dim">' + money0(pcAll) + "</span>") + "</tr>"; })() +
+            return '<tr class="ap2-tot">' + td("<b>All states</b>", "strong") + td(N.tot.leads && mkAll ? "$" + r1(mkAll / N.tot.leads) : "") + S.desk.map(x => td("<b>" + money0(tot(x.forYm)) + "</b>", "num" + (x.shoulder ? " ap2-sh" : ""))).join("") + td("<b>" + fmtN(N.tot.leads) + "</b>") + td(N.tot.jobs ? r1(N.tot.leads / N.tot.jobs) : "") + td("<b>" + money0(mkAll) + "</b>") + td('<span class="ap2-dim">' + money0(pcAll) + "</span>") + "</tr>"; })() +
           "</tbody></table>";
-        const note = t => '<div class="ap2-note" style="margin:6px 0 8px">' + t + "</div>";
         return '<div id="apFull">' +
           '<h3 class="ap2-sech" id="apFullCrew">1 · Crews — where, and how many</h3>' +
           note("Foremen per state and month. The shaded pool rows are what you hire against; the states add up to them. Each foreman carries " + (N.crew.helpers || 0) + " helper, " + (N.crew.drivers || 0) + " driver and " + (N.crew.trucks || 0) + " truck. <b>Have</b> is typed on the " + goLink("apBase", "foreman table") + ". " + go("apMethod", "How this is calculated")) +
@@ -1829,7 +2736,10 @@ registerPage({
               const gap = ks.filter(k => byBase[k].can === 0);
               return "Counted for <b>" + fmtN(fmAtBase) + "</b> cities, on both bases the crew sheet keeps: " +
                 ks.map(k => "<b>" + esc(k) + "</b> " + byBase[k].based + " based, " + byBase[k].can + " may work").join(" · ") + ". " +
-                (gap.length ? "<b>" + gap.map(esc).join(", ") + "</b> has nobody permitted to work there at all — a real gap, not a reporting one."
+                (gap.length ? "<b>" + gap.map(esc).join(", ") + "</b> has nobody permitted to work there at all. " +
+                     "That is a real gap in <b>" + esc(SIS.plan_company || "Zip to Zip") + "</b>'s register and not a reporting one — " +
+                     "but it is not a gap in the business: Tuji works Delaware and ran it half-and-half with us this year. " +
+                     "What a crew of our own there would buy is the second job of the day, not the first. " + goLink("apSister", "Beside the plan")
                             : "Every base has somebody permitted to work it."); })(),
             go: "apBase" },
           { n: 9, q: "The areas inside our territory where we have done nothing",
@@ -2067,15 +2977,25 @@ registerPage({
             '<div id="apDecide">' + decisionsHtml() + "</div>" +
             asksHtml().replace('style="margin-top:6px;border-top:0;padding-top:0"', "")) +
           pane("plan", "Crews, the sales desk and the marketing budget: every state, every month. Season " + esc(String(FC.year || "")) + " — the period picker on <b>Capacity check</b> does not move these numbers.",
+            card("The formula", "X foremen at a location — how many salespeople and what marketing budget",
+                 "The arithmetic behind every number on this page, with each coefficient measured over the last three seasons.",
+                 '<div id="apFormula">' + formulaHtml() + "</div>") +
             card("The full plan — " + (FC.year || "next season"), "Crews by state, the sales desk by month, leads and marketing budget by state",
                "The three decisions, opened out: every state, every month.",
                fullPlanHtml()) +
+          card("Beside the plan", "Tuji and the sister companies — their own crews, their own money, and the Delaware question",
+               "Kept apart from every total on this page, because they hire and advertise for themselves. Delaware is where they change the reading.",
+               sisterHtml(), "apSister") +
           card("The jobs forecast — " + (FC.year || "the coming one"), "Jobs by state and month, and the method behind them",
                "Where the season's work is forecast to fall. The crew, the desk and the budget above are all sized from these jobs — change the method here and they follow.",
                '<div id="apNext" style="overflow-x:auto">' + nextHtml() + "</div>") +
           card("Season budget — " + (FC.year || "the coming one"), "Revenue, the job and truck cost, and marketing (post cards inside it), per state",
                "The whole season in one table: what the jobs bring, what they cost to run, what the leads cost to buy. Net is before overhead.",
                '<div id="apBudget" style="overflow-x:auto">' + budgetHtml() + "</div>")) +
+          pane("map", "Every county we have leads in, coloured by its tier. The tooltip carries that county's marketing budget and how many jobs a day the crews within reach could run.",
+            card("The map — " + (FC.year || "next season"), "County tier, marketing budget, and the crew that can reach it",
+                 "Colour answers <b>where to target</b>; the tooltip answers <b>what it costs</b> and <b>who can serve it</b>.",
+                 '<div id="apMap">' + mapHtml() + "</div>")) +
           pane("cities", "Which cities produce the work, this year to date, all companies — this pane does not follow the period picker. Click a state anywhere to focus the page on it.",
             '<div id="apBandB">' + bandBHtml() + "</div>" +
             card("Push or cut — the opportunity rank", "Cities scored on return per ad dollar, movers, wealth and untapped leads — weights are yours",
@@ -2173,7 +3093,7 @@ registerPage({
         const un = host.querySelector("[data-unfocus]"); if (un) un.onclick = ev => { ev.preventDefault(); inputs.focus = ""; setFocus(""); };
       }
       function wire() {
-        wireControls(); wireFocus(); mountCityBar(); repaintCity(); wireWs(); wireMethod(); wireRank(); wireDepot(); wireAsks(); wireKw(); enhanceTables();
+        wireControls(); wireFocus(); mountCityBar(); repaintCity(); wireWs(); wireMethod(); wireRank(); wireDepot(); wireAsks(); wireKw(); enhanceTables(); wireMap();
         // last, because paint() re-runs on every period, seed and focus change and must not drop the reader
         wireTabs(); wirePdf(); showPane(bootTab || inputs.tab, true); bootTab = null;
       }

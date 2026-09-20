@@ -823,11 +823,18 @@ registerPage({
           var m = box._m;
           if (!m) {
             m = L.map(box, { scrollWheelZoom: false, zoomSnap: 0.5 });
-            var light = document.body.classList.contains("light");
-            L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/"
-              + (light ? "voyager" : "dark_all") + "/{z}/{x}/{y}{r}.png",
-              { maxZoom: 18, subdomains: "abcd",
-                attribution: "© OpenStreetMap · © CARTO" }).addTo(m);
+          /* CARTO NOW KEYS EVERY BASEMAP (2026-09-20) -- voyager, light_all and dark_all all come
+             back with "API KEY REQUIRED" stamped across the tile. OpenStreetMap's own tiles need
+             no key; they are busier than a data map wants, so the layer is dimmed and, in the dark
+             theme, inverted, which puts the ground back behind the data. Same treatment as the
+             county map on Seasonal Planning (area-plan.js). */
+            var darkMap = !document.body.classList.contains("light");
+            var tiles = L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+              { maxZoom: 18, opacity: darkMap ? 1 : .62,
+                attribution: "© OpenStreetMap" });
+            tiles.addTo(m);
+            if (tiles.getContainer()) tiles.getContainer().style.filter = darkMap
+              ? "grayscale(1) invert(1) brightness(.82) contrast(.9)" : "grayscale(.55)";
             box._m = m; box._lay = [];
           }
           (box._lay || []).forEach(function (l) { try { m.removeLayer(l); } catch (e) {} });

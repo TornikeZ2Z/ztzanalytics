@@ -141,6 +141,17 @@ registerPage({
           row("Owned trucks working", "in the season", inp("owned_trucks_working", V.owned_trucks_working, String((FC.trucks || {}).owned_working || "measured")), "measured last season: <b>" + ((FC.trucks || {}).owned_working != null ? (FC.trucks || {}).owned_working : "—") + "</b> (fleet working, Truck Economics)") +
           row("Depot candidates", "zips, comma-separated", '<input class="ssv-in' + (V.depot_candidates ? " set" : "") + '" data-key="depot_candidates" data-text="1" type="text" placeholder="19103, 07041" value="' + esc(V.depot_candidates || "") + '" style="width:150px">',
               "presets: Philadelphia 19103, Millburn 07041, Hartford 06103 — these are added to them") +
+          /* THE MAP'S TIER CUT-POINTS (2026-09-20). Giga scored cities in his own Power BI and kept
+             the score-to-tier thresholds in a table that is not saved inside the .pbix, so ours are
+             derived from our own distribution. His call: make them editable rather than guess, so he
+             can dial the map until T1 means what he means. Blank = our measured defaults. */
+          row("Map tier cut — T1 at or above", "score 0–100", inp("tier_cut_1", V.tier_cut_1, "72"),
+              "today: <b>15 counties</b>, 44% of leads") +
+          row("T2 at or above", "", inp("tier_cut_2", V.tier_cut_2, "64"), "today: 12 counties") +
+          row("T3 at or above", "", inp("tier_cut_3", V.tier_cut_3, "56"), "today: 12 counties") +
+          row("T4 at or above", "", inp("tier_cut_4", V.tier_cut_4, "45"), "below this is T5; today 9 and 5") +
+          row("Not rated below", "leads in the county", inp("tier_min_leads", V.tier_min_leads, "30"),
+              "a county under this is grey, never a bad tier — we have not measured it") +
           row("Rental $ per truck-day", "", inp("rental_per_day", V.rental_per_day, "measured"), "measured last season: <b>" + ((FC.trucks || {}).rental_per_day != null ? "$" + (FC.trucks || {}).rental_per_day : "—") + "</b> (" + esc(String((FC.trucks || {}).rental_days_last_season || 0)) + " rental truck-days)") +
           '<div class="rs-tablewrap" style="margin-top:8px"><table class="rs-table"><thead><tr><th>State</th><th class="num">Season jobs, year before</th><th class="num">Last season</th><th class="num">Measured growth</th><th class="num">Growth override, %</th></tr></thead><tbody>' +
           states.filter(st => (FC.states || {})[st]).map(st => { const f = FC.states[st]; return '<tr><td class="strong">' + esc(st) + '</td><td class="num">' + (f.season_jobs_prior || "—") + '</td><td class="num">' + (f.season_jobs_last || "—") + '</td><td class="num">' + (f.growth_source === "measured" ? (f.growth >= 0 ? "+" : "") + Math.round(f.growth * 100) + "%" : "—") + '</td><td class="num">' + inp("growth_pct." + st, (V.growth_pct || {})[st], "measured") + "</td></tr>"; }).join("") +
