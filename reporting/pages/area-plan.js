@@ -44,7 +44,8 @@
       table: "mart_area_master",
       cols: ["State", "City", "County", "Leads", "Booked", "Booking Rate", "Leads 90d",
              "Jobs", "Revenue", "Avg Ticket", "Revenue Per Lead", "Avg Quote", "Avg CF",
-             "Nearest Base", "Miles To Base", "Foremen At Base", "Crew At Base", "Untapped",
+             "Nearest Base", "Miles To Base", "Foremen At Base", "Crew At Base",
+             "Foremen Can Work", "Crew Can Work", "Untapped",
              "Claims", "Claims Per 100 Jobs", "Claim Refunds", "Claims Gone Public",
              "Top Claim Reason", "Ad Spend", "Ad Sources", "Search Volume", "Wealth Tier",
              "Latitude", "Longitude", "Foremen From", "Leads No Jobs", "Lead Source Mix", "Est Ad Cost",
@@ -797,7 +798,10 @@ registerPage({
         const leads = T("Leads"), booked = T("Booked"), jobs = T("Jobs"), rev = T("Revenue");
         const untapped = rs.filter(r => lnj(r) === 1);
         const untappedLeads = untapped.reduce((a, r) => a + (num(r.Leads) || 0), 0);
-        const noCrew = rs.filter(r => (num(r["Foremen At Base"]) || 0) === 0);
+        /* NOBODY WHO MAY WORK THERE (2026-09-20) — not merely nobody based there. Five of the six
+           depots have no foreman living at them; what matters is whether anyone is allowed to be
+           sent. Delaware is the real gap: 0 based AND 0 permitted, against 100 forecast jobs. */
+        const noCrew = rs.filter(r => (num(r["Foremen Can Work"]) || 0) === 0);
         const noCrewLeads = noCrew.reduce((a, r) => a + (num(r.Leads) || 0), 0);
         const yr = new Date().getFullYear();
         // the coverage line: how much of the state's year-to-date leads the city rows carry
@@ -988,7 +992,7 @@ registerPage({
           th("Leads", "Leads", "num") + th("90d", "Leads 90d", "num") + th("Booked", "Booked", "num") + th("Book %", "Booking Rate", "num") +
           th("Jobs", "Jobs", "num") + th("Revenue", "Revenue", "num") + th("$/lead", "Revenue Per Lead", "num") +
           th("Ticket", "Avg Ticket", "num") + th("Quote", "Avg Quote", "num") + th("CF", "Avg CF", "num") +
-          th("Base", "Nearest Base") + th("Miles", "Miles To Base", "num") + th("Foremen / crew", "Foremen At Base", "num") +
+          th("Base", "Nearest Base") + th("Miles", "Miles To Base", "num") + th('Foremen<small> based / can work</small>', "Foremen At Base", "num") +
           th("Claims", "Claims", "num") + th("% of jobs", "Claims Per 100 Jobs", "num") +
           "</tr></thead><tbody>" + pageRows.map(r => '<tr>' +
             '<td class="strong">' + esc(r.City) + (lnj(r) === 1 ? ' <span class="rs-pill warn">no jobs</span>' : "") + "</td>" +
@@ -1001,7 +1005,7 @@ registerPage({
             '<td class="num">' + (r["Avg CF"] ? fmtN(num(r["Avg CF"])) : '<span class="ap2-small">—</span>') + "</td>" +
             "<td>" + esc(r["Nearest Base"] || "—") + "</td>" +
             '<td class="num">' + (r["Nearest Base"] ? r1(num(r["Miles To Base"])) : '<span class="ap2-small">—</span>') + "</td>" +
-            '<td class="num">' + ((num(r["Foremen At Base"]) || 0) || '<span class="ap2-small">0</span>') + ' <span class="ap2-small">/ ' + (num(r["Crew At Base"]) || 0) + "</span>" +
+            '<td class="num">' + ((num(r["Foremen At Base"]) || 0) || '<span class="ap2-small">0</span>') + ' <span class="ap2-small">/ ' + (num(r["Foremen Can Work"]) || 0) + "</span>" +
               (r["Foremen From"] && r["Foremen From"] !== r["Nearest Base"] ? ' <span class="ap2-small">· ' + esc(r["Foremen From"]) + "</span>" : "") + "</td>" +
             '<td class="num">' + ((num(r.Claims) || 0) || '<span class="ap2-small">—</span>') + "</td>" +
             '<td class="num">' + ((num(r.Claims) || 0) ? r1(num(r["Claims Per 100 Jobs"])) + "%" : '<span class="ap2-small">—</span>') + "</td></tr>").join("") +
@@ -1811,9 +1815,22 @@ registerPage({
                "Average <b>" + r1(baseMiles) + " miles</b> from a city to its nearest base, straight-line. Today the jobs run <b>" + (DEP.baseline ? r1(DEP.baseline.mi_per_job) + " miles per job" : "—") + "</b> from " + ((DEP.baseline || {}).bases || []).length + " bases" +
                (dep0 ? ", and a depot in <b>" + esc(dep0.label || dep0.zip) + "</b> would save <b>" + r1(dep0.saved_mi_per_job) + " miles a job</b>." : "."),
             go: "apDepot" },
-          { n: 8, q: "How many foremen sit at the nearest base",
-            st: fmAtBase ? ["p", "partly"] : ["n", "not yet"],
-            a: "Counted for <b>" + fmtN(fmAtBase) + "</b> cities. The crew sheet records a <b>state</b>, not a depot, so the NY, DE and MA bases borrow their state's foremen instead of holding their own. A Depot column on the crew sheet closes this for good.",
+          /* ANSWERED 2026-09-20. The crew sheet always held two bases — the one state a person is
+             based in, and the list of states they may be sent to — and only the first was carried
+             into the warehouse. The page then ran a borrowing map on top (NY from NJ, DE from PA,
+             MA from CT), which showed the same eighteen foremen as thirty-six. Both columns are now
+             read: based there, and allowed to work there. */
+          { n: 8, q: "How many foremen sit at the nearest base, and who can be sent there",
+            st: fmAtBase ? ["y", "answered"] : ["n", "not yet"],
+            a: (() => { const byBase = {};
+              cityRows.forEach(r => { const b = r["Nearest Base"]; if (!b || byBase[b]) return;
+                byBase[b] = { based: num(r["Foremen At Base"]) || 0, can: num(r["Foremen Can Work"]) || 0 }; });
+              const ks = Object.keys(byBase).sort((a, b) => byBase[b].can - byBase[a].can);
+              const gap = ks.filter(k => byBase[k].can === 0);
+              return "Counted for <b>" + fmtN(fmAtBase) + "</b> cities, on both bases the crew sheet keeps: " +
+                ks.map(k => "<b>" + esc(k) + "</b> " + byBase[k].based + " based, " + byBase[k].can + " may work").join(" · ") + ". " +
+                (gap.length ? "<b>" + gap.map(esc).join(", ") + "</b> has nobody permitted to work there at all — a real gap, not a reporting one."
+                            : "Every base has somebody permitted to work it."); })(),
             go: "apBase" },
           { n: 9, q: "The areas inside our territory where we have done nothing",
             st: wsAll ? ["y", "answered"] : ["n", "not yet"],
