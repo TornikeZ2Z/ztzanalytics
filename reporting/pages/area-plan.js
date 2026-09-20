@@ -1352,14 +1352,19 @@ registerPage({
           "</div>" +
 
           '<div class="ap2-grid">' +
-          '<div class="panel"><div class="panel-head"><div class="panel-title">Distance decides</div></div>' +
-            '<div class="ap2-say">Booking rate and revenue per lead by how far the city sits from its nearest base — the whole argument for where a base goes.</div>' +
+          '<div class="panel"><div class="panel-head"><div class="panel-title">Distance, and how much of it is really distance</div></div>' +
+            '<div class="ap2-say">Booking rate and revenue per lead by how far the city sits from its nearest base. The gap is real; <b>most of it is not the drive</b> — read the line under the ladder before using it to place a base.</div>' +
             lad.map(x => '<div class="ap2-lad"><span>' + esc(x.label) + '</span>' +
               '<span class="t"><i style="width:' + Math.max(3, (x.pct || 0) / maxPct * 100) + '%"></i></span>' +
               '<span class="v"><b>' + (x.pct == null ? "—" : x.pct.toFixed(1) + "%") + '</b> book</span>' +
               '<span class="v">' + money0(x.rpl) + " / lead</span></div>").join("") +
             '<div class="ap2-note" style="margin-top:8px">' + (lad.length >= 2 && lad[0].pct && lad[lad.length - 1].pct
-              ? "A city next to a base books <b>" + (lad[0].pct / lad[lad.length - 1].pct).toFixed(1) + "×</b> better than one at the far end, and earns <b>" + money0(lad[0].rpl) + "</b> per lead against <b>" + money0(lad[lad.length - 1].rpl) + "</b>."
+              ? "A city next to a base books <b>" + (lad[0].pct / lad[lad.length - 1].pct).toFixed(1) + "×</b> better than one at the far end, and earns <b>" + money0(lad[0].rpl) +
+                "</b> per lead against <b>" + money0(lad[lad.length - 1].rpl) + "</b>. <b>But that is mostly not the distance.</b> " +
+                "Near and far cities are fed by different lead sources, and the sources book differently wherever they land: hold source and job size fixed and the slope falls from " +
+                "<b>1.15</b> booking points per 10 miles to <b>0.15</b> — noise. Within any one source the rate is flat from 0 to 60 miles. " +
+                "South Jersey sits <b>38.5</b> miles from a base and books <b>17.37%</b>, against <b>17.29%</b> for the rest of New Jersey at <b>18.0</b> miles. " +
+                "<b>A nearer base does not win more work</b> — it buys a second job in the day. " + go("apSister", "What a nearer base actually buys")
               : "") + "</div></div>" +
 
           '<div class="panel"><div class="panel-head"><div class="panel-title">Where we convert badly</div></div>' +
