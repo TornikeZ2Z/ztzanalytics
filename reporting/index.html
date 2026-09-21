@@ -197,7 +197,7 @@ const GROUP_OVERRIDE = {
   // Logistics
   "log-foreman": "logistics", "log-packing": "logistics",
   // Financial
-  "fin-revenue": "financial", "fin-rr": "financial", "branch-owner": "financial", "cl-analysis": "financial", "postcard-purchases": "financial", "postcard-expenditure": "logistics", "money-flow": "logistics", "ld-planning": "logistics", "foreman-closings": "logistics",
+  "fin-revenue": "financial", "fin-rr": "financial", "branch-owner": "financial", "bo-salary": "financial", "cl-analysis": "financial", "postcard-purchases": "financial", "postcard-expenditure": "logistics", "money-flow": "logistics", "ld-planning": "logistics", "foreman-closings": "logistics",
   "packing-control": "logistics", "storage-control": "logistics", "fuel-control": "logistics",
   "crew-salaries": "logistics",
   "foreman-late": "logistics",
@@ -226,7 +226,7 @@ const NAV_ORDER = {
   "hr-directory": 1, "hr-questionnaire": 2, "hr-my-questionnaire": 3,
   "cleanup": 1,
   "straight-vs-local": 1, "area-plan": 2, "season-settings": 2.5, "truck-economics": 3,
-  "fin-revenue": 1, "fin-rr": 2, "sales-geo": 3, "branch-owner": 6, "cl-analysis": 6.5, "postcard-purchases": 6.7, "postcard-expenditure": 9.5,
+  "fin-revenue": 1, "fin-rr": 2, "sales-geo": 3, "branch-owner": 6, "bo-salary": 6.2, "cl-analysis": 6.5, "postcard-purchases": 6.7, "postcard-expenditure": 9.5,
   "rev-production": 1, "review-performance": 2, "reviews-cases": 2.5, "claims-analysis": 2.6, "response-analysis": 3, "reviews-reminders": 4, "review-settings": 5,
   "sup-claims": 1, "sup-refunds": 2, "sup-phone": 3,
   "data-quality": 2, "refresh-log": 1, "general-settings": 3, "general-tables": 4, "admin-users": 5,
@@ -278,7 +278,7 @@ const PAGE_ICONS = {
   "ads-analysis": "megaphone", "callrail": "phone", "forman": "tool",
   "packing": "box", "claims": "shield", "insights": "spark",
   "source-identification": "compass",
-  "branch-owner": "user", "cl-analysis": "trend", "postcard-purchases": "trend", "postcard-expenditure": "calendar", "customer-experience": "user",
+  "branch-owner": "user", "bo-salary": "trend", "cl-analysis": "trend", "postcard-purchases": "trend", "postcard-expenditure": "calendar", "customer-experience": "user",
   "money-flow": "dollar",
   "ld-planning": "truck",
   "packing-control": "box", "crew-salaries": "user",
@@ -680,6 +680,7 @@ const PAGE_DATASETS = {
   "packing-per-100cf": ["scorecard"],
   "claims": ["claims", "closing", "scorecard", "rollup"],
   "branch-owner": ["closing", "mart_branch_owner_jobs"],
+  "bo-salary": ["closing", "mart_branch_owner_jobs"],
   "postcard-purchases": [],     // Post Card Purchases (Financial): reads its marts + /api/_pcpurchase + /api/_pcstock directly
   "postcard-expenditure": [],   // Post Card Expenditure (Logistics): the weekly grid + /api/_pcweek, /api/_pcstock, /api/_pccount
   "cl-analysis": ["closing", "mart_cl_analysis"],
@@ -1056,6 +1057,7 @@ const NAV_TITLES = {
   "analysis-by-category": "Custom Breakdown",
   "insights": "Recommendations",
   "branch-owner": "Branch Owner",
+  "bo-salary": "Salary Analysis",
   "postcard-purchases": "Post Card Purchases",
   "postcard-expenditure": "Post Card Expenditure",
   "cl-analysis": "CL Analysis",
@@ -1122,6 +1124,7 @@ const SEARCH_ALIASES = {
   // Financial
   "fin-revenue": "revenue profit growth executive summary composition segments per job profitability p&l pnl profit and loss gross profit gross margin operational",
   "branch-owner": "branch owner giorgi kolbaia cut payout sales person financial ct",
+  "bo-salary": "salary analysis branch owner giorgi kolbaia share of bill alternative 35% crew break-even projection 2027 straight regular local",
   "postcard-purchases": "post card postcard purchases quantity unit cost cogs roi shelf stock lost financial",
   "postcard-expenditure": "post card postcard expenditure sent mailed week friday state logistics shelf count lost",
   "cl-analysis": "cl analysis peter montanaro partner deposit cut craigslist source jobs referral partner financial",
@@ -1607,6 +1610,7 @@ const REPORT_LABELS = {
   // Financial
   "fin-revenue": "Revenue & Profit",
   "branch-owner": "Branch Owner (Giorgi)",
+  "bo-salary": "Salary Analysis (branch owner)",
   "postcard-purchases": "Post Card Purchases",
   "postcard-expenditure": "Post Card Expenditure",
   "cl-analysis": "CL Analysis (Peter)",
@@ -1669,7 +1673,7 @@ const ACL_DEPTS = [
   // need NO grant at all — this tile is for HR: managing it and reading the results.
   { id: "hr",        label: "Human Resources", icon: "user",      reports: ["work", "erp-briefs","hr-questionnaire", "hr-responses", "hr-directory"] },
   { id: "customer-service", label: "Customer Service", icon: "calendar", reports: ["work", "erp-briefs","cleanup", "conversations", "claims-analysis"] },
-  { id: "financial", label: "Financial",        icon: "trend",     reports: ["work", "erp-briefs","branch-owner", "cl-analysis", "postcard-purchases"] },
+  { id: "financial", label: "Financial",        icon: "trend",     reports: ["work", "erp-briefs","branch-owner", "bo-salary", "cl-analysis", "postcard-purchases"] },
   { id: "reviews",   label: "Reviews",          icon: "star",      reports: ["work", "erp-briefs","review-performance", "reviews-cases", "claims-analysis", "reviews-reminders", "response-analysis", "review-settings"] },
   { id: "explorer",  label: "Data Explorer — the separate Data Management app", icon: "archive", reports: ["work", "erp-briefs","explorer"] },
 ];
@@ -1899,7 +1903,8 @@ registerPage({
 <script src="pages/calendar-coverage.js?v=8"></script>
 <script src="pages/request-consistency.js?v=4"></script>
 <script src="pages/cl-analysis.js?v=39"></script>
-<script src="pages/branch-owner.js?v=9"></script>
+<script src="pages/branch-owner.js?v=10"></script>
+<script src="pages/bo-salary.js?v=1"></script>
 <script src="pages/money-flow.js?v=56"></script>
 <script src="pages/ld-planning.js?v=83"></script>
 <script src="pages/cleanup.js?v=38"></script>

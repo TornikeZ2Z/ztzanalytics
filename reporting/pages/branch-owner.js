@@ -24,6 +24,7 @@ if (window.RS && RS.DATASETS && !RS.DATASETS.mart_branch_owner_jobs) {
   RS.DATASETS.mart_branch_owner_jobs = {
     table: "mart_branch_owner_jobs",
     cols: ["Unique Key", "Date", "Request Joinkey", "Customer", "Foreman", "Branch Owner", "Company",
+           "Moving Type",
            "Total Bill", "His Cut", "Sales Commission $", "Crew $", "Material $", "Packing Sold",
            "Rental Cost Est", "Owned Overhead Est", "Fuel Est", "Toll Est", "Car $", "Other Exp $",
            "Company Tip", "Discount Given", "Card Paid", "Card Base", "Refund $", "Has Contract", "Truck Ownership"],
@@ -31,14 +32,78 @@ if (window.RS && RS.DATASETS && !RS.DATASETS.mart_branch_owner_jobs) {
   };
 }
 
+/* ===================== THE BRANCH-OWNER COST MODEL, ONCE =====================
+   Two pages read it -- this one and Salary Analysis (bo-salary.js) -- and they must never be able
+   to disagree, so it lives here and nowhere else.
+
+   WHY THIS EXISTS (2026-09-22): the first share-of-bill build computed crew from the closing-based
+   pnl() further down this file, which came to 18.9% of the bill, while the "Where the money went"
+   card the user was actually looking at says crew is 22.5% -- it counts the foreman's packing
+   commission (`Material $`) as crew pay, because that is what it is. Two crew figures on one page,
+   and a break-even quoted off the wrong one. One model now.
+
+   MARKETING is 10% of the bill and OURS (his call 2026-09-21: "add 10% as Marketing Expenditure
+   right after Salespeople's commission") -- we buy the lead, he runs the job, so it never touches
+   his cut. It is the last line of the cost stack, exactly where he asked for it. */
+window.BO_ECON = (function () {
+  const MAT_COGS = 0.15, COST_UPLIFT = 1.10, CARD_FEE = 0.035, MKT_PCT = 0.10;
+  const num = v => (window.RS && RS.num ? RS.num(v) : +v) || 0;
+  const eS = (rs, f) => rs.reduce((a, r) => a + num(f(r)), 0);
+  const LINES = [
+    ["crew", "Crew", "foreman, driver and helpers, with the foreman's packing commission"],
+    ["materials", "Packing materials", "15% of the packing sold"],
+    ["truck", "Truck", "rental at $175 a job, or owned-truck insurance, parking and financing"],
+    ["fuel", "Fuel", "miles \u00f7 7 mpg \u00d7 the WEX diesel price, +10%"],
+    ["tolls", "Tolls", "our toll accounts spread over the miles that drive them, +10%"],
+    ["other", "Tips we paid, discounts and other job costs", "other costs +10%; tips and discounts as recorded"],
+    ["card", "Card processing", "3.5% of what customers paid by card"],
+    ["claims", "Claims refunded", "refunds paid on these jobs"],
+    ["sales", "Salespeople's commission", "the real salespeople on these jobs \u2014 not his cut"],
+    ["marketing", "Marketing expenditure", "10% of the bill \u2014 we buy the lead, he runs the job"],
+  ];
+  function walk(rs) {
+    const bill = eS(rs, r => r["Total Bill"]), his = eS(rs, r => r["His Cut"]);
+    const c = {
+      crew: eS(rs, r => r["Crew $"]) + eS(rs, r => r["Material $"]),
+      materials: MAT_COGS * eS(rs, r => r["Packing Sold"]),
+      truck: eS(rs, r => r["Rental Cost Est"]) + eS(rs, r => r["Owned Overhead Est"]),
+      fuel: COST_UPLIFT * eS(rs, r => r["Fuel Est"]),
+      tolls: COST_UPLIFT * eS(rs, r => r["Toll Est"]),
+      other: COST_UPLIFT * (eS(rs, r => r["Car $"]) + eS(rs, r => r["Other Exp $"])) + eS(rs, r => r["Company Tip"]) + eS(rs, r => r["Discount Given"]),
+      card: CARD_FEE * (eS(rs, r => r["Card Base"]) || eS(rs, r => r["Card Paid"])),
+      claims: eS(rs, r => r["Refund $"]),
+      sales: eS(rs, r => r["Sales Commission $"]),
+      marketing: MKT_PCT * bill,
+    };
+    const cost = Object.values(c).reduce((a, v) => a + v, 0);
+    return { n: rs.length, bill, his, c, cost, ours: bill - cost - his };
+  }
+  /* THE ALTERNATIVE: he takes `share` of the bill and the crew comes out of it. We stop paying
+     the crew and his cut, and still carry everything else. It is exactly zero-sum against today
+     -- his gain is our loss to the dollar -- which is the check that nothing is invented. */
+  /* a walk scaled by f: the money of a fraction of the same jobs, used when part of a job type
+     is priced at another share (his long hauls that are really Straight) */
+  function scaleW(W, f) {
+    const c = {}; Object.keys(W.c).forEach(k => { c[k] = W.c[k] * f; });
+    return { n: W.n * f, bill: W.bill * f, his: W.his * f, c, cost: W.cost * f, ours: W.ours * f };
+  }
+  function alt(rs, share) { return altW(walk(rs), share); }
+  function altW(W, share) {
+    const hisShare = share * W.bill, hisNet = hisShare - W.c.crew;
+    const oursCost = W.cost - W.c.crew, ours = W.bill - hisShare - oursCost;
+    return { W, share, hisShare, hisNet, oursCost, ours,
+             even: W.bill ? (W.his + W.c.crew) / W.bill : null,
+             hisDelta: hisNet - W.his, oursDelta: ours - W.ours };
+  }
+  return { MAT_COGS, COST_UPLIFT, CARD_FEE, MKT_PCT, LINES, eS, walk, alt, altW, scaleW };
+})();
+
 registerPage({
   id: "branch-owner",
   group: "financial",
   title: "Branch Owner",
   async render(host) {
     const num = RS.num, money = RS.money, moneyC = RS.moneyC || RS.money, fmtN = RS.fmtN;
-    const esc = v => String(v == null ? "" : v).replace(/[&<>"']/g,
-      c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
     const pctS = v => (v == null || isNaN(v)) ? "—" : (v * 100).toFixed(1) + "%";
     const M = RS.M;
     // The kit's own loading state (.rs-loading) inside the kit's card. The only page-local
@@ -67,7 +132,6 @@ registerPage({
         <div id="boSlotCompare"></div>
         <div id="boSlotType"></div>
         <div id="boSlotForeman"></div>
-      <div id="boSlotSplit"></div>
       </div>
       <div id="boDetail"></div>`;
     document.getElementById("boSlotCompare").innerHTML = loadingCard("Gross margin — his jobs vs the rest");
@@ -189,7 +253,6 @@ registerPage({
          claims      = refunds paid on these jobs (all ours)
          salespeople = the REAL salespeople's commission on the job (every SP slot minus his cut)
        What is left after all of that and his cut is our profit. */
-    const MAT_COGS = 0.15, COST_UPLIFT = 1.10, CARD_FEE = 0.035;
     try {
       if (!document.getElementById("boe-css")) {
         const st = document.createElement("style"); st.id = "boe-css";
@@ -208,14 +271,6 @@ registerPage({
           ".boe-rows .bar i{position:absolute;top:0;bottom:0;border-radius:5px}",
           ".boe-rows .m{text-align:right;font-variant-numeric:tabular-nums;color:var(--ink)}.boe-rows .p{text-align:right;font-variant-numeric:tabular-nums;color:var(--muted);font-size:12px}",
           ".boe-rows .tot{font-weight:800;padding-top:6px;border-top:1px solid var(--line)}",
-          // the split section: a descriptive line, the editable share, and a signed delta
-          ".bo-say{font-size:13px;color:var(--muted);margin:2px 0 10px;max-width:104ch}",
-          ".bo-pct{width:68px;text-align:right;font:inherit;font-variant-numeric:tabular-nums;"
-            + "padding:3px 6px;border:1px solid var(--line-2);border-radius:6px;background:var(--surface);color:var(--ink)}",
-          ".bo-pct:focus{outline:2px solid var(--brand-d);outline-offset:1px;border-color:var(--brand-d)}",
-          ".bo-up{color:var(--pos);font-weight:700}.bo-dn{color:var(--neg);font-weight:700}",
-          ".rs-table tfoot td{font-weight:800;border-top:2px solid var(--line-2)}",
-          ".rs-table td small{display:block;color:var(--faint);font-size:11px;line-height:1.3}",
         ].join("");
         document.head.appendChild(st);
       }
@@ -225,36 +280,10 @@ registerPage({
       if (!J.length) {
         mount.innerHTML = `<div class="panel" style="margin-top:14px"><div class="rs-loading">The cost breakdown has no branch-owner jobs in this range yet — it appears after the next data refresh.</div></div>`;
       } else {
-        const eS = (rs, f) => rs.reduce((a, r) => a + (num(f(r)) || 0), 0);
-        const walk = rs => {
-          const bill = eS(rs, r => r["Total Bill"]), his = eS(rs, r => r["His Cut"]);
-          const c = {
-            crew: eS(rs, r => r["Crew $"]) + eS(rs, r => r["Material $"]),
-            materials: MAT_COGS * eS(rs, r => r["Packing Sold"]),
-            truck: eS(rs, r => r["Rental Cost Est"]) + eS(rs, r => r["Owned Overhead Est"]),
-            fuel: COST_UPLIFT * eS(rs, r => r["Fuel Est"]),
-            tolls: COST_UPLIFT * eS(rs, r => r["Toll Est"]),
-            other: COST_UPLIFT * (eS(rs, r => r["Car $"]) + eS(rs, r => r["Other Exp $"])) + eS(rs, r => r["Company Tip"]) + eS(rs, r => r["Discount Given"]),
-            card: CARD_FEE * (eS(rs, r => r["Card Base"]) || eS(rs, r => r["Card Paid"])),
-            claims: eS(rs, r => r["Refund $"]),
-            sales: eS(rs, r => r["Sales Commission $"]),
-          };
-          const cost = Object.values(c).reduce((a, v) => a + v, 0);
-          return { n: rs.length, bill, his, c, cost, ours: bill - cost - his };
-        };
+        const walk = BO_ECON.walk;
         const W = walk(J), pc = v => W.bill ? pctS(v / W.bill) : "—";
         const INK = "#334155", LIME = "rgba(132,204,22,.85)", HIS = "#0f766e", GREY = "#94a3b8";
-        const lines = [
-          ["Crew", "foreman, driver and helpers, with the foreman's packing commission", W.c.crew],
-          ["Packing materials", "15% of the packing sold", W.c.materials],
-          ["Truck", "rental at $175 a job, or owned-truck insurance, parking and financing", W.c.truck],
-          ["Fuel", "miles ÷ 7 mpg × the WEX diesel price, +10%", W.c.fuel],
-          ["Tolls", "our toll accounts spread over the miles that drive them, +10%", W.c.tolls],
-          ["Tips we paid, discounts and other job costs", "other costs +10%; tips and discounts as recorded", W.c.other],
-          ["Card processing", "3.5% of what customers paid by card", W.c.card],
-          ["Claims refunded", "refunds paid on these jobs", W.c.claims],
-          ["Salespeople's commission", "the real salespeople on these jobs — not his cut", W.c.sales],
-        ];
+        const lines = BO_ECON.LINES.map(([k, l, sub]) => [l, sub, W.c[k]]);
         const maxV = W.bill || 1;
         const row = (l, sub, v, col, cls) => `<div class="l${cls ? " " + cls : ""}">${l}${sub ? `<small>${sub}</small>` : ""}</div>
           <div class="bar${cls ? " " + cls : ""}"><i style="left:0;width:${Math.max(0, Math.min(100, v / maxV * 100)).toFixed(2)}%;background:${col}"></i></div>
@@ -285,7 +314,8 @@ registerPage({
                 ${row("His cut", "the branch-owner salary on these jobs", W.his, HIS, "tot")}
                 ${row("Our profit", "what is left for the company", W.ours, LIME, "tot")}
               </div>
-              <p class="rs-hint" style="margin:12px 2px 0">The same cost model as the CL Analysis deck. Crew pay, tips and discounts come from the closing; truck, fuel and tolls are estimated from our own books (${fmtN(J.filter(r => r["Has Contract"] === "Yes").length)} of ${fmtN(J.length)} jobs have a digital contract with the route). Our profit is before overhead — office, marketing and management are not in it. Respects the date/company filter.</p>
+              <p class="rs-hint" style="margin:12px 2px 0">The same cost model as the CL Analysis deck. Crew pay, tips and discounts come from the closing; truck, fuel and tolls are estimated from our own books (${fmtN(J.filter(r => r["Has Contract"] === "Yes").length)} of ${fmtN(J.length)} jobs have a digital contract with the route). Marketing is charged at 10% of the bill, right after the salespeople's commission. Our profit is before overhead — office and management are not in it. Respects the date/company filter.
+              <a href="#page=bo-salary"><b>Salary Analysis →</b></a> puts this beside the share-of-the-bill alternative, and projects both into 2027.</p>
             </div>
             <div id="boMoneyMonth"></div>
           </div>`;
@@ -339,7 +369,6 @@ registerPage({
     const sumUK = (rs, map) => rs.reduce((a, r) => a + (map.get(r["Unique Key"]) || 0), 0);
     const sumRJ = (rs, map) => rs.reduce((a, r) => a + (map.get(r["Request Joinkey"]) || 0), 0);
 
-    const MKT_PCT = 0.10;
     // Per-group Gross Profit build-up (same shape/keys as financial-analysis.js opOf).
     const pnl = rs => {
       const bill = M["Total Bill"].fn(rs);
@@ -355,17 +384,8 @@ registerPage({
       // his cut must NOT count as sales commission — it has its own column — so strip it out.
       const boCut = rs.reduce((a, r) => a + num(r["Branch Owner Cut"]), 0);
       const realSales = sales - boCut;   // real salesperson commission only
-      /* MARKETING, 10% OF THE BILL, OURS (his call 2026-09-21: "add 10% as Marketing
-         Expenditure right after Salespeople's commission"). It sits on the same basis as
-         commission and on OUR side of the line: we buy the lead, he runs the job, so it never
-         touches his cut. `net` is gross profit after it, which is the bottom line he asked the
-         us-versus-him split to be drawn on. */
-      const mkt = bill * MKT_PCT;
-      const crew = forman + driver + helper;
-      return { jobs: rs.length, bill, forman, driver, helper, crew, sales, realSales, boCut,
-               exp, refund, mkt, net: op - mkt,
-               op, opm: bill ? op / bill : null, scm: bill ? realSales / bill : null,
-               netm: bill ? (op - mkt) / bill : null };
+      return { jobs: rs.length, bill, forman, driver, helper, sales, realSales, boCut, exp, refund,
+               op, opm: bill ? op / bill : null, scm: bill ? realSales / bill : null };
     };
     const groupCut = rs => rs.reduce((a, r) => a + num(r["Branch Owner Cut"]), 0);
 
@@ -498,107 +518,6 @@ registerPage({
     })();
     const TOPF = 20;
     const shownF = byForeman.slice(0, TOPF);
-
-    /* ===================== WHERE THE BILL GOES, AND THE ALTERNATIVE =====================
-       His ask 2026-09-21: "i need to see somewhere the profit cuts between us and branch owner -
-       and finally, i want an alternative situation, where he will take 35% of total bill - but he
-       will pay for Crew and his cut - in that situation what would be his cut. i need this % to be
-       editable - and to be able to set this % differently on Job Type level."
-
-       TODAY we pay the crew AND his cut. In the alternative he takes one percentage of the bill
-       and the crew comes out of it, so the question the table answers is what is left for each
-       side. Both columns are built from pnl(), the page's existing cost model, so this section
-       can never disagree with the gross profit above it.
-
-       The percentages are page-local on purpose: nothing is saved, so a number typed here to win
-       an argument cannot quietly become policy. */
-    const ALT_DEFAULT = { "Local Moving": 35, "Regular Moving": 20 };
-    const altPct = {};
-    function renderSplit() {
-      const host2 = document.getElementById("boSlotSplit");
-      if (!host2) return;
-      const types = [...new Set(scoped.map(r => String(r["Moving Type"] || "—")))].sort();
-      const groups = types.map(t => ({ t, p: pnl(scoped.filter(r => String(r["Moving Type"] || "—") === t)) }));
-      const all = pnl(scoped);
-      types.forEach(t => { if (altPct[t] == null) altPct[t] = ALT_DEFAULT[t] != null ? ALT_DEFAULT[t] : 30; });
-
-      const pc = v => (v == null || isNaN(v)) ? "—" : (v * 100).toFixed(1) + "%";
-      const th = (t, r) => '<th' + (r ? ' class="num"' : "") + ">" + t + "</th>";
-      const td = (v, r) => "<td" + (r ? ' class="num"' : "") + ">" + v + "</td>";
-
-      /* ---- today ---- */
-      const todayRow = g => "<tr>" + td("<b>" + esc(g.t) + "</b>") + td(fmtN(g.p.jobs), 1) +
-        td(money(g.p.bill), 1) + td(money(-g.p.crew) + "<small>" + pc(g.p.crew / g.p.bill) + "</small>", 1) +
-        td(money(-g.p.realSales), 1) + td(money(-g.p.mkt), 1) +
-        td(money(-(g.p.exp + g.p.refund)), 1) +
-        td("<b>" + money(-g.p.boCut) + "</b><small>" + pc(g.p.boCut / g.p.bill) + "</small>", 1) +
-        td("<b>" + money(g.p.net) + "</b><small>" + pc(g.p.netm) + "</small>", 1) + "</tr>";
-
-      /* ---- the alternative ---- */
-      const altOf = g => {
-        const pctv = (+altPct[g.t] || 0) / 100;
-        const hisGross = g.p.bill * pctv;
-        const hisNet = hisGross - g.p.crew;
-        const ourNet = g.p.bill - hisGross - g.p.realSales - g.p.exp - g.p.refund - g.p.mkt;
-        const evenPct = g.p.bill ? (g.p.boCut + g.p.crew) / g.p.bill : null;
-        return { pctv, hisGross, hisNet, ourNet, evenPct,
-                 hisDelta: hisNet - g.p.boCut, ourDelta: ourNet - g.p.net };
-      };
-      const delta = v => (v >= 0 ? '<span class="bo-up">+' : '<span class="bo-dn">') + money(v) + "</span>";
-      const altRow = g => { const a = altOf(g); return "<tr>" +
-        td("<b>" + esc(g.t) + "</b>") + td(fmtN(g.p.jobs), 1) + td(money(g.p.bill), 1) +
-        td('<input class="bo-pct" data-t="' + esc(g.t) + '" type="number" min="0" max="100" step="0.5" value="' + altPct[g.t] + '">' +
-           (a.evenPct != null ? "<small>even at " + (a.evenPct * 100).toFixed(1) + "%</small>" : ""), 1) +
-        td(money(a.hisGross), 1) + td(money(-g.p.crew), 1) +
-        td("<b>" + money(a.hisNet) + "</b><small>" + pc(g.p.bill ? a.hisNet / g.p.bill : null) + " of bill</small>", 1) +
-        td(delta(a.hisDelta), 1) +
-        td("<b>" + money(a.ourNet) + "</b><small>" + pc(g.p.bill ? a.ourNet / g.p.bill : null) + "</small>", 1) +
-        td(delta(a.ourDelta), 1) + "</tr>"; };
-
-      const tot = groups.reduce((acc, g) => { const a = altOf(g);
-        acc.hisNet += a.hisNet; acc.ourNet += a.ourNet; acc.hisDelta += a.hisDelta; acc.ourDelta += a.ourDelta;
-        return acc; }, { hisNet: 0, ourNet: 0, hisDelta: 0, ourDelta: 0 });
-
-      host2.innerHTML =
-        '<div class="panel"><div class="panel-head"><div class="panel-title">Where the bill goes today</div></div>' +
-        '<div class="bo-say">Every line is the page\'s own cost model, so this cannot disagree with the gross profit above. ' +
-        '<b>Marketing is 10% of the bill and ours</b> — we buy the lead, he runs the job, so it never touches his cut.</div>' +
-        '<div class="rs-tablewrap"><table class="rs-table"><thead><tr>' +
-        th("Job type") + th("Jobs", 1) + th("Total bill", 1) + th("Crew", 1) + th("Sales comm.", 1) +
-        th("Marketing 10%", 1) + th("Other costs", 1) + th("His cut", 1) + th("Our net", 1) +
-        "</tr></thead><tbody>" + groups.map(todayRow).join("") +
-        "</tbody><tfoot><tr>" + td("<b>All</b>") + td(fmtN(all.jobs), 1) + td(money(all.bill), 1) +
-        td(money(-all.crew), 1) + td(money(-all.realSales), 1) + td(money(-all.mkt), 1) +
-        td(money(-(all.exp + all.refund)), 1) + td("<b>" + money(-all.boCut) + "</b>", 1) +
-        td("<b>" + money(all.net) + "</b>", 1) + "</tr></tfoot></table></div></div>" +
-
-        '<div class="panel"><div class="panel-head"><div class="panel-title">The alternative — he takes a share of the bill and pays the crew</div></div>' +
-        '<div class="bo-say">Type a percentage per job type. He takes that share of the bill and the crew comes out of it; ' +
-        'we keep the rest and still carry sales commission, marketing and the other job costs. ' +
-        '<b>The break-even share is under each box</b> — that is where he earns exactly what he does today, ' +
-        'because it covers his current cut plus the crew we stop paying. Above it he gains and we lose the same ' +
-        'amount, which is why the two "vs today" columns are always equal and opposite. ' +
-        '<b>Nothing is saved</b> — these boxes are for arguing with, not for setting policy.</div>' +
-        '<div class="rs-tablewrap"><table class="rs-table"><thead><tr>' +
-        th("Job type") + th("Jobs", 1) + th("Total bill", 1) + th("His %", 1) + th("His share", 1) +
-        th("He pays crew", 1) + th("His net", 1) + th("vs today", 1) + th("Our net", 1) + th("vs today", 1) +
-        "</tr></thead><tbody>" + groups.map(altRow).join("") +
-        "</tbody><tfoot><tr>" + td("<b>All</b>") + td(fmtN(all.jobs), 1) + td(money(all.bill), 1) +
-        td("", 1) + td("", 1) + td(money(-all.crew), 1) +
-        td("<b>" + money(tot.hisNet) + "</b>", 1) + td(delta(tot.hisDelta), 1) +
-        td("<b>" + money(tot.ourNet) + "</b>", 1) + td(delta(tot.ourDelta), 1) +
-        "</tr></tfoot></table></div></div>";
-
-      host2.querySelectorAll("input.bo-pct").forEach(i => {
-        i.oninput = () => { altPct[i.dataset.t] = i.value === "" ? 0 : +i.value;
-          const at = document.activeElement === i;
-          renderSplit();
-          if (at) { const n = host2.querySelector('input.bo-pct[data-t="' + CSS.escape(i.dataset.t) + '"]');
-                    if (n) { n.focus(); n.setSelectionRange(n.value.length, n.value.length); } } };
-      });
-    }
-    renderSplit();
-
     document.getElementById("boSlotForeman").innerHTML = "";
     RSC.chartCard(document.getElementById("boSlotForeman"), {
       title: "By foreman — job count & pay",
