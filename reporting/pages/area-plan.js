@@ -312,7 +312,7 @@
    Leaflet is vendored and lazy-loaded; the tile layer is Carto Voyager, the same one
    cleanup.js and ld-planning.js already use. Colours come from the SEMANTIC tokens so
    the key means the same thing here as everywhere else on the page. */
-.ap2-mapbox{height:540px;border-radius:var(--ap-r1);border:1px solid var(--ap-rule);
+.ap2-mapbox{height:min(76vh,760px);min-height:540px;border-radius:var(--ap-r1);border:1px solid var(--ap-rule);
   background:var(--ap-sub);overflow:hidden}
 .ap2-mapkey{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin:0 0 10px;
   font-size:11.5px;color:var(--muted)}
@@ -324,6 +324,22 @@
 .ap2-sw.fix{background:var(--ap-neg-ink)}  .ap2-sw.grey{background:var(--muted)}
 .ap2-sw.unc{background:transparent;border:2px dashed var(--ap-neg-ink)}
 .ap2-sw.none{background:transparent;border:1px solid var(--ap-rule-2)}
+.ap2-sw.have{background:var(--ink);border-radius:2px} .ap2-sw.add{background:transparent;border:2px dashed var(--ap-pos-ink);border-radius:2px}
+/* A BASE FLAG IS A LABEL, NOT A PIN. Six bases and four proposals on one screen: an unlabelled
+   marker makes the reader hover ten times to learn what they are looking at. The label rides with
+   the mark, anchored at its own left edge so the point stays where the base is. */
+.ap2-flag{position:absolute;transform:translate(-7px,-50%);display:flex;align-items:center;gap:5px;white-space:nowrap;pointer-events:auto;cursor:pointer}
+.ap2-flag.flip{flex-direction:row-reverse;transform:translate(calc(-100% + 18px),-50%)}
+.ap2-flag.up{margin-top:-13px} .ap2-flag.down{margin-top:13px}
+.ap2-flag i{width:11px;height:11px;flex:none;border-radius:2px;background:var(--ink);box-shadow:0 0 0 2px #fff}
+.ap2-flag.add i{background:transparent;border:2px dashed var(--ap-pos-ink);box-shadow:0 0 0 2px #fff}
+.ap2-flag b{font-size:11px;font-weight:800;letter-spacing:.02em;color:var(--ink);background:rgba(255,255,255,.88);padding:1px 5px;border-radius:3px;box-shadow:0 1px 2px rgba(0,0,0,.12)}
+.ap2-flag.add b{color:var(--ap-pos-ink)}
+.ap2-flag:hover b{background:#fff}
+.leaflet-control a.ap2-mapbtn{width:30px;height:30px;line-height:30px;text-align:center;font-size:15px;
+  background:#fff;color:var(--ink);border-radius:4px;box-shadow:0 1px 4px rgba(0,0,0,.25);display:block;margin-top:6px;text-decoration:none}
+.leaflet-control a.ap2-mapbtn.on{background:var(--ink);color:#fff}
+.ap2-mapbox{cursor:grab} .ap2-mapbox:active{cursor:grabbing}
 /* the tooltip is Leaflet's, so it is styled through its own wrapper class */
 .leaflet-tooltip.ap2-tipwrap{background:var(--ap-bay);color:var(--ink);border:1px solid var(--ap-rule-2);
   border-radius:var(--ap-r2);box-shadow:0 8px 24px rgba(0,0,0,.28);padding:9px 11px;font-family:inherit}
@@ -2445,6 +2461,73 @@ registerPage({
         }).filter(r => r.la && r.lo);
       }
 
+
+      /* ===================== THE BASES ON THE MAP =====================
+         His ask 2026-09-21: two kinds of base flag -- the ones we have and the ones the analysis
+         says to add -- each with a 100-mile reach that appears on hover, and a tooltip carrying
+         the crew there now, the crew to add, the states it covers and the jobs a day it can run.
+
+         WHY 100 MILES AND NOT THE 60 THE COUNTY LAYER USES: 60 is the radius inside which a crew
+         can be DISPATCHED to a county and still chain a second job, which is what the county
+         tooltip answers. 100 is how far a base can SERVE at all -- measured throughput is flat out
+         past 100 miles (docs/plans/2026-09-20-bases-expansion-and-the-formula.md). They answer
+         different questions and the map says which is which. */
+      const MI_PER_M = 1609.34, BASE_REACH_MI = 100;
+      function miBetween(la1, lo1, la2, lo2) {
+        const R = 3959, rad = Math.PI / 180;
+        const dLa = (la2 - la1) * rad, dLo = (lo2 - lo1) * rad;
+        const a = Math.sin(dLa / 2) * Math.sin(dLa / 2) +
+                  Math.cos(la1 * rad) * Math.cos(la2 * rad) * Math.sin(dLo / 2) * Math.sin(dLo / 2);
+        return 2 * R * Math.asin(Math.min(1, Math.sqrt(a)));
+      }
+
+      function basesFor() {
+        const D = model.depots || {};
+        const R = countyRowsFor();
+        const N = FC.year ? nextCalc() : null;
+        /* which depot pool a base draws its hire from -- his state->depot map, same as the plan */
+        const poolOfBase = { NJ: "NJ", NY: "NJ", PA: "PA", DE: "PA", CT: "CT", MA: "CT" };
+        const hireOf = nm => {
+          if (!N) return null;
+          const q = N.pools.find(x => x.pk === poolOfBase[nm]);
+          return q ? { hire: q.hire || 0, peak: q.peak, have: q.have, label: q.label } : null;
+        };
+        const reach = (la, lo) => {
+          const near = R.filter(r => r.la && r.lo && miBetween(la, lo, r.la, r.lo) <= BASE_REACH_MI);
+          const sts = [...new Set(near.map(r => r.st))].sort();
+          return { counties: near.length, states: sts,
+                   leads: near.reduce((a, r) => a + r.leads, 0),
+                   jobs: near.reduce((a, r) => a + r.jobs, 0) };
+        };
+        const have = (D.bases || []).filter(b => b.lat && b.lon).map(b => {
+          const rr = reach(b.lat, b.lon);
+          const h = hireOf(b.name);
+          const rate = chainOf(b.name) || chainOf("_all");
+          return { kind: "have", name: b.name, label: b.name + " — " + (b.zip || ""),
+                   la: b.lat, lo: b.lon, zip: b.zip,
+                   foremen: b.foremen || 0, helpers: b.helpers || 0, drivers: b.drivers || 0,
+                   perDay: rate ? (b.foremen || 0) * rate : null, rate,
+                   hire: h, reach: rr };
+        });
+        /* the analysis's own shortlist, best saving first; a base that saves under a quarter of a
+           mile a job is not a proposal, it is noise, so it does not get a flag */
+        const add = (D.candidates || []).filter(c => !c.error && c.lat && c.lon &&
+                                                     (c.saved_mi_per_job || 0) >= 0.25)
+          .slice().sort((a, b) => (b.saved_mi_per_job || 0) - (a.saved_mi_per_job || 0))
+          .map(c => {
+            const rr = reach(c.lat, c.lon);
+            const st = (c.label || "").trim().slice(-2).toUpperCase();
+            const rate = chainOf(st) || chainOf("_all");
+            /* the crew a new base would need is the work it takes OFF the others, run at the
+               local day-rate over the season's working days -- not a headcount we invented */
+            const need = (rate && FC.year) ? Math.ceil((c.rehomed || 0) / (rate * 17.5 * 4)) : null;
+            return { kind: "add", name: c.label, label: c.label, la: c.lat, lo: c.lon, zip: c.zip,
+                     saved: c.saved_mi_per_job, rehomed: c.rehomed, jobs35: c.jobs_35,
+                     wsNever: c.ws_never_35, rate, need, reach: rr };
+          });
+        return { have, add, baseline: D.baseline || null };
+      }
+
       function mapHtml() {
         if (!COUNTY.length) return '<div class="panel">The county mart (mart_area_county) is not ' +
           'built yet — run <b>sources=mart_area_county</b> and reload.</div>';
@@ -2454,9 +2537,20 @@ registerPage({
         const key = ["push", "hold", "fix", "grey", "none"].map(b =>
           '<span class="ap2-mk"><i class="ap2-sw ' + b + '"></i>' + TIER_LABEL[b] +
           ' <b>' + (byBand[b] || 0) + '</b></span>').join("");
-        return '<div class="ap2-mapkey">' + key +
+        const B = basesFor();
+        return '<div class="ap2-say" style="margin:0 0 10px">' +
+            '<b>What this shows.</b> Every county in the eight states, filled by how well it is worth ' +
+            'chasing — <b>green push</b>, <b>amber hold</b>, <b>red fix</b>, <b>grey</b> too small to judge, ' +
+            'and <b>blank</b> for the ones that have never sent us a single lead. ' +
+            '<b>The flags are the bases</b>: solid squares are the ' + fmtN(B.have.length) +
+            ' we have, dashed ones are the ' + fmtN(B.add.length) + ' the depot analysis says to add. ' +
+            '<b>Hover a flag</b> to see the 100 miles it can serve, and click it to pin that circle ' +
+            'while you read the counties underneath.</div>' +
+          '<div class="ap2-mapkey">' + key +
           '<span class="ap2-mk"><i class="ap2-sw unc"></i>no crew within 60 mi <b>' + unc.length + "</b></span>" +
-          '<span class="sp"></span><span class="ap2-note" style="margin:0">every county in the eight states, filled by tier</span></div>' +
+          '<span class="ap2-mk"><i class="ap2-sw have"></i>base we have <b>' + fmtN(B.have.length) + "</b></span>" +
+          '<span class="ap2-mk"><i class="ap2-sw add"></i>base to add <b>' + fmtN(B.add.length) + "</b></span>" +
+          '<span class="sp"></span><span class="ap2-note" style="margin:0">scroll to zoom · drag to pan · &#10227; resets</span></div>' +
           '<div id="apMapBox" class="ap2-mapbox"></div>' +
           note("Colour is the county's tier, scored on distance to a base, booking rate, ticket and cubic feet — " +
                "his Power BI model, rebuilt on county totals. A county under 30 leads is <b>not rated</b> rather than " +
@@ -2477,7 +2571,7 @@ registerPage({
         const box = host.querySelector("#apMapBox");
         if (!box || !box._map || !box.clientWidth || !box.clientHeight) return;
         box._map.invalidateSize();
-        if (box._fit && box._fit.length) box._map.fitBounds(box._fit, { padding: [26, 26] });
+        if (box._fit && box._fit.length) box._map.fitBounds(box._fit, { padding: [26, 26], animate: false });
       }
 
       function wireMap() {
@@ -2490,7 +2584,10 @@ registerPage({
           if (box._built) return;
           box._built = 1;
           const R = countyRowsFor(); if (!R.length) return;
-          const m = L.map(box, { scrollWheelZoom: false, zoomSnap: 0.5, attributionControl: false });
+          const B = basesFor();                 // declared here: the opening frame uses it too
+          const m = L.map(box, { scrollWheelZoom: true, zoomSnap: 0.25, zoomDelta: 0.5,
+                                 wheelPxPerZoomLevel: 110, zoomControl: true,
+                                 attributionControl: false });
           m.setView([40.3, -75.6], 7);          // must precede any layer: polygons project on add
           /* CARTO NOW KEYS EVERY BASEMAP (2026-09-20) — voyager, light_all and dark_all all come
              back stamped "API KEY REQUIRED" across the tile. OpenStreetMap's own tiles need no key.
@@ -2536,8 +2633,9 @@ registerPage({
                 const r = byKey[f.properties.st + "|" + f.properties.key];
                 const band = r ? r.band : "none";
                 return { color: r && r.uncovered ? col.fix : tok("--ap-rule-2") || "#98a4b3",
-                         weight: r && r.uncovered ? 1.6 : 0.7,
-                         dashArray: r && r.uncovered ? "4 3" : null,
+                         weight: r && r.uncovered ? 1 : 0.7,
+                         opacity: r && r.uncovered ? .55 : .85,
+                         dashArray: r && r.uncovered ? "3 3" : null,
                          fillColor: col[band],
                          fillOpacity: band === "none" ? .10 : band === "grey" ? .26 : .62 };
               },
@@ -2553,8 +2651,16 @@ registerPage({
                 if (r) lyr.on("click", () => setFocus(r.st));
               },
             }).addTo(m);
-            const b = layer.getBounds();
-            if (b && b.isValid()) { pts.push(b.getSouthWest(), b.getNorthEast()); }
+            const framed = R.filter(r => r.leads > 0 && r.la && r.lo).map(r => [r.la, r.lo]);
+            (B.have || []).concat(B.add || []).forEach(x => framed.push([x.la, x.lo]));
+            if (framed.length) {
+              const fb = L.latLngBounds(framed);
+              if (fb.isValid()) pts.push(fb.getSouthWest(), fb.getNorthEast());
+            }
+            if (!pts.length) {
+              const b = layer.getBounds();
+              if (b && b.isValid()) pts.push(b.getSouthWest(), b.getNorthEast());
+            }
           } else {
             /* the shapes could not be read: fall back to the old circles rather than a blank map */
             const maxLeads = Math.max(1, ...R.map(r => r.leads));
@@ -2567,6 +2673,114 @@ registerPage({
               pts.push([r.la, r.lo]);
             });
           }
+
+          /* ---- the bases, over the counties ---------------------------------------------- */
+          const flag = (kind, txt) => L.divIcon({
+            className: "", iconSize: [0, 0],
+            html: '<span class="ap2-flag ' + kind + '"><i></i><b>' + esc(txt) + "</b></span>" });
+          let hoverRing = null;
+          const ring = (la, lo, kind) => L.circle([la, lo], {
+            radius: BASE_REACH_MI * MI_PER_M, interactive: false,
+            color: kind === "add" ? col.push : tok("--ink") || "#22303f",
+            weight: 1.6, dashArray: kind === "add" ? "6 4" : null,
+            fillColor: kind === "add" ? col.push : tok("--ink") || "#22303f", fillOpacity: .07 });
+
+          const baseTip = b => {
+            const cov = b.reach.states.length
+              ? b.reach.states.join(" · ") + '<small>' + fmtN(b.reach.counties) + " counties · " +
+                fmtN(b.reach.leads) + " leads and " + fmtN(b.reach.jobs) + " jobs this year within " +
+                BASE_REACH_MI + " miles</small>"
+              : "nothing within " + BASE_REACH_MI + " miles";
+            if (b.kind === "have") {
+              const h = b.hire;
+              return '<div class="ap2-tip"><b>' + esc(b.name) + " base</b><div class=\"t\">" +
+                esc(b.zip || "") + " · we have this one</div>" +
+                '<div class="c"><b>' + fmtN(b.foremen) + (b.foremen === 1 ? " foreman" : " foremen") +
+                  "</b> stationed here" + (b.foremen ? "<small>" + fmtN(b.helpers) + " helpers · " +
+                  fmtN(b.drivers) + " drivers</small>" : '<small>a parking base with nobody on it</small>') + "</div>" +
+                (h ? '<div class="' + (h.hire ? "w" : "c") + '">' + (h.hire
+                      ? "<b>Hire " + h.hire + "</b> more into the " + esc(h.label) + " pool"
+                      : "Its pool is covered — " + h.have + " for a peak of " + h.peak) + "</div>" : "") +
+                '<div class="c">' + (b.perDay != null ? "<b>" + r1(b.perDay) + " jobs a day</b> at " +
+                  r2(b.rate) + " a foreman-day" : "No capacity until somebody is based here") + "</div>" +
+                "<div>Covers " + cov + "</div></div>";
+            }
+            return '<div class="ap2-tip"><b>' + esc(b.label) + "</b><div class=\"t\">" +
+              esc(b.zip || "") + " · <b>proposed</b> by the depot analysis</div>" +
+              '<div class="c"><b>Saves ' + r2(b.saved) + " miles a job</b><small>" +
+                fmtN(b.rehomed) + " jobs would run from here instead of their current base</small></div>" +
+              (b.need != null ? '<div class="w"><b>' + b.need + (b.need === 1 ? " foreman" : " foremen") +
+                "</b> to staff it<small>the work it takes off the others, at " + r2(b.rate) +
+                " jobs a foreman-day</small></div>" : "") +
+              '<div class="c">' + fmtN(b.jobs35) + " jobs already inside 35 miles" +
+                (b.wsNever ? "<small>" + fmtN(b.wsNever) + " zips in reach have never sent a lead</small>" : "") + "</div>" +
+              "<div>Would cover " + cov + "</div></div>";
+          };
+
+          const baseLayer = L.layerGroup().addTo(m);
+          /* Bases inside ~40 miles of one already placed get their label flipped to the other
+             side, and every third one nudged up or down. Purely cosmetic, entirely deterministic:
+             the same base lands in the same place on every repaint. */
+          const placed = [];
+          const offsetFor = b => {
+            const near = placed.filter(q => miBetween(q.la, q.lo, b.la, b.lo) <= 40).length;
+            placed.push(b);
+            return near === 0 ? "" : near === 1 ? " flip" : near === 2 ? " up" : " flip down";
+          };
+          B.have.concat(B.add).forEach(b => {
+            const mk = L.marker([b.la, b.lo], {
+              icon: flag(b.kind + offsetFor(b), b.kind === "have" ? b.name : b.label.replace(/ [A-Z]{2}$/, "")),
+              riseOnHover: true, zIndexOffset: b.kind === "add" ? 400 : 600 });
+            mk.bindTooltip(baseTip(b), { sticky: true, className: "ap2-tipwrap", direction: "top" });
+            /* HIS ASK: the reach appears on hover. It is removed on mouseout unless the flag was
+               clicked, so he can pin one open and compare it against the counties underneath. */
+            mk.on("mouseover", () => {
+              if (baseLayer._pinned && baseLayer._pinned.b === b) return;
+              if (hoverRing) { m.removeLayer(hoverRing); hoverRing = null; }
+              hoverRing = ring(b.la, b.lo, b.kind).addTo(m);
+            });
+            mk.on("mouseout", () => {
+              if (baseLayer._pinned && baseLayer._pinned.b === b) return;
+              if (hoverRing) { m.removeLayer(hoverRing); hoverRing = null; }
+            });
+            mk.on("click", () => {
+              const pin = baseLayer._pinned;
+              if (pin) { m.removeLayer(pin.ring); baseLayer._pinned = null; }
+              if (!pin || pin.b !== b) {
+                if (hoverRing) { m.removeLayer(hoverRing); hoverRing = null; }
+                baseLayer._pinned = { b, ring: ring(b.la, b.lo, b.kind).addTo(m) };
+              }
+            });
+            mk.addTo(baseLayer);
+          });
+
+          /* reset the frame -- a map you can zoom is a map you can get lost in */
+          const Reset = L.Control.extend({
+            options: { position: "topleft" },
+            onAdd: function () {
+              const a = L.DomUtil.create("a", "ap2-mapbtn");
+              a.href = "#"; a.title = "Back to the whole territory"; a.innerHTML = "&#10227;";
+              L.DomEvent.on(a, "click", L.DomEvent.stop).on(a, "click", () => fitMap());
+              return a;
+            },
+          });
+          m.addControl(new Reset());
+          const Toggle = L.Control.extend({
+            options: { position: "topleft" },
+            onAdd: function () {
+              const a = L.DomUtil.create("a", "ap2-mapbtn on");
+              a.href = "#"; a.title = "Show or hide the base flags"; a.innerHTML = "&#9873;";
+              L.DomEvent.on(a, "click", L.DomEvent.stop).on(a, "click", () => {
+                if (m.hasLayer(baseLayer)) { m.removeLayer(baseLayer); a.classList.remove("on");
+                  if (hoverRing) { m.removeLayer(hoverRing); hoverRing = null; }
+                  if (baseLayer._pinned) { m.removeLayer(baseLayer._pinned.ring); baseLayer._pinned = null; }
+                } else { baseLayer.addTo(m); a.classList.add("on"); }
+              });
+              return a;
+            },
+          });
+          m.addControl(new Toggle());
+
           box._fit = pts;
           box._map = m;
           fitMap();                       // a no-op while the pane is hidden; showPane calls it again
