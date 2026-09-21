@@ -37,6 +37,8 @@ registerPage({
   title: "Branch Owner",
   async render(host) {
     const num = RS.num, money = RS.money, moneyC = RS.moneyC || RS.money, fmtN = RS.fmtN;
+    const esc = v => String(v == null ? "" : v).replace(/[&<>"']/g,
+      c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
     const pctS = v => (v == null || isNaN(v)) ? "—" : (v * 100).toFixed(1) + "%";
     const M = RS.M;
     // The kit's own loading state (.rs-loading) inside the kit's card. The only page-local
@@ -65,6 +67,7 @@ registerPage({
         <div id="boSlotCompare"></div>
         <div id="boSlotType"></div>
         <div id="boSlotForeman"></div>
+      <div id="boSlotSplit"></div>
       </div>
       <div id="boDetail"></div>`;
     document.getElementById("boSlotCompare").innerHTML = loadingCard("Gross margin — his jobs vs the rest");
@@ -205,6 +208,14 @@ registerPage({
           ".boe-rows .bar i{position:absolute;top:0;bottom:0;border-radius:5px}",
           ".boe-rows .m{text-align:right;font-variant-numeric:tabular-nums;color:var(--ink)}.boe-rows .p{text-align:right;font-variant-numeric:tabular-nums;color:var(--muted);font-size:12px}",
           ".boe-rows .tot{font-weight:800;padding-top:6px;border-top:1px solid var(--line)}",
+          // the split section: a descriptive line, the editable share, and a signed delta
+          ".bo-say{font-size:13px;color:var(--muted);margin:2px 0 10px;max-width:104ch}",
+          ".bo-pct{width:68px;text-align:right;font:inherit;font-variant-numeric:tabular-nums;"
+            + "padding:3px 6px;border:1px solid var(--line-2);border-radius:6px;background:var(--surface);color:var(--ink)}",
+          ".bo-pct:focus{outline:2px solid var(--brand-d);outline-offset:1px;border-color:var(--brand-d)}",
+          ".bo-up{color:var(--pos);font-weight:700}.bo-dn{color:var(--neg);font-weight:700}",
+          ".rs-table tfoot td{font-weight:800;border-top:2px solid var(--line-2)}",
+          ".rs-table td small{display:block;color:var(--faint);font-size:11px;line-height:1.3}",
         ].join("");
         document.head.appendChild(st);
       }
@@ -328,6 +339,7 @@ registerPage({
     const sumUK = (rs, map) => rs.reduce((a, r) => a + (map.get(r["Unique Key"]) || 0), 0);
     const sumRJ = (rs, map) => rs.reduce((a, r) => a + (map.get(r["Request Joinkey"]) || 0), 0);
 
+    const MKT_PCT = 0.10;
     // Per-group Gross Profit build-up (same shape/keys as financial-analysis.js opOf).
     const pnl = rs => {
       const bill = M["Total Bill"].fn(rs);
@@ -343,8 +355,17 @@ registerPage({
       // his cut must NOT count as sales commission — it has its own column — so strip it out.
       const boCut = rs.reduce((a, r) => a + num(r["Branch Owner Cut"]), 0);
       const realSales = sales - boCut;   // real salesperson commission only
-      return { jobs: rs.length, bill, forman, driver, helper, sales, realSales, boCut, exp, refund,
-               op, opm: bill ? op / bill : null, scm: bill ? realSales / bill : null };
+      /* MARKETING, 10% OF THE BILL, OURS (his call 2026-09-21: "add 10% as Marketing
+         Expenditure right after Salespeople's commission"). It sits on the same basis as
+         commission and on OUR side of the line: we buy the lead, he runs the job, so it never
+         touches his cut. `net` is gross profit after it, which is the bottom line he asked the
+         us-versus-him split to be drawn on. */
+      const mkt = bill * MKT_PCT;
+      const crew = forman + driver + helper;
+      return { jobs: rs.length, bill, forman, driver, helper, crew, sales, realSales, boCut,
+               exp, refund, mkt, net: op - mkt,
+               op, opm: bill ? op / bill : null, scm: bill ? realSales / bill : null,
+               netm: bill ? (op - mkt) / bill : null };
     };
     const groupCut = rs => rs.reduce((a, r) => a + num(r["Branch Owner Cut"]), 0);
 
@@ -477,6 +498,107 @@ registerPage({
     })();
     const TOPF = 20;
     const shownF = byForeman.slice(0, TOPF);
+
+    /* ===================== WHERE THE BILL GOES, AND THE ALTERNATIVE =====================
+       His ask 2026-09-21: "i need to see somewhere the profit cuts between us and branch owner -
+       and finally, i want an alternative situation, where he will take 35% of total bill - but he
+       will pay for Crew and his cut - in that situation what would be his cut. i need this % to be
+       editable - and to be able to set this % differently on Job Type level."
+
+       TODAY we pay the crew AND his cut. In the alternative he takes one percentage of the bill
+       and the crew comes out of it, so the question the table answers is what is left for each
+       side. Both columns are built from pnl(), the page's existing cost model, so this section
+       can never disagree with the gross profit above it.
+
+       The percentages are page-local on purpose: nothing is saved, so a number typed here to win
+       an argument cannot quietly become policy. */
+    const ALT_DEFAULT = { "Local Moving": 35, "Regular Moving": 20 };
+    const altPct = {};
+    function renderSplit() {
+      const host2 = document.getElementById("boSlotSplit");
+      if (!host2) return;
+      const types = [...new Set(scoped.map(r => String(r["Moving Type"] || "—")))].sort();
+      const groups = types.map(t => ({ t, p: pnl(scoped.filter(r => String(r["Moving Type"] || "—") === t)) }));
+      const all = pnl(scoped);
+      types.forEach(t => { if (altPct[t] == null) altPct[t] = ALT_DEFAULT[t] != null ? ALT_DEFAULT[t] : 30; });
+
+      const pc = v => (v == null || isNaN(v)) ? "—" : (v * 100).toFixed(1) + "%";
+      const th = (t, r) => '<th' + (r ? ' class="num"' : "") + ">" + t + "</th>";
+      const td = (v, r) => "<td" + (r ? ' class="num"' : "") + ">" + v + "</td>";
+
+      /* ---- today ---- */
+      const todayRow = g => "<tr>" + td("<b>" + esc(g.t) + "</b>") + td(fmtN(g.p.jobs), 1) +
+        td(money(g.p.bill), 1) + td(money(-g.p.crew) + "<small>" + pc(g.p.crew / g.p.bill) + "</small>", 1) +
+        td(money(-g.p.realSales), 1) + td(money(-g.p.mkt), 1) +
+        td(money(-(g.p.exp + g.p.refund)), 1) +
+        td("<b>" + money(-g.p.boCut) + "</b><small>" + pc(g.p.boCut / g.p.bill) + "</small>", 1) +
+        td("<b>" + money(g.p.net) + "</b><small>" + pc(g.p.netm) + "</small>", 1) + "</tr>";
+
+      /* ---- the alternative ---- */
+      const altOf = g => {
+        const pctv = (+altPct[g.t] || 0) / 100;
+        const hisGross = g.p.bill * pctv;
+        const hisNet = hisGross - g.p.crew;
+        const ourNet = g.p.bill - hisGross - g.p.realSales - g.p.exp - g.p.refund - g.p.mkt;
+        const evenPct = g.p.bill ? (g.p.boCut + g.p.crew) / g.p.bill : null;
+        return { pctv, hisGross, hisNet, ourNet, evenPct,
+                 hisDelta: hisNet - g.p.boCut, ourDelta: ourNet - g.p.net };
+      };
+      const delta = v => (v >= 0 ? '<span class="bo-up">+' : '<span class="bo-dn">') + money(v) + "</span>";
+      const altRow = g => { const a = altOf(g); return "<tr>" +
+        td("<b>" + esc(g.t) + "</b>") + td(fmtN(g.p.jobs), 1) + td(money(g.p.bill), 1) +
+        td('<input class="bo-pct" data-t="' + esc(g.t) + '" type="number" min="0" max="100" step="0.5" value="' + altPct[g.t] + '">' +
+           (a.evenPct != null ? "<small>even at " + (a.evenPct * 100).toFixed(1) + "%</small>" : ""), 1) +
+        td(money(a.hisGross), 1) + td(money(-g.p.crew), 1) +
+        td("<b>" + money(a.hisNet) + "</b><small>" + pc(g.p.bill ? a.hisNet / g.p.bill : null) + " of bill</small>", 1) +
+        td(delta(a.hisDelta), 1) +
+        td("<b>" + money(a.ourNet) + "</b><small>" + pc(g.p.bill ? a.ourNet / g.p.bill : null) + "</small>", 1) +
+        td(delta(a.ourDelta), 1) + "</tr>"; };
+
+      const tot = groups.reduce((acc, g) => { const a = altOf(g);
+        acc.hisNet += a.hisNet; acc.ourNet += a.ourNet; acc.hisDelta += a.hisDelta; acc.ourDelta += a.ourDelta;
+        return acc; }, { hisNet: 0, ourNet: 0, hisDelta: 0, ourDelta: 0 });
+
+      host2.innerHTML =
+        '<div class="panel"><div class="panel-head"><div class="panel-title">Where the bill goes today</div></div>' +
+        '<div class="bo-say">Every line is the page\'s own cost model, so this cannot disagree with the gross profit above. ' +
+        '<b>Marketing is 10% of the bill and ours</b> — we buy the lead, he runs the job, so it never touches his cut.</div>' +
+        '<div class="rs-tablewrap"><table class="rs-table"><thead><tr>' +
+        th("Job type") + th("Jobs", 1) + th("Total bill", 1) + th("Crew", 1) + th("Sales comm.", 1) +
+        th("Marketing 10%", 1) + th("Other costs", 1) + th("His cut", 1) + th("Our net", 1) +
+        "</tr></thead><tbody>" + groups.map(todayRow).join("") +
+        "</tbody><tfoot><tr>" + td("<b>All</b>") + td(fmtN(all.jobs), 1) + td(money(all.bill), 1) +
+        td(money(-all.crew), 1) + td(money(-all.realSales), 1) + td(money(-all.mkt), 1) +
+        td(money(-(all.exp + all.refund)), 1) + td("<b>" + money(-all.boCut) + "</b>", 1) +
+        td("<b>" + money(all.net) + "</b>", 1) + "</tr></tfoot></table></div></div>" +
+
+        '<div class="panel"><div class="panel-head"><div class="panel-title">The alternative — he takes a share of the bill and pays the crew</div></div>' +
+        '<div class="bo-say">Type a percentage per job type. He takes that share of the bill and the crew comes out of it; ' +
+        'we keep the rest and still carry sales commission, marketing and the other job costs. ' +
+        '<b>The break-even share is under each box</b> — that is where he earns exactly what he does today, ' +
+        'because it covers his current cut plus the crew we stop paying. Above it he gains and we lose the same ' +
+        'amount, which is why the two "vs today" columns are always equal and opposite. ' +
+        '<b>Nothing is saved</b> — these boxes are for arguing with, not for setting policy.</div>' +
+        '<div class="rs-tablewrap"><table class="rs-table"><thead><tr>' +
+        th("Job type") + th("Jobs", 1) + th("Total bill", 1) + th("His %", 1) + th("His share", 1) +
+        th("He pays crew", 1) + th("His net", 1) + th("vs today", 1) + th("Our net", 1) + th("vs today", 1) +
+        "</tr></thead><tbody>" + groups.map(altRow).join("") +
+        "</tbody><tfoot><tr>" + td("<b>All</b>") + td(fmtN(all.jobs), 1) + td(money(all.bill), 1) +
+        td("", 1) + td("", 1) + td(money(-all.crew), 1) +
+        td("<b>" + money(tot.hisNet) + "</b>", 1) + td(delta(tot.hisDelta), 1) +
+        td("<b>" + money(tot.ourNet) + "</b>", 1) + td(delta(tot.ourDelta), 1) +
+        "</tr></tfoot></table></div></div>";
+
+      host2.querySelectorAll("input.bo-pct").forEach(i => {
+        i.oninput = () => { altPct[i.dataset.t] = i.value === "" ? 0 : +i.value;
+          const at = document.activeElement === i;
+          renderSplit();
+          if (at) { const n = host2.querySelector('input.bo-pct[data-t="' + CSS.escape(i.dataset.t) + '"]');
+                    if (n) { n.focus(); n.setSelectionRange(n.value.length, n.value.length); } } };
+      });
+    }
+    renderSplit();
+
     document.getElementById("boSlotForeman").innerHTML = "";
     RSC.chartCard(document.getElementById("boSlotForeman"), {
       title: "By foreman — job count & pay",
