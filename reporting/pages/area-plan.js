@@ -323,6 +323,7 @@
 .ap2-sw.push{background:var(--ap-pos-ink)} .ap2-sw.hold{background:var(--ap-warn-ink)}
 .ap2-sw.fix{background:var(--ap-neg-ink)}  .ap2-sw.grey{background:var(--muted)}
 .ap2-sw.unc{background:transparent;border:2px dashed var(--ap-neg-ink)}
+.ap2-sw.none{background:transparent;border:1px solid var(--ap-rule-2)}
 /* the tooltip is Leaflet's, so it is styled through its own wrapper class */
 .leaflet-tooltip.ap2-tipwrap{background:var(--ap-bay);color:var(--ink);border:1px solid var(--ap-rule-2);
   border-radius:var(--ap-r2);box-shadow:0 8px 24px rgba(0,0,0,.28);padding:9px 11px;font-family:inherit}
@@ -2368,8 +2369,18 @@ registerPage({
          rate whose standard error is 7.6 points under 50 leads. T1/T2 = push, T3 = hold,
          T4/T5 = fix, plus grey for not-rated and a ring for no-crew-in-range. */
       let MAP_OUTSIDE = null;          // counties the mart holds that this map deliberately omits
-      const TIER_BAND = t => (t === 0 ? "grey" : t <= 2 ? "push" : t === 3 ? "hold" : "fix");
-      const TIER_LABEL = { push: "Push", hold: "Hold", fix: "Fix", grey: "Not rated" };
+      /* NEVER TRADED IS NOT A BAD TIER (2026-09-21). Tier -1 is a county that has never sent a
+         single lead: on a targeting map that is white space, the most interesting thing on the
+         screen, and it must not wear the same grey as a county we HAVE worked and found too small
+         to rate. Virginia is 106 of 124 counties in this state. */
+      const TIER_BAND = t => (t === -1 ? "none" : t === 0 ? "grey" : t <= 2 ? "push" : t === 3 ? "hold" : "fix");
+      /* the county key, character for character what scripts/build_county_geojson.py wrote */
+      const ckey = v => String(v == null ? "" : v).toLowerCase().trim()
+        .replace(/saint /g, "st ").replace(/st\. /g, "st ")
+        .replace(/\b(county|parish|city and borough|borough|census area|municipality)\b/g, "")
+        .replace(/[^a-z0-9 ]/g, "").replace(/\s+/g, " ").trim();
+      const TIER_LABEL = { push: "Push", hold: "Hold", fix: "Fix", grey: "Not rated",
+                           none: "Never sent a lead" };
       /* the company's MEASURED jobs-a-foreman-day, chaining included (see CHAIN below);
          1.24 only as a floor if the model has no chaining block yet */
       function ensureLeaflet(cb) {
@@ -2387,6 +2398,21 @@ registerPage({
         document.head.appendChild(sc);
       }
       const tok = n => (getComputedStyle(document.body).getPropertyValue(n) || "").trim() || "#888";
+
+      /* COUNTY BOUNDARIES, VENDORED (2026-09-21). His words: "instead of bubbles, i prefer to have
+         filled areas - for EVERY location, as i have in original Power BI." A circle at a county's
+         centre overlaps its neighbours exactly where the work is densest, which is backwards for a
+         map whose job is visibility. assets/vendor/geo/counties8.geojson is the eight states'
+         327 shapes (195 KB), decoded from the public us-atlas TopoJSON by
+         scripts/build_county_geojson.py -- no key, no vendor, no runtime dependency. */
+      let GEO = null, GEO_ERR = null;
+      function ensureGeo(cb) {
+        if (GEO || GEO_ERR) { cb(); return; }
+        fetch("assets/vendor/geo/counties8.geojson")
+          .then(r => r.ok ? r.json() : Promise.reject(new Error("HTTP " + r.status)))
+          .then(j => { GEO = j; cb(); })
+          .catch(e => { GEO_ERR = e && e.message || "unreadable"; cb(); });
+      }
 
       /* every county, with the three things the tooltip says. The budget follows LEADS: a county
          takes its share of its own state's planned marketing, which is how the state number was
@@ -2425,16 +2451,17 @@ registerPage({
         const R = countyRowsFor();
         const byBand = {}; R.forEach(r => { byBand[r.band] = (byBand[r.band] || 0) + 1; });
         const unc = R.filter(r => r.uncovered);
-        const key = ["push", "hold", "fix", "grey"].map(b =>
+        const key = ["push", "hold", "fix", "grey", "none"].map(b =>
           '<span class="ap2-mk"><i class="ap2-sw ' + b + '"></i>' + TIER_LABEL[b] +
           ' <b>' + (byBand[b] || 0) + '</b></span>').join("");
         return '<div class="ap2-mapkey">' + key +
           '<span class="ap2-mk"><i class="ap2-sw unc"></i>no crew within 60 mi <b>' + unc.length + "</b></span>" +
-          '<span class="sp"></span><span class="ap2-note" style="margin:0">circle size = leads</span></div>' +
+          '<span class="sp"></span><span class="ap2-note" style="margin:0">every county in the eight states, filled by tier</span></div>' +
           '<div id="apMapBox" class="ap2-mapbox"></div>' +
           note("Colour is the county's tier, scored on distance to a base, booking rate, ticket and cubic feet — " +
                "his Power BI model, rebuilt on county totals. A county under 30 leads is <b>not rated</b> rather than " +
-               "called bad. Click a county to focus the page on its state. " +
+               "called bad, and one that has <b>never sent a lead</b> is left almost blank rather than coloured at all — " +
+               "that is the white space, not a bad score. Click a county to focus the page on its state. " +
                "The dashed <b>no crew within 60 mi</b> ring is drawn off <b>" + esc(SIS.plan_company || "Zip to Zip") +
                "</b>'s register: Delaware rings empty although Tuji works it, because Tuji's crews are not ours to send. " +
                (MAP_OUTSIDE && MAP_OUTSIDE.counties
@@ -2456,9 +2483,15 @@ registerPage({
       function wireMap() {
         const box = host.querySelector("#apMapBox"); if (!box || box._ap) return;
         box._ap = 1;
-        ensureLeaflet(() => {
+        ensureLeaflet(() => ensureGeo(() => {
+          // CLAIM THE BOX BEFORE ANY AWAITABLE WORK. `box._map` is only assigned at the end
+          // of this callback, so testing it lets a racing second callback straight through and
+          // the map ends up with two identical 327-shape layers, every fill at double opacity.
+          if (box._built) return;
+          box._built = 1;
           const R = countyRowsFor(); if (!R.length) return;
           const m = L.map(box, { scrollWheelZoom: false, zoomSnap: 0.5, attributionControl: false });
+          m.setView([40.3, -75.6], 7);          // must precede any layer: polygons project on add
           /* CARTO NOW KEYS EVERY BASEMAP (2026-09-20) — voyager, light_all and dark_all all come
              back stamped "API KEY REQUIRED" across the tile. OpenStreetMap's own tiles need no key.
              They are busier than a data map wants, so the layer is dimmed and, in the dark theme,
@@ -2471,40 +2504,73 @@ registerPage({
           if (tiles.getContainer()) tiles.getContainer().style.filter = darkMap
             ? "grayscale(1) invert(1) brightness(.82) contrast(.9)" : "grayscale(.55)";
           const col = { push: tok("--pos") || "#5f7c20", hold: tok("--warn") || "#b97b0a",
-                        fix: tok("--neg") || "#d43d55", grey: tok("--faint") || "#8a97a6" };
-          const maxLeads = Math.max(1, ...R.map(r => r.leads));
+                        fix: tok("--neg") || "#d43d55", grey: tok("--faint") || "#8a97a6",
+                        none: tok("--line") || "#c9d2dc" };
+          const tipOf = r =>
+            '<div class="ap2-tip"><b>' + esc(r.county) + " " + esc(r.st) + "</b>" +
+            '<div class="t">' + (r.tier > 0 ? "Tier " + r.tier + " · " + TIER_LABEL[r.band]
+                                            : TIER_LABEL[r.band]) +
+              (r.score != null ? " · score " + r1(r.score) : "") + "</div>" +
+            /* HIS ASK 2026-09-21: "on the tooltip i want to see how many foreman covers it."
+               It was already measured and buried in a <small>; it is a headline now. */
+            '<div class="c"><b>' + fmtN(r.fm60) + (r.fm60 === 1 ? " foreman" : " foremen") +
+              "</b> can reach it<small> — based within 60 miles, and shared with its neighbours</small></div>" +
+            (r.leads ? "<div>" + fmtN(r.leads) + " leads · " + r1(r.book) + "% booked · " +
+                       fmtN(r.jobs) + " jobs</div>"
+                     : '<div class="t">No lead has ever come from here</div>') +
+            "<div>" + r1(r.mi) + " mi to the nearest base</div>" +
+            (r.budget != null && r.budget > 0
+              ? '<div class="b">Marketing ' + money0(r.budget) + "<small> — " +
+                r1(r.share * 100) + "% of the state's leads</small></div>" : "") +
+            '<div class="c">Max ' + r1(r.ceil) + " jobs/day if every crew in range came here</div>" +
+            '<div class="c">Fair share ' + r1(r.fair) + " jobs/day at today's dispatch pattern</div>" +
+            (r.uncovered ? '<div class="w">No foreman is based within 60 miles of here</div>' : "") +
+            "</div>";
+
+          const byKey = {};
+          R.forEach(r => { byKey[r.st + "|" + ckey(r.county)] = r; });
           const pts = [];
-          R.forEach(r => {
-            const rad = 7 + 20 * Math.sqrt(r.leads / maxLeads);
-            const c = L.circleMarker([r.la, r.lo], {
-              radius: rad, color: r.uncovered ? col.fix : col[r.band],
-              weight: r.uncovered ? 3 : 1.5, dashArray: r.uncovered ? "4 3" : null,
-              fillColor: col[r.band], fillOpacity: r.band === "grey" ? .18 : .45 });
-            c.bindTooltip(
-              '<div class="ap2-tip"><b>' + esc(r.county) + " " + esc(r.st) + "</b>" +
-              '<div class="t">' + (r.tier ? "Tier " + r.tier + " · " + TIER_LABEL[r.band] : "Not rated") +
-                (r.score != null ? " · score " + r1(r.score) : "") + "</div>" +
-              "<div>" + fmtN(r.leads) + " leads · " + r1(r.book) + "% booked · " + fmtN(r.jobs) + " jobs</div>" +
-              "<div>" + r1(r.mi) + " mi to the nearest base</div>" +
-              (r.budget != null ? '<div class="b">Marketing ' + money0(r.budget) + "<small> — " +
-                 r1(r.share * 100) + "% of the state's leads</small></div>" : "") +
-              '<div class="c">Max ' + r1(r.ceil) + " jobs/day if every crew in range came here" +
-                "<small> — " + r.fm60 + " foremen within 60 mi, shared with its neighbours</small></div>" +
-              '<div class="c">Fair share ' + r1(r.fair) + " jobs/day at today's dispatch pattern</div>" +
-              (r.uncovered ? '<div class="w">No foreman is based within 60 miles of here</div>' : "") +
-              "</div>", { sticky: true, className: "ap2-tipwrap" });
-            c.on("click", () => setFocus(r.st));
-            c.addTo(m); pts.push([r.la, r.lo]);
-          });
-          const ranked = R.slice().sort((a, b) => b.leads - a.leads);
-          const wanted = ranked.reduce((a, r) => a + r.leads, 0) * 0.97;
-          const fit = [];
-          let acc = 0;
-          for (const r of ranked) { if (acc >= wanted) break; acc += r.leads; fit.push([r.la, r.lo]); }
-          box._fit = fit.length ? fit : pts;
+          if (GEO && GEO.features) {
+            const layer = L.geoJSON(GEO, {
+              style: f => {
+                const r = byKey[f.properties.st + "|" + f.properties.key];
+                const band = r ? r.band : "none";
+                return { color: r && r.uncovered ? col.fix : tok("--ap-rule-2") || "#98a4b3",
+                         weight: r && r.uncovered ? 1.6 : 0.7,
+                         dashArray: r && r.uncovered ? "4 3" : null,
+                         fillColor: col[band],
+                         fillOpacity: band === "none" ? .10 : band === "grey" ? .26 : .62 };
+              },
+              onEachFeature: (f, lyr) => {
+                const r = byKey[f.properties.st + "|" + f.properties.key];
+                lyr.bindTooltip(r ? tipOf(r)
+                  : '<div class="ap2-tip"><b>' + esc(f.properties.name) + " " + esc(f.properties.st) +
+                    '</b><div class="t">Not in the lead directory</div></div>',
+                  { sticky: true, className: "ap2-tipwrap" });
+                /* the fill is flat, so the hover needs its own signal */
+                lyr.on("mouseover", () => lyr.setStyle({ weight: 2.2, color: tok("--ink") || "#22303f" }));
+                lyr.on("mouseout", () => layer.resetStyle(lyr));
+                if (r) lyr.on("click", () => setFocus(r.st));
+              },
+            }).addTo(m);
+            const b = layer.getBounds();
+            if (b && b.isValid()) { pts.push(b.getSouthWest(), b.getNorthEast()); }
+          } else {
+            /* the shapes could not be read: fall back to the old circles rather than a blank map */
+            const maxLeads = Math.max(1, ...R.map(r => r.leads));
+            R.forEach(r => {
+              if (!r.la || !r.lo) return;
+              L.circleMarker([r.la, r.lo], {
+                radius: 6 + 18 * Math.sqrt(r.leads / maxLeads),
+                color: col[r.band], weight: 1.4, fillColor: col[r.band], fillOpacity: .45,
+              }).bindTooltip(tipOf(r), { sticky: true, className: "ap2-tipwrap" }).addTo(m);
+              pts.push([r.la, r.lo]);
+            });
+          }
+          box._fit = pts;
           box._map = m;
           fitMap();                       // a no-op while the pane is hidden; showPane calls it again
-        });
+        }));
       }
 
       /* ===================== THE QUESTIONS, ANSWERED =====================
@@ -2997,7 +3063,9 @@ registerPage({
           card("Season budget — " + (FC.year || "the coming one"), "Revenue, the job and truck cost, and marketing (post cards inside it), per state",
                "The whole season in one table: what the jobs bring, what they cost to run, what the leads cost to buy. Net is before overhead.",
                '<div id="apBudget" style="overflow-x:auto">' + budgetHtml() + "</div>")) +
-          pane("map", "Every county we have leads in, coloured by its tier. The tooltip carries that county's marketing budget and how many jobs a day the crews within reach could run.",
+          pane("map", "<b>Every county in the eight states</b>, filled by its tier — including the " +
+            "ones that have never sent a lead, because that is the white space. The tooltip carries how many " +
+            "foremen can reach it, that county's marketing budget, and how many jobs a day it could take.",
             card("The map — " + (FC.year || "next season"), "County tier, marketing budget, and the crew that can reach it",
                  "Colour answers <b>where to target</b>; the tooltip answers <b>what it costs</b> and <b>who can serve it</b>.",
                  '<div id="apMap">' + mapHtml() + "</div>")) +
