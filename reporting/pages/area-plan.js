@@ -324,7 +324,8 @@
 .ap2-sw.fix{background:var(--ap-neg-ink)}  .ap2-sw.grey{background:var(--muted)}
 .ap2-sw.unc{background:transparent;border:2px dashed var(--ap-neg-ink)}
 .ap2-sw.none{background:transparent;border:1px solid var(--ap-rule-2)}
-.ap2-sw.have{background:var(--ink);border-radius:2px} .ap2-sw.add{background:transparent;border:2px dashed var(--ap-pos-ink);border-radius:2px}
+.ap2-sw.have{background:var(--ink);border-radius:2px} .ap2-sw.add{background:transparent;border:2px dashed var(--ap-warn-ink);border-radius:2px}
+.ap2-sw.cover{background:transparent;border:2px dashed var(--ap-pos-ink);border-radius:50%}
 /* A BASE FLAG IS A LABEL, NOT A PIN. Six bases and four proposals on one screen: an unlabelled
    marker makes the reader hover ten times to learn what they are looking at. The label rides with
    the mark, anchored at its own left edge so the point stays where the base is. */
@@ -332,9 +333,11 @@
 .ap2-flag.flip{flex-direction:row-reverse;transform:translate(calc(-100% + 18px),-50%)}
 .ap2-flag.up{margin-top:-13px} .ap2-flag.down{margin-top:13px}
 .ap2-flag i{width:11px;height:11px;flex:none;border-radius:2px;background:var(--ink);box-shadow:0 0 0 2px #fff}
-.ap2-flag.add i{background:transparent;border:2px dashed var(--ap-pos-ink);box-shadow:0 0 0 2px #fff}
+.ap2-flag.add i{background:transparent;border:2px dashed var(--ap-warn-ink);box-shadow:0 0 0 2px #fff}
+.ap2-flag.cover i{background:transparent;border:2px dashed var(--ap-pos-ink);border-radius:50%;box-shadow:0 0 0 2px #fff}
+.ap2-flag.cover b{color:var(--ap-pos-ink)}
 .ap2-flag b{font-size:11px;font-weight:800;letter-spacing:.02em;color:var(--ink);background:rgba(255,255,255,.88);padding:1px 5px;border-radius:3px;box-shadow:0 1px 2px rgba(0,0,0,.12)}
-.ap2-flag.add b{color:var(--ap-pos-ink)}
+.ap2-flag.add b{color:var(--ap-warn-ink)}
 .ap2-flag:hover b{background:#fff}
 .leaflet-control a.ap2-mapbtn{width:30px;height:30px;line-height:30px;text-align:center;font-size:15px;
   background:#fff;color:var(--ink);border-radius:4px;box-shadow:0 1px 4px rgba(0,0,0,.25);display:block;margin-top:6px;text-decoration:none}
@@ -2472,7 +2475,12 @@ registerPage({
          tooltip answers. 100 is how far a base can SERVE at all -- measured throughput is flat out
          past 100 miles (docs/plans/2026-09-20-bases-expansion-and-the-formula.md). They answer
          different questions and the map says which is which. */
-      const MI_PER_M = 1609.34, BASE_REACH_MI = 100;
+      /* HIS RULING 2026-09-21: 35 miles, not the 100 he first asked for and I built without
+         checking. At 100 miles 78% of every covered county was covered by two or more bases, so
+         the circles were mostly overlap and the picture carried almost no information. At 35 the
+         overlap is 34% and each base visibly owns its own ground -- and it still reaches 82.8% of
+         all leads. The loader owns the number (DEPOT_WORK_MI); this is only the fallback. */
+      const MI_PER_M = 1609.34;
       function miBetween(la1, lo1, la2, lo2) {
         const R = 3959, rad = Math.PI / 180;
         const dLa = (la2 - la1) * rad, dLo = (lo2 - lo1) * rad;
@@ -2492,8 +2500,9 @@ registerPage({
           const q = N.pools.find(x => x.pk === poolOfBase[nm]);
           return q ? { hire: q.hire || 0, peak: q.peak, have: q.have, label: q.label } : null;
         };
+        const WORK = +(D.work_mi || 35), SPACING = +(D.min_spacing_mi || 60);
         const reach = (la, lo) => {
-          const near = R.filter(r => r.la && r.lo && miBetween(la, lo, r.la, r.lo) <= BASE_REACH_MI);
+          const near = R.filter(r => r.la && r.lo && miBetween(la, lo, r.la, r.lo) <= WORK);
           const sts = [...new Set(near.map(r => r.st))].sort();
           return { counties: near.length, states: sts,
                    leads: near.reduce((a, r) => a + r.leads, 0),
@@ -2503,14 +2512,25 @@ registerPage({
           const rr = reach(b.lat, b.lon);
           const h = hireOf(b.name);
           const rate = chainOf(b.name) || chainOf("_all");
-          return { kind: "have", name: b.name, label: b.name + " — " + (b.zip || ""),
+          const red = (D.redundancy || []).find(x => x.name === b.name) || null;
+          return { kind: "have", name: b.name, label: b.name + " — " + (b.zip || ""), red,
                    la: b.lat, lo: b.lon, zip: b.zip,
                    foremen: b.foremen || 0, helpers: b.helpers || 0, drivers: b.drivers || 0,
                    perDay: rate ? (b.foremen || 0) * rate : null, rate,
                    hire: h, reach: rr };
         });
-        /* the analysis's own shortlist, best saving first; a base that saves under a quarter of a
-           mile a job is not a proposal, it is noise, so it does not get a flag */
+        /* HIS RULING: two questions, two answers, never blended.
+           CHEAPER  -- cuts the driving on work we already do. Every one of these currently sits
+                       inside his 60-mile rule, because the score that produced them is minimised
+                       by building at the centre of existing demand. They are drawn, and they are
+                       labelled "too close" rather than quietly dropped, because the saving is real
+                       even when the location is not a new one.
+           COVERAGE -- opens ground no existing base can reach, ranked on annual movers. This is
+                       the list that can name Maryland and Virginia, and it does. */
+        const coverage = (D.coverage || []).map(c => ({
+          kind: "cover", name: c.label, label: c.label, la: c.lat, lo: c.lon,
+          newMovers: c.new_movers, opens: c.counties_opened, fromBase: c.nearest_base_mi,
+          reach: reach(c.lat, c.lon) }));
         const add = (D.candidates || []).filter(c => !c.error && c.lat && c.lon &&
                                                      (c.saved_mi_per_job || 0) >= 0.25)
           .slice().sort((a, b) => (b.saved_mi_per_job || 0) - (a.saved_mi_per_job || 0))
@@ -2523,9 +2543,11 @@ registerPage({
             const need = (rate && FC.year) ? Math.ceil((c.rehomed || 0) / (rate * 17.5 * 4)) : null;
             return { kind: "add", name: c.label, label: c.label, la: c.lat, lo: c.lon, zip: c.zip,
                      saved: c.saved_mi_per_job, rehomed: c.rehomed, jobs35: c.jobs_35,
-                     wsNever: c.ws_never_35, rate, need, reach: rr };
+                     wsNever: c.ws_never_35, rate, need, reach: rr,
+                     fromBase: c.nearest_base_mi, nearBase: c.nearest_base, tooClose: !!c.too_close };
           });
-        return { have, add, baseline: D.baseline || null };
+        return { have, add, coverage, work: WORK, spacing: SPACING,
+                 baseline: D.baseline || null };
       }
 
       function mapHtml() {
@@ -2542,14 +2564,18 @@ registerPage({
             '<b>What this shows.</b> Every county in the eight states, filled by how well it is worth ' +
             'chasing — <b>green push</b>, <b>amber hold</b>, <b>red fix</b>, <b>grey</b> too small to judge, ' +
             'and <b>blank</b> for the ones that have never sent us a single lead. ' +
-            '<b>The flags are the bases</b>: solid squares are the ' + fmtN(B.have.length) +
-            ' we have, dashed ones are the ' + fmtN(B.add.length) + ' the depot analysis says to add. ' +
-            '<b>Hover a flag</b> to see the 100 miles it can serve, and click it to pin that circle ' +
-            'while you read the counties underneath.</div>' +
+            '<b>The flags are the bases.</b> Solid squares are the ' + fmtN(B.have.length) +
+            ' we have. <b>Dashed circles open new ground</b> — ranked on the movers a year they bring ' +
+            'into range that no existing base can reach. <b>Dashed squares are cheaper to serve</b> ' +
+            'the work we already do; every one of them currently sits inside the ' + B.spacing +
+            '-mile rule, which is the tell that they are second yards in the same territory rather ' +
+            'than new locations. <b>Hover a flag</b> for the ' + B.work +
+            ' miles it works, and click to pin that circle while you read the counties underneath.</div>' +
           '<div class="ap2-mapkey">' + key +
           '<span class="ap2-mk"><i class="ap2-sw unc"></i>no crew within 60 mi <b>' + unc.length + "</b></span>" +
           '<span class="ap2-mk"><i class="ap2-sw have"></i>base we have <b>' + fmtN(B.have.length) + "</b></span>" +
-          '<span class="ap2-mk"><i class="ap2-sw add"></i>base to add <b>' + fmtN(B.add.length) + "</b></span>" +
+          '<span class="ap2-mk"><i class="ap2-sw cover"></i>opens new ground <b>' + fmtN((B.coverage || []).length) + "</b></span>" +
+          '<span class="ap2-mk"><i class="ap2-sw add"></i>cheaper to serve <b>' + fmtN(B.add.length) + "</b></span>" +
           '<span class="sp"></span><span class="ap2-note" style="margin:0">scroll to zoom · drag to pan · &#10227; resets</span></div>' +
           '<div id="apMapBox" class="ap2-mapbox"></div>' +
           note("Colour is the county's tier, scored on distance to a base, booking rate, ticket and cubic feet — " +
@@ -2680,17 +2706,27 @@ registerPage({
             html: '<span class="ap2-flag ' + kind + '"><i></i><b>' + esc(txt) + "</b></span>" });
           let hoverRing = null;
           const ring = (la, lo, kind) => L.circle([la, lo], {
-            radius: BASE_REACH_MI * MI_PER_M, interactive: false,
-            color: kind === "add" ? col.push : tok("--ink") || "#22303f",
-            weight: 1.6, dashArray: kind === "add" ? "6 4" : null,
-            fillColor: kind === "add" ? col.push : tok("--ink") || "#22303f", fillOpacity: .07 });
+            radius: B.work * MI_PER_M, interactive: false,
+            color: kind === "have" ? tok("--ink") || "#22303f" : col.push,
+            weight: 1.6, dashArray: kind === "have" ? null : "6 4",
+            fillColor: kind === "have" ? tok("--ink") || "#22303f" : col.push, fillOpacity: .09 });
 
           const baseTip = b => {
             const cov = b.reach.states.length
               ? b.reach.states.join(" · ") + '<small>' + fmtN(b.reach.counties) + " counties · " +
                 fmtN(b.reach.leads) + " leads and " + fmtN(b.reach.jobs) + " jobs this year within " +
-                BASE_REACH_MI + " miles</small>"
-              : "nothing within " + BASE_REACH_MI + " miles";
+                B.work + " miles</small>"
+              : "nothing within " + B.work + " miles";
+            if (b.kind === "cover") {
+              return '<div class="ap2-tip"><b>' + esc(b.label) + '</b><div class="t">' +
+                '<b>opens new ground</b> — nothing we have can reach it</div>' +
+                '<div class="c"><b>' + fmtN(b.newMovers) + " movers a year</b> come into range" +
+                  "<small>people who move house here annually, from the Census — the only demand " +
+                  "measure that exists for a county we have never sold in</small></div>" +
+                '<div class="c">Opens <b>' + fmtN(b.opens) + "</b> counties no base covers today</div>" +
+                "<div>" + r1(b.fromBase) + " mi from the nearest base we have</div>" +
+                "<div>Would cover " + cov + "</div></div>";
+            }
             if (b.kind === "have") {
               const h = b.hire;
               return '<div class="ap2-tip"><b>' + esc(b.name) + " base</b><div class=\"t\">" +
@@ -2703,10 +2739,23 @@ registerPage({
                       : "Its pool is covered — " + h.have + " for a peak of " + h.peak) + "</div>" : "") +
                 '<div class="c">' + (b.perDay != null ? "<b>" + r1(b.perDay) + " jobs a day</b> at " +
                   r2(b.rate) + " a foreman-day" : "No capacity until somebody is based here") + "</div>" +
+                (b.red ? (b.red.redundant
+                  ? '<div class="w"><b>Reaches nothing on its own.</b> Every county inside ' + B.work +
+                    " miles is already inside another base's " + B.work + " — the nearest is " +
+                    r1(b.red.nearest_other_mi) + " mi away.<small>Coverage is not the whole story: " +
+                    "parking, the lease and the labour pool are not in this data</small></div>"
+                  : '<div class="c">Uniquely reaches <b>' + fmtN(b.red.unique_movers) +
+                    " movers a year</b> across " + fmtN(b.red.unique_counties) +
+                    " counties<small>nothing else covers them</small></div>") : "") +
                 "<div>Covers " + cov + "</div></div>";
             }
             return '<div class="ap2-tip"><b>' + esc(b.label) + "</b><div class=\"t\">" +
-              esc(b.zip || "") + " · <b>proposed</b> by the depot analysis</div>" +
+              esc(b.zip || "") + " · <b>cheaper to serve today</b></div>" +
+              (b.tooClose ? '<div class="w"><b>' + r1(b.fromBase) + " mi from the " + esc(b.nearBase) +
+                 " base</b> — inside the " + B.spacing + "-mile rule, so this is not new ground, " +
+                 "it is a second yard in the same territory</div>"
+                : '<div class="c">' + r1(b.fromBase) + " mi from the nearest base — clear of the " +
+                  B.spacing + "-mile rule</div>") +
               '<div class="c"><b>Saves ' + r2(b.saved) + " miles a job</b><small>" +
                 fmtN(b.rehomed) + " jobs would run from here instead of their current base</small></div>" +
               (b.need != null ? '<div class="w"><b>' + b.need + (b.need === 1 ? " foreman" : " foremen") +
@@ -2727,10 +2776,11 @@ registerPage({
             placed.push(b);
             return near === 0 ? "" : near === 1 ? " flip" : near === 2 ? " up" : " flip down";
           };
-          B.have.concat(B.add).forEach(b => {
+          B.have.concat(B.add, B.coverage).forEach(b => {
             const mk = L.marker([b.la, b.lo], {
               icon: flag(b.kind + offsetFor(b), b.kind === "have" ? b.name : b.label.replace(/ [A-Z]{2}$/, "")),
-              riseOnHover: true, zIndexOffset: b.kind === "add" ? 400 : 600 });
+              riseOnHover: true,
+              zIndexOffset: b.kind === "have" ? 600 : b.kind === "cover" ? 500 : 400 });
             mk.bindTooltip(baseTip(b), { sticky: true, className: "ap2-tipwrap", direction: "top" });
             /* HIS ASK: the reach appears on hover. It is removed on mouseout unless the flag was
                clicked, so he can pin one open and compare it against the counties underneath. */
