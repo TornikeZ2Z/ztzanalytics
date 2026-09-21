@@ -343,6 +343,14 @@
   background:#fff;color:var(--ink);border-radius:4px;box-shadow:0 1px 4px rgba(0,0,0,.25);display:block;margin-top:6px;text-decoration:none}
 .leaflet-control a.ap2-mapbtn.on{background:var(--ink);color:#fff}
 .ap2-mapbox{cursor:grab} .ap2-mapbox:active{cursor:grabbing}
+/* the fleet, as chips: a number, what it is, and the one line that qualifies it */
+.ap2-chips3{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 10px}
+.ap2-chips3 .ap2-chip3{display:flex;flex-direction:column;gap:1px;padding:7px 12px;border:1px solid var(--ap-rule);
+  border-radius:var(--ap-r2);background:var(--ap-surface-2);min-width:112px;cursor:help}
+.ap2-chips3 .ap2-chip3 b{font-size:19px;font-weight:800;line-height:1.05;letter-spacing:-.01em}
+.ap2-chips3 .ap2-chip3 span{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
+.ap2-chips3 .ap2-chip3 small{font-size:11px;color:var(--muted)}
+.ap2-chips3 .ap2-chip3:hover{border-color:var(--ink)}
 /* the tooltip is Leaflet's, so it is styled through its own wrapper class */
 .leaflet-tooltip.ap2-tipwrap{background:var(--ap-bay);color:var(--ink);border:1px solid var(--ap-rule-2);
   border-radius:var(--ap-r2);box-shadow:0 8px 24px rgba(0,0,0,.28);padding:9px 11px;font-family:inherit}
@@ -2531,7 +2539,7 @@ registerPage({
           kind: "cover", name: c.label, label: c.label, la: c.lat, lo: c.lon,
           newMovers: c.new_movers, opens: c.counties_opened, fromBase: c.nearest_base_mi,
           reach: reach(c.lat, c.lon) }));
-        const add = (D.candidates || []).filter(c => !c.error && c.lat && c.lon &&
+        const add = (D.candidates || []).filter(c => !c.error && c.lat && c.lon && !c.suppressed &&
                                                      (c.saved_mi_per_job || 0) >= 0.25)
           .slice().sort((a, b) => (b.saved_mi_per_job || 0) - (a.saved_mi_per_job || 0))
           .map(c => {
@@ -2548,6 +2556,48 @@ registerPage({
           });
         return { have, add, coverage, work: WORK, spacing: SPACING,
                  baseline: D.baseline || null };
+      }
+
+
+      /* ===================== THE FLEET, AS CHIPS =====================
+         His ask 2026-09-21: "display the total foreman quantity and truck quantity + rental
+         quantity on chips as legends - and on hover display more data."
+
+         Every figure here is nextCalc()'s own, so a chip can never disagree with the plan it sits
+         above. The hover carries the working, because a bare number on a map is a number nobody
+         can check: where the crews are today, what the peak needs, which bases are empty, and how
+         the rental count falls out of owned-versus-needed rather than being a figure we chose. */
+      function fleetChips() {
+        if (!FC.year) return "";
+        const N = nextCalc(), B = basesFor();
+        const staffed = B.have.filter(b => b.foremen > 0);
+        const empty = B.have.filter(b => !b.foremen);
+        const chip = (k, v, sub, tip) =>
+          '<span class="ap2-chip3" title="' + esc(tip) + '"><b>' + v + "</b><span>" + k + "</span>" +
+          (sub ? "<small>" + sub + "</small>" : "") + "</span>";
+        const byBase = staffed.map(b => b.name + " " + b.foremen).join(", ");
+        return '<div class="ap2-chips3">' +
+          chip("foremen at peak", fmtN(N.tot.peak),
+               "have " + fmtN(N.tot.have) + (N.tot.hire ? " · hire +" + N.tot.hire : " · covered"),
+               "Today: " + byBase + ". " + (empty.length
+                 ? empty.map(b => b.name).join(", ") + " are registered bases with nobody stationed at them."
+                 : "Every base is staffed.") +
+               " The peak is the busiest single month, so it is not the sum of the year.") +
+          chip("helpers", fmtN(N.tot.helpers), (N.crew.helpers || 0) + " per foreman",
+               "Helpers ride with a foreman; the count follows the crew shape on Planning Variables.") +
+          chip("drivers", fmtN(N.tot.drivers), (N.crew.drivers || 0) + " per foreman",
+               "Drivers are counted on the closing sheet like foremen, not assumed.") +
+          chip("trucks", fmtN(N.tot.trucks), "one per foreman at peak",
+               "One truck per foreman working the peak month. " + fmtN(N.owned) +
+               " are on the vehicles register today.") +
+          chip("rentals", fmtN(N.rentTrucks),
+               N.rentTrucks ? money0((N.tot.rent || 0)) + " for the season" : "none needed",
+               N.rentTrucks
+                 ? "Rentals are what the peak needs minus what we own: " + fmtN(N.tot.trucks) +
+                   " needed against " + fmtN(N.owned) + " owned. Priced the dearest of the three " +
+                   "quotes we hold, over " + N.coreDays + " season days."
+                 : "We own more trucks than the peak needs, so nothing is rented.") +
+          "</div>";
       }
 
       function mapHtml() {
@@ -2571,6 +2621,7 @@ registerPage({
             '-mile rule, which is the tell that they are second yards in the same territory rather ' +
             'than new locations. <b>Hover a flag</b> for the ' + B.work +
             ' miles it works, and click to pin that circle while you read the counties underneath.</div>' +
+          fleetChips() +
           '<div class="ap2-mapkey">' + key +
           '<span class="ap2-mk"><i class="ap2-sw unc"></i>no crew within 60 mi <b>' + unc.length + "</b></span>" +
           '<span class="ap2-mk"><i class="ap2-sw have"></i>base we have <b>' + fmtN(B.have.length) + "</b></span>" +
@@ -2622,10 +2673,11 @@ registerPage({
              cleanup.js and ld-planning.js were moved off voyager the same day. */
           const darkMap = !document.body.classList.contains("light");
           const tiles = L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png",
-                                    { maxZoom: 12, opacity: darkMap ? 1 : .62 });
+                                    { maxZoom: 14, opacity: darkMap ? 1 : .5 });
           tiles.addTo(m);
           if (tiles.getContainer()) tiles.getContainer().style.filter = darkMap
-            ? "grayscale(1) invert(1) brightness(.82) contrast(.9)" : "grayscale(.55)";
+            ? "grayscale(1) invert(1) brightness(.78) contrast(.82) saturate(.2)"
+            : "grayscale(.9) brightness(1.08) contrast(.86)";
           const col = { push: tok("--pos") || "#5f7c20", hold: tok("--warn") || "#b97b0a",
                         fix: tok("--neg") || "#d43d55", grey: tok("--faint") || "#8a97a6",
                         none: tok("--line") || "#c9d2dc" };
@@ -2659,8 +2711,9 @@ registerPage({
                 const r = byKey[f.properties.st + "|" + f.properties.key];
                 const band = r ? r.band : "none";
                 return { color: r && r.uncovered ? col.fix : tok("--ap-rule-2") || "#98a4b3",
-                         weight: r && r.uncovered ? 1 : 0.7,
-                         opacity: r && r.uncovered ? .55 : .85,
+                         weight: r && r.uncovered ? 1 : 0.6,
+                         opacity: r && r.uncovered ? .5 : .7,
+                         lineJoin: "round",
                          dashArray: r && r.uncovered ? "3 3" : null,
                          fillColor: col[band],
                          fillOpacity: band === "none" ? .10 : band === "grey" ? .26 : .62 };
