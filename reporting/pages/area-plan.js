@@ -974,6 +974,13 @@ registerPage({
          was being sized on a median taken over TEST TEST and Yelp Team. Only a dial somebody typed stays. */
       inputs.dialsTyped = inputs.dialsTyped || {};
       ["utilization", "leadsPerRep", "dollarsPerLead"].forEach(k => { if (!inputs.dialsTyped[k]) inputs[k] = null; });
+      /* AND THE SAME FOR THE FORECAST METHOD, ONCE (2026-09-22). The default moved from "last season
+         x growth" to the 3-season average, and a click on the method picker is saved per browser --
+         so every browser that had ever touched it, including his and Giga's, would have gone on
+         showing 1,998 jobs and a $402k budget while the model said 1,692 and $346k, and the change
+         would have looked like it never shipped. The saved value is dropped ONCE, against a marker,
+         so this never fights a choice made after today: click a method now and it sticks. */
+      if (!inputs.methodReset0922) { inputs.method = null; inputs.methodReset0922 = 1; }
       if ((inputs.city || {}).window === "season" && CITYSEASON.length) CITYALL = CITYSEASON;
       seedStates.forEach(st => { if (!inputs.bases[st]) inputs.bases[st] = { cur: 0, add: 0, byCo: {} }; });
       // the picker may hold months the mart does not (a fresh season): clamp to what exists
