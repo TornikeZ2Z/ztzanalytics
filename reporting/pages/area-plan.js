@@ -975,10 +975,11 @@ registerPage({
       }, saved);
       /* THE WHAT-IF'S OWN STATE. Every lever starts at "change nothing", so the pane opens showing
          the plan as it stands and every number he then sees is something he moved himself. */
-      const SCN0 = { zip: "", pick: "", maturity: 0, capture: {}, budgetPct: 0, elast: 0, surgeDays: 0,
+      const SCN0 = { zip: "", picks: [], maturity: 0, capture: {}, budgetPct: 0, elast: 0, surgeDays: 0,
                      surgeCrews: 0, crews: 0, park: 800 };
       inputs.scn = Object.assign({}, SCN0, inputs.scn || {});
       inputs.scn.capture = Object.assign({}, (inputs.scn || {}).capture || {});
+      inputs.scn.picks = Array.isArray(inputs.scn.picks) ? inputs.scn.picks : [];
       inputs.scnSaved = Array.isArray(inputs.scnSaved) ? inputs.scnSaved : [];
       inputs.city = Object.assign({ minLeads: 20, view: "all", q: "", sort: "Revenue", desc: true,
                                     page: 0, pageSize: 30 }, inputs.city || {});
@@ -2193,23 +2194,32 @@ registerPage({
          priced at all, which made the what-if unable to cost the one base the map recommends. The
          maths never needed the zip, only a latitude and a longitude; the zip lookup is now just one
          way of getting them, and the map's own picks are another. */
-      function depotAt(lat, lon, label) {
+      /* TWO YARDS ARE NOT TWICE ONE YARD (2026-09-22, for "i need to properly plan for new 2-3 base
+         at max"). Priced one at a time, each is measured against today's base set, so a job that
+         both of them would take over is counted as re-homed twice and the miles saved add up to
+         more than exist. Every picked yard therefore enters the base set TOGETHER and the saving is
+         computed once, against the network as it would actually be. */
+      function depotAt(pts, label) {
+        const P = Array.isArray(pts) ? pts : [pts];
         const J = DEP.jobs_by_zip || [], WS = DEP.ws_zips || [], B = DEP.bases || [];
-        const zip = label;
         const total = J.reduce((a, j) => a + j[3], 0);
         const near = (la, lo, bs) => bs.reduce((best, b) => { const d = hav(la, lo, b.lat, b.lon); return d < best[0] ? [d, b.name] : best; }, [Infinity, null]);
-        const withC = B.concat([{ name: zip, lat, lon }]);
+        const isNew = {}; P.forEach((q, i) => { isNew["new" + i] = 1; });
+        const withC = B.concat(P.map((q, i) => ({ name: "new" + i, lat: q.lat, lon: q.lon })));
+        const anyWithin = (la, lo, mi) => P.some(q => hav(la, lo, q.lat, q.lon) <= mi);
         let mi = 0, base = 0, j15 = 0, j35 = 0, rehomed = 0;
-        J.forEach(j => { const d = hav(j[1], j[2], lat, lon); if (d <= (DEP.near_mi || 15)) j15 += j[3]; if (d <= (DEP.territory_mi || 35)) j35 += j[3];
-          base += near(j[1], j[2], B)[0] * j[3]; const n = near(j[1], j[2], withC); mi += n[0] * j[3]; if (n[1] === zip) rehomed += j[3]; });
+        J.forEach(j => { if (anyWithin(j[1], j[2], DEP.near_mi || 15)) j15 += j[3];
+          if (anyWithin(j[1], j[2], DEP.territory_mi || 35)) j35 += j[3];
+          base += near(j[1], j[2], B)[0] * j[3]; const n = near(j[1], j[2], withC); mi += n[0] * j[3]; if (isNew[n[1]]) rehomed += j[3]; });
         let ws35 = 0, never = 0, movers = 0;
-        WS.forEach(w => { if (hav(w[1], w[2], lat, lon) <= (DEP.territory_mi || 35)) { ws35++; if (w[3]) { never++; movers += w[4]; } } });
-        return { zip, label, lat, lon, mi_per_job: total ? mi / total : null, saved_mi_per_job: total ? (base - mi) / total : null, jobs_15: j15, jobs_35: j35, rehomed, ws_zips_35: ws35, ws_never_35: never, movers_never_35: movers };
+        WS.forEach(w => { if (anyWithin(w[1], w[2], DEP.territory_mi || 35)) { ws35++; if (w[3]) { never++; movers += w[4]; } } });
+        return { label, pts: P, n: P.length, mi_per_job: total ? mi / total : null, saved_mi_per_job: total ? (base - mi) / total : null,
+                 jobs_15: j15, jobs_35: j35, rehomed, ws_zips_35: ws35, ws_never_35: never, movers_never_35: movers };
       }
       function depotTry(zip) {
         const J = DEP.jobs_by_zip || [], WS = DEP.ws_zips || [];
         const hit = J.find(x => x[0] === zip) || WS.find(x => x[0] === zip);
-        return hit ? depotAt(hit[1], hit[2], zip) : null;
+        return hit ? depotAt([{ lat: hit[1], lon: hit[2] }], zip) : null;
       }
       function wireMethod() {
         host.querySelectorAll("#apNext [data-method]").forEach(b => b.onclick = () => {
@@ -2898,14 +2908,18 @@ registerPage({
         /* ---- a new base at a zip ---- */
         let dep = null, ring = null;
         const picks = (basesFor().coverage || []);
-        const pick = c.pick ? picks.find(x => x.label === c.pick) : null;
-        if (pick || (c.zip && /^\d{5}$/.test(c.zip))) {
-          dep = pick ? depotAt(pick.la, pick.lo, pick.label) : depotTry(c.zip);
+        const chosen = (c.picks || []).map(l => picks.find(x => x.label === l)).filter(Boolean);
+        if (chosen.length || (c.zip && /^\d{5}$/.test(c.zip))) {
+          dep = chosen.length
+            ? depotAt(chosen.map(x => ({ lat: x.la, lon: x.lo })), chosen.map(x => x.label).join(" + "))
+            : depotTry(c.zip);
           if (dep) {
             const savedMi = Math.max(0, num(dep.saved_mi_per_job));
             dep.driving = savedMi * base.jobs * SCN.ROAD_PER_STRAIGHT * SCN.ROAD_MI_USD;
             {
-              const near = COUNTY.filter(x => num(x.Latitude) && hav(num(x.Latitude), num(x.Longitude), dep.lat, dep.lon) <= SCN.RING_MI);
+              /* a county in reach of TWO new yards is still one county */
+              const near = COUNTY.filter(x => num(x.Latitude) &&
+                dep.pts.some(q => hav(num(x.Latitude), num(x.Longitude), q.lat, q.lon) <= SCN.RING_MI));
               const nearLeads = near.reduce((a, x) => a + num(x.Leads), 0);
               const allLeads = COUNTY.reduce((a, x) => a + num(x.Leads), 0);
               const share = allLeads ? nearLeads / allLeads : 0;
@@ -2917,14 +2931,14 @@ registerPage({
               ring.jobs = planLeads * (SCN.RING_PTS / 100) * (num(c.maturity) / 100);
               dJobs += ring.jobs;
             }
-            dCost += num(c.park) * (N.core.length || 4);          // parking, for the season
+            dCost += num(c.park) * (N.core.length || 4) * dep.n;  // parking, for the season, per yard
             dCost -= dep.driving;                                  // a saving is a negative cost
-            moves.push({ k: "base", l: "A base at " + esc(dep.label),
+            moves.push({ k: "base", l: (dep.n > 1 ? dep.n + " bases: " : "A base at ") + esc(dep.label),
               why: (savedMi > 0 ? r2(savedMi) + " mi/job less driving" : "no driving saved") +
                    (ring && ring.jobs > 0 ? ", " + r1(ring.jobs) + " jobs from the home ring at " + Math.round(num(c.maturity)) + "% maturity" : "") +
-                   ", " + money0(num(c.park)) + " a month of parking",
+                   ", " + money0(num(c.park) * dep.n) + " a month of parking",
               jobs: ring ? ring.jobs : 0,
-              usd: dep.driving - num(c.park) * (N.core.length || 4) +
+              usd: dep.driving - num(c.park) * (N.core.length || 4) * dep.n +
                    (ring ? ring.jobs * (perJob - (base.jobs ? base.expense / base.jobs : 0)) : 0) });
           }
         }
@@ -2963,6 +2977,22 @@ registerPage({
             jobs: 0, usd: -cost });
         }
 
+        /* JOBS HAVE TO PAY FOR THE CREWS THAT RUN THEM (2026-09-22). Job expense scales with the
+           jobs, so crew PAY was always in -- but the truck a new crew needs is a fixed cost that
+           was not, and 400 extra Virginia jobs need about four more foremen. Surge crews are left
+           out because they carry their own cost already. Crews do not CREATE jobs; jobs create the
+           need for crews, which is the direction the measurement supports. */
+        const demandJobs = dJobs - (moves.filter(m => m.k === "surge").reduce((a, m) => a + m.jobs, 0));
+        if (demandJobs > 0.5) {
+          const rate = chainOf("_all") || 1.27;
+          const perSeason = rate * DAYS_PER_MONTH * (N.core.length || 4);
+          const need = Math.ceil(demandJobs / perSeason - 1e-9);
+          if (need > 0) { const cost = need * SCN.TRUCK_SEASON; dRent += cost;
+            moves.push({ k: "needcrew", l: need + " more crew" + (need === 1 ? "" : "s") + " to run the extra jobs",
+              why: r1(demandJobs) + " jobs at " + r2(rate) + " a foreman-day over " + (N.core.length || 4) +
+                   " season months \u2014 their pay is already inside job expense, this is the truck",
+              jobs: 0, usd: -cost }); }
+        }
         const jobs = base.jobs + dJobs;
         const k = base.jobs ? jobs / base.jobs : 1;
         const scn = { jobs, revenue: base.revenue * k, expense: base.expense * k,
@@ -3006,15 +3036,16 @@ registerPage({
           '<div class="ap2-scn">' +
             '<div class="ap2-scnbox"><h4>Reach more of the movers</h4><div class="ap2-capgrid">' + capIn + "</div>" +
               note("Type the leads per 10,000 movers you think a state could reach. <b>This is the lever the data says is large</b> — and the one a base cannot move on its own.") + "</div>" +
-            '<div class="ap2-scnbox"><h4>A base somewhere new</h4>' +
+            '<div class="ap2-scnbox"><h4>Bases somewhere new</h4>' +
               /* THE MAP'S OWN PICKS, one click each. A zip outside today's territory is not in the
                  model's compact maps, so typing Rockville got "not in the territory data" -- and the
                  picks are all outside it, by construction. They carry their own coordinates. */
               '<div class="ap2-picks">' + (S.picks || []).map(x =>
-                '<button type="button" class="ap2-mbtn' + (c.pick === x.label ? " on" : "") + '" data-pick="' + esc(x.label) + '">' +
+                '<button type="button" class="ap2-mbtn' + ((c.picks || []).indexOf(x.label) >= 0 ? " on" : "") + '" data-pick="' + esc(x.label) + '">' +
                 esc(x.label) + "<small>" + fmtN(x.newMovers) + " movers in range</small></button>").join("") +
-              (c.pick || c.zip ? '<button type="button" class="ap2-mbtn" data-pick="">clear</button>' : "") + "</div>" +
-              '<label class="ap2-fld"><span>\u2026 or any zip we already work</span><input class="ap2-in" data-scn="zip" maxlength="5" placeholder="e.g. 08102" value="' + esc(c.zip) + '"' + (c.pick ? " disabled" : "") + ">" +
+              ((c.picks || []).length || c.zip ? '<button type="button" class="ap2-mbtn" data-pick="">clear</button>' : "") + "</div>" +
+              ((c.picks || []).length > 1 ? note("The " + (c.picks || []).length + " yards are priced <b>together</b>, so a job both of them would take over is not counted twice.") : "") +
+              '<label class="ap2-fld"><span>\u2026 or any zip we already work</span><input class="ap2-in" data-scn="zip" maxlength="5" placeholder="e.g. 08102" value="' + esc(c.zip) + '"' + ((c.picks || []).length ? " disabled" : "") + ">" +
               "<small>" + (S.dep ? r2(S.dep.saved_mi_per_job) + " mi/job saved \u00b7 " + fmtN(S.dep.jobs_35) + " jobs within 35 mi \u00b7 " + fmtN(S.dep.ws_never_35) + " zips in reach have never sent a lead"
                                  : c.zip ? "not in the territory data \u2014 the zip maps only cover ground within 35 miles of a base we have, so use a pick above for new ground"
                                          : "any zip with jobs or white space near it") + "</small></label>" +
@@ -3065,8 +3096,11 @@ registerPage({
       function wireWhatIf() {
         const el = host.querySelector("#apWhatIf"); if (!el) return;
         el.querySelectorAll("[data-pick]").forEach(b => { b.onclick = () => {
-          inputs.scn.pick = b.dataset.pick || "";
-          if (inputs.scn.pick) inputs.scn.zip = "";
+          const l = b.dataset.pick;
+          if (!l) { inputs.scn.picks = []; }
+          else { const cur = inputs.scn.picks || [];
+            inputs.scn.picks = cur.indexOf(l) >= 0 ? cur.filter(x => x !== l) : cur.concat([l]);
+            inputs.scn.zip = ""; }
           save(); repaintScn(); }; });
         el.querySelectorAll("[data-scn]").forEach(i => { i.onchange = () => {
           const k = i.dataset.scn;
@@ -3077,7 +3111,7 @@ registerPage({
           if (i.value === "") delete inputs.scn.capture[st]; else inputs.scn.capture[st] = +i.value;
           save(); repaintScn(); }; });
         const rst = el.querySelector("#apScnReset");
-        if (rst) rst.onclick = () => { inputs.scn = Object.assign({}, SCN0, { capture: {} }); save(); repaintScn(); };
+        if (rst) rst.onclick = () => { inputs.scn = Object.assign({}, SCN0, { capture: {}, picks: [] }); save(); repaintScn(); };
         const sv = el.querySelector("#apScnSave");
         if (sv) sv.onclick = () => { const nm = (el.querySelector("#apScnName") || {}).value;
           if (!nm || !nm.trim()) return;
@@ -3088,6 +3122,7 @@ registerPage({
         el.querySelectorAll("[data-load]").forEach(b => { b.onclick = () => {
           const x = (inputs.scnSaved || [])[+b.dataset.load]; if (!x) return;
           inputs.scn = Object.assign({}, SCN0, x.scn); inputs.scn.capture = Object.assign({}, x.scn.capture || {});
+          inputs.scn.picks = Array.isArray(x.scn.picks) ? x.scn.picks.slice() : [];
           save(); repaintScn(); }; });
       }
 
