@@ -116,6 +116,10 @@
     .ap2-picks{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 10px}
     .ap2-picks .ap2-mbtn{font-size:11.5px;padding:4px 8px}
     .ap2-scnbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:6px 0 2px}
+    .ap2-cname{position:absolute;transform:translate(-50%,-172%);text-align:center;white-space:nowrap;
+      font-size:11.5px;font-weight:800;color:var(--ink);letter-spacing:.01em;pointer-events:none;
+      text-shadow:0 0 4px var(--bg),0 0 4px var(--bg),0 0 8px var(--bg)}
+    .ap2-cname b{display:block;font-size:10px;font-weight:700;color:var(--muted);letter-spacing:.04em}
     .ap2-stlbl { position:absolute; transform:translate(-50%,-50%); font:800 11px/1 var(--mono, ui-monospace, monospace); letter-spacing:.22em; color:var(--ink); opacity:.5; white-space:nowrap; pointer-events:none; text-shadow:0 0 3px var(--bg), 0 0 3px var(--bg); }
     .ap2-svbar { display:inline-block; width:64px; height:6px; margin-left:8px; border-radius:3px; background:var(--line); vertical-align:middle; overflow:hidden; }
     .ap2-svbar i { display:block; height:100%; background:var(--pos); border-radius:3px; }
@@ -334,18 +338,27 @@
    Leaflet is vendored and lazy-loaded; the tile layer is Carto Voyager, the same one
    cleanup.js and ld-planning.js already use. Colours come from the SEMANTIC tokens so
    the key means the same thing here as everywhere else on the page. */
-.ap2-mapbox{height:min(76vh,760px);min-height:540px;border-radius:var(--ap-r1);border:1px solid var(--ap-rule);
-  background:var(--ap-sub);overflow:hidden}
-.ap2-mapkey{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin:0 0 10px;
+.ap2-mapbox{height:min(82vh,900px);min-height:600px;border-radius:var(--ap-r1);border:1px solid var(--ap-rule);
+  background:#d0cfd4;overflow:hidden}          /* the Esri canvas water, so no seam shows at an edge */
+body:not(.light) .ap2-mapbox{background:#1d232b}
+.ap2-headline{margin:2px 0 10px;padding:11px 14px;border:1px solid var(--ap-rule);border-left:4px solid var(--ap-pos-ink);
+  border-radius:var(--ap-r2);background:var(--ap-sub);font-size:15px;line-height:1.5;color:var(--ink)}
+.ap2-headline .n{font-size:22px;font-weight:800;font-variant-numeric:tabular-nums;color:var(--ink)}
+.ap2-headline .q{color:var(--muted)}
+.ap2-mapkey{display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin:0 0 10px;font-size:13.5px;
   font-size:11.5px;color:var(--muted)}
 .ap2-mapkey .sp{flex:1 1 auto}
 .ap2-mk{display:inline-flex;align-items:center;gap:6px}
 .ap2-mk b{color:var(--ink);font-variant-numeric:tabular-nums}
-.ap2-sw{width:11px;height:11px;border-radius:50%;flex:none;border:1px solid var(--ap-rule-2)}
+.ap2-sw{width:14px;height:14px;border-radius:50%;flex:none;border:1px solid var(--ap-rule-2)}
 .ap2-sw.push{background:var(--ap-pos-ink)} .ap2-sw.hold{background:var(--ap-warn-ink)}
 .ap2-sw.fix{background:var(--ap-neg-ink)}  .ap2-sw.grey{background:var(--muted)}
 .ap2-sw.unc{background:transparent;border:2px dashed var(--ap-neg-ink)}
-.ap2-sw.none{background:transparent;border:1px solid var(--ap-rule-2)}
+/* NEVER SENT A LEAD IS A TEXTURE, NOT A SHADE (his call 2026-09-22: the two greys "look
+   similar"). A hatch cannot be mistaken for a colour at any size or on any projector, and it reads
+   as "nothing is known here" rather than as a bad score -- which is what it actually means. */
+.ap2-sw.none{background:transparent;border:1px solid var(--ap-rule-2);
+  background-image:repeating-linear-gradient(45deg,var(--ap-rule-2) 0 1.5px,transparent 1.5px 4px)}
 .ap2-sw.have{background:var(--ink);border-radius:2px}
 .ap2-sw.cover{background:transparent;border:2px dashed var(--ap-pos-ink);border-radius:50%}
 /* A BASE FLAG IS A LABEL, NOT A PIN. Six bases and four proposals on one screen: an unlabelled
@@ -374,16 +387,30 @@
 .ap2-chips3 .ap2-chip3 small{font-size:11px;color:var(--muted)}
 .ap2-chips3 .ap2-chip3:hover{border-color:var(--ink)}
 /* the tooltip is Leaflet's, so it is styled through its own wrapper class */
+/* WHITE-SPACE: NOWRAP IS LEAFLET'S OWN DEFAULT and it was never overridden -- which is why the
+   long Census line ran straight out of the white box instead of wrapping inside it (his screenshot,
+   2026-09-22: "the tooltip is a little damaged"). max-width could not bite while nowrap held. The
+   wrapper is the element Leaflet sizes, so the width belongs here and not on .ap2-tip. */
 .leaflet-tooltip.ap2-tipwrap{background:var(--ap-bay);color:var(--ink);border:1px solid var(--ap-rule-2);
-  border-radius:var(--ap-r2);box-shadow:0 8px 24px rgba(0,0,0,.28);padding:9px 11px;font-family:inherit}
+  border-radius:var(--ap-r2);box-shadow:0 10px 30px rgba(0,0,0,.34);padding:13px 15px;font-family:inherit;
+  white-space:normal;width:340px;max-width:min(340px,86vw);opacity:1}
 .leaflet-tooltip.ap2-tipwrap:before{display:none}
-.ap2-tip{font-size:12px;line-height:1.55;max-width:290px}
-.ap2-tip b{font-size:13px;color:var(--ink)}
-.ap2-tip .t{font-family:var(--ap-mono);font-size:11px;letter-spacing:.04em;color:var(--ap-live);margin:1px 0 4px}
-.ap2-tip .b{margin-top:5px;padding-top:5px;border-top:1px solid var(--ap-rule);color:var(--ink);font-weight:700}
+/* sized for a projector, not a laptop: this is the one page that gets presented */
+.ap2-tip{font-size:14px;line-height:1.5}
+.ap2-tip b{font-size:16px;color:var(--ink)}
+.ap2-tip .t{font-family:var(--ap-mono);font-size:12px;letter-spacing:.04em;color:var(--ap-live);margin:2px 0 7px}
+.ap2-tip .b{margin-top:7px;padding-top:7px;border-top:1px solid var(--ap-rule);color:var(--ink);font-weight:700}
 .ap2-tip .c{color:var(--muted)}
-.ap2-tip .w{margin-top:4px;color:var(--ap-neg-ink);font-weight:700}
-.ap2-tip small{display:block;color:var(--muted);font-weight:400}
+.ap2-tip .w{margin-top:6px;color:var(--ap-neg-ink);font-weight:700}
+.ap2-tip small{display:block;color:var(--muted);font-weight:400;font-size:12px;line-height:1.4}
+.ap2-tip .big{font-size:19px;font-weight:800;color:var(--ink);font-variant-numeric:tabular-nums}
+/* a fact grid, so a dozen numbers read as a table and not as a paragraph */
+.ap2-tip .grid{display:grid;grid-template-columns:1fr auto;gap:3px 12px;margin-top:8px;
+  padding-top:8px;border-top:1px solid var(--ap-rule);font-size:13px}
+.ap2-tip .grid i{font-style:normal;color:var(--muted)}
+.ap2-tip .grid u{text-decoration:none;text-align:right;font-weight:700;font-variant-numeric:tabular-nums}
+.ap2-tip .hd{font-family:var(--ap-mono);font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--faint);margin:10px 0 1px}
 
 /* ═══════════════════════════════════════════════════════════════════════════════
    SEASONAL PLANNING — COMMAND SURFACE (visual layer, 2026-09-20)
@@ -2672,10 +2699,29 @@ registerPage({
         const capOf = st => (capSt[st] && capSt[st].m) ? 10000 * capSt[st].l / capSt[st].m : null;
         const homeSt = Object.keys(capSt).sort((a, b) => capSt[b].l - capSt[a].l)[0];
         const AIM = model.crew_aim || {};
+        /* what the DECIDED expansion implies for a state, so the flag for a base we have chosen
+           says how many foremen its own jobs would need rather than only the standing aim */
+        const XP = model.expansion || null;
+        const xpFor = st => {
+          if (!XP || !N || !(XP.capture || {})[st]) return null;
+          const cs = COUNTY.filter(x => x.State === st);
+          const mv = cs.reduce((a, x) => a + num(x["Movers Per Year"]), 0);
+          const ld = cs.reduce((a, x) => a + num(x.Leads), 0);
+          if (!mv) return null;
+          const now = 10000 * ld / mv, want = num(XP.capture[st]);
+          if (!(want > now)) return null;
+          const rr = N.rows.find(x => x.st === st);
+          const lpj = rr && rr.leadsPerJob ? rr.leadsPerJob : (N.mkt.lpjAll || 6);
+          const jobs = (want - now) * mv / 10000 / lpj;
+          const rate = chainOf(st) || chainOf("_all") || 1.27;
+          return { jobs, fm: jobs / (rate * DAYS_PER_MONTH * (N.core.length || 4)) };
+        };
         const coverage = (D.coverage || []).map(c => { const rate = chainOf(c.st) || chainOf("_all"); const need = num(AIM[c.st]) || null;
+          const xp = xpFor(c.st);
           return { kind: "cover", name: c.label, label: c.label, la: c.lat, lo: c.lon, st: c.st,
                    newMovers: c.new_movers, opens: c.counties_opened, fromBase: c.nearest_base_mi,
                    step: c.step || null, hopFrom: c.hop_from || null, hopMi: c.hop_mi,
+                   xpFm: xp ? xp.fm : null, xpJobs: xp ? xp.jobs : null,
                    cap: capOf(c.st), capHome: capOf(homeSt), homeSt, need, rate, perDay: need && rate ? need * rate : null,
                    atHomeRate: capOf(homeSt) != null ? c.new_movers * capOf(homeSt) / 10000 : null,
                    atOwnRate: capOf(c.st) != null ? c.new_movers * capOf(c.st) / 10000 : null,
@@ -2698,6 +2744,7 @@ registerPage({
         const N = nextCalc(), B = basesFor();
         const staffed = B.have.filter(b => b.foremen > 0);
         const empty = B.have.filter(b => !b.foremen);
+        const T = (FC.trucks || {});
         const chip = (k, v, sub, tip) =>
           '<span class="ap2-chip3" title="' + esc(tip) + '"><b>' + v + "</b><span>" + k + "</span>" +
           (sub ? "<small>" + sub + "</small>" : "") + "</span>";
@@ -2718,7 +2765,16 @@ registerPage({
           chip("trucks", fmtN(N.tot.trucks), "one per foreman at peak",
                "One truck per foreman working the peak month. " + fmtN(N.owned) +
                " are on the vehicles register today.") +
-          chip("rentals", fmtN(N.rentTrucks),
+          chip("vehicles owned", fmtN((model.fleet || {}).owned_trucks || 0),
+               fmtN(N.owned) + " working the season",
+               "The vehicle register holds " + fmtN((model.fleet || {}).owned_trucks || 0) + " trucks; " + fmtN(N.owned) +
+               " of them are counted as working. Insurance runs " + money0((model.fleet || {}).insurance_yearly_total || 0) +
+               " a year and parking " + money0((model.fleet || {}).parking_monthly_total || 0) + " a month, company-wide.") +
+          chip("rental, last season", fmtN(T.rental_days_last_season || 0) + " days",
+               money0(T.rental_usd_last_season || 0) + " at " + money0(T.rental_per_day || 0) + " a day",
+               "What the bank was actually charged for rented trucks last season, over " +
+               fmtN(T.rental_days_last_season || 0) + " truck-days. It is the measured rate the plan prices the peak from.") +
+          chip("rentals at peak", fmtN(N.rentTrucks),
                N.rentTrucks ? money0((N.tot.rent || 0)) + " for the season" : "none needed",
                N.rentTrucks
                  ? "Rentals are what the peak needs minus what we own: " + fmtN(N.tot.trucks) +
@@ -2823,6 +2879,32 @@ registerPage({
          Thumbtack), which bill wherever the lead appears, so about a third of what lands in red --
          roughly $17k of $50.7k -- is money anyone can actually steer. Fix counties return $176 a
          lead against $418 in Push, so that third is worth moving. */
+      /* ONE LINE THAT MAKES THE POINT BEFORE ANYONE READS THE COLOURS (his ask 2026-09-22: this is
+         the only page that gets presented). Everything in it is counted off the same rows the map is
+         drawn from, so the sentence can never disagree with the picture above it. */
+      function headlineStrip(R) {
+        const inArea = R.filter(r => SERVICE_AREAS.includes(r.st));
+        const movers = inArea.reduce((a, r) => a + r.movers, 0);
+        const covered = inArea.filter(r => r.fm60 > 0);
+        const covMovers = covered.reduce((a, r) => a + r.movers, 0);
+        const leads = inArea.reduce((a, r) => a + r.leads, 0);
+        const blank = inArea.filter(r => !r.leads).length;
+        if (!movers) return "";
+        const cap = 10000 * leads / movers;
+        /* THE BIGGEST MARKET NO CREW CAN REACH -- but never one in a state we have ruled out. The
+           first version named Middlesex MA, which is the largest by movers and precisely the place he
+           had just decided not to expand into; a headline that argues for the thing we rejected is
+           worse than no headline. */
+        const noGo = (model.depots || {}).no_expansion || [];
+        const gap = inArea.filter(r => !r.fm60 && noGo.indexOf(r.st) < 0)
+          .slice().sort((a, b) => b.movers - a.movers)[0];
+        return '<div class="ap2-headline"><span class="n">' + fmtN(movers) + "</span> people move house a year across these " +
+          fmtN(inArea.length) + " counties. <b>" + Math.round(100 * covMovers / movers) + "%</b> of them are within 60 miles of one of our crews, and we reach <b>" +
+          r1(cap) + " in every 10,000</b>." +
+          (gap ? " The largest market no crew can reach is <b>" + esc(gap.county) + " " + esc(gap.st) + "</b>, " + fmtN(gap.movers) + " movers a year." : "") +
+          " <span class=\"q\">" + fmtN(blank) + " counties have never sent us a single lead.</span></div>";
+      }
+
       function budgetByBand(R) {
         const by = {}; let tot = 0;
         R.forEach(r => { if (r.budget > 0) { by[r.band] = (by[r.band] || 0) + r.budget; tot += r.budget; } });
@@ -3217,11 +3299,20 @@ registerPage({
             'question about marketing before it is one about trucks — ' + go("apSurvey", "the Census survey") + ' has the numbers. <b>Hover a flag</b> for the ' + B.work +
             ' miles it works, and click to pin that circle while you read the counties underneath.</div>' +
           '<div id="apChips">' + fleetChips() + "</div>" +
+          headlineStrip(R) +
           budgetByBand(R) +
           '<div class="ap2-mapkey">' + key +
           '<span class="ap2-mk"><i class="ap2-sw unc"></i>no crew within 60 mi <b>' + unc.length + "</b></span>" +
           '<span class="ap2-mk"><i class="ap2-sw have"></i>base we have <b>' + fmtN(B.have.length) + "</b></span>" +
-          '<span class="ap2-mk"><i class="ap2-sw cover"></i>opens new ground <b>' + fmtN((B.coverage || []).length) + "</b></span>" +
+          (() => { const cov = B.coverage || [];
+            const dec = ((model.expansion || {}).steps || []).map(x => x.base);
+            /* the frame opens on the ground we work and the two yards we chose, so the Virginia
+               picks sit south of it. Saying so is better than a legend that counts five flags
+               when three are on the screen. */
+            const off = cov.filter(c => dec.indexOf(c.label) < 0 && /VA$/.test(c.label));
+            return '<span class="ap2-mk"><i class="ap2-sw cover"></i>opens new ground <b>' + fmtN(cov.length) + "</b>" +
+              (off.length ? '<small style="color:var(--faint);margin-left:5px">' + off.length +
+                " in Virginia, south of this frame \u2014 zoom out</small>" : "") + "</span>"; })() +
           '<span class="sp"></span><span class="ap2-note" style="margin:0">scroll to zoom · drag to pan · &#10227; resets</span></div>' +
           '<div id="apMapBox" class="ap2-mapbox"></div>' +
           note("Colour is the county's tier, scored on distance to a base, booking rate, ticket and cubic feet — " +
@@ -3242,8 +3333,27 @@ registerPage({
       function fitMap() {
         const box = host.querySelector("#apMapBox");
         if (!box || !box._map || !box.clientWidth || !box.clientHeight) return;
-        box._map.invalidateSize();
-        if (box._fit && box._fit.length) box._map.fitBounds(box._fit, { padding: [26, 26], animate: false });
+        const m = box._map;
+        m.invalidateSize();
+        if (!(box._fit && box._fit.length)) return;
+        /* WHOLE ZOOM LEVELS COST HALF THE PICTURE. fitBounds at zoomSnap 1 rounds DOWN to the
+           level that certainly fits, which put Cleveland and West Virginia on a map about New
+           Jersey. The frame is therefore fitted to the ground that matters -- the counties big
+           enough to be rated and every flag -- with a small pad, and then the map is allowed one
+           step in if that step still holds the bases and the decided picks. */
+        m.fitBounds(box._fit, { padding: [10, 10], animate: false });
+        if (box._core && box._core.length) {
+          const cb = L.latLngBounds(box._core);
+          const z = Math.min(m.getBoundsZoom(cb, false), m.getZoom() + 1);
+          if (z > m.getZoom()) { m.fitBounds(cb, { padding: [34, 34], maxZoom: z, animate: false }); }
+        }
+        /* HOLD THE FRAME ON THE TERRITORY (2026-09-22). A third of the picture was open Atlantic --
+           dead space on a slide, and the only place the basemap's own tile seams are visible. The
+           map cannot now be panned or zoomed off the ground the page argues about, which also means
+           the reset button and the opening frame agree with every other view of it. */
+        const B2 = L.latLngBounds(box._fit).pad(0.12);
+        m.setMaxBounds(B2);
+        m.setMinZoom(Math.max(4, m.getBoundsZoom(B2, false) - 0.5));
       }
 
       function wireMap() {
@@ -3257,7 +3367,12 @@ registerPage({
           box._built = 1;
           const R = countyRowsFor(); if (!R.length) return;
           const B = basesFor();                 // declared here: the opening frame uses it too
-          const m = L.map(box, { scrollWheelZoom: true, zoomSnap: 0.25, zoomDelta: 0.5,
+          /* ZOOM SNAPS TO WHOLE LEVELS (2026-09-22). At zoomSnap 0.25 the map settles between two
+             tile levels, so Leaflet scales one level's tiles and keeps the level below showing
+             through wherever the top one has not covered -- which drew a crisp rectangle of slightly
+             different grey across the Atlantic on every render. Both geojson files were checked and
+             are clean; it was never vector geometry. Whole levels cost nothing here and the seam goes. */
+          const m = L.map(box, { scrollWheelZoom: true, zoomSnap: 1, zoomDelta: 1,
                                  wheelPxPerZoomLevel: 110, zoomControl: true,
                                  attributionControl: false });
           m.setView([40.3, -75.6], 7);          // must precede any layer: polygons project on add
@@ -3266,40 +3381,84 @@ registerPage({
              They are busier than a data map wants, so the layer is dimmed and, in the dark theme,
              inverted: the ground goes quiet and the circles carry the meaning.
              cleanup.js and ld-planning.js were moved off voyager the same day. */
+          /* A BASEMAP MADE FOR DATA (his call 2026-09-22: "i want a better map visual itself").
+             OpenStreetMap's own tiles are a NAVIGATION map -- every road, every label, full colour --
+             and dimming them with a CSS filter only makes a busy map grey and busy. Esri's Light Gray
+             Canvas is built for this job: pale land, quiet water, no road clutter, and the place
+             names on a SEPARATE layer so they can ride ON TOP of the county fills instead of being
+             buried under them. No key, no quota. Dark Gray Canvas is its twin for the dark theme, so
+             the map is designed in both rather than inverted into one. */
           const darkMap = !document.body.classList.contains("light");
-          const tiles = L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png",
-                                    { maxZoom: 14, opacity: darkMap ? 1 : .5 });
-          tiles.addTo(m);
-          if (tiles.getContainer()) tiles.getContainer().style.filter = darkMap
-            ? "grayscale(1) invert(1) brightness(.78) contrast(.82) saturate(.2)"
-            : "grayscale(.9) brightness(1.08) contrast(.86)";
+          const ESRI = "https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_"
+                     + (darkMap ? "Dark" : "Light") + "_Gray_";
+          L.tileLayer(ESRI + "Base/MapServer/tile/{z}/{y}/{x}", { maxZoom: 14 }).addTo(m);
+          const labelPane = m.createPane("apLabels");
+          labelPane.style.zIndex = 460; labelPane.style.pointerEvents = "none";   // above the fills, under markers and tooltips
+          L.tileLayer(ESRI + "Reference/MapServer/tile/{z}/{y}/{x}",
+                      { maxZoom: 14, pane: "apLabels", opacity: darkMap ? .75 : .9 }).addTo(m);
           const col = { push: tok("--pos") || "#5f7c20", hold: tok("--warn") || "#b97b0a",
                         fix: tok("--neg") || "#d43d55", grey: tok("--faint") || "#8a97a6",
                         none: tok("--line") || "#c9d2dc" };
+          const MID = "·", EM = "—";   // the tooltips read as sentences; these are their punctuation
+          /* the legend's hatch, as an SVG pattern inside Leaflet's own overlay <svg> */
+          const HATCH = "ap2Hatch" + (darkMap ? "D" : "L");
+          function ensureHatch() {
+            const svg = m.getPane("overlayPane") && m.getPane("overlayPane").querySelector("svg");
+            if (!svg || svg.querySelector("#" + HATCH)) return;
+            const NS = "http://www.w3.org/2000/svg";
+            const defs = document.createElementNS(NS, "defs");
+            const pat = document.createElementNS(NS, "pattern");
+            pat.setAttribute("id", HATCH); pat.setAttribute("width", "7"); pat.setAttribute("height", "7");
+            pat.setAttribute("patternUnits", "userSpaceOnUse"); pat.setAttribute("patternTransform", "rotate(45)");
+            const bg = document.createElementNS(NS, "rect");
+            bg.setAttribute("width", "7"); bg.setAttribute("height", "7");
+            bg.setAttribute("fill", darkMap ? "#1b2430" : "#ffffff"); bg.setAttribute("fill-opacity", ".5");
+            const ln = document.createElementNS(NS, "line");
+            ln.setAttribute("x1", "0"); ln.setAttribute("y1", "0"); ln.setAttribute("x2", "0"); ln.setAttribute("y2", "7");
+            ln.setAttribute("stroke", col.none); ln.setAttribute("stroke-width", "2"); ln.setAttribute("stroke-opacity", ".85");
+            pat.appendChild(bg); pat.appendChild(ln); defs.appendChild(pat); svg.insertBefore(defs, svg.firstChild);
+          }
           const svyL = R.reduce((a, r) => a + (r.movers ? r.leads : 0), 0), svyM = R.reduce((a, r) => a + r.movers, 0);
           const coCap = svyM ? 10000 * svyL / svyM : null;   // the eight states together
+          const njR = R.filter(r => r.st === "NJ" && r.movers);
+          const njCap = njR.length ? 10000 * njR.reduce((a, r) => a + r.leads, 0) / njR.reduce((a, r) => a + r.movers, 0) : null;
+          /* THE COUNTY SHEET (his ask 2026-09-22: "i need on tooltip to see MORE DATA - and BIGGER
+             font sizes"). It was a paragraph of sentences; twelve numbers read as a paragraph are
+             not read at all. Three labelled blocks now: what we DO here, who can SERVE it, and what
+             the MARKET is. The headline is the market and our share of it, because that is the one
+             pair the map exists to argue about. */
+          const gRow = (l, v, sub) => "<i>" + l + (sub ? "<small>" + sub + "</small>" : "") + "</i><u>" + v + "</u>";
           const tipOf = r =>
             '<div class="ap2-tip"><b>' + esc(r.county) + " " + esc(r.st) + "</b>" +
-            '<div class="t">' + (r.tier > 0 ? "Tier " + r.tier + " · " + TIER_LABEL[r.band]
+            '<div class="t">' + (r.tier > 0 ? "Tier " + r.tier + " " + MID + " " + TIER_LABEL[r.band]
                                             : TIER_LABEL[r.band]) +
-              (r.score != null ? " · score " + r1(r.score) : "") + "</div>" +
-            /* HIS ASK 2026-09-21: "on the tooltip i want to see how many foreman covers it."
-               It was already measured and buried in a <small>; it is a headline now. */
-            '<div class="c"><b>' + fmtN(r.fm60) + (r.fm60 === 1 ? " foreman" : " foremen") +
-              "</b> can reach it<small> — based within 60 miles, and shared with its neighbours</small></div>" +
-            (r.leads ? "<div>" + fmtN(r.leads) + " leads · " + r1(r.book) + "% booked · " +
-                       fmtN(r.jobs) + " jobs</div>"
-                     : '<div class="t">No lead has ever come from here</div>') +
-            (r.pop ? '<div class="t">Census: ' + fmtN(r.pop) + " people · <b>" + fmtN(r.movers) + "</b> move a year" +
-                     (r.income ? " · " + money0(r.income) + " median income" : "") + (r.own ? " · " + r1(r.own) + "% own" : "") + "</div>" +
-                     "<div><b>" + r1(10000 * r.leads / (r.movers || 1)) + "</b> leads per 10,000 movers<small> — the eight states run " +
-                     r1(coCap) + "</small></div>" : "") +
-            "<div>" + r1(r.mi) + " mi to the nearest base</div>" +
-            (r.budget != null && r.budget > 0
-              ? '<div class="b">Marketing ' + money0(r.budget) + "<small> — " +
-                r1(r.share * 100) + "% of the state's leads" + (r.band === "fix" ? "; the budget follows leads, not the tier, and most of it here is pay-per-lead" : "") + "</small></div>" : "") +
-            '<div class="c">Max ' + r1(r.ceil) + " jobs/day if every crew in range came here</div>" +
-            '<div class="c">Fair share ' + r1(r.fair) + " jobs/day at today's dispatch pattern</div>" +
+              (r.score != null ? " " + MID + " score " + r1(r.score) : "") +
+              " " + MID + " " + r1(r.mi) + " mi to the nearest base</div>" +
+            (r.movers
+              ? '<div class="big">' + fmtN(r.movers) + " move a year</div>" +
+                '<div class="c"><b>' + r1(10000 * r.leads / (r.movers || 1)) + "</b> of every 10,000 become a lead" +
+                  "<small>the eight states run " + r1(coCap) + ", New Jersey " + r1(njCap) + "</small></div>"
+              : '<div class="big">' + fmtN(r.leads) + " leads this year</div>") +
+            '<div class="hd">Our work here</div><div class="grid">' +
+              gRow("Leads this year", fmtN(r.leads)) +
+              gRow("Booked", r.leads ? r1(r.book) + "%" : EM) +
+              gRow("Jobs", fmtN(r.jobs)) +
+              (r.budget != null && r.budget > 0
+                ? gRow("Marketing", money0(r.budget), r1(r.share * 100) + "% of the state" +
+                    (r.band === "fix" ? ", and it follows leads, not the tier" : ""))
+                : "") +
+            "</div>" +
+            '<div class="hd">Who can serve it</div><div class="grid">' +
+              gRow("Foremen within 60 mi", fmtN(r.fm60), "shared with its neighbours") +
+              gRow("Max jobs a day", r1(r.ceil), "if every crew in range came here") +
+              gRow("Fair share", r1(r.fair), "at today's dispatch pattern") +
+            "</div>" +
+            (r.pop
+              ? '<div class="hd">The market</div><div class="grid">' +
+                  gRow("People", fmtN(r.pop)) +
+                  gRow("Median income", money0(r.income)) +
+                  gRow("Own their home", r1(r.own) + "%") +
+                "</div>" : "") +
             (r.uncovered ? '<div class="w">No foreman is based within 60 miles of here</div>' : "") +
             "</div>";
 
@@ -3316,15 +3475,15 @@ registerPage({
                          opacity: r && r.uncovered ? .5 : .7,
                          lineJoin: "round",
                          dashArray: r && r.uncovered ? "3 3" : null,
-                         fillColor: col[band],
-                         fillOpacity: band === "none" ? .10 : band === "grey" ? .26 : .62 };
+                         fillColor: band === "none" ? "url(#" + HATCH + ")" : col[band],
+                         fillOpacity: band === "none" ? 1 : band === "grey" ? .30 : .66 };
               },
               onEachFeature: (f, lyr) => {
                 const r = byKey[f.properties.st + "|" + f.properties.key];
                 lyr.bindTooltip(r ? tipOf(r)
                   : '<div class="ap2-tip"><b>' + esc(f.properties.name) + " " + esc(f.properties.st) +
                     '</b><div class="t">Not in the lead directory</div></div>',
-                  { sticky: true, className: "ap2-tipwrap" });
+                  { sticky: true, className: "ap2-tipwrap", opacity: 1 });
                 /* the fill is flat, so the hover needs its own signal */
                 lyr.on("mouseover", () => lyr.setStyle({ weight: 2.2, color: tok("--ink") || "#22303f" }));
                 lyr.on("mouseout", () => layer.resetStyle(lyr));
@@ -3344,11 +3503,44 @@ registerPage({
                 L.marker([la, lo], { pane: "apStates", interactive: false, keyboard: false,
                   icon: L.divIcon({ className: "", iconSize: [0, 0], html: '<span class="ap2-stlbl">' + st + "</span>" }) }).addTo(m));
             }
+            ensureHatch();
+            /* NAME THE BIG MARKETS (his ask 2026-09-22). The basemap labels cities; these label the
+               COUNTIES the argument is about, so nobody has to hover to find Philadelphia or the
+               Maryland suburbs. Eight is the most that can sit on this frame without becoming
+               clutter, and they are the eight biggest moving markets we can actually reach. */
+            /* THE MARKETS WE ACTUALLY WORK, one label per place. Two passes were wrong before this
+               one. Ranked on movers alone the top eight are New York, Kings, Queens, Bronx and
+               Nassau -- five names stacked over one city. Excluding anything near a base flag then
+               threw out New York and Philadelphia, which are the two the reader most wants named,
+               and filled the map with Centre PA and Onondaga NY, where we do no business at all.
+               So: only counties that have actually sent us leads, biggest first, each at least 0.6
+               degrees from one already picked -- and the flags are left to look after themselves,
+               because the label sits above the centroid and the flag beside it. */
+            const FAR = 0.6;
+            const taken = [];
+            const named = [];
+            R.filter(x => x.movers > 0 && x.leads > 0 && x.la && x.lo)
+              .slice().sort((a, b) => b.movers - a.movers)
+              .forEach(x => { if (named.length >= 7) return;
+                if (taken.some(t => Math.abs(t[0] - x.la) < FAR && Math.abs(t[1] - x.lo) < FAR)) return;
+                named.push(x); taken.push([x.la, x.lo]); });
+            const namePane = m.createPane("apNames");
+            namePane.style.zIndex = 470; namePane.style.pointerEvents = "none";     // same: never above a tooltip
+            named.forEach(x => L.marker([x.la, x.lo], { pane: "apNames", interactive: false, keyboard: false,
+              icon: L.divIcon({ className: "", iconSize: [0, 0],
+                html: '<span class="ap2-cname">' + esc(x.county) + "<b>" + fmtN(x.movers) + " movers</b></span>" }) }).addTo(m));
             /* THE OPENING FRAME is the ground the page argues about: every county big enough to be
                rated, and every flag. It used to take any county with one lead, so a single long-haul
                pickup in the far corner of Virginia set the zoom for the whole company. */
             const framed = R.filter(r => r.leads >= 30 && r.la && r.lo).map(r => [r.la, r.lo]);
             (B.have || []).concat(B.coverage || []).forEach(x => framed.push([x.la, x.lo]));
+            /* the ground that must never leave the frame: the bases we run and the picks we chose */
+            const core = (B.have || []).map(x => [x.la, x.lo]);
+            ((model.expansion || {}).steps || []).forEach(st => {
+              const q = (B.coverage || []).find(c => c.label === st.base);
+              if (q) core.push([q.la, q.lo]); });
+            R.filter(r => r.leads >= 100 && r.la && r.lo).forEach(r => core.push([r.la, r.lo]));
+            box._core = core;
             if (framed.length) {
               const fb = L.latLngBounds(framed);
               if (fb.isValid()) pts.push(fb.getSouthWest(), fb.getNorthEast());
@@ -3365,7 +3557,7 @@ registerPage({
               L.circleMarker([r.la, r.lo], {
                 radius: 6 + 18 * Math.sqrt(r.leads / maxLeads),
                 color: col[r.band], weight: 1.4, fillColor: col[r.band], fillOpacity: .45,
-              }).bindTooltip(tipOf(r), { sticky: true, className: "ap2-tipwrap" }).addTo(m);
+              }).bindTooltip(tipOf(r), { sticky: true, className: "ap2-tipwrap", opacity: 1 }).addTo(m);
               pts.push([r.la, r.lo]);
             });
           }
@@ -3387,6 +3579,7 @@ registerPage({
                 fmtN(b.reach.leads) + " leads and " + fmtN(b.reach.jobs) + " jobs this year within " +
                 B.work + " miles</small>"
               : "nothing within " + B.work + " miles";
+            const gRow2 = (l, v, sub) => "<i>" + l + (sub ? "<small>" + sub + "</small>" : "") + "</i><u>" + v + "</u>";
             if (b.kind === "cover") {
               return '<div class="ap2-tip"><b>' + esc(b.label) + '</b><div class="t">' +
                 '<b>opens new ground</b> — nothing we have can reach it</div>' +
@@ -3396,9 +3589,15 @@ registerPage({
                 (b.cap != null ? '<div class="w"><b>' + r1(b.cap) + " leads per 10,000 movers</b> in " + esc(b.st) + " today, against " + r1(b.capHome) + " at home in " + esc(b.homeSt) +
                   "<small>at " + esc(b.st) + "’s own rate those movers are about " + fmtN(b.atOwnRate) + " leads a year; at " + esc(b.homeSt) + "’s, " + fmtN(b.atHomeRate) +
                   ". A base does not move that rate — reviews, referrals and ad density do</small></div>" : "") +
-                (b.need ? '<div class="c"><b>' + b.need + (b.need === 1 ? " foreman" : " foremen") + "</b> in the crew aim for " + esc(b.st) +
-                  (b.perDay ? " — " + r1(b.perDay) + " jobs a day at " + r2(b.rate) + " a foreman-day" : "") + "</div>"
-                        : '<div class="c">No crew is planned for ' + esc(b.st || "this state") + " yet</div>") +
+                /* HIS ASK 2026-09-22: "i also want to see how many foreman should be available on
+                   this new bases." Two answers, because they are two questions: the standing crew AIM
+                   for the state, and what the expansion we actually decided implies at its target. */
+                '<div class="hd">Foremen it should have</div><div class="grid">' +
+                  gRow2("The crew aim for " + esc(b.st), b.need != null ? fmtN(b.need) : EM, "the standing target for the state") +
+                  (b.xpFm != null ? gRow2("The expansion implies", r1(b.xpFm), fmtN(b.xpJobs) + " jobs at " + r2(b.rate || 1.27) + " a foreman-day") : "") +
+                  gRow2("Trucks", b.need != null ? fmtN(b.need) : EM, "one per foreman") +
+                  gRow2("Jobs a day", b.perDay != null ? r1(b.perDay) : EM, "once it is staffed") +
+                "</div>" +
                 '<div class="c">Opens <b>' + fmtN(b.opens) + "</b> counties no base covers today</div>" +
                 "<div>" + (b.step ? "Step " + b.step + " of the chain — " : "") + (b.hopFrom ? r1(b.hopMi) + " mi from " + esc(b.hopFrom) + "; " : "") +
                   r1(b.fromBase) + " mi from the nearest base we have today</div>" +
@@ -3408,9 +3607,13 @@ registerPage({
               const h = b.hire;
               return '<div class="ap2-tip"><b>' + esc(b.name) + " base</b><div class=\"t\">" +
                 esc(b.zip || "") + " · we have this one</div>" +
-                '<div class="c"><b>' + fmtN(b.foremen) + (b.foremen === 1 ? " foreman" : " foremen") +
-                  "</b> stationed here" + (b.foremen ? "<small>" + fmtN(b.helpers) + " helpers · " +
-                  fmtN(b.drivers) + " drivers</small>" : '<small>a parking base with nobody on it</small>') + "</div>" +
+                '<div class="big">' + fmtN(b.foremen) + (b.foremen === 1 ? " foreman" : " foremen") +
+                  (b.foremen ? "" : " \u2014 a parking base with nobody on it") + "</div>" +
+                '<div class="hd">The crew here</div><div class="grid">' +
+                  gRow2("Foremen", fmtN(b.foremen)) + gRow2("Helpers", fmtN(b.helpers)) +
+                  gRow2("Drivers", fmtN(b.drivers)) +
+                  gRow2("Trucks stationed", fmtN(b.foremen), "one per foreman") +
+                "</div>" +
                 (h ? '<div class="' + (h.hire ? "w" : "c") + '">' + (h.hire
                       ? "<b>Hire " + h.hire + "</b> more into the " + esc(h.label) + " pool"
                       : "Its pool is covered — " + h.have + " for a peak of " + h.peak) + "</div>" : "") +
@@ -3429,6 +3632,15 @@ registerPage({
             return "";
           };
 
+          /* THE REACH IS THE POINT, so it is drawn rather than hidden behind a hover (his call
+             2026-09-22). A faint ring per base we have, always on: coverage and the holes in it are
+             then visible on a projected slide without anyone touching the mouse. The hover ring
+             still fires on top, brighter, for the one being read. */
+          const ringPane = m.createPane("apRings");
+          ringPane.style.zIndex = 390; ringPane.style.pointerEvents = "none";
+          B.have.forEach(b => L.circle([b.la, b.lo], { pane: "apRings", radius: B.work * MI_PER_M,
+            interactive: false, color: tok("--ink") || "#22303f", weight: 1, opacity: .28,
+            dashArray: "3 5", fillColor: tok("--ink") || "#22303f", fillOpacity: .04 }).addTo(m));
           const baseLayer = L.layerGroup().addTo(m);
           /* Bases inside ~40 miles of one already placed get their label flipped to the other
              side, and every third one nudged up or down. Purely cosmetic, entirely deterministic:
@@ -3444,7 +3656,7 @@ registerPage({
               icon: flag(b.kind + offsetFor(b), b.kind === "have" ? b.name + " · " + fmtN(b.foremen) : b.label.replace(/ [A-Z]{2}$/, "")),
               riseOnHover: true,
               zIndexOffset: b.kind === "have" ? 600 : b.kind === "cover" ? 500 : 400 });
-            mk.bindTooltip(baseTip(b), { sticky: true, className: "ap2-tipwrap", direction: "top" });
+            mk.bindTooltip(baseTip(b), { sticky: true, className: "ap2-tipwrap", direction: "top", opacity: 1 });
             /* HIS ASK: the reach appears on hover. It is removed on mouseout unless the flag was
                clicked, so he can pin one open and compare it against the counties underneath. */
             mk.on("mouseover", () => {
