@@ -108,6 +108,8 @@
     .ap2-fld>span{display:block;font-size:12px;color:var(--ink);font-weight:600;margin-bottom:3px}
     .ap2-fld small{display:block;font-size:10.5px;color:var(--faint);line-height:1.35;margin-top:2px}
     .ap2-fld .ap2-in{width:100%}
+    .ap2-picks{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 10px}
+    .ap2-picks .ap2-mbtn{font-size:11.5px;padding:4px 8px}
     .ap2-scnbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:6px 0 2px}
     .ap2-stlbl { position:absolute; transform:translate(-50%,-50%); font:800 11px/1 var(--mono, ui-monospace, monospace); letter-spacing:.22em; color:var(--ink); opacity:.5; white-space:nowrap; pointer-events:none; text-shadow:0 0 3px var(--bg), 0 0 3px var(--bg); }
     .ap2-svbar { display:inline-block; width:64px; height:6px; margin-left:8px; border-radius:3px; background:var(--line); vertical-align:middle; overflow:hidden; }
@@ -973,7 +975,7 @@ registerPage({
       }, saved);
       /* THE WHAT-IF'S OWN STATE. Every lever starts at "change nothing", so the pane opens showing
          the plan as it stands and every number he then sees is something he moved himself. */
-      const SCN0 = { zip: "", maturity: 0, capture: {}, budgetPct: 0, elast: 0, surgeDays: 0,
+      const SCN0 = { zip: "", pick: "", maturity: 0, capture: {}, budgetPct: 0, elast: 0, surgeDays: 0,
                      surgeCrews: 0, crews: 0, park: 800 };
       inputs.scn = Object.assign({}, SCN0, inputs.scn || {});
       inputs.scn.capture = Object.assign({}, (inputs.scn || {}).capture || {});
@@ -2184,10 +2186,17 @@ registerPage({
       const DEP = model.depots || {};
       const hav = (a, b, c, d) => { const R = 3958.7613, r = x => x * Math.PI / 180; const dp = r(c - a), dl = r(d - b);
         const h = Math.sin(dp / 2) ** 2 + Math.cos(r(a)) * Math.cos(r(c)) * Math.sin(dl / 2) ** 2; return 2 * R * Math.asin(Math.sqrt(h)); };
-      function depotTry(zip) {
+      /* PRICE A POINT, NOT ONLY A ZIP (2026-09-22). depotTry looked the zip up in the model's own
+         compact maps -- jobs by zip, and white space within 35 miles of a base we already have --
+         so any zip outside today's territory came back "not in the territory data". That is exactly
+         where the expansion picks are: Rockville, 90 miles from the Delaware base, could not be
+         priced at all, which made the what-if unable to cost the one base the map recommends. The
+         maths never needed the zip, only a latitude and a longitude; the zip lookup is now just one
+         way of getting them, and the map's own picks are another. */
+      function depotAt(lat, lon, label) {
         const J = DEP.jobs_by_zip || [], WS = DEP.ws_zips || [], B = DEP.bases || [];
-        const hit = J.find(x => x[0] === zip) || WS.find(x => x[0] === zip); if (!hit) return null;
-        const lat = hit[1], lon = hit[2]; const total = J.reduce((a, j) => a + j[3], 0);
+        const zip = label;
+        const total = J.reduce((a, j) => a + j[3], 0);
         const near = (la, lo, bs) => bs.reduce((best, b) => { const d = hav(la, lo, b.lat, b.lon); return d < best[0] ? [d, b.name] : best; }, [Infinity, null]);
         const withC = B.concat([{ name: zip, lat, lon }]);
         let mi = 0, base = 0, j15 = 0, j35 = 0, rehomed = 0;
@@ -2195,7 +2204,12 @@ registerPage({
           base += near(j[1], j[2], B)[0] * j[3]; const n = near(j[1], j[2], withC); mi += n[0] * j[3]; if (n[1] === zip) rehomed += j[3]; });
         let ws35 = 0, never = 0, movers = 0;
         WS.forEach(w => { if (hav(w[1], w[2], lat, lon) <= (DEP.territory_mi || 35)) { ws35++; if (w[3]) { never++; movers += w[4]; } } });
-        return { zip, label: zip, mi_per_job: total ? mi / total : null, saved_mi_per_job: total ? (base - mi) / total : null, jobs_15: j15, jobs_35: j35, rehomed, ws_zips_35: ws35, ws_never_35: never, movers_never_35: movers };
+        return { zip, label, lat, lon, mi_per_job: total ? mi / total : null, saved_mi_per_job: total ? (base - mi) / total : null, jobs_15: j15, jobs_35: j35, rehomed, ws_zips_35: ws35, ws_never_35: never, movers_never_35: movers };
+      }
+      function depotTry(zip) {
+        const J = DEP.jobs_by_zip || [], WS = DEP.ws_zips || [];
+        const hit = J.find(x => x[0] === zip) || WS.find(x => x[0] === zip);
+        return hit ? depotAt(hit[1], hit[2], zip) : null;
       }
       function wireMethod() {
         host.querySelectorAll("#apNext [data-method]").forEach(b => b.onclick = () => {
@@ -2883,14 +2897,15 @@ registerPage({
 
         /* ---- a new base at a zip ---- */
         let dep = null, ring = null;
-        if (c.zip && /^\d{5}$/.test(c.zip)) {
-          dep = depotTry(c.zip);
+        const picks = (basesFor().coverage || []);
+        const pick = c.pick ? picks.find(x => x.label === c.pick) : null;
+        if (pick || (c.zip && /^\d{5}$/.test(c.zip))) {
+          dep = pick ? depotAt(pick.la, pick.lo, pick.label) : depotTry(c.zip);
           if (dep) {
             const savedMi = Math.max(0, num(dep.saved_mi_per_job));
             dep.driving = savedMi * base.jobs * SCN.ROAD_PER_STRAIGHT * SCN.ROAD_MI_USD;
-            const hit = (DEP.jobs_by_zip || []).find(x => x[0] === c.zip) || (DEP.ws_zips || []).find(x => x[0] === c.zip);
-            if (hit) {
-              const near = COUNTY.filter(x => num(x.Latitude) && hav(num(x.Latitude), num(x.Longitude), hit[1], hit[2]) <= SCN.RING_MI);
+            {
+              const near = COUNTY.filter(x => num(x.Latitude) && hav(num(x.Latitude), num(x.Longitude), dep.lat, dep.lon) <= SCN.RING_MI);
               const nearLeads = near.reduce((a, x) => a + num(x.Leads), 0);
               const allLeads = COUNTY.reduce((a, x) => a + num(x.Leads), 0);
               const share = allLeads ? nearLeads / allLeads : 0;
@@ -2904,7 +2919,7 @@ registerPage({
             }
             dCost += num(c.park) * (N.core.length || 4);          // parking, for the season
             dCost -= dep.driving;                                  // a saving is a negative cost
-            moves.push({ k: "base", l: "A base at " + esc(c.zip),
+            moves.push({ k: "base", l: "A base at " + esc(dep.label),
               why: (savedMi > 0 ? r2(savedMi) + " mi/job less driving" : "no driving saved") +
                    (ring && ring.jobs > 0 ? ", " + r1(ring.jobs) + " jobs from the home ring at " + Math.round(num(c.maturity)) + "% maturity" : "") +
                    ", " + money0(num(c.park)) + " a month of parking",
@@ -2953,7 +2968,7 @@ registerPage({
         const scn = { jobs, revenue: base.revenue * k, expense: base.expense * k,
                       rent: base.rent + dRent, mkt: base.mkt + dMkt, extra: dCost };
         scn.net = scn.revenue - scn.expense - scn.rent - scn.mkt - scn.extra;
-        return { N, base, scn, moves, capRows, dep, ring, perJob };
+        return { N, base, scn, moves, capRows, dep, ring, perJob, picks };
       }
 
       function whatIfHtml() {
@@ -2992,9 +3007,17 @@ registerPage({
             '<div class="ap2-scnbox"><h4>Reach more of the movers</h4><div class="ap2-capgrid">' + capIn + "</div>" +
               note("Type the leads per 10,000 movers you think a state could reach. <b>This is the lever the data says is large</b> — and the one a base cannot move on its own.") + "</div>" +
             '<div class="ap2-scnbox"><h4>A base somewhere new</h4>' +
-              '<label class="ap2-fld"><span>Zip</span><input class="ap2-in" data-scn="zip" maxlength="5" placeholder="e.g. 08102" value="' + esc(c.zip) + '">' +
-              "<small>" + (S.dep ? r2(S.dep.saved_mi_per_job) + " mi/job saved \u00b7 " + fmtN(S.dep.jobs_35) + " jobs within 35 mi"
-                                 : c.zip ? "not in the territory data" : "any zip with jobs or white space near it") + "</small></label>" +
+              /* THE MAP'S OWN PICKS, one click each. A zip outside today's territory is not in the
+                 model's compact maps, so typing Rockville got "not in the territory data" -- and the
+                 picks are all outside it, by construction. They carry their own coordinates. */
+              '<div class="ap2-picks">' + (S.picks || []).map(x =>
+                '<button type="button" class="ap2-mbtn' + (c.pick === x.label ? " on" : "") + '" data-pick="' + esc(x.label) + '">' +
+                esc(x.label) + "<small>" + fmtN(x.newMovers) + " movers in range</small></button>").join("") +
+              (c.pick || c.zip ? '<button type="button" class="ap2-mbtn" data-pick="">clear</button>' : "") + "</div>" +
+              '<label class="ap2-fld"><span>\u2026 or any zip we already work</span><input class="ap2-in" data-scn="zip" maxlength="5" placeholder="e.g. 08102" value="' + esc(c.zip) + '"' + (c.pick ? " disabled" : "") + ">" +
+              "<small>" + (S.dep ? r2(S.dep.saved_mi_per_job) + " mi/job saved \u00b7 " + fmtN(S.dep.jobs_35) + " jobs within 35 mi \u00b7 " + fmtN(S.dep.ws_never_35) + " zips in reach have never sent a lead"
+                                 : c.zip ? "not in the territory data \u2014 the zip maps only cover ground within 35 miles of a base we have, so use a pick above for new ground"
+                                         : "any zip with jobs or white space near it") + "</small></label>" +
               fld("maturity", "How much of the home ring has arrived, %", "0 on day one. At 100% it is the full +" + SCN.RING_PTS + " booking points inside " + SCN.RING_MI + " miles", 'min="0" max="100" step="5"') +
               fld("park", "Parking, $ a month", "we pay $440\u2013$1,200 today", 'min="0" step="50"') + "</div>" +
             '<div class="ap2-scnbox"><h4>Money and crews</h4>' +
@@ -3041,6 +3064,10 @@ registerPage({
       }
       function wireWhatIf() {
         const el = host.querySelector("#apWhatIf"); if (!el) return;
+        el.querySelectorAll("[data-pick]").forEach(b => { b.onclick = () => {
+          inputs.scn.pick = b.dataset.pick || "";
+          if (inputs.scn.pick) inputs.scn.zip = "";
+          save(); repaintScn(); }; });
         el.querySelectorAll("[data-scn]").forEach(i => { i.onchange = () => {
           const k = i.dataset.scn;
           inputs.scn[k] = k === "zip" ? (i.value || "").replace(/\D/g, "").slice(0, 5) : (i.value === "" ? 0 : +i.value);
