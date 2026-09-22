@@ -345,6 +345,9 @@ body:not(.light) .ap2-mapbox{background:#1d232b}
 .ap2-modes .l{font-size:12px;color:var(--muted);font-weight:700;letter-spacing:.02em;margin-right:2px}
 .ap2-rampsw{display:inline-block;width:20px;height:13px;vertical-align:-2px;border:1px solid var(--ap-rule-2);
   border-right:0}
+.ap2-bub{display:inline-block;border-radius:50%;background:var(--blue);opacity:.30;
+  border:1.4px solid var(--blue);vertical-align:middle;margin-right:4px}
+.ap2-bub.faint{width:15px;height:15px;opacity:.55;background:transparent;border-style:dashed}
 .ap2-rampsw:last-of-type{border-right:1px solid var(--ap-rule-2)}
 .ap2-headline{margin:2px 0 10px;padding:11px 14px;border:1px solid var(--ap-rule);border-left:4px solid var(--ap-pos-ink);
   border-radius:var(--ap-r2);background:var(--ap-sub);font-size:15px;line-height:1.5;color:var(--ink)}
@@ -3310,14 +3313,24 @@ registerPage({
             [.14, .28, .44, .62, .82].map(o => '<i class="ap2-rampsw" style="background:' + hue + ';opacity:' + o + '"></i>').join("") +
             "&nbsp;<b>" + unit(lo) + "</b> to <b>" + unit(hi) + "</b></span>";
         };
+        /* a size legend for a size encoding: three real counties, at their real radii */
+        const sizeKey = () => {
+          const v = R.filter(x => x.movers > 0).map(x => x.movers).sort((a, b) => b - a);
+          if (!v.length) return "";
+          const mx = v[0], picks = [mx, v[Math.floor(v.length * 0.25)], v[Math.floor(v.length * 0.75)]];
+          const rad = q => 4 + 26 * Math.sqrt(q / mx);
+          return '<span class="ap2-mk">People who move a year&nbsp;' + picks.map(q =>
+            '<i class="ap2-bub" style="width:' + (2 * rad(q)).toFixed(0) + "px;height:" + (2 * rad(q)).toFixed(0) +
+            'px"></i><b>' + fmtN(q) + "</b>").join("&nbsp;&nbsp;") + "</span>";
+        };
         const key = inputs.mapColor === "tier"
           ? ["push", "hold", "fix", "grey", "none"].map(b =>
               '<span class="ap2-mk"><i class="ap2-sw ' + b + '"></i>' + TIER_LABEL[b] +
               ' <b>' + (byBand[b] || 0) + '</b></span>').join("")
-          : (inputs.mapColor === "market"
-              ? rampKey("People who move a year", r => r.movers, v => fmtN(v))
-              : rampKey("Leads per 10,000 movers", r => 10000 * r.leads / r.movers, v => r1(v))) +
-            '<span class="ap2-mk"><i class="ap2-sw none"></i>' + TIER_LABEL.none + ' <b>' + (byBand.none || 0) + "</b></span>";
+          : inputs.mapColor === "market"
+            ? sizeKey() + '<span class="ap2-mk"><i class="ap2-bub faint"></i>no lead from here yet <b>' + (byBand.none || 0) + "</b></span>"
+            : rampKey("Leads per 10,000 movers", r => 10000 * r.leads / r.movers, v => r1(v)) +
+              '<span class="ap2-mk"><i class="ap2-sw none"></i>' + TIER_LABEL.none + ' <b>' + (byBand.none || 0) + "</b></span>";
         const B = basesFor();
         /* THE SENTENCE FOLLOWS THE COLOUR. With three ways to paint the counties, a fixed
            paragraph about tiers would describe a map that is not on the screen. */
@@ -3325,9 +3338,11 @@ registerPage({
           tier: 'Every county in the eight states, filled by how well it is worth chasing \u2014 ' +
                 '<b>green push</b>, <b>amber hold</b>, <b>red fix</b>, <b>grey</b> too small to judge, ' +
                 'and <b>hatched</b> for the ones that have never sent us a single lead. ',
-          market: 'Every county filled by <b>how many people move house there each year</b>, from the ' +
-                'Census \u2014 the size of the prize, before any question of whether we win it. The darkest ' +
-                'counties are the biggest moving markets in the eight states, wherever we stand today. ',
+          market: 'A circle on every county, its <b>area</b> proportional to <b>how many people move house ' +
+                'there each year</b> \u2014 the size of the prize, before any question of whether we win it. ' +
+                'The faint circles are markets we have <b>never sold a single job in</b>. Counts are drawn as ' +
+                'circles and not as shading on purpose: shading a county by a count makes a big empty one ' +
+                'shout and a small dense one whisper. ',
           capture: 'Every county filled by <b>how many of its movers become one of our leads</b>. This is ' +
                 'the argument in one picture: New Jersey is dark, Maryland and Virginia are almost white, ' +
                 'and no yard changes that \u2014 reviews, referrals and ad density do. ',
@@ -3403,6 +3418,10 @@ registerPage({
           const box = host.querySelector("#apMapBox");
           /* restyle in place: rebuilding the map would lose his pan, his zoom and any pinned ring */
           if (box && box._geo) box._geo.setStyle(box._geo.options.style);
+          if (box && box._mkt && box._map) {
+            if (inputs.mapColor === "market") box._mkt.addTo(box._map);
+            else box._map.removeLayer(box._mkt);
+          }
           host.querySelectorAll("[data-mapcolor]").forEach(x => x.classList.toggle("on", x.dataset.mapcolor === inputs.mapColor));
           const mh = host.querySelector("#apMap");
           if (mh) { const sc = mh.scrollTop; const keep = box; mh.querySelectorAll(".ap2-say,.ap2-mapkey").forEach(n => n.remove());
@@ -3560,7 +3579,17 @@ registerPage({
                                opacity: r && r.uncovered ? .5 : .7,
                                lineJoin: "round",
                                dashArray: r && r.uncovered ? "3 3" : null };
-                if (inputs.mapColor !== "tier") {
+                /* MARKET SIZE IS A COUNT, AND A COUNT MUST NOT BE A CHOROPLETH. Shading a county by
+                   how many people move there makes a big empty county shout and a small dense one
+                   whisper -- the reader is really being shown acreage. Worse, the first build only
+                   shaded counties with leads, so the 168 we have never sold in came out hatched and
+                   the map HID the white space it was supposed to reveal. Market size is drawn as
+                   proportional circles instead (below), and the counties go quiet underneath. */
+                if (inputs.mapColor === "market") {
+                  return Object.assign(base, { fillColor: tok("--ap-rule-2") || "#98a4b3",
+                                               fillOpacity: .10, weight: 0.5, opacity: .45 });
+                }
+                if (inputs.mapColor === "capture") {
                   const sh = r && r.leads > 0 ? shadeOf(r) : null;
                   return Object.assign(base, sh ? { fillColor: sh.fill, fillOpacity: sh.op }
                                                 : { fillColor: "url(#" + HATCH + ")", fillOpacity: 1 });
@@ -3582,6 +3611,25 @@ registerPage({
               },
             }).addTo(m);
             box._geo = layer;                  // so the colour switch can restyle without a rebuild
+
+            /* PROPORTIONAL CIRCLES FOR THE MARKET. Area is proportional to movers, which is why the
+               radius goes as the SQUARE ROOT -- a circle twice as wide is four times the market, and
+               drawing it any other way lies about the ratio. Every county with a Census figure gets
+               one whether or not it has ever sent us a lead: the whole value of this view is seeing
+               a large market where we have no business at all. */
+            const mktPane = m.createPane("apMkt");
+            mktPane.style.zIndex = 480; mktPane.style.pointerEvents = "none";
+            const MKT_HUE = tok("--blue") || "#2f62d8";
+            const withMk = R.filter(x => x.movers > 0 && x.la && x.lo);
+            const mkMax = withMk.length ? Math.max.apply(null, withMk.map(x => x.movers)) : 1;
+            const mkR = v => 4 + 26 * Math.sqrt(v / mkMax);
+            box._mkt = L.layerGroup();
+            withMk.slice().sort((a, b) => b.movers - a.movers).forEach(x =>
+              L.circleMarker([x.la, x.lo], { pane: "apMkt", interactive: false, radius: mkR(x.movers),
+                color: MKT_HUE, weight: 1.4, opacity: .85, fillColor: MKT_HUE,
+                fillOpacity: x.leads > 0 ? .30 : .10,
+                dashArray: x.leads > 0 ? null : "3 3" }).addTo(box._mkt));
+            if (inputs.mapColor === "market") box._mkt.addTo(m);
             /* STATE BORDERS OVER THE FILLS (his note 2026-09-21: "the forms, layout, roads, countries").
                327 county fills with no state line run Pennsylvania into New Jersey. Their own pane,
                above the fills and under the flags, and deaf to the mouse so the county tooltips
