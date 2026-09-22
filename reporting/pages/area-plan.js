@@ -99,6 +99,11 @@
     st.id = "ap-style";
     st.textContent = `
     /* Seasonal Planning (ap2-): only what the kit cannot say. */
+    .ap2-xp{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px;margin:4px 0 2px}
+    .ap2-xps{border:1px solid var(--line);border-left:3px solid var(--pos);border-radius:8px;padding:8px 11px}
+    .ap2-xps b{display:block;font-size:13px;color:var(--ink)}
+    .ap2-xps span{display:block;font-size:11.5px;color:var(--warn);font-weight:700;margin:1px 0 3px}
+    .ap2-xps small{display:block;font-size:11px;color:var(--faint);line-height:1.4}
     .ap2-scn{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:10px 0}
     @media (max-width:1100px){.ap2-scn{grid-template-columns:1fr}}
     .ap2-scnbox{border:1px solid var(--line);border-radius:10px;padding:10px 12px;min-width:0}
@@ -2871,8 +2876,8 @@ registerPage({
         SURGE_CAP: 55,            // jobs lost to capacity in the worst measured season (2026)
         TRUCK_SEASON: 13400,      // one more crew, one season: 4.39 Enterprise cycles x $3,050
       };
-      function scenarioCalc() {
-        const N = nextCalc(), c = inputs.scn;
+      function scenarioCalc(override) {
+        const N = nextCalc(), c = override || inputs.scn;
         const base = { jobs: N.tot.jobs, revenue: N.tot.revenue || 0, expense: N.tot.expense || 0,
                        rent: N.tot.rent || 0, mkt: N.tot.mkt || 0 };
         base.net = base.revenue - base.expense - base.rent - base.mkt;
@@ -3005,6 +3010,62 @@ registerPage({
         return { N, base, scn, moves, capRows, dep, ring, perJob, picks };
       }
 
+      /* ===================== THE EXPANSION HE DECIDED, BESIDE THE PLAN =====================
+         2026-09-22: "ok lets go with MD and PA", after the what-if priced all five picks. He also
+         chose to keep it OUT of the Season plan -- the plan stays the number the history supports,
+         so nobody staffs for work that has not been won -- to plan on the conservative capture
+         rather than the modelled one, and to open Pennsylvania first.
+
+         It is priced here by exactly the engine the what-if uses, from the decision that travels in
+         the model, so this card and that pane can never drift apart or be separately edited into
+         disagreement. Nothing on it is added to a plan total anywhere on this page. */
+      function expansionScn() {
+        const X = model.expansion; if (!X) return null;
+        return Object.assign({}, SCN0, { picks: (X.steps || []).map(s2 => s2.base),
+                                         capture: Object.assign({}, X.capture || {}),
+                                         maturity: num(X.maturity) });
+      }
+      function expansionHtml() {
+        const X = model.expansion, sc = expansionScn();
+        if (!X || !sc || !FC.year) return "";
+        const S = scenarioCalc(sc);
+        if (!S.moves.length) return "";
+        const mS = v => v < 0 ? "\u2212" + money0(-v) : money0(v);   // money0 prints "$-551"
+        const dJobs = S.scn.jobs - S.base.jobs, dNet = S.scn.net - S.base.net;
+        const cap = S.capRows.filter(r => r.addJobs > 0);
+        const steps = (X.steps || []).slice().sort((a, b) => (a.order || 0) - (b.order || 0));
+        return '<div class="ap2-say" style="margin:0 0 10px"><b>Decided ' + esc(dayLabel(X.decided_on)) +
+            ': Maryland and Pennsylvania.</b> It is deliberately <b>not inside the ' + esc(String(FC.year)) +
+            ' plan above</b> \u2014 that number is what the history supports, and these jobs have never happened. ' +
+            'The capture targets are assumptions, and both sit below something we already achieve: Maryland ' +
+            r1((X.capture || {}).MD) + ' is under half of Pennsylvania\u2019s ' + r1((S.capRows.find(r => r.st === "PA") || {}).now) +
+            ', and Pennsylvania ' + r1((X.capture || {}).PA) + ' is a ' +
+            Math.round(100 * ((X.capture || {}).PA / ((S.capRows.find(r => r.st === "PA") || {}).now || 1) - 1)) +
+            '% rise in a state we have worked for years.</div>' +
+          '<div class="ap2-xp">' + steps.map(st => '<div class="ap2-xps"><b>' + st.order + ". " + esc(st.base) + "</b>" +
+            "<span>" + esc(st.when) + "</span><small>" + esc(st.why) + "</small></div>").join("") + "</div>" +
+          '<table data-name="The expansion, beside the plan" class="rs-table ap2-next" style="margin-top:12px"><thead><tr>' +
+            "<th>Season " + esc(String(FC.year)) + '</th><th class="num">The plan</th><th class="num">With the expansion</th><th class="num">Difference</th></tr></thead><tbody>' +
+            '<tr><td><b>Jobs</b></td><td class="num">' + fmtN(S.base.jobs) + '</td><td class="num">' + fmtN(S.scn.jobs) +
+              '</td><td class="num"><b>+' + fmtN(dJobs) + "</b></td></tr>" +
+            '<tr><td>Marketing it needs</td><td class="num">' + money0(S.base.mkt) + '</td><td class="num">' + money0(S.scn.mkt) +
+              '</td><td class="num">+' + money0(S.scn.mkt - S.base.mkt) + "</td></tr>" +
+            '<tr><td>Crews it needs<small>the truck; their pay is inside job expense</small></td><td class="num">\u2014</td><td class="num">' +
+              (() => { const m = S.moves.find(x => x.k === "needcrew"); return m ? esc(m.l.replace(" to run the extra jobs", "")) : "\u2014"; })() +
+              '</td><td class="num">' + mS(S.base.rent - S.scn.rent) + "</td></tr>" +
+            '<tr><td>Parking, net of the driving saved</td><td class="num">\u2014</td><td class="num">' +
+              mS(S.scn.extra) + '</td><td class="num">' +
+              mS(-S.scn.extra) + "</td></tr>" +
+            '<tr class="ap2-tot"><td><b>Net before overhead</b></td><td class="num">' + money0(S.base.net) + '</td><td class="num">' +
+              money0(S.scn.net) + '</td><td class="num"><b class="ap2-ok">+' + money0(dNet) + "</b></td></tr>" +
+          "</tbody></table>" +
+          note("<b>Where it comes from:</b> " + cap.map(r => esc(r.st) + " " + r1(r.now) + " \u2192 " + r1(r.want) +
+                 " leads per 10,000 movers (<b>+" + r1(r.addJobs) + "</b> jobs)").join(", ") +
+               ". The two yards themselves are worth <b>" + (S.moves.find(m => m.k === "base") ? mS(S.moves.find(m => m.k === "base").usd) : "\u2014") +
+               "</b> \u2014 a base opens no market on its own, it follows the work. " +
+               '<button type="button" class="ap2-goto" data-openxp="1">Open it in the What-if \u2193</button>');
+      }
+
       function whatIfHtml() {
         if (!FC.year) return '<div class="ap2-note">The what-if needs the season forecast \u2014 run <b>sources=area-plan</b>.</div>';
         const S = scenarioCalc(), c = inputs.scn;
@@ -3096,6 +3157,11 @@ registerPage({
         el.innerHTML = whatIfHtml(); wireWhatIf(); enhanceTables();
         if (k) { const n = el.querySelector('[data-scn="' + k + '"],[data-cap="' + k + '"]');
           if (n) { n.focus(); try { n.setSelectionRange(pos, pos); } catch (e) {} } }
+      }
+      function wireXp() {
+        const b = host.querySelector("[data-openxp]"); if (!b) return;
+        b.onclick = () => { const sc = expansionScn(); if (!sc) return;
+          inputs.scn = sc; save(); repaintScn(); showPane("whatif"); };
       }
       function wireWhatIf() {
         const el = host.querySelector("#apWhatIf"); if (!el) return;
@@ -3911,6 +3977,10 @@ registerPage({
           assumeHtml() +
           pane("decide", "The three answers for Season " + esc(String(FC.year || "")) + ", and Giga's nine questions with what the data says today.",
             '<div id="apDecide">' + decisionsHtml() + "</div>" +
+            (model.expansion ? card("Beside the plan \u2014 the expansion we decided",
+               "Maryland and Pennsylvania: what it adds, what it needs, and what it is worth",
+               "Kept out of every total above on purpose. The plan is what the history supports; this is what we have chosen to go and win.",
+               '<div id="apXp">' + expansionHtml() + "</div>", "apXpCard") : "") +
             asksHtml().replace('style="margin-top:6px;border-top:0;padding-top:0"', "")) +
           pane("plan", "Crews, the sales desk and the marketing budget: every state, every month. Season " + esc(String(FC.year || "")) + " — the period picker on <b>Capacity check</b> does not move these numbers.",
             card("The formula", "X foremen at a location — how many salespeople and what marketing budget",
@@ -4035,7 +4105,7 @@ registerPage({
         const un = host.querySelector("[data-unfocus]"); if (un) un.onclick = ev => { ev.preventDefault(); inputs.focus = ""; setFocus(""); };
       }
       function wire() {
-        wireControls(); wireFocus(); mountCityBar(); repaintCity(); wireWs(); wireMethod(); wireRank(); wireAsks(); wireKw(); wireFormula(); wireWhatIf(); enhanceTables(); wireMap();
+        wireControls(); wireFocus(); mountCityBar(); repaintCity(); wireWs(); wireMethod(); wireRank(); wireAsks(); wireKw(); wireFormula(); wireWhatIf(); wireXp(); enhanceTables(); wireMap();
         // last, because paint() re-runs on every period, seed and focus change and must not drop the reader
         wireTabs(); wirePdf(); showPane(bootTab || inputs.tab, true); bootTab = null;
       }
@@ -4050,6 +4120,7 @@ registerPage({
         /* the formula and the map's chips quote the same plan, so they move with it (they did not) */
         const fm = host.querySelector("#apFormula"); if (fm && !fm.contains(document.activeElement)) { fm.innerHTML = formulaHtml(); wireFormula(); }
         const ch = host.querySelector("#apChips"); if (ch) ch.innerHTML = fleetChips();
+        const xp = host.querySelector("#apXp"); if (xp) { xp.innerHTML = expansionHtml(); wireXp(); }
         repaintBudget(); wireMethod(); wireAsks(); enhanceTables();
       }
       function save() { try { localStorage.setItem(LS_KEY, JSON.stringify(inputs)); } catch (e) {} }
