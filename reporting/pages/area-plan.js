@@ -341,6 +341,11 @@
 .ap2-mapbox{height:min(82vh,900px);min-height:600px;border-radius:var(--ap-r1);border:1px solid var(--ap-rule);
   background:#d0cfd4;overflow:hidden}          /* the Esri canvas water, so no seam shows at an edge */
 body:not(.light) .ap2-mapbox{background:#1d232b}
+.ap2-modes{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0 0 10px}
+.ap2-modes .l{font-size:12px;color:var(--muted);font-weight:700;letter-spacing:.02em;margin-right:2px}
+.ap2-rampsw{display:inline-block;width:20px;height:13px;vertical-align:-2px;border:1px solid var(--ap-rule-2);
+  border-right:0}
+.ap2-rampsw:last-of-type{border-right:1px solid var(--ap-rule-2)}
 .ap2-headline{margin:2px 0 10px;padding:11px 14px;border:1px solid var(--ap-rule);border-left:4px solid var(--ap-pos-ink);
   border-radius:var(--ap-r2);background:var(--ap-sub);font-size:15px;line-height:1.5;color:var(--ink)}
 .ap2-headline .n{font-size:22px;font-weight:800;font-variant-numeric:tabular-nums;color:var(--ink)}
@@ -1004,6 +1009,7 @@ registerPage({
         focus: "",                   // the state focus; "" = all
         city: { minLeads: 20, view: "all", q: "", sort: "Revenue", desc: true, page: 0, pageSize: 30 },
         scn: null, scnSaved: null,   // the What-if pane (additive keys: never bump LS_KEY for them)
+        mapColor: "tier",            // tier | market | capture -- what the county fill means
       }, saved);
       /* THE WHAT-IF'S OWN STATE. Every lever starts at "change nothing", so the pane opens showing
          the plan as it stands and every number he then sees is something he moved himself. */
@@ -1012,6 +1018,7 @@ registerPage({
       inputs.scn = Object.assign({}, SCN0, inputs.scn || {});
       inputs.scn.capture = Object.assign({}, (inputs.scn || {}).capture || {});
       inputs.scn.picks = Array.isArray(inputs.scn.picks) ? inputs.scn.picks : [];
+      if (["tier", "market", "capture"].indexOf(inputs.mapColor) < 0) inputs.mapColor = "tier";
       inputs.scnSaved = Array.isArray(inputs.scnSaved) ? inputs.scnSaved : [];
       inputs.city = Object.assign({ minLeads: 20, view: "all", q: "", sort: "Revenue", desc: true,
                                     page: 0, pageSize: 30 }, inputs.city || {});
@@ -2910,7 +2917,7 @@ registerPage({
         R.forEach(r => { if (r.budget > 0) { by[r.band] = (by[r.band] || 0) + r.budget; tot += r.budget; } });
         if (!tot) return "";
         const seg = b => by[b] ? '<span class="ap2-mk"><i class="ap2-sw ' + b + '"></i>' + TIER_LABEL[b] + " <b>" + money0(by[b]) + "</b> · " + Math.round(100 * by[b] / tot) + "%</span>" : "";
-        return '<div class="ap2-note" style="margin:2px 0 8px"><b>Where the marketing lands, by colour:</b> ' + ["push", "hold", "fix", "grey"].map(seg).join(" ") +
+        return '<div class="ap2-note" style="margin:2px 0 8px"><b>Where the marketing lands, by tier:</b> ' + ["push", "hold", "fix", "grey"].map(seg).join(" ") +
           (by.fix ? " — the budget follows <b>leads, not the tier</b>, so red counties still draw money. Most of it cannot be switched off: about 44% of Fix-county leads are " +
                     "pay-per-lead marketplaces (Angi, Thumbtack) that bill wherever the lead appears. <b>Roughly a third of the red share is steerable</b>, and it is worth steering — " +
                     "a Fix lead returned $176 against $418 in Push <small style=\"display:inline\">(measured 21 Sep 2026)</small>." : "") + "</div>";
@@ -3284,14 +3291,49 @@ registerPage({
         const R = countyRowsFor();
         const byBand = {}; R.forEach(r => { byBand[r.band] = (byBand[r.band] || 0) + 1; });
         const unc = R.filter(r => r.uncovered);
-        const key = ["push", "hold", "fix", "grey", "none"].map(b =>
-          '<span class="ap2-mk"><i class="ap2-sw ' + b + '"></i>' + TIER_LABEL[b] +
-          ' <b>' + (byBand[b] || 0) + '</b></span>').join("");
+        const MODES = [["tier", "Worth chasing", "his tier model"],
+                       ["market", "Market size", "people who move a year"],
+                       ["capture", "Our capture", "leads per 10,000 movers"]];
+        const modeBar = '<div class="ap2-modes"><span class="l">Colour the counties by</span>' +
+          MODES.map(([k, l, sub]) => '<button type="button" class="ap2-mbtn' + (inputs.mapColor === k ? " on" : "") +
+            '" data-mapcolor="' + k + '">' + esc(l) + "<small>" + esc(sub) + "</small></button>").join("") + "</div>";
+        /* the legend has to say what the colour MEANS, so it is rebuilt per mode: the tier bands
+           when the map is tiers, and a low-to-high ramp with its real end values otherwise */
+        const withMovers = R.filter(r => r.movers > 0 && r.leads > 0);
+        const rampKey = (label, get, unit) => {
+          if (!withMovers.length) return "";
+          const v = withMovers.map(get).filter(x => x > 0).sort((a, b) => a - b);
+          if (!v.length) return "";
+          const lo = v[0], hi = v[v.length - 1];
+          const hue = inputs.mapColor === "market" ? (tok("--ink") || "#22303f") : (tok("--pos") || "#5f7c20");
+          return '<span class="ap2-mk">' + esc(label) + "&nbsp;" +
+            [.14, .28, .44, .62, .82].map(o => '<i class="ap2-rampsw" style="background:' + hue + ';opacity:' + o + '"></i>').join("") +
+            "&nbsp;<b>" + unit(lo) + "</b> to <b>" + unit(hi) + "</b></span>";
+        };
+        const key = inputs.mapColor === "tier"
+          ? ["push", "hold", "fix", "grey", "none"].map(b =>
+              '<span class="ap2-mk"><i class="ap2-sw ' + b + '"></i>' + TIER_LABEL[b] +
+              ' <b>' + (byBand[b] || 0) + '</b></span>').join("")
+          : (inputs.mapColor === "market"
+              ? rampKey("People who move a year", r => r.movers, v => fmtN(v))
+              : rampKey("Leads per 10,000 movers", r => 10000 * r.leads / r.movers, v => r1(v))) +
+            '<span class="ap2-mk"><i class="ap2-sw none"></i>' + TIER_LABEL.none + ' <b>' + (byBand.none || 0) + "</b></span>";
         const B = basesFor();
+        /* THE SENTENCE FOLLOWS THE COLOUR. With three ways to paint the counties, a fixed
+           paragraph about tiers would describe a map that is not on the screen. */
+        const SAYS = {
+          tier: 'Every county in the eight states, filled by how well it is worth chasing \u2014 ' +
+                '<b>green push</b>, <b>amber hold</b>, <b>red fix</b>, <b>grey</b> too small to judge, ' +
+                'and <b>hatched</b> for the ones that have never sent us a single lead. ',
+          market: 'Every county filled by <b>how many people move house there each year</b>, from the ' +
+                'Census \u2014 the size of the prize, before any question of whether we win it. The darkest ' +
+                'counties are the biggest moving markets in the eight states, wherever we stand today. ',
+          capture: 'Every county filled by <b>how many of its movers become one of our leads</b>. This is ' +
+                'the argument in one picture: New Jersey is dark, Maryland and Virginia are almost white, ' +
+                'and no yard changes that \u2014 reviews, referrals and ad density do. ',
+        };
         return '<div class="ap2-say" style="margin:0 0 10px">' +
-            '<b>What this shows.</b> Every county in the eight states, filled by how well it is worth ' +
-            'chasing — <b>green push</b>, <b>amber hold</b>, <b>red fix</b>, <b>grey</b> too small to judge, ' +
-            'and <b>blank</b> for the ones that have never sent us a single lead. ' +
+            "<b>What this shows.</b> " + SAYS[inputs.mapColor] +
             '<b>The flags are the bases.</b> Solid squares are the ' + fmtN(B.have.length) +
             ' we have. <b>Dashed circles open new ground</b> — ranked on the movers a year they bring ' +
             'into range that no existing base can reach. <b>Movers are the size of a market, not demand we capture</b>: ' +
@@ -3300,6 +3342,7 @@ registerPage({
             ' miles it works, and click to pin that circle while you read the counties underneath.</div>' +
           '<div id="apChips">' + fleetChips() + "</div>" +
           headlineStrip(R) +
+          modeBar +
           budgetByBand(R) +
           '<div class="ap2-mapkey">' + key +
           '<span class="ap2-mk"><i class="ap2-sw unc"></i>no crew within 60 mi <b>' + unc.length + "</b></span>" +
@@ -3347,13 +3390,29 @@ registerPage({
           const z = Math.min(m.getBoundsZoom(cb, false), m.getZoom() + 1);
           if (z > m.getZoom()) { m.fitBounds(cb, { padding: [34, 34], maxZoom: z, animate: false }); }
         }
-        /* HOLD THE FRAME ON THE TERRITORY (2026-09-22). A third of the picture was open Atlantic --
-           dead space on a slide, and the only place the basemap's own tile seams are visible. The
-           map cannot now be panned or zoomed off the ground the page argues about, which also means
-           the reset button and the opening frame agree with every other view of it. */
-        const B2 = L.latLngBounds(box._fit).pad(0.12);
-        m.setMaxBounds(B2);
-        m.setMinZoom(Math.max(4, m.getBoundsZoom(B2, false) - 0.5));
+        /* NO CAGE (his call 2026-09-22: "i dont like this MAP restriction kind of thing - it
+           confuses user"). A map that refuses to move is a map the reader thinks is broken. The
+           OPENING frame is still chosen -- it lands on the ground the page argues about -- but
+           after that it pans and zooms anywhere, and the reset control brings it home. */
+      }
+
+      function wireMapColor() {
+        host.querySelectorAll("[data-mapcolor]").forEach(b => { b.onclick = () => {
+          if (inputs.mapColor === b.dataset.mapcolor) return;
+          inputs.mapColor = b.dataset.mapcolor; save();
+          const box = host.querySelector("#apMapBox");
+          /* restyle in place: rebuilding the map would lose his pan, his zoom and any pinned ring */
+          if (box && box._geo) box._geo.setStyle(box._geo.options.style);
+          host.querySelectorAll("[data-mapcolor]").forEach(x => x.classList.toggle("on", x.dataset.mapcolor === inputs.mapColor));
+          const mh = host.querySelector("#apMap");
+          if (mh) { const sc = mh.scrollTop; const keep = box; mh.querySelectorAll(".ap2-say,.ap2-mapkey").forEach(n => n.remove());
+            const tmp = document.createElement("div"); tmp.innerHTML = mapHtml();
+            const say = tmp.querySelector(".ap2-say"), lk = tmp.querySelector(".ap2-mapkey");
+            if (say) keep.parentNode.insertBefore(say, keep.parentNode.firstChild);
+            if (lk) keep.parentNode.insertBefore(lk, keep);
+            mh.scrollTop = sc; }
+          wireMapColor();
+        }; });
       }
 
       function wireMap() {
@@ -3466,17 +3525,49 @@ registerPage({
           R.forEach(r => { byKey[r.st + "|" + ckey(r.county)] = r; });
           const pts = [];
           if (GEO && GEO.features) {
+            /* THE CENSUS CAN COLOUR THE MAP, NOT JUST SIT IN A CARD (his call 2026-09-22: "i loved
+               this CENSUS ... that data, it proved the point"). Three ways to paint the same
+               counties, and they answer three different questions:
+                 TIER      where is it worth chasing -- his Power BI model, the default
+                 MARKET    how many people move there at all -- the size of the prize
+                 CAPTURE   how many of them become a lead -- the argument itself, because New
+                           Jersey comes out dark and Maryland and Virginia come out nearly white,
+                           and that is the whole case for spending on demand before yards.
+               MARKET and CAPTURE are quantile ramps over one hue, so a county is shaded against
+               the others rather than against a number nobody has a feel for. A county that has
+               never sent a lead keeps the hatch in every mode: it is an absence, not a low value. */
+            const RAMP = { market: tok("--ink") || "#22303f", capture: tok("--pos") || "#5f7c20" };
+            const qcuts = key => { const v = R.map(key).filter(x => x > 0).sort((a, b) => a - b);
+              if (!v.length) return [];
+              return [.2, .4, .6, .8].map(q => v[Math.floor(q * (v.length - 1))]); };
+            const CUTS = { market: qcuts(r => r.movers),
+                           capture: qcuts(r => (r.movers ? 10000 * r.leads / r.movers : 0)) };
+            const rank = (v, cuts) => { let i = 0; while (i < cuts.length && v > cuts[i]) i++; return i; };
+            const OPA = [.14, .28, .44, .62, .82];
+            const shadeOf = r => {
+              const mode = inputs.mapColor;
+              if (mode === "market") { const v = r.movers || 0;
+                return v > 0 ? { fill: RAMP.market, op: OPA[rank(v, CUTS.market)] } : null; }
+              const v = r.movers ? 10000 * r.leads / r.movers : 0;
+              return v > 0 ? { fill: RAMP.capture, op: OPA[rank(v, CUTS.capture)] } : null;
+            };
             const layer = L.geoJSON(GEO, {
               style: f => {
                 const r = byKey[f.properties.st + "|" + f.properties.key];
                 const band = r ? r.band : "none";
-                return { color: r && r.uncovered ? col.fix : tok("--ap-rule-2") || "#98a4b3",
-                         weight: r && r.uncovered ? 1 : 0.6,
-                         opacity: r && r.uncovered ? .5 : .7,
-                         lineJoin: "round",
-                         dashArray: r && r.uncovered ? "3 3" : null,
-                         fillColor: band === "none" ? "url(#" + HATCH + ")" : col[band],
-                         fillOpacity: band === "none" ? 1 : band === "grey" ? .30 : .66 };
+                const base = { color: r && r.uncovered ? col.fix : tok("--ap-rule-2") || "#98a4b3",
+                               weight: r && r.uncovered ? 1 : 0.6,
+                               opacity: r && r.uncovered ? .5 : .7,
+                               lineJoin: "round",
+                               dashArray: r && r.uncovered ? "3 3" : null };
+                if (inputs.mapColor !== "tier") {
+                  const sh = r && r.leads > 0 ? shadeOf(r) : null;
+                  return Object.assign(base, sh ? { fillColor: sh.fill, fillOpacity: sh.op }
+                                                : { fillColor: "url(#" + HATCH + ")", fillOpacity: 1 });
+                }
+                return Object.assign(base,
+                  { fillColor: band === "none" ? "url(#" + HATCH + ")" : col[band],
+                    fillOpacity: band === "none" ? 1 : band === "grey" ? .30 : .66 });
               },
               onEachFeature: (f, lyr) => {
                 const r = byKey[f.properties.st + "|" + f.properties.key];
@@ -3490,6 +3581,7 @@ registerPage({
                 if (r) lyr.on("click", () => setFocus(r.st));
               },
             }).addTo(m);
+            box._geo = layer;                  // so the colour switch can restyle without a rebuild
             /* STATE BORDERS OVER THE FILLS (his note 2026-09-21: "the forms, layout, roads, countries").
                327 county fills with no state line run Pennsylvania into New Jersey. Their own pane,
                above the fills and under the flags, and deaf to the mouse so the county tooltips
@@ -4317,7 +4409,7 @@ registerPage({
         const un = host.querySelector("[data-unfocus]"); if (un) un.onclick = ev => { ev.preventDefault(); inputs.focus = ""; setFocus(""); };
       }
       function wire() {
-        wireControls(); wireFocus(); mountCityBar(); repaintCity(); wireWs(); wireMethod(); wireRank(); wireAsks(); wireKw(); wireFormula(); wireWhatIf(); wireXp(); enhanceTables(); wireMap();
+        wireControls(); wireFocus(); mountCityBar(); repaintCity(); wireWs(); wireMethod(); wireRank(); wireAsks(); wireKw(); wireFormula(); wireWhatIf(); wireXp(); wireMapColor(); enhanceTables(); wireMap();
         // last, because paint() re-runs on every period, seed and focus change and must not drop the reader
         wireTabs(); wirePdf(); showPane(bootTab || inputs.tab, true); bootTab = null;
       }
