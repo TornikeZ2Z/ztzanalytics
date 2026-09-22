@@ -530,7 +530,11 @@ registerPage({
         const j = await r.json().catch(() => ({}));
         if (!r.ok || j.error) throw new Error(j.error || ("HTTP " + r.status));
         // a cleared merge keeps its row, as the table does: the name goes back to the label's own, the category stays
-        MAP[raw] = { material: String(j.material || "").trim(), category: String(j.category != null ? j.category : (prev.category || "")).trim(), note: prev.note || "" };
+        // the endpoint answers with the row as STORED (it no longer wipes a field we did not send),
+        // so the map takes what the warehouse actually holds rather than what we hoped it wrote
+        MAP[raw] = { material: String(j.material || "").trim(),
+                     category: String(j.category != null ? j.category : (prev.category || "")).trim(),
+                     note: String(j.note != null ? j.note : (prev.note || "")).trim() };
         mapDirty = true;   // paint() re-derives every line's name and category before it aggregates
         if (inp) inp.classList.add("ok");
       }

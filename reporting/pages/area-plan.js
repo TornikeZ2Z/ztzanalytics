@@ -99,6 +99,16 @@
     st.id = "ap-style";
     st.textContent = `
     /* Seasonal Planning (ap2-): only what the kit cannot say. */
+    .ap2-scn{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:10px 0}
+    @media (max-width:1100px){.ap2-scn{grid-template-columns:1fr}}
+    .ap2-scnbox{border:1px solid var(--line);border-radius:10px;padding:10px 12px;min-width:0}
+    .ap2-capgrid{display:grid;grid-template-columns:1fr 1fr;gap:0 10px}
+    .ap2-scnbox h4{margin:0 0 8px;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+    .ap2-fld{display:block;margin:0 0 9px}
+    .ap2-fld>span{display:block;font-size:12px;color:var(--ink);font-weight:600;margin-bottom:3px}
+    .ap2-fld small{display:block;font-size:10.5px;color:var(--faint);line-height:1.35;margin-top:2px}
+    .ap2-fld .ap2-in{width:100%}
+    .ap2-scnbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:6px 0 2px}
     .ap2-stlbl { position:absolute; transform:translate(-50%,-50%); font:800 11px/1 var(--mono, ui-monospace, monospace); letter-spacing:.22em; color:var(--ink); opacity:.5; white-space:nowrap; pointer-events:none; text-shadow:0 0 3px var(--bg), 0 0 3px var(--bg); }
     .ap2-svbar { display:inline-block; width:64px; height:6px; margin-left:8px; border-radius:3px; background:var(--line); vertical-align:middle; overflow:hidden; }
     .ap2-svbar i { display:block; height:100%; background:var(--pos); border-radius:3px; }
@@ -959,7 +969,15 @@ registerPage({
         method: null,                // forecast method: growth | avg3 | flat (null = the model's)
         focus: "",                   // the state focus; "" = all
         city: { minLeads: 20, view: "all", q: "", sort: "Revenue", desc: true, page: 0, pageSize: 30 },
+        scn: null, scnSaved: null,   // the What-if pane (additive keys: never bump LS_KEY for them)
       }, saved);
+      /* THE WHAT-IF'S OWN STATE. Every lever starts at "change nothing", so the pane opens showing
+         the plan as it stands and every number he then sees is something he moved himself. */
+      const SCN0 = { zip: "", maturity: 0, capture: {}, budgetPct: 0, elast: 0, surgeDays: 0,
+                     surgeCrews: 0, crews: 0, park: 800 };
+      inputs.scn = Object.assign({}, SCN0, inputs.scn || {});
+      inputs.scn.capture = Object.assign({}, (inputs.scn || {}).capture || {});
+      inputs.scnSaved = Array.isArray(inputs.scnSaved) ? inputs.scnSaved : [];
       inputs.city = Object.assign({ minLeads: 20, view: "all", q: "", sort: "Revenue", desc: true,
                                     page: 0, pageSize: 30 }, inputs.city || {});
       /* A NAMED SEED IS RE-READ FROM THE MODEL ON EVERY LOAD (2026-09-19). The browser used to keep the
@@ -1682,6 +1700,7 @@ registerPage({
         { k: "map", label: "Map" },
         { k: "cities", label: "Cities" },
         { k: "capacity", label: "Capacity check" },
+        { k: "whatif", label: "What if" },
         { k: "ref", label: "Reference" },
       ];
       const paneOf = key => PANES.some(x => x.k === key) ? key : "decide";
@@ -2786,6 +2805,265 @@ registerPage({
                     "a Fix lead returned $176 against $418 in Push <small style=\"display:inline\">(measured 21 Sep 2026)</small>." : "") + "</div>";
       }
 
+      /* ===================== THE WHAT-IF =====================
+         His ask 2026-09-21: "i need to be able to do the adjustmnets live, like change the base
+         location live, change budget, increase crew and so on -- how the changes will affect it?
+         very functional analytical projection kind of thing."
+
+         WHAT THIS TOOL REFUSES TO DO IS THE POINT OF IT. Four things were measured before a line of
+         it was written (2026-09-22, each re-derived by a second pass told to refute the first), and
+         three of them say a lever he named barely moves the answer:
+
+           CREWS DO NOT BUY JOBS. Foremen reached 90% of the season's maximum on 7 days of 123 in
+           2025 and 3 of 123 in 2026, and leads asking for those dates booked at the same rate as any
+           other (16.2% against 16.1%). Capacity cost about 50 jobs in 2026 and nearer nothing in
+           2025, on a handful of month-end dates. So a crew added here changes COST and not jobs, and
+           the only job a crew can win back is bought with the surge lever, capped at what was lost.
+
+           BUDGET DOES NOT BUY JOBS EITHER, at least not measurably: +22% of advertising bought +10
+           jobs, the de-seasonalised elasticity is -0.06, and a third of the ledger is pay-per-lead,
+           so spend FOLLOWS leads rather than causing them. The dial therefore defaults to ZERO
+           response. He can type the elasticity he believes and argue from the difference -- that
+           gap is the honest shape of the disagreement, and it is better on the screen than in a row.
+
+           A BASE DOES NOT INSTANTLY RAISE BOOKING. It does raise it eventually: inside 15 miles of a
+           STAFFED base New Jersey books 31.6% against 21.1% at 15-35 miles, Pennsylvania 35.6%
+           against 18.0%, odds ratios 1.84 and 1.63 with lead source held equal, and nothing beyond
+           about 25 miles. Whether that is the mileage or simply being known where you are known
+           cannot be separated, so the ring is worth a slider that starts at nought and is labelled
+           "how much of it has arrived", never a number that appears the day the lease is signed.
+
+           WHAT A BASE BUYS TODAY IS DRIVING, and it is small: about $1.11 a road mile in fuel and
+           tolls, roughly 1.4 road miles per straight-line mile as crews are actually dispatched, and
+           crew pay does not move with distance at all until the travel passes ~120 road miles.
+
+         So the lever that moves this plan is CAPTURE -- 66 leads per 10,000 movers at home against 6
+         in Maryland and 0.6 in Virginia -- and the tool is built to make that obvious rather than to
+         flatter the idea that another yard or another truck is what the season is short of. */
+      const SCN = {
+        ROAD_PER_STRAIGHT: 1.4,   // measured: 1.41 road mi on the to+from legs per straight-line mi
+        ROAD_MI_USD: 1.11,        // fuel $0.79 (7 mpg x WEX) + tolls ~$0.22, +10% -- crew pay is flat
+        RING_MI: 15, RING_PTS: 10,// +10.5 pts NJ / +17.6 PA inside 15 mi of a STAFFED base; nil past 25
+        SURGE_CAP: 55,            // jobs lost to capacity in the worst measured season (2026)
+        TRUCK_SEASON: 13400,      // one more crew, one season: 4.39 Enterprise cycles x $3,050
+      };
+      function scenarioCalc() {
+        const N = nextCalc(), c = inputs.scn;
+        const base = { jobs: N.tot.jobs, revenue: N.tot.revenue || 0, expense: N.tot.expense || 0,
+                       rent: N.tot.rent || 0, mkt: N.tot.mkt || 0 };
+        base.net = base.revenue - base.expense - base.rent - base.mkt;
+        const perJob = base.jobs ? base.revenue / base.jobs : 0;
+        const moves = [];                       // every line the scenario changes, with its reason
+        let dJobs = 0, dMkt = 0, dRent = 0, dCost = 0;
+
+        /* ---- the capture dial, per state: the one lever the data says is large ---- */
+        const capRows = [];
+        SERVICE_AREAS.forEach(st => {
+          const cs = COUNTY.filter(x => x.State === st);
+          const movers = cs.reduce((a, x) => a + num(x["Movers Per Year"]), 0);
+          const leads = cs.reduce((a, x) => a + num(x.Leads), 0);
+          if (!movers) return;
+          const now = 10000 * leads / movers;
+          const r = N.rows.find(x => x.st === st);
+          const lpj = r && r.leadsPerJob ? r.leadsPerJob : (N.mkt.lpjAll || null);
+          const want = c.capture[st] == null ? null : +c.capture[st];
+          const row = { st, movers, now, want, lpj, cpl: N.mkt.cplOf(st), planLeads: r ? r.leads : 0 };
+          if (want != null && lpj && want > now) {
+            row.addLeads = (want - now) * movers / 10000;
+            row.addJobs = row.addLeads / lpj;
+            row.addMkt = row.cpl != null ? row.addLeads * row.cpl : 0;
+            dJobs += row.addJobs; dMkt += row.addMkt;
+          }
+          capRows.push(row);
+        });
+        const capJobs = capRows.reduce((a, r) => a + (r.addJobs || 0), 0);
+        if (capJobs > 0) moves.push({ k: "capture", l: "Reaching more of the movers",
+          why: capRows.filter(r => r.addJobs).map(r => esc(r.st) + " " + r1(r.now) + " \u2192 " + r1(r.want) + " per 10k").join(", "),
+          jobs: capJobs, usd: capJobs * perJob - capRows.reduce((a, r) => a + (r.addMkt || 0), 0) - capJobs * (base.jobs ? base.expense / base.jobs : 0) });
+
+        /* ---- a new base at a zip ---- */
+        let dep = null, ring = null;
+        if (c.zip && /^\d{5}$/.test(c.zip)) {
+          dep = depotTry(c.zip);
+          if (dep) {
+            const savedMi = Math.max(0, num(dep.saved_mi_per_job));
+            dep.driving = savedMi * base.jobs * SCN.ROAD_PER_STRAIGHT * SCN.ROAD_MI_USD;
+            const hit = (DEP.jobs_by_zip || []).find(x => x[0] === c.zip) || (DEP.ws_zips || []).find(x => x[0] === c.zip);
+            if (hit) {
+              const near = COUNTY.filter(x => num(x.Latitude) && hav(num(x.Latitude), num(x.Longitude), hit[1], hit[2]) <= SCN.RING_MI);
+              const nearLeads = near.reduce((a, x) => a + num(x.Leads), 0);
+              const allLeads = COUNTY.reduce((a, x) => a + num(x.Leads), 0);
+              const share = allLeads ? nearLeads / allLeads : 0;
+              const planLeads = share * N.tot.leads;              // this year's shape, next season's volume
+              const lpjA = N.mkt.lpjAll || 6;
+              ring = { counties: near.length, leads: planLeads,
+                       jobs: planLeads * (SCN.RING_PTS / 100) * (num(c.maturity) / 100) / Math.max(1, lpjA / (lpjA)) };
+              /* a booking-rate rise turns leads into jobs directly: +pts% of the leads in the ring */
+              ring.jobs = planLeads * (SCN.RING_PTS / 100) * (num(c.maturity) / 100);
+              dJobs += ring.jobs;
+            }
+            dCost += num(c.park) * (N.core.length || 4);          // parking, for the season
+            dCost -= dep.driving;                                  // a saving is a negative cost
+            moves.push({ k: "base", l: "A base at " + esc(c.zip),
+              why: (savedMi > 0 ? r2(savedMi) + " mi/job less driving" : "no driving saved") +
+                   (ring && ring.jobs > 0 ? ", " + r1(ring.jobs) + " jobs from the home ring at " + Math.round(num(c.maturity)) + "% maturity" : "") +
+                   ", " + money0(num(c.park)) + " a month of parking",
+              jobs: ring ? ring.jobs : 0,
+              usd: dep.driving - num(c.park) * (N.core.length || 4) +
+                   (ring ? ring.jobs * (perJob - (base.jobs ? base.expense / base.jobs : 0)) : 0) });
+          }
+        }
+
+        /* ---- the marketing budget, at whatever response he believes ---- */
+        const bp = num(c.budgetPct) / 100, el = num(c.elast);
+        if (bp) {
+          const addMkt = base.mkt * bp, addJobs = base.jobs * bp * el;
+          dMkt += addMkt; dJobs += addJobs;
+          moves.push({ k: "budget", l: (bp > 0 ? "+" : "") + Math.round(bp * 100) + "% marketing",
+            why: el ? "at the " + r2(el) + " response you typed" : "at the measured response, which is nil \u2014 +22% once bought +10 jobs",
+            jobs: addJobs, usd: addJobs * (perJob - (base.jobs ? base.expense / base.jobs : 0)) - addMkt });
+        }
+
+        /* ---- surge crews on the month-end dates, capped at what capacity really cost ---- */
+        const sd = Math.max(0, num(c.surgeDays)), sc = Math.max(0, num(c.surgeCrews));
+        if (sd && sc) {
+          const rate = chainOf("_all") || 1.27;
+          const raw = sd * sc * rate;
+          const got = Math.min(raw, SCN.SURGE_CAP);
+          const cost = sd * sc * (N.perDay || 154);
+          dJobs += got; dRent += cost;
+          moves.push({ k: "surge", l: fmtN(sc) + " extra crew" + (sc === 1 ? "" : "s") + " on " + fmtN(sd) + " peak days",
+            why: raw > got ? "capped at " + SCN.SURGE_CAP + " \u2014 that is all capacity cost the worst measured season"
+                           : r2(rate) + " jobs a foreman-day, on days the work was actually turned away",
+            jobs: got, usd: got * (perJob - (base.jobs ? base.expense / base.jobs : 0)) - cost });
+        }
+
+        /* ---- crews for the season: cost only, because capacity did not bind ---- */
+        const cr = Math.round(num(c.crews));
+        if (cr) {
+          const cost = cr * SCN.TRUCK_SEASON;
+          dRent += cost;
+          moves.push({ k: "crews", l: (cr > 0 ? "+" : "") + cr + " crew" + (Math.abs(cr) === 1 ? "" : "s") + " for the season",
+            why: "no jobs attached: crews did not cap the season. " + money0(SCN.TRUCK_SEASON) + " of truck each",
+            jobs: 0, usd: -cost });
+        }
+
+        const jobs = base.jobs + dJobs;
+        const k = base.jobs ? jobs / base.jobs : 1;
+        const scn = { jobs, revenue: base.revenue * k, expense: base.expense * k,
+                      rent: base.rent + dRent, mkt: base.mkt + dMkt, extra: dCost };
+        scn.net = scn.revenue - scn.expense - scn.rent - scn.mkt - scn.extra;
+        return { N, base, scn, moves, capRows, dep, ring, perJob };
+      }
+
+      function whatIfHtml() {
+        if (!FC.year) return '<div class="ap2-note">The what-if needs the season forecast \u2014 run <b>sources=area-plan</b>.</div>';
+        const S = scenarioCalc(), c = inputs.scn;
+        const d = (a, b) => b - a;
+        const money = v => v < 0 ? "−" + money0(-v) : money0(v);   // money0 would print "$-3,484"
+        /* money0() renders a negative as "$-180,238"; a delta column has to read "-$180,238" */
+        const sgn = v => Math.abs(v) < 1 ? '<span class="ap2-dim">—</span>'
+          : (v > 0 ? '<span class="ap2-ok">+' + money0(v) : '<span class="ap2-hire">−' + money0(-v)) + "</span>";
+        const num2 = (l, a, b, inv) => { const dd = d(a, b);
+          return "<tr><td>" + l + '</td><td class="num">' + money(a) + '</td><td class="num">' + money(b) + '</td><td class="num">' +
+            (Math.abs(dd) < 1 ? '<span class="ap2-dim">\u2014</span>' : (inv ? sgn(-dd) : sgn(dd))) + "</td></tr>"; };
+        const fld = (k, l, sub, attrs) =>
+          '<label class="ap2-fld"><span>' + l + "</span>" +
+          '<input class="rs-num ap2-in" data-scn="' + k + '" type="number" ' + (attrs || "") + ' value="' + esc(String(c[k])) + '">' +
+          (sub ? "<small>" + sub + "</small>" : "") + "</label>";
+        const capIn = S.capRows.filter(r => r.movers > 0).sort((a, b) => b.movers - a.movers).map(r =>
+          '<label class="ap2-fld"><span>' + esc(r.st) + " \u2014 leads per 10k movers</span>" +
+          '<input class="rs-num ap2-in" data-cap="' + esc(r.st) + '" type="number" step="1" min="0" placeholder="' + r1(r.now) + '" value="' +
+            (c.capture[r.st] == null ? "" : esc(String(c.capture[r.st]))) + '">' +
+          "<small>now <b>" + r1(r.now) + "</b> \u00b7 " + fmtN(r.movers) + " move a year" +
+            (r.addJobs ? " \u00b7 <b>+" + r1(r.addJobs) + " jobs</b>" : "") + "</small></label>").join("");
+        const saved = (inputs.scnSaved || []).map((x, i) =>
+          '<button type="button" class="ap2-mbtn" data-load="' + i + '">' + esc(x.name) +
+          '<small>' + (x.net != null ? sgn(x.net) + " net" : "") + "</small></button>").join("");
+
+        return '<div class="ap2-say" style="margin:0 0 12px"><b>What this tool will and will not tell you.</b> ' +
+            'Three of the four levers you asked for were measured first, and the measurements are built into them. ' +
+            '<b>Crews do not buy jobs</b> \u2014 foremen hit 90% of the season\u2019s maximum on 3 days of 123 last year, and leads wanting those dates ' +
+            'booked no worse than any other. <b>Marketing does not buy jobs measurably</b> \u2014 +22% of spend once bought +10 jobs, so that dial ' +
+            'starts at nil response and you can type what you believe instead. <b>A new base does not raise booking on the day it opens</b>, ' +
+            'though inside 15 miles of a staffed one we book 31.6% against 17.0% further out, so the ring has a slider for how much of it has arrived. ' +
+            'The lever that does move this plan is <b>capture</b>: 66 leads per 10,000 movers at home, 6 in Maryland, 0.6 in Virginia.</div>' +
+          '<div class="ap2-scn">' +
+            '<div class="ap2-scnbox"><h4>Reach more of the movers</h4><div class="ap2-capgrid">' + capIn + "</div>" +
+              note("Type the leads per 10,000 movers you think a state could reach. <b>This is the lever the data says is large</b> — and the one a base cannot move on its own.") + "</div>" +
+            '<div class="ap2-scnbox"><h4>A base somewhere new</h4>' +
+              '<label class="ap2-fld"><span>Zip</span><input class="ap2-in" data-scn="zip" maxlength="5" placeholder="e.g. 08102" value="' + esc(c.zip) + '">' +
+              "<small>" + (S.dep ? r2(S.dep.saved_mi_per_job) + " mi/job saved \u00b7 " + fmtN(S.dep.jobs_35) + " jobs within 35 mi"
+                                 : c.zip ? "not in the territory data" : "any zip with jobs or white space near it") + "</small></label>" +
+              fld("maturity", "How much of the home ring has arrived, %", "0 on day one. At 100% it is the full +" + SCN.RING_PTS + " booking points inside " + SCN.RING_MI + " miles", 'min="0" max="100" step="5"') +
+              fld("park", "Parking, $ a month", "we pay $440\u2013$1,200 today", 'min="0" step="50"') + "</div>" +
+            '<div class="ap2-scnbox"><h4>Money and crews</h4>' +
+              fld("budgetPct", "Marketing, % more or less", "on " + money0(S.base.mkt), 'step="5"') +
+              fld("elast", "Jobs response to it", "measured \u22120.06, i.e. nil. 1.0 would mean 10% more money = 10% more jobs", 'step="0.1"') +
+              fld("surgeDays", "Peak days to surge", "about 15 month-end dates are where work was turned away", 'min="0" step="1"') +
+              fld("surgeCrews", "Extra crews on those days", "capped at " + SCN.SURGE_CAP + " jobs a season", 'min="0" step="1"') +
+              fld("crews", "Crews for the whole season", money0(SCN.TRUCK_SEASON) + " of truck each, no jobs attached", 'step="1"') + "</div>" +
+          "</div>" +
+          '<div class="ap2-scnbar"><button type="button" class="rs-btn" id="apScnReset">Reset every lever</button>' +
+            '<input class="ap2-in" id="apScnName" placeholder="name this scenario" style="width:170px">' +
+            '<button type="button" class="rs-btn pri" id="apScnSave">Save</button>' +
+            (saved ? '<span class="ap2-note" style="margin:0 0 0 6px">saved:</span>' + saved : "") + "</div>" +
+          '<table data-name="What if" class="rs-table ap2-next" style="margin-top:14px"><thead><tr><th>Season ' + esc(String(FC.year)) +
+            '</th><th class="num">The plan</th><th class="num">This scenario</th><th class="num">Difference</th></tr></thead><tbody>' +
+            "<tr><td><b>Jobs</b></td><td class=\"num\">" + fmtN(S.base.jobs) + '</td><td class="num">' + fmtN(S.scn.jobs) + '</td><td class="num">' +
+              (Math.abs(S.scn.jobs - S.base.jobs) < 0.5 ? '<span class="ap2-dim">\u2014</span>' : '<b>' + (S.scn.jobs > S.base.jobs ? "+" : "") + fmtN(S.scn.jobs - S.base.jobs) + "</b>") + "</td></tr>" +
+            num2("Revenue", S.base.revenue, S.scn.revenue) +
+            num2("Job expense", S.base.expense, S.scn.expense, 1) +
+            num2("Truck", S.base.rent, S.scn.rent, 1) +
+            num2("Marketing", S.base.mkt, S.scn.mkt, 1) +
+            (Math.abs(S.scn.extra) > 1 ? num2("Parking for the new base, net of the driving it saves", 0, S.scn.extra, 1) : "") +
+            '<tr class="ap2-tot"><td><b>Net before overhead</b></td><td class="num">' + money0(S.base.net) + '</td><td class="num">' + money0(S.scn.net) +
+              '</td><td class="num">' + sgn(S.scn.net - S.base.net) + "</td></tr>" +
+          "</tbody></table>" +
+          (S.moves.length
+            ? '<table data-name="What moved it" class="rs-table ap2-next" style="margin-top:12px"><thead><tr><th>What you changed</th><th>What the data says about it</th><th class="num">Jobs</th><th class="num">Net</th></tr></thead><tbody>' +
+              S.moves.map(m => "<tr><td><b>" + m.l + "</b></td><td>" + m.why + '</td><td class="num">' +
+                (Math.abs(m.jobs) < 0.05 ? '<span class="ap2-dim">none</span>' : (m.jobs > 0 ? "+" : "") + r1(m.jobs)) +
+                '</td><td class="num">' + sgn(m.usd) + "</td></tr>").join("") + "</tbody></table>"
+            : note("Nothing is changed yet \u2014 every lever is at the plan as it stands. Move one and this table says what the measurement behind it was.")) +
+          note("Revenue and job expense follow the jobs at the plan\u2019s own average, so a scenario cannot quietly change what a job is worth. " +
+               "Driving is priced at <b>" + SCN.ROAD_MI_USD + " a road mile</b> (fuel at 7 mpg on the WEX price, tolls, +10%) over <b>" + SCN.ROAD_PER_STRAIGHT +
+               "</b> road miles per straight-line mile, which is how crews are actually dispatched today; crew pay does not move with distance until the travel passes about 120 road miles. " +
+               "A crew costs " + money0(SCN.TRUCK_SEASON) + " of truck for the season. Nothing here is saved to the warehouse.");
+      }
+
+      function repaintScn() {
+        const el = host.querySelector("#apWhatIf"); if (!el) return;
+        const a = document.activeElement, k = a && (a.dataset.scn || a.dataset.cap), pos = a && a.selectionStart;
+        el.innerHTML = whatIfHtml(); wireWhatIf(); enhanceTables();
+        if (k) { const n = el.querySelector('[data-scn="' + k + '"],[data-cap="' + k + '"]');
+          if (n) { n.focus(); try { n.setSelectionRange(pos, pos); } catch (e) {} } }
+      }
+      function wireWhatIf() {
+        const el = host.querySelector("#apWhatIf"); if (!el) return;
+        el.querySelectorAll("[data-scn]").forEach(i => { i.onchange = () => {
+          const k = i.dataset.scn;
+          inputs.scn[k] = k === "zip" ? (i.value || "").replace(/\D/g, "").slice(0, 5) : (i.value === "" ? 0 : +i.value);
+          save(); repaintScn(); }; });
+        el.querySelectorAll("[data-cap]").forEach(i => { i.onchange = () => {
+          const st = i.dataset.cap;
+          if (i.value === "") delete inputs.scn.capture[st]; else inputs.scn.capture[st] = +i.value;
+          save(); repaintScn(); }; });
+        const rst = el.querySelector("#apScnReset");
+        if (rst) rst.onclick = () => { inputs.scn = Object.assign({}, SCN0, { capture: {} }); save(); repaintScn(); };
+        const sv = el.querySelector("#apScnSave");
+        if (sv) sv.onclick = () => { const nm = (el.querySelector("#apScnName") || {}).value;
+          if (!nm || !nm.trim()) return;
+          const S = scenarioCalc();
+          inputs.scnSaved = (inputs.scnSaved || []).filter(x => x.name !== nm.trim()).concat(
+            [{ name: nm.trim(), scn: JSON.parse(JSON.stringify(inputs.scn)), net: S.scn.net - S.base.net }]).slice(-6);
+          save(); repaintScn(); };
+        el.querySelectorAll("[data-load]").forEach(b => { b.onclick = () => {
+          const x = (inputs.scnSaved || [])[+b.dataset.load]; if (!x) return;
+          inputs.scn = Object.assign({}, SCN0, x.scn); inputs.scn.capture = Object.assign({}, x.scn.capture || {});
+          save(); repaintScn(); }; });
+      }
+
       function mapHtml() {
         if (!COUNTY.length) return '<div class="panel">The county mart (mart_area_county) is not ' +
           'built yet — run <b>sources=mart_area_county</b> and reload.</div>';
@@ -3612,6 +3890,10 @@ registerPage({
           card("Where it leaks", "The counties that lose the most",
                "Top county losses in " + esc(P.label) + (inputs.focus ? " for " + esc(inputs.focus) : "") + " — where extra sales attention or pricing would bite first.",
                '<div id="apLeak">' + leakHtml() + "</div>")) +
+          pane("whatif", "Move a base, buy more of the market, change the budget or the crew \u2014 and see Season " + esc(String(FC.year || "")) + "\u2019s net move. Every lever carries what was measured about it; nothing here is saved to the warehouse.",
+            card("What if", "The plan against a scenario you build",
+                 "The levers you asked for, with the measurement behind each one printed beside it.",
+                 '<div id="apWhatIf">' + whatIfHtml() + "</div>")) +
           pane("ref", "Read once a season: how the season was set, the outside research, search volume, rent vs buy, and the method behind every number.",
           ref("How the season was decided", (SEASON.months || []).map(m => MONTH_NAMES[m]).join("–"), card("The season", "Months that reach the threshold of the year's peak", "", seasonHtml())) +
           (R.states ? ref("The outside picture", "big houses and good areas, joined to our own demand",
@@ -3687,7 +3969,7 @@ registerPage({
         const un = host.querySelector("[data-unfocus]"); if (un) un.onclick = ev => { ev.preventDefault(); inputs.focus = ""; setFocus(""); };
       }
       function wire() {
-        wireControls(); wireFocus(); mountCityBar(); repaintCity(); wireWs(); wireMethod(); wireRank(); wireAsks(); wireKw(); wireFormula(); enhanceTables(); wireMap();
+        wireControls(); wireFocus(); mountCityBar(); repaintCity(); wireWs(); wireMethod(); wireRank(); wireAsks(); wireKw(); wireFormula(); wireWhatIf(); enhanceTables(); wireMap();
         // last, because paint() re-runs on every period, seed and focus change and must not drop the reader
         wireTabs(); wirePdf(); showPane(bootTab || inputs.tab, true); bootTab = null;
       }
