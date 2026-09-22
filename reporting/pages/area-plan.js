@@ -2983,14 +2983,18 @@ registerPage({
            out because they carry their own cost already. Crews do not CREATE jobs; jobs create the
            need for crews, which is the direction the measurement supports. */
         const demandJobs = dJobs - (moves.filter(m => m.k === "surge").reduce((a, m) => a + m.jobs, 0));
-        if (demandJobs > 0.5) {
+        if (demandJobs > 0.05) {
           const rate = chainOf("_all") || 1.27;
           const perSeason = rate * DAYS_PER_MONTH * (N.core.length || 4);
-          const need = Math.ceil(demandJobs / perSeason - 1e-9);
-          if (need > 0) { const cost = need * SCN.TRUCK_SEASON; dRent += cost;
-            moves.push({ k: "needcrew", l: need + " more crew" + (need === 1 ? "" : "s") + " to run the extra jobs",
+          /* NOT ROUNDED UP. A whole truck for 1.9 extra jobs is a $13,400 cliff: it made a small
+             scenario read as a loss and, beside it, a large one look cheap. The truck is RENTED --
+             $3,050 a 28-day cycle, and the season's own rent line is already priced by the day --
+             so marginal capacity really is close to linear and the fraction is the honest cost. */
+          const need = demandJobs / perSeason;
+          if (need > 0.004) { const cost = need * SCN.TRUCK_SEASON; dRent += cost;
+            moves.push({ k: "needcrew", l: (need < 0.1 ? "Part of a crew" : r1(need) + " more crew" + (need >= 1.05 || need < 0.95 ? "s" : "")) + " to run the extra jobs",
               why: r1(demandJobs) + " jobs at " + r2(rate) + " a foreman-day over " + (N.core.length || 4) +
-                   " season months \u2014 their pay is already inside job expense, this is the truck",
+                   " season months \u2014 their pay is already inside job expense; this is the truck, rented by the day",
               jobs: 0, usd: -cost }); }
         }
         const jobs = base.jobs + dJobs;
