@@ -348,6 +348,7 @@ body:not(.light) .ap2-mapbox{background:#1d232b}
 .ap2-bub{display:inline-block;border-radius:50%;background:var(--blue);opacity:.30;
   border:1.4px solid var(--blue);vertical-align:middle;margin-right:4px}
 .ap2-bub.faint{width:15px;height:15px;opacity:.55;background:transparent;border-style:dashed}
+.ap2-bub.spend{background:var(--muted);border-color:var(--muted);opacity:.42}
 .ap2-rampsw:last-of-type{border-right:1px solid var(--ap-rule-2)}
 .ap2-headline{margin:2px 0 10px;padding:11px 14px;border:1px solid var(--ap-rule);border-left:4px solid var(--ap-pos-ink);
   border-radius:var(--ap-r2);background:var(--ap-sub);font-size:15px;line-height:1.5;color:var(--ink)}
@@ -1021,7 +1022,7 @@ registerPage({
       inputs.scn = Object.assign({}, SCN0, inputs.scn || {});
       inputs.scn.capture = Object.assign({}, (inputs.scn || {}).capture || {});
       inputs.scn.picks = Array.isArray(inputs.scn.picks) ? inputs.scn.picks : [];
-      if (["tier", "market", "capture"].indexOf(inputs.mapColor) < 0) inputs.mapColor = "tier";
+      if (["tier", "market", "capture", "spend"].indexOf(inputs.mapColor) < 0) inputs.mapColor = "tier";
       inputs.scnSaved = Array.isArray(inputs.scnSaved) ? inputs.scnSaved : [];
       inputs.city = Object.assign({ minLeads: 20, view: "all", q: "", sort: "Revenue", desc: true,
                                     page: 0, pageSize: 30 }, inputs.city || {});
@@ -3296,7 +3297,8 @@ registerPage({
         const unc = R.filter(r => r.uncovered);
         const MODES = [["tier", "Worth chasing", "his tier model"],
                        ["market", "Market size", "people who move a year"],
-                       ["capture", "Our capture", "leads per 10,000 movers"]];
+                       ["capture", "Our capture", "leads per 10,000 movers"],
+                       ["spend", "Marketing spend", "where the money lands"]];
         const modeBar = '<div class="ap2-modes"><span class="l">Colour the counties by</span>' +
           MODES.map(([k, l, sub]) => '<button type="button" class="ap2-mbtn' + (inputs.mapColor === k ? " on" : "") +
             '" data-mapcolor="' + k + '">' + esc(l) + "<small>" + esc(sub) + "</small></button>").join("") + "</div>";
@@ -3323,10 +3325,24 @@ registerPage({
             '<i class="ap2-bub" style="width:' + (2 * rad(q)).toFixed(0) + "px;height:" + (2 * rad(q)).toFixed(0) +
             'px"></i><b>' + fmtN(q) + "</b>").join("&nbsp;&nbsp;") + "</span>";
         };
+        /* size for the money, colour for the judgement -- the legend has to carry both */
+        const spendKey = () => {
+          const v = R.filter(x => x.budget > 0).map(x => x.budget).sort((a, b) => b - a);
+          if (!v.length) return "";
+          const mx = v[0], picks = [mx, v[Math.floor(v.length * 0.25)], v[Math.floor(v.length * 0.75)]];
+          const rad = q => 4 + 26 * Math.sqrt(q / mx);
+          return '<span class="ap2-mk">Marketing for the season&nbsp;' + picks.map(q =>
+            '<i class="ap2-bub spend" style="width:' + (2 * rad(q)).toFixed(0) + "px;height:" + (2 * rad(q)).toFixed(0) +
+            'px"></i><b>' + money0(q) + "</b>").join("&nbsp;&nbsp;") + "</span>" +
+            '<span class="ap2-mk">on&nbsp;' + ["push", "hold", "fix", "grey"].map(b =>
+              '<i class="ap2-sw ' + b + '"></i>' + TIER_LABEL[b]).join("&nbsp;") + "</span>";
+        };
         const key = inputs.mapColor === "tier"
           ? ["push", "hold", "fix", "grey", "none"].map(b =>
               '<span class="ap2-mk"><i class="ap2-sw ' + b + '"></i>' + TIER_LABEL[b] +
               ' <b>' + (byBand[b] || 0) + '</b></span>').join("")
+          : inputs.mapColor === "spend"
+            ? spendKey()
           : inputs.mapColor === "market"
             ? sizeKey() + '<span class="ap2-mk"><i class="ap2-bub faint"></i>no lead from here yet <b>' + (byBand.none || 0) + "</b></span>"
             : rampKey("Leads per 10,000 movers", r => 10000 * r.leads / r.movers, v => r1(v)) +
@@ -3343,6 +3359,12 @@ registerPage({
                 'The faint circles are markets we have <b>never sold a single job in</b>. Counts are drawn as ' +
                 'circles and not as shading on purpose: shading a county by a count makes a big empty one ' +
                 'shout and a small dense one whisper. ',
+          spend: 'A circle on every county that draws marketing, its <b>area</b> proportional to the ' +
+                '<b>money</b> and its <b>colour</b> the tier we rated it. A fat red circle is spend going ' +
+                'into a county the model rates badly \u2014 which happens because the budget is a county\u2019s ' +
+                'share of its state\u2019s <b>leads</b>, and follows demand, never the tier. About 44% of what ' +
+                'lands on red is pay-per-lead that bills wherever the lead appears, so roughly a third of it is ' +
+                'the part anyone could actually move. ',
           capture: 'Every county filled by <b>how many of its movers become one of our leads</b>. This is ' +
                 'the argument in one picture: New Jersey is dark, Maryland and Virginia are almost white, ' +
                 'and no yard changes that \u2014 reviews, referrals and ad density do. ',
@@ -3418,9 +3440,11 @@ registerPage({
           const box = host.querySelector("#apMapBox");
           /* restyle in place: rebuilding the map would lose his pan, his zoom and any pinned ring */
           if (box && box._geo) box._geo.setStyle(box._geo.options.style);
-          if (box && box._mkt && box._map) {
-            if (inputs.mapColor === "market") box._mkt.addTo(box._map);
-            else box._map.removeLayer(box._mkt);
+          if (box && box._map) {
+            [["market", box._mkt], ["spend", box._spend]].forEach(([mode, lyr]) => {
+              if (!lyr) return;
+              if (inputs.mapColor === mode) lyr.addTo(box._map); else box._map.removeLayer(lyr);
+            });
           }
           host.querySelectorAll("[data-mapcolor]").forEach(x => x.classList.toggle("on", x.dataset.mapcolor === inputs.mapColor));
           const mh = host.querySelector("#apMap");
@@ -3585,7 +3609,7 @@ registerPage({
                    shaded counties with leads, so the 168 we have never sold in came out hatched and
                    the map HID the white space it was supposed to reveal. Market size is drawn as
                    proportional circles instead (below), and the counties go quiet underneath. */
-                if (inputs.mapColor === "market") {
+                if (inputs.mapColor === "market" || inputs.mapColor === "spend") {
                   return Object.assign(base, { fillColor: tok("--ap-rule-2") || "#98a4b3",
                                                fillOpacity: .10, weight: 0.5, opacity: .45 });
                 }
@@ -3630,6 +3654,27 @@ registerPage({
                 fillOpacity: x.leads > 0 ? .30 : .10,
                 dashArray: x.leads > 0 ? null : "3 3" }).addTo(box._mkt));
             if (inputs.mapColor === "market") box._mkt.addTo(m);
+
+            /* WHERE THE MONEY LANDS, AND ON WHAT KIND OF COUNTY (his question, asked three times:
+               "if we identify a base as negative, why do we push marketing there?"). Dollars are a
+               COUNT, so they are circles like the market; what makes this view answer his question
+               is that the circle is COLOURED BY TIER. A fat red circle is marketing going into a
+               county the model rates badly, and the eye finds it instantly instead of having to
+               read a table. The honest caveat is in the strip above the map and in the tooltip:
+               the budget is a county's share of its STATE's leads, so it follows demand and never
+               the tier, and about 44% of what lands on red is pay-per-lead that bills wherever the
+               lead appears -- roughly a third of the red is actually steerable. */
+            const spendPane = m.createPane("apSpend");
+            spendPane.style.zIndex = 481; spendPane.style.pointerEvents = "none";
+            const withSp = R.filter(x => x.budget > 0 && x.la && x.lo);
+            const spMax = withSp.length ? Math.max.apply(null, withSp.map(x => x.budget)) : 1;
+            const spR = v => 4 + 26 * Math.sqrt(v / spMax);
+            box._spend = L.layerGroup();
+            withSp.slice().sort((a, b) => b.budget - a.budget).forEach(x =>
+              L.circleMarker([x.la, x.lo], { pane: "apSpend", interactive: false, radius: spR(x.budget),
+                color: col[x.band] || col.grey, weight: 1.4, opacity: .9,
+                fillColor: col[x.band] || col.grey, fillOpacity: .42 }).addTo(box._spend));
+            if (inputs.mapColor === "spend") box._spend.addTo(m);
             /* STATE BORDERS OVER THE FILLS (his note 2026-09-21: "the forms, layout, roads, countries").
                327 county fills with no state line run Pennsylvania into New Jersey. Their own pane,
                above the fills and under the flags, and deaf to the mouse so the county tooltips
