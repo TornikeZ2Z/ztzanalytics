@@ -2815,31 +2815,42 @@ async function renderMonthly(host, MRCFG) {
       const nk6 = s => String(s == null ? "" : s).toLowerCase().replace(/[^a-z0-9]/g, "");
       const rk6 = s => nk6(s);
       const rc6 = (DS.review_counts || []).filter(coRow);
-      const snaps6 = [...new Set(rc6.map(r => String(r.Date || "").slice(0, 10)))].filter(d => /^\d{4}-\d{2}-\d{2}$/.test(d) && d <= monthEndKey).sort();
+      /* MONTH BASIS — the Seasonal Report's convention (and the goals' above): the snapshot dated the 1st closes the
+         month BEFORE it. Report month M therefore reads the snapshot of M+1, and a span m1…mN sums the steps
+         m1+1 … mN+1. Until that closing snapshot is on file the card falls back to the latest one and says
+         "as of <snapshot date>" instead of naming a month it cannot vouch for. */
+      const ym6 = d => { const [y2, m2] = shiftYM(curY, mo, d); return y2 + "-" + String(m2).padStart(2, "0"); };
+      const closeYm6 = ym6(1), closeM6 = shiftYM(curY, mo, 1)[1];
+      const snaps6 = [...new Set(rc6.map(r => String(r.Date || "").slice(0, 10)))].filter(d => /^\d{4}-\d{2}-\d{2}$/.test(d) && d.slice(0, 7) <= closeYm6).sort();
       const snap6 = snaps6[snaps6.length - 1];
+      const closed6 = !!snap6 && snap6.slice(0, 7) === closeYm6;
       const foot6 = {}, footLbl6 = {};
       if (snap6) rc6.filter(r => String(r.Date || "").slice(0, 10) === snap6).forEach(r => { const k = rk6(r.Platform); const n = num(r["Number of Reviews"]); foot6[k] = (foot6[k] || 0) + n; if (!footLbl6[k]) footLbl6[k] = String(r.Platform || "—"); });
-      // ADDED = the listing's rise since the previous snapshot (RS.reviewFlow); what a platform removed is its own number
-      const add6 = {}, rem6 = {};
+      // ADDED = the listing's rises (RS.reviewFlow) summed over EVERY step of the span, per listing; what a platform
+      // removed is its own number and a reset or rename is neither — named below, as the Seasonal Report does
+      const add6 = {}, resets6 = []; let remTot6 = 0;
       if (snap6) { const fl6 = RS.reviewFlow(rc6.filter(r => String(r.Date || "").slice(0, 10) <= snap6));
-        Object.values(fl6.byPlat).forEach(gg => { const st = gg.steps[snap6.slice(0, 7)]; if (!st || st.from == null) return; const k = rk6(gg.label);
-          add6[k] = (add6[k] || 0) + st.added; rem6[k] = (rem6[k] || 0) + st.removed; }); }
-      const remTot6 = Object.values(rem6).reduce((a, v) => a + v, 0);
+        const last6 = snap6.slice(0, 7), want6 = ym6(2 - SPAN), from6 = want6 <= last6 ? want6 : last6;   // no closing snapshot yet → at least the latest step
+        Object.values(fl6.byPlat).forEach(gg => { const k = rk6(gg.label);
+          Object.entries(gg.steps).forEach(([ym, st]) => { if (ym < from6 || ym > last6 || st.from == null) return; add6[k] = (add6[k] || 0) + st.added; }); });
+        const sp6 = fl6.span(from6, last6); remTot6 = sp6.removed;
+        sp6.resets.forEach(x => resets6.push(`${x.label} ${fmtN(x.from)} → ${fmtN(x.to)}`)); }
       const rows6 = Object.keys(foot6).filter(k => foot6[k] > 0).map(k => ({ k: footLbl6[k], total: foot6[k], added: Math.min(add6[k] || 0, foot6[k]) })).sort((a, b) => b.total - a.total).slice(0, 14);
       if (rows6.length) {
         const addTot6 = rows6.reduce((a, r) => a + r.added, 0), footTot6 = rows6.reduce((a, r) => a + r.total, 0);
-        const cc6 = chartCard(g, "Public review footprint — total on file + added this " + perWord, `${monLbl} · ${fmtN(footTot6)} on file, +${fmtN(addTot6)} new since the previous snapshot${remTot6 ? ` · ${fmtN(remTot6)} removed by the platforms` : ""}`, { span2: true, icon: KIC.star, headVal: fmtN(footTot6) });
+        const cc6 = chartCard(g, "Public review footprint — total on file + added " + (closed6 ? "this " + perWord : "as of " + snap6), `${monLbl} · ${fmtN(footTot6)} on file, +${fmtN(addTot6)} new ${closed6 ? (SPAN === 1 ? "since the previous snapshot" : "in " + perName) : "as of " + snap6}${remTot6 ? ` · ${fmtN(remTot6)} removed by the platforms` : ""}`, { span2: true, icon: KIC.star, headVal: fmtN(footTot6) });
         cc6.box.style.height = Math.max(220, 52 + rows6.length * 31) + "px";
         new Chart(cc6.cv, { type: "bar", data: { labels: rows6.map(r => r.k), datasets: [
           { label: "On file", data: rows6.map(r => r.total - r.added), backgroundColor: CTX, borderRadius: 2, stack: "f" },
-          { label: "Added " + perName, data: rows6.map(r => r.added), backgroundColor: LIME, borderRadius: 2, stack: "f" }
+          { label: closed6 ? "Added " + perName : "Added · as of " + snap6, data: rows6.map(r => r.added), backgroundColor: LIME, borderRadius: 2, stack: "f" }
         ] },
           options: baseOpts({ indexAxis: "y", layout: { padding: { right: 104 } },
             plugins: { legend: { display: true, position: "top", align: "end", labels: { color: SUB, font: { size: 12.5, weight: "600" }, boxWidth: 9, usePointStyle: true } },
               tooltip: { callbacks: { label: x => x.dataset.label + ": " + fmtN(x.parsed.x) } } },
             scales: { x: { stacked: true, display: false, beginAtZero: true, max: rows6[0].total * 1.04 }, y: { stacked: true, ticks: { color: INK2, font: { size: 13, weight: "600" } }, grid: { display: false }, border: { display: false } } } }),
           plugins: [crosshair, { id: "ftlab", afterDatasetsDraw(ch) { const ctx = ch.ctx; ctx.save(); ctx.textBaseline = "middle"; ch.getDatasetMeta(1).data.forEach((el, i) => { const r = rows6[i]; ctx.textAlign = "left"; ctx.font = "800 12px " + MONO; ctx.fillStyle = INK; ctx.fillText(fmtN(r.total), el.x + 6, el.y); if (r.added > 0) { const w = ctx.measureText(fmtN(r.total)).width; ctx.font = "800 12px " + MONO; ctx.fillStyle = LIMED; ctx.fillText("+" + fmtN(r.added), el.x + 6 + w + 6, el.y); } }); ctx.restore(); } }] });
-        note(cc6.c, `Each bar is total public reviews on file for that listing (${fmtN(footTot6)} across the top ${rows6.length}); the lime tip is what was added in ${perName} (+${fmtN(addTot6)}, from reviews written this ${perWord} by source, matched to the footprint listing). This footprint is the reputation that drives lead flow.`, "how");
+        note(cc6.c, resets6.length ? `Left out as a reset or rename — check the footprint sheet: ${resets6.join("; ")}.` : "");
+        note(cc6.c, `Each bar is total public reviews on file for that listing (${fmtN(footTot6)} across the top ${rows6.length}); the lime tip is what was added ${closed6 ? "in " + perName : "up to the " + snap6 + " snapshot"} (+${fmtN(addTot6)}): the rise in the listing's total since the previous footprint snapshot${SPAN > 1 ? ", summed snapshot by snapshot over the period" : ""}. What a platform removed is counted apart${remTot6 ? ` (${fmtN(remTot6)})` : ""}, never netted against the rise, and a one-step fall of 30%+ (20+ reviews) is a listing reset or rename, counted as neither. The snapshot dated the 1st closes the month before it${closed6 ? "" : ` — the ${MS[closeM6]} 1 snapshot is not on file yet, so this is the footprint as of ${snap6}`}. This footprint is the reputation that drives lead flow.`, "how");
       }
     }
 

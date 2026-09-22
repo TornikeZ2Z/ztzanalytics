@@ -225,7 +225,7 @@ const NAV_ORDER = {
   "money-flow": 1, "foreman-closings": 2, "ld-planning": 3, "packing-control": 4, "packing-sales": 4.5, "storage-control": 5, "foreman-assessment": 6, "crew-salaries": 6.5, "fuel-control": 7, "foreman-late": 7.5, "log-foreman": 8, "log-packing": 9,
   "hr-directory": 1, "hr-questionnaire": 2, "hr-my-questionnaire": 3,
   "cleanup": 1,
-  "straight-vs-local": 1, "area-plan": 2, "season-settings": 2.5, "truck-economics": 3,
+  "straight-vs-local": 1, "area-plan": 2, "truck-economics": 3,
   "fin-revenue": 1, "fin-rr": 2, "sales-geo": 3, "branch-owner": 6, "bo-salary": 6.2, "cl-analysis": 6.5, "postcard-purchases": 6.7, "postcard-expenditure": 9.5,
   "rev-production": 1, "review-performance": 2, "reviews-cases": 2.5, "claims-analysis": 2.6, "response-analysis": 3, "reviews-reminders": 4, "review-settings": 5,
   "sup-claims": 1, "sup-refunds": 2, "sup-phone": 3,
@@ -299,7 +299,7 @@ const PAGE_ICONS = {
   "log-foreman": "tool", "log-packing": "box",
   "fin-revenue": "trend", "fin-rr": "trend", "rev-production": "star",
   "sup-claims": "shield", "sup-refunds": "clipboard", "sup-phone": "phone",
-  "general-settings": "sliders", "general-tables": "grid", "admin-activity": "clock", "data-quality": "clipboard", "data-migration": "share-2", "refresh-log": "activity", "source-trace": "activity", "meta-referrals": "upload-cloud", "referral-candidates": "gift", "jobs-by-area": "map-pin", "packing-sales": "package", "relocation-trends": "trending-up", "angi-funnel": "funnel", "utm-campaigns": "link", "promised-reviews": "star", "birdeye-sends": "megaphone", "calendar-coverage": "calendar", "request-consistency": "alert-triangle", "review-performance": "star", "reviews-reminders": "megaphone", "response-analysis": "activity", "review-settings": "tool", "reviews-cases": "star", "claims-analysis": "alert-triangle", "area-plan": "map-pin", "season-settings": "sliders",
+  "general-settings": "sliders", "general-tables": "grid", "admin-activity": "clock", "data-quality": "clipboard", "data-migration": "share-2", "refresh-log": "activity", "source-trace": "activity", "meta-referrals": "upload-cloud", "referral-candidates": "gift", "jobs-by-area": "map-pin", "packing-sales": "package", "relocation-trends": "trending-up", "angi-funnel": "funnel", "utm-campaigns": "link", "promised-reviews": "star", "birdeye-sends": "megaphone", "calendar-coverage": "calendar", "request-consistency": "alert-triangle", "review-performance": "star", "reviews-reminders": "megaphone", "response-analysis": "activity", "review-settings": "tool", "reviews-cases": "star", "claims-analysis": "alert-triangle", "area-plan": "map-pin",
 };
 
 /* Pages not yet built — shown greyed with a SOON tag so the full scope is visible. */
@@ -715,7 +715,6 @@ const PAGE_DATASETS = {
   "review-performance": [],
   "response-analysis": [], "review-settings": [],
   "area-plan": [],           // Seasonal Planning: its own period picker and state focus, no global bar
-  "season-settings": [],     // Planning Variables: reads /api/_gset only
   "reviews-cases": [],       // both boards load whole (307+888 rows); year filter is local
   "claims-analysis": [],     // the claims mart + closings load whole; period/service filters are local
   "demand-analysis": [],   // its own year + company pickers own the window
@@ -958,7 +957,7 @@ const BARE_CHROME = new Set(["sales-of-the-month", "review-performance", "review
   // another page emptied it completely, which is worse than useless -- it looked like there
   // were no Straight jobs at all.
   "straight-vs-local",
-  "area-plan", "season-settings", "truck-economics", "data-migration", "admin-activity"]);
+  "area-plan", "truck-economics", "data-migration", "admin-activity"]);
 /* Pages where the global filter bar MUST STAY VISIBLE, so Hide filters is not offered at all.
    The control exists for pages carrying a wall of slicers you want out of the way to read the
    board full-screen — Custom Breakdown is the case it was built for. It is wrong wherever the
@@ -1089,7 +1088,6 @@ const NAV_TITLES = {
   "reviews-reminders": "Send Reminders",
   "reviews-cases": "Claims & Negative Reviews",
   "area-plan": "Seasonal Planning",
-  "season-settings": "Planning Variables",
   "claims-analysis": "Claims Analysis",
   "response-analysis": "Response Analysis",
   "review-settings": "Review URLs and Reasons",
@@ -1138,7 +1136,6 @@ const SEARCH_ALIASES = {
   "reviews-cases": "claims negative reviews complaints platforms stars overlap tako monday",
   "claims-analysis": "claims analysis rate per 100 jobs salesperson foreman reason responsibility thread monday",
   "area-plan": "seasonal planning area plan master season city county roi leads booking untapped distance base foremen crews trucks salespeople marketing budget ad spend hiring capacity utilization leak rent buy claims targeting",
-  "season-settings": "planning variables settings configuration season threshold foremen per state company ceiling days dial defaults",
   "response-analysis": "response analysis missed review reasons why no review foreman explanation waiting for reason response rate accountability",
   "review-settings": "review settings link control google trustpilot facebook kearny shafto qr code delivery state reasons why no review platform config",
   "sup-claims": "claim claims damage damages",
@@ -1621,7 +1618,6 @@ const REPORT_LABELS = {
   "reviews-reminders": "Send Reminders",
   "reviews-cases": "Claims & Negative Reviews",
   "area-plan": "Seasonal Planning",
-  "season-settings": "Planning Variables",
   "claims-analysis": "Claims Analysis",
   "response-analysis": "Response Analysis",
   "review-settings": "Review URLs and Reasons",
@@ -1668,7 +1664,7 @@ const ACL_DEPTS = [
   { id: "company",   label: "Company Overview", icon: "spark",     reports: ["work", "erp-briefs","monthly-report", "seasonal-report", "analysis-by-category"] },
   { id: "sales",     label: "Sales",            icon: "funnel",    reports: ["work", "erp-briefs","sales-command", "sales-of-the-month", "demand-analysis", "conversations", "sales-comms", "sales-trackers"] },
   { id: "marketing", label: "Marketing",        icon: "megaphone", reports: ["work", "erp-briefs","source-trace", "referral-candidates", "jobs-by-area", "relocation-trends", "angi-funnel", "utm-campaigns", "promised-reviews", "birdeye-sends"] },
-  { id: "logistics", label: "Logistics",        icon: "tool",      reports: ["postcard-expenditure", "work", "erp-briefs","money-flow", "ld-planning", "foreman-closings", "packing-control", "packing-sales", "crew-salaries", "storage-control", "foreman-assessment", "fuel-control", "foreman-late", "straight-vs-local", "area-plan", "season-settings", "truck-economics"] },
+  { id: "logistics", label: "Logistics",        icon: "tool",      reports: ["postcard-expenditure", "work", "erp-briefs","money-flow", "ld-planning", "foreman-closings", "packing-control", "packing-sales", "crew-salaries", "storage-control", "foreman-assessment", "fuel-control", "foreman-late", "straight-vs-local", "area-plan", "truck-economics"] },
   // MUST mirror DEPT_REPORTS["hr"] in bridge/app.py. Employees answering the questionnaire
   // need NO grant at all — this tile is for HR: managing it and reading the results.
   { id: "hr",        label: "Human Resources", icon: "user",      reports: ["work", "erp-briefs","hr-questionnaire", "hr-responses", "hr-directory"] },
@@ -1877,7 +1873,7 @@ registerPage({
 <script src="pages/customer-experience.js?v=3"></script>
 <script src="pages/labor-analysis.js?v=3"></script>
 <script src="pages/post-card-analysis.js?v=4"></script>
-<script src="pages/monthly-report.js?v=115"></script>
+<script src="pages/monthly-report.js?v=116"></script>
 <script src="pages/seasonal-report.js?v=19"></script>
 <script src="pages/leads-vs-moveboard.js?v=7"></script>
 <script src="pages/source-analysis.js?v=5"></script>
@@ -1892,7 +1888,7 @@ registerPage({
 <script src="pages/source-trace.js?v=27"></script>
 <script src="pages/meta-referrals.js?v=2"></script>
 <script src="pages/jobs-by-area.js?v=4"></script>
-<script src="pages/packing-sales.js?v=3"></script>
+<script src="pages/packing-sales.js?v=4"></script>
 <script src="pages/relocation-trends.js?v=5"></script>
 <script src="pages/utm-campaigns.js?v=2"></script>
 <script src="pages/angi-funnel.js?v=8"></script>
@@ -1904,7 +1900,7 @@ registerPage({
 <script src="pages/request-consistency.js?v=4"></script>
 <script src="pages/cl-analysis.js?v=39"></script>
 <script src="pages/branch-owner.js?v=10"></script>
-<script src="pages/bo-salary.js?v=1"></script>
+<script src="pages/bo-salary.js?v=2"></script>
 <script src="pages/money-flow.js?v=56"></script>
 <script src="pages/ld-planning.js?v=83"></script>
 <script src="pages/cleanup.js?v=38"></script>
@@ -1918,8 +1914,7 @@ registerPage({
 <script src="pages/fuel-control.js?v=11"></script>
 <script src="pages/demand-analysis.js?v=10"></script>
 <script src="pages/straight-vs-local.js?v=6"></script>
-<script src="pages/area-plan.js?v=44"></script>
-<script src="pages/season-settings.js?v=4"></script>
+<script src="pages/area-plan.js?v=45"></script>
 <script src="pages/postcard-purchases.js?v=1"></script>
 <script src="pages/postcard-expenditure.js?v=11"></script>
 <script src="pages/truck-economics.js?v=5"></script>

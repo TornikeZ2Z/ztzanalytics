@@ -66,6 +66,16 @@
           ".bos-rows .bar{height:10px;border-radius:5px;background:var(--line);position:relative;overflow:hidden}.bos-rows .bar i{position:absolute;top:0;bottom:0;left:0;border-radius:5px}",
           ".bos-rows .m{text-align:right;font-variant-numeric:tabular-nums;color:var(--ink)}.bos-rows .p{text-align:right;font-variant-numeric:tabular-nums;color:var(--muted);font-size:12px}",
           ".bos-rows .tot{font-weight:800;padding-top:6px;border-top:1px solid var(--line)}",
+          /* the crew is the only row whose MEANING changes between the cards, so it is the only one marked */
+          ".bos-rows .bos-crew{font-weight:700}",
+          ".bos-who{display:block;font-style:normal;font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:700}",
+          ".bos-rows .bos-crew.alt .bos-who{color:var(--warn)}",
+          /* the mix: Local / Straight / Regular side by side, the same three on both cards */
+          ".bos-mix{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:14px 0 2px}",
+          ".bos-m{border:1px solid var(--line);border-radius:8px;padding:8px 10px;display:flex;flex-direction:column;gap:2px;min-width:0}",
+          ".bos-m b{font-size:12px;color:var(--ink)}.bos-m span{font-size:12.5px;color:var(--ink);font-variant-numeric:tabular-nums}",
+          ".bos-m small{display:block;font-size:10.5px;color:var(--faint);font-weight:600}",
+          ".bos-m .his{color:var(--brand-d);font-weight:700}.bos-m.off{opacity:.55}.bos-m.off span{color:var(--faint)}",
           ".bos-up{color:var(--pos);font-weight:700}.bos-dn{color:var(--neg);font-weight:700}",
           ".bos-tbl td small{display:block;color:var(--faint);font-size:11px;line-height:1.3}",
           ".bos-tbl tfoot td{font-weight:800;border-top:2px solid var(--line-2)}",
@@ -155,55 +165,87 @@
       }
 
       /* ================= 1 + 2: today, and the alternative, side by side ================= */
+      /* THE TWO DEALS, ROW FOR ROW (his ask 2026-09-22: "same expenses appear twice - i need it to
+         be pure comparison"). The first build listed the crew as a cost on the left and as a
+         deduction from his share on the right, then repeated the other nine costs underneath, so the
+         columns never lined up and the eye could not read across. Now ONE row list is rendered twice.
+         Every line exists on both sides; only two things differ, which is the whole argument: WHO
+         PAYS THE CREW, and what he is paid. Every percentage is of the same bill.
+
+         AND THE MIX IS ON THE CARD (his ask, same day): jobs and revenue for Local, Straight and
+         Regular separately, because the answer is different for each -- a share of the bill beats a
+         cut only where the crew is light against the ticket. The chips carry his pay under each
+         deal per type, so the card he is looking at already says where the money moves. */
       function paintCards() {
         const A = altOf(J), W = A.W, maxV = W.bill || 1;
-        const pc = v => W.bill ? pct1(v / W.bill) : "—";
-        const row = (l, sub, v, col, cls, right) =>
-          '<div class="l' + (cls ? " " + cls : "") + '">' + l + (sub ? "<small>" + sub + "</small>" : "") + "</div>" +
-          '<div class="bar' + (cls ? " " + cls : "") + '"><i style="width:' + Math.max(0, Math.min(100, Math.abs(v) / maxV * 100)).toFixed(2) + "%;background:" + col + '"></i></div>' +
-          '<div class="m' + (cls ? " " + cls : "") + '">' + (right != null ? right : money(v)) + '</div><div class="p' + (cls ? " " + cls : "") + '">' + pc(v) + "</div>";
+        const pc = v => W.bill ? pct1(v / W.bill) : "\u2014";
         const byOwner = [...new Set(J.map(r => r["Branch Owner"]).filter(Boolean))];
-        const stack = (a, b, c2) => '<div class="bos-stack"><i style="width:' + (a / maxV * 100).toFixed(2) + "%;background:" + GREY +
-          '"></i><i style="width:' + (Math.max(0, b) / maxV * 100).toFixed(2) + "%;background:" + HIS +
+        const stack = (a2, b2, c2) => '<div class="bos-stack"><i style="width:' + (a2 / maxV * 100).toFixed(2) + "%;background:" + GREY +
+          '"></i><i style="width:' + (Math.max(0, b2) / maxV * 100).toFixed(2) + "%;background:" + HIS +
           '"></i><i style="width:' + (Math.max(0, c2) / maxV * 100).toFixed(2) + "%;background:" + LIME + '"></i></div>';
+        const cell = (v, col, cls, tag) =>
+          '<div class="bar' + (cls ? " " + cls : "") + '"><i style="width:' + Math.max(0, Math.min(100, Math.abs(v) / maxV * 100)).toFixed(2) + "%;background:" + col + '"></i></div>' +
+          '<div class="m' + (cls ? " " + cls : "") + '">' + money(v) + (tag ? '<em class="bos-who">' + tag + "</em>" : "") +
+          '</div><div class="p' + (cls ? " " + cls : "") + '">' + pc(v) + "</div>";
 
-        const today =
-          '<div class="panel"><div class="panel-head"><span class="panel-title">Today — he is paid a cut, we pay the crew</span></div>' +
+        /* ---- the mix, per job type: the same three chips on both cards, his pay under each deal ---- */
+        const G = groupsOf(J);
+        const mixFor = today => '<div class="bos-mix">' + G.map(g => {
+          const n = g.W.n, has = n > 0;
+          const his = today ? g.W.his : g.a.hisNet;
+          return '<div class="bos-m' + (has ? "" : " off") + '"><b>' + esc(g.t.replace(" Moving", "")) + "</b>" +
+            "<span>" + (has ? fmtN(n) + (n === 1 ? " job" : " jobs") : "no jobs flagged") + "</span>" +
+            "<span>" + (has ? money(g.W.bill) : "\u2014") + (has ? "<small>" + money(g.W.bill / n) + " a job</small>" : "") + "</span>" +
+            '<span class="his">' + (has ? money(his) + "<small>" + (today ? "his cut" : "his net") + " \u00b7 " + pct1(his / g.W.bill) + " of bill</small>" : "") + "</span></div>";
+        }).join("") + "</div>";
+
+        /* ---- one spec, two sides: v(side) is the number, tag(side) the who-pays badge ---- */
+        const shareLbl = G.filter(g => g.W.n > 0).map(g => g.t.replace(" Moving", "") + " " + STATE.share[g.t] + "%").join(" \u00b7 ");
+        const ROWS = [
+          { l: "Revenue", sub: "the same jobs, the same bills \u2014 his " + fmtN(W.n) + " jobs", v: () => W.bill, col: () => INK, cls: "tot" },
+          /* THE ONE LINE THAT MOVES. Same money, same crew, different payer. */
+          { l: "Crew", sub: "foreman, driver and helpers, with the foreman's packing commission",
+            v: () => W.c.crew, col: t => (t ? GREY : AMB), tag: t => (t ? "we pay" : "HE pays"), cls: "bos-crew" },
+        ].concat(E.LINES.filter(x => x[0] !== "crew").map(x => ({ l: x[1], sub: x[2], v: () => W.c[x[0]], col: () => GREY })))
+         .concat([
+          { l: "Cost we carry", sub2: t => (t ? "everything above, crew included" : "everything above except the crew"),
+            v: t => (t ? W.cost : A.oursCost), col: () => GREY, cls: "tot" },
+          { l: "What he is paid", sub2: t => (t ? "his branch-owner salary on these jobs" : "his share of the bill \u2014 " + shareLbl),
+            v: t => (t ? W.his : A.hisShare), col: () => HIS, cls: "tot" },
+          { l: "His net", sub2: t => (t ? "nothing comes out of it \u2014 the crew is ours" : "his share minus the crew he now pays"),
+            v: t => (t ? W.his : A.hisNet), col: () => HIS, cls: "tot" },
+          { l: "Our profit", sub2: t => (t ? "the bill minus every cost minus his cut" : "the bill minus his share minus what we still carry"),
+            v: t => (t ? W.ours : A.ours), col: () => LIME, cls: "tot" },
+        ]);
+        const rowsFor = today => ROWS.map(r => {
+          const cls = [r.cls, today ? "" : "alt"].filter(Boolean).join(" ");
+          const sub = r.sub2 ? r.sub2(today) : r.sub;
+          return '<div class="l' + (cls ? " " + cls : "") + '">' + r.l + (sub ? "<small>" + sub + "</small>" : "") + "</div>" +
+                 cell(r.v(today), r.col(today), cls, r.tag ? r.tag(today) : null);
+        }).join("");
+
+        const card = (today, title, hisV, hisLbl, oursV, cost) =>
+          '<div class="panel"><div class="panel-head"><span class="panel-title">' + title + "</span></div>" +
           '<div class="bos-head">' +
-            '<div class="bos-big"><b>' + money(W.bill) + "</b><span>revenue · " + fmtN(W.n) + " jobs" + (byOwner.length ? " · " + esc(byOwner.join(", ")) : "") + "</span></div>" +
-            '<div class="bos-big his"><b>' + money(W.his) + "</b><span>his cut · " + pc(W.his) + " · " + money(W.n ? W.his / W.n : 0) + " a job</span></div>" +
-            '<div class="bos-big"><b>' + money(W.ours) + "</b><span>our profit · " + pc(W.ours) + "</span></div></div>" +
-          stack(W.cost, W.his, W.ours) +
-          '<div class="bos-key"><span><i style="background:' + GREY + '"></i>cost to run the jobs ' + pc(W.cost) + '</span><span><i style="background:' + HIS +
-            '"></i>his cut ' + pc(W.his) + '</span><span><i style="background:' + LIME + '"></i>our profit ' + pc(W.ours) + "</span></div>" +
-          '<div class="bos-rows">' + row("Revenue", "the final bill on his jobs", W.bill, INK, "tot") +
-            E.LINES.map(([k, l, sub]) => row(l, sub, W.c[k], GREY)).join("") +
-            row("Cost to run the jobs", "", W.cost, GREY, "tot") +
-            row("His cut", "the branch-owner salary on these jobs", W.his, HIS, "tot") +
-            row("Our profit", "what is left for the company", W.ours, LIME, "tot") + "</div></div>";
+            '<div class="bos-big"><b>' + money(W.bill) + "</b><span>revenue \u00b7 " + fmtN(W.n) + " jobs" + (byOwner.length ? " \u00b7 " + esc(byOwner.join(", ")) : "") + "</span></div>" +
+            '<div class="bos-big his"><b>' + money(hisV) + "</b><span>" + hisLbl + "</span></div>" +
+            '<div class="bos-big"><b>' + money(oursV) + "</b><span>our profit \u00b7 " + pc(oursV) + (today ? "" : " \u00b7 " + signed(A.oursDelta) + " vs today") + "</span></div></div>" +
+          stack(cost, hisV, oursV) +
+          '<div class="bos-key"><span><i style="background:' + GREY + '"></i>cost we carry ' + pc(cost) + '</span><span><i style="background:' + HIS +
+            '"></i>his net ' + pc(hisV) + '</span><span><i style="background:' + LIME + '"></i>our profit ' + pc(oursV) + "</span></div>" +
+          mixFor(today) +
+          '<div class="bos-rows">' + rowsFor(today) + "</div></div>";
 
-        const kept = E.LINES.filter(([k]) => k !== "crew");
-        const alt =
-          '<div class="panel"><div class="panel-head"><span class="panel-title">The alternative — he takes a share of the bill and pays the crew</span></div>' +
-          '<div class="bos-head">' +
-            '<div class="bos-big"><b>' + money(A.hisShare) + "</b><span>his share · " + pc(A.hisShare) + " of the bill, blended</span></div>" +
-            '<div class="bos-big his"><b>' + money(A.hisNet) + "</b><span>his net after the crew · " + money(W.n ? A.hisNet / W.n : 0) + " a job · " + signed(A.hisDelta) + " vs today</span></div>" +
-            '<div class="bos-big"><b>' + money(A.ours) + "</b><span>our profit · " + pc(A.ours) + " · " + signed(A.oursDelta) + " vs today</span></div></div>" +
-          stack(A.oursCost + W.c.crew, A.hisNet, A.ours) +
-          '<div class="bos-key"><span><i style="background:' + GREY + '"></i>cost to run the jobs ' + pc(W.cost) + '</span><span><i style="background:' + HIS +
-            '"></i>his net ' + pc(A.hisNet) + '</span><span><i style="background:' + LIME + '"></i>our profit ' + pc(A.ours) + "</span></div>" +
-          '<div class="bos-rows">' + row("Revenue", "the same jobs, the same bills", W.bill, INK, "tot") +
-            row("His share of the bill", groupsOf(J).filter(g => g.W.n > 0).map(g => g.t.replace(" Moving", "") + " " + STATE.share[g.t] + "%").join(" · "), A.hisShare, HIS, "tot") +
-            row("− the crew, which he now pays", "foreman, driver and helpers, with the foreman's packing commission", W.c.crew, AMB) +
-            row("His net", "his share minus the crew — " + (A.hisDelta >= 0 ? "more" : "less") + " than today by " + money(Math.abs(A.hisDelta)), A.hisNet, HIS, "tot") +
-            kept.map(([k, l, sub]) => row(l, sub, W.c[k], GREY)).join("") +
-            row("Costs we still carry", "everything above except the crew", A.oursCost, GREY, "tot") +
-            row("Our profit", "the bill minus his share minus what we still carry", A.ours, LIME, "tot") + "</div></div>";
-
-        document.getElementById("bosCards").innerHTML = '<div class="bos-wrap">' + today + alt + "</div>" +
-          '<p class="rs-hint" style="margin:10px 2px 0">Both cards run on one cost model, shared with the Branch Owner page. The two deals are <b>exactly zero-sum</b>: whatever he gains we lose, to the dollar — ' +
-          'today ' + money(W.his + W.ours) + ' is split between us, and under the alternative the same ' + money(A.hisNet + A.ours) + ' is. ' +
-          'Crew pay, tips and discounts come from the closing; truck, fuel and tolls are estimated from our own books.</p>';
+        document.getElementById("bosCards").innerHTML = '<div class="bos-wrap">' +
+          card(1, "Today \u2014 he is paid a cut, we pay the crew", W.his,
+               "his cut \u00b7 " + pc(W.his) + " \u00b7 " + money(W.n ? W.his / W.n : 0) + " a job", W.ours, W.cost) +
+          card(0, "The alternative \u2014 he takes a share of the bill and pays the crew", A.hisNet,
+               "his net after the crew \u00b7 " + money(W.n ? A.hisNet / W.n : 0) + " a job \u00b7 " + signed(A.hisDelta) + " vs today", A.ours, A.oursCost) +
+          "</div>" +
+          '<p class="rs-hint" style="margin:10px 2px 0">Read the two cards <b>across</b>: every line appears on both sides and only two of them move \u2014 <b>who pays the crew</b> (' +
+          money(W.c.crew) + ", " + pc(W.c.crew) + ' of the bill) and <b>what he is paid</b>. Both run on one cost model, shared with the Branch Owner page, and the deals are ' +
+          '<b>exactly zero-sum</b>: today ' + money(W.his + W.ours) + " is split between us, under the alternative the same " + money(A.hisNet + A.ours) + ". " +
+          "Crew pay, tips and discounts come from the closing; truck, fuel and tolls are estimated from our own books.</p>";
       }
 
       /* ================= 3: where he makes more money ================= */
