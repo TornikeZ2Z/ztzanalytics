@@ -66,11 +66,6 @@ body.rs-viewas .rs-layout{box-shadow:inset 0 0 0 2px #7c3aed}
 @media (max-width:640px){.viewas-sub{display:none}}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-<style id="hrqOnlyCss">
-  /* respondent-only shell: the portal reduced to the questionnaire */
-  body.hrq-only .rs-side{display:none}
-  body.hrq-only #filters,body.hrq-only #chips{display:none!important}
-</style>
 </head>
 <body class="rs-app">
 <!-- Admin "view as user" banner. Deliberately loud and always on top: the whole risk of an
@@ -114,9 +109,6 @@ body.rs-viewas .rs-layout{box-shadow:inset 0 0 0 2px #7c3aed}
     </div>
     <div class="rs-chips hidden" id="chips"></div>
     <div class="rs-banner hidden" id="accessBanner"></div>
-    <!-- pipeline alarms (2026-07-20): lives OUTSIDE #content, which renderPage() overwrites on
-         every navigation — a banner inside it would vanish on the first click. -->
-    <div id="pipeHealth" class="hidden"></div>
     <div class="rs-banner hidden" id="noDataBanner">
       <span>No data matches your combined filters — check <b>Month</b> vs <b>Date range</b> (they narrow each other down).</span>
       <button class="rs-banner-btn" id="noDataClear">Clear all filters</button>
@@ -138,6 +130,10 @@ const GROUPS = [
   { key: "company",   title: "Company Overview" },
   { key: "sales",     title: "Sales" },
   { key: "marketing", title: "Marketing" },
+  // Marketing Automations (2026-09-23): the outreach tools that push to customers or read
+  // what a provider sent (referrals, promised reviews, Birdeye send-outs, the Angi funnel).
+  // Holding Marketing also grants this group -- see DEPT_IMPLIES.
+  { key: "marketing-automations", title: "Marketing Automations" },
   { key: "logistics", title: "Logistics" },
   // Calendar Cleanup lives here, not under Logistics: every recommendation it makes is a
   // conversation with a customer (ring them to move to the afternoon, or to another day).
@@ -150,10 +146,11 @@ const GROUPS = [
   // each page decides a specific operational trade-off rather than monitoring a metric.
   { key: "different", title: "Different Analysis" },
   { key: "reviews",   title: "Reviews" },
-  { key: "support",   title: "Support" },
-  // Tech Team (2026-09-10): the ERP work itself — the developer's work queue and the data
-  // migration. Visibility stays per page: Things to do is granted through the departments,
-  // Data Migration stays admin-only (canSee), so the group shows whatever a person may open.
+  // Support was deleted 2026-09-23: every page it held was a retired slice, so it was empty.
+  // Tech Team (2026-09-10): the ERP work and the website plumbing. IT Requests was removed
+  // 2026-09-23. The group is ADMIN-ONLY until somebody is given the "tech" tile, and that
+  // tile opens Website Forms & UTM only: Things to do and Data Migration stay admin-only
+  // (ADMIN_ONLY), whoever holds the tile.
   { key: "tech",      title: "Tech Team" },
   // Admin-only, and collapsed on first visit (see ADMIN_GROUPS / DEFAULT_COLLAPSED below).
   { key: "admin",     title: "Administration" },
@@ -171,20 +168,18 @@ const GROUP_OVERRIDE = {
   "data-quality": "admin", "refresh-log": "admin", "general-settings": "admin", "admin-users": "admin",
   "admin-activity": "admin",
   "general-tables": "admin",
-  // Tech Team
-  "things-to-do": "tech", "data-migration": "tech",
-  // IT Requests joins the Tech Team (his ask 2026-09-15). Access is unchanged: every department grants it.
-  "work": "tech",
+  // Tech Team (Website Forms & UTM joined 2026-09-23, his call)
+  "things-to-do": "tech", "data-migration": "tech", "utm-campaigns": "tech",
   // Marketing — source attribution belongs with the marketing views
   "source-trace": "marketing", "meta-referrals": "marketing",
   "jobs-by-area": "marketing",
   "packing-sales": "logistics",
   "relocation-trends": "marketing",
-  "angi-funnel": "marketing",
-  "utm-campaigns": "marketing",
-  "promised-reviews": "marketing",
-  "birdeye-sends": "marketing",
-  "referral-candidates": "marketing",
+  // Marketing Automations (2026-09-23)
+  "angi-funnel": "marketing-automations",
+  "promised-reviews": "marketing-automations",
+  "birdeye-sends": "marketing-automations",
+  "referral-candidates": "marketing-automations",
   // Company Overview
   "monthly-report": "company", "seasonal-report": "company", "analysis-by-category": "company",
   // Sales ("sales-geo" moved to Financial — Tornike 2026-07-13: geography is a money view)
@@ -202,16 +197,16 @@ const GROUP_OVERRIDE = {
   "crew-salaries": "logistics",
   "foreman-late": "logistics",
   "foreman-assessment": "logistics",
-  "hr-questionnaire": "hr", "hr-my-questionnaire": "hr", "hr-directory": "hr",
+  // (My Survey, hr-my-questionnaire, removed 2026-09-23: surveys are answered by emailed link)
+  "hr-questionnaire": "hr", "hr-directory": "hr",
   // Customer Service -- claims-analysis lives here (his call 2026-09-03): the support
-  // team owns the claims board and writes every thread on it. The Reviews department
-  // keeps its grant, so nobody loses the page.
-  "cleanup": "customer-service", "claims-analysis": "customer-service",
+  // team owns the claims board and writes every thread on it. Since 2026-09-23 a group
+  // grants exactly the pages placed in it, so the page is placed under Reviews as well,
+  // which keeps the Reviews grant. buildNav shows it only under the group(s) the user holds.
+  "cleanup": "customer-service", "claims-analysis": ["customer-service", "reviews"],
   // Reviews
   "review-performance": "reviews", "rev-production": "reviews", "reviews-reminders": "reviews",
   "response-analysis": "reviews", "review-settings": "reviews", "reviews-cases": "reviews",
-  // Support
-  "sup-claims": "support", "sup-refunds": "support", "sup-phone": "support",
 };
 const groupsOf = p => { const g = GROUP_OVERRIDE[p.id] || p.group;
   return Array.isArray(g) ? g : [g]; };
@@ -219,11 +214,11 @@ const groupsOf = p => { const g = GROUP_OVERRIDE[p.id] || p.group;
 const groupOf = p => groupsOf(p)[0];
 /* explicit per-container item order (numbers are scoped within each group's display list) */
 const NAV_ORDER = {
-  "monthly-report": 1, "seasonal-report": 1.5, "analysis-by-category": 2, "work": 0.5, "things-to-do": 0.6,
+  "monthly-report": 1, "seasonal-report": 1.5, "analysis-by-category": 2, "things-to-do": 0.6,
   "sales-command": 0.5, "sales-of-the-month": 0.6, "conversations": 0.7, "sales-comms": 0.8, "sales-trackers": 0.9, "sales-funnel": 1, "sales-perf": 2, "demand-analysis": 5,
   "mkt-roi": 1, "mkt-sources": 2, "mkt-phone": 3,
   "money-flow": 1, "foreman-closings": 2, "ld-planning": 3, "packing-control": 4, "packing-sales": 4.5, "storage-control": 5, "foreman-assessment": 6, "crew-salaries": 6.5, "fuel-control": 7, "foreman-late": 7.5, "log-foreman": 8, "log-packing": 9,
-  "hr-directory": 1, "hr-questionnaire": 2, "hr-my-questionnaire": 3,
+  "hr-directory": 1, "hr-questionnaire": 2,
   "cleanup": 1,
   "straight-vs-local": 1, "area-plan": 2, "truck-economics": 3,
   "fin-revenue": 1, "fin-rr": 2, "sales-geo": 3, "branch-owner": 6, "bo-salary": 6.2, "cl-analysis": 6.5, "postcard-purchases": 6.7, "postcard-expenditure": 9.5,
@@ -285,12 +280,12 @@ const PAGE_ICONS = {
   "storage-control": "archive",
   "fuel-control": "truck",
   "foreman-assessment": "star",
-  "hr-my-questionnaire": "clipboard", "hr-questionnaire": "user", "hr-directory": "users",
+  "hr-questionnaire": "user", "hr-directory": "users",
   "cleanup": "calendar",
   "foreman-closings": "receipt",
   "labor-analysis": "activity",
   "post-card-analysis": "megaphone",
-  "monthly-report": "spark", "seasonal-report": "calendar", "work": "clipboard", "things-to-do": "tool",
+  "monthly-report": "spark", "seasonal-report": "calendar", "things-to-do": "tool",
   "angi-vs-moveboard": "compass", "reviews-team": "star", "support-team": "shield", "lead-source-analysis": "compass", "source-analysis": "compass", "movers-analysis": "megaphone",
   "financial-team": "trend", "sales-team": "user", "marketing-team": "megaphone", "logistics-team": "tool",
   // themed dashboards + settings (2026-07-09 restructure)
@@ -331,8 +326,9 @@ const RETIRED = new Set([
   "movers-analysis", "post-card-analysis", "callrail", "ads-analysis",
   // logistics
   "storage", "packing-analysis", "packing-per-100cf", "forman", "forman-analysis", "labor-analysis",
-  // support / reviews
-  "claims", "customer-experience", "reviews",
+  // support / reviews ("reviews" left 2026-09-23: it is a DEPARTMENT id, and no page with
+  // that id is loaded any more -- reviews.js is dead)
+  "claims", "customer-experience",
   // 2026-08-19 (Tornike): Meta Referrals hidden outright — the form targeted existing
   // customers asking WHOM they'd refer, so matching the filler back to Moveboard chased
   // the wrong person ("it was meaningless what we did"). Data + ladder stay; page hidden.
@@ -364,7 +360,10 @@ const REDIRECTS = {
   "leads-by-state": "sales-geo",
   "sales-person-analysis": "sales-perf",
   // marketing — ROI / sources / calls
-  "ads-analysis": "mkt-roi", "callrail": "mkt-roi", "marketing": "mkt-roi", "marketing-team": "mkt-roi",
+  // "marketing" and "reviews" stopped redirecting 2026-09-23. They are DEPARTMENT ids, and a
+  // department id must never also be a retired page id (the 2026-07-26 leak).
+  // check_acl_mirror.py fails if one comes back.
+  "ads-analysis": "mkt-roi", "callrail": "mkt-roi", "marketing-team": "mkt-roi",
   "source-analysis": "mkt-sources", "source-identification": "mkt-sources",
   "lead-source-analysis": "mkt-sources", "angi-vs-moveboard": "mkt-sources",
   "leads-vs-moveboard": "mkt-sources", "movers-analysis": "mkt-sources", "post-card-analysis": "mkt-sources",
@@ -376,7 +375,7 @@ const REDIRECTS = {
   // financial
   "financial-team": "fin-revenue",
   // reviews
-  "reviews": "rev-production", "reviews-team": "rev-production",
+  "reviews-team": "rev-production",
   // support — claims / refunds
   "claims": "sup-claims", "support-team": "sup-claims",
   "customer-experience": "sup-refunds",
@@ -422,19 +421,29 @@ function pageFor(id) {
 /* ---------------- access control (per-user report grants) ---------------- */
 window.ME = null;   // {email, admin, reports:[report_id]} from /api/_me
 const idOwner = id => (id && MERGED_BY_TAB[id]) ? MERGED_BY_TAB[id].id : id;
+/* Pages only administrators may open, whatever grants a user holds: the Administration
+   container, Data Migration, and Things to do (2026-09-23, Tornike: "I am the one
+   answering, hide it from everyone"). The last two sit in the Tech Team group, and the
+   "tech" tile deliberately does not open them. check_acl_mirror.py reads this set. */
+const ADMIN_ONLY = new Set(["admin-users", "general-settings", "refresh-log", "data-quality",
+  "general-tables", "admin-activity", "data-migration", "things-to-do"]);
+/* OPEN_TO_ALL (pages any authorized user could open without a grant) is GONE, 2026-09-23.
+   Its only member was My Survey (hr-my-questionnaire), removed that day with /api/_hrq —
+   Tornike: "we will keep sending those surveys via email - therefore you can literally
+   remove it fully". Every survey invite now carries a personal or team link to form.html,
+   which needs no sign-in, so no page is open to everyone and nobody gets a Human Resources
+   group without holding `hr`. Old #page=hr-my-questionnaire links fall through to the first
+   allowed page like any unknown id (navigate()). */
+/* The department ids a user holds, with the implied ones added (DEPT_IMPLIES). */
+function heldDepts() {
+  const held = new Set((ME && ME.reports) || []);
+  [...held].forEach(r => (DEPT_IMPLIES[r] || []).forEach(x => held.add(x)));
+  return held;
+}
 function canSee(id) {
   if (!id || !ME) return false;
   if (ME.admin) return true;
-  // everything in the Administration container is admin-only
-  if (id === "admin-users" || id === "general-settings" || id === "refresh-log"
-      || id === "data-quality" || id === "general-tables"
-      || id === "admin-activity"
-      || id === "data-migration") return false;
-  // My Questionnaire is open to EVERY authorized user — no grant models "may answer":
-  // the server gates it by the HR roster, and an un-rostered visitor just sees "nothing is
-  // waiting for you". Hiding it behind a grant would force Tornike to touch Users & Access
-  // for every employee, which is exactly what the HR roster exists to avoid (2026-08-17).
-  if (id === "hr-my-questionnaire") return true;
+  if (ADMIN_ONLY.has(id)) return false;
   const reports = ME.reports || [];
   if (reports.includes(id)) return true;
   // hr-responses is a CAPABILITY id (read answers, reopen), not a page id — its holder
@@ -444,8 +453,10 @@ function canSee(id) {
   if (id === "hr-questionnaire" && reports.includes("hr-responses")) return true;
   // the Team Directory is the roster editor — the manage grant IS its grant
   if (id === "hr-directory" && reports.includes("hr-questionnaire")) return true;
-  // department grant: holding a department id opens ALL of its reports, incl. ones added later
-  for (const d of ACL_DEPTS) { if (reports.includes(d.id) && d.reports.includes(id)) return true; }
+  // department grant: holding a department id opens ALL of its reports, incl. ones added later.
+  // Implied departments count as held (2026-09-23: Marketing includes Marketing Automations).
+  const held = heldDepts();
+  for (const d of ACL_DEPTS) { if (held.has(d.id) && d.reports.includes(id)) return true; }
   // A lingering grant to a RETIRED PAGE opens its replacement, so nobody loses access.
   // BUT a department id is not a page id, and the two namespaces collide: "reviews" and
   // "marketing" exist as BOTH department ids and retired page ids. Since the themed
@@ -453,6 +464,9 @@ function canSee(id) {
   // at monthly-report, so this loop was quietly upgrading those two DEPARTMENT grants into
   // a Monthly Report grant — reported 2026-07-26 (a reviews-team member saw the Monthly
   // Report she was never granted). Skip any src that is a department id.
+  // 2026-09-23: the collision itself is gone ("reviews" left RETIRED, both left REDIRECTS,
+  // and scripts/check_acl_mirror.py now fails on any dept id that is a REDIRECTS source), so
+  // the skip no longer fires today; it stays as the guard should a collision ever come back.
   for (const src in REDIRECTS) {
     if (ACL_DEPTS.some(d => d.id === src)) continue;
     if (reports.includes(src) && resolveRedirect(src) === id) return true;
@@ -463,7 +477,24 @@ function canSee(id) {
   if (m && m.tabs.some(([tid]) => reports.includes(tid))) return true;
   return false;
 }
+/* May this page show under THIS sidebar group? A page placed in two groups (Conversations,
+   Claims Analysis) shows only under the group(s) whose grant the user holds, so opening one
+   page never pulls in a group the user was not given (2026-09-23). A user who reaches it some
+   other way (a lone page grant) sees it once, under its home group. */
+function canSeeIn(id, gkey) {
+  if (!canSee(id)) return false;
+  if (ME.admin) return true;
+  const p = PAGES.find(x => x.id === id);
+  const gs = p ? groupsOf(p) : [gkey];
+  if (gs.length < 2) return true;
+  const held = heldDepts();
+  const via = gs.filter(g => held.has(g) &&
+    (ACL_DEPTS.find(d => d.id === g) || { reports: [] }).reports.includes(id));
+  return via.length ? via.includes(gkey) : gkey === gs[0];
+}
 function firstAllowedId() {
+  // One pass since 2026-09-23: the second pass existed only so an OPEN_TO_ALL page (My
+  // Survey) landed last, and that set is gone.
   for (const p of PAGES) {
     // A RETIRED id must never be the landing page: navigate() runs it back through
     // pageFor(), which resolves the redirect and renders the REPLACEMENT — so returning
@@ -724,7 +755,6 @@ const PAGE_DATASETS = {
   "sales-of-the-month": [],
   // [] on purpose: this page searches by customer, not by date — everything comes
   // from the gated _conv* endpoints, so the global slicers have nothing to act on.
-  "work": [],               // everything moves through /api/_work; no global slicers
   "things-to-do": [],       // everything moves through /api/_todo; no global slicers
   "conversations": [],
   "sales-comms": ["mart_sales_call_score"],
@@ -738,7 +768,6 @@ const PAGE_DATASETS = {
   "fuel-control": [],        // its own month picker owns the window
   "foreman-assessment": [],  // its own month picker owns the window
   "hr-questionnaire": [],     // /api/_hrqadmin only
-  "hr-my-questionnaire": [],  // /api/_hrq only
   "hr-directory": [],         // rides /api/_hrqadmin
   "foreman-closings": [],    // loads via /api/_fnc; no global slicers apply
   "reviews-reminders": [],   // talks to the Apps Script relay (JSONP) + loads its own goal data
@@ -917,7 +946,10 @@ function navigate(id, push) {
   let deniedTitle = null;
   if (id && id.indexOf(":") > 0) id = id.split(":")[0];   // collapse any legacy "hub:tab" deep link
   id = resolveRedirect(id);                               // retired id / slice → final target
-  if (!canSee(idOwner(id))) {
+  // An id with no page behind it (a mistyped hash, or a removed page such as IT Requests,
+  // 2026-09-23) goes to the first allowed page as well. Before, an admin fell through to
+  // PAGES[0] instead.
+  if (!pageFor(id) || !canSee(idOwner(id))) {
     // only announce a denial for a REAL page — a mistyped hash falls back silently
     if (id && pageFor(id)) deniedTitle = titleOf(idOwner(id));
     id = firstAllowedId();
@@ -948,7 +980,7 @@ function navigate(id, push) {
 /* Pages that bring their OWN toolbar and ignore the global filter bar (PAGE_DATASETS=[])
    render "bare" — the global date/slicer bar + company chip are hidden so the page's board
    starts right under the header instead of below two rows of greyed-out, unusable filters. */
-const BARE_CHROME = new Set(["sales-of-the-month", "review-performance", "reviews-cases", "claims-analysis", "demand-analysis", "reviews-reminders", "response-analysis", "review-settings", "monthly-report", "seasonal-report", "money-flow", "ld-planning", "cleanup", "packing-control", "crew-salaries", "storage-control", "foreman-assessment", "fuel-control", "foreman-closings", "refresh-log", "general-tables", "hr-questionnaire", "hr-my-questionnaire", "hr-directory", "conversations", "sales-comms", "referral-candidates", "jobs-by-area", "packing-sales", "meta-referrals", "relocation-trends", "angi-funnel", "utm-campaigns", "promised-reviews", "birdeye-sends",
+const BARE_CHROME = new Set(["sales-of-the-month", "review-performance", "reviews-cases", "claims-analysis", "demand-analysis", "reviews-reminders", "response-analysis", "review-settings", "monthly-report", "seasonal-report", "money-flow", "ld-planning", "cleanup", "packing-control", "crew-salaries", "storage-control", "foreman-assessment", "fuel-control", "foreman-closings", "refresh-log", "general-tables", "hr-questionnaire", "hr-directory", "conversations", "sales-comms", "referral-candidates", "jobs-by-area", "packing-sales", "meta-referrals", "relocation-trends", "angi-funnel", "utm-campaigns", "promised-reviews", "birdeye-sends",
   // Things to do has nothing a global slicer could act on
   "things-to-do",
   // Straight vs Local reads its whole history on purpose (Tornike 2026-08-19: "i dont need
@@ -1050,7 +1082,6 @@ async function renderPage() {
 /* Sidebar display-name overrides — page modules keep their ids/titles, the shell decides
    what the nav item is CALLED (same pattern as GROUP_OVERRIDE). */
 const NAV_TITLES = {
-  "work": "IT Requests",
   "things-to-do": "Things to do",
   "analysis-by-category": "Custom Breakdown",
   "insights": "Recommendations",
@@ -1068,7 +1099,6 @@ const NAV_TITLES = {
   "demand-analysis": "Demand by Move Date",
   "foreman-assessment": "Foreman Assessment",
   "hr-questionnaire": "Team Surveys",
-  "hr-my-questionnaire": "My Survey",
   "hr-directory": "Team Directory",
   "cleanup": "Calendar Cleanup",
   "foreman-closings": "Foreman Closings",
@@ -1099,7 +1129,6 @@ const NAV_TITLES = {
 const SEARCH_ALIASES = {
   // Human Resources
   "hr-questionnaire": "team surveys hr human resources questionnaire survey company wide feedback poll questions results",
-  "hr-my-questionnaire": "my questionnaire survey answer feedback hr",
   "hr-directory": "team directory people staff back office crew org employees roster emails",
   // Company Overview
   "monthly-report": "monthly report month review presentation ppt slides jobs done vs hours worked jobs vs hours job hour efficiency all in one",
@@ -1144,7 +1173,6 @@ const SEARCH_ALIASES = {
   "data-quality": "data quality freshness completeness health integrity checks",
   "refresh-log": "refresh log pipeline curation raw source timing history update run duration",
   "admin-activity": "user activity log logins sign in sessions who logged in usage time spent engaged audit trail seen last active adoption",
-  "work": "it requests work projects tasks tickets issues board kanban inbox triage todo",
   "things-to-do": "things to do todo tasks checklist dispatch flow erp walkthrough bacho questions answer add job assignment contract inventory closing sheet money flow",
   "sales-of-the-month": "sales person of the month salesperson of the month best rep monthly score scorecard ranking award winner leaderboard conversion skill profit per lead",
   "sales-command": "sales person analysis sales team command lead journey 360 explorer call history timeline salesperson rep profile lead file important",
@@ -1175,13 +1203,13 @@ function buildNav() {
     PAGES.filter(p => groupsOf(p).indexOf(g.key) >= 0 && !RETIRED.has(p.id)).forEach(p => {
       const m = MERGED_BY_TAB[p.id];
       if (m) {
-        if (!seenMerged.has(m.id) && canSee(m.id)) {
+        if (!seenMerged.has(m.id) && canSeeIn(m.id, g.key)) {
           seenMerged.add(m.id);
           display.push({ id: m.id, title: NAV_TITLES[m.id] || m.title, iconKey: m.icon,
             search: m.title + " " + m.tabs.map(t => t[1]).join(" ") + " " + (SEARCH_ALIASES[m.id] || ""),
             children: m.tabs.map(([tid, label]) => ({ tid, label })) });
         }
-      } else if (canSee(p.id)) {
+      } else if (canSeeIn(p.id, g.key)) {
         display.push({ id: p.id, title: NAV_TITLES[p.id] || p.title, iconKey: PAGE_ICONS[p.id],
           search: p.title + " " + (NAV_TITLES[p.id] || "") + " " + (SEARCH_ALIASES[p.id] || "") });
       }
@@ -1453,37 +1481,10 @@ if (!ZTZ.getToken()) {
     ME = await fetchMe();
     paintViewAsBar();
     if (!ME.authorized) {
-      /* THE RESPONDENT SHELL (2026-08-17). A signed-in user with no reporting access used to
-         hit the access screen unconditionally. Now the questionnaire endpoint is asked first
-         — it is identity-gated, so it answers even for people Users & Access has never heard
-         of, including outside-domain emails HR put on the roster. If anything is there for
-         them (or they are rostered at all), they get the questionnaire page ALONE: no
-         sidebar, no filters, no other pages — those all require grants server-side anyway,
-         so this chrome is honesty, not the protection. */
-      let hrq = null, hrqFailed = false;
-      try { hrq = await ZTZ.api("/api/_hrq"); }
-      catch (e) {
-        hrq = null;
-        // a 403 is a DEFINITIVE denial (deactivated roster row, wrong domain) — only
-        // network errors and 5xx earn the "connection hiccuped, try again" screen
-        hrqFailed = !/^HTTP 40[34]/.test(e.message || "");
-      }
-      if (hrq && (hrq.rostered || (hrq.questionnaires || []).length)) {
-        document.body.classList.add("hrq-only");
-        const page = pageFor("hr-my-questionnaire");
-        const host = document.getElementById("content");
-        const fEl2 = document.getElementById("filters"); if (fEl2) fEl2.classList.add("hidden");
-        const cEl2 = document.getElementById("chips"); if (cEl2) cEl2.classList.add("hidden");
-        try { await page.render(host); }
-        catch (e) { host.innerHTML = '<div class="rs-loading">Could not load — ' + RSC.esc(e.message || e) + "</div>"; }
-        return;
-      }
-      if (hrqFailed) {
-        // The probe ERRORED — we do not know whether this person is rostered, and telling
-        // a rostered employee "no access has been granted" on a network blip is a lie.
-        // The errMsg branch of the access screen is exactly this case: hiccup + Try again.
-        requestAccessScreen(ME.email, "the questionnaire check did not answer"); return;
-      }
+      /* 2026-09-23: the RESPONDENT SHELL is gone. A signed-in user with no reporting access
+         used to be probed against /api/_hrq and, if rostered, shown My Survey alone. Surveys
+         are answered only through their emailed link now (form.html, no sign-in), so an
+         unauthorized sign-in gets the access screen like anyone else. */
       requestAccessScreen(ME.email, ME.error); return;
     }
     // A previewed user may legitimately have NOTHING to open (that IS the answer to
@@ -1575,8 +1576,17 @@ const REPORT_LABELS = {
   "hr-directory": "Team Directory",
   // Sales
   "conversations": "Conversations (call transcripts)",
-  "work": "IT Requests",
-  "things-to-do": "Things to do",
+  // Marketing / Marketing Automations / Tech Team / Different Analysis (tile tooltips)
+  "source-trace": "Source Trace",
+  "jobs-by-area": "Jobs by Area",
+  "relocation-trends": "Relocation Trends",
+  "referral-candidates": "List of Possible Referrals",
+  "promised-reviews": "Promised Reviews",
+  "birdeye-sends": "Birdeye Send-outs",
+  "angi-funnel": "Angi Lead Funnel",
+  "utm-campaigns": "Website Forms & UTM",
+  "straight-vs-local": "Straight vs Local",
+  "truck-economics": "Truck Economics",
   "sales-comms": "Sales Communication Analysis",
   "sales-trackers": "Sales AI Trackers",
   // Customer Service
@@ -1660,18 +1670,35 @@ const aclIconFor = id => (MERGED.find(m => m.id === id) || {}).icon ||
    scripts/check_acl_mirror.py now fails the build on any divergence. Run it before an
    analytics or bridge deploy. */
 const ACL_DEPTS = [
-  { id: "company",   label: "Company Overview", icon: "spark",     reports: ["work", "things-to-do","monthly-report", "seasonal-report", "analysis-by-category"] },
-  { id: "sales",     label: "Sales",            icon: "funnel",    reports: ["work", "things-to-do","sales-command", "sales-of-the-month", "demand-analysis", "conversations", "sales-comms", "sales-trackers"] },
-  { id: "marketing", label: "Marketing",        icon: "megaphone", reports: ["work", "things-to-do","source-trace", "referral-candidates", "jobs-by-area", "relocation-trends", "angi-funnel", "utm-campaigns", "promised-reviews", "birdeye-sends"] },
-  { id: "logistics", label: "Logistics",        icon: "tool",      reports: ["postcard-expenditure", "work", "things-to-do","money-flow", "ld-planning", "foreman-closings", "packing-control", "packing-sales", "crew-salaries", "storage-control", "foreman-assessment", "fuel-control", "foreman-late", "straight-vs-local", "area-plan", "truck-economics"] },
+  // DEPARTMENT = SIDEBAR GROUP, EXACTLY (Tornike 2026-09-23: "user access rights are literally
+  // controlled by the group this or that dashboard lives"). Each list is the pages placed in
+  // that group (GROUP_OVERRIDE, else the page's own group), minus ADMIN_ONLY,
+  // plus the capability ids that exist today (hr-responses, explorer). `work` and
+  // `things-to-do` used to sit in all nine lists, so every user got the Tech Team group.
+  // check_acl_mirror.py fails when a list differs from the group OR from DEPT_REPORTS.
+  { id: "company",   label: "Company Overview", icon: "spark",     reports: ["monthly-report", "seasonal-report", "analysis-by-category"] },
+  { id: "sales",     label: "Sales",            icon: "funnel",    reports: ["sales-command", "sales-of-the-month", "demand-analysis", "conversations", "sales-comms", "sales-trackers"] },
+  { id: "marketing", label: "Marketing",        icon: "megaphone", reports: ["source-trace", "jobs-by-area", "relocation-trends"] },
+  // granted on its own, and ALSO by holding Marketing (DEPT_IMPLIES)
+  { id: "marketing-automations", label: "Marketing Automations", icon: "clock", reports: ["referral-candidates", "promised-reviews", "birdeye-sends", "angi-funnel"] },
+  { id: "logistics", label: "Logistics",        icon: "tool",      reports: ["postcard-expenditure", "money-flow", "ld-planning", "foreman-closings", "packing-control", "packing-sales", "crew-salaries", "storage-control", "foreman-assessment", "fuel-control", "foreman-late"] },
+  // its own tile since 2026-09-23; it used to ride in on Logistics
+  { id: "different", label: "Different Analysis", icon: "compass", reports: ["straight-vs-local", "area-plan", "truck-economics"] },
   // MUST mirror DEPT_REPORTS["hr"] in bridge/app.py. Employees answering the questionnaire
   // need NO grant at all — this tile is for HR: managing it and reading the results.
-  { id: "hr",        label: "Human Resources", icon: "user",      reports: ["work", "things-to-do","hr-questionnaire", "hr-responses", "hr-directory"] },
-  { id: "customer-service", label: "Customer Service", icon: "calendar", reports: ["work", "things-to-do","cleanup", "conversations", "claims-analysis"] },
-  { id: "financial", label: "Financial",        icon: "trend",     reports: ["work", "things-to-do","branch-owner", "bo-salary", "cl-analysis", "postcard-purchases"] },
-  { id: "reviews",   label: "Reviews",          icon: "star",      reports: ["work", "things-to-do","review-performance", "reviews-cases", "claims-analysis", "reviews-reminders", "response-analysis", "review-settings"] },
-  { id: "explorer",  label: "Data Explorer — the separate Data Management app", icon: "archive", reports: ["work", "things-to-do","explorer"] },
+  { id: "hr",        label: "Human Resources", icon: "user",      reports: ["hr-questionnaire", "hr-responses", "hr-directory"] },
+  { id: "customer-service", label: "Customer Service", icon: "calendar", reports: ["cleanup", "conversations", "claims-analysis"] },
+  { id: "financial", label: "Financial",        icon: "trend",     reports: ["branch-owner", "bo-salary", "cl-analysis", "postcard-purchases"] },
+  { id: "reviews",   label: "Reviews",          icon: "star",      reports: ["review-performance", "reviews-cases", "claims-analysis", "reviews-reminders", "response-analysis", "review-settings"] },
+  // Tech Team: Website Forms & UTM only. Things to do + Data Migration stay ADMIN_ONLY.
+  { id: "tech",      label: "Tech Team",        icon: "sliders",   reports: ["utm-campaigns"] },
+  { id: "explorer",  label: "Data Explorer — the separate Data Management app", icon: "archive", reports: ["explorer"] },
 ];
+/* A department that ALSO grants other departments, permanently, for today's holders and
+   future ones (Tornike 2026-09-23). MUST mirror DEPT_IMPLIES in bridge/app.py. */
+const DEPT_IMPLIES = {
+  "marketing": ["marketing-automations"],
+};
 /* ADMINISTRATION is granted as a tile like everything else (Tornike 2026-07-27), but it is
    NOT a department — ticking it sets is_admin, i.e. every report plus the admin pages. It is
    modelled separately because its pages are the ones that hand out access, so it can never be
@@ -1708,7 +1735,7 @@ registerPage({
     host.innerHTML = `
       <div class="rs-page-head"><h1>Users & Access</h1>
         <p>Deny-by-default access, granted by department. Every grant is enforced by the data bridge itself — reports a user can't see are also reports they can't query.
-        <br><span style="color:var(--faint)">People who only fill questionnaires do <b>not</b> belong here: being active on the Team Directory with an email is their whole access — they sign in and see just My Survey, nothing else.</span></p></div>
+        <br><span style="color:var(--faint)">People who only fill questionnaires do <b>not</b> belong here: an email on the Team Directory is all they need — every survey reaches them as an emailed link that needs no sign-in.</span></p></div>
       <div class="panel">
         <div class="panel-head">
           <span class="panel-title">Users <span style="color:var(--faint);font-weight:600">· ${data.users.length}</span></span>
@@ -1751,20 +1778,49 @@ registerPage({
     const syncAdmin = () => {
       const on = isAdminOn();
       host.querySelectorAll(".acl-tile:not(.adm)").forEach(t => {
-        t.style.opacity = on ? .35 : 1;
-        t.style.pointerEvents = on ? "none" : "auto";
+        // an implied tile (see syncImplied) stays locked whatever the admin tile says
+        const imp = t.classList.contains("implied");
+        t.style.opacity = on ? .35 : (imp ? .6 : 1);
+        t.style.pointerEvents = (on || imp) ? "none" : "auto";
       });
       host.querySelector("#uAdmNote").style.display = on ? "" : "none";
     };
     const setAdmin = on => { admTile.classList.toggle("on", !!on); syncAdmin(); };
     host.querySelectorAll(".acl-tile").forEach(t =>
-      t.onclick = () => { t.classList.toggle("on"); if (t === admTile) syncAdmin(); });
+      t.onclick = () => { t.classList.toggle("on"); if (t === admTile) syncAdmin(); else syncImplied(); });
     host.querySelectorAll(".acl-tile.xtra").forEach(t => {
       t.onclick = () => t.classList.toggle("on");
     });
 
     const dmap = Object.fromEntries(depts.map(d => [d.id, d]));
+    // An implied group (Marketing Automations under Marketing, DEPT_IMPLIES) shows as ticked
+    // and locked while the group that implies it is on. It is never sent as its own grant: the
+    // bridge adds it anyway, and a stored copy would outlive unticking Marketing (2026-09-23).
+    const syncImplied = () => {
+      const on = new Set([...host.querySelectorAll(".acl-tile.on:not(.adm):not(.implied)")]
+        .map(t => t.dataset.d));
+      host.querySelectorAll(".acl-tile[data-d]:not(.adm)").forEach(t => {
+        const by = Object.keys(DEPT_IMPLIES).filter(k => on.has(k) && DEPT_IMPLIES[k].includes(t.dataset.d));
+        if (t.dataset.tip == null) t.dataset.tip = t.title;
+        if (by.length) {
+          // remember the admin's own tick before the implication hides it, so unticking
+          // Marketing in the same edit gives back an explicit Automations tick (2026-09-23)
+          if (!t.classList.contains("implied")) t.dataset.explicit = t.classList.contains("on") ? "1" : "";
+          t.classList.add("on", "implied");
+          t.title = "Included with " + by.map(k => (dmap[k] || {}).label || k).join(", ");
+        } else if (t.classList.contains("implied")) {
+          t.classList.remove("implied");
+          t.classList.toggle("on", t.dataset.explicit === "1");
+          delete t.dataset.explicit;
+          t.title = t.dataset.tip;
+        }
+      });
+      syncAdmin();
+    };
     const openEditor = (u) => {
+      // start from the stored grants: an implied tick from the previous user must not linger
+      host.querySelectorAll(".acl-tile.implied").forEach(t => {
+        t.classList.remove("on", "implied"); delete t.dataset.explicit; t.title = t.dataset.tip || t.title; });
       editor.classList.remove("hidden");
       host.querySelector("#uEmail").value = u ? u.email : "";
       host.querySelector("#uEmail").disabled = !!u;
@@ -1777,6 +1833,7 @@ registerPage({
       host.querySelectorAll(".acl-tile.xtra").forEach(t => {
         t.classList.toggle("on", !!(u && u.reports.includes(t.dataset.x)));
       });
+      syncImplied();
       setAdmin(!!(u && u.admin));   // last: it dims the others when on
       host.querySelector("#uMsg").textContent = "";
       if (!u) host.querySelector("#uEmail").focus();
@@ -1790,7 +1847,10 @@ registerPage({
       // department chips: a department counts when granted by id (new) or all its reports held (legacy);
       // leftover single-report grants show as a count.
       const deptIds = new Set(depts.map(d => d.id));
-      const full = depts.filter(d => u.reports.includes(d.id) || d.reports.every(r => u.reports.includes(r)));
+      // implied groups count as held (DEPT_IMPLIES), so a Marketing holder shows both chips
+      const held = new Set(u.reports);
+      u.reports.forEach(r => (DEPT_IMPLIES[r] || []).forEach(x => held.add(x)));
+      const full = depts.filter(d => held.has(d.id) || d.reports.every(r => u.reports.includes(r)));
       const covered = new Set(full.flatMap(d => d.reports));
       const extra = u.reports.filter(r => !deptIds.has(r) && !covered.has(r)).length;
       const shown = full.slice(0, 4).map(d => `<span class="acl-badge r">${RSC.esc(d.label.split(" — ")[0])}</span>`).join("");
@@ -1802,7 +1862,7 @@ registerPage({
         <span class="avatar">${RSC.esc((u.name || u.email)[0].toUpperCase())}</span>
         <div class="u-main">
           <div class="u-email">${RSC.esc(u.email)}</div>
-          <div class="u-sub">${RSC.esc(u.name || "")}${u.name ? " · " : ""}${u.admin ? "administrator" : (() => { const s = new Set(); (u.reports || []).forEach(r => { const d = dmap[r]; if (d) d.reports.forEach(x => s.add(x)); else s.add(r); }); return s.size + " report" + (s.size === 1 ? "" : "s"); })()}</div>
+          <div class="u-sub">${RSC.esc(u.name || "")}${u.name ? " · " : ""}${u.admin ? "administrator" : (() => { const s = new Set(); const ids = new Set(u.reports || []); [...ids].forEach(r => (DEPT_IMPLIES[r] || []).forEach(x => ids.add(x))); ids.forEach(r => { const d = dmap[r]; if (d) d.reports.forEach(x => s.add(x)); else s.add(r); }); return s.size + " report" + (s.size === 1 ? "" : "s"); })()}</div>
         </div>
         <div class="u-grants">${grantChips(u)}</div>
         <div class="u-actions">
@@ -1839,7 +1899,7 @@ registerPage({
           // (the bridge + canSee expand dept id → its current reports). Deny-by-default is kept.
           // department ids AND any standalone permission tiles; an admin needs neither
           reports: isAdminOn() ? []
-            : [...host.querySelectorAll(".acl-tile.on:not(.adm)")]
+            : [...host.querySelectorAll(".acl-tile.on:not(.adm):not(.implied)")]
                 .map(t => t.dataset.d || t.dataset.x).filter(Boolean),
         });
         ZTZ.toast("User saved");
@@ -1881,8 +1941,7 @@ registerPage({
 <script src="pages/sales-team.js?v=49"></script>
 <script src="pages/sales-comms.js?v=3"></script>
 <script src="pages/sales-trackers.js?v=5"></script>
-<script src="pages/work.js?v=9"></script>
-<script src="pages/things-to-do.js?v=1"></script>
+<script src="pages/things-to-do.js?v=2"></script>
 <script src="pages/conversations.js?v=10"></script>
 <script src="pages/source-trace.js?v=27"></script>
 <script src="pages/meta-referrals.js?v=2"></script>
@@ -1907,13 +1966,12 @@ registerPage({
 <script src="pages/storage-control.js?v=10"></script>
 <script src="pages/foreman-assessment.js?v=41"></script>
 <script src="pages/crew-salaries.js?v=8"></script>
-<script src="pages/hr-questionnaire.js?v=48"></script>
-<script src="pages/hr-my-questionnaire.js?v=13"></script>
-<script src="pages/hr-directory.js?v=15"></script>
+<script src="pages/hr-questionnaire.js?v=49"></script>
+<script src="pages/hr-directory.js?v=16"></script>
 <script src="pages/fuel-control.js?v=11"></script>
 <script src="pages/demand-analysis.js?v=10"></script>
 <script src="pages/straight-vs-local.js?v=6"></script>
-<script src="pages/area-plan.js?v=55"></script>
+<script src="pages/area-plan.js?v=57"></script>
 <script src="pages/postcard-purchases.js?v=1"></script>
 <script src="pages/postcard-expenditure.js?v=11"></script>
 <script src="pages/truck-economics.js?v=5"></script>

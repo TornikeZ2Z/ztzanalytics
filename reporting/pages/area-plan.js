@@ -81,7 +81,9 @@
              "Score", "Tier", "State Lead Share", "Est Ad Cost", "Ad Spend Measured",
              "Foremen Within 60mi", "Foremen Gravity", "Capacity Share", "Foremen Company",
              "Uncovered", "Population", "Movers Per Year", "Median Income", "Owner Share Pct",
-             "Leads Per 10k Movers", "Survey Vintage"],
+             "Leads Per 10k Movers", "Survey Vintage",
+             // the trailing-year lead count capture is read on (2026-09-23)
+             "Leads 12m"],
     };
     RS.DATASETS.area_whitespace = {
       table: "mart_area_whitespace",
@@ -935,6 +937,49 @@ registerPage({
       }
       const CITYYTD = cityAll || [];
       const COUNTY = (countyRows && !countyRows.__err) ? countyRows : [];
+      /* CAPTURE IS A TRAILING YEAR (his call 2026-09-23). Leads per 10,000 movers used this
+         year's leads over a whole year of movers, so it read low -- Pennsylvania 36.9 in September
+         against ~46-48 on a full year. Every capture on the page (the survey card, the map, the
+         flags, the what-if dial, the decided expansion) now reads `Leads 12m` through these
+         helpers, so they cannot disagree. Until the county mart is rebuilt with that column they
+         fall back to the year-to-date count and SAY so ("this year to date"), never mislabelled.
+         `Leads` itself stays year-to-date: the tier, the budget share and "leads this year" use it. */
+      const HAS_L12 = COUNTY.some(c => c["Leads 12m"] != null);
+      const lead12 = c => num(HAS_L12 ? c["Leads 12m"] : c.Leads);
+      const CAP_WIN = HAS_L12 ? "the last 12 months" : "this year to date";
+      const CAP_WIN_SHORT = HAS_L12 ? "last 12 months" : "this year";
+      /* capture per state off the county rows: {st: {leads, movers, cap}} -- the live numbers the
+         page copy quotes instead of the "66 at home, 6 in Maryland, 0.6 in Virginia" it once hardcoded */
+      const CAP_ST = (() => { const o = {};
+        COUNTY.forEach(c => { if (!SERVICE_AREAS.includes(c.State)) return;
+          const mv = num(c["Movers Per Year"]); if (!mv) return;
+          const g = o[c.State] = o[c.State] || { st: c.State, leads: 0, movers: 0 };
+          g.leads += lead12(c); g.movers += mv; });
+        Object.values(o).forEach(g => { g.cap = g.movers ? 10000 * g.leads / g.movers : null; });
+        return o; })();
+      const capOfSt = st => (CAP_ST[st] && CAP_ST[st].cap != null) ? CAP_ST[st].cap : null;
+      /* ONE DEFINITION, EVERY SENTENCE (2026-09-23 review): the dial, xpFor, the headline, the map
+         and the flags each summed `Leads 12m` their own way -- some over every county in the state,
+         some only where the survey has movers -- so a county with leads but no ACS match made the
+         expansion card say "at or under today's X" beside "demand is proven at Y". All of them now
+         read CAP_ST, which counts a county's leads only where it also counts its movers. */
+      const capAll = sts => { let l = 0, m = 0;
+        (sts || Object.keys(CAP_ST)).forEach(st => { const g = CAP_ST[st]; if (g) { l += g.leads; m += g.movers; } });
+        return { leads: l, movers: m, cap: m ? 10000 * l / m : null }; };
+      const CAP_HOME = Object.keys(CAP_ST).sort((a, b) => CAP_ST[b].leads - CAP_ST[a].leads)[0] || null;
+      const ST_NAME = { NJ: "New Jersey", PA: "Pennsylvania", NY: "New York", DE: "Delaware", CT: "Connecticut",
+                        MA: "Massachusetts", MD: "Maryland", VA: "Virginia", RI: "Rhode Island", NH: "New Hampshire" };
+      /* "66.1 leads per 10,000 movers at home in New Jersey, 6.1 in Maryland and 0.6 in Virginia" -- live */
+      const capSay = (others) => {
+        if (!CAP_HOME || capOfSt(CAP_HOME) == null) return "";
+        const rest = (others || ["MD", "VA"]).filter(st => st !== CAP_HOME && capOfSt(st) != null)
+          .map(st => r1(capOfSt(st)) + " in " + (ST_NAME[st] || st));
+        return r1(capOfSt(CAP_HOME)) + " leads per 10,000 movers at home in " + (ST_NAME[CAP_HOME] || CAP_HOME) +
+          (rest.length ? ", " + (rest.length > 1 ? rest.slice(0, -1).join(", ") + " and " + rest[rest.length - 1] : rest[0]) : "") +
+          " (" + CAP_WIN + ")";
+      };
+      /* the decided expansion's copy carries "{cap:PA}" placeholders, filled here from the same rows */
+      const fillCap = s => String(s || "").replace(/\{cap:([A-Z]{2})\}/g, (m, st) => capOfSt(st) != null ? r1(capOfSt(st)) : "—");
       const CITYSEASON = (cityAllSeason && !cityAllSeason.__err) ? cityAllSeason : [];
       let CITYALL = CITYYTD;
       const WSALL = wsAll || [];
@@ -1541,12 +1586,12 @@ registerPage({
           '<div class="ap2-say">Every zip within <b>35 straight-line miles</b> of an active depot' + (inputs.focus ? " in " + esc(inputs.focus) : "") +
             " that has not sent a single lead in two years — where to start next season. " +
             (hasHv ? "Home value is Zillow's typical value for the zip. " : "") +
-            (hasAcs ? "Movers per year = the Census population × the share of households that moved last year. " : "Census income and movers per year appear once a Census API key is connected. ") + "</div>" +
+            (hasAcs ? "People moving per year = the Census population × the share of people (aged 1 and over) who moved in the last year — people, not households. " : "Census income and movers per year appear once a Census API key is connected. ") + "</div>" +
           '<div class="rs-seg" style="margin:0 0 10px">' + btn("Home Value", "Highest home value") + btn("Miles To Base", "Closest") +
-            (hasAcs ? btn("Movers Per Year", "Most movers") : "") + "</div>" +
+            (hasAcs ? btn("Movers Per Year", "Most people moving") : "") + "</div>" +
           '<div class="rs-tablewrap" data-nocsv><table data-name="White space" class="rs-table"><thead><tr><th>Zip</th><th>Town</th><th>County</th><th>St</th><th>Base</th>' +
             '<th class="num">Miles</th><th class="num">Home value</th><th class="num">12 months</th>' +
-            (hasAcs ? '<th class="num">Income</th><th class="num">Movers / yr</th>' : "") + "</tr></thead><tbody>" +
+            (hasAcs ? '<th class="num">Income</th><th class="num">People moving / yr</th>' : "") + "</tr></thead><tbody>" +
           rs.map(r => "<tr><td>" + esc(r.Zip) + '</td><td class="strong">' + esc(r.City || "—") + '</td><td class="muted">' + esc(r.County || "—") + "</td>" +
             "<td>" + esc(r.State) + "</td><td>" + esc(r["Nearest Base"] || "—") + '</td><td class="num">' + r1(num(r["Miles To Base"])) + "</td>" +
             '<td class="num">' + (r["Home Value"] != null ? money0(num(r["Home Value"])) : d) + "</td>" +
@@ -1580,7 +1625,7 @@ registerPage({
           th("Revenue", "Revenue", "num") + th("$/lead", "Revenue Per Lead", "num") + th("Lead sources", "Lead Source Mix") +
           th("Ad cost", "Est Ad Cost", "num") + th("Revenue / ad $", "Est Revenue Per Ad Dollar", "num") +
           th("Home value", "Home Value", "num") + th("12 months", "Home Value Change Pct", "num") +
-          th("Income", "Median Income", "num") + th("Moved last yr", "Mover Rate", "num") + th("Wealth", "Wealth Tier") +
+          th("Income", "Median Income", "num") + th("People moved last yr", "Mover Rate", "num") + th("Wealth", "Wealth Tier") +
           "</tr></thead><tbody>" + pageRows.map(r => "<tr>" +
             '<td class="strong">' + esc(r.City) + (lnj(r) === 1 ? ' <span class="rs-pill warn">no jobs</span>' : "") + "</td><td>" + esc(r.State) + "</td>" +
             '<td class="num">' + fmtN(num(r.Leads)) + '</td><td class="num">' + r1(num(r["Booking Rate"])) + "%</td>" +
@@ -2633,7 +2678,7 @@ registerPage({
           const ceil = num(c["Foremen Within 60mi"]) * jpd;
           const fair = num(c["Capacity Share"]) * planFm * jpd;
           return { st: c.State, county: c.County, la: num(c.Latitude), lo: num(c.Longitude),
-                   leads: num(c.Leads), jobs: num(c.Jobs), book: num(c["Booking Rate"]),
+                   leads: num(c.Leads), leads12: lead12(c), jobs: num(c.Jobs), book: num(c["Booking Rate"]),
                    mi: num(c["Miles To Base"]), score: c.Score == null ? null : num(c.Score),
                    tier: num(c.Tier), band: TIER_BAND(num(c.Tier)),
                    budget: b != null ? b * share : null, share,
@@ -2706,20 +2751,17 @@ registerPage({
            and I disowned it an hour after shipping it without ever saying so on the page: leads per
            10,000 movers run NJ 66.1, MD 6.1, VA 0.6. Every new-ground flag now carries its own
            state's capture beside home's, the crew the plan's aim gives it, and what that crew runs. */
-        const capSt = {}; R.forEach(r => { const g = capSt[r.st] = capSt[r.st] || { l: 0, m: 0 }; if (r.movers) { g.l += r.leads; g.m += r.movers; } });
-        const capOf = st => (capSt[st] && capSt[st].m) ? 10000 * capSt[st].l / capSt[st].m : null;
-        const homeSt = Object.keys(capSt).sort((a, b) => capSt[b].l - capSt[a].l)[0];
+        const capOf = capOfSt, homeSt = CAP_HOME;   // the shared CAP_ST (2026-09-23), not a second sum
         const AIM = model.crew_aim || {};
         /* what the DECIDED expansion implies for a state, so the flag for a base we have chosen
            says how many foremen its own jobs would need rather than only the standing aim */
         const XP = model.expansion || null;
         const xpFor = st => {
           if (!XP || !N || !(XP.capture || {})[st]) return null;
-          const cs = COUNTY.filter(x => x.State === st);
-          const mv = cs.reduce((a, x) => a + num(x["Movers Per Year"]), 0);
-          const ld = cs.reduce((a, x) => a + num(x.Leads), 0);
+          const g = CAP_ST[st];                 // a year of leads over a year of movers (2026-09-23)
+          const mv = g ? g.movers : 0;
           if (!mv) return null;
-          const now = 10000 * ld / mv, want = num(XP.capture[st]);
+          const now = g.cap, want = num(XP.capture[st]);
           if (!(want > now)) return null;
           const rr = N.rows.find(x => x.st === st);
           const lpj = rr && rr.leadsPerJob ? rr.leadsPerJob : (N.mkt.lpjAll || 6);
@@ -2818,10 +2860,10 @@ registerPage({
         const by = {};
         rows.forEach(c => { const g = by[c.State] = by[c.State] || { st: c.State, n: 0, pop: 0, mov: 0, incW: 0, incP: 0, ownW: 0, ownP: 0, leads: 0, jobs: 0, blank: 0 };
           const pop = num(c.Population);
-          g.n++; g.pop += pop; g.mov += num(c["Movers Per Year"]); g.leads += num(c.Leads); g.jobs += num(c.Jobs);
+          g.n++; g.pop += pop; g.mov += num(c["Movers Per Year"]); g.leads += lead12(c); g.jobs += num(c.Jobs);
           if (c["Median Income"] != null) { g.incW += pop * num(c["Median Income"]); g.incP += pop; }
           if (c["Owner Share Pct"] != null) { g.ownW += pop * num(c["Owner Share Pct"]); g.ownP += pop; }
-          if (!num(c.Leads)) g.blank++; });
+          if (!lead12(c)) g.blank++; });
         const S = Object.values(by).sort((a, b) => b.mov - a.mov);
         const T = S.reduce((a, g) => { Object.keys(a).forEach(k => { a[k] += g[k]; }); return a; },
                            { n: 0, pop: 0, mov: 0, incW: 0, incP: 0, ownW: 0, ownP: 0, leads: 0, jobs: 0, blank: 0 });
@@ -2830,7 +2872,7 @@ registerPage({
         const maxCap = Math.max.apply(null, S.map(g => cap(g) || 0)) || 1;
         const bar = v => '<span class="ap2-svbar"><i style="width:' + Math.max(1, Math.round(100 * (v || 0) / maxCap)) + '%"></i></span>';
         const line = (g, cls) => "<tr" + (cls ? ' class="' + cls + '"' : "") + "><td><b>" + esc(g.st) + "</b><small> " + fmtN(g.n) + " counties" +
-            (g.blank ? ", " + fmtN(g.blank) + " never sent a lead" : "") + '</small></td><td class="num">' + fmtN(g.pop) +
+            (g.blank ? ", " + fmtN(g.blank) + " with no lead " + (HAS_L12 ? "in 12 months" : "this year") : "") + '</small></td><td class="num">' + fmtN(g.pop) +
           '</td><td class="num"><b>' + fmtN(g.mov) + '</b></td><td class="num">' + r1(100 * g.mov / (g.pop || 1)) + '%</td><td class="num">' +
           (g.incP ? money0(g.incW / g.incP) : "—") + '</td><td class="num">' + (g.ownP ? r1(g.ownW / g.ownP) + "%" : "—") +
           '</td><td class="num">' + fmtN(g.leads) + '</td><td class="num">' + fmtN(g.jobs) +
@@ -2840,7 +2882,7 @@ registerPage({
         /* lead with the market that is BIGGER than home and barely touched; failing that, the least-touched */
         const cold = colds.filter(g => g.mov > home.mov).sort((a, b) => cap(a) - cap(b))[0] || colds.slice().sort((a, b) => cap(a) - cap(b))[0];
         const say = home ? '<div class="ap2-say" style="margin:0 0 10px"><b>What the survey says.</b> ' +
-          fmtN(T.mov) + " people move house in these eight states every year; this year " + fmtN(T.leads) + " of them became a lead — <b>" +
+          fmtN(T.mov) + " people move house in these eight states every year; in " + CAP_WIN + " " + fmtN(T.leads) + " of them became a lead — <b>" +
           r1(cap(T)) + " per 10,000 movers</b>. At home in " + esc(home.st) + " it is <b>" + r1(cap(home)) + "</b>." +
           (cold ? " In " + colds.map(g => "<b>" + esc(g.st) + "</b> (" + r1(cap(g)) + ")").join(", ") + " we reach less than a quarter of that. <b>" +
                   esc(cold.st) + "</b> moves " + fmtN(cold.mov) + " people a year — " +
@@ -2863,22 +2905,24 @@ registerPage({
           ". The market stays in this table so the cost of that decision is visible.</div>" : "";
         return say + ruled +
           '<div data-nopage><table data-name="Census survey by state" class="rs-table ap2-next"><thead><tr><th>State</th><th class="num">Population</th>' +
-          '<th class="num">Move a year</th><th class="num">Mover rate</th><th class="num">Median income</th><th class="num">Own their home</th>' +
-          '<th class="num">Our leads<small> this year</small></th><th class="num">Our jobs<small> this year</small></th><th class="num">Leads per 10,000 movers</th></tr></thead><tbody>' +
+          '<th class="num">People moving a year</th><th class="num">Mover rate</th><th class="num">Median income</th><th class="num">Own their home</th>' +
+          '<th class="num">Our leads<small> ' + CAP_WIN_SHORT + '</small></th><th class="num">Our jobs<small> this year</small></th><th class="num">Leads per 10,000 movers<small> ' + CAP_WIN_SHORT + '</small></th></tr></thead><tbody>' +
           S.map(g => line(g)).join("") + line(Object.assign({}, T, { st: "Eight states" }), "ap2-tot") + "</tbody></table></div>" +
           '<div class="ap2-note" style="margin:14px 0 6px"><b>County by county</b> — the biggest moving markets first. A big number on the left with a small one on the right is white space we could take.</div>' +
           '<div class="rs-tablewrap"><table data-name="Census survey by county" class="rs-table"><thead><tr><th>County</th><th>St</th><th class="num">Population</th>' +
-          '<th class="num">Move a year</th><th class="num">Median income</th><th class="num">Own</th><th class="num">Miles to base</th><th>Tier</th>' +
-          '<th class="num">Leads</th><th class="num">Jobs</th><th class="num">Leads per 10,000 movers</th></tr></thead><tbody>' +
+          '<th class="num">People moving a year</th><th class="num">Median income</th><th class="num">Own</th><th class="num">Miles to base</th><th>Tier</th>' +
+          '<th class="num">Leads<small> ' + CAP_WIN_SHORT + '</small></th><th class="num">Jobs<small> this year</small></th><th class="num">Leads per 10,000 movers<small> ' + CAP_WIN_SHORT + '</small></th></tr></thead><tbody>' +
           top.map(c => { const b = TIER_BAND(num(c.Tier));
             return "<tr><td><b>" + esc(c.County) + "</b></td><td>" + esc(c.State) + '</td><td class="num">' + fmtN(num(c.Population)) +
               '</td><td class="num"><b>' + fmtN(num(c["Movers Per Year"])) + '</b></td><td class="num">' + (c["Median Income"] != null ? money0(num(c["Median Income"])) : "—") +
               '</td><td class="num">' + (c["Owner Share Pct"] != null ? r1(num(c["Owner Share Pct"])) + "%" : "—") + '</td><td class="num">' + r1(num(c["Miles To Base"])) +
-              '</td><td><i class="ap2-sw ' + b + '"></i> ' + esc(TIER_LABEL[b]) + '</td><td class="num">' + fmtN(num(c.Leads)) + '</td><td class="num">' + fmtN(num(c.Jobs)) +
+              '</td><td><i class="ap2-sw ' + b + '"></i> ' + esc(TIER_LABEL[b]) + '</td><td class="num">' + fmtN(lead12(c)) + '</td><td class="num">' + fmtN(num(c.Jobs)) +
               '</td><td class="num">' + (c["Leads Per 10k Movers"] != null ? r1(num(c["Leads Per 10k Movers"])) : "—") + "</td></tr>"; }).join("") +
           "</tbody></table></div>" +
-          note("Source: the U.S. Census Bureau’s American Community Survey (" + esc(vint) + "), by zip, rolled up to the county. <b>Move a year</b> is population × the share of " +
-               "people who lived somewhere else a year ago. Leads and jobs are this year to date, <b>all companies</b> — Delaware’s figure includes Tuji’s own leads, " +
+          note("Source: the U.S. Census Bureau’s American Community Survey (" + esc(vint) + "), by zip, rolled up to the county. <b>People moving a year</b> is population × the share of " +
+               "<b>people</b> aged 1 and over who lived somewhere else a year ago — people, not households. " +
+               "<b>Leads per 10,000 movers</b> sets " + CAP_WIN + " of leads against a year of movers" + (HAS_L12 ? ", so both halves cover a year" : "") +
+               "; jobs are this year to date. <b>All companies</b> — Delaware’s figure includes Tuji’s own leads, " +
                "which is why it reads so high. Income and ownership are population-weighted.");
       }
 
@@ -2898,10 +2942,11 @@ registerPage({
         const movers = inArea.reduce((a, r) => a + r.movers, 0);
         const covered = inArea.filter(r => r.fm60 > 0);
         const covMovers = covered.reduce((a, r) => a + r.movers, 0);
-        const leads = inArea.reduce((a, r) => a + r.leads, 0);
-        const blank = inArea.filter(r => !r.leads).length;
-        if (!movers) return "";
-        const cap = 10000 * leads / movers;
+        // a year of leads over a year of movers, off the shared CAP_ST (2026-09-23); the blank count
+        // is on the same trailing year, so the sentence does not mix windows
+        const cap = capAll(SERVICE_AREAS).cap;
+        const blank = inArea.filter(r => !r.leads12).length;
+        if (!movers || cap == null) return "";
         /* THE BIGGEST MARKET NO CREW CAN REACH -- but never one in a state we have ruled out. The
            first version named Middlesex MA, which is the largest by movers and precisely the place he
            had just decided not to expand into; a headline that argues for the thing we rejected is
@@ -2911,9 +2956,9 @@ registerPage({
           .slice().sort((a, b) => b.movers - a.movers)[0];
         return '<div class="ap2-headline"><span class="n">' + fmtN(movers) + "</span> people move house a year across these " +
           fmtN(inArea.length) + " counties. <b>" + Math.round(100 * covMovers / movers) + "%</b> of them are within 60 miles of one of our crews, and we reach <b>" +
-          r1(cap) + " in every 10,000</b>." +
+          r1(cap) + " in every 10,000</b> (leads in " + CAP_WIN + ")." +
           (gap ? " The largest market no crew can reach is <b>" + esc(gap.county) + " " + esc(gap.st) + "</b>, " + fmtN(gap.movers) + " movers a year." : "") +
-          " <span class=\"q\">" + fmtN(blank) + " counties have never sent us a single lead.</span></div>";
+          " <span class=\"q\">" + fmtN(blank) + " counties have sent us no lead " + (HAS_L12 ? "in the last 12 months" : "this year") + ".</span></div>";
       }
 
       function budgetByBand(R) {
@@ -2981,11 +3026,10 @@ registerPage({
         /* ---- the capture dial, per state: the one lever the data says is large ---- */
         const capRows = [];
         SERVICE_AREAS.forEach(st => {
-          const cs = COUNTY.filter(x => x.State === st);
-          const movers = cs.reduce((a, x) => a + num(x["Movers Per Year"]), 0);
-          const leads = cs.reduce((a, x) => a + num(x.Leads), 0);
+          const g = CAP_ST[st];                 // trailing 12 months, the shared CAP_ST (2026-09-23)
+          const movers = g ? g.movers : 0;
           if (!movers) return;
-          const now = 10000 * leads / movers;
+          const now = g.cap;
           const r = N.rows.find(x => x.st === st);
           const lpj = r && r.leadsPerJob ? r.leadsPerJob : (N.mkt.lpjAll || null);
           const want = c.capture[st] == null ? null : +c.capture[st];
@@ -3127,16 +3171,23 @@ registerPage({
         const dJobs = S.scn.jobs - S.base.jobs, dNet = S.scn.net - S.base.net;
         const cap = S.capRows.filter(r => r.addJobs > 0);
         const steps = (X.steps || []).slice().sort((a, b) => (a.order || 0) - (b.order || 0));
+        /* EVERY CAPTURE FIGURE HERE IS LIVE (2026-09-23). The sentence used to be written around
+           "Pennsylvania 36.1 ... a 16% rise", and on the trailing-year basis Pennsylvania already
+           reads above its 42. A target at or under today's capture adds no jobs in the engine
+           (want > now), so the card says so instead of printing a negative "rise". */
+        const nowOf = st => (S.capRows.find(r => r.st === st) || {}).now;
+        const tgtSay = steps.map(s2 => s2.state).filter((st, i, a) => st && a.indexOf(st) === i && (X.capture || {})[st] != null)
+          .map(st => { const want = num(X.capture[st]), now = nowOf(st), nm = ST_NAME[st] || st;
+            if (now == null) return nm + " " + r1(want) + " (no capture measured yet)";
+            return want > now
+              ? nm + " <b>" + r1(want) + "</b> against <b>" + r1(now) + "</b> today, a " + Math.round(100 * (want / (now || 1) - 1)) + "% rise"
+              : nm + " <b>" + r1(want) + "</b> is <b>at or under today\u2019s " + r1(now) + "</b>, so it adds no capture jobs until the target is re-set"; });
         return '<div class="ap2-say" style="margin:0 0 10px"><b>Decided ' + esc(dayLabel(X.decided_on)) +
             ': Maryland and Pennsylvania.</b> It is deliberately <b>not inside the ' + esc(String(FC.year)) +
             ' plan above</b> \u2014 that number is what the history supports, and these jobs have never happened. ' +
-            'The capture targets are assumptions, and both sit below something we already achieve: Maryland ' +
-            r1((X.capture || {}).MD) + ' is under half of Pennsylvania\u2019s ' + r1((S.capRows.find(r => r.st === "PA") || {}).now) +
-            ', and Pennsylvania ' + r1((X.capture || {}).PA) + ' is a ' +
-            Math.round(100 * ((X.capture || {}).PA / ((S.capRows.find(r => r.st === "PA") || {}).now || 1) - 1)) +
-            '% rise in a state we have worked for years.</div>' +
+            'The capture targets are assumptions (leads per 10,000 movers, ' + CAP_WIN + '): ' + tgtSay.join("; ") + '.</div>' +
           '<div class="ap2-xp">' + steps.map(st => '<div class="ap2-xps"><b>' + st.order + ". " + esc(st.base) + "</b>" +
-            "<span>" + esc(st.when) + "</span><small>" + esc(st.why) + "</small></div>").join("") + "</div>" +
+            "<span>" + esc(st.when) + "</span><small>" + esc(fillCap(st.why)) + "</small></div>").join("") + "</div>" +
           '<table data-name="The expansion, beside the plan" class="rs-table ap2-next" style="margin-top:12px"><thead><tr>' +
             "<th>Season " + esc(String(FC.year)) + '</th><th class="num">The plan</th><th class="num">With the expansion</th><th class="num">Difference</th></tr></thead><tbody>' +
             '<tr><td><b>Jobs</b></td><td class="num">' + fmtN(S.base.jobs) + '</td><td class="num">' + fmtN(S.scn.jobs) +
@@ -3178,7 +3229,7 @@ registerPage({
           '<label class="ap2-fld"><span>' + esc(r.st) + " \u2014 leads per 10k movers</span>" +
           '<input class="rs-num ap2-in" data-cap="' + esc(r.st) + '" type="number" step="1" min="0" placeholder="' + r1(r.now) + '" value="' +
             (c.capture[r.st] == null ? "" : esc(String(c.capture[r.st]))) + '">' +
-          "<small>now <b>" + r1(r.now) + "</b> \u00b7 " + fmtN(r.movers) + " move a year" +
+          "<small>now <b>" + r1(r.now) + "</b> (" + CAP_WIN_SHORT + ") \u00b7 " + fmtN(r.movers) + " move a year" +
             (r.addJobs ? " \u00b7 <b>+" + r1(r.addJobs) + " jobs</b>" : "") + "</small></label>").join("");
         const saved = (inputs.scnSaved || []).map((x, i) =>
           '<button type="button" class="ap2-mbtn" data-load="' + i + '">' + esc(x.name) +
@@ -3190,7 +3241,7 @@ registerPage({
             'booked no worse than any other. <b>Marketing does not buy jobs measurably</b> \u2014 +22% of spend once bought +10 jobs, so that dial ' +
             'starts at nil response and you can type what you believe instead. <b>A new base does not raise booking on the day it opens</b>, ' +
             'though inside 15 miles of a staffed one we book 31.6% against 17.0% further out, so the ring has a slider for how much of it has arrived. ' +
-            'The lever that does move this plan is <b>capture</b>: 66 leads per 10,000 movers at home, 6 in Maryland, 0.6 in Virginia.</div>' +
+            'The lever that does move this plan is <b>capture</b>' + (capSay() ? ": " + capSay() : "") + '.</div>' +
           '<div class="ap2-scn">' +
             '<div class="ap2-scnbox"><h4>Reach more of the movers</h4><div class="ap2-capgrid">' + capIn + "</div>" +
               note("Type the leads per 10,000 movers you think a state could reach. <b>This is the lever the data says is large</b> — and the one a base cannot move on its own.") + "</div>" +
@@ -3304,7 +3355,7 @@ registerPage({
             '" data-mapcolor="' + k + '">' + esc(l) + "<small>" + esc(sub) + "</small></button>").join("") + "</div>";
         /* the legend has to say what the colour MEANS, so it is rebuilt per mode: the tier bands
            when the map is tiers, and a low-to-high ramp with its real end values otherwise */
-        const withMovers = R.filter(r => r.movers > 0 && r.leads > 0);
+        const withMovers = R.filter(r => r.movers > 0 && r.leads12 > 0);
         const rampKey = (label, get, unit) => {
           if (!withMovers.length) return "";
           const v = withMovers.map(get).filter(x => x > 0).sort((a, b) => a - b);
@@ -3345,7 +3396,7 @@ registerPage({
             ? spendKey()
           : inputs.mapColor === "market"
             ? sizeKey() + '<span class="ap2-mk"><i class="ap2-bub faint"></i>no lead from here yet <b>' + (byBand.none || 0) + "</b></span>"
-            : rampKey("Leads per 10,000 movers", r => 10000 * r.leads / r.movers, v => r1(v)) +
+            : rampKey("Leads per 10,000 movers (" + CAP_WIN_SHORT + ")", r => 10000 * r.leads12 / r.movers, v => r1(v)) +
               '<span class="ap2-mk"><i class="ap2-sw none"></i>' + TIER_LABEL.none + ' <b>' + (byBand.none || 0) + "</b></span>";
         const B = basesFor();
         /* THE SENTENCE FOLLOWS THE COLOUR. With three ways to paint the counties, a fixed
@@ -3374,7 +3425,7 @@ registerPage({
             '<b>The flags are the bases.</b> Solid squares are the ' + fmtN(B.have.length) +
             ' we have. <b>Dashed circles open new ground</b> — ranked on the movers a year they bring ' +
             'into range that no existing base can reach. <b>Movers are the size of a market, not demand we capture</b>: ' +
-            'we draw 66 leads per 10,000 movers at home and under 7 in Maryland and Virginia, so a flag there is a ' +
+            'we draw ' + (capSay() || "far fewer leads per 10,000 movers away from home") + ', so a flag there is a ' +
             'question about marketing before it is one about trucks — ' + go("apSurvey", "the Census survey") + ' has the numbers. <b>Hover a flag</b> for the ' + B.work +
             ' miles it works, and click to pin that circle while you read the counties underneath.</div>' +
           '<div id="apChips">' + fleetChips() + "</div>" +
@@ -3520,10 +3571,8 @@ registerPage({
             ln.setAttribute("stroke", col.none); ln.setAttribute("stroke-width", "2"); ln.setAttribute("stroke-opacity", ".85");
             pat.appendChild(bg); pat.appendChild(ln); defs.appendChild(pat); svg.insertBefore(defs, svg.firstChild);
           }
-          const svyL = R.reduce((a, r) => a + (r.movers ? r.leads : 0), 0), svyM = R.reduce((a, r) => a + r.movers, 0);
-          const coCap = svyM ? 10000 * svyL / svyM : null;   // the eight states together
-          const njR = R.filter(r => r.st === "NJ" && r.movers);
-          const njCap = njR.length ? 10000 * njR.reduce((a, r) => a + r.leads, 0) / njR.reduce((a, r) => a + r.movers, 0) : null;
+          const coCap = capAll(SERVICE_AREAS).cap;   // the eight states together, off CAP_ST (2026-09-23)
+          const njCap = capOfSt("NJ");
           /* THE COUNTY SHEET (his ask 2026-09-22: "i need on tooltip to see MORE DATA - and BIGGER
              font sizes"). It was a paragraph of sentences; twelve numbers read as a paragraph are
              not read at all. Three labelled blocks now: what we DO here, who can SERVE it, and what
@@ -3538,7 +3587,7 @@ registerPage({
               " " + MID + " " + r1(r.mi) + " mi to the nearest base</div>" +
             (r.movers
               ? '<div class="big">' + fmtN(r.movers) + " move a year</div>" +
-                '<div class="c"><b>' + r1(10000 * r.leads / (r.movers || 1)) + "</b> of every 10,000 become a lead" +
+                '<div class="c"><b>' + r1(10000 * r.leads12 / (r.movers || 1)) + "</b> of every 10,000 become a lead in " + CAP_WIN +
                   "<small>the eight states run " + r1(coCap) + ", New Jersey " + r1(njCap) + "</small></div>"
               : '<div class="big">' + fmtN(r.leads) + " leads this year</div>") +
             '<div class="hd">Our work here</div><div class="grid">' +
@@ -3584,14 +3633,14 @@ registerPage({
               if (!v.length) return [];
               return [.2, .4, .6, .8].map(q => v[Math.floor(q * (v.length - 1))]); };
             const CUTS = { market: qcuts(r => r.movers),
-                           capture: qcuts(r => (r.movers ? 10000 * r.leads / r.movers : 0)) };
+                           capture: qcuts(r => (r.movers ? 10000 * r.leads12 / r.movers : 0)) };
             const rank = (v, cuts) => { let i = 0; while (i < cuts.length && v > cuts[i]) i++; return i; };
             const OPA = [.14, .28, .44, .62, .82];
             const shadeOf = r => {
               const mode = inputs.mapColor;
               if (mode === "market") { const v = r.movers || 0;
                 return v > 0 ? { fill: RAMP.market, op: OPA[rank(v, CUTS.market)] } : null; }
-              const v = r.movers ? 10000 * r.leads / r.movers : 0;
+              const v = r.movers ? 10000 * r.leads12 / r.movers : 0;
               return v > 0 ? { fill: RAMP.capture, op: OPA[rank(v, CUTS.capture)] } : null;
             };
             const layer = L.geoJSON(GEO, {
@@ -3614,7 +3663,7 @@ registerPage({
                                                fillOpacity: .10, weight: 0.5, opacity: .45 });
                 }
                 if (inputs.mapColor === "capture") {
-                  const sh = r && r.leads > 0 ? shadeOf(r) : null;
+                  const sh = r && r.leads12 > 0 ? shadeOf(r) : null;   // same window as the ramp (2026-09-23)
                   return Object.assign(base, sh ? { fillColor: sh.fill, fillOpacity: sh.op }
                                                 : { fillColor: "url(#" + HATCH + ")", fillOpacity: 1 });
                 }
@@ -3771,7 +3820,7 @@ registerPage({
                 '<div class="c"><b>' + fmtN(b.newMovers) + " movers a year</b> come into range" +
                   "<small>people who move house here annually, from the Census — the only demand " +
                   "measure that exists for a county we have never sold in</small></div>" +
-                (b.cap != null ? '<div class="w"><b>' + r1(b.cap) + " leads per 10,000 movers</b> in " + esc(b.st) + " today, against " + r1(b.capHome) + " at home in " + esc(b.homeSt) +
+                (b.cap != null ? '<div class="w"><b>' + r1(b.cap) + " leads per 10,000 movers</b> in " + esc(b.st) + " (" + CAP_WIN_SHORT + "), against " + r1(b.capHome) + " at home in " + esc(b.homeSt) +
                   "<small>at " + esc(b.st) + "’s own rate those movers are about " + fmtN(b.atOwnRate) + " leads a year; at " + esc(b.homeSt) + "’s, " + fmtN(b.atHomeRate) +
                   ". A base does not move that rate — reviews, referrals and ad density do</small></div>" : "") +
                 /* HIS ASK 2026-09-22: "i also want to see how many foreman should be available on
@@ -4108,7 +4157,7 @@ registerPage({
             go: "apBudget" },
           { n: 5, q: "Where the richer areas are, the big houses, where the market is heading",
             st: has("Median Income") ? ["y", "answered"] : ["n", "not yet"],
-            a: "Census and Zillow, per city: income on <b>" + fmtN(has("Median Income")) + "</b>, home value on <b>" + fmtN(has("Home Value")) + "</b>, and how many households moved last year on <b>" + fmtN(has("Mover Rate")) + "</b>. Wealth tier ranks every city into fifths. Not an opinion from a chatbot — published statistics.",
+            a: "Census and Zillow, per city: income on <b>" + fmtN(has("Median Income")) + "</b>, home value on <b>" + fmtN(has("Home Value")) + "</b>, and the share of people who moved in the last year on <b>" + fmtN(has("Mover Rate")) + "</b>. Wealth tier ranks every city into fifths. Not an opinion from a chatbot — published statistics.",
             go: "apCityTable" },
           { n: 6, q: "SEO — where the demand is on the web, and in what volume",
             st: has("Search Volume") ? ["y", "answered"] : ["n", "not yet"],

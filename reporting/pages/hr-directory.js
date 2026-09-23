@@ -1,9 +1,10 @@
 /* Team Directory — the people of Zip to Zip, in three views with two different truths.
  *
  * PEOPLE (office, editable HERE): lives in hrq_roster — names, aliases, titles,
- * departments, reporting lines, and the sign-in EMAIL that lets a person receive
- * questionnaires. Someone without an email is flagged, counts in every completion
- * denominator, and cannot sign in yet.
+ * departments, reporting lines, and the EMAIL their survey invitations (each with its own
+ * link, no sign-in — since 2026-09-23 there is no sign-in survey page) are sent to. Someone
+ * without an email is flagged, counts in every completion denominator, and cannot be
+ * invited yet.
  *
  * ORGANIZATION: the same data drawn as the reporting tree (reports_to by name, dotted
  * lines shown inline) — the org chart the zipdispatch org.html used to be.
@@ -300,7 +301,7 @@
           + f("department", "Department", p.department)
           + sel("reports_to", "Reports to")
           + sel("also_reports_to", "Also reports to (dotted)")
-          + f("email", "Sign-in email (Google) — lets them receive and answer questionnaires", p.email, true)
+          + f("email", "Email — where their survey invitations are sent", p.email, true)
           + "</div>"
           + '<div class="foot">'
           + '<button class="rs-btn pri" data-sv>Save</button>'
@@ -403,7 +404,7 @@
         var html = '<div class="rs-bar" style="margin-bottom:4px">'
           + '<button class="rs-btn pri" id="hdAdd">+ Add a person</button>'
           + '<input class="rs-inp" id="hdQ" placeholder="Find a person…" value="' + esc(S.q) + '" style="min-width:220px">'
-          + '<span class="hd-dim">Click a person to edit — the email is what lets them sign in and answer questionnaires.</span></div>';
+          + '<span class="hd-dim">Click a person to edit — the email is where their survey invitations are sent.</span></div>';
         var dept = null, buf = "";
         act.forEach(function (p) {
           if ((p.department || "—") !== dept) {

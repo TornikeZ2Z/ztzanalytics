@@ -1,7 +1,9 @@
 /* Company-Wide Questionnaire — HR's side of the Human Resources module (2026-08-17).
  *
- * Everything here talks to two dedicated endpoints (/api/_hrqadmin for HR, /api/_hrq only for
- * the preview) — no datasets, no global filters. The page is CAPABILITY-shaped: the server
+ * Everything here talks to ONE dedicated endpoint, /api/_hrqadmin — no datasets, no global
+ * filters. (The respondent endpoint /api/_hrq and its My Survey page were removed 2026-09-23:
+ * every survey is answered through the link in its email — a team link for anonymous ones,
+ * a personal link for every named audience.) The page is CAPABILITY-shaped: the server
  * says can_manage / can_results on the home payload and every button honours it, but the
  * buttons are cosmetics — the bridge re-checks per action.
  *
@@ -711,16 +713,19 @@ registerPage({
                           + "</b> receive a <b>personal link</b> by email — no sign-in needed, and their "
                           + "answers are recorded under their address. You can add more people later and "
                           + "send to just them. Questions lock, and it can never be deleted."
+                        // 2026-09-23: every named audience gets a personal link now (My
+                        // Survey, the sign-in page these invites used to open, is gone)
                         : "The questionnaire goes live and <b>" + audN + (audN === 1 ? " person" : " people")
-                        + "</b> receive the invite email right away. Questions lock, and it can "
-                        + "never be deleted — only deactivated.",
+                        + "</b> receive the invite email right away, each with a <b>personal link</b> — "
+                        + "no sign-in needed, and their answers are recorded under their address. "
+                        + "Questions lock, and it can never be deleted — only deactivated.",
                       yes: "Finalize &amp; send" },
                     close: { t: "Deactivate?", b: "Nobody will be able to submit any more.",
                       yes: "Deactivate", danger: true },
                     archive: q.status === "draft"
                       ? { t: "Archive this draft?",
                           b: "It leaves the list and can never be published.", yes: "Archive", danger: true }
-                      : { t: "Archive?", b: "It disappears from the employee page entirely. This is final.",
+                      : { t: "Archive?", b: "Its links stop opening the form for everyone. This is final.",
                           yes: "Archive", danger: true },
                     "delete": { t: "Delete this draft?",
                       b: "Its questions and settings are gone for good. Nobody was sent anything, "
@@ -1928,7 +1933,7 @@ registerPage({
 
     /* ================================================================ preview */
     // "What they will receive", literally: the exact email finalize sends (server-rendered
-    // for the admin's own name and address) plus the form drawn the way the employee page
+    // for the admin's own name and address) plus the form drawn the way the public form
     // draws it — disabled controls, real labels, real options.
     async function openPreview(q) {
       // the SHAREABLE preview (his call 2026-08-17): one live URL for test users — the

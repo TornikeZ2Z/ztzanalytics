@@ -1,8 +1,10 @@
 /* THINGS TO DO (Tornike, 2026-09-23) — the dispatch flow of the ERP as one checklist, topic by
    topic in the order a job lives it, from the 22 Sep walkthrough with Bacho. It replaced the
    ERP Bug Briefs page ("I hate this page… give me a completely new page"). Reads and answers
-   through /api/_todo (bridge handle_todo); the data is the erp_* tables. Visibility is this
-   page's own grant, inherited through the departments like every other page. */
+   through /api/_todo (bridge handle_todo); the data is the erp_* tables. ADMIN-ONLY
+   (2026-09-23, Tornike: "hide it from everyone"): the shell's ADMIN_ONLY set hides it and the
+   is_admin check in handle_todo refuses everyone else. It sits in the Tech Team group, but the
+   "tech" tile does not grant it and no department lists it. */
 
 registerPage({
   id: "things-to-do",

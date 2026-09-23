@@ -4,7 +4,13 @@
      the ?t= link names a (questionnaire, team) pair and nothing else. A random id in
      THIS browser's localStorage lets answers autosave and resume; it is never tied to
      any account. Served from the same Pages repo as the portal; talks only to
-     /api/_hrqanon, which sits in front of the bridge's auth on purpose. -->
+     /api/_hrqanon, which sits in front of the bridge's auth on purpose.
+     2026-09-23: it is ALSO the page behind every PERSONAL link (p-<hex>) — the exit
+     interview, and since My Survey was removed every named survey (all / departments /
+     emails). A personal form is NOT anonymous: the answers are stored under the address the
+     link was minted for, so when the bridge says `personal` the page shows the
+     questionnaire's confidentiality note instead of the anonymity banner, and every
+     "anonymous" sentence has a named twin (topMine, reviewNoteMine, doneMine). -->
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -163,6 +169,15 @@
       doneT: "Thank you — your answers are in.",
       doneS: function (team) { return "This form was anonymous: only your team (" + team
         + ") is recorded, never your name."; },
+      // the PERSONAL link's twins of the anonymous sentences (2026-09-23)
+      topMine: function (who) { return "Your personal form · " + who; },
+      reviewNoteMine: "Open any part to change an answer. Submitting is final — HR can "
+        + "reopen it if you need a correction.",
+      doneMine: "Your answers were recorded under your name, as the note at the start said.",
+      // the bridge's HRQ_DEFAULT_CONF, used when HR wrote no note of their own
+      confDefault: "Your answers are not anonymous. They are visible to the HR team and "
+        + "company administration, and to no one else. Your name and email are recorded "
+        + "with your submission.",
       donePvT: "That was the whole form — nothing was recorded.",
       donePvS: "This was a preview. Please send your feedback — what felt confusing, too long, "
         + "or missing — to whoever shared this link."
@@ -195,6 +210,12 @@
       doneT: "გმადლობთ — თქვენი პასუხები მიღებულია.",
       doneS: function (team) { return "ფორმა ანონიმური იყო: ჩაიწერა მხოლოდ თქვენი გუნდი ("
         + trTeam(team) + "), არასოდეს თქვენი სახელი."; },
+      topMine: function (who) { return "თქვენი პირადი ფორმა · " + who; },
+      reviewNoteMine: "ნებისმიერი ნაწილი გახსენით პასუხის შესაცვლელად. გაგზავნა საბოლოოა — "
+        + "შესწორება თუ დაგჭირდათ, HR-ს შეუძლია ფორმის ხელახლა გახსნა.",
+      doneMine: "თქვენი პასუხები თქვენი სახელით ჩაიწერა, როგორც ფორმის დასაწყისში იყო მითითებული.",
+      confDefault: "თქვენი პასუხები ანონიმური არ არის. მათ ხედავს მხოლოდ HR გუნდი და კომპანიის "
+        + "ადმინისტრაცია. თქვენი სახელი და ელფოსტა ინახება თქვენს პასუხებთან ერთად.",
       donePvT: "ეს იყო მთელი ფორმა — არაფერი ჩაწერილა.",
       donePvS: "ეს იყო წინასწარი ნახვა. გთხოვთ გამოგზავნოთ შენიშვნები — რა იყო გაუგებარი, "
         + "გრძელი ან დაკლებული — იმ ადამიანთან, ვინც ბმული გამოგიგზავნათ."
@@ -212,7 +233,11 @@
     "the response changed in another window — reload": "პასუხები სხვა ფანჯარაში შეიცვალა — განაახლეთ გვერდი.",
     "something went wrong — reload and try again": "მოხდა შეცდომა — განაახლეთ გვერდი და სცადეთ თავიდან.",
     "this link does not exist": "ასეთი ბმული არ არსებობს.",
-    "this link is not valid": "ბმული არასწორია."
+    "this link is not valid": "ბმული არასწორია.",
+    // the personal link's refusals (2026-09-23)
+    "this questionnaire is not assigned to you": "ეს გამოკითხვა თქვენთვის არ არის განკუთვნილი.",
+    "you have already sent your answers — thank you": "პასუხები უკვე გაგზავნილი გაქვთ — გმადლობთ.",
+    "this questionnaire is archived": "ეს გამოკითხვა დაარქივებულია."
   };
   function trErr(m) {
     m = String(m || "");
@@ -362,11 +387,17 @@
     paintStep(steps, step);
   }
 
+  function topLine() {
+    return Q.preview ? L().topPrev
+      : Q.personal ? L().topMine(esc(Q.category)) : L().topAnon(esc(Q.category));
+  }
+
   function paintDone() {
     main.innerHTML = '<div class="card sect-done"><span class="big">✓</span>' +
       "<b>" + (Q.preview ? L().donePvT : L().doneT) + "</b>" +
       '<div class="dim" style="margin-top:8px">' +
-      (Q.preview ? L().donePvS : L().doneS(esc(Q.category))) + "</div></div>";
+      (Q.preview ? L().donePvS : Q.personal ? L().doneMine : L().doneS(esc(Q.category))) +
+      "</div></div>";
   }
 
   function paintIntro(steps) {
@@ -378,7 +409,12 @@
       '<div class="meta">' + L().parts(steps.length) + " · " + L().qs(p.t) + " · " +
       L().saveNote + "</div>" +
       (tx(Q, "instructions") ? '<div style="font-size:13px;margin-top:13px;line-height:1.65">' + esc(tx(Q, "instructions")) + "</div>" : "") +
-      '<div class="anon">' + (Q.preview ? L().prevNote : L().anon(esc(Q.category))) + "</div>" +
+      // a NAMED form says so: the questionnaire's own confidentiality note (translated
+      // when HR wrote one), never the anonymity promise it cannot keep
+      (Q.personal && !Q.preview
+        ? '<div class="conf">' + esc(Q.confidentiality_default ? L().confDefault
+            : tx(Q, "confidentiality")) + "</div>"
+        : '<div class="anon">' + (Q.preview ? L().prevNote : L().anon(esc(Q.category))) + "</div>") +
       (p.a ? '<div style="margin-top:16px">' + progBar(p.a, p.t) +
         '<span class="dim" id="cnt">' + L().answered(p.a, p.t) + "</span></div>" : "") +
       '<div style="margin-top:20px"><button class="go" id="start">' +
@@ -470,7 +506,7 @@
   function paintStep(steps, si) {
     var s = steps[si], p = counts(steps);
     main.innerHTML =
-      '<div class="top"><span>' + (Q.preview ? L().topPrev : L().topAnon(esc(Q.category))) + "</span>" +
+      '<div class="top"><span>' + topLine() + "</span>" +
       '<span style="flex:1"></span><span id="cnt">' + L().answered(p.a, p.t) + "</span></div>" +
       progBar(p.a, p.t) +
       '<div class="part"><span class="pn">' + L().partOf(si + 1, steps.length) + "</span>" +
@@ -499,11 +535,12 @@
         '<span style="flex:1"></span><span class="dim">' + L().open + "</span></div>";
     });
     main.innerHTML =
-      '<div class="top"><span>' + (Q.preview ? L().topPrev : L().topAnon(esc(Q.category))) + "</span>" +
+      '<div class="top"><span>' + topLine() + "</span>" +
       '<span style="flex:1"></span><span id="cnt">' + L().answered(p.a, p.t) + "</span></div>" +
       progBar(p.a, p.t) +
       '<div class="part"><span class="pn">' + L().review + "</span><b>" + L().ready + "</b>" +
-      '<div class="pd">' + (Q.preview ? L().reviewNotePv : L().reviewNote) + "</div></div>" +
+      '<div class="pd">' + (Q.preview ? L().reviewNotePv : Q.personal ? L().reviewNoteMine
+        : L().reviewNote) + "</div></div>" +
       '<div class="card" style="padding:8px 10px">' + rows.join("") + "</div>" +
       '<div class="navbar"><button class="btn" id="prev">' + L().back + "</button>" +
       '<span class="err" id="err"></span><span style="flex:1"></span>' +
