@@ -37,13 +37,10 @@
   var CHANNEL_URL = SLACK.domain + "/archives/" + SLACK.channel;
   var TRACKER_URL = SLACK.domain + "/lists/" + SLACK.team + "/" + SLACK.list;
   var APP_HOST = "staging.ziptozip.app";
-  var SHORT = { foreman: "Closing sheet", assignment: "Truck & foreman assignment",
-                "dispatch-pages": "Storage & long-distance pages", "time-off": "Crew time-off",
-                quote: "Quote calculator", claims: "Claims", reviews: "Reviews",
-                cash: "Cash accounting", fleet: "Fleet Ops" };
-  var AREA = { foreman: "Foreman portal", assignment: "Dispatch", "dispatch-pages": "Dispatch",
-               "time-off": "Dispatch · HR", quote: "Sales", claims: "Support",
-               reviews: "Support", cash: "Finance", fleet: "Dispatch · new module" };
+  // topic names come from the brief titles ("Area · Topic"); these only cover the retired
+  // topics that older activity rows and messages still mention
+  var SHORT = { claims: "Claims", reviews: "Reviews", cash: "Cash accounting", fleet: "Fleet Ops" };
+  var AREA = { claims: "Support", reviews: "Support", cash: "Finance", fleet: "Dispatch · new module" };
   var HUES = ["brand", "blue", "pos", "neg", "purple", "muted"];
 
   /* ----------------------------------------------------------------- helpers */
@@ -99,10 +96,13 @@
     return s.indexOf("@") > 0 ? s.split("@")[0] : s;
   }
   function btIds(s) { return String(s || "").match(/BT-\d+[ab]?/g) || []; }
-  function shortOf(key, title) { return SHORT[key] || String(title || key).split(" · ").pop(); }
+  var TITLES = {};  // brief key -> title, filled by index() from the overview
+  function shortOf(key, title) {
+    return SHORT[key] || String(title || TITLES[key] || key).split(" · ").pop();
+  }
   function areaOf(key, title) {
     if (AREA[key]) return AREA[key];
-    var t = String(title || "");
+    var t = String(title || TITLES[key] || "");
     return t.indexOf(" · ") > 0 ? t.split(" · ")[0] : "";
   }
   function liveOf(deploy) {
@@ -660,6 +660,7 @@
   }
   function index(S) {
     var ov = S.ov;
+    (ov.briefs || []).forEach(function (b) { TITLES[b.Key] = b.Title; });
     // a topic whose every task was dropped (the 23 Sep cleanup to the dispatch-flow document)
     // leaves the page instead of sitting in the rail as "nothing to do"
     ov.briefs = (ov.briefs || []).filter(function (b) {
