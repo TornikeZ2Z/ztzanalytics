@@ -1,5 +1,6 @@
-/* Salary Analysis (id bo-salary) — the branch owner's pay today, beside the share-of-the-bill
-   alternative, and both projected into 2027.
+/* Branch Owner Salary Comparison (id bo-salary; "Salary Analysis" in Financial until 2026-09-23,
+   when he renamed it and moved it to Different Analysis) — the branch owner's pay today, beside
+   the share-of-the-bill alternative, and both projected into 2027.
 
    His brief, 2026-09-21: "i need to prepare my logistics department to answer his questions
    regarding where he would make more money." So the page is written to be argued from:
@@ -10,17 +11,18 @@
      4. 2027         both deals carried through a plain seasonal projection
 
    THE SHARES ARE PAGE-LOCAL AND UNSAVED ON PURPOSE. A number typed here to win an argument must
-   not quietly become policy. Defaults are his: Local 35, Straight 35, Regular 20.
+   not quietly become policy. Defaults are his: Local 35, Straight 35, Regular 20. So is the
+   long-distance crew share of other expenses (his 30%, 2026-09-23; see BO_ECON).
 
-   STRAIGHT MOVING IS A LEVER, BECAUSE THE FLAG BEHIND IT HAS GONE QUIET (found 2026-09-22). None
-   of his long hauls carry the `Straight` flag on the long-distance sheet, so the warehouse types
-   them all Regular -- and it is not just him: company-wide the flag went 101 -> 180 -> 21 jobs
-   over 2024/25/26 while Regular went 176 -> 115 -> 240 and total long-distance stayed level
-   (277 / 295 / 261). The business did not change; the column stopped being filled in. So the page
-   cannot KNOW which of his long hauls are Straight, and asks instead: "of his long hauls, what
-   share is really Straight?" That share is priced at the Straight percentage, the rest at the
-   Regular one, on the same per-job economics. The year-by-year counts are printed beside the
-   input, live, so the reason for the lever is visible and not folklore.
+   STRAIGHT MOVING IS A LEVER, BECAUSE THE FLAG BEHIND IT HAS GONE QUIET (found 2026-09-22). The
+   `Straight` flag on the long-distance sheet is filled in patchily -- company-wide it went
+   101 -> 180 -> 21 jobs over 2024/25/26 while Regular went 176 -> 115 -> 240 and total
+   long-distance stayed level (277 / 295 / 261). The business did not change; the column stopped
+   being filled in. So the page cannot KNOW which of his Regular-typed long hauls are Straight, and
+   asks instead: "of his Regular-typed long hauls, what share is really Straight?" That share is
+   priced at the Straight percentage, the rest at the Regular one, on the same per-job economics.
+   The year-by-year counts are printed beside the input, live, so the reason for the lever is
+   visible and not folklore.
 
    THE PROJECTION IS DELIBERATELY SIMPLE (his words: "use some easy forecasting model - dont try
    too hard"). His own history is April-September 2026 -- he has never had a winter with us -- so
@@ -30,13 +32,13 @@
    jobs he ran in his full months. Money per job is his own averages. */
 (function () {
   const STATE = { share: { "Local Moving": 35, "Straight Moving": 35, "Regular Moving": 20 },
-                  growth: 0, straightPct: 0 };
+                  growth: 0, straightPct: 0, ldCrewPct: null };
   const TYPES = ["Local Moving", "Straight Moving", "Regular Moving"];
 
   registerPage({
     id: "bo-salary",
-    group: "financial",
-    title: "Salary Analysis",
+    group: "different",
+    title: "Branch Owner Salary Comparison",
     async render(host) {
       const num = RS.num, money = RS.money, moneyC = RS.moneyC || RS.money, fmtN = RS.fmtN;
       const esc = v => String(v == null ? "" : v).replace(/[&<>"']/g,
@@ -44,6 +46,9 @@
       const pct1 = v => (v == null || isNaN(v) || !isFinite(v)) ? "—" : (v * 100).toFixed(1) + "%";
       const signed = v => (v >= 0 ? '<span class="bos-up">+' : '<span class="bos-dn">−') + money(Math.abs(v)) + "</span>";
       const E = window.BO_ECON;
+      if (E && STATE.ldCrewPct == null) STATE.ldCrewPct = E.LD_OTHER_CREW * 100;
+      /* every walk on this page runs at the long-distance crew share typed above */
+      const O = () => ({ ldPct: (+STATE.ldCrewPct || 0) / 100 });
 
       if (!document.getElementById("bos-css")) {
         const st = document.createElement("style"); st.id = "bos-css";
@@ -85,13 +90,14 @@
       }
 
       host.innerHTML =
-        '<div class="rs-page-head"><h1>Salary Analysis</h1>' +
+        '<div class="rs-page-head"><h1>Branch Owner Salary Comparison</h1>' +
         '<p>What the branch owner earns today, beside the alternative where he takes <b>a share of the bill and pays the crew himself</b> — ' +
         'by job type, per job, and projected into 2027. Built to answer one question: <b>where would he make more money?</b> ' +
         '<span class="freshness">· read-only · the comparison respects the date/company filter, the projection uses all history</span></p></div>' +
+        '<div id="bosOwnerPick" style="margin:0 0 12px"></div>' +
         '<div class="panel"><div class="panel-head"><span class="panel-title">The deal being tested</span></div>' +
         '<div class="bos-say">He takes this share of the total bill and <b>the crew comes out of it</b>. We stop paying the crew and his cut, and still carry everything else — ' +
-        'truck, fuel, tolls, materials, card fees, claims, the salespeople’s commission and marketing at 10% of the bill. ' +
+        'truck, fuel, tolls, materials, carrier fees and our delivery legs’ costs, card fees, claims, the salespeople’s commission and marketing at 10% of the bill. ' +
         '<b>Nothing typed here is saved.</b></div>' +
         '<div class="bos-ctl" id="bosCtl"></div></div>' +
         '<div id="bosCards"><div class="panel" style="margin-top:14px"><div class="rs-loading">Loading…</div></div></div>' +
@@ -101,7 +107,12 @@
         '<div class="panel"><div class="rs-loading">The branch-owner cost model did not load — reload the page.</div></div>'; return; }
 
       const [martAll, closingAll] = await Promise.all([RS.load("mart_branch_owner_jobs"), RS.load("closing")]);
-      const J = RS.filtered("mart_branch_owner_jobs", martAll);
+      /* one branch owner at a time (his ask 2026-09-24), shared with the Branch Owner page; the
+         comparison and the projection both read only the picked owner's jobs */
+      const owner = E.owner(martAll);
+      E.mountOwnerPick(document.getElementById("bosOwnerPick"), martAll);
+      const mine = martAll.filter(r => r["Branch Owner"] === owner);
+      const J = RS.filtered("mart_branch_owner_jobs", mine);
       const typeOf = r => TYPES.includes(r["Moving Type"]) ? r["Moving Type"] : "Local Moving";
 
       /* ---- the controls: drawn once, never repainted, so typing keeps its focus ---- */
@@ -110,21 +121,27 @@
         '<label class="bos-fld">' + esc(t) + ' — his share, %<input class="bos-in" data-share="' + esc(t) +
         '" type="number" min="0" max="100" step="0.5" value="' + STATE.share[t] + '"><small id="bosEven-' +
         t.replace(/\W/g, "") + '"></small></label>').join("") +
-        '<label class="bos-fld">Of his long hauls, really Straight, %<input class="bos-in" id="bosStrPct" type="number" min="0" max="100" step="5" value="' + STATE.straightPct +
+        '<label class="bos-fld">Of his Regular-typed long hauls, really Straight, %<input class="bos-in" id="bosStrPct" type="number" min="0" max="100" step="5" value="' + STATE.straightPct +
         '"><small id="bosStrNote"></small></label>' +
+        '<label class="bos-fld">Long distance: other expenses that are crew pay, %<input class="bos-in" id="bosLdCrew" type="number" min="0" max="100" step="5" value="' + STATE.ldCrewPct +
+        '"><small id="bosLdNote"></small></label>' +
         '<label class="bos-fld">Marketing, % of bill<input class="bos-in" value="' + (E.MKT_PCT * 100) + '" disabled><small>fixed — ours, never his</small></label>';
       ctl.querySelectorAll("input[data-share]").forEach(i => { i.oninput = () => {
         STATE.share[i.dataset.share] = i.value === "" ? 0 : Math.max(0, Math.min(100, +i.value)); paint(); }; });
       const spi = document.getElementById("bosStrPct");
       spi.oninput = () => { STATE.straightPct = spi.value === "" ? 0 : Math.max(0, Math.min(100, +spi.value)); paint(); };
+      const lci = document.getElementById("bosLdCrew");
+      lci.oninput = () => { STATE.ldCrewPct = lci.value === "" ? 0 : Math.max(0, Math.min(100, +lci.value)); paint(); };
       /* why the lever exists, from the data: the flag's own history, company-wide */
       (() => { const by = {}; (closingAll || []).forEach(r => { if (r["Record Source"] !== "closing" || !r.Date) return;
           const y = String(r.Date).slice(0, 4), t = r["Moving Type"]; if (y < "2024" || (t !== "Regular Moving" && t !== "Straight Moving")) return;
           (by[y] = by[y] || { r: 0, s: 0 })[t === "Straight Moving" ? "s" : "r"]++; });
         const ys = Object.keys(by).sort(); const el = document.getElementById("bosStrNote");
-        if (el && ys.length) el.innerHTML = "the sheet flags none of his. Company-wide the Straight flag went " +
+        const hisLD = J.filter(r => E.isLD(r)), hisStr = hisLD.filter(r => r["Moving Type"] === "Straight Moving").length;
+        if (el && ys.length) el.innerHTML = "the sheet flags " + (hisStr ? fmtN(hisStr) : "none") + " of his " + fmtN(hisLD.length) +
+          " long hauls in this range. Company-wide the Straight flag went " +
           ys.map(y => by[y].s).join(" \u2192 ") + " (" + ys.join("/") + ") while Regular went " + ys.map(y => by[y].r).join(" \u2192 ") +
-          " \u2014 the column has gone quiet, not the business"; })();
+          " \u2014 the long-distance total held level, so the split is a filling-in habit, not the business"; })();
 
       const shareOf = t => (+STATE.share[t] || 0) / 100;
       const addW = (a, b) => { const c = {}; Object.keys(a.c).forEach(k => { c[k] = a.c[k] + b.c[k]; });
@@ -135,12 +152,12 @@
         const p = (+STATE.straightPct || 0) / 100;
         const loc = rs.filter(r => typeOf(r) === "Local Moving"), reg = rs.filter(r => typeOf(r) === "Regular Moving"),
               str = rs.filter(r => typeOf(r) === "Straight Moving");
-        const aheadAt = (rows, sh) => rows.filter(r => sh * num(r["Total Bill"]) - (num(r["Crew $"]) + num(r["Material $"])) > num(r["His Cut"])).length;
-        const Wr = E.walk(reg);
+        const aheadAt = (rows, sh) => rows.filter(r => sh * num(r["Total Bill"]) - E.crewOf(r, O()) > num(r["His Cut"])).length;
+        const Wr = E.walk(reg, O());
         const mk = (t, W, ahead, assumed) => ({ t, W, a: E.altW(W, shareOf(t)), ahead, assumed });
         return [
-          mk("Local Moving", E.walk(loc), aheadAt(loc, shareOf("Local Moving")), 0),
-          mk("Straight Moving", addW(E.walk(str), E.scaleW(Wr, p)),
+          mk("Local Moving", E.walk(loc, O()), aheadAt(loc, shareOf("Local Moving")), 0),
+          mk("Straight Moving", addW(E.walk(str, O()), E.scaleW(Wr, p)),
              aheadAt(str, shareOf("Straight Moving")) + p * aheadAt(reg, shareOf("Straight Moving")), p * Wr.n),
           mk("Regular Moving", E.scaleW(Wr, 1 - p), (1 - p) * aheadAt(reg, shareOf("Regular Moving")), 0),
         ];
@@ -148,7 +165,7 @@
       /* the alternative on a mixed set of jobs is the sum of each type at its own share */
       function altOf(rs) {
         const parts = groupsOf(rs).map(g => g.a);
-        const W = E.walk(rs);
+        const W = E.walk(rs, O());
         const hisShare = parts.reduce((a, p) => a + p.hisShare, 0), hisNet = parts.reduce((a, p) => a + p.hisNet, 0);
         const oursCost = W.cost - W.c.crew, ours = W.bill - hisShare - oursCost;
         return { W, hisShare, hisNet, oursCost, ours, hisDelta: hisNet - W.his, oursDelta: ours - W.ours };
@@ -204,9 +221,9 @@
         const ROWS = [
           { l: "Revenue", sub: "the same jobs, the same bills \u2014 his " + fmtN(W.n) + " jobs", v: () => W.bill, col: () => INK, cls: "tot" },
           /* THE ONE LINE THAT MOVES. Same money, same crew, different payer. */
-          { l: "Crew", sub: "foreman, driver and helpers, with the foreman's packing commission",
+          { l: "Crew", sub: E.LINES[0][2],
             v: () => W.c.crew, col: t => (t ? GREY : AMB), tag: t => (t ? "we pay" : "HE pays"), cls: "bos-crew" },
-        ].concat(E.LINES.filter(x => x[0] !== "crew").map(x => ({ l: x[1], sub: x[2], v: () => W.c[x[0]], col: () => GREY })))
+        ].concat(E.linesFor(W).filter(x => x[0] !== "crew").map(x => ({ l: x[1], sub: x[2], v: () => W.c[x[0]], col: () => GREY })))
          .concat([
           { l: "Cost we carry", sub2: t => (t ? "everything above, crew included" : "everything above except the crew"),
             v: t => (t ? W.cost : A.oursCost), col: () => GREY, cls: "tot" },
@@ -245,18 +262,70 @@
           '<p class="rs-hint" style="margin:10px 2px 0">Read the two cards <b>across</b>: every line appears on both sides and only two of them move \u2014 <b>who pays the crew</b> (' +
           money(W.c.crew) + ", " + pc(W.c.crew) + ' of the bill) and <b>what he is paid</b>. Both run on one cost model, shared with the Branch Owner page, and the deals are ' +
           '<b>exactly zero-sum</b>: today ' + money(W.his + W.ours) + " is split between us, under the alternative the same " + money(A.hisNet + A.ours) + ". " +
-          "Crew pay, tips and discounts come from the closing; truck, fuel and tolls are estimated from our own books.</p>";
+          "Tips, discounts and other job costs come from the closing; the crew from the closing, the digital contracts and our own delivery legs (below); carrier fees are what the long-distance sheet records as paid; truck, tolls and local fuel are estimated from our own books, long-haul fuel is as recorded.</p>" +
+          crewNote() + twoRoles();
+        const ln = document.getElementById("bosLdNote"), sp = E.crewSplit(J, O());
+        if (ln) ln.textContent = sp.ldOther > 0 ? money(sp.ld) + " of the " + money(sp.ldOther) + " his long hauls record" : "his long hauls record none in this range";
+      }
+
+      /* WHAT THE CREW LINE IS MADE OF (his question 2026-09-23: "what is Crew Total Expenditure
+         and where is Stairs Salary, Bulky Items Salary and Junk Removal salaries"). Three sources,
+         each with its money, so the one number that moves between the deals can be argued. */
+      function crewNote() {
+        const sp = E.crewSplit(J, O()), tot = sp.closing + sp.contract + sp.ld + sp.delivery;
+        const dc = f => J.reduce((a, r) => a + num(r[f]), 0);
+        return '<p class="rs-hint" style="margin:8px 2px 0"><b>What the crew line is: ' + money(tot) + ".</b> " +
+          money(sp.closing) + " is the closing's own crew pay — the foreman (his total already includes his packing commission), the driver and helpers 1 to 8. " +
+          money(sp.contract) + " is stairs, bulky and junk pay from the digital contracts (stairs " + money(dc("DC Stairs Salary")) + ", bulky " + money(dc("DC Bulky Salary")) +
+          ", junk " + money(dc("DC Junk Salary")) +
+          (dc("DC Stairs Salary") + dc("DC Bulky Salary") + dc("DC Junk Salary") > sp.contract + 0.5 ? " on the contracts, counted only up to what the closings recorded" : "") +
+          "): the closing lumps it into other expenses, so it is taken out of other job costs, not added twice. " +
+          money(sp.ld) + " is " + (+STATE.ldCrewPct || 0) + "% of the " + money(sp.ldOther) + " of other expenses on his long hauls, which have no digital contract to itemise them. " +
+          (J.some(r => r["Delivery Crew $"] != null) ? money(sp.delivery) + " is our own crew delivering his long hauls, from the trip sheet and delivery closings." : "") +
+          "</p>" + haulNote();
+      }
+
+      /* A REGULAR CLOSING PAYS ONE LOADING DAY (audit 2026-09-23): the haul is a carrier fee, or our
+         own delivery leg. Only paid fees count (his call), so the jobs still waiting are counted out
+         loud -- a Regular job with neither reads as nearly free to run until its fee is entered. */
+      function haulNote() {
+        const reg = J.filter(r => r["Moving Type"] === "Regular Moving");
+        if (!reg.length || !reg.some(r => r["Carrier Paid $"] != null)) return "";
+        const paid = reg.filter(r => num(r["Carrier Paid $"]) > 0), own = reg.filter(r => num(r["Carrier Paid $"]) <= 0 && num(r["Delivery Crew $"]) > 0);
+        const none = reg.length - paid.length - own.length, fee = paid.reduce((a, r) => a + num(r["Carrier Paid $"]), 0);
+        const pb = paid.reduce((a, r) => a + num(r["Total Bill"]), 0);
+        return '<p class="rs-hint" style="margin:8px 2px 0"><b>How his Regular moves were delivered.</b> A Regular closing pays the crew for loading; the haul is paid separately. ' +
+          fmtN(paid.length) + " of his " + fmtN(reg.length) + " went by carrier, for " + money(fee) + (pb ? " (" + pct1(fee / pb) + " of those bills)" : "") +
+          " — a cost we carry under either deal. " + fmtN(own.length) + (own.length === 1 ? " was" : " were") + " delivered by our own crew, counted in crew above. " +
+          (none > 0 ? "<b>" + fmtN(none) + " have no delivery cost recorded yet</b> — no carrier fee on the long-distance sheet and no delivery leg — so they read as cheaper than they are until the fee is entered." : "Every one has its delivery cost recorded.") + "</p>";
+      }
+
+      /* TWO ROLES ON ONE JOB (Teresa Foley, 2026-09-23): where he holds two SP slots, the larger
+         is his branch-owner cut and the other is estimator pay. Named here, job by job, because a
+         line total cannot say which jobs it came from. */
+      function twoRoles() {
+        const rs = J.filter(r => num(r["Estimator Cut"]) > 0)
+          .sort((a, b) => String(b.Date || "").localeCompare(String(a.Date || "")));
+        if (!rs.length) return "";
+        const rate = (v, r) => num(r["Cash Rate Bill"]) > 0 ? " (" + (v / num(r["Cash Rate Bill"]) * 100).toFixed(1).replace(/\.0$/, "") + "%)" : "";
+        return '<p class="rs-hint" style="margin:8px 2px 0"><b>Branch owner and estimator on the same job.</b> ' + rs.map(r =>
+          esc(r.Customer) + ", " + esc(String(r.Date || "").slice(0, 10)) + " (" + esc(String(r["Moving Type"] || "").replace(" Moving", "")) + "): branch owner " +
+          money(num(r["His Cut"])) + rate(num(r["His Cut"]), r) + ", estimator " + money(num(r["Estimator Cut"])) + rate(num(r["Estimator Cut"]), r)).join(" · ") +
+          ". The estimator pay is its own line on both cards and is not part of his cut.</p>";
       }
 
       /* ================= 3: where he makes more money ================= */
+      /* why a job type has no jobs: the reason differs by type, and by the lever */
+      const emptyWhy = t => t === "Straight Moving" ? "no Straight-flagged jobs in this range \u2014 the \u201creally Straight\u201d lever above prices part of his Regular-typed long hauls here"
+        : t === "Regular Moving" && (+STATE.straightPct || 0) >= 100 ? "all of them priced as Straight by the lever above" : "no jobs of this type in this range";
       function paintWhere() {
         const groups = groupsOf(J);
         groups.forEach(g => { const el = document.getElementById("bosEven-" + g.t.replace(/\W/g, ""));
-          if (el) el.textContent = g.W.n > 0 ? "he breaks even at " + pct1(g.a.even) : "none flagged \u2014 use the Straight lever"; });
+          if (el) el.textContent = g.W.n > 0 ? "he breaks even at " + pct1(g.a.even) : emptyWhy(g.t); });
         const A = altOf(J);
         const th = (t, r) => "<th" + (r ? ' class="num"' : "") + ">" + t + "</th>", td = (v, r) => "<td" + (r ? ' class="num"' : "") + ">" + v + "</td>";
         const rowOf = g => { const W = g.W, n = W.n;
-          if (!(n > 0)) return "<tr>" + td("<b>" + esc(g.t) + "</b><small>none of his jobs carry the Straight flag on the long-distance sheet \u2014 set \u201creally Straight\u201d above to price part of his long hauls here</small>") +
+          if (!(n > 0)) return "<tr>" + td("<b>" + esc(g.t) + "</b><small>" + emptyWhy(g.t) + "</small>") +
             td("0", 1) + td("—", 1) + td("—", 1) + td("—", 1) + td("—", 1) + td(STATE.share[g.t] + "%", 1) + td("—", 1) + td("—", 1) + td("—", 1) + td("—", 1) + "</tr>";
           return "<tr>" + td("<b>" + esc(g.t) + "</b>" + (g.assumed > 0 ? "<small>" + fmtN(g.assumed) + " of these are his Regular-typed long hauls, priced as Straight by assumption</small>" : "")) +
             td(fmtN(n), 1) + td(money(W.bill) + "<small>" + money(W.bill / n) + " a job</small>", 1) +
@@ -305,16 +374,21 @@
         const coAvg = (fam, m) => { const mm = String(m).padStart(2, "0"); const v = years.map(y => cnt[fam + "|" + y + "-" + mm]).filter(x => x != null);
           return v.length ? v.reduce((acc, x) => acc + x, 0) / v.length : 0; };
         /* his level: the share of the company's jobs he ran in his FULL months (the first is a ramp, the current one is partial) */
-        const hisYm = [...new Set(martAll.map(r => String(r.Date || "").slice(0, 7)).filter(Boolean))].sort();
+        const hisYm = [...new Set(mine.map(r => String(r.Date || "").slice(0, 7)).filter(Boolean))].sort();
         const full = hisYm.filter((ym, i) => i > 0 && ym < nowYm);
-        const hisCnt = fam => martAll.filter(r => famOf(typeOf(r)) === fam && full.includes(String(r.Date).slice(0, 7))).length;
+        const hisCnt = fam => mine.filter(r => famOf(typeOf(r)) === fam && full.includes(String(r.Date).slice(0, 7))).length;
         const coCnt = fam => full.reduce((acc, ym) => acc + (cnt[fam + "|" + ym] || 0), 0);
         const lvl = { L: coCnt("L") ? hisCnt("L") / coCnt("L") : 0, LD: coCnt("LD") ? hisCnt("LD") / coCnt("LD") : 0 };
         /* money per job, from his own jobs, by family */
-        const ratioOf = fam => { const W = E.walk(martAll.filter(r => famOf(typeOf(r)) === fam));
+        const ratioOf = fam => { const W = E.walk(mine.filter(r => famOf(typeOf(r)) === fam), O());
           return W.n ? { bill: W.bill / W.n, his: W.his / W.bill, crew: W.c.crew / W.bill, other: (W.cost - W.c.crew) / W.bill } : null; };
         const ratio = { L: ratioOf("L"), LD: ratioOf("LD") };
-        const g = 1 + (+STATE.growth || 0) / 100, pS = (+STATE.straightPct || 0) / 100;
+        /* STRAIGHT IN 2027 MEANS WHAT IT MEANS ON THE CARDS: the long hauls the sheet flags Straight,
+           plus the lever's share of the Regular-typed rest. The lever alone used to split the whole
+           family, which priced his flagged Straight jobs at the Regular share at the default of 0. */
+        const ldHist = mine.filter(r => famOf(typeOf(r)) === "LD");
+        const s0 = ldHist.length ? ldHist.filter(r => typeOf(r) === "Straight Moving").length / ldHist.length : 0;
+        const g = 1 + (+STATE.growth || 0) / 100, pS = s0 + (1 - s0) * (+STATE.straightPct || 0) / 100;
         const months = []; const tot = { jobs: 0, bill: 0, his0: 0, his1: 0, our0: 0, our1: 0 }; const byType = {};
         for (let m = 1; m <= 12; m++) { const r = { m, jobs: 0, bill: 0, his0: 0, his1: 0, our0: 0, our1: 0 };
           TYPES.forEach(t => { const fam = famOf(t), q = ratio[fam]; if (!q) return;
@@ -334,7 +408,7 @@
           '<div class="bos-say"><b>A plain seasonal projection, on purpose.</b> He has only been with us since ' + esc(hisYm[0] || "—") + ', so he has never had a winter here: ' +
           'the <b>shape</b> of the year is the company’s — each calendar month averaged over ' + esc(years.join(", ")) + ', by job type (the method that tested best on Seasonal Planning). ' +
           'His <b>level</b> is the share of the company’s jobs he ran in his full months (' + esc(full[0] || "—") + " to " + esc(full[full.length - 1] || "—") + "): <b>" +
-          pct1(lvl.L) + "</b> of local jobs and <b>" + pct1(lvl.LD) + "</b> of long-distance. Long-distance is projected as one family and split Regular / Straight by the lever at the top, " +
+          pct1(lvl.L) + "</b> of local jobs and <b>" + pct1(lvl.LD) + "</b> of long-distance. Long-distance is projected as one family and split the way the cards split it \u2014 the " + pct1(s0) + " of his long hauls the sheet flags Straight, plus the lever\u2019s share of the rest, " +
           'because the sheet’s own split is not reliable year to year. Money per job is his own average. ' +
           'It assumes he keeps running the same slice of our work — a baseline to argue from, not a promise.</div>' +
           '<div class="bos-ctl" style="margin-bottom:12px">' +
@@ -343,7 +417,7 @@
           '<div class="rs-tablewrap" style="margin-top:12px"><table class="rs-table bos-tbl" data-name="' + nextY + ' by job type"><thead><tr><th>Job type</th><th class="num">Jobs</th><th class="num">Revenue</th>' +
           '<th class="num">His pay — today’s deal</th><th class="num">His pay — alternative</th><th class="num">Difference</th><th class="num">Our profit — today’s deal</th><th class="num">Our profit — alternative</th></tr></thead><tbody>' +
           TYPES.filter(t => byType[t] && byType[t].jobs > 0).map(t => { const b = byType[t];
-            return "<tr><td><b>" + esc(t) + "</b>" + (t === "Straight Moving" ? "<small>his long hauls priced as Straight, by the lever above</small>" : "") + '</td><td class="num">' + fmtN(b.jobs) +
+            return "<tr><td><b>" + esc(t) + "</b>" + (t === "Straight Moving" ? "<small>the long hauls the sheet flags Straight, plus the lever\u2019s share of the rest</small>" : "") + '</td><td class="num">' + fmtN(b.jobs) +
               '</td><td class="num">' + money(b.bill) + '</td><td class="num">' + money(b.his0) + '</td><td class="num"><b>' + money(b.his1) + '</b></td><td class="num">' + signed(b.his1 - b.his0) +
               '</td><td class="num">' + money(b.our0) + '</td><td class="num">' + money(b.our1) + "</td></tr>"; }).join("") +
           '</tbody><tfoot><tr><td><b>' + nextY + '</b></td><td class="num">' + fmtN(tot.jobs) + '</td><td class="num">' + money(tot.bill) + '</td><td class="num">' + money(tot.his0) +

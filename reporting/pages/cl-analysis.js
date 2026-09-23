@@ -400,7 +400,11 @@ registerPage({
       // covers the window before the loader ships the column.
       const cardPaid = eS(e => e["Card Base"]) || eS(e => e["Card Paid"]);
       const cost = {
-        crew: eS(e => e["Crew $"]) + packingPay,
+        // THE PACKING PAY IS ALREADY IN `Crew $` (his ruling 2026-09-23, the same one the branch-owner
+        // pages follow): `Forman Total $` is rate x hours PLUS `Material $`, exact on 76 of these 117
+        // jobs and on none without it. Adding `packingPay` again counted $13,675 twice. It stays named
+        // in the crew row's note below, because it is still part of that line.
+        crew: eS(e => e["Crew $"]),
         materials: MAT_COGS * packingSold,
         truck: eS(e => e["Rental Cost Est"]) + eS(e => e["Owned Overhead Est"]),
         fuel: eS(e => e["Fuel Est"]) * COST_UPLIFT,
