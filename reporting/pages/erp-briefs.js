@@ -1994,7 +1994,9 @@
       + 'this task…" style="flex:1 1 240px"><input class="erb-in" id="dwQWho" placeholder="Ask whom" '
       + 'style="flex:0 1 150px"><button class="rs-btn" id="dwQAdd">Add</button></div>'
       + codeSection(S, t)
-      + '<div class="erb-sec" id="dwSrc"><span>Reported in Slack</span><span class="n">'
+      + '<div class="erb-sec" id="dwSrc"><span>'
+      + (srcs.some(function (s) { return s.Kind === "meeting"; }) ? "Reported" : "Reported in Slack")
+      + '</span><span class="n">'
       + srcs.length + (srcs.length === 1 ? " report" : " reports") + "</span></div>"
       + (srcs.length ? '<div class="erb-list">' + srcs.map(function (s) { return srcCard(S, s); }).join("")
          + "</div>" : '<div class="erb-list"><div class="erb-empty">No Slack report is linked — this '
