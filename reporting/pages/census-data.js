@@ -607,7 +607,14 @@ registerPage({
       paintTable();
     }).catch(e => {
       if (!alive()) return;
-      mine.innerHTML = '<div class="panel">Could not load the Census data — ' + esc(e && e.message || e) + "</div>";
+      // A brand-new mart does not exist until the next hourly rebuild creates it, and the bridge
+      // answers that with a bare 404 "unknown dataset" -- which read as broken (2026-09-23, the
+      // page shipped at :40 and its tables arrived with the next :00 run). Say what is happening.
+      const msg = String(e && e.message || e);
+      mine.innerHTML = /unknown dataset|mart_census/.test(msg)
+        ? '<div class="panel">The Census tables are being built by the hourly refresh and are not '
+          + "ready yet. They usually appear within the hour — reopen this page then.</div>"
+        : '<div class="panel">Could not load the Census data — ' + esc(msg) + "</div>";
     });
   },
 });
