@@ -171,10 +171,14 @@ const GROUP_OVERRIDE = {
   // Tech Team (Website Forms & UTM joined 2026-09-23, his call)
   "things-to-do": "tech", "data-migration": "tech", "utm-campaigns": "tech",
   // Marketing — source attribution belongs with the marketing views
+  // Source Analysis (2026-09-23): one source's leads, bookings, jobs and spend; first in the group
+  "source-report": "marketing",
   "source-trace": "marketing", "meta-referrals": "marketing",
   "jobs-by-area": "marketing",
   "packing-sales": "logistics",
   "relocation-trends": "marketing",
+  // Census Data (2026-09-23): the ACS 2024 figures behind Seasonal Planning, view only
+  "census-data": "marketing",
   // Marketing Automations (2026-09-23)
   "angi-funnel": "marketing-automations",
   "promised-reviews": "marketing-automations",
@@ -226,8 +230,8 @@ const NAV_ORDER = {
   "sup-claims": 1, "sup-refunds": 2, "sup-phone": 3,
   "data-quality": 2, "refresh-log": 1, "general-settings": 3, "general-tables": 4, "admin-users": 5,
   "admin-activity": 5.5,
-  "source-trace": 8, "meta-referrals": 10, "referral-candidates": 11, "jobs-by-area": 12,
-  "relocation-trends": 13, "angi-funnel": 13.5, "utm-campaigns": 13.7, "promised-reviews": 14, "birdeye-sends": 14.2,
+  "source-report": 7, "source-trace": 8, "meta-referrals": 10, "referral-candidates": 11, "jobs-by-area": 12,
+  "relocation-trends": 13, "census-data": 13.2, "angi-funnel": 13.5, "utm-campaigns": 13.7, "promised-reviews": 14, "birdeye-sends": 14.2,
 };
 
 /* Inline SVG icon set (Feather-style, stroke-based) — no emojis anywhere. */
@@ -294,7 +298,7 @@ const PAGE_ICONS = {
   "log-foreman": "tool", "log-packing": "box",
   "fin-revenue": "trend", "fin-rr": "trend", "rev-production": "star",
   "sup-claims": "shield", "sup-refunds": "clipboard", "sup-phone": "phone",
-  "general-settings": "sliders", "general-tables": "grid", "admin-activity": "clock", "data-quality": "clipboard", "data-migration": "share-2", "refresh-log": "activity", "source-trace": "activity", "meta-referrals": "upload-cloud", "referral-candidates": "gift", "jobs-by-area": "map-pin", "packing-sales": "package", "relocation-trends": "trending-up", "angi-funnel": "funnel", "utm-campaigns": "link", "promised-reviews": "star", "birdeye-sends": "megaphone", "calendar-coverage": "calendar", "request-consistency": "alert-triangle", "review-performance": "star", "reviews-reminders": "megaphone", "response-analysis": "activity", "review-settings": "tool", "reviews-cases": "star", "claims-analysis": "alert-triangle", "area-plan": "map-pin",
+  "general-settings": "sliders", "general-tables": "grid", "admin-activity": "clock", "data-quality": "clipboard", "data-migration": "share-2", "refresh-log": "activity", "source-report": "compass", "source-trace": "activity", "meta-referrals": "upload-cloud", "referral-candidates": "gift", "jobs-by-area": "map-pin", "packing-sales": "package", "relocation-trends": "trending-up", "census-data": "clipboard", "angi-funnel": "funnel", "utm-campaigns": "link", "promised-reviews": "star", "birdeye-sends": "megaphone", "calendar-coverage": "calendar", "request-consistency": "alert-triangle", "review-performance": "star", "reviews-reminders": "megaphone", "response-analysis": "activity", "review-settings": "tool", "reviews-cases": "star", "claims-analysis": "alert-triangle", "area-plan": "map-pin",
 };
 
 /* Pages not yet built — shown greyed with a SOON tag so the full scope is visible. */
@@ -729,11 +733,13 @@ const PAGE_DATASETS = {
   "data-quality": [],
   "data-migration": [],
   "source-trace": [],
+  "source-report": [],         // loads its three mart_source_* marts itself; source/period/company/state live on the page
   "meta-referrals": [],
   "referral-candidates": [],   // loads fct_referral_candidates itself; filters live on the page
   "jobs-by-area": [],          // loads mart_jobs_geo itself; season/year/company live on the page
   "packing-sales": [],         // loads its two packing marts itself; period/company/size live on the page
   "relocation-trends": [],     // loads mart_relocation itself; year/window/company live on the page
+  "census-data": [],           // loads mart_census_zip + mart_census_state itself; its filters live on the page
   "angi-funnel": [],           // loads mart_angi_lead itself; month/status/speed/ZIP live on the page
   // [] on purpose: the global DATE filter would be wrong here. The CMS export carries no
   // submission timestamp at all, so this table has no date of its own to slice on.
@@ -981,6 +987,10 @@ function navigate(id, push) {
    render "bare" — the global date/slicer bar + company chip are hidden so the page's board
    starts right under the header instead of below two rows of greyed-out, unusable filters. */
 const BARE_CHROME = new Set(["sales-of-the-month", "review-performance", "reviews-cases", "claims-analysis", "demand-analysis", "reviews-reminders", "response-analysis", "review-settings", "monthly-report", "seasonal-report", "money-flow", "ld-planning", "cleanup", "packing-control", "crew-salaries", "storage-control", "foreman-assessment", "fuel-control", "foreman-closings", "refresh-log", "general-tables", "hr-questionnaire", "hr-directory", "conversations", "sales-comms", "referral-candidates", "jobs-by-area", "packing-sales", "meta-referrals", "relocation-trends", "angi-funnel", "utm-campaigns", "promised-reviews", "birdeye-sends",
+  // Census Data (2026-09-23): a reference table with its own search and state/county filters
+  "census-data",
+  // Source Analysis (2026-09-23) brings its own source / period / company / state bar
+  "source-report",
   // Things to do has nothing a global slicer could act on
   "things-to-do",
   // Straight vs Local reads its whole history on purpose (Tornike 2026-08-19: "i dont need
@@ -1104,6 +1114,7 @@ const NAV_TITLES = {
   "foreman-closings": "Foreman Closings",
   "data-quality": "Data Quality",
   "data-migration": "Data Migration",
+  "source-report": "Source Analysis",
   "source-trace": "Source Trace", "meta-referrals": "Meta Referrals",
   "referral-candidates": "List of Possible Referrals",
   "jobs-by-area": "Jobs by Area",
@@ -1180,9 +1191,11 @@ const SEARCH_ALIASES = {
   "sales-comms": "sales communication analysis call quality coaching rubric checklist what was said discovery deposit close objection talk ratio rep performance ringsense",
   "sales-trackers": "ai trackers custom tracker inventory review storage discussion price objection competitor mention llm judged met partial compliance ringsense analysis control panel",
   "source-trace": "source trace lineage attribution callrail google local phone match booked from moveboard corrected final source faithful pbix diagnostic audit",
+  "source-report": "source analysis lead source leads conversion booking rate funnel dead reasons post card yelp google angi thumbtack ad spend cost per lead cost per booked job cash per dollar roi lead list customer phone email marketing channel",
   "meta-referrals": "meta referral upload facebook instagram lead form fills csv export dedupe source",
   "referral-candidates": "referral candidates five star reviews customers email phone contact list marketing call sheet",
   "jobs-by-area": "jobs by area state county summer season june july august month volume geography where we work marketing",
+  "census-data": "census data acs american community survey population median income mover rate movers owner share zip zcta margin of error reliability state tie out coverage marketing demographics",
   "packing-sales": "packing materials sold boxes tape shrink wrap crates units per job per 100 cf attach rate revenue building size logistics buying shapes",
   "angi-funnel": "angi lead funnel partner leads contact rate speed to lead reason lost closed won export csv marketplace vendor zip",
   "utm-campaigns": "utm campaign source medium website form cms export tagged link google ads pmax gbp google business profile chatgpt paid click gclid landing page attribution marketing",
@@ -1577,9 +1590,11 @@ const REPORT_LABELS = {
   // Sales
   "conversations": "Conversations (call transcripts)",
   // Marketing / Marketing Automations / Tech Team / Different Analysis (tile tooltips)
+  "source-report": "Source Analysis",
   "source-trace": "Source Trace",
   "jobs-by-area": "Jobs by Area",
   "relocation-trends": "Relocation Trends",
+  "census-data": "Census Data",
   "referral-candidates": "List of Possible Referrals",
   "promised-reviews": "Promised Reviews",
   "birdeye-sends": "Birdeye Send-outs",
@@ -1678,7 +1693,7 @@ const ACL_DEPTS = [
   // check_acl_mirror.py fails when a list differs from the group OR from DEPT_REPORTS.
   { id: "company",   label: "Company Overview", icon: "spark",     reports: ["monthly-report", "seasonal-report", "analysis-by-category"] },
   { id: "sales",     label: "Sales",            icon: "funnel",    reports: ["sales-command", "sales-of-the-month", "demand-analysis", "conversations", "sales-comms", "sales-trackers"] },
-  { id: "marketing", label: "Marketing",        icon: "megaphone", reports: ["source-trace", "jobs-by-area", "relocation-trends"] },
+  { id: "marketing", label: "Marketing",        icon: "megaphone", reports: ["source-report", "source-trace", "jobs-by-area", "relocation-trends", "census-data"] },
   // granted on its own, and ALSO by holding Marketing (DEPT_IMPLIES)
   { id: "marketing-automations", label: "Marketing Automations", icon: "clock", reports: ["referral-candidates", "promised-reviews", "birdeye-sends", "angi-funnel"] },
   { id: "logistics", label: "Logistics",        icon: "tool",      reports: ["postcard-expenditure", "money-flow", "ld-planning", "foreman-closings", "packing-control", "packing-sales", "crew-salaries", "storage-control", "foreman-assessment", "fuel-control", "foreman-late"] },
@@ -1943,11 +1958,13 @@ registerPage({
 <script src="pages/sales-trackers.js?v=5"></script>
 <script src="pages/things-to-do.js?v=2"></script>
 <script src="pages/conversations.js?v=10"></script>
-<script src="pages/source-trace.js?v=27"></script>
+<script src="pages/source-trace.js?v=28"></script>
+<script src="pages/source-report.js?v=2"></script>
 <script src="pages/meta-referrals.js?v=2"></script>
 <script src="pages/jobs-by-area.js?v=4"></script>
 <script src="pages/packing-sales.js?v=5"></script>
 <script src="pages/relocation-trends.js?v=5"></script>
+<script src="pages/census-data.js?v=2"></script>
 <script src="pages/utm-campaigns.js?v=2"></script>
 <script src="pages/angi-funnel.js?v=8"></script>
 <script src="pages/promised-reviews.js?v=13"></script>

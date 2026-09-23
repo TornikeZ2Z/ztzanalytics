@@ -59,6 +59,39 @@ registerPage({
   group: "settings",
   title: "Source Trace",
   async render(host) {
+    /* DEEP LINK FROM SOURCE ANALYSIS (2026-09-23): every lead in that page's list links here as
+       "#page=source-trace&lead=<Request Joinkey>" -- "why is this lead this source". Open that
+       lead's moveboard trace, then drop the parameter (replaceState fires no hashchange) so a
+       later re-render does not keep snapping back to it. The joinkey, not the bare #, because
+       Moveboard numbers repeat across the Zip to Zip and Tuji accounts. */
+    {
+      const lk = /[#&]lead=([^&]+)/.exec(location.hash || "");
+      if (lk) {
+        let jk = "";
+        try { jk = decodeURIComponent(lk[1]); } catch (e) { jk = ""; }
+        // "Zip to Zip 108593" -> #108593 in the Zip to Zip account. The moveboard payload has
+        // no Request Joinkey column, so the mode's key is "<Job No>|<Company>" (MODES below).
+        const sp = jk.lastIndexOf(" ");
+        if (sp > 0) {
+          const job = jk.slice(sp + 1), co = jk.slice(0, sp);
+          ST_STATE.mode = "moveboard"; ST_STATE.sel = job + "|" + co; ST_STATE.q = job;
+          ST_STATE.rung = null; ST_STATE.page = 0;
+        }
+        try { history.replaceState(null, "", "#page=source-trace"); } catch (e) {}
+      }
+      // ...and a lead's closing opens as "#page=source-trace&job=<closing Unique Key>", the
+      // closing mode's own key (Job Code), so the job-side chain is one click away too
+      const jb = /[#&]job=([^&]+)/.exec(location.hash || "");
+      if (jb && !lk) {
+        let uk = "";
+        try { uk = decodeURIComponent(jb[1]); } catch (e) { uk = ""; }
+        if (uk) {
+          ST_STATE.mode = "closing"; ST_STATE.sel = uk; ST_STATE.q = uk;
+          ST_STATE.rung = null; ST_STATE.page = 0;
+        }
+        try { history.replaceState(null, "", "#page=source-trace"); } catch (e) {}
+      }
+    }
     const CAP = 40;                                   // max search results shown at once
     const yes = v => String(v == null ? "" : v).trim().toLowerCase() === "yes";
     const blank = v => v == null || String(v).trim() === "";
