@@ -89,6 +89,9 @@
   }
   function tsDate(ts) { return new Date(parseFloat(ts) * 1000); }
   function permalink(ts) { return CHANNEL_URL + "/p" + String(ts || "").replace(".", ""); }
+  // Meeting sources (Kind "meeting") are not Slack messages: `Files` holds the transcript link (and
+  // `Thread` names the recording), so they link there instead of to a Slack permalink.
+  function srcHref(s) { return s.Kind === "meeting" ? String(s.Files || "") : permalink(s["Slack TS"]); }
   function recordUrl(rec) { return TRACKER_URL + "?record_id=" + encodeURIComponent(rec); }
   function dmUrl(uid) { return "slack://user?team=" + SLACK.team + "&id=" + encodeURIComponent(uid); }
   function who(email) {
@@ -1408,12 +1411,12 @@
       }).join("") + "</div>";
     }
     if (it.reports.length) {
-      html += '<details class="erb-fold"><summary>What ' + esc(p.Short) + " reported in Slack ("
+      html += '<details class="erb-fold"><summary>What ' + esc(p.Short) + " reported ("
         + it.reports.length + ")</summary><div>" + it.reports.map(function (s) {
           var tasks = S.srcTasks[s["Slack TS"]] || [];
           return '<div class="erb-li"><span class="d">' + esc(dayOf(tsDate(s["Slack TS"])))
-            + "</span><div><a href=\"" + permalink(s["Slack TS"]) + '" target="_blank" rel="noopener">'
-            + esc(s.Kind === "chat" ? s.Title : "“" + s.Title + "”") + " ↗</a>"
+            + "</span><div><a href=\"" + esc(srcHref(s)) + '" target="_blank" rel="noopener">'
+            + esc(s.Kind === "chat" || s.Kind === "meeting" ? s.Title : "“" + s.Title + "”") + " ↗</a>"
             + (s["Tracker Status"] ? " " + chip(s["Tracker Status"], TRACKER_TONE[s["Tracker Status"]]) : "")
             + (tasks.length ? '<div class="x">→ ' + tasks.map(function (t) {
                 return '<button class="erb-link" data-goto="' + esc(t["Brief Key"] + ":" + t.Code) + '">'
@@ -1509,15 +1512,15 @@
   /* --------------------------------------------------------------- messages */
   function filedTitle(S, task, pk, srcs) {
     var mine = srcsForTask(task, srcs).filter(function (s) { return s.Reporter === pk; });
-    var s = mine.filter(function (x) { return x.Kind !== "chat"; })[0] || mine[0];
+    var s = mine.filter(function (x) { return x.Kind !== "chat" && x.Kind !== "meeting"; })[0] || mine[0];
     var p = S.P[pk];
-    if (!s || s.Kind === "chat" || (p && String(s.Title).trim().toLowerCase() === p.Short.toLowerCase())) {
+    if (!s || s.Kind === "chat" || s.Kind === "meeting" || (p && String(s.Title).trim().toLowerCase() === p.Short.toLowerCase())) {
       return task ? task.Title : "";
     }
     return s.Title;
   }
   function threadFor(task, pk, srcs) {
-    var mine = srcsForTask(task, srcs).filter(function (s) { return s.Reporter === pk; });
+    var mine = srcsForTask(task, srcs).filter(function (s) { return s.Reporter === pk && s.Kind !== "meeting"; });
     var s = mine.filter(function (x) { return x.Kind !== "chat"; }).pop() || mine.pop();
     return s ? s["Slack TS"] : null;
   }
@@ -1821,24 +1824,29 @@
     var at = tsDate(s["Slack TS"]);
     return '<div class="erb-src">'
       + '<div class="h">' + av(S, s.Reporter) + "<b>" + esc(p ? p.Name : s.Reporter) + "</b>"
-      + '<span class="k">' + (s.Kind === "chat" ? "channel message" : "bug form")
+      + '<span class="k">' + (s.Kind === "chat" ? "channel message" : s.Kind === "meeting" ? "meeting" : "bug form")
       + (fb ? " · filed by " + esc(fb.Short) : "") + " · " + esc(when(at))
       + (tzLabel() ? " " + esc(tzLabel()) : "") + "</span>"
       + (s["Tracker Status"] ? chip("tracker: " + s["Tracker Status"], TRACKER_TONE[s["Tracker Status"]],
           "Status in the Slack Bugs tracker when this page was written (10 Sept)") : "")
       + "</div>"
-      + (s.Kind !== "chat" ? '<div class="ttl">“' + esc(s.Title) + "”</div>" : "")
+      + (s.Kind === "meeting" ? '<div class="ttl">' + esc(s.Title) + "</div>"
+         : s.Kind !== "chat" ? '<div class="ttl">“' + esc(s.Title) + "”</div>" : "")
       + '<div class="txt' + (long ? " clip" : "") + '">' + linkify(esc(txt)) + "</div>"
       + (long ? '<button class="erb-tbtn" data-more style="margin:4px 0 0 -9px">Show the whole report</button>' : "")
-      + (s.Thread ? '<div class="th"><b>' + (s.Kind === "chat" ? "In short" : "In the thread")
+      + (s.Thread ? '<div class="th"><b>' + (s.Kind === "chat" || s.Kind === "meeting" ? "In short" : "In the thread")
          + ":</b> " + linkify(esc(s.Thread)) + "</div>" : "")
-      + (s.Files ? '<div class="th"><b>Attached:</b> ' + esc(s.Files)
+      + (s.Files && s.Kind !== "meeting" ? '<div class="th"><b>Attached:</b> ' + esc(s.Files)
          + " — open the message to see them.</div>" : "")
-      + '<div class="lk"><a class="rs-btn erb-sm erb-a" href="' + permalink(s["Slack TS"])
-      + '" target="_blank" rel="noopener">Open in Slack ↗</a>'
-      + (s["Record Id"] ? '<a class="rs-btn erb-sm erb-a" href="' + recordUrl(s["Record Id"])
-         + '" target="_blank" rel="noopener">Tracker record ↗</a>' : "")
-      + "</div></div>";
+      + (s.Kind === "meeting"
+        ? '<div class="lk"><a class="rs-btn erb-sm erb-a" href="' + esc(srcHref(s))
+          + '" target="_blank" rel="noopener">Open the transcript ↗</a>'
+          + "</div></div>"
+        : '<div class="lk"><a class="rs-btn erb-sm erb-a" href="' + permalink(s["Slack TS"])
+          + '" target="_blank" rel="noopener">Open in Slack ↗</a>'
+          + (s["Record Id"] ? '<a class="rs-btn erb-sm erb-a" href="' + recordUrl(s["Record Id"])
+             + '" target="_blank" rel="noopener">Tracker record ↗</a>' : "")
+          + "</div></div>");
   }
   function linkRow(l) {
     var pr = l.Kind === "pr";
