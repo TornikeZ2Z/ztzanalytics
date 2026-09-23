@@ -1203,6 +1203,7 @@
       + '<div class="qt">' + inline(q.Question) + "</div></div>"
       + '<div class="qm">'
       + (t && !opt.noTask ? '<button class="erb-link" data-task="' + esc(t.Code) + '">'
+         + (opt.brief ? esc(shortOf(q["Brief Key"])) + " · " : "")
          + esc(t.Code) + " · " + esc(t.Title) + "</button>" : "")
       + (q.Ask ? "<span>ask " + stack(S, ask, true) + " " + esc(q.Ask) + "</span>" : "")
       + (open ? askedChip(q) : (q.Status === "Answered" ? askedChip(q) || chip("answered", "ok")
@@ -1370,6 +1371,7 @@
         openComposer(S, { ctx: "person", people: [b.getAttribute("data-write")] });
       };
     });
+    wireQRows(S, main);
     main.querySelectorAll("[data-goto]").forEach(function (b) {
       b.onclick = function () {
         var p = b.getAttribute("data-goto").split(":");
@@ -1393,10 +1395,10 @@
       + (it.reports.length ? chip(it.reports.length + " reported", "mute") : "")
       + "</div></header>";
     if (it.qs.length) {
-      html += '<div class="erb-pcs">Needs an answer</div><div>' + it.qs.map(function (q) {
-        return '<div class="erb-li"><span class="erb-code q">' + esc(q.Code) + "</span><div>"
-          + "<div>" + inline(q.Question) + '</div><div class="x">' + taskChip(q["Brief Key"], q["Task Code"])
-          + " " + askedChip(q) + "</div></div></div>";
+      // full question rows, so an answer can be written right here (Answer / Message / Drop),
+      // without opening each ERP page's brief in turn
+      html += '<div class="erb-pcs">Needs an answer</div><div class="erb-list">' + it.qs.map(function (q) {
+        return qRow(S, q, { brief: true });
       }).join("") + "</div>";
     }
     if (c.rt.length) {
