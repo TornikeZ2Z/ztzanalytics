@@ -660,6 +660,12 @@
   }
   function index(S) {
     var ov = S.ov;
+    // a topic whose every task was dropped (the 23 Sep cleanup to the dispatch-flow document)
+    // leaves the page instead of sitting in the rail as "nothing to do"
+    ov.briefs = (ov.briefs || []).filter(function (b) {
+      var c = b.counts || {};
+      return Object.keys(c).some(function (k) { return k !== "Dropped" && c[k] > 0; });
+    });
     ov.gh = ov.gh || { configured: false, links: [], recent: [] };
     S.P = {};
     (ov.people || []).forEach(function (p) { S.P[p.Key] = p; });
@@ -840,14 +846,13 @@
   function paintShell(S) {
     S.host.innerHTML = '<div class="erb">'
       + '<div class="rs-page-head"><h1>ERP Bug Briefs</h1>'
-      + '<p>What the ERP test team reported in <a href="' + CHANNEL_URL + '" target="_blank" '
-      + 'rel="noopener">#z2z-soft-test-team</a>, grouped into tasks per ERP page — each linked to '
-      + "the Slack reports it came from and the GitHub work that answers it. It fills itself: "
-      + "<b>/erp-refresh</b> in Claude Code reads the new reports, groups and refines them, and "
-      + "folds in answers given here or in Slack.</p></div>"
+      + "<p>The dispatch flow of the ERP, topic by topic in the order a job lives it — from Add Job "
+      + "to Money Flow. Every task comes from the 22 Sep walkthrough with Bacho and links to its "
+      + "place in the recording's transcript. Answer the open questions here; "
+      + "<b>/erp-refresh</b> in Claude Code folds the answers into the specs.</p></div>"
       + '<div class="rs-kpis" id="erbKpis"></div>'
       + '<div class="erb-bar"><div class="rs-seg" id="erbView" role="tablist">'
-      + '<button data-v="page" role="tab">By ERP page</button>'
+      + '<button data-v="page" role="tab">By topic</button>'
       + '<button data-v="person" role="tab">By person</button>'
       + '<button data-v="doc" role="tab">Change document</button></div>'
       + '<div class="r" id="erbGh"></div></div>'
@@ -959,7 +964,10 @@
         if (BUILT.concat(["Verified"]).indexOf(k) >= 0) done += c[k];
       });
       var open = TODO.reduce(function (n, st) { return n + (c[st] || 0); }, 0);
-      var inCode = uniq((S.ov.gh.links || []).filter(function (l) { return l["Brief Key"] === b.Key; })
+      var inCode = uniq((S.ov.gh.links || []).filter(function (l) {
+        var lt = S.TASK[l["Brief Key"] + ":" + l["Task Code"]];
+        return l["Brief Key"] === b.Key && !(lt && lt.Status === "Dropped");
+      })
         .map(function (l) { return l["Task Code"]; })).length;
       return '<button class="erb-ri' + (b.Key === S.key ? " on" : "") + '" data-key="'
         + esc(b.Key) + '"' + (b.Key === S.key ? ' aria-current="page"' : "") + ">"
