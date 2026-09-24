@@ -20,10 +20,13 @@
  * COMMISSION IS AS RECORDED ON THE CLOSING SHEET, BY MOVE DATE -- never rate x revenue (only 62%
  * of 2026 slots equal that). REFUNDS are the mart's `Kind`='Refund' rows: the refunds sheet's
  * 'Sales Commission Reduced Amount', dated by the refund date, matched to the job by request
- * number (never by the name on the refunds sheet) and split over the job's paid slots in
- * proportion to pay, so every role carries its share. Their `Pay` is negative: Net = commission +
- * refunds. A refund whose request has no paid slot is deducted from nobody; the Sales Person tab
- * lists those so they are not lost. 2026 to 23 Sep: $3,625 taken back on 113 refunds.
+ * number and taken off the salesperson the refunds sheet names (his ruling 24 Sep: "it maps to
+ * them and deduces their numbers"); a bare first name ('Alanna') is that person's full name. When
+ * nobody paid on the job answers to the name ('George Chase' on George Davis's 2026 jobs), the
+ * job's paid salespeople share it by pay. The branch owner and estimators never carry one. Their
+ * `Pay` is negative: Net = commission + refunds. A refund whose request has no paid slot is
+ * deducted from nobody; the Sales Person tab lists those so they are not lost. 2026 to 23 Sep:
+ * $3,625 taken back on 113 refunds.
  *
  * THE TIE-OUT LINE sits on every tab: Estimator + Sales Person + Branch Owner + Other = the closing
  * sheet's SP 1-3 salary for the company and period. The right-hand side is summed from the mart's
@@ -288,7 +291,8 @@ registerPage({
         ${lookPanel(rs, t.role)}
         <p class="rs-hint sal-foot">Commission as recorded on the closing sheet, by move date. Refunds are the
           refunds sheet's "Sales Commission Reduced Amount", by refund date, matched to the job by request
-          number and split over its paid slots in proportion to pay. Base pay and payment dates are not
+          number and taken off the salesperson the refunds sheet names; when nobody paid on that job
+          answers to the name, off the job's paid salespeople by pay. Base pay and payment dates are not
           recorded in the warehouse, so this is pay earned, not pay paid.</p>
       </div>`;
 
@@ -392,8 +396,8 @@ registerPage({
       const loneAmt = lone.reduce((a, r) => a + num(r["Refund Reduction"]), 0);
       const role = tab().role;
       const part = (label, v, r) => `<span class="${r === role ? "on" : ""}">${label} <b class="sal-neg">${mS(v)}</b></span>`;
-      return `<div class="sal-tie">Refunds dated in this range, taken off the paid slots of each refunded job in
-        proportion to pay: ${part("Estimator", est, "Estimator")} + ${part("Sales Person", sp, "Sales Person")}
+      return `<div class="sal-tie">Refunds dated in this range, taken off the salesperson the refunds sheet
+        names on each refunded job: ${part("Estimator", est, "Estimator")} + ${part("Sales Person", sp, "Sales Person")}
         + ${part("Branch Owner", bo, "Branch Owner")} + ${part("Other slot pay", oth, "")}
         = <b class="sal-neg">${mS(est + sp + bo + oth)}</b>.${lone.length
           ? ` <span class="rs-pill warn" title="${esc(FLAG_WHY["No paid slot to deduct from"])}">${fmtN(lone.length)} more (${m0(loneAmt)})
@@ -406,8 +410,8 @@ registerPage({
         slots, the larger is his cut and the other is estimator pay (his ruling, 23 Sep)${est
           ? ` — ${m0(est)} in this range, on the Estimator tab` : ""}. His cut equals His Cut on the
         <a class="sal-link" href="#page=branch-owner">Branch Owner</a> page for the same dates and company;
-        that page has the profit view. Refunds on his jobs come off in proportion to his share of the
-        job's salesperson pay, as for everyone else.</p>`;
+        that page has the profit view. Refunds come off the salesperson the refunds sheet names,
+        never off his cut.</p>`;
     }
 
     function personTable(people, keys, role) {
