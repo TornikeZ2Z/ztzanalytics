@@ -43,13 +43,16 @@
       table: "mart_census_state",
       cols: ["State", "State Name", "ZIPs", "With Census Area", "With ACS Row", "With Residents", "With Income",
              "With Mover Rate", "No ZCTA", "ZCTA No ACS", "Unchecked", "No ACS Pop 2020",
+             // our county-residual estimates for areas the Census withheld (2026-09-24)
+             "Filled", "Filled Pop", "Filled Movers",
              "No Residents", "Income Withheld", "High Turnover",
              "County Unknown", "Mover High", "Mover Medium", "Mover Low",
              "Our Population", "Our Movers", "Census Population", "Census Aged 1 Plus",
              "Census Movers", "Census Movers MOE", "Census Mover Rate", "Census Mover Rate MOE",
              "Census Median Income", "Census Median Income MOE", "Census Owner Share",
              "Population Gap Pct", "Explained Gap Pct", "Movers Gap Pct", "Under One Pct", "Movers Residual Pct",
-             "Leads 12m", "Vintage", "Census Loaded", "State Vintage", "State Loaded"],
+             // leads Moveboard gave our office as an address, in no ZIP's count (2026-09-24)
+             "Leads 12m", "No Address Leads 12m", "Vintage", "Census Loaded", "State Vintage", "State Loaded"],
     };
   }
 })();
@@ -120,6 +123,9 @@
     turnover:     { l: "High-turnover area — campus, base, prison or downtown rentals", pill: "info" },
     withheld:     { l: "Census withheld: too few households", pill: "warn" },
     zcta_no_acs:  { l: "Census area exists — the ACS publishes no row for it", pill: "bad" },
+    // 2026-09-24: an area the Census withheld, estimated by the loader from its county's 2024
+    // total minus the published tracts (11717 Brentwood, 11798 Wyandanch). Ours, not the Census's.
+    filled:       { l: "Estimated — the Census withheld this area", pill: "warn" },
     unchecked:    { l: "No ACS row — not yet checked against the Census area list", pill: "warn" },
     no_residents: { l: "Census area with no residents", pill: "mute" },
     no_zcta:      { l: "PO box / business ZIP — no residents", pill: "mute" },
@@ -192,6 +198,8 @@ registerPage({
           "With Mover Rate": c(z => z.mr != null && z.pop > 0), "No ZCTA": c(z => z.status === "no_zcta"),
           "ZCTA No ACS": noAcs.length, "Unchecked": c(z => z.status === "unchecked"),
           "No ACS Pop 2020": noAcs.reduce((a, z) => a + (z.pop20 || 0), 0),
+          "Filled": c(z => z.status === "filled"),
+          "Filled Pop": L.filter(z => z.status === "filled").reduce((a, z) => a + (z.pop || 0), 0),
           "No Residents": c(z => z.status === "no_residents"), "Income Withheld": c(z => z.pop > 0 && z.inc == null),
           "High Turnover": c(z => z.status === "turnover"), "County Unknown": c(z => !z.county),
           "Mover High": c(z => z.mrRel === "High"), "Mover Medium": c(z => z.mrRel === "Medium"),
@@ -208,8 +216,19 @@ registerPage({
       const moeOk = Z.some(z => z.hasAcs && z.moeMethod);
       // the ZIP areas the ACS publishes no row for (2026-09-23: 11717 Brentwood + 11798 Wyandanch)
       const skipped = Z.filter(z => z.status === "zcta_no_acs");
+      // ...and those the loader has FILLED from the county's 2024 residual (2026-09-24)
+      const filled = Z.filter(z => z.status === "filled");
       const nUnchecked = Z.filter(z => z.status === "unchecked").length;
       const skippedList = L => L.map(z => esc(z.zip) + " " + esc(z.city || "")).join(", ");
+      const filledPop = filled.reduce((a, z) => a + (z.pop || 0), 0);
+      const filledCounties = [...new Set(filled.map(z => z.county ? z.county + " County" : "its county"))].join(" and ");
+      // the release that withheld them and the year of the county totals come from the rows' own
+      // Vintage, never typed here (2026-09-24 review): the loader's fill follows its ACS_YEAR, and an
+      // earlier release's withholding is not stored, so it is not claimed
+      const fillVint = (filled.find(z => z.vintage) || {}).vintage || vintage;
+      const fillYear = (String(fillVint).match(/\b(?:19|20)\d{2}\b/) || [""])[0];
+      // leads Moveboard gave our office as an address: in no ZIP's count here (2026-09-24)
+      const noAddr = ST.reduce((a, s) => a + (num(s["No Address Leads 12m"]) || 0), 0);
 
       /* ---------------- tiles ---------------- */
       const tot = k => ST.reduce((a, s) => a + (num(s[k]) || 0), 0);
@@ -226,8 +245,10 @@ registerPage({
         + kpi(fmtN(nZip), "ZIPs in our ten states",
               fmtN(nRow) + " have a Census area · " + fmtN(nPo) + " are PO box / business ZIPs"
               + (skipped.length ? " · " + fmtN(skipped.length) + " skipped by the ACS" : "")
+              + (filled.length ? " · " + fmtN(filled.length) + " withheld by the Census, estimated" : "")
               + (nUnchecked ? " · " + fmtN(nUnchecked) + " not yet checked" : ""))
-        + kpi(fmtN(pop), "People counted", "summed over the ZIPs · " + esc(vintage))
+        + kpi(fmtN(pop), "People counted", "summed over the ZIPs · " + esc(vintage)
+              + (filled.length ? " · includes " + fmtN(filledPop) + " we estimated" : ""))
         + kpi(fmtN(mov), "Movers a year",
               "<b>people</b> who moved house in a year — population × mover rate")
         + kpi(popGapMax == null ? "—" : "±" + popGapMax.toFixed(2) + "%", "Ties to the Census",
@@ -288,6 +309,15 @@ registerPage({
             + "labelled “Census area exists — the ACS publishes no row for it” and are missing from every sum "
             + "here, and from Seasonal Planning's demand.</span></li>"
           : "")
+        // 2026-09-24: the areas the Census withheld are now filled with OUR estimate -- say so plainly
+        + (filled.length
+          ? "<li><b>Not a Census figure everywhere.</b> <span>The Census withheld " + skippedList(filled)
+            + " in its " + esc(fillVint) + " release. We estimate them from "
+            + esc(filledCounties) + "'s " + (fillYear ? fillYear + " " : "") + "total minus every tract the Census did publish: "
+            + fmtN(filledPop) + " people, shared out by the 2020 census count. They are labelled "
+            + "“Estimated — the Census withheld this area”, carry no margin of error, count in Seasonal "
+            + "Planning's demand, and are kept out of the state tie-out below.</span></li>"
+          : "")
         // 2026-09-23 review: the bands are on the coefficient of variation (standard error over
         // the value); the ± printed here is the 90% margin, 1.645x wider -- say it in those terms
         + "<li><b>Not complete for small places.</b> <span>Where too few households answered, the Census "
@@ -308,7 +338,11 @@ registerPage({
         // 2026-09-23 review: the old line blamed ZIP areas straddling a state line; measured, the
         // neighbours tie exactly and NY's gap is the two areas the ACS publishes no row for
         + "whole state from the same survey. <b>Population</b> should match almost exactly; a real ZIP area the "
-        + "survey publishes no row for opens a gap, and is named under the table. <b>Movers</b> run about 1% over on purpose: "
+        + "survey publishes no row for opens a gap, and is named under the table"
+        // 2026-09-24: the filled areas are ours, so "our" figures here are the published rows only
+        + (filled.length ? " (our estimates for the areas the Census withheld are left out of <b>Our population</b> "
+          + "and <b>Our movers</b> here, so they cannot close that gap)" : "")
+        + ". <b>Movers</b> run about 1% over on purpose: "
         + "our per-ZIP figure is population × mover rate, and the rate's base leaves out babies under one. "
         + "<b>Expected</b> is that gap worked out from the Census's own numbers; <b>Left over</b> is what remains "
         + "after it, and is the real test.</p>";
@@ -329,12 +363,16 @@ registerPage({
           return w < 0.1 ? '<span class="rs-pill ok"' + tip + ">Ties out</span>"
             : w < 0.5 ? '<span class="rs-pill warn"' + tip + ">Close</span>" : '<span class="rs-pill bad"' + tip + ">Check</span>";
         };
-        // the measured cause of each population gap: the areas the ACS publishes no row for
-        const causes = ST.filter(s => (num(s["ZCTA No ACS"]) || 0) > 0).map(s => {
-          const L = skipped.filter(z => z.st === s.State);
-          return "<b>" + esc(s.State) + "</b>: the ACS publishes no row for " + skippedList(L) + " — "
-            + fmtN(s["No ACS Pop 2020"]) + " people at the 2020 census. Added back, the gap is "
-            + fmtGap(s["Explained Gap Pct"]) + ".";
+        // the measured cause of each population gap: the areas the ACS publishes no row for --
+        // unfilled (their 2020 count) or filled with our estimate (2026-09-24), which the tie-out
+        // leaves out so our own arithmetic never "closes" the gap it is there to test
+        const causes = ST.filter(s => (num(s["ZCTA No ACS"]) || 0) > 0 || (num(s.Filled) || 0) > 0).map(s => {
+          const L = skipped.filter(z => z.st === s.State), F = filled.filter(z => z.st === s.State);
+          return "<b>" + esc(s.State) + "</b>: the ACS publishes no row for " + skippedList(L.concat(F)) + " — "
+            + (L.length ? fmtN(s["No ACS Pop 2020"]) + " people at the 2020 census" : "")
+            + (L.length && F.length ? "; " : "")
+            + (F.length ? fmtN(s["Filled Pop"]) + " people by our estimate from the county's 2024 total" : "")
+            + ". Added back, the gap is " + fmtGap(s["Explained Gap Pct"]) + ".";
         });
         h += '<div class="rs-tablewrap"><table class="rs-table"><thead><tr>'
           + "<th>State</th>"
@@ -378,6 +416,7 @@ registerPage({
         + '<th>State</th><th class="num">ZIPs</th><th class="num">With a Census area</th>'
         + '<th class="num">With residents</th><th class="num">With income</th><th class="num">With mover rate</th>'
         + '<th class="num">PO box / business</th><th class="num">Skipped by the ACS</th>'
+        + (filled.length ? '<th class="num">Estimated by us</th>' : "")
         + (nUnchecked ? '<th class="num">Not yet checked</th>' : "")
         + '<th class="num">No residents</th><th class="num">Income withheld</th>'
         + '<th class="num">High turnover</th><th class="num">County unknown</th>'
@@ -398,6 +437,9 @@ registerPage({
             + '<td class="num' + ((num(s["ZCTA No ACS"]) || 0) > 0 ? " strong" : " muted") + '"'
             + ((num(s["ZCTA No ACS"]) || 0) > 0 ? ' title="' + fmtN(s["No ACS Pop 2020"]) + ' people at the 2020 census"' : "")
             + ">" + fmtN(s["ZCTA No ACS"]) + "</td>"
+            + (filled.length ? '<td class="num' + ((num(s.Filled) || 0) > 0 ? " strong" : " muted") + '"'
+                + ((num(s.Filled) || 0) > 0 ? ' title="' + fmtN(s["Filled Pop"]) + ' people, our estimate"' : "")
+                + ">" + fmtN(s.Filled) + "</td>" : "")
             + (nUnchecked ? '<td class="num muted">' + fmtN(s["Unchecked"]) + "</td>" : "")
             + '<td class="num muted">' + fmtN(s["No Residents"]) + "</td>"
             + '<td class="num muted">' + fmtN(s["Income Withheld"]) + "</td>"
@@ -419,7 +461,15 @@ registerPage({
         + "list) the survey publishes no row for; <b>PO box / business</b> ZIPs are on no Census list at all. <b>County unknown</b> means our "
         + "ZIP reference carries no county for it, so those ZIPs drop out of any county roll-up (Seasonal Planning's "
         + "county map included) while still counting in the state. <b>Our leads</b> are by pickup ZIP over the last "
-        + "twelve months, all brands — context, not part of the Census data.</p></div>";
+        + "twelve months, all brands — context, not part of the Census data.</p>"
+        // THE NO-ADDRESS NOTE (2026-09-24): Moveboard fills in our own office when a lead has no
+        // address; fct_moveboard now leaves those out of every ZIP and county, so say how many
+        + (noAddr > 0
+          ? '<p class="rs-hint" style="margin:6px 0 0">' + fmtN(noAddr) + " lead" + (noAddr === 1 ? "" : "s")
+            + " in the last 12 months had no address — Moveboard fills in our office — and "
+            + (noAddr === 1 ? "is" : "are") + " left out of area figures.</p>"
+          : "")
+        + "</div>";
 
       /* ---------------- ZIP explorer ---------------- */
       h += '<div class="panel"><div class="panel-head"><span class="panel-title">Every ZIP</span>'
@@ -489,6 +539,9 @@ registerPage({
         if (z.inc == null) return z.pop ? '<td class="dim">withheld</td>' : '<td class="dim">—</td>';
         if (z.coded === "top") return '<td class="num csd-cell">$250,000+<span class="rs-why">top band — the Census publishes no higher</span></td>';
         if (z.coded === "bottom") return '<td class="num csd-cell">$2,500 or less<span class="rs-why">bottom band</span></td>';
+        // our estimate (2026-09-24): no margin, so no reliability chip -- say where it came from
+        if (z.status === "filled") return '<td class="num csd-cell">' + fmt$(z.inc)
+          + '<span class="rs-why">interpolated from the county residual\'s income brackets</span></td>';
         return '<td class="num csd-cell">' + fmt$(z.inc) + (z.incM != null ? moe(fmt$(z.incM).slice(1)) : "") + chip(z.incRel, z.incCv) + "</td>";
       }
       function mrCell(z) {
@@ -509,13 +562,19 @@ registerPage({
               ? (z.status === "zcta_no_acs" && z.pop20 != null
                 ? '<td class="num csd-cell dim">' + fmtN(z.pop20) + '<span class="rs-why">2020 census count — the ACS has no row</span></td>'
                 : '<td class="dim">—</td>')
-              : '<td class="num csd-cell">' + fmtN(z.pop) + (z.popM != null ? moe(fmtN(z.popM)) : "") + "</td>")
+              : '<td class="num csd-cell">' + fmtN(z.pop) + (z.popM != null ? moe(fmtN(z.popM)) : "")
+                // 2026-09-24: our county-residual estimate, no margin -- the cell says so
+                + (z.status === "filled" ? '<span class="rs-why">our estimate — 2020 count × county growth</span>' : "")
+                + "</td>")
           + incCell(z) + mrCell(z)
           + (z.movers == null || !z.pop ? '<td class="dim">—</td>' : '<td class="num">' + fmtN(z.movers) + "</td>")
           + (z.own == null || !z.pop ? '<td class="dim">—</td>'
               : '<td class="num csd-cell">' + fmtP(z.own, 0) + (z.ownM != null ? moe((z.ownM * 100).toFixed(1) + " pts") : "") + "</td>")
           + '<td class="num' + (z.leads ? "" : " muted") + '">' + fmtN(z.leads) + "</td>"
-          + "<td>" + (z.has
+          // a withheld area has no Census page to check against (2026-09-24)
+          + "<td>" + (z.status === "filled"
+              ? '<span class="csd-src" style="color:var(--faint)">withheld by the Census</span>'
+            : z.has
               ? '<a class="csd-src" target="_blank" rel="noopener noreferrer" href="https://data.census.gov/table/ACSDT5Y2024.B19013?g=860XX00US'
                 + encodeURIComponent(z.zip) + '">Check at Census ↗</a>'
               : '<span class="csd-src" style="color:var(--faint)">no area</span>') + "</td>"
@@ -574,7 +633,8 @@ registerPage({
         const cols = [["ZIP", z => z.zip], ["City", z => z.city], ["County", z => z.county], ["State", z => z.st],
           ["Census status", z => z.statusLabel], ["Has Census area (ZCTA)", z => z.has ? "Yes" : "No"],
           ["Has ACS row", z => z.hasAcs ? "Yes" : "No"],
-          ["2020 census population (areas the ACS skips)", z => z.status === "zcta_no_acs" ? z.pop20 : ""],
+          ["2020 census population (areas the ACS skips)", z => z.status === "zcta_no_acs" || z.status === "filled" ? z.pop20 : ""],
+          ["Estimated by us (Census withheld the area)", z => z.status === "filled" ? "Yes" : ""],
           ["Population", z => z.pop], ["Population MOE (90%)", z => z.popM],
           ["Median household income", z => z.coded === "top" ? "250,000+" : z.coded === "bottom" ? "2,500 or less" : z.inc],
           ["Median income MOE (90%)", z => z.incM], ["Income reliability", z => z.incRel],

@@ -179,6 +179,8 @@ const GROUP_OVERRIDE = {
   "relocation-trends": "marketing",
   // Census Data (2026-09-23): the ACS 2024 figures behind Seasonal Planning, view only
   "census-data": "marketing",
+  // Organic Search (2026-09-24): Search Console folded by query, place and landing page, view only
+  "organic-search": "marketing",
   // Marketing Automations (2026-09-23)
   "angi-funnel": "marketing-automations",
   "promised-reviews": "marketing-automations",
@@ -231,7 +233,7 @@ const NAV_ORDER = {
   "data-quality": 2, "refresh-log": 1, "general-settings": 3, "general-tables": 4, "admin-users": 5,
   "admin-activity": 5.5,
   "source-report": 7, "source-trace": 8, "meta-referrals": 10, "referral-candidates": 11, "jobs-by-area": 12,
-  "relocation-trends": 13, "census-data": 13.2, "angi-funnel": 13.5, "utm-campaigns": 13.7, "promised-reviews": 14, "birdeye-sends": 14.2,
+  "relocation-trends": 13, "census-data": 13.2, "organic-search": 13.3, "angi-funnel": 13.5, "utm-campaigns": 13.7, "promised-reviews": 14, "birdeye-sends": 14.2,
 };
 
 /* Inline SVG icon set (Feather-style, stroke-based) — no emojis anywhere. */
@@ -259,6 +261,7 @@ const ICONS = {
   archive:   '<path d="M21 8v13H3V8"/><path d="M1 3h22v5H1z"/><path d="M10 12h4"/>',
   doc:       '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/>',
   spark:     '<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>',
+  search:    '<circle cx="11" cy="11" r="7"/><path d="M21 21l-4.35-4.35"/>',
 };
 const icon = k => `<svg viewBox="0 0 24 24">${ICONS[k] || ICONS.doc}</svg>`;
 /* page id / planned title → icon key */
@@ -298,7 +301,7 @@ const PAGE_ICONS = {
   "log-foreman": "tool", "log-packing": "box",
   "fin-revenue": "trend", "fin-rr": "trend", "rev-production": "star",
   "sup-claims": "shield", "sup-refunds": "clipboard", "sup-phone": "phone",
-  "general-settings": "sliders", "general-tables": "grid", "admin-activity": "clock", "data-quality": "clipboard", "data-migration": "share-2", "refresh-log": "activity", "source-report": "compass", "source-trace": "activity", "meta-referrals": "upload-cloud", "referral-candidates": "gift", "jobs-by-area": "map-pin", "packing-sales": "package", "relocation-trends": "trending-up", "census-data": "clipboard", "angi-funnel": "funnel", "utm-campaigns": "link", "promised-reviews": "star", "birdeye-sends": "megaphone", "calendar-coverage": "calendar", "request-consistency": "alert-triangle", "review-performance": "star", "reviews-reminders": "megaphone", "response-analysis": "activity", "review-settings": "tool", "reviews-cases": "star", "claims-analysis": "alert-triangle", "area-plan": "map-pin",
+  "general-settings": "sliders", "general-tables": "grid", "admin-activity": "clock", "data-quality": "clipboard", "data-migration": "share-2", "refresh-log": "activity", "source-report": "compass", "source-trace": "activity", "meta-referrals": "upload-cloud", "referral-candidates": "gift", "jobs-by-area": "map-pin", "packing-sales": "package", "relocation-trends": "trending-up", "census-data": "clipboard", "organic-search": "search", "angi-funnel": "funnel", "utm-campaigns": "link", "promised-reviews": "star", "birdeye-sends": "megaphone", "calendar-coverage": "calendar", "request-consistency": "alert-triangle", "review-performance": "star", "reviews-reminders": "megaphone", "response-analysis": "activity", "review-settings": "tool", "reviews-cases": "star", "claims-analysis": "alert-triangle", "area-plan": "map-pin",
 };
 
 /* Pages not yet built — shown greyed with a SOON tag so the full scope is visible. */
@@ -740,6 +743,7 @@ const PAGE_DATASETS = {
   "packing-sales": [],         // loads its two packing marts itself; period/company/size live on the page
   "relocation-trends": [],     // loads mart_relocation itself; year/window/company live on the page
   "census-data": [],           // loads mart_census_zip + mart_census_state itself; its filters live on the page
+  "organic-search": [],        // loads its three mart_gsc_* marts itself; window / compare live on the page
   "angi-funnel": [],           // loads mart_angi_lead itself; month/status/speed/ZIP live on the page
   // [] on purpose: the global DATE filter would be wrong here. The CMS export carries no
   // submission timestamp at all, so this table has no date of its own to slice on.
@@ -989,6 +993,8 @@ function navigate(id, push) {
 const BARE_CHROME = new Set(["sales-of-the-month", "review-performance", "reviews-cases", "claims-analysis", "demand-analysis", "reviews-reminders", "response-analysis", "review-settings", "monthly-report", "seasonal-report", "money-flow", "ld-planning", "cleanup", "packing-control", "crew-salaries", "storage-control", "foreman-assessment", "fuel-control", "foreman-closings", "refresh-log", "general-tables", "hr-questionnaire", "hr-directory", "conversations", "sales-comms", "referral-candidates", "jobs-by-area", "packing-sales", "meta-referrals", "relocation-trends", "angi-funnel", "utm-campaigns", "promised-reviews", "birdeye-sends",
   // Census Data (2026-09-23): a reference table with its own search and state/county filters
   "census-data",
+  // Organic Search (2026-09-24) brings its own window + last-year compare bar
+  "organic-search",
   // Source Analysis (2026-09-23) brings its own source / period / company / state bar
   "source-report",
   // Things to do has nothing a global slicer could act on
@@ -1196,6 +1202,7 @@ const SEARCH_ALIASES = {
   "referral-candidates": "referral candidates five star reviews customers email phone contact list marketing call sheet",
   "jobs-by-area": "jobs by area state county summer season june july august month volume geography where we work marketing",
   "census-data": "census data acs american community survey population median income mover rate movers owner share zip zcta margin of error reliability state tie out coverage marketing demographics",
+  "organic-search": "organic search google search console seo queries keywords brand clicks impressions position ranking business profile gbp gmb listing city pages landing pages near me movers searches share of search keyword planner marketing",
   "packing-sales": "packing materials sold boxes tape shrink wrap crates units per job per 100 cf attach rate revenue building size logistics buying shapes",
   "angi-funnel": "angi lead funnel partner leads contact rate speed to lead reason lost closed won export csv marketplace vendor zip",
   "utm-campaigns": "utm campaign source medium website form cms export tagged link google ads pmax gbp google business profile chatgpt paid click gclid landing page attribution marketing",
@@ -1595,6 +1602,7 @@ const REPORT_LABELS = {
   "jobs-by-area": "Jobs by Area",
   "relocation-trends": "Relocation Trends",
   "census-data": "Census Data",
+  "organic-search": "Organic Search",
   "referral-candidates": "List of Possible Referrals",
   "promised-reviews": "Promised Reviews",
   "birdeye-sends": "Birdeye Send-outs",
@@ -1693,7 +1701,7 @@ const ACL_DEPTS = [
   // check_acl_mirror.py fails when a list differs from the group OR from DEPT_REPORTS.
   { id: "company",   label: "Company Overview", icon: "spark",     reports: ["monthly-report", "seasonal-report", "analysis-by-category"] },
   { id: "sales",     label: "Sales",            icon: "funnel",    reports: ["sales-command", "sales-of-the-month", "demand-analysis", "conversations", "sales-comms", "sales-trackers"] },
-  { id: "marketing", label: "Marketing",        icon: "megaphone", reports: ["source-report", "source-trace", "jobs-by-area", "relocation-trends", "census-data"] },
+  { id: "marketing", label: "Marketing",        icon: "megaphone", reports: ["source-report", "source-trace", "jobs-by-area", "relocation-trends", "census-data", "organic-search"] },
   // granted on its own, and ALSO by holding Marketing (DEPT_IMPLIES)
   { id: "marketing-automations", label: "Marketing Automations", icon: "clock", reports: ["referral-candidates", "promised-reviews", "birdeye-sends", "angi-funnel"] },
   { id: "logistics", label: "Logistics",        icon: "tool",      reports: ["postcard-expenditure", "money-flow", "ld-planning", "foreman-closings", "packing-control", "packing-sales", "crew-salaries", "storage-control", "foreman-assessment", "fuel-control", "foreman-late"] },
@@ -1953,18 +1961,19 @@ registerPage({
 <script src="pages/source-analysis.js?v=5"></script>
 <script src="pages/data-quality.js?v=15"></script>
 <script src="pages/refresh-log.js?v=28"></script>
-<script src="pages/sales-team.js?v=49"></script>
+<script src="pages/sales-team.js?v=50"></script>
 <script src="pages/sales-comms.js?v=3"></script>
 <script src="pages/sales-trackers.js?v=5"></script>
 <script src="pages/things-to-do.js?v=2"></script>
 <script src="pages/conversations.js?v=10"></script>
 <script src="pages/source-trace.js?v=28"></script>
-<script src="pages/source-report.js?v=2"></script>
+<script src="pages/source-report.js?v=3"></script>
 <script src="pages/meta-referrals.js?v=2"></script>
 <script src="pages/jobs-by-area.js?v=4"></script>
 <script src="pages/packing-sales.js?v=5"></script>
 <script src="pages/relocation-trends.js?v=5"></script>
-<script src="pages/census-data.js?v=3"></script>
+<script src="pages/census-data.js?v=4"></script>
+<script src="pages/organic-search.js?v=1"></script>
 <script src="pages/utm-campaigns.js?v=2"></script>
 <script src="pages/angi-funnel.js?v=8"></script>
 <script src="pages/promised-reviews.js?v=13"></script>
@@ -1988,7 +1997,7 @@ registerPage({
 <script src="pages/fuel-control.js?v=11"></script>
 <script src="pages/demand-analysis.js?v=10"></script>
 <script src="pages/straight-vs-local.js?v=6"></script>
-<script src="pages/area-plan.js?v=57"></script>
+<script src="pages/area-plan.js?v=58"></script>
 <script src="pages/postcard-purchases.js?v=1"></script>
 <script src="pages/postcard-expenditure.js?v=11"></script>
 <script src="pages/truck-economics.js?v=5"></script>

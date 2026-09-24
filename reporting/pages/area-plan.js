@@ -51,7 +51,9 @@
              "Top Claim Reason", "Ad Spend", "Ad Sources", "Search Volume", "Wealth Tier",
              "Latitude", "Longitude", "Foremen From", "Leads No Jobs", "Lead Source Mix", "Est Ad Cost",
              "Est Revenue Per Ad Dollar", "Home Value", "Home Value Change Pct", "Home Value As Of",
-             "Median Income", "Mover Rate"],
+             "Median Income", "Mover Rate",
+             // 2026-09-24: organic search per city (mart_gsc_area) -- floors, shown in the Marketing view
+             "Organic Clicks", "Organic Position", "Organic Clicks Per 1000 Searches"],
     };
   }
   // the white space: every zip inside the territory, with the outside signals (2026-09-15)
@@ -83,7 +85,10 @@
              "Uncovered", "Population", "Movers Per Year", "Median Income", "Owner Share Pct",
              "Leads Per 10k Movers", "Survey Vintage",
              // the trailing-year lead count capture is read on (2026-09-23)
-             "Leads 12m"],
+             "Leads 12m",
+             // the state's leads with no address, in no county (2026-09-24): a STATE figure on
+             // every county row -- read once per state (NOADDR_ST), never summed
+             "State No Address Leads 12m"],
     };
     RS.DATASETS.area_whitespace = {
       table: "mart_area_whitespace",
@@ -106,6 +111,57 @@
     .ap2-xps b{display:block;font-size:13px;color:var(--ink)}
     .ap2-xps span{display:block;font-size:11.5px;color:var(--warn);font-weight:700;margin:1px 0 3px}
     .ap2-xps small{display:block;font-size:11px;color:var(--faint);line-height:1.4}
+    .ap2-xps small strong{color:var(--ink);font-weight:700}
+    /* THE MARYLAND BLOCK (2026-09-24): the clock + the Montgomery test. Series colours are tokens on
+       the block's own root -- light/paper is the base, dark states itself (the page's convention) --
+       so the SVG never carries a literal colour. Each hue was checked against --panel in both themes. */
+    .ap2-gt{--gt-t:#1d4ed8;--gt-c:#6b7280;--gt-pos:#047857;--gt-md:#1d4ed8;--gt-ref:#b45309;--gt-lvl:#7c3aed;
+      --gt-grid:color-mix(in srgb,var(--ink) 10%,transparent);--gt-axis:var(--muted);--gt-mark:var(--faint);
+      --gt-band:color-mix(in srgb,#7c3aed 9%,transparent)}
+    body.rs-app:not(.light) .ap2-gt{--gt-t:#60a5fa;--gt-c:#a3a3a3;--gt-pos:#34d399;--gt-md:#60a5fa;--gt-ref:#fbbf24;--gt-lvl:#c4b5fd;
+      --gt-band:color-mix(in srgb,#c4b5fd 12%,transparent)}
+    .ap2-gt-h{font-size:12px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);margin:6px 0 6px}
+    .ap2-gt-chart{overflow-x:auto;-webkit-overflow-scrolling:touch;margin:0 0 4px}
+    .ap2-gt-svg{display:block;width:100%;max-width:860px;min-width:520px;height:auto}
+    .ap2-gt-svg text{font-size:11px;font-family:inherit}
+    .ap2-gt-grid{stroke:var(--gt-grid);stroke-width:1}
+    .ap2-gt-ax{fill:var(--gt-axis)}
+    .ap2-gt-mark{stroke:var(--gt-mark);stroke-width:1;stroke-dasharray:3 3}
+    .ap2-gt-mtx{fill:var(--gt-axis);font-weight:700}
+    .ap2-gt-band{fill:var(--gt-band)}
+    .ap2-gt-ref{stroke-width:1.5;stroke-dasharray:6 4;fill:none}
+    .ap2-gt-rtx{font-weight:800}
+    .ap2-gt-ln{fill:none;stroke-width:2.2;stroke-linejoin:round;stroke-linecap:round}
+    .ap2-gt-pt{stroke:none}
+    .ap2-gt-ln.ap2-gt-t{stroke:var(--gt-t)} .ap2-gt-pt.ap2-gt-t{fill:var(--gt-t)}
+    .ap2-gt-ln.ap2-gt-c1{stroke:var(--gt-c)} .ap2-gt-pt.ap2-gt-c1{fill:var(--gt-c)}
+    .ap2-gt-ln.ap2-gt-pos{stroke:var(--gt-pos)} .ap2-gt-pt.ap2-gt-pos{fill:var(--gt-pos)}
+    .ap2-gt-ln.ap2-gt-md{stroke:var(--gt-md)} .ap2-gt-pt.ap2-gt-md{fill:var(--gt-md)}
+    .ap2-gt-ref.ap2-gt-tgt{stroke:var(--gt-ref)} .ap2-gt-rtx.ap2-gt-tgt{fill:var(--gt-ref)}
+    .ap2-gt-ref.ap2-gt-lvl{stroke:var(--gt-lvl)} .ap2-gt-rtx.ap2-gt-lvl{fill:var(--gt-lvl)}
+    .ap2-gt-leg{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:11.5px;color:var(--muted);margin:2px 0 8px}
+    .ap2-gt-leg span{display:inline-flex;align-items:center;gap:6px}
+    .ap2-gt-sw{display:inline-block;width:16px;height:3px;border-radius:2px}
+    .ap2-gt-sw.ap2-gt-t{background:var(--gt-t)} .ap2-gt-sw.ap2-gt-c1{background:var(--gt-c)}
+    .ap2-gt-sw.ap2-gt-pos{background:var(--gt-pos)} .ap2-gt-sw.ap2-gt-md{background:var(--gt-md)}
+    .ap2-gt-sw.ap2-gt-dash{height:0;border-top:2px dashed currentColor;background:none}
+    .ap2-gt-sw.ap2-gt-dash.ap2-gt-tgt{color:var(--gt-ref)} .ap2-gt-sw.ap2-gt-dash.ap2-gt-lvl{color:var(--gt-lvl)}
+    .ap2-gt-guard{font-size:12.5px;color:var(--muted);line-height:1.9;margin:0 0 4px}
+    /* a tripped guard's chip carries a whole sentence ("May 2027: $120 of Google Ads in a test zone;
+       2,500 MD/DC/VA cards mailed ...", ~700px): span.ap2-chip is nowrap, so at 375px it pushed the
+       whole content area sideways the day a guard tripped (2026-09-24 review). Here it wraps. */
+    .ap2-gt-guard span.ap2-chip{white-space:normal;max-width:100%;align-items:flex-start;margin:0 0 4px}
+    .ap2-gt-guard span.ap2-chip::before{margin-top:5px}
+    /* the What-if's small segmented controls: ceilings vs counted, and each typed state's path */
+    .ap2-capmode{margin:0 0 10px}
+    .rs-seg.ap2-seg-s{flex-wrap:wrap;max-width:100%}
+    .rs-seg.ap2-seg-s button{font-size:11.5px;padding:4px 9px}
+    .ap2-capcell{min-width:0;margin:0 0 9px}
+    .ap2-capcell>.ap2-fld{margin:0}
+    .ap2-capcell>.rs-seg.ap2-seg-s{margin-top:5px}
+    .ap2-gt-facts{margin:4px 0 0;padding-left:20px;font-size:12.5px;color:var(--muted);line-height:1.6}
+    .ap2-gt-facts b{color:var(--ink)}
+    .ap2-gt .ap2-next td small{display:block}
     .ap2-scn{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:10px 0}
     @media (max-width:1100px){.ap2-scn{grid-template-columns:1fr}}
     .ap2-scnbox{border:1px solid var(--line);border-radius:10px;padding:10px 12px;min-width:0}
@@ -874,6 +930,48 @@ details.ap2-ref>summary::before{color:var(--ap-live)}   /* was var(--brand) at :
   const AIM_FALLBACK = { NJ: 10, PA: 8, MD: 3, CT: 4, MA: 2, VA: 1 };
   const DAYS_PER_MONTH_DEFAULT = 30;
 
+  /* THE CAPTURE ARITHMETIC, PURE AND TESTED (2026-09-24 review). The units fix -- a capture point is
+     a YEAR of leads per 10,000 movers, and the plan beside it is a May-Aug SEASON -- lived inline in
+     scenarioCalc, xpFor and the expansion card, and the only test pinned the Python mirror
+     (area_plan.season_leads) that the page never reads: a regression back to year-leads passed all
+     45 tests. Every capture figure on the page now goes through these functions, and
+     tests/test_area_plan.py runs them under Node.
+       seasonLeads  points x movers / 10,000 = a year of leads; x the season's share = the season's
+       row          one state's lever: from `now` to `want`, at its own leads per job, with no ad
+                    cost when the capture arrives through a listing
+       lpj          a state's OWN last-season leads per job once it ran 10+ jobs (Maryland 192 / 23
+                    = 8.3, against the company's 5.61), else the plan's, else the company's
+       counts       whether a scenario's capture enters the Season total: not when its targets are
+                    CEILINGS (the expansion card, and the what-if opened from it) */
+  const AP_CAPTURE = (function () {
+    const SHARE_FALLBACK = 0.448;   // the critic's all-company Apr-Jul share, used only without the clock
+    const seasonLeads = (pts, movers, share) => {
+      const year = (+pts || 0) * (+movers || 0) / 10000;
+      return { year, season: year * (+share || 0) };
+    };
+    const share = clk => (clk && +clk.season_share > 0) ? +clk.season_share : SHARE_FALLBACK;
+    const lpj = (r, lpjAll) => {
+      if (r && r.lpjOwn && r.leadsPerJob) return { lpj: r.leadsPerJobBuilt || r.leadsPerJob, own: true };
+      if (r && r.jobsLast >= 10 && r.leadsLast > 0) return { lpj: r.leadsLast / r.jobsLast, own: true };
+      return { lpj: (r && r.leadsPerJob) || lpjAll || null, own: false };
+    };
+    const row = o => {
+      const r = { now: o.now, want: o.want, movers: o.movers, lpj: o.lpj, viaListing: !!o.viaListing,
+                  cpl: o.viaListing ? 0 : o.cpl };
+      if (o.want != null && o.now != null && o.lpj && o.movers && o.want > o.now) {
+        const L = seasonLeads(o.want - o.now, o.movers, o.share);
+        r.pts = o.want - o.now;
+        r.addLeadsYear = L.year;
+        r.addLeads = L.season;
+        r.addJobs = L.season / o.lpj;
+        r.addMkt = r.cpl != null ? L.season * r.cpl : 0;
+      }
+      return r;
+    };
+    const counts = (scn, opts) => (opts && opts.capture != null) ? !!opts.capture : !(scn && scn.ceiling);
+    return { SHARE_FALLBACK, seasonLeads, share, lpj, row, counts };
+  })();
+
 registerPage({
   id: "area-plan",
   group: "different",
@@ -978,8 +1076,75 @@ registerPage({
           (rest.length ? ", " + (rest.length > 1 ? rest.slice(0, -1).join(", ") + " and " + rest[rest.length - 1] : rest[0]) : "") +
           " (" + CAP_WIN + ")";
       };
-      /* the decided expansion's copy carries "{cap:PA}" placeholders, filled here from the same rows */
-      const fillCap = s => String(s || "").replace(/\{cap:([A-Z]{2})\}/g, (m, st) => capOfSt(st) != null ? r1(capOfSt(st)) : "—");
+      /* LEADS WITH NO ADDRESS (2026-09-24). When a lead is created without an address Moveboard fills
+         in our own office ('Tinton fall, NJ, 07753'), and fct_moveboard now leaves those leads out of
+         every county: 568 in the last 12 months, all New Jersey. So Monmouth's leads, booking rate,
+         capture and budget share drop them (Leads 12m 1,509 -> 910, capture 272.9 -> 164.6, share of
+         the NJ budget 20.4% -> 13.1%), and so does home capture (86.1 -> 79.4); the state plan still
+         counts them in New Jersey. The page says so where those figures are read. `State No Address
+         Leads 12m` is a STATE figure repeated on each of the state's county rows: read it once per
+         state, never sum it down the column. Before the county mart is rebuilt it is absent and the
+         note stays silent. */
+      const NOADDR_ST = (() => { const o = {};
+        COUNTY.forEach(c => { if (!(c.State in o) && c["State No Address Leads 12m"] != null) o[c.State] = num(c["State No Address Leads 12m"]); });
+        return o; })();
+      const noAddrSay = () => {
+        const sts = Object.keys(NOADDR_ST).filter(st => NOADDR_ST[st] > 0).sort((a, b) => NOADDR_ST[b] - NOADDR_ST[a]);
+        if (!sts.length) return "";
+        const n = sts.reduce((a, st) => a + NOADDR_ST[st], 0);
+        const where = sts.length > 1 ? " (" + sts.map(st => fmtN(NOADDR_ST[st]) + " in " + (ST_NAME[st] || st)).join(", ") + ")" : "";
+        const whose = sts.length > 1 ? "each state’s" : (ST_NAME[sts[0]] || sts[0]) + "’s";
+        return "<b>" + fmtN(n) + " leads</b>" + where + " in the last 12 months came with no address — Moveboard fills in our own office — " +
+          "so they are in no county: no county’s leads, capture or budget share count them, and " + whose +
+          " capture leaves them out. The state plan still counts them.";
+      };
+      /* the same fact in a clause, for the places that already carry the sentence above nearby */
+      const noAddrShort = () => {
+        const n = Object.values(NOADDR_ST).reduce((a, v) => a + (v > 0 ? v : 0), 0);
+        return n ? fmtN(n) + " leads with no address (Moveboard fills in our office) are in no county, so no capture here counts them" : "";
+      };
+      /* LONG ISLAND SOUND IS A BARRIER (2026-09-24): the rule of the county, city and white-space
+         marts and of area_plan.py (_across_sound). No bridge or tunnel crosses the Sound, so a
+         Connecticut base never reaches Nassau or Suffolk and a yard on either shore never reaches
+         the other. The model tags its jobs, white-space zips and bases with their shore ('CT' / 'LI' /
+         ''); a county row is tagged here. Without it the CT base's hover counted Suffolk's leads as
+         within 35 miles while Suffolk's own row on the map said 50.9 miles to Brooklyn. */
+      const sideOf = (st, county) => st === "CT" ? "CT"
+        : (st === "NY" && (county === "Nassau" || county === "Suffolk")) ? "LI" : "";
+      const acrossSound = (a, b) => (a === "CT" && b === "LI") || (a === "LI" && b === "CT");
+      /* THE CAPTURE CLOCK (2026-09-24), from model.capture_clock (area_plan.build_capture_clock).
+         `level` is Zip to Zip's latest three COMPLETE months, seasonally adjusted, per 10,000 movers
+         a year -- his 16 Sep "focus only on ZIP". The 12-month figure above (CAP_ST) stays the
+         page's dial and stays all-company, so the card says what the gap between them is: Tuji's
+         leads (about 1.5 in Maryland) and the months before the Elkridge listing still in the window.
+         No line is fitted and nothing is projected: a one-time jump read as a trend would have
+         printed "Maryland reaches 15 in Jul 2027", which nothing measured. */
+      const CLK = (model.capture_clock && model.capture_clock.states) ? model.capture_clock : null;
+      const clkOf = st => (CLK && CLK.states[st]) || null;
+      const runOf = st => { const c = clkOf(st); return c && c.level != null ? +c.level : null; };
+      /* THE UNITS FIX (2026-09-24). A capture point is a YEAR of leads per 10,000 movers; the plan
+         beside it is a May-Aug SEASON. The season's share is the Apr-Jul lead months' share of a
+         year (the 1-month lead->move lag), from the same seasonal index as the clock: 45.1% on
+         2023-2025, and falling about 3 points a year (47.7 / 45.4 / 42.1). Mirrors
+         area_plan.season_leads(); the arithmetic itself is AP_CAPTURE's (tested under Node).
+         0.448 (the critic's all-company figure) only if the clock is missing. */
+      const SEASON_SHARE = AP_CAPTURE.share(CLK);
+      const SHARE_BY_YEAR = (CLK && CLK.season_share_by_year) || {};
+      const shareSay = () => {
+        const ys = Object.keys(SHARE_BY_YEAR).sort();
+        return Math.round(SEASON_SHARE * 1000) / 10 + "% of a year’s leads arrive in the Apr–Jul months that feed a May–Aug season" +
+          (ys.length > 1 ? " (" + ys.map(y => y + " " + Math.round(SHARE_BY_YEAR[y] * 1000) / 10 + "%").join(", ") +
+            (SHARE_BY_YEAR[ys[ys.length - 1]] < SHARE_BY_YEAR[ys[0]] ? " — falling about " +
+              r1(100 * (SHARE_BY_YEAR[ys[0]] - SHARE_BY_YEAR[ys[ys.length - 1]]) / (ys.length - 1)) + " points a year" : "") + ")"
+            : CLK ? "" : " (a fallback: the capture clock is missing from the model)");
+      };
+      /* the decided expansion's copy carries "{cap:PA}" / "{run:PA}" placeholders, filled here from the same rows */
+      const fillCap = s => String(s || "").replace(/\{cap:([A-Z]{2})\}/g, (m, st) => capOfSt(st) != null ? r1(capOfSt(st)) : "—")
+        .replace(/\{run:([A-Z]{2})\}/g, (m, st) => runOf(st) != null ? r1(runOf(st)) : "—");
+      /* a step's `run` sentence (2026-09-24 review): kept out of `why`, which the page on main also
+         reads, and printed only when the clock has every figure it names -- never a bare "—" */
+      const runSay = s2 => { const t = String((s2 && s2.run) || ""); const sts = t.match(/\{run:([A-Z]{2})\}/g) || [];
+        return t && sts.every(m => runOf(m.slice(5, 7)) != null) ? fillCap(t) : ""; };
       const CITYSEASON = (cityAllSeason && !cityAllSeason.__err) ? cityAllSeason : [];
       let CITYALL = CITYYTD;
       const WSALL = wsAll || [];
@@ -1062,11 +1227,15 @@ registerPage({
       }, saved);
       /* THE WHAT-IF'S OWN STATE. Every lever starts at "change nothing", so the pane opens showing
          the plan as it stands and every number he then sees is something he moved himself. */
-      const SCN0 = { zip: "", picks: [], maturity: 0, capture: {}, budgetPct: 0, elast: 0, surgeDays: 0,
+      // `listing` (2026-09-24, additive): states whose capture arrives through a Business Profile, so no ad cost
+      // `ceiling` (2026-09-24 review, additive): the typed targets are ceilings -- priced, but kept out
+      // of the Season total, exactly as on the expansion card. Both show as controls on the pane.
+      const SCN0 = { zip: "", picks: [], listing: [], ceiling: false, maturity: 0, capture: {}, budgetPct: 0, elast: 0, surgeDays: 0,
                      surgeCrews: 0, crews: 0, park: 800 };
       inputs.scn = Object.assign({}, SCN0, inputs.scn || {});
       inputs.scn.capture = Object.assign({}, (inputs.scn || {}).capture || {});
       inputs.scn.picks = Array.isArray(inputs.scn.picks) ? inputs.scn.picks : [];
+      inputs.scn.listing = Array.isArray(inputs.scn.listing) ? inputs.scn.listing : [];
       if (["tier", "market", "capture", "spend"].indexOf(inputs.mapColor) < 0) inputs.mapColor = "tier";
       inputs.scnSaved = Array.isArray(inputs.scnSaved) ? inputs.scnSaved : [];
       inputs.city = Object.assign({ minLeads: 20, view: "all", q: "", sort: "Revenue", desc: true,
@@ -1624,6 +1793,8 @@ registerPage({
           th("City", "City") + th("St", "State") + th("Leads", "Leads", "num") + th("Book %", "Booking Rate", "num") +
           th("Revenue", "Revenue", "num") + th("$/lead", "Revenue Per Lead", "num") + th("Lead sources", "Lead Source Mix") +
           th("Ad cost", "Est Ad Cost", "num") + th("Revenue / ad $", "Est Revenue Per Ad Dollar", "num") +
+          th("Organic clicks", "Organic Clicks", "num") + th("Organic pos.", "Organic Position", "num") +
+          th("Per 1,000 searches", "Organic Clicks Per 1000 Searches", "num") +
           th("Home value", "Home Value", "num") + th("12 months", "Home Value Change Pct", "num") +
           th("Income", "Median Income", "num") + th("People moved last yr", "Mover Rate", "num") + th("Wealth", "Wealth Tier") +
           "</tr></thead><tbody>" + pageRows.map(r => "<tr>" +
@@ -1633,6 +1804,10 @@ registerPage({
             '<td class="muted" style="white-space:nowrap">' + esc(r["Lead Source Mix"] || "—") + "</td>" +
             '<td class="num">' + (adCost(r) ? money0(adCost(r)) + adBadge(r) : d) + "</td>" +
             '<td class="num">' + (adPerDollar(r) != null ? "$" + adPerDollar(r).toFixed(1) : d) + "</td>" +
+            // organic (2026-09-24): FLOORS -- only a search naming the city can be placed in it
+            '<td class="num">' + (r["Organic Clicks"] != null ? fmtN(num(r["Organic Clicks"])) : d) + "</td>" +
+            '<td class="num">' + (r["Organic Position"] != null ? r1(num(r["Organic Position"])) : d) + "</td>" +
+            '<td class="num">' + (r["Organic Clicks Per 1000 Searches"] != null ? num(r["Organic Clicks Per 1000 Searches"]).toFixed(2) : d) + "</td>" +
             '<td class="num">' + (r["Home Value"] != null ? money0(num(r["Home Value"])) : d) + "</td>" +
             '<td class="num">' + (r["Home Value Change Pct"] != null ? sgnPct(num(r["Home Value Change Pct"])) : d) + "</td>" +
             '<td class="num">' + (r["Median Income"] != null ? money0(num(r["Median Income"])) : d) + "</td>" +
@@ -1640,6 +1815,7 @@ registerPage({
             "<td>" + esc(r["Wealth Tier"] || "—") + "</td></tr>").join("") +
           "</tbody></table></div>" +
           '<div class="ap2-note" style="margin-top:6px">Estimated ad cost = the city\'s leads by source × that source\'s company-wide cost per lead over the last 12 months (card spend ÷ leads). No spend we hold has geography, so this is an estimate, not measured spend. Revenue per lead is a yield, not a return. Wealth tier = the city\'s home-value fifth among these cities.</div>' +
+          '<div class="ap2-note" style="margin-top:6px"><b>Organic</b> = clicks from Google searches for movers that <b>name the city</b> (Search Console), their average position (blank under 100 impressions: too few searches to mean anything), and those clicks per 1,000 Keyword Planner searches in the same months. These are <b>floors</b>, not demand: Google hides about 45% of clicks and never says where the searcher was, so most cities read 0–5. Search volume stays the demand number; Organic Search (Marketing) has the detail.</div>' +
           '<div class="ap2-pager"><span>page ' + (C.page + 1) + " of " + pages + "</span>" +
           '<button class="rs-btn" data-pg="prev"' + (C.page <= 0 ? " disabled" : "") + '>‹ Prev</button>' +
           '<button class="rs-btn" data-pg="next"' + (C.page >= pages - 1 ? " disabled" : "") + '>Next ›</button></div>';
@@ -2291,23 +2467,30 @@ registerPage({
         const P = Array.isArray(pts) ? pts : [pts];
         const J = DEP.jobs_by_zip || [], WS = DEP.ws_zips || [], B = DEP.bases || [];
         const total = J.reduce((a, j) => a + j[3], 0);
-        const near = (la, lo, bs) => bs.reduce((best, b) => { const d = hav(la, lo, b.lat, b.lon); return d < best[0] ? [d, b.name] : best; }, [Infinity, null]);
+        /* never across Long Island Sound (2026-09-24, acrossSound): a job's shore is j[4], a white-space
+           zip's w[5], a base's and a new yard's .side. A job no base on its own shore can serve is
+           measured to all of them, as area_plan._nearest does, so it never drops out of the average. */
+        const near = (la, lo, bs, sd) => {
+          const pick = ok => bs.reduce((best, b) => { if (!ok(b)) return best; const d = hav(la, lo, b.lat, b.lon); return d < best[0] ? [d, b.name] : best; }, [Infinity, null]);
+          const r = pick(b => !acrossSound(sd || "", b.side || ""));
+          return r[1] != null ? r : pick(() => true); };
         const isNew = {}; P.forEach((q, i) => { isNew["new" + i] = 1; });
-        const withC = B.concat(P.map((q, i) => ({ name: "new" + i, lat: q.lat, lon: q.lon })));
-        const anyWithin = (la, lo, mi) => P.some(q => hav(la, lo, q.lat, q.lon) <= mi);
+        const withC = B.concat(P.map((q, i) => ({ name: "new" + i, lat: q.lat, lon: q.lon, side: q.side || "" })));
+        const anyWithin = (la, lo, mi, sd) => P.some(q => !acrossSound(sd || "", q.side || "") && hav(la, lo, q.lat, q.lon) <= mi);
         let mi = 0, base = 0, j15 = 0, j35 = 0, rehomed = 0;
-        J.forEach(j => { if (anyWithin(j[1], j[2], DEP.near_mi || 15)) j15 += j[3];
-          if (anyWithin(j[1], j[2], DEP.territory_mi || 35)) j35 += j[3];
-          base += near(j[1], j[2], B)[0] * j[3]; const n = near(j[1], j[2], withC); mi += n[0] * j[3]; if (isNew[n[1]]) rehomed += j[3]; });
+        J.forEach(j => { if (anyWithin(j[1], j[2], DEP.near_mi || 15, j[4])) j15 += j[3];
+          if (anyWithin(j[1], j[2], DEP.territory_mi || 35, j[4])) j35 += j[3];
+          base += near(j[1], j[2], B, j[4])[0] * j[3]; const n = near(j[1], j[2], withC, j[4]); mi += n[0] * j[3]; if (isNew[n[1]]) rehomed += j[3]; });
         let ws35 = 0, never = 0, movers = 0;
-        WS.forEach(w => { if (anyWithin(w[1], w[2], DEP.territory_mi || 35)) { ws35++; if (w[3]) { never++; movers += w[4]; } } });
+        WS.forEach(w => { if (anyWithin(w[1], w[2], DEP.territory_mi || 35, w[5])) { ws35++; if (w[3]) { never++; movers += w[4]; } } });
         return { label, pts: P, n: P.length, mi_per_job: total ? mi / total : null, saved_mi_per_job: total ? (base - mi) / total : null,
                  jobs_15: j15, jobs_35: j35, rehomed, ws_zips_35: ws35, ws_never_35: never, movers_never_35: movers };
       }
       function depotTry(zip) {
         const J = DEP.jobs_by_zip || [], WS = DEP.ws_zips || [];
-        const hit = J.find(x => x[0] === zip) || WS.find(x => x[0] === zip);
-        return hit ? depotAt([{ lat: hit[1], lon: hit[2] }], zip) : null;
+        const hj = J.find(x => x[0] === zip), hw = hj ? null : WS.find(x => x[0] === zip), hit = hj || hw;
+        // the typed zip's own shore of the Sound (2026-09-24): j[4] on a job row, w[5] on a white-space row
+        return hit ? depotAt([{ lat: hit[1], lon: hit[2], side: (hj ? hj[4] : hw[5]) || "" }], zip) : null;
       }
       function wireMethod() {
         host.querySelectorAll("#apNext [data-method]").forEach(b => b.onclick = () => {
@@ -2726,15 +2909,17 @@ registerPage({
           return q ? { hire: q.hire || 0, peak: q.peak, have: q.have, label: q.label } : null;
         };
         const WORK = +(D.work_mi || 35), SPACING = +(D.min_spacing_mi || 60);
-        const reach = (la, lo) => {
-          const near = R.filter(r => r.la && r.lo && miBetween(la, lo, r.la, r.lo) <= WORK);
+        // `side`: the base's shore of Long Island Sound -- a CT base reaches no Nassau / Suffolk county (2026-09-24)
+        const reach = (la, lo, side) => {
+          const near = R.filter(r => r.la && r.lo && !acrossSound(side || "", sideOf(r.st, r.county)) &&
+                                     miBetween(la, lo, r.la, r.lo) <= WORK);
           const sts = [...new Set(near.map(r => r.st))].sort();
           return { counties: near.length, states: sts,
                    leads: near.reduce((a, r) => a + r.leads, 0),
                    jobs: near.reduce((a, r) => a + r.jobs, 0) };
         };
         const have = (D.bases || []).filter(b => b.lat && b.lon).map(b => {
-          const rr = reach(b.lat, b.lon);
+          const rr = reach(b.lat, b.lon, b.side);
           const h = hireOf(b.name);
           const rate = chainOf(b.name) || chainOf("_all");
           const red = (D.redundancy || []).find(x => x.name === b.name) || null;
@@ -2756,29 +2941,33 @@ registerPage({
         /* what the DECIDED expansion implies for a state, so the flag for a base we have chosen
            says how many foremen its own jobs would need rather than only the standing aim */
         const XP = model.expansion || null;
+        /* SEASON JOBS AT THE CEILING (2026-09-24). This put a YEAR of capture jobs into four season
+           months, so the flag's foremen read ~2.2x. It now takes the season's share of the leads, the
+           state's own leads per job (capLpj) and today's level from the clock -- the same basis as the
+           expansion card's ceiling row -- and the flag says it is the target, not a forecast. */
         const xpFor = st => {
           if (!XP || !N || !(XP.capture || {})[st]) return null;
           const g = CAP_ST[st];                 // a year of leads over a year of movers (2026-09-23)
           const mv = g ? g.movers : 0;
           if (!mv) return null;
-          const now = g.cap, want = num(XP.capture[st]);
+          const now = runOf(st) != null ? runOf(st) : g.cap, want = num(XP.capture[st]);
           if (!(want > now)) return null;
           const rr = N.rows.find(x => x.st === st);
-          const lpj = rr && rr.leadsPerJob ? rr.leadsPerJob : (N.mkt.lpjAll || 6);
-          const jobs = (want - now) * mv / 10000 / lpj;
+          const jobs = AP_CAPTURE.row({ now, want, movers: mv, lpj: capLpj(rr, N).lpj || 6, share: SEASON_SHARE }).addJobs;
           const rate = chainOf(st) || chainOf("_all") || 1.27;
           return { jobs, fm: jobs / (rate * DAYS_PER_MONTH * (N.core.length || 4)) };
         };
         const coverage = (D.coverage || []).map(c => { const rate = chainOf(c.st) || chainOf("_all"); const need = num(AIM[c.st]) || null;
           const xp = xpFor(c.st);
           return { kind: "cover", name: c.label, label: c.label, la: c.lat, lo: c.lon, st: c.st,
+                   county: c.county, side: sideOf(c.st, c.county),
                    newMovers: c.new_movers, opens: c.counties_opened, fromBase: c.nearest_base_mi,
                    step: c.step || null, hopFrom: c.hop_from || null, hopMi: c.hop_mi,
                    xpFm: xp ? xp.fm : null, xpJobs: xp ? xp.jobs : null,
                    cap: capOf(c.st), capHome: capOf(homeSt), homeSt, need, rate, perDay: need && rate ? need * rate : null,
                    atHomeRate: capOf(homeSt) != null ? c.new_movers * capOf(homeSt) / 10000 : null,
                    atOwnRate: capOf(c.st) != null ? c.new_movers * capOf(c.st) / 10000 : null,
-                   reach: reach(c.lat, c.lon) }; });
+                   reach: reach(c.lat, c.lon, sideOf(c.st, c.county)) }; });
         return { have, coverage, work: WORK, spacing: SPACING,
                  baseline: D.baseline || null };
       }
@@ -2884,6 +3073,8 @@ registerPage({
         const say = home ? '<div class="ap2-say" style="margin:0 0 10px"><b>What the survey says.</b> ' +
           fmtN(T.mov) + " people move house in these eight states every year; in " + CAP_WIN + " " + fmtN(T.leads) + " of them became a lead — <b>" +
           r1(cap(T)) + " per 10,000 movers</b>. At home in " + esc(home.st) + " it is <b>" + r1(cap(home)) + "</b>." +
+          /* the leads that sit in no county (2026-09-24, NOADDR_ST): said beside the capture they are missing from */
+          (noAddrSay() ? " " + noAddrSay() : "") +
           (cold ? " In " + colds.map(g => "<b>" + esc(g.st) + "</b> (" + r1(cap(g)) + ")").join(", ") + " we reach less than a quarter of that. <b>" +
                   esc(cold.st) + "</b> moves " + fmtN(cold.mov) + " people a year — " +
                   (cold.mov > home.mov ? "more than " : r1(100 * cold.mov / home.mov) + "% of ") + esc(home.st) + "’s " + fmtN(home.mov) +
@@ -2923,7 +3114,9 @@ registerPage({
                "<b>people</b> aged 1 and over who lived somewhere else a year ago — people, not households. " +
                "<b>Leads per 10,000 movers</b> sets " + CAP_WIN + " of leads against a year of movers" + (HAS_L12 ? ", so both halves cover a year" : "") +
                "; jobs are this year to date. <b>All companies</b> — Delaware’s figure includes Tuji’s own leads, " +
-               "which is why it reads so high. Income and ownership are population-weighted.");
+               "which is why it reads so high. Income and ownership are population-weighted." +
+               /* beside the county table too (2026-09-24): Monmouth's row is the one they left */
+               (noAddrShort() ? " " + noAddrShort() + " — Monmouth’s row is the one they used to sit in." : ""));
       }
 
       /* "IF WE IDENTIFY A BASE AS NEGATIVE, WHY DO WE PUSH MARKETING THERE?" (his question 2026-09-21).
@@ -3014,7 +3207,27 @@ registerPage({
         SURGE_CAP: 55,            // jobs lost to capacity in the worst measured season (2026)
         TRUCK_SEASON: 13400,      // one more crew, one season: 4.39 Enterprise cycles x $3,050
       };
-      function scenarioCalc(override) {
+      /* LEADS PER JOB FOR A CAPTURE STATE (2026-09-24): the state's OWN last-season ratio whenever it
+         ran a season of jobs (10+), not only past the plan's 40-job gate. Maryland ran 23 jobs on 192
+         Apr-Jul leads -- 8.3 a job, and the Elkridge listing's leads book about 10% -- so pricing its
+         capture at the company's 5.61 counted about half as many jobs again as its own history
+         supports. Raw ratio, before the budget floor: this converts leads into jobs, it buys nothing. */
+      const capLpj = (r, N) => AP_CAPTURE.lpj(r, N.mkt.lpjAll);
+      /* opts (2026-09-24), not part of the saved scenario:
+           capture  false -- price every lever except capture; true -- count it even when the
+                    scenario's targets are ceilings (what reaching them is worth). Left out, the
+                    scenario's own `ceiling` decides (AP_CAPTURE.counts).
+         ONE BASIS FOR "NOW" (2026-09-24 review). The card measured its ceilings from the clock's
+         level (PA 43.6, MD 7.7) and priced Season 2027 without capture; one click on "Open it in the
+         What-if" priced the SAME targets from the 12-month dial (PA 47.5, MD 7.3) and counted them:
+         the card said -$580, the What-if +$187,718 for the same expansion (rendered on this model).
+         The capture lever now measures every state from today's level -- Zip to Zip, latest three
+         complete months, seasonally adjusted (model.capture_clock) -- and falls back to the 12-month
+         dial only where the clock has no level; the flag's foremen (xpFor) already did. The dial is
+         still shown beside it. Zip to Zip is also the plan's own company (his 16 Sep "only ZIP"),
+         which the all-company dial is not: Delaware's 222.6 carries Tuji, its Zip to Zip level 85.6. */
+      function scenarioCalc(override, opts) {
+        opts = opts || {};
         const N = nextCalc(), c = override || inputs.scn;
         const base = { jobs: N.tot.jobs, revenue: N.tot.revenue || 0, expense: N.tot.expense || 0,
                        rent: N.tot.rent || 0, mkt: N.tot.mkt || 0 };
@@ -3023,28 +3236,38 @@ registerPage({
         const moves = [];                       // every line the scenario changes, with its reason
         let dJobs = 0, dMkt = 0, dRent = 0, dCost = 0;
 
-        /* ---- the capture dial, per state: the one lever the data says is large ---- */
+        /* ---- the capture dial, per state: the one lever the data says is large ----
+           SEASON LEADS (2026-09-24). (want - now) x movers / 10,000 is a YEAR of extra leads; it used
+           to be divided by leads per SEASON job and set beside a May-Aug plan, so every capture figure
+           on this page -- the expansion card's "+$455,571 Season 2027" among them -- was about 2.2x the
+           season. Now the points convert to the season's share of that year (SEASON_SHARE), and the
+           calendar year is kept beside it (addLeadsYear). Everything downstream -- jobs, marketing, the
+           truck over four months -- is then season-consistent without further edits.
+           A state in c.listing reaches its capture through a Business Profile listing: those leads
+           carry no advertising, so its cost per lead is nil (the critic's correction, 2026-09-24).
+           The arithmetic is AP_CAPTURE.row's; a ceiling scenario keeps it out of the totals. */
         const capRows = [];
+        const listing = Array.isArray(c.listing) ? c.listing : [];
+        const counted = AP_CAPTURE.counts(c, opts);
         SERVICE_AREAS.forEach(st => {
           const g = CAP_ST[st];                 // trailing 12 months, the shared CAP_ST (2026-09-23)
           const movers = g ? g.movers : 0;
           if (!movers) return;
-          const now = g.cap;
+          const lv = runOf(st), now = lv != null ? lv : g.cap;
           const r = N.rows.find(x => x.st === st);
-          const lpj = r && r.leadsPerJob ? r.leadsPerJob : (N.mkt.lpjAll || null);
-          const want = c.capture[st] == null ? null : +c.capture[st];
-          const row = { st, movers, now, want, lpj, cpl: N.mkt.cplOf(st), planLeads: r ? r.leads : 0 };
-          if (want != null && lpj && want > now) {
-            row.addLeads = (want - now) * movers / 10000;
-            row.addJobs = row.addLeads / lpj;
-            row.addMkt = row.cpl != null ? row.addLeads * row.cpl : 0;
-            dJobs += row.addJobs; dMkt += row.addMkt;
-          }
+          const L = capLpj(r, N);
+          const want = (c.capture || {})[st] == null ? null : +c.capture[st];
+          const viaListing = listing.indexOf(st) >= 0;
+          const row = Object.assign({ st, dial: g.cap, level: lv, lpjOwn: L.own, planLeads: r ? r.leads : 0 },
+            AP_CAPTURE.row({ now, want, movers, lpj: L.lpj, cpl: N.mkt.cplOf(st), viaListing, share: SEASON_SHARE }));
+          if (row.addJobs && counted) { dJobs += row.addJobs; dMkt += row.addMkt; }
           capRows.push(row);
         });
-        const capJobs = capRows.reduce((a, r) => a + (r.addJobs || 0), 0);
+        const capJobs = counted ? capRows.reduce((a, r) => a + (r.addJobs || 0), 0) : 0;
         if (capJobs > 0) moves.push({ k: "capture", l: "Reaching more of the movers",
-          why: capRows.filter(r => r.addJobs).map(r => esc(r.st) + " " + r1(r.now) + " \u2192 " + r1(r.want) + " per 10k").join(", "),
+          why: capRows.filter(r => r.addJobs).map(r => esc(r.st) + " " + r1(r.now) + " \u2192 " + r1(r.want) + " per 10k: +" +
+                 fmtN(r.addLeads) + " season leads (" + Math.round(SEASON_SHARE * 100) + "% of +" + fmtN(r.addLeadsYear) + " a year), " +
+                 r1(r.lpj) + " a job" + (r.viaListing ? ", through a listing: no ad cost" : "")).join("; "),
           jobs: capJobs, usd: capJobs * perJob - capRows.reduce((a, r) => a + (r.addMkt || 0), 0) - capJobs * (base.jobs ? base.expense / base.jobs : 0) });
 
         /* ---- a new base at a zip ---- */
@@ -3053,7 +3276,7 @@ registerPage({
         const chosen = (c.picks || []).map(l => picks.find(x => x.label === l)).filter(Boolean);
         if (chosen.length || (c.zip && /^\d{5}$/.test(c.zip))) {
           dep = chosen.length
-            ? depotAt(chosen.map(x => ({ lat: x.la, lon: x.lo })), chosen.map(x => x.label).join(" + "))
+            ? depotAt(chosen.map(x => ({ lat: x.la, lon: x.lo, side: x.side || "" })), chosen.map(x => x.label).join(" + "))
             : depotTry(c.zip);
           if (dep) {
             const savedMi = Math.max(0, num(dep.saved_mi_per_job));
@@ -3061,7 +3284,8 @@ registerPage({
             {
               /* a county in reach of TWO new yards is still one county */
               const near = COUNTY.filter(x => num(x.Latitude) &&
-                dep.pts.some(q => hav(num(x.Latitude), num(x.Longitude), q.lat, q.lon) <= SCN.RING_MI));
+                dep.pts.some(q => !acrossSound(q.side || "", sideOf(x.State, x.County)) &&   // the Sound (2026-09-24)
+                                 hav(num(x.Latitude), num(x.Longitude), q.lat, q.lon) <= SCN.RING_MI));
               const nearLeads = near.reduce((a, x) => a + num(x.Leads), 0);
               const allLeads = COUNTY.reduce((a, x) => a + num(x.Leads), 0);
               const share = allLeads ? nearLeads / allLeads : 0;
@@ -3123,7 +3347,10 @@ registerPage({
            jobs, so crew PAY was always in -- but the truck a new crew needs is a fixed cost that
            was not, and 400 extra Virginia jobs need about four more foremen. Surge crews are left
            out because they carry their own cost already. Crews do not CREATE jobs; jobs create the
-           need for crews, which is the direction the measurement supports. */
+           need for crews, which is the direction the measurement supports.
+           SEASON JOBS OVER SEASON CAPACITY (2026-09-24): capture jobs used to be a YEAR's, crammed into
+           the four core months here, so the truck line overstated by the same ~2.2x as the jobs. They
+           are season jobs now (scenarioCalc's capture block), so this line needed no edit of its own. */
         const demandJobs = dJobs - (moves.filter(m => m.k === "surge").reduce((a, m) => a + m.jobs, 0));
         if (demandJobs > 0.05) {
           const rate = chainOf("_all") || 1.27;
@@ -3144,7 +3371,7 @@ registerPage({
         const scn = { jobs, revenue: base.revenue * k, expense: base.expense * k,
                       rent: base.rent + dRent, mkt: base.mkt + dMkt, extra: dCost };
         scn.net = scn.revenue - scn.expense - scn.rent - scn.mkt - scn.extra;
-        return { N, base, scn, moves, capRows, dep, ring, perJob, picks };
+        return { N, base, scn, moves, capRows, counted, dep, ring, perJob, picks };
       }
 
       /* ===================== THE EXPANSION HE DECIDED, BESIDE THE PLAN =====================
@@ -3158,56 +3385,352 @@ registerPage({
          disagreement. Nothing on it is added to a plan total anywhere on this page. */
       function expansionScn() {
         const X = model.expansion; if (!X) return null;
+        const path = X.capture_path || {};
+        // ceiling (2026-09-24 review): the What-if opened from the card prices it as the card does
         return Object.assign({}, SCN0, { picks: (X.steps || []).map(s2 => s2.base),
                                          capture: Object.assign({}, X.capture || {}),
+                                         listing: Object.keys(path).filter(st => path[st] === "listing"),
+                                         ceiling: X.ceiling !== false,
                                          maturity: num(X.maturity) });
+      }
+      /* THE CLOCK ON THE CARD (2026-09-24). The card printed "+$454,991, Season 2027" for the targets:
+         a YEAR of leads priced as a season (~2.2x), measured from the 12-month dial, and credited to
+         "the expansion" although Maryland's rise so far came from a listing with no yard. Now:
+           \u00b7 Season 2027 counts NOTHING beyond today's level -- the targets are CEILINGS until a new
+             step is real (3 months above the old level) -- so the plan-beside table moves only by
+             the yards' own line;
+           \u00b7 the ceilings (a season and a calendar year at target) are priced from today's level
+             (the clock's Zip to Zip rate), at each state's own leads per job, with no ad cost where a
+             listing is the path;
+           \u00b7 what is ALREADY happening without a yard is said on its own line, and belongs to the
+             plan, not to the expansion;
+           \u00b7 "Open it in the What-if" loads the same scenario AS CEILINGS, from the same "now", so
+             the pane's Season total is this card's -$580, not the +$187,718 the first build showed
+             one click away (2026-09-24 review). */
+      const mSgn =v => v < 0 ? "\u2212" + money0(-v) : money0(v);   // money0 prints "$-551"
+      function ceilingOf(sc, st) {
+        const X = model.expansion || {};
+        const one = Object.assign({}, sc, { picks: [], zip: "", capture: { [st]: num((X.capture || {})[st]) } });
+        const C = scenarioCalc(one, { capture: true });   // what reaching it is worth: counted here only
+        const row = C.capRows.find(r => r.st === st) || {};
+        const season = C.scn.net - C.base.net;
+        return { st, row, season, year: SEASON_SHARE ? season / SEASON_SHARE : null,
+                 jobs: C.scn.jobs - C.base.jobs };
+      }
+      function whenHtml(st, want) {
+        const c = clkOf(st), nm = ST_NAME[st] || st;
+        /* <strong>, never <b>, inside the box: `.ap2-xps b` is the box's block-level heading */
+        const S_ = t => "<strong>" + t + "</strong>";
+        if (!c || c.level == null) return '<div class="ap2-xps"><b>' + esc(nm) + "</b><span>no clock</span><small>The capture clock is missing from the model \u2014 run " + S_("sources=area-plan") + ".</small></div>";
+        const t = c.target || {};
+        const lm = (c.level_months || []);
+        const win = lm.length ? ymLabel(lm[0]).slice(0, 3) + "\u2013" + ymLabel(lm[lm.length - 1]) : "the latest three months";
+        const since = c.sa && c.sa[0] ? c.sa[0][0] : "";
+        const steps = (c.steps || []).filter(s => (s.dir > 0 || s.status === "real") && s.ym >= since);
+        const stepSay = steps.length ? steps.slice(-3).map(s => S_(esc(ymLabel(s.ym))) +
+            (s.name ? " \u2014 " + esc(s.name) : " \u2014 cause not named") + " (" + r1(s.before) + " \u2192 " + r1(s.after) +
+            (s.status === "provisional" ? ", " + S_("provisional") + ": " + s.months + " of " + ((CLK.rule || {}).confirm_months || 3) + " months" : "") + ")").join("; ")
+          : "no step since " + esc(ymLabel((c.sa && c.sa[0] ? c.sa[0][0] : CLK.last_month)));
+        const sister = c.sister_pts != null && c.sister_pts >= 0.3
+          ? " The page\u2019s all-company 12-month " + r1(capOfSt(st)) + " includes about " + S_(r1(c.sister_pts)) + " of Tuji leads, which are going away." : "";
+        const catchUp = c.dial_catches_up
+          ? " The 12-month figure keeps moving on its own until about " + S_(esc(ymLabel(c.dial_catches_up))) + ", as the months before the last step leave its window \u2014 read the level, not the dial." : "";
+        const ceil = !(want > c.level) ? "at or under today\u2019s level: nothing to count"
+          : t.step_like && t.steps_needed != null
+            ? "a " + S_("ceiling") + ": it needs about " + S_(r1(t.steps_needed)) + " more step" + (t.steps_needed >= 1.5 ? "s" : "") + " the size of " + esc(t.step_like.name || "the last one") + "\u2019s (+" + r1(t.step_like.size) + "). $0 counted for Season " + esc(String(FC.year)) + " beyond today\u2019s level."
+            : t.was_at_target
+              ? "a " + S_("return") + ", not growth: the 12-month figure sat at or above " + r1(want) + " from " + esc(ymLabel(t.was_at_target[0])) + " to " + esc(ymLabel(t.was_at_target[1])) +
+                (t.peak_t12_all ? " (peak " + r1(t.peak_t12_all[1]) + ", " + esc(ymLabel(t.peak_t12_all[0])) + ")" : "") + ". Not at today\u2019s rate: $0 counted until it turns up."
+              : "a " + S_("ceiling") + ": nothing measured says it arrives by itself. $0 counted for Season " + esc(String(FC.year)) + ".";
+        return '<div class="ap2-xps"><b>' + esc(nm) + " \u2014 " + r1(c.level) + " today \u2192 " + r1(want) + "</b><span>" +
+            (steps.some(s => s.status === "provisional" && s.dir > 0) ? "a new step is forming"
+              : steps.length && steps[steps.length - 1].dir < 0 ? "stepped down"
+              : c.t12 != null && c.level < 0.95 * c.t12 ? "running below its 12-month figure" : "holding at its level") + "</span>" +
+          "<small>Zip to Zip, " + esc(win) + ", seasonally adjusted, per 10,000 movers a year (12 months: " + r1(c.t12) + "). Steps: " + stepSay + "." + sister + catchUp +
+            " The target is " + ceil + "</small></div>";
       }
       function expansionHtml() {
         const X = model.expansion, sc = expansionScn();
         if (!X || !sc || !FC.year) return "";
-        const S = scenarioCalc(sc);
-        if (!S.moves.length) return "";
-        const mS = v => v < 0 ? "\u2212" + money0(-v) : money0(v);   // money0 prints "$-551"
-        const dJobs = S.scn.jobs - S.base.jobs, dNet = S.scn.net - S.base.net;
-        const cap = S.capRows.filter(r => r.addJobs > 0);
+        const Y = String(FC.year);
         const steps = (X.steps || []).slice().sort((a, b) => (a.order || 0) - (b.order || 0));
-        /* EVERY CAPTURE FIGURE HERE IS LIVE (2026-09-23). The sentence used to be written around
-           "Pennsylvania 36.1 ... a 16% rise", and on the trailing-year basis Pennsylvania already
-           reads above its 42. A target at or under today's capture adds no jobs in the engine
-           (want > now), so the card says so instead of printing a negative "rise". */
-        const nowOf = st => (S.capRows.find(r => r.st === st) || {}).now;
-        const tgtSay = steps.map(s2 => s2.state).filter((st, i, a) => st && a.indexOf(st) === i && (X.capture || {})[st] != null)
-          .map(st => { const want = num(X.capture[st]), now = nowOf(st), nm = ST_NAME[st] || st;
-            if (now == null) return nm + " " + r1(want) + " (no capture measured yet)";
-            return want > now
-              ? nm + " <b>" + r1(want) + "</b> against <b>" + r1(now) + "</b> today, a " + Math.round(100 * (want / (now || 1) - 1)) + "% rise"
-              : nm + " <b>" + r1(want) + "</b> is <b>at or under today\u2019s " + r1(now) + "</b>, so it adds no capture jobs until the target is re-set"; });
+        const sts = steps.map(s2 => s2.state).filter((st, i, a) => st && a.indexOf(st) === i && (X.capture || {})[st] != null);
+        // Season Y on the clock: every lever but capture -- the yards' own line
+        const S = scenarioCalc(sc, { capture: false });
+        const dJobs = S.scn.jobs - S.base.jobs, dNet = S.scn.net - S.base.net;
+        const baseMove = S.moves.find(m => m.k === "base");
+        // the ceilings, per state, measured from today's level (scenarioCalc's one basis)
+        const ceil = sts.map(st => ceilingOf(sc, st)).filter(x => x.row && x.row.addJobs > 0);
+        const cS = ceil.reduce((a, x) => a + x.season, 0), cY = ceil.reduce((a, x) => a + (x.year || 0), 0);
+        const N = S.N;
+        /* ALREADY HAPPENING WITHOUT A YARD: today's level for a season, against last season and
+           against what the plan carries. It is the PLAN's (history catching up), never the expansion's. */
+        const happening = sts.map(st => { const c = clkOf(st), g = CAP_ST[st], r = N.rows.find(x => x.st === st);
+          if (!c || c.level == null || !g || !r) return null;
+          const L = capLpj(r, N);
+          const lead = AP_CAPTURE.seasonLeads(c.level, g.movers, SEASON_SHARE).season;
+          return { st, level: c.level, lead, last: r.leadsLast, jobs: L.lpj ? lead / L.lpj : null, lpj: L.lpj,
+                   plan: r.jobs, ran: r.jobsLast }; }).filter(Boolean);
+        const hRow = h => { const gap = h.jobs != null ? h.jobs - h.plan : null;
+          return "<tr><td><b>" + esc(ST_NAME[h.st] || h.st) + '</b></td><td class="num">' + r1(h.level) + '</td><td class="num">' + fmtN(h.lead) +
+          '</td><td class="num">' + fmtN(h.last) + '</td><td class="num">' + fmtN(h.jobs) + "<small>at " + r1(h.lpj) + ' a job</small></td><td class="num">' + fmtN(h.ran) +
+          '</td><td class="num">' + fmtN(h.plan) + '</td><td class="num"><b class="' + (gap >= 0.5 ? "ap2-ok" : gap <= -0.5 ? "ap2-hire" : "") + '">' +
+            (gap == null ? "—" : (gap >= 0.5 ? "+" : gap <= -0.5 ? "−" : "") + fmtN(Math.abs(gap))) + "</b></td></tr>"; };
+        const ahead = happening.filter(h => h.jobs != null && h.jobs - h.plan >= 0.5);
+        const behind = happening.filter(h => h.jobs != null && h.jobs - h.plan <= -0.5);
         return '<div class="ap2-say" style="margin:0 0 10px"><b>Decided ' + esc(dayLabel(X.decided_on)) +
-            ': Maryland and Pennsylvania.</b> It is deliberately <b>not inside the ' + esc(String(FC.year)) +
-            ' plan above</b> \u2014 that number is what the history supports, and these jobs have never happened. ' +
-            'The capture targets are assumptions (leads per 10,000 movers, ' + CAP_WIN + '): ' + tgtSay.join("; ") + '.</div>' +
+            ': Maryland and Pennsylvania.</b> Deliberately <b>not inside the ' + esc(Y) + ' plan above</b> \u2014 that number is what the history supports. ' +
+            'Since 24 Sep 2026 the targets are <b>ceilings</b>: each state\u2019s capture is read as today\u2019s level and the steps that got it there, ' +
+            'and Season ' + esc(Y) + ' counts <b>nothing beyond today\u2019s level</b> until a new step has run three months. ' +
+            'Maryland\u2019s yard waits for the Montgomery listing test (below), which reads out in Sep 2027.</div>' +
           '<div class="ap2-xp">' + steps.map(st => '<div class="ap2-xps"><b>' + st.order + ". " + esc(st.base) + "</b>" +
-            "<span>" + esc(st.when) + "</span><small>" + esc(fillCap(st.why)) + "</small></div>").join("") + "</div>" +
-          '<table data-name="The expansion, beside the plan" class="rs-table ap2-next" style="margin-top:12px"><thead><tr>' +
-            "<th>Season " + esc(String(FC.year)) + '</th><th class="num">The plan</th><th class="num">With the expansion</th><th class="num">Difference</th></tr></thead><tbody>' +
-            '<tr><td><b>Jobs</b></td><td class="num">' + fmtN(S.base.jobs) + '</td><td class="num">' + fmtN(S.scn.jobs) +
-              '</td><td class="num"><b>+' + fmtN(dJobs) + "</b></td></tr>" +
+            "<span>" + esc(st.when) + "</span><small>" + esc(fillCap(st.why)) + (runSay(st) ? ". " + esc(runSay(st)) : "") + "</small></div>").join("") + "</div>" +
+          '<div class="ap2-xp" style="margin-top:10px">' + sts.map(st => whenHtml(st, num(X.capture[st]))).join("") + "</div>" +
+          '<div class="ap2-gt-h" style="margin-top:14px">Season ' + esc(Y) + " on the clock \u2014 nothing counted beyond today\u2019s level</div>" +
+          '<div class="rs-tablewrap"><table data-name="The expansion, beside the plan" class="rs-table ap2-next"><thead><tr>' +
+            "<th>Season " + esc(Y) + '</th><th class="num">The plan</th><th class="num">With the expansion</th><th class="num">Difference</th></tr></thead><tbody>' +
+            '<tr><td><b>Jobs</b><small>the yards\u2019 home ring only: capture beyond today\u2019s level counts nothing yet</small></td><td class="num">' + fmtN(S.base.jobs) + '</td><td class="num">' + fmtN(S.scn.jobs) +
+              '</td><td class="num"><b>' + (dJobs >= 0.5 ? "+" : "") + fmtN(dJobs) + "</b></td></tr>" +
             '<tr><td>Marketing it needs</td><td class="num">' + money0(S.base.mkt) + '</td><td class="num">' + money0(S.scn.mkt) +
-              '</td><td class="num">+' + money0(S.scn.mkt - S.base.mkt) + "</td></tr>" +
+              '</td><td class="num">' + mSgn(S.scn.mkt - S.base.mkt) + "</td></tr>" +
             '<tr><td>Crews it needs<small>the truck; their pay is inside job expense</small></td><td class="num">\u2014</td><td class="num">' +
               (() => { const m = S.moves.find(x => x.k === "needcrew"); return m ? esc(m.l.replace(" to run the extra jobs", "")) : "\u2014"; })() +
-              '</td><td class="num">' + mS(S.base.rent - S.scn.rent) + "</td></tr>" +
+              '</td><td class="num">' + mSgn(S.base.rent - S.scn.rent) + "</td></tr>" +
             '<tr><td>Parking, net of the driving saved</td><td class="num">\u2014</td><td class="num">' +
-              mS(S.scn.extra) + '</td><td class="num">' +
-              mS(-S.scn.extra) + "</td></tr>" +
+              mSgn(S.scn.extra) + '</td><td class="num">' + mSgn(-S.scn.extra) + "</td></tr>" +
             '<tr class="ap2-tot"><td><b>Net before overhead</b></td><td class="num">' + money0(S.base.net) + '</td><td class="num">' +
-              money0(S.scn.net) + '</td><td class="num"><b class="ap2-ok">+' + money0(dNet) + "</b></td></tr>" +
-          "</tbody></table>" +
-          note("<b>Where it comes from:</b> " + cap.map(r => esc(r.st) + " " + r1(r.now) + " \u2192 " + r1(r.want) +
-                 " leads per 10,000 movers (<b>+" + r1(r.addJobs) + "</b> jobs)").join(", ") +
-               ". The two yards themselves are worth <b>" + (S.moves.find(m => m.k === "base") ? mS(S.moves.find(m => m.k === "base").usd) : "\u2014") +
-               "</b> \u2014 a base opens no market on its own, it follows the work. " +
+              money0(S.scn.net) + '</td><td class="num"><b class="' + (dNet >= 0 ? "ap2-ok" : "ap2-hire") + '">' + mSgn(dNet) + "</b></td></tr>" +
+          "</tbody></table></div>" +
+          (ceil.length ? '<div class="ap2-gt-h" style="margin-top:14px">The targets are ceilings \u2014 what reaching them would be worth, ' +
+              (CLK ? "from today\u2019s level" : "from the 12-month figure (the capture clock is missing)") + "</div>" +
+            '<div class="rs-tablewrap"><table data-name="The targets, as ceilings" class="rs-table ap2-next"><thead><tr>' +
+            '<th>Ceiling</th><th class="num">Today</th><th class="num">Target</th><th class="num">Season leads</th>' +
+            '<th class="num">Season jobs</th><th class="num">A season</th><th class="num">A year</th><th class="num">In ' + esc(Y) + "</th></tr></thead><tbody>" +
+            ceil.map(x => "<tr><td><b>" + esc(ST_NAME[x.st] || x.st) + "</b><small>" + r1(x.row.lpj) + " leads a job" + (x.row.lpjOwn ? " (its own)" : " (the company\u2019s)") +
+                (x.row.viaListing ? " \u00b7 through a listing: no ad cost" : " \u00b7 $" + r1(x.row.cpl) + " a lead") + '</small></td><td class="num">' + r1(x.row.now) +
+              '</td><td class="num">' + r1(x.row.want) + '</td><td class="num">+' + fmtN(x.row.addLeads) + "<small>of +" + fmtN(x.row.addLeadsYear) + ' a year</small></td><td class="num">+' + r1(x.row.addJobs) +
+              '</td><td class="num">' + mSgn(x.season) + '</td><td class="num">' + mSgn(x.year) + '</td><td class="num"><b>$0</b></td></tr>').join("") +
+            '<tr class="ap2-tot"><td><b>Both</b></td><td></td><td></td><td class="num">+' + fmtN(ceil.reduce((a, x) => a + x.row.addLeads, 0)) +
+              '</td><td class="num">+' + r1(ceil.reduce((a, x) => a + x.row.addJobs, 0)) + '</td><td class="num"><b>' + mSgn(cS) + '</b></td><td class="num">' + mSgn(cY) +
+              '</td><td class="num"><b>$0</b></td></tr></tbody></table></div>' : "") +
+          (happening.length ? '<div class="ap2-gt-h" style="margin-top:14px">Already happening without a yard \u2014 today\u2019s level held for a season, against the plan</div>' +
+            '<div class="rs-tablewrap"><table data-name="Already happening, without a yard" class="rs-table ap2-next"><thead><tr>' +
+            '<th>State</th><th class="num">Level</th><th class="num">Apr\u2013Jul leads</th><th class="num">Last season</th>' +
+            '<th class="num">Season jobs</th><th class="num">Ran</th><th class="num">Plan</th><th class="num">Vs plan</th></tr></thead><tbody>' +
+            happening.map(hRow).join("") + "</tbody></table></div>" : "") +
+          note("<b>How to read it.</b> The first table is Season " + esc(Y) + " as the clock sees it: only the yards\u2019 own line moves (" +
+               (baseMove ? mSgn(baseMove.usd) : "\u2014") + ": driving saved, parking, and the home ring at " + Math.round(num(X.maturity)) + "% maturity) \u2014 a base opens no market on its own. " +
+               "The second is what the targets would be worth if they were reached, from today\u2019s level: a ceiling, and none of it is in any total. " +
+               "The third is today\u2019s level held for a season, against the plan. " +
+               (ahead.length ? ahead.map(h => esc(ST_NAME[h.st] || h.st) + "\u2019s <b>+" + fmtN(h.jobs - h.plan) + "</b>").join(" and ") +
+                 " season jobs are <b>already happening without a yard</b>: they belong to the <b>plan</b> (its three-season average has not caught up with the step), not to the expansion, and nothing on this card adds them. " : "") +
+               (behind.length ? behind.map(h => esc(ST_NAME[h.st] || h.st) + "\u2019s level supports <b>" + fmtN(h.plan - h.jobs) + "</b> fewer").join(" and ") +
+                 " season jobs than the plan carries \u2014 the three-season average still remembers a higher year. " : "") +
+               "Units: a capture point is a year of leads per 10,000 movers, and " + shareSay() + ". " +
                '<button type="button" class="ap2-goto" data-openxp="1">Open it in the What-if \u2193</button>');
+      }
+
+      /* ===================== MARYLAND: THE CLOCK AND THE TEST (2026-09-24) =====================
+         One block under the expansion card, read from model.capture_clock.states.MD and
+         model.geo_test (area_plan.build_capture_clock / build_geo_test). THE PAGE COMPUTES NOTHING
+         HERE: zones, capture, guards, status and verdict all arrive built, so the card and the
+         pre-registration (docs/plans/2026-09-24-maryland-geo-test.md) cannot disagree.
+         Charts are hand-drawn SVG (the page loads no chart library), coloured from --gt-* tokens
+         defined for light AND dark on .ap2-gt, and sized in a box that scrolls on its own at phone
+         width so the page itself never scrolls sideways. */
+      function gtChart(o) {
+        const W = 720, H = 250, L = 46, R = 16, T = 20, B = 34;
+        const yms = [...new Set([].concat(...o.lines.map(l => l.pts.map(p => p[0]))))].sort();
+        if (yms.length < 2) return "";
+        const X = i => L + i * (W - L - R) / (yms.length - 1);
+        const ix = ym => yms.indexOf(ym);
+        const vals = [].concat(...o.lines.map(l => l.pts.map(p => p[1]).filter(v => v != null)), (o.refs || []).map(r => r.v));
+        const floor = o.floor || 0.3;
+        let top = Math.max(...vals, o.minTop || 1);
+        let Y, ticks;
+        if (o.log) {
+          const pw = [0.3, 1, 3, 10, 30, 100, 300];
+          top = pw.find(p => p >= top * 1.05) || top * 1.2;
+          const lf = Math.log10(floor), lt = Math.log10(top);
+          Y = v => T + (H - T - B) * (1 - (Math.log10(Math.max(v, floor)) - lf) / (lt - lf));
+          ticks = pw.filter(p => p >= floor && p <= top);
+        } else {
+          const step = top > 40 ? 20 : top > 20 ? 10 : top > 8 ? 5 : 2;
+          top = Math.ceil(top * 1.08 / step) * step;
+          Y = v => T + (H - T - B) * (1 - Math.max(0, v) / top);
+          ticks = []; for (let v = 0; v <= top + 1e-9; v += step) ticks.push(v);
+        }
+        const fmtT = v => v < 1 ? String(v) : String(Math.round(v));
+        let s = '<svg class="ap2-gt-svg" viewBox="0 0 ' + W + " " + H + '" role="img" aria-label="' + esc(o.aria || "") + '">';
+        ticks.forEach(v => { const y = Y(v).toFixed(1);
+          s += '<line class="ap2-gt-grid" x1="' + L + '" x2="' + (W - R) + '" y1="' + y + '" y2="' + y + '"/>' +
+               '<text class="ap2-gt-ax" x="' + (L - 6) + '" y="' + (+y + 4) + '" text-anchor="end">' + fmtT(v) + "</text>"; });
+        // quarter starts, plus the last month only when it has room of its own (Jul and Aug collided)
+        const xl = yms.map((ym, i) => +ym.slice(5, 7) % 3 === 1 ? i : -1).filter(i => i >= 0);
+        if (!xl.length || yms.length - 1 - xl[xl.length - 1] >= 2) xl.push(yms.length - 1);
+        xl.forEach(i => { const ym = yms[i];
+          s += '<text class="ap2-gt-ax" x="' + X(i).toFixed(1) + '" y="' + (H - B + 16) + '" text-anchor="middle">' + esc(MONTH_NAMES[+ym.slice(5, 7)] + " \u2019" + ym.slice(2, 4)) + "</text>"; });
+        s += '<text class="ap2-gt-ax" x="' + L + '" y="' + (T - 7) + '">' + esc(o.yLabel || "") + "</text>";
+        (o.band ? [o.band] : []).forEach(b => { const i0 = ix(b.from), i1 = ix(b.to); if (i0 < 0 || i1 < 0) return;
+          s += '<rect class="ap2-gt-band" x="' + (X(i0) - 6).toFixed(1) + '" y="' + T + '" width="' + (X(i1) - X(i0) + 12).toFixed(1) + '" height="' + (H - T - B) + '"/>'; });
+        // a marker label near the right edge reads leftwards, so it is never cut off
+        (o.marks || []).forEach((m, k) => { const i = ix(m.ym); if (i < 0) return; const x = X(i); const left = x > W - R - 170;
+          s += '<line class="ap2-gt-mark" x1="' + x.toFixed(1) + '" x2="' + x.toFixed(1) + '" y1="' + T + '" y2="' + (H - B) + '"/>' +
+               '<text class="ap2-gt-mtx" x="' + (left ? x - 4 : x + 4).toFixed(1) + '" y="' + (T + 11 + 13 * (k % 2)) + '"' + (left ? ' text-anchor="end"' : "") + ">" + esc(m.label) + "</text>"; });
+        // reference labels sit at the LEFT end: the recent months on the right are where the data is
+        (o.refs || []).forEach(r => { const y = Y(r.v).toFixed(1);
+          s += '<line class="ap2-gt-ref ap2-gt-' + r.k + '" x1="' + L + '" x2="' + (W - R) + '" y1="' + y + '" y2="' + y + '"/>' +
+               '<text class="ap2-gt-rtx ap2-gt-' + r.k + '" x="' + (L + 6) + '" y="' + (+y - 5) + '">' + esc(r.label) + "</text>"; });
+        o.lines.forEach(l => {
+          const pts = l.pts.filter(p => p[1] != null && ix(p[0]) >= 0).map(p => [X(ix(p[0])), Y(p[1]), p[1]]);
+          if (!pts.length) return;
+          s += '<polyline class="ap2-gt-ln ap2-gt-' + l.k + '" points="' + pts.map(p => p[0].toFixed(1) + "," + p[1].toFixed(1)).join(" ") + '"/>';
+          pts.forEach(p => { s += '<circle class="ap2-gt-pt ap2-gt-' + l.k + '" cx="' + p[0].toFixed(1) + '" cy="' + p[1].toFixed(1) + '" r="2.6"><title>' + esc(l.label + ": " + r2(p[2])) + "</title></circle>"; });
+        });
+        s += "</svg>";
+        return '<div class="ap2-gt-chart">' + s + '</div><div class="ap2-gt-leg">' +
+          o.lines.map(l => '<span><i class="ap2-gt-sw ap2-gt-' + l.k + '"></i>' + esc(l.label) + "</span>").join("") +
+          (o.refs || []).map(r => '<span><i class="ap2-gt-sw ap2-gt-dash ap2-gt-' + r.k + '"></i>' + esc(r.legend || r.label) + "</span>").join("") + "</div>";
+      }
+      // "scheduled" (2026-09-24 review): switch-on set, its first full month not complete yet
+      const GT_STATUS = {
+        baseline: ["p", "Collecting the baseline"], late: ["n", "Not switched on in time"], scheduled: ["p", "Switch-on set"],
+        running: ["p", "Switched on"],
+        reading: ["p", "Reading"], pass: ["y", "PASS"], fail: ["n", "FAIL"], inconclusive: ["p", "Inconclusive"],
+        extended: ["p", "Inconclusive \u2014 extended"] };
+      function mdHtml() {
+        const G = model.geo_test || null, c = clkOf("MD"), X = model.expansion || {};
+        if (!G || !G.config) {
+          return note("The Maryland test is not in the model yet \u2014 run <b>sources=area-plan</b>." +
+            (c ? " Maryland runs at <b>" + r1(c.level) + "</b> today (Zip to Zip, seasonally adjusted)." : ""));
+        }
+        const C = G.config, Z = G.zones || {};
+        const mdTarget = num((X.capture || {}).MD) || 15;
+        // ---- 1. Maryland's clock, statewide
+        let clock = "";
+        if (c && c.sa && c.sa.length) {
+          const marks = (c.steps || []).filter(s => s.dir > 0).map(s => ({ ym: s.ym, label: (s.name || "a step") + (s.status === "provisional" ? " (provisional)" : "") }));
+          clock = '<div class="ap2-gt-h">Maryland\u2019s clock \u2014 Zip to Zip leads per 10,000 movers a year, seasonally adjusted, by month</div>' +
+            gtChart({ lines: [{ k: "md", label: "Maryland, each month", pts: c.sa.map(p => [p[0], p[1]]) }],
+                      refs: [{ v: mdTarget, k: "tgt", label: "target " + r1(mdTarget) + " (a ceiling)", legend: "the target, a ceiling" },
+                             { v: c.level, k: "lvl", label: "today " + r1(c.level), legend: "today\u2019s level (latest 3 months)" }],
+                      band: c.level_months && c.level_months.length ? { from: c.level_months[0], to: c.level_months[c.level_months.length - 1] } : null,
+                      marks, minTop: mdTarget, yLabel: "per 10,000 movers a year",
+                      aria: "Maryland capture by month, with the Elkridge and ChatGPT steps and the target of " + mdTarget }) +
+            note("<b>A step counts as real</b> when " + ((CLK.rule || {}).confirm_months || 3) + " complete months in a row each sit above the old level by more than " +
+                 Math.round(100 * ((CLK.rule || {}).min_rise || 0.25)) + "% and more than two Poisson standard deviations. " +
+                 (c.steps || []).filter(s => s.dir > 0).map(s => "<b>" + esc(ymLabel(s.ym)) + "</b>: " + esc(s.what || "cause not named") +
+                   " \u2014 " + r1(s.before) + " \u2192 " + r1(s.after) + (s.status === "provisional" ? " (<b>provisional</b>, " + s.months + " of " + ((CLK.rule || {}).confirm_months || 3) + " months)" : "") + ".").join(" ") +
+                 " Today\u2019s all-company 12-month " + r1(capOfSt("MD")) + " includes about <b>" + r1(c.sister_pts) + "</b> of Tuji leads that are going away (his 16 Sep \u201cfocus only on ZIP\u201d).");
+        }
+        // ---- 2. the test
+        const st = GT_STATUS[G.status] || ["p", G.status];
+        const rdSay = esc(ymLabel(C.readout[0])) + "\u2013" + esc(ymLabel(C.readout[1]));
+        const cy = G.verdict && G.verdict.canary;
+        const statusSay = (G.status === "baseline" ? "switch-on not set: the Montgomery address is still to be chosen, and it must be live by " + esc(ymLabel(C.switch_on_by))
+          : G.status === "late" ? (C.switch_on
+              ? "switch-on set to " + esc(ymLabel(C.switch_on)) + ", after the " + esc(ymLabel(C.switch_on_by)) + " deadline: the " + rdSay + " read-out would sit on months before the listing, so no verdict is read"
+              : "no switch-on by " + esc(ymLabel(C.switch_on_by)) + ": the " + rdSay + " read-out cannot be kept")
+          : G.status === "scheduled" ? "switch-on set to " + esc(ymLabel(C.switch_on)) + ", its first full live month \u2014 not complete in the data yet; the read-out is " + rdSay
+          : G.status === "running" ? "live since " + esc(ymLabel(C.switch_on)) + " \u2014 month " + (G.month_n || 0) + "; the read-out is " + rdSay
+          : G.status === "reading" ? "month " + G.month_n + " of 4 of the read-out"
+          : G.verdict ? "ratio of ratios \u00d7" + r2(G.verdict.ratio) + ", z " + r2(G.verdict.z) + ", treatment " + r2(G.verdict.cap_t) + " per 10k" +
+              (cy && cy.flag ? " \u2014 <b>flag</b>: the Elkridge ring ran \u00d7" + r2(cy.ratio) + " its level at switch-on (seasonally adjusted), so a Google ranking change may be in it"
+                : cy && cy.ratio == null && cy.why ? " \u2014 no canary: " + esc(cy.why) : "")
+          : "") +
+          /* the newest lead in the warehouse, so a month read early is visible (2026-09-24 review) */
+          (G.data_through ? "; leads in the data through " + esc(dayLabel(G.data_through)) + ", so the latest whole month is " + esc(ymLabel(G.last_month)) : "");
+        const zoneName = { T: "Treatment \u2014 within " + C.treat_mi + " mi of the Montgomery address", EDGE: "Edge \u2014 " + C.treat_mi + "\u2013" + C.edge_mi + " mi (reported, not scored)",
+                           C1: "Control \u2014 " + C.control_mi[0] + "\u2013" + C.control_mi[1] + " mi out", POS: "Elkridge ring \u2014 within " + C.pos_mi + " mi of the listing (positive control)" };
+        const B = G.baseline || {};
+        const zoneRows = ["T", "EDGE", "C1", "POS"].map(k => { const ser = (G.series || {})[k] || [];
+          const lo = B.from, hi = B.to; const inB = ser.filter(r => lo && r.ym >= lo && r.ym <= hi);
+          const leads = inB.reduce((a, r) => a + r.leads, 0), mv = (Z[k] || {}).movers || 0;
+          const cap = mv && inB.length ? leads * 12 / inB.length / mv * 10000 : null;
+          return "<tr><td>" + esc(zoneName[k]) + '</td><td class="num">' + fmtN((Z[k] || {}).zips) + '</td><td class="num">' + fmtN(mv) +
+            '</td><td class="num">' + fmtN(leads) + '</td><td class="num">' + r2(cap) + "</td></tr>"; }).join("");
+        const lineOf = (k, label) => ({ k: k.toLowerCase(), label, pts: ((G.series || {})[k] || []).map(r => [r.ym, r.capture]) });
+        const listingMarks = (G.listings || []).filter(l => l.live).map(l => ({ ym: l.live, label: l.label + " live" }))
+          .concat([{ ym: "2026-06", label: "gbp_ tags begin" }])   // Arlington's own date is unknown: the caption says so
+          .concat(C.switch_on ? [{ ym: C.switch_on, label: "Montgomery live" }] : []);
+        const guards = G.guards || [];
+        const bad = guards.filter(g => g.level !== "ok");
+        const guardSay = bad.length
+          ? bad.map(g => '<span class="ap2-chip ' + (g.level === "red" ? "n" : "p") + '">' + esc(ymLabel(g.ym)) + ": " +
+              [g.ads_in_zone ? money0(g.ads_in_zone) + " of Google Ads in a test zone" : g.ads ? money0(g.ads) + " of Google Ads in MD/DC/VA (outside the zones?)" : "",
+               g.cards ? fmtN(g.cards) + " MD/DC/VA cards mailed (state-level record: confirm the zips)" : "",
+               (g.new_listings || []).length ? "new listing " + g.new_listings.join(", ") : ""].filter(Boolean).join("; ") + "</span>").join(" ")
+          : '<span class="ap2-chip y">held fixed since ' + esc(ymLabel(B.from || G.last_month)) + "</span> no Search or Performance Max money in MD/DC/VA, no MD/DC/VA cards recorded, no new MD/DC/VA listing in Search Console.";
+        const sig = (G.signal || []).filter(s => ["MD", "VA", "DC"].includes(s.state) || s.tag === "page:elkridge" || s.tag === "gbp_kearny_nj");
+        const lastYms = [...new Set([].concat(...sig.map(s => Object.keys(s.clicks || {}))))].sort().slice(-3);
+        const sigRows = sig.map(s => "<tr><td>" + esc(s.tag) + '</td><td>' + esc(s.first_day ? dayLabel(s.first_day) : "\u2014") + "</td>" +
+          lastYms.map(ym => '<td class="num">' + fmtN((s.clicks || {})[ym] || 0) + "</td>").join("") + '<td class="num">' + fmtN(s.total_clicks) + "</td></tr>").join("");
+        const byMonth = ((G.series || {}).T || []).map((r, i) => { const c1 = ((G.series || {}).C1 || [])[i] || {}, p = ((G.series || {}).POS || [])[i] || {};
+          const br = x => (x.booked || 0) + (x.leads ? " (" + Math.round(100 * x.booked / x.leads) + "%)" : "");
+          return "<tr><td>" + esc(ymLabel(r.ym)) + '</td><td class="num">' + r.leads + '</td><td class="num">' + r2(r.capture) + '</td><td class="num">' + br(r) +
+            '</td><td class="num">' + c1.leads + '</td><td class="num">' + r2(c1.capture) + '</td><td class="num">' + br(c1) +
+            '</td><td class="num">' + p.leads + '</td><td class="num">' + r2(p.capture) + '</td><td class="num">' + br(p) + "</td></tr>"; }).reverse().join("");
+        const kc = (G.counter_cases || [])[0];
+        const ac = G.anchor_check || {};
+        /* THE FORM EXPORT'S AGE, FROM DATA (2026-09-24 review). "Stale since 3 Sep" was typed into two
+           sentences; his 24 Sep call puts the export into the Monday drop, after which both would have
+           been false with nothing to refresh them. model.geo_test.form_export = the last drop's date
+           (MAX `Update Date` of cms_leads) and "stale" past GEO_TEST.form_export_stale_days. */
+        const FX = G.form_export || { stale: true };
+        const fxSay = FX.last_drop ? "Last dropped " + esc(dayLabel(FX.last_drop)) + " (" + fmtN(FX.age_days) + " day" + (FX.age_days === 1 ? "" : "s") + " ago)"
+                                   : "Its last drop is not known to the model";
+        const facts = [
+          "<b>Who created the Elkridge listing, and at what address.</b> The address is unknown (his answer, 24 Sep 2026), so nothing here calls it a bare listing: if it is a staffed unit or a storage site, a listing alone may not copy.",
+          "<b>When the Arlington and Kearny listings went live.</b> Every gbp_ link first appears in Search Console on 21\u201322 Jun 2026, when the tagging began, so neither can be dated from our data.",
+          "<b>Does Local Services Ads serve MD, DC or VA, and since when?</b> Its spend has no readable geography. If it switched on around Dec 2025, part of the Elkridge step is paid.",
+          "<b>A Montgomery address that qualifies</b> for a Business Profile (no virtual office, mailbox or bare truck lot) and sits <b>at least " + C.anchor_min_listing_mi + " miles</b> from Elkridge and Arlington. The placeholder pick is " +
+            Object.keys(ac.miles || {}).map(k => r1(ac.miles[k]) + " mi from " + esc(k[0].toUpperCase() + k.slice(1))).join(" and ") + (ac.ok ? " \u2014 it clears." : " \u2014 <b>it does not clear</b>; north Montgomery (Gaithersburg, Germantown) does."),
+          "<b>The website-form export in the Monday drop</b> (his 24 Sep call): CMS Export/data.xls carries the UTM tags. " + fxSay +
+            (FX.stale ? ", so lead-level listing attribution is blind until it lands weekly." : " — arriving, so the gbp_ lead tags can be read beside Search Console."),
+        ];
+        const pool = G.cards_pool || {};
+        return '<div class="ap2-gt">' + clock +
+          '<div class="ap2-gt-h" style="margin-top:18px">The Montgomery listing test \u2014 pre-registered ' + esc(dayLabel(C.registered_on)) + "</div>" +
+          '<div class="ap2-say" style="margin:0 0 8px"><span class="ap2-chip ' + st[0] + '">' + esc(st[1]) + "</span> " + statusSay + ". " + esc(C.question) +
+            " A Business Profile at a Montgomery address, and nothing else: Monroe PA stays the first yard, and the Montgomery yard waits for this read-out (his call, 24 Sep 2026).</div>" +
+          '<div class="ap2-gt-h">The zones \u2014 Zip to Zip leads over the baseline so far, ' + esc(B.from ? ymLabel(B.from) + "\u2013" + ymLabel(B.to) : "") + "</div>" +
+          '<div class="rs-tablewrap"><table data-name="Montgomery test zones" class="rs-table ap2-next"><thead><tr><th>Zone</th><th class="num">Zips</th><th class="num">Movers a year</th>' +
+            '<th class="num">Leads</th><th class="num">Per 10k a year</th></tr></thead><tbody>' + zoneRows + "</tbody></table></div>" +
+          '<div class="ap2-gt-h" style="margin-top:14px">Capture by zone, each month (log scale)</div>' +
+          gtChart({ log: true, floor: 0.3, lines: [lineOf("T", "Treatment (Montgomery ring)"), lineOf("C1", "Control (15\u201335 mi)"), lineOf("POS", "Elkridge ring (positive control)")],
+                    refs: [{ v: C.pass_capture, k: "tgt", label: "PASS needs \u2265 " + C.pass_capture, legend: "the PASS floor for the treatment zone" }],
+                    marks: listingMarks, yLabel: "per 10,000 movers a year (0 plotted at 0.3)",
+                    aria: "Monthly capture in the treatment, control and Elkridge zones on a log scale" }) +
+          note("<b>The rule, fixed in advance.</b> Baseline: the " + C.baseline_months + " months before switch-on (live by " + esc(ymLabel(C.switch_on_by)) + "). Read-out: " + esc(ymLabel(C.readout[0])) + "\u2013" + esc(ymLabel(C.readout[1])) +
+               ", an interim look at the end of " + esc(ymLabel(C.interim)) + ". <b>PASS</b> = the treatment zone\u2019s rise over its baseline beats the control\u2019s at one-sided 5% <b>and</b> it reads at least " + C.pass_capture +
+               " per 10,000: keep Maryland\u2019s 15 and put the Montgomery yard on the 2028 plan. <b>FAIL</b> = the ratio of ratios is under \u00d7" + C.fail_ratio + " <b>and</b> the zone reads under " + C.fail_capture +
+               ": re-set Maryland\u2019s target to its measured level and keep the yard parked. Anything between is <b>inconclusive</b> and the read runs through " + esc(ymLabel(C.extend_to)) +
+               " \u2014 no reading by eye. Today\u2019s baseline: treatment " + r2((B.T || {}).capture) + ", control " + r2((B.C1 || {}).capture) + " per 10,000.") +
+          '<div class="ap2-gt-h">Held fixed in the treatment, control and Elkridge zones</div><div class="ap2-gt-guard">' + guardSay + "</div>" +
+          note("No Search or Performance Max money goes into these zones; <b>Local Services Ads is unknown</b> (no readable geography). The 2,500 MD and 4,500 VA cards bought in May 2026 can go to zips <b>outside all three zones</b> \u2014 beyond " +
+               C.control_mi[1] + " miles of the address and " + C.listing_clear_control_mi + " of any listing: " + Object.keys(pool).filter(s => (pool[s] || {}).movers).map(s => fmtN(pool[s].zips) + " " + s + " zips (" + fmtN(pool[s].movers) + " movers a year)").join(", ") +
+               ", e.g. Richmond or Hampton Roads.") +
+          (sigRows ? '<div class="ap2-gt-h" style="margin-top:14px">Is the listing live? Search Console clicks on each Business Profile link' +
+              (FX.stale ? " (not lead tags: the form export is " + (FX.last_drop ? "stale, last dropped " + esc(dayLabel(FX.last_drop)) : "of unknown age") + ")"
+                        : " (the weekly form export’s lead tags are the second check)") + "</div>" +
+            '<div class="rs-tablewrap"><table data-name="Listing signal (Search Console)" class="rs-table ap2-next"><thead><tr><th>Listing</th><th>First seen</th>' +
+            lastYms.map(ym => '<th class="num">' + esc(ymLabel(ym)) + "</th>").join("") + '<th class="num">Since Nov 2025</th></tr></thead><tbody>' + sigRows + "</tbody></table></div>" : "") +
+          ref("The evidence behind the test", "Elkridge, Arlington, Kearny, the county placebo, the error rates",
+            '<div class="panel">' +
+            note("<b>Elkridge</b> (live Dec 2025, address unknown): its ring went from about 0 to " + r1((((G.series || {}).POS || []).slice(-3).reduce((a, r) => a + (r.capture || 0), 0)) / 3) +
+                 " per 10,000 in the latest three months, and capture falls off with distance (" + (C.elkridge_decay || []).map(d => esc(d[0]) + " " + r1(d[1])).join(", ") + ", Dec 2025\u2013Aug 2026). " +
+                 "<b>Arlington</b>: " + esc((C.arlington_read || {}).note || "") + " (zone " + r2((C.arlington_read || {}).zone_before) + " \u2192 " + r2((C.arlington_read || {}).zone_after) +
+                 ", control " + r2((C.arlington_read || {}).control_before) + " \u2192 " + r2((C.arlington_read || {}).control_after) + "). " +
+                 (kc ? "<b>" + esc(kc.label) + "</b>, the counter-case \u2014 " + esc(kc.note) + ": Zip to Zip leads from " + esc(kc.zips.join(", ")) + " by half-year " +
+                   kc.halves.map(h => esc(h[0]) + " " + h[1] + (h[2] ? " (partial)" : "")).join(", ") + ". " : "") +
+                 "So far at most one of three listings away from a base (Elkridge, Arlington, Kearny) shows the effect. <b>The county test the 22 Sep memo sketched fails its own placebo</b>: " + esc((C.placebo || {}).note || "") + ".") +
+            '<div class="rs-tablewrap"><table data-name="Error rates of the rule" class="rs-table ap2-next"><thead><tr><th>True lift</th><th class="num">Reads PASS</th><th>Note</th></tr></thead><tbody>' +
+              (C.mde || []).map(m => "<tr><td>" + esc(m.lift) + '</td><td class="num">' + esc(m.pass) + "</td><td>" + esc(m.note || "") + "</td></tr>").join("") + "</tbody></table></div>" +
+            note("40,000 simulated runs per cell: negative-binomial months, zone drift SD 0.3\u20130.5, " + C.baseline_months + " baseline and 4 read months, from the measured zone rates. The test tells a big effect from none; it cannot size a small one.") +
+            '<div class="rs-tablewrap" style="margin-top:10px"><table data-name="Montgomery test by month" class="rs-table ap2-next"><thead><tr><th>Month</th><th class="num">Treatment</th><th class="num">per 10k</th><th class="num">booked</th>' +
+              '<th class="num">Control</th><th class="num">per 10k</th><th class="num">booked</th><th class="num">Elkridge</th><th class="num">per 10k</th><th class="num">booked</th></tr></thead><tbody>' + byMonth + "</tbody></table></div></div>") +
+          '<div class="ap2-gt-h" style="margin-top:14px">Facts to collect before switch-on</div><ol class="ap2-gt-facts">' + facts.map(f => "<li>" + f + "</li>").join("") + "</ol>" +
+          "</div>";
       }
 
       function whatIfHtml() {
@@ -3225,15 +3748,51 @@ registerPage({
           '<label class="ap2-fld"><span>' + l + "</span>" +
           '<input class="rs-num ap2-in" data-scn="' + k + '" type="number" ' + (attrs || "") + ' value="' + esc(String(c[k])) + '">' +
           (sub ? "<small>" + sub + "</small>" : "") + "</label>";
-        const capIn = S.capRows.filter(r => r.movers > 0).sort((a, b) => b.movers - a.movers).map(r =>
-          '<label class="ap2-fld"><span>' + esc(r.st) + " \u2014 leads per 10k movers</span>" +
+        /* THE CLOCK UNDER EACH TYPED STATE (2026-09-24): today's Zip to Zip level -- the lever's "now"
+           since the 2026-09-24 review -- beside the 12-month dial, and the jobs as SEASON jobs with the
+           year they come from.
+           NO HIDDEN FLAGS (2026-09-24 review). "Open it in the What-if" loaded listing:["MD"] and kept it
+           through every later edit, invisibly: a user who dropped the picks and typed MD 10 "via ads"
+           was priced at $0 a lead. Every typed state now shows its path as a control (ads at the state's
+           cost per lead / a listing at none), and clearing a state's target clears its path. */
+        const capIn = S.capRows.filter(r => r.movers > 0).sort((a, b) => b.movers - a.movers).map(r => { const lv = r.level;
+          const typed = c.capture[r.st] != null, cplAds = S.N.mkt.cplOf(r.st);
+          // the label keeps its input alone (a button inside a <label> is a second labelable control)
+          return '<div class="ap2-capcell"><label class="ap2-fld"><span>' + esc(r.st) + " \u2014 leads per 10k movers</span>" +
           '<input class="rs-num ap2-in" data-cap="' + esc(r.st) + '" type="number" step="1" min="0" placeholder="' + r1(r.now) + '" value="' +
-            (c.capture[r.st] == null ? "" : esc(String(c.capture[r.st]))) + '">' +
-          "<small>now <b>" + r1(r.now) + "</b> (" + CAP_WIN_SHORT + ") \u00b7 " + fmtN(r.movers) + " move a year" +
-            (r.addJobs ? " \u00b7 <b>+" + r1(r.addJobs) + " jobs</b>" : "") + "</small></label>").join("");
-        const saved = (inputs.scnSaved || []).map((x, i) =>
-          '<button type="button" class="ap2-mbtn" data-load="' + i + '">' + esc(x.name) +
-          '<small>' + (x.net != null ? sgn(x.net) + " net" : "") + "</small></button>").join("");
+            (typed ? esc(String(c.capture[r.st])) : "") + '">' +
+          "<small>" + (lv != null ? "now <b>" + r1(lv) + "</b> (Zip to Zip, latest 3 months) \u00b7 " + r1(r.dial) + " over " + CAP_WIN_SHORT
+                                   : "now <b>" + r1(r.now) + "</b> (" + CAP_WIN_SHORT + ")") +
+            " \u00b7 " + fmtN(r.movers) + " move a year" +
+            (r.addJobs ? " \u00b7 <b>+" + r1(r.addJobs) + " season jobs</b> (+" + fmtN(r.addLeads) + " of +" + fmtN(r.addLeadsYear) + " leads a year, " + r1(r.lpj) + " a job)" +
+              (S.counted ? " \u00b7 above today\u2019s level: what reaching it is worth, not a date" : " \u00b7 a ceiling: not in the Season total") : "") + "</small></label>" +
+          (typed ? '<div class="rs-seg ap2-seg-s" role="group" aria-label="How ' + esc(r.st) + ' reaches it">' +
+              '<button type="button" data-listing="' + esc(r.st) + '" data-on="0" aria-pressed="' + (!r.viaListing) + '"' + (!r.viaListing ? ' class="on"' : "") + ">Ads" +
+                (cplAds != null ? " $" + r1(cplAds) + " a lead" : "") + "</button>" +
+              '<button type="button" data-listing="' + esc(r.st) + '" data-on="1" aria-pressed="' + (!!r.viaListing) + '"' + (r.viaListing ? ' class="on"' : "") + ">A listing: no ad cost</button></div>" : "") +
+          "</div>"; }).join("");
+        /* CEILINGS OR COUNTED (2026-09-24 review): a visible choice whenever a target is typed. The
+           expansion card opens here as ceilings, so its Season total matches the card; "Count it"
+           is the user saying so himself. */
+        const anyTyped = Object.keys(c.capture || {}).some(st => c.capture[st] != null);
+        const capMode = anyTyped ? '<div class="ap2-capmode"><div class="rs-seg ap2-seg-s" role="group" aria-label="Season ' + esc(String(FC.year)) + ' and the typed targets">' +
+            '<button type="button" data-capmode="count" aria-pressed="' + (!c.ceiling) + '"' + (!c.ceiling ? ' class="on"' : "") + ">Count them in Season " + esc(String(FC.year)) + "</button>" +
+            '<button type="button" data-capmode="ceiling" aria-pressed="' + (!!c.ceiling) + '"' + (c.ceiling ? ' class="on"' : "") + ">Ceilings: not counted</button></div></div>" : "";
+        // what the typed targets are worth IF reached, when they are ceilings (outside every total below)
+        const SC = !S.counted && S.capRows.some(r => r.addJobs) ? scenarioCalc(null, { capture: true }) : null;
+        const ceilSay = SC ? '<div class="ap2-say" style="margin:10px 0 0"><b>The typed targets are ceilings</b> \u2014 kept out of Season ' + esc(String(FC.year)) +
+            " below, as on the expansion card. If they were reached: <b>" + (SC.scn.jobs - S.scn.jobs >= 0 ? "+" : "") + r1(SC.scn.jobs - S.scn.jobs) + "</b> season jobs and <b>" +
+            ((SC.scn.net - S.scn.net) < 0 ? "\u2212" + money0(S.scn.net - SC.scn.net) : "+" + money0(SC.scn.net - S.scn.net)) + "</b> net, from today\u2019s level (" +
+            S.capRows.filter(r => r.addJobs).map(r => esc(r.st) + " " + r1(r.now) + " \u2192 " + r1(r.want)).join(", ") + "). Nothing measured says when.</div>" : "";
+        /* SAVED SCENARIOS ARE PRICED WHEN SHOWN (2026-09-24): a net frozen at save time carried the old
+           year-as-season units forever. The saved levers are re-run through today's engine. */
+        const savedNet = x => { try { const s0 = x.scn || {};
+            const S2 = scenarioCalc(Object.assign({}, SCN0, s0, { capture: Object.assign({}, s0.capture || {}),
+              picks: Array.isArray(s0.picks) ? s0.picks : [], listing: Array.isArray(s0.listing) ? s0.listing : [] }));
+            return S2.scn.net - S2.base.net; } catch (e) { return x.net; } };
+        const saved = (inputs.scnSaved || []).map((x, i) => { const nt = savedNet(x);
+          return '<button type="button" class="ap2-mbtn" data-load="' + i + '">' + esc(x.name) +
+          '<small>' + (nt != null ? sgn(nt) + " net today" : "") + "</small></button>"; }).join("");
 
         return '<div class="ap2-say" style="margin:0 0 12px"><b>What this tool will and will not tell you.</b> ' +
             'Three of the four levers you asked for were measured first, and the measurements are built into them. ' +
@@ -3241,10 +3800,14 @@ registerPage({
             'booked no worse than any other. <b>Marketing does not buy jobs measurably</b> \u2014 +22% of spend once bought +10 jobs, so that dial ' +
             'starts at nil response and you can type what you believe instead. <b>A new base does not raise booking on the day it opens</b>, ' +
             'though inside 15 miles of a staffed one we book 31.6% against 17.0% further out, so the ring has a slider for how much of it has arrived. ' +
-            'The lever that does move this plan is <b>capture</b>' + (capSay() ? ": " + capSay() : "") + '.</div>' +
+            'The lever that does move this plan is <b>capture</b>' + (capSay() ? ": " + capSay() : "") + '.' +
+            /* the dials below start from that capture, which leaves out the no-address leads (2026-09-24) */
+            (noAddrShort() ? " " + noAddrShort() + "." : "") + '</div>' +
           '<div class="ap2-scn">' +
-            '<div class="ap2-scnbox"><h4>Reach more of the movers</h4><div class="ap2-capgrid">' + capIn + "</div>" +
-              note("Type the leads per 10,000 movers you think a state could reach. <b>This is the lever the data says is large</b> — and the one a base cannot move on its own.") + "</div>" +
+            '<div class="ap2-scnbox"><h4>Reach more of the movers</h4>' + capMode + '<div class="ap2-capgrid">' + capIn + "</div>" +
+              note("Type the leads per 10,000 movers you think a state could reach. <b>This is the lever the data says is large</b> — and the one a base cannot move on its own. " +
+                   "It is measured from <b>today’s level</b> (Zip to Zip, the latest three complete months, seasonally adjusted), the same basis as the expansion card. " +
+                   "A point is a year of leads per 10,000 movers; the Season " + esc(String(FC.year)) + " column takes the season’s share of it: " + shareSay() + ".") + "</div>" +
             '<div class="ap2-scnbox"><h4>Bases somewhere new</h4>' +
               /* THE MAP'S OWN PICKS, one click each. A zip outside today's territory is not in the
                  model's compact maps, so typing Rockville got "not in the territory data" -- and the
@@ -3282,7 +3845,7 @@ registerPage({
             (Math.abs(S.scn.extra) > 1 ? num2("Parking for the new base, net of the driving it saves", 0, S.scn.extra, 1) : "") +
             '<tr class="ap2-tot"><td><b>Net before overhead</b></td><td class="num">' + money0(S.base.net) + '</td><td class="num">' + money0(S.scn.net) +
               '</td><td class="num">' + sgn(S.scn.net - S.base.net) + "</td></tr>" +
-          "</tbody></table>" +
+          "</tbody></table>" + ceilSay +
           (S.moves.length
             ? '<table data-name="What moved it" class="rs-table ap2-next" style="margin-top:12px"><thead><tr><th>What you changed</th><th>What the data says about it</th><th class="num">Jobs</th><th class="num">Net</th></tr></thead><tbody>' +
               S.moves.map(m => "<tr><td><b>" + m.l + "</b></td><td>" + m.why + '</td><td class="num">' +
@@ -3322,10 +3885,22 @@ registerPage({
           save(); repaintScn(); }; });
         el.querySelectorAll("[data-cap]").forEach(i => { i.onchange = () => {
           const st = i.dataset.cap;
-          if (i.value === "") delete inputs.scn.capture[st]; else inputs.scn.capture[st] = +i.value;
+          if (i.value === "") {
+            delete inputs.scn.capture[st];
+            // a path cannot outlive its target (2026-09-24 review)
+            inputs.scn.listing = (inputs.scn.listing || []).filter(x => x !== st);
+          } else inputs.scn.capture[st] = +i.value;
+          save(); repaintScn(); }; });
+        el.querySelectorAll("[data-listing]").forEach(b => { b.onclick = () => {
+          const st = b.dataset.listing, on = b.dataset.on === "1";
+          const cur = (inputs.scn.listing || []).filter(x => x !== st);
+          inputs.scn.listing = on ? cur.concat([st]) : cur;
+          save(); repaintScn(); }; });
+        el.querySelectorAll("[data-capmode]").forEach(b => { b.onclick = () => {
+          inputs.scn.ceiling = b.dataset.capmode === "ceiling";
           save(); repaintScn(); }; });
         const rst = el.querySelector("#apScnReset");
-        if (rst) rst.onclick = () => { inputs.scn = Object.assign({}, SCN0, { capture: {}, picks: [] }); save(); repaintScn(); };
+        if (rst) rst.onclick = () => { inputs.scn = Object.assign({}, SCN0, { capture: {}, picks: [], listing: [], ceiling: false }); save(); repaintScn(); };
         const sv = el.querySelector("#apScnSave");
         if (sv) sv.onclick = () => { const nm = (el.querySelector("#apScnName") || {}).value;
           if (!nm || !nm.trim()) return;
@@ -3337,6 +3912,7 @@ registerPage({
           const x = (inputs.scnSaved || [])[+b.dataset.load]; if (!x) return;
           inputs.scn = Object.assign({}, SCN0, x.scn); inputs.scn.capture = Object.assign({}, x.scn.capture || {});
           inputs.scn.picks = Array.isArray(x.scn.picks) ? x.scn.picks.slice() : [];
+          inputs.scn.listing = Array.isArray(x.scn.listing) ? x.scn.listing.slice() : [];
           save(); repaintScn(); }; });
       }
 
@@ -3828,7 +4404,7 @@ registerPage({
                    for the state, and what the expansion we actually decided implies at its target. */
                 '<div class="hd">Foremen it should have</div><div class="grid">' +
                   gRow2("The crew aim for " + esc(b.st), b.need != null ? fmtN(b.need) : EM, "the standing target for the state") +
-                  (b.xpFm != null ? gRow2("The expansion implies", r1(b.xpFm), fmtN(b.xpJobs) + " jobs at " + r2(b.rate || 1.27) + " a foreman-day") : "") +
+                  (b.xpFm != null ? gRow2("The expansion implies, at its target", r1(b.xpFm), fmtN(b.xpJobs) + " season jobs at " + r2(b.rate || 1.27) + " a foreman-day — a ceiling, $0 of it counted for next season") : "") +
                   gRow2("Trucks", b.need != null ? fmtN(b.need) : EM, "one per foreman") +
                   gRow2("Jobs a day", b.perDay != null ? r1(b.perDay) : EM, "once it is staffed") +
                 "</div>" +
@@ -4427,6 +5003,11 @@ registerPage({
                "Maryland and Pennsylvania: what it adds, what it needs, and what it is worth",
                "Kept out of every total above on purpose. The plan is what the history supports; this is what we have chosen to go and win.",
                '<div id="apXp">' + expansionHtml() + "</div>", "apXpCard") : "") +
+            /* one Maryland block, right under the expansion card (2026-09-24): its clock and its test */
+            (model.geo_test || CLK ? card("Maryland — the clock and the test",
+               "Is Maryland’s 15 real? The Montgomery listing test",
+               "Maryland’s capture already rose without a yard, in steps. This is where it stands, and the pre-registered test that decides the Montgomery yard.",
+               '<div id="apMd">' + mdHtml() + "</div>", "apMdCard") : "") +
             asksHtml().replace('style="margin-top:6px;border-top:0;padding-top:0"', "")) +
           pane("plan", "Crews, the sales desk and the marketing budget: every state, every month. Season " + esc(String(FC.year || "")) + " — the period picker on <b>Capacity check</b> does not move these numbers.",
             card("The formula", "X foremen at a location — how many salespeople and what marketing budget",
@@ -4567,6 +5148,9 @@ registerPage({
         const fm = host.querySelector("#apFormula"); if (fm && !fm.contains(document.activeElement)) { fm.innerHTML = formulaHtml(); wireFormula(); }
         const ch = host.querySelector("#apChips"); if (ch) ch.innerHTML = fleetChips();
         const xp = host.querySelector("#apXp"); if (xp) { xp.innerHTML = expansionHtml(); wireXp(); }
+        /* the Maryland block reads only the model, so a plan edit cannot change it; repainted anyway so
+           its chip and tables can never lag the expansion card above it */
+        const md = host.querySelector("#apMd"); if (md) md.innerHTML = mdHtml();
         repaintBudget(); wireMethod(); wireAsks(); enhanceTables();
       }
       function save() { try { localStorage.setItem(LS_KEY, JSON.stringify(inputs)); } catch (e) {} }

@@ -60,7 +60,8 @@
   if (!RS.DATASETS.src_spend) {
     RS.DATASETS.src_spend = {
       table: "mart_source_spend",
-      cols: ["Date", "Company", "Source", "Family", "Campaign", "Spend", "Ledger End"],
+      // Form Export Date (2026-09-24): the newest website-form export, the only source of UTM tags
+      cols: ["Date", "Company", "Source", "Family", "Campaign", "Spend", "Ledger End", "Form Export Date"],
       dateCols: {}, defaultDate: null,
     };
   }
@@ -85,7 +86,8 @@
     list: { page: 0, per: 50, q: "", cat: "" },
     cols: null, bootDone: false,
   };
-  var DATA = { ready: false, byFam: null, minDay: null, maxDay: null, ledgerEnd: null };
+  var DATA = { ready: false, byFam: null, minDay: null, maxDay: null, ledgerEnd: null, formsDate: null };
+  var FORMS_STALE_DAYS = 10;   // the export is due weekly (his call 2026-09-24); 10 days = one Monday missed
   var DETAIL = {};        // "fam|co|from|to" -> {rows: {jk: row}, capped, error} (or a Promise)
   var PREF = { loaded: false, loading: false, saved: null, note: "" };
   var saveTimer = null;
@@ -219,7 +221,7 @@
       if (!fams.has(k)) fams.set(k, { leads: [], jobs: [], spend: [] });
       return fams.get(k);
     };
-    var lo = "9999-12-31", hi = "", led = "";
+    var lo = "9999-12-31", hi = "", led = "", frm = "";
     L.forEach(function (r) {
       r._cd = String(r["Create Date"] || "").slice(0, 10);
       r._bd = r["Booked Date"] ? String(r["Booked Date"]).slice(0, 10) : "";
@@ -238,12 +240,15 @@
       r._sp = num(r.Spend);
       var le = String(r["Ledger End"] || "").slice(0, 10);
       if (le > led) led = le;
+      var fe = String(r["Form Export Date"] || "").slice(0, 10);
+      if (fe > frm) frm = fe;
       get(r.Family).spend.push(r);
     });
     DATA.byFam = fams;
     DATA.minDay = hi ? lo : null;
     DATA.maxDay = hi || null;
     DATA.ledgerEnd = led || null;
+    DATA.formsDate = frm || null;
     DATA.ready = true;
   }
 
@@ -450,6 +455,7 @@
       + '<button type="button" data-v="prev">vs previous period</button></div></div>'
       + '<div id="sraSt"></div>'
       + "</div>"
+      + formsStaleHtml()
       + '<div class="rs-hint" id="sraLead"></div>'
       + '<div class="rs-grid2" id="sraSides"></div>'
       + '<div class="sra-h"><h2>Breakdowns</h2>'
@@ -551,6 +557,22 @@
       b.classList.toggle("on", b.dataset.v === S.mt);
       b.onclick = function () { S.mt = b.dataset.v; S.list.page = 0; paint(host); };
     });
+  }
+
+  /* ---- the website-form export's age (2026-09-24). The UTM tags that tell Google from Google
+     Local (a Business Profile click) and find the ChatGPT leads arrive ONLY with the CMS export
+     (cms_leads). It was loaded once, on 2026-09-03; from the week of 7 Sep no lead carried a tag
+     and Google Local read 30 in September against 309 in August -- a gap that looks like a
+     collapse and is only a missing file. One line, whatever source is picked, once the export is
+     10+ days old. ---- */
+  function formsStaleHtml() {
+    var d = DATA.formsDate;
+    if (!d) return "";
+    var age = dayCount(d, today()) - 1;
+    if (age < FORMS_STALE_DAYS) return "";
+    return '<div class="rs-hint" id="sraForms"><span class="rs-pill warn">Tags ' + fmtN(age) + " days old</span> "
+      + "Website-form tags last loaded <b>" + esc(niceDay(d)) + "</b> — Google vs Google Local and ChatGPT splits "
+      + "after that date are incomplete.</div>";
   }
 
   /* ---- the sentence under the bar: what is being read, and the traps it avoids ---- */

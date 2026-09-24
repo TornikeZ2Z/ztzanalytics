@@ -481,7 +481,11 @@
     if (ce) {
       const mb = d.moveboard || {};
       const dOk = mv && ce.event_date ? String(ce.event_date).slice(0, 10) === mv : null;
-      const zip = String(mb["Pickup Zip"] || "").trim();
+      // the zip Moveboard HOLDS (2026-09-24): `Pickup Zip` is now blank for our warehouse legs and
+      // Moveboard's no-address default (area pages only), so the transfer check reads `Moving From
+      // Zip`, as fct_lead_journey's `Cal Loc Match` does; a record from before that column exists
+      // still has the old `Pickup Zip`, which was the same value
+      const zip = String(("Moving From Zip" in mb ? mb["Moving From Zip"] : mb["Pickup Zip"]) || "").trim();
       const lOk = zip && ce.location ? String(ce.location).includes(zip) : null;
       const mark = ok => ok == null ? `<span class="st-dim">n/a</span>`
         : ok ? `<span class="st-good">✓</span>` : `<span class="st-bad">✗</span>`;
@@ -512,7 +516,9 @@
     "Create Datetime NY", "Source Before Adjustment", "Source Connector", "Source M",
     "State Name", "CF/Lbs", "Bill Range", "CF Range", "Sales Commission Bucket Range",
     "Big Job Status", "Closing Total", "Payment total", "Company", "File Name",
-    "File Path", "Update Date"]);
+    "File Path", "Update Date",
+    // 2026-09-24: plumbing for the source matchers and the transfer check above
+    "Moving From Zip"]);
   function fieldsDump(obj, techSet, label) {
     const keys = Object.keys(obj).filter(k =>
       obj[k] != null && String(obj[k]).trim() !== "" && !k.startsWith("__"));
