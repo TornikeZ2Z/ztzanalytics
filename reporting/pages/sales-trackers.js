@@ -1,4 +1,21 @@
-/* SALES AI TRACKERS — manager-defined concepts, judged by an LLM on every applicable call.
+/* SALES TRACKERS — manager-defined keyword lists, matched on every applicable call.
+ *
+ * KEYWORD-ONLY, BY HIS CALL (2026-09-24). The ai mode below never ran (sales_tracker_batch has
+ * 0 rows, no API key) and stays dormant with no switch on this page, so the page stopped
+ * talking about AI, models, batches and "within the hour". The same review found:
+ *   * the Manage tab's Checked column summed only ai verdicts, so every keyword tracker showed
+ *     0 — Inventory Review among them, with 6,893 checked calls. It counts Mentioned + Not
+ *     Mentioned now.
+ *   * Source Detector's keyword box held one sentence, full stop included, and the engine
+ *     matches each comma-separated entry word for word: 0 hits in 356 calls. The editor now
+ *     previews the exact phrases and flags an entry over 4 words or ending in punctuation,
+ *     and the Description is labelled as the note for people it is (never matched).
+ *   * a "first contacts only" scope option (the question asked once per lead), and the shared
+ *     support line labelled in the rep table, since it is not a person.
+ * Its own review (same day): a first contact must be LINKED to its lead — an unlinked call is
+ * a one-call bucket that always reads as a first contact, ~1 in 5 quote calls never link, and
+ * the unlinked share of a rep's first contacts ran 7%-37% — so the card counts what that
+ * leaves out; the preview collapses pasted double spaces and tabs the way the engine does.
  *
  * His ask (2026-08-26): the Sales Head writes a tracker — a name, a plain-language
  * instruction, optional keywords, a scope — and the system judges every in-scope RingSense
@@ -100,6 +117,15 @@
       + ".stx-scoperow{display:flex;flex-wrap:wrap;gap:12px 18px;align-items:center}"
       + ".stx-scoperow .rs-field{margin:0}"
       + ".stx-check{display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--muted)}"
+      + ".stx-form textarea.stx-kw{min-height:64px}"
+      // the keyword preview: exactly the phrases the engine will match, one chip each
+      + ".stx-kwprev{margin-top:8px}"
+      + ".stx-kwhead{font-size:12px;color:var(--muted);margin:0 0 5px}"
+      + ".stx-chip{display:inline-block;padding:2px 9px;margin:0 5px 5px 0;border-radius:999px;"
+      + "background:var(--panel-2);border:1px solid var(--line);font-size:12px;color:var(--ink)}"
+      + ".stx-chip.warn{border-color:var(--warn);background:var(--warn-bg)}"
+      + ".stx-kwwarn{font-size:12px;color:var(--warn);line-height:1.5;margin:2px 0 0}"
+      + ".stx-shared{background:var(--panel-2)}"
       + "@media(max-width:820px){.stx-form{grid-template-columns:1fr}}"
       // the transcript drawer
       + ".stx-overlay{position:fixed;inset:0;background:rgba(10,16,24,.45);z-index:60;"
@@ -134,10 +160,56 @@
     var bits = [];
     bits.push(sc.direction ? sc.direction + " calls" : "all directions");
     if (sc.quote_only) bits.push("quote calls only");
+    if (sc.first_contact_only) bits.push("first contacts only");
     if (sc.min_seconds) bits.push("≥ " + sc.min_seconds + "s");
     if (sc.date_from) bits.push("from " + sc.date_from);
     if (sc.include_shared) bits.push("incl. shared line");
     return bits.join(" · ");
+  }
+
+  /* WHAT "FIRST CONTACTS ONLY" LEAVES OUT (review, 2026-09-24). The engine counts a first
+     contact only once the call is LINKED to its lead (_in_scope, src/sales_trackers.py): an
+     unlinked call is a one-call bucket that always reads as a first contact, and about half of
+     them are really follow-ups. ~1 in 5 quote calls never link (Jun–Aug 2026), and a new
+     customer's call links only when their lead arrives with the weekly Moveboard export (by
+     hand, Mondays) — so the card says how many calls that rule is holding out, and how many
+     are from the last seven days and may still link. The other scope checks mirror
+     _in_scope, so a call out for another reason is not counted here. */
+  function unlinkedFirsts(t, S) {
+    var sc = t.scope || {};
+    if (!sc.first_contact_only) return null;
+    var n = 0, recent = 0, cut = Date.now() - 7 * 864e5;
+    var dir = String(sc.direction || "any").toLowerCase();
+    Object.keys(S.calls).forEach(function (rid) {
+      var c = S.calls[rid];
+      if (c.Stage !== "quote call" || +c.Linked || !+c["First Contact"]) return;
+      if (+c["Shared Line"] && !sc.include_shared) return;
+      if ((dir === "inbound" || dir === "outbound")
+          && String(c.Direction || "").toLowerCase().indexOf(dir) < 0) return;
+      if (sc.min_seconds && (+c["Duration Sec"] || 0) < +sc.min_seconds) return;
+      var day = String(c.Started || "").slice(0, 10);
+      if (sc.date_from && (!day || day < sc.date_from)) return;
+      n++;
+      var iso = String(c.Started || "").replace(" ", "T");
+      if (iso && !/(Z|[+-]\d\d:?\d\d)$/.test(iso)) iso += "Z";      // the mart stores UTC
+      if (Date.parse(iso) >= cut) recent++;
+    });
+    return { n: n, recent: recent };
+  }
+
+  function unlinkedNote(t, S) {
+    var u = unlinkedFirsts(t, S);
+    if (!u || !u.n) return "";
+    return '<div class="stx-scope">' + u.n.toLocaleString() + " first-contact call"
+      + (u.n === 1 ? " is" : "s are") + " left out because " + (u.n === 1 ? "it is" : "they are")
+      + " not linked to a lead"
+      + (!u.recent ? ""
+         : u.n === 1 ? " — it is from the last seven days and may link when the weekly lead "
+                       + "export arrives"
+         : " — " + (u.recent === u.n ? "all" : u.recent.toLocaleString()) + " from the last "
+           + "seven days, most of which link when the weekly lead export arrives and are "
+           + "then checked")
+      + ". About 1 in 5 quote calls never link.</div>";
   }
 
   function render(host) {
@@ -166,7 +238,7 @@
   function paint(host, S) {
     var canEdit = !!(S.meta && S.meta.can_edit);
     var html = ''
-      + '<div class="rs-page-head"><h1>Sales AI Trackers</h1>'
+      + '<div class="rs-page-head"><h1>Sales Trackers</h1>'
       + "<p>Tell the system what to listen for, and every applicable call transcript is "
       + "checked against it: <b>Mentioned / Not mentioned</b>, with pointers to the exact "
       + "sentences. A tracker records that a topic <b>came up</b> on the call — said by "
@@ -198,8 +270,8 @@
     if (!trackers.length) {
       body.innerHTML = '<div class="panel"><p class="stx-note">No active trackers yet. '
         + (S.meta.can_edit
-           ? 'Create the first one under <b>Tracker management</b> — a name, a plain-language '
-             + 'instruction for what should count, and where it applies.'
+           ? 'Create the first one under <b>Tracker management</b> — a name, the words or '
+             + 'short phrases to listen for, and which calls it applies to.'
            : 'The Sales Head has not created any trackers yet.')
         + "</p></div>";
       return;
@@ -237,13 +309,13 @@
     var head = '<div class="panel-head"><div><div class="panel-title">' + esc(t.name)
       + "</div>"
       + '<p class="stx-desc">' + esc(t.description) + "</p>"
-      + '<div class="stx-scope">' + esc(scopeWords(t.scope)) + "</div></div></div>";
+      + '<div class="stx-scope">' + esc(scopeWords(t.scope)) + "</div>"
+      + unlinkedNote(t, S) + "</div></div>";
 
     if (!judged.length) {
       return '<div class="panel stx-card">' + head
         + '<p class="stx-note">'
-        + (pending ? pending.toLocaleString() + " calls are queued for evaluation — verdicts "
-                     + "land as each batch finishes (usually within the hour)."
+        + (pending ? pending.toLocaleString() + " calls are waiting to be checked."
            : "No calls checked yet — results land with the next pipeline pass (hourly), or "
              + "press Run evaluation now under Tracker management.")
         + "</p></div>";
@@ -286,20 +358,30 @@
   function repTable(t, applicable, S, isKw) {
     var cols = isKw ? ["Mentioned", "Not Mentioned"] : ["Met", "Partial", "Not Met"];
     var mainResult = cols[0];
-    var byRep = {};
+    /* THE SHARED LINE IS NOT A PERSON (2026-09-24). "Support Zip To Zip" is a queue anyone may
+       answer; a tracker that ticks "include the shared line" counts its calls, so the row
+       stays, but last and labelled — the Sales Communication Analysis rule. */
+    var byRep = {}, sharedName = {};
     applicable.forEach(function (e) {
       var c = S.calls[e["Record Id"]];
       var rep = (c && c.Rep) || "—";
+      if (c && +c["Shared Line"]) sharedName[rep] = true;
       (byRep[rep] = byRep[rep] || []).push(e);
     });
     var reps = Object.keys(byRep).sort(function (a, b) {
-      return byRep[b].length - byRep[a].length;
+      var sa = sharedName[a] ? 1 : 0, sb = sharedName[b] ? 1 : 0;
+      return (sa - sb) || (byRep[b].length - byRep[a].length);
     });
     if (!reps.length) return "";
     var rows = reps.map(function (rep) {
       var list = byRep[rep];
+      var isShared = !!sharedName[rep];
+      var who = isShared
+        ? esc(rep) + '<div class="stx-scope">shared support line — not a person</div>'
+        : esc(rep);
+      var trOpen = isShared ? '<tr class="stx-shared">' : "<tr>";
       if (list.length < MIN_CALLS) {
-        return "<tr><td>" + esc(rep) + '</td><td class="num">' + list.length + "</td>"
+        return trOpen + "<td>" + who + '</td><td class="num">' + list.length + "</td>"
           + '<td colspan="' + cols.length + '"><span class="stx-thin">not enough checked '
           + "calls to show a rate — under " + MIN_CALLS + "</span></td></tr>";
       }
@@ -312,7 +394,7 @@
              ? '<span class="stx-bar"><i class="' + tone + '" style="width:' + p + '%"></i></span>'
              : "") + "</td>";
       }
-      return '<tr><td class="strong">' + esc(rep) + '</td><td class="num">'
+      return trOpen + '<td class="strong">' + who + '</td><td class="num">'
         + list.length + "</td>" + cols.map(cell).join("") + "</tr>";
     }).join("");
     return '<div class="rs-tablewrap"><table class="rs-table">'
@@ -335,12 +417,14 @@
       return String(cb.Started || "").localeCompare(String(ca.Started || ""));
     }).slice(0, 25);
     if (!list.length) return "";
+    var isKw = t.mode !== "ai";
     var rows = list.map(function (e) {
       var c = S.calls[e["Record Id"]] || {};
       var conf = e.Confidence == null ? "" :
         '<span class="stx-conf">' + e.Confidence + "% conf.</span>";
       return "<tr><td>" + esc(String(c.Started || "").slice(0, 16) || "—") + "</td>"
-        + "<td>" + esc(c.Rep || "—") + "</td>"
+        + "<td>" + esc(c.Rep || "—")
+        + (+c["Shared Line"] ? '<div class="stx-scope">shared line</div>' : "") + "</td>"
         + "<td>" + esc(c.Customer || "—") + "</td>"
         + '<td><span class="rs-pill ' + (TONE[e.Result] || "") + '">' + esc(e.Result)
         + "</span> " + conf + "</td>"
@@ -351,14 +435,24 @@
     }).join("");
     return '<div class="rs-tablewrap" style="margin-top:14px"><table class="rs-table">'
       + "<thead><tr><th>When</th><th>Rep</th><th>Customer</th><th>Verdict</th>"
-      + "<th>Why the AI says so</th><th></th></tr></thead><tbody>" + rows
-      + "</tbody></table></div>"
-      + '<p class="rs-hint">The 25 most recent judged calls. "Why" is the model\'s own '
-      + "explanation — open the transcript to see the highlighted evidence and argue "
-      + "with it.</p>";
+      + "<th>" + (isKw ? "Keywords heard" : "Explanation") + "</th><th></th></tr></thead><tbody>"
+      + rows + "</tbody></table></div>"
+      + '<p class="rs-hint">'
+      + (isKw
+         ? "The 25 most recent checked calls. <b>Keywords heard</b> lists each phrase that "
+           + "was said and how many lines it was on — open the transcript to see the lines "
+           + "in place."
+         : "The 25 most recent checked calls — open the transcript to see the highlighted "
+           + "evidence and argue with it.")
+      + "</p>";
   }
 
   /* ---------------------------------------------------- transcript drawer */
+
+  function tkMode(S, key) {
+    var t = ((S.meta && S.meta.trackers) || []).filter(function (x) { return x.key === key; })[0];
+    return (t && t.mode) || "keyword";
+  }
 
   function openCall(rec, seqs, tkey, S) {
     var hits = {};
@@ -394,8 +488,12 @@
         + '<button class="rs-btn" id="stxClose">Close</button></div>'
         + '<div style="margin:8px 0 14px;display:flex;flex-wrap:wrap;gap:5px">' + vbits
         + "</div>"
-        + '<p class="rs-hint">Highlighted lines are the utterances the model cited as '
-        + "evidence for the <b>" + esc(tkey) + "</b> verdict.</p>" + utts;
+        + '<p class="rs-hint">'
+        + (tkMode(S, tkey) === "ai"
+           ? "Highlighted lines are the evidence cited for the <b>" + esc(tkey) + "</b> verdict."
+           : "Highlighted lines are where each keyword of <b>" + esc(tkey) + "</b> was first "
+             + "said on this call (up to six lines).")
+        + "</p>" + utts;
       ov.querySelector("#stxClose").onclick = function () { ov.remove(); };
     }).catch(function (e) {
       ov.querySelector(".stx-drawer").innerHTML = '<div class="panel">Could not open the '
@@ -406,24 +504,28 @@
   /* ----------------------------------------------------------------- manage */
 
   function paintManage(body, host, S) {
-    var eng = (S.meta.engine || {});
-    var open = (eng.batches || {}).submitted || 0;
     var trackers = S.meta.trackers || [];
     var cov = S.meta.coverage || {};
 
     var engine = '<div class="panel stx-card"><div class="panel-head">'
       + '<div class="panel-title">Evaluation engine</div>'
       + '<button class="rs-btn" id="stxRun">Run evaluation now</button></div>'
-      + '<p class="stx-note">Calls are checked in the data pipeline every hour; '
+      + '<p class="stx-note">Calls are checked in the data pipeline every hour, free; '
       + '<b>Run evaluation now</b> checks immediately. '
-      + (open ? ("<b>" + open + " batch" + (open > 1 ? "es" : "") + " in flight.</b> ") : "")
-      + "Changing a tracker's <b>keywords, description or scope</b> re-checks every "
-      + "matching call automatically; renaming alone does not.</p></div>";
+      + "Changing a tracker's <b>keywords, note or scope</b> re-checks every matching call "
+      + "automatically; renaming alone does not. A call that leaves a tracker's scope (for "
+      + "example one later read as a service call, not a quote call) drops out of its counts "
+      + "on the next pass, disabled trackers included. One pass drops at most 1 in 20 of a "
+      + "tracker's checked calls (at least 50), so a bad data rebuild cannot empty it; a "
+      + "bigger change clears over the following hours.</p></div>";
 
     var rows = trackers.map(function (t) {
       var c = cov[t.key] || {};
-      var judged = (c.Met || 0) + (c.Partial || 0) + (c["Not Met"] || 0)
-                 + (c["Not Applicable"] || 0);
+      // a keyword tracker's verdicts are Mentioned / Not Mentioned — summing only the ai
+      // words showed 0 Checked on every tracker until 2026-09-24
+      var judged = t.mode !== "ai"
+        ? (c.Mentioned || 0) + (c["Not Mentioned"] || 0)
+        : (c.Met || 0) + (c.Partial || 0) + (c["Not Met"] || 0) + (c["Not Applicable"] || 0);
       return "<tr><td class=\"strong\">" + esc(t.name)
         + '<div class="stx-scope">' + esc(t.key) + "</div></td>"
         + '<td><div class="stx-expl">' + esc(t.description) + "</div></td>"
@@ -448,7 +550,7 @@
       + '<button class="rs-btn pri" id="stxNew">New tracker</button></div>'
       + (trackers.length
          ? '<div class="rs-tablewrap"><table class="rs-table"><thead><tr>'
-           + "<th>Tracker</th><th>Description</th><th>Scope</th><th>Status</th>"
+           + "<th>Tracker</th><th>Note</th><th>Scope</th><th>Status</th>"
            + '<th class="num">Checked</th><th>Last edited</th><th></th></tr></thead><tbody>'
            + rows + "</tbody></table></div>"
          : '<p class="stx-note">Nothing yet — create the first tracker.</p>')
@@ -459,7 +561,8 @@
     body.querySelector("#stxRun").onclick = function () {
       api("/api/_trackers", { method: "POST", body: JSON.stringify({ action: "run" }) })
         .then(function () {
-          RSC.notice("Evaluation fired — verdicts land as batches finish (usually within the hour).");
+          RSC.notice("Check started. New verdicts show once it finishes — reopen the page to "
+            + "see them. Past 5,000 calls, the rest finish on the next hourly pass.");
         }).catch(function (e) { RSC.notice(e.message); });
     };
     body.querySelector("#stxNew").onclick = function () {
@@ -505,6 +608,51 @@
       .replace(/^_+|_+$/g, "").replace(/^[^a-z]+/, "").slice(0, 40);
   }
 
+  /* THE PREVIEW IS THE ENGINE'S OWN SPLIT (src/sales_trackers.py _kw_patterns): commas,
+     semicolons and new lines separate phrases, and each phrase must be said word for word
+     (any letter case, any spacing). Source Detector's box held one sentence with a full stop
+     and matched 0 of 356 calls (measured 2026-09-24) — so a long entry or one ending in
+     punctuation is flagged, never refused: a 5-word fixed phrase can be exactly right.
+     Any run of whitespace inside a phrase — a pasted double space, a tab — collapses to one
+     space here and in the engine alike (review, 2026-09-24): before, the engine needed two
+     spaces or a literal tab and matched nothing, while the chip looked like any other. */
+  var KW_LONG = 4;
+  var KW_END_PUNCT = /[.!?:"'…”’]$/;
+
+  function kwTerms(s) {
+    return String(s || "").split(/[,;\n]+/)
+      .map(function (x) { return x.trim().replace(/\s+/g, " "); })
+      .filter(function (x) { return x; });
+  }
+
+  function kwPreview(el, value) {
+    var terms = kwTerms(value);
+    if (!terms.length) {
+      el.innerHTML = '<p class="stx-kwwarn">No phrases yet — a keyword tracker needs at least '
+        + "one.</p>";
+      return;
+    }
+    var warns = [];
+    var chips = terms.map(function (term) {
+      var words = term.split(/\s+/).length;
+      var endP = KW_END_PUNCT.test(term);
+      if (words > KW_LONG || endP) {
+        var why = [];
+        if (words > KW_LONG) why.push(words + " words");
+        if (endP) why.push('ends in "' + term.slice(-1) + '"');
+        warns.push('"' + term + '" — ' + why.join(" and ") + ": it is found only when said "
+          + "exactly like this" + (endP ? ", punctuation included" : "") + ". If it is a "
+          + "sentence, split it into short phrases with commas.");
+      }
+      return '<span class="stx-chip' + (words > KW_LONG || endP ? " warn" : "") + '">'
+        + esc(term) + "</span>";
+    });
+    el.innerHTML = '<p class="stx-kwhead">' + terms.length + " phrase"
+      + (terms.length === 1 ? "" : "s") + " will be matched, each word for word, in any "
+      + "letter case, said by either side:</p>" + chips.join("")
+      + warns.map(function (w) { return '<p class="stx-kwwarn">' + esc(w) + "</p>"; }).join("");
+  }
+
   function paintEditor(elt, host, S) {
     var t = S.edit;
     if (!t) { elt.innerHTML = ""; return; }
@@ -518,12 +666,15 @@
       + '<div><label>Key ' + (t.isNew ? "(from the name)" : "(fixed)") + "</label>"
       + '<input class="stx-in" id="stxKey" value="' + esc(t.key) + '" '
       + (t.isNew ? "" : "disabled") + "></div>"
-      + '<div class="full"><label>Description — what this tracker is about</label>'
+      + '<div class="full"><label>Description — a note for people. Only the keywords are '
+      + "matched; this text never is</label>"
       + '<textarea class="stx-in" id="stxDesc" maxlength="4000">' + esc(t.description)
       + "</textarea></div>"
-      + '<div class="full"><label>Keywords (comma-separated — what gets matched)</label>'
-      + '<input class="stx-in" id="stxKw" maxlength="1000" value="' + esc(t.keywords || "")
-      + '"></div>'
+      + '<div class="full"><label>Keywords — short phrases, separated by commas. This is '
+      + "what gets matched</label>"
+      + '<textarea class="stx-in stx-kw" id="stxKw" maxlength="1000">'
+      + esc(t.keywords || "") + "</textarea>"
+      + '<div class="stx-kwprev" id="stxKwPrev"></div></div>'
       + '<div class="full"><label>Scope — which calls this applies to</label>'
       + '<div class="stx-scoperow">'
       + '<div id="stxDir"></div>'
@@ -533,20 +684,33 @@
       + esc(sc.date_from || "") + '">'
       + '<span class="stx-check"><input type="checkbox" id="stxQuote"'
       + (sc.quote_only ? " checked" : "") + "> quote calls only</span>"
+      + '<span class="stx-check"><input type="checkbox" id="stxFirst"'
+      + (sc.first_contact_only ? " checked" : "") + "> first contacts only</span>"
       + '<span class="stx-check"><input type="checkbox" id="stxShared"'
       + (sc.include_shared ? " checked" : "") + "> include the shared line</span>"
       + "</div>"
-      + '<p class="rs-hint">Scope is also the cost dial: every in-scope call is judged by '
-      + "the AI. Quote-calls-only roughly halves the bill, and a <b>from</b> date of today "
-      + "skips the historical backfill entirely — the tracker then measures from now on.</p>"
+      + '<p class="rs-hint">Checking is free, so scope only decides which calls count. '
+      + "<b>Quote calls only</b> leaves out service calls. <b>First contacts only</b> keeps "
+      + "each lead's first quote call — right for a question asked once per lead, such as "
+      + "where the customer heard about us. Only calls linked to a lead count: about 1 in 5 "
+      + "quote calls never link and are left out, and a new customer's call joins when their "
+      + "lead arrives with the weekly lead export, up to about a week later. A <b>from</b> "
+      + "date measures from that day on. "
+      + "<b>Include the shared line</b> adds the Support Zip To Zip queue, which is not a "
+      + "person.</p>"
       + "</div>"
       + '<div class="full" style="display:flex;gap:8px;align-items:center">'
       + '<button class="rs-btn pri" id="stxSave">'
       + (t.isNew ? "Create tracker" : "Save changes") + "</button>"
       + '<button class="rs-btn" id="stxCancel">Cancel</button>'
-      + '<span class="stx-thin">changing keywords, description or scope re-checks '
-      + "every matching call automatically</span></div>"
+      + '<span class="stx-thin">changing the keywords, note or scope re-checks every '
+      + "matching call on the next pass</span></div>"
       + "</div></div>";
+
+    var kwEl = elt.querySelector("#stxKw");
+    var paintKw = function () { kwPreview(elt.querySelector("#stxKwPrev"), kwEl.value); };
+    kwEl.oninput = paintKw;
+    paintKw();
 
     // the kit dropdown, not a naked <select> — same values, same default ("any")
     var dirSel = RSC.localSelect(elt.querySelector("#stxDir"), {
@@ -567,6 +731,7 @@
         min_seconds: +elt.querySelector("#stxMin").value || 0,
         date_from: elt.querySelector("#stxFrom").value || "",
         quote_only: elt.querySelector("#stxQuote").checked,
+        first_contact_only: elt.querySelector("#stxFirst").checked,
         include_shared: elt.querySelector("#stxShared").checked,
       };
       var payload = {
@@ -600,7 +765,7 @@
     registerPage({
       id: "sales-trackers",
       group: "sales",
-      title: "Sales AI Trackers",
+      title: "Sales Trackers",
       render: render,
     });
   }

@@ -62,16 +62,16 @@
      sentence still exists, on hover and in the drill-down. */
   var CHECKS = [
     ["open_identified", "Name + company", "Said who you are and who you are calling from, in the first 30 seconds", "quote", "Opening"],
-    ["open_goodtime", "Good time?", "Asked whether it was a good time to talk", "outbound", "Opening"],
-    ["disc_date", "Move date", "Established when the move is", "first", "Discovery"],
-    ["disc_inventory", "Inventory", "Established what is being moved, or booked a walkthrough", "first", "Discovery"],
-    ["disc_access", "Floors / lift", "Established floors, stairs and elevator", "first", "Discovery"],
-    ["disc_heavy", "Heavy items", "Established heavy or specialty items", "first", "Discovery"],
-    ["disc_packing", "Boxes", "Established boxes and who is packing", "first", "Discovery"],
-    ["price_after_discovery", "Asked first", "Learned something about the job before naming a number", "priced", "Price"],
+    ["open_goodtime", "Good time?", "Asked whether it was a good time to talk", "outbound_first", "Opening"],
+    ["disc_date", "Move date", "Established when the move is", "first_contact", "Discovery"],
+    ["disc_inventory", "Inventory", "Established what is being moved, or booked a walkthrough", "first_contact", "Discovery"],
+    ["disc_access", "Floors / lift", "Established floors, stairs and elevator", "first_contact", "Discovery"],
+    ["disc_heavy", "Heavy items", "Established heavy or specialty items", "first_contact", "Discovery"],
+    ["disc_packing", "Boxes", "Established boxes and who is packing", "first_contact", "Discovery"],
+    ["price_after_discovery", "Asked first", "Learned something about the job before naming a number", "priced_first", "Price"],
     ["px_explained", "How it is built", "Explained the basis and the crew behind the price", "priced", "Price"],
     ["dep_named", "Deposit", "Raised the deposit", "priced", "Price"],
-    ["dep_purpose", "What it is for", "Said what the deposit is for", "priced", "Price"],
+    ["dep_purpose", "What it is for", "Said what the deposit is for", "deposit_named", "Price"],
     ["close_ask", "Asked to book", "Asked for the booking", "priced", "Close"],
     ["obj_response", "Answered pushback", "Responded after the customer pushed back", "objection", "Close"],
     ["gave_direct_line", "Direct line", "Gave the customer a direct line back", "quote", "Close"],
@@ -84,10 +84,63 @@
     ["shape_broadcast", "Broadcast", "The rep talked and the customer barely spoke at all"],
     ["shape_monologue", "90s monologue", "The rep held the floor for 90 seconds unbroken"],
   ];
+  /* 2026-09-24 THE KEYS ARE THE ENGINE'S GATES (CHECKS in src/sales_comms.py), and the engine
+     now blanks every call outside a check's gate, so "applicable" below is simply "filled in".
+     Three labels had drifted from the engine: 'Good time?' said outbound quote calls where the
+     engine means outbound FIRST contacts; 'What it is for' said priced calls (9.9%) where the
+     engine means priced calls where the deposit was raised (26.0%); 'Asked first' said priced
+     calls (68.8%) where the engine means first contacts where a price was said (81.2%). The
+     engine's rules are the sensible ones; the labels follow them. 'quote' also covers the
+     engine's 'two_way': every quote call is a two-way conversation.
+     'What it is for' counts exactly the calls Deposit scores as hits (1,720 on 24 Sep). Its
+     first cut also counted 112 calls where the deposit came up with no price, so the tile said
+     1,832 beside Deposit's 1,720 and a drill-down could show the purpose scored under a Deposit
+     reading "not applicable". */
   var POP = {
-    quote: "quote calls", outbound: "outbound quote calls", first: "first contacts",
-    priced: "calls where a price was said", objection: "calls with pushback",
+    quote: "quote calls",
+    outbound_first: "outbound first contacts",
+    first_contact: "first contacts",
+    priced: "calls where a price was said",
+    priced_first: "first contacts where a price was said",
+    deposit_named: "calls where a price was said and the deposit raised",
+    objection: "calls with pushback",
   };
+  /* A FIFTH OF QUOTE CALLS NEVER LINK TO A LEAD, and it is not a wait: 19.6% unlinked in June,
+     19.6% July, 18.9% August, 22.6% September (1,375 of 6,893 rep quote calls on 24 Sep). The
+     first cut said they "count once they link" and left them out of Good time? for good. The
+     engine now places them without a lead: direction from the RingCentral call log (where the
+     lead link's own direction comes from; 0 of them without one on 24 Sep), and an earlier
+     quote call to the same customer number makes one a follow-up (176 were). Only a call with
+     no lead AND a withheld number cannot be placed (14) -- it is left out, never guessed. */
+  var POP_NOTE = {
+    outbound_first: "a call with no lead takes its direction from the phone system's call log "
+      + "and is a follow-up if an earlier quote call reached the same number",
+    first_contact: "a call with no lead is a follow-up if an earlier quote call reached the same "
+      + "number; one with no lead and a withheld number cannot be placed and is left out",
+    priced_first: "a call with no lead is a follow-up if an earlier quote call reached the same "
+      + "number; one with no lead and a withheld number cannot be placed and is left out",
+    deposit_named: "the same calls Deposit scores as hits",
+  };
+  /* WHAT CHANGED ON 24 SEP 2026, measured once and printed as measured -- these are the figures
+     reps had seen and the ones that replaced them, over the 6,893 rep quote calls in the mart
+     built 24 Sep 15:31 UTC. Before: every check over every quote call. After: over its own
+     calls, n = that population. The live table below keeps moving; this note does not. */
+  var CHANGED_ON = "24 Sep 2026";
+  var CHANGED_N = 6893;
+  var CHANGED = [
+    ["open_goodtime", 7.3, 20.2, 2159],
+    ["disc_date", 44.0, 40.9, 5194],
+    ["disc_inventory", 61.9, 59.7, 5194],
+    ["disc_access", 53.5, 50.8, 5194],
+    ["disc_heavy", 50.5, 46.0, 5194],
+    ["disc_packing", 35.1, 30.8, 5194],
+    ["price_after_discovery", 53.8, 81.2, 3976],
+    ["px_explained", 25.4, 30.9, 5383],
+    ["dep_named", 26.6, 32.0, 5383],
+    ["dep_purpose", 8.0, 26.0, 1720],
+    ["close_ask", 6.0, 6.0, 5383],
+    ["gave_direct_line", 31.5, 32.1, 6893],
+  ];
   var GROUPS = ["Opening", "Discovery", "Price", "Close"];
   var MIN_CALLS = 50;
 
@@ -144,7 +197,18 @@
       + "color:var(--faint);margin-right:8px}"
       + ".scx-utt.hit{background:var(--warn-bg);border-radius:6px;padding-left:8px;padding-right:8px}"
       + ".scx-vlist{display:flex;flex-wrap:wrap;gap:5px;margin:8px 0 12px}"
-      + ".scx-note{font-size:12.5px;color:var(--muted);line-height:1.6;max-width:74ch}";
+      + ".scx-note{font-size:12.5px;color:var(--muted);line-height:1.6;max-width:74ch}"
+      // the dated 'what changed' note: its own small table, never .rs-table, which is pinned
+      // to 1,720px wide inside .scx for the rep table
+      + ".scx-chgwrap{overflow-x:auto;margin:10px 0 4px}"
+      + ".scx-chg{border-collapse:collapse;font-size:12.5px}"
+      + ".scx-chg th,.scx-chg td{padding:4px 14px 4px 0;text-align:left;white-space:nowrap;"
+      + "border-bottom:1px solid var(--line)}"
+      + ".scx-chg th{font-size:10.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;"
+      + "color:var(--faint)}"
+      + ".scx-chg td.num,.scx-chg th.num{text-align:right}"
+      + ".scx-chg td.was{color:var(--faint);text-decoration:line-through}"
+      + ".scx-chg tr:last-child td{border-bottom:0}";
     document.head.appendChild(st);
   }
 
@@ -194,13 +258,22 @@
       return byRep[b].length - byRep[a].length;
     });
 
-    // company-wide, for the tiles: the two biggest gaps
+    // company-wide, for the tiles: the two biggest gaps. Each tile's "of N" is ITS OWN applicable
+    // count -- until 2026-09-24 the booking tile said "of 6,888 calls where a price was said"
+    // when 5,380 had a price, and the deposit tile said "of the same calls" about a different
+    // population.
     function companyRate(cid) {
       var app = human.filter(function (r) { return r[cid] != null; });
       return { n: app.length, pct: pct(app.filter(function (r) { return +r[cid]; }).length, app.length) };
     }
     var close = companyRate("close_ask");
     var depp = companyRate("dep_purpose");
+    // live: the calls with no lead, and the ones the direction / first-contact gates cannot place
+    var place = {
+      noLead: human.filter(function (r) { return !+r.Linked; }).length,
+      noDir: human.filter(function (r) { return !r.Direction; }).length,
+      fcUnknown: human.filter(function (r) { return r["First Contact"] == null; }).length,
+    };
     var nextstep = pct(human.filter(function (r) { return +r["Ended With Next Step"]; }).length,
                        human.length);
 
@@ -222,23 +295,73 @@
       + kpi("Scored quote calls", human.length.toLocaleString(),
             reps.length + " reps", "")
       + kpi("Asked for the booking", close.pct + "%",
-            "of " + close.n.toLocaleString() + " calls where a price was said", "neg")
+            "of " + close.n.toLocaleString() + " " + POP.priced, "neg")
       + kpi("Said what the deposit is for", depp.pct + "%",
-            "of the same calls", "neg")
+            "of " + depp.n.toLocaleString() + " " + POP.deposit_named, "neg")
       + kpi("Ended with a next step", nextstep + "%",
             "of scored quote calls", nextstep < 40 ? "neg" : "warn")
       + "</div>"
 
+      + changedNote(place, human.length)
+
       + '<div class="panel"><div class="panel-head"><div class="panel-title">By rep</div></div>'
       + '<p class="rs-hint">Each column is the share of that rep\'s <b>applicable</b> calls '
       + "where the thing was said — a rep is never counted against a check the call never "
-      + "called for, and a fact the customer volunteered counts as established. Sorted by "
+      + "called for, and a fact the customer volunteered counts as established. Hover a "
+      + "column head to see which calls it counts. Sorted by "
       + "volume; there is deliberately no rank and no total, because a total of sixteen checks "
       + "is mostly a measure of how long the rep talked.</p>"
       + repTable(byRep, reps, quote)
       + "</div>";
 
     host.innerHTML = '<div class="scx">' + html + "</div>";
+  }
+
+  /* THE DATED NOTE. Reps had seen the left-hand figures, so the page says what moved and why
+     rather than letting a 7% turn into a 20% overnight with no explanation. The figures are
+     the measured ones from the day of the change (CHANGED above); only the last paragraph's
+     counts of calls with no lead, and of calls that cannot be placed, are live. */
+  function changedNote(place, scored) {
+    var byId = {};
+    CHECKS.forEach(function (c) { byId[c[0]] = c; });
+    var one = function (x) { return x.toFixed(1) + "%"; };
+    var rows = CHANGED.map(function (x) {
+      var c = byId[x[0]];
+      return "<tr><td class=\"strong\">" + esc(c[1]) + "</td>"
+        + "<td>" + x[3].toLocaleString() + " " + esc(POP[c[3]]) + "</td>"
+        + '<td class="num was">' + one(x[1]) + "</td>"
+        + '<td class="num"><b>' + one(x[2]) + "</b></td></tr>";
+    }).join("");
+    return '<div class="panel"><div class="panel-head"><div class="panel-title">'
+      + "What changed on " + esc(CHANGED_ON) + "</div></div>"
+      + '<p class="scx-note">Each column now counts <b>only the calls it applies to</b>, as the '
+      + "By rep note always promised. Before this date every check was scored on "
+      + "every quote call: <b>Good time?</b> counted inbound calls and follow-ups as misses, "
+      + "<b>Asked first</b> counted calls where no price was said as misses, <b>What it is for</b> "
+      + "counted calls where the deposit never came up, and the five discovery columns counted "
+      + "follow-up calls as well as first contacts. Measured on the " + CHANGED_N.toLocaleString()
+      + " rep quote calls of that day, company-wide:</p>"
+      + '<div class="scx-chgwrap"><table class="scx-chg"><thead><tr><th>Column</th>'
+      + "<th>Now counted over</th>"
+      + '<th class="num">Before</th><th class="num">After</th></tr></thead><tbody>'
+      + rows + "</tbody></table></div>"
+      + '<p class="scx-note">Asked to book keeps its rate; only its count was wrong. Name + '
+      + "company and Answered pushback did not move. <b>What it is for</b> counts exactly the "
+      + "calls Deposit scores as hits.</p>"
+      + '<p class="scx-note"><b>Calls with no lead.</b> About a fifth of quote calls never link '
+      + "to a lead in Moveboard (Tuji lines, and customers nobody entered), and it is not a "
+      + "delay: every month from June to September runs at 19 to 23%, three-month-old calls as "
+      + "much as last week's. They are placed without a lead: "
+      + "whether the call was outbound comes from the phone system's call log, the same source "
+      + "the lead link reads, and an earlier quote call to the same customer number makes it a "
+      + "follow-up, which also carries over a direct line given on that earlier call. That is "
+      + "why Direct line moved. Right now "
+      + place.noLead.toLocaleString() + " of the " + scored.toLocaleString()
+      + " scored quote calls have no lead; " + place.noDir.toLocaleString()
+      + " have no direction and are left out of Good time?, and "
+      + place.fcUnknown.toLocaleString() + " (no lead and a withheld number) cannot be placed "
+      + "as first contact or follow-up and are left out of Good time?, the five discovery "
+      + "columns and Asked first.</p></div>";
   }
 
   function kpi(label, value, sub, cls) {
@@ -288,7 +411,8 @@
       + '<th class="num">Outbound</th><th class="num">First contact</th>'
       + CHECKS.map(function (c) {
           return '<th class="num" title="' + esc(c[2]) + ' — measured over '
-            + esc(POP[c[3]]) + '">' + esc(c[1]) + "</th>";
+            + esc(POP[c[3]]) + (POP_NOTE[c[3]] ? "; " + esc(POP_NOTE[c[3]]) : "")
+            + '">' + esc(c[1]) + "</th>";
         }).join("")
       + FLAGS.map(function (f) {
           return '<th class="num" title="' + esc(f[2]) + '">' + esc(f[1]) + "</th>";

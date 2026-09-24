@@ -32,7 +32,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/portal.css?v=2">
-<link rel="stylesheet" href="assets/rs.css?v=31">
+<link rel="stylesheet" href="assets/rs.css?v=32">
 <style>
 /* collapsible sidebar groups + nested hub sub-items */
 #nav .g-title{cursor:pointer;user-select:none;display:flex;align-items:center;justify-content:space-between}
@@ -198,7 +198,7 @@ const GROUP_OVERRIDE = {
   // Logistics
   "log-foreman": "logistics", "log-packing": "logistics",
   // Financial
-  "fin-revenue": "financial", "fin-rr": "financial", "branch-owner": "financial", "bo-salary": "different", "cl-analysis": "financial", "postcard-purchases": "financial", "postcard-expenditure": "logistics", "money-flow": "logistics", "ld-planning": "logistics", "foreman-closings": "logistics",
+  "fin-revenue": "financial", "fin-rr": "financial", "salaries": "financial", "branch-owner": "financial", "bo-salary": "different", "cl-analysis": "financial", "postcard-purchases": "financial", "postcard-expenditure": "logistics", "money-flow": "logistics", "ld-planning": "logistics", "foreman-closings": "logistics",
   "packing-control": "logistics", "storage-control": "logistics", "fuel-control": "logistics",
   "crew-salaries": "logistics",
   "foreman-late": "logistics",
@@ -221,13 +221,13 @@ const groupOf = p => groupsOf(p)[0];
 /* explicit per-container item order (numbers are scoped within each group's display list) */
 const NAV_ORDER = {
   "monthly-report": 1, "seasonal-report": 1.5, "analysis-by-category": 2, "things-to-do": 0.6,
-  "sales-command": 0.5, "sales-of-the-month": 0.6, "conversations": 0.7, "sales-comms": 0.8, "sales-trackers": 0.9, "sales-funnel": 1, "sales-perf": 2, "demand-analysis": 5,
+  "sales-command": 0.5, "sales-of-the-month": 0.6, "support-of-the-month": 0.65, "conversations": 0.7, "sales-comms": 0.8, "sales-trackers": 0.9, "sales-funnel": 1, "sales-perf": 2, "demand-analysis": 5,
   "mkt-roi": 1, "mkt-sources": 2, "mkt-phone": 3,
   "money-flow": 1, "foreman-closings": 2, "ld-planning": 3, "packing-control": 4, "packing-sales": 4.5, "storage-control": 5, "foreman-assessment": 6, "crew-salaries": 6.5, "fuel-control": 7, "foreman-late": 7.5, "log-foreman": 8, "log-packing": 9,
   "hr-directory": 1, "hr-questionnaire": 2,
   "cleanup": 1,
   "straight-vs-local": 1, "area-plan": 2, "truck-economics": 3, "bo-salary": 4,
-  "fin-revenue": 1, "fin-rr": 2, "sales-geo": 3, "branch-owner": 6, "cl-analysis": 6.5, "postcard-purchases": 6.7, "postcard-expenditure": 9.5,
+  "fin-revenue": 1, "fin-rr": 2, "sales-geo": 3, "salaries": 5.5, "branch-owner": 6, "cl-analysis": 6.5, "postcard-purchases": 6.7, "postcard-expenditure": 9.5,
   "rev-production": 1, "review-performance": 2, "reviews-cases": 2.5, "claims-analysis": 2.6, "response-analysis": 3, "reviews-reminders": 4, "review-settings": 5,
   "sup-claims": 1, "sup-refunds": 2, "sup-phone": 3,
   "data-quality": 2, "refresh-log": 1, "general-settings": 3, "general-tables": 4, "admin-users": 5,
@@ -280,7 +280,7 @@ const PAGE_ICONS = {
   "ads-analysis": "megaphone", "callrail": "phone", "forman": "tool",
   "packing": "box", "claims": "shield", "insights": "spark",
   "source-identification": "compass",
-  "branch-owner": "user", "bo-salary": "trend", "cl-analysis": "trend", "postcard-purchases": "trend", "postcard-expenditure": "calendar", "customer-experience": "user",
+  "salaries": "dollar", "branch-owner": "user", "bo-salary": "trend", "cl-analysis": "trend", "postcard-purchases": "trend", "postcard-expenditure": "calendar", "customer-experience": "user",
   "money-flow": "dollar",
   "ld-planning": "truck",
   "packing-control": "box", "crew-salaries": "user",
@@ -296,7 +296,7 @@ const PAGE_ICONS = {
   "angi-vs-moveboard": "compass", "reviews-team": "star", "support-team": "shield", "lead-source-analysis": "compass", "source-analysis": "compass", "movers-analysis": "megaphone",
   "financial-team": "trend", "sales-team": "user", "marketing-team": "megaphone", "logistics-team": "tool",
   // themed dashboards + settings (2026-07-09 restructure)
-  "sales-command": "gauge", "sales-of-the-month": "star", "conversations": "chat", "sales-comms": "user", "sales-trackers": "activity", "sales-funnel": "funnel", "sales-perf": "user", "sales-geo": "pin", "demand-analysis": "calendar",
+  "sales-command": "gauge", "sales-of-the-month": "star", "support-of-the-month": "shield", "conversations": "chat", "sales-comms": "user", "sales-trackers": "activity", "sales-funnel": "funnel", "sales-perf": "user", "sales-geo": "pin", "demand-analysis": "calendar",
   "mkt-roi": "trend", "mkt-sources": "compass", "mkt-phone": "phone",
   "log-foreman": "tool", "log-packing": "box",
   "fin-revenue": "trend", "fin-rr": "trend", "rev-production": "star",
@@ -716,6 +716,8 @@ const PAGE_DATASETS = {
   "packing-analysis": ["closing", "scorecard"],
   "packing-per-100cf": ["scorecard"],
   "claims": ["claims", "closing", "scorecard", "rollup"],
+  // Salaries (2026-09-24): loads mart_salaries itself; tabs, period, company and search live on the page
+  "salaries": [],
   "branch-owner": ["closing", "mart_branch_owner_jobs"],
   "bo-salary": ["closing", "mart_branch_owner_jobs"],
   "postcard-purchases": [],     // Post Card Purchases (Financial): reads its marts + /api/_pcpurchase + /api/_pcstock directly
@@ -763,6 +765,8 @@ const PAGE_DATASETS = {
   // monthly whole -- a global date range that cut a month in half would silently
   // re-rank everybody against a partial pool.
   "sales-of-the-month": [],
+  // [] on purpose, as for sales-of-the-month: the month picker owns the window
+  "support-of-the-month": [],
   // [] on purpose: this page searches by customer, not by date — everything comes
   // from the gated _conv* endpoints, so the global slicers have nothing to act on.
   "things-to-do": [],       // everything moves through /api/_todo; no global slicers
@@ -990,11 +994,13 @@ function navigate(id, push) {
 /* Pages that bring their OWN toolbar and ignore the global filter bar (PAGE_DATASETS=[])
    render "bare" — the global date/slicer bar + company chip are hidden so the page's board
    starts right under the header instead of below two rows of greyed-out, unusable filters. */
-const BARE_CHROME = new Set(["sales-of-the-month", "review-performance", "reviews-cases", "claims-analysis", "demand-analysis", "reviews-reminders", "response-analysis", "review-settings", "monthly-report", "seasonal-report", "money-flow", "ld-planning", "cleanup", "packing-control", "crew-salaries", "storage-control", "foreman-assessment", "fuel-control", "foreman-closings", "refresh-log", "general-tables", "hr-questionnaire", "hr-directory", "conversations", "sales-comms", "referral-candidates", "jobs-by-area", "packing-sales", "meta-referrals", "relocation-trends", "angi-funnel", "utm-campaigns", "promised-reviews", "birdeye-sends",
+const BARE_CHROME = new Set(["sales-of-the-month", "support-of-the-month", "review-performance", "reviews-cases", "claims-analysis", "demand-analysis", "reviews-reminders", "response-analysis", "review-settings", "monthly-report", "seasonal-report", "money-flow", "ld-planning", "cleanup", "packing-control", "crew-salaries", "storage-control", "foreman-assessment", "fuel-control", "foreman-closings", "refresh-log", "general-tables", "hr-questionnaire", "hr-directory", "conversations", "sales-comms", "referral-candidates", "jobs-by-area", "packing-sales", "meta-referrals", "relocation-trends", "angi-funnel", "utm-campaigns", "promised-reviews", "birdeye-sends",
   // Census Data (2026-09-23): a reference table with its own search and state/county filters
   "census-data",
   // Organic Search (2026-09-24) brings its own window + last-year compare bar
   "organic-search",
+  // Salaries (2026-09-24) brings its own tabs, period, pay-period, company and person bar
+  "salaries",
   // Source Analysis (2026-09-23) brings its own source / period / company / state bar
   "source-report",
   // Things to do has nothing a global slicer could act on
@@ -1098,9 +1104,11 @@ async function renderPage() {
 /* Sidebar display-name overrides — page modules keep their ids/titles, the shell decides
    what the nav item is CALLED (same pattern as GROUP_OVERRIDE). */
 const NAV_TITLES = {
+  "support-of-the-month": "Support of the Month",
   "things-to-do": "Things to do",
   "analysis-by-category": "Custom Breakdown",
   "insights": "Recommendations",
+  "salaries": "Salaries",
   "branch-owner": "Branch Owner",
   "bo-salary": "Branch Owner Salary Comparison",
   "postcard-purchases": "Post Card Purchases",
@@ -1166,6 +1174,7 @@ const SEARCH_ALIASES = {
   
   // Financial
   "fin-revenue": "revenue profit growth executive summary composition segments per job profitability p&l pnl profit and loss gross profit gross margin operational",
+  "salaries": "salaries salary payroll pay paid commission commissions estimator estimators sales person salesperson rep reps branch owner kolbaia cut slot pay period cl partner yelp financial",
   "branch-owner": "branch owner giorgi kolbaia cut payout sales person financial ct",
   "bo-salary": "branch owner salary comparison analysis giorgi kolbaia estimator stairs bulky junk share of bill alternative 35% crew break-even projection 2027 straight regular local",
   "postcard-purchases": "post card postcard purchases quantity unit cost cogs roi shelf stock lost financial",
@@ -1192,10 +1201,11 @@ const SEARCH_ALIASES = {
   "admin-activity": "user activity log logins sign in sessions who logged in usage time spent engaged audit trail seen last active adoption",
   "things-to-do": "things to do todo tasks checklist dispatch flow erp walkthrough bacho questions answer add job assignment contract inventory closing sheet money flow",
   "sales-of-the-month": "sales person of the month salesperson of the month best rep monthly score scorecard ranking award winner leaderboard conversion skill profit per lead",
+  "support-of-the-month": "support of the month customer service claims owner case owner mariam avto nikoloz best support person monthly score award winner escalation days to status callback missed calls support line",
   "sales-command": "sales person analysis sales team command lead journey 360 explorer call history timeline salesperson rep profile lead file important",
   "conversations": "conversations transcripts call recording ringsense what was said customer chat sms text thread talk speech summary",
   "sales-comms": "sales communication analysis call quality coaching rubric checklist what was said discovery deposit close objection talk ratio rep performance ringsense",
-  "sales-trackers": "ai trackers custom tracker inventory review storage discussion price objection competitor mention llm judged met partial compliance ringsense analysis control panel",
+  "sales-trackers": "sales trackers keyword tracker ai trackers custom tracker inventory review storage discussion price objection competitor mention mentioned source detector heard about us compliance ringsense analysis control panel",
   "source-trace": "source trace lineage attribution callrail google local phone match booked from moveboard corrected final source faithful pbix diagnostic audit",
   "source-report": "source analysis lead source leads conversion booking rate funnel dead reasons post card yelp google angi thumbtack ad spend cost per lead cost per booked job cash per dollar roi lead list customer phone email marketing channel",
   "meta-referrals": "meta referral upload facebook instagram lead form fills csv export dedupe source",
@@ -1596,6 +1606,7 @@ const REPORT_LABELS = {
   "hr-directory": "Team Directory",
   // Sales
   "conversations": "Conversations (call transcripts)",
+  "support-of-the-month": "Support of the Month",
   // Marketing / Marketing Automations / Tech Team / Different Analysis (tile tooltips)
   "source-report": "Source Analysis",
   "source-trace": "Source Trace",
@@ -1611,7 +1622,7 @@ const REPORT_LABELS = {
   "straight-vs-local": "Straight vs Local",
   "truck-economics": "Truck Economics",
   "sales-comms": "Sales Communication Analysis",
-  "sales-trackers": "Sales AI Trackers",
+  "sales-trackers": "Sales Trackers",
   // Customer Service
   "cleanup": "Calendar Cleanup",
   // Logistics
@@ -1638,6 +1649,7 @@ const REPORT_LABELS = {
   
   // Financial
   "fin-revenue": "Revenue & Profit",
+  "salaries": "Salaries (estimator, sales person, branch owner)",
   "branch-owner": "Branch Owner (Giorgi)",
   "bo-salary": "Branch Owner Salary Comparison",
   "postcard-purchases": "Post Card Purchases",
@@ -1700,7 +1712,7 @@ const ACL_DEPTS = [
   // `things-to-do` used to sit in all nine lists, so every user got the Tech Team group.
   // check_acl_mirror.py fails when a list differs from the group OR from DEPT_REPORTS.
   { id: "company",   label: "Company Overview", icon: "spark",     reports: ["monthly-report", "seasonal-report", "analysis-by-category"] },
-  { id: "sales",     label: "Sales",            icon: "funnel",    reports: ["sales-command", "sales-of-the-month", "demand-analysis", "conversations", "sales-comms", "sales-trackers"] },
+  { id: "sales",     label: "Sales",            icon: "funnel",    reports: ["sales-command", "sales-of-the-month", "support-of-the-month", "demand-analysis", "conversations", "sales-comms", "sales-trackers"] },
   { id: "marketing", label: "Marketing",        icon: "megaphone", reports: ["source-report", "source-trace", "jobs-by-area", "relocation-trends", "census-data", "organic-search"] },
   // granted on its own, and ALSO by holding Marketing (DEPT_IMPLIES)
   { id: "marketing-automations", label: "Marketing Automations", icon: "clock", reports: ["referral-candidates", "promised-reviews", "birdeye-sends", "angi-funnel"] },
@@ -1711,7 +1723,7 @@ const ACL_DEPTS = [
   // need NO grant at all — this tile is for HR: managing it and reading the results.
   { id: "hr",        label: "Human Resources", icon: "user",      reports: ["hr-questionnaire", "hr-responses", "hr-directory"] },
   { id: "customer-service", label: "Customer Service", icon: "calendar", reports: ["cleanup", "conversations", "claims-analysis"] },
-  { id: "financial", label: "Financial",        icon: "trend",     reports: ["branch-owner", "cl-analysis", "postcard-purchases"] },
+  { id: "financial", label: "Financial",        icon: "trend",     reports: ["salaries", "branch-owner", "cl-analysis", "postcard-purchases"] },
   { id: "reviews",   label: "Reviews",          icon: "star",      reports: ["review-performance", "reviews-cases", "claims-analysis", "reviews-reminders", "response-analysis", "review-settings"] },
   // Tech Team: Website Forms & UTM only. Things to do + Data Migration stay ADMIN_ONLY.
   { id: "tech",      label: "Tech Team",        icon: "sliders",   reports: ["utm-campaigns"] },
@@ -1962,8 +1974,8 @@ registerPage({
 <script src="pages/data-quality.js?v=15"></script>
 <script src="pages/refresh-log.js?v=28"></script>
 <script src="pages/sales-team.js?v=50"></script>
-<script src="pages/sales-comms.js?v=3"></script>
-<script src="pages/sales-trackers.js?v=5"></script>
+<script src="pages/sales-comms.js?v=4"></script>
+<script src="pages/sales-trackers.js?v=7"></script>
 <script src="pages/things-to-do.js?v=2"></script>
 <script src="pages/conversations.js?v=10"></script>
 <script src="pages/source-trace.js?v=28"></script>
@@ -1983,6 +1995,7 @@ registerPage({
 <script src="pages/calendar-coverage.js?v=8"></script>
 <script src="pages/request-consistency.js?v=4"></script>
 <script src="pages/cl-analysis.js?v=40"></script>
+<script src="pages/salaries.js?v=2"></script>
 <script src="pages/branch-owner.js?v=11"></script>
 <script src="pages/bo-salary.js?v=3"></script>
 <script src="pages/money-flow.js?v=56"></script>
@@ -2012,5 +2025,6 @@ registerPage({
 <script src="pages/reviews-cases.js?v=9"></script>
 <script src="pages/claims-analysis.js?v=24"></script>
 <script src="pages/sales-of-the-month.js?v=3"></script>
+<script src="pages/support-of-the-month.js?v=1"></script>
 </body>
 </html>

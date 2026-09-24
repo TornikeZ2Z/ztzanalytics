@@ -612,6 +612,14 @@ body.rs-app.light .rs-cpill{border-color:rgba(127,163,43,.4);color:var(--brand-d
 .rs-table td.nowrap,.rs-table th.nowrap{white-space:nowrap}
 .rs-table td.strong{font-weight:750;color:var(--ink)}
 .rs-table tbody tr.click{cursor:pointer}
+/* THE TOTALS ROW (2026-09-24). A table's sum lives in a <tfoot>, so pagination -- which rewrites
+   the tbody alone -- can never page it away. Only legacy `table.tab` styled one, so Crew
+   Salaries' totals rendered as a plain body row and CL Analysis carried a page-local copy of
+   this rule. Heavier, ruled off, on the sunk surface; pinned to the bottom of a scrolling
+   .rs-sticky table the same way its header is pinned to the top. */
+.rs-table tfoot td{padding:13px 12px;font-weight:800;color:var(--ink);background:var(--panel-2);
+  border-top:2px solid var(--line-2)}
+.rs-table.rs-sticky tfoot td{position:sticky;bottom:0;z-index:1}
 .rs-table a{color:var(--blue);text-decoration:none;font-weight:600}
 .rs-table a:hover{text-decoration:underline}
 
