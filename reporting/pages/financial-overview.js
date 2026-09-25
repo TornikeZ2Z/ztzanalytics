@@ -379,7 +379,13 @@ registerPage({
           sub: bkTxt(YTD) + (YTDLY && hasBookings(S.co) ? " · last year " + fmtN(YTDLY.bkN) + " jobs" : "") },
       ]);
 
-      mountPace(P, A);
+      // a chart that fails must not take the tables with it
+      try { mountPace(P, A); }
+      catch (e) {
+        console.error("financial-overview pace:", e);
+        const m = host.querySelector("#foPace");
+        if (m) m.innerHTML = `<div class="panel"><div class="rs-loading">The pace chart could not draw (${esc(e.message || e)}).</div></div>`;
+      }
       host.querySelectorAll("[data-fo-brk]").forEach(b => b.onclick = () => { S.brk = b.dataset.foBrk; paint(); });
       host.querySelectorAll("[data-fo-miss]").forEach(b => b.onclick = () => { S.missScope = b.dataset.foMiss; paint(); });
     }
@@ -444,6 +450,7 @@ registerPage({
       const SEL = () => light() ? "#0e1621" : "#e9eef6";
       const CTX = () => light() ? "#c6d0db" : "#3a4658";
       const BLUE = "#2f6fd0", VIOLET = "#8b5cf6";
+      const tone = c => typeof c === "function" ? c() : c;
       const METRICS = { rev: ["Revenue", (rs) => M["Total Bill"].fn(rs), true],
                         jobs: ["Jobs", (rs) => M["Total Jobs"].fn(rs), false],
                         bk: ["Booked quote", null, true] };
@@ -479,7 +486,8 @@ registerPage({
           paceChart = new Chart(canvas, {
             type: "line",
             data: { labels, datasets: data.map((s, i) => ({
-              label: s.name, data: s.vals, borderColor: s.color(), backgroundColor: s.color(),
+              // theme-aware colours are functions (read at draw time), fixed ones plain strings
+              label: s.name, data: s.vals, borderColor: tone(s.color), backgroundColor: tone(s.color),
               borderWidth: s.width, pointRadius: 0, pointHitRadius: 6, tension: 0.15,
               order: data.length - i, spanGaps: false })) },
             options: { responsive: true, maintainAspectRatio: false, interaction: { mode: "index", intersect: false },
