@@ -101,6 +101,13 @@ registerPage({
         ".fo .fo-proj > div{background:var(--panel-2);border:1px solid var(--line);border-radius:12px;padding:10px 14px}",
         ".fo .rs-datepop .rng input{min-width:0}",
         ".fo .fo-pick{position:relative}",
+        ".fo .fo-hero{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px;margin:0 0 12px}",
+        ".fo .fo-hc{background:var(--panel-2);border:1px solid var(--line);border-radius:14px;padding:12px 16px}",
+        ".fo .fo-hc.fo-now{border-color:var(--brand)}",
+        ".fo .fo-hl{font-size:10.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--faint)}",
+        ".fo .fo-hv{font-size:clamp(24px,2vw,34px);font-weight:800;color:var(--ink);font-variant-numeric:tabular-nums;margin-top:4px;line-height:1.15}",
+        ".fo .fo-hs{font-size:12px;color:var(--muted);margin-top:4px;line-height:1.45}",
+        ".fo .fo-sec.fo-rest{margin-top:22px;padding-top:12px;border-top:1px solid var(--line)}",
         ".fo .fo-miss{display:inline-block;padding:1px 7px;border-radius:999px;font-size:11px;font-weight:700;"
           + "border:1px solid var(--line-2);color:var(--muted);margin:1px 3px 1px 0;white-space:nowrap}",
       ].join("\n");
@@ -239,7 +246,7 @@ registerPage({
       const i = hi(s.days, upTo) - 1; return i >= 0 ? s.days[i] : null; };
     const dayCount = (co, d) => inWin(co, d, d).filter(r => r["Record Source"] === "closing").length;
     const S = { co: COS.indexOf("Zip to Zip") >= 0 ? "Zip to Zip" : (COS[0] || ALL),
-                day: null, picked: false, pace: "rev", brk: "Moving Type", missScope: "mtd" };
+                day: null, picked: false, pace: "rev", paceAll: false, brk: "Moving Type", missScope: "mtd" };
     function defaultDay() {
       if (dayCount(S.co, yesterday) > 0) return { day: yesterday, fell: false };
       const lf = lastFilled(S.co, yesterday);
@@ -337,6 +344,9 @@ registerPage({
       host.innerHTML = `<div class="fo">${head}
         <div class="rs-bar" id="foBar"></div>
         ${dayNote(P, recorded, lf)}
+        ${heroHtml(P, A, LM, LY, YTD, YTDLY)}
+        <div id="foPace"></div>
+        <div class="fo-sec fo-rest">The detail</div>
         <div class="fo-sec">Month to date · ${esc(MON(P.Mo))} 1–${P.sel.days}, ${P.Y}</div>
         <div class="rs-kpis" id="foKpiM"></div>
         <div class="fo-sec">Year to date · Jan 1 – ${esc(dShort(P.sel.to))}, ${P.Y}</div>
@@ -344,7 +354,6 @@ registerPage({
         ${missingPanel(P)}
         ${mtdPanel(P, A, PMo, PYr)}
         ${ytdPanel(P, YT)}
-        <div id="foPace"></div>
         ${projPanel(P, A)}
         <div class="fo-grid2">${moneyPanel(P, A, LM, LY, YTD, YTDLY)}${costPanel(P, A, LM, LY, YTD, YTDLY)}</div>
         ${breakPanel(P, A, LY)}
@@ -399,6 +408,33 @@ registerPage({
       }
       host.querySelectorAll("[data-fo-brk]").forEach(b => b.onclick = () => { S.brk = b.dataset.foBrk; paint(); });
       host.querySelectorAll("[data-fo-miss]").forEach(b => b.onclick = () => { S.missScope = b.dataset.foMiss; paint(); });
+    }
+
+    /* ---------- THE MORNING VIEW (his ask 2026-09-25: "i need the graph as a first thing - where we are
+       now, VS Previous month, VS Previous Year and its growth ... the rest can come after") ---------- */
+    function heroHtml(P, A, LM, LY, YTD, YTDLY) {
+      const grow = (a, b) => { const c = chg(a, b);
+        return c == null ? `<span class="fo-mute">—</span>` : `<span class="${c >= 0 ? "fo-up" : "fo-dn"}">${c >= 0 ? "▲" : "▼"} ${Math.abs(c * 100).toFixed(1)}%</span>`; };
+      const gp = o => P2 && o && o.gp != null ? " · gross profit " + mC(o.gp) : "";
+      // where the month lands if the rest goes like last year's same month
+      let proj = null;
+      if (LY && P.D < dim(P.Y, P.Mo)) {
+        const full = agg(S.co, iso(LY.p.y, LY.p.m, 1), iso(LY.p.y, LY.p.m, dim(LY.p.y, LY.p.m)));
+        if (LY.rev) proj = A.rev * full.rev / LY.rev;
+      }
+      const card = (label, big, sub, cls) => `<div class="fo-hc${cls ? " " + cls : ""}"><div class="fo-hl">${label}</div>
+        <div class="fo-hv">${big}</div><div class="fo-hs">${sub}</div></div>`;
+      return `<div class="fo-hero">
+        ${card(esc(P.sel.label) + " 1–" + P.sel.days + " · now", mC(A.rev), fmtN(A.jobs) + " jobs" + gp(A), "fo-now")}
+        ${card("vs " + esc(LM ? LM.p.label + " 1–" + LM.p.days : "last month"), grow(A.rev, LM && LM.rev),
+          LM ? mC(LM.rev) + " · " + fmtN(LM.jobs) + " jobs · jobs " + grow(A.jobs, LM.jobs) : "no data")}
+        ${card("vs " + esc(LY ? LY.p.label + " 1–" + LY.p.days : "last year"), grow(A.rev, LY && LY.rev),
+          LY ? mC(LY.rev) + " · " + fmtN(LY.jobs) + " jobs · jobs " + grow(A.jobs, LY.jobs) : "no data")}
+        ${card("Year to date vs " + (P.Y - 1), grow(YTD.rev, YTDLY && YTDLY.rev),
+          mC(YTD.rev) + (YTDLY ? " vs " + mC(YTDLY.rev) : "") + " · " + fmtN(YTD.jobs) + " jobs")}
+        ${proj != null ? card(esc(MON(P.Mo)) + " on pace for", mC(proj),
+          "if the rest goes like " + esc(LY.p.label) + " · a guide, not a forecast") : ""}
+      </div>`;
     }
 
     /* ---------- the day note: which day, why, and how filled it is ---------- */
@@ -486,14 +522,17 @@ registerPage({
       const sel = { ...P.sel, stop: P.sel.to };
       const others = [...P.prevMonths.map((p, i) => ({ p, color: i === 0 ? BLUE : null, name: p.label + (i === 0 ? " (last month)" : "") })),
                       ...P.prevYears.map((p, i) => ({ p, color: i === 0 ? VIOLET : null, name: p.label + (i === 0 ? " (last year)" : "") }))];
+      // the morning view: now, last month, last year -- the other periods only when asked for
+      const shown = S.paceAll ? others : others.filter(o => o.color);
       const data = [{ name: sel.label + " (picked)", vals: series(sel, sel.stop < lf ? sel.stop : lf), color: SEL, width: 3 },
-        ...others.map(o => ({ name: o.name, vals: series(o.p, null), color: o.color || CTX, width: o.color ? 2 : 1.5 }))];
+        ...shown.map(o => ({ name: o.name, vals: series(o.p, null), color: o.color || CTX, width: o.color ? 2.5 : 1.5 }))];
       const labels = Array.from({ length: 31 }, (_, i) => String(i + 1));
       const fmtV = v => isMoney ? mC(v) : fmtN(v);
       const ctl = `<span class="rs-seg">${[["rev", "Revenue"], ["jobs", "Jobs"]].concat(hasBookings(S.co) ? [["bk", "Booked quote"]] : [])
-        .map(([v, l]) => `<button type="button" data-fo-pace="${v}" class="${v === S.pace ? "on" : ""}">${l}</button>`).join("")}</span>`;
+        .map(([v, l]) => `<button type="button" data-fo-pace="${v}" class="${v === S.pace ? "on" : ""}">${l}</button>`).join("")}</span>
+        <span class="rs-seg"><button type="button" data-fo-paceall="1" class="${S.paceAll ? "on" : ""}">${S.paceAll ? "Hide" : "Show"} the other months and years</button></span>`;
       RSC.chartCard(mount, {
-        title: "Pace — " + mLabel.toLowerCase() + " added up day by day",
+        title: "Where " + sel.label + " is — " + mLabel.toLowerCase() + " added up day by day",
         key: "fo-pace",
         controlsHtml: ctl,
         buildChart(canvas) {
@@ -524,11 +563,11 @@ registerPage({
       if (card) {
         const hint = document.createElement("p");
         hint.className = "rs-hint";
-        hint.textContent = "The picked month runs to the picked day; every other line is its whole month, so you can see how "
-          + "the rest of a month usually goes. Bold = picked, blue = the month before, violet = the same month last year, "
-          + "grey = the other earlier months and years.";
+        hint.textContent = "Bold = this month to the picked day; blue = last month and violet = the same month last year, each "
+          + "as a whole month, so you see how the rest of it usually goes." + (S.paceAll ? " Grey = the other earlier months and years." : "");
         card.insertBefore(hint, card.querySelector(".gview"));
         card.querySelectorAll("[data-fo-pace]").forEach(b => b.onclick = () => { if (S.pace !== b.dataset.foPace) { S.pace = b.dataset.foPace; paint(); } });
+        card.querySelectorAll("[data-fo-paceall]").forEach(b => b.onclick = () => { S.paceAll = !S.paceAll; paint(); });
       }
     }
 

@@ -10,9 +10,10 @@
  *                        Kolbaia's smaller slot where he holds two ($906 in 2026). What the DC and
  *                        the calendar say about the estimator rides along as evidence; a DC
  *                        estimator whom no slot names is a 'DC only' row with no amount.
- *   Sales Person         reps typed Sales Rep. The CL partner (Peter Montanaro) and Yelp Team are
- *                        paid through the same slots but are not reps: they sit in 'Other slot
- *                        pay', inside the tie-out and never ranked among reps.
+ *   Sales Person         reps typed Sales Rep, AND the CL partner (Peter Montanaro) and Yelp Team,
+ *                        paid through the same slots -- "they kinda are sales persons" (his ruling
+ *                        25 Sep 2026). Their rows keep their own Role and carry a pill saying so.
+ *                        Tab order since that ruling: Sales Person, Estimator, Branch Owner.
  *   Branch Owner         his cut only, so it equals His Cut on the Branch Owner page. His smaller
  *                        slot on a two-slot job is found by the mart's `Branch Owner Second Slot`,
  *                        never by his name (a bare 'Kolbaia' may be someone else, his 10 Jul ruling).
@@ -162,10 +163,15 @@ registerPage({
       return;
     }
 
+    /* HIS RULING 2026-09-25: "we should have CL Partner and YELP TEAM within the SALES PERSON - they
+       kinda are sales persons. the ordering should be Sales Person, Estimator, Branch Owner." The mart
+       keeps their own Role (the CL partner's slot is a deposit, Yelp Team a channel), so a row still
+       says what it is; the Sales Person tab simply reads all three. */
+    const SP_ROLES = ["Sales Person", "CL Partner", "Yelp Team"];
     const TABS = [
-      { key: "estimator", label: "Estimator", role: "Estimator", plural: "Estimators" },
-      { key: "sales-person", label: "Sales Person", role: "Sales Person", plural: "Salespeople" },
-      { key: "branch-owner", label: "Branch Owner", role: "Branch Owner", plural: "Branch owner" },
+      { key: "sales-person", label: "Sales Person", role: "Sales Person", roles: SP_ROLES, plural: "Salespeople" },
+      { key: "estimator", label: "Estimator", role: "Estimator", roles: ["Estimator"], plural: "Estimators" },
+      { key: "branch-owner", label: "Branch Owner", role: "Branch Owner", roles: ["Branch Owner"], plural: "Branch owner" },
       // his ask 2026-09-25: "a separate tab ... all the salaries by person combined" -- one row per
       // person, a column per role, so Kolbaia's cut and his estimator pay finally sit on one line
       { key: "all-people", label: "All people", role: null, plural: "Everyone paid through the slots" },
@@ -188,7 +194,7 @@ registerPage({
        the company payroll is read for; Tuji stays one click away, and the tie-out line names
        the company so Tuji's pay is never silently missing from a total. */
     const S = {
-      tab: TABS.some(t => t.key === bootTab) ? bootTab : "estimator",
+      tab: TABS.some(t => t.key === bootTab) ? bootTab : TABS[0].key,
       from: back(3), to: last,
       grp: "month", co: companies.includes("Zip to Zip") ? "Zip to Zip" : "", q: "",
       open: new Set(), sort: "net", dir: -1,
@@ -273,7 +279,7 @@ registerPage({
     const refundPill = r => `<span class="rs-pill bad" title="${esc(r["Refund Note"] || "")}">Refund</span>`
       + (has(r["Refund Note"]) ? `<span class="sal-sm">${esc(r["Refund Note"])}</span>` : "");
 
-    const ALL_ROLES = ["Estimator", "Sales Person", "Branch Owner", "CL Partner", "Yelp Team"];
+    const ALL_ROLES = ["Sales Person", "Estimator", "Branch Owner", "CL Partner", "Yelp Team"];
     let charts = [];
     Object.assign(S, { bk: "Moving Type", jq: "", js: "date", jd: -1 });
 
@@ -283,7 +289,7 @@ registerPage({
       const t = tab();
       const sc = scoped();
       const isAll = !t.role, isBO = t.role === "Branch Owner";
-      const rs = sc.filter(r => (isAll ? (r.Role && (isSlot(r) || isRef(r))) : r.Role === t.role) && matchQ(r));
+      const rs = sc.filter(r => (isAll ? (r.Role && (isSlot(r) || isRef(r))) : t.roles.includes(r.Role)) && matchQ(r));
       const people = isAll ? byPersonAll(rs) : byPerson(rs);
       const keys = [...new Set(sc.filter(r => (isSlot(r) || isRef(r)) && r.Role).map(pkey).filter(Boolean))].sort();
       const key = { net: p => p.net, pay: p => p.pay, ref: p => -p.ref, jobs: p => p.jobs, rev: p => p.rev,
@@ -312,7 +318,7 @@ registerPage({
         <div class="rs-kpis" id="salKpis"></div>
         ${tieFold(sc)}
         ${isBO ? boNote(sc) + boTrendPanel() + boStatementPanel(sc) + boBreakPanel(rs) + boJobsPanel(rs) : tablePanel}
-        ${t.role === "Sales Person" ? otherPanel(sc) + loosePanel(sc) : ""}
+        ${t.role === "Sales Person" ? loosePanel(sc) : ""}
         ${isAll ? loosePanel(sc) : ""}
         ${lookPanel(rs, isAll ? "All" : t.role)}
         <p class="rs-hint sal-foot">Commission as recorded on the closing sheet, by move date. Refunds are the
@@ -332,8 +338,6 @@ registerPage({
         };
       });
       host.querySelectorAll("tr.rs-group[data-i]").forEach(tr => { tr.onclick = () => toggle(tr); });
-      const oth = host.querySelector("#salOthCsv");
-      if (oth) oth.onclick = () => downloadCsv(OTHER_ROLES, "other-slot-pay");
       if (isBO) wireBO(sc, rs);
       const wrap = host.querySelector("#salTbl");
       if (wrap && window.innerWidth >= 900 && RSC.fitScroller) {
@@ -352,7 +356,7 @@ registerPage({
       const refAmt = sumPay(refs.filter(r => r.Role));
       const lone = refs.filter(r => !r.Role);
       const role = tab().role;
-      const mine = role ? sumPay(refs.filter(r => r.Role === role)) : null;
+      const mine = role ? sumPay(refs.filter(r => tab().roles.includes(r.Role))) : null;
       return `<details class="sal-fold"${off !== 0 ? " open" : ""}><summary>${off === 0
           ? '<span class="rs-pill ok">ties to the closing sheet</span>'
           : `<span class="rs-pill bad">off the closing sheet by ${m0(Math.abs(off))}</span>`}
@@ -377,8 +381,9 @@ registerPage({
         p.slots++;
         if (num(r.Pay) !== 0) p.paid++;
         p.pay += num(r.Pay);
-        p.byRole[r.Role] = (p.byRole[r.Role] || 0) + num(r.Pay);
-        p.roles.add(r.Role);
+        const rk = SP_ROLES.includes(r.Role) ? "Sales Person" : r.Role;
+        p.byRole[rk] = (p.byRole[rk] || 0) + num(r.Pay);
+        p.roles.add(rk);
       });
       return [...m.values()].map(p => ({ ...p, net: p.pay + p.ref, jobs: jobsOf(p.rows), rev: revOf(p.rows) }));
     }
@@ -396,7 +401,8 @@ registerPage({
       const colTot = {};
       allRows.forEach(r => { const k = pkey(r); colTot[k] = (colTot[k] || 0) + num(r.Pay); });
       const roleTot = {};
-      allRows.filter(isSlot).forEach(r => { roleTot[r.Role] = (roleTot[r.Role] || 0) + num(r.Pay); });
+      allRows.filter(isSlot).forEach(r => { const rk = SP_ROLES.includes(r.Role) ? "Sales Person" : r.Role;
+        roleTot[rk] = (roleTot[rk] || 0) + num(r.Pay); });
       const totPay = sumPay(allRows.filter(isSlot)), totRef = sumPay(allRows.filter(isRef));
       const dash = '<span class="sal-sm" style="display:inline">—</span>';
       const refCell = v => v ? `<td class="num sal-neg">${mS(v)}</td>` : `<td class="num">${dash}</td>`;
@@ -665,15 +671,15 @@ registerPage({
         ];
       }
       if (role === "Sales Person") {
-        const oth = sc.filter(r => (isSlot(r) || isRef(r)) && OTHER_ROLES.includes(r.Role) && matchQ(r));
         const ar = avg(ratesOf(slots));
+        const oth = sumPay(slots.filter(r => OTHER_ROLES.includes(r.Role)));
         return [
           { label: "Net sales person pay", value: m0(net), sub: netSub, tone: "pos" },
           { label: "Jobs", value: fmtN(jobs), sub: `${fmtN(paid)} of ${fmtN(slots.length)} slots paid` },
           { label: "Revenue of those jobs", value: m0(rev), sub: "the whole bill of each job" },
           { label: "Avg typed rate", value: ar == null ? "—" : rateTxt(ar), sub: "mean of the rates typed on paid slots" },
-          { label: "People", value: fmtN(people), sub: "reps typed Sales Rep on the roster" },
-          { label: "Other slot pay", value: m0(sumPay(oth)), sub: "CL partner + Yelp Team, net, not ranked" },
+          { label: "People", value: fmtN(people), sub: "reps, the CL partner and Yelp Team" },
+          { label: "CL partner + Yelp Team", value: m0(oth), sub: "inside the total, marked on their rows" },
         ];
       }
       if (role === "All") {
@@ -700,15 +706,15 @@ registerPage({
       const slot = sc.filter(isSlot);
       const by = {};
       slot.forEach(r => { by[r.Role] = (by[r.Role] || 0) + num(r.Pay); });
-      const est = by["Estimator"] || 0, sp = by["Sales Person"] || 0, bo = by["Branch Owner"] || 0;
-      const oth = OTHER_ROLES.reduce((a, k) => a + (by[k] || 0), 0);
-      const tot = est + sp + bo + oth;
+      const est = by["Estimator"] || 0, bo = by["Branch Owner"] || 0;
+      const sp = SP_ROLES.reduce((a, k) => a + (by[k] || 0), 0);
+      const tot = est + sp + bo;
       const sheet = slot.reduce((a, r) => a + num(r["Sheet SP Salary"]), 0);
       const off = Math.round(tot - sheet);
       const role = tab().role;
       const part = (label, v, r) => `<span class="${r === role ? "on" : ""}">${label} <b>${m0(v)}</b></span>`;
-      return `<div class="sal-tie">${part("Estimator", est, "Estimator")} + ${part("Sales Person", sp, "Sales Person")}
-        + ${part("Branch Owner", bo, "Branch Owner")} + ${part("Other slot pay (CL partner, Yelp Team)", oth, "")}
+      return `<div class="sal-tie">${part("Sales Person (CL partner and Yelp Team included)", sp, "Sales Person")}
+        + ${part("Estimator", est, "Estimator")} + ${part("Branch Owner", bo, "Branch Owner")}
         = <b>${m0(tot)}</b>, the closing sheet's SP 1–3 salary for ${esc(S.co || "all companies")},
         ${esc(perTxt())}. ${off === 0
           ? '<span class="rs-pill ok">ties to the dollar</span>'
@@ -723,16 +729,16 @@ registerPage({
       if (!refs.length) return `<div class="sal-tie">No refund took commission back in ${esc(perTxt())} for ${esc(S.co || "all companies")}.</div>`;
       const by = {};
       refs.filter(r => r.Role).forEach(r => { by[r.Role] = (by[r.Role] || 0) + num(r.Pay); });
-      const est = by["Estimator"] || 0, sp = by["Sales Person"] || 0, bo = by["Branch Owner"] || 0;
-      const oth = OTHER_ROLES.reduce((a, k) => a + (by[k] || 0), 0);
+      const est = by["Estimator"] || 0, bo = by["Branch Owner"] || 0;
+      const sp = SP_ROLES.reduce((a, k) => a + (by[k] || 0), 0);
       const lone = refs.filter(r => !r.Role);
       const loneAmt = lone.reduce((a, r) => a + num(r["Refund Reduction"]), 0);
       const role = tab().role;
       const part = (label, v, r) => `<span class="${r === role ? "on" : ""}">${label} <b class="sal-neg">${mS(v)}</b></span>`;
       return `<div class="sal-tie">Refunds dated in this range, taken off the salesperson the refunds sheet
-        names on each refunded job: ${part("Estimator", est, "Estimator")} + ${part("Sales Person", sp, "Sales Person")}
-        + ${part("Branch Owner", bo, "Branch Owner")} + ${part("Other slot pay", oth, "")}
-        = <b class="sal-neg">${mS(est + sp + bo + oth)}</b>.${lone.length
+        names on each refunded job: ${part("Sales Person", sp, "Sales Person")} + ${part("Estimator", est, "Estimator")}
+        + ${part("Branch Owner", bo, "Branch Owner")}
+        = <b class="sal-neg">${mS(est + sp + bo)}</b>.${lone.length
           ? ` <span class="rs-pill warn" title="${esc(FLAG_WHY["No paid slot to deduct from"])}">${fmtN(lone.length)} more (${m0(loneAmt)})
               match no paid slot — deducted from nobody${role === "Sales Person" ? ", listed below" : ", listed on the Sales Person tab"}</span>` : ""}</div>`;
     }
@@ -801,6 +807,8 @@ registerPage({
 
     function namePills(p, role) {
       const out = [];
+      const own = [...new Set(p.rows.filter(r => OTHER_ROLES.includes(r.Role)).map(r => r.Role))];
+      own.forEach(r2 => out.push(`<span class="rs-pill info" title="paid through a salesperson slot; counted as a salesperson (his ruling 25 Sep)">${esc(r2 === "CL Partner" ? "CL partner" : r2)}</span>`));
       if (p.offRoster && role !== "Branch Owner")
         out.push('<span class="rs-pill warn" title="this name is not on the sales person list">not on the sales roster</span>');
       if (p.inferred)
@@ -860,37 +868,6 @@ registerPage({
         const ncol = tr.children.length;
         tr.insertAdjacentHTML("afterend", subRow(p, cur.role, ncol));
       }
-    }
-
-    function otherPanel(sc) {
-      const rs = sc.filter(r => (isSlot(r) || isRef(r)) && OTHER_ROLES.includes(r.Role) && matchQ(r));
-      const groups = byPerson(rs).map(p => ({ ...p, role: p.rows[0].Role }))
-        .sort((a, b) => b.net - a.net);
-      const slots = rs.filter(isSlot), refs = rs.filter(isRef);
-      return `<div class="panel">
-        <div class="panel-head"><div class="panel-title">Other slot pay</div><span class="spacer"></span>
-          ${groups.length ? '<button type="button" class="rs-btn" id="salOthCsv">Download CSV</button>' : ""}</div>
-        <p class="rs-hint">Paid through the same salesperson slots and counted in the tie-out, but not
-          ranked among reps: the CL partner's slot is his deposit, not a commission (no rate is typed
-          on any of his slots), and Yelp Team is a channel, not a person. Kept out of the Sales Person
-          CSV, so its Pay column adds up to the tab; this panel has a CSV of its own.</p>
-        ${groups.length ? `<div class="rs-tablewrap"><table class="rs-table">
-          <thead><tr><th>Payee</th><th>Role</th><th class="num">Jobs</th><th class="num">Slots paid</th>
-            <th class="num">Revenue of jobs</th><th class="num">Commission</th><th class="num">Refunds</th>
-            <th class="num">Net pay</th></tr></thead>
-          <tbody>${groups.map(p => `<tr><td class="strong">${esc(p.person)}</td>
-            <td><span class="rs-pill mute">${esc(p.role)}</span></td>
-            <td class="num">${fmtN(p.jobs)}</td><td class="num">${fmtN(p.paid)} / ${fmtN(p.slots)}</td>
-            <td class="num">${m0(p.rev)}</td><td class="num">${m0(p.pay)}</td>
-            <td class="num${p.ref ? " sal-neg" : ""}">${p.ref ? mS(p.ref) : "—"}</td>
-            <td class="num strong">${mS(p.net)}</td></tr>`).join("")}</tbody>
-          <tfoot><tr><td colspan="2">Other slot pay</td><td class="num">${fmtN(jobsOf(rs))}</td>
-            <td class="num">${fmtN(slots.filter(r => num(r.Pay) !== 0).length)} / ${fmtN(slots.length)}</td>
-            <td class="num">${m0(revOf(rs))}</td><td class="num">${m0(sumPay(slots))}</td>
-            <td class="num${refs.length ? " sal-neg" : ""}">${refs.length ? mS(sumPay(refs)) : "—"}</td>
-            <td class="num">${mS(sumPay(rs))}</td></tr></tfoot>
-        </table></div>` : '<div class="rs-hint">None in this range.</div>'}
-      </div>`;
     }
 
     /* Refunds the office took commission back on whose request matches no closing with a paid
@@ -1028,7 +1005,7 @@ registerPage({
       csv.type = "button";
       csv.className = "rs-btn";
       csv.textContent = "Download CSV";
-      csv.onclick = () => downloadCsv(tab().role ? [tab().role] : ALL_ROLES, tab().key);
+      csv.onclick = () => downloadCsv(tab().roles || ALL_ROLES, tab().key);
       bar.appendChild(csv);
       if (S._focus) { S._focus = 0; q.focus(); q.setSelectionRange(q.value.length, q.value.length); }
     }
