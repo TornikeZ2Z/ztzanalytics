@@ -144,6 +144,14 @@ window.RS = (function () {
         "Is Branch Owner"],
       dateCols: {}, defaultDate: null,
     },
+    // CARD FUEL AS A COST (2026-09-25): the fleet-card export, one row per swipe per job share
+    // (src/fuel_mart.py fct_fuel_job). A row with a Unique Key is that job's card fuel and follows
+    // the JOB (keyed, like helper pay); a row without one is unassigned, dated by the swipe.
+    fuel_card: {
+      table: "fct_fuel_job",
+      cols: ["Line Key", "Date", "Unique Key", "Company", "Share", "Card Fuel", "Match Status"],
+      dateCols: { "Date": "Date" }, defaultDate: "Date",
+    },
     helper_salaries: {
       table: "fct_helper_salaries",
       cols: ["Unique Key", "Helper Slot", "Helper Name", "Hours Worked", "Helper Rate",
@@ -605,7 +613,31 @@ window.RS = (function () {
   // Expense measures. DAX: SUM(Closing[X]) + SUM(Trips[X]).  our_impl: SUM(Closing[X])
   // (Closing already folds unlinked trips; linked-trip residual = known gap).
   register("Car Expense",    "closing", money, rows => sum(rows, "Car"));
-  register("Fuel Expense",   "closing", money, rows => sum(rows, "Fuel"));
+  /* FUEL = CASH ON THE CLOSING SHEET + THE FLEET CARD (Tornike 2026-09-25). Since ~1 Aug 2026 the
+     sheet's `Fuel` is cash only; the card is the fuel_card dataset. A job's card fuel is found by
+     its Unique Key, so it follows whatever closing rows are passed -- a month, a segment, one job.
+     Until fuel_card is loaded it adds 0 (as every cross-dataset term here does); pages that show
+     fuel or gross profit load it. Card fuel that matches no job is "Unassigned Card Fuel", taken
+     off gross profit only at whole-period scope (it belongs to no segment). */
+  const _cardByUK = new WeakMap();
+  function cardFuelFor(rows) {
+    const src = _cache["fuel_card"];
+    if (!src || !rows || !rows.length) return 0;
+    let m = _cardByUK.get(src);
+    if (!m) {
+      m = new Map();
+      src.forEach(r => { const k = r["Unique Key"]; if (k) m.set(k, (m.get(k) || 0) + num(r["Card Fuel"])); });
+      _cardByUK.set(src, m);
+    }
+    let t = 0;
+    rows.forEach(r => { t += m.get(r["Unique Key"]) || 0; });
+    return t;
+  }
+  register("Cash Fuel",      "closing", money, rows => sum(rows, "Fuel"));
+  register("Card Fuel",      "closing", money, rows => cardFuelFor(rows), ["fuel_card"]);
+  register("Fuel Expense",   "closing", money, rows => sum(rows, "Fuel") + cardFuelFor(rows), ["fuel_card"]);
+  register("Unassigned Card Fuel", "fuel_card", money,
+    rows => sum(rows.filter(r => !r["Unique Key"]), "Card Fuel"));
   register("Hotel Expense",  "closing", money, rows => sum(rows, "Hotel"));
   register("Toll Expense",   "closing", money, rows => sum(rows, "Tolls"));
   register("Truck Expense",  "closing", money, rows => sum(rows, "Truck"));
@@ -684,17 +716,19 @@ window.RS = (function () {
     const salaries = M["Forman Salary"].fn(rows) + M["Driver Salary"].fn(rows)
       + _msrK("Helper Salary", segKeys) + _msrK("Sales Commission", segKeys)
       - _msrK("Amount Deducted From Sales Person Normalized For Sales", segKeys);
-    const expenses = M["Car Expense"].fn(rows) + M["Fuel Expense"].fn(rows)
+    // unassigned card fuel belongs to the period, never to a segment
+    const expenses = (segKeys ? 0 : _msr("Unassigned Card Fuel"))
+      + M["Car Expense"].fn(rows) + M["Fuel Expense"].fn(rows)
       + M["Hotel Expense"].fn(rows) + M["Toll Expense"].fn(rows)
       + M["Truck Expense"].fn(rows) + M["Other Expenses"].fn(rows)
       + _msrK("Total Refunds", segKeys);
     return M["Total Bill"].fn(rows) - salaries - expenses;
-  }, ["helper_salaries", "sales_salaries", "refunds"]);
+  }, ["helper_salaries", "sales_salaries", "refunds", "fuel_card"]);
 
   register("Operational Profit Margin", "closing", fmtPct, rows => {
     const b = M["Total Bill"].fn(rows);
     return b ? M["Operational Profit by Formula"].fn(rows) / b : 0;
-  }, ["helper_salaries", "sales_salaries", "refunds"]);
+  }, ["helper_salaries", "sales_salaries", "refunds", "fuel_card"]);
   register("Sales Commission Margin", "closing", fmtPct, rows => {
     const b = M["Total Bill"].fn(rows);
     return b ? _msr("Sales Commission") / b : 0;

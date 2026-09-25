@@ -119,7 +119,7 @@ async function renderMonthly(host, MRCFG) {
     const grabIf = (ds, on) => on ? grab(ds) : Promise.resolve([]);
     const [closing, moveboard, storage, claims, refunds, cardEx,
            reviews, negrev, callrail, scorecard, rcounts, rgoals,
-           helperSalDs, salesSalDs, headcount, pcm] = await Promise.all([
+           helperSalDs, salesSalDs, headcount, pcm, fuelCard] = await Promise.all([
       grab("closing"), grab("moveboard"), grabIf("storage", SEC("Packing & Storage")),
       grab("claims"), grab("refunds"), grab("card_expenses"),
       grab("reviews_breakdown"), grabIf("negative_reviews", SEC("Reviews Production")),
@@ -129,7 +129,9 @@ async function renderMonthly(host, MRCFG) {
       // section that is on by default
       grab("headcount"),
       // post cards by month and state (2026-09-16): cards mailed, usage-based cost and the return
-      SEC("Marketing ROI") ? pooled("Post cards", () => ZTZ.api("/api/mart_postcard_month?limit=20000").then(j => j.rows || [])) : Promise.resolve([])]);
+      SEC("Marketing ROI") ? pooled("Post cards", () => ZTZ.api("/api/mart_postcard_month?limit=20000").then(j => j.rows || [])) : Promise.resolve([]),
+      // the fleet card as fuel (2026-09-25): feeds "Fuel Expense" and gross profit; never fatal
+      pooled("fuel_card", () => RS.load("fuel_card").catch(() => []))]);
     // Derive the cost flags from the shared rows. Amount is ALREADY positive here (RS.load
     // negates the bank convention once) — `amt: num(r.Amount)`, never a second negation.
     const cardCost = !needPack ? [] : cardEx.filter(coRow).map(r => {
@@ -216,7 +218,7 @@ async function renderMonthly(host, MRCFG) {
     // retired caches (Fleet section removed + dead per-job packing fetch deleted, 2026-07-15)
     delete window.__mrFleetCache; delete window.__mrFleetCache2;
     delete window.__mrPackCache; delete window.__mrPackCache2;
-    const DS = { closing, moveboard, storage, claims, refunds, card_expenses: cardEx, reviews_breakdown: reviews, negative_reviews: (negrev || []).map(r => Object.assign({}, r, { Company: /^tuji\s/i.test(String(r["Request Joinkey"] || "")) ? "Tuji" : (r.Company || MR_CO_DEFAULT) })), callrail, scorecard, review_counts: rcounts, review_goals: rgoals, helper_salaries: helperSalDs, sales_salaries: salesSalDs, headcount };
+    const DS = { closing, moveboard, storage, claims, refunds, card_expenses: cardEx, reviews_breakdown: reviews, negative_reviews: (negrev || []).map(r => Object.assign({}, r, { Company: /^tuji\s/i.test(String(r["Request Joinkey"] || "")) ? "Tuji" : (r.Company || MR_CO_DEFAULT) })), callrail, scorecard, review_counts: rcounts, review_goals: rgoals, helper_salaries: helperSalDs, sales_salaries: salesSalDs, headcount, fuel_card: fuelCard || [] };
     const coJk = new Set((closing || []).filter(r => String(r.Company) === CO)
       .map(r => String(r["Request Joinkey"] || "")).filter(Boolean));
     const jkCo = r => coJk.has(String(r["Request Joinkey"] || ""));
@@ -1794,9 +1796,11 @@ async function renderMonthly(host, MRCFG) {
       const comm = withMonth(curY, mo, () => M["Sales Commission"].fn(RS.filtered("sales_salaries", DS.sales_salaries || [])));
       const expense = M["Car Expense"].fn(rowsW) + M["Fuel Expense"].fn(rowsW) + M["Hotel Expense"].fn(rowsW) + M["Toll Expense"].fn(rowsW) + M["Truck Expense"].fn(rowsW) + M["Other Expenses"].fn(rowsW);
       const refundTot = withMonth(curY, mo, () => M["Total Refunds"] ? M["Total Refunds"].fn(RS.filtered("refunds", DS.refunds || [])) : 0);
+      // fleet-card fuel that matches no job: off the month's gross profit, dated by the swipe
+      const unCard = withMonth(curY, mo, () => M["Unassigned Card Fuel"].fn(RS.filtered("fuel_card", DS.fuel_card || []))) || 0;
       // C20/N4: "Total Bill" and "Revenue" are two names for the byte-identical formula
       // (verified to the cent) — shown as "Revenue (Total Bill)" during the name transition.
-      const steps = [ { label: "Revenue", v: totBill, type: "total" }, { label: "Foreman Salaries", v: -forman }, { label: "Driver Salaries", v: -driver }, { label: "Helper Salaries", v: -(helper || 0) }, { label: "Sales Commission", v: -(comm || 0) }, { label: "Expenses", v: -expense }, { label: "Refunds", v: -(refundTot || 0) }, { label: "Gross Profit", v: op, type: "total" } ];
+      const steps = [ { label: "Revenue", v: totBill, type: "total" }, { label: "Foreman Salaries", v: -forman }, { label: "Driver Salaries", v: -driver }, { label: "Helper Salaries", v: -(helper || 0) }, { label: "Sales Commission", v: -(comm || 0) }, { label: "Expenses", v: -expense }, { label: "Refunds", v: -(refundTot || 0) }, ...(unCard ? [{ label: "Unassigned card fuel", v: -unCard }] : []), { label: "Gross Profit", v: op, type: "total" } ];
       const wc = waterfall(g, "Revenue → Gross Profit", monLbl, steps, { headVal: money(op), chips: dchips([[op, opLY, "YoY"]]) });
       note(wc, `From ${money(totBill)} in revenue, labor + expenses + refunds leave ${money(op)} gross profit — a ${pct(margin)} margin.`);
       note(wc, `Revenue here is the same figure as the Revenue card in Section 01 (closing-sheet + trip billings, before refunds — refunds are deducted as their own step below).`, "how");
@@ -1822,7 +1826,7 @@ async function renderMonthly(host, MRCFG) {
       const fuT = momSeries("closing", "Fuel Expense", 14);
       const fuCur = valueFor("closing", "Fuel Expense", curY, mo) || 0;
       const fuc = lines(g, "Fuel — momentum", "last 14 months", [{ label: "Fuel", series: fuT, color: BLUE }], money, { headVal: money(fuCur) });
-      note(fuc, `Fuel across all jobs — ${money(fuCur)} in ${perName}${jobs ? `, about ${money(fuCur / jobs)}/job` : ""}. Read against the jobs count: fuel growing faster than jobs means longer hauls or waste.`, "how");
+      note(fuc, `Fuel = cash on the closing sheet + the fleet-card fuel matched to each job (since Aug 2026 the sheet carries cash only)${unCard ? `; another ${money(unCard)} of card fuel matched no job and is its own step in the waterfall` : ""}. Fuel across all jobs — ${money(fuCur)} in ${perName}${jobs ? `, about ${money(fuCur / jobs)}/job` : ""}. Read against the jobs count: fuel growing faster than jobs means longer hauls or waste.`, "how");
       // ("Biggest Other Expenses this month" table removed — Tornike 2026-07-16)
     }
 

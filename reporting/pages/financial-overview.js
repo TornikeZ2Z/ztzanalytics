@@ -163,17 +163,25 @@ registerPage({
     let P2 = null, p2Err = null;
     (async () => {
       try {
-        const [salesAll, helperAll, refundAll] = await Promise.all([
-          RS.load("sales_salaries"), RS.load("helper_salaries"), RS.load("refunds")]);
+        const [salesAll, helperAll, refundAll, cardAll] = await Promise.all([
+          RS.load("sales_salaries"), RS.load("helper_salaries"), RS.load("refunds"),
+          // the fleet card (2026-09-25): feeds "Fuel Expense" by job; never fatal
+          RS.load("fuel_card").catch(e => { console.warn("financial-overview card fuel:", e); return null; })]);
         const byUK = (src, col) => { const m = new Map();
           src.forEach(r => { const k = r["Unique Key"]; if (!has(k)) return; m.set(k, (m.get(k) || 0) + num(r[col])); });
           return m; };
         const refunds = refundAll.map(r => ({ r, d: String(r["Refund Date"] || "").slice(0, 10) }))
           .filter(x => x.d.length === 10);
-        P2 = { sales: byUK(salesAll, "Salary"), helper: byUK(helperAll, "Amount Received"), refunds };
+        const card = (cardAll || []).map(r => ({ r, d: String(r.Date || "").slice(0, 10) })).filter(x => x.d.length === 10);
+        P2 = { sales: byUK(salesAll, "Salary"), helper: byUK(helperAll, "Amount Received"), refunds,
+               card, cardOk: !!cardAll, cardLast: card.reduce((a, x) => x.d > a ? x.d : a, "") };
       } catch (e) { p2Err = e; console.error("financial-overview costs:", e); }
       if (host.isConnected && host.querySelector(".fo")) paint();
     })();
+    // fleet-card fuel that matched no job, dated by the swipe -- a period cost, never a job's
+    const unassignedCardIn = (co, from, to) => !P2 ? null : P2.card
+      .filter(x => !has(x.r["Unique Key"]) && x.d >= from && x.d <= to && (co === ALL || x.r.Company === co))
+      .reduce((a, x) => a + num(x.r["Card Fuel"]), 0);
     const refundsIn = (co, from, to) => !P2 ? null : P2.refunds
       .filter(x => x.d >= from && x.d <= to && (co === ALL || x.r.Company === co))
       .reduce((a, x) => a + num(x.r["Total refund"]), 0);
@@ -194,11 +202,13 @@ registerPage({
         const sumUK = map => rs.reduce((a, r) => a + (map.get(r["Unique Key"]) || 0), 0);
         o.forman = M["Forman Salary"].fn(rs); o.driver = M["Driver Salary"].fn(rs);
         o.helper = sumUK(P2.helper); o.sales = sumUK(P2.sales);
-        o.car = M["Car Expense"].fn(rs); o.fuel = M["Fuel Expense"].fn(rs); o.hotel = M["Hotel Expense"].fn(rs);
+        o.car = M["Car Expense"].fn(rs); o.fuel = M["Fuel Expense"].fn(rs);
+        o.fuelCash = M["Cash Fuel"].fn(rs); o.fuelCard = M["Card Fuel"].fn(rs);
+        o.uncard = unassignedCardIn(co, from, to); o.hotel = M["Hotel Expense"].fn(rs);
         o.tolls = M["Toll Expense"].fn(rs); o.truck = M["Truck Expense"].fn(rs); o.other = M["Other Expenses"].fn(rs);
         o.refunds = refundsIn(co, from, to);
         o.pay = o.forman + o.driver + o.helper + o.sales;
-        o.exp = o.car + o.fuel + o.hotel + o.tolls + o.truck + o.other;
+        o.exp = o.car + o.fuel + o.hotel + o.tolls + o.truck + o.other + o.uncard;
         o.gp = o.rev - o.pay - o.exp - o.refunds;
         o.gm = o.rev ? o.gp / o.rev : null;
       }
@@ -403,7 +413,10 @@ registerPage({
       if (recorded && typAvg && recorded < typAvg * 0.6) parts.push(`It may still be filling in.`);
       if (lf && S.day > lf) parts.push(`Closings are recorded only through <b>${esc(dLabel(lf))}</b>, so the days after it are empty, not zero.`);
       parts.push(`Every comparison uses the same days: 1–${P.sel.days} of each month.`);
-      const warn = fell || (recorded && typAvg && recorded < typAvg * 0.6) || (lf && S.day > lf);
+      if (P2 && P2.cardOk && P2.cardLast && S.day > P2.cardLast)
+        parts.push(`Fleet-card fuel is on file only through <b>${esc(dLabel(P2.cardLast))}</b>, so gross profit after it counts cash fuel only.`);
+      const warn = fell || (recorded && typAvg && recorded < typAvg * 0.6) || (lf && S.day > lf)
+        || (P2 && P2.cardOk && P2.cardLast && S.day > P2.cardLast);
       return `<div class="fo-note${warn ? " warn" : ""}">${parts.join(" ")}</div>`;
     }
 
@@ -603,12 +616,28 @@ registerPage({
         ${lineTable(P, [A, LM, LY, YTD, YTDLY], [
           ["Revenue", "rev", null, "fo-sel"], ["Foreman pay", "forman", 0, "", 1], ["Driver pay", "driver", 0, "", 1],
           ["Helper pay", "helper", 0, "", 1], ["Sales commission", "sales", 0, "", 1], ["Car", "car", 0, "", 1],
-          ["Fuel", "fuel", 0, "", 1], ["Hotel", "hotel", 0, "", 1], ["Tolls", "tolls", 0, "", 1],
+          ["Fuel — cash (closing sheet)", "fuelCash", 0, "", 1], ["Fuel — fleet card, on jobs", "fuelCard", 0, "", 1],
+          ["Fuel — fleet card, no job matched", "uncard", 0, "", 1],
+          ["Hotel", "hotel", 0, "", 1], ["Tolls", "tolls", 0, "", 1],
           ["Truck", "truck", 0, "", 1], ["Other expenses", "other", 0, "", 1], ["Refunds (by refund date)", "refunds", 0, "", 1],
           ["Gross profit", "gp", null, "fo-tot"], ["Gross margin", "gm", pct1, "fo-tot"]],
           `Sales commission is every salesperson slot the closing sheet pays, the branch owner's cut included. Helper pay
            is the helper sheet, matched to the job. A closing with no foreman pay recorded adds no foreman cost, so its
-           profit reads high — see the missing-data panel.`)}</div>`;
+           profit reads high — see the missing-data panel. Fuel: since Aug 2026 the closing sheet carries cash fuel only;
+           the fleet card comes from its export — on the job it was matched to, or on its own line when it matched no job
+           (dated by the swipe).${cardNote()}`)}</div>`;
+    }
+
+    /* The card export is dropped by hand; when it is older than the window, the card lines stop early
+       and must say so rather than read as a cheap month (his pick 2026-09-25: weekly drop + warning). */
+    function cardNote() {
+      if (!P2) return "";
+      if (!P2.cardOk) return " <b>The fleet-card table could not load, so card fuel is missing from these figures.</b>";
+      if (!P2.cardLast) return " <b>No fleet-card export is on file.</b>";
+      const stale = addDays(njToday(), -8) > P2.cardLast;
+      return stale || S.day > P2.cardLast
+        ? ` <b>Card fuel is on file only through ${esc(dLabel(P2.cardLast))}</b> — the export is dropped by hand into
+            SharePoint 'Fuel Export'; days after that carry cash fuel only until the next drop.` : "";
     }
 
     /* ---------- breakdowns: the picked month so far against the same days last year ---------- */

@@ -460,6 +460,8 @@ registerPage({
     // ================= PHASE 2: cross-dataset costs (sales / helper / refunds) =================
     const [salesAll, helperAll, refundAll] = await Promise.all([
       RS.load("sales_salaries"), RS.load("helper_salaries"), RS.load("refunds"),
+      // fleet-card fuel matched to his jobs (2026-09-25) -- read inside M["Fuel Expense"]
+      RS.load("fuel_card").catch(() => []),
     ]);
 
     const accum = (src, keyCol, valCol) => {

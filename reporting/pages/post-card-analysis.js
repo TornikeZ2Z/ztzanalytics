@@ -37,7 +37,8 @@ registerPage({
   async render(host) {
     const [cardAll, mbAll, closingAll, helperAll, salesAll, refundAll] = await Promise.all([
       RS.load("card_expenses"), RS.load("moveboard"), RS.load("closing"),
-      RS.load("helper_salaries"), RS.load("sales_salaries"), RS.load("refunds")]);
+      RS.load("helper_salaries"), RS.load("sales_salaries"), RS.load("refunds"),
+      RS.load("fuel_card").catch(() => [])]);
     const M = RS.M;
 
     // Global filter scope applied to every dataset (Source / Date / Company slicers).

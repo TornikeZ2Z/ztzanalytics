@@ -123,7 +123,8 @@ async function cbRender(host) {
        CB.mA === "Gross Margin" || CB.mB === "Gross Margin");
     const loads = [RS.load("closing"), RS.load("moveboard")];
     if (isPacking) loads.push(RS.load("fct_packing_job"));
-    if (needsPnl) loads.push(RS.load("refunds"), RS.load("sales_salaries"), RS.load("helper_salaries"));
+    if (needsPnl) loads.push(RS.load("refunds"), RS.load("sales_salaries"), RS.load("helper_salaries"),
+      RS.load("fuel_card").catch(() => []));
     const [closingAll, moveboardAll, packingAll] = await Promise.all(loads);
     const M = RS.M;
     const esc = RSC.esc;

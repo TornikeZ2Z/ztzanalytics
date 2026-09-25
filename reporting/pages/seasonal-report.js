@@ -36,7 +36,9 @@ async function renderSeasonal(host) {
   // helper_salaries / sales_salaries / refunds must be in RS's cache: Gross Profit reads them via _msr()
   const [closing, moveboard, claims, refunds, cardEx, scorecard, helperSal, salesSal] = await Promise.all([
     grab("closing"), grab("moveboard"), grab("claims"), grab("refunds"), grab("card_expenses"),
-    grab("scorecard"), grab("helper_salaries"), grab("sales_salaries")]);
+    grab("scorecard"), grab("helper_salaries"), grab("sales_salaries"),
+    // fleet-card fuel (2026-09-25) rides "Fuel Expense" and Gross Profit; optional until the loader builds it
+    RS.load("fuel_card").catch(() => [])]);
   // the season-gap marts (2026-09-15) are SOFT: until the loader has built them a missing one hides its card
   const soft = url => ZTZ.api(url).then(j => j.rows || []).catch(e => { console.warn("SR optional feed:", url, e); return null; });
   const [callrail, rcLine, rcAgent, arrival, surge, rcRepIn, pcm, eam] = await Promise.all([
