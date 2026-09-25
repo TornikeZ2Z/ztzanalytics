@@ -47,7 +47,9 @@ window.RS = (function () {
         // `Rebill Review` + `Prior Balance Due` (2026-08-30) are the residual bucket the
         // CFO rules on: a carried balance on an earlier leg, a different bill on this one.
         "Split Rebill", "Total Bill Raw", "Dup Bill Suspect",
-        "Rebill Review", "Prior Balance Due"],
+        "Rebill Review", "Prior Balance Due",
+        // Financial Overview (2026-09-25): the closing sheet's own discount column
+        "Discount Given"],
       dateCols: { "Date": "Date" }, defaultDate: "Date",
     },
     moveboard: {

@@ -118,7 +118,7 @@ body.rs-viewas .rs-layout{box-shadow:inset 0 0 0 2px #7c3aed}
 </div>
 
 <script src="assets/portal.js?v=12"></script>
-<script src="assets/rs-core.js?v=52"></script>
+<script src="assets/rs-core.js?v=53"></script>
 <script src="assets/rs-components.js?v=29"></script>
 <script>
 /* ---------------- page registry ---------------- */
@@ -198,7 +198,7 @@ const GROUP_OVERRIDE = {
   // Logistics
   "log-foreman": "logistics", "log-packing": "logistics",
   // Financial
-  "fin-revenue": "financial", "fin-rr": "financial", "salaries": "financial", "branch-owner": "financial", "bo-salary": "different", "cl-analysis": "financial", "postcard-purchases": "financial", "postcard-expenditure": "logistics", "money-flow": "logistics", "ld-planning": "logistics", "foreman-closings": "logistics",
+  "fin-revenue": "financial", "fin-rr": "financial", "financial-overview": "financial", "salaries": "financial", "branch-owner": "financial", "bo-salary": "different", "cl-analysis": "financial", "postcard-purchases": "financial", "postcard-expenditure": "logistics", "money-flow": "logistics", "ld-planning": "logistics", "foreman-closings": "logistics",
   "packing-control": "logistics", "storage-control": "logistics", "fuel-control": "logistics",
   "crew-salaries": "logistics",
   "foreman-late": "logistics",
@@ -227,7 +227,7 @@ const NAV_ORDER = {
   "hr-directory": 1, "hr-questionnaire": 2,
   "cleanup": 1,
   "straight-vs-local": 1, "area-plan": 2, "truck-economics": 3, "bo-salary": 4,
-  "fin-revenue": 1, "fin-rr": 2, "sales-geo": 3, "salaries": 5.5, "branch-owner": 6, "cl-analysis": 6.5, "postcard-purchases": 6.7, "postcard-expenditure": 9.5,
+  "fin-revenue": 1, "fin-rr": 2, "sales-geo": 3, "financial-overview": 0.5, "salaries": 5.5, "branch-owner": 6, "cl-analysis": 6.5, "postcard-purchases": 6.7, "postcard-expenditure": 9.5,
   "rev-production": 1, "review-performance": 2, "reviews-cases": 2.5, "claims-analysis": 2.6, "response-analysis": 3, "reviews-reminders": 4, "review-settings": 5,
   "sup-claims": 1, "sup-refunds": 2, "sup-phone": 3,
   "data-quality": 2, "refresh-log": 1, "general-settings": 3, "general-tables": 4, "admin-users": 5,
@@ -280,7 +280,7 @@ const PAGE_ICONS = {
   "ads-analysis": "megaphone", "callrail": "phone", "forman": "tool",
   "packing": "box", "claims": "shield", "insights": "spark",
   "source-identification": "compass",
-  "salaries": "dollar", "branch-owner": "user", "bo-salary": "trend", "cl-analysis": "trend", "postcard-purchases": "trend", "postcard-expenditure": "calendar", "customer-experience": "user",
+  "financial-overview": "trend", "salaries": "dollar", "branch-owner": "user", "bo-salary": "trend", "cl-analysis": "trend", "postcard-purchases": "trend", "postcard-expenditure": "calendar", "customer-experience": "user",
   "money-flow": "dollar",
   "ld-planning": "truck",
   "packing-control": "box", "crew-salaries": "user",
@@ -718,6 +718,8 @@ const PAGE_DATASETS = {
   "claims": ["claims", "closing", "scorecard", "rollup"],
   // Salaries (2026-09-24): loads mart_salaries itself; tabs, period, company and search live on the page
   "salaries": [],
+  // Financial Overview (2026-09-25): loads closing + fin_bookings, then the pay and refund tables itself
+  "financial-overview": [],
   "branch-owner": ["closing", "mart_branch_owner_jobs"],
   "bo-salary": ["closing", "mart_branch_owner_jobs"],
   "postcard-purchases": [],     // Post Card Purchases (Financial): reads its marts + /api/_pcpurchase + /api/_pcstock directly
@@ -1001,6 +1003,8 @@ const BARE_CHROME = new Set(["sales-of-the-month", "support-of-the-month", "revi
   "organic-search",
   // Salaries (2026-09-24) brings its own tabs, period, pay-period, company and person bar
   "salaries",
+  // Financial Overview (2026-09-25) brings its own day picker and company
+  "financial-overview",
   // Source Analysis (2026-09-23) brings its own source / period / company / state bar
   "source-report",
   // Things to do has nothing a global slicer could act on
@@ -1108,6 +1112,7 @@ const NAV_TITLES = {
   "things-to-do": "Things to do",
   "analysis-by-category": "Custom Breakdown",
   "insights": "Recommendations",
+  "financial-overview": "Financial Overview",
   "salaries": "Salaries",
   "branch-owner": "Branch Owner",
   "bo-salary": "Branch Owner Salary Comparison",
@@ -1174,6 +1179,7 @@ const SEARCH_ALIASES = {
   
   // Financial
   "fin-revenue": "revenue profit growth executive summary composition segments per job profitability p&l pnl profit and loss gross profit gross margin operational",
+  "financial-overview": "financial overview mtd ytd month to date year to date revenue profit gross margin jobs average bill booked bookings pace projection missing closings compare last year last month finance",
   "salaries": "salaries salary payroll pay paid commission commissions estimator estimators sales person salesperson rep reps branch owner kolbaia cut slot pay period cl partner yelp financial",
   "branch-owner": "branch owner giorgi kolbaia cut payout sales person financial ct",
   "bo-salary": "branch owner salary comparison analysis giorgi kolbaia estimator stairs bulky junk share of bill alternative 35% crew break-even projection 2027 straight regular local",
@@ -1649,6 +1655,7 @@ const REPORT_LABELS = {
   
   // Financial
   "fin-revenue": "Revenue & Profit",
+  "financial-overview": "Financial Overview (MTD / YTD)",
   "salaries": "Salaries (estimator, sales person, branch owner)",
   "branch-owner": "Branch Owner (Giorgi)",
   "bo-salary": "Branch Owner Salary Comparison",
@@ -1723,7 +1730,7 @@ const ACL_DEPTS = [
   // need NO grant at all — this tile is for HR: managing it and reading the results.
   { id: "hr",        label: "Human Resources", icon: "user",      reports: ["hr-questionnaire", "hr-responses", "hr-directory"] },
   { id: "customer-service", label: "Customer Service", icon: "calendar", reports: ["cleanup", "conversations", "claims-analysis"] },
-  { id: "financial", label: "Financial",        icon: "trend",     reports: ["salaries", "branch-owner", "cl-analysis", "postcard-purchases"] },
+  { id: "financial", label: "Financial",        icon: "trend",     reports: ["financial-overview", "salaries", "branch-owner", "cl-analysis", "postcard-purchases"] },
   { id: "reviews",   label: "Reviews",          icon: "star",      reports: ["review-performance", "reviews-cases", "claims-analysis", "reviews-reminders", "response-analysis", "review-settings"] },
   // Tech Team: Website Forms & UTM only. Things to do + Data Migration stay ADMIN_ONLY.
   { id: "tech",      label: "Tech Team",        icon: "sliders",   reports: ["utm-campaigns"] },
@@ -1995,6 +2002,7 @@ registerPage({
 <script src="pages/calendar-coverage.js?v=8"></script>
 <script src="pages/request-consistency.js?v=4"></script>
 <script src="pages/cl-analysis.js?v=40"></script>
+<script src="pages/financial-overview.js?v=1"></script>
 <script src="pages/salaries.js?v=3"></script>
 <script src="pages/branch-owner.js?v=11"></script>
 <script src="pages/bo-salary.js?v=3"></script>
