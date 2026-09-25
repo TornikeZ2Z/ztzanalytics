@@ -67,8 +67,9 @@ registerPage({
     const chgTxt = c => c == null ? "—" : (c >= 0 ? "+" : "−") + Math.abs(c * 100).toFixed(1) + "%";
     const ptsTxt = (a, b) => (a == null || b == null) ? "—"
       : (a - b >= 0 ? "+" : "−") + Math.abs((a - b) * 100).toFixed(1) + " pts";
-    const chgCell = c => c == null ? `<td class="num fo-mute">—</td>`
-      : `<td class="num ${c >= 0 ? "fo-up" : "fo-dn"}">${c >= 0 ? "▲" : "▼"} ${chgTxt(c)}</td>`;
+    // inv: a cost line, where going down is the good news -- the arrow keeps the direction, the colour flips
+    const chgCell = (c, inv) => c == null ? `<td class="num fo-mute">—</td>`
+      : `<td class="num ${(c >= 0) !== !!inv ? "fo-up" : "fo-dn"}">${c >= 0 ? "▲" : "▼"} ${chgTxt(c)}</td>`;
 
     if (!document.getElementById("fo-style")) {
       const st = document.createElement("style");
@@ -577,11 +578,11 @@ registerPage({
       const cs = cols5(P, LM, LY, YTDLY);
       const get = { A, LM, LY, YTD, YTDLY };
       return `<div class="tabwrap"><table class="tab"><thead><tr><th></th>${cs.map(c => `<th>${esc(c[0])}</th>`).join("")}<th>vs last year</th></tr></thead><tbody>
-        ${lines.map(([label, key, fmt, cls]) => {
+        ${lines.map(([label, key, fmt, cls, inv]) => {
           const v = k => { const o = get[k]; return o ? o[key] : null; };
           const f = fmt || m0;
           return `<tr class="${cls || ""}"><td>${esc(label)}</td>${cs.map(c => `<td class="num">${v(c[1]) == null ? "—" : f(v(c[1]))}</td>`).join("")}
-            ${key === "gm" ? `<td class="num">${ptsTxt(v("A"), v("LY"))}</td>` : chgCell(chg(v("A"), v("LY")))}</tr>`;
+            ${key === "gm" ? `<td class="num">${ptsTxt(v("A"), v("LY"))}</td>` : chgCell(chg(v("A"), v("LY")), inv)}</tr>`;
         }).join("")}
       </tbody></table></div>${note ? `<p class="rs-hint">${note}</p>` : ""}`;
     }
@@ -589,7 +590,7 @@ registerPage({
       return `<div class="panel"><div class="panel-head"><div class="panel-title">How the money came in</div></div>
         ${lineTable(P, [A, LM, LY, YTD, YTDLY], [
           ["Revenue", "rev", null, "fo-sel"], ["Net cash", "cash"], ["Card", "card"], ["Deposits", "deposit"],
-          ["Balance due", "due"], ["Tips from customers", "tipCust"], ["Tips from the company", "tipCo"],
+          ["Balance due", "due", 0, "", 1], ["Tips from customers", "tipCust"], ["Tips from the company", "tipCo"],
           ["Packing written", "packing"], ["Discounts given", "disc"]],
           `Net cash includes net cash from trips, as in the Monthly Report. Discounts are what the closing sheet records
            in Discount Given — ${fmtN(YTD.discN)} closing${YTD.discN === 1 ? "" : "s"} carry one this year, so a discount
@@ -600,9 +601,10 @@ registerPage({
         <div class="rs-loading">${p2Err ? "The pay and refund tables could not load — reload to try again." : "Adding up pay, expenses and refunds…"}</div></div>`;
       return `<div class="panel"><div class="panel-head"><div class="panel-title">Costs and gross profit</div></div>
         ${lineTable(P, [A, LM, LY, YTD, YTDLY], [
-          ["Revenue", "rev", null, "fo-sel"], ["Foreman pay", "forman"], ["Driver pay", "driver"], ["Helper pay", "helper"],
-          ["Sales commission", "sales"], ["Car", "car"], ["Fuel", "fuel"], ["Hotel", "hotel"], ["Tolls", "tolls"],
-          ["Truck", "truck"], ["Other expenses", "other"], ["Refunds (by refund date)", "refunds"],
+          ["Revenue", "rev", null, "fo-sel"], ["Foreman pay", "forman", 0, "", 1], ["Driver pay", "driver", 0, "", 1],
+          ["Helper pay", "helper", 0, "", 1], ["Sales commission", "sales", 0, "", 1], ["Car", "car", 0, "", 1],
+          ["Fuel", "fuel", 0, "", 1], ["Hotel", "hotel", 0, "", 1], ["Tolls", "tolls", 0, "", 1],
+          ["Truck", "truck", 0, "", 1], ["Other expenses", "other", 0, "", 1], ["Refunds (by refund date)", "refunds", 0, "", 1],
           ["Gross profit", "gp", null, "fo-tot"], ["Gross margin", "gm", pct1, "fo-tot"]],
           `Sales commission is every salesperson slot the closing sheet pays, the branch owner's cut included. Helper pay
            is the helper sheet, matched to the job. A closing with no foreman pay recorded adds no foreman cost, so its
