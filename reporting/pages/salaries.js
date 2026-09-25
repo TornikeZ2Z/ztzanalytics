@@ -277,8 +277,6 @@ registerPage({
     let charts = [];
     Object.assign(S, { bk: "Moving Type", jq: "", js: "date", jd: -1 });
 
-    paint();
-
     function paint() {
       charts.forEach(c => { try { c.destroy(); } catch (e) { /* gone with its canvas */ } });
       charts = [];
@@ -1075,5 +1073,9 @@ registerPage({
       a.click();
       setTimeout(() => URL.revokeObjectURL(a.href), 2000);
     }
+
+    // LAST, after every const the paint path reads (boMine, ROLE_HEAD, BO_BRK, BO_SORT, ymShift):
+    // called any earlier, the Branch Owner and All people tabs died in the temporal dead zone
+    paint();
   },
 });
