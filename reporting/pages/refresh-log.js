@@ -257,6 +257,8 @@ function rlInjectStyle() {
   .rl-ftw{margin-top:10px}
   .rs-table.rl-ftab td{color:var(--muted)}
   .rs-table.rl-ftab td b{color:var(--ink);font-weight:650}
+  .rl-flink{color:var(--blue);font-weight:650;text-decoration:none;white-space:nowrap}
+  .rl-flink:hover{text-decoration:underline}
   .rs-table tbody tr.rl-fr.old td{background:var(--neg-bg)}
   .rs-table tbody tr.rl-fr.warn td{background:var(--warn-bg)}
   .rl-fkind{display:block;font-size:10px;color:var(--faint);margin-top:1px}
@@ -608,6 +610,47 @@ function rlFreshness(fresh) {
   </div>`;
 }
 
+/* THE DAILY DROPS (Tornike 2026-09-27: "start daily updates of those manual exports, + change
+   them with automated wherever its possible"; one person runs the whole list each morning). One
+   row per manual export: where it goes, when it last arrived, today's state, and how far it is
+   from loading by itself. Rows come from /api/_feeds (mart_source_freshness, `Rhythm Days`). */
+const RL_SP_ROOT = "https://datastudioge.sharepoint.com/sites/ZiptoZip/Shared%20Documents";
+function rlDaily(feeds) {
+  if (!feeds || !feeds.length) return "";
+  const esc = RSC.esc;
+  const dLbl = s => { if (!s) return "—"; const p = String(s).slice(0, 10).split("-");
+    return RS.monthName(+p[1]) + " " + (+p[2]); };
+  const state = f => f.paused ? ["paused", "mute"]
+    : f.days_since_file == null ? ["never dropped", "bad"]
+    : f.days_since_file === 0 ? ["dropped today", "ok"]
+    : f.days_since_file <= (f.rhythm || 1) ? ["due today", "warn"]
+    : [f.days_since_file + " days late", "bad"];
+  const rows = feeds.slice().sort((a, b) => (b.days_since_file ?? 999) - (a.days_since_file ?? 999));
+  const done = rows.filter(f => f.days_since_file === 0).length;
+  const link = f => f.folder
+    ? `<a class="rl-flink" target="_blank" rel="noopener" href="${RL_SP_ROOT}/Forms/AllItems.aspx?id=${
+        encodeURIComponent("/sites/ZiptoZip/Shared Documents/" + f.folder)}">${esc(f.folder)} ↗</a>`
+    : `<span class="rl-fkind">${esc(f.kind || "")} — paste the bank export</span>`;
+  return `<div class="panel rs-noanim">
+    <div class="panel-head"><span class="panel-title">Daily drops</span>
+      <span class="rl-hsub">the manual exports, dropped every morning — the pipeline loads them within the hour</span>
+      <span class="rs-pill ${done === rows.length ? "ok" : "warn"} rl-hchip">${done} of ${rows.length} done today</span></div>
+    <div class="rs-tablewrap rl-ftw"><table class="rs-table rl-ftab">
+      <thead><tr><th>Feed</th><th>Drop into</th><th class="num">Last file</th><th class="num">Newest row</th>
+        <th>Today</th><th>Going automatic</th></tr></thead>
+      <tbody>${rows.map(f => { const [t, cls] = state(f);
+        return `<tr><td><b>${esc(f.feed)}</b>${f.company ? `<span class="rl-fkind">${esc(f.company)}</span>` : ""}</td>
+          <td>${link(f)}</td>
+          <td class="num nowrap">${esc(dLbl(f.file_updated))}${f.newest_file ? `<span class="rl-fkind">${esc(f.newest_file)}</span>` : ""}</td>
+          <td class="num nowrap">${esc(dLbl(f.newest_data))}</td>
+          <td><span class="rs-pill ${cls}">${esc(t)}</span></td>
+          <td class="rl-fkind" style="white-space:normal">${esc(f.automation || "")}</td></tr>`; }).join("")}
+      </tbody></table></div>
+    <div class="rs-hint rl-fhelp">Drop the export file into its folder (replace yesterday's file or add the new one — the
+      loader reads every file in the folder). A page built on a feed that is more than a day late shows a warning at the top.</div>
+  </div>`;
+}
+
 function rlRender(host, runs, cov, fresh) {
   const procs = runs.map(RL.process);
   rlBuildLastLoaded(procs);
@@ -852,9 +895,15 @@ registerPage({
         <button class="rs-btn pri" id="rlRun">▶ Run a refresh now</button>
         <span class="rl-runmsg" id="rlMsg"></span>
       </div>
+      <div id="rlDaily"></div>
       <div id="rlLive"></div>
       <div id="rlBody"><div class="rs-loading" style="padding:26px">Loading refresh history…</div></div>`;
     const body = host.querySelector("#rlBody");
+    // the daily-drop checklist fills on its own: a slow or failing feeds call never holds up the log
+    ZTZ.api("/api/_feeds").then(j => {
+      const el = host.querySelector("#rlDaily");
+      if (el) el.innerHTML = rlDaily((j && j.feeds) || []);
+    }).catch(() => {});
     // the pipeline health checks used to be a banner over EVERY page; his ruling
     // (2026-08-28) moved them here, the one tab that exists to answer "is the data ok".
     // Non-fatal on purpose: a broken health endpoint must not take the log down with it.

@@ -49,6 +49,9 @@ registerPage({
         ".pce-in:focus{border-color:var(--brand)} .pce-in.set{border-color:var(--brand);background:color-mix(in srgb,var(--brand) 8%,var(--panel))}",
         ".pce-in.ok{border-color:var(--pos)} .pce-in.bad{border-color:var(--neg)} .pce-in.wide{width:100%;text-align:left}",
         ".pce-split{font-size:11.5px;color:var(--muted)} .pce-split b{color:var(--ink)}",
+        ".pce-si{white-space:nowrap}",
+        ".rs-table td.pce-splitc{min-width:180px;max-width:320px;line-height:1.7}",
+        ".rs-table td.pce-note{min-width:200px;max-width:360px;font-size:12px;line-height:1.5}",
         ".pce-btn{font-family:inherit;font-size:12px;font-weight:700;padding:5px 11px;border-radius:9px;border:1px solid var(--line-2);background:var(--panel);color:var(--ink);cursor:pointer}",
         ".pce-btn:hover{border-color:var(--brand)} .pce-btn.pri{background:var(--brand);border-color:var(--brand);color:#fff}",
         ".pce-dim{color:var(--faint)}",
@@ -229,7 +232,9 @@ registerPage({
     }
 
     const kpi = (l, v, s) => '<div class="pce-kpi"><div class="l">' + l + '</div><div class="v">' + v + '</div>' + (s ? '<div class="s">' + s + "</div>" : "") + "</div>";
-    const td = (v, cls) => '<td class="' + (cls || "num") + '">' + v + "</td>";
+    // cls omitted = a number; cls "" = text. `cls || "num"` turned every "" into "num", so every
+    // text column (date, ledger line, description, split, note) rendered right-aligned (2026-09-27)
+    const td = (v, cls) => '<td class="' + (cls == null ? "num nowrap" : cls) + '">' + v + "</td>";
     let K = calc();
 
     function paintTop() {
@@ -275,13 +280,13 @@ registerPage({
       host.querySelector("#pcePurch").innerHTML = P.length
         ? '<div class="rs-tablewrap"><table class="rs-table"><thead><tr><th>Date</th><th>Company</th><th>Ledger line</th><th>Description</th><th class="num">Paid</th><th class="num">Cards bought<div class="pce-dim" style="font-weight:500;font-size:10.5px">implied by reorders</div></th><th class="num">$ / card</th><th>Split by state</th><th>Note</th><th></th></tr></thead><tbody>' +
           P.map(p => { const q = qtyOf(p), qt = qtyTyped(p), derived = p.splits.some(s => s.iq != null);
-            const split = p.splits.length ? p.splits.map(s => "<b>" + esc(s.state || "pooled") + "</b> " + fmtN(s.iq != null ? s.iq : s.qty) + (s.iq != null && s.iq !== s.qty ? ' <span class="pce-dim">(typed ' + fmtN(s.qty) + ")</span>" : "") + (s.basis === "latest buy" ? ' <span class="pce-tag dim">latest buy</span>' : "")).join(" · ")
+            const split = p.splits.length ? p.splits.map(s => '<span class="pce-si"><b>' + esc(s.state || "pooled") + "</b> " + fmtN(s.iq != null ? s.iq : s.qty) + (s.iq != null && s.iq !== s.qty ? ' <span class="pce-dim">(typed ' + fmtN(s.qty) + ")</span>" : "") + (s.basis === "latest buy" ? ' <span class="pce-tag dim">latest buy</span>' : "") + "</span>").join(" · ")
               : '<span class="pce-dim">' + (p.ledger ? esc(p.ledger) + " on the ledger · no quantity yet" : "no quantity yet") + "</span>";
             const tag = p.role === "opening" ? '<span class="pce-tag">opening stock</span>' : p.role === "before" ? '<span class="pce-tag dim">before the record</span>' : "";
-            return '<tr data-row="' + esc(p.key) + '"' + (p.role === "before" ? ' class="pce-row-before"' : "") + ">" + td(esc(p.date) + tag, "") + td(esc(p.company || ""), "") + td(esc(p.provider), "") +
-              td('<span class="pce-dim" title="' + esc(p.desc) + '">' + esc(p.desc.slice(0, 40)) + "</span>", "") +
+            return '<tr data-row="' + esc(p.key) + '"' + (p.role === "before" ? ' class="pce-row-before"' : "") + ">" + td(esc(p.date) + tag, "nowrap") + td(esc(p.company || ""), "nowrap") + td(esc(p.provider), "nowrap") +
+              td('<span class="pce-dim" title="' + esc(p.desc) + '">' + esc(p.desc.slice(0, 40)) + "</span>", "nowrap") +
               td(money(p.amount)) + td(q ? "<b>" + fmtN(q) + "</b>" + (derived && qt !== q ? '<div class="pce-dim" style="font-size:11px">typed ' + fmtN(qt) + "</div>" : "") : '<span class="pce-dim">—</span>') + td(q && p.amount != null ? money2(p.amount / q) : "—") +
-              td('<span class="pce-split">' + split + "</span>", "") + td('<span class="pce-dim">' + esc(p.note || "") + "</span>", "") +
+              td('<span class="pce-split">' + split + "</span>", "pce-splitc") + td('<span class="pce-dim">' + esc(p.note || "") + "</span>", "pce-note") +
               td(canEdit ? '<button class="pce-btn" data-edit="' + esc(p.key) + '">' + (q ? "Edit" : "Add quantities") + "</button>" : "", "") + "</tr>"; }).join("") +
           "</tbody></table></div>"
         : '<div class="pce-say">No postcard payments on the ledger in this selection.</div>';

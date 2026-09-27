@@ -113,6 +113,8 @@ body.rs-viewas .rs-layout{box-shadow:inset 0 0 0 2px #7c3aed}
       <span>No data matches your combined filters — check <b>Month</b> vs <b>Date range</b> (they narrow each other down).</span>
       <button class="rs-banner-btn" id="noDataClear">Clear all filters</button>
     </div>
+    <!-- a daily-drop feed this page reads is behind (2026-09-25): outside #content, so no page repaint wipes it -->
+    <div class="rs-banner hidden" id="feedWarnBanner"></div>
     <div class="rs-content" id="content"></div>
   </div>
 </div>
@@ -872,6 +874,35 @@ function updateFilterContext() {
   });
 }
 /* C31: Month=March + Date=Jan 1-31 silently intersects to zero rows. Detect it and say so. */
+/* A DAILY FEED BEHIND (his pick 2026-09-25: page warnings, no alerts). The manual exports are
+   dropped every morning; when one this page is built on has not been refreshed for more than a
+   day past its rhythm, say so above the page instead of letting it read as a quiet week.
+   /api/_feeds is cut to the reports this user can open and cached 10 minutes here. */
+let _feedsP = null, _feedsAt = 0;
+async function updateFeedWarn() {
+  const el = document.getElementById("feedWarnBanner");
+  if (!el) return;
+  const id = currentLeafId();
+  try {
+    if (!_feedsP || Date.now() - _feedsAt > 600000) {
+      _feedsAt = Date.now();
+      _feedsP = ZTZ.api("/api/_feeds").then(j => j.feeds || []).catch(() => []);
+    }
+    const feeds = await _feedsP;
+    if (currentLeafId() !== id) return;          // the reader moved on while we waited
+    const d = s => { if (!s) return "—"; const p = String(s).slice(0, 10).split("-");
+      return RS.monthName(+p[1]) + " " + (+p[2]); };
+    const late = feeds.filter(f => !f.paused && (f.reports || []).includes(id)
+      && f.days_since_file != null && f.days_since_file > (f.rhythm || 1) + 1);
+    if (!late.length) { el.classList.add("hidden"); el.innerHTML = ""; return; }
+    el.innerHTML = `<span>⚠ ${late.length === 1 ? "A daily export this page reads is" : late.length + " daily exports this page reads are"} behind:
+      ${late.map(f => `<b>${RSC.esc(f.feed)}</b> — last file ${RSC.esc(d(f.file_updated))}${f.newest_data
+        ? `, newest row ${RSC.esc(d(f.newest_data))}` : ""}`).join(" · ")}.
+      The numbers here stop there until the next drop.</span>`;
+    el.classList.remove("hidden");
+  } catch (e) { el.classList.add("hidden"); }
+}
+
 async function updateNoDataBanner() {
   const banner = document.getElementById("noDataBanner");
   if (!banner) return;
@@ -1103,6 +1134,7 @@ async function renderPage() {
   // under whatever the shell decided to show above it (filter bar, chips, banners)
   requestAnimationFrame(() => RSC.fit());
   updateNoDataBanner();
+  updateFeedWarn();
 }
 
 /* Sidebar display-name overrides — page modules keep their ids/titles, the shell decides
@@ -1979,7 +2011,7 @@ registerPage({
 <script src="pages/leads-vs-moveboard.js?v=7"></script>
 <script src="pages/source-analysis.js?v=5"></script>
 <script src="pages/data-quality.js?v=15"></script>
-<script src="pages/refresh-log.js?v=28"></script>
+<script src="pages/refresh-log.js?v=29"></script>
 <script src="pages/sales-team.js?v=50"></script>
 <script src="pages/sales-comms.js?v=4"></script>
 <script src="pages/sales-trackers.js?v=7"></script>
@@ -2019,7 +2051,7 @@ registerPage({
 <script src="pages/demand-analysis.js?v=10"></script>
 <script src="pages/straight-vs-local.js?v=6"></script>
 <script src="pages/area-plan.js?v=58"></script>
-<script src="pages/postcard-purchases.js?v=1"></script>
+<script src="pages/postcard-purchases.js?v=2"></script>
 <script src="pages/postcard-expenditure.js?v=11"></script>
 <script src="pages/truck-economics.js?v=5"></script>
 <script src="pages/data-migration.js?v=24"></script>
