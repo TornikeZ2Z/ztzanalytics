@@ -1113,6 +1113,9 @@ async function renderPage() {
   void host.offsetWidth;
   host.classList.add("rs-enter");
   host.innerHTML = `<div class="rs-loading"><div>Loading <b>${RSC.esc(CURRENT.title)}</b>…</div><div class="bar"><i></i></div></div>`;
+  // the feed warning belongs to the page being OPENED -- set it now, or the last page's warning
+  // sits over this one for as long as it takes to load
+  updateFeedWarn();
   try {
     await CURRENT.render(host);
   } catch (e) {
