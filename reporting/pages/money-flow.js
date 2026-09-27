@@ -226,8 +226,12 @@ registerPage({
       <div class="mf-head"><div>
         <h1>Money Flow <span class="mf-live off" id="mfLive">◷ syncing…</span></h1>
       </div><div class="mf-refwrap"><span class="mf-last" id="mfLast"></span><button class="mf-cancel" id="mfRefresh" style="padding:8px 14px;font-size:12.5px">↻ Refresh</button></div></div>
+      <div id="mfDayStrip"></div>
       <div id="mfBody"><div class="mf-load"><div class="mf-spin" style="margin:0 auto 12px"></div>Loading jobs…</div></div>
       <div id="mfModalHost"></div>`;
+    // DAY CLOSING strip (2026-09-27): the open day's drawer + Close day, shared with the Day
+    // Closing page (pages/day-closing.js, window.ZDC). It refreshes itself every 20 s.
+    if (window.ZDC) ZDC.mountStrip(document.getElementById("mfDayStrip"));
 
     var S = window.__MF || (window.__MF = {
       view: "foreman",     // Balance by Foreman is the landing view (his pick 2026-07-21)

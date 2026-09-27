@@ -200,7 +200,7 @@ const GROUP_OVERRIDE = {
   // Logistics
   "log-foreman": "logistics", "log-packing": "logistics",
   // Financial
-  "fin-revenue": "financial", "fin-rr": "financial", "financial-overview": "financial", "salaries": "financial", "branch-owner": "financial", "bo-salary": "different", "cl-analysis": "financial", "postcard-purchases": "financial", "postcard-expenditure": "logistics", "money-flow": "logistics", "ld-planning": "logistics", "foreman-closings": "logistics",
+  "fin-revenue": "financial", "fin-rr": "financial", "financial-overview": "financial", "salaries": "financial", "branch-owner": "financial", "bo-salary": "different", "cl-analysis": "financial", "postcard-purchases": "financial", "postcard-expenditure": "logistics", "money-flow": "logistics", "day-closing": "logistics", "ld-planning": "logistics", "foreman-closings": "logistics",
   "packing-control": "logistics", "storage-control": "logistics", "fuel-control": "logistics",
   "crew-salaries": "logistics",
   "foreman-late": "logistics",
@@ -225,7 +225,7 @@ const NAV_ORDER = {
   "monthly-report": 1, "seasonal-report": 1.5, "analysis-by-category": 2, "things-to-do": 0.6,
   "sales-command": 0.5, "sales-of-the-month": 0.6, "support-of-the-month": 0.65, "conversations": 0.7, "sales-comms": 0.8, "sales-trackers": 0.9, "sales-funnel": 1, "sales-perf": 2, "demand-analysis": 5,
   "mkt-roi": 1, "mkt-sources": 2, "mkt-phone": 3,
-  "money-flow": 1, "foreman-closings": 2, "ld-planning": 3, "packing-control": 4, "packing-sales": 4.5, "storage-control": 5, "foreman-assessment": 6, "crew-salaries": 6.5, "fuel-control": 7, "foreman-late": 7.5, "log-foreman": 8, "log-packing": 9,
+  "money-flow": 1, "day-closing": 1.5, "foreman-closings": 2, "ld-planning": 3, "packing-control": 4, "packing-sales": 4.5, "storage-control": 5, "foreman-assessment": 6, "crew-salaries": 6.5, "fuel-control": 7, "foreman-late": 7.5, "log-foreman": 8, "log-packing": 9,
   "hr-directory": 1, "hr-questionnaire": 2,
   "cleanup": 1,
   "straight-vs-local": 1, "area-plan": 2, "truck-economics": 3, "bo-salary": 4,
@@ -284,6 +284,7 @@ const PAGE_ICONS = {
   "source-identification": "compass",
   "financial-overview": "trend", "salaries": "dollar", "branch-owner": "user", "bo-salary": "trend", "cl-analysis": "trend", "postcard-purchases": "trend", "postcard-expenditure": "calendar", "customer-experience": "user",
   "money-flow": "dollar",
+  "day-closing": "archive",
   "ld-planning": "truck",
   "packing-control": "box", "crew-salaries": "user",
   "storage-control": "archive",
@@ -778,6 +779,7 @@ const PAGE_DATASETS = {
   "sales-comms": ["mart_sales_call_score"],
   "sales-trackers": [],      // loads its own eval + score tables; verdicts ignore the global bar
   "money-flow": [],          // loads fct_money_flow itself + the /api/_mf live overlay
+  "day-closing": [],         // loads via /api/_dc (bridge/day_closing.py); no global slicers apply
   "ld-planning": [],         // loads fct_ld_planning itself; no global slicers apply
   "cleanup": [],             // its own horizon; a global date filter would fight it
   "packing-control": [],     // loads fct_packing_job itself; its month picker owns the window
@@ -1027,7 +1029,7 @@ function navigate(id, push) {
 /* Pages that bring their OWN toolbar and ignore the global filter bar (PAGE_DATASETS=[])
    render "bare" — the global date/slicer bar + company chip are hidden so the page's board
    starts right under the header instead of below two rows of greyed-out, unusable filters. */
-const BARE_CHROME = new Set(["sales-of-the-month", "support-of-the-month", "review-performance", "reviews-cases", "claims-analysis", "demand-analysis", "reviews-reminders", "response-analysis", "review-settings", "monthly-report", "seasonal-report", "money-flow", "ld-planning", "cleanup", "packing-control", "crew-salaries", "storage-control", "foreman-assessment", "fuel-control", "foreman-closings", "refresh-log", "general-tables", "hr-questionnaire", "hr-directory", "conversations", "sales-comms", "referral-candidates", "jobs-by-area", "packing-sales", "meta-referrals", "relocation-trends", "angi-funnel", "utm-campaigns", "promised-reviews", "birdeye-sends",
+const BARE_CHROME = new Set(["sales-of-the-month", "support-of-the-month", "review-performance", "reviews-cases", "claims-analysis", "demand-analysis", "reviews-reminders", "response-analysis", "review-settings", "monthly-report", "seasonal-report", "money-flow", "day-closing", "ld-planning", "cleanup", "packing-control", "crew-salaries", "storage-control", "foreman-assessment", "fuel-control", "foreman-closings", "refresh-log", "general-tables", "hr-questionnaire", "hr-directory", "conversations", "sales-comms", "referral-candidates", "jobs-by-area", "packing-sales", "meta-referrals", "relocation-trends", "angi-funnel", "utm-campaigns", "promised-reviews", "birdeye-sends",
   // Census Data (2026-09-23): a reference table with its own search and state/county filters
   "census-data",
   // Organic Search (2026-09-24) brings its own window + last-year compare bar
@@ -1155,6 +1157,7 @@ const NAV_TITLES = {
   "postcard-expenditure": "Post Card Expenditure",
   "cl-analysis": "CL Analysis",
   "money-flow": "Money Flow",
+  "day-closing": "Day Closing",
   "ld-planning": "Long Distance Planning",
   "packing-control": "Packing Control",
   "crew-salaries": "Crew Salaries",
@@ -1758,7 +1761,7 @@ const ACL_DEPTS = [
   { id: "marketing", label: "Marketing",        icon: "megaphone", reports: ["source-report", "source-trace", "jobs-by-area", "relocation-trends", "census-data", "organic-search"] },
   // granted on its own, and ALSO by holding Marketing (DEPT_IMPLIES)
   { id: "marketing-automations", label: "Marketing Automations", icon: "clock", reports: ["referral-candidates", "promised-reviews", "birdeye-sends", "angi-funnel"] },
-  { id: "logistics", label: "Logistics",        icon: "tool",      reports: ["postcard-expenditure", "money-flow", "ld-planning", "foreman-closings", "packing-control", "packing-sales", "crew-salaries", "storage-control", "foreman-assessment", "fuel-control", "foreman-late"] },
+  { id: "logistics", label: "Logistics",        icon: "tool",      reports: ["postcard-expenditure", "money-flow", "day-closing", "ld-planning", "foreman-closings", "packing-control", "packing-sales", "crew-salaries", "storage-control", "foreman-assessment", "fuel-control", "foreman-late"] },
   // its own tile since 2026-09-23; it used to ride in on Logistics
   { id: "different", label: "Different Analysis", icon: "compass", reports: ["straight-vs-local", "area-plan", "truck-economics", "bo-salary"] },
   // MUST mirror DEPT_REPORTS["hr"] in bridge/app.py. Employees answering the questionnaire
@@ -2041,7 +2044,8 @@ registerPage({
 <script src="pages/salaries.js?v=6"></script>
 <script src="pages/branch-owner.js?v=12"></script>
 <script src="pages/bo-salary.js?v=3"></script>
-<script src="pages/money-flow.js?v=56"></script>
+<script src="pages/day-closing.js?v=1"></script>
+<script src="pages/money-flow.js?v=57"></script>
 <script src="pages/ld-planning.js?v=83"></script>
 <script src="pages/cleanup.js?v=38"></script>
 <script src="pages/packing-control.js?v=21"></script>
