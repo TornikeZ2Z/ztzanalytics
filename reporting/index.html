@@ -886,7 +886,7 @@ async function updateFeedWarn() {
   try {
     if (!_feedsP || Date.now() - _feedsAt > 600000) {
       _feedsAt = Date.now();
-      _feedsP = ZTZ.api("/api/_feeds").then(j => j.feeds || []).catch(() => []);
+      _feedsP = ZTZ.api("/api/_feeds?banner=1").then(j => j.feeds || []).catch(() => []);
     }
     const feeds = await _feedsP;
     if (currentLeafId() !== id) return;          // the reader moved on while we waited
