@@ -31,6 +31,7 @@
 })();
 
 var MF_TOL = 10;   // settled when |balance| <= this — same constant as src/money_flow.py
+var MF_DEBT = "Moved to Foreman Debt";   // a short hand-in moved onto his balance (29 Sep)
 
 registerPage({
   id: "money-flow",
@@ -109,6 +110,7 @@ registerPage({
         .mf-st-con{background:rgba(47,111,208,.12);color:${BLUE}}
         .mf-st-mnr{background:rgba(176,42,55,.12);color:${NEG}}
         .mf-st-nib{background:rgba(245,165,36,.16);color:#a06a00}
+        .mf-mdebt{margin:-4px 0 12px;padding:8px 12px;border-radius:9px;background:rgba(245,165,36,.14);color:#8a5a00;font-size:13px}
         .mf-st-nnc{background:var(--panel-2);color:var(--faint);border:1px solid var(--line-2)}
         .mf-tbl.mfc th{padding:9px 10px}
         .mf-tbl.mfc td{padding:8px 10px;font-size:13.5px}
@@ -315,6 +317,8 @@ registerPage({
           flowSrc: lv ? lv.flow_src : b["Cash Flow Source"],
           adv: lv ? lv.adv : num(b["Advance"]),
           ded: lv ? lv.ded : num(b["Deduction"]),
+          // a short hand-in MOVED TO HIS DEBT (29 Sep): the job is settled, he owes it instead
+          debt: lv ? (lv.debt != null ? lv.debt : null) : num(b["Moved to Debt"]),
           baseAdv: num(b["Advance"]),
           contractUrl: b["Contract URL"] || null,
           dcTs: b["DC Submission Time"] || null,
@@ -332,7 +336,7 @@ registerPage({
         // formula (col U−V−W+X). Advance arrives SIGNED from the server (brought +,
         // taken-away −); deduction ADDS: withheld foreman pay must still reach base.
         r.balance = (r.expected == null) ? null
-          : r.expected - (r.adv || 0) - (r.flow || 0) + (r.ded || 0);
+          : r.expected - (r.adv || 0) - (r.flow || 0) + (r.ded || 0) - (r.debt || 0);
         r.status = computeStatus(r);
         return r;
       });
@@ -366,7 +370,10 @@ registerPage({
     // A job the translator could not resolve to a person: say that, never a bare dash —
     // "—" reads as "no data here" when the truth is "nobody is on the hook for this cash".
     var MF_NO_FOREMAN = "Foreman Not Identified";
-    var MAINSET = { "Money Not Received": 1, "Contract Not Received": 1 };
+    // Not in Balance lives in the worklist now (29 Sep, the 22 Sep walkthrough): a short hand-in
+    // becomes his debt when it is confirmed, so only the rare leftover (an old row, or money
+    // brought OVER the amount) is still off balance -- it waits here with its pill, not on a tab.
+    var MAINSET = { "Money Not Received": 1, "Contract Not Received": 1, "Not in Balance": 1 };
     var NOTCONF = { "Money Not Received": 1, "Not in Balance": 1, "Contract Not Received": 1 };
 
     var entriesByEv = {};
@@ -389,7 +396,8 @@ registerPage({
         var b = overlaid().filter(function (x) { return x.ev === evId; })[0];
         lv = { ev: evId, expected: b ? b.expected : null, flow: b ? b.flow : null,
                flow_ts: b ? b.flowTs : null, flow_src: b ? b.flowSrc : null,
-               records: 0, adv: b ? b.adv : null, adv_ts: null, ded: b ? b.ded : null };
+               records: 0, adv: b ? b.adv : null, adv_ts: null, ded: b ? b.ded : null,
+               debt: b ? b.debt : null };
         S.live.rows.push(lv);
       }
       var nowTs = new Date().toISOString().slice(0, 16).replace("T", " ");
@@ -397,6 +405,7 @@ registerPage({
       else if (type === "Cash Taken Away from Base") { lv.flow = -amount; lv.flow_ts = nowTs; lv.flow_src = "portal"; lv.records = (lv.records || 0) + 1; }
       else if (type === "Advance Payment") { lv.adv = amount; lv.adv_ts = nowTs; }
       else if (type === "Forman Deduction") { lv.ded = amount; }
+      else if (type === MF_DEBT) { lv.debt = amount; }
       if (S.live.entries) S.live.entries.push({ event_id: evId, type: type, amount: amount,
         at: nowTs, by: "you", note: "", current: 1 });
       indexEntries();
@@ -444,11 +453,11 @@ registerPage({
       var mfBody = document.getElementById("mfBody");
       if (!mfBody || myGen !== window.__MFGEN) return;
       if (S.view === "todo") S.view = "foreman";      // migrate pre-rework stored state
+      if (S.view === "nib" || S.view === "advded") S.view = "foreman";   // tabs retired 29 Sep
       if (S.view === "done") S.view = "history";
       var rows = overlaid();
       var q = S.q.trim().toLowerCase();
       var main = rows.filter(function (r) { return MAINSET[r.status]; });
-      var nib = rows.filter(function (r) { return r.status === "Not in Balance"; });
       var done = rows.filter(function (r) { return r.status === "Money Received"; });
       // SEARCH EVERYTHING (his ask 2026-07-22): customer, request #, job code, foreman —
       // and plain numbers match the amounts too ("2132" finds the $2,132 job)
@@ -481,12 +490,10 @@ registerPage({
       });
 
       var outBal = 0; main.forEach(function (r) { outBal += (r.balance || 0); });
-      var nibBal = 0; nib.forEach(function (r) { nibBal += (r.balance || 0); });
       var noCon = main.filter(function (r) { return r.status === "Contract Not Received"; }).length;
 
       var kp = '<div class="mf-kpis">'
         + '<div class="mf-kpi neg"><b>' + money(outBal) + '</b><span>Waiting for cash</span><small>' + main.length + ' job' + (main.length === 1 ? "" : "s") + ' open</small></div>'
-        + '<div class="mf-kpi"><b>' + money(nibBal) + '</b><span>Not in balance</span><small>' + nib.length + ' job' + (nib.length === 1 ? "" : "s") + ' off by more than $' + MF_TOL + '</small></div>'
         + '<div class="mf-kpi"><b>' + noCon + '</b><span>No contract data</span><small>needs a manual amount</small></div>'
         + '<div class="mf-kpi pos"><b>' + done.length.toLocaleString() + '</b><span>History</span><small>confirmed, settled within $' + MF_TOL + '</small></div></div>';
 
@@ -498,16 +505,12 @@ registerPage({
       var allF = {};
       // EXACTLY the current view's jobs — "Not in Balance" must list only foremen who have
       // NIB jobs (using main+nib here leaked Balance-only foremen into the NIB filter).
-      var fSrc = S.view === "history" ? done : S.view === "nib" ? nib
-        : S.view === "advded" ? rows.filter(function (r) {
-            return Math.abs(r.adv || 0) > 0.005 || Math.abs(r.ded || 0) > 0.005; })
-        : main;
+      var fSrc = S.view === "history" ? done : main;
       fSrc.forEach(function (r) { if (r.forman && r.forman !== MF_NO_FOREMAN) allF[r.forman] = (allF[r.forman] || 0) + 1; });
       var fmKeys = Object.keys(allF).sort(function (a, b) { return allF[b] - allF[a] || a.localeCompare(b); });
       var fmLabel = S.formen.length ? "Foremen (" + S.formen.length + ")" : "All foremen";
       var fmHdN = fSrc.filter(function (r) { return r.forman && r.forman !== MF_NO_FOREMAN; }).length;
-      var fmNoun = S.view === "history" ? " settled jobs" : S.view === "nib" ? " jobs off balance"
-        : S.view === "advded" ? " jobs with money moved" : " jobs to close";
+      var fmNoun = S.view === "history" ? " settled jobs" : " jobs to close";
       var fmPop = S.fmOpen ? '<div class="mf-fmpop">'
           + '<div class="mf-fmhd">' + fmKeys.length + ' foremen · ' + fmHdN + fmNoun + '</div>'
           + fmKeys.map(function (f) {
@@ -547,14 +550,6 @@ registerPage({
         var p = settle(r); selTotal += (p.type === "Cash Taken Away from Base" ? -p.amount : p.amount);
       });
 
-      // ADVANCES & DEDUCTIONS — every job where money moved between us and the foreman,
-      // whatever the job's balance state. A job settled months ago still carries the advance
-      // that was paid on it, so this view deliberately spans ALL statuses (main + nib + done)
-      // rather than the open worklist the other tabs show.
-      var advDed = rows.filter(function (r) {
-        return Math.abs(r.adv || 0) > 0.005 || Math.abs(r.ded || 0) > 0.005;
-      });
-
       // the ledger, one row per foreman. Computed by the BRIDGE, not here: the statement,
       // this page and the closing email all have to answer "what does he owe" with the same
       // number, and three implementations is three answers.
@@ -591,10 +586,8 @@ registerPage({
         + "</div>" : "";
       var bar = '<div class="mf-bars">'
         + '<div class="mf-bar" id="mfVBar"><div class="mf-seg">' + segBtn("foreman", "Balance by Foreman", main.length)
-        + segBtn("nib", "Not in Balance Jobs", nib.length)
         + segBtn("history", "History", done.length)
-        + segBtn("advded", "Advances & Deductions", advDed.length)
-        + segBtn("fines", "Fines & Debt", fineBal.length) + "</div></div>"
+        + segBtn("fines", "Foreman balances", fineBal.length) + "</div></div>"
         // id="mfFBar" is load-bearing on main: the collapsible-filters bar finds this
         // element to hide it. The branch added the Advances & Deductions segment. Both sides
         // are real, and they are independent -- keeping only one would either lose the new
@@ -609,9 +602,11 @@ registerPage({
 
       var arrow = function (kk) { return S.sort.k === kk ? (S.sort.d < 0 ? " ↓" : " ↑") : ""; };
       var statusPill = function (r) {
+        if (r.status === "Money Received" && (r.debt || 0) > 0.005)
+          return '<span class="mf-pill mf-st-rec" title="He brought less; the difference was moved to his foreman balance">Received · ' + money(r.debt) + " to his debt</span>";
         if (r.status === "Money Received") return '<span class="mf-pill mf-st-rec">Received</span>';
         if (r.status === "Contract Not Received") return '<span class="mf-pill mf-st-con">No Contract</span>';
-        if (r.status === "Not in Balance") return '<span class="mf-pill mf-st-nib">Not in Balance</span>';
+        if (r.status === "Not in Balance") return '<span class="mf-pill mf-st-nib" title="Confirm it again: a shortfall moves to his debt">Off by ' + money(r.balance) + "</span>";
         if (r.status === "Missing Closing") return '<span class="mf-pill mf-st-nnc">Missing Closing</span>';
         return '<span class="mf-pill mf-st-mnr">Not Received</span>';
       };
@@ -691,8 +686,8 @@ registerPage({
        */
       var debtRow = function (name, owes) {
         if (!(owes > 0.005)) return "";
-        var lbl = '<b>Owed outside the jobs</b><span class="mf-fmmeta">'
-          + "fines and opening balances \u00b7 not tied to any one job</span>";
+        var lbl = '<b>His balance</b><span class="mf-fmmeta">'
+          + "advances, fines, short hand-ins \u00b7 not on any open job</span>";
         var act = '<button class="mf-confirm" data-mfpaid="' + esc(name) + '">Mark paid '
           + money2(owes) + "</button>";
         // NOT class `mf-ck`. That class is the bulk-confirm hook, and its wiring runs AFTER
@@ -759,14 +754,14 @@ registerPage({
            * in, find the man again, and type his name. His row is where he already is, and the
            * row already knows who he is. */
           var fmAction = '<button class="mf-charge" data-mfcharge="' + esc(f) + '"'
-            + ' title="Money he owes that belongs to him and not to a job — a fine, a '
-            + 'repayment, or what he already owed when this started">+ Charge</button>';
+            + ' title="His own balance, not a job: an advance we gave him, a fine, a repayment, '
+            + 'or what he already owed">Balance ±</button>';
           var nameCell = '<td colspan="' + (det ? 5 : PLAN.before) + '"><span class="mf-caret">' + (open ? "▾" : "▸") + "</span>"
             + esc(f) + '<span class="mf-fmmeta">' + g.jobs.length + " job" + (g.jobs.length === 1 ? "" : "s")
             + (g.noCon ? " · " + g.noCon + " no contract" : "") + "</span>"
             + (owes > 0.005
                 ? '<span class="mf-debtchip" data-mfdebt="' + esc(f)
-                  + '" title="Owed on top of the cash — fines and opening balances. '
+                  + '" title="What he owes us on his own balance — advances, fines, short hand-ins and opening balance, less repayments. '
                   + 'Click to open his ledger.">owes ' + money2(owes) + "</span>"
                 : "")
             + "</td>";
@@ -791,73 +786,10 @@ registerPage({
           + "</tbody></table></div></div>";
       };
 
-      if (S.view === "advded") {
-        /* Advances & Deductions — the same shape as Balance by Foreman (foreman row, click to
-         * open his jobs) but answering a different question: not "what is owed" but "what has
-         * moved". Advance arrives SIGNED from the server (brought + / taken −), so his total
-         * is a net; deductions are shown as the charge they are. */
-        var ad = advDed.slice();
-        if (q) ad = ad.filter(matches);
-        var adG = {};
-        ad.forEach(function (r) {
-          var f = r.forman || MF_NO_FOREMAN;
-          var g = (adG[f] = adG[f] || { jobs: [], adv: 0, ded: 0, advN: 0, dedN: 0 });
-          g.jobs.push(r);
-          if (Math.abs(r.adv || 0) > 0.005) { g.adv += r.adv; g.advN++; }
-          if (Math.abs(r.ded || 0) > 0.005) { g.ded += r.ded; g.dedN++; }
-        });
-        var adNames = Object.keys(adG);
-        if (S.formen.length) adNames = adNames.filter(function (f) { return S.formen.indexOf(f) >= 0; });
-        adNames.sort(function (a, b) {
-          return (Math.abs(adG[b].adv) + Math.abs(adG[b].ded)) - (Math.abs(adG[a].adv) + Math.abs(adG[a].ded));
-        });
-        var tAdvAll = 0, tDedAll = 0;
-        adNames.forEach(function (f) { tAdvAll += adG[f].adv; tDedAll += adG[f].ded; });
-
-        var adBody = adNames.map(function (f) {
-          var g = adG[f], open = !!S.fmx[f] || !!q;
-          var head = '<tr class="mf-fmrow" data-mfx="' + esc(f) + '">'
-            + '<td colspan="3"><span class="mf-caret">' + (open ? "\u25be" : "\u25b8") + "</span>"
-            + esc(f) + '<span class="mf-fmmeta">' + g.jobs.length + " job" + (g.jobs.length === 1 ? "" : "s")
-            + (g.advN ? " \u00b7 " + g.advN + " advance" + (g.advN === 1 ? "" : "s") : "")
-            + (g.dedN ? " \u00b7 " + g.dedN + " deduction" + (g.dedN === 1 ? "" : "s") : "")
-            + "</span></td>"
-            + '<td class="r">' + (g.adv ? money(g.adv) : "") + "</td>"
-            + '<td class="r">' + (g.ded ? money(g.ded) : "") + "</td>"
-            + '<td class="r"><b>' + money(g.adv + g.ded) + "</b></td></tr>";
-          if (!open) return head;
-          var jobs = g.jobs.slice().sort(function (a, b) { return a.date < b.date ? 1 : -1; });
-          return head + jobs.map(function (r) {
-            return '<tr class="mf-row" data-ev="' + esc(r.ev) + '">'
-              + "<td>" + fmtD(r.date) + "</td>"
-              + "<td>" + esc(r.jobCode || "\u2014") + "</td>"
-              + '<td title="' + esc(r.customer || "") + '">' + esc(r.customer || "\u2014") + "</td>"
-              + '<td class="r">' + (Math.abs(r.adv || 0) > 0.005 ? money(r.adv) : '<span style="color:var(--faint)">\u2014</span>') + "</td>"
-              + '<td class="r">' + (Math.abs(r.ded || 0) > 0.005 ? money(r.ded) : '<span style="color:var(--faint)">\u2014</span>') + "</td>"
-              + '<td class="r">' + money((r.adv || 0) + (r.ded || 0)) + "</td></tr>";
-          }).join("");
-        }).join("");
-
-        content = '<div class="mf-card">' + veil + '<div class="mf-wrap"><table class="mf-tbl fx">'
-          + '<colgroup><col style="width:11%"><col style="width:14%"><col style="width:29%">'
-          + '<col style="width:15%"><col style="width:15%"><col style="width:16%"></colgroup>'
-          + '<thead><tr><th>Job date</th><th>Job #</th><th>Customer</th>'
-          + '<th class="r" title="Money already handed to him — it comes OFF what he still owes">Advance Payment ↓</th><th class="r" title="Charged to him on this job — it goes ON TOP of what he owes">Forman Deduction ↑</th>'
-          + '<th class="r">Net moved</th></tr></thead><tbody>'
-          + (adBody || '<tr><td colspan="6" style="color:var(--faint);padding:18px">'
-              + "No advances or deductions recorded" + (q ? " for that search" : "") + ".</td></tr>")
-          + (adNames.length ? '<tr class="mf-fmrow"><td colspan="3"><b>All foremen</b>'
-              + '<span class="mf-fmmeta">' + ad.length + " job" + (ad.length === 1 ? "" : "s") + "</span></td>"
-              + '<td class="r"><b>' + money(tAdvAll) + "</b></td>"
-              + '<td class="r"><b>' + money(tDedAll) + "</b></td>"
-              + '<td class="r"><b>' + money(tAdvAll + tDedAll) + "</b></td></tr>" : "")
-          + "</tbody></table></div></div>";
-      } else if (S.view === "fines") {
+      if (S.view === "fines") {
         content = finesView();
       } else if (S.view === "foreman") {
         content = renderGrouped(main, "No outstanding balances.");
-      } else if (S.view === "nib") {
-        content = renderGrouped(nib, "Nothing out of balance.");
       } else {
         // ---- History: the same grid plus Foreman, flat (everything here is settled, so
         // the last column IS the status) ----
@@ -1075,10 +1007,10 @@ registerPage({
           }()) + "</i></div>"
         + '<div class="mf-fntot"><span>Rides into the next statement</span><b>' + money2(unsettled) + "</b>"
         + "<i>charged, not yet settled</i></div>"
-        + '<button class="mf-fnbtn go" id="mfFnAdd">+ Record a fine, repayment or opening balance</button>'
+        + '<button class="mf-fnbtn go" id="mfFnAdd">Balance ± · advance, fine, repayment or opening balance</button>'
         + "</div>";
 
-      var TYPE_LABEL = { fine: "Fine", repayment: "Repayment", opening: "Opening balance" };
+      var TYPE_LABEL = { fine: "Fine", repayment: "Repayment", opening: "Opening balance", advance: "Advance", short: "Short hand-in" };
       var body = bal.map(function (b) {
         var open = !!S.fnx[b.foreman] || !!q;
         var ent = (entriesOf[b.foreman] || []);
@@ -1088,8 +1020,9 @@ registerPage({
           + " entr" + (b.entries === 1 ? "y" : "ies")
           + (b.unsettled > 0.005 ? " \u00b7 " + money2(b.unsettled) + " not yet on a statement" : "")
           + "</span></td>"
-          + '<td class="r">' + (b.fined ? money2(b.fined) : "\u2014") + "</td>"
-          + '<td class="r">' + (b.opening ? money2(b.opening) : "\u2014") + "</td>"
+          + '<td class="r">' + (b.advanced ? money2(b.advanced) : "\u2014") + "</td>"
+          + '<td class="r">' + ((b.fined || 0) + (b.opening || 0) ? money2((b.fined || 0) + (b.opening || 0)) : "\u2014") + "</td>"
+          + '<td class="r">' + (b.short ? money2(b.short) : "\u2014") + "</td>"
           + '<td class="r">' + (b.repaid ? money2(b.repaid) : "\u2014") + "</td>"
           + '<td class="r"><b class="' + (b.owes > 0.005 ? "mf-fnowe" : "") + '">'
           + money2(b.owes) + "</b></td></tr>";
@@ -1104,11 +1037,14 @@ registerPage({
               + '<td class="mf-fnwhy" title="' + esc(e.Reason || "") + '">' + esc(e.Reason || "\u2014")
               + (e["Job Code"] ? ' <span class="mf-fnjob">' + esc(e["Job Code"]) + "</span>" : "")
               + "</td>"
-              + '<td class="r">' + (e["Entry Type"] === "fine" ? money2(e.Amount) : "") + "</td>"
-              + '<td class="r">' + (e["Entry Type"] === "opening" ? money2(e.Amount) : "") + "</td>"
+              + '<td class="r">' + (e["Entry Type"] === "advance" ? money2(e.Amount) : "") + "</td>"
+              + '<td class="r">' + (e["Entry Type"] === "fine" || e["Entry Type"] === "opening" ? money2(e.Amount) : "") + "</td>"
+              + '<td class="r">' + (e["Entry Type"] === "short" ? money2(e.Amount) : "") + "</td>"
               + '<td class="r">' + (e["Entry Type"] === "repayment" ? money2(e.Amount) : "") + "</td>"
               + '<td class="r">'
-              + (settled
+              + (e.readonly
+                  ? '<span class="mf-fnsettled" title="Set when the job was confirmed short. Change it by confirming the job again.">from the job</span>'
+                  : settled
                   ? '<span class="mf-fnsettled" title="already carried on a closing statement '
                     + '\u2014 record a repayment instead of rewriting it">on a statement</span>'
                   : '<button class="mf-fnedit" data-mffe="' + e.id + '">Correct</button>')
@@ -1117,16 +1053,16 @@ registerPage({
       }).join("");
 
       return '<div class="mf-card">' + head + '<div class="mf-wrap"><table class="mf-tbl fx">'
-        + '<colgroup><col style="width:13%"><col style="width:12%"><col style="width:31%">'
-        + '<col style="width:11%"><col style="width:11%"><col style="width:11%">'
-        + '<col style="width:11%"></colgroup>'
+        + '<colgroup><col style="width:11%"><col style="width:11%"><col style="width:26%"><col style="width:10%">'
+        + '<col style="width:10%"><col style="width:10%"><col style="width:10%">'
+        + '<col style="width:12%"></colgroup>'
         + '<thead><tr><th>Date</th><th>Type</th><th>What for</th>'
-        + '<th class="r">Fined</th><th class="r">Opening</th><th class="r">Repaid</th>'
+        + '<th class="r">Advanced</th><th class="r">Fined / opening</th><th class="r">Short hand-ins</th><th class="r">Repaid</th>'
         + '<th class="r">Owes</th></tr></thead><tbody>'
-        + (body || '<tr><td colspan="7" style="color:var(--faint);padding:18px">'
+        + (body || '<tr><td colspan="8" style="color:var(--faint);padding:18px">'
             + (q ? "Nothing matches that search."
-                 : "Nobody has been fined and nobody carries an opening balance. "
-                   + "The ledger starts at zero \u2014 record the first entry above.")
+                 : "Nobody owes anything on his own balance yet. "
+                   + "Record an advance, a fine or an opening balance above.")
             + "</td></tr>")
         + "</tbody></table></div></div>";
     }
@@ -1148,11 +1084,11 @@ registerPage({
         + '<button class="mf-mx" id="mfMx">\u2715</button>'
         + '<div class="mf-mhead"><b>'
         + (e ? "Correct this entry"
-             : who ? esc(who) : "Record a fine, repayment or opening balance")
+             : who ? esc(who) + " · balance" : "His balance: an advance, a fine, a repayment or an opening balance")
         + "</b><div>"
         + (e ? "A correction writes a new row and retires the old one \u2014 nothing is deleted."
              : (who
-                 ? "Money that belongs to him and not to any one job."
+                 ? "His own balance, not any one job."
                    + (owesNow > 0.005 ? " He owes " + money2(owesNow) + " today." : "")
                    + " The direction comes from the type."
                  : "The direction comes from the type. Amounts are always positive."))
@@ -1191,8 +1127,9 @@ registerPage({
       // above), required (choosing a movement IS the form, so there is no empty row)
       var fnTypeSel = RSC.localSelect(document.getElementById("mfFnType"), {
         values: [
+          { v: "advance", l: "Advance — we gave him cash (debt goes up, money out of the drawer)" },
           { v: "fine", l: "Fine — we charged him (debt goes up)" },
-          { v: "repayment", l: "Repayment — he paid it back (debt goes down)" },
+          { v: "repayment", l: "Repayment — he paid it back (debt goes down, money into the drawer)" },
           { v: "opening", l: "Opening balance — what he already owed (debt goes up)" },
         ],
         value: t, form: true, required: true,
@@ -1275,6 +1212,10 @@ registerPage({
       if (!r) return;
       S.modalEv = ev;
       var pre = settle(r) || { type: "Cash Brought to Base", amount: "" };
+      // a job already settled by moving a shortfall to his debt opens on what he ACTUALLY
+      // brought -- the full preset would quietly clear the debt on an untouched Save
+      if ((r.debt || 0) > 0.005 && r.flow != null)
+        pre = { type: r.flow < 0 ? "Cash Taken Away from Base" : "Cash Brought to Base", amount: Math.abs(r.flow) };
       var hist = (entriesByEv[ev] || []).slice().reverse();
       var hostEl = document.getElementById("mfModalHost");
       hostEl.innerHTML = '<div class="mf-back" id="mfBack"><div class="mf-modal">'
@@ -1289,19 +1230,15 @@ registerPage({
         + "</b></div>"
         + (r.dcTs ? '<div class="mf-mdc">Recorded in the contract system ' + fmtTs(r.dcTs) + "</div>" : "")
         + '<div class="mf-ro bal ok" id="mfMBalRow"><span>Net Cash Balance</span><b id="mfMBal">$0</b></div>'
+        + '<div class="mf-mdebt" id="mfMDebt" hidden></div>'
         + '<div class="mf-fld"><label>Type</label><div id="mfMType"></div></div>'
         + '<div class="mf-fld"><label>Amount ($)</label><input id="mfMAmt" type="number" step="0.01" min="0" value="' + esc(String(pre.amount)) + '"></div>'
-        + '<div class="mf-mrow">'
         + '<div class="mf-fld"><label>Forman Deduction ($) <i>on top of what he owes</i></label><input id="mfMDed" type="number" step="0.01" min="0" value="' + esc(String(r.ded != null ? Math.abs(r.ded) : "")) + '" placeholder="0"></div>'
-        // a NEGATIVE advance is a legacy office refund ('Cash Taken Away from Base' in the
-        // old advance form) — the portal write path is positive-only (bridge rejects
-        // negatives; direction lives in the entry TYPE), so show it locked, not editable
-        + '<div class="mf-fld"><label>Advance Payment ($) <i>already handed to him</i></label><input id="mfMAdv" type="number" step="0.01"'
-        + (r.adv != null && r.adv < 0
-            ? ' disabled title="Recorded by the office as a refund (taken away from base) — edited only in the office ledger"'
-            : ' min="0"')
-        + ' value="' + esc(String(r.adv != null ? r.adv : "")) + '" placeholder="0"></div>'
-        + "</div>"
+        // ADVANCES LEFT THE JOB (29 Sep, the 22 Sep walkthrough): an advance is money handed to
+        // the foreman, recorded on HIS balance ("Balance ±" on his row). An old per-job advance
+        // still counts in this job's balance and is shown, read-only, so the sum stays explained.
+        + ((r.adv || 0) !== 0 ? '<div class="mf-mdc">Includes an old per-job advance of ' + money2(r.adv)
+            + " — new advances go on his foreman balance.</div>" : "")
         + '<div class="mf-fld"><label>Note</label><input id="mfMNote" class="note" placeholder="optional"></div>'
         + '<div class="mf-mfoot"><button class="mf-cancel" id="mfMCancel">Cancel</button>'
         + '<button class="mf-save" id="mfMSave">Save</button></div>'
@@ -1327,16 +1264,28 @@ registerPage({
         // no contract amount -> no balance to compute; a red "−$X" here would tell the
         // operator his CORRECT manual entry is wrong (he was trained: green $0 = good)
         if (r.expected == null) { el.textContent = "no contract amount"; row.className = "mf-ro bal"; return; }
+        var d = debtOfEntry();
+        var dEl = document.getElementById("mfMDebt");
+        el.textContent = money2(d.balance);
+        row.className = "mf-ro bal " + (Math.abs(d.balance) <= MF_TOL ? "ok" : "off");
+        dEl.hidden = !(d.debt > 0.005);
+        if (d.debt > 0.005) dEl.innerHTML = "Short <b>" + money2(d.debt) + "</b> → moves to " + esc(r.forman) + "’s debt";
+      }
+      /* A SHORT HAND-IN BECOMES HIS DEBT (22 Sep walkthrough 00:37:24, built 29 Sep): "if he is
+       * supposed to bring $1,000 and brings $500, he is $500 in debt." Cash Brought below what the
+       * job needs moves the difference onto his foreman balance, so the job settles and the
+       * dollars are owed in ONE place. Brought MORE, or taken away: no debt, the job stays off. */
+      function debtOfEntry() {
         var type = mTypeSel.get();
         var amt = num(document.getElementById("mfMAmt").value);
         var ded = num(document.getElementById("mfMDed").value) || 0;
-        var adv = num(document.getElementById("mfMAdv").value) || 0;
-        var flow = amt == null ? 0 : (type === "Cash Taken Away from Base" ? -amt : amt);
-        var bal = r.expected - adv - flow + ded;
-        el.textContent = money2(bal);
-        row.className = "mf-ro bal " + (Math.abs(bal) <= MF_TOL ? "ok" : "off");
+        var flow = amt == null ? (r.flow || 0) : (type === "Cash Taken Away from Base" ? -amt : amt);
+        var before = r.expected - (r.adv || 0) - flow + ded;
+        var debt = (amt != null && type === "Cash Brought to Base" && before > MF_TOL)
+          ? Math.round(before * 100) / 100 : (amt == null ? (r.debt || 0) : 0);
+        return { debt: debt, balance: before - debt };
       }
-      ["mfMAmt", "mfMDed", "mfMAdv"].forEach(function (id) {
+      ["mfMAmt", "mfMDed"].forEach(function (id) {
         var el = document.getElementById(id);
         el.oninput = calc; el.onchange = calc;
       });
@@ -1358,9 +1307,6 @@ registerPage({
         var type = mTypeSel.get();
         var amt = num(document.getElementById("mfMAmt").value);
         var ded = num(document.getElementById("mfMDed").value);
-        // a locked (legacy-refund) advance is display-only — never read it back for saving
-        var advEl = document.getElementById("mfMAdv");
-        var adv = advEl.disabled ? null : num(advEl.value);
         var note = document.getElementById("mfMNote").value.trim();
         // A BLANK AMOUNT IS AN ANSWER: "nothing was handed over, but he owes a deduction."
         // Demanding a number here made the deduction-only case unsaveable (Ryan Lester), and
@@ -1374,11 +1320,9 @@ registerPage({
         // the write path is positive-only: direction comes from the TYPE, and the bridge
         // rejects negatives — catch a typed minus here with words, not an HTTP 400
         if (ded != null && ded < 0) { errEl.innerHTML = '<div class="mf-merr">Forman Deduction must be a positive number.</div>'; return; }
-        if (adv != null && adv < 0) { errEl.innerHTML = '<div class="mf-merr">Advance Payment must be a positive number.</div>'; return; }
         // CLEARING a prefilled deduction/advance means "remove it" — record an explicit $0
         // (last-record-wins), otherwise the deletion is silently dropped
         if (ded == null && r.ded != null) ded = 0;
-        if (adv == null && r.adv != null && r.adv >= 0) adv = 0;
         // only what CHANGED gets recorded — an untouched deduction/advance writes nothing
         var posts = [];
         var curFlow = r.flow == null ? null : r.flow;
@@ -1391,13 +1335,18 @@ registerPage({
         }
         if (ded != null && Math.abs(ded - Math.abs(r.ded || 0)) > 0.009)
           posts.push({ entry_type: "Forman Deduction", amount: ded, note: note });
-        if (adv != null && Math.abs(adv - (r.adv || 0)) > 0.009)
-          posts.push({ entry_type: "Advance Payment", amount: adv, note: note });
+        // the shortfall onto his foreman balance -- or back to $0 when he has now brought it all
+        if (r.expected != null) {
+          var dNew = debtOfEntry().debt;
+          if (Math.abs(dNew - (r.debt || 0)) > 0.009)
+            posts.push({ entry_type: MF_DEBT, amount: dNew,
+                         note: dNew > 0 ? "short hand-in" + (note ? " — " + note : "") : "brought in full" });
+        }
         if (!posts.length) {
           // nothing typed anywhere is a mistake, not a no-op: the person pressed Save
-          if (amt == null && ded == null && adv == null) {
-            errEl.innerHTML = '<div class="mf-merr">Nothing to save — enter an amount, a '
-              + "deduction or an advance.</div>";
+          if (amt == null && ded == null) {
+            errEl.innerHTML = '<div class="mf-merr">Nothing to save — enter an amount or a '
+              + "deduction.</div>";
             return;
           }
           close(); return;

@@ -130,12 +130,13 @@
     lines = (lines || []).filter(function (l) { return (!foreman || l.foreman === foreman) && (!who || person(l) === who); });
     var t = { cash_in: 0, card_out: 0, fines: 0, net: 0 }, byFm = {};
     lines.forEach(function (l) {
-      if (l.effect > 0) t.cash_in += l.effect; else t.card_out += l.effect;
+      if (l.effect > 0) t.cash_in += l.effect; else if (l.kind !== "Advance given") t.card_out += l.effect;
       if (l.kind === "Fine repaid") t.fines += l.effect;
       t.net += l.effect;
-      var f = byFm[l.foreman] || (byFm[l.foreman] = { jobs: {}, cash: 0, card: 0, fines: 0, net: 0 });
-      if (l.kind !== "Fine repaid") f.jobs[l.job_code || l.event_id] = 1;
-      if (l.kind === "Fine repaid") f.fines += l.effect; else if (l.effect > 0) f.cash += l.effect; else f.card += l.effect;
+      var f = byFm[l.foreman] || (byFm[l.foreman] = { jobs: {}, cash: 0, card: 0, fines: 0, adv: 0, net: 0 });
+      if (l.kind !== "Fine repaid" && l.kind !== "Advance given") f.jobs[l.job_code || l.event_id] = 1;
+      if (l.kind === "Fine repaid") f.fines += l.effect; else if (l.kind === "Advance given") f.adv += l.effect;
+      else if (l.effect > 0) f.cash += l.effect; else f.card += l.effect;
       f.net += l.effect;
     });
     var signed = day && day.kind === "signed", open = !day;
@@ -146,10 +147,11 @@
       : "Reconstructed from the records of that New York day — never signed";
     var fmRows = Object.keys(byFm).sort(function (a, b) { return byFm[b].net - byFm[a].net; }).map(function (n) {
       var f = byFm[n]; return "<tr><td>" + esc(n) + "</td><td class=r>" + Object.keys(f.jobs).length + "</td><td class=r>" + money2(f.cash)
-        + "</td><td class=r>" + money2(f.card) + "</td><td class=r>" + (f.fines ? money2(f.fines) : "—") + "</td><td class=r><b>" + money2(f.net) + "</b></td></tr>";
+        + "</td><td class=r>" + money2(f.card) + "</td><td class=r>" + (f.adv ? money2(f.adv) : "—") + "</td><td class=r>" + (f.fines ? money2(f.fines) : "—") + "</td><td class=r><b>" + money2(f.net) + "</b></td></tr>";
     }).join("");
     var lnRows = lines.slice().sort(function (a, b) { return (a.foreman + a.at).localeCompare(b.foreman + b.at); }).map(function (l) {
-      var what = l.kind === "Fine repaid" ? "Fine repaid" + (l.note ? " — " + l.note : "")
+      var what = l.kind === "Fine repaid" ? "Debt repaid" + (l.note ? " — " + l.note : "")
+        : l.kind === "Advance given" ? "Advance given to him" + (l.note ? " — " + l.note : "")
         : (l.kind === "Advance" ? "Advance · " : "") + (l.paid_from || (l.correction ? "correction: " + money2(l.prev) + " → " + money2(l.value) : ""));
       return "<tr><td>" + esc(l.foreman) + "</td><td>" + esc(l.job_code || "—") + "</td><td>" + esc(l.customer || "—") + "</td><td>"
         + esc(what) + "</td><td>" + esc(String(l.at || "").slice(5)) + "</td><td class=r>" + money2(l.effect) + "</td></tr>";
@@ -166,9 +168,9 @@
       + ".sig div{border-top:1px solid #1d232b;padding-top:5px;color:#6e747c}@media print{body{margin:12mm}}</style></head><body>"
       + "<h1>" + esc(title) + '</h1><div class="sub">' + esc(sub) + " · Zip to Zip</div>"
       + '<div class="boxes"><div class="box"><span>Cash in</span><b>' + money2(t.cash_in) + '</b></div><div class="box"><span>Card jobs paid out</span><b>'
-      + money2(t.card_out) + '</b></div><div class="box"><span>Fines repaid</span><b>' + money2(t.fines) + '</b></div><div class="box k"><span>'
+      + money2(t.card_out) + '</b></div><div class="box"><span>Debts repaid</span><b>' + money2(t.fines) + '</b></div><div class="box k"><span>'
       + (foreman ? "Net from this foreman" : "Should be in the drawer") + "</span><b>" + money2(t.net) + "</b></div></div>"
-      + (foreman ? "" : "<h2>BY FOREMAN</h2><table><tr><th>Foreman</th><th class=r>Jobs</th><th class=r>Cash</th><th class=r>Card</th><th class=r>Fines</th><th class=r>Net</th></tr>" + fmRows + "</table>")
+      + (foreman ? "" : "<h2>BY FOREMAN</h2><table><tr><th>Foreman</th><th class=r>Jobs</th><th class=r>Cash</th><th class=r>Card</th><th class=r>Advances given</th><th class=r>Debts repaid</th><th class=r>Net</th></tr>" + fmRows + "</table>")
       + "<h2>EVERY MOVEMENT</h2><table><tr><th>Foreman</th><th>Job</th><th>Customer</th><th>What</th><th>Recorded</th><th class=r>Drawer</th></tr>" + lnRows + "</table>"
       + '<div class="sig">' + sig.map(function (s) { return "<div>" + esc(s) + "</div>"; }).join("") + "</div>"
       + "<script>window.onload=function(){setTimeout(function(){window.print()},200)}<\/script></body></html>");
@@ -181,7 +183,8 @@
   function stripRow(label, t, mine) {
     return '<div class="dcl-srow' + (mine ? " mine" : "") + '"><div class="who">' + esc(label) + "</div>"
       + '<div><span class="big">' + money(t.net) + '</span> <span class="unit">in the drawer</span></div>'
-      + '<div class="sub">' + money(t.cash_in) + " cash in · " + money(t.card_out) + " card jobs paid out</div>"
+      + '<div class="sub">' + money(t.cash_in) + " cash in · " + money(t.card_out) + " card jobs paid out"
+      + (t.advances ? " · " + money(t.advances) + " advances given" : "") + "</div>"
       + '<div class="sub">' + t.n_jobs + " job" + (t.n_jobs === 1 ? "" : "s") + " · " + t.n_foremen + " foremen</div></div>";
   }
   function stripHtml(d, withLink) {
@@ -288,7 +291,7 @@ registerPage({
     function fmRow(d, p, f) {
       var fk = d.key + "|" + (p ? p.person : "") + "|" + f.foreman, open = !!S.fopen[fk];
       var row = '<tr class="fm" data-fk="' + esc(fk) + '"><td class="nm"><span class="dcl-caret">' + (open ? "−" : "+") + "</span>" + esc(f.foreman)
-        + '<span class="dcl-meta">' + esc(Z.outcome(f)) + (f.fines ? " · fine repaid " + money(f.fines) : "") + '</span></td><td></td><td class="r">' + f.n_jobs
+        + '<span class="dcl-meta">' + esc(Z.outcome(f)) + (f.advances ? " · advance given " + money(-f.advances) : "") + (f.fines ? " · debt repaid " + money(f.fines) : "") + '</span></td><td></td><td class="r">' + f.n_jobs
         + '</td><td></td><td class="r">' + money(f.cash_in) + '</td><td class="r">' + money(f.card_out) + '</td><td class="r ' + netCls(f.net) + '">'
         + money(f.net) + '</td><td class="r"><button class="dcl-btn sm" data-fpdf="' + esc(fk) + '">PDF</button></td></tr>';
       if (!open) return row;
@@ -297,7 +300,8 @@ registerPage({
       return row + ls.filter(function (l) { return l.foreman === f.foreman && (!p || Z.person(l) === p.person); }).map(function (l) { return lineRow(d, l); }).join("");
     }
     function lineRow(d, l) {
-      var what = l.kind === "Fine repaid" ? "Fine repaid" + (l.note ? " — " + esc(l.note) : "")
+      var what = l.kind === "Fine repaid" ? "Debt repaid" + (l.note ? " — " + esc(l.note) : "")
+        : l.kind === "Advance given" ? "Advance given to him" + (l.note ? " — " + esc(l.note) : "")
         : (l.kind === "Advance" ? '<span class="dcl-pill card" style="margin:0 6px 0 0">advance</span>' : "")
           + (l.paid_from ? '<span class="dcl-pill card" style="margin:0 6px 0 0">card</span>' + esc(l.paid_from)
              : l.correction ? "correction " + money2(l.prev) + " → " + money2(l.value) : "");
