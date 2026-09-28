@@ -652,16 +652,16 @@ registerPage({
       // `before` / `after` = how many columns sit either side of Net Cash Balance, so a
       // foreman's TOTAL can be placed in exactly that column.
       var PLAN = det ? {
-        cols: '<col style="width:2.5%"><col style="width:6.5%"><col style="width:5.5%"><col style="width:5%"><col style="width:8%">'
-            + '<col style="width:6%"><col style="width:7.5%"><col style="width:8%"><col style="width:7%">'
+        cols: '<col style="width:2.5%"><col style="width:6.5%"><col style="width:5.5%"><col style="width:5%"><col style="width:15.5%">'
+            + '<col style="width:6%"><col style="width:8%"><col style="width:7%">'
             + '<col style="width:8%"><col style="width:8%"><col style="width:5%"><col style="width:5%">'
             + '<col style="width:7.5%"><col style="width:10.5%">',
         head: "<th></th><th>Job date</th><th>Job Code</th><th>Job #</th><th>Customer</th>"
-            + '<th class="r">Net Cash</th><th class="r" title="Money already handed to him — it comes OFF what he still owes">Advance Payment ↓</th>'
+            + '<th class="r">Net Cash</th>'
             + '<th class="r" title="Charged to him on this job — it goes ON TOP of what he owes">Forman Deduction ↑</th><th class="r">Net Cash Flow</th>'
             + '<th class="r">Net Cash Balance</th><th>Submission Time</th>'
             + "<th>Contract</th><th>Calendar</th><th>Status</th><th>Action</th>",
-        before: 9, after: 5, n: 15,
+        before: 8, after: 5, n: 14,
       } : {
         cols: '<col style="width:3%"><col style="width:11%"><col style="width:10%"><col style="width:18%"><col style="width:14%">'
             + '<col style="width:9%"><col style="width:9%"><col style="width:11%"><col style="width:15%">',
@@ -699,7 +699,7 @@ registerPage({
           + esc(name) + '" title="Tick when he has paid what he owes"></td>';
         return '<tr class="mf-row mf-debtrow">' + ck
           + (det
-              ? '<td colspan="8">' + lbl + "</td>"
+              ? '<td colspan="7">' + lbl + "</td>"
                 + '<td class="r mf-neg">' + money2(owes) + "</td>"
                 + '<td colspan="4"></td><td>' + act + "</td>"
               : '<td colspan="3">' + lbl + "</td>"
@@ -718,7 +718,6 @@ registerPage({
             + "<td>" + esc(r.jobNo || "—") + "</td>"
             + cust
             + '<td class="r">' + money(r.expected) + "</td>"
-            + '<td class="r">' + (r.adv ? money(r.adv) : "—") + "</td>"
             + '<td class="r">' + (r.ded ? money(r.ded) : "—") + "</td>"
             + '<td class="r">' + money(r.flow) + "</td>"
             + '<td class="r ' + balCls(r) + '">' + money(r.balance) + "</td>"
@@ -769,7 +768,7 @@ registerPage({
           // DETAIL: a subtotal under every numeric column (his ask 2026-07-22); COMPACT: just the balance
           var head = det
             ? '<tr class="mf-fmrow" data-mfx="' + esc(f) + '">' + nameCell
-              + '<td class="r">' + money(g.tNet) + "</td><td class=\"r\">" + money(g.tAdv) + "</td>"
+              + '<td class="r">' + money(g.tNet) + "</td>"
               + '<td class="r">' + money(g.tDed) + "</td><td class=\"r\">" + money(g.tFlow) + "</td>"
               + '<td class="r ' + balCls2 + '">' + money(g.total) + '</td>'
               + '<td colspan="4"></td><td>' + fmAction + "</td></tr>"
@@ -794,17 +793,17 @@ registerPage({
         // ---- History: the same grid plus Foreman, flat (everything here is settled, so
         // the last column IS the status) ----
         var HP = det ? {
-          cols: '<col style="width:7%"><col style="width:5%"><col style="width:11%"><col style="width:10.5%">'
-              + '<col style="width:6.5%"><col style="width:8%"><col style="width:8.5%"><col style="width:7.5%">'
+          cols: '<col style="width:7%"><col style="width:5%"><col style="width:19%"><col style="width:10.5%">'
+              + '<col style="width:6.5%"><col style="width:8.5%"><col style="width:7.5%">'
               + '<col style="width:8.5%"><col style="width:9%"><col style="width:5.5%"><col style="width:5.5%">'
               + '<col style="width:7.5%">',
           head: '<th data-mfs="Job Date">Job date' + arrow("Job Date") + "</th><th>Job #</th><th>Customer</th><th>Foreman</th>"
               + '<th class="r" data-mfs="Expected">Net Cash' + arrow("Expected") + "</th>"
-              + '<th class="r" title="Money already handed to him — it comes OFF what he still owes">Advance Payment ↓</th><th class="r" title="Charged to him on this job — it goes ON TOP of what he owes">Forman Deduction ↑</th>'
+              + '<th class="r" title="Charged to him on this job — it goes ON TOP of what he owes">Forman Deduction ↑</th>'
               + '<th class="r">Net Cash Flow</th>'
               + '<th class="r" data-mfs="Balance">Net Cash Balance' + arrow("Balance") + "</th>"
               + "<th>Submission Time</th><th>Contract</th><th>Calendar</th><th>Status</th>",
-          n: 13,
+          n: 12,
         } : {
           cols: '<col style="width:12%"><col style="width:20%"><col style="width:16%"><col style="width:13%">'
               + '<col style="width:12%"><col style="width:8%"><col style="width:8%"><col style="width:11%">',
@@ -822,7 +821,6 @@ registerPage({
               + cust
               + "<td>" + esc(r.forman) + "</td>"
               + '<td class="r">' + money(r.expected) + "</td>"
-              + '<td class="r">' + (r.adv ? money(r.adv) : "—") + "</td>"
               + '<td class="r">' + (r.ded ? money(r.ded) : "—") + "</td>"
               + '<td class="r">' + money(r.flow) + "</td>"
               + '<td class="r ' + balCls(r) + '">' + money(r.balance) + "</td>"
