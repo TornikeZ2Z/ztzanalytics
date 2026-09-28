@@ -7,11 +7,12 @@
      * two views only — Not Confirmed / Confirmed (future + filtered jobs hidden entirely)
      * the green CONFIRM button and the row itself both open the SAME popup, with Type and
        Amount already filled so the Balance reads $0 — he checks, presses Save, done.
-     * popup fields exactly as specified: Net Cash (read-only, + contract link), Net Cash
-       Balance (live calculation, read-only), Type, Amount, Forman Deduction, Advance
-       Payment, small Note. Labels use the ORIGINAL system's column names (his ask
-       2026-07-21) so nobody needs retraining; table adds Contract URL + Submission Time.
-     * Save records ONLY what changed (untouched deduction/advance write nothing).
+     * popup fields: Net Cash (read-only, + contract link), Net Cash Balance (live, read-only),
+       Type, Amount, small Note. Since 29 Sep (the 22 Sep walkthrough) advances and deductions
+       are NOT on jobs: they live on the foreman's own balance ("Balance ±": advance / fine /
+       repayment / opening), and a short hand-in moves to his debt automatically. Old per-job
+       advances/deductions still count in their job's balance and are named, read-only.
+     * Save records ONLY what changed.
      * a full-card LOADER whenever data is fetched or saved, so nothing silently shifts
      * no horizontal scrollbar — the table fits, details live in the popup
    Data: fct_money_flow (6h base) + /api/_mf live overlay; statuses recomputed client-side
@@ -588,7 +589,7 @@ registerPage({
         + '<div class="mf-bar" id="mfVBar"><div class="mf-seg">' + segBtn("foreman", "Balance by Foreman", main.length)
         + segBtn("history", "History", done.length)
         + segBtn("fines", "Foreman balances", fineBal.length) + "</div></div>"
-        // id="mfFBar" is load-bearing on main: the collapsible-filters bar finds this
+        // id="mfFBar" (no longer collapsible, 29 Sep): the collapsible-filters bar used this
         // element to hide it. The branch added the Advances & Deductions segment. Both sides
         // are real, and they are independent -- keeping only one would either lose the new
         // view or silently break Hide filters on this page.
@@ -652,16 +653,16 @@ registerPage({
       // `before` / `after` = how many columns sit either side of Net Cash Balance, so a
       // foreman's TOTAL can be placed in exactly that column.
       var PLAN = det ? {
-        cols: '<col style="width:2.5%"><col style="width:6.5%"><col style="width:5.5%"><col style="width:5%"><col style="width:15.5%">'
-            + '<col style="width:6%"><col style="width:8%"><col style="width:7%">'
+        cols: '<col style="width:2.5%"><col style="width:6.5%"><col style="width:5.5%"><col style="width:5%"><col style="width:23.5%">'
+            + '<col style="width:6%"><col style="width:7%">'
             + '<col style="width:8%"><col style="width:8%"><col style="width:5%"><col style="width:5%">'
             + '<col style="width:7.5%"><col style="width:10.5%">',
         head: "<th></th><th>Job date</th><th>Job Code</th><th>Job #</th><th>Customer</th>"
             + '<th class="r">Net Cash</th>'
-            + '<th class="r" title="Charged to him on this job — it goes ON TOP of what he owes">Forman Deduction ↑</th><th class="r">Net Cash Flow</th>'
+            + '<th class="r">Net Cash Flow</th>'
             + '<th class="r">Net Cash Balance</th><th>Submission Time</th>'
             + "<th>Contract</th><th>Calendar</th><th>Status</th><th>Action</th>",
-        before: 8, after: 5, n: 14,
+        before: 7, after: 5, n: 13,
       } : {
         cols: '<col style="width:3%"><col style="width:11%"><col style="width:10%"><col style="width:18%"><col style="width:14%">'
             + '<col style="width:9%"><col style="width:9%"><col style="width:11%"><col style="width:15%">',
@@ -699,7 +700,7 @@ registerPage({
           + esc(name) + '" title="Tick when he has paid what he owes"></td>';
         return '<tr class="mf-row mf-debtrow">' + ck
           + (det
-              ? '<td colspan="7">' + lbl + "</td>"
+              ? '<td colspan="6">' + lbl + "</td>"
                 + '<td class="r mf-neg">' + money2(owes) + "</td>"
                 + '<td colspan="4"></td><td>' + act + "</td>"
               : '<td colspan="3">' + lbl + "</td>"
@@ -718,7 +719,7 @@ registerPage({
             + "<td>" + esc(r.jobNo || "—") + "</td>"
             + cust
             + '<td class="r">' + money(r.expected) + "</td>"
-            + '<td class="r">' + (r.ded ? money(r.ded) : "—") + "</td>"
+
             + '<td class="r">' + money(r.flow) + "</td>"
             + '<td class="r ' + balCls(r) + '">' + money(r.balance) + "</td>"
             + "<td>" + fmtTs(r.dcTs) + "</td>"
@@ -769,7 +770,7 @@ registerPage({
           var head = det
             ? '<tr class="mf-fmrow" data-mfx="' + esc(f) + '">' + nameCell
               + '<td class="r">' + money(g.tNet) + "</td>"
-              + '<td class="r">' + money(g.tDed) + "</td><td class=\"r\">" + money(g.tFlow) + "</td>"
+              + '<td class="r">' + money(g.tFlow) + "</td>"
               + '<td class="r ' + balCls2 + '">' + money(g.total) + '</td>'
               + '<td colspan="4"></td><td>' + fmAction + "</td></tr>"
             : '<tr class="mf-fmrow" data-mfx="' + esc(f) + '">' + nameCell
@@ -793,17 +794,17 @@ registerPage({
         // ---- History: the same grid plus Foreman, flat (everything here is settled, so
         // the last column IS the status) ----
         var HP = det ? {
-          cols: '<col style="width:7%"><col style="width:5%"><col style="width:19%"><col style="width:10.5%">'
-              + '<col style="width:6.5%"><col style="width:8.5%"><col style="width:7.5%">'
+          cols: '<col style="width:7%"><col style="width:5%"><col style="width:27.5%"><col style="width:10.5%">'
+              + '<col style="width:6.5%"><col style="width:7.5%">'
               + '<col style="width:8.5%"><col style="width:9%"><col style="width:5.5%"><col style="width:5.5%">'
               + '<col style="width:7.5%">',
           head: '<th data-mfs="Job Date">Job date' + arrow("Job Date") + "</th><th>Job #</th><th>Customer</th><th>Foreman</th>"
               + '<th class="r" data-mfs="Expected">Net Cash' + arrow("Expected") + "</th>"
-              + '<th class="r" title="Charged to him on this job — it goes ON TOP of what he owes">Forman Deduction ↑</th>'
+
               + '<th class="r">Net Cash Flow</th>'
               + '<th class="r" data-mfs="Balance">Net Cash Balance' + arrow("Balance") + "</th>"
               + "<th>Submission Time</th><th>Contract</th><th>Calendar</th><th>Status</th>",
-          n: 12,
+          n: 11,
         } : {
           cols: '<col style="width:12%"><col style="width:20%"><col style="width:16%"><col style="width:13%">'
               + '<col style="width:12%"><col style="width:8%"><col style="width:8%"><col style="width:11%">',
@@ -821,7 +822,7 @@ registerPage({
               + cust
               + "<td>" + esc(r.forman) + "</td>"
               + '<td class="r">' + money(r.expected) + "</td>"
-              + '<td class="r">' + (r.ded ? money(r.ded) : "—") + "</td>"
+
               + '<td class="r">' + money(r.flow) + "</td>"
               + '<td class="r ' + balCls(r) + '">' + money(r.balance) + "</td>"
               + "<td>" + fmtTs(r.dcTs) + "</td>"
@@ -868,18 +869,8 @@ registerPage({
       var wt = wrap0 ? wrap0.scrollTop : 0, wl = wrap0 ? wrap0.scrollLeft : 0;
       mfBody.innerHTML = kp + bar + content;
       wire();
-      // the chevron lives in the VIEW row, so collapsing gives the whole filter row back
-      // instead of trading it for a toggle row of the same height
-      RSC.collapsible(document.getElementById("mfFBar"), "rsBarCollapsed:money-flow", {
-        host: document.getElementById("mfVBar"),
-        count: function () {
-          var labels = [];
-          if (S.formen.length) labels.push("Foremen (" + S.formen.length + ")");
-          if (S.q) labels.push("Search");
-          if (S.view === "history" && (S.dateFrom || S.dateTo)) labels.push(S.dateLabel);
-          return { n: labels.length, labels: labels };
-        },
-      });
+      // No "Hide filters" toggle on this page (his call, 29 Sep): the foreman filter and the
+      // search are the working tools here, so the row always shows.
       var wrap1 = document.querySelector("#mfBody .mf-wrap");
       if (wrap1) { wrap1.scrollTop = wt; wrap1.scrollLeft = wl; }
       RSC.fitScroller(wrap1);
@@ -1231,12 +1222,16 @@ registerPage({
         + '<div class="mf-mdebt" id="mfMDebt" hidden></div>'
         + '<div class="mf-fld"><label>Type</label><div id="mfMType"></div></div>'
         + '<div class="mf-fld"><label>Amount ($)</label><input id="mfMAmt" type="number" step="0.01" min="0" value="' + esc(String(pre.amount)) + '"></div>'
-        + '<div class="mf-fld"><label>Forman Deduction ($) <i>on top of what he owes</i></label><input id="mfMDed" type="number" step="0.01" min="0" value="' + esc(String(r.ded != null ? Math.abs(r.ded) : "")) + '" placeholder="0"></div>'
         // ADVANCES LEFT THE JOB (29 Sep, the 22 Sep walkthrough): an advance is money handed to
         // the foreman, recorded on HIS balance ("Balance ±" on his row). An old per-job advance
         // still counts in this job's balance and is shown, read-only, so the sum stays explained.
-        + ((r.adv || 0) !== 0 ? '<div class="mf-mdc">Includes an old per-job advance of ' + money2(r.adv)
-            + " — new advances go on his foreman balance.</div>" : "")
+        // ADVANCES AND DEDUCTIONS LEFT THE JOB (29 Sep): both belong to the foreman's own balance
+        // ("Balance ±": an advance, or a fine for damage). Old per-job ones still count in this
+        // job's balance, so they are named here, read-only, and the arithmetic stays explained.
+        + (((r.adv || 0) !== 0 || (r.ded || 0) !== 0)
+            ? '<div class="mf-mdc">Includes an old per-job '
+              + [((r.adv || 0) !== 0 ? "advance of " + money2(r.adv) : ""), ((r.ded || 0) !== 0 ? "deduction of " + money2(Math.abs(r.ded)) : "")].filter(Boolean).join(" and ")
+              + " — new ones go on his foreman balance (Balance ±).</div>" : "")
         + '<div class="mf-fld"><label>Note</label><input id="mfMNote" class="note" placeholder="optional"></div>'
         + '<div class="mf-mfoot"><button class="mf-cancel" id="mfMCancel">Cancel</button>'
         + '<button class="mf-save" id="mfMSave">Save</button></div>'
@@ -1276,14 +1271,14 @@ registerPage({
       function debtOfEntry() {
         var type = mTypeSel.get();
         var amt = num(document.getElementById("mfMAmt").value);
-        var ded = num(document.getElementById("mfMDed").value) || 0;
+        var ded = Math.abs(r.ded || 0);          // legacy only -- no longer entered per job
         var flow = amt == null ? (r.flow || 0) : (type === "Cash Taken Away from Base" ? -amt : amt);
         var before = r.expected - (r.adv || 0) - flow + ded;
         var debt = (amt != null && type === "Cash Brought to Base" && before > MF_TOL)
           ? Math.round(before * 100) / 100 : (amt == null ? (r.debt || 0) : 0);
         return { debt: debt, balance: before - debt };
       }
-      ["mfMAmt", "mfMDed"].forEach(function (id) {
+      ["mfMAmt"].forEach(function (id) {
         var el = document.getElementById(id);
         el.oninput = calc; el.onchange = calc;
       });
@@ -1304,7 +1299,6 @@ registerPage({
         var errEl = document.getElementById("mfMErr");
         var type = mTypeSel.get();
         var amt = num(document.getElementById("mfMAmt").value);
-        var ded = num(document.getElementById("mfMDed").value);
         var note = document.getElementById("mfMNote").value.trim();
         // A BLANK AMOUNT IS AN ANSWER: "nothing was handed over, but he owes a deduction."
         // Demanding a number here made the deduction-only case unsaveable (Ryan Lester), and
@@ -1317,7 +1311,6 @@ registerPage({
         }
         // the write path is positive-only: direction comes from the TYPE, and the bridge
         // rejects negatives — catch a typed minus here with words, not an HTTP 400
-        if (ded != null && ded < 0) { errEl.innerHTML = '<div class="mf-merr">Forman Deduction must be a positive number.</div>'; return; }
         // CLEARING a prefilled deduction/advance means "remove it" — record an explicit $0
         // (last-record-wins), otherwise the deletion is silently dropped
         if (ded == null && r.ded != null) ded = 0;
@@ -1331,8 +1324,6 @@ registerPage({
           if (curFlow == null || Math.abs(newFlow - curFlow) > 0.009)
             posts.push({ entry_type: type, amount: amt, note: note || "confirmed" });
         }
-        if (ded != null && Math.abs(ded - Math.abs(r.ded || 0)) > 0.009)
-          posts.push({ entry_type: "Forman Deduction", amount: ded, note: note });
         // the shortfall onto his foreman balance -- or back to $0 when he has now brought it all
         if (r.expected != null) {
           var dNew = debtOfEntry().debt;
@@ -1342,9 +1333,8 @@ registerPage({
         }
         if (!posts.length) {
           // nothing typed anywhere is a mistake, not a no-op: the person pressed Save
-          if (amt == null && ded == null) {
-            errEl.innerHTML = '<div class="mf-merr">Nothing to save — enter an amount or a '
-              + "deduction.</div>";
+          if (amt == null) {
+            errEl.innerHTML = '<div class="mf-merr">Nothing to save — enter an amount.</div>';
             return;
           }
           close(); return;
