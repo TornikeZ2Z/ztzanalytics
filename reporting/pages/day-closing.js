@@ -1,6 +1,6 @@
 /* DAY CLOSING — the office drawer, closed once a day (LOGISTICS group, plan
    docs/plans/2026-09-27-day-closing.md). Money Flow is the "pre-thing": dispatch confirms each
-   job there, then closes the day here (or from the strip on top of Money Flow). His layout
+   job there; the day closes itself at 8 PM New York (2026-09-28: no button). His layout
    (2026-09-27): one row per day with its total, + opens every foreman with his totals, a PDF for
    the day and for each foreman, and a drill down to the jobs. Days before the cutover are
    RECONSTRUCTED from each record's New York date and say so. Data: /api/_dc
@@ -29,11 +29,17 @@
     if (document.getElementById("dclCss")) return;
     var st = document.createElement("style"); st.id = "dclCss";
     st.textContent = `
-      .dcl-strip{display:flex;align-items:center;gap:16px;flex-wrap:wrap;background:var(--panel);border:1px solid var(--line-2);border-left:4px solid ${POS};border-radius:12px;padding:10px 14px;margin-bottom:12px}
+      .dcl-strip{display:flex;flex-direction:column;gap:6px;background:var(--panel);border:1px solid var(--line-2);border-left:4px solid ${POS};border-radius:12px;padding:10px 14px;margin-bottom:12px}
       .dcl-strip .big{font-size:21px;font-weight:800;letter-spacing:-.3px;font-variant-numeric:tabular-nums}
+      .dcl-strip .unit{font-size:12.5px;font-weight:600;color:var(--muted)}
       .dcl-strip .lbl{font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--faint)}
-      .dcl-strip .sub{font-size:12.5px;color:var(--muted);line-height:1.5}
-      .dcl-strip .go{margin-left:auto;display:flex;gap:8px;align-items:center}
+      .dcl-strip .sub{font-size:12.5px;color:var(--muted);line-height:1.5;font-variant-numeric:tabular-nums}
+      .dcl-shead{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+      .dcl-srow{display:grid;grid-template-columns:minmax(150px,190px) minmax(170px,230px) minmax(250px,1fr) minmax(130px,190px);gap:4px 16px;align-items:baseline}
+      .dcl-srow .who{font-size:12.5px;font-weight:800;color:var(--muted)}
+      .dcl-srow.mine .who{color:${POS}}
+      .dcl-srow + .dcl-srow{border-top:1px dashed var(--line);padding-top:6px}
+      @media (max-width:900px){.dcl-srow{grid-template-columns:1fr 1fr}}
       .dcl-btn{font:inherit;font-size:13px;font-weight:800;border:1px solid var(--line-2);background:var(--panel);color:var(--ink);border-radius:9px;padding:8px 14px;cursor:pointer;white-space:nowrap}
       .dcl-btn:hover{background:var(--panel-2)} .dcl-btn:disabled{opacity:.55;cursor:default}
       .dcl-btn.pri{background:${POS};border-color:${POS};color:#fff} .dcl-btn.pri:hover{filter:brightness(1.08)}
@@ -71,12 +77,15 @@
       .dcl-tbl th{position:sticky;top:0;background:var(--panel);text-align:left;font-size:11.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--faint);font-weight:800;padding:11px 12px;border-bottom:1px solid var(--line);white-space:nowrap;z-index:2}
       .dcl-tbl td{padding:10px 12px;border-top:1px solid var(--line);vertical-align:middle;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
       .dcl-tbl .r{text-align:right;font-variant-numeric:tabular-nums}
+      .dcl-tbl td:last-child{overflow:visible;text-overflow:clip}
       .dcl-tbl tr.day{cursor:pointer} .dcl-tbl tr.day:hover td{background:var(--panel-2)}
       .dcl-tbl tr.day td{font-weight:800}
       .dcl-tbl tr.open td{background:rgba(28,122,74,.06)}
-      .dcl-tbl tr.fm{cursor:pointer} .dcl-tbl tr.fm td{background:var(--panel-2);font-size:13.5px}
-      .dcl-tbl tr.fm td.nm{padding-left:34px;font-weight:800}
-      .dcl-tbl tr.ln td{font-size:12.5px;color:var(--muted)} .dcl-tbl tr.ln td.first{padding-left:58px}
+      .dcl-tbl tr.ps{cursor:pointer} .dcl-tbl tr.ps td{background:var(--panel-2);font-size:13.5px}
+      .dcl-tbl tr.ps td.nm{padding-left:34px;font-weight:800}
+      .dcl-tbl tr.fm{cursor:pointer} .dcl-tbl tr.fm td{font-size:13.5px}
+      .dcl-tbl tr.fm td.nm{padding-left:58px;font-weight:700}
+      .dcl-tbl tr.ln td{font-size:12.5px;color:var(--muted)} .dcl-tbl tr.ln td.first{padding-left:82px}
       .dcl-caret{display:inline-block;width:16px;color:var(--faint);font-size:11px}
       .dcl-pill{display:inline-block;font-size:10.5px;font-weight:800;padding:2px 8px;border-radius:999px;margin-left:8px;vertical-align:1px;white-space:nowrap}
       .dcl-pill.rec{background:rgba(138,90,0,.12);color:${AMB}} .dcl-pill.lock{background:var(--panel-2);color:var(--faint)}
@@ -96,65 +105,29 @@
     return "evens out";
   }
 
-  // ---- the Close dialog (shared by the page and the Money Flow strip) ----------------------
-  function closeDialog(open, me, onDone) {
-    css();
-    var t = open.totals, m = document.createElement("div");
-    m.className = "dcl-back";
-    function body(msg, cls) {
-      return '<div class="dcl-modal"><h3>Close the day</h3>'
-        + "<p>This locks " + t.n_lines + " movement" + (t.n_lines === 1 ? "" : "s") + " (" + t.n_jobs + " jobs, "
-        + t.n_foremen + " foremen) into a closing signed by " + esc(short(me.email)) + ". Anything confirmed after this starts the next day.</p>"
-        + (msg ? '<div class="' + (cls || "dcl-err") + '">' + esc(msg) + "</div>" : "")
-        + '<table class="dcl-sum">'
-        + "<tr><td>Open since</td><td class=r>" + esc(fmtAt(open.since)) + "</td></tr>"
-        + "<tr><td>Cash in (jobs, advances, fines)</td><td class=r>" + money2(t.cash_in) + "</td></tr>"
-        + "<tr><td>Card jobs paid out</td><td class=r>" + money2(t.card_out) + "</td></tr>"
-        + '<tr class="tot"><td>Should be in the drawer</td><td class=r>' + money2(t.net) + "</td></tr></table>"
-        + '<div class="dcl-f"><label>Counted by<input id="dclCounted" value="' + esc(short(me.email)) + '"></label>'
-        + '<label>Cash handed to<input id="dclHanded" placeholder="Ramaz"></label></div>'
-        + '<div class="dcl-act"><button class="dcl-btn" id="dclCancel">Cancel</button>'
-        + '<button class="dcl-btn pri" id="dclGo">Close day</button></div></div>';
-    }
-    function paint(msg, cls) {
-      var keepC = m.querySelector("#dclCounted"), keepH = m.querySelector("#dclHanded");
-      var c = keepC ? keepC.value : null, h = keepH ? keepH.value : null;
-      m.innerHTML = body(msg, cls);
-      if (c != null) m.querySelector("#dclCounted").value = c;
-      if (h != null) m.querySelector("#dclHanded").value = h;
-      m.querySelector("#dclCancel").onclick = function () { m.remove(); };
-      m.querySelector("#dclGo").onclick = go;
-    }
-    async function go() {
-      var btn = m.querySelector("#dclGo"); btn.disabled = true; btn.textContent = "Closing…";
-      try {
-        var res = await api("", { action: "close", expect_lines: t.n_lines, expect_net: t.net,
-          counted_by: m.querySelector("#dclCounted").value.trim(), handed_to: m.querySelector("#dclHanded").value.trim() });
-        m.innerHTML = '<div class="dcl-modal"><h3>Day closed</h3><div class="dcl-ok">Closing #' + res.id + " saved · "
-          + money2(res.totals.net) + " should be in the drawer.</div>"
-          + '<div class="dcl-act"><button class="dcl-btn" id="dclDone">Done</button><button class="dcl-btn pri" id="dclPrint">Print the day sheet</button></div></div>';
-        m.querySelector("#dclDone").onclick = function () { m.remove(); };
-        m.querySelector("#dclPrint").onclick = async function () {
-          var w = window.open("", "_blank");
-          var d = await api("?fresh=1"); var day = (d.days || []).filter(function (x) { return x.id === res.id; })[0];
-          var ls = await api("?lines=s:" + res.id);
-          printSheet(w, day, ls.lines, null); m.remove();
-        };
-        if (onDone) onDone(res);
-      } catch (e) {
-        if (e.status === 409 && e.body && e.body.totals) { t = e.body.totals; open.totals = t; }
-        paint(e.message);
-      }
-    }
-    paint();
-    m.onclick = function (e) { if (e.target === m) m.remove(); };
-    document.body.appendChild(m);
+  // There is no Close button any more (Tornike 2026-09-28): the server seals the day at 8 PM
+  // New York by itself, stamped 8:00 PM, and an evening with no record closes nothing.
+  function person(l) { return String(l.by || "").trim().toLowerCase() || "unknown"; }
+  function left(sec) {
+    if (sec == null) return "";
+    if (sec <= 60) return "less than a minute";
+    var h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60);
+    return (h ? h + "h " : "") + m + "m";
   }
+  // every countdown on screen ticks from the server's own "seconds to 8 PM" (not the viewer's clock)
+  function tickCountdowns() {
+    document.querySelectorAll(".dcl-cd[data-deadline]").forEach(function (el) {
+      var s = Math.round((+el.getAttribute("data-deadline") - Date.now()) / 1000);
+      el.textContent = s > 0 ? "closes automatically in " + left(s) : "closing now…";
+    });
+  }
+  if (!window.__dclTick) window.__dclTick = setInterval(tickCountdowns, 15000);
+  window.ZDC_tick = tickCountdowns;
 
-  // ---- the printed sheet (day or one foreman) --------------------------------------------
-  function printSheet(w, day, lines, foreman) {
+  // ---- the printed sheet (a day, one person, or one foreman) -----------------------------
+  function printSheet(w, day, lines, foreman, who) {
     if (!w) { alert("Your browser blocked the print window. Allow pop-ups for this site and try again."); return; }
-    lines = (lines || []).filter(function (l) { return !foreman || l.foreman === foreman; });
+    lines = (lines || []).filter(function (l) { return (!foreman || l.foreman === foreman) && (!who || person(l) === who); });
     var t = { cash_in: 0, card_out: 0, fines: 0, net: 0 }, byFm = {};
     lines.forEach(function (l) {
       if (l.effect > 0) t.cash_in += l.effect; else t.card_out += l.effect;
@@ -166,10 +139,10 @@
       f.net += l.effect;
     });
     var signed = day && day.kind === "signed", open = !day;
-    var title = foreman ? foreman + " · " : "";
+    var title = (who ? short(who) + " · " : "") + (foreman ? foreman + " · " : "");
     title += open ? "Open day (not closed yet)" : "Day closing · " + fmtDay(day.date);
     var sub = open ? "Printed " + new Date().toLocaleString("en-US") + " · still open"
-      : signed ? "Closed " + fmtAt(day.closed_at) + " by " + short(day.closed_by) + " · counted since " + fmtAt(day.since)
+      : signed ? "Closed " + fmtAt(day.closed_at) + (day.automatic ? " automatically" : " by " + short(day.closed_by)) + " · counted since " + fmtAt(day.since)
       : "Reconstructed from the records of that New York day — never signed";
     var fmRows = Object.keys(byFm).sort(function (a, b) { return byFm[b].net - byFm[a].net; }).map(function (n) {
       var f = byFm[n]; return "<tr><td>" + esc(n) + "</td><td class=r>" + Object.keys(f.jobs).length + "</td><td class=r>" + money2(f.cash)
@@ -181,8 +154,8 @@
       return "<tr><td>" + esc(l.foreman) + "</td><td>" + esc(l.job_code || "—") + "</td><td>" + esc(l.customer || "—") + "</td><td>"
         + esc(what) + "</td><td>" + esc(String(l.at || "").slice(5)) + "</td><td class=r>" + money2(l.effect) + "</td></tr>";
     }).join("");
-    var sig = signed ? ["Counted by · " + (day.counted_by || ""), "Closed by · " + short(day.closed_by), "Cash handed to · " + (day.handed_to || "")]
-      : ["Counted by", "Confirmed by", "Cash handed to"];
+    var sig = signed && !day.automatic ? ["Counted by · " + (day.counted_by || ""), "Closed by · " + short(day.closed_by), "Cash handed to · " + (day.handed_to || "")]
+      : ["Counted by", "Checked by", "Cash handed to"];
     w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>' + esc(title) + "</title><style>"
       + "body{font-family:Arial,Helvetica,sans-serif;color:#1d232b;margin:28px;font-size:12px}h1{font-size:19px;margin:0 0 3px}"
       + ".sub{color:#6e747c;margin-bottom:14px}.boxes{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:16px}"
@@ -202,15 +175,27 @@
     w.document.close();
   }
 
-  // ---- the strip on top of Money Flow ----------------------------------------------------
-  function stripHtml(d) {
-    var o = d.open, t = o.totals;
-    return '<div><div class="lbl">Open day · since ' + esc(fmtAt(o.since)) + '</div><div class="big">' + money(t.net)
-      + ' <span style="font-size:12.5px;font-weight:600;color:var(--muted)">in the drawer</span></div></div>'
-      + '<div class="sub">' + money(t.cash_in) + " cash in<br>" + money(t.card_out) + " card jobs paid out</div>"
-      + '<div class="sub">' + t.n_jobs + " jobs<br>" + t.n_foremen + " foremen</div>"
-      + '<div class="go"><a class="dcl-link" id="dclGoPage">Day Closing ›</a>'
-      + '<button class="dcl-btn pri" id="dclStripClose"' + (t.n_lines ? "" : " disabled") + ">Close day</button></div>";
+  // ---- the strip on top of Money Flow (and of Day Closing) -------------------------------
+  // His rule (2026-09-28): someone who recorded anything today sees HIS total first and the
+  // total of everyone on the next line; someone who recorded nothing sees just the total.
+  function stripRow(label, t, mine) {
+    return '<div class="dcl-srow' + (mine ? " mine" : "") + '"><div class="who">' + esc(label) + "</div>"
+      + '<div><span class="big">' + money(t.net) + '</span> <span class="unit">in the drawer</span></div>'
+      + '<div class="sub">' + money(t.cash_in) + " cash in · " + money(t.card_out) + " card jobs paid out</div>"
+      + '<div class="sub">' + t.n_jobs + " job" + (t.n_jobs === 1 ? "" : "s") + " · " + t.n_foremen + " foremen</div></div>";
+  }
+  function stripHtml(d, withLink) {
+    var o = d.open, t = o.totals, me = String((d.me && d.me.email) || "").toLowerCase();
+    var mine = (o.people || []).filter(function (p) { return p.person === me; })[0];
+    var deadline = o.closes_in_s != null ? Date.now() + o.closes_in_s * 1000 : null;
+    var when = t.n_lines && deadline == null ? "closes automatically at 8:00 PM NJ"
+      : t.n_lines ? '<span class="dcl-cd" data-deadline="' + deadline + '">closes automatically in ' + left(o.closes_in_s) + "</span> · 8:00 PM NJ"
+      : "nothing recorded yet — the day closes at 8:00 PM NJ only once something is recorded";
+    return '<div class="dcl-shead"><span class="lbl">Open day · since ' + esc(fmtAt(o.since)) + "</span>"
+      + '<span class="dcl-pill open" style="margin-left:0">' + when + "</span>"
+      + (withLink ? '<a class="dcl-link" id="dclGoPage" style="margin-left:auto">Day Closing ›</a>' : "") + "</div>"
+      + (mine ? stripRow("Your total · " + short(me), mine, true) : "")
+      + stripRow(mine ? "Everyone" : "Total", t, false);
   }
   function mountStrip(el) {
     if (!el) return;
@@ -223,8 +208,8 @@
       catch (e) { el.innerHTML = '<span class="sub">Day Closing unavailable — ' + esc(e.message) + "</span>"; return; }
       if (!d.cutover) { el.style.display = "none"; return; }
       el.style.display = "";
-      el.innerHTML = stripHtml(d);
-      el.querySelector("#dclStripClose").onclick = function () { closeDialog(d.open, d.me, function () { load(); }); };
+      el.innerHTML = stripHtml(d, true);
+      tickCountdowns();
       el.querySelector("#dclGoPage").onclick = function () { location.hash = "#page=day-closing"; };
     }
     clearInterval(el.__t);
@@ -232,8 +217,9 @@
     load();
   }
 
-  window.ZDC = { api: api, css: css, closeDialog: closeDialog, printSheet: printSheet, mountStrip: mountStrip,
-                 money: money, money2: money2, fmtDay: fmtDay, fmtAt: fmtAt, outcome: outcome, short: short, esc: esc };
+  window.ZDC = { api: api, css: css, printSheet: printSheet, mountStrip: mountStrip, stripHtml: stripHtml,
+                 person: person, money: money, money2: money2, fmtDay: fmtDay, fmtAt: fmtAt, outcome: outcome,
+                 short: short, esc: esc };
 })();
 
 registerPage({
@@ -244,10 +230,11 @@ registerPage({
     var Z = window.ZDC, esc = Z.esc, money = Z.money, money2 = Z.money2;
     Z.css();
     host.innerHTML = '<div class="dcl-head"><div><h1>Day Closing</h1>'
-      + "<p>The office drawer, closed once a day. Dispatch confirms each job in Money Flow; closing the day seals what came in and went out since the last close. "
-      + "Click a day to see its foremen, a foreman to see every movement. Days before the first closing are rebuilt from the records and marked so.</p></div>"
+      + "<p>The office drawer, closed once a day. Dispatch confirms each job in Money Flow; every day at 8:00 PM New York the day closes by itself and seals what came in and went out before 8 PM (a day with no record doesn't close). "
+      + "Click a day to see who confirmed what, a person to see their foremen, a foreman to see every movement. Days before the first closing are rebuilt from the records and marked so.</p></div>"
       + '<div><button class="dcl-btn" id="dclRefresh">↻ Refresh</button></div></div><div id="dclBody"><div class="dcl-load">Loading days…</div></div>';
-    var S = window.__DCL || (window.__DCL = { view: "all", q: "", open: {}, fopen: {}, lines: {}, shown: 30 });
+    var S = window.__DCL || (window.__DCL = { view: "all", q: "", open: {}, popen: {}, fopen: {}, lines: {}, shown: 30 });
+    if (!S.popen) S.popen = {};
     var data;
     async function load(force) {
       data = await Z.api(force ? "?fresh=1" : "");
@@ -267,9 +254,11 @@ registerPage({
       var pill = d.kind === "open" ? '<span class="dcl-pill open">open · since ' + esc(Z.fmtAt(d.since)) + "</span>"
         : d.kind === "reconstructed" ? '<span class="dcl-pill rec">reconstructed, not signed</span>'
         : d.status === "locked" ? '<span class="dcl-pill lock">🔒 locked</span>' : "";
-      var closed = d.kind === "signed" ? esc(Z.fmtAt(d.closed_at)) + ' <span class="dcl-meta">by ' + esc(Z.short(d.closed_by)) + (d.handed_to ? " · to " + esc(d.handed_to) : "") + "</span>" : "";
+      var closed = d.kind === "signed" ? (d.automatic ? "8:00 PM" + ' <span class="dcl-meta">automatic</span>'
+          : esc(Z.fmtAt(d.closed_at)) + ' <span class="dcl-meta">by ' + esc(Z.short(d.closed_by)) + (d.handed_to ? " · to " + esc(d.handed_to) : "") + "</span>")
+        : d.kind === "open" && t.n_lines && d.closes_in_s != null
+          ? '<span class="dcl-meta" style="margin-left:0">8:00 PM · <span class="dcl-cd" data-deadline="' + (Date.now() + d.closes_in_s * 1000) + '">closes automatically in …</span></span>' : "";
       var acts = '<button class="dcl-btn sm" data-pdf="' + esc(k) + '">PDF</button>';
-      if (d.kind === "open" && t.n_lines) acts += ' <button class="dcl-btn sm pri" id="dclCloseBtn">Close day</button>';
       if (d.kind === "signed" && data.me.manager) {
         acts += d.status === "locked"
           ? ' <button class="dcl-btn sm" data-unlock="' + d.id + '">Unlock</button>'
@@ -280,11 +269,24 @@ registerPage({
         + label + pill + "</td><td>" + closed + '</td><td class="r">' + t.n_jobs + '</td><td class="r">' + t.n_foremen + '</td><td class="r">' + money(t.cash_in)
         + '</td><td class="r">' + money(t.card_out) + '</td><td class="r ' + netCls(t.net) + '">' + money(t.net) + '</td><td class="r">' + acts + "</td></tr>";
       if (!open) return row;
-      return row + (d.foremen || []).map(function (f) { return fmRow(d, f); }).join("")
-        + (d.foremen && d.foremen.length ? "" : '<tr><td colspan="8" style="color:var(--faint);padding-left:34px">Nothing moved the drawer.</td></tr>');
+      // an older bridge sends no people: show the foremen straight under the day, as before
+      if (!d.people) return row + (d.foremen || []).map(function (f) { return fmRow(d, null, f); }).join("");
+      var people = d.people;
+      return row + people.map(function (p) { return psRow(d, p); }).join("")
+        + (people.length ? "" : '<tr><td colspan="8" style="color:var(--faint);padding-left:34px">Nothing moved the drawer.</td></tr>');
     }
-    function fmRow(d, f) {
-      var fk = d.key + "|" + f.foreman, open = !!S.fopen[fk];
+    // the person who recorded the movements in Money Flow (Irakli, Kakha…) — his layout, 2026-09-28
+    function psRow(d, p) {
+      var pk = d.key + "|" + p.person, open = !!S.popen[pk];
+      var row = '<tr class="ps" data-pk="' + esc(pk) + '"><td class="nm"><span class="dcl-caret">' + (open ? "−" : "+") + "</span>" + esc(Z.short(p.person))
+        + '<span class="dcl-meta">confirmed ' + p.n_jobs + " job" + (p.n_jobs === 1 ? "" : "s") + '</span></td><td></td><td class="r">' + p.n_jobs
+        + '</td><td class="r">' + p.n_foremen + '</td><td class="r">' + money(p.cash_in) + '</td><td class="r">' + money(p.card_out) + '</td><td class="r ' + netCls(p.net) + '">'
+        + money(p.net) + '</td><td class="r"><button class="dcl-btn sm" data-ppdf="' + esc(pk) + '">PDF</button></td></tr>';
+      if (!open) return row;
+      return row + (p.foremen || []).map(function (f) { return fmRow(d, p, f); }).join("");
+    }
+    function fmRow(d, p, f) {
+      var fk = d.key + "|" + (p ? p.person : "") + "|" + f.foreman, open = !!S.fopen[fk];
       var row = '<tr class="fm" data-fk="' + esc(fk) + '"><td class="nm"><span class="dcl-caret">' + (open ? "−" : "+") + "</span>" + esc(f.foreman)
         + '<span class="dcl-meta">' + esc(Z.outcome(f)) + (f.fines ? " · fine repaid " + money(f.fines) : "") + '</span></td><td></td><td class="r">' + f.n_jobs
         + '</td><td></td><td class="r">' + money(f.cash_in) + '</td><td class="r">' + money(f.card_out) + '</td><td class="r ' + netCls(f.net) + '">'
@@ -292,7 +294,7 @@ registerPage({
       if (!open) return row;
       var ls = S.lines[d.key];
       if (!ls) return row + '<tr class="ln"><td colspan="8" class="first">Loading…</td></tr>';
-      return row + ls.filter(function (l) { return l.foreman === f.foreman; }).map(function (l) { return lineRow(d, l); }).join("");
+      return row + ls.filter(function (l) { return l.foreman === f.foreman && (!p || Z.person(l) === p.person); }).map(function (l) { return lineRow(d, l); }).join("");
     }
     function lineRow(d, l) {
       var what = l.kind === "Fine repaid" ? "Fine repaid" + (l.note ? " — " + esc(l.note) : "")
@@ -312,10 +314,11 @@ registerPage({
       var signed = data.days.filter(function (d) { return d.kind === "signed"; });
       var month = data.days.filter(function (d) { return String(d.date).slice(0, 7) === ym; })
         .reduce(function (a, d) { return a + d.totals.net; }, 0) + o.totals.net;
-      var kp = '<div class="dcl-kpis">'
-        + '<div class="dcl-kpi"><b>' + money(o.totals.net) + "</b><span>In the drawer now</span><small>open since " + esc(Z.fmtAt(o.since)) + "</small></div>"
-        + '<div class="dcl-kpi"><b>' + (data.last_close ? esc(Z.fmtAt(data.last_close.closed_at)) : "—") + "</b><span>Last closed</span><small>"
-        + (data.last_close ? "by " + esc(Z.short(data.last_close.closed_by)) : "no day closed yet") + "</small></div>"
+      var lc = data.last_close;
+      var kp = '<div class="dcl-strip">' + Z.stripHtml(data, false) + "</div>"
+        + '<div class="dcl-kpis">'
+        + '<div class="dcl-kpi"><b>' + (lc ? esc(Z.fmtAt(lc.closed_at)) : "—") + "</b><span>Last closed</span><small>"
+        + (lc ? (lc.closed_by === "automatic" ? "automatically at 8:00 PM" : "by " + esc(Z.short(lc.closed_by))) : "no day closed yet") + "</small></div>"
         + '<div class="dcl-kpi"><b>' + money(month) + "</b><span>This month</span><small>net cash into the drawer</small></div>"
         + '<div class="dcl-kpi"><b>' + signed.length + "</b><span>Days closed</span><small>" + (data.days.length - signed.length) + " reconstructed before</small></div></div>";
       var seg = function (id, l) { return '<button class="' + (S.view === id ? "on" : "") + '" data-v="' + id + '">' + l + "</button>"; };
@@ -325,18 +328,21 @@ registerPage({
       var days = data.days.filter(function (d) {
         if (S.view === "signed" && d.kind !== "signed") return false;
         if (S.view === "rec" && d.kind !== "reconstructed") return false;
-        return !q || String(d.date).indexOf(q) >= 0 || (d.foremen || []).some(function (f) { return f.foreman.toLowerCase().indexOf(q) >= 0; });
+        return !q || String(d.date).indexOf(q) >= 0 || (d.foremen || []).some(function (f) { return f.foreman.toLowerCase().indexOf(q) >= 0; })
+          || (d.people || []).some(function (p) { return p.person.indexOf(q) >= 0; });
       });
-      var openRow = S.view === "rec" ? "" : dayRow({ key: "open", kind: "open", since: o.since, totals: o.totals, foremen: o.foremen });
+      var openRow = S.view === "rec" ? "" : dayRow({ key: "open", kind: "open", since: o.since, totals: o.totals, foremen: o.foremen,
+                                                     people: o.people, closes_in_s: o.closes_in_s });
       var rows = days.slice(0, S.shown).map(dayRow).join("");
       el.innerHTML = kp + bar + '<div class="dcl-card"><div class="dcl-wrap"><table class="dcl-tbl">'
-        + '<colgroup><col style="width:30%"><col style="width:17%"><col style="width:6%"><col style="width:7%"><col style="width:10%"><col style="width:10%"><col style="width:10%"><col style="width:10%"></colgroup>'
+        + '<colgroup><col style="width:27%"><col style="width:16%"><col style="width:6%"><col style="width:7%"><col style="width:9%"><col style="width:9%"><col style="width:10%"><col style="width:16%"></colgroup>'
         + '<thead><tr><th>Day</th><th>Closed</th><th class="r">Jobs</th><th class="r">Foremen</th><th class="r">Cash in</th><th class="r">Card out</th><th class="r">In the drawer</th><th class="r"></th></tr></thead><tbody>'
         + openRow + (rows || '<tr><td colspan="8" style="color:var(--faint);padding:18px">No day matches.</td></tr>') + "</tbody></table>"
         + (days.length > S.shown ? '<button class="dcl-btn dcl-more" id="dclMore">Show 30 more days (' + (days.length - S.shown) + " left)</button>" : "")
         + '</div><div class="dcl-note">A day moves the drawer by what each record changed: a double click moves nothing, a correction moves only the difference. '
         + "Card jobs are covered by the same foreman's cash first, then by the drawer.</div></div>";
       wire();
+      if (window.ZDC_tick) window.ZDC_tick();
       if (window.RSC && RSC.fitScroller) RSC.fitScroller(el.querySelector(".dcl-wrap"));
     }
     function dayByKey(k) { return k === "open" ? null : data.days.filter(function (d) { return d.key === k; })[0]; }
@@ -352,6 +358,9 @@ registerPage({
       if (q) q.oninput = function () { S.q = q.value; var p = q.selectionStart; paint(); var n = document.getElementById("dclQ"); if (n) { n.focus(); try { n.setSelectionRange(p, p); } catch (e) { /* best effort */ } } };
       var more = root.querySelector("#dclMore"); if (more) more.onclick = function () { S.shown += 30; paint(); };
       root.querySelectorAll("tr.day").forEach(function (tr) { tr.onclick = function (e) { if (e.target.closest("button")) return; var k = tr.getAttribute("data-day"); S.open[k] = !S.open[k]; paint(); }; });
+      root.querySelectorAll("tr.ps").forEach(function (tr) {
+        tr.onclick = function (e) { if (e.target.closest("button")) return; var pk = tr.getAttribute("data-pk"); S.popen[pk] = !S.popen[pk]; paint(); };
+      });
       root.querySelectorAll("tr.fm").forEach(function (tr) {
         tr.onclick = async function (e) {
           if (e.target.closest("button")) return;
@@ -359,18 +368,19 @@ registerPage({
           if (S.fopen[fk]) { try { await linesOf(fk.split("|")[0]); } catch (x) { S.lines[fk.split("|")[0]] = []; } paint(); }
         };
       });
-      var cb = root.querySelector("#dclCloseBtn");
-      if (cb) cb.onclick = function () { Z.closeDialog(data.open, data.me, async function () { S.lines = {}; await load(true); paint(); }); };
       root.querySelectorAll("[data-pdf]").forEach(function (b) {
         b.onclick = async function () { var k = b.getAttribute("data-pdf"); var w = window.open("", "_blank"); Z.printSheet(w, dayByKey(k), await linesOf(k), null); };
       });
+      root.querySelectorAll("[data-ppdf]").forEach(function (b) {
+        b.onclick = async function () { var pk = b.getAttribute("data-ppdf").split("|"); var w = window.open("", "_blank"); Z.printSheet(w, dayByKey(pk[0]), await linesOf(pk[0]), null, pk[1]); };
+      });
       root.querySelectorAll("[data-fpdf]").forEach(function (b) {
-        b.onclick = async function () { var fk = b.getAttribute("data-fpdf").split("|"); var w = window.open("", "_blank"); Z.printSheet(w, dayByKey(fk[0]), await linesOf(fk[0]), fk[1]); };
+        b.onclick = async function () { var fk = b.getAttribute("data-fpdf").split("|"); var w = window.open("", "_blank"); Z.printSheet(w, dayByKey(fk[0]), await linesOf(fk[0]), fk[2], fk[1]); };
       });
       var ver = function (id) { var d = data.days.filter(function (x) { return x.id === id; })[0]; return d ? d.version : null; };
       root.querySelectorAll("[data-lock]").forEach(function (b) { b.onclick = function () { var id = +b.getAttribute("data-lock"); act({ action: "lock", day_id: id, version: ver(id) }, { t: "Lock this day?", b: "Lock it once the cash is banked. A locked day can't be changed or reopened.", y: "Lock" }); }; });
       root.querySelectorAll("[data-unlock]").forEach(function (b) { b.onclick = function () { var id = +b.getAttribute("data-unlock"); act({ action: "unlock", day_id: id, version: ver(id) }, { t: "Unlock this day?", b: "It can then be changed or reopened again.", y: "Unlock" }); }; });
-      root.querySelectorAll("[data-reopen]").forEach(function (b) { b.onclick = function () { var id = +b.getAttribute("data-reopen"); act({ action: "reopen", day_id: id, version: ver(id) }, { t: "Reopen the newest day?", b: "Its movements go back to the open day and the closing is removed (the audit log keeps a copy).", y: "Reopen" }); }; });
+      root.querySelectorAll("[data-reopen]").forEach(function (b) { b.onclick = function () { var id = +b.getAttribute("data-reopen"); act({ action: "reopen", day_id: id, version: ver(id) }, { t: "Reopen the newest day?", b: "Its movements go back to the open day and close again at the next 8:00 PM. The closing is removed (the audit log keeps a copy).", y: "Reopen" }); }; });
       root.querySelectorAll("[data-take]").forEach(function (b) {
         b.onclick = function () { var p = b.getAttribute("data-take").split("|"); act({ action: "take_out", day_id: +p[0], src: p[1], src_id: p[2], version: ver(+p[0]) }, { t: "Take this line out?", b: "It goes back to the open day and this day's totals are recalculated.", y: "Take out" }); };
       });
