@@ -565,7 +565,52 @@ details.ap3-how[open]{padding-bottom:16px}
 .ap3-nb li i{font-style:normal;font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);padding-top:3px}
 .ap3-nb li small{display:block;color:var(--faint);font-size:11.5px}
 .ap3-nb .by{margin-top:8px;font-size:11.5px;color:var(--muted)}
-@media (max-width:1100px){.ap3-mapgrid{grid-template-columns:1fr}.ap3-list{height:520px;min-height:0}
+/* second pass (2026-09-29): the market switch, YES / NO bases, the side panel, the glance */
+.ap3-market{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:0 0 14px}
+.ap3-market label{font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.ap3-seg.big button{font-size:14px;padding:8px 14px;min-height:38px}
+.ap3-kpi .d{display:block;margin-top:4px;font-style:normal;font-size:12.5px;font-weight:800;color:var(--ap-pos-ink)}
+.ap3-nb{opacity:1}
+.ap3-nb .h{justify-content:space-between}
+.ap3-yn{display:inline-flex;border:1px solid var(--line-2);border-radius:999px;overflow:hidden;background:var(--panel)}
+.ap3-yn button{font:inherit;font-size:13px;font-weight:800;padding:6px 16px;border:0;background:transparent;color:var(--muted);cursor:pointer;min-height:34px}
+.ap3-yn button.on{background:var(--ap-sub);color:var(--ink)}
+.ap3-yn button.on.yes{background:var(--brand-d);color:#fff}
+.ap3-yn button:focus-visible{outline:2px solid var(--brand-d);outline-offset:-2px}
+.ap3-nb .if{font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:var(--faint);margin:0 0 2px}
+.ap3-nb:not(.on) .big,.ap3-nb:not(.on) .nums{opacity:.62}
+.ap3-nb .big{font-size:15px;color:var(--ink);margin:0 0 10px}
+.ap3-nb .big b{font-size:28px;font-weight:800;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.ap3-nb .big small{display:block;font-size:12px;color:var(--muted);margin-top:1px}
+.ap3-nb .nums{display:grid;grid-template-columns:1fr 1fr;gap:8px 12px;margin:0 0 10px}
+.ap3-nb .nums span{font-size:12.5px;color:var(--muted);line-height:1.3}
+.ap3-nb .nums b{font-size:16px;color:var(--ink);font-variant-numeric:tabular-nums}
+.ap3-nb .nums small{display:block;font-size:11px;color:var(--faint)}
+.ap3-nb .assume{font-size:12px;color:var(--ap-warn-ink);margin:0 0 8px;line-height:1.4}
+.ap3-nb .ground{font-size:12.5px;color:var(--ink);padding-top:8px;border-top:1px solid var(--ap-rule);line-height:1.8}
+.ap3-nb .ground small{display:block;color:var(--muted);font-size:11.5px;line-height:1.4}
+.ap3-nb .tchip{display:inline-block;font-style:normal;font-size:11px;font-weight:800;padding:0 7px;margin-left:4px;border-radius:6px;color:#fff}
+.ap3-side{min-width:0}
+.ap3-det{height:min(78vh,860px);min-height:560px;overflow-y:auto;border:1px solid var(--ap-rule);border-radius:var(--ap-r1);background:var(--ap-bay);padding:12px 16px 16px}
+.ap3-back{font:inherit;font-size:12.5px;font-weight:700;border:0;background:transparent;color:var(--brand-d);cursor:pointer;padding:2px 0 10px}
+.ap3-det .dh b{display:block;font-size:19px;font-weight:800;color:var(--ink);line-height:1.2}
+.ap3-det .dh span{font-size:12.5px;color:var(--muted)}
+.ap3-det .tierline{display:flex;align-items:center;gap:8px;margin:10px 0 2px;font-size:14px;font-weight:800;color:var(--ink)}
+.ap3-det .tierline i{width:14px;height:14px;border-radius:4px}
+.ap3-det .why{font-size:12.5px;color:var(--muted)}
+.ap3-det .was{margin-top:6px;font-size:12.5px;font-weight:800;color:var(--ap-pos-ink)}
+.ap3-det .sec{margin:14px 0 4px;font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:var(--muted)}
+.ap3-det .kv{display:flex;justify-content:space-between;gap:12px;padding:5px 0;border-bottom:1px solid var(--ap-rule);font-size:13.5px;color:var(--ink)}
+.ap3-det .kv span small{display:block;font-size:11px;color:var(--faint)}
+.ap3-det .kv b{font-variant-numeric:tabular-nums;white-space:nowrap}
+.ap3-det .ap2-tip{padding:0;min-width:0;max-width:none}
+.ap3-glance{min-width:210px}
+.ap3-glance .g3{display:grid;grid-template-columns:repeat(3,auto);gap:4px 14px;margin-top:6px}
+.ap3-glance .g3 span{font-size:11px;color:var(--muted)}
+.ap3-glance .g3 b{display:block;font-size:16px;color:var(--ink);font-variant-numeric:tabular-nums}
+.ap3-glance .g3 small{display:block;font-size:10px;color:var(--faint)}
+.ap3-glance .hint{margin-top:7px;font-size:11px;color:var(--faint)}
+@media (max-width:1100px){.ap3-mapgrid{grid-template-columns:1fr}.ap3-list{height:520px;min-height:0}.ap3-det{height:auto;min-height:0}
   .ap3-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media (max-width:560px){.ap3-kpi b{font-size:24px}.ap3-mapgrid .ap2-mapbox{min-height:420px;height:60vh}
   .ap3-list .cols,.ap3-list .r{grid-template-columns:22px minmax(0,1fr) 46px 40px 64px}}
@@ -1373,47 +1418,51 @@ registerPage({
       if (["County", "City", "Zip"].indexOf(inputs.mapLevel) < 0) inputs.mapLevel = "County";
       if (inputs.mapSt && SERVICE_AREAS.indexOf(inputs.mapSt) < 0) inputs.mapSt = "";
       if ([0, 1, 2, 3, 4].indexOf(+inputs.listTier) < 0) inputs.listTier = 0;
-      /* ===================== NEW BASES: EXPLORE, THEN CONFIRM (2026-09-29) =====================
-         His ask the same afternoon the four tiers shipped: "what should we do if we decide to open
-         this or that base. for example - if we open montgomery - how our marketing budgets and core
-         areals should adjust ... for each new base, i need a confirmation of if we do and how we do
-         ... sales quantity, foreman quantity on that base - total budget increase". His four calls:
-           1. EXPLORE, THEN CONFIRM. A toggle shows the plan with the base in THIS browser; an admin's
-              Confirm writes it to Planning Variables (`season_plan.new_bases`), and everyone reads it
-              from the plan model after the next rebuild.
-           2. MARKETING = A LAUNCH BUDGET FROM A CAPTURE TARGET. Every county the base turns Core or
-              Good gets movers x target leads-per-10k x its state's cost per lead, less the leads it
-              already sends, for the season's share of a year.
-           3. CREW = SUGGESTED FROM ITS JOBS, EDITABLE.
-           4. JOBS COME ONLY FROM THE MARKETING ADDED (measured: a base does not raise booking on day
-              one; see whatif-scenario-tool). The new leads are turned into jobs at the state's own
-              leads-per-job, which is exactly the rate the plan turns jobs back into leads -- so the
-              base's jobs, leads and dollars go INTO nextCalc() as extra forecast for its states, and
-              the crew pools, the sales desk, the trucks and every tab follow from the one engine.
-         The tiers move too: a new base changes every nearby area's distance, so the page re-scores
-         distance on the mart's own ladders (a measured area keeps its booking, ticket and CF points;
-         a market-rated one falls under the 50-mile rule or out of it). */
+      /* ===================== NEW BASES: A YES / NO TEST SCENARIO (2026-09-29) =====================
+         His ask: "if we open montgomery - how our marketing budgets and core areals should adjust ...
+         sales quantity, foreman quantity on that base - total budget increase". Second pass the same
+         day, after using it: "i got it now... its some kind of test scenario thing - if i refresh it,
+         it should go back to no", "without this extra confirmations", "remove the bases from charles
+         city and chesapeake - they are too far", and "after i enabled MONROE ... it still has all red
+         ... what is our expectation, how many jobs will it generate".
+         So:
+           * YES / NO per base, held in memory only: every load starts at NO, nothing is saved.
+           * The Virginia candidates are not offered (his call: too far to go now).
+           * THE EXPECTATION IS MEASURED, NOT TYPED. For every county a base brings within 50 miles
+             (whatever its tier -- Monroe's biggest ground, Lackawanna and Luzerne, is Tier 4 on its
+             market and the first version gave it nothing), the leads a year are its movers x what
+             counties OF THE SAME TIER already within reach of a base send us today, and the jobs are
+             those leads x that tier's own jobs per lead. Established ground took years; Season 2027
+             counts HALF of it (his pick), and the card also says the full rate "once established".
+             Delaware is left out of the yardstick: Tuji's leads inflate it.
+           * Those jobs go INTO nextCalc() as extra forecast for their states, so the crew pools, the
+             sales desk, the trucks and the marketing (leads x cost per lead) all follow.
+         The tiers move too: a new base changes every nearby area's distance, so distance is re-scored
+         on the mart's own ladders (a measured area keeps its booking, ticket and CF points; a
+         market-rated one falls under the 50-mile rule or out of it). */
       const AREA_BASE = AREA.slice();
+      const NB_YEAR1 = 0.5;
       const NB_CUT = { t1: num(OVR.tier_cut_1) || 72, t2: num(OVR.tier_cut_2) || 64, t3: num(OVR.tier_cut_3) || 56 };
       const pDistOf = mi => mi <= 20 ? 30 : mi <= 30 ? 25 : mi <= 60 ? 20 : mi <= 90 ? 15 : mi <= 120 ? 10 : mi <= 150 ? 5 : 0;
-      const NB_CANDS = ((model.depots || {}).coverage || []).filter(c => c.lat && c.lon && c.label)
+      const NB_HIDE = st => st === "VA";          // his call 2026-09-29: Charles City and Chesapeake are too far
+      const NB_CANDS = ((model.depots || {}).coverage || []).filter(c => c.lat && c.lon && c.label && !NB_HIDE(c.st))
         .map(c => ({ label: c.label, st: c.st, la: +c.lat, lo: +c.lon, county: c.county || "", side: sideOf(c.st, c.county),
                      step: c.step || null, zip: c.zip || "" }));
-      let NB_SAVED = (OVR.new_bases && typeof OVR.new_bases === "object") ? OVR.new_bases : {};
-      if (!inputs.nbExplore || typeof inputs.nbExplore !== "object") inputs.nbExplore = {};
-      /* the base as this browser sees it: an explore entry wins over the confirmed one */
-      const nbOf = label => { const e = inputs.nbExplore[label], s = NB_SAVED[label];
-        const on = e ? !!e.on : !!(s && s.on);
-        return { on, confirmed: !!(s && s.on), exploring: !!e && (!!e.on !== !!(s && s.on) || (e.on && (e.target != null || e.fm != null))),
-                 target: e && e.target != null ? num(e.target) : (s && s.target != null ? num(s.target) : null),
-                 fm: e && e.fm != null ? num(e.fm) : (s && s.fm != null ? num(s.fm) : null), saved: s || null }; };
-      /* the default capture target: the state's own rate raised halfway toward Pennsylvania's (his
-         pick). Read lazily -- CAP_ST is built further down. */
-      const nbTargetDefault = st => { const own = capOfSt(st), pa = capOfSt("PA");
-        if (own == null && pa == null) return 20;
-        if (own == null) return Math.round(pa / 2);
-        if (pa == null || pa <= own) return Math.round(own);
-        return Math.round((own + pa) / 2); };
+      /* the yardstick: leads a year per 10,000 movers and jobs per lead, by tier, over the counties
+         already within 50 miles of a base (Delaware out) */
+      const NB_RATE = (() => { const g = {};
+        AREA_BASE.forEach(a => { if (a.Level !== "County" || !SERVICE_AREAS.includes(a.State) || a.State === "DE") return;
+          if (num(a["Miles To Base"]) > 50 || !num(a["Movers Per Year"])) return;
+          const t = num(a.Tier); if (!(t >= 1 && t <= 4)) return;
+          const x = g[t] = g[t] || { leads: 0, movers: 0, jobs: 0 };
+          x.leads += num(a["Leads 12m"]); x.movers += num(a["Movers Per Year"]); x.jobs += num(a["Jobs 12m"]); });
+        const out = {};
+        [1, 2, 3, 4].forEach(t => { const x = g[t];
+          out[t] = x && x.movers && x.leads ? { cap: 10000 * x.leads / x.movers, jpl: x.jobs / x.leads } : { cap: 0, jpl: 0 }; });
+        return out; })();
+      /* the scenario: which bases are YES, in memory only (a refresh is back to NO) */
+      const NB_ON = {};
+      const nbOf = label => ({ on: !!NB_ON[label] });
       /* re-tier one area against a set of new bases: null when no new base is nearer */
       function tierWith(a, bases) {
         const mi0 = num(a["Miles To Base"]);
@@ -1436,56 +1485,49 @@ registerPage({
         return { tier: t, mi, base, reason: reason + " · with " + base };
       }
       const NB_CACHE = {};
-      /* the whole effect of a set of new bases: re-tiered areas, and per base the counties it turns
-         Core/Good and the leads a year its capture target asks of them */
+      /* the whole effect of a set of new bases: re-tiered areas, and per base the ground it opens,
+         the leads and jobs that ground is expected to send, and the counties it now serves nearest */
       function nbEffect(active) {
-        const key = active.map(b => b.label + ":" + b.target + ":" + b.fm).sort().join("|");
+        const key = active.map(b => b.label).sort().join("|");
         if (NB_CACHE[key]) return NB_CACHE[key];
         const adj = {};
         if (active.length) AREA_BASE.forEach(a => { if (!SERVICE_AREAS.includes(a.State)) return;
           const x = tierWith(a, active); if (x) adj[a.Level + "|" + a["Area Key"]] = x; });
         const per = active.map(b => {
-          const opened = [], core = [];
-          let yr = 0;
-          const byState = {}, targets = {};
+          const opened = [], byState = {};
+          let leadsYr = 0, jobsSeason = 0;
           AREA_BASE.forEach(a => {
             if (a.Level !== "County" || !SERVICE_AREAS.includes(a.State)) return;
             const x = adj["County|" + a["Area Key"]];
-            if (!x || x.base !== b.label) return;
-            const was = num(a.Tier);
-            if (num(a["Miles To Base"]) > 50 && x.mi <= 50) opened.push(a);
-            if ((x.tier === 1 || x.tier === 2) && !(was === 1 || was === 2)) {
-              /* a typed target applies to the whole base; otherwise each county takes its own state's
-                 default -- Tolland CT opening Massachusetts counties must not be held to Connecticut's 54 */
-              const tg = b.target != null ? b.target : nbTargetDefault(a.State);
-              targets[a.State] = tg;
-              const want = num(a["Movers Per Year"]) * tg / 10000;
-              const add = Math.max(0, want - num(a["Leads 12m"]));
-              core.push({ a, tier: x.tier, add });
-              yr += add; byState[a.State] = (byState[a.State] || 0) + add;
-            }
+            if (!x || x.base !== b.label || !(num(a["Miles To Base"]) > 50 && x.mi <= 50)) return;
+            const R = NB_RATE[x.tier] || { cap: 0, jpl: 0 };
+            const yr = Math.max(0, num(a["Movers Per Year"]) * R.cap / 10000 - num(a["Leads 12m"]));   // what it would add a year, established
+            const season = yr * SEASON_SHARE, jobs = season * R.jpl;
+            opened.push({ a, tier: x.tier, mi: x.mi, leadsYr: yr, jobsFull: jobs });
+            leadsYr += yr; jobsSeason += jobs;
+            byState[a.State] = (byState[a.State] || 0) + jobs * NB_YEAR1;
           });
-          /* the counties it now serves nearest: their share of the state's jobs moves to this base */
+          opened.sort((p, q) => q.jobsFull - p.jobsFull);
           const served = AREA_BASE.filter(a => a.Level === "County" && SERVICE_AREAS.includes(a.State) &&
             ((adj["County|" + a["Area Key"]] || {}).base === b.label) && (adj["County|" + a["Area Key"]] || {}).mi <= 50);
-          return { b, opened, core, leadsYear: yr, byState, served, targets };
+          return { b, opened, leadsYr, jobsFull: jobsSeason, jobsYear1: jobsSeason * NB_YEAR1, byState, served };
         });
         return (NB_CACHE[key] = { adj, per });
       }
-      /* which bases a calculation includes: "all" = this browser's view, "confirmed" = the official
-         plan, "none" = no new base, or a label to leave out */
+      /* which bases a calculation includes: "all" = the scenario, "none" = no new base, {with} adds one,
+         {without} leaves one out (a base's own contribution is the plan with it against without it) */
       function nbActive(mode) {
-        return NB_CANDS.map(c => Object.assign({}, c, nbOf(c.label))).filter(c => {
+        return NB_CANDS.filter(c => {
+          const on = !!NB_ON[c.label];
           if (mode === "none") return false;
-          if (mode === "confirmed") return c.confirmed;
-          if (mode && mode.without) return c.on && c.label !== mode.without;
-          if (mode && mode.with) return c.on || c.label === mode.with;
-          return c.on;
-        });            // target stays null unless typed: each county then takes its OWN state's default
+          if (mode && mode.without) return on && c.label !== mode.without;
+          if (mode && mode.with) return on || c.label === mode.with;
+          return on;
+        });
       }
-      /* THE AREAS EVERY OTHER PART OF THE PAGE READS follow this browser's bases: a re-tiered row is
-         a copy with its tier, reason, distance and nearest base replaced, so the map, the list, the
-         legend, the cards and the CSV change without knowing a base was opened */
+      /* THE AREAS EVERY OTHER PART OF THE PAGE READS follow the scenario: a re-tiered row is a copy
+         with its tier, reason, distance and nearest base replaced, so the map, the list, the legend,
+         the cards and the CSV change without knowing a base was opened */
       function nbApplyAreas() {
         const E = nbEffect(nbActive("all"));
         AREA = AREA_BASE.map(a => { const x = E.adj[a.Level + "|" + a["Area Key"]];
@@ -2421,13 +2463,10 @@ registerPage({
            (the official plan), "none", or {without: label} for one base's own contribution. */
         const nbOut = [];
         nbEffect(nbActive((opts && opts.nb) || "all")).per.forEach(p => {
-          const o = { label: p.b.label, st: p.b.st, target: p.b.target, targets: p.targets, core: p.core, opened: p.opened, served: p.served,
-                      leadsYear: p.leadsYear, leads: 0, jobs: 0, usd: 0, unplanned: 0 };
-          Object.entries(p.byState).forEach(([st, yr]) => {
+          const o = { label: p.b.label, st: p.b.st, opened: p.opened, served: p.served, leadsYr: p.leadsYr,
+                      jobs: p.jobsYear1, jobsFull: p.jobsFull, unplanned: 0 };
+          Object.entries(p.byState).forEach(([st, jobs]) => {
             const r = rows.find(x => x.st === st);
-            const lpj = r && r.leadsPerJob ? r.leadsPerJob : lpjAll;
-            const leads = yr * SEASON_SHARE, jobs = lpj ? leads / lpj : 0;
-            o.leads += leads; o.jobs += jobs; o.usd += leads * (mkt.cplOf(st) || 0);
             if (!r || !(jobs > 0)) { o.unplanned += jobs; return; }
             const cc = r.cells.filter(c => !c.shoulder), b0 = cc.reduce((a, c) => a + (c.jobs || 0), 0);
             cc.forEach(c => { const add = b0 > 0 ? jobs * (c.jobs || 0) / b0 : jobs / cc.length;
@@ -2589,13 +2628,7 @@ registerPage({
           o.rehomed = o.served.reduce((a, ar) => { const r = rows.find(x => x.st === ar.State);
             return a + (r ? (r.jobs - (r.nbJobs || 0)) * num(ar["State Job Share"]) : 0); }, 0);
           o.servedJobs = o.rehomed + o.jobs;
-          o.fmSuggested = Math.max(1, Math.ceil(o.servedJobs * fmPerJob - 1e-9));
-          const typed = nbOf(o.label).fm;
-          o.fm = typed != null && typed > 0 ? Math.round(typed) : o.fmSuggested;
-          o.fmExtra = Math.max(0, o.fm - o.fmSuggested);
-          if (o.fmExtra) { tot.peak += o.fmExtra; tot.hire += o.fmExtra;
-            tot.helpers += Math.ceil(o.fmExtra * (crew.helpers || 0)); tot.drivers += Math.ceil(o.fmExtra * (crew.drivers || 0));
-            tot.trucks += Math.ceil(o.fmExtra * (crew.trucks || 0)); }
+          o.fm = Math.max(1, Math.ceil(o.servedJobs * fmPerJob - 1e-9));
         });
         tot.parking = nbOut.length * 800 * (core.length || 4);        // a yard per base, the what-if's $800 a month
         return { months, core, rows, pools, sales, mkt, tot, perFm, util, crew, owned, perDay, rentTrucks, coreDays, method, rentWays, rentPick, nb: nbOut };
@@ -3297,7 +3330,7 @@ registerPage({
           const rate = chainOf(st) || chainOf("_all") || 1.27;
           return { jobs, fm: jobs / (rate * DAYS_PER_MONTH * (N.core.length || 4)) };
         };
-        const coverage = (D.coverage || []).map(c => { const rate = chainOf(c.st) || chainOf("_all"); const need = num(AIM[c.st]) || null;
+        const coverage = (D.coverage || []).filter(c => !NB_HIDE(c.st)).map(c => { const rate = chainOf(c.st) || chainOf("_all"); const need = num(AIM[c.st]) || null;
           const xp = xpFor(c.st);
           return { kind: "cover", name: c.label, label: c.label, la: c.lat, lo: c.lon, st: c.st,
                    county: c.county, side: sideOf(c.st, c.county),
@@ -4257,36 +4290,111 @@ registerPage({
           save(); repaintScn(); }; });
       }
 
-      /* ===================== THE MAP TAB, BUILT FOR THE ROOM (2026-09-29) =====================
-         His planning-day review: "i need better vision of what needs to be done and what is our
-         plan. we have shit tons of text here and its not presentable". The design critique the same
-         day found ~8,000 characters of prose above and below the map and no statement of the plan
-         anywhere on the tab. So the tab now reads top to bottom as a slide:
-           1. the plan in four numbers
-           2. what to do, one card per crew pool (hire, marketing, where to push, what is weak)
-           3. the map, at the grain he picks -- County, City or Zip -- beside a ranked list of the
-              same areas, so every colour on the map has a row he can point at
-           4. everything that explains HOW, in one collapsed section at the bottom.
-         Every number in 1 and 2 is nextCalc()'s, the same call the plan tab prints, so the two can
-         never disagree. */
+      /* ===================== THE MAP TAB, FOR THE ROOM (2026-09-29, second pass) =====================
+         The only tab he presents. His second-pass brief: "i need this thing to be easier ... i need to
+         view the whole market and 1 by 1 states too", "once i select that montgomery ... YES or NO
+         - without this extra confirmations, i should see the results", "the tooltips ... contains a
+         lot of information and some of them is not visible when i hover over it. i would love if on
+         user click - on the right panel i can see all the information. and reduce the data on the
+         hover and leave only important ones". So, top to bottom:
+           1. MARKET -- Whole market or one state; it drives every number, card, list and the frame
+           2. the plan in four numbers for that market, with what the YES bases add
+           3. NEW BASES -- NO / YES, the expectation always printed (a NO card says what YES would do)
+           4. what to do, per crew pool (only the market's own pool when a state is picked)
+           5. the map (level + colour) beside ONE panel: the ranked list, or the full sheet of
+              whatever was clicked -- county, city, zip or base
+           6. everything that explains, in one closed section.
+         Every number is nextCalc()'s, the engine the other tabs print. */
       const LEVELS = [["County", "County"], ["City", "City"], ["Zip", "Zip code"]];
-      /* City and Zip draw one state at a time: the eight states' zip shapes are 9 MB, the four
-         biggest over 2 MB each, and nobody plans eight states at zip grain at once */
+      /* City and Zip draw one state at a time (the zip shapes are 9 MB for the eight) */
       const mapStOf = () => inputs.mapLevel === "County" ? inputs.mapSt : (inputs.mapSt || "NJ");
+      const sgN = v => (v > 0.5 ? "+" : v < -0.5 ? "−" : "±") + fmtN(Math.abs(v));
+      const sgM = v => (v > 0.5 ? "+" : v < -0.5 ? "−" : "±") + money0(Math.abs(v));
+      const nbAny = () => NB_CANDS.some(c => NB_ON[c.label]);
 
-      function planStripHtml(N) {
+      function marketBarHtml() {
+        const cur = inputs.mapSt || "";
+        return '<div class="ap3-market"><label>Market</label><div class="ap3-seg big">' +
+          [["", "Whole market"]].concat(SERVICE_AREAS.map(s => [s, s])).map(([k, l]) =>
+            '<button type="button" data-mapst="' + k + '" class="' + (k === cur ? "on" : "") + '">' + esc(l) + "</button>").join("") +
+          "</div></div>";
+      }
+
+      /* the four numbers for the market; the delta line appears only while a base is YES */
+      function planStripHtml(N, N0) {
         if (!N) return "";
-        const tile = (v, k, sub) => '<div class="ap3-kpi"><b>' + v + "</b><span>" + k + "</span><small>" + sub + "</small></div>";
+        const st = inputs.mapSt || "";
+        const pick = M => {
+          if (!st) return { jobs: M.tot.jobs, fm: M.tot.peak, have: M.tot.have, hire: M.tot.hire,
+                            sales: M.sales.peak, mkt: M.tot.mkt, leads: M.tot.leads };
+          const r = M.rows.find(x => x.st === st);
+          if (!r) return null;
+          const q = M.pools.find(p => p.states.includes(st)) || {};
+          return { jobs: r.jobs, fm: r.fmPeak || 0, have: r.have || 0, hire: q.hire || 0, pool: q.label,
+                   sales: M.tot.leads ? M.sales.peak * r.leads / M.tot.leads : 0,
+                   mkt: r.leads * (M.mkt.cplOf(st) || 0), leads: r.leads };
+        };
+        const A = pick(N), B = N0 ? pick(N0) : null;
+        if (!A) return '<div class="ap3-kpis"><div class="ap2-note">No ' + esc(st) + " row in the " + esc(String(FC.year)) + " plan.</div></div>";
+        const dl = (k, f) => B && nbAny() && Math.abs(A[k] - B[k]) >= 0.5 ? '<em class="d">' + f(A[k] - B[k]) + " with new bases</em>" : "";
+        const tile = (v, k, sub, d) => '<div class="ap3-kpi"><b>' + v + "</b><span>" + k + "</span><small>" + sub + "</small>" + (d || "") + "</div>";
         return '<div class="ap3-kpis">' +
-          tile(fmtN(N.tot.jobs), "Jobs forecast", "Season " + esc(String(FC.year))) +
-          tile(fmtN(N.tot.peak), "Foremen at peak", fmtN(N.tot.have) + " today · " +
-               (N.tot.hire ? "<em>hire +" + fmtN(N.tot.hire) + "</em>" : "covered")) +
-          tile(fmtN(N.sales.peak), "Salespeople at peak",
-               esc(String(N.sales.peakWhen || "").split(" ")[0]) + " · " + fmtN(N.sales.lpr) + " leads each") +
-          tile(money0(N.tot.mkt), "Marketing", fmtN(N.tot.leads) + " leads · post cards inside") +
-          ((N.nb || []).length ? '<div class="ap3-kpinb">Includes new ' + ((N.nb.length === 1) ? "base" : "bases") + ": <b>" +
-            N.nb.map(o => esc(o.label) + (nbOf(o.label).exploring ? " (exploring)" : "")).join(", ") + "</b></div>" : "") +
+          tile(fmtN(A.jobs), "Jobs " + esc(String(FC.year)), st ? esc(st) + " forecast" : "whole market forecast", dl("jobs", sgN)) +
+          tile(fmtN(A.fm), "Foremen at peak", fmtN(A.have) + " today" + (A.hire ? " · <em>hire +" + fmtN(A.hire) + "</em>" + (st ? " in " + esc(A.pool || "") : "") : " · covered"), dl("fm", sgN)) +
+          tile(st ? r1(A.sales) : fmtN(A.sales), "Salespeople at peak", st ? "its share of the one sales desk" : esc(String(N.sales.peakWhen || "").split(" ")[0]) + " · " + fmtN(N.sales.lpr) + " leads each", dl("sales", v => (v > 0 ? "+" : "−") + (st ? r1(Math.abs(v)) : fmtN(Math.abs(v))))) +
+          tile(money0(A.mkt), "Marketing", fmtN(A.leads) + " leads · post cards inside", dl("mkt", sgM)) +
           "</div>";
+      }
+
+      /* ---- new bases ---- */
+      function nbDelta(withN, withoutN) {
+        const g = M => (M.tot.gross != null ? M.tot.gross : 0) - (M.tot.mkt || 0) - (M.tot.parking || 0);
+        return { jobs: withN.tot.jobs - withoutN.tot.jobs, mkt: withN.tot.mkt - withoutN.tot.mkt,
+                 hire: withN.tot.hire - withoutN.tot.hire, sales: withN.sales.peak - withoutN.sales.peak,
+                 net: g(withN) - g(withoutN), leads: withN.tot.leads - withoutN.tot.leads };
+      }
+      function nbHtml(N) {
+        if (!NB_CANDS.length || !N) return "";
+        const TC = tierColors();
+        const cards = NB_CANDS.map(c => {
+          const on = !!NB_ON[c.label];
+          const withN = on ? N : nextCalc({ nb: { with: c.label } });
+          const withoutN = on ? nextCalc({ nb: { without: c.label } }) : N;
+          const d = nbDelta(withN, withoutN);
+          const o = (withN.nb || []).find(x => x.label === c.label) || {};
+          const tiers = [1, 2, 3, 4].map(t => [t, (o.opened || []).filter(x => x.tier === t).length]).filter(x => x[1]);
+          const top = (o.opened || []).slice(0, 3);
+          return '<div class="ap3-nb' + (on ? " on" : "") + '" data-nb="' + esc(c.label) + '">' +
+            '<div class="h"><b>' + esc(c.label) + '</b><div class="ap3-yn" role="group" aria-label="Open ' + esc(c.label) + '">' +
+              '<button type="button" data-nbon="0" class="' + (on ? "" : "on") + '">No</button>' +
+              '<button type="button" data-nbon="1" class="' + (on ? "on yes" : "") + '">Yes</button></div></div>' +
+            (on ? "" : '<div class="if">If yes</div>') +
+            '<div class="big"><b>' + sgN(d.jobs) + '</b> jobs in ' + esc(String(FC.year)) +
+              '<small>' + sgN(o.jobsFull || 0) + " a season once established</small></div>" +
+            '<div class="nums">' +
+              "<span><b>" + fmtN(o.fm || 1) + "</b>" + ((o.fm || 1) === 1 ? " foreman" : " foremen") + " at the base<small>company hire " + sgN(d.hire) + "</small></span>" +
+              "<span><b>" + sgM(d.mkt) + "</b> marketing<small>" + sgN(d.leads) + " leads</small></span>" +
+              "<span><b>" + sgN(d.sales) + "</b> sales<small>at peak</small></span>" +
+              "<span><b>" + sgM(d.net) + "</b> net<small>season, after all costs</small></span>" +
+            "</div>" +
+            (() => { /* SAY WHAT IT ASSUMES: the capture the new ground would have to reach in year one,
+                         beside what its state runs today -- Montgomery reads ~35 against Maryland's 7.5 */
+              const op = o.opened || [], mv = op.reduce((a, x) => a + num(x.a["Movers Per Year"]), 0);
+              if (!mv) return "";
+              const now = op.reduce((a, x) => a + num(x.a["Leads 12m"]), 0);
+              const need = 10000 * (now + op.reduce((a, x) => a + x.leadsYr, 0) * NB_YEAR1) / mv;
+              const stNow = capOfSt(c.st);
+              return '<div class="assume">Assumes its new ground reaches <b>' + r1(need) + "</b> leads per 10k movers in " + esc(String(FC.year)) +
+                (stNow != null ? " — " + esc(c.st) + " runs " + r1(stNow) + " today" : "") + "</div>"; })() +
+            '<div class="ground">Opens <b>' + fmtN((o.opened || []).length) + "</b> counties " +
+              tiers.map(([t, n]) => '<i class="tchip" style="background:' + TC["t" + t] + '">T' + t + " · " + n + "</i>").join("") +
+              (top.length ? "<small>biggest: " + top.map(x => esc(x.a.County) + " " + esc(x.a.State)).join(", ") + "</small>" : "") + "</div>" +
+            "</div>";
+        }).join("");
+        const onL = NB_CANDS.filter(c => NB_ON[c.label]).map(c => esc(c.label));
+        return '<div class="ap3-nbwrap"><div class="ap3-nbh"><b>New bases</b><span>a test scenario — flip one to Yes and every number on this tab follows; a refresh puts them back to No</span></div>' +
+          (onL.length ? '<div class="ap3-nbwarn">Scenario on: <b>' + onL.join(", ") + '</b> — the numbers above include it. <button type="button" class="rs-btn" data-nbreset>Back to No</button></div>' : "") +
+          '<div class="ap3-nbs">' + cards + "</div></div>";
       }
 
       /* the county names a pool should push, and the weak ones that still carry real leads */
@@ -4298,9 +4406,10 @@ registerPage({
       }
       function todoHtml(N) {
         if (!N) return "";
+        const st = inputs.mapSt || "";
         const names = (xs, n, multi) => xs.slice(0, n).map(a => esc(a.County) + (multi ? " " + esc(a.State) : "")).join(", ") +
           (xs.length > n ? ' <span class="more">+' + (xs.length - n) + "</span>" : "");
-        const cards = N.pools.filter(q => (q.states || []).length).map(q => {
+        const cards = N.pools.filter(q => (q.states || []).length && (!st || q.states.includes(st))).map(q => {
           const rs = N.rows.filter(r => q.states.includes(r.st));
           const jobs = rs.reduce((a, r) => a + (r.jobs || 0), 0);
           if (!jobs) return "";
@@ -4319,12 +4428,12 @@ registerPage({
             (P.weak.length ? act("weak", "Weak", names(P.weak, 2, multi) + " <small>Tier 4 with real leads</small>") : "") +
             "</ul></div>";
         }).join("");
-        return cards ? '<div class="ap3-todos">' + cards + "</div>" : "";
+        return '<div class="ap3-todos">' + cards + "</div>";
       }
 
       /* one row per area at the chosen level: the mart row plus this plan's money and jobs. A
          state's budget and jobs are split by the area's share of the state's leads and jobs in the
-         last 12 months -- the same rule the county tooltip always used. */
+         last 12 months -- the same rule the county sheet always used. */
       function areaRows(N, level, st) {
         const stB = {}, stJ = {};
         if (N) N.rows.forEach(r => { const c = N.mkt.cplOf(r.st); stB[r.st] = c != null ? r.leads * c : null; stJ[r.st] = r.jobs; });
@@ -4335,17 +4444,22 @@ registerPage({
           budget: stB[a.State] != null ? stB[a.State] * num(a["State Lead Share"]) : null,
           planJobs: stJ[a.State] != null ? stJ[a.State] * num(a["State Job Share"]) : null }));
       }
+      const planOfArea = (N, a) => {
+        if (!N || !a) return { budget: null, jobs: null };
+        const r = N.rows.find(x => x.st === a.State); if (!r) return { budget: null, jobs: null };
+        const cpl = N.mkt.cplOf(r.st);
+        return { budget: cpl != null ? r.leads * cpl * num(a["State Lead Share"]) : null, jobs: r.jobs * num(a["State Job Share"]) };
+      };
 
       function mapBarHtml() {
-        const lvl = inputs.mapLevel, st = mapStOf();
+        const lvl = inputs.mapLevel;
         const seg = (attr, items, on) => '<div class="ap3-seg">' + items.map(([k, l]) =>
           '<button type="button" data-' + attr + '="' + esc(k) + '" class="' + (k === on ? "on" : "") + '">' + esc(l) + "</button>").join("") + "</div>";
-        const states = (lvl === "County" ? [["", "All states"]] : []).concat(SERVICE_AREAS.map(s => [s, s]));
         const MODES = [["tier", "Tier"], ["market", "Market size"], ["capture", "Our capture"], ["spend", "Marketing"]];
         return '<div class="ap3-bar">' +
-          '<label>Level</label>' + seg("maplevel", LEVELS, lvl) +
-          '<label>State</label>' + seg("mapst", states, st) +
-          (lvl === "County" ? '<label>Colour</label>' + seg("mapcolor", MODES, inputs.mapColor) : "") +
+          "<label>Show</label>" + seg("maplevel", LEVELS, lvl) +
+          (lvl === "County" ? "<label>Colour</label>" + seg("mapcolor", MODES, inputs.mapColor)
+                            : '<span class="ap2-note" style="margin:0">' + esc(mapStOf()) + " — pick another state above</span>") +
           "</div>";
       }
 
@@ -4356,14 +4470,13 @@ registerPage({
         const never = rows.filter(r => r.never && !isFar(r.a)).length;
         return ["t1", "t2", "t3", "t4"].map(b => '<span class="ap2-mk"><i class="ap2-sw" style="background:' + TC[b] + '"></i>' +
             TIER_LABEL[b] + " <b>" + fmtN((cnt[b] || 0) - (b === "t4" ? far : 0)) + "</b></span>").join("") +
-          (far ? '<span class="ap2-mk"><i class="ap2-sw" style="background:' + TC.t4 + ';opacity:.28"></i>Tier 4, over 50 mi from any base <b>' + fmtN(far) + "</b></span>" : "") +
+          (far ? '<span class="ap2-mk"><i class="ap2-sw" style="background:' + TC.t4 + ';opacity:.28"></i>Over 50 mi from a base <b>' + fmtN(far) + "</b></span>" : "") +
           (cnt.grey ? '<span class="ap2-mk"><i class="ap2-sw grey"></i>Not rated <b>' + fmtN(cnt.grey) + "</b></span>" : "") +
-          (never ? '<span class="ap2-mk"><i class="ap2-sw none"></i>Hatched: never sent us a lead, rated on its market <b>' + fmtN(never) + "</b></span>" : "");
+          (never ? '<span class="ap2-mk"><i class="ap2-sw none"></i>Hatched: no lead yet <b>' + fmtN(never) + "</b></span>" : "");
       }
 
       function mapKeyHtml(N) {
         const lvl = inputs.mapLevel;
-        const B = basesFor();
         let key;
         if (lvl !== "County" || inputs.mapColor === "tier") {
           key = tierKeyHtml(areaRows(N, lvl, mapStOf()));
@@ -4384,15 +4497,17 @@ registerPage({
               "&nbsp;<b>" + r1(v[0]) + "</b> to <b>" + r1(v[v.length - 1]) + "</b></span>" : ""; }
         }
         return '<div class="ap2-mapkey" id="apMapKey">' + key +
-          '<span class="ap2-mk"><i class="ap2-sw have"></i>base we have <b>' + fmtN(B.have.length) + "</b></span>" +
-          '<span class="ap2-mk"><i class="ap2-sw cover"></i>could open new ground <b>' + fmtN((B.coverage || []).length) + "</b></span>" +
+          '<span class="ap2-mk"><i class="ap2-sw have"></i>our bases</span>' +
+          (NB_CANDS.length ? '<span class="ap2-mk"><i class="ap2-sw cover"></i>possible new base</span>' : "") +
           "</div>";
       }
 
+      /* ---- the right panel: the ranked list, or the full sheet of whatever was clicked ---- */
+      let SIDE = null;               // null = the list; { kind: "area", level, key } | { kind: "base", label }
       function areaListHtml(N) {
         const lvl = inputs.mapLevel, st = mapStOf();
         const R = areaRows(N, lvl, st);
-        if (!R.length) return '<div class="ap2-note">No ' + esc(lvl.toLowerCase()) + " rows yet — the tier mart (mart_area_tier) builds with the next refresh.</div>";
+        if (!R.length) return '<div class="ap2-note" style="padding:12px">No ' + esc(lvl.toLowerCase()) + " rows yet — the tier mart (mart_area_tier) builds with the next refresh.</div>";
         const TC = tierColors();
         const cnt = { 0: R.length }; R.forEach(r => { if (r.tier > 0) cnt[r.tier] = (cnt[r.tier] || 0) + 1; });
         const tf = +inputs.listTier || 0;
@@ -4404,11 +4519,11 @@ registerPage({
         const place = r => lvl === "County" ? r.st : esc(r.a.County || "") + " County";
         return '<div class="ap3-list">' +
           '<div class="lh"><b>' + fmtN(R.length) + " " + (lvl === "Zip" ? "zip codes" : lvl === "City" ? "cities" : "counties") +
-            "</b><span>" + (st ? esc(st) : "8 states") + '</span><button type="button" class="rs-btn" id="apAreaCsv">CSV</button></div>' +
+            "</b><span>" + (st ? esc(st) : "whole market") + ' · click one for its full sheet</span><button type="button" class="rs-btn" id="apAreaCsv">CSV</button></div>' +
           '<div class="tt">' + tabs + "</div>" +
           '<div class="cols"><span>Area</span><span>Leads<small>12 mo</small></span><span>Jobs<small>plan</small></span><span>Marketing<small>plan</small></span></div>' +
           '<div class="rows">' + shown.slice(0, CAP).map(r =>
-            '<button type="button" class="r" data-area="' + esc(r.key) + '" title="' + esc(String(r.a["Tier Reason"] || "")) + '">' +
+            '<button type="button" class="r" data-area="' + esc(r.key) + '">' +
               '<i class="tb ' + r.band + '" style="background:' + (TC[r.band] || TC.grey) + '">' + (r.tier || "–") + "</i>" +
               '<span class="n"><b>' + esc(r.name) + "</b><small>" + place(r) + (r.never ? " · no lead yet" : "") + "</small></span>" +
               '<span class="v">' + (r.leads ? fmtN(r.leads) : "—") + "</span>" +
@@ -4416,6 +4531,58 @@ registerPage({
               '<span class="v">' + (r.budget >= 1 ? money0(r.budget) : "—") + "</span></button>").join("") +
             (shown.length > CAP ? '<div class="ap2-note" style="padding:8px 10px">The first ' + CAP + " of " + fmtN(shown.length) + " — the CSV has them all.</div>" : "") +
           "</div></div>";
+      }
+      /* THE FULL SHEET (his ask: "on user click - on the right panel i can see all the information").
+         Everything the old hover tooltip carried, in a panel that cannot run off the screen. */
+      function areaDetailHtml(N, level, key) {
+        const a = (AREA_IX[level] || {})[key];
+        if (!a) return '<div class="ap2-note" style="padding:12px">No data for this area.</div>';
+        const TC = tierColors(), band = TIER_BAND(num(a.Tier)), P = planOfArea(N, a);
+        const row = (k, v, sub) => "<div class=\"kv\"><span>" + k + (sub ? "<small>" + sub + "</small>" : "") + "</span><b>" + v + "</b></div>";
+        const EMD = "—";
+        const cty = level === "County" ? countyRowsFor().find(r => r.st === a.State && ckey(r.county) === ckey(a.County)) : null;
+        const title = level === "Zip" ? a.Zip + " " + (a.City || "") : a.Name;
+        const where = level === "County" ? esc(a.State) : level === "City" ? esc(a.County || "") + " County, " + esc(a.State) + " · " + fmtN(num(a.Zips)) + (num(a.Zips) === 1 ? " zip code" : " zip codes")
+                    : esc(a.County || "") + " County, " + esc(a.State);
+        const was = a._nbWas != null && a._nbWas !== num(a.Tier) ? '<div class="was">Tier ' + a._nbWas + " → " + num(a.Tier) + " with the new base</div>" : "";
+        return '<div class="ap3-det">' +
+          '<button type="button" class="ap3-back" data-sideback>← All ' + (level === "Zip" ? "zip codes" : level === "City" ? "cities" : "counties") + "</button>" +
+          '<div class="dh"><b>' + esc(title) + '</b><span>' + where + "</span></div>" +
+          '<div class="tierline"><i style="background:' + (TC[band] || TC.grey) + '"></i>' + TIER_LABEL[band] + "</div>" +
+          '<div class="why">' + esc(a["Tier Reason"] || "") + "</div>" + was +
+          '<div class="sec">The ' + esc(String(FC.year || "")) + " plan here</div>" +
+            row("Marketing", P.budget != null && P.budget >= 1 ? money0(P.budget) : EMD, r1(100 * num(a["State Lead Share"])) + "% of " + esc(a.State) + "'s leads") +
+            row("Jobs", P.jobs != null && P.jobs >= 0.05 ? r1(P.jobs) : EMD, "its share of " + esc(a.State) + "'s forecast") +
+          '<div class="sec">Our work, last 12 months</div>' +
+            row("Leads", fmtN(num(a["Leads 12m"]))) +
+            row("Booked", num(a["Leads 12m"]) ? r1(num(a["Booking Rate"])) + "%" : EMD) +
+            row("Jobs", fmtN(num(a["Jobs 12m"]))) +
+            row("Average ticket", a["Avg Ticket"] != null ? money0(num(a["Avg Ticket"])) : EMD) +
+            (a["Data Score"] != null && a["Tier Source"] === "Our data" ? row("Score", r1(num(a["Data Score"])), "distance, booking, ticket, cubic feet") : "") +
+          '<div class="sec">Who can serve it</div>' +
+            row("Nearest base", esc(a["Nearest Base"] || EMD), r1(num(a["Miles To Base"])) + " mi") +
+            row("Foremen within 60 mi", fmtN(num(a["Foremen Within 60mi"]))) +
+            (cty ? row("Max jobs a day", r1(cty.ceil), "if every crew in range came here") + row("Fair share", r1(cty.fair), "jobs a day at today's dispatch pattern") : "") +
+          (num(a.Population) ? '<div class="sec">The market</div>' +
+            row("People", fmtN(num(a.Population))) +
+            row("Move a year", fmtN(num(a["Movers Per Year"]))) +
+            row("Leads per 10k movers", a["Leads Per 10k Movers"] != null ? r1(num(a["Leads Per 10k Movers"])) : EMD, "last 12 months") +
+            row("Median income", a["Median Income"] != null ? money0(num(a["Median Income"])) : EMD) +
+            row("Home value", a["Home Value"] != null ? money0(num(a["Home Value"])) : EMD) +
+            row("Own their home", a["Owner Share Pct"] != null ? r1(num(a["Owner Share Pct"])) + "%" : EMD) : "") +
+          "</div>";
+      }
+      function sideHtml(N) {
+        const box = host.querySelector("#apMapBox");
+        if (SIDE && SIDE.kind === "area") return areaDetailHtml(N, SIDE.level, SIDE.key);
+        if (SIDE && SIDE.kind === "base" && box && box._baseSheet) return '<div class="ap3-det"><button type="button" class="ap3-back" data-sideback>← Back to the list</button>' + box._baseSheet(SIDE.label) + "</div>";
+        return areaListHtml(N);
+      }
+      function showSide(s) {
+        SIDE = s;
+        const el = host.querySelector("#apAreaList");
+        if (el) { el.innerHTML = sideHtml(FC.year ? nextCalc() : null); el.scrollTop = 0; }
+        wireMapColor();
       }
 
       function areaCsv(N) {
@@ -4434,29 +4601,28 @@ registerPage({
         document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500);
       }
 
-      /* EVERYTHING THAT EXPLAINS, IN ONE PLACE, SHUT (his call 2026-09-29: "move all text into one
-         collapsed section"). Nothing below was deleted -- the argument about capture, where the
-         marketing lands, the fleet, the Census survey -- it is one click away instead of in the way. */
+      /* EVERYTHING THAT EXPLAINS, IN ONE PLACE, SHUT */
       function howHtml() {
         const R = countyRowsFor();
         const unc = R.filter(r => r.uncovered);
         const B = basesFor();
-        return '<details class="ap3-how" id="apHow"><summary>How this is calculated<small>the tiers, the budget split, the bases, the fleet and the Census survey</small></summary>' +
+        const rt = t => NB_RATE[t] ? r1(NB_RATE[t].cap) + " leads per 10k movers, " + r1(100 * NB_RATE[t].jpl) + "% become jobs" : "—";
+        return '<details class="ap3-how" id="apHow"><summary>How this is calculated<small>tiers, new bases, the budget split, the fleet and the Census survey</small></summary>' +
           '<div class="ap2-say" style="margin:10px 0">' +
             "<b>The tier.</b> His Power BI's four grades: <b>1 Core, 2 Good, 3 Normal, 4 Don't target</b>. " +
             "An area with enough leads to measure (a county 30, a city 20, a zip 15, over the last 12 months) is scored on " +
             "distance to a base, booking rate, average ticket and cubic feet. Tier 1 more than 50 miles from a base drops to Tier 2. " +
-            "An area with too few leads is rated on its <b>market</b> instead, which stands in for last year's hand survey: " +
-            "median income, home value and home ownership against the other areas, and anything over 50 miles from a base is Tier 4. " +
-            "Measured beats estimated, so the market grade only speaks where our own numbers cannot. " +
-            "Hover any area for the reason it got its tier.</div>" +
+            "An area with too few leads is rated on its <b>market</b> instead, standing in for last year's hand survey: " +
+            "median income, home value and home ownership against the other areas; anything over 50 miles from a base is Tier 4.</div>" +
+          '<div class="ap2-say" style="margin:0 0 10px"><b>A new base</b> brings the counties within 50 miles of it into reach and re-scores their distance. ' +
+            "What they are expected to send is what counties of the same tier ALREADY within reach of a base send us today " +
+            "(Tier 1 " + rt(1) + "; Tier 2 " + rt(2) + "; Tier 3 " + rt(3) + "; Tier 4 " + rt(4) + "; Delaware left out, Tuji inflates it). " +
+            "That took years; Season " + esc(String(FC.year || "")) + " counts <b>half</b>. Those jobs are added to the plan, so crew, sales and marketing follow. " +
+            "Crew at the base = the jobs it would serve at the company's foremen per job at peak; parking $800 a month.</div>" +
           '<div class="ap2-say" style="margin:0 0 10px"><b>The money and the jobs per area.</b> Each state\'s planned marketing and jobs, ' +
             "split by the area's share of the state's leads and jobs over the last 12 months. No ad dollar carries geography, so this is a " +
-            "planned share, never measured spend. <b>The flags</b> are the bases: solid for the " + fmtN(B.have.length) + " we have, dashed for ground a new base " +
-            "would open. Hover a flag for the " + B.work + " miles it works; click to pin it. " +
-            (unc.length ? fmtN(unc.length) + " counties with jobs have no foreman within 60 miles. " : "") +
-            (MAP_OUTSIDE && MAP_OUTSIDE.counties ? fmtN(MAP_OUTSIDE.counties) + " counties outside the eight states (" + fmtN(MAP_OUTSIDE.leads) +
-              " leads, nearly all long-distance pickups) are left off the map. " : "") + "</div>" +
+            "planned share, never measured spend. <b>The flags</b> are the bases: solid for the " + fmtN(B.have.length) + " we have, dashed for a possible new one. " +
+            (unc.length ? fmtN(unc.length) + " counties with jobs have no foreman within 60 miles. " : "") + "</div>" +
           '<div id="apChips">' + fleetChips() + "</div>" +
           headlineStrip(R) +
           budgetByBand(R) +
@@ -4466,141 +4632,87 @@ registerPage({
           "</details>";
       }
 
-      /* ===================== THE NEW-BASE CARDS (2026-09-29) =====================
-         One card per candidate base: Off / On in this browser, the two numbers he sets (the capture
-         target that sizes the launch budget, the foremen at the base), what it does to the plan --
-         priced as the plan WITH it against the plan without it, so two bases on together never
-         double-count a county -- and, for an admin, Confirm, which writes it for everyone. */
-      const nbIsAdmin = () => !!(window.ME && window.ME.admin);
-      function nbDelta(withN, withoutN) {
-        const g = N => (N.tot.gross != null ? N.tot.gross : 0) - (N.tot.mkt || 0) - (N.tot.parking || 0);
-        return { jobs: withN.tot.jobs - withoutN.tot.jobs, mkt: withN.tot.mkt - withoutN.tot.mkt,
-                 peak: withN.tot.peak - withoutN.tot.peak, hire: withN.tot.hire - withoutN.tot.hire,
-                 sales: withN.sales.peak - withoutN.sales.peak, net: g(withN) - g(withoutN),
-                 leads: withN.tot.leads - withoutN.tot.leads };
-      }
-      function nbHtml(N) {
-        if (!NB_CANDS.length || !N) return "";
-        const sg = v => (v > 0 ? "+" : v < 0 ? "−" : "±") + fmtN(Math.abs(v));
-        const sgM = v => (v > 0 ? "+" : v < 0 ? "−" : "±") + money0(Math.abs(v));
-        const admin = nbIsAdmin();
-        const cards = NB_CANDS.map(c => {
-          const st = nbOf(c.label);
-          const withN = st.on ? N : nextCalc({ nb: { with: c.label } });
-          const withoutN = st.on ? nextCalc({ nb: { without: c.label } }) : N;
-          const d = nbDelta(withN, withoutN);
-          const o = (withN.nb || []).find(x => x.label === c.label) || {};
-          const tgts = Object.entries(o.targets || {}).sort((x, y) => x[0].localeCompare(y[0]));
-          const tgtSay = st.target != null ? fmtN(st.target) + " per 10k movers"
-            : (tgts.length ? tgts.map(([s2, v]) => esc(s2) + " " + fmtN(v)).join(" · ") : "auto") + " per 10k movers";
-          const coreNames = (o.core || []).slice().sort((x, y) => num(y.a["Movers Per Year"]) - num(x.a["Movers Per Year"]));
-          const status = st.confirmed && st.on && !st.exploring ? ["conf", "In the plan"]
-            : st.on ? ["exp", st.confirmed ? "Changed here" : "Exploring"] : st.confirmed ? ["exp", "Off here"] : ["off", "Not planned"];
-          const sv = st.saved;
-          const line = (k, v, sub) => '<li><i>' + k + "</i><span>" + v + (sub ? "<small>" + sub + "</small>" : "") + "</span></li>";
-          return '<div class="ap3-nb ' + (st.on ? "on" : "") + '" data-nb="' + esc(c.label) + '">' +
-            '<div class="h"><b>' + esc(c.label) + "</b>" + (c.step ? '<span class="stp">step ' + esc(String(c.step)) + "</span>" : "") +
-              '<span class="pill ' + status[0] + '">' + status[1] + "</span></div>" +
-            '<div class="ctl"><div class="ap3-seg"><button type="button" data-nbon="0" class="' + (st.on ? "" : "on") + '">Off</button>' +
-              '<button type="button" data-nbon="1" class="' + (st.on ? "on" : "") + '">Open it</button></div>' +
-              (admin ? (st.on && (!st.confirmed || st.exploring) ? '<button type="button" class="rs-btn ap3-conf" data-nbconf="1">Confirm for everyone</button>'
-                       : !st.on && st.confirmed ? '<button type="button" class="rs-btn ap3-conf" data-nbconf="0">Take out of the plan</button>' : "") : "") +
-            "</div>" +
-            '<div class="dials"><label>Target leads per 10k movers<input type="number" min="0" step="1" data-nbtarget value="' +
-              (st.target != null ? esc(String(st.target)) : "") + '" placeholder="auto">' +
-              "<small>auto = each state halfway to PA's " + (capOfSt("PA") != null ? r1(capOfSt("PA")) : "—") + " · " + esc(c.st) + " today " +
-              (capOfSt(c.st) != null ? r1(capOfSt(c.st)) : "—") + "</small></label>" +
-              '<label>Foremen at the base<input type="number" min="1" step="1" data-nbfm value="' + (st.fm != null && st.fm > 0 ? esc(String(st.fm)) : "") +
-              '" placeholder="' + esc(String(o.fmSuggested || 1)) + '"><small>suggested ' + fmtN(o.fmSuggested || 1) + " for " + fmtN(o.servedJobs || 0) + " jobs</small></label></div>" +
-            "<ul>" +
-              line("Ground", "Opens <b>" + fmtN((o.opened || []).length) + "</b> counties · <b>" + fmtN(coreNames.length) + "</b> become Core or Good",
-                   coreNames.length ? coreNames.slice(0, 4).map(x => esc(x.a.County) + " " + esc(x.a.State) + " (T" + x.tier + ")").join(", ") + (coreNames.length > 4 ? " +" + (coreNames.length - 4) : "") : "no county becomes Core or Good") +
-              line("Marketing", "<b>" + sgM(d.mkt) + "</b> for the season", sg(d.leads) + " leads · launch budget at " + tgtSay) +
-              line("Jobs", "<b>" + sg(d.jobs) + "</b>", "IF the new ground reaches that target — the base alone does not lift booking; the marketing has to win the leads") +
-              line("Crew", "<b>" + fmtN(o.fm || 1) + "</b> " + ((o.fm || 1) === 1 ? "foreman" : "foremen") + " here · company hire <b>" + sg(d.hire) + "</b>",
-                   (o.rehomed ? fmtN(o.rehomed) + " jobs move here from other bases" : "no jobs move here") + (o.fmExtra ? " · " + o.fmExtra + " above the need, carried as extra crew" : "")) +
-              line("Sales", "<b>" + sg(d.sales) + "</b> salespeople at peak") +
-              line("Net", "<b>" + sgM(d.net) + "</b> for the season", "revenue less job cost, trucks, marketing and $800 a month parking") +
-            "</ul>" +
-            (sv && sv.on ? '<div class="by">Confirmed' + (sv.by ? " by " + esc(String(sv.by).split("@")[0]) : "") + (sv.at ? " · " + esc(String(sv.at).slice(0, 10)) : "") + "</div>" : "") +
-            "</div>";
-        }).join("");
-        const exploring = NB_CANDS.filter(c => nbOf(c.label).exploring);
-        return '<div class="ap3-nbwrap" id="apNewBases"><div class="ap3-nbh"><b>New bases</b><span>open one to see the plan with it — tiers, marketing, crew and sales all follow</span></div>' +
-          (exploring.length ? '<div class="ap3-nbwarn">Exploring in this browser: <b>' + exploring.map(c => esc(c.label)).join(", ") +
-            "</b>. Every tab here includes it; nobody else sees it until it is confirmed.</div>" : "") +
-          '<div class="ap3-nbs">' + cards + "</div></div>";
-      }
-      /* Confirm: read the whole season_plan, change only new_bases, write it back (the endpoint
-         replaces the object, so anything else on it must be carried over as it is) */
-      async function nbConfirm(label, on) {
-        const H = { "Content-Type": "application/json", Authorization: "Bearer " + ZTZ.getToken() };
-        const r = await fetch(ZTZ.API + "/api/_gset", { headers: H });
-        if (!r.ok) throw new Error(r.status === 403 ? "Admins only" : "HTTP " + r.status);
-        const cur = (((await r.json()).settings || {}).season_plan || {}).value || {};
-        const nb = Object.assign({}, cur.new_bases || {});
-        const st = nbOf(label);
-        if (on) nb[label] = { on: 1, target: st.target != null ? st.target : null,
-                              fm: st.fm != null && st.fm > 0 ? st.fm : null,
-                              by: (window.ME && window.ME.email) || "", at: new Date().toISOString().slice(0, 16).replace("T", " ") };
-        else delete nb[label];
-        const val = Object.assign({}, cur, { new_bases: nb });
-        const w = await fetch(ZTZ.API + "/api/_gset", { method: "POST", headers: H, body: JSON.stringify({ name: "season_plan", value: val }) });
-        const j = await w.json().catch(() => ({}));
-        if (!w.ok || !j.ok) throw new Error(j.error || "HTTP " + w.status);
-        NB_SAVED = nb; delete inputs.nbExplore[label]; save();
-      }
-      /* a base toggled: the areas re-tier, the plan re-runs, and every visible piece is redrawn in
-         place -- the map keeps its pan and zoom and simply restyles */
-      function nbRepaint() {
-        nbApplyAreas();
-        const mp = host.querySelector("#apMap");
-        const N = FC.year ? nextCalc() : null;
-        const set = (sel, html) => { const el = host.querySelector(sel); if (el) el.outerHTML = html; };
-        set(".ap3-kpis", planStripHtml(N));
-        set("#apNewBases", nbHtml(N));
-        const td = host.querySelector(".ap3-todos"); if (td) td.outerHTML = todoHtml(N);
-        repaintMapChrome();
-        const box = host.querySelector("#apMapBox"); if (box && box._restyle) box._restyle();
-        repaintPlan();
-        wireNewBases();
-        void mp;
-      }
-      function wireNewBases() {
-        host.querySelectorAll("#apNewBases [data-nb]").forEach(card => {
-          const label = card.dataset.nb;
-          const ex = () => (inputs.nbExplore[label] = inputs.nbExplore[label] || { on: nbOf(label).on });
-          card.querySelectorAll("[data-nbon]").forEach(b => { b.onclick = () => {
-            const want = b.dataset.nbon === "1"; if (nbOf(label).on === want) return;
-            ex().on = want;
-            const sv = NB_SAVED[label]; const e = inputs.nbExplore[label];
-            if (sv && !!sv.on === want && e.target == null && e.fm == null) delete inputs.nbExplore[label];
-            if (!sv && !want && e.target == null && e.fm == null) delete inputs.nbExplore[label];
-            save(); nbRepaint(); }; });
-          const t = card.querySelector("[data-nbtarget]");
-          if (t) t.onchange = () => { const v = parseFloat(t.value); ex().target = isFinite(v) && v >= 0 ? v : null; save(); nbRepaint(); };
-          const f = card.querySelector("[data-nbfm]");
-          if (f) f.onchange = () => { const v = parseInt(f.value, 10); ex().fm = isFinite(v) && v > 0 ? v : null; save(); nbRepaint(); };
-          card.querySelectorAll("[data-nbconf]").forEach(b => { b.onclick = async () => {
-            b.disabled = true; const was = b.textContent; b.textContent = "Saving…";
-            try { await nbConfirm(label, b.dataset.nbconf === "1"); nbRepaint(); }
-            catch (e) { b.disabled = false; b.textContent = was;
-              card.insertAdjacentHTML("beforeend", '<div class="ap3-nbwarn">Not saved: ' + esc(String(e && e.message || e)) + "</div>"); } }; });
-        });
-      }
-
       function mapHtml() {
         if (!COUNTY.length && !AREA.length) return '<div class="panel">The county marts (mart_area_county, mart_area_tier) are not ' +
           'built yet — run <b>sources=mart_area_county</b> and reload.</div>';
         const N = FC.year ? nextCalc() : null;
-        return planStripHtml(N) +
-          nbHtml(N) +
-          todoHtml(N) +
+        const N0 = FC.year && nbAny() ? nextCalc({ nb: "none" }) : null;
+        return marketBarHtml() +
+          '<div id="apKpis">' + planStripHtml(N, N0) + "</div>" +
+          '<div id="apNewBases">' + nbHtml(N) + "</div>" +
+          '<div id="apTodos">' + todoHtml(N) + "</div>" +
           '<div id="apMapBar">' + mapBarHtml() + "</div>" +
           '<div id="apMapKeyWrap">' + mapKeyHtml(N) + "</div>" +
           '<div class="ap3-mapgrid"><div id="apMapBox" class="ap2-mapbox"></div>' +
-            '<div id="apAreaList">' + areaListHtml(N) + "</div></div>" +
+            '<div id="apAreaList" class="ap3-side">' + sideHtml(N) + "</div></div>" +
           howHtml();
+      }
+
+      /* ONE REPAINT FOR THE TAB. Market, level, colour and the base toggles only restyle or swap map
+         LAYERS -- the Leaflet map is built once, so pan, zoom and a pinned ring survive every click. */
+      function repaintMapTab(opts) {
+        const N = FC.year ? nextCalc() : null;
+        const N0 = FC.year && nbAny() ? nextCalc({ nb: "none" }) : null;
+        const put = (id, html) => { const el = host.querySelector(id); if (el) el.innerHTML = html; };
+        const mk = host.querySelector(".ap3-market"); if (mk) mk.outerHTML = marketBarHtml();
+        put("#apKpis", planStripHtml(N, N0));
+        if (!opts || opts.bases !== false) put("#apNewBases", nbHtml(N));
+        put("#apTodos", todoHtml(N));
+        put("#apMapBar", mapBarHtml());
+        put("#apMapKeyWrap", mapKeyHtml(N));
+        put("#apAreaList", sideHtml(N));
+        wireMapColor();
+      }
+      /* kept for callers from the earlier pass */
+      function repaintMapChrome() { repaintMapTab(); }
+      function nbRepaint() {
+        nbApplyAreas();
+        repaintMapTab();
+        const box = host.querySelector("#apMapBox"); if (box && box._restyle) box._restyle();
+        repaintPlan();
+      }
+      function wireNewBases() { wireMapColor(); }
+      function wireMapColor() {
+        const box = host.querySelector("#apMapBox");
+        host.querySelectorAll("[data-mapst]").forEach(b => { b.onclick = () => {
+          if ((inputs.mapSt || "") === b.dataset.mapst) return;
+          inputs.mapSt = b.dataset.mapst; inputs.listTier = 0; SIDE = null;
+          /* the whole market at City or Zip grain would be every zip of eight states: step back to counties */
+          if (!inputs.mapSt && inputs.mapLevel !== "County") inputs.mapLevel = "County";
+          save(); repaintMapTab({ bases: false });
+          if (box && box._applyLevel) box._applyLevel(true);
+        }; });
+        host.querySelectorAll("#apMapBar [data-mapcolor]").forEach(b => { b.onclick = () => {
+          if (inputs.mapColor === b.dataset.mapcolor) return;
+          inputs.mapColor = b.dataset.mapcolor; save();
+          if (box && box._applyLevel) box._applyLevel(false);
+          repaintMapTab({ bases: false });
+        }; });
+        host.querySelectorAll("#apMapBar [data-maplevel]").forEach(b => { b.onclick = () => {
+          if (inputs.mapLevel === b.dataset.maplevel) return;
+          inputs.mapLevel = b.dataset.maplevel; inputs.listTier = 0; SIDE = null;
+          if (inputs.mapLevel !== "County" && !inputs.mapSt) inputs.mapSt = "NJ";
+          save(); repaintMapTab({ bases: false });
+          if (box && box._applyLevel) box._applyLevel(true);
+        }; });
+        host.querySelectorAll("#apAreaList [data-listtier]").forEach(b => { b.onclick = () => {
+          inputs.listTier = +b.dataset.listtier; save(); showSide(null); }; });
+        host.querySelectorAll("#apAreaList [data-area]").forEach(b => { b.onclick = () => {
+          const key = b.dataset.area;
+          showSide({ kind: "area", level: inputs.mapLevel, key });
+          if (box && box._focusArea) box._focusArea(key);
+        }; });
+        host.querySelectorAll("#apAreaList [data-sideback]").forEach(b => { b.onclick = () => showSide(null); });
+        const csv = host.querySelector("#apAreaCsv"); if (csv) csv.onclick = () => areaCsv(FC.year ? nextCalc() : null);
+        host.querySelectorAll("#apNewBases [data-nb]").forEach(card => {
+          const label = card.dataset.nb;
+          card.querySelectorAll("[data-nbon]").forEach(b => { b.onclick = () => {
+            const want = b.dataset.nbon === "1"; if (!!NB_ON[label] === want) return;
+            if (want) NB_ON[label] = true; else delete NB_ON[label];
+            nbRepaint(); }; });
+        });
+        const rs = host.querySelector("[data-nbreset]");
+        if (rs) rs.onclick = () => { Object.keys(NB_ON).forEach(k => delete NB_ON[k]); nbRepaint(); };
       }
 
       /* Size and frame the map against the container it actually has. Safe to call at any time:
@@ -4626,50 +4738,6 @@ registerPage({
            confuses user"). A map that refuses to move is a map the reader thinks is broken. The
            OPENING frame is still chosen -- it lands on the ground the page argues about -- but
            after that it pans and zooms anywhere, and the reset control brings it home. */
-      }
-
-      /* THE MAP'S CONTROLS (2026-09-29). Level, state and colour only ever restyle or swap LAYERS --
-         the Leaflet map is built once, so his pan, zoom and any pinned ring survive every click. The
-         bar, the legend and the list are small and simply re-rendered. */
-      function repaintMapChrome() {
-        const N = FC.year ? nextCalc() : null;
-        const bar = host.querySelector("#apMapBar"); if (bar) bar.innerHTML = mapBarHtml();
-        const key = host.querySelector("#apMapKeyWrap"); if (key) key.innerHTML = mapKeyHtml(N);
-        const ls = host.querySelector("#apAreaList"); if (ls) ls.innerHTML = areaListHtml(N);
-        wireMapColor();
-      }
-      function wireMapColor() {
-        const box = host.querySelector("#apMapBox");
-        host.querySelectorAll("#apMapBar [data-mapcolor]").forEach(b => { b.onclick = () => {
-          if (inputs.mapColor === b.dataset.mapcolor) return;
-          inputs.mapColor = b.dataset.mapcolor; save();
-          /* restyle in place: rebuilding the map would lose his pan, his zoom and any pinned ring */
-          if (box && box._applyLevel) box._applyLevel(false);
-          repaintMapChrome();
-        }; });
-        host.querySelectorAll("#apMapBar [data-maplevel]").forEach(b => { b.onclick = () => {
-          if (inputs.mapLevel === b.dataset.maplevel) return;
-          inputs.mapLevel = b.dataset.maplevel; inputs.listTier = 0; save();
-          repaintMapChrome();
-          if (box && box._applyLevel) box._applyLevel(true);
-        }; });
-        host.querySelectorAll("#apMapBar [data-mapst]").forEach(b => { b.onclick = () => {
-          if (mapStOf() === b.dataset.mapst) return;
-          inputs.mapSt = b.dataset.mapst; save();
-          repaintMapChrome();
-          if (box && box._applyLevel) box._applyLevel(true);
-        }; });
-        host.querySelectorAll("#apAreaList [data-listtier]").forEach(b => { b.onclick = () => {
-          inputs.listTier = +b.dataset.listtier; save();
-          const ls = host.querySelector("#apAreaList"); if (ls) ls.innerHTML = areaListHtml(FC.year ? nextCalc() : null);
-          wireMapColor();
-        }; });
-        host.querySelectorAll("#apAreaList [data-area]").forEach(b => { b.onclick = () => {
-          host.querySelectorAll("#apAreaList .r.on").forEach(x => x.classList.remove("on"));
-          b.classList.add("on");
-          if (box && box._focusArea) box._focusArea(b.dataset.area);
-        }; });
-        const csv = host.querySelector("#apAreaCsv"); if (csv) csv.onclick = () => areaCsv(FC.year ? nextCalc() : null);
       }
 
       function wireMap() {
@@ -4763,6 +4831,16 @@ registerPage({
              the MARKET is. The headline is the market and our share of it, because that is the one
              pair the map exists to argue about. */
           const gRow = (l, v, sub) => "<i>" + l + (sub ? "<small>" + sub + "</small>" : "") + "</i><u>" + v + "</u>";
+          /* THE HOVER IS A GLANCE (2026-09-29, his ask: "reduce the data on the hover and leave only
+             important ones"). Name, tier and the three planning numbers; the click opens the full
+             sheet in the right panel, which cannot run off the screen the way a tall tooltip did. */
+          const glance = (title, band, a) => {
+            const P = planOfArea(FC.year ? nextCalc() : null, a);
+            return '<div class="ap2-tip ap3-glance"><b>' + esc(title) + '</b><div class="t">' + TIER_LABEL[band] + "</div>" +
+              '<div class="g3"><span>Leads<b>' + fmtN(num(a && a["Leads 12m"])) + "</b><small>12 mo</small></span>" +
+              "<span>Jobs<b>" + (P.jobs != null && P.jobs >= 0.5 ? fmtN(P.jobs) : "—") + "</b><small>" + esc(String(FC.year || "")) + " plan</small></span>" +
+              "<span>Marketing<b>" + (P.budget != null && P.budget >= 1 ? money0(P.budget) : "—") + "</b><small>plan</small></span></div>" +
+              '<div class="hint">Click for the full sheet</div></div>'; };
           const tipOf = r =>
             '<div class="ap2-tip"><b>' + esc(r.county) + " " + esc(r.st) + "</b>" +
             '<div class="t">' + TIER_LABEL[r.band] +
@@ -4857,14 +4935,15 @@ registerPage({
                 const r = byKey[f.properties.st + "|" + f.properties.key];
                 /* read at hover time: a new-base toggle refreshes byKey (box._restyle) */
                 lyr.bindTooltip(() => { const rr = byKey[f.properties.st + "|" + f.properties.key];
-                  return rr ? tipOf(rr)
+                  return rr ? glance(rr.county + " " + rr.st, rr.band, rr.area)
                   : '<div class="ap2-tip"><b>' + esc(f.properties.name) + " " + esc(f.properties.st) +
                     '</b><div class="t">Not in the lead directory</div></div>'; },
                   { sticky: true, className: "ap2-tipwrap", opacity: 1 });
                 /* the fill is flat, so the hover needs its own signal */
                 lyr.on("mouseover", () => lyr.setStyle({ weight: 2.2, color: tok("--ink") || "#22303f" }));
                 lyr.on("mouseout", () => layer.resetStyle(lyr));
-                if (r) lyr.on("click", () => setFocus(r.st));
+                lyr.on("click", () => { const rr = byKey[f.properties.st + "|" + f.properties.key];
+                  if (rr && rr.area) showSide({ kind: "area", level: "County", key: rr.area["Area Key"] }); });
               },
             }).addTo(m);
             box._geo = layer;                  // so the colour switch can restyle without a rebuild
@@ -5075,7 +5154,11 @@ registerPage({
               icon: flag(b.kind + offsetFor(b), b.kind === "have" ? b.name + " · " + fmtN(b.foremen) : b.label.replace(/ [A-Z]{2}$/, "")),
               riseOnHover: true,
               zIndexOffset: b.kind === "have" ? 600 : b.kind === "cover" ? 500 : 400 });
-            mk.bindTooltip(baseTip(b), { sticky: true, className: "ap2-tipwrap", direction: "top", opacity: 1 });
+            mk.bindTooltip(() => '<div class="ap2-tip ap3-glance"><b>' + esc(b.kind === "have" ? b.name + " base" : b.label) + '</b><div class="t">' +
+              (b.kind === "have" ? fmtN(b.foremen) + (b.foremen === 1 ? " foreman" : " foremen") + " · we have this one"
+                                 : "possible new base · " + (NB_ON[b.label] ? "YES in this scenario" : "No in this scenario")) +
+              '</div><div class="hint">Click for the full sheet</div></div>',
+              { sticky: true, className: "ap2-tipwrap", direction: "top", opacity: 1 });
             /* HIS ASK: the reach appears on hover. It is removed on mouseout unless the flag was
                clicked, so he can pin one open and compare it against the counties underneath. */
             mk.on("mouseover", () => {
@@ -5088,6 +5171,7 @@ registerPage({
               if (hoverRing) { m.removeLayer(hoverRing); hoverRing = null; }
             });
             mk.on("click", () => {
+              showSide({ kind: "base", label: b.kind === "have" ? b.name : b.label });
               const pin = baseLayer._pinned;
               if (pin) { m.removeLayer(pin.ring); baseLayer._pinned = null; }
               if (!pin || pin.b !== b) {
@@ -5198,7 +5282,11 @@ registerPage({
                 const a = zipArea(f.properties.z, lvl);
                 const k = lvl === "Zip" ? f.properties.z : (a ? a["Area Key"] : "z" + f.properties.z);
                 (byKey[k] = byKey[k] || []).push(lyr);
-                lyr.bindTooltip(() => areaTip(zipArea(f.properties.z, lvl), lvl, f.properties.z), { sticky: true, className: "ap2-tipwrap", opacity: 1 });
+                lyr.bindTooltip(() => { const az = zipArea(f.properties.z, lvl);
+                  return az ? glance(lvl === "Zip" ? az.Zip + " " + (az.City || "") : az.Name + " " + az.State, TIER_BAND(num(az.Tier)), az)
+                            : areaTip(null, lvl, f.properties.z); }, { sticky: true, className: "ap2-tipwrap", opacity: 1 });
+                lyr.on("click", () => { const az = zipArea(f.properties.z, lvl);
+                  if (az) showSide({ kind: "area", level: lvl, key: az["Area Key"] }); });
                 lyr.on("mouseover", () => byKey[k].forEach(x => x.setStyle({ weight: 2.2, color: tok("--ink") || "#22303f", opacity: 1 })));
                 lyr.on("mouseout", () => byKey[k].forEach(x => zipLayer && zipLayer.resetStyle(x)));
               } }).addTo(m);
@@ -5245,6 +5333,7 @@ registerPage({
             R2.forEach(r => { byKey[r.st + "|" + ckey(r.county)] = r; });
             if (countyLayer && m.hasLayer(countyLayer)) countyLayer.setStyle(countyLayer.options.style);
             if (zipLayer) zipLayer.setStyle(zipStyle);
+            if (box._nbRings) box._nbRings();
           };
           /* the ranked list's click: frame the area and open its sheet */
           box._focusArea = key => {
@@ -5267,6 +5356,15 @@ registerPage({
           if (inputs.mapLevel !== "County") box._applyLevel(true);
           else if (inputs.mapColor !== "tier") box._applyLevel(false);
 
+          /* the base's full sheet for the right panel (the hover is only a glance) */
+          box._baseSheet = lbl => { const b = B.have.concat(B.coverage).find(x => (x.kind === "have" ? x.name : x.label) === lbl);
+            return b ? baseTip(b) : ""; };
+          /* A YES BASE SHOWS ITS REACH: the 50-mile ring inside which it brings counties into reach */
+          const nbRings = L.layerGroup().addTo(m);
+          box._nbRings = () => { nbRings.clearLayers();
+            NB_CANDS.filter(c => NB_ON[c.label]).forEach(c => L.circle([c.la, c.lo], { pane: "apRings", radius: 50 * MI_PER_M,
+              interactive: false, color: col.t1, weight: 2, dashArray: "6 5", fillColor: col.t1, fillOpacity: .06 }).addTo(nbRings)); };
+          box._nbRings();
           box._fit = pts;
           box._map = m;
           fitMap();                       // a no-op while the pane is hidden; showPane calls it again
