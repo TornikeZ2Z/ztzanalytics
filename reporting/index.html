@@ -190,9 +190,9 @@ const GROUP_OVERRIDE = {
   "referral-candidates": "marketing-automations",
   // Company Overview
   "monthly-report": "company", "seasonal-report": "company", "analysis-by-category": "company",
-  // Seasonal Planning joins Company Overview 2026-09-29 so the colleagues who hold that group can
-  // open it (his call); it stays in Different Analysis too, where Bacho and Kakha reach it
-  "area-plan": ["company", "different"],
+  // Seasonal Planning lives in Company Overview ONLY (his call 2026-09-29: "only have it in
+  // overview") so the colleagues who hold that group can open it
+  "area-plan": "company",
   // Sales ("sales-geo" moved to Financial — Tornike 2026-07-13: geography is a money view)
   "sales-funnel": "sales", "sales-perf": "sales", "sales-geo": "financial", "demand-analysis": "sales", "sales-command": "sales",
   // a sales tool AND a support tool: the same transcripts answer "did we call them back"
@@ -1766,7 +1766,7 @@ const ACL_DEPTS = [
   { id: "marketing-automations", label: "Marketing Automations", icon: "clock", reports: ["referral-candidates", "promised-reviews", "birdeye-sends", "angi-funnel"] },
   { id: "logistics", label: "Logistics",        icon: "tool",      reports: ["postcard-expenditure", "money-flow", "day-closing", "ld-planning", "foreman-closings", "packing-control", "packing-sales", "crew-salaries", "storage-control", "foreman-assessment", "fuel-control", "foreman-late"] },
   // its own tile since 2026-09-23; it used to ride in on Logistics
-  { id: "different", label: "Different Analysis", icon: "compass", reports: ["straight-vs-local", "area-plan", "truck-economics", "bo-salary"] },
+  { id: "different", label: "Different Analysis", icon: "compass", reports: ["straight-vs-local", "truck-economics", "bo-salary"] },
   // MUST mirror DEPT_REPORTS["hr"] in bridge/app.py. Employees answering the questionnaire
   // need NO grant at all — this tile is for HR: managing it and reading the results.
   { id: "hr",        label: "Human Resources", icon: "user",      reports: ["hr-questionnaire", "hr-responses", "hr-directory"] },
