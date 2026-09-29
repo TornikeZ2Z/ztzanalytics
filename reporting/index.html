@@ -190,6 +190,9 @@ const GROUP_OVERRIDE = {
   "referral-candidates": "marketing-automations",
   // Company Overview
   "monthly-report": "company", "seasonal-report": "company", "analysis-by-category": "company",
+  // Seasonal Planning joins Company Overview 2026-09-29 so the colleagues who hold that group can
+  // open it (his call); it stays in Different Analysis too, where Bacho and Kakha reach it
+  "area-plan": ["company", "different"],
   // Sales ("sales-geo" moved to Financial — Tornike 2026-07-13: geography is a money view)
   "sales-funnel": "sales", "sales-perf": "sales", "sales-geo": "financial", "demand-analysis": "sales", "sales-command": "sales",
   // a sales tool AND a support tool: the same transcripts answer "did we call them back"
@@ -228,7 +231,7 @@ const NAV_ORDER = {
   "money-flow": 1, "day-closing": 1.5, "foreman-closings": 2, "ld-planning": 3, "packing-control": 4, "packing-sales": 4.5, "storage-control": 5, "foreman-assessment": 6, "crew-salaries": 6.5, "fuel-control": 7, "foreman-late": 7.5, "log-foreman": 8, "log-packing": 9,
   "hr-directory": 1, "hr-questionnaire": 2,
   "cleanup": 1,
-  "straight-vs-local": 1, "area-plan": 2, "truck-economics": 3, "bo-salary": 4,
+  "straight-vs-local": 1, "area-plan": 1.7, "truck-economics": 3, "bo-salary": 4,
   "fin-revenue": 1, "fin-rr": 2, "sales-geo": 3, "financial-overview": 0.5, "salaries": 5.5, "branch-owner": 6, "cl-analysis": 6.5, "postcard-purchases": 6.7, "postcard-expenditure": 9.5,
   "rev-production": 1, "review-performance": 2, "reviews-cases": 2.5, "claims-analysis": 2.6, "response-analysis": 3, "reviews-reminders": 4, "review-settings": 5,
   "sup-claims": 1, "sup-refunds": 2, "sup-phone": 3,
@@ -1756,7 +1759,7 @@ const ACL_DEPTS = [
   // plus the capability ids that exist today (hr-responses, explorer). `work` and
   // `things-to-do` used to sit in all nine lists, so every user got the Tech Team group.
   // check_acl_mirror.py fails when a list differs from the group OR from DEPT_REPORTS.
-  { id: "company",   label: "Company Overview", icon: "spark",     reports: ["monthly-report", "seasonal-report", "analysis-by-category"] },
+  { id: "company",   label: "Company Overview", icon: "spark",     reports: ["monthly-report", "seasonal-report", "area-plan", "analysis-by-category"] },
   { id: "sales",     label: "Sales",            icon: "funnel",    reports: ["sales-command", "sales-of-the-month", "support-of-the-month", "demand-analysis", "conversations", "sales-comms", "sales-trackers"] },
   { id: "marketing", label: "Marketing",        icon: "megaphone", reports: ["source-report", "source-trace", "jobs-by-area", "relocation-trends", "census-data", "organic-search"] },
   // granted on its own, and ALSO by holding Marketing (DEPT_IMPLIES)
