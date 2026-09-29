@@ -105,7 +105,7 @@
       table: "mart_area_tier",
       cols: ["Level", "Area Key", "State", "County", "City", "Zip", "Name", "Zips", "Latitude", "Longitude",
              "Leads 12m", "Booked 12m", "Jobs 12m", "Booking Rate", "Avg Ticket", "Miles To Base", "Nearest Base",
-             "Foremen Within 60mi", "Data Score", "Data Tier", "Market Score", "Market Tier", "Tier",
+             "Foremen Within 60mi", "Score Distance", "Data Score", "Data Tier", "Market Score", "Market Tier", "Tier",
              "Tier Source", "Tier Reason", "Leads To Measure", "Never A Lead", "Population", "Movers Per Year",
              "Median Income", "Home Value", "Owner Share Pct", "Leads Per 10k Movers",
              "State Lead Share", "State Job Share"],
@@ -533,6 +533,38 @@ details.ap3-how>summary small{font-weight:600;color:var(--faint);margin-left:8px
 details.ap3-how[open]{padding-bottom:16px}
 .ap3-howcard{margin-top:14px;padding-top:12px;border-top:1px solid var(--ap-rule)}
 .ap3-howcard .ap2-h3{font-weight:800;font-size:15px;color:var(--ink);margin:0 0 4px}
+.ap3-kpinb{grid-column:1 / -1;font-size:12.5px;color:var(--muted);margin-top:-4px}
+.ap3-kpinb b{color:var(--ink)}
+/* the new-base cards (2026-09-29) */
+.ap3-nbwrap{margin:0 0 18px}
+.ap3-nbh{display:flex;align-items:baseline;gap:10px;margin:0 0 8px}
+.ap3-nbh b{font-size:15px;color:var(--ink)} .ap3-nbh span{font-size:12.5px;color:var(--muted)}
+.ap3-nbwarn{margin:0 0 10px;padding:8px 12px;border-radius:var(--ap-r2);border:1px solid var(--ap-warn-ink);
+  background:color-mix(in srgb,var(--warn) 10%,transparent);font-size:13px;color:var(--ink)}
+.ap3-nbs{display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:12px}
+.ap3-nb{border:1px solid var(--ap-rule);border-radius:var(--ap-r1);background:var(--ap-bay);padding:12px 14px;min-width:0;opacity:.86}
+.ap3-nb.on{opacity:1;border-color:var(--brand-d);box-shadow:inset 0 3px 0 var(--brand-d)}
+.ap3-nb .h{display:flex;align-items:center;gap:8px;margin:0 0 8px}
+.ap3-nb .h b{font-size:15.5px;color:var(--ink)}
+.ap3-nb .stp{font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);
+  border:1px solid var(--line);border-radius:6px;padding:1px 6px}
+.ap3-nb .pill{margin-left:auto;font-size:11px;font-weight:800;padding:2px 8px;border-radius:999px;border:1px solid var(--line);color:var(--muted)}
+.ap3-nb .pill.conf{background:var(--brand-glow);border-color:var(--brand-d);color:var(--brand-d)}
+.ap3-nb .pill.exp{border-color:var(--ap-warn-ink);color:var(--ap-warn-ink)}
+.ap3-nb .ctl{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0 0 10px}
+.ap3-nb .ap3-conf{font-size:12px;padding:5px 10px}
+.ap3-nb .dials{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:0 0 10px}
+.ap3-nb .dials label{display:flex;flex-direction:column;gap:3px;font-size:11px;font-weight:800;text-transform:uppercase;
+  letter-spacing:.04em;color:var(--muted)}
+.ap3-nb .dials input{font:inherit;font-size:15px;font-weight:800;text-transform:none;letter-spacing:0;width:100%;
+  padding:5px 8px;border:1px solid var(--line-2);border-radius:8px;background:var(--panel);color:var(--ink);font-variant-numeric:tabular-nums}
+.ap3-nb .dials input:focus-visible{outline:2px solid var(--brand-d);outline-offset:0}
+.ap3-nb .dials small{font-size:11px;font-weight:600;text-transform:none;letter-spacing:0;color:var(--faint)}
+.ap3-nb ul{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+.ap3-nb li{display:grid;grid-template-columns:70px minmax(0,1fr);gap:8px;font-size:13.5px;line-height:1.4;color:var(--ink)}
+.ap3-nb li i{font-style:normal;font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);padding-top:3px}
+.ap3-nb li small{display:block;color:var(--faint);font-size:11.5px}
+.ap3-nb .by{margin-top:8px;font-size:11.5px;color:var(--muted)}
 @media (max-width:1100px){.ap3-mapgrid{grid-template-columns:1fr}.ap3-list{height:520px;min-height:0}
   .ap3-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media (max-width:560px){.ap3-kpi b{font-size:24px}.ap3-mapgrid .ap2-mapbox{min-height:420px;height:60vh}
@@ -1110,8 +1142,9 @@ registerPage({
     ]).then(([rows, model, cityAll, wsAll, countyRows, cityAllSeason, pcm, tierRows]) => {
       const PCM = pcm || [];
       /* the four-tier areas, indexed per level by `Area Key` (zip / "ST|City" / "ST|County") */
-      const AREA = Array.isArray(tierRows) ? tierRows : [];
-      const AREA_IX = { County: {}, City: {}, Zip: {} };
+      /* `let`: the new-base toggles swap in re-tiered copies (nbApplyAreas, below) */
+      let AREA = Array.isArray(tierRows) ? tierRows : [];
+      let AREA_IX = { County: {}, City: {}, Zip: {} };
       AREA.forEach(a => { if (AREA_IX[a.Level]) AREA_IX[a.Level][a["Area Key"]] = a; });
       // FOUR DISTINCT FAILURES, each named -- the old page blamed the mart for a model outage
       if (!rows || !rows.length) {
@@ -1340,6 +1373,128 @@ registerPage({
       if (["County", "City", "Zip"].indexOf(inputs.mapLevel) < 0) inputs.mapLevel = "County";
       if (inputs.mapSt && SERVICE_AREAS.indexOf(inputs.mapSt) < 0) inputs.mapSt = "";
       if ([0, 1, 2, 3, 4].indexOf(+inputs.listTier) < 0) inputs.listTier = 0;
+      /* ===================== NEW BASES: EXPLORE, THEN CONFIRM (2026-09-29) =====================
+         His ask the same afternoon the four tiers shipped: "what should we do if we decide to open
+         this or that base. for example - if we open montgomery - how our marketing budgets and core
+         areals should adjust ... for each new base, i need a confirmation of if we do and how we do
+         ... sales quantity, foreman quantity on that base - total budget increase". His four calls:
+           1. EXPLORE, THEN CONFIRM. A toggle shows the plan with the base in THIS browser; an admin's
+              Confirm writes it to Planning Variables (`season_plan.new_bases`), and everyone reads it
+              from the plan model after the next rebuild.
+           2. MARKETING = A LAUNCH BUDGET FROM A CAPTURE TARGET. Every county the base turns Core or
+              Good gets movers x target leads-per-10k x its state's cost per lead, less the leads it
+              already sends, for the season's share of a year.
+           3. CREW = SUGGESTED FROM ITS JOBS, EDITABLE.
+           4. JOBS COME ONLY FROM THE MARKETING ADDED (measured: a base does not raise booking on day
+              one; see whatif-scenario-tool). The new leads are turned into jobs at the state's own
+              leads-per-job, which is exactly the rate the plan turns jobs back into leads -- so the
+              base's jobs, leads and dollars go INTO nextCalc() as extra forecast for its states, and
+              the crew pools, the sales desk, the trucks and every tab follow from the one engine.
+         The tiers move too: a new base changes every nearby area's distance, so the page re-scores
+         distance on the mart's own ladders (a measured area keeps its booking, ticket and CF points;
+         a market-rated one falls under the 50-mile rule or out of it). */
+      const AREA_BASE = AREA.slice();
+      const NB_CUT = { t1: num(OVR.tier_cut_1) || 72, t2: num(OVR.tier_cut_2) || 64, t3: num(OVR.tier_cut_3) || 56 };
+      const pDistOf = mi => mi <= 20 ? 30 : mi <= 30 ? 25 : mi <= 60 ? 20 : mi <= 90 ? 15 : mi <= 120 ? 10 : mi <= 150 ? 5 : 0;
+      const NB_CANDS = ((model.depots || {}).coverage || []).filter(c => c.lat && c.lon && c.label)
+        .map(c => ({ label: c.label, st: c.st, la: +c.lat, lo: +c.lon, county: c.county || "", side: sideOf(c.st, c.county),
+                     step: c.step || null, zip: c.zip || "" }));
+      let NB_SAVED = (OVR.new_bases && typeof OVR.new_bases === "object") ? OVR.new_bases : {};
+      if (!inputs.nbExplore || typeof inputs.nbExplore !== "object") inputs.nbExplore = {};
+      /* the base as this browser sees it: an explore entry wins over the confirmed one */
+      const nbOf = label => { const e = inputs.nbExplore[label], s = NB_SAVED[label];
+        const on = e ? !!e.on : !!(s && s.on);
+        return { on, confirmed: !!(s && s.on), exploring: !!e && (!!e.on !== !!(s && s.on) || (e.on && (e.target != null || e.fm != null))),
+                 target: e && e.target != null ? num(e.target) : (s && s.target != null ? num(s.target) : null),
+                 fm: e && e.fm != null ? num(e.fm) : (s && s.fm != null ? num(s.fm) : null), saved: s || null }; };
+      /* the default capture target: the state's own rate raised halfway toward Pennsylvania's (his
+         pick). Read lazily -- CAP_ST is built further down. */
+      const nbTargetDefault = st => { const own = capOfSt(st), pa = capOfSt("PA");
+        if (own == null && pa == null) return 20;
+        if (own == null) return Math.round(pa / 2);
+        if (pa == null || pa <= own) return Math.round(own);
+        return Math.round((own + pa) / 2); };
+      /* re-tier one area against a set of new bases: null when no new base is nearer */
+      function tierWith(a, bases) {
+        const mi0 = num(a["Miles To Base"]);
+        let mi = mi0, base = a["Nearest Base"];
+        const side = sideOf(a.State, a.County || "");
+        bases.forEach(b => { if (acrossSound(b.side, side)) return;
+          const d = miBetween(num(a.Latitude), num(a.Longitude), b.la, b.lo);
+          if (d < mi) { mi = d; base = b.label; } });
+        if (!(mi < mi0 - 0.05)) return null;
+        let t;
+        if (a["Tier Source"] === "Our data") {
+          const s = num(a["Data Score"]) - num(a["Score Distance"]) + pDistOf(mi);
+          t = s >= NB_CUT.t1 ? (mi > 50 ? 2 : 1) : s >= NB_CUT.t2 ? 2 : s >= NB_CUT.t3 ? 3 : 4;
+        } else if (a["Market Score"] != null) {
+          const m = num(a["Market Score"]);
+          t = mi > 50 ? 4 : m >= 80 ? 1 : m >= 55 ? 2 : m >= 30 ? 3 : 4;
+        } else return null;
+        const reason = a["Tier Source"] === "Our data" ? "Scored on our leads and jobs"
+          : mi > 50 ? "Over 50 mi from a base" : "Too few leads to measure - rated on its market";
+        return { tier: t, mi, base, reason: reason + " · with " + base };
+      }
+      const NB_CACHE = {};
+      /* the whole effect of a set of new bases: re-tiered areas, and per base the counties it turns
+         Core/Good and the leads a year its capture target asks of them */
+      function nbEffect(active) {
+        const key = active.map(b => b.label + ":" + b.target + ":" + b.fm).sort().join("|");
+        if (NB_CACHE[key]) return NB_CACHE[key];
+        const adj = {};
+        if (active.length) AREA_BASE.forEach(a => { if (!SERVICE_AREAS.includes(a.State)) return;
+          const x = tierWith(a, active); if (x) adj[a.Level + "|" + a["Area Key"]] = x; });
+        const per = active.map(b => {
+          const opened = [], core = [];
+          let yr = 0;
+          const byState = {}, targets = {};
+          AREA_BASE.forEach(a => {
+            if (a.Level !== "County" || !SERVICE_AREAS.includes(a.State)) return;
+            const x = adj["County|" + a["Area Key"]];
+            if (!x || x.base !== b.label) return;
+            const was = num(a.Tier);
+            if (num(a["Miles To Base"]) > 50 && x.mi <= 50) opened.push(a);
+            if ((x.tier === 1 || x.tier === 2) && !(was === 1 || was === 2)) {
+              /* a typed target applies to the whole base; otherwise each county takes its own state's
+                 default -- Tolland CT opening Massachusetts counties must not be held to Connecticut's 54 */
+              const tg = b.target != null ? b.target : nbTargetDefault(a.State);
+              targets[a.State] = tg;
+              const want = num(a["Movers Per Year"]) * tg / 10000;
+              const add = Math.max(0, want - num(a["Leads 12m"]));
+              core.push({ a, tier: x.tier, add });
+              yr += add; byState[a.State] = (byState[a.State] || 0) + add;
+            }
+          });
+          /* the counties it now serves nearest: their share of the state's jobs moves to this base */
+          const served = AREA_BASE.filter(a => a.Level === "County" && SERVICE_AREAS.includes(a.State) &&
+            ((adj["County|" + a["Area Key"]] || {}).base === b.label) && (adj["County|" + a["Area Key"]] || {}).mi <= 50);
+          return { b, opened, core, leadsYear: yr, byState, served, targets };
+        });
+        return (NB_CACHE[key] = { adj, per });
+      }
+      /* which bases a calculation includes: "all" = this browser's view, "confirmed" = the official
+         plan, "none" = no new base, or a label to leave out */
+      function nbActive(mode) {
+        return NB_CANDS.map(c => Object.assign({}, c, nbOf(c.label))).filter(c => {
+          if (mode === "none") return false;
+          if (mode === "confirmed") return c.confirmed;
+          if (mode && mode.without) return c.on && c.label !== mode.without;
+          if (mode && mode.with) return c.on || c.label === mode.with;
+          return c.on;
+        });            // target stays null unless typed: each county then takes its OWN state's default
+      }
+      /* THE AREAS EVERY OTHER PART OF THE PAGE READS follow this browser's bases: a re-tiered row is
+         a copy with its tier, reason, distance and nearest base replaced, so the map, the list, the
+         legend, the cards and the CSV change without knowing a base was opened */
+      function nbApplyAreas() {
+        const E = nbEffect(nbActive("all"));
+        AREA = AREA_BASE.map(a => { const x = E.adj[a.Level + "|" + a["Area Key"]];
+          return x ? Object.assign({}, a, { Tier: x.tier, "Tier Reason": x.reason, "Miles To Base": Math.round(x.mi * 10) / 10,
+                                            "Nearest Base": x.base, _nbWas: num(a.Tier) }) : a; });
+        AREA_IX = { County: {}, City: {}, Zip: {} };
+        AREA.forEach(a => { if (AREA_IX[a.Level]) AREA_IX[a.Level][a["Area Key"]] = a; });
+      }
+      nbApplyAreas();
       inputs.scnSaved = Array.isArray(inputs.scnSaved) ? inputs.scnSaved : [];
       inputs.city = Object.assign({ minLeads: 20, view: "all", q: "", sort: "Revenue", desc: true,
                                     page: 0, pageSize: 30 }, inputs.city || {});
@@ -2177,7 +2332,7 @@ registerPage({
       // which depot's crews serve a state (his state->depot map 2026-09-15; MD and VA ride PA/DE)
       const POOL_OF = { NJ: "NJ", NY: "NJ", PA: "PA", DE: "PA", MD: "PA", VA: "PA", CT: "CT", MA: "CT" };
       const POOL_ORDER = ["NJ", "PA", "CT"];
-      function nextCalc() {
+      function nextCalc(opts) {
         const util = (num(inputs.utilization) / 100) || 0.34;
         const perFm = Math.max(1, DAYS_PER_MONTH * util);              // jobs one foreman does in a month
         const crew = FC.crew_per_foreman || { helpers: 1, drivers: 1, trucks: 1 };
@@ -2259,6 +2414,33 @@ registerPage({
            So the plan is held at last season's measured advertising per job: when the state build
            comes in under it, every state's leads are lifted by one factor until the season costs
            forecast jobs x last season's $ per job. It only ever lifts; both figures are kept. */
+        /* NEW BASES GO IN AS EXTRA FORECAST (2026-09-29, see NEW BASES above). A base's launch leads
+           become jobs at its state's own leads-per-job -- the rate the plan uses to turn jobs back into
+           leads -- spread over the core months in the state's own shape, so the marketing, the desk,
+           the pools and the trucks below all carry it. `opts.nb`: "all" (this browser), "confirmed"
+           (the official plan), "none", or {without: label} for one base's own contribution. */
+        const nbOut = [];
+        nbEffect(nbActive((opts && opts.nb) || "all")).per.forEach(p => {
+          const o = { label: p.b.label, st: p.b.st, target: p.b.target, targets: p.targets, core: p.core, opened: p.opened, served: p.served,
+                      leadsYear: p.leadsYear, leads: 0, jobs: 0, usd: 0, unplanned: 0 };
+          Object.entries(p.byState).forEach(([st, yr]) => {
+            const r = rows.find(x => x.st === st);
+            const lpj = r && r.leadsPerJob ? r.leadsPerJob : lpjAll;
+            const leads = yr * SEASON_SHARE, jobs = lpj ? leads / lpj : 0;
+            o.leads += leads; o.jobs += jobs; o.usd += leads * (mkt.cplOf(st) || 0);
+            if (!r || !(jobs > 0)) { o.unplanned += jobs; return; }
+            const cc = r.cells.filter(c => !c.shoulder), b0 = cc.reduce((a, c) => a + (c.jobs || 0), 0);
+            cc.forEach(c => { const add = b0 > 0 ? jobs * (c.jobs || 0) / b0 : jobs / cc.length;
+              c.jobs = (c.jobs || 0) + add; c.nbJobs = (c.nbJobs || 0) + add;
+              if (r.leadsPerJob != null) c.leads_needed = Math.round(c.jobs * r.leadsPerJob); });
+            r.jobs = cc.reduce((a, c) => a + (c.jobs || 0), 0);
+            r.leads = cc.reduce((a, c) => a + (c.leads_needed || 0), 0);
+            if (r.s.avg_bill != null) r.revenue = r.jobs * r.s.avg_bill;
+            if (r.s.avg_expense != null) r.expense = r.jobs * r.s.avg_expense;
+            r.nbJobs = (r.nbJobs || 0) + jobs;
+          });
+          nbOut.push(o);
+        });
         const planJobsCore = rows.reduce((a, r) => a + r.jobs, 0);
         const builtMkt = rows.reduce((a, r) => a + r.leads * (mkt.cplOf(r.st) || 0), 0);
         /* over the jobs THE PLANNED STATES ran, not every closing: the forecast covers only them, so
@@ -2399,7 +2581,24 @@ registerPage({
                       expense: rows.some(r => r.expense != null) ? sum("expense") : null, rent: rentTotal,
                       salesPay: rows.some(r => r.salesPay != null) ? sum("salesPay") : null, salesPct: SALES_PCT,
                       gross: rows.some(r => r.gross != null) ? sum("gross") : null };
-        return { months, core, rows, pools, sales, mkt, tot, perFm, util, crew, owned, perDay, rentTrucks, coreDays, method, rentWays, rentPick };
+        /* THE CREW AT EACH NEW BASE: the jobs it would serve (its counties' share of their state's
+           plan, plus its own new jobs) at the company's peak foremen per season job, at least one.
+           A typed number above that is carried as extra crew; below it, the pools still decide. */
+        const fmPerJob = tot.jobs > 0 ? tot.peak / tot.jobs : 0;
+        nbOut.forEach(o => {
+          o.rehomed = o.served.reduce((a, ar) => { const r = rows.find(x => x.st === ar.State);
+            return a + (r ? (r.jobs - (r.nbJobs || 0)) * num(ar["State Job Share"]) : 0); }, 0);
+          o.servedJobs = o.rehomed + o.jobs;
+          o.fmSuggested = Math.max(1, Math.ceil(o.servedJobs * fmPerJob - 1e-9));
+          const typed = nbOf(o.label).fm;
+          o.fm = typed != null && typed > 0 ? Math.round(typed) : o.fmSuggested;
+          o.fmExtra = Math.max(0, o.fm - o.fmSuggested);
+          if (o.fmExtra) { tot.peak += o.fmExtra; tot.hire += o.fmExtra;
+            tot.helpers += Math.ceil(o.fmExtra * (crew.helpers || 0)); tot.drivers += Math.ceil(o.fmExtra * (crew.drivers || 0));
+            tot.trucks += Math.ceil(o.fmExtra * (crew.trucks || 0)); }
+        });
+        tot.parking = nbOut.length * 800 * (core.length || 4);        // a yard per base, the what-if's $800 a month
+        return { months, core, rows, pools, sales, mkt, tot, perFm, util, crew, owned, perDay, rentTrucks, coreDays, method, rentWays, rentPick, nb: nbOut };
       }
       function nextHtml() {
         if (!FC.year) return '<div class="ap2-note">The forecast block is not in the model yet — it appears after the next plan rebuild (07:50 NJ, or run <b>sources=area-plan</b>).</div>';
@@ -4085,6 +4284,8 @@ registerPage({
           tile(fmtN(N.sales.peak), "Salespeople at peak",
                esc(String(N.sales.peakWhen || "").split(" ")[0]) + " · " + fmtN(N.sales.lpr) + " leads each") +
           tile(money0(N.tot.mkt), "Marketing", fmtN(N.tot.leads) + " leads · post cards inside") +
+          ((N.nb || []).length ? '<div class="ap3-kpinb">Includes new ' + ((N.nb.length === 1) ? "base" : "bases") + ": <b>" +
+            N.nb.map(o => esc(o.label) + (nbOf(o.label).exploring ? " (exploring)" : "")).join(", ") + "</b></div>" : "") +
           "</div>";
       }
 
@@ -4265,11 +4466,135 @@ registerPage({
           "</details>";
       }
 
+      /* ===================== THE NEW-BASE CARDS (2026-09-29) =====================
+         One card per candidate base: Off / On in this browser, the two numbers he sets (the capture
+         target that sizes the launch budget, the foremen at the base), what it does to the plan --
+         priced as the plan WITH it against the plan without it, so two bases on together never
+         double-count a county -- and, for an admin, Confirm, which writes it for everyone. */
+      const nbIsAdmin = () => !!(window.ME && window.ME.admin);
+      function nbDelta(withN, withoutN) {
+        const g = N => (N.tot.gross != null ? N.tot.gross : 0) - (N.tot.mkt || 0) - (N.tot.parking || 0);
+        return { jobs: withN.tot.jobs - withoutN.tot.jobs, mkt: withN.tot.mkt - withoutN.tot.mkt,
+                 peak: withN.tot.peak - withoutN.tot.peak, hire: withN.tot.hire - withoutN.tot.hire,
+                 sales: withN.sales.peak - withoutN.sales.peak, net: g(withN) - g(withoutN),
+                 leads: withN.tot.leads - withoutN.tot.leads };
+      }
+      function nbHtml(N) {
+        if (!NB_CANDS.length || !N) return "";
+        const sg = v => (v > 0 ? "+" : v < 0 ? "−" : "±") + fmtN(Math.abs(v));
+        const sgM = v => (v > 0 ? "+" : v < 0 ? "−" : "±") + money0(Math.abs(v));
+        const admin = nbIsAdmin();
+        const cards = NB_CANDS.map(c => {
+          const st = nbOf(c.label);
+          const withN = st.on ? N : nextCalc({ nb: { with: c.label } });
+          const withoutN = st.on ? nextCalc({ nb: { without: c.label } }) : N;
+          const d = nbDelta(withN, withoutN);
+          const o = (withN.nb || []).find(x => x.label === c.label) || {};
+          const tgts = Object.entries(o.targets || {}).sort((x, y) => x[0].localeCompare(y[0]));
+          const tgtSay = st.target != null ? fmtN(st.target) + " per 10k movers"
+            : (tgts.length ? tgts.map(([s2, v]) => esc(s2) + " " + fmtN(v)).join(" · ") : "auto") + " per 10k movers";
+          const coreNames = (o.core || []).slice().sort((x, y) => num(y.a["Movers Per Year"]) - num(x.a["Movers Per Year"]));
+          const status = st.confirmed && st.on && !st.exploring ? ["conf", "In the plan"]
+            : st.on ? ["exp", st.confirmed ? "Changed here" : "Exploring"] : st.confirmed ? ["exp", "Off here"] : ["off", "Not planned"];
+          const sv = st.saved;
+          const line = (k, v, sub) => '<li><i>' + k + "</i><span>" + v + (sub ? "<small>" + sub + "</small>" : "") + "</span></li>";
+          return '<div class="ap3-nb ' + (st.on ? "on" : "") + '" data-nb="' + esc(c.label) + '">' +
+            '<div class="h"><b>' + esc(c.label) + "</b>" + (c.step ? '<span class="stp">step ' + esc(String(c.step)) + "</span>" : "") +
+              '<span class="pill ' + status[0] + '">' + status[1] + "</span></div>" +
+            '<div class="ctl"><div class="ap3-seg"><button type="button" data-nbon="0" class="' + (st.on ? "" : "on") + '">Off</button>' +
+              '<button type="button" data-nbon="1" class="' + (st.on ? "on" : "") + '">Open it</button></div>' +
+              (admin ? (st.on && (!st.confirmed || st.exploring) ? '<button type="button" class="rs-btn ap3-conf" data-nbconf="1">Confirm for everyone</button>'
+                       : !st.on && st.confirmed ? '<button type="button" class="rs-btn ap3-conf" data-nbconf="0">Take out of the plan</button>' : "") : "") +
+            "</div>" +
+            '<div class="dials"><label>Target leads per 10k movers<input type="number" min="0" step="1" data-nbtarget value="' +
+              (st.target != null ? esc(String(st.target)) : "") + '" placeholder="auto">' +
+              "<small>auto = each state halfway to PA's " + (capOfSt("PA") != null ? r1(capOfSt("PA")) : "—") + " · " + esc(c.st) + " today " +
+              (capOfSt(c.st) != null ? r1(capOfSt(c.st)) : "—") + "</small></label>" +
+              '<label>Foremen at the base<input type="number" min="1" step="1" data-nbfm value="' + (st.fm != null && st.fm > 0 ? esc(String(st.fm)) : "") +
+              '" placeholder="' + esc(String(o.fmSuggested || 1)) + '"><small>suggested ' + fmtN(o.fmSuggested || 1) + " for " + fmtN(o.servedJobs || 0) + " jobs</small></label></div>" +
+            "<ul>" +
+              line("Ground", "Opens <b>" + fmtN((o.opened || []).length) + "</b> counties · <b>" + fmtN(coreNames.length) + "</b> become Core or Good",
+                   coreNames.length ? coreNames.slice(0, 4).map(x => esc(x.a.County) + " " + esc(x.a.State) + " (T" + x.tier + ")").join(", ") + (coreNames.length > 4 ? " +" + (coreNames.length - 4) : "") : "no county becomes Core or Good") +
+              line("Marketing", "<b>" + sgM(d.mkt) + "</b> for the season", sg(d.leads) + " leads · launch budget at " + tgtSay) +
+              line("Jobs", "<b>" + sg(d.jobs) + "</b>", "IF the new ground reaches that target — the base alone does not lift booking; the marketing has to win the leads") +
+              line("Crew", "<b>" + fmtN(o.fm || 1) + "</b> " + ((o.fm || 1) === 1 ? "foreman" : "foremen") + " here · company hire <b>" + sg(d.hire) + "</b>",
+                   (o.rehomed ? fmtN(o.rehomed) + " jobs move here from other bases" : "no jobs move here") + (o.fmExtra ? " · " + o.fmExtra + " above the need, carried as extra crew" : "")) +
+              line("Sales", "<b>" + sg(d.sales) + "</b> salespeople at peak") +
+              line("Net", "<b>" + sgM(d.net) + "</b> for the season", "revenue less job cost, trucks, marketing and $800 a month parking") +
+            "</ul>" +
+            (sv && sv.on ? '<div class="by">Confirmed' + (sv.by ? " by " + esc(String(sv.by).split("@")[0]) : "") + (sv.at ? " · " + esc(String(sv.at).slice(0, 10)) : "") + "</div>" : "") +
+            "</div>";
+        }).join("");
+        const exploring = NB_CANDS.filter(c => nbOf(c.label).exploring);
+        return '<div class="ap3-nbwrap" id="apNewBases"><div class="ap3-nbh"><b>New bases</b><span>open one to see the plan with it — tiers, marketing, crew and sales all follow</span></div>' +
+          (exploring.length ? '<div class="ap3-nbwarn">Exploring in this browser: <b>' + exploring.map(c => esc(c.label)).join(", ") +
+            "</b>. Every tab here includes it; nobody else sees it until it is confirmed.</div>" : "") +
+          '<div class="ap3-nbs">' + cards + "</div></div>";
+      }
+      /* Confirm: read the whole season_plan, change only new_bases, write it back (the endpoint
+         replaces the object, so anything else on it must be carried over as it is) */
+      async function nbConfirm(label, on) {
+        const H = { "Content-Type": "application/json", Authorization: "Bearer " + ZTZ.getToken() };
+        const r = await fetch(ZTZ.API + "/api/_gset", { headers: H });
+        if (!r.ok) throw new Error(r.status === 403 ? "Admins only" : "HTTP " + r.status);
+        const cur = (((await r.json()).settings || {}).season_plan || {}).value || {};
+        const nb = Object.assign({}, cur.new_bases || {});
+        const st = nbOf(label);
+        if (on) nb[label] = { on: 1, target: st.target != null ? st.target : null,
+                              fm: st.fm != null && st.fm > 0 ? st.fm : null,
+                              by: (window.ME && window.ME.email) || "", at: new Date().toISOString().slice(0, 16).replace("T", " ") };
+        else delete nb[label];
+        const val = Object.assign({}, cur, { new_bases: nb });
+        const w = await fetch(ZTZ.API + "/api/_gset", { method: "POST", headers: H, body: JSON.stringify({ name: "season_plan", value: val }) });
+        const j = await w.json().catch(() => ({}));
+        if (!w.ok || !j.ok) throw new Error(j.error || "HTTP " + w.status);
+        NB_SAVED = nb; delete inputs.nbExplore[label]; save();
+      }
+      /* a base toggled: the areas re-tier, the plan re-runs, and every visible piece is redrawn in
+         place -- the map keeps its pan and zoom and simply restyles */
+      function nbRepaint() {
+        nbApplyAreas();
+        const mp = host.querySelector("#apMap");
+        const N = FC.year ? nextCalc() : null;
+        const set = (sel, html) => { const el = host.querySelector(sel); if (el) el.outerHTML = html; };
+        set(".ap3-kpis", planStripHtml(N));
+        set("#apNewBases", nbHtml(N));
+        const td = host.querySelector(".ap3-todos"); if (td) td.outerHTML = todoHtml(N);
+        repaintMapChrome();
+        const box = host.querySelector("#apMapBox"); if (box && box._restyle) box._restyle();
+        repaintPlan();
+        wireNewBases();
+        void mp;
+      }
+      function wireNewBases() {
+        host.querySelectorAll("#apNewBases [data-nb]").forEach(card => {
+          const label = card.dataset.nb;
+          const ex = () => (inputs.nbExplore[label] = inputs.nbExplore[label] || { on: nbOf(label).on });
+          card.querySelectorAll("[data-nbon]").forEach(b => { b.onclick = () => {
+            const want = b.dataset.nbon === "1"; if (nbOf(label).on === want) return;
+            ex().on = want;
+            const sv = NB_SAVED[label]; const e = inputs.nbExplore[label];
+            if (sv && !!sv.on === want && e.target == null && e.fm == null) delete inputs.nbExplore[label];
+            if (!sv && !want && e.target == null && e.fm == null) delete inputs.nbExplore[label];
+            save(); nbRepaint(); }; });
+          const t = card.querySelector("[data-nbtarget]");
+          if (t) t.onchange = () => { const v = parseFloat(t.value); ex().target = isFinite(v) && v >= 0 ? v : null; save(); nbRepaint(); };
+          const f = card.querySelector("[data-nbfm]");
+          if (f) f.onchange = () => { const v = parseInt(f.value, 10); ex().fm = isFinite(v) && v > 0 ? v : null; save(); nbRepaint(); };
+          card.querySelectorAll("[data-nbconf]").forEach(b => { b.onclick = async () => {
+            b.disabled = true; const was = b.textContent; b.textContent = "Saving…";
+            try { await nbConfirm(label, b.dataset.nbconf === "1"); nbRepaint(); }
+            catch (e) { b.disabled = false; b.textContent = was;
+              card.insertAdjacentHTML("beforeend", '<div class="ap3-nbwarn">Not saved: ' + esc(String(e && e.message || e)) + "</div>"); } }; });
+        });
+      }
+
       function mapHtml() {
         if (!COUNTY.length && !AREA.length) return '<div class="panel">The county marts (mart_area_county, mart_area_tier) are not ' +
           'built yet — run <b>sources=mart_area_county</b> and reload.</div>';
         const N = FC.year ? nextCalc() : null;
         return planStripHtml(N) +
+          nbHtml(N) +
           todoHtml(N) +
           '<div id="apMapBar">' + mapBarHtml() + "</div>" +
           '<div id="apMapKeyWrap">' + mapKeyHtml(N) + "</div>" +
@@ -4530,9 +4855,11 @@ registerPage({
               },
               onEachFeature: (f, lyr) => {
                 const r = byKey[f.properties.st + "|" + f.properties.key];
-                lyr.bindTooltip(r ? tipOf(r)
+                /* read at hover time: a new-base toggle refreshes byKey (box._restyle) */
+                lyr.bindTooltip(() => { const rr = byKey[f.properties.st + "|" + f.properties.key];
+                  return rr ? tipOf(rr)
                   : '<div class="ap2-tip"><b>' + esc(f.properties.name) + " " + esc(f.properties.st) +
-                    '</b><div class="t">Not in the lead directory</div></div>',
+                    '</b><div class="t">Not in the lead directory</div></div>'; },
                   { sticky: true, className: "ap2-tipwrap", opacity: 1 });
                 /* the fill is flat, so the hover needs its own signal */
                 lyr.on("mouseover", () => lyr.setStyle({ weight: 2.2, color: tok("--ink") || "#22303f" }));
@@ -4871,7 +5198,7 @@ registerPage({
                 const a = zipArea(f.properties.z, lvl);
                 const k = lvl === "Zip" ? f.properties.z : (a ? a["Area Key"] : "z" + f.properties.z);
                 (byKey[k] = byKey[k] || []).push(lyr);
-                lyr.bindTooltip(() => areaTip(a, lvl, f.properties.z), { sticky: true, className: "ap2-tipwrap", opacity: 1 });
+                lyr.bindTooltip(() => areaTip(zipArea(f.properties.z, lvl), lvl, f.properties.z), { sticky: true, className: "ap2-tipwrap", opacity: 1 });
                 lyr.on("mouseover", () => byKey[k].forEach(x => x.setStyle({ weight: 2.2, color: tok("--ink") || "#22303f", opacity: 1 })));
                 lyr.on("mouseout", () => byKey[k].forEach(x => zipLayer && zipLayer.resetStyle(x)));
               } }).addTo(m);
@@ -4910,6 +5237,14 @@ registerPage({
               if (cntyLines && !m.hasLayer(cntyLines)) cntyLines.addTo(m);
               showZips(mapStOf(), refit || zipSt !== mapStOf() || zipLvl !== lvl);
             }
+          };
+          /* a new base toggled: refresh the county rows the fills and sheets read, then restyle */
+          box._restyle = () => {
+            const R2 = countyRowsFor();
+            Object.keys(byKey).forEach(k => delete byKey[k]);
+            R2.forEach(r => { byKey[r.st + "|" + ckey(r.county)] = r; });
+            if (countyLayer && m.hasLayer(countyLayer)) countyLayer.setStyle(countyLayer.options.style);
+            if (zipLayer) zipLayer.setStyle(zipStyle);
           };
           /* the ranked list's click: frame the area and open its sheet */
           box._focusArea = key => {
@@ -5542,7 +5877,7 @@ registerPage({
         const un = host.querySelector("[data-unfocus]"); if (un) un.onclick = ev => { ev.preventDefault(); inputs.focus = ""; setFocus(""); };
       }
       function wire() {
-        wireControls(); wireFocus(); mountCityBar(); repaintCity(); wireWs(); wireMethod(); wireRank(); wireAsks(); wireKw(); wireFormula(); wireWhatIf(); wireXp(); wireMapColor(); enhanceTables(); wireMap();
+        wireControls(); wireFocus(); mountCityBar(); repaintCity(); wireWs(); wireMethod(); wireRank(); wireAsks(); wireKw(); wireFormula(); wireWhatIf(); wireXp(); wireMapColor(); wireNewBases(); enhanceTables(); wireMap();
         // last, because paint() re-runs on every period, seed and focus change and must not drop the reader
         wireTabs(); wirePdf(); showPane(bootTab || inputs.tab, true); bootTab = null;
       }
