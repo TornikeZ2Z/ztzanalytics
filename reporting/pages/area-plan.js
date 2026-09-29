@@ -97,6 +97,20 @@
              "Median Income", "Mover Rate", "Movers Per Year"],
     };
   }
+  if (window.RS && RS.DATASETS && !RS.DATASETS.area_tier) {
+    /* THE FOUR TIERS AT THREE LEVELS (his planning-day ask 2026-09-29): "do the planning on county
+       level ... i may even want to go as down as zip. i need a selector for that", and "i dont see 4
+       tiers". One row per zip, city and county, all counted off the zip -- see curated.py. */
+    RS.DATASETS.area_tier = {
+      table: "mart_area_tier",
+      cols: ["Level", "Area Key", "State", "County", "City", "Zip", "Name", "Zips", "Latitude", "Longitude",
+             "Leads 12m", "Booked 12m", "Jobs 12m", "Booking Rate", "Avg Ticket", "Miles To Base", "Nearest Base",
+             "Foremen Within 60mi", "Data Score", "Data Tier", "Market Score", "Market Tier", "Tier",
+             "Tier Source", "Tier Reason", "Leads To Measure", "Never A Lead", "Population", "Movers Per Year",
+             "Median Income", "Home Value", "Owner Share Pct", "Leads Per 10k Movers",
+             "State Lead Share", "State Job Share"],
+    };
+  }
 })();
 
 (() => {
@@ -445,6 +459,84 @@ body:not(.light) .ap2-mapbox{background:#1d232b}
   background:#fff;color:var(--ink);border-radius:4px;box-shadow:0 1px 4px rgba(0,0,0,.25);display:block;margin-top:6px;text-decoration:none}
 .leaflet-control a.ap2-mapbtn.on{background:var(--ink);color:#fff}
 .ap2-mapbox{cursor:grab} .ap2-mapbox:active{cursor:grabbing}
+/* ---------- THE MAP TAB, FOR THE ROOM (2026-09-29) ------------------------------
+   The plan in four numbers, what to do per crew pool, the map beside its ranked list, and the
+   working in one closed section. ap3- so nothing collides with the ap2- blocks above. */
+.ap3-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:0 0 14px}
+.ap3-kpi{padding:14px 16px;border:1px solid var(--ap-rule);border-radius:var(--ap-r1);background:var(--ap-bay);min-width:0}
+.ap3-kpi b{display:block;font-size:30px;font-weight:800;letter-spacing:-.02em;line-height:1.05;color:var(--ink);font-variant-numeric:tabular-nums}
+.ap3-kpi span{display:block;margin-top:5px;font-size:11.5px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+.ap3-kpi small{display:block;margin-top:2px;font-size:12.5px;color:var(--muted)}
+.ap3-kpi em{font-style:normal;font-weight:800;color:var(--ap-warn-ink)}
+.ap3-todos{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:12px;margin:0 0 18px}
+.ap3-todo{border:1px solid var(--ap-rule);border-radius:var(--ap-r1);background:var(--ap-bay);padding:12px 14px;min-width:0}
+.ap3-todo .h{display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin:0 0 8px;padding-bottom:7px;border-bottom:1px solid var(--ap-rule)}
+.ap3-todo .h b{font-size:16px;color:var(--ink)}
+.ap3-todo .h span{font-size:13px;color:var(--muted);font-weight:700;font-variant-numeric:tabular-nums}
+.ap3-todo ul{list-style:none;margin:0;padding:0;display:grid;gap:7px}
+.ap3-todo li{display:grid;grid-template-columns:76px minmax(0,1fr);gap:8px;font-size:13.5px;line-height:1.4;color:var(--ink)}
+.ap3-todo li i{font-style:normal;font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);padding-top:3px}
+.ap3-todo li.hire b{color:var(--ap-warn-ink)}
+.ap3-todo li.push i{color:var(--ap-pos-ink)} .ap3-todo li.weak i{color:var(--ap-neg-ink)}
+.ap3-todo li small{display:block;color:var(--faint);font-size:11.5px}
+.ap3-todo .more{color:var(--muted);font-size:12px;font-weight:700}
+.ap3-bar{display:flex;align-items:center;flex-wrap:wrap;gap:8px 10px;margin:0 0 10px}
+.ap3-bar label{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin-left:8px}
+.ap3-bar label:first-child{margin-left:0}
+.ap3-seg{display:inline-flex;flex-wrap:wrap;border:1px solid var(--line-2);border-radius:10px;overflow:hidden;background:var(--panel)}
+.ap3-seg button{font:inherit;font-size:12.5px;font-weight:700;padding:6px 11px;border:0;border-right:1px solid var(--line);
+  background:transparent;color:var(--muted);cursor:pointer;min-height:32px}
+.ap3-seg button:last-child{border-right:0}
+.ap3-seg button:hover{color:var(--ink)}
+.ap3-seg button.on{background:var(--brand-glow);color:var(--brand-d);box-shadow:inset 0 -2px 0 var(--brand-d)}
+.ap3-seg button:focus-visible,.ap3-list .r:focus-visible,.ap3-list .tt button:focus-visible{outline:2px solid var(--brand-d);outline-offset:-2px}
+.ap2-mk small.far{display:inline;margin-left:5px;color:var(--faint);font-size:11.5px}
+.ap3-mapgrid{display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:12px;align-items:stretch}
+.ap3-mapgrid .ap2-mapbox{height:min(78vh,860px);min-height:560px}
+.ap3-busy{opacity:.72;transition:opacity .2s}
+.ap3-list{display:flex;flex-direction:column;height:min(78vh,860px);min-height:560px;border:1px solid var(--ap-rule);
+  border-radius:var(--ap-r1);background:var(--ap-bay);overflow:hidden;min-width:0}
+.ap3-list .lh{display:flex;align-items:center;gap:8px;padding:10px 12px 6px}
+.ap3-list .lh b{font-size:14px;color:var(--ink)}
+.ap3-list .lh span{flex:1;color:var(--muted);font-size:12.5px}
+.ap3-list .lh .rs-btn{padding:3px 9px;font-size:11.5px}
+.ap3-list .tt{display:flex;gap:4px;padding:0 10px 8px;flex-wrap:wrap}
+.ap3-list .tt button{font:inherit;font-size:12px;font-weight:700;display:inline-flex;align-items:center;gap:5px;padding:4px 8px;
+  border:1px solid var(--line);border-radius:8px;background:transparent;color:var(--muted);cursor:pointer}
+.ap3-list .tt button i{width:10px;height:10px;border-radius:50%}
+.ap3-list .tt button small{font-size:11px;color:var(--faint);font-weight:600}
+.ap3-list .tt button.on{border-color:var(--brand-d);color:var(--ink);background:var(--brand-glow)}
+.ap3-list .cols,.ap3-list .r{display:grid;grid-template-columns:24px minmax(0,1fr) 56px 50px 76px;gap:6px;align-items:center}
+.ap3-list .cols{padding:6px 12px;border-top:1px solid var(--ap-rule);border-bottom:1px solid var(--ap-rule);font-size:10.5px;
+  font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
+.ap3-list .cols span{text-align:right}
+.ap3-list .cols span:first-child{grid-column:1 / span 2;text-align:left}
+.ap3-list .cols small{display:block;font-size:9.5px;color:var(--faint);font-weight:700}
+.ap3-list .rows{overflow-y:auto;flex:1 1 auto}
+.ap3-list .r{width:100%;font:inherit;text-align:left;padding:7px 12px;border:0;border-bottom:1px solid var(--ap-rule);
+  background:transparent;color:var(--ink);cursor:pointer}
+.ap3-list .r:hover{background:var(--ap-sub)} .ap3-list .r.on{background:var(--brand-glow)}
+.ap3-list .r .tb{font-style:normal;width:22px;height:22px;border-radius:6px;display:grid;place-items:center;font-size:12px;font-weight:800;color:#fff}
+.ap3-list .r .tb.t2,.ap3-list .r .tb.t3,.ap3-list .r .tb.grey{color:#1b2430}
+body.rs-app:not(.light) .ap3-list .r .tb{color:#0a0e14}
+body.rs-app:not(.light) .ap3-list .r .tb.t2{color:#f2f6ea}
+.ap3-list .r .n{min-width:0}
+.ap3-list .r .n b{display:block;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ap3-list .r .n small{display:block;font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ap3-list .r .v{text-align:right;font-size:12.5px;font-variant-numeric:tabular-nums}
+details.ap3-how{margin-top:16px;border:1px solid var(--ap-rule);border-radius:var(--ap-r1);background:var(--ap-bay);padding:0 16px}
+details.ap3-how>summary{cursor:pointer;list-style:none;padding:13px 0;font-weight:800;font-size:14px;color:var(--ink)}
+details.ap3-how>summary::-webkit-details-marker{display:none}
+details.ap3-how>summary::before{content:"▸ ";color:var(--brand-d)}
+details.ap3-how[open]>summary::before{content:"▾ "}
+details.ap3-how>summary small{font-weight:600;color:var(--faint);margin-left:8px;font-size:12px}
+details.ap3-how[open]{padding-bottom:16px}
+.ap3-howcard{margin-top:14px;padding-top:12px;border-top:1px solid var(--ap-rule)}
+.ap3-howcard .ap2-h3{font-weight:800;font-size:15px;color:var(--ink);margin:0 0 4px}
+@media (max-width:1100px){.ap3-mapgrid{grid-template-columns:1fr}.ap3-list{height:520px;min-height:0}
+  .ap3-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:560px){.ap3-kpi b{font-size:24px}.ap3-mapgrid .ap2-mapbox{min-height:420px;height:60vh}
+  .ap3-list .cols,.ap3-list .r{grid-template-columns:22px minmax(0,1fr) 46px 40px 64px}}
 /* the fleet, as chips: a number, what it is, and the one line that qualifies it */
 .ap2-chips3{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 10px}
 .ap2-chips3 .ap2-chip3{display:flex;flex-direction:column;gap:1px;padding:7px 12px;border:1px solid var(--ap-rule);
@@ -1014,8 +1106,13 @@ registerPage({
       RS.load("area_county").catch(() => null),
       RS.load("area_master_season").catch(() => null),
       ZTZ.api("/api/mart_postcard_month?limit=20000").then(j => j.rows || []).catch(() => []),
-    ]).then(([rows, model, cityAll, wsAll, countyRows, cityAllSeason, pcm]) => {
+      RS.load("area_tier").catch(() => null),
+    ]).then(([rows, model, cityAll, wsAll, countyRows, cityAllSeason, pcm, tierRows]) => {
       const PCM = pcm || [];
+      /* the four-tier areas, indexed per level by `Area Key` (zip / "ST|City" / "ST|County") */
+      const AREA = Array.isArray(tierRows) ? tierRows : [];
+      const AREA_IX = { County: {}, City: {}, Zip: {} };
+      AREA.forEach(a => { if (AREA_IX[a.Level]) AREA_IX[a.Level][a["Area Key"]] = a; });
       // FOUR DISTINCT FAILURES, each named -- the old page blamed the mart for a model outage
       if (!rows || !rows.length) {
         host.innerHTML = '<div class="panel">The state plan mart (mart_area_plan) is empty — run ' +
@@ -1224,6 +1321,9 @@ registerPage({
         city: { minLeads: 20, view: "all", q: "", sort: "Revenue", desc: true, page: 0, pageSize: 30 },
         scn: null, scnSaved: null,   // the What-if pane (additive keys: never bump LS_KEY for them)
         mapColor: "tier",            // tier | market | capture -- what the county fill means
+        mapLevel: "County",          // County | City | Zip -- the map's grain (2026-09-29)
+        mapSt: "",                   // "" = every state; City and Zip always draw one state
+        listTier: 0,                 // the ranked list's tier filter, 0 = all
       }, saved);
       /* THE WHAT-IF'S OWN STATE. Every lever starts at "change nothing", so the pane opens showing
          the plan as it stands and every number he then sees is something he moved himself. */
@@ -1237,6 +1337,9 @@ registerPage({
       inputs.scn.picks = Array.isArray(inputs.scn.picks) ? inputs.scn.picks : [];
       inputs.scn.listing = Array.isArray(inputs.scn.listing) ? inputs.scn.listing : [];
       if (["tier", "market", "capture", "spend"].indexOf(inputs.mapColor) < 0) inputs.mapColor = "tier";
+      if (["County", "City", "Zip"].indexOf(inputs.mapLevel) < 0) inputs.mapLevel = "County";
+      if (inputs.mapSt && SERVICE_AREAS.indexOf(inputs.mapSt) < 0) inputs.mapSt = "";
+      if ([0, 1, 2, 3, 4].indexOf(+inputs.listTier) < 0) inputs.listTier = 0;
       inputs.scnSaved = Array.isArray(inputs.scnSaved) ? inputs.scnSaved : [];
       inputs.city = Object.assign({ minLeads: 20, view: "all", q: "", sort: "Revenue", desc: true,
                                     page: 0, pageSize: 30 }, inputs.city || {});
@@ -2017,6 +2120,9 @@ registerPage({
         inputs.tab = key; save();
         try { history.replaceState(null, "", "#page=area-plan&tab=" + key); } catch (e) {}
         if (!quiet) { const sc = host.closest(".rs-content"); if (sc) sc.scrollTop = 0; }
+        /* the dials are for working the plan; the map tab is the one on the screen in the room,
+           and a paragraph of assumptions above it is the first thing the eye landed on (2026-09-29) */
+        const asm = host.querySelector("#apAssume"); if (asm) asm.style.display = key === "map" ? "none" : "";
         /* LEAFLET SIZES ITSELF FROM THE CONTAINER, and a container in a hidden pane is 0x0 —
            the map draws one grey tile, AND fitBounds clamps to maxZoom, until it is told to
            measure again. Both have to be redone, not just the first. */
@@ -2795,14 +2901,44 @@ registerPage({
          single lead: on a targeting map that is white space, the most interesting thing on the
          screen, and it must not wear the same grey as a county we HAVE worked and found too small
          to rate. Virginia is 106 of 124 counties in this state. */
-      const TIER_BAND = t => (t === -1 ? "none" : t === 0 ? "grey" : t <= 2 ? "push" : t === 3 ? "hold" : "fix");
+      /* FOUR TIERS, HIS NAMES (2026-09-29, "i dont see 4 tiers as well - i see only 3"). His Power BI
+         graded 1 Core / 2 Good / 3 Normal / 4 Don't target; the three bands above merged 1+2 and 4+5.
+         mart_area_tier now rates EVERY area (measured on our leads where there are enough, on its
+         market where there are not), so "never sent a lead" is no longer a colour of its own -- it is
+         a hatch laid over the tier its market earns. Tier 0 is only an area with no leads and no
+         Census row at all. */
+      const TIER_BAND = t => (t === -1 ? "none" : t === 0 ? "grey" : t === 1 ? "t1" : t === 2 ? "t2" : t === 3 ? "t3" : "t4");
+      const TIER_NAME = { 1: "Core", 2: "Good", 3: "Normal", 4: "Don't target", 0: "Not rated" };
+      /* Tier 4 for distance alone: over 50 miles from any base, rated on its market */
+      const isFar = a => !!a && +a.Tier === 4 && /^Over 50 mi/.test(String(a["Tier Reason"] || ""));
       /* the county key, character for character what scripts/build_county_geojson.py wrote */
       const ckey = v => String(v == null ? "" : v).toLowerCase().trim()
         .replace(/saint /g, "st ").replace(/st\. /g, "st ")
         .replace(/\b(county|parish|city and borough|borough|census area|municipality)\b/g, "")
         .replace(/[^a-z0-9 ]/g, "").replace(/\s+/g, " ").trim();
-      const TIER_LABEL = { push: "Push", hold: "Hold", fix: "Fix", grey: "Not rated",
-                           none: "Never sent a lead" };
+      const TIER_LABEL = { t1: "Tier 1 · Core", t2: "Tier 2 · Good", t3: "Tier 3 · Normal",
+                           t4: "Tier 4 · Don't target", grey: "Not rated", none: "Never sent a lead" };
+      /* ONE PALETTE for the fills, the legend and the list, read off the portal's own tokens so it
+         follows the theme: deep green, light green, amber, red. Mixed here rather than in CSS because
+         Leaflet writes the fill as an SVG attribute. */
+      const rgbOf = c => { c = String(c || "").trim();
+        let m = c.match(/^#([0-9a-f]{6})$/i);
+        if (m) return [0, 2, 4].map(i => parseInt(m[1].slice(i, i + 2), 16));
+        m = c.match(/^#([0-9a-f]{3})$/i);
+        if (m) return [0, 1, 2].map(i => parseInt(m[1][i] + m[1][i], 16));
+        m = c.match(/rgba?\(([^)]+)\)/i);
+        return m ? m[1].split(",").slice(0, 3).map(x => parseFloat(x)) : [128, 128, 128]; };
+      const mixHex = (a, b, t) => { const A = rgbOf(a), B = rgbOf(b);
+        return "#" + A.map((v, i) => Math.round(v * (1 - t) + B[i] * t).toString(16).padStart(2, "0")).join(""); };
+      function tierColors() {
+        const dark = !document.body.classList.contains("light");
+        const pos = tok("--pos") || "#5f7c20", warn = tok("--warn") || "#b97b0a", neg = tok("--neg") || "#d43d55";
+        return { t1: dark ? mixHex(pos, "#000000", 0.05) : mixHex(pos, "#0b2a10", 0.30),
+                 /* Tier 2 is the SAME green, quieter: paler on white, darker on the dark canvas --
+                    in dark a paler green read brighter than Tier 1, i.e. better */
+                 t2: dark ? mixHex(pos, "#0a0e14", 0.48) : mixHex(pos, "#ffffff", 0.45),
+                 t3: warn, t4: neg, grey: tok("--faint") || "#8a97a6", none: tok("--line") || "#c9d2dc" };
+      }
       /* the company's MEASURED jobs-a-foreman-day, chaining included (see CHAIN below);
          1.24 only as a floor if the model has no chaining block yet */
       function ensureLeaflet(cb) {
@@ -2860,10 +2996,15 @@ registerPage({
           const jpd = chainOf(c.State);      // chaining is local: CT 1.30 vs DE 1.06
           const ceil = num(c["Foremen Within 60mi"]) * jpd;
           const fair = num(c["Capacity Share"]) * planFm * jpd;
+          /* the tier is the four-tier mart's when it has the county; the old five-tier column only
+             as a fallback until mart_area_tier is built (mapped onto four: 5 joins 4) */
+          const a = AREA_IX.County[c.State + "|" + c.County];
+          const t4 = a ? num(a.Tier) : Math.min(4, num(c.Tier));
           return { st: c.State, county: c.County, la: num(c.Latitude), lo: num(c.Longitude),
                    leads: num(c.Leads), leads12: lead12(c), jobs: num(c.Jobs), book: num(c["Booking Rate"]),
-                   mi: num(c["Miles To Base"]), score: c.Score == null ? null : num(c.Score),
-                   tier: num(c.Tier), band: TIER_BAND(num(c.Tier)),
+                   mi: num(c["Miles To Base"]), score: a ? (a["Data Score"] == null ? null : num(a["Data Score"])) : (c.Score == null ? null : num(c.Score)),
+                   tier: t4, band: TIER_BAND(t4), area: a || null,
+                   never: a ? num(a["Never A Lead"]) === 1 : num(c.Tier) === -1,
                    budget: b != null ? b * share : null, share,
                    fm60: num(c["Foremen Within 60mi"]), ceil, fair,
                    uncovered: num(c.Uncovered) === 1,
@@ -3103,7 +3244,8 @@ registerPage({
           '<div class="rs-tablewrap"><table data-name="Census survey by county" class="rs-table"><thead><tr><th>County</th><th>St</th><th class="num">Population</th>' +
           '<th class="num">People moving a year</th><th class="num">Median income</th><th class="num">Own</th><th class="num">Miles to base</th><th>Tier</th>' +
           '<th class="num">Leads<small> ' + CAP_WIN_SHORT + '</small></th><th class="num">Jobs<small> this year</small></th><th class="num">Leads per 10,000 movers<small> ' + CAP_WIN_SHORT + '</small></th></tr></thead><tbody>' +
-          top.map(c => { const b = TIER_BAND(num(c.Tier));
+          top.map(c => { const a4 = AREA_IX.County[c.State + "|" + c.County];
+            const b = TIER_BAND(a4 ? num(a4.Tier) : Math.min(4, num(c.Tier)));
             return "<tr><td><b>" + esc(c.County) + "</b></td><td>" + esc(c.State) + '</td><td class="num">' + fmtN(num(c.Population)) +
               '</td><td class="num"><b>' + fmtN(num(c["Movers Per Year"])) + '</b></td><td class="num">' + (c["Median Income"] != null ? money0(num(c["Median Income"])) : "—") +
               '</td><td class="num">' + (c["Owner Share Pct"] != null ? r1(num(c["Owner Share Pct"])) + "%" : "—") + '</td><td class="num">' + r1(num(c["Miles To Base"])) +
@@ -3159,10 +3301,10 @@ registerPage({
         R.forEach(r => { if (r.budget > 0) { by[r.band] = (by[r.band] || 0) + r.budget; tot += r.budget; } });
         if (!tot) return "";
         const seg = b => by[b] ? '<span class="ap2-mk"><i class="ap2-sw ' + b + '"></i>' + TIER_LABEL[b] + " <b>" + money0(by[b]) + "</b> · " + Math.round(100 * by[b] / tot) + "%</span>" : "";
-        return '<div class="ap2-note" style="margin:2px 0 8px"><b>Where the marketing lands, by tier:</b> ' + ["push", "hold", "fix", "grey"].map(seg).join(" ") +
-          (by.fix ? " — the budget follows <b>leads, not the tier</b>, so red counties still draw money. Most of it cannot be switched off: about 44% of Fix-county leads are " +
+        return '<div class="ap2-note" style="margin:2px 0 8px"><b>Where the marketing lands, by tier:</b> ' + ["t1", "t2", "t3", "t4", "grey"].map(seg).join(" ") +
+          (by.t4 ? " — the budget follows <b>leads, not the tier</b>, so Tier 4 counties still draw money. Most of it cannot be switched off: about 44% of the leads in the weakest counties are " +
                     "pay-per-lead marketplaces (Angi, Thumbtack) that bill wherever the lead appears. <b>Roughly a third of the red share is steerable</b>, and it is worth steering — " +
-                    "a Fix lead returned $176 against $418 in Push <small style=\"display:inline\">(measured 21 Sep 2026)</small>." : "") + "</div>";
+                    "a lead in the weakest counties returned $176 against $418 in the strongest <small style=\"display:inline\">(measured 21 Sep 2026)</small>." : "") + "</div>";
       }
 
       /* ===================== THE WHAT-IF =====================
@@ -3916,123 +4058,224 @@ registerPage({
           save(); repaintScn(); }; });
       }
 
-      function mapHtml() {
-        if (!COUNTY.length) return '<div class="panel">The county mart (mart_area_county) is not ' +
-          'built yet — run <b>sources=mart_area_county</b> and reload.</div>';
-        const R = countyRowsFor();
-        const byBand = {}; R.forEach(r => { byBand[r.band] = (byBand[r.band] || 0) + 1; });
-        const unc = R.filter(r => r.uncovered);
-        const MODES = [["tier", "Worth chasing", "his tier model"],
-                       ["market", "Market size", "people who move a year"],
-                       ["capture", "Our capture", "leads per 10,000 movers"],
-                       ["spend", "Marketing spend", "where the money lands"]];
-        const modeBar = '<div class="ap2-modes"><span class="l">Colour the counties by</span>' +
-          MODES.map(([k, l, sub]) => '<button type="button" class="ap2-mbtn' + (inputs.mapColor === k ? " on" : "") +
-            '" data-mapcolor="' + k + '">' + esc(l) + "<small>" + esc(sub) + "</small></button>").join("") + "</div>";
-        /* the legend has to say what the colour MEANS, so it is rebuilt per mode: the tier bands
-           when the map is tiers, and a low-to-high ramp with its real end values otherwise */
-        const withMovers = R.filter(r => r.movers > 0 && r.leads12 > 0);
-        const rampKey = (label, get, unit) => {
-          if (!withMovers.length) return "";
-          const v = withMovers.map(get).filter(x => x > 0).sort((a, b) => a - b);
-          if (!v.length) return "";
-          const lo = v[0], hi = v[v.length - 1];
-          const hue = inputs.mapColor === "market" ? (tok("--ink") || "#22303f") : (tok("--pos") || "#5f7c20");
-          return '<span class="ap2-mk">' + esc(label) + "&nbsp;" +
-            [.14, .28, .44, .62, .82].map(o => '<i class="ap2-rampsw" style="background:' + hue + ';opacity:' + o + '"></i>').join("") +
-            "&nbsp;<b>" + unit(lo) + "</b> to <b>" + unit(hi) + "</b></span>";
-        };
-        /* a size legend for a size encoding: three real counties, at their real radii */
-        const sizeKey = () => {
-          const v = R.filter(x => x.movers > 0).map(x => x.movers).sort((a, b) => b - a);
-          if (!v.length) return "";
-          const mx = v[0], picks = [mx, v[Math.floor(v.length * 0.25)], v[Math.floor(v.length * 0.75)]];
-          const rad = q => 4 + 26 * Math.sqrt(q / mx);
-          return '<span class="ap2-mk">People who move a year&nbsp;' + picks.map(q =>
-            '<i class="ap2-bub" style="width:' + (2 * rad(q)).toFixed(0) + "px;height:" + (2 * rad(q)).toFixed(0) +
-            'px"></i><b>' + fmtN(q) + "</b>").join("&nbsp;&nbsp;") + "</span>";
-        };
-        /* size for the money, colour for the judgement -- the legend has to carry both */
-        const spendKey = () => {
-          const v = R.filter(x => x.budget > 0).map(x => x.budget).sort((a, b) => b - a);
-          if (!v.length) return "";
-          const mx = v[0], picks = [mx, v[Math.floor(v.length * 0.25)], v[Math.floor(v.length * 0.75)]];
-          const rad = q => 4 + 26 * Math.sqrt(q / mx);
-          return '<span class="ap2-mk">Marketing for the season&nbsp;' + picks.map(q =>
-            '<i class="ap2-bub spend" style="width:' + (2 * rad(q)).toFixed(0) + "px;height:" + (2 * rad(q)).toFixed(0) +
-            'px"></i><b>' + money0(q) + "</b>").join("&nbsp;&nbsp;") + "</span>" +
-            '<span class="ap2-mk">on&nbsp;' + ["push", "hold", "fix", "grey"].map(b =>
-              '<i class="ap2-sw ' + b + '"></i>' + TIER_LABEL[b]).join("&nbsp;") + "</span>";
-        };
-        const key = inputs.mapColor === "tier"
-          ? ["push", "hold", "fix", "grey", "none"].map(b =>
-              '<span class="ap2-mk"><i class="ap2-sw ' + b + '"></i>' + TIER_LABEL[b] +
-              ' <b>' + (byBand[b] || 0) + '</b></span>').join("")
-          : inputs.mapColor === "spend"
-            ? spendKey()
-          : inputs.mapColor === "market"
-            ? sizeKey() + '<span class="ap2-mk"><i class="ap2-bub faint"></i>no lead from here yet <b>' + (byBand.none || 0) + "</b></span>"
-            : rampKey("Leads per 10,000 movers (" + CAP_WIN_SHORT + ")", r => 10000 * r.leads12 / r.movers, v => r1(v)) +
-              '<span class="ap2-mk"><i class="ap2-sw none"></i>' + TIER_LABEL.none + ' <b>' + (byBand.none || 0) + "</b></span>";
+      /* ===================== THE MAP TAB, BUILT FOR THE ROOM (2026-09-29) =====================
+         His planning-day review: "i need better vision of what needs to be done and what is our
+         plan. we have shit tons of text here and its not presentable". The design critique the same
+         day found ~8,000 characters of prose above and below the map and no statement of the plan
+         anywhere on the tab. So the tab now reads top to bottom as a slide:
+           1. the plan in four numbers
+           2. what to do, one card per crew pool (hire, marketing, where to push, what is weak)
+           3. the map, at the grain he picks -- County, City or Zip -- beside a ranked list of the
+              same areas, so every colour on the map has a row he can point at
+           4. everything that explains HOW, in one collapsed section at the bottom.
+         Every number in 1 and 2 is nextCalc()'s, the same call the plan tab prints, so the two can
+         never disagree. */
+      const LEVELS = [["County", "County"], ["City", "City"], ["Zip", "Zip code"]];
+      /* City and Zip draw one state at a time: the eight states' zip shapes are 9 MB, the four
+         biggest over 2 MB each, and nobody plans eight states at zip grain at once */
+      const mapStOf = () => inputs.mapLevel === "County" ? inputs.mapSt : (inputs.mapSt || "NJ");
+
+      function planStripHtml(N) {
+        if (!N) return "";
+        const tile = (v, k, sub) => '<div class="ap3-kpi"><b>' + v + "</b><span>" + k + "</span><small>" + sub + "</small></div>";
+        return '<div class="ap3-kpis">' +
+          tile(fmtN(N.tot.jobs), "Jobs forecast", "Season " + esc(String(FC.year))) +
+          tile(fmtN(N.tot.peak), "Foremen at peak", fmtN(N.tot.have) + " today · " +
+               (N.tot.hire ? "<em>hire +" + fmtN(N.tot.hire) + "</em>" : "covered")) +
+          tile(fmtN(N.sales.peak), "Salespeople at peak",
+               esc(String(N.sales.peakWhen || "").split(" ")[0]) + " · " + fmtN(N.sales.lpr) + " leads each") +
+          tile(money0(N.tot.mkt), "Marketing", fmtN(N.tot.leads) + " leads · post cards inside") +
+          "</div>";
+      }
+
+      /* the county names a pool should push, and the weak ones that still carry real leads */
+      function poolAreas(states) {
+        const cty = AREA.filter(a => a.Level === "County" && states.includes(a.State) && num(a["Leads 12m"]) > 0);
+        const by = t => cty.filter(a => num(a.Tier) === t).sort((x, y) => num(y["Leads 12m"]) - num(x["Leads 12m"]));
+        return { t1: by(1), t2: by(2),
+                 weak: by(4).filter(a => num(a["Leads 12m"]) >= 30 && num(a["Miles To Base"]) <= 50) };
+      }
+      function todoHtml(N) {
+        if (!N) return "";
+        const names = (xs, n, multi) => xs.slice(0, n).map(a => esc(a.County) + (multi ? " " + esc(a.State) : "")).join(", ") +
+          (xs.length > n ? ' <span class="more">+' + (xs.length - n) + "</span>" : "");
+        const cards = N.pools.filter(q => (q.states || []).length).map(q => {
+          const rs = N.rows.filter(r => q.states.includes(r.st));
+          const jobs = rs.reduce((a, r) => a + (r.jobs || 0), 0);
+          if (!jobs) return "";
+          const leads = rs.reduce((a, r) => a + (r.leads || 0), 0);
+          const mkt = rs.reduce((a, r) => a + (r.leads || 0) * (N.mkt.cplOf(r.st) || 0), 0);
+          const P = poolAreas(q.states), multi = q.states.length > 1;
+          const act = (cls, k, v) => '<li class="' + cls + '"><i>' + k + "</i><span>" + v + "</span></li>";
+          return '<div class="ap3-todo">' +
+            '<div class="h"><b>' + esc(q.label) + '</b><span>' + fmtN(jobs) + " jobs</span></div><ul>" +
+            act(q.hire ? "hire" : "ok", "Crew", q.hire
+              ? "<b>Hire " + fmtN(q.hire) + "</b> foremen · " + fmtN(q.peak) + " at peak, " + fmtN(q.have) + " today"
+              : "Covered · " + fmtN(q.peak) + " at peak, " + fmtN(q.have) + " today") +
+            act("mkt", "Marketing", "<b>" + money0(mkt) + "</b> for " + fmtN(leads) + " leads") +
+            (P.t1.length ? act("push", "Push", names(P.t1, 3, multi))
+                         : P.t2.length ? act("push", "Grow", names(P.t2, 3, multi)) : "") +
+            (P.weak.length ? act("weak", "Weak", names(P.weak, 2, multi) + " <small>Tier 4 with real leads</small>") : "") +
+            "</ul></div>";
+        }).join("");
+        return cards ? '<div class="ap3-todos">' + cards + "</div>" : "";
+      }
+
+      /* one row per area at the chosen level: the mart row plus this plan's money and jobs. A
+         state's budget and jobs are split by the area's share of the state's leads and jobs in the
+         last 12 months -- the same rule the county tooltip always used. */
+      function areaRows(N, level, st) {
+        const stB = {}, stJ = {};
+        if (N) N.rows.forEach(r => { const c = N.mkt.cplOf(r.st); stB[r.st] = c != null ? r.leads * c : null; stJ[r.st] = r.jobs; });
+        return AREA.filter(a => a.Level === level && SERVICE_AREAS.includes(a.State) && (!st || a.State === st)).map(a => ({
+          a, key: a["Area Key"], st: a.State, name: a.Name || a["Area Key"], tier: num(a.Tier), band: TIER_BAND(num(a.Tier)),
+          never: num(a["Never A Lead"]) === 1, leads: num(a["Leads 12m"]), jobs: num(a["Jobs 12m"]),
+          share: num(a["State Lead Share"]),
+          budget: stB[a.State] != null ? stB[a.State] * num(a["State Lead Share"]) : null,
+          planJobs: stJ[a.State] != null ? stJ[a.State] * num(a["State Job Share"]) : null }));
+      }
+
+      function mapBarHtml() {
+        const lvl = inputs.mapLevel, st = mapStOf();
+        const seg = (attr, items, on) => '<div class="ap3-seg">' + items.map(([k, l]) =>
+          '<button type="button" data-' + attr + '="' + esc(k) + '" class="' + (k === on ? "on" : "") + '">' + esc(l) + "</button>").join("") + "</div>";
+        const states = (lvl === "County" ? [["", "All states"]] : []).concat(SERVICE_AREAS.map(s => [s, s]));
+        const MODES = [["tier", "Tier"], ["market", "Market size"], ["capture", "Our capture"], ["spend", "Marketing"]];
+        return '<div class="ap3-bar">' +
+          '<label>Level</label>' + seg("maplevel", LEVELS, lvl) +
+          '<label>State</label>' + seg("mapst", states, st) +
+          (lvl === "County" ? '<label>Colour</label>' + seg("mapcolor", MODES, inputs.mapColor) : "") +
+          "</div>";
+      }
+
+      function tierKeyHtml(rows) {
+        const TC = tierColors();
+        const cnt = {}; rows.forEach(r => { cnt[r.band] = (cnt[r.band] || 0) + 1; });
+        const far = rows.filter(r => isFar(r.a)).length;
+        const never = rows.filter(r => r.never && !isFar(r.a)).length;
+        return ["t1", "t2", "t3", "t4"].map(b => '<span class="ap2-mk"><i class="ap2-sw" style="background:' + TC[b] + '"></i>' +
+            TIER_LABEL[b] + " <b>" + fmtN((cnt[b] || 0) - (b === "t4" ? far : 0)) + "</b></span>").join("") +
+          (far ? '<span class="ap2-mk"><i class="ap2-sw" style="background:' + TC.t4 + ';opacity:.28"></i>Tier 4, over 50 mi from any base <b>' + fmtN(far) + "</b></span>" : "") +
+          (cnt.grey ? '<span class="ap2-mk"><i class="ap2-sw grey"></i>Not rated <b>' + fmtN(cnt.grey) + "</b></span>" : "") +
+          (never ? '<span class="ap2-mk"><i class="ap2-sw none"></i>Hatched: never sent us a lead, rated on its market <b>' + fmtN(never) + "</b></span>" : "");
+      }
+
+      function mapKeyHtml(N) {
+        const lvl = inputs.mapLevel;
         const B = basesFor();
-        /* THE SENTENCE FOLLOWS THE COLOUR. With three ways to paint the counties, a fixed
-           paragraph about tiers would describe a map that is not on the screen. */
-        const SAYS = {
-          tier: 'Every county in the eight states, filled by how well it is worth chasing \u2014 ' +
-                '<b>green push</b>, <b>amber hold</b>, <b>red fix</b>, <b>grey</b> too small to judge, ' +
-                'and <b>hatched</b> for the ones that have never sent us a single lead. ',
-          market: 'A circle on every county, its <b>area</b> proportional to <b>how many people move house ' +
-                'there each year</b> \u2014 the size of the prize, before any question of whether we win it. ' +
-                'The faint circles are markets we have <b>never sold a single job in</b>. Counts are drawn as ' +
-                'circles and not as shading on purpose: shading a county by a count makes a big empty one ' +
-                'shout and a small dense one whisper. ',
-          spend: 'A circle on every county that draws marketing, its <b>area</b> proportional to the ' +
-                '<b>money</b> and its <b>colour</b> the tier we rated it. A fat red circle is spend going ' +
-                'into a county the model rates badly \u2014 which happens because the budget is a county\u2019s ' +
-                'share of its state\u2019s <b>leads</b>, and follows demand, never the tier. About 44% of what ' +
-                'lands on red is pay-per-lead that bills wherever the lead appears, so roughly a third of it is ' +
-                'the part anyone could actually move. ',
-          capture: 'Every county filled by <b>how many of its movers become one of our leads</b>. This is ' +
-                'the argument in one picture: New Jersey is dark, Maryland and Virginia are almost white, ' +
-                'and no yard changes that \u2014 reviews, referrals and ad density do. ',
-        };
-        return '<div class="ap2-say" style="margin:0 0 10px">' +
-            "<b>What this shows.</b> " + SAYS[inputs.mapColor] +
-            '<b>The flags are the bases.</b> Solid squares are the ' + fmtN(B.have.length) +
-            ' we have. <b>Dashed circles open new ground</b> — ranked on the movers a year they bring ' +
-            'into range that no existing base can reach. <b>Movers are the size of a market, not demand we capture</b>: ' +
-            'we draw ' + (capSay() || "far fewer leads per 10,000 movers away from home") + ', so a flag there is a ' +
-            'question about marketing before it is one about trucks — ' + go("apSurvey", "the Census survey") + ' has the numbers. <b>Hover a flag</b> for the ' + B.work +
-            ' miles it works, and click to pin that circle while you read the counties underneath.</div>' +
+        let key;
+        if (lvl !== "County" || inputs.mapColor === "tier") {
+          key = tierKeyHtml(areaRows(N, lvl, mapStOf()));
+        } else {
+          const R = countyRowsFor();
+          const withMovers = R.filter(r => r.movers > 0 && r.leads12 > 0);
+          const bubbles = (label, vals, fmt, cls) => { const v = vals.filter(x => x > 0).sort((a, b) => b - a);
+            if (!v.length) return ""; const mx = v[0], picks = [mx, v[Math.floor(v.length * 0.25)], v[Math.floor(v.length * 0.75)]];
+            const rad = q => 4 + 26 * Math.sqrt(q / mx);
+            return '<span class="ap2-mk">' + label + "&nbsp;" + picks.map(q => '<i class="ap2-bub' + (cls || "") + '" style="width:' +
+              (2 * rad(q)).toFixed(0) + "px;height:" + (2 * rad(q)).toFixed(0) + 'px"></i><b>' + fmt(q) + "</b>").join("&nbsp;&nbsp;") + "</span>"; };
+          if (inputs.mapColor === "market") key = bubbles("People who move a year", R.map(r => r.movers), fmtN);
+          else if (inputs.mapColor === "spend") key = bubbles("Marketing for the season", R.map(r => r.budget || 0), money0, " spend") +
+            '<span class="ap2-mk">coloured by tier</span>';
+          else { const v = withMovers.map(r => 10000 * r.leads12 / r.movers).sort((a, b) => a - b);
+            key = v.length ? '<span class="ap2-mk">Leads per 10,000 movers (' + CAP_WIN_SHORT + ")&nbsp;" +
+              [.14, .28, .44, .62, .82].map(o => '<i class="ap2-rampsw" style="background:' + (tok("--pos") || "#5f7c20") + ";opacity:" + o + '"></i>').join("") +
+              "&nbsp;<b>" + r1(v[0]) + "</b> to <b>" + r1(v[v.length - 1]) + "</b></span>" : ""; }
+        }
+        return '<div class="ap2-mapkey" id="apMapKey">' + key +
+          '<span class="ap2-mk"><i class="ap2-sw have"></i>base we have <b>' + fmtN(B.have.length) + "</b></span>" +
+          '<span class="ap2-mk"><i class="ap2-sw cover"></i>could open new ground <b>' + fmtN((B.coverage || []).length) + "</b></span>" +
+          "</div>";
+      }
+
+      function areaListHtml(N) {
+        const lvl = inputs.mapLevel, st = mapStOf();
+        const R = areaRows(N, lvl, st);
+        if (!R.length) return '<div class="ap2-note">No ' + esc(lvl.toLowerCase()) + " rows yet — the tier mart (mart_area_tier) builds with the next refresh.</div>";
+        const TC = tierColors();
+        const cnt = { 0: R.length }; R.forEach(r => { if (r.tier > 0) cnt[r.tier] = (cnt[r.tier] || 0) + 1; });
+        const tf = +inputs.listTier || 0;
+        const shown = R.filter(r => !tf || r.tier === tf)
+          .sort((x, y) => ((x.tier || 9) - (y.tier || 9)) || (y.leads - x.leads) || String(x.name).localeCompare(String(y.name)));
+        const CAP = 250;
+        const tabs = [0, 1, 2, 3, 4].map(t => '<button type="button" data-listtier="' + t + '" class="' + (t === tf ? "on" : "") + '">' +
+          (t ? '<i style="background:' + TC["t" + t] + '"></i>' + t : "All") + "<small>" + fmtN(cnt[t] || 0) + "</small></button>").join("");
+        const place = r => lvl === "County" ? r.st : esc(r.a.County || "") + " County";
+        return '<div class="ap3-list">' +
+          '<div class="lh"><b>' + fmtN(R.length) + " " + (lvl === "Zip" ? "zip codes" : lvl === "City" ? "cities" : "counties") +
+            "</b><span>" + (st ? esc(st) : "8 states") + '</span><button type="button" class="rs-btn" id="apAreaCsv">CSV</button></div>' +
+          '<div class="tt">' + tabs + "</div>" +
+          '<div class="cols"><span>Area</span><span>Leads<small>12 mo</small></span><span>Jobs<small>plan</small></span><span>Marketing<small>plan</small></span></div>' +
+          '<div class="rows">' + shown.slice(0, CAP).map(r =>
+            '<button type="button" class="r" data-area="' + esc(r.key) + '" title="' + esc(String(r.a["Tier Reason"] || "")) + '">' +
+              '<i class="tb ' + r.band + '" style="background:' + (TC[r.band] || TC.grey) + '">' + (r.tier || "–") + "</i>" +
+              '<span class="n"><b>' + esc(r.name) + "</b><small>" + place(r) + (r.never ? " · no lead yet" : "") + "</small></span>" +
+              '<span class="v">' + (r.leads ? fmtN(r.leads) : "—") + "</span>" +
+              '<span class="v">' + (r.planJobs >= 0.5 ? fmtN(r.planJobs) : "—") + "</span>" +
+              '<span class="v">' + (r.budget >= 1 ? money0(r.budget) : "—") + "</span></button>").join("") +
+            (shown.length > CAP ? '<div class="ap2-note" style="padding:8px 10px">The first ' + CAP + " of " + fmtN(shown.length) + " — the CSV has them all.</div>" : "") +
+          "</div></div>";
+      }
+
+      function areaCsv(N) {
+        const lvl = inputs.mapLevel, st = mapStOf();
+        const R = areaRows(N, lvl, st).filter(r => !+inputs.listTier || r.tier === +inputs.listTier);
+        const cols = ["Level", "State", "County", "City", "Zip", "Name", "Tier", "Tier Source", "Tier Reason", "Leads 12m", "Booked 12m",
+                      "Jobs 12m", "Booking Rate", "Avg Ticket", "Miles To Base", "Nearest Base", "Foremen Within 60mi", "Data Score",
+                      "Market Score", "Population", "Movers Per Year", "Median Income", "Home Value", "Owner Share Pct"];
+        const q = v => { const s = v == null ? "" : String(v); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+        const lines = [cols.concat(["Tier Name", "Plan Jobs", "Plan Marketing"]).join(",")].concat(R.map(r =>
+          cols.map(c => q(r.a[c])).concat([q(TIER_NAME[r.tier]), q(r.planJobs != null ? Math.round(r.planJobs * 10) / 10 : ""),
+                                          q(r.budget != null ? Math.round(r.budget) : "")]).join(",")));
+        const blob = new Blob([lines.join("\n")], { type: "text/csv" });
+        const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
+        a.download = "seasonal-plan-" + lvl.toLowerCase() + "s" + (st ? "-" + st : "") + ".csv";
+        document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500);
+      }
+
+      /* EVERYTHING THAT EXPLAINS, IN ONE PLACE, SHUT (his call 2026-09-29: "move all text into one
+         collapsed section"). Nothing below was deleted -- the argument about capture, where the
+         marketing lands, the fleet, the Census survey -- it is one click away instead of in the way. */
+      function howHtml() {
+        const R = countyRowsFor();
+        const unc = R.filter(r => r.uncovered);
+        const B = basesFor();
+        return '<details class="ap3-how" id="apHow"><summary>How this is calculated<small>the tiers, the budget split, the bases, the fleet and the Census survey</small></summary>' +
+          '<div class="ap2-say" style="margin:10px 0">' +
+            "<b>The tier.</b> His Power BI's four grades: <b>1 Core, 2 Good, 3 Normal, 4 Don't target</b>. " +
+            "An area with enough leads to measure (a county 30, a city 20, a zip 15, over the last 12 months) is scored on " +
+            "distance to a base, booking rate, average ticket and cubic feet. Tier 1 more than 50 miles from a base drops to Tier 2. " +
+            "An area with too few leads is rated on its <b>market</b> instead, which stands in for last year's hand survey: " +
+            "median income, home value and home ownership against the other areas, and anything over 50 miles from a base is Tier 4. " +
+            "Measured beats estimated, so the market grade only speaks where our own numbers cannot. " +
+            "Hover any area for the reason it got its tier.</div>" +
+          '<div class="ap2-say" style="margin:0 0 10px"><b>The money and the jobs per area.</b> Each state\'s planned marketing and jobs, ' +
+            "split by the area's share of the state's leads and jobs over the last 12 months. No ad dollar carries geography, so this is a " +
+            "planned share, never measured spend. <b>The flags</b> are the bases: solid for the " + fmtN(B.have.length) + " we have, dashed for ground a new base " +
+            "would open. Hover a flag for the " + B.work + " miles it works; click to pin it. " +
+            (unc.length ? fmtN(unc.length) + " counties with jobs have no foreman within 60 miles. " : "") +
+            (MAP_OUTSIDE && MAP_OUTSIDE.counties ? fmtN(MAP_OUTSIDE.counties) + " counties outside the eight states (" + fmtN(MAP_OUTSIDE.leads) +
+              " leads, nearly all long-distance pickups) are left off the map. " : "") + "</div>" +
           '<div id="apChips">' + fleetChips() + "</div>" +
           headlineStrip(R) +
-          modeBar +
           budgetByBand(R) +
-          '<div class="ap2-mapkey">' + key +
-          '<span class="ap2-mk"><i class="ap2-sw unc"></i>no crew within 60 mi <b>' + unc.length + "</b></span>" +
-          '<span class="ap2-mk"><i class="ap2-sw have"></i>base we have <b>' + fmtN(B.have.length) + "</b></span>" +
-          (() => { const cov = B.coverage || [];
-            const dec = ((model.expansion || {}).steps || []).map(x => x.base);
-            /* the frame opens on the ground we work and the two yards we chose, so the Virginia
-               picks sit south of it. Saying so is better than a legend that counts five flags
-               when three are on the screen. */
-            const off = cov.filter(c => dec.indexOf(c.label) < 0 && /VA$/.test(c.label));
-            return '<span class="ap2-mk"><i class="ap2-sw cover"></i>opens new ground <b>' + fmtN(cov.length) + "</b>" +
-              (off.length ? '<small style="color:var(--faint);margin-left:5px">' + off.length +
-                " in Virginia, south of this frame \u2014 zoom out</small>" : "") + "</span>"; })() +
-          '<span class="sp"></span><span class="ap2-note" style="margin:0">scroll to zoom · drag to pan · &#10227; resets</span></div>' +
-          '<div id="apMapBox" class="ap2-mapbox"></div>' +
-          note("Colour is the county's tier, scored on distance to a base, booking rate, ticket and cubic feet — " +
-               "his Power BI model, rebuilt on county totals. A county under 30 leads is <b>not rated</b> rather than " +
-               "called bad, and one that has <b>never sent a lead</b> is left almost blank rather than coloured at all — " +
-               "that is the white space, not a bad score. Click a county to focus the page on its state. " +
-               "The dashed <b>no crew within 60 mi</b> ring is drawn off <b>" + esc(SIS.plan_company || "Zip to Zip") +
-               "</b>'s register: Delaware rings empty although Tuji works it, because Tuji's crews are not ours to send. " +
-               (MAP_OUTSIDE && MAP_OUTSIDE.counties
-                 ? "<b>" + fmtN(MAP_OUTSIDE.counties) + "</b> further counties outside the eight states (" +
-                   fmtN(MAP_OUTSIDE.leads) + " leads, nearly all long-distance pickups) are in the data and left off this map. "
-                 : "") +
-               go("apMethod", "How this is calculated"));
+          '<div class="ap3-howcard"><div class="ap2-h3">The Census survey</div>' +
+            '<div class="ap2-note" style="margin:0 0 8px">How many people move there at all — and how many of them we reach.</div>' +
+            '<div id="apSurvey">' + surveyHtml() + "</div></div>" +
+          "</details>";
+      }
+
+      function mapHtml() {
+        if (!COUNTY.length && !AREA.length) return '<div class="panel">The county marts (mart_area_county, mart_area_tier) are not ' +
+          'built yet — run <b>sources=mart_area_county</b> and reload.</div>';
+        const N = FC.year ? nextCalc() : null;
+        return planStripHtml(N) +
+          todoHtml(N) +
+          '<div id="apMapBar">' + mapBarHtml() + "</div>" +
+          '<div id="apMapKeyWrap">' + mapKeyHtml(N) + "</div>" +
+          '<div class="ap3-mapgrid"><div id="apMapBox" class="ap2-mapbox"></div>' +
+            '<div id="apAreaList">' + areaListHtml(N) + "</div></div>" +
+          howHtml();
       }
 
       /* Size and frame the map against the container it actually has. Safe to call at any time:
@@ -4060,29 +4303,48 @@ registerPage({
            after that it pans and zooms anywhere, and the reset control brings it home. */
       }
 
+      /* THE MAP'S CONTROLS (2026-09-29). Level, state and colour only ever restyle or swap LAYERS --
+         the Leaflet map is built once, so his pan, zoom and any pinned ring survive every click. The
+         bar, the legend and the list are small and simply re-rendered. */
+      function repaintMapChrome() {
+        const N = FC.year ? nextCalc() : null;
+        const bar = host.querySelector("#apMapBar"); if (bar) bar.innerHTML = mapBarHtml();
+        const key = host.querySelector("#apMapKeyWrap"); if (key) key.innerHTML = mapKeyHtml(N);
+        const ls = host.querySelector("#apAreaList"); if (ls) ls.innerHTML = areaListHtml(N);
+        wireMapColor();
+      }
       function wireMapColor() {
-        host.querySelectorAll("[data-mapcolor]").forEach(b => { b.onclick = () => {
+        const box = host.querySelector("#apMapBox");
+        host.querySelectorAll("#apMapBar [data-mapcolor]").forEach(b => { b.onclick = () => {
           if (inputs.mapColor === b.dataset.mapcolor) return;
           inputs.mapColor = b.dataset.mapcolor; save();
-          const box = host.querySelector("#apMapBox");
           /* restyle in place: rebuilding the map would lose his pan, his zoom and any pinned ring */
-          if (box && box._geo) box._geo.setStyle(box._geo.options.style);
-          if (box && box._map) {
-            [["market", box._mkt], ["spend", box._spend]].forEach(([mode, lyr]) => {
-              if (!lyr) return;
-              if (inputs.mapColor === mode) lyr.addTo(box._map); else box._map.removeLayer(lyr);
-            });
-          }
-          host.querySelectorAll("[data-mapcolor]").forEach(x => x.classList.toggle("on", x.dataset.mapcolor === inputs.mapColor));
-          const mh = host.querySelector("#apMap");
-          if (mh) { const sc = mh.scrollTop; const keep = box; mh.querySelectorAll(".ap2-say,.ap2-mapkey").forEach(n => n.remove());
-            const tmp = document.createElement("div"); tmp.innerHTML = mapHtml();
-            const say = tmp.querySelector(".ap2-say"), lk = tmp.querySelector(".ap2-mapkey");
-            if (say) keep.parentNode.insertBefore(say, keep.parentNode.firstChild);
-            if (lk) keep.parentNode.insertBefore(lk, keep);
-            mh.scrollTop = sc; }
+          if (box && box._applyLevel) box._applyLevel(false);
+          repaintMapChrome();
+        }; });
+        host.querySelectorAll("#apMapBar [data-maplevel]").forEach(b => { b.onclick = () => {
+          if (inputs.mapLevel === b.dataset.maplevel) return;
+          inputs.mapLevel = b.dataset.maplevel; inputs.listTier = 0; save();
+          repaintMapChrome();
+          if (box && box._applyLevel) box._applyLevel(true);
+        }; });
+        host.querySelectorAll("#apMapBar [data-mapst]").forEach(b => { b.onclick = () => {
+          if (mapStOf() === b.dataset.mapst) return;
+          inputs.mapSt = b.dataset.mapst; save();
+          repaintMapChrome();
+          if (box && box._applyLevel) box._applyLevel(true);
+        }; });
+        host.querySelectorAll("#apAreaList [data-listtier]").forEach(b => { b.onclick = () => {
+          inputs.listTier = +b.dataset.listtier; save();
+          const ls = host.querySelector("#apAreaList"); if (ls) ls.innerHTML = areaListHtml(FC.year ? nextCalc() : null);
           wireMapColor();
         }; });
+        host.querySelectorAll("#apAreaList [data-area]").forEach(b => { b.onclick = () => {
+          host.querySelectorAll("#apAreaList .r.on").forEach(x => x.classList.remove("on"));
+          b.classList.add("on");
+          if (box && box._focusArea) box._focusArea(b.dataset.area);
+        }; });
+        const csv = host.querySelector("#apAreaCsv"); if (csv) csv.onclick = () => areaCsv(FC.year ? nextCalc() : null);
       }
 
       function wireMap() {
@@ -4125,9 +4387,10 @@ registerPage({
           labelPane.style.zIndex = 460; labelPane.style.pointerEvents = "none";   // above the fills, under markers and tooltips
           L.tileLayer(ESRI + "Reference/MapServer/tile/{z}/{y}/{x}",
                       { maxZoom: 14, pane: "apLabels", opacity: darkMap ? .75 : .9 }).addTo(m);
-          const col = { push: tok("--pos") || "#5f7c20", hold: tok("--warn") || "#b97b0a",
-                        fix: tok("--neg") || "#d43d55", grey: tok("--faint") || "#8a97a6",
-                        none: tok("--line") || "#c9d2dc" };
+          /* the four tiers' palette (tierColors), plus the two old names the rings and the
+             no-crew outline still use: push = Tier 1's green, fix = Tier 4's red */
+          const TC4 = tierColors();
+          const col = Object.assign({}, TC4, { push: TC4.t1, hold: TC4.t3, fix: TC4.t4 });
           const MID = "·", EM = "—";   // the tooltips read as sentences; these are their punctuation
           /* the legend's hatch, as an SVG pattern inside Leaflet's own overlay <svg> */
           const HATCH = "ap2Hatch" + (darkMap ? "D" : "L");
@@ -4145,8 +4408,28 @@ registerPage({
             const ln = document.createElementNS(NS, "line");
             ln.setAttribute("x1", "0"); ln.setAttribute("y1", "0"); ln.setAttribute("x2", "0"); ln.setAttribute("y2", "7");
             ln.setAttribute("stroke", col.none); ln.setAttribute("stroke-width", "2"); ln.setAttribute("stroke-opacity", ".85");
-            pat.appendChild(bg); pat.appendChild(ln); defs.appendChild(pat); svg.insertBefore(defs, svg.firstChild);
+            pat.appendChild(bg); pat.appendChild(ln); defs.appendChild(pat);
+            /* NEVER SENT A LEAD, BUT RATED (2026-09-29): the market grade still colours it, so the
+               hatch is drawn IN the tier's colour -- "Tier 1 market, no lead yet" is the white space
+               worth chasing, and it must not look like "Tier 4 market, no lead yet" */
+            ["t1", "t2", "t3", "t4"].forEach(b => {
+              const p2 = pat.cloneNode(true); p2.setAttribute("id", HATCH + b);
+              p2.querySelector("line").setAttribute("stroke", col[b]);
+              p2.querySelector("line").setAttribute("stroke-width", "2.6");
+              p2.querySelector("line").setAttribute("stroke-opacity", ".95");
+              defs.appendChild(p2); });
+            svg.insertBefore(defs, svg.firstChild);
           }
+          /* FAR IS QUIET (2026-09-29, first render): 258 of 322 counties are Tier 4 only because they
+             sit over 50 miles from any base, and at full strength they turned the map into a sheet of
+             red that buried the forty areas the plan is actually about. They keep Tier 4's hue, pale,
+             with no hatch; full red is kept for weak ground we DO serve. */
+          const fillOf = (band, never, far) => far
+            ? { fillColor: col.t4, fillOpacity: .13 }
+            : never && col[band] && band !== "grey" && band !== "none"
+            ? { fillColor: "url(#" + HATCH + band + ")", fillOpacity: 1 }
+            : band === "none" ? { fillColor: "url(#" + HATCH + ")", fillOpacity: 1 }
+            : { fillColor: col[band] || col.grey, fillOpacity: band === "grey" ? .28 : band === "t2" ? .72 : .66 };
           const coCap = capAll(SERVICE_AREAS).cap;   // the eight states together, off CAP_ST (2026-09-23)
           const njCap = capOfSt("NJ");
           /* THE COUNTY SHEET (his ask 2026-09-22: "i need on tooltip to see MORE DATA - and BIGGER
@@ -4157,10 +4440,10 @@ registerPage({
           const gRow = (l, v, sub) => "<i>" + l + (sub ? "<small>" + sub + "</small>" : "") + "</i><u>" + v + "</u>";
           const tipOf = r =>
             '<div class="ap2-tip"><b>' + esc(r.county) + " " + esc(r.st) + "</b>" +
-            '<div class="t">' + (r.tier > 0 ? "Tier " + r.tier + " " + MID + " " + TIER_LABEL[r.band]
-                                            : TIER_LABEL[r.band]) +
-              (r.score != null ? " " + MID + " score " + r1(r.score) : "") +
+            '<div class="t">' + TIER_LABEL[r.band] +
+              (r.score != null && r.area && r.area["Tier Source"] === "Our data" ? " " + MID + " score " + r1(r.score) : "") +
               " " + MID + " " + r1(r.mi) + " mi to the nearest base</div>" +
+            (r.area && r.area["Tier Reason"] ? '<div class="c">' + esc(r.area["Tier Reason"]) + "</div>" : "") +
             (r.movers
               ? '<div class="big">' + fmtN(r.movers) + " move a year</div>" +
                 '<div class="c"><b>' + r1(10000 * r.leads12 / (r.movers || 1)) + "</b> of every 10,000 become a lead in " + CAP_WIN +
@@ -4172,7 +4455,7 @@ registerPage({
               gRow("Jobs", fmtN(r.jobs)) +
               (r.budget != null && r.budget > 0
                 ? gRow("Marketing", money0(r.budget), r1(r.share * 100) + "% of the state" +
-                    (r.band === "fix" ? ", and it follows leads, not the tier" : ""))
+                    (r.band === "t4" ? ", and it follows leads, not the tier" : ""))
                 : "") +
             "</div>" +
             '<div class="hd">Who can serve it</div><div class="grid">' +
@@ -4243,9 +4526,7 @@ registerPage({
                   return Object.assign(base, sh ? { fillColor: sh.fill, fillOpacity: sh.op }
                                                 : { fillColor: "url(#" + HATCH + ")", fillOpacity: 1 });
                 }
-                return Object.assign(base,
-                  { fillColor: band === "none" ? "url(#" + HATCH + ")" : col[band],
-                    fillOpacity: band === "none" ? 1 : band === "grey" ? .30 : .66 });
+                return Object.assign(base, fillOf(band, r && r.never, isFar(r && r.area)));
               },
               onEachFeature: (f, lyr) => {
                 const r = byKey[f.properties.st + "|" + f.properties.key];
@@ -4338,7 +4619,8 @@ registerPage({
             namePane.style.zIndex = 470; namePane.style.pointerEvents = "none";     // same: never above a tooltip
             named.forEach(x => L.marker([x.la, x.lo], { pane: "apNames", interactive: false, keyboard: false,
               icon: L.divIcon({ className: "", iconSize: [0, 0],
-                html: '<span class="ap2-cname">' + esc(x.county) + "<b>" + fmtN(x.movers) + " movers</b></span>" }) }).addTo(m));
+                html: '<span class="ap2-cname">' + esc(x.county) + "<b>" + fmtN(x.movers) + " movers</b></span>" }) })
+              .addTo(box._names = box._names || L.layerGroup().addTo(m)));
             /* THE OPENING FRAME is the ground the page argues about: every county big enough to be
                rated, and every flag. It used to take any county with one lead, so a single long-haul
                pickup in the far corner of Virginia set the zoom for the whole company. */
@@ -4515,6 +4797,140 @@ registerPage({
             },
           });
           m.addControl(new Toggle());
+
+          /* ---- CITY AND ZIP (2026-09-29) ---------------------------------------------------
+             His ask: "planning on county level ... i may even want to go as down as zip. i need a
+             selector for that", with ZIP POLYGONS ("zip polygons - and it must be ready"). The
+             shapes are the Census 2020 ZCTAs, one file per state (scripts/build_zip_geojson.py,
+             run in Cloud Build because the Census blocks Georgia), fetched only when a state is
+             drawn at City or Zip grain. A CITY is drawn as its zips, each filled with the city's
+             tier -- mart_area_tier counts a city off exactly those zips, so the picture and the
+             numbers are the same thing -- and hovering one lights the whole city. */
+          const countyLayer = box._geo;
+          const ZIPGEO = host._apZipGeo = host._apZipGeo || {};
+          let zipLayer = null, zipSt = null, zipLvl = null, cntyLines = null;
+          const zipArea = (z, lvl) => { const za = AREA_IX.Zip[z];
+            if (lvl === "Zip" || !za) return za || null;
+            return AREA_IX.City[za.State + "|" + za.City] || null; };
+          const planOf = a => {
+            const N0 = FC.year ? nextCalc() : null; if (!N0 || !a) return { budget: null, jobs: null };
+            const r = N0.rows.find(x => x.st === a.State); if (!r) return { budget: null, jobs: null };
+            const cpl = N0.mkt.cplOf(r.st);
+            return { budget: cpl != null ? r.leads * cpl * num(a["State Lead Share"]) : null,
+                     jobs: r.jobs * num(a["State Job Share"]) }; };
+          const areaTip = (a, lvl, z) => {
+            if (!a) return '<div class="ap2-tip"><b>' + esc(z || "") + '</b><div class="t">No leads and no Census data</div></div>';
+            const band = TIER_BAND(num(a.Tier)), P = planOf(a);
+            const where = lvl === "Zip" ? esc(a.City || "") + ", " + esc(a.County || "") + " County"
+                                        : esc(a.County || "") + " County · " + fmtN(num(a.Zips)) + (num(a.Zips) === 1 ? " zip code" : " zip codes");
+            return '<div class="ap2-tip"><b>' + esc(lvl === "Zip" ? a.Zip : a.Name) + " " + esc(a.State) + "</b>" +
+              '<div class="t">' + TIER_LABEL[band] + " " + MID + " " + r1(num(a["Miles To Base"])) + " mi to " + esc(a["Nearest Base"] || "a base") + "</div>" +
+              '<div class="c">' + where + "</div>" +
+              (a["Tier Reason"] ? '<div class="c">' + esc(a["Tier Reason"]) + "</div>" : "") +
+              '<div class="hd">The ' + esc(String(FC.year || "")) + ' plan here</div><div class="grid">' +
+                gRow("Marketing", P.budget != null && P.budget >= 1 ? money0(P.budget) : EM, r1(100 * num(a["State Lead Share"])) + "% of the state's leads") +
+                gRow("Jobs", P.jobs != null && P.jobs >= 0.05 ? r1(P.jobs) : EM, "its share of the state's forecast") +
+              "</div>" +
+              '<div class="hd">Our work, last 12 months</div><div class="grid">' +
+                gRow("Leads", fmtN(num(a["Leads 12m"]))) +
+                gRow("Booked", num(a["Leads 12m"]) ? r1(num(a["Booking Rate"])) + "%" : EM) +
+                gRow("Jobs", fmtN(num(a["Jobs 12m"]))) +
+                gRow("Average ticket", a["Avg Ticket"] != null ? money0(num(a["Avg Ticket"])) : EM) +
+                gRow("Foremen within 60 mi", fmtN(num(a["Foremen Within 60mi"]))) +
+              "</div>" +
+              (num(a.Population) ? '<div class="hd">The market</div><div class="grid">' +
+                gRow("People", fmtN(num(a.Population))) +
+                gRow("Move a year", fmtN(num(a["Movers Per Year"]))) +
+                gRow("Median income", a["Median Income"] != null ? money0(num(a["Median Income"])) : EM) +
+                gRow("Home value", a["Home Value"] != null ? money0(num(a["Home Value"])) : EM) +
+                gRow("Own their home", a["Owner Share Pct"] != null ? r1(num(a["Owner Share Pct"])) + "%" : EM) +
+              "</div>" : "") + "</div>";
+          };
+          const zipStyle = f => {
+            const lvl = zipLvl, a = zipArea(f.properties.z, lvl);
+            const band = a ? TIER_BAND(num(a.Tier)) : "grey";
+            return Object.assign({ color: lvl === "City" ? (col[band] || col.grey) : "#8d99a8",
+                                   weight: lvl === "City" ? 0.6 : 0.45, opacity: lvl === "City" ? .5 : .8, lineJoin: "round" },
+                                 fillOf(band, a && num(a["Never A Lead"]) === 1, isFar(a)));
+          };
+          const ctyPane = m.createPane("apCtyLines");
+          ctyPane.style.zIndex = 445; ctyPane.style.pointerEvents = "none";
+          function showZips(st, refit) {
+            const lvl = inputs.mapLevel;
+            box.classList.add("ap3-busy");
+            const got = ZIPGEO[st] ? Promise.resolve(ZIPGEO[st])
+              : fetch("assets/vendor/geo/zips-" + st + ".json")
+                  .then(r => r.ok ? r.json() : Promise.reject(new Error("HTTP " + r.status)))
+                  .then(j => (ZIPGEO[st] = j));
+            got.then(gj => {
+              if (inputs.mapLevel !== lvl || mapStOf() !== st) return;      // the reader has moved on
+              if (zipLayer) { m.removeLayer(zipLayer); zipLayer = null; }
+              zipLvl = lvl;
+              const byKey = {};
+              zipLayer = L.geoJSON(gj, { style: zipStyle, onEachFeature: (f, lyr) => {
+                const a = zipArea(f.properties.z, lvl);
+                const k = lvl === "Zip" ? f.properties.z : (a ? a["Area Key"] : "z" + f.properties.z);
+                (byKey[k] = byKey[k] || []).push(lyr);
+                lyr.bindTooltip(() => areaTip(a, lvl, f.properties.z), { sticky: true, className: "ap2-tipwrap", opacity: 1 });
+                lyr.on("mouseover", () => byKey[k].forEach(x => x.setStyle({ weight: 2.2, color: tok("--ink") || "#22303f", opacity: 1 })));
+                lyr.on("mouseout", () => byKey[k].forEach(x => zipLayer && zipLayer.resetStyle(x)));
+              } }).addTo(m);
+              zipLayer._byKey = byKey; zipSt = st;
+              ensureHatch();
+              if (refit) { const b = zipLayer.getBounds(); if (b.isValid()) m.fitBounds(b, { padding: [12, 12], animate: false }); }
+              if (box._pendingFocus) { const k = box._pendingFocus; box._pendingFocus = null; box._focusArea(k); }
+            }).catch(e => {
+              const ls = host.querySelector("#apAreaList");
+              if (ls) ls.insertAdjacentHTML("afterbegin", '<div class="ap2-note" style="color:var(--neg)">The ' + esc(st) +
+                " zip shapes could not be read (" + esc(e && e.message || "error") + ").</div>");
+            }).then(() => box.classList.remove("ap3-busy"));
+          }
+          box._applyLevel = refit => {
+            const lvl = inputs.mapLevel;
+            if (lvl === "County") {
+              if (zipLayer) { m.removeLayer(zipLayer); zipLayer = null; zipSt = null; }
+              if (cntyLines) m.removeLayer(cntyLines);
+              if (countyLayer && !m.hasLayer(countyLayer)) countyLayer.addTo(m);
+              if (countyLayer) countyLayer.setStyle(countyLayer.options.style);
+              [["market", box._mkt], ["spend", box._spend]].forEach(([mode, lyr]) => { if (!lyr) return;
+                if (inputs.mapColor === mode) lyr.addTo(m); else m.removeLayer(lyr); });
+              if (box._names && !m.hasLayer(box._names)) box._names.addTo(m);
+              if (refit) {
+                const st = inputs.mapSt;
+                if (st && countyLayer) { let b = null;
+                  countyLayer.eachLayer(l => { if (l.feature && l.feature.properties.st === st) { const lb = l.getBounds(); b = b ? b.extend(lb) : L.latLngBounds(lb.getSouthWest(), lb.getNorthEast()); } });
+                  if (b && b.isValid()) m.fitBounds(b, { padding: [12, 12], animate: false });
+                } else fitMap();
+              }
+            } else {
+              if (countyLayer && m.hasLayer(countyLayer)) m.removeLayer(countyLayer);
+              [box._mkt, box._spend, box._names].forEach(l => { if (l && m.hasLayer(l)) m.removeLayer(l); });
+              if (!cntyLines && GEO) cntyLines = L.geoJSON(GEO, { pane: "apCtyLines", interactive: false,
+                style: { color: tok("--ink") || "#22303f", weight: 1, opacity: .38, fill: false } });
+              if (cntyLines && !m.hasLayer(cntyLines)) cntyLines.addTo(m);
+              showZips(mapStOf(), refit || zipSt !== mapStOf() || zipLvl !== lvl);
+            }
+          };
+          /* the ranked list's click: frame the area and open its sheet */
+          box._focusArea = key => {
+            const lvl = inputs.mapLevel;
+            let lyrs = [];
+            if (lvl === "County" && countyLayer) {
+              const i = key.indexOf("|"), st = key.slice(0, i), ck = ckey(key.slice(i + 1));
+              countyLayer.eachLayer(l => { if (l.feature && l.feature.properties.st === st && l.feature.properties.key === ck) lyrs.push(l); });
+            } else if (zipLayer && zipLayer._byKey) {
+              lyrs = zipLayer._byKey[key] || [];
+            } else { box._pendingFocus = key; return; }
+            if (!lyrs.length) return;
+            let b = null;
+            lyrs.forEach(l => { const lb = l.getBounds(); b = b ? b.extend(lb) : L.latLngBounds(lb.getSouthWest(), lb.getNorthEast()); });
+            m.fitBounds(b, { padding: [40, 40], maxZoom: lvl === "Zip" ? 12 : 10, animate: false });
+            lyrs.forEach(l => l.fire("mouseover"));
+            setTimeout(() => lyrs.forEach(l => l.fire("mouseout")), 2600);
+            lyrs[0].openTooltip(b.getCenter());
+          };
+          if (inputs.mapLevel !== "County") box._applyLevel(true);
+          else if (inputs.mapColor !== "tier") box._applyLevel(false);
 
           box._fit = pts;
           box._map = m;
@@ -5025,15 +5441,9 @@ registerPage({
           card("Season budget — " + (FC.year || "the coming one"), "Revenue, the job and truck cost, and marketing (post cards inside it), per state",
                "The whole season in one table: what the jobs bring, what they cost to run, what the leads cost to buy. Net is before overhead.",
                '<div id="apBudget" style="overflow-x:auto">' + budgetHtml() + "</div>")) +
-          pane("map", "<b>Every county in the eight states</b>, filled by its tier — including the " +
-            "ones that have never sent a lead, because that is the white space. The tooltip carries how many " +
-            "foremen can reach it, that county's marketing budget, and how many jobs a day it could take.",
-            card("The map — " + (FC.year || "next season"), "County tier, marketing budget, and the crew that can reach it",
-                 "Colour answers <b>where to target</b>; the tooltip answers <b>what it costs</b> and <b>who can serve it</b>.",
-                 '<div id="apMap">' + mapHtml() + "</div>") +
-            card("The Census survey", "How many people move there at all — and how many of them we reach",
-                 "The outside source behind the base ranking, shown: population, movers a year, income and home ownership for every county, against our own leads.",
-                 '<div id="apSurvey">' + surveyHtml() + "</div>")) +
+          /* THE MAP TAB IS THE ONE THAT GETS PRESENTED (2026-09-29): no lede, no cards of prose -- the
+             plan, what to do, the map and its list; the working sits in one closed section inside. */
+          pane("map", "", '<div id="apMap" class="ap3-map">' + mapHtml() + "</div>") +
           pane("cities", "Which cities produce the work, this year to date, all companies — this pane does not follow the period picker. Click a state anywhere to focus the page on it.",
             '<div id="apBandB">' + bandBHtml() + "</div>" +
             card("Push or cut — the opportunity rank", "Cities scored on return per ad dollar, movers, wealth and untapped leads — weights are yours",
