@@ -254,6 +254,9 @@ registerPage({
           + "</div>"
           + '<div class="panel"><div class="panel-head"><div class="panel-title">The list</div>'
           + '<span class="n">' + v.length + "</span></div>"
+          + '<div class="rs-hint">The automatic referral email no longer needs a review: since 30 Sep 2026 it goes to '
+          + "every Zip to Zip customer who rated the move 10/10, has no claim and whose bill stayed close to the quote, "
+          + "5 days after the move. This list is the five-star reviewers among them. </div>"
           + '<div class="rs-hint">Five-star reviewers whose move also went right — they rated it '
           + "<b>10/10</b> on the closing and the bill stayed close to the quote. "
           + (nBad ? "<b>" + nBad + "</b> more five-star customers are left out: they rated the move "
