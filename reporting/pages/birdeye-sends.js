@@ -24,6 +24,14 @@
                "Sent Date", "Sent Week"],
       };
     }
+    if (!RS.DATASETS.birdeye_queue) {
+      // WHAT WILL BE SENT, AND WHEN (2026-09-30) -- mart_birdeye_queue, src/birdeye_api.QUEUE_SQL
+      RS.DATASETS.birdeye_queue = {
+        table: "mart_birdeye_queue",
+        cols: ["Campaign", "Campaign Label", "Job", "Customer", "Email", "Send Date", "Send Time",
+               "Move Date", "Why"],
+      };
+    }
     if (!RS.DATASETS.birdeye_survey_status) {
       RS.DATASETS.birdeye_survey_status = {
         table: "mart_birdeye_survey_status",
@@ -50,7 +58,10 @@
       + ".bes-tabs{display:flex;gap:8px;margin:14px 0 4px}"
       + ".bes-weeks{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0 2px}"
       + ".bes-sub{display:block;font-size:11px;color:var(--dim);margin-top:3px;white-space:nowrap}"
-      + ".bes-note{font-size:12px;color:var(--muted);margin:6px 2px 0}";
+      + ".bes-note{font-size:12px;color:var(--muted);margin:6px 2px 0}"
+      + ".bes tr.bes-day td{background:var(--panel-2);padding:9px 14px;border-top:1px solid var(--line-2)}"
+      + ".bes tr.bes-day b{font-size:13.5px;color:var(--ink)}"
+      + ".bes tr.bes-day span{margin-left:10px;font-size:12px;color:var(--muted)}";
     document.head.appendChild(st);
   }
 
@@ -73,16 +84,20 @@
       const alive = () => document.body.contains(mine);
 
       const S = window.__BES || (window.__BES = {
-        tab: "sent", q: "", campaign: "all", page: 0,
+        tab: "coming", q: "", campaign: "all", page: 0,
         week: null, status: "all", cq: "", cpage: 0,
       });
+      if (S.uq == null) { S.uq = ""; S.ucamp = "all"; S.upage = 0; }
 
       injectStyle();
       host.innerHTML = '<div class="panel">Loading the Birdeye send-outs…</div>';
 
-      Promise.all([RS.load("birdeye_sent"), RS.load("birdeye_survey_status")])
-        .then(([sent, cov]) => {
+      let QUEUE = [];
+      Promise.all([RS.load("birdeye_sent"), RS.load("birdeye_survey_status"),
+                   RS.load("birdeye_queue").catch(() => [])])
+        .then(([sent, cov, queue]) => {
           if (!alive()) return;
+          QUEUE = queue || [];
           paint(sent || [], cov || []);
         })
         .catch(e => {
@@ -121,7 +136,7 @@
 
       function campaignPill(r) {
         const c = String(r["Campaign"] || "");
-        return '<span class="rs-pill' + (c === "survey" ? " ok" : "") + '">'
+        return '<span class="rs-pill' + (c === "survey" ? " ok" : c === "referral-ask" ? " warn" : "") + '">'
           + esc(r["Campaign Label"] || c) + "</span>";
       }
 
@@ -129,20 +144,89 @@
         if (!alive()) return;
         let html = '<div class="bes">'
           + '<div class="rs-page-head"><h1>Birdeye Send-outs</h1>'
-          + "<p>What we sent through <b>Birdeye</b>: review requests the moment a foreman hears "
-          + "a promise, and the <b>weekly Monthly Survey</b> every Tuesday to customers who moved "
-          + "the week before last and filed no claim."
+          + "<p>What goes through <b>Birdeye</b>: review requests the moment a foreman hears "
+          + "a promise, the <b>weekly Monthly Survey</b> every Tuesday to customers who moved "
+          + "the week before last and filed no claim, and the <b>referral request</b> five days after "
+          + "a move the customer rated 10/10."
           + '<span class="freshness"> · a sent row means Birdeye was asked, from the send ledger</span></p></div>';
 
         html += '<div class="bes-tabs">'
+          + '<div class="rs-tog' + (S.tab === "coming" ? " on" : "") + '" data-tab="coming"><i></i>Coming up'
+          + (QUEUE.length ? " · " + QUEUE.length.toLocaleString() : "") + "</div>"
           + '<div class="rs-tog' + (S.tab === "sent" ? " on" : "") + '" data-tab="sent"><i></i>Sent</div>'
           + '<div class="rs-tog' + (S.tab === "coverage" ? " on" : "") + '" data-tab="coverage"><i></i>'
           + "Survey coverage — who was not asked, and why</div></div>";
 
-        html += S.tab === "sent" ? sentView(sent) : coverageView(cov);
+        html += S.tab === "coming" ? comingView(QUEUE) : S.tab === "sent" ? sentView(sent) : coverageView(cov);
         html += "</div>";
         host.innerHTML = html;
         wire(sent, cov);
+      }
+
+      // ---- COMING UP: what will be sent, and when (2026-09-30) -----------------------------
+      // His ask: "can we display what will be send out and when". One row per customer each
+      // automation is going to contact, grouped under the day it goes. A forecast of the rules as
+      // they stand: a claim filed before the day, or an earlier request to the same person, drops it.
+      const CAMPS = [["all", "All"], ["referral-ask", "Referral request"], ["survey", "Monthly Survey"],
+                     ["review-request", "Review request"]];
+      const dayLabel = iso => { const d = new Date(iso + "T12:00:00");
+        return isNaN(d) ? iso : d.toLocaleDateString("en-US", { weekday: "long", day: "numeric", month: "short", year: "numeric" }); };
+      let upList = [];
+      function comingView(rows) {
+        const today = new Date().toISOString().slice(0, 10);
+        const n = c => rows.filter(r => r["Campaign"] === c).length;
+        const next = c => { const d = rows.filter(r => r["Campaign"] === c).map(r => d10(r["Send Date"])).sort()[0];
+          return d ? "next: " + dayLabel(d).replace(/, \d{4}$/, "") : "nothing queued"; };
+        const q = S.uq.trim().toLowerCase();
+        upList = rows.filter(r => {
+          if (S.ucamp !== "all" && r["Campaign"] !== S.ucamp) return false;
+          if (!q) return true;
+          return [r["Customer"], r["Email"], r["Job"]].some(v => String(v || "").toLowerCase().indexOf(q) >= 0);
+        }).sort((a, b) => d10(a["Send Date"]).localeCompare(d10(b["Send Date"]))
+          || String(a["Send Time"] || "").localeCompare(String(b["Send Time"] || ""))
+          || String(a["Customer"] || "").localeCompare(String(b["Customer"] || "")));
+        const pages = Math.max(1, Math.ceil(upList.length / PAGE));
+        if (S.upage >= pages) S.upage = pages - 1;
+        if (S.upage < 0) S.upage = 0;
+        const shown = upList.slice(S.upage * PAGE, S.upage * PAGE + PAGE);
+
+        let h = '<div class="rs-kpis" style="--kpi-cols:4">'
+          + kpi(rows.length.toLocaleString(), "Queued in total", "customers the three automations will contact", "")
+          + kpi(n("referral-ask").toLocaleString(), "Referral requests", "daily 12:35 PM New Jersey · " + next("referral-ask"), n("referral-ask") ? "pos" : "")
+          + kpi(n("survey").toLocaleString(), "Monthly Survey", "Tuesdays 10:35 AM New Jersey · " + next("survey"), n("survey") ? "pos" : "")
+          + kpi(n("review-request").toLocaleString(), "Review requests", "within the hour of a foreman's answer", "")
+          + "</div>";
+        h += '<div class="rs-bar" style="margin-top:14px">'
+          + '<label class="rs-fld"><span>Find</span>'
+          + '<input class="rs-inp" id="besUQ" placeholder="Customer, email or job…" value="' + esc(S.uq) + '"></label>'
+          + CAMPS.map(([c, l]) => '<div class="rs-tog' + (S.ucamp === c ? " on" : "") + '" data-ucamp="' + c + '"><i></i>' + esc(l) + "</div>").join("")
+          + '<span class="rs-spacer"></span>'
+          + '<button class="rs-btn" id="besUpCsv">Download CSV · ' + upList.length + "</button></div>";
+        let lastDay = null, body = "";
+        shown.forEach(r => {
+          const day = d10(r["Send Date"]);
+          if (day !== lastDay) {
+            lastDay = day;
+            const cnt = upList.filter(x => d10(x["Send Date"]) === day).length;
+            body += '<tr class="bes-day"><td colspan="6"><b>' + esc(day === today ? "Today · " + dayLabel(day) : dayLabel(day))
+              + "</b><span>" + cnt.toLocaleString() + (cnt === 1 ? " send" : " sends") + "</span></td></tr>";
+          }
+          body += '<tr><td class="nowrap muted">' + esc(r["Send Time"] || "—") + "</td>"
+            + "<td>" + campaignPill(r) + "</td>"
+            + "<td>" + esc(r["Customer"] || "—") + "</td>"
+            + '<td class="muted">' + esc(r["Email"] || "—") + "</td>"
+            + '<td class="nowrap strong">' + esc(r["Job"] || "—") + "</td>"
+            + '<td class="muted">' + esc(r["Why"] || "") + (r["Move Date"] ? ' <span class="bes-sub">moved ' + esc(d10(r["Move Date"])) + "</span>" : "") + "</td></tr>";
+        });
+        h += '<p class="bes-note">What is queued under the rules as they stand now. A claim filed before the day, '
+          + "or an earlier request to the same person, takes a customer off the list — the send itself decides.</p>";
+        h += '<div class="panel" style="padding:0"><div class="rs-tablewrap" style="border:0">'
+          + '<table class="rs-table"><thead><tr>'
+          + "<th>When</th><th>Automation</th><th>Customer</th><th>Email</th><th>Job</th><th>Why</th>"
+          + "</tr></thead><tbody>"
+          + (body || '<tr><td colspan="6" class="dim">Nothing is queued.</td></tr>')
+          + "</tbody></table></div>" + pager(upList.length, S.upage, pages, "u") + "</div>";
+        return h;
       }
 
       // ---- SENT ---------------------------------------------------------------------------
@@ -180,9 +264,9 @@
         h += '<div class="rs-bar" style="margin-top:14px">'
           + '<label class="rs-fld"><span>Find</span>'
           + '<input class="rs-inp" id="besQ" placeholder="Customer, email or job…" value="' + esc(S.q) + '"></label>'
-          + ["all", "survey", "review-request"].map(c =>
+          + ["all", "survey", "review-request", "referral-ask"].map(c =>
               '<div class="rs-tog' + (S.campaign === c ? " on" : "") + '" data-camp="' + c + '"><i></i>'
-              + (c === "all" ? "All campaigns" : c === "survey" ? "Monthly Survey" : "Review requests")
+              + (c === "all" ? "All campaigns" : c === "survey" ? "Monthly Survey" : c === "referral-ask" ? "Referral requests" : "Review requests")
               + "</div>").join("")
           + '<span class="rs-spacer"></span>'
           + '<button class="rs-btn" id="besCsv">Download CSV · ' + sentList.length + "</button></div>";
@@ -304,13 +388,16 @@
         host.querySelectorAll("[data-camp]").forEach(t => {
           t.onclick = () => { S.campaign = t.dataset.camp; S.page = 0; repaint(); };
         });
+        host.querySelectorAll("[data-ucamp]").forEach(t => {
+          t.onclick = () => { S.ucamp = t.dataset.ucamp; S.upage = 0; repaint(); };
+        });
         host.querySelectorAll("[data-week]").forEach(t => {
           t.onclick = () => { S.week = t.dataset.week; S.cpage = 0; repaint(); };
         });
         host.querySelectorAll("[data-st]").forEach(t => {
           t.onclick = () => { S.status = t.dataset.st; S.cpage = 0; repaint(); };
         });
-        [["#besQ", "q", "page"], ["#besCQ", "cq", "cpage"]].forEach(([sel, key, pg]) => {
+        [["#besQ", "q", "page"], ["#besCQ", "cq", "cpage"], ["#besUQ", "uq", "upage"]].forEach(([sel, key, pg]) => {
           const box = host.querySelector(sel);
           if (!box) return;
           box.oninput = function () { S[key] = this.value; S[pg] = 0; };
@@ -321,11 +408,14 @@
         host.querySelectorAll("[data-pg]").forEach(b => {
           b.onclick = () => {
             const [which, dir] = b.dataset.pg.split(":");
-            const k = which === "c" ? "cpage" : "page";
+            const k = which === "c" ? "cpage" : which === "u" ? "upage" : "page";
             S[k] += (dir === "next" ? 1 : -1);
             repaint();
           };
         });
+        const c0 = host.querySelector("#besUpCsv");
+        if (c0) c0.onclick = () => csv("birdeye-coming-up",
+          ["Send Date", "Send Time", "Campaign Label", "Customer", "Email", "Job", "Move Date", "Why"], upList);
         const c1 = host.querySelector("#besCsv");
         if (c1) c1.onclick = () => csv("birdeye-sent",
           ["Sent At", "Campaign Label", "Customer", "Email", "Job"], sentList);
