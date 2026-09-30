@@ -5344,7 +5344,18 @@ registerPage({
         const pg = document.createElement("style"); pg.textContent = "@page{size:A4 landscape;margin:8mm}"; document.head.appendChild(pg);
         document.body.appendChild(root); document.body.classList.add("ap3-printing");
         const m = box._map;
-        fitMap();
+        /* "THE MAP FULLY VISIBLE": the sheet is wider and shorter than the screen's box, and the
+           screen's frame cut Maryland and Boston off it. Paper is framed on the ground the plan
+           works -- every county within 50 miles of a base or of a base switched on, and every
+           flag -- or on the whole state when one is picked. */
+        const frame = () => { m.invalidateSize(false);
+          const st = mapStOf(), pts = [];
+          AREA.forEach(a => { if (a.Level !== "County" || !num(a.Latitude)) return;
+            if (st ? a.State === st : (SERVICE_AREAS.includes(a.State) && num(a["Miles To Base"]) <= 50)) pts.push([num(a.Latitude), num(a.Longitude)]); });
+          if (!st) { NB_CANDS.forEach(c => { if (NB_ON[c.label]) pts.push([c.la, c.lo]); });
+            if (PLAN) PLAN.groups.forEach(g => g.sites.forEach(x => { if (x.la) pts.push([x.la, x.lo]); })); }
+          if (pts.length > 1) m.fitBounds(L.latLngBounds(pts), { padding: [26, 26], animate: false }); else fitMap(); };
+        frame();
         let ended = false;
         const done = () => { if (ended) return; ended = true;
           window.removeEventListener("afterprint", done);
@@ -5354,7 +5365,7 @@ registerPage({
         let n = 0;
         const go = () => {
           if (box._zipReady && !box._zipReady() && n++ < 40) return setTimeout(go, 400);
-          fitMap();
+          frame();
           setTimeout(() => { window.addEventListener("afterprint", done); try { window.print(); } catch (e) { done(); } }, 1800);   // the tiles of the new frame
         };
         go();
