@@ -5175,6 +5175,7 @@ registerPage({
         put("#apMapKeyWrap", mapKeyHtml(N));
         put("#apAreaList", sideHtml(N));
         wireMapColor();
+        const bx = host.querySelector("#apMapBox"); if (bx && bx._flags) bx._flags();
       }
       /* kept for callers from the earlier pass */
       function repaintMapChrome() { repaintMapTab(); }
@@ -5738,18 +5739,45 @@ registerPage({
             placed.push(b);
             return near === 0 ? "" : near === 1 ? " flip" : near === 2 ? " up" : " flip down";
           };
+          /* THE FLAG SAYS TODAY AND THE PLAN (his ask 2026-09-30: "on the map we have current crew
+             size next to base - write the plan for crew size"): "NJ · 9 → 12". The plan figure is
+             the crews the scenario on screen puts there -- under a named plan his own number for
+             that base; otherwise the base's share of its pool (the states with no base of their
+             own, MD and VA, MA, count at the pool's head base). A candidate switched to Yes carries
+             its crew too. Re-read on every repaint of the tab. */
+          const haveNames = new Set(B.have.map(b => b.name));
+          const flagOwner = st => haveNames.has(st) ? st : (POOL_OF[st] || st);
+          const planCrew = (b, N) => {
+            if (!N) return null;
+            if (b.kind !== "have") { if (!NB_ON[b.label]) return null;
+              const ps = planSite(b.label), o = (N.nb || []).find(x => x.label === b.label);
+              return ps ? ps.fm : o ? o.fm : null; }
+            if (PLAN) { const g = PLAN.groups.find(x => x.base === b.name);
+              return g ? g.sites.filter(x => !x.cand && !x.la).reduce((a, x) => a + x.fm, 0) : 0; }
+            return N.rows.filter(r => flagOwner(r.st) === b.name).reduce((a, r) => a + (r.fmPeak || 0), 0);
+          };
+          const flagText = (b, N) => { const pc = planCrew(b, N);
+            return b.kind === "have" ? b.name + " · " + fmtN(b.foremen) + (pc != null ? " → " + fmtN(pc) : "")
+                                     : b.label.replace(/ [A-Z]{2}$/, "") + (pc != null ? " · " + fmtN(pc) : ""); };
+          const flagMks = [];
+          box._flags = () => { const N = FC.year ? nextCalc() : null;
+            flagMks.forEach(x => x.mk.setIcon(flag(x.cls, flagText(x.b, N)))); };
+          const N_FLAG = FC.year ? nextCalc() : null;
           B.have.concat(B.coverage).forEach(b => {
+            const flagCls = b.kind + offsetFor(b);
             const mk = L.marker([b.la, b.lo], {
-              icon: flag(b.kind + offsetFor(b), b.kind === "have" ? b.name + " · " + fmtN(b.foremen) : b.label.replace(/ [A-Z]{2}$/, "")),
+              icon: flag(flagCls, flagText(b, N_FLAG)),
               riseOnHover: true,
               zIndexOffset: b.kind === "have" ? 600 : b.kind === "cover" ? 500 : 400 });
             mk.bindTooltip(() => '<div class="ap2-tip ap3-glance"><b>' + esc(b.kind === "have" ? b.name + " base" : b.label) + '</b><div class="t">' +
-              (b.kind === "have" ? fmtN(b.foremen) + (b.foremen === 1 ? " foreman" : " foremen") + " · we have this one"
+              (b.kind === "have" ? fmtN(b.foremen) + (b.foremen === 1 ? " foreman" : " foremen") + " today" +
+                  (() => { const pc = planCrew(b, FC.year ? nextCalc() : null); return pc != null ? " · plan " + fmtN(pc) : ""; })()
                                  : "possible new base · " + (NB_ON[b.label] ? "YES in this scenario" : "No in this scenario")) +
               '</div><div class="hint">Click for the full sheet</div></div>',
               { sticky: true, className: "ap2-tipwrap", direction: "top", opacity: 1 });
             /* HIS ASK: the reach appears on hover. It is removed on mouseout unless the flag was
                clicked, so he can pin one open and compare it against the counties underneath. */
+            flagMks.push({ b, cls: flagCls, mk });
             mk.on("mouseover", () => {
               if (baseLayer._pinned && baseLayer._pinned.b === b) return;
               if (hoverRing) { m.removeLayer(hoverRing); hoverRing = null; }
