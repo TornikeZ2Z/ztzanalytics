@@ -519,8 +519,9 @@ body.ap3-printing{background:#fff !important;overflow:visible !important}
 #apPrintRoot .ap3-ptile i{font-style:normal;font-size:7.5pt;color:#5b6675;border-top:.2mm solid #e3e8ee;padding-top:1mm;margin-top:.6mm;font-variant-numeric:tabular-nums}
 #apPrintRoot .ap3-ptile i u{text-decoration:none;font-weight:700;color:#4d7a12}
 #apPrintRoot .ap3-ptile i u.dn{color:#b3261e}
-#apPrintRoot .ap2-mapkey{margin:0 0 2mm;gap:0 3.2mm;font-size:7.5pt;flex-wrap:nowrap;white-space:nowrap;justify-content:space-between}
+#apPrintRoot .ap2-mapkey{margin:0 0 2mm;gap:0 2mm;font-size:6.8pt;letter-spacing:-.01em;flex-wrap:nowrap;white-space:nowrap;justify-content:space-between}
 #apPrintRoot .ap2-mapkey .ap2-mk{white-space:nowrap}
+#apPrintRoot .ap2-mapkey .ap2-sw{width:2.6mm;height:2.6mm;margin-right:1mm}
 #apPrintRoot .ap2-mapbox{height:148mm !important;min-height:0 !important;width:277mm;border-radius:2mm;border:.25mm solid #cfd6de;overflow:hidden}
 #apPrintRoot .leaflet-control-container{display:none}
 .ap3-find input{width:100%}
