@@ -512,7 +512,7 @@ body.ap3-printing{background:#fff !important;overflow:visible !important}
 #apPrintRoot .ap3-kpi > b{font-size:15pt}
 #apPrintRoot .ap3-kpi span,#apPrintRoot .ap3-kpi small,#apPrintRoot .ap3-kpi em,#apPrintRoot .ap3-kpi .was{font-size:7.5pt}
 #apPrintRoot .ap2-mapkey{margin:0 0 2mm;gap:3mm;font-size:8pt}
-#apPrintRoot .ap2-mapbox{height:132mm !important;min-height:0 !important;width:277mm;border-radius:0}
+#apPrintRoot .ap2-mapbox{height:140mm !important;min-height:0 !important;width:277mm;border-radius:0}
 #apPrintRoot .leaflet-control-container{display:none}
 .ap3-find input{width:100%}
 .ap3-findres{position:absolute;z-index:1200;top:calc(100% + 4px);left:0;right:0;background:var(--ap-bay);border:1px solid var(--ap-rule);border-radius:var(--ap-r1);box-shadow:0 10px 28px rgba(0,0,0,.16);padding:4px;max-height:340px;overflow:auto}
@@ -5348,19 +5348,23 @@ registerPage({
            screen's frame cut Maryland and Boston off it. Paper is framed on the ground the plan
            works -- every county within 50 miles of a base or of a base switched on, and every
            flag -- or on the whole state when one is picked. */
+        /* whole zoom levels waste the sheet (the plan's ground came out a third of the width at
+           level 6 and cut off at 7), so the frame is fitted to a tenth of a level while it prints */
+        const snap0 = m.options.zoomSnap; m.options.zoomSnap = 0.1;
         const frame = () => { m.invalidateSize(false);
           const st = mapStOf(), pts = [];
           AREA.forEach(a => { if (a.Level !== "County" || !num(a.Latitude)) return;
             if (st ? a.State === st : (SERVICE_AREAS.includes(a.State) && num(a["Miles To Base"]) <= 50)) pts.push([num(a.Latitude), num(a.Longitude)]); });
           if (!st) { NB_CANDS.forEach(c => { if (NB_ON[c.label]) pts.push([c.la, c.lo]); });
             if (PLAN) PLAN.groups.forEach(g => g.sites.forEach(x => { if (x.la) pts.push([x.la, x.lo]); })); }
-          if (pts.length > 1) m.fitBounds(L.latLngBounds(pts), { padding: [26, 26], animate: false }); else fitMap(); };
+          if (pts.length > 1) m.fitBounds(L.latLngBounds(pts), { padding: [34, 34], animate: false }); else fitMap(); };
         frame();
         let ended = false;
         const done = () => { if (ended) return; ended = true;
           window.removeEventListener("afterprint", done);
           marks.forEach(([ph, el]) => { ph.parentNode.insertBefore(el, ph); ph.remove(); });
           root.remove(); pg.remove(); document.body.classList.remove("ap3-printing");
+          m.options.zoomSnap = snap0;
           setTimeout(fitMap, 40); };
         let n = 0;
         const go = () => {
