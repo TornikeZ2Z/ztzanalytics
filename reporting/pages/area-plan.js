@@ -534,6 +534,7 @@ details.ap3-how[open]{padding-bottom:16px}
 .ap3-howcard{margin-top:14px;padding-top:12px;border-top:1px solid var(--ap-rule)}
 .ap3-howcard .ap2-h3{font-weight:800;font-size:15px;color:var(--ink);margin:0 0 4px}
 .ap3-sc{margin:0 0 18px}
+.ap3-nbh .ap3-reset{margin-left:auto;padding:4px 12px;font-size:12.5px}
 .ap3-steps{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px;margin:0 0 10px}
 .ap3-step{border:1px solid var(--ap-rule);border-radius:var(--ap-r1);background:var(--ap-bay);padding:10px 12px;min-width:0}
 .ap3-step.drv{border-color:var(--brand-d);box-shadow:inset 0 3px 0 var(--brand-d)}
@@ -4396,23 +4397,17 @@ registerPage({
             '<div class="ctl"><button type="button" aria-label="less" data-sc="' + kind + '" data-pool="' + esc(pool || "") + '" data-d="-1">−</button>' +
             "<b>" + shown + '</b><button type="button" aria-label="more" data-sc="' + kind + '" data-pool="' + esc(pool || "") + '" data-d="1">+</button></div>' +
             "<small>plan " + plan + "</small></div>"; };
-        const d = scAny() || nbAny() ? nbDelta(N, P) : null;
-        const who = SC.kind === "sales" ? fmtN(SC.target) + " salespeople"
-                  : SC.kind === "mkt" ? money0(SC.target) + " of marketing"
-                  : SC.kind === "fm" ? fmtN(SC.target) + " foremen in " + esc(((N.pools.find(q => q.pk === SC.pool) || {}).label) || "") : "";
-        return '<div class="ap3-sc"><div class="ap3-nbh"><b>What if</b><span>change one number and the rest follows — a test scenario, a refresh puts it back</span></div>' +
+        /* ONE RESET, NO BANNERS (his call 2026-09-30: both "Scenario on ..." strips were "extra" --
+           the four numbers already say "vs the plan", and a base flips back on its own card). It shows
+           only while something is changed, and puts the levers AND the bases back. */
+        return '<div class="ap3-sc"><div class="ap3-nbh"><b>What if</b><span>change one number and the rest follows — a test scenario, a refresh puts it back</span>' +
+            (scAny() || nbAny() ? '<button type="button" class="rs-btn ap3-reset" data-screset>Reset</button>' : "") + "</div>" +
           '<div class="ap3-steps">' +
             step("sales", null, "Salespeople", fmtN(N.sales.peak), fmtN(P.sales.peak)) +
             step("mkt", null, "Marketing budget", money0(N.tot.mkt), money0(P.tot.mkt)) +
             N.pools.map(q => { const q0 = P.pools.find(x => x.pk === q.pk) || q;
               return step("fm", q.pk, "Foremen · " + esc(q.label), fmtN(q.peak), fmtN(q0.peak)); }).join("") +
-          "</div>" +
-          (scAny() && d ? '<div class="ap3-nbwarn"><b>' + who + "</b> can carry <b>" + fmtN(N.tot.jobs) + " jobs</b> (" + sgN(d.jobs) + "): " +
-              "foremen " + fmtN(N.tot.peak) + " (" + sgN(N.tot.peak - P.tot.peak) + ") · salespeople " + fmtN(N.sales.peak) + " (" + sgN(d.sales) + ") · " +
-              "marketing " + money0(N.tot.mkt) + " (" + sgM(d.mkt) + ") · net " + sgM(d.net) +
-              '. <span class="q">The plan’s own ratios run backwards: what that resource can carry, not a promise the jobs arrive.</span> ' +
-              '<button type="button" class="rs-btn" data-screset>Back to the plan</button></div>' : "") +
-          "</div>";
+          "</div></div>";
       }
 
       /* ---- new bases ---- */
@@ -4460,9 +4455,7 @@ registerPage({
               (top.length ? "<small>biggest: " + top.map(x => esc(x.a.County) + " " + esc(x.a.State)).join(", ") + "</small>" : "") + "</div>" +
             "</div>";
         }).join("");
-        const onL = NB_CANDS.filter(c => NB_ON[c.label]).map(c => esc(c.label));
         return '<div class="ap3-nbwrap"><div class="ap3-nbh"><b>New bases</b><span>a test scenario — flip one to Yes and every number on this tab follows; a refresh puts them back to No</span></div>' +
-          (onL.length ? '<div class="ap3-nbwarn">Scenario on: <b>' + onL.join(", ") + '</b> — the numbers above include it. <button type="button" class="rs-btn" data-nbreset>Back to No</button></div>' : "") +
           '<div class="ap3-nbs">' + cards + "</div></div>";
       }
 
@@ -4790,9 +4783,8 @@ registerPage({
           repaintPlan();
         }; });
         const scr = host.querySelector("[data-screset]");
-        if (scr) scr.onclick = () => { SC.kind = null; SC.pool = null; SC.target = null; repaintPlan(); };
-        const rs = host.querySelector("[data-nbreset]");
-        if (rs) rs.onclick = () => { Object.keys(NB_ON).forEach(k => delete NB_ON[k]); nbRepaint(); };
+        if (scr) scr.onclick = () => { SC.kind = null; SC.pool = null; SC.target = null;
+          Object.keys(NB_ON).forEach(k => delete NB_ON[k]); nbRepaint(); };
       }
 
       /* Size and frame the map against the container it actually has. Safe to call at any time:
