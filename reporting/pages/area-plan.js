@@ -547,6 +547,10 @@ details.ap3-how[open]{padding-bottom:16px}
 .ap3-step .ctl button:hover{border-color:var(--brand-d);color:var(--brand-d)}
 .ap3-step .ctl button:focus-visible{outline:2px solid var(--brand-d);outline-offset:1px}
 .ap3-step small{font-size:11.5px;color:var(--faint)}
+.ap3-kpi .was{margin-top:8px;padding-top:7px;border-top:1px solid var(--ap-rule);font-size:12.5px;color:var(--muted)}
+.ap3-kpi .was b{display:inline;font-size:13.5px;font-weight:800;color:var(--ink);letter-spacing:0}
+.ap3-kpi .was i{font-style:normal;font-weight:800;margin-left:6px;color:var(--ap-pos-ink)}
+.ap3-kpi .was i.dn{color:var(--ap-neg-ink)}
 .ap3-kpi .d.dn{color:var(--ap-neg-ink)}
 .ap3-nbwarn .q{color:var(--muted)}
 .ap3-kpinb{grid-column:1 / -1;font-size:12.5px;color:var(--muted);margin-top:-4px}
@@ -4374,16 +4378,36 @@ registerPage({
                    sales: M.tot.leads ? M.sales.peak * r.leads / M.tot.leads : 0,
                    mkt: r.leads * (M.mkt.cplOf(st) || 0), leads: r.leads };
         };
+        /* WHERE WE STAND (his ask 2026-09-30: "add current situation as well - like what was 2026
+           season like"). The season just run, from the same model the plan is built on: the jobs
+           closed, the foremen who ran them, the desk that carried a full load, and the advertising
+           that left the bank in the months its leads arrived. One state's spend is its share by the
+           plan's own cost per lead (no ad dollar carries a state); its desk is its share of leads. */
+        const lastOf = M => {
+          const act = M.sales.active;
+          if (!st) return { jobs: M.mkt.jobsLast, fm: M.tot.ranLast, sales: act, mkt: M.mkt.spendLast, leads: M.mkt.leadsLast };
+          const r = M.rows.find(x => x.st === st);
+          if (!r) return null;
+          return { jobs: r.jobsLast, fm: num((SEED[st] || {})._all),
+                   sales: act != null && M.mkt.leadsLast ? act * r.leadsLast / M.mkt.leadsLast : null,
+                   mkt: r.leadsLast * (M.mkt.cplOf(st) || 0), leads: r.leadsLast };
+        };
+        const L = lastOf(N0 || N) || {}, LY = FC.year ? String(FC.year - 1) : "last season";
+        const was = (k, f) => { const v = L[k];
+          if (v == null || !(v > 0)) return "";
+          const now = pick(N)[k], pc = 100 * (now - v) / v;
+          return '<div class="was">Season ' + esc(LY) + " <b>" + f(v) + "</b>" +
+            (isFinite(pc) && Math.abs(pc) >= 0.5 ? '<i class="' + (pc < 0 ? "dn" : "up") + '">' + (pc > 0 ? "+" : "−") + Math.abs(pc).toFixed(0) + "%</i>" : "") + "</div>"; };
         const A = pick(N), B = N0 ? pick(N0) : null;
         if (!A) return '<div class="ap3-kpis"><div class="ap2-note">No ' + esc(st) + " row in the " + esc(String(FC.year)) + " plan.</div></div>";
         const dl = (k, f) => B && (nbAny() || scAny()) && Math.abs(A[k] - B[k]) >= (k === "sales" && st ? 0.05 : 0.5)
           ? '<em class="d' + (A[k] < B[k] ? " dn" : "") + '">' + f(A[k] - B[k]) + " vs the plan</em>" : "";
-        const tile = (v, k, sub, d) => '<div class="ap3-kpi"><b>' + v + "</b><span>" + k + "</span><small>" + sub + "</small>" + (d || "") + "</div>";
+        const tile = (v, k, sub, d, w) => '<div class="ap3-kpi"><b>' + v + "</b><span>" + k + "</span><small>" + sub + "</small>" + (d || "") + (w || "") + "</div>";
         return '<div class="ap3-kpis">' +
-          tile(fmtN(A.jobs), "Jobs " + esc(String(FC.year)), st ? esc(st) + " forecast" : "whole market forecast", dl("jobs", sgN)) +
-          tile(fmtN(A.fm), "Foremen at peak", fmtN(A.have) + " today" + (A.hire ? " · <em>hire +" + fmtN(A.hire) + "</em>" + (st ? " in " + esc(A.pool || "") : "") : " · covered"), dl("fm", sgN)) +
-          tile(st ? r1(A.sales) : fmtN(A.sales), "Salespeople at peak", st ? "its share of the one sales desk" : esc(String(N.sales.peakWhen || "").split(" ")[0]) + " · " + fmtN(N.sales.lpr) + " leads each", dl("sales", v => (v > 0 ? "+" : "−") + (st ? r1(Math.abs(v)) : fmtN(Math.abs(v))))) +
-          tile(money0(A.mkt), "Marketing", fmtN(A.leads) + " leads · post cards inside", dl("mkt", sgM)) +
+          tile(fmtN(A.jobs), "Jobs " + esc(String(FC.year)), st ? esc(st) + " forecast" : "whole market forecast", dl("jobs", sgN), was("jobs", fmtN)) +
+          tile(fmtN(A.fm), "Foremen at peak", fmtN(A.have) + " today" + (A.hire ? " · <em>hire +" + fmtN(A.hire) + "</em>" + (st ? " in " + esc(A.pool || "") : "") : " · covered"), dl("fm", sgN), was("fm", v => fmtN(v) + " ran jobs")) +
+          tile(st ? r1(A.sales) : fmtN(A.sales), "Salespeople at peak", st ? "its share of the one sales desk" : esc(String(N.sales.peakWhen || "").split(" ")[0]) + " · " + fmtN(N.sales.lpr) + " leads each", dl("sales", v => (v > 0 ? "+" : "−") + (st ? r1(Math.abs(v)) : fmtN(Math.abs(v)))), was("sales", v => (st ? r1(v) : fmtN(v)) + " on the desk")) +
+          tile(money0(A.mkt), "Marketing", fmtN(A.leads) + " leads · post cards inside", dl("mkt", sgM), was("mkt", v => money0(v) + (L.leads ? " · " + fmtN(L.leads) + " leads" : ""))) +
           "</div>";
       }
 
