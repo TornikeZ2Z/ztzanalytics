@@ -533,6 +533,21 @@ details.ap3-how>summary small{font-weight:600;color:var(--faint);margin-left:8px
 details.ap3-how[open]{padding-bottom:16px}
 .ap3-howcard{margin-top:14px;padding-top:12px;border-top:1px solid var(--ap-rule)}
 .ap3-howcard .ap2-h3{font-weight:800;font-size:15px;color:var(--ink);margin:0 0 4px}
+.ap3-sc{margin:0 0 18px}
+.ap3-steps{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px;margin:0 0 10px}
+.ap3-step{border:1px solid var(--ap-rule);border-radius:var(--ap-r1);background:var(--ap-bay);padding:10px 12px;min-width:0}
+.ap3-step.drv{border-color:var(--brand-d);box-shadow:inset 0 3px 0 var(--brand-d)}
+.ap3-step span{display:flex;justify-content:space-between;gap:8px;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+.ap3-step span em{font-style:normal;color:var(--brand-d);text-transform:none;letter-spacing:0}
+.ap3-step .ctl{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:6px 0 2px}
+.ap3-step .ctl b{font-size:22px;font-weight:800;color:var(--ink);font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+.ap3-step .ctl button{font:inherit;font-size:18px;font-weight:800;line-height:1;width:34px;height:34px;border-radius:9px;
+  border:1px solid var(--line-2);background:var(--panel);color:var(--ink);cursor:pointer}
+.ap3-step .ctl button:hover{border-color:var(--brand-d);color:var(--brand-d)}
+.ap3-step .ctl button:focus-visible{outline:2px solid var(--brand-d);outline-offset:1px}
+.ap3-step small{font-size:11.5px;color:var(--faint)}
+.ap3-kpi .d.dn{color:var(--ap-neg-ink)}
+.ap3-nbwarn .q{color:var(--muted)}
 .ap3-kpinb{grid-column:1 / -1;font-size:12.5px;color:var(--muted);margin-top:-4px}
 .ap3-kpinb b{color:var(--ink)}
 /* the new-base cards (2026-09-29) */
@@ -1537,6 +1552,33 @@ registerPage({
         AREA.forEach(a => { if (AREA_IX[a.Level]) AREA_IX[a.Level][a["Area Key"]] = a; });
       }
       nbApplyAreas();
+      /* ===================== WHAT IF, ON THE MAP (2026-09-30) =====================
+         His ask: "we write 18 sales person are required - what if we get 21? similarly, what if we can
+         manage more crew in PA? ... once 1 more foreman is needed what will happen with budgets and
+         sales persons ... similarly - budget increased - more leads - more sales - more foreman".
+         ONE NUMBER IS THE DRIVER, THE REST FOLLOW. Whatever he changes -- the salespeople, one crew
+         pool's foremen, the marketing budget -- the plan is scaled to the most work that resource can
+         carry (the largest job multiplier at which the plan still needs no more of it than he set),
+         and nextCalc() then re-derives everything else with the plan's own measured ratios: jobs a
+         foreman, leads a job, dollars a lead, leads a salesperson. It is the plan run backwards --
+         what that resource can carry -- not a claim that the jobs arrive; the strip says so.
+         A foreman lever scales only its own pool's states; salespeople and budget scale every state.
+         Memory only, like the bases: a refresh is back to the plan. */
+      const SC = { kind: null, pool: null, target: null };
+      let SC_MULT = {};
+      const scAny = () => !!SC.kind;
+      function scSolve() {
+        if (!SC.kind) { SC_MULT = {}; return; }
+        const P0 = nextCalc({ mult: {} });
+        const states = SC.kind === "fm" ? ((P0.pools.find(q => q.pk === SC.pool) || {}).states || []) : P0.rows.map(r => r.st);
+        const build = m => { const o = {}; states.forEach(st => { o[st] = m; }); return o; };
+        const metric = N => SC.kind === "fm" ? ((N.pools.find(q => q.pk === SC.pool) || {}).peak || 0)
+                          : SC.kind === "sales" ? N.sales.peak : N.tot.mkt;
+        let lo = 0.1, hi = 6;
+        for (let i = 0; i < 20; i++) { const mid = (lo + hi) / 2;
+          if (metric(nextCalc({ mult: build(mid) })) <= SC.target) lo = mid; else hi = mid; }
+        SC_MULT = build(lo);
+      }
       inputs.scnSaved = Array.isArray(inputs.scnSaved) ? inputs.scnSaved : [];
       inputs.city = Object.assign({ minLeads: 20, view: "all", q: "", sort: "Revenue", desc: true,
                                     page: 0, pageSize: 30 }, inputs.city || {});
@@ -2261,16 +2303,19 @@ registerPage({
          repaintPlan / repaintCity / repaintRank / enhanceTables / the delegated input handler all
          work untouched — a lazily-rendered pane would have meant teaching each of them to cope with
          a missing target. */
+      /* HIS ORDER (2026-09-30): "1) Main Variables // the information that controls this analysis
+         2) Map 3) the rest of the pages - i dont care about them, group em as you like" */
       const PANES = [
+        { k: "vars", label: "Main variables" },
+        { k: "map", label: "Map" },
         { k: "decide", label: "Decisions" },
         { k: "plan", label: null },              // named at render time: FC is declared below this block
-        { k: "map", label: "Map" },
         { k: "cities", label: "Cities" },
         { k: "capacity", label: "Capacity check" },
         { k: "whatif", label: "What if" },
         { k: "ref", label: "Reference" },
       ];
-      const paneOf = key => PANES.some(x => x.k === key) ? key : "decide";
+      const paneOf = key => PANES.some(x => x.k === key) ? key : "map";
       /* THE ASSUMPTIONS SIT ABOVE THE PANES (2026-09-20), because two of the three move the 2027
          answer — utilization sets how many jobs a foreman does in a month, and leads-per-salesperson
          sizes the desk. They used to live inside the hero of the past-period what-if, three thousand
@@ -2319,7 +2364,6 @@ registerPage({
         if (!quiet) { const sc = host.closest(".rs-content"); if (sc) sc.scrollTop = 0; }
         /* the dials are for working the plan; the map tab is the one on the screen in the room,
            and a paragraph of assumptions above it is the first thing the eye landed on (2026-09-29) */
-        const asm = host.querySelector("#apAssume"); if (asm) asm.style.display = key === "map" ? "none" : "";
         /* LEAFLET SIZES ITSELF FROM THE CONTAINER, and a container in a hidden pane is 0x0 —
            the map draws one grey tile, AND fitBounds clamps to maxZoom, until it is told to
            measure again. Both have to be redone, not just the first. */
@@ -2397,7 +2441,8 @@ registerPage({
           return (regAny && inputs.seed === "measured" && (OVR.bases || {})[st] == null) ? (REG[st] || 0) : typed; };
         const rows = sts.map(st => {
           const s = FCS[st], have = haveOf(st);
-          const cells = months.map(ym => { const r0 = s.months[ym] || {}; const jobs = (r0.methods && r0.methods[method] != null) ? r0.methods[method] : (r0.jobs || 0);
+          const scM = ((opts && opts.mult) || SC_MULT)[st];      // the What-if scenario's job multiplier (1 = the plan)
+          const cells = months.map(ym => { const r0 = s.months[ym] || {}; const jobs = ((r0.methods && r0.methods[method] != null) ? r0.methods[method] : (r0.jobs || 0)) * (scM != null ? scM : 1);
             const conv = s.conversion; const need = jobs ? Math.ceil(jobs * (r0.headroom || 1) / perFm) : 0;
             return Object.assign({}, r0, { ym, need, jobs, leads_needed: conv ? Math.round(jobs / conv) : null }); });
           const coreCells = cells.filter(c => !c.shoulder);
@@ -4330,13 +4375,43 @@ registerPage({
         };
         const A = pick(N), B = N0 ? pick(N0) : null;
         if (!A) return '<div class="ap3-kpis"><div class="ap2-note">No ' + esc(st) + " row in the " + esc(String(FC.year)) + " plan.</div></div>";
-        const dl = (k, f) => B && nbAny() && Math.abs(A[k] - B[k]) >= 0.5 ? '<em class="d">' + f(A[k] - B[k]) + " with new bases</em>" : "";
+        const dl = (k, f) => B && (nbAny() || scAny()) && Math.abs(A[k] - B[k]) >= (k === "sales" && st ? 0.05 : 0.5)
+          ? '<em class="d' + (A[k] < B[k] ? " dn" : "") + '">' + f(A[k] - B[k]) + " vs the plan</em>" : "";
         const tile = (v, k, sub, d) => '<div class="ap3-kpi"><b>' + v + "</b><span>" + k + "</span><small>" + sub + "</small>" + (d || "") + "</div>";
         return '<div class="ap3-kpis">' +
           tile(fmtN(A.jobs), "Jobs " + esc(String(FC.year)), st ? esc(st) + " forecast" : "whole market forecast", dl("jobs", sgN)) +
           tile(fmtN(A.fm), "Foremen at peak", fmtN(A.have) + " today" + (A.hire ? " · <em>hire +" + fmtN(A.hire) + "</em>" + (st ? " in " + esc(A.pool || "") : "") : " · covered"), dl("fm", sgN)) +
           tile(st ? r1(A.sales) : fmtN(A.sales), "Salespeople at peak", st ? "its share of the one sales desk" : esc(String(N.sales.peakWhen || "").split(" ")[0]) + " · " + fmtN(N.sales.lpr) + " leads each", dl("sales", v => (v > 0 ? "+" : "−") + (st ? r1(Math.abs(v)) : fmtN(Math.abs(v))))) +
           tile(money0(A.mkt), "Marketing", fmtN(A.leads) + " leads · post cards inside", dl("mkt", sgM)) +
+          "</div>";
+      }
+
+      /* ---- what if: one driver, the rest follows ---- */
+      function scHtml(N, N0) {
+        if (!N) return "";
+        const P = N0 || N;                       // the plan the steppers are read against
+        const step = (kind, pool, label, shown, plan) => {
+          const drv = SC.kind === kind && (kind !== "fm" || SC.pool === pool);
+          return '<div class="ap3-step' + (drv ? " drv" : "") + '"><span>' + label + (drv ? "<em>you set this</em>" : "") + "</span>" +
+            '<div class="ctl"><button type="button" aria-label="less" data-sc="' + kind + '" data-pool="' + esc(pool || "") + '" data-d="-1">−</button>' +
+            "<b>" + shown + '</b><button type="button" aria-label="more" data-sc="' + kind + '" data-pool="' + esc(pool || "") + '" data-d="1">+</button></div>' +
+            "<small>plan " + plan + "</small></div>"; };
+        const d = scAny() || nbAny() ? nbDelta(N, P) : null;
+        const who = SC.kind === "sales" ? fmtN(SC.target) + " salespeople"
+                  : SC.kind === "mkt" ? money0(SC.target) + " of marketing"
+                  : SC.kind === "fm" ? fmtN(SC.target) + " foremen in " + esc(((N.pools.find(q => q.pk === SC.pool) || {}).label) || "") : "";
+        return '<div class="ap3-sc"><div class="ap3-nbh"><b>What if</b><span>change one number and the rest follows — a test scenario, a refresh puts it back</span></div>' +
+          '<div class="ap3-steps">' +
+            step("sales", null, "Salespeople", fmtN(N.sales.peak), fmtN(P.sales.peak)) +
+            step("mkt", null, "Marketing budget", money0(N.tot.mkt), money0(P.tot.mkt)) +
+            N.pools.map(q => { const q0 = P.pools.find(x => x.pk === q.pk) || q;
+              return step("fm", q.pk, "Foremen · " + esc(q.label), fmtN(q.peak), fmtN(q0.peak)); }).join("") +
+          "</div>" +
+          (scAny() && d ? '<div class="ap3-nbwarn"><b>' + who + "</b> can carry <b>" + fmtN(N.tot.jobs) + " jobs</b> (" + sgN(d.jobs) + "): " +
+              "foremen " + fmtN(N.tot.peak) + " (" + sgN(N.tot.peak - P.tot.peak) + ") · salespeople " + fmtN(N.sales.peak) + " (" + sgN(d.sales) + ") · " +
+              "marketing " + money0(N.tot.mkt) + " (" + sgM(d.mkt) + ") · net " + sgM(d.net) +
+              '. <span class="q">The plan’s own ratios run backwards: what that resource can carry, not a promise the jobs arrive.</span> ' +
+              '<button type="button" class="rs-btn" data-screset>Back to the plan</button></div>' : "") +
           "</div>";
       }
 
@@ -4633,8 +4708,9 @@ registerPage({
         if (!COUNTY.length && !AREA.length) return '<div class="panel">The county marts (mart_area_county, mart_area_tier) are not ' +
           'built yet — run <b>sources=mart_area_county</b> and reload.</div>';
         const N = FC.year ? nextCalc() : null;
-        const N0 = FC.year && nbAny() ? nextCalc({ nb: "none" }) : null;
+        const N0 = FC.year && (nbAny() || scAny()) ? nextCalc({ nb: "none", mult: {} }) : null;
         return '<div id="apKpis">' + planStripHtml(N, N0) + "</div>" +
+          '<div id="apScn">' + scHtml(N, N0) + "</div>" +
           '<div id="apNewBases">' + nbHtml(N) + "</div>" +
           '<div id="apTodos">' + todoHtml(N) + "</div>" +
           '<div id="apMapBar">' + mapBarHtml() + "</div>" +
@@ -4648,9 +4724,10 @@ registerPage({
          LAYERS -- the Leaflet map is built once, so pan, zoom and a pinned ring survive every click. */
       function repaintMapTab(opts) {
         const N = FC.year ? nextCalc() : null;
-        const N0 = FC.year && nbAny() ? nextCalc({ nb: "none" }) : null;
+        const N0 = FC.year && (nbAny() || scAny()) ? nextCalc({ nb: "none", mult: {} }) : null;
         const put = (id, html) => { const el = host.querySelector(id); if (el) el.innerHTML = html; };
         put("#apKpis", planStripHtml(N, N0));
+        put("#apScn", scHtml(N, N0));
         if (!opts || opts.bases !== false) put("#apNewBases", nbHtml(N));
         put("#apTodos", todoHtml(N));
         put("#apMapBar", mapBarHtml());
@@ -4662,9 +4739,8 @@ registerPage({
       function repaintMapChrome() { repaintMapTab(); }
       function nbRepaint() {
         nbApplyAreas();
-        repaintMapTab();
+        repaintPlan();                 // re-solves the What-if, repaints every tab and the Map tab
         const box = host.querySelector("#apMapBox"); if (box && box._restyle) box._restyle();
-        repaintPlan();
       }
       function wireNewBases() { wireMapColor(); }
       function wireMapColor() {
@@ -4703,6 +4779,18 @@ registerPage({
             if (want) NB_ON[label] = true; else delete NB_ON[label];
             nbRepaint(); }; });
         });
+        host.querySelectorAll("#apScn [data-sc]").forEach(b => { b.onclick = () => {
+          const kind = b.dataset.sc, pool = b.dataset.pool || null, dd = +b.dataset.d;
+          const N = nextCalc(), P = nextCalc({ nb: "none", mult: {} });
+          let target;
+          if (kind === "sales") target = Math.max(1, N.sales.peak + dd);
+          else if (kind === "fm") target = Math.max(1, ((N.pools.find(q => q.pk === pool) || {}).peak || 0) + dd);
+          else target = Math.max(0, N.tot.mkt + dd * 0.05 * P.tot.mkt);      // 5% of the plan's budget a click
+          SC.kind = kind; SC.pool = pool; SC.target = target;
+          repaintPlan();
+        }; });
+        const scr = host.querySelector("[data-screset]");
+        if (scr) scr.onclick = () => { SC.kind = null; SC.pool = null; SC.target = null; repaintPlan(); };
         const rs = host.querySelector("[data-nbreset]");
         if (rs) rs.onclick = () => { Object.keys(NB_ON).forEach(k => delete NB_ON[k]); nbRepaint(); };
       }
@@ -5844,7 +5932,14 @@ registerPage({
           '<div class="ap2-clockline">Season ' + esc(String(FC.year || "")) + (SEASON.next && SEASON.next[0] ? " · " + esc(ymLabel(SEASON.next[0])) + " – " + esc(ymLabel(SEASON.next[1])) : "") +
             '</div></div>' +
           tabsHtml() +
-          assumeHtml() +
+          /* MAIN VARIABLES: what the analysis runs on -- the three dials and the forecast that every
+             crew, desk and budget number is sized from. They used to sit above every tab and at the
+             bottom of the plan tab; he asked for them first, in one place. */
+          pane("vars", "What this analysis runs on. Change a number here and every tab follows, the Map included.",
+            assumeHtml() +
+            card("The jobs forecast — " + (FC.year || "the coming one"), "Jobs by state and month, and the method behind them",
+               "Where the season's work is forecast to fall. The crew, the desk and the budget are all sized from these jobs — change the method here and they follow.",
+               '<div id="apNext" style="overflow-x:auto">' + nextHtml() + "</div>")) +
           pane("decide", "The three answers for Season " + esc(String(FC.year || "")) + ", and Giga's nine questions with what the data says today.",
             '<div id="apDecide">' + decisionsHtml() + "</div>" +
             (model.expansion ? card("Beside the plan \u2014 the expansion we decided",
@@ -5867,9 +5962,6 @@ registerPage({
           card("Beside the plan", "Tuji and the sister companies — their own crews, their own money, and the Delaware question",
                "Kept apart from every total on this page, because they hire and advertise for themselves. Delaware is where they change the reading.",
                sisterHtml(), "apSister") +
-          card("The jobs forecast — " + (FC.year || "the coming one"), "Jobs by state and month, and the method behind them",
-               "Where the season's work is forecast to fall. The crew, the desk and the budget above are all sized from these jobs — change the method here and they follow.",
-               '<div id="apNext" style="overflow-x:auto">' + nextHtml() + "</div>") +
           card("Season budget — " + (FC.year || "the coming one"), "Revenue, the job and truck cost, and marketing (post cards inside it), per state",
                "The whole season in one table: what the jobs bring, what they cost to run, what the leads cost to buy. Net is before overhead.",
                '<div id="apBudget" style="overflow-x:auto">' + budgetHtml() + "</div>")) +
@@ -5983,6 +6075,9 @@ registerPage({
          all go through here, so the decisions band can never disagree with the card it quotes. None of
          the typed inputs live inside these nodes, so the cursor keeps its place. */
       function repaintPlan() {
+        /* the What-if multiplier is solved against the CURRENT dials, method and bases, so it is
+           re-solved before anything below reads nextCalc() */
+        scSolve();
         const dc = host.querySelector("#apDecide"); if (dc) dc.innerHTML = decisionsHtml();
         const fp = host.querySelector("#apFull"); if (fp) fp.outerHTML = fullPlanHtml();
         const nx = host.querySelector("#apNext"); if (nx) nx.innerHTML = nextHtml();
@@ -5994,6 +6089,9 @@ registerPage({
            its chip and tables can never lag the expansion card above it */
         const md = host.querySelector("#apMd"); if (md) md.innerHTML = mdHtml();
         repaintBudget(); wireMethod(); wireAsks(); enhanceTables();
+        /* the Map tab quotes the same plan: a dial or a forecast method changed on Main variables
+           has to reach its numbers too */
+        if (host.querySelector("#apKpis")) repaintMapTab();
       }
       function save() { try { localStorage.setItem(LS_KEY, JSON.stringify(inputs)); } catch (e) {} }
 
