@@ -619,6 +619,15 @@ details.ap3-how[open]{padding-bottom:16px}
 .ap3-nb .nums span{font-size:12.5px;color:var(--muted);line-height:1.3}
 .ap3-nb .nums b{font-size:16px;color:var(--ink);font-variant-numeric:tabular-nums}
 .ap3-nb .nums small{display:block;font-size:11px;color:var(--faint)}
+.ap3-nbh .ap3-pick{margin-left:auto;padding:4px 12px;font-size:12.5px;white-space:nowrap}
+.ap3-nbh .ap3-pick.on{border-color:var(--brand-d);color:var(--brand-d)}
+.ap3-nbh span em{font-style:normal;font-weight:700;color:var(--brand-d)}
+.ap3-picking .leaflet-container,.ap3-picking .leaflet-interactive,.ap3-picking .leaflet-grab{cursor:crosshair !important}
+.ap3-nb .opened{margin-top:10px;display:grid;gap:5px}
+.ap3-nb .opened div{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--ink)}
+.ap3-nb .opened div small{margin-left:auto;color:var(--faint);white-space:nowrap}
+.ap3-nb .opened>small{font-size:11.5px;color:var(--faint)}
+.ap3-det .ap3-nb{border:0;padding:0;background:none}
 .ap3-nb .assume{font-size:12px;color:var(--ap-warn-ink);margin:0 0 8px;line-height:1.4}
 .ap3-nb .ground{font-size:12.5px;color:var(--ink);padding-top:8px;border-top:1px solid var(--ap-rule);line-height:1.8}
 .ap3-nb .ground small{display:block;color:var(--muted);font-size:11.5px;line-height:1.4}
@@ -1499,6 +1508,29 @@ registerPage({
       const trAny = () => Object.keys(TR_OWN).length > 0;
       const NB_FM = {};          // a YES base's crew as he set it (blank = suggested); memory only
       const nbOf = label => ({ on: !!NB_ON[label] });
+      /* ANY POINT ON THE MAP AS A BASE (his ask 2026-09-30: "click any point on the map and see what
+         it gives us - what coverage, average value and etc"). The point becomes one more candidate,
+         named after the county it stands in, switched to Yes at once -- so it is measured by exactly
+         the rules the three listed candidates are. One at a time, memory only: a new pick replaces
+         the old one, Reset removes it. */
+      let PICK = false;
+      function nbPickClear() {
+        const i = NB_CANDS.findIndex(c => c.custom); if (i < 0) return;
+        const l = NB_CANDS[i].label; NB_CANDS.splice(i, 1);
+        delete NB_ON[l]; delete NB_FM[l]; delete TR_OWN[l];
+      }
+      function nbPickAt(la, lo) {
+        let best = null, bd = Infinity;
+        AREA_BASE.forEach(a => { if (a.Level !== "County" || !num(a.Latitude)) return;
+          const d = miBetween(num(a.Latitude), num(a.Longitude), la, lo); if (d < bd) { bd = d; best = a; } });
+        if (!best) return null;
+        nbPickClear();
+        const label = "Picked point · " + best.County + " " + best.State;
+        NB_CANDS.push({ label, st: best.State, la, lo, county: best.County, side: sideOf(best.State, best.County),
+                        step: null, zip: "", custom: true });
+        NB_ON[label] = true;
+        return label;
+      }
       /* re-tier one area against a set of new bases: null when no new base is nearer */
       function tierWith(a, bases) {
         const mi0 = num(a["Miles To Base"]);
@@ -1524,7 +1556,7 @@ registerPage({
       /* the whole effect of a set of new bases: re-tiered areas, and per base the ground it opens,
          the leads and jobs that ground is expected to send, and the counties it now serves nearest */
       function nbEffect(active) {
-        const key = active.map(b => b.label).sort().join("|");
+        const key = active.map(b => b.label + (b.custom ? "@" + b.la.toFixed(3) + "," + b.lo.toFixed(3) : "")).sort().join("|");
         if (NB_CACHE[key]) return NB_CACHE[key];
         const adj = {};
         if (active.length) AREA_BASE.forEach(a => { if (!SERVICE_AREAS.includes(a.State)) return;
@@ -4579,12 +4611,19 @@ registerPage({
         const g = M => (M.tot.gross != null ? M.tot.gross : 0) - (M.tot.mkt || 0) - (M.tot.parking || 0);
         return { jobs: withN.tot.jobs - withoutN.tot.jobs, mkt: withN.tot.mkt - withoutN.tot.mkt,
                  hire: withN.tot.hire - withoutN.tot.hire, sales: withN.sales.peak - withoutN.sales.peak,
-                 net: g(withN) - g(withoutN), leads: withN.tot.leads - withoutN.tot.leads };
+                 net: g(withN) - g(withoutN), leads: withN.tot.leads - withoutN.tot.leads,
+                 rev: (withN.tot.revenue || 0) - (withoutN.tot.revenue || 0) };
       }
       function nbHtml(N) {
         if (!NB_CANDS.length || !N) return "";
-        const TC = tierColors();
-        const cards = NB_CANDS.map(c => {
+        const cards = NB_CANDS.map(c => nbCard(c, N, false)).join("");
+        return '<div class="ap3-nbwrap"><div class="ap3-nbh"><b>New bases</b><span>' +
+          (PICK ? "<em>now click the map where the base would stand</em>" : "a test scenario — flip one to Yes and every number on this tab follows; a refresh puts them back to No") + "</span>" +
+          '<button type="button" class="rs-btn ap3-pick' + (PICK ? " on" : "") + '" data-nbpick>' + (PICK ? "Cancel" : "Try any point on the map") + "</button></div>" +
+          '<div class="ap3-nbs">' + cards + "</div></div>";
+      }
+      function nbCard(c, N, full) {
+          const TC = tierColors();
           const on = !!NB_ON[c.label];
           const withN = on ? N : nextCalc({ nb: { with: c.label } });
           const withoutN = on ? nextCalc({ nb: { without: c.label } }) : N;
@@ -4604,6 +4643,8 @@ registerPage({
               "<span><b>" + sgM(d.mkt) + "</b> marketing<small>" + sgN(d.leads) + " leads</small></span>" +
               "<span><b>" + sgN(d.sales) + "</b> sales<small>at peak</small></span>" +
               "<span><b>" + sgM(d.net) + "</b> net<small>season, after all costs</small></span>" +
+              "<span><b>" + sgM(d.rev) + "</b> income<small>" + (d.jobs > 0.5 ? money0(d.rev / d.jobs) + " average job" : "no jobs added") + "</small></span>" +
+              "<span><b>" + fmtN((o.served || []).length) + "</b> counties nearest to it<small>within 50 miles</small></span>" +
             "</div>" +
             (() => { /* SAY WHAT IT ASSUMES: the capture the new ground would have to reach in year one,
                          beside what its state runs today -- Montgomery reads ~35 against Maryland's 7.5 */
@@ -4616,11 +4657,14 @@ registerPage({
                 (stNow != null ? " — " + esc(c.st) + " runs " + r1(stNow) + " today" : "") + "</div>"; })() +
             '<div class="ground">Opens <b>' + fmtN((o.opened || []).length) + "</b> counties " +
               tiers.map(([t, n]) => '<i class="tchip" style="background:' + TC["t" + t] + '">T' + t + " · " + n + "</i>").join("") +
-              (top.length ? "<small>biggest: " + top.map(x => esc(x.a.County) + " " + esc(x.a.State)).join(", ") + "</small>" : "") + "</div>" +
+              (top.length && !full ? "<small>biggest: " + top.map(x => esc(x.a.County) + " " + esc(x.a.State)).join(", ") + "</small>" : "") + "</div>" +
+            /* the side panel's version lists the ground it opens, county by county */
+            (full && (o.opened || []).length ? '<div class="opened">' + o.opened.slice(0, 12).map(x =>
+              '<div><i class="tchip" style="background:' + TC["t" + x.tier] + '">T' + x.tier + "</i><span>" + esc(x.a.County) + " " + esc(x.a.State) +
+              "</span><small>" + r1(x.mi) + " mi · " + sgN(x.jobsFull * NB_YEAR1) + " jobs</small></div>").join("") +
+              (o.opened.length > 12 ? "<small>and " + fmtN(o.opened.length - 12) + " more</small>" : "") + "</div>" : "") +
+            (full && !(o.opened || []).length ? '<div class="assume">No county comes into reach from here: everything within 50 miles is already within 50 miles of a base we have.</div>' : "") +
             "</div>";
-        }).join("");
-        return '<div class="ap3-nbwrap"><div class="ap3-nbh"><b>New bases</b><span>a test scenario — flip one to Yes and every number on this tab follows; a refresh puts them back to No</span></div>' +
-          '<div class="ap3-nbs">' + cards + "</div></div>";
       }
 
       /* the county names a pool should push, and the weak ones that still carry real leads */
@@ -4732,7 +4776,7 @@ registerPage({
       }
 
       /* ---- the right panel: the ranked list, or the full sheet of whatever was clicked ---- */
-      let SIDE = null;               // null = the list; { kind: "area", level, key } | { kind: "base", label }
+      let SIDE = null;               // null = the list; { kind: "area", level, key } | { kind: "base", label } | { kind: "pick" }
       function areaListHtml(N) {
         const lvl = inputs.mapLevel, st = mapStOf();
         const R = areaRows(N, lvl, st);
@@ -4804,6 +4848,8 @@ registerPage({
       function sideHtml(N) {
         const box = host.querySelector("#apMapBox");
         if (SIDE && SIDE.kind === "area") return areaDetailHtml(N, SIDE.level, SIDE.key);
+        if (SIDE && SIDE.kind === "pick") { const c = NB_CANDS.find(x => x.custom);
+          if (c && N) return '<div class="ap3-det"><button type="button" class="ap3-back" data-sideback>← Back to the list</button>' + nbCard(c, N, true) + "</div>"; }
         if (SIDE && SIDE.kind === "base" && box && box._baseSheet) return '<div class="ap3-det"><button type="button" class="ap3-back" data-sideback>← Back to the list</button>' + box._baseSheet(SIDE.label) + "</div>";
         return areaListHtml(N);
       }
@@ -4929,7 +4975,11 @@ registerPage({
         }; });
         host.querySelectorAll("#apAreaList [data-sideback]").forEach(b => { b.onclick = () => showSide(null); });
         const csv = host.querySelector("#apAreaCsv"); if (csv) csv.onclick = () => areaCsv(FC.year ? nextCalc() : null);
-        host.querySelectorAll("#apNewBases [data-nb]").forEach(card => {
+        const pk = host.querySelector("#apNewBases [data-nbpick]");
+        if (pk) pk.onclick = () => { PICK = !PICK;
+          if (box) { box.classList.toggle("ap3-picking", PICK); if (PICK) box.scrollIntoView({ block: "center", behavior: "smooth" }); }
+          const el = host.querySelector("#apNewBases"); if (el) { el.innerHTML = nbHtml(FC.year ? nextCalc() : null); wireMapColor(); } };
+        host.querySelectorAll("#apNewBases [data-nb], #apAreaList [data-nb]").forEach(card => {
           const label = card.dataset.nb;
           card.querySelectorAll("[data-nbon]").forEach(b => { b.onclick = () => {
             const want = b.dataset.nbon === "1"; if (!!NB_ON[label] === want) return;
@@ -4959,7 +5009,8 @@ registerPage({
         }; });
         const scr = host.querySelector("[data-screset]");
         if (scr) scr.onclick = () => { SC.kind = null; SC.pool = null; SC.target = null;
-          Object.keys(NB_ON).forEach(k => delete NB_ON[k]); Object.keys(NB_FM).forEach(k => delete NB_FM[k]); Object.keys(TR_OWN).forEach(k => delete TR_OWN[k]); nbRepaint(); };
+          Object.keys(NB_ON).forEach(k => delete NB_ON[k]); Object.keys(NB_FM).forEach(k => delete NB_FM[k]); Object.keys(TR_OWN).forEach(k => delete TR_OWN[k]);
+          nbPickClear(); if (SIDE && SIDE.kind === "pick") SIDE = null; nbRepaint(); };
       }
 
       /* Size and frame the map against the container it actually has. Safe to call at any time:
@@ -5617,7 +5668,15 @@ registerPage({
           const nbRings = L.layerGroup().addTo(m);
           box._nbRings = () => { nbRings.clearLayers();
             NB_CANDS.filter(c => NB_ON[c.label]).forEach(c => L.circle([c.la, c.lo], { pane: "apRings", radius: 50 * MI_PER_M,
-              interactive: false, color: col.t1, weight: 2, dashArray: "6 5", fillColor: col.t1, fillOpacity: .06 }).addTo(nbRings)); };
+              interactive: false, color: col.t1, weight: 2, dashArray: "6 5", fillColor: col.t1, fillOpacity: .06 }).addTo(nbRings));
+            /* the picked point keeps its pin whether it is Yes or No */
+            NB_CANDS.filter(c => c.custom).forEach(c => L.circleMarker([c.la, c.lo], { radius: 8, interactive: false,
+              color: "#fff", weight: 3, fillColor: tok("--ink") || "#22303f", fillOpacity: 1 }).addTo(nbRings)); };
+          /* the click that places it: an area under the cursor has just opened its own sheet, so the
+             picked base's sheet replaces it */
+          m.on("click", e => { if (!PICK) return;
+            PICK = false; box.classList.remove("ap3-picking");
+            if (nbPickAt(e.latlng.lat, e.latlng.lng)) { SIDE = { kind: "pick" }; nbRepaint(); } });
           box._nbRings();
           box._fit = pts;
           box._map = m;
