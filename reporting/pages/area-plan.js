@@ -483,6 +483,17 @@ body:not(.light) .ap2-mapbox{background:#1d232b}
 .ap3-bar{display:flex;align-items:center;flex-wrap:wrap;gap:8px 10px;margin:0 0 10px}
 .ap3-bar label{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin-left:8px}
 .ap3-bar label:first-child{margin-left:0}
+.ap3-find{position:relative;margin-left:auto;min-width:230px;flex:0 1 280px}
+.ap3-find input{width:100%}
+.ap3-findres{position:absolute;z-index:1200;top:calc(100% + 4px);left:0;right:0;background:var(--ap-bay);border:1px solid var(--ap-rule);border-radius:var(--ap-r1);box-shadow:0 10px 28px rgba(0,0,0,.16);padding:4px;max-height:340px;overflow:auto}
+.ap3-findres button{display:flex;align-items:center;gap:8px;width:100%;text-align:left;font:inherit;font-size:13px;color:var(--ink);background:none;border:0;border-radius:7px;padding:7px 8px;cursor:pointer}
+.ap3-findres button:hover,.ap3-findres button:focus-visible{background:var(--ap-sub);outline:0}
+.ap3-findres button small{margin-left:auto;color:var(--faint);font-size:11.5px;white-space:nowrap}
+.ap3-findres .tchip{display:inline-block;font-style:normal;font-size:11px;font-weight:800;padding:0 7px;border-radius:6px;color:#fff;flex:none}
+.ap3-findres .none{padding:8px;font-size:12.5px;color:var(--muted)}
+.ap3-hl{animation:ap3hl 1.4s ease-in-out infinite}
+@keyframes ap3hl{0%,100%{stroke-opacity:1;stroke-width:3}50%{stroke-opacity:.35;stroke-width:7}}
+@media (prefers-reduced-motion:reduce){.ap3-hl{animation:none}}
 .ap3-seg{display:inline-flex;flex-wrap:wrap;border:1px solid var(--line-2);border-radius:10px;overflow:hidden;background:var(--panel)}
 .ap3-seg button{font:inherit;font-size:12.5px;font-weight:700;padding:6px 11px;border:0;border-right:1px solid var(--line);
   background:transparent;color:var(--muted);cursor:pointer;min-height:32px}
@@ -4732,7 +4743,30 @@ registerPage({
           "<label>Market</label>" + seg("mapst", [["", "Whole market"]].concat(SERVICE_AREAS.map(x => [x, x])), inputs.mapSt || "") +
           "<label>Show</label>" + seg("maplevel", LEVELS, lvl) +
           (lvl === "County" ? "<label>Colour</label>" + seg("mapcolor", MODES, inputs.mapColor) : "") +
+          /* FIND A PLACE AND LIGHT IT UP (his ask 2026-09-30: "add search so it can highlight") */
+          '<div class="ap3-find"><input id="apFind" class="rs-inp" type="search" autocomplete="off" spellcheck="false" ' +
+            'placeholder="Find a county, city or zip…" aria-label="Find a county, city or zip on the map" value="' + esc(FINDQ) + '">' +
+            '<div id="apFindRes" class="ap3-findres" style="display:none"></div></div>' +
           "</div>";
+      }
+      /* the search: a zip by its digits, anything else by name -- names that START with the text
+         first, counties before cities before zips, the areas with leads ahead of the empty ones */
+      let FINDQ = "";
+      function findAreas(q) {
+        q = String(q || "").trim().toLowerCase();
+        if (q.length < 2) return [];
+        const digits = /^\d+$/.test(q), LV = { County: 0, City: 1, Zip: 2 };
+        const out = [];
+        AREA.forEach(a => {
+          if (!num(a.Latitude)) return;
+          let rank;
+          if (digits) { if (a.Level !== "Zip" || String(a.Zip || "").indexOf(q) !== 0) return; rank = 0; }
+          else { const nm = String(a.Level === "Zip" ? a.City || "" : a.Name || "").toLowerCase(), full = nm + " " + String(a.State || "").toLowerCase();
+            const i = full.indexOf(q); if (i < 0) return; rank = i === 0 ? 0 : 1; }
+          out.push({ a, rank });
+        });
+        out.sort((x, y) => x.rank - y.rank || LV[x.a.Level] - LV[y.a.Level] || num(y.a["Leads 12m"]) - num(x.a["Leads 12m"]));
+        return out.slice(0, 10).map(x => x.a);
       }
 
       function tierKeyHtml(rows) {
@@ -4975,6 +5009,27 @@ registerPage({
         }; });
         host.querySelectorAll("#apAreaList [data-sideback]").forEach(b => { b.onclick = () => showSide(null); });
         const csv = host.querySelector("#apAreaCsv"); if (csv) csv.onclick = () => areaCsv(FC.year ? nextCalc() : null);
+        const fi = host.querySelector("#apFind"), fr = host.querySelector("#apFindRes");
+        if (fi && fr) {
+          const TC = tierColors();
+          const go = a => { fr.style.display = "none"; FINDQ = fi.value = a.Level === "Zip" ? a.Name : a.Name + ", " + a.State;
+            showSide({ kind: "area", level: a.Level, key: a["Area Key"] });
+            if (box && box._highlight) box._highlight(a); };
+          const list = () => { FINDQ = fi.value;
+            const hits = findAreas(fi.value); fr._hits = hits;
+            if (!fi.value.trim()) { if (box && box._highlight) box._highlight(null); }
+            fr.innerHTML = hits.length ? hits.map((a, i) => '<button type="button" data-find="' + i + '"><i class="tchip" style="background:' +
+                (TC["t" + num(a.Tier)] || "var(--faint)") + '">' + (num(a.Tier) >= 1 ? "T" + num(a.Tier) : "–") + "</i><span>" + esc(a.Name) +
+                (a.Level === "Zip" ? "" : ", " + esc(a.State)) + "</span><small>" + esc(a.Level === "Zip" ? "zip · " + a.State : a.Level === "City" ? "city · " + (a.County || "") : "county") + "</small></button>").join("")
+              : fi.value.trim().length >= 2 ? '<div class="none">Nothing by that name in our states.</div>' : "";
+            fr.style.display = fr.innerHTML ? "" : "none";
+            fr.querySelectorAll("[data-find]").forEach(b => { b.onmousedown = e => { e.preventDefault(); go(hits[+b.dataset.find]); }; }); };
+          fi.oninput = list;
+          fi.onfocus = () => { if (fi.value.trim().length >= 2) list(); };
+          fi.onblur = () => setTimeout(() => { fr.style.display = "none"; }, 150);
+          fi.onkeydown = e => { if (e.key === "Enter" && fr._hits && fr._hits.length) { e.preventDefault(); go(fr._hits[0]); fi.blur(); }
+            else if (e.key === "Escape") { fr.style.display = "none"; } };
+        }
         const pk = host.querySelector("#apNewBases [data-nbpick]");
         if (pk) pk.onclick = () => { PICK = !PICK;
           if (box) { box.classList.toggle("ap3-picking", PICK); if (PICK) box.scrollIntoView({ block: "center", behavior: "smooth" }); }
@@ -5672,6 +5727,16 @@ registerPage({
             /* the picked point keeps its pin whether it is Yes or No */
             NB_CANDS.filter(c => c.custom).forEach(c => L.circleMarker([c.la, c.lo], { radius: 8, interactive: false,
               color: "#fff", weight: 3, fillColor: tok("--ink") || "#22303f", fillOpacity: 1 }).addTo(nbRings)); };
+          /* THE FOUND PLACE, LIT UP: framed, ringed until the next search, and -- when the map is
+             showing that level -- its own outline flashed by the list's focus */
+          const hlLayer = L.layerGroup().addTo(m);
+          box._highlight = a => { hlLayer.clearLayers(); if (!a) return;
+            const ll = [num(a.Latitude), num(a.Longitude)];
+            if (a.Level === inputs.mapLevel && box._focusArea) box._focusArea(a["Area Key"]);
+            if (a.Level !== inputs.mapLevel || !m.getBounds().contains(ll))
+              m.setView(ll, a.Level === "County" ? 9 : a.Level === "City" ? 11 : 12, { animate: false });
+            L.circleMarker(ll, { radius: 16, interactive: false, className: "ap3-hl", color: tok("--ink") || "#22303f", weight: 3, fill: false }).addTo(hlLayer);
+            L.circleMarker(ll, { radius: 4, interactive: false, color: "#fff", weight: 2, fillColor: tok("--ink") || "#22303f", fillOpacity: 1 }).addTo(hlLayer); };
           /* the click that places it: an area under the cursor has just opened its own sheet, so the
              picked base's sheet replaces it */
           m.on("click", e => { if (!PICK) return;
