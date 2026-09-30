@@ -497,8 +497,8 @@ body:not(.light) .ap2-mapbox{background:#1d232b}
 .ap3-yrs td:first-child,.ap3-yrs th:first-child{text-align:left;font-weight:800}
 .ap3-yrs td small{font-weight:400;color:var(--faint)}
 .ap3-yrs tr.on td{background:var(--ap-sub)}
-.ap3-find{position:relative;min-width:230px;flex:0 1 280px}
-.ap3-printbtn{margin-left:auto;padding:6px 12px;font-size:12.5px;white-space:nowrap}
+.ap3-find{position:relative;min-width:230px;flex:0 1 280px;margin-left:auto}
+.ap3-printbtn{padding:6px 12px;font-size:12.5px;font-weight:800;white-space:nowrap;border-color:var(--brand-d);color:var(--brand-d)}
 /* THE MAP ON PAPER: see printMap(). The live nodes are moved into #apPrintRoot, so this is the
    page both on the screen (for the second before the dialog) and on the sheet. */
 body.ap3-printing > *:not(#apPrintRoot){display:none !important}
@@ -4792,6 +4792,7 @@ registerPage({
             '<div class="ap3-seg ap3-planseg" role="group" aria-label="Plan">' +
               '<button type="button" data-plan="" class="' + (PLAN ? "" : "on") + '">Forecast</button>' +
               Object.keys(PLANS).map(k => '<button type="button" data-plan="' + k + '" class="' + (PLAN && PLAN.key === k ? "on" : "") + '">' + esc(PLANS[k].label) + " plan</button>").join("") + "</div>" +
+            '<button type="button" class="rs-btn ap3-printbtn" data-dlmap title="The totals and the map at zip-code level, on one landscape page">⬇ Download map (PDF)</button>' +
             "<span>or change one number and the rest follows — a test scenario, a refresh puts it back</span>" +
             (scAny() || nbAny() || trAny() ? '<button type="button" class="rs-btn ap3-reset" data-screset>Reset</button>' : "") + "</div>" +
           '<div class="ap3-steps">' +
@@ -4960,13 +4961,13 @@ registerPage({
         /* ONE TOOLBAR, RIGHT ABOVE THE MAP (his call 2026-09-30: the market switch alone at the top
            of the tab was "crap" positioning -- it is a map control and belongs with the other two) */
         return '<div class="ap3-bar">' +
+          '<button type="button" class="rs-btn ap3-printbtn" id="apPrintMap" title="The totals and the map at zip-code level, on one landscape page">⬇ Download map (PDF)</button>' +
           "<label>Market</label>" + seg("mapst", [["", "Whole market"]].concat(SERVICE_AREAS.map(x => [x, x])), inputs.mapSt || "") +
           "<label>Show</label>" + seg("maplevel", LEVELS, lvl) +
           (lvl === "County" && !inputs.mapYear ? "<label>Colour</label>" + seg("mapcolor", MODES, inputs.mapColor) : "") +
           (YEARS.length ? "<label>Results</label>" + seg("mapyear", [["0", "Tiers"]].concat(YEARS.map(y => [String(y), String(y)])), String(inputs.mapYear || 0)) +
             (inputs.mapYear ? seg("mapyearby", Object.keys(YEAR_BY).map(k => [k, YEAR_BY[k][1]]), inputs.mapYearBy) : "") : "") +
           /* FIND A PLACE AND LIGHT IT UP (his ask 2026-09-30: "add search so it can highlight") */
-          '<button type="button" class="rs-btn ap3-printbtn" id="apPrintMap" title="The totals and the map at zip-code level, on one landscape page — choose Save as PDF">Download map</button>' +
           '<div class="ap3-find"><input id="apFind" class="rs-inp" type="search" autocomplete="off" spellcheck="false" ' +
             'placeholder="Find a county, city or zip…" aria-label="Find a county, city or zip on the map" value="' + esc(FINDQ) + '">' +
             '<div id="apFindRes" class="ap3-findres" style="display:none"></div></div>' +
@@ -5261,6 +5262,7 @@ registerPage({
         host.querySelectorAll("#apAreaList [data-sideback]").forEach(b => { b.onclick = () => showSide(null); });
         const csv = host.querySelector("#apAreaCsv"); if (csv) csv.onclick = () => areaCsv(FC.year ? nextCalc() : null);
         const pm = host.querySelector("#apPrintMap"); if (pm) pm.onclick = printMap;
+        host.querySelectorAll("[data-dlmap]").forEach(b => { b.onclick = printMap; });
         const fi = host.querySelector("#apFind"), fr = host.querySelector("#apFindRes");
         if (fi && fr) {
           const TC = tierColors();
