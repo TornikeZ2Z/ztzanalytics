@@ -4776,15 +4776,21 @@ registerPage({
             (isFinite(pc) && Math.abs(pc) >= 0.5 ? '<i class="' + (pc < 0 ? "dn" : "up") + '">' + (pc > 0 ? "+" : "−") + Math.abs(pc).toFixed(0) + "%</i>" : "") + "</div>"; };
         const A = pick(N), B = N0 ? pick(N0) : null;
         if (!A) return '<div class="ap3-kpis"><div class="ap2-note">No ' + esc(st) + " row in the " + esc(String(FC.year)) + " plan.</div></div>";
-        const dl = (k, f) => B && (nbAny() || scAny()) && Math.abs(A[k] - B[k]) >= (k === "sales" && st ? 0.05 : 0.5)
-          ? '<em class="d' + (A[k] < B[k] ? " dn" : "") + '">' + f(A[k] - B[k]) + " vs the plan</em>" : "";
+        /* THE CHANGE IS AGAINST TODAY, NOT THE FORECAST (his call 2026-09-30: "the comparison is VS
+           Forecast - when it should be VS today"). Today = what we run now: the foremen on the
+           register, and for everything else the season just run (the "Season 2026" line under it). */
+        const NOW = { jobs: L.jobs, fm: A.have, sales: L.sales, mkt: L.mkt, avg: L.avg, rev: L.rev };
+        const dl = (k, f) => { const v = NOW[k];
+          if (v == null || !(v > 0) || A[k] == null) return "";
+          const d0 = A[k] - v; if (Math.abs(d0) < (k === "sales" && st ? 0.05 : 0.5)) return "";
+          return '<em class="d' + (d0 < 0 ? " dn" : "") + '">' + f(d0) + " vs today</em>"; };
         const tile = (v, k, sub, d, w) => '<div class="ap3-kpi"><b>' + v + "</b><span>" + k + "</span><small>" + sub + "</small>" + (d || "") + (w || "") + "</div>";
         return '<div class="ap3-kpis">' +
           tile(fmtN(A.jobs), "Jobs " + esc(String(FC.year)), st ? esc(st) + " forecast" : "whole market forecast", dl("jobs", sgN), was("jobs", fmtN)) +
           tile(fmtN(A.fm), "Foremen at peak", fmtN(A.have) + " today" + (A.hire ? " · <em>hire +" + fmtN(A.hire) + "</em>" + (st ? " in " + esc(A.pool || "") : "") : " · covered"), dl("fm", sgN), was("fm", v => fmtN(v) + " ran jobs")) +
           tile(st ? r1(A.sales) : fmtN(A.sales), "Salespeople at peak", st ? "its share of the one sales desk" : esc(String(N.sales.peakWhen || "").split(" ")[0]) + " · " + fmtN(N.sales.lpr) + " leads each", dl("sales", v => (v > 0 ? "+" : "−") + (st ? r1(Math.abs(v)) : fmtN(Math.abs(v)))), was("sales", v => (st ? r1(v) : fmtN(v)) + " on the desk")) +
           tile(money0(A.mkt), "Marketing", fmtN(A.leads) + " leads · post cards inside", dl("mkt", sgM), was("mkt", v => money0(v) + (L.leads ? " · " + fmtN(L.leads) + " leads" : ""))) +
-          (A.rev != null ? tile(money0(A.avg), "Average job", "what one job bills", "", was("avg", money0)) +
+          (A.rev != null ? tile(money0(A.avg), "Average job", "what one job bills", dl("avg", sgM), was("avg", money0)) +
             tile(money0(A.rev), "Total income", "jobs × the average job", dl("rev", sgM), was("rev", money0)) : "") +
           "</div>";
       }
@@ -5382,7 +5388,7 @@ registerPage({
         const N = FC.year ? nextCalc() : null;
         const root = document.createElement("div"); root.id = "apPrintRoot"; root.className = "ap2-pane";
         root.innerHTML = '<div class="ap3-print-h"><b>Seasonal Planning — Season ' + esc(String(FC.year || "")) + "</b><span>" +
-          esc((PLAN ? PLAN.label + " plan (± vs forecast)" : scAny() || nbAny() ? "scenario (± vs forecast)" : "forecast") + " · " + (mapStOf() || "whole market") + " · zip codes" +
+          esc((PLAN ? PLAN.label + " plan" : scAny() || nbAny() ? "scenario" : "forecast") + " (± vs today)" + " · " + (mapStOf() || "whole market") + " · zip codes" +
               (inputs.mapYear ? " · " + inputs.mapYear + " " + YEAR_BY[inputs.mapYearBy][1].toLowerCase() : " · tiers") +
               (N ? " · " + fmtN(N.tot.peak) + " foremen" : "") + " · " + new Date().toLocaleDateString("en-US", { day: "numeric", month: "short", year: "numeric" })) + "</span></div>";
         /* THE SHEET'S TILES ARE ITS OWN (his design review of the first print, 2026-09-30: "margins on
@@ -5407,7 +5413,7 @@ registerPage({
           const note = i === 0 ? (PLAN ? PLAN.label + " plan" : "whole market") : i === 1 ? sub.replace(/\s+/g, " ").trim()
                      : i === 2 ? sub.replace(/^.*·\s*/, "") : i === 3 ? sub.split("·")[0].trim() : i === 4 ? "per job" : "jobs × average job";
           /* the change against the forecast rides beside the value, so the note line never has to carry it */
-          return '<div class="ap3-ptile"><b>' + esc(val) + (d ? '<em class="' + (/^[−-]/.test(d.textContent) ? "dn" : "") + '">' + esc(shortDelta(d.textContent.replace(" vs the plan", ""))) + "</em>" : "") +
+          return '<div class="ap3-ptile"><b>' + esc(val) + (d ? '<em class="' + (/^[−-]/.test(d.textContent) ? "dn" : "") + '">' + esc(shortDelta(d.textContent.replace(" vs today", ""))) + "</em>" : "") +
             "</b><span>" + esc(lab) + "</span><small>" + esc(note) + "</small>" +
             (wNum ? '<i>' + esc(String((FC.year || 0) - 1)) + " " + esc(wNum) + (wPc ? ' <u class="' + (up ? "up" : "dn") + '">' + esc(wPc) + "</u>" : "") + "</i>" : "<i>&nbsp;</i>") + "</div>"; });
         const tilesEl = document.createElement("div"); tilesEl.className = "ap3-ptiles"; tilesEl.innerHTML = tiles.join("");
