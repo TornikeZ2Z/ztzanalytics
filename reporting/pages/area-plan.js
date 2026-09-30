@@ -1611,6 +1611,23 @@ registerPage({
                           : SC.kind === "fmAll" ? N.tot.peak
                           : SC.kind === "sales" ? N.sales.peak : N.tot.mkt;
         let lo = 0.1, hi = 6;
+        /* THE FLOOR (2026-09-30, "deducing foreman quantity resulted from 23 to 20"). A crew pool is
+           never sized below the load it carried last season, so the foremen cannot go under the
+           crews that ran it (20) however few jobs are forecast. A target under that had no answer,
+           and the search fell to its lower bound: one more click took the plan from 1,783 jobs to
+           204 with the foremen still at 20. The target now stops at the lowest number the plan can
+           reach. (23 -> 20 itself is arithmetic, not a fault: each pool rounds its crews up, and at
+           exactly last season's jobs all three pools shed their extra crew together.) */
+        const least = metric(nextCalc({ mult: build(lo) }));
+        if (SC.target < least) SC.target = least;
+        /* AND THE WAY BACK UP: 21 and 22 foremen do not exist (the pools step together), so a "+"
+           from 20 asked for 21, got the largest plan that fits in 21 -- which is 20 -- and the
+           button did nothing. Going up, the target moves to the first number the plan can reach. */
+        if (SC.dir > 0) { let a = lo, b = hi;
+          for (let i = 0; i < 20; i++) { const mid = (a + b) / 2;
+            if (metric(nextCalc({ mult: build(mid) })) >= SC.target) b = mid; else a = mid; }
+          SC.target = Math.max(SC.target, metric(nextCalc({ mult: build(b) }))); }
+        SC.dir = 0;
         for (let i = 0; i < 20; i++) { const mid = (lo + hi) / 2;
           if (metric(nextCalc({ mult: build(mid) })) <= SC.target) lo = mid; else hi = mid; }
         SC_MULT = build(lo);
@@ -4932,7 +4949,7 @@ registerPage({
           else if (kind === "fm") target = Math.max(0, baseFm(N, pool) + dd);
           else if (kind === "fmAll") target = Math.max(1, N.tot.peak + dd);
           else target = Math.max(0, N.tot.mkt + dd * 0.05 * P.tot.mkt);      // 5% of the plan's budget a click
-          SC.kind = kind; SC.pool = pool; SC.target = target;
+          SC.kind = kind; SC.pool = pool; SC.target = target; SC.dir = dd;
           repaintPlan();
         }; });
         host.querySelectorAll("#apScn [data-tro]").forEach(b => { b.onclick = () => {
