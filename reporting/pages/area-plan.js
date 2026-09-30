@@ -508,7 +508,7 @@ body.ap3-printing{background:#fff !important;overflow:visible !important}
 #apPrintRoot .ap3-print-h{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin:0 0 3.5mm;padding-bottom:2mm;border-bottom:.3mm solid #1b2430}
 #apPrintRoot .ap3-print-h b{font-size:12.5pt;font-weight:800;letter-spacing:-.01em}
 #apPrintRoot .ap3-print-h span{font-size:8.5pt;color:#5b6675;white-space:nowrap}
-#apPrintRoot .ap3-ptiles{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:2.5mm;margin:0 0 3mm}
+#apPrintRoot .ap3-ptiles{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,.9fr) minmax(0,.9fr) minmax(0,1.15fr) minmax(0,.85fr) minmax(0,1.3fr);gap:2.5mm;margin:0 0 3mm}
 #apPrintRoot .ap3-ptile{border:.25mm solid #cfd6de;border-radius:2mm;padding:2.4mm 3mm 2.2mm;min-width:0;display:grid;gap:.6mm;break-inside:avoid}
 #apPrintRoot .ap3-ptile > *{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
 #apPrintRoot .ap3-ptile b{font-size:14pt;font-weight:800;line-height:1.1;font-variant-numeric:tabular-nums;letter-spacing:-.01em}
