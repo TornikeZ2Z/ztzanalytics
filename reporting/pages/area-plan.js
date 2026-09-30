@@ -1540,12 +1540,23 @@ registerPage({
       const yearCuts = lvl => { const k = lvl + "|" + inputs.mapYear + "|" + inputs.mapYearBy;
         if (YCUT[k]) return YCUT[k];
         const v = Object.keys(AY[lvl] || {}).map(key => yearVal(lvl, key)).filter(x => x > 0).sort((a, b) => a - b);
-        return (YCUT[k] = v.length ? [.2, .4, .6, .8].map(q => v[Math.floor(q * (v.length - 1))]) : [0, 0, 0, 0]); };
+        /* most zips have one or two jobs a year, so quintile edges repeat; a repeated edge is an
+           empty step (the key read "up to 1 · 1-1 · 1-2"), so each edge is kept once */
+        return (YCUT[k] = v.length ? Array.from(new Set([.2, .4, .6, .8].map(q => v[Math.floor(q * (v.length - 1))]))) : []); };
       const YOPA = [.16, .32, .5, .68, .88];
       const yearShade = (lvl, key, ramp) => { const v = yearVal(lvl, key);
         if (!(v > 0)) return { fillColor: "#98a4b3", fillOpacity: .05 };
         const c = yearCuts(lvl); let i = 0; while (i < c.length && v > c[i]) i++;
-        return { fillColor: ramp, fillOpacity: YOPA[i] }; };
+        return { fillColor: ramp, fillOpacity: YOPA[c.length ? Math.round(i * 4 / c.length) : 4] }; };
+      /* the key's steps, from the same edges: whole numbers for jobs and leads, dollar ranges otherwise */
+      const yearSteps = lvl => { const c = yearCuts(lvl), int = inputs.mapYearBy === "jobs" || inputs.mapYearBy === "leads";
+        if (!c.length) return [];
+        const op = i => YOPA[Math.round(i * 4 / c.length)];
+        const out = [];
+        c.forEach((e, i) => { const lo = i === 0 ? (int ? 1 : null) : (int ? c[i - 1] + 1 : c[i - 1]);
+          out.push([lo == null ? "up to " + yearFmt(e) : lo === e ? yearFmt(e) : yearFmt(lo) + "–" + yearFmt(e), op(i)]); });
+        out.push([int ? yearFmt(c[c.length - 1] + 1) + "+" : "over " + yearFmt(c[c.length - 1]), op(c.length)]);
+        return out; };
       /* an area's years, for its sheet */
       function yearTableHtml(lvl, key) {
         const by = (AY[lvl] || {})[key]; if (!by || !YEARS.length) return "";
@@ -5023,11 +5034,10 @@ registerPage({
           const st = mapStOf(), c = yearCuts(lvl), ramp = (tierColors().t1);
           const keys = Object.keys(AY[lvl] || {}).filter(k => !st || ((AY[lvl][k][+inputs.mapYear] || {}).State === st));
           const tot = keys.reduce((a, k) => { const r = yearRow(lvl, k); if (r) { a.l += num(r.Leads); a.j += num(r.Jobs); a.r += num(r.Revenue); } return a; }, { l: 0, j: 0, r: 0 });
-          const steps = [["up to " + yearFmt(c[0]), 0], [yearFmt(c[0]) + "–" + yearFmt(c[1]), 1], [yearFmt(c[1]) + "–" + yearFmt(c[2]), 2],
-                         [yearFmt(c[2]) + "–" + yearFmt(c[3]), 3], ["over " + yearFmt(c[3]), 4]];
+          const steps = yearSteps(lvl);
           return '<div class="ap2-mapkey"><span class="ap2-mk"><b>' + esc(String(inputs.mapYear)) + (+inputs.mapYear === yearNow ? " so far" : "") + " · " + esc(YEAR_BY[inputs.mapYearBy][1].toLowerCase()) +
             " per " + esc(lvl === "Zip" ? "zip code" : lvl.toLowerCase()) + "</b></span>" +
-            steps.map(([l, i]) => '<span class="ap2-mk"><i class="ap2-sw" style="background:' + ramp + ";opacity:" + YOPA[i] + '"></i>' + l + "</span>").join("") +
+            steps.map(([l, o]) => '<span class="ap2-mk"><i class="ap2-sw" style="background:' + ramp + ";opacity:" + o + '"></i>' + l + "</span>").join("") +
             '<span class="ap2-mk"><i class="ap2-sw" style="background:#98a4b3;opacity:.25"></i>nothing that year</span>' +
             '<span class="ap2-mk" style="margin-left:auto">' + esc(st || "whole market") + ": <b>" + fmtN(tot.l) + "</b> leads · <b>" + fmtN(tot.j) + "</b> jobs · <b>" + money0(tot.r) + "</b>" +
             (tot.j ? " · <b>" + money0(tot.r / tot.j) + "</b> average job" : "") + "</span></div>";
@@ -5334,6 +5344,14 @@ registerPage({
           else if (kind === "fm") target = Math.max(0, baseFm(N, pool) + dd);
           else if (kind === "fmAll") target = Math.max(1, N.tot.peak + dd);
           else target = Math.max(0, N.tot.mkt + dd * 0.05 * P.tot.mkt);      // 5% of the plan's budget a click
+          /* STEPPED BACK ONTO THE FORECAST'S OWN NUMBER, THE LEVER LETS GO (check 2026-09-30: 25 ->
+             24 -> 25 foremen showed 2,140 jobs, the forecast's 25 show 2,040 -- the solver answers
+             "the most work 25 can carry", which is not the forecast). Back at the forecast's figure,
+             the forecast is what shows. */
+          const F = nextCalc({ mult: {} });
+          const fv = kind === "sales" ? F.sales.peak : kind === "fm" ? baseFm(F, pool) : kind === "fmAll" ? F.tot.peak : F.tot.mkt;
+          if (kind === "mkt" ? Math.abs(target - fv) <= 0.01 * fv : target === fv) {
+            SC.kind = null; SC.pool = null; SC.target = null; SC.dir = 0; repaintPlan(); return; }
           SC.kind = kind; SC.pool = pool; SC.target = target; SC.dir = dd;
           repaintPlan();
         }; });
