@@ -1547,17 +1547,24 @@ registerPage({
              pool's jobs are scaled to it exactly as the What-if levers scale them.
            * NY IS ITS OWN CARD. NJ and NY are still one crew pool to the engine -- the same crews
              cross the river -- so the two cards add into one target.
-           * PATERSON IS THE UPPER PART OF PATERSON NJ; Middlesex is the centre of Middlesex
-             County CT. Both stand inside ground we already cover: they open no county, they only
-             put crews nearer, so they are pins on the map and crews in their pool.
+           * THE TWO PLACES THAT ARE NOT LISTED CANDIDATES (corrected by him the same day):
+             "Paterson" is Oakland NJ 07436, and "Middlesex" is Middlesex County MASSACHUSETTS,
+             near 01801 -- not Connecticut. Each is measured as a base like any other. Oakland
+             stands inside ground we already cover, opens next to nothing, and so is a pin and
+             crews in its pool; Middlesex MA is 100 miles past the CT base and opens Boston's
+             ground, so it is a real new base with its own jobs.
+           * 29 FOREMEN IS THE PLAN ("it should be 29 foreman total"): a pool shows the crews he
+             gave it even where the forecast would fill a few less -- a pool's need moves in steps.
+           * THE SALES DESK IS SIZED AT 220 LEADS A PERSON in this plan ("make 220 total leads for
+             sales"); the forecast keeps the Planning Variables figure.
          A plan is a test scenario like everything else on this tab: memory only, Reset ends it. */
       const PLANS = {
-        max: { label: "MAX", groups: [
+        max: { label: "MAX", leadsPerRep: 220, groups: [
           { base: "CT", pool: "CT", states: ["CT", "MA"], sites: [
             { name: "Existing base", fm: 3 }, { name: "Tolland", fm: 2, cand: "Tolland CT" },
-            { name: "Middlesex", fm: 1, la: 41.476, lo: -72.568 }] },
+            { name: "Middlesex MA · 01801", fm: 1, la: 42.4876, lo: -71.1543 }] },
           { base: "NJ", pool: "NJ", states: ["NJ"], sites: [
-            { name: "Existing base", fm: 7 }, { name: "Paterson (upper)", fm: 3, la: 40.94, lo: -74.165 }] },
+            { name: "Existing base", fm: 7 }, { name: "Oakland · 07436", fm: 3, la: 41.029, lo: -74.2404 }] },
           { base: "NY", pool: "NJ", states: ["NY"], sites: [{ name: "Existing base", fm: 2 }] },
           { base: "PA", pool: "PA", states: ["PA", "DE"], sites: [
             { name: "Existing base", fm: 7 }, { name: "Monroe", fm: 2, cand: "Monroe PA" }] },
@@ -1569,13 +1576,38 @@ registerPage({
       const planSite = label => { let hit = null;
         if (PLAN) PLAN.groups.forEach(g => g.sites.forEach(x => { if (x.cand === label) hit = x; })); return hit; };
       function planEnd() { PLAN = null; Object.keys(NB_CAP).forEach(k => delete NB_CAP[k]); }
+      /* the plan's own places leave the candidate list only on Reset / Forecast: when another lever
+         takes the plan over, "the bases stay" */
+      function planCandsClear() {
+        for (let i = NB_CANDS.length - 1; i >= 0; i--) if (NB_CANDS[i].plan) {
+          const l = NB_CANDS[i].label; NB_CANDS.splice(i, 1); delete NB_ON[l]; delete NB_FM[l]; delete TR_OWN[l]; }
+      }
+      const nearCounty = (la, lo) => { let best = null, bd = Infinity;
+        AREA_BASE.forEach(a => { if (a.Level !== "County" || !num(a.Latitude)) return;
+          const d = miBetween(num(a.Latitude), num(a.Longitude), la, lo); if (d < bd) { bd = d; best = a; } });
+        return best; };
+      /* is this calculation the plan itself (not the forecast it is compared with, not a solver probe)? */
+      const planLive = opts => (!opts || !opts.mult) && SC.kind === "plan" && !!PLAN;
       function planApply() {
         if (!PLAN) return;
         [NB_ON, NB_FM, NB_CAP, TR_OWN].forEach(o => Object.keys(o).forEach(k => delete o[k]));
-        nbPickClear();
+        nbPickClear(); planCandsClear();
+        /* a place given by coordinates becomes a candidate for as long as the plan holds */
+        PLAN.groups.forEach(g => g.sites.forEach(x => { if (!x.la) return;
+          const c = nearCounty(x.la, x.lo); if (!c) return;
+          x.cand = x.name.split(" · ")[0].replace(/ [A-Z]{2}$/, "") + " " + c.State; x.pin = false;
+          NB_CANDS.push({ label: x.cand, st: c.State, la: x.la, lo: x.lo, county: c.County, side: sideOf(c.State, c.County),
+                          step: null, zip: "", plan: true }); }));
         PLAN.groups.forEach(g => g.sites.forEach(x => { if (x.cand && x.fm > 0 && NB_CANDS.some(c => c.label === x.cand)) NB_ON[x.cand] = true; }));
         nbApplyAreas();
-        const N1 = nextCalc({ mult: {} });            // what each new base's own ground needs, uncapped
+        let N1 = nextCalc({ mult: {} });            // what each new base's own ground needs, uncapped
+        /* a place that opens next to nothing (under ten jobs) is not a base with its own work: it is
+           a pin, and its crews belong to the pool around it */
+        let dropped = false;
+        PLAN.groups.forEach(g => g.sites.forEach(x => { if (!x.la || !NB_ON[x.cand]) return;
+          const o = (N1.nb || []).find(q => q.label === x.cand);
+          if (!o || o.jobs < 10) { delete NB_ON[x.cand]; x.pin = true; dropped = true; } }));
+        if (dropped) { nbApplyAreas(); N1 = nextCalc({ mult: {} }); }
         const targets = {};
         PLAN.groups.forEach(g => { let crew = 0;
           g.sites.forEach(x => { crew += x.fm;
@@ -2784,7 +2816,9 @@ registerPage({
             const any = prs.map(r => r.cells.find(x => x.ym === ym)).find(Boolean) || {};
             return { ym, jobs, lastJobs, need, needFc, floored: need > needFc, shoulder: !core.includes(ym), hire_by: any.hire_by }; });
           const coreCells = cells.filter(c => !c.shoulder);
-          const peak = Math.max(0, ...coreCells.map(c => c.need));
+          const peak0 = Math.max(0, ...coreCells.map(c => c.need));
+          const fix = planLive(opts) && SC.targets && SC.targets[pk] != null ? SC.targets[pk] : null;
+          const peak = fix != null && fix > peak0 ? fix : peak0;       // a named plan: the crews he gave this pool
           const first = coreCells.find(c => c.need > have);
           return { pk, label: prs.map(r => r.st).join(" + "), states: prs.map(r => r.st), worked, have, cells, peak, calibrated: worked > 0 && refLoad > 0,
                    peakFc: Math.max(0, ...coreCells.map(c => c.needFc)), floored: coreCells.some(c => c.floored),
@@ -2885,7 +2919,7 @@ registerPage({
         /* SALESPEOPLE, NEXT SEASON (2026-09-19). Leads arrive `lead_lag_months` before the move, so a
            month's desk load is the leads needed for the jobs that many months LATER. Reps = that load /
            the leads-per-rep dial. Sales is one desk, not a state thing, so this is company-wide. */
-        const lagM = FC.lead_lag_months || 1, lpr = Math.max(1, num(inputs.leadsPerRep) || 140);
+        const lagM = FC.lead_lag_months || 1, lpr = Math.max(1, (planLive(opts) && num(PLAN.leadsPerRep)) || num(inputs.leadsPerRep) || 140);
         const leadsFor = ym => rows.reduce((a, r) => a + (((r.cells.find(c => c.ym === ym) || {}).leads_needed) || 0), 0);
         const desk = months.map(ym => { const d = new Date(+ym.slice(0, 4), +ym.slice(5, 7) - 1 - lagM, 1);
           const leads = leadsFor(ym); return { forYm: ym, shoulder: !core.includes(ym), when: MONTH_NAMES[d.getMonth() + 1] + " " + d.getFullYear(), leads, reps: Math.ceil(leads / lpr - 1e-9) }; });
@@ -4708,6 +4742,7 @@ registerPage({
           return '<div class="ap3-step plan"><span>' + esc(g.base) + " base<em>" + fmtN(crew) + (crew === 1 ? " foreman" : " foremen") + "</em></span>" +
             g.sites.map((x, si) => { const o = x.cand ? (N.nb || []).find(q => q.label === x.cand) : null;
               return '<div class="site"><i>' + esc(x.name) + (x.cand || x.la ? "<u>new</u>" : "") +
+                (x.pin ? "<small style=\"color:var(--faint)\">inside ground we cover</small>" : "") +
                 (o && o.cap < 1 ? "<small>its ground wants " + fmtN(Math.round(o.fm / o.cap)) + "</small>" : "") + "</i>" +
                 '<button type="button" aria-label="one less" data-plansite="' + gi + ":" + si + '" data-d="-1">−</button><b>' + fmtN(x.fm) +
                 '</b><button type="button" aria-label="one more" data-plansite="' + gi + ":" + si + '" data-d="1">+</button></div>'; }).join("") +
@@ -5147,7 +5182,7 @@ registerPage({
         });
         host.querySelectorAll("#apScn [data-plan]").forEach(b => { b.onclick = () => {
           const k = b.dataset.plan;
-          if (!k) { if (!PLAN) return; planEnd(); SC.kind = null; SC.targets = null;
+          if (!k) { if (!PLAN) return; planEnd(); planCandsClear(); SC.kind = null; SC.targets = null;
             [NB_ON, NB_FM, TR_OWN].forEach(o => Object.keys(o).forEach(x => delete o[x])); nbRepaint(); return; }
           if (PLAN && PLAN.key === k) return;
           PLAN = JSON.parse(JSON.stringify(PLANS[k])); PLAN.key = k;
@@ -5184,7 +5219,7 @@ registerPage({
         const scr = host.querySelector("[data-screset]");
         if (scr) scr.onclick = () => { SC.kind = null; SC.pool = null; SC.target = null;
           Object.keys(NB_ON).forEach(k => delete NB_ON[k]); Object.keys(NB_FM).forEach(k => delete NB_FM[k]); Object.keys(TR_OWN).forEach(k => delete TR_OWN[k]);
-          planEnd(); SC.targets = null;
+          planEnd(); planCandsClear(); SC.targets = null;
           nbPickClear(); if (SIDE && SIDE.kind === "pick") SIDE = null; nbRepaint(); };
       }
 
@@ -5845,7 +5880,7 @@ registerPage({
             NB_CANDS.filter(c => NB_ON[c.label]).forEach(c => L.circle([c.la, c.lo], { pane: "apRings", radius: 50 * MI_PER_M,
               interactive: false, color: col.t1, weight: 2, dashArray: "6 5", fillColor: col.t1, fillOpacity: .06 }).addTo(nbRings));
             if (PLAN) PLAN.groups.forEach(g => g.sites.forEach(x => { if (x.la && x.fm > 0)
-              L.marker([x.la, x.lo], { icon: flag("cover", x.name.replace(/ \(.*$/, "") + " · " + fmtN(x.fm)), interactive: false, zIndexOffset: 450 }).addTo(nbRings); }));
+              L.marker([x.la, x.lo], { icon: flag("cover", x.name.split(" · ")[0] + " · " + fmtN(x.fm)), interactive: false, zIndexOffset: 450 }).addTo(nbRings); }));
             /* the picked point keeps its pin whether it is Yes or No */
             NB_CANDS.filter(c => c.custom).forEach(c => L.circleMarker([c.la, c.lo], { radius: 8, interactive: false,
               color: "#fff", weight: 3, fillColor: tok("--ink") || "#22303f", fillOpacity: 1 }).addTo(nbRings)); };
