@@ -97,6 +97,14 @@
              "Median Income", "Mover Rate", "Movers Per Year"],
     };
   }
+  if (window.RS && RS.DATASETS && !RS.DATASETS.area_year) {
+    /* THE MAP, YEAR BY YEAR (his ask 2026-09-30: "can we visualize the map by YEAR results?").
+       One row per area per calendar year, counted the way the tier mart counts -- see curated.py. */
+    RS.DATASETS.area_year = {
+      table: "mart_area_year",
+      cols: ["Level", "Area Key", "State", "Year", "Leads", "Booked", "Jobs", "Revenue", "Avg Ticket", "Booking Rate"],
+    };
+  }
   if (window.RS && RS.DATASETS && !RS.DATASETS.area_tier) {
     /* THE FOUR TIERS AT THREE LEVELS (his planning-day ask 2026-09-29): "do the planning on county
        level ... i may even want to go as down as zip. i need a selector for that", and "i dont see 4
@@ -483,6 +491,12 @@ body:not(.light) .ap2-mapbox{background:#1d232b}
 .ap3-bar{display:flex;align-items:center;flex-wrap:wrap;gap:8px 10px;margin:0 0 10px}
 .ap3-bar label{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin-left:8px}
 .ap3-bar label:first-child{margin-left:0}
+.ap3-yrs{width:100%;border-collapse:collapse;font-size:12.5px;margin:2px 0 4px}
+.ap3-yrs th{font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--faint);text-align:right;padding:3px 0}
+.ap3-yrs td{text-align:right;padding:4px 0;border-top:1px solid var(--ap-rule);font-variant-numeric:tabular-nums;color:var(--ink)}
+.ap3-yrs td:first-child,.ap3-yrs th:first-child{text-align:left;font-weight:800}
+.ap3-yrs td small{font-weight:400;color:var(--faint)}
+.ap3-yrs tr.on td{background:var(--ap-sub)}
 .ap3-find{position:relative;margin-left:auto;min-width:230px;flex:0 1 280px}
 .ap3-find input{width:100%}
 .ap3-findres{position:absolute;z-index:1200;top:calc(100% + 4px);left:0;right:0;background:var(--ap-bay);border:1px solid var(--ap-rule);border-radius:var(--ap-r1);box-shadow:0 10px 28px rgba(0,0,0,.16);padding:4px;max-height:340px;overflow:auto}
@@ -1249,7 +1263,14 @@ registerPage({
       RS.load("area_master_season").catch(() => null),
       ZTZ.api("/api/mart_postcard_month?limit=20000").then(j => j.rows || []).catch(() => []),
       RS.load("area_tier").catch(() => null),
-    ]).then(([rows, model, cityAll, wsAll, countyRows, cityAllSeason, pcm, tierRows]) => {
+      RS.load("area_year").catch(() => null),
+    ]).then(([rows, model, cityAll, wsAll, countyRows, cityAllSeason, pcm, tierRows, yearRows]) => {
+      /* a year's results per area: level -> area key -> year -> row */
+      const AY = { County: {}, City: {}, Zip: {} };
+      (Array.isArray(yearRows) ? yearRows : []).forEach(r => { const L = AY[r.Level]; if (!L || r.Year == null) return;
+        (L[r["Area Key"]] = L[r["Area Key"]] || {})[+r.Year] = r; });
+      const YEARS = Array.from(new Set((Array.isArray(yearRows) ? yearRows : []).map(r => +r.Year))).filter(y => y > 2000).sort();
+      const YEAR_BY = { jobs: ["Jobs", "Jobs"], leads: ["Leads", "Leads"], rev: ["Revenue", "Revenue"], avg: ["Avg Ticket", "Average job"] };
       const PCM = pcm || [];
       /* the four-tier areas, indexed per level by `Area Key` (zip / "ST|City" / "ST|County") */
       /* `let`: the new-base toggles swap in re-tiered copies (nbApplyAreas, below) */
@@ -1480,6 +1501,35 @@ registerPage({
       inputs.scn.picks = Array.isArray(inputs.scn.picks) ? inputs.scn.picks : [];
       inputs.scn.listing = Array.isArray(inputs.scn.listing) ? inputs.scn.listing : [];
       if (["tier", "market", "capture", "spend"].indexOf(inputs.mapColor) < 0) inputs.mapColor = "tier";
+      /* the year the map shows (0 = the tiers, on the last twelve months) and what it is coloured by */
+      if (YEARS.indexOf(+inputs.mapYear) < 0) inputs.mapYear = 0;
+      if (!YEAR_BY[inputs.mapYearBy]) inputs.mapYearBy = "jobs";
+      const yearNow = new Date().getFullYear();
+      const yearFmt = v => (inputs.mapYearBy === "rev" || inputs.mapYearBy === "avg") ? money0(v) : fmtN(v);
+      const yearRow = (lvl, key) => ((AY[lvl] || {})[key] || {})[+inputs.mapYear] || null;
+      const yearVal = (lvl, key) => { const r = yearRow(lvl, key); if (!r) return 0;
+        if (inputs.mapYearBy === "avg" && num(r.Jobs) < 3) return 0;          // one job is not an average
+        return num(r[YEAR_BY[inputs.mapYearBy][0]]); };
+      /* five steps, cut at the quintiles of the areas that have anything that year at that level */
+      const YCUT = {};
+      const yearCuts = lvl => { const k = lvl + "|" + inputs.mapYear + "|" + inputs.mapYearBy;
+        if (YCUT[k]) return YCUT[k];
+        const v = Object.keys(AY[lvl] || {}).map(key => yearVal(lvl, key)).filter(x => x > 0).sort((a, b) => a - b);
+        return (YCUT[k] = v.length ? [.2, .4, .6, .8].map(q => v[Math.floor(q * (v.length - 1))]) : [0, 0, 0, 0]); };
+      const YOPA = [.16, .32, .5, .68, .88];
+      const yearShade = (lvl, key, ramp) => { const v = yearVal(lvl, key);
+        if (!(v > 0)) return { fillColor: "#98a4b3", fillOpacity: .05 };
+        const c = yearCuts(lvl); let i = 0; while (i < c.length && v > c[i]) i++;
+        return { fillColor: ramp, fillOpacity: YOPA[i] }; };
+      /* an area's years, for its sheet */
+      function yearTableHtml(lvl, key) {
+        const by = (AY[lvl] || {})[key]; if (!by || !YEARS.length) return "";
+        return '<div class="sec">Year by year</div><table class="ap3-yrs"><thead><tr><th></th><th>Leads</th><th>Jobs</th><th>Revenue</th><th>Avg job</th></tr></thead><tbody>' +
+          YEARS.map(y => { const r = by[y] || {};
+            return '<tr class="' + (+inputs.mapYear === y ? "on" : "") + '"><td>' + y + (y === yearNow ? "<small> so far</small>" : "") + "</td><td>" + fmtN(num(r.Leads)) + "</td><td>" + fmtN(num(r.Jobs)) +
+              "</td><td>" + (num(r.Revenue) ? money0(num(r.Revenue)) : "—") + "</td><td>" + (r["Avg Ticket"] != null ? money0(num(r["Avg Ticket"])) : "—") + "</td></tr>"; }).join("") +
+          "</tbody></table>";
+      }
       if (["County", "City", "Zip"].indexOf(inputs.mapLevel) < 0) inputs.mapLevel = "County";
       if (inputs.mapSt && SERVICE_AREAS.indexOf(inputs.mapSt) < 0) inputs.mapSt = "";
       if ([0, 1, 2, 3, 4].indexOf(+inputs.listTier) < 0) inputs.listTier = 0;
@@ -4880,7 +4930,9 @@ registerPage({
         return '<div class="ap3-bar">' +
           "<label>Market</label>" + seg("mapst", [["", "Whole market"]].concat(SERVICE_AREAS.map(x => [x, x])), inputs.mapSt || "") +
           "<label>Show</label>" + seg("maplevel", LEVELS, lvl) +
-          (lvl === "County" ? "<label>Colour</label>" + seg("mapcolor", MODES, inputs.mapColor) : "") +
+          (lvl === "County" && !inputs.mapYear ? "<label>Colour</label>" + seg("mapcolor", MODES, inputs.mapColor) : "") +
+          (YEARS.length ? "<label>Results</label>" + seg("mapyear", [["0", "Tiers"]].concat(YEARS.map(y => [String(y), String(y)])), String(inputs.mapYear || 0)) +
+            (inputs.mapYear ? seg("mapyearby", Object.keys(YEAR_BY).map(k => [k, YEAR_BY[k][1]]), inputs.mapYearBy) : "") : "") +
           /* FIND A PLACE AND LIGHT IT UP (his ask 2026-09-30: "add search so it can highlight") */
           '<div class="ap3-find"><input id="apFind" class="rs-inp" type="search" autocomplete="off" spellcheck="false" ' +
             'placeholder="Find a county, city or zip…" aria-label="Find a county, city or zip on the map" value="' + esc(FINDQ) + '">' +
@@ -4923,6 +4975,19 @@ registerPage({
       function mapKeyHtml(N) {
         const lvl = inputs.mapLevel;
         let key;
+        if (inputs.mapYear) {
+          const st = mapStOf(), c = yearCuts(lvl), ramp = (tierColors().t1);
+          const keys = Object.keys(AY[lvl] || {}).filter(k => !st || ((AY[lvl][k][+inputs.mapYear] || {}).State === st));
+          const tot = keys.reduce((a, k) => { const r = yearRow(lvl, k); if (r) { a.l += num(r.Leads); a.j += num(r.Jobs); a.r += num(r.Revenue); } return a; }, { l: 0, j: 0, r: 0 });
+          const steps = [["up to " + yearFmt(c[0]), 0], [yearFmt(c[0]) + "–" + yearFmt(c[1]), 1], [yearFmt(c[1]) + "–" + yearFmt(c[2]), 2],
+                         [yearFmt(c[2]) + "–" + yearFmt(c[3]), 3], ["over " + yearFmt(c[3]), 4]];
+          return '<div class="ap2-mapkey"><span class="ap2-mk"><b>' + esc(String(inputs.mapYear)) + (+inputs.mapYear === yearNow ? " so far" : "") + " · " + esc(YEAR_BY[inputs.mapYearBy][1].toLowerCase()) +
+            " per " + esc(lvl === "Zip" ? "zip code" : lvl.toLowerCase()) + "</b></span>" +
+            steps.map(([l, i]) => '<span class="ap2-mk"><i class="ap2-sw" style="background:' + ramp + ";opacity:" + YOPA[i] + '"></i>' + l + "</span>").join("") +
+            '<span class="ap2-mk"><i class="ap2-sw" style="background:#98a4b3;opacity:.25"></i>nothing that year</span>' +
+            '<span class="ap2-mk" style="margin-left:auto">' + esc(st || "whole market") + ": <b>" + fmtN(tot.l) + "</b> leads · <b>" + fmtN(tot.j) + "</b> jobs · <b>" + money0(tot.r) + "</b>" +
+            (tot.j ? " · <b>" + money0(tot.r / tot.j) + "</b> average job" : "") + "</span></div>";
+        }
         if (lvl !== "County" || inputs.mapColor === "tier") {
           key = tierKeyHtml(areaRows(N, lvl, mapStOf()));
         } else {
@@ -5004,6 +5069,7 @@ registerPage({
             row("Jobs", fmtN(num(a["Jobs 12m"]))) +
             row("Average ticket", a["Avg Ticket"] != null ? money0(num(a["Avg Ticket"])) : EMD) +
             (a["Data Score"] != null && a["Tier Source"] === "Our data" ? row("Score", r1(num(a["Data Score"])), "distance, booking, ticket, cubic feet") : "") +
+          yearTableHtml(level, key) +
           '<div class="sec">Who can serve it</div>' +
             row("Nearest base", esc(a["Nearest Base"] || EMD), r1(num(a["Miles To Base"])) + " mi") +
             row("Foremen within 60 mi", fmtN(num(a["Foremen Within 60mi"]))) +
@@ -5131,6 +5197,19 @@ registerPage({
           inputs.mapColor = b.dataset.mapcolor; save();
           if (box && box._applyLevel) box._applyLevel(false);
           repaintMapTab({ bases: false });
+        }; });
+        host.querySelectorAll("#apMapBar [data-mapyear]").forEach(b => { b.onclick = () => {
+          const y = +b.dataset.mapyear || 0; if (+inputs.mapYear === y) return;
+          inputs.mapYear = y; save();
+          if (y && inputs.mapColor !== "tier") { inputs.mapColor = "tier"; if (box && box._applyLevel) box._applyLevel(false); }
+          repaintMapTab({ bases: false });
+          if (box && box._restyle) box._restyle();
+        }; });
+        host.querySelectorAll("#apMapBar [data-mapyearby]").forEach(b => { b.onclick = () => {
+          if (inputs.mapYearBy === b.dataset.mapyearby) return;
+          inputs.mapYearBy = b.dataset.mapyearby; save();
+          repaintMapTab({ bases: false });
+          if (box && box._restyle) box._restyle();
         }; });
         host.querySelectorAll("#apMapBar [data-maplevel]").forEach(b => { b.onclick = () => {
           if (inputs.mapLevel === b.dataset.maplevel) return;
@@ -5422,6 +5501,8 @@ registerPage({
                                opacity: r && r.uncovered ? .5 : .7,
                                lineJoin: "round",
                                dashArray: r && r.uncovered ? "3 3" : null };
+                if (inputs.mapYear) return Object.assign({ color: tok("--ap-rule-2") || "#98a4b3", weight: 0.6, opacity: .7, lineJoin: "round" },
+                  yearShade("County", r && r.area ? r.area["Area Key"] : null, col.t1));
                 /* MARKET SIZE IS A COUNT, AND A COUNT MUST NOT BE A CHOROPLETH. Shading a county by
                    how many people move there makes a big empty county shout and a small dense one
                    whisper -- the reader is really being shown acreage. Worse, the first build only
@@ -5767,6 +5848,8 @@ registerPage({
           };
           const zipStyle = f => {
             const lvl = zipLvl, a = zipArea(f.properties.z, lvl);
+            if (inputs.mapYear) return Object.assign({ color: "#8d99a8", weight: zipCanvas ? 0.3 : 0.45, opacity: .8, lineJoin: "round" },
+              yearShade(lvl, a ? a["Area Key"] : null, col.t1));
             const band = a ? TIER_BAND(num(a.Tier)) : "grey";
             const fill = fillOf(band, a && num(a["Never A Lead"]) === 1, isFar(a));
             /* a canvas cannot paint an SVG pattern: "no lead yet" reads as a paler tier colour there */
