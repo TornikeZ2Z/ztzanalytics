@@ -5036,7 +5036,7 @@ registerPage({
           const tot = keys.reduce((a, k) => { const r = yearRow(lvl, k); if (r) { a.l += num(r.Leads); a.j += num(r.Jobs); a.r += num(r.Revenue); } return a; }, { l: 0, j: 0, r: 0 });
           const steps = yearSteps(lvl);
           return '<div class="ap2-mapkey"><span class="ap2-mk"><b>' + esc(String(inputs.mapYear)) + (+inputs.mapYear === yearNow ? " so far" : "") + " · " + esc(YEAR_BY[inputs.mapYearBy][1].toLowerCase()) +
-            " per " + esc(lvl === "Zip" ? "zip code" : lvl.toLowerCase()) + "</b></span>" +
+            " per " + esc(lvl === "Zip" ? "zip code" : lvl.toLowerCase()) + " · Zip to Zip</b></span>" +
             steps.map(([l, o]) => '<span class="ap2-mk"><i class="ap2-sw" style="background:' + ramp + ";opacity:" + o + '"></i>' + l + "</span>").join("") +
             '<span class="ap2-mk"><i class="ap2-sw" style="background:#98a4b3;opacity:.25"></i>nothing that year</span>' +
             '<span class="ap2-mk" style="margin-left:auto">' + esc(st || "whole market") + ": <b>" + fmtN(tot.l) + "</b> leads · <b>" + fmtN(tot.j) + "</b> jobs · <b>" + money0(tot.r) + "</b>" +
