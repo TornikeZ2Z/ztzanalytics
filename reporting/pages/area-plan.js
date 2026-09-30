@@ -550,6 +550,12 @@ details.ap3-how[open]{padding-bottom:16px}
 .ap3-step .ctl button:hover{border-color:var(--brand-d);color:var(--brand-d)}
 .ap3-step .ctl button:focus-visible{outline:2px solid var(--brand-d);outline-offset:1px}
 .ap3-step small{font-size:11.5px;color:var(--faint)}
+.ap3-step .trk{display:flex;flex-wrap:wrap;align-items:center;gap:4px 12px;margin-top:8px;padding-top:8px;border-top:1px solid var(--ap-rule);font-size:12px;color:var(--muted)}
+.ap3-step .trk i{font-style:normal;display:inline-flex;align-items:center;gap:5px;white-space:nowrap}
+.ap3-step .trk b{color:var(--ink);font-weight:800;font-variant-numeric:tabular-nums}
+.ap3-step .trk i.rent b{color:var(--warn,#b45309)}
+.ap3-step .trk button{font:inherit;font-weight:800;line-height:1;width:22px;height:22px;border-radius:6px;border:1px solid var(--ap-rule);background:var(--ap-bay);color:var(--ink);cursor:pointer;padding:0}
+.ap3-step .trk button:hover{border-color:var(--brand-d);color:var(--brand-d)}
 .ap2-growth{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin:8px 0 12px;padding:10px 12px;border:1px solid var(--ap-rule);border-radius:var(--ap-r2);background:var(--ap-sub)}
 .ap2-growth label{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);white-space:nowrap}
 .ap2-growth input{font:inherit;font-size:16px;font-weight:800;width:84px;padding:5px 8px;border:1px solid var(--line-2);border-radius:8px;background:var(--panel);color:var(--ink)}
@@ -1489,6 +1495,8 @@ registerPage({
         return out; })();
       /* the scenario: which bases are YES, in memory only (a refresh is back to NO) */
       const NB_ON = {};
+      const TR_OWN = {};         // owned trucks at a base as he set them (blank = the register); memory only
+      const trAny = () => Object.keys(TR_OWN).length > 0;
       const NB_FM = {};          // a YES base's crew as he set it (blank = suggested); memory only
       const nbOf = label => ({ on: !!NB_ON[label] });
       /* re-tier one area against a set of new bases: null when no new base is nearer */
@@ -2649,7 +2657,6 @@ registerPage({
         }).filter(Boolean);
         // trucks beyond the owned fleet are rented for the core months; the rent is shared by each state's trucks
         const T = FC.trucks || {};
-        const owned = T.owned_working != null ? T.owned_working : ((model.fleet || {}).owned_trucks || 0);
         const perDay = T.rental_per_day || 0;
         /* THE POOL'S FOREMEN, PLACED BY STATE (his ask 2026-09-19: "the full plan by states — where, how
            many crews"). A pool's need for a month is shared between its states in proportion to their
@@ -2681,7 +2688,24 @@ registerPage({
         });
         const nbFm = nbOut.reduce((a, o) => a + o.fm, 0);
         const trucksTot = pools.reduce((a, q) => a + q.trucks, 0) + Math.ceil(nbFm * (crew.trucks || 0));
-        const rentTrucks = Math.max(0, trucksTot - owned);
+        /* OWNED AND RENTED, BASE BY BASE (his ask 2026-09-30: "project how many owned vehicles and
+           rental vehicles we need per base"). Owned = the ACTIVE trucks on the vehicles register, by
+           the state written on each (his pick over the 10 that "worked" last season, which carry no
+           base): NJ + NY park at the NJ base, a new base starts with none. His - / + on a card
+           (TR_OWN, memory only) moves or buys one. A base rents what its peak needs above what it
+           owns -- a spare truck in one base does not cover another. A Planning Variables override
+           of the owned count keeps the old company-wide sum. */
+        const ownBy = (model.fleet || {}).active_by_state;
+        const perBase = !!ownBy && T.owned_source !== "override";
+        const regOf = pk => Object.keys(ownBy || {}).reduce((a, st) => a + ((POOL_OF[st] || st) === pk ? num(ownBy[st]) : 0), 0);
+        if (perBase) {
+          pools.forEach(q => { q.owned = Math.max(0, TR_OWN[q.pk] != null ? TR_OWN[q.pk] : regOf(q.pk)); q.rent = Math.max(0, q.trucks - q.owned); });
+          nbOut.forEach(o => { o.trucks = Math.ceil(o.fm * (crew.trucks || 0)); o.owned = Math.max(0, TR_OWN[o.label] || 0); o.rent = Math.max(0, o.trucks - o.owned); });
+        }
+        const owned = perBase ? pools.reduce((a, q) => a + q.owned, 0) + nbOut.reduce((a, o) => a + o.owned, 0)
+          : T.owned_working != null ? T.owned_working : ((model.fleet || {}).owned_trucks || 0);
+        const rentTrucks = perBase ? pools.reduce((a, q) => a + q.rent, 0) + nbOut.reduce((a, o) => a + o.rent, 0)
+          : Math.max(0, trucksTot - owned);
         const coreDays = core.reduce((a, ym) => a + new Date(+ym.slice(0, 4), +ym.slice(5, 7), 0).getDate(), 0);
         /* THREE PRICES FOR THE SAME TRUCKS, AND THE PLAN TAKES THE DEAREST (his call 2026-09-20:
            "whichever is the most expensive from this calculations - use that"). They disagree by a
@@ -2743,7 +2767,7 @@ registerPage({
                       salesPay: rows.some(r => r.salesPay != null) ? sum("salesPay") : null, salesPct: SALES_PCT,
                       gross: rows.some(r => r.gross != null) ? sum("gross") : null };
         tot.parking = nbOut.length * 800 * (core.length || 4);        // a yard per base, the what-if's $800 a month
-        return { months, core, rows, pools, sales, mkt, tot, perFm, util, crew, owned, perDay, rentTrucks, coreDays, method, rentWays, rentPick, nb: nbOut };
+        return { months, core, rows, pools, sales, mkt, tot, perFm, util, crew, owned, perDay, rentTrucks, coreDays, method, rentWays, rentPick, nb: nbOut, perBase };
       }
       function nextHtml() {
         if (!FC.year) return '<div class="ap2-note">The forecast block is not in the model yet — it appears after the next plan rebuild (07:50 NJ, or run <b>sources=area-plan</b>).</div>';
@@ -3501,11 +3525,11 @@ registerPage({
                "Drivers are counted on the closing sheet like foremen, not assumed.") +
           chip("trucks", fmtN(N.tot.trucks), "one per foreman at peak",
                "One truck per foreman working the peak month. " + fmtN(N.owned) +
-               " are on the vehicles register today.") +
+               " are active on the vehicles register today.") +
           chip("vehicles owned", fmtN((model.fleet || {}).owned_trucks || 0),
-               fmtN(N.owned) + " working the season",
+               fmtN(N.owned) + (N.perBase ? " active" : " working the season"),
                "The vehicle register holds " + fmtN((model.fleet || {}).owned_trucks || 0) + " trucks; " + fmtN(N.owned) +
-               " of them are counted as working. Insurance runs " + money0((model.fleet || {}).insurance_yearly_total || 0) +
+               " of them are " + (N.perBase ? "active trucks (sold, damaged and potential ones, vans and trailers are left out)" : "counted as working") + ". Insurance runs " + money0((model.fleet || {}).insurance_yearly_total || 0) +
                " a year and parking " + money0((model.fleet || {}).parking_monthly_total || 0) + " a month, company-wide.") +
           chip("rental, last season", fmtN(T.rental_days_last_season || 0) + " days",
                money0(T.rental_usd_last_season || 0) + " at " + money0(T.rental_per_day || 0) + " a day",
@@ -4497,30 +4521,39 @@ registerPage({
       function scHtml(N, N0) {
         if (!N) return "";
         const P = N0 || N;                       // the plan the steppers are read against
-        const step = (kind, pool, label, shown, plan, cls) => {
+        /* the trucks line of a base card: needed at peak, owned (his to change), and the rest rented */
+        const trk = (key, o) => !N.perBase || !o ? "" :
+          '<div class="trk"><i>Trucks <b>' + fmtN(o.trucks) + "</b></i><i>owned" +
+          (key == null ? " <b>" + fmtN(o.owned) + "</b>" :
+            '<button type="button" aria-label="one owned truck less" data-tro="' + esc(key) + '" data-d="-1">−</button><b>' + fmtN(o.owned) +
+            '</b><button type="button" aria-label="one owned truck more" data-tro="' + esc(key) + '" data-d="1">+</button>') +
+          '</i><i class="' + (o.rent ? "rent" : "") + '">rent <b>' + fmtN(o.rent) + "</b></i></div>";
+        const step = (kind, pool, label, shown, plan, cls, extra) => {
           const drv = SC.kind === kind && (kind !== "fm" || SC.pool === pool);
           return '<div class="ap3-step' + (drv ? " drv" : "") + (cls ? " " + cls : "") + '"><span>' + label + (drv ? "<em>you set this</em>" : "") + "</span>" +
             '<div class="ctl"><button type="button" aria-label="less" data-sc="' + kind + '" data-pool="' + esc(pool || "") + '" data-d="-1">−</button>' +
             "<b>" + shown + '</b><button type="button" aria-label="more" data-sc="' + kind + '" data-pool="' + esc(pool || "") + '" data-d="1">+</button></div>' +
-            "<small>" + plan + "</small></div>"; };
+            "<small>" + plan + "</small>" + (extra || "") + "</div>"; };
         /* ONE RESET, NO BANNERS (his call 2026-09-30: both "Scenario on ..." strips were "extra" --
            the four numbers already say "vs the plan", and a base flips back on its own card). It shows
            only while something is changed, and puts the levers AND the bases back. */
         return '<div class="ap3-sc"><div class="ap3-nbh"><b>What if</b><span>change one number and the rest follows — a test scenario, a refresh puts it back</span>' +
-            (scAny() || nbAny() ? '<button type="button" class="rs-btn ap3-reset" data-screset>Reset</button>' : "") + "</div>" +
+            (scAny() || nbAny() || trAny() ? '<button type="button" class="rs-btn ap3-reset" data-screset>Reset</button>' : "") + "</div>" +
           '<div class="ap3-steps">' +
             step("sales", null, "Salespeople", fmtN(N.sales.peak), "plan " + fmtN(P.sales.peak)) +
             step("mkt", null, "Marketing budget", money0(N.tot.mkt), "plan " + money0(P.tot.mkt)) +
-            step("fmAll", null, "Foremen · all bases", fmtN(N.tot.peak), "plan " + fmtN(P.tot.peak) + " · " + fmtN(N.tot.have) + " today", "tot") +
+            step("fmAll", null, "Foremen · all bases", fmtN(N.tot.peak), "plan " + fmtN(P.tot.peak) + " · " + fmtN(N.tot.have) + " today", "tot",
+              trk(null, { trucks: N.tot.trucks, owned: N.owned, rent: N.rentTrucks })) +
           "</div>" +
           /* one card per base: its foremen at peak, the states it covers, and who is there today */
           '<div class="ap3-steps bases">' +
             baseList(N).map(b => { const b0 = baseList(P).find(x => x.key === b.key) || b;
               return step("fm", b.key, esc(b.key) + " base", fmtN(b.fm),
-                "covers " + esc(b.states.join(" + ")) + " · plan " + fmtN(b0.fm) + " · " + fmtN(b.have) + " today"); }).join("") +
+                "covers " + esc(b.states.join(" + ")) + " · plan " + fmtN(b0.fm) + " · " + fmtN(b.have) + " today", "",
+                trk(b.key, N.pools.find(q => q.pk === b.key))); }).join("") +
             /* a base switched to Yes is a base: its own card, its own crew, his to change */
             (N.nb || []).map(o => step("nbfm", o.label, esc(o.label) + " · new base", fmtN(o.fm),
-              (o.states.length ? "covers " + esc(o.states.join(" + ")) + " · " : "") + "suggested " + fmtN(o.fmSuggested) + " for " + sgN(o.jobs) + " jobs · 0 today", "nb")).join("") +
+              (o.states.length ? "covers " + esc(o.states.join(" + ")) + " · " : "") + "suggested " + fmtN(o.fmSuggested) + " for " + sgN(o.jobs) + " jobs · 0 today", "nb", trk(o.label, o))).join("") +
           "</div></div>";
       }
 
@@ -4883,7 +4916,7 @@ registerPage({
           const label = card.dataset.nb;
           card.querySelectorAll("[data-nbon]").forEach(b => { b.onclick = () => {
             const want = b.dataset.nbon === "1"; if (!!NB_ON[label] === want) return;
-            if (want) NB_ON[label] = true; else { delete NB_ON[label]; delete NB_FM[label]; }
+            if (want) NB_ON[label] = true; else { delete NB_ON[label]; delete NB_FM[label]; delete TR_OWN[label]; }
             nbRepaint(); }; });
         });
         host.querySelectorAll("#apScn [data-sc]").forEach(b => { b.onclick = () => {
@@ -4902,9 +4935,14 @@ registerPage({
           SC.kind = kind; SC.pool = pool; SC.target = target;
           repaintPlan();
         }; });
+        host.querySelectorAll("#apScn [data-tro]").forEach(b => { b.onclick = () => {
+          const key = b.dataset.tro, N = nextCalc();
+          const o = N.pools.find(q => q.pk === key) || (N.nb || []).find(x => x.label === key);
+          if (o) { TR_OWN[key] = Math.max(0, (o.owned || 0) + (+b.dataset.d)); repaintPlan(); }
+        }; });
         const scr = host.querySelector("[data-screset]");
         if (scr) scr.onclick = () => { SC.kind = null; SC.pool = null; SC.target = null;
-          Object.keys(NB_ON).forEach(k => delete NB_ON[k]); Object.keys(NB_FM).forEach(k => delete NB_FM[k]); nbRepaint(); };
+          Object.keys(NB_ON).forEach(k => delete NB_ON[k]); Object.keys(NB_FM).forEach(k => delete NB_FM[k]); Object.keys(TR_OWN).forEach(k => delete TR_OWN[k]); nbRepaint(); };
       }
 
       /* Size and frame the map against the container it actually has. Safe to call at any time:
