@@ -270,7 +270,14 @@ window.RS = (function () {
     // one /api/_stats per page-load (server answers from its epoch-keyed cache in ~0.2s,
     // browser caches it 5 min) — shared by the footer and every dataset validation
     if (_markerP) return _markerP;
-    _markerP = ZTZ.api("/api/_stats").then(s => (s && s.marker) || null).catch(() => null);
+    // DEADLINE (2026-09-30): while the pipeline swaps a table, /api/_stats can sit behind a
+    // metadata lock for minutes, and every dataset waits on this marker -- Seasonal Planning
+    // stayed on "Reading the plan..." twice today with every table answering in half a second.
+    // Same rule as _idb(): the marker is an optimization, so after 6s load from the network.
+    _markerP = Promise.race([
+      ZTZ.api("/api/_stats").then(s => (s && s.marker) || null).catch(() => null),
+      new Promise(res => setTimeout(() => res(null), 6000)),
+    ]);
     return _markerP;
   }
 
