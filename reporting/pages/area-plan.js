@@ -550,6 +550,18 @@ details.ap3-how[open]{padding-bottom:16px}
 .ap3-step{border:1px solid var(--ap-rule);border-radius:var(--ap-r1);background:var(--ap-bay);padding:10px 12px;min-width:0}
 .ap3-step.tot{background:var(--ap-sub)}
 .ap3-step.nb{border-style:dashed;border-color:var(--brand-d)}
+.ap3-nbh .ap3-planseg{margin-left:auto}
+.ap3-nbh .ap3-planseg + .ap3-reset{margin-left:0}
+.ap3-plan{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px;margin:0 0 10px}
+.ap3-step.plan span em{font-weight:800}
+.ap3-step.plan .site{display:flex;align-items:center;gap:6px;margin-top:8px}
+.ap3-step.plan .site i{font-style:normal;font-size:13px;color:var(--ink);margin-right:auto;min-width:0}
+.ap3-step.plan .site i u{text-decoration:none;font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--brand-d);margin-left:6px}
+.ap3-step.plan .site i small{display:block;font-size:11px;color:var(--ap-warn-ink)}
+.ap3-step.plan .site b{font-size:17px;font-weight:800;color:var(--ink);min-width:22px;text-align:center;font-variant-numeric:tabular-nums}
+.ap3-step.plan .site button{font:inherit;font-weight:800;line-height:1;width:26px;height:26px;border-radius:7px;border:1px solid var(--ap-rule);background:var(--ap-bay);color:var(--ink);cursor:pointer;padding:0}
+.ap3-step.plan .site button:hover{border-color:var(--brand-d);color:var(--brand-d)}
+.ap3-step.plan>small{display:block;margin-top:8px}
 .ap3-steps.bases{grid-template-columns:repeat(auto-fit,minmax(170px,1fr))}
 .ap3-step.drv{border-color:var(--brand-d);box-shadow:inset 0 3px 0 var(--brand-d)}
 .ap3-step span{display:flex;justify-content:space-between;gap:8px;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
@@ -1524,6 +1536,57 @@ registerPage({
          named after the county it stands in, switched to Yes at once -- so it is measured by exactly
          the rules the three listed candidates are. One at a time, memory only: a new pick replaces
          the old one, Reset removes it. */
+      /* ===================== NAMED PLANS: MAX (MID and MIN to follow) =====================
+         His table, 2026-09-30 ("create a new click for MAX PLAN where this bases and numbers will
+         appear. then we will create MIN and MID as well"): every base he would run, existing and
+         new, with the crews he would put there. His three answers:
+           * CREWS DRIVE THE PLAN. A group's jobs are what its crews can carry. A new base that
+             opens ground first takes the crews that ground needs (no more than it was given --
+             Montgomery has 2 of the 4 its ground would want, so its jobs are cut to match,
+             NB_CAP); whatever is left in the group works the ground we already cover, and that
+             pool's jobs are scaled to it exactly as the What-if levers scale them.
+           * NY IS ITS OWN CARD. NJ and NY are still one crew pool to the engine -- the same crews
+             cross the river -- so the two cards add into one target.
+           * PATERSON IS THE UPPER PART OF PATERSON NJ; Middlesex is the centre of Middlesex
+             County CT. Both stand inside ground we already cover: they open no county, they only
+             put crews nearer, so they are pins on the map and crews in their pool.
+         A plan is a test scenario like everything else on this tab: memory only, Reset ends it. */
+      const PLANS = {
+        max: { label: "MAX", groups: [
+          { base: "CT", pool: "CT", states: ["CT", "MA"], sites: [
+            { name: "Existing base", fm: 3 }, { name: "Tolland", fm: 2, cand: "Tolland CT" },
+            { name: "Middlesex", fm: 1, la: 41.476, lo: -72.568 }] },
+          { base: "NJ", pool: "NJ", states: ["NJ"], sites: [
+            { name: "Existing base", fm: 7 }, { name: "Paterson (upper)", fm: 3, la: 40.94, lo: -74.165 }] },
+          { base: "NY", pool: "NJ", states: ["NY"], sites: [{ name: "Existing base", fm: 2 }] },
+          { base: "PA", pool: "PA", states: ["PA", "DE"], sites: [
+            { name: "Existing base", fm: 7 }, { name: "Monroe", fm: 2, cand: "Monroe PA" }] },
+          { base: "MD", pool: "PA", states: ["MD", "VA"], sites: [{ name: "Montgomery", fm: 2, cand: "Montgomery MD" }] },
+        ] },
+      };
+      let PLAN = null;           // the active plan: an editable copy of one of PLANS, with its key
+      const NB_CAP = {};         // a new base given fewer crews than its ground needs: the share of its jobs it can carry
+      const planSite = label => { let hit = null;
+        if (PLAN) PLAN.groups.forEach(g => g.sites.forEach(x => { if (x.cand === label) hit = x; })); return hit; };
+      function planEnd() { PLAN = null; Object.keys(NB_CAP).forEach(k => delete NB_CAP[k]); }
+      function planApply() {
+        if (!PLAN) return;
+        [NB_ON, NB_FM, NB_CAP, TR_OWN].forEach(o => Object.keys(o).forEach(k => delete o[k]));
+        nbPickClear();
+        PLAN.groups.forEach(g => g.sites.forEach(x => { if (x.cand && x.fm > 0 && NB_CANDS.some(c => c.label === x.cand)) NB_ON[x.cand] = true; }));
+        nbApplyAreas();
+        const N1 = nextCalc({ mult: {} });            // what each new base's own ground needs, uncapped
+        const targets = {};
+        PLAN.groups.forEach(g => { let crew = 0;
+          g.sites.forEach(x => { crew += x.fm;
+            if (!x.cand || !NB_ON[x.cand]) return;
+            const o = (N1.nb || []).find(q => q.label === x.cand), need = o ? o.fmSuggested : 1;
+            const use = Math.max(1, Math.min(x.fm, need));
+            NB_FM[x.cand] = use; if (use < need) NB_CAP[x.cand] = use / need;
+            crew -= use; });
+          targets[g.pool] = (targets[g.pool] || 0) + Math.max(0, crew); });
+        SC.kind = "plan"; SC.pool = null; SC.target = null; SC.targets = targets;
+      }
       let PICK = false;
       function nbPickClear() {
         const i = NB_CANDS.findIndex(c => c.custom); if (i < 0) return;
@@ -1648,6 +1711,18 @@ registerPage({
       function scSolve() {
         if (!SC.kind) { SC_MULT = {}; return; }
         const P0 = nextCalc({ mult: {} });
+        if (SC.kind === "plan") {            // a named plan: every pool scaled to its own crews, independently
+          const out = {};
+          Object.keys(SC.targets || {}).forEach(pk => {
+            const sts = baseStates(P0, pk), b = m => { const o = {}; sts.forEach(st => { o[st] = m; }); return o; };
+            let lo = 0.1, hi = 6, t = SC.targets[pk];
+            const least = baseFm(nextCalc({ mult: b(lo) }), pk); if (t < least) t = least;
+            for (let i = 0; i < 20; i++) { const mid = (lo + hi) / 2;
+              if (baseFm(nextCalc({ mult: b(mid) }), pk) <= t) lo = mid; else hi = mid; }
+            sts.forEach(st => { out[st] = lo; });
+          });
+          SC_MULT = out; return;
+        }
         const states = SC.kind === "fm" ? baseStates(P0, SC.pool) : P0.rows.map(r => r.st);
         const build = m => { const o = {}; states.forEach(st => { o[st] = m; }); return o; };
         const metric = N => SC.kind === "fm" ? baseFm(N, SC.pool)
@@ -2649,9 +2724,10 @@ registerPage({
            now settled on the plan without it, and the base's leads ride on top at the same rate. */
         const nbOut = [];
         nbEffect(nbActive((opts && opts.nb) || "all")).per.forEach(p => {
+          const cap = NB_CAP[p.b.label] != null ? NB_CAP[p.b.label] : 1;      // a plan that gives the base fewer crews than its ground needs
           const o = { label: p.b.label, st: p.b.st, opened: p.opened, served: p.served, leadsYr: p.leadsYr,
-                      jobs: p.jobsYear1, jobsFull: p.jobsFull, unplanned: 0 };
-          Object.entries(p.byState).forEach(([st, jobs]) => {
+                      jobs: p.jobsYear1 * cap, jobsFull: p.jobsFull, unplanned: 0, cap };
+          Object.entries(p.byState).forEach(([st, jobs0]) => { const jobs = jobs0 * cap;
             const r = rows.find(x => x.st === st);
             if (!r || !(jobs > 0)) { o.unplanned += jobs; return; }
             const cc = r.cells.filter(c => !c.shoulder), b0 = cc.reduce((a, c) => a + (c.jobs || 0), 0);
@@ -4598,6 +4674,9 @@ registerPage({
            the four numbers already say "vs the plan", and a base flips back on its own card). It shows
            only while something is changed, and puts the levers AND the bases back. */
         return '<div class="ap3-sc"><div class="ap3-nbh"><b>What if</b><span>change one number and the rest follows — a test scenario, a refresh puts it back</span>' +
+            '<div class="ap3-seg ap3-planseg" role="group" aria-label="Plan">' +
+              '<button type="button" data-plan="" class="' + (PLAN ? "" : "on") + '">Forecast</button>' +
+              Object.keys(PLANS).map(k => '<button type="button" data-plan="' + k + '" class="' + (PLAN && PLAN.key === k ? "on" : "") + '">' + esc(PLANS[k].label) + " plan</button>").join("") + "</div>" +
             (scAny() || nbAny() || trAny() ? '<button type="button" class="rs-btn ap3-reset" data-screset>Reset</button>' : "") + "</div>" +
           '<div class="ap3-steps">' +
             step("sales", null, "Salespeople", fmtN(N.sales.peak), "plan " + fmtN(P.sales.peak)) +
@@ -4606,7 +4685,8 @@ registerPage({
               trk(null, { trucks: N.tot.trucks, owned: N.owned, rent: N.rentTrucks })) +
           "</div>" +
           /* one card per base: its foremen at peak, the states it covers, and who is there today */
-          '<div class="ap3-steps bases">' +
+          (PLAN ? namedPlanHtml(N) : "") +
+          '<div class="ap3-steps bases"' + (PLAN ? ' style="display:none"' : "") + '>' +
             baseList(N).map(b => { const b0 = baseList(P).find(x => x.key === b.key) || b;
               return step("fm", b.key, esc(b.key) + " base", fmtN(b.fm),
                 "covers " + esc(b.states.join(" + ")) + " · plan " + fmtN(b0.fm) + " · " + fmtN(b.have) + " today", "",
@@ -4615,6 +4695,27 @@ registerPage({
             (N.nb || []).map(o => step("nbfm", o.label, esc(o.label) + " · new base", fmtN(o.fm),
               (o.states.length ? "covers " + esc(o.states.join(" + ")) + " · " : "") + "suggested " + fmtN(o.fmSuggested) + " for " + sgN(o.jobs) + " jobs · 0 today", "nb", trk(o.label, o))).join("") +
           "</div></div>";
+      }
+
+      /* the named plan, base by base: his table, with each crew his to change */
+      function namedPlanHtml(N) {
+        const ownBy = N.perBase ? ((model.fleet || {}).active_by_state || {}) : null;
+        const all = PLAN.groups.reduce((a, g) => a + g.sites.reduce((b, x) => b + x.fm, 0), 0);
+        const short = N.tot.peak < all;
+        return '<div class="ap3-plan">' + PLAN.groups.map((g, gi) => {
+          const crew = g.sites.reduce((a, x) => a + x.fm, 0);
+          const own = ownBy ? g.states.reduce((a, st) => a + num(ownBy[st]), 0) : null;
+          return '<div class="ap3-step plan"><span>' + esc(g.base) + " base<em>" + fmtN(crew) + (crew === 1 ? " foreman" : " foremen") + "</em></span>" +
+            g.sites.map((x, si) => { const o = x.cand ? (N.nb || []).find(q => q.label === x.cand) : null;
+              return '<div class="site"><i>' + esc(x.name) + (x.cand || x.la ? "<u>new</u>" : "") +
+                (o && o.cap < 1 ? "<small>its ground wants " + fmtN(Math.round(o.fm / o.cap)) + "</small>" : "") + "</i>" +
+                '<button type="button" aria-label="one less" data-plansite="' + gi + ":" + si + '" data-d="-1">−</button><b>' + fmtN(x.fm) +
+                '</b><button type="button" aria-label="one more" data-plansite="' + gi + ":" + si + '" data-d="1">+</button></div>'; }).join("") +
+            "<small>covers " + esc(g.states.join(" + ")) + "</small>" +
+            (own != null ? '<div class="trk"><i>Trucks <b>' + fmtN(crew) + "</b></i><i>owned <b>" + fmtN(own) + '</b></i><i class="' + (crew > own ? "rent" : "") + '">rent <b>' + fmtN(Math.max(0, crew - own)) + "</b></i></div>" : "") +
+            "</div>"; }).join("") + "</div>" +
+          (short ? '<div class="ap2-note" style="margin:0 0 10px">The table holds ' + fmtN(all) + " foremen; the plan above works " + fmtN(N.tot.peak) +
+            " of them — a pool's crews move in steps, and the rest have no work in this forecast.</div>" : "");
       }
 
       /* ---- new bases ---- */
@@ -4650,7 +4751,9 @@ registerPage({
             '<div class="big"><b>' + sgN(d.jobs) + '</b> jobs in ' + esc(String(FC.year)) +
               '<small>' + sgN(o.jobsFull || 0) + " a season once established</small></div>" +
             '<div class="nums">' +
-              "<span><b>" + fmtN(o.fm || 1) + "</b>" + ((o.fm || 1) === 1 ? " foreman" : " foremen") + " at the base<small>company hire " + sgN(d.hire) + "</small></span>" +
+              (() => { const ps = on ? planSite(c.label) : null, f = ps ? ps.fm : (o.fm || 1);
+                return "<span><b>" + fmtN(f) + "</b>" + (f === 1 ? " foreman" : " foremen") + " at the base<small>" +
+                  (ps ? esc(PLAN.label) + " plan" : "company hire " + sgN(d.hire)) + "</small></span>"; })() +
               "<span><b>" + sgM(d.mkt) + "</b> marketing<small>" + sgN(d.leads) + " leads</small></span>" +
               "<span><b>" + sgN(d.sales) + "</b> sales<small>at peak</small></span>" +
               "<span><b>" + sgM(d.net) + "</b> net<small>season, after all costs</small></span>" +
@@ -5038,11 +5141,27 @@ registerPage({
           const label = card.dataset.nb;
           card.querySelectorAll("[data-nbon]").forEach(b => { b.onclick = () => {
             const want = b.dataset.nbon === "1"; if (!!NB_ON[label] === want) return;
+            if (PLAN) { planEnd(); SC.kind = null; SC.targets = null; }      // a base flipped by hand: no longer his table
             if (want) NB_ON[label] = true; else { delete NB_ON[label]; delete NB_FM[label]; delete TR_OWN[label]; }
             nbRepaint(); }; });
         });
+        host.querySelectorAll("#apScn [data-plan]").forEach(b => { b.onclick = () => {
+          const k = b.dataset.plan;
+          if (!k) { if (!PLAN) return; planEnd(); SC.kind = null; SC.targets = null;
+            [NB_ON, NB_FM, TR_OWN].forEach(o => Object.keys(o).forEach(x => delete o[x])); nbRepaint(); return; }
+          if (PLAN && PLAN.key === k) return;
+          PLAN = JSON.parse(JSON.stringify(PLANS[k])); PLAN.key = k;
+          planApply(); nbRepaint();
+        }; });
+        host.querySelectorAll("#apScn [data-plansite]").forEach(b => { b.onclick = () => {
+          if (!PLAN) return;
+          const [gi, si] = b.dataset.plansite.split(":").map(Number), x = PLAN.groups[gi].sites[si];
+          x.fm = Math.max(0, x.fm + (+b.dataset.d));
+          planApply(); nbRepaint();
+        }; });
         host.querySelectorAll("#apScn [data-sc]").forEach(b => { b.onclick = () => {
           const kind = b.dataset.sc, pool = b.dataset.pool || null, dd = +b.dataset.d;
+          if (PLAN) planEnd();               // another driver takes over: the bases stay, the plan's crews no longer hold
           const N = nextCalc(), P = nextCalc({ nb: "none", mult: {} });
           if (kind === "nbfm") {           // a new base's crew: set directly, it is not a driver
             const o = (N.nb || []).find(x => x.label === pool);
@@ -5065,6 +5184,7 @@ registerPage({
         const scr = host.querySelector("[data-screset]");
         if (scr) scr.onclick = () => { SC.kind = null; SC.pool = null; SC.target = null;
           Object.keys(NB_ON).forEach(k => delete NB_ON[k]); Object.keys(NB_FM).forEach(k => delete NB_FM[k]); Object.keys(TR_OWN).forEach(k => delete TR_OWN[k]);
+          planEnd(); SC.targets = null;
           nbPickClear(); if (SIDE && SIDE.kind === "pick") SIDE = null; nbRepaint(); };
       }
 
@@ -5724,6 +5844,8 @@ registerPage({
           box._nbRings = () => { nbRings.clearLayers();
             NB_CANDS.filter(c => NB_ON[c.label]).forEach(c => L.circle([c.la, c.lo], { pane: "apRings", radius: 50 * MI_PER_M,
               interactive: false, color: col.t1, weight: 2, dashArray: "6 5", fillColor: col.t1, fillOpacity: .06 }).addTo(nbRings));
+            if (PLAN) PLAN.groups.forEach(g => g.sites.forEach(x => { if (x.la && x.fm > 0)
+              L.marker([x.la, x.lo], { icon: flag("cover", x.name.replace(/ \(.*$/, "") + " · " + fmtN(x.fm)), interactive: false, zIndexOffset: 450 }).addTo(nbRings); }));
             /* the picked point keeps its pin whether it is Yes or No */
             NB_CANDS.filter(c => c.custom).forEach(c => L.circleMarker([c.la, c.lo], { radius: 8, interactive: false,
               color: "#fff", weight: 3, fillColor: tok("--ink") || "#22303f", fillOpacity: 1 }).addTo(nbRings)); };
@@ -5741,7 +5863,8 @@ registerPage({
              picked base's sheet replaces it */
           m.on("click", e => { if (!PICK) return;
             PICK = false; box.classList.remove("ap3-picking");
-            if (nbPickAt(e.latlng.lat, e.latlng.lng)) { SIDE = { kind: "pick" }; nbRepaint(); } });
+            if (PLAN) { planEnd(); SC.kind = null; SC.targets = null; }
+          if (nbPickAt(e.latlng.lat, e.latlng.lng)) { SIDE = { kind: "pick" }; nbRepaint(); } });
           box._nbRings();
           box._fit = pts;
           box._map = m;
