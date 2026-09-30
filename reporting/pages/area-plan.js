@@ -504,15 +504,24 @@ body:not(.light) .ap2-mapbox{background:#1d232b}
 body.ap3-printing > *:not(#apPrintRoot){display:none !important}
 body.ap3-printing{background:#fff !important;overflow:visible !important}
 #apPrintRoot{width:277mm;margin:0 auto;padding:0;background:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact}
-#apPrintRoot .ap3-print-h{display:flex;align-items:baseline;gap:12px;margin:0 0 3mm}
-#apPrintRoot .ap3-print-h b{font-size:15pt;color:#1b2430}
-#apPrintRoot .ap3-print-h span{font-size:9.5pt;color:#5b6675}
-#apPrintRoot .ap3-kpis{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:2.5mm;margin:0 0 3mm}
-#apPrintRoot .ap3-kpi{padding:2.2mm 3mm;min-width:0;break-inside:avoid}
-#apPrintRoot .ap3-kpi > b{font-size:15pt}
-#apPrintRoot .ap3-kpi span,#apPrintRoot .ap3-kpi small,#apPrintRoot .ap3-kpi em,#apPrintRoot .ap3-kpi .was{font-size:7.5pt}
-#apPrintRoot .ap2-mapkey{margin:0 0 2mm;gap:3mm;font-size:8pt}
-#apPrintRoot .ap2-mapbox{height:140mm !important;min-height:0 !important;width:277mm;border-radius:0}
+#apPrintRoot{font-family:inherit;color:#1b2430}
+#apPrintRoot .ap3-print-h{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin:0 0 3.5mm;padding-bottom:2mm;border-bottom:.3mm solid #1b2430}
+#apPrintRoot .ap3-print-h b{font-size:12.5pt;font-weight:800;letter-spacing:-.01em}
+#apPrintRoot .ap3-print-h span{font-size:8.5pt;color:#5b6675;white-space:nowrap}
+#apPrintRoot .ap3-ptiles{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:2.5mm;margin:0 0 3mm}
+#apPrintRoot .ap3-ptile{border:.25mm solid #cfd6de;border-radius:2mm;padding:2.4mm 3mm 2.2mm;min-width:0;display:grid;gap:.6mm;break-inside:avoid}
+#apPrintRoot .ap3-ptile > *{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+#apPrintRoot .ap3-ptile b{font-size:14pt;font-weight:800;line-height:1.1;font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+#apPrintRoot .ap3-ptile span{font-size:7pt;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:#3d4957}
+#apPrintRoot .ap3-ptile small{font-size:7.5pt;color:#5b6675}
+#apPrintRoot .ap3-ptile b em{font-style:normal;font-size:8pt;font-weight:800;color:#4d7a12;margin-left:1.2mm;letter-spacing:0;vertical-align:.25em}
+#apPrintRoot .ap3-ptile b em.dn{color:#b3261e}
+#apPrintRoot .ap3-ptile i{font-style:normal;font-size:7.5pt;color:#5b6675;border-top:.2mm solid #e3e8ee;padding-top:1mm;margin-top:.6mm;font-variant-numeric:tabular-nums}
+#apPrintRoot .ap3-ptile i u{text-decoration:none;font-weight:700;color:#4d7a12}
+#apPrintRoot .ap3-ptile i u.dn{color:#b3261e}
+#apPrintRoot .ap2-mapkey{margin:0 0 2mm;gap:0 3.2mm;font-size:7.5pt;flex-wrap:nowrap;white-space:nowrap;justify-content:space-between}
+#apPrintRoot .ap2-mapkey .ap2-mk{white-space:nowrap}
+#apPrintRoot .ap2-mapbox{height:148mm !important;min-height:0 !important;width:277mm;border-radius:2mm;border:.25mm solid #cfd6de;overflow:hidden}
 #apPrintRoot .leaflet-control-container{display:none}
 .ap3-find input{width:100%}
 .ap3-findres{position:absolute;z-index:1200;top:calc(100% + 4px);left:0;right:0;background:var(--ap-bay);border:1px solid var(--ap-rule);border-radius:var(--ap-r1);box-shadow:0 10px 28px rgba(0,0,0,.16);padding:4px;max-height:340px;overflow:auto}
@@ -5354,12 +5363,39 @@ registerPage({
         const N = FC.year ? nextCalc() : null;
         const root = document.createElement("div"); root.id = "apPrintRoot"; root.className = "ap2-pane";
         root.innerHTML = '<div class="ap3-print-h"><b>Seasonal Planning — Season ' + esc(String(FC.year || "")) + "</b><span>" +
-          esc((PLAN ? PLAN.label + " plan" : scAny() || nbAny() ? "scenario" : "forecast") + " · " + (mapStOf() || "whole market") + " · zip codes" +
+          esc((PLAN ? PLAN.label + " plan (± vs forecast)" : scAny() || nbAny() ? "scenario (± vs forecast)" : "forecast") + " · " + (mapStOf() || "whole market") + " · zip codes" +
               (inputs.mapYear ? " · " + inputs.mapYear + " " + YEAR_BY[inputs.mapYearBy][1].toLowerCase() : " · tiers") +
               (N ? " · " + fmtN(N.tot.peak) + " foremen" : "") + " · " + new Date().toLocaleDateString("en-US", { day: "numeric", month: "short", year: "numeric" })) + "</span></div>";
-        const marks = ["#apKpis", "#apMapKeyWrap", "#apMapBox"].map(sel => { const el = host.querySelector(sel); if (!el) return null;
+        /* THE SHEET'S TILES ARE ITS OWN (his design review of the first print, 2026-09-30: "margins on
+           top, wrap texts to be similar"). The screen tiles wrap each line where it happens to fall,
+           so on paper the six came out three to five lines tall. The sheet reads the same numbers off
+           the screen tiles and sets every tile the same four lines: value, label, one short note, and
+           "2026" with its change -- none of them allowed to wrap. */
+        const tmp = document.createElement("div");
+        tmp.innerHTML = planStripHtml(N, FC.year && (nbAny() || scAny()) ? nextCalc({ nb: "none", mult: {} }) : null);
+        /* a dollar change beside a dollar total is said short (+$61k), or it pushes the total off the tile */
+        const shortDelta = t => { const m1 = String(t).match(/^([−+-])\$([\d,]+)$/); if (!m1) return t;
+          const v = +m1[2].replace(/,/g, "");
+          return m1[1] + "$" + (v >= 1e6 ? (v / 1e6).toFixed(2).replace(/0$/, "") + "M" : v >= 1e3 ? Math.round(v / 1e3) + "k" : String(v)); };
+        const firstNum = t => { const m0 = String(t || "").match(/[−+-]?\$?[\d,.]+/); return m0 ? m0[0] : ""; };
+        const tiles = [...tmp.querySelectorAll(".ap3-kpi")].map((k, i) => {
+          const val = (k.querySelector(":scope > b") || {}).textContent || "";
+          const lab = (k.querySelector(":scope > span") || {}).textContent || "";
+          const sub = (k.querySelector(":scope > small") || {}).textContent || "";
+          const was = k.querySelector(".was"), d = k.querySelector("em.d");
+          const wNum = was ? firstNum((was.querySelector("b") || {}).textContent) : "", wPc = was ? ((was.querySelector("i") || {}).textContent || "") : "";
+          const up = was && was.querySelector("i") && !was.querySelector("i").classList.contains("dn");
+          const note = i === 0 ? (PLAN ? PLAN.label + " plan" : "whole market") : i === 1 ? sub.replace(/\s+/g, " ").trim()
+                     : i === 2 ? sub.replace(/^.*·\s*/, "") : i === 3 ? sub.split("·")[0].trim() : i === 4 ? "per job" : "jobs × average job";
+          /* the change against the forecast rides beside the value, so the note line never has to carry it */
+          return '<div class="ap3-ptile"><b>' + esc(val) + (d ? '<em class="' + (/^[−-]/.test(d.textContent) ? "dn" : "") + '">' + esc(shortDelta(d.textContent.replace(" vs the plan", ""))) + "</em>" : "") +
+            "</b><span>" + esc(lab) + "</span><small>" + esc(note) + "</small>" +
+            (wNum ? '<i>' + esc(String((FC.year || 0) - 1)) + " " + esc(wNum) + (wPc ? ' <u class="' + (up ? "up" : "dn") + '">' + esc(wPc) + "</u>" : "") + "</i>" : "<i>&nbsp;</i>") + "</div>"; });
+        const tilesEl = document.createElement("div"); tilesEl.className = "ap3-ptiles"; tilesEl.innerHTML = tiles.join("");
+        root.appendChild(tilesEl);
+        const marks = ["#apMapKeyWrap", "#apMapBox"].map(sel => { const el = host.querySelector(sel); if (!el) return null;
           const ph = document.createComment("ap-print"); el.parentNode.insertBefore(ph, el); root.appendChild(el); return [ph, el]; }).filter(Boolean);
-        const pg = document.createElement("style"); pg.textContent = "@page{size:A4 landscape;margin:8mm}"; document.head.appendChild(pg);
+        const pg = document.createElement("style"); pg.textContent = "@page{size:A4 landscape;margin:11mm 10mm 9mm}"; document.head.appendChild(pg);
         document.body.appendChild(root); document.body.classList.add("ap3-printing");
         const m = box._map;
         /* "THE MAP FULLY VISIBLE": the sheet is wider and shorter than the screen's box, and the
