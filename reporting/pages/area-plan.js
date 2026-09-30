@@ -462,7 +462,7 @@ body:not(.light) .ap2-mapbox{background:#1d232b}
 /* ---------- THE MAP TAB, FOR THE ROOM (2026-09-29) ------------------------------
    The plan in four numbers, what to do per crew pool, the map beside its ranked list, and the
    working in one closed section. ap3- so nothing collides with the ap2- blocks above. */
-.ap3-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:0 0 14px}
+.ap3-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(215px,1fr));gap:12px;margin:0 0 14px}
 .ap3-kpi{padding:14px 16px;border:1px solid var(--ap-rule);border-radius:var(--ap-r1);background:var(--ap-bay);min-width:0}
 .ap3-kpi b{display:block;font-size:30px;font-weight:800;letter-spacing:-.02em;line-height:1.05;color:var(--ink);font-variant-numeric:tabular-nums}
 .ap3-kpi span{display:block;margin-top:5px;font-size:11.5px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
@@ -537,6 +537,8 @@ details.ap3-how[open]{padding-bottom:16px}
 .ap3-nbh .ap3-reset{margin-left:auto;padding:4px 12px;font-size:12.5px}
 .ap3-steps{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px;margin:0 0 10px}
 .ap3-step{border:1px solid var(--ap-rule);border-radius:var(--ap-r1);background:var(--ap-bay);padding:10px 12px;min-width:0}
+.ap3-step.tot{background:var(--ap-sub)}
+.ap3-steps.bases{grid-template-columns:repeat(auto-fit,minmax(170px,1fr))}
 .ap3-step.drv{border-color:var(--brand-d);box-shadow:inset 0 3px 0 var(--brand-d)}
 .ap3-step span{display:flex;justify-content:space-between;gap:8px;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
 .ap3-step span em{font-style:normal;color:var(--brand-d);text-transform:none;letter-spacing:0}
@@ -547,6 +549,10 @@ details.ap3-how[open]{padding-bottom:16px}
 .ap3-step .ctl button:hover{border-color:var(--brand-d);color:var(--brand-d)}
 .ap3-step .ctl button:focus-visible{outline:2px solid var(--brand-d);outline-offset:1px}
 .ap3-step small{font-size:11.5px;color:var(--faint)}
+.ap2-growth{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin:8px 0 12px;padding:10px 12px;border:1px solid var(--ap-rule);border-radius:var(--ap-r2);background:var(--ap-sub)}
+.ap2-growth label{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);white-space:nowrap}
+.ap2-growth input{font:inherit;font-size:16px;font-weight:800;width:84px;padding:5px 8px;border:1px solid var(--line-2);border-radius:8px;background:var(--panel);color:var(--ink)}
+.ap2-growth .ap2-note{flex:1 1 320px}
 .ap3-kpi .was{margin-top:8px;padding-top:7px;border-top:1px solid var(--ap-rule);font-size:12.5px;color:var(--muted)}
 .ap3-kpi .was b{display:inline;font-size:13.5px;font-weight:800;color:var(--ink);letter-spacing:0}
 .ap3-kpi .was i{font-style:normal;font-weight:800;margin-left:6px;color:var(--ap-pos-ink)}
@@ -1569,15 +1575,28 @@ registerPage({
          what that resource can carry -- not a claim that the jobs arrive; the strip says so.
          A foreman lever scales only its own pool's states; salespeople and budget scale every state.
          Memory only, like the bases: a refresh is back to the plan. */
+      /* FOREMEN BY BASE, AND WHAT EACH BASE COVERS (his ask 2026-09-30: "split the bases on the foreman
+         quantities, include which covers what - and ... a total"). A state with its own base on the
+         register is its own card; a state without one rides the base its crew pool is run from
+         (MD and VA from PA, MA from CT). A base's foremen = its states' share of the pool's peak. */
+      const BASE_NAMES = new Set(((model.depots || {}).bases || []).map(b => b.name));
+      const baseOfState = st => BASE_NAMES.has(st) ? st : (POOL_OF[st] || st);
+      const baseStates = (N, key) => N.rows.filter(r => baseOfState(r.st) === key).map(r => r.st);
+      const baseFm = (N, key) => N.rows.filter(r => baseOfState(r.st) === key).reduce((a, r) => a + (r.fmPeak || 0), 0);
+      const baseList = N => { const seen = [];
+        N.rows.forEach(r => { const k = baseOfState(r.st); if (seen.indexOf(k) < 0) seen.push(k); });
+        return seen.map(k => ({ key: k, states: baseStates(N, k), fm: baseFm(N, k),
+          have: N.rows.filter(r => baseOfState(r.st) === k).reduce((a, r) => a + (r.have || 0), 0) })); };
       const SC = { kind: null, pool: null, target: null };
       let SC_MULT = {};
       const scAny = () => !!SC.kind;
       function scSolve() {
         if (!SC.kind) { SC_MULT = {}; return; }
         const P0 = nextCalc({ mult: {} });
-        const states = SC.kind === "fm" ? ((P0.pools.find(q => q.pk === SC.pool) || {}).states || []) : P0.rows.map(r => r.st);
+        const states = SC.kind === "fm" ? baseStates(P0, SC.pool) : P0.rows.map(r => r.st);
         const build = m => { const o = {}; states.forEach(st => { o[st] = m; }); return o; };
-        const metric = N => SC.kind === "fm" ? ((N.pools.find(q => q.pk === SC.pool) || {}).peak || 0)
+        const metric = N => SC.kind === "fm" ? baseFm(N, SC.pool)
+                          : SC.kind === "fmAll" ? N.tot.peak
                           : SC.kind === "sales" ? N.sales.peak : N.tot.mkt;
         let lo = 0.1, hi = 6;
         for (let i = 0; i < 20; i++) { const mid = (lo + hi) / 2;
@@ -1606,6 +1625,8 @@ registerPage({
          would have looked like it never shipped. The saved value is dropped ONCE, against a marker,
          so this never fights a choice made after today: click a method now and it sticks. */
       if (!inputs.methodReset0922) { inputs.method = null; inputs.methodReset0922 = 1; }
+      /* the default moved again on 2026-09-30 (the marketing trend); same one-time drop, its own marker */
+      if (!inputs.methodReset0930) { inputs.method = null; inputs.methodReset0930 = 1; }
       if ((inputs.city || {}).window === "season" && CITYSEASON.length) CITYALL = CITYSEASON;
       seedStates.forEach(st => { if (!inputs.bases[st]) inputs.bases[st] = { cur: 0, add: 0, byCo: {} }; });
       // the picker may hold months the mart does not (a fresh season): clamp to what exists
@@ -2423,6 +2444,31 @@ registerPage({
       // which depot's crews serve a state (his state->depot map 2026-09-15; MD and VA ride PA/DE)
       const POOL_OF = { NJ: "NJ", NY: "NJ", PA: "PA", DE: "PA", MD: "PA", VA: "PA", CT: "CT", MA: "CT" };
       const POOL_ORDER = ["NJ", "PA", "CT"];
+      /* THE PLAN GROWS WITH THE LEADS MARKETING BRINGS (2026-09-30). His words: "i dont want less jobs
+         then previous season - we need to plan for more", and, asked by how much: "you have to figure
+         that out based on marketing". The 3-season average (the default since 22 Sep, because it
+         replays closest) plans 1,692 jobs against the 1,783 Season 2026 ran. What marketing actually
+         delivered is measurable: the leads that arrived in the season's lead months (the move months
+         shifted back by the lead lag) against the same months a season earlier -- 10,014 against
+         8,752, +14.4%, on +22% more advertising. So a fourth method, "mkt": every state's last-season
+         month x (1 + that growth). ONE company rate, not per state: by state the same comparison
+         reads NJ +41%, NY -27%, MA -60%, which is leads being attributed to a different neighbour,
+         not markets moving. The rate is a dial on Main variables (blank = measured), because last
+         season the jobs did NOT follow the leads (+14% leads, -1% jobs): the target assumes the
+         conversion holds, and he should be able to say a different number. */
+      const MKT_TREND = (() => {
+        const lag = FC.lead_lag_months || 1, yr = +FC.year;
+        const core = (FC.season_months || FC.months || []).filter(m => !(FC.shoulders || []).includes(m));
+        if (!yr || !core.length) return null;
+        const ymOf = (y, m) => { const d = new Date(y, m - 1 - lag, 1); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0"); };
+        const sumL = y => core.reduce((a, m) => a + SERVICE_AREAS.reduce((b, st) => b + num(((MS[ymOf(y, m)] || {})[st] || {}).leads), 0), 0);
+        const last = sumL(yr - 1), prior = sumL(yr - 2);
+        return last > 0 && prior > 0 ? { last, prior, g: last / prior - 1, lastYear: yr - 1 } : null;
+      })();
+      const METHODS_ALL = (MKT_TREND ? ["mkt"] : []).concat(FC.methods || ["growth"]);
+      /* a growth nobody typed is the measured one, never negative: "not less than previous season" */
+      const mktGrowth = () => inputs.growthPct != null && isFinite(+inputs.growthPct) && String(inputs.growthPct) !== ""
+        ? +inputs.growthPct / 100 : Math.max(0, MKT_TREND ? MKT_TREND.g : 0);
       function nextCalc(opts) {
         const util = (num(inputs.utilization) / 100) || 0.34;
         const perFm = Math.max(1, DAYS_PER_MONTH * util);              // jobs one foreman does in a month
@@ -2431,7 +2477,8 @@ registerPage({
         const core = months.filter(ym => !((FCS[Object.keys(FCS)[0]] || { months: {} }).months[ym] || {}).shoulder);
         // the service areas, plus any other state with a real season (a one-off long-distance job is not a market)
         const sts = seedStates.filter(st => FCS[st]).concat(Object.keys(FCS).filter(st => !seedStates.includes(st) && (FCS[st].season_jobs_last || 0) >= 10).sort());
-        const method = (FC.methods || []).includes(inputs.method) ? inputs.method : (FC.method || "growth");
+        const method = METHODS_ALL.includes(inputs.method) ? inputs.method : (MKT_TREND ? "mkt" : (FC.method || "growth"));
+        const mktG = method === "mkt" ? mktGrowth() : 0;
         /* "HAVE" IS WHO IS ON THE REGISTER TODAY, NOT WHO RAN LAST SEASON (audit 2026-09-22).
            The hire was peak minus the foremen seen on last season's closings -- 20 -- and four of
            those are Cancelled or Potential on the crew register now. The register has 18 active, so
@@ -2447,7 +2494,8 @@ registerPage({
         const rows = sts.map(st => {
           const s = FCS[st], have = haveOf(st);
           const scM = ((opts && opts.mult) || SC_MULT)[st];      // the What-if scenario's job multiplier (1 = the plan)
-          const cells = months.map(ym => { const r0 = s.months[ym] || {}; const jobs = ((r0.methods && r0.methods[method] != null) ? r0.methods[method] : (r0.jobs || 0)) * (scM != null ? scM : 1);
+          const cells = months.map(ym => { const r0 = s.months[ym] || {}; const jobs = (method === "mkt" ? (r0.last || 0) * (1 + mktG)
+              : ((r0.methods && r0.methods[method] != null) ? r0.methods[method] : (r0.jobs || 0))) * (scM != null ? scM : 1);
             const conv = s.conversion; const need = jobs ? Math.ceil(jobs * (r0.headroom || 1) / perFm) : 0;
             return Object.assign({}, r0, { ym, need, jobs, leads_needed: conv ? Math.round(jobs / conv) : null }); });
           const coreCells = cells.filter(c => !c.shoulder);
@@ -2690,12 +2738,12 @@ registerPage({
         const mLbl = ym => MONTH_NAMES[+ym.slice(5, 7)];
         const th = (t, cls) => '<th class="' + (cls || "num") + '">' + t + "</th>";
         const tdc = (v, cls) => '<td class="' + (cls || "num") + '">' + v + "</td>";
-        const METH = { growth: "Last season × growth", avg3: "3-season average", flat: "Flat (last season again)" };
+        const METH = { mkt: "Marketing trend", growth: "Last season × growth", avg3: "3-season average", flat: "Flat (last season again)" };
         const BT = FC.backtest || {}, BTM = BT.methods || {};
         const errTxt = m => { const v = BTM[m]; return v && v.abs_err_pct != null ? "±" + Math.round(v.abs_err_pct * 100) + "%" : "—"; };
-        const pick = '<div class="ap2-mpick"><span class="ap2-note" style="margin:0 8px 0 0"><b>Method</b></span>' + (FC.methods || ["growth"]).map(m =>
+        const pick = '<div class="ap2-mpick"><span class="ap2-note" style="margin:0 8px 0 0"><b>Method</b></span>' + METHODS_ALL.map(m =>
           '<button class="ap2-mbtn' + (N.method === m ? " on" : "") + '" data-method="' + m + '" title="' + (BTM[m] ? "backtest " + BT.year + ": predicted " + fmtN(BTM[m].pred) + " vs " + fmtN(BTM[m].actual) + " actual season jobs" : "") + '">' + METH[m] +
-          '<small>' + (BT.year ? (() => { const v = BTM[m]; if (!v || !v.actual) return "backtest " + errTxt(m);
+          '<small>' + (m === "mkt" ? "last season " + sgn(mktGrowth()) : BT.year ? (() => { const v = BTM[m]; if (!v || !v.actual) return "backtest " + errTxt(m);
             const d = Math.round((v.pred / v.actual - 1) * 100);
             return "on " + BT.year + ": " + (d >= 0 ? "+" : "") + d + "%"; })() : "") + "</small></button>").join("") +
           /* SAY WHICH WAY IT WAS WRONG (2026-09-20). The picker showed |error| only, so it hid the one
@@ -2725,8 +2773,15 @@ registerPage({
         const ramp = N.core.map(ym => { const d = new Date(+ym.slice(0, 4), +ym.slice(5, 7) - 1 - lag, 1); const by = MONTH_NAMES[d.getMonth() + 1] + " " + d.getFullYear();
           const leads = N.rows.reduce((a, r) => a + (((r.cells.find(c => c.ym === ym) || {}).leads_needed) || 0), 0);
           return "<b>" + esc(by) + "</b> " + fmtN(leads) + " leads for " + mLbl(ym) + "'s jobs"; }).join(" · ");
-        return pick + '<div class="ap2-note" style="margin-bottom:8px">Jobs by state and month, ' +
-          (N.method === "growth" ? "last season's same month × the state's growth" : N.method === "avg3" ? "the mean of the same month over the last three seasons" : "last season's same month, unchanged") +
+        /* THE GROWTH DIAL, beside the method it belongs to. Blank = the measured lead growth. */
+        const growDial = N.method === "mkt" && MKT_TREND ? '<div class="ap2-growth"><label>Growth on Season ' + esc(String(MKT_TREND.lastYear)) +
+            ', %<input type="number" step="1" id="apGrowth" value="' + (inputs.growthPct != null && String(inputs.growthPct) !== "" ? esc(String(inputs.growthPct)) : "") +
+            '" placeholder="' + Math.round(100 * Math.max(0, MKT_TREND.g)) + '"></label>' +
+            '<span class="ap2-note" style="margin:0">Measured: <b>' + fmtN(MKT_TREND.last) + "</b> leads arrived in the season's lead months in " + esc(String(MKT_TREND.lastYear)) +
+            " against <b>" + fmtN(MKT_TREND.prior) + "</b> a season earlier — <b>" + sgn(MKT_TREND.g) + "</b>. Blank uses that. " +
+            "It assumes the jobs follow the leads; last season they did not (leads " + sgn(MKT_TREND.g) + ", jobs about flat), so this is a target, not a replay.</span></div>" : "";
+        return pick + growDial + '<div class="ap2-note" style="margin-bottom:8px">Jobs by state and month, ' +
+          (N.method === "mkt" ? "last season's same month × (1 + the growth above)" : N.method === "growth" ? "last season's same month × the state's growth" : N.method === "avg3" ? "the mean of the same month over the last three seasons" : "last season's same month, unchanged") +
           '. Greyed months are shoulders — shown so the ramp is visible, left out of the season total. ' + go("apMethod", "How this is calculated") + "</div>" +
           '<table data-name="Jobs forecast by state and month" class="rs-table ap2-next"><thead>' + head + "</thead><tbody>" + body + foot + "</tbody></table>" +
           '<div class="ap2-note" style="margin-top:8px"><b>Leads to bring in</b> (jobs × the leads each job took last season, every lead counted' + (N.mkt.held ? ", lifted so a job is not planned cheaper than it was" : "") + '; needed ' + lag + ' month ahead — the lead→move lag): ' + ramp + ".</div>";
@@ -2881,6 +2936,9 @@ registerPage({
         return hit ? depotAt([{ lat: hit[1], lon: hit[2], side: (hj ? hj[4] : hw[5]) || "" }], zip) : null;
       }
       function wireMethod() {
+        const gd = host.querySelector("#apGrowth");
+        if (gd) gd.onchange = () => { const v = String(gd.value).trim();
+          inputs.growthPct = v === "" || !isFinite(+v) ? null : +v; save(); repaintPlan(); };
         host.querySelectorAll("#apNext [data-method]").forEach(b => b.onclick = () => {
           inputs.method = b.dataset.method; save();
           /* the decisions band and the full plan say they "move with its method" — until 2026-09-19
@@ -4370,13 +4428,15 @@ registerPage({
         const st = inputs.mapSt || "";
         const pick = M => {
           if (!st) return { jobs: M.tot.jobs, fm: M.tot.peak, have: M.tot.have, hire: M.tot.hire,
-                            sales: M.sales.peak, mkt: M.tot.mkt, leads: M.tot.leads };
+                            sales: M.sales.peak, mkt: M.tot.mkt, leads: M.tot.leads,
+                            rev: M.tot.revenue, avg: M.tot.revenue != null && M.tot.jobs ? M.tot.revenue / M.tot.jobs : null };
           const r = M.rows.find(x => x.st === st);
           if (!r) return null;
           const q = M.pools.find(p => p.states.includes(st)) || {};
           return { jobs: r.jobs, fm: r.fmPeak || 0, have: r.have || 0, hire: q.hire || 0, pool: q.label,
                    sales: M.tot.leads ? M.sales.peak * r.leads / M.tot.leads : 0,
-                   mkt: r.leads * (M.mkt.cplOf(st) || 0), leads: r.leads };
+                   mkt: r.leads * (M.mkt.cplOf(st) || 0), leads: r.leads,
+                   rev: r.revenue, avg: r.revenue != null && r.jobs ? r.revenue / r.jobs : null };
         };
         /* WHERE WE STAND (his ask 2026-09-30: "add current situation as well - like what was 2026
            season like"). The season just run, from the same model the plan is built on: the jobs
@@ -4385,12 +4445,17 @@ registerPage({
            plan's own cost per lead (no ad dollar carries a state); its desk is its share of leads. */
         const lastOf = M => {
           const act = M.sales.active;
-          if (!st) return { jobs: M.mkt.jobsLast, fm: M.tot.ranLast, sales: act, mkt: M.mkt.spendLast, leads: M.mkt.leadsLast };
+          /* last season's income = its jobs at the average bill the model measured on them */
+          const revL = rs => rs.reduce((a, r) => a + (r.s && r.s.avg_bill != null ? (r.jobsLast || 0) * r.s.avg_bill : 0), 0);
+          if (!st) { const rv = revL(M.rows);
+            return { jobs: M.mkt.jobsLast, fm: M.tot.ranLast, sales: act, mkt: M.mkt.spendLast, leads: M.mkt.leadsLast,
+                     rev: rv || null, avg: rv && M.mkt.jobsLast ? rv / M.mkt.jobsLast : null }; }
           const r = M.rows.find(x => x.st === st);
           if (!r) return null;
           return { jobs: r.jobsLast, fm: num((SEED[st] || {})._all),
                    sales: act != null && M.mkt.leadsLast ? act * r.leadsLast / M.mkt.leadsLast : null,
-                   mkt: r.leadsLast * (M.mkt.cplOf(st) || 0), leads: r.leadsLast };
+                   mkt: r.leadsLast * (M.mkt.cplOf(st) || 0), leads: r.leadsLast,
+                   rev: revL([r]) || null, avg: r.s && r.s.avg_bill != null ? r.s.avg_bill : null };
         };
         const L = lastOf(N0 || N) || {}, LY = FC.year ? String(FC.year - 1) : "last season";
         const was = (k, f) => { const v = L[k];
@@ -4408,6 +4473,8 @@ registerPage({
           tile(fmtN(A.fm), "Foremen at peak", fmtN(A.have) + " today" + (A.hire ? " · <em>hire +" + fmtN(A.hire) + "</em>" + (st ? " in " + esc(A.pool || "") : "") : " · covered"), dl("fm", sgN), was("fm", v => fmtN(v) + " ran jobs")) +
           tile(st ? r1(A.sales) : fmtN(A.sales), "Salespeople at peak", st ? "its share of the one sales desk" : esc(String(N.sales.peakWhen || "").split(" ")[0]) + " · " + fmtN(N.sales.lpr) + " leads each", dl("sales", v => (v > 0 ? "+" : "−") + (st ? r1(Math.abs(v)) : fmtN(Math.abs(v)))), was("sales", v => (st ? r1(v) : fmtN(v)) + " on the desk")) +
           tile(money0(A.mkt), "Marketing", fmtN(A.leads) + " leads · post cards inside", dl("mkt", sgM), was("mkt", v => money0(v) + (L.leads ? " · " + fmtN(L.leads) + " leads" : ""))) +
+          (A.rev != null ? tile(money0(A.avg), "Average job", "what one job bills", "", was("avg", money0)) +
+            tile(money0(A.rev), "Total income", "jobs × the average job", dl("rev", sgM), was("rev", money0)) : "") +
           "</div>";
       }
 
@@ -4415,22 +4482,27 @@ registerPage({
       function scHtml(N, N0) {
         if (!N) return "";
         const P = N0 || N;                       // the plan the steppers are read against
-        const step = (kind, pool, label, shown, plan) => {
+        const step = (kind, pool, label, shown, plan, cls) => {
           const drv = SC.kind === kind && (kind !== "fm" || SC.pool === pool);
-          return '<div class="ap3-step' + (drv ? " drv" : "") + '"><span>' + label + (drv ? "<em>you set this</em>" : "") + "</span>" +
+          return '<div class="ap3-step' + (drv ? " drv" : "") + (cls ? " " + cls : "") + '"><span>' + label + (drv ? "<em>you set this</em>" : "") + "</span>" +
             '<div class="ctl"><button type="button" aria-label="less" data-sc="' + kind + '" data-pool="' + esc(pool || "") + '" data-d="-1">−</button>' +
             "<b>" + shown + '</b><button type="button" aria-label="more" data-sc="' + kind + '" data-pool="' + esc(pool || "") + '" data-d="1">+</button></div>' +
-            "<small>plan " + plan + "</small></div>"; };
+            "<small>" + plan + "</small></div>"; };
         /* ONE RESET, NO BANNERS (his call 2026-09-30: both "Scenario on ..." strips were "extra" --
            the four numbers already say "vs the plan", and a base flips back on its own card). It shows
            only while something is changed, and puts the levers AND the bases back. */
         return '<div class="ap3-sc"><div class="ap3-nbh"><b>What if</b><span>change one number and the rest follows — a test scenario, a refresh puts it back</span>' +
             (scAny() || nbAny() ? '<button type="button" class="rs-btn ap3-reset" data-screset>Reset</button>' : "") + "</div>" +
           '<div class="ap3-steps">' +
-            step("sales", null, "Salespeople", fmtN(N.sales.peak), fmtN(P.sales.peak)) +
-            step("mkt", null, "Marketing budget", money0(N.tot.mkt), money0(P.tot.mkt)) +
-            N.pools.map(q => { const q0 = P.pools.find(x => x.pk === q.pk) || q;
-              return step("fm", q.pk, "Foremen · " + esc(q.label), fmtN(q.peak), fmtN(q0.peak)); }).join("") +
+            step("sales", null, "Salespeople", fmtN(N.sales.peak), "plan " + fmtN(P.sales.peak)) +
+            step("mkt", null, "Marketing budget", money0(N.tot.mkt), "plan " + money0(P.tot.mkt)) +
+            step("fmAll", null, "Foremen · all bases", fmtN(N.tot.peak), "plan " + fmtN(P.tot.peak) + " · " + fmtN(N.tot.have) + " today", "tot") +
+          "</div>" +
+          /* one card per base: its foremen at peak, the states it covers, and who is there today */
+          '<div class="ap3-steps bases">' +
+            baseList(N).map(b => { const b0 = baseList(P).find(x => x.key === b.key) || b;
+              return step("fm", b.key, esc(b.key) + " base", fmtN(b.fm),
+                "covers " + esc(b.states.join(" + ")) + " · plan " + fmtN(b0.fm) + " · " + fmtN(b.have) + " today"); }).join("") +
           "</div></div>";
       }
 
@@ -4801,7 +4873,8 @@ registerPage({
           const N = nextCalc(), P = nextCalc({ nb: "none", mult: {} });
           let target;
           if (kind === "sales") target = Math.max(1, N.sales.peak + dd);
-          else if (kind === "fm") target = Math.max(1, ((N.pools.find(q => q.pk === pool) || {}).peak || 0) + dd);
+          else if (kind === "fm") target = Math.max(0, baseFm(N, pool) + dd);
+          else if (kind === "fmAll") target = Math.max(1, N.tot.peak + dd);
           else target = Math.max(0, N.tot.mkt + dd * 0.05 * P.tot.mkt);      // 5% of the plan's budget a click
           SC.kind = kind; SC.pool = pool; SC.target = target;
           repaintPlan();
@@ -5487,7 +5560,7 @@ registerPage({
          are the decisions, so they open the page. Every number here is the Next-season card's
          own (same method picker, same dials) — this band computes nothing of its own, it only
          puts the answer where the eye lands, with the jump to the table that carries the working. */
-      const METH_SHORT = m => ({ growth: "last season × growth", avg3: "3-season average", flat: "flat" })[m] || String(m || "");
+      const METH_SHORT = m => ({ mkt: "marketing trend", growth: "last season × growth", avg3: "3-season average", flat: "flat" })[m] || String(m || "");
       function decisionsHtml() {
         if (!FC.year) return "";
         const N = nextCalc(), PC = postcardBy();
