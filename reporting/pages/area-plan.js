@@ -580,8 +580,7 @@ details.ap3-how[open]{padding-bottom:16px}
 .ap3-step{border:1px solid var(--ap-rule);border-radius:var(--ap-r1);background:var(--ap-bay);padding:10px 12px;min-width:0}
 .ap3-step.tot{background:var(--ap-sub)}
 .ap3-step.nb{border-style:dashed;border-color:var(--brand-d)}
-.ap3-nbh .ap3-planseg{margin-left:auto}
-.ap3-nbh .ap3-planseg + .ap3-reset{margin-left:0}
+.ap3-nbh .ap3-planseg{margin-left:0;align-self:center}
 .ap3-plan{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px;margin:0 0 10px}
 .ap3-step.plan span em{font-weight:800}
 .ap3-step.plan .site{display:flex;align-items:center;gap:6px;margin-top:8px}
@@ -1625,6 +1624,19 @@ registerPage({
              sales"); the forecast keeps the Planning Variables figure.
          A plan is a test scenario like everything else on this tab: memory only, Reset ends it. */
       const PLANS = {
+        /* MID, 25 FOREMEN (his answer 2026-09-30: "kinda skip this min - make MID as 25 foreman"):
+           the forecast's own crew count, placed the way MAX places it but without the two bases
+           that need more than they were given to be worth opening -- Middlesex MA (its ground wants
+           four crews) and Monroe (six jobs). Tolland, Oakland and Montgomery stay. No MIN. */
+        mid: { label: "MID", leadsPerRep: 220, groups: [
+          { base: "CT", pool: "CT", states: ["CT", "MA"], sites: [
+            { name: "Existing base", fm: 3 }, { name: "Tolland", fm: 1, cand: "Tolland CT" }] },
+          { base: "NJ", pool: "NJ", states: ["NJ"], sites: [
+            { name: "Existing base", fm: 7 }, { name: "Oakland · 07436", fm: 3, la: 41.029, lo: -74.2404 }] },
+          { base: "NY", pool: "NJ", states: ["NY"], sites: [{ name: "Existing base", fm: 2 }] },
+          { base: "PA", pool: "PA", states: ["PA", "DE"], sites: [{ name: "Existing base", fm: 7 }] },
+          { base: "MD", pool: "PA", states: ["MD", "VA"], sites: [{ name: "Montgomery", fm: 2, cand: "Montgomery MD" }] },
+        ] },
         max: { label: "MAX", leadsPerRep: 220, groups: [
           { base: "CT", pool: "CT", states: ["CT", "MA"], sites: [
             { name: "Existing base", fm: 3 }, { name: "Tolland", fm: 2, cand: "Tolland CT" },
@@ -2622,7 +2634,8 @@ registerPage({
               '" aria-selected="' + (on ? "true" : "false") + '" aria-controls="apPane-' + x.k + '" tabindex="' + (on ? "0" : "-1") + '">' +
               esc(label) + "</button>"; }).join("") +
           "</div><span class=\"sp\"></span>" +
-          '<button type="button" class="rs-btn" id="apPdf">Download PDF</button></div>';
+          '<button type="button" class="rs-btn" id="apPdfMap" title="The totals and the map at zip-code level, on one landscape page — choose Save as PDF">Download map</button>' +
+          '<button type="button" class="rs-btn" id="apPdf" title="The whole plan as a document">Download plan</button></div>';
       }
       /* `quiet` is passed by a data-goto jump, which does its own scrolling */
       function showPane(key, quiet) {
@@ -2644,6 +2657,8 @@ registerPage({
          not the city evidence or a what-if. printView clones again and never touches the live DOM, so
          the snapshot can be opened up and trimmed freely. */
       function wirePdf() {
+        const bm = host.querySelector("#apPdfMap");
+        if (bm) bm.onclick = () => { showPane("map"); setTimeout(printMap, 700); };
         const b = host.querySelector("#apPdf"); if (!b) return;
         b.onclick = () => {
           const snap = host.cloneNode(true);
@@ -4773,10 +4788,11 @@ registerPage({
         /* ONE RESET, NO BANNERS (his call 2026-09-30: both "Scenario on ..." strips were "extra" --
            the four numbers already say "vs the plan", and a base flips back on its own card). It shows
            only while something is changed, and puts the levers AND the bases back. */
-        return '<div class="ap3-sc"><div class="ap3-nbh"><b>What if</b><span>change one number and the rest follows — a test scenario, a refresh puts it back</span>' +
+        return '<div class="ap3-sc"><div class="ap3-nbh"><b>Plan</b>' +
             '<div class="ap3-seg ap3-planseg" role="group" aria-label="Plan">' +
               '<button type="button" data-plan="" class="' + (PLAN ? "" : "on") + '">Forecast</button>' +
               Object.keys(PLANS).map(k => '<button type="button" data-plan="' + k + '" class="' + (PLAN && PLAN.key === k ? "on" : "") + '">' + esc(PLANS[k].label) + " plan</button>").join("") + "</div>" +
+            "<span>or change one number and the rest follows — a test scenario, a refresh puts it back</span>" +
             (scAny() || nbAny() || trAny() ? '<button type="button" class="rs-btn ap3-reset" data-screset>Reset</button>' : "") + "</div>" +
           '<div class="ap3-steps">' +
             step("sales", null, "Salespeople", fmtN(N.sales.peak), "plan " + fmtN(P.sales.peak)) +
@@ -4950,7 +4966,7 @@ registerPage({
           (YEARS.length ? "<label>Results</label>" + seg("mapyear", [["0", "Tiers"]].concat(YEARS.map(y => [String(y), String(y)])), String(inputs.mapYear || 0)) +
             (inputs.mapYear ? seg("mapyearby", Object.keys(YEAR_BY).map(k => [k, YEAR_BY[k][1]]), inputs.mapYearBy) : "") : "") +
           /* FIND A PLACE AND LIGHT IT UP (his ask 2026-09-30: "add search so it can highlight") */
-          '<button type="button" class="rs-btn ap3-printbtn" id="apPrintMap" title="The totals and the map at zip-code level, on one landscape page">Print map</button>' +
+          '<button type="button" class="rs-btn ap3-printbtn" id="apPrintMap" title="The totals and the map at zip-code level, on one landscape page — choose Save as PDF">Download map</button>' +
           '<div class="ap3-find"><input id="apFind" class="rs-inp" type="search" autocomplete="off" spellcheck="false" ' +
             'placeholder="Find a county, city or zip…" aria-label="Find a county, city or zip on the map" value="' + esc(FINDQ) + '">' +
             '<div id="apFindRes" class="ap3-findres" style="display:none"></div></div>' +
