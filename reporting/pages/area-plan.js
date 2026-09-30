@@ -4306,19 +4306,13 @@ registerPage({
            6. everything that explains, in one closed section.
          Every number is nextCalc()'s, the engine the other tabs print. */
       const LEVELS = [["County", "County"], ["City", "City"], ["Zip", "Zip code"]];
-      /* City and Zip draw one state at a time (the zip shapes are 9 MB for the eight) */
-      const mapStOf = () => inputs.mapLevel === "County" ? inputs.mapSt : (inputs.mapSt || "NJ");
+      /* THE MARKET APPLIES AT EVERY LEVEL (his call 2026-09-30: "Zip code still does not have whole
+         market"). City and Zip used to force one state because the eight states' zip shapes are 9 MB;
+         the whole market now loads all eight and draws them on a canvas instead. */
+      const mapStOf = () => inputs.mapSt || "";
       const sgN = v => (v > 0.5 ? "+" : v < -0.5 ? "−" : "±") + fmtN(Math.abs(v));
       const sgM = v => (v > 0.5 ? "+" : v < -0.5 ? "−" : "±") + money0(Math.abs(v));
       const nbAny = () => NB_CANDS.some(c => NB_ON[c.label]);
-
-      function marketBarHtml() {
-        const cur = inputs.mapSt || "";
-        return '<div class="ap3-market"><label>Market</label><div class="ap3-seg big">' +
-          [["", "Whole market"]].concat(SERVICE_AREAS.map(s => [s, s])).map(([k, l]) =>
-            '<button type="button" data-mapst="' + k + '" class="' + (k === cur ? "on" : "") + '">' + esc(l) + "</button>").join("") +
-          "</div></div>";
-      }
 
       /* the four numbers for the market; the delta line appears only while a base is YES */
       function planStripHtml(N, N0) {
@@ -4456,10 +4450,12 @@ registerPage({
         const seg = (attr, items, on) => '<div class="ap3-seg">' + items.map(([k, l]) =>
           '<button type="button" data-' + attr + '="' + esc(k) + '" class="' + (k === on ? "on" : "") + '">' + esc(l) + "</button>").join("") + "</div>";
         const MODES = [["tier", "Tier"], ["market", "Market size"], ["capture", "Our capture"], ["spend", "Marketing"]];
+        /* ONE TOOLBAR, RIGHT ABOVE THE MAP (his call 2026-09-30: the market switch alone at the top
+           of the tab was "crap" positioning -- it is a map control and belongs with the other two) */
         return '<div class="ap3-bar">' +
+          "<label>Market</label>" + seg("mapst", [["", "Whole market"]].concat(SERVICE_AREAS.map(x => [x, x])), inputs.mapSt || "") +
           "<label>Show</label>" + seg("maplevel", LEVELS, lvl) +
-          (lvl === "County" ? "<label>Colour</label>" + seg("mapcolor", MODES, inputs.mapColor)
-                            : '<span class="ap2-note" style="margin:0">' + esc(mapStOf()) + " — pick another state above</span>") +
+          (lvl === "County" ? "<label>Colour</label>" + seg("mapcolor", MODES, inputs.mapColor) : "") +
           "</div>";
       }
 
@@ -4472,7 +4468,8 @@ registerPage({
             TIER_LABEL[b] + " <b>" + fmtN((cnt[b] || 0) - (b === "t4" ? far : 0)) + "</b></span>").join("") +
           (far ? '<span class="ap2-mk"><i class="ap2-sw" style="background:' + TC.t4 + ';opacity:.28"></i>Over 50 mi from a base <b>' + fmtN(far) + "</b></span>" : "") +
           (cnt.grey ? '<span class="ap2-mk"><i class="ap2-sw grey"></i>Not rated <b>' + fmtN(cnt.grey) + "</b></span>" : "") +
-          (never ? '<span class="ap2-mk"><i class="ap2-sw none"></i>Hatched: no lead yet <b>' + fmtN(never) + "</b></span>" : "");
+          (never ? '<span class="ap2-mk"><i class="ap2-sw none"></i>' + (inputs.mapLevel !== "County" && !mapStOf() ? "Paler" : "Hatched") +
+                   ": no lead yet <b>" + fmtN(never) + "</b></span>" : "");
       }
 
       function mapKeyHtml(N) {
@@ -4637,8 +4634,7 @@ registerPage({
           'built yet — run <b>sources=mart_area_county</b> and reload.</div>';
         const N = FC.year ? nextCalc() : null;
         const N0 = FC.year && nbAny() ? nextCalc({ nb: "none" }) : null;
-        return marketBarHtml() +
-          '<div id="apKpis">' + planStripHtml(N, N0) + "</div>" +
+        return '<div id="apKpis">' + planStripHtml(N, N0) + "</div>" +
           '<div id="apNewBases">' + nbHtml(N) + "</div>" +
           '<div id="apTodos">' + todoHtml(N) + "</div>" +
           '<div id="apMapBar">' + mapBarHtml() + "</div>" +
@@ -4654,7 +4650,6 @@ registerPage({
         const N = FC.year ? nextCalc() : null;
         const N0 = FC.year && nbAny() ? nextCalc({ nb: "none" }) : null;
         const put = (id, html) => { const el = host.querySelector(id); if (el) el.innerHTML = html; };
-        const mk = host.querySelector(".ap3-market"); if (mk) mk.outerHTML = marketBarHtml();
         put("#apKpis", planStripHtml(N, N0));
         if (!opts || opts.bases !== false) put("#apNewBases", nbHtml(N));
         put("#apTodos", todoHtml(N));
@@ -4677,8 +4672,6 @@ registerPage({
         host.querySelectorAll("[data-mapst]").forEach(b => { b.onclick = () => {
           if ((inputs.mapSt || "") === b.dataset.mapst) return;
           inputs.mapSt = b.dataset.mapst; inputs.listTier = 0; SIDE = null;
-          /* the whole market at City or Zip grain would be every zip of eight states: step back to counties */
-          if (!inputs.mapSt && inputs.mapLevel !== "County") inputs.mapLevel = "County";
           save(); repaintMapTab({ bases: false });
           if (box && box._applyLevel) box._applyLevel(true);
         }; });
@@ -4691,7 +4684,6 @@ registerPage({
         host.querySelectorAll("#apMapBar [data-maplevel]").forEach(b => { b.onclick = () => {
           if (inputs.mapLevel === b.dataset.maplevel) return;
           inputs.mapLevel = b.dataset.maplevel; inputs.listTier = 0; SIDE = null;
-          if (inputs.mapLevel !== "County" && !inputs.mapSt) inputs.mapSt = "NJ";
           save(); repaintMapTab({ bases: false });
           if (box && box._applyLevel) box._applyLevel(true);
         }; });
@@ -5260,25 +5252,32 @@ registerPage({
           const zipStyle = f => {
             const lvl = zipLvl, a = zipArea(f.properties.z, lvl);
             const band = a ? TIER_BAND(num(a.Tier)) : "grey";
+            const fill = fillOf(band, a && num(a["Never A Lead"]) === 1, isFar(a));
+            /* a canvas cannot paint an SVG pattern: "no lead yet" reads as a paler tier colour there */
+            if (zipCanvas && /^url\(/.test(String(fill.fillColor))) { fill.fillColor = col[band] || col.grey; fill.fillOpacity = .34; }
             return Object.assign({ color: lvl === "City" ? (col[band] || col.grey) : "#8d99a8",
-                                   weight: lvl === "City" ? 0.6 : 0.45, opacity: lvl === "City" ? .5 : .8, lineJoin: "round" },
-                                 fillOf(band, a && num(a["Never A Lead"]) === 1, isFar(a)));
+                                   weight: zipCanvas ? 0.3 : lvl === "City" ? 0.6 : 0.45, opacity: lvl === "City" ? .5 : .8, lineJoin: "round" }, fill);
           };
           const ctyPane = m.createPane("apCtyLines");
           ctyPane.style.zIndex = 445; ctyPane.style.pointerEvents = "none";
+          /* one state is drawn as SVG (so the hatch for "no lead yet" works); the whole market is
+             ~6,000 shapes, so it is drawn on a canvas -- which cannot hatch, so those read pale instead */
+          let zipCanvas = false;
           function showZips(st, refit) {
             const lvl = inputs.mapLevel;
             box.classList.add("ap3-busy");
-            const got = ZIPGEO[st] ? Promise.resolve(ZIPGEO[st])
-              : fetch("assets/vendor/geo/zips-" + st + ".json")
-                  .then(r => r.ok ? r.json() : Promise.reject(new Error("HTTP " + r.status)))
-                  .then(j => (ZIPGEO[st] = j));
+            const one = code => ZIPGEO[code] ? Promise.resolve(ZIPGEO[code])
+              : fetch("assets/vendor/geo/zips-" + code + ".json")
+                  .then(r => r.ok ? r.json() : Promise.reject(new Error(code + " HTTP " + r.status)))
+                  .then(j => (ZIPGEO[code] = j));
+            const got = st ? one(st) : Promise.all(SERVICE_AREAS.map(one)).then(all =>
+              ({ type: "FeatureCollection", features: [].concat.apply([], all.map(j => j.features || [])) }));
             got.then(gj => {
               if (inputs.mapLevel !== lvl || mapStOf() !== st) return;      // the reader has moved on
               if (zipLayer) { m.removeLayer(zipLayer); zipLayer = null; }
-              zipLvl = lvl;
+              zipLvl = lvl; zipCanvas = !st;
               const byKey = {};
-              zipLayer = L.geoJSON(gj, { style: zipStyle, onEachFeature: (f, lyr) => {
+              zipLayer = L.geoJSON(gj, { style: zipStyle, renderer: zipCanvas ? L.canvas({ padding: 0.4 }) : undefined, onEachFeature: (f, lyr) => {
                 const a = zipArea(f.properties.z, lvl);
                 const k = lvl === "Zip" ? f.properties.z : (a ? a["Area Key"] : "z" + f.properties.z);
                 (byKey[k] = byKey[k] || []).push(lyr);
@@ -5292,11 +5291,11 @@ registerPage({
               } }).addTo(m);
               zipLayer._byKey = byKey; zipSt = st;
               ensureHatch();
-              if (refit) { const b = zipLayer.getBounds(); if (b.isValid()) m.fitBounds(b, { padding: [12, 12], animate: false }); }
+              if (refit) { if (!st) fitMap(); else { const b = zipLayer.getBounds(); if (b.isValid()) m.fitBounds(b, { padding: [12, 12], animate: false }); } }
               if (box._pendingFocus) { const k = box._pendingFocus; box._pendingFocus = null; box._focusArea(k); }
             }).catch(e => {
               const ls = host.querySelector("#apAreaList");
-              if (ls) ls.insertAdjacentHTML("afterbegin", '<div class="ap2-note" style="color:var(--neg)">The ' + esc(st) +
+              if (ls) ls.insertAdjacentHTML("afterbegin", '<div class="ap2-note" style="color:var(--neg)">The ' + esc(st || "whole-market") +
                 " zip shapes could not be read (" + esc(e && e.message || "error") + ").</div>");
             }).then(() => box.classList.remove("ap3-busy"));
           }
