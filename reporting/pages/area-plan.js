@@ -497,7 +497,23 @@ body:not(.light) .ap2-mapbox{background:#1d232b}
 .ap3-yrs td:first-child,.ap3-yrs th:first-child{text-align:left;font-weight:800}
 .ap3-yrs td small{font-weight:400;color:var(--faint)}
 .ap3-yrs tr.on td{background:var(--ap-sub)}
-.ap3-find{position:relative;margin-left:auto;min-width:230px;flex:0 1 280px}
+.ap3-find{position:relative;min-width:230px;flex:0 1 280px}
+.ap3-printbtn{margin-left:auto;padding:6px 12px;font-size:12.5px;white-space:nowrap}
+/* THE MAP ON PAPER: see printMap(). The live nodes are moved into #apPrintRoot, so this is the
+   page both on the screen (for the second before the dialog) and on the sheet. */
+body.ap3-printing > *:not(#apPrintRoot){display:none !important}
+body.ap3-printing{background:#fff !important;overflow:visible !important}
+#apPrintRoot{width:277mm;margin:0 auto;padding:0;background:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+#apPrintRoot .ap3-print-h{display:flex;align-items:baseline;gap:12px;margin:0 0 3mm}
+#apPrintRoot .ap3-print-h b{font-size:15pt;color:#1b2430}
+#apPrintRoot .ap3-print-h span{font-size:9.5pt;color:#5b6675}
+#apPrintRoot .ap3-kpis{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:2.5mm;margin:0 0 3mm}
+#apPrintRoot .ap3-kpi{padding:2.2mm 3mm;min-width:0;break-inside:avoid}
+#apPrintRoot .ap3-kpi > b{font-size:15pt}
+#apPrintRoot .ap3-kpi span,#apPrintRoot .ap3-kpi small,#apPrintRoot .ap3-kpi em,#apPrintRoot .ap3-kpi .was{font-size:7.5pt}
+#apPrintRoot .ap2-mapkey{margin:0 0 2mm;gap:3mm;font-size:8pt}
+#apPrintRoot .ap2-mapbox{height:132mm !important;min-height:0 !important;width:277mm;border-radius:0}
+#apPrintRoot .leaflet-control-container{display:none}
 .ap3-find input{width:100%}
 .ap3-findres{position:absolute;z-index:1200;top:calc(100% + 4px);left:0;right:0;background:var(--ap-bay);border:1px solid var(--ap-rule);border-radius:var(--ap-r1);box-shadow:0 10px 28px rgba(0,0,0,.16);padding:4px;max-height:340px;overflow:auto}
 .ap3-findres button{display:flex;align-items:center;gap:8px;width:100%;text-align:left;font:inherit;font-size:13px;color:var(--ink);background:none;border:0;border-radius:7px;padding:7px 8px;cursor:pointer}
@@ -4934,6 +4950,7 @@ registerPage({
           (YEARS.length ? "<label>Results</label>" + seg("mapyear", [["0", "Tiers"]].concat(YEARS.map(y => [String(y), String(y)])), String(inputs.mapYear || 0)) +
             (inputs.mapYear ? seg("mapyearby", Object.keys(YEAR_BY).map(k => [k, YEAR_BY[k][1]]), inputs.mapYearBy) : "") : "") +
           /* FIND A PLACE AND LIGHT IT UP (his ask 2026-09-30: "add search so it can highlight") */
+          '<button type="button" class="rs-btn ap3-printbtn" id="apPrintMap" title="The totals and the map at zip-code level, on one landscape page">Print map</button>' +
           '<div class="ap3-find"><input id="apFind" class="rs-inp" type="search" autocomplete="off" spellcheck="false" ' +
             'placeholder="Find a county, city or zip…" aria-label="Find a county, city or zip on the map" value="' + esc(FINDQ) + '">' +
             '<div id="apFindRes" class="ap3-findres" style="display:none"></div></div>' +
@@ -5227,6 +5244,7 @@ registerPage({
         }; });
         host.querySelectorAll("#apAreaList [data-sideback]").forEach(b => { b.onclick = () => showSide(null); });
         const csv = host.querySelector("#apAreaCsv"); if (csv) csv.onclick = () => areaCsv(FC.year ? nextCalc() : null);
+        const pm = host.querySelector("#apPrintMap"); if (pm) pm.onclick = printMap;
         const fi = host.querySelector("#apFind"), fr = host.querySelector("#apFindRes");
         if (fi && fr) {
           const TC = tierColors();
@@ -5301,6 +5319,45 @@ registerPage({
           Object.keys(NB_ON).forEach(k => delete NB_ON[k]); Object.keys(NB_FM).forEach(k => delete NB_FM[k]); Object.keys(TR_OWN).forEach(k => delete TR_OWN[k]);
           planEnd(); planCandsClear(); SC.targets = null;
           nbPickClear(); if (SIDE && SIDE.kind === "pick") SIDE = null; nbRepaint(); };
+      }
+
+      /* ONLY THE MAP, ON ONE SHEET (his ask 2026-09-30: "i want only MAP to be printed - without list
+         of zip codes on the right panel - just total numbers / chips on top + the map fully visible
+         on Zip Code Level"). A Leaflet map cannot be cloned into the kit's print document -- a copied
+         canvas is blank -- so the LIVE tiles, legend and map are moved into a page-sized root that
+         is the only thing on the body, printed, and moved back where they were. The map is put on
+         zip codes first, whatever it was showing, and re-framed to the sheet. */
+      function printMap() {
+        const box = host.querySelector("#apMapBox");
+        if (!box || !box._map || document.getElementById("apPrintRoot")) return;
+        if (inputs.mapLevel !== "Zip") { inputs.mapLevel = "Zip"; inputs.listTier = 0; SIDE = null; save();
+          repaintMapTab({ bases: false }); if (box._applyLevel) box._applyLevel(true); }
+        if (box._highlight) box._highlight(null);
+        const N = FC.year ? nextCalc() : null;
+        const root = document.createElement("div"); root.id = "apPrintRoot"; root.className = "ap2-pane";
+        root.innerHTML = '<div class="ap3-print-h"><b>Seasonal Planning — Season ' + esc(String(FC.year || "")) + "</b><span>" +
+          esc((PLAN ? PLAN.label + " plan" : scAny() || nbAny() ? "scenario" : "forecast") + " · " + (mapStOf() || "whole market") + " · zip codes" +
+              (inputs.mapYear ? " · " + inputs.mapYear + " " + YEAR_BY[inputs.mapYearBy][1].toLowerCase() : " · tiers") +
+              (N ? " · " + fmtN(N.tot.peak) + " foremen" : "") + " · " + new Date().toLocaleDateString("en-US", { day: "numeric", month: "short", year: "numeric" })) + "</span></div>";
+        const marks = ["#apKpis", "#apMapKeyWrap", "#apMapBox"].map(sel => { const el = host.querySelector(sel); if (!el) return null;
+          const ph = document.createComment("ap-print"); el.parentNode.insertBefore(ph, el); root.appendChild(el); return [ph, el]; }).filter(Boolean);
+        const pg = document.createElement("style"); pg.textContent = "@page{size:A4 landscape;margin:8mm}"; document.head.appendChild(pg);
+        document.body.appendChild(root); document.body.classList.add("ap3-printing");
+        const m = box._map;
+        fitMap();
+        let ended = false;
+        const done = () => { if (ended) return; ended = true;
+          window.removeEventListener("afterprint", done);
+          marks.forEach(([ph, el]) => { ph.parentNode.insertBefore(el, ph); ph.remove(); });
+          root.remove(); pg.remove(); document.body.classList.remove("ap3-printing");
+          setTimeout(fitMap, 40); };
+        let n = 0;
+        const go = () => {
+          if (box._zipReady && !box._zipReady() && n++ < 40) return setTimeout(go, 400);
+          fitMap();
+          setTimeout(() => { window.addEventListener("afterprint", done); try { window.print(); } catch (e) { done(); } }, 1800);   // the tiles of the new frame
+        };
+        go();
       }
 
       /* Size and frame the map against the container it actually has. Safe to call at any time:
@@ -5917,6 +5974,7 @@ registerPage({
                 lyr.on("mouseout", () => byKey[k].forEach(x => zipLayer && zipLayer.resetStyle(x)));
               } }).addTo(m);
               zipLayer._byKey = byKey; zipSt = st;
+              box._zipReady = () => !!(zipLayer && zipLayer._byKey) && zipLvl === inputs.mapLevel && zipSt === mapStOf();
               ensureHatch();
               if (refit) { if (!st) fitMap(); else { const b = zipLayer.getBounds(); if (b.isValid()) m.fitBounds(b, { padding: [12, 12], animate: false }); } }
               if (box._pendingFocus) { const k = box._pendingFocus; box._pendingFocus = null; box._focusArea(k); }
