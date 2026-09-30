@@ -538,6 +538,7 @@ details.ap3-how[open]{padding-bottom:16px}
 .ap3-steps{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px;margin:0 0 10px}
 .ap3-step{border:1px solid var(--ap-rule);border-radius:var(--ap-r1);background:var(--ap-bay);padding:10px 12px;min-width:0}
 .ap3-step.tot{background:var(--ap-sub)}
+.ap3-step.nb{border-style:dashed;border-color:var(--brand-d)}
 .ap3-steps.bases{grid-template-columns:repeat(auto-fit,minmax(170px,1fr))}
 .ap3-step.drv{border-color:var(--brand-d);box-shadow:inset 0 3px 0 var(--brand-d)}
 .ap3-step span{display:flex;justify-content:space-between;gap:8px;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
@@ -1488,6 +1489,7 @@ registerPage({
         return out; })();
       /* the scenario: which bases are YES, in memory only (a refresh is back to NO) */
       const NB_ON = {};
+      const NB_FM = {};          // a YES base's crew as he set it (blank = suggested); memory only
       const nbOf = label => ({ on: !!NB_ON[label] });
       /* re-tier one area against a set of new bases: null when no new base is nearer */
       function tierWith(a, bases) {
@@ -1579,8 +1581,10 @@ registerPage({
          quantities, include which covers what - and ... a total"). A state with its own base on the
          register is its own card; a state without one rides the base its crew pool is run from
          (MD and VA from PA, MA from CT). A base's foremen = its states' share of the pool's peak. */
-      const BASE_NAMES = new Set(((model.depots || {}).bases || []).map(b => b.name));
-      const baseOfState = st => BASE_NAMES.has(st) ? st : (POOL_OF[st] || st);
+      /* THE CARD IS THE CREW POOL (his correction 2026-09-30: "NJ covers NY, and we had that earlier
+         why did you remove it?"). NY and DE are on the register as parking bases with nobody on them;
+         their work is run from NJ and PA, so a card each for them split crews that are one crew. */
+      const baseOfState = st => POOL_OF[st] || st;
       const baseStates = (N, key) => N.rows.filter(r => baseOfState(r.st) === key).map(r => r.st);
       const baseFm = (N, key) => N.rows.filter(r => baseOfState(r.st) === key).reduce((a, r) => a + (r.fmPeak || 0), 0);
       const baseList = N => { const seen = [];
@@ -2554,11 +2558,27 @@ registerPage({
            So the plan is held at last season's measured advertising per job: when the state build
            comes in under it, every state's leads are lifted by one factor until the season costs
            forecast jobs x last season's $ per job. It only ever lifts; both figures are kept. */
+        const planJobsCore = rows.reduce((a, r) => a + r.jobs, 0);
+        const builtMkt = rows.reduce((a, r) => a + r.leads * (mkt.cplOf(r.st) || 0), 0);
+        /* over the jobs THE PLANNED STATES ran, not every closing: the forecast covers only them, so
+           dividing by the national count (a handful of one-off jobs elsewhere) would hold the plan a
+           shade UNDER last season's spend scaled by its own growth — the direction he objected to. */
+        const perJobLast = (cplActual != null && jobsLastAll > 0) ? spendLast / jobsLastAll : null;
+        const floorF = (perJobLast != null && builtMkt > 0) ? Math.max(1, planJobsCore * perJobLast / builtMkt) : 1;
+        if (floorF > 1) rows.forEach(r => { r.leadsPerJobBuilt = r.leadsPerJob; if (r.leadsPerJob != null) r.leadsPerJob *= floorF;
+          r.cells.forEach(c => { if (c.leads_needed) c.leads_needed = Math.round(c.leads_needed * floorF); });
+          r.leads = r.cells.filter(c => !c.shoulder).reduce((a, c) => a + (c.leads_needed || 0), 0); });
+        Object.assign(mkt, { perJobLast, builtMkt, floorF, held: floorF > 1.0005 });
         /* NEW BASES GO IN AS EXTRA FORECAST (2026-09-29, see NEW BASES above). A base's launch leads
            become jobs at its state's own leads-per-job -- the rate the plan uses to turn jobs back into
            leads -- spread over the core months in the state's own shape, so the marketing, the desk,
            the pools and the trucks below all carry it. `opts.nb`: "all" (this browser), "confirmed"
-           (the official plan), "none", or {without: label} for one base's own contribution. */
+           (the official plan), "none", or {without: label} for one base's own contribution.
+           AFTER THE MARKETING FLOOR, ON PURPOSE (2026-09-30). It ran before it, so the base's jobs
+           changed the one factor that lifts every state's leads -- and switching Montgomery to Yes
+           took $2,600 off New Jersey's budget and $600 off Connecticut's ("it deduces the quantities,
+           which is strange"). A base in Maryland must not move another state's numbers: the floor is
+           now settled on the plan without it, and the base's leads ride on top at the same rate. */
         const nbOut = [];
         nbEffect(nbActive((opts && opts.nb) || "all")).per.forEach(p => {
           const o = { label: p.b.label, st: p.b.st, opened: p.opened, served: p.served, leadsYr: p.leadsYr,
@@ -2578,17 +2598,6 @@ registerPage({
           });
           nbOut.push(o);
         });
-        const planJobsCore = rows.reduce((a, r) => a + r.jobs, 0);
-        const builtMkt = rows.reduce((a, r) => a + r.leads * (mkt.cplOf(r.st) || 0), 0);
-        /* over the jobs THE PLANNED STATES ran, not every closing: the forecast covers only them, so
-           dividing by the national count (a handful of one-off jobs elsewhere) would hold the plan a
-           shade UNDER last season's spend scaled by its own growth — the direction he objected to. */
-        const perJobLast = (cplActual != null && jobsLastAll > 0) ? spendLast / jobsLastAll : null;
-        const floorF = (perJobLast != null && builtMkt > 0) ? Math.max(1, planJobsCore * perJobLast / builtMkt) : 1;
-        if (floorF > 1) rows.forEach(r => { r.leadsPerJobBuilt = r.leadsPerJob; if (r.leadsPerJob != null) r.leadsPerJob *= floorF;
-          r.cells.forEach(c => { if (c.leads_needed) c.leads_needed = Math.round(c.leads_needed * floorF); });
-          r.leads = r.cells.filter(c => !c.shoulder).reduce((a, c) => a + (c.leads_needed || 0), 0); });
-        Object.assign(mkt, { perJobLast, builtMkt, floorF, held: floorF > 1.0005 });
         /* THE CREW IS PLANNED PER DEPOT POOL, CALIBRATED ON WHAT WORKED (2026-09-19).
            The first version sized each state alone — jobs x busy-day factor / (30 days x utilization),
            rounded up — and asked for 48 foremen for a season forecast at +12% over the 1,795 jobs that
@@ -2606,7 +2615,11 @@ registerPage({
           if (!prs.length) return null;
           const worked = prs.reduce((a, r) => a + num((SEED[r.st] || {})._all), 0);
           const have = prs.reduce((a, r) => a + r.have, 0);
-          const loadAt = (ym, k) => prs.reduce((a, r) => { const c = r.cells.find(x => x.ym === ym) || {}; return a + (num(c[k]) || 0) * (c.headroom || 1); }, 0);
+          /* a new base's jobs (c.nbJobs) are left out: that base carries its own crew (below), and
+             letting them into the pool re-split the pool's foremen between its states -- which is
+             how opening Montgomery took a foreman from Delaware */
+          const loadAt = (ym, k) => prs.reduce((a, r) => { const c = r.cells.find(x => x.ym === ym) || {};
+            return a + ((num(c[k]) || 0) - (k === "jobs" ? num(c.nbJobs) : 0)) * (c.headroom || 1); }, 0);
           const refLoad = Math.max(0, ...core.map(ym => loadAt(ym, "last")));
           /* THE CREW IS NEVER PLANNED BELOW THE WORK LAST SEASON ACTUALLY RAN (his call 2026-09-22).
              The forecast default moved to the 3-season average the same day, because it is the most
@@ -2618,7 +2631,7 @@ registerPage({
              So the money follows the forecast and the CREW follows the higher of the forecast and
              last season's own month. Both numbers are kept and the page says which is which. */
           const loadFor = ym => Math.max(loadAt(ym, "jobs"), loadAt(ym, "last"));
-          const cells = months.map(ym => { const jobs = prs.reduce((a, r) => a + ((r.cells.find(x => x.ym === ym) || {}).jobs || 0), 0);
+          const cells = months.map(ym => { const jobs = prs.reduce((a, r) => { const c0 = r.cells.find(x => x.ym === ym) || {}; return a + (c0.jobs || 0) - (c0.nbJobs || 0); }, 0);
             const lastJobs = prs.reduce((a, r) => a + ((r.cells.find(x => x.ym === ym) || {}).last || 0), 0);
             const load = loadFor(ym), fcLoad = loadAt(ym, "jobs");
             const sized = Math.max(jobs, lastJobs);
@@ -2650,13 +2663,24 @@ registerPage({
           return out; };
         pools.forEach(q => { const prs = rows.filter(r => q.states.includes(r.st));
           q.cells.forEach(pc => { const loads = prs.map(r => { const c = r.cells.find(x => x.ym === pc.ym) || {};
-            return Math.max(num(c.jobs), num(c.last)) * (c.headroom || 1); });     // the same basis the pool was sized on
+            return Math.max(num(c.jobs) - num(c.nbJobs), num(c.last)) * (c.headroom || 1); });     // the same basis the pool was sized on
             share(pc.need, loads).forEach((n, i) => { const c = prs[i].cells.find(x => x.ym === pc.ym); if (c) c.fm = n; }); });
           const peakCell = q.cells.filter(c => !c.shoulder).sort((a, b) => b.need - a.need)[0];
           q.peakYm = peakCell ? peakCell.ym : null;
           prs.forEach(r => { const c = r.cells.find(x => x.ym === q.peakYm) || {}; r.fmPeak = c.fm || 0; r.pool = q.label; r.poolKey = q.pk;
             r.fmHelpers = Math.ceil(r.fmPeak * (crew.helpers || 0)); r.fmDrivers = Math.ceil(r.fmPeak * (crew.drivers || 0)); r.fmTrucks = Math.ceil(r.fmPeak * (crew.trucks || 0)); }); });
-        const trucksTot = pools.reduce((a, q) => a + q.trucks, 0);
+        /* THE CREW AT EACH NEW BASE (2026-09-30): sized for the jobs the base ADDS, at the rate the
+           existing pools run (their foremen at peak per season job), at least one -- and his to
+           edit (NB_FM, the - / + on its card). Existing bases keep their plan to the foreman. */
+        const poolJobs0 = rows.reduce((a, r) => a + r.jobs - (r.nbJobs || 0), 0), poolPeak0 = pools.reduce((a, q) => a + q.peak, 0);
+        const fmPerJob = poolJobs0 > 0 ? poolPeak0 / poolJobs0 : 0;
+        nbOut.forEach(o => {
+          o.fmSuggested = Math.max(1, Math.ceil(o.jobs * fmPerJob - 1e-9));
+          o.fm = NB_FM[o.label] > 0 ? Math.round(NB_FM[o.label]) : o.fmSuggested;
+          o.states = o.opened.reduce((a, x) => (a.indexOf(x.a.State) < 0 ? a.concat([x.a.State]) : a), []);
+        });
+        const nbFm = nbOut.reduce((a, o) => a + o.fm, 0);
+        const trucksTot = pools.reduce((a, q) => a + q.trucks, 0) + Math.ceil(nbFm * (crew.trucks || 0));
         const rentTrucks = Math.max(0, trucksTot - owned);
         const coreDays = core.reduce((a, ym) => a + new Date(+ym.slice(0, 4), +ym.slice(5, 7), 0).getDate(), 0);
         /* THREE PRICES FOR THE SAME TRUCKS, AND THE PLAN TAKES THE DEAREST (his call 2026-09-20:
@@ -2710,24 +2734,14 @@ registerPage({
                         active: seasonDesk().repsActive || P.M.repsActive || null };   // last season's desk, not the what-if period's
         const ranLast = pools.reduce((a, q) => a + (q.worked || 0), 0);
         const peakFc = pools.reduce((a, q) => a + (q.peakFc || 0), 0);
-        const tot = { jobs: sum("jobs"), peak: psum("peak"), have: psum("have"), hire: psum("hire"), trucks: trucksTot, leads: sum("leads"),
+        const tot = { jobs: sum("jobs"), peak: psum("peak") + nbFm, have: psum("have"), hire: psum("hire") + nbFm, trucks: trucksTot, leads: sum("leads"),
                       ranLast, haveIsRegister: regAny && inputs.seed === "measured",
                       peakFc, crewFloored: pools.reduce((a, q) => a + (q.peakFc || 0), 0) < psum("peak"),
                       mkt: rows.reduce((a, r) => a + r.leads * (mkt.cplOf(r.st) || 0), 0),
-                      helpers: psum("helpers"), drivers: psum("drivers"), revenue: rows.some(r => r.revenue != null) ? sum("revenue") : null,
+                      helpers: psum("helpers") + Math.ceil(nbFm * (crew.helpers || 0)), drivers: psum("drivers") + Math.ceil(nbFm * (crew.drivers || 0)), revenue: rows.some(r => r.revenue != null) ? sum("revenue") : null,
                       expense: rows.some(r => r.expense != null) ? sum("expense") : null, rent: rentTotal,
                       salesPay: rows.some(r => r.salesPay != null) ? sum("salesPay") : null, salesPct: SALES_PCT,
                       gross: rows.some(r => r.gross != null) ? sum("gross") : null };
-        /* THE CREW AT EACH NEW BASE: the jobs it would serve (its counties' share of their state's
-           plan, plus its own new jobs) at the company's peak foremen per season job, at least one.
-           A typed number above that is carried as extra crew; below it, the pools still decide. */
-        const fmPerJob = tot.jobs > 0 ? tot.peak / tot.jobs : 0;
-        nbOut.forEach(o => {
-          o.rehomed = o.served.reduce((a, ar) => { const r = rows.find(x => x.st === ar.State);
-            return a + (r ? (r.jobs - (r.nbJobs || 0)) * num(ar["State Job Share"]) : 0); }, 0);
-          o.servedJobs = o.rehomed + o.jobs;
-          o.fm = Math.max(1, Math.ceil(o.servedJobs * fmPerJob - 1e-9));
-        });
         tot.parking = nbOut.length * 800 * (core.length || 4);        // a yard per base, the what-if's $800 a month
         return { months, core, rows, pools, sales, mkt, tot, perFm, util, crew, owned, perDay, rentTrucks, coreDays, method, rentWays, rentPick, nb: nbOut };
       }
@@ -4433,7 +4447,8 @@ registerPage({
           const r = M.rows.find(x => x.st === st);
           if (!r) return null;
           const q = M.pools.find(p => p.states.includes(st)) || {};
-          return { jobs: r.jobs, fm: r.fmPeak || 0, have: r.have || 0, hire: q.hire || 0, pool: q.label,
+          const nbHere = (M.nb || []).filter(o => o.st === st).reduce((a, o) => a + o.fm, 0);
+          return { jobs: r.jobs, fm: (r.fmPeak || 0) + nbHere, have: r.have || 0, hire: (q.hire || 0) + nbHere, pool: q.label,
                    sales: M.tot.leads ? M.sales.peak * r.leads / M.tot.leads : 0,
                    mkt: r.leads * (M.mkt.cplOf(st) || 0), leads: r.leads,
                    rev: r.revenue, avg: r.revenue != null && r.jobs ? r.revenue / r.jobs : null };
@@ -4503,6 +4518,9 @@ registerPage({
             baseList(N).map(b => { const b0 = baseList(P).find(x => x.key === b.key) || b;
               return step("fm", b.key, esc(b.key) + " base", fmtN(b.fm),
                 "covers " + esc(b.states.join(" + ")) + " · plan " + fmtN(b0.fm) + " · " + fmtN(b.have) + " today"); }).join("") +
+            /* a base switched to Yes is a base: its own card, its own crew, his to change */
+            (N.nb || []).map(o => step("nbfm", o.label, esc(o.label) + " · new base", fmtN(o.fm),
+              (o.states.length ? "covers " + esc(o.states.join(" + ")) + " · " : "") + "suggested " + fmtN(o.fmSuggested) + " for " + sgN(o.jobs) + " jobs · 0 today", "nb")).join("") +
           "</div></div>";
       }
 
@@ -4779,7 +4797,7 @@ registerPage({
             "What they are expected to send is what counties of the same tier ALREADY within reach of a base send us today " +
             "(Tier 1 " + rt(1) + "; Tier 2 " + rt(2) + "; Tier 3 " + rt(3) + "; Tier 4 " + rt(4) + "; Delaware left out, Tuji inflates it). " +
             "That took years; Season " + esc(String(FC.year || "")) + " counts <b>half</b>. Those jobs are added to the plan, so crew, sales and marketing follow. " +
-            "Crew at the base = the jobs it would serve at the company's foremen per job at peak; parking $800 a month.</div>" +
+            "Its crew = the jobs it adds at the rate the existing bases run, at least one, and can be changed on its card; existing bases keep their plan. Parking $800 a month.</div>" +
           '<div class="ap2-say" style="margin:0 0 10px"><b>The money and the jobs per area.</b> Each state\'s planned marketing and jobs, ' +
             "split by the area's share of the state's leads and jobs over the last 12 months. No ad dollar carries geography, so this is a " +
             "planned share, never measured spend. <b>The flags</b> are the bases: solid for the " + fmtN(B.have.length) + " we have, dashed for a possible new one. " +
@@ -4865,12 +4883,17 @@ registerPage({
           const label = card.dataset.nb;
           card.querySelectorAll("[data-nbon]").forEach(b => { b.onclick = () => {
             const want = b.dataset.nbon === "1"; if (!!NB_ON[label] === want) return;
-            if (want) NB_ON[label] = true; else delete NB_ON[label];
+            if (want) NB_ON[label] = true; else { delete NB_ON[label]; delete NB_FM[label]; }
             nbRepaint(); }; });
         });
         host.querySelectorAll("#apScn [data-sc]").forEach(b => { b.onclick = () => {
           const kind = b.dataset.sc, pool = b.dataset.pool || null, dd = +b.dataset.d;
           const N = nextCalc(), P = nextCalc({ nb: "none", mult: {} });
+          if (kind === "nbfm") {           // a new base's crew: set directly, it is not a driver
+            const o = (N.nb || []).find(x => x.label === pool);
+            if (o) { NB_FM[pool] = Math.max(1, o.fm + dd); repaintPlan(); }
+            return;
+          }
           let target;
           if (kind === "sales") target = Math.max(1, N.sales.peak + dd);
           else if (kind === "fm") target = Math.max(0, baseFm(N, pool) + dd);
@@ -4881,7 +4904,7 @@ registerPage({
         }; });
         const scr = host.querySelector("[data-screset]");
         if (scr) scr.onclick = () => { SC.kind = null; SC.pool = null; SC.target = null;
-          Object.keys(NB_ON).forEach(k => delete NB_ON[k]); nbRepaint(); };
+          Object.keys(NB_ON).forEach(k => delete NB_ON[k]); Object.keys(NB_FM).forEach(k => delete NB_FM[k]); nbRepaint(); };
       }
 
       /* Size and frame the map against the container it actually has. Safe to call at any time:
