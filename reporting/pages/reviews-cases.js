@@ -511,7 +511,16 @@ registerPage({
       mountBar();
 
       const pdfBtn = host.querySelector("#rvcPdf");
-      if (pdfBtn) pdfBtn.onclick = () => RSC.printView({
+      /* THE PAPER GETS EVERY CASE (review 2026-10-01: the PDF carried the first 25 claims of 36 with
+         the Prev / Next buttons under them). Painted once more with every row for the snapshot,
+         then the screen goes back to the page the reader was on. */
+      if (pdfBtn) pdfBtn.onclick = () => {
+        const keep = { nrPage: S.nrPage, clPage: S.clPage, pageSize: S.pageSize };
+        Object.assign(S, { nrPage: 0, clPage: 0, pageSize: 1e6 });
+        paint();
+        try { printNow(); } finally { Object.assign(S, keep); paint(); }
+      };
+      const printNow = () => RSC.printView({
         host,
         title: "Claims & Negative Reviews",
         // built from its own classes rather than the kit, so the PDF needs its CSS
@@ -522,12 +531,12 @@ registerPage({
         note: "Both boards read whole; the year filter is applied here, not in the warehouse. "
             + "A review or claim with no date sits outside every year and is counted separately. "
             + "Matching between the two boards is by request number first, customer name as fallback.",
-        drop: [".rvc-bar", ".rvc-pdf"],
+        drop: [".rvc-bar", ".rvc-pdf", ".rvc-pager", "[data-dl]"],
         // ONE THEME PER SHEET: the headline counts, then the two boards' own shapes, then
         // where they meet, then the cases behind them.
         pages: [
-          { title: "The headline", sel: ".rs-kpis" },
-          { title: "Public reviews by listing", sel: "#rvcPnlListings" },
+          // the six counts and the listings fill one sheet; apart, the headline was a stripe on an empty page
+          { title: "The headline, and public reviews by listing", sel: ".rs-kpis, #rvcPnlListings" },
           { title: "Where they complain, and why they claim", sel: "#rvcPnlWhere, #rvcPnlWhy" },
           { title: "The overlap, and whose fault the board says it is", sel: "#rvcPnlOverlap, #rvcPnlFault" },
           { title: "Negative reviews — the cases", sel: "#rvcPnlNr" },

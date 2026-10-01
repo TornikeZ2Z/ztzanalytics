@@ -887,8 +887,12 @@ window.RSC = (function () {
             + picked.map(el => el.outerHTML).join("") + `</section>`);
         }
       });
-      const rest = [...body.children].filter(
-        el => !claimed.has(el) && ![...claimed].some(c => c.contains(el)));
+      /* WHAT IS LEFT is what no theme claimed. A grid that merely HOLDS claimed panels used to
+         count as left over and printed them all a second time on a "Detail" sheet (Claims & Negative
+         Reviews, 2026-10-01). The claimed panels are already in their sheets, so they come out of
+         the clone first, and a wrapper with nothing of its own left is not a page. */
+      claimed.forEach(c => { if (c.parentNode) c.parentNode.removeChild(c); });
+      const rest = [...body.children].filter(el => String(el.textContent || "").trim());
       if (rest.length) {
         sections.push(`<section class="pv-page"><h2>${esc(cfg.restTitle || "Detail")}</h2>`
           + rest.map(el => el.outerHTML).join("") + `</section>`);
