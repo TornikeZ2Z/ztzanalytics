@@ -179,6 +179,7 @@ registerPage({
         ".cln-tot .cln-small{font-weight:600}",
         ".cln-pager{display:flex;gap:8px;align-items:center;justify-content:flex-end;margin-top:12px;font-size:12.5px;color:var(--faint)}",
         ".cln-pager .rs-btn[disabled]{opacity:.4;pointer-events:none}",
+        "#clnPnlCases td:first-child{white-space:nowrap}",
         // the drawer: one claim, read in full
         ".cln-dim{position:fixed;inset:0;background:rgba(0,0,0,.28);z-index:60}",
         ".cln-drawer{position:fixed;top:0;right:0;bottom:0;width:min(720px,94vw);background:var(--panel);"
@@ -616,7 +617,7 @@ registerPage({
             filed about a job done <b>before</b> this window. A claim counts when it was FILED; the job
             count beside it counts jobs DONE — so those ${stale === 1 ? "is" : "are"} in the number above
             and their jobs are not.</div>` : ""}
-          <div class="cln-say" style="margin:6px 0 0">Click any row to read the whole Monday thread here,
+          <div class="cln-say cln-click" style="margin:6px 0 0">Click any row to read the whole Monday thread here,
             or <b>Open &#8599;</b> to go to the board.</div>
         </div>`;
       }
@@ -900,14 +901,14 @@ registerPage({
         <div class="panel" id="clnPnlSp" style="margin-top:12px">
           <div class="panel-head"><div class="panel-title">Salespeople</div></div>
           <div class="cln-say">${hasCredit ? `A job sold by two people is credited to both in the share the closing sheet paid them, so a 50/50 job gives each half the job <b>and</b> half the claim &mdash; the percentage stays a percentage of their own work, and the credited claims still add up to the ${fmtN(n)} above &mdash; the total row at the foot
-            states it, because the column prints one decimal and adding those by hand drifts. ` : ""}jobs sold in the window (the closing's salesperson), the claims on them, and — where the lead's quote and the contract's real CF exist — how far the bill and the volume ran past the estimate on the claimed jobs. Fewer than ${MIN_JOBS} credited jobs reads "small" and sorts below the rest &mdash; a rate on a handful of jobs is noise, so it is shown but never ranked first. <b>Click any row</b> to see the claims behind its number and open each on the board.
+            states it, because the column prints one decimal and adding those by hand drifts. ` : ""}jobs sold in the window (the closing's salesperson), the claims on them, and — where the lead's quote and the contract's real CF exist — how far the bill and the volume ran past the estimate on the claimed jobs. Fewer than ${MIN_JOBS} credited jobs reads "small" and sorts below the rest &mdash; a rate on a handful of jobs is noise, so it is shown but never ranked first. <span class="cln-click"><b>Click any row</b> to see the claims behind its number and open each on the board.</span>
             <br><b>This is not the same number as Sales Team Command's own claim rate.</b> That page counts a claim against the rep who booked the lead and divides by closed leads; this one counts it against the salesperson on the closing and divides by jobs done. Two honest definitions — they will not tie out, and neither has been declared the right one.</div>
           ${perTable(sales, "Salesperson", spExtra, "clnSpBody", S.openSp, S.allSp)}
         </div>
 
         <div class="panel" id="clnPnlFm" style="margin-top:12px">
           <div class="panel-head"><div class="panel-title">Foremen</div></div>
-          <div class="cln-say">jobs run in the window (the closing's foreman) and the claims on them, split by family. A damage claim is what the customer said, not what an inspection found — read the thread before it counts against anyone. <b>Click any row</b> to see the claims behind its number and open each on the board.</div>
+          <div class="cln-say">jobs run in the window (the closing's foreman) and the claims on them, split by family. A damage claim is what the customer said, not what an inspection found — read the thread before it counts against anyone. <span class="cln-click"><b>Click any row</b> to see the claims behind its number and open each on the board.</span></div>
           ${perTable(foremen, "Foreman", fmExtra, "clnFmBody", S.openFm, S.allFm)}
         </div>
 
@@ -915,7 +916,7 @@ registerPage({
           <div class="panel-head"><div class="panel-title">The claims</div>
             <div class="rs-spacer"></div><span class="rs-pill">${fmtN(sorted.length)}</span>
             <button class="rs-btn" id="clnDl">Download CSV</button></div>
-          <div class="cln-say">Click a claim to read its whole Monday thread here, or <b>Open&nbsp;&#8599;</b> to go straight to it on the board.</div>
+          <div class="cln-say cln-click">Click a claim to read its whole Monday thread here, or <b>Open&nbsp;&#8599;</b> to go straight to it on the board.</div>
           <div class="rs-tablewrap"><table class="rs-table">
             <thead><tr><th>Created</th><th>Customer</th><th>Family · ${nKW ? "reason or words" : "reason"}</th>${nKW ? "<th>Signals</th>" : ""}<th>Status</th>
               <th>Salesperson</th><th>Foreman</th><th class="num">Bill</th><th class="num">vs quote</th>
@@ -947,7 +948,17 @@ registerPage({
       mountBar(claims, jobs);
 
       const pdfBtn = host.querySelector("#clnPdf");
-      if (pdfBtn) pdfBtn.onclick = () => RSC.printView({
+      /* THE PAPER GETS EVERYTHING (review 2026-10-01: the PDF carried 25 of 292 claims with "page 1 of
+         12" printed under them, 14 of 17 salespeople and 24 of 34 foremen -- whatever the screen had
+         paged or folded away). For the print the page is painted once more with every row, the
+         snapshot is taken from that, and the screen goes back to how the reader left it. */
+      if (pdfBtn) pdfBtn.onclick = () => {
+        const keep = { page: S.page, pageSize: S.pageSize, allSp: S.allSp, allFm: S.allFm, openSp: S.openSp, openFm: S.openFm };
+        Object.assign(S, { page: 0, pageSize: 1e6, allSp: 1, allFm: 1, openSp: "", openFm: "" });
+        paint();
+        try { printNow(); } finally { Object.assign(S, keep); paint(); }
+      };
+      const printNow = () => RSC.printView({
         host,
         title: "Claims Analysis",
         // built from its own classes rather than the kit, so the PDF needs its CSS
@@ -956,7 +967,7 @@ registerPage({
         note: "Every per-person number is the share of that person's own jobs in this window "
             + "that drew a claim \u2014 never a count. Where a filter exists only on the claim, "
             + "the rate is withheld rather than guessed.",
-        drop: [".cln-bar", ".cln-pdf", ".cln-drawer"],
+        drop: [".cln-bar", ".cln-pdf", ".cln-drawer", ".cln-pager", ".cln-click", "details", "#clnDl"],
         // ONE THEME PER SHEET, in the order somebody reads the argument: how often it
         // happens, then what it is about, then who, then the cases themselves.
         pages: [
