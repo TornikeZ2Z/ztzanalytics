@@ -122,6 +122,7 @@ registerPage({
       if (w.includes("tuji")) return "DE";
       return "";
     };
+    const FLOW = RS.reviewFlow ? RS.reviewFlow(rcAll || []) : null;
     const CLSTATE = {};
     (clLinks || []).forEach(r => { const jk = String(r["Request Joinkey"] || "").trim(), st = ST_FULL[r.State];
       if (jk && st) CLSTATE[jk] = st; });
@@ -256,7 +257,7 @@ registerPage({
        reviews the platform removed, and a collapse of 30%+ (20 reviews or more) is the platform
        RECOUNTING the listing -- neither. The climb straight back after a recount is the same
        recount undoing itself (Google CT 243 -> 6 -> 261, summer 2025), so it is not "added" either. */
-    const FLOW = RS.reviewFlow ? RS.reviewFlow(rcAll || []) : null;
+    // FLOW is built with the other indexes above, before the first paint() (TDZ)
     function listingRows() {
       if (!FLOW) return [];
       const from = S.year ? S.year + "-01" : "0000-00", to = S.year ? S.year + "-12" : "9999-99";
