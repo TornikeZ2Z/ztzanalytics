@@ -208,6 +208,16 @@ registerPage({
       RS.load("claims_analysis"), RS.load("closing"),
       RS.load("sales_credit").catch(() => [])]);
     const closing = (closingAll || []).filter(r => r["Record Source"] === "closing");
+    /* THE BRANCH OWNER'S JOBS (his ask 2026-10-01, for the Kolbaia meeting: "branch owner should be
+       kolbaia is the filter we need" -- not the state: 42 of his 319 jobs this year are outside
+       Connecticut, and Connecticut has jobs that are not his). A job is his when the closing names
+       him in a sales slot (fct_closing `Branch Owner`, set from curated._BRANCH_OWNERS). The closing
+       carries it, so the filter narrows the claims AND the jobs and the rate stays a rate. */
+    const BO_OF = {};
+    (closingAll || []).forEach(r => { const b = String(r["Branch Owner"] || "").trim();
+      if (b && r["Request Joinkey"]) BO_OF[r["Request Joinkey"]] = b; });
+    const BO_NAMES = Array.from(new Set(Object.values(BO_OF))).sort();
+    const boOk = jk => !S.bo || BO_OF[jk] === S.bo;
     // credit, indexed by the job. A job with one salesperson has a single entry of share 1.
     const CREDIT = {};
     (creditAll || []).forEach(r => {
@@ -270,7 +280,7 @@ registerPage({
     const today = new Date();
     const iso = d => d.toISOString().slice(0, 10);
     const back = months => { const t = new Date(today); t.setMonth(t.getMonth() - months); return iso(t); };
-    const S = { from: back(6), to: iso(today), jobType: "", sp: "", fm: "", resp: "",
+    const S = { from: back(6), to: iso(today), jobType: "", bo: "", sp: "", fm: "", resp: "",
                 extra: "", q: "", dim: "Family", page: 0, pageSize: 25,
                 openSp: "", openFm: "", allSp: 0, allFm: 0 };
     let qTimer = null;
@@ -281,6 +291,7 @@ registerPage({
     function printWindowLabel() {
       const bits = [`${S.from} to ${S.to}`];
       if (S.jobType) bits.push(S.jobType);
+      if (S.bo) bits.push("branch owner " + S.bo);
       if (S.sp) bits.push("salesperson " + S.sp);
       if (S.fm) bits.push("foreman " + S.fm);
       if (S.resp) bits.push("responsibility " + S.resp);
@@ -319,6 +330,7 @@ registerPage({
         if (!inWin(r["Created Date"])) return false;
         // --- these four also narrow the jobs, so they keep the rate honest
         if (S.jobType && r["Job Type"] !== S.jobType) return false;
+        if (!boOk(r["Request Joinkey"])) return false;
         // A REP IS CREDITED FOR EVERY JOB THEY SOLD, not only the ones where the sheet
         // happened to list them first. Matching on the claim's `Sales Person` (which is the
         // closing's slot 1) silently dropped every job a rep sold second.
@@ -339,6 +351,7 @@ registerPage({
       const jobs = closing.filter(r => {
         if (!inWin(r.Date)) return false;
         if (S.jobType && jobTypeOfClosing(r) !== S.jobType) return false;
+        if (!boOk(r["Request Joinkey"])) return false;
         if (S.sp && !(hasCredit ? soldBy(r["Request Joinkey"], S.sp) : r["Sales Person"] === S.sp)) return false;
         if (S.fm && r.Foreman !== S.fm) return false;
         return true;
@@ -364,10 +377,10 @@ registerPage({
         const win = d => { const v = String(d || "").slice(0, 10); return v && v >= f && v <= t; };
         const spOk = r => !S.sp || (hasCredit ? soldBy(r["Request Joinkey"], S.sp) : r["Sales Person"] === S.sp);
         const c = claimsAll.filter(r => win(r["Created Date"])
-          && (!S.jobType || r["Job Type"] === S.jobType)
+          && (!S.jobType || r["Job Type"] === S.jobType) && boOk(r["Request Joinkey"])
           && spOk(r) && (!S.fm || r.Foreman === S.fm)).length;
         const j = new Set(closing.filter(r => win(r.Date)
-          && (!S.jobType || jobTypeOfClosing(r) === S.jobType)
+          && (!S.jobType || jobTypeOfClosing(r) === S.jobType) && boOk(r["Request Joinkey"])
           && spOk(r) && (!S.fm || r.Foreman === S.fm)).map(r => r["Request Joinkey"]).filter(Boolean)).size;
         return j ? { rate: c / j * 100, claims: c, jobs: j } : null;
       }
@@ -1047,6 +1060,15 @@ registerPage({
       bar.appendChild(fld("Job type", seg([["", "All"], ["Local", "Local"],
         ["Long distance", "Long distance"]], S.jobType, v => { S.jobType = v; })));
 
+      // 2b. branch owner -- a job set the closing names, so it moves both sides of the rate
+      if (BO_NAMES.length) {
+        const boH = holder(); bar.appendChild(boH);
+        if (window.RSC && RSC.localSelect) {
+          RSC.localSelect(boH, { label: "Branch owner", values: BO_NAMES, value: S.bo, allLabel: "All",
+            onChange: v => { S.bo = v; S.page = 0; S.openSp = ""; S.openFm = ""; paint(); } });
+        }
+      }
+
       // 3-4. the people. Names come from the CLOSINGS in the window, not from the claims, so
       // the list is every person who could have a rate -- including those with no claim at all.
       const names = (rows, key) => {
@@ -1101,12 +1123,12 @@ registerPage({
         qTimer = setTimeout(() => { S.q = q.value; S.page = 0; S._focus = 1; paint(); }, 300); };
       bar.appendChild(q);
 
-      if (S.from !== back(6) || S.to !== iso(today) || S.jobType || S.sp || S.fm || S.resp || S.extra || S.q) {
+      if (S.from !== back(6) || S.to !== iso(today) || S.jobType || S.bo || S.sp || S.fm || S.resp || S.extra || S.q) {
         const clear = document.createElement("button");
         clear.className = "rs-btn"; clear.textContent = "Clear";
         clear.style.marginBottom = "1px";
         clear.onclick = () => {
-          S.from = back(6); S.to = iso(today); S.jobType = ""; S.sp = ""; S.fm = "";
+          S.from = back(6); S.to = iso(today); S.jobType = ""; S.bo = ""; S.sp = ""; S.fm = "";
           S.resp = ""; S.extra = ""; S.q = ""; S.page = 0; S.openSp = ""; S.openFm = "";
           paint();
         };
