@@ -952,10 +952,25 @@ registerPage({
          12" printed under them, 14 of 17 salespeople and 24 of 34 foremen -- whatever the screen had
          paged or folded away). For the print the page is painted once more with every row, the
          snapshot is taken from that, and the screen goes back to how the reader left it. */
+      /* THREE GROUPINGS ON PAPER, NOT ONE (2026-10-01, the Kolbaia meeting: "claims statistics --
+         quantitatively long / local, what problems it had"). On screen the pivot shows one grouping at
+         a time; a PDF has no switch, so it carries the reason families, Local vs Long distance (with
+         its rate) and whose fault, each painted from the same filtered claims. */
+      const PRINT_DIMS = [["Family", "By reason"], ["Job type", "Local vs Long distance"], ["Responsibility", "By whose fault"]];
       if (pdfBtn) pdfBtn.onclick = () => {
-        const keep = { page: S.page, pageSize: S.pageSize, allSp: S.allSp, allFm: S.allFm, openSp: S.openSp, openFm: S.openFm };
+        const keep = { page: S.page, pageSize: S.pageSize, allSp: S.allSp, allFm: S.allFm, openSp: S.openSp, openFm: S.openFm, dim: S.dim };
         Object.assign(S, { page: 0, pageSize: 1e6, allSp: 1, allFm: 1, openSp: "", openFm: "" });
-        paint();
+        const snaps = PRINT_DIMS.map(([d, label]) => {
+          S.dim = d; paint();
+          const el = host.querySelector("#clnPnlSources").cloneNode(true);
+          el.id = "clnPrintSrc" + PRINT_DIMS.findIndex(x => x[0] === d);
+          const t = el.querySelector(".panel-title"); if (t) t.textContent = label;
+          return el;
+        });
+        S.dim = keep.dim; paint();
+        const live = host.querySelector("#clnPnlSources");
+        snaps.forEach(el => live.parentNode.insertBefore(el, live));
+        live.remove();
         try { printNow(); } finally { Object.assign(S, keep); paint(); }
       };
       const printNow = () => RSC.printView({
@@ -972,7 +987,7 @@ registerPage({
         // happens, then what it is about, then who, then the cases themselves.
         pages: [
           { title: "The rate, and where it is going", sel: ".cln-hero" },
-          { title: "What the claims are about", sel: "#clnPnlSources" },
+          { title: "What the claims are about", sel: "#clnPrintSrc0, #clnPrintSrc1, #clnPrintSrc2, #clnPnlSources" },
           // one panel per sheet: the two together measured 417mm against ~186mm of usable
           // A4 landscape, so they printed as one heading followed by an orphaned page
           { title: "By salesperson", sel: "#clnPnlSp" },

@@ -248,7 +248,8 @@ registerPage({
           && (!S.st || CLSTATE[String(r["Request Joinkey"] || "").trim()] === S.st)
           && hit(r, ["Customer", "Reason", "Status", "Responsibility", "Foreman", "Request No"])),
         // the undated-removed bucket a year filter silently drops — surfaced, not hidden
-        nrUndated: S.year ? nrAll.filter(r => !String(r["Written Date"] || "").trim()).length : 0,
+        nrUndated: S.year ? nrAll.filter(r => !String(r["Written Date"] || "").trim()
+          && (!S.st || listingState(r.Source) === S.st)).length : 0,
       };
     }
 

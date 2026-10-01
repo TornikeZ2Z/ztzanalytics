@@ -973,10 +973,11 @@ window.RSC = (function () {
         svg{max-width:100%;height:auto}
         .pv-foot{margin-top:14px;padding-top:8px;border-top:1px solid #DCDEE3;
           font-size:9px;color:#9A9EA8;text-transform:uppercase;letter-spacing:.08em}
-        /* ONE THEME PER SHEET. break-after on every page but the last, and a min-height so a
-           short theme still reads as a full page rather than a stripe at the top of one. */
-        .pv-page{break-after:page;page-break-after:always;min-height:172mm;
-          padding-bottom:8mm}
+        /* ONE THEME PER SHEET: break-after on every page but the last. (There was a 172mm
+           min-height too; on the first sheet the title block sits above it, so the section ran
+           past the page and printed a blank sheet after it -- 2026-10-01. The break alone already
+           starts every theme on a fresh page.) */
+        .pv-page{break-after:page;page-break-after:always;padding-bottom:8mm}
         .pv-page:last-of-type{break-after:auto;page-break-after:auto;min-height:0}
         .pv-page > h2{font-size:13px;text-transform:uppercase;letter-spacing:.09em;
           color:#16181D;margin:0 0 12px;padding-bottom:6px;border-bottom:1px solid #DCDEE3}
