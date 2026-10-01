@@ -925,7 +925,8 @@ registerPage({
               <td class="nowrap">${esc(String(r["Created Date"] || "").slice(0, 10))}</td>
               <td class="strong">${esc(r.Customer || "—")}</td>
               ${(() => { const k = kwOf(r), o = ovOf(r); const fam = famOf(r);
-                const why = o ? "corrected by " + (o["Entered By"] || "") : (r.Reason ? r.Reason : (k && k["Keyword Family"] !== "No keywords" ? "words: " + String(k["Matched Keywords"] || "").split(", ").slice(0, 3).join(", ") : ""));
+                const why = o ? "corrected by " + (o["Entered By"] || "") : (r.Reason ? r.Reason : (k && k["Keyword Family"] !== "No keywords"
+                  ? (S._print ? "read from the thread" : "words: " + String(k["Matched Keywords"] || "").split(", ").slice(0, 3).join(", ")) : ""));
                 const sig = k ? [["Legal", "bad"], ["Dispute", "bad"], ["Review", "warn"], ["Refund", ""], ["Discount", ""], ["Photos", "mute"]]
                   .filter(([f]) => num(k["Mentions " + f]) > 0).map(([f, c]) => `<span class="rs-pill ${c}">${f.toLowerCase()}</span>`).join(" ") : "";
                 return `<td>${o ? '<span class="rs-pill ok">✓</span> ' : ""}<b>${esc(fam || "—")}</b>${why ? ` <span class="cln-small">· ${esc(why)}</span>` : ""}</td>${nKW ? `<td>${sig || '<span class="cln-small">—</span>'}</td>` : ""}`; })()}
@@ -959,7 +960,7 @@ registerPage({
       const PRINT_DIMS = [["Family", "By reason"], ["Job type", "Local vs Long distance"], ["Responsibility", "By whose fault"]];
       if (pdfBtn) pdfBtn.onclick = () => {
         const keep = { page: S.page, pageSize: S.pageSize, allSp: S.allSp, allFm: S.allFm, openSp: S.openSp, openFm: S.openFm, dim: S.dim };
-        Object.assign(S, { page: 0, pageSize: 1e6, allSp: 1, allFm: 1, openSp: "", openFm: "" });
+        Object.assign(S, { page: 0, pageSize: 1e6, allSp: 1, allFm: 1, openSp: "", openFm: "", _print: 1 });
         const snaps = PRINT_DIMS.map(([d, label]) => {
           S.dim = d; paint();
           const el = host.querySelector("#clnPnlSources").cloneNode(true);
@@ -971,10 +972,11 @@ registerPage({
         const live = host.querySelector("#clnPnlSources");
         snaps.forEach(el => live.parentNode.insertBefore(el, live));
         live.remove();
-        try { printNow(); } finally { Object.assign(S, keep); paint(); }
+        try { printNow(); } finally { Object.assign(S, keep, { _print: 0 }); paint(); }
       };
       const printNow = () => RSC.printView({
         host,
+        pack: true,
         title: "Claims Analysis",
         // built from its own classes rather than the kit, so the PDF needs its CSS
         pageCss: "cln-style",
@@ -982,7 +984,7 @@ registerPage({
         note: "Every per-person number is the share of that person's own jobs in this window "
             + "that drew a claim \u2014 never a count. Where a filter exists only on the claim, "
             + "the rate is withheld rather than guessed.",
-        drop: [".cln-bar", ".cln-pdf", ".cln-drawer", ".cln-pager", ".cln-click", "details", "#clnDl"],
+        drop: [".cln-bar", ".cln-pdf", ".cln-drawer", ".cln-pager", ".cln-click", "details", "#clnDl", ".cln-say", ".cln-cx"],
         // ONE THEME PER SHEET, in the order somebody reads the argument: how often it
         // happens, then what it is about, then who, then the cases themselves.
         pages: [

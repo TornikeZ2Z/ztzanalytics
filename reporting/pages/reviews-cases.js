@@ -459,9 +459,12 @@ registerPage({
           <div class="panel" id="rvcPnlFault">
             <div class="panel-head"><div class="panel-title">Whose fault, per the board</div></div>
             ${cl.length ? shareRows(respRows.map(([k, n]) => [k, n, ""]), cl.length, "warn") : ""}
-            <div class="rvc-note">Not attributed dominates — the board's Responsibility column
-              is filled on roughly a quarter of claims. Worth an ask to the claims owner if
-              this cut matters.</div>
+            <div class="rvc-note">${(() => { /* said from the data: the old fixed sentence
+              ("not attributed dominates") was false for Connecticut, where it is filled on most */
+              const na = cl.filter(r => !String(r.Responsibility || "").trim()).length;
+              return na > cl.length / 2
+                ? "Not attributed dominates — the board's Responsibility column is empty on " + fmtN(na) + " of " + fmtN(cl.length) + " claims. Worth an ask to the claims owner if this cut matters."
+                : "The board names a responsibility on " + fmtN(cl.length - na) + " of " + fmtN(cl.length) + " claims."; })()}</div>
           </div>
         </div>
 
@@ -523,6 +526,7 @@ registerPage({
       };
       const printNow = () => RSC.printView({
         host,
+        pack: true,
         title: "Claims & Negative Reviews",
         // built from its own classes rather than the kit, so the PDF needs its CSS
         pageCss: "rvc-style",
@@ -532,7 +536,7 @@ registerPage({
         note: "Both boards read whole; the year filter is applied here, not in the warehouse. "
             + "A review or claim with no date sits outside every year and is counted separately. "
             + "Matching between the two boards is by request number first, customer name as fallback.",
-        drop: [".rvc-bar", ".rvc-pdf", ".rvc-pager", "[data-dl]"],
+        drop: [".rvc-bar", ".rvc-pdf", ".rvc-pager", "[data-dl]", ".rvc-note"],
         // ONE THEME PER SHEET: the headline counts, then the two boards' own shapes, then
         // where they meet, then the cases behind them.
         pages: [

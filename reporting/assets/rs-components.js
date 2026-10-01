@@ -968,7 +968,7 @@ window.RSC = (function () {
         thead{display:table-header-group}
         tfoot{display:table-footer-group}
         .rs-pill{display:inline-block;border:1px solid #DCDEE3;border-radius:99px;
-          padding:1px 7px;font-size:9px}
+          padding:1px 7px;font-size:9px;white-space:nowrap}
         .dim,.muted{color:#9A9EA8}
         svg{max-width:100%;height:auto}
         .pv-foot{margin-top:14px;padding-top:8px;border-top:1px solid #DCDEE3;
@@ -986,7 +986,19 @@ window.RSC = (function () {
            and the rows at the bottom are simply gone */
         .pv-page .panel{break-inside:auto}
         .pv-page .rs-kpis{break-inside:avoid}
-      </style></head><body>
+        /* PACKED (cfg.pack, his review 2026-10-01: "too much empty paper"). Themes flow one after
+           another instead of each taking a sheet; a heading never ends a page; a panel short enough
+           to fit stays whole, and only a long one (12+ rows) splits, row by row. */
+        .pv-pack .pv-page{break-after:auto;page-break-after:auto;padding-bottom:5mm}
+        .pv-pack .pv-page > h2{break-after:avoid;page-break-after:avoid;margin-top:4mm}
+        .pv-pack .pv-page .panel{break-inside:avoid;page-break-inside:avoid}
+        .pv-pack .pv-page .panel:has(tbody tr:nth-child(12)){break-inside:auto;page-break-inside:auto}
+        .pv-pack tr{break-inside:avoid;page-break-inside:avoid}
+        /* and dense: on paper a row needs a line, not the screen's touch target */
+        .pv-pack .rs-table th,.pv-pack .rs-table td,.pv-pack table th,.pv-pack table td{padding-top:3px !important;padding-bottom:3px !important;line-height:1.3}
+        .pv-pack .panel{margin-top:8px !important}
+        .pv-pack .panel-head{padding-top:6px !important;padding-bottom:6px !important}
+      </style></head><body${cfg.pack ? ' class="pv-pack"' : ""}>
       <div class="pv-head">
         <span class="when">${esc2(when)}</span>
         <h1>${esc2(cfg.title || "Report")}</h1>
