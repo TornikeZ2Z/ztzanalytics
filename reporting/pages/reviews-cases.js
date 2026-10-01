@@ -34,7 +34,7 @@
     if (!RS.DATASETS.claim_links) {
       RS.DATASETS.claim_links = {
         table: "mart_claims_analysis",
-        cols: ["Monday Item Id", "Request Joinkey", "Monday Url"],
+        cols: ["Monday Item Id", "Request Joinkey", "Monday Url", "State"],
       };
     }
     if (!RS.DATASETS.claims_cases) {
@@ -102,9 +102,29 @@ registerPage({
     host.innerHTML = `<div class="rs-page-head"><h1>Claims &amp; Negative Reviews</h1></div>
       <div class="rs-loading" style="padding:22px">Reading both boards…</div>`;
 
-    const [nrAll, clAll, clLinks] = await Promise.all([
+    const [nrAll, clAll, clLinks, rcAll] = await Promise.all([
       RS.load("negative_reviews_cases"), RS.load("claims_cases"),
-      RS.load("claim_links").catch(() => [])]);
+      RS.load("claim_links").catch(() => []), RS.load("review_counts").catch(() => [])]);
+    /* BY STATE (Sopho's half of the Kolbaia meeting, 2026-10-01: "CT statistics, how many we had
+       and how many were added, by platform, positive and negative"). A listing's state is in its
+       name (Google CT, Yelp Ct, Nextdoor Ct; Shafto is the NJ office, Boston is MA, Tuji is DE);
+       a listing with no state in its name (Birdeye, Angi, Google Local...) belongs to none. A
+       claim's state is its JOB's state, read off Claims Analysis's mart. */
+    const STATES = ["NJ", "PA", "NY", "CT", "MA", "DE", "MD", "VA"];
+    const ST_FULL = { "New Jersey": "NJ", "Pennsylvania": "PA", "New York": "NY", "Connecticut": "CT",
+                      "Massachusetts": "MA", "Delaware": "DE", "Maryland": "MD", "Virginia": "VA" };
+    const listingState = raw => {
+      const w = String(raw || "").trim().toLowerCase().split(/\s+/);
+      const last = w[w.length - 1] || "";
+      if (STATES.includes(last.toUpperCase()) && w.length > 1) return last.toUpperCase();
+      if (w.includes("shafto") || w.includes("sahfto")) return "NJ";
+      if (w.includes("boston")) return "MA";
+      if (w.includes("tuji")) return "DE";
+      return "";
+    };
+    const CLSTATE = {};
+    (clLinks || []).forEach(r => { const jk = String(r["Request Joinkey"] || "").trim(), st = ST_FULL[r.State];
+      if (jk && st) CLSTATE[jk] = st; });
     // the board link, keyed by the item the claim already carries
     const URLBY = {};
     (clLinks || []).forEach(r => { const k = String(r["Monday Item Id"] || "");
@@ -151,7 +171,7 @@ registerPage({
         .filter(y => /^\d{4}$/.test(y)))].sort();
 
     const S = { year: years.includes("2026") ? "2026" : (years[years.length - 1] || ""),
-                q: "", nrPage: 0, clPage: 0, pageSize: 25 };
+                st: "", q: "", nrPage: 0, clPage: 0, pageSize: 25 };
     let qTimer = null;
 
     /* claims indexed once, all-time — the overlap question is "did this reviewer EVER
@@ -221,13 +241,45 @@ registerPage({
       const hit = (r, fields) => !q ||
         fields.some(f => String(r[f] || "").toLowerCase().includes(q));
       return {
-        nr: nrAll.filter(r => inYear(r["Written Date"])
+        nr: nrAll.filter(r => inYear(r["Written Date"]) && (!S.st || listingState(r.Source) === S.st)
           && hit(r, ["Customer", "Source", "Status", "Case Owner", "Request No"])),
         cl: clAll.filter(r => inYear(r["Created Date"])
+          && (!S.st || CLSTATE[String(r["Request Joinkey"] || "").trim()] === S.st)
           && hit(r, ["Customer", "Reason", "Status", "Responsibility", "Foreman", "Request No"])),
         // the undated-removed bucket a year filter silently drops — surfaced, not hidden
         nrUndated: S.year ? nrAll.filter(r => !String(r["Written Date"] || "").trim()).length : 0,
       };
+    }
+
+    /* PUBLIC REVIEWS BY LISTING. Each listing's running total, as the review-counts sheet records
+       it month by month (RS.reviewFlow, the portal-wide rule): a rise is reviews added, a fall is
+       reviews the platform removed, and a collapse of 30%+ (20 reviews or more) is the platform
+       RECOUNTING the listing -- neither. The climb straight back after a recount is the same
+       recount undoing itself (Google CT 243 -> 6 -> 261, summer 2025), so it is not "added" either. */
+    const FLOW = RS.reviewFlow ? RS.reviewFlow(rcAll || []) : null;
+    function listingRows() {
+      if (!FLOW) return [];
+      const from = S.year ? S.year + "-01" : "0000-00", to = S.year ? S.year + "-12" : "9999-99";
+      const out = [];
+      Object.values(FLOW.byPlat).forEach(g => {
+        const st = listingState(g.label);
+        if (S.st && st !== S.st) return;
+        const yms = Object.keys(g.steps).sort();
+        let start = null, end = null, added = 0, removed = 0, recount = 0, prevReset = 0, any = false;
+        yms.forEach(ym => { const x = g.steps[ym];
+          if (ym >= from && ym <= to && x.from != null) {
+            any = true;
+            if (start == null) start = x.from;
+            end = x.level;
+            const back = prevReset ? Math.min(x.added, prevReset) : 0;
+            added += x.added - back; recount += back + x.reset; removed += x.removed;
+          }
+          prevReset = x.reset; });
+        if (!any) return;
+        out.push({ label: g.label + (g.company && g.company !== "Zip to Zip" ? " (" + g.company + ")" : ""),
+                   st, start, end, added, removed, recount });
+      });
+      return out.sort((a, b) => (b.end || 0) - (a.end || 0));
     }
 
     function shareRows(counts, total, cls) {
@@ -297,6 +349,9 @@ registerPage({
       const kpi = (l, v, s, cls) => `<div class="kpi ${cls || ""}">
         <div class="l">${l}</div><div class="v">${v}</div><div class="s">${s || ""}</div></div>`;
       const yearLabel = S.year || "all years";
+      const LST = listingRows();
+      const lsum = k => LST.reduce((a, r) => a + (r[k] || 0), 0);
+      const lastSnap = FLOW && FLOW.months.length ? FLOW.months[FLOW.months.length - 1] : "";
 
       const nrPageRows = nr.slice(S.nrPage * S.pageSize, (S.nrPage + 1) * S.pageSize);
       const clPageRows = cl.slice(S.clPage * S.pageSize, (S.clPage + 1) * S.pageSize);
@@ -330,6 +385,25 @@ registerPage({
             fmtN(nrMatched.length) + " of " + fmtN(nr.length) + " ever filed a claim", "warn")}
           ${kpi("Claims that turned public", pct(clMatched.length, cl.length),
             fmtN(clMatched.length) + " have a negative review")}
+        </div>
+
+        <div class="panel" id="rvcPnlListings">
+          <div class="panel-head"><div class="panel-title">Public reviews by listing${S.st ? " — " + esc(S.st) : ""}</div>
+            <div class="rs-spacer"></div><span class="rs-pill">+${fmtN(lsum("added"))} added · −${fmtN(lsum("removed"))} removed</span></div>
+          ${LST.length ? `<div class="rs-tablewrap"><table class="rs-table">
+            <thead><tr><th>Listing</th><th class="num">On file at the start</th><th class="num">On file now</th>
+              <th class="num">Added</th><th class="num">Removed by the platform</th><th class="num">Recounted</th></tr></thead>
+            <tbody>${LST.map(r => `<tr><td class="strong">${esc(r.label)}</td>
+              <td class="num">${r.start == null ? "—" : fmtN(r.start)}</td><td class="num">${r.end == null ? "—" : fmtN(r.end)}</td>
+              <td class="num">${r.added ? "+" + fmtN(r.added) : "—"}</td><td class="num">${r.removed ? "−" + fmtN(r.removed) : "—"}</td>
+              <td class="num muted">${r.recount ? fmtN(r.recount) : "—"}</td></tr>`).join("")}</tbody>
+            <tfoot><tr><td>${fmtN(LST.length)} listings</td><td class="num">${fmtN(lsum("start"))}</td><td class="num">${fmtN(lsum("end"))}</td>
+              <td class="num">+${fmtN(lsum("added"))}</td><td class="num">−${fmtN(lsum("removed"))}</td><td class="num muted">${fmtN(lsum("recount"))}</td></tr></tfoot>
+            </table></div>` : '<p class="rs-hint">No listing counts for this window.</p>'}
+          <div class="rvc-note">Every listing's total as the review-counts sheet records it each month${lastSnap ? " (latest " + esc(lastSnap) + ")" : ""}.
+            Added = the rises, positive and negative alike; the negative ones are the cases below. Removed = falls.
+            Recounted = a platform resetting the listing and its rebound, counted as neither.
+            ${S.st ? "A listing with no state in its name (Birdeye, Angi, Google Local…) is in no state." : ""}</div>
         </div>
 
         <div class="rs-grid2 rvc-grid">
@@ -442,7 +516,7 @@ registerPage({
         // built from its own classes rather than the kit, so the PDF needs its CSS
         pageCss: "rvc-style",
         // the PDF's reader has no filter bar, so the window is stated in words
-        subtitle: (S.year ? S.year : "all years")
+        subtitle: (S.year ? S.year : "all years") + (S.st ? " · " + S.st : "")
                 + (S.q.trim() ? ` · search "${S.q.trim()}"` : " · no search"),
         note: "Both boards read whole; the year filter is applied here, not in the warehouse. "
             + "A review or claim with no date sits outside every year and is counted separately. "
@@ -452,6 +526,7 @@ registerPage({
         // where they meet, then the cases behind them.
         pages: [
           { title: "The headline", sel: ".rs-kpis" },
+          { title: "Public reviews by listing", sel: "#rvcPnlListings" },
           { title: "Where they complain, and why they claim", sel: "#rvcPnlWhere, #rvcPnlWhy" },
           { title: "The overlap, and whose fault the board says it is", sel: "#rvcPnlOverlap, #rvcPnlFault" },
           { title: "Negative reviews — the cases", sel: "#rvcPnlNr" },
@@ -511,6 +586,21 @@ registerPage({
       wrap.innerHTML = "<span>Year</span>";
       wrap.appendChild(seg);
       bar.appendChild(wrap);
+
+      const sseg = document.createElement("div");
+      sseg.className = "rs-seg";
+      [""].concat(STATES).forEach(st => {
+        const b = document.createElement("button");
+        b.textContent = st || "All";
+        if (S.st === st) b.className = "on";
+        b.onclick = () => { if (S.st !== st) { S.st = st; S.nrPage = S.clPage = 0; paint(); } };
+        sseg.appendChild(b);
+      });
+      const swrap = document.createElement("div");
+      swrap.className = "rs-fld";
+      swrap.innerHTML = "<span>State</span>";
+      swrap.appendChild(sseg);
+      bar.appendChild(swrap);
 
       const q = document.createElement("input");
       q.className = "rvc-in"; q.placeholder = "find a customer, reason, platform…";
