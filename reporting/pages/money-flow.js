@@ -106,6 +106,8 @@ registerPage({
         .mf-tbl .mf-fmrow td{background:var(--panel-2);font-weight:800;font-size:14.5px}
         .mf-confirm{font:inherit;font-size:13.5px;font-weight:800;background:${POS};color:#fff;border:0;border-radius:9px;padding:8px 14px;cursor:pointer;white-space:nowrap}
         .mf-confirm:hover{filter:brightness(1.08)}
+        .mf-confirm.mf-manual{background:transparent;color:${POS};box-shadow:inset 0 0 0 1.5px ${POS}}
+        .mf-mwhy{font-size:12px;line-height:1.45;color:var(--ink);background:var(--panel-2);border-left:3px solid ${POS};border-radius:6px;padding:8px 10px;margin:0 0 10px}
         .mf-pill{display:inline-block;font-size:12px;font-weight:800;padding:3px 10px;border-radius:999px;white-space:nowrap}
         .mf-st-rec{background:rgba(28,122,74,.13);color:${POS}}
         .mf-st-con{background:rgba(47,111,208,.12);color:${BLUE}}
@@ -413,6 +415,22 @@ registerPage({
       _ov = null;   // data changed — recompute the overlay on the next paint
     }
 
+    /* WHY A SAVE FAILED, in words (his ask 2026-10-01: "we need proper error messages if something we
+       know causes it"). The causes we know get a sentence that says what to do; anything else keeps the
+       server's own words. */
+    function saveError(res, j) {
+      var code = res ? res.status : 0, msg = (j && j.error) || "";
+      if (code === 401) return "Your sign-in has expired. Reload the page and sign in again — nothing was saved for this job.";
+      if (code === 403) return "Your account is not allowed to record Money Flow. Ask Tornike for access.";
+      if (code === 409) return "Someone changed this job a moment ago. Close this window, press Refresh, and try again.";
+      if (/amount must be positive/i.test(msg)) return "Enter the amount without a minus sign — choose \"Cash Taken Away from Base\" for money he took.";
+      if (/amount must be a number/i.test(msg)) return "The amount is not a number.";
+      if (/over \$1M/i.test(msg)) return "That amount looks wrong (over $1,000,000). Check the number.";
+      if (/event_id or job_code required/i.test(msg)) return "This row has no job code or calendar event, so it cannot be saved. Tell Tornike which job it is.";
+      if (code >= 500 || !code) return "The server did not answer (" + (msg || ("HTTP " + code)) + "). Wait a minute and try again.";
+      return msg || ("HTTP " + code);
+    }
+
     async function loadLive(fresh) {
       try {
         var r = await fetch(ZTZ.API + "/api/_mf" + (fresh ? "?fresh=1" : ""),
@@ -615,8 +633,11 @@ registerPage({
         if (r.status === "Money Received") return '<span class="mf-pill mf-st-rec">✓ Confirmed</span>';
         if (r.status === "Missing Closing")
           return '<span class="mf-pill mf-st-nnc" title="This event has no closing-sheet entry of its own — it points at another leg’s closing. File the closing for this job, or remove the extra calendar event.">File the closing</span>';
+        /* "HE COULD NOT CLICK CONFIRM" (Irakli, 2026-10-01). A job with no contract had no button at
+           all -- a grey "No Contract" label whose only explanation was a hover tooltip. Now it is a
+           button that says what to do, and the popup it opens says why there is no amount. */
         if (r.status === "Contract Not Received")
-          return '<span class="mf-pill mf-st-con" title="No contract amount yet — click the row and enter the cash manually">No Contract</span>';
+          return '<button class="mf-confirm mf-manual" data-mfc="' + esc(r.ev) + '" title="No contract in the contract system yet, so there is no amount to confirm. Enter the cash by hand.">Enter cash</button>';
         return '<button class="mf-confirm" data-mfc="' + esc(r.ev) + '">Confirm ' + money(settle(r).type === "Cash Taken Away from Base" ? -settle(r).amount : settle(r).amount) + "</button>";
       };
       var docCell = function (r) {
@@ -928,7 +949,7 @@ registerPage({
                                      customer: r.customer || "", forman: r.formanEmail || "" }),
             });
             var j = await res.json().catch(function () { return {}; });
-            if (!res.ok || !j.ok) throw new Error((r.customer || r.ev) + ": " + (j.error || ("HTTP " + res.status)));
+            if (!res.ok || !j.ok) throw new Error((r.customer || r.ev) + ": " + saveError(res, j));
             saved++; delete S.sel[r.ev];
             patchLive(r.ev, p.type, p.amount);              // instant local truth
           }
@@ -1212,6 +1233,10 @@ registerPage({
         + '<div class="mf-mhead"><b>' + esc(r.customer || "—") + "</b><div>"
         + esc(r.jobNo || "") + " · " + esc(r.forman) + " · " + fmtD(r.date) + "</div></div>"
         + '<div class="mf-mbody">'
+        + (r.status === "Contract Not Received" || r.expected == null
+            ? '<div class="mf-mwhy"><b>No contract for this job yet.</b> The foreman has not submitted the digital contract, so there is no Net Cash to confirm against. Enter the cash he brought (or took) by hand below; the balance is worked out once the contract arrives.</div>' : "")
+        + (r.status === "Missing Closing"
+            ? '<div class="mf-mwhy"><b>This job has no closing of its own.</b> The calendar event points at another leg’s closing. File the closing for this job, or remove the extra calendar event — until then the amount here may belong to a different leg.</div>' : "")
         + '<div class="mf-ro"><span>Net Cash</span><b>' + money2(r.expected)
         + (r.contractUrl ? ' <a class="mf-doc" href="' + esc(r.contractUrl) + '" target="_blank" rel="noopener">contract ↗</a>' : "")
         + (calUrl(r) ? ' <a class="mf-doc" href="' + esc(calUrl(r))
@@ -1353,7 +1378,7 @@ registerPage({
               body: JSON.stringify(body),
             });
             var j = await res.json().catch(function () { return {}; });
-            if (!res.ok || !j.ok) throw new Error(j.error || ("HTTP " + res.status));
+            if (!res.ok || !j.ok) throw new Error(saveError(res, j));
             saved++;
             patchLive(ev, body.entry_type, body.amount);   // instant local truth
           }
@@ -1365,7 +1390,9 @@ registerPage({
           // each POST commits on its own — never claim "nothing recorded" if some landed
           var state = saved ? "Saved " + saved + " of " + posts.length + " changes, then failed"
                             : "Nothing was recorded";
-          errEl.innerHTML = '<div class="mf-merr">Couldn’t finish saving (' + esc(String(err && err.message || err)) + "). " + state + " — press Save to try the rest again.</div>";
+          var why = String(err && err.message || err);
+          if (/Failed to fetch|NetworkError|Load failed/i.test(why)) why = "No connection to the server — check the internet and try again.";
+          errEl.innerHTML = '<div class="mf-merr">' + esc(why) + " " + state + (saved ? " — press Save to try the rest again." : ".") + "</div>";
           if (saved) { loadLive(true).then(function () { setLiveBadge(); }); }
         }
       };
