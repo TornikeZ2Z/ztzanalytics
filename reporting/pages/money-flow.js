@@ -977,8 +977,11 @@ registerPage({
           loadLive(true).then(function () { setLiveBadge(); paint(); });  // silent reconcile
         } catch (err) {
           btn.disabled = false; btn.textContent = "Confirm all";
-          errEl.innerHTML = '<div class="mf-merr">Saved ' + saved + " of " + jobs.length + ", then failed ("
-            + esc(String(err && err.message || err)) + "). The saved ones are recorded — press Confirm all to retry the rest.</div>";
+          var why = String(err && err.message || err);
+          if (/Failed to fetch|NetworkError|Load failed/i.test(why)) why = "No connection to the server — check the internet and try again.";
+          errEl.innerHTML = '<div class="mf-merr">' + (saved
+            ? "Saved " + saved + " of " + jobs.length + ", then failed (" + esc(why) + "). The saved ones are recorded — press Confirm all to retry the rest."
+            : esc(why) + " Nothing was recorded — press Confirm all to try again.") + "</div>";
           loadLive(true).then(function () { setLiveBadge(); });
         }
       };
