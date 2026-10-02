@@ -420,7 +420,7 @@ registerPage({
        server's own words. */
     function saveError(res, j) {
       var code = res ? res.status : 0, msg = (j && j.error) || "";
-      if (code === 401) return "Your sign-in has expired. Reload the page and sign in again — nothing was saved for this job.";
+      if (code === 401) return "Your sign-in has expired. Reload the page and sign in again.";
       if (code === 403) return "Your account is not allowed to record Money Flow. Ask Tornike for access.";
       if (code === 409) return "Someone changed this job a moment ago. Close this window, press Refresh, and try again.";
       if (/amount must be positive/i.test(msg)) return "Enter the amount without a minus sign — choose \"Cash Taken Away from Base\" for money he took.";
@@ -429,6 +429,25 @@ registerPage({
       if (/event_id or job_code required/i.test(msg)) return "This row has no job code or calendar event, so it cannot be saved. Tell Tornike which job it is.";
       if (code >= 500 || !code) return "The server did not answer (" + (msg || ("HTTP " + code)) + "). Wait a minute and try again.";
       return msg || ("HTTP " + code);
+    }
+
+    /* A FAILURE INSIDE A POPUP IS SHOWN IN THE POPUP. Any exception the page itself throws while
+       a Money Flow popup is open (a bug like the one above, not a server answer -- those have their
+       own words in saveError) lands in that popup's error line, with the Save button released. */
+    if (!window.__MF_ERR_HOOK) {
+      window.__MF_ERR_HOOK = true;
+      var showPageErr = function (msg) {
+        var host2 = document.getElementById("mfModalHost");
+        if (!host2 || !host2.firstChild) return;
+        var el = host2.querySelector("#mfMErr");
+        if (el) el.innerHTML = '<div class="mf-merr">Something went wrong on this page (' + esc(String(msg || "unknown error"))
+          + "). Nothing was saved. Tell Tornike — a screenshot of this message is enough.</div>";
+        Array.prototype.forEach.call(host2.querySelectorAll("button[disabled]"), function (b) {
+          b.disabled = false; if (/Saving/.test(b.textContent)) b.textContent = "Save"; });
+      };
+      window.addEventListener("error", function (e) { showPageErr(e && e.message); });
+      window.addEventListener("unhandledrejection", function (e) {
+        var r = e && e.reason; showPageErr(r && (r.message || r)); });
     }
 
     async function loadLive(fresh) {
@@ -1181,13 +1200,15 @@ registerPage({
             headers: { "Content-Type": "application/json", "Authorization": "Bearer " + ZTZ.getToken() },
             body: JSON.stringify(body),
           });
-          var j = await res.json();
-          if (!res.ok) throw new Error(j && j.error || ("HTTP " + res.status));
+          var j = await res.json().catch(function () { return {}; });
+          if (!res.ok) throw new Error(saveError(res, j));
           S.fines = j;                       // the server returns the whole ledger back
           S.fnx[body.foreman] = true;        // open him up so the new row is visible
           close(); paint();
         } catch (ex) {
-          err.textContent = String(ex && ex.message || ex);
+          var why = String(ex && ex.message || ex);
+          if (/Failed to fetch|NetworkError|Load failed/i.test(why)) why = "No connection to the server — check the internet and try again.";
+          err.innerHTML = '<div class="mf-merr">' + esc(why) + " Nothing was recorded.</div>";
           btn.disabled = false; btn.textContent = "Save";
         }
       };
@@ -1336,9 +1357,11 @@ registerPage({
         }
         // the write path is positive-only: direction comes from the TYPE, and the bridge
         // rejects negatives — catch a typed minus here with words, not an HTTP 400
-        // CLEARING a prefilled deduction/advance means "remove it" — record an explicit $0
-        // (last-record-wins), otherwise the deletion is silently dropped
-        if (ded == null && r.ded != null) ded = 0;
+        /* NOTHING SAVED FROM 29 SEP TO 2 OCT. The per-job deduction field left this popup on 29 Sep
+           but this line still read it: `ded` no longer existed, so every Save threw a ReferenceError
+           before the request went out -- inside an async handler, so no message, the button just
+           did nothing ("it is not working", Irakli). The line is gone; lint_undef.mjs now runs on
+           every page before a deploy, and the hook below shows any such failure in the popup. */
         // only what CHANGED gets recorded — an untouched deduction/advance writes nothing
         var posts = [];
         var curFlow = r.flow == null ? null : r.flow;
@@ -1487,16 +1510,17 @@ registerPage({
           headers: { "Content-Type": "application/json", "Authorization": "Bearer " + ZTZ.getToken() },
           body: JSON.stringify({ foreman: name, entry_type: "repayment", amount: owed,
                                  reason: "Paid in full from Balance by Foreman" }),
-        }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+        }).then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { return { ok: r.ok, j: j, r: r }; }); })
           .then(function (res) {
-            if (!res.ok) throw new Error(res.j && res.j.error || "could not record it");
+            if (!res.ok) throw new Error(saveError(res.r, res.j));
             S.fines = res.j;             // the server hands back the whole ledger
             done();
             // the row vanishing IS the confirmation: he owes nothing, so there is
             // nothing left to show under his jobs
             paint();
           })
-          .catch(function (e) { fail(String(e && e.message || e)); });
+          .catch(function (e) { var why = String(e && e.message || e);
+            fail(/Failed to fetch|NetworkError|Load failed/i.test(why) ? "No connection to the server — check the internet and try again." : why); });
         });
       };
       Array.prototype.forEach.call(root.querySelectorAll("[data-mfpaid]"), function (b) {
