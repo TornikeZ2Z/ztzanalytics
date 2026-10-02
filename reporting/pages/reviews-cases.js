@@ -7,7 +7,7 @@
  *
  * THREE DATA TRUTHS THIS PAGE MUST NOT HIDE:
  *  1. 93 of 307 negative reviews have NO Written Date — every one of them Group='Removed'.
- *     A year filter silently drops them, so the page says so out loud instead.
+ *     A date filter silently drops them, so the page says so out loud instead.
  *  2. `Review Score` is a VARCHAR OF EMOJI STARS ('⭐️'..'⭐️⭐️⭐️⭐️', 'Complaint', NULL,
  *     and one '⭐️⭐️, ⭐️' combo) — mapped to numbers here, with the non-star states kept
  *     as their own buckets rather than faked into the average.
@@ -166,13 +166,22 @@ registerPage({
       return s;
     };
 
-    const years = [...new Set(
-      nrAll.map(r => String(r["Written Date"] || "").slice(0, 4))
-        .concat(clAll.map(r => String(r["Created Date"] || "").slice(0, 4)))
-        .filter(y => /^\d{4}$/.test(y)))].sort();
-
-    const S = { year: years.includes("2026") ? "2026" : (years[years.length - 1] || ""),
+    /* FROM - TO (Tornike, 2026-10-02: "add date filter for From - To"). It replaces the three
+       year buttons; "This year" and "Last year" are presets of the same picker, and the page opens
+       on This year as it opened on the current year before. */
+    const _now = new Date();
+    const S = { from: _now.getFullYear() + "-01-01", to: _now.toLocaleDateString("en-CA"),
                 st: "", q: "", nrPage: 0, clPage: 0, pageSize: 25 };
+    const ranged = () => !!(S.from || S.to);
+    function rangeLabel() {
+      const f = S.from || "", t = S.to || "";
+      if (!f && !t) return "all time";
+      const hit = (window.RSC && RSC.datePresets ? RSC.datePresets() : []).find(p => p[1] === f && p[2] === t);
+      if (hit) return hit[0].toLowerCase();
+      const d = x => x ? new Date(x + "T12:00:00").toLocaleDateString("en-US",
+        { month: "short", day: "numeric", year: "numeric" }) : "…";
+      return d(f) + " – " + d(t);
+    }
     let qTimer = null;
 
     /* claims indexed once, all-time — the overlap question is "did this reviewer EVER
@@ -228,27 +237,30 @@ registerPage({
       const blob = new Blob(["\ufeff" + lines.join("\r\n")], { type: "text/csv;charset=utf-8" });
       const a = document.createElement("a");
       a.href = URL.createObjectURL(blob);
-      a.download = name + (S.year ? "-" + S.year : "-all-years") + ".csv";
+      a.download = name + (ranged() ? "-" + (S.from || "start") + "-to-" + (S.to || "today") : "-all-time") + ".csv";
       a.click();
       setTimeout(() => URL.revokeObjectURL(a.href), 2000);
     }
 
-    function inYear(dateStr) {
-      if (!S.year) return true;
-      return String(dateStr || "").slice(0, 4) === S.year;
+    /* a record with no date can't be placed in a range: it drops out, and the KPI counts it */
+    function inRange(dateStr) {
+      if (!ranged()) return true;
+      const d = String(dateStr || "").slice(0, 10);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) return false;
+      return (!S.from || d >= S.from) && (!S.to || d <= S.to);
     }
     function rows() {
       const q = S.q.trim().toLowerCase();
       const hit = (r, fields) => !q ||
         fields.some(f => String(r[f] || "").toLowerCase().includes(q));
       return {
-        nr: nrAll.filter(r => inYear(r["Written Date"]) && (!S.st || listingState(r.Source) === S.st)
+        nr: nrAll.filter(r => inRange(r["Written Date"]) && (!S.st || listingState(r.Source) === S.st)
           && hit(r, ["Customer", "Source", "Status", "Case Owner", "Request No"])),
-        cl: clAll.filter(r => inYear(r["Created Date"])
+        cl: clAll.filter(r => inRange(r["Created Date"])
           && (!S.st || CLSTATE[String(r["Request Joinkey"] || "").trim()] === S.st)
           && hit(r, ["Customer", "Reason", "Status", "Responsibility", "Foreman", "Request No"])),
-        // the undated-removed bucket a year filter silently drops — surfaced, not hidden
-        nrUndated: S.year ? nrAll.filter(r => !String(r["Written Date"] || "").trim()
+        // the undated-removed bucket a date filter silently drops — surfaced, not hidden
+        nrUndated: ranged() ? nrAll.filter(r => !String(r["Written Date"] || "").trim()
           && (!S.st || listingState(r.Source) === S.st)).length : 0,
       };
     }
@@ -261,7 +273,8 @@ registerPage({
     // FLOW is built with the other indexes above, before the first paint() (TDZ)
     function listingRows() {
       if (!FLOW) return [];
-      const from = S.year ? S.year + "-01" : "0000-00", to = S.year ? S.year + "-12" : "9999-99";
+      // the review counts are monthly: a range takes every month it touches
+      const from = S.from ? S.from.slice(0, 7) : "0000-00", to = S.to ? S.to.slice(0, 7) : "9999-99";
       const out = [];
       Object.values(FLOW.byPlat).forEach(g => {
         const st = listingState(g.label);
@@ -350,7 +363,7 @@ registerPage({
 
       const kpi = (l, v, s, cls) => `<div class="kpi ${cls || ""}">
         <div class="l">${l}</div><div class="v">${v}</div><div class="s">${s || ""}</div></div>`;
-      const yearLabel = S.year || "all years";
+      const yearLabel = rangeLabel();
       const LST = listingRows();
       const lsum = k => LST.reduce((a, r) => a + (r[k] || 0), 0);
       const lastSnap = FLOW && FLOW.months.length ? FLOW.months[FLOW.months.length - 1] : "";
@@ -376,7 +389,7 @@ registerPage({
 
         <div class="rs-kpis" style="--kpi-cols:6">
           ${kpi("Negative reviews", fmtN(nr.length), yearLabel +
-            (nrUndated ? " · +" + fmtN(nrUndated) + " undated (removed, outside any year)" : ""))}
+            (nrUndated ? " · +" + fmtN(nrUndated) + " undated (removed, no date to place in the range)" : ""))}
           ${kpi("Still open", fmtN(nr.filter(r => String(r.Group).trim() === "Open").length),
             "the rest are removed / closed", "warn")}
           ${kpi("Claims", fmtN(cl.length), yearLabel)}
@@ -433,7 +446,7 @@ registerPage({
           <div class="panel" id="rvcPnlOverlap">
             <div class="panel-head"><div class="panel-title">The overlap</div></div>
             <p class="rs-hint" style="max-width:64ch">
-              <b>${pct(nrMatched.length, nr.length)}</b> of ${yearLabel}'s negative reviews
+              <b>${pct(nrMatched.length, nr.length)}</b> of the negative reviews in ${yearLabel}
               (${fmtN(nrMatched.length)} of ${fmtN(nr.length)}) were written by customers who
               filed a claim at any point — an unresolved claim is the best predictor of a
               public one-star. The other direction stays small:
@@ -531,10 +544,10 @@ registerPage({
         // built from its own classes rather than the kit, so the PDF needs its CSS
         pageCss: "rvc-style",
         // the PDF's reader has no filter bar, so the window is stated in words
-        subtitle: (S.year ? S.year : "all years") + (S.st ? " · " + S.st : "")
+        subtitle: rangeLabel() + (S.st ? " · " + S.st : "")
                 + (S.q.trim() ? ` · search "${S.q.trim()}"` : " · no search"),
-        note: "Both boards read whole; the year filter is applied here, not in the warehouse. "
-            + "A review or claim with no date sits outside every year and is counted separately. "
+        note: "Both boards read whole; the date filter is applied here, not in the warehouse. "
+            + "A review or claim with no date sits outside every date range and is counted separately. "
             + "Matching between the two boards is by request number first, customer name as fallback.",
         drop: [".rvc-bar", ".rvc-pdf", ".rvc-pager", "[data-dl]", ".rvc-note"],
         // ONE THEME PER SHEET: the headline counts, then the two boards' own shapes, then
@@ -587,20 +600,17 @@ registerPage({
     function mountBar() {
       const bar = host.querySelector("#rvcBar");
       if (!bar) return;
-      const seg = document.createElement("div");
-      seg.className = "rs-seg";
-      years.slice(-3).concat([""]).forEach(y => {
-        const b = document.createElement("button");
-        b.textContent = y || "All years";
-        if (S.year === y) b.className = "on";
-        b.onclick = () => { if (S.year !== y) { S.year = y; S.nrPage = S.clPage = 0; paint(); } };
-        seg.appendChild(b);
-      });
       const wrap = document.createElement("div");
       wrap.className = "rs-fld";
-      wrap.innerHTML = "<span>Year</span>";
-      wrap.appendChild(seg);
+      wrap.innerHTML = "<span>Dates</span>";
       bar.appendChild(wrap);
+      if (window.RSC && RSC.dateRange) {
+        RSC.dateRange(wrap, {
+          get: () => ({ from: S.from, to: S.to }),
+          set: (f, t) => { S.from = f; S.to = t; },
+          onChange: () => { S.nrPage = S.clPage = 0; paint(); },
+        });
+      }
 
       const sseg = document.createElement("div");
       sseg.className = "rs-seg";
