@@ -133,7 +133,8 @@ registerPage({
     const setEx = rows => { EX = {}; (rows || []).forEach(x => { EX[x.job + "|" + x.date] = x; }); };
     setEx(exRes.rows);
     const CAN = !!exRes.can_edit;
-    const isEx = r => !!(EX[r.key] && EX[r.key].excluded);
+    const isEx = r => !!(EX[r.key] && +EX[r.key].excluded === 1);
+    const isOk = r => !!(EX[r.key] && +EX[r.key].excluded === 2);   // a manager said the figures are right
 
     /* ---------------- the four measures ---------------- */
     const M = {
@@ -150,7 +151,14 @@ registerPage({
         el: "Estimated hours", al: "Billed hours",
         what: "The ACT time on the calendar against the hours billed (labor lifted to the job's minimum)." },
     };
-    const ratio = (m, r) => { const e = M[m].est(r), a = M[m].act(r); return (e > 0 && a > 0) ? a / e : null; };
+    const rawRatio = (m, r) => { const e = M[m].est(r), a = M[m].act(r); return (e > 0 && a > 0) ? a / e : null; };
+    /* CHECK THE FIGURES (his call 2026-10-06: "flag, don't drop"). A job 5x off either way on a
+       measure -- 1 item estimated against 40 counted -- is far more likely a typo than an estimate,
+       so it sits on its own list and out of every number until a manager says the figures are
+       right (then it counts) or excludes it. */
+    const LIMIT = 5;
+    const suspect = (m, r) => { const q = rawRatio(m, r); return q != null && (q > LIMIT || q < 1 / LIMIT) && !isOk(r); };
+    const ratio = (m, r) => suspect(m, r) ? null : rawRatio(m, r);
     const band = q => q == null ? null : (Math.max(q, 1 / q) < 1.2 ? 0 : Math.max(q, 1 / q) < 1.5 ? 1 : 2);
     const BANDS = [["ok", "Okay", "within 20%"], ["nm", "Normal", "20–50% off"], ["pr", "Problem", "more than 50% off"]];
 
@@ -190,7 +198,7 @@ registerPage({
       let vol = 0, pace = 0, n = 0;
       const per = [];
       rows.forEach(r => {
-        if (!(r.estH > 0 && r.billH > 0 && r.estCF > 0 && r.realCF > 0)) return;
+        if (!(r.estH > 0 && r.billH > 0 && r.estCF > 0 && r.realCF > 0) || suspect("time", r)) return;
         const exp = r.estH * Math.min(Math.max(r.realCF / r.estCF, 0.2), 5);
         const v = exp - r.estH, p = r.billH - exp;
         vol += v; pace += p; n++; per.push({ r, v, p });
@@ -313,8 +321,9 @@ registerPage({
         return `<div class="eac-dist"><span>${esc(mo)}</span><span class="t"><i style="width:${pr * 100}%;background:var(--neg)"></i></span><span class="v">${Math.round(pr * 100)}% · ${xs.length}</span></div>`; }).join("");
 
       // jobs table
-      const missing = all.filter(r => !isEx(r) && ratio(m, r) == null);
-      let list = S.view === "excluded" ? all.filter(isEx) : S.view === "missing" ? missing : meas;
+      const checks = all.filter(r => !isEx(r) && suspect(m, r));
+      const missing = all.filter(r => !isEx(r) && rawRatio(m, r) == null);
+      let list = S.view === "excluded" ? all.filter(isEx) : S.view === "missing" ? missing : S.view === "check" ? checks : meas;
       if (S.view === "measured" && S.band != null) list = list.filter(r => band(ratio(m, r)) === S.band);
       if (S.q) { const q = S.q.toLowerCase();
         list = list.filter(r => (r.job + " " + r.cust + " " + r.rep + " " + r.fore).toLowerCase().includes(q)); }
@@ -331,9 +340,12 @@ registerPage({
       const fmtV = v => v == null ? "—" : (D.dp ? v.toFixed(D.dp) : int(v));
       const th = (k, l, cls) => `<th class="eac-sort ${cls || ""}" data-sort="${k}">${l}${S.sort === k ? (S.dir < 0 ? " ▼" : " ▲") : ""}</th>`;
       const rowsHtml = slice.map(r => {
-        const q = ratio(m, r), b = band(q), ex = EX[r.key];
-        const chip = b == null ? `<span class="eac-chip na">${D.est(r) > 0 ? "no actual" : "no estimate"}</span>` : `<span class="eac-chip ${BANDS[b][0]}">${BANDS[b][1]}</span>`;
-        const act = !CAN ? "" : isEx(r) ? `<button class="eac-btn" data-restore="${esc(r.key)}">Restore</button>` : `<button class="eac-btn" data-exclude="${esc(r.key)}">Exclude</button>`;
+        const q = rawRatio(m, r), b = suspect(m, r) ? null : band(q), ex = EX[r.key];
+        const chip = suspect(m, r) ? `<span class="eac-chip pr">check</span>`
+          : b == null ? `<span class="eac-chip na">${D.est(r) > 0 ? "no actual" : "no estimate"}</span>` : `<span class="eac-chip ${BANDS[b][0]}">${BANDS[b][1]}</span>`;
+        const act = !CAN ? "" : isEx(r) ? `<button class="eac-btn" data-restore="${esc(r.key)}">Restore</button>`
+          : (suspect(m, r) ? `<button class="eac-btn" data-okfig="${esc(r.key)}">Figures are right</button> ` : "")
+            + `<button class="eac-btn" data-exclude="${esc(r.key)}">Exclude</button>`;
         const docs = (r.sheet ? `<a class="eac-a" href="${esc(r.sheet)}" target="_blank" rel="noopener">Sheet</a>` : "")
           + (r.contract ? `<a class="eac-a" href="${esc(r.contract)}" target="_blank" rel="noopener">Contract</a>` : "");
         return `<tr><td><b>${esc(r.job)}</b>${ex && ex.excluded ? `<div class="eac-faint" title="${esc(ex.by + " · " + ex.at)}">${esc(ex.reason)}</div>` : ""}</td>
@@ -359,7 +371,7 @@ registerPage({
           <div class="panel"><div class="panel-head"><div class="panel-title">${esc(D.label)}</div></div>
             <div class="eac-cap">${esc(D.what)}</div>
             <div class="eac-band" id="eacBand">${bandBar}</div>
-            <div class="eac-cap"><b>${int(qs.length)}</b> jobs measured${missing.length ? `, ${int(missing.length)} without both figures` : ""}.
+            <div class="eac-cap"><b>${int(qs.length)}</b> jobs measured${missing.length ? `, ${int(missing.length)} without both figures` : ""}${checks.length ? `, <b>${int(checks.length)}</b> set aside as more than 5× off (Check the figures, below)` : ""}.
               The typical job came in <b>${sgnPct(k && k.typ)}</b> against the estimate; <b>${pc(under, qs.length)}</b> were under-estimated by 20% or more, <b>${pc(over, qs.length)}</b> over-estimated.
               ${S.band != null ? ` Showing ${BANDS[S.band][1]} jobs below — click the bar again to clear.` : " Click a band to list its jobs."}</div></div>
           <div class="panel"><div class="panel-head"><div class="panel-title">How far off</div></div>${dist}</div>
@@ -374,6 +386,7 @@ registerPage({
         <div class="panel" id="eacJobs"><div class="panel-head"><div class="panel-title">Jobs</div>
           <div class="rs-seg" id="eacView" style="margin-left:12px">
             <button data-v="measured" class="${S.view === "measured" ? "on" : ""}">Measured ${int(meas.length)}</button>
+            <button data-v="check" class="${S.view === "check" ? "on" : ""}">Check the figures ${int(checks.length)}</button>
             <button data-v="missing" class="${S.view === "missing" ? "on" : ""}">Missing figures ${int(missing.length)}</button>
             <button data-v="excluded" class="${S.view === "excluded" ? "on" : ""}">Excluded ${int(all.filter(isEx).length)}</button></div></div>
           <div class="rs-tablewrap"><table class="rs-table"><thead><tr>${th("job", "Job")}${th("date", "Date")}<th>Customer</th><th>Type</th>${th("rep", "Sales person")}${th("fore", "Foreman")}
@@ -428,6 +441,7 @@ registerPage({
         save(job, date, 1, String(reason).trim());
       });
       host.querySelectorAll("[data-restore]").forEach(b => b.onclick = () => { const [job, date] = b.dataset.restore.split("|"); save(job, date, 0, ""); });
+      host.querySelectorAll("[data-okfig]").forEach(b => b.onclick = () => { const [job, date] = b.dataset.okfig.split("|"); save(job, date, 2, "figures confirmed"); });
     }
 
     async function save(job, date, excluded, reason) {
