@@ -101,6 +101,10 @@ registerPage({
       // the per-lead layer: filters, the lazy rows, and the capacity input (his #5)
       status: "", src: "", size: "", leads: null, leadsLoading: false, leadsErr: "",
       cap: +(localStorage.getItem("ztzDemandCap") || 10) || 10,
+      // the breakdown panel's view + last-year compare, remembered per viewer (2026-10-07)
+      view: (() => { try { return localStorage.getItem("ztzDemandView") || "wd"; } catch (e) { return "wd"; } })(),
+      cmp: (() => { try { return localStorage.getItem("ztzDemandCmp") !== "0"; } catch (e) { return true; } })(),
+      wdMode: "wd",
     });
 
     host.innerHTML = '<style id="dmCss">'
@@ -115,6 +119,31 @@ registerPage({
       + ".dm-basis p{margin:0;font-size:12.5px;line-height:1.65;color:var(--muted);max-width:112ch}"
       + ".dm-basis b{color:var(--ink)}"
       + "details.dm-basis{display:block}"
+      + ".dm-panel .dm-card{border:0;padding:0;margin:0;background:transparent;box-shadow:none}"
+      + ".dm-sw{margin:0 0 14px;flex-wrap:wrap}"
+      + ".dm-ph{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:4px}"
+      + ".dm-ph h3{margin:0}"
+      + ".dm-sub{margin-left:6px}"
+      + ".dm-cmp{margin-left:auto;display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--muted);cursor:pointer}"
+      + ".dm-note1{font-size:12.5px;color:var(--muted);margin:2px 0 12px}"
+      + ".dm-more{font-size:12px;color:var(--muted);margin:-6px 0 12px}"
+      + ".dm-more summary{cursor:pointer;color:var(--brand);font-weight:600}"
+      + ".dm-more p{margin:6px 0 0;line-height:1.6;max-width:110ch}"
+      + ".dm-r{display:grid;grid-template-columns:minmax(110px,180px) minmax(80px,1fr) 120px 96px 58px;gap:12px;align-items:center;padding:5px 0;font-size:13px;border-bottom:1px solid var(--line-2)}"
+      + ".dm-r:last-of-type{border-bottom:0}"
+      + ".dm-r .k{font-weight:600}"
+      + ".dm-r .t{position:relative;height:12px;border-radius:4px;background:var(--panel-2)}"
+      + ".dm-r .t i{position:absolute;left:0;top:0;bottom:0;border-radius:4px;background:rgba(37,99,235,.35)}"
+      + ".dm-r .t em{position:absolute;left:0;top:0;bottom:0;border-radius:4px;background:var(--brand)}"
+      + ".dm-r .t b{position:absolute;top:-4px;bottom:-4px;width:2px;margin-left:-1px;background:var(--ink);opacity:.6;border-radius:1px}"
+      + ".dm-r .n{text-align:right;font-weight:700;font-variant-numeric:tabular-nums}"
+      + ".dm-r .n small{font-weight:500;color:var(--faint);margin-left:6px}"
+      + ".dm-r .r{text-align:right;color:var(--muted);font-size:12px}"
+      + ".dm-r .d{text-align:right;font-size:12px;font-weight:700;color:var(--faint)}"
+      + ".dm-r .d.up{color:var(--pos)}.dm-r .d.dn{color:var(--neg)}"
+      + ".dm-rsep{height:10px}"
+      + ".dm-leg{font-size:11.5px;color:var(--faint);margin:10px 0 0;display:flex;align-items:center;gap:6px}"
+      + ".dm-leg .tk{display:inline-block;width:2px;height:12px;background:var(--ink);opacity:.6}"
       + "details.dm-basis summary{cursor:pointer;list-style:none;font-size:12.5px;color:var(--muted);line-height:1.6}"
       + "details.dm-basis summary::-webkit-details-marker{display:none}"
       + "details.dm-basis summary .bt{margin-right:10px}"
@@ -515,15 +544,7 @@ registerPage({
           + "</div>";
       }
       h += calendarCard(days);
-      h += matrixCard(days);
-      // booking by size and by state needs individual leads: the same window, folded per lead
-      let qbAll = null;
-      if (S.leads) { qbAll = blank(""); scopeLeads().forEach(l => foldLead(qbAll, l)); }
-      h += sizeCard(all, qbAll);
-      h += '<div class="dm-grid2">' + cfCard(all) + marketCard(all, qbAll) + "</div>";
-      h += peakCard(days);
-      h += overflowCard();
-      h += quoteCard(days);
+      h += breakdownPanel(days);
       main.innerHTML = h;
       wire(days);
     }
@@ -800,14 +821,12 @@ registerPage({
         + '<span class="tag">capacity</span>'
         + '<span class="rt">a full day = <input type="number" class="rs-num" id="dmCap" min="1" '
         + 'step="1" value="' + X + '"> booked jobs</span></div>'
-        + '<p class="dm-note">For every move date that reached <b>' + X + " booked jobs</b>, this "
-        + "counts the leads that arrived <b>after</b> that point — demand we could only have "
-        + "taken with more capacity. Dates still ahead of us are excluded: their leads are "
-        + "pipeline, not lost demand. The moment a day filled is approximated by when its "
-        + ordinal(X) + " eventually-booked lead was created (the warehouse has no "
-        + "timestamp for the confirmation itself; `Booked Date` is not usable). Change the "
-        + "number to your real daily capacity — it recalculates instantly and respects the "
-        + "filters above.</p>"
+        + '<p class="dm-note1">Days that reached ' + X + " booked jobs, and the leads that still came in "
+        + "after — demand more capacity could have taken. Change the number to your real daily capacity.</p>"
+        + '<details class="dm-more"><summary>How this is counted</summary><p>Dates still ahead of us '
+        + "are excluded: their leads are pipeline, not lost demand. The moment a day filled is approximated "
+        + "by when its " + ordinal(X) + " eventually-booked lead was created (the warehouse has no timestamp "
+        + "for the confirmation itself; `Booked Date` is not usable). It respects the filters above.</p></details>"
         + '<div class="dm-kpis">'
         + k(fmtN(hit.length), "Days that reached " + X + " bookings", "in this window")
         + k(fmtN(afterAll), "Leads after the day was full", "arrived once " + X + " jobs already stood", afterAll ? "blue" : "")
@@ -828,172 +847,152 @@ registerPage({
     }
 
     /* ---- weekday x month ---------------------------------------------------------------- */
-    function matrixCard(days) {
-      const y = +S.year;
-      // Averages, not totals: a month with five Saturdays would otherwise beat a month with
-      // four for reasons that have nothing to do with demand.
-      const sum = {}, occ = {};
-      const curY = String(new Date().getFullYear());
-      // Dates nobody could have asked for yet would drag the average down for no reason, so
-      // the current year stops at today. A year entirely in the future has no such cut to
-      // make — every one of its dates is still filling, and the note says so.
-      const cutoff = S.year === curY ? TODAY : "9999-12-31";
-      const aheadYear = S.year > curY;
-      let future = 0;
-      for (let m = 0; m < 12; m++) {
-        const n = new Date(Date.UTC(y, m + 1, 0)).getUTCDate();
-        for (let dd = 1; dd <= n; dd++) {
-          const iso = y + "-" + String(m + 1).padStart(2, "0") + "-" + String(dd).padStart(2, "0");
-          if (iso > cutoff) { future++; continue; }
-          const w = (new Date(Date.UTC(y, m, dd)).getUTCDay() + 6) % 7;
-          const k = w + "|" + m;
-          occ[k] = (occ[k] || 0) + 1;
-          sum[k] = (sum[k] || 0) + (days.get(iso) ? days.get(iso).leads : 0);
+    /* ---- THE BREAKDOWN PANEL (his call 2026-10-07) -----------------------------------------
+       Everything under the calendar used to be seven stacked cards -- about five screens. He
+       liked every one of them and not the layout: "maybe switch? but yea comparison is also good".
+       So: one panel, a view switch, and each list view drawn the same way -- a bar for leads,
+       the booked part darker, a tick where LAST YEAR stood, the change on the right.
+       THE COMPARISON IS LIKE FOR LIKE: in the current year both windows stop at yesterday's
+       month-day (a half-filled October is never set against a complete one); a past year is
+       compared whole. Booking rates per size / state / CF need the per-lead layer, so they
+       appear once it has streamed in; counts come from the aggregate either way. */
+    const VIEWS = [["wd", "Weekdays"], ["sz", "Size and type"], ["st", "Where from"], ["cf", "Move size (CF)"],
+                   ["pk", "Busiest dates"], ["full", "Full days"], ["pr", "Pricing"]];
+    const WDN = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+    const MONN = ["January", "February", "March", "April", "May", "June", "July", "August", "September",
+                  "October", "November", "December"];
+    function cutMD() {
+      return S.year === String(new Date().getFullYear()) ? TODAY.slice(5) : "12-32";
+    }
+    const inWin = (iso, y) => String(iso).slice(0, 4) === y && String(iso).slice(5, 10) < cutMD();
+    const aggIn = y => (S.rows || []).filter(r => (!S.co || r.Company === S.co) && inWin(String(r["Move Date"]).slice(0, 10), y));
+    const leadsIn = y => (S.leads || []).filter(l => (!S.co || l.Company === S.co) && inWin(l.d, y)
+      && (!S.status || (l.Status || "") === S.status) && (!S.src || (l.Source || "") === S.src)
+      && (!S.size || (l.Size || "") === S.size));
+    // calendar days of each weekday / month inside a year's window -- the per-day divisor
+    function occ(y) {
+      const wd = [0, 0, 0, 0, 0, 0, 0], mo = new Array(12).fill(0), cut = cutMD();
+      for (let t = Date.UTC(+y, 0, 1); ; t += 864e5) {
+        const d = new Date(t), iso = d.toISOString().slice(0, 10);
+        if (iso.slice(0, 4) !== y || iso.slice(5) >= cut) break;
+        wd[(d.getUTCDay() + 6) % 7]++; mo[d.getUTCMonth()]++;
+      }
+      return { wd, mo };
+    }
+    // one year's rows for a list view: Map key -> {n, q, b}  (q/b null = not measurable)
+    function groupYear(view, y) {
+      const m = new Map(), add = (k, n, q, b) => {
+        const x = m.get(k) || { n: 0, q: 0, b: 0, qb: false };
+        x.n += n; if (q != null) { x.q += q; x.b += b; x.qb = true; } m.set(k, x);
+      };
+      const useLeads = !!S.leads && (leadFilterOn() || view !== "wd");
+      if (view === "wd") {
+        const byMonth = S.wdMode === "mo";
+        if (useLeads) leadsIn(y).forEach(l => {
+          const d = new Date(l.d + "T00:00:00Z"), k = byMonth ? d.getUTCMonth() : (d.getUTCDay() + 6) % 7;
+          add(k, 1, l.Status !== "Bad Lead" ? 1 : 0, l.Status === "Confirmed" ? 1 : 0);
+        });
+        else aggIn(y).forEach(r => {
+          const d = new Date(String(r["Move Date"]).slice(0, 10) + "T00:00:00Z"), k = byMonth ? d.getUTCMonth() : (d.getUTCDay() + 6) % 7;
+          add(k, num(r.Leads), num(r.Qualified), num(r.Booked));
+        });
+        const o = occ(y), div = byMonth ? o.mo : o.wd;
+        m.forEach((x, k) => { x.perDay = div[k] ? x.n / div[k] : null; });
+        return m;
+      }
+      if (S.leads) {
+        leadsIn(y).forEach(l => {
+          const k = view === "sz" ? sizeParts(l.Size).label : view === "st" ? (l.State || "(not stated)") : (l["CF Range"] || "(not stated)");
+          add(k, 1, l.Status !== "Bad Lead" ? 1 : 0, l.Status === "Confirmed" ? 1 : 0);
+        });
+        if (view === "st") leadsIn(y).forEach(l => {
+          const mt = l["Moving Type"] || "";
+          add(mt === "Long Distance" ? "~Long distance" : mt === "Local Moving" ? "~Local" : "~Service type unmapped",
+              1, l.Status !== "Bad Lead" ? 1 : 0, l.Status === "Confirmed" ? 1 : 0);
+        });
+        return m;
+      }
+      const col = view === "sz" ? "Size Mix" : view === "st" ? "State Mix" : "CF Mix";
+      aggIn(y).forEach(r => {
+        parseMix(r[col]).forEach(([k, n]) => add(view === "sz" ? canonSize(k) : k, n, null, null));
+        if (view === "st") {
+          add("~Long distance", num(r["LD Leads"]), null, null); add("~Local", num(r["Local Leads"]), null, null);
+          if (num(r["Service Unknown"])) add("~Service type unmapped", num(r["Service Unknown"]), null, null);
         }
-      }
-      const cellAvg = (w, m) => { const k = w + "|" + m; return occ[k] ? sum[k] / occ[k] : null; };
-      const vals = [];
-      for (let w = 0; w < 7; w++) for (let m = 0; m < 12; m++) {
-        const v = cellAvg(w, m); if (v != null) vals.push(v);
-      }
-      const cuts = levels(vals);
-      const rowAvg = w => {
-        let s = 0, o = 0;
-        for (let m = 0; m < 12; m++) { const k = w + "|" + m; s += sum[k] || 0; o += occ[k] || 0; }
-        return o ? s / o : null;
+      });
+      return m;
+    }
+    function breakdownPanel(days) {
+      const v = S.view || "wd", y = S.year, py = String(+y - 1);
+      const sw = '<div class="rs-seg dm-sw">' + VIEWS.map(([k, l]) => '<button data-view="' + k + '"'
+        + (k === v ? ' class="on"' : "") + ">" + esc(l) + "</button>").join("") + "</div>";
+      let inner;
+      if (v === "pk") inner = peakCard(days);
+      else if (v === "full") inner = overflowCard();
+      else if (v === "pr") inner = quoteCard(days);
+      else inner = rowView(v, y, py);
+      return '<div class="dm-card dm-panel">' + sw + inner + "</div>";
+    }
+    function rowView(v, y, py) {
+      const cur = groupYear(v, y);
+      const hasPrev = (S.rows || []).some(r => String(r["Move Date"]).slice(0, 4) === py);
+      const cmp = S.cmp !== false && hasPrev;
+      const prev = cmp ? groupYear(v, py) : new Map();
+      const perDay = v === "wd";
+      const val = x => x ? (perDay ? x.perDay : x.n) : null;
+      let keys = [...new Set([...cur.keys()].concat([...prev.keys()]))];
+      if (v === "wd") keys = keys.filter(k => cur.has(k) || prev.has(k)).sort((a, b) => a - b);
+      else if (v === "sz") keys.sort((a, b) => sizeParts(a).rank - sizeParts(b).rank || String(a).localeCompare(String(b)));
+      else if (v === "cf") { const ck = s2 => { const mm = String(s2).match(/\d+/); return mm ? +mm[0] : Infinity; }; keys.sort((a, b) => ck(a) - ck(b)); }
+      else keys.sort((a, b) => { const ta = String(a)[0] === "~", tb = String(b)[0] === "~";
+        return ta !== tb ? (ta ? 1 : -1) : (val(cur.get(b)) || 0) - (val(cur.get(a)) || 0); });
+      const tot = [...cur.values()].reduce((s2, x) => s2 + x.n, 0);
+      const mx = Math.max(1e-9, ...keys.map(k => Math.max(val(cur.get(k)) || 0, val(prev.get(k)) || 0)));
+      const lab = k => v === "wd" ? (S.wdMode === "mo" ? MONN[k] : WDN[k]) : String(k).replace(/^~/, "");
+      let sep = false;
+      const rows = keys.map(k => {
+        const c = cur.get(k), p = prev.get(k), cv = val(c) || 0, pv = val(p);
+        const w = cv / mx * 100, rate = c && c.qb && c.q ? c.b / c.q : null;
+        const d = cmp && pv ? (cv - pv) / pv : null;
+        const showRate = rate != null && c.q >= 10;
+        let pre = "";
+        if (String(k)[0] === "~" && !sep) { sep = true; pre = '<div class="dm-rsep"></div>'; }
+        return pre + '<div class="dm-r"><span class="k">' + esc(lab(k)) + '</span><span class="t"><i style="width:' + w.toFixed(1)
+          + '%"></i>' + (showRate ? '<em style="width:' + (w * rate).toFixed(1) + '%"></em>' : "")
+          + (cmp && pv ? '<b style="left:' + Math.min(100, pv / mx * 100).toFixed(1) + '%" title="' + esc(py) + ": "
+             + (perDay ? fmt1(pv) + " a day" : fmtN(pv)) + '"></b>' : "") + "</span>"
+          + '<span class="n">' + (perDay ? fmt1(cv) + "<small> a day</small>" : fmtN(cv) + (String(k)[0] === "~" ? "" : "<small>" + (tot ? Math.round(cv / tot * 100) : 0) + "%</small>")) + "</span>"
+          + '<span class="r">' + (showRate ? Math.round(rate * 100) + "% booked" : "") + "</span>"
+          + (cmp ? '<span class="d ' + (d == null ? "" : d > 0.005 ? "up" : d < -0.005 ? "dn" : "") + '">'
+             + (d == null ? "new" : (d > 0 ? "+" : d < 0 ? "−" : "") + Math.round(Math.abs(d) * 100) + "%") + "</span>" : "") + "</div>";
+      }).join("");
+      const TITLE = { wd: S.wdMode === "mo" ? "Which months the market wants" : "Which weekdays the market wants",
+                      sz: "What the market is moving", st: "Where the demand is", cf: "How big the asked-for moves are" };
+      const NOTE = {
+        wd: "Leads per calendar day, so a five-Saturday month cannot out-rank a four-Saturday one.",
+        sz: "Size and type of home as the lead recorded it.",
+        st: "Pickup state, from the lead's Moving From; local vs long distance underneath.",
+        cf: "The lead's CF Range band; leads with no volume are their own band.",
       };
-      const colAvg = m => {
-        let s = 0, o = 0;
-        for (let w = 0; w < 7; w++) { const k = w + "|" + m; s += sum[k] || 0; o += occ[k] || 0; }
-        return o ? s / o : null;
-      };
-      const gridAvg = () => {
-        let s = 0, o = 0;
-        Object.keys(occ).forEach(k => { s += sum[k] || 0; o += occ[k]; });
-        return o ? s / o : null;
-      };
-      let body = "";
-      for (let w = 0; w < 7; w++) {
-        body += '<tr><th class="rh">' + WD[w] + "</th>";
-        for (let m = 0; m < 12; m++) {
-          const v = cellAvg(w, m);
-          const lv = levelOf(v == null ? 0 : v, cuts);
-          body += "<td>" + (lv ? '<i class="lv" style="opacity:' + MX_OPACITY[lv] + '"></i>' : "")
-            + "<span>" + (v == null ? "—" : fmt1(v)) + "</span></td>";
-        }
-        body += '<td class="tot">' + dash(rowAvg(w), fmt1) + "</td></tr>";
-      }
-      body += '<tr><th class="rh">All</th>'
-        + MON.map((lab, m) => '<td class="tot">' + dash(colAvg(m), fmt1) + "</td>").join("")
-        + '<td class="tot">' + dash(gridAvg(), fmt1) + "</td></tr>";
-
-      return '<div class="dm-card"><div class="dm-h"><h3>Which weekdays the market wants</h3>'
-        + '<span class="tag">by move date</span>'
-        + '<span class="rt">average leads per calendar day</span></div>'
-        + '<p class="dm-note">Leads per <b>occurrence</b> of that weekday in that month, so a '
-        + "five-Saturday month cannot out-rank a four-Saturday one on arithmetic alone. "
-        + (future ? "Dates after today are excluded — " + fmtN(future) + " of them in "
-            + esc(S.year) + " are still filling. " : "")
-        + (aheadYear ? "<b>Every date in " + esc(S.year) + " is still ahead of us</b>, so read "
-            + "the shape across weekdays rather than the level: these averages will rise as "
-            + "leads arrive. " : "")
-        + "A dash means the month has no such day inside the window.</p>"
-        + '<div class="dm-scroll"><table class="dm-mx"><thead><tr><th></th>'
-        + MON.map(m => "<th>" + m + "</th>").join("") + "<th>All</th></tr></thead><tbody>"
-        + body + "</tbody></table></div></div>";
+      const sub = v === "wd" ? '<div class="rs-seg dm-sub"><button data-wdm="wd"' + (S.wdMode !== "mo" ? ' class="on"' : "")
+        + '>By weekday</button><button data-wdm="mo"' + (S.wdMode === "mo" ? ' class="on"' : "") + ">By month</button></div>" : "";
+      const winTxt = cutMD() === "12-32" ? "the whole of " + y : "1 Jan – " + shortDate(y + "-" + cutMD()).replace(/^\w+ /, "") + " before today";
+      return '<div class="dm-ph"><h3>' + esc(TITLE[v]) + '</h3><span class="tag">by move date</span>' + sub
+        + '<label class="dm-cmp"' + (hasPrev ? "" : ' title="No ' + esc(py) + ' data"') + '><input type="checkbox" id="dmCmp"'
+        + (cmp ? " checked" : "") + (hasPrev ? "" : " disabled") + "> Compare with " + esc(py) + "</label></div>"
+        + '<p class="dm-note1">' + esc(NOTE[v]) + (cmp ? " Compared on the same window both years (" + esc(winTxt) + ")." : "")
+        + (S.leads || v === "wd" ? "" : " Booking rates appear once the per-lead detail has loaded.") + "</p>"
+        + (rows || '<div class="dm-empty">Nothing in this window.</div>')
+        + (cmp ? '<p class="dm-leg"><span class="tk"></span>' + esc(py) + ' level &nbsp;·&nbsp; right column: change vs ' + esc(py) + "</p>" : "");
     }
 
     /* ---- distributions ------------------------------------------------------------------ */
-    function bars(list, total) {
-      const mx = Math.max.apply(null, list.map(x => x.n)) || 1;
-      return '<div class="dm-bars">' + list.map(x =>
-        '<div class="dm-b"><div class="lb" title="' + esc(x.k) + '">' + esc(x.k) + "</div>"
-        + '<div class="tr"><i style="width:' + (x.n / mx * 100).toFixed(1) + '%"></i>'
-        + '</div><div class="vv">' + fmtN(x.n)
-        + "<small>" + (total ? Math.round(x.n / total * 100) + "%" : "—") + (x.note ? " · " + esc(x.note) : "")
-        + "</small></div></div>")
-        .join("") + "</div>";
-    }
-
-    function cfCard(a) {
-      // CF Range is the warehouse's own volume band (fct_moveboard `CF Range`) — the same
-      // bands the Monthly Report's lead tables use, so the two can be read side by side.
-      const list = mixList(a.cfr);
-      const cfKey = s => { const m = String(s).match(/\d+/); return m ? +m[0] : Infinity; };
-      list.sort((x, y) => cfKey(x.k) - cfKey(y.k));
-      return '<div class="dm-card"><div class="dm-h"><h3>How big the asked-for moves are</h3>'
-        + '<span class="tag">by move date</span></div>'
-        + '<p class="dm-note">Every lead pointing at a date in this window, by its <b>CF Range</b> '
-        + "band. Leads with no volume recorded appear as their own band rather than being "
-        + "dropped.</p>"
-        + (list.length ? bars(list, a.leads) : '<div class="dm-empty">Nothing in this window.</div>')
-        + "</div>";
-    }
-
-    function sizeCard(a, qb) {
-      const HOME = t => t === "Apartment / condo" || t === "House / townhouse";
-      const cell = {}, rowsT = {}, colsT = {}, other = {};
-      let tot = 0;
-      Object.keys(a.size).forEach(k => {
-        const p = sizeParts(k), n = a.size[k];
-        tot += n;
-        if (p.size && HOME(p.type)) {
-          const key = p.size + "|" + p.type;
-          cell[key] = (cell[key] || 0) + n; rowsT[p.size] = (rowsT[p.size] || 0) + n; colsT[p.type] = (colsT[p.type] || 0) + n;
-        } else {
-          const key = p.label;
-          other[key] = { n: ((other[key] || {}).n || 0) + n, rank: p.rank };
-        }
-      });
-      if (!tot) return '<div class="dm-card"><div class="dm-h"><h3>What the market is moving</h3></div>'
-        + '<div class="dm-empty">Nothing in this window.</div></div>';
-      // booking rate by the same cells, when the per-lead layer is in
-      const qbCell = {}, qbRow = {}, qbCol = {}, qbOther = {};
-      if (qb) Object.keys(qb.sizeQB).forEach(k => {
-        const p = sizeParts(k), v = qb.sizeQB[k];
-        const add = (o, kk) => { const x = o[kk] = o[kk] || [0, 0]; x[0] += v[0]; x[1] += v[1]; };
-        if (p.size && HOME(p.type)) { add(qbCell, p.size + "|" + p.type); add(qbRow, p.size); add(qbCol, p.type); }
-        else add(qbOther, p.label);
-      });
-      // a rate on fewer than 10 qualified leads is noise -- shown as a dash, never as a figure
-      const rate = x => (x && x[0] >= 10) ? Math.round(x[1] / x[0] * 100) + "% booked" : "—";
-      const share = n => Math.round(n / tot * 100) + "%";
-      const mx = Math.max(1, ...Object.values(cell));
-      const td = (n, x) => n
-        ? '<td class="c" style="--h:' + (0.08 + 0.5 * n / mx).toFixed(2) + '"><b>' + fmtN(n) + "</b><small>" + share(n)
-          + "</small>" + (qb ? "<em>" + rate(x) + "</em>" : "") + "</td>"
-        : '<td class="c nil">—</td>';
-      const tt = (n, x) => '<td class="c tot"><b>' + fmtN(n) + "</b><small>" + share(n) + "</small>"
-        + (qb ? "<em>" + rate(x) + "</em>" : "") + "</td>";
-      const SIZES = ["Studio", "1 BR", "2 BR", "3 BR", "4+ BR"], TYPES = ["Apartment / condo", "House / townhouse"];
-      let body = SIZES.filter(sz => rowsT[sz]).map(sz => '<tr><th class="rh">' + esc(sz) + "</th>"
-        + TYPES.map(ty => td(cell[sz + "|" + ty] || 0, qbCell[sz + "|" + ty])).join("")
-        + tt(rowsT[sz], qbRow[sz]) + "</tr>").join("");
-      const homes = TYPES.reduce((s2, ty) => s2 + (colsT[ty] || 0), 0);
-      const qbHomes = TYPES.reduce((o, ty) => { const v = qbCol[ty]; if (v) { o[0] += v[0]; o[1] += v[1]; } return o; }, [0, 0]);
-      body += '<tr class="ft"><th class="rh">All homes</th>' + TYPES.map(ty => tt(colsT[ty] || 0, qbCol[ty])).join("")
-        + tt(homes, qbHomes) + "</tr>";
-      const oth = Object.keys(other).sort((x, y) => other[x].rank - other[y].rank)
-        .map(k => '<div class="dm-chip"><span>' + esc(k) + "</span><b>" + fmtN(other[k].n) + "</b><small>"
-          + share(other[k].n) + (qb && qbOther[k] && qbOther[k][0] >= 10 ? " · " + rate(qbOther[k]) : "") + "</small></div>").join("");
-      return '<div class="dm-card"><div class="dm-h"><h3>What the market is moving</h3>'
-        + '<span class="tag">by move date</span><span class="rt">size × type of home</span></div>'
-        + '<p class="dm-note">Every lead aimed at a date in this window, by <b>size</b> (down) and <b>type of home</b> (across)'
-        + (qb ? ", with the share of qualified leads we booked." : ". Booking rates appear once the per-lead detail has loaded.")
-        + " Single items, storage and offices are not homes and sit underneath.</p>"
-        + '<div class="dm-scroll"><table class="dm-sz"><thead><tr><th></th>' + TYPES.map(ty => "<th>" + esc(ty) + "</th>").join("")
-        + "<th>All</th></tr></thead><tbody>" + body + "</tbody></table></div>"
-        + (oth ? '<div class="dm-chips">' + oth + "</div>" : "")
-        + "</div>";
-    }
-
     /* ---- peaks + markets ---------------------------------------------------------------- */
     function peakCard(days) {
       const list = [...days.values()].sort((a, b) => b.leads - a.leads).slice(0, 15);
       return '<div class="dm-card"><div class="dm-h"><h3>The dates the market wants most</h3>'
         + '<span class="tag">by move date</span><span class="rt">top 15</span></div>'
-        + '<p class="dm-note">Ranked on <b>leads asked</b>, not on what we booked — a date we '
-        + "turned away is still a date the market wanted.</p>"
+        + '<p class="dm-note1">Ranked on leads asked, not on what we booked.</p>'
         + (!list.length
             ? '<div class="dm-empty">No move date in this window was asked for at all.</div>'
             : '<div class="dm-scroll"><table class="rs-table dm-t"><thead><tr><th>Move date</th><th>Leads</th>'
@@ -1008,24 +1007,6 @@ registerPage({
               + "</td></tr>";
           }).join("")
         + "</tbody></table></div>")
-        + "</div>";
-    }
-
-    function marketCard(a, qb) {
-      const list = mixList(a.st).slice(0, 12);
-      const tot = list.reduce((s2, x) => s2 + x.n, 0);
-      const mvTot = a.ld + a.local + a.svcUnknown;
-      if (qb) list.forEach(x => { const v = qb.stQB[x.k]; if (v && v[0] >= 10) x.note = Math.round(v[1] / v[0] * 100) + "% booked"; });
-      return '<div class="dm-card"><div class="dm-h"><h3>Where the demand is</h3>'
-        + '<span class="tag">by move date</span></div>'
-        + "<p class=\"dm-note\">Pickup state, from the lead's <b>Moving From</b>"
-        + (qb ? ", with the share of its qualified leads we booked." : ". Booking rates appear once the per-lead detail has loaded.")
-        + "</p>"
-        + (list.length ? bars(list, tot) : '<div class="dm-empty">Nothing in this window.</div>')
-        + (mvTot ? '<div style="height:11px"></div>'
-            + bars([{ k: "Long distance", n: a.ld }, { k: "Local", n: a.local }]
-                     .concat(a.svcUnknown ? [{ k: "Service type unmapped", n: a.svcUnknown }] : []),
-                   mvTot) : "")
         + "</div>";
     }
 
@@ -1068,13 +1049,12 @@ registerPage({
       return '<div class="dm-card"><div class="dm-h"><h3>Quote against volume, by how busy the '
         + 'date is</h3><span class="tag">context, not a verdict</span>'
         + '<span class="rt">dates split into four equal groups</span></div>'
-        + '<p class="dm-note"><b>This section states nothing and recommends nothing.</b> It sorts '
-        + "the dates in this window by how many leads asked for them, cuts them into four equal "
-        + "groups, and reports what was quoted per cubic foot in each. <b>Quote per cu ft</b> is "
-        + "total quoted dollars over total cubic feet across the leads that carried both — a "
-        + "dollar-weighted rate, so it can be compared between groups without a big move in a "
-        + "quiet week distorting it. Whether these numbers mean the pricing is right is a "
-        + "judgement about the business, and this page does not make it.</p>"
+        + '<p class="dm-note1">Dates split into four equal groups by how busy they were, and what we '
+        + "quoted per cubic foot in each — context, not a verdict.</p>"
+        + '<details class="dm-more"><summary>How this is counted</summary><p>Quote per cu ft is total quoted '
+        + "dollars over total cubic feet across the leads that carried both — a dollar-weighted rate, so a big "
+        + "move in a quiet week cannot distort it. Whether the pricing is right is a judgement about the "
+        + "business, and this page does not make it.</p></details>"
         + '<div class="dm-scroll"><table class="rs-table dm-t"><thead><tr><th>Demand level</th><th>Dates</th>'
         + "<th>Leads</th><th>Leads / date</th><th>Cu ft asked</th><th>Avg quote</th>"
         + "<th>Quote / cu ft</th><th>Avg cu ft priced</th><th>Booking rate</th><th>Avg crew</th>"
@@ -1123,6 +1103,14 @@ registerPage({
         const c2 = main.querySelector("#dmCap");
         if (c2) c2.focus();
       };
+      main.querySelectorAll("[data-view]").forEach(b => {
+        b.onclick = () => { S.view = b.dataset.view; try { localStorage.setItem("ztzDemandView", S.view); } catch (e) {} paint(); };
+      });
+      main.querySelectorAll("[data-wdm]").forEach(b => {
+        b.onclick = () => { S.wdMode = b.dataset.wdm; paint(); };
+      });
+      const cmpBox = main.querySelector("#dmCmp");
+      if (cmpBox) cmpBox.onchange = () => { S.cmp = cmpBox.checked; try { localStorage.setItem("ztzDemandCmp", S.cmp ? "1" : "0"); } catch (e) {} paint(); };
       const close = main.querySelector("[data-close]");
       if (close) close.onclick = () => { S.day = null; paint(); };
       main.querySelectorAll("[data-jump]").forEach(tr => {
