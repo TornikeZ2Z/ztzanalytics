@@ -33,6 +33,7 @@
 
 var MF_TOL = 10;   // settled when |balance| <= this — same constant as src/money_flow.py
 var MF_DEBT = "Moved to Foreman Debt";   // a short hand-in moved onto his balance (29 Sep)
+var MF_EXTRA = "Extra Applied to Foreman Balance";   // brought MORE: repays his balance (6 Oct)
 
 registerPage({
   id: "money-flow",
@@ -408,7 +409,10 @@ registerPage({
       else if (type === "Cash Taken Away from Base") { lv.flow = -amount; lv.flow_ts = nowTs; lv.flow_src = "portal"; lv.records = (lv.records || 0) + 1; }
       else if (type === "Advance Payment") { lv.adv = amount; lv.adv_ts = nowTs; }
       else if (type === "Forman Deduction") { lv.ded = amount; }
-      else if (type === MF_DEBT) { lv.debt = amount; }
+      // `debt` is signed: + shortfall moved to his debt, - extra applied to his balance; a $0 of one
+      // kind only clears that kind, so posting "debt 0" then "extra $X" ends at -X, not 0
+      else if (type === MF_DEBT) { if (amount > 0) lv.debt = amount; else if ((lv.debt || 0) > 0) lv.debt = 0; }
+      else if (type === MF_EXTRA) { if (amount > 0) lv.debt = -amount; else if ((lv.debt || 0) < 0) lv.debt = 0; }
       if (S.live.entries) S.live.entries.push({ event_id: evId, type: type, amount: amount,
         at: nowTs, by: "you", note: "", current: 1 });
       indexEntries();
@@ -642,6 +646,8 @@ registerPage({
       var statusPill = function (r) {
         if (r.status === "Money Received" && (r.debt || 0) > 0.005)
           return '<span class="mf-pill mf-st-rec" title="He brought less; the difference was moved to his foreman balance">Received · ' + money(r.debt) + " to his debt</span>";
+        if (r.status === "Money Received" && (r.debt || 0) < -0.005)
+          return '<span class="mf-pill mf-st-rec" title="He brought more; the extra repaid his foreman balance (past what he owed, it is his credit)">Received · ' + money(-r.debt) + " repaid</span>";
         if (r.status === "Money Received") return '<span class="mf-pill mf-st-rec">Received</span>';
         if (r.status === "Contract Not Received") return '<span class="mf-pill mf-st-con">No Contract</span>';
         if (r.status === "Not in Balance") return '<span class="mf-pill mf-st-nib" title="Confirm it again: a shortfall moves to his debt">Off by ' + money(r.balance) + "</span>";
@@ -1248,7 +1254,7 @@ registerPage({
       var pre = settle(r) || { type: "Cash Brought to Base", amount: "" };
       // a job already settled by moving a shortfall to his debt opens on what he ACTUALLY
       // brought -- the full preset would quietly clear the debt on an untouched Save
-      if ((r.debt || 0) > 0.005 && r.flow != null)
+      if (Math.abs(r.debt || 0) > 0.005 && r.flow != null)
         pre = { type: r.flow < 0 ? "Cash Taken Away from Base" : "Cash Brought to Base", amount: Math.abs(r.flow) };
       var hist = (entriesByEv[ev] || []).slice().reverse();
       var hostEl = document.getElementById("mfModalHost");
@@ -1310,20 +1316,25 @@ registerPage({
         var dEl = document.getElementById("mfMDebt");
         el.textContent = money2(d.balance);
         row.className = "mf-ro bal " + (Math.abs(d.balance) <= MF_TOL ? "ok" : "off");
-        dEl.hidden = !(d.debt > 0.005);
+        dEl.hidden = !(Math.abs(d.debt) > 0.005);
         if (d.debt > 0.005) dEl.innerHTML = "Short <b>" + money2(d.debt) + "</b> → moves to " + esc(r.forman) + "’s debt";
+        else if (d.debt < -0.005) dEl.innerHTML = "Extra <b>" + money2(-d.debt) + "</b> → repays " + esc(r.forman)
+          + "’s balance (beyond what he owes, it stays as his credit)";
       }
       /* A SHORT HAND-IN BECOMES HIS DEBT (22 Sep walkthrough 00:37:24, built 29 Sep): "if he is
        * supposed to bring $1,000 and brings $500, he is $500 in debt." Cash Brought below what the
        * job needs moves the difference onto his foreman balance, so the job settles and the
-       * dollars are owed in ONE place. Brought MORE, or taken away: no debt, the job stays off. */
+       * dollars are owed in ONE place.
+       * AND THE MIRROR (his call, 6 Oct): brought MORE than the job needs is a REPAYMENT of his
+       * balance -- the extra moves off the job onto his foreman balance, and past what he owes it
+       * is his credit. `debt` is SIGNED: + a shortfall, - an extra. Taken away: neither. */
       function debtOfEntry() {
         var type = mTypeSel.get();
         var amt = num(document.getElementById("mfMAmt").value);
         var ded = Math.abs(r.ded || 0);          // legacy only -- no longer entered per job
         var flow = amt == null ? (r.flow || 0) : (type === "Cash Taken Away from Base" ? -amt : amt);
         var before = r.expected - (r.adv || 0) - flow + ded;
-        var debt = (amt != null && type === "Cash Brought to Base" && before > MF_TOL)
+        var debt = (amt != null && type === "Cash Brought to Base" && Math.abs(before) > MF_TOL)
           ? Math.round(before * 100) / 100 : (amt == null ? (r.debt || 0) : 0);
         return { debt: debt, balance: before - debt };
       }
@@ -1375,12 +1386,19 @@ registerPage({
           if (curFlow == null || Math.abs(newFlow - curFlow) > 0.009)
             posts.push({ entry_type: type, amount: amt, note: note || "confirmed" });
         }
-        // the shortfall onto his foreman balance -- or back to $0 when he has now brought it all
+        // the shortfall onto his foreman balance, or the extra onto it as a repayment -- and the
+        // OTHER kind back to $0, so one job never carries both (the job balance reads the latest
+        // of each; his foreman balance counts each job's latest of each)
         if (r.expected != null) {
-          var dNew = debtOfEntry().debt;
-          if (Math.abs(dNew - (r.debt || 0)) > 0.009)
-            posts.push({ entry_type: MF_DEBT, amount: dNew,
-                         note: dNew > 0 ? "short hand-in" + (note ? " — " + note : "") : "brought in full" });
+          var dNew = debtOfEntry().debt, dOld = r.debt || 0;
+          if (Math.abs(dNew - dOld) > 0.009) {
+            if (dNew > 0.009 || dOld > 0.009)
+              posts.push({ entry_type: MF_DEBT, amount: Math.max(0, dNew),
+                           note: dNew > 0.009 ? "short hand-in" + (note ? " — " + note : "") : "brought in full" });
+            if (dNew < -0.009 || dOld < -0.009)
+              posts.push({ entry_type: MF_EXTRA, amount: Math.max(0, -dNew),
+                           note: dNew < -0.009 ? "extra hand-in repays his balance" + (note ? " — " + note : "") : "no extra" });
+          }
         }
         if (!posts.length) {
           // nothing typed anywhere is a mistake, not a no-op: the person pressed Save
