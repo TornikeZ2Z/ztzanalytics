@@ -387,6 +387,50 @@
     .st-fold>summary{font-size:10.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);padding:11px 0;cursor:pointer}
     .st-fold[open]>summary{color:var(--ink)}
     .st-lfcols{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:0 30px;align-items:start}
+    /* ---- LEAD FILE v3 (2026-10-06, "it needs to be proper"): a centred sheet, actions in the
+       header, three tabs instead of one long scroll, full-screen and stacked on a phone ---- */
+    .st-dh,.st-db>.st-sheet{max-width:1260px;margin:0 auto;width:100%}
+    .st-dh{padding-left:max(24px,calc((100vw - 1260px)/2 + 24px));padding-right:max(24px,calc((100vw - 1260px)/2 + 24px))}
+    .st-dact{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+    .st-dact a,.st-dact button{appearance:none;display:inline-flex;align-items:center;gap:6px;font:inherit;font-size:12.5px;font-weight:700;
+      color:var(--ink);background:var(--panel-2);border:1px solid var(--line);border-radius:9px;padding:6px 12px;cursor:pointer;text-decoration:none}
+    .st-dact a:hover,.st-dact button:hover{border-color:var(--brand);background:var(--brand-glow)}
+    .st-dtabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin:14px 0 16px;overflow-x:auto}
+    .st-dtabs button{appearance:none;background:none;border:0;border-bottom:3px solid transparent;font:inherit;font-size:13.5px;font-weight:750;
+      color:var(--muted);padding:9px 14px;cursor:pointer;white-space:nowrap}
+    .st-dtabs button.on{color:var(--ink);border-bottom-color:var(--brand)}
+    .st-dpane{display:none}.st-dpane.on{display:block}
+    @media(max-width:760px){
+      .st-dh{padding:14px 16px 10px}.st-db{padding:12px 14px}
+      .st-dh .t{font-size:17px}
+      .st-lfv{grid-template-columns:repeat(2,minmax(0,1fr))}
+      .st-lfv .v{font-size:16px}
+      .st-fin{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+    }
+    /* ---- LEAD EXPLORER v3: quick views with counts, one filter bar, a leaner list ---- */
+    .lx-views{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 12px}
+    .lx-views button{appearance:none;font:inherit;font-size:12.5px;font-weight:700;color:var(--muted);background:var(--panel);
+      border:1px solid var(--line-2);border-radius:999px;padding:6px 12px;cursor:pointer;display:inline-flex;gap:7px;align-items:center}
+    .lx-views button i{font-style:normal;font-size:11px;font-weight:800;color:var(--faint);background:var(--panel-2);border-radius:999px;padding:1px 7px}
+    .lx-views button.on{color:var(--brand-ink);background:var(--brand);border-color:var(--brand)}
+    .lx-views button.on i{background:rgba(0,0,0,.12);color:inherit}
+    .lx td{vertical-align:middle}
+    .lx .nm b{display:block;font-size:13.5px}.lx .nm span{display:block;font-size:11.5px;color:var(--faint);margin-top:1px}
+    .lx .sub{display:block;font-size:11px;color:var(--faint);margin-top:1px}
+    .lx-st{display:inline-block;font-size:11px;font-weight:750;border-radius:6px;padding:2px 8px;background:var(--panel-2);color:var(--muted)}
+    .lx-st.ok{background:color-mix(in srgb,var(--green, #2e7d32) 13%,transparent);color:var(--green, #2e7d32)}
+    .lx-st.bad{background:color-mix(in srgb,var(--red) 12%,transparent);color:var(--red)}
+    .lx-st.warn{background:color-mix(in srgb,var(--amber) 14%,transparent);color:var(--amber)}
+    .lx .st-cb{margin-left:0}
+    .lx-ans{font-size:11px;font-weight:800;color:var(--brand-d, var(--brand));white-space:nowrap}
+    @media(max-width:760px){
+      .lx thead{display:none}
+      .lx,.lx tbody,.lx tr,.lx td{display:block;width:100%}
+      .lx tr{border-bottom:1px solid var(--line);padding:10px 12px}
+      .lx td{border:0!important;padding:2px 0!important;white-space:normal!important}
+      .lx td[data-l]::before{content:attr(data-l) "  ";font-size:10.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--faint)}
+      .st-toolbar>div{flex:1 1 45%}
+    }
     @media(max-width:1100px){.st-lfcols{grid-template-columns:1fr}}
     .st-drawer.on{right:0}
     .st-dh{padding:18px 24px 14px;border-bottom:1px solid var(--line);background:var(--panel)}
@@ -437,6 +481,7 @@
 
   /* ---------------- Lead File drawer (BIG) ---------------- */
   let drawerEl = null;
+  let LF_TAB = "over";      // the lead file's last tab, kept while moving between leads
   function openDrawer(jk) {
     if (!drawerEl) {
       drawerEl = document.createElement("div");
@@ -660,7 +705,23 @@
       <span>${esc(j["Company"] || "")}</span>
       ${j["Flag"] ? `<span>Flag <b>${esc(j["Flag"])}</b></span>` : ""}${j["Label"] ? `<span>Label <b>${esc(j["Label"])}</b></span>` : ""}
     </div>`;
-    if (!target) drawerEl.querySelector("#stDS").innerHTML = dmeta;
+    // header actions: call, text, email, copy this lead's link
+    const mbx = d.moveboard || {};
+    const tel = String(mbx["Phone"] || "").replace(/[^0-9+]/g, "");
+    const mail = String(mbx["Email"] || "").trim();
+    const acts = `<div class="st-dact">
+      ${tel ? `<a href="tel:${esc(tel)}">&#9742; Call ${esc(mbx["Phone"])}</a><a href="sms:${esc(tel)}">&#9993; Text</a>` : ""}
+      ${mail && !/@draft\.www$/i.test(mail) ? `<a href="mailto:${esc(mail)}">@ Email</a>` : ""}
+      <button type="button" class="st-cplink">&#128279; Copy link</button></div>`;
+    if (!target) {
+      drawerEl.querySelector("#stDS").innerHTML = dmeta + acts;
+      const cb = drawerEl.querySelector(".st-cplink");
+      if (cb) cb.onclick = () => {
+        const u = location.href;
+        (navigator.clipboard ? navigator.clipboard.writeText(u) : Promise.reject()).then(
+          () => { cb.textContent = "✓ Link copied"; }, () => { window.prompt("Copy this link", u); });
+      };
+    }
 
     const est = `<div class="st-sec">Estimate → actual</div>
       <div class="st-est">${estActual(j)}
@@ -747,7 +808,7 @@
         <div class="ic">${e["Kind"] === "SMS" ? "&#9993;" : (out ? "&#8599;" : (missed ? "&#10005;" : "&#8600;"))}</div>
         <div class="tx"><b>${esc(who)}</b> ${what}
           ${t ? `<button class="st-trb" data-i="${i}" data-s="${esc(e["Telephony Session Id"])}">transcript</button>` : ""}
-          <div class="st-trw" id="sttr${i}"></div>
+          <div class="st-trw" data-tr="${i}"></div>
         </div></div>`;
     }).join("");
 
@@ -820,12 +881,29 @@
         + verdict + answersHtml(d.answers) + openBlock + facts + `</div>`;
       return;
     }
-    drawerEl.querySelector("#stDB").innerHTML = verdict + answersHtml(d.answers) + openBlock +
-      `<div class="st-lfcols"><div>` + story + `</div><div>` + facts + `</div></div>`;
+    // THREE TABS instead of one long scroll (2026-10-06): the summary and what needs doing stay
+    // on top of every tab; the remembered tab survives opening the next lead.
+    const TABS_LF = [["over", "Overview"], ["story", "Calls &amp; texts" + (cvEv.length ? " (" + cvEv.length + ")" : "")],
+                     ["money", "Money &amp; job"], ["more", "All details"]];
+    const tabNow = TABS_LF.some(t => t[0] === LF_TAB) ? LF_TAB : "over";
+    drawerEl.querySelector("#stDB").innerHTML = `<div class="st-sheet">` + verdict + answersHtml(d.answers) + openBlock +
+      `<div class="st-dtabs">${TABS_LF.map(([k, l]) => `<button data-t="${k}" class="${k === tabNow ? "on" : ""}">${l}</button>`).join("")}</div>` +
+      `<div class="st-dpane${tabNow === "over" ? " on" : ""}" data-p="over"><div class="st-lfcols"><div>` + story + `</div><div>` + est + fin + jobSection(j, d) + `</div></div></div>` +
+      `<div class="st-dpane${tabNow === "story" ? " on" : ""}" data-p="story">` + story + `</div>` +
+      `<div class="st-dpane${tabNow === "money" ? " on" : ""}" data-p="money">` + est + fin +
+        (d.closing ? closingSection(d.closing) : `<div class="st-sec">Closing sheet</div><div class="st-note">No closing sheet filed for this lead yet.</div>`) +
+        (aftermath || "") + `</div>` +
+      `<div class="st-dpane${tabNow === "more" ? " on" : ""}" data-p="more">` + jobSection(j, d) + moveboardSection(d.moveboard, j) + resp + `</div>` +
+      `</div>`;
+    drawerEl.querySelectorAll(".st-dtabs button").forEach(b => b.onclick = () => {
+      LF_TAB = b.dataset.t;
+      drawerEl.querySelectorAll(".st-dtabs button").forEach(x => x.classList.toggle("on", x === b));
+      drawerEl.querySelectorAll(".st-dpane").forEach(x => x.classList.toggle("on", x.dataset.p === b.dataset.t));
+    });
 
     // transcripts expand in place, drawn by the Conversations page's renderer
     drawerEl.querySelectorAll(".st-trb").forEach(b => b.onclick = () => {
-      const w = drawerEl.querySelector("#sttr" + b.dataset.i);
+      const w = b.parentElement.querySelector('.st-trw[data-tr="' + b.dataset.i + '"]');
       if (!w) return;
       if (w.innerHTML) { w.innerHTML = ""; b.classList.remove("on"); return; }
       const t = cvTr[b.dataset.s];
@@ -1063,14 +1141,16 @@
   const ANS_KIND = i => /^bad lead reason$/i.test(i || "") ? "bad"
     : (/^not confirmed update$/i.test(i || "") ? "recall" : "not_called");
   const ANS_LBL = { bad: "Bad lead", not_called: "Not called", recall: "Not Confirmed" };
+  async function loadAnswers(ctx) {
+    if (ctx.answers) return;
+    try {
+      const d = await fetch(ZTZ.API + "/api/sales_lead_feedback?limit=20000",
+        { headers: { Authorization: "Bearer " + ZTZ.getToken() } }).then(r => r.json());
+      ctx.answers = (d.rows || []).slice().sort((a, b) => String(b["Timestamp"]).localeCompare(String(a["Timestamp"])));
+    } catch (e) { ctx.answers = []; }
+  }
   async function renderAnswers(host, ctx) {
-    if (!ctx.answers) {
-      try {
-        const d = await fetch(ZTZ.API + "/api/sales_lead_feedback?limit=20000",
-          { headers: { Authorization: "Bearer " + ZTZ.getToken() } }).then(r => r.json());
-        ctx.answers = (d.rows || []).slice().sort((a, b) => String(b["Timestamp"]).localeCompare(String(a["Timestamp"])));
-      } catch (e) { ctx.answers = []; }
-    }
+    await loadAnswers(ctx);
     const byReq = {};
     (ctx.allRows || ctx.rows).forEach(r => { const k = String(r["Job No"] || "").trim(); if (k && !byReq[k]) byReq[k] = r; });
     const st = { kind: "", rep: "", src: "", q: "" };
@@ -1162,22 +1242,34 @@
     const stats = uniq("Status Category");
     const buckets = ["<= 5 min", "5-15 min", "15-30 min", "30-60 min", "> 1 hour", "Not called"];
 
+    // QUICK VIEWS (2026-10-06): the work a sales manager actually does, each with its count,
+    // so a view is chosen by what it holds rather than by guessing a filter combination
+    const today0 = new Date().toISOString().slice(0, 10);
+    const dayDiff = d => Math.round((Date.parse(String(d).slice(0, 10)) - Date.parse(today0)) / 864e5);
+    const ansSet = new Set((ctx.answers || []).map(a => String(a["Request #"] || "").trim()));
     const CHIPS = [
-      ["important", "★ Important"], ["nocontact", "No contact"], ["slow", "Slow first call"],
-      ["gap", "Quote gap"], ["noclose", "Confirmed, no closing"], ["dead", "Dead leads"],
-      ["calbad", "Calendar mismatch"],
+      ["needcall", "Needs a call", r => inWindow(r) && !+r["Called"] && !isContacted(r) && !isConf(r) && !isDead(r)],
+      ["recall", "Not Confirmed, moving ≤ 14 days", r => String(r["Status"] || "") === "Not Confirmed"
+        && r["Move Date"] && dayDiff(r["Move Date"]) >= 0 && dayDiff(r["Move Date"]) <= 14],
+      ["dead", "Bad leads", r => isDead(r)],
+      ["booked", "Booked", r => isConf(r)],
+      ["answered", "Rep answered", r => ansSet.has(String(r["Job No"] || "").trim())],
+      ["important", "★ Important", r => +r["Is LD"] || (num(r["Total CF"]) || 0) >= 700 || (num(r["Avg Quote"]) || 0) >= 4000],
+      ["slow", "Slow first call", r => +r["Flag Slow First Call"]],
+      ["gap", "Quote gap", r => +r["Flag Big Quote Gap"]],
+      ["noclose", "Booked, no closing", r => +r["Flag Confirmed No Closing"]],
+      ["calbad", "Calendar mismatch", r => calMismatch(r)],
     ];
     host.innerHTML = `
+      <div class="lx-views" id="lxViews"></div>
       <div class="st-toolbar">
-        <div class="st-search"><input type="text" id="stQ" placeholder="Search customer, job #, or source…"></div>
+        <div class="st-search"><input type="text" id="stQ" placeholder="Search name, request #, phone or source…"></div>
+        <div id="lxRep"></div><div id="lxSrc"></div><div id="lxStat"></div>
         <div id="stCalled"></div>
         <div id="stType"></div>
-        <div id="stBucket"></div>
         <div id="stSort"></div>
       </div>
-      <div class="st-chips">
-        ${CHIPS.map(([k, l]) => `<button class="st-chip" data-c="${k}">${l}</button>`).join("")}
-      </div>
+      <div class="st-chips" style="display:none"></div>
       <div class="st-grid">
         <div class="st-gridscroll" id="stTblWrap"></div>
         <div class="st-pager" id="stPg"></div>
@@ -1188,9 +1280,7 @@
       if (state.sp) rows = rows.filter(r => (r["Assigned"] || "").trim() === state.sp);
       if (state.src) rows = rows.filter(r => (r["Source"] || "").trim() === state.src);
       if (state.stat) rows = rows.filter(r => (r["Status Category"] || "").trim() === state.stat);
-      if (state.called === "y") rows = rows.filter(isReached);
-      if (state.called === "n") rows = rows.filter(isNeverContacted);
-      if (state.called === "c") rows = rows.filter(r => +r["Connected"]);
+      if (state.called) rows = rows.filter(r => callState(r) === state.called);
       if (state.type === "ld") rows = rows.filter(r => +r["Is LD"]);
       if (state.type === "loc") rows = rows.filter(r => !+r["Is LD"]);
       if (state.bucket) rows = rows.filter(r => (r["Speed Bucket"] || "") === state.bucket);
@@ -1198,15 +1288,11 @@
         const q = state.q.toLowerCase();
         rows = rows.filter(r => String(r["Customer"] || "").toLowerCase().includes(q)
           || String(r["Job No"] || "").toLowerCase().includes(q)
-          || String(r["Source"] || "").toLowerCase().includes(q));
+          || String(r["Source"] || "").toLowerCase().includes(q)
+          || String(r["Phone Norm"] || "").includes(q.replace(/[^0-9]/g, "") || "~"));
       }
-      if (state.chip === "important") rows = rows.filter(r => +r["Is LD"] || (num(r["Total CF"]) || 0) >= 700 || (num(r["Avg Quote"]) || 0) >= 4000);
-      if (state.chip === "nocontact") rows = rows.filter(isNeverContacted);
-      if (state.chip === "slow") rows = rows.filter(r => +r["Flag Slow First Call"]);
-      if (state.chip === "gap") rows = rows.filter(r => +r["Flag Big Quote Gap"]);
-      if (state.chip === "noclose") rows = rows.filter(r => +r["Flag Confirmed No Closing"]);
-      if (state.chip === "dead") rows = rows.filter(isDead);
-      if (state.chip === "calbad") rows = rows.filter(calMismatch);
+      state._pre = rows;      // the set the view counts are taken from
+      if (state.chip) { const c = CHIPS.find(x => x[0] === state.chip); if (c) rows = rows.filter(c[2]); }
       // "soonest" = ASCENDING; the shared comparator below is descending-only, so the move
       // key inverts per character (ISO dates compare lexicographically) with blanks pushed last
       const key = { new: r => r["Create Date"] || "",
@@ -1240,27 +1326,33 @@
         if (r["Flag"]) f.push(`<span class="st-flag b">${esc(r["Flag"])}</span>`);
         return f.join("");
       };
-      host.querySelector("#stTblWrap").innerHTML = `<table class="st-tbl"><thead><tr>
-        <th>Created</th><th title="The move date from Moveboard. When a Google Calendar event exists for the job, the button opens it; if the calendar says a different date, that date is shown underneath in amber.">Move date</th>
-        <th>#</th><th>Customer</th><th>Source</th><th>Assigned</th><th>CF</th>
-        <th>Status</th><th>Contact</th><th>Calls</th><th>Texts</th>
-        <th>Estimate → actual</th><th>Flags</th></tr></thead><tbody>` +
+      const pre = state._pre || [];
+      host.querySelector("#lxViews").innerHTML = [["", "All leads", null]].concat(CHIPS).map(([k, l, f]) =>
+        `<button data-c="${k}" class="${state.chip === k ? "on" : ""}">${l}<i>${RS.fmtN(f ? pre.filter(f).length : pre.length)}</i></button>`).join("");
+      host.querySelectorAll("#lxViews button").forEach(b => b.onclick = () => {
+        state.chip = b.dataset.c; state.page = 0; paint();
+      });
+      const stCls = r => isConf(r) ? "ok" : (isDead(r) ? "bad" : (/not confirmed/i.test(r["Status"] || "") ? "warn" : ""));
+      const name = r => String(r["Customer"] || "").trim() === "Draft User"
+        ? `<b class="st-draftnm" title="Moveboard draft placeholder — a real lead with a real phone whose name was never filled in. Kept because excluding it would understate lead counts and booking rates.">(name not filled)</b>`
+        : `<b>${esc(r["Customer"] || "—")}</b>`;
+      const mvIn = r => { const d = String(r["Move Date"] || "").slice(0, 10); if (!d) return ""; const n = dayDiff(d);
+        return n >= 0 ? `<span class="sub">in ${n} day${n === 1 ? "" : "s"}</span>` : ""; };
+      host.querySelector("#stTblWrap").innerHTML = `<table class="st-tbl lx"><thead><tr>
+        <th>Lead</th><th>Created</th><th>Rep</th><th>Source</th><th>Status</th><th>Calls</th>
+        <th>First call</th><th title="The move date from Moveboard; the button opens the Google Calendar event when one exists">Move</th>
+        <th>Quote → bill</th><th></th></tr></thead><tbody>` +
         pg.map(r => `<tr class="click" data-jk="${esc(r["Request Joinkey"])}">
-          <td>${esc((r["Create Date"] || "").slice(0, 10))}</td>
-          <td>${moveCell(r)}</td>
-          <td>${esc(r["Job No"] || "—")}</td>
-          <td>${String(r["Customer"] || "").trim() === "Draft User"
-            ? `<b class="st-draftnm" title="Moveboard draft placeholder — a real lead with a real phone whose name was never filled in. Kept because excluding it would understate lead counts and booking rates.">(name not filled)</b>`
-            : `<b>${esc(r["Customer"] || "—")}</b>`}</td>
-          <td>${esc(r["Source"] || "—")}</td>
-          <td>${esc(r["Assigned"] || "—")}</td>
-          <td>${r["Total CF"] != null ? RS.fmtN(Math.round(+r["Total CF"])) : "—"}</td>
-          <td>${esc(r["Status Category"] || r["Status"] || "—")}</td>
-          <td>${contactCell(r)}</td>
-          <td>${(+r["Out Calls"] || 0) + (+r["In Calls"] || 0)}</td>
-          <td>${(+r["Sms Out"] || 0) + (+r["Sms In"] || 0)}</td>
-          <td>${estActual(r)}</td>
-          <td>${flagIcons(r)}</td></tr>`).join("") +
+          <td class="nm">${name(r)}<span>#${esc(r["Job No"] || "—")} &middot; ${esc(r["Company"] || "")}${r["Total CF"] != null ? " &middot; " + RS.fmtN(Math.round(+r["Total CF"])) + " CF" : ""}</span></td>
+          <td data-l="Created">${esc((r["Create Datetime"] || r["Create Date"] || "").slice(5, 16).replace("-", "/"))}</td>
+          <td data-l="Rep">${esc(r["Assigned"] || "—")}</td>
+          <td data-l="Source">${esc(r["Source"] || "—")}</td>
+          <td data-l="Status"><span class="lx-st ${stCls(r)}">${esc(r["Status"] || r["Status Category"] || "—")}</span></td>
+          <td data-l="Calls">${callBadge(r)}<span class="sub">${(+r["Out Calls"] || 0)} out &middot; ${(+r["In Calls"] || 0)} in${(+r["Sms Out"] || 0) + (+r["Sms In"] || 0) ? " &middot; " + ((+r["Sms Out"] || 0) + (+r["Sms In"] || 0)) + " texts" : ""}</span></td>
+          <td data-l="First call">${r["TTO Biz Min"] != null ? mins(+r["TTO Biz Min"]) : '<span class="st-dim">—</span>'}</td>
+          <td data-l="Move">${moveCell(r)}${mvIn(r)}</td>
+          <td data-l="Quote → bill">${estActual(r)}</td>
+          <td>${ansSet.has(String(r["Job No"] || "").trim()) ? '<span class="lx-ans" title="The rep answered on this lead">&#9998; answered</span> ' : ""}${flagIcons(r)}</td></tr>`).join("") +
         `</tbody></table>`;
       const pages = Math.max(1, Math.ceil(rows.length / PAGE));
       const from = rows.length ? start + 1 : 0, to = Math.min(start + PAGE, rows.length);
@@ -1281,7 +1373,7 @@
     // the worklist chips collapse WITH the toolbar (they are filters too), so the pill is the
     // only thing left saying that this list is a slice rather than every lead
     const barC = RSC.collapsible(host.querySelector(".st-toolbar"), "rsBarCollapsed:sales-command", {
-      also: [host.querySelector(".st-chips")],
+      also: [],
       count: () => {
         const labels = [];
         if (state.q) labels.push("Search");
@@ -1297,19 +1389,23 @@
     });
 
     host.querySelector("#stQ").oninput = e => { state.q = e.target.value; state.page = 0; paint(); };
-    // worklist chips (toggle): rendered + filtered in apply(), but the click binding was lost
-    // in the toolbar redesign, leaving all seven dead.
-    host.querySelectorAll(".st-chips .st-chip").forEach(b => b.onclick = () => {
-      state.chip = state.chip === b.dataset.c ? "" : b.dataset.c;
-      state.page = 0;
-      host.querySelectorAll(".st-chips .st-chip").forEach(x => x.classList.toggle("on", x.dataset.c === state.chip));
-      paint();
+    RSC.localSelect(host.querySelector("#lxRep"), {
+      label: "Rep", allLabel: "All reps", values: sps.map(v => ({ v, l: v })), value: state.sp,
+      onChange: v => { state.sp = v; state.page = 0; paint(); },
+    });
+    RSC.localSelect(host.querySelector("#lxSrc"), {
+      label: "Source", allLabel: "All sources", values: sources.map(v => ({ v, l: v })), value: state.src,
+      onChange: v => { state.src = v; state.page = 0; paint(); },
+    });
+    RSC.localSelect(host.querySelector("#lxStat"), {
+      label: "Status", allLabel: "Any status", values: stats.map(v => ({ v, l: v })), value: state.stat,
+      onChange: v => { state.stat = v; state.page = 0; paint(); },
     });
     // the KIT dropdowns, not naked <select>s — same value strings, state stays page-local
     RSC.localSelect(host.querySelector("#stCalled"), {
-      label: "Contact", allLabel: "Any",
-      values: [{ v: "y", l: "Contacted" }, { v: "n", l: "No contact" },
-               { v: "c", l: "Connected out" }],
+      label: "Calls", allLabel: "Any",
+      values: [{ v: "called", l: "Called" }, { v: "incoming", l: "Call received & answered" },
+               { v: "none", l: "Not called" }, { v: "nodata", l: "No call data yet" }],
       value: state.called,
       onChange: v => { state.called = v; state.page = 0; paint(); },
     });
@@ -1318,10 +1414,6 @@
       values: [{ v: "ld", l: "Long distance" }, { v: "loc", l: "Local" }],
       value: state.type,
       onChange: v => { state.type = v; state.page = 0; paint(); },
-    });
-    RSC.localSelect(host.querySelector("#stBucket"), {
-      label: "Speed", allLabel: "Any speed", values: buckets, value: state.bucket,
-      onChange: v => { state.bucket = v; state.page = 0; paint(); },
     });
     RSC.localSelect(host.querySelector("#stSort"), {
       label: "Sort", required: true,
@@ -2407,6 +2499,7 @@
         if (k === "rep") return renderRep(hostEl, ctx);
         if (k === "compare") return renderCompare(hostEl, ctx);
         if (k === "answers") return renderAnswers(hostEl, ctx);
+        await loadAnswers(ctx);   // the Explorer marks leads a rep answered on
         return renderExplorer(hostEl, ctx);
       };
       paintTabs();
