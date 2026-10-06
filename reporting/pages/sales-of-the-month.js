@@ -294,6 +294,15 @@ registerPage({
       + "color:#fff;font:inherit;font-size:13px;font-weight:700;border-radius:9px;padding:8px 16px;"
       + "cursor:pointer}"
       + ".sm-rbtn.pri{background:#fff;color:#16181D;border-color:#fff}"
+      /* the monthly summary viewer (Ruso 2026-10-06): the exact email each rep gets on the 1st */
+      + ".sm-ms{width:680px;max-width:100%}"
+      + ".sm-msbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:10px;color:#fff}"
+      + ".sm-msbar .lbl{font-size:15px;font-weight:800;min-width:150px;text-align:center}"
+      + ".sm-msbar select{font:inherit;font-size:13px;border-radius:9px;padding:7px 10px;border:1px solid rgba(255,255,255,.34);"
+      + "background:rgba(255,255,255,.1);color:#fff}"
+      + ".sm-msbar select option{color:#16181D}"
+      + ".sm-mstat{font-size:12px;color:#d8dde3;margin:-4px 0 10px}"
+      + ".sm-msf{width:100%;height:calc(100vh - 160px);border:0;border-radius:14px;background:#f4f5f2}"
       + "@media(max-width:1180px){.sm-head{grid-template-columns:44px minmax(0,1fr) auto}"
       + ".sm-head .sm-scwrap{display:none}}"
       + "@media(max-width:820px){.sm-rep{display:none}.sm-stats{margin-left:0;margin-top:12px}}"
@@ -480,7 +489,7 @@ registerPage({
         + "<div style='display:flex;align-items:center;gap:14px'>"
         + "<div class='sm-tot'><b>" + (score == null ? "—" : fmt1(score)) + "</b>"
         + "<i>" + (score == null ? "not scored" : rank == null ? "not ranked" : "of 100") + "</i></div>"
-        + "<button class='sm-rep' data-rep='" + esc(name) + "'>Report</button>"
+        + "<button class='sm-rep' data-rep='" + esc(name) + "'>Monthly summary</button>"
         + "</div></div>"
         + "<div class='sm-body'>" + (open ? body(r) : "") + "</div></div>";
     }
@@ -661,6 +670,79 @@ registerPage({
     }
     function onReportEsc(e) { if (e.key === "Escape") closeReport(); }
 
+    /* THE MONTHLY SUMMARY (Ruso, 2026-10-06). The report a rep is mailed on the 1st, read here
+       for any month: this month as a DRAFT (rebuilt every morning), a past month exactly as it
+       was SENT. Same HTML as the email -- src/sales_daily_send.py archives every one -- so what
+       Ruso reads is what the rep received. The old scorecard sheet stays one click away. */
+    let ARCH = null;
+    async function openSummary(name, month) {
+      closeReport();
+      const dim = document.createElement("div");
+      dim.className = "sm-rdim";
+      dim.innerHTML = "<div class='sm-ms'><div class='sm-msbar' id='smMsBar'>Loading…</div>"
+        + "<div class='sm-mstat' id='smMsStat'></div><iframe class='sm-msf' id='smMsF' title='Monthly summary'></iframe></div>";
+      document.body.appendChild(dim);
+      dim.addEventListener("click", e => { if (e.target === dim) closeReport(); });
+      document.addEventListener("keydown", onReportEsc);
+      const api = q => fetch(ZTZ.API + "/api/_salesarch?" + q,
+        { headers: { Authorization: "Bearer " + ZTZ.getToken() } }).then(r => r.json());
+      if (!ARCH) { try { ARCH = (await api("list=1&period=month")).items || []; } catch (e) { ARCH = []; } }
+      const months = [...new Set(ARCH.map(x => x.key))].sort().reverse();
+      const st = { m: months.indexOf(month) >= 0 ? month : (months[0] || month), who: name };
+      const norm = v => String(v || "").trim().toLowerCase();
+      const pickWho = (m, want) => {
+        const opts = ARCH.filter(x => x.key === m);
+        const hit = opts.find(x => norm(x.who) === norm(want))
+          || opts.find(x => x.who !== "__team__" && norm(x.who).split(" ")[0] === norm(want).split(" ")[0]);
+        return hit ? hit.who : (want === "__team__" ? "__team__" : null);
+      };
+      const draw = async () => {
+        const bar = dim.querySelector("#smMsBar"), stat = dim.querySelector("#smMsStat"), f = dim.querySelector("#smMsF");
+        const opts = ARCH.filter(x => x.key === st.m);
+        const who = pickWho(st.m, st.who);
+        const i = months.indexOf(st.m);
+        bar.innerHTML = "<button class='sm-rbtn' id='smMsPrev'" + (i < months.length - 1 ? "" : " disabled") + ">&larr;</button>"
+          + "<span class='lbl'>" + esc(monLab(st.m)) + "</span>"
+          + "<button class='sm-rbtn' id='smMsNext'" + (i > 0 ? "" : " disabled") + ">&rarr;</button>"
+          + "<select id='smMsWho'>" + ["__team__"].concat(opts.map(x => x.who).filter(w => w !== "__team__").sort())
+              .map(w => "<option value='" + esc(w) + "'" + (w === who ? " selected" : "") + ">"
+                + (w === "__team__" ? "Whole team (Ruso's copy)" : esc(w)) + "</option>").join("") + "</select>"
+          + "<span class='sp' style='flex:1'></span>"
+          + "<button class='sm-rbtn' id='smMsScore'>Scorecard sheet</button>"
+          + "<button class='sm-rbtn' id='smRx'>Close</button>";
+        bar.querySelector("#smRx").onclick = closeReport;
+        bar.querySelector("#smMsPrev").onclick = () => { st.m = months[i + 1]; draw(); };
+        bar.querySelector("#smMsNext").onclick = () => { st.m = months[i - 1]; draw(); };
+        bar.querySelector("#smMsWho").onchange = e => { st.who = e.target.value; draw(); };
+        bar.querySelector("#smMsScore").onclick = () => openReport(name);
+        if (!who) {
+          stat.textContent = "";
+          f.srcdoc = "<div style='font:15px system-ui;padding:40px;color:#555'>No summary for " + esc(name)
+            + " in " + esc(monLab(st.m)) + ". Pick a rep above &mdash; summaries exist for reps who had leads that month.</div>";
+          return;
+        }
+        const meta = opts.find(x => x.who === who) || {};
+        stat.innerHTML = meta.sent_at
+          ? "Sent " + esc(String(meta.sent_at).slice(0, 16)) + " UTC to " + esc(meta.sent_to || "")
+          : (st.m < new Date().toISOString().slice(0, 7)
+            ? "Built from the data &mdash; monthly emails started in October 2026, so this month was never mailed."
+            : "Draft &mdash; rebuilt every morning; it goes out automatically on the 1st.");
+        f.srcdoc = "<div style='font:14px system-ui;padding:40px;color:#777'>Loading…</div>";
+        try {
+          const d = await api("period=month&key=" + encodeURIComponent(st.m) + "&who=" + encodeURIComponent(who));
+          f.srcdoc = d.html || ("<p style='padding:40px'>" + esc(d.error || "Not built yet.") + "</p>");
+        } catch (e) { f.srcdoc = "<p style='padding:40px'>Could not load: " + esc(e.message) + "</p>"; }
+      };
+      if (!months.length) {
+        dim.querySelector("#smMsBar").innerHTML = "<span>No monthly summaries yet.</span><span class='sp' style='flex:1'></span>"
+          + "<button class='sm-rbtn' id='smMsScore'>Scorecard sheet</button><button class='sm-rbtn' id='smRx'>Close</button>";
+        dim.querySelector("#smRx").onclick = closeReport;
+        dim.querySelector("#smMsScore").onclick = () => openReport(name);
+        return;
+      }
+      draw();
+    }
+
     function openReport(name) {
       const r = (S.rows || []).find(x => x["Month"] === S.month && x["Sales Person"] === name);
       if (!r) return;
@@ -714,7 +796,7 @@ registerPage({
       // the Report button lives INSIDE the card head, which is itself the toggle — so it
       // has to stop the event before the head ever sees it
       wrap.querySelectorAll(".sm-rep").forEach(b => {
-        b.onclick = e => { e.stopPropagation(); openReport(b.dataset.rep); };
+        b.onclick = e => { e.stopPropagation(); openSummary(b.dataset.rep, S.month); };
       });
       wrap.querySelectorAll(".sm-card").forEach(c => {
         const head = c.querySelector(".sm-head");

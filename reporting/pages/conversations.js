@@ -35,6 +35,10 @@ const CONV = (() => {
     .cnv-side{position:sticky;top:8px;max-height:calc(100vh - var(--pg-chrome, 220px));
       display:flex;flex-direction:column}
     .cnv-main{min-height:420px}
+    .cnv-facts{border:1px solid var(--line);border-radius:12px;margin:0 0 14px;background:var(--panel)}
+    .cnv-facts>summary{cursor:pointer;padding:10px 14px;font-size:13px;font-weight:750;color:var(--ink);list-style:none}
+    .cnv-facts>summary::before{content:"B8  ";color:var(--muted)} .cnv-facts[open]>summary::before{content:"BE  "}
+    .cnv-facts>div{padding:0 14px 14px}
     /* the search row is a kit .rs-bar inside a ~316px rail, so its field has to be
        allowed below the kit's 210px minimum or "Find" drops to a second line */
     .cnv-search .rs-inp{flex:1;min-width:0}
@@ -393,7 +397,22 @@ const CONV = (() => {
           <span class="cnv-kwn" id="cnvKwN"></span>
         </div>
       </div>
+      <details class="cnv-facts" id="cnvFacts"${S.factsOpen ? " open" : ""}><summary>Lead details &mdash; status, money, job, rep answers</summary>
+        <div id="cnvFactsBody"></div></details>
       <div id="cnvThread"></div>`;
+    // THE LEAD FILE BESIDE THE THREAD (Ruso, 2026-10-06): the same facts the Lead Explorer
+    // drawer shows, drawn by sales-team.js (window.ST_LEAD) so the two can never disagree.
+    // Loaded when opened -- most readers come here for the words, not the money.
+    const jk = (ev.find(e => e["Request Joinkey"]) || {})["Request Joinkey"];
+    const fx = box.querySelector("#cnvFacts"), fxb = box.querySelector("#cnvFactsBody");
+    const loadFacts = () => {
+      if (fxb.dataset.done) return;
+      fxb.dataset.done = "1";
+      if (!jk || !window.ST_LEAD) { fxb.innerHTML = `<div class="cnv-empty" style="padding:12px">No lead file is linked to this conversation.</div>`; return; }
+      window.ST_LEAD.render(jk, fxb);
+    };
+    fx.ontoggle = () => { S.factsOpen = fx.open; if (fx.open) loadFacts(); };
+    if (fx.open) loadFacts();
     const trs = S.thread.transcripts || {};
     const ctl = mountThread(box.querySelector("#cnvThread"), ev, trs, h["Customer"]);
     const kwEl = box.querySelector("#cnvKw"), nEl = box.querySelector("#cnvKwN");

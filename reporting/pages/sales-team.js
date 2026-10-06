@@ -340,6 +340,21 @@
        It stays an overlay on document.body so the list underneath keeps its scroll,
        filters and tab, and ✕ / browser-Back both return to exactly that. */
     .st-drawer{position:fixed;top:0;right:-100vw;bottom:0;width:100vw;background:var(--bg);z-index:71;transition:right .18s;display:flex;flex-direction:column;box-shadow:-14px 0 40px rgba(0,0,0,.4)}
+    /* CALL BADGE (Ruso 2026-10-06): the same four words and colours as the daily email, so
+       "Called" / "Call received & answered" / "Not called" read identically in both places */
+    .st-cb{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:750;border-radius:999px;padding:2px 10px;border:1px solid;vertical-align:middle;margin-left:6px}
+    .st-cb::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor}
+    .st-cb.called{color:var(--blue);background:color-mix(in srgb,var(--blue) 10%,transparent)}
+    .st-cb.incoming{color:var(--green, #2e7d32);background:color-mix(in srgb,var(--green, #2e7d32) 10%,transparent)}
+    .st-cb.none{color:var(--red);background:color-mix(in srgb,var(--red) 10%,transparent)}
+    .st-cb.nodata{color:var(--muted);background:var(--panel-2)}
+    .st-dmeta{display:flex;flex-wrap:wrap;gap:6px 16px;margin-top:6px;font-size:12.5px;color:var(--muted)}
+    .st-dmeta b{color:var(--ink);font-weight:650}
+    .st-ans{border:1px solid var(--line);border-left:4px solid var(--brand);border-radius:11px;padding:10px 14px;margin:0 0 12px;background:var(--panel)}
+    .st-ans .h{font-size:10.5px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);margin-bottom:4px}
+    .st-ans .it{font-size:13px;padding:5px 0;border-top:1px solid var(--line-2)}
+    .st-ans .it:first-of-type{border-top:0}
+    .st-ans .it .w{color:var(--muted);font-size:12px}
     .st-lfv{display:grid;grid-template-columns:repeat(auto-fit,minmax(148px,1fr));gap:10px;margin-bottom:6px}
     .st-lfv .c{background:var(--panel);border:1px solid var(--line);border-radius:11px;padding:10px 12px}
     .st-lfv .l{font-size:10px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)}
@@ -594,7 +609,28 @@
       fieldsDump(cl, TECH_CLOSING, "More closing-sheet fields");
   }
 
-  function paintDrawer(d) {
+  // the partition the daily email uses: dialed out / they rang in and we answered / nobody spoke
+  function callState(j) {
+    if (!inWindow(j)) return "nodata";
+    if (+j["Called"]) return "called";
+    if (isContacted(j)) return "incoming";
+    return "none";
+  }
+  const CALL_LBL = { called: "Called", incoming: "Call received &amp; answered", none: "Not called", nodata: "No call data yet" };
+  const callBadge = j => { const k = callState(j); return `<span class="st-cb ${k}">${CALL_LBL[k]}</span>`; };
+
+  // what the rep answered from the daily email -- the Rep answers tab lists them all
+  function answersHtml(a) {
+    if (!a || !a.length) return "";
+    return `<div class="st-ans"><div class="h">Rep answers (${a.length})</div>${a.map(x =>
+      `<div class="it"><b>${esc(String(x["Timestamp"] || "").slice(0, 16).replace("T", " "))}</b>
+        <span class="w">${esc(x["Lead Owner"] || "")}</span> &middot; ${esc(x["Issue"] || "")}${
+        x["Note"] ? ` &mdash; &ldquo;${esc(x["Note"])}&rdquo;` : ""}</div>`).join("")}</div>`;
+  }
+
+  // `target`: render the facts (no story, no header) into another element -- the Conversations
+  // page shows them beside its own thread. Without it, this paints the drawer as before.
+  function paintDrawer(d, target) {
     const j = d.journey || {}, ev = d.events || [];
     const flags = [];
     if (+j["Flag Never Called"]) flags.push(`<span class="st-flag r">NO CONTACT</span>`);
@@ -604,12 +640,20 @@
     if (+j["Flag Big Quote Gap"]) flags.push(`<span class="st-flag p">QUOTE GAP</span>`);
     if (+j["Flag Confirmed No Closing"]) flags.push(`<span class="st-flag r">NO CLOSING</span>`);
     if (+j["Is LD"]) flags.push(`<span class="st-flag b">LONG DISTANCE</span>`);
-    drawerEl.querySelector("#stDT").innerHTML =
-      `${esc(j["Customer"] || "Lead")} <span style="color:var(--faint);font-weight:600;font-size:14px">#${esc(j["Job No"] || "")}</span> ${flags.join("")}`;
-    drawerEl.querySelector("#stDS").innerHTML =
-      `${esc(j["Company"] || "")} · ${esc(j["Source"] || "no source")} · assigned to <b>${esc(j["Assigned"] || "—")}</b>` +
-      ` · created ${esc((j["Create Datetime"] || "").slice(0, 16))} · status <b>${esc(j["Status"] || "—")}</b>` +
-      (j["Flag"] ? ` · flag: <b>${esc(j["Flag"])}</b>` : "") + (j["Label"] ? ` · label: <b>${esc(j["Label"])}</b>` : "");
+    if (!target) drawerEl.querySelector("#stDT").innerHTML =
+      `${esc(j["Customer"] || "Lead")} <span style="color:var(--faint);font-weight:600;font-size:14px">#${esc(j["Job No"] || "")}</span>${callBadge(j)}<div style="margin-top:6px">${flags.join("")}</div>`;
+    // the facts a salesperson reads first, as labelled pairs rather than one long sentence
+    const mv0 = String(j["Move Date"] || "").slice(0, 10);
+    const dmeta = `<div class="st-dmeta">
+      <span>Status <b>${esc(j["Status"] || "—")}</b></span>
+      <span>Rep <b>${esc(j["Assigned"] || "—")}</b></span>
+      <span>Source <b>${esc(j["Source"] || "—")}</b></span>
+      <span>Created <b>${esc((j["Create Datetime"] || "").slice(0, 16))}</b></span>
+      ${mv0 ? `<span>Moves <b>${esc(mv0)}</b></span>` : ""}
+      <span>${esc(j["Company"] || "")}</span>
+      ${j["Flag"] ? `<span>Flag <b>${esc(j["Flag"])}</b></span>` : ""}${j["Label"] ? `<span>Label <b>${esc(j["Label"])}</b></span>` : ""}
+    </div>`;
+    if (!target) drawerEl.querySelector("#stDS").innerHTML = dmeta;
 
     const est = `<div class="st-sec">Estimate → actual</div>
       <div class="st-est">${estActual(j)}
@@ -634,7 +678,7 @@
 
     const resp = `<div class="st-sec">Response</div><div class="st-fin">
       ${finCard("First contact", (+j["Called"] ? (j["TTO Biz Min"] != null ? mins(+j["TTO Biz Min"]) + " (biz)" : "called")
-                   : (isContacted(j) ? "answered incoming"
+                   : (isContacted(j) ? "call received &amp; answered"
                       : (isConf(j) ? "<span class='st-good'>confirmed ✓</span> <span class='st-dim'>" + (+j["Conf After Horizon"] ? "call after data cutoff" : "call not in RC") + "</span>"
                          : (!inWindow(j) ? "<span class='st-dim'>no call data yet</span>" : "<span class='st-bad'>none</span>")))))}
       ${finCard("Calls out / in", (+j["Out Calls"] || 0) + " / " + (+j["In Calls"] || 0))}
@@ -716,7 +760,7 @@
     const verdict = `<div class="st-lfv">
       ${vcard("Outcome", outcome)}
       ${vcard("First contact", +j["Called"] ? (j["TTO Biz Min"] != null ? mins(spd) : "called")
-        : (isContacted(j) ? "answered in" : (isConf(j) ? "off-system" : "never")), spdTone)}
+        : (isContacted(j) ? "received &amp; answered" : (isConf(j) ? "off-system" : "not called")), spdTone)}
       ${vcard("Calls", (+j["Out Calls"] || 0) + " out / " + (+j["In Calls"] || 0) + " in")}
       ${vcard("Answered", (+j["Answered In"] || 0) + " of " + (+j["In Calls"] || 0),
         (+j["In Calls"] || 0) && !(+j["Answered In"] || 0) ? "bad" : "")}
@@ -759,14 +803,18 @@
     if (d.closing) { d.closing.__gapPct = j["Bill Vs Quote Pct"]; d.closing.__all = d.closings || []; }
     // Facts are grouped and folded. Everything is still here; a lead just opens on the
     // money and the story instead of on seventy tiles.
-    drawerEl.querySelector("#stDB").innerHTML = verdict + openBlock +
-      `<div class="st-lfcols"><div>` + story + `</div><div>` +
-      est + fin +
+    const facts = est + fin +
       `<details class="st-fold" open><summary>Job &amp; Moveboard</summary>` + jobSection(j, d) + moveboardSection(d.moveboard, j) + `</details>` +
       `<details class="st-fold"><summary>Response detail</summary>` + resp + `</details>` +
       (d.closing ? `<details class="st-fold"><summary>Closing sheet</summary>` + closingSection(d.closing) + `</details>` : "") +
-      (aftermath ? `<details class="st-fold" open><summary>Aftermath</summary>` + aftermath + `</details>` : "") +
-      `</div></div>`;
+      (aftermath ? `<details class="st-fold" open><summary>Aftermath</summary>` + aftermath + `</details>` : "");
+    if (target) {
+      target.innerHTML = `<div class="st-lfwrap"><div style="margin-bottom:10px">${callBadge(j)}${dmeta}</div>`
+        + verdict + answersHtml(d.answers) + openBlock + facts + `</div>`;
+      return;
+    }
+    drawerEl.querySelector("#stDB").innerHTML = verdict + answersHtml(d.answers) + openBlock +
+      `<div class="st-lfcols"><div>` + story + `</div><div>` + facts + `</div></div>`;
 
     // transcripts expand in place, drawn by the Conversations page's renderer
     drawerEl.querySelectorAll(".st-trb").forEach(b => b.onclick = () => {
@@ -777,6 +825,23 @@
       if (window.CONV && t) { CONV.injectStyle(); w.innerHTML = CONV.transcriptHtml(t, j["Customer"]); b.classList.add("on"); }
     });
   }
+
+  // the lead facts for other pages (Conversations): fetch + paint into `el`
+  window.ST_LEAD = {
+    render(jk, el) {
+      injectStyle();
+      el.innerHTML = `<div class="rs-loading" style="padding:16px">Loading the lead file…</div>`;
+      return fetch(ZTZ.API + "/api/_leadfile?jk=" + encodeURIComponent(jk),
+        { headers: { Authorization: "Bearer " + ZTZ.getToken() } })
+        .then(r => r.json()).then(d => {
+          if (d && d.error) throw new Error(d.error);
+          if (!d || !d.journey) throw new Error("this lead is not in the lead journey yet");
+          paintDrawer(d, el);
+        })
+        .catch(e => { el.innerHTML = `<div class="st-note">Lead details unavailable: ${esc(e.message)}</div>`; });
+    },
+    open: jk => openDrawer(jk),
+  };
 
   /* ---------------- per-person aggregation ---------------- */
   function personStats(rows, confRows, th, omit) {
@@ -968,6 +1033,98 @@
   }
 
   /* ---------------- Lead Explorer tab ---------------- */
+  /* ---------------- Rep answers tab (Ruso, 2026-10-06) ----------------
+     Every answer a rep gave from the daily email: why a lead was bad, what happened to a lead
+     nobody called, what is going on with a Not Confirmed one. Read here so the sales manager
+     can take the bad-lead reasons to marketing and the lead providers. The lead's source and
+     current status come from the journey, joined on the Request #. */
+  const ANS_KIND = i => /^bad lead reason$/i.test(i || "") ? "bad"
+    : (/^not confirmed update$/i.test(i || "") ? "recall" : "not_called");
+  const ANS_LBL = { bad: "Bad lead", not_called: "Not called", recall: "Not Confirmed" };
+  async function renderAnswers(host, ctx) {
+    if (!ctx.answers) {
+      try {
+        const d = await fetch(ZTZ.API + "/api/sales_lead_feedback?limit=20000",
+          { headers: { Authorization: "Bearer " + ZTZ.getToken() } }).then(r => r.json());
+        ctx.answers = (d.rows || []).slice().sort((a, b) => String(b["Timestamp"]).localeCompare(String(a["Timestamp"])));
+      } catch (e) { ctx.answers = []; }
+    }
+    const byReq = {};
+    (ctx.allRows || ctx.rows).forEach(r => { const k = String(r["Job No"] || "").trim(); if (k && !byReq[k]) byReq[k] = r; });
+    const st = { kind: "", rep: "", src: "", q: "" };
+    const rows0 = ctx.answers.map(a => {
+      const L = byReq[String(a["Request #"] || "").trim()] || {};
+      return { a, L, kind: ANS_KIND(a["Issue"]), rep: (a["Lead Owner"] || L["Assigned"] || "").trim(),
+               src: (L["Source"] || "").trim() };
+    });
+    // bad leads by provider: the period's Bad Leads (journey, global filters apply) and the reasons given
+    const bad = {};
+    ctx.rows.filter(r => isDead(r)).forEach(r => {
+      const k = (r["Source"] || "—").trim() || "—";
+      (bad[k] = bad[k] || { n: 0, answered: 0, notes: [] }).n++;
+    });
+    rows0.filter(x => x.kind === "bad").forEach(x => {
+      const k = x.src || "—";
+      const b = bad[k] = bad[k] || { n: 0, answered: 0, notes: [] };
+      b.answered++;
+      if (x.a["Note"] && b.notes.length < 4) b.notes.push(x.a["Note"]);
+    });
+    const badRows = Object.entries(bad).sort((p, q) => q[1].n - p[1].n);
+    const reps = [...new Set(rows0.map(x => x.rep).filter(Boolean))].sort();
+    const srcs = [...new Set(rows0.map(x => x.src).filter(Boolean))].sort();
+    const n = k => rows0.filter(x => x.kind === k).length;
+    host.innerHTML = `
+      <div class="st-lfv" style="margin:4px 0 14px">
+        <div class="c"><div class="l">Answers</div><div class="v">${RS.fmtN(rows0.length)}</div></div>
+        <div class="c"><div class="l">Bad-lead reasons</div><div class="v">${RS.fmtN(n("bad"))}</div></div>
+        <div class="c"><div class="l">Not called, explained</div><div class="v">${RS.fmtN(n("not_called"))}</div></div>
+        <div class="c"><div class="l">Not Confirmed updates</div><div class="v">${RS.fmtN(n("recall"))}</div></div>
+      </div>
+      <div class="st-sec" style="margin-top:0">Bad leads by lead source &middot; this period</div>
+      <div class="st-grid" style="margin-bottom:16px"><div class="st-gridscroll"><table class="st-tbl">
+        <thead><tr><th>Source</th><th style="text-align:right">Bad leads</th><th style="text-align:right">Reasons given</th><th>Latest reasons</th></tr></thead>
+        <tbody>${badRows.slice(0, 25).map(([k, b]) => `<tr><td><b>${esc(k)}</b></td>
+          <td style="text-align:right">${RS.fmtN(b.n)}</td><td style="text-align:right">${RS.fmtN(b.answered)}</td>
+          <td style="white-space:normal;color:var(--muted)">${b.notes.map(t => "&ldquo;" + esc(String(t).slice(0, 90)) + "&rdquo;").join(" &middot; ") || "&mdash;"}</td></tr>`).join("")
+          || `<tr><td colspan="4" class="st-dim">No bad leads in this period.</td></tr>`}</tbody></table></div></div>
+      <div class="st-toolbar">
+        <div class="st-search"><input type="text" id="saQ" placeholder="Search customer, request #, or answer…"></div>
+        <div id="saRep"></div><div id="saSrc"></div>
+      </div>
+      <div class="st-chips">${[["", "All"], ["bad", "Bad lead"], ["not_called", "Not called"], ["recall", "Not Confirmed"]]
+        .map(([k, l]) => `<button class="st-chip${k === "" ? " on" : ""}" data-k="${k}">${l}</button>`).join("")}</div>
+      <div class="st-grid"><div class="st-gridscroll" id="saTbl"></div></div>`;
+    const paint = () => {
+      const q = st.q.toLowerCase();
+      const rows = rows0.filter(x => (!st.kind || x.kind === st.kind) && (!st.rep || x.rep === st.rep)
+        && (!st.src || x.src === st.src)
+        && (!q || [x.a["Request #"], x.a["Note"], x.a["Issue"], x.L["Customer"]].join(" ").toLowerCase().includes(q)));
+      host.querySelector("#saTbl").innerHTML = rows.length ? `<table class="st-tbl"><thead><tr>
+          <th>When</th><th>Rep</th><th>Lead</th><th>Source</th><th>Type</th><th>Answer</th><th>Status now</th></tr></thead>
+        <tbody>${rows.slice(0, 500).map(x => `<tr class="click" data-jk="${esc(x.L["Request Joinkey"] || "")}">
+          <td>${esc(String(x.a["Timestamp"] || "").slice(0, 16).replace("T", " "))}</td>
+          <td>${esc(x.rep || "—")}</td>
+          <td><b>${esc(x.L["Customer"] || "—")}</b> <span class="st-dim">#${esc(x.a["Request #"] || "")}</span></td>
+          <td>${esc(x.src || "—")}</td>
+          <td><span class="st-flag ${x.kind === "bad" ? "r" : x.kind === "recall" ? "a" : "b"}">${ANS_LBL[x.kind]}</span></td>
+          <td style="white-space:normal;min-width:260px">${x.kind === "not_called" ? "<b>" + esc(x.a["Issue"] || "") + "</b>" + (x.a["Note"] ? " &mdash; " : "") : ""}${esc(x.a["Note"] || "")}</td>
+          <td>${esc(x.L["Status"] || "—")}</td></tr>`).join("")}</tbody></table>`
+        : `<div class="st-note" style="padding:16px">No answers match. Reps answer from the links in their daily email; the answers arrive here within the hour.</div>`;
+      host.querySelectorAll("#saTbl tr.click").forEach(tr => tr.onclick = () => { if (tr.dataset.jk) openDrawer(tr.dataset.jk); });
+    };
+    RSC.localSelect(host.querySelector("#saRep"), { label: "Rep", allLabel: "All reps",
+      values: reps.map(v => ({ v, l: v })), value: "", onChange: v => { st.rep = v; paint(); } });
+    RSC.localSelect(host.querySelector("#saSrc"), { label: "Source", allLabel: "All sources",
+      values: srcs.map(v => ({ v, l: v })), value: "", onChange: v => { st.src = v; paint(); } });
+    host.querySelector("#saQ").oninput = e => { st.q = e.target.value; paint(); };
+    host.querySelectorAll(".st-chip").forEach(b => b.onclick = () => {
+      st.kind = b.dataset.k;
+      host.querySelectorAll(".st-chip").forEach(x => x.classList.toggle("on", x === b));
+      paint();
+    });
+    paint();
+  }
+
   function renderExplorer(host, ctx) {
     const state = { q: "", sp: (ctx.explorerPreset && ctx.explorerPreset.sp) || "", chip: "",
       sort: "new", page: 0, src: "", stat: "", called: "", type: "", bucket: "" };
@@ -2125,7 +2282,7 @@
           <span class="freshness">· leads count by created date · confirmations by confirmed date</span></p></div>
         <div class="st-tabbar" id="stTabs"></div><div id="stHost"></div></div>`;
       const TABS = [["team", "Team"], ["rep", "Rep Profile"], ["compare", "Compare"],
-                    ["explorer", "Lead Explorer"]];
+                    ["explorer", "Lead Explorer"], ["answers", "Rep answers"]];
       const tabsEl = host.querySelector("#stTabs");
       const hostEl = host.querySelector("#stHost");
       let active = ST_LAST_TAB;   // survive a global re-render (e.g. the rep→Explorer jump)
@@ -2141,6 +2298,7 @@
         active = k; ST_LAST_TAB = k; paintTabs();
         hostEl.innerHTML = `<div class="rs-loading" style="padding:22px">Loading…</div>`;
         const all = await RS.load("lead_journey");
+        ctx.allRows = all;
         ctx.rows = RS.filtered("lead_journey", all);
 
         // ---- confirmations, on the CONFIRMED-date basis --------------------------------
@@ -2226,6 +2384,7 @@
         if (k === "team") return renderTeam(hostEl, ctx);
         if (k === "rep") return renderRep(hostEl, ctx);
         if (k === "compare") return renderCompare(hostEl, ctx);
+        if (k === "answers") return renderAnswers(hostEl, ctx);
         return renderExplorer(hostEl, ctx);
       };
       paintTabs();
