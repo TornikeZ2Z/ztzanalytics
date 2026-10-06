@@ -1138,6 +1138,9 @@ async function renderPage() {
     if (rb) rb.onclick = () => renderPage();
     console.error(e);
   }
+  // "a page has finished drawing": the lead file (sales-team.js) listens, so a link that carries
+  // &lead=<joinkey> opens that lead over WHATEVER page it names (2026-10-06)
+  try { window.dispatchEvent(new CustomEvent("ztz:rendered", { detail: CURRENT && CURRENT.id })); } catch (e) {}
   // one sweep after the page has painted: every scroller that measures its own chrome sits
   // under whatever the shell decided to show above it (filter bar, chips, banners)
   requestAnimationFrame(() => RSC.fit());
@@ -2021,7 +2024,7 @@ registerPage({
 <script src="pages/source-analysis.js?v=5"></script>
 <script src="pages/data-quality.js?v=15"></script>
 <script src="pages/refresh-log.js?v=29"></script>
-<script src="pages/sales-team.js?v=51"></script>
+<script src="pages/sales-team.js?v=52"></script>
 <script src="pages/sales-comms.js?v=4"></script>
 <script src="pages/sales-trackers.js?v=7"></script>
 <script src="pages/things-to-do.js?v=2"></script>

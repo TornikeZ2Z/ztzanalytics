@@ -448,7 +448,9 @@
       const close = () => {
         drawerEl.querySelector(".st-scrim").classList.remove("on");
         drawerEl.querySelector(".st-drawer").classList.remove("on");
-        if (/[?&]lead=/.test(location.hash)) location.hash = "page=sales-command";
+        drawerEl.dataset.jk = "";
+        // drop only the lead part: the page underneath stays where it is
+        if (/[?&]lead=/.test(location.hash)) location.hash = location.hash.slice(1).replace(/[?&]lead=[^&]*/, "");
       };
       window.addEventListener("hashchange", () => {   // browser Back closes the lead file
         if (!/[?&]lead=/.test(location.hash) && drawerEl) close();
@@ -458,10 +460,15 @@
     }
     drawerEl.querySelector(".st-scrim").classList.add("on");
     drawerEl.querySelector(".st-drawer").classList.add("on");
-    // URL-addressable: a lead can be linked to, and Back closes it instead of
-    // leaving the report. The shell's hashchange only re-routes when the PAGE id
-    // changes, so the extra &lead= is inert to it.
-    if (!/[?&]lead=/.test(location.hash)) location.hash = "page=sales-command&lead=" + encodeURIComponent(jk);
+    drawerEl.dataset.jk = jk;
+    // URL-addressable ON ANY PAGE (2026-10-06): the lead rides on the current page's own address,
+    // so opening it from Demand or Source Report no longer navigates to Sales Person Analysis.
+    // The shell's hashchange only re-routes when the PAGE id changes, so &lead= is inert to it.
+    const want = "lead=" + encodeURIComponent(jk);
+    if (location.hash.indexOf(want) < 0) {
+      const base = location.hash.slice(1).replace(/[?&]lead=[^&]*/, "") || "page=sales-command";
+      location.hash = base + "&" + want;
+    }
     drawerEl.querySelector("#stDT").textContent = "Loading…";
     drawerEl.querySelector("#stDS").textContent = "";
     drawerEl.querySelector("#stDB").innerHTML = `<div class="rs-loading" style="padding:24px">Loading the lead file…</div>`;
@@ -825,6 +832,21 @@
       if (window.CONV && t) { CONV.injectStyle(); w.innerHTML = CONV.transcriptHtml(t, j["Customer"]); b.classList.add("on"); }
     });
   }
+
+  // A LINK THAT NAMES A LEAD OPENS IT (2026-10-06). Nothing read &lead= on load, so the links in
+  // Ruso's daily email -- and any pasted link -- landed on the page with the lead closed.
+  const leadInHash = () => {
+    const m = location.hash.match(/[?&]lead=([^&]+)/);
+    try { return m ? decodeURIComponent(m[1]) : ""; } catch (e) { return ""; }
+  };
+  const openFromHash = () => {
+    const jk = leadInHash();
+    if (!jk) return;
+    const open = drawerEl && drawerEl.querySelector(".st-drawer.on") && drawerEl.dataset.jk === jk;
+    if (!open) { injectStyle(); openDrawer(jk); }
+  };
+  window.addEventListener("ztz:rendered", openFromHash);
+  window.addEventListener("hashchange", openFromHash);
 
   // the lead facts for other pages (Conversations): fetch + paint into `el`
   window.ST_LEAD = {
