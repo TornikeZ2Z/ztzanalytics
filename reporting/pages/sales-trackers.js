@@ -206,7 +206,10 @@
   function scopeWords(sc) {
     sc = sc || {};
     var bits = [];
-    bits.push(sc.direction ? sc.direction + " calls" : "all directions");
+    // no stored direction = BOTH (the bridge never stores "both": it is the old "any", so the
+    // three trackers made before direction became a required pick kept their prompt hash)
+    bits.push(sc.direction === "inbound" ? "Inbound calls"
+      : sc.direction === "outbound" ? "Outbound calls" : "Inbound and outbound calls");
     if (sc.quote_only) bits.push("quote calls only");
     if (sc.first_contact_only) bits.push("first contacts only");
     if (sc.min_seconds) bits.push("≥ " + sc.min_seconds + "s");
@@ -723,7 +726,7 @@
       + '<textarea class="stx-in stx-kw" id="stxKw" maxlength="1000">'
       + esc(t.keywords || "") + "</textarea>"
       + '<div class="stx-kwprev" id="stxKwPrev"></div></div>'
-      + '<div class="full"><label>Scope — which calls this applies to</label>'
+      + '<div class="full"><label>Scope — which calls this applies to (direction is required)</label>'
       + '<div class="stx-scoperow">'
       + '<div id="stxDir"></div>'
       + '<input class="stx-in" id="stxMin" type="number" min="0" max="7200" '
@@ -760,10 +763,14 @@
     kwEl.oninput = paintKw;
     paintKw();
 
-    // the kit dropdown, not a naked <select> — same values, same default ("any")
+    // DIRECTION IS A REQUIRED PICK (his ask, 2026-10-06): whoever adds a tracker must say which
+    // calls it is for. A new tracker starts with nothing chosen; an existing one with no stored
+    // direction reads as Both, which is what it has always been judged on.
     var dirSel = RSC.localSelect(elt.querySelector("#stxDir"), {
-      label: "Direction", values: ["any", "inbound", "outbound"],
-      value: sc.direction || "any", form: true, required: true,
+      label: "Direction", allLabel: "Choose direction…", form: true,
+      values: [{ v: "outbound", l: "Outbound calls" }, { v: "inbound", l: "Inbound calls" },
+               { v: "both", l: "Both directions" }],
+      value: t.isNew ? "" : (sc.direction || "both"),
     });
 
     var nameEl = elt.querySelector("#stxName");
@@ -774,6 +781,7 @@
     }
     elt.querySelector("#stxCancel").onclick = function () { S.edit = null; elt.innerHTML = ""; };
     elt.querySelector("#stxSave").onclick = function () {
+      if (!dirSel.get()) { RSC.notice("Choose which calls this tracker is for: outbound, inbound or both."); return; }
       var scope = {
         direction: dirSel.get(),
         min_seconds: +elt.querySelector("#stxMin").value || 0,
@@ -809,12 +817,35 @@
     };
   }
 
+  /* COMMUNICATION ANALYSIS LIVES HERE NOW (his ask, 2026-10-06: "lets just move this to Sales
+     Trackers"). Two tabs over the page: the trackers, and the old Sales Communication Analysis
+     page rendered as it is (its module still registers itself; the shell retires its menu entry
+     and forwards its old links here, landing on this tab). */
+  var TOP = null;
+  function renderTop(host) {
+    if (TOP == null || window.__navRequested === "sales-comms") {
+      TOP = window.__navRequested === "sales-comms" ? "comms" : (TOP || "trackers");
+      window.__navRequested = null;
+    }
+    host.innerHTML = '<div class="rs-tabs stx-top">'
+      + '<button class="rs-tab' + (TOP === "trackers" ? " on" : "") + '" data-top="trackers">Trackers</button>'
+      + '<button class="rs-tab' + (TOP === "comms" ? " on" : "") + '" data-top="comms">Communication Analysis</button>'
+      + '</div><div id="stxTopBody"></div>';
+    host.querySelectorAll("[data-top]").forEach(function (b) {
+      b.onclick = function () { TOP = b.dataset.top; renderTop(host); };
+    });
+    var body = host.querySelector("#stxTopBody");
+    var comms = (window.PAGES || []).filter(function (p) { return p.id === "sales-comms"; })[0];
+    if (TOP === "comms" && comms) return comms.render(body);
+    return render(body);
+  }
+
   if (window.registerPage) {
     registerPage({
       id: "sales-trackers",
       group: "sales",
       title: "Sales Trackers",
-      render: render,
+      render: renderTop,
     });
   }
 })();

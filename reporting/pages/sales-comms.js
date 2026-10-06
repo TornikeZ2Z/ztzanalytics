@@ -309,7 +309,7 @@
                        human.length);
 
     var html = ''
-      + '<div class="rs-page-head"><h1>Sales Communication Analysis</h1>'
+      + '<div class="rs-page-head"><h1>Communication Analysis</h1>'
       + "<p>What was <b>said</b> on each sales call, per rep — the house script written down "
       + "from the calls themselves. This is a coaching map: it records what was said, never "
       + "how well it was said, and it carries no booked rate on purpose.</p></div>"

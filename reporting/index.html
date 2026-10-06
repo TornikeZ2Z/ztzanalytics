@@ -337,6 +337,8 @@ const mergedActiveTab = {};
    but they're hidden from nav/search/tiles and any hit — deep link, old ACL grant, hash —
    is silently forwarded to its themed-dashboard replacement. */
 const RETIRED = new Set([
+  // 2026-10-06: Communication Analysis is a tab on Sales Trackers now; old links land on that tab
+  "sales-comms",
   // 2026-09-03: Area Master folded into Seasonal Planning (id area-plan); the deep link redirects
   "area-master",
   // pre-existing
@@ -367,6 +369,7 @@ const RETIRED = new Set([
   "sup-claims", "sup-refunds", "sup-phone",
 ]);
 const REDIRECTS = {
+  "sales-comms": "sales-trackers",
   // 2026-09-23: ERP Bug Briefs was replaced by Things to do; old links land there
   "erp-briefs": "things-to-do",
   // 2026-09-03: the per-city evidence lives inside Seasonal Planning now
@@ -1053,6 +1056,7 @@ function mountSideToggle() {
 function navigate(id, push) {
   let deniedTitle = null;
   if (id && id.indexOf(":") > 0) id = id.split(":")[0];   // collapse any legacy "hub:tab" deep link
+  window.__navRequested = id;                              // pages that host a retired one read it (Sales Trackers)
   id = resolveRedirect(id);                               // retired id / slice → final target
   // An id with no page behind it (a mistyped hash, or a removed page such as IT Requests,
   // 2026-09-23) goes to the first allowed page as well. Before, an admin fell through to
@@ -1318,7 +1322,7 @@ const SEARCH_ALIASES = {
   "sales-command": "sales person analysis sales team command lead journey 360 explorer call history timeline salesperson rep profile lead file important",
   "conversations": "conversations transcripts call recording ringsense what was said customer chat sms text thread talk speech summary",
   "sales-comms": "sales communication analysis call quality coaching rubric checklist what was said discovery deposit close objection talk ratio rep performance ringsense",
-  "sales-trackers": "sales trackers keyword tracker ai trackers custom tracker inventory review storage discussion price objection competitor mention mentioned source detector heard about us compliance ringsense analysis control panel",
+  "sales-trackers": "sales trackers communication analysis call quality coaching rubric keyword tracker ai trackers custom tracker inventory review storage discussion price objection competitor mention mentioned source detector heard about us compliance ringsense analysis control panel",
   "source-trace": "source trace lineage attribution callrail google local phone match booked from moveboard corrected final source faithful pbix diagnostic audit",
   "source-report": "source analysis lead source leads conversion booking rate funnel dead reasons post card yelp google angi thumbtack ad spend cost per lead cost per booked job cash per dollar roi lead list customer phone email marketing channel",
   "meta-referrals": "meta referral upload facebook instagram lead form fills csv export dedupe source",
@@ -1803,7 +1807,7 @@ const REPORT_LABELS = {
   "utm-campaigns": "Website Forms & UTM",
   "straight-vs-local": "Straight vs Local",
   "truck-economics": "Truck Economics",
-  "sales-comms": "Sales Communication Analysis",
+  "sales-comms": "Communication Analysis",
   "sales-trackers": "Sales Trackers",
   // Customer Service
   "cleanup": "Calendar Cleanup",
@@ -1897,7 +1901,7 @@ const ACL_DEPTS = [
   // `things-to-do` used to sit in all nine lists, so every user got the Tech Team group.
   // check_acl_mirror.py fails when a list differs from the group OR from DEPT_REPORTS.
   { id: "company",   label: "Company Overview", icon: "spark",     reports: ["monthly-report", "seasonal-report", "area-plan", "analysis-by-category"] },
-  { id: "sales",     label: "Sales",            icon: "funnel",    reports: ["sales-command", "sales-of-the-month", "support-of-the-month", "demand-analysis", "conversations", "sales-comms", "sales-trackers"] },
+  { id: "sales",     label: "Sales",            icon: "funnel",    reports: ["sales-command", "sales-of-the-month", "support-of-the-month", "demand-analysis", "conversations", "sales-trackers"] },
   { id: "marketing", label: "Marketing",        icon: "megaphone", reports: ["source-report", "source-trace", "jobs-by-area", "relocation-trends", "census-data", "organic-search"] },
   // granted on its own, and ALSO by holding Marketing (DEPT_IMPLIES)
   { id: "marketing-automations", label: "Marketing Automations", icon: "clock", reports: ["referral-candidates", "promised-reviews", "birdeye-sends", "angi-funnel"] },
@@ -2159,8 +2163,8 @@ registerPage({
 <script src="pages/data-quality.js?v=16"></script>
 <script src="pages/refresh-log.js?v=30"></script>
 <script src="pages/sales-team.js?v=57"></script>
-<script src="pages/sales-comms.js?v=5"></script>
-<script src="pages/sales-trackers.js?v=8"></script>
+<script src="pages/sales-comms.js?v=6"></script>
+<script src="pages/sales-trackers.js?v=9"></script>
 <script src="pages/things-to-do.js?v=3"></script>
 <script src="pages/conversations.js?v=12"></script>
 <script src="pages/source-trace.js?v=29"></script>
