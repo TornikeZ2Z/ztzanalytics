@@ -946,7 +946,7 @@ registerPage({
       else if (v === "cf") { const ck = s2 => { const mm = String(s2).match(/\d+/); return mm ? +mm[0] : Infinity; }; keys.sort((a, b) => ck(a) - ck(b)); }
       else keys.sort((a, b) => { const ta = String(a)[0] === "~", tb = String(b)[0] === "~";
         return ta !== tb ? (ta ? 1 : -1) : (val(cur.get(b)) || 0) - (val(cur.get(a)) || 0); });
-      const tot = [...cur.values()].reduce((s2, x) => s2 + x.n, 0);
+      const tot = [...cur.entries()].filter(([k]) => String(k)[0] !== "~").reduce((s2, [, x]) => s2 + x.n, 0);
       const mx = Math.max(1e-9, ...keys.map(k => Math.max(val(cur.get(k)) || 0, val(prev.get(k)) || 0)));
       const lab = k => v === "wd" ? (S.wdMode === "mo" ? MONN[k] : WDN[k]) : String(k).replace(/^~/, "");
       let sep = false;
@@ -976,7 +976,8 @@ registerPage({
       };
       const sub = v === "wd" ? '<div class="rs-seg dm-sub"><button data-wdm="wd"' + (S.wdMode !== "mo" ? ' class="on"' : "")
         + '>By weekday</button><button data-wdm="mo"' + (S.wdMode === "mo" ? ' class="on"' : "") + ">By month</button></div>" : "";
-      const winTxt = cutMD() === "12-32" ? "the whole of " + y : "1 Jan – " + shortDate(y + "-" + cutMD()).replace(/^\w+ /, "") + " before today";
+      const lastIso = cutMD() === "12-32" ? null : new Date(Date.parse(y + "-" + cutMD() + "T00:00:00Z") - 864e5).toISOString().slice(0, 10);
+      const winTxt = lastIso ? "1 Jan – " + shortDate(lastIso).replace(/^\w+ /, "") : "the whole year";
       return '<div class="dm-ph"><h3>' + esc(TITLE[v]) + '</h3><span class="tag">by move date</span>' + sub
         + '<label class="dm-cmp"' + (hasPrev ? "" : ' title="No ' + esc(py) + ' data"') + '><input type="checkbox" id="dmCmp"'
         + (cmp ? " checked" : "") + (hasPrev ? "" : " disabled") + "> Compare with " + esc(py) + "</label></div>"
