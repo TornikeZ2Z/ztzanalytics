@@ -32,7 +32,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/portal.css?v=2">
-<link rel="stylesheet" href="assets/rs.css?v=34">
+<link rel="stylesheet" href="assets/rs.css?v=35">
 <style>
 /* collapsible sidebar groups + nested hub sub-items */
 #nav .g-title{cursor:pointer;user-select:none;display:flex;align-items:center;justify-content:space-between}
@@ -44,8 +44,8 @@
 #nav .rs-nav-sub::before{content:"·";margin-right:8px;opacity:.5;font-weight:800}
 /* Monthly-Report-family pages own their time — the global Year/Month slicers hide there
    (the page's cover Month/Year picker is the one time control); see MR_OWN_TIME. */
-body.mr-own-time #frowDates .rs-slicer[data-key="year"],
-body.mr-own-time #frowDates .rs-slicer[data-key="month"]{display:none}
+body.mr-own-time #frowSlicers .rs-slicer[data-key="year"],
+body.mr-own-time #frowSlicers .rs-slicer[data-key="month"]{display:none}
 /* ---- admin "view as user" banner ---- */
 /* z-index 29, NOT 200: shell filter-bar popovers live in .rs-filters' stacking context (z:30) —
    at 200 this banner painted over an open slicer dropdown. 29 keeps it above every page sticky
@@ -102,9 +102,10 @@ body.rs-viewas .rs-layout{box-shadow:inset 0 0 0 2px #7c3aed}
   </aside>
   <div class="rs-backdrop hidden" id="sideBackdrop"></div>
   <div class="rs-main">
+    <!-- FILTERS v3 (his pick "B", 2026-10-06): one slim bar = period switch + Company + the one
+         or two filters this page is about; everything else lives in the Filters panel below. -->
     <div class="rs-filters" id="filters">
-      <div class="rs-frow" id="frowDates"></div>
-      <div class="rs-frow" id="frowSlicers"></div>
+      <div class="rs-frow rs-fbar" id="frowDates"></div>
       <div class="rs-datebasis hidden" id="dateBasisNote"></div>
     </div>
     <div class="rs-chips hidden" id="chips"></div>
@@ -117,11 +118,19 @@ body.rs-viewas .rs-layout{box-shadow:inset 0 0 0 2px #7c3aed}
     <div class="rs-banner hidden" id="feedWarnBanner"></div>
     <div class="rs-content" id="content"></div>
   </div>
+  <div class="rs-fscrim hidden" id="fScrim"></div>
+  <aside class="rs-fpanel hidden" id="fPanel" role="dialog" aria-modal="true" aria-label="Filters">
+    <div class="rs-fp-head"><h2>Filters</h2><button class="rs-fp-x" id="fpClose" aria-label="Close filters">&times;</button></div>
+    <div class="rs-fp-body"><div class="rs-frow" id="frowSlicers"></div>
+      <div class="rs-fp-none hidden" id="fpNone">This page has no other filters.</div></div>
+    <div class="rs-fp-foot"><button class="rs-fp-clear" id="fpClear">Clear all</button>
+      <button class="rs-fp-done" id="fpDone">Done</button></div>
+  </aside>
 </div>
 
 <script src="assets/portal.js?v=12"></script>
 <script src="assets/rs-core.js?v=56"></script>
-<script src="assets/rs-components.js?v=33"></script>
+<script src="assets/rs-components.js?v=34"></script>
 <script>
 /* ---------------- page registry ---------------- */
 window.PAGES = [];
@@ -883,7 +892,7 @@ function updateFilterContext() {
       if (seen.size) txt = [...seen].map(([b, noun]) => `${b} (${noun})`).join(" · ");
     }
     note.textContent = txt ? "The Date filter on this page goes by: " + txt : "";
-    note.classList.toggle("hidden", !txt);
+    note.classList.add("hidden");   // FILTERS v3: said once, on the summary line (paintChips)
   }
   let active = null;                        // null = unknown page -> grey nothing
   if (dsList) {
@@ -891,19 +900,38 @@ function updateFilterContext() {
     dsList.forEach(ds => RS.fieldsFor(ds).forEach(k => active.add(k)));
   }
   const fixed = PAGE_SLICER_FIXED[leaf] || {};
-  document.querySelectorAll("#frowSlicers .rs-slicer[data-key]").forEach(w => {
-    const k = w.dataset.key;
-    // A slicer the page has already pinned is greyed for a DIFFERENT reason than one whose
-    // field is missing, so it says which — and its own reason wins, being the more specific.
+  /* FILTERS v3: a filter this page cannot use is HIDDEN, not greyed (his ask, 2026-10-06: "if
+     the filter is not there, we should hide it"). The ones that stay go to one of two places:
+     the bar (Company, always, plus PAGE_BAR_PINNED -- the one or two filters the page is about)
+     or the Filters panel. Moved, not rebuilt, so the slicers keep their state and listeners. */
+  const pins = new Set(["company"].concat(PAGE_BAR_PINNED[leaf] || []));
+  const barHost = document.getElementById("fbarPins"), panel = document.getElementById("frowSlicers");
+  let inPanel = 0;
+  if (barHost && panel) FILTER_ORDER.forEach(k => {
+    const w = document.querySelector('.rs-slicer[data-key="' + k + '"]');
+    if (!w) return;
+    // A slicer the page has already pinned is off for a DIFFERENT reason than one whose
+    // field is missing -- either way it is not offered.
     const pinned = fixed[k];
     const off = !!pinned || !!(active && !active.has(k));
     w.classList.toggle("rs-off", off);
-    w.title = pinned
-      ? pinned
-      : (off
-          ? "Not used on this page — this report's data has no " + ((RS.FIELDS[k] || {}).label || k) + " field"
-          : ((RS.FIELDS[k] || {}).tip || SLICER_TIPS[k] || ""));
+    w.classList.toggle("hidden", off);
+    w.title = off ? "" : ((RS.FIELDS[k] || {}).tip || SLICER_TIPS[k] || "");
+    if (pins.has(k)) barHost.appendChild(w);
+    else { panel.appendChild(w); if (!off) inPanel++; }
   });
+  const fb = document.getElementById("fbtn");
+  if (fb) fb.classList.toggle("hidden", !inPanel);
+  const none = document.getElementById("fpNone");
+  if (none) none.classList.toggle("hidden", !!inPanel);
+  paintChips();
+}
+/* A page whose datasets carry NONE of the global fields gets no bar at all: every control on
+   it would be a no-op (Post Card pages, Sales Trackers, Source Trace). */
+function pageHasNoFilters() {
+  const dsList = PAGE_DATASETS[currentLeafId()];
+  if (!dsList) return false;
+  return !dsList.some(ds => RS.fieldsFor(ds).length);
 }
 /* C31: Month=March + Date=Jan 1-31 silently intersects to zero rows. Detect it and say so. */
 /* A DAILY FEED BEHIND (his pick 2026-09-25: page warnings, no alerts). The manual exports are
@@ -1111,11 +1139,12 @@ const _rangeDefaulted = new Set();
 function applyDefaultRange() {
   const leaf = currentLeafId();
   const want = PAGE_DEFAULT_RANGE[leaf];
-  if (!want || !DBAR || _rangeDefaulted.has(leaf)) return;
+  if (!want || !DBAR || _rangeDefaulted.has(leaf)) return false;
   _rangeDefaulted.add(leaf);
-  if (RS.state.dateFrom || RS.state.dateTo) return;   // the user already chose
+  if (RS.state.dateFrom || RS.state.dateTo) return false;   // the user already chose
   const p = DBAR.preset(want);
   if (p) DBAR.set(p[1], p[2], { silent: true });      // renderPage is already running
+  return !!p;
 }
 
 async function renderPage() {
@@ -1124,7 +1153,7 @@ async function renderPage() {
   updateFilterContext();
   const bare = BARE_CHROME.has(currentLeafId());
   document.body.classList.toggle("mr-own-time", MR_OWN_TIME.has(currentLeafId()));
-  const fEl = document.getElementById("filters"); if (fEl) fEl.classList.toggle("hidden", bare);
+  const fEl = document.getElementById("filters"); if (fEl) fEl.classList.toggle("hidden", bare || pageHasNoFilters());
   // HIDE FILTERS IS FOR PAGES DROWNING IN SLICERS, not for pages whose own content is DRIVEN
   // by one. Sales Person Analysis picks the person through the global Sales Person filter, so
   // collapsing the bar left the Rep Profile telling you to "pick anyone with the Sales Person
@@ -1133,7 +1162,7 @@ async function renderPage() {
   // collapsed on some other page cannot follow you here: it is ONE bar shared by every page.
   if (GBAR) GBAR.setEnabled(!NO_BAR_COLLAPSE.has(currentLeafId()),
                             "rsBarCollapsed:" + currentLeafId());
-  { const cEl = document.getElementById("chips"); if (cEl) { if (bare) cEl.classList.add("hidden"); else paintChips(); } }
+  { const cEl = document.getElementById("chips"); if (cEl) { if (bare || pageHasNoFilters()) cEl.classList.add("hidden"); else paintChips(); } }
   // destroy the outgoing page's Chart instances BEFORE wiping the DOM — otherwise they leak on
   // every navigation / theme change / re-render (worst on chart-heavy pages)
   try { Object.values(Chart.instances || {}).forEach(ch => { if (ch.canvas && host.contains(ch.canvas)) ch.destroy(); }); } catch (e) {}
@@ -1394,11 +1423,45 @@ function globalFilterCount() {
    the height that collapsing the slicer row gives back. So the time controls stay put — they
    are the ones every reading is quoted against — and the slicers, the date-basis caption and
    the chip row go. */
+/* FILTERS v3 replaced the collapsible bar: the bar is one line now, so there is nothing to
+   collapse; GBAR stays null and every `if (GBAR)` here is inert. */
 function mountGlobalBar() {
-  GBAR = RSC.collapsible(document.getElementById("frowSlicers"), "rsBarCollapsed:global", {
-    host: document.getElementById("frowDates"),
-    count: globalFilterCount,
-    also: [document.getElementById("dateBasisNote"), document.getElementById("chips")],
+  const panel = document.getElementById("fPanel"), scrim = document.getElementById("fScrim");
+  const close = () => { panel.classList.add("hidden"); scrim.classList.add("hidden"); };
+  scrim.onclick = close;
+  document.getElementById("fpClose").onclick = close;
+  document.getElementById("fpDone").onclick = close;
+  document.getElementById("fpClear").onclick = () => {
+    // Clear all = every filter in the panel. Company is a permanent scope and the period has
+    // its own switch, so neither is touched here.
+    Object.entries(RS.state.multi).forEach(([k, set]) => { if (k !== "company" && set) set.clear(); });
+    buildFilters().then(renderPage);
+  };
+  document.addEventListener("keydown", e => { if (e.key === "Escape" && !panel.classList.contains("hidden")) close(); });
+}
+function openFilterPanel() {
+  document.getElementById("fPanel").classList.remove("hidden");
+  document.getElementById("fScrim").classList.remove("hidden");
+}
+/* The filters that sit in the BAR on a page, beside the period switch and Company: the ones the
+   page is about. Everything else is one click away in the panel. (His ask: "define some
+   mandatory filters" per screen, 2026-10-06.) */
+const PAGE_BAR_PINNED = {
+  "sales-command": ["sales"],            // Sales Person Analysis: the person IS the question
+  "analysis-by-category": ["source"],    // Custom Breakdown: the source lens is the one most read
+  "foreman-late": ["foreman"],
+  "branch-owner": ["foreman"],
+  "bo-salary": ["foreman"],
+};
+/* one click per period; "Custom..." (the date button) holds the rest: any range, day-of-month */
+const PERIODS = [["All time", "All time"], ["Yesterday", "Yesterday"], ["Last 7 days", "7 days"],
+                 ["This month", "This month"], ["Past month", "Last month"], ["This year", "Year to date"]];
+function paintPeriod() {
+  const f = RS.state.dateFrom || "", t = RS.state.dateTo || "";
+  const dayOn = RS.state.dayFrom != null || RS.state.dayTo != null;
+  document.querySelectorAll("#fbarPeriod button[data-p]").forEach(b => {
+    const p = DBAR && DBAR.preset(b.dataset.p);
+    b.setAttribute("aria-pressed", String(!!p && !dayOn && p[1] === f && p[2] === t));
   });
 }
 
@@ -1406,12 +1469,16 @@ let rerenderTimer = null;
 function onFilterChange() {
   clearTimeout(rerenderTimer);
   paintChips();
+  paintPeriod();
   rerenderTimer = setTimeout(renderPage, 120);
 }
 
 const PRIMARY   = ["year", "month", "company", "source", "foreman"];
 // N13: the two size filters (Size of Move + Volume) sit next to each other on purpose.
 const SECONDARY = ["sales", "state", "sizeOfMove", "cfRange", "billRange", "movingType", "statusCat"];
+// the panel's order: who and where first, then the move, then the calendar fine-tuning
+const FILTER_ORDER = ["company", "sales", "source", "foreman", "statusCat", "state", "movingType",
+                      "sizeOfMove", "cfRange", "billRange", "year", "month"];
 const activeCount = keys => keys.reduce((a, k) =>
   a + ((RS.state.multi[k] && RS.state.multi[k].size) ? 1 : 0), 0);
 
@@ -1419,30 +1486,35 @@ function paintChips() {
   const host = document.getElementById("chips");
   if (!host) return;
   const chips = [];
-  if (RS.state.dateFrom || RS.state.dateTo)
-    chips.push({ k: "_date", label: "Date " + (RS.state.dateFrom || "…") + " → " + (RS.state.dateTo || "…") });
-  if (RS.state.dayFrom != null || RS.state.dayTo != null)
-    chips.push({ k: "_day", label: "Day " + (RS.state.dayFrom ?? 1) + "–" + (RS.state.dayTo ?? 31) });
-  // Always-on company scope (audit F4): shown as a permanent, non-removable chip so
-  // every total is self-explaining — the hidden default fooled PBI comparisons.
-  const compSet = RS.state.multi.company;
-  const compChip = (compSet && compSet.size)
-    ? `<span class="rs-chip" title="Permanent scope — change it on the Company selector">` +
-      `${RSC.esc("Company: " + [...compSet].join(", "))}</span>` : "";
+  // FILTERS v3: the period is on its own switch and the bar's filters show their values in
+  // place, so this line lists only what is set INSIDE the panel -- nothing said twice.
+  const barKeys = new Set(["company"].concat(PAGE_BAR_PINNED[currentLeafId()] || []));
   Object.entries(RS.state.multi).forEach(([k, set]) => {
     if (!set || !set.size || !RS.FIELDS[k]) return;
-    if (k === "company") return;   // rendered as the permanent scope chip above
+    if (barKeys.has(k)) return;    // on the bar, value visible there
     const vals = [...set];
     chips.push({ k, label: RS.FIELDS[k].label + ": " +
       (vals.length <= 2 ? vals.join(", ") : vals.length + " selected") });
   });
-  host.innerHTML = compChip + chips.map(c =>
-    `<span class="rs-chip">${RSC.esc(c.label)}<button data-k="${c.k}" title="Remove filter">×</button></span>`).join("") +
-    (chips.length ? `<button class="rs-chip clear" id="chipClearAll">Clear all</button>` : "");
+  // FILTERS v3: one quiet line under the bar says what the numbers are -- the active filters
+  // (each removable) and what the period counts by. The company scope sits on the bar itself.
+  const noteEl = document.getElementById("dateBasisNote");
+  const basis = noteEl ? String(noteEl.textContent || "").replace(/^The Date filter on this page goes by:\s*/, "") : "";
+  host.innerHTML = (chips.length ? `<span class="rs-sum-l">Filtered by</span>` : "")
+    + chips.map(c =>
+      `<span class="rs-chip">${RSC.esc(c.label)}<button data-k="${c.k}" title="Remove filter">×</button></span>`).join("")
+    + (chips.length ? `<button class="rs-chip clear" id="chipClearAll">Clear all</button>` : "")
+    + (basis ? `<span class="rs-basis">Period applies to: ${RSC.esc(basis)}</span>` : "");
+  // the bar's slicers and the Filters button follow the live state, whoever changed it
+  document.querySelectorAll(".rs-slicer[data-key]").forEach(w => { if (w._repaint) w._repaint(); });
+  const inPanelOn = chips.length;
+  const fbn = document.querySelector("#fbtn .n");
+  if (fbn) { fbn.textContent = inPanelOn || ""; fbn.classList.toggle("hidden", !inPanelOn); }
+  paintPeriod();
   // bare pages own their toolbar: the async buildFilters()->paintChips() must not
   // resurrect the chip row renderPage just hid (raced on money-flow, 2026-07-21)
   host.classList.toggle("hidden",
-    (!compChip && !chips.length) || BARE_CHROME.has(currentLeafId()));
+    (!chips.length && !basis) || BARE_CHROME.has(currentLeafId()) || pageHasNoFilters());
   host.querySelectorAll(".rs-chip button[data-k]").forEach(b => b.onclick = () => {
     const k = b.dataset.k;
     if (k === "_date") { RS.state.dateFrom = RS.state.dateTo = null; }
@@ -1452,9 +1524,10 @@ function paintChips() {
   });
   if (GBAR) GBAR.refresh();   // the collapsed pill is the only account of these chips
   const ca = host.querySelector("#chipClearAll");
+  // "Clear all" here clears what this line lists -- the panel's filters -- and leaves the
+  // period and the bar's own filters as they are
   if (ca) ca.onclick = () => {
-    Object.values(RS.state.multi).forEach(s => s.clear());
-    RS.state.dateFrom = RS.state.dateTo = RS.state.dayFrom = RS.state.dayTo = null;
+    Object.entries(RS.state.multi).forEach(([k, s]) => { if (s && !barKeys.has(k)) s.clear(); });
     buildFilters().then(renderPage);
   };
 }
@@ -1480,9 +1553,31 @@ async function buildFilters() {
   // ms BEFORE this runs. Wiping the row destroyed the toggle on every page that has no filter
   // bar of its own, which is most of them: the button existed for an instant and was gone
   // before anyone could see it. Keep the chevron, replace everything else.
-  [...rowDates.children].forEach(n => { if (!n.classList.contains("rs-cbar")) n.remove(); });
+  // FILTERS v3: the bar is rebuilt whole -- period switch, Custom date button, pinned host, Filters
+  rowDates.innerHTML = "";
   rowSlicers.innerHTML = "";
-  DBAR = RSC.dateBar(rowDates, onFilterChange);
+  const seg = document.createElement("div");
+  seg.className = "rs-period"; seg.id = "fbarPeriod";
+  seg.setAttribute("role", "group"); seg.setAttribute("aria-label", "Period");
+  seg.innerHTML = PERIODS.map(([p, l]) =>
+    `<button type="button" data-p="${RSC.esc(p)}" aria-pressed="false">${RSC.esc(l)}</button>`).join("");
+  rowDates.appendChild(seg);
+  DBAR = RSC.dateBar(rowDates, onFilterChange, { shownElsewhere: PERIODS.map(x => x[0]) });
+  seg.querySelectorAll("button[data-p]").forEach(b => b.onclick = () => {
+    const p = DBAR.preset(b.dataset.p);
+    if (!p) return;
+    RS.state.dayFrom = RS.state.dayTo = null;
+    DBAR.set(p[1], p[2]);
+  });
+  const pins = document.createElement("div");
+  pins.className = "rs-fbar-pins"; pins.id = "fbarPins";
+  rowDates.appendChild(pins);
+  const sp = document.createElement("span"); sp.className = "rs-spacer"; rowDates.appendChild(sp);
+  const fbtn = document.createElement("button");
+  fbtn.type = "button"; fbtn.id = "fbtn"; fbtn.className = "rs-fbtn";
+  fbtn.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M7 12h10M10 18h4"/></svg>Filters<span class="n hidden"></span>';
+  fbtn.onclick = openFilterPanel;
+  rowDates.appendChild(fbtn);
   // Frequency-counted value lists ({v,l,n}) — most common values first, counts shown.
   //
   // Also DATED. These lists are built from every loaded row and never from the date window,
@@ -1528,7 +1623,7 @@ async function buildFilters() {
   PRIMARY.concat(SECONDARY).forEach(key => {
     // Year + Month live on the DATE row with the other time controls (Tornike 2026-07-13);
     // everything else stays on the slicer row.
-    const mount = (key === "year" || key === "month") ? rowDates : rowSlicers;
+    const mount = rowSlicers;   // updateFilterContext() moves the pinned ones onto the bar
     if (key === "company") {
       // Company is a SINGLE-select with a permanent selection (default Zip to Zip).
       RSC.singleSelect(rowSlicers, { key, label: "Company", values: VALUES.company,
@@ -1540,6 +1635,9 @@ async function buildFilters() {
   });
   paintChips();
   updateFilterContext();   // slicers were just rebuilt — re-apply the not-used-here greying
+  // Boot builds this bar IN PARALLEL with the first render, so that render ran with no DBAR
+  // and could not apply the page's default period; it lands now, with one re-render.
+  if (applyDefaultRange()) onFilterChange();
 }
 
 /* ---------------- boot ---------------- */

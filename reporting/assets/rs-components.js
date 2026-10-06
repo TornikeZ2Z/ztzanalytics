@@ -28,12 +28,18 @@ window.RSC = (function () {
     const items = values.map(v => typeof v === "object" ? v : { v: v, l: v });
     const labelOf = {};
     items.forEach(i => { labelOf[i.v] = i.l; });
-    const set = RS.state.multi[key] = RS.state.multi[key] || new Set();
+    /* THE LIVE SET, NOT A CAPTURED ONE. Pages assign RS.state.multi[key] = new Set(...) (the
+       Rep Profile pins the Sales Person that way), and a slicer holding the Set it saw at build
+       time kept painting "All" while the chips -- which read the live state -- said "Amy
+       Olsson" (his screenshot, 2026-10-06). Every read goes through S(). */
+    const S = () => RS.state.multi[key] || (RS.state.multi[key] = new Set());
+    S();
     const wrap = el("div", "rs-slicer");
     wrap.dataset.key = key;   // lets the shell grey out slicers not used by the current page
     const btn = el("button", "rs-slicer-btn");
     const pop = el("div", "rs-slicer-pop hidden");
     const paint = () => {
+      const set = S();
       const n = set.size;
       const txt = !n ? "All"
         : n <= 2 ? [...set].map(v => labelOf[v] || v).join(", ")
@@ -49,7 +55,7 @@ window.RSC = (function () {
     // instead — live values first, then a divider, then the retired ones with the year they
     // were last seen. The dropdown answers the question rather than posing it.
     const opt = i => `<label class="opt${i.retired ? " retired" : ""}">`
-      + `<input type="checkbox" value="${esc(i.v)}" ${set.has(i.v) ? "checked" : ""}>`
+      + `<input type="checkbox" value="${esc(i.v)}" ${S().has(i.v) ? "checked" : ""}>`
       + ` <span class="ol">${esc(i.l)}</span>`
       + (i.retired && i.last ? `<span class="last">last ${esc(String(i.last))}</span>` : "")
       + (i.n != null ? `<span class="on">${Number(i.n).toLocaleString()}</span>` : "")
@@ -70,6 +76,7 @@ window.RSC = (function () {
       (items.some(i => i.n != null) ? `<div class="cnt-note">Numbers = records in the data (not jobs or leads)</div>` : "");
     pop.innerHTML = rowsHtml();
     const sync = () => {
+      const set = S();
       set.clear();
       pop.querySelectorAll(".opt input:checked").forEach(cb => set.add(cb.value));
       paint(); onChange();
@@ -99,10 +106,13 @@ window.RSC = (function () {
       // explaining WHY it is off; the click just stops pretending it works.
       if (wrap.classList.contains("rs-off")) return;
       document.querySelectorAll(".rs-slicer-pop").forEach(p => { if (p !== pop) p.classList.add("hidden"); });
+      // re-tick from the live state: it may have been replaced since the boxes were drawn
+      pop.querySelectorAll(".opt input").forEach(cb => { cb.checked = S().has(cb.value); });
       pop.classList.toggle("hidden");
     };
     pop.addEventListener("click", e => e.stopPropagation());
     wrap.appendChild(btn); wrap.appendChild(pop); host.appendChild(wrap);
+    wrap._repaint = paint;   // the shell repaints every slicer after any filter change
     paint();
     return { repaint: paint };
   }
@@ -250,17 +260,17 @@ window.RSC = (function () {
     const items = values.map(v => typeof v === "object" ? v : { v: v, l: v });
     const labelOf = {};
     items.forEach(i => { labelOf[i.v] = i.l; });
-    let set = RS.state.multi[key];
-    if (!set || !set.size) {
+    if (!RS.state.multi[key] || !RS.state.multi[key].size) {
       const dv = (defaultValue != null && items.some(i => i.v === defaultValue))
         ? defaultValue : (items[0] && items[0].v);
-      set = RS.state.multi[key] = new Set(dv != null ? [dv] : []);
+      RS.state.multi[key] = new Set(dv != null ? [dv] : []);
     }
+    const S = () => RS.state.multi[key] || (RS.state.multi[key] = new Set());   // live, see multiSelect
     const wrap = el("div", "rs-slicer");
     wrap.dataset.key = key;   // lets the shell grey out slicers not used by the current page
     const btn = el("button", "rs-slicer-btn on");
     const pop = el("div", "rs-slicer-pop hidden");
-    const current = () => [...set][0];
+    const current = () => [...S()][0];
     const paint = () => {
       btn.innerHTML = `<span class="lbl">${esc(label)}</span><span class="val">${esc(labelOf[current()] || current() || "—")}</span><span class="chev">▾</span>`;
       pop.querySelectorAll(".opt").forEach(o =>
@@ -270,7 +280,7 @@ window.RSC = (function () {
       `<div class="opt" data-v="${esc(i.v)}"><span class="ol">${esc(i.l)}</span>${i.n != null ? `<span class="on">${Number(i.n).toLocaleString()}</span>` : ""}</div>`).join("") + `</div>` +
       (items.some(i => i.n != null) ? `<div class="cnt-note">Numbers = records in the data (not jobs or leads)</div>` : "");
     pop.querySelectorAll(".opt").forEach(o => o.onclick = () => {
-      set.clear(); set.add(o.dataset.v);
+      const set = S(); set.clear(); set.add(o.dataset.v);
       paint(); pop.classList.add("hidden"); onChange();
     });
     btn.onclick = e => {
@@ -281,6 +291,7 @@ window.RSC = (function () {
     };
     pop.addEventListener("click", e => e.stopPropagation());
     wrap.appendChild(btn); wrap.appendChild(pop); host.appendChild(wrap);
+    wrap._repaint = paint;
     paint();
     return { repaint: paint };
   }
@@ -301,8 +312,11 @@ window.RSC = (function () {
     const now = new Date();
     const today = iso(now);
     const b3 = new Date(now); b3.setMonth(b3.getMonth() - 3);
+    const back = n => { const d = new Date(now); d.setDate(d.getDate() - n); return iso(d); };
     return [
       ["All time", "", ""],
+      ["Yesterday", back(1), back(1)],
+      ["Last 7 days", back(7), back(1)],
       ["This month", iso(new Date(now.getFullYear(), now.getMonth(), 1)), today],
       ["Past month", iso(new Date(now.getFullYear(), now.getMonth() - 1, 1)),
        iso(new Date(now.getFullYear(), now.getMonth(), 0))],
@@ -377,7 +391,10 @@ window.RSC = (function () {
     return { repaint: paint };
   }
 
-  function dateBar(host, onChange) {
+  /* opts.shownElsewhere: preset names the caller already offers as one-click buttons (the
+     shell's period switch). When one of those is active this button reads "Custom…" rather
+     than repeating it; any other range shows itself. */
+  function dateBar(host, onChange, opts) {
     // rs-dtwrap ONLY. This wrapper used to carry both classes: .rs-daterange styles the old
     // inline from/to field (border, background, 34px height, display:inline-flex) and
     // .rs-dtwrap, declared later in rs.css, overrode that display with inline-block -- so the
@@ -409,8 +426,10 @@ window.RSC = (function () {
     const dayf = wrap.querySelector(".dayf"), dayt = wrap.querySelector(".dayt");
     const paintBtn = () => {
       const dayOn = RS.state.dayFrom != null || RS.state.dayTo != null;
-      btn.innerHTML = "📅 " + esc(label()) + (dayOn ? " · day " + (RS.state.dayFrom || 1) + "–" + (RS.state.dayTo || 31) : "") + " ▾";
-      btn.classList.toggle("on", !!(RS.state.dateFrom || RS.state.dateTo || dayOn));
+      const lab = label();
+      const elsewhere = opts && opts.shownElsewhere && opts.shownElsewhere.indexOf(lab) >= 0 && !dayOn;
+      btn.innerHTML = (elsewhere ? "Custom…" : "📅 " + esc(lab) + (dayOn ? " · day " + (RS.state.dayFrom || 1) + "–" + (RS.state.dayTo || 31) : "")) + " ▾";
+      btn.classList.toggle("on", !elsewhere && !!(RS.state.dateFrom || RS.state.dateTo || dayOn));
       pop.querySelectorAll(".pre button").forEach(b => {
         const p = PRESETS[+b.dataset.p];
         b.classList.toggle("on", p[1] === (RS.state.dateFrom || "") && p[2] === (RS.state.dateTo || ""));

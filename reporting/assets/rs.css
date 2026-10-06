@@ -867,3 +867,59 @@ body.rs-app.light.v2 .acl-tile.adm.on{background:#1E3A8A;border-color:#1E3A8A;co
 body.rs-app.light.v2 .acl-field{border-radius:8px;background:#FFFFFF}
 body.rs-app.light.v2 .acl-switch.on{background:#1E3A8A}
 body.rs-app.light.v2 .acl-switch.on::after{background:#FFFFFF}
+
+/* ================= FILTERS v3 (his pick "B", 2026-10-06) =================
+   One slim bar: the period switch, a Custom… date button, Company + the page's own pinned
+   filters, and a Filters button that opens a side panel holding everything else. Filters a
+   page cannot use are hidden (not greyed). Built on tokens, so dark keeps working; the v2
+   look refines it at the end. */
+.rs-fbar{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.rs-period{display:inline-flex;flex-wrap:wrap;background:var(--panel);border:1px solid var(--line-2);border-radius:999px;padding:3px}
+.rs-period button{font:inherit;font-size:13px;font-weight:600;border:0;background:transparent;color:var(--muted);
+  border-radius:999px;padding:6px 12px;cursor:pointer;white-space:nowrap}
+.rs-period button:hover{color:var(--ink)}
+.rs-period button[aria-pressed="true"]{background:var(--brand);color:var(--brand-ink)}
+.rs-fbar-pins{display:inline-flex;flex-wrap:wrap;gap:8px;align-items:center}
+.rs-fbar .rs-spacer{flex:1 1 auto}
+.rs-fbtn{display:inline-flex;align-items:center;gap:8px;font:inherit;font-size:13px;font-weight:600;cursor:pointer;
+  background:var(--panel);color:var(--ink);border:1px solid var(--line-2);border-radius:999px;padding:0 14px;height:36px}
+.rs-fbtn svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round}
+.rs-fbtn:hover{border-color:var(--brand)}
+.rs-fbtn .n{background:var(--brand);color:var(--brand-ink);border-radius:999px;font-size:11.5px;font-weight:700;padding:0 7px;line-height:18px}
+/* the summary line under the bar (it used to be the chip row) */
+.rs-chips .rs-sum-l{font-size:12.5px;color:var(--muted)}
+.rs-chips .rs-basis{margin-left:auto;font-size:12px;color:var(--faint)}
+/* the panel */
+.rs-fscrim{position:fixed;inset:0;z-index:70;background:var(--scrim,rgba(10,14,20,.5))}
+.rs-fpanel{position:fixed;top:0;right:0;bottom:0;z-index:71;width:min(400px,100%);background:var(--panel);
+  border-left:1px solid var(--line);box-shadow:-12px 0 40px rgba(0,0,0,.18);display:flex;flex-direction:column}
+.rs-fp-head{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--line)}
+.rs-fp-head h2{margin:0;font-size:18px;font-weight:700;color:var(--ink)}
+.rs-fp-x{width:34px;height:34px;border-radius:8px;border:1px solid var(--line);background:var(--panel);color:var(--ink);font-size:18px;cursor:pointer}
+.rs-fp-body{flex:1;overflow-y:auto;padding:14px 20px}
+.rs-fp-body #frowSlicers{display:flex;flex-direction:column;gap:10px}
+/* in the panel every slicer is a full-width row and its options open IN PLACE, under it --
+   an absolutely-placed popover inside a scrolling panel gets clipped */
+.rs-fp-body .rs-slicer{width:100%}
+.rs-fp-body .rs-slicer-btn{width:100%;justify-content:space-between;height:40px}
+.rs-fp-body .rs-slicer-btn .val{margin-left:auto}
+.rs-fp-body .rs-slicer-pop{position:static;margin-top:6px;min-width:0;width:100%;box-shadow:none}
+.rs-fp-none{font-size:13px;color:var(--muted);padding:6px 0}
+.rs-fp-foot{display:flex;justify-content:space-between;align-items:center;padding:12px 20px;border-top:1px solid var(--line)}
+.rs-fp-clear{border:0;background:none;font:inherit;font-size:13.5px;font-weight:600;color:var(--brand-d);cursor:pointer}
+.rs-fp-done{border:0;font:inherit;font-size:14px;font-weight:600;border-radius:8px;padding:9px 18px;cursor:pointer;
+  background:var(--brand);color:var(--brand-ink)}
+@media(max-width:640px){.rs-period{overflow-x:auto;flex-wrap:nowrap;max-width:100%}.rs-chips .rs-basis{margin-left:0}}
+/* v2 refinement: navy for the selected period and the primary action */
+body.rs-app.light.v2 .rs-period{border-color:#CBD5E1}
+body.rs-app.light.v2 .rs-period button{color:var(--ink)}
+body.rs-app.light.v2 .rs-period button[aria-pressed="true"]{background:#1E3A8A;color:#FFFFFF}
+body.rs-app.light.v2 .rs-fbtn{border-color:#1E3A8A;color:#1E3A8A}
+body.rs-app.light.v2 .rs-fbtn:hover{background:#EFF6FF}
+body.rs-app.light.v2 .rs-fbtn .n{background:#1E3A8A;color:#FFFFFF}
+body.rs-app.light.v2 .rs-fp-done{background:#1E3A8A;color:#FFFFFF}
+body.rs-app.light.v2 .rs-fp-done:hover{background:#1E40AF}
+body.rs-app.light.v2 .rs-fpanel{box-shadow:-12px 0 40px rgba(15,23,42,.18);border-left:0}
+body.rs-app.light.v2 .rs-fp-body .rs-slicer-btn{border-radius:8px}
+body.rs-app.light.v2 .rs-filters{padding-top:10px;padding-bottom:10px}
+.rs-fbar-pins{min-width:0;max-width:100%}
