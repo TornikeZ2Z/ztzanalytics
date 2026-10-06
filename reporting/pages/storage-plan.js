@@ -28,7 +28,7 @@
     RS.DATASETS.storage_plan = {
       table: "mart_storage_plan",
       cols: ["Kind", "Day", "Month", "Zone", "Customer Our CF", "Customer Rented CF", "LD CF", "Customer Fees",
-             "Rent USD", "Facilities", "Jobs", "Miles NJ", "Miles PA", "Miles CT", "Miles CT2"],
+             "Rent USD", "Facilities", "Jobs", "Miles NJ", "Miles PA", "Miles CT", "Miles CT2", "Lat", "Lng"],
       dateCols: {}, defaultDate: null,
     };
   }
