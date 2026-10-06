@@ -2741,6 +2741,8 @@ registerPage({
         { k: "cities", label: "Cities" },
         { k: "capacity", label: "Capacity check" },
         { k: "whatif", label: "What if" },
+        // 2026-10-06: storage was the season's missing piece -- pages/storage-plan.js draws it
+        { k: "storage", label: "Storage" },
         { k: "ref", label: "Reference" },
       ];
       const paneOf = key => PANES.some(x => x.k === key) ? key : "map";
@@ -6827,6 +6829,11 @@ registerPage({
             card("What if", "The plan against a scenario you build",
                  "The levers you asked for, with the measurement behind each one printed beside it.",
                  '<div id="apWhatIf">' + whatIfHtml() + "</div>")) +
+          /* STORAGE (2026-10-06): its own module (pages/storage-plan.js) and its own table, mounted
+             after wire() like every other pane's content is in place -- rendered eagerly, hidden
+             by the same attribute, so showPane/goto/deep links need nothing new */
+          pane("storage", "Where to keep goods and how much room to rent: what we held, what it cost, and the setups that would cost less. Last 12 months; this pane does not follow the period picker.",
+            '<div id="apStorage"></div>') +
           pane("ref", "Read once a season: how the season was set, the outside research, search volume, rent vs buy, and the method behind every number.",
           ref("How the season was decided", (SEASON.months || []).map(m => MONTH_NAMES[m]).join("–"), card("The season", "Months that reach the threshold of the year's peak", "", seasonHtml())) +
           (R.states ? ref("The outside picture", "big houses and good areas, joined to our own demand",
@@ -6842,6 +6849,7 @@ registerPage({
           "";
 
         wire();
+        if (window.AP_STORAGE) window.AP_STORAGE.mount(host.querySelector("#apStorage"));
       }
 
       function repaintCity() {

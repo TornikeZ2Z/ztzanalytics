@@ -1093,7 +1093,7 @@ function navigate(id, push) {
 /* Pages that bring their OWN toolbar and ignore the global filter bar (PAGE_DATASETS=[])
    render "bare" — the global date/slicer bar + company chip are hidden so the page's board
    starts right under the header instead of below two rows of greyed-out, unusable filters. */
-const BARE_CHROME = new Set(["estimate-accuracy", "sales-of-the-month", "support-of-the-month", "review-performance", "reviews-cases", "claims-analysis", "demand-analysis", "reviews-reminders", "response-analysis", "review-settings", "monthly-report", "seasonal-report", "money-flow", "day-closing", "ld-planning", "cleanup", "packing-control", "crew-salaries", "storage-control", "foreman-assessment", "fuel-control", "foreman-closings", "refresh-log", "general-tables", "hr-questionnaire", "hr-directory", "conversations", "sales-comms", "referral-candidates", "jobs-by-area", "packing-sales", "meta-referrals", "relocation-trends", "angi-funnel", "utm-campaigns", "promised-reviews", "birdeye-sends",
+const BARE_CHROME = new Set(["sales-of-the-month", "support-of-the-month", "review-performance", "reviews-cases", "claims-analysis", "demand-analysis", "reviews-reminders", "response-analysis", "review-settings", "monthly-report", "seasonal-report", "money-flow", "day-closing", "ld-planning", "cleanup", "packing-control", "crew-salaries", "storage-control", "foreman-assessment", "fuel-control", "foreman-closings", "refresh-log", "general-tables", "hr-questionnaire", "hr-directory", "conversations", "sales-comms", "referral-candidates", "jobs-by-area", "packing-sales", "meta-referrals", "relocation-trends", "angi-funnel", "utm-campaigns", "promised-reviews", "birdeye-sends",
   // Census Data (2026-09-23): a reference table with its own search and state/county filters
   "census-data",
   // Organic Search (2026-09-24) brings its own window + last-year compare bar
@@ -1113,7 +1113,7 @@ const BARE_CHROME = new Set(["estimate-accuracy", "sales-of-the-month", "support
   // another page emptied it completely, which is worse than useless -- it looked like there
   // were no Straight jobs at all.
   "straight-vs-local",
-  "area-plan", "truck-economics", "data-migration", "admin-activity", "crew-pay-compare"]);
+  "area-plan", "truck-economics", "data-migration", "admin-activity", "crew-pay-compare", "estimate-accuracy"]);
 /* Pages where the global filter bar MUST STAY VISIBLE, so Hide filters is not offered at all.
    The control exists for pages carrying a wall of slicers you want out of the way to read the
    board full-screen — Custom Breakdown is the case it was built for. It is wrong wherever the
@@ -2199,7 +2199,7 @@ registerPage({
 <script src="pages/ld-planning.js?v=84"></script>
 <script src="pages/cleanup.js?v=39"></script>
 <script src="pages/packing-control.js?v=22"></script>
-<script src="pages/storage-control.js?v=11"></script>
+<script src="pages/storage-control.js?v=12"></script>
 <script src="pages/foreman-assessment.js?v=42"></script>
 <script src="pages/crew-salaries.js?v=9"></script>
 <script src="pages/hr-questionnaire.js?v=50"></script>
@@ -2207,7 +2207,8 @@ registerPage({
 <script src="pages/fuel-control.js?v=12"></script>
 <script src="pages/demand-analysis.js?v=12"></script>
 <script src="pages/straight-vs-local.js?v=7"></script>
-<script src="pages/area-plan.js?v=87"></script>
+<script src="pages/storage-plan.js?v=1"></script>
+<script src="pages/area-plan.js?v=88"></script>
 <script src="pages/postcard-purchases.js?v=3"></script>
 <script src="pages/postcard-expenditure.js?v=12"></script>
 <script src="pages/truck-economics.js?v=6"></script>

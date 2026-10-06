@@ -62,6 +62,14 @@
         cols: ["Job Code", "Customer", "Payment Date", "Amount", "Payment Type", "Notes"],
       };
     }
+    // the long-distance board: goods waiting for a carrier sit in rented units the customer
+    // register never names -- the consolidation worklist must count them before calling a unit empty
+    if (!RS.DATASETS.st_ldboard) {
+      RS.DATASETS.st_ldboard = {
+        table: "fct_ld_planning",
+        cols: ["Possession", "Location Detail", "CF", "Delivery Status"],
+      };
+    }
     if (!RS.DATASETS.st_crew) {
       RS.DATASETS.st_crew = { table: "dim_crew", cols: ["Full Name", "Email", "Status"] };
     }
@@ -170,6 +178,7 @@ registerPage({
       // .panel overrides below carry `body.rs-app` because the kit's own card rule does, and a
       // plain .stc-r would lose the cascade to it.
       + ".stc-rent{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px}"
+      + ".stc-work{margin-bottom:14px}.stc-why{font-size:12.5px;color:var(--muted)}"
       + "body.rs-app .stc .stc-r{margin-bottom:0}"
       + ".stc-r .nm{font-size:var(--t3);font-weight:700;line-height:1.3}"
       + ".stc-r .meta{font-size:var(--t5);color:var(--faint);margin-top:2px}"
@@ -292,6 +301,7 @@ registerPage({
       RS.load("fct_storage_facility").catch(function () { return []; }),
       RS.load("fct_storage_rent").catch(function () { return []; }),
       RS.load("st_custody").catch(function () { return []; }),
+      RS.load("st_ldboard").catch(function () { return []; }),
     ]).then(function (rs) {
       S.reg = (rs[0] || []).map(function (r) {
         ["Chargeable CF", "Real CF", "Fee per CF", "Fee per CF Initial", "Monthly I", "Monthly II",
@@ -320,6 +330,7 @@ registerPage({
         r.Date = r.Date ? String(r.Date).slice(0, 10) : null;
         return r;
       });
+      S.ldboard = (rs[7] || []).map(function (r) { r.CF = r.CF == null || r.CF === "" ? null : num(r.CF); return r; });
       S.custody = (rs[6] || []).map(function (c) {
         c.Posted = c.Posted ? String(c.Posted).slice(0, 10) : null;
         c["Photo Count"] = num(c["Photo Count"]);
@@ -441,6 +452,91 @@ registerPage({
           var pb = (b.Status === "dormant" && b["Active Items"] ? 0 : RANK[b.Status] || 9);
           return pa - pb || (b["Monthly Run Rate"] || 0) - (a["Monthly Run Rate"] || 0);
         });
+        /* ---- CONSOLIDATION WORKLIST (his pick, 2026-10-06, from the storage analysis) ----------
+           Rent tripled over summer 2026 across ~30 sites, and in the units whose fill we know about
+           half the rent paid for empty space. Every unit we still pay for, cheapest-to-fix first:
+           what it holds against its size, what the empty part costs a month, and where in the same
+           state its goods could go (the unit with the most free room). Fill comes from the register
+           (`Occupied CF`); long-distance goods waiting for a carrier are not in the register, so a
+           unit holding them can read emptier than it is -- check before you move anything. */
+        // PAYING NOW = charged within 45 days of the newest charge on the feed (a dormant unit's run
+        // rate is history, not a bill)
+        var lastFeed = (S.fac || []).reduce(function (a, f) { return f["Last Charge"] && String(f["Last Charge"]) > a ? String(f["Last Charge"]) : a; }, "");
+        var cutoff = lastFeed ? new Date(new Date(lastFeed.slice(0, 10)).getTime() - 45 * 864e5).toISOString().slice(0, 10) : "";
+        var paying = (S.fac || []).filter(function (f) {
+          return f.Status !== "closed" && (f["Monthly Run Rate"] || 0) > 0 && String(f["Last Charge"] || "").slice(0, 10) >= cutoff;
+        });
+        // long-distance goods in a unit: the board's Location Detail names the street address
+        var ldIn = function (f) {
+          var m = String(f.Facility || "").match(/^\s*(\d+)\s+([A-Za-z]+)/);
+          if (!m) return { n: 0, cf: 0 };
+          var re = new RegExp("\\b" + m[1] + "\\s+(?:[A-Za-z.]+\\s+)?" + m[2], "i");
+          var hit = (S.ldboard || []).filter(function (r) {
+            return r.Possession === "Rented Storage" && !/^delivered/i.test(r["Delivery Status"] || "") && re.test(r["Location Detail"] || "");
+          });
+          return { n: hit.length, cf: hit.reduce(function (a, r) { return a + (r.CF || 450); }, 0) };
+        };
+        var work = paying.map(function (f) {
+          var ld = ldIn(f);
+          var cap = f["Capacity CF"] || 0, occ = (f["Occupied CF"] || 0) + ld.cf;
+          var items = ((itemsByFac[f.Facility] || []).length || f["Active Items"] || 0) + ld.n;
+          var fill = cap ? Math.min(1, occ / cap) : null;
+          var rate = f["Monthly Run Rate"] || 0;
+          return { f: f, cap: cap, occ: occ, items: items, fill: fill, rate: rate,
+                   idle: fill == null ? (items ? 0 : rate) : rate * (1 - fill) };
+        });
+        // free room is SPENT as moves are suggested, emptiest unit first, so two suggestions never
+        // count the same free space twice
+        var free = new Map(work.map(function (o) { return [o, o.cap ? o.cap - o.occ : 0]; }));
+        // GATHER POINTS: per state, the units already well used (40%+); where none is, the one
+        // holding the most. Goods only ever move INTO a gather point, so no unit is told both to
+        // close and to take in someone else's goods.
+        var anchor = new Set();
+        var byState = {};
+        work.forEach(function (o) { if (o.cap && o.items) (byState[o.f.State] = byState[o.f.State] || []).push(o); });
+        Object.keys(byState).forEach(function (st) {
+          var us = byState[st], good = us.filter(function (o) { return o.fill >= 0.4; });
+          (good.length ? good : [us.slice().sort(function (x, y) { return y.occ - x.occ; })[0]]).forEach(function (o) { anchor.add(o); });
+        });
+        work.slice().sort(function (x, y) { return (x.fill == null ? 9 : x.fill) - (y.fill == null ? 9 : y.fill); }).forEach(function (w) {
+          if (w.f.State === "DE" && !w.items) { w.act = "Tuji's unit"; w.why = "Tuji keeps no register here — ask them what it holds"; w.cls = "mute"; }
+          else if (!w.items && w.rate) { w.act = "Check, then close"; w.why = "no customer or long-distance goods on record here"; w.cls = "bad"; }
+          else if (w.fill != null && w.fill < 0.4 && anchor.has(w)) {
+            w.act = "Gather here"; w.cls = "ok";
+            w.why = Math.round(w.fill * 100) + "% full — the unit in " + (w.f.State || "this state") + " holding the most; move the others into it";
+          }
+          else if (w.fill != null && w.fill < 0.4) {
+            // INTO A FULLER UNIT ONLY -- two half-empty units must not be told to swap into each other
+            var into = work.filter(function (o) {
+              return anchor.has(o) && o !== w && o.f.State === w.f.State && free.get(o) >= w.occ;
+            }).sort(function (x, y) { return (y.occ / y.cap) - (x.occ / x.cap); })[0];
+            if (into) { free.set(into, free.get(into) - w.occ); free.set(w, 0); }
+            w.act = "Merge & close"; w.cls = "warn";
+            w.why = Math.round(w.fill * 100) + "% full" + (into ? " \u2014 its " + Math.round(w.occ).toLocaleString() + " CF fit in "
+              + into.f.Facility.split(",")[0] + " (" + Math.round(free.get(into) + w.occ).toLocaleString() + " CF free before this move)" : " \u2014 no unit in "
+              + (w.f.State || "this state") + " has room; move it with the next one that empties");
+          } else if (w.fill == null) { w.act = "Size unknown"; w.why = "add the unit size to the inventory to judge it"; w.cls = "mute"; }
+          else { w.act = "Keep"; w.why = Math.round(w.fill * 100) + "% full"; w.cls = "ok"; }
+        });
+        work.sort(function (x, y) { return y.idle - x.idle; });
+        var idleTot = work.reduce(function (a, w) { return a + w.idle; }, 0);
+        var toFix = work.filter(function (w) { return w.act === "Check, then close" || w.act === "Merge & close"; });
+        if (work.length) {
+          html += '<div class="stc-h2">Consolidation worklist \u00b7 <b>' + toFix.length + " of " + work.length
+            + " units to act on</b>" + ' <span class="note">\u2014 about <b>' + usd(idleTot) + "/mo</b> of rent pays for empty space. "
+            + "Units charged in the last 45 days; long-distance goods counted from the Long Distance board (450 CF where a job has none).</span></div>"
+            + '<div class="rs-tablewrap stc-work"><table class="rs-table"><thead><tr><th>Unit</th><th>State</th><th class="num">Rent / mo</th>'
+            + '<th class="num">Holds</th><th class="num">Size</th><th class="num">Empty space / mo</th><th>Do</th></tr></thead><tbody>'
+            + work.map(function (w) {
+                return '<tr class="click stc-wrow" data-fac="' + esc(w.f.Facility) + '"><td class="strong">' + esc(w.f.Facility.split(",")[0]) + "</td>"
+                  + "<td>" + esc(w.f.State || "") + '</td><td class="num">' + usd(w.rate) + "</td>"
+                  + '<td class="num">' + (w.occ ? Math.round(w.occ).toLocaleString() + " CF" : "\u2014") + (w.items ? " \u00b7 " + w.items + " item" + (w.items === 1 ? "" : "s") : "") + "</td>"
+                  + '<td class="num">' + (w.cap ? w.cap.toLocaleString() + " CF" : "\u2014") + "</td>"
+                  + '<td class="num">' + usd(w.idle) + "</td>"
+                  + '<td><span class="rs-pill ' + w.cls + '">' + esc(w.act) + '</span> <span class="stc-why">' + esc(w.why) + "</span></td></tr>";
+              }).join("")
+            + "</tbody></table></div>";
+        }
         html += '<div class="stc-h2">Rented storage \u00b7 <b>' + facs.length + " facilities</b>"
           + ' <span class="note">\u2014 geography from the register, money from the card feed'
           + (unplaced.length ? ". " + unplaced.length + " item" + (unplaced.length === 1 ? "" : "s")
@@ -578,7 +674,7 @@ registerPage({
           if (r) openItem(r);
         };
       });
-      main.querySelectorAll(".stc-fac").forEach(function (el) {
+      main.querySelectorAll(".stc-fac, .stc-wrow").forEach(function (el) {
         el.onclick = function () {
           var f = (S.fac || []).filter(function (x) { return x.Facility === el.dataset.fac; })[0];
           if (f) openFacility(f);
