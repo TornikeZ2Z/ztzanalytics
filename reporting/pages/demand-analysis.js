@@ -649,7 +649,8 @@ registerPage({
         + "<th>Customer</th><th>Status</th><th>Source</th><th>Size</th><th>Cu ft</th>"
         + "<th>Quote</th></tr></thead><tbody>"
         + ls.slice(0, CAPN).map(l =>
-            '<tr><td class="nm">' + esc(String(l.cd).slice(0, 16) || "—") + "</td>"
+            '<tr data-lead="' + esc((l.Company || "") + " " + (l["Job No"] || "")) + '" style="cursor:pointer" title="Open the lead file">'
+            + '<td class="nm">' + esc(String(l.cd).slice(0, 16) || "—") + "</td>"
             + "<td>#" + esc(String(l["Job No"] || "—")) + "</td>"
             + '<td style="text-align:left">' + esc(l.Customer || "—") + "</td>"
             + "<td" + (l.Status === "Confirmed" ? ' style="color:var(--blue);font-weight:700"' : "")

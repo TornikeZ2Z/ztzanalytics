@@ -319,7 +319,7 @@
       if (S.page >= pages) S.page = pages - 1;
       body = sorted.slice(S.page * per, S.page * per + per).map(function (r) {
         var lc = String(r["Lead Created"] || "").slice(0, 10);
-        return "<tr>"
+        return (r["Request Joinkey"] ? '<tr data-lead="' + esc(r["Request Joinkey"]) + '" style="cursor:pointer" title="Open the lead file">' : "<tr>")
           + (lc ? td("nowrap", esc(lc)) : td("dim nowrap", "no lead"))
           + val("wrap", r["Lead Customer"] || r["Form Customer"])
           + val("nowrap", String(r["Form Move Date"] || "").slice(0, 10))

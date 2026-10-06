@@ -924,6 +924,14 @@
     if (!open) { injectStyle(); openDrawer(jk); }
   };
   window.addEventListener("ztz:rendered", openFromHash);
+  // ONE LEAD FILE EVERYWHERE (2026-10-06): any row on any page that carries data-lead="<joinkey>"
+  // opens this same file over that page. Links, buttons and inputs inside the row keep their own job.
+  document.addEventListener("click", e => {
+    const t = e.target.closest && e.target.closest("[data-lead]");
+    if (!t || !t.dataset.lead || e.target.closest("a,button,input,select,label,summary")) return;
+    injectStyle();
+    openDrawer(t.dataset.lead);
+  });
   window.addEventListener("hashchange", openFromHash);
 
   // the lead facts for other pages (Conversations): fetch + paint into `el`

@@ -283,7 +283,7 @@ registerPage({
           + "</tr></thead><tbody>"
           + v.slice(0, CAP).map(function (r) {
               var route = [r["Pickup State"], r["Delivery State"]].filter(Boolean).join(" → ");
-              return "<tr>"
+              return (r["Request Joinkey"] ? '<tr data-lead="' + esc(r["Request Joinkey"]) + '" style="cursor:pointer" title="Open the lead file">' : "<tr>")
                 + '<td class="nowrap">' + esc(dayLab(r.Day)) + "</td>"
                 + '<td class="strong">' + esc(r.Customer || "—") + "</td>"
                 + (r.Email

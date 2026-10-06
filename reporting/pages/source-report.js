@@ -1248,7 +1248,7 @@
       + '<th title="why is this lead this source">Why this source</th></tr></thead><tbody>'
       + (slice.length ? slice.map(function (r) {
           var d = dmap ? (dmap[r["Request Joinkey"]] || {}) : null;
-          return "<tr>" + cols.map(function (c) {
+          return '<tr data-lead="' + esc(r["Request Joinkey"] || "") + '" style="cursor:pointer" title="Open the lead file">' + cols.map(function (c) {
             var v = c.get(r, d);
             var cls = [c.num ? "num" : "", c.cls || ""].filter(Boolean).join(" ");
             return v.h == null ? '<td class="' + (cls ? cls + " " : "") + 'dim">—</td>'

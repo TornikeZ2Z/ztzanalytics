@@ -332,7 +332,8 @@
       var src = String(r["Reason Source"] || "");
       var st = String(r["Angi Status"] || "");
       var mins = r["Mins To First Call"];
-      return "<tr>"
+      // Angi is a Zip to Zip channel; the Lead ID is the Moveboard request number
+      return '<tr data-lead="' + esc("Zip to Zip " + (r["Lead ID"] || "")) + '" style="cursor:pointer" title="Open the lead file">'
         + val("nowrap muted", String(r["Received At"] || "").slice(0, 16))
         + val("strong nowrap", r["Lead ID"])
         // Angi's own number, with a marker when we could not pin it to exactly one of their
