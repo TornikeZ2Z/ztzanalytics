@@ -1,0 +1,266 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Photoshoot Confirmation · Zip To Zip</title>
+<link rel="icon" type="image/png" href="logo.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* Moved from zipdispatch photo.html on 2026-10-06, same look on purpose -- the photographers
+   already know this page. What changed is underneath: the jobs come from the portal bridge
+   (/api/_photo), filtered to upcoming Zip to Zip jobs, instead of a public read of the whole
+   calendar sheet, and the one-shoot-per-day rule is checked on the server. */
+:root{
+  --paper:#F7F6F2; --card:#FFFFFF; --ink:#1F2329; --dim:#646B73; --faint:#969CA3;
+  --line:#E6E4DC; --line2:#D3D0C6; --soft:#F1F0EA;
+  --acc:#B26B0B; --acc-bg:#FBF1DC; --acc-bd:#E9D08A; --acc-ink:#8A530A;
+  --good:#2E7D46; --good-bg:#E9F4EC; --good-bd:#BFE0C8;
+  --shadow:0 1px 2px rgba(31,35,41,.04),0 8px 24px rgba(31,35,41,.06);
+}
+*{box-sizing:border-box}html,body{margin:0}
+body{background:var(--paper);color:var(--ink);font-family:'Inter',system-ui,sans-serif;font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
+.bar{position:sticky;top:0;z-index:30;background:#fff;border-bottom:1px solid var(--line);box-shadow:0 1px 0 rgba(31,35,41,.03)}
+.bar-in{max-width:1080px;margin:0 auto;display:flex;align-items:center;gap:13px;padding:12px 20px}
+.logo{height:30px;width:auto;flex:0 0 auto;display:block}
+.dot{width:34px;height:34px;border-radius:10px;background:var(--acc-bg);border:1px solid var(--acc-bd);color:var(--acc);display:flex;align-items:center;justify-content:center;flex:0 0 auto}
+.dot svg{width:19px;height:19px}
+.htitle{font-family:'Barlow Condensed',sans-serif;font-weight:600;font-size:22px;letter-spacing:.05em;text-transform:uppercase;margin:0;line-height:1}
+.wrap{max-width:1080px;margin:0 auto;padding:16px 20px 70px}
+.filters{display:flex;flex-direction:row;align-items:center;gap:14px;flex-wrap:wrap;background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);padding:13px 16px;margin-bottom:18px}
+.ftlabel{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--faint)}
+.tiles{display:flex;gap:8px;flex-wrap:wrap}
+.tile{font:inherit;font-size:14px;font-weight:700;letter-spacing:.04em;padding:9px 20px;border-radius:11px;border:1.5px solid var(--line2);background:var(--card);color:var(--dim);cursor:pointer;transition:background .15s,border-color .15s,color .15s}
+.tile:hover{border-color:var(--acc-bd)}
+.tile.active{background:var(--acc);border-color:var(--acc);color:#fff;box-shadow:0 2px 8px rgba(178,107,11,.25)}
+.day{margin-bottom:20px}
+.dayhdr{display:flex;align-items:center;gap:10px;padding:6px 2px 10px;position:sticky;top:59px;z-index:10;background:linear-gradient(var(--paper) 70%,rgba(247,246,242,0))}
+.dnum{font-family:'Barlow Condensed',sans-serif;font-weight:600;font-size:18px;letter-spacing:.03em;color:var(--ink);text-transform:uppercase}
+.dbadge{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;padding:2px 9px;border-radius:999px;border:1px solid var(--line2);color:var(--dim);background:var(--card)}
+.dbadge.today{color:var(--acc-ink);background:var(--acc-bg);border-color:var(--acc-bd)}
+.dbadge.tom{color:#1d6fa5;background:#e6f1f8;border-color:#bcdcef}
+.dcount{margin-left:auto;font-size:12px;color:var(--faint);font-weight:600}
+.job{display:flex;gap:14px;align-items:flex-start;background:var(--card);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);padding:13px 15px;margin-bottom:9px}
+.jtime{flex:0 0 auto;width:62px;text-align:center;line-height:1.15;padding-top:1px}
+.jtime b{display:block;font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:600;color:var(--ink)}
+.jtime span{font-size:10.5px;font-weight:700;color:var(--faint);letter-spacing:.03em}
+.jmain{flex:1 1 auto;min-width:0}
+.jcust{font-weight:700;font-size:15.5px;color:var(--acc-ink);text-decoration:none;display:inline-flex;align-items:center;gap:5px}
+.jcust:hover{text-decoration:underline}
+.jcust svg{width:13px;height:13px;opacity:.7;flex:0 0 auto}
+.jcust.nolink{color:var(--ink);pointer-events:none}
+.jmeta{margin-top:4px;display:flex;flex-wrap:wrap;align-items:center;gap:7px;color:var(--dim);font-size:12.5px}
+.jmeta .sep{color:var(--line2)}
+.route{font-weight:700;color:var(--ink);white-space:nowrap;letter-spacing:.02em}
+.route .ar{color:var(--faint);font-weight:400;margin:0 3px}
+.jt{display:inline-block;font-size:11px;font-weight:600;padding:1px 9px;border-radius:20px;background:var(--soft);color:var(--dim);border:1px solid var(--line);white-space:nowrap}
+.sz{font-variant-numeric:tabular-nums;font-weight:600;color:var(--ink)}
+.jaddr{display:block;margin-top:6px;color:var(--ink);font-size:13px;text-decoration:none;font-weight:500}
+.jaddr:hover{color:var(--acc-ink);text-decoration:underline}
+.jaddr svg{width:12px;height:12px;opacity:.6;margin-right:3px;vertical-align:-1px}
+.jfore{margin-top:8px;display:inline-flex;align-items:center;gap:7px;background:var(--good-bg);border:1px solid var(--good-bd);border-radius:9px;padding:5px 10px;font-size:12.5px;font-weight:600;color:#1f5b34}
+.jfore svg{width:14px;height:14px;flex:0 0 auto}
+.jfore .fname{color:var(--ink)}
+.jfore a{color:#1f6f3f;text-decoration:none;font-weight:700;white-space:nowrap}
+.jfore a:hover{text-decoration:underline}
+.jsrc{display:inline-block;font-size:10.5px;font-weight:600;letter-spacing:.02em;padding:2px 9px;border-radius:100px;margin-left:9px;vertical-align:middle;white-space:nowrap}
+.jsrc.confirmed{background:#EFF6E0;color:#4F7A16;border:1px solid #D3E3A6}
+.jsrc.earlier{background:var(--soft);color:var(--dim);border:1px solid var(--line2)}
+.jsrc.cl{background:#EAF1FB;color:#1E5AA8;border:1px solid #BBD3EF}
+.jaction{margin-top:12px;padding-top:12px;border-top:1px solid var(--line);display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.jconf{display:inline-block;font-size:12.5px;font-weight:700}
+.jconf.btn{cursor:pointer;border:none;background:var(--acc);color:#fff;border-radius:10px;padding:9px 17px;font-size:13px;box-shadow:0 2px 8px rgba(178,107,11,.25)}
+.jconf.btn:hover{filter:brightness(1.06)}
+.jconf.btn[disabled]{opacity:.6;cursor:default}
+.jconf.done{color:#1f6f3f;background:#e9f4ec;border:1px solid #bfe0c8;border-radius:9px;padding:5px 11px}
+.jconf.taken{color:var(--faint);font-weight:600}
+.jconf.cancel{cursor:pointer;border:none;background:none;color:#c0392b;text-decoration:underline;text-underline-offset:2px;font-size:11.5px;font-weight:600;margin-left:9px;padding:2px}
+.empty{padding:48px 24px;text-align:center;color:var(--dim);background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow)}
+.empty b{display:block;font-family:'Barlow Condensed',sans-serif;font-size:20px;color:var(--ink);font-weight:600;margin-bottom:6px}
+.loader{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:72px 20px}
+.loader .spin{width:34px;height:34px;border:3px solid var(--line);border-top-color:var(--ink);border-radius:50%;animation:ldspin .8s linear infinite}
+.loader span{font-size:14px;color:var(--dim)}
+@keyframes ldspin{to{transform:rotate(360deg)}}
+.cfm-bg{position:fixed;inset:0;background:rgba(20,28,40,.45);display:flex;align-items:center;justify-content:center;z-index:80;padding:18px}
+.cfm{background:var(--card);border-radius:16px;max-width:380px;width:100%;padding:20px 22px;box-shadow:0 20px 50px rgba(0,0,0,.3)}
+.cfm h3{font-family:'Barlow Condensed',sans-serif;font-weight:600;font-size:20px;margin:0 0 12px;text-transform:uppercase;letter-spacing:.03em}
+.cfm-d{background:var(--soft);border:1px solid var(--line);border-radius:11px;padding:12px 14px}
+.cfm-d b{font-size:15px}.cfm-row{font-size:13px;color:var(--dim);margin-top:3px}
+.cfm-note{font-size:12.5px;color:var(--dim);margin:13px 0}
+.cfm-act{display:flex;gap:10px;justify-content:flex-end}
+.cfm-act button{font:inherit;font-size:13.5px;font-weight:600;border-radius:9px;padding:9px 16px;cursor:pointer;border:1px solid var(--line2);background:var(--card);color:var(--ink)}
+.cfm-ok{background:var(--acc)!important;color:#fff!important;border-color:var(--acc)!important}
+.cfm-ok.danger{background:#c0392b!important;border-color:#c0392b!important}
+.cfm-field{margin:13px 0 2px;display:flex;flex-direction:column;gap:5px}
+.cfm-field label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--faint)}
+.cfm-field input{font:inherit;font-size:14px;font-weight:600;padding:9px 11px;border:1px solid var(--line2);border-radius:9px;background:var(--card);color:var(--ink);width:100%}
+.cfm-field input:focus{outline:none;border-color:var(--acc);box-shadow:0 0 0 3px rgba(178,107,11,.12)}
+#toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(20px);background:#1E2228;color:#fff;padding:11px 18px;border-radius:11px;font-size:13px;opacity:0;pointer-events:none;transition:.25s;z-index:90;box-shadow:0 10px 30px rgba(0,0,0,.25);max-width:92vw}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+@media (max-width:600px){
+  .bar-in{padding:10px 14px;gap:11px}.htitle{font-size:18px}.logo{height:26px}
+  .wrap{padding:14px 13px 60px}
+  .filters{padding:12px 13px;gap:11px}.tile{padding:9px 16px}
+  .dayhdr{top:55px}.dnum{font-size:16px}
+  .job{padding:11px 12px;gap:11px}.jtime{width:50px}.jtime b{font-size:16px}
+  .jcust{font-size:14.5px}.jconf.btn{padding:10px 17px}
+}
+</style>
+</head>
+<body>
+<div class="bar"><div class="bar-in">
+  <img class="logo" src="logo.png" alt="Zip To Zip" onerror="this.style.display='none'">
+  <span class="dot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg></span>
+  <h1 class="htitle">Photoshoot Confirmation System</h1>
+</div></div>
+<div class="wrap">
+  <div class="filters">
+    <span class="ftlabel">Pickup state</span>
+    <div class="tiles" id="stateTiles"></div>
+    <span class="ftlabel">Distance</span>
+    <div class="tiles"><button type="button" class="tile active" id="distTile">≤ 50 mi</button></div>
+    <span class="ftlabel">Size</span>
+    <div class="tiles"><button type="button" class="tile active" id="cfTile">≥ 1,000 CF</button></div>
+    <span class="ftlabel">Approval</span>
+    <div class="tiles"><button type="button" class="tile active" id="appTile">Approved only</button></div>
+  </div>
+  <div id="out"><div class="loader"><div class="spin"></div><span>Loading photoshoots&hellip;</span></div></div>
+</div>
+<script>
+// The jobs, and which day is already taken, come from the bridge. The page keeps photo.html's
+// toggles and its rules; the server only decides what it is allowed to show and who gets a day.
+var API='https://ztz-bridge-32168089642.us-east4.run.app/api/_photo';
+var MIN_CF=1000, MAX_MI=50, STATES=['NJ','NY','CT'];
+var DISTON=true, CFON=true, APPON=true;   // the three toggles, as on photo.html
+var JOBS=[], CONFIRMED={}, TODAY='', BUSY={}, puSel=new Set(STATES), loadedOnce=false;
+var DOW=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'], MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+function $(s){return document.querySelector(s);}
+function esc(x){return String(x==null?'':x).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+function toast(m){var t=$('#toast');if(!t){t=document.createElement('div');t.id='toast';document.body.appendChild(t);}t.textContent=m;t.classList.add('show');clearTimeout(t._h);t._h=setTimeout(function(){t.classList.remove('show');},4200);}
+function photogEmail(){try{return localStorage.getItem('zd_photog_email')||'';}catch(e){return '';}}
+function setPhotog(e){try{localStorage.setItem('zd_photog_email',e);}catch(_){}}
+function validEmail(e){return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(String(e||'').trim());}
+function fmt12(min){if(min==null)return {t:'',ap:''};var h=Math.floor(min/60),m=min%60;return {t:(h%12||12)+':'+('0'+m).slice(-2),ap:h<12?'AM':'PM'};}
+function addDay(iso,n){var p=iso.split('-'),d=new Date(Date.UTC(+p[0],+p[1]-1,+p[2]+n));return d.toISOString().slice(0,10);}
+function dayHeader(iso){var p=iso.split('-'),dt=new Date(+p[0],+p[1]-1,+p[2]);var badge=iso===TODAY?'today':(TODAY&&iso===addDay(TODAY,1)?'tom':'');
+  return {label:DOW[dt.getDay()]+', '+MON[dt.getMonth()]+' '+(+p[2]),badge:badge,badgeTxt:badge==='today'?'Today':(badge==='tom'?'Tomorrow':'')};}
+function mapsLink(a){return 'https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(a||'');}
+function telHref(p){var d=String(p||'').replace(/\D/g,'');if(d.length===10)d='1'+d;return d?('tel:+'+d):'';}
+function jobByKey(k){for(var i=0;i<JOBS.length;i++)if(JOBS[i].code+'|'+JOBS[i].date===k)return JOBS[i];return null;}
+
+function load(quiet){
+  return fetch(API,{cache:'no-store'}).then(function(r){return r.json().then(function(j){if(!r.ok)throw new Error(j.error||('HTTP '+r.status));return j;});})
+    .then(function(j){JOBS=j.jobs||[];CONFIRMED=j.confirmed||{};TODAY=j.today||'';
+      if(!loadedOnce){loadedOnce=true;buildStateTiles();buildToggles();}render();})
+    .catch(function(){if(!quiet||!loadedOnce)$('#out').innerHTML='<div class="empty"><b>Couldn&rsquo;t load photoshoots</b>Please refresh the page to try again.</div>';});
+}
+
+function allStates(){var s={};JOBS.forEach(function(j){if(j.puState)s[j.puState]=1;});var a=Object.keys(s).sort();
+  var pri=STATES.filter(function(x){return a.indexOf(x)>=0;});return pri.concat(a.filter(function(x){return pri.indexOf(x)<0;}));}
+function buildStateTiles(){
+  var host=$('#stateTiles');
+  host.innerHTML=allStates().map(function(s){return '<button type="button" class="tile'+(puSel.has(s)?' active':'')+'" data-st="'+esc(s)+'">'+esc(s)+'</button>';}).join('');
+  [].forEach.call(host.querySelectorAll('.tile'),function(b){b.onclick=function(){var s=b.getAttribute('data-st');if(puSel.has(s)){puSel.delete(s);b.classList.remove('active');}else{puSel.add(s);b.classList.add('active');}render();};});
+}
+function bindToggle(id,get,set,onLab,offLab){var b=document.getElementById(id);function u(){var v=get();b.textContent=v?onLab:offLab;b.classList.toggle('active',!!v);}b.onclick=function(){set(!get());u();render();};u();}
+function buildToggles(){
+  bindToggle('distTile',function(){return DISTON;},function(v){DISTON=v;},'≤ 50 mi','Any distance');
+  bindToggle('cfTile',function(){return CFON;},function(v){CFON=v;},'≥ 1,000 CF','Any size');
+  bindToggle('appTile',function(){return APPON;},function(v){APPON=v;},'Approved only','Incl. unflagged');
+}
+
+function confirmBlock(j){
+  var k=j.code+'|'+j.date, mine=CONFIRMED[j.date];
+  if(BUSY[k])return '<button class="jconf btn" disabled>Saving…</button>';
+  if(mine===j.code)return '<div class="jconf done">✓ Confirmed for this day</div><button class="jconf cancel" data-cancel="'+esc(k)+'">Cancel — I can’t make it</button>';
+  if(mine)return '<div class="jconf taken">Another job already confirmed for this day</div>';
+  return '<button class="jconf btn" data-confirm="'+esc(k)+'">📸 Confirm I will shoot this</button>';
+}
+function foremanBlock(j){
+  if(!j.foreman)return '';     // the server sends him for today and tomorrow only
+  var ph=j.foreman.phone||'', tel=telHref(ph);
+  var phHtml=ph?(tel?'<a href="'+esc(tel)+'">'+esc(ph)+'</a>':'<span>'+esc(ph)+'</span>'):'<span style="color:var(--faint);font-weight:600">no phone on file</span>';
+  return '<div class="jfore"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21v-1a6 6 0 0 1 12 0v1"/><circle cx="10" cy="7" r="3.2"/><path d="M16.5 10.5a4 4 0 0 1 5 4V16"/></svg><span class="fname">'+esc(j.foreman.name)+'</span> &middot; '+phHtml+'</div>';
+}
+function jobCard(j){
+  var tm=fmt12(j.tmin);
+  var cicon='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="16" rx="2"/><path d="M3 9.5h18M8 2.5v4M16 2.5v4"/></svg>';
+  var cust=esc(j.customer||'(no name)');
+  var custHtml=j.link?('<a class="jcust" href="'+esc(j.link)+'" target="_blank" rel="noopener" title="Open calendar event">'+cust+cicon+'</a>'):('<span class="jcust nolink">'+cust+'</span>');
+  var pin='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-5.7-7-11a7 7 0 0 1 14 0c0 5.3-7 11-7 11z"/><circle cx="12" cy="10" r="2.5"/></svg>';
+  var src=j.flag==='YES'?'<span class="jsrc confirmed">Confirmed by sales</span>':(j.recent?'<span class="jsrc earlier">Not flagged</span>':'<span class="jsrc earlier">Scheduled earlier</span>');
+  var cl=j.cl?'<span class="jsrc cl" title="CL job (from the calendar title)">CL</span>':'';
+  var route='<span class="route">'+esc(j.puState||'?')+'<span class="ar">→</span>'+esc(j.delState||'?')+'</span>';
+  return '<div class="job"><div class="jtime"><b>'+esc(tm.t||'—')+'</b><span>'+esc(tm.ap)+'</span></div><div class="jmain">'
+    +custHtml+cl+src
+    +'<div class="jmeta">'+route+'<span class="sep">·</span><span class="jt">'+esc(j.type||'Local')+'</span><span class="sep">·</span><span class="sz">'+Math.round(j.cf||0).toLocaleString()+' CF</span>'
+    +(j.dist!=null?'<span class="sep">·</span><span>'+j.dist.toFixed(1)+' mi</span>':'')+'</div>'
+    +'<a class="jaddr" href="'+mapsLink(j.pickup)+'" target="_blank" rel="noopener">'+pin+esc(j.pickup||'(no address)')+'</a>'
+    +foremanBlock(j)+'<div class="jaction">'+confirmBlock(j)+'</div></div></div>';
+}
+function render(){
+  var out=$('#out');
+  // photo.html's rules: sales flag YES needed for events created from 25 Jun 2026 (NO is already
+  // dropped by the server), then size, pickup state and distance from home (11223)
+  var rows=JOBS.filter(function(j){
+    if(!j.date||(TODAY&&j.date<TODAY))return false;
+    if(APPON&&j.recent&&j.flag!=='YES')return false;
+    if(CFON&&(j.cf||0)<MIN_CF)return false;
+    if(!puSel.has(j.puState))return false;
+    if(DISTON&&(j.dist==null||j.dist>MAX_MI))return false;
+    return true;
+  });
+  rows.sort(function(a,b){return a.date.localeCompare(b.date)||((a.tmin==null?9999:a.tmin)-(b.tmin==null?9999:b.tmin))||((a.dist==null?9999:a.dist)-(b.dist==null?9999:b.dist));});
+  if(!rows.length){out.innerHTML='<div class="empty"><b>No photoshoots right now</b>'+(JOBS.length?'There are no jobs to photograph for the selected filters. Try turning on more states above.':'There are no jobs available to photograph at the moment. Please check back soon.')+'</div>';return;}
+  var html='',cur=null;
+  rows.forEach(function(j){
+    if(j.date!==cur){
+      if(cur!==null)html+='</div></div>';
+      cur=j.date;var dh=dayHeader(cur),n=rows.filter(function(x){return x.date===cur;}).length;
+      html+='<div class="day"><div class="dayhdr"><span class="dnum">'+esc(dh.label)+'</span>'+(dh.badge?'<span class="dbadge '+dh.badge+'">'+esc(dh.badgeTxt)+'</span>':'')+'<span class="dcount">'+n+(n===1?' shoot':' shoots')+'</span></div><div class="jobs">';
+    }
+    html+=jobCard(j);
+  });
+  out.innerHTML=html+'</div></div>';
+}
+
+function dialog(j,kind){
+  var cancel=kind==='cancel', ov=document.createElement('div'), tm=fmt12(j.tmin);ov.className='cfm-bg';
+  ov.innerHTML='<div class="cfm"><h3>'+(cancel?'Cancel this shoot?':'Confirm this shoot?')+'</h3><div class="cfm-d"><div><b>'+esc(j.customer||'(no name)')+'</b></div>'
+    +'<div class="cfm-row">'+esc(dayHeader(j.date).label)+(!cancel&&j.tmin!=null?' · '+esc(tm.t)+' '+esc(tm.ap):'')+'</div>'
+    +'<div class="cfm-row">'+esc(j.code)+(cancel?'':' · '+esc(j.puState||'?')+'→'+esc(j.delState||'?')+' · '+Math.round(j.cf||0).toLocaleString()+' CF')+'</div>'
+    +(cancel?'':'<div class="cfm-row">'+esc(j.pickup||'')+'</div>')+'</div>'
+    +'<p class="cfm-note">'+(cancel?'Support will be told you can no longer make this shoot, so it can be reassigned.':'You can confirm only one job per day. Support will be notified you are going.')+'</p>'
+    +'<div class="cfm-field"><label>Your email</label><input type="email" class="cfm-email" placeholder="you@company.com" value="'+esc(photogEmail())+'" autocomplete="email"></div>'
+    +'<div class="cfm-act"><button class="cfm-x">'+(cancel?'Keep it':'Cancel')+'</button><button class="cfm-ok'+(cancel?' danger':'')+'">'+(cancel?'Yes, cancel':'Yes, confirm')+'</button></div></div>';
+  document.body.appendChild(ov);
+  ov.addEventListener('click',function(e){if(e.target===ov)ov.remove();});
+  ov.querySelector('.cfm-x').onclick=function(){ov.remove();};
+  ov.querySelector('.cfm-ok').onclick=function(){var em=(ov.querySelector('.cfm-email').value||'').trim();
+    if(!validEmail(em)){toast(cancel?'Enter a valid email so we know who cancelled.':'Enter a valid email so we know who is shooting.');return;}
+    setPhotog(em);ov.remove();send(j,cancel?'cancel':'confirm',em);};
+}
+function send(j,action,email){
+  var k=j.code+'|'+j.date;BUSY[k]=1;render();
+  fetch(API,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:action,jobCode:j.code,jobDate:j.date,email:email})})
+    .then(function(r){return r.json().then(function(b){return {ok:r.ok,b:b};});})
+    .then(function(x){delete BUSY[k];
+      if(x.ok){if(action==='confirm')CONFIRMED[j.date]=j.code;else delete CONFIRMED[j.date];
+        toast(action==='confirm'?'✓ Confirmed — support will be notified.':'Cancelled — support has been notified.');render();}
+      else{toast(x.b.error||'Could not save — please try again.');load(true);}})
+    .catch(function(){delete BUSY[k];render();toast('No connection — nothing was saved. Please try again.');});
+}
+document.addEventListener('click',function(e){
+  var b=e.target.closest&&e.target.closest('[data-confirm]');if(b){var j=jobByKey(b.getAttribute('data-confirm'));if(j)dialog(j,'confirm');return;}
+  var c=e.target.closest&&e.target.closest('[data-cancel]');if(c){var j2=jobByKey(c.getAttribute('data-cancel'));if(j2)dialog(j2,'cancel');}
+});
+// someone else may take a day while this tab sits open: refresh when it comes back into view
+document.addEventListener('visibilitychange',function(){if(!document.hidden&&loadedOnce)load(true);});
+setInterval(function(){if(!document.hidden)load(true);},180000);
+load(false);
+</script>
+</body>
+</html>
