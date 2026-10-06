@@ -112,7 +112,8 @@
     /* TRUCKS AND STORAGE PER BASE (2026-10-07): trucks out per base per day (owned / rented) and
        the measured costs; storage need per zone and where its units sit */
     RS.DATASETS.base_fleet = { table: "mart_base_fleet",
-      cols: ["Kind", "Day", "Base", "Owned", "Rental", "Trucks", "Rental USD", "Rental Days", "Owned Fixed USD", "Fleet Paid"],
+      cols: ["Kind", "Day", "Base", "Owned", "Rental", "Trucks", "Rental USD", "Rental Days", "Owned Fixed USD", "Fleet Paid",
+             "Units Active", "Units Damaged", "Units Potential", "Damaged List"],
       dateCols: {}, defaultDate: null };
     if (!RS.DATASETS.storage_plan) RS.DATASETS.storage_plan = { table: "mart_storage_plan",
       cols: ["Kind", "Day", "Month", "Zone", "Customer Our CF", "Customer Rented CF", "LD CF", "Customer Fees",
@@ -635,6 +636,8 @@ details.ap3-how[open]{padding-bottom:16px}
 .ap3-store{font:inherit;font-size:12px;font-weight:600;border-radius:6px;padding:2px 8px;cursor:pointer;border:1px solid var(--line-2);background:var(--panel);color:var(--ink)}
 .ap3-store.ps{background:var(--blue-bg,#eff6ff);color:var(--brand-d);border-color:transparent}
 .ap3-fleetnote{margin:4px 0 10px;line-height:1.55}
+.ap3-fleetsens,.ap3-fleetin{font-size:12.5px;color:var(--muted)}
+.ap3-fin{font:inherit;font-size:12.5px;border:1px solid var(--line-2);border-radius:6px;padding:2px 6px;background:var(--panel);color:var(--ink)}
 .ap3-fleettot{display:flex;flex-wrap:wrap;gap:6px 16px;align-items:baseline;font-size:13px;padding:8px 12px;border:1px solid var(--line);border-radius:10px;background:var(--panel);margin:2px 0 6px}
 .ap3-step .trk button{font:inherit;font-weight:800;line-height:1;width:22px;height:22px;border-radius:6px;border:1px solid var(--ap-rule);background:var(--ap-bay);color:var(--ink);cursor:pointer;padding:0}
 .ap3-step .trk button:hover{border-color:var(--brand-d);color:var(--brand-d)}
@@ -1661,6 +1664,8 @@ registerPage({
         listTier: 0,                 // the ranked list's tier filter, 0 = all
         // trucks & storage per base (2026-10-07; additive keys): null = the measured figure
         trkOwnYear: null, trkRentDay: null, storeCF: 2000, storeSet: {},
+        // his "be more realistic" (2026-10-07): a rental is a trip, owning is worth something
+        trkTrip: 120, trkBenefit: 3000, trkMonthly: null,
       }, saved);
       /* THE WHAT-IF'S OWN STATE. Every lever starts at "change nothing", so the pane opens showing
          the plan as it stands and every number he then sees is something he moved himself. */
@@ -1848,7 +1853,7 @@ registerPage({
         if (d0) for (let t = new Date(d0 + "T00:00:00Z"); t <= new Date(d1 + "T00:00:00Z"); t.setUTCDate(t.getUTCDate() + 1)) all.push(t.toISOString().slice(0, 10));
         const hist = {};
         Object.keys(days).forEach(b => { hist[b] = all.map(d => ({ d, n: days[b][d] || 0 })); });
-        return { hist, has: all.length > 0,
+        return { hist, has: all.length > 0, cost,
           rentDay: num(cost["Rental Days"]) ? num(cost["Rental USD"]) / num(cost["Rental Days"]) : 146,
           ownYear: num(cost["Fleet Paid"]) ? num(cost["Owned Fixed USD"]) / num(cost["Fleet Paid"]) : 23000 };
       })();
@@ -1868,20 +1873,42 @@ registerPage({
       const ownYear = () => num(inputs.trkOwnYear) || FLEET.ownYear;
       const rentDay = () => num(inputs.trkRentDay) || FLEET.rentDay;
       const breakEven = () => ownYear() / Math.max(1, rentDay());
+      const tripCost = () => num(inputs.trkTrip);
+      const ownBenefit = () => num(inputs.trkBenefit);
+      const monthlyRate = () => num(inputs.trkMonthly) || num((FC.trucks || {}).enterprise_per_truck_month) || 3050;
+      /* WHAT ONE TRUCK "SLOT" COSTS TO RENT FOR A YEAR (his "be more realistic", 2026-10-07): slot k
+         is the k-th truck a base has out. Month by month it is rented the cheaper way -- by the day
+         ($/day x days + one collect-and-return trip per rental streak) or for the whole month (the
+         monthly rate + one trip). Owning it costs its year minus what owning is worth (branding,
+         GPS, cameras, security, the right size, packing storage). */
+      function slotRent(need, k, benefit) {
+        const months = {};
+        need.forEach(x => { const m = x.d.slice(0, 7); const o = months[m] = months[m] || { days: 0, runs: 0, last: null };
+          if (x.n >= k) { if (o.last == null || (new Date(x.d) - new Date(o.last)) / 864e5 > 2) o.runs++; o.days++; o.last = x.d; } });
+        let usd = 0, daysTot = 0, runsTot = 0, monthsMonthly = 0;
+        Object.values(months).forEach(o => { if (!o.days) return;
+          const daily = o.days * rentDay() + o.runs * tripCost(), whole = monthlyRate() + tripCost();
+          if (whole < daily) { usd += whole; monthsMonthly++; } else usd += daily;
+          daysTot += o.days; runsTot += o.runs; });
+        return { usd, days: daysTot, runs: runsTot, monthsMonthly, ownNet: ownYear() - (benefit == null ? ownBenefit() : benefit) };
+      }
       /* one site: its daily need, the owned count, the rentals and the year's cost both ways */
-      function siteFleet(pool, crews) {
+      function siteFleet(pool, crews, benefit) {
         const H = FLEET.hist[pool] || [];
         const peak = H.reduce((a, x) => Math.max(a, x.n), 0);
-        if (!crews || !peak) return { own: crews ? 1 : 0, std: 0, hi: crews || 0, rentStd: 0, rentHi: Math.max(0, (crews || 0) - 1), cost: crews ? ownYear() : 0, allRent: 0, days: [] };
+        if (!crews || !peak) return { own: crews ? 1 : 0, std: 0, hi: crews || 0, rentStd: 0, rentHi: Math.max(0, (crews || 0) - 1), cost: crews ? ownYear() : 0, allRent: 0, slots: [] };
         const need = H.map(x => ({ d: x.d, n: Math.round(x.n * crews / peak) }));
+        const slots = [];
+        for (let k = 1; k <= crews; k++) slots.push(Object.assign({ k }, slotRent(need, k, benefit)));
+        // the first truck is owned whatever it costs (his rule); each further one while owning beats renting
         let own = 1;
-        for (let k = 2; k <= crews; k++) { if (need.filter(x => x.n >= k).length >= breakEven()) own = k; else break; }
+        for (let i = 1; i < slots.length; i++) { if (slots[i].usd > slots[i].ownNet) own = i + 1; else break; }
+        slots.forEach((s, i) => { s.owned = i < own; });
         const season = need.filter(x => { const m = +x.d.slice(5, 7); return m >= 5 && m <= 9 && x.n > 0; }).map(x => x.n).sort((a, b) => a - b);
         const std = season.length ? season[Math.floor(season.length / 2)] : 0;
-        const rentDays = need.reduce((a, x) => a + Math.max(0, x.n - own), 0);
-        const allDays = need.reduce((a, x) => a + x.n, 0);
-        return { own, std, hi: crews, rentStd: Math.max(0, std - own), rentHi: Math.max(0, crews - own),
-                 cost: own * ownYear() + rentDays * rentDay(), allRent: allDays * rentDay(), rentDays };
+        const rentUsd = slots.slice(own).reduce((a, s) => a + s.usd, 0);
+        return { own, std, hi: crews, rentStd: Math.max(0, std - own), rentHi: Math.max(0, crews - own), slots,
+                 cost: own * ownYear() + rentUsd, allRent: slots.reduce((a, s) => a + s.usd, 0) };
       }
       const ZONE_OF_GROUP = { NJ: "NJ", NY: "NJ", PA: "PA", MD: "PA", CT: "CT", MA: "CT" };
       /* the storage label of a plan group's existing base: his pick, else the data's */
@@ -1899,8 +1926,9 @@ registerPage({
         if (!PLAN) return null;
         return PLAN.groups.map(g => {
           const sites = g.sites.map(x => Object.assign({ x }, siteFleet(g.pool, x.fm)));
+          const ownAt = b => g.sites.reduce((a, x) => a + siteFleet(g.pool, x.fm, b).own, 0);
           const sum = k => sites.reduce((a, s) => a + (s[k] || 0), 0);
-          return { g, sites, own: sum("own"), std: sum("std"), hi: sum("hi"), rentStd: sum("rentStd"), rentHi: sum("rentHi"),
+          return { g, sites, ownAt, own: sum("own"), std: sum("std"), hi: sum("hi"), rentStd: sum("rentStd"), rentHi: sum("rentHi"),
                    cost: sum("cost"), allRent: sum("allRent"), store: storeLabel(g), zone: ZONE_OF_GROUP[g.base] || g.base };
         });
       }
@@ -5083,11 +5111,14 @@ registerPage({
       /* a plan group's trucks and storage, under its sites */
       function fleetCard(f, ownToday) {
         const s = f.store;
-        const buy = ownToday != null ? f.own - ownToday : null;
+        /* the existing site's truck slots, so the reason is on the card: "#3 201 days - own" */
+        const s0 = f.sites.find(x => !x.x.cand && !x.x.la) || f.sites[0];
+        const slotTxt = (s0 && s0.slots || []).map(s => "#" + s.k + " " + fmtN(s.days) + "d" + (s.owned ? " own" : "")).join(" · ");
         return '<div class="ap3-fleet">' +
           '<div class="r"><span>Trucks</span><b>' + fmtN(f.own) + " own</b>" +
-            (buy != null && buy !== 0 ? '<em class="' + (buy > 0 ? "buy" : "spare") + '">' + (buy > 0 ? "buy " + fmtN(buy) : fmtN(-buy) + " spare") + " vs " + fmtN(ownToday) + " today</em>" : "") +
+            (ownToday != null ? '<em class="spare">' + fmtN(ownToday) + " active here today</em>" : "") +
             '<b class="rent">rent ' + fmtN(f.rentStd) + (f.rentHi !== f.rentStd ? "–" + fmtN(f.rentHi) : "") + "</b></div>" +
+          (slotTxt ? '<div class="r sub"><span title="days each truck slot works a year at this base (scaled to the plan\'s crews)">' + slotTxt + "</span></div>" : "") +
           '<div class="r sub"><span>' + f.sites.map(x => esc(x.x.name.split(" ·")[0]) + " " + fmtN(x.own)).join(" · ") + " owned</span>" +
             "<span>standard day " + fmtN(f.std) + " out · busiest " + fmtN(f.hi) + "</span></div>" +
           '<div class="r sub"><span>' + money0(f.cost) + "/yr own + rent</span><span>all rented " + money0(f.allRent) + "</span></div>" +
@@ -5099,14 +5130,26 @@ registerPage({
         if (!PF) return "";
         const so = storageOnly(PF);
         const T = k => PF.reduce((a, f) => a + (f[k] || 0), 0);
-        const ownBy = (model.fleet || {}).active_by_state || {};
-        const today = Object.keys(ownBy).reduce((a, st) => a + num(ownBy[st]), 0);
-        return '<div class="ap3-fleettot"><b>All bases</b><span>' + fmtN(T("own")) + " owned trucks" + (today ? " (" + fmtN(today) + " on the register today)" : "") +
+        const C = FLEET.cost || {};
+        const paid = Math.round(num(C["Fleet Paid"])), act = num(C["Units Active"]), dmg = num(C["Units Damaged"]);
+        const own = T("own"), at = b => PF.reduce((a, f) => a + f.ownAt(b), 0);
+        const diff = own - paid;
+        const inp = (k, v, w) => '<input type="number" class="ap3-fin" data-fk="' + k + '" value="' + esc(String(v)) + '" style="width:' + (w || 70) + 'px">';
+        return '<div class="ap3-fleettot"><b>All bases</b><span><b>' + fmtN(own) + " owned trucks</b> · we pay for " + fmtN(paid) +
+          " today (" + fmtN(act) + " active + " + fmtN(dmg) + " marked damaged" + (C["Damaged List"] ? ": " + esc(C["Damaged List"]) : "") + ")" +
+          (paid ? " → " + (diff > 0 ? "<b>add " + fmtN(diff) + "</b>" : diff < 0 ? "<b>" + fmtN(-diff) + " fewer</b>" : "<b>the same number</b>") : "") +
           "</span><span>rent " + fmtN(T("rentStd")) + " on a standard day – " + fmtN(T("rentHi")) + " on the busiest</span><span><b>" + money0(T("cost")) +
           "/yr</b> own + rent · all rented " + money0(T("allRent")) + "</span></div>" +
+          '<div class="ap3-fleettot ap3-fleetsens"><b>If owning is worth</b><span>$0 a year → own ' + fmtN(at(0)) + "</span><span>$3,000 → " + fmtN(at(3000)) +
+          "</span><span>$6,000 → " + fmtN(at(6000)) + "</span><span>today's setting " + money0(ownBenefit()) + " → " + fmtN(own) + "</span></div>" +
+          '<div class="ap3-fleettot ap3-fleetin"><b>Settings</b><span>rental trip $' + inp("trkTrip", tripCost()) + " per rental</span><span>owning worth $" +
+          inp("trkBenefit", ownBenefit(), 80) + " a truck a year</span><span>monthly rental $" + inp("trkMonthly", monthlyRate(), 80) + "</span></div>" +
           '<div class="ap2-note ap3-fleetnote">Every base owns at least one truck (parking, packing materials, a sign on the road). ' +
-          "A further truck is owned only where it would work more than <b>" + fmtN(Math.round(breakEven())) + " days a year</b> — an owned truck costs " +
-          money0(ownYear()) + " a year, a rented one " + money0(rentDay()) + " a day (both what we actually paid, last 12 months). " +
+          "A further truck is owned when renting it for the year would cost more than owning it: an owned truck costs " +
+          money0(ownYear()) + " a year (what we paid) less what owning is worth (" + money0(ownBenefit()) + " — branding, GPS, cameras, security, the right size; <b>an assumption</b>). " +
+          "Renting is priced month by month the cheaper way: " + money0(rentDay()) + " a day (what we paid) plus " + money0(tripCost()) +
+          " for every collect-and-return trip (<b>an assumption</b>), or " + money0(monthlyRate()) + " for the whole month. " +
+          "The #1 · #2 · #3 line is how many days each truck at that base worked over the last year, scaled to the plan's crews. " +
           "<b>Rent</b> = trucks rented on a standard season day – on the busiest day. " +
           "<b>Parking + Storage</b> where the zone typically needs more than " + fmtN(num(inputs.storeCF || 2000)) + " CF of rented space (Storage tab); click a label to change it." +
           (so.length ? " <b>Storage only:</b> " + so.map(x => esc(x.z) + " (~" + fmtN(Math.round(x.cf)) + " CF)").join(", ") + " — needs room and has no storage base; shown on the map." : "") + "</div>";
@@ -5632,6 +5675,9 @@ registerPage({
           SC.kind = kind; SC.pool = pool; SC.target = target; SC.dir = dd;
           repaintPlan();
         }; });
+        host.querySelectorAll("#apScn [data-fk]").forEach(inp => { inp.onchange = () => {
+          inputs[inp.dataset.fk] = inp.value === "" ? null : +inp.value; save(); repaintPlan();
+          const mb = host.querySelector("#apMapBox"); if (mb && mb._flags) mb._flags(); }; });
         host.querySelectorAll("#apScn [data-store]").forEach(b => { b.onclick = () => {
           const g = PLAN && PLAN.groups.find(x => x.base === b.dataset.store); if (!g) return;
           const cur = storeLabel(g);
