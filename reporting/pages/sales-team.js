@@ -389,7 +389,7 @@
     .st-lfcols{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:0 30px;align-items:start}
     /* ---- LEAD FILE v3 (2026-10-06, "it needs to be proper"): a centred sheet, actions in the
        header, three tabs instead of one long scroll, full-screen and stacked on a phone ---- */
-    .st-dh,.st-db>.st-sheet{max-width:1260px;margin:0 auto;width:100%}
+    .st-db>.st-sheet{max-width:1260px;margin:0 auto;width:100%}
     .st-dh{padding-left:max(24px,calc((100vw - 1260px)/2 + 24px));padding-right:max(24px,calc((100vw - 1260px)/2 + 24px))}
     .st-dact{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
     .st-dact a,.st-dact button{appearance:none;display:inline-flex;align-items:center;gap:6px;font:inherit;font-size:12.5px;font-weight:700;
