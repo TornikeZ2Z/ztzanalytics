@@ -1002,6 +1002,28 @@ window.RS = (function () {
      listing's first snapshot is lifetime history, not that month's production.
      Negative REVIEWS (3 stars or fewer) are a different thing: their own table, never subtracted here. */
   const RESET_DROP = 0.30, RESET_MIN = 20;   // a small listing losing 4 of 13 is removals, not a reset
+  /* SIZE AND TYPE OF A MOVE, from its Size of Move label (Tornike 2026-10-07: "split the size and
+     type in general"). The warehouse stores one name per size since that day (src/curated.py
+     _size_case: "1 BR apartment", "4+ BR house", "Office / commercial" ...); this reads those AND
+     every older Moveboard spelling ("1 Bedroom condo/aprt.", "4 bedroom house and more") the same
+     way, so a page fed by a mart built before the change -- or a spelling Moveboard invents next --
+     still lands in the right row. -> {label, size, type, rank}; rank sorts small -> large. */
+  function sizeParts(label) {
+    const raw = String(label == null ? "" : label).trim(), t = raw.toLowerCase();
+    if (!t || t === "(not stated)") return { label: "(not stated)", size: null, type: "Not stated", rank: 300 };
+    if (/single item/.test(t)) return { label: "Single item", size: "Single item", type: "Single item", rank: 1 };
+    if (/studio/.test(t)) return { label: "Studio", size: "Studio", type: "Apartment / condo", rank: 2 };
+    const m = t.match(/(\d+)\+?\s*(?:bed|br\b)/);
+    if (m) {
+      const n = Math.min(+m[1], 4), house = /house|townhouse/.test(t), size = n + (n === 4 ? "+" : "") + " BR";
+      return { label: size + (house ? " house" : " apartment"), size: size,
+               type: house ? "House / townhouse" : "Apartment / condo", rank: 10 * n + (house ? 1 : 0) };
+    }
+    if (/storage/.test(t)) return { label: "Storage", size: null, type: "Storage", rank: 100 };
+    if (/office|commercial/.test(t)) return { label: "Office / commercial", size: null, type: "Office / commercial", rank: 101 };
+    return { label: raw, size: null, type: "Other", rank: 200 };
+  }
+
   function reviewPlatKey(r) {
     return String(r.Company == null ? "—" : r.Company) + "|" + String(r.Platform == null ? "" : r.Platform).toLowerCase().replace(/[^a-z0-9]/g, "");
   }
@@ -1073,5 +1095,5 @@ window.RS = (function () {
            fmtN, money, fmtPct, fmt1, num,
            MIN_MONTH_DAYS, displayMonth, coverage,
            TZ_CHOICES, tzId, tzChoice, setTz, tzShort, fmtTz, fmtTzDay,
-           bookingRate, dateBasis, fieldsFor, displayName, refresh, reviewFlow, reviewPlatKey };
+           bookingRate, dateBasis, fieldsFor, displayName, refresh, reviewFlow, reviewPlatKey, sizeParts };
 })();

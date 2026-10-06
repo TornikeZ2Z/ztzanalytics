@@ -165,6 +165,7 @@ async function cbRender(host) {
     const byBand = (a, b) => (RS.num(String(a).replace(/[^0-9]/g, "").slice(0, 5)) || 9e9) -
                              (RS.num(String(b).replace(/[^0-9]/g, "").slice(0, 5)) || 9e9);
     const byText = (a, b) => String(a).localeCompare(String(b));
+    const bySize = (a, b) => RS.sizeParts(a).rank - RS.sizeParts(b).rank || byText(a, b);
     // fct_packing_job carries no rs-core date stamps (no dateCols in its spec), so the time
     // dimensions parse `Day` ("YYYY-MM-DD") directly.
     const pkY = r => String(r.Day || "").slice(0, 4);
@@ -186,7 +187,10 @@ async function cbRender(host) {
       "State":         { fn: r => r["State Name"] || r.State, group: "Job" },
       "Moving Type":   { fn: r => r["Moving Type"], group: "Job" },
       "Move Type":     { fn: r => r["Move Type"], group: "Job" },
-      "Size of Move":  { fn: r => r["Size of Move"], group: "Job" },
+      "Size of Move":  { fn: r => RS.sizeParts(r["Size of Move"]).label, sort: bySize, group: "Job" },
+      // split since 2026-10-07 (his ask): how big, and what kind of home, as separate cuts
+      "Move Size":     { fn: r => RS.sizeParts(r["Size of Move"]).size || RS.sizeParts(r["Size of Move"]).type, sort: bySize, group: "Job" },
+      "Home Type":     { fn: r => RS.sizeParts(r["Size of Move"]).type, group: "Job" },
       "Revenue Range": { fn: r => r["Bill Range"], sort: byBand, group: "Job" },
       "Crew Size":     { fn: r => r["Crew Size"], sort: (a, b) => (+a || 0) - (+b || 0), group: "Job" },
       "Company":       { fn: r => r.Company, group: "Job" },
@@ -229,7 +233,9 @@ async function cbRender(host) {
       "Status":         { fn: r => r.Status, group: "Lead" },
       "Status Category":{ fn: r => r["Status Category"], group: "Lead" },
       "Service Type":   { fn: r => r["Service Type"], group: "Lead" },
-      "Size of Move":   { fn: r => r["Size of Move"], group: "Lead" },
+      "Size of Move":   { fn: r => RS.sizeParts(r["Size of Move"]).label, sort: bySize, group: "Lead" },
+      "Move Size":      { fn: r => RS.sizeParts(r["Size of Move"]).size || RS.sizeParts(r["Size of Move"]).type, sort: bySize, group: "Lead" },
+      "Home Type":      { fn: r => RS.sizeParts(r["Size of Move"]).type, group: "Lead" },
       "State":          { fn: r => r["State Name"] || r.State, group: "Lead" },
       "City":           { fn: r => r["City Name"], group: "Lead" },
       "County":         { fn: r => r["County Name"], group: "Lead" },

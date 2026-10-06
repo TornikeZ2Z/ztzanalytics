@@ -2184,7 +2184,7 @@ async function renderMonthly(host, MRCFG) {
       const sizeKey = s => { const t = String(s).toLowerCase();
         if (/single item/.test(t)) return 1;
         if (/studio/.test(t)) return 5;
-        const m = t.match(/(\d+)\s*(bed|br\b)/); if (m) return 10 * (+m[1]) + (/house/.test(t) ? 1 : 0);
+        const m = t.match(/(\d+)\+?\s*(bed|br\b)/); if (m) return 10 * (+m[1]) + (/house/.test(t) ? 1 : 0);
         if (/storage/.test(t)) return 100;
         if (/office/.test(t)) return 101;
         return 200; };

@@ -114,6 +114,26 @@ registerPage({
       + "body.rs-app:not(.light) .dm-basis .bt{color:var(--brand)}"
       + ".dm-basis p{margin:0;font-size:12.5px;line-height:1.65;color:var(--muted);max-width:112ch}"
       + ".dm-basis b{color:var(--ink)}"
+      + "details.dm-basis{display:block}"
+      + "details.dm-basis summary{cursor:pointer;list-style:none;font-size:12.5px;color:var(--muted);line-height:1.6}"
+      + "details.dm-basis summary::-webkit-details-marker{display:none}"
+      + "details.dm-basis summary .bt{margin-right:10px}"
+      + "details.dm-basis summary u{color:var(--brand);text-decoration:none;font-weight:600;margin-left:6px;white-space:nowrap}"
+      + "details.dm-basis[open] summary u{display:none}"
+      + "details.dm-basis p{margin-top:8px}"
+      + ".dm-sz{border-collapse:separate;border-spacing:4px;width:100%;font-size:12px}"
+      + ".dm-sz th{font-size:10px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--faint);padding:2px 6px;text-align:center}"
+      + ".dm-sz th.rh{text-align:right;font-size:12px;letter-spacing:0;text-transform:none;color:var(--ink);font-weight:700;white-space:nowrap}"
+      + ".dm-sz td.c{text-align:center;padding:9px 6px;border-radius:7px;background:rgba(37,99,235,var(--h,0));min-width:120px}"
+      + ".dm-sz td.c b{display:block;font-size:15px;font-variant-numeric:tabular-nums}"
+      + ".dm-sz td.c small{color:var(--muted);font-size:11px}"
+      + ".dm-sz td.c em{display:block;font-style:normal;font-size:11px;color:var(--ink);opacity:.8;margin-top:2px}"
+      + ".dm-sz td.nil{color:var(--faint);background:var(--panel-2)}"
+      + ".dm-sz td.tot{background:var(--panel);border:1px solid var(--line-2)}"
+      + ".dm-sz tr.ft th.rh{color:var(--muted)}"
+      + ".dm-chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}"
+      + ".dm-chip{display:flex;gap:7px;align-items:baseline;border:1px solid var(--line-2);border-radius:999px;padding:5px 12px;font-size:12px}"
+      + ".dm-chip span{color:var(--muted)}.dm-chip small{color:var(--faint)}"
       // ---- toolbar: THE SHARED KIT (rs.css) -----------------------------------------
       // .rs-bar / .rs-fld / .rs-seg / .rs-sel / .rs-num / .rs-hint used to live here as
       // dm-* copies that had quietly drifted from every other page's version of the same
@@ -285,7 +305,11 @@ registerPage({
         return [p.slice(0, i).trim(), +p.slice(i + 1) || 0];
       }).filter(x => x && x[0]);
     }
-    const addMix = (into, s) => parseMix(s).forEach(([k, n]) => { into[k] = (into[k] || 0) + n; });
+    const addMix = (into, s, canon) => parseMix(s).forEach(([k, n]) => { const kk = canon ? canon(k) : k; into[kk] = (into[kk] || 0) + n; });
+    /* SIZE AND TYPE, SPLIT (2026-10-07): this card listed every spelling Moveboard ever used for
+       one size ("1 Bedroom condo/aprt." / "Condo" / "aprt."). RS.sizeParts reads them all as one. */
+    const sizeParts = RS.sizeParts;
+    const canonSize = l => sizeParts(l).label;
     const mixList = obj => Object.keys(obj).map(k => ({ k, n: obj[k] }))
       .sort((a, b) => b.n - a.n || a.k.localeCompare(b.k));
 
@@ -295,7 +319,9 @@ registerPage({
                pq: 0, pcf: 0, pn: 0, ldSum: 0, ldN: 0,
                ld: 0, local: 0, svcUnknown: 0,
                small: 0, mid: 0, big: 0, other: 0,
-               svc: {}, size: {}, cfr: {}, st: {}, src: {} };
+               svc: {}, size: {}, cfr: {}, st: {}, src: {},
+               // per size / per state: [qualified, booked] -- only the per-lead layer fills these
+               sizeQB: {}, stQB: {} };
     }
     // One accumulator, used for a day, a weekday, a demand level and the whole window alike —
     // so every figure on the page comes from one definition of how these rows add up.
@@ -324,7 +350,7 @@ registerPage({
       a.ld += num(r["LD Leads"]); a.local += num(r["Local Leads"]); a.svcUnknown += num(r["Service Unknown"]);
       a.small += num(r["Size Small"]); a.mid += num(r["Size Mid"]);
       a.big += num(r["Size Big"]); a.other += num(r["Size Other"]);
-      addMix(a.svc, r["Service Mix"]); addMix(a.size, r["Size Mix"]);
+      addMix(a.svc, r["Service Mix"]); addMix(a.size, r["Size Mix"], canonSize);
       addMix(a.cfr, r["CF Mix"]); addMix(a.st, r["State Mix"]);
       // `src` is the day's WINNING source only — the mart carries no full source breakdown at
       // this grain. Read it at day level (the tooltip and the day card) and nowhere else: a
@@ -361,6 +387,7 @@ registerPage({
         S.leads = (rs || []).map(r => {
           r.d = String(r["Move Date"]).slice(0, 10);
           r.cd = String(r["Created NY"] || r["Create Date"] || "");
+          r.Size = r.Size ? canonSize(r.Size) : r.Size;
           return r;
         });
         S.leadsLoading = false;
@@ -380,7 +407,7 @@ registerPage({
     function sizeBucketOf(label) {
       const t = String(label || "").toLowerCase();
       if (/single item|studio/.test(t)) return "small";
-      const m = t.match(/(\d+)\s*(?:bed|br\b)/);
+      const m = t.match(/(\d+)\+?\s*(?:bed|br\b)/);
       if (m) return +m[1] <= 2 ? "mid" : "big";
       return "other";
     }
@@ -417,6 +444,10 @@ registerPage({
       const bump = (o, k) => { const kk = k || "(not stated)"; o[kk] = (o[kk] || 0) + 1; };
       bump(a.svc, l.Service); bump(a.size, l.Size); bump(a.cfr, l["CF Range"]);
       bump(a.st, l.State); bump(a.src, l.Source);
+      if (sc !== "Bad Lead") {
+        const qb = (o, k) => { const kk = k || "(not stated)"; const x = o[kk] = o[kk] || [0, 0]; x[0]++; if (bk) x[1]++; };
+        qb(a.sizeQB, l.Size); qb(a.stQB, l.State);
+      }
       return a;
     }
     function byDayLeads(ls) {
@@ -485,8 +516,12 @@ registerPage({
       }
       h += calendarCard(days);
       h += matrixCard(days);
-      h += '<div class="dm-grid2">' + cfCard(all) + sizeCard(all) + "</div>";
-      h += '<div class="dm-grid2">' + peakCard(days) + marketCard(all) + "</div>";
+      // booking by size and by state needs individual leads: the same window, folded per lead
+      let qbAll = null;
+      if (S.leads) { qbAll = blank(""); scopeLeads().forEach(l => foldLead(qbAll, l)); }
+      h += sizeCard(all, qbAll);
+      h += '<div class="dm-grid2">' + cfCard(all) + marketCard(all, qbAll) + "</div>";
+      h += peakCard(days);
       h += overflowCard();
       h += quoteCard(days);
       main.innerHTML = h;
@@ -494,13 +529,13 @@ registerPage({
     }
 
     function basisBanner() {
-      return '<div class="dm-basis"><span class="bt">Move-date basis</span>'
-        + "<p>Every number on this page is counted on the <b>date of the move the customer "
-        + "asked for</b> — not the date the lead came in. The Lead Funnel, Sales pages and the "
-        + "Monthly Report all count leads by <b>create date</b>, so the two will not add up to "
-        + "each other and are not meant to: one lead created in March for a July Saturday is "
-        + "March there and July here. <b>Demand means everything that was asked for</b>, booked "
-        + "or not; the blue foot on each square is the part we confirmed.</p></div>";
+      return '<details class="dm-basis"><summary><span class="bt">Move-date basis</span>'
+        + "Every number here is counted on the <b>date the customer wants to move</b>, not the day "
+        + "the lead came in. <u>Why it won't match the Sales pages</u></summary>"
+        + "<p>The Lead Funnel, Sales pages and the Monthly Report count leads by <b>create date</b>, "
+        + "so the two will not add up and are not meant to: a lead created in March for a July "
+        + "Saturday is March there and July here. <b>Demand means everything that was asked for</b>, "
+        + "booked or not; the blue foot on each square is the part we confirmed.</p></details>";
     }
 
     function toolbar() {
@@ -875,7 +910,8 @@ registerPage({
         '<div class="dm-b"><div class="lb" title="' + esc(x.k) + '">' + esc(x.k) + "</div>"
         + '<div class="tr"><i style="width:' + (x.n / mx * 100).toFixed(1) + '%"></i>'
         + '</div><div class="vv">' + fmtN(x.n)
-        + "<small>" + (total ? Math.round(x.n / total * 100) + "%" : "—") + "</small></div></div>")
+        + "<small>" + (total ? Math.round(x.n / total * 100) + "%" : "—") + (x.note ? " · " + esc(x.note) : "")
+        + "</small></div></div>")
         .join("") + "</div>";
     }
 
@@ -894,26 +930,60 @@ registerPage({
         + "</div>";
     }
 
-    function sizeCard(a) {
-      const list = mixList(a.size);
-      const sizeKey = s => { const t = String(s).toLowerCase();
-        if (/single item/.test(t)) return 1;
-        if (/studio/.test(t)) return 5;
-        const m = t.match(/(\d+)\s*(bed|br\b)/); if (m) return 10 * (+m[1]) + (/house/.test(t) ? 1 : 0);
-        if (/storage/.test(t)) return 100;
-        if (/office/.test(t)) return 101;
-        return 200; };
-      list.sort((x, y) => sizeKey(x.k) - sizeKey(y.k) || x.k.localeCompare(y.k));
-      const tot = a.small + a.mid + a.big + a.other;
-      const coarse = [{ k: "Studio or single item", n: a.small }, { k: "1–2 bedroom", n: a.mid },
-                      { k: "3+ bedroom", n: a.big }, { k: "Storage, office, unstated", n: a.other }];
+    function sizeCard(a, qb) {
+      const HOME = t => t === "Apartment / condo" || t === "House / townhouse";
+      const cell = {}, rowsT = {}, colsT = {}, other = {};
+      let tot = 0;
+      Object.keys(a.size).forEach(k => {
+        const p = sizeParts(k), n = a.size[k];
+        tot += n;
+        if (p.size && HOME(p.type)) {
+          const key = p.size + "|" + p.type;
+          cell[key] = (cell[key] || 0) + n; rowsT[p.size] = (rowsT[p.size] || 0) + n; colsT[p.type] = (colsT[p.type] || 0) + n;
+        } else {
+          const key = p.label;
+          other[key] = { n: ((other[key] || {}).n || 0) + n, rank: p.rank };
+        }
+      });
+      if (!tot) return '<div class="dm-card"><div class="dm-h"><h3>What the market is moving</h3></div>'
+        + '<div class="dm-empty">Nothing in this window.</div></div>';
+      // booking rate by the same cells, when the per-lead layer is in
+      const qbCell = {}, qbRow = {}, qbCol = {}, qbOther = {};
+      if (qb) Object.keys(qb.sizeQB).forEach(k => {
+        const p = sizeParts(k), v = qb.sizeQB[k];
+        const add = (o, kk) => { const x = o[kk] = o[kk] || [0, 0]; x[0] += v[0]; x[1] += v[1]; };
+        if (p.size && HOME(p.type)) { add(qbCell, p.size + "|" + p.type); add(qbRow, p.size); add(qbCol, p.type); }
+        else add(qbOther, p.label);
+      });
+      // a rate on fewer than 10 qualified leads is noise -- shown as a dash, never as a figure
+      const rate = x => (x && x[0] >= 10) ? Math.round(x[1] / x[0] * 100) + "% booked" : "—";
+      const share = n => Math.round(n / tot * 100) + "%";
+      const mx = Math.max(1, ...Object.values(cell));
+      const td = (n, x) => n
+        ? '<td class="c" style="--h:' + (0.08 + 0.5 * n / mx).toFixed(2) + '"><b>' + fmtN(n) + "</b><small>" + share(n)
+          + "</small>" + (qb ? "<em>" + rate(x) + "</em>" : "") + "</td>"
+        : '<td class="c nil">—</td>';
+      const tt = (n, x) => '<td class="c tot"><b>' + fmtN(n) + "</b><small>" + share(n) + "</small>"
+        + (qb ? "<em>" + rate(x) + "</em>" : "") + "</td>";
+      const SIZES = ["Studio", "1 BR", "2 BR", "3 BR", "4+ BR"], TYPES = ["Apartment / condo", "House / townhouse"];
+      let body = SIZES.filter(sz => rowsT[sz]).map(sz => '<tr><th class="rh">' + esc(sz) + "</th>"
+        + TYPES.map(ty => td(cell[sz + "|" + ty] || 0, qbCell[sz + "|" + ty])).join("")
+        + tt(rowsT[sz], qbRow[sz]) + "</tr>").join("");
+      const homes = TYPES.reduce((s2, ty) => s2 + (colsT[ty] || 0), 0);
+      const qbHomes = TYPES.reduce((o, ty) => { const v = qbCol[ty]; if (v) { o[0] += v[0]; o[1] += v[1]; } return o; }, [0, 0]);
+      body += '<tr class="ft"><th class="rh">All homes</th>' + TYPES.map(ty => tt(colsT[ty] || 0, qbCol[ty])).join("")
+        + tt(homes, qbHomes) + "</tr>";
+      const oth = Object.keys(other).sort((x, y) => other[x].rank - other[y].rank)
+        .map(k => '<div class="dm-chip"><span>' + esc(k) + "</span><b>" + fmtN(other[k].n) + "</b><small>"
+          + share(other[k].n) + (qb && qbOther[k] && qbOther[k][0] >= 10 ? " · " + rate(qbOther[k]) : "") + "</small></div>").join("");
       return '<div class="dm-card"><div class="dm-h"><h3>What the market is moving</h3>'
-        + '<span class="tag">by move date</span></div>'
-        + '<p class="dm-note">Size of Move as the office recorded it, ordered small to large '
-        + "(the Monthly Report's own size ordering). The four coarse buckets underneath are the "
-        + "same leads grouped by bedroom count.</p>"
-        + (list.length ? bars(list, a.leads) : '<div class="dm-empty">Nothing in this window.</div>')
-        + (tot ? '<div style="height:11px"></div>' + bars(coarse, tot) : "")
+        + '<span class="tag">by move date</span><span class="rt">size × type of home</span></div>'
+        + '<p class="dm-note">Every lead aimed at a date in this window, by <b>size</b> (down) and <b>type of home</b> (across)'
+        + (qb ? ", with the share of qualified leads we booked." : ". Booking rates appear once the per-lead detail has loaded.")
+        + " Single items, storage and offices are not homes and sit underneath.</p>"
+        + '<div class="dm-scroll"><table class="dm-sz"><thead><tr><th></th>' + TYPES.map(ty => "<th>" + esc(ty) + "</th>").join("")
+        + "<th>All</th></tr></thead><tbody>" + body + "</tbody></table></div>"
+        + (oth ? '<div class="dm-chips">' + oth + "</div>" : "")
         + "</div>";
     }
 
@@ -941,17 +1011,16 @@ registerPage({
         + "</div>";
     }
 
-    function marketCard(a) {
+    function marketCard(a, qb) {
       const list = mixList(a.st).slice(0, 12);
-      const tot = list.reduce((s, x) => s + x.n, 0);
+      const tot = list.reduce((s2, x) => s2 + x.n, 0);
       const mvTot = a.ld + a.local + a.svcUnknown;
+      if (qb) list.forEach(x => { const v = qb.stQB[x.k]; if (v && v[0] >= 10) x.note = Math.round(v[1] / v[0] * 100) + "% booked"; });
       return '<div class="dm-card"><div class="dm-h"><h3>Where the demand is</h3>'
         + '<span class="tag">by move date</span></div>'
-        + '<p class="dm-note">Pickup state, parsed from the lead\'s <b>Moving From</b>. This is '
-        + "<b>demand only</b> — the booked split is not carried per state at this grain, so no "
-        + "booking rate is shown here rather than one invented from a partial count. "
-        + "Destination is not parsed anywhere in the warehouse yet, so there is no "
-        + "where-they-are-going cut to give.</p>"
+        + "<p class=\"dm-note\">Pickup state, from the lead's <b>Moving From</b>"
+        + (qb ? ", with the share of its qualified leads we booked." : ". Booking rates appear once the per-lead detail has loaded.")
+        + "</p>"
         + (list.length ? bars(list, tot) : '<div class="dm-empty">Nothing in this window.</div>')
         + (mvTot ? '<div style="height:11px"></div>'
             + bars([{ k: "Long distance", n: a.ld }, { k: "Local", n: a.local }]
