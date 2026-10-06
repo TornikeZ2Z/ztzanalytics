@@ -483,6 +483,11 @@
   let drawerEl = null;
   let LF_TAB = "over";      // the lead file's last tab, kept while moving between leads
   function openDrawer(jk) {
+    ensureDrawer();
+    openDrawerBody(jk);
+  }
+  // the sheet itself, created once; a lead (openDrawer) or a caller (openCaller) fills it
+  function ensureDrawer() {
     if (!drawerEl) {
       drawerEl = document.createElement("div");
       drawerEl.innerHTML = `<div class="st-scrim"></div>
@@ -503,6 +508,8 @@
       drawerEl.querySelector(".st-scrim").onclick = close;
       drawerEl.querySelector(".st-dx").onclick = close;
     }
+  }
+  function openDrawerBody(jk) {
     drawerEl.querySelector(".st-scrim").classList.add("on");
     drawerEl.querySelector(".st-drawer").classList.add("on");
     drawerEl.dataset.jk = jk;
@@ -1233,6 +1240,101 @@
       paint();
     });
     paint();
+  }
+
+  /* ---------------- Calls without a lead (2026-10-06) ----------------
+     People who rang a SALES line and never became a Moveboard lead (no lead within 30 days
+     either side of the call). Built by src/nolead_calls.py. One row per caller; clicking one
+     opens their calls with any RingSense transcript, drawn by the Conversations renderer. */
+  async function renderNoLead(host, ctx) {
+    if (!ctx.nolead) {
+      try {
+        const d = await fetch(ZTZ.API + "/api/mart_nolead_calls?limit=20000",
+          { headers: { Authorization: "Bearer " + ZTZ.getToken() } }).then(r => r.json());
+        ctx.nolead = d.rows || [];
+      } catch (e) { ctx.nolead = []; }
+    }
+    const st = { view: "new", days: 30, q: "" };
+    const fmtPh = p => String(p || "").replace(/^(\d{3})(\d{3})(\d{4})$/, "($1) $2-$3");
+    const group = () => {
+      const cut = new Date(Date.now() - st.days * 864e5).toISOString().slice(0, 19).replace("T", " ");
+      const by = {};
+      ctx.nolead.forEach(r => {
+        if (String(r["Call At"] || "") < cut) return;
+        const k = r["Phone Norm"];
+        const g = by[k] = by[k] || { ph: k, calls: 0, ans: 0, tr: 0, talk: 0, last: "", first: "9", lines: {}, who: {}, ret: 0, prev: null };
+        g.calls++; g.ans += +r["Answered"] || 0; g.tr += +r["Has Transcript"] || 0; g.talk += +r["Duration Seconds"] || 0;
+        const at = String(r["Call At"] || "");
+        if (at > g.last) g.last = at;
+        if (at < g.first) g.first = at;
+        if (r["Line"]) g.lines[r["Line"]] = 1;
+        if (r["Answered By"]) g.who[r["Answered By"]] = 1;
+        if (+r["Returning"]) { g.ret = 1; g.prev = r; }
+      });
+      return Object.values(by).sort((a, b) => b.last.localeCompare(a.last));
+    };
+    const VIEWS = [["new", "New callers", g => !g.ret], ["ret", "Returning (lead > 30 days away)", g => g.ret],
+                   ["ans", "Someone answered", g => g.ans > 0], ["missed", "Never answered", g => !g.ans],
+                   ["tr", "Has a transcript", g => g.tr > 0], ["all", "All", () => true]];
+    host.innerHTML = `
+      <div class="st-note" style="margin:0 0 10px">People who called a sales line and never became a Moveboard lead
+        (no lead within 30 days of the call). Crew and our own numbers are left out. Click a caller to hear what they wanted.</div>
+      <div class="lx-views" id="nlViews"></div>
+      <div class="st-toolbar"><div class="st-search"><input type="text" id="nlQ" placeholder="Search a phone number, line or rep…"></div>
+        <div id="nlDays"></div></div>
+      <div class="st-grid"><div class="st-gridscroll" id="nlTbl"></div></div>`;
+    const paint = () => {
+      const all = group();
+      const q = st.q.replace(/[^0-9a-z ]/gi, "").toLowerCase();
+      const v = VIEWS.find(x => x[0] === st.view) || VIEWS[0];
+      host.querySelector("#nlViews").innerHTML = VIEWS.map(([k, l, f]) =>
+        `<button data-v="${k}" class="${k === st.view ? "on" : ""}">${l}<i>${RS.fmtN(all.filter(f).length)}</i></button>`).join("");
+      host.querySelectorAll("#nlViews button").forEach(b => b.onclick = () => { st.view = b.dataset.v; paint(); });
+      const rows = all.filter(v[2]).filter(g => !q || (g.ph + " " + Object.keys(g.lines).join(" ") + " " + Object.keys(g.who).join(" ")).toLowerCase().includes(q));
+      host.querySelector("#nlTbl").innerHTML = rows.length ? `<table class="st-tbl lx"><thead><tr>
+          <th>Caller</th><th>Last call</th><th>Calls</th><th>Answered by</th><th>Line</th><th>Talk</th><th>Transcripts</th><th>Earlier lead</th></tr></thead><tbody>
+        ${rows.slice(0, 400).map(g => `<tr class="click" data-ph="${esc(g.ph)}">
+          <td class="nm"><b>${esc(fmtPh(g.ph))}</b><span>${g.ret ? "returning caller" : "new caller"}</span></td>
+          <td data-l="Last call">${esc(g.last.slice(5, 16).replace("-", "/"))}${g.first.slice(0, 10) !== g.last.slice(0, 10) ? `<span class="sub">first ${esc(g.first.slice(5, 10).replace("-", "/"))}</span>` : ""}</td>
+          <td data-l="Calls">${g.calls}<span class="sub">${g.ans} answered</span></td>
+          <td data-l="Answered by">${esc(Object.keys(g.who).join(", ") || "—")}</td>
+          <td data-l="Line">${esc(Object.keys(g.lines).join(", "))}</td>
+          <td data-l="Talk">${g.talk ? secH(g.talk) : "—"}</td>
+          <td data-l="Transcripts">${g.tr ? `<span class="st-flag p">${g.tr} transcribed</span>` : "—"}</td>
+          <td data-l="Earlier lead">${g.prev ? `<span data-lead="${esc(g.prev["Previous Request Joinkey"] || "")}" style="cursor:pointer;color:var(--blue);font-weight:700">#${esc(g.prev["Previous Job No"] || "")} ${esc(g.prev["Previous Customer"] || "")}</span><span class="sub">${esc(String(g.prev["Previous Lead Created"] || "").slice(0, 10))}</span>` : "—"}</td>
+        </tr>`).join("")}</tbody></table>`
+        : `<div class="st-note" style="padding:16px">No callers match.</div>`;
+      host.querySelectorAll("#nlTbl tr.click").forEach(tr => tr.onclick = e => {
+        if (e.target.closest("[data-lead]")) return;          // the earlier lead opens its own file
+        openCaller(tr.dataset.ph);
+      });
+    };
+    RSC.localSelect(host.querySelector("#nlDays"), { label: "Period", required: true,
+      values: [{ v: "7", l: "Last 7 days" }, { v: "30", l: "Last 30 days" }, { v: "90", l: "Last 90 days" }],
+      value: String(st.days), onChange: v => { st.days = +v; paint(); } });
+    host.querySelector("#nlQ").oninput = e => { st.q = e.target.value; paint(); };
+    paint();
+  }
+
+  // a caller's calls in the lead-file sheet: same drawer, the Conversations thread renderer inside
+  function openCaller(ph) {
+    ensureDrawer();
+    drawerEl.querySelector(".st-scrim").classList.add("on");
+    drawerEl.querySelector(".st-drawer").classList.add("on");
+    drawerEl.dataset.jk = "";
+    const nice = String(ph).replace(/^(\d{3})(\d{3})(\d{4})$/, "($1) $2-$3");
+    drawerEl.querySelector("#stDT").innerHTML = esc(nice) + ` <span class="st-cb none">No lead in Moveboard</span>`;
+    drawerEl.querySelector("#stDS").innerHTML = `<div class="st-dact"><a href="tel:${esc(ph)}">&#9742; Call ${esc(nice)}</a><a href="sms:${esc(ph)}">&#9993; Text</a></div>`;
+    const body = drawerEl.querySelector("#stDB");
+    body.innerHTML = `<div class="st-sheet"><div class="rs-loading" style="padding:24px">Loading the calls…</div></div>`;
+    fetch(ZTZ.API + "/api/_convthread?phone=" + encodeURIComponent(ph), { headers: { Authorization: "Bearer " + ZTZ.getToken() } })
+      .then(r => r.json()).then(d => {
+        if (d.error) throw new Error(d.error);
+        const sheet = body.querySelector(".st-sheet");
+        sheet.innerHTML = `<div class="st-sec" style="margin-top:0">Every call from this number &middot; ${(d.events || []).length}</div><div id="nlThread"></div>`;
+        if (window.CONV) { CONV.injectStyle(); CONV.mountThread(sheet.querySelector("#nlThread"), d.events || [], d.transcripts || {}, nice); }
+      })
+      .catch(e => { body.innerHTML = `<div class="st-sheet"><div class="st-note">Couldn't load the calls: ${esc(e.message)}</div></div>`; });
   }
 
   function renderExplorer(host, ctx) {
@@ -2404,7 +2506,7 @@
           <span class="freshness">· leads count by created date · confirmations by confirmed date</span></p></div>
         <div class="st-tabbar" id="stTabs"></div><div id="stHost"></div></div>`;
       const TABS = [["team", "Team"], ["rep", "Rep Profile"], ["compare", "Compare"],
-                    ["explorer", "Lead Explorer"], ["answers", "Rep answers"]];
+                    ["explorer", "Lead Explorer"], ["nolead", "Calls without a lead"], ["answers", "Rep answers"]];
       const tabsEl = host.querySelector("#stTabs");
       const hostEl = host.querySelector("#stHost");
       let active = ST_LAST_TAB;   // survive a global re-render (e.g. the rep→Explorer jump)
@@ -2507,6 +2609,7 @@
         if (k === "rep") return renderRep(hostEl, ctx);
         if (k === "compare") return renderCompare(hostEl, ctx);
         if (k === "answers") return renderAnswers(hostEl, ctx);
+        if (k === "nolead") return renderNoLead(hostEl, ctx);
         await loadAnswers(ctx);   // the Explorer marks leads a rep answered on
         return renderExplorer(hostEl, ctx);
       };
