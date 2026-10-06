@@ -95,13 +95,10 @@ registerPage({
         ".eac-btn:hover{border-color:var(--neg);color:var(--neg)}",
         ".eac-pager{display:flex;gap:8px;align-items:center;justify-content:flex-end;margin-top:12px;font-size:12.5px;color:var(--faint)}",
         ".eac-pager .rs-btn[disabled]{opacity:.4;pointer-events:none}",
-        ".eac-split{display:flex;height:22px;border-radius:6px;overflow:hidden;margin:8px 0}",
-        ".eac-split span{display:flex;align-items:center;justify-content:center;color:#fff;font-size:11.5px;font-weight:700;white-space:nowrap;overflow:hidden}",
         ".eac-note{font-size:12px;color:var(--faint);margin-top:8px;line-height:1.6}",
         ".eac-sort{cursor:pointer;user-select:none;white-space:nowrap}",
         ".eac-sort:hover{color:var(--ink)}",
         "body.rs-app.light.v2 .eac-in{border-radius:999px;border-color:var(--line-2);height:36px;padding:0 14px;background:#FFFFFF}",
-        "body.rs-app.light.v2 .eac-band,body.rs-app.light.v2 .eac-split{border-radius:4px}",
         "body.rs-app.light.v2 .eac-note,body.rs-app.light.v2 .eac-faint{font-size:12.5px}",
       ].join("");
       document.head.appendChild(st);
@@ -268,10 +265,10 @@ registerPage({
       else peopleHtml = `<div class="eac-grid">${peopleTable(repRows, "By sales person", repSub)}${peopleTable(foreRows, "By foreman", "Foreman 1 on the job.")}</div>`;
 
       // time split
+      const hrs = v => (v > 0 ? "+" : v < 0 ? "−" : "") + int(Math.abs(v)) + " h";
       let splitHtml = "";
       if (m === "time") {
         const ts = timeSplit(live);
-        const tot = Math.abs(ts.vol) + Math.abs(ts.pace) || 1;
         const repV = {}, foreP = {};
         ts.per.forEach(x => { (repV[x.r.rep] = repV[x.r.rep] || []).push(x.v); (foreP[x.r.fore] = foreP[x.r.fore] || []).push(x.p); });
         const pace = {};
@@ -284,7 +281,11 @@ registerPage({
           <div class="eac-cap">On ${int(ts.n)} jobs with both volumes and both times: the jobs ran <b>${(ts.vol + ts.pace > 0 ? "+" : "") + (ts.vol + ts.pace).toFixed(0)} hours</b> against the estimate.
           <b>${(ts.vol > 0 ? "+" : "") + ts.vol.toFixed(0)} h</b> is what the extra volume alone would have added at the planned pace (the estimate's side);
           <b>${(ts.pace > 0 ? "+" : "") + ts.pace.toFixed(0)} h</b> is the rest — the crew's pace, the minimum, everything else (the job's side).</div>
-          <div class="eac-split"><span style="width:${Math.abs(ts.vol) / tot * 100}%;background:var(--brand)">${Math.abs(ts.vol) / tot > 0.12 ? "volume" : ""}</span><span style="width:${Math.abs(ts.pace) / tot * 100}%;background:var(--warn)">${Math.abs(ts.pace) / tot > 0.12 ? "pace & other" : ""}</span></div>
+          <div class="rs-kpis" style="--kpi-cols:3;margin:10px 0">
+            <div class="kpi"><div class="l">From the extra volume</div><div class="v">${hrs(ts.vol)}</div><div class="s">more stuff than estimated, at the planned pace</div></div>
+            <div class="kpi"><div class="l">From pace, minimum &amp; the rest</div><div class="v">${hrs(ts.pace)}</div><div class="s">${ts.pace < 0 ? "crews worked faster than the plan assumed" : "crews took longer than the volume explains"}</div></div>
+            <div class="kpi"><div class="l">Billed over the estimate</div><div class="v">${hrs(ts.vol + ts.pace)}</div><div class="s">${int(ts.n)} jobs</div></div>
+          </div>
           <div class="eac-grid">
             <div><div class="eac-faint" style="margin:6px 0">Extra hours from volume, per job — by sales person</div>
               <div class="rs-tablewrap"><table class="rs-table"><thead><tr><th>Sales person</th><th class="num">Per job</th><th class="num">Jobs</th></tr></thead><tbody>${lst(repV)}</tbody></table></div></div>
