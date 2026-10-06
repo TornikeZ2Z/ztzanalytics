@@ -175,8 +175,11 @@ registerPage({
       const g = {};
       rows.forEach(r => { const q = ratio(m, r); if (q == null) return; (g[keyFn(r)] = g[keyFn(r)] || []).push({ r, q }); });
       return Object.entries(g).map(([name, xs]) => {
+        // the person's MEDIAN miss (the team figure is a median too -- a mean would be dragged up
+        // by the 2x-and-worse tail and put every rep "above the team"), pulled toward the team
+        // in proportion to how few jobs they have
         const logs = xs.map(x => Math.log(x.q)), n = xs.length;
-        const shr = Math.exp((logs.reduce((s, v) => s + v, 0) + K * teamLog) / (n + K));
+        const shr = Math.exp((n * median(logs) + K * teamLog) / (n + K));
         const c = [0, 0, 0]; xs.forEach(x => c[band(x.q)]++);
         const under = xs.filter(x => x.q >= 1.2).length, over = xs.filter(x => x.q <= 1 / 1.2).length;
         const det = xs.filter(x => x.r.detail && x.r.gap != null);
