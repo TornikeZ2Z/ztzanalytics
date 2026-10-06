@@ -390,9 +390,20 @@ registerPage({
       const yoyWin = spanDays ? rateOver(shift(from, 365), shift(to, 365)) : null;
 
       const n = claims.length;
-      const open = claims.filter(r => num(r["Is Open"]) === 1).length;
-      const refunded = claims.filter(r => num(r["Has Refund"]) === 1);
-      const refund$ = refunded.reduce((a, r) => a + (num(r["Refund $"]) || 0), 0);
+      const outcomeOf = r => num(r["Is Open"]) === 1 ? "open"
+        : (num(r["Has Refund"]) === 1 || /^refunded$/i.test(String(r.Status || "").trim()) ? "ref" : "closed");
+      /* OUTCOME, in three parts that always add up to the total (his ask 2026-10-02: "we are
+         missing the ones that are closed without refunding"). A claim still open is OPEN even if
+         part of the money already went out (his call: open wins); a closed one is REFUNDED when a
+         refund is on file OR the board itself says "Refunded" -- the claims team's own word, even
+         where the refunds sheet has no amount (that gap is counted and said, not hidden); every
+         other closed claim was CLOSED WITHOUT A REFUND. */
+      const open = claims.filter(r => outcomeOf(r) === "open").length;
+      const refunded = claims.filter(r => outcomeOf(r) === "ref");
+      const closedNo = claims.filter(r => outcomeOf(r) === "closed").length;
+      const boardOnly = refunded.filter(r => num(r["Has Refund"]) !== 1).length;
+      const openPaid = claims.filter(r => outcomeOf(r) === "open" && num(r["Has Refund"]) === 1).length;
+      const refund$ = claims.reduce((a, r) => a + (num(r["Has Refund"]) === 1 ? (num(r["Refund $"]) || 0) : 0), 0);
       const pub = claims.filter(r => (num(r["Negative Reviews"]) || 0) > 0).length;
       const unclassified = claims.filter(r => r["Reason Family"] === "Unclassified").length;
       const kwFilled = claims.filter(r => { const k = kwOf(r);
@@ -719,11 +730,12 @@ registerPage({
         const o = {};
         claims.forEach(r => {
           const k = dimFn(r);
-          const a = o[k] = o[k] || { k, n: 0, refunded: 0, refund: 0, pub: 0, open: 0, days: [] };
+          const a = o[k] = o[k] || { k, n: 0, refunded: 0, closed: 0, refund: 0, pub: 0, open: 0, days: [] };
           a.n++;
-          if (num(r["Has Refund"]) === 1) { a.refunded++; a.refund += num(r["Refund $"]) || 0; }
+          const oc = outcomeOf(r);
+          if (oc === "open") a.open++; else if (oc === "ref") a.refunded++; else a.closed++;
+          if (num(r["Has Refund"]) === 1) a.refund += num(r["Refund $"]) || 0;   // money: open or closed
           if ((num(r["Negative Reviews"]) || 0) > 0) a.pub++;
-          if (num(r["Is Open"]) === 1) a.open++;
           const d = num(r["Days After Job"]); if (d != null && !isNaN(d)) a.days.push(d);
         });
         // JOBS PER DIMENSION VALUE, but only where the closing can actually answer. Job type
@@ -843,10 +855,14 @@ registerPage({
           <div>
             ${trendSvg()}
             <div class="cln-mini">
-              <div><div class="k">Open now</div><div class="n ${open ? "warn" : ""}">${fmtN(open)}</div>
-                <div class="h">not yet Done, Refunded or closed</div></div>
-              <div><div class="k">Refunded</div><div class="n">${fmtN(refunded.length)}</div>
-                <div class="h">${money0(refund$)} back${narrowed || !nJobs ? "" : ` &middot; <b>${rPct(per100(refunded.length, nJobs))}</b> of jobs`}</div></div>
+              <div><div class="k">Total claims</div><div class="n">${fmtN(n)}</div>
+                <div class="h">still open + closed with a refund + closed without one</div></div>
+              <div><div class="k">Still open</div><div class="n ${open ? "warn" : ""}">${fmtN(open)}</div>
+                <div class="h">not yet Done, Refunded or closed${openPaid ? ` &middot; ${fmtN(openPaid)} already part-refunded` : ""}</div></div>
+              <div><div class="k">Closed with refund</div><div class="n">${fmtN(refunded.length)}</div>
+                <div class="h">${money0(refund$)} back${narrowed || !nJobs ? "" : ` &middot; <b>${rPct(per100(refunded.length, nJobs))}</b> of jobs`}${boardOnly ? ` &middot; ${fmtN(boardOnly)} marked Refunded on the board with no amount in the refunds sheet` : ""}</div></div>
+              <div><div class="k">Closed without refund</div><div class="n">${fmtN(closedNo)}</div>
+                <div class="h">closed, no money back &middot; ${n ? Math.round(closedNo / n * 100) : 0}% of claims</div></div>
               <div><div class="k">Went public</div><div class="n ${pub ? "bad" : ""}">${fmtN(pub)}</div>
                 <div class="h">also has a negative review on file</div></div>
               <div><div class="k">No reason chosen</div><div class="n">${fmtN(unclassified)}</div>
@@ -867,9 +883,9 @@ registerPage({
             ? "This grouping exists on the closing too, so it carries a real rate."
             : "A rate needs the same grouping on a closing; only job type and company have one, so the other groupings show shares."}</div>
           <div class="rs-tablewrap"><table class="rs-table">
-            <thead><tr><th>${esc(S.dim)}</th><th class="num">Claims</th><th>Share</th>
+            <thead><tr><th>${esc(S.dim)}</th><th class="num">Total claims</th><th>Share</th>
               ${pivHasRate ? '<th class="num">Jobs</th><th class="num">% of jobs</th>' : ""}
-              <th class="num">Open</th><th class="num">Refunded</th><th class="num">Refund $</th>
+              <th class="num">Still open</th><th class="num">Closed with refund</th><th class="num">Closed without refund</th><th class="num">Refund $</th>
               <th class="num">Went public</th><th class="num">Median days after</th></tr></thead>
             <tbody>${pivot.map(a => `<tr>
               <td class="strong">${esc(a.k)}</td>
@@ -882,10 +898,11 @@ registerPage({
                   : '<span class="cln-small" title="these claims never matched a closing, so there is no job count to divide by">&mdash;</span>'}</td>` : ""}
               <td class="num">${a.open || '<span class="cln-small">&mdash;</span>'}</td>
               <td class="num">${a.refunded || '<span class="cln-small">&mdash;</span>'}</td>
+              <td class="num">${a.closed || '<span class="cln-small">&mdash;</span>'}</td>
               <td class="num">${a.refund ? money0(a.refund) : '<span class="cln-small">&mdash;</span>'}</td>
               <td class="num">${a.pub || '<span class="cln-small">&mdash;</span>'}</td>
               <td class="num">${a.medDays == null ? '<span class="cln-small">&mdash;</span>' : fmtN(a.medDays)}</td>
-            </tr>`).join("") || '<tr><td colspan="10"><span class="rs-hint">no claims match these filters</span></td></tr>'}
+            </tr>`).join("") || '<tr><td colspan="11"><span class="rs-hint">no claims match these filters</span></td></tr>'}
             </tbody></table></div>
           ${nKW ? `<details style="margin-top:10px"><summary class="rs-hint" style="cursor:pointer">
               How the words read against the team&rsquo;s own Reason &mdash; agreement on
